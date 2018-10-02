@@ -6,40 +6,32 @@ import is.hail.expr.types._
 
 object DictFunctions extends RegistryFunctions {
   def contains(dict: IR, key: IR) = {
-    val n = Ref(genUID(), TInt32())
     val i = Ref(genUID(), TInt32())
 
     If(IsNA(dict),
       NA(TBoolean()),
-      Let(n.name,
-        ArrayLen(ToArray(dict)),
-        n.cne(0) && Let(i.name,
-          LowerBoundOnOrderedCollection(dict, key, onKey = true),
-          If(i.ceq(n),
-            False(),
-            ApplyComparisonOp(
-              EQWithNA(key.typ),
-              GetField(ArrayRef(ToArray(dict), i), "key"),
-              key)))))
+      Let(i.name,
+        LowerBoundOnOrderedCollection(dict, key, onKey = true),
+        If(i.ceq(ArrayLen(ToArray(dict))),
+          False(),
+          ApplyComparisonOp(
+            EQWithNA(key.typ),
+            GetField(ArrayRef(ToArray(dict), i), "key"),
+            key))))
   }
 
   def get(dict: IR, key: IR, default: IR): IR = {
-    val n = Ref(genUID(), TInt32())
     val i = Ref(genUID(), TInt32())
 
     If(IsNA(dict),
       NA(default.typ),
-      Let(n.name,
-        ArrayLen(ToArray(dict)),
-        If(n.ceq(0),
+      Let(i.name,
+        LowerBoundOnOrderedCollection(dict, key, onKey=true),
+        If(i.ceq(ArrayLen(ToArray(dict))),
           default,
-          Let(i.name,
-            LowerBoundOnOrderedCollection(dict, key, onKey=true),
-            If(i.ceq(n),
-              default,
-              If(ApplyComparisonOp(EQWithNA(key.typ), GetField(ArrayRef(ToArray(dict), i), "key"), key),
-                GetField(ArrayRef(ToArray(dict), i), "value"),
-                default))))))
+          If(ApplyComparisonOp(EQWithNA(key.typ), GetField(ArrayRef(ToArray(dict), i), "key"), key),
+            GetField(ArrayRef(ToArray(dict), i), "value"),
+            default))))
   }
 
   val tdict = TDict(tv("key"), tv("value"))

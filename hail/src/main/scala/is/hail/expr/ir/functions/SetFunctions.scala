@@ -7,18 +7,15 @@ import is.hail.utils.FastSeq
 
 object SetFunctions extends RegistryFunctions {
   def contains(set: IR, elem: IR) = {
-    val n = Ref(genUID(), TInt32())
     val i = Ref(genUID(), TInt32())
 
     If(IsNA(set),
       NA(TBoolean()),
-      Let(n.name,
-        ArrayLen(ToArray(set)),
-        !n.ceq(0) && Let(i.name,
-          LowerBoundOnOrderedCollection(set, elem, onKey = false),
-          If(i.ceq(n),
-            False(),
-            ApplyComparisonOp(EQWithNA(elem.typ), ArrayRef(ToArray(set), i), elem)))))
+      Let(i.name,
+        LowerBoundOnOrderedCollection(set, elem, onKey = false),
+        If(i.ceq(ArrayLen(ToArray(set))),
+          False(),
+          ApplyComparisonOp(EQWithNA(elem.typ), ArrayRef(ToArray(set), i), elem))))
   }
 
   def registerAll() {
