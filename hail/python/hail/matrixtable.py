@@ -819,7 +819,7 @@ class MatrixTable(ExprContainer):
         base, cleanup = self._process_joins(new_row)
 
         return cleanup(MatrixTable(
-            self._jvds
+            base._jvds
                 .keyRowsBy([])
                 .selectRows(str(new_row._ir))
                 .keyRowsBy(list(key_fields))))
