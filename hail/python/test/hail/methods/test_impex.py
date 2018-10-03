@@ -623,8 +623,8 @@ class BGENTests(unittest.TestCase):
         ]
 
         locus_struct = hl.import_bgen(bgen_file,
-                                ['GT'],
-                                variants=desired_loci)
+                                      ['GT'],
+                                      variants=desired_loci)
         self.assertTrue(locus_struct.rows().key_by('locus', 'alleles').select().collect() == expected_result)
 
         # Test with Locus object
