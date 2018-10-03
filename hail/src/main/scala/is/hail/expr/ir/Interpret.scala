@@ -365,6 +365,9 @@ object Interpret {
           case LinearRegression() =>
             val IndexedSeq(y, xs) = seqOpArgs
             aggregator.get.asInstanceOf[LinearRegressionAggregator].seqOp(interpret(y), interpret(xs))
+          case PearsonCorrelation() =>
+            val IndexedSeq(x, y) = seqOpArgs
+            aggregator.get.asInstanceOf[PearsonCorrelationAggregator].seqOp((interpret(x), interpret(y)))
           case Keyed(aggOp) =>
             assert(seqOpArgs.nonEmpty)
             def formatArgs(aggOp: AggOp, seqOpArgs: IndexedSeq[IR]): Row = {
@@ -474,6 +477,7 @@ object Interpret {
 
             val indices = Array.tabulate(binsValue + 1)(i => startValue + i * binSize)
             new HistAggregator(indices)
+          case PearsonCorrelation() => new PearsonCorrelationAggregator()
           case LinearRegression() =>
             val Seq(k, k0) = constructorArgs
             val kValue = interpret(k, Env.empty[Any], null, null).asInstanceOf[Int]

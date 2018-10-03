@@ -526,6 +526,26 @@ class LinearRegressionAggregator(xF: (Any) => Any, k: Int, k0: Int, xType: Type)
   }
 }
 
+class PearsonCorrelationAggregator() extends TypedAggregator[Any] {
+  var combiner = new PearsonCorrelationCombiner()
+
+  def seqOp(xy: Any) = {
+    val (x, y) = xy.asInstanceOf[(Any, Any)]
+    if (x != null && y != null)
+      combiner.merge(x.asInstanceOf[Double], y.asInstanceOf[Double])
+  }
+
+  def combOp(agg2: this.type): Unit = combiner.merge(agg2.combiner)
+
+  def result: Annotation = combiner.result()
+
+  def copy(): TypedAggregator[Any] = {
+    val pca = new PearsonCorrelationAggregator()
+    pca.combiner = combiner.copy()
+    pca
+  }
+}
+
 class KeyedAggregator[T, K](aggregator: TypedAggregator[T]) extends TypedAggregator[Map[Any, T]] {
   private val m = new java.util.HashMap[Any, TypedAggregator[T]]()
 
