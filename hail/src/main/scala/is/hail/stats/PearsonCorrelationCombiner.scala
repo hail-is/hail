@@ -30,7 +30,7 @@ class PearsonCorrelationCombiner extends Serializable {
     n += other.n
   }
 
-  private def computeResult(): Double = (n * xySum - xSum * ySum) / (math.sqrt(n * xSqSum - xSum * xSum) * math.sqrt(n * ySqSum - ySum * ySum))
+  private def computeResult(): Double = (n * xySum - xSum * ySum) / math.sqrt((n * xSqSum - xSum * xSum) * (n * ySqSum - ySum * ySum))
 
   def result(): Annotation = if (n > 0) computeResult() else null
 
