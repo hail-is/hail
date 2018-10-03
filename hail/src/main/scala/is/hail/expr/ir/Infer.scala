@@ -61,15 +61,7 @@ object Infer {
         val tbs = coerce[TStruct](old.typ)
         TStruct(fields.map { id => (id, tbs.field(id).typ) }: _*)
       case InsertFields(old, fields) =>
-        fields.foldLeft(old.typ) { case (t, (name, a)) =>
-          t match {
-            case t2: TStruct =>
-              t2.selfField(name) match {
-                case Some(f2) => t2.updateKey(name, f2.index, a.typ)
-                case None => t2.appendKey(name, a.typ)
-              }
-          }
-        }.asInstanceOf[TStruct]
+        old.typ.asInstanceOf[TStruct].insertFields(fields.map(x => (x._1, x._2.typ)))
       case GetField(o, name) =>
         val t = coerce[TStruct](o.typ)
         assert(t.index(name).nonEmpty, s"$name not in $t")
