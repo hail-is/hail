@@ -1,4 +1,5 @@
 import subprocess as sp
+import os
 from .safe_call import safe_call
 
 def init_parser(parser):
@@ -41,22 +42,23 @@ def main(args):
     # open SSH tunnel to master node
     sp.check_call(
         ['gcloud',
-        'compute',
-        'ssh',
-        '{}-m'.format(args.name),
-        '--zone={}'.format(args.zone),
-        '--ssh-flag=-D {}'.format(args.port),
-        '--ssh-flag=-N',
-        '--ssh-flag=-f',
-        '--ssh-flag=-n'],
+         'compute',
+         'ssh',
+         '{}-m'.format(args.name),
+         '--zone={}'.format(args.zone),
+         '--ssh-flag=-D {}'.format(args.port),
+         '--ssh-flag=-N',
+         '--ssh-flag=-f',
+         '--ssh-flag=-n'],
         stderr=sp.STDOUT
     )
 
     # open Chrome with SOCKS proxy configuration
-    safe_call(
-        r'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-        'http://localhost:{}'.format(connect_port),
-        '--proxy-server=socks5://localhost:{}'.format(args.port),
-        '--host-resolver-rules=MAP * 0.0.0.0 , EXCLUDE localhost',
-        '--user-data-dir=/tmp/'
-    )
+    with open(os.devnull, 'w') as f:
+        sp.Popen([
+            r'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+            'http://localhost:{}'.format(connect_port),
+            '--proxy-server=socks5://localhost:{}'.format(args.port),
+            '--host-resolver-rules=MAP * 0.0.0.0 , EXCLUDE localhost',
+            '--user-data-dir=/tmp/'
+        ], stdout=f, stderr=f)
