@@ -1327,7 +1327,9 @@ def _linreg(y, x, nested_dim):
 
 @typecheck(x=expr_float64, y=expr_float64)
 def corr(x, y) -> Float64Expression:
-    """Computes the Pearson correlation coefficient between `x` and `y`.
+    """Computes the
+    `Pearson correlation coefficient <https://en.wikipedia.org/wiki/Pearson_correlation_coefficient>`__
+    between `x` and `y`.
 
     Examples
     --------
