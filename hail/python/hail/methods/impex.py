@@ -792,7 +792,8 @@ def grep(regex, path, max_count=100):
            n_partitions=nullable(int),
            block_size=nullable(int),
            index_file_map=nullable(dictof(str, str)),
-           variants=nullable(oneof(sequenceof(hl.utils.Struct), StructExpression, Table)),
+           variants=nullable(oneof(sequenceof(hl.utils.Struct), sequenceof(hl.genetics.Locus),
+                                   StructExpression, LocusExpression, Table)),
            _row_fields=sequenceof(enumeration('varid', 'rsid')))
 def import_bgen(path,
                 entry_fields,
@@ -931,13 +932,13 @@ def import_bgen(path,
     index_file_map : :obj:`dict` of :obj:`str` to :obj:`str`, optional
         Dict of BGEN file to index file location. Cannot use Hadoop glob
         patterns in file names.
-    variants : :class:`.StructExpression` or :obj:`list` of :class:`.Struct` or :class:`.Table`
+    variants : :class:`.StructExpression` or :class:`.LocusExpression` or :obj:`list` of :class:`.Struct` or :obj:`list` of :class:`.Locus` or :class:`.Table`
         Variants to filter to. The underlying type of the input (row key in the case of a :class:`.Table`)
-        must be a struct with two fields: `locus` and `alleles`. The type of `locus` can either be a
-        :class:`.tlocus` or a :class:`.tstruct` with two fields: `contig` of
-        type :class:`.tstr` and `position` of type :class:`.tint`. If the type of
-        `locus` is :class:`.tlocus`, the reference genome must match that used to index
-        the BGEN file(s). The type of `alleles` is a :class:`.tarray` of :class:`.tstr`.
+        must be either a :class:`.tlocus`, a struct with one field `locus`, or a struct with two fields:
+        `locus` and `alleles`. The type of `locus` can either be a :class:`.tlocus` or a :class:`.tstruct`
+        with two fields: `contig` of type :class:`.tstr` and `position` of type :class:`.tint`. If the
+        type of `locus` is :class:`.tlocus`, the reference genome must match that used to index the BGEN
+        file(s). The type of `alleles` is a :class:`.tarray` of :class:`.tstr`.
     _row_fields : :obj:`list` of :obj:`str`
         List of non-key row fields to create.
         Options: ``'varid'``, ``'rsid'``
@@ -964,26 +965,51 @@ def import_bgen(path,
         lt = tlocus(reference_genome) if reference_genome else tstruct(contig=tstr, position=tint32)
         expected_vtype = tstruct(locus=lt, alleles=tarray(tstr))
         
-        if isinstance(variants, StructExpression):
-            if variants.dtype != expected_vtype:
-                raise ValueError("'import_bgen' requires the expression type for 'variants' matches the BGEN key type: \n" +
-                                 f"\tFound: {variants.dtype}\n" +
-                                  f"\tExpected: {tstruct(locus=lt, alleles=tarray(tstr))}\n")
+        if isinstance(variants, StructExpression) or isinstance(variants, LocusExpression):
+            if isinstance(variants, LocusExpression):
+                variants = hl.struct(locus=variants)
+
+            if len(variants.dtype) == 0 or not variants.dtype._is_prefix_of(expected_vtype):
+                raise TypeError("'import_bgen' requires the expression type for 'variants' is a non-empty prefix of the BGEN key type: \n" +
+                                 f"\tFound: {repr(variants.dtype)}\n" +
+                                  f"\tExpected: {repr(expected_vtype)}\n")
+
             uid = Env.get_uid()
-            variants = variants._to_table(uid)
-            variants = variants.key_by(locus=variants[uid].locus, alleles=variants[uid].alleles).select()._jt
+            fnames = list(variants.dtype)
+            variants = variants._to_table(uid) # This will add back the other key fields of the source, which we don't want
+            variants = variants.key_by(**{fname: variants[uid][fname] for fname in fnames})
+            variants = variants.select()._jt
         elif isinstance(variants, Table):
-            if variants.key.dtype != expected_vtype:
-                raise ValueError("'import_bgen' requires the row key type for 'variants' matches the BGEN key type: \n" +
-                                 f"\tFound: {variants.key.dtype}\n" +
-                                  f"\tExpected: {tstruct(locus=lt, alleles=tarray(tstr))}\n")
+            if len(variants.key) == 0 or not variants.key.dtype._is_prefix_of(expected_vtype):
+                raise TypeError("'import_bgen' requires the row key type for 'variants' is a non-empty prefix of the BGEN key type: \n" +
+                                 f"\tFound: {repr(variants.key.dtype)}\n" +
+                                  f"\tExpected: {repr(expected_vtype)}\n")
             variants = variants.select()._jt
         else:
             assert isinstance(variants, list)
             try:
-                variants = hl.Table.parallelize(variants, schema=expected_vtype).key_by('locus', 'alleles')._jt
+                if len(variants) == 0:
+                    variants = hl.Table.parallelize(variants,
+                                                    schema=expected_vtype,
+                                                    key=['locus', 'alleles'])._jt
+                else:
+                    first_v = variants[0]
+                    if isinstance(first_v, hl.Locus):
+                        variants = hl.Table.parallelize([hl.Struct(locus=v) for v in variants],
+                                                        schema=hl.tstruct(locus=lt),
+                                                        key='locus')._jt
+                    else:
+                        assert isinstance(first_v, hl.utils.Struct)
+                        if len(first_v) == 1:
+                            variants = hl.Table.parallelize(variants,
+                                                            schema=hl.tstruct(locus=lt),
+                                                            key='locus')._jt
+                        else:
+                            variants = hl.Table.parallelize(variants,
+                                                            schema=expected_vtype,
+                                                            key=['locus', 'alleles'])._jt
             except:
-                raise ValueError("'import_bgen' requires all elements in 'variants' matches the BGEN key type: {tstruct(locus=lt, alleles=tarray(tstr))}")
+                raise TypeError(f"'import_bgen' requires all elements in 'variants' are a non-empty prefix of the BGEN key type: {repr(expected_vtype)}")
 
     jmt = Env.hc()._jhc.importBgens(jindexed_seq_args(path), joption(sample_file),
                                     'GT' in entry_set, 'GP' in entry_set, 'dosage' in entry_set,
