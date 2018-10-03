@@ -7,7 +7,7 @@ class RegionValuePearsonCorrelationAggregator extends RegionValueAggregator {
   var combiner = new PearsonCorrelationCombiner()
 
   def seqOp(region: Region, x: Double, xm: Boolean, y: Double, ym: Boolean) {
-    if (!xm && !xm)
+    if (!xm && !ym)
       combiner.merge(x, y)
   }
 

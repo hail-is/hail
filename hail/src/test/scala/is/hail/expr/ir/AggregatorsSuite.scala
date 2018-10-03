@@ -659,14 +659,15 @@ class AggregatorsSuite {
   }
 
   @Test def pearsonCorrelationAggregator() {
-    val g = Gen.choose(-100d, 100d)
+    val g = Gen.oneOfGen(Gen.choose(-100d, 100d), Gen.const(null))
     Prop.forAll(Gen.buildableOf[Array](Gen.zip(g, g))) { values =>
-      val xa = values.map(_._1)
-      val ya = values.map(_._2)
+      val bothDefined = values.filter { case (x, y) => x != null && y != null }
+      val xa = bothDefined.map(_._1.asInstanceOf[Double])
+      val ya = bothDefined.map(_._2.asInstanceOf[Double])
       val expected = new PearsonsCorrelation().correlation(xa, ya)
       runAggregator(PearsonCorrelation(),
         TStruct("x" -> TFloat64(), "y" -> TFloat64()),
-        values.map { elt: (Double, Double) =>  Row(elt._1, elt._2) },
+        values.map { elt: (Any, Any) =>  Row(elt._1, elt._2) },
         expected,
         constrArgs = FastIndexedSeq(),
         initOpArgs = None,
