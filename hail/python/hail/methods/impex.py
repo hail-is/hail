@@ -989,22 +989,25 @@ def import_bgen(path,
             assert isinstance(variants, list)
             try:
                 if len(variants) == 0:
-                    raise TypeError("'import_bgen' requires at least one element in 'variants'")
-                first_v = variants[0]
-                if isinstance(first_v, hl.Locus):
-                    variants = hl.Table.parallelize([hl.Struct(locus=v) for v in variants],
-                                                    schema=hl.tstruct(locus=lt),
-                                                    key='locus')._jt
+                    variants = hl.Table.parallelize(variants,
+                                                    schema=expected_vtype,
+                                                    key=['locus', 'alleles'])._jt
                 else:
-                    assert isinstance(first_v, hl.utils.Struct)
-                    if len(first_v) == 1:
-                        variants = hl.Table.parallelize(variants,
+                    first_v = variants[0]
+                    if isinstance(first_v, hl.Locus):
+                        variants = hl.Table.parallelize([hl.Struct(locus=v) for v in variants],
                                                         schema=hl.tstruct(locus=lt),
                                                         key='locus')._jt
                     else:
-                        variants = hl.Table.parallelize(variants,
-                                                        schema=expected_vtype,
-                                                        key=['locus', 'alleles'])._jt
+                        assert isinstance(first_v, hl.utils.Struct)
+                        if len(first_v) == 1:
+                            variants = hl.Table.parallelize(variants,
+                                                            schema=hl.tstruct(locus=lt),
+                                                            key='locus')._jt
+                        else:
+                            variants = hl.Table.parallelize(variants,
+                                                            schema=expected_vtype,
+                                                            key=['locus', 'alleles'])._jt
             except:
                 raise TypeError(f"'import_bgen' requires all elements in 'variants' are a non-empty prefix of the BGEN key type: {repr(expected_vtype)}")
 
