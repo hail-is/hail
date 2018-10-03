@@ -2,6 +2,7 @@ import json
 from zlib import decompress, MAX_WBITS
 from subprocess import check_output
 from statistics import median, mean, stdev
+from collections import OrderedDict
 
 SECTION_SEPARATOR = '-'*40
 IDENT = ' '*4
@@ -18,7 +19,7 @@ def parse_schema(s):
                 if element_type in ['Array', 'Set', 'Dict']:
                     return {'type': element_type, 'value': values}, s[i + 1:]
                 else:
-                    return {'type': element_type, 'value': dict(zip(keys, values))}, s[i + 1:]
+                    return {'type': element_type, 'value': OrderedDict(zip(keys, values))}, s[i + 1:]
             elif s[i] == ':':
                 keys.append(s[:i])
                 s = s[i + 1:]
