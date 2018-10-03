@@ -182,8 +182,6 @@ class FlipbookIteratorSuite extends SparkSuite {
     val right = makeTestIterator(2, 4, 4, 5, 1000, 1000)
     val joined = left.leftJoinDistinct(
       right,
-      boxOrdView[Int],
-      boxOrdView[Int],
       Box(0),
       Box(0),
       boxIntOrd(missingValue = 1000)

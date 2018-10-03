@@ -754,7 +754,11 @@ class Table(val hc: HailContext, val tir: TableIR) {
         .map { case Muple(rv, i) =>
           rvb.set(rv.region)
           rvb.start(newRowType)
-          ins(rv.region, rv.offset, rvb, () => rvb.selectRegionValue(rightTyp.rowType, rightTyp.valueFieldIdx, i))
+          ins(
+            rv.region,
+            rv.offset,
+            rvb,
+            () => if (i == null) rvb.setMissing() else rvb.selectRegionValue(rightTyp.rowType, rightTyp.valueFieldIdx, i))
           rv2.set(rv.region, rvb.end())
 
           rv2

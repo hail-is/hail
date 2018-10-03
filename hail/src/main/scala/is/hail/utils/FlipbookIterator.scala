@@ -271,16 +271,37 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
 
   def leftJoinDistinct[B](
     that: FlipbookIterator[B],
-    leftOrd: OrderingView[A],
-    rightOrd: OrderingView[B],
     leftDefault: A,
     rightDefault: B,
     mixedOrd: (A, B) => Int
   ): FlipbookIterator[Muple[A, B]] = {
-    val result = Muple[A, B](leftDefault, rightDefault)
-    for { Muple(l, r) <- this.cogroup(that, leftOrd, rightOrd, mixedOrd)
-          lrv <- l
-    } yield result.set(lrv, r.valueOrElse(rightDefault))
+    val left = self
+    val right = that
+    val sm = new StateMachine[Muple[A, B]] {
+      val value = Muple(leftDefault, rightDefault)
+      var isValid = true
+      def setValue() {
+        if (!left.isValid)
+          isValid = false
+        else {
+          var c = 0
+          while (right.isValid && {c = mixedOrd(left.value, right.value); c > 0})
+            right.advance()
+          if (!right.isValid || c < 0)
+            value.set(left.value, rightDefault)
+          else // c == 0
+            value.set(left.value, right.value)
+        }
+      }
+      def advance() {
+        left.advance()
+        setValue()
+      }
+
+      setValue()
+    }
+
+    FlipbookIterator(sm)
   }
 
   def innerJoin[B](
