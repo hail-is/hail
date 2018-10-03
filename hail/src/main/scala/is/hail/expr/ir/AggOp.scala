@@ -27,6 +27,7 @@ final case class Inbreeding() extends AggOp { }
 final case class InfoScore() extends AggOp { }
 final case class Keyed(x: AggOp) extends AggOp { }
 final case class LinearRegression() extends AggOp { }
+final case class PearsonCorrelation() extends AggOp { }
 final case class Max() extends AggOp { }
 final case class Min() extends AggOp { }
 final case class Product() extends AggOp { }
@@ -200,6 +201,12 @@ object AggOp {
         constrArgTypes = Array(classOf[Int], classOf[Int], classOf[Type]),
         seqOpArgTypes = Array(classOf[Double], classOf[Long]))
 
+    case (PearsonCorrelation(), Seq(), None, seqOpArgs@Seq(_: TFloat64, _: TFloat64)) =>
+      CodeAggregator[RegionValuePearsonCorrelationAggregator](
+        TFloat64(),
+        seqOpArgTypes = Array(classOf[Double], classOf[Double])
+      )
+
     case (Keyed(op), constrArgs, initOpArgs, keyType +: childSeqOpArgs) =>
       val codeAgg = get(AggSignature(op, constrArgs, initOpArgs, childSeqOpArgs))
       codeAgg.toKeyedAggregator(keyType)
@@ -230,6 +237,7 @@ object AggOp {
     case "inbreeding" | "Inbreeding" => Inbreeding()
     case "hardyWeinberg" | "HardyWeinberg" => HardyWeinberg()
     case "linreg" | "LinearRegression" => LinearRegression()
+    case "corr" | "PearsonCorrelation" => PearsonCorrelation()
     case "downsample" | "Downsample" => Downsample()
   }
 }
