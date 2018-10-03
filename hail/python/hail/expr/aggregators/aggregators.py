@@ -1325,6 +1325,34 @@ def _linreg(y, x, nested_dim):
 
     return _agg_func('LinearRegression', _to_agg(y), t, [k, k0], seq_op_args=[lambda y: y, x])
 
+@typecheck(x=expr_float64, y=expr_float64)
+def corr(x, y) -> Float64Expression:
+    """Computes the Pearson correlation coefficient between `x` and `y`.
+
+    Examples
+    --------
+    >>> ds.aggregate_cols(hl.agg.corr(ds.age, ds.blood_pressure))
+    0.159882536301
+
+    Notes
+    -----
+    Only records where both `x` and `y` are non-missing will be included in the
+    calculation.
+
+    See Also
+    --------
+    :func:`linreg`
+
+    Parameters
+    ----------
+    x : :class:`.Expression` of type ``tfloat64``
+    y : :class:`.Expression` of type ``tfloat64``
+
+    Returns
+    -------
+    :class:`.Float64Expression`
+    """
+    return _agg_func('corr', _to_agg(x), tfloat64, seq_op_args=[lambda x: x, y])
 
 @typecheck(group=expr_any,
            agg_expr=expr_any)
