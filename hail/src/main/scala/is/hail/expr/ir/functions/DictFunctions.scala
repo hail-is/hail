@@ -5,30 +5,33 @@ import is.hail.expr.types
 import is.hail.expr.types._
 
 object DictFunctions extends RegistryFunctions {
+  def contains(dict: IR, key: IR) = {
+    val i = Ref(genUID(), TInt32())
 
-  def contains(dict: IR, key: IR) =
     If(IsNA(dict),
       NA(TBoolean()),
-      ArrayLen(ToArray(dict)).cne(0) &&
-        ApplyComparisonOp(
-          EQWithNA(key.typ),
-          GetField(ArrayRef(ToArray(dict), LowerBoundOnOrderedCollection(dict, key, onKey=true)), "key"),
-          key))
-
+      Let(i.name,
+        LowerBoundOnOrderedCollection(dict, key, onKey = true),
+        If(i.ceq(ArrayLen(ToArray(dict))),
+          False(),
+          ApplyComparisonOp(
+            EQWithNA(key.typ),
+            GetField(ArrayRef(ToArray(dict), i), "key"),
+            key))))
+  }
 
   def get(dict: IR, key: IR, default: IR): IR = {
     val i = Ref(genUID(), TInt32())
-    Let(
-      i.name,
-      LowerBoundOnOrderedCollection(dict, key, onKey=true),
-      If(IsNA(dict),
-        NA(default.typ),
-        If(ArrayLen(ToArray(dict)).ceq(0),
+
+    If(IsNA(dict),
+      NA(default.typ),
+      Let(i.name,
+        LowerBoundOnOrderedCollection(dict, key, onKey=true),
+        If(i.ceq(ArrayLen(ToArray(dict))),
           default,
           If(ApplyComparisonOp(EQWithNA(key.typ), GetField(ArrayRef(ToArray(dict), i), "key"), key),
             GetField(ArrayRef(ToArray(dict), i), "value"),
             default))))
-
   }
 
   val tdict = TDict(tv("key"), tv("value"))

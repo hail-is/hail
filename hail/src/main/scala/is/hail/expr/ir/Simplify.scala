@@ -235,7 +235,13 @@ object Simplify {
 
       case TableMapGlobals(child, Ref("global", _)) => child
 
-      case MatrixMapRows(child, Ref("va", _), None) => child
+      case MatrixMapRows(child, Ref("va", _)) => child
+
+      case t@MatrixKeyRowsBy(MatrixKeyRowsBy(child, _, _), keys, false) if canRepartition(t) =>
+        MatrixKeyRowsBy(child, keys, false)
+
+      case t@MatrixKeyRowsBy(MatrixKeyRowsBy(child, _, true), keys, true) if canRepartition(t) =>
+        MatrixKeyRowsBy(child, keys, true)
 
       case MatrixMapCols(child, Ref("sa", _), None) => child
 
@@ -329,6 +335,7 @@ object Simplify {
       case MatrixRowsTable(MatrixAggregateColsByKey(child, _, _)) => MatrixRowsTable(child)
       case MatrixRowsTable(MatrixChooseCols(child, _)) => MatrixRowsTable(child)
       case MatrixRowsTable(MatrixCollectColsByKey(child)) => MatrixRowsTable(child)
+      case MatrixRowsTable(MatrixKeyRowsBy(child, keys, isSorted)) => TableKeyBy(MatrixRowsTable(child), keys, isSorted)
 
       case MatrixColsTable(x@MatrixMapCols(child, newRow, newKey))
         if newKey.isEmpty && !Mentions(newRow, "g") && !Mentions(newRow, "va") &&
@@ -344,11 +351,12 @@ object Simplify {
           mct,
           Subst(pred, Env.empty[IR].bind("sa" -> Ref("row", mct.typ.rowType))))
       case MatrixColsTable(MatrixMapGlobals(child, newRow)) => TableMapGlobals(MatrixColsTable(child), newRow)
-      case MatrixColsTable(MatrixMapRows(child, _, _)) => MatrixColsTable(child)
+      case MatrixColsTable(MatrixMapRows(child, _)) => MatrixColsTable(child)
       case MatrixColsTable(MatrixMapEntries(child, _)) => MatrixColsTable(child)
       case MatrixColsTable(MatrixFilterEntries(child, _)) => MatrixColsTable(child)
       case MatrixColsTable(MatrixFilterRows(child, _)) => MatrixColsTable(child)
       case MatrixColsTable(MatrixAggregateRowsByKey(child, _, _)) => MatrixColsTable(child)
+      case MatrixColsTable(MatrixKeyRowsBy(child, _, _)) => MatrixColsTable(child)
 
       case TableHead(TableMapRows(child, newRow), n) =>
         TableMapRows(TableHead(child, n), newRow)

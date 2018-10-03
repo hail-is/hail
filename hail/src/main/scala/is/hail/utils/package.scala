@@ -624,6 +624,20 @@ package object utils extends Logging
       s
   }
 
+  def toMapFast[T, K, V](
+    ts: TraversableOnce[T]
+  )(key: T => K,
+    value: T => V
+  ): collection.Map[K, V] = {
+    val it = ts.toIterator
+    val m = mutable.Map[K, V]()
+    while (it.hasNext) {
+      val t = it.next
+      m.put(key(t), value(t))
+    }
+    m
+  }
+
   def toMapIfUnique[K, K2, V](
     kvs: Traversable[(K, V)]
   )(keyBy: K => K2

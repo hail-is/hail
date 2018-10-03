@@ -811,15 +811,18 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
         """
 
-        keys = get_select_exprs("MatrixTable.key_rows_by",
+        key_fields = get_select_exprs("MatrixTable.key_rows_by",
                              keys, named_keys, self._row_indices,
                              protect_keys=False)
 
-        row = self._rvrow.annotate(**keys)
+        new_row = self._rvrow.annotate(**key_fields)
+        base, cleanup = self._process_joins(new_row)
 
-        return self._select_rows("MatrixTable.key_rows_by",
-                                 row,
-                                 list(keys.keys()))
+        return cleanup(MatrixTable(
+            base._jvds
+                .keyRowsBy([])
+                .selectRows(str(new_row._ir))
+                .keyRowsBy(list(key_fields))))
 
     def annotate_globals(self, **named_exprs) -> 'MatrixTable':
         """Create new global fields by name.
@@ -2554,13 +2557,11 @@ class MatrixTable(ExprContainer):
         base, cleanup = self._process_joins(*all_exprs)
         jmt = base._jvds
         if row_exprs:
-            row_key = None if len(set(self.row_key) & set(row_exprs.keys())) == 0 else self.row_key
             row_struct = InsertFields(base.row._ir, [(n, e._ir) for (n, e) in row_exprs.items()])
-            jmt = jmt.selectRows(str(row_struct), row_key)
+            jmt = jmt.selectRows(str(row_struct))
         if col_exprs:
-            col_key = None if len(set(self.col_key) & set(col_exprs.keys())) == 0 else self.col_key
             col_struct = InsertFields(base.col._ir, [(n, e._ir) for (n, e) in col_exprs.items()])
-            jmt = jmt.selectCols(str(col_struct), col_key)
+            jmt = jmt.selectCols(str(col_struct), None)
         if entry_exprs:
             entry_struct = InsertFields(base.entry._ir, [(n, e._ir) for (n, e) in entry_exprs.items()])
             jmt = jmt.selectEntries(str(entry_struct))
@@ -2592,9 +2593,13 @@ class MatrixTable(ExprContainer):
         base, cleanup = self._process_joins(*all_exprs)
         jmt = base._jvds
 
+        if row_key is not None:
+            jmt = jmt.keyRowsBy([])
         row_struct = hl.struct(**row_exprs)
         analyze("MatrixTable.select_rows", row_struct, self._row_indices)
-        jmt = jmt.selectRows(str(row_struct._ir), row_key)
+        jmt = jmt.selectRows(str(row_struct._ir))
+        if row_key is not None:
+            jmt = jmt.keyRowsBy(row_key)
 
         col_struct = hl.struct(**col_exprs)
         analyze("MatrixTable.select_cols", col_struct, self._col_indices)
@@ -2953,13 +2958,12 @@ class MatrixTable(ExprContainer):
         return cleanup(MatrixTable(base._jvds.selectEntries(str(s._ir))))
 
     @typecheck_method(caller=str,
-                      row=expr_struct(),
-                      new_key=nullable(sequenceof(str)))
-    def _select_rows(self, caller, row, new_key=None):
+                      row=expr_struct())
+    def _select_rows(self, caller, row):
         analyze(caller, row, self._row_indices, {self._col_axis})
         base, cleanup = self._process_joins(row)
 
-        return cleanup(MatrixTable(base._jvds.selectRows(str(row._ir), new_key)))
+        return cleanup(MatrixTable(base._jvds.selectRows(str(row._ir))))
 
     @typecheck_method(key_struct=expr_struct())
     def _select_rows_processed(self, key_struct):
@@ -2968,7 +2972,7 @@ class MatrixTable(ExprContainer):
         k_ref = Ref(keys, key_struct.dtype)
         fields = [(n, GetField(k_ref, n)) for (n, t) in key_struct.dtype.items()]
         row_ir = Let(keys, key_struct._ir, InsertFields(self.row._ir, fields))
-        return MatrixTable(self._jvds.selectRows(str(row_ir), new_key))
+        return MatrixTable(self._jvds.keyRowsBy([]).selectRows(str(row_ir)).keyRowsBy(new_key))
 
     @typecheck_method(caller=str,
                       col=expr_struct(),

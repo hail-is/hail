@@ -20,7 +20,8 @@ case class MatrixValue(
   colValues: BroadcastIndexedSeq,
   rvd: RVD) {
 
-    assert(rvd.typ == typ.rvdType, s"\nrvdType: ${rvd.typ}\nmatType: ${typ.rvdType}")
+    require(typ.rvRowType == rvd.rowType, s"\nmat rowType: ${typ.rowType}\nrvd rowType: ${rvd.rowType}")
+    require(rvd.typ.key.startsWith(typ.rowKey), s"\nmat row key: ${typ.rowKey}\nrvd key: ${rvd.typ.key}")
 
     def sparkContext: SparkContext = rvd.sparkContext
 

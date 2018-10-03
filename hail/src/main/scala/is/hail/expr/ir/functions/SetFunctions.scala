@@ -6,13 +6,17 @@ import is.hail.expr.types
 import is.hail.utils.FastSeq
 
 object SetFunctions extends RegistryFunctions {
-  def contains(set: IR, elem: IR) =
+  def contains(set: IR, elem: IR) = {
+    val i = Ref(genUID(), TInt32())
+
     If(IsNA(set),
       NA(TBoolean()),
-      !ArrayLen(ToArray(set)).ceq(0) && ApplyComparisonOp(
-        EQWithNA(elem.typ),
-        ArrayRef(ToArray(set), LowerBoundOnOrderedCollection(set, elem, onKey=false)),
-        elem))
+      Let(i.name,
+        LowerBoundOnOrderedCollection(set, elem, onKey = false),
+        If(i.ceq(ArrayLen(ToArray(set))),
+          False(),
+          ApplyComparisonOp(EQWithNA(elem.typ), ArrayRef(ToArray(set), i), elem))))
+  }
 
   def registerAll() {
     registerIR("toSet", TArray(tv("T"))) { a =>

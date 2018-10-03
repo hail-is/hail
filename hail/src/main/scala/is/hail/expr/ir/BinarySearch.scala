@@ -57,11 +57,11 @@ class BinarySearch(mb: EmitMethodBuilder, typ: TContainer, keyOnly: Boolean) {
       region, (typ.isElementMissing(region, array, i),
         region.loadIRIntermediate(elt)(typ.elementOffset(array, len, i))))
 
-  // return smallest i such that elem <= array(i)
+  // Returns smallest i, 0 <= i < n, for which a(i) >= key, or returns n if a(i) < key for all i
   findElt.emit(Code(
     len := typ.loadLength(region, array),
     low := 0,
-    high := len - 1,
+    high := len,
     Code.whileLoop(low < high,
       i := (low + high) / 2,
       (cmp(i) <= 0).mux(

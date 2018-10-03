@@ -376,13 +376,15 @@ case class MatrixBGENReader(
   val (partitions, variants) = includedVariants match {
     case Some(variantsTable) =>
       val rowType = variantsTable.typ.rowType
-      assert(rowType == fullType.rowKeyStruct)
+      assert(rowType.isPrefixOf(fullType.rowKeyStruct))
+      assert(rowType.types.nonEmpty)
 
       val rvd = variantsTable
         .distinctByKey()
         .rvd
 
-      val repartitioned = RepartitionedOrderedRDD2(rvd, partitionRangeBounds).toRows(rowType.physicalType)
+      val repartitioned = RepartitionedOrderedRDD2(rvd, partitionRangeBounds.map(_.coarsen(rowType.types.length)))
+        .toRows(rowType.physicalType)
       assert(repartitioned.getNumPartitions == maybePartitions.length)
 
       (maybePartitions.zipWithIndex.map { case (p, i) =>
