@@ -1,14 +1,14 @@
-.. _GERP_scores:
+.. _Ensembl_human_reference_genome:
 
-GERP_scores
-===========
+Ensembl_human_reference_genome
+==============================
 
-*  **Versions:** GERP++
+*  **Versions:** release_93
 *  **Reference genome builds:** GRCh37, GRCh38
 *  **Type:** Table
 
-Schema (GERP++, GRCh37)
-~~~~~~~~~~~~~~~~~~~~~~~
+Schema (release_93, GRCh37)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: text
 
@@ -24,8 +24,7 @@ Schema (GERP++, GRCh37)
     ----------------------------------------
     Row fields:
         'locus': locus<GRCh37> 
-        'N': float64 
-        'S': float64 
+        'reference_allele': str 
     ----------------------------------------
     Key: ['locus']
     ----------------------------------------
