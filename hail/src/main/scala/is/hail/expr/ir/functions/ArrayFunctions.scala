@@ -1,9 +1,10 @@
 package is.hail.expr.ir.functions
 
+import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.expr.types._
 import is.hail.expr.types.coerce
-import is.hail.utils.FastSeq
+import is.hail.utils._
 
 object ArrayFunctions extends RegistryFunctions {
   def mean(a: IR): IR = {
@@ -305,6 +306,74 @@ object ArrayFunctions extends RegistryFunctions {
     registerIR("flatten", TArray(tv("T"))) { a =>
       val elt = Ref(genUID(), coerce[TArray](a.typ).elementType)
       ArrayFlatMap(a, elt.name, elt)
+    }
+
+    registerCodeWithMissingness("corr", TArray(TFloat64()), TArray(TFloat64()), TFloat64()) {
+      case (mb, EmitTriplet(setup1, m1, v1), EmitTriplet(setup2, m2, v2)) =>
+        val t1 = TArray(TFloat64())
+        val t2 = TArray(TFloat64())
+        val region = getRegion(mb)
+
+        val xSum = mb.newLocal[Double]
+        val ySum = mb.newLocal[Double]
+        val xSqSum = mb.newLocal[Double]
+        val ySqSum = mb.newLocal[Double]
+        val xySum = mb.newLocal[Double]
+        val n = mb.newLocal[Int]
+        val i = mb.newLocal[Int]
+        val l1 = mb.newLocal[Int]
+        val l2 = mb.newLocal[Int]
+        val x = mb.newLocal[Double]
+        val y = mb.newLocal[Double]
+
+        val a1 = v1.asInstanceOf[Code[Long]]
+        val a2 = v2.asInstanceOf[Code[Long]]
+
+        EmitTriplet(
+          Code(
+            setup1,
+            setup2),
+          m1 || m2 || Code(
+            l1 := t1.loadLength(region, a1),
+            l2 := t2.loadLength(region, a2),
+            l1.cne(l2).mux(
+              Code._fatal(new CodeString("'corr': cannot compute correlation between two arrays of different length: ")
+                .concat(l1.toS)
+                .concat(", ")
+                .concat(l2.toS)),
+              l1.ceq(0))),
+          Code(
+            i := 0,
+            n := 0,
+            xSum := 0d,
+            ySum := 0d,
+            xSqSum := 0d,
+            ySqSum := 0d,
+            xySum := 0d,
+            Code.whileLoop(i < l1,
+              Code(
+                (t1.isElementDefined(region, a1, i) && t2.isElementDefined(region, a2, i)).mux(
+                  Code(
+                    x := region.loadDouble(t1.loadElement(region, a1, i)),
+                    y := region.loadDouble(t2.loadElement(region, a2, i)),
+                    xSum := xSum + x,
+                    ySum := ySum + y,
+                    xSqSum := xSqSum + (x * x),
+                    ySqSum := ySqSum + (y * y),
+                    xySum := xySum + (x * y),
+                    n := n + 1
+                  ),
+                  Code._empty[Unit]
+                ),
+                i := i + 1
+              )
+            ),
+            (n.toD * xySum - xSum * ySum) / Code.invokeScalaObject[Double, Double](
+              MathFunctions.mathPackageClass,
+              "sqrt",
+              (n.toD * xSqSum - xSum * xSum) * (n.toD * ySqSum - ySum * ySum))
+          )
+        )
     }
   }
 }

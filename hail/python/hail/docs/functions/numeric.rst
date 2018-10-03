@@ -39,6 +39,7 @@ Numeric functions
     cumulative_sum
     argmin
     argmax
+    corr
 
 
 .. autofunction:: abs
@@ -62,4 +63,5 @@ Numeric functions
 .. autofunction:: cumulative_sum
 .. autofunction:: argmin
 .. autofunction:: argmax
+.. autofunction:: corr
 .. autofunction:: uniroot

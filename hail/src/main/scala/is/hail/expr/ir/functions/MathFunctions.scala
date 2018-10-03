@@ -73,9 +73,10 @@ object MathFunctions extends RegistryFunctions {
   
   def irentropy(s: String): Double = entropy(s)
 
+  val mathPackageClass: Class[_] = Class.forName("scala.math.package$")
+
   def registerAll() {
     val thisClass = getClass
-    val mathPackageClass = Class.forName("scala.math.package$")
     val statsPackageClass = Class.forName("is.hail.stats.package$")
     val jMathClass = classOf[java.lang.Math]
     val jIntegerClass = classOf[java.lang.Integer]
