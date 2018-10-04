@@ -1333,7 +1333,7 @@ def corr(x, y) -> Float64Expression:
 
     Examples
     --------
-    >>> ds.aggregate_cols(hl.agg.corr(ds.age, ds.blood_pressure))
+    >>> ds.aggregate_cols(hl.agg.corr(ds.pheno.age, ds.pheno.blood_pressure))
     0.159882536301
 
     Notes
