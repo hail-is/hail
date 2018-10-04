@@ -30,6 +30,18 @@ void write_int_to_block(UpcallEnv up, int i, char * block, int * block_offset, i
   write_bytes_to_block(up, reinterpret_cast<char *>(&i), 4, block, block_offset, block_size, buffer);
 }
 
+void write_long_to_block(UpcallEnv up, long l, char * block, int * block_offset, int block_size, jobject buffer) {
+  write_bytes_to_block(up, reinterpret_cast<char *>(&l), 8, block, block_offset, block_size, buffer);
+}
+
+void write_float_to_block(UpcallEnv up, float f, char * block, int * block_offset, int block_size, jobject buffer) {
+  write_bytes_to_block(up, reinterpret_cast<char *>(&f), 4, block, block_offset, block_size, buffer);
+}
+
+void write_double_to_block(UpcallEnv up, double d, char * block, int * block_offset, int block_size, jobject buffer) {
+  write_bytes_to_block(up, reinterpret_cast<char *>(&d), 8, block, block_offset, block_size, buffer);
+}
+
 void write_packed_int_to_block(UpcallEnv up, int i, char * block, int * block_offset, int block_size, jobject buffer) {
   unsigned int foo = i;
   do {

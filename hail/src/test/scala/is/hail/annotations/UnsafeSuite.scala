@@ -79,12 +79,24 @@ class UnsafeSuite extends SparkSuite {
         en.writeRegionValue(region, offset)
         en.flush()
 
+        val aos2 = new ByteArrayOutputStream()
+        codecSpec.buildNativeEncoder(t.physicalType)(aos2, Iterator.single(RegionValue(region, offset)))
+        val result = aos2.toByteArray
+
         region2.clear()
         val ais = new ByteArrayInputStream(aos.toByteArray)
         val dec = codecSpec.buildDecoder(t.physicalType, t.physicalType)(ais)
         val offset2 = dec.readRegionValue(region2)
         val ur2 = new UnsafeRow(t.physicalType, region2, offset2)
         assert(t.typeCheck(ur2))
+
+        region2.clear()
+        val ais2 = new ByteArrayInputStream(result)
+        val dec2 = codecSpec.buildDecoder(t.physicalType, t.physicalType)(ais2)
+        dec2.readByte()
+        val offset22 = dec2.readRegionValue(region2)
+        val ur22 = new UnsafeRow(t.physicalType, region2, offset22)
+        assert(t.typeCheck(ur22))
 
         region3.clear()
         val ais3 = new ByteArrayInputStream(aos.toByteArray)

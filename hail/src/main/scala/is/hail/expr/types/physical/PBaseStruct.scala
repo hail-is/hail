@@ -4,6 +4,7 @@ import is.hail.annotations._
 import is.hail.asm4s.{Code, _}
 import is.hail.check.Gen
 import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.nativecode.{NCode, NativeCodeStatement}
 import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.json4s.jackson.JsonMethods
@@ -154,6 +155,16 @@ abstract class PBaseStruct extends PType {
 
   def isFieldDefined(region: Region, offset: Long, fieldIdx: Int): Boolean =
     fieldRequired(fieldIdx) || !region.loadBit(offset, missingIdx(fieldIdx))
+
+  def isFieldDefined(ptr: NativeCodeStatement, fieldIdx: Int): NativeCodeStatement = {
+    if (fieldRequired(fieldIdx))
+      NCode("true")
+    else {
+      val idx = missingIdx(fieldIdx)
+      val n = Array("0x01", "0x02", "0x04", "0x08", "0x10", "0x20", "0x40", "0x80")
+      NCode(s"(*(reinterpret_cast<char *>($ptr) + ${idx >>> 3}) & ${1 << (idx & 7)}) == 0")
+    }
+  }
 
   def isFieldMissing(region: Code[Region], offset: Code[Long], fieldIdx: Int): Code[Boolean] =
     if (fieldRequired(fieldIdx))

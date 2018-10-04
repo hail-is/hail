@@ -310,11 +310,11 @@ class NativeCodeSuite extends SparkSuite {
 
     val w = f.addFunction("testWrite", "long", Array("st" -> "NativeStatus *", "holder" -> "long"))
     val up = w.newRef("up", "UpcallEnv")
-    val env = w.newRef("env", "JNIEnv *", NCode("up.env()"))
+    val env = w.newRef("env", "JNIEnv *", NCode(s"$up.env()"))
     val h = w.newRef("h", init=NCode("reinterpret_cast<ObjectHolder*>(holder)"))
-    val os = w.newRef("os", init=NCode("h->objects_->at(0)"))
-    val it = w.newRef("it", init=NCode("h->objects_->at(1)"))
-    w.emit(NCode("return write_rows(os, it)"))
+    val os = w.newRef("os", init=NCode(s"$h->objects_->at(0)"))
+    val it = w.newRef("it", init=NCode(s"$h->objects_->at(1)"))
+    w.emit(NCode(s"return write_rows($os, $it)"))
 
     val rows = Literal(
       TArray(TStruct("a"->TInt32(), "b"->TString(), "c"->TArray(TFloat64()))),
@@ -336,13 +336,55 @@ class NativeCodeSuite extends SparkSuite {
 
     val hconf = new SerializableHadoopConfiguration(hc.hadoopConf)
 
+    val partF = f.build(w.name)
+
     t.tir.execute(hc).rvd.mapPartitionsWithIndex { (i, it) =>
 
       val fos = hconf.value.unsafeWriter(paths(i))
       val buffer = new LZ4OutputBlockBuffer(32 * 1024, new StreamBlockOutputBuffer(fos))
-      val partF = f.build("testWrite")
+
 
       partF(Array(buffer, new RegionValueIterator(it)))
+      fos.flush()
+      fos.close()
+      Iterator.single("foo")
+    }.collect()
+
+    val res = Table.read(hc, "/tmp/test.ht")
+
+    println(res.showString())
+
+    assert(res.same(t))
+  }
+
+  @Test def testWrite3() = {
+
+    val rows = Literal(
+      TArray(TStruct("a"->TInt32(), "b"->TString(), "c"->TArray(TFloat64()))),
+      FastIndexedSeq(
+        Row(null, null, null),
+        Row(-1, "abcdefg", FastIndexedSeq(0.0, 0.1, null)),
+        Row(0, "", FastIndexedSeq(0.0, 0.1, null)),
+        Row(0, null, FastIndexedSeq(null, null, null)),
+        Row(5, "", FastIndexedSeq(null, null, null, null, null, null, 0.5, null, null, null, null, null))
+      ))
+
+    val t = new Table(hc, TableParallelize(rows, Some(2)))
+    t.write("/tmp/test.ht", overwrite=true)
+
+    val dir = new File("/tmp/test.ht/rows/parts")
+    val paths = dir.listFiles().map(_.toString).filter(_.startsWith("/tmp/test.ht/rows/parts/part-"))
+
+    paths.foreach(hc.hadoopConf.delete(_, recursive = false))
+
+    val hconf = new SerializableHadoopConfiguration(hc.hadoopConf)
+
+    val partF = CodecSpec.default.buildNativeEncoder(t.typ.rowType.physicalType)
+
+    t.tir.execute(hc).rvd.mapPartitionsWithIndex { (i, it) =>
+
+      val fos = hconf.value.unsafeWriter(paths(i))
+      partF(fos, it)
       fos.flush()
       fos.close()
       Iterator.single("foo")

@@ -26,21 +26,31 @@ trait BufferSpec extends Serializable {
 
   def buildOutputBuffer(out: OutputStream): OutputBuffer
 
-  def buildNativeOutputBuffer(out: OutputStream): OutputBuffer
+  def buildNativeOutputBuffer(fb: NativeScope, jbuf: NativeCodeStatement, upcallEnv: NativeCodeStatement): (NativeOutputBuffer, OutputStream => OutputBlockBuffer)
 }
 
-final class LEB128BufferSpec(child: BufferSpec) extends BufferSpec {
+final case class LEB128BufferSpec(child: BufferSpec) extends BufferSpec {
   def buildInputBuffer(in: InputStream): InputBuffer = new LEB128InputBuffer(child.buildInputBuffer(in))
 
   def buildOutputBuffer(out: OutputStream): OutputBuffer = new LEB128OutputBuffer(child.buildOutputBuffer(out))
+
+  def buildNativeOutputBuffer(fb: NativeScope, jbuf: NativeCodeStatement, upcallEnv: NativeCodeStatement): (NativeOutputBuffer, OutputStream => OutputBlockBuffer) = {
+    val (ob, f) = child.buildNativeOutputBuffer(fb, jbuf, upcallEnv)
+    (new LEB128NativeOutputBuffer(ob), f)
+  }
 }
 
-final class BlockingBufferSpec(blockSize: Int, child: BlockBufferSpec) extends BufferSpec {
+final case class BlockingBufferSpec(blockSize: Int, child: BlockBufferSpec) extends BufferSpec {
   def buildInputBuffer(in: InputStream): InputBuffer = new BlockingInputBuffer(blockSize, child.buildInputBuffer(in))
 
   def buildOutputBuffer(out: OutputStream): OutputBuffer = new BlockingOutputBuffer(blockSize, child.buildOutputBuffer(out))
 
-  def buildNativeOutputBuffer(out: OutputStream):
+  def buildNativeOutputBuffer(fb: NativeScope, jbuf: NativeCodeStatement, upcallEnv: NativeCodeStatement): (NativeOutputBuffer, OutputStream => OutputBlockBuffer) = {
+    val block_buffer = fb.newRef("block_buffer", "char *", NCode(s"new char[$blockSize]{}"))
+    val off = fb.newRef("off", "int", NCode("0"))
+
+    (new NativeBlockingOutputBuffer(blockSize, NativeOutputBlockBufferState(upcallEnv, block_buffer, off, jbuf)), stream => child.buildOutputBuffer(stream))
+  }
 }
 
 trait BlockBufferSpec extends Serializable {
@@ -49,7 +59,7 @@ trait BlockBufferSpec extends Serializable {
   def buildOutputBuffer(out: OutputStream): OutputBlockBuffer
 }
 
-final class LZ4BlockBufferSpec(blockSize: Int, child: BlockBufferSpec) extends BlockBufferSpec {
+final case class LZ4BlockBufferSpec(blockSize: Int, child: BlockBufferSpec) extends BlockBufferSpec {
   def buildInputBuffer(in: InputStream): InputBlockBuffer = new LZ4InputBlockBuffer(blockSize, child.buildInputBuffer(in))
 
   def buildOutputBuffer(out: OutputStream): OutputBlockBuffer = new LZ4OutputBlockBuffer(blockSize, child.buildOutputBuffer(out))
@@ -102,6 +112,8 @@ trait CodecSpec extends Serializable {
 
   def buildDecoder(t: PType, requestedType: PType): (InputStream) => Decoder
 
+  def buildNativeEncoder(t: PType): (OutputStream, Iterator[RegionValue]) => Unit
+
   // FIXME: is there a better place for this to live?
   def decodeRDD(t: PType, bytes: RDD[Array[Byte]]): ContextRDD[RVDContext, RegionValue] = {
     val dec = buildDecoder(t, t)
@@ -153,6 +165,45 @@ final case class PackCodecSpec(child: BufferSpec) extends CodecSpec {
   def buildEncoder(t: PType): (OutputStream) => Encoder = { out: OutputStream =>
     new PackEncoder(t, child.buildOutputBuffer(out))
   }
+
+  def buildNativeEncoder(t: PType): (OutputStream, Iterator[RegionValue]) => Unit = {
+    val file = new NativeFile()
+
+    file.include("\"hail/hail.h\"")
+    file.include("\"hail/ObjectArray.h\"")
+    file.include("\"hail/NativeObj.h\"")
+    file.include("\"hail/Upcalls.h\"")
+    file.include("\"hail/JavaIO.h\"")
+    file.include("<jni.h>")
+    file.include("<cstring>")
+
+    val fb = file.addFunction("encoder", "long", Array("st" -> "NativeStatus *", "holder" -> "long"))
+    val up = fb.newRef("up", "UpcallEnv")
+    val env = fb.newRef("env", "JNIEnv *", NCode(s"$up.env()"))
+    val h = fb.newRef("h", init=NCode("reinterpret_cast<ObjectHolder*>(holder)"))
+    val jbuffer = fb.newRef("jbuffer", "jobject", NCode(s"$h->objects_->at(0)"))
+    val rows = fb.newRef("rows", "jobject", NCode(s"$h->objects_->at(1)"))
+
+    val (buf, f) = child.buildNativeOutputBuffer(fb, jbuffer.load(), up.load())
+
+    val loop = fb._while(NCode(s"$env->CallBooleanMethod($rows, $up.config()->Iterator_hasNext_)"))
+
+    val row = loop.newRef("row", "char *", NCode(s"reinterpret_cast<char *>($env->CallLongMethod($rows, $up.config()->Iterator_next_))"))
+    buf.writeByte(loop, NCode("1"))
+
+    NativeEncode.encodeRegionValue(buf, loop, t, row)
+
+    buf.writeByte(fb, NCode("0"))
+    buf.flush(fb)
+
+    fb.emit(NCode(s"return 0"))
+
+    val encoder = file.build(fb.name)
+
+    { (out: OutputStream, it: Iterator[RegionValue]) =>
+      encoder(Array(f(out), new RegionValueIterator(it)))
+    }
+  }
   
   def buildDecoder(t: PType, requestedType: PType): (InputStream) => Decoder = {
     if (System.getenv("HAIL_ENABLE_CPP_CODEGEN") != null) {
@@ -176,6 +227,87 @@ final case class PackCodecSpec(child: BufferSpec) extends CodecSpec {
       val f = EmitPackDecoder(t, requestedType)
       (in: InputStream) => new CompiledPackDecoder(child.buildInputBuffer(in), f)
     }
+  }
+}
+
+object NativeEncode {
+
+  def encodeBinary(buf: NativeOutputBuffer, fb: NativeScope, ptr: NativeCodeVariable): Unit = {
+    val length = fb.newRef("length", "int")
+    fb.emit(length.store(NCode(s"*reinterpret_cast<int *>($ptr)")))
+    buf.writeInt(fb, length.load())
+    buf.writeBytes(fb, NCode(s"$ptr + 4"), length.load())
+  }
+
+  def encodeBaseStruct(buf: NativeOutputBuffer, fb: NativeScope, t: PBaseStruct, ptr: NativeCodeVariable): Unit = {
+    val nMissingBytes = t.nMissingBytes
+    buf.writeBytes(fb, NCode(s"$ptr"), NCode(s"$nMissingBytes"))
+    val fieldPtr = fb.newRef("fieldPtr", "char *")
+    var i = 0
+    while (i < t.size) {
+      val ifDefined = fb._if(t.isFieldDefined(ptr.load(), i))
+      ifDefined.emit(fieldPtr.store(NCode(s"$ptr + ${t.byteOffsets(i)}")))
+      t.types(i) match {
+        case t2: PBaseStruct => encodeBaseStruct(buf, ifDefined, t2, fieldPtr)
+        case t2: PArray =>
+          ifDefined.emit(fieldPtr.store(NCode(s"reinterpret_cast<char *>(*reinterpret_cast<long *>($fieldPtr))")))
+          encodeArray(buf, ifDefined, t2, fieldPtr)
+        case _: PBoolean => buf.writeByte(ifDefined, NCode(s"$fieldPtr ? 0 : 1"))
+        case _: PInt32 => buf.writeInt(ifDefined, NCode(s"*reinterpret_cast<int *>($fieldPtr)"))
+        case _: PInt64 => buf.writeLong(ifDefined, NCode(s"*reinterpret_cast<long *>($fieldPtr)"))
+        case _: PFloat32 => buf.writeFloat(ifDefined, NCode(s"*reinterpret_cast<float *>($fieldPtr)"))
+        case _: PFloat64 => buf.writeDouble(ifDefined, NCode(s"*reinterpret_cast<double *>($fieldPtr)"))
+        case _: PBinary =>
+          ifDefined.emit(fieldPtr.store(NCode(s"reinterpret_cast<char *>(*reinterpret_cast<long *>($fieldPtr))")))
+          encodeBinary(buf, ifDefined, fieldPtr)
+      }
+      i += 1
+    }
+  }
+
+  def encodeArray(buf: NativeOutputBuffer, fb: NativeScope, t: PArray, ptr: NativeCodeVariable): Unit = {
+    val length = fb.newRef("length", "unsigned int")
+    fb.emit(length.store(NCode(s"*reinterpret_cast<int *>($ptr)")))
+    buf.writeInt(fb, length.load())
+    if (!t.elementType.required) {
+      val nMissingBytes = fb.newRef("nMissingBytes", "unsigned int")
+      fb.emit(nMissingBytes.store(NCode(s"($length + 7) >> 3")))
+      buf.writeBytes(fb, NCode(s"$ptr + 4"), nMissingBytes.load())
+    }
+    val eltPtr = fb.newRef("eltPtr", "char *")
+    fb.emit(eltPtr.store(NCode(s"$ptr + (${t.elementsOffset(length.load())})")))
+    val i = fb.newRef("i", "int", NCode("0"))
+    val elements = fb._while(NCode(s"$i < $length"))
+    val ifDefined: NativeScope = if (!t.elementType.required) {
+      val newScope = elements._if(t.isElementDefined(ptr.load(), i.load()))
+      newScope
+    } else elements
+
+    t.elementType match {
+      case t2: PBaseStruct => encodeBaseStruct(buf, ifDefined, t2, eltPtr)
+      case t2: PArray =>
+        val eltPtr2 = fb.newRef("eltPtr2", "char *")
+        ifDefined.emit(eltPtr2.store(NCode(s"reinterpret_cast<char *>(*reinterpret_cast<long *>($eltPtr))")))
+        encodeArray(buf, ifDefined, t2, eltPtr2)
+      case _: PBoolean => buf.writeByte(ifDefined, NCode(s"$eltPtr ? 0 : 1"))
+      case _: PInt32 => buf.writeInt(ifDefined, NCode(s"*reinterpret_cast<int *>($eltPtr)"))
+      case _: PInt64 => buf.writeLong(ifDefined, NCode(s"*reinterpret_cast<long *>($eltPtr)"))
+      case _: PFloat32 => buf.writeFloat(ifDefined, NCode(s"*reinterpret_cast<float *>($eltPtr)"))
+      case _: PFloat64 => buf.writeDouble(ifDefined, NCode(s"*reinterpret_cast<double *>($eltPtr)"))
+      case _: PBinary =>
+        val eltPtr2 = fb.newRef("eltPtr2", "char *")
+        ifDefined.emit(eltPtr2.store(NCode(s"reinterpret_cast<char *>(*reinterpret_cast<long *>($eltPtr))")))
+        encodeBinary(buf, ifDefined, eltPtr2)
+    }
+
+    elements.emit(eltPtr.store(NCode(s"$eltPtr + ${t.elementByteSize}")))
+    elements.emit(NCode(s"$i++"))
+
+  }
+
+  def encodeRegionValue(buf: NativeOutputBuffer, fb: NativeScope, t: PType, ptr: NativeCodeVariable): Unit = t.fundamentalType match {
+    case ta: PArray => encodeArray(buf, fb, ta, ptr)
+    case tbs: PBaseStruct => encodeBaseStruct(buf, fb, tbs, ptr)
   }
 }
 
@@ -246,6 +378,48 @@ trait OutputBuffer extends Closeable {
   }
 }
 
+trait NativeOutputBuffer {
+  def writeByte(fb: NativeScope, b: NativeCodeStatement): Unit
+  def writeInt(fb: NativeScope, i: NativeCodeStatement): Unit
+  def writeLong(fb: NativeScope, l: NativeCodeStatement): Unit
+  def writeFloat(fb: NativeScope, f: NativeCodeStatement): Unit
+  def writeDouble(fb: NativeScope, d: NativeCodeStatement): Unit
+  def writeBytes(fb: NativeScope, buf: NativeCodeStatement, n: NativeCodeStatement): Unit
+
+  def flush(fb: NativeScope): Unit
+}
+
+final class LEB128NativeOutputBuffer(val out: NativeOutputBuffer) extends NativeOutputBuffer {
+  def writeByte(fb: NativeScope, b: NativeCodeStatement): Unit = out.writeByte(fb, b)
+  def writeInt(fb: NativeScope, i: NativeCodeStatement): Unit = {
+    val int_ref: NativeCodeVariable = fb.newRef("unpacked_int", "unsigned int")
+    fb.emit(int_ref.store(i))
+    val loop = fb.doWhile(NCode(s"$int_ref"))
+    val b = loop.newRef("b", "unsigned char", NCode(s"$int_ref & 0x7f"))
+    loop.emit(int_ref.store(NCode(s"$int_ref >> 7")))
+    val foo = loop._if(NCode(s"$int_ref != 0"))
+    foo.emit(NCode(s"$b |= 0x80"))
+    out.writeByte(loop, NCode(s"static_cast<char>($b)"))
+  }
+
+  def writeLong(fb: NativeScope, l: NativeCodeStatement): Unit = {
+    val long_ref: NativeCodeVariable = fb.newRef("unpacked_long", "unsigned long")
+    fb.emit(long_ref.store(l))
+    val loop = fb.doWhile(NCode(s"$long_ref"))
+    val b = loop.newRef("b", "unsigned char", NCode(s"$long_ref & 0x7f"))
+    loop.emit(long_ref.store(NCode(s"$long_ref >> 7")))
+    val foo = loop._if(NCode(s"$long_ref != 0"))
+    foo.emit(NCode(s"$b |= 0x80"))
+    out.writeByte(loop, NCode(s"static_cast<char>($b)"))
+  }
+
+  def writeFloat(fb: NativeScope, f: NativeCodeStatement): Unit = out.writeFloat(fb, f)
+  def writeDouble(fb: NativeScope, d: NativeCodeStatement): Unit = out.writeDouble(fb, d)
+  def writeBytes(fb: NativeScope, buf: NativeCodeStatement, n: NativeCodeStatement): Unit = out.writeBytes(fb, buf, n)
+
+  def flush(fb: NativeScope): Unit = out.flush(fb)
+}
+
 final class LEB128OutputBuffer(out: OutputBuffer) extends OutputBuffer {
   def flush(): Unit = out.flush()
 
@@ -297,6 +471,33 @@ final class LZ4OutputBlockBuffer(blockSize: Int, out: OutputBlockBuffer) extends
     val compLen = LZ4Utils.compress(comp, 4, buf, decompLen)
     Memory.storeInt(comp, 0, decompLen) // decompLen
     out.writeBlock(comp, compLen + 4)
+  }
+}
+
+final case class NativeOutputBlockBufferState(up: NativeCodeStatement, block_buf: NativeCodeVariable, block_offset: NativeCodeVariable, jbuf: NativeCodeStatement)
+
+final class NativeBlockingOutputBuffer(val blockSize: Int, out: NativeOutputBlockBufferState) extends NativeOutputBuffer {
+  def writeByte(fb: NativeScope, b: NativeCodeStatement): Unit =
+    fb.emit(NCode(s"write_byte_to_block(${out.up}, $b, ${out.block_buf}, &${out.block_offset}, $blockSize, ${out.jbuf})"))
+
+  def writeInt(fb: NativeScope, i: NativeCodeStatement): Unit = {
+    fb.emit(NCode(s"write_int_to_block(${out.up}, $i, ${out.block_buf}, &${out.block_offset}, $blockSize, ${out.jbuf})"))
+  }
+  def writeLong(fb: NativeScope, l: NativeCodeStatement): Unit = {
+    fb.emit(NCode(s"write_long_to_block(${out.up}, $l, ${out.block_buf}, &${out.block_offset}, $blockSize, ${out.jbuf})"))
+  }
+  def writeFloat(fb: NativeScope, f: NativeCodeStatement): Unit = {
+    fb.emit(NCode(s"write_float_to_block(${out.up}, $f, ${out.block_buf}, &${out.block_offset}, $blockSize, ${out.jbuf})"))
+  }
+  def writeDouble(fb: NativeScope, d: NativeCodeStatement): Unit = {
+    fb.emit(NCode(s"write_double_to_block(${out.up}, $d, ${out.block_buf}, &${out.block_offset}, $blockSize, ${out.jbuf})"))
+  }
+  def writeBytes(fb: NativeScope, buf: NativeCodeStatement, n: NativeCodeStatement): Unit = {
+    fb.emit(NCode(s"write_bytes_to_block(${out.up}, $buf, $n, ${out.block_buf}, &${out.block_offset}, $blockSize, ${out.jbuf})"))
+  }
+
+  def flush(fb: NativeScope): Unit = {
+    fb.emit(NCode(s"write_block_to_buffer(${out.up}, ${out.jbuf}, ${out.block_buf}, ${out.block_offset})"))
   }
 }
 

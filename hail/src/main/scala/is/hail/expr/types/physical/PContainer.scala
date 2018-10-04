@@ -2,6 +2,7 @@ package is.hail.expr.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s._
+import is.hail.nativecode.{NCode, NativeCodeStatement}
 import is.hail.utils._
 
 object PContainer {
@@ -41,6 +42,13 @@ abstract class PContainer extends PType {
     else
       UnsafeUtils.roundUpAlignment(((length.toL + 7L) >>> 3) + 4L, elementType.alignment)
 
+  def _elementsOffset(length: NativeCodeStatement): NativeCodeStatement = {
+    if (elementType.required)
+      NCode(s"${UnsafeUtils.roundUpAlignment(4, elementType.alignment)}")
+    else
+      UnsafeUtils.roundUpAlignment(NCode(s"((($length + 7) >> 3) + 4)"), elementType.alignment)
+  }
+
   var elementsOffsetTable: Array[Long] = _
 
   def elementsOffset(length: Int): Long = {
@@ -55,6 +63,10 @@ abstract class PContainer extends PType {
 
   def elementsOffset(length: Code[Int]): Code[Long] = {
     // FIXME: incorporate table, maybe?
+    _elementsOffset(length)
+  }
+
+  def elementsOffset(length: NativeCodeStatement): NativeCodeStatement = {
     _elementsOffset(length)
   }
 
@@ -79,6 +91,13 @@ abstract class PContainer extends PType {
       true
     else
       !region.loadBit(aoff + 4, i.toL)
+
+  def isElementDefined(ptr: NativeCodeStatement, i: NativeCodeStatement): NativeCodeStatement = {
+    if (elementType.required)
+      NCode("true")
+    else
+      NCode(s"(*(reinterpret_cast<char *>($ptr) + 4 + ($i >> 3)) & (0x1 << ($i & 0x7))) == 0")
+  }
 
   def setElementMissing(region: Region, aoff: Long, i: Int) {
     assert(!elementType.required)
