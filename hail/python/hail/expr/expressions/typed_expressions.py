@@ -360,7 +360,7 @@ class CollectionExpression(Expression):
         :class:`.Expression` of type :py:data:`.tint32`
             The number of elements in the collection.
         """
-        return self._method("size", tint32)
+        return apply_expr(lambda x: ArrayLen(x), tint32, self)
 
     def size(self):
         """Returns the size of a collection.
@@ -379,7 +379,7 @@ class CollectionExpression(Expression):
         :class:`.Expression` of type :py:data:`.tint32`
             The number of elements in the collection.
         """
-        return self._method("size", tint32)
+        return apply_expr(lambda x: ArrayLen(x), tint32, self)
 
 
 class ArrayExpression(CollectionExpression):
@@ -1198,7 +1198,7 @@ class DictExpression(Expression):
         :class:`.Expression` of type :py:data:`.tint32`
             Size of the dictionary.
         """
-        return self._method("size", tint32)
+        return apply_expr(lambda x: ArrayLen(ToArray(x)), tint32, self)
 
     def values(self):
         """Returns an array with all values in the dictionary.
@@ -2052,7 +2052,7 @@ class StringExpression(Expression):
         :class:`.Expression` of type :py:data:`.tint32`
             Length of the string.
         """
-        return self._method("length", tint32)
+        return apply_expr(lambda x: StringLength(x), tint32, self)
 
     @typecheck_method(pattern1=expr_str, pattern2=expr_str)
     def replace(self, pattern1, pattern2):
@@ -2959,6 +2959,10 @@ typ_to_expr = {
     ttuple: TupleExpression
 }
 
+def apply_expr(f, result_type, *args):
+    indices, aggregations = unify_all(*args)
+    ir = f(*[arg._ir for arg in args])
+    return construct_expr(ir, result_type, indices, aggregations)
 
 @typecheck(ir=IR, type=nullable(HailType), indices=Indices, aggregations=LinkedList)
 def construct_expr(ir: IR,

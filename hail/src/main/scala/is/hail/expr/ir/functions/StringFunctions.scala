@@ -105,10 +105,6 @@ object StringFunctions extends RegistryFunctions {
                 startRef)))))
     }
 
-    registerIR("len", TString()) { (s) =>
-      ir.StringLength(s)
-    }
-
     registerCode("str", tv("T"), TString()) { (mb, a) =>
       val typ = tv("T").subst()
       val annotation = boxArg(mb, typ)(a)
@@ -136,10 +132,6 @@ object StringFunctions extends RegistryFunctions {
     registerWrappedScalaFunction("~", TString(), TString(), TBoolean())(thisClass, "regexMatch")
 
     registerWrappedScalaFunction("+", TString(), TString(), TString())(thisClass, "concat")
-
-    registerIR("length", TString())(StringLength)
-
-    registerIR("size", TString())(StringLength)
 
     registerWrappedScalaFunction("split", TString(), TString(), TArray(TString()))(thisClass, "split")
 

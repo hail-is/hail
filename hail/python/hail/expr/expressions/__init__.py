@@ -6,6 +6,7 @@ from .expression_utils import *
 __all__ = ['Indices',
            'Aggregation',
            'Aggregable',
+           'apply_expr',
            'construct_expr',
            'construct_variable',
            'construct_reference',

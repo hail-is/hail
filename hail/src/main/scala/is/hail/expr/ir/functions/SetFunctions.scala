@@ -23,14 +23,6 @@ object SetFunctions extends RegistryFunctions {
       ToSet(a)
     }
 
-    registerIR("toArray", TSet(tv("T"))) { a =>
-      ToArray(a)
-    }
-
-    registerIR("size", TSet(tv("T"))) { s =>
-      ArrayLen(ToArray(s))
-    }
-
     registerIR("isEmpty", TSet(tv("T"))) { s =>
       ArrayFunctions.isEmpty(ToArray(s))
     }
@@ -151,11 +143,6 @@ object SetFunctions extends RegistryFunctions {
               If(invoke("%", size, 2).cne(0),
                 ref(midIdx), // odd number of non-missing elements
                 div(ref(midIdx) + ref(midIdx + 1), Cast(2, t)))))))
-    }
-
-    registerIR("flatten", TSet(tv("T"))) { s =>
-      val elt = Ref(genUID(), types.coerce[TContainer](s.typ).elementType)
-      ToSet(ArrayFlatMap(ToArray(s), elt.name, ToArray(elt)))
     }
   }
 }
