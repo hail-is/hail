@@ -11,7 +11,7 @@ time pip install -U cloudtools
 gcloud auth activate-service-account \
     hail-ci-0-1@broad-ctsa.iam.gserviceaccount.com \
     --key-file=/secrets/hail-ci-0-1.key
-    
+
 mkdir -p build
 
 COMPILE_LOG="build/compilation.log"
@@ -195,6 +195,17 @@ test_gcp() {
 
     time cluster stop ${CLUSTER_NAME} --async
     touch ${GCP_SUCCESS}
+}
+
+test_pip() {
+    ./gradlew shadowJar
+    cp build/libs/hail-all-spark.jar python/hail/hail-all-spark.jar
+    cp ../README.md python/
+    CONDA_ENV_NAME=$(LC_CTYPE=C LC_ALL=C tr -dc 'a-z0-9' < /dev/urandom | head -c 8)
+    conda create -n $CONDA_ENV_NAME python=3.7
+    pip install ./python
+    python -c 'import hail as hl; hl.init(); hl.balding_nichols_model(3,100,100)._force_count_rows9)'
+    # FIXME: also test on Mac OS X
 }
 
 test_project &

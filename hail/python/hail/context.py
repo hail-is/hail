@@ -1,4 +1,5 @@
-from pyspark import SparkContext
+import pkg_resources
+from pyspark import SparkContext, SparkConf
 from pyspark.sql import SQLContext
 
 import hail
@@ -9,6 +10,7 @@ from hail.utils.java import Env, joption, FatalError, connect_logger, install_ex
 
 import sys
 import os
+
 
 class HailContext(object):
     @typecheck_method(sc=nullable(SparkContext),
@@ -37,7 +39,16 @@ class HailContext(object):
                 raise FatalError('Hail has already been initialized, restart session '
                                  'or stop Hail to change configuration.')
 
-        SparkContext._ensure_initialized()
+        if pkg_resources.resource_exists(__name__, "hail-all-spark.jar"):
+            hail_jar_path = pkg_resources.resource_filename(__name__, "hail-all-spark.jar")
+            assert os.path.exists(hail_jar_path), f'{hail_jar_path} does not exist'
+            sys.stderr.write(f'using hail jar at {hail_jar_path}\n')
+            conf = SparkConf()
+            conf.set('spark.driver.extraClassPath', hail_jar_path)
+            conf.set('spark.executor.extraClassPath', hail_jar_path)
+            SparkContext._ensure_initialized(conf=conf)
+        else:
+            SparkContext._ensure_initialized()
 
         self._gateway = SparkContext._gateway
         self._jvm = SparkContext._jvm
