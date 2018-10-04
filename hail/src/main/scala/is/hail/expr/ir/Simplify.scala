@@ -123,9 +123,6 @@ object Simplify {
 
       case Let(n, v, b) if !Mentions(b, n) => b
 
-      case Let(n, v, b) if CountMentions(b, n) == 1 =>
-        Subst(b, Env.empty[IR].bind(n, v))
-
       case Let(_, _, Begin(Seq())) => Begin(FastIndexedSeq())
 
       case ArrayFor(_, _, Begin(Seq())) => Begin(FastIndexedSeq())
