@@ -121,41 +121,15 @@ class IndexReader(hConf: Configuration,
     }
   }
 
-  // Returns smallest i, 0 <= i < n, for which p(i) holds, or returns n if p(i) is false for all i.
-  // Assumes all i for which p(i) is true are greater than all i for which p(i) is false.
-  // Returned value j has the property that p(i) is false for all i in [0, j),
-  // and p(i) is true for all i in [j, n).
-  private def findPartitionPoint(n: Int, p: (Int) => Boolean): Int = {
-    var left = 0
-    var right = n
-    while (left < right) {
-      val mid = left + (right - left) / 2
-      if (p(mid))
-        right = mid
-      else
-        left = mid + 1
-    }
-    left
-  }
-
-  // Returns smallest i, 0 <= i < n, for which f(i) >= key, or returns n if f(i) < key for all i
-  private[io] def binarySearchLowerBound(n: Int, key: Annotation, f: (Int) => Annotation): Int =
-    findPartitionPoint(n, i => ordering.gteq(f(i), key))
-
-  // Returns smallest i, 0 <= i < n, for which f(i) > key, or returns n if f(i) <= key for all i
-  private[io] def binarySearchUpperBound(n: Int, key: Annotation, f: (Int) => Annotation): Int =
-    findPartitionPoint(n, i => ordering.gt(f(i), key))
-
   private def lowerBound(key: Annotation, level: Int, offset: Long): Long = {
     if (level == 0) {
       val node = readLeafNode(offset)
-      val idx = binarySearchLowerBound(node.children.length, key, { i => node.children(i).key })
+      val idx = node.children.lowerBound(key, ordering.lt, _.key)
       node.firstIndex + idx
     } else {
       val node = readInternalNode(offset)
       val children = node.children
-      val n = children.length
-      val idx = binarySearchLowerBound(n, key, { i => children(i).firstKey })
+      val idx = children.lowerBound(key, ordering.lt, _.firstKey)
       lowerBound(key, level - 1, children(idx - 1).indexFileOffset)
     }
   }
@@ -170,13 +144,13 @@ class IndexReader(hConf: Configuration,
   private def upperBound(key: Annotation, level: Int, offset: Long): Long = {
     if (level == 0) {
       val node = readLeafNode(offset)
-      val idx = binarySearchUpperBound(node.children.length, key, { i => node.children(i).key })
+      val idx = node.children.upperBound(key, ordering.lt, _.key)
       node.firstIndex + idx
     } else {
       val node = readInternalNode(offset)
       val children = node.children
       val n = children.length
-      val idx = binarySearchUpperBound(n, key, { i => children(i).firstKey })
+      val idx = children.upperBound(key, ordering.lt, _.firstKey)
       upperBound(key, level - 1, children(idx - 1).indexFileOffset)
     }
   }

@@ -67,37 +67,37 @@ class IntervalSuite extends TestNGSuite {
 
   val points: IndexedSeq[Int] = 1 to 4
 
-//  val testIntervals: IndexedSeq[SetInterval] =
-//    FastIndexedSeq(
-//      SetInterval(1, 1, true, true),
-//      SetInterval(1, 1, true, false),
-//      SetInterval(1, 3, false, true),
-//      SetInterval(2, 3, false, false),
-//      SetInterval(1, 2, true, true),
-//      SetInterval(3, 1, true, false))
-//
-//  def toIRInterval(i: SetInterval): IR =
-//    invoke("Interval", i.start, i.end, i.includesStart, i.includesEnd)
-//
-//  @Test def contains() {
-//    for (setInterval <- testIntervals; p <- points) {
-//      val interval = toIRInterval(setInterval)
-//      assert(eval(invoke("contains", interval, p)) == setInterval.contains(p))
-//    }
-//  }
-//
-//  @Test def isEmpty() {
-//    for (setInterval <- testIntervals) {
-//      val interval = toIRInterval(setInterval)
-//      assert(eval(invoke("isEmpty", interval)) == setInterval.definitelyEmpty())
-//    }
-//  }
-//
-//  @Test def overlaps() {
-//    for (setInterval1 <- testIntervals; setInterval2 <- testIntervals) {
-//      val interval1 = toIRInterval(setInterval1)
-//      val interval2 = toIRInterval(setInterval2)
-//      assert(eval(invoke("overlaps", interval1, interval2)) == setInterval1.probablyOverlaps(setInterval2))
-//    }
-//  }
+  val testIntervals: IndexedSeq[SetInterval] =
+    FastIndexedSeq(
+      SetInterval(1, 1, true, true),
+      SetInterval(1, 1, true, false),
+      SetInterval(1, 3, false, true),
+      SetInterval(2, 3, false, false),
+      SetInterval(1, 2, true, true),
+      SetInterval(3, 1, true, false))
+
+  def toIRInterval(i: SetInterval): IR =
+    invoke("Interval", i.start, i.end, i.includesStart, i.includesEnd)
+
+  @Test def contains() {
+    for (setInterval <- testIntervals; p <- points) {
+      val interval = toIRInterval(setInterval)
+      assert(eval(invoke("contains", interval, p)) == setInterval.contains(p))
+    }
+  }
+
+  @Test def isEmpty() {
+    for (setInterval <- testIntervals) {
+      val interval = toIRInterval(setInterval)
+      assert(eval(invoke("isEmpty", interval)) == setInterval.definitelyEmpty())
+    }
+  }
+
+  @Test def overlaps() {
+    for (setInterval1 <- testIntervals; setInterval2 <- testIntervals) {
+      val interval1 = toIRInterval(setInterval1)
+      val interval2 = toIRInterval(setInterval2)
+      assert(eval(invoke("overlaps", interval1, interval2)) == setInterval1.probablyOverlaps(setInterval2))
+    }
+  }
 }

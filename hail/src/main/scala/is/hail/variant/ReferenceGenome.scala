@@ -179,7 +179,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
   def globalPosToContig(idx: Long): String = {
     if (globalContigEnds == null)
       globalContigEnds = getGlobalContigEnds
-    contigs(globalContigEnds.partitionPoint(_ > idx))
+    contigs(globalContigEnds.view.partitionPoint(_ > idx))
   }
 
   def globalPosToLocus(idx: Long): Locus = {

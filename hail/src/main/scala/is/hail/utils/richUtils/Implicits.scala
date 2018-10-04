@@ -26,6 +26,8 @@ import scala.util.matching.Regex
 trait Implicits {
   implicit def toRichArray[T](a: Array[T]): RichArray[T] = new RichArray(a)
 
+  implicit def toRichIndexedSeq[T](s: IndexedSeq[T]): RichIndexedSeq[T] = new RichIndexedSeq(s)
+
   implicit def toRichBoolean(b: Boolean): RichBoolean = new RichBoolean(b)
 
   implicit def toRichDenseMatrixDouble(m: DenseMatrix[Double]): RichDenseMatrixDouble = new RichDenseMatrixDouble(m)
