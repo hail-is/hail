@@ -167,16 +167,9 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
 
   private val globalPosOrd = TInt64().ordering
 
-  @transient private var globalPosTree: IntervalTree[String] = _
+  @transient private var globalContigEnds: Array[Long] = _
 
-  def getGlobalPosTree = IntervalTree.annotationTree[String](globalPosOrd, {
-    var pos = 0L
-    contigs.map { c =>
-      val x = Interval(pos, pos + contigLength(c), includesStart = true, includesEnd = false)
-      pos += contigLength(c)
-      (x, c)
-    }
-  })
+  def getGlobalContigEnds: Array[Long] = contigs.map(contigLength(_).toLong).scan(0L)(_ + _).tail
 
   def locusToGlobalPos(contig: String, pos: Int): Long =
     globalPosContigStarts(contig) + (pos - 1)
@@ -184,11 +177,9 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
   def locusToGlobalPos(l: Locus): Long = locusToGlobalPos(l.contig, l.position)
 
   def globalPosToContig(idx: Long): String = {
-    if (globalPosTree == null)
-      globalPosTree = getGlobalPosTree
-    val result = globalPosTree.queryValues(globalPosOrd, idx)
-    assert(result.length == 1)
-    result(0)
+    if (globalContigEnds == null)
+      globalContigEnds = getGlobalContigEnds
+    contigs(globalContigEnds.partitionPoint(_ > idx))
   }
 
   def globalPosToLocus(idx: Long): Locus = {

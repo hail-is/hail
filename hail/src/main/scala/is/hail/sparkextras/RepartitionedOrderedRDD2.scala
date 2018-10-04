@@ -15,7 +15,7 @@ class OrderedDependency[T](
 ) extends NarrowDependency[T](rdd) {
 
   override def getParents(partitionId: Int): Seq[Int] =
-    oldPartitionerBc.value.getPartitionRange(newIntervalListBc.value(partitionId))
+    oldPartitionerBc.value.queryInterval(newIntervalListBc.value(partitionId))
 }
 
 object RepartitionedOrderedRDD2 {

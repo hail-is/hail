@@ -29,8 +29,7 @@ case class IntervalEndpoint(point: Any, sign: Int) extends Serializable {
   }
 }
 
-/**
-  * 'Interval' has an implicit precondition that 'start' and 'end' either have
+/** 'Interval' has an implicit precondition that 'start' and 'end' either have
   * the same type, or are of compatible 'TBaseStruct' types, i.e. their types
   * agree on all fields up to the min of their lengths. Moreover, it assumes
   * that the interval is well formed, as coded in 'Interval.isValid', roughly
@@ -198,118 +197,4 @@ object Interval {
       }
     }
   }
-}
-
-class IntervalTree[U: ClassTag](intervals: Array[Interval], values: Array[U])
-    extends Traversable[(Interval, U)] with Serializable {
-
-  require(intervals.length == values.length)
-
-  override def size: Int = intervals.length
-
-  def foreach[V](f: ((Interval, U)) => V): Unit = intervals.zip(values).foreach(f)
-
-  def range: Option[Interval] = if (isEmpty) None else Some(Interval(intervals.head.left, intervals.last.right))
-
-  /** Returns 0 <= i <= size such that p(intervals(j)) is false for all j in
-   *  [0, i), and p(intervals(j)) is true for all j in [i, size).
-   *
-   *  Assumes all i for which p(i) is true are greater than all i for which
-   *  p(i) is false.
-   */
-  private def partitionPoint(p: (Interval) => Boolean): Int = {
-    var left = 0
-    var right = size
-    while (left < right) {
-      val mid = left + (right - left) / 2
-      if (p(intervals(mid)))
-        right = mid
-      else
-        left = mid + 1
-    }
-    left
-  }
-
-  private def ext(pord: ExtendedOrdering): ExtendedOrdering = pord.intervalEndpointOrdering
-
-  def lowerBound(pord: ExtendedOrdering, x: Any): Int =
-    partitionPoint(i => ext(pord).lt(x, i.right))
-
-  def upperBound(pord: ExtendedOrdering, x: Any): Int =
-    partitionPoint(i => ext(pord).lteq(x, i.left))
-
-  def upperLowerBounds(pord: ExtendedOrdering, x: Any): (Int, Int) =
-    (lowerBound(pord, x), upperBound(pord, x))
-
-  def contains(pord: ExtendedOrdering, x: Any): Boolean = {
-    val l = lowerBound(pord, x)
-    l != size && ext(pord).gt(x, intervals(l).left)
-  }
-
-  def overlaps(pord: ExtendedOrdering, i: Interval): Boolean = {
-    val l = lowerBound(pord, i.left)
-    l != size && ext(pord).gt(i.right, intervals(l).left)
-  }
-
-  def isDisjointFrom(pord: ExtendedOrdering, i: Interval): Boolean =
-    !overlaps(pord, i)
-
-  def queryIntervals(pord: ExtendedOrdering, x: Any): Array[Interval] = {
-    val (l, u) = upperLowerBounds(pord, x)
-    intervals.slice(l, u)
-  }
-
-  def queryValues(pord: ExtendedOrdering, x: Any): Array[U] = {
-    val (l, u) = upperLowerBounds(pord, x)
-    values.slice(l, u)
-  }
-
-  def querySingleValue(pord: ExtendedOrdering, x: Any): U = {
-    val l = lowerBound(pord, x)
-    values(l)
-  }
-
-  def queryOverlappingValues(pord: ExtendedOrdering, i: Interval): Array[U] = {
-    val l = lowerBound(pord, i.left)
-    val u = upperBound(pord, i.right)
-    values.slice(l, u)
-  }
-}
-
-object IntervalTree {
-  def annotationTree[U: ClassTag](pord: ExtendedOrdering, values: Array[(Interval, U)]): IntervalTree[U] = {
-    val iord = Interval.ordering(pord, startPrimary = true)
-    val sorted = values.sortBy(_._1)(iord.toOrdering.asInstanceOf[Ordering[Interval]])
-    fromSorted(pord, sorted)
-  }
-
-  def apply(pord: ExtendedOrdering, intervals: Array[Interval]): IntervalTree[Unit] = {
-    val iord = Interval.ordering(pord, startPrimary = true)
-    val sorted = if (intervals.nonEmpty) {
-      val unpruned = intervals.sorted(iord.toOrdering.asInstanceOf[Ordering[Interval]])
-      var i = 0
-      val ab = new ArrayBuilder[Interval](intervals.length)
-      var tmp = unpruned(i)
-      while (i < unpruned.length) {
-        tmp.merge(pord, unpruned(i)) match {
-          case Some(interval) =>
-            tmp = interval
-          case None =>
-            ab += tmp
-            tmp = unpruned(i)
-        }
-        i += 1
-      }
-      ab += tmp
-      ab.result()
-    } else intervals
-
-    fromSorted(pord, sorted)
-  }
-
-  def fromSorted[U: ClassTag](pord: ExtendedOrdering, intervals: Array[(Interval, U)]): IntervalTree[U] =
-    new IntervalTree(intervals.map(_._1), intervals.map(_._2))
-
-  def fromSorted(pord: ExtendedOrdering, intervals: Array[Interval]): IntervalTree[Unit] =
-    new IntervalTree(intervals, Array.ofDim[Unit](intervals.length))
 }
