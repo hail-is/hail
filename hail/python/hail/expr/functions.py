@@ -2042,6 +2042,8 @@ def corr(x, y) -> Float64Expression:
     Only indices where both `x` and `y` are non-missing will be included in the
     calculation.
 
+    If `x` and `y` have length zero, then the result is missing.
+
     Parameters
     ----------
     x : :class:`.Expression` of type ``array<tfloat64>``
