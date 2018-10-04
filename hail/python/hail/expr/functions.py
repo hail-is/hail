@@ -2026,6 +2026,35 @@ def sqrt(x) -> Float64Expression:
     """
     return _func("sqrt", tfloat64, x)
 
+@typecheck(x=expr_array(expr_float64), y=expr_array(expr_float64))
+def corr(x, y) -> Float64Expression:
+    """Compute the
+    `Pearson correlation coefficient <https://en.wikipedia.org/wiki/Pearson_correlation_coefficient>`__
+    between `x` and `y`.
+
+    Examples
+    --------
+    >>> hl.eval(hl.corr([1, 2, 4], [2, 3, 1]))
+    -0.6546536707079772
+
+    Notes
+    -----
+    Only indices where both `x` and `y` are non-missing will be included in the
+    calculation.
+
+    If `x` and `y` have length zero, then the result is missing.
+
+    Parameters
+    ----------
+    x : :class:`.Expression` of type ``array<tfloat64>``
+    y : :class:`.Expression` of type ``array<tfloat64>``
+
+    Returns
+    -------
+    :class:`.Float64Expression`
+    """
+    return _func("corr", tfloat64, x, y)
+
 _base_regex = "^([ACGTNM])+$"
 _symbolic_regex = r"(^\.)|(\.$)|(^<)|(>$)|(\[)|(\])"
 _allele_types = ["Unknown", "SNP", "MNP", "Insertion", "Deletion", "Complex", "Star", "Symbolic"]

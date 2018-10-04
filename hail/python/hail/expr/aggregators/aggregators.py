@@ -1341,6 +1341,8 @@ def corr(x, y) -> Float64Expression:
     Only records where both `x` and `y` are non-missing will be included in the
     calculation.
 
+    In the case that there are no non-missing pairs, the result will be missing.
+
     See Also
     --------
     :func:`linreg`

@@ -1,4 +1,5 @@
 import math
+import random
 from scipy.stats import pearsonr
 import unittest
 
@@ -1566,6 +1567,17 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(hl.flatmap(lambda x: hl.range(0, x), [1, 2, 3])), [0, 0, 1, 0, 1, 2])
         fm = hl.flatmap(lambda x: hl.set(hl.range(0, x.length()).map(lambda i: x[i])), {"ABC", "AAa", "BD"})
         self.assertEqual(hl.eval(fm), {'A', 'a', 'B', 'C', 'D'})
+
+    def test_array_corr(self):
+        x1 = [random.uniform(-10, 10) for x in range(10)]
+        x2 = [random.uniform(-10, 10) for x in range(10)]
+        self.assertAlmostEqual(hl.eval(hl.corr(x1, x2)), pearsonr(x1, x2)[0])
+
+    def test_array_corr_missingness(self):
+        x1 = [None, None, 5.0] + [random.uniform(-10, 10) for x in range(15)]
+        x2 = [None, 5.0, None] + [random.uniform(-10, 10) for x in range(15)]
+        self.assertAlmostEqual(hl.eval(hl.corr(hl.literal(x1, 'array<float>'), hl.literal(x2, 'array<float>'))),
+                               pearsonr(x1[3:], x2[3:])[0])
 
     def test_array_find(self):
         self.assertEqual(hl.eval(hl.find(lambda x: x < 0, hl.null(hl.tarray(hl.tint32)))), None)
