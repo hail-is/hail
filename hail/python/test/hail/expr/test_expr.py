@@ -1,4 +1,5 @@
 import math
+from scipy.stats import pearsonr
 import unittest
 
 import hail as hl
@@ -512,6 +513,14 @@ class Tests(unittest.TestCase):
         grouped_expr = t.aggregate(hl.array(hl.agg.group_by(t.group, hl.agg.sum(t.x))))
         self.assertEqual(grouped_expr, hl.eval(hl.sorted(grouped_expr)))
 
+    def test_agg_corr(self):
+        ht = hl.utils.range_table(10)
+        ht = ht.annotate(x=hl.rand_unif(-10, 10),
+                         y=hl.rand_unif(-10, 10))
+        c, xs, ys = ht.aggregate((hl.agg.corr(ht.x, ht.y), hl.agg.collect(ht.x), hl.agg.collect(ht.y)))
+
+        scipy_corr, _ = pearsonr(xs, ys)
+        self.assertAlmostEqual(c, scipy_corr)
 
     def test_joins_inside_aggregators(self):
         table = hl.utils.range_table(10)
