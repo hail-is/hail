@@ -337,7 +337,7 @@ object ArrayFunctions extends RegistryFunctions {
             l1 := t1.loadLength(region, a1),
             l2 := t2.loadLength(region, a2),
             l1.cne(l2).mux(
-              Code._fatal(new CodeString("'corr': cannot compute correlation between two arrays of different length: ")
+              Code._fatal(new CodeString("'corr': cannot compute correlation between arrays of different lengths: ")
                 .concat(l1.toS)
                 .concat(", ")
                 .concat(l2.toS)),
@@ -355,12 +355,12 @@ object ArrayFunctions extends RegistryFunctions {
                 (t1.isElementDefined(region, a1, i) && t2.isElementDefined(region, a2, i)).mux(
                   Code(
                     x := region.loadDouble(t1.loadElement(region, a1, i)),
-                    y := region.loadDouble(t2.loadElement(region, a2, i)),
                     xSum := xSum + x,
+                    xSqSum := xSqSum + x * x,
+                    y := region.loadDouble(t2.loadElement(region, a2, i)),
                     ySum := ySum + y,
-                    xSqSum := xSqSum + (x * x),
-                    ySqSum := ySqSum + (y * y),
-                    xySum := xySum + (x * y),
+                    ySqSum := ySqSum + y * y,
+                    xySum := xySum + x * y,
                     n := n + 1
                   ),
                   Code._empty[Unit]
