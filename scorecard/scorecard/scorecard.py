@@ -36,7 +36,7 @@ with open(GITHUB_TOKEN_PATH, 'r') as f:
     token = f.read().strip()
 github = Github(token)
 
-users = ['danking', 'cseed', 'tpoterba', 'jigold', 'jbloom22', 'catoverdrive', 'patrick-schultz', 'rcownie', 'chrisvittal']
+users = ['danking', 'cseed', 'tpoterba', 'jigold', 'jbloom22', 'catoverdrive', 'patrick-schultz', 'chrisvittal']
 
 default_repo = 'hail'
 repos = {
