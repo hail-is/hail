@@ -23,7 +23,13 @@ versions, and reference genome builds are listed in the table below.
 Name                                  Versions   Reference Genomes
 ===================================== ========== =================
 :ref:`1000_genomes`                   phase3     GRCh37, GRCh38   
+:ref:`Ensembl_CDS_regions`            release_93 GRCh37, GRCh38   
+:ref:`Ensembl_cDNA_regions`           release_93 GRCh37, GRCh38   
 :ref:`Ensembl_human_reference_genome` release_93 GRCh37, GRCh38   
+:ref:`Ensembl_low_complexity_regions` release_93 GRCh37, GRCh38   
+:ref:`Ensembl_ncRNA_regions`          release_93 GRCh37, GRCh38   
+:ref:`Ensembl_peptide_sequences`      release_93 GRCh37, GRCh38   
+:ref:`GERP_elements`                  GERP++     GRCh37, GRCh38   
 :ref:`GERP_scores`                    GERP++     GRCh37, GRCh38   
 :ref:`GTEx_eQTL_associations`         v7         GRCh37           
 :ref:`GTEx_exons`                     v7         GRCh37, GRCh38   
@@ -35,7 +41,13 @@ Name                                  Versions   Reference Genomes
     :hidden:
 
     datasets/1000_genomes.rst
+    datasets/Ensembl_CDS_regions.rst
+    datasets/Ensembl_cDNA_regions.rst
     datasets/Ensembl_human_reference_genome.rst
+    datasets/Ensembl_low_complexity_regions.rst
+    datasets/Ensembl_ncRNA_regions.rst
+    datasets/Ensembl_peptide_sequences.rst
+    datasets/GERP_elements.rst
     datasets/GERP_scores.rst
     datasets/GTEx_eQTL_associations.rst
     datasets/GTEx_exons.rst

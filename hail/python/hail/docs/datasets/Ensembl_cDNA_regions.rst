@@ -1,7 +1,7 @@
-.. _Ensembl_human_reference_genome:
+.. _Ensembl_cDNA_regions:
 
-Ensembl_human_reference_genome
-==============================
+Ensembl_cDNA_regions
+====================
 
 *  **Versions:** release_93
 *  **Reference genome builds:** GRCh37, GRCh38
@@ -18,14 +18,20 @@ Schema (release_93, GRCh37)
             name: str, 
             version: str, 
             reference_genome: str, 
-            n_rows: int64, 
+            n_rows: int32, 
             n_partitions: int32
         } 
     ----------------------------------------
     Row fields:
-        'locus': locus<GRCh37> 
-        'reference_allele': str 
+        'interval': interval<locus<GRCh37>> 
+        'strand': str 
+        'seqtype': str 
+        'status': str 
+        'transcript_id': str 
+        'transcript_biotype': str 
+        'gene_id': str 
+        'gene_biotype': str 
     ----------------------------------------
-    Key: ['locus']
+    Key: ['interval']
     ----------------------------------------
     

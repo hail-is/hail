@@ -5,7 +5,7 @@ GERP_scores
 
 *  **Versions:** GERP++
 *  **Reference genome builds:** GRCh37, GRCh38
-*  **Type:** Table
+*  **Type:** :class:`Table`
 
 Schema (GERP++, GRCh37)
 ~~~~~~~~~~~~~~~~~~~~~~~

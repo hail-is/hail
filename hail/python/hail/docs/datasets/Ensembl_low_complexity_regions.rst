@@ -1,6 +1,6 @@
-.. _Ensembl_human_reference_genome:
+.. _Ensembl_low_complexity_regions:
 
-Ensembl_human_reference_genome
+Ensembl_low_complexity_regions
 ==============================
 
 *  **Versions:** release_93
@@ -18,14 +18,13 @@ Schema (release_93, GRCh37)
             name: str, 
             version: str, 
             reference_genome: str, 
-            n_rows: int64, 
+            n_rows: int32, 
             n_partitions: int32
         } 
     ----------------------------------------
     Row fields:
-        'locus': locus<GRCh37> 
-        'reference_allele': str 
+        'interval': interval<locus<GRCh37>> 
     ----------------------------------------
-    Key: ['locus']
+    Key: ['interval']
     ----------------------------------------
     

@@ -5,7 +5,7 @@ GTEx_eQTL_associations
 
 *  **Versions:** v7
 *  **Reference genome builds:** GRCh37
-*  **Type:** MatrixTable
+*  **Type:** :class:`MatrixTable`
 
 Schema (v7, GRCh37)
 ~~~~~~~~~~~~~~~~~~~

@@ -5,7 +5,7 @@ GTEx_genes
 
 *  **Versions:** v7
 *  **Reference genome builds:** GRCh37, GRCh38
-*  **Type:** MatrixTable
+*  **Type:** :class:`MatrixTable`
 
 Schema (v7, GRCh37)
 ~~~~~~~~~~~~~~~~~~~

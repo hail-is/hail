@@ -1,14 +1,14 @@
-.. _Ensembl_human_reference_genome:
+.. _GERP_elements:
 
-Ensembl_human_reference_genome
-==============================
+GERP_elements
+=============
 
-*  **Versions:** release_93
+*  **Versions:** GERP++
 *  **Reference genome builds:** GRCh37, GRCh38
 *  **Type:** :class:`Table`
 
-Schema (release_93, GRCh37)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Schema (GERP++, GRCh37)
+~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: text
 
@@ -18,14 +18,15 @@ Schema (release_93, GRCh37)
             name: str, 
             version: str, 
             reference_genome: str, 
-            n_rows: int64, 
+            n_rows: int32, 
             n_partitions: int32
         } 
     ----------------------------------------
     Row fields:
-        'locus': locus<GRCh37> 
-        'reference_allele': str 
+        'interval': interval<locus<GRCh37>> 
+        'S': float64 
+        'p_value': float64 
     ----------------------------------------
-    Key: ['locus']
+    Key: ['interval']
     ----------------------------------------
     

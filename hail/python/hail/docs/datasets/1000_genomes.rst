@@ -5,7 +5,7 @@
 
 *  **Versions:** phase3
 *  **Reference genome builds:** GRCh37, GRCh38
-*  **Type:** MatrixTable
+*  **Type:** :class:`MatrixTable`
 
 Schema (phase3, GRCh37)
 ~~~~~~~~~~~~~~~~~~~~~~~
