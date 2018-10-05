@@ -626,6 +626,81 @@ def logistic_regression(test, y, x, covariates, root='logreg') -> MatrixTable:
     return MatrixTable(jmt).drop(*fields_to_drop)
 
 
+@typecheck(test=enumeration('wald', 'lrt', 'score'),
+           y=expr_float64,
+           x=expr_float64,
+           covariates=sequenceof(expr_float64),
+           root=str)
+def poisson_regression(test, y, x, covariates, root='poisreg') -> MatrixTable:
+    r"""For each row, test an input variable for association with a
+    count response variable using Poisson regression.
+
+    Parameters
+    ----------
+    test : {'wald', 'lrt', 'score'}
+        Statistical test.
+    y : :class:`.Float64Expression`
+        Column-indexed response expression.
+        All non-missing values must evaluate to a non-negative integer.
+    x : :class:`.Float64Expression`
+        Entry-indexed expression for input variable.
+    covariates : :obj:`list` of :class:`.Float64Expression`
+        Non-empty list of column-indexed covariate expressions.
+    root : :obj:`str`, optional
+        Name of resulting row-indexed field.
+
+    Returns
+    -------
+    :class:`.MatrixTable`
+        Matrix table with regression results in a new row-indexed field.
+    """
+    if len(covariates) == 0:
+        raise ValueError('Poisson regression requires at least one covariate expression')
+
+    mt = matrix_table_source('poisson_regression/x', x)
+    check_entry_indexed('poisson_regression/x', x)
+
+    analyze('poisson_regression/y', y, mt._col_indices)
+
+    all_exprs = [y]
+    for e in covariates:
+        all_exprs.append(e)
+        analyze('poisson_regression/covariates', e, mt._col_indices)
+
+    _warn_if_no_intercept('poisson_regression', covariates)
+
+    # FIXME: remove this logic when annotation is better optimized
+    if x in mt._fields_inverse:
+        x_field_name = mt._fields_inverse[x]
+        fields_to_drop = []
+        entry_expr = {}
+    else:
+        x_field_name = Env.get_uid()
+        fields_to_drop = [x_field_name]
+        entry_expr = {x_field_name: x}
+
+    y_field_name = '__y'
+    cov_field_names = list(f'__cov{i}' for i in range(len(covariates)))
+
+    fields_to_drop.append(y_field_name)
+    fields_to_drop.extend(cov_field_names)
+
+    mt = mt._annotate_all(col_exprs=dict(**{y_field_name: y},
+                                         **dict(zip(cov_field_names, covariates))),
+                          entry_exprs=entry_expr)
+
+    jmt = Env.hail().methods.PoissonRegression.apply(
+        mt._jvds,
+        test,
+        y_field_name,
+        x_field_name,
+        jarray(Env.jvm().java.lang.String, cov_field_names),
+        root)
+
+    return MatrixTable(jmt).drop(*fields_to_drop)
+
+
+
 @typecheck(y=expr_float64,
            x=sequenceof(expr_float64),
            z_t=nullable(expr_float64),
