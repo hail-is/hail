@@ -33,9 +33,14 @@ CONF_FILE=${SPARK_HOME}/conf/spark-defaults.conf
 
 SVC_ACCT_ENABLE=spark.hadoop.google.cloud.auth.service.account.enable
 SVC_ACCT_KEY_FILE=spark.hadoop.google.cloud.auth.service.account.json.keyfile
-sed -i '' "/${SVC_ACCT_ENABLE}/d" ${CONF_FILE}
-sed -i '' "/${SVC_ACCT_KEY_FILE}/d" ${CONF_FILE}
+
+if [ -e ${CONF_FILE} ]; then
+    sed -i '' "/${SVC_ACCT_ENABLE}/d" ${CONF_FILE}
+    sed -i '' "/${SVC_ACCT_KEY_FILE}/d" ${CONF_FILE}
+fi
 echo "${SVC_ACCT_ENABLE} true" >> ${CONF_FILE}
 echo "${SVC_ACCT_KEY_FILE} ${KEY_FILE}" >> ${CONF_FILE}
+
+curl https://storage.googleapis.com/hadoop-lib/gcs/gcs-connector-hadoop2-latest.jar > ${SPARK_HOME}/jars/gcs-connector-hadoop2-latest.jar
 
 echo "success"
