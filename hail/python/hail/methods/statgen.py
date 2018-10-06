@@ -3156,9 +3156,8 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
     mt = mt.distinct_by_row()
     locally_pruned_table_path = new_temp_file()
     (_local_ld_prune(require_biallelic(mt, 'ld_prune'), field, r2, bp_window_size, memory_per_core)
-        .add_index()
         .write(locally_pruned_table_path, overwrite=True))
-    locally_pruned_table = hl.read_table(locally_pruned_table_path)
+    locally_pruned_table = hl.read_table(locally_pruned_table_path).add_index()
 
     locally_pruned_ds_path = new_temp_file()
     mt = mt.annotate_rows(info=locally_pruned_table[mt.row_key])
