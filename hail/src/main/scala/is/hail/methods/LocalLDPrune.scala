@@ -322,6 +322,8 @@ object LocalLDPrune {
       rowType = mt.rowKeyStruct ++ TStruct("mean" -> TFloat64Required, "centered_length_rec" -> TFloat64Required),
       key = mt.rowKey, globalType = TStruct.empty())
 
+    val fieldIndicesToAdd = Array("locus", "alleles", "mean", "centered_length_rec")
+      .map(field => bpvType.fieldIdx(field))
     val sitesOnly = rvdLP.mapPartitions(
       typ.copy(rowType = tableType.rowType)
     )({ it =>
@@ -334,8 +336,7 @@ object LocalLDPrune {
         rvb.set(region)
         rvb.start(tableType.rowType)
         rvb.startStruct()
-        rvb.addFields(bpvType, rv, Array("locus", "alleles", "mean", "centered_length_rec")
-          .map(field => bpvType.fieldIdx(field)))
+        rvb.addFields(bpvType, rv, fieldIndicesToAdd)
         rvb.endStruct()
         newRV.setOffset(rvb.end())
         newRV
