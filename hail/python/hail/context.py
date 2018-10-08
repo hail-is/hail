@@ -139,6 +139,9 @@ class HailContext(object):
         Env._dummy_table = None
         Env._seed_generator = None
 
+    def upload_log(self):
+        self._jhc.uploadLog()
+
 @typecheck(sc=nullable(SparkContext),
            app_name=str,
            master=nullable(str),
@@ -272,3 +275,6 @@ def set_global_seed(seed):
 def read_version_info() -> str:
     from ._generated_version_info import hail_version
     return hail_version
+
+def upload_log():
+    Env.hc().upload_log()

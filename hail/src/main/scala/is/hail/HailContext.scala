@@ -1,6 +1,6 @@
 package is.hail
 
-import java.io.InputStream
+import java.io.{File, InputStream}
 import java.util.Properties
 
 import is.hail.annotations._
@@ -16,6 +16,7 @@ import is.hail.table.Table
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils.{log, _}
 import is.hail.variant.{MatrixTable, ReferenceGenome, VSMSubgen}
+import org.apache.commons.io.FileUtils
 import org.apache.hadoop
 import org.apache.log4j.{ConsoleAppender, LogManager, PatternLayout, PropertyConfigurator}
 import org.apache.spark.rdd.RDD
@@ -241,11 +242,12 @@ object HailContext {
 
     val sqlContext = new org.apache.spark.sql.SQLContext(sparkContext)
     val hailTempDir = TempDir.createTempDir(tmpDir, sparkContext.hadoopConfiguration)
-    val hc = new HailContext(sparkContext, sqlContext, hailTempDir, branchingFactor)
+    val hc = new HailContext(sparkContext, sqlContext, logFile, hailTempDir, branchingFactor)
     sparkContext.uiWebUrl.foreach(ui => info(s"SparkUI: $ui"))
 
     info(s"Running Hail version ${ hc.version }")
     theContext = hc
+
     hc
   }
 
@@ -316,6 +318,7 @@ object HailContext {
 
 class HailContext private(val sc: SparkContext,
   val sqlContext: SQLContext,
+  val logFile: String,
   val tmpDir: String,
   val branchingFactor: Int) {
   val hadoopConf: hadoop.conf.Configuration = sc.hadoopConfiguration
@@ -699,5 +702,8 @@ class HailContext private(val sc: SparkContext,
     }
   }
 
-  def genDataset(): MatrixTable = VSMSubgen.realistic.gen(this).sample()
+  def uploadLog() {
+    info(s"uploading $logFile")
+    Uploader.upload("log", FileUtils.readFileToString(new File(logFile)))
+  }
 }

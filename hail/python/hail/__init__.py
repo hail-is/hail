@@ -22,7 +22,7 @@ To report a bug, please open an issue: https://github.com/hail-is/hail/issues
 """
 
 from .context import init, stop, spark_context, default_reference, \
-    get_reference, set_global_seed
+    get_reference, set_global_seed, upload_log
 from .table import Table, GroupedTable, asc, desc
 from .matrixtable import MatrixTable, GroupedMatrixTable
 from .expr import *
@@ -48,6 +48,7 @@ __all__ = [
     'default_reference',
     'get_reference',
     'set_global_seed',
+    'upload_log',
     'Table',
     'GroupedTable',
     'MatrixTable',
