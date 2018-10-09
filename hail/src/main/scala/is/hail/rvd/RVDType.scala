@@ -49,6 +49,9 @@ final case class RVDType(rowType: TStruct, key: IndexedSeq[String] = FastIndexed
       other.kFieldIdx,
       false)
 
+  /** Comparison of a point with an interval, for use in joins where one side
+    * is keyed by intervals.
+    */
   def intervalJoinComp(other: RVDType): UnsafeOrdering = {
     require(other.key.length == 1)
     require(other.rowType.fieldByName(other.key(0)).typ.asInstanceOf[TInterval].pointType == rowType.fieldByName(key(0)).typ)
@@ -62,6 +65,10 @@ final case class RVDType(rowType: TStruct, key: IndexedSeq[String] = FastIndexed
       val f2 = other.kFieldIdx(0)
       val intervalType = t2.types(f2).asInstanceOf[TInterval]
       val pord = t1p.types(f1).unsafeOrdering(intervalType.pointType.physicalType)
+
+      // Left is a point, right is an interval.
+      // Returns -1 if point is below interval, 0 if it is inside, and 1 if it
+      // is above, always considering missing greatest.
       def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
 
         val leftDefined = rowType.isFieldDefined(r1, o1, f1)
