@@ -9,6 +9,7 @@
       <thead>
         <tr>
           <th align="left">time</th>
+          <th align="left">email</th>
           <th align="left">type</th>
           <th align="left">config</th>
           <th align="left">preview</th>
@@ -18,6 +19,7 @@
         {% for item in page_items %}
         <tr>
           <td>{{ item.timestamp }}</td>
+          <td>{{ item.email() }}</td>
           <td>{{ item.typ() }}</td>
           <td><a href="/items/{{ item.id }}/config">{{ item.hail_version() }}</a></td>
           <td><a href="/items/{{ item.id }}/contents"><pre>{{ item.preview() }}</pre></a></td>

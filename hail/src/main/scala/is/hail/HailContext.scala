@@ -40,7 +40,9 @@ object HailContext {
 
   private var theContext: HailContext = _
 
-  def get: HailContext = contextLock.synchronized { theContext }
+  def get: HailContext = contextLock.synchronized {
+    theContext
+  }
 
   def checkSparkCompatibility(jarVersion: String, sparkVersion: String): Unit = {
     def majorMinor(version: String): String = version.split("\\.", 3).take(2).mkString(".")
@@ -146,11 +148,11 @@ object HailContext {
   }
 
   /**
-   * If a HailContext has already been initialized, this function returns it regardless of the
-   * parameters with which it was initialized.
-   *
-   * Otherwise, it initializes and returns a new HailContext.
-   */
+    * If a HailContext has already been initialized, this function returns it regardless of the
+    * parameters with which it was initialized.
+    *
+    * Otherwise, it initializes and returns a new HailContext.
+    */
   def getOrCreate(sc: SparkContext = null,
     appName: String = "Hail",
     master: Option[String] = None,
@@ -172,7 +174,7 @@ object HailContext {
         "tmpDir" -> Seq(tmpDir, hc.tmpDir),
         "branchingFactor" -> Seq(branchingFactor, hc.branchingFactor),
         "minBlockSize" -> Seq(minBlockSize, hc.sc.getConf.getLong("spark.hadoop.mapreduce.input.fileinputformat.split.minsize", 0L) / 1024L / 1024L)
-       ) ++ master.map(m => "master" -> Seq(m, hc.sc.master))).filter(_._2.areDistinct())
+      ) ++ master.map(m => "master" -> Seq(m, hc.sc.master))).filter(_._2.areDistinct())
       val paramsDiffStr = paramsDiff.map { case (name, Seq(provided, existing)) =>
         s"Param: $name, Provided value: $provided, Existing value: $existing"
       }.mkString("\n")
@@ -702,8 +704,20 @@ class HailContext private(val sc: SparkContext,
     }
   }
 
-  def uploadLog() {
+  var uploadEmail: String = _
+
+  def enablePipelineUpload(email: String) {
+    uploadEmail = email
+    info("pipeline upload enabled")
+  }
+
+  def disablePipelineUpload() {
+    uploadEmail = null
+    info("pipeline upload disabled")
+  }
+
+  def uploadLog(email: String) {
     info(s"uploading $logFile")
-    Uploader.upload("log", FileUtils.readFileToString(new File(logFile)))
+    Uploader.upload("log", FileUtils.readFileToString(new File(logFile)), email)
   }
 }

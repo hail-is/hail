@@ -18,12 +18,12 @@ import scala.collection.JavaConverters._
 object Uploader {
   private lazy val theUploader: Uploader = new Uploader
 
-  def enqueueUpload(typ: String, contents: String) {
-    theUploader.enqueueUpload(typ, contents)
+  def enqueueUpload(typ: String, contents: String, email: String) {
+    theUploader.enqueueUpload(typ, contents, email)
   }
 
-  def upload(typ: String, contents: String) {
-    theUploader.upload(typ, contents)
+  def upload(typ: String, contents: String, email: String) {
+    theUploader.upload(typ, contents, email)
   }
 }
 
@@ -67,7 +67,7 @@ class Uploader {
     .setConnectionManager(new PoolingHttpClientConnectionManager())
     .build()
 
-  private val queue = new LinkedBlockingQueue[(String, String)]()
+  private val queue = new LinkedBlockingQueue[(String, String, String)]()
 
   val t = new Thread {
     override def run() {
@@ -76,20 +76,26 @@ class Uploader {
         if (item == null)
           return
 
-        val (typ, contents) = item
-        self.upload(typ, contents)
+        val (typ, contents, email) = item
+
+        try {
+          self.upload(typ, contents, email)
+        } catch {
+          case e: Exception =>
+            warn(s"upload failed, caught $e")
+        }
       }
     }
   }
 
   t.start()
 
-  def upload(typ: String, contents: String) {
-    // FIXME upload.hail.is/upload
-    val request = new HttpPost("https://test.hail.is/upload")
+  def upload(typ: String, contents: String, email: String) {
+    val request = new HttpPost("https://upload.hail.is/upload")
 
     val jv = JObject(
       "type" -> JString(typ),
+      "email" -> JString(email),
       "config" -> config,
       "contents" -> JString(contents))
 
@@ -103,8 +109,8 @@ class Uploader {
     }
   }
 
-  def enqueueUpload(typ: String, contents: String) {
-    queue.offer((typ, contents))
+  def enqueueUpload(typ: String, contents: String, email: String) {
+    queue.offer((typ, contents, email))
   }
 
   def join() {

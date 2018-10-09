@@ -276,5 +276,44 @@ def read_version_info() -> str:
     from ._generated_version_info import hail_version
     return hail_version
 
-def upload_log():
-    Env.hc().upload_log()
+@typecheck(email=str)
+def enable_pipeline_upload(email):
+    """Upload all subsequent pipelines to the Hail team in order to
+    help improve Hail.
+
+    Warning
+    -------
+    Shares potentially sensitive data with the Hail team.
+
+    Parameters
+    ----------
+    email : :obj:`str`
+        Email contact to include with uploaded data.
+    """
+
+    Env.hc()._jhc.enablePipelineUpload(email)
+
+def disable_pipeline_upload():
+    """Disable the uploading of pipelines.  By default, pipeline upload is
+    disabled.
+
+    """
+    
+    Env.hc()._jhc.disablePipelineUpload()
+
+@typecheck(email=str)
+def upload_log(email):
+    """Uploads the Hail log to the Hail team.
+
+    Warning
+    -------
+    Shares potentially sensitive data with the Hail team.
+
+    Parameters
+    ----------
+    email : :obj:`str`
+        Email contact to include with uploaded log.
+
+    """
+
+    Env.hc()._jhc.uploadLog(email)

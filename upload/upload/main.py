@@ -79,6 +79,9 @@ class Item(object):
     def typ(self):
         return self.data['type']
 
+    def email(self):
+        return self.data['email']
+
     def config(self):
         return self.data['config']
 

@@ -61,8 +61,11 @@ object Interpret {
       w.toString
     }
 
-    Uploader.enqueueUpload("ir",
-      s"ir0:\n${ Pretty(ir0) }\n\nir:\n${ Pretty(ir) }\n\nfrom:\n${ stackTrace }")
+    if (HailContext.get.uploadEmail != null) {
+      Uploader.enqueueUpload("ir",
+        s"ir0:\n${ Pretty(ir0) }\n\nir:\n${ Pretty(ir) }\n\nfrom:\n${ stackTrace }",
+        HailContext.get.uploadEmail)
+    }
 
     result
   }
