@@ -1,7 +1,9 @@
 package is.hail
 
+import java.net.InetAddress
+
 import is.hail.utils._
-import java.util.concurrent.{LinkedBlockingQueue}
+import java.util.concurrent.LinkedBlockingQueue
 
 import org.apache.http.client.methods.HttpPost
 import org.apache.http.entity.StringEntity
@@ -35,6 +37,7 @@ class Uploader {
     val runtime = Runtime.getRuntime
 
     JObject(
+      "hostname" -> JString(InetAddress.getLocalHost.getHostName),
       "jvm_version" -> JString(System.getProperty("java.version")),
       "jvm_properties" -> JObject(
         System.getProperties.asScala.map { case (k, v) =>

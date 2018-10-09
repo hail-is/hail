@@ -1,0 +1,44 @@
+apiVersion: apps/v1beta2
+kind: Deployment
+metadata:
+  name: upload
+  labels:
+    hail.is/sha: @sha@
+spec:
+  selector:
+    matchLabels:
+      app: upload
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: upload
+        hail.is/sha: @sha@
+    spec:
+      containers:
+        - name: upload
+          image: @image@
+          ports:
+          - containerPort: 5000
+          volumeMounts:
+            - mountPath: /upload-oauth2-client-secret
+              readOnly: true
+              name: upload-oauth2-client-secret
+      volumes:
+        - name: upload-oauth2-client-secret
+          secret:
+            secretName: upload-oauth2-client-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: upload
+  labels:
+    app: upload
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 5000
+  selector:
+    app: upload
