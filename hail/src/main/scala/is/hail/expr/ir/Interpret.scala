@@ -51,21 +51,7 @@ object Interpret {
 
     val result = apply(ir, valueEnv, args, agg, None, Memo.empty[AsmFunction3[Region, Long, Boolean, Long]]).asInstanceOf[T]
 
-    // for stack trace
-    val e = new Traceback
-
-    val w = new StringWriter
-    // closes w
-    val stackTrace = using(new PrintWriter(w)) { p =>
-      e.printStackTrace(p)
-      w.toString
-    }
-
-    if (HailContext.get.uploadEmail != null) {
-      Uploader.enqueueUpload("ir",
-        s"ir0:\n${ Pretty(ir0) }\n\nir:\n${ Pretty(ir) }\n\nfrom:\n${ stackTrace }",
-        HailContext.get.uploadEmail)
-    }
+    Uploader.uploadPipeline(ir0, ir)
 
     result
   }

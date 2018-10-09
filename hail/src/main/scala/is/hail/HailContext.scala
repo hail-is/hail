@@ -704,15 +704,13 @@ class HailContext private(val sc: SparkContext,
     }
   }
 
-  var uploadEmail: String = _
-
   def enablePipelineUpload(email: String) {
-    uploadEmail = email
+    Uploader.pipelineEmail = email
     info("pipeline upload enabled")
   }
 
   def disablePipelineUpload() {
-    uploadEmail = null
+    Uploader.pipelineEmail = null
     info("pipeline upload disabled")
   }
 

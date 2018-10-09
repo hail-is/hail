@@ -1,10 +1,12 @@
 package is.hail
 
+import java.io.{PrintWriter, StringWriter}
 import java.net.InetAddress
 
 import is.hail.utils._
 import java.util.concurrent.LinkedBlockingQueue
 
+import is.hail.expr.ir.{BaseIR, Pretty}
 import org.apache.http.client.methods.HttpPost
 import org.apache.http.entity.StringEntity
 import org.apache.http.impl.client.HttpClientBuilder
@@ -18,8 +20,26 @@ import scala.collection.JavaConverters._
 object Uploader {
   private lazy val theUploader: Uploader = new Uploader
 
-  def enqueueUpload(typ: String, contents: String, email: String) {
-    theUploader.enqueueUpload(typ, contents, email)
+  var pipelineEmail: String = _
+
+  def uploadPipeline(ir0: BaseIR, ir: BaseIR) {
+    if (pipelineEmail == null)
+      return
+
+    // for stack trace
+    val e = new Traceback
+
+    val w = new StringWriter
+    // closes w
+    val stackTrace = using(new PrintWriter(w)) { p =>
+      e.printStackTrace(p)
+      w.toString
+    }
+
+    val contents =
+      s"ir0:\n${ Pretty(ir0) }\n\nir:\n${ Pretty(ir) }\n\nfrom:\n${ stackTrace }"
+
+    theUploader.enqueueUpload("ir", contents, pipelineEmail)
   }
 
   def upload(typ: String, contents: String, email: String) {
@@ -27,8 +47,7 @@ object Uploader {
   }
 }
 
-class Uploader {
-  self =>
+class Uploader { self =>
 
   private val config = {
     val hc = HailContext.get
