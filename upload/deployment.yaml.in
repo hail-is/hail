@@ -24,10 +24,16 @@ spec:
             - mountPath: /upload-oauth2-client-secret
               readOnly: true
               name: upload-oauth2-client-secret
+            - mountPath: /flask-secret-key
+              readOnly: true
+              name: flask-secret-key
       volumes:
         - name: upload-oauth2-client-secret
           secret:
             secretName: upload-oauth2-client-secret
+        - name: flask-secret-key
+          secret:
+            secretName: flask-secret-key
 ---
 apiVersion: v1
 kind: Service

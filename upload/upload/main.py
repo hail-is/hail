@@ -102,8 +102,8 @@ class Item(object):
 
 app = Flask('upload')
 
-# FIXME make secret
-app.secret_key = b'\xe8\xdam\xc7\xb3R\xc4\xbe\x02\x8d_\x19\xc2\xa6\xd7\xeb'
+with open('/flask-secret-key/flask-secret-key', 'rb') as f:
+    app.secret_key = f.read()
 
 def get_flow(state=None):
   flow = google_auth_oauthlib.flow.Flow.from_client_secrets_file(
