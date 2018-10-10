@@ -4,7 +4,8 @@ import hail as hl
 
 def load_dataset(name,
                  version,
-                 reference_genome):
+                 reference_genome,
+                 config_file='gs://hail-datasets/datasets.json'):
     """Load a genetic dataset from Hail's repository.
 
     Example
@@ -29,26 +30,26 @@ def load_dataset(name,
     -------
     :class:`.Table` or :class:`.MatrixTable`"""
 
-    with hl.hadoop_open('gs://hail-datasets/datasets.json', 'r') as f:
+    with hl.hadoop_open(config_file, 'r') as f:
         datasets = json.load(f)
 
     names = set([dataset['name'] for dataset in datasets])
     if name not in names:
-        raise ValueError('"{}" is not a dataset available in the repository.'.format(name))
+        raise ValueError('{} is not a dataset available in the repository.'.format(repr(name)))
 
     versions = set([dataset['version'] for dataset in datasets if dataset['name']==name])
     if version not in versions:
-        raise ValueError("""Version "{0}" not available for dataset "{1}".
-                            Available versions: {{"{2}"}}.""".format(version, 
-                                                                     name,
-                                                                     '","'.join(versions)))
+        raise ValueError("""Version {0} not available for dataset {1}.
+                            Available versions: {{{2}}}.""".format(repr(version), 
+                                                                   repr(name),
+                                                                   repr('","'.join(versions))))
 
     reference_genomes = set([dataset['reference_genome'] for dataset in datasets if dataset['name']==name])
     if reference_genome not in reference_genomes:
-        raise ValueError("""Reference genome build "{0}" not available for dataset "{1}".
-                            Available reference genome builds: {{"{2}"}}.""".format(reference_genome,
-                                                                                    name, 
-                                                                                    '","'.join(reference_genomes)))
+        raise ValueError("""Reference genome build {0} not available for dataset {1}.
+                            Available reference genome builds: {{'{2}'}}.""".format(repr(reference_genome),
+                                                                                    repr(name), 
+                                                                                    '\',\''.join((reference_genomes))))
 
     path = [dataset['path'] for dataset in datasets if all([dataset['name']==name,
                                                             dataset['version']==version,
@@ -58,7 +59,7 @@ def load_dataset(name,
         dataset = hl.read_table(path)
     else:
         if not path.endswith('.mt'):
-            raise ValueError('Invalid path "{}": can only load datasets with .ht or .mt extensions.'.format(path))
+            raise ValueError('Invalid path {}: can only load datasets with .ht or .mt extensions.'.format(repr(path)))
         dataset = hl.read_matrix_table(path)
 
     return dataset
