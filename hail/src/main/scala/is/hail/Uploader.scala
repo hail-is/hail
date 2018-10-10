@@ -65,7 +65,6 @@ class Uploader { self =>
           .toList),
       "jvm_runtime" -> JObject(
         "available_processors" -> JInt(runtime.availableProcessors()),
-        "free_memory" -> JInt(runtime.freeMemory()),
         "total_memory" -> JInt(runtime.totalMemory()),
         "max_memory" -> JInt(runtime.maxMemory())),
       "spark_version" -> JString(hc.sc.version),

@@ -12,6 +12,7 @@ import datetime
 from flask import Flask, Response, session, request, redirect, render_template, escape, jsonify, abort, url_for
 import httplib2
 import json
+import requests
 
 import google.oauth2.credentials
 import google_auth_oauthlib.flow
@@ -19,7 +20,7 @@ import google_auth_oauthlib.flow
 from apiclient.discovery import build
 
 fmt = logging.Formatter(
-  # NB: no space after levename because WARNING is so long
+  # NB: no space after levelname because WARNING is so long
   '%(levelname)s\t| %(asctime)s \t| %(filename)s \t| %(funcName)s:%(lineno)d | '
   '%(message)s')
 
@@ -37,6 +38,10 @@ log.setLevel(logging.INFO)
 logging.basicConfig(
   handlers=[fh, ch],
   level=logging.INFO)
+
+# NOTE: nginx strips https and sets X-Forwarded-Proto: https, but it
+# is not used by request.url or url_for, so rewrite the url and set
+# _scheme='https' explicitly.
 
 USERS = set([
     'cseed@broadinstitute.org',
@@ -95,10 +100,7 @@ class Item(object):
         s = self.contents()
         if len(s) > 40:
             s = s[:40] + " ..."
-        
         return re.sub('\\s+', ' ', s)
-        
-        return s
 
 app = Flask('upload')
 
@@ -109,7 +111,6 @@ def get_flow(state=None):
   flow = google_auth_oauthlib.flow.Flow.from_client_secrets_file(
     CLIENT_SECRET, scopes=SCOPES, state=state)
 
-  # FIXME _scheme='https'
   flow.redirect_uri = url_for('oauth2callback', _external=True, _scheme='https')
   
   return flow
@@ -140,7 +141,6 @@ def login():
 @app.route('/oauth2callback', methods=['GET'])
 def oauth2callback():
   authorization_response = request.url
-  # FIXME as with url_for(..., _scheme='https')
   authorization_response = re.sub('^http://', 'https://', authorization_response)
   
   flow = get_flow(state=session['state'])
@@ -194,9 +194,13 @@ def get_item_config(item_id):
 
 @app.route('/logout', methods=['GET'])
 def logout():
-  # FIXME revoke
-  session.pop('credentials', None)
-  session.pop('email', None)
-  return redirect(url_for('index'))
+    credentials = session.get('credentials')
+    if credentials:
+        requests.post('https://accounts.google.com/o/oauth2/revoke',
+                      params={'token': credentials.token},
+                      headers={'content-type': 'application/x-www-form-urlencoded'})
+    session.pop('credentials', None)
+    session.pop('email', None)
+    return redirect(url_for('index'))
 
 app.run(threaded=False, host='0.0.0.0')

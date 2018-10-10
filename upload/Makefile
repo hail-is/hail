@@ -9,7 +9,7 @@ push: build
 	docker push $(IMAGE)
 	echo $(IMAGE) > upload-image
 
-redeploy:
+deploy:
 	sed -e "s,@sha@,$SHA," \
 	  -e "s,@image@,$$(cat upload-image)," \
 	  < deployment.yaml.in > deployment.yaml
