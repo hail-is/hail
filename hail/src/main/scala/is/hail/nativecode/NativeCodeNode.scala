@@ -182,6 +182,8 @@ class NativeFile extends Serializable {
     { objects: Array[java.lang.Object] =>
       val st = new NativeStatus()
       val mod = new NativeModule(modKey, modBinary)
+      mod.findOrBuild(st)
+      assert(st.ok, st.toString())
       val makeObjectHolder = mod.findPtrFuncL1(st, "makeObjectHolder")
       assert(st.ok, st.toString())
       val f = mod.findLongFuncL1(st, name)
