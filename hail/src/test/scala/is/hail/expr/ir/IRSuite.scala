@@ -780,7 +780,6 @@ class IRSuite extends SparkSuite {
       Die("mumblefoo", TFloat64()),
       invoke("&&", b, c), // ApplySpecial
       invoke("toFloat64", i), // Apply
-      invoke("isDefined", s), // ApplyIR
       Uniroot("x", F64(3.14), F64(-5.0), F64(5.0)),
       Literal(TStruct("x" -> TInt32()), Row(1))
     )
