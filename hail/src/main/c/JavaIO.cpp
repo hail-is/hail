@@ -1,4 +1,5 @@
 #include "hail/JavaIO.h"
+#include <cstring>
 
 namespace hail {
 
