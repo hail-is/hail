@@ -23,7 +23,6 @@ LIBSIMDPP :=libsimdpp-2.1
 # this list
 OBJECTS := \
   davies.o \
-  encoder_test.o \
   ibs.o \
   JavaIO.o \
   Logging.o \
