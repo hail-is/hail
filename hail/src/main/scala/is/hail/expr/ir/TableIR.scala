@@ -346,8 +346,7 @@ object TableJoin {
   * Then [l_1, ..., l_j] and [r_1, ..., r_j] must have the same type, where
   * j = 'joinKey'. TableJoin computes the join of 'left' and 'right' along this
   * common prefix of their keys, returning a table with key
-  * [l_1, ..., l_j, l_{j+1}, ..., l_n, r_{j+1}, ..., r_m] (with possible
-  * renaming of right field names to avoid collision).
+  * [l_1, ..., l_j, l_{j+1}, ..., l_n, r_{j+1}, ..., r_m].
   *
   * WARNING: If 'left' has any duplicate (full) key [k_1, ..., k_n], and j < m,
   * and 'right' has multiple rows with the corresponding join key
