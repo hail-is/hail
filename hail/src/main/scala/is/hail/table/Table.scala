@@ -466,8 +466,13 @@ class Table(val hc: HailContext, val tir: TableIR) {
     ))
   }
 
-  def unlocalizeEntries(cols: Table, entriesFieldName: String): MatrixTable =
-    new MatrixTable(hc, UnlocalizeEntries(tir, cols.tir, entriesFieldName))
+  def unlocalizeEntries(
+    entriesFieldName: String,
+    colsFieldName: String,
+    colKey: java.util.ArrayList[String]
+  ): MatrixTable =
+    new MatrixTable(hc,
+      UnlocalizeEntries(tir, entriesFieldName, colsFieldName, colKey.asScala.toFastIndexedSeq))
 
   def aggregateByKey(expr: String): Table = {
     val x = Parser.parse_value_ir(expr, IRParserEnvironment(typ.refMap))

@@ -655,8 +655,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     copyAST(MatrixExplodeCols(ast, path.toFastIndexedSeq))
   }
 
-  def localizeEntries(entriesFieldName: String): Table =
-    new Table(hc, LocalizeEntries(ast, entriesFieldName))
+  def localizeEntries(entriesFieldName: String, colsFieldName: String): Table =
+    new Table(hc, LocalizeEntries(ast, entriesFieldName, colsFieldName))
 
   def filterCols(p: (Annotation, Int) => Boolean): MatrixTable = {
     val (newType, filterF) = MatrixIR.filterCols(matrixType)

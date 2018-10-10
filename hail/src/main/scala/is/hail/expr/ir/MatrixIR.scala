@@ -2468,7 +2468,7 @@ case class MatrixExplodeCols(child: MatrixIR, path: IndexedSeq[String]) extends 
 }
 
 /**
- * This is inteded to be an inverse to LocalizeEntries on a MatrixTable
+ * This is intended to be an inverse to LocalizeEntries on a MatrixTable
  *
  * Some notes on semantics,
  * `rowsEntries`'s globals populate the resulting matrixtable, `cols`' are discarded
@@ -2476,55 +2476,58 @@ case class MatrixExplodeCols(child: MatrixIR, path: IndexedSeq[String]) extends 
  * all elements in the array field that `entriesFieldName` refers to must be present. Furthermore,
  * all array elements must be the same length, though individual array items may be missing.
  */
-case class UnlocalizeEntries(rowsEntries: TableIR, cols: TableIR, entryFieldName: String) extends MatrixIR {
-  private val m = Map(entryFieldName -> MatrixType.entriesIdentifier)
-  private val entryFieldIdx = rowsEntries.typ.rowType.fieldIdx(entryFieldName)
-  private val entryFieldType = rowsEntries.typ.rowType.types(entryFieldIdx)
-  private val newRowType = rowsEntries.typ.rowType.rename(m)
-
-  entryFieldType match {
-    case TArray(TStruct(_, _), _) => {}
-    case _ => fatal(s"expected entry field to be an array of structs, found ${ entryFieldType }")
+case class UnlocalizeEntries(
+  child: TableIR,
+  entriesFieldName: String,
+  colsFieldName: String,
+  colKey: IndexedSeq[String]
+) extends MatrixIR {
+  private val m = Map(entriesFieldName -> MatrixType.entriesIdentifier)
+  private val Field(_, entriesFieldType, entriesFieldIdx) = child.typ.rowType.field(entriesFieldName)
+  private val Field(_,
+    TArray(colType@TStruct(_, _), _),
+    colsFieldIdx
+  ) = child.typ.globalType.field(colsFieldName)
+  private val newRowType = child.typ.rowType.rename(m)
+  entriesFieldType match {
+    case TArray(TStruct(_, _), _) =>
+    case _ => fatal(s"expected entry field to be an array of structs, found ${ entriesFieldType }")
   }
 
   val typ: MatrixType = MatrixType(
-    rowsEntries.typ.globalType,
-    cols.typ.key,
-    cols.typ.rowType,
-    rowsEntries.typ.key,
+    child.typ.globalType.deleteKey(colsFieldName, colsFieldIdx),
+    colKey,
+    colType,
+    child.typ.key,
     newRowType)
 
-  def children: IndexedSeq[BaseIR] = Array(rowsEntries, cols)
+  def children: IndexedSeq[BaseIR] = Array(child)
 
   def copy(newChildren: IndexedSeq[BaseIR]): UnlocalizeEntries = {
     assert(newChildren.length == 2)
     UnlocalizeEntries(
       newChildren(0).asInstanceOf[TableIR],
-      newChildren(1).asInstanceOf[TableIR],
-      entryFieldName
-    )
+      entriesFieldName,
+      colsFieldName,
+      colKey)
   }
 
-  override def partitionCounts: Option[IndexedSeq[Long]] = rowsEntries.partitionCounts
+  override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
   def execute(hc: HailContext): MatrixValue = {
-    val rowtab = rowsEntries.execute(hc)
-    val coltab = cols.execute(hc)
+    val prev = child.execute(hc)
 
-    val localColType = coltab.typ.rowType.physicalType
-    val localColData: Array[Annotation] = coltab.rvd.mapPartitions { it =>
-      it.map { rv => SafeRow(localColType, rv.region, rv.offset) : Annotation }
-    }.collect
+    val localColData = prev.globals.value.getAs[IndexedSeq[Annotation]](colsFieldIdx)
+    val nCols = localColData.size
 
-    val field = GetField(Ref("row", rowtab.typ.rowType), entryFieldName)
-    val (_, lenF) = ir.Compile[Long, Int]("row", rowtab.typ.rowType,
+    val field = GetField(Ref("row", prev.typ.rowType), entriesFieldName)
+    val (_, lenF) = ir.Compile[Long, Int]("row", child.typ.rowType,
       ir.ArrayLen(field))
 
-    val (_, missingF) = ir.Compile[Long, Boolean]("row", rowsEntries.typ.rowType,
+    val (_, missingF) = ir.Compile[Long, Boolean]("row", child.typ.rowType,
       ir.IsNA(field))
 
-    var rowRVD = rowtab.rvd
-    rowRVD = rowRVD.mapPartitionsWithIndex(rowRVD.typ) { (i, it) =>
+    val rowRVD = prev.rvd.mapPartitionsWithIndex(prev.rvd.typ) { (i, it) =>
       val missing = missingF(i)
       val len = lenF(i)
       it.map { rv =>
@@ -2532,23 +2535,23 @@ case class UnlocalizeEntries(rowsEntries: TableIR, cols: TableIR, entryFieldName
           fatal("missing entry array value in argument to UnlocalizeEntries")
         }
         val l = len(rv.region, rv.offset, false)
-        if (l != localColData.length) {
+        if (l != nCols) {
           fatal(s"""incorrect entry array length in argument to UnlocalizeEntries:
-                   |   had ${l} elements, should have had ${localColData.length} elements""".stripMargin)
+                   |   had $l elements, should have had $nCols elements""".stripMargin)
         }
         rv
       }
     }
-    val newRVD = rowRVD.cast(newRowType).asInstanceOf[RVD]
+    val newRVD = rowRVD.cast(newRowType)
+    val newGlobals = {
+      val (pre, post) = prev.globals.value.toSeq.splitAt(colsFieldIdx)
+      Row.fromSeq(pre ++ post.tail)
+    }
 
     MatrixValue(
       typ,
-      rowtab.globals,
-      BroadcastIndexedSeq(
-        localColData,
-        TArray(coltab.typ.rowType),
-        hc.sc
-      ),
+      BroadcastRow(newGlobals, typ.globalType, hc.sc),
+      BroadcastIndexedSeq(localColData, TArray(typ.colType), hc.sc),
       newRVD
     )
   }

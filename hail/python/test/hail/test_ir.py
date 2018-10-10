@@ -166,7 +166,7 @@ class TableIRTests(unittest.TestCase):
             ir.TableHead(table_read, 10),
             ir.TableOrderBy(ir.TableKeyBy(table_read, []), [('m', 'A'), ('m', 'D')]),
             ir.TableDistinct(table_read),
-            ir.LocalizeEntries(matrix_read, '__entries'),
+            ir.LocalizeEntries(matrix_read, '__entries', '__cols'),
             ir.TableRename(table_read, {'idx': 'idx_foo'}, {'global_f32': 'global_foo'})
         ]
 
@@ -191,9 +191,10 @@ class TableIRTests(unittest.TestCase):
         matrix_irs = [
             ir.MatrixUnionRows(ir.MatrixRange(5, 5, 1), ir.MatrixRange(5, 5, 1)),
             ir.UnlocalizeEntries(
-                ir.LocalizeEntries(matrix_read, '__entries'),
-                ir.MatrixColsTable(matrix_read),
-                '__entries'),
+                ir.LocalizeEntries(matrix_read, '__entries', '__cols'),
+                '__entries',
+                '__cols',
+                []),
             ir.MatrixAggregateRowsByKey(matrix_read, collect, collect),
             ir.MatrixAggregateColsByKey(matrix_read, collect, collect),
             ir.MatrixRange(1, 1, 10),

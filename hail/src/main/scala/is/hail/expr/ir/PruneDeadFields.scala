@@ -345,11 +345,19 @@ object PruneDeadFields {
         memoizeMatrixIR(child, mtDep, memo)
       case TableUnion(children) =>
         children.foreach(memoizeTableIR(_, requestedType, memo))
-      case LocalizeEntries(child, fieldName) =>
+      case LocalizeEntries(child, entriesFieldName, colsFieldName) =>
         val minChild = minimal(child.typ)
-        val m = Map(fieldName -> MatrixType.entriesIdentifier)
+        val m = Map(entriesFieldName -> MatrixType.entriesIdentifier)
         val childDep = minChild.copy(
-          globalType = requestedType.globalType,
+          globalType = if (requestedType.globalType.hasField(colsFieldName))
+              requestedType.globalType.deleteKey(colsFieldName)
+            else
+              requestedType.globalType,
+          colType = if (requestedType.globalType.hasField(colsFieldName))
+            unify(child.typ.colType, minChild.colType,
+              requestedType.globalType.field(colsFieldName).typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct])
+            else
+              minChild.colType,
           rvRowType = unify(child.typ.rvRowType, minChild.rvRowType, requestedType.rowType.rename(m)))
         memoizeMatrixIR(child, childDep, memo)
       case TableRename(child, rowMap, globalMap) =>
@@ -551,20 +559,13 @@ object PruneDeadFields {
         memoizeMatrixIR(child, dep, memo)
       case MatrixUnionRows(children) =>
         children.foreach(memoizeMatrixIR(_, requestedType, memo))
-      case UnlocalizeEntries(rowsEntries, cols, fieldName) =>
-        val m = Map(MatrixType.entriesIdentifier -> fieldName)
-        val minRowEntries = minimal(rowsEntries.typ)
-        val rowsEntriesDep = minRowEntries.copy(
-          globalType = requestedType.globalType,
-          rowType = unify(rowsEntries.typ.rowType, requestedType.rvRowType.rename(m))
+      case UnlocalizeEntries(child, entriesFieldName, colsFieldName, _) =>
+        val m = Map(MatrixType.entriesIdentifier -> entriesFieldName)
+        val childDep = child.typ.copy(
+          globalType = unify(child.typ.globalType, requestedType.globalType, TStruct((colsFieldName, TArray(requestedType.colType)))),
+          rowType = requestedType.rvRowType.rename(m)
         )
-        memoizeTableIR(rowsEntries, rowsEntriesDep, memo)
-
-        val minCols = minimal(cols.typ)
-        val colDep = cols.typ.copy(
-          rowType = unify(cols.typ.rowType, requestedType.colType),
-          globalType = minCols.globalType)
-        memoizeTableIR(cols, colDep, memo)
+        memoizeTableIR(child, childDep, memo)
     }
   }
 
@@ -818,10 +819,10 @@ object PruneDeadFields {
         val expr2 = rebuild(expr, child2.typ, memo)
         val newKey2 = rebuild(newKey, child2.typ, memo)
         TableKeyByAndAggregate(child2, expr2, newKey2, nPartitions, bufferSize)
-      case LocalizeEntries(child, fieldName) =>
+      case LocalizeEntries(child, entriesFieldName, colsFieldName) =>
         val child2 = rebuild(child, memo)
-        if (dep.rowType.hasField(fieldName))
-          LocalizeEntries(child2, fieldName)
+        if (dep.rowType.hasField(entriesFieldName))
+          LocalizeEntries(child2, entriesFieldName, colsFieldName)
         else
           MatrixRowsTable(child2)
       case TableRename(child, rowMap, globalMap) =>

@@ -2493,7 +2493,7 @@ class MatrixTable(ExprContainer):
             uids.append(col_uid)
 
             def joiner(left: MatrixTable):
-                localized = self._localize_entries(row_uid)
+                localized = self._localize_entries(row_uid, col_uid)
                 src_cols_indexed = self.add_col_index(col_uid).cols()
                 src_cols_indexed = src_cols_indexed.annotate(**{col_uid: hl.int32(src_cols_indexed[col_uid])})
                 left = left._annotate_all(row_exprs = {row_uid: localized.index(*row_exprs)[row_uid]},
@@ -2506,9 +2506,9 @@ class MatrixTable(ExprContainer):
                       joiner)
             return construct_expr(ir, self.entry.dtype, indices, aggregations)
 
-    @typecheck_method(entries_field_name=str)
-    def _localize_entries(self, entries_field_name):
-        return Table(self._jvds.localizeEntries(entries_field_name))
+    @typecheck_method(entries_field_name=str, cols_field_name=str)
+    def _localize_entries(self, entries_field_name, cols_field_name):
+        return Table(self._jvds.localizeEntries(entries_field_name, cols_field_name))
 
     @typecheck_method(row_exprs=dictof(str, expr_any),
                       col_exprs=dictof(str, expr_any),

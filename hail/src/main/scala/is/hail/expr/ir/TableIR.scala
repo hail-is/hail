@@ -1150,22 +1150,29 @@ case class TableOrderBy(child: TableIR, sortFields: IndexedSeq[SortField]) exten
   }
 }
 
-case class LocalizeEntries(child: MatrixIR, entriesFieldName: String) extends TableIR {
-  private val m = Map(MatrixType.entriesIdentifier -> entriesFieldName)
-  private val newRowType = child.typ.rvRowType.rename(m)
-
-  def typ: TableType = TableType(newRowType, child.typ.rowKey, child.typ.globalType)
+case class LocalizeEntries(child: MatrixIR, entriesFieldName: String, colsFieldName: String) extends TableIR {
+  def typ: TableType = TableType(
+    rowType = child.typ.rvRowType.rename(Map(MatrixType.entriesIdentifier -> entriesFieldName)),
+    key = child.typ.rowKey,
+    globalType = child.typ.globalType.appendKey(colsFieldName, +TArray(child.typ.colType)))
 
   def children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
+
   def copy(newChildren: IndexedSeq[BaseIR]): LocalizeEntries = {
     val IndexedSeq(newChild) = newChildren
-    LocalizeEntries(newChild.asInstanceOf[MatrixIR], entriesFieldName)
+    LocalizeEntries(newChild.asInstanceOf[MatrixIR], entriesFieldName, colsFieldName)
   }
+
+  override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
   def execute(hc: HailContext): TableValue = {
     val prev = child.execute(hc)
+    val newGlobals = BroadcastRow(
+      Row.merge(prev.globals.safeValue, Row(prev.colValues.safeValue)),
+      typ.globalType,
+      hc.sc)
 
-    TableValue(typ, prev.globals, prev.rvd.cast(newRowType))
+    TableValue(typ, newGlobals, prev.rvd.cast(typ.rowType))
   }
 }
 

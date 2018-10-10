@@ -39,7 +39,7 @@ trait ErrorHandling {
       case e: HailException => e.logMsg.filter(_ => logMessage).getOrElse(e.msg)
       case _ => e.getLocalizedMessage
     }
-    s"${ e.getClass.getName }: $msg\n\tat ${ e.getStackTrace.mkString("\n\tat ") }${
+    s"${ e.getClass.getName }: $msg\n\tat ${ e.getStackTrace.mkString("\n\tat ") }\n\n${
       Option(e.getCause).map(exception => expandException(exception, logMessage)).getOrElse("")
     }\n"
   }
