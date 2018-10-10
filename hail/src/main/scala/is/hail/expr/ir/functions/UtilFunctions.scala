@@ -41,16 +41,7 @@ object UtilFunctions extends RegistryFunctions {
 
     registerCode("triangle", TInt32(), TInt32()) { (_, n: Code[Int]) => (n * (n + 1)) / 2 }
 
-    registerIR("isDefined", tv("T")) { a => ApplyUnaryPrimOp(Bang(), IsNA(a)) }
-    registerIR("isMissing", tv("T")) { a => IsNA(a) }
-
     registerIR("[]", tv("T", _.isInstanceOf[TTuple]), TInt32()) { (a, i) => GetTupleElement(a, i.asInstanceOf[I32].x) }
-
-    registerIR("range", TInt32(), TInt32(), TInt32())(ArrayRange)
-
-    registerIR("range", TInt32(), TInt32())(ArrayRange(_, _, I32(1)))
-
-    registerIR("range", TInt32())(ArrayRange(I32(0), _, I32(1)))
 
     registerIR("annotate", tv("T", _.isInstanceOf[TStruct]), tv("U", _.isInstanceOf[TStruct])) { (s, s2) =>
       s2 match {

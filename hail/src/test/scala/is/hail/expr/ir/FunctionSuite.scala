@@ -101,17 +101,6 @@ class FunctionSuite extends SparkSuite {
   }
 
   @Test
-  def testUnifySize() {
-    val ir = lookup("size", TArray(TInt32()))(In(0, TArray(TInt32())))
-    val f = toF[Long, Int](ir)
-    val rvb = new RegionValueBuilder(region)
-    rvb.start(TArray(TInt32()))
-    rvb.addAnnotation(TArray(TInt32()), IndexedSeq(0, 1, 2, 3))
-    val actual = f(region, rvb.end(), false)
-    assert(actual == 4)
-  }
-
-  @Test
   def testVariableUnification() {
     assert(IRFunctionRegistry.lookupConversion("testCodeUnification", Seq(TInt32(), TInt32())).isDefined)
     assert(IRFunctionRegistry.lookupConversion("testCodeUnification", Seq(TInt64(), TInt32())).isEmpty)

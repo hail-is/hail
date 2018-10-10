@@ -27,14 +27,6 @@ class StringFunctionsSuite extends TestNGSuite {
     assertEvalsTo(invoke("+", Str("a"), Str("b")), "ab")
   }
 
-  @Test def testLength() {
-    assertEvalsTo(invoke("length", NA(TString())), null)
-    assertEvalsTo(invoke("size", NA(TString())), null)
-
-    assertEvalsTo(invoke("length", Str("five")), 4)
-    assertEvalsTo(invoke("size", Str("five")), 4)
-  }
-
   @Test def testSplit() {
     assertEvalsTo(invoke("split", NA(TString()), Str(",")), null)
     assertEvalsTo(invoke("split", Str("a,b,c"), NA(TString())), null)

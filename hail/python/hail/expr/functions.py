@@ -1157,7 +1157,7 @@ def is_defined(expression) -> BooleanExpression:
     :class:`.BooleanExpression`
         ``True`` if `expression` is not missing, ``False`` otherwise.
     """
-    return _func("isDefined", tbool, expression)
+    return ~apply_expr(lambda x: IsNA(x), tbool, expression)
 
 
 @typecheck(expression=expr_any)
@@ -1186,7 +1186,7 @@ def is_missing(expression) -> BooleanExpression:
     :class:`.BooleanExpression`
         ``True`` if `expression` is missing, ``False`` otherwise.
     """
-    return _func("isMissing", tbool, expression)
+    return apply_expr(lambda x: IsNA(x), tbool, expression)
 
 
 @typecheck(x=expr_oneof(expr_float32, expr_float64))
@@ -1728,7 +1728,7 @@ def range(start, stop, step=1) -> ArrayNumericExpression:
     -------
     :class:`.ArrayInt32Expression`
     """
-    return _func("range", tarray(tint32), start, stop, step)
+    return apply_expr(lambda sta, sto, ste: ArrayRange(sta, sto, ste), tarray(tint32), start, stop, step)
 
 
 @typecheck(p=expr_float64, seed=nullable(int))
@@ -2959,8 +2959,10 @@ def len(x) -> Int32Expression:
     """
     if isinstance(x.dtype, ttuple) or isinstance(x.dtype, tstruct):
         return hl.int32(builtins.len(x))
+    elif x.dtype == tstr:
+        return apply_expr(lambda x: StringLength(x), tint32, x)
     else:
-        return x._method("size", tint32)
+        return apply_expr(lambda x: ArrayLen(x), tint32, array(x))
 
 
 @typecheck(exprs=expr_oneof(expr_numeric, expr_set(expr_numeric), expr_array(expr_numeric)),
@@ -3360,7 +3362,7 @@ def set(collection) -> SetExpression:
     """
     if isinstance(collection.dtype, tset):
         return collection
-    return collection._method("toSet", tset(collection.dtype.element_type))
+    return apply_expr(lambda c: ToSet(c), tset(collection.dtype.element_type), collection)
 
 
 @typecheck(t=hail_type)
@@ -3408,7 +3410,7 @@ def array(collection) -> ArrayExpression:
     if isinstance(collection.dtype, tarray):
         return collection
     elif isinstance(collection.dtype, tset):
-        return collection._method("toArray", tarray(collection.dtype.element_type))
+        return apply_expr(lambda c: ToArray(c), tarray(collection.dtype.element_type), collection)
     else:
         assert isinstance(collection.dtype, tdict)
         return _func('dictToArray', tarray(ttuple(collection.dtype.key_type, collection.dtype.value_type)), collection)
@@ -3483,7 +3485,7 @@ def flatten(collection):
     -------
     collection : :class:`.ArrayExpression` or :class:`.SetExpression`
     """
-    return collection._method("flatten", collection._type.element_type)
+    return collection.flatmap(lambda x: x)
 
 
 @typecheck(collection=expr_oneof(expr_array(), expr_set()),

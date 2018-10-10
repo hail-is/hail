@@ -37,10 +37,6 @@ object DictFunctions extends RegistryFunctions {
   val tdict = TDict(tv("key"), tv("value"))
 
   def registerAll() {
-    registerIR("size", tdict) { d =>
-      ArrayLen(ToArray(d))
-    }
-
     registerIR("isEmpty", tdict) { d =>
       ArrayFunctions.isEmpty(ToArray(d))
     }

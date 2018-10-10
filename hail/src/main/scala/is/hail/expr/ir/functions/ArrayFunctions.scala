@@ -64,10 +64,6 @@ object ArrayFunctions extends RegistryFunctions {
   }
 
   def registerAll() {
-    registerIR("size", TArray(tv("T")))(ArrayLen)
-
-    registerIR("length", TArray(tv("T")))(ArrayLen)
-
     registerIR("isEmpty", TArray(tv("T")))(isEmpty)
 
     registerIR("sort", TArray(tv("T")), TBoolean())(ArraySort(_, _, false))
