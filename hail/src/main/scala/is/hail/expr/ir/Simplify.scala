@@ -201,6 +201,9 @@ object Simplify {
 
     case InsertFields(struct, Seq()) => struct
 
+    case SelectFields(old, fields) if coerce[TStruct](old.typ).fieldNames sameElements fields =>
+      old
+
     case SelectFields(SelectFields(old, _), fields) =>
       SelectFields(old, fields)
 

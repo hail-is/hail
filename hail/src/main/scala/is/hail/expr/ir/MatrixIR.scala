@@ -180,7 +180,7 @@ abstract sealed class MatrixIR extends BaseIR {
 
   def columnCount: Option[Int] = None
 
-  def execute(hc: HailContext): MatrixValue
+  protected[ir] def execute(hc: HailContext): MatrixValue
 
   override def copy(newChildren: IndexedSeq[BaseIR]): MatrixIR
 }

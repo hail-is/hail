@@ -418,6 +418,7 @@ case class MatrixBGENReader(
     val settings = BgenSettings(
       nSamples,
       EntriesWithFields(includeGT, includeGP, includeDosage),
+      mr.dropCols,
       RowFields(includeLid, includeRsid, includeOffset, includeFileIdx),
       referenceGenome,
       indexAnnotationType)
