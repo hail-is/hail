@@ -2962,7 +2962,7 @@ def len(x) -> Int32Expression:
     elif x.dtype == tstr:
         return apply_expr(lambda x: StringLength(x), tint32, x)
     else:
-        return apply_expr(lambda x: ArrayLen(x), tint32, x)
+        return apply_expr(lambda x: ArrayLen(array(x)), tint32, x)
 
 
 @typecheck(exprs=expr_oneof(expr_numeric, expr_set(expr_numeric), expr_array(expr_numeric)),
