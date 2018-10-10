@@ -201,7 +201,7 @@ final case class PackCodecSpec(child: BufferSpec) extends CodecSpec {
     val encoder = file.build(fb.name)
 
     { (out: OutputStream, it: Iterator[RegionValue]) =>
-      encoder(Array(f(out), new RegionValueIterator(it)))
+      encoder()(Array(f(out), new RegionValueIterator(it)))
     }
   }
   

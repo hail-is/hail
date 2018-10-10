@@ -144,7 +144,7 @@ class NativeFile extends Serializable {
     f
   }
 
-  def build(name: String, options: String = "-O1"): (Array[java.lang.Object] => Long) = {
+  def build(name: String, options: String = "-O1"): () => (Array[java.lang.Object] => Long) = {
     val sb = new StringBuilder()
     includes.result().foreach { inc => sb.append(s"#include $inc\n") }
 
@@ -179,7 +179,7 @@ class NativeFile extends Serializable {
     val modBinary = mod.getBinary()
     mod.close()
 
-    new ((Array[java.lang.Object]) => Long) with java.io.Serializable {
+    new (() => ((Array[java.lang.Object]) => Long)) with java.io.Serializable {
       val st = new NativeStatus()
       val mod = new NativeModule(modKey, modBinary)
       mod.findOrBuild(st)
@@ -190,7 +190,7 @@ class NativeFile extends Serializable {
       assert(st.ok, s"$name: ${st.toString()}")
       mod.close()
 
-      def apply(args: Array[java.lang.Object]): Long = {
+      def apply(): (Array[java.lang.Object]) => Long = { args: Array[java.lang.Object] =>
         val objArray = new ObjectArray(args)
         val holder = new NativePtr(makeObjectHolder, st, objArray.get())
         objArray.close()
