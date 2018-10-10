@@ -180,17 +180,17 @@ class NativeFile extends Serializable {
     mod.close()
 
     new (() => ((Array[java.lang.Object]) => Long)) with java.io.Serializable {
-      val st = new NativeStatus()
-      val mod = new NativeModule(modKey, modBinary)
-      mod.findOrBuild(st)
-      assert(st.ok, st.toString())
-      val makeObjectHolder = mod.findPtrFuncL1(st, "makeObjectHolder")
-      assert(st.ok, st.toString())
-      val f = mod.findLongFuncL1(st, name)
-      assert(st.ok, s"$name: ${st.toString()}")
-      mod.close()
 
       def apply(): (Array[java.lang.Object]) => Long = { args: Array[java.lang.Object] =>
+        val st = new NativeStatus()
+        val mod = new NativeModule(modKey, modBinary)
+        mod.findOrBuild(st)
+        assert(st.ok, st.toString())
+        val makeObjectHolder = mod.findPtrFuncL1(st, "makeObjectHolder")
+        assert(st.ok, st.toString())
+        val f = mod.findLongFuncL1(st, name)
+        assert(st.ok, s"$name: ${st.toString()}")
+        mod.close()
         val objArray = new ObjectArray(args)
         val holder = new NativePtr(makeObjectHolder, st, objArray.get())
         objArray.close()
