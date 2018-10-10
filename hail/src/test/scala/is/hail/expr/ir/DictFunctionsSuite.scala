@@ -32,12 +32,6 @@ class DictFunctionsSuite extends TestNGSuite {
   }
 
   @Test(dataProvider = "basic")
-  def size(a: Seq[(Integer, Integer)]) {
-    assertEvalsTo(invoke("size", toIRDict(a)),
-      Option(a).map(_.count(_ != null)).orNull)
-  }
-
-  @Test(dataProvider = "basic")
   def isEmpty(a: Seq[(Integer, Integer)]) {
     assertEvalsTo(invoke("isEmpty", toIRDict(a)),
       Option(a).map(_.forall(_ == null)).orNull)
