@@ -21,14 +21,6 @@ class SetFunctionsSuite extends TestNGSuite {
     assertEvalsTo(invoke("toSet", naa), null)
   }
 
-  @Test def size() {
-    assertEvalsTo(invoke("size", IRSet(3, 7)), 2)
-    assertEvalsTo(invoke("size", IRSet(3, null, 7)), 3)
-    assertEvalsTo(invoke("size", IRSet()), 0)
-    assertEvalsTo(invoke("size", IRSet(null)), 1)
-    assertEvalsTo(invoke("size", nas), null)
-  }
-
   @Test def isEmpty() {
     assertEvalsTo(invoke("isEmpty", IRSet(3, 7)), false)
     assertEvalsTo(invoke("isEmpty", IRSet(3, null, 7)), false)
@@ -143,12 +135,5 @@ class SetFunctionsSuite extends TestNGSuite {
     assertEvalsTo(invoke("median", IRSet()), null)
     assertEvalsTo(invoke("median", IRSet(null)), null)
     assertEvalsTo(invoke("median", nas), null)
-  }
-
-  @Test def flatten() {
-    val sets1 = FastSeq(IRSet(1, 5, 2), IRSet(6, 2), IRSet(), NA(TSet(TInt32())))
-    val sets2 = FastSeq(IRSet(1, 5, 2), IRSet(6, 2), IRSet(), IRSet(null))
-    assertEvalsTo(invoke("flatten", ToSet(MakeArray(sets1, TArray(TSet(TInt32()))))), Set(1, 2, 5, 6))
-    assertEvalsTo(invoke("flatten", ToSet(MakeArray(sets2, TArray(TSet(TInt32()))))), Set(1, 2, 5, 6, null))
   }
 }

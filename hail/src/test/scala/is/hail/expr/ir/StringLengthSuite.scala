@@ -22,12 +22,7 @@ class StringLengthSuite extends TestNGSuite {
     assertEvalsTo(StringLength(Str(poopEmoji + poopEmoji)), 8)
   }
 
-  @Test def isStrict() {
+  @Test def testIsStrict() {
     assertEvalsTo(StringLength(NA(TString())), null)
-  }
-
-  @Test def funRegistryLenWorks() {
-    assertEvalsTo(invoke("len", NA(TString())), null)
-    assertEvalsTo(invoke("len", Str("abc")), 3)
   }
 }

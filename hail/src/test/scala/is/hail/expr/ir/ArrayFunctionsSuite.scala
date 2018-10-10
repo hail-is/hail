@@ -22,18 +22,6 @@ class ArrayFunctionsSuite extends TestNGSuite {
   def basicPairsData(): Array[Array[Any]] = basicData().flatten.combinations(2).toArray
 
   @Test(dataProvider = "basic")
-  def length(a: Seq[Integer]) {
-    assertEvalsTo(invoke("length", toIRArray(a)),
-      Option(a).map(_.length).orNull)
-  }
-
-  @Test(dataProvider = "basic")
-  def size(a: Seq[Integer]) {
-    assertEvalsTo(invoke("size", toIRArray(a)),
-      Option(a).map(_.length).orNull)
-  }
-
-  @Test(dataProvider = "basic")
   def isEmpty(a: Seq[Integer]) {
     assertEvalsTo(invoke("isEmpty", toIRArray(a)),
       Option(a).map(_.isEmpty).orNull)
