@@ -172,6 +172,7 @@ final case class PackCodecSpec(child: BufferSpec) extends CodecSpec {
     file.include("\"hail/hail.h\"")
     file.include("\"hail/ObjectArray.h\"")
     file.include("\"hail/NativeObj.h\"")
+    file.include("\"hail/NativeStatus.h\"")
     file.include("\"hail/Upcalls.h\"")
     file.include("\"hail/JavaIO.h\"")
     file.include("<jni.h>")
@@ -201,7 +202,7 @@ final case class PackCodecSpec(child: BufferSpec) extends CodecSpec {
     val encoder = file.build(fb.name)
 
     { (out: OutputStream, it: Iterator[RegionValue]) =>
-      encoder()(Array(f(out), new RegionValueIterator(it)))
+      encoder(Array(f(out), new RegionValueIterator(it)))
     }
   }
   

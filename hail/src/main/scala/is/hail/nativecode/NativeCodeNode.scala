@@ -144,7 +144,7 @@ class NativeFile extends Serializable {
     f
   }
 
-  def build(name: String, options: String = "-O1"): () => (Array[java.lang.Object] => Long) = {
+  def build(name: String, options: String = "-O1"): (Array[java.lang.Object] => Long) = {
     val sb = new StringBuilder()
     includes.result().foreach { inc => sb.append(s"#include $inc\n") }
 
@@ -179,25 +179,22 @@ class NativeFile extends Serializable {
     val modBinary = mod.getBinary()
     mod.close()
 
-    new (() => ((Array[java.lang.Object]) => Long)) with java.io.Serializable {
-
-      def apply(): (Array[java.lang.Object]) => Long = { args: Array[java.lang.Object] =>
-        val st = new NativeStatus()
-        val mod = new NativeModule(modKey, modBinary)
-        mod.findOrBuild(st)
-        assert(st.ok, st.toString())
-        val makeObjectHolder = mod.findPtrFuncL1(st, "makeObjectHolder")
-        assert(st.ok, st.toString())
-        val f = mod.findLongFuncL1(st, name)
-        assert(st.ok, s"$name: ${st.toString()}")
-        mod.close()
-        val objArray = new ObjectArray(args)
-        val holder = new NativePtr(makeObjectHolder, st, objArray.get())
-        objArray.close()
-        val result = f(st, holder.get())
-        f.close()
-        result
-      }
+    { args: Array[java.lang.Object] =>
+      val st = new NativeStatus()
+      val mod = new NativeModule(modKey, modBinary)
+      mod.findOrBuild(st)
+      assert(st.ok, st.toString())
+      val makeObjectHolder = mod.findPtrFuncL1(st, "makeObjectHolder")
+      assert(st.ok, st.toString())
+      val f = mod.findLongFuncL1(st, name)
+      assert(st.ok, s"$name: ${st.toString()}")
+      mod.close()
+      val objArray = new ObjectArray(args)
+      val holder = new NativePtr(makeObjectHolder, st, objArray.get())
+      objArray.close()
+      val result = f(st, holder.get())
+      f.close()
+      result
     }
   }
 
