@@ -3,7 +3,6 @@
 
 #include <jni.h>
 #include <cstdint>
-#include <string>
 
 namespace hail {
 
@@ -46,12 +45,12 @@ class UpcallEnv {
   JNIEnv* env() const { return env_; }
   
   // Test with same interface as logging calls 
-  void set_test_msg(const std::string& msg);
+  void set_test_msg(const char* msg);
   
   // Logging (through is.hail.utils)
-  void info(const std::string& msg);
-  void warn(const std::string& msg);
-  void error(const std::string& msg);
+  void info(const char* msg);
+  void warn(const char* msg);
+  void error(const char* msg);
   
   // InputBuffer
   void InputBuffer_close(jobject obj);

@@ -23,8 +23,10 @@ LIBSIMDPP :=libsimdpp-2.1
 # this list
 OBJECTS := \
   davies.o \
+  hstring.o \
   ibs.o \
   Logging.o \
+  MurmurHash3.o \
   NativeCodeSuite.o \
   NativeLongFunc.o \
   NativeModule.o \

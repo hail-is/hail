@@ -82,28 +82,28 @@ UpcallEnv::~UpcallEnv() {
 // info/warn/error methods, but it saves the msg in Upcalls.testMsg
 // where we can verify that the upcall delivered it correctly.
 
-void UpcallEnv::set_test_msg(const std::string& msg) {
-  jstring msgJ = env_->NewStringUTF(msg.c_str());
+void UpcallEnv::set_test_msg(const char* msg) {
+  jstring msgJ = env_->NewStringUTF(msg);
   env_->CallVoidMethod(config_->upcalls_, config_->Upcalls_setTestMsg_, msgJ);
   env_->DeleteLocalRef(msgJ);
 }
 
 // Logging
 
-void UpcallEnv::info(const std::string& msg) {
-  jstring msgJ = env_->NewStringUTF(msg.c_str());
+void UpcallEnv::info(const char* msg) {
+  jstring msgJ = env_->NewStringUTF(msg);
   env_->CallVoidMethod(config_->upcalls_, config_->Upcalls_info_, msgJ);
   env_->DeleteLocalRef(msgJ);
 }
 
-void UpcallEnv::warn(const std::string& msg) {
-  jstring msgJ = env_->NewStringUTF(msg.c_str());
+void UpcallEnv::warn(const char* msg) {
+  jstring msgJ = env_->NewStringUTF(msg);
   env_->CallVoidMethod(config_->upcalls_, config_->Upcalls_warn_, msgJ);
   env_->DeleteLocalRef(msgJ);
 }
 
-void UpcallEnv::error(const std::string& msg) {
-  jstring msgJ = env_->NewStringUTF(msg.c_str());
+void UpcallEnv::error(const char* msg) {
+  jstring msgJ = env_->NewStringUTF(msg);
   env_->CallVoidMethod(config_->upcalls_, config_->Upcalls_error_, msgJ);
   env_->DeleteLocalRef(msgJ);
 }

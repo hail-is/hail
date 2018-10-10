@@ -1,6 +1,7 @@
 #include "hail/NativeModule.h"
 #include "hail/NativeObj.h"
 #include "hail/NativePtr.h"
+#include "MurmurHash3.h"
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
@@ -17,7 +18,6 @@
 #include <map>
 #include <memory>
 #include <mutex>
-#include <iostream>
 #include <queue>
 #include <sstream>
 #include <string>
@@ -35,59 +35,46 @@ namespace {
 
 std::mutex big_mutex;
 
-// A simple way to get a hash of two strings, take 80bits,
-// and produce a 20byte string of hex digits.  We also sprinkle
-// in some "salt" from a checksum of a tar of all header files, so
-// that any change to header files will force recompilation.
+// We have a short string "options" and a long string "source"
+// Produce an 80bit hash from the pair of string,
+// together with a checksum of all header files tar'ed together, so that
+// any change to header files forces recompilation.
 //
 // The shorter string (corresponding to options), may have only a
 // few distinct values, so we need to mix it up with the longer
 // string in various ways.
+//
+// We use the open-source 128-bit MurmurHash3 as a robust and fast
+// hash function with no copyright restrictions.
 
-std::string even_bytes(const std::string& a) {
-  std::stringstream ss;
-  size_t len = a.length();
-  for (size_t j = 0; j < len; j += 2) {
-    ss << a[j];
-  }
-  return ss.str();
-}
-
-std::string hash_two_strings(const std::string& a, const std::string& b) {
-  bool a_shorter = (a.length() < b.length());
-  const std::string* shorter = (a_shorter ? &a : &b);
-  const std::string* longer  = (a_shorter ? &b : &a);
-  uint64_t hashA = std::hash<std::string>()(*longer);
-  uint64_t hashB = std::hash<std::string>()(*shorter + even_bytes(*longer));
-  if (sizeof(size_t) < 8) {
-    // On a 32bit machine we need to work harder to get 80 bits
-    uint64_t hashC = std::hash<std::string>()(*longer + "SmallChangeForThirdHash");
-    hashA += (hashC << 32);
-  }
-  if (a_shorter) hashA ^= 0xff; // order of strings should change result
-  hashA ^= ALL_HEADER_CKSUM; // checksum from all header files
-  hashA ^= (0x3ac5*hashB); // mix low bits of hashB into hashA
-  hashB &= 0xffff;
+hail::hstring hash_two_strings(const hail::hstring& a, const hail::hstring& b) {
+  uint32_t seed = ALL_HEADER_CKSUM; // checksum from all header files
+  uint64_t hashA[2];
+  MurmurHash3_x64_128(a.c_str(), a.length(), seed, hashA);
+  uint64_t hashB[2];
+  MurmurHash3_x64_128(b.c_str(), b.length(), seed, hashB);
+  hashA[0] ^= (0x3ac5 * hashB[0]);
+  hashA[1] ^= (0x15db * hashB[1]);
   char buf[128];
   char* out = buf;
   for (int pos = 80; (pos -= 4) >= 0;) {
-    int64_t nibble = ((pos >= 64) ? (hashB >> (pos-64)) : (hashA >> pos)) & 0xf;
+    int64_t nibble = ((pos >= 64) ? (hashA[1] >> (pos-64)) : (hashA[0] >> pos)) & 0xf;
     *out++ = ((nibble < 10) ? nibble+'0' : nibble-10+'a');
   }
   *out = 0;
-  return std::string(buf);
+  return hail::hstring(buf);
 }
 
-bool file_exists(const std::string& name) {
+bool file_exists(const hail::hstring& name) {
   struct stat st;
   int rc = ::stat(name.c_str(), &st);
   return (rc == 0);
 }
 
-std::string read_file_as_string(const std::string& name) {
+hail::hstring read_file_as_string(const hail::hstring& name) {
   FILE* f = fopen(name.c_str(), "r");
-  if (!f) return std::string("");
-  std::stringstream ss;
+  if (!f) return hail::hstring("");
+  hail::hstringstream ss;
   for (;;) {
     int c = fgetc(f);
     if (c == EOF) break;
@@ -97,7 +84,7 @@ std::string read_file_as_string(const std::string& name) {
   return ss.str();
 }
 
-std::string get_module_dir() {
+hail::hstring get_module_dir() {
   // This gives us a distinct temp directory for each process, so that
   // we can manage synchronization of threads accessing files in
   // the temp directory using only the in-memory big_mutex, rather than
@@ -110,11 +97,11 @@ std::string get_module_dir() {
 class ModuleConfig {
  public:
   bool is_darwin_;
-  std::string java_md_;
-  std::string ext_cpp_;
-  std::string ext_lib_;
-  std::string ext_mak_;
-  std::string module_dir_;
+  hail::hstring java_md_;
+  hail::hstring ext_cpp_;
+  hail::hstring ext_lib_;
+  hail::hstring ext_mak_;
+  hail::hstring module_dir_;
 
  public:
   ModuleConfig() :
@@ -130,8 +117,8 @@ class ModuleConfig {
     module_dir_(get_module_dir()) {
   }
   
-  std::string get_lib_name(const std::string& key) {
-    std:: stringstream ss;
+  hail::hstring get_lib_name(const hail::hstring& key) {
+    hail::hstringstream ss;
     ss << module_dir_ << "/hm_" << key << ext_lib_;
     return ss.str();
   }
@@ -151,7 +138,7 @@ ModuleConfig config;
 // key that we have ever seen.  We never delete a NativeModule
 // or unload its dynamically-loaded code.
 
-std::unordered_map<std::string, std::weak_ptr<NativeModule>> module_table;
+std::map<hail::hstring, std::weak_ptr<NativeModule>> module_table;
 
 NativeModulePtr module_find_or_make(
   const char* options,
@@ -191,21 +178,21 @@ NativeModulePtr module_find_or_make(
 
 class ModuleBuilder {
  private:
-  std::string options_;
-  std::string source_;
-  std::string include_;
-  std::string key_;
-  std::string hm_base_;
-  std::string hm_mak_;
-  std::string hm_cpp_;
-  std::string hm_lib_;
+  hail::hstring options_;
+  hail::hstring source_;
+  hail::hstring include_;
+  hail::hstring key_;
+  hail::hstring hm_base_;
+  hail::hstring hm_mak_;
+  hail::hstring hm_cpp_;
+  hail::hstring hm_lib_;
   
 public:
   ModuleBuilder(
-    const std::string& options,
-    const std::string& source,
-    const std::string& include,
-    const std::string& key
+    const hail::hstring& options,
+    const hail::hstring& source,
+    const hail::hstring& include,
+    const hail::hstring& key
   ) :
     options_(options),
     source_(source),
@@ -265,12 +252,12 @@ public:
   bool try_to_build() {
     write_mak();
     write_cpp();
-    std::stringstream ss;
+    hail::hstringstream ss;
     ss << "make -B -C " << config.module_dir_ << " -f " << hm_mak_ << " 1>/dev/null";
     // run the command synchronously, while holding the big_mutex
     int rc = system(ss.str().c_str());
     if (rc != 0) {
-      std::string base(config.module_dir_ + "/hm_" + key_);
+      hail::hstring base(config.module_dir_ + "/hm_" + key_);
       fprintf(stderr, "makefile:\n%s", read_file_as_string(base+".mak").c_str());
       fprintf(stderr, "errors:\n%s",   read_file_as_string(base+".err").c_str());
     }
@@ -385,26 +372,26 @@ std::vector<char> NativeModule::get_binary() {
   return vec;
 }
 
-static std::string to_qualified_name(
+static hail::hstring to_qualified_name(
   JNIEnv* env,
-  const std::string& key,
+  const hail::hstring& key,
   jstring nameJ,
   int numArgs,
   bool is_global,
   bool is_longfunc
 ) {
   JString name(env, nameJ);
-  std::string result;
+  hail::hstring result;
   if (is_global) {
     // No name-mangling for global func names
     result = name;
   } else {
     // Mangled name for hail::hm_<key>::funcname(NativeStatus* st, some number of longs)
-    std::stringstream ss;
-    auto mod_name = std::string("hm_") + key;
+    hail::hstringstream ss;
+    auto mod_name = hail::hstring("hm_") + key;
     ss << "_ZN4hail" 
-       << mod_name.length() << mod_name
-       << strlen(name) << (const char*)name
+       << (uint64_t)mod_name.length() << mod_name
+       << (uint64_t)strlen(name) << (const char*)name
        << "E"
        << "P12NativeStatus";
     for (int j = 0; j < numArgs; ++j) ss << 'l';
