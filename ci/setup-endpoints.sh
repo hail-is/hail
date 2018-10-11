@@ -18,6 +18,7 @@ for ENDPOINT in push pull_request pull_request_review
 do
     echo "creating endpoint ${ENDPOINT}"
     curl -XPOST \
+         -i \
          https://api.github.com/repos/${FULLY_QUALIFIED_REPO_NAME}/hooks \
          -H "Authorization: token ${TOKEN}" \
          -d '{ "name": "web"
