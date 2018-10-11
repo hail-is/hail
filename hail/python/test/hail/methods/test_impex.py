@@ -283,6 +283,12 @@ class PLINKTests(unittest.TestCase):
         vcf_file = resource('sample.vcf')
         mt = hl.split_multi_hts(hl.import_vcf(vcf_file, min_partitions=10))
 
+        # permute columns so not in alphabetical order!
+        import random
+        indices = list(range(mt.count_cols()))
+        random.shuffle(indices)
+        mt = mt.choose_cols(indices)
+
         split_vcf_file = uri_path(new_temp_file())
         hl_output = uri_path(new_temp_file())
         plink_output = uri_path(new_temp_file())
@@ -876,6 +882,12 @@ class GENTests(unittest.TestCase):
                             contig_recoding={"01": "1"},
                             reference_genome='GRCh37',
                             min_partitions=3)
+
+        # permute columns so not in alphabetical order!
+        import random
+        indices = list(range(gen.count_cols()))
+        random.shuffle(indices)
+        gen = gen.choose_cols(indices)
 
         file = '/tmp/test_export_gen'
         hl.export_gen(gen, file)

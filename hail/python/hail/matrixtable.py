@@ -2231,8 +2231,8 @@ class MatrixTable(ExprContainer):
         :class:`.Table`
             Table with all column fields from the matrix, with one row per column of the matrix.
         """
-        
-        if self.col_key is not None and Env.hc()._warn_cols_order:
+
+        if len(self.col_key) != 0 and Env.hc()._warn_cols_order:
             warn("cols(): Resulting column table is sorted by 'col_key'."
                  "\n    To preserve matrix table column order, "
                  "first unkey columns with 'key_cols_by()'")
