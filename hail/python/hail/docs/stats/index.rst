@@ -14,4 +14,7 @@ stats
     :toctree: ./
     :template: class.rst
 
+    RegressionModel
+    LinearRegressionModel
+    LogisticRegressionModel
     LinearMixedModel

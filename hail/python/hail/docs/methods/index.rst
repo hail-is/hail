@@ -39,9 +39,6 @@ Methods
 .. autosummary::
 
     linear_mixed_model
-    linear_mixed_regression
-    linear_regression
-    logistic_regression
     pca
     poisson_regression
     row_correlation

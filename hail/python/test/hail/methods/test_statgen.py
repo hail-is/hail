@@ -113,38 +113,40 @@ class Tests(unittest.TestCase):
         mt = mt.annotate_cols(pheno=phenos[mt.s].Pheno, cov=covs[mt.s])
         mt = mt.annotate_entries(x=mt.GT.n_alt_alleles()).cache()
 
-        t1 = hl.linear_regression(
-            y=mt.pheno, x=mt.GT.n_alt_alleles(), covariates=[1.0, mt.cov.Cov1, mt.cov.Cov2 + 1 - 1]).rows()
-        t1 = t1.select(p=t1.linreg.p_value)
+        model = hl.LinearRegressionModel()
+        t1 = model.regress_rows(
+            y=mt.pheno, x=mt.GT.n_alt_alleles(), covariates=[1.0, mt.cov.Cov1, mt.cov.Cov2 + 1 - 1])
+        t1 = t1.select(p=t1.p_value)
 
-        t2 = hl.linear_regression(
-            y=mt.pheno, x=mt.x, covariates=[1.0, mt.cov.Cov1, mt.cov.Cov2]).rows()
-        t2 = t2.select(p=t2.linreg.p_value)
+        t2 = model.regress_rows(
+            y=mt.pheno, x=mt.x, covariates=[1.0, mt.cov.Cov1, mt.cov.Cov2])
+        t2 = t2.select(p=t2.p_value)
 
-        t3 = hl.linear_regression(
-            y=[mt.pheno], x=mt.x, covariates=[1.0, mt.cov.Cov1, mt.cov.Cov2]).rows()
-        t3 = t3.select(p=t3.linreg.p_value[0])
+        t3 = model.regress_rows(
+            y=[mt.pheno], x=mt.x, covariates=[1.0, mt.cov.Cov1, mt.cov.Cov2])
+        t3 = t3.select(p=t3.p_value[0])
 
-        t4 = hl.linear_regression(
-            y=[mt.pheno, mt.pheno], x=mt.x, covariates=[1.0, mt.cov.Cov1, mt.cov.Cov2]).rows()
-        t4a = t4.select(p=t4.linreg.p_value[0])
-        t4b = t4.select(p=t4.linreg.p_value[1])
+        t4 = model.regress_rows(
+            y=[mt.pheno, mt.pheno], x=mt.x, covariates=[1.0, mt.cov.Cov1, mt.cov.Cov2])
+        t4a = t4.select(p=t4.p_value[0])
+        t4b = t4.select(p=t4.p_value[1])
 
         self.assertTrue(t1._same(t2))
         self.assertTrue(t1._same(t3))
         self.assertTrue(t1._same(t4a))
         self.assertTrue(t1._same(t4b))
 
-    def test_linear_regression_without_intercept(self):        
+    def test_linear_regression_without_intercept(self):
         pheno = hl.import_table(resource('regressionLinear.pheno'),
                                 key='Sample',
                                 missing='0',
                                 types={'Pheno': hl.tfloat})
         mt = hl.import_vcf(resource('regressionLinear.vcf'))
-        mt = hl.linear_regression(y=pheno[mt.s].Pheno,
-                                  x=mt.GT.n_alt_alleles(),
-                                  covariates=[])
-        results = dict(mt.aggregate_rows(hl.agg.collect((mt.locus.position, mt.linreg))))
+        model = hl.LinearRegressionModel()
+        ht = model.regress_rows(y=pheno[mt.s].Pheno,
+                                x=mt.GT.n_alt_alleles(),
+                                covariates=[])
+        results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
         self.assertAlmostEqual(results[1].beta, 1.5, places=6)
         self.assertAlmostEqual(results[1].standard_error, 1.161895, places=6)
         self.assertAlmostEqual(results[1].t_stat, 1.290994, places=6)
@@ -169,11 +171,11 @@ class Tests(unittest.TestCase):
                                 types={'Pheno': hl.tfloat})
 
         mt = hl.import_vcf(resource('regressionLinear.vcf'))
-        mt = hl.linear_regression(y=pheno[mt.s].Pheno,
-                                  x=mt.GT.n_alt_alleles(),
-                                  covariates=[1.0] + list(covariates[mt.s].values()))
+        ht = hl.LinearRegressionModel().regress_rows(y=pheno[mt.s].Pheno,
+                                                     x=mt.GT.n_alt_alleles(),
+                                                     covariates=[1.0] + list(covariates[mt.s].values()))
 
-        results = dict(mt.aggregate_rows(hl.agg.collect((mt.locus.position, mt.linreg))))
+        results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
 
         self.assertAlmostEqual(results[1].beta, -0.28589421, places=6)
         self.assertAlmostEqual(results[1].standard_error, 1.2739153, places=6)
@@ -210,11 +212,11 @@ class Tests(unittest.TestCase):
                                 types={'Pheno': hl.tfloat})
 
         mt = hl.import_vcf(resource('regressionLinear.vcf'))
-        mt = hl.linear_regression(y=pheno[mt.s].Pheno,
-                                  x=hl.pl_dosage(mt.PL),
-                                  covariates=[1.0] + list(covariates[mt.s].values()))
+        ht = hl.LinearRegressionModel().regress_rows(y=pheno[mt.s].Pheno,
+                                                     x=hl.pl_dosage(mt.PL),
+                                                     covariates=[1.0] + list(covariates[mt.s].values()))
 
-        results = dict(mt.aggregate_rows(hl.agg.collect((mt.locus.position, mt.linreg))))
+        results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
 
         self.assertAlmostEqual(results[1].beta, -0.29166985, places=6)
         self.assertAlmostEqual(results[1].standard_error, 1.2996510, places=6)
@@ -241,11 +243,11 @@ class Tests(unittest.TestCase):
                                 missing='0',
                                 types={'Pheno': hl.tfloat})
         mt = hl.import_gen(resource('regressionLinear.gen'), sample_file=resource('regressionLinear.sample'))
-        mt = hl.linear_regression(y=pheno[mt.s].Pheno,
-                                  x=hl.gp_dosage(mt.GP),
-                                  covariates=[1.0] + list(covariates[mt.s].values()))
+        ht = hl.LinearRegressionModel().regress_rows(y=pheno[mt.s].Pheno,
+                                                     x=hl.gp_dosage(mt.GP),
+                                                     covariates=[1.0] + list(covariates[mt.s].values()))
 
-        results = dict(mt.aggregate_rows(hl.agg.collect((mt.locus.position, mt.linreg))))
+        results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
 
         self.assertAlmostEqual(results[1].beta, -0.29166985, places=4)
         self.assertAlmostEqual(results[1].standard_error, 1.2996510, places=4)
@@ -269,11 +271,11 @@ class Tests(unittest.TestCase):
                                      types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat})
         fam = hl.import_fam(resource('regressionLinear.fam'))
         mt = hl.import_vcf(resource('regressionLinear.vcf'))
-        mt = hl.linear_regression(y=fam[mt.s].is_case,
-                                  x=mt.GT.n_alt_alleles(),
-                                  covariates=[1.0] + list(covariates[mt.s].values()))
+        ht = hl.LinearRegressionModel().regress_rows(y=fam[mt.s].is_case,
+                                                     x=mt.GT.n_alt_alleles(),
+                                                     covariates=[1.0] + list(covariates[mt.s].values()))
 
-        results = dict(mt.aggregate_rows(hl.agg.collect((mt.locus.position, mt.linreg))))
+        results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
 
         self.assertAlmostEqual(results[1].beta, -0.28589421, places=6)
         self.assertAlmostEqual(results[1].standard_error, 1.2739153, places=6)
@@ -299,11 +301,11 @@ class Tests(unittest.TestCase):
                             quant_pheno=True,
                             missing='0')
         mt = hl.import_vcf(resource('regressionLinear.vcf'))
-        mt = hl.linear_regression(y=fam[mt.s].quant_pheno,
-                                  x=mt.GT.n_alt_alleles(),
-                                  covariates=[1.0] + list(covariates[mt.s].values()))
+        ht = hl.LinearRegressionModel().regress_rows(y=fam[mt.s].quant_pheno,
+                                                     x=mt.GT.n_alt_alleles(),
+                                                     covariates=[1.0] + list(covariates[mt.s].values()))
 
-        results = dict(mt.aggregate_rows(hl.agg.collect((mt.locus.position, mt.linreg))))
+        results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
 
         self.assertAlmostEqual(results[1].beta, -0.28589421, places=6)
         self.assertAlmostEqual(results[1].standard_error, 1.2739153, places=6)
@@ -331,28 +333,20 @@ class Tests(unittest.TestCase):
                                 types={'Pheno': hl.tfloat})
 
         mt = hl.import_vcf(resource('regressionLinear.vcf'))
-        mt = hl.linear_regression(y=pheno[mt.s].Pheno,
-                                  x=mt.GT.n_alt_alleles(),
-                                  covariates=list(covariates[mt.s].values()),
-                                  root='single')
-        mt = hl.linear_regression(y=[pheno[mt.s].Pheno, pheno[mt.s].Pheno],
-                                  x=mt.GT.n_alt_alleles(),
-                                  covariates=list(covariates[mt.s].values()),
-                                  root='multi')
+        single = hl.LinearRegressionModel().regress_rows(y=pheno[mt.s].Pheno,
+                                                         x=mt.GT.n_alt_alleles(),
+                                                         covariates=list(covariates[mt.s].values()))
+        multi = hl.LinearRegressionModel().regress_rows(y=[pheno[mt.s].Pheno, pheno[mt.s].Pheno],
+                                                        x=mt.GT.n_alt_alleles(),
+                                                        covariates=list(covariates[mt.s].values()))
 
         def eq(x1, x2):
             return (hl.is_nan(x1) & hl.is_nan(x2)) | (hl.abs(x1 - x2) < 1e-4)
 
-        self.assertTrue(mt.aggregate_rows(hl.agg.all((eq(mt.single.p_value, mt.multi.p_value[0]) &
-                                                      eq(mt.single.standard_error, mt.multi.standard_error[0]) &
-                                                      eq(mt.single.t_stat, mt.multi.t_stat[0]) &
-                                                      eq(mt.single.beta, mt.multi.beta[0]) &
-                                                      eq(mt.single.y_transpose_x, mt.multi.y_transpose_x[0])))))
-        self.assertTrue(mt.aggregate_rows(hl.agg.all(eq(mt.multi.p_value[1], mt.multi.p_value[0]) &
-                                                     eq(mt.multi.standard_error[1], mt.multi.standard_error[0]) &
-                                                     eq(mt.multi.t_stat[1], mt.multi.t_stat[0]) &
-                                                     eq(mt.multi.beta[1], mt.multi.beta[0]) &
-                                                     eq(mt.multi.y_transpose_x[1], mt.multi.y_transpose_x[0]))))
+        combined = single.annotate(multi = multi[single.key])
+        self.assertTrue(combined.aggregate(hl.agg.all(
+            eq(combined.p_value, combined.multi.p_value[0]) &
+            eq(combined.multi.p_value[0], combined.multi.p_value[1]))))
 
     # comparing to R:
     # x = c(0, 1, 0, 0, 0, 1, 0, 0, 0, 0)
@@ -374,12 +368,12 @@ class Tests(unittest.TestCase):
                                 missing='0',
                                 types={'isCase': hl.tbool})
         mt = hl.import_vcf(resource('regressionLogistic.vcf'))
-        mt = hl.logistic_regression('wald',
-                                    y=pheno[mt.s].isCase,
-                                    x=mt.GT.n_alt_alleles(),
-                                    covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
+        model = hl.LogisticRegressionModel('wald')
+        ht = model.regress_rows(y=pheno[mt.s].isCase,
+                                x=mt.GT.n_alt_alleles(),
+                                covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
 
-        results = dict(mt.aggregate_rows(hl.agg.collect((mt.locus.position, mt.logreg))))
+        results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
 
         self.assertAlmostEqual(results[1].beta, -0.81226793796, places=6)
         self.assertAlmostEqual(results[1].standard_error, 2.1085483421, places=6)
@@ -410,12 +404,12 @@ class Tests(unittest.TestCase):
                                 missing='0',
                                 types={'isCase': hl.tbool})
         mt = hl.import_vcf(resource('regressionLogistic.vcf'))
-        mt = hl.logistic_regression('wald',
-                                    y=pheno[mt.s].isCase,
-                                    x=hl.pl_dosage(mt.PL),
-                                    covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
+        ht = hl.LogisticRegressionModel('wald').regress_rows(
+            y=pheno[mt.s].isCase,
+            x=hl.pl_dosage(mt.PL),
+            covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
 
-        results = dict(mt.aggregate_rows(hl.agg.collect((mt.locus.position, mt.logreg))))
+        results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
 
         self.assertAlmostEqual(results[1].beta, -0.8286774, places=6)
         self.assertAlmostEqual(results[1].standard_error, 2.151145, places=6)
@@ -447,12 +441,12 @@ class Tests(unittest.TestCase):
                                 types={'isCase': hl.tbool})
         mt = hl.import_gen(resource('regressionLogistic.gen'),
                            sample_file=resource('regressionLogistic.sample'))
-        mt = hl.logistic_regression('wald',
-                                    y=pheno[mt.s].isCase,
-                                    x=hl.gp_dosage(mt.GP),
-                                    covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
+        ht = hl.LogisticRegressionModel('wald').regress_rows(
+            y=pheno[mt.s].isCase,
+            x=hl.gp_dosage(mt.GP),
+            covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
 
-        results = dict(mt.aggregate_rows(hl.agg.collect((mt.locus.position, mt.logreg))))
+        results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
 
         self.assertAlmostEqual(results[1].beta, -0.8286774, places=4)
         self.assertAlmostEqual(results[1].standard_error, 2.151145, places=4)
@@ -494,12 +488,12 @@ class Tests(unittest.TestCase):
                                 missing='0',
                                 types={'isCase': hl.tbool})
         mt = hl.import_vcf(resource('regressionLogistic.vcf'))
-        mt = hl.logistic_regression('lrt',
-                                    y=pheno[mt.s].isCase,
-                                    x=mt.GT.n_alt_alleles(),
-                                    covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
+        ht = hl.LogisticRegressionModel('lrt').regress_rows(
+            y=pheno[mt.s].isCase,
+            x=mt.GT.n_alt_alleles(),
+            covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
 
-        results = dict(mt.aggregate_rows(hl.agg.collect((mt.locus.position, mt.logreg))))
+        results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
 
         self.assertAlmostEqual(results[1].beta, -0.81226793796, places=6)
         self.assertAlmostEqual(results[1].chi_sq_stat, 0.1503349167, places=6)
@@ -538,12 +532,12 @@ class Tests(unittest.TestCase):
                                 missing='0',
                                 types={'isCase': hl.tbool})
         mt = hl.import_vcf(resource('regressionLogistic.vcf'))
-        mt = hl.logistic_regression('score',
-                                    y=pheno[mt.s].isCase,
-                                    x=mt.GT.n_alt_alleles(),
-                                    covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
+        ht = hl.LogisticRegressionModel('score').regress_rows(
+            y=pheno[mt.s].isCase,
+            x=mt.GT.n_alt_alleles(),
+            covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
 
-        results = dict(mt.aggregate_rows(hl.agg.collect((mt.locus.position, mt.logreg))))
+        results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
 
         self.assertAlmostEqual(results[1].chi_sq_stat, 0.1502364955, places=6)
         self.assertAlmostEqual(results[1].p_value, 0.6983094571, places=6)
@@ -572,26 +566,25 @@ class Tests(unittest.TestCase):
         mt = hl.import_vcf(resource('regressionLogisticEpacts.vcf'))
         mt = mt.annotate_cols(**covariates[mt.s], **fam[mt.s])
 
-        mt = hl.logistic_regression('wald',
-                                    y=mt.is_case,
-                                    x=mt.GT.n_alt_alleles(),
-                                    covariates=[1.0, mt.is_female, mt.PC1, mt.PC2],
-                                    root='wald')
-        mt = hl.logistic_regression('lrt',
-                                    y=mt.is_case,
-                                    x=mt.GT.n_alt_alleles(),
-                                    covariates=[1.0, mt.is_female, mt.PC1, mt.PC2],
-                                    root='lrt')
-        mt = hl.logistic_regression('score',
-                                    y=mt.is_case,
-                                    x=mt.GT.n_alt_alleles(),
-                                    covariates=[1.0, mt.is_female, mt.PC1, mt.PC2],
-                                    root='score')
-        mt = hl.logistic_regression('firth',
-                                    y=mt.is_case,
-                                    x=mt.GT.n_alt_alleles(),
-                                    covariates=[1.0, mt.is_female, mt.PC1, mt.PC2],
-                                    root='firth')
+        def get_results(table):
+            return dict(hl.tuple([table.locus.position, table.row]).collect())
+
+        wald = get_results(hl.LogisticRegressionModel('wald').regress_rows(
+            y=mt.is_case,
+            x=mt.GT.n_alt_alleles(),
+            covariates=[1.0, mt.is_female, mt.PC1, mt.PC2]))
+        lrt = get_results(hl.LogisticRegressionModel('lrt').regress_rows(
+            y=mt.is_case,
+            x=mt.GT.n_alt_alleles(),
+            covariates=[1.0, mt.is_female, mt.PC1, mt.PC2]))
+        score = get_results(hl.LogisticRegressionModel('score').regress_rows(
+            y=mt.is_case,
+            x=mt.GT.n_alt_alleles(),
+            covariates=[1.0, mt.is_female, mt.PC1, mt.PC2]))
+        firth = get_results(hl.LogisticRegressionModel('firth').regress_rows(
+            y=mt.is_case,
+            x=mt.GT.n_alt_alleles(),
+            covariates=[1.0, mt.is_female, mt.PC1, mt.PC2]))
 
         # 2535 samples from 1K Genomes Project
         # Locus("22", 16060511)  # MAC  623
@@ -600,53 +593,50 @@ class Tests(unittest.TestCase):
         # Locus("22", 16117940)  # MAC    7
         # Locus("22", 16117953)  # MAC   21
 
-        mt = mt.select_rows('wald', 'lrt', 'firth', 'score')
-        results = dict(mt.aggregate_rows(hl.agg.collect((mt.locus.position, mt.row))))
+        self.assertAlmostEqual(wald[16060511].beta, -0.097476, places=4)
+        self.assertAlmostEqual(wald[16060511].standard_error, 0.087478, places=4)
+        self.assertAlmostEqual(wald[16060511].z_stat, -1.1143, places=4)
+        self.assertAlmostEqual(wald[16060511].p_value, 0.26516, places=4)
+        self.assertAlmostEqual(lrt[16060511].p_value, 0.26475, places=4)
+        self.assertAlmostEqual(score[16060511].p_value, 0.26499, places=4)
+        self.assertAlmostEqual(firth[16060511].beta, -0.097079, places=4)
+        self.assertAlmostEqual(firth[16060511].p_value, 0.26593, places=4)
 
-        self.assertAlmostEqual(results[16060511].wald.beta, -0.097476, places=4)
-        self.assertAlmostEqual(results[16060511].wald.standard_error, 0.087478, places=4)
-        self.assertAlmostEqual(results[16060511].wald.z_stat, -1.1143, places=4)
-        self.assertAlmostEqual(results[16060511].wald.p_value, 0.26516, places=4)
-        self.assertAlmostEqual(results[16060511].lrt.p_value, 0.26475, places=4)
-        self.assertAlmostEqual(results[16060511].score.p_value, 0.26499, places=4)
-        self.assertAlmostEqual(results[16060511].firth.beta, -0.097079, places=4)
-        self.assertAlmostEqual(results[16060511].firth.p_value, 0.26593, places=4)
+        self.assertAlmostEqual(wald[16115878].beta, -0.052632, places=4)
+        self.assertAlmostEqual(wald[16115878].standard_error, 0.11272, places=4)
+        self.assertAlmostEqual(wald[16115878].z_stat, -0.46691, places=4)
+        self.assertAlmostEqual(wald[16115878].p_value, 0.64056, places=4)
+        self.assertAlmostEqual(lrt[16115878].p_value, 0.64046, places=4)
+        self.assertAlmostEqual(score[16115878].p_value, 0.64054, places=4)
+        self.assertAlmostEqual(firth[16115878].beta, -0.052301, places=4)
+        self.assertAlmostEqual(firth[16115878].p_value, 0.64197, places=4)
 
-        self.assertAlmostEqual(results[16115878].wald.beta, -0.052632, places=4)
-        self.assertAlmostEqual(results[16115878].wald.standard_error, 0.11272, places=4)
-        self.assertAlmostEqual(results[16115878].wald.z_stat, -0.46691, places=4)
-        self.assertAlmostEqual(results[16115878].wald.p_value, 0.64056, places=4)
-        self.assertAlmostEqual(results[16115878].lrt.p_value, 0.64046, places=4)
-        self.assertAlmostEqual(results[16115878].score.p_value, 0.64054, places=4)
-        self.assertAlmostEqual(results[16115878].firth.beta, -0.052301, places=4)
-        self.assertAlmostEqual(results[16115878].firth.p_value, 0.64197, places=4)
+        self.assertAlmostEqual(wald[16115882].beta, -0.15598, places=4)
+        self.assertAlmostEqual(wald[16115882].standard_error, 0.079508, places=4)
+        self.assertAlmostEqual(wald[16115882].z_stat, -1.9619, places=4)
+        self.assertAlmostEqual(wald[16115882].p_value, 0.049779, places=4)
+        self.assertAlmostEqual(lrt[16115882].p_value, 0.049675, places=4)
+        self.assertAlmostEqual(score[16115882].p_value, 0.049675, places=4)
+        self.assertAlmostEqual(firth[16115882].beta, -0.15567, places=4)
+        self.assertAlmostEqual(firth[16115882].p_value, 0.04991, places=4)
 
-        self.assertAlmostEqual(results[16115882].wald.beta, -0.15598, places=4)
-        self.assertAlmostEqual(results[16115882].wald.standard_error, 0.079508, places=4)
-        self.assertAlmostEqual(results[16115882].wald.z_stat, -1.9619, places=4)
-        self.assertAlmostEqual(results[16115882].wald.p_value, 0.049779, places=4)
-        self.assertAlmostEqual(results[16115882].lrt.p_value, 0.049675, places=4)
-        self.assertAlmostEqual(results[16115882].score.p_value, 0.049675, places=4)
-        self.assertAlmostEqual(results[16115882].firth.beta, -0.15567, places=4)
-        self.assertAlmostEqual(results[16115882].firth.p_value, 0.04991, places=4)
+        self.assertAlmostEqual(wald[16117940].beta, -0.88059, places=4)
+        self.assertAlmostEqual(wald[16117940].standard_error, 0.83769, places=2)
+        self.assertAlmostEqual(wald[16117940].z_stat, -1.0512, places=2)
+        self.assertAlmostEqual(wald[16117940].p_value, 0.29316, places=2)
+        self.assertAlmostEqual(lrt[16117940].p_value, 0.26984, places=4)
+        self.assertAlmostEqual(score[16117940].p_value, 0.27828, places=4)
+        self.assertAlmostEqual(firth[16117940].beta, -0.7524, places=4)
+        self.assertAlmostEqual(firth[16117940].p_value, 0.30731, places=4)
 
-        self.assertAlmostEqual(results[16117940].wald.beta, -0.88059, places=4)
-        self.assertAlmostEqual(results[16117940].wald.standard_error, 0.83769, places=2)
-        self.assertAlmostEqual(results[16117940].wald.z_stat, -1.0512, places=2)
-        self.assertAlmostEqual(results[16117940].wald.p_value, 0.29316, places=2)
-        self.assertAlmostEqual(results[16117940].lrt.p_value, 0.26984, places=4)
-        self.assertAlmostEqual(results[16117940].score.p_value, 0.27828, places=4)
-        self.assertAlmostEqual(results[16117940].firth.beta, -0.7524, places=4)
-        self.assertAlmostEqual(results[16117940].firth.p_value, 0.30731, places=4)
-
-        self.assertAlmostEqual(results[16117953].wald.beta, 0.54921, places=4)
-        self.assertAlmostEqual(results[16117953].wald.standard_error, 0.4517, places=3)
-        self.assertAlmostEqual(results[16117953].wald.z_stat, 1.2159, places=3)
-        self.assertAlmostEqual(results[16117953].wald.p_value, 0.22403, places=3)
-        self.assertAlmostEqual(results[16117953].lrt.p_value, 0.21692, places=4)
-        self.assertAlmostEqual(results[16117953].score.p_value, 0.21849, places=4)
-        self.assertAlmostEqual(results[16117953].firth.beta, 0.5258, places=4)
-        self.assertAlmostEqual(results[16117953].firth.p_value, 0.22562, places=4)
+        self.assertAlmostEqual(wald[16117953].beta, 0.54921, places=4)
+        self.assertAlmostEqual(wald[16117953].standard_error, 0.4517, places=3)
+        self.assertAlmostEqual(wald[16117953].z_stat, 1.2159, places=3)
+        self.assertAlmostEqual(wald[16117953].p_value, 0.22403, places=3)
+        self.assertAlmostEqual(lrt[16117953].p_value, 0.21692, places=4)
+        self.assertAlmostEqual(score[16117953].p_value, 0.21849, places=4)
+        self.assertAlmostEqual(firth[16117953].beta, 0.5258, places=4)
+        self.assertAlmostEqual(firth[16117953].p_value, 0.22562, places=4)
 
     # comparing to R:
     # x = c(0, 1, 0, 0, 0, 1, 0, 0, 0, 0)
@@ -668,12 +658,12 @@ class Tests(unittest.TestCase):
                                 missing='-1',
                                 types={'count': hl.tint32})
         mt = hl.import_vcf(resource('regressionLogistic.vcf'))
-        mt = hl.poisson_regression('wald',
-                                    y=pheno[mt.s].count,
-                                    x=mt.GT.n_alt_alleles(),
-                                    covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
+        ht = hl.PoissonRegressionModel('wald').regress_rows(
+            y=pheno[mt.s].count,
+            x=mt.GT.n_alt_alleles(),
+            covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
 
-        results = dict(mt.aggregate_rows(hl.agg.collect((mt.locus.position, mt.poisreg))))
+        results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
 
         self.assertAlmostEqual(results[1].beta, 0.6725210143, places=6)
         self.assertAlmostEqual(results[1].standard_error, 0.7265562271, places=5)
@@ -714,12 +704,12 @@ class Tests(unittest.TestCase):
                                 missing='-1',
                                 types={'count': hl.tint32})
         mt = hl.import_vcf(resource('regressionLogistic.vcf'))
-        mt = hl.poisson_regression('lrt',
-                                    y=pheno[mt.s].count,
-                                    x=mt.GT.n_alt_alleles(),
-                                    covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
+        ht = hl.PoissonRegressionModel('lrt').regress_rows(
+            y=pheno[mt.s].count,
+            x=mt.GT.n_alt_alleles(),
+            covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
 
-        results = dict(mt.aggregate_rows(hl.agg.collect((mt.locus.position, mt.poisreg))))
+        results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
 
         self.assertAlmostEqual(results[1].beta, 0.6725210143, places=6)
         self.assertAlmostEqual(results[1].chi_sq_stat, 0.8334198333, places=5)
@@ -757,12 +747,12 @@ class Tests(unittest.TestCase):
                                 missing='-1',
                                 types={'count': hl.tint32})
         mt = hl.import_vcf(resource('regressionLogistic.vcf'))
-        mt = hl.poisson_regression('score',
-                                    y=pheno[mt.s].count,
-                                    x=mt.GT.n_alt_alleles(),
-                                    covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
+        ht = hl.PoissonRegressionModel('score').regress_rows(
+            y=pheno[mt.s].count,
+            x=mt.GT.n_alt_alleles(),
+            covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
 
-        results = dict(mt.aggregate_rows(hl.agg.collect((mt.locus.position, mt.poisreg))))
+        results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
 
         self.assertAlmostEqual(results[1].chi_sq_stat, 0.8782455145, places=4)
         self.assertAlmostEqual(results[1].p_value, 0.3486826695, places=5)

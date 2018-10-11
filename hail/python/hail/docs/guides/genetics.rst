@@ -180,18 +180,19 @@ Single Phenotype
 
 :**code**:
 
-    Approach #1: Use the :func:`.linear_regression` method
+    Approach #1: Use the :meth:`.LinearRegressionModel.regress_rows` method
 
-    >>> mt_linreg = hl.linear_regression(y=mt.pheno.height,
-    ...                                  x=mt.GT.n_alt_alleles(),
-    ...                                  covariates=[1])
+    >>> model = hl.LinearRegressionModel()
+    >>> mt_linreg = model.regress_rows(y=mt.pheno.height,
+    ...                                x=mt.GT.n_alt_alleles(),
+    ...                                covariates=[1])
 
     Approach #2: Use the :func:`.aggregators.linreg` aggregator
 
     >>> mt_linreg = mt.annotate_rows(linreg=hl.agg.linreg(y=mt.pheno.height,
     ...                                                   x=[1, mt.GT.n_alt_alleles()]))
 
-:**dependencies**: :func:`.linear_regression`, :func:`.aggregators.linreg`
+:**dependencies**: :meth:`.LinearRegressionModel.regress_rows`, :func:`.aggregators.linreg`
 
 :**understanding**:
 
@@ -199,7 +200,7 @@ Single Phenotype
 
         .. container:: toggle-content
 
-            The :func:`.linear_regression` method is more efficient than using the :func:`.aggregators.linreg`
+            The :meth:`.LinearRegressionModel.regress_rows` method is more efficient than using the :func:`.aggregators.linreg`
             aggregator. However, the :func:`.aggregators.linreg` aggregator is more flexible (multiple covariates
             can vary by entry) and returns a richer set of statistics.
 
@@ -213,21 +214,23 @@ Multiple Phenotypes
 
 :**code**:
 
-    Approach #1: Use the :func:`.linear_regression` method for all phenotypes simultaneously
+    Approach #1: Use the :meth:`.LinearRegressionModel.regress_rows` method for all phenotypes simultaneously
 
-    >>> mt_linreg = hl.linear_regression(y=[mt.pheno.height, mt.pheno.blood_pressure],
-    ...                                  x=mt.GT.n_alt_alleles(),
-    ...                                  covariates=[1])
+    >>> model = hl.LinearRegressionModel()
+    >>> mt_linreg = model.regress_rows(y=[mt.pheno.height, mt.pheno.blood_pressure],
+    ...                                x=mt.GT.n_alt_alleles(),
+    ...                                covariates=[1])
 
-    Approach #2: Use the :func:`.linear_regression` method for each phenotype sequentially
+    Approach #2: Use the :meth:`.LinearRegressionModel.regress_rows` method for each phenotype sequentially
 
-    >>> mt_linreg = hl.linear_regression(y=mt.pheno.height,
-    ...                                  x=mt.GT.n_alt_alleles(),
-    ...                                  covariates=[1])
+    >>> model = hl.LinearRegressionModel()
+    >>> mt_linreg = model.regress_rows(y=mt.pheno.height,
+    ...                                x=mt.GT.n_alt_alleles(),
+    ...                                covariates=[1])
 
-    >>> mt_linreg = hl.linear_regression(y=mt_linreg.pheno.blood_pressure,
-    ...                                  x=mt_linreg.GT.n_alt_alleles(),
-    ...                                  covariates=[1])
+    >>> mt_linreg = model.regress_rows(y=mt_linreg.pheno.blood_pressure,
+    ...                                x=mt_linreg.GT.n_alt_alleles(),
+    ...                                covariates=[1])
 
     Approach #3: Use the :func:`.aggregators.linreg` aggregator
 
@@ -237,7 +240,7 @@ Multiple Phenotypes
     ...     linreg_bp=hl.agg.linreg(y=mt.pheno.blood_pressure,
     ...                             x=[1, mt.GT.n_alt_alleles()]))
 
-:**dependencies**: :func:`.linear_regression`, :func:`.aggregators.linreg`
+:**dependencies**: :meth:`.LinearRegressionModel.regress_rows`, :func:`.aggregators.linreg`
 
 :**understanding**:
 
@@ -245,10 +248,10 @@ Multiple Phenotypes
 
         .. container:: toggle-content
 
-            The :func:`.linear_regression` method is more efficient than using the :func:`.aggregators.linreg`
+            The :meth:`.LinearRegressionModel.regress_rows` method is more efficient than using the :func:`.aggregators.linreg`
             aggregator, especially when analyzing many phenotypes. However, the :func:`.aggregators.linreg`
             aggregator is more flexible (multiple covariates can vary by entry) and returns a richer set of
-            statistics. The :func:`.linear_regression` method drops samples that have a missing value for
+            statistics. The :meth:`.LinearRegressionModel.regress_rows` method drops samples that have a missing value for
             any of the phenotypes. Therefore, Approach #1 may not be suitable for phenotypes with differential
             patterns of missingness. Approach #2 will do two passes over the data while Approaches #1 and #3 will
             do one pass over the data and compute the regression statistics for each phenotype simultaneously.
@@ -263,25 +266,27 @@ Stratified by Group
 
 :**code**:
 
-    Approach #1: Use the :func:`.linear_regression` method for each group
+    Approach #1: Use the :meth:`.LinearRegressionModel.regress_rows` method for each group
 
     >>> female_pheno = (hl.case()
     ...                   .when(mt.pheno.is_female, mt.pheno.height)
     ...                   .or_missing())
 
-    >>> mt_linreg = hl.linear_regression(y=female_pheno,
-    ...                                  x=mt.GT.n_alt_alleles(),
-    ...                                  covariates=[1],
-    ...                                  root='linreg_female')
+    >>> model = hl.LinearRegressionModel()
+    >>> mt_linreg = model.regress_rows(y=female_pheno,
+    ...                                x=mt.GT.n_alt_alleles(),
+    ...                                covariates=[1],
+    ...                                root='linreg_female')
 
     >>> male_pheno = (hl.case()
     ...                 .when(~mt_linreg.pheno.is_female, mt_linreg.pheno.height)
     ...                 .or_missing())
 
-    >>> mt_linreg = hl.linear_regression(y=male_pheno,
-    ...                                  x=mt_linreg.GT.n_alt_alleles(),
-    ...                                  covariates=[1],
-    ...                                  root='linreg_male')
+    >>> model = hl.LinearRegressionModel()
+    >>> mt_linreg = model.regress_rows(y=male_pheno,
+    ...                                x=mt_linreg.GT.n_alt_alleles(),
+    ...                                covariates=[1],
+    ...                                root='linreg_male')
 
     Approach #2: Use the :func:`.aggregators.group_by` and :func:`.aggregators.linreg` aggregators
 
@@ -290,7 +295,7 @@ Stratified by Group
     ...                            hl.agg.linreg(y=mt.pheno.height,
     ...                                          x=[1, mt.GT.n_alt_alleles()])))
 
-:**dependencies**: :func:`.linear_regression`, :func:`.aggregators.group_by`, :func:`.aggregators.linreg`
+:**dependencies**: :meth:`.LinearRegressionModel.regress_rows`, :func:`.aggregators.group_by`, :func:`.aggregators.linreg`
 
 :**understanding**:
 
@@ -299,9 +304,9 @@ Stratified by Group
         .. container:: toggle-content
 
             We have presented two ways to compute linear regression statistics for each value of a grouping
-            variable. The first approach utilizes the :func:`.linear_regression` method and must be called
+            variable. The first approach utilizes the :meth:`.LinearRegressionModel.regress_rows` method and must be called
             separately for each group even though it can compute statistics for multiple phenotypes
-            simultaneously. This is because the :func:`.linear_regression` method drops samples that have a
+            simultaneously. This is because the :meth:`.LinearRegressionModel.regress_rows` method drops samples that have a
             missing value for any of the phenotypes. When the groups are mutually exclusive,
             such as 'Male' and 'Female', no samples remain! Note that we cannot define `male_pheno = ~female_pheno`
             because we subsequently need `male_pheno` to be an expression on the `mt_linreg` matrix table
@@ -314,7 +319,7 @@ Stratified by Group
             for those samples in the group. The result of the aggregation expression is then used to annotate
             the matrix table.
 
-            The :func:`.linear_regression` method is more efficient than the :func:`.aggregators.linreg`
+            The :meth:`.LinearRegressionModel.regress_rows` method is more efficient than the :func:`.aggregators.linreg`
             aggregator and can be extended to multiple phenotypes, but the :func:`.aggregators.linreg`
             aggregator is more flexible (multiple covariates can be vary by entry) and returns a richer
             set of statistics.

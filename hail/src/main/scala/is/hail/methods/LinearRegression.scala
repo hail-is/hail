@@ -3,14 +3,16 @@ package is.hail.methods
 import breeze.linalg._
 import breeze.numerics.sqrt
 import is.hail.annotations._
+import is.hail.expr.ir.{TableLiteral, TableValue}
 import is.hail.expr.types._
 import is.hail.stats._
+import is.hail.table.Table
 import is.hail.utils._
 import is.hail.variant._
 import net.sourceforge.jdistlib.T
 
 object LinearRegression {
-  def schema = TStruct(
+  val schema = TStruct(
     ("n", TInt32()),
     ("sum_x", TFloat64()),
     ("y_transpose_x", TArray(TFloat64())),
@@ -19,9 +21,9 @@ object LinearRegression {
     ("t_stat", TArray(TFloat64())),
     ("p_value", TArray(TFloat64())))
 
-  def apply(vsm: MatrixTable,
-    yFields: Array[String], xField: String, covFields: Array[String], root: String, rowBlockSize: Int
-  ): MatrixTable = {
+  def regress_rows(vsm: MatrixTable,
+    yFields: Array[String], xField: String, covFields: Array[String], rowBlockSize: Int
+  ): Table = {
 
     val (y, cov, completeColIdx) = RegressionUtils.getPhenosCovCompleteSamples(vsm, yFields, covFields)
 
@@ -33,7 +35,7 @@ object LinearRegression {
     if (d < 1)
       fatal(s"$n samples and ${ k + 1 } ${ plural(k, "covariate") } (including x) implies $d degrees of freedom.")
 
-    info(s"linear_regression: running on $n samples for ${ y.cols } response ${ plural(y.cols, "variable") } y,\n"
+    info(s"LinearRegressionModel.regress_rows: running on $n samples for ${ y.cols } response ${ plural(y.cols, "variable") } y,\n"
        + s"    with input variable x, and ${ k } additional ${ plural(k, "covariate") }...")
 
     val Qt =
@@ -61,19 +63,19 @@ object LinearRegression {
     val entryArrayIdx = vsm.entriesIndex
     val fieldIdx = entryType.fieldIdx(xField)
 
-    val (newRVPType, ins) = fullRowType.physicalType.unsafeStructInsert(LinearRegression.schema.physicalType, List(root))
-    val newRVType = newRVPType.virtualType
+    val tableType = TableType(vsm.rowKeyStruct ++ LinearRegression.schema, vsm.rowKey, TStruct())
+    val newRVDType = tableType.rvdType
+    val keyIndices = vsm.rowKey.map(vsm.rvRowType.fieldIdx(_)).toArray
+    val nDependentVariables = yFields.length
 
-    val newMatrixType = vsm.matrixType.copy(rvRowType = newRVType)
-
-    val newRDD2 = vsm.rvd.boundary.mapPartitions(
-      newMatrixType.rvdType, { (ctx, it) =>
+    val newRVD = vsm.rvd.boundary.mapPartitions(
+      newRVDType, { (ctx, it) =>
         val rvb = new RegionValueBuilder()
         val rv2 = RegionValue()
 
         val missingCompleteCols = new ArrayBuilder[Int]
         val data = new Array[Double](n * rowBlockSize)
-      
+
         val blockWRVs = new Array[WritableRegionValue](rowBlockSize)
         var i = 0
         while (i < rowBlockSize) {
@@ -94,7 +96,7 @@ object LinearRegression {
             val blockLength = i
 
             val X = new DenseMatrix[Double](n, blockLength, data)
-            
+
             val AC: DenseVector[Double] = X.t(*, ::).map(r => sum(r))
             assert(AC.length == blockLength)
 
@@ -121,28 +123,36 @@ object LinearRegression {
             val p = t.map(s => 2 * T.cumulative(-math.abs(s), d, true, false))
 
             (0 until blockLength).iterator.map { i =>
-              val result = Annotation(
-                n,
-                AC(i),
-                ytx(::, i).toArray: IndexedSeq[Double],
-                b(::, i).toArray: IndexedSeq[Double],
-                se(::, i).toArray: IndexedSeq[Double],
-                t(::, i).toArray: IndexedSeq[Double],
-                p(::, i).toArray: IndexedSeq[Double])
-
               val wrv = blockWRVs(i)
-
               rvb.set(wrv.region)
-              rvb.start(newRVType)
-              ins(wrv.region, wrv.offset, rvb,
-                () => rvb.addAnnotation(LinearRegression.schema, result))
+              rvb.start(newRVDType.rowType)
+              rvb.startStruct()
+              rvb.addFields(fullRowType, wrv.region, wrv.offset, keyIndices)
+              rvb.addInt(n)
+              rvb.addDouble(AC(i))
+
+              def addSlice(dm: DenseMatrix[Double]) {
+                rvb.startArray(nDependentVariables)
+                var j = 0
+                while (j < nDependentVariables) {
+                  rvb.addDouble(dm(j, i))
+                  j += 1
+                }
+                rvb.endArray()
+              }
+
+              addSlice(ytx)
+              addSlice(b)
+              addSlice(se)
+              addSlice(t)
+              addSlice(p)
+
+              rvb.endStruct()
               rv2.set(wrv.region, rvb.end())
               rv2
             }
           }
       })
-
-    vsm.copyMT(matrixType = newMatrixType,
-      rvd = newRDD2)
+    new Table(vsm.hc, TableLiteral(TableValue(tableType, BroadcastRow.empty(sc), newRVD)))
   }
 }
