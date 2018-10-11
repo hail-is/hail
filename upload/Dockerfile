@@ -4,7 +4,7 @@ RUN apt-get -y update && \
     apt-get -y install python python-pip && \
     rm -rf /var/lib/apt/lists/*
 
-RUN pip install -U \
+RUN pip install --no-cache-dir -U \
     flask \
     google-api-python-client \
     google-auth google-auth-oauthlib \

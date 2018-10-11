@@ -10,7 +10,7 @@ push: build
 	echo $(IMAGE) > upload-image
 
 deploy:
-	sed -e "s,@sha@,$SHA," \
+	sed -e "s,@sha@,$$(git rev-parse --short=12 HEAD)," \
 	  -e "s,@image@,$$(cat upload-image)," \
 	  < deployment.yaml.in > deployment.yaml
 	kubectl apply -f deployment.yaml
