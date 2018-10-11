@@ -57,6 +57,7 @@ on_exit() {
     cp ${COMPILE_LOG} ${ARTIFACTS}
     cp ${SCALA_TEST_LOG} ${ARTIFACTS}
     cp ${PYTHON_TEST_LOG} ${ARTIFACTS}
+    cp ${DOCS_LOG} ${ARTIFACTS}
     cp ${DOCTEST_LOG} ${ARTIFACTS}
     cp ${GCP_LOG} ${ARTIFACTS}
     cp -R build/www ${ARTIFACTS}/www
