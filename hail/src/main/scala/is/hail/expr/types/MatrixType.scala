@@ -135,6 +135,8 @@ case class MatrixType(
     sb.append(s"entry:$space")
     entryType.pretty(sb, indent, compact)
 
+    sb.append(s"entriesIndex:$space${entriesIdx}")
+
     indent -= 4
     newline()
     sb += '}'
