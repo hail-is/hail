@@ -60,7 +60,7 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
     - `n_transversion` (``int64``) -- Number of transversion alternate alleles.
     - `n_star` (``int64``) -- Number of star (upstream deletion) alleles.
     - `r_ti_tv` (``float64``) -- Transition/Transversion ratio.
-    - `r_het_hom_var (``float64``) -- Het/HomVar call ratio.
+    - `r_het_hom_var` (``float64``) -- Het/HomVar call ratio.
     - `r_insertion_deletion` (``float64``) -- Insertion/Deletion allele ratio.
 
     Missing values ``NA`` may result from division by zero.
