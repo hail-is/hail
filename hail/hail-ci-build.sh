@@ -14,12 +14,12 @@ gcloud auth activate-service-account \
     
 mkdir -p build
 
-COMPILE_LOG="build/compilation-log"
-SCALA_TEST_LOG="build/scala-test-log"
-PYTHON_TEST_LOG="build/python-test-log"
-DOCTEST_LOG="build/doctest-log"
-DOCS_LOG="build/docs-log"
-GCP_LOG="build/gcp-log"
+COMPILE_LOG="build/compilation.log"
+SCALA_TEST_LOG="build/scala-test.log"
+PYTHON_TEST_LOG="build/python-test.log"
+DOCTEST_LOG="build/doctest.log"
+DOCS_LOG="build/docs.log"
+GCP_LOG="build/gcp.log"
 
 COMP_SUCCESS="build/_COMP_SUCCESS"
 SCALA_TEST_SUCCESS="build/_SCALA_TEST_SUCCESS"
@@ -85,7 +85,7 @@ on_exit() {
 <tbody>
 <tr>
 <td>${COMP_STATUS}</td>
-<td><a href='compilation-log'>Compilation log</a></td>
+<td><a href='compilation.log'>Compilation log</a></td>
 </tr>
 <tr>
 <td>${COMP_STATUS}</td>
@@ -102,7 +102,7 @@ on_exit() {
 <tbody>
 <tr>
 <td>${SCALA_TEST_STATUS}</td>
-<td><a href='scala-test-log'>Scala test log</a></td>
+<td><a href='scala-test.log'>Scala test log</a></td>
 </tr>
 <tr>
 <td>${SCALA_TEST_STATUS}</td>
@@ -110,11 +110,11 @@ on_exit() {
 </tr>
 <tr>
 <td>${PYTHON_TEST_STATUS}</td>
-<td><a href='python-test-log'>PyTest log</a></td>
+<td><a href='python-test.log'>PyTest log</a></td>
 </tr>
 <tr>
 <td>${DOCTEST_STATUS}</td>
-<td><a href='doctest-log'>Doctest log</a/td>
+<td><a href='doctest.log'>Doctest log</a/td>
 </tr>
 </tbody>
 </table>
@@ -123,7 +123,7 @@ on_exit() {
 <tbody>
 <tr>
 <td>${DOCS_STATUS}</td>
-<td><a href='docs-log'>Docs build log</a/td>
+<td><a href='docs.log'>Docs build log</a/td>
 </tr>
 <tr>
 <td>${DOCS_STATUS}</td>
@@ -136,7 +136,7 @@ on_exit() {
 <tbody>
 <tr>
 <td>${GCP_STATUS}</td>
-<td><a href='gcp-log'>GCP log</a></td>
+<td><a href='gcp.log'>GCP log</a></td>
 </tr>
 </tbody>
 </table>
