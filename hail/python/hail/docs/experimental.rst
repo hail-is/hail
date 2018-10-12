@@ -33,6 +33,7 @@ Genetics Methods
     phase_trio_matrix_by_transmission
     explode_trio_matrix
     load_dataset
+    import_gtf
 
 .. autofunction:: ld_score
 .. autofunction:: hail_metadata
@@ -42,3 +43,4 @@ Genetics Methods
 .. autofunction:: phase_trio_matrix_by_transmission
 .. autofunction:: explode_trio_matrix
 .. autofunction:: load_dataset
+.. autofunction:: import_gtf
