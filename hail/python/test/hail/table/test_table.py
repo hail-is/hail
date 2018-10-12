@@ -119,7 +119,7 @@ class Tests(unittest.TestCase):
         results = kt.aggregate(hl.Struct(q1=agg.sum(kt.b),
                                          q2=agg.count(),
                                          q3=agg.collect(kt.e),
-                                         q4=agg.collect(agg.filter((kt.d >= 5) | (kt.a == 0), kt.e)),
+                                         q4=agg.filter((kt.d >= 5) | (kt.a == 0), agg.collect(kt.e)),
                                          q5=agg.mean(agg.explode(kt.f))))
 
         self.assertEqual(results.q1, 8)
@@ -179,7 +179,7 @@ class Tests(unittest.TestCase):
     def test_aggregate_ir(self):
         kt = hl.utils.range_table(10).annotate_globals(g1=5)
         r = kt.aggregate(hl.struct(x=agg.sum(kt.idx) + kt.g1,
-                                   y=agg.sum(agg.filter(kt.idx % 2 != 0, kt.idx + 2)) + kt.g1,
+                                   y=agg.filter(kt.idx % 2 != 0, agg.sum(kt.idx + 2)) + kt.g1,
                                    z=agg.sum(kt.g1 + kt.idx) + kt.g1))
         self.assertEqual(convert_struct_to_dict(r), {u'x': 50, u'y': 40, u'z': 100})
 
@@ -189,7 +189,7 @@ class Tests(unittest.TestCase):
         r = kt.aggregate(hl.null(hl.tint32))
         self.assertEqual(r, None)
 
-        r = kt.aggregate(agg.sum(agg.filter(kt.idx % 2 != 0, kt.idx + 2)) + kt.g1)
+        r = kt.aggregate(agg.filter(kt.idx % 2 != 0, agg.sum(kt.idx + 2)) + kt.g1)
         self.assertEqual(r, 40)
 
     def test_group_aggregate_by_key(self):

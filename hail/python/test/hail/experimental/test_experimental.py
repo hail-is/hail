@@ -39,41 +39,41 @@ class Tests(unittest.TestCase):
                               mt.continuous])
 
         chr20_univariate = ht_univariate.aggregate(
-          hl.struct(univariate=hl.agg.collect(
-              hl.agg.filter((ht_univariate.locus.contig == '20') &
-                            (ht_univariate.locus.position == 82079),
-                            ht_univariate.univariate))[0]))
+          hl.struct(univariate=hl.agg.filter(
+              (ht_univariate.locus.contig == '20') &
+              (ht_univariate.locus.position == 82079),
+              hl.agg.collect(ht_univariate.univariate))[0]))
 
         chr20_annotated = ht_annotated.aggregate(
-            hl.struct(binary=hl.agg.collect(
-                        hl.agg.filter((ht_annotated.locus.contig == '20') &
-                                      (ht_annotated.locus.position == 82079),
-                                      ht_annotated.binary))[0],
-                      continuous=hl.agg.collect(
-                        hl.agg.filter((ht_annotated.locus.contig == '20') &
-                                      (ht_annotated.locus.position == 82079),
-                                      ht_annotated.continuous))[0]))
+            hl.struct(binary=hl.agg.filter(
+                (ht_annotated.locus.contig == '20') &
+                (ht_annotated.locus.position == 82079),
+                hl.agg.collect(ht_annotated.binary))[0],
+                      continuous=hl.agg.filter(
+                          (ht_annotated.locus.contig == '20') &
+                          (ht_annotated.locus.position == 82079),
+                          hl.agg.collect(ht_annotated.continuous))[0]))
 
         self.assertAlmostEqual(chr20_univariate.univariate, 1.601, places=3)
         self.assertAlmostEqual(chr20_annotated.binary, 1.152, places=3)
         self.assertAlmostEqual(chr20_annotated.continuous, 73.014, places=3)
 
         chr22_univariate = ht_univariate.aggregate(
-          hl.struct(univariate=hl.agg.collect(
-              hl.agg.filter((ht_univariate.locus.contig == '22') &
-                            (ht_univariate.locus.position == 16894090),
-                            ht_univariate.univariate))[0]))
+          hl.struct(univariate=hl.agg.filter(
+              (ht_univariate.locus.contig == '22') &
+              (ht_univariate.locus.position == 16894090),
+              hl.agg.collect(ht_univariate.univariate))[0]))
 
         chr22_annotated = ht_annotated.aggregate(
             hl.struct(
-                binary=hl.agg.collect(
-                  hl.agg.filter((ht_annotated.locus.contig == '22') &
-                                (ht_annotated.locus.position == 16894090),
-                                ht_annotated.binary))[0],
-                continuous=hl.agg.collect(
-                  hl.agg.filter((ht_annotated.locus.contig == '22') &
-                                (ht_annotated.locus.position == 16894090),
-                                ht_annotated.continuous))[0]))
+                binary=hl.agg.filter(
+                    (ht_annotated.locus.contig == '22') &
+                    (ht_annotated.locus.position == 16894090),
+                    hl.agg.collect(ht_annotated.binary))[0],
+                continuous=hl.agg.filter(
+                    (ht_annotated.locus.contig == '22') &
+                    (ht_annotated.locus.position == 16894090),
+                    hl.agg.collect(ht_annotated.continuous))[0]))
 
         self.assertAlmostEqual(chr22_univariate.univariate, 1.140, places=3)
         self.assertAlmostEqual(chr22_annotated.binary, 1.107, places=3)

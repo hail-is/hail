@@ -244,7 +244,7 @@ class Tests(unittest.TestCase):
         table = hl.utils.range_table(10)
         r = table.aggregate(hl.struct(x=agg.count(),
                                       y=agg.count_where(table.idx % 2 == 0),
-                                      z=agg.count(agg.filter(lambda x: x % 2 == 0, table.idx)),
+                                      z=agg.filter(table.idx % 2 == 0, agg.count(table.idx)),
                                       arr_sum=agg.array_sum([1, 2, hl.null(tint32)]),
                                       bind_agg=agg.count_where(hl.bind(lambda x: x % 2 == 0, table.idx)),
                                       mean=agg.mean(table.idx),
@@ -261,7 +261,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(r.foo, 3)
 
         a = hl.literal([1, 2], tarray(tint32))
-        self.assertEqual(table.aggregate(agg.array_sum(agg.filter(lambda x: True, a))), [10, 20])
+        self.assertEqual(table.aggregate(agg.filter(True, agg.array_sum(a))), [10, 20])
 
         r = table.aggregate(hl.struct(fraction_odd=agg.fraction(table.idx % 2 == 0),
                                       lessthan6=agg.fraction(table.idx < 6),
@@ -277,25 +277,25 @@ class Tests(unittest.TestCase):
     def test_new_aggregator_maps(self):
         t = hl.utils.range_table(10)
 
-        tests = [(agg._filter(t.idx > 7,
+        tests = [(agg.filter(t.idx > 7,
                               agg.collect(t.idx + 1).append(0)),
                   [9, 10, 0]),
                  (agg._explode(lambda elt: agg.collect(elt + 1).append(0),
                                hl.cond(t.idx > 7, [t.idx, t.idx + 1], hl.empty_array(hl.tint32))),
                   [9, 10, 10, 11, 0]),
-                 (agg._explode(lambda elt: agg._filter(elt > 8,
+                 (agg._explode(lambda elt: agg.filter(elt > 8,
                                                        agg.collect(elt + 1).append(0)),
                                hl.cond(t.idx > 7, [t.idx, t.idx + 1], hl.empty_array(hl.tint32))),
                   [10, 10, 11, 0]),
-                 (agg._filter(t.idx > 7,
+                 (agg.filter(t.idx > 7,
                               agg._explode(lambda elt: agg.collect(elt + 1).append(0),
                                            [t.idx, t.idx + 1])),
                   [9, 10, 10, 11, 0]),
-                 (agg._group_by(t.idx % 2,
+                 (agg.group_by(t.idx % 2,
                                 hl.array(agg.collect_as_set(t.idx + 1)).append(0)),
                   {0: [1, 3, 5, 7, 9, 0], 1: [2, 4, 6, 8, 10, 0]}),
-                 (agg._group_by(t.idx % 3,
-                                agg._filter(t.idx > 7,
+                 (agg.group_by(t.idx % 3,
+                                agg.filter(t.idx > 7,
                                             hl.array(agg.collect_as_set(t.idx + 1)).append(0))),
                   {0: [10, 0], 1: [0], 2: [9, 0]}),
                  #FIXME: I'm not super clear on how this distinction would work
@@ -304,8 +304,8 @@ class Tests(unittest.TestCase):
                  # for the time being would be to add a count aggregator just
                  # for the purposes of getting the right keys, but we can also
                  # leave this as is until we fix up the IR next week.
-                 (agg._filter(t.idx > 7,
-                              agg._group_by(t.idx % 3,
+                 (agg.filter(t.idx > 7,
+                              agg.group_by(t.idx % 3,
                                             hl.array(agg.collect_as_set(t.idx + 1)).append(0))),
                   {0: [10, 0], 2: [9, 0]})
                  ]
@@ -710,8 +710,8 @@ class Tests(unittest.TestCase):
         self.assertEqual(df.aggregate(agg.any(df.mixed_all)), True)
         self.assertEqual(df.aggregate(agg.all(df.mixed_all)), False)
 
-        self.assertEqual(df.aggregate(agg.any(agg.filter(lambda x: False, df.all_true))), False)
-        self.assertEqual(df.aggregate(agg.all(agg.filter(lambda x: False, df.all_true))), True)
+        self.assertEqual(df.aggregate(agg.filter(False, agg.any(df.all_true))), False)
+        self.assertEqual(df.aggregate(agg.filter(False, agg.all(df.all_true))), True)
 
     def test_str_ops(self):
         s = hl.literal("123")

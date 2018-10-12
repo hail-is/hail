@@ -923,15 +923,15 @@ def _explode(f, array_agg_expr) -> Expression:
     return _agg_func.explode(f, array_agg_expr)
 
 
-@typecheck(condition=oneof(func_spec(1, expr_bool), expr_bool), expr=agg_expr(expr_any))
-def filter(condition, expr) -> Aggregable:
+@typecheck(condition=expr_bool, aggregation=expr_any)
+def filter(condition,  aggregation) -> Aggregable:
     """Filter records according to a predicate.
 
     Examples
     --------
     Collect the `ID` field where `HT` >= 70:
 
-    >>> table1.aggregate(agg.collect(agg.filter(table1.HT >= 70, table1.ID)))
+    >>> table1.aggregate(agg.filter(table1.HT >= 70, agg.collect(table1.ID)))
     [2, 3]
 
     Notes
@@ -939,16 +939,12 @@ def filter(condition, expr) -> Aggregable:
     This method can be used with aggregator functions to remove records from
     aggregation.
 
-    The result of the :meth:`explode` and :meth:`filter` methods is an
-    :class:`.Aggregable` expression which can be used only in aggregator
-    methods.
-
     Parameters
     ----------
-    condition : :class:`.BooleanExpression` or function ( (arg) -> :class:`.BooleanExpression`)
-        Filter expression, or a function to evaluate for each record.
-    expr : :class:`.Expression`
-        Expression to filter.
+    condition : :class:`.BooleanExpression`
+        Filter expression.
+    aggregation : :class:`.Expression`
+        Aggregation expression to filter.
 
     Returns
     -------
@@ -956,12 +952,6 @@ def filter(condition, expr) -> Aggregable:
         Aggregable expression.
     """
 
-    f = condition if callable(condition) else lambda x: condition
-    return expr._filter(f)
-
-
-@typecheck(condition=expr_bool, aggregation=expr_any)
-def _filter(condition, aggregation) -> Expression:
     return _agg_func.filter(condition, aggregation)
 
 
