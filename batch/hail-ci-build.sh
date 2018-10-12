@@ -3,8 +3,18 @@ set -ex
 
 source activate hail-batch
 
+cleanup() {
+    set - INT TERM
+    set +e
+    kill $(cat ci.pid)
+    rm -rf ci.pid
+}
+trap cleanup EXIT
+
+trap "exit 24" INT TERM
+
 # run the server in the background with in-cluster config
-python batch/server.py &
+python batch/server.py & echo $! > ci.pid
 
 sleep 5
 
