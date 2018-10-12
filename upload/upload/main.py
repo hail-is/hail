@@ -9,7 +9,8 @@
 import logging
 import re
 import datetime
-from flask import Flask, Response, session, request, redirect, render_template, escape, jsonify, abort, url_for
+import flask
+from flask import Flask, Response, session, request, redirect, render_template, escape, jsonify, abort
 import httplib2
 import json
 import requests
@@ -39,10 +40,6 @@ logging.basicConfig(
   handlers=[fh, ch],
   level=logging.INFO)
 
-# NOTE: nginx strips https and sets X-Forwarded-Proto: https, but it
-# is not used by request.url or url_for, so rewrite the url and set
-# _scheme='https' explicitly.
-
 USERS = set([
     'cseed@broadinstitute.org',
     'dking@broadinstitute.org',
@@ -67,6 +64,13 @@ def next_id():
 
     counter = counter + 1
     return counter
+
+def url_for(*args, **kwargs):
+    # NOTE: nginx strips https and sets X-Forwarded-Proto: https, but
+    # it is not used by request.url or url_for, so rewrite the url and
+    # set _scheme='https' explicitly.
+    kwargs['_scheme'] = 'https'
+    return flask.url_for(*args, **kwargs)
 
 id_item = {}
 items = []
@@ -111,7 +115,7 @@ def get_flow(state=None):
   flow = google_auth_oauthlib.flow.Flow.from_client_secrets_file(
     CLIENT_SECRET, scopes=SCOPES, state=state)
 
-  flow.redirect_uri = url_for('oauth2callback', _external=True, _scheme='https')
+  flow.redirect_uri = url_for('oauth2callback', _external=True)
   
   return flow
 
@@ -141,6 +145,7 @@ def login():
 @app.route('/oauth2callback', methods=['GET'])
 def oauth2callback():
   authorization_response = request.url
+  # see comment in url_for
   authorization_response = re.sub('^http://', 'https://', authorization_response)
   
   flow = get_flow(state=session['state'])
