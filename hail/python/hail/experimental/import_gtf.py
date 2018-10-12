@@ -129,7 +129,7 @@ def import_gtf(path, reference_genome=None, skip_invalid_contigs=False) -> hl.Ta
 
     ht = ht.transmute(**{x: hl.or_missing(ht['attribute'].contains(x),
                                           ht['attribute'][x])
-                         for x in attributes})
+                         for x in attributes if x})
 
     if reference_genome:
         if reference_genome == 'GRCh37':
