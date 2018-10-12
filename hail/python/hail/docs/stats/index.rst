@@ -17,4 +17,5 @@ stats
     RegressionModel
     LinearRegressionModel
     LogisticRegressionModel
+    PoissonRegressionModel
     LinearMixedModel

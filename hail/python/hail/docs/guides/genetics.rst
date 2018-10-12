@@ -183,9 +183,9 @@ Single Phenotype
     Approach #1: Use the :meth:`.LinearRegressionModel.regress_rows` method
 
     >>> model = hl.LinearRegressionModel()
-    >>> mt_linreg = model.regress_rows(y=mt.pheno.height,
-    ...                                x=mt.GT.n_alt_alleles(),
-    ...                                covariates=[1])
+    >>> ht = model.regress_rows(y=mt.pheno.height,
+    ...                         x=mt.GT.n_alt_alleles(),
+    ...                         covariates=[1])
 
     Approach #2: Use the :func:`.aggregators.linreg` aggregator
 
