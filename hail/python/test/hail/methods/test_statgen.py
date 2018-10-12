@@ -394,7 +394,7 @@ class Tests(unittest.TestCase):
         def is_constant(r):
             return (not r.fit.converged) or np.isnan(r.p_value) or abs(r.p_value - 1) < 1e-4
 
-        self.assertTrue(is_constant(results[3]))
+        self.assertFalse(results[3].fit.converged)  # separable
         self.assertTrue(is_constant(results[6]))
         self.assertTrue(is_constant(results[7]))
         self.assertTrue(is_constant(results[8]))
@@ -430,7 +430,7 @@ class Tests(unittest.TestCase):
         def is_constant(r):
             return (not r.fit.converged) or np.isnan(r.p_value) or abs(r.p_value - 1) < 1e-4
 
-        self.assertFalse(results[3].fit.converged)
+        self.assertFalse(results[3].fit.converged)  # separable
         self.assertTrue(is_constant(results[6]))
         self.assertTrue(is_constant(results[7]))
         self.assertTrue(is_constant(results[8]))
@@ -467,13 +467,24 @@ class Tests(unittest.TestCase):
         def is_constant(r):
             return (not r.fit.converged) or np.isnan(r.p_value) or abs(r.p_value - 1) < 1e-4
 
-        self.assertFalse(results[3].fit.converged)
+        self.assertFalse(results[3].fit.converged)  # separable
         self.assertTrue(is_constant(results[6]))
         self.assertTrue(is_constant(results[7]))
         self.assertTrue(is_constant(results[8]))
         self.assertTrue(is_constant(results[9]))
         self.assertTrue(is_constant(results[10]))
 
+    # comparing to output of R code:
+    # x = c(0, 1, 0, 0, 0, 1, 0, 0, 0, 0)
+    # y = c(0, 0, 1, 1, 1, 1, 0, 0, 1, 1)
+    # c1 = c(0, 2, 1, -2, -2, 4, 1, 2, 3, 4)
+    # c2 = c(-1, 3, 5, 0, -4, 3, 0, -2, -1, -4)
+    # logfit <- glm(y ~ x + c1 + c2, family=binomial(link="logit"))
+    # logfitnull <- glm(y ~ c1 + c2, family=binomial(link="logit"))
+    # beta <- coef(summary(logfit))["x", "Estimate"]
+    # lrtest <- anova(logfitnull, logfit, test="LRT")
+    # chi2 <- lrtest[["Deviance"]][2]
+    # pval <- lrtest[["Pr(>Chi)"]][2]
     def test_logistic_regression_lrt(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -501,13 +512,23 @@ class Tests(unittest.TestCase):
         def is_constant(r):
             return (not r.fit.converged) or np.isnan(r.p_value) or abs(r.p_value - 1) < 1e-4
 
-        self.assertFalse(results[3].fit.converged)
+        self.assertFalse(results[3].fit.converged)  # separable
         self.assertTrue(is_constant(results[6]))
         self.assertTrue(is_constant(results[7]))
         self.assertTrue(is_constant(results[8]))
         self.assertTrue(is_constant(results[9]))
         self.assertTrue(is_constant(results[10]))
 
+    # comparing to output of R code:
+    # x = c(0, 1, 0, 0, 0, 1, 0, 0, 0, 0)
+    # y = c(0, 0, 1, 1, 1, 1, 0, 0, 1, 1)
+    # c1 = c(0, 2, 1, -2, -2, 4, 1, 2, 3, 4)
+    # c2 = c(-1, 3, 5, 0, -4, 3, 0, -2, -1, -4)
+    # logfit <- glm(y ~ c1 + c2 + x, family=binomial(link="logit"))
+    # logfitnull <- glm(y ~ c1 + c2, family=binomial(link="logit"))
+    # scoretest <- anova(logfitnull, logfit, test="Rao")
+    # chi2 <- scoretest[["Rao"]][2]
+    # pval <- scoretest[["Pr(>Chi)"]][2]
     def test_logistic_regression_score(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -626,6 +647,140 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(results[16117953].score.p_value, 0.21849, places=4)
         self.assertAlmostEqual(results[16117953].firth.beta, 0.5258, places=4)
         self.assertAlmostEqual(results[16117953].firth.p_value, 0.22562, places=4)
+
+    # comparing to R:
+    # x = c(0, 1, 0, 0, 0, 1, 0, 0, 0, 0)
+    # y = c(0, 2, 5, 3, 6, 2, 1, 1, 0, 0)
+    # c1 = c(0, 2, 1, -2, -2, 4, 1, 2, 3, 4)
+    # c2 = c(-1, 3, 5, 0, -4, 3, 0, -2, -1, -4)
+    # logfit <- glm(y ~ x + c1 + c2, family=poisson(link="log"))
+    # waldtest <- coef(summary(logfit))
+    # beta <- waldtest["x", "Estimate"]
+    # se <- waldtest["x", "Std. Error"]
+    # zstat <- waldtest["x", "z value"]
+    # pval <- waldtest["x", "Pr(>|z|)"]
+    def test_poission_regression_wald_test(self):
+        covariates = hl.import_table(resource('regressionLogistic.cov'),
+                                     key='Sample',
+                                     types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat})
+        pheno = hl.import_table(resource('regressionPoisson.pheno'),
+                                key='Sample',
+                                missing='-1',
+                                types={'count': hl.tint32})
+        mt = hl.import_vcf(resource('regressionLogistic.vcf'))
+        mt = hl.poisson_regression('wald',
+                                    y=pheno[mt.s].count,
+                                    x=mt.GT.n_alt_alleles(),
+                                    covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
+
+        results = dict(mt.aggregate_rows(hl.agg.collect((mt.locus.position, mt.poisreg))))
+
+        self.assertAlmostEqual(results[1].beta, 0.6725210143, places=6)
+        self.assertAlmostEqual(results[1].standard_error, 0.7265562271, places=5)
+        self.assertAlmostEqual(results[1].z_stat, 0.9256283123, places=5)
+        self.assertAlmostEqual(results[1].p_value, 0.3546391746, places=6)
+
+        self.assertAlmostEqual(results[2].beta, -0.5025904503, places=6)
+        self.assertAlmostEqual(results[2].standard_error, 0.3549856127, places=5)
+        self.assertAlmostEqual(results[2].z_stat, -1.415805126, places=5)
+        self.assertAlmostEqual(results[2].p_value, 0.1568325682, places=6)
+
+        def is_constant(r):
+            return (not r.fit.converged) or np.isnan(r.p_value) or abs(r.p_value - 1) < 1e-4
+
+        self.assertTrue(is_constant(results[6]))
+        self.assertTrue(is_constant(results[7]))
+        self.assertTrue(is_constant(results[8]))
+        self.assertTrue(is_constant(results[9]))
+        self.assertTrue(is_constant(results[10]))
+
+    # comparing to R:
+    # x = c(0, 1, 0, 0, 0, 1, 0, 0, 0, 0)
+    # y = c(0, 2, 5, 3, 6, 2, 1, 1, 0, 0)
+    # c1 = c(0, 2, 1, -2, -2, 4, 1, 2, 3, 4)
+    # c2 = c(-1, 3, 5, 0, -4, 3, 0, -2, -1, -4)
+    # poisfit <- glm(y ~ x + c1 + c2, family=poisson(link="log"))
+    # poisfitnull <- glm(y ~ c1 + c2, family=poisson(link="log"))
+    # beta <- coef(summary(poisfit))["x", "Estimate"]
+    # lrtest <- anova(poisfitnull, poisfit, test="LRT")
+    # chi2 <- lrtest[["Deviance"]][2]
+    # pval <- lrtest[["Pr(>Chi)"]][2]
+    def test_poission_regression_lrt(self):
+        covariates = hl.import_table(resource('regressionLogistic.cov'),
+                                     key='Sample',
+                                     types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat})
+        pheno = hl.import_table(resource('regressionPoisson.pheno'),
+                                key='Sample',
+                                missing='-1',
+                                types={'count': hl.tint32})
+        mt = hl.import_vcf(resource('regressionLogistic.vcf'))
+        mt = hl.poisson_regression('lrt',
+                                    y=pheno[mt.s].count,
+                                    x=mt.GT.n_alt_alleles(),
+                                    covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
+
+        results = dict(mt.aggregate_rows(hl.agg.collect((mt.locus.position, mt.poisreg))))
+
+        self.assertAlmostEqual(results[1].beta, 0.6725210143, places=6)
+        self.assertAlmostEqual(results[1].chi_sq_stat, 0.8334198333, places=5)
+        self.assertAlmostEqual(results[1].p_value, 0.361285509, places=6)
+
+        self.assertAlmostEqual(results[2].beta, -0.5025904503, places=6)
+        self.assertAlmostEqual(results[2].chi_sq_stat, 2.193682097, places=5)
+        self.assertAlmostEqual(results[2].p_value, 0.1385776894, places=6)
+
+        def is_constant(r):
+            return (not r.fit.converged) or np.isnan(r.p_value) or abs(r.p_value - 1) < 1e-4
+
+        self.assertTrue(is_constant(results[6]))
+        self.assertTrue(is_constant(results[7]))
+        self.assertTrue(is_constant(results[8]))
+        self.assertTrue(is_constant(results[9]))
+        self.assertTrue(is_constant(results[10]))
+
+    # comparing to R:
+    # x = c(0, 1, 0, 0, 0, 1, 0, 0, 0, 0)
+    # y = c(0, 2, 5, 3, 6, 2, 1, 1, 0, 0)
+    # c1 = c(0, 2, 1, -2, -2, 4, 1, 2, 3, 4)
+    # c2 = c(-1, 3, 5, 0, -4, 3, 0, -2, -1, -4)
+    # poisfit <- glm(y ~ c1 + c2 + x, family=poisson(link="log"))
+    # poisfitnull <- glm(y ~ c1 + c2, family=poisson(link="log"))
+    # scoretest <- anova(poisfitnull, poisfit, test="Rao")
+    # chi2 <- scoretest[["Rao"]][2]
+    # pval <- scoretest[["Pr(>Chi)"]][2]
+    def test_poission_regression_score_test(self):
+        covariates = hl.import_table(resource('regressionLogistic.cov'),
+                                     key='Sample',
+                                     types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat})
+        pheno = hl.import_table(resource('regressionPoisson.pheno'),
+                                key='Sample',
+                                missing='-1',
+                                types={'count': hl.tint32})
+        mt = hl.import_vcf(resource('regressionLogistic.vcf'))
+        mt = hl.poisson_regression('score',
+                                    y=pheno[mt.s].count,
+                                    x=mt.GT.n_alt_alleles(),
+                                    covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
+
+        results = dict(mt.aggregate_rows(hl.agg.collect((mt.locus.position, mt.poisreg))))
+
+        self.assertAlmostEqual(results[1].chi_sq_stat, 0.8782455145, places=4)
+        self.assertAlmostEqual(results[1].p_value, 0.3486826695, places=5)
+
+        self.assertAlmostEqual(results[2].chi_sq_stat, 2.067574259, places=4)
+        self.assertAlmostEqual(results[2].p_value, 0.1504606684, places=5)
+
+        self.assertAlmostEqual(results[3].chi_sq_stat, 5.483930429, places=4)
+        self.assertAlmostEqual(results[3].p_value, 0.01919205854, places=5)
+
+        def is_constant(r):
+            return r.chi_sq_stat is None or r.chi_sq_stat < 1e-6
+
+        self.assertTrue(is_constant(results[6]))
+        self.assertTrue(is_constant(results[7]))
+        self.assertTrue(is_constant(results[8]))
+        self.assertTrue(is_constant(results[9]))
+        self.assertTrue(is_constant(results[10]))
 
     def test_genetic_relatedness_matrix(self):
         n, m = 100, 200
