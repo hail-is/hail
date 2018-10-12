@@ -51,6 +51,27 @@ class AggFunc(object):
         self._as_scan = False
         self._agg_bindings = set()
 
+    def correct_prefix(self):
+        return "scan" if self._as_scan else "agg"
+
+    def incorrect_prefix(self):
+        return "agg" if self._as_scan else "scan"
+
+    def correct_plural(self):
+        return "scans" if self._as_scan else "aggregations"
+
+    def incorrect_plural(self):
+        return "aggregations" if self._as_scan else "scans"
+
+    def check_scan_agg_compatibility(self, caller, ir):
+        if self._as_scan != isinstance(ir, ApplyScanOp):
+            raise ExpressionException(
+                "'{correct}.{caller}' cannot contain {incorrect}"
+                    .format(correct=self.correct_prefix(),
+                            caller=caller,
+                            incorrect=self.incorrect_plural()))
+
+
     @typecheck_method(name=str,
                       aggregable=agg_expr(expr_any),
                       ret_type=hail_type,
@@ -99,13 +120,15 @@ class AggFunc(object):
             ir = ApplyScanOp(seq_op._ir,
                              list(map(get_ir, constructor_args)),
                              None if init_op_args is None else list(map(get_ir, init_op_args)),
-                             signature)
+                             signature,
+                             ret_type)
             aggs = aggregations
         else:
             ir = ApplyAggOp(seq_op._ir,
                             list(map(get_ir, constructor_args)),
                             None if init_op_args is None else list(map(get_ir, init_op_args)),
-                            signature)
+                            signature,
+                            ret_type)
             aggs = aggregations.push(Aggregation(aggregable, *args))
         return construct_expr(ir, ret_type, Indices(indices.source, set()), aggs)
 
@@ -122,19 +145,18 @@ class AggFunc(object):
         aggregated = f(ref)
         self._agg_bindings = set()
         if aggregated._aggregations.empty():
-            raise ExpressionException("'agg.explode' must take mapping containing aggregation")
+            raise ExpressionException("'{}.explode' must take mapping containing aggregation".format(self.correct_prefix()))
 
         def rewrite(ir):
             if isinstance(ir, BaseApplyAggOp):
-                if self._as_scan == isinstance(ir, ApplyScanOp):
-                    old_seq_op = ir.a
-                    new_seq_op = ArrayFor(array_agg_expr._ir, var, old_seq_op)
-                    init_ops = ir.init_op_args if ir.init_op_args else []
-                    return ir.copy(new_seq_op, *ir.constructor_args, *init_ops)
-                else:
-                    raise ExpressionException("'agg.explode' function cannot take scans, and 'scan.explode function cannot take aggregations'")
+                self.check_scan_agg_compatibility("explode", ir)
+                old_seq_op = ir.a
+                new_seq_op = ArrayFor(array_agg_expr._ir, var, old_seq_op)
+                init_ops = ir.init_op_args if ir.init_op_args else []
+                return ir.copy(new_seq_op, *ir.constructor_args, *init_ops)
+
             elif isinstance(ir, Ref) and ir.name == var:
-                raise ExpressionException("'agg.explode' can't reference collection element outside of aggregation")
+                raise ExpressionException("'{}.explode' can't reference collection element outside of aggregation".format(self.correct_prefix()))
             else:
                 return ir.map_ir(rewrite)
 
@@ -173,37 +195,52 @@ class AggFunc(object):
         if aggregation._aggregations.empty():
             raise ExpressionException("'agg.group_by' must take expression containing aggregation as argument to 'aggregation'")
 
-        indices, aggregations = unify_all(group, aggregation)
+        unify_all(group, aggregation)
 
         agg_ops = {}
+        i_uid = Env.get_uid()
 
-        def rewrite_a(node):
-            if isinstance(ir, SeqOp):
-                return SeqOp(node.i, [group._ir] + node.args, new_agg_sig)
+        def rewrite_a(node, agg_sig):
+            if isinstance(node, SeqOp):
+                return SeqOp(node.i, [group._ir] + node.args, agg_sig)
             else:
-                return node.map_ir(rewrite_a)
+                return node.map_ir(lambda n: rewrite_a(n, agg_sig))
 
         def rewrite(ir):
             if isinstance(ir, BaseApplyAggOp):
-                if self._as_scan == isinstance(ir, ApplyScanOp):
-                    var = Env.get_uid()
-                    typ = tint #FIXME: this might have to call into scala right now to get a type.
+                self.check_scan_agg_compatibility("group_by", ir)
+                var = Env.get_uid()
+                typ = tarray(tstruct(key=group.dtype, value=ir.typ))
+                agg_sig = ir.agg_sig
+                new_agg_sig = AggSignature(f'Keyed({agg_sig.op})',
+                                            agg_sig.ctor_arg_types,
+                                           agg_sig.initop_arg_types,
+                                           [group.dtype] + agg_sig.seqop_arg_types)
 
-                    agg_sig = ir.agg_sig
-                    new_agg_sig = AggSignature(f'Keyed({agg_sig.op})',
-                                               agg_sig.ctor_arg_types,
-                                               agg_sig.initop_arg_types,
-                                               [group.dtype] + agg_sig.seqop_arg_types)
+                new_a = rewrite_a(ir.a, new_agg_sig)
+                agg_ops[var] = (typ, ir.__class__(new_a, ir.constructor_args, ir.init_op_args, new_agg_sig, ir.typ))
 
-                    agg_ops[var] = ir.__class__(rewrite_a(ir.a), ir.constructor_args, ir.init_op_args, new_agg_sig)
-
-                    return Ref(var, typ)
-                else:
-                    raise ExpressionException("'agg.group_by' function cannot take scans, and 'scan.group_by function cannot take aggregations'")
+                return GetField(ArrayRef(Ref(var, typ), Ref(i_uid, tint32)), "value")
             else:
                 return ir.map_ir(rewrite)
 
-        return construct_expr(rewrite(aggregation._ir), aggregation.dtype, indices, group._aggregations.push(Aggregation(aggregation)))
+        rewritten = rewrite(aggregation._ir)
+        assert(len(agg_ops) > 0)
+        aggs = list(agg_ops.items())
+        var1, (typ1, _) = aggs[0]
+        rewritten = ArrayMap(
+            ArrayRange(I32(0), ArrayLen(Ref(var1, typ1)), I32(1)),
+            i_uid,
+            MakeTuple([GetField(ArrayRef(Ref(var1, typ1), Ref(i_uid, tint32)), "key"),
+                       rewritten]))
+
+        for var, (typ, agg) in aggs:
+            rewritten = Let(var, ToArray(agg), rewritten)
+
+        return construct_expr(ToDict(rewritten),
+                              tdict(group.dtype, aggregation.dtype),
+                              aggregation._indices,
+                              group._aggregations.push(Aggregation(aggregation)))
 
     def _group_by(self, group, agg_expr):
         if group._aggregations:
@@ -1521,6 +1558,11 @@ def group_by(group, agg_expr) -> DictExpression:
     """
 
     return _agg_func._group_by(group, agg_expr)
+
+@typecheck(group=expr_any,
+           agg_expr=expr_any)
+def _group_by(group, agg_expr) -> DictExpression:
+    return _agg_func.group_by(group, agg_expr)
 
 
 class ScanFunctions(object):

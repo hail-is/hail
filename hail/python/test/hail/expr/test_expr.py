@@ -305,6 +305,23 @@ class Tests(unittest.TestCase):
                               agg._explode(lambda elt: agg.collect(elt + 1).append(0),
                                            [t.idx, t.idx + 1])),
                   [9, 10, 10, 11, 0]),
+                 (agg._group_by(t.idx % 2,
+                                hl.array(agg.collect_as_set(t.idx + 1)).append(0)),
+                  {0: [1, 3, 5, 7, 9, 0], 1: [2, 4, 6, 8, 10, 0]}),
+                 (agg._group_by(t.idx % 3,
+                                agg._filter(t.idx > 7,
+                                            hl.array(agg.collect_as_set(t.idx + 1)).append(0))),
+                  {0: [10, 0], 1: [0], 2: [9, 0]}),
+                 #FIXME: I'm not super clear on how this distinction would work
+                 # currently, because the KeyedAggregator stuff appears to pass
+                 # through the filters and explodes. I think a way around this
+                 # for the time being would be to add a count aggregator just
+                 # for the purposes of getting the right keys, but we can also
+                 # leave this as is until we fix up the IR next week.
+                 (agg._filter(t.idx > 7,
+                              agg._group_by(t.idx % 3,
+                                            hl.array(agg.collect_as_set(t.idx + 1)).append(0))),
+                  {0: [10, 0], 2: [9, 0]})
                  ]
         for test in tests:
             self.assertEqual(t.aggregate(test[0]), test[1])
