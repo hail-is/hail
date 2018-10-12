@@ -176,7 +176,7 @@ class MatrixIRSuite extends SparkSuite {
     )
     val rowTab = makeLocalizedTable(rdata, cdata)
 
-    val mir = UnlocalizeEntries(rowTab.tir, "__entries", "__cols", Array("col_idx"))
+    val mir = CastTableToMatrix(rowTab.tir, "__entries", "__cols", Array("col_idx"))
     // cols are same
     val mtCols = MatrixColsTable(mir).execute(hc).rdd.collect()
     assert(mtCols sameElements cdata)
@@ -186,7 +186,7 @@ class MatrixIRSuite extends SparkSuite {
     assert(mtRows sameElements rdata.map(row => Row.fromSeq(row.toSeq.take(2))))
 
     // Round trip
-    val roundTrip = LocalizeEntries(mir, "__entries", "__cols").execute(hc)
+    val roundTrip = CastMatrixToTable(mir, "__entries", "__cols").execute(hc)
     val localRows = roundTrip.rdd.collect()
     assert(localRows sameElements rdata)
     val localCols = roundTrip.globals.value.getAs[IndexedSeq[Row]](0)
@@ -205,7 +205,7 @@ class MatrixIRSuite extends SparkSuite {
     )
     val rowTab = makeLocalizedTable(rdata, cdata)
 
-    val mir = UnlocalizeEntries(rowTab.tir, "__entries", "__cols", Array("col_idx"))
+    val mir = CastTableToMatrix(rowTab.tir, "__entries", "__cols", Array("col_idx"))
 
     // All rows must have the same number of elements in the entry field as colTab has rows
     interceptSpark("incorrect entry array length") {
@@ -214,7 +214,7 @@ class MatrixIRSuite extends SparkSuite {
 
     // The entry field must be an array
     interceptFatal("") {
-      UnlocalizeEntries(rowTab.tir, "animal", "__cols", Array("col_idx"))
+      CastTableToMatrix(rowTab.tir, "animal", "__cols", Array("col_idx"))
     }
 
     val rdata2 = Array(
@@ -223,7 +223,7 @@ class MatrixIRSuite extends SparkSuite {
       Row(3, "dog", IndexedSeq(Row("c", -1.0), Row("z", 30.0)))
     )
     val rowTab2 = makeLocalizedTable(rdata2, cdata)
-    val mir2 = UnlocalizeEntries(rowTab2.tir, "__entries", "__cols", Array("col_idx"))
+    val mir2 = CastTableToMatrix(rowTab2.tir, "__entries", "__cols", Array("col_idx"))
 
     interceptSpark("missing") { mir2.execute(hc).rvd.count() }
   }

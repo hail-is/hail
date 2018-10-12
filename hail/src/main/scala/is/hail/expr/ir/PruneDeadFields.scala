@@ -345,7 +345,7 @@ object PruneDeadFields {
         memoizeMatrixIR(child, mtDep, memo)
       case TableUnion(children) =>
         children.foreach(memoizeTableIR(_, requestedType, memo))
-      case LocalizeEntries(child, entriesFieldName, colsFieldName) =>
+      case CastMatrixToTable(child, entriesFieldName, colsFieldName) =>
         val minChild = minimal(child.typ)
         val m = Map(entriesFieldName -> MatrixType.entriesIdentifier)
         val childDep = minChild.copy(
@@ -559,7 +559,7 @@ object PruneDeadFields {
         memoizeMatrixIR(child, dep, memo)
       case MatrixUnionRows(children) =>
         children.foreach(memoizeMatrixIR(_, requestedType, memo))
-      case UnlocalizeEntries(child, entriesFieldName, colsFieldName, _) =>
+      case CastTableToMatrix(child, entriesFieldName, colsFieldName, _) =>
         val m = Map(MatrixType.entriesIdentifier -> entriesFieldName)
         val childDep = child.typ.copy(
           globalType = unify(child.typ.globalType, requestedType.globalType, TStruct((colsFieldName, TArray(requestedType.colType)))),
@@ -819,10 +819,10 @@ object PruneDeadFields {
         val expr2 = rebuild(expr, child2.typ, memo)
         val newKey2 = rebuild(newKey, child2.typ, memo)
         TableKeyByAndAggregate(child2, expr2, newKey2, nPartitions, bufferSize)
-      case LocalizeEntries(child, entriesFieldName, colsFieldName) =>
+      case CastMatrixToTable(child, entriesFieldName, colsFieldName) =>
         val child2 = rebuild(child, memo)
         if (dep.rowType.hasField(entriesFieldName))
-          LocalizeEntries(child2, entriesFieldName, colsFieldName)
+          CastMatrixToTable(child2, entriesFieldName, colsFieldName)
         else
           MatrixRowsTable(child2)
       case TableRename(child, rowMap, globalMap) =>

@@ -2468,7 +2468,7 @@ case class MatrixExplodeCols(child: MatrixIR, path: IndexedSeq[String]) extends 
 }
 
 /**
- * This is intended to be an inverse to LocalizeEntries on a MatrixTable
+ * This is intended to be an inverse to CastMatrixToTable
  *
  * Some notes on semantics,
  * `rowsEntries`'s globals populate the resulting matrixtable, `cols`' are discarded
@@ -2476,7 +2476,7 @@ case class MatrixExplodeCols(child: MatrixIR, path: IndexedSeq[String]) extends 
  * all elements in the array field that `entriesFieldName` refers to must be present. Furthermore,
  * all array elements must be the same length, though individual array items may be missing.
  */
-case class UnlocalizeEntries(
+case class CastTableToMatrix(
   child: TableIR,
   entriesFieldName: String,
   colsFieldName: String,
@@ -2503,9 +2503,9 @@ case class UnlocalizeEntries(
 
   def children: IndexedSeq[BaseIR] = Array(child)
 
-  def copy(newChildren: IndexedSeq[BaseIR]): UnlocalizeEntries = {
+  def copy(newChildren: IndexedSeq[BaseIR]): CastTableToMatrix = {
     assert(newChildren.length == 2)
-    UnlocalizeEntries(
+    CastTableToMatrix(
       newChildren(0).asInstanceOf[TableIR],
       entriesFieldName,
       colsFieldName,

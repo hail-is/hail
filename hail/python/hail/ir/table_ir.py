@@ -224,7 +224,7 @@ class TableRepartition(TableIR):
     def render(self, r):
         return f'(TableRepartition {self.n} {self.shuffle} {r(self.child)})'
 
-class LocalizeEntries(TableIR):
+class CastMatrixToTable(TableIR):
     def __init__(self, child, entries_field_name, cols_field_name):
         super().__init__()
         self.child = child
@@ -232,7 +232,7 @@ class LocalizeEntries(TableIR):
         self.cols_field_name = cols_field_name
 
     def render(self, r):
-        return f'(LocalizeEntries ' \
+        return f'(CastMatrixToTable ' \
                f'"{escape_str(self.entries_field_name)}" ' \
                f'"{escape_str(self.cols_field_name)}" ' \
                f'{r(self.child)})'

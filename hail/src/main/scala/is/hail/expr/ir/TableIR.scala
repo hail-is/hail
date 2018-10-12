@@ -1150,7 +1150,7 @@ case class TableOrderBy(child: TableIR, sortFields: IndexedSeq[SortField]) exten
   }
 }
 
-case class LocalizeEntries(child: MatrixIR, entriesFieldName: String, colsFieldName: String) extends TableIR {
+case class CastMatrixToTable(child: MatrixIR, entriesFieldName: String, colsFieldName: String) extends TableIR {
   def typ: TableType = TableType(
     rowType = child.typ.rvRowType.rename(Map(MatrixType.entriesIdentifier -> entriesFieldName)),
     key = child.typ.rowKey,
@@ -1158,9 +1158,9 @@ case class LocalizeEntries(child: MatrixIR, entriesFieldName: String, colsFieldN
 
   def children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
 
-  def copy(newChildren: IndexedSeq[BaseIR]): LocalizeEntries = {
+  def copy(newChildren: IndexedSeq[BaseIR]): CastMatrixToTable = {
     val IndexedSeq(newChild) = newChildren
-    LocalizeEntries(newChild.asInstanceOf[MatrixIR], entriesFieldName, colsFieldName)
+    CastMatrixToTable(newChild.asInstanceOf[MatrixIR], entriesFieldName, colsFieldName)
   }
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts

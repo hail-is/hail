@@ -279,7 +279,7 @@ class MatrixExplodeCols(MatrixIR):
             r(self.child))
 
 
-class UnlocalizeEntries(MatrixIR):
+class CastTableToMatrix(MatrixIR):
     def __init__(self, child, entries_field_name, cols_field_name, col_key):
         super().__init__()
         self.child = child
@@ -288,7 +288,7 @@ class UnlocalizeEntries(MatrixIR):
         self.col_key = col_key
 
     def render(self, r):
-        return '(UnlocalizeEntries {} {} ({}) {})'.format(
+        return '(CastTableToMatrix {} {} ({}) {})'.format(
            escape_str(self.entries_field_name),
            escape_str(self.cols_field_name),
            ' '.join([escape_id(id) for id in self.col_key]),

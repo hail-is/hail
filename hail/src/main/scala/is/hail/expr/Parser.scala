@@ -635,7 +635,7 @@ object Parser extends JavaTokenParsers {
       } |
       "TableExplode" ~> ir_identifier ~ table_ir(env) ^^ { case field ~ child => ir.TableExplode(child, field) } |
       "LocalizeEntries" ~> string_literal ~ string_literal ~ matrix_ir(env) ^^ { case entriesField ~ colsField ~ child =>
-        ir.LocalizeEntries(child, entriesField, colsField)
+        ir.CastMatrixToTable(child, entriesField, colsField)
       } |
       "TableRename" ~> string_literals ~ string_literals ~ string_literals ~ string_literals ~ table_ir(env) ^^ {
         case rowK ~ rowV ~ globalK ~ globalV ~ child => ir.TableRename(child, rowK.zip(rowV).toMap, globalK.zip(globalV).toMap)
@@ -689,7 +689,7 @@ object Parser extends JavaTokenParsers {
       "MatrixCollectColsByKey" ~> matrix_ir(env) ^^ { child => ir.MatrixCollectColsByKey(child) } |
       "MatrixUnionRows" ~> matrix_ir_children(env) ^^ { children => ir.MatrixUnionRows(children) } |
       "UnlocalizeEntries" ~> ir_identifier ~ ir_identifier ~ ir_identifiers ~ table_ir(env) ^^ {
-        case entriesField ~ colsField ~ colKey ~ child => ir.UnlocalizeEntries(child, entriesField, colsField, colKey)
+        case entriesField ~ colsField ~ colKey ~ child => ir.CastTableToMatrix(child, entriesField, colsField, colKey)
       } |
       "JavaMatrix" ~> ir_identifier ^^ { ident => env.irMap(ident).asInstanceOf[MatrixIR] }
   }
