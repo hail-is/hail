@@ -425,7 +425,7 @@ class PoissonRegressionModel(RegressionModel):
     @typecheck_method(y=expr_float64,
                x=expr_float64,
                covariates=sequenceof(expr_float64))
-    def regress_rows(self, test, y, x, covariates) -> Table:
+    def regress_rows(self, y, x, covariates) -> Table:
         r"""For each row, test an input variable for association with a
         count response variable using `Poisson regression <https://en.wikipedia.org/wiki/Poisson_regression>`__.
 

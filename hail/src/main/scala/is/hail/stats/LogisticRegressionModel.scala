@@ -31,10 +31,8 @@ class GLMTestResult[+T <: GLMStats](val stats: Option[T], private val size: Int)
 
 class GLMTestResultWithFit[T <: GLMStats](override val stats: Option[T], private val size: Int, val fitStats: GLMFit) extends GLMTestResult[T](stats, size) {
   override def addToRVB(rvb: RegionValueBuilder) {
-    stats match {
-      case Some(s) => s.addToRVB(rvb)
-      case None => rvb.skipFields(size)
-    }
+    super.addToRVB(rvb)
+    fitStats.addToRVB(rvb)
   }
 }
 
