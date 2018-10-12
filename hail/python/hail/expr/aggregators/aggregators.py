@@ -124,9 +124,9 @@ class AggFunc(object):
         elt = array_agg_expr.dtype.element_type
         var = Env.get_uid()
         ref = construct_expr(Ref(var, elt), elt, array_agg_expr._indices)
-        self._agg_bindings = set([var])
+        self._agg_bindings.add(var)
         aggregated = f(ref)
-        self._agg_bindings = set()
+        self._agg_bindings.remove(var)
         if aggregated._aggregations.empty():
             raise ExpressionException("'{}.explode' must take mapping containing aggregation".format(self.correct_prefix()))
 
