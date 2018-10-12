@@ -37,9 +37,9 @@ class LogisticRegressionModelSuite extends SparkSuite {
 
     val X = DenseMatrix.horzcat(ones, C)
 
-    val waldStats = WaldTest.test(X, y, nullFit).stats.get
-    val lrStats = LikelihoodRatioTest.test(X, y, nullFit).stats.get
-    val scoreStats = LogisticScoreTest.test(X, y, nullFit).stats.get
+    val waldStats = WaldTest.test(X, y, nullFit, "logistic").stats.get
+    val lrStats = LikelihoodRatioTest.test(X, y, nullFit, "logistic").stats.get
+    val scoreStats = LogisticScoreTest.test(X, y, nullFit, "logistic").stats.get
 
     assert(D_==(waldStats.b(0), 0.7245034, tolerance = 1.0E-6))
     assert(D_==(waldStats.b(1), -0.3585773, tolerance = 1.0E-6))
@@ -94,9 +94,9 @@ class LogisticRegressionModelSuite extends SparkSuite {
 
     val X = DenseMatrix.horzcat(C, gts.asDenseMatrix.t)
 
-    val waldStats = WaldTest.test(X, y, nullFit).stats.get
-    val lrStats = LikelihoodRatioTest.test(X, y, nullFit).stats.get
-    val scoreStats = LogisticScoreTest.test(X, y, nullFit).stats.get
+    val waldStats = WaldTest.test(X, y, nullFit, "logistic").stats.get
+    val lrStats = LikelihoodRatioTest.test(X, y, nullFit, "logistic").stats.get
+    val scoreStats = LogisticScoreTest.test(X, y, nullFit, "logistic").stats.get
 
     assert(D_==(waldStats.b(0), -0.4811418, tolerance = 1.0E-6))
     assert(D_==(waldStats.b(1), -0.4293547, tolerance = 1.0E-6))
@@ -217,10 +217,10 @@ class LogisticRegressionModelSuite extends SparkSuite {
 
     val X = DenseMatrix.horzcat(ones, C)
 
-    val waldStats = WaldTest.test(X, y, nullFit).stats.get
-    val lrStats = LikelihoodRatioTest.test(X, y, nullFit).stats.get
-    val scoreStats = LogisticScoreTest.test(X, y, nullFit).stats.get
-    val firthTest = LogisticFirthTest.test(X, y, nullFit)
+    val waldStats = WaldTest.test(X, y, nullFit, "logistic").stats.get
+    val lrStats = LikelihoodRatioTest.test(X, y, nullFit, "logistic").stats.get
+    val scoreStats = LogisticScoreTest.test(X, y, nullFit, "logistic").stats.get
+    val firthTest = LogisticFirthTest.test(X, y, nullFit, "logistic")
     val firthStats = firthTest.stats.get
     val firthFit = firthTest.fitStats
 
@@ -250,6 +250,6 @@ class LogisticRegressionModelSuite extends SparkSuite {
 
     nullFit = GLMFit(nullModel.bInterceptOnly(),
           None, None, 0, nullFit.nIter, exploded = nullFit.exploded, converged = false)
-    assert(LogisticFirthTest.test(X, y, nullFit).stats.isDefined) // firth penalized MLE still exists
+    assert(LogisticFirthTest.test(X, y, nullFit, "logistic").stats.isDefined) // firth penalized MLE still exists
   }  
 }

@@ -633,7 +633,12 @@ def logistic_regression(test, y, x, covariates, root='logreg') -> MatrixTable:
            root=str)
 def poisson_regression(test, y, x, covariates, root='poisreg') -> MatrixTable:
     r"""For each row, test an input variable for association with a
-    count response variable using Poisson regression.
+    count response variable using `Poisson regression <https://en.wikipedia.org/wiki/Poisson_regression>`__.
+
+    Notes
+    -----
+    See :func:`.logistic_regression` for more info on statistical tests
+    of general linear models.
 
     Parameters
     ----------
@@ -698,7 +703,6 @@ def poisson_regression(test, y, x, covariates, root='poisreg') -> MatrixTable:
         root)
 
     return MatrixTable(jmt).drop(*fields_to_drop)
-
 
 
 @typecheck(y=expr_float64,

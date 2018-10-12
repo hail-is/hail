@@ -7,7 +7,7 @@ import is.hail.expr.types._
 
 
 object PoissonRegressionTest {
-  val tests = Map("wald" -> WaldTest, "lrt" -> LikelihoodRatioTest, "score" -> LogisticScoreTest)
+  val tests = Map("wald" -> WaldTest, "lrt" -> LikelihoodRatioTest, "score" -> PoissonScoreTest)
 }
 
 
@@ -18,9 +18,9 @@ object PoissonScoreTest extends GLMTest {
 
   val emptyStats: Seq[Annotation] = new Array[Annotation](schema.children.size)
 
-  def test(X: DenseMatrix[Double], y: DenseVector[Double], nullFit: GLMFit):
+  def test(X: DenseMatrix[Double], y: DenseVector[Double], nullFit: GLMFit, link: String):
     GLMTestResult[ScoreStats] = {
-
+    require(link == "poisson")
     require(nullFit.score.isDefined && nullFit.fisher.isDefined)
 
     val scoreStats = {
@@ -62,9 +62,8 @@ object PoissonScoreTest extends GLMTest {
 }
 
 
-class PoissonRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) {
+class PoissonRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) extends GeneralLinearModel {
   require(y.length == X.rows)
-  require(y.forall(yi => math.floor(yi) == yi && yi >= 0))
 
   val n: Int = X.rows
   val m: Int = X.cols
@@ -73,11 +72,11 @@ class PoissonRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) {
     require(m > 0)
     val b = DenseVector.zeros[Double](m)
     val avg = sum(y) / n
-    b(0) = math.log(avg / (1 - avg))
+    b(0) = math.log(avg)
     b
   }
 
-  def fit(optNullFit: Option[GLMFit] = None, maxIter: Int = 25, tol: Double = 1E-6): GLMFit = {
+  def fit(optNullFit: Option[GLMFit] = None, maxIter: Int, tol: Double): GLMFit = {
 
     val b = DenseVector.zeros[Double](m)
     val mu = DenseVector.zeros[Double](n)
@@ -134,7 +133,8 @@ class PoissonRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) {
       }
     }
 
-    val logLkhd = sum(breeze.numerics.log(y *:* mu) - y - breeze.numerics.lgamma(y)) // cache lgamma for small counts?
+    // dropping constant that depends only on y: -sum(breeze.numerics.lgamma(DenseVector(y.data.filter(_ != 0.0))))
+    val logLkhd = (y dot breeze.numerics.log(mu)) - sum(mu)
 
     GLMFit(b, Some(score), Some(fisher), logLkhd, iter, converged, exploded)
   }

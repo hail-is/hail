@@ -20,7 +20,10 @@ object LogisticRegression {
     val (y, cov, completeColIdx) = RegressionUtils.getPhenoCovCompleteSamples(vsm, yField, covFields)
 
     if (!y.forall(yi => yi == 0d || yi == 1d))
-      fatal(s"For logistic regression, phenotype must be bool or numeric with all present values equal to 0 or 1")
+      fatal(s"For logistic regression, y must be bool or numeric with all present values equal to 0 or 1")
+    val sumY = sum(y)
+    if (sumY == 0d || sumY == y.length)
+      fatal(s"For logistic regression, y must be non-constant")
 
     val n = y.size
     val k = cov.cols
@@ -79,7 +82,7 @@ object LogisticRegression {
         RegressionUtils.setMeanImputedDoubles(X.data, n * k, completeColIdxBc.value, missingCompleteCols, 
           rv, fullRowType, entryArrayType, entryType, entryArrayIdx, fieldIdx)
 
-        val logregAnnot = logRegTestBc.value.test(X, yBc.value, nullFitBc.value).toAnnotation
+        val logregAnnot = logRegTestBc.value.test(X, yBc.value, nullFitBc.value, "logistic").toAnnotation
 
         rvb.set(rv.region)
         rvb.start(newRVType)

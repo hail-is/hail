@@ -4,14 +4,14 @@ import breeze.linalg._
 import breeze.numerics._
 import is.hail.annotations.Annotation
 import is.hail.expr.types._
-import is.hail.utils.FastSeq
+import is.hail.utils.{FastSeq, fatal}
 
 object LogisticRegressionTest {
   val tests = Map("wald" -> WaldTest, "lrt" -> LikelihoodRatioTest, "score" -> LogisticScoreTest, "firth" -> LogisticFirthTest)
 }
 
 abstract class GLMTest extends Serializable {
-  def test(X: DenseMatrix[Double], y: DenseVector[Double], nullFit: GLMFit): GLMTestResult[GLMStats]
+  def test(X: DenseMatrix[Double], y: DenseVector[Double], nullFit: GLMFit, link: String): GLMTestResult[GLMStats]
   val schema: Type
   val emptyStats: Seq[Annotation]
 }
@@ -41,10 +41,14 @@ object WaldTest extends GLMTest {
 
   val emptyStats: Seq[Annotation] = new Array[Annotation](schema.children.size - 1)
 
-  def test(X: DenseMatrix[Double], y: DenseVector[Double], nullFit: GLMFit): GLMTestResultWithFit[WaldStats] = {
+  def test(X: DenseMatrix[Double], y: DenseVector[Double], nullFit: GLMFit, link: String): GLMTestResultWithFit[WaldStats] = {
     require(nullFit.fisher.isDefined)
 
-    val model = new LogisticRegressionModel(X, y)
+    val model = link match {
+      case "logistic" => new LogisticRegressionModel(X, y)
+      case "poisson" => new PoissonRegressionModel(X, y)
+      case _ => fatal("link must be logistic or poisson")
+    }
     val fit = model.fit(Some(nullFit))
 
     val waldStats = if (fit.converged) {
@@ -80,11 +84,15 @@ object LikelihoodRatioTest extends GLMTest {
 
   val emptyStats: Seq[Annotation] = new Array[Annotation](schema.children.size - 1)
 
-  def test(X: DenseMatrix[Double], y: DenseVector[Double], nullFit: GLMFit):
+  def test(X: DenseMatrix[Double], y: DenseVector[Double], nullFit: GLMFit, link: String):
     GLMTestResultWithFit[LikelihoodRatioStats] = {
     val m = X.cols
     val m0 = nullFit.b.length
-    val model = new LogisticRegressionModel(X, y)
+    val model = link match {
+      case "logistic" => new LogisticRegressionModel(X, y)
+      case "poisson" => new PoissonRegressionModel(X, y)
+      case _ => fatal("link must be logistic or poisson")
+    }
     val fit = model.fit(Some(nullFit))
 
     val lrStats =
@@ -116,9 +124,10 @@ object LogisticFirthTest extends GLMTest {
 
   val emptyStats: Seq[Annotation] = new Array[Annotation](schema.children.size - 1)
 
-  def test(X: DenseMatrix[Double], y: DenseVector[Double], nullFit: GLMFit):
+  def test(X: DenseMatrix[Double], y: DenseVector[Double], nullFit: GLMFit, link: String):
     GLMTestResultWithFit[FirthStats] = {
-
+    require(link == "logistic")
+    
     val m = X.cols
     val m0 = nullFit.b.length
     val model = new LogisticRegressionModel(X, y)
@@ -158,9 +167,9 @@ object LogisticScoreTest extends GLMTest {
 
   val emptyStats: Seq[Annotation] = new Array[Annotation](schema.children.size)
 
-  def test(X: DenseMatrix[Double], y: DenseVector[Double], nullFit: GLMFit):
+  def test(X: DenseMatrix[Double], y: DenseVector[Double], nullFit: GLMFit, link: String):
     GLMTestResult[ScoreStats] = {
-
+    require(link == "logistic")
     require(nullFit.score.isDefined && nullFit.fisher.isDefined)
 
     val scoreStats = {
@@ -207,11 +216,15 @@ case class ScoreStats(chi2: Double, p: Double) extends GLMStats {
 }
 
 
+abstract class GeneralLinearModel {
+  def bInterceptOnly(): DenseVector[Double]
+  
+  def fit(optNullFit: Option[GLMFit], maxIter: Int = 25, tol: Double = 1e-6): GLMFit
+}
 
-class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) {
+
+class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) extends GeneralLinearModel {
   require(y.length == X.rows)
-  require(y.forall(yi => yi == 0 || yi == 1))
-  require{ val sumY = sum(y); sumY > 0 && sumY < y.length }
 
   val n: Int = X.rows
   val m: Int = X.cols
@@ -224,7 +237,7 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) {
     b
   }
 
-  def fit(optNullFit: Option[GLMFit] = None, maxIter: Int = 25, tol: Double = 1E-6): GLMFit = {
+  def fit(optNullFit: Option[GLMFit] = None, maxIter: Int, tol: Double): GLMFit = {
 
     val b = DenseVector.zeros[Double](m)
     val mu = DenseVector.zeros[Double](n)

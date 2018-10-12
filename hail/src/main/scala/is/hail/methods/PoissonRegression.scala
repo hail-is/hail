@@ -20,8 +20,10 @@ object PoissonRegression {
     val (y, cov, completeColIdx) = RegressionUtils.getPhenoCovCompleteSamples(vsm, yField, covFields)
 
     if (!y.forall(yi => math.floor(yi) == yi && yi >= 0))
-      fatal(s"For poisson regression, phenotype must be numeric with all values non-negative integers")
-
+      fatal(s"For poisson regression, y must be numeric with all values non-negative integers")
+    if (sum(y) == 0)
+      fatal(s"For poisson regression, y must have at least one non-zero value")
+    
     val n = y.size
     val k = cov.cols
     val d = n - k - 1
@@ -75,7 +77,7 @@ object PoissonRegression {
         RegressionUtils.setMeanImputedDoubles(X.data, n * k, completeColIdxBc.value, missingCompleteCols, 
           rv, fullRowType, entryArrayType, entryType, entryArrayIdx, fieldIdx)
 
-        val poisRegAnnot = poisRegTestBc.value.test(X, yBc.value, nullFitBc.value).toAnnotation
+        val poisRegAnnot = poisRegTestBc.value.test(X, yBc.value, nullFitBc.value, "poisson").toAnnotation
 
         rvb.set(rv.region)
         rvb.start(newRVType)
