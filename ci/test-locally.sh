@@ -20,6 +20,7 @@ cleanup() {
     rm -rf ci.pid
     set +x
     curl -XDELETE \
+         -i \
          https://api.github.com/repos/hail-ci-test/${REPO_NAME} \
          -H "Authorization: token ${TOKEN}"
     set -x
@@ -31,6 +32,7 @@ trap "exit 24" INT TERM
 # create the temp repo
 set +x
 curl -XPOST \
+     -i \
      https://api.github.com/orgs/hail-ci-test/repos \
      -H "Authorization: token ${TOKEN}" \
      -d "{ \"name\" : \"${REPO_NAME}\" }"
