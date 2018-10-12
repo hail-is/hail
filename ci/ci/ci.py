@@ -312,7 +312,7 @@ def set_deployable():
 
 def receive_ci_job(source, target, job):
     upload_public_gs_file_from_string(GCS_BUCKET,
-                                      f'ci/{source.sha}/{target.sha}/job-log',
+                                      f'ci/{source.sha}/{target.sha}/job.log',
                                       job.cached_status()['log'])
     upload_public_gs_file_from_filename(
         GCS_BUCKET,
@@ -323,7 +323,7 @@ def receive_ci_job(source, target, job):
 
 def receive_deploy_job(target, job):
     upload_public_gs_file_from_string(GCS_BUCKET,
-                                      f'deploy/{target.sha}/job-log',
+                                      f'deploy/{target.sha}/job.log',
                                       job.cached_status()['log'])
     upload_public_gs_file_from_filename(
         GCS_BUCKET,
