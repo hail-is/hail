@@ -108,8 +108,8 @@ class Tests(unittest.TestCase):
         qss = vds.aggregate_cols(hl.Struct(x=agg.collect(vds.s),
                                            y=agg.collect(vds.y1)))
 
-        qgs = vds.aggregate_entries(hl.Struct(x=agg.collect(agg.filter(False, vds.y1)),
-                                              y=agg.collect(agg.filter(hl.rand_bool(0.1), vds.GT))))
+        qgs = vds.aggregate_entries(hl.Struct(x=agg.filter(False, agg.collect(vds.y1)),
+                                              y=agg.filter(hl.rand_bool(0.1), agg.collect(vds.GT))))
 
     def test_aggregate_ir(self):
         ds = (hl.utils.range_matrix_table(5, 5)
@@ -121,7 +121,7 @@ class Tests(unittest.TestCase):
 
         for name, f in x:
             r = f(hl.struct(x=agg.sum(ds[name]) + ds.g1,
-                            y=agg.sum(agg.filter(ds[name] % 2 != 0, ds[name] + 2)) + ds.g1,
+                            y=agg.filter(ds[name] % 2 != 0, agg.sum(ds[name] + 2)) + ds.g1,
                             z=agg.sum(ds.g1 + ds[name]) + ds.g1,
                             mean=agg.mean(ds[name])))
             self.assertEqual(convert_struct_to_dict(r), {u'x': 15, u'y': 13, u'z': 40, u'mean': 2.0})
@@ -132,11 +132,11 @@ class Tests(unittest.TestCase):
             r = f(hl.null(hl.tint32))
             self.assertEqual(r, None)
 
-            r = f(agg.sum(agg.filter(ds[name] % 2 != 0, ds[name] + 2)) + ds.g1)
+            r = f(agg.filter(ds[name] % 2 != 0, agg.sum(ds[name] + 2)) + ds.g1)
             self.assertEqual(r, 13)
 
-        r = ds.aggregate_entries(agg.sum(
-            agg.filter((ds.row_idx % 2 != 0) & (ds.col_idx % 2 != 0), ds.e1 + ds.g1 + ds.row_idx + ds.col_idx)) + ds.g1)
+        r = ds.aggregate_entries(agg.filter((ds.row_idx % 2 != 0) & (ds.col_idx % 2 != 0),
+                                            agg.sum(ds.e1 + ds.g1 + ds.row_idx + ds.col_idx)) + ds.g1)
         self.assertTrue(r, 48)
 
     def test_select_entries(self):
