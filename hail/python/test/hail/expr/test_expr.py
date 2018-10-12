@@ -274,20 +274,6 @@ class Tests(unittest.TestCase):
         self.assertTrue(r.assert1)
         self.assertTrue(r.assert2)
 
-    def test_aggregator_maps(self):
-        t = hl.utils.range_table(10)
-        tests = [(agg.filter(lambda x: x > 8, agg._map(lambda x: x + 1, t.idx)), [9, 10]),
-                 (agg._map(lambda x: x + 1, agg.filter(lambda x: x > 8, t.idx)), [10]),
-                 (agg._flatmap(lambda x: hl.cond(x > 8, [x, x + 1], hl.empty_array(hl.tint32)), agg._map(lambda x: x + 1, t.idx)), [9, 10, 10, 11]),
-                 (agg._map(lambda x: x + 1, agg._flatmap(lambda x: hl.cond(x > 8, [x, x + 1], hl.empty_array(hl.tint32)), t.idx)), [10, 11]),
-                 (agg.filter(lambda x: x > 8, agg._flatmap(lambda x: [x, x + 1], t.idx)), [9, 9, 10]),
-                 (agg._flatmap(lambda x: [x, x + 1], agg.filter(lambda x: x > 8, t.idx)), [9, 10])]
-
-
-        for test in tests:
-            self.assertEqual(t.aggregate(agg.collect(test[0])), test[1])
-
-
     def test_new_aggregator_maps(self):
         t = hl.utils.range_table(10)
 
