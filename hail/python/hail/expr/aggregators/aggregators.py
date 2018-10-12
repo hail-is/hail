@@ -69,7 +69,7 @@ class AggFunc(object):
         if aggregations:
             raise ExpressionException('Cannot aggregate an already-aggregated expression')
         for a in args:
-            _check_agg_bindings(a)
+            _check_agg_bindings(a, self._agg_bindings)
         _check_agg_bindings(aggregable, self._agg_bindings)
 
         uid = Env.get_uid()
@@ -118,7 +118,7 @@ class AggFunc(object):
     @typecheck_method(f=func_spec(1, expr_any),
                       array_agg_expr=expr_oneof(expr_array(), expr_set()))
     def explode(self, f, array_agg_expr):
-        if not array_agg_expr._aggregations.empty():
+        if len(array_agg_expr._ir.search(lambda n: isinstance(n, BaseApplyAggOp))) != 0:
             raise ExpressionException("'agg.explode' does not support an already-aggregated expression as the argument to 'collection'")
 
         elt = array_agg_expr.dtype.element_type
@@ -127,7 +127,7 @@ class AggFunc(object):
         self._agg_bindings.add(var)
         aggregated = f(ref)
         self._agg_bindings.remove(var)
-        if aggregated._aggregations.empty():
+        if len(aggregated._ir.search(lambda n: isinstance(n, BaseApplyAggOp))) == 0:
             raise ExpressionException("'{}.explode' must take mapping containing aggregation".format(self.correct_prefix()))
 
         def rewrite(node):
@@ -143,17 +143,21 @@ class AggFunc(object):
             else:
                 return node.map_ir(rewrite)
 
+        aggregations = hl.utils.LinkedList(Aggregation)
+        if not self._as_scan:
+            aggregations = aggregations.push(Aggregation(aggregated))
+
         return construct_expr(rewrite(aggregated._ir),
                               aggregated.dtype,
                               aggregated._indices,
-                              hl.utils.LinkedList(Aggregation).push(Aggregation(aggregated)))
+                              aggregations)
 
     @typecheck_method(condition=expr_bool,
                       aggregation=agg_expr(expr_any))
     def filter(self, condition, aggregation):
-        if not condition._aggregations.empty():
+        if len(condition._ir.search(lambda n: isinstance(n, BaseApplyAggOp))) != 0:
             raise ExpressionException("'agg.filter' does not support an already-aggregated expression as the argument to 'condition'")
-        if aggregation._aggregations.empty():
+        if len(aggregation._ir.search(lambda n: isinstance(n, BaseApplyAggOp))) == 0:
             raise ExpressionException("'agg.filter' must take expression containing aggregation as argument to 'aggregation'")
 
         unify_all(condition, aggregation)
@@ -168,16 +172,20 @@ class AggFunc(object):
             else:
                 return node.map_ir(rewrite)
 
+        aggregations = hl.utils.LinkedList(Aggregation)
+        if not self._as_scan:
+            aggregations = aggregations.push(Aggregation(condition, aggregation))
+
         return construct_expr(rewrite(aggregation._ir),
                               aggregation.dtype,
                               aggregation._indices,
-                              hl.utils.LinkedList(Aggregation).push(Aggregation(condition, aggregation)))
+                              aggregations)
 
     def group_by(self, group, aggregation):
-        if not group._aggregations.empty():
+        if len(group._ir.search(lambda n: isinstance(n, BaseApplyAggOp))) != 0:
             raise ExpressionException("'agg.group_by' does not support an already-aggregated expression as the argument to 'group'")
 
-        if aggregation._aggregations.empty():
+        if len(aggregation._ir.search(lambda n: isinstance(n, BaseApplyAggOp))) == 0:
             raise ExpressionException("'agg.group_by' must take expression containing aggregation as argument to 'aggregation'")
 
         unify_all(group, aggregation)
@@ -222,10 +230,14 @@ class AggFunc(object):
         for var, (typ, agg) in aggs:
             rewritten = Let(var, ToArray(agg), rewritten)
 
+        aggregations = hl.utils.LinkedList(Aggregation)
+        if not self._as_scan:
+            aggregations = aggregations.push(Aggregation(aggregation))
+
         return construct_expr(ToDict(rewritten),
                               tdict(group.dtype, aggregation.dtype),
                               aggregation._indices,
-                              hl.utils.LinkedList(Aggregation).push(Aggregation(aggregation)))
+                              aggregations)
 
 
 _agg_func = AggFunc()
@@ -367,7 +379,7 @@ def count_where(condition) -> Int64Expression:
         Total number of records where `condition` is ``True``.
     """
 
-    return _agg_func('Sum', tint64(condition), tint64, seq_op_args=())
+    return _agg_func('Sum', hl.int64(condition), tint64)
 
 
 @typecheck(condition=expr_bool)

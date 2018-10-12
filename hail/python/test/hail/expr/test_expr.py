@@ -323,7 +323,7 @@ class Tests(unittest.TestCase):
 
         t = table.select(scan_count=hl.scan.count(),
                          scan_count_where=hl.scan.count_where(table.idx % 2 == 0),
-                         scan_count_where2=hl.scan.count(hl.scan.filter(lambda x: x % 2 == 0, table.idx)),
+                         scan_count_where2=hl.scan.filter(table.idx % 2 == 0, hl.scan.count()),
                          arr_sum=hl.scan.array_sum([1, 2, hl.null(tint32)]),
                          bind_agg=hl.scan.count_where(hl.bind(lambda x: x % 2 == 0, table.idx)),
                          mean=hl.scan.mean(table.idx),
