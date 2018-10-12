@@ -227,7 +227,10 @@ def test_pull_request_trigger(tmpdir):
                 'owner': 'hail-ci-test'},
             'name': 'master'}, True]]
         os.chdir(tmpdir)
-        call(['git', 'clone', f'https://{oauth_tokens["user1"]}@github.com/hail-ci-test/{REPO_NAME}.git'])
+        call(['git', 'clone', f'https://{oauth_tokens["user1"]}@github.com/hail-ci-test/{REPO_NAME}.git'],
+             # do not leak the token
+             stdout=subprocess.DEVNULL,
+             stderr=subprocess.DEVNULL)
         os.chdir(REPO_NAME)
         call(['git', 'config', 'user.email', 'ci-automated-tests@broadinstitute.org'])
         call(['git', 'config', 'user.name', 'ci-automated-tests'])
@@ -357,7 +360,10 @@ def test_push_while_building(tmpdir):
             'name': 'master'}, True]]
         os.chdir(tmpdir)
 
-        call(['git', 'clone', f'https://{oauth_tokens["user1"]}@github.com/hail-ci-test/{REPO_NAME}.git'])
+        call(['git', 'clone', f'https://{oauth_tokens["user1"]}@github.com/hail-ci-test/{REPO_NAME}.git'],
+             # do not leak the token
+             stdout=subprocess.DEVNULL,
+             stderr=subprocess.DEVNULL)
         os.chdir(REPO_NAME)
         call(['git', 'config', 'user.email', 'ci-automated-tests@broadinstitute.org'])
         call(['git', 'config', 'user.name', 'ci-automated-tests'])
@@ -492,7 +498,10 @@ def test_merges_approved_pr(tmpdir):
                 'owner': 'hail-ci-test'},
             'name': 'master'}, True]]
         os.chdir(tmpdir)
-        call(['git', 'clone', f'https://{oauth_tokens["user1"]}@github.com/hail-ci-test/{REPO_NAME}.git'])
+        call(['git', 'clone', f'https://{oauth_tokens["user1"]}@github.com/hail-ci-test/{REPO_NAME}.git'],
+             # do not leak the token
+             stdout=subprocess.DEVNULL,
+             stderr=subprocess.DEVNULL)
         os.chdir(REPO_NAME)
         call(['git', 'config', 'user.email', 'ci-automated-tests@broadinstitute.org'])
         call(['git', 'config', 'user.name', 'ci-automated-tests'])
