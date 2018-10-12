@@ -1,6 +1,6 @@
 package is.hail
 
-import java.io.InputStream
+import java.io.{File, InputStream}
 import java.util.Properties
 
 import is.hail.annotations._
@@ -16,6 +16,7 @@ import is.hail.table.Table
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils.{log, _}
 import is.hail.variant.{MatrixTable, ReferenceGenome, VSMSubgen}
+import org.apache.commons.io.FileUtils
 import org.apache.hadoop
 import org.apache.log4j.{ConsoleAppender, LogManager, PatternLayout, PropertyConfigurator}
 import org.apache.spark.rdd.RDD
@@ -39,7 +40,9 @@ object HailContext {
 
   private var theContext: HailContext = _
 
-  def get: HailContext = contextLock.synchronized { theContext }
+  def get: HailContext = contextLock.synchronized {
+    theContext
+  }
 
   def checkSparkCompatibility(jarVersion: String, sparkVersion: String): Unit = {
     def majorMinor(version: String): String = version.split("\\.", 3).take(2).mkString(".")
@@ -145,11 +148,11 @@ object HailContext {
   }
 
   /**
-   * If a HailContext has already been initialized, this function returns it regardless of the
-   * parameters with which it was initialized.
-   *
-   * Otherwise, it initializes and returns a new HailContext.
-   */
+    * If a HailContext has already been initialized, this function returns it regardless of the
+    * parameters with which it was initialized.
+    *
+    * Otherwise, it initializes and returns a new HailContext.
+    */
   def getOrCreate(sc: SparkContext = null,
     appName: String = "Hail",
     master: Option[String] = None,
@@ -171,7 +174,7 @@ object HailContext {
         "tmpDir" -> Seq(tmpDir, hc.tmpDir),
         "branchingFactor" -> Seq(branchingFactor, hc.branchingFactor),
         "minBlockSize" -> Seq(minBlockSize, hc.sc.getConf.getLong("spark.hadoop.mapreduce.input.fileinputformat.split.minsize", 0L) / 1024L / 1024L)
-       ) ++ master.map(m => "master" -> Seq(m, hc.sc.master))).filter(_._2.areDistinct())
+      ) ++ master.map(m => "master" -> Seq(m, hc.sc.master))).filter(_._2.areDistinct())
       val paramsDiffStr = paramsDiff.map { case (name, Seq(provided, existing)) =>
         s"Param: $name, Provided value: $provided, Existing value: $existing"
       }.mkString("\n")
@@ -241,11 +244,12 @@ object HailContext {
 
     val sqlContext = new org.apache.spark.sql.SQLContext(sparkContext)
     val hailTempDir = TempDir.createTempDir(tmpDir, sparkContext.hadoopConfiguration)
-    val hc = new HailContext(sparkContext, sqlContext, hailTempDir, branchingFactor)
+    val hc = new HailContext(sparkContext, sqlContext, logFile, hailTempDir, branchingFactor)
     sparkContext.uiWebUrl.foreach(ui => info(s"SparkUI: $ui"))
 
     info(s"Running Hail version ${ hc.version }")
     theContext = hc
+
     hc
   }
 
@@ -316,6 +320,7 @@ object HailContext {
 
 class HailContext private(val sc: SparkContext,
   val sqlContext: SQLContext,
+  val logFile: String,
   val tmpDir: String,
   val branchingFactor: Int) {
   val hadoopConf: hadoop.conf.Configuration = sc.hadoopConfiguration
@@ -699,5 +704,18 @@ class HailContext private(val sc: SparkContext,
     }
   }
 
-  def genDataset(): MatrixTable = VSMSubgen.realistic.gen(this).sample()
+  def enablePipelineUpload(email: String) {
+    Uploader.pipelineEmail = email
+    info("pipeline upload enabled")
+  }
+
+  def disablePipelineUpload() {
+    Uploader.pipelineEmail = null
+    info("pipeline upload disabled")
+  }
+
+  def uploadLog(email: String) {
+    info(s"uploading $logFile")
+    Uploader.upload("log", FileUtils.readFileToString(new File(logFile)), email)
+  }
 }

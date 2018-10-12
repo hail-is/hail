@@ -1,7 +1,7 @@
 #!/bin/bash
 set -ex
 
-PROJECTS='hail batch ci site scorecard cloudtools'
+PROJECTS='hail batch ci site scorecard cloudtools upload'
 
 for project in $PROJECTS; do
     if [[ -e $project/hail-ci-build.sh ]]; then

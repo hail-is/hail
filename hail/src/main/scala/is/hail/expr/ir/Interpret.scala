@@ -1,6 +1,8 @@
 package is.hail.expr.ir
 
-import is.hail.{HailContext, stats}
+import java.io.{PrintWriter, StringWriter}
+
+import is.hail.{HailContext, Uploader, stats}
 import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.annotations._
 import is.hail.asm4s.AsmFunction3
@@ -47,12 +49,17 @@ object Interpret {
 
     ir = LiftLiterals(ir).asInstanceOf[IR]
 
-    apply(ir, valueEnv, args, agg, None, Memo.empty[AsmFunction3[Region, Long, Boolean, Long]]).asInstanceOf[T]
+    val result = apply(ir, valueEnv, args, agg, None, Memo.empty[AsmFunction3[Region, Long, Boolean, Long]]).asInstanceOf[T]
+
+    Uploader.uploadPipeline(ir0, ir)
+
+    result
   }
 
   private def apply(ir: IR, env: Env[Any], args: IndexedSeq[(Any, Type)], agg: Option[Agg], aggregator: Option[TypedAggregator[Any]], functionMemo: Memo[AsmFunction3[Region, Long, Boolean, Long]]): Any = {
     def interpret(ir: IR, env: Env[Any] = env, args: IndexedSeq[(Any, Type)] = args, agg: Option[Agg] = agg, aggregator: Option[TypedAggregator[Any]] = aggregator): Any =
       apply(ir, env, args, agg, aggregator, functionMemo)
+
     ir match {
       case I32(x) => x
       case I64(x) => x
@@ -247,7 +254,7 @@ object Interpret {
         if (aValue == null)
           null
         else
-          aValue.asInstanceOf[IndexedSeq[Row]].filter(_ != null).map{ case Row(k, v) => (k, v) }.toMap
+          aValue.asInstanceOf[IndexedSeq[Row]].filter(_ != null).map { case Row(k, v) => (k, v) }.toMap
 
       case ToArray(c) =>
         val ordering = coerce[TContainer](c.typ).elementType.ordering.toOrdering
@@ -370,12 +377,14 @@ object Interpret {
             aggregator.get.asInstanceOf[PearsonCorrelationAggregator].seqOp((interpret(x), interpret(y)))
           case Keyed(aggOp) =>
             assert(seqOpArgs.nonEmpty)
+
             def formatArgs(aggOp: AggOp, seqOpArgs: IndexedSeq[IR]): Row = {
               aggOp match {
                 case Keyed(op) => Row(interpret(seqOpArgs.head), formatArgs(op, seqOpArgs.tail))
                 case _ => Row(interpret(seqOpArgs.head), Row(seqOpArgs.tail.map(interpret(_)): _*))
               }
             }
+
             aggregator.get.asInstanceOf[KeyedAggregator[_, _]].seqOp(formatArgs(aggOp, seqOpArgs))
           case Downsample() =>
             val IndexedSeq(x, y, label) = seqOpArgs
@@ -657,7 +666,7 @@ object Interpret {
             val globalsOffset = rvb.end()
             val seqOpsFunction = seqOps(i)
             (globalsOffset, seqOpsFunction)
-          })( { case ((globalsOffset, seqOpsFunction), comb, rv) =>
+          })({ case ((globalsOffset, seqOpsFunction), comb, rv) =>
             seqOpsFunction(rv.region, comb, globalsOffset, false, rv.offset, false)
           }, combOp)
         } else
@@ -744,7 +753,7 @@ object Interpret {
             val colsOffset = rvb.end()
             val seqOpsFunction = seqOps(i)
             (globalsOffset, colsOffset, seqOpsFunction)
-          })( { case ((globalsOffset, colsOffset, seqOpsFunction), comb, rv) =>
+          })({ case ((globalsOffset, colsOffset, seqOpsFunction), comb, rv) =>
             seqOpsFunction(rv.region, comb, globalsOffset, false, colsOffset, false, rv.offset, false)
           }, combOp)
         } else
