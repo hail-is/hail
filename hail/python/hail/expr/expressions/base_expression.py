@@ -26,11 +26,6 @@ class ExpressionWarning(Warning):
 def impute_type(x):
     if isinstance(x, Expression):
         return x.dtype
-    if isinstance(x, expressions.Aggregable):
-        raise ExpressionException("Cannot use the result of 'agg.explode' or 'agg.filter' in expressions\n"
-                                  "    These methods produce 'Aggregable' objects that can only be aggregated\n"
-                                  "    with aggregator functions or used with further calls to 'agg.explode'\n"
-                                  "    and 'agg.filter'. They support no other operations.")
     elif isinstance(x, bool):
         return tbool
     elif isinstance(x, int):
@@ -787,95 +782,3 @@ class Expression(object):
                 return src.aggregate_entries
         else:
             return src.aggregate
-
-
-class Aggregable(object):
-    """Expression that can only be aggregated.
-
-    An :class:`.Aggregable` is produced by the :meth:`.explode` or :meth:`.filter`
-    methods. These objects can be aggregated using aggregator functions, but
-    cannot otherwise be used in expressions.
-    """
-
-    def __init__(self, ir, type, indices, aggregations, transformations=lambda x, cont: cont(x)):
-        self._ir = ir
-        self._type = type
-        self._indices = indices
-        self._aggregations = aggregations
-        self._transformations = transformations
-
-    def __nonzero__(self):
-        raise NotImplementedError('Truth value of an aggregable collection is undefined')
-
-    def __eq__(self, other):
-        raise NotImplementedError('Comparison of aggregable collections is undefined')
-
-    def __ne__(self, other):
-        raise NotImplementedError('Comparison of aggregable collections is undefined')
-
-    def _map(self, f):
-        uid = Env.get_uid()
-        ref = expressions.construct_variable(uid, self._type,
-                                             self._indices, self._aggregations)
-        mapped = f(ref)
-        indices, aggregations = unify_all(ref, mapped)
-        def transform_ir(agg, continuation):
-            indices, aggregations = unify_all(ref, mapped, agg)
-            return continuation(expressions.construct_expr(Let(uid, agg._ir, mapped._ir), mapped._type, indices, aggregations))
-
-
-        return Aggregable(self._ir,
-                          mapped.dtype,
-                          indices, aggregations,
-                          transformations=lambda x, cont: self._transformations(x, lambda x2: transform_ir(x2, cont)))
-
-    def _flatmap(self, f):
-        uid = Env.get_uid()
-        ref = expressions.construct_variable(uid, self._type,
-                                             self._indices, self._aggregations)
-        res_expr = f(ref)
-        indices, aggregations = unify_all(ref, res_expr)
-        def transform_ir(agg, continuation):
-            elt_uid = Env.get_uid()
-            elt_ref = expressions.construct_variable(elt_uid, res_expr.dtype.element_type,
-                                                     res_expr._indices,
-                                                     res_expr._aggregations)
-
-            ir = ArrayFor(ToArray(Let(uid, agg._ir, res_expr._ir)),
-                          elt_uid,
-                          continuation(elt_ref)._ir)
-            return expressions.construct_expr(ir, res_expr.dtype.element_type, indices, aggregations)
-
-        return Aggregable(self._ir,
-                          res_expr.dtype.element_type,
-                          indices,
-                          aggregations,
-                          transformations=lambda x, cont: self._transformations(x, lambda x2: transform_ir(x2, cont)))
-
-    def _filter(self, f):
-        uid = Env.get_uid()
-        ref = expressions.construct_variable(uid, self._type, self._indices, self._aggregations)
-        if callable(f):
-            pred = f(ref)
-        else:
-            pred = f
-        indices, aggregations = unify_all(ref, pred)
-
-        def transform_ir(agg, continuation):
-            agg_uid = Env.get_uid()
-            agg_ref = expressions.construct_variable(agg_uid, self._type, agg._indices, agg._aggregations)
-            ir = Let(agg_uid, agg._ir,
-                     If(Let(uid, agg_ref._ir, pred._ir),
-                        continuation(agg_ref)._ir,
-                        Begin([])))
-            return expressions.construct_expr(ir, self._type, self._indices, self._aggregations)
-
-
-        return Aggregable(self._ir,
-                          self.dtype,
-                          indices, aggregations,
-                          transformations=lambda x, cont: self._transformations(x, lambda x2: transform_ir(x2, cont)))
-
-    @property
-    def dtype(self) -> HailType:
-        return self._type
