@@ -1,6 +1,5 @@
 
 import hail as hl
-from hail.utils import wrap_to_list
 
 def import_gtf(path, reference_genome=None, skip_invalid_contigs=False) -> hl.Table:
     """Import a GTF file.
