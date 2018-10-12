@@ -787,7 +787,7 @@ class Tests(unittest.TestCase):
             hl.struct(a=[3]),
             hl.struct(a=[hl.null(hl.tint32)])
         ])
-        self.assertCountEqual(t.aggregate(hl.agg.collect(hl.agg.explode(t.a))),
+        self.assertCountEqual(t.aggregate(hl.agg.explode(lambda elt: hl.agg.collect(elt), t.a)),
                               [1, 2, None, 3])
 
     def test_agg_call_stats(self):

@@ -872,20 +872,20 @@ def hardy_weinberg_test(expr) -> StructExpression:
     return _agg_func('HardyWeinberg', expr, t)
 
 
-@typecheck(expr=agg_expr(expr_oneof(expr_array(), expr_set())))
-def explode(expr) -> Aggregable:
+@typecheck(f=func_spec(1, expr_any), array_agg_expr=expr_oneof(expr_array(), expr_set()))
+def explode(f, array_agg_expr) -> Expression:
     """Explode an array or set expression to aggregate the elements of all records.
 
     Examples
     --------
     Compute the mean of all elements in fields `C1`, `C2`, and `C3`:
 
-    >>> table1.aggregate(agg.mean(agg.explode([table1.C1, table1.C2, table1.C3])))
+    >>> table1.aggregate(agg.explode(lambda elt: agg.mean(elt), [table1.C1, table1.C2, table1.C3]))
     24.8333333333
 
     Compute the set of all observed elements in the `filters` field (``Set[String]``):
 
-    >>> dataset.aggregate_rows(agg.collect_as_set(agg.explode(dataset.filters)))
+    >>> dataset.aggregate_rows(agg.explode(lambda elt: agg.collect_as_set(elt), dataset.filters))
     set([u'VQSRTrancheSNP99.80to99.90',
          u'VQSRTrancheINDEL99.95to100.00',
          u'VQSRTrancheINDEL99.00to99.50',
@@ -901,30 +901,23 @@ def explode(expr) -> Aggregable:
     This method can be used with aggregator functions to aggregate the elements
     of collection types (:class:`.tarray` and :class:`.tset`).
 
-    The result of the :meth:`explode` and :meth:`filter` methods is an
-    :class:`.Aggregable` expression which can be used only in aggregator
-    methods.
-
     Parameters
     ----------
-    expr : :class:`.CollectionExpression`
+    f : Function from :class:`.Expression` to :class:`.Expression`
+        Aggregation function to apply to each element of the exploded array.
+    array_agg_expr : :class:`.CollectionExpression`
         Expression of type :class:`.tarray` or :class:`.tset`.
 
     Returns
     -------
-    :class:`.Aggregable`
-        Aggregable expression.
+    :class:`.Expression`
+        Aggregation expression.
     """
-    return expr._flatmap(identity)
-
-
-@typecheck(f=func_spec(1, expr_any), array_agg_expr=expr_oneof(expr_array(), expr_set()))
-def _explode(f, array_agg_expr) -> Expression:
     return _agg_func.explode(f, array_agg_expr)
 
 
 @typecheck(condition=expr_bool, aggregation=expr_any)
-def filter(condition,  aggregation) -> Aggregable:
+def filter(condition,  aggregation) -> Expression:
     """Filter records according to a predicate.
 
     Examples

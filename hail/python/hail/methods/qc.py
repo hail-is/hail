@@ -123,7 +123,9 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
     def get_allele_type(allele_idx):
         return hl.cond(allele_idx > 0, mt[variant_atypes][allele_idx - 1], hl.null(hl.tint32))
 
-    exprs['allele_type_counts'] = hl.agg.counter(hl.agg.explode(hl.range(0, mt['GT'].ploidy).map(lambda i: get_allele_type(mt['GT'][i]))))
+    exprs['allele_type_counts'] = hl.agg.explode(
+        lambda elt: hl.agg.counter(elt),
+        hl.range(0, mt['GT'].ploidy).map(lambda i: get_allele_type(mt['GT'][i])))
 
     mt = mt.annotate_cols(**{name: hl.struct(**exprs)})
 
@@ -915,7 +917,7 @@ def summarize_variants(mt: MatrixTable, show=True):
     require_row_key_variant(mt, 'summarize_variants')
     alleles_per_variant = hl.range(1, hl.len(mt.alleles)).map(lambda i: hl.allele_type(mt.alleles[0], mt.alleles[i]))
     allele_types, contigs, allele_counts, n_variants = mt.aggregate_rows(
-        (hl.agg.counter(hl.agg.explode(alleles_per_variant)),
+        (hl.agg.explode(lambda elt: hl.agg.counter(elt), alleles_per_variant),
          hl.agg.counter(mt.locus.contig),
          hl.agg.counter(hl.len(mt.alleles)),
          hl.agg.count()))
