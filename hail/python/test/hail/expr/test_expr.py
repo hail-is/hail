@@ -297,7 +297,8 @@ class Tests(unittest.TestCase):
                  (agg.group_by(t.idx % 3,
                                agg.filter(t.idx > 7,
                                           hl.array(agg.collect_as_set(t.idx + 1)).append(0))),
-                  {0: [10, 0], 1: [0], 2: [9, 0]}),
+                  {0: [10, 0], 2: [9, 0]}),
+                 # {0: [10, 0], 1: [0], 2: [9, 0]}),
                  #FIXME: I'm not super clear on how this distinction would work
                  # currently, because the KeyedAggregator stuff appears to pass
                  # through the filters and explodes. I think a way around this
