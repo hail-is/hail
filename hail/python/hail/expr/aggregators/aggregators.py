@@ -49,9 +49,10 @@ agg_expr = AggregableChecker
 class AggFunc(object):
     def __init__(self):
         self._as_scan = False
+        self._agg_bindings = set()
 
     @typecheck_method(name=str,
-                      aggregable=Aggregable,
+                      aggregable=agg_expr(expr_any),
                       ret_type=hail_type,
                       constructor_args=sequenceof(expr_any),
                       init_op_args=nullable(sequenceof(expr_any)),
@@ -65,7 +66,7 @@ class AggFunc(object):
             raise ExpressionException('Cannot aggregate an already-aggregated expression')
         for a in args:
             _check_agg_bindings(a)
-        _check_agg_bindings(aggregable)
+        _check_agg_bindings(aggregable, self._agg_bindings)
 
         uid = Env.get_uid()
 
@@ -107,6 +108,102 @@ class AggFunc(object):
                             signature)
             aggs = aggregations.push(Aggregation(aggregable, *args))
         return construct_expr(ir, ret_type, Indices(indices.source, set()), aggs)
+
+    @typecheck_method(f=func_spec(1, expr_any),
+                      array_agg_expr=expr_oneof(expr_array(), expr_set()))
+    def explode(self, f, array_agg_expr):
+        if not array_agg_expr._aggregations.empty():
+            raise ExpressionException("'agg.explode' does not support an already-aggregated expression as the argument to 'collection'")
+
+        elt = array_agg_expr.dtype.element_type
+        var = Env.get_uid()
+        ref = construct_expr(Ref(var, elt), elt, array_agg_expr._indices)
+        self._agg_bindings = set([var])
+        aggregated = f(ref)
+        self._agg_bindings = set()
+        if aggregated._aggregations.empty():
+            raise ExpressionException("'agg.explode' must take mapping containing aggregation")
+
+        def rewrite(ir):
+            if isinstance(ir, BaseApplyAggOp):
+                if self._as_scan == isinstance(ir, ApplyScanOp):
+                    old_seq_op = ir.a
+                    new_seq_op = ArrayFor(array_agg_expr._ir, var, old_seq_op)
+                    init_ops = ir.init_op_args if ir.init_op_args else []
+                    return ir.copy(new_seq_op, *ir.constructor_args, *init_ops)
+                else:
+                    raise ExpressionException("'agg.explode' function cannot take scans, and 'scan.explode function cannot take aggregations'")
+            elif isinstance(ir, Ref) and ir.name == var:
+                raise ExpressionException("'agg.explode' can't reference collection element outside of aggregation")
+            else:
+                return ir.map_ir(rewrite)
+
+        return construct_expr(rewrite(aggregated._ir), aggregated.dtype, aggregated._indices, array_agg_expr._aggregations.push(Aggregation(aggregated)))
+
+
+    @typecheck_method(condition=expr_bool,
+                      aggregation=expr_any)
+    def filter(self, condition, aggregation):
+        if not condition._aggregations.empty():
+            raise ExpressionException("'agg.filter' does not support an already-aggregated expression as the argument to 'condition'")
+        if aggregation._aggregations.empty():
+            raise ExpressionException("'agg.filter' must take expression containing aggregation as argument to 'aggregation'")
+
+        unify_all(condition, aggregation)
+
+        def rewrite(ir):
+            if isinstance(ir, BaseApplyAggOp):
+                if self._as_scan == isinstance(ir, ApplyScanOp):
+                    old_seq_op = ir.a
+                    new_seq_op = If(condition._ir, old_seq_op, Begin([]))
+                    init_ops = ir.init_op_args if ir.init_op_args else []
+                    return ir.copy(new_seq_op, *ir.constructor_args, *init_ops)
+                else:
+                    raise ExpressionException("'agg.filter' function cannot take scans, and 'scan.filter function cannot take aggregations'")
+            else:
+                return ir.map_ir(rewrite)
+
+        new_ir = rewrite(aggregation._ir)
+        return construct_expr(new_ir, aggregation.dtype, aggregation._indices, condition._aggregations.push(Aggregation(condition, aggregation)))
+
+    def group_by(self, group, aggregation):
+        if not group._aggregations.empty():
+            raise ExpressionException("'agg.group_by' does not support an already-aggregated expression as the argument to 'group'")
+
+        if aggregation._aggregations.empty():
+            raise ExpressionException("'agg.group_by' must take expression containing aggregation as argument to 'aggregation'")
+
+        indices, aggregations = unify_all(group, aggregation)
+
+        agg_ops = {}
+
+        def rewrite_a(node):
+            if isinstance(ir, SeqOp):
+                return SeqOp(node.i, [group._ir] + node.args, new_agg_sig)
+            else:
+                return node.map_ir(rewrite_a)
+
+        def rewrite(ir):
+            if isinstance(ir, BaseApplyAggOp):
+                if self._as_scan == isinstance(ir, ApplyScanOp):
+                    var = Env.get_uid()
+                    typ = tint #FIXME: this might have to call into scala right now to get a type.
+
+                    agg_sig = ir.agg_sig
+                    new_agg_sig = AggSignature(f'Keyed({agg_sig.op})',
+                                               agg_sig.ctor_arg_types,
+                                               agg_sig.initop_arg_types,
+                                               [group.dtype] + agg_sig.seqop_arg_types)
+
+                    agg_ops[var] = ir.__class__(rewrite_a(ir.a), ir.constructor_args, ir.init_op_args, new_agg_sig)
+
+                    return Ref(var, typ)
+                else:
+                    raise ExpressionException("'agg.group_by' function cannot take scans, and 'scan.group_by function cannot take aggregations'")
+            else:
+                return ir.map_ir(rewrite)
+
+        return construct_expr(rewrite(aggregation._ir), aggregation.dtype, indices, group._aggregations.push(Aggregation(aggregation)))
 
     def _group_by(self, group, agg_expr):
         if group._aggregations:
@@ -159,9 +256,9 @@ class AggFunc(object):
 _agg_func = AggFunc()
 
 
-def _check_agg_bindings(expr):
+def _check_agg_bindings(expr, bindings):
     bound_references = {ref.name for ref in expr._ir.search(lambda ir: isinstance(ir, Ref) and not isinstance(ir, TopLevelReference))}
-    free_variables = bound_references - expr._ir.bound_variables
+    free_variables = bound_references - expr._ir.bound_variables - bindings
     if free_variables:
         raise ExpressionException("dynamic variables created by 'hl.bind' or lambda methods like 'hl.map' may not be aggregated")
 
@@ -834,6 +931,11 @@ def explode(expr) -> Aggregable:
     return expr._flatmap(identity)
 
 
+@typecheck(f=func_spec(1, expr_any), array_agg_expr=expr_oneof(expr_array(), expr_set()))
+def _explode(f, array_agg_expr) -> Expression:
+    return _agg_func.explode(f, array_agg_expr)
+
+
 @typecheck(condition=oneof(func_spec(1, expr_bool), expr_bool), expr=agg_expr(expr_any))
 def filter(condition, expr) -> Aggregable:
     """Filter records according to a predicate.
@@ -869,6 +971,11 @@ def filter(condition, expr) -> Aggregable:
 
     f = condition if callable(condition) else lambda x: condition
     return expr._filter(f)
+
+
+@typecheck(condition=expr_bool, aggregation=expr_any)
+def _filter(condition, aggregation) -> Expression:
+    return _agg_func.filter(condition, aggregation)
 
 
 @typecheck(f=oneof(func_spec(1, expr_any), expr_any), expr=agg_expr(expr_any))

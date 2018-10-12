@@ -287,6 +287,29 @@ class Tests(unittest.TestCase):
         for test in tests:
             self.assertEqual(t.aggregate(agg.collect(test[0])), test[1])
 
+
+    def test_new_aggregator_maps(self):
+        t = hl.utils.range_table(10)
+
+        tests = [(agg._filter(t.idx > 7,
+                              agg.collect(t.idx + 1).append(0)),
+                  [9, 10, 0]),
+                 (agg._explode(lambda elt: agg.collect(elt + 1).append(0),
+                               hl.cond(t.idx > 7, [t.idx, t.idx + 1], hl.empty_array(hl.tint32))),
+                  [9, 10, 10, 11, 0]),
+                 (agg._explode(lambda elt: agg._filter(elt > 8,
+                                                       agg.collect(elt + 1).append(0)),
+                               hl.cond(t.idx > 7, [t.idx, t.idx + 1], hl.empty_array(hl.tint32))),
+                  [10, 10, 11, 0]),
+                 (agg._filter(t.idx > 7,
+                              agg._explode(lambda elt: agg.collect(elt + 1).append(0),
+                                           [t.idx, t.idx + 1])),
+                  [9, 10, 10, 11, 0]),
+                 ]
+        for test in tests:
+            self.assertEqual(t.aggregate(test[0]), test[1])
+
+
     def test_scan(self):
         table = hl.utils.range_table(10)
 
