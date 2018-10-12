@@ -47,14 +47,13 @@ class AggFunc(object):
     def incorrect_plural(self):
         return "aggregations" if self._as_scan else "scans"
 
-    def check_scan_agg_compatibility(self, caller, ir):
-        if self._as_scan != isinstance(ir, ApplyScanOp):
+    def check_scan_agg_compatibility(self, caller, node):
+        if self._as_scan != isinstance(node, ApplyScanOp):
             raise ExpressionException(
                 "'{correct}.{caller}' cannot contain {incorrect}"
                     .format(correct=self.correct_prefix(),
                             caller=caller,
                             incorrect=self.incorrect_plural()))
-
 
     @typecheck_method(name=str,
                       aggregable=expr_any,
@@ -131,21 +130,23 @@ class AggFunc(object):
         if aggregated._aggregations.empty():
             raise ExpressionException("'{}.explode' must take mapping containing aggregation".format(self.correct_prefix()))
 
-        def rewrite(ir):
-            if isinstance(ir, BaseApplyAggOp):
-                self.check_scan_agg_compatibility("explode", ir)
-                old_seq_op = ir.a
+        def rewrite(node):
+            if isinstance(node, BaseApplyAggOp):
+                self.check_scan_agg_compatibility("explode", node)
+                old_seq_op = node.a
                 new_seq_op = ArrayFor(array_agg_expr._ir, var, old_seq_op)
-                init_ops = ir.init_op_args if ir.init_op_args else []
-                return ir.copy(new_seq_op, *ir.constructor_args, *init_ops)
+                init_ops = node.init_op_args if node.init_op_args else []
+                return node.copy(new_seq_op, *node.constructor_args, *init_ops)
 
-            elif isinstance(ir, Ref) and ir.name == var:
+            elif isinstance(node, Ref) and node.name == var:
                 raise ExpressionException("'{}.explode' can't reference collection element outside of aggregation".format(self.correct_prefix()))
             else:
-                return ir.map_ir(rewrite)
+                return node.map_ir(rewrite)
 
-        return construct_expr(rewrite(aggregated._ir), aggregated.dtype, aggregated._indices, array_agg_expr._aggregations.push(Aggregation(aggregated)))
-
+        return construct_expr(rewrite(aggregated._ir),
+                              aggregated.dtype,
+                              aggregated._indices,
+                              hl.utils.LinkedList(Aggregation).push(Aggregation(aggregated)))
 
     @typecheck_method(condition=expr_bool,
                       aggregation=agg_expr(expr_any))
@@ -157,20 +158,20 @@ class AggFunc(object):
 
         unify_all(condition, aggregation)
 
-        def rewrite(ir):
-            if isinstance(ir, BaseApplyAggOp):
-                if self._as_scan == isinstance(ir, ApplyScanOp):
-                    old_seq_op = ir.a
-                    new_seq_op = If(condition._ir, old_seq_op, Begin([]))
-                    init_ops = ir.init_op_args if ir.init_op_args else []
-                    return ir.copy(new_seq_op, *ir.constructor_args, *init_ops)
-                else:
-                    raise ExpressionException("'agg.filter' function cannot take scans, and 'scan.filter function cannot take aggregations'")
+        def rewrite(node):
+            if isinstance(node, BaseApplyAggOp):
+                self.check_scan_agg_compatibility("filter", node)
+                old_seq_op = node.a
+                new_seq_op = If(condition._ir, old_seq_op, Begin([]))
+                init_ops = node.init_op_args if node.init_op_args else []
+                return node.copy(new_seq_op, *node.constructor_args, *init_ops)
             else:
-                return ir.map_ir(rewrite)
+                return node.map_ir(rewrite)
 
-        new_ir = rewrite(aggregation._ir)
-        return construct_expr(new_ir, aggregation.dtype, aggregation._indices, condition._aggregations.push(Aggregation(condition, aggregation)))
+        return construct_expr(rewrite(aggregation._ir),
+                              aggregation.dtype,
+                              aggregation._indices,
+                              hl.utils.LinkedList(Aggregation).push(Aggregation(condition, aggregation)))
 
     def group_by(self, group, aggregation):
         if not group._aggregations.empty():
@@ -190,23 +191,23 @@ class AggFunc(object):
             else:
                 return node.map_ir(lambda n: rewrite_a(n, agg_sig))
 
-        def rewrite(ir):
-            if isinstance(ir, BaseApplyAggOp):
-                self.check_scan_agg_compatibility("group_by", ir)
+        def rewrite(node):
+            if isinstance(node, BaseApplyAggOp):
+                self.check_scan_agg_compatibility("group_by", node)
                 var = Env.get_uid()
-                typ = tarray(tstruct(key=group.dtype, value=ir.typ))
-                agg_sig = ir.agg_sig
+                typ = tarray(tstruct(key=group.dtype, value=node.typ))
+                agg_sig = node.agg_sig
                 new_agg_sig = AggSignature(f'Keyed({agg_sig.op})',
                                             agg_sig.ctor_arg_types,
                                            agg_sig.initop_arg_types,
                                            [group.dtype] + agg_sig.seqop_arg_types)
 
-                new_a = rewrite_a(ir.a, new_agg_sig)
-                agg_ops[var] = (typ, ir.__class__(new_a, ir.constructor_args, ir.init_op_args, new_agg_sig, ir.typ))
+                new_a = rewrite_a(node.a, new_agg_sig)
+                agg_ops[var] = (typ, node.__class__(new_a, node.constructor_args, node.init_op_args, new_agg_sig, node.typ))
 
                 return GetField(ArrayRef(Ref(var, typ), Ref(i_uid, tint32)), "value")
             else:
-                return ir.map_ir(rewrite)
+                return node.map_ir(rewrite)
 
         rewritten = rewrite(aggregation._ir)
         assert(len(agg_ops) > 0)
@@ -224,7 +225,8 @@ class AggFunc(object):
         return construct_expr(ToDict(rewritten),
                               tdict(group.dtype, aggregation.dtype),
                               aggregation._indices,
-                              group._aggregations.push(Aggregation(aggregation)))
+                              hl.utils.LinkedList(Aggregation).push(Aggregation(aggregation)))
+
 
 _agg_func = AggFunc()
 
