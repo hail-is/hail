@@ -60,6 +60,7 @@ popd
 # start CI system
 source activate hail-ci
 python ci/ci.py --debug & echo $! > ci.pid
+
 sleep 10
 
 # setup webhooks for temp repo
