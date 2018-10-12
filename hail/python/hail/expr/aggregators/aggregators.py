@@ -242,54 +242,6 @@ class AggFunc(object):
                               aggregation._indices,
                               group._aggregations.push(Aggregation(aggregation)))
 
-    def _group_by(self, group, agg_expr):
-        if group._aggregations:
-            raise ExpressionException("'group_by' does not support an already-aggregated expression as the argument to 'group'")
-
-        if isinstance(agg_expr._ir, ApplyScanOp):
-            if not self._as_scan:
-                raise TypeError("'agg.group_by' requires a non-scan aggregation expression (agg.*) as the argument to 'agg_expr'")
-        elif isinstance(agg_expr._ir, ApplyAggOp):
-            if self._as_scan:
-                raise TypeError("'scan.group_by' requires a scan aggregation expression (scan.*) as the argument to 'agg_expr'")
-        elif not isinstance(agg_expr._ir, ApplyAggOp) and not isinstance(agg_expr._ir, ApplyScanOp):
-            raise TypeError("'group_by' requires an aggregation expression as the argument to 'agg_expr'")
-
-        ir = agg_expr._ir
-        agg_sig = ir.agg_sig
-        a = ir.a
-
-        new_agg_sig = AggSignature(f'Keyed({agg_sig.op})',
-                                    agg_sig.ctor_arg_types,
-                                    agg_sig.initop_arg_types,
-                                    [group.dtype] + agg_sig.seqop_arg_types)
-
-        def rewrite_a(ir):
-            if isinstance(ir, SeqOp):
-                return SeqOp(ir.i, [group._ir] + ir.args, new_agg_sig)
-            else:
-                return ir.map_ir(rewrite_a)
-
-        new_a = rewrite_a(a)
-
-        if isinstance(agg_expr._ir, ApplyAggOp):
-            ir = ApplyAggOp(new_a,
-                            ir.constructor_args,
-                            ir.init_op_args,
-                            new_agg_sig)
-        else:
-            assert isinstance(agg_expr._ir, ApplyScanOp)
-            ir = ApplyScanOp(new_a,
-                             ir.constructor_args,
-                             ir.init_op_args,
-                             new_agg_sig)
-
-        return construct_expr(ir,
-                              hl.tdict(group.dtype, agg_expr.dtype),
-                              agg_expr._indices,
-                              agg_expr._aggregations)
-
-
 _agg_func = AggFunc()
 
 
@@ -429,7 +381,7 @@ def count_where(condition) -> Int64Expression:
         Total number of records where `condition` is ``True``.
     """
 
-    return _agg_func('Count', filter(condition, 0), tint64, seq_op_args=())
+    return _agg_func('Sum', tint64(condition), tint64, seq_op_args=())
 
 
 @typecheck(condition=agg_expr(expr_bool))
@@ -467,7 +419,7 @@ def any(condition) -> BooleanExpression:
     -------
     :class:`.BooleanExpression`
     """
-    return count(filter(lambda x: x, condition)) > 0
+    return count_where(condition) > 0
 
 
 @typecheck(condition=agg_expr(expr_bool))
@@ -505,9 +457,7 @@ def all(condition) -> BooleanExpression:
     -------
     :class:`.BooleanExpression`
     """
-    n_defined = count(filter(lambda x: hl.is_defined(x), condition))
-    n_true = count(filter(lambda x: hl.is_defined(x) & x, condition))
-    return n_defined == n_true
+    return count_where(~condition) == 0
 
 
 @typecheck(expr=agg_expr(expr_any))
@@ -758,7 +708,7 @@ def mean(expr) -> Float64Expression:
     :class:`.Expression` of type :py:data:`.tfloat64`
         Mean value of records of `expr`.
     """
-    return sum(expr)/count(filter(lambda x: hl.is_defined(x), expr))
+    return sum(expr)/count_where(hl.is_defined(expr))
 
 
 @typecheck(expr=agg_expr(expr_float64))
@@ -1013,18 +963,6 @@ def filter(condition, expr) -> Aggregable:
 @typecheck(condition=expr_bool, aggregation=expr_any)
 def _filter(condition, aggregation) -> Expression:
     return _agg_func.filter(condition, aggregation)
-
-
-@typecheck(f=oneof(func_spec(1, expr_any), expr_any), expr=agg_expr(expr_any))
-def _map(f, expr) -> Aggregable:
-    f2 = f if callable(f) else lambda x: f
-    return expr._map(f2)
-
-
-@typecheck(f=oneof(func_spec(1, expr_array()), expr_array()), expr=agg_expr(expr_any))
-def _flatmap(f, expr) -> Aggregable:
-    f2 = f if callable(f) else lambda x: f
-    return expr._flatmap(f2)
 
 
 @typecheck(expr=agg_expr(expr_call), prior=expr_float64)
@@ -1557,13 +1495,7 @@ def group_by(group, agg_expr) -> DictExpression:
         `agg_expr` for each unique value of `group`.
     """
 
-    return _agg_func._group_by(group, agg_expr)
-
-@typecheck(group=expr_any,
-           agg_expr=expr_any)
-def _group_by(group, agg_expr) -> DictExpression:
     return _agg_func.group_by(group, agg_expr)
-
 
 class ScanFunctions(object):
 
