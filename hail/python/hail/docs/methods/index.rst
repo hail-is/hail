@@ -43,6 +43,7 @@ Methods
     linear_regression
     logistic_regression
     pca
+    poisson_regression
     row_correlation
 
 
