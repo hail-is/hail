@@ -13,7 +13,7 @@ Statistics
     linear_regression
     logistic_regression
     pca
-    poisson regression
+    poisson_regression
     row_correlation
 
 .. autofunction:: linear_mixed_model
