@@ -40,7 +40,6 @@ Methods
 
     linear_mixed_model
     pca
-    poisson_regression
     row_correlation
 
 
