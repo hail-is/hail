@@ -12,7 +12,7 @@ import org.apache.http.entity.StringEntity
 import org.apache.http.impl.client.HttpClientBuilder
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager
 import org.apache.http.util.EntityUtils
-import org.json4s.JsonAST.{JInt, JObject, JString}
+import org.json4s.JsonAST.{JInt, JNull, JObject, JString}
 import org.json4s.jackson.JsonMethods
 
 import scala.collection.JavaConverters._
@@ -20,10 +20,12 @@ import scala.collection.JavaConverters._
 object Uploader {
   private lazy val theUploader: Uploader = new Uploader
 
-  var pipelineEmail: String = _
+  var uploadEnabled: Boolean = false
+
+  var email: String = _
 
   def uploadPipeline(ir0: BaseIR, ir: BaseIR) {
-    if (pipelineEmail == null)
+    if (!uploadEnabled)
       return
 
     // for stack trace
@@ -39,10 +41,10 @@ object Uploader {
     val contents =
       s"ir0:\n${ Pretty(ir0) }\n\nir:\n${ Pretty(ir) }\n\nfrom:\n${ stackTrace }"
 
-    theUploader.enqueueUpload("ir", contents, pipelineEmail)
+    theUploader.enqueueUpload("ir", contents, email)
   }
 
-  def upload(typ: String, contents: String, email: String) {
+  def upload(typ: String, contents: String) {
     theUploader.upload(typ, contents, email)
   }
 }
@@ -111,9 +113,10 @@ class Uploader { self =>
   def upload(typ: String, contents: String, email: String) {
     val request = new HttpPost("https://upload.hail.is/upload")
 
+    val jEmail = if (email != null) JString(email) else JNull
     val jv = JObject(
       "type" -> JString(typ),
-      "email" -> JString(email),
+      "email" -> jEmail,
       "config" -> config,
       "contents" -> JString(contents))
 
