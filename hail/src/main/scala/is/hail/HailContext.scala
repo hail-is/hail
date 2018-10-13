@@ -247,6 +247,12 @@ object HailContext {
     val hc = new HailContext(sparkContext, sqlContext, logFile, hailTempDir, branchingFactor)
     sparkContext.uiWebUrl.foreach(ui => info(s"SparkUI: $ui"))
 
+    var pipelineEmail = System.getenv("HAIL_PIPELINE_UPLOAD_EMAIL")
+    if (pipelineEmail == null)
+      pipelineEmail = sparkContext.getConf.get("hail.pipelineUploadEmail", null)
+    if (pipelineEmail != null)
+      hc.enablePipelineUpload(pipelineEmail)
+
     info(s"Running Hail version ${ hc.version }")
     theContext = hc
 
