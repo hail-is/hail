@@ -217,7 +217,7 @@ Multiple Phenotypes
     Approach #1: Use the :meth:`.LinearRegressionModel.regress_rows` method for all phenotypes simultaneously
 
     >>> model = hl.LinearRegressionModel()
-    >>> mt_linreg = model.regress_rows(y=[mt.pheno.height, mt.pheno.blood_pressure],
+    >>> ht_result = model.regress_rows(y=[mt.pheno.height, mt.pheno.blood_pressure],
     ...                                x=mt.GT.n_alt_alleles(),
     ...                                covariates=[1])
 
@@ -229,7 +229,7 @@ Multiple Phenotypes
     ...                          covariates=[1])
 
     >>> ht2 = model.regress_rows(y=mt.pheno.blood_pressure,
-    ...                          x=mt_linreg.GT.n_alt_alleles(),
+    ...                          x=mt.GT.n_alt_alleles(),
     ...                          covariates=[1])
 
     Approach #3: Use the :func:`.aggregators.linreg` aggregator
