@@ -16,6 +16,8 @@ Here are two examples of projects powered by Hail:
  - [PgmNr 1464: Quality control for 141,456 human exomes and genomes in the Genome Aggregation Database: An open-source, high-throughput computational workflow](https://eventpilot.us/web/page.php?page=IntHtml&project=ASHG18&id=180121234)
  - [PgmNr 3420: Universal Control Repository: A practical framework for aggregating control genotype data](https://eventpilot.us/web/page.php?page=IntHtml&project=ASHG18&id=180122490)
  
+We're running an introductory **Hail workshop** in Boston on October 31, hosted by the Harvard School of Public Health. Reserve a spot [here](https://www.hsph.harvard.edu/pqg/scale-with-hail-a-hands-on-tutorial-for-genomic-analysis-in-the-biobank-era/).
+
 For genomics applications, Hail can:
 
  - flexibly [import and export](https://hail.is/docs/devel/methods/impex.html) to a variety of data and annotation formats, including [VCF](https://samtools.github.io/hts-specs/VCFv4.2.pdf), [BGEN](http://www.well.ox.ac.uk/~gav/bgen_format/bgen_format_v1.2.html) and [PLINK](https://www.cog-genomics.org/plink2/formats)
