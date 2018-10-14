@@ -78,7 +78,7 @@ resources:
 - name: sql-instance
   type: sqladmin.v1beta4.instance
   properties:
-    name: db-06
+    name: db-07
     region: us-central1
     settings:
       activationPolicy: ALWAYS

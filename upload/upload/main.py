@@ -69,7 +69,8 @@ def url_for(*args, **kwargs):
     # NOTE: nginx strips https and sets X-Forwarded-Proto: https, but
     # it is not used by request.url or url_for, so rewrite the url and
     # set _scheme='https' explicitly.
-    kwargs['_scheme'] = 'https'
+    if '_external' in kwargs and kwargs['_external']:
+        kwargs['_scheme'] = 'https'
     return flask.url_for(*args, **kwargs)
 
 id_item = {}

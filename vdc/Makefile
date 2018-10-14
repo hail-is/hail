@@ -1,5 +1,5 @@
 .PHONY: build-out create-deployment build-out-k8s create-k8s-secrets create-k8s-certs-volume deploy-k8s \
-	tear-down
+	delete-deployment tear-down
 
 export PROJECT ?= hail-vdc
 export DOMAIN ?= staging.hail.is
@@ -34,6 +34,9 @@ deploy-k8s:
 	$(MAKE) -C ../scorecard push deploy
 	$(MAKE) -C ../upload push deploy
 	$(MAKE) -C ../site push-site deploy-site
+
+delete-deployment:
+	gcloud beta -q --project $(PROJECT) deployment-manager deployments delete default
 
 tear-down:
 # just to be safe

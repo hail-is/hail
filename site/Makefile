@@ -5,8 +5,8 @@ PROJECT = $(shell gcloud config get-value project)
 DOMAIN ?= hail.is
 IP ?= 35.224.105.117
 
-STATIC_TEMPLATES = hail.nginx.conf.in run-letsencrypt-pod.yaml.in run-letsencrypt.nginx.conf.in service.yaml.in
-$(STATIC_TEMPLATES): %: %.in
+STATIC_CONFIG = hail.nginx.conf run-letsencrypt-pod.yaml run-letsencrypt.nginx.conf service.yaml
+$(STATIC_CONFIG): %: %.in
 	sed -e "s,@project@,$(PROJECT),g" \
 	  -e "s,@domain@,$(DOMAIN),g" \
 	  -e "s,@ip@,$(IP),g" \
