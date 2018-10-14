@@ -1,9 +1,11 @@
 .PHONY: build push redeploy
 
+PROJECT = $(shell gcloud config get-value project)
+
 build:
 	docker build . -t upload
 
-push: IMAGE="gcr.io/broad-ctsa/upload:$(shell docker images -q --no-trunc upload | sed -e 's,[^:]*:,,')"
+push: IMAGE="gcr.io/$(PROJECT)/upload:$(shell docker images -q --no-trunc upload | sed -e 's,[^:]*:,,')"
 push: build
 	docker tag upload $(IMAGE)
 	docker push $(IMAGE)

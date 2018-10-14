@@ -9,8 +9,8 @@ spec:
   - name: run-letsencrypt
     command: ["/bin/bash"]
 # --test-cert for testing
-    args: ["-c", "/etc/init.d/nginx start; sleep 5; rm -rf /etc/letsencrypt/*; certbot --cert-name hail.is -n --agree-tos -m cseed@broadinstitute.org -d hail.is -d www.hail.is -d ci.hail.is -d upload.hail.is -d scorecard.hail.is -d test.hail.is -d dev1.hail.is --nginx; cat /etc/nginx/conf.d/run-letsencrypt.conf"]
-    image: gcr.io/broad-ctsa/run-letsencrypt
+    args: ["-c", "/etc/init.d/nginx start; sleep 5; rm -rf /etc/letsencrypt/*; certbot --test-cert --cert-name @domain@ -n --agree-tos -m cseed@broadinstitute.org -d @domain@ -d www.@domain@ -d ci.@domain@ -d upload.@domain@ -d scorecard.@domain@ --nginx; cat /etc/nginx/conf.d/run-letsencrypt.conf"]
+    image: gcr.io/@project@/run-letsencrypt
     ports:
     - containerPort: 80
     volumeMounts:

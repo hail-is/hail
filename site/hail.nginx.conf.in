@@ -6,19 +6,19 @@ server {
 }
 
 server {
-    server_name hail.is www.hail.is;
+    server_name @domain@ www.@domain@;
     root /var/www/html;
 
     listen [::]:443 ssl; # managed by Certbot
     listen 443 ssl; # managed by Certbot
-    ssl_certificate /etc/letsencrypt/live/hail.is/fullchain.pem; # managed by Certbot
-    ssl_certificate_key /etc/letsencrypt/live/hail.is/privkey.pem; # managed by Certbot
+    ssl_certificate /etc/letsencrypt/live/@domain@/fullchain.pem; # managed by Certbot
+    ssl_certificate_key /etc/letsencrypt/live/@domain@/privkey.pem; # managed by Certbot
     include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
 }
 
 server {
-    server_name scorecard.hail.is;
+    server_name scorecard.@domain@;
 
     location / {
         proxy_pass http://scorecard/;
@@ -26,14 +26,14 @@ server {
 
     listen [::]:443 ssl; # managed by Certbot
     listen 443 ssl; # managed by Certbot
-    ssl_certificate /etc/letsencrypt/live/hail.is/fullchain.pem; # managed by Certbot
-    ssl_certificate_key /etc/letsencrypt/live/hail.is/privkey.pem; # managed by Certbot
+    ssl_certificate /etc/letsencrypt/live/@domain@/fullchain.pem; # managed by Certbot
+    ssl_certificate_key /etc/letsencrypt/live/@domain@/privkey.pem; # managed by Certbot
     include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
 }
 
 server {
-    server_name ci.hail.is;
+    server_name ci.@domain@;
     
     location ~ /(test-ci-[a-z0-9]+)/(.*) {
         resolver kube-dns.kube-system.svc.cluster.local;
@@ -48,14 +48,14 @@ server {
     # listen [::]:443 ssl ipv6only=on; # managed by Certbot
     listen [::]:443 ssl; # managed by Certbot
     listen 443 ssl; # managed by Certbot
-    ssl_certificate /etc/letsencrypt/live/hail.is/fullchain.pem; # managed by Certbot
-    ssl_certificate_key /etc/letsencrypt/live/hail.is/privkey.pem; # managed by Certbot
+    ssl_certificate /etc/letsencrypt/live/@domain@/fullchain.pem; # managed by Certbot
+    ssl_certificate_key /etc/letsencrypt/live/@domain@/privkey.pem; # managed by Certbot
     include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
 }
 
 server {
-    server_name upload.hail.is;
+    server_name upload.@domain@;
 
     location / {
         proxy_pass http://upload/;
@@ -68,8 +68,8 @@ server {
 
     listen [::]:443 ssl; # managed by Certbot
     listen 443 ssl; # managed by Certbot
-    ssl_certificate /etc/letsencrypt/live/hail.is/fullchain.pem; # managed by Certbot
-    ssl_certificate_key /etc/letsencrypt/live/hail.is/privkey.pem; # managed by Certbot
+    ssl_certificate /etc/letsencrypt/live/@domain@/fullchain.pem; # managed by Certbot
+    ssl_certificate_key /etc/letsencrypt/live/@domain@/privkey.pem; # managed by Certbot
     include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
 }

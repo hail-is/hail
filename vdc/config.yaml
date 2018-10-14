@@ -1,0 +1,152 @@
+resources:
+# service accounts
+- name: vdc-service-account
+  type: iam.v1.serviceAccount
+  properties:
+    accountId: vdc-svc
+    displayName: for vdc-svc
+- name: gcr-push
+  type: iam.v1.serviceAccount
+  properties:
+    accountId: gcr-push
+    displayName: push to gcr.io
+- name: gcr-push-key
+  type: iam.v1.serviceAccounts.key
+  metadata:
+    dependsOn:
+    - gcr-push
+  properties:
+    parent: projects/hail-vdc/serviceAccounts/gcr-push@hail-vdc.iam.gserviceaccount.com
+- name: ci-deploy-service-account
+  type: iam.v1.serviceAccount
+  properties:
+    accountId: ci-deploy
+    displayName: ci deploy account
+- name: ci-deploy-service-account-key
+  type: iam.v1.serviceAccounts.key
+  metadata:
+    dependsOn:
+    - ci-deploy-service-account
+  properties:
+    parent: projects/hail-vdc/serviceAccounts/ci-deploy@hail-vdc.iam.gserviceaccount.com
+- name: ci-test-deploy-service-account
+  type: iam.v1.serviceAccount
+  properties:
+    accountId: ci-test-deploy
+    displayName: ci test deploy account
+- name: ci-test-deploy-service-account-key
+  type: iam.v1.serviceAccounts.key
+  metadata:
+    dependsOn:
+    - ci-test-deploy-service-account
+  properties:
+    parent: projects/hail-vdc/serviceAccounts/ci-test-deploy@hail-vdc.iam.gserviceaccount.com
+# buckets
+- name: hail-ci-deployments
+  type: storage.v1.bucket
+  metadata:
+    dependsOn:
+    - ci-deploy-service-account
+  properties:
+    name: ci-deployments
+  accessControl:
+    gcpIamPolicy:
+      bindings:
+      - role: roles/storage.objectAdmin
+        members:
+        - "serviceAccount:ci-deploy@hail-vdc.iam.gserviceaccount.com"
+      - role: roles/storage.admin
+        members:
+        - "projectEditor:hail-vdc"
+- name: hail-ci-test-deployments
+  type: storage.v1.bucket
+  metadata:
+    dependsOn:
+    - ci-test-deploy-service-account
+  properties:
+    name: hail-ci-test-deployments
+  accessControl:
+    gcpIamPolicy:
+      bindings:
+      - role: roles/storage.objectAdmin
+        members:
+        - "serviceAccount:ci-test-deploy@hail-vdc.iam.gserviceaccount.com"
+      - role: roles/storage.admin
+        members:
+        - "projectEditor:hail-vdc"
+# sql instance
+- name: sql-instance
+  type: sqladmin.v1beta4.instance
+  properties:
+    name: db-06
+    region: us-central1
+    settings:
+      activationPolicy: ALWAYS
+      ipConfiguration:
+        ipv4Enabled: false
+        privateNetwork: projects/hail-vdc/global/networks/default
+      backupConfiguration:
+        enabled: true
+        startTime: 02:00
+      storageAutoResize: true
+      dataDiskSizeGb: 10
+      dataDiskType: PD_SSD
+      tier: db-f1-micro
+    databaseVersion: MYSQL_5_6
+# gke cluster
+- name: vdc-gke-cluster
+  type: container.v1.cluster
+  metadata:
+    dependsOn:
+    - vdc-service-account
+  properties:
+    zone: us-central1-a
+    cluster:
+      addonsConfig:
+        httpLoadBalancing: {}
+        kubernetesDashboard: {disabled: true}
+      initialClusterVersion: 1.10.7-gke.6
+      ipAllocationPolicy: {useIpAliases: true}
+      location: us-central1-a
+      loggingService: logging.googleapis.com
+      masterAuth:
+        clientCertificateConfig: {}
+      masterAuthorizedNetworksConfig: {}
+      monitoringService: monitoring.googleapis.com
+      name: vdc
+      network: projects/hail-vdc/global/networks/default
+      networkPolicy: {}
+      nodePools:
+      - autoscaling: {}
+        config:
+          diskSizeGb: 100
+          diskType: pd-standard
+          imageType: COS
+          serviceAccount: vdc-svc@hail-vdc.iam.gserviceaccount.com
+          machineType: n1-standard-1
+          oauthScopes: ['https://www.googleapis.com/auth/devstorage.read_only', 'https://www.googleapis.com/auth/logging.write',
+            'https://www.googleapis.com/auth/monitoring', 'https://www.googleapis.com/auth/servicecontrol',
+            'https://www.googleapis.com/auth/service.management.readonly', 'https://www.googleapis.com/auth/trace.append']
+        initialNodeCount: 3
+        management: {autoRepair: true}
+        name: default-pool
+        version: 1.10.7-gke.6
+      - autoscaling: {enabled: true, maxNodeCount: 2}
+        config:
+          diskSizeGb: 100
+          diskType: pd-standard
+          imageType: COS
+          labels: {preemptible: 'true'}
+          serviceAccount: vdc-svc@hail-vdc.iam.gserviceaccount.com
+          machineType: n1-standard-8
+          oauthScopes: ['https://www.googleapis.com/auth/devstorage.read_only', 'https://www.googleapis.com/auth/logging.write',
+            'https://www.googleapis.com/auth/monitoring', 'https://www.googleapis.com/auth/servicecontrol',
+            'https://www.googleapis.com/auth/service.management.readonly', 'https://www.googleapis.com/auth/trace.append']
+          preemptible: true
+          taints:
+          - {effect: NO_SCHEDULE, key: preemptible, value: 'true'}
+        management: {autoRepair: true}
+        name: preemptible-pool
+        version: 1.10.7-gke.6
+      privateClusterConfig: {}
+      subnetwork: projects/hail-vdc/regions/us-central1/subnetworks/default

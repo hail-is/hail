@@ -16,5 +16,5 @@ spec:
     targetPort: 443
   selector:
     app: site
-  loadBalancerIP: 35.224.105.117 # test.hail.is
+  loadBalancerIP: @ip@
   type: LoadBalancer

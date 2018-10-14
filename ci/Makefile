@@ -73,7 +73,10 @@ test-locally: restart-all-proxies
 test-in-cluster:
 	./test-in-cluster.sh
 
-deploy:
+run-service:
+	kubectl apply -f service.yaml
+
+deploy: run-service
 	sed -e "s,@sha@,$(shell git rev-parse --short=12 HEAD)," \
 	  -e "s,@image@,$(shell cat hail-ci-image)," \
 	  < deployment.yaml.in > deployment.yaml

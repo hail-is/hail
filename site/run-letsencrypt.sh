@@ -5,7 +5,7 @@ set -ex
 kubectl apply -f service.yaml
 
 # stop existing site deployment
-kubectl delete --ignore-not-found=true -f site-deployment.yaml
+kubectl delete --ignore-not-found=true deployment site-deployment
 N=
 while [[ $N != 0 ]]; do
     sleep 5
