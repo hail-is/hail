@@ -41,9 +41,6 @@ users = ['danking', 'cseed', 'tpoterba', 'jigold', 'jbloom22', 'catoverdrive', '
 default_repo = 'hail'
 repos = {
     'hail': 'hail-is/hail',
-    'batch': 'hail-is/batch',
-    'ci': 'hail-is/ci',
-    'scorecard': 'hail-is/scorecard',
     'cloudtools': 'Nealelab/cloudtools'
 }
 
