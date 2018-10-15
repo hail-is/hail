@@ -322,6 +322,8 @@ object Simplify {
 
       case MatrixFilterCols(MatrixFilterCols(child, pred1), pred2) => MatrixFilterCols(child, ApplySpecial("&&", FastSeq(pred1, pred2)))
 
+      case MatrixFilterEntries(MatrixFilterEntries(child, pred1), pred2) => MatrixFilterEntries(child, ApplySpecial("&&", FastSeq(pred1, pred2)))
+
       case MatrixRowsTable(MatrixFilterRows(child, newRow))
         if !Mentions(newRow, "g") && !Mentions(newRow, "sa") && !ContainsAgg(newRow) =>
         val mrt = MatrixRowsTable(child)
