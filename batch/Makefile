@@ -1,4 +1,4 @@
-.PHONY: hail-ci-build-image push-hail-ci-build-image
+.PHONY: hail-ci-build-image push-hail-ci-build-image test
 
 PROJECT = $(shell gcloud config get-value project)
 
@@ -28,15 +28,20 @@ push-batch: build-batch
 
 push-batch-test: IMAGE="gcr.io/$(PROJECT)/batch-test:$(shell docker images -q --no-trunc batch-test | sed -e 's,[^:]*:,,')"
 push-batch-test: build-batch-test
-	echo $(IMAGE) > batch-test-image
-	docker tag batch $(IMAGE)
+	docker tag batch-test $(IMAGE)
 	docker push $(IMAGE)
+	echo $(IMAGE) > batch-test-image
 
 run-docker:
 	docker run -e BATCH_USE_KUBE_CONFIG=1 -i -v $(HOME)/.kube:/root/.kube -p 5000:5000 -t batch
 
 run:
 	BATCH_USE_KUBE_CONFIG=1 python batch/server.py
+
+test:
+	sed -e "s,@image@,$$(cat batch-test-image)," \
+	  < test-batch-pod.yaml.in > test-batch-pod.yaml
+	kubectl create -f test-batch-pod.yaml
 
 test-local:
 	POD_IP='127.0.0.1' BATCH_URL='http://127.0.0.1:5000' python -m unittest -v test/test_batch.py

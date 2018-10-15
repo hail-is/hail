@@ -203,7 +203,7 @@ def logout():
     credentials = session.get('credentials')
     if credentials:
         requests.post('https://accounts.google.com/o/oauth2/revoke',
-                      params={'token': credentials.token},
+                      params={'token': credentials['token']},
                       headers={'content-type': 'application/x-www-form-urlencoded'})
     session.pop('credentials', None)
     session.pop('email', None)

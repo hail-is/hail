@@ -11,8 +11,9 @@ create-deployment:
 	gcloud config set project $(PROJECT)
 	gcloud beta -q deployment-manager deployments create default --config config.yaml
 # FIXME integrate into config
-	gsutil iam ch serviceAccount:vdc-svc@hail-vdc.iam.gserviceaccount.com:objectViewer gs://artifacts.hail-vdc.appspot.com
+	gsutil iam ch serviceAccount:vdc-svc@$(PROJECT).iam.gserviceaccount.com:objectViewer gs://artifacts.$(PROJECT).appspot.com
 	gcloud container clusters get-credentials vdc
+	kubectl create clusterrolebinding project-editor-cluster-admin-binding --clusterrole cluster-admin --user projectEditor:$(PROJECT)
 
 build-out-k8s: create-k8s-secrets create-k8s-certs-volume run-letsencrypt deploy-k8s
 
@@ -42,6 +43,6 @@ tear-down:
 # just to be safe
 	gcloud config set project $(PROJECT)
 # FIXME integrate into config
-	gsutil iam ch -d serviceAccount:vdc-svc@hail-vdc.iam.gserviceaccount.com:objectViewer gs://artifacts.hail-vdc.appspot.com
+	gsutil iam ch -d serviceAccount:vdc-svc@$(PROJECT).iam.gserviceaccount.com:objectViewer gs://artifacts.$(PROJECT).appspot.com
 	gcloud beta -q --project $(PROJECT) deployment-manager deployments delete default
 	/bin/bash delete-gcr-images.sh

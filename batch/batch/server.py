@@ -39,6 +39,8 @@ logging.basicConfig(
 
 REFRESH_INTERVAL_IN_SECONDS = int(os.environ.get('REFRESH_INTERVAL_IN_SECONDS', 5 * 60))
 
+POD_NAMESPACE = 'batch-pods'
+
 log.info(f'REFRESH_INTERVAL_IN_SECONDS {REFRESH_INTERVAL_IN_SECONDS}')
 
 if 'BATCH_USE_KUBE_CONFIG' in os.environ:
@@ -71,7 +73,7 @@ class Job(object):
     def _create_pod(self):
         assert not self._pod_name
 
-        pod = v1.create_namespaced_pod('default', self.pod_template)
+        pod = v1.create_namespaced_pod(POD_NAMESPACE, self.pod_template)
         self._pod_name = pod.metadata.name
         pod_name_job[self._pod_name] = self
 
@@ -80,7 +82,7 @@ class Job(object):
     def _delete_pod(self):
         if self._pod_name:
             try:
-                v1.delete_namespaced_pod(self._pod_name, 'default', kube.client.V1DeleteOptions())
+                v1.delete_namespaced_pod(self._pod_name, POD_NAMESPACE, kube.client.V1DeleteOptions())
             except kube.client.rest.ApiException as e:
                 if e.status == 404:
                     pass
@@ -93,7 +95,7 @@ class Job(object):
         if self._state == 'Created':
             if self._pod_name:
                 try:
-                    return v1.read_namespaced_pod_log(self._pod_name, 'default')
+                    return v1.read_namespaced_pod_log(self._pod_name, POD_NAMESPACE)
                 except:
                     pass
         elif self._state == 'Complete':
@@ -166,7 +168,7 @@ class Job(object):
     def mark_complete(self, pod):
         self.exit_code = pod.status.container_statuses[0].state.terminated.exit_code
 
-        pod_log = v1.read_namespaced_pod_log(pod.metadata.name, 'default')
+        pod_log = v1.read_namespaced_pod_log(pod.metadata.name, POD_NAMESPACE)
         p = _log_path(self.id)
         with open(p, 'w') as f:
             f.write(pod_log)
@@ -367,7 +369,7 @@ def pod_changed():
     job = pod_name_job.get(pod_name)
     if job and not job.is_complete():
         try:
-            pod = v1.read_namespaced_pod(pod_name, 'default')
+            pod = v1.read_namespaced_pod(pod_name, POD_NAMESPACE)
         except kube.client.rest.ApiException as e:
             if e.status == 404:
                 pod = None
@@ -383,7 +385,7 @@ def refresh_k8s_state():
     log.info('started k8s state refresh')
 
     pods = v1.list_namespaced_pod(
-        'default',
+        POD_NAMESPACE,
         label_selector=f'app=batch-job,hail.is/batch-instance={instance_id}')
 
     seen_pods = set()
@@ -431,7 +433,7 @@ def kube_event_loop():
     w = kube.watch.Watch()
     stream = w.stream(
         v1.list_namespaced_pod,
-        'default',
+        POD_NAMESPACE,
         label_selector=f'app=batch-job,hail.is/batch-instance={instance_id}')
     for event in stream:
         pod = event['object']
