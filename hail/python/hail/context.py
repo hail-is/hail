@@ -276,22 +276,44 @@ def read_version_info() -> str:
     from ._generated_version_info import hail_version
     return hail_version
 
+@typecheck(url=str)
+def _set_upload_url(str):
+    Env.hc()._jhc.setUploadURL(url)
+
+@typecheck(email=nullable(str))
+def set_upload_email(email):
+    """Set upload email.
+
+    If email is not set, uploads will be anonymous.  Upload email can
+    also be set through the `HAIL_UPLOAD_EMAIL` environment variable
+    or the `hail.uploadEmail` Spark configuration property.
+
+    Parameters
+    ----------
+    email : :obj:`str`
+        Email contact to include with uploaded data.  If `email` is
+        `None`, uploads will be anonymous.
+
+    """
+
+    Env.hc()._jhc.setUploadEmail(email)
+
 @typecheck(email=str)
-def enable_pipeline_upload(email):
+def enable_pipeline_upload():
     """Upload all subsequent pipelines to the Hail team in order to
     help improve Hail.
+    
+    Pipeline upload can also be enabled by setting the environment
+    variable `HAIL_ENABLE_PIPELINE_UPLOAD` or the Spark configuration
+    property `hail.enablePipelineUpload` to `true`.
 
     Warning
     -------
     Shares potentially sensitive data with the Hail team.
 
-    Parameters
-    ----------
-    email : :obj:`str`
-        Email contact to include with uploaded data.
     """
-
-    Env.hc()._jhc.enablePipelineUpload(email)
+    
+    Env.hc()._jhc.enablePipelineUpload()
 
 def disable_pipeline_upload():
     """Disable the uploading of pipelines.  By default, pipeline upload is
@@ -301,19 +323,14 @@ def disable_pipeline_upload():
     
     Env.hc()._jhc.disablePipelineUpload()
 
-@typecheck(email=str)
-def upload_log(email):
+@typecheck()
+def upload_log():
     """Uploads the Hail log to the Hail team.
 
     Warning
     -------
     Shares potentially sensitive data with the Hail team.
 
-    Parameters
-    ----------
-    email : :obj:`str`
-        Email contact to include with uploaded log.
-
     """
 
-    Env.hc()._jhc.uploadLog(email)
+    Env.hc()._jhc.uploadLog()

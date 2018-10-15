@@ -247,6 +247,18 @@ object HailContext {
     val hc = new HailContext(sparkContext, sqlContext, logFile, hailTempDir, branchingFactor)
     sparkContext.uiWebUrl.foreach(ui => info(s"SparkUI: $ui"))
 
+    var uploadEmail = System.getenv("HAIL_UPLOAD_EMAIL")
+    if (uploadEmail == null)
+      uploadEmail = sparkContext.getConf.get("hail.uploadEmail", null)
+    if (uploadEmail != null)
+      hc.setUploadEmail(uploadEmail)
+
+    var enableUploadStr = System.getenv("HAIL_ENABLE_PIPELINE_UPLOAD")
+    if (enableUploadStr == null)
+      enableUploadStr = sparkContext.getConf.get("hail.enablePipelineUpload", null)
+    if (enableUploadStr != null && enableUploadStr == "true")
+      hc.enablePipelineUpload()
+
     info(s"Running Hail version ${ hc.version }")
     theContext = hc
 
@@ -704,18 +716,34 @@ class HailContext private(val sc: SparkContext,
     }
   }
 
-  def enablePipelineUpload(email: String) {
-    Uploader.pipelineEmail = email
-    info("pipeline upload enabled")
+  def setUploadURL(url: String) {
+    Uploader.url = url
+  }
+
+  def setUploadEmail(email: String) {
+    Uploader.email = email
+    if (email != null)
+      warn(s"set upload email: $email")
+    else
+      warn("reset upload email, subsequent uploads will be anonymous")
+  }
+
+  def getUploadEmail: String = {
+    Uploader.email
+  }
+
+  def enablePipelineUpload() {
+    Uploader.uploadEnabled = true
+    warn("pipeline upload enabled")
   }
 
   def disablePipelineUpload() {
-    Uploader.pipelineEmail = null
-    info("pipeline upload disabled")
+    Uploader.uploadEnabled = false
+    warn("pipeline upload disabled")
   }
 
-  def uploadLog(email: String) {
-    info(s"uploading $logFile")
-    Uploader.upload("log", FileUtils.readFileToString(new File(logFile)), email)
+  def uploadLog() {
+    warn(s"uploading $logFile")
+    Uploader.upload("log", FileUtils.readFileToString(new File(logFile)))
   }
 }
