@@ -880,8 +880,9 @@ class MatrixTable(ExprContainer):
         --------
         Compute call statistics for high quality samples per variant:
 
-        >>> high_quality_calls = agg.filter(dataset.sample_qc.gq_stats.mean > 20, dataset.GT)
-        >>> dataset_result = dataset.annotate_rows(call_stats = agg.call_stats(high_quality_calls, dataset.alleles))
+        >>> high_quality_calls = agg.filter(dataset.sample_qc.gq_stats.mean > 20,
+        ...                                 agg.call_stats(dataset.GT, dataset.alleles))
+        >>> dataset_result = dataset.annotate_rows(call_stats = high_quality_calls)
 
         Add functional annotations from a :class:`.Table` keyed by :class:`.TVariant`:, and another
         :class:`.MatrixTable`.

@@ -260,7 +260,7 @@ def collect(expr) -> ArrayExpression:
     --------
     Collect the `ID` field where `HT` is greater than 68:
 
-    >>> table1.aggregate(agg.collect(agg.filter(table1.HT > 68, table1.ID)))
+    >>> table1.aggregate(agg.filter(table1.HT > 68, agg.collect(table1.ID)))
     [2, 3]
 
     Notes
@@ -295,7 +295,7 @@ def collect_as_set(expr) -> SetExpression:
     --------
     Collect the unique `ID` field where `HT` is greater than 68:
 
-    >>> table1.aggregate(agg.collect_as_set(agg.filter(table1.HT > 68, table1.ID)))
+    >>> table1.aggregate(agg.filter(table1.HT > 68, agg.collect_as_set(table1.ID)))
     set([2, 3]
 
     Warning
@@ -831,7 +831,8 @@ def hardy_weinberg_test(expr) -> StructExpression:
     Test each row on a sub-population:
 
     >>> dataset_result = dataset.annotate_rows(
-    ...     hwe_eas = agg.hardy_weinberg_test(agg.filter(dataset.pop == 'EAS', dataset.GT)))
+    ...     hwe_eas = agg.filter(dataset.pop == 'EAS',
+    ...                          agg.hardy_weinberg_test(dataset.GT)))
 
     Notes
     -----
