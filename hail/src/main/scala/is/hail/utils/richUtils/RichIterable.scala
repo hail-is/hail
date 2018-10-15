@@ -72,7 +72,6 @@ class RichIterable[T](val i: Iterable[T]) extends Serializable {
     i.foreach { elem => m.updateValue(elem, 0, _ + 1) }
 
     m.toMap
-    Array(1,2,3).view()
   }
 
   def toFastSeq(implicit tct: ClassTag[T]): Seq[T] = toFastIndexedSeq
