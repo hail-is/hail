@@ -50,9 +50,9 @@ object Infer {
         assert(body.typ == zero.typ)
         TArray(zero.typ)
       case ApplyAggOp(_, _, _, aggSig) =>
-        AggOp.getType(aggSig)
+        aggSig.returnType
       case ApplyScanOp(_, _, _, aggSig) =>
-        AggOp.getType(aggSig)
+        aggSig.returnType
       case MakeStruct(fields) =>
         TStruct(fields.map { case (name, a) =>
           (name, a.typ)

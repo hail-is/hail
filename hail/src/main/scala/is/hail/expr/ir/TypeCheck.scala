@@ -171,12 +171,12 @@ object TypeCheck {
         seqOpArgs.foreach(check(_, env = aggEnv.get))
         constructorArgs.foreach(check(_))
         initOpArgs.foreach(_.foreach(check(_)))
-        assert(x.typ == AggOp.getType(aggSig))
+        assert(x.typ == aggSig.returnType)
       case x@ApplyScanOp(seqOpArgs, constructorArgs, initOpArgs, aggSig) =>
         seqOpArgs.foreach(check(_, env = aggEnv.get))
         constructorArgs.foreach(check(_))
         initOpArgs.foreach(_.foreach(check(_)))
-        assert(x.typ == AggOp.getType(aggSig))
+        assert(x.typ == aggSig.returnType)
       case x@MakeStruct(fields) =>
         fields.foreach { case (name, a) => check(a) }
         assert(x.typ == TStruct(fields.map { case (name, a) =>
