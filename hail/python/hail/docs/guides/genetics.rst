@@ -273,20 +273,18 @@ Stratified by Group
     ...                   .or_missing())
 
     >>> model = hl.LinearRegressionModel()
-    >>> mt_linreg = model.regress_rows(y=female_pheno,
+    >>> linreg_female = model.regress_rows(y=female_pheno,
     ...                                x=mt.GT.n_alt_alleles(),
-    ...                                covariates=[1],
-    ...                                root='linreg_female')
+    ...                                covariates=[1])
 
     >>> male_pheno = (hl.case()
-    ...                 .when(~mt_linreg.pheno.is_female, mt_linreg.pheno.height)
+    ...                 .when(~mt.pheno.is_female, mt.pheno.height)
     ...                 .or_missing())
 
     >>> model = hl.LinearRegressionModel()
-    >>> mt_linreg = model.regress_rows(y=male_pheno,
-    ...                                x=mt_linreg.GT.n_alt_alleles(),
-    ...                                covariates=[1],
-    ...                                root='linreg_male')
+    >>> linreg_male = model.regress_rows(y=male_pheno,
+    ...                                x=mt.GT.n_alt_alleles(),
+    ...                                covariates=[1])
 
     Approach #2: Use the :func:`.aggregators.group_by` and :func:`.aggregators.linreg` aggregators
 
