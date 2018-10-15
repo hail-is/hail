@@ -20,6 +20,8 @@ import scala.collection.JavaConverters._
 object Uploader {
   private lazy val theUploader: Uploader = new Uploader
 
+  var url = "https://upload.hail.is/upload"
+
   var uploadEnabled: Boolean = false
 
   var email: String = _
@@ -111,7 +113,7 @@ class Uploader { self =>
   t.start()
 
   def upload(typ: String, contents: String, email: String) {
-    val request = new HttpPost("https://upload.hail.is/upload")
+    val request = new HttpPost(Uploader.url)
 
     val jEmail = if (email != null) JString(email) else JNull
     val jv = JObject(

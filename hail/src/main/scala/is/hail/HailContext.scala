@@ -716,6 +716,10 @@ class HailContext private(val sc: SparkContext,
     }
   }
 
+  def setUploadURL(url: String) {
+    Uploader.url = url
+  }
+
   def setUploadEmail(email: String) {
     Uploader.email = email
     if (email != null)

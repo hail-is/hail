@@ -276,7 +276,11 @@ def read_version_info() -> str:
     from ._generated_version_info import hail_version
     return hail_version
 
-@typecheck(email=str)
+@typecheck(url=str)
+def _set_upload_url(str):
+    Env.hc()._jhc.setUploadURL(url)
+
+@typecheck(email=nullable(str))
 def set_upload_email(email):
     """Set upload email.
 
@@ -287,9 +291,12 @@ def set_upload_email(email):
     Parameters
     ----------
     email : :obj:`str`
-        Email contact to include with uploaded data.
+        Email contact to include with uploaded data.  If `email` is
+        `None`, uploads will be anonymous.
 
     """
+
+    Env.hc()._jhc.setUploadEmail(email)
 
 @typecheck(email=str)
 def enable_pipeline_upload():
