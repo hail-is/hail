@@ -169,7 +169,7 @@ class TableIRTests(unittest.TestCase):
                       contig_recoding={'01': '1'})
 
         collect_sig = ir.AggSignature('Collect', [], None, [hl.tint32])
-        collect = ir.MakeStruct([('x', ir.ApplyAggOp(ir.I32(0), [], None, collect_sig))])
+        collect = ir.MakeStruct([('x', ir.ApplyAggOp(ir.I32(0), [], None, collect_sig, hl.tarray(hl.tint32)))])
 
         matrix_read = ir.MatrixRead(
             resource('backward_compatability/1.0.0/matrix_table/0.hmt'), False, False)

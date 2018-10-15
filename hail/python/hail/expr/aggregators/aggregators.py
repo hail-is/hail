@@ -121,6 +121,8 @@ class AggFunc(object):
         if len(array_agg_expr._ir.search(lambda n: isinstance(n, BaseApplyAggOp))) != 0:
             raise ExpressionException("'agg.explode' does not support an already-aggregated expression as the argument to 'collection'")
 
+        if isinstance(array_agg_expr.dtype, tset):
+            array_agg_expr = hl.array(array_agg_expr)
         elt = array_agg_expr.dtype.element_type
         var = Env.get_uid()
         ref = construct_expr(Ref(var, elt), elt, array_agg_expr._indices)
