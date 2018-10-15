@@ -1105,7 +1105,7 @@ class LinearMixedModel(object):
             else:
                 BlockMatrix.from_numpy(p).write(p_path, overwrite=overwrite)
         if p_is_bm:
-            py, px = (p @ y).to_numpy(), (p @ x).to_numpy()
+            py, px = (p @ y.reshape(n, 1)).to_numpy(), (p @ x).to_numpy()
         else:
             py, px = p @ y, p @ x
 
