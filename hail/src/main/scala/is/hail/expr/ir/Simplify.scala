@@ -384,7 +384,7 @@ object Simplify {
             TableKeyByAndAggregate(child,
               MakeStruct(Seq(
                 "row" -> ApplyAggOp(
-                  SeqOp(I32(0), Array(row, keyStruct), aggSig),
+                  Array(row, keyStruct),
                   FastIndexedSeq(I32(n.toInt)),
                   None,
                   aggSig))),

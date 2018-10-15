@@ -11,7 +11,8 @@ case class AggSignature(
   op: AggOp,
   constructorArgs: Seq[Type],
   initOpArgs: Option[Seq[Type]],
-  seqOpArgs: Seq[Type])
+  seqOpArgs: Seq[Type],
+  returnType: Type)
 
 sealed trait AggOp { }
 final case class CallStats() extends AggOp { }

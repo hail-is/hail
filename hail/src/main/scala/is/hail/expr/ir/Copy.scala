@@ -104,16 +104,16 @@ object Copy {
       case x@ApplyAggOp(_, _, initOpArgs, aggSig) =>
         val args = newChildren.map(_.asInstanceOf[IR])
         ApplyAggOp(
-          args.head,
-          args.tail.take(x.nConstructorArgs),
-          initOpArgs.map(_ => args.drop(x.nConstructorArgs + 1)),
+          args.take(x.nSeqOpArgs),
+          args.slice(x.nSeqOpArgs, x.nSeqOpArgs + x.nConstructorArgs),
+          initOpArgs.map(_ => args.drop(x.nSeqOpArgs + x.nConstructorArgs)),
           aggSig)
       case x@ApplyScanOp(_, _, initOpArgs, aggSig) =>
         val args = newChildren.map(_.asInstanceOf[IR])
         ApplyScanOp(
-          args.head,
-          args.tail.take(x.nConstructorArgs),
-          initOpArgs.map(_ => args.drop(x.nConstructorArgs + 1)),
+          args.take(x.nSeqOpArgs),
+          args.slice(x.nSeqOpArgs, x.nSeqOpArgs + x.nConstructorArgs),
+          initOpArgs.map(_ => args.drop(x.nSeqOpArgs + x.nConstructorArgs)),
           aggSig)
       case MakeTuple(_) =>
         MakeTuple(newChildren.map(_.asInstanceOf[IR]))

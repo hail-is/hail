@@ -393,7 +393,7 @@ object Interpret {
             val IndexedSeq(a) = seqOpArgs
             aggregator.get.seqOp(interpret(a))
         }
-      case x@ApplyAggOp(a, constructorArgs, initOpArgs, aggSig) =>
+      case x@ApplyAggOp(seqOpArgs, constructorArgs, initOpArgs, aggSig) =>
         assert(AggOp.getType(aggSig) == x.typ)
 
         def getAggregator(aggOp: AggOp, seqOpArgTypes: Seq[Type]): TypedAggregator[_] = aggOp match {
@@ -459,9 +459,7 @@ object Interpret {
             val IndexedSeq(n) = constructorArgs
             val IndexedSeq(aggType, _) = seqOpArgTypes
             val nValue = interpret(n, Env.empty[Any], null, null).asInstanceOf[Int]
-            val seqOps = Extract(a, _.isInstanceOf[SeqOp]).map(_.asInstanceOf[SeqOp])
-            assert(seqOps.length == 1)
-            val ordering = seqOps.head.args.last
+            val ordering = seqOpArgs.last
             val ord = ordering.typ.ordering.toOrdering
             new TakeByAggregator(aggType, null, nValue)(ord)
           case Statistics() => new StatAggregator()
@@ -509,7 +507,7 @@ object Interpret {
             .foldLeft(Env.empty[Any]) { case (env, (v, n)) =>
               env.bind(n, v)
             }
-          interpret(a, env, FastIndexedSeq(), None, Some(aggregator))
+          interpret(SeqOp(I32(0), seqOpArgs, aggSig), env, FastIndexedSeq(), None, Some(aggregator))
         }
         aggregator.result
       case x@ApplyScanOp(a, constructorArgs, initOpArgs, aggSig) =>

@@ -76,10 +76,10 @@ object Children {
       i +: args
     case Begin(xs) =>
       xs
-    case ApplyAggOp(a, constructorArgs, initOpArgs, aggSig) =>
-      (a +: constructorArgs) ++ initOpArgs.getOrElse(FastIndexedSeq())
-    case ApplyScanOp(a, constructorArgs, initOpArgs, aggSig) =>
-      (a +: constructorArgs) ++ initOpArgs.getOrElse(FastIndexedSeq())
+    case ApplyAggOp(seqOpArgs, constructorArgs, initOpArgs, aggSig) =>
+      (seqOpArgs ++ constructorArgs) ++ initOpArgs.getOrElse(FastIndexedSeq())
+    case ApplyScanOp(seqOpArgs, constructorArgs, initOpArgs, aggSig) =>
+      (seqOpArgs ++ constructorArgs) ++ initOpArgs.getOrElse(FastIndexedSeq())
     case GetField(o, name) =>
       Array(o)
     case MakeTuple(types) =>

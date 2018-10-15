@@ -81,11 +81,11 @@ object Pretty {
               sb += ')'
             }(sb += '\n')
           }
-        case ApplyAggOp(a, ctorArgs, initOpArgs, aggSig) =>
+        case ApplyAggOp(seqOpArgs, ctorArgs, initOpArgs, aggSig) =>
           sb += ' '
           sb.append(prettyAggSignature(aggSig))
           sb += '\n'
-          pretty(a, depth + 2)
+          prettySeq(seqOpArgs, depth + 2)
           sb += '\n'
           prettySeq(ctorArgs, depth + 2)
           sb += '\n'
