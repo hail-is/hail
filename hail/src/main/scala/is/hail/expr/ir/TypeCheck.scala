@@ -152,6 +152,20 @@ object TypeCheck {
         val tarray = coerce[TArray](a.typ)
         check(body, env = env.bind(valueName -> -tarray.elementType))
         assert(body.typ == TVoid)
+      case x@AggFilter(cond, aggIR) =>
+        check(cond)
+        check(aggIR)
+        assert(cond.typ isOfType TBoolean())
+        assert(x.typ == aggIR.typ)
+      case x@AggExplode(array, name, aggBody) =>
+        check(array)
+        assert(array.typ.isInstanceOf[TArray])
+        check(aggBody, aggEnv = aggEnv.map(_.bind(name -> -coerce[TArray](array.typ).elementType)))
+        assert(x.typ == aggBody.typ)
+      case x@AggGroupBy(key, aggIR) =>
+        check(key)
+        check(aggIR)
+        assert(x.typ == TDict(key.typ, aggIR.typ))
       case x@InitOp(i, args, aggSig) =>
         args.foreach(check(_))
         check(i)

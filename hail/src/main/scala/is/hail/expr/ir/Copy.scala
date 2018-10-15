@@ -83,6 +83,15 @@ object Copy {
       case ArrayFor(_, valueName, _) =>
         val IndexedSeq(a: IR, body: IR) = newChildren
         ArrayFor(a, valueName, body)
+      case AggFilter(_, _) =>
+        val IndexedSeq(cond: IR, aggIR: IR) = newChildren
+        AggFilter(cond, aggIR)
+      case AggExplode(_, name, _) =>
+        val IndexedSeq(array: IR, aggBody: IR) = newChildren
+        AggExplode(array, name, aggBody)
+      case AggGroupBy(_, _) =>
+        val IndexedSeq(key: IR, aggIR: IR) = newChildren
+        AggGroupBy(key, aggIR)
       case MakeStruct(fields) =>
         assert(fields.length == newChildren.length)
         MakeStruct(fields.zip(newChildren).map { case ((n, _), a) => (n, a.asInstanceOf[IR]) })

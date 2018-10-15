@@ -209,7 +209,7 @@ object AggOp {
       )
 
     case (Keyed(op), constrArgs, initOpArgs, keyType +: childSeqOpArgs) =>
-      val codeAgg = get(AggSignature(op, constrArgs, initOpArgs, childSeqOpArgs))
+      val codeAgg = get(AggSignature(op, constrArgs, initOpArgs, childSeqOpArgs, _))
       codeAgg.toKeyedAggregator(keyType)
   }
 

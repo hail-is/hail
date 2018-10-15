@@ -144,6 +144,12 @@ final case class ArrayFor(a: IR, valueName: String, body: IR) extends IR {
   val typ = TVoid
 }
 
+final case class AggFilter(cond: IR, aggIR: IR) extends InferIR
+
+final case class AggExplode(array: IR, name: String, aggBody: IR) extends InferIR
+
+final case class AggGroupBy(key: IR, aggIR: IR) extends InferIR
+
 final case class ApplyAggOp(seqOpArgs: IndexedSeq[IR], constructorArgs: IndexedSeq[IR], initOpArgs: Option[IndexedSeq[IR]], aggSig: AggSignature) extends InferIR {
   assert(!(seqOpArgs ++ constructorArgs ++ initOpArgs.getOrElse(FastIndexedSeq.empty[IR])).exists(ContainsScan(_)))
   assert(constructorArgs.map(_.typ) == aggSig.constructorArgs)

@@ -64,6 +64,12 @@ object Children {
       Array(a, zero, body)
     case ArrayFor(a, valueName, body) =>
       Array(a, body)
+    case AggFilter(cond, aggIR) =>
+      Array(cond, aggIR)
+    case AggExplode(array, _, aggBody) =>
+      Array(array, aggBody)
+    case AggGroupBy(key, aggIR) =>
+      Array(key, aggIR)
     case MakeStruct(fields) =>
       fields.map(_._2).toFastIndexedSeq
     case SelectFields(old, fields) =>
