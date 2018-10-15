@@ -11,7 +11,7 @@ import is.hail.variant._
 
 object LogisticRegression {
 
-  def regress_rows(vsm: MatrixTable,
+  def apply(vsm: MatrixTable,
     test: String,
     yField: String,
     xField: String,
@@ -33,7 +33,7 @@ object LogisticRegression {
     if (d < 1)
       fatal(s"$n samples and ${ k + 1 } ${ plural(k, "covariate") } (including x) implies $d degrees of freedom.")
 
-    info(s"logistic_regression: running $test on $n samples for response variable y,\n"
+    info(s"logistic_regression_rows: running $test on $n samples for response variable y,\n"
       + s"    with input variable x, and ${ k } additional ${ plural(k, "covariate") }...")
 
     val nullModel = new LogisticRegressionModel(cov, y)

@@ -29,7 +29,6 @@ from .matrixtable import MatrixTable, GroupedMatrixTable
 from .expr import *
 from .genetics import *
 from .methods import *
-from .stats import *
 from . import genetics as genetics
 from . import methods as methods
 from . import stats as stats
@@ -81,7 +80,6 @@ __all__ = [
 
 __all__.extend(genetics.__all__)
 __all__.extend(methods.__all__)
-__all__.extend(stats.__all__)
 
 # don't overwrite builtins in `from hail import *`
 import builtins

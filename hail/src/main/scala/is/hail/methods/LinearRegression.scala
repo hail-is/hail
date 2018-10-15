@@ -21,7 +21,7 @@ object LinearRegression {
     ("t_stat", TArray(TFloat64())),
     ("p_value", TArray(TFloat64())))
 
-  def regress_rows(vsm: MatrixTable,
+  def apply(vsm: MatrixTable,
     yFields: Array[String], xField: String, covFields: Array[String], rowBlockSize: Int
   ): Table = {
 
@@ -35,7 +35,7 @@ object LinearRegression {
     if (d < 1)
       fatal(s"$n samples and ${ k + 1 } ${ plural(k, "covariate") } (including x) implies $d degrees of freedom.")
 
-    info(s"LinearRegressionModel.regress_rows: running on $n samples for ${ y.cols } response ${ plural(y.cols, "variable") } y,\n"
+    info(s"linear_regression_rows: running on $n samples for ${ y.cols } response ${ plural(y.cols, "variable") } y,\n"
        + s"    with input variable x, and ${ k } additional ${ plural(k, "covariate") }...")
 
     val Qt =

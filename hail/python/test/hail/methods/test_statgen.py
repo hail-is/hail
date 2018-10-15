@@ -113,20 +113,19 @@ class Tests(unittest.TestCase):
         mt = mt.annotate_cols(pheno=phenos[mt.s].Pheno, cov=covs[mt.s])
         mt = mt.annotate_entries(x=mt.GT.n_alt_alleles()).cache()
 
-        model = hl.LinearRegressionModel()
-        t1 = model.regress_rows(
+        t1 = hl.linear_regression_rows(
             y=mt.pheno, x=mt.GT.n_alt_alleles(), covariates=[1.0, mt.cov.Cov1, mt.cov.Cov2 + 1 - 1])
         t1 = t1.select(p=t1.p_value)
 
-        t2 = model.regress_rows(
+        t2 = hl.linear_regression_rows(
             y=mt.pheno, x=mt.x, covariates=[1.0, mt.cov.Cov1, mt.cov.Cov2])
         t2 = t2.select(p=t2.p_value)
 
-        t3 = model.regress_rows(
+        t3 = hl.linear_regression_rows(
             y=[mt.pheno], x=mt.x, covariates=[1.0, mt.cov.Cov1, mt.cov.Cov2])
         t3 = t3.select(p=t3.p_value[0])
 
-        t4 = model.regress_rows(
+        t4 = hl.linear_regression_rows(
             y=[mt.pheno, mt.pheno], x=mt.x, covariates=[1.0, mt.cov.Cov1, mt.cov.Cov2])
         t4a = t4.select(p=t4.p_value[0])
         t4b = t4.select(p=t4.p_value[1])
@@ -142,10 +141,9 @@ class Tests(unittest.TestCase):
                                 missing='0',
                                 types={'Pheno': hl.tfloat})
         mt = hl.import_vcf(resource('regressionLinear.vcf'))
-        model = hl.LinearRegressionModel()
-        ht = model.regress_rows(y=pheno[mt.s].Pheno,
-                                x=mt.GT.n_alt_alleles(),
-                                covariates=[])
+        ht = hl.linear_regression_rows(y=pheno[mt.s].Pheno,
+                                       x=mt.GT.n_alt_alleles(),
+                                       covariates=[])
         results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
         self.assertAlmostEqual(results[1].beta, 1.5, places=6)
         self.assertAlmostEqual(results[1].standard_error, 1.161895, places=6)
@@ -171,9 +169,9 @@ class Tests(unittest.TestCase):
                                 types={'Pheno': hl.tfloat})
 
         mt = hl.import_vcf(resource('regressionLinear.vcf'))
-        ht = hl.LinearRegressionModel().regress_rows(y=pheno[mt.s].Pheno,
-                                                     x=mt.GT.n_alt_alleles(),
-                                                     covariates=[1.0] + list(covariates[mt.s].values()))
+        ht = hl.linear_regression_rows(y=pheno[mt.s].Pheno,
+                                       x=mt.GT.n_alt_alleles(),
+                                       covariates=[1.0] + list(covariates[mt.s].values()))
 
         results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
 
@@ -212,9 +210,9 @@ class Tests(unittest.TestCase):
                                 types={'Pheno': hl.tfloat})
 
         mt = hl.import_vcf(resource('regressionLinear.vcf'))
-        ht = hl.LinearRegressionModel().regress_rows(y=pheno[mt.s].Pheno,
-                                                     x=hl.pl_dosage(mt.PL),
-                                                     covariates=[1.0] + list(covariates[mt.s].values()))
+        ht = hl.linear_regression_rows(y=pheno[mt.s].Pheno,
+                                       x=hl.pl_dosage(mt.PL),
+                                       covariates=[1.0] + list(covariates[mt.s].values()))
 
         results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
 
@@ -243,9 +241,9 @@ class Tests(unittest.TestCase):
                                 missing='0',
                                 types={'Pheno': hl.tfloat})
         mt = hl.import_gen(resource('regressionLinear.gen'), sample_file=resource('regressionLinear.sample'))
-        ht = hl.LinearRegressionModel().regress_rows(y=pheno[mt.s].Pheno,
-                                                     x=hl.gp_dosage(mt.GP),
-                                                     covariates=[1.0] + list(covariates[mt.s].values()))
+        ht = hl.linear_regression_rows(y=pheno[mt.s].Pheno,
+                                       x=hl.gp_dosage(mt.GP),
+                                       covariates=[1.0] + list(covariates[mt.s].values()))
 
         results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
 
@@ -271,9 +269,9 @@ class Tests(unittest.TestCase):
                                      types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat})
         fam = hl.import_fam(resource('regressionLinear.fam'))
         mt = hl.import_vcf(resource('regressionLinear.vcf'))
-        ht = hl.LinearRegressionModel().regress_rows(y=fam[mt.s].is_case,
-                                                     x=mt.GT.n_alt_alleles(),
-                                                     covariates=[1.0] + list(covariates[mt.s].values()))
+        ht = hl.linear_regression_rows(y=fam[mt.s].is_case,
+                                       x=mt.GT.n_alt_alleles(),
+                                       covariates=[1.0] + list(covariates[mt.s].values()))
 
         results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
 
@@ -301,9 +299,9 @@ class Tests(unittest.TestCase):
                             quant_pheno=True,
                             missing='0')
         mt = hl.import_vcf(resource('regressionLinear.vcf'))
-        ht = hl.LinearRegressionModel().regress_rows(y=fam[mt.s].quant_pheno,
-                                                     x=mt.GT.n_alt_alleles(),
-                                                     covariates=[1.0] + list(covariates[mt.s].values()))
+        ht = hl.linear_regression_rows(y=fam[mt.s].quant_pheno,
+                                       x=mt.GT.n_alt_alleles(),
+                                       covariates=[1.0] + list(covariates[mt.s].values()))
 
         results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
 
@@ -333,10 +331,10 @@ class Tests(unittest.TestCase):
                                 types={'Pheno': hl.tfloat})
 
         mt = hl.import_vcf(resource('regressionLinear.vcf'))
-        single = hl.LinearRegressionModel().regress_rows(y=pheno[mt.s].Pheno,
-                                                         x=mt.GT.n_alt_alleles(),
+        single = hl.linear_regression_rows(y=pheno[mt.s].Pheno,
+                                           x=mt.GT.n_alt_alleles(),
                                                          covariates=list(covariates[mt.s].values()))
-        multi = hl.LinearRegressionModel().regress_rows(y=[pheno[mt.s].Pheno, pheno[mt.s].Pheno],
+        multi = hl.linear_regression_rows(y=[pheno[mt.s].Pheno, pheno[mt.s].Pheno],
                                                         x=mt.GT.n_alt_alleles(),
                                                         covariates=list(covariates[mt.s].values()))
 
@@ -368,10 +366,10 @@ class Tests(unittest.TestCase):
                                 missing='0',
                                 types={'isCase': hl.tbool})
         mt = hl.import_vcf(resource('regressionLogistic.vcf'))
-        model = hl.LogisticRegressionModel('wald')
-        ht = model.regress_rows(y=pheno[mt.s].isCase,
-                                x=mt.GT.n_alt_alleles(),
-                                covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
+        ht = hl.logistic_regression_rows('wald',
+                                         y=pheno[mt.s].isCase,
+                                         x=mt.GT.n_alt_alleles(),
+                                         covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
 
         results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
 
@@ -404,7 +402,8 @@ class Tests(unittest.TestCase):
                                 missing='0',
                                 types={'isCase': hl.tbool})
         mt = hl.import_vcf(resource('regressionLogistic.vcf'))
-        ht = hl.LogisticRegressionModel('wald').regress_rows(
+        ht = hl.logistic_regression_rows(
+            test='wald',
             y=pheno[mt.s].isCase,
             x=hl.pl_dosage(mt.PL),
             covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
@@ -441,7 +440,8 @@ class Tests(unittest.TestCase):
                                 types={'isCase': hl.tbool})
         mt = hl.import_gen(resource('regressionLogistic.gen'),
                            sample_file=resource('regressionLogistic.sample'))
-        ht = hl.LogisticRegressionModel('wald').regress_rows(
+        ht = hl.logistic_regression_rows(
+            test='wald',
             y=pheno[mt.s].isCase,
             x=hl.gp_dosage(mt.GP),
             covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
@@ -488,7 +488,8 @@ class Tests(unittest.TestCase):
                                 missing='0',
                                 types={'isCase': hl.tbool})
         mt = hl.import_vcf(resource('regressionLogistic.vcf'))
-        ht = hl.LogisticRegressionModel('lrt').regress_rows(
+        ht = hl.logistic_regression_rows(
+            test='lrt',
             y=pheno[mt.s].isCase,
             x=mt.GT.n_alt_alleles(),
             covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
@@ -532,7 +533,8 @@ class Tests(unittest.TestCase):
                                 missing='0',
                                 types={'isCase': hl.tbool})
         mt = hl.import_vcf(resource('regressionLogistic.vcf'))
-        ht = hl.LogisticRegressionModel('score').regress_rows(
+        ht = hl.logistic_regression_rows(
+            test='score',
             y=pheno[mt.s].isCase,
             x=mt.GT.n_alt_alleles(),
             covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
@@ -569,19 +571,23 @@ class Tests(unittest.TestCase):
         def get_results(table):
             return dict(hl.tuple([table.locus.position, table.row]).collect())
 
-        wald = get_results(hl.LogisticRegressionModel('wald').regress_rows(
+        wald = get_results(hl.logistic_regression_rows(
+            test='wald',
             y=mt.is_case,
             x=mt.GT.n_alt_alleles(),
             covariates=[1.0, mt.is_female, mt.PC1, mt.PC2]))
-        lrt = get_results(hl.LogisticRegressionModel('lrt').regress_rows(
+        lrt = get_results(hl.logistic_regression_rows(
+            test='lrt',
             y=mt.is_case,
             x=mt.GT.n_alt_alleles(),
             covariates=[1.0, mt.is_female, mt.PC1, mt.PC2]))
-        score = get_results(hl.LogisticRegressionModel('score').regress_rows(
+        score = get_results(hl.logistic_regression_rows(
+            test='score',
             y=mt.is_case,
             x=mt.GT.n_alt_alleles(),
             covariates=[1.0, mt.is_female, mt.PC1, mt.PC2]))
-        firth = get_results(hl.LogisticRegressionModel('firth').regress_rows(
+        firth = get_results(hl.logistic_regression_rows(
+            test='firth',
             y=mt.is_case,
             x=mt.GT.n_alt_alleles(),
             covariates=[1.0, mt.is_female, mt.PC1, mt.PC2]))
@@ -658,7 +664,8 @@ class Tests(unittest.TestCase):
                                 missing='-1',
                                 types={'count': hl.tint32})
         mt = hl.import_vcf(resource('regressionLogistic.vcf'))
-        ht = hl.PoissonRegressionModel('wald').regress_rows(
+        ht = hl.poisson_regression_rows(
+            test='wald',
             y=pheno[mt.s].count,
             x=mt.GT.n_alt_alleles(),
             covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
@@ -704,7 +711,8 @@ class Tests(unittest.TestCase):
                                 missing='-1',
                                 types={'count': hl.tint32})
         mt = hl.import_vcf(resource('regressionLogistic.vcf'))
-        ht = hl.PoissonRegressionModel('lrt').regress_rows(
+        ht = hl.poisson_regression_rows(
+            test='lrt',
             y=pheno[mt.s].count,
             x=mt.GT.n_alt_alleles(),
             covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
@@ -747,7 +755,8 @@ class Tests(unittest.TestCase):
                                 missing='-1',
                                 types={'count': hl.tint32})
         mt = hl.import_vcf(resource('regressionLogistic.vcf'))
-        ht = hl.PoissonRegressionModel('score').regress_rows(
+        ht = hl.poisson_regression_rows(
+            test='score',
             y=pheno[mt.s].count,
             x=mt.GT.n_alt_alleles(),
             covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
