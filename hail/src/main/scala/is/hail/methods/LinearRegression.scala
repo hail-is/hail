@@ -152,7 +152,7 @@ object LinearRegression {
               rv2
             }
           }
-      })
+      }).persist(StorageLevel.MEMORY_AND_DISK)
     new Table(vsm.hc, TableLiteral(TableValue(tableType, BroadcastRow.empty(sc), newRVD)))
   }
 }
