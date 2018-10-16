@@ -75,30 +75,23 @@ on_exit() {
     GCP_STATUS=$(if [ -e ${GCP_STOPPED} ]; then echo "${STOPPED}"; else get_status "${GCP_SUCCESS}"; fi)
     PIP_PACKAGE_STATUS=$(if [ -e ${PIP_PACKAGE_STOPPED} ]; then echo "${STOPPED}"; else get_status "${PIP_PACKAGE_SUCCESS}"; fi)
 
-    cat <<EOF > ${ARTIFACTS}/index.html
-<html>
-<head>
-<style type="text/css">
-    body {
-        font-family: "Lucida Sans Unicode", "Lucida Grande", sans-serif;
-    }
-</style>
-</head>
-<h2>$(git rev-parse HEAD)</h2>
+    cat <<EOF > ${ARTIFACTS}/hail.html
+<body>
+<h3>Hash: $(git rev-parse HEAD)</h3>
 <h3>Compilation</h3>
 <table>
 <tbody>
 <tr>
 <td>${COMP_STATUS}</td>
-<td><a href='compilation.log'>Compilation log</a></td>
+<td><a href='artifacts/compilation.log'>Compilation log</a></td>
 </tr>
 <tr>
 <td>${COMP_STATUS}</td>
-<td><a href='hail-all-spark.jar'>hail-all-spark.jar</a></td>
+<td><a href='artifacts/hail-all-spark.jar'>hail-all-spark.jar</a></td>
 </tr>
 <tr>
 <td>${COMP_STATUS}</td>
-<td><a href='hail-python.zip'>hail-python.zip</a></td>
+<td><a href='artifacts/hail-python.zip'>hail-python.zip</a></td>
 </tr>
 </tbody>
 </table>
@@ -107,19 +100,19 @@ on_exit() {
 <tbody>
 <tr>
 <td>${SCALA_TEST_STATUS}</td>
-<td><a href='scala-test.log'>Scala test log</a></td>
+<td><a href='artifacts/scala-test.log'>Scala test log</a></td>
 </tr>
 <tr>
 <td>${SCALA_TEST_STATUS}</td>
-<td><a href='test-report/index.html'>TestNG report</a></td>
+<td><a href='artifacts/test-report/index.html'>TestNG report</a></td>
 </tr>
 <tr>
 <td>${PYTHON_TEST_STATUS}</td>
-<td><a href='python-test.log'>PyTest log</a></td>
+<td><a href='artifacts/python-test.log'>PyTest log</a></td>
 </tr>
 <tr>
 <td>${DOCTEST_STATUS}</td>
-<td><a href='doctest.log'>Doctest log</a/td>
+<td><a href='artifacts/doctest.log'>Doctest log</a/td>
 </tr>
 </tbody>
 </table>
@@ -128,11 +121,11 @@ on_exit() {
 <tbody>
 <tr>
 <td>${DOCS_STATUS}</td>
-<td><a href='docs.log'>Docs build log</a/td>
+<td><a href='artifacts/docs.log'>Docs build log</a/td>
 </tr>
 <tr>
 <td>${DOCS_STATUS}</td>
-<td><a href='www/index.html'>Generated website</a></td>
+<td><a href='artifacts/www/index.html'>Generated website</a></td>
 </tr>
 </tbody>
 </table>
@@ -141,7 +134,7 @@ on_exit() {
 <tbody>
 <tr>
 <td>${GCP_STATUS}</td>
-<td><a href='gcp.log'>GCP log</a></td>
+<td><a href='artifacts/gcp.log'>GCP log</a></td>
 </tr>
 </tbody>
 </table>
@@ -153,8 +146,7 @@ on_exit() {
 <td><a href='pip-package.log'>PIP Package log</a></td>
 </tr>
 </tbody>
-</table>
-</html>
+</body>
 EOF
     time gcloud dataproc clusters delete ${CLUSTER_NAME} --async
 }
@@ -173,13 +165,13 @@ echo "Compiling..."
 touch ${COMP_SUCCESS}
 
 test_project() {
-    ./gradlew test > ${SCALA_TEST_LOG}
+    ./gradlew test 2&>1 > ${SCALA_TEST_LOG}
     touch ${SCALA_TEST_SUCCESS}
-    ./gradlew testPython > ${PYTHON_TEST_LOG}
+    ./gradlew testPython 2&>1 > ${PYTHON_TEST_LOG}
     touch ${PYTHON_TEST_SUCCESS}
-    ./gradlew doctest > ${DOCTEST_LOG}
+    ./gradlew doctest 2&>1 > ${DOCTEST_LOG}
     touch ${DOCTEST_SUCCESS}
-    ./gradlew makeDocs > ${DOCS_LOG}
+    ./gradlew makeDocs 2&>1 > ${DOCS_LOG}
     touch ${DOCS_SUCCESS}
 }
 
