@@ -23,10 +23,6 @@ public class NativeCode {
             long handle = dlopenGlobal(libHail);
             // ... but we also need System.load to let the JVM see it
             System.load(libHail);
-
-            // only compile on master
-            if (TaskContext.get() != null)
-                includeDir = unpackHeadersToTmpIncludeDir();
         } catch (Throwable err) {
             System.err.println("FATAL: caught exception " + err.toString());
             err.printStackTrace();
@@ -108,9 +104,13 @@ public class NativeCode {
 
     private native static long dlclose(long handle);
 
-    public static String getIncludeDir() {
+    public synchronized static String getIncludeDir() {
+        assert (TaskContext.get() == null);
+        if (includeDir == null)
+            includeDir = unpackHeadersToTmpIncludeDir();
         return includeDir;
     }
 
-    public static void forceLoad() { }
+    public static void forceLoad() {
+    }
 }
