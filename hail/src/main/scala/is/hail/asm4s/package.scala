@@ -4,6 +4,8 @@ import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.Type
 import org.objectweb.asm.tree._
 
+import is.hail.utils._
+
 import scala.collection.generic.Growable
 import scala.language.implicitConversions
 import scala.reflect.ClassTag
@@ -178,6 +180,12 @@ package object asm4s {
   }
 
   def loadClass(className: String, b: Array[Byte]): Class[_] = {
+    System.err.println("HailClassLoader")
+    dumpClassLoader(HailClassLoader)
+
+    System.err.println("HailClassLoader loader")
+    dumpClassLoader(HailClassLoader.getClass.getClassLoader)
+
     HailClassLoader.loadOrDefineClass(className, b)
   }
 
