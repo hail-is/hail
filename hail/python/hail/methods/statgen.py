@@ -847,7 +847,6 @@ def linear_mixed_model(y,
            pa_t_path=nullable(str),
            a_t_path=nullable(str),
            mean_impute=bool,
-           root=str,
            partition_size=nullable(int))
 def linear_mixed_regression_rows(entry_expr,
                                  model,
@@ -953,8 +952,6 @@ def linear_mixed_regression_rows(entry_expr,
         If not set, a temporary file is used.
     mean_impute: :obj:`bool`
         Mean-impute missing values of `entry_expr` by row.
-    root: :obj:`str`
-        Name of resulting row-indexed field.
     partition_size: :obj:`int`
         Number of rows to process per partition.
         Default given by block size of :math:`P`.
