@@ -164,8 +164,8 @@ final case class PackCodecSpec(child: BufferSpec) extends CodecSpec {
       mod.findOrBuild(st)
       assert(st.ok, st.toString())
       st.close()
-      val modKey = mod.getKey()
-      val modBinary = mod.getBinary()
+      val modKey = mod.getKey
+      val modBinary = mod.getBinary
       mod.close()
       (in: InputStream) => new NativePackDecoder(child.buildInputBuffer(in), modKey, modBinary)
     } else {
