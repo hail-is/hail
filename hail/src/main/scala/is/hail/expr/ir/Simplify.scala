@@ -37,13 +37,13 @@ object Simplify {
 
   private[this] def simplifyTable(allowRepartitioning: Boolean): TableIR => TableIR =
     visitNode(
-      simplifyTableChildren(allowRepartitioning),
+      simplifyChildren[TableIR](allowRepartitioning),
       rewriteTableNode(allowRepartitioning),
       simplifyTable(allowRepartitioning))
 
   private[this] def simplifyMatrix(allowRepartitioning: Boolean): MatrixIR => MatrixIR =
     visitNode(
-      simplifyMatrixChildren(allowRepartitioning),
+      simplifyChildren[MatrixIR](allowRepartitioning),
       rewriteMatrixNode(allowRepartitioning),
       simplifyMatrix(allowRepartitioning))
 
@@ -55,19 +55,13 @@ object Simplify {
       ir.copy(newChildren)
   }
 
-  private[this] def simplifyTableChildren(allowRepartitioning: Boolean)(tir: TableIR): TableIR =
-    simplifyChildren(tir, allowRepartitioning).asInstanceOf[TableIR]
-
-  private[this] def simplifyMatrixChildren(allowRepartitioning: Boolean)(mir: MatrixIR): MatrixIR =
-    simplifyChildren(mir, allowRepartitioning).asInstanceOf[MatrixIR]
-
-  private[this] def simplifyChildren(ir: BaseIR, allowRepartitioning: Boolean): BaseIR = {
+  private[this] def simplifyChildren[T <: BaseIR](allowRepartitioning: Boolean)(ir: T): T = {
     val newChildren = ir.children.map(Simplify(_, allowRepartitioning && isDeterministic(ir)))
 
     if ((ir.children, newChildren).zipped.forall(_ eq _))
       ir
     else
-      ir.copy(newChildren)
+      ir.copy(newChildren).asInstanceOf[T]
   }
 
   private[this] def rewriteValueNode: IR => Option[IR] = valueRules.lift
