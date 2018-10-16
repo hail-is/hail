@@ -14,4 +14,3 @@ The CI needs two secrets in the working directory:
 For testing, the CI needs access tokens in `./github-tokens`, see the
 [README.md](./github-tokens/README.md), and also the two secrets needed for
 runtime.
-
