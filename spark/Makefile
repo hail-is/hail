@@ -7,7 +7,7 @@ build:
 run:
 	docker run --rm -d -p 8080:8080 -p 7077:7077 --network spark --name spark-master --hostname spark-master spark-master
 # workers
-	docker run --rm -d --cpus 2 -m 4g --network spark --name spark-w-1 spark-worker
+	docker run --rm -d -p 8081:8081 --cpus 2 -m 4g --network spark --name spark-w-1 spark-worker
 
 rm:
 	docker rm -f spark-master spark-w-1 spark-w-2
