@@ -9,7 +9,7 @@ spec:
   - name: run-letsencrypt
     command: ["/bin/bash"]
 # --test-cert for testing
-    args: ["-c", "/etc/init.d/nginx start; sleep 5; rm -rf /etc/letsencrypt/*; certbot --cert-name @domain@ -n --agree-tos -m cseed@broadinstitute.org -d @domain@ -d www.@domain@ -d ci.@domain@ -d upload.@domain@ -d scorecard.@domain@ --nginx; cat /etc/nginx/conf.d/run-letsencrypt.conf"]
+    args: ["-c", "/etc/init.d/nginx start; sleep 5; rm -rf /etc/letsencrypt/*; certbot --cert-name @domain@ -n --agree-tos -m cseed@broadinstitute.org -d @domain@ -d www.@domain@ -d ci.@domain@ -d upload.@domain@ -d scorecard.@domain@ -d test.@domain@ -d dev1.@domain@ --nginx; cat /etc/nginx/conf.d/run-letsencrypt.conf"]
     image: gcr.io/@project@/run-letsencrypt
     ports:
     - containerPort: 80

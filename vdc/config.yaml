@@ -17,63 +17,6 @@ resources:
     - gcr-push
   properties:
     parent: projects/hail-vdc/serviceAccounts/gcr-push@hail-vdc.iam.gserviceaccount.com
-- name: ci-deploy-service-account
-  type: iam.v1.serviceAccount
-  properties:
-    accountId: ci-deploy
-    displayName: ci deploy account
-- name: ci-deploy-service-account-key
-  type: iam.v1.serviceAccounts.key
-  metadata:
-    dependsOn:
-    - ci-deploy-service-account
-  properties:
-    parent: projects/hail-vdc/serviceAccounts/ci-deploy@hail-vdc.iam.gserviceaccount.com
-- name: ci-test-deploy-service-account
-  type: iam.v1.serviceAccount
-  properties:
-    accountId: ci-test-deploy
-    displayName: ci test deploy account
-- name: ci-test-deploy-service-account-key
-  type: iam.v1.serviceAccounts.key
-  metadata:
-    dependsOn:
-    - ci-test-deploy-service-account
-  properties:
-    parent: projects/hail-vdc/serviceAccounts/ci-test-deploy@hail-vdc.iam.gserviceaccount.com
-# buckets
-- name: hail-ci-deployments
-  type: storage.v1.bucket
-  metadata:
-    dependsOn:
-    - ci-deploy-service-account
-  properties:
-    name: ci-deployments
-  accessControl:
-    gcpIamPolicy:
-      bindings:
-      - role: roles/storage.objectAdmin
-        members:
-        - "serviceAccount:ci-deploy@hail-vdc.iam.gserviceaccount.com"
-      - role: roles/storage.admin
-        members:
-        - "projectEditor:hail-vdc"
-- name: hail-ci-test-deployments
-  type: storage.v1.bucket
-  metadata:
-    dependsOn:
-    - ci-test-deploy-service-account
-  properties:
-    name: hail-ci-test-deployments
-  accessControl:
-    gcpIamPolicy:
-      bindings:
-      - role: roles/storage.objectAdmin
-        members:
-        - "serviceAccount:ci-test-deploy@hail-vdc.iam.gserviceaccount.com"
-      - role: roles/storage.admin
-        members:
-        - "projectEditor:hail-vdc"
 # sql instance
 - name: sql-instance
   type: sqladmin.v1beta4.instance
@@ -131,7 +74,7 @@ resources:
         management: {autoRepair: true}
         name: default-pool
         version: 1.10.7-gke.6
-      - autoscaling: {enabled: true, maxNodeCount: 2}
+      - autoscaling: {enabled: true, maxNodeCount: 6}
         config:
           diskSizeGb: 100
           diskType: pd-standard
