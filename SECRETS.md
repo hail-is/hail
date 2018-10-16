@@ -1,7 +1,7 @@
 # Secrets
 ## Testing of PRs
 
-PR CI test pods for `github.com/hail-is/hail` mount a secret named
+CI PR test pods for `github.com/hail-is/hail` mount a secret named
 `hail-ci-0-1-service-account-key`. This secret is expected to contain four files:
 
  - `hail-ci-0-1.key`, a GCP service account key with sufficient privileges to
