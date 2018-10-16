@@ -2,9 +2,9 @@ package is.hail.stats
 
 import breeze.linalg._
 import breeze.numerics._
-import is.hail.annotations.Annotation
+import is.hail.annotations.RegionValueBuilder
 import is.hail.expr.types._
-import is.hail.utils.{FastSeq, fatal}
+import is.hail.utils.fatal
 
 object LogisticRegressionTest {
   val tests = Map("wald" -> WaldTest, "lrt" -> LikelihoodRatioTest, "score" -> LogisticScoreTest, "firth" -> LogisticFirthTest)
@@ -12,34 +12,38 @@ object LogisticRegressionTest {
 
 abstract class GLMTest extends Serializable {
   def test(X: DenseMatrix[Double], y: DenseVector[Double], nullFit: GLMFit, link: String): GLMTestResult[GLMStats]
-  val schema: Type
-  val emptyStats: Seq[Annotation]
+
+  val schema: TStruct
 }
 
 abstract class GLMStats {
-  def toAnnotations: Seq[Annotation]
+  def addToRVB(rvb: RegionValueBuilder)
 }
 
-class GLMTestResult[+T <: GLMStats](val stats: Option[T], private val emptyStats: Seq[Annotation]) {
-  def toAnnotation: Annotation =
-    Annotation.fromSeq(stats.map(_.toAnnotations).getOrElse(emptyStats))
+class GLMTestResult[+T <: GLMStats](val stats: Option[T], private val size: Int) {
+  def addToRVB(rvb: RegionValueBuilder) {
+    stats match {
+      case Some(s) => s.addToRVB(rvb)
+      case None => rvb.skipFields(size)
+    }
+  }
 }
 
-class GLMTestResultWithFit[T <: GLMStats](override val stats: Option[T], private val emptyStats: Seq[Annotation], val fitStats: GLMFit) extends GLMTestResult[T](stats, emptyStats) {
-  override def toAnnotation: Annotation =
-    Annotation.fromSeq(stats.map(_.toAnnotations).getOrElse(emptyStats) :+ fitStats.toAnnotation)
+class GLMTestResultWithFit[T <: GLMStats](override val stats: Option[T], private val size: Int, val fitStats: GLMFit) extends GLMTestResult[T](stats, size) {
+  override def addToRVB(rvb: RegionValueBuilder) {
+    super.addToRVB(rvb)
+    fitStats.addToRVB(rvb)
+  }
 }
 
 
 object WaldTest extends GLMTest {
-  val schema: Type = TStruct(
+  val schema: TStruct = TStruct(
     ("beta", TFloat64()),
     ("standard_error", TFloat64()),
     ("z_stat", TFloat64()),
     ("p_value", TFloat64()),
     ("fit", GLMFit.schema))
-
-  val emptyStats: Seq[Annotation] = new Array[Annotation](schema.children.size - 1)
 
   def test(X: DenseMatrix[Double], y: DenseVector[Double], nullFit: GLMFit, link: String): GLMTestResultWithFit[WaldStats] = {
     require(nullFit.fisher.isDefined)
@@ -65,14 +69,18 @@ object WaldTest extends GLMTest {
     } else
       None
 
-    new GLMTestResultWithFit[WaldStats](waldStats, emptyStats, fit)
+    new GLMTestResultWithFit[WaldStats](waldStats, schema.size - 1, fit)
   }
 }
 
 case class WaldStats(b: DenseVector[Double], se: DenseVector[Double], z: DenseVector[Double], p: DenseVector[Double]) extends GLMStats {
-  def toAnnotations: Seq[Annotation] = FastSeq(b(-1), se(-1), z(-1), p(-1))
+  def addToRVB(rvb: RegionValueBuilder): Unit = {
+    rvb.addDouble(b(-1))
+    rvb.addDouble(se(-1))
+    rvb.addDouble(z(-1))
+    rvb.addDouble(p(-1))
+  }
 }
-
 
 
 object LikelihoodRatioTest extends GLMTest {
@@ -82,10 +90,8 @@ object LikelihoodRatioTest extends GLMTest {
     ("p_value", TFloat64()),
     ("fit", GLMFit.schema))
 
-  val emptyStats: Seq[Annotation] = new Array[Annotation](schema.children.size - 1)
-
   def test(X: DenseMatrix[Double], y: DenseVector[Double], nullFit: GLMFit, link: String):
-    GLMTestResultWithFit[LikelihoodRatioStats] = {
+  GLMTestResultWithFit[LikelihoodRatioStats] = {
     val m = X.cols
     val m0 = nullFit.b.length
     val model = link match {
@@ -104,16 +110,17 @@ object LikelihoodRatioTest extends GLMTest {
       } else
         None
 
-    new GLMTestResultWithFit[LikelihoodRatioStats](lrStats, emptyStats, fit)
+    new GLMTestResultWithFit[LikelihoodRatioStats](lrStats, schema.size - 1, fit)
   }
 }
 
-
-
 case class LikelihoodRatioStats(b: DenseVector[Double], chi2: Double, p: Double) extends GLMStats {
-  def toAnnotations: Seq[Annotation] = FastSeq(b(-1), chi2, p)
+  def addToRVB(rvb: RegionValueBuilder): Unit = {
+    rvb.addDouble(b(-1))
+    rvb.addDouble(chi2)
+    rvb.addDouble(p)
+  }
 }
-
 
 object LogisticFirthTest extends GLMTest {
   val schema = TStruct(
@@ -122,12 +129,10 @@ object LogisticFirthTest extends GLMTest {
     ("p_value", TFloat64()),
     ("fit", GLMFit.schema))
 
-  val emptyStats: Seq[Annotation] = new Array[Annotation](schema.children.size - 1)
-
   def test(X: DenseMatrix[Double], y: DenseVector[Double], nullFit: GLMFit, link: String):
-    GLMTestResultWithFit[FirthStats] = {
+  GLMTestResultWithFit[FirthStats] = {
     require(link == "logistic")
-    
+
     val m = X.cols
     val m0 = nullFit.b.length
     val model = new LogisticRegressionModel(X, y)
@@ -148,27 +153,30 @@ object LogisticFirthTest extends GLMTest {
         } else
           None
 
-      new GLMTestResultWithFit[FirthStats](firthStats, emptyStats, fitFirth)
+      new GLMTestResultWithFit[FirthStats](firthStats, schema.size - 1, fitFirth)
     } else
-      new GLMTestResultWithFit[FirthStats](None, emptyStats, nullFitFirth)
+      new GLMTestResultWithFit[FirthStats](None, schema.size - 1, nullFitFirth)
   }
 }
 
 
 case class FirthStats(b: DenseVector[Double], chi2: Double, p: Double) extends GLMStats {
-  def toAnnotations: Seq[Annotation] = FastSeq(b(-1), chi2, p)
+  def addToRVB(rvb: RegionValueBuilder): Unit = {
+    rvb.addDouble(b(-1))
+    rvb.addDouble(chi2)
+    rvb.addDouble(p)
+  }
 }
 
 
 object LogisticScoreTest extends GLMTest {
-  val schema: Type = TStruct(
+  val schema: TStruct = TStruct(
     ("chi_sq_stat", TFloat64()),
     ("p_value", TFloat64()))
 
-  val emptyStats: Seq[Annotation] = new Array[Annotation](schema.children.size)
 
   def test(X: DenseMatrix[Double], y: DenseVector[Double], nullFit: GLMFit, link: String):
-    GLMTestResult[ScoreStats] = {
+  GLMTestResult[ScoreStats] = {
     require(link == "logistic")
     require(nullFit.score.isDefined && nullFit.fisher.isDefined)
 
@@ -206,19 +214,22 @@ object LogisticScoreTest extends GLMTest {
       }
     }
 
-    new GLMTestResult[ScoreStats](scoreStats, emptyStats)
+    new GLMTestResult[ScoreStats](scoreStats, schema.size)
   }
 }
 
 
 case class ScoreStats(chi2: Double, p: Double) extends GLMStats {
-  def toAnnotations: Seq[Annotation] = FastSeq(chi2, p)
+  def addToRVB(rvb: RegionValueBuilder): Unit = {
+    rvb.addDouble(chi2)
+    rvb.addDouble(p)
+  }
 }
 
 
 abstract class GeneralLinearModel {
   def bInterceptOnly(): DenseVector[Double]
-  
+
   def fit(optNullFit: Option[GLMFit], maxIter: Int = 25, tol: Double = 1e-6): GLMFit
 }
 
@@ -350,5 +361,11 @@ case class GLMFit(
   converged: Boolean,
   exploded: Boolean) {
 
-  def toAnnotation: Annotation = Annotation(nIter, converged, exploded)
+  def addToRVB(rvb: RegionValueBuilder): Unit = {
+    rvb.startStruct()
+    rvb.addInt(nIter)
+    rvb.addBoolean(converged)
+    rvb.addBoolean(exploded)
+    rvb.endStruct()
+  }
 }

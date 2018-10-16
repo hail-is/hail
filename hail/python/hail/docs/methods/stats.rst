@@ -9,17 +9,17 @@ Statistics
 .. autosummary::
 
     linear_mixed_model
-    linear_mixed_regression
-    linear_regression
-    logistic_regression
+    linear_mixed_regression_rows
+    linear_regression_rows
+    logistic_regression_rows
+    poisson_regression_rows
     pca
-    poisson_regression
     row_correlation
 
 .. autofunction:: linear_mixed_model
-.. autofunction:: linear_mixed_regression
-.. autofunction:: linear_regression
-.. autofunction:: logistic_regression
+.. autofunction:: linear_mixed_regression_rows
+.. autofunction:: linear_regression_rows
+.. autofunction:: logistic_regression_rows
+.. autofunction:: poisson_regression_rows
 .. autofunction:: pca
-.. autofunction:: poisson_regression
 .. autofunction:: row_correlation

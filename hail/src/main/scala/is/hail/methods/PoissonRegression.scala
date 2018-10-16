@@ -2,8 +2,10 @@ package is.hail.methods
 
 import breeze.linalg._
 import is.hail.annotations._
-import is.hail.expr.types.TFloat64
+import is.hail.expr.ir.{TableLiteral, TableValue}
+import is.hail.expr.types.{TFloat64, TStruct, TableType}
 import is.hail.stats._
+import is.hail.table.Table
 import is.hail.utils._
 import is.hail.variant._
 
@@ -13,8 +15,7 @@ object PoissonRegression {
     test: String,
     yField: String,
     xField: String,
-    covFields: Array[String],
-    root: String): MatrixTable = {
+    covFields: Array[String]): Table = {
     val poisRegTest = PoissonRegressionTest.tests(test)
 
     val (y, cov, completeColIdx) = RegressionUtils.getPhenoCovCompleteSamples(vsm, yField, covFields)
@@ -23,7 +24,7 @@ object PoissonRegression {
       fatal(s"For poisson regression, y must be numeric with all values non-negative integers")
     if (sum(y) == 0)
       fatal(s"For poisson regression, y must have at least one non-zero value")
-    
+
     val n = y.size
     val k = cov.cols
     val d = n - k - 1
@@ -31,7 +32,7 @@ object PoissonRegression {
     if (d < 1)
       fatal(s"$n samples and ${ k + 1 } ${ plural(k, "covariate") } (including x) implies $d degrees of freedom.")
 
-    info(s"poisson_regression: running $test on $n samples for response variable y,\n"
+    info(s"poisson_regression_rows: running $test on $n samples for response variable y,\n"
       + s"    with input variable x, and ${ k } additional ${ plural(k, "covariate") }...")
 
     val nullModel = new PoissonRegressionModel(cov, y)
@@ -62,11 +63,11 @@ object PoissonRegression {
     val entryArrayIdx = vsm.entriesIndex
     val fieldIdx = entryType.fieldIdx(xField)
 
-    val (newRVPType, inserter) = vsm.rvRowType.physicalType.unsafeStructInsert(poisRegTest.schema.physicalType, List(root))
-    val newRVType = newRVPType.virtualType
-    val newMatrixType = vsm.matrixType.copy(rvRowType = newRVType)
+    val tableType = TableType(vsm.rowKeyStruct ++ poisRegTest.schema, vsm.rowKey, TStruct())
+    val newRVDType = tableType.rvdType
+    val keyIndices = vsm.rowKey.map(vsm.rvRowType.fieldIdx(_)).toArray
 
-    val newRVD = vsm.rvd.mapPartitions(newMatrixType.rvdType) { it =>
+    val newRVD = vsm.rvd.mapPartitions(newRVDType) { it =>
       val rvb = new RegionValueBuilder()
       val rv2 = RegionValue()
 
@@ -74,22 +75,22 @@ object PoissonRegression {
 
       val X = XBc.value.copy
       it.map { rv =>
-        RegressionUtils.setMeanImputedDoubles(X.data, n * k, completeColIdxBc.value, missingCompleteCols, 
+        RegressionUtils.setMeanImputedDoubles(X.data, n * k, completeColIdxBc.value, missingCompleteCols,
           rv, fullRowType, entryArrayType, entryType, entryArrayIdx, fieldIdx)
 
-        val poisRegAnnot = poisRegTestBc.value.test(X, yBc.value, nullFitBc.value, "poisson").toAnnotation
-
         rvb.set(rv.region)
-        rvb.start(newRVType)
-        inserter(rv.region, rv.offset, rvb,
-          () => rvb.addAnnotation(poisRegTest.schema, poisRegAnnot))
+        rvb.start(newRVDType.rowType)
+        rvb.startStruct()
+        rvb.addFields(fullRowType, rv, keyIndices)
+        poisRegTestBc.value
+          .test(X, yBc.value, nullFitBc.value, "poisson")
+          .addToRVB(rvb)
+        rvb.endStruct()
 
         rv2.set(rv.region, rvb.end())
         rv2
       }
     }
-
-    vsm.copyMT(matrixType = newMatrixType,
-      rvd = newRVD)
+    new Table(vsm.hc, TableLiteral(TableValue(tableType, BroadcastRow.empty(sc), newRVD)))
   }
 }

@@ -235,44 +235,45 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
 @typecheck(y=oneof(expr_float64, sequenceof(expr_float64)),
            x=expr_float64,
            covariates=sequenceof(expr_float64),
-           root=str,
            block_size=int)
-def linear_regression(y, x, covariates, root='linreg', block_size=16) -> MatrixTable:
+def linear_regression_rows(y, x, covariates, block_size=16) -> hail.Table:
     """For each row, test an input variable for association with
     response variables using linear regression.
 
     Examples
     --------
 
-    >>> result_ds = hl.linear_regression(
+    >>> result_ht = hl.linear_regression_rows(
     ...     y=dataset.pheno.height,
     ...     x=dataset.GT.n_alt_alleles(),
     ...     covariates=[1, dataset.pheno.age, dataset.pheno.is_female])
 
     Warning
     -------
-    :func:`.linear_regression` considers the same set of columns (i.e., samples, points)
-    for every response variable and row, namely those columns for which **all**
-    response variables and covariates are defined. For each row, missing values
-    of `x` are mean-imputed over these columns. As in the example, the intercept
-    covariate ``1`` must be included **explicitly** if desired.
+    :func:`.linear_regression_rows` considers the same set of
+    columns (i.e., samples, points) for every response variable and row,
+    namely those columns for which **all** response variables and covariates
+    are defined. For each row, missing values of `x` are mean-imputed over
+    these columns. As in the example, the intercept covariate ``1`` must be
+    included **explicitly** if desired.
 
     Notes
     -----
     With the default root and `y` a single expression, the following row-indexed
     fields are added.
 
-    - **linreg.n** (:py:data:`.tint32`) -- Number of columns used.
-    - **linreg.sum_x** (:py:data:`.tfloat64`) -- Sum of input values `x`.
-    - **linreg.y_transpose_x** (:py:data:`.tfloat64`) -- Dot product of response
+    - **<row key fields>** (Any) -- Row key fields.
+    - **n** (:py:data:`.tint32`) -- Number of columns used.
+    - **sum_x** (:py:data:`.tfloat64`) -- Sum of input values `x`.
+    - **y_transpose_x** (:py:data:`.tfloat64`) -- Dot product of response
       vector `y` with the input vector `x`.
-    - **linreg.beta** (:py:data:`.tfloat64`) --
+    - **beta** (:py:data:`.tfloat64`) --
       Fit effect coefficient of `x`, :math:`\hat\\beta_1` below.
-    - **linreg.standard_error** (:py:data:`.tfloat64`) --
+    - **standard_error** (:py:data:`.tfloat64`) --
       Estimated standard error, :math:`\widehat{\mathrm{se}}_1`.
-    - **linreg.t_stat** (:py:data:`.tfloat64`) -- :math:`t`-statistic, equal to
+    - **t_stat** (:py:data:`.tfloat64`) -- :math:`t`-statistic, equal to
       :math:`\hat\\beta_1 / \widehat{\mathrm{se}}_1`.
-    - **linreg.p_value** (:py:data:`.tfloat64`) -- :math:`p`-value.
+    - **p_value** (:py:data:`.tfloat64`) -- :math:`p`-value.
 
     If `y` is a list of expressions, then the last five fields instead have type
     :py:data:`.tarray` of :py:data:`.tfloat64`, with corresponding indexing of
@@ -310,19 +311,16 @@ def linear_regression(y, x, covariates, root='linreg', block_size=16) -> MatrixT
         Entry-indexed expression for input variable.
     covariates : :obj:`list` of :class:`.Float64Expression`
         List of column-indexed covariate expressions.
-    root : :obj:`str`
-        Name of resulting row-indexed field.
     block_size : :obj:`int`
         Number of row regressions to perform simultaneously per core. Larger blocks
         require more memory but may improve performance.
 
     Returns
     -------
-    :class:`.MatrixTable`
-        Matrix table with regression results in a new row-indexed field.
+    :class:`.Table`
     """
-    mt = matrix_table_source('linear_regression/x', x)
-    check_entry_indexed('linear_regression/x', x)
+    mt = matrix_table_source('linear_regression_rows/x', x)
+    check_entry_indexed('linear_regression_rows/x', x)
 
     y_is_list = isinstance(y, list)
 
@@ -330,58 +328,45 @@ def linear_regression(y, x, covariates, root='linreg', block_size=16) -> MatrixT
     y = wrap_to_list(y)
     for e in y:
         all_exprs.append(e)
-        analyze('linear_regression/y', e, mt._col_indices)
+        analyze('linear_regression_rows/y', e, mt._col_indices)
     for e in covariates:
         all_exprs.append(e)
-        analyze('linear_regression/covariates', e, mt._col_indices)
+        analyze('linear_regression_rows/covariates', e, mt._col_indices)
 
-    _warn_if_no_intercept('linear_regression', covariates)
+    _warn_if_no_intercept('linear_regression_rows', covariates)
 
-    # FIXME: remove this logic when annotation is better optimized
-    if x in mt._fields_inverse:
-        x_field_name = mt._fields_inverse[x]
-        fields_to_drop = []
-        entry_expr = {}
-    else:
-        x_field_name = Env.get_uid()
-        fields_to_drop = [x_field_name]
-        entry_expr = {x_field_name: x}
-
+    x_field_name = Env.get_uid()
     y_field_names = list(f'__y{i}' for i in range(len(y)))
     cov_field_names = list(f'__cov{i}' for i in range(len(covariates)))
 
-    fields_to_drop.extend(y_field_names)
-    fields_to_drop.extend(cov_field_names)
+    # FIXME: selecting an existing entry field should be emitted as a SelectFields
+    mt = mt._select_all(col_exprs=dict(**dict(zip(y_field_names, y)),
+                                       **dict(zip(cov_field_names, covariates))),
+                        row_exprs=dict(mt.row_key),
+                        col_key=[],
+                        entry_exprs={x_field_name: x})
 
-    mt = mt._annotate_all(col_exprs=dict(**dict(zip(y_field_names, y)),
-                                         **dict(zip(cov_field_names, covariates))),
-                          entry_exprs=entry_expr)
-
-    jm = Env.hail().methods.LinearRegression.apply(
+    jt = Env.hail().methods.LinearRegression.apply(
         mt._jvds,
         jarray(Env.jvm().java.lang.String, y_field_names),
         x_field_name,
         jarray(Env.jvm().java.lang.String, cov_field_names),
-        root,
         block_size)
 
-    mt_result = MatrixTable(jm).drop(*fields_to_drop)
+    ht_result = Table(jt)
 
     if not y_is_list:
         fields = ['y_transpose_x', 'beta', 'standard_error', 't_stat', 'p_value']
-        linreg = mt_result[root]
-        mt_result = mt_result.annotate_rows(
-            **{root: linreg.annotate(**{f: linreg[f][0] for f in fields})})
+        ht_result = ht_result.annotate(**{f: ht_result[f][0] for f in fields})
 
-    return mt_result
+    return ht_result
 
 
 @typecheck(test=enumeration('wald', 'lrt', 'score', 'firth'),
            y=expr_float64,
            x=expr_float64,
-           covariates=sequenceof(expr_float64),
-           root=str)
-def logistic_regression(test, y, x, covariates, root='logreg') -> MatrixTable:
+           covariates=sequenceof(expr_float64))
+def logistic_regression_rows(test, y, x, covariates) -> hail.Table:
     r"""For each row, test an input variable for association with a
     binary response variable using logistic regression.
 
@@ -391,7 +376,7 @@ def logistic_regression(test, y, x, covariates, root='logreg') -> MatrixTable:
     phenotype, intercept and two covariates stored in column-indexed
     fields:
 
-    >>> result_ds = hl.logistic_regression(
+    >>> result_ht = hl.logistic_regression_rows(
     ...     test='wald',
     ...     y=dataset.pheno.is_case,
     ...     x=dataset.GT.n_alt_alleles(),
@@ -399,25 +384,25 @@ def logistic_regression(test, y, x, covariates, root='logreg') -> MatrixTable:
 
     Warning
     -------
-    :func:`.logistic_regression` considers the same set of columns (i.e.,
-    samples, points) for every row, namely those columns for which **all**
-    covariates are defined. For each row, missing values of `x` are mean-imputed
-    over these columns. As in the example, the intercept covariate ``1`` must be
-    included **explicitly** if desired.
+    :func:`.logistic_regression_rows` considers the same set of
+    columns (i.e., samples, points) for every row, namely those columns for
+    which **all** covariates are defined. For each row, missing values of
+    `x` are mean-imputed over these columns. As in the example, the
+    intercept covariate ``1`` must be included **explicitly** if desired.
 
     Notes
     -----
     This method performs, for each row, a significance test of the input
-    variable in predicting a binary (case-control) response variable based on
-    the logistic regression model. The response variable type must either be
-    numeric (with all present values 0 or 1) or Boolean, in which case true and
-    false are coded as 1 and 0, respectively.
+    variable in predicting a binary (case-control) response variable based
+    on the logistic regression model. The response variable type must either
+    be numeric (with all present values 0 or 1) or Boolean, in which case
+    true and false are coded as 1 and 0, respectively.
 
-    Hail supports the Wald test ('wald'), likelihood ratio test ('lrt'), Rao
-    score test ('score'), and Firth test ('firth'). Hail only includes columns
-    for which the response variable and all covariates are defined. For each
-    row, Hail imputes missing input values as the mean of the non-missing
-    values.
+    Hail supports the Wald test ('wald'), likelihood ratio test ('lrt'),
+    Rao score test ('score'), and Firth test ('firth'). Hail only includes
+    columns for which the response variable and all covariates are defined.
+    For each row, Hail imputes missing input values as the mean of the
+    non-missing values.
 
     The example above considers a model of the form
 
@@ -441,24 +426,24 @@ def logistic_regression(test, y, x, covariates, root='logreg') -> MatrixTable:
     The structure of the emitted row field depends on the test statistic as
     shown in the tables below.
 
-    ========== ======================= ======= ============================================
-    Test       Field                   Type    Value
-    ========== ======================= ======= ============================================
-    Wald       `logreg.beta`           float64 fit effect coefficient,
-                                               :math:`\hat\beta_1`
-    Wald       `logreg.standard_error` float64 estimated standard error,
-                                               :math:`\widehat{\mathrm{se}}`
-    Wald       `logreg.z_stat`         float64 Wald :math:`z`-statistic, equal to
-                                               :math:`\hat\beta_1 / \widehat{\mathrm{se}}`
-    Wald       `logreg.p_value`        float64 Wald p-value testing :math:`\beta_1 = 0`
-    LRT, Firth `logreg.beta`           float64 fit effect coefficient,
-                                               :math:`\hat\beta_1`
-    LRT, Firth `logreg.chi_sq_stat`    float64 deviance statistic
-    LRT, Firth `logreg.p_value`        float64 LRT / Firth p-value testing
-                                               :math:`\beta_1 = 0`
-    Score      `logreg.chi_sq_stat`    float64 score statistic
-    Score      `logreg.p_value`        float64 score p-value testing :math:`\beta_1 = 0`
-    ========== ======================= ======= ============================================
+    ========== ================== ======= ============================================
+    Test       Field              Type    Value
+    ========== ================== ======= ============================================
+    Wald       `beta`             float64 fit effect coefficient,
+                                          :math:`\hat\beta_1`
+    Wald       `standard_error`   float64 estimated standard error,
+                                          :math:`\widehat{\mathrm{se}}`
+    Wald       `z_stat`           float64 Wald :math:`z`-statistic, equal to
+                                          :math:`\hat\beta_1 / \widehat{\mathrm{se}}`
+    Wald       `p_value`          float64 Wald p-value testing :math:`\beta_1 = 0`
+    LRT, Firth `beta`             float64 fit effect coefficient,
+                                          :math:`\hat\beta_1`
+    LRT, Firth `chi_sq_stat`      float64 deviance statistic
+    LRT, Firth `p_value`          float64 LRT / Firth p-value testing
+                                          :math:`\beta_1 = 0`
+    Score      `chi_sq_stat`      float64 score statistic
+    Score      `p_value`          float64 score p-value testing :math:`\beta_1 = 0`
+    ========== ================== ======= ============================================
 
     For the Wald and likelihood ratio tests, Hail fits the logistic model for
     each row using Newton iteration and only emits the above fields
@@ -467,16 +452,16 @@ def logistic_regression(test, y, x, covariates, root='logreg') -> MatrixTable:
     convergence issues, Hail also emits three fields which summarize the
     iterative fitting process:
 
-    ================ ========================= ======= ===============================
-    Test             Field                     Type    Value
-    ================ ========================= ======= ===============================
-    Wald, LRT, Firth `logreg.fit.n_iterations` int32   number of iterations until
-                                                       convergence, explosion, or
-                                                       reaching the max (25 for
-                                                       Wald, LRT; 100 for Firth)
-    Wald, LRT, Firth `logreg.fit.converged`    bool    ``True`` if iteration converged
-    Wald, LRT, Firth `logreg.fit.exploded`     bool    ``True`` if iteration exploded
-    ================ ========================= ======= ===============================
+    ================ =================== ======= ===============================
+    Test             Field               Type    Value
+    ================ =================== ======= ===============================
+    Wald, LRT, Firth `fit.n_iterations`  int32   number of iterations until
+                                                 convergence, explosion, or
+                                                 reaching the max (25 for
+                                                 Wald, LRT; 100 for Firth)
+    Wald, LRT, Firth `fit.converged`      bool    ``True`` if iteration converged
+    Wald, LRT, Firth `fit.exploded`       bool    ``True`` if iteration exploded
+    ================ =================== ======= ===============================
 
     We consider iteration to have converged when every coordinate of
     :math:`\beta` changes by less than :math:`10^{-6}`. For Wald and LRT,
@@ -492,13 +477,14 @@ def logistic_regression(test, y, x, covariates, root='logreg') -> MatrixTable:
     variants that are observed only in cases (or controls). Such variants
     inevitably arise when testing millions of variants with very low minor
     allele count. The maximum likelihood estimate of :math:`\beta` under
-    logistic regression is then undefined but convergence may still occur after
-    a large number of iterations due to a very flat likelihood surface. In
-    testing, we find that such variants produce a secondary bump from 10 to 15
-    iterations in the histogram of number of iterations per variant. We also
-    find that this faux convergence produces large standard errors and large
-    (insignificant) p-values. To not miss such variants, consider using Firth
-    logistic regression, linear regression, or group-based tests.
+    logistic regression is then undefined but convergence may still occur
+    after a large number of iterations due to a very flat likelihood
+    surface. In testing, we find that such variants produce a secondary bump
+    from 10 to 15 iterations in the histogram of number of iterations per
+    variant. We also find that this faux convergence produces large standard
+    errors and large (insignificant) p-values. To not miss such variants,
+    consider using Firth logistic regression, linear regression, or
+    group-based tests.
 
     Here's a concrete illustration of quasi-complete seperation in R. Suppose
     we have 2010 samples distributed as follows for a particular variant:
@@ -530,15 +516,15 @@ def logistic_regression(test, y, x, covariates, root='logreg') -> MatrixTable:
     significant association.
 
     The Firth test reduces bias from small counts and resolves the issue of
-    separation by penalizing maximum likelihood estimation by the
-    `Jeffrey's invariant prior <https://en.wikipedia.org/wiki/Jeffreys_prior>`__.
-    This test is slower, as both the null and full model must be fit per
-    variant, and convergence of the modified Newton method is linear rather than
-    quadratic. For Firth, 100 iterations are attempted for the null model and,
-    if that is successful, for the full model as well. In testing we find 20
-    iterations nearly always suffices. If the null model fails to converge, then
-    the `logreg.fit` fields reflect the null model; otherwise, they reflect the
-    full model.
+    separation by penalizing maximum likelihood estimation by the `Jeffrey's
+    invariant prior <https://en.wikipedia.org/wiki/Jeffreys_prior>`__. This
+    test is slower, as both the null and full model must be fit per variant,
+    and convergence of the modified Newton method is linear rather than
+    quadratic. For Firth, 100 iterations are attempted for the null model
+    and, if that is successful, for the full model as well. In testing we
+    find 20 iterations nearly always suffices. If the null model fails to
+    converge, then the `logreg.fit` fields reflect the null model;
+    otherwise, they reflect the full model.
 
     See
     `Recommended joint and meta-analysis strategies for case-control association testing of single low-count variants <http://www.ncbi.nlm.nih.gov/pmc/articles/PMC4049324/>`__
@@ -551,11 +537,12 @@ def logistic_regression(test, y, x, covariates, root='logreg') -> MatrixTable:
     Heinze and Schemper further analyze Firth's approach in
     `A solution to the problem of separation in logistic regression, 2002 <https://cemsiis.meduniwien.ac.at/fileadmin/msi_akim/CeMSIIS/KB/volltexte/Heinze_Schemper_2002_Statistics_in_Medicine.pdf>`__.
 
-    Hail's logistic regression tests correspond to the ``b.wald``, ``b.lrt``,
-    and ``b.score`` tests in `EPACTS`_. For each variant, Hail imputes missing
-    input values as the mean of non-missing input values, whereas EPACTS
-    subsets to those samples with called genotypes. Hence, Hail and EPACTS
-    results will currently only agree for variants with no missing genotypes.
+    Hail's logistic regression tests correspond to the ``b.wald``,
+    ``b.lrt``, and ``b.score`` tests in `EPACTS`_. For each variant, Hail
+    imputes missing input values as the mean of non-missing input values,
+    whereas EPACTS subsets to those samples with called genotypes. Hence,
+    Hail and EPACTS results will currently only agree for variants with no
+    missing genotypes.
 
     .. _EPACTS: http://genome.sph.umich.edu/wiki/EPACTS#Single_Variant_Tests
 
@@ -572,78 +559,61 @@ def logistic_regression(test, y, x, covariates, root='logreg') -> MatrixTable:
         Entry-indexed expression for input variable.
     covariates : :obj:`list` of :class:`.Float64Expression`
         Non-empty list of column-indexed covariate expressions.
-    root : :obj:`str`, optional
-        Name of resulting row-indexed field.
 
     Returns
     -------
-    :class:`.MatrixTable`
-        Matrix table with regression results in a new row-indexed field.
+    :class:`.Table`
     """
     if len(covariates) == 0:
         raise ValueError('logistic regression requires at least one covariate expression')
 
-    mt = matrix_table_source('logistic_regression/x', x)
-    check_entry_indexed('logistic_regression/x', x)
+    mt = matrix_table_source('logistic_regresion_rows/x', x)
+    check_entry_indexed('logistic_regresion_rows/x', x)
 
-    analyze('logistic_regression/y', y, mt._col_indices)
+    analyze('logistic_regresion_rows/y', y, mt._col_indices)
 
     all_exprs = [y]
     for e in covariates:
         all_exprs.append(e)
         analyze('logistic_regression/covariates', e, mt._col_indices)
 
-    _warn_if_no_intercept('logistic_regression', covariates)
+    _warn_if_no_intercept('logistic_regresion_rows', covariates)
 
-    # FIXME: remove this logic when annotation is better optimized
-    if x in mt._fields_inverse:
-        x_field_name = mt._fields_inverse[x]
-        fields_to_drop = []
-        entry_expr = {}
-    else:
-        x_field_name = Env.get_uid()
-        fields_to_drop = [x_field_name]
-        entry_expr = {x_field_name: x}
-
+    x_field_name = Env.get_uid()
     y_field_name = '__y'
     cov_field_names = list(f'__cov{i}' for i in range(len(covariates)))
 
-    fields_to_drop.append(y_field_name)
-    fields_to_drop.extend(cov_field_names)
+    # FIXME: selecting an existing entry field should be emitted as a SelectFields
+    mt = mt._select_all(col_exprs=dict(**{y_field_name: y},
+                                       **dict(zip(cov_field_names, covariates))),
+                        row_exprs=dict(mt.row_key),
+                        col_key=[],
+                        entry_exprs={x_field_name: x})
 
-    mt = mt._annotate_all(col_exprs=dict(**{y_field_name: y},
-                                         **dict(zip(cov_field_names, covariates))),
-                          entry_exprs=entry_expr)
-
-    jmt = Env.hail().methods.LogisticRegression.apply(
+    jt = Env.hail().methods.LogisticRegression.apply(
         mt._jvds,
         test,
         y_field_name,
         x_field_name,
-        jarray(Env.jvm().java.lang.String, cov_field_names),
-        root)
-
-    return MatrixTable(jmt).drop(*fields_to_drop)
+        jarray(Env.jvm().java.lang.String, cov_field_names))
+    return Table(jt)
 
 
 @typecheck(test=enumeration('wald', 'lrt', 'score'),
            y=expr_float64,
            x=expr_float64,
-           covariates=sequenceof(expr_float64),
-           root=str)
-def poisson_regression(test, y, x, covariates, root='poisreg') -> MatrixTable:
+           covariates=sequenceof(expr_float64))
+def poisson_regression_rows(test, y, x, covariates) -> Table:
     r"""For each row, test an input variable for association with a
     count response variable using `Poisson regression <https://en.wikipedia.org/wiki/Poisson_regression>`__.
 
     Notes
     -----
-    See :func:`.logistic_regression` for more info on statistical tests
+    See :func:`.logistic_regression_rows` for more info on statistical tests
     of general linear models.
 
     Parameters
     ----------
-    test : {'wald', 'lrt', 'score'}
-        Statistical test.
     y : :class:`.Float64Expression`
         Column-indexed response expression.
         All non-missing values must evaluate to a non-negative integer.
@@ -651,58 +621,44 @@ def poisson_regression(test, y, x, covariates, root='poisreg') -> MatrixTable:
         Entry-indexed expression for input variable.
     covariates : :obj:`list` of :class:`.Float64Expression`
         Non-empty list of column-indexed covariate expressions.
-    root : :obj:`str`, optional
-        Name of resulting row-indexed field.
 
     Returns
     -------
-    :class:`.MatrixTable`
-        Matrix table with regression results in a new row-indexed field.
+    :class:`.Table`
     """
     if len(covariates) == 0:
         raise ValueError('Poisson regression requires at least one covariate expression')
 
-    mt = matrix_table_source('poisson_regression/x', x)
-    check_entry_indexed('poisson_regression/x', x)
+    mt = matrix_table_source('poisson_regression_rows/x', x)
+    check_entry_indexed('poisson_regression_rows/x', x)
 
-    analyze('poisson_regression/y', y, mt._col_indices)
+    analyze('poisson_regression_rows/y', y, mt._col_indices)
 
     all_exprs = [y]
     for e in covariates:
         all_exprs.append(e)
-        analyze('poisson_regression/covariates', e, mt._col_indices)
+        analyze('poisson_regression_rows/covariates', e, mt._col_indices)
 
-    _warn_if_no_intercept('poisson_regression', covariates)
+    _warn_if_no_intercept('poisson_regression_rows', covariates)
 
-    # FIXME: remove this logic when annotation is better optimized
-    if x in mt._fields_inverse:
-        x_field_name = mt._fields_inverse[x]
-        fields_to_drop = []
-        entry_expr = {}
-    else:
-        x_field_name = Env.get_uid()
-        fields_to_drop = [x_field_name]
-        entry_expr = {x_field_name: x}
-
+    x_field_name = Env.get_uid()
     y_field_name = '__y'
     cov_field_names = list(f'__cov{i}' for i in range(len(covariates)))
 
-    fields_to_drop.append(y_field_name)
-    fields_to_drop.extend(cov_field_names)
+    # FIXME: selecting an existing entry field should be emitted as a SelectFields
+    mt = mt._select_all(col_exprs=dict(**{y_field_name: y},
+                                       **dict(zip(cov_field_names, covariates))),
+                        row_exprs=dict(mt.row_key),
+                        col_key=[],
+                        entry_exprs={x_field_name: x})
 
-    mt = mt._annotate_all(col_exprs=dict(**{y_field_name: y},
-                                         **dict(zip(cov_field_names, covariates))),
-                          entry_exprs=entry_expr)
-
-    jmt = Env.hail().methods.PoissonRegression.apply(
+    jt = Env.hail().methods.PoissonRegression.apply(
         mt._jvds,
         test,
         y_field_name,
         x_field_name,
-        jarray(Env.jvm().java.lang.String, cov_field_names),
-        root)
-
-    return MatrixTable(jmt).drop(*fields_to_drop)
+        jarray(Env.jvm().java.lang.String, cov_field_names))
+    return Table(jt)
 
 
 @typecheck(y=expr_float64,
@@ -748,7 +704,7 @@ def linear_mixed_model(y,
 
     For this value of :math:`h^2`, test each variant for association:
 
-    >>> result_ds = hl.linear_mixed_regression(dataset.GT.n_alt_alleles(), model)
+    >>> result_table = hl.linear_mixed_regression_rows(dataset.GT.n_alt_alleles(), model)
 
     Alternatively, one can define a full-rank model using a pre-computed kinship
     matrix :math:`K` in ndarray form. When :math:`K` is the realized
@@ -781,7 +737,7 @@ def linear_mixed_model(y,
 
     If `k` is set, the model is full-rank. For correct results, the indices of
     `k` **must be aligned** with columns of the source of `y`.
-    Set `p_path` if you plan to use the model in :meth:`linear_mixed_regression`.
+    Set `p_path` if you plan to use the model in :meth:`.linear_mixed_regression_rows`.
     `k` must be positive semi-definite; symmetry is not checked as only the
     lower triangle is used. See :meth:`.LinearMixedModel.from_kinship` for more
     details.
@@ -838,8 +794,8 @@ def linear_mixed_model(y,
     """
     source = matrix_table_source('linear_mixed_model/y', y)
 
-    if ((z_t is None and k is None) or 
-       (z_t is not None and k is not None)):
+    if ((z_t is None and k is None) or
+            (z_t is not None and k is not None)):
         raise ValueError("linear_mixed_model: set exactly one of 'z_t' and 'k'")
 
     if len(x) == 0:
@@ -887,15 +843,13 @@ def linear_mixed_model(y,
            pa_t_path=nullable(str),
            a_t_path=nullable(str),
            mean_impute=bool,
-           root=str,
            partition_size=nullable(int))
-def linear_mixed_regression(entry_expr,
-                            model,
-                            pa_t_path=None,
-                            a_t_path=None,
-                            mean_impute=True,
-                            root='lmmreg',
-                            partition_size=None):
+def linear_mixed_regression_rows(entry_expr,
+                                 model,
+                                 pa_t_path=None,
+                                 a_t_path=None,
+                                 mean_impute=True,
+                                 partition_size=None):
     """For each row, test an input variable for association using a linear
     mixed model.
 
@@ -920,8 +874,8 @@ def linear_mixed_regression(entry_expr,
        ``(n_rows / block_size) * (model.r / block_size)``.
 
     4. Compute regression results per row with
-       :meth:`.LinearMixedModel.fit_alternatives` and row-annotate the statistics
-       at `root`. The parallelism is ``n_rows / partition_size``.
+       :meth:`.LinearMixedModel.fit_alternatives`.
+       The parallelism is ``n_rows / partition_size``.
 
     If `pa_t_path` and `a_t_path` are not set, temporary files are used.
 
@@ -941,16 +895,14 @@ def linear_mixed_regression(entry_expr,
     So having run linear mixed regression once, we can
     compute :math:`h^2` and regression statistics for another response or set of
     fixed effects on the **same samples** at the roughly the speed of
-    :meth:`linear_regression`.
+    :func:`.linear_regression_rows`.
 
     For example, having collected another `y` and `x` as ndarrays, one can
-    construct a new linear mixed model directly using:
-
-    >>> from hail.stats import LinearMixedModel
+    construct a new linear mixed model directly.
 
     Supposing the model is full-rank and `p` is an ndarray:
 
-    >>> model = LinearMixedModel(p @ y, p @ x, s)      # doctest: +SKIP
+    >>> model = hl.stats.LinearMixedModel(p @ y, p @ x, s)      # doctest: +SKIP
     >>> model.fit()                                    # doctest: +SKIP
     >>> result_ht = model.fit_alternatives(pa_t_path)  # doctest: +SKIP
 
@@ -972,13 +924,13 @@ def linear_mixed_regression(entry_expr,
     -------
     For correct results, the column-index of `entry_expr` must correspond to the
     sample index of the model. This will be true, for example, if `model`
-    was created with :meth:`linear_mixed_model` using (a possibly row-filtered
+    was created with :func:`.linear_mixed_model` using (a possibly row-filtered
     version of) the source of `entry_expr`, or if `y` and `x` were collected to
     arrays from this source. Hail will raise an error if the number of columns
     does not match ``model.n``, but will not detect, for example, permuted
     samples.
 
-    The warning on :meth:`.write_from_entry_expr` applies to this
+    The warning on :meth:`.BlockMatrix.write_from_entry_expr` applies to this
     method when the number of samples is large.
 
     Parameters
@@ -996,30 +948,27 @@ def linear_mixed_regression(entry_expr,
         If not set, a temporary file is used.
     mean_impute: :obj:`bool`
         Mean-impute missing values of `entry_expr` by row.
-    root: :obj:`str`
-        Name of resulting row-indexed field.
     partition_size: :obj:`int`
         Number of rows to process per partition.
         Default given by block size of :math:`P`.
 
     Returns
     -------
-    :class:`.MatrixTable`
-        Matrix table with regression results in a new row-indexed field.
+    :class:`.Table`
     """
-    mt = matrix_table_source('linear_mixed_regression', entry_expr)
+    mt = matrix_table_source('linear_mixed_regression_rows', entry_expr)
     n = mt.count_cols()
 
-    check_entry_indexed('linear_mixed_regression', entry_expr)
+    check_entry_indexed('linear_mixed_regression_rows', entry_expr)
     if not model._fitted:
-        raise ValueError("linear_mixed_regression: 'model' has not been fit "
+        raise ValueError("linear_mixed_regression_rows: 'model' has not been fit "
                          "using 'fit()'")
     if model.p_path is None:
-        raise ValueError("linear_mixed_regression: 'model' property 'p_path' "
+        raise ValueError("linear_mixed_regression_rows: 'model' property 'p_path' "
                          "was not set at initialization")
 
     if model.n != n:
-        raise ValueError(f"linear_mixed_regression: linear mixed model expects {model.n} samples, "
+        raise ValueError(f"linear_mixed_regression_rows: linear mixed model expects {model.n} samples, "
                          f"\n    but 'entry_expr' source has {n} columns.")
 
     pa_t_path = new_temp_file() if pa_t_path is None else pa_t_path
@@ -1035,11 +984,10 @@ def linear_mixed_regression(entry_expr,
 
     ht = model.fit_alternatives(pa_t_path,
                                 a_t_path if model.low_rank else None,
-                                partition_size)
+                                partition_size).cache()
     mt = mt.add_row_index('__row_idx')
-    mt = mt.annotate_rows(**{root: ht[mt['__row_idx']]})
-    mt = mt.drop('__row_idx')
-    return mt
+    mt_keys = mt.select_rows().rows().add_index('__row_idx').key_by('__row_idx')
+    return mt_keys.annotate(**ht[mt_keys['__row_idx']]).key_by(*mt.row_key).drop('__row_idx')
 
 
 @typecheck(key_expr=expr_any,

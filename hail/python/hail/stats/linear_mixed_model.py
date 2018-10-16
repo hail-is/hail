@@ -2,12 +2,13 @@ import numpy as np
 import pandas as pd
 
 import hail as hl
-from hail.utils.misc import plural
-from hail.typecheck import *
-from hail.utils.java import Env, jnone, jsome, info
-from hail.table import Table
 from hail.linalg import BlockMatrix
 from hail.linalg.utils import _check_dims
+from hail.table import Table
+from hail.typecheck import *
+from hail.utils.java import Env, jnone, jsome, info
+from hail.utils.misc import plural
+
 
 class LinearMixedModel(object):
     r"""Class representing a linear mixed model.
@@ -1150,3 +1151,4 @@ class LinearMixedModel(object):
             print(f'different p_path:\n{self.p_path}\n{other.p_path}')
             same = False
         return same
+

@@ -327,9 +327,10 @@ class Tests(unittest.TestCase):
 
         mt_chr3 = mt.filter_rows((mt.locus.contig == '3') & (mt.locus.position < 2005))
         mt_chr3 = mt_chr3.annotate_rows(stats=hl.agg.stats(mt_chr3.GT.n_alt_alleles()))
-        mt_chr3 = hl.linear_mixed_regression((mt_chr3.GT.n_alt_alleles() - mt_chr3.stats.mean) / mt_chr3.stats.stdev, model)
-        assert np.allclose(mt_chr3.lmmreg.beta.collect(), beta_fastlmm)
-        assert np.allclose(mt_chr3.lmmreg.p_value.collect(), pval_hail)
+        ht = hl.linear_mixed_regression_rows((mt_chr3.GT.n_alt_alleles() - mt_chr3.stats.mean) / mt_chr3.stats.stdev,
+                                             model)
+        assert np.allclose(ht.beta.collect(), beta_fastlmm)
+        assert np.allclose(ht.p_value.collect(), pval_hail)
 
     def test_linear_mixed_regression_low_rank(self):
         x_table = hl.import_table(resource('fastlmmCov.txt'), no_header=True, impute=True).key_by('f1')
@@ -355,6 +356,7 @@ class Tests(unittest.TestCase):
 
         mt_chr3 = mt.filter_rows((mt.locus.contig == '3') & (mt.locus.position < 2005))
         mt_chr3 = mt_chr3.annotate_rows(stats=hl.agg.stats(mt_chr3.GT.n_alt_alleles()))
-        mt_chr3 = hl.linear_mixed_regression((mt_chr3.GT.n_alt_alleles() - mt_chr3.stats.mean) / mt_chr3.stats.stdev, model)
-        assert np.allclose(mt_chr3.lmmreg.beta.collect(), beta_hail)
-        assert np.allclose(mt_chr3.lmmreg.p_value.collect(), pval_hail)
+        ht = hl.linear_mixed_regression_rows((mt_chr3.GT.n_alt_alleles() - mt_chr3.stats.mean) / mt_chr3.stats.stdev,
+                                             model)
+        assert np.allclose(ht.beta.collect(), beta_hail)
+        assert np.allclose(ht.p_value.collect(), pval_hail)

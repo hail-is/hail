@@ -2,8 +2,10 @@ package is.hail.methods
 
 import breeze.linalg._
 import is.hail.annotations._
-import is.hail.expr.types.TFloat64
+import is.hail.expr.ir.{TableLiteral, TableValue}
+import is.hail.expr.types.{TFloat64, TStruct, TableType}
 import is.hail.stats._
+import is.hail.table.Table
 import is.hail.utils._
 import is.hail.variant._
 
@@ -13,8 +15,7 @@ object LogisticRegression {
     test: String,
     yField: String,
     xField: String,
-    covFields: Array[String],
-    root: String): MatrixTable = {
+    covFields: Array[String]): Table = {
     val logRegTest = LogisticRegressionTest.tests(test)
 
     val (y, cov, completeColIdx) = RegressionUtils.getPhenoCovCompleteSamples(vsm, yField, covFields)
@@ -32,7 +33,7 @@ object LogisticRegression {
     if (d < 1)
       fatal(s"$n samples and ${ k + 1 } ${ plural(k, "covariate") } (including x) implies $d degrees of freedom.")
 
-    info(s"logistic_regression: running $test on $n samples for response variable y,\n"
+    info(s"logistic_regression_rows: running $test on $n samples for response variable y,\n"
       + s"    with input variable x, and ${ k } additional ${ plural(k, "covariate") }...")
 
     val nullModel = new LogisticRegressionModel(cov, y)
@@ -67,11 +68,11 @@ object LogisticRegression {
     val entryArrayIdx = vsm.entriesIndex
     val fieldIdx = entryType.fieldIdx(xField)
 
-    val (newRVPType, inserter) = vsm.rvRowType.physicalType.unsafeStructInsert(logRegTest.schema.physicalType, List(root))
-    val newRVType = newRVPType.virtualType
-    val newMatrixType = vsm.matrixType.copy(rvRowType = newRVType)
+    val tableType = TableType(vsm.rowKeyStruct ++ logRegTest.schema, vsm.rowKey, TStruct())
+    val newRVDType = tableType.rvdType
+    val keyIndices = vsm.rowKey.map(vsm.rvRowType.fieldIdx(_)).toArray
 
-    val newRVD = vsm.rvd.mapPartitions(newMatrixType.rvdType) { it =>
+    val newRVD = vsm.rvd.mapPartitions(newRVDType) { it =>
       val rvb = new RegionValueBuilder()
       val rv2 = RegionValue()
 
@@ -82,19 +83,19 @@ object LogisticRegression {
         RegressionUtils.setMeanImputedDoubles(X.data, n * k, completeColIdxBc.value, missingCompleteCols, 
           rv, fullRowType, entryArrayType, entryType, entryArrayIdx, fieldIdx)
 
-        val logregAnnot = logRegTestBc.value.test(X, yBc.value, nullFitBc.value, "logistic").toAnnotation
+        val logregAnnot = logRegTestBc.value.test(X, yBc.value, nullFitBc.value, "logistic")
 
         rvb.set(rv.region)
-        rvb.start(newRVType)
-        inserter(rv.region, rv.offset, rvb,
-          () => rvb.addAnnotation(logRegTest.schema, logregAnnot))
+        rvb.start(newRVDType.rowType)
+        rvb.startStruct()
+        rvb.addFields(fullRowType, rv, keyIndices)
+        logregAnnot.addToRVB(rvb)
+        rvb.endStruct()
 
         rv2.set(rv.region, rvb.end())
         rv2
       }
     }
-
-    vsm.copyMT(matrixType = newMatrixType,
-      rvd = newRVD)
+    new Table(vsm.hc, TableLiteral(TableValue(tableType, BroadcastRow.empty(sc), newRVD)))
   }
 }
