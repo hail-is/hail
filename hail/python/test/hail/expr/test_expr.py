@@ -301,18 +301,23 @@ class Tests(unittest.TestCase):
                  (agg.group_by(t.idx % 3,
                                agg.filter(t.idx > 7,
                                           hl.array(agg.collect_as_set(t.idx + 1)).append(0))),
-                  {0: [10, 0], 2: [9, 0]}),
-                 # {0: [10, 0], 1: [0], 2: [9, 0]}),
-                 #FIXME: I'm not super clear on how this distinction would work
-                 # currently, because the KeyedAggregator stuff appears to pass
-                 # through the filters and explodes. I think a way around this
-                 # for the time being would be to add a count aggregator just
-                 # for the purposes of getting the right keys, but we can also
-                 # leave this as is until we fix up the IR next week.
+                  {0: [10, 0], 1: [0], 2: [9, 0]}),
                  (agg.filter(t.idx > 7,
                               agg.group_by(t.idx % 3,
                                             hl.array(agg.collect_as_set(t.idx + 1)).append(0))),
-                  {0: [10, 0], 2: [9, 0]})
+                  {0: [10, 0], 2: [9, 0]}),
+                 (agg.group_by(t.idx % 3,
+                               agg.explode(lambda elt: agg.collect(elt + 1).append(0),
+                                           hl.cond(t.idx > 7,
+                                                   [t.idx, t.idx + 1],
+                                                   hl.empty_array(hl.tint32)))),
+                  {0: [10, 11, 0], 1: [0], 2:[9, 10, 0]}),
+                 (agg.explode(lambda elt: agg.group_by(elt % 3,
+                                                       agg.collect(elt + 1).append(0)),
+                                           hl.cond(t.idx > 7,
+                                                   [t.idx, t.idx + 1],
+                                                   hl.empty_array(hl.tint32))),
+                  {0: [10, 10, 0], 1: [11, 0], 2:[9, 0]})
                  ]
         for test in tests:
             self.assertEqual(t.aggregate(test[0]), test[1])

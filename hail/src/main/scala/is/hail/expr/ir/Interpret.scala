@@ -716,9 +716,9 @@ object Interpret {
           rvb.set(region)
 
           rvb.start(aggResultType)
-          rvb.startStruct()
+          rvb.startTuple()
           aggResults.foreach(_.result(rvb))
-          rvb.endStruct()
+          rvb.endTuple()
           val aggResultsOffset = rvb.end()
 
           rvb.start(localGlobalSignature)
@@ -803,9 +803,9 @@ object Interpret {
           rvb.set(region)
 
           rvb.start(aggResultType)
-          rvb.startStruct()
+          rvb.startTuple()
           aggResults.foreach(_.result(rvb))
-          rvb.endStruct()
+          rvb.endTuple()
           val aggResultsOffset = rvb.end()
 
           rvb.start(localGlobalSignature)

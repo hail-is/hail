@@ -736,16 +736,84 @@ class ArrayFor(IR):
                other.body == self.body
 
 
+class AggFilter(IR):
+    @typecheck_method(cond=IR, agg_ir=IR)
+    def __init__(self, cond, agg_ir):
+        super().__init__(cond, agg_ir)
+        self.cond = cond
+        self.agg_ir = agg_ir
+
+    @typecheck_method(cond=IR, agg_ir=IR)
+    def copy(self, cond, agg_ir):
+        new_instance = self.__class__
+        return new_instance(cond, agg_ir)
+
+    def render(self, r):
+        return '(AggFilter {} {})'.format(r(self.cond), r(self.agg_ir))
+
+    def __eq__(self, other):
+        return isinstance(other, AggFilter) and \
+               other.cond == self.cond and \
+               other.agg_ir == self.agg_ir
+
+
+class AggExplode(IR):
+    @typecheck_method(array=IR, name=str, agg_body=IR)
+    def __init__(self, array, name, agg_body):
+        super().__init__(array, agg_body)
+        self.name = name
+        self.array = array
+        self.agg_body = agg_body
+
+    @typecheck_method(array=IR, agg_body=IR)
+    def copy(self, array, agg_body):
+        new_instance = self.__class__
+        return new_instance(array, self.name, agg_body)
+
+    def render(self, r):
+        return '(AggExplode {} {} {})'.format(escape_id(self.name), r(self.array), r(self.agg_body))
+
+    @property
+    def bound_variables(self):
+        return {self.name} | super().bound_variables
+
+    def __eq__(self, other):
+        return isinstance(other, AggFilter) and \
+               other.cond == self.cond and \
+               other.agg_ir == self.agg_ir
+
+
+class AggGroupBy(IR):
+    @typecheck_method(key=IR, agg_ir=IR)
+    def __init__(self, key, agg_ir):
+        super().__init__(key, agg_ir)
+        self.key = key
+        self.agg_ir = agg_ir
+
+    @typecheck_method(key=IR, agg_ir=IR)
+    def copy(self, key, agg_ir):
+        new_instance = self.__class__
+        return new_instance(key, agg_ir)
+
+    def render(self, r):
+        return '(AggGroupBy {} {})'.format(r(self.key), r(self.agg_ir))
+
+    def __eq__(self, other):
+        return isinstance(other, AggGroupBy) and \
+               other.key == self.key and \
+               other.agg_ir == self.agg_ir
+
+
 class BaseApplyAggOp(IR):
-    @typecheck_method(a=IR,
+    @typecheck_method(seq_op_args=sequenceof(IR),
                       constructor_args=sequenceof(IR),
                       init_op_args=nullable(sequenceof(IR)),
                       agg_sig=AggSignature,
                       typ=hail_type)
-    def __init__(self, a, constructor_args, init_op_args, agg_sig, typ):
+    def __init__(self, seq_op_args, constructor_args, init_op_args, agg_sig, typ):
         init_op_children = [] if init_op_args is None else init_op_args
-        super().__init__(a, *constructor_args, *init_op_children)
-        self.a = a
+        super().__init__(*seq_op_args, *constructor_args, *init_op_children)
+        self.seq_op_args = seq_op_args
         self.constructor_args = constructor_args
         self.init_op_args = init_op_args
         self.agg_sig = agg_sig
@@ -753,17 +821,18 @@ class BaseApplyAggOp(IR):
 
     def copy(self, *args):
         new_instance = self.__class__
+        n_seq_op_args = len(self.seq_op_args)
         n_constructor_args = len(self.constructor_args)
-        a = args[0]
-        constr_args = args[1:n_constructor_args + 1]
-        init_op_args = args[n_constructor_args + 1:]
-        return new_instance(a, constr_args, init_op_args if len(init_op_args) != 0 else None, self.agg_sig, self.typ)
+        seq_op_args = args[:n_seq_op_args]
+        constr_args = args[n_seq_op_args:n_constructor_args + n_seq_op_args]
+        init_op_args = args[n_constructor_args + n_seq_op_args:]
+        return new_instance(seq_op_args, constr_args, init_op_args if len(init_op_args) != 0 else None, self.agg_sig, self.typ)
 
     def render(self, r):
-        return '({} {} {} ({}) {})'.format(
+        return '({} {} ({}) ({}) {})'.format(
             self.__class__.__name__,
             self.agg_sig,
-            r(self.a),
+            ' '.join([r(x) for x in self.seq_op_args]),
             ' '.join([r(x) for x in self.constructor_args]),
             '(' + ' '.join([r(x) for x in self.init_op_args]) + ')' if self.init_op_args else 'None')
 
@@ -774,30 +843,30 @@ class BaseApplyAggOp(IR):
 
     def __eq__(self, other):
         return isinstance(other, self.__class__) and \
-               other.a == self.a and \
+               other.seq_op_args == self.seq_op_args and \
                other.constructor_args == self.constructor_args and \
                other.init_op_args == self.init_op_args and \
                other.agg_sig == self.agg_sig
 
 
 class ApplyAggOp(BaseApplyAggOp):
-    @typecheck_method(a=IR,
+    @typecheck_method(seq_op_args=sequenceof(IR),
                       constructor_args=sequenceof(IR),
                       init_op_args=nullable(sequenceof(IR)),
                       agg_sig=AggSignature,
                       typ=hail_type)
-    def __init__(self, a, constructor_args, init_op_args, agg_sig, typ):
-        super().__init__(a, constructor_args, init_op_args, agg_sig, typ)
+    def __init__(self, seq_op_args, constructor_args, init_op_args, agg_sig, typ):
+        super().__init__(seq_op_args, constructor_args, init_op_args, agg_sig, typ)
 
 
 class ApplyScanOp(BaseApplyAggOp):
-    @typecheck_method(a=IR,
+    @typecheck_method(seq_op_args=sequenceof(IR),
                       constructor_args=sequenceof(IR),
                       init_op_args=nullable(sequenceof(IR)),
                       agg_sig=AggSignature,
                       typ=hail_type)
-    def __init__(self, a, constructor_args, init_op_args, agg_sig, typ):
-        super().__init__(a, constructor_args, init_op_args, agg_sig, typ)
+    def __init__(self, seq_op_args, constructor_args, init_op_args, agg_sig, typ):
+        super().__init__(seq_op_args, constructor_args, init_op_args, agg_sig, typ)
 
 
 class InitOp(IR):

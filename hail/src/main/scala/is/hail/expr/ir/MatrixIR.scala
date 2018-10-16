@@ -790,25 +790,25 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, entryExpr: IR, rowExpr: IR)
 
             val rowAggResultsOffset = {
               rvb.start(aggResultTypeRow)
-              rvb.startStruct()
+              rvb.startTuple()
               var j = 0
               while (j < rvAggsRow.length) {
                 rvAggsRow(j).result(rvb)
                 j += 1
               }
-              rvb.endStruct()
+              rvb.endTuple()
               rvb.end()
             }
 
             val entryAggResultsOffsets = Array.tabulate(nCols) { i =>
               rvb.start(aggResultTypeEntry)
-              rvb.startStruct()
+              rvb.startTuple()
               var j = 0
               while (j < nAggsEntry) {
                 colRVAggs(i * nAggsEntry + j).result(rvb)
                 j += 1
               }
-              rvb.endStruct()
+              rvb.endTuple()
               rvb.end()
             }
 
@@ -1009,13 +1009,13 @@ case class MatrixAggregateColsByKey(child: MatrixIR, entryExpr: IR, colExpr: IR)
       BroadcastIndexedSeq(keys.zipWithIndex.map { case (a: Annotation, i: Int) =>
         val aggResults = {
           rvb.start(aggResultTypeCol)
-          rvb.startStruct()
+          rvb.startTuple()
           var j = 0
           while (j < nAggsCol) {
             rvAggsCol(i * nAggsCol + j).result(rvb)
             j += 1
           }
-          rvb.endStruct()
+          rvb.endTuple()
           rvb.end()
         }
 
@@ -1186,12 +1186,12 @@ case class MatrixAggregateColsByKey(child: MatrixIR, entryExpr: IR, colExpr: IR)
         val resultOffsets = Array.tabulate(nKeys) { i =>
           var j = 0
           rvb.start(aggResultTypeEntry)
-          rvb.startStruct()
+          rvb.startTuple()
           while (j < nAggsEntry) {
             rvAggsEntry(i * nAggsEntry + j).result(rvb)
             j += 1
           }
-          rvb.endStruct()
+          rvb.endTuple()
           val aggResultOffset = rvb.end()
           annotateEntry(rv.region, aggResultOffset, false, globalsOffset, false, oldRow, false)
         }
@@ -1491,13 +1491,13 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
 
         val scanOff = if (scanAggs.nonEmpty) {
           rvb.start(scanResultType)
-          rvb.startStruct()
+          rvb.startTuple()
           var j = 0
           while (j < partitionAggs.length) {
             partitionAggs(j).result(rvb)
             j += 1
           }
-          rvb.endStruct()
+          rvb.endTuple()
           rvb.end()
         } else 0L
 
@@ -1512,13 +1512,13 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
           seqOpF(rv.region, entryAggs, globals, false, cols, false, rv.offset, false)
 
           rvb.start(aggResultType)
-          rvb.startStruct()
+          rvb.startTuple()
           j = 0
           while (j < entryAggs.length) {
             entryAggs(j).result(rvb)
             j += 1
           }
-          rvb.endStruct()
+          rvb.endTuple()
           rvb.end()
         } else 0L
 
@@ -1775,13 +1775,13 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
       val mapF = (a: Annotation, i: Int) => {
 
         rvb.start(aggResultType)
-        rvb.startStruct()
+        rvb.startTuple()
         var j = 0
         while (j < nAggs) {
           aggResults(i * nAggs + j).result(rvb)
           j += 1
         }
-        rvb.endStruct()
+        rvb.endTuple()
         val aggResultsOffset = rvb.end()
 
         val colRVb = new RegionValueBuilder(region)
@@ -1790,13 +1790,13 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
         val colRVoffset = colRVb.end()
 
         rvb.start(scanResultType)
-        rvb.startStruct()
+        rvb.startTuple()
         j = 0
         while (j < scanAggs.length) {
           scanAggs(j).result(rvb)
           j += 1
         }
-        rvb.endStruct()
+        rvb.endTuple()
         val scanResultsOffset = rvb.end()
 
         val resultOffset = colsF(region, aggResultsOffset, false, scanResultsOffset, false, globalRVoffset, false, colRVoffset, false)

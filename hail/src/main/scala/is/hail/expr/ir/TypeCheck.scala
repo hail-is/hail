@@ -154,17 +154,17 @@ object TypeCheck {
         assert(body.typ == TVoid)
       case x@AggFilter(cond, aggIR) =>
         check(cond, env = aggEnv.get)
-        check(aggIR, env = aggEnv.get)
+        check(aggIR)
         assert(cond.typ isOfType TBoolean())
         assert(x.typ == aggIR.typ)
       case x@AggExplode(array, name, aggBody) =>
         check(array, env = aggEnv.get)
         assert(array.typ.isInstanceOf[TArray])
-        check(aggBody, env = aggEnv.get.bind(name -> -coerce[TArray](array.typ).elementType))
+        check(aggBody, env = env, aggEnv = aggEnv.map(_.bind(name -> -coerce[TArray](array.typ).elementType)))
         assert(x.typ == aggBody.typ)
       case x@AggGroupBy(key, aggIR) =>
         check(key, env = aggEnv.get)
-        check(aggIR, env = aggEnv.get)
+        check(aggIR)
         assert(x.typ == TDict(key.typ, aggIR.typ))
       case x@InitOp(i, args, aggSig) =>
         args.foreach(check(_))
