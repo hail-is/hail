@@ -11,16 +11,16 @@ tearDownModule = stopTestHailContext
 class ValueIRTests(unittest.TestCase):
     def value_irs(self):
         b = ir.TrueIR()
-        c = ir.Ref('c', hl.tbool)
+        c = ir.Ref('c')
         i = ir.I32(5)
         j = ir.I32(7)
         st = ir.Str('Hail')
-        a = ir.Ref('a', hl.tarray(hl.tint32))
-        aa = ir.Ref('aa', hl.tarray(hl.tarray(hl.tint32)))
-        da = ir.Ref('da', hl.tarray(hl.ttuple(hl.tint32, hl.tstr)))
-        v = ir.Ref('v', hl.tint32)
-        s = ir.Ref('s', hl.tstruct(x = hl.tint32, y = hl.tint64, z = hl.tfloat64))
-        t = ir.Ref('t', hl.ttuple(hl.tint32, hl.tint64, hl.tfloat64))
+        a = ir.Ref('a')
+        aa = ir.Ref('aa')
+        da = ir.Ref('da')
+        v = ir.Ref('v')
+        s = ir.Ref('s')
+        t = ir.Ref('t')
         call = ir.Ref('call', hl.tcall)
 
         collect_sig = ir.AggSignature('Collect', [], None, [hl.tint32])
@@ -48,7 +48,7 @@ class ValueIRTests(unittest.TestCase):
             ir.IsNA(i),
             ir.If(b, i, j),
             ir.Let('v', i, v),
-            ir.Ref('x', hl.tint32),
+            ir.Ref('x'),
             ir.ApplyBinaryOp('+', i, j),
             ir.ApplyUnaryOp('-', i),
             ir.ApplyComparisonOp('EQ', i, j),
@@ -100,8 +100,18 @@ class ValueIRTests(unittest.TestCase):
         return value_irs
 
     def test_parses(self):
+        env = {'c': hl.tbool,
+               'a': hl.tarray(hl.tint32),
+               'aa': hl.tarray(hl.tarray(hl.tint32)),
+               'da': hl.tarray(hl.ttuple(hl.tint32, hl.tstr)),
+               'v': hl.tint32,
+               's': hl.tstruct(x=hl.tint32, y=hl.tint64, z=hl.tfloat64),
+               't': hl.ttuple(hl.tint32, hl.tint64, hl.tfloat64),
+               'call': hl.tcall,
+               'x': hl.tint32}
+        env = {name: t._jtype for name, t in env.items()}
         for x in self.value_irs():
-            Env.hail().expr.Parser.parse_value_ir(str(x))
+            Env.hail().expr.Parser.parse_value_ir(str(x), env)
 
     def test_copies(self):
         for x in self.value_irs():
