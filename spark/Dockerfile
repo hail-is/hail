@@ -16,3 +16,5 @@ RUN apt-get update && \
     bzip2 \
     default-jdk && \
   rm -rf /var/lib/apt/lists/*
+
+ENV SPARK_HOME /spark-2.2.0-bin-hadoop2.7

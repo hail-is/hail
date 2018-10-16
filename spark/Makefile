@@ -9,5 +9,8 @@ run:
 # workers
 	docker run --rm -d -p 8081:8081 --cpus 2 -m 4g --network spark --name spark-w-1 spark-worker
 
+run-hail:
+	docker run --rm -it -p 4040:4040 --network spark spark-hail /bin/bash
+
 rm:
 	docker rm -f spark-master spark-w-1 spark-w-2
