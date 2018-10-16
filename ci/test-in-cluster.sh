@@ -24,6 +24,7 @@ get_ip() {
 
 cp /secrets/user* github-tokens
 mkdir oauth-token
+cp /secrets/oauth-token oauth-token
 
 export IN_CLUSTER=true
 export SELF_HOSTNAME=https://ci.hail.is/$SERVICE_NAME
