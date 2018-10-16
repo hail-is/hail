@@ -607,7 +607,7 @@ def logistic_regression_rows(test, y, x, covariates) -> hail.Table:
            y=expr_float64,
            x=expr_float64,
            covariates=sequenceof(expr_float64))
-def poisson_regression_rows(self, y, x, covariates) -> Table:
+def poisson_regression_rows(test, y, x, covariates) -> Table:
     r"""For each row, test an input variable for association with a
     count response variable using `Poisson regression <https://en.wikipedia.org/wiki/Poisson_regression>`__.
 
@@ -658,7 +658,7 @@ def poisson_regression_rows(self, y, x, covariates) -> Table:
 
     jt = Env.hail().methods.PoissonRegression.apply(
         mt._jvds,
-        self.test,
+        test,
         y_field_name,
         x_field_name,
         jarray(Env.jvm().java.lang.String, cov_field_names))
