@@ -16,7 +16,7 @@ sealed trait IR extends BaseIR {
   override def children: IndexedSeq[BaseIR] =
     Children(this)
 
-  override def copy(newChildren: IndexedSeq[BaseIR]): BaseIR =
+  override def copy(newChildren: IndexedSeq[BaseIR]): IR =
     Copy(this, newChildren)
 
   def size: Int = 1 + children.map {

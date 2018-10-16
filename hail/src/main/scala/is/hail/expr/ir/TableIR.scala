@@ -35,6 +35,8 @@ abstract sealed class TableIR extends BaseIR {
   def partitionCounts: Option[IndexedSeq[Long]] = None
 
   def execute(hc: HailContext): TableValue
+
+  override def copy(newChildren: IndexedSeq[BaseIR]): TableIR
 }
 
 case class TableLiteral(value: TableValue) extends TableIR {
@@ -306,7 +308,7 @@ case class TableHead(child: TableIR, n: Long) extends TableIR {
 
   def children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
 
-  def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
+  def copy(newChildren: IndexedSeq[BaseIR]): TableHead = {
     val IndexedSeq(newChild: TableIR) = newChildren
     TableHead(newChild, n)
   }
@@ -325,7 +327,7 @@ case class TableRepartition(child: TableIR, n: Int, shuffle: Boolean) extends Ta
 
   def children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
 
-  def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
+  def copy(newChildren: IndexedSeq[BaseIR]): TableRepartition = {
     val IndexedSeq(newChild: TableIR) = newChildren
     TableRepartition(newChild, n, shuffle)
   }
@@ -478,7 +480,7 @@ case class TableLeftJoinRightDistinct(left: TableIR, right: TableIR, root: Strin
 
   override def partitionCounts: Option[IndexedSeq[Long]] = left.partitionCounts
 
-  def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
+  def copy(newChildren: IndexedSeq[BaseIR]): TableLeftJoinRightDistinct = {
     val IndexedSeq(newLeft: TableIR, newRight: TableIR) = newChildren
     TableLeftJoinRightDistinct(newLeft, newRight, root)
   }
@@ -1119,7 +1121,7 @@ case class TableOrderBy(child: TableIR, sortFields: IndexedSeq[SortField]) exten
 
   val children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
 
-  def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
+  def copy(newChildren: IndexedSeq[BaseIR]): TableOrderBy = {
     val IndexedSeq(newChild) = newChildren
     TableOrderBy(newChild.asInstanceOf[TableIR], sortFields)
   }
@@ -1155,7 +1157,7 @@ case class LocalizeEntries(child: MatrixIR, entriesFieldName: String) extends Ta
   def typ: TableType = TableType(newRowType, child.typ.rowKey, child.typ.globalType)
 
   def children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
-  def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
+  def copy(newChildren: IndexedSeq[BaseIR]): LocalizeEntries = {
     val IndexedSeq(newChild) = newChildren
     LocalizeEntries(newChild.asInstanceOf[MatrixIR], entriesFieldName)
   }
@@ -1184,7 +1186,7 @@ case class TableRename(child: TableIR, rowMap: Map[String, String], globalMap: M
 
   def children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
 
-  def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
+  def copy(newChildren: IndexedSeq[BaseIR]): TableRename = {
     val IndexedSeq(newChild: TableIR) = newChildren
     TableRename(newChild, rowMap, globalMap)
   }

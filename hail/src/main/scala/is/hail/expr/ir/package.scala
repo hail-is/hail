@@ -79,4 +79,12 @@ package object ir {
   implicit def floatToIR(f: Float): IR = F32(f)
   implicit def doubleToIR(d: Double): IR = F64(d)
   implicit def booleanToIR(b: Boolean): IR = if (b) True() else False()
+
+  def applyOrIdentity[T <: BaseIR](f: T => Option[T]): T => T = { x =>
+    f(x) match {
+      case Some(y) => y
+      case None => x
+    }
+  }
 }
+
