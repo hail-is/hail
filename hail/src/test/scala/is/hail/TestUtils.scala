@@ -292,13 +292,13 @@ object TestUtils {
 
           // build aggregation result
           rvb.start(aggResultType)
-          rvb.startStruct()
+          rvb.startTuple()
           i = 0
           while (i < rvAggs.length) {
             rvAggs(i).result(rvb)
             i += 1
           }
-          rvb.endStruct()
+          rvb.endTuple()
           val aggResultsOff = rvb.end()
 
           val resultOff = f(0)(region, aggResultsOff, false, argsOff, false)

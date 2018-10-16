@@ -16,8 +16,7 @@ class AggregatorsSuite {
   def runAggregator(op: AggOp, aggType: TStruct, agg: IndexedSeq[Row], expected: Any, constrArgs: IndexedSeq[IR],
     initOpArgs: Option[IndexedSeq[IR]], seqOpArgs: IndexedSeq[IR]) {
 
-    val codeAgg = AggOp.getOption(op, constrArgs.map(_.typ), initOpArgs.map(_.map(_.typ)), seqOpArgs.map(_.typ)).get
-    val aggSig = AggSignature(op, constrArgs.map(_.typ), initOpArgs.map(_.map(_.typ)), seqOpArgs.map(_.typ), codeAgg.out)
+    val aggSig = AggSignature(op, constrArgs.map(_.typ), initOpArgs.map(_.map(_.typ)), seqOpArgs.map(_.typ))
 
     assertEvalsTo(ApplyAggOp(
       seqOpArgs,
@@ -758,146 +757,197 @@ class AggregatorsSuite {
       seqOpArgs = FastIndexedSeq(Ref("y", TFloat64()), Ref("x", TArray(+TFloat64())))
     )
   }
-//
-//  def runKeyedAggregator(
-//    op: AggOp,
-//    keyType: Type,
-//    aggType: Type,
-//    k: IndexedSeq[Any],
-//    a: IndexedSeq[Any],
-//    expected: Any,
-//    args: IndexedSeq[IR] = FastIndexedSeq(),
-//    initOpArgs: Option[IndexedSeq[IR]] = None) {
-//    assert(a.length == k.length)
-//    val aggSig = AggSignature(op, args.map(_.typ), initOpArgs.map(_.map(_.typ)), FastIndexedSeq(keyType, aggType))
-//    assertEvalsTo(ApplyAggOp(
-//      SeqOp(I32(0), FastIndexedSeq(Ref("k", keyType), Ref("x", aggType)), aggSig), args, initOpArgs, aggSig),
-//      (k.zip(a).map(i => Row(i._1, i._2)), TStruct("k" -> keyType, "x" -> aggType)),
-//      expected)
-//  }
-//
-//  @Test
-//  def keyedCount() {
-//    runAggregator(Keyed(Count()),
-//      TStruct("k" -> TBoolean()),
-//      FastIndexedSeq(Row(true), Row(true), Row(true), Row(false), Row(false), Row(null), Row(null)),
-//      Map(true -> 3L, false -> 2L, (null, 2L)),
-//      constrArgs = FastIndexedSeq(),
-//      initOpArgs = None,
-//      seqOpArgs = FastIndexedSeq(Ref("k", TBoolean())))
-//
-//    // test struct as key
-//    runAggregator(Keyed(Count()),
-//      TStruct("k" -> TStruct("a" -> TBoolean())),
-//      FastIndexedSeq(Row(Row(true)), Row(Row(true)), Row(Row(true)), Row(Row(false)), Row(Row(false)), Row(Row(null)), Row(Row(null))),
-//      Map(Row(true) -> 3L, Row(false) -> 2L, (Row(null), 2L)),
-//      constrArgs = FastIndexedSeq(),
-//      initOpArgs = None,
-//      seqOpArgs = FastIndexedSeq(Ref("k", TStruct("a" -> TBoolean()))))
-//  }
-//
-//  @Test
-//  def keyedCollect() {
-//    runKeyedAggregator(Keyed(Collect()),
-//      TBoolean(),
-//      TInt32(),
-//      FastIndexedSeq(true, true, true, false, false, null, null),
-//      FastIndexedSeq(5, 3, null, 0, null, null, 2),
-//      Map(true -> FastIndexedSeq(5, 3, null), false -> FastIndexedSeq(0, null), (null, FastIndexedSeq(null, 2))))
-//  }
-//
-//  @Test
-//  def keyedCallStats() {
-//    runKeyedAggregator(Keyed(CallStats()),
-//      TBoolean(),
-//      TCall(),
-//      FastIndexedSeq(true, true, true, false, false, false),
-//      FastIndexedSeq(null, Call2(0, 1), Call2(0, 1), null, Call2(0, 0), Call2(1, 1)),
-//      Map(true -> Row(FastIndexedSeq(2, 2), FastIndexedSeq(0.5, 0.5), 4, FastIndexedSeq(0, 0)),
-//        false -> Row(FastIndexedSeq(2, 2), FastIndexedSeq(0.5, 0.5), 4, FastIndexedSeq(1, 1))),
-//      initOpArgs = Some(FastSeq(I32(2))))
-//  }
-//
-//  @Test
-//  def keyedTakeBy() {
-//    runAggregator(Keyed(TakeBy()),
-//      TStruct("k" -> TString(), "x" -> TFloat64(), "y" -> TInt32()),
-//      FastIndexedSeq(Row("case", 0.2, 5), Row("control", 0.4, 0), Row(null, 1.0, 3), Row("control", 0.0, 2), Row("case", 0.3, 6), Row("control", 0.5, 1)),
-//      Map("case" -> FastIndexedSeq(0.2, 0.3),
-//        "control" -> FastIndexedSeq(0.4, 0.5),
-//        (null, FastIndexedSeq(1.0))),
-//      constrArgs = FastIndexedSeq(I32(2)),
-//      None,
-//      seqOpArgs = FastIndexedSeq(Ref("k", TString()), Ref("x", TFloat64()), Ref("y", TInt32())))
-//  }
-//
-//  @Test
-//  def keyedInbreeding() {
-//    runAggregator(Keyed(Inbreeding()),
-//      TStruct("k" -> TString(), "x" -> TCall(), "y" -> TFloat64()),
-//      FastIndexedSeq(Row("case", Call2(0, 0), 0d), Row("case", Call2(0, 1), 0.1), Row("case", Call2(0, 1), 0.2), Row("case", null, 0.3), Row("case", Call2(1, 1), 0.4), Row("case", Call2(0, 0), null)),
-//      Map("case" -> Row(-1.040816, 4L, 3.02, 2L)),
-//      constrArgs = FastIndexedSeq(),
-//      None,
-//      seqOpArgs = FastIndexedSeq(Ref("k", TString()), Ref("x", TCall()), Ref("y", TFloat64())))
-//  }
-//
-//  @Test
-//  def keyedKeyedCollect() {
-//    runAggregator(Keyed(Keyed(Collect())),
-//      TStruct("k1" -> TString(), "k2" -> TBoolean(), "x" -> TInt32()),
-//      FastIndexedSeq(Row("EUR", true, 1), Row("EUR", false, 2), Row("AFR", true, 3), Row("AFR", null, 4)),
-//      Map("EUR" -> Map(true -> FastIndexedSeq(1), false -> FastIndexedSeq(2)), "AFR" -> Map(true -> FastIndexedSeq(3), (null, FastIndexedSeq(4)))),
-//      constrArgs = FastIndexedSeq(),
-//      None,
-//      seqOpArgs = FastIndexedSeq(Ref("k1", TString()), Ref("k2", TBoolean()), Ref("x", TInt32())))
-//  }
-//
-//  @Test
-//  def keyedKeyedCallStats() {
-//    runAggregator(Keyed(Keyed(CallStats())),
-//      TStruct("k1" -> TString(), "k2" -> TString(), "g" -> TCall()),
-//      FastIndexedSeq(
-//        Row("EUR", "CASE", null),
-//        Row("EUR", "CONTROL", Call2(0, 1)),
-//        Row("AFR", "CASE", Call2(1, 1)),
-//        Row("AFR", "CONTROL", null)),
-//      Map("EUR" -> Map(
-//        "CONTROL" -> Row(FastIndexedSeq(1, 1), FastIndexedSeq(0.5, 0.5), 2, FastIndexedSeq(0, 0)),
-//        "CASE" -> Row(FastIndexedSeq(0, 0), null, 0, FastIndexedSeq(0, 0))),
-//        "AFR" -> Map(
-//          "CASE" -> Row(FastIndexedSeq(0, 2), FastIndexedSeq(0.0, 1.0), 2, FastIndexedSeq(0, 1)),
-//          "CONTROL" -> Row(FastIndexedSeq(0, 0), null, 0, FastIndexedSeq(0, 0)))),
-//      constrArgs = FastIndexedSeq(),
-//      initOpArgs = Some(FastSeq(I32(2))),
-//      seqOpArgs = FastIndexedSeq(Ref("k1", TString()), Ref("k2", TString()), Ref("g", TCall())))
-//  }
-//
-//  @Test
-//  def keyedKeyedTakeBy() {
-//    runAggregator(Keyed(Keyed(TakeBy())),
-//      TStruct("k1" -> TString(), "k2" -> TString(), "x" -> TFloat64(), "y" -> TInt32()),
-//      FastIndexedSeq(Row("case", "a", 0.2, 5), Row("control", "b", 0.4, 0),
-//        Row(null, "c", 1.0, 3), Row("control", "b", 0.0, 2),
-//        Row("case", "a", 0.3, 6), Row("control", "b", 0.5, 1)),
-//      Map("case" -> Map("a" -> FastIndexedSeq(0.2, 0.3)),
-//        "control" -> Map("b" -> FastIndexedSeq(0.4, 0.5)),
-//        (null, Map("c" -> FastIndexedSeq(1.0)))),
-//      constrArgs = FastIndexedSeq(I32(2)),
-//      None,
-//      seqOpArgs = FastIndexedSeq(Ref("k1", TString()), Ref("k2", TString()), Ref("x", TFloat64()), Ref("y", TInt32())))
-//  }
-//
-//  @Test
-//  def keyedKeyedKeyedCollect() {
-//    runAggregator(Keyed(Keyed(Keyed(Collect()))),
-//      TStruct("k1" -> TString(), "k2" -> TString(), "k3" -> TBoolean(), "x" -> TInt32()),
-//      FastIndexedSeq(Row("EUR", "CASE", true, 1), Row("EUR", "CONTROL", true, 2), Row("AFR", "CASE", false, 3), Row("AFR", "CONTROL", false, 4)),
-//      Map("EUR" -> Map("CASE" -> Map(true -> FastIndexedSeq(1)), "CONTROL" -> Map(true -> FastIndexedSeq(2))), "AFR" -> Map("CASE" -> Map(false -> FastIndexedSeq(3)), "CONTROL" -> Map(false -> FastIndexedSeq(4)))),
-//      constrArgs = FastIndexedSeq(),
-//      None,
-//      seqOpArgs = FastIndexedSeq(Ref("k1", TString()), Ref("k2", TString()), Ref("k3", TBoolean()), Ref("x", TInt32())))
-//  }
+
+  def runKeyedAggregator(
+    op: AggOp,
+    key: IR,
+    aggType: TStruct,
+    agg: IndexedSeq[Row],
+    expected: Any,
+    constrArgs: IndexedSeq[IR],
+    initOpArgs: Option[IndexedSeq[IR]],
+    seqOpArgs: IndexedSeq[IR]) {
+
+    val codeAgg = AggOp.getOption(op, constrArgs.map(_.typ), initOpArgs.map(_.map(_.typ)), seqOpArgs.map(_.typ)).get
+    val aggSig = AggSignature(op, constrArgs.map(_.typ), initOpArgs.map(_.map(_.typ)), seqOpArgs.map(_.typ), codeAgg.out)
+
+    assertEvalsTo(
+      AggGroupBy(key,
+        ApplyAggOp(
+          seqOpArgs,
+          constrArgs, initOpArgs, aggSig)),
+      (agg, aggType),
+      expected)
+  }
+
+  @Test
+  def keyedCount() {
+    runKeyedAggregator(Count(),
+      Ref("k", TBoolean()),
+      TStruct("k" -> TBoolean()),
+      FastIndexedSeq(Row(true), Row(true), Row(true), Row(false), Row(false), Row(null), Row(null)),
+      Map(true -> 3L, false -> 2L, (null, 2L)),
+      constrArgs = FastIndexedSeq(),
+      initOpArgs = None,
+      seqOpArgs = FastIndexedSeq())
+
+    // test struct as key
+    runKeyedAggregator(Count(),
+      Ref("k", TStruct("a" -> TBoolean())),
+      TStruct("k" -> TStruct("a" -> TBoolean())),
+      FastIndexedSeq(Row(Row(true)), Row(Row(true)), Row(Row(true)), Row(Row(false)), Row(Row(false)), Row(Row(null)), Row(Row(null))),
+      Map(Row(true) -> 3L, Row(false) -> 2L, (Row(null), 2L)),
+      constrArgs = FastIndexedSeq(),
+      initOpArgs = None,
+      seqOpArgs = FastIndexedSeq())
+  }
+
+  @Test
+  def keyedCollect() {
+    runKeyedAggregator(
+      Collect(),
+      Ref("k", TBoolean()),
+      TStruct("k" -> TBoolean(), "v" -> TInt32()),
+      FastIndexedSeq(Row(true, 5), Row(true, 3), Row(true, null), Row(false, 0), Row(false, null), Row(null, null), Row(null, 2)),
+      Map(true -> FastIndexedSeq(5, 3, null), false -> FastIndexedSeq(0, null), (null, FastIndexedSeq(null, 2))),
+      FastIndexedSeq(),
+      None,
+      FastIndexedSeq(Ref("v", TInt32())))
+  }
+
+  @Test
+  def keyedCallStats() {
+    runKeyedAggregator(
+      CallStats(),
+      Ref("k", TBoolean()),
+      TStruct("k" -> TBoolean(), "v" ->TCall()),
+      FastIndexedSeq(Row(true, null), Row(true, Call2(0, 1)), Row(true, Call2(0, 1)),
+        Row(false, null), Row(false, Call2(0, 0)), Row(false, Call2(1, 1))),
+      Map(true -> Row(FastIndexedSeq(2, 2), FastIndexedSeq(0.5, 0.5), 4, FastIndexedSeq(0, 0)),
+        false -> Row(FastIndexedSeq(2, 2), FastIndexedSeq(0.5, 0.5), 4, FastIndexedSeq(1, 1))),
+      FastIndexedSeq(),
+      Some(FastSeq(I32(2))),
+      FastIndexedSeq(Ref("v", TCall())))
+  }
+
+  @Test
+  def keyedTakeBy() {
+    runKeyedAggregator(TakeBy(),
+      Ref("k", TString()),
+      TStruct("k" -> TString(), "x" -> TFloat64(), "y" -> TInt32()),
+      FastIndexedSeq(Row("case", 0.2, 5), Row("control", 0.4, 0), Row(null, 1.0, 3), Row("control", 0.0, 2), Row("case", 0.3, 6), Row("control", 0.5, 1)),
+      Map("case" -> FastIndexedSeq(0.2, 0.3),
+        "control" -> FastIndexedSeq(0.4, 0.5),
+        (null, FastIndexedSeq(1.0))),
+      FastIndexedSeq(I32(2)),
+      None,
+      FastIndexedSeq(Ref("x", TFloat64()), Ref("y", TInt32())))
+  }
+
+  @Test
+  def keyedInbreeding() {
+    runKeyedAggregator(Inbreeding(),
+      Ref("k", TString()),
+      TStruct("k" -> TString(), "x" -> TCall(), "y" -> TFloat64()),
+      FastIndexedSeq(Row("case", Call2(0, 0), 0d), Row("case", Call2(0, 1), 0.1), Row("case", Call2(0, 1), 0.2), Row("case", null, 0.3), Row("case", Call2(1, 1), 0.4), Row("case", Call2(0, 0), null)),
+      Map("case" -> Row(-1.040816, 4L, 3.02, 2L)),
+      constrArgs = FastIndexedSeq(),
+      None,
+      seqOpArgs = FastIndexedSeq(Ref("x", TCall()), Ref("y", TFloat64())))
+  }
+
+  @Test
+  def keyedKeyedCollect() {
+    val agg = FastIndexedSeq(Row("EUR", true, 1), Row("EUR", false, 2), Row("AFR", true, 3), Row("AFR", null, 4))
+    val aggType = TStruct("k1" -> TString(), "k2" -> TBoolean(), "x" -> TInt32())
+    val expected = Map("EUR" -> Map(true -> FastIndexedSeq(1), false -> FastIndexedSeq(2)), "AFR" -> Map(true -> FastIndexedSeq(3), (null, FastIndexedSeq(4))))
+    val aggSig = AggSignature(Collect(), FastIndexedSeq(), None, FastIndexedSeq(TInt32()), TArray(TInt32()))
+    assertEvalsTo(
+      AggGroupBy(Ref("k1", TString()),
+        AggGroupBy(Ref("k2", TBoolean()),
+          ApplyAggOp(
+            FastSeq(Ref("x", TInt32())),
+            FastSeq(),
+            None,
+            aggSig))),
+      (agg, aggType),
+      expected
+    )
+  }
+
+  @Test
+  def keyedKeyedCallStats() {
+    val agg = FastIndexedSeq(
+      Row("EUR", "CASE", null),
+      Row("EUR", "CONTROL", Call2(0, 1)),
+      Row("AFR", "CASE", Call2(1, 1)),
+      Row("AFR", "CONTROL", null))
+    val aggType = TStruct("k1" -> TString(), "k2" -> TString(), "g" -> TCall())
+    val expected = Map(
+      "EUR" -> Map(
+        "CONTROL" -> Row(FastIndexedSeq(1, 1), FastIndexedSeq(0.5, 0.5), 2, FastIndexedSeq(0, 0)),
+        "CASE" -> Row(FastIndexedSeq(0, 0), null, 0, FastIndexedSeq(0, 0))),
+      "AFR" -> Map(
+        "CASE" -> Row(FastIndexedSeq(0, 2), FastIndexedSeq(0.0, 1.0), 2, FastIndexedSeq(0, 1)),
+        "CONTROL" -> Row(FastIndexedSeq(0, 0), null, 0, FastIndexedSeq(0, 0))))
+    val aggSig = AggSignature(CallStats(), FastIndexedSeq(), Some(FastIndexedSeq(TInt32())), FastIndexedSeq(TCall()))
+    assertEvalsTo(
+      AggGroupBy(Ref("k1", TString()),
+        AggGroupBy(Ref("k2", TString()),
+          ApplyAggOp(
+            FastSeq(Ref("g", TCall())),
+            FastSeq(),
+            Some(FastSeq(I32(2))),
+            aggSig))),
+      (agg, aggType),
+      expected
+    )
+  }
+
+  @Test
+  def keyedKeyedTakeBy() {
+    val agg = FastIndexedSeq(
+      Row("case", "a", 0.2, 5), Row("control", "b", 0.4, 0),
+      Row(null, "c", 1.0, 3), Row("control", "b", 0.0, 2),
+      Row("case", "a", 0.3, 6), Row("control", "b", 0.5, 1))
+    val aggType = TStruct("k1" -> TString(), "k2" -> TString(), "x" -> TFloat64(), "y" -> TInt32())
+    val expected = Map(
+      "case" -> Map("a" -> FastIndexedSeq(0.2, 0.3)),
+      "control" -> Map("b" -> FastIndexedSeq(0.4, 0.5)),
+      (null, Map("c" -> FastIndexedSeq(1.0))))
+    val aggSig = AggSignature(TakeBy(), FastIndexedSeq(TInt32()), None, FastIndexedSeq(TFloat64(), TInt32()))
+    assertEvalsTo(
+      AggGroupBy(Ref("k1", TString()),
+        AggGroupBy(Ref("k2", TString()),
+          ApplyAggOp(
+            FastSeq(Ref("x", TFloat64()), Ref("y", TInt32())),
+            FastIndexedSeq(I32(2)),
+            None,
+            aggSig))),
+      (agg, aggType),
+      expected
+    )
+  }
+
+  @Test
+  def keyedKeyedKeyedCollect() {
+    val agg = FastIndexedSeq(Row("EUR", "CASE", true, 1), Row("EUR", "CONTROL", true, 2), Row("AFR", "CASE", false, 3), Row("AFR", "CONTROL", false, 4))
+    val aggType = TStruct("k1" -> TString(), "k2" -> TString(), "k3" -> TBoolean(), "x" -> TInt32())
+    val expected = Map("EUR" -> Map("CASE" -> Map(true -> FastIndexedSeq(1)), "CONTROL" -> Map(true -> FastIndexedSeq(2))), "AFR" -> Map("CASE" -> Map(false -> FastIndexedSeq(3)), "CONTROL" -> Map(false -> FastIndexedSeq(4))))
+    val aggSig = AggSignature(Collect(), FastIndexedSeq(), None, FastIndexedSeq(TInt32()), TArray(TInt32()))
+    assertEvalsTo(
+      AggGroupBy(Ref("k1", TString()),
+        AggGroupBy(Ref("k2", TString()),
+          AggGroupBy(Ref("k3", TBoolean()),
+            ApplyAggOp(
+              FastSeq(Ref("x", TInt32())),
+              FastSeq(),
+              None,
+              aggSig)))),
+      (agg, aggType),
+      expected
+    )
+  }
 
   @Test def downsample() {
     runAggregator(Downsample(),
@@ -921,7 +971,4 @@ class AggregatorsSuite {
       seqOpArgs = FastIndexedSeq(Ref("x", TFloat64()), Ref("y", TFloat64()), Ref("label", TArray(TString()))))
   }
 
-  @Test def extractAggregators(): Unit = {
-    ExtractAggregators2()
-  }
 }

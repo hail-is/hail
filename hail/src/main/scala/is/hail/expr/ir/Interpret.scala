@@ -393,6 +393,47 @@ object Interpret {
             val IndexedSeq(a) = seqOpArgs
             aggregator.get.seqOp(interpret(a))
         }
+
+      case x@AggFilter(cond, aggIR) =>
+        // filters elements under aggregation environment
+        val Some((aggElements, aggElementType)) = agg
+        val newAgg = aggElements.filter { row =>
+          val env = (row.toSeq, aggElementType.fieldNames).zipped
+            .foldLeft(Env.empty[Any]) { case (e, (v, n)) =>
+              e.bind(n, v)
+            }
+          interpret(cond, env).asInstanceOf[Boolean]
+        }
+        interpret(aggIR, agg = Some(newAgg -> aggElementType))
+
+      case x@AggExplode(array, name, aggBody) =>
+        // adds exploded array to elements under aggregation environment
+        val Some((aggElements, aggElementType)) = agg
+        val newAggElementType = aggElementType.appendKey(name, coerce[TArray](array.typ).elementType)
+        val newAgg = aggElements.flatMap { row =>
+          val env = (row.toSeq, aggElementType.fieldNames).zipped
+            .foldLeft(Env.empty[Any]) { case (e, (v, n)) =>
+              e.bind(n, v)
+            }
+          interpret(array, env).asInstanceOf[IndexedSeq[Any]].map { elt =>
+            Row(row.toSeq :+ elt: _*)
+          }
+        }
+        interpret(aggBody, agg = Some(newAgg -> newAggElementType))
+      case x@AggGroupBy(key, aggIR) =>
+        // evaluates one aggregation per key in aggregation environment
+        val Some((aggElements, aggElementType)) = agg
+        val groupedAgg = aggElements.groupBy { row =>
+          val env = (row.toSeq, aggElementType.fieldNames).zipped
+            .foldLeft(Env.empty[Any]) { case (e, (v, n)) =>
+              e.bind(n, v)
+            }
+          interpret(key, env)
+        }
+        groupedAgg.mapValues { row =>
+          interpret(aggIR, agg=Some(row, aggElementType))
+        }
+
       case x@ApplyAggOp(seqOpArgs, constructorArgs, initOpArgs, aggSig) =>
         assert(aggSig.returnType == x.typ)
 
