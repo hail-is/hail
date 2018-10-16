@@ -154,7 +154,13 @@ object Simplify {
 
     case Let(n1, v, Ref(n2, _)) if n1 == n2 => v
 
+    case Let(n, _, b) if !Mentions(b, n) => b
+
+    // FIXME: Isn't this covered by the previous rule?
+    case Let(_, _, Begin(Seq())) => Begin(FastIndexedSeq())
+
     case x@If(True(), cnsq, _) if x.typ == cnsq.typ => cnsq
+
     case x@If(False(), _, altr) if x.typ == altr.typ => altr
 
     case If(c, cnsq, altr) if cnsq == altr =>
@@ -167,23 +173,19 @@ object Simplify {
 
     case ArrayLen(MakeArray(args, _)) => I32(args.length)
 
-    case ArrayRef(MakeArray(args, _), I32(i)) if i >= 0 && i < args.length => args(i)
-
-    case ArrayFilter(a, _, True()) => a
-
-    case Let(n, v, b) if !Mentions(b, n) => b
-
-    case Let(_, _, Begin(Seq())) => Begin(FastIndexedSeq())
-
-    case ArrayFor(_, _, Begin(Seq())) => Begin(FastIndexedSeq())
-
-    case ArrayFold(ArrayMap(a, n1, b), zero, accumName, valueName, body) => ArrayFold(a, zero, accumName, n1, Let(valueName, b, body))
-
     case ArrayLen(ArrayRange(start, end, I32(1))) => ApplyBinaryPrimOp(Subtract(), end, start)
 
     case ArrayLen(ArrayMap(a, _, _)) => ArrayLen(a)
 
     case ArrayLen(ArrayFlatMap(a, _, MakeArray(args, _))) => ApplyBinaryPrimOp(Multiply(), I32(args.length), ArrayLen(a))
+
+    case ArrayRef(MakeArray(args, _), I32(i)) if i >= 0 && i < args.length => args(i)
+
+    case ArrayFilter(a, _, True()) => a
+
+    case ArrayFor(_, _, Begin(Seq())) => Begin(FastIndexedSeq())
+
+    case ArrayFold(ArrayMap(a, n1, b), zero, accumName, valueName, body) => ArrayFold(a, zero, accumName, n1, Let(valueName, b, body))
 
     case ArrayFlatMap(ArrayMap(a, n1, b1), n2, b2) =>
       ArrayFlatMap(a, n1, Let(n2, b1, b2))
@@ -200,6 +202,8 @@ object Simplify {
         case Some((_, x)) => x
         case None => GetField(old, name)
       }
+
+    case GetField(SelectFields(old, fields), name) => GetField(old, name)
 
     case InsertFields(InsertFields(base, fields1), fields2) =>
       val fields1Set = fields1.map(_._1).toSet
@@ -219,7 +223,8 @@ object Simplify {
 
     case InsertFields(struct, Seq()) => struct
 
-    case GetField(SelectFields(old, fields), name) => GetField(old, name)
+    case SelectFields(SelectFields(old, _), fields) =>
+      SelectFields(old, fields)
 
     case SelectFields(MakeStruct(fields), fieldNames) =>
       val makeStructFields = fields.toMap
@@ -235,9 +240,6 @@ object Simplify {
       x2
 
     case GetTupleElement(MakeTuple(xs), idx) => xs(idx)
-
-    case ApplyIR("annotate", Seq(s1, MakeStruct(Seq())), _) =>
-      s1
 
     case TableCount(TableMapGlobals(child, _)) => TableCount(child)
 
@@ -262,14 +264,22 @@ object Simplify {
 
     case TableCount(TableAggregateByKey(child, _)) => TableCount(TableDistinct(child))
 
+    // FIXME: Isn't this covered by the following one?
+    case ApplyIR("annotate", Seq(s, MakeStruct(Seq())), _) =>
+      s
+
     case ApplyIR("annotate", Seq(s, MakeStruct(fields)), _) =>
       InsertFields(s, fields)
-
-    case SelectFields(SelectFields(old, _), fields) =>
-      SelectFields(old, fields)
   }
 
   private[this] def tableRules(canRepartition: Boolean): PartialFunction[TableIR, TableIR] = {
+
+    case TableRename(child, m1, m2) if m1.isEmpty && m2.isEmpty => child
+
+    // TODO: Write more rules like this to bubble 'TableRename' nodes towards the root.
+    case t@TableRename(TableKeyBy(child, keys, isSorted), rowMap, globalMap) =>
+      TableKeyBy(TableRename(child, rowMap, globalMap), keys.map(t.rowF), isSorted)
+
     case TableFilter(t, True()) => t
 
     case TableFilter(TableRead(path, spec, typ, _), False() | NA(_)) =>
@@ -293,10 +303,6 @@ object Simplify {
 
     case TableKeyBy(child, key, _) if key == child.typ.key => child
 
-    // TODO: Write more rules like this to bubble 'TableRename' nodes towards the root.
-    case t@TableRename(TableKeyBy(child, keys, isSorted), rowMap, globalMap) =>
-      TableKeyBy(TableRename(child, rowMap, globalMap), keys.map(t.rowF), isSorted)
-
     case TableMapRows(child, Ref("row", _)) => child
 
     case TableMapRows(child, MakeStruct(fields))
@@ -312,8 +318,6 @@ object Simplify {
 
     case TableMapGlobals(child, Ref("global", _)) => child
 
-    case TableRename(child, m1, m2) if m1.isEmpty && m2.isEmpty => child
-
     // flatten unions
     case TableUnion(children) if children.exists(_.isInstanceOf[TableUnion]) & canRepartition =>
       TableUnion(children.flatMap {
@@ -321,9 +325,8 @@ object Simplify {
         case c => Some(c)
       })
 
-    // FIXME: currently doesn't work because TableUnion makes no guarantee on order. Put back in once ordering is enforced on Tables
-    //      case MatrixRowsTable(MatrixUnionRows(children)) =>
-    //        TableUnion(children.map(MatrixRowsTable))
+    case MatrixRowsTable(MatrixUnionRows(children)) =>
+      TableUnion(children.map(MatrixRowsTable))
 
     case MatrixColsTable(MatrixUnionRows(children)) =>
       MatrixColsTable(children(0))
@@ -341,6 +344,7 @@ object Simplify {
       TableFilter(
         mrt,
         Subst(newRow, Env.empty[IR].bind("va" -> Ref("row", mrt.typ.rowType))))
+
     case MatrixRowsTable(MatrixMapGlobals(child, newRow)) => TableMapGlobals(MatrixRowsTable(child), newRow)
     case MatrixRowsTable(MatrixMapCols(child, _, _)) => MatrixRowsTable(child)
     case MatrixRowsTable(MatrixMapEntries(child, _)) => MatrixRowsTable(child)
@@ -358,12 +362,14 @@ object Simplify {
       TableMapRows(
         mct,
         Subst(newRow, Env.empty[IR].bind("sa" -> Ref("row", mct.typ.rowType))))
+
     case MatrixColsTable(MatrixFilterCols(child, pred))
       if !Mentions(pred, "g") && !Mentions(pred, "va") =>
       val mct = MatrixColsTable(child)
       TableFilter(
         mct,
         Subst(pred, Env.empty[IR].bind("sa" -> Ref("row", mct.typ.rowType))))
+
     case MatrixColsTable(MatrixMapGlobals(child, newRow)) => TableMapGlobals(MatrixColsTable(child), newRow)
     case MatrixColsTable(MatrixMapRows(child, _)) => MatrixColsTable(child)
     case MatrixColsTable(MatrixMapEntries(child, _)) => MatrixColsTable(child)
@@ -374,15 +380,19 @@ object Simplify {
 
     case TableHead(TableMapRows(child, newRow), n) =>
       TableMapRows(TableHead(child, n), newRow)
+
     case TableHead(TableRepartition(child, nPar, shuffle), n) if canRepartition =>
       TableRepartition(TableHead(child, n), nPar, shuffle)
+
     case TableHead(tr@TableRange(nRows, nPar), n) if canRepartition =>
       if (n < nRows)
         TableRange(n.toInt, (nPar.toFloat * n / nRows).toInt.max(1))
       else
         tr
+
     case TableHead(TableMapGlobals(child, newRow), n) =>
       TableMapGlobals(TableHead(child, n), newRow)
+
     case TableHead(TableOrderBy(child, sortFields), n)
       if sortFields.forall(_.sortOrder == Ascending) && n < 256 && canRepartition =>
       // n < 256 is arbitrary for memory concerns
@@ -406,10 +416,12 @@ object Simplify {
 
     case TableKeyByAndAggregate(child, MakeStruct(Seq()), k@MakeStruct(keyFields), _, _) if canRepartition =>
       TableDistinct(TableMapRows(child, k))
+
     case TableKeyByAndAggregate(child, expr, newKey, _, _)
       if newKey == MakeStruct(child.typ.key.map(k => k -> GetField(Ref("row", child.typ.rowType), k)))
         && child.typ.key.nonEmpty && canRepartition =>
       TableAggregateByKey(child, expr)
+
     case TableAggregateByKey(TableKeyBy(child, keys, _), expr) if canRepartition =>
       TableKeyByAndAggregate(child, expr, MakeStruct(keys.map(k => k -> GetField(Ref("row", child.typ.rowType), k))))
   }
