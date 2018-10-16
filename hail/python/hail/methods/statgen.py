@@ -279,10 +279,6 @@ def linear_regression_rows(y, x, covariates, block_size=16) -> hail.Table:
     :py:data:`.tarray` of :py:data:`.tfloat64`, with corresponding indexing of
     the list and each array.
 
-    If `y` is a doubly-nested list of expressions, then the last five fields instead have type
-    ``array<array<float64>>``, with corresponding indexing of
-    the list and each array.
-
     In the statistical genetics example above, the input variable `x` encodes
     genotype as the number of alternate alleles (0, 1, or 2). For each variant
     (row), genotype is tested for association with height controlling for age
@@ -878,8 +874,8 @@ def linear_mixed_regression_rows(entry_expr,
        ``(n_rows / block_size) * (model.r / block_size)``.
 
     4. Compute regression results per row with
-       :meth:`.LinearMixedModel.fit_alternatives` and row-annotate the statistics
-       at `root`. The parallelism is ``n_rows / partition_size``.
+       :meth:`.LinearMixedModel.fit_alternatives`.
+       The parallelism is ``n_rows / partition_size``.
 
     If `pa_t_path` and `a_t_path` are not set, temporary files are used.
 
@@ -928,7 +924,7 @@ def linear_mixed_regression_rows(entry_expr,
     -------
     For correct results, the column-index of `entry_expr` must correspond to the
     sample index of the model. This will be true, for example, if `model`
-    was created with :class:`LinearMixedModel` using (a possibly row-filtered
+    was created with :func:`.linear_mixed_model` using (a possibly row-filtered
     version of) the source of `entry_expr`, or if `y` and `x` were collected to
     arrays from this source. Hail will raise an error if the number of columns
     does not match ``model.n``, but will not detect, for example, permuted
@@ -958,8 +954,7 @@ def linear_mixed_regression_rows(entry_expr,
 
     Returns
     -------
-    :class:`.MatrixTable`
-        Matrix table with regression results in a new row-indexed field.
+    :class:`.Table`
     """
     mt = matrix_table_source('linear_mixed_regression_rows', entry_expr)
     n = mt.count_cols()

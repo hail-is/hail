@@ -78,13 +78,13 @@ object PoissonRegression {
         RegressionUtils.setMeanImputedDoubles(X.data, n * k, completeColIdxBc.value, missingCompleteCols,
           rv, fullRowType, entryArrayType, entryType, entryArrayIdx, fieldIdx)
 
-        val logregAnnot = poisRegTestBc.value.test(X, yBc.value, nullFitBc.value, "poisson")
-
         rvb.set(rv.region)
         rvb.start(newRVDType.rowType)
         rvb.startStruct()
         rvb.addFields(fullRowType, rv, keyIndices)
-        logregAnnot.addToRVB(rvb)
+        poisRegTestBc.value
+          .test(X, yBc.value, nullFitBc.value, "poisson")
+          .addToRVB(rvb)
         rvb.endStruct()
 
         rv2.set(rv.region, rvb.end())

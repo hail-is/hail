@@ -1,31 +1,14 @@
-import math
-import numpy as np
-from typing import *
-
-import hail as hl
-import hail.expr.aggregators as agg
-from hail.expr.expressions import *
-from hail.expr.types import *
-from hail.genetics.reference_genome import reference_genome_type
-from hail.linalg import BlockMatrix
-from hail.matrixtable import MatrixTable
-from hail.methods.misc import require_biallelic, require_row_key_variant
-from hail.table import Table
-from hail.typecheck import *
-from hail.utils import wrap_to_list, new_temp_file
-from hail.utils.java import *
-
-
 import numpy as np
 import pandas as pd
 
 import hail as hl
-from hail.utils.misc import plural
-from hail.typecheck import *
-from hail.utils.java import Env, jnone, jsome, info
-from hail.table import Table
 from hail.linalg import BlockMatrix
 from hail.linalg.utils import _check_dims
+from hail.table import Table
+from hail.typecheck import *
+from hail.utils.java import Env, jnone, jsome, info
+from hail.utils.misc import plural
+
 
 class LinearMixedModel(object):
     r"""Class representing a linear mixed model.
