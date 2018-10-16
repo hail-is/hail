@@ -129,8 +129,6 @@ class AggFunc(object):
         self._agg_bindings.add(var)
         aggregated = f(ref)
         self._agg_bindings.remove(var)
-        if len(aggregated._ir.search(lambda n: isinstance(n, BaseApplyAggOp))) == 0:
-            raise ExpressionException("'{}.explode' must take mapping containing aggregation".format(self.correct_prefix()))
 
         def rewrite(node):
             if isinstance(node, BaseApplyAggOp):
@@ -159,8 +157,6 @@ class AggFunc(object):
     def filter(self, condition, aggregation):
         if len(condition._ir.search(lambda n: isinstance(n, BaseApplyAggOp))) != 0:
             raise ExpressionException("'agg.filter' does not support an already-aggregated expression as the argument to 'condition'")
-        if len(aggregation._ir.search(lambda n: isinstance(n, BaseApplyAggOp))) == 0:
-            raise ExpressionException("'agg.filter' must take expression containing aggregation as argument to 'aggregation'")
 
         unify_all(condition, aggregation)
 
@@ -186,9 +182,6 @@ class AggFunc(object):
     def group_by(self, group, aggregation):
         if len(group._ir.search(lambda n: isinstance(n, BaseApplyAggOp))) != 0:
             raise ExpressionException("'agg.group_by' does not support an already-aggregated expression as the argument to 'group'")
-
-        if len(aggregation._ir.search(lambda n: isinstance(n, BaseApplyAggOp))) == 0:
-            raise ExpressionException("'agg.group_by' must take expression containing aggregation as argument to 'aggregation'")
 
         unify_all(group, aggregation)
 
@@ -789,6 +782,7 @@ def product(expr):
     """
 
     return _agg_func('Product', expr, expr.dtype)
+
 
 @typecheck(predicate=expr_bool)
 def fraction(predicate) -> Float64Expression:
