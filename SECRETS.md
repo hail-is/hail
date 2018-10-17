@@ -19,4 +19,9 @@ CI deployment pods for `github.com/hail-is/hail` mount a secret named
 
  - `gcr-push-service-account-key.json`, a GCP service account key with
    sufficient privileges to push to the project's Google Container Registry and
-   to issue `kubectl` commands.
+   to issue `kubectl` commands
+
+ - `pypi-username`, the username of a PYPI account with privileges to publish
+   the hail package
+
+ - `pypi-password`, the password for the PYPI user identified by `pypi-username`
