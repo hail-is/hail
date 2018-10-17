@@ -3,6 +3,7 @@ kind: Deployment
 metadata:
   name: cronus-deployment
   labels:
+    app: cronus
     hail.is/sha: @sha@
 spec:
   selector:
