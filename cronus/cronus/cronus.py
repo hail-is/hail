@@ -48,7 +48,7 @@ def start_pod(jupyter_token):
                 name='default',
                 image='gcr.io/broad-ctsa/cronus',
                 ports=[kube.client.V1ContainerPort(
-                    container_port=5000,
+                    container_port=8888,
                     host_port=80)],
                 resources=kube.client.V1ResourceRequirements(
                     requests={'cpu': '3.7', 'memory': '4G'}))])
@@ -68,16 +68,21 @@ def start_pod(jupyter_token):
             'hail.is/cronus-instance': INSTANCE_ID,
             'uuid': pod_id},
         ports=[kube.client.V1ServicePort(port=80)])
-    service_template = kube.client.V1Service(spec=service_spec)
-    k8s.create_namespaced_service('default', service_template)
+    service_template = kube.client.V1Service(
+        metadata=kube.client.V1ObjectMeta(
+            generate_name='cronus-job-service-',
+            labels={
+                'app': 'cronus-job',
+                'hail.is/cronus-instance': INSTANCE_ID}),
+        spec=service_spec)
+    svc = k8s.create_namespaced_service('default', service_template)
     while True:
         pod = k8s.read_namespaced_pod(name=pod.metadata.name,
                                       namespace='default')
         if pod.status.phase != 'Pending':
             break
         time.sleep(1)
-    return pod
-
+    return svc
 
 
 def external_url_for(*args, **kwargs):
@@ -96,22 +101,22 @@ def healthcheck():
 
 @app.route('/')
 def root():
-    if 'pod_name' not in session:
+    if 'svc_name' not in session:
         jupyter_token = uuid.uuid4().hex  # FIXME: probably should be cryptographically secure
-        pod = start_pod(jupyter_token)
-        session['pod_name'] = pod.metadata.name
+        svc = start_pod(jupyter_token)
+        svc_name = svc.metadata.name
+        session['svc_name'] = svc_name
         session['jupyter_token'] = jupyter_token
-        print(f'pod {pod.metadata.name}, jupyter_token {jupyter_token}')
-        return redirect(external_url_for('root') + f'?token={jupyter_token}')
-    pod_name = session['pod_name']
+        redirect(external_url_for('root') + f'/instance/{svc_name}/?token={jupyter_token}')
+    svc_name = session['svc_name']
     jupyter_token = session['jupyter_token']
-    return redirect(external_url_for('root') + f'/instance/{pod_name}/?token={jupyter_token}')
+    return redirect(external_url_for('root') + f'/instance/{svc_name}/?token={jupyter_token}')
 
 
-@app.route('/auth/<requested_pod_name>')
-def auth(requested_pod_name):
-    approved_pod_name = session.get('pod_name')
-    if approved_pod_name and approved_pod_name == requested_pod_name:
+@app.route('/auth/<requested_svc_name>')
+def auth(requested_svc_name):
+    approved_svc_name = session.get('svc_name')
+    if approved_svc_name and approved_svc_name == requested_svc_name:
         return '', 200
     return '', 403
 

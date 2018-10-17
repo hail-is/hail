@@ -1,4 +1,4 @@
-.PHONY: build push run-docker run deploy
+.PHONY: build push run-docker run deploy clean-jobs
 
 build:
 	docker build . -t cronus
@@ -20,3 +20,7 @@ deploy:
 	  -e "s,@image@,$(shell cat cronus-image)," \
 	  < deployment.yaml.in > deployment.yaml
 	kubectl apply -f deployment.yaml
+
+clean-jobs:
+	kubectl delete pods -l app=cronus-job
+	kubectl delete services -l app=cronus-job
