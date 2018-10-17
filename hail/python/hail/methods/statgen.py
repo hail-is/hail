@@ -984,7 +984,7 @@ def linear_mixed_regression_rows(entry_expr,
 
     ht = model.fit_alternatives(pa_t_path,
                                 a_t_path if model.low_rank else None,
-                                partition_size).cache()
+                                partition_size)
     mt = mt.add_row_index('__row_idx')
     mt_keys = mt.select_rows().rows().add_index('__row_idx').key_by('__row_idx')
     return mt_keys.annotate(**ht[mt_keys['__row_idx']]).key_by(*mt.row_key).drop('__row_idx')

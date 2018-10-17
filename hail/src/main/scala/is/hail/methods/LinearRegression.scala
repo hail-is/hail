@@ -10,6 +10,7 @@ import is.hail.table.Table
 import is.hail.utils._
 import is.hail.variant._
 import net.sourceforge.jdistlib.T
+import org.apache.spark.storage.StorageLevel
 
 object LinearRegression {
   val schema = TStruct(
@@ -152,7 +153,7 @@ object LinearRegression {
               rv2
             }
           }
-      })
+      }).persist(StorageLevel.MEMORY_AND_DISK)
     new Table(vsm.hc, TableLiteral(TableValue(tableType, BroadcastRow.empty(sc), newRVD)))
   }
 }

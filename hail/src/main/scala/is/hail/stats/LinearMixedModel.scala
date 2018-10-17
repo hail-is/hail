@@ -6,12 +6,13 @@ import is.hail.annotations.{BroadcastRow, Region, RegionValue, RegionValueBuilde
 import is.hail.expr.ir.{TableLiteral, TableValue}
 import is.hail.expr.types.{TFloat64, TInt64, TStruct, TableType}
 import is.hail.linalg.RowMatrix
-import is.hail.rvd.{RVD, RVDPartitioner, RVDType, RVDContext}
+import is.hail.rvd.{RVD, RVDContext, RVDPartitioner, RVDType}
 import is.hail.sparkextras.ContextRDD
 import is.hail.table.Table
 import is.hail.utils._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
+import org.apache.spark.storage.StorageLevel
 
 case class LMMData(gamma: Double, residualSq: Double, py: BDV[Double], px: BDM[Double], d: BDV[Double],
   ydy: Double, xdy: BDV[Double], xdx: BDM[Double], yOpt: Option[BDV[Double]], xOpt: Option[BDM[Double]])
@@ -36,7 +37,7 @@ object LinearMixedModel {
     val typ = TableType(rowType, FastIndexedSeq("idx"), globalType = TStruct())
     
     val rvd = RVD(RVDType(typ.rowType, Array("idx")),
-      partitioner, ContextRDD.weaken[RVDContext](rdd))
+      partitioner, ContextRDD.weaken[RVDContext](rdd)).persist(StorageLevel.MEMORY_AND_DISK)
     
     new Table(hc, TableLiteral(TableValue(typ, BroadcastRow(Row(), typ.globalType, hc.sc), rvd)))
   }
