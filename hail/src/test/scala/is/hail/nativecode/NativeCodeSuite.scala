@@ -1,5 +1,7 @@
 package is.hail.nativecode
 
+import java.io.ByteArrayOutputStream
+
 import is.hail.SparkSuite
 import is.hail.annotations._
 import is.hail.check.Gen
@@ -246,6 +248,59 @@ class NativeCodeSuite extends SparkSuite {
     assert(Upcalls.testMsg.equals("Hello!"))
     st.close()
     testUpcall.close()
+  }
+
+  @Test def testCXXOutputStream: Unit = {
+    val tub = new TranslationUnitBuilder()
+    tub.include("hail/hail.h")
+    tub.include("hail/Encoder.h")
+    tub.include("hail/ObjectArray.h")
+    tub.include("<cstdio>")
+
+    val makeHolderF = FunctionBuilder("makeObjectHolder", Array("NativeStatus*" -> "st", "long" -> "objects"), "NativeObjPtr")
+
+    makeHolderF += Statement(s"return std::make_shared<ObjectHolder>(reinterpret_cast<ObjectArray*>(${makeHolderF.getArg(1)}))")
+    val holderF = makeHolderF.result()
+    tub += holderF
+
+    val fb = FunctionBuilder("testOutputStream", Array("NativeStatus*" -> "st", "long" -> "holder"), "long")
+
+    fb += Statement(
+      s"""
+         |UpcallEnv up;
+         |auto h = reinterpret_cast<ObjectHolder*>(${fb.getArg(1)});
+         |auto jos = h->objects_->at(0);
+         |
+         |char * buf = new char[10]{97, 98, 99, 100, 101, 102, 103, 104, 105, 106};
+         |
+         |auto os = OutputStream(up, jos);
+         |os.write(buf, 10);
+         |
+         |return 0;
+       """.stripMargin)
+
+    val f = fb.result()
+    tub += f
+
+    val mod = tub.result().build("")
+
+    val st = new NativeStatus()
+    val makeHolder = mod.findPtrFuncL1(st, holderF.name)
+    assert(st.ok, st.toString())
+    val testOS = mod.findLongFuncL1(st, f.name)
+    assert(st.ok, st.toString())
+    mod.close()
+
+    val baos = new ByteArrayOutputStream()
+    val objArray = new ObjectArray(baos)
+    val holder = new NativePtr(makeHolder, st, objArray.get())
+    objArray.close()
+    makeHolder.close()
+
+    assert(testOS(st, holder.get()) == 0)
+    baos.flush()
+    assert(new String(baos.toByteArray) == "abcdefghij")
+    testOS.close()
   }
 
 }
