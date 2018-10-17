@@ -15,6 +15,7 @@ spec:
       containers:
         - name: spark-master
           image: gcr.io/broad-ctsa/spark-master
+          imagePullPolicy: Always
           ports:
           - containerPort: 7077
           - containerPort: 8080
@@ -22,6 +23,11 @@ spec:
             requests:
               memory: "3.75G"
               cpu: "0.9"
+          env:
+          - name: POD_IP
+            valueFrom:
+              fieldRef:
+                fieldPath: status.podIP
 ---
 apiVersion: apps/v1beta2
 kind: Deployment
@@ -37,9 +43,13 @@ spec:
       labels:
         app: spark-worker
     spec:
+      tolerations:
+      - key: preemptible
+        value: "true"
       containers:
         - name: spark-worker
           image: gcr.io/broad-ctsa/spark-worker
+          imagePullPolicy: Always
           ports:
           - containerPort: 8081
           resources:

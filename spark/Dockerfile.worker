@@ -1,3 +1,5 @@
 FROM spark-base
 
-CMD ["/spark-2.2.0-bin-hadoop2.7/bin/spark-class", "org.apache.spark.deploy.worker.Worker", "-c", "2", "--webui-port", "8081", "spark://spark-master:7077"]
+COPY start-worker.sh /
+
+CMD ["/start-worker.sh"]

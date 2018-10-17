@@ -1,3 +1,5 @@
 FROM spark-base
 
-CMD ["/spark-2.2.0-bin-hadoop2.7/bin/spark-class", "org.apache.spark.deploy.master.Master", "--host", "spark-master", "--port", "7077", "--webui-port", "8080"]
+COPY start-master.sh /
+
+CMD ["/start-master.sh"]
