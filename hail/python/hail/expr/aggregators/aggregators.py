@@ -92,6 +92,7 @@ class AggFunc(object):
     def explode(self, f, array_agg_expr):
         if len(array_agg_expr._ir.search(lambda n: isinstance(n, BaseApplyAggOp))) != 0:
             raise ExpressionException("'{}.explode' does not support an already-aggregated expression as the argument to 'collection'".format(self.correct_prefix()))
+        _check_agg_bindings(array_agg_expr, self._agg_bindings)
 
         if isinstance(array_agg_expr.dtype, tset):
             array_agg_expr = hl.array(array_agg_expr)
@@ -101,6 +102,7 @@ class AggFunc(object):
         self._agg_bindings.add(var)
         aggregated = f(ref)
         self._agg_bindings.remove(var)
+        _check_agg_bindings(aggregated, self._agg_bindings)
 
         if len(aggregated._ir.search(lambda n: isinstance(n, BaseApplyAggOp))) == 0:
             raise ExpressionException("'{}.explode' must take mapping that contains aggregation expression.".format(self.correct_prefix()))
@@ -122,7 +124,9 @@ class AggFunc(object):
         if len(aggregation._ir.search(lambda n: isinstance(n, BaseApplyAggOp))) == 0:
             raise ExpressionException("'{}.filter' must have aggregation in argument to 'aggregation'".format(self.correct_prefix()))
 
-        indices, aggregations = unify_all(condition, aggregation)
+        _check_agg_bindings(condition, self._agg_bindings)
+        _check_agg_bindings(aggregation, self._agg_bindings)
+        unify_all(condition, aggregation)
 
         aggregations = hl.utils.LinkedList(Aggregation)
         if not self._as_scan:
@@ -138,7 +142,9 @@ class AggFunc(object):
         if len(aggregation._ir.search(lambda n: isinstance(n, BaseApplyAggOp))) == 0:
             raise ExpressionException("'{}.group_by' must have aggregation in argument to 'aggregation'".format(self.correct_prefix()))
 
-        indices, _ = unify_all(group, aggregation)
+        _check_agg_bindings(group, self._agg_bindings)
+        _check_agg_bindings(aggregation, self._agg_bindings)
+        unify_all(group, aggregation)
 
         aggregations = hl.utils.LinkedList(Aggregation)
         if not self._as_scan:
@@ -1375,6 +1381,7 @@ def group_by(group, agg_expr) -> DictExpression:
 
     return _agg_func.group_by(group, agg_expr)
 
+
 class ScanFunctions(object):
 
     def __init__(self, scope):
@@ -1385,9 +1392,10 @@ class ScanFunctions(object):
         def wrapper(*args, **kwargs):
             func = getattr(f, '__wrapped__')
             af = func.__globals__['_agg_func']
+            as_scan = getattr(af, '_as_scan')
             setattr(af, '_as_scan', True)
             res = f(*args, **kwargs)
-            setattr(af, '_as_scan', False)
+            setattr(af, '_as_scan', as_scan)
             return res
         update_wrapper(wrapper, f)
         return wrapper

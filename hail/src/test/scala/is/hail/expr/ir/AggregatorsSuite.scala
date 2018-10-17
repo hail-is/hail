@@ -954,4 +954,37 @@ class AggregatorsSuite {
       seqOpArgs = FastIndexedSeq(Ref("x", TFloat64()), Ref("y", TFloat64()), Ref("label", TArray(TString()))))
   }
 
+  @Test def testAggFilter(): Unit = {
+    val aggSig = AggSignature(Sum(), FastIndexedSeq(), None, FastIndexedSeq(TInt64()))
+    val aggType = TStruct("x" -> TBoolean(), "y" -> TInt64())
+    val agg = FastIndexedSeq(Row(true, -1L), Row(true, 1L), Row(false, 3L), Row(true, 5L))
+
+    assertEvalsTo(
+          AggFilter(Ref("x", TBoolean()),
+            ApplyAggOp(FastSeq(), None,
+              FastSeq(Ref("y", TInt64())),
+              aggSig)),
+      (agg, aggType),
+      5L)
+  }
+
+  @Test def testAggExplode(): Unit = {
+    val aggSig = AggSignature(Sum(), FastIndexedSeq(), None, FastIndexedSeq(TInt64()))
+    val aggType = TStruct("x" -> TArray(TInt64()))
+    val agg = FastIndexedSeq(
+      Row(FastIndexedSeq[Long](1, 4)),
+      Row(FastIndexedSeq[Long]()),
+      Row(FastIndexedSeq[Long](-1, 3)),
+      Row(FastIndexedSeq[Long](4, 5, 6, -7)))
+
+    assertEvalsTo(
+      AggExplode(Ref("x", TArray(TInt64())),
+        "y",
+        ApplyAggOp(FastSeq(), None,
+          FastSeq(Ref("y", TInt64())),
+          aggSig)),
+      (agg, aggType),
+      15L)
+  }
+
 }
