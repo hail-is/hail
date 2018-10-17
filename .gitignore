@@ -9,4 +9,4 @@ hail.iml
 hail*.log
 out/
 target
-
+.DS_Store
