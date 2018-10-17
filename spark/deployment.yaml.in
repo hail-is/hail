@@ -23,11 +23,6 @@ spec:
             requests:
               memory: "3.75G"
               cpu: "0.9"
-          env:
-          - name: POD_IP
-            valueFrom:
-              fieldRef:
-                fieldPath: status.podIP
 ---
 apiVersion: apps/v1beta2
 kind: Deployment

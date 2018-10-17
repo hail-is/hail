@@ -4,7 +4,6 @@ set -x
 unset SPARK_MASTER_HOST
 unset SPARK_MASTER_PORT
 
-# echo "$POD_IP spark-master" >> /etc/hosts
 echo "0.0.0.0 spark-master" >> /etc/hosts
 
 export SPARK_DAEMON_JAVA_OPTS="-Djava.net.preferIPv4Stack=true"
