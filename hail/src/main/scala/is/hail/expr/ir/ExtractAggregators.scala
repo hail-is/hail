@@ -72,12 +72,13 @@ object ExtractAggregators {
 
         val nestedAggs = newRVAggBuilder.result()
         val agg = KeyedRegionValueAggregator(nestedAggs.map(_.rvAgg), key.typ)
-        val aggSig = AggSignature(Group(), Seq(), Some(Seq(TVoid)), Seq(key.typ, TVoid), TDict(key.typ, TTuple(nestedAggs.map(_.rt): _*)))
-        newRef.typ = -coerce[TDict](aggSig.returnType).elementType
+        val aggSig = AggSignature(Group(), Seq(), Some(Seq(TVoid)), Seq(key.typ, TVoid))
+        val rt = TDict(key.typ, TTuple(nestedAggs.map(_.rt): _*))
+        newRef.typ = -rt.elementType
 
         val (initOp, seqOp) = newBuilder.result().map { case AggOps(x, y) => (x, y) }.unzip
         val i = ab.length
-        ab += IRAgg(i, agg, aggSig.returnType)
+        ab += IRAgg(i, agg, rt)
         ab2 += AggOps(
           Some(InitOp(i, FastIndexedSeq(Begin(initOp.flatten.toFastIndexedSeq)), aggSig)),
           SeqOp(I32(i), FastIndexedSeq(key, Begin(seqOp)), aggSig))
@@ -93,21 +94,21 @@ object ExtractAggregators {
       var codeConstructorArgs = constructorArgs.map(Emit.toCode(_, fb, 1))
 
       aggSig match {
-        case AggSignature(Collect() | Take() | CollectAsSet(), _, _, Seq(t@(_: TBoolean | _: TInt32 | _: TInt64 | _: TFloat32 | _: TFloat64 | _: TCall)), _) =>
-        case AggSignature(Collect() | Take() | CollectAsSet(), _, _, Seq(t), _) =>
+        case AggSignature(Collect() | Take() | CollectAsSet(), _, _, Seq(t@(_: TBoolean | _: TInt32 | _: TInt64 | _: TFloat32 | _: TFloat64 | _: TCall))) =>
+        case AggSignature(Collect() | Take() | CollectAsSet(), _, _, Seq(t)) =>
           codeConstructorArgs ++= FastIndexedSeq(EmitTriplet(Code._empty, const(false), fb.getType(t)))
-        case AggSignature(Counter(), _, _, Seq(t@(_: TBoolean)), _) =>
-        case AggSignature(Counter(), _, _, Seq(t), _) =>
+        case AggSignature(Counter(), _, _, Seq(t@(_: TBoolean))) =>
+        case AggSignature(Counter(), _, _, Seq(t)) =>
           codeConstructorArgs = FastIndexedSeq(EmitTriplet(Code._empty, const(false), fb.getType(t)))
-        case AggSignature(TakeBy(), _, _, Seq(aggType, keyType), _) =>
+        case AggSignature(TakeBy(), _, _, Seq(aggType, keyType)) =>
           codeConstructorArgs ++= FastIndexedSeq(EmitTriplet(Code._empty, const(false), fb.getType(aggType)),
             EmitTriplet(Code._empty, const(false), fb.getType(keyType)))
-        case AggSignature(InfoScore(), _, _, Seq(t), _) =>
+        case AggSignature(InfoScore(), _, _, Seq(t)) =>
           codeConstructorArgs = FastIndexedSeq(EmitTriplet(Code._empty, const(false), fb.getType(t)))
-        case AggSignature(LinearRegression(), _, _, Seq(_, xType), _) =>
+        case AggSignature(LinearRegression(), _, _, Seq(_, xType)) =>
           codeConstructorArgs ++= FastIndexedSeq(EmitTriplet(Code._empty, const(false), fb.getType(xType)))
-        case AggSignature(Sum(), _, _, Seq(t@(_: TInt64 | _: TFloat64)), _) =>
-        case AggSignature(Sum(), _, _, Seq(t), _) =>
+        case AggSignature(Sum(), _, _, Seq(t@(_: TInt64 | _: TFloat64))) =>
+        case AggSignature(Sum(), _, _, Seq(t)) =>
           codeConstructorArgs = FastIndexedSeq(EmitTriplet(Code._empty, const(false), fb.getType(t)))
         case _ =>
       }

@@ -7,21 +7,11 @@ import is.hail.utils._
 
 import scala.reflect.ClassTag
 
-object AggSignature {
-
-  def apply(op: AggOp, constructorArgs: Seq[Type], initOpArgs: Option[Seq[Type]], seqOpArgs: Seq[Type]): AggSignature = {
-    AggSignature(op, constructorArgs, initOpArgs, seqOpArgs,
-      AggOp.getOption(op, constructorArgs, initOpArgs, seqOpArgs).get.out)
-  }
-
-}
-
 case class AggSignature(
   op: AggOp,
   constructorArgs: Seq[Type],
   initOpArgs: Option[Seq[Type]],
-  seqOpArgs: Seq[Type],
-  returnType: Type)
+  seqOpArgs: Seq[Type])
 
 sealed trait AggOp { }
 final case class CallStats() extends AggOp { }

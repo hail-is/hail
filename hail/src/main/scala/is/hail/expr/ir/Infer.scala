@@ -56,9 +56,9 @@ object Infer {
       case AggGroupBy(key, aggIR) =>
         TDict(key.typ, aggIR.typ)
       case ApplyAggOp(_, _, _, aggSig) =>
-        aggSig.returnType
+        AggOp.getType(aggSig)
       case ApplyScanOp(_, _, _, aggSig) =>
-        aggSig.returnType
+        AggOp.getType(aggSig)
       case MakeStruct(fields) =>
         TStruct(fields.map { case (name, a) =>
           (name, a.typ)

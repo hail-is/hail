@@ -378,7 +378,7 @@ object Simplify {
         val uid = genUID()
         val row = Ref("row", child.typ.rowType)
         val keyStruct = MakeStruct(sortFields.map(f => f.field -> GetField(row, f.field)))
-        val aggSig = AggSignature(TakeBy(), FastSeq(TInt32()), None, FastSeq(row.typ, keyStruct.typ), TArray(row.typ))
+        val aggSig = AggSignature(TakeBy(), FastSeq(TInt32()), None, FastSeq(row.typ, keyStruct.typ))
         val te =
           TableExplode(
             TableKeyByAndAggregate(child,

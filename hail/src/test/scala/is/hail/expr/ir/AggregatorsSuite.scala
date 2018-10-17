@@ -300,7 +300,7 @@ class AggregatorsSuite {
 
   @Test
   def sumMultivar() {
-    val aggSig = AggSignature(Sum(), FastSeq(), None, FastSeq(TFloat64()), TFloat64())
+    val aggSig = AggSignature(Sum(), FastSeq(), None, FastSeq(TFloat64()))
     assertEvalsTo(ApplyAggOp(
       FastSeq(ApplyBinaryPrimOp(Multiply(), Ref("a", TFloat64()), Ref("b", TFloat64()))),
       FastSeq(), None, aggSig),
@@ -312,7 +312,7 @@ class AggregatorsSuite {
     a: IndexedSeq[Seq[T]],
     expected: Seq[T]
   ): Unit = {
-    val aggSig = AggSignature(Sum(), FastSeq(), None, FastSeq(TArray(hailType[T])), TArray(hailType[T]))
+    val aggSig = AggSignature(Sum(), FastSeq(), None, FastSeq(TArray(hailType[T])))
     val aggregable = a.map(Row(_))
     assertEvalsTo(
       ApplyAggOp(FastSeq(Ref("a", TArray(hailType[T]))), FastSeq(), None, aggSig),
@@ -397,7 +397,7 @@ class AggregatorsSuite {
     expected: Seq[T]
   ): Unit = {
     val typ = TArray(hailType[T].setRequired(true))
-    val aggSig = AggSignature(Sum(), FastSeq(), None, FastSeq(typ), typ)
+    val aggSig = AggSignature(Sum(), FastSeq(), None, FastSeq(typ))
     val aggregable = a.map(Row(_))
     assertEvalsTo(
       ApplyAggOp(FastSeq(Ref("a", typ)), FastSeq(), None, aggSig),
@@ -769,7 +769,7 @@ class AggregatorsSuite {
     seqOpArgs: IndexedSeq[IR]) {
 
     val codeAgg = AggOp.getOption(op, constrArgs.map(_.typ), initOpArgs.map(_.map(_.typ)), seqOpArgs.map(_.typ)).get
-    val aggSig = AggSignature(op, constrArgs.map(_.typ), initOpArgs.map(_.map(_.typ)), seqOpArgs.map(_.typ), codeAgg.out)
+    val aggSig = AggSignature(op, constrArgs.map(_.typ), initOpArgs.map(_.map(_.typ)), seqOpArgs.map(_.typ))
 
     assertEvalsTo(
       AggGroupBy(key,
@@ -861,7 +861,7 @@ class AggregatorsSuite {
     val agg = FastIndexedSeq(Row("EUR", true, 1), Row("EUR", false, 2), Row("AFR", true, 3), Row("AFR", null, 4))
     val aggType = TStruct("k1" -> TString(), "k2" -> TBoolean(), "x" -> TInt32())
     val expected = Map("EUR" -> Map(true -> FastIndexedSeq(1), false -> FastIndexedSeq(2)), "AFR" -> Map(true -> FastIndexedSeq(3), (null, FastIndexedSeq(4))))
-    val aggSig = AggSignature(Collect(), FastIndexedSeq(), None, FastIndexedSeq(TInt32()), TArray(TInt32()))
+    val aggSig = AggSignature(Collect(), FastIndexedSeq(), None, FastIndexedSeq(TInt32()))
     assertEvalsTo(
       AggGroupBy(Ref("k1", TString()),
         AggGroupBy(Ref("k2", TBoolean()),
@@ -934,7 +934,7 @@ class AggregatorsSuite {
     val agg = FastIndexedSeq(Row("EUR", "CASE", true, 1), Row("EUR", "CONTROL", true, 2), Row("AFR", "CASE", false, 3), Row("AFR", "CONTROL", false, 4))
     val aggType = TStruct("k1" -> TString(), "k2" -> TString(), "k3" -> TBoolean(), "x" -> TInt32())
     val expected = Map("EUR" -> Map("CASE" -> Map(true -> FastIndexedSeq(1)), "CONTROL" -> Map(true -> FastIndexedSeq(2))), "AFR" -> Map("CASE" -> Map(false -> FastIndexedSeq(3)), "CONTROL" -> Map(false -> FastIndexedSeq(4))))
-    val aggSig = AggSignature(Collect(), FastIndexedSeq(), None, FastIndexedSeq(TInt32()), TArray(TInt32()))
+    val aggSig = AggSignature(Collect(), FastIndexedSeq(), None, FastIndexedSeq(TInt32()))
     assertEvalsTo(
       AggGroupBy(Ref("k1", TString()),
         AggGroupBy(Ref("k2", TString()),
