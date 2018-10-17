@@ -730,8 +730,6 @@ class IRSuite extends SparkSuite {
 
     val takeBySig = AggSignature(TakeBy(), Seq(TInt32()), None, Seq(TFloat64(), TInt32()))
 
-    val keyedKeyedCollectSig = AggSignature(Keyed(Keyed(Collect())), Seq(), None, Seq(TInt32(), TString(), TBoolean()))
-
     val irs = Array(
       i, I64(5), F32(3.14f), F64(3.14), str, True(), False(), Void(),
       Cast(i, TFloat64()),
@@ -762,11 +760,9 @@ class IRSuite extends SparkSuite {
       ApplyAggOp(FastIndexedSeq(F64(-2.11)), FastIndexedSeq(F64(-5.0), F64(5.0), I32(100)), None, histSig),
       ApplyAggOp(FastIndexedSeq(call), FastIndexedSeq.empty, Some(FastIndexedSeq(I32(2))), callStatsSig),
       ApplyAggOp(FastIndexedSeq(F64(-2.11)), FastIndexedSeq(I32(10)), None, takeBySig),
-      ApplyAggOp(FastIndexedSeq(Str("foo")), FastIndexedSeq.empty, None, keyedKeyedCollectSig),
       InitOp(I32(0), FastIndexedSeq(I32(2)), callStatsSig),
       SeqOp(I32(0), FastIndexedSeq(i), collectSig),
       SeqOp(I32(0), FastIndexedSeq(F64(-2.11), I32(17)), takeBySig),
-      SeqOp(I32(0), FastIndexedSeq(I32(5), Str("hello"), True(), Str("foo")), keyedKeyedCollectSig),
       Begin(IndexedSeq(Void())),
       MakeStruct(Seq("x" -> i)),
       SelectFields(s, Seq("x", "z")),
