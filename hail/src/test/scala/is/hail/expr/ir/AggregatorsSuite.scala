@@ -284,20 +284,6 @@ class AggregatorsSuite {
       constrArgs = FastIndexedSeq(F64(0.0), F64(10.0), I32(10)))
   }
 
-//  @Test
-//  def ifInApplyAggOp() {
-//    val aggSig = AggSignature(Sum(), FastSeq(), None, FastSeq(TFloat64()))
-//    assertEvalsTo(
-//      ApplyAggOp(If(
-//        ApplyComparisonOp(NEQ(TFloat64()), Ref("a", TFloat64()), F64(10.0)),
-//        SeqOp(I32(0), FastSeq(ApplyBinaryPrimOp(Multiply(), Ref("a", TFloat64()), Ref("b", TFloat64()))),
-//          aggSig),
-//        Begin(FastSeq())),
-//        FastSeq(), None, aggSig),
-//      (FastIndexedSeq(Row(1.0, 10.0), Row(10.0, 10.0), Row(null, 10.0)), TStruct("a" -> TFloat64(), "b" -> TFloat64())),
-//      10.0)
-//  }
-
   @Test
   def sumMultivar() {
     val aggSig = AggSignature(Sum(), FastSeq(), None, FastSeq(TFloat64()))
