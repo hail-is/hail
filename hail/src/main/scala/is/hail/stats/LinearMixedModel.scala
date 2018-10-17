@@ -37,7 +37,7 @@ object LinearMixedModel {
     val typ = TableType(rowType, FastIndexedSeq("idx"), globalType = TStruct())
     
     val rvd = RVD(RVDType(typ.rowType, Array("idx")),
-      partitioner, ContextRDD.weaken[RVDContext](rdd))
+      partitioner, ContextRDD.weaken[RVDContext](rdd)).persist(StorageLevel.MEMORY_AND_DISK)
     
     new Table(hc, TableLiteral(TableValue(typ, BroadcastRow(Row(), typ.globalType, hc.sc), rvd)))
   }
@@ -182,7 +182,7 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
         rv.setOffset(rvb.end())
         rv
       }
-    }.persist(StorageLevel.MEMORY_AND_DISK)
+    }
     
     LinearMixedModel.toTable(hc, pa_t.partitioner(), rdd)
   }
