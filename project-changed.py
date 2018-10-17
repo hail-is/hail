@@ -16,6 +16,7 @@ projects = {
     'site': 'site/',
     'scorecard': 'scorecard/',
     'cloudtools': 'cloudtools/'
+    'upload': 'upload/'
 }
 
 orig_hash = sys.argv[1]
