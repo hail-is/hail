@@ -4,6 +4,14 @@ build:
 	docker build -t spark-worker -f Dockerfile.worker .
 	docker build -t spark-hail -f Dockerfile.hail .
 
+push:
+	docker tag spark-master gcr.io/broad-ctsa/spark-master
+	docker push gcr.io/broad-ctsa/spark-master
+	docker tag spark-worker gcr.io/broad-ctsa/spark-worker
+	docker push gcr.io/broad-ctsa/spark-worker
+	docker tag spark-hail gcr.io/broad-ctsa/spark-hail
+	docker push gcr.io/broad-ctsa/spark-hail
+
 run:
 	docker run --rm -d -p 8080:8080 -p 7077:7077 --network spark --name spark-master --hostname spark-master spark-master
 # workers
