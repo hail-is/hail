@@ -154,7 +154,7 @@ class Tests(unittest.TestCase):
         mt = mt.annotate_globals(g=1)
         mt = mt.annotate_cols(sum=agg.sum(mt.e + mt.col_idx + mt.row_idx + mt.g) + mt.col_idx + mt.g,
                               count=agg.count_where(mt.e % 2 == 0),
-                              foo=agg.count(mt.e))
+                              foo=agg.count())
 
         result = convert_struct_to_dict(mt.cols().collect()[-2])
         self.assertEqual(result, {'col_idx': 3, 'sum': 28, 'count': 2, 'foo': 3})
