@@ -520,7 +520,7 @@ object Parser extends JavaTokenParsers {
       "IsNA" ~> ir_value_expr(env) ^^ { value => ir.IsNA(value) } |
       "If" ~> ir_value_expr(env) ~ ir_value_expr(env) ~ ir_value_expr(env) ^^ { case cond ~ consq ~ altr => ir.If(cond, consq, altr) } |
       "Let" ~> ir_identifier ~ ir_value_expr(env) >> { case name ~ value =>
-        ir_value_expr(env.copy(refMap = env.refMap + (name -> value.typ))) ^^ { body => ir.Let(name, value, body) }} |
+        ir_value_expr(env.update(Map(name -> value.typ))) ^^ { body => ir.Let(name, value, body) }} |
       "Ref" ~> ir_identifier ^^ { name => ir.Ref(name, env.refMap(name)) } |
       "ApplyBinaryPrimOp" ~> ir_binary_op ~ ir_value_expr(env) ~ ir_value_expr(env) ^^ { case op ~ l ~ r => ir.ApplyBinaryPrimOp(op, l, r) } |
       "ApplyUnaryPrimOp" ~> ir_unary_op ~ ir_value_expr(env) ^^ { case op ~ x => ir.ApplyUnaryPrimOp(op, x) } |
