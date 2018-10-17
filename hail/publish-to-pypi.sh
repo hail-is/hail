@@ -14,6 +14,9 @@ set -e
 if [[ $ALREADY_PUBLISHED -ne 0 ]]
 then
     echo deploying ${CURRENT}
+    ./gradlew shadowJar
+    cp build/libs/hail-all-spark.jar python/hail/hail-all-spark.jar
+    cp ../README.md python/
     set +x
     export TWINE_USERNAME=$(cat secrets/pypi-username)
     export TWINE_PASSWORD=$(cat secrets/pypi-password)
