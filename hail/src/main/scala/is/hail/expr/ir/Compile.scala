@@ -189,7 +189,7 @@ object CompileWithAggregators {
   ): (Array[RegionValueAggregator], (IR, Compiler[FAggInit]), (IR, Compiler[FAggSeq]), Type, IR) = {
     assert((initScopeArgs ++ aggScopeArgs).forall { case (_, t, ct) => TypeToIRIntermediateClassTag(t) == ct })
 
-    val (postAggIR, aggResultType, initOpIR, seqOpIR, rvAggs) = ExtractAggregators(body, aggResultName)
+    val ExtractedAggregators(postAggIR, aggResultType, initOpIR, seqOpIR, rvAggs) = ExtractAggregators(body, aggResultName)
     val compileInitOp = (initOp: IR) => Compile[FAggInit, Unit](initScopeArgs, initOp, 2)
     val compileSeqOp = (seqOp: IR) => Compile[FAggSeq, Unit](aggScopeArgs, seqOp, 2)
 

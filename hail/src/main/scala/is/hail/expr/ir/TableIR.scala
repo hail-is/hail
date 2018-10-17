@@ -596,13 +596,13 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         it.map { rv =>
           rvb.set(rv.region)
           rvb.start(scanResultType)
-          rvb.startStruct()
+          rvb.startTuple()
           var j = 0
           while (j < partitionAggs.length) {
             partitionAggs(j).result(rvb)
             j += 1
           }
-          rvb.endStruct()
+          rvb.endTuple()
           val scanOffset = rvb.end()
 
           rv2.set(rv.region, newRow(rv.region, scanOffset, false, globals, false, rv.offset, false))
@@ -940,13 +940,13 @@ case class TableKeyByAndAggregate(
 
           rvb.set(region)
           rvb.start(aggResultType)
-          rvb.startStruct()
+          rvb.startTuple()
           var j = 0
           while (j < nAggs) {
             aggs(j).result(rvb)
             j += 1
           }
-          rvb.endStruct()
+          rvb.endTuple()
           val aggResultOff = rvb.end()
 
           rvb.start(newRowType)
@@ -1078,13 +1078,13 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
             rvb.set(consumerRegion)
 
             rvb.start(aggResultType)
-            rvb.startStruct()
+            rvb.startTuple()
             var j = 0
             while (j < nAggs) {
               rvAggs(j).result(rvb)
               j += 1
             }
-            rvb.endStruct()
+            rvb.endTuple()
             val aggResultOff = rvb.end()
 
             rvb.start(newRowType)

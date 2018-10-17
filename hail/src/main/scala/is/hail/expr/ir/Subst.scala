@@ -24,11 +24,18 @@ object Subst {
         ArrayScan(subst(a), subst(zero), accumName, valueName, subst(body, env.delete(accumName).delete(valueName)))
       case ArrayFor(a, valueName, body) =>
         ArrayFor(subst(a), valueName, subst(body, env.delete(valueName)))
-      case ApplyAggOp(a, constructorArgs, initOpArgs, aggSig) =>
+      case AggFilter(cond, aggIR) =>
+        AggFilter(subst(cond, aggEnv), subst(aggIR, aggEnv))
+      case AggExplode(array, name, aggBody) =>
+        AggExplode(subst(array, aggEnv), name, subst(aggBody, aggEnv.delete(name), aggEnv.delete(name)))
+      case AggGroupBy(key, aggIR) =>
+        AggGroupBy(subst(key, aggEnv), subst(aggIR, aggEnv))
+      case ApplyAggOp(seqOpArgs, constructorArgs, initOpArgs, aggSig) =>
+        val substSeqOpArgs = seqOpArgs.map(arg => subst(arg, aggEnv, Env.empty))
         val substConstructorArgs = constructorArgs.map(arg => MapIR(subst(_))(arg))
         val substInitOpArgs = initOpArgs.map(initOpArgs =>
           initOpArgs.map(arg => MapIR(subst(_))(arg)))
-        ApplyAggOp(subst(a, aggEnv, Env.empty), substConstructorArgs, substInitOpArgs, aggSig)
+        ApplyAggOp(substSeqOpArgs, substConstructorArgs, substInitOpArgs, aggSig)
       case _ =>
         MapIR(subst(_))(e)
     }

@@ -25,7 +25,6 @@ final case class HardyWeinberg() extends AggOp { }
 final case class Histogram() extends AggOp { }
 final case class Inbreeding() extends AggOp { }
 final case class InfoScore() extends AggOp { }
-final case class Keyed(x: AggOp) extends AggOp { }
 final case class LinearRegression() extends AggOp { }
 final case class PearsonCorrelation() extends AggOp { }
 final case class Max() extends AggOp { }
@@ -35,6 +34,7 @@ final case class Statistics() extends AggOp { }
 final case class Sum() extends AggOp { }
 final case class Take() extends AggOp { }
 final case class TakeBy() extends AggOp { }
+final case class Group() extends AggOp { }
 
 // exists === map(p).sum, needs short-circuiting aggs
 // forall === map(p).product, needs short-circuiting aggs
@@ -206,10 +206,6 @@ object AggOp {
         TFloat64(),
         seqOpArgTypes = Array(classOf[Double], classOf[Double])
       )
-
-    case (Keyed(op), constrArgs, initOpArgs, keyType +: childSeqOpArgs) =>
-      val codeAgg = get(AggSignature(op, constrArgs, initOpArgs, childSeqOpArgs))
-      codeAgg.toKeyedAggregator(keyType)
   }
 
   private def incompatible(aggSig: AggSignature): Nothing = {

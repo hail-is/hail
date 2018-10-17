@@ -152,6 +152,20 @@ object TypeCheck {
         val tarray = coerce[TArray](a.typ)
         check(body, env = env.bind(valueName -> -tarray.elementType))
         assert(body.typ == TVoid)
+      case x@AggFilter(cond, aggIR) =>
+        check(cond, env = aggEnv.get)
+        check(aggIR)
+        assert(cond.typ isOfType TBoolean())
+        assert(x.typ == aggIR.typ)
+      case x@AggExplode(array, name, aggBody) =>
+        check(array, env = aggEnv.get)
+        assert(array.typ.isInstanceOf[TArray])
+        check(aggBody, env = env, aggEnv = aggEnv.map(_.bind(name -> -coerce[TArray](array.typ).elementType)))
+        assert(x.typ == aggBody.typ)
+      case x@AggGroupBy(key, aggIR) =>
+        check(key, env = aggEnv.get)
+        check(aggIR)
+        assert(x.typ == TDict(key.typ, aggIR.typ))
       case x@InitOp(i, args, aggSig) =>
         args.foreach(check(_))
         check(i)
@@ -167,17 +181,15 @@ object TypeCheck {
           check(x)
           assert(x.typ == TVoid)
         }
-      case x@ApplyAggOp(a, constructorArgs, initOpArgs, aggSig) =>
-        check(a, env = aggEnv.get)
+      case x@ApplyAggOp(seqOpArgs, constructorArgs, initOpArgs, aggSig) =>
+        seqOpArgs.foreach(check(_, env = aggEnv.get))
         constructorArgs.foreach(check(_))
         initOpArgs.foreach(_.foreach(check(_)))
-        assert(a.typ == TVoid)
         assert(x.typ == AggOp.getType(aggSig))
-      case x@ApplyScanOp(a, constructorArgs, initOpArgs, aggSig) =>
-        check(a)
+      case x@ApplyScanOp(seqOpArgs, constructorArgs, initOpArgs, aggSig) =>
+        seqOpArgs.foreach(check(_, env = aggEnv.get))
         constructorArgs.foreach(check(_))
         initOpArgs.foreach(_.foreach(check(_)))
-        assert(a.typ == TVoid)
         assert(x.typ == AggOp.getType(aggSig))
       case x@MakeStruct(fields) =>
         fields.foreach { case (name, a) => check(a) }

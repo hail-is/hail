@@ -2,26 +2,32 @@ package is.hail.annotations.aggregators
 
 import java.util
 
-import is.hail.annotations.RegionValueBuilder
-import is.hail.expr.types.Type
+import is.hail.annotations.{Region, RegionValueBuilder}
+import is.hail.expr.types._
 
 import scala.collection.JavaConverters._
 import scala.language.implicitConversions
 
 case class KeyedRegionValueAggregator(
-  rvAgg: RegionValueAggregator,
+  rvAggs: Array[RegionValueAggregator],
   keyType: Type) extends RegionValueAggregator {
 
-  var m = new java.util.HashMap[Any, RegionValueAggregator]() // this can't be private for reflection to work
+  var m = new java.util.HashMap[Any, Array[RegionValueAggregator]]() // this can't be private for reflection to work
 
   def newInstance(): KeyedRegionValueAggregator = {
-    KeyedRegionValueAggregator(rvAgg, keyType)
+    KeyedRegionValueAggregator(rvAggs, keyType)
   }
 
   def copy(): KeyedRegionValueAggregator = {
-    val rva = KeyedRegionValueAggregator(rvAgg, keyType)
-    rva.m = new util.HashMap[Any, RegionValueAggregator](m.asScala.mapValues(_.copy()).asJava)
+    val rva = KeyedRegionValueAggregator(rvAggs, keyType)
+    rva.m = new util.HashMap[Any, Array[RegionValueAggregator]](m.asScala.mapValues(_.map(_.copy())).asJava)
     rva
+  }
+
+  def getAggs(key: Any): Array[RegionValueAggregator] = {
+    if (!m.containsKey(key))
+      m.put(key, rvAggs.map(_.copy()))
+    m.get(key)
   }
 
   override def combOp(rva2: RegionValueAggregator): Unit = {
@@ -31,7 +37,11 @@ case class KeyedRegionValueAggregator(
         if (agg == null)
           m.put(k, agg2)
         else {
-          agg.combOp(agg2)
+          var i = 0
+          while(i < agg.length) {
+            agg(i).combOp(agg2(i))
+            i += 1
+          }
         }
     }
   }
@@ -42,7 +52,13 @@ case class KeyedRegionValueAggregator(
     sorted.foreach { case (group, rvagg) =>
       rvb.startStruct()
       rvb.addAnnotation(keyType, group)
-      rvagg.result(rvb)
+      rvb.startTuple()
+      var i = 0
+      while(i < rvagg.length) {
+        rvagg(i).result(rvb)
+        i += 1
+      }
+      rvb.endTuple()
       rvb.endStruct()
     }
     rvb.endArray()

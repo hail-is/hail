@@ -64,6 +64,12 @@ object Children {
       Array(a, zero, body)
     case ArrayFor(a, valueName, body) =>
       Array(a, body)
+    case AggFilter(cond, aggIR) =>
+      Array(cond, aggIR)
+    case AggExplode(array, _, aggBody) =>
+      Array(array, aggBody)
+    case AggGroupBy(key, aggIR) =>
+      Array(key, aggIR)
     case MakeStruct(fields) =>
       fields.map(_._2).toFastIndexedSeq
     case SelectFields(old, fields) =>
@@ -76,10 +82,10 @@ object Children {
       i +: args
     case Begin(xs) =>
       xs
-    case ApplyAggOp(a, constructorArgs, initOpArgs, aggSig) =>
-      (a +: constructorArgs) ++ initOpArgs.getOrElse(FastIndexedSeq())
-    case ApplyScanOp(a, constructorArgs, initOpArgs, aggSig) =>
-      (a +: constructorArgs) ++ initOpArgs.getOrElse(FastIndexedSeq())
+    case ApplyAggOp(seqOpArgs, constructorArgs, initOpArgs, aggSig) =>
+      (seqOpArgs ++ constructorArgs) ++ initOpArgs.getOrElse(FastIndexedSeq())
+    case ApplyScanOp(seqOpArgs, constructorArgs, initOpArgs, aggSig) =>
+      (seqOpArgs ++ constructorArgs) ++ initOpArgs.getOrElse(FastIndexedSeq())
     case GetField(o, name) =>
       Array(o)
     case MakeTuple(types) =>

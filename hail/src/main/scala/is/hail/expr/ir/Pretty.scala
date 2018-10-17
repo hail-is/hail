@@ -22,15 +22,10 @@ object Pretty {
   def prettyClass(x: AnyRef): String =
     x.getClass.getName.split("\\.").last
 
-  def prettyAggOp(op: AggOp): String = op match {
-    case x@Keyed(aggOp) => s"Keyed(${ prettyAggOp(aggOp) })"
-    case _ => prettyClass(op)
-  }
-
   def prettyAggSignature(aggSig: AggSignature): String = {
     val sb = new StringBuilder
     sb += '('
-    sb.append(prettyAggOp(aggSig.op))
+    sb.append(prettyClass(aggSig.op))
     sb += ' '
     sb.append(aggSig.constructorArgs.map(_.parsableString()).mkString(" (", " ", ")"))
     sb.append(aggSig.initOpArgs.map(_.map(_.parsableString()).mkString(" (", " ", ")")).getOrElse(" None"))
@@ -81,11 +76,11 @@ object Pretty {
               sb += ')'
             }(sb += '\n')
           }
-        case ApplyAggOp(a, ctorArgs, initOpArgs, aggSig) =>
+        case ApplyAggOp(seqOpArgs, ctorArgs, initOpArgs, aggSig) =>
           sb += ' '
           sb.append(prettyAggSignature(aggSig))
           sb += '\n'
-          pretty(a, depth + 2)
+          prettySeq(seqOpArgs, depth + 2)
           sb += '\n'
           prettySeq(ctorArgs, depth + 2)
           sb += '\n'
@@ -95,11 +90,11 @@ object Pretty {
               sb.append(" " * (depth + 2))
               sb.append("None")
           }
-        case ApplyScanOp(a, ctorArgs, initOpArgs, aggSig) =>
+        case ApplyScanOp(seqOpArgs, ctorArgs, initOpArgs, aggSig) =>
           sb += ' '
           sb.append(prettyAggSignature(aggSig))
           sb += '\n'
-          pretty(a, depth + 2)
+          prettySeq(seqOpArgs, depth + 2)
           sb += '\n'
           prettySeq(ctorArgs, depth + 2)
           sb += '\n'
@@ -178,6 +173,7 @@ object Pretty {
             case ArrayFold(_, _, accumName, valueName, _) => prettyIdentifier(accumName) + " " + prettyIdentifier(valueName)
             case ArrayScan(_, _, accumName, valueName, _) => prettyIdentifier(accumName) + " " + prettyIdentifier(valueName)
             case ArrayFor(_, valueName, _) => prettyIdentifier(valueName)
+            case AggExplode(_, name, _) => prettyIdentifier(name)
             case ArraySort(_, _, onKey) => prettyBooleanLiteral(onKey)
             case ApplyIR(function, _, _) => prettyIdentifier(function)
             case Apply(function, _) => prettyIdentifier(function)

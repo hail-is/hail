@@ -375,17 +375,6 @@ object Interpret {
           case PearsonCorrelation() =>
             val IndexedSeq(x, y) = seqOpArgs
             aggregator.get.asInstanceOf[PearsonCorrelationAggregator].seqOp((interpret(x), interpret(y)))
-          case Keyed(aggOp) =>
-            assert(seqOpArgs.nonEmpty)
-
-            def formatArgs(aggOp: AggOp, seqOpArgs: IndexedSeq[IR]): Row = {
-              aggOp match {
-                case Keyed(op) => Row(interpret(seqOpArgs.head), formatArgs(op, seqOpArgs.tail))
-                case _ => Row(interpret(seqOpArgs.head), Row(seqOpArgs.tail.map(interpret(_)): _*))
-              }
-            }
-
-            aggregator.get.asInstanceOf[KeyedAggregator[_, _]].seqOp(formatArgs(aggOp, seqOpArgs))
           case Downsample() =>
             val IndexedSeq(x, y, label) = seqOpArgs
             aggregator.get.asInstanceOf[DownsampleAggregator].seqOp(interpret(x), interpret(y), interpret(label))
@@ -393,7 +382,48 @@ object Interpret {
             val IndexedSeq(a) = seqOpArgs
             aggregator.get.seqOp(interpret(a))
         }
-      case x@ApplyAggOp(a, constructorArgs, initOpArgs, aggSig) =>
+
+      case x@AggFilter(cond, aggIR) =>
+        // filters elements under aggregation environment
+        val Some((aggElements, aggElementType)) = agg
+        val newAgg = aggElements.filter { row =>
+          val env = (row.toSeq, aggElementType.fieldNames).zipped
+            .foldLeft(Env.empty[Any]) { case (e, (v, n)) =>
+              e.bind(n, v)
+            }
+          interpret(cond, env).asInstanceOf[Boolean]
+        }
+        interpret(aggIR, agg = Some(newAgg -> aggElementType))
+
+      case x@AggExplode(array, name, aggBody) =>
+        // adds exploded array to elements under aggregation environment
+        val Some((aggElements, aggElementType)) = agg
+        val newAggElementType = aggElementType.appendKey(name, coerce[TArray](array.typ).elementType)
+        val newAgg = aggElements.flatMap { row =>
+          val env = (row.toSeq, aggElementType.fieldNames).zipped
+            .foldLeft(Env.empty[Any]) { case (e, (v, n)) =>
+              e.bind(n, v)
+            }
+          interpret(array, env).asInstanceOf[IndexedSeq[Any]].map { elt =>
+            Row(row.toSeq :+ elt: _*)
+          }
+        }
+        interpret(aggBody, agg = Some(newAgg -> newAggElementType))
+      case x@AggGroupBy(key, aggIR) =>
+        // evaluates one aggregation per key in aggregation environment
+        val Some((aggElements, aggElementType)) = agg
+        val groupedAgg = aggElements.groupBy { row =>
+          val env = (row.toSeq, aggElementType.fieldNames).zipped
+            .foldLeft(Env.empty[Any]) { case (e, (v, n)) =>
+              e.bind(n, v)
+            }
+          interpret(key, env)
+        }
+        groupedAgg.mapValues { row =>
+          interpret(aggIR, agg=Some(row, aggElementType))
+        }
+
+      case x@ApplyAggOp(seqOpArgs, constructorArgs, initOpArgs, aggSig) =>
         assert(AggOp.getType(aggSig) == x.typ)
 
         def getAggregator(aggOp: AggOp, seqOpArgTypes: Seq[Type]): TypedAggregator[_] = aggOp match {
@@ -459,9 +489,7 @@ object Interpret {
             val IndexedSeq(n) = constructorArgs
             val IndexedSeq(aggType, _) = seqOpArgTypes
             val nValue = interpret(n, Env.empty[Any], null, null).asInstanceOf[Int]
-            val seqOps = Extract(a, _.isInstanceOf[SeqOp]).map(_.asInstanceOf[SeqOp])
-            assert(seqOps.length == 1)
-            val ordering = seqOps.head.args.last
+            val ordering = seqOpArgs.last
             val ord = ordering.typ.ordering.toOrdering
             new TakeByAggregator(aggType, null, nValue)(ord)
           case Statistics() => new StatAggregator()
@@ -493,8 +521,6 @@ object Interpret {
             val k0Value = interpret(k0, Env.empty[Any], null, null).asInstanceOf[Int]
             val IndexedSeq(_, xType) = seqOpArgTypes
             new LinearRegressionAggregator(null, kValue, k0Value, xType)
-          case Keyed(op) =>
-            new KeyedAggregator(getAggregator(op, seqOpArgTypes.drop(1)))
           case Downsample() =>
             assert(seqOpArgTypes == FastIndexedSeq(TFloat64(), TFloat64(), TArray(TString())))
             val Seq(nDivisions) = constructorArgs
@@ -509,7 +535,7 @@ object Interpret {
             .foldLeft(Env.empty[Any]) { case (env, (v, n)) =>
               env.bind(n, v)
             }
-          interpret(a, env, FastIndexedSeq(), None, Some(aggregator))
+          interpret(SeqOp(I32(0), seqOpArgs, aggSig), env, FastIndexedSeq(), None, Some(aggregator))
         }
         aggregator.result
       case x@ApplyScanOp(a, constructorArgs, initOpArgs, aggSig) =>
@@ -677,9 +703,9 @@ object Interpret {
           rvb.set(region)
 
           rvb.start(aggResultType)
-          rvb.startStruct()
+          rvb.startTuple()
           aggResults.foreach(_.result(rvb))
-          rvb.endStruct()
+          rvb.endTuple()
           val aggResultsOffset = rvb.end()
 
           rvb.start(localGlobalSignature)
@@ -764,9 +790,9 @@ object Interpret {
           rvb.set(region)
 
           rvb.start(aggResultType)
-          rvb.startStruct()
+          rvb.startTuple()
           aggResults.foreach(_.result(rvb))
-          rvb.endStruct()
+          rvb.endTuple()
           val aggResultsOffset = rvb.end()
 
           rvb.start(localGlobalSignature)

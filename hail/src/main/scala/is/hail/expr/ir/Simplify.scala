@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.utils._
 import is.hail.expr._
-import is.hail.expr.types.{TInt32, TInt64, TStruct}
+import is.hail.expr.types.{TArray, TInt32, TInt64, TStruct}
 import is.hail.table.{Ascending, SortField}
 
 object Simplify {
@@ -384,7 +384,7 @@ object Simplify {
             TableKeyByAndAggregate(child,
               MakeStruct(Seq(
                 "row" -> ApplyAggOp(
-                  SeqOp(I32(0), Array(row, keyStruct), aggSig),
+                  Array(row, keyStruct),
                   FastIndexedSeq(I32(n.toInt)),
                   None,
                   aggSig))),

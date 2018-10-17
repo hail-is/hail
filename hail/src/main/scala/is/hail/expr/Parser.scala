@@ -476,10 +476,7 @@ object Parser extends JavaTokenParsers {
     "(" ~> ir_identifier <~ ")" ^^ { x => x }
 
   def ir_agg_op: Parser[ir.AggOp] =
-    ir_keyed_agg_op | ir_identifier ^^ { x => ir.AggOp.fromString(x) }
-
-  def ir_keyed_agg_op: Parser[ir.Keyed] =
-    "Keyed(" ~> ir_agg_op <~ ")" ^^ { aggOp => ir.Keyed(aggOp) }
+    ir_identifier ^^ { x => ir.AggOp.fromString(x) }
 
   def ir_children: Parser[IndexedSeq[ir.IR]] =
     rep(ir_value_expr) ^^ (_.toFastIndexedSeq)
@@ -556,8 +553,11 @@ object Parser extends JavaTokenParsers {
       "ArrayFold" ~> ir_identifier ~ ir_identifier ~ ir_value_expr ~ ir_value_expr ~ ir_value_expr ^^ { case accumName ~ valueName ~ a ~ zero ~ body => ir.ArrayFold(a, zero, accumName, valueName, body) } |
       "ArrayScan" ~> ir_identifier ~ ir_identifier ~ ir_value_expr ~ ir_value_expr ~ ir_value_expr ^^ { case accumName ~ valueName ~ a ~ zero ~ body => ir.ArrayScan(a, zero, accumName, valueName, body) } |
       "ArrayFor" ~> ir_identifier ~ ir_value_expr ~ ir_value_expr ^^ { case name ~ a ~ body => ir.ArrayFor(a, name, body) } |
-      "ApplyAggOp" ~> agg_signature ~ ir_value_expr ~ ir_value_exprs ~ ir_value_exprs_opt ^^ { case aggSig ~ a ~ ctorArgs ~ initOpArgs => ir.ApplyAggOp(a, ctorArgs, initOpArgs, aggSig) } |
-      "ApplyScanOp" ~> agg_signature ~ ir_value_expr ~ ir_value_exprs ~ ir_value_exprs_opt ^^ { case aggSig ~ a ~ ctorArgs ~ initOpArgs => ir.ApplyScanOp(a, ctorArgs, initOpArgs, aggSig) } |
+      "AggFilter" ~> ir_value_expr ~ ir_value_expr ^^ { case cond ~ aggIR => ir.AggFilter(cond, aggIR) } |
+      "AggExplode" ~> ir_identifier ~ ir_value_expr ~ ir_value_expr ^^ { case name ~ array ~ aggBody => ir.AggExplode(array, name, aggBody) } |
+      "AggGroupBy" ~> ir_value_expr ~ ir_value_expr ^^ { case key ~ aggIR => ir.AggGroupBy(key, aggIR) } |
+      "ApplyAggOp" ~> agg_signature ~ ir_value_exprs ~ ir_value_exprs ~ ir_value_exprs_opt ^^ { case aggSig ~ seqOpArgs ~ ctorArgs ~ initOpArgs => ir.ApplyAggOp(seqOpArgs, ctorArgs, initOpArgs, aggSig) } |
+      "ApplyScanOp" ~> agg_signature ~ ir_value_exprs ~ ir_value_exprs ~ ir_value_exprs_opt ^^ { case aggSig ~ seqOpArgs ~ ctorArgs ~ initOpArgs => ir.ApplyScanOp(seqOpArgs, ctorArgs, initOpArgs, aggSig) } |
       "InitOp" ~> agg_signature ~ ir_value_expr ~ ir_value_exprs ^^ { case aggSig ~ i ~ args => ir.InitOp(i, args, aggSig) } |
       "SeqOp" ~> agg_signature ~ ir_value_expr ~ ir_value_exprs ^^ { case aggSig ~ i ~ args => ir.SeqOp(i, args, aggSig) } |
       "Begin" ~> ir_children ^^ { xs => ir.Begin(xs) } |

@@ -691,6 +691,16 @@ object PruneDeadFields {
           bodyEnv.delete(valueName),
           memoizeValueIR(a, aType.copy(elementType = valueType), memo)
         )
+      case AggExplode(a, name, body) =>
+        val aType = a.typ.asInstanceOf[TArray]
+        val bodyDep = memoizeValueIR(body,
+          requestedType,
+          memo)
+        val valueType = bodyDep.lookupOption(name).map(_._2).getOrElse(minimal(-aType.elementType))
+        unifyEnvs(
+          bodyDep.delete(name),
+          memoizeValueIR(a, aType.copy(elementType = valueType), memo)
+        )
       case MakeStruct(fields) =>
         val sType = requestedType.asInstanceOf[TStruct]
         unifyEnvsSeq(fields.flatMap { case (fname, fir) =>

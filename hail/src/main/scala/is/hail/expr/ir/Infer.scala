@@ -49,9 +49,15 @@ object Infer {
       case ArrayScan(a, zero, accumName, valueName, body) =>
         assert(body.typ == zero.typ)
         TArray(zero.typ)
-      case ApplyAggOp(a, constructorArgs, initOpArgs, aggSig) =>
+      case AggFilter(_, aggIR) =>
+        aggIR.typ
+      case AggExplode(array, name, aggBody) =>
+        aggBody.typ
+      case AggGroupBy(key, aggIR) =>
+        TDict(key.typ, aggIR.typ)
+      case ApplyAggOp(_, _, _, aggSig) =>
         AggOp.getType(aggSig)
-      case ApplyScanOp(a, constructorArgs, initOpArgs, aggSig) =>
+      case ApplyScanOp(_, _, _, aggSig) =>
         AggOp.getType(aggSig)
       case MakeStruct(fields) =>
         TStruct(fields.map { case (name, a) =>

@@ -621,72 +621,131 @@ private class Emit(
           Code._empty)
 
       case InitOp(i, args, aggSig) =>
-        val nArgs = args.length
-        val argsm = Array.fill[ClassFieldRef[Boolean]](nArgs)(mb.newField[Boolean]())
-        val argsv = (0 until nArgs).map(i => mb.newField(typeToTypeInfo(args(i).typ))).toArray
-
         val codeI = emit(i)
-        val codeA = args.map(ir => emit(ir))
+        aggSig.op match {
+          case Group() =>
+            val newMB = mb.fb.newMethod(mb.parameterTypeInfo, typeInfo[Unit])
+            newMB.emit(new Emit(newMB, 2).emit(args(0), env).setup)
+            val mbArgs = newMB.parameterTypeInfo.zipWithIndex.map { case (ti, idx) =>
+              if (idx == 1)
+                Code.checkcast[KeyedRegionValueAggregator](aggregator(codeI.value[Int])).invoke[Array[RegionValueAggregator]]("rvAggs")
+              else
+                newMB.getArg(idx + 1)(ti).load()
+            }
+            EmitTriplet(Code(
+              codeI.setup,
+              codeI.m.mux(
+                Code._empty,
+                coerce[Unit](newMB.invoke(mbArgs: _*)))),
+              const(false),
+              Code._empty)
 
-        val argsSetup = Code((0 until nArgs).map { i =>
-          val a = codeA(i)
-          Code(
-            argsm(i) := a.m,
-            argsv(i).storeAny(argsm(i).mux(
-              defaultValue(args(i).typ),
-              a.v
-            ))
-          )
-        }.toArray: _*)
+          case _ =>
+            val nArgs = args.length
+            val argsm = Array.fill[ClassFieldRef[Boolean]](nArgs)(mb.newField[Boolean]())
+            val argsv = (0 until nArgs).map(i => mb.newField(typeToTypeInfo(args(i).typ))).toArray
 
-        val agg = AggOp.get(aggSig)
-        EmitTriplet(
-          Code(codeI.setup,
-            Code(codeA.map(_.setup): _*),
-            argsSetup,
-            codeI.m.mux(
-              Code._empty,
-              agg.initOp(
-                mb,
-                aggregator(coerce[Int](codeI.v)),
-                argsv.map(_.load()),
-                argsm.map(_.load())))),
-          const(false),
-          Code._empty)
+            val codeA = args.map(ir => emit(ir))
+
+            val argsSetup = Code((0 until nArgs).map { i =>
+              val a = codeA(i)
+              Code(
+                argsm(i) := a.m,
+                argsv(i).storeAny(argsm(i).mux(
+                  defaultValue(args(i).typ),
+                  a.v
+                ))
+              )
+            }.toArray: _*)
+
+            val agg = AggOp.get(aggSig)
+            EmitTriplet(
+              Code(codeI.setup,
+                Code(codeA.map(_.setup): _*),
+                argsSetup,
+                codeI.m.mux(
+                  Code._empty,
+                  agg.initOp(
+                    mb,
+                    aggregator(coerce[Int](codeI.v)),
+                    argsv.map(_.load()),
+                    argsm.map(_.load())))),
+              const(false),
+              Code._empty)
+        }
+
 
       case x@SeqOp(i, args, aggSig) =>
         val codeI = emit(i)
-        val agg = AggOp.get(aggSig)
-        val nArgs = args.length
-        val argsm = Array.fill[ClassFieldRef[Boolean]](nArgs)(mb.newField[Boolean]())
-        val argsv = (0 until nArgs).map(i => mb.newField(typeToTypeInfo(args(i).typ))).toArray
-        val codeArgs = args.map(ir => emit(ir))
+        aggSig.op match {
+          case Group() =>
+            val newMB = mb.fb.newMethod(mb.parameterTypeInfo, typeInfo[Unit])
+            newMB.emit(new Emit(newMB, 2).emit(args(1), env).setup)
+            val key = emit(args(0))
+            val wrappedKey = Code(
+              key.setup,
+              key.m.mux(
+                Code._null,
+                aggSig.seqOpArgs(0) match {
+                  case _: TBoolean => Code.boxBoolean(key.value[Boolean])
+                  case _: TInt32 => Code.boxInt(key.value[Int])
+                  case _: TInt64 => Code.boxLong(key.value[Long])
+                  case _: TFloat32 => Code.boxFloat(key.value[Float])
+                  case _: TFloat64 => Code.boxDouble(key.value[Double])
+                  case t =>
+                    Code.invokeScalaObject[PType, Region, Long, AnyRef](
+                      SafeRow.getClass, "read",
+                      mb.getPType(t.physicalType), region, key.value[Long])
+                }
+              )
+            )
+            val mbArgs = newMB.parameterTypeInfo.zipWithIndex.map { case (ti, idx) =>
+              if (idx == 1)
+                Code.checkcast[KeyedRegionValueAggregator](aggregator(codeI.value[Int])).invoke[Any, Array[RegionValueAggregator]]("getAggs", wrappedKey)
+              else
+                newMB.getArg(idx + 1)(ti).load()
+            }
+            EmitTriplet(Code(
+              codeI.setup,
+              codeI.m.mux(
+                Code._empty,
+                coerce[Unit](newMB.invoke(mbArgs: _*)))),
+              const(false),
+              Code._empty)
 
-        val argsSetup = Code((0 until nArgs).map { i =>
-          val a = codeArgs(i)
-          Code(
-            argsm(i) := a.m,
-            argsv(i).storeAny(argsm(i).mux(
-              defaultValue(args(i).typ),
-              a.v
-            ))
-          )
-        }.toArray: _*)
+          case _ =>
+            val agg = AggOp.get(aggSig)
+            val nArgs = args.length
+            val argsm = Array.fill[ClassFieldRef[Boolean]](nArgs)(mb.newField[Boolean]())
+            val argsv = (0 until nArgs).map(i => mb.newField(typeToTypeInfo(args(i).typ))).toArray
+            val codeArgs = args.map(ir => emit(ir))
 
-        EmitTriplet(
-          Code(codeI.setup,
-            Code(codeArgs.map(_.setup): _*),
-            argsSetup,
-            codeI.m.mux(
-              Code._empty,
-              agg.seqOp(
-                mb,
-                region,
-                aggregator(coerce[Int](codeI.v)),
-                argsv.map(_.load()),
-                argsm.map(_.load())))),
-          const(false),
-          Code._empty)
+            val argsSetup = Code((0 until nArgs).map { i =>
+              val a = codeArgs(i)
+              Code(
+                argsm(i) := a.m,
+                argsv(i).storeAny(argsm(i).mux(
+                  defaultValue(args(i).typ),
+                  a.v
+                ))
+              )
+            }.toArray: _*)
+
+            EmitTriplet(
+              Code(codeI.setup,
+                Code(codeArgs.map(_.setup): _*),
+                argsSetup,
+                codeI.m.mux(
+                  Code._empty,
+                  agg.seqOp(
+                    mb,
+                    region,
+                    aggregator(coerce[Int](codeI.v)),
+                    argsv.map(_.load()),
+                    argsm.map(_.load())))),
+              const(false),
+              Code._empty)
+        }
 
       case Begin(xs) =>
         EmitTriplet(

@@ -1,6 +1,6 @@
 from hail.utils import warn, error, java
 from .indices import *
-from ..expressions import Expression, Aggregable, ExpressionException, expr_any
+from ..expressions import Expression, ExpressionException, expr_any
 from typing import *
 
 
@@ -196,7 +196,7 @@ def eval_typed(expression):
         return expression.collect()[0], expression.dtype
 
 
-def _get_refs(expr: Union[Expression, Aggregable], builder: Dict[str, Indices]) -> None:
+def _get_refs(expr: Expression, builder: Dict[str, Indices]) -> None:
     from hail.ir import GetField, TopLevelReference
 
     for ir in expr._ir.search(
@@ -226,7 +226,7 @@ def extract_refs_by_indices(exprs, indices):
                 s.add(name)
     return s
 
-def get_refs(*exprs: Union[Expression, Aggregable]) -> Dict[str, Indices]:
+def get_refs(*exprs: Expression) -> Dict[str, Indices]:
     builder = {}
     for e in exprs:
         _get_refs(e, builder)

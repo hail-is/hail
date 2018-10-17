@@ -259,8 +259,8 @@ def mendel_errors(call, pedigree) -> Tuple[Table, Table, Table, Table]:
 
     table3 = tm.annotate_cols(all_errors=hl.or_else(hl.agg.array_sum(implicated[tm.mendel_code]), [0, 0, 0]),
                               snp_errors=hl.or_else(
-                                  hl.agg.array_sum(hl.agg.filter(hl.is_snp(tm.alleles[0], tm.alleles[1]),
-                                                                 implicated[tm.mendel_code])),
+                                  hl.agg.filter(hl.is_snp(tm.alleles[0], tm.alleles[1]),
+                                                hl.agg.array_sum(implicated[tm.mendel_code])),
                                   [0, 0, 0])).key_cols_by().cols()
 
     table3 = table3.select(xs=[
@@ -453,7 +453,7 @@ def transmission_disequilibrium_test(dataset, pedigree) -> Table:
               tri.mother_entry.GT.n_alt_alleles(),
               copy_state)
 
-    tri = tri.annotate_rows(counts = agg.array_sum(agg.filter(parent_is_valid_het, count_map.get(config))))
+    tri = tri.annotate_rows(counts = agg.filter(parent_is_valid_het, agg.array_sum(count_map.get(config))))
 
     tab = tri.rows().select('counts')
     tab = tab.transmute(t = tab.counts[0], u = tab.counts[1])
