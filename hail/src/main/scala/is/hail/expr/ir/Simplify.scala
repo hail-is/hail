@@ -7,70 +7,57 @@ import is.hail.table.{Ascending, SortField}
 
 object Simplify {
 
+  /** Transform 'ir' using simplification rules until none apply.
+    */
   def apply(ir: BaseIR): BaseIR = Simplify(ir, allowRepartitioning = true)
 
-  private[ir] def apply(ast: BaseIR, allowRepartitioning: Boolean): BaseIR = {
+  /** Use 'allowRepartitioning'=false when in a context where simplification
+    * should not change the partitioning of the result of 'ast', such as when
+    * some parent (downstream) node of 'ast' uses seeded randomness.
+    */
+  private[ir] def apply(ast: BaseIR, allowRepartitioning: Boolean): BaseIR =
     ast match {
       case ir: IR => simplifyValue(ir)
       case tir: TableIR => simplifyTable(allowRepartitioning)(tir)
       case mir: MatrixIR => simplifyMatrix(allowRepartitioning)(mir)
     }
-  }
 
   private[this] def visitNode[T <: BaseIR](
-    pre: T => T,
+    visitChildren: BaseIR => BaseIR,
     transform: T => Option[T],
     post: => (T => T)
-  ): T => T = { t =>
-    val t1 = pre(t)
-    transform(t1) match {
-      case Some(t2) => post(t2)
-      case None => t1
-    }
+  )(t: T): T = {
+    val t1 = t.mapChildren(visitChildren).asInstanceOf[T]
+    transform(t1).map(post).getOrElse(t1)
   }
 
   private[this] def simplifyValue: IR => IR =
     visitNode(
-      simplifyValueChildren,
+      Simplify(_),
       rewriteValueNode,
       simplifyValue)
 
-  private[this] def simplifyTable(allowRepartitioning: Boolean): TableIR => TableIR =
+  private[this] def simplifyTable(allowRepartitioning: Boolean)(tir: TableIR): TableIR =
     visitNode(
-      simplifyChildren[TableIR](allowRepartitioning),
+      Simplify(_, allowRepartitioning && isDeterministicallyRepartitionable(tir)),
       rewriteTableNode(allowRepartitioning),
-      simplifyTable(allowRepartitioning))
+      simplifyTable(allowRepartitioning)
+    )(tir)
 
-  private[this] def simplifyMatrix(allowRepartitioning: Boolean): MatrixIR => MatrixIR =
+  private[this] def simplifyMatrix(allowRepartitioning: Boolean)(mir: MatrixIR): MatrixIR =
     visitNode(
-      simplifyChildren[MatrixIR](allowRepartitioning),
+      Simplify(_, allowRepartitioning && isDeterministicallyRepartitionable(mir)),
       rewriteMatrixNode(allowRepartitioning),
-      simplifyMatrix(allowRepartitioning))
-
-  private[this] def simplifyValueChildren(ir: IR): IR = {
-    val newChildren = ir.children.map(Simplify.apply)
-    if ((ir.children, newChildren).zipped.forall(_ eq _))
-      ir
-    else
-      ir.copy(newChildren)
-  }
-
-  private[this] def simplifyChildren[T <: BaseIR](allowRepartitioning: Boolean)(ir: T): T = {
-    val newChildren = ir.children.map(Simplify(_, allowRepartitioning && isDeterministic(ir)))
-
-    if ((ir.children, newChildren).zipped.forall(_ eq _))
-      ir
-    else
-      ir.copy(newChildren).asInstanceOf[T]
-  }
+      simplifyMatrix(allowRepartitioning)
+    )(mir)
 
   private[this] def rewriteValueNode: IR => Option[IR] = valueRules.lift
 
   private[this] def rewriteTableNode(allowRepartitioning: Boolean)(tir: TableIR): Option[TableIR] =
-    tableRules(allowRepartitioning && isDeterministic(tir)).lift(tir)
+    tableRules(allowRepartitioning && isDeterministicallyRepartitionable(tir)).lift(tir)
 
   private[this] def rewriteMatrixNode(allowRepartitioning: Boolean)(mir: MatrixIR): Option[MatrixIR] =
-    matrixRules(allowRepartitioning && isDeterministic(mir)).lift(mir)
+    matrixRules(allowRepartitioning && isDeterministicallyRepartitionable(mir)).lift(mir)
 
   /** Returns true if 'x' propagates missingness, meaning if any child of 'x'
     * evaluates to missing, then 'x' will evaluate to missing.
@@ -106,14 +93,14 @@ object Simplify {
     }
   }
 
-  /** Returns true if 'ir' all value IR children of 'ir' are deterministic.
+  /** Returns true if changing the partitioning of child (upstream) nodes of
+    * 'ir' can not otherwise change the contents of the result of 'ir'.
     */
-  private[this] def isDeterministic(ir: BaseIR): Boolean = {
+  private[this] def isDeterministicallyRepartitionable(ir: BaseIR): Boolean =
     ir.children.forall{
       case child: IR => !Exists(child, _.isInstanceOf[ApplySeeded])
       case _ => true
     }
-  }
 
   private[this] def areFieldSelects(fields: Seq[(String, IR)]): Boolean = {
     assert(fields.nonEmpty)
@@ -149,9 +136,6 @@ object Simplify {
     case Let(n1, v, Ref(n2, _)) if n1 == n2 => v
 
     case Let(n, _, b) if !Mentions(b, n) => b
-
-    // FIXME: Isn't this covered by the previous rule?
-    case Let(_, _, Begin(Seq())) => Begin(FastIndexedSeq())
 
     case x@If(True(), cnsq, _) if x.typ == cnsq.typ => cnsq
 
@@ -258,10 +242,6 @@ object Simplify {
 
     case TableCount(TableAggregateByKey(child, _)) => TableCount(TableDistinct(child))
 
-    // FIXME: Isn't this covered by the following one?
-    case ApplyIR("annotate", Seq(s, MakeStruct(Seq())), _) =>
-      s
-
     case ApplyIR("annotate", Seq(s, MakeStruct(fields)), _) =>
       InsertFields(s, fields)
   }
@@ -351,7 +331,7 @@ object Simplify {
 
     case MatrixColsTable(x@MatrixMapCols(child, newRow, newKey))
       if newKey.isEmpty && !Mentions(newRow, "g") && !Mentions(newRow, "va") &&
-        !ContainsAgg(newRow) && canRepartition && isDeterministic(x) && !ContainsScan(newRow) =>
+        !ContainsAgg(newRow) && canRepartition && isDeterministicallyRepartitionable(x) && !ContainsScan(newRow) =>
       val mct = MatrixColsTable(child)
       TableMapRows(
         mct,
