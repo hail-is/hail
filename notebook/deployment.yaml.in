@@ -1,3 +1,35 @@
+apiVersion: apps/v1beta2
+kind: Deployment
+metadata:
+  name: notebook-deployment
+  labels:
+    app: notebook
+    hail.is/sha: "@sha@"
+spec:
+  selector:
+    matchLabels:
+      app: notebook
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: notebook
+        hail.is/sha: "@sha@"
+    spec:
+      containers:
+      - name: notebook
+        image: @image@
+        ports:
+        - containerPort: 5000
+        volumeMounts:
+          - mountPath: /notebook-secrets
+            readOnly: true
+            name: notebook-secrets
+      volumes:
+        - name: notebook-secrets
+          secret:
+            secretName: notebook-secrets
+---
 apiVersion: v1
 kind: Service
 metadata:

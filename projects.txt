@@ -5,6 +5,7 @@ notebook
 gateway
 hail
 letsencrypt
+notebook
 scorecard
 site
 spark
