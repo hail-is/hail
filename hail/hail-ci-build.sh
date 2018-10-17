@@ -204,7 +204,7 @@ test_pip() {
     CONDA_ENV_NAME=$(LC_CTYPE=C LC_ALL=C tr -dc 'a-z0-9' < /dev/urandom | head -c 8)
     conda create -n $CONDA_ENV_NAME python=3.7
     pip install ./python
-    python -c 'import hail as hl; hl.init(); hl.balding_nichols_model(3,100,100)._force_count_rows9)'
+    python -c 'import hail as hl; hl.init(); hl.balding_nichols_model(3,100,100)._force_count_rows())'
     # FIXME: also test on Mac OS X
 }
 

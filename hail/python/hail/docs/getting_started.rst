@@ -15,7 +15,7 @@ Regardless of installation method, you will need:
   ten, or eleven due to our dependency on Spark.
 - Python 3, we recommend `Anaconda's Python 3 <https://www.continuum.io/downloads>`_
 
-For all methods *other than using `pip`*, you will additionally need `Spark
+For all methods *other than using pip*, you will additionally need `Spark
 2.2.x
 <https://www.apache.org/dyn/closer.lua/spark/spark-2.2.2/spark-2.2.2-bin-hadoop2.7.tgz>`_.
 
