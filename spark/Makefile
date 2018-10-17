@@ -8,7 +8,7 @@ build:
 
 push: SPARK_MASTER_IMAGE="gcr.io/broad-ctsa/spark-master:$(shell docker images -q --no-trunc spark-master | sed -e 's,[^:]*:,,')"
 push: SPARK_WORKER_IMAGE="gcr.io/broad-ctsa/spark-worker:$(shell docker images -q --no-trunc spark-worker | sed -e 's,[^:]*:,,')"
-push: SPARK_HAIL_IMAGE="gcr.io/broad-ctsa/spark-master:$(shell docker images -q --no-trunc spark-master | sed -e 's,[^:]*:,,')"
+push: SPARK_HAIL_IMAGE="gcr.io/broad-ctsa/spark-hail:$(shell docker images -q --no-trunc spark-hail | sed -e 's,[^:]*:,,')"
 push: build
 	docker tag spark-master $(SPARK_MASTER_IMAGE)
 	docker push $(SPARK_MASTER_IMAGE)

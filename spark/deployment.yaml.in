@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: spark-master
-          image: gcr.io/broad-ctsa/spark-master
+          image: @spark_master_image@
           imagePullPolicy: Always
           ports:
           - containerPort: 7077
@@ -43,7 +43,7 @@ spec:
         value: "true"
       containers:
         - name: spark-worker
-          image: gcr.io/broad-ctsa/spark-worker
+          image: @spark_worker_image@
           imagePullPolicy: Always
           ports:
           - containerPort: 8081

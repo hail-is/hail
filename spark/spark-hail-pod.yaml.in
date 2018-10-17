@@ -9,7 +9,7 @@ spec:
   - name: spark-hail
     command: ["/bin/bash"]
     args: ["-c", "sleep 100000"]
-    image: gcr.io/broad-ctsa/spark-hail
+    image: @spark_hail_image@
     ports:
     - containerPort: 4040
   restartPolicy: Never

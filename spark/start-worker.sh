@@ -1,5 +1,5 @@
 #!/bin/bash
-set -x
+set -ex
 
 unset SPARK_MASTER_HOST
 unset SPARK_MASTER_PORT
