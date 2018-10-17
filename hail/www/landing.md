@@ -21,7 +21,7 @@ We're running an introductory **Hail workshop** in Boston on October 31, hosted 
 For genomics applications, Hail can:
 
  - flexibly [import and export](https://hail.is/docs/devel/methods/impex.html) to a variety of data and annotation formats, including [VCF](https://samtools.github.io/hts-specs/VCFv4.2.pdf), [BGEN](http://www.well.ox.ac.uk/~gav/bgen_format/bgen_format_v1.2.html) and [PLINK](https://www.cog-genomics.org/plink2/formats)
- - generate variant annotations like call rate, Hardy-Weinberg equilibrium p-value, and population-specific allele count; and import annotations in parallel through the [annotation database](https://hail.is/docs/stable/annotationdb.html), [VEP](https://useast.ensembl.org/info/docs/tools/vep/index.html), and [Nirvana](https://github.com/Illumina/Nirvana/wiki)
+ - generate variant annotations like call rate, Hardy-Weinberg equilibrium p-value, and population-specific allele count; and import annotations in parallel through [annotation datasets](https://hail.is/docs/stable/datasets.html), [VEP](https://useast.ensembl.org/info/docs/tools/vep/index.html), and [Nirvana](https://github.com/Illumina/Nirvana/wiki)
  - generate sample annotations like mean depth, imputed sex, and TiTv ratio
  - generate new annotations from existing ones as well as genotypes, and use these to filter samples, variants, and genotypes
  - find Mendelian violations in trios, prune variants in linkage disequilibrium, analyze genetic similarity between samples, and compute sample scores and variant loadings using PCA
