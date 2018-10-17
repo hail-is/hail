@@ -25,7 +25,6 @@ final case class HardyWeinberg() extends AggOp { }
 final case class Histogram() extends AggOp { }
 final case class Inbreeding() extends AggOp { }
 final case class InfoScore() extends AggOp { }
-final case class Keyed(x: AggOp) extends AggOp { }
 final case class LinearRegression() extends AggOp { }
 final case class PearsonCorrelation() extends AggOp { }
 final case class Max() extends AggOp { }

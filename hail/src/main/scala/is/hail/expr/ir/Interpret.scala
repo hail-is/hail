@@ -375,17 +375,6 @@ object Interpret {
           case PearsonCorrelation() =>
             val IndexedSeq(x, y) = seqOpArgs
             aggregator.get.asInstanceOf[PearsonCorrelationAggregator].seqOp((interpret(x), interpret(y)))
-          case Keyed(aggOp) =>
-            assert(seqOpArgs.nonEmpty)
-
-            def formatArgs(aggOp: AggOp, seqOpArgs: IndexedSeq[IR]): Row = {
-              aggOp match {
-                case Keyed(op) => Row(interpret(seqOpArgs.head), formatArgs(op, seqOpArgs.tail))
-                case _ => Row(interpret(seqOpArgs.head), Row(seqOpArgs.tail.map(interpret(_)): _*))
-              }
-            }
-
-            aggregator.get.asInstanceOf[KeyedAggregator[_, _]].seqOp(formatArgs(aggOp, seqOpArgs))
           case Downsample() =>
             val IndexedSeq(x, y, label) = seqOpArgs
             aggregator.get.asInstanceOf[DownsampleAggregator].seqOp(interpret(x), interpret(y), interpret(label))
@@ -532,8 +521,6 @@ object Interpret {
             val k0Value = interpret(k0, Env.empty[Any], null, null).asInstanceOf[Int]
             val IndexedSeq(_, xType) = seqOpArgTypes
             new LinearRegressionAggregator(null, kValue, k0Value, xType)
-          case Keyed(op) =>
-            new KeyedAggregator(getAggregator(op, seqOpArgTypes.drop(1)))
           case Downsample() =>
             assert(seqOpArgTypes == FastIndexedSeq(TFloat64(), TFloat64(), TArray(TString())))
             val Seq(nDivisions) = constructorArgs

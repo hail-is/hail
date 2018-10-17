@@ -22,15 +22,10 @@ object Pretty {
   def prettyClass(x: AnyRef): String =
     x.getClass.getName.split("\\.").last
 
-  def prettyAggOp(op: AggOp): String = op match {
-    case x@Keyed(aggOp) => s"Keyed(${ prettyAggOp(aggOp) })"
-    case _ => prettyClass(op)
-  }
-
   def prettyAggSignature(aggSig: AggSignature): String = {
     val sb = new StringBuilder
     sb += '('
-    sb.append(prettyAggOp(aggSig.op))
+    sb.append(prettyClass(aggSig.op))
     sb += ' '
     sb.append(aggSig.constructorArgs.map(_.parsableString()).mkString(" (", " ", ")"))
     sb.append(aggSig.initOpArgs.map(_.map(_.parsableString()).mkString(" (", " ", ")")).getOrElse(" None"))
