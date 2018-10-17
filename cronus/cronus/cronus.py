@@ -6,6 +6,7 @@ import flask
 import kubernetes as kube
 import logging
 import os
+import time
 import uuid
 
 fmt = logging.Formatter(
@@ -35,6 +36,7 @@ app.secret_key = uuid.uuid4().hex  # FIXME read from file
 INSTANCE_ID = uuid.uuid4().hex
 
 def start_pod(jupyter_token):
+    pod_id = uuid.uuid4().hex
     pod_spec = kube.client.V1PodSpec(
         containers=[
             kube.client.V1Container(
@@ -55,10 +57,27 @@ def start_pod(jupyter_token):
             generate_name='cronus-job-',
             labels={
                 'app': 'cronus-job',
-                'hail.is/cronus-instance': INSTANCE_ID
+                'hail.is/cronus-instance': INSTANCE_ID,
+                'uuid': pod_id,
             }),
         spec=pod_spec)
-    return k8s.create_namespaced_pod('default', pod_template)
+    pod = k8s.create_namespaced_pod('default', pod_template)
+    service_spec = kube.client.V1ServiceSpec(
+        selector={
+            'app': 'cronus-job',
+            'hail.is/cronus-instance': INSTANCE_ID,
+            'uuid': pod_id},
+        ports=[kube.client.V1ServicePort(port=80)])
+    service_template = kube.client.V1Service(spec=service_spec)
+    k8s.create_namespaced_service('default', service_template)
+    while True:
+        pod = k8s.read_namespaced_pod(name=pod.metadata.name,
+                                      namespace='default')
+        if pod.status.phase != 'Pending':
+            break
+        time.sleep(1)
+    return pod
+
 
 
 def external_url_for(*args, **kwargs):
