@@ -21,7 +21,7 @@ class ValueIRTests(unittest.TestCase):
         v = ir.Ref('v')
         s = ir.Ref('s')
         t = ir.Ref('t')
-        call = ir.Ref('call', hl.tcall)
+        call = ir.Ref('call')
 
         collect_sig = ir.AggSignature('Collect', [], None, [hl.tint32])
 

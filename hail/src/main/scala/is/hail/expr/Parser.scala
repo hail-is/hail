@@ -23,6 +23,13 @@ case class IRParserEnvironment(
 ) {
   def update(newRefMap: Map[String, Type] = Map.empty, newIRMap: Map[String, BaseIR] = Map.empty): IRParserEnvironment =
     copy(refMap = refMap ++ newRefMap, irMap = irMap ++ newIRMap)
+
+  def withRefMap(newRefMap: Map[String, Type]): IRParserEnvironment = {
+    assert(refMap.isEmpty)
+    copy(refMap = newRefMap)
+  }
+
+  def +(t: (String, Type)): IRParserEnvironment = copy(refMap = refMap + t, irMap)
 }
 
 class RichParser[T](parser: Parser.Parser[T]) {
@@ -520,7 +527,7 @@ object Parser extends JavaTokenParsers {
       "IsNA" ~> ir_value_expr(env) ^^ { value => ir.IsNA(value) } |
       "If" ~> ir_value_expr(env) ~ ir_value_expr(env) ~ ir_value_expr(env) ^^ { case cond ~ consq ~ altr => ir.If(cond, consq, altr) } |
       "Let" ~> ir_identifier ~ ir_value_expr(env) >> { case name ~ value =>
-        ir_value_expr(env.update(Map(name -> value.typ))) ^^ { body => ir.Let(name, value, body) }} |
+        ir_value_expr(env + (name -> value.typ)) ^^ { body => ir.Let(name, value, body) }} |
       "Ref" ~> ir_identifier ^^ { name => ir.Ref(name, env.refMap(name)) } |
       "ApplyBinaryPrimOp" ~> ir_binary_op ~ ir_value_expr(env) ~ ir_value_expr(env) ^^ { case op ~ l ~ r => ir.ApplyBinaryPrimOp(op, l, r) } |
       "ApplyUnaryPrimOp" ~> ir_unary_op ~ ir_value_expr(env) ^^ { case op ~ x => ir.ApplyUnaryPrimOp(op, x) } |
@@ -585,7 +592,7 @@ object Parser extends JavaTokenParsers {
     } |
       "TableDistinct" ~> table_ir(env) ^^ { t => ir.TableDistinct(t) } |
       "TableFilter" ~> table_ir(env) >> { child =>
-        ir_value_expr(env.update(child.typ.refMap)) ^^ { pred => ir.TableFilter(child, pred) }} |
+        ir_value_expr(env.withRefMap(child.typ.refMap)) ^^ { pred => ir.TableFilter(child, pred) }} |
       "TableRead" ~> string_literal ~ boolean_literal ~ ir_opt(table_type_expr) ^^ { case path ~ dropRows ~ typ =>
         TableIR.read(HailContext.get, path, dropRows, typ)
       } |
@@ -593,9 +600,9 @@ object Parser extends JavaTokenParsers {
       "MatrixRowsTable" ~> matrix_ir(env) ^^ { child => ir.MatrixRowsTable(child) } |
       "MatrixEntriesTable" ~> matrix_ir(env) ^^ { child => ir.MatrixEntriesTable(child) } |
       "TableAggregateByKey" ~> table_ir(env) >> { child =>
-        ir_value_expr(env.update(child.typ.refMap)) ^^ { expr => ir.TableAggregateByKey(child, expr) }} |
+        ir_value_expr(env.withRefMap(child.typ.refMap)) ^^ { expr => ir.TableAggregateByKey(child, expr) }} |
       "TableKeyByAndAggregate" ~> int32_literal_opt ~ int32_literal ~ table_ir(env) >> { case nPartitions ~ bufferSize ~ child =>
-        val newEnv = env.update(child.typ.refMap)
+        val newEnv = env.withRefMap(child.typ.refMap)
         ir_value_expr(newEnv) ~ ir_value_expr(newEnv) ^^ {
         case expr ~ newKey => ir.TableKeyByAndAggregate(child, expr, newKey, nPartitions, bufferSize) }} |
       "TableRepartition" ~> int32_literal ~ boolean_literal ~ table_ir(env) ^^ { case n ~ shuffle ~ child => ir.TableRepartition(child, n, shuffle) } |
@@ -606,8 +613,8 @@ object Parser extends JavaTokenParsers {
       "TableParallelize" ~> int32_literal_opt ~ ir_value_expr(env) ^^ { case nPartitions ~ rows =>
         ir.TableParallelize(rows, nPartitions)
       } |
-      "TableMapRows" ~> table_ir(env) >> { child => ir_value_expr(env.update(child.typ.refMap)) ^^ { newRow => ir.TableMapRows(child, newRow) }} |
-      "TableMapGlobals" ~> table_ir(env) >> { child => ir_value_expr(env.update(child.typ.refMap)) ^^ { newRow => ir.TableMapGlobals(child, newRow) }} |
+      "TableMapRows" ~> table_ir(env) >> { child => ir_value_expr(env.withRefMap(child.typ.refMap)) ^^ { newRow => ir.TableMapRows(child, newRow) }} |
+      "TableMapGlobals" ~> table_ir(env) >> { child => ir_value_expr(env.withRefMap(child.typ.refMap)) ^^ { newRow => ir.TableMapGlobals(child, newRow) }} |
       "TableRange" ~> int32_literal ~ int32_literal ^^ { case n ~ nPartitions => ir.TableRange(n, nPartitions) } |
       "TableUnion" ~> table_ir_children(env) ^^ { children => ir.TableUnion(children) } |
       "TableOrderBy" ~> ir_identifiers ~ table_ir(env) ^^ { case identifiers ~ child =>
@@ -630,20 +637,22 @@ object Parser extends JavaTokenParsers {
   def matrix_ir(env: IRParserEnvironment): Parser[ir.MatrixIR] = "(" ~> matrix_ir_1(env) <~ ")"
 
   def matrix_ir_1(env: IRParserEnvironment): Parser[ir.MatrixIR] = {
-    "MatrixFilterCols" ~> matrix_ir(env) >> { child => ir_value_expr(env.update(child.typ.refMap)) ^^ (pred => ir.MatrixFilterCols(child, pred)) } |
-      "MatrixFilterRows" ~> matrix_ir(env) >> { child => ir_value_expr(env.update(child.typ.refMap)) ^^ (pred => ir.MatrixFilterRows(child, pred)) } |
-      "MatrixFilterEntries" ~> matrix_ir(env) >> { child => ir_value_expr(env.update(child.typ.refMap)) ^^ (pred => ir.MatrixFilterEntries(child, pred)) } |
+    "MatrixFilterCols" ~> matrix_ir(env) >> { child => ir_value_expr(env.withRefMap(child.typ.refMap)) ^^ (pred => ir.MatrixFilterCols(child, pred)) } |
+      "MatrixFilterRows" ~> matrix_ir(env) >> { child => ir_value_expr(env.withRefMap(child.typ.refMap)) ^^ (pred => ir.MatrixFilterRows(child, pred)) } |
+      "MatrixFilterEntries" ~> matrix_ir(env) >> { child => ir_value_expr(env.withRefMap(child.typ.refMap)) ^^ (pred => ir.MatrixFilterEntries(child, pred)) } |
       "MatrixMapCols" ~> string_literals_opt ~ matrix_ir(env) >> { case newKey ~ child =>
-        ir_value_expr(env.update(child.typ.refMap)) ^^ { newCol => ir.MatrixMapCols(child, newCol, newKey) }} |
+        ir_value_expr(env.withRefMap(child.typ.refMap)) ^^ { newCol => ir.MatrixMapCols(child, newCol, newKey) }} |
       "MatrixKeyRowsBy" ~> ir_identifiers ~ boolean_literal ~ matrix_ir(env) ^^ { case key ~ isSorted ~ child => ir.MatrixKeyRowsBy(child, key, isSorted) } |
-      "MatrixMapRows" ~> matrix_ir(env) >> { child => ir_value_expr(env.update(child.typ.refMap)) ^^ (newRow => ir.MatrixMapRows(child, newRow)) } |
-      "MatrixMapEntries" ~> matrix_ir(env) >> { child => ir_value_expr(env.update(child.typ.refMap)) ^^ (newEntry => ir.MatrixMapEntries(child, newEntry)) } |
-      "MatrixMapGlobals" ~> matrix_ir(env) >> { child => ir_value_expr(env.update(child.typ.refMap)) ^^ (newGlobals => ir.MatrixMapGlobals(child, newGlobals)) } |
+      "MatrixMapRows" ~> matrix_ir(env) >> { child => ir_value_expr(env.withRefMap(child.typ.refMap)) ^^ (newRow => ir.MatrixMapRows(child, newRow)) } |
+      "MatrixMapEntries" ~> matrix_ir(env) >> { child => ir_value_expr(env.withRefMap(child.typ.refMap)) ^^ (newEntry => ir.MatrixMapEntries(child, newEntry)) } |
+      "MatrixMapGlobals" ~> matrix_ir(env) >> { child => ir_value_expr(env.withRefMap(child.typ.refMap)) ^^ (newGlobals => ir.MatrixMapGlobals(child, newGlobals)) } |
       "MatrixAggregateColsByKey" ~> matrix_ir(env) >> { child =>
-        ir_value_expr(env.update(child.typ.refMap)) ~ ir_value_expr(env.update(child.typ.refMap)) ^^ {
+        val newEnv = env.withRefMap(child.typ.refMap)
+        ir_value_expr(newEnv) ~ ir_value_expr(newEnv) ^^ {
           case entryExpr ~ colExpr => ir.MatrixAggregateColsByKey(child, entryExpr, colExpr) }} |
       "MatrixAggregateRowsByKey" ~> matrix_ir(env) >> { child =>
-        ir_value_expr(env.update(child.typ.refMap)) ~ ir_value_expr(env.update(child.typ.refMap)) ^^ {
+        val newEnv = env.withRefMap(child.typ.refMap)
+        ir_value_expr(newEnv) ~ ir_value_expr(newEnv) ^^ {
           case entryExpr ~ rowExpr => ir.MatrixAggregateRowsByKey(child, entryExpr, rowExpr) }} |
       "MatrixRead" ~> matrix_type_expr_opt ~ boolean_literal ~ boolean_literal ~ string_literal ^^ {
         case typ ~ dropCols ~ dropRows ~ readerStr =>
@@ -656,7 +665,7 @@ object Parser extends JavaTokenParsers {
           ir.TableToMatrixTable(child, rowKey, colKey, rowFields, colFields, nPartitions)
       } |
       "MatrixAnnotateRowsTable" ~> string_literal ~ boolean_literal ~ matrix_ir(env) ~ table_ir(env) >> {
-        case uid ~ hasKey ~ child ~ table => rep(ir_value_expr(env.update(child.typ.refMap))) ^^ {
+        case uid ~ hasKey ~ child ~ table => rep(ir_value_expr(env.withRefMap(child.typ.refMap))) ^^ {
           key =>
           val keyIRs = if (hasKey) Some(key.toFastIndexedSeq) else None
           ir.MatrixAnnotateRowsTable(child, table, uid, keyIRs)
