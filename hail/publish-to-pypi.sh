@@ -7,7 +7,7 @@ CURRENT=$(cat python/hail/version)
 PYPI_VERSIONS=$(python list_pypi_versions.py hail)
 
 set +e
-grep -qe "${CURRENT}" <(echo $PYPI_VERSIONS)
+grep -qe "^${CURRENT}$" <(echo "$PYPI_VERSIONS")
 ALREADY_PUBLISHED=$?
 set -e
 

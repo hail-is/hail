@@ -33,6 +33,5 @@ setup(
         'parsimonious<0.9',
         'ipykernel<5',
         'decorator<5',
-    ],
-    cmdclass={'bdist_wheel': bdist_wheel},
+    ]
 )
