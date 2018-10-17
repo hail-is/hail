@@ -93,7 +93,7 @@ class AggFunc(object):
                       array_agg_expr=expr_oneof(expr_array(), expr_set()))
     def explode(self, f, array_agg_expr):
         if len(array_agg_expr._ir.search(lambda n: isinstance(n, BaseApplyAggOp))) != 0:
-            raise ExpressionException("'agg.explode' does not support an already-aggregated expression as the argument to 'collection'")
+            raise ExpressionException("'{}.explode' does not support an already-aggregated expression as the argument to 'collection'".format(self.correct_prefix()))
 
         if isinstance(array_agg_expr.dtype, tset):
             array_agg_expr = hl.array(array_agg_expr)
@@ -103,6 +103,9 @@ class AggFunc(object):
         self._agg_bindings.add(var)
         aggregated = f(ref)
         self._agg_bindings.remove(var)
+
+        if len(aggregated._ir.search(lambda n: isinstance(n, BaseApplyAggOp))) == 0:
+            raise ExpressionException("'{}.explode' must take mapping that contains aggregation expression.".format(self.correct_prefix()))
 
         indices, _ = unify_all(array_agg_expr, aggregated)
         aggregations = hl.utils.LinkedList(Aggregation)
@@ -118,6 +121,8 @@ class AggFunc(object):
     def filter(self, condition, aggregation):
         if len(condition._ir.search(lambda n: isinstance(n, BaseApplyAggOp))) != 0:
             raise ExpressionException("'agg.filter' does not support an already-aggregated expression as the argument to 'condition'")
+        if len(aggregation._ir.search(lambda n: isinstance(n, BaseApplyAggOp))) == 0:
+            raise ExpressionException("'{}.filter' must have aggregation in argument to 'aggregation'".format(self.correct_prefix()))
 
         indices, aggregations = unify_all(condition, aggregation)
 
@@ -131,7 +136,9 @@ class AggFunc(object):
 
     def group_by(self, group, aggregation):
         if len(group._ir.search(lambda n: isinstance(n, BaseApplyAggOp))) != 0:
-            raise ExpressionException("'agg.group_by' does not support an already-aggregated expression as the argument to 'group'")
+            raise ExpressionException("'{}.group_by' does not support an already-aggregated expression as the argument to 'group'".format(self.correct_prefix()))
+        if len(aggregation._ir.search(lambda n: isinstance(n, BaseApplyAggOp))) == 0:
+            raise ExpressionException("'{}.group_by' must have aggregation in argument to 'aggregation'".format(self.correct_prefix()))
 
         indices, _ = unify_all(group, aggregation)
 
