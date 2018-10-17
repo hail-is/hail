@@ -3,6 +3,7 @@ kind: Deployment
 metadata:
   name: site-deployment
   labels:
+    app: site
     hail.is/sha: @sha@
 spec:
   selector:

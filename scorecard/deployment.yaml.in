@@ -3,6 +3,7 @@ kind: Deployment
 metadata:
   name: scorecard-deployment
   labels:
+    app: scorecard
     hail.is/sha: @sha@
 spec:
   selector:

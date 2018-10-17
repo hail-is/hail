@@ -3,6 +3,7 @@ kind: Deployment
 metadata:
   name: hail-ci-deployment
   labels:
+    app: hail-ci
     hail.is/sha: @sha@
 spec:
   selector:

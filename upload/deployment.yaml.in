@@ -3,6 +3,7 @@ kind: Deployment
 metadata:
   name: upload
   labels:
+    app: upload
     hail.is/sha: @sha@
 spec:
   selector:
