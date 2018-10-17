@@ -322,6 +322,49 @@ class Tests(unittest.TestCase):
         for test in tests:
             self.assertEqual(t.aggregate(test[0]), test[1])
 
+    def test_aggregators_with_randomness(self):
+        t = hl.utils.range_table(10)
+        res = t.aggregate(agg.filter(hl.rand_bool(0.5), hl.struct(collection=agg.collect(t.idx), sum=agg.sum(t.idx))))
+        self.assertEqual(sum(res.collection), res.sum)
+
+    def test_aggregator_scope(self):
+        t = hl.utils.range_table(10)
+        with self.assertRaises(hl.expr.ExpressionException):
+            t.aggregate(agg.explode(lambda elt: agg.sum(elt) + elt, [t.idx, t.idx + 1]))
+        with self.assertRaises(hl.expr.ExpressionException):
+            t.aggregate(agg.filter(t.idx > 7, agg.sum(t.idx) / t.idx))
+        with self.assertRaises(hl.expr.ExpressionException):
+            t.aggregate(agg.group_by(t.idx % 3, agg.sum(t.idx) / t.idx))
+
+        tests = [(agg.filter(t.idx > 7,
+                             agg.explode(lambda x: agg.collect(hl.int64(x + 1)),
+                                         [t.idx, t.idx + 1]).append(
+                                 agg.group_by(t.idx % 3, agg.sum(t.idx))[0])
+                             ),
+                  [9, 10, 10, 11, 9]),
+                 (agg.explode(lambda x:
+                              agg.filter(x > 7,
+                                         agg.collect(x)
+                                         ).extend(agg.group_by(t.idx % 3,
+                                                               hl.array(agg.collect_as_set(x)))[0]),
+                              [t.idx, t.idx + 1]),
+                  [8, 8, 9, 9, 10, 0, 1, 3, 4, 6, 7, 9, 10]),
+                 (agg.group_by(t.idx % 3,
+                               agg.filter(t.idx > 7,
+                                          agg.collect(t.idx)
+                                          ).extend(agg.explode(
+                                   lambda x: hl.array(agg.collect_as_set(x)),
+                                   [t.idx, t.idx + 34]))
+                               ),
+                  {0: [9, 0, 3, 6, 9, 34, 37, 40, 43],
+                   1: [1, 4, 7, 35, 38, 41],
+                   2: [8, 2, 5, 8, 36, 39, 42]})
+                 ]
+        for test in tests:
+            self.assertEqual(t.aggregate(test[0]), test[1])
+
+
+
 
     def test_scan(self):
         table = hl.utils.range_table(10)
