@@ -778,9 +778,10 @@ class AggExplode(IR):
         return {self.name} | super().bound_variables
 
     def __eq__(self, other):
-        return isinstance(other, AggFilter) and \
-               other.cond == self.cond and \
-               other.agg_ir == self.agg_ir
+        return isinstance(other, AggExplode) and \
+               other.array == self.array and \
+               other.name == self.name and \
+               other.agg_body == self.agg_body
 
 
 class AggGroupBy(IR):

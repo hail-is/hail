@@ -244,7 +244,7 @@ class Tests(unittest.TestCase):
         table = hl.utils.range_table(10)
         r = table.aggregate(hl.struct(x=agg.count(),
                                       y=agg.count_where(table.idx % 2 == 0),
-                                      z=agg.filter(table.idx % 2 == 0, agg.count(table.idx)),
+                                      z=agg.filter(table.idx % 2 == 0, agg.count()),
                                       arr_sum=agg.array_sum([1, 2, hl.null(tint32)]),
                                       bind_agg=agg.count_where(hl.bind(lambda x: x % 2 == 0, table.idx)),
                                       mean=agg.mean(table.idx),
@@ -362,9 +362,6 @@ class Tests(unittest.TestCase):
                  ]
         for test in tests:
             self.assertEqual(t.aggregate(test[0]), test[1])
-
-
-
 
     def test_scan(self):
         table = hl.utils.range_table(10)

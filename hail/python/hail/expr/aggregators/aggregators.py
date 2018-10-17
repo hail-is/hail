@@ -218,6 +218,7 @@ def collect_as_set(expr) -> SetExpression:
     return _agg_func('CollectAsSet', [expr], tset(expr.dtype))
 
 
+@typecheck()
 def count() -> Int64Expression:
     """Count the number of records.
 
@@ -567,7 +568,7 @@ def array_sum(expr) -> ArrayExpression:
     -------
     :class:`.ArrayExpression` with element type :py:data:`.tint64` or :py:data:`.tfloat64`
     """
-    return _agg_func('Sum', expr, expr.dtype)
+    return _agg_func('Sum', [expr], expr.dtype)
 
 
 @typecheck(expr=expr_float64)
