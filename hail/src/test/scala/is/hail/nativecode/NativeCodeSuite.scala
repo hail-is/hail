@@ -125,8 +125,8 @@ class NativeCodeSuite extends SparkSuite {
     val myObj = new NativePtr(makeMyObj, st, 55L)
     assert(myObj.get() != 0)
     // Now try getting the binary
-    val key = mod.getKey()
-    val binary = mod.getBinary()
+    val key = mod.getKey
+    val binary = mod.getBinary
     mod.close()
     val workerMod = new NativeModule(key, binary)
     val workerFunc1 = workerMod.findLongFuncL1(st, "testFunc1")
