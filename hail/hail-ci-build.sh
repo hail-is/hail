@@ -20,6 +20,7 @@ PYTHON_TEST_LOG="build/python-test.log"
 DOCTEST_LOG="build/doctest.log"
 DOCS_LOG="build/docs.log"
 GCP_LOG="build/gcp.log"
+PIP_PACKAGE_LOG="build/pip-package.log"
 
 COMP_SUCCESS="build/_COMP_SUCCESS"
 SCALA_TEST_SUCCESS="build/_SCALA_TEST_SUCCESS"
@@ -28,6 +29,8 @@ DOCTEST_SUCCESS="build/_DOCTEST_SUCCESS"
 DOCS_SUCCESS="build/_DOCS_SUCCESS"
 GCP_SUCCESS="build/_GCP_SUCCESS"
 GCP_STOPPED="build/_GCP_STOPPED"
+PIP_PACKAGE_SUCCESS="build/_PIP_PACKAGE_SUCCESS"
+PIP_PACKAGE_STOPPED="build/_PIP_PACKAGE_STOPPED"
 
 SUCCESS='<span style="color:green;font-weight:bold">SUCCESS</span>'
 FAILURE='<span style="color:red;font-weight:bold">FAILURE</span>'
@@ -60,6 +63,7 @@ on_exit() {
     cp ${DOCS_LOG} ${ARTIFACTS}
     cp ${DOCTEST_LOG} ${ARTIFACTS}
     cp ${GCP_LOG} ${ARTIFACTS}
+    cp ${PIP_PACKAGE_LOG} ${ARTIFACTS}
     cp -R build/www ${ARTIFACTS}/www
     cp -R build/reports/tests ${ARTIFACTS}/test-report
 
@@ -69,6 +73,7 @@ on_exit() {
     DOCTEST_STATUS=$(get_status "${DOCTEST_SUCCESS}" "${PYTHON_TEST_STATUS}")
     DOCS_STATUS=$(get_status "${DOCS_SUCCESS}" "${DOCTEST_STATUS}")
     GCP_STATUS=$(if [ -e ${GCP_STOPPED} ]; then echo "${STOPPED}"; else get_status "${GCP_SUCCESS}"; fi)
+    PIP_PACKAGE_STATUS=$(if [ -e ${PIP_PACKAGE_STOPPED} ]; then echo "${STOPPED}"; else get_status "${PIP_PACKAGE_SUCCESS}"; fi)
 
     cat <<EOF > ${ARTIFACTS}/index.html
 <html>
@@ -140,6 +145,15 @@ on_exit() {
 </tr>
 </tbody>
 </table>
+<h3>PIP Package test</h3>
+<table>
+<tbody>
+<tr>
+<td>${PIP_PACKAGE_STATUS}</td>
+<td><a href='pip-package.log'>PIP Package log</a></td>
+</tr>
+</tbody>
+</table>
 </html>
 EOF
     time gcloud dataproc clusters delete ${CLUSTER_NAME} --async
@@ -197,14 +211,14 @@ test_gcp() {
     touch ${GCP_SUCCESS}
 }
 
-test_pip() {
+test_pip_package() {
     ./gradlew shadowJar
     cp build/libs/hail-all-spark.jar python/hail/hail-all-spark.jar
     cp ../README.md python/
     CONDA_ENV_NAME=$(LC_CTYPE=C LC_ALL=C tr -dc 'a-z0-9' < /dev/urandom | head -c 8)
     conda create -n $CONDA_ENV_NAME python=3.7
     pip install ./python
-    python -c 'import hail as hl; hl.init(); hl.balding_nichols_model(3,100,100)._force_count_rows())'
+    time python -c 'import hail as hl; hl.init(); hl.balding_nichols_model(3,100,100)._force_count_rows())'
     # FIXME: also test on Mac OS X
 }
 
@@ -214,11 +228,17 @@ PID1=$!
 test_gcp > ${GCP_LOG} &
 PID2=$!
 
+test_pip_package > ${PIP_PACKAGE_LOG} &
+PID3=$!
+
 wait $PID1
 if [ "$?" != "0" ]; then
     echo "test_project failed!"
     if [ -ne ${GCP_SUCCESS} ]; then
         touch ${GCP_STOPPED}
+    fi
+    if [ -ne ${PIP_PACKAGE_SUCCESS} ]; then
+        touch ${PIP_PACKAGE_STOPPED}
     fi
     exit 1
 fi
@@ -226,5 +246,14 @@ fi
 wait $PID2
 if [ "$?" != "0" ]; then
     echo "test_gcp failed!"
+    if [ -ne ${PIP_PACKAGE_SUCCESS} ]; then
+        touch ${PIP_PACKAGE_STOPPED}
+    fi
+    exit 1
+fi
+
+wait $PID3
+if [ "$?" != "0" ]; then
+    echo "test_pip_package failed!"
     exit 1
 fi
