@@ -15,7 +15,7 @@ projects = {
     'ci': 'ci/',
     'site': 'site/',
     'scorecard': 'scorecard/',
-    'cloudtools': 'cloudtools/'
+    'cloudtools': 'cloudtools/',
     'upload': 'upload/'
 }
 
