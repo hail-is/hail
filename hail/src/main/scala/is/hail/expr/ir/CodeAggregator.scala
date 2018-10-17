@@ -14,7 +14,7 @@ abstract class BaseCodeAggregator[Agg <: RegionValueAggregator : ClassTag : Type
 
   def initOpArgTypes: Option[Array[Class[_]]]
 
-  def seqOpArgTypes:  Array[Class[_]]
+  def seqOpArgTypes: Array[Class[_]]
 
   def initOp(mb: EmitMethodBuilder, rva: Code[RegionValueAggregator], vs: Array[Code[_]], ms: Array[Code[Boolean]]): Code[Unit]
 

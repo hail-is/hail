@@ -319,8 +319,8 @@ class Tests(unittest.TestCase):
                                                    hl.empty_array(hl.tint32))),
                   {0: [10, 10, 0], 1: [11, 0], 2:[9, 0]})
                  ]
-        for test in tests:
-            self.assertEqual(t.aggregate(test[0]), test[1])
+        for aggregation, expected in tests:
+            self.assertEqual(t.aggregate(aggregation), expected)
 
     def test_aggregators_with_randomness(self):
         t = hl.utils.range_table(10)
@@ -360,8 +360,8 @@ class Tests(unittest.TestCase):
                    1: [1, 4, 7, 35, 38, 41],
                    2: [8, 2, 5, 8, 36, 39, 42]})
                  ]
-        for test in tests:
-            self.assertEqual(t.aggregate(test[0]), test[1])
+        for aggregation, expected in tests:
+            self.assertEqual(t.aggregate(aggregation), expected)
 
     def test_scan(self):
         table = hl.utils.range_table(10)
