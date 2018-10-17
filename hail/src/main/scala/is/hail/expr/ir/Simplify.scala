@@ -20,7 +20,7 @@ object Simplify {
   private[this] def visitNode[T <: BaseIR](
     pre: T => T,
     transform: T => Option[T],
-    post: T => T
+    post: => (T => T)
   ): T => T = { t =>
     val t1 = pre(t)
     transform(t1) match {
