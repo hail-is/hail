@@ -47,9 +47,7 @@ def start_pod(jupyter_token):
                 ],
                 name='default',
                 image='gcr.io/broad-ctsa/cronus',
-                ports=[kube.client.V1ContainerPort(
-                    container_port=8888,
-                    host_port=80)],
+                ports=[kube.client.V1ContainerPort(container_port=8888)],
                 resources=kube.client.V1ResourceRequirements(
                     requests={'cpu': '3.7', 'memory': '4G'}))])
     pod_template = kube.client.V1Pod(
@@ -67,7 +65,7 @@ def start_pod(jupyter_token):
             'app': 'cronus-job',
             'hail.is/cronus-instance': INSTANCE_ID,
             'uuid': pod_id},
-        ports=[kube.client.V1ServicePort(port=80)])
+        ports=[kube.client.V1ServicePort(port=80, target_port=8888)])
     service_template = kube.client.V1Service(
         metadata=kube.client.V1ObjectMeta(
             generate_name='cronus-job-service-',
