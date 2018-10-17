@@ -31,7 +31,7 @@ buildScan {
     licenseAgree = 'yes'
 }
 
-String hailVersion = "devel"
+String hailVersion = "0.2"
 String[] deployedSparkVersions = new File("deployed-spark-versions.txt").readLines()
 
 String sparkVersion = System.getProperty("spark.version", "2.2.0")
