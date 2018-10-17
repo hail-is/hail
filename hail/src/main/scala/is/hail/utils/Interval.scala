@@ -197,20 +197,4 @@ object Interval {
       }
     }
   }
-
-  /** Comparison of 'x' and 'y', each of which is either an interval whose
-    * point type is comparible with 'pord', or an arbitrary annotation
-    * comparible with 'pord'. Returns true if 'x' is completely below 'y'.
-    */
-  def quasiordering(pord: ExtendedOrdering)(x: Any, y: Any): Boolean = {
-      val (xr, xrs) = x match {
-        case i: Interval => (i.right.point, i.right.sign)
-        case _ => (x, 1)
-      }
-      val (yl, yls) = y match {
-        case i: Interval => (i.left.point, i.left.sign)
-        case _ => (y, -1)
-      }
-      pord.intervalEndpointOrdering.compareIntervalEndpoints(xr, xrs, yl, yls, true) <= 0
-    }
 }

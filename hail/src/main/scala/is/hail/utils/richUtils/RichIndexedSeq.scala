@@ -4,7 +4,9 @@ package is.hail.utils.richUtils
   *
   * Houses the generic binary search methods. All methods taking
   *   - a search key 'x: U',
-  *   - a key comparison 'lt: (U, U) => Boolean',
+  *   - a key comparison 'lt: (U, U) => Boolean' (the most generic versions
+  *   allow the search key 'x' to be of a different type than the elements of
+  *   the sequence, and take one or two mixed type comparison functions),
   *   - and a key projection 'k: (T) => U',
   * assume the following preconditions for all 0 <= i <= j < a.size (writing <
   * for 'lt'):
@@ -20,32 +22,32 @@ class RichIndexedSeq[T](val a: IndexedSeq[T]) extends AnyVal {
     *   - a(i) < 'x' for all i in ['start', i), and
     *   - !(a(i) < 'x') (i.e. 'x' <= a(i)) for all i in [i, 'end')
     */
-  def lowerBound[U](x: U, start: Int, end: Int, lt: (U, U) => Boolean, k: (T) => U): Int =
+  def lowerBound[U, V](x: V, start: Int, end: Int, lt: (U, V) => Boolean, k: (T) => U): Int =
     partitionPoint[U](!lt(_: U, x), start, end, k)
 
-  def lowerBound[U >: T](x: U, start: Int, end: Int, lt: (U, U) => Boolean): Int =
+  def lowerBound[U >: T, V](x: V, start: Int, end: Int, lt: (U, V) => Boolean): Int =
     lowerBound(x, start, end, lt, identity[U])
 
-  def lowerBound[U](x: U, lt: (U, U) => Boolean, k: (T) => U): Int =
+  def lowerBound[U, V](x: V, lt: (U, V) => Boolean, k: (T) => U): Int =
     lowerBound(x, 0, a.length, lt, k)
 
-  def lowerBound[U >: T](x: U, lt: (U, U) => Boolean): Int =
+  def lowerBound[U >: T, V](x: V, lt: (U, V) => Boolean): Int =
     lowerBound(x, 0, a.length, lt)
 
   /** Returns i in ['start', 'end'] such that
     *   - !('x' < a(i)) (i.e. a(i) <= 'x') for all i in ['start', i), and
     *   - 'x' < a(i) for all i in [i, 'end')
     */
-  def upperBound[U](x: U, start: Int, end: Int, lt: (U, U) => Boolean, k: (T) => U): Int =
+  def upperBound[U, V](x: V, start: Int, end: Int, lt: (V, U) => Boolean, k: (T) => U): Int =
     partitionPoint[U](lt(x, _: U), start, end, k)
 
-  def upperBound[U >: T](x: U, start: Int, end: Int, lt: (U, U) => Boolean): Int =
+  def upperBound[U >: T, V](x: V, start: Int, end: Int, lt: (V, U) => Boolean): Int =
     upperBound(x, start, end, lt, identity[U])
 
-  def upperBound[U](x: U, lt: (U, U) => Boolean, k: (T) => U): Int =
+  def upperBound[U, V](x: V, lt: (V, U) => Boolean, k: (T) => U): Int =
     upperBound(x, 0, a.length, lt, k)
 
-  def upperBound[U >: T](x: U, lt: (U, U) => Boolean): Int =
+  def upperBound[U >: T, V](x: V, lt: (V, U) => Boolean): Int =
     upperBound(x, 0, a.length, lt)
 
   /** Returns (l, u) such that
@@ -54,20 +56,41 @@ class RichIndexedSeq[T](val a: IndexedSeq[T]) extends AnyVal {
     *   - 'x' < a(i) for all i in [u, a.size).
     */
   def equalRange[U](x: U, lt: (U, U) => Boolean, k: (T) => U): (Int, Int) =
-    runSearch(x, lt, k,
+    equalRange(x, lt, lt, k)
+
+  def equalRange[U, V](
+    x: V,
+    ltUV: (U, V) => Boolean,
+    ltVU: (V, U) => Boolean,
+    k: (T) => U
+  ): (Int, Int) =
+    runSearch(x, ltUV, ltVU, k,
       (l, m, u) =>
-        (lowerBound(x, l, m, lt, k), upperBound(x, m + 1, u, lt, k)),
+        (lowerBound(x, l, m, ltUV, k), upperBound(x, m + 1, u, ltVU, k)),
       (m) =>
         (m, m))
 
   def equalRange[U >: T](x: U, lt: (U, U) => Boolean): (Int, Int) =
-    equalRange(x, lt, identity[U])
+    equalRange(x, lt, lt, identity[U])
+
+  def equalRange[U >: T, V](x: V, ltUV: (U, V) => Boolean, ltVU: (V, U) => Boolean): (Int, Int) =
+    equalRange(x, ltUV, ltVU, identity[U])
+
+  def containsOrdered[U, V](
+    x: V,
+    ltUV: (U, V) => Boolean,
+    ltVU: (V, U) => Boolean,
+    k: (T) => U
+  ): Boolean = runSearch(x, ltUV, ltVU, k, (_, _, _) => true, (_) => false)
 
   def containsOrdered[U](x: U, lt: (U, U) => Boolean, k: (T) => U): Boolean =
-    runSearch(x, lt, k, (_, _, _) => true, (_) => false)
+    containsOrdered(x, lt, lt, k)
 
   def containsOrdered[U >: T](x: U, lt: (U, U) => Boolean): Boolean =
-    containsOrdered(x, lt, identity[U])
+    containsOrdered(x, lt, lt, identity[U])
+
+  def containsOrdered[U >: T, V](x: V, ltUV: (U, V) => Boolean, ltVU: (V, U) => Boolean): Boolean =
+    containsOrdered(x, ltUV, ltVU, identity[U])
 
   /** Returns 'start' <= i <= 'end' such that p(k(a(j))) is false for all j
     * in ['start', i), and p(k(a(j))) is true for all j in [i, 'end').
@@ -103,23 +126,24 @@ class RichIndexedSeq[T](val a: IndexedSeq[T]) extends AnyVal {
     * the search. In the second case, call 'notFound'(j), where k(a(i)) < x for
     * all i in [0, j) and x < k(a(i)) for all i in [j, a.size).
     */
-  private def runSearch[U, V](
-    x: U,
-    lt: (U, U) => Boolean,
+  private def runSearch[U, V, R](
+    x: V,
+    ltUV: (U, V) => Boolean,
+    ltVU: (V, U) => Boolean,
     k: (T) => U,
-    found: (Int, Int, Int) => V,
-    notFound: (Int) => V
-  ): V = {
+    found: (Int, Int, Int) => R,
+    notFound: (Int) => R
+  ): R = {
     var left = 0
     var right = a.size
     while (left < right) {
       // a(i) < x for all i in [0, left)
       // x < a(i) for all i in [right, a.size)
       val mid = (left + right) / 2
-      if (lt(x, k(a(mid))))
+      if (ltVU(x, k(a(mid))))
         // x < a(i) for all i in [mid, a.size)
         right = mid
-      else if (lt(k(a(mid)), x))
+      else if (ltUV(k(a(mid)), x))
         // a(i) < x for all i in [0, mid]
         left = mid + 1
       else

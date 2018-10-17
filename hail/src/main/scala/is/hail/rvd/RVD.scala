@@ -915,7 +915,7 @@ class RVD(
   }
 
   // Like alignAndZipPartitions, when 'that' is keyed by intervals.
-  // 'ziper' is called once for each partition of 'this', as in
+  // 'zipper' is called once for each partition of 'this', as in
   // alignAndZipPartitions, but now the second iterator will contain all rows
   // of 'that' whose key is an interval overlapping the range bounds of the
   // current partition of 'this'.

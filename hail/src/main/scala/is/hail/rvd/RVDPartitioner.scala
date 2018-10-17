@@ -44,10 +44,9 @@ class RVDPartitioner(
   require(RVDPartitioner.isValid(kType, rangeBounds, allowedOverlap))
 
   val kord: ExtendedOrdering = kType.ordering
-  val eord: ExtendedOrdering = kord.intervalEndpointOrdering
-  val qord: (Any, Any) => Boolean = Interval.quasiordering(kord)
-  val scalaEOrd: Ordering[IntervalEndpoint] =
-    kord.intervalEndpointOrdering.toOrdering.asInstanceOf[Ordering[IntervalEndpoint]]
+  val intervalKeyLT: (Interval, Any) => Boolean = (i, k) => i.isBelowPosition(kord, k)
+  val keyIntervalLT: (Any, Interval) => Boolean = (k, i) => i.isAbovePosition(kord, k)
+  val intervalLT: (Interval, Interval) => Boolean = (i1, i2) => i1.isBelow(kord, i2)
 
   def range: Option[Interval] =
     if (rangeBounds.isEmpty)
@@ -126,6 +125,9 @@ class RVDPartitioner(
     require(allowedOverlap >= 0 && allowedOverlap <= kType.size)
     require(satisfiesAllowedOverlap(allowedOverlap))
 
+    val eord: ExtendedOrdering = kord.intervalEndpointOrdering
+    val scalaEOrd: Ordering[IntervalEndpoint] =
+      kord.intervalEndpointOrdering.toOrdering.asInstanceOf[Ordering[IntervalEndpoint]]
     val sorted = cutPoints.map(_.coarsenRight(allowedOverlap + 1)).sorted(scalaEOrd)
 
     var i = 0
@@ -206,7 +208,7 @@ class RVDPartitioner(
     * left endpoint 'key' and unbounded right endpoint, or numPartitions if
     * none do.
     */
-  def lowerBound(key: Any): Int = rangeBounds.view.lowerBound(key, qord)
+  def lowerBound(key: Any): Int = rangeBounds.lowerBound(key, intervalKeyLT)
 
   /** Returns 0 <= i <= numPartitions such that partition i is the first which
     * is above 'key', returning numPartitions if 'key' is above all partitions.
@@ -216,7 +218,7 @@ class RVDPartitioner(
     * interval with right endpoint 'key' and unbounded left endpoint, or
     * numPartitions if none are.
     */
-  def upperBound(key: Any): Int = rangeBounds.view.upperBound(key, qord)
+  def upperBound(key: Any): Int = rangeBounds.upperBound(key, keyIntervalLT)
 
   /** Returns (lowerBound, upperBound). Interesting cases are:
     * - partitioner contains 'key':
@@ -228,14 +230,14 @@ class RVDPartitioner(
     * - 'key' is above the last partition:
     *   lowerBound = upperBound = numPartitions
     */
-  def keyRange(key: Any): (Int, Int) = rangeBounds.view.equalRange(key, qord)
+  def keyRange(key: Any): (Int, Int) = rangeBounds.equalRange(key, intervalKeyLT, keyIntervalLT)
 
   def queryKey(key: Any): Range = {
     val (l, u) = keyRange(key)
     Range(l, u)
   }
 
-  def contains(x: Any): Boolean = rangeBounds.view.containsOrdered(x, qord)
+  def contains(x: Any): Boolean = rangeBounds.containsOrdered(x, intervalKeyLT, keyIntervalLT)
 
   // Interval queries
 
@@ -243,13 +245,13 @@ class RVDPartitioner(
     * either overlaps 'query' or is above 'query', returning numPartitions if
     * 'query' is completely above all partitions.
     */
-  def lowerBoundInterval(query: Interval): Int = rangeBounds.view.lowerBound(query, qord)
+  def lowerBoundInterval(query: Interval): Int = rangeBounds.lowerBound(query, intervalLT)
 
   /** Returns 0 <= i <= numPartitions such that partition i is the first which
     * is above 'query', returning numPartitions if 'query' is completely above
     * or overlaps all partitions.
     */
-  def upperBoundInterval(query: Interval): Int = rangeBounds.view.upperBound(query, qord)
+  def upperBoundInterval(query: Interval): Int = rangeBounds.upperBound(query, intervalLT)
 
   /** Returns (lowerBound, upperBound). Interesting cases are:
     * - partitioner overlaps 'query':
@@ -261,14 +263,14 @@ class RVDPartitioner(
     * - 'query' is completely above the last partition:
     *   lowerBound = upperBound = numPartitions
     */
-  def intervalRange(query: Interval): (Int, Int) = rangeBounds.view.equalRange(query, qord)
+  def intervalRange(query: Interval): (Int, Int) = rangeBounds.equalRange(query, intervalLT)
 
   def queryInterval(query: Interval): Range = {
-    val (l, u) = keyRange(query)
+    val (l, u) = intervalRange(query)
     Range(l, u)
   }
 
-  def overlaps(query: Interval): Boolean = rangeBounds.view.containsOrdered(query, qord)
+  def overlaps(query: Interval): Boolean = rangeBounds.containsOrdered(query, intervalLT)
 
   def isDisjointFrom(query: Interval): Boolean = !overlaps(query)
 }
