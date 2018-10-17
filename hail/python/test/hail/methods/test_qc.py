@@ -114,13 +114,13 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(sum([sum(glob_conc[i]) for i in range(5)]), dataset.count_rows() * dataset.count_cols())
 
-        counts = dataset.aggregate_entries(hl.Struct(n_het=agg.count(agg.filter(dataset.GT.is_het(), dataset.GT)),
-                                                     n_hom_ref=agg.count(
-                                                         agg.filter(dataset.GT.is_hom_ref(), dataset.GT)),
-                                                     n_hom_var=agg.count(
-                                                         agg.filter(dataset.GT.is_hom_var(), dataset.GT)),
-                                                     nNoCall=agg.count(
-                                                         agg.filter(hl.is_missing(dataset.GT), dataset.GT))))
+        counts = dataset.aggregate_entries(hl.Struct(n_het=agg.filter(dataset.GT.is_het(), agg.count(dataset.GT)),
+                                                     n_hom_ref=agg.filter(dataset.GT.is_hom_ref(),
+                                                                          agg.count(dataset.GT)),
+                                                     n_hom_var=agg.filter(dataset.GT.is_hom_var(),
+                                                                          agg.count(dataset.GT)),
+                                                     nNoCall=agg.filter(hl.is_missing(dataset.GT),
+                                                                        agg.count(dataset.GT))))
 
         self.assertEqual(glob_conc[0][0], 0)
         self.assertEqual(glob_conc[1][1], counts.nNoCall)

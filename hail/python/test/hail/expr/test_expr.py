@@ -244,7 +244,7 @@ class Tests(unittest.TestCase):
         table = hl.utils.range_table(10)
         r = table.aggregate(hl.struct(x=agg.count(),
                                       y=agg.count_where(table.idx % 2 == 0),
-                                      z=agg.count(agg.filter(lambda x: x % 2 == 0, table.idx)),
+                                      z=agg.filter(table.idx % 2 == 0, agg.count(table.idx)),
                                       arr_sum=agg.array_sum([1, 2, hl.null(tint32)]),
                                       bind_agg=agg.count_where(hl.bind(lambda x: x % 2 == 0, table.idx)),
                                       mean=agg.mean(table.idx),
@@ -261,7 +261,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(r.foo, 3)
 
         a = hl.literal([1, 2], tarray(tint32))
-        self.assertEqual(table.aggregate(agg.array_sum(agg.filter(lambda x: True, a))), [10, 20])
+        self.assertEqual(table.aggregate(agg.filter(True, agg.array_sum(a))), [10, 20])
 
         r = table.aggregate(hl.struct(fraction_odd=agg.fraction(table.idx % 2 == 0),
                                       lessthan6=agg.fraction(table.idx < 6),
@@ -274,25 +274,56 @@ class Tests(unittest.TestCase):
         self.assertTrue(r.assert1)
         self.assertTrue(r.assert2)
 
-    def test_aggregator_maps(self):
+    def test_new_aggregator_maps(self):
         t = hl.utils.range_table(10)
-        tests = [(agg.filter(lambda x: x > 8, agg._map(lambda x: x + 1, t.idx)), [9, 10]),
-                 (agg._map(lambda x: x + 1, agg.filter(lambda x: x > 8, t.idx)), [10]),
-                 (agg._flatmap(lambda x: hl.cond(x > 8, [x, x + 1], hl.empty_array(hl.tint32)), agg._map(lambda x: x + 1, t.idx)), [9, 10, 10, 11]),
-                 (agg._map(lambda x: x + 1, agg._flatmap(lambda x: hl.cond(x > 8, [x, x + 1], hl.empty_array(hl.tint32)), t.idx)), [10, 11]),
-                 (agg.filter(lambda x: x > 8, agg._flatmap(lambda x: [x, x + 1], t.idx)), [9, 9, 10]),
-                 (agg._flatmap(lambda x: [x, x + 1], agg.filter(lambda x: x > 8, t.idx)), [9, 10])]
 
-
+        tests = [(agg.filter(t.idx > 7,
+                             agg.collect(t.idx + 1).append(0)),
+                  [9, 10, 0]),
+                 (agg.explode(lambda elt: agg.collect(elt + 1).append(0),
+                              hl.cond(t.idx > 7, [t.idx, t.idx + 1], hl.empty_array(hl.tint32))),
+                  [9, 10, 10, 11, 0]),
+                 (agg.explode(lambda elt: agg.explode(lambda elt2: agg.collect(elt2 + 1).append(0),
+                                                      [elt, elt + 1]),
+                              hl.cond(t.idx > 7, [t.idx, t.idx + 1], hl.empty_array(hl.tint32))),
+                  [9, 10, 10, 11, 10, 11, 11, 12, 0]),
+                 (agg.explode(lambda elt: agg.filter(elt > 8,
+                                                     agg.collect(elt + 1).append(0)),
+                              hl.cond(t.idx > 7, [t.idx, t.idx + 1], hl.empty_array(hl.tint32))),
+                  [10, 10, 11, 0]),
+                 (agg.filter(t.idx > 7,
+                             agg.explode(lambda elt: agg.collect(elt + 1).append(0),
+                                         [t.idx, t.idx + 1])),
+                  [9, 10, 10, 11, 0]),
+                 (agg.group_by(t.idx % 2,
+                               hl.array(agg.collect_as_set(t.idx + 1)).append(0)),
+                  {0: [1, 3, 5, 7, 9, 0], 1: [2, 4, 6, 8, 10, 0]}),
+                 (agg.group_by(t.idx % 3,
+                               agg.filter(t.idx > 7,
+                                          hl.array(agg.collect_as_set(t.idx + 1)).append(0))),
+                  {0: [10, 0], 2: [9, 0]}),
+                 # {0: [10, 0], 1: [0], 2: [9, 0]}),
+                 #FIXME: I'm not super clear on how this distinction would work
+                 # currently, because the KeyedAggregator stuff appears to pass
+                 # through the filters and explodes. I think a way around this
+                 # for the time being would be to add a count aggregator just
+                 # for the purposes of getting the right keys, but we can also
+                 # leave this as is until we fix up the IR next week.
+                 (agg.filter(t.idx > 7,
+                              agg.group_by(t.idx % 3,
+                                            hl.array(agg.collect_as_set(t.idx + 1)).append(0))),
+                  {0: [10, 0], 2: [9, 0]})
+                 ]
         for test in tests:
-            self.assertEqual(t.aggregate(agg.collect(test[0])), test[1])
+            self.assertEqual(t.aggregate(test[0]), test[1])
+
 
     def test_scan(self):
         table = hl.utils.range_table(10)
 
         t = table.select(scan_count=hl.scan.count(),
                          scan_count_where=hl.scan.count_where(table.idx % 2 == 0),
-                         scan_count_where2=hl.scan.count(hl.scan.filter(lambda x: x % 2 == 0, table.idx)),
+                         scan_count_where2=hl.scan.filter(table.idx % 2 == 0, hl.scan.count()),
                          arr_sum=hl.scan.array_sum([1, 2, hl.null(tint32)]),
                          bind_agg=hl.scan.count_where(hl.bind(lambda x: x % 2 == 0, table.idx)),
                          mean=hl.scan.mean(table.idx),
@@ -684,8 +715,8 @@ class Tests(unittest.TestCase):
         self.assertEqual(df.aggregate(agg.any(df.mixed_all)), True)
         self.assertEqual(df.aggregate(agg.all(df.mixed_all)), False)
 
-        self.assertEqual(df.aggregate(agg.any(agg.filter(lambda x: False, df.all_true))), False)
-        self.assertEqual(df.aggregate(agg.all(agg.filter(lambda x: False, df.all_true))), True)
+        self.assertEqual(df.aggregate(agg.filter(False, agg.any(df.all_true))), False)
+        self.assertEqual(df.aggregate(agg.filter(False, agg.all(df.all_true))), True)
 
     def test_str_ops(self):
         s = hl.literal("123")

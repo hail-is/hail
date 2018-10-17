@@ -740,14 +740,16 @@ class BaseApplyAggOp(IR):
     @typecheck_method(a=IR,
                       constructor_args=sequenceof(IR),
                       init_op_args=nullable(sequenceof(IR)),
-                      agg_sig=AggSignature)
-    def __init__(self, a, constructor_args, init_op_args, agg_sig):
+                      agg_sig=AggSignature,
+                      typ=hail_type)
+    def __init__(self, a, constructor_args, init_op_args, agg_sig, typ):
         init_op_children = [] if init_op_args is None else init_op_args
         super().__init__(a, *constructor_args, *init_op_children)
         self.a = a
         self.constructor_args = constructor_args
         self.init_op_args = init_op_args
         self.agg_sig = agg_sig
+        self.typ = typ
 
     def copy(self, *args):
         new_instance = self.__class__
@@ -755,7 +757,7 @@ class BaseApplyAggOp(IR):
         a = args[0]
         constr_args = args[1:n_constructor_args + 1]
         init_op_args = args[n_constructor_args + 1:]
-        return new_instance(a, constr_args, init_op_args if len(init_op_args) != 0 else None, self.agg_sig)
+        return new_instance(a, constr_args, init_op_args if len(init_op_args) != 0 else None, self.agg_sig, self.typ)
 
     def render(self, r):
         return '({} {} {} ({}) {})'.format(
@@ -782,18 +784,20 @@ class ApplyAggOp(BaseApplyAggOp):
     @typecheck_method(a=IR,
                       constructor_args=sequenceof(IR),
                       init_op_args=nullable(sequenceof(IR)),
-                      agg_sig=AggSignature)
-    def __init__(self, a, constructor_args, init_op_args, agg_sig):
-        super().__init__(a, constructor_args, init_op_args, agg_sig)
+                      agg_sig=AggSignature,
+                      typ=hail_type)
+    def __init__(self, a, constructor_args, init_op_args, agg_sig, typ):
+        super().__init__(a, constructor_args, init_op_args, agg_sig, typ)
 
 
 class ApplyScanOp(BaseApplyAggOp):
     @typecheck_method(a=IR,
                       constructor_args=sequenceof(IR),
                       init_op_args=nullable(sequenceof(IR)),
-                      agg_sig=AggSignature)
-    def __init__(self, a, constructor_args, init_op_args, agg_sig):
-        super().__init__(a, constructor_args, init_op_args, agg_sig)
+                      agg_sig=AggSignature,
+                      typ=hail_type)
+    def __init__(self, a, constructor_args, init_op_args, agg_sig, typ):
+        super().__init__(a, constructor_args, init_op_args, agg_sig, typ)
 
 
 class InitOp(IR):
