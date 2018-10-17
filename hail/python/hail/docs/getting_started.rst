@@ -24,7 +24,7 @@ Installation
 ------------
 
 Installing Hail on Mac OS X or GNU/Linux with pip
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 If you have Mac OS X, this is the recommended installation method for running
 hail locally (i.e. not on a cluster).
