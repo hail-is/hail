@@ -9,7 +9,7 @@ push: build
 	docker tag cronus $(IMAGE)
 	docker push $(IMAGE)
 
-run-docker:
+run-docker: build
 	docker run -i -p 5000:5000 -t cronus
 
 run:

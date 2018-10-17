@@ -3,13 +3,19 @@ MAINTAINER Hail Team <hail@broadinstitute.org>
 
 RUN apk add \
   bash \
+  gcc \
+  libffi-dev \
+  musl-dev \
+  openssl-dev \
   python3 \
+  python3-dev \
   && pip3 install --no-cache-dir \
   flask \
-  kubernetes
+  kubernetes \
+  'urllib3<1.24'
 
 COPY cronus /cronus
 
 EXPOSE 5000
 
-CMD ['python', '/cronus/cronus.py']
+ENTRYPOINT ["python3", "/cronus/cronus.py"]
