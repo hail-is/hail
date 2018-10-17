@@ -97,6 +97,8 @@ object Parser extends JavaTokenParsers {
 
   def parseMatrixType(code: String): MatrixType = parse(matrix_type_expr, code)
 
+  def parseAggSignature(code: String): AggSignature = parse(agg_signature, code)
+
   def parseAnnotationRoot(code: String, root: String): List[String] = {
     val path = parseAll(annotationIdentifier, code) match {
       case Success(result, _) => result.asInstanceOf[List[String]]
@@ -476,7 +478,7 @@ object Parser extends JavaTokenParsers {
     "(" ~> ir_identifier <~ ")" ^^ { x => x }
 
   def ir_agg_op: Parser[ir.AggOp] =
-    ir_keyed_agg_op | ir_identifier ^^ { x => ir.AggOp.fromString(x) }
+    ir_keyed_agg_op | ir_identifier ^^ { x => ir.AggOpRegistry.fromString(x) }
 
   def ir_keyed_agg_op: Parser[ir.Keyed] =
     "Keyed(" ~> ir_agg_op <~ ")" ^^ { aggOp => ir.Keyed(aggOp) }

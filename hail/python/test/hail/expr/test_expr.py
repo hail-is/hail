@@ -468,18 +468,24 @@ class Tests(unittest.TestCase):
 
     def test_aggregator_group_by(self):
         t = hl.Table.parallelize([
-            {"cohort": None, "pop": "EUR", "GT": hl.Call([0, 0])},
-            {"cohort": None, "pop": "ASN", "GT": hl.Call([0, 1])},
-            {"cohort": None, "pop": None, "GT": hl.Call([0, 0])},
-            {"cohort": "SIGMA", "pop": "AFR", "GT": hl.Call([0, 1])},
-            {"cohort": "SIGMA", "pop": "EUR", "GT": hl.Call([1, 1])},
-            {"cohort": "IBD", "pop": "EUR", "GT": None},
-            {"cohort": "IBD", "pop": "EUR", "GT": hl.Call([0, 0])},
-            {"cohort": "IBD", "pop": None, "GT": hl.Call([0, 1])}
-        ], hl.tstruct(cohort=hl.tstr, pop=hl.tstr, GT=hl.tcall), n_partitions=3)
+            {"cohort": None, "pop": "EUR", "GT": hl.Call([0, 0]), "x": 6},
+            {"cohort": None, "pop": "ASN", "GT": hl.Call([0, 1]), "x": 2},
+            {"cohort": None, "pop": None, "GT": hl.Call([0, 0]), "x": 4},
+            {"cohort": "SIGMA", "pop": "AFR", "GT": hl.Call([0, 1]), "x": None},
+            {"cohort": "SIGMA", "pop": "EUR", "GT": hl.Call([1, 1]), "x": 2},
+            {"cohort": "IBD", "pop": "EUR", "GT": None, "x": 0},
+            {"cohort": "IBD", "pop": "EUR", "GT": hl.Call([0, 0]), "x": 1},
+            {"cohort": "IBD", "pop": None, "GT": hl.Call([0, 1]), "x": None}
+        ], hl.tstruct(cohort=hl.tstr, pop=hl.tstr, GT=hl.tcall, x=hl.tint), n_partitions=3)
 
         r = t.aggregate(hl.struct(count=hl.agg.group_by(t.cohort, hl.agg.group_by(t.pop, hl.agg.count_where(hl.is_defined(t.GT)))),
-                                  inbreeding=hl.agg.group_by(t.cohort, hl.agg.inbreeding(t.GT, 0.1))))
+                                  inbreeding=hl.agg.group_by(t.cohort, hl.agg.inbreeding(t.GT, 0.1)),
+                                  mean=hl.agg.group_by(t.cohort, hl.agg.mean(t.x)),
+                                  mean_plus_three=hl.agg.group_by(t.cohort, hl.agg.mean(t.x) + 3),
+                                  nested_mean=hl.agg.group_by(t.cohort, hl.agg.group_by(t.pop, hl.agg.mean(t.x))),
+                                  mean_squared=hl.agg.group_by(t.cohort, hl.agg.mean(t.x) * hl.agg.mean(t.x)),
+                                  count_where=hl.agg.group_by(t.cohort, hl.agg.count_where(t.x <= 2)),
+                                  count_where_nested=hl.agg.group_by(t.cohort, hl.agg.group_by(t.pop, hl.agg.count_where(t.x <= 2)))))
 
         expected_count = {None: {'EUR': 1, 'ASN': 1, None: 1},
                     'SIGMA': {'AFR': 1, 'EUR': 1},
@@ -491,7 +497,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(r.inbreeding[None].n_called, 3)
         self.assertAlmostEqual(r.inbreeding[None].expected_homs, 2.46)
         self.assertEqual(r.inbreeding[None].observed_homs, 2)
-        
+
         self.assertAlmostEqual(r.inbreeding['SIGMA'].f_stat, -1.777777777777777)
         self.assertEqual(r.inbreeding['SIGMA'].n_called, 2)
         self.assertAlmostEqual(r.inbreeding['SIGMA'].expected_homs, 1.64)
@@ -501,6 +507,31 @@ class Tests(unittest.TestCase):
         self.assertEqual(r.inbreeding['IBD'].n_called, 2)
         self.assertAlmostEqual(r.inbreeding['IBD'].expected_homs, 1.64)
         self.assertEqual(r.inbreeding['IBD'].observed_homs, 1)
+
+        expected_mean = {None: 4,
+                         'SIGMA': 2,
+                         'IBD': 0.5}
+        self.assertEqual(r.mean, expected_mean)
+
+        expected_mean_plus_three = {None: 7, 'SIGMA': 5, 'IBD': 3.5}
+        self.assertEqual(r.mean_plus_three, expected_mean_plus_three)
+
+        expected_nested_mean = {None: {'EUR': 6, 'ASN': 2, None: 4},
+                                'SIGMA': {'AFR': None, 'EUR': 2},
+                                'IBD': {'EUR': 0.5, None: None}}
+        self.assertEqual(r.nested_mean, expected_nested_mean)
+
+        expected_mean_squared = {None: 4 ** 2, 'SIGMA': 2 ** 2, 'IBD': 0.5 ** 2}
+        self.assertEqual(r.mean_squared, expected_mean_squared)
+
+        expected_count_where = {None: 1, 'SIGMA': 1, 'IBD': 2}
+        self.assertEqual(r.count_where, expected_count_where)
+
+        # FIXME: This should include keys where value of count == 0
+        expected_count_where_nested = {None: {'ASN': 1},
+                                       'SIGMA': {'EUR': 1},
+                                       'IBD': {'EUR': 2}}
+        self.assertEqual(r.count_where_nested, expected_count_where_nested)
 
     def test_aggregator_group_by_sorts_result(self):
         t = hl.Table.parallelize([ # the `s` key is stored before the `m` in java.util.HashMap

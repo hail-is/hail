@@ -639,7 +639,7 @@ private class Emit(
           )
         }.toArray: _*)
 
-        val agg = AggOp.get(aggSig)
+        val agg = AggOpRegistry.get(aggSig)
         EmitTriplet(
           Code(codeI.setup,
             Code(codeA.map(_.setup): _*),
@@ -656,7 +656,7 @@ private class Emit(
 
       case x@SeqOp(i, args, aggSig) =>
         val codeI = emit(i)
-        val agg = AggOp.get(aggSig)
+        val agg = AggOpRegistry.get(aggSig)
         val nArgs = args.length
         val argsm = Array.fill[ClassFieldRef[Boolean]](nArgs)(mb.newField[Boolean]())
         val argsv = (0 until nArgs).map(i => mb.newField(typeToTypeInfo(args(i).typ))).toArray

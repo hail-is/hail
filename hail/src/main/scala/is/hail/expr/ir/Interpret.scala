@@ -394,7 +394,7 @@ object Interpret {
             aggregator.get.seqOp(interpret(a))
         }
       case x@ApplyAggOp(a, constructorArgs, initOpArgs, aggSig) =>
-        assert(AggOp.getType(aggSig) == x.typ)
+        assert(AggOpRegistry.getType(aggSig) == x.typ)
 
         def getAggregator(aggOp: AggOp, seqOpArgTypes: Seq[Type]): TypedAggregator[_] = aggOp match {
           case CallStats() =>
