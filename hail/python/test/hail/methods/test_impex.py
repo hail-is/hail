@@ -203,14 +203,14 @@ class PLINKTests(unittest.TestCase):
         self.assertTrue(mt.aggregate_rows(hl.agg.all(mt.cm_position == 15.0)))
 
     def test_import_plink_empty_fam(self):
-        mt = get_dataset().drop_cols()
+        mt = get_dataset().filter_cols(False)
         bfile = '/tmp/test_empty_fam'
         hl.export_plink(mt, bfile, ind_id=mt.s)
         with self.assertRaisesRegex(FatalError, "Empty .fam file"):
             hl.import_plink(bfile + '.bed', bfile + '.bim', bfile + '.fam')
 
     def test_import_plink_empty_bim(self):
-        mt = get_dataset().drop_rows()
+        mt = get_dataset().filter_rows(False)
         bfile = '/tmp/test_empty_bim'
         hl.export_plink(mt, bfile, ind_id=mt.s)
         with self.assertRaisesRegex(FatalError, ".bim file does not contain any variants"):
@@ -723,7 +723,7 @@ class BGENTests(unittest.TestCase):
                                 variants=[])
         self.assertEqual(actual.count_rows(), 0)
 
-        nothing = hl.import_bgen(bgen_file, ['GT']).drop_rows()
+        nothing = hl.import_bgen(bgen_file, ['GT']).filter_rows(False)
         self.assertEqual(nothing.count(), (0, 500))
 
         desired_variants = hl.struct(locus=nothing.locus, alleles=nothing.alleles)
@@ -753,11 +753,11 @@ class BGENTests(unittest.TestCase):
         bgen = hl.import_bgen(resource('example.8bits.bgen'),
                               entry_fields=['dosage'])
 
-        dr = bgen.drop_rows()
+        dr = bgen.filter_rows(False)
         self.assertEqual(dr._force_count_rows(), 0)
         self.assertEqual(dr._force_count_cols(), 500)
 
-        dc = bgen.drop_cols()
+        dc = bgen.filter_cols(False)
         self.assertEqual(dc._force_count_rows(), 199)
         self.assertEqual(dc._force_count_cols(), 0)
 

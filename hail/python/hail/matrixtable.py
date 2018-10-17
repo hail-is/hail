@@ -1300,36 +1300,6 @@ class MatrixTable(ExprContainer):
 
         return m
 
-    def drop_rows(self) -> 'MatrixTable':
-        """Drop all rows of the matrix.  Is equivalent to:
-
-        >>> dataset_result = dataset.filter_rows(False)
-
-        .. include:: _templates/experimental.rst
-
-        Returns
-        -------
-        :class:`.MatrixTable`
-            Matrix table with no rows.
-        """
-        warn("deprecation: 'drop_rows' will be removed before 0.2 release")
-        return MatrixTable(self._jvds.dropRows())
-
-    def drop_cols(self) -> 'MatrixTable':
-        """Drop all columns of the matrix.  Is equivalent to:
-
-        >>> dataset_result = dataset.filter_cols(False)
-
-        .. include:: _templates/experimental.rst
-
-        Returns
-        -------
-        :class:`.MatrixTable`
-            Matrix table with no columns.
-        """
-        warn("deprecation: 'drop_cols' will be removed before 0.2 release")
-        return MatrixTable(self._jvds.dropCols())
-
     @typecheck_method(expr=expr_bool, keep=bool)
     def filter_rows(self, expr, keep: bool = True) -> 'MatrixTable':
         """Filter rows of the matrix.

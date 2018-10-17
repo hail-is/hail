@@ -177,16 +177,6 @@ class Tests(unittest.TestCase):
         self.assertTrue('GT' not in vds2.entry)
         vds2._force_count_rows()
 
-    def test_drop_rows(self):
-        vds = self.get_vds()
-        vds = vds.drop_rows()
-        self.assertEqual(vds.count_rows(), 0)
-
-    def test_drop_cols(self):
-        vds = self.get_vds()
-        vds = vds.drop_cols()
-        self.assertEqual(vds.count_cols(), 0)
-
     def test_explode_rows(self):
         mt = hl.utils.range_matrix_table(4, 4)
         mt = mt.annotate_entries(e=mt.row_idx * 10 + mt.col_idx)
@@ -570,7 +560,7 @@ class Tests(unittest.TestCase):
         mt = mt.annotate_globals(foo='bar')
         rt = mt.rows()
         rm = hl.MatrixTable.from_rows_table(rt)
-        self.assertTrue(rm._same(mt.drop_cols().select_entries().key_cols_by().select_cols()))
+        self.assertTrue(rm._same(mt.filter_cols(False).select_entries().key_cols_by().select_cols()))
 
     def test_sample_rows(self):
         ds = self.get_vds()
