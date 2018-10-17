@@ -18,8 +18,8 @@ gsutil cat gs://hail-common/builds/devel/docs/hail-devel-docs-$LATEST_SHA.tar.gz
     tar xvf - -C /var/www/html-new --strip-components=1
 
 ln -s /var/www/0.1 /var/www/html-new/docs/0.1
-ln -s /var/www/html/docs/devel /var/www/html-new/docs/0.2
-ln -s /var/www/html/docs/devel /var/www/html-new/docs/stable
+ln -s /var/www/html/docs/0.2 /var/www/html-new/docs/devel
+ln -s /var/www/html/docs/0.2 /var/www/html-new/docs/stable
 
 # just in case
 rm -rf /var/www/html-old
