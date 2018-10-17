@@ -36,24 +36,12 @@ To learn more, you can view our talks at [Spark Summit East 2017](https://spark-
 
 ### Getting Started
 
-There are currently two versions of Hail: `0.1` (stable) and `0.2 beta` (development).
-We **strongly** recommend that new users install `0.2 beta`, since this version is already radically improved from `0.1`,
- the file format is stable, and the interface is nearly stable.
+To get started using Hail:
 
-To get started using Hail `0.2 beta` on your own data or on [public data](https://console.cloud.google.com/storage/browser/genomics-public-data/):
-
-- install Hail using the instructions in [Installation](https://hail.is/docs/devel/getting_started.html)
+- install Hail 0.2 using the instructions in [Installation](https://hail.is/docs/devel/getting_started.html)
 - read the [Overview](https://hail.is/docs/devel/overview.html) for a broad introduction to Hail
 - follow the [Tutorials](https://hail.is/docs/devel/tutorials-landing.html) for examples of how to use Hail
 - check out the [Python API](https://hail.is/docs/devel/api.html) for detailed information on the programming interface
-
-You can download phase 3 of the [1000 Genomes dataset](http://www.internationalgenome.org/about) in Hail's native matrix table format [here](https://console.cloud.google.com/storage/browser/hail-datasets/hail-data/?project=broad-ctsa).
-
-As we work toward a stable `0.2` release, additional improvements to the interface may require users to modify their pipelines
-when updating to the latest patch. All such breaking changes will be logged [here](http://discuss.hail.is/t/log-of-breaking-changes-in-0-2-beta/454).
-
-See the [Hail 0.1 docs](https://hail.is/docs/stable/index.html) to get started with `0.1`. The [Annotation Database](https://hail.is/docs/stable/annotationdb.html) and [gnomAD distribution](http://gnomad-beta.broadinstitute.org/downloads) are currently only directly available
-for `0.1` but will be updated for `0.2` soon.
 
 ### User Support
 
