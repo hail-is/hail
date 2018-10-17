@@ -30,12 +30,12 @@ object Subst {
         AggExplode(subst(array, aggEnv), name, subst(aggBody, aggEnv.delete(name), aggEnv.delete(name)))
       case AggGroupBy(key, aggIR) =>
         AggGroupBy(subst(key, aggEnv), subst(aggIR, aggEnv))
-      case ApplyAggOp(seqOpArgs, constructorArgs, initOpArgs, aggSig) =>
-        val substSeqOpArgs = seqOpArgs.map(arg => subst(arg, aggEnv, Env.empty))
+      case ApplyAggOp(constructorArgs, initOpArgs, seqOpArgs, aggSig) =>
         val substConstructorArgs = constructorArgs.map(arg => MapIR(subst(_))(arg))
         val substInitOpArgs = initOpArgs.map(initOpArgs =>
           initOpArgs.map(arg => MapIR(subst(_))(arg)))
-        ApplyAggOp(substSeqOpArgs, substConstructorArgs, substInitOpArgs, aggSig)
+        val substSeqOpArgs = seqOpArgs.map(arg => subst(arg, aggEnv, Env.empty))
+        ApplyAggOp(substConstructorArgs, substInitOpArgs, substSeqOpArgs, aggSig)
       case _ =>
         MapIR(subst(_))(e)
     }

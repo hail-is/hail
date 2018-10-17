@@ -82,10 +82,10 @@ object Children {
       i +: args
     case Begin(xs) =>
       xs
-    case ApplyAggOp(seqOpArgs, constructorArgs, initOpArgs, aggSig) =>
-      (seqOpArgs ++ constructorArgs) ++ initOpArgs.getOrElse(FastIndexedSeq())
-    case ApplyScanOp(seqOpArgs, constructorArgs, initOpArgs, aggSig) =>
-      (seqOpArgs ++ constructorArgs) ++ initOpArgs.getOrElse(FastIndexedSeq())
+    case ApplyAggOp(constructorArgs, initOpArgs, seqOpArgs, aggSig) =>
+      constructorArgs ++ initOpArgs.getOrElse(FastIndexedSeq()) ++ seqOpArgs
+    case ApplyScanOp(constructorArgs, initOpArgs, seqOpArgs, aggSig) =>
+      constructorArgs ++ initOpArgs.getOrElse(FastIndexedSeq()) ++ seqOpArgs
     case GetField(o, name) =>
       Array(o)
     case MakeTuple(types) =>

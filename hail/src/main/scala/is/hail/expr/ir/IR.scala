@@ -164,7 +164,7 @@ final case class AggExplode(array: IR, name: String, aggBody: IR) extends InferI
 
 final case class AggGroupBy(key: IR, aggIR: IR) extends InferIR
 
-final case class ApplyAggOp(seqOpArgs: IndexedSeq[IR], constructorArgs: IndexedSeq[IR], initOpArgs: Option[IndexedSeq[IR]], aggSig: AggSignature) extends InferIR {
+final case class ApplyAggOp(constructorArgs: IndexedSeq[IR], initOpArgs: Option[IndexedSeq[IR]], seqOpArgs: IndexedSeq[IR], aggSig: AggSignature) extends InferIR {
   assert(!(seqOpArgs ++ constructorArgs ++ initOpArgs.getOrElse(FastIndexedSeq.empty[IR])).exists(ContainsScan(_)))
   assert(constructorArgs.map(_.typ) == aggSig.constructorArgs)
   assert(initOpArgs.map(_.map(_.typ)) == aggSig.initOpArgs)
@@ -178,7 +178,7 @@ final case class ApplyAggOp(seqOpArgs: IndexedSeq[IR], constructorArgs: IndexedS
   def op: AggOp = aggSig.op
 }
 
-final case class ApplyScanOp(seqOpArgs: IndexedSeq[IR], constructorArgs: IndexedSeq[IR], initOpArgs: Option[IndexedSeq[IR]], aggSig: AggSignature) extends InferIR {
+final case class ApplyScanOp(constructorArgs: IndexedSeq[IR], initOpArgs: Option[IndexedSeq[IR]], seqOpArgs: IndexedSeq[IR], aggSig: AggSignature) extends InferIR {
   assert(!(seqOpArgs ++ constructorArgs ++ initOpArgs.getOrElse(FastIndexedSeq.empty[IR])).exists(ContainsAgg(_)))
   assert(constructorArgs.map(_.typ) == aggSig.constructorArgs)
   assert(initOpArgs.map(_.map(_.typ)) == aggSig.initOpArgs)

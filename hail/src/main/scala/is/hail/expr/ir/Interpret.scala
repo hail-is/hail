@@ -429,7 +429,7 @@ object Interpret {
           interpret(aggIR, agg=Some(row, aggElementType))
         }
 
-      case x@ApplyAggOp(seqOpArgs, constructorArgs, initOpArgs, aggSig) =>
+      case x@ApplyAggOp(constructorArgs, initOpArgs, seqOpArgs, aggSig) =>
         assert(AggOp.getType(aggSig) == x.typ)
 
         def getAggregator(aggOp: AggOp, seqOpArgTypes: Seq[Type]): TypedAggregator[_] = aggOp match {
@@ -544,7 +544,7 @@ object Interpret {
           interpret(SeqOp(I32(0), seqOpArgs, aggSig), env, FastIndexedSeq(), None, Some(aggregator))
         }
         aggregator.result
-      case x@ApplyScanOp(a, constructorArgs, initOpArgs, aggSig) =>
+      case x: ApplyScanOp =>
         throw new UnsupportedOperationException("interpreter doesn't support scans right now.")
       case MakeStruct(fields) =>
         Row.fromSeq(fields.map { case (name, fieldIR) => interpret(fieldIR, env, args, agg) })

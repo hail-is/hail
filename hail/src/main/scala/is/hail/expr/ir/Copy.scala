@@ -110,19 +110,19 @@ object Copy {
         SeqOp(newChildren.head.asInstanceOf[IR], newChildren.tail.map(_.asInstanceOf[IR]), aggSig)
       case Begin(_) =>
         Begin(newChildren.map(_.asInstanceOf[IR]))
-      case x@ApplyAggOp(_, _, initOpArgs, aggSig) =>
+      case x@ApplyAggOp(_, initOpArgs, _, aggSig) =>
         val args = newChildren.map(_.asInstanceOf[IR])
         ApplyAggOp(
-          args.take(x.nSeqOpArgs),
-          args.slice(x.nSeqOpArgs, x.nSeqOpArgs + x.nConstructorArgs),
-          initOpArgs.map(_ => args.drop(x.nSeqOpArgs + x.nConstructorArgs)),
+          args.take(x.nConstructorArgs),
+          initOpArgs.map(_ => args.drop(x.nConstructorArgs).dropRight(x.nSeqOpArgs)),
+          args.takeRight(x.nSeqOpArgs),
           aggSig)
-      case x@ApplyScanOp(_, _, initOpArgs, aggSig) =>
+      case x@ApplyScanOp(_, initOpArgs, _, aggSig) =>
         val args = newChildren.map(_.asInstanceOf[IR])
         ApplyScanOp(
-          args.take(x.nSeqOpArgs),
-          args.slice(x.nSeqOpArgs, x.nSeqOpArgs + x.nConstructorArgs),
-          initOpArgs.map(_ => args.drop(x.nSeqOpArgs + x.nConstructorArgs)),
+          args.take(x.nConstructorArgs),
+          initOpArgs.map(_ => args.drop(x.nConstructorArgs).dropRight(x.nSeqOpArgs)),
+          args.takeRight(x.nSeqOpArgs),
           aggSig)
       case MakeTuple(_) =>
         MakeTuple(newChildren.map(_.asInstanceOf[IR]))

@@ -379,9 +379,9 @@ object Simplify {
           TableKeyByAndAggregate(child,
             MakeStruct(Seq(
               "row" -> ApplyAggOp(
-                Array(row, keyStruct),
                 FastIndexedSeq(I32(n.toInt)),
                 None,
+                Array(row, keyStruct),
                 aggSig))),
             MakeStruct(Seq()), // aggregate to one row
             Some(1), 10),

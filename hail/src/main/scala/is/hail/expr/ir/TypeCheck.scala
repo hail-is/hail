@@ -181,15 +181,15 @@ object TypeCheck {
           check(x)
           assert(x.typ == TVoid)
         }
-      case x@ApplyAggOp(seqOpArgs, constructorArgs, initOpArgs, aggSig) =>
+      case x@ApplyAggOp(constructorArgs, initOpArgs, seqOpArgs, aggSig) =>
         seqOpArgs.foreach(check(_, env = aggEnv.get))
         constructorArgs.foreach(check(_))
         initOpArgs.foreach(_.foreach(check(_)))
         assert(x.typ == AggOp.getType(aggSig))
-      case x@ApplyScanOp(seqOpArgs, constructorArgs, initOpArgs, aggSig) =>
-        seqOpArgs.foreach(check(_, env = aggEnv.get))
+      case x@ApplyScanOp(constructorArgs, initOpArgs, seqOpArgs, aggSig) =>
         constructorArgs.foreach(check(_))
         initOpArgs.foreach(_.foreach(check(_)))
+        seqOpArgs.foreach(check(_, env = aggEnv.get))
         assert(x.typ == AggOp.getType(aggSig))
       case x@MakeStruct(fields) =>
         fields.foreach { case (name, a) => check(a) }
