@@ -4,7 +4,7 @@ metadata:
   name: site-deployment
   labels:
     app: site
-    hail.is/sha: @sha@
+    hail.is/sha: "@sha@"
 spec:
   selector:
     matchLabels:
@@ -14,7 +14,7 @@ spec:
     metadata:
       labels:
         app: site
-        hail.is/sha: @sha@
+        hail.is/sha: "@sha@"
     spec:
       containers:
       - name: site
