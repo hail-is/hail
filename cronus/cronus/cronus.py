@@ -37,13 +37,28 @@ INSTANCE_ID = uuid.uuid4().hex
 
 def start_pod(jupyter_token):
     pod_id = uuid.uuid4().hex
+    service_spec = kube.client.V1ServiceSpec(
+        selector={
+            'app': 'cronus-job',
+            'hail.is/cronus-instance': INSTANCE_ID,
+            'uuid': pod_id},
+        ports=[kube.client.V1ServicePort(port=80, target_port=8888)])
+    service_template = kube.client.V1Service(
+        metadata=kube.client.V1ObjectMeta(
+            generate_name='cronus-job-service-',
+            labels={
+                'app': 'cronus-job',
+                'hail.is/cronus-instance': INSTANCE_ID}),
+        spec=service_spec)
+    svc = k8s.create_namespaced_service('default', service_template)
     pod_spec = kube.client.V1PodSpec(
         containers=[
             kube.client.V1Container(
                 command=[
                     'jupyter',
                     'notebook',
-                    f'--NotebookApp.token={jupyter_token}'
+                    f'--NotebookApp.token={jupyter_token}',
+                    f'--NotebookApp.base_url=/cronus/instance/{svc.metadata.name}/'
                 ],
                 name='default',
                 image='gcr.io/broad-ctsa/cronus',
@@ -60,20 +75,6 @@ def start_pod(jupyter_token):
             }),
         spec=pod_spec)
     pod = k8s.create_namespaced_pod('default', pod_template)
-    service_spec = kube.client.V1ServiceSpec(
-        selector={
-            'app': 'cronus-job',
-            'hail.is/cronus-instance': INSTANCE_ID,
-            'uuid': pod_id},
-        ports=[kube.client.V1ServicePort(port=80, target_port=8888)])
-    service_template = kube.client.V1Service(
-        metadata=kube.client.V1ObjectMeta(
-            generate_name='cronus-job-service-',
-            labels={
-                'app': 'cronus-job',
-                'hail.is/cronus-instance': INSTANCE_ID}),
-        spec=service_spec)
-    svc = k8s.create_namespaced_service('default', service_template)
     while True:
         pod = k8s.read_namespaced_pod(name=pod.metadata.name,
                                       namespace='default')
@@ -101,7 +102,7 @@ def healthcheck():
 def root():
     if 'svc_name' not in session:
         log.info(f'no svc_name found in session {session.keys()}')
-        return render_template('index.html', form_action_url=external_url_for('new'))
+        return render_template('index.html', form_action_url=external_url_for('root') + 'cronus/new')
     svc_name = session['svc_name']
     jupyter_token = session['jupyter_token']
     log.info('redirecting to ' + external_url_for('root') + f'cronus/instance/{svc_name}/?token={jupyter_token}')
