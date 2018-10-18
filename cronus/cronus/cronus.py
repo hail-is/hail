@@ -61,7 +61,7 @@ def start_pod(jupyter_token):
                     f'--NotebookApp.base_url=/cronus/instance/{svc.metadata.name}/'
                 ],
                 name='default',
-                image='gcr.io/broad-ctsa/cronus',
+                image='gcr.io/broad-ctsa/cronus-worker',
                 ports=[kube.client.V1ContainerPort(container_port=8888)],
                 resources=kube.client.V1ResourceRequirements(
                     requests={'cpu': '3.7', 'memory': '4G'}))])
