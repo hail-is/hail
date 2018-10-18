@@ -9,6 +9,7 @@ object TypeCheck {
   }
 
   def apply(ir: IR, env: Env[Type], aggEnv: Option[Env[Type]]): Unit = {
+    _apply(ir, env, aggEnv)
     try {
       _apply(ir, env, aggEnv)
     } catch {
@@ -67,8 +68,8 @@ object TypeCheck {
       case x@ApplyComparisonOp(op, l, r) =>
         check(l)
         check(r)
-        assert(op.t1.fundamentalType == l.typ.fundamentalType)
-        assert(op.t2.fundamentalType == r.typ.fundamentalType)
+        assert(-op.t1.fundamentalType == -l.typ.fundamentalType)
+        assert(-op.t2.fundamentalType == -r.typ.fundamentalType)
         assert(x.typ == TBoolean())
       case x@MakeArray(args, typ) =>
         assert(typ != null)

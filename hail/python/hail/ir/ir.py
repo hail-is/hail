@@ -269,7 +269,7 @@ class Ref(IR):
 class TopLevelReference(Ref):
     @typecheck_method(name=str)
     def __init__(self, name):
-        super().__init__(name, None)
+        super().__init__(name)
 
     @property
     def is_nested_field(self):

@@ -152,7 +152,7 @@ class TableIRTests(unittest.TestCase):
             ir.TableMapRows(
                 ir.TableKeyBy(table_read, []),
                 ir.MakeStruct([
-                    ('a', ir.GetField(ir.Ref('row', table_read_row_type), 'f32')),
+                    ('a', ir.GetField(ir.Ref('row'), 'f32')),
                     ('b', ir.F64(-2.11))])),
             ir.TableMapGlobals(
                 table_read,
@@ -251,7 +251,7 @@ class ValueTests(unittest.TestCase):
             map_globals_ir = ir.TableMapGlobals(
                 ir.TableRange(1, 1),
                 ir.InsertFields(
-                    ir.Ref("global", hl.tstruct()),
+                    ir.Ref("global"),
                     [("foo", row_v)]))
             new_globals = hl.eval(hl.Table._from_ir(map_globals_ir).globals)
             self.assertEquals(new_globals, hl.Struct(foo=v))
