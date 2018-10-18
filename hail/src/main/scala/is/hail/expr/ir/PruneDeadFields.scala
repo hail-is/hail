@@ -1064,7 +1064,7 @@ object PruneDeadFields {
       if (upcastEntries && mt.typ.entryType != rType.entryType)
         mt = MatrixMapEntries(mt, upcast(Ref("g", mt.typ.entryType), rType.entryType))
 
-      if (upcastRows && mt.typ.rowType != rType.rowType)
+      if (upcastRows && mt.typ.rvRowType != rType.rvRowType)
         mt = MatrixMapRows(mt, upcast(Ref("va", mt.typ.rvRowType), rType.rvRowType))
 
       if (upcastCols && mt.typ.colType != rType.colType)
