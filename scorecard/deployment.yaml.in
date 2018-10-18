@@ -4,7 +4,7 @@ metadata:
   name: scorecard-deployment
   labels:
     app: scorecard
-    hail.is/sha: @sha@
+    hail.is/sha: "@sha@"
 spec:
   selector:
     matchLabels:
@@ -14,7 +14,7 @@ spec:
     metadata:
       labels:
         app: scorecard
-        hail.is/sha: @sha@
+        hail.is/sha: "@sha@"
     spec:
       containers:
       - name: scorecard
