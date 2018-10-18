@@ -578,7 +578,7 @@ object Parser extends JavaTokenParsers {
       "Die" ~> type_expr ~ string_literal ^^ { case t ~ message => ir.Die(message, t) } |
       "ApplySeeded" ~> ir_identifier ~ int64_literal ~ ir_children(env) ^^ { case function ~ seed ~ args => ir.ApplySeeded(function, args, seed) } |
       ("ApplyIR" | "ApplySpecial" | "Apply") ~> ir_identifier ~ ir_children(env) ^^ { case function ~ args => ir.invoke(function, args: _*) } |
-      "Uniroot" ~> ir_identifier ~ ir_value_expr(env) ~ ir_value_expr(env) ~ ir_value_expr(env) ^^ { case name ~ f ~ min ~ max => ir.Uniroot(name, f, min, max) } |
+      "Uniroot" ~> ir_identifier >> { name => ir_value_expr(env + (name -> TFloat64())) ~ ir_value_expr(env) ~ ir_value_expr(env) ^^ { case f ~ min ~ max => ir.Uniroot(name, f, min, max) }} |
       "JavaIR" ~> ir_identifier ^^ { name => env.irMap(name).asInstanceOf[IR] }
   }
 

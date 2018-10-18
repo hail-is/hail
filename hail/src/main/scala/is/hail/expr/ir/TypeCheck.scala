@@ -9,7 +9,6 @@ object TypeCheck {
   }
 
   def apply(ir: IR, env: Env[Type], aggEnv: Option[Env[Type]]): Unit = {
-    _apply(ir, env, aggEnv)
     try {
       _apply(ir, env, aggEnv)
     } catch {
