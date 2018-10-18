@@ -2504,7 +2504,7 @@ case class CastTableToMatrix(
   def children: IndexedSeq[BaseIR] = Array(child)
 
   def copy(newChildren: IndexedSeq[BaseIR]): CastTableToMatrix = {
-    assert(newChildren.length == 2)
+    assert(newChildren.length == 1)
     CastTableToMatrix(
       newChildren(0).asInstanceOf[TableIR],
       entriesFieldName,
