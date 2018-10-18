@@ -97,7 +97,7 @@ def healthcheck():
     return '', 200
 
 
-@app.route('/')
+@app.route('/', methods=['POST'])
 def root():
     if 'svc_name' not in session:
         jupyter_token = uuid.uuid4().hex  # FIXME: probably should be cryptographically secure
