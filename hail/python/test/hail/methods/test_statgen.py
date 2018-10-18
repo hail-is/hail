@@ -1203,6 +1203,12 @@ class Tests(unittest.TestCase):
         ds1 = ds1.drop('was_split', 'a_index')
         self.assertTrue(ds1._same(ds2))
 
+    def test_issue_4527(self):
+        mt = hl.utils.range_matrix_table(1, 1)
+        mt = mt.key_rows_by(locus=hl.locus(hl.str(mt.row_idx+1), mt.row_idx+1), alleles=['A', 'T'])
+        mt = hl.split_multi(mt)
+        self.assertEqual(1, mt._force_count_rows())
+
     def test_ld_prune(self):
         r2_threshold = 0.001
         window_size = 5
