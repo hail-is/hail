@@ -9,22 +9,28 @@ import is.hail.table.{Ascending, Descending, SortField}
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
 import is.hail.variant._
-import org.apache.spark.sql.Row
 import org.json4s.jackson.{JsonMethods, Serialization}
 
 import scala.util.parsing.combinator.JavaTokenParsers
 import scala.util.parsing.input.{Position, Positional}
+import scala.collection.JavaConverters._
 
 case class Positioned[T](x: T) extends Positional
 
-object IRParserEnvironment {
-  var theEnv: IRParserEnvironment = null
-}
-
 case class IRParserEnvironment(
-  ref_map: Map[String, Type] = Map.empty,
-  ir_map: Map[String, BaseIR] = Map.empty
-)
+  refMap: Map[String, Type] = Map.empty,
+  irMap: Map[String, BaseIR] = Map.empty
+) {
+  def update(newRefMap: Map[String, Type] = Map.empty, newIRMap: Map[String, BaseIR] = Map.empty): IRParserEnvironment =
+    copy(refMap = refMap ++ newRefMap, irMap = irMap ++ newIRMap)
+
+  def withRefMap(newRefMap: Map[String, Type]): IRParserEnvironment = {
+    assert(refMap.isEmpty)
+    copy(refMap = newRefMap)
+  }
+
+  def +(t: (String, Type)): IRParserEnvironment = copy(refMap = refMap + t, irMap)
+}
 
 class RichParser[T](parser: Parser.Parser[T]) {
   def parse(input: String): T = {
@@ -71,17 +77,6 @@ object Parser extends JavaTokenParsers {
     parseAll(parser, code) match {
       case Success(result, _) => result
       case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
-    }
-  }
-
-  private def parseWithEnv[T](parser: Parser[T], code: String, env: IRParserEnvironment): T = {
-    synchronized {
-      try {
-        IRParserEnvironment.theEnv = env
-        parse(parser, code)
-      } finally {
-        IRParserEnvironment.theEnv = null
-      }
     }
   }
 
@@ -478,18 +473,18 @@ object Parser extends JavaTokenParsers {
   def ir_agg_op: Parser[ir.AggOp] =
     ir_identifier ^^ { x => ir.AggOp.fromString(x) }
 
-  def ir_children: Parser[IndexedSeq[ir.IR]] =
-    rep(ir_value_expr) ^^ (_.toFastIndexedSeq)
+  def ir_children(env: IRParserEnvironment): Parser[IndexedSeq[ir.IR]] =
+    rep(ir_value_expr(env)) ^^ (_.toFastIndexedSeq)
 
-  def table_ir_children: Parser[IndexedSeq[ir.TableIR]] = rep(table_ir) ^^ (_.toFastIndexedSeq)
+  def table_ir_children(env: IRParserEnvironment): Parser[IndexedSeq[ir.TableIR]] = rep(table_ir(env)) ^^ (_.toFastIndexedSeq)
 
-  def matrix_ir_children: Parser[IndexedSeq[ir.MatrixIR]] = rep(matrix_ir) ^^ (_.toFastIndexedSeq)
+  def matrix_ir_children(env: IRParserEnvironment): Parser[IndexedSeq[ir.MatrixIR]] = rep(matrix_ir(env)) ^^ (_.toFastIndexedSeq)
 
-  def ir_value_exprs: Parser[IndexedSeq[ir.IR]] =
-    "(" ~> rep(ir_value_expr) <~ ")" ^^ (_.toFastIndexedSeq)
+  def ir_value_exprs(env: IRParserEnvironment): Parser[IndexedSeq[ir.IR]] =
+    "(" ~> rep(ir_value_expr(env)) <~ ")" ^^ (_.toFastIndexedSeq)
 
-  def ir_value_exprs_opt: Parser[Option[IndexedSeq[ir.IR]]] =
-    ir_value_exprs ^^ { xs => Some(xs) } |
+  def ir_value_exprs_opt(env: IRParserEnvironment): Parser[Option[IndexedSeq[ir.IR]]] =
+    ir_value_exprs(env) ^^ { xs => Some(xs) } |
       "None" ^^ { _ => None }
 
   def matrix_type_expr_opt: Parser[Option[MatrixType]] = matrix_type_expr ^^ {
@@ -505,18 +500,19 @@ object Parser extends JavaTokenParsers {
       AggSignature(op, ctorArgTypes.map(t => -t), initOpArgTypes.map(_.map(t => -t)), seqOpArgTypes.map(t => -t))
     }
 
-  def ir_named_value_exprs: Parser[Seq[(String, ir.IR)]] = rep(ir_named_value_expr)
+  def ir_named_value_exprs(env: IRParserEnvironment): Parser[Seq[(String, ir.IR)]] =
+    rep(ir_named_value_expr(env))
 
-  def ir_named_value_expr: Parser[(String, ir.IR)] =
-    "(" ~> ir_identifier ~ ir_value_expr <~ ")" ^^ { case n ~ x => (n, x) }
+  def ir_named_value_expr(env: IRParserEnvironment): Parser[(String, ir.IR)] =
+    "(" ~> ir_identifier ~ ir_value_expr(env) <~ ")" ^^ { case n ~ x => (n, x) }
 
   def ir_opt[T](p: Parser[T]): Parser[Option[T]] = p ^^ {
     Some(_)
   } | "None" ^^ { _ => None }
 
-  def ir_value_expr: Parser[ir.IR] = "(" ~> ir_value_expr_1 <~ ")"
+  def ir_value_expr(env: IRParserEnvironment): Parser[ir.IR] = "(" ~> ir_value_expr_1(env) <~ ")"
 
-  def ir_value_expr_1: Parser[ir.IR] = {
+  def ir_value_expr_1(env: IRParserEnvironment): Parser[ir.IR] = {
     "I32" ~> int32_literal ^^ { x => ir.I32(x) } |
       "I64" ~> int64_literal ^^ { x => ir.I64(x) } |
       "F32" ~> float32_literal ^^ { x => ir.F32(x) } |
@@ -526,55 +522,64 @@ object Parser extends JavaTokenParsers {
       "False" ^^ { x => ir.False() } |
       "Literal" ~> ir_value ^^ { value => ir.Literal.coerce(value._1, value._2) } |
       "Void" ^^ { x => ir.Void() } |
-      "Cast" ~> type_expr ~ ir_value_expr ^^ { case t ~ v => ir.Cast(v, t) } |
+      "Cast" ~> type_expr ~ ir_value_expr(env) ^^ { case t ~ v => ir.Cast(v, t) } |
       "NA" ~> type_expr ^^ { t => ir.NA(t) } |
-      "IsNA" ~> ir_value_expr ^^ { value => ir.IsNA(value) } |
-      "If" ~> ir_value_expr ~ ir_value_expr ~ ir_value_expr ^^ { case cond ~ consq ~ altr => ir.If(cond, consq, altr) } |
-      "Let" ~> ir_identifier ~ ir_value_expr ~ ir_value_expr ^^ { case name ~ value ~ body => ir.Let(name, value, body) } |
-      "Ref" ~> type_expr ~ ir_identifier ^^ { case t ~ name => ir.Ref(name, t) } |
-      "Ref" ~> ir_identifier ^^ { name => ir.Ref(name, IRParserEnvironment.theEnv.ref_map(name)) } |
-      "ApplyBinaryPrimOp" ~> ir_binary_op ~ ir_value_expr ~ ir_value_expr ^^ { case op ~ l ~ r => ir.ApplyBinaryPrimOp(op, l, r) } |
-      "ApplyUnaryPrimOp" ~> ir_unary_op ~ ir_value_expr ^^ { case op ~ x => ir.ApplyUnaryPrimOp(op, x) } |
-      "ApplyComparisonOp" ~> ir_comparison_op ~ ir_value_expr ~ ir_value_expr ^^ { case op ~ l ~ r => ir.ApplyComparisonOp(op, l, r) } |
-      "ApplyComparisonOp" ~> ir_untyped_comparison_op ~ ir_value_expr ~ ir_value_expr ^^ { case op ~ l ~ r => ir.ApplyComparisonOp(ir.ComparisonOp.fromStringAndTypes(op, l.typ, r.typ), l, r) } |
-      "MakeArray" ~> type_expr_opt ~ ir_children ^^ { case t ~ args => ir.MakeArray.unify(args, t.map(_.asInstanceOf[TArray]).orNull) } |
-      "ArrayRef" ~> ir_value_expr ~ ir_value_expr ^^ { case a ~ i => ir.ArrayRef(a, i) } |
-      "ArrayLen" ~> ir_value_expr ^^ { a => ir.ArrayLen(a) } |
-      "ArrayRange" ~> ir_value_expr ~ ir_value_expr ~ ir_value_expr ^^ { case start ~ stop ~ step => ir.ArrayRange(start, stop, step) } |
-      "ArraySort" ~> boolean_literal ~ ir_value_expr ~ ir_value_expr ^^ { case onKey ~ a ~ ascending => ir.ArraySort(a, ascending, onKey) } |
-      "ToSet" ~> ir_value_expr ^^ { a => ir.ToSet(a) } |
-      "ToDict" ~> ir_value_expr ^^ { a => ir.ToDict(a) } |
-      "ToArray" ~> ir_value_expr ^^ { a => ir.ToArray(a) } |
-      "LowerBoundOnOrderedCollection" ~> boolean_literal ~ ir_value_expr ~ ir_value_expr ^^ { case onKey ~ col ~ elem => ir.LowerBoundOnOrderedCollection(col, elem, onKey) } |
-      "GroupByKey" ~> ir_value_expr ^^ { a => ir.GroupByKey(a) } |
-      "ArrayMap" ~> ir_identifier ~ ir_value_expr ~ ir_value_expr ^^ { case name ~ a ~ body => ir.ArrayMap(a, name, body) } |
-      "ArrayFilter" ~> ir_identifier ~ ir_value_expr ~ ir_value_expr ^^ { case name ~ a ~ body => ir.ArrayFilter(a, name, body) } |
-      "ArrayFlatMap" ~> ir_identifier ~ ir_value_expr ~ ir_value_expr ^^ { case name ~ a ~ body => ir.ArrayFlatMap(a, name, body) } |
-      "ArrayFold" ~> ir_identifier ~ ir_identifier ~ ir_value_expr ~ ir_value_expr ~ ir_value_expr ^^ { case accumName ~ valueName ~ a ~ zero ~ body => ir.ArrayFold(a, zero, accumName, valueName, body) } |
-      "ArrayScan" ~> ir_identifier ~ ir_identifier ~ ir_value_expr ~ ir_value_expr ~ ir_value_expr ^^ { case accumName ~ valueName ~ a ~ zero ~ body => ir.ArrayScan(a, zero, accumName, valueName, body) } |
-      "ArrayFor" ~> ir_identifier ~ ir_value_expr ~ ir_value_expr ^^ { case name ~ a ~ body => ir.ArrayFor(a, name, body) } |
-      "AggFilter" ~> ir_value_expr ~ ir_value_expr ^^ { case cond ~ aggIR => ir.AggFilter(cond, aggIR) } |
-      "AggExplode" ~> ir_identifier ~ ir_value_expr ~ ir_value_expr ^^ { case name ~ array ~ aggBody => ir.AggExplode(array, name, aggBody) } |
-      "AggGroupBy" ~> ir_value_expr ~ ir_value_expr ^^ { case key ~ aggIR => ir.AggGroupBy(key, aggIR) } |
-      "ApplyAggOp" ~> agg_signature ~ ir_value_exprs ~ ir_value_exprs ~ ir_value_exprs_opt ^^ { case aggSig ~ seqOpArgs ~ ctorArgs ~ initOpArgs => ir.ApplyAggOp(seqOpArgs, ctorArgs, initOpArgs, aggSig) } |
-      "ApplyScanOp" ~> agg_signature ~ ir_value_exprs ~ ir_value_exprs ~ ir_value_exprs_opt ^^ { case aggSig ~ seqOpArgs ~ ctorArgs ~ initOpArgs => ir.ApplyScanOp(seqOpArgs, ctorArgs, initOpArgs, aggSig) } |
-      "InitOp" ~> agg_signature ~ ir_value_expr ~ ir_value_exprs ^^ { case aggSig ~ i ~ args => ir.InitOp(i, args, aggSig) } |
-      "SeqOp" ~> agg_signature ~ ir_value_expr ~ ir_value_exprs ^^ { case aggSig ~ i ~ args => ir.SeqOp(i, args, aggSig) } |
-      "Begin" ~> ir_children ^^ { xs => ir.Begin(xs) } |
-      "MakeStruct" ~> ir_named_value_exprs ^^ { fields => ir.MakeStruct(fields) } |
-      "SelectFields" ~> ir_identifiers ~ ir_value_expr ^^ { case fields ~ old => ir.SelectFields(old, fields) } |
-      "InsertFields" ~> ir_value_expr ~ ir_named_value_exprs ^^ { case old ~ fields => ir.InsertFields(old, fields) } |
-      "GetField" ~> ir_identifier ~ ir_value_expr ^^ { case name ~ o => ir.GetField(o, name) } |
-      "MakeTuple" ~> ir_children ^^ { xs => ir.MakeTuple(xs) } |
-      "GetTupleElement" ~> int32_literal ~ ir_value_expr ^^ { case idx ~ o => ir.GetTupleElement(o, idx) } |
-      "StringSlice" ~> ir_value_expr ~ ir_value_expr ~ ir_value_expr ^^ { case s ~ start ~ end => ir.StringSlice(s, start, end) } |
-      "StringLength" ~> ir_value_expr ^^ { s => ir.StringLength(s) } |
+      "IsNA" ~> ir_value_expr(env) ^^ { value => ir.IsNA(value) } |
+      "If" ~> ir_value_expr(env) ~ ir_value_expr(env) ~ ir_value_expr(env) ^^ { case cond ~ consq ~ altr => ir.If(cond, consq, altr) } |
+      "Let" ~> ir_identifier ~ ir_value_expr(env) >> { case name ~ value =>
+        ir_value_expr(env + (name -> value.typ)) ^^ { body => ir.Let(name, value, body) }} |
+      "Ref" ~> ir_identifier ^^ { name => ir.Ref(name, env.refMap(name)) } |
+      "ApplyBinaryPrimOp" ~> ir_binary_op ~ ir_value_expr(env) ~ ir_value_expr(env) ^^ { case op ~ l ~ r => ir.ApplyBinaryPrimOp(op, l, r) } |
+      "ApplyUnaryPrimOp" ~> ir_unary_op ~ ir_value_expr(env) ^^ { case op ~ x => ir.ApplyUnaryPrimOp(op, x) } |
+      "ApplyComparisonOp" ~> ir_comparison_op ~ ir_value_expr(env) ~ ir_value_expr(env) ^^ { case op ~ l ~ r => ir.ApplyComparisonOp(op, l, r) } |
+      "ApplyComparisonOp" ~> ir_untyped_comparison_op ~ ir_value_expr(env) ~ ir_value_expr(env) ^^ { case op ~ l ~ r => ir.ApplyComparisonOp(ir.ComparisonOp.fromStringAndTypes(op, l.typ, r.typ), l, r) } |
+      "MakeArray" ~> type_expr_opt ~ ir_children(env) ^^ { case t ~ args => ir.MakeArray.unify(args, t.map(_.asInstanceOf[TArray]).orNull) } |
+      "ArrayRef" ~> ir_value_expr(env) ~ ir_value_expr(env) ^^ { case a ~ i => ir.ArrayRef(a, i) } |
+      "ArrayLen" ~> ir_value_expr(env) ^^ { a => ir.ArrayLen(a) } |
+      "ArrayRange" ~> ir_value_expr(env) ~ ir_value_expr(env) ~ ir_value_expr(env) ^^ { case start ~ stop ~ step => ir.ArrayRange(start, stop, step) } |
+      "ArraySort" ~> boolean_literal ~ ir_value_expr(env) ~ ir_value_expr(env) ^^ { case onKey ~ a ~ ascending => ir.ArraySort(a, ascending, onKey) } |
+      "ToSet" ~> ir_value_expr(env) ^^ { a => ir.ToSet(a) } |
+      "ToDict" ~> ir_value_expr(env) ^^ { a => ir.ToDict(a) } |
+      "ToArray" ~> ir_value_expr(env) ^^ { a => ir.ToArray(a) } |
+      "LowerBoundOnOrderedCollection" ~> boolean_literal ~ ir_value_expr(env) ~ ir_value_expr(env) ^^ { case onKey ~ col ~ elem => ir.LowerBoundOnOrderedCollection(col, elem, onKey) } |
+      "GroupByKey" ~> ir_value_expr(env) ^^ { a => ir.GroupByKey(a) } |
+      "ArrayMap" ~> ir_identifier ~ ir_value_expr(env) >> { case name ~ a =>
+        ir_value_expr(env + (name -> coerce[TArray](a.typ).elementType)) ^^ { body => ir.ArrayMap(a, name, body) }} |
+      "ArrayFilter" ~> ir_identifier ~ ir_value_expr(env) >> { case name ~ a =>
+        ir_value_expr(env + (name -> coerce[TArray](a.typ).elementType)) ^^ { body => ir.ArrayFilter(a, name, body) }} |
+      "ArrayFlatMap" ~> ir_identifier ~ ir_value_expr(env) >> { case name ~ a =>
+        ir_value_expr(env + (name -> coerce[TArray](a.typ).elementType)) ^^ { body => ir.ArrayFlatMap(a, name, body) }} |
+      "ArrayFold" ~> ir_identifier ~ ir_identifier ~ ir_value_expr(env) ~ ir_value_expr(env) >> { case accumName ~ valueName ~ a ~ zero =>
+        val eltType = coerce[TArray](a.typ).elementType
+        ir_value_expr(env.update(Map(accumName -> zero.typ, valueName -> eltType))) ^^ { body => ir.ArrayFold(a, zero, accumName, valueName, body) }} |
+      "ArrayScan" ~> ir_identifier ~ ir_identifier ~ ir_value_expr(env) ~ ir_value_expr(env) >> { case accumName ~ valueName ~ a ~ zero =>
+        val eltType = coerce[TArray](a.typ).elementType
+        ir_value_expr(env.update(Map(accumName -> zero.typ, valueName -> eltType))) ^^ { body => ir.ArrayScan(a, zero, accumName, valueName, body) }} |
+      "ArrayFor" ~> ir_identifier ~ ir_value_expr(env) >> { case name ~ a =>
+        ir_value_expr(env + (name -> coerce[TArray](a.typ).elementType)) ^^ { body => ir.ArrayFor(a, name, body) }} |
+      "AggFilter" ~> ir_value_expr(env) ~ ir_value_expr(env) ^^ { case cond ~ aggIR => ir.AggFilter(cond, aggIR) } |
+      "AggExplode" ~> ir_identifier ~ ir_value_expr(env) >> { case name ~ a =>
+        ir_value_expr(env + (name -> coerce[TArray](a.typ).elementType)) ^^ { aggBody => ir.AggExplode(a, name, aggBody) }} |
+      "AggGroupBy" ~> ir_value_expr(env) ~ ir_value_expr(env) ^^ { case key ~ aggIR => ir.AggGroupBy(key, aggIR) } |
+      "ApplyAggOp" ~> agg_signature ~ ir_value_exprs(env) ~ ir_value_exprs(env) ~ ir_value_exprs_opt(env) ^^ { case aggSig ~ seqOpArgs ~ ctorArgs ~ initOpArgs => ir.ApplyAggOp(seqOpArgs, ctorArgs, initOpArgs, aggSig) } |
+      "ApplyScanOp" ~> agg_signature ~ ir_value_exprs(env) ~ ir_value_exprs(env) ~ ir_value_exprs_opt(env) ^^ { case aggSig ~ seqOpArgs ~ ctorArgs ~ initOpArgs => ir.ApplyScanOp(seqOpArgs, ctorArgs, initOpArgs, aggSig) } |
+      "InitOp" ~> agg_signature ~ ir_value_expr(env) ~ ir_value_exprs(env) ^^ { case aggSig ~ i ~ args => ir.InitOp(i, args, aggSig) } |
+      "SeqOp" ~> agg_signature ~ ir_value_expr(env) ~ ir_value_exprs(env) ^^ { case aggSig ~ i ~ args => ir.SeqOp(i, args, aggSig) } |
+      "Begin" ~> ir_children(env) ^^ { xs => ir.Begin(xs) } |
+      "MakeStruct" ~> ir_named_value_exprs(env) ^^ { fields => ir.MakeStruct(fields) } |
+      "SelectFields" ~> ir_identifiers ~ ir_value_expr(env) ^^ { case fields ~ old => ir.SelectFields(old, fields) } |
+      "InsertFields" ~> ir_value_expr(env) ~ ir_named_value_exprs(env) ^^ { case old ~ fields => ir.InsertFields(old, fields) } |
+      "GetField" ~> ir_identifier ~ ir_value_expr(env) ^^ { case name ~ o => ir.GetField(o, name) } |
+      "MakeTuple" ~> ir_children(env) ^^ { xs => ir.MakeTuple(xs) } |
+      "GetTupleElement" ~> int32_literal ~ ir_value_expr(env) ^^ { case idx ~ o => ir.GetTupleElement(o, idx) } |
+      "StringSlice" ~> ir_value_expr(env) ~ ir_value_expr(env) ~ ir_value_expr(env) ^^ { case s ~ start ~ end => ir.StringSlice(s, start, end) } |
+      "StringLength" ~> ir_value_expr(env) ^^ { s => ir.StringLength(s) } |
       "In" ~> type_expr ~ int32_literal ^^ { case t ~ i => ir.In(i, t) } |
       "Die" ~> type_expr ~ string_literal ^^ { case t ~ message => ir.Die(message, t) } |
-      "ApplySeeded" ~> ir_identifier ~ int64_literal ~ ir_children ^^ { case function ~ seed ~ args => ir.ApplySeeded(function, args, seed) } |
-      ("ApplyIR" | "ApplySpecial" | "Apply") ~> ir_identifier ~ ir_children ^^ { case function ~ args => ir.invoke(function, args: _*) } |
-      "Uniroot" ~> ir_identifier ~ ir_value_expr ~ ir_value_expr ~ ir_value_expr ^^ { case name ~ f ~ min ~ max => ir.Uniroot(name, f, min, max) } |
-      "JavaIR" ~> ir_identifier ^^ { name => IRParserEnvironment.theEnv.ir_map(name).asInstanceOf[IR] }
+      "ApplySeeded" ~> ir_identifier ~ int64_literal ~ ir_children(env) ^^ { case function ~ seed ~ args => ir.ApplySeeded(function, args, seed) } |
+      ("ApplyIR" | "ApplySpecial" | "Apply") ~> ir_identifier ~ ir_children(env) ^^ { case function ~ args => ir.invoke(function, args: _*) } |
+      "Uniroot" ~> ir_identifier >> { name => ir_value_expr(env + (name -> TFloat64())) ~ ir_value_expr(env) ~ ir_value_expr(env) ^^ { case f ~ min ~ max => ir.Uniroot(name, f, min, max) }} |
+      "JavaIR" ~> ir_identifier ^^ { name => env.irMap(name).asInstanceOf[IR] }
   }
 
   def ir_value: Parser[(Type, Any)] = type_expr ~ string_literal ^^ { case t ~ vJSONStr =>
@@ -583,115 +588,122 @@ object Parser extends JavaTokenParsers {
     (t, v)
   }
 
-  def table_ir: Parser[ir.TableIR] = "(" ~> table_ir_1 <~ ")"
+  def table_ir(env: IRParserEnvironment): Parser[ir.TableIR] = "(" ~> table_ir_1(env) <~ ")"
 
-  def table_irs: Parser[IndexedSeq[ir.TableIR]] = "(" ~> rep(table_ir) <~ ")" ^^ {
+  def table_irs(env: IRParserEnvironment): Parser[IndexedSeq[ir.TableIR]] = "(" ~> rep(table_ir(env)) <~ ")" ^^ {
     _.toFastIndexedSeq
   }
 
-  def table_ir_1: Parser[ir.TableIR] = {
+  def table_ir_1(env: IRParserEnvironment): Parser[ir.TableIR] = {
     // FIXME TableImport
-    "TableKeyBy" ~> ir_identifiers ~ boolean_literal ~ table_ir ^^ { case key ~ isSorted ~ child =>
+    "TableKeyBy" ~> ir_identifiers ~ boolean_literal ~ table_ir(env) ^^ { case key ~ isSorted ~ child =>
       ir.TableKeyBy(child, key, isSorted)
     } |
-      "TableDistinct" ~> table_ir ^^ { t => ir.TableDistinct(t) } |
-      "TableFilter" ~> table_ir ~ ir_value_expr ^^ { case child ~ pred => ir.TableFilter(child, pred) } |
+      "TableDistinct" ~> table_ir(env) ^^ { t => ir.TableDistinct(t) } |
+      "TableFilter" ~> table_ir(env) >> { child =>
+        ir_value_expr(env.withRefMap(child.typ.refMap)) ^^ { pred => ir.TableFilter(child, pred) }} |
       "TableRead" ~> string_literal ~ boolean_literal ~ ir_opt(table_type_expr) ^^ { case path ~ dropRows ~ typ =>
         TableIR.read(HailContext.get, path, dropRows, typ)
       } |
-      "MatrixColsTable" ~> matrix_ir ^^ { child => ir.MatrixColsTable(child) } |
-      "MatrixRowsTable" ~> matrix_ir ^^ { child => ir.MatrixRowsTable(child) } |
-      "MatrixEntriesTable" ~> matrix_ir ^^ { child => ir.MatrixEntriesTable(child) } |
-      "TableAggregateByKey" ~> table_ir ~ ir_value_expr ^^ { case child ~ expr => ir.TableAggregateByKey(child, expr) } |
-      "TableKeyByAndAggregate" ~> int32_literal_opt ~ int32_literal ~ table_ir ~ ir_value_expr ~ ir_value_expr ^^ {
-        case nPartitions ~ bufferSize ~ child ~ expr ~ newKey => ir.TableKeyByAndAggregate(child, expr, newKey, nPartitions, bufferSize)
-      } |
-      "TableRepartition" ~> int32_literal ~ boolean_literal ~ table_ir ^^ { case n ~ shuffle ~ child => ir.TableRepartition(child, n, shuffle) } |
-      "TableHead" ~> int64_literal ~ table_ir ^^ { case n ~ child => ir.TableHead(child, n) } |
-      "TableJoin" ~> ir_identifier ~ int32_literal ~ table_ir ~ table_ir ^^ { case joinType ~ joinKey ~ left ~ right =>
+      "MatrixColsTable" ~> matrix_ir(env) ^^ { child => ir.MatrixColsTable(child) } |
+      "MatrixRowsTable" ~> matrix_ir(env) ^^ { child => ir.MatrixRowsTable(child) } |
+      "MatrixEntriesTable" ~> matrix_ir(env) ^^ { child => ir.MatrixEntriesTable(child) } |
+      "TableAggregateByKey" ~> table_ir(env) >> { child =>
+        ir_value_expr(env.withRefMap(child.typ.refMap)) ^^ { expr => ir.TableAggregateByKey(child, expr) }} |
+      "TableKeyByAndAggregate" ~> int32_literal_opt ~ int32_literal ~ table_ir(env) >> { case nPartitions ~ bufferSize ~ child =>
+        val newEnv = env.withRefMap(child.typ.refMap)
+        ir_value_expr(newEnv) ~ ir_value_expr(newEnv) ^^ {
+        case expr ~ newKey => ir.TableKeyByAndAggregate(child, expr, newKey, nPartitions, bufferSize) }} |
+      "TableRepartition" ~> int32_literal ~ boolean_literal ~ table_ir(env) ^^ { case n ~ shuffle ~ child => ir.TableRepartition(child, n, shuffle) } |
+      "TableHead" ~> int64_literal ~ table_ir(env) ^^ { case n ~ child => ir.TableHead(child, n) } |
+      "TableJoin" ~> ir_identifier ~ int32_literal ~ table_ir(env) ~ table_ir(env) ^^ { case joinType ~ joinKey ~ left ~ right =>
         ir.TableJoin(left, right, joinType, joinKey) } |
-      "TableLeftJoinRightDistinct" ~> ir_identifier ~ table_ir ~ table_ir ^^ { case root ~ left ~ right => ir.TableLeftJoinRightDistinct(left, right, root) } |
-      "TableParallelize" ~> int32_literal_opt ~ ir_value_expr ^^ { case nPartitions ~ rows =>
+      "TableLeftJoinRightDistinct" ~> ir_identifier ~ table_ir(env) ~ table_ir(env) ^^ { case root ~ left ~ right => ir.TableLeftJoinRightDistinct(left, right, root) } |
+      "TableParallelize" ~> int32_literal_opt ~ ir_value_expr(env) ^^ { case nPartitions ~ rows =>
         ir.TableParallelize(rows, nPartitions)
       } |
-      "TableMapRows" ~> table_ir ~ ir_value_expr ^^ { case child ~ newRow =>
-        ir.TableMapRows(child, newRow)
-      } |
-      "TableMapGlobals" ~> table_ir ~ ir_value_expr ^^ { case child ~ newRow =>
-        ir.TableMapGlobals(child, newRow)
-      } |
+      "TableMapRows" ~> table_ir(env) >> { child => ir_value_expr(env.withRefMap(child.typ.refMap)) ^^ { newRow => ir.TableMapRows(child, newRow) }} |
+      "TableMapGlobals" ~> table_ir(env) >> { child => ir_value_expr(env.withRefMap(child.typ.refMap)) ^^ { newRow => ir.TableMapGlobals(child, newRow) }} |
       "TableRange" ~> int32_literal ~ int32_literal ^^ { case n ~ nPartitions => ir.TableRange(n, nPartitions) } |
-      "TableUnion" ~> table_ir_children ^^ { children => ir.TableUnion(children) } |
-      "TableOrderBy" ~> ir_identifiers ~ table_ir ^^ { case identifiers ~ child =>
+      "TableUnion" ~> table_ir_children(env) ^^ { children => ir.TableUnion(children) } |
+      "TableOrderBy" ~> ir_identifiers ~ table_ir(env) ^^ { case identifiers ~ child =>
         ir.TableOrderBy(child, identifiers.map(i =>
           if (i.charAt(0) == 'A')
             SortField(i.substring(1), Ascending)
           else
             SortField(i.substring(1), Descending)))
       } |
-      "TableExplode" ~> ir_identifier ~ table_ir ^^ { case field ~ child => ir.TableExplode(child, field) } |
-      "LocalizeEntries" ~> string_literal ~ matrix_ir ^^ { case field ~ child =>
+      "TableExplode" ~> ir_identifier ~ table_ir(env) ^^ { case field ~ child => ir.TableExplode(child, field) } |
+      "LocalizeEntries" ~> string_literal ~ matrix_ir(env) ^^ { case field ~ child =>
         ir.LocalizeEntries(child, field)
       } |
-      "TableRename" ~> string_literals ~ string_literals ~ string_literals ~ string_literals ~ table_ir ^^ {
+      "TableRename" ~> string_literals ~ string_literals ~ string_literals ~ string_literals ~ table_ir(env) ^^ {
         case rowK ~ rowV ~ globalK ~ globalV ~ child => ir.TableRename(child, rowK.zip(rowV).toMap, globalK.zip(globalV).toMap)
       } |
-      "JavaTable" ~> ir_identifier ^^ { ident => IRParserEnvironment.theEnv.ir_map(ident).asInstanceOf[TableIR] }
+      "JavaTable" ~> ir_identifier ^^ { ident => env.irMap(ident).asInstanceOf[TableIR] }
   }
 
-  def matrix_ir: Parser[ir.MatrixIR] = "(" ~> matrix_ir_1 <~ ")"
+  def matrix_ir(env: IRParserEnvironment): Parser[ir.MatrixIR] = "(" ~> matrix_ir_1(env) <~ ")"
 
-  def matrix_ir_1: Parser[ir.MatrixIR] = {
-    "MatrixFilterCols" ~> matrix_ir ~ ir_value_expr ^^ { case child ~ pred => ir.MatrixFilterCols(child, pred) } |
-      "MatrixFilterRows" ~> matrix_ir ~ ir_value_expr ^^ { case child ~ pred => ir.MatrixFilterRows(child, pred) } |
-      "MatrixFilterEntries" ~> matrix_ir ~ ir_value_expr ^^ { case child ~ pred => ir.MatrixFilterEntries(child, pred) } |
-      "MatrixMapCols" ~> string_literals_opt ~ matrix_ir ~ ir_value_expr ^^ { case newKey ~ child ~ newCol => ir.MatrixMapCols(child, newCol, newKey) } |
-      "MatrixKeyRowsBy" ~> ir_identifiers ~ boolean_literal ~ matrix_ir ^^ { case key ~ isSorted ~ child => ir.MatrixKeyRowsBy(child, key, isSorted) } |
-      "MatrixMapRows" ~> matrix_ir ~ ir_value_expr ^^ { case child ~ newRow => ir.MatrixMapRows(child, newRow) } |
-      "MatrixMapEntries" ~> matrix_ir ~ ir_value_expr ^^ { case child ~ newEntries => ir.MatrixMapEntries(child, newEntries) } |
-      "MatrixMapGlobals" ~> matrix_ir ~ ir_value_expr ^^ { case child ~ newGlobals => ir.MatrixMapGlobals(child, newGlobals) } |
-      "MatrixAggregateColsByKey" ~> matrix_ir ~ ir_value_expr ~ ir_value_expr ^^ { case child ~ entryExpr ~ colExpr => ir.MatrixAggregateColsByKey(child, entryExpr, colExpr) } |
-      "MatrixAggregateRowsByKey" ~> matrix_ir ~ ir_value_expr ~ ir_value_expr ^^ { case child ~ entryExpr ~ rowExpr => ir.MatrixAggregateRowsByKey(child, entryExpr, rowExpr) } |
+  def matrix_ir_1(env: IRParserEnvironment): Parser[ir.MatrixIR] = {
+    "MatrixFilterCols" ~> matrix_ir(env) >> { child => ir_value_expr(env.withRefMap(child.typ.refMap)) ^^ (pred => ir.MatrixFilterCols(child, pred)) } |
+      "MatrixFilterRows" ~> matrix_ir(env) >> { child => ir_value_expr(env.withRefMap(child.typ.refMap)) ^^ (pred => ir.MatrixFilterRows(child, pred)) } |
+      "MatrixFilterEntries" ~> matrix_ir(env) >> { child => ir_value_expr(env.withRefMap(child.typ.refMap)) ^^ (pred => ir.MatrixFilterEntries(child, pred)) } |
+      "MatrixMapCols" ~> string_literals_opt ~ matrix_ir(env) >> { case newKey ~ child =>
+        ir_value_expr(env.withRefMap(child.typ.refMap)) ^^ { newCol => ir.MatrixMapCols(child, newCol, newKey) }} |
+      "MatrixKeyRowsBy" ~> ir_identifiers ~ boolean_literal ~ matrix_ir(env) ^^ { case key ~ isSorted ~ child => ir.MatrixKeyRowsBy(child, key, isSorted) } |
+      "MatrixMapRows" ~> matrix_ir(env) >> { child => ir_value_expr(env.withRefMap(child.typ.refMap)) ^^ (newRow => ir.MatrixMapRows(child, newRow)) } |
+      "MatrixMapEntries" ~> matrix_ir(env) >> { child => ir_value_expr(env.withRefMap(child.typ.refMap)) ^^ (newEntry => ir.MatrixMapEntries(child, newEntry)) } |
+      "MatrixMapGlobals" ~> matrix_ir(env) >> { child => ir_value_expr(env.withRefMap(child.typ.refMap)) ^^ (newGlobals => ir.MatrixMapGlobals(child, newGlobals)) } |
+      "MatrixAggregateColsByKey" ~> matrix_ir(env) >> { child =>
+        val newEnv = env.withRefMap(child.typ.refMap)
+        ir_value_expr(newEnv) ~ ir_value_expr(newEnv) ^^ {
+          case entryExpr ~ colExpr => ir.MatrixAggregateColsByKey(child, entryExpr, colExpr) }} |
+      "MatrixAggregateRowsByKey" ~> matrix_ir(env) >> { child =>
+        val newEnv = env.withRefMap(child.typ.refMap)
+        ir_value_expr(newEnv) ~ ir_value_expr(newEnv) ^^ {
+          case entryExpr ~ rowExpr => ir.MatrixAggregateRowsByKey(child, entryExpr, rowExpr) }} |
       "MatrixRead" ~> matrix_type_expr_opt ~ boolean_literal ~ boolean_literal ~ string_literal ^^ {
         case typ ~ dropCols ~ dropRows ~ readerStr =>
           implicit val formats = ir.MatrixReader.formats
           val reader = Serialization.read[ir.MatrixReader](readerStr)
           ir.MatrixRead(typ.getOrElse(reader.fullType), dropCols, dropRows, reader)
       } |
-      "TableToMatrixTable" ~> string_literals ~ string_literals ~ string_literals ~ string_literals ~ int32_literal_opt ~ table_ir ^^ {
+      "TableToMatrixTable" ~> string_literals ~ string_literals ~ string_literals ~ string_literals ~ int32_literal_opt ~ table_ir(env) ^^ {
         case rowKey ~ colKey ~ rowFields ~ colFields ~ nPartitions ~ child =>
           ir.TableToMatrixTable(child, rowKey, colKey, rowFields, colFields, nPartitions)
       } |
-      "MatrixAnnotateRowsTable" ~> string_literal ~ boolean_literal ~ matrix_ir ~ table_ir ~ rep(ir_value_expr) ^^ {
-        case uid ~ hasKey ~ child ~ table ~ key =>
+      "MatrixAnnotateRowsTable" ~> string_literal ~ boolean_literal ~ matrix_ir(env) ~ table_ir(env) >> {
+        case uid ~ hasKey ~ child ~ table => rep(ir_value_expr(env.withRefMap(child.typ.refMap))) ^^ {
+          key =>
           val keyIRs = if (hasKey) Some(key.toFastIndexedSeq) else None
           ir.MatrixAnnotateRowsTable(child, table, uid, keyIRs)
-      } |
-      "MatrixAnnotateColsTable" ~> string_literal ~ matrix_ir ~ table_ir ^^ {
+      }} |
+      "MatrixAnnotateColsTable" ~> string_literal ~ matrix_ir(env) ~ table_ir(env) ^^ {
         case root ~ child ~ table =>
           ir.MatrixAnnotateColsTable(child, table, root)
       } |
-      "MatrixExplodeRows" ~> ir_identifiers ~ matrix_ir ^^ { case path ~ child => ir.MatrixExplodeRows(child, path) } |
-      "MatrixExplodeCols" ~> ir_identifiers ~ matrix_ir ^^ { case path ~ child => ir.MatrixExplodeCols(child, path) } |
-      "MatrixChooseCols" ~> int32_literals ~ matrix_ir ^^ { case oldIndices ~ child => ir.MatrixChooseCols(child, oldIndices) } |
-      "MatrixCollectColsByKey" ~> matrix_ir ^^ { child => ir.MatrixCollectColsByKey(child) } |
-      "MatrixUnionRows" ~> matrix_ir_children ^^ { children => ir.MatrixUnionRows(children) } |
-      "UnlocalizeEntries" ~> string_literal ~ table_ir ~ table_ir ^^ {
+      "MatrixExplodeRows" ~> ir_identifiers ~ matrix_ir(env) ^^ { case path ~ child => ir.MatrixExplodeRows(child, path) } |
+      "MatrixExplodeCols" ~> ir_identifiers ~ matrix_ir(env) ^^ { case path ~ child => ir.MatrixExplodeCols(child, path) } |
+      "MatrixChooseCols" ~> int32_literals ~ matrix_ir(env) ^^ { case oldIndices ~ child => ir.MatrixChooseCols(child, oldIndices) } |
+      "MatrixCollectColsByKey" ~> matrix_ir(env) ^^ { child => ir.MatrixCollectColsByKey(child) } |
+      "MatrixUnionRows" ~> matrix_ir_children(env) ^^ { children => ir.MatrixUnionRows(children) } |
+      "UnlocalizeEntries" ~> string_literal ~ table_ir(env) ~ table_ir(env) ^^ {
         case entryField ~ rowsEntries ~ cols => ir.UnlocalizeEntries(rowsEntries, cols, entryField)
       } |
-      "JavaMatrix" ~> ir_identifier ^^ { ident => IRParserEnvironment.theEnv.ir_map(ident).asInstanceOf[MatrixIR] }
+      "JavaMatrix" ~> ir_identifier ^^ { ident => env.irMap(ident).asInstanceOf[MatrixIR] }
   }
 
   def parse_value_ir(s: String): IR = parse_value_ir(s, IRParserEnvironment())
-  def parse_value_ir(s: String, env: IRParserEnvironment): IR = parseWithEnv(ir_value_expr, s, env)
+  def parse_value_ir(s: String, refMap: java.util.HashMap[String, Type]): IR = parse_value_ir(s, IRParserEnvironment(refMap = refMap.asScala.toMap))
+  def parse_value_ir(s: String, env: IRParserEnvironment): IR = parse(ir_value_expr(env), s)
 
   def parse_named_value_irs(s: String): Array[(String, IR)] = parse_named_value_irs(s, IRParserEnvironment())
-  def parse_named_value_irs(s: String, env: IRParserEnvironment): Array[(String, IR)] =
-    parseWithEnv(ir_named_value_exprs, s, env).toArray
+  def parse_named_value_irs(s: String, env: IRParserEnvironment): Array[(String, IR)] = parse(ir_named_value_exprs(env), s).toArray
 
   def parse_table_ir(s: String): TableIR = parse_table_ir(s, IRParserEnvironment())
-  def parse_table_ir(s: String, env: IRParserEnvironment): TableIR = parseWithEnv(table_ir, s, env)
+  def parse_table_ir(s: String, env: IRParserEnvironment): TableIR = parse(table_ir(env), s)
 
-  def parse_matrix_ir(s: String): MatrixIR = parse_matrix_ir(s, IRParserEnvironment())
-  def parse_matrix_ir(s: String, env: IRParserEnvironment): MatrixIR = parseWithEnv(matrix_ir, s, env)
+  def parse_matrix_ir(s: String): MatrixIR = parse(matrix_ir(IRParserEnvironment()), s)
+  def parse_matrix_ir(s: String, env: IRParserEnvironment): MatrixIR = parse(matrix_ir(env), s)
 }

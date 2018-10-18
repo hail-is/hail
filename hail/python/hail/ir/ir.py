@@ -249,31 +249,27 @@ class Let(IR):
 
 
 class Ref(IR):
-    @typecheck_method(name=str, typ=nullable(hail_type))
-    def __init__(self, name, typ):
+    @typecheck_method(name=str)
+    def __init__(self, name):
         super().__init__()
         self.name = name
-        self.typ = typ
 
     def copy(self):
         new_instance = self.__class__
-        return new_instance(self.name, self.typ)
+        return new_instance(self.name)
 
     def render(self, r):
-        if self.typ is None:
-            return '(Ref {})'.format(escape_id(self.name))
-        return '(Ref {} {})'.format(self.typ._jtype.parsableString(), escape_id(self.name))
+        return '(Ref {})'.format(escape_id(self.name))
 
     def __eq__(self, other):
         return isinstance(other, Ref) and \
-               other.name == self.name and \
-               other.typ == self.typ
+               other.name == self.name
 
 
 class TopLevelReference(Ref):
     @typecheck_method(name=str)
     def __init__(self, name):
-        super().__init__(name, None)
+        super().__init__(name)
 
     @property
     def is_nested_field(self):

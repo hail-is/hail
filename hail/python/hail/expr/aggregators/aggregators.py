@@ -99,7 +99,7 @@ class AggFunc(object):
             array_agg_expr = hl.array(array_agg_expr)
         elt = array_agg_expr.dtype.element_type
         var = Env.get_uid()
-        ref = construct_expr(Ref(var, elt), elt, array_agg_expr._indices)
+        ref = construct_expr(Ref(var), elt, array_agg_expr._indices)
         self._agg_bindings.add(var)
         aggregated = f(ref)
         self._agg_bindings.remove(var)

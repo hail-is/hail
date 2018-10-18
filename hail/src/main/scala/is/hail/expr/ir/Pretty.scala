@@ -160,7 +160,7 @@ object Pretty {
               s"${ typ.parsableString() } " +
                 s"${ prettyStringLiteral(JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(value, typ))) }"
             case Let(name, _, _) => prettyIdentifier(name)
-            case Ref(name, typ) => s"${ typ.parsableString() } $name"
+            case Ref(name, _) => prettyIdentifier(name)
             case ApplyBinaryPrimOp(op, _, _) => prettyClass(op)
             case ApplyUnaryPrimOp(op, _) => prettyClass(op)
             case ApplyComparisonOp(op, _, _) => s"(${ prettyClass(op) } ${ op.t1.parsableString() } ${ op.t2.parsableString() })"

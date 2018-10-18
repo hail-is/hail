@@ -2940,8 +2940,7 @@ class MatrixTable(ExprContainer):
     def _select_rows_processed(self, key_struct):
         new_key = list(key_struct.keys())
         keys = Env.get_uid()
-        k_ref = Ref(keys, key_struct.dtype)
-        fields = [(n, GetField(k_ref, n)) for (n, t) in key_struct.dtype.items()]
+        fields = [(n, GetField(Ref(keys), n)) for (n, t) in key_struct.dtype.items()]
         row_ir = Let(keys, key_struct._ir, InsertFields(self.row._ir, fields))
         return MatrixTable(self._jvds.keyRowsBy([]).selectRows(str(row_ir)).keyRowsBy(new_key))
 
@@ -2957,8 +2956,7 @@ class MatrixTable(ExprContainer):
     def _select_cols_processed(self, key_struct):
         new_key = list(key_struct.keys())
         keys = Env.get_uid()
-        k_ref = Ref(keys, key_struct.dtype)
-        fields = [(n, GetField(k_ref, n)) for (n, t) in key_struct.dtype.items()]
+        fields = [(n, GetField(Ref(keys), n)) for (n, t) in key_struct.dtype.items()]
         col_ir = Let(keys, key_struct._ir, InsertFields(self.col._ir, fields))
         return MatrixTable(self._jvds.selectCols(str(col_ir), new_key))
 

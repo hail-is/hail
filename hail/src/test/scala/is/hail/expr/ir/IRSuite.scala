@@ -752,7 +752,7 @@ class IRSuite extends SparkSuite {
       GroupByKey(da),
       ArrayMap(a, "v", v),
       ArrayFilter(a, "v", b),
-      ArrayFlatMap(aa, "v", v),
+      ArrayFlatMap(aa, "v", a),
       ArrayFold(a, I32(0), "x", "v", v),
       ArrayScan(a, I32(0), "x", "v", v),
       ArrayFor(a, "v", Void()),
@@ -867,10 +867,11 @@ class IRSuite extends SparkSuite {
           GetField(Ref("sa", read.typ.colType), "col_f32"),
           F32(-5.2f))))
       val newRow = MakeStruct(FastIndexedSeq(
-        "row_idx" -> GetField(Ref("va", read.typ.rowType), "row_idx"),
+        "row_idx" -> GetField(Ref("va", read.typ.rvRowType), "row_idx"),
         "new_f32" -> ApplyBinaryPrimOp(Add(),
-          GetField(Ref("va", read.typ.rowType), "row_f32"),
-          F32(-5.2f))))
+          GetField(Ref("va", read.typ.rvRowType), "row_f32"),
+          F32(-5.2f)))
+      )
 
       val collectSig = AggSignature(Collect(), Seq(), None, Seq(TInt32()))
       val collect = ApplyAggOp(FastIndexedSeq(I32(0)), FastIndexedSeq.empty, None, collectSig)
@@ -927,45 +928,56 @@ class IRSuite extends SparkSuite {
 
   @Test(dataProvider = "valueIRs")
   def testValueIRParser(x: IR) {
+    val env = IRParserEnvironment(refMap = Map(
+      "c" -> TBoolean(),
+      "a" -> TArray(TInt32()),
+      "aa" -> TArray(TArray(TInt32())),
+      "da" -> TArray(TTuple(TInt32(), TString())),
+      "v" -> TInt32(),
+      "s" -> TStruct("x" -> TInt32(), "y" -> TInt64(), "z" -> TFloat64()),
+      "t" -> TTuple(TInt32(), TInt64(), TFloat64()),
+      "call" -> TCall(),
+      "x" -> TInt32()
+    ))
+
     val s = Pretty(x)
-    val x2 = Parser.parse_value_ir(s, IRParserEnvironment())
+    val x2 = Parser.parse_value_ir(s, env)
     assert(x2 == x)
   }
 
   @Test(dataProvider = "tableIRs")
   def testTableIRParser(x: TableIR) {
     val s = Pretty(x)
-    val x2 = Parser.parse_table_ir(s, IRParserEnvironment())
+    val x2 = Parser.parse_table_ir(s)
     assert(x2 == x)
   }
 
   @Test(dataProvider = "matrixIRs")
   def testMatrixIRParser(x: MatrixIR) {
     val s = Pretty(x)
-    val x2 = Parser.parse_matrix_ir(s, IRParserEnvironment())
+    val x2 = Parser.parse_matrix_ir(s)
     assert(x2 == x)
   }
 
   @Test def testCachedIR() {
     val cached = Literal(TSet(TInt32()), Set(1))
     val s = s"(JavaIR __uid1)"
-    val x2 = Parser.parse_value_ir(s, IRParserEnvironment(ref_map = Map.empty, ir_map = Map("__uid1" -> cached)))
+    val x2 = Parser.parse_value_ir(s, IRParserEnvironment(refMap = Map.empty, irMap = Map("__uid1" -> cached)))
     assert(x2 eq cached)
   }
 
   @Test def testCachedTableIR() {
     val cached = TableRange(1, 1)
     val s = s"(JavaTable __uid1)"
-    val x2 = Parser.parse_table_ir(s, IRParserEnvironment(ref_map = Map.empty, ir_map = Map("__uid1" -> cached)))
+    val x2 = Parser.parse_table_ir(s, IRParserEnvironment(refMap = Map.empty, irMap = Map("__uid1" -> cached)))
     assert(x2 eq cached)
   }
 
   @Test def testCachedMatrixIR() {
     val cached = MatrixTable.range(hc, 3, 7, None).ast
     val s = s"(JavaMatrix __uid1)"
-    val x2 = Parser.parse_matrix_ir(s, IRParserEnvironment(ref_map = Map.empty, ir_map = Map("__uid1" -> cached)))
+    val x2 = Parser.parse_matrix_ir(s, IRParserEnvironment(refMap = Map.empty, irMap = Map("__uid1" -> cached)))
     assert(x2 eq cached)
-
   }
 
   @Test def testEvaluations() {

@@ -2993,4 +2993,4 @@ def construct_reference(name, type, indices, prefix=None):
 def construct_variable(name, type,
                        indices: Indices = Indices(),
                        aggregations: LinkedList = LinkedList(Aggregation)):
-    return construct_expr(Ref(name, type), type, indices, aggregations)
+    return construct_expr(Ref(name), type, indices, aggregations)
