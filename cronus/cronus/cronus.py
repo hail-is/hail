@@ -100,14 +100,17 @@ def healthcheck():
 @app.route('/')
 def root():
     if 'svc_name' not in session:
+        log.info(f'no svc_name found in session {session.keys()}')
         return render_template('index.html', new=external_url_for('new'))
     svc_name = session['svc_name']
     jupyter_token = session['jupyter_token']
+    log.info('redirecting to ' + external_url_for('root') + f'cronus/instance/{svc_name}/?token={jupyter_token}')
     return redirect(external_url_for('root') + f'cronus/instance/{svc_name}/?token={jupyter_token}')
 
 
 @app.route('/new', methods=['POST'])
 def new():
+    log.info('new received')
     jupyter_token = uuid.uuid4().hex  # FIXME: probably should be cryptographically secure
     svc = start_pod(jupyter_token)
     svc_name = svc.metadata.name
