@@ -220,6 +220,7 @@ test_pip_package() {
     pip install ./python
     time python -c 'import hail as hl; hl.init(); hl.balding_nichols_model(3,100,100)._force_count_rows())'
     # FIXME: also test on Mac OS X
+    touch ${PIP_PACKAGE_SUCCESS}
 }
 
 test_project &
