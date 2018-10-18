@@ -1,0 +1,72 @@
+apiVersion: apps/v1beta2
+kind: Deployment
+metadata:
+  name: spark-master
+spec:
+  selector:
+    matchLabels:
+      app: spark-master
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: spark-master
+    spec:
+      containers:
+        - name: spark-master
+          image: @spark_master_image@
+          imagePullPolicy: Always
+          ports:
+          - containerPort: 7077
+          - containerPort: 8080
+          resources:
+            requests:
+              memory: "3.75G"
+              cpu: "0.9"
+---
+apiVersion: apps/v1beta2
+kind: Deployment
+metadata:
+  name: spark-worker
+spec:
+  selector:
+    matchLabels:
+      app: spark-worker
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: spark-worker
+    spec:
+      tolerations:
+      - key: preemptible
+        value: "true"
+      containers:
+        - name: spark-worker
+          image: @spark_worker_image@
+          imagePullPolicy: Always
+          ports:
+          - containerPort: 8081
+          resources:
+            requests:
+              memory: "7.5G"
+              cpu: "1.8"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: spark-master
+  labels:
+    app: spark-master
+spec:
+  ports:
+  - name: web-ui
+    port: 8080
+    protocol: TCP
+    targetPort: 8080
+  - name: spark
+    port: 7077
+    protocol: TCP
+    targetPort: 7077
+  selector:
+    app: spark-master

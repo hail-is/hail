@@ -1,0 +1,14 @@
+FROM spark-base
+
+RUN wget https://repo.anaconda.com/miniconda/Miniconda2-4.5.4-Linux-x86_64.sh -O miniconda.sh && \
+  /bin/bash miniconda.sh -b -p /opt/conda && \
+  rm miniconda.sh
+ENV PATH $PATH:/opt/conda/bin
+
+RUN wget -O hail-test.zip https://storage.googleapis.com/hail-cseed/hail-test.zip && \
+    unzip hail-test.zip && \
+    rm hail-test.zip
+
+RUN conda env create -f hail/python/hail/environment.yml
+
+COPY setup_env /hail/bin/
