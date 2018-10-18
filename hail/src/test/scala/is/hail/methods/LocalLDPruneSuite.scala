@@ -52,8 +52,8 @@ object LocalLDPruneSuite {
     MatrixType.entriesIdentifier -> TArray(Genotype.htsGenotypeType)
   )
 
-  val bitPackedVectorViewType = BitPackedVectorView.rvRowType(rvRowType.fieldByName("locus").typ,
-    rvRowType.fieldByName("alleles").typ)
+  val bitPackedVectorViewType = BitPackedVectorView.rvRowType(rvRowType.field("locus").typ,
+    rvRowType.field("alleles").typ)
 
   def makeRV(gs: Iterable[Annotation]): RegionValue = {
     val gArr = gs.toFastIndexedSeq

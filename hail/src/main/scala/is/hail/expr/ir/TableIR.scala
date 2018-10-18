@@ -1150,7 +1150,16 @@ case class TableOrderBy(child: TableIR, sortFields: IndexedSeq[SortField]) exten
   }
 }
 
-case class CastMatrixToTable(child: MatrixIR, entriesFieldName: String, colsFieldName: String) extends TableIR {
+/** Create a Table from a MatrixTable, storing the column values in a global
+  * field 'colsFieldName', and storing the entry values in a row field
+  * 'entriesFieldName'.
+  */
+case class CastMatrixToTable(
+  child: MatrixIR,
+  entriesFieldName: String,
+  colsFieldName: String
+) extends TableIR {
+
   def typ: TableType = TableType(
     rowType = child.typ.rvRowType.rename(Map(MatrixType.entriesIdentifier -> entriesFieldName)),
     key = child.typ.rowKey,

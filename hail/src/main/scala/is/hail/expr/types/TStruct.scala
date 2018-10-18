@@ -78,8 +78,6 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
 
   val ordering: ExtendedOrdering = TBaseStruct.getOrdering(types)
 
-  def fieldByName(name: String): Field = fields(fieldIdx(name))
-
   override def canCompare(other: Type): Boolean = other match {
     case t: TStruct => size == t.size && fields.zip(t.fields).forall { case (f1, f2) =>
       f1.name == f2.name && f1.typ.canCompare(f2.typ)
@@ -105,6 +103,8 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
   def hasField(name: String): Boolean = fieldIdx.contains(name)
 
   def field(name: String): Field = fields(fieldIdx(name))
+
+  def fieldType(name: String): Type = types(fieldIdx(name))
 
   def toTTuple: TTuple = new TTuple(types, required)
 

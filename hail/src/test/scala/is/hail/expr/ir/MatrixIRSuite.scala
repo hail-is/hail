@@ -164,7 +164,7 @@ class MatrixIRSuite extends SparkSuite {
     Table(hc, rowRdd, rowSig, keyNames, TStruct(("__cols", TArray(colSig))), Row(cdata.toIndexedSeq))
   }
 
-  @Test def testUnlocalizeEntries() {
+  @Test def testCastTableToMatrix() {
     val rdata = Array(
       Row(1, "fish", IndexedSeq(Row("a", 1.0), Row("x", 2.0))),
       Row(2, "cat", IndexedSeq(Row("b", 0.0), Row("y", 0.1))),
@@ -193,7 +193,7 @@ class MatrixIRSuite extends SparkSuite {
     assert(localCols sameElements cdata)
   }
 
-  @Test def testUnlocalizeEntriesErrors() {
+  @Test def testCastTableToMatrixErrors() {
     val rdata = Array(
       Row(1, "fish", IndexedSeq(Row("x", 2.0))),
       Row(2, "cat", IndexedSeq(Row("b", 0.0), Row("y", 0.1))),

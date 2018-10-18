@@ -2123,10 +2123,10 @@ case class TableToMatrixTable(
     )
   }
 
-  private val rowType = TStruct((rowKey ++ rowFields).map(f => f -> child.typ.rowType.fieldByName(f).typ): _*)
-  private val colType = TStruct((colKey ++ colFields).map(f => f -> child.typ.rowType.fieldByName(f).typ): _*)
+  private val rowType = TStruct((rowKey ++ rowFields).map(f => f -> child.typ.rowType.field(f).typ): _*)
+  private val colType = TStruct((colKey ++ colFields).map(f => f -> child.typ.rowType.field(f).typ): _*)
   private val entryFields = child.typ.rowType.fieldNames.filter(f => !fieldsUsed.contains(f))
-  private val entryType = TStruct(entryFields.map(f => f -> child.typ.rowType.fieldByName(f).typ): _*)
+  private val entryType = TStruct(entryFields.map(f => f -> child.typ.rowType.field(f).typ): _*)
 
   val typ: MatrixType = MatrixType.fromParts(
     child.typ.globalType,
@@ -2467,28 +2467,28 @@ case class MatrixExplodeCols(child: MatrixIR, path: IndexedSeq[String]) extends 
   }
 }
 
-/**
- * This is intended to be an inverse to CastMatrixToTable
- *
- * Some notes on semantics,
- * `rowsEntries`'s globals populate the resulting matrixtable, `cols`' are discarded
- * `entryFieldName` must refer to an array of structs field in `rowsEntries`
- * all elements in the array field that `entriesFieldName` refers to must be present. Furthermore,
- * all array elements must be the same length, though individual array items may be missing.
- */
+/** Create a MatrixTable from a Table, where the column values are stored in a
+  * global field 'colsFieldName', and the entry values are stored in a row
+  * field 'entriesFieldName'.
+  */
 case class CastTableToMatrix(
   child: TableIR,
   entriesFieldName: String,
   colsFieldName: String,
   colKey: IndexedSeq[String]
 ) extends MatrixIR {
+
   private val m = Map(entriesFieldName -> MatrixType.entriesIdentifier)
-  private val Field(_, entriesFieldType, entriesFieldIdx) = child.typ.rowType.field(entriesFieldName)
+
+  private val entriesFieldType = child.typ.rowType.fieldType(entriesFieldName)
+
   private val Field(_,
     TArray(colType@TStruct(_, _), _),
     colsFieldIdx
   ) = child.typ.globalType.field(colsFieldName)
+
   private val newRowType = child.typ.rowType.rename(m)
+
   entriesFieldType match {
     case TArray(TStruct(_, _), _) =>
     case _ => fatal(s"expected entry field to be an array of structs, found ${ entriesFieldType }")
@@ -2532,11 +2532,11 @@ case class CastTableToMatrix(
       val len = lenF(i)
       it.map { rv =>
         if (missing(rv.region, rv.offset, false)) {
-          fatal("missing entry array value in argument to UnlocalizeEntries")
+          fatal("missing entry array value in argument to CastTableToMatrix")
         }
         val l = len(rv.region, rv.offset, false)
         if (l != nCols) {
-          fatal(s"""incorrect entry array length in argument to UnlocalizeEntries:
+          fatal(s"""incorrect entry array length in argument to CastTableToMatrix:
                    |   had $l elements, should have had $nCols elements""".stripMargin)
         }
         rv
