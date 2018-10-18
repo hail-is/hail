@@ -531,8 +531,8 @@ object Parser extends JavaTokenParsers {
       "Ref" ~> ir_identifier ^^ { name => ir.Ref(name, env.refMap(name)) } |
       "ApplyBinaryPrimOp" ~> ir_binary_op ~ ir_value_expr(env) ~ ir_value_expr(env) ^^ { case op ~ l ~ r => ir.ApplyBinaryPrimOp(op, l, r) } |
       "ApplyUnaryPrimOp" ~> ir_unary_op ~ ir_value_expr(env) ^^ { case op ~ x => ir.ApplyUnaryPrimOp(op, x) } |
-      "ApplyComparisonOp" ~> ir_untyped_comparison_op ~ ir_value_expr(env) ~ ir_value_expr(env) ^^ { case op ~ l ~ r =>
-        ir.ApplyComparisonOp(ir.ComparisonOp.fromStringAndTypes(op, l.typ, r.typ), l, r) } |
+      "ApplyComparisonOp" ~> ir_comparison_op ~ ir_value_expr(env) ~ ir_value_expr(env) ^^ { case op ~ l ~ r => ir.ApplyComparisonOp(op, l, r) } |
+      "ApplyComparisonOp" ~> ir_untyped_comparison_op ~ ir_value_expr(env) ~ ir_value_expr(env) ^^ { case op ~ l ~ r => ir.ApplyComparisonOp(ir.ComparisonOp.fromStringAndTypes(op, l.typ, r.typ), l, r) } |
       "MakeArray" ~> type_expr_opt ~ ir_children(env) ^^ { case t ~ args => ir.MakeArray.unify(args, t.map(_.asInstanceOf[TArray]).orNull) } |
       "ArrayRef" ~> ir_value_expr(env) ~ ir_value_expr(env) ^^ { case a ~ i => ir.ArrayRef(a, i) } |
       "ArrayLen" ~> ir_value_expr(env) ^^ { a => ir.ArrayLen(a) } |
