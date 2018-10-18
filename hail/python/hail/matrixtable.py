@@ -2161,7 +2161,7 @@ class MatrixTable(ExprContainer):
         :class:`.Table`
             Table with the globals from the matrix, with a single row.
         """
-        return Table(self._jvds.globalsTable())
+        return Table._from_java(self._jvds.globalsTable())
 
     def rows(self) -> Table:
         """Returns a table with all row fields in the matrix.
@@ -2177,7 +2177,7 @@ class MatrixTable(ExprContainer):
         :class:`.Table`
             Table with all row fields from the matrix, with one row per row of the matrix.
         """
-        return Table(self._jvds.rowsTable())
+        return Table._from_java(self._jvds.rowsTable())
 
     def cols(self) -> Table:
         """Returns a table with all column fields in the matrix.
@@ -2209,7 +2209,7 @@ class MatrixTable(ExprContainer):
                  "first unkey columns with 'key_cols_by()'")
             Env.hc()._warn_cols_order = False
 
-        return Table(self._jvds.colsTable())
+        return Table._from_java(self._jvds.colsTable())
 
     def entries(self) -> Table:
         """Returns a matrix in coordinate table form.
@@ -2248,7 +2248,7 @@ class MatrixTable(ExprContainer):
                  "first unkey columns with 'key_cols_by()'")
             Env.hc()._warn_entries_order = False
 
-        return Table(self._jvds.entriesTable())
+        return Table._from_java(self._jvds.entriesTable())
 
     def index_globals(self) -> Expression:
         """Return this matrix table's global variables for use in another
@@ -2272,7 +2272,7 @@ class MatrixTable(ExprContainer):
                 return MatrixTable(Env.jutils().joinGlobals(obj._jvds, self._jvds, uid))
             else:
                 assert isinstance(obj, Table)
-                return Table(Env.jutils().joinGlobals(obj._jt, self._jvds, uid))
+                return Table._from_java(Env.jutils().joinGlobals(obj._jt, self._jvds, uid))
 
         ir = Join(GetField(TopLevelReference('global'), uid),
                   [uid],
@@ -2508,7 +2508,7 @@ class MatrixTable(ExprContainer):
 
     @typecheck_method(entries_field_name=str, cols_field_name=str)
     def _localize_entries(self, entries_field_name, cols_field_name):
-        return Table(self._jvds.localizeEntries(entries_field_name, cols_field_name))
+        return Table._from_java(self._jvds.localizeEntries(entries_field_name, cols_field_name))
 
     @typecheck_method(row_exprs=dictof(str, expr_any),
                       col_exprs=dictof(str, expr_any),
@@ -3331,6 +3331,6 @@ class MatrixTable(ExprContainer):
         :class:`.Table`
 
         """
-        return Table(self._jvds.makeTable(separator))
+        return Table._from_java(self._jvds.makeTable(separator))
 
 matrix_table_type.set(MatrixTable)

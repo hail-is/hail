@@ -412,8 +412,8 @@ def concordance(left, right) -> Tuple[List[List[int]], Table, Table]:
 
     r = Env.hail().methods.CalculateConcordance.apply(left._jvds, right._jvds)
     j_global_conc = r._1()
-    col_conc = Table(r._2())
-    row_conc = Table(r._3())
+    col_conc = Table._from_java(r._2())
+    row_conc = Table._from_java(r._3())
     global_conc = [[j_global_conc.apply(j).apply(i) for i in range(5)] for j in range(5)]
 
     return global_conc, col_conc, row_conc
@@ -514,7 +514,7 @@ def vep(dataset: Union[Table, MatrixTable], config, block_size=1000, name='vep',
         require_table_key_variant(dataset, 'vep')
         ht = dataset.select()
 
-    annotations = Table(Env.hail().methods.VEP.apply(ht._jt, config, csq, block_size))
+    annotations = Table._from_java(Env.hail().methods.VEP.apply(ht._jt, config, csq, block_size))
 
     if csq:
         dataset = dataset.annotate_globals(
@@ -857,7 +857,7 @@ def nirvana(dataset: Union[MatrixTable, Table], config, block_size=500000, name=
         require_table_key_variant(dataset, 'nirvana')
         ht = dataset.select()
 
-    annotations = Table(Env.hail().methods.Nirvana.apply(ht._jt, config, block_size))
+    annotations = Table._from_java(Env.hail().methods.Nirvana.apply(ht._jt, config, block_size))
 
     if isinstance(dataset, MatrixTable):
         return dataset.annotate_rows(**{name: annotations[dataset.row_key].nirvana})

@@ -8,7 +8,7 @@ class Renderer(object):
 
     def add_jir(self, jir):
         jir_id = f'm{self.count}'
-        self.count = self.count + 1
+        self.count += 1
         self.jirs[jir_id] = jir
         return jir_id
 

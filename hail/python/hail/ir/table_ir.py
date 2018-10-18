@@ -214,6 +214,7 @@ class TableDistinct(TableIR):
     def render(self, r):
         return f'(TableDistinct {r(self.child)})'
 
+
 class TableRepartition(TableIR):
     def __init__(self, child, n, shuffle):
         super().__init__()
@@ -223,6 +224,7 @@ class TableRepartition(TableIR):
 
     def render(self, r):
         return f'(TableRepartition {self.n} {self.shuffle} {r(self.child)})'
+
 
 class CastMatrixToTable(TableIR):
     def __init__(self, child, entries_field_name, cols_field_name):
@@ -236,6 +238,7 @@ class CastMatrixToTable(TableIR):
                f'"{escape_str(self.entries_field_name)}" ' \
                f'"{escape_str(self.cols_field_name)}" ' \
                f'{r(self.child)})'
+
 
 class TableRename(TableIR):
     def __init__(self, child, row_map, global_map):
