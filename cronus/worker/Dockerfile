@@ -7,4 +7,4 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 USER jovyan
 
-RUN pip install --no-cache-dir hail==0.2.1.dev4
+RUN pip install --no-cache-dir hail==0.2.1
