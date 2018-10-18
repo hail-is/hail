@@ -9,6 +9,7 @@ import is.hail.check.Prop.forAll
 import is.hail.cxx._
 import is.hail.expr._
 import is.hail.expr.types._
+import is.hail.io.{BlockingOutputBuffer, LEB128OutputBuffer, StreamBlockOutputBuffer}
 import is.hail.nativecode._
 import org.apache.spark.SparkException
 import org.testng.annotations.Test
@@ -301,6 +302,90 @@ class NativeCodeSuite extends SparkSuite {
     baos.flush()
     assert(new String(baos.toByteArray) == "abcdefghij")
     testOS.close()
+  }
+
+  @Test def testOutputBuffers: Unit = {
+    val tub = new TranslationUnitBuilder()
+    tub.include("hail/hail.h")
+    tub.include("hail/Encoder.h")
+    tub.include("hail/ObjectArray.h")
+    tub.include("<cstdio>")
+
+    val makeHolderF = FunctionBuilder("makeObjectHolder", Array("NativeStatus*" -> "st", "long" -> "objects"), "NativeObjPtr")
+
+    makeHolderF += Statement(s"return std::make_shared<ObjectHolder>(reinterpret_cast<ObjectArray*>(${makeHolderF.getArg(1)}))")
+    val holderF = makeHolderF.result()
+    tub += holderF
+
+    val fb = FunctionBuilder("testOutputBuffers", Array("NativeStatus*" -> "st", "long" -> "holder"), "long")
+
+    val bytes = Array.tabulate[Byte](100)(i => new Integer(i + 97).byteValue())
+
+    fb += Statement(
+      s"""
+         |UpcallEnv up;
+         |auto h = reinterpret_cast<ObjectHolder*>(${fb.getArg(1)});
+         |auto jos = h->objects_->at(0);
+         |
+         |char * buf = new char[10]{97, 98, 99, 100, 101, 102, 103, 104, 105, 106};
+         |
+         |auto os = OutputStream(up, jos);
+         |auto stream_buf = StreamOutputBlockBuffer(os);
+         |auto blocking_buf = BlockingOutputBuffer(32, &stream_buf);
+         |auto leb_buf = LEB128OutputBuffer(&blocking_buf);
+         |
+         |leb_buf.write_boolean(true);
+         |leb_buf.write_byte(3);
+         |leb_buf.write_int(3);
+         |leb_buf.write_long(3l);
+         |leb_buf.write_float(3.3f);
+         |leb_buf.write_double(3.3);
+         |leb_buf.write_bytes(new char[${bytes.length}] {${bytes.mkString(", ")}}, ${bytes.length});
+         |leb_buf.flush();
+         |leb_buf.close();
+         |
+         |return 0;
+       """.stripMargin)
+
+    val f = fb.result()
+    tub += f
+
+    val mod = tub.result().build("")
+
+    val st = new NativeStatus()
+    val makeHolder = mod.findPtrFuncL1(st, holderF.name)
+    assert(st.ok, st.toString())
+    val testOB = mod.findLongFuncL1(st, f.name)
+    assert(st.ok, st.toString())
+    mod.close()
+
+    val compiled = new ByteArrayOutputStream()
+    val objArray = new ObjectArray(compiled)
+    val holder = new NativePtr(makeHolder, st, objArray.get())
+    objArray.close()
+    makeHolder.close()
+
+    assert(testOB(st, holder.get()) == 0)
+    testOB.close()
+
+    val expected = new ByteArrayOutputStream()
+    Region.scoped { region =>
+      val ob = new LEB128OutputBuffer(new BlockingOutputBuffer(32, new StreamBlockOutputBuffer(expected)))
+      ob.writeBoolean(true)
+      ob.writeByte(3)
+      ob.writeInt(3)
+      ob.writeLong(3)
+      ob.writeFloat(3.3f)
+      ob.writeDouble(3.3)
+      val off = region.allocate(bytes.length)
+      region.storeBytes(off, bytes)
+      ob.writeBytes(region, off, bytes.length)
+      ob.flush()
+    }
+
+//    println(compiled.toByteArray.map(b => String.format("%02x", new Integer(b.toInt))).mkString(", "))
+//    println(expected.toByteArray.map(b => String.format("%02x", new Integer(b.toInt))).mkString(", "))
+    assert(compiled.toByteArray sameElements expected.toByteArray)
   }
 
 }
