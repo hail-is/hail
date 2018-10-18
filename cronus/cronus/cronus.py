@@ -101,7 +101,7 @@ def healthcheck():
 def root():
     if 'svc_name' not in session:
         log.info(f'no svc_name found in session {session.keys()}')
-        return render_template('index.html', new=external_url_for('new'))
+        return render_template('index.html', form_action_url=external_url_for('new'))
     svc_name = session['svc_name']
     jupyter_token = session['jupyter_token']
     log.info('redirecting to ' + external_url_for('root') + f'cronus/instance/{svc_name}/?token={jupyter_token}')
