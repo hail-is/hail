@@ -99,21 +99,21 @@ def healthcheck():
 
 @app.route('/')
 def root():
-    return render_template('index.html', new=external_url_for('new'))
+    if 'svc_name' not in session:
+        return render_template('index.html', new=external_url_for('new'))
+    svc_name = session['svc_name']
+    jupyter_token = session['jupyter_token']
+    return redirect(external_url_for('root') + f'cronus/instance/{svc_name}/?token={jupyter_token}')
 
 
 @app.route('/new', methods=['POST'])
 def new():
-    if 'svc_name' not in session:
-        jupyter_token = uuid.uuid4().hex  # FIXME: probably should be cryptographically secure
-        svc = start_pod(jupyter_token)
-        svc_name = svc.metadata.name
-        session['svc_name'] = svc_name
-        session['jupyter_token'] = jupyter_token
-        redirect(external_url_for('root') + f'cronus/instance/{svc_name}/?token={jupyter_token}')
-    svc_name = session['svc_name']
-    jupyter_token = session['jupyter_token']
-    return redirect(external_url_for('root') + f'cronus/instance/{svc_name}/?token={jupyter_token}')
+    jupyter_token = uuid.uuid4().hex  # FIXME: probably should be cryptographically secure
+    svc = start_pod(jupyter_token)
+    svc_name = svc.metadata.name
+    session['svc_name'] = svc_name
+    session['jupyter_token'] = jupyter_token
+    return external_url_for('root') + f'cronus/instance/{svc_name}/?token={jupyter_token}', 200
 
 
 @app.route('/auth/<requested_svc_name>')
