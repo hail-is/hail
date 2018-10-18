@@ -18,7 +18,7 @@ push-worker: build-worker
 	docker tag cronus-worker $(IMAGE)
 	docker push $(IMAGE)
 
-run-docker: build
+run-docker: build build-worker
 	docker run -i -p 5000:5000 -t cronus
 
 run:
@@ -30,6 +30,6 @@ deploy:
 	  < deployment.yaml.in > deployment.yaml
 	kubectl apply -f deployment.yaml
 
-clean-jobs:
+clean-workers:
 	kubectl delete pods -l app=cronus-job
 	kubectl delete services -l app=cronus-job
