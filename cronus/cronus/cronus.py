@@ -99,7 +99,7 @@ def healthcheck():
 
 @app.route('/')
 def root():
-    return render_template('index.html')
+    return render_template('index.html', new=external_url_for('new'))
 
 
 @app.route('/new', methods=['POST'])
