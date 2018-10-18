@@ -218,7 +218,7 @@ test_pip_package() {
     CONDA_ENV_NAME=$(LC_CTYPE=C LC_ALL=C tr -dc 'a-z0-9' < /dev/urandom | head -c 8)
     conda create -n $CONDA_ENV_NAME python=3.7
     pip install ./python
-    time python -c 'import hail as hl; hl.init(); hl.balding_nichols_model(3,100,100)._force_count_rows())'
+    time python -c 'import hail as hl; hl.init(); hl.balding_nichols_model(3,100,100)._force_count_rows()'
     # FIXME: also test on Mac OS X
     touch ${PIP_PACKAGE_SUCCESS}
 }
@@ -229,7 +229,7 @@ PID1=$!
 test_gcp > ${GCP_LOG} &
 PID2=$!
 
-test_pip_package > ${PIP_PACKAGE_LOG} &
+test_pip_package > ${PIP_PACKAGE_LOG} 2>&1 &
 PID3=$!
 
 wait $PID1
