@@ -7,17 +7,36 @@ Installing Hail
 Requirements
 ------------
 
-You'll need:
+Regardless of installation method, you will need:
 
-- `Java 8 JDK <http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html>`_
-- `Spark 2.2.0 <https://www.apache.org/dyn/closer.lua/spark/spark-2.2.0/spark-2.2.0-bin-hadoop2.7.tgz>`_
+- `Java 8 JDK
+  <http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html>`_
+  Note: it *must* be version eight. Hail does not support Java versions nine,
+  ten, or eleven due to our dependency on Spark.
+- Python 3.6 or later, we recommend `Anaconda's Python 3
+  <https://www.continuum.io/downloads>`_
 
-  - Hail will work with other bug fix versions of Spark 2.2.x, but it *will not* work with Spark 1.x.x, 2.0.x, or 2.1.x.
+For all methods *other than using pip*, you will additionally need `Spark
+2.2.x
+<https://www.apache.org/dyn/closer.lua/spark/spark-2.2.2/spark-2.2.2-bin-hadoop2.7.tgz>`_.
 
-- `Anaconda for Python 3 <https://www.continuum.io/downloads>`_
 
 Installation
 ------------
+
+Installing Hail on Mac OS X or GNU/Linux with pip
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If you have Mac OS X, this is the recommended installation method for running
+hail locally (i.e. not on a cluster).
+
+.. code-block:: sh
+
+    pip install hail=0.2.1
+
+This must be the ``pip`` for a ``python`` version 3.6 or later, the default
+``python`` on Mac OS X will not work.
+
 
 Running Hail locally with a pre-compiled distribution
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

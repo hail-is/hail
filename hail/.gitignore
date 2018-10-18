@@ -12,3 +12,5 @@ src/test/resources/random.bgen.idx*
 src/test/resources/random-*.bgen.idx*
 src/test/resources/skip_invalid_loci.bgen.idx*
 src/test/resources/parallelBgenExport.bgen/part-00000.idx*
+python/hail/hail-all-spark.jar
+python/README.md
