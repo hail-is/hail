@@ -117,7 +117,7 @@ def new():
     svc_name = svc.metadata.name
     session['svc_name'] = svc_name
     session['jupyter_token'] = jupyter_token
-    return external_url_for('root') + f'cronus/instance/{svc_name}/?token={jupyter_token}', 200
+    return redirect(external_url_for('root') + f'cronus/instance/{svc_name}/?token={jupyter_token}')
 
 
 @app.route('/auth/<requested_svc_name>')
