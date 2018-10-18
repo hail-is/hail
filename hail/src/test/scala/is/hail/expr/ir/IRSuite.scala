@@ -752,7 +752,7 @@ class IRSuite extends SparkSuite {
       GroupByKey(da),
       ArrayMap(a, "v", v),
       ArrayFilter(a, "v", b),
-      ArrayFlatMap(aa, "v", v),
+      ArrayFlatMap(aa, "v", a),
       ArrayFold(a, I32(0), "x", "v", v),
       ArrayScan(a, I32(0), "x", "v", v),
       ArrayFor(a, "v", Void()),
