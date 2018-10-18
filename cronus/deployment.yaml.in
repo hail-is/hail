@@ -4,7 +4,7 @@ metadata:
   name: cronus-deployment
   labels:
     app: cronus
-    hail.is/sha: @sha@
+    hail.is/sha: "@sha@"
 spec:
   selector:
     matchLabels:
@@ -14,7 +14,7 @@ spec:
     metadata:
       labels:
         app: cronus
-        hail.is/sha: @sha@
+        hail.is/sha: "@sha@"
     spec:
       containers:
       - name: cronus

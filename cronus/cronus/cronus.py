@@ -1,7 +1,7 @@
 """
 A Jupyter notebook service with local-mode Hail pre-installed
 """
-from flask import Flask, session, redirect
+from flask import Flask, session, redirect, render_template
 import flask
 import kubernetes as kube
 import logging
@@ -97,8 +97,13 @@ def healthcheck():
     return '', 200
 
 
-@app.route('/', methods=['POST'])
+@app.route('/')
 def root():
+    return render_template('index.html')
+
+
+@app.route('/new', methods=['POST'])
+def new():
     if 'svc_name' not in session:
         jupyter_token = uuid.uuid4().hex  # FIXME: probably should be cryptographically secure
         svc = start_pod(jupyter_token)
