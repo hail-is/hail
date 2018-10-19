@@ -1,6 +1,6 @@
 .PHONY: run restart-proxy restart-batch-proxy restart-all-proxies
 .PHONY: setup-conda-env build-hail-ci push-hail-ci test-locally
-.PHONY: test-in-cluster
+.PHONY: test-in-cluster run-service deploy
 
 HAIL_CI_LOCAL_BATCH_PORT ?= 8888
 
