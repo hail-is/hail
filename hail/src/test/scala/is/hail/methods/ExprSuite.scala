@@ -5,6 +5,7 @@ import is.hail.check.Prop._
 import is.hail.check.Properties
 import is.hail.expr._
 import is.hail.expr.types.virtual.{TFloat64, TInt32, Type}
+import is.hail.expr.ir.IRParser
 import is.hail.utils.StringEscapeUtils._
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
@@ -20,19 +21,19 @@ class ExprSuite extends SparkSuite {
       sb.clear()
       t.pretty(sb, 0, compact = true)
       val res = sb.result()
-      val parsed = Parser.parseType(res)
+      val parsed = IRParser.parseType(res)
       t == parsed
     })
     check(forAll { (t: Type) =>
       sb.clear()
       t.pretty(sb, 0, compact = false)
       val res = sb.result()
-      val parsed = Parser.parseType(res)
+      val parsed = IRParser.parseType(res)
       t == parsed
     })
     check(forAll { (t: Type) =>
       val s = t.parsableString()
-      val parsed = Parser.parseType(s)
+      val parsed = IRParser.parseType(s)
       t == parsed
     })
   }

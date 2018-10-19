@@ -64,7 +64,7 @@ class IR(BaseIR):
         return {v for child in self.children for v in child.bound_variables}
 
     def parse(self, code, ref_map={}, ir_map={}):
-        return Env.hail().expr.Parser.parse_value_ir(code, ref_map, ir_map)
+        return Env.hail().expr.ir.IRParser.parse_value_ir(code, ref_map, ir_map)
 
 
 class TableIR(BaseIR):
@@ -72,7 +72,7 @@ class TableIR(BaseIR):
         super().__init__()
 
     def parse(self, code, ref_map={}, ir_map={}):
-        return Env.hail().expr.Parser.parse_table_ir(code, ref_map, ir_map)
+        return Env.hail().expr.ir.IRParser.parse_table_ir(code, ref_map, ir_map)
 
 
 class MatrixIR(BaseIR):
@@ -80,4 +80,4 @@ class MatrixIR(BaseIR):
         super().__init__()
 
     def parse(self, code, ref_map={}, ir_map={}):
-        return Env.hail().expr.Parser.parse_matrix_ir(code, ref_map, ir_map)
+        return Env.hail().expr.ir.IRParser.parse_matrix_ir(code, ref_map, ir_map)

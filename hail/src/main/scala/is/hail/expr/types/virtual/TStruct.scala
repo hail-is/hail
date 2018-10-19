@@ -1,8 +1,7 @@
 package is.hail.expr.types.virtual
 
 import is.hail.annotations.{Annotation, AnnotationPathException, _}
-import is.hail.expr.Parser
-import is.hail.expr.ir.Env
+import is.hail.expr.ir.{Env, IRParser}
 import is.hail.expr.types.physical.{PField, PStruct}
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -12,7 +11,7 @@ import org.json4s.JsonAST.JString
 import scala.collection.JavaConverters._
 
 class TStructSerializer extends CustomSerializer[TStruct](format => (
-  { case JString(s) => Parser.parseStructType(s) },
+  { case JString(s) => IRParser.parseStructType(s) },
   { case t: TStruct => JString(t.parsableString()) }))
 
 object TStruct {

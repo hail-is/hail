@@ -60,7 +60,7 @@ object Table {
     new Table(hc, TableIR.read(hc, path, dropRows = false, None))
 
   def parallelize(ir: String, nPartitions: Option[Int]): Table = {
-    val rowsIR = Parser.parse_value_ir(ir)
+    val rowsIR = IRParser.parse_value_ir(ir)
     new Table(HailContext.get, TableParallelize(rowsIR, nPartitions))
   }
 
@@ -377,7 +377,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
   }
 
   def aggregate(expr: String): (Any, Type) =
-    aggregate(Parser.parse_value_ir(expr, IRParserEnvironment(typ.refMap)))
+    aggregate(IRParser.parse_value_ir(expr, IRParserEnvironment(typ.refMap)))
 
   def aggregate(query: IR): (Any, Type) = {
     val t = ir.TableAggregate(tir, query)
@@ -390,7 +390,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
   }
 
   def selectGlobal(expr: String): Table = {
-    val ir = Parser.parse_value_ir(expr, IRParserEnvironment(typ.refMap))
+    val ir = IRParser.parse_value_ir(expr, IRParserEnvironment(typ.refMap))
     new Table(hc, TableMapGlobals(tir, ir))
   }
 
@@ -413,7 +413,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
   def unkey(): Table = keyBy(FastIndexedSeq())
 
   def mapRows(expr: String): Table =
-    mapRows(Parser.parse_value_ir(expr, IRParserEnvironment(typ.refMap)))
+    mapRows(IRParser.parse_value_ir(expr, IRParserEnvironment(typ.refMap)))
 
   def mapRows(newRow: IR): Table =
     new Table(hc, TableMapRows(tir, newRow))
@@ -468,7 +468,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
       CastTableToMatrix(tir, entriesFieldName, colsFieldName, colKey.asScala.toFastIndexedSeq))
 
   def aggregateByKey(expr: String): Table = {
-    val x = Parser.parse_value_ir(expr, IRParserEnvironment(typ.refMap))
+    val x = IRParser.parse_value_ir(expr, IRParserEnvironment(typ.refMap))
     new Table(hc, TableAggregateByKey(tir, x))
   }
 
