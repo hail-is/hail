@@ -315,14 +315,14 @@ object Simplify {
     case MatrixColsTable(MatrixRead(typ, dropCols, false, reader)) =>
       MatrixColsTable(MatrixRead(typ, dropCols, dropRows = true, reader))
 
-    case MatrixRowsTable(MatrixFilterRows(child, newRow))
-      if !Mentions(newRow, "g") && !Mentions(newRow, "sa") && !ContainsAgg(newRow) =>
+    case MatrixRowsTable(MatrixFilterRows(child, pred))
+      if !Mentions(pred, "g") && !Mentions(pred, "sa") && !ContainsAgg(pred) =>
       val mrt = MatrixRowsTable(child)
       TableFilter(
         mrt,
-        Subst(newRow, Env.empty[IR].bind("va" -> Ref("row", mrt.typ.rowType))))
+        Subst(pred, Env("va" -> Ref("row", mrt.typ.rowType))))
 
-    case MatrixRowsTable(MatrixMapGlobals(child, newRow)) => TableMapGlobals(MatrixRowsTable(child), newRow)
+    case MatrixRowsTable(MatrixMapGlobals(child, newGlobals)) => TableMapGlobals(MatrixRowsTable(child), newGlobals)
     case MatrixRowsTable(MatrixMapCols(child, _, _)) => MatrixRowsTable(child)
     case MatrixRowsTable(MatrixMapEntries(child, _)) => MatrixRowsTable(child)
     case MatrixRowsTable(MatrixFilterEntries(child, _)) => MatrixRowsTable(child)
@@ -347,7 +347,7 @@ object Simplify {
         mct,
         Subst(pred, Env.empty[IR].bind("sa" -> Ref("row", mct.typ.rowType))))
 
-    case MatrixColsTable(MatrixMapGlobals(child, newRow)) => TableMapGlobals(MatrixColsTable(child), newRow)
+    case MatrixColsTable(MatrixMapGlobals(child, newGlobals)) => TableMapGlobals(MatrixColsTable(child), newGlobals)
     case MatrixColsTable(MatrixMapRows(child, _)) => MatrixColsTable(child)
     case MatrixColsTable(MatrixMapEntries(child, _)) => MatrixColsTable(child)
     case MatrixColsTable(MatrixFilterEntries(child, _)) => MatrixColsTable(child)
@@ -367,8 +367,8 @@ object Simplify {
       else
         tr
 
-    case TableHead(TableMapGlobals(child, newRow), n) =>
-      TableMapGlobals(TableHead(child, n), newRow)
+    case TableHead(TableMapGlobals(child, newGlobals), n) =>
+      TableMapGlobals(TableHead(child, n), newGlobals)
 
     case TableHead(TableOrderBy(child, sortFields), n)
       if sortFields.forall(_.sortOrder == Ascending) && n < 256 && canRepartition =>

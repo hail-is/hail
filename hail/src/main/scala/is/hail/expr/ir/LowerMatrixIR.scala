@@ -1,5 +1,7 @@
 package is.hail.expr.ir
 
+import is.hail.utils.FastSeq
+
 object LowerMatrixIR {
   val entriesFieldName = "__entries"
   val colsFieldName = "__cols"
@@ -48,6 +50,21 @@ object LowerMatrixIR {
   private[this] def matrixRules: PartialFunction[MatrixIR, TableIR] = {
     case MatrixKeyRowsBy(child, keys, isSorted) =>
       TableKeyBy(lower(child), keys, isSorted)
+
+    case MatrixFilterRows(child, pred) =>
+      val lowered = lower(child)
+      TableFilter(lower(child), Subst(pred, Env("va" -> Ref("row", lowered.typ.rowType))))
+
+    case MatrixMapGlobals(child, newGlobals) =>
+      val colsField = LowerMatrixIR.colsFieldName
+      val lowered = lower(child)
+      val loweredOldGlobals = Ref("global", lowered.typ.globalType)
+      val loweredNewGlobals = Subst(newGlobals, Env("global" -> loweredOldGlobals))
+      val colVals = GetField(loweredOldGlobals, colsField)
+
+      TableMapGlobals(
+        lowered,
+        InsertFields(loweredNewGlobals, FastSeq(colsField -> colVals)))
   }
 
   private[this] def tableRules: PartialFunction[TableIR, TableIR] = {

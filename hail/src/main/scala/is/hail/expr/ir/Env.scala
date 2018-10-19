@@ -3,6 +3,7 @@ package is.hail.expr.ir
 object Env {
   type K = String
   def empty[V]: Env[V] = new Env()
+  def apply[V](bindings: (String, V)*): Env[V] = empty[V].bind(bindings: _*)
 }
 
 class Env[V] private (val m: Map[Env.K,V]) {

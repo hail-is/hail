@@ -302,8 +302,8 @@ object PruneDeadFields {
       case TableMapRows(child, newRow) =>
         val rowDep = memoizeAndGetDep(newRow, requestedType.rowType, child.typ, memo)
         memoizeTableIR(child, unify(child.typ, minimal(child.typ).copy(globalType = requestedType.globalType), rowDep), memo)
-      case TableMapGlobals(child, newRow) =>
-        val globalDep = memoizeAndGetDep(newRow, requestedType.globalType, child.typ, memo)
+      case TableMapGlobals(child, newGlobals) =>
+        val globalDep = memoizeAndGetDep(newGlobals, requestedType.globalType, child.typ, memo)
         memoizeTableIR(child, unify(child.typ, requestedType.copy(globalType = globalDep.globalType), globalDep), memo)
       case TableAggregateByKey(child, newRow) =>
         val aggDep = memoizeAndGetDep(newRow, requestedType.rowType, child.typ, memo)
@@ -412,8 +412,8 @@ object PruneDeadFields {
         val depMod = minimal(child.typ).copy(rvRowType = requestedType.rvRowType,
           globalType = requestedType.globalType)
         memoizeMatrixIR(child, unify(child.typ, depMod, irDep), memo)
-      case MatrixMapGlobals(child, newRow) =>
-        val irDep = memoizeAndGetDep(newRow, requestedType.globalType, child.typ, memo)
+      case MatrixMapGlobals(child, newGlobals) =>
+        val irDep = memoizeAndGetDep(newGlobals, requestedType.globalType, child.typ, memo)
         memoizeMatrixIR(child, unify(child.typ, requestedType.copy(globalType = irDep.globalType), irDep), memo)
       case MatrixRead(_, _, _, _) =>
       case MatrixLiteral(value) =>
@@ -793,9 +793,9 @@ object PruneDeadFields {
         val child2 = rebuild(child, memo)
         val newRow2 = rebuild(newRow, child2.typ, memo)
         TableMapRows(child2, newRow2)
-      case TableMapGlobals(child, newRow) =>
+      case TableMapGlobals(child, newGlobals) =>
         val child2 = rebuild(child, memo)
-        TableMapGlobals(child2, rebuild(newRow, child2.typ, memo))
+        TableMapGlobals(child2, rebuild(newGlobals, child2.typ, memo))
       case TableKeyBy(child, keys, isSorted) =>
         var child2 = rebuild(child, memo)
         // fully upcast before shuffle
@@ -869,9 +869,9 @@ object PruneDeadFields {
         // FIXME account for key
         val child2 = rebuild(child, memo)
         MatrixMapCols(child2, rebuild(newCol, child2.typ, memo), newKey)
-      case MatrixMapGlobals(child, newRow) =>
+      case MatrixMapGlobals(child, newGlobals) =>
         val child2 = rebuild(child, memo)
-        MatrixMapGlobals(child2, rebuild(newRow, child2.typ, memo))
+        MatrixMapGlobals(child2, rebuild(newGlobals, child2.typ, memo))
       case MatrixAggregateRowsByKey(child, entryExpr, rowExpr) =>
         val child2 = rebuild(child, memo)
         MatrixAggregateRowsByKey(child2, rebuild(entryExpr, child2.typ, memo), rebuild(rowExpr, child2.typ, memo))

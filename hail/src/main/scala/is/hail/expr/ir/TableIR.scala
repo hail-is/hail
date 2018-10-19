@@ -638,11 +638,11 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
   }
 }
 
-case class TableMapGlobals(child: TableIR, newRow: IR) extends TableIR {
-  val children: IndexedSeq[BaseIR] = Array(child, newRow)
+case class TableMapGlobals(child: TableIR, newGlobals: IR) extends TableIR {
+  val children: IndexedSeq[BaseIR] = Array(child, newGlobals)
 
   val typ: TableType =
-    child.typ.copy(globalType = newRow.typ.asInstanceOf[TStruct])
+    child.typ.copy(globalType = newGlobals.typ.asInstanceOf[TStruct])
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableMapGlobals = {
     assert(newChildren.length == 2)
@@ -654,17 +654,16 @@ case class TableMapGlobals(child: TableIR, newRow: IR) extends TableIR {
   def execute(hc: HailContext): TableValue = {
     val tv = child.execute(hc)
 
-    val newGlobals = Interpret[Row](
-      newRow,
+    val newGlobalVals = Interpret[Row](
+      newGlobals,
       Env.empty[(Any, Type)].bind(
         "global" -> (tv.globals.value, child.typ.globalType)),
       FastIndexedSeq(),
       None)
 
-    tv.copy(typ = typ, globals = BroadcastRow(newGlobals, typ.globalType, hc.sc))
+    tv.copy(typ = typ, globals = BroadcastRow(newGlobalVals, typ.globalType, hc.sc))
   }
 }
-
 
 case class TableExplode(child: TableIR, fieldName: String) extends TableIR {
   assert(!child.typ.key.contains(fieldName))
