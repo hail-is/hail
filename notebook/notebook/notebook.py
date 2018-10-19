@@ -14,7 +14,7 @@ fmt = logging.Formatter(
    '%(levelname)s\t| %(asctime)s \t| %(filename)s \t| %(funcName)s:%(lineno)d | '
    '%(message)s')
 
-fh = logging.FileHandler('cronus.log')
+fh = logging.FileHandler('notebook.log')
 fh.setLevel(logging.INFO)
 fh.setFormatter(fmt)
 
@@ -22,7 +22,7 @@ ch = logging.StreamHandler()
 ch.setLevel(logging.INFO)
 ch.setFormatter(fmt)
 
-log = logging.getLogger('cronus')
+log = logging.getLogger('notebook')
 log.setLevel(logging.INFO)
 logging.basicConfig(
     handlers=[fh, ch],
@@ -42,16 +42,16 @@ def start_pod(jupyter_token):
     pod_id = uuid.uuid4().hex
     service_spec = kube.client.V1ServiceSpec(
         selector={
-            'app': 'cronus-job',
-            'hail.is/cronus-instance': INSTANCE_ID,
+            'app': 'notebook-job',
+            'hail.is/notebook-instance': INSTANCE_ID,
             'uuid': pod_id},
         ports=[kube.client.V1ServicePort(port=80, target_port=8888)])
     service_template = kube.client.V1Service(
         metadata=kube.client.V1ObjectMeta(
-            generate_name='cronus-job-service-',
+            generate_name='notebook-job-service-',
             labels={
-                'app': 'cronus-job',
-                'hail.is/cronus-instance': INSTANCE_ID}),
+                'app': 'notebook-job',
+                'hail.is/notebook-instance': INSTANCE_ID}),
         spec=service_spec)
     svc = k8s.create_namespaced_service('default', service_template)
     pod_spec = kube.client.V1PodSpec(
@@ -61,19 +61,19 @@ def start_pod(jupyter_token):
                     'jupyter',
                     'notebook',
                     f'--NotebookApp.token={jupyter_token}',
-                    f'--NotebookApp.base_url=/cronus/instance/{svc.metadata.name}/'
+                    f'--NotebookApp.base_url=/notebook/instance/{svc.metadata.name}/'
                 ],
                 name='default',
-                image='gcr.io/broad-ctsa/cronus-worker',
+                image='gcr.io/broad-ctsa/notebook-worker',
                 ports=[kube.client.V1ContainerPort(container_port=8888)],
                 resources=kube.client.V1ResourceRequirements(
                     requests={'cpu': '3.7', 'memory': '4G'}))])
     pod_template = kube.client.V1Pod(
         metadata=kube.client.V1ObjectMeta(
-            generate_name='cronus-job-',
+            generate_name='notebook-job-',
             labels={
-                'app': 'cronus-job',
-                'hail.is/cronus-instance': INSTANCE_ID,
+                'app': 'notebook-job',
+                'hail.is/notebook-instance': INSTANCE_ID,
                 'uuid': pod_id,
             }),
         spec=pod_spec)
@@ -105,11 +105,11 @@ def healthcheck():
 def root():
     if 'svc_name' not in session:
         log.info(f'no svc_name found in session {session.keys()}')
-        return render_template('index.html', form_action_url=external_url_for('root') + 'cronus/new')
+        return render_template('index.html', form_action_url=external_url_for('root') + 'notebook/new')
     svc_name = session['svc_name']
     jupyter_token = session['jupyter_token']
-    log.info('redirecting to ' + external_url_for('root') + f'cronus/instance/{svc_name}/?token={jupyter_token}')
-    return redirect(external_url_for('root') + f'cronus/instance/{svc_name}/?token={jupyter_token}')
+    log.info('redirecting to ' + external_url_for('root') + f'notebook/instance/{svc_name}/?token={jupyter_token}')
+    return redirect(external_url_for('root') + f'notebook/instance/{svc_name}/?token={jupyter_token}')
 
 
 @app.route('/new', methods=['POST'])
@@ -120,7 +120,7 @@ def new():
     svc_name = svc.metadata.name
     session['svc_name'] = svc_name
     session['jupyter_token'] = jupyter_token
-    return redirect(external_url_for('root') + f'cronus/instance/{svc_name}/?token={jupyter_token}')
+    return redirect(external_url_for('root') + f'notebook/instance/{svc_name}/?token={jupyter_token}')
 
 
 @app.route('/auth/<requested_svc_name>')

@@ -1,7 +1,7 @@
 #!/bin/bash
 set -ex
 
-PROJECTS='hail batch ci site scorecard cloudtools upload'
+PROJECTS='hail batch ci site scorecard cloudtools upload notebook'
 SHA=$(git rev-parse --short=12 HEAD)
 
 for project in $PROJECTS; do

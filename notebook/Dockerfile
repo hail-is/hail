@@ -14,8 +14,8 @@ RUN apk add \
   kubernetes \
   'urllib3<1.24'
 
-COPY cronus /cronus
+COPY notebook /notebook
 
 EXPOSE 5000
 
-ENTRYPOINT ["python3", "/cronus/cronus.py"]
+ENTRYPOINT ["python3", "/notebook/notebook.py"]
