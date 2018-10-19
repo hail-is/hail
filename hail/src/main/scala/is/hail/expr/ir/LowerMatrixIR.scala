@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.expr.types.{MatrixType, TInt32}
+import is.hail.expr.types._
 import is.hail.utils.FastSeq
 
 object LowerMatrixIR {
@@ -72,6 +72,42 @@ object LowerMatrixIR {
           TableRename(lower(child), Map(entriesFieldName -> MatrixType.entriesIdentifier), Map.empty),
           Let("va", Ref("row", lowered.typ.rowType), pred)),
         Map(MatrixType.entriesIdentifier -> entriesFieldName), Map.empty)
+
+    case MatrixFilterCols(child, pred) =>
+      val lowered = lower(child)
+
+      val filteredColIdx =
+        TableMapGlobals(
+          lowered,
+          InsertFields(Ref("global", lowered.typ.globalType),
+            Seq("newColIdx" ->
+              ArrayFilter(
+                ArrayRange(I32(0), nCols(lowered), I32(1)),
+                "i",
+                Let("sa", ArrayRef(colVals(lowered), Ref("i", TInt32())),
+                  Let("global", globals(lowered),
+                    pred))))))
+
+      val filteredEntryVals =
+        TableMapRows(
+          filteredColIdx,
+          InsertFields(Ref("row", filteredColIdx.typ.rowType),
+            Seq(entriesFieldName ->
+              ArrayMap(
+                GetField(Ref("global", filteredColIdx.typ.globalType), "newColIdx"),
+                "i",
+                ArrayRef(entries(filteredColIdx), Ref("i", TInt32()))))))
+
+      TableMapGlobals(
+        filteredEntryVals,
+        SelectFields(
+          InsertFields(Ref("global", filteredEntryVals.typ.globalType),
+            Seq(colsFieldName ->
+              ArrayMap(
+                GetField(Ref("global", filteredEntryVals.typ.globalType), "newColIdx"),
+                "i",
+                ArrayRef(colVals(filteredEntryVals), Ref("i", TInt32()))))),
+          lowered.typ.globalType.fieldNames))
 
     case MatrixMapGlobals(child, newGlobals) =>
       val lowered = lower(child)
