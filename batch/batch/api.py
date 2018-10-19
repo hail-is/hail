@@ -5,6 +5,14 @@ import requests
 
 class API():
     def __init__(self, timeout=None):
+        """
+        Python API for accessing the batch server's HTTP endpoints.
+
+        Parameters
+        ----------
+        timeout : :obj:`int` or :obj:`float`
+            timeout, in seconds, passed to ``requests`` calls
+        """
         self.timeout = timeout
 
     def create_job(url, spec, attributes, batch_id, callback):
