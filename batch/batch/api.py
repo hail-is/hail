@@ -16,32 +16,32 @@ class API():
         if callback:
             d['callback'] = callback
 
-        r = requests.post(url + '/jobs/create', json = d, timeout = self.timeout)
+        r = requests.post(url + '/jobs/create', json=d, timeout=self.timeout)
         r.raise_for_status()
         return r.json()
 
     def list_jobs(url):
-        r = requests.get(url + '/jobs', timeout = self.timeout)
+        r = requests.get(url + '/jobs', timeout=self.timeout)
         r.raise_for_status()
         return r.json()
 
     def get_job(url, job_id):
-        r = requests.get(url + '/jobs/{}'.format(job_id), timeout = self.timeout)
+        r = requests.get(url + '/jobs/{}'.format(job_id), timeout=self.timeout)
         r.raise_for_status()
         return r.json()
 
     def get_job_log(url, job_id):
-        r = requests.get(url + '/jobs/{}/log'.format(job_id), timeout = self.timeout)
+        r = requests.get(url + '/jobs/{}/log'.format(job_id), timeout=self.timeout)
         r.raise_for_status()
         return r.text
 
     def delete_job(url, job_id):
-        r = requests.delete(url + '/jobs/{}/delete'.format(job_id), timeout = self.timeout)
+        r = requests.delete(url + '/jobs/{}/delete'.format(job_id), timeout=self.timeout)
         r.raise_for_status()
         return r.json()
 
     def cancel_job(url, job_id):
-        r = requests.post(url + '/jobs/{}/cancel'.format(job_id), timeout = self.timeout)
+        r = requests.post(url + '/jobs/{}/cancel'.format(job_id), timeout=self.timeout)
         r.raise_for_status()
         return r.json()
 
@@ -49,22 +49,22 @@ class API():
         d = {}
         if attributes:
             d['attributes'] = attributes
-        r = requests.post(url + '/batches/create', json = d, timeout = self.timeout)
+        r = requests.post(url + '/batches/create', json=d, timeout=self.timeout)
         r.raise_for_status()
         return r.json()
 
     def get_batch(url, batch_id):
-        r = requests.get(url + '/batches/{}'.format(batch_id), timeout = self.timeout)
+        r = requests.get(url + '/batches/{}'.format(batch_id), timeout=self.timeout)
         r.raise_for_status()
         return r.json()
 
     def delete_batch(url, batch_id):
-        r = requests.delete(url + '/batches/{}'.format(batch_id), timeout = self.timeout)
+        r = requests.delete(url + '/batches/{}'.format(batch_id), timeout=self.timeout)
         r.raise_for_status()
         return r.json()
 
     def refresh_k8s_state(url):
-        r = requests.post(url + '/refresh_k8s_state', timeout = self.timeout)
+        r = requests.post(url + '/refresh_k8s_state', timeout=self.timeout)
         r.raise_for_status()
 
 

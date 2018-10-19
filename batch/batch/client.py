@@ -5,7 +5,7 @@ import requests
 import batch.api as api
 
 class Job(object):
-    def __init__(self, client, id, attributes=None, _status = None):
+    def __init__(self, client, id, attributes=None, _status=None):
         if attributes is None:
             attributes = {}
 
