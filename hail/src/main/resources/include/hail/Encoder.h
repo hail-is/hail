@@ -40,6 +40,7 @@ class LZ4OutputBlockBuffer : public OutputBlockBuffer {
   private:
     OutputBlockBuffer * block_buf_;
     int block_size_;
+    char * block_;
   public:
     LZ4OutputBlockBuffer(int block_size, OutputBlockBuffer * buf);
     virtual void write_block(char * buf, int n) override;
