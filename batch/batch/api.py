@@ -76,7 +76,7 @@ class API():
         r.raise_for_status()
 
 
-__default_api = Api()
+__default_api = API()
 
 
 def create_job(url, spec, attributes, batch_id, callback):
