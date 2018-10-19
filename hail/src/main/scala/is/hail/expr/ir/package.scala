@@ -80,4 +80,3 @@ package object ir {
   implicit def doubleToIR(d: Double): IR = F64(d)
   implicit def booleanToIR(b: Boolean): IR = if (b) True() else False()
 }
-
