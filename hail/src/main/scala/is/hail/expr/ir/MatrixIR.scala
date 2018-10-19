@@ -1833,7 +1833,7 @@ case class MatrixMapGlobals(child: MatrixIR, newGlobals: IR) extends MatrixIR {
 
     val newGlobalVals = Interpret[Row](
       newGlobals,
-      Env("global" -> (prev.globals.value, child.typ.globalType)),
+      Env[(Any, Type)]("global" -> (prev.globals.value, child.typ.globalType)),
       FastIndexedSeq(),
       None)
 

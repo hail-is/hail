@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.expr.types.MatrixType
 import is.hail.utils.FastSeq
 
 object LowerMatrixIR {
@@ -53,13 +54,20 @@ object LowerMatrixIR {
 
     case MatrixFilterRows(child, pred) =>
       val lowered = lower(child)
-      TableFilter(lower(child), Subst(pred, Env("va" -> Ref("row", lowered.typ.rowType))))
+      TableRename(
+        TableFilter(
+          TableRename(lower(child), Map(entriesFieldName -> MatrixType.entriesIdentifier), Map.empty),
+          Let("va", Ref("row", lowered.typ.rowType), pred)),
+        Map(MatrixType.entriesIdentifier -> entriesFieldName), Map.empty)
 
     case MatrixMapGlobals(child, newGlobals) =>
-      val colsField = LowerMatrixIR.colsFieldName
+      val colsField = colsFieldName
       val lowered = lower(child)
       val loweredOldGlobals = Ref("global", lowered.typ.globalType)
-      val loweredNewGlobals = Subst(newGlobals, Env("global" -> loweredOldGlobals))
+      val loweredNewGlobals =
+        Let("global",
+          SelectFields(loweredOldGlobals, child.typ.globalType.fieldNames),
+          newGlobals)
       val colVals = GetField(loweredOldGlobals, colsField)
 
       TableMapGlobals(
