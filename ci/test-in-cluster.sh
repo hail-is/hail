@@ -22,6 +22,7 @@ get_ip() {
     kubectl get service $SERVICE_NAME --no-headers | awk '{print $4}'
 }
 
+mkdir github-tokens
 cp /secrets/user* github-tokens
 mkdir oauth-token
 cp /secrets/oauth-token oauth-token
