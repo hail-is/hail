@@ -181,6 +181,8 @@ abstract sealed class MatrixIR extends BaseIR {
   def columnCount: Option[Int] = None
 
   def execute(hc: HailContext): MatrixValue
+
+  override def copy(newChildren: IndexedSeq[BaseIR]): MatrixIR
 }
 
 case class MatrixLiteral(value: MatrixValue) extends MatrixIR {
@@ -1925,7 +1927,7 @@ case class MatrixAnnotateColsTable(
   private val (colType, inserter) = child.typ.colType.structInsert(table.typ.valueType, List(root))
   val typ: MatrixType = child.typ.copy(colType = colType)
 
-  def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
+  def copy(newChildren: IndexedSeq[BaseIR]): MatrixAnnotateColsTable = {
     MatrixAnnotateColsTable(
       newChildren(0).asInstanceOf[MatrixIR],
       newChildren(1).asInstanceOf[TableIR],
@@ -1973,7 +1975,7 @@ case class MatrixAnnotateRowsTable(
 
   val typ: MatrixType = child.typ.copy(rvRowType = child.typ.rvRowType ++ TStruct(root -> table.typ.valueType))
 
-  def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
+  def copy(newChildren: IndexedSeq[BaseIR]): MatrixAnnotateRowsTable = {
     val (child: MatrixIR) +: (table: TableIR) +: newKey = newChildren
     MatrixAnnotateRowsTable(
       child, table,
@@ -2109,7 +2111,7 @@ case class TableToMatrixTable(
 
   def children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
 
-  def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
+  def copy(newChildren: IndexedSeq[BaseIR]): TableToMatrixTable = {
     val IndexedSeq(newChild) = newChildren
     TableToMatrixTable(
       newChild.asInstanceOf[TableIR],
@@ -2277,7 +2279,7 @@ case class MatrixExplodeRows(child: MatrixIR, path: IndexedSeq[String]) extends 
 
   def children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
 
-  def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
+  def copy(newChildren: IndexedSeq[BaseIR]): MatrixExplodeRows = {
     val IndexedSeq(newChild) = newChildren
     MatrixExplodeRows(newChild.asInstanceOf[MatrixIR], path)
   }
@@ -2354,7 +2356,7 @@ case class MatrixUnionRows(children: IndexedSeq[MatrixIR]) extends MatrixIR {
   require(children.tail.forall(_.typ.rvdType == typ.rvdType))
   require(children.tail.forall(_.typ.colKeyStruct == typ.colKeyStruct))
 
-  def copy(newChildren: IndexedSeq[BaseIR]): BaseIR =
+  def copy(newChildren: IndexedSeq[BaseIR]): MatrixUnionRows =
     MatrixUnionRows(newChildren.asInstanceOf[IndexedSeq[MatrixIR]])
 
   override def columnCount: Option[Int] =
@@ -2397,7 +2399,7 @@ case class MatrixExplodeCols(child: MatrixIR, path: IndexedSeq[String]) extends 
 
   def children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
 
-  def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
+  def copy(newChildren: IndexedSeq[BaseIR]): MatrixExplodeCols = {
     val IndexedSeq(newChild) = newChildren
     MatrixExplodeCols(newChild.asInstanceOf[MatrixIR], path)
   }

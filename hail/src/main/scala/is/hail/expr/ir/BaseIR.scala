@@ -12,6 +12,10 @@ abstract class BaseIR {
   def deepCopy(): this.type = copy(newChildren = children.map(_.deepCopy())).asInstanceOf[this.type]
 
   def mapChildren(f: (BaseIR) => BaseIR): BaseIR = {
-    copy(children.map(f))
+    val newChildren = children.map(f)
+    if ((children, newChildren).zipped.forall(_ eq _))
+      this
+    else
+      copy(newChildren)
   }
 }

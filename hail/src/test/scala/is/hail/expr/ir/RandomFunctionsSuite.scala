@@ -118,7 +118,18 @@ class RandomFunctionsSuite extends SparkSuite {
   }
 
   @Test def testRepartitioningSimplifyRules() {
-    val tir = TableHead(mapped2(10, 3), 5L)
+    val tir =
+    TableMapRows(
+      TableHead(
+        TableMapRows(
+          TableRange(10, 3),
+          Ref("row", TableRange(1, 1).typ.rowType)),
+        5L),
+      InsertFields(
+        Ref("row", TableRange(1, 1).typ.rowType),
+        FastSeq(
+          "pi" -> partitionIdx,
+          "counter" -> counter)))
 
     val expected = tir.execute(hc).rvd.toRows.collect()
     val actual = new Table(hc, tir).rdd.collect()

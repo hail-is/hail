@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 object Copy {
-  def apply(x: IR, newChildren: IndexedSeq[BaseIR]): BaseIR = {
+  def apply(x: IR, newChildren: IndexedSeq[BaseIR]): IR = {
     x match {
       case I32(value) => I32(value)
       case I64(value) => I64(value)
