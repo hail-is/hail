@@ -9,7 +9,7 @@ for project in $PROJECTS; do
         if [[ $CHANGED != no ]]; then
             (cd $project && /bin/bash hail-ci-build.sh)
         else
-            echo '<p><span style="color:gray;font-weight:bold">SKIPPED</span></p>' >> ${ARTIFACTS}/${project}
+            echo "<p><span style=\"color:gray;font-weight:bold\">${project}: SKIPPED</span></p>" >> ${ARTIFACTS}/${project}.html
         fi
     fi
 done
