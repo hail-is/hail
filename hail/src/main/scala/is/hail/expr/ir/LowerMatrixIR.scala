@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.expr.types.MatrixType
+import is.hail.expr.types.{MatrixType, TInt32}
 import is.hail.utils.FastSeq
 
 object LowerMatrixIR {
@@ -48,6 +48,19 @@ object LowerMatrixIR {
     }
   }
 
+  def colVals(tir: TableIR): IR =
+    GetField(Ref("global", tir.typ.globalType), colsFieldName)
+
+  def globals(tir: TableIR): IR =
+    SelectFields(
+      Ref("global", tir.typ.globalType),
+      tir.typ.globalType.fieldNames.diff(FastSeq(colsFieldName)))
+
+  def nCols(tir: TableIR): IR = ArrayLen(colVals(tir))
+
+  def entries(tir: TableIR): IR =
+    GetField(Ref("row", tir.typ.rowType), entriesFieldName)
+
   private[this] def matrixRules: PartialFunction[MatrixIR, TableIR] = {
     case MatrixKeyRowsBy(child, keys, isSorted) =>
       TableKeyBy(lower(child), keys, isSorted)
@@ -61,18 +74,31 @@ object LowerMatrixIR {
         Map(MatrixType.entriesIdentifier -> entriesFieldName), Map.empty)
 
     case MatrixMapGlobals(child, newGlobals) =>
-      val colsField = colsFieldName
       val lowered = lower(child)
-      val loweredOldGlobals = Ref("global", lowered.typ.globalType)
       val loweredNewGlobals =
-        Let("global",
-          SelectFields(loweredOldGlobals, child.typ.globalType.fieldNames),
-          newGlobals)
-      val colVals = GetField(loweredOldGlobals, colsField)
+        Let("global", globals(lowered), newGlobals)
 
       TableMapGlobals(
         lowered,
-        InsertFields(loweredNewGlobals, FastSeq(colsField -> colVals)))
+        InsertFields(loweredNewGlobals, FastSeq(colsFieldName -> colVals(lowered))))
+
+    case MatrixFilterEntries(child, pred) =>
+      val lowered = lower(child)
+      val newEntries =
+        ArrayMap(
+          ArrayRange(I32(0), nCols(lowered), I32(1)),
+          "i",
+          Let("g", ArrayRef(entries(lowered), Ref("i", TInt32())),
+            If(
+              Let("sa", ArrayRef(colVals(lowered), Ref("i", TInt32())),
+                pred),
+              Ref("g", child.typ.entryType),
+              NA(child.typ.entryType))))
+      val newRow = InsertFields(
+        Ref("row", lowered.typ.rowType),
+        FastSeq(entriesFieldName -> newEntries))
+
+      TableMapRows(lowered, newRow)
   }
 
   private[this] def tableRules: PartialFunction[TableIR, TableIR] = {
