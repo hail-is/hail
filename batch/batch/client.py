@@ -46,7 +46,7 @@ class Job(object):
 
     def delete(self):
         self.client._delete_job(self.id)
-        
+
         self.id = None
         self.attributes = None
         self._status = None
@@ -79,10 +79,11 @@ class Batch(object):
                 i = i + 1
 
 class BatchClient(object):
-    def __init__(self, url=None):
+    def __init__(self, url=None, api=None):
         if not url:
             url = 'http://batch'
         self.url = url
+        self.api = api
 
     def _create_job(self, image, command, args, env, ports, resources, tolerations, volumes, security_context, attributes, batch_id, callback):
         if env:
@@ -131,34 +132,34 @@ class BatchClient(object):
         if security_context:
             spec['securityContext'] = security_context
 
-        j = api.create_job(self.url, spec, attributes, batch_id, callback)
+        j = self.api.create_job(self.url, spec, attributes, batch_id, callback)
         return Job(self, j['id'], j.get('attributes'))
 
     def _get_job(self, id):
-        return api.get_job(self.url, id)
+        return self.api.get_job(self.url, id)
 
     def _get_job_log(self, id):
-        return api.get_job_log(self.url, id)
+        return self.api.get_job_log(self.url, id)
 
     def _delete_job(self, id):
-        api.delete_job(self.url, id)
+        self.api.delete_job(self.url, id)
 
     def _cancel_job(self, id):
-        api.cancel_job(self.url, id)
+        self.api.cancel_job(self.url, id)
 
     def _get_batch(self, batch_id):
-        return api.get_batch(self.url, batch_id)
+        return self.api.get_batch(self.url, batch_id)
 
     def _refresh_k8s_state(self):
-        api.refresh_k8s_state(self.url)
+        self.api.refresh_k8s_state(self.url)
 
     def list_jobs(self):
-        jobs = api.list_jobs(self.url)
+        jobs = self.api.list_jobs(self.url)
         return [Job(self, j['id'], j.get('attributes'), j) for j in jobs]
 
     def get_job(self, id):
         # make sure job exists
-        j = api.get_job(self.url, id)
+        j = self.api.get_job(self.url, id)
         return Job(self, j['id'], j.get('attributes'), j)
 
     def create_job(self,
@@ -176,5 +177,5 @@ class BatchClient(object):
         return self._create_job(image, command, args, env, ports, resources, tolerations, volumes, security_context, attributes, None, callback)
 
     def create_batch(self, attributes=None):
-        b = api.create_batch(self.url, attributes)
+        b = self.api.create_batch(self.url, attributes)
         return Batch(self, b['id'])
