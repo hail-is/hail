@@ -6,15 +6,8 @@ The Hail project began in Fall 2015 to empower the worldwide genetics community 
 
 Here are two examples of projects powered by Hail:
 
-- The [gnomAD](http://gnomad.broadinstitute.org/) team uses Hail as its core analysis platform. gnomAD is among the most comprehensive catalogues of human genetic variation in the world, and one of the largest genetic datasets. Analysis results are shared publicly and have had sweeping impact on biomedical research and the clinical diagnosis of genetic disorders.
+- The [gnomAD team](https://macarthurlab.org/2018/10/17/gnomad-v2-1/) uses Hail as its core analysis platform. [gnomAD](http://gnomad.broadinstitute.org) is among the most comprehensive catalogues of human genetic variation in the world, and one of the largest genetic datasets. [Analysis results](http://gnomad.broadinstitute.org/downloads) are shared publicly in Hail format and have had sweeping impact on biomedical research and the clinical diagnosis of genetic disorders.
 - The Neale Lab at the Broad Institute used Hail to perform QC and stratified association analysis of 4203 phenotypes at each of 13M variants in 361,194 individuals from the UK Biobank in about a day. Results and code are [here](http://www.nealelab.is/uk-biobank).
-
-Learn about these applications and more at our [ASHG 2018](http://www.ashg.org/2018meeting/) talks and posters:
-
- - [PgmNr 5: Variation across 141,456 human exomes and genomes reveals the spectrum of loss-of-function intolerance in human genes](https://eventpilot.us/web/page.php?page=IntHtml&project=ASHG18&id=180120491)
- - [PgmNr 120: Analyzing the world’s largest public human variation resources in less than a day: Massively scalable software for genomic analysis](https://eventpilot.us/web/page.php?page=IntHtml&project=ASHG18&id=180120286)
- - [PgmNr 1464: Quality control for 141,456 human exomes and genomes in the Genome Aggregation Database: An open-source, high-throughput computational workflow](https://eventpilot.us/web/page.php?page=IntHtml&project=ASHG18&id=180121234)
- - [PgmNr 3420: Universal Control Repository: A practical framework for aggregating control genotype data](https://eventpilot.us/web/page.php?page=IntHtml&project=ASHG18&id=180122490)
  
 We're running an introductory **Hail workshop** in Boston on October 31, hosted by the Harvard School of Public Health. Reserve a spot [here](https://www.hsph.harvard.edu/pqg/scale-with-hail-a-hands-on-tutorial-for-genomic-analysis-in-the-biobank-era/).
 
@@ -25,8 +18,8 @@ For genomics applications, Hail can:
  - generate sample annotations like mean depth, imputed sex, and TiTv ratio
  - generate new annotations from existing ones as well as genotypes, and use these to filter samples, variants, and genotypes
  - find Mendelian violations in trios, prune variants in linkage disequilibrium, analyze genetic similarity between samples, and compute sample scores and variant loadings using PCA
- - perform variant, gene-burden and eQTL association analyses using linear, logistic, and linear mixed regression, and estimate heritability
- - lots more!
+ - perform variant, gene-burden and eQTL association analyses using linear, logistic, Poisson, and linear mixed regression, and estimate heritability
+ - lots more! Check out some of the new features in [Hail 0.2](http://discuss.hail.is/t/announcing-hail-0-2/702/1).
 
 Hail's functionality is exposed through **[Python](https://www.python.org/)** and backed by distributed algorithms built on top of **[Apache Spark](https://spark.apache.org/docs/latest/index.html)** to efficiently analyze gigabyte-scale data on a laptop or terabyte-scale data on a cluster. 
 
