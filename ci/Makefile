@@ -1,6 +1,6 @@
 .PHONY: run restart-proxy restart-batch-proxy restart-all-proxies
 .PHONY: setup-conda-env build-hail-ci push-hail-ci test-locally
-.PHONY: test-in-cluster
+.PHONY: test-in-cluster run-service deploy
 
 HAIL_CI_LOCAL_BATCH_PORT ?= 8888
 
@@ -73,8 +73,11 @@ test-locally: restart-all-proxies
 test-in-cluster:
 	./test-in-cluster.sh
 
+run-service:
+	kubectl apply -f service.yaml
+
 deploy:
 	sed -e "s,@sha@,$(shell git rev-parse --short=12 HEAD)," \
 	  -e "s,@image@,$(shell cat hail-ci-image)," \
-	  < deployment.yaml.in > deployment.yaml
-	kubectl apply -f deployment.yaml
+	  < deployment.yaml.in > k8s/deployment.yaml
+	kubectl apply -f k8s

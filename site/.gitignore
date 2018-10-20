@@ -1,3 +1,7 @@
 *~
 /site-deployment.yaml
 /site-image
+/hail.nginx.conf
+/service.yaml
+/run-letsencrypt.nginx.conf
+/run-letsencrypt-pod.yaml

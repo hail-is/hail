@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: batch-test
+spec:
+  containers:
+  - name: batch-test
+    image: @image@
+    imagePullPolicy: Always
+    env:
+    - name: POD_IP
+      valueFrom:
+        fieldRef:
+          fieldPath: status.podIP
+  restartPolicy: Never

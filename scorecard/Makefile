@@ -1,9 +1,11 @@
 .PHONY: build push run-docker run deploy
 
+PROJECT = $(shell gcloud config get-value project)
+
 build:
 	docker build . -t scorecard
 
-push: IMAGE = gcr.io/broad-ctsa/scorecard:$(shell docker images -q --no-trunc scorecard | sed -e 's,[^:]*:,,')
+push: IMAGE = gcr.io/$(PROJECT)/scorecard:$(shell docker images -q --no-trunc scorecard | sed -e 's,[^:]*:,,')
 push: build
 	echo $(IMAGE) > scorecard-image
 	docker tag scorecard $(IMAGE)

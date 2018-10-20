@@ -1,5 +1,8 @@
-batch.log
-logs
-*~
+/batch.log
+/logs
+/deployment.yaml
+/test-batch-pod.yaml
+/batch-image
+/batch-test-image
 *.pyc
 **/__pycache__
