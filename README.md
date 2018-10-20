@@ -149,7 +149,7 @@ optional arguments:
 ```
 $ cluster start -h
 usage: cluster start [-h] [--hash HASH] [--spark {2.0.2,2.2.0}]
-                     [--version {0.1,devel}]
+                     [--version {0.1,0.2}]
                      [--master-machine-type MASTER_MACHINE_TYPE]
                      [--master-memory-fraction MASTER_MEMORY_FRACTION]
                      [--master-boot-disk-size MASTER_BOOT_DISK_SIZE]
@@ -175,8 +175,8 @@ optional arguments:
                         (default: latest).
   --spark {2.0.2,2.2.0}
                         Spark version used to build Hail (default: 2.2.0)
-  --version {0.1,devel}
-                        Hail version to use (default: devel).
+  --version {0.1,0.2}
+                        Hail version to use (default: 0.2).
   --master-machine-type MASTER_MACHINE_TYPE, --master MASTER_MACHINE_TYPE, -m MASTER_MACHINE_TYPE
                         Master machine type (default: n1-highmem-8).
   --master-memory-fraction MASTER_MEMORY_FRACTION

@@ -77,7 +77,7 @@ def init_parser(parser):
                         help='Hail build to use for notebook initialization (default: %(default)s).')
     parser.add_argument('--spark', type=str,
                         help='Spark version used to build Hail (default: 2.2.0 for 0.2 and 2.0.2 for 0.1)')
-    parser.add_argument('--version', default='devel', type=str, choices=['0.1', 'devel'],
+    parser.add_argument('--version', default='0.2', type=str, choices=['0.1', '0.2'],
                         help='Hail version to use (default: %(default)s).')
     parser.add_argument('--master-machine-type', '--master', '-m', default='n1-highmem-8', type=str,
                         help='Master machine type (default: %(default)s).')
@@ -128,7 +128,7 @@ def init_parser(parser):
 
 def main(args):
     if not args.spark:
-        args.spark = '2.2.0' if args.version == 'devel' else '2.0.2'
+        args.spark = '2.2.0' if args.version == '0.2' else '2.0.2'
 
     if args.hash == 'latest':
         cloudtools_version = __version__.strip().split('.')
@@ -181,7 +181,7 @@ def main(args):
                       init_script])
     # add VEP init script
     if args.vep:
-        vep_init = 'gs://hail-common/vep/vep/vep85-loftee-init-docker.sh' if args.version == 'devel' else 'gs://hail-common/vep/vep/vep85-init.sh'
+        vep_init = 'gs://hail-common/vep/vep/vep85-loftee-init-docker.sh' if args.version == '0.2' else 'gs://hail-common/vep/vep/vep85-init.sh'
         conf.extend_flag('initialization-actions', [vep_init])
     # add custom init scripts
     if args.init:

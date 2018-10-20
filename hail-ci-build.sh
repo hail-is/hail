@@ -40,7 +40,7 @@ do
 
     # check 0.2 cluster starts and runs hail
     time cluster start ${CLUSTER_NAME_0_2} \
-         --version devel \
+         --version 0.2 \
          --spark 2.2.0 \
          --max-idle 40m \
          --bucket=hail-ci-0-1-dataproc-staging-bucket
