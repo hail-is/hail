@@ -1,11 +1,15 @@
 .PHONY: build build-site build-run-letsencrypt push push-site push-run-letsencrypt \
-  run-letsencrypt serve deploy-site
+  run-letsencrypt serve deploy-site clean
 
 PROJECT = $(shell gcloud config get-value project)
 DOMAIN ?= hail.is
 IP ?= 35.224.105.117
 
 STATIC_CONFIG = hail.nginx.conf run-letsencrypt-pod.yaml run-letsencrypt.nginx.conf service.yaml
+
+clean:
+	rm -rf $(STATIC_CONFIG) site-deployment.yaml site-image
+
 $(STATIC_CONFIG): %: %.in
 	sed -e "s,@project@,$(PROJECT),g" \
 	  -e "s,@domain@,$(DOMAIN),g" \

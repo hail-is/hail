@@ -2,7 +2,7 @@
 
 set -ex
 
-bash /poll-devel.sh
+bash /poll-0.2.sh
 bash /poll-0.1.sh
 
 # otherwise cron jobs won't run
