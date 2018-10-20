@@ -4,12 +4,12 @@ Hail is an open-source, scalable framework for exploring and analyzing genomic d
 
 The Hail project began in Fall 2015 to empower the worldwide genetics community to [harness the flood of genomes](https://www.broadinstitute.org/blog/harnessing-flood-scaling-data-science-big-genomics-era) to discover the biology of human disease. Since then, Hail has expanded to enable analysis of large-scale datasets beyond the field of genomics. 
 
+We're running an introductory **Hail workshop** in Boston on October 31, hosted by the Harvard School of Public Health. Reserve a spot [here](https://www.hsph.harvard.edu/pqg/scale-with-hail-a-hands-on-tutorial-for-genomic-analysis-in-the-biobank-era/).
+
 Here are two examples of projects powered by Hail:
 
 - The [gnomAD team](https://macarthurlab.org/2018/10/17/gnomad-v2-1/) uses Hail as its core analysis platform. [gnomAD](http://gnomad.broadinstitute.org) is among the most comprehensive catalogues of human genetic variation in the world, and one of the largest genetic datasets. [Analysis results](http://gnomad.broadinstitute.org/downloads) are shared publicly in Hail format and have had sweeping impact on biomedical research and the clinical diagnosis of genetic disorders.
 - The Neale Lab at the Broad Institute used Hail to perform QC and stratified association analysis of 4203 phenotypes at each of 13M variants in 361,194 individuals from the UK Biobank in about a day. Results and code are [here](http://www.nealelab.is/uk-biobank).
- 
-We're running an introductory **Hail workshop** in Boston on October 31, hosted by the Harvard School of Public Health. Reserve a spot [here](https://www.hsph.harvard.edu/pqg/scale-with-hail-a-hands-on-tutorial-for-genomic-analysis-in-the-biobank-era/).
 
 For genomics applications, Hail can:
 

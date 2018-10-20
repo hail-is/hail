@@ -6,12 +6,11 @@ We’re looking for senior engineers with experience working on large, complex p
 
 We're specifically seeking engineers to fill the following roles:
 
-- Machine Learning engineer with experience in deep learning frameworks (e.g. TensorFlow) and deep learning models. Experience in Bayesian methods or with RNAseq data analysis is a plus. Apply [here](https://broadinstitute.wd1.myworkdayjobs.com/broad_institute/job/Cambridge-MA/Software-Engineer---Hail-Team_3168).
-- Front-End software engineer with a focus on scientific data visualization. Experience with data science tools in Python or R and with JS visualization technologies like D3 is desired. Bonus if you know React, Redux, node and deployment tools (Docker, k8s). You will be the Hail team's first front-end person, and will have the opportunity to set the vision. Apply [here](https://broadinstitute.wd1.myworkdayjobs.com/broad_institute/job/Cambridge-MA/Software-Engineer---Hail-Team_3168).
-- Distributed Systems engineer who will help design the architecture to allow us to derive scientific insights from petabyte-scale datasets now and scale 3x/year for the foreseeable future. Apply [here](https://broadinstitute.wd1.myworkdayjobs.com/broad_institute/job/Cambridge-MA/Software-Engineer---Hail-Team_3168).
-- Entry-level engineer to start in summer 2019. Apply [here](https://broadinstitute.wd1.myworkdayjobs.com/en-US/broad_institute/job/Cambridge-MA/Associate-Software-Engineer-Hail_4830-1).
+- Machine Learning engineer with experience in deep learning frameworks (e.g. TensorFlow) and deep learning models. Experience in Bayesian methods or with RNAseq data analysis is a plus.
+- Front-End software engineer with a focus on scientific data visualization. Experience with data science tools in Python or R and with JS visualization technologies like D3 is desired. Bonus if you know React, Redux, node and deployment tools (Docker, k8s). You will be the Hail team's first front-end person, and will have the opportunity to set the vision.
+- Distributed Systems engineer who will help design the architecture to allow us to derive scientific insights from petabyte-scale datasets now and scale 3x/year for the foreseeable future.
+- Entry-level engineer to start in summer 2019.
 
 Questions? Write us at <a href="mailto:hail@broadinstitute.org"><code>hail@broadinstitute.org</code></a>. **To apply, visit the [offical job post](https://broadinstitute.wd1.myworkdayjobs.com/broad_institute/job/Cambridge-MA/Software-Engineer---Hail-Team_3168)**.
 
 ![](https://storage.googleapis.com/hail-common/hail_team.JPG "Hail team")
-
