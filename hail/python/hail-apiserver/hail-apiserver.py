@@ -1,7 +1,8 @@
 import hail as hl
 
-from hail.utils.java import Env
+from hail.utils.java import Env, info
 
+import logging
 import flask
 
 hl.init()
@@ -12,16 +13,20 @@ app = flask.Flask('hail-apiserver')
 def execute():
     code = flask.request.json
     
-    print('code', code)
+    info(f'execute: {code}')
     
     jir = Env.hail().expr.Parser.parse_value_ir(code, {}, {})
     
     typ = hl.HailType._from_java(jir.typ())
-    result = Env.hail().expr.ir.Interpret.interpretPyIR(code, {}, {})
-    
-    return flask.jsonify({
+    value = Env.hail().expr.ir.Interpret.interpretPyIR(code, {}, {})
+
+    result = {
         'type': str(typ),
-        'value': result
-    })
+        'value': value
+    }
+    
+    info(f'result: {result}')
+    
+    return flask.jsonify(result)
 
 app.run(threaded=False, host='0.0.0.0')

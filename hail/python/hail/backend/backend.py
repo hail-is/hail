@@ -28,14 +28,17 @@ class SparkBackend(Backend):
         return typ._from_json(result)
 
 class ServiceBackend(Backend):
+    def __init__(self, host, port=80, scheme='http'):
+        self.scheme = scheme
+        self.host = host
+        self.port = port
+
     def interpret(self, ir):
         assert isinstance(ir, hail.ir.IR)
 
         r = Renderer(stop_at_jir=True)
         code = r(ir)
         assert len(r.jirs) == 0
-        
-        print('code', code)
         
         resp = requests.post(f'http://hail-apiserver:5000/execute', json=code)
         resp.raise_for_status()
