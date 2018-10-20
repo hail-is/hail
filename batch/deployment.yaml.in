@@ -24,7 +24,7 @@ rules:
 kind: RoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: batch-pods-admin-binding
+  name: batch-svc-batch-pods-admin-binding
   namespace: batch-pods
 subjects:
 - kind: ServiceAccount
