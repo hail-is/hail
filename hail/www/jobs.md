@@ -11,6 +11,6 @@ We're specifically seeking engineers to fill the following roles:
 - Distributed Systems engineer who will help design the architecture to allow us to derive scientific insights from petabyte-scale datasets now and scale 3x/year for the foreseeable future.
 - Entry-level engineer to start in summer 2019.
 
-Questions? Write us at <a href="mailto:hail@broadinstitute.org"><code>hail@broadinstitute.org</code></a>. **To apply, visit the [offical job post](https://broadinstitute.wd1.myworkdayjobs.com/broad_institute/job/Cambridge-MA/Software-Engineer---Hail-Team_3168)**.
+Interested? Write us at <a href="mailto:hail@broadinstitute.org"><code>hail@broadinstitute.org</code></a>.
 
 ![](https://storage.googleapis.com/hail-common/hail_team.JPG "Hail team")
