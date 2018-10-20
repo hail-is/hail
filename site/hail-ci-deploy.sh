@@ -6,4 +6,4 @@ gcloud -q auth activate-service-account \
 
 gcloud -q auth configure-docker
 
-make push-site deploy-site
+make clean push-site deploy-site
