@@ -136,8 +136,6 @@ object CodecSpec {
 trait CodecSpec extends Serializable {
   def buildEncoder(t: PType): (OutputStream) => Encoder
 
-  def buildNativeEncoder(t: PType): (OutputStream) => Encoder
-
   def buildDecoder(t: PType, requestedType: PType): (InputStream) => Decoder
 
   // FIXME: is there a better place for this to live?
@@ -188,12 +186,16 @@ object ShowBuf {
 
 final case class PackCodecSpec(child: BufferSpec) extends CodecSpec {
 
-  def buildEncoder(t: PType): (OutputStream) => Encoder = { out: OutputStream =>
-    new PackEncoder(t, child.buildOutputBuffer(out))
-  }
-
-  def buildNativeEncoder(t: PType): (OutputStream) => Encoder = { out: OutputStream =>
-    new NativePackEncoder(out, NativeEncoder(t, child))
+  def buildEncoder(t: PType): (OutputStream) => Encoder = {
+    if (System.getenv("HAIL_ENABLE_CPP_CODEGEN") != null) {
+      { out: OutputStream =>
+        new NativePackEncoder(out, NativeEncoder(t, child))
+      }
+    } else {
+      { out: OutputStream =>
+        new PackEncoder(t, child.buildOutputBuffer(out))
+      }
+    }
   }
   
   def buildDecoder(t: PType, requestedType: PType): (InputStream) => Decoder = {
