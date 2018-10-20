@@ -21,7 +21,7 @@ RUN rm -f /etc/nginx/sites-enabled/default
 ADD hail.nginx.conf /etc/nginx/conf.d/hail.conf
 
 ADD poll-0.1.sh .
-ADD poll-devel.sh .
+ADD poll-0.2.sh .
 ADD site.sh .
 
 ADD poll-docs-crontab /etc/cron.d/
