@@ -12,18 +12,18 @@ class TranslationUnit(preamble: String, definitions: Array[Definition]) {
       .toMap
 
   def source: String =
-    s"""$preamble
+    new PrettyCode(s"""$preamble
        |
        |NAMESPACE_HAIL_MODULE_BEGIN
        |
-       |${definitions.map(_.define).mkString("\n\n")}
+       |${definitions.map(d => if (d.isInstanceOf[Function]) d.define else s"${d.define};").mkString("\n\n")}
        |
        |NAMESPACE_HAIL_MODULE_END
-     """.stripMargin
+     """.stripMargin).toString()
 
   def build(options: String): NativeModule = {
     val st = new NativeStatus()
-    val mod = new NativeModule("", source)
+    val mod = new NativeModule(options, source)
     mod.findOrBuild(st)
     assert(st.ok, st.toString())
     mod
