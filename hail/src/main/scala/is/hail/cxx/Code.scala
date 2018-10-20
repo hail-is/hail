@@ -28,7 +28,7 @@ abstract class Expression extends Code {
 
 class Block(val statements: Array[Statement]) extends Statement {
 
-  override def toString: String = s"{${statements.mkString("; ")};}"
+  override def toString: String = s"{\n${statements.mkString(";\n")};\n}"
 
 }
 
