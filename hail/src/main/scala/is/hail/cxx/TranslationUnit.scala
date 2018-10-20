@@ -23,6 +23,7 @@ class TranslationUnit(preamble: String, definitions: Array[Definition]) {
 
   def build(options: String): NativeModule = {
     val st = new NativeStatus()
+    println(source)
     val mod = new NativeModule(options, source)
     mod.findOrBuild(st)
     assert(st.ok, st.toString())

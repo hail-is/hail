@@ -75,7 +75,7 @@ class UnsafeSuite extends SparkSuite {
         val ur = new UnsafeRow(t.physicalType, region, offset)
 
         val aos = new ByteArrayOutputStream()
-        val en = codecSpec.buildEncoder(t.physicalType)(aos)
+        val en = codecSpec.buildNativeEncoder(t.physicalType)(aos)
         en.writeRegionValue(region, offset)
         en.flush()
 
@@ -85,6 +85,7 @@ class UnsafeSuite extends SparkSuite {
         val offset2 = dec.readRegionValue(region2)
         val ur2 = new UnsafeRow(t.physicalType, region2, offset2)
         assert(t.typeCheck(ur2))
+        assert(t.valuesSimilar(a, ur2))
 
         region3.clear()
         val ais3 = new ByteArrayInputStream(aos.toByteArray)
@@ -92,7 +93,6 @@ class UnsafeSuite extends SparkSuite {
         val offset3 = dec3.readRegionValue(region3)
         val ur3 = new UnsafeRow(requestedType.physicalType, region3, offset3)
         assert(requestedType.typeCheck(ur3))
-
         assert(requestedType.valuesSimilar(a2, ur3))
       }
 

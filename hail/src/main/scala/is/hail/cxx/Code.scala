@@ -22,8 +22,20 @@ object Statement {
 
 abstract class Statement extends Code
 
+object Expression {
+  def apply(t: String, s: String): Expression = new Expression {
+    def typ: String = t
+    override def toString: String = s
+  }
+
+}
+
 abstract class Expression extends Code {
   def typ: String
+}
+
+object Block {
+  def apply(statements: Statement*): Block = new Block(statements.toArray)
 }
 
 class Block(val statements: Array[Statement]) extends Statement {

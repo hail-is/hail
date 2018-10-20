@@ -6,10 +6,17 @@ trait Definition {
   def define: Statement
 }
 
+object Variable {
+  def apply(prefix: String, typ: String, init: Statement): Variable =
+    new Variable(prefix, typ, Expression(typ, init.toString))
+}
+
 class Variable(prefix: String, val typ: String, init: Expression) extends Definition {
   val name: String = genSym(prefix)
 
   override def toString: String = name
+
+  def toExpr: Expression = Expression(typ, name)
 
   def define: Statement = new Statement {
     override def toString: String =
@@ -52,4 +59,10 @@ class FunctionBuilder(prefix: String, args: Array[Variable], returnType: String)
     blockBuilder ++= block
 
   def result(): Function = new Function(returnType, prefix, args, blockBuilder.result())
+
+  def addTo(tub: TranslationUnitBuilder): Function = {
+    val f = result()
+    tub += f
+    f
+  }
 }

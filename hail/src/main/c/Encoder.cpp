@@ -6,7 +6,14 @@
 namespace hail {
 OutputStream::OutputStream(UpcallEnv up, jobject joutput_stream) :
   up_(up),
-  joutput_stream_(joutput_stream),
+  joutput_stream_(up.env()->NewGlobalRef(joutput_stream)),
+  jbuf_(nullptr),
+  jbuf_size_(-1) {
+}
+
+OutputStream::OutputStream(OutputStream * output_stream) :
+  up_(output_stream->up_),
+  joutput_stream_(output_stream->up_.env()->NewGlobalRef(output_stream->joutput_stream_)),
   jbuf_(nullptr),
   jbuf_size_(-1) {
 
@@ -15,6 +22,7 @@ OutputStream::OutputStream(UpcallEnv up, jobject joutput_stream) :
 //OutputStream
 void OutputStream::write(char * buf, int n) {
   if (jbuf_size_ < n) {
+    up_.warn(std::to_string(n));
     jbuf_ = up_.env()->NewByteArray(n);
     jbuf_size_ = n;
   }
@@ -32,20 +40,42 @@ void OutputStream::close() {
   up_.env()->CallVoidMethod(joutput_stream_, up_.config()->OutputStream_close_);
 }
 
+OutputStream::~OutputStream() {
+  up_.env()->DeleteGlobalRef(joutput_stream_);
+}
+
 // StreamOutputBlockBuffer
 StreamOutputBlockBuffer::StreamOutputBlockBuffer(OutputStream os) :
-  output_stream_(os) { }
+  output_stream_(std::make_shared<OutputStream>(&os)) { }
+
+StreamOutputBlockBuffer::StreamOutputBlockBuffer(StreamOutputBlockBuffer * src) :
+  output_stream_(src->output_stream_) { }
+
+void StreamOutputBlockBuffer::clone(const OutputBlockBuffer * src) {
+  output_stream_ = reinterpret_cast<const StreamOutputBlockBuffer *>(src)->output_stream_;
+}
 
 void StreamOutputBlockBuffer::write_block(char * buf, int n) {
-  output_stream_.write(reinterpret_cast<char *>(&n), 4);
-  output_stream_.write(buf, n);
+  output_stream_->write(reinterpret_cast<char *>(&n), 4);
+  output_stream_->write(buf, n);
 }
 
 // LZ4OutputBlockBuffer
-LZ4OutputBlockBuffer::LZ4OutputBlockBuffer(int block_size, OutputBlockBuffer * buf) :
+LZ4OutputBlockBuffer::LZ4OutputBlockBuffer(int block_size, std::shared_ptr<OutputBlockBuffer> buf) :
   block_buf_(buf),
   block_size_(LZ4_compressBound(block_size)),
   block_(new char[block_size_ + 4]{}) { }
+
+LZ4OutputBlockBuffer::LZ4OutputBlockBuffer(LZ4OutputBlockBuffer * src) :
+  block_buf_(src->block_buf_),
+  block_size_(src->block_size_),
+  block_(new char[src->block_size_ + 4]{}) { }
+
+void LZ4OutputBlockBuffer::clone(const OutputBlockBuffer * src) {
+  block_buf_ = reinterpret_cast<const LZ4OutputBlockBuffer *>(src)->block_buf_;
+  block_size_ = reinterpret_cast<const LZ4OutputBlockBuffer *>(src)->block_size_;
+  block_ = new char[block_size_ + 4]{};
+}
 
 void LZ4OutputBlockBuffer::write_block(char * buf, int n) {
   int comp_length = LZ4_compress_default(buf, block_ + 4, n, block_size_ + 4);
@@ -54,10 +84,21 @@ void LZ4OutputBlockBuffer::write_block(char * buf, int n) {
 }
 
 // BlockingOutputBuffer
-BlockingOutputBuffer::BlockingOutputBuffer(int block_size, OutputBlockBuffer * buf) :
+BlockingOutputBuffer::BlockingOutputBuffer(int block_size, std::shared_ptr<OutputBlockBuffer> buf) :
   block_size_(block_size),
   block_buf_(buf),
   block_(new char[block_size]{}) { }
+
+BlockingOutputBuffer::BlockingOutputBuffer(BlockingOutputBuffer * src) :
+  block_size_(src->block_size_),
+  block_buf_(src->block_buf_),
+  block_(new char[src->block_size_]{}) { }
+
+void BlockingOutputBuffer::clone(const OutputBuffer * src) {
+  block_size_ = reinterpret_cast<const BlockingOutputBuffer *>(src)->block_size_;
+  block_buf_ = reinterpret_cast<const BlockingOutputBuffer *>(src)->block_buf_;
+  block_ = new char[block_size_]{};
+}
 
 void BlockingOutputBuffer::flush() {
   if (off_ > 0) {
@@ -119,8 +160,15 @@ void BlockingOutputBuffer::write_bytes(char * buf, int n) {
 }
 
 // LEB128OutputBuffer
-LEB128OutputBuffer::LEB128OutputBuffer(OutputBuffer * buf) :
+LEB128OutputBuffer::LEB128OutputBuffer(std::shared_ptr<OutputBuffer> buf) :
   buf_(buf) { }
+
+LEB128OutputBuffer::LEB128OutputBuffer(LEB128OutputBuffer * src) :
+  buf_(src->buf_) { }
+
+void LEB128OutputBuffer::clone(const OutputBuffer * src) {
+  buf_ = reinterpret_cast<const LEB128OutputBuffer *>(src)->buf_;
+}
 
 void LEB128OutputBuffer::flush() { buf_->flush(); }
 
