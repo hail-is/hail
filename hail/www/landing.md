@@ -32,8 +32,8 @@ To learn more, you can view our talks at [Spark Summit East 2017](https://spark-
 To get started using Hail:
 
 - install Hail 0.2 using the instructions in [Installation](https://hail.is/docs/devel/getting_started.html)
-- read the [Overview](https://hail.is/docs/devel/overview.html) for a broad introduction to Hail
 - follow the [Tutorials](https://hail.is/docs/devel/tutorials-landing.html) for examples of how to use Hail
+- read the [Hailpedia](https://hail.is/docs/devel/overview.html) for a broad introduction to Hail
 - check out the [Python API](https://hail.is/docs/devel/api.html) for detailed information on the programming interface
 
 ### User Support
