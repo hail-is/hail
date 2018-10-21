@@ -1,4 +1,4 @@
-.PHONY: hail.nginx.conf service.yaml build push deploy clean
+.PHONY: hail.nginx.conf service.yaml deployment.yaml build push deploy clean
 
 PROJECT = $(shell gcloud config get-value project)
 DOMAIN ?= hail.is
@@ -19,7 +19,7 @@ deployment.yaml: build deployment.yaml.in
 	  -e "s,@image@,$(IMAGE)," \
 	  < $< > $@
 
-build: Dockerfile hail.nginx.conf gateway.sh
+build: hail.nginx.conf
 	docker build -t gateway .
 
 push: build
