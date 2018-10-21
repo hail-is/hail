@@ -15,7 +15,7 @@ with open('projects.txt', 'r') as f:
         if not line:
             continue
 
-        projects.add(line)
+        projects.append(line)
 
 orig_hash = sys.argv[1]
 target_project = sys.argv[2]
