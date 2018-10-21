@@ -1,0 +1,31 @@
+apiVersion: apps/v1beta2
+kind: Deployment
+metadata:
+  name: gateway-deployment
+  labels:
+    app: gateway
+    hail.is/sha: "@sha@"
+spec:
+  selector:
+    matchLabels:
+      app: gateway
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: gateway
+        hail.is/sha: "@sha@"
+    spec:
+      containers:
+      - name: gateway
+        image: @image@
+        ports:
+        - containerPort: 80
+        - containerPort: 443
+        volumeMounts:
+          - mountPath: /etc/letsencrypt
+            name: letsencrypt-certs
+      volumes:
+        - name: letsencrypt-certs
+          persistentVolumeClaim:
+            claimName: letsencrypt-certs

@@ -1,9 +1,5 @@
 #!/bin/bash
-
 set -ex
-
-bash /poll-0.2.sh
-bash /poll-0.1.sh
 
 # otherwise cron jobs won't run
 # see: https://stackoverflow.com/questions/34962020/cron-and-crontab-files-not-executed-in-docker
