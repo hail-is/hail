@@ -9,7 +9,7 @@ We're running an introductory **Hail workshop** in Boston on October 31, hosted 
 Here are two examples of projects powered by Hail:
 
 - The [gnomAD team](https://macarthurlab.org/2018/10/17/gnomad-v2-1/) uses Hail as its core analysis platform. [gnomAD](http://gnomad.broadinstitute.org) is among the most comprehensive catalogues of human genetic variation in the world, and one of the largest genetic datasets. [Analysis results](http://gnomad.broadinstitute.org/downloads) are shared publicly in Hail format and have had sweeping impact on biomedical research and the clinical diagnosis of genetic disorders.
-- The Neale Lab at the Broad Institute used Hail to perform QC and stratified association analysis of 4203 phenotypes at each of 13M variants in 361,194 individuals from the UK Biobank in about a day. Results and code are [here](http://www.nealelab.is/uk-biobank).
+- The Neale Lab at the Broad Institute used Hail to perform QC and stratified association analysis of 4203 phenotypes at each of 13M variants in 361,194 individuals from the UK Biobank in about a day. Results and code are [here](http://www.nealelab.is/uk-biobank) and tweeted daily by the [GWASbot](https://twitter.com/SbotGwa).
 
 For genomics applications, Hail can:
 
