@@ -169,17 +169,17 @@ export GRADLE_OPTS="-Xmx2048m"
 export GRADLE_USER_HOME="/gradle-cache"
 
 echo "Compiling..."
-./gradlew shadowJar archiveZip > ${COMPILE_LOG}
+./gradlew shadowJar archiveZip > ${COMPILE_LOG} 2>&1
 touch ${COMP_SUCCESS}
 
 test_project() {
-    ./gradlew test > ${SCALA_TEST_LOG}
+    ./gradlew test > ${SCALA_TEST_LOG} 2>&1
     touch ${SCALA_TEST_SUCCESS}
-    ./gradlew testPython > ${PYTHON_TEST_LOG}
+    ./gradlew testPython > ${PYTHON_TEST_LOG} 2>&1
     touch ${PYTHON_TEST_SUCCESS}
-    ./gradlew doctest > ${DOCTEST_LOG}
+    ./gradlew doctest > ${DOCTEST_LOG} 2>&1
     touch ${DOCTEST_SUCCESS}
-    ./gradlew makeDocs > ${DOCS_LOG}
+    ./gradlew makeDocs > ${DOCS_LOG} 2>&1
     touch ${DOCS_SUCCESS}
 }
 
@@ -226,7 +226,7 @@ test_pip_package() {
 test_project &
 PID1=$!
 
-test_gcp > ${GCP_LOG} &
+test_gcp > ${GCP_LOG} 2>&1 &
 PID2=$!
 
 test_pip_package > ${PIP_PACKAGE_LOG} 2>&1 &
