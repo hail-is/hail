@@ -1,9 +1,9 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: site
+  name: gateway
   labels:
-    app: site
+    app: gateway
 spec:
   ports:
   - name: http
@@ -15,6 +15,6 @@ spec:
     protocol: TCP
     targetPort: 443
   selector:
-    app: site
+    app: gateway
   loadBalancerIP: @ip@
   type: LoadBalancer

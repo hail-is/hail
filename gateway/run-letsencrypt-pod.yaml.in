@@ -3,7 +3,7 @@ kind: Pod
 metadata:
   name: run-letsencrypt
   labels:
-    app: site
+    app: gateway
 spec:
   containers:
   - name: run-letsencrypt

@@ -18,13 +18,15 @@ spec:
     spec:
       containers:
       - name: site
-        image: @image@
+        image: @site_image@
         ports:
         - containerPort: 80
         - containerPort: 443
         volumeMounts:
           - mountPath: /etc/letsencrypt
             name: letsencrypt-certs
+      - name: site-poll
+        image: @site_poll_image@
       volumes:
         - name: letsencrypt-certs
           persistentVolumeClaim:

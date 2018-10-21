@@ -4,12 +4,12 @@ set -ex
 # start service
 kubectl apply -f service.yaml
 
-# stop existing site deployment
-kubectl delete --ignore-not-found=true deployment site-deployment
+# stop existing gateway deployment
+kubectl delete --ignore-not-found=true deployment gateway-deployment
 N=
 while [[ $N != 0 ]]; do
     sleep 5
-    N=$(kubectl get pods -l app=site --ignore-not-found=true --no-headers | wc -l | tr -d '[:space:]')
+    N=$(kubectl get pods -l app=gateway --ignore-not-found=true --no-headers | wc -l | tr -d '[:space:]')
     echo N=$N
 done
 

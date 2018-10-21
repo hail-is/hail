@@ -1,0 +1,7 @@
+FROM debian:18.04
+
+ADD poll-0.1.sh .
+ADD poll-0.2.sh .
+ADD poll.sh .
+
+CMD ["/bin/bash", "/poll.sh"]

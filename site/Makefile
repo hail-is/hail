@@ -1,55 +1,27 @@
-.PHONY: build build-site build-run-letsencrypt push push-site push-run-letsencrypt \
-  run-letsencrypt serve deploy-site clean
+.PHONY: push deploy clean
 
-PROJECT = $(shell gcloud config get-value project)
-DOMAIN ?= hail.is
-IP ?= 35.224.105.117
+SITE_IMAGE = gcr.io/$(PROJECT)/site:$(shell docker images -q --no-trunc site | sed -e 's,[^:]*:,,')
+SITE_POLL_IMAGE = gcr.io/$(PROJECT)/site-poll:$(shell docker images -q --no-trunc site-poll | sed -e 's,[^:]*:,,')
 
-STATIC_CONFIG = hail.nginx.conf run-letsencrypt-pod.yaml run-letsencrypt.nginx.conf service.yaml
+deployment.yaml: deployment.yaml.in build-stmp
+	sed -e "s,@sha@,$$(git rev-parse --short=12 HEAD),g" \
+	  -e "s,@site_image@,$(SITE_IMAGE)," \
+	  -e "s,@site_poll_image@,$(SITE_POLL_IMAGE)," \
+	  < $< > $@
+
+build-stmp: Dockerfile hail.is.nginx.conf Dockerfile.site-poll poll.sh poll-0.1.sh poll-0.2.sh
+	docker build -t site .
+	docker build -t site-poll -f Dockerfile.site-poll .
+	touch build-stmp
+
+push: build-stmp
+	docker tag site $(SITE_IMAGE)
+	docker push $(SITE_IMAGE)
+	docker tag site-poll $(SITE_POLL_IMAGE)
+	docker push $(SITE_POLL_IMAGE)
+
+deploy: service.yaml deployment.yaml push
+	kubectl apply -f service.yaml deployment.yaml
 
 clean:
-	rm -rf $(STATIC_CONFIG) site-deployment.yaml site-image
-
-$(STATIC_CONFIG): %: %.in
-	sed -e "s,@project@,$(PROJECT),g" \
-	  -e "s,@domain@,$(DOMAIN),g" \
-	  -e "s,@ip@,$(IP),g" \
-	  < $< > $@
-
-# specialize
-site-deployment.yaml: %: %.in
-	sed -e "s,@sha@,$$(git rev-parse --short=12 HEAD),g" \
-	  -e "s,@image@,$$(cat site-image)," \
-	  < $< > $@
-
-build: build-site build-run-letsencrypt
-
-build-site: hail.nginx.conf
-	docker build -t site .
-
-build-run-letsencrypt: run-letsencrypt.nginx.conf
-	docker build -t run-letsencrypt . -f Dockerfile.run-letsencrypt
-
-push: push-site push-run-letsencrypt
-
-push-site: IMAGE = gcr.io/$(PROJECT)/site:$(shell docker images -q --no-trunc site | sed -e 's,[^:]*:,,')
-push-site: build-site
-	echo $(IMAGE) > site-image
-	docker tag site $(IMAGE)
-	docker push $(IMAGE)
-
-push-run-letsencrypt: build-run-letsencrypt
-	docker tag run-letsencrypt gcr.io/$(PROJECT)/run-letsencrypt
-	docker push gcr.io/$(PROJECT)/run-letsencrypt
-
-run-letsencrypt: run-letsencrypt-pod.yaml service.yaml
-	/bin/bash run-letsencrypt.sh
-
-serve:
-	docker run -it -p 80:80 -p 443:443 -v $$(pwd)/letsencrypt:/etc/letsencrypt site
-
-deploy-site: service.yaml site-deployment.yaml
-	kubectl apply -f service.yaml
-	kubectl delete --ignore-not-found=true deployment site-deployment
-	sleep 5
-	kubectl create -f site-deployment.yaml
+	rm -rf deployment.yaml build-stmp
