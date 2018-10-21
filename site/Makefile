@@ -1,4 +1,4 @@
-.PHONY: build push deploy clean
+.PHONY: deployment.yaml build push deploy clean
 
 SITE_IMAGE = gcr.io/$(PROJECT)/site:$(shell docker images -q --no-trunc site | sed -e 's,[^:]*:,,')
 SITE_POLL_IMAGE = gcr.io/$(PROJECT)/site-poll:$(shell docker images -q --no-trunc site-poll | sed -e 's,[^:]*:,,')
@@ -9,7 +9,7 @@ deployment.yaml: build deployment.yaml.in
 	  -e "s,@site_poll_image@,$(SITE_POLL_IMAGE)," \
 	  < $< > $@
 
-build: Dockerfile hail.nginx.conf Dockerfile.site-poll poll.sh poll-0.1.sh poll-0.2.sh
+build:
 	docker build -t site .
 	docker build -t site-poll -f Dockerfile.site-poll .
 
