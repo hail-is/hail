@@ -8,17 +8,14 @@ outputs 'yes' if <project> changed in HEAD compared to <orig-hash> else 'no'.
     ''', sys.argv[0])
     exit(1)
 
-# TODO dependencies
-projects = {
-    'hail': 'hail/',
-    'batch': 'batch/',
-    'ci': 'ci/',
-    'site': 'site/',
-    'scorecard': 'scorecard/',
-    'cloudtools': 'cloudtools/',
-    'upload': 'upload/',
-    'spark': 'spark/'
-}
+projects = []
+with open('projects.txt', 'r') as f:
+    for  line in f:
+        line = line.strip()
+        if not line:
+            continue
+
+        projects.add(line)
 
 orig_hash = sys.argv[1]
 target_project = sys.argv[2]
@@ -34,8 +31,8 @@ if proc.returncode != 0:
     exit(1)
 
 def get_project(line):
-    for project, prefix in projects.items():
-        if line.startswith(prefix):
+    for project in projects:
+        if line.startswith(project + '/'):
             return project
     return None
 
