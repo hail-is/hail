@@ -10,7 +10,9 @@ Unlike the Python and R scientific computing stacks, Hail:
 - is designed to work with datasets that do not fit in memory
 - has first-class support for multi-dimensional structured data, like genomic data as in this [tutorial](https://hail.is/docs/devel/tutorials/01-genome-wide-association-study.html)
 
-Hail's methods are primarily written in Python, using primitives for distributed queries and linear algebra implemented in Scala, [Spark](https://spark.apache.org/docs/latest/index.html), and increasingly C++. We welcome the scientific community to leverage Hail to develop, share, and apply new methods at scale!  See the [homepage](https://hail.is) for more information on using Hail.
+Hail's methods are primarily written in Python, using primitives for distributed queries and linear algebra implemented in Scala, [Spark](https://spark.apache.org/docs/latest/index.html), and increasingly C++. We welcome the scientific community to leverage Hail to develop, share, and apply new methods at scale!
+
+See the [homepage](https://hail.is) for more info on using Hail.
 
 ### Contribute
 
