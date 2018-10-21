@@ -1,7 +1,7 @@
-FROM ubuntu:18.04
+FROM debian:9.5
 
 RUN apt-get update -y && \
-    apt-get install -y nginx curl && \
+    apt-get install -y nginx && \
     rm -rf /var/lib/apt/lists/*
 
 RUN rm -f /etc/nginx/sites-enabled/default

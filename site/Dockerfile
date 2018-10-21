@@ -1,4 +1,4 @@
-FROM debian:18.04
+FROM debian:9.5
 
 RUN apt-get update -y && \
     apt-get install -y nginx && \
