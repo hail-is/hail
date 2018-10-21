@@ -1,5 +1,9 @@
 FROM debian:18.04
 
+RUN /bin/sh -c 'curl https://sdk.cloud.google.com | bash' && \
+    mv /root/google-cloud-sdk /
+ENV PATH $PATH:/google-cloud-sdk/bin
+
 ADD poll-0.1.sh .
 ADD poll-0.2.sh .
 ADD poll.sh .
