@@ -20,7 +20,7 @@ push: build-stmp
 	docker tag site-poll $(SITE_POLL_IMAGE)
 	docker push $(SITE_POLL_IMAGE)
 
-deploy: service.yaml deployment.yaml push
+deploy: push service.yaml deployment.yaml
 	kubectl apply -f service.yaml deployment.yaml
 
 clean:

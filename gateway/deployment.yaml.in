@@ -24,8 +24,8 @@ spec:
         - containerPort: 443
         volumeMounts:
           - mountPath: /etc/letsencrypt
-            name: letsencrypt-certs
+            name: letsencrypt-config
       volumes:
-        - name: letsencrypt-certs
-          persistentVolumeClaim:
-            claimName: letsencrypt-certs
+        - name: letsencrypt-config
+          secret:
+            secretName: letsencrypt-config
