@@ -3,10 +3,6 @@ server {
     listen [::]:80 default_server;
     server_name _;
     
-    location /.well-known {
-      proxy_pass http://letsencrypt;
-    }
-    
     return 301 https://$host$request_uri;
 }
 

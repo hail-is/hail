@@ -18,12 +18,9 @@ spec:
     spec:
       containers:
       - name: site
-        image: @site_image@
+        image: @image@
         ports:
         - containerPort: 80
-        volumeMounts:
-          - mountPath: /etc/letsencrypt
-            name: letsencrypt-certs
         livenessProbe:
           httpGet:
             path: /health
@@ -36,9 +33,3 @@ spec:
             port: 80
           initialDelaySeconds: 5
           periodSeconds: 5
-      - name: site-poll
-        image: @site_poll_image@
-      volumes:
-        - name: letsencrypt-certs
-          persistentVolumeClaim:
-            claimName: letsencrypt-certs
