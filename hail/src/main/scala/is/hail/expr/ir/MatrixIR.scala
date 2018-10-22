@@ -2480,19 +2480,17 @@ case class CastTableToMatrix(
 
   private val m = Map(entriesFieldName -> MatrixType.entriesIdentifier)
 
-  private val entriesFieldType = child.typ.rowType.fieldType(entriesFieldName)
+  child.typ.rowType.fieldType(entriesFieldName) match {
+    case TArray(TStruct(_, _), _) =>
+    case t => fatal(s"expected entry field to be an array of structs, found $t")
+  }
 
-  private val Field(_,
-    TArray(colType@TStruct(_, _), _),
-    colsFieldIdx
-  ) = child.typ.globalType.field(colsFieldName)
+  private val (colType, colsFieldIdx) = child.typ.globalType.field(colsFieldName) match {
+    case Field(_, TArray(t@TStruct(_, _), _), idx) => (t, idx)
+    case Field(_, t, _) => fatal(s"expected cols field to be an array of structs, found $t")
+  }
 
   private val newRowType = child.typ.rowType.rename(m)
-
-  entriesFieldType match {
-    case TArray(TStruct(_, _), _) =>
-    case _ => fatal(s"expected entry field to be an array of structs, found ${ entriesFieldType }")
-  }
 
   val typ: MatrixType = MatrixType(
     child.typ.globalType.deleteKey(colsFieldName, colsFieldIdx),
@@ -2515,43 +2513,30 @@ case class CastTableToMatrix(
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
   def execute(hc: HailContext): MatrixValue = {
-    val prev = child.execute(hc)
+    val entries = GetField(Ref("row", child.typ.rowType), entriesFieldName)
+    val cols = GetField(Ref("global", child.typ.globalType), colsFieldName)
+    val checkedRow =
+      ir.If(ir.IsNA(entries),
+        ir.Die("missing entry array value in argument to CastTableToMatrix", child.typ.rowType),
+        ir.If(ir.ApplyComparisonOp(ir.EQ(TInt32()), ir.ArrayLen(entries), ir.ArrayLen(cols)),
+          Ref("row", child.typ.rowType),
+          Die("incorrect entry array length in argument to CastTableToMatrix", child.typ.rowType)))
+    val checkedChild = ir.TableMapRows(child, checkedRow)
 
-    val localColData = prev.globals.value.getAs[IndexedSeq[Annotation]](colsFieldIdx)
-    val nCols = localColData.size
+    val prev = checkedChild.execute(hc)
 
-    val field = GetField(Ref("row", prev.typ.rowType), entriesFieldName)
-    val (_, lenF) = ir.Compile[Long, Int]("row", child.typ.rowType,
-      ir.ArrayLen(field))
-
-    val (_, missingF) = ir.Compile[Long, Boolean]("row", child.typ.rowType,
-      ir.IsNA(field))
-
-    val rowRVD = prev.rvd.mapPartitionsWithIndex(prev.rvd.typ) { (i, it) =>
-      val missing = missingF(i)
-      val len = lenF(i)
-      it.map { rv =>
-        if (missing(rv.region, rv.offset, false)) {
-          fatal("missing entry array value in argument to CastTableToMatrix")
-        }
-        val l = len(rv.region, rv.offset, false)
-        if (l != nCols) {
-          fatal(s"""incorrect entry array length in argument to CastTableToMatrix:
-                   |   had $l elements, should have had $nCols elements""".stripMargin)
-        }
-        rv
-      }
-    }
-    val newRVD = rowRVD.cast(newRowType)
+    val colValues = prev.globals.value.getAs[IndexedSeq[Annotation]](colsFieldIdx)
     val newGlobals = {
       val (pre, post) = prev.globals.value.toSeq.splitAt(colsFieldIdx)
       Row.fromSeq(pre ++ post.tail)
     }
 
+    val newRVD = prev.rvd.cast(newRowType)
+
     MatrixValue(
       typ,
       BroadcastRow(newGlobals, typ.globalType, hc.sc),
-      BroadcastIndexedSeq(localColData, TArray(typ.colType), hc.sc),
+      BroadcastIndexedSeq(colValues, TArray(typ.colType), hc.sc),
       newRVD
     )
   }

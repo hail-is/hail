@@ -1163,7 +1163,7 @@ case class CastMatrixToTable(
   def typ: TableType = TableType(
     rowType = child.typ.rvRowType.rename(Map(MatrixType.entriesIdentifier -> entriesFieldName)),
     key = child.typ.rowKey,
-    globalType = child.typ.globalType.appendKey(colsFieldName, +TArray(child.typ.colType)))
+    globalType = child.typ.globalType.appendKey(colsFieldName, TArray(child.typ.colType)))
 
   def children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
 
