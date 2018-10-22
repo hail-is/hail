@@ -11,7 +11,7 @@ case "$PLATFORM" in
     darwin*)
         install-docker() {
             brew cask install docker
-            open /Applications/Docker.app
+            open /Applications/Docker.app  # opening Docker.app seems necessary to put docker on $PATH
         }
         install-conda() {
             tmpfile=$(mktemp /tmp/abc-script.XXXXXX)
@@ -44,6 +44,8 @@ docker version || install-docker
 conda -V || install-conda
 gcloud -v || install-gcloud
 
+gcloud auth login
+
 PROJECT_NAME=$(gcloud config get-value project)
 if [[ "$PROJECT_NAME" == "(unset)" ]]
 then
@@ -61,15 +63,11 @@ fi
 kubectl version -c || gcloud components install kubectl
 kubectl version || gcloud container clusters get-credentials $CLUSTER_NAME
 
-for project in "$(cat projects.txt)"
+for project in $(cat projects.txt)
 do
-    if [[ -e $project/evnironment.yaml ]]
+    if [[ -e $project/environment.yml ]]
     then
         conda env create -f $project/environment.yml || conda env update -f $project/environment.yml
-    fi
-    if [[ -e $project/env-setup.sh ]]
-    then
-        source $project/env-setup.sh
     fi
 done
 
