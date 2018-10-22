@@ -37,10 +37,10 @@ final class LEB128BufferSpec(child: BufferSpec) extends BufferSpec {
 
   def buildNativeOutputBuffer(out: cxx.Expression, fb: cxx.BlockBuilder): cxx.Variable = {
     val oldBuf = child.buildNativeOutputBuffer(out, fb)
-    val innerType = oldBuf.typ.slice(15, oldBuf.typ.length())
+    val innerType = oldBuf.typ.slice(16, oldBuf.typ.length() - 1)
     val bufPtr = cxx.Variable("buf_ptr",
-      s"std::shared_ptr<LEB128OutputBuffer$innerType>",
-      cxx.Statement(s"std::make_shared<LEB128OutputBuffer$innerType>($oldBuf)"))
+      s"std::shared_ptr<LEB128OutputBuffer<$innerType>>",
+      cxx.Statement(s"std::make_shared<LEB128OutputBuffer<$innerType>>($oldBuf)"))
     fb += bufPtr.define
     bufPtr
   }
@@ -53,10 +53,10 @@ final class BlockingBufferSpec(blockSize: Int, child: BlockBufferSpec) extends B
 
   def buildNativeOutputBuffer(out: cxx.Expression, fb: cxx.BlockBuilder): cxx.Variable = {
     val oldBuf = child.buildNativeOutputBuffer(out, fb)
-    val innerType = oldBuf.typ.slice(15, oldBuf.typ.length())
+    val innerType = oldBuf.typ.slice(16, oldBuf.typ.length() - 1)
     val bufPtr = cxx.Variable("buf_ptr",
-      s"std::shared_ptr<BlockingOutputBuffer$innerType>",
-      cxx.Statement(s"std::make_shared<BlockingOutputBuffer$innerType>($blockSize, $oldBuf)"))
+      s"std::shared_ptr<BlockingOutputBuffer<$blockSize, $innerType>>",
+      cxx.Statement(s"std::make_shared<BlockingOutputBuffer<$blockSize, $innerType>>($oldBuf)"))
     fb += bufPtr.define
     bufPtr
   }
@@ -77,10 +77,10 @@ final class LZ4BlockBufferSpec(blockSize: Int, child: BlockBufferSpec) extends B
 
   def buildNativeOutputBuffer(out: cxx.Expression, fb: cxx.BlockBuilder): cxx.Variable = {
     val oldBuf = child.buildNativeOutputBuffer(out, fb)
-    val innerType = oldBuf.typ.slice(15, oldBuf.typ.length())
+    val innerType = oldBuf.typ.slice(16, oldBuf.typ.length() - 1)
     val bufPtr = cxx.Variable("buf_ptr",
-      s"std::shared_ptr<LZ4OutputBlockBuffer$innerType>",
-      cxx.Statement(s"std::make_shared<LZ4OutputBlockBuffer$innerType>($blockSize, $oldBuf)"))
+      s"std::shared_ptr<LZ4OutputBlockBuffer<$blockSize, $innerType>>",
+      cxx.Statement(s"std::make_shared<LZ4OutputBlockBuffer<$blockSize, $innerType>>($oldBuf)"))
     fb += bufPtr.define
     bufPtr
   }
@@ -1696,7 +1696,7 @@ object NativeEncoder {
     outBufFB += cxx.Statement("UpcallEnv up")
     outBufFB += cxx.Statement(s"auto joutput_stream = reinterpret_cast<ObjectArray*>(${outBufFB.getArg(1)})->at(0)")
     val bb = new cxx.BlockBuilder()
-    val outBuf = bufSpec.buildNativeOutputBuffer(cxx.Expression("OutputStream", "OutputStream(up, joutput_stream)"), bb)
+    val outBuf = bufSpec.buildNativeOutputBuffer(cxx.Expression("std::shared_ptr<OutputStream>", "std::make_shared<OutputStream>(up, joutput_stream)"), bb)
     outBufFB ++= bb.result()
     outBufFB += cxx.Statement(s"return $outBuf")
 

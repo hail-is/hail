@@ -11,12 +11,6 @@ OutputStream::OutputStream(UpcallEnv up, jobject joutput_stream) :
   jbuf_(nullptr),
   jbuf_size_(-1) { }
 
-OutputStream::OutputStream(OutputStream * output_stream) :
-  up_(output_stream->up_),
-  joutput_stream_(output_stream->up_.env()->NewGlobalRef(output_stream->joutput_stream_)),
-  jbuf_(nullptr),
-  jbuf_size_(-1) { }
-
 void OutputStream::write(char * buf, int n) {
   if (jbuf_size_ < n) {
     jbuf_ = up_.env()->NewByteArray(n);
@@ -41,11 +35,8 @@ OutputStream::~OutputStream() {
 }
 
 // StreamOutputBlockBuffer
-StreamOutputBlockBuffer::StreamOutputBlockBuffer(OutputStream os) :
-  output_stream_(std::make_shared<OutputStream>(&os)) { }
-
-StreamOutputBlockBuffer::StreamOutputBlockBuffer(StreamOutputBlockBuffer * src) :
-  output_stream_(src->output_stream_) { }
+StreamOutputBlockBuffer::StreamOutputBlockBuffer(std::shared_ptr<OutputStream> os) :
+  output_stream_(os) { }
 
 void StreamOutputBlockBuffer::write_block(char * buf, int n) {
   output_stream_->write(reinterpret_cast<char *>(&n), 4);

@@ -275,8 +275,7 @@ class NativeCodeSuite extends SparkSuite {
          |
          |char * buf = new char[10]{97, 98, 99, 100, 101, 102, 103, 104, 105, 106};
          |
-         |auto os1 = OutputStream(up, jos);
-         |auto os = std::make_shared<OutputStream>(&os1);
+         |auto os = std::make_shared<OutputStream>(up, jos);
          |os->write(buf, 10);
          |
          |return 0;
@@ -306,73 +305,7 @@ class NativeCodeSuite extends SparkSuite {
     testOS.close()
   }
 
-  @Test def testOutputBuffers1: Unit = {
-    hc
-    val tub = new TranslationUnitBuilder()
-    tub.include("hail/hail.h")
-    tub.include("hail/Encoder.h")
-    tub.include("hail/ObjectArray.h")
-    tub.include("<cstdio>")
-
-    val makeHolderF = FunctionBuilder("makeObjectHolder", Array("NativeStatus*" -> "st", "long" -> "objects"), "NativeObjPtr")
-
-    makeHolderF += Statement(s"return std::make_shared<ObjectHolder>(reinterpret_cast<ObjectArray*>(${makeHolderF.getArg(1)}))")
-    val holderF = makeHolderF.result()
-    tub += holderF
-
-    val fb = FunctionBuilder("testOutputBuffers", Array("NativeStatus*" -> "st", "long" -> "holder"), "long")
-
-    val bytes = Array.tabulate[Byte](100)(i => new Integer(i + 97).byteValue())
-
-    fb += Statement(
-      s"""
-         |UpcallEnv up;
-         |auto h = reinterpret_cast<ObjectHolder*>(${fb.getArg(1)});
-         |auto jos = h->objects_->at(0);
-         |
-         |char * buf = new char[${bytes.length}] {${bytes.mkString(", ")}};
-         |
-         |auto os = OutputStream(up, jos);
-         |auto buf1 = StreamOutputBlockBuffer(os);
-         |buf1.write_block(buf, ${bytes.length});
-         |buf1.close();
-         |
-         |return 0;
-       """.stripMargin)
-
-    val f = fb.result()
-    tub += f
-
-    val mod = tub.result().build("-O1 -llz4")
-
-    val st = new NativeStatus()
-    val makeHolder = mod.findPtrFuncL1(st, holderF.name)
-    assert(st.ok, st.toString())
-    val testOB = mod.findLongFuncL1(st, f.name)
-    assert(st.ok, st.toString())
-    mod.close()
-
-    val compiled = new ByteArrayOutputStream()
-    val objArray = new ObjectArray(compiled)
-    val holder = new NativePtr(makeHolder, st, objArray.get())
-    objArray.close()
-    makeHolder.close()
-
-    assert(testOB(st, holder.get()) == 0)
-    testOB.close()
-
-    val expected = new ByteArrayOutputStream()
-    Region.scoped { region =>
-      val ob =
-        new StreamBlockOutputBuffer(expected)
-      ob.writeBlock(bytes, bytes.length)
-    }
-
-    assert(compiled.toByteArray sameElements expected.toByteArray)
-  }
-
   @Test def testOutputBuffers: Unit = {
-    hc
     val tub = new TranslationUnitBuilder()
     tub.include("hail/hail.h")
     tub.include("hail/Encoder.h")
@@ -395,16 +328,13 @@ class NativeCodeSuite extends SparkSuite {
          |auto h = reinterpret_cast<ObjectHolder*>(${fb.getArg(1)});
          |auto jos = h->objects_->at(0);
          |
-         |char * buf = new char[10]{97, 98, 99, 100, 101, 102, 103, 104, 105, 106};
-         |
-         |auto os = OutputStream(up, jos);
-         |auto stream_buf1 = StreamOutputBlockBuffer(os);
-         |auto stream_buf = &stream_buf1;
-         |auto lz4_buf1 = LZ4OutputBlockBuffer(32, std::make_shared<StreamOutputBlockBuffer>(stream_buf));
-         |auto lz4_buf = &lz4_buf1;
-         |auto blocking_buf1 = BlockingOutputBuffer(32, std::make_shared<LZ4OutputBlockBuffer>(lz4_buf));
-         |auto blocking_buf = &blocking_buf1;
-         |auto leb_buf = LEB128OutputBuffer(std::make_shared<BlockingOutputBuffer>(blocking_buf));
+         |auto os = std::make_shared<OutputStream>(up, jos);
+         |auto stream_buf = std::make_shared<StreamOutputBlockBuffer>(os);
+         |using LZ4Buf = LZ4OutputBlockBuffer<32, StreamOutputBlockBuffer>;
+         |auto lz4_buf = std::make_shared<LZ4Buf>(stream_buf);
+         |using BlockBuf = BlockingOutputBuffer<32, LZ4Buf>;
+         |auto blocking_buf = std::make_shared<BlockBuf>(lz4_buf);
+         |auto leb_buf = LEB128OutputBuffer<BlockBuf>(blocking_buf);
          |
          |leb_buf.write_boolean(true);
          |leb_buf.write_byte(3);
@@ -462,8 +392,10 @@ class NativeCodeSuite extends SparkSuite {
   }
 
   @Test def testEncoder() {
-    hc
-    val spec = new BlockingBufferSpec(32, new StreamBlockBufferSpec)
+    val spec = new LEB128BufferSpec(
+      new BlockingBufferSpec(32,
+        new LZ4BlockBufferSpec(32,
+          new StreamBlockBufferSpec)))
     val t = TTuple(TInterval(TStruct("x"->TSet(TInt32()))))
 
     val a = Row(Interval(Row(Set(-1478292367)), Row(Set(2084728308)), true, true))
