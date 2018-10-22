@@ -67,6 +67,7 @@ def try_new_build(source, target):
                     'key': 'preemptible',
                     'value': 'true'
                 }],
+                service_account_name='test-svc',
                 callback=SELF_HOSTNAME + '/ci_build_done',
                 attributes=attributes,
                 volumes=[{
