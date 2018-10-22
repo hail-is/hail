@@ -8,7 +8,7 @@ trait Definition {
 
 object Variable {
   def apply(prefix: String, typ: String, init: Statement): Variable =
-    new Variable(prefix, typ, Expression(typ, init.toString))
+    new Variable(prefix, typ, Expression(init.toString))
 }
 
 class Variable(prefix: String, val typ: String, init: Expression) extends Definition {
@@ -16,17 +16,17 @@ class Variable(prefix: String, val typ: String, init: Expression) extends Defini
 
   override def toString: String = name
 
-  def toExpr: Expression = Expression(typ, name)
+  def toExpr: Expression = Expression(name)
 
   def define: Statement = new Statement {
     override def toString: String =
       if (init == null)
-        s"$typ $name"
-      else s"$typ $name = $init"
+        s"$typ $name;"
+      else s"$typ $name = $init;"
   }
 }
 
-class Function(returnType: String, prefix: String, args: Array[Variable], body: Block) extends Definition {
+class Function(returnType: String, prefix: String, args: Array[Variable], body: Block) extends Block(body.statements) with Definition {
   val name: String = genSym(prefix)
 
   def typ: String = returnType
@@ -46,19 +46,11 @@ object FunctionBuilder {
     apply(prefix, argTypes.map(_ -> genSym("arg")), returnType)
 }
 
-class FunctionBuilder(prefix: String, args: Array[Variable], returnType: String) {
-
-  private[this] val blockBuilder = new BlockBuilder
+class FunctionBuilder(prefix: String, args: Array[Variable], returnType: String) extends BlockBuilder {
 
   def getArg(i: Int): Variable = args(i)
 
-  def +=(statement: Statement): Unit =
-    blockBuilder += statement
-
-  def ++=(block: Block): Unit =
-    blockBuilder ++= block
-
-  def result(): Function = new Function(returnType, prefix, args, blockBuilder.result())
+  override def result(): Function = new Function(returnType, prefix, args, super.result())
 
   def addTo(tub: TranslationUnitBuilder): Function = {
     val f = result()

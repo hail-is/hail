@@ -9,9 +9,7 @@ object Code {
 }
 
 abstract class Code {
-
   def toString: String
-
 }
 
 object Statement {
@@ -23,16 +21,13 @@ object Statement {
 abstract class Statement extends Code
 
 object Expression {
-  def apply(t: String, s: String): Expression = new Expression {
-    def typ: String = t
+  def apply(s: String): Expression = new Expression {
     override def toString: String = s
   }
 
 }
 
-abstract class Expression extends Code {
-  def typ: String
-}
+abstract class Expression extends Code
 
 object Block {
   def apply(statements: Statement*): Block = new Block(statements.toArray)
@@ -40,7 +35,7 @@ object Block {
 
 class Block(val statements: Array[Statement]) extends Statement {
 
-  override def toString: String = s"{\n${statements.mkString(";\n")};\n}"
+  override def toString: String = s"{\n${statements.mkString("\n")}\n}"
 
 }
 
@@ -49,6 +44,9 @@ class BlockBuilder() {
 
   def +=(s: Statement): Unit =
     statements += s
+
+  def +=(s: String): Unit =
+    statements += Statement(s)
 
   def ++=(block: Block): Unit =
     block.statements.foreach(statements += _)

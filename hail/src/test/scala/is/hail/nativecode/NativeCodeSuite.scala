@@ -267,19 +267,16 @@ class NativeCodeSuite extends SparkSuite {
 
     val fb = FunctionBuilder("testOutputStream", Array("NativeStatus*" -> "st", "long" -> "holder"), "long")
 
-    fb += Statement(
-      s"""
-         |UpcallEnv up;
-         |auto h = reinterpret_cast<ObjectHolder*>(${fb.getArg(1)});
-         |auto jos = h->objects_->at(0);
-         |
-         |char * buf = new char[10]{97, 98, 99, 100, 101, 102, 103, 104, 105, 106};
-         |
-         |auto os = std::make_shared<OutputStream>(up, jos);
-         |os->write(buf, 10);
-         |
-         |return 0;
-       """.stripMargin)
+    fb += s"""UpcallEnv up;
+             |auto h = reinterpret_cast<ObjectHolder*>(${fb.getArg(1)});
+             |auto jos = h->objects_->at(0);
+             |
+             |char * buf = new char[10]{97, 98, 99, 100, 101, 102, 103, 104, 105, 106};
+             |
+             |auto os = std::make_shared<OutputStream>(up, jos);
+             |os->write(buf, 10);
+             |
+             |return 0;""".stripMargin
 
     val f = fb.result()
     tub += f
@@ -314,7 +311,7 @@ class NativeCodeSuite extends SparkSuite {
 
     val makeHolderF = FunctionBuilder("makeObjectHolder", Array("NativeStatus*" -> "st", "long" -> "objects"), "NativeObjPtr")
 
-    makeHolderF += Statement(s"return std::make_shared<ObjectHolder>(reinterpret_cast<ObjectArray*>(${makeHolderF.getArg(1)}))")
+    makeHolderF += s"return std::make_shared<ObjectHolder>(reinterpret_cast<ObjectArray*>(${makeHolderF.getArg(1)}));"
     val holderF = makeHolderF.result()
     tub += holderF
 
@@ -322,7 +319,7 @@ class NativeCodeSuite extends SparkSuite {
 
     val bytes = Array.tabulate[Byte](100)(i => new Integer(i + 97).byteValue())
 
-    fb += Statement(
+    fb +=
       s"""
          |UpcallEnv up;
          |auto h = reinterpret_cast<ObjectHolder*>(${fb.getArg(1)});
@@ -347,7 +344,7 @@ class NativeCodeSuite extends SparkSuite {
          |leb_buf.close();
          |
          |return 0;
-       """.stripMargin)
+       """.stripMargin
 
     val f = fb.result()
     tub += f
