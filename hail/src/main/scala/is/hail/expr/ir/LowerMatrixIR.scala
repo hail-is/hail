@@ -109,6 +109,36 @@ object LowerMatrixIR {
                 ArrayRef(colVals(filteredEntryVals), Ref("i", TInt32()))))),
           lowered.typ.globalType.fieldNames))
 
+    case MatrixChooseCols(child, oldIndices) =>
+      val lowered = lower(child)
+      val colIdx =
+        TableMapGlobals(
+          lowered,
+          InsertFields(Ref("global", lowered.typ.globalType),
+            Seq("newColIdx" ->
+              MakeArray(oldIndices.map(I32.apply), TArray(TInt32())))))
+
+      val filteredEntryVals =
+        TableMapRows(
+          colIdx,
+          InsertFields(Ref("row", colIdx.typ.rowType),
+            Seq(entriesFieldName ->
+              ArrayMap(
+                GetField(Ref("global", colIdx.typ.globalType), "newColIdx"),
+                "i",
+                ArrayRef(entries(colIdx), Ref("i", TInt32()))))))
+
+      TableMapGlobals(
+        filteredEntryVals,
+        SelectFields(
+          InsertFields(Ref("global", filteredEntryVals.typ.globalType),
+            Seq(colsFieldName ->
+              ArrayMap(
+                GetField(Ref("global", filteredEntryVals.typ.globalType), "newColIdx"),
+                "i",
+                ArrayRef(colVals(filteredEntryVals), Ref("i", TInt32()))))),
+          lowered.typ.globalType.fieldNames))
+
     case MatrixMapGlobals(child, newGlobals) =>
       val lowered = lower(child)
       val loweredNewGlobals =
