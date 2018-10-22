@@ -63,26 +63,33 @@ kubectl version || gcloud container clusters get-credentials $CLUSTER_NAME
 
 for project in "$(cat projects.txt)"
 do
-    conda env create -f $project/environment.yml || conda env update -f $project/environment.yml
-    [[ ! -e $project/env-setup.sh ]] || source $project/env-setup.sh
+    if [[ -e $project/evnironment.yaml ]]
+    then
+        conda env create -f $project/environment.yml || conda env update -f $project/environment.yml
+    fi
+    if [[ -e $project/env-setup.sh ]]
+    then
+        source $project/env-setup.sh
+    fi
 done
 
 SVC_ACCT_NAME=${HAIL_SVC_ACCT_NAME:-$(whoami)-gke}
+SVC_ACCT_FULL_NAME=${SVC_ACCT_NAME}@${PROJECT_NAME}.iam.gserviceaccount.com
 KEY_FILE=~/.hail-dev/gke/svc-acct/${SVC_ACCT_NAME}.json
-echo "Configuring service account with short name ${SVC_ACCT_NAME} with key file stored in ${KEY_FILE}"
+echo "Configuring service account with name ${SVC_ACCT_FULL_NAME} with key file stored in ${KEY_FILE}"
 if [ ! -e "${KEY_FILE}" ]
 then
     echo "${KEY_FILE} not found, will attempt to create a key file (and user if necessary)"
-    gcloud iam service-accounts describe ${SVC_ACCT_NAME} || gcloud iam service-accounts create ${SVC_ACCT_NAME}
+    gcloud iam service-accounts describe ${SVC_ACCT_FULL_NAME} || gcloud iam service-accounts create ${SVC_ACCT_FULL_NAME}
     gcloud projects add-iam-policy-binding \
            ${PROJECT_NAME} \
-           --member "serviceAccount:${SVC_ACCT_NAME}@${PROJECT_NAME}.iam.gserviceaccount.com" \
+           --member "serviceAccount:${SVC_ACCT_FULL_NAME}" \
            --role "roles/owner"
     mkdir -p $(dirname ${KEY_FILE})
     gcloud iam service-accounts keys create \
            ${KEY_FILE} \
-           --iam-account ${SVC_ACCT_NAME}@${PROJECT_NAME}.iam.gserviceaccount.com
+           --iam-account ${SVC_ACCT_FULL_NAME}
+    sed -i '' '/^export GOOGLE_APPLICATION_CREDENTIALS=.*$/d' ~/.profile
+    echo export GOOGLE_APPLICATION_CREDENTIALS="${KEY_FILE}" >> ~/.profile
+    echo "please run source ~/.profile or start a new shell"
 fi
-
-sed -i'' 's/^export GOOGLE_APPLICATION_CREDENTIALS=.*$//' ~/.profile
-echo 'export GOOGLE_APPLICATION_CREDENTIALS="${KEY_FILE}"' >> ~/.profile
