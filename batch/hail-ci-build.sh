@@ -14,7 +14,7 @@ trap cleanup EXIT
 trap "exit 24" INT TERM
 
 # run the server in the background with in-cluster config
-python batch/server.py & echo $! > batch.pid
+POD_NAMESPACE='test' python batch/server.py & echo $! > batch.pid
 
 sleep 5
 
