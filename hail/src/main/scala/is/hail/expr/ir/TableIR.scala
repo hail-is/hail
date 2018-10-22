@@ -152,7 +152,7 @@ case class TableImport(paths: Array[String], typ: TableType, readerOpts: TableRe
             fatal(s"expected $nFieldOrig fields, but found ${ sp.length } fields")
 
           rvb.set(region)
-          rvb.start(rowTyp)
+          rvb.start(rowTyp.physicalType)
           rvb.startStruct()
 
           var i = 0
@@ -263,7 +263,7 @@ case class TableRange(n: Int, nPartitions: Int) extends TableIR {
             val start = partStarts(i)
             Iterator.range(start, start + localPartCounts(i))
               .map { j =>
-                rvb.start(localRowType)
+                rvb.start(localRowType.physicalType)
                 rvb.startStruct()
                 rvb.addInt(j)
                 rvb.endStruct()
@@ -420,23 +420,23 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
           rvb.set(rrv.region)
         }
 
-        rvb.start(localNewRowType)
+        rvb.start(localNewRowType.physicalType)
         rvb.startStruct()
 
         if (lrv != null)
-          rvb.addFields(leftRowType, lrv, leftKeyFieldIdx)
+          rvb.addFields(leftRowType.physicalType, lrv, leftKeyFieldIdx)
         else {
           assert(rrv != null)
-          rvb.addFields(rightRowType, rrv, rightKeyFieldIdx)
+          rvb.addFields(rightRowType.physicalType, rrv, rightKeyFieldIdx)
         }
 
         if (lrv != null)
-          rvb.addFields(leftRowType, lrv, leftValueFieldIdx)
+          rvb.addFields(leftRowType.physicalType, lrv, leftValueFieldIdx)
         else
           rvb.skipFields(leftValueFieldIdx.length)
 
         if (rrv != null)
-          rvb.addFields(rightRowType, rrv, rightValueFieldIdx)
+          rvb.addFields(rightRowType.physicalType, rrv, rightValueFieldIdx)
         else
           rvb.skipFields(rightValueFieldIdx.length)
 
@@ -546,7 +546,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         val globals =
           if (scanInitNeedsGlobals) {
             val rvb = new RegionValueBuilder(region)
-            rvb.start(gType)
+            rvb.start(gType.physicalType)
             rvb.addAnnotation(gType, globalsBc.value)
             rvb.end()
           } else
@@ -559,7 +559,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
           val globals =
             if (scanSeqNeedsGlobals) {
               val rvb = new RegionValueBuilder(ctx.freshRegion)
-              rvb.start(gType)
+              rvb.start(gType.physicalType)
               rvb.addAnnotation(gType, globalsBc.value)
               rvb.end()
             } else
@@ -586,7 +586,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         val globals =
           if (rowIterationNeedsGlobals || scanSeqNeedsGlobals) {
             rvb.set(ctx.freshRegion)
-            rvb.start(gType)
+            rvb.start(gType.physicalType)
             rvb.addAnnotation(gType, globalsBc.value)
             rvb.end()
           } else
@@ -597,7 +597,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         val scanSeqOpF = scanSeqOps(i)
         it.map { rv =>
           rvb.set(rv.region)
-          rvb.start(scanResultType)
+          rvb.start(scanResultType.physicalType)
           rvb.startTuple()
           var j = 0
           while (j < partitionAggs.length) {
@@ -617,7 +617,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         val globals =
           if (rowIterationNeedsGlobals) {
             val rvb = new RegionValueBuilder(ctx.freshRegion)
-            rvb.start(gType)
+            rvb.start(gType.physicalType)
             rvb.addAnnotation(gType, globalsBc.value)
             rvb.end()
           } else
@@ -900,7 +900,7 @@ case class TableKeyByAndAggregate(
         val partRegion = ctx.freshContext.region
 
         rvb.set(partRegion)
-        rvb.start(globalsType)
+        rvb.start(globalsType.physicalType)
         rvb.addAnnotation(globalsType, globalsBc.value)
         val globals = rvb.end()
 
@@ -932,7 +932,7 @@ case class TableKeyByAndAggregate(
         val rvb = new RegionValueBuilder()
         val partRegion = ctx.freshContext.region
         rvb.set(partRegion)
-        rvb.start(globalsType)
+        rvb.start(globalsType.physicalType)
         rvb.addAnnotation(globalsType, globalsBc.value)
         val globals = rvb.end()
         val annotate = makeAnnotate(i)
@@ -941,7 +941,7 @@ case class TableKeyByAndAggregate(
         it.map { case (key, aggs) =>
 
           rvb.set(region)
-          rvb.start(aggResultType)
+          rvb.start(aggResultType.physicalType)
           rvb.startTuple()
           var j = 0
           while (j < nAggs) {
@@ -951,7 +951,7 @@ case class TableKeyByAndAggregate(
           rvb.endTuple()
           val aggResultOff = rvb.end()
 
-          rvb.start(newRowType)
+          rvb.start(newRowType.physicalType)
           rvb.startStruct()
           var i = 0
           while (i < localKeyType.size) {
@@ -963,7 +963,7 @@ case class TableKeyByAndAggregate(
             aggResultOff, false,
             globals, false)
 
-          rvb.addAllFields(newValueType, region, newValueOff)
+          rvb.addAllFields(newValueType.physicalType, region, newValueOff)
 
           rvb.endStruct()
           rv.setOffset(rvb.end())
@@ -1031,7 +1031,7 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
         val partRegion = ctx.freshContext.region
 
         rvb.set(partRegion)
-        rvb.start(globalsType)
+        rvb.start(globalsType.physicalType)
         rvb.addAnnotation(globalsType, globalsBc.value)
         val partGlobalsOff = rvb.end()
 
@@ -1042,7 +1042,7 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
         new Iterator[RegionValue] {
           var isEnd = false
           var current: RegionValue = _
-          val rowKey: WritableRegionValue = WritableRegionValue(keyType, ctx.freshRegion)
+          val rowKey: WritableRegionValue = WritableRegionValue(keyType.physicalType, ctx.freshRegion)
           val consumerRegion: Region = ctx.region
           val newRV = RegionValue(consumerRegion)
 
@@ -1060,7 +1060,7 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
             if (!hasNext)
               throw new java.util.NoSuchElementException()
 
-            rowKey.setSelect(rowType, keyIndices, current)
+            rowKey.setSelect(rowType.physicalType, keyIndices, current)
 
             rvAggs.foreach(_.clear())
 
@@ -1079,7 +1079,7 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
 
             rvb.set(consumerRegion)
 
-            rvb.start(aggResultType)
+            rvb.start(aggResultType.physicalType)
             rvb.startTuple()
             var j = 0
             while (j < nAggs) {
@@ -1089,11 +1089,11 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
             rvb.endTuple()
             val aggResultOff = rvb.end()
 
-            rvb.start(newRowType)
+            rvb.start(newRowType.physicalType)
             rvb.startStruct()
             var i = 0
             while (i < keyType.size) {
-              rvb.addField(keyType, rowKey.value, i)
+              rvb.addField(keyType.physicalType, rowKey.value, i)
               i += 1
             }
 
@@ -1101,7 +1101,7 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
               aggResultOff, false,
               partGlobalsOff, false)
 
-            rvb.addAllFields(newValueType, consumerRegion, newValueOff)
+            rvb.addAllFields(newValueType.physicalType, consumerRegion, newValueOff)
 
             rvb.endStruct()
             newRV.setOffset(rvb.end())

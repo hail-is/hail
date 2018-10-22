@@ -32,7 +32,7 @@ object PCA {
       val localRowType = rowTypeBc.value
 
       it.map { case (s, i) =>
-        rvb.start(localRowType)
+        rvb.start(localRowType.physicalType)
         rvb.startStruct()
         var j = 0
         val keys = s.asInstanceOf[Row]
@@ -90,7 +90,7 @@ object PCA {
 
     val optionLoadings = if (computeLoadings) {
       val rowType = TStruct(vsm.rowKey.zip(vsm.rowKeyTypes): _*) ++ TStruct("loadings" -> TArray(TFloat64()))
-      val rowTypeBc = vsm.sparkContext.broadcast(rowType)
+      val rowPTypeBc = vsm.sparkContext.broadcast(rowType.physicalType)
       val rowKeysBc = vsm.sparkContext.broadcast(collectRowKeys())
       val localRowKeySignature = vsm.rowKeyTypes
 
@@ -99,7 +99,7 @@ object PCA {
         val rv = RegionValue(region)
         val rvb = new RegionValueBuilder(region)
         it.map { ir =>
-          rvb.start(rowTypeBc.value)
+          rvb.start(rowPTypeBc.value)
           rvb.startStruct()
 
           val rowKeys = rowKeysBc.value(ir.index.toInt).asInstanceOf[Row]

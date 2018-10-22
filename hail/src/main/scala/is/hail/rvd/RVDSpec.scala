@@ -68,7 +68,7 @@ object RVDSpec {
           val region = ctx.region
           RichContextRDDRegionValue.writeRowsPartition(codecSpec.buildEncoder(rowType.physicalType))(ctx,
             rows.iterator.map { a =>
-              rvb.start(rowType)
+              rvb.start(rowType.physicalType)
               rvb.addAnnotation(rowType, a)
               RegionValue(region, rvb.end())
             }, os)

@@ -258,8 +258,8 @@ object LocalLDPrune {
         if (keepVariant) {
           val r = ctx.freshRegion
           rvb.set(r)
-          rvb.start(localRowType)
-          rvb.addRegionValue(localRowType, rv)
+          rvb.start(localRowType.physicalType)
+          rvb.addRegionValue(localRowType.physicalType, rv)
           queue.addLast(RegionValue(rvb.region, rvb.end()))
           queueSize.foreach { qs =>
             if (queue.size() > qs) {
@@ -300,9 +300,9 @@ object LocalLDPrune {
           hcView.setRegion(rv)
           region.clear()
           rvb.set(region)
-          rvb.start(bpvType)
+          rvb.start(bpvType.physicalType)
           rvb.startStruct()
-          rvb.addFields(fullRowType, rv, Array(locusIndex, allelesIndex))
+          rvb.addFields(fullRowPType, rv, Array(locusIndex, allelesIndex))
 
           val keep = addBitPackedVector(rvb, hcView, nSamples)
 
@@ -334,9 +334,9 @@ object LocalLDPrune {
       it.map { rv =>
         region.clear()
         rvb.set(region)
-        rvb.start(tableType.rowType)
+        rvb.start(tableType.rowType.physicalType)
         rvb.startStruct()
-        rvb.addFields(bpvType, rv, fieldIndicesToAdd)
+        rvb.addFields(bpvType.physicalType, rv, fieldIndicesToAdd)
         rvb.endStruct()
         newRV.setOffset(rvb.end())
         newRV

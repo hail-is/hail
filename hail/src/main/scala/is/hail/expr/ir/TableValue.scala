@@ -36,7 +36,7 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
         val globalRegion = ctx.freshRegion
         val rvb = new RegionValueBuilder()
         rvb.set(globalRegion)
-        rvb.start(globalType)
+        rvb.start(globalType.physicalType)
         rvb.addAnnotation(globalType, localGlobals.value)
         (partitionOp(partitionIdx), RegionValue(globalRegion, rvb.end()))
       }, { case ((p, glob), rv) => pred(p, rv, glob) }))

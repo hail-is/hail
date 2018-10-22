@@ -69,7 +69,7 @@ class UnsafeSuite extends SparkSuite {
 
       CodecSpec.codecSpecs.foreach { codecSpec =>
         region.clear()
-        rvb.start(t)
+        rvb.start(t.physicalType)
         rvb.addRow(t, a.asInstanceOf[Row])
         val offset = rvb.end()
         val ur = new UnsafeRow(t.physicalType, region, offset)
@@ -135,7 +135,7 @@ class UnsafeSuite extends SparkSuite {
       region.clear()
       region.allocate(1, n) // preallocate
 
-      rvb.start(t)
+      rvb.start(t.physicalType)
       rvb.addAnnotation(t, a)
       val offset = rvb.end()
 
@@ -149,7 +149,7 @@ class UnsafeSuite extends SparkSuite {
       // test addAnnotation from ur
       region2.clear()
       region2.allocate(1, n2) // preallocate
-      rvb2.start(t)
+      rvb2.start(t.physicalType)
       rvb2.addAnnotation(t, ur)
       val offset2 = rvb2.end()
 
@@ -159,8 +159,8 @@ class UnsafeSuite extends SparkSuite {
       // test addRegionValue
       region2.clear()
       region2.allocate(1, n2) // preallocate
-      rvb2.start(t)
-      rvb2.addRegionValue(t, region, offset)
+      rvb2.start(t.physicalType)
+      rvb2.addRegionValue(t.physicalType, region, offset)
       val offset3 = rvb2.end()
       val ur3 = UnsafeRow.read(t.physicalType, region2, offset3)
       assert(t.valuesSimilar(a, ur3), s"$a vs $ur3")
@@ -170,7 +170,7 @@ class UnsafeSuite extends SparkSuite {
         case t: TStruct =>
           region2.clear()
           region2.allocate(1, n) // preallocate
-          rvb2.start(t)
+          rvb2.start(t.physicalType)
           rvb2.addAnnotation(t, Row.fromSeq(a.asInstanceOf[Row].toSeq))
           val offset4 = rvb2.end()
           val ur4 = new UnsafeRow(t.physicalType, region2, offset4)
@@ -179,8 +179,8 @@ class UnsafeSuite extends SparkSuite {
       }
 
       // test addRegionValue to same region
-      rvb.start(t)
-      rvb.addRegionValue(t, region, offset)
+      rvb.start(t.physicalType)
+      rvb.addRegionValue(t.physicalType, region, offset)
       val offset5 = rvb.end()
       val ur5 = UnsafeRow.read(t.physicalType, region, offset5)
       assert(t.valuesSimilar(a, ur5))
@@ -188,7 +188,7 @@ class UnsafeSuite extends SparkSuite {
       // test addRegionValue to same region nested
       t match {
         case t: TStruct =>
-          rvb.start(t)
+          rvb.start(t.physicalType)
           rvb.addAnnotation(t, Row.fromSeq(a.asInstanceOf[Row].toSeq))
           val offset6 = rvb.end()
           val ur6 = new UnsafeRow(t.physicalType, region, offset6)
@@ -291,7 +291,7 @@ class UnsafeSuite extends SparkSuite {
       tv.typeCheck(a2)
 
       region.clear()
-      rvb.start(tv.fundamentalType)
+      rvb.start(tv.physicalType.fundamentalType)
       rvb.addRow(tv, a1.asInstanceOf[Row])
       val offset = rvb.end()
 
@@ -299,7 +299,7 @@ class UnsafeSuite extends SparkSuite {
       assert(tv.valuesSimilar(a1, ur1))
 
       region2.clear()
-      rvb2.start(tv.fundamentalType)
+      rvb2.start(tv.physicalType.fundamentalType)
       rvb2.addRow(tv, a2.asInstanceOf[Row])
       val offset2 = rvb2.end()
 

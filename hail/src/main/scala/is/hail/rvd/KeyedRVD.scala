@@ -55,7 +55,7 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
       }
     val lTyp = virtType
     val rTyp = right.virtType
-    val rRowType = right.realType.rowType
+    val rRowPType = right.realType.rowType.physicalType
 
     repartitionedLeft.alignAndZipPartitions(
       joinedType.copy(key = joinedType.key.take(realType.key.length)),
@@ -68,7 +68,7 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
         compute(
           OrderedRVIterator(lTyp, leftIt, ctx),
           OrderedRVIterator(rTyp, rightIt, ctx),
-          new RegionValueArrayBuffer(rRowType, sideBuffer)))
+          new RegionValueArrayBuffer(rRowPType, sideBuffer)))
     }.extendKeyPreservesPartitioning(joinedType.key)
   }
 

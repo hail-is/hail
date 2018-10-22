@@ -99,9 +99,9 @@ final case class RVDType(rowType: TStruct, key: IndexedSeq[String] = FastIndexed
 
 
   def kRowOrdView(region: Region) = new OrderingView[RegionValue] {
-    val wrv = WritableRegionValue(kType, region)
+    val wrv = WritableRegionValue(kType.physicalType, region)
     def setFiniteValue(representative: RegionValue) {
-      wrv.setSelect(rowType, kFieldIdx, representative)
+      wrv.setSelect(rowType.physicalType, kFieldIdx, representative)
     }
     def compareFinite(rv: RegionValue): Int =
       kRowOrd.compare(wrv.value, rv)

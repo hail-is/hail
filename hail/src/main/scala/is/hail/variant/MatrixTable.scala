@@ -152,7 +152,7 @@ object MatrixTable {
             val vaRow = va.asInstanceOf[Row]
             assert(matrixType.rowType.typeCheck(vaRow), s"${ matrixType.rowType }, $vaRow")
 
-            rvb.start(localRVRowType)
+            rvb.start(localRVRowType.physicalType)
             rvb.startStruct()
             var i = 0
             while (i < vaRow.length) {
@@ -197,8 +197,8 @@ object MatrixTable {
       kt.signature,
       TStruct.empty())
 
-    val rvRowType = matrixType.rvRowType
-    val oldRowType = kt.signature
+    val rvRowType = matrixType.rvRowType.physicalType
+    val oldRowType = kt.signature.physicalType
 
     val rvd = kt.rvd.mapPartitions(matrixType.rvdType) { it =>
       val rvb = new RegionValueBuilder()
@@ -533,7 +533,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
       it.map { jrv =>
         val lrv = jrv.rvLeft
-        rvb.start(newRVType)
+        rvb.start(newRVType.physicalType)
         ins(lrv.region, lrv.offset, rvb,
           () => {
             if (product) {
@@ -541,7 +541,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
                 rvb.startArray(0)
                 rvb.endArray()
               } else
-                rvb.addField(rightRowType, jrv.rvRight, rightValueIndices(0))
+                rvb.addField(rightRowType.physicalType, jrv.rvRight, rightValueIndices(0))
             } else {
               if (jrv.rvRight == null)
                 rvb.setMissing()
@@ -549,7 +549,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
                 rvb.startStruct()
                 var i = 0
                 while (i < rightValueIndices.length) {
-                  rvb.addField(rightRowType, jrv.rvRight, rightValueIndices(i))
+                  rvb.addField(rightRowType.physicalType, jrv.rvRight, rightValueIndices(i))
                   i += 1
                 }
                 rvb.endStruct()
@@ -738,7 +738,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     val newMatrixType = matrixType.copyParts() // move entries to the end
     val newRVRowType = newMatrixType.rvRowType
-    val leftRVRowType = rvRowType
+    val leftRVRowType = rvRowType.physicalType
     val rightRVRowType = right.rvRowType
     val localLeftSamples = numCols
     val localRightSamples = right.numCols
@@ -755,7 +755,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         val lrv = jrv.rvLeft
         val rrv = jrv.rvRight
 
-        rvb.start(newRVRowType)
+        rvb.start(newRVRowType.physicalType)
         rvb.startStruct()
         var i = 0
         while (i < leftRVRowType.size) {
@@ -775,13 +775,13 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
         i = 0
         while (i < localLeftSamples) {
-          rvb.addElement(localEntriesType, lrv.region, leftEntriesOffset, i)
+          rvb.addElement(localEntriesType.physicalType, lrv.region, leftEntriesOffset, i)
           i += 1
         }
 
         i = 0
         while (i < localRightSamples) {
-          rvb.addElement(localEntriesType, rrv.region, rightEntriesOffset, i)
+          rvb.addElement(localEntriesType.physicalType, rrv.region, rightEntriesOffset, i)
           i += 1
         }
 
@@ -819,7 +819,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val localRVRowType = rvRowType
     val localEntriesIndex = entriesIndex
     val localEntriesType = localRVRowType.types(entriesIndex).asInstanceOf[TArray]
-    val localEntryType = matrixType.entryType
+    val localEntryType = matrixType.entryType.physicalType
 
     val newRVD = rvd.mapPartitions(ttyp.rvdType) { it =>
       val rvb = new RegionValueBuilder()
@@ -832,13 +832,13 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         val region = rv.region
 
         rvb.set(region)
-        rvb.start(ttyp.rowType)
+        rvb.start(ttyp.rowType.physicalType)
         rvb.startStruct()
 
         var i = 0
         while (i < localRVRowType.size) {
           if (i != localEntriesIndex)
-            rvb.addField(localRVRowType, rv, i)
+            rvb.addField(localRVRowType.physicalType, rv, i)
           i += 1
         }
 
@@ -1317,7 +1317,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     val fullRowType = rvRowType
     val localEntriesIndex = entriesIndex
-    val localEntriesType = matrixType.entryArrayType
+    val localEntriesType = matrixType.entryArrayType.physicalType
 
     insertEntries(noOp,
       newColType = newColType,
@@ -1472,14 +1472,14 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       interval.copy(start = Row(newStartLocus))
     }
 
-    val localRVRowType = rvRowType
+    val localRVRowType = rvRowType.physicalType
     val locusIndex = localRVRowType.fieldIdx("locus")
     val keyOrdering = matrixType.rowKeyStruct.ordering
     val localKeyFieldIdx = matrixType.rvdType.kFieldIdx
     val entriesIndex = localRVRowType.fieldIdx(MatrixType.entriesIdentifier)
     val nonEntryIndices = (0 until localRVRowType.size).filter(_ != entriesIndex).toArray
     val entryArrayType = matrixType.entryArrayType
-    val entryType = matrixType.entryType
+    val entryType = matrixType.entryType.physicalType
     val rg = referenceGenome
 
     val rangeBoundsBc = sparkContext.broadcast(oldBounds)
@@ -1523,7 +1523,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       def getLocus(row: RegionValue): Locus =
         UnsafeRow.readLocus(row.region, localRVRowType.loadField(row, locusIndex), rg)
 
-      val unsafeRow = new UnsafeRow(localRVRowType.physicalType)
+      val unsafeRow = new UnsafeRow(localRVRowType)
       val keyView = new KeyedRow(unsafeRow, localKeyFieldIdx)
       while (bit.hasNext && { unsafeRow.set(bit.head); rangeBoundsBc.value(i).isAbovePosition(keyOrdering, keyView) }) {
         val rv = bit.next()
@@ -1543,7 +1543,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
         rvb.set(region)
         rvb.clear()
-        rvb.start(newType.rvRowType)
+        rvb.start(newType.rvRowType.physicalType)
         rvb.startStruct()
         rvb.addFields(localRVRowType, rv, nonEntryIndices)
 

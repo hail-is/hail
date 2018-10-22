@@ -373,7 +373,7 @@ object LoadMatrix {
         it.zipWithIndex.map { case (v, row) =>
           val fileRowNum = partitionStartInFile + row
           v.wrap { line =>
-            rvb.start(matrixType.rvRowType)
+            rvb.start(matrixType.rvRowType.physicalType)
             rvb.startStruct()
             if (useIndex) {
               rvb.addLong(partitionCounts(i) + row)

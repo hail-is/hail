@@ -58,7 +58,7 @@ object LocalLDPruneSuite {
   def makeRV(gs: Iterable[Annotation]): RegionValue = {
     val gArr = gs.toFastIndexedSeq
     val rvb = new RegionValueBuilder(Region())
-    rvb.start(rvRowType)
+    rvb.start(rvRowType.physicalType)
     rvb.startStruct()
     rvb.addAnnotation(rvRowType.types(0), Locus("1", 1))
     rvb.addAnnotation(rvRowType.types(1), IndexedSeq("A", "T"))
@@ -91,7 +91,7 @@ object LocalLDPruneSuite {
     val hcView = HardCallView(rvRowType.physicalType)
     hcView.setRegion(rv)
 
-    rvb.start(bitPackedVectorViewType)
+    rvb.start(bitPackedVectorViewType.physicalType)
     rvb.startStruct()
     rvb.addAnnotation(rvRowType.types(0), Locus("1", 1))
     rvb.addAnnotation(rvRowType.types(1), IndexedSeq("A", "T"))
@@ -329,7 +329,7 @@ class LocalLDPruneSuite extends SparkSuite {
         +TArray(+TString()))
       val bpv = new BitPackedVectorView(t.physicalType)
       r.appendInt(0xbeef)
-      rvb.start(t)
+      rvb.start(t.physicalType)
       rvb.startStruct()
       rvb.startStruct()
       rvb.addString("X")

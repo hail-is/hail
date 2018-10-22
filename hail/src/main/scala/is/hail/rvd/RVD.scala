@@ -259,7 +259,7 @@ class RVD(
       val outRV = RegionValue(consumerRegion)
 
       val bufferRegion = consumerCtx.freshContext.region
-      val buffer = new RegionValueArrayBuffer(localType.valueType, bufferRegion)
+      val buffer = new RegionValueArrayBuffer(localType.valueType.physicalType, bufferRegion)
 
       val producerCtx = consumerCtx.freshContext
       val producerRegion = producerCtx.region
@@ -273,20 +273,20 @@ class RVD(
 
       stepped.map { stepIt =>
         buffer.clear()
-        rvb.start(newRowType)
+        rvb.start(newRowType.physicalType)
         rvb.startStruct()
         var i = 0
         while (i < localType.kType.size) {
-          rvb.addField(localType.rowType, stepIt.value, localType.kFieldIdx(i))
+          rvb.addField(localType.rowType.physicalType, stepIt.value, localType.kFieldIdx(i))
           i += 1
         }
         for (rv <- stepIt) {
-          buffer.appendSelect(localType.rowType, localType.valueFieldIdx, rv)
+          buffer.appendSelect(localType.rowType.physicalType, localType.valueFieldIdx, rv)
           producerRegion.clear()
         }
         rvb.startArray(buffer.length)
         for (rv <- buffer)
-          rvb.addRegionValue(localType.valueType, rv)
+          rvb.addRegionValue(localType.valueType.physicalType, rv)
         rvb.endArray()
         rvb.endStruct()
         outRV.setOffset(rvb.end())
@@ -410,7 +410,7 @@ class RVD(
       val rvb = ctx.rvb
       var index = a.value(i)
       it.map { rv =>
-        rvb.start(newRowType)
+        rvb.start(newRowType.physicalType)
         ins(rv.region, rv.offset, rvb, () => rvb.addLong(index))
         index += 1
         rv2.set(rvb.region, rvb.end())
@@ -472,13 +472,13 @@ class RVD(
     val kType = typ.kType
     val kPType = kType.physicalType
     val kRowFieldIdx = typ.kFieldIdx
-    val rowType = typ.rowType
+    val rowPType = typ.rowType.physicalType
 
     mapPartitions(typ, { (ctx, it) =>
       val kUR = new UnsafeRow(kPType)
       it.filter { rv =>
-        ctx.rvb.start(kType)
-        ctx.rvb.selectRegionValue(rowType, kRowFieldIdx, rv)
+        ctx.rvb.start(kType.physicalType)
+        ctx.rvb.selectRegionValue(rowPType, kRowFieldIdx, rv)
         kUR.set(ctx.region, ctx.rvb.end())
         !intervalsBc.value.contains(kType.ordering, kUR)
       }
@@ -729,17 +729,17 @@ class RVD(
       it.map { jrv =>
         val lrv = jrv.rvLeft
         val rrv = jrv.rvRight
-        rvb.start(newRowType)
+        rvb.start(newRowType.physicalType)
         rvb.startStruct()
-        rvb.addFields(localRowType, lrv, keepIndices)
+        rvb.addFields(localRowType.physicalType, lrv, keepIndices)
         if (rrv == null)
           rvb.setMissing()
         else {
           if (shouldLift)
-            rvb.addField(rightRowType, rrv, liftIndex)
+            rvb.addField(rightRowType.physicalType, rrv, liftIndex)
           else {
             rvb.startStruct()
-            rvb.addFields(rightRowType, rrv, rightValueIndices)
+            rvb.addFields(rightRowType.physicalType, rrv, rightValueIndices)
             rvb.endStruct()
           }
         }
@@ -831,8 +831,8 @@ class RVD(
               else
                 bit2.next()
             }
-          ctx.rvb.start(localTyp.rowType)
-          ctx.rvb.addRegionValue(localTyp.rowType, old)
+          ctx.rvb.start(localTyp.rowType.physicalType)
+          ctx.rvb.addRegionValue(localTyp.rowType.physicalType, old)
           rv.set(ctx.region, ctx.rvb.end())
           rv
         }
@@ -1025,9 +1025,9 @@ object RVD {
     // The region values in 'crdd' are of type `typ.rowType`
     val localType = typ
     crdd.cmapPartitions { (ctx, it) =>
-      val wrv = WritableRegionValue(localType.kType, ctx.freshRegion)
+      val wrv = WritableRegionValue(localType.kType.physicalType, ctx.freshRegion)
       it.map { rv =>
-        wrv.setSelect(localType.rowType, localType.kFieldIdx, rv)
+        wrv.setSelect(localType.rowType.physicalType, localType.kFieldIdx, rv)
         wrv.value
       }
     }
@@ -1252,7 +1252,7 @@ object RVD {
       typ,
       partitioner,
       crdd.cmapPartitionsWithIndex { case (i, ctx, it) =>
-        val prevK = WritableRegionValue(localType.kType, ctx.freshRegion)
+        val prevK = WritableRegionValue(localType.kType.physicalType, ctx.freshRegion)
         val kUR = new UnsafeRow(localKPType)
 
         new Iterator[RegionValue] {
@@ -1270,7 +1270,7 @@ object RVD {
                 kUR.set(prevK.value)
                 val prevKeyString = kUR.toString()
 
-                prevK.setSelect(localType.rowType, localType.kFieldIdx, rv)
+                prevK.setSelect(localType.rowType.physicalType, localType.kFieldIdx, rv)
                 kUR.set(prevK.value)
                 val currKeyString = kUR.toString()
                 fatal(
@@ -1283,7 +1283,7 @@ object RVD {
               }
             }
 
-            prevK.setSelect(localType.rowType, localType.kFieldIdx, rv)
+            prevK.setSelect(localType.rowType.physicalType, localType.kFieldIdx, rv)
             kUR.set(prevK.value)
 
             if (!partitionerBc.value.rangeBounds(i).contains(localType.kType.ordering, kUR))

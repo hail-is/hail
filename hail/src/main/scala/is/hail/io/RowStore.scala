@@ -1678,15 +1678,15 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
 
                 val region = rv.region
                 rvb.set(region)
-                rvb.start(rowsRVType)
+                rvb.start(rowsRVType.physicalType)
                 rvb.addAnnotation(rowsRVType, row)
 
                 rowsEN.writeByte(1)
                 rowsEN.writeRegionValue(region, rvb.end())
 
-                rvb.start(entriesRVType)
+                rvb.start(entriesRVType.physicalType)
                 rvb.startStruct()
-                rvb.addField(fullRowType, rv, localEntriesIndex)
+                rvb.addField(fullRowType.physicalType, rv, localEntriesIndex)
                 rvb.endStruct()
 
                 entriesEN.writeByte(1)

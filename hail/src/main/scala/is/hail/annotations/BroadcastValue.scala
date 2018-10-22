@@ -15,7 +15,7 @@ abstract class BroadcastValue[T: ClassTag](value: T, t: Type, sc: SparkContext) 
 
   def toRegion(region: Region): Long = {
     val rvb = new RegionValueBuilder(region)
-    rvb.start(t)
+    rvb.start(t.physicalType)
     rvb.addAnnotation(t, value)
     rvb.end()
   }

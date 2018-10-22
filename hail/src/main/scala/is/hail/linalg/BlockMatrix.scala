@@ -1182,7 +1182,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
 
       block.activeIterator
         .map { case ((i, j), entry) =>
-          rvb.start(rvRowType)
+          rvb.start(rvRowType.physicalType)
           rvb.startStruct()
           rvb.addLong(rowOffset + i)
           rvb.addLong(colOffset + j)

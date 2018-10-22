@@ -91,7 +91,7 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
         xdx(r0, r1) := xdx(r1, r0).t
        
         region.clear()
-        rvb.start(rowType)
+        rvb.start(rowType.physicalType)
         try {
           val beta = xdx \ xdy
           val residualSq = ydy - (xdy dot beta)
@@ -154,7 +154,7 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
         xdx(r0, r1) := xdx(r1, r0).t
         
         region.clear()
-        rvb.start(rowType)
+        rvb.start(rowType.physicalType)
         try {          
           val beta = xdx \ xdy
           val residualSq = ydy - (xdy dot beta)
