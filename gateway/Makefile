@@ -14,7 +14,7 @@ service.yaml: service.yaml.in
 	sed -e "s,@ip@,$(IP),g" \
 	  < $< > $@
 
-deployment.yaml: build deployment.yaml.in
+deployment.yaml: deployment.yaml.in build
 	sed -e "s,@sha@,$$(git rev-parse --short=12 HEAD),g" \
 	  -e "s,@image@,$(IMAGE)," \
 	  < $< > $@
@@ -27,7 +27,8 @@ push: build
 	docker push $(IMAGE)
 
 deploy: push service.yaml deployment.yaml
-	kubectl apply -f service.yaml deployment.yaml
+	kubectl apply -f service.yaml
+	kubectl apply -f deployment.yaml
 
 clean:
 	rm -rf hail.nginx.conf service.yaml deployment.yaml
