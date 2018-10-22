@@ -1,5 +1,4 @@
 #!/bin/bash
-# USAGE: source env-setup.sh
 
 set -ex
 
@@ -85,4 +84,5 @@ then
            --iam-account ${SVC_ACCT_NAME}@${PROJECT_NAME}.iam.gserviceaccount.com
 fi
 
-export GOOGLE_APPLICATION_CREDENTIALS="${KEY_FILE}"
+sed -i'' 's/^export GOOGLE_APPLICATION_CREDENTIALS=.*$//' ~/.profile
+echo 'export GOOGLE_APPLICATION_CREDENTIALS="${KEY_FILE}"' >> ~/.profile
