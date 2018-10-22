@@ -1,4 +1,5 @@
 #!/bin/bash
+# USAGE: source setup-local-env.sh
 
 set -ex
 
