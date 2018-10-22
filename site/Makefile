@@ -16,7 +16,7 @@ push: build
 	docker tag site $(IMAGE)
 	docker push $(IMAGE)
 
-deploy: push service.yaml deployment.yaml
+deploy: push deployment.yaml
 	kubectl apply -f service.yaml
 	kubectl apply -f deployment.yaml
 
