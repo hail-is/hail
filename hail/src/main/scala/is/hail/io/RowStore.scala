@@ -37,9 +37,10 @@ final class LEB128BufferSpec(child: BufferSpec) extends BufferSpec {
 
   def buildNativeOutputBuffer(out: cxx.Expression, fb: cxx.BlockBuilder): cxx.Variable = {
     val oldBuf = child.buildNativeOutputBuffer(out, fb)
+    val innerType = oldBuf.typ.slice(15, oldBuf.typ.length())
     val bufPtr = cxx.Variable("buf_ptr",
-      "std::shared_ptr<LEB128OutputBuffer>",
-      cxx.Statement(s"std::make_shared<LEB128OutputBuffer>($oldBuf)"))
+      s"std::shared_ptr<LEB128OutputBuffer$innerType>",
+      cxx.Statement(s"std::make_shared<LEB128OutputBuffer$innerType>($oldBuf)"))
     fb += bufPtr.define
     bufPtr
   }
@@ -52,9 +53,10 @@ final class BlockingBufferSpec(blockSize: Int, child: BlockBufferSpec) extends B
 
   def buildNativeOutputBuffer(out: cxx.Expression, fb: cxx.BlockBuilder): cxx.Variable = {
     val oldBuf = child.buildNativeOutputBuffer(out, fb)
+    val innerType = oldBuf.typ.slice(15, oldBuf.typ.length())
     val bufPtr = cxx.Variable("buf_ptr",
-      "std::shared_ptr<BlockingOutputBuffer>",
-      cxx.Statement(s"std::make_shared<BlockingOutputBuffer>($blockSize, $oldBuf)"))
+      s"std::shared_ptr<BlockingOutputBuffer$innerType>",
+      cxx.Statement(s"std::make_shared<BlockingOutputBuffer$innerType>($blockSize, $oldBuf)"))
     fb += bufPtr.define
     bufPtr
   }
@@ -75,9 +77,10 @@ final class LZ4BlockBufferSpec(blockSize: Int, child: BlockBufferSpec) extends B
 
   def buildNativeOutputBuffer(out: cxx.Expression, fb: cxx.BlockBuilder): cxx.Variable = {
     val oldBuf = child.buildNativeOutputBuffer(out, fb)
+    val innerType = oldBuf.typ.slice(15, oldBuf.typ.length())
     val bufPtr = cxx.Variable("buf_ptr",
-      "std::shared_ptr<LZ4OutputBlockBuffer>",
-      cxx.Statement(s"std::make_shared<LZ4OutputBlockBuffer>($blockSize, $oldBuf)"))
+      s"std::shared_ptr<LZ4OutputBlockBuffer$innerType>",
+      cxx.Statement(s"std::make_shared<LZ4OutputBlockBuffer$innerType>($blockSize, $oldBuf)"))
     fb += bufPtr.define
     bufPtr
   }
@@ -1697,10 +1700,12 @@ object NativeEncoder {
     outBufFB ++= bb.result()
     outBufFB += cxx.Statement(s"return $outBuf")
 
+    val obType = outBuf.typ.slice(16, outBuf.typ.length() - 1)
+
     val outputBufferF = outBufFB.addTo(tub)
 
     val rowFB = cxx.FunctionBuilder("encode_row", Array("NativeStatus*" -> "st", "long" -> "buf", "long" -> "row"), "long")
-    val buf = cxx.Variable("buf", "OutputBuffer *", cxx.Statement(s"reinterpret_cast<OutputBuffer *>(${rowFB.getArg(1)})"))
+    val buf = cxx.Variable("buf", s"$obType *", cxx.Statement(s"reinterpret_cast<$obType *>(${rowFB.getArg(1)})"))
     val row = cxx.Variable("row", "char *", cxx.Statement(s"reinterpret_cast<char *>(${rowFB.getArg(2)})"))
     rowFB += cxx.Block(
       buf.define,
@@ -1711,21 +1716,21 @@ object NativeEncoder {
 
     val byteFB = cxx.FunctionBuilder("encode_byte", Array("NativeStatus*" -> "st", "long" -> "buf", "long" -> "b"), "long")
     byteFB += cxx.Statement(
-      s"""reinterpret_cast<OutputBuffer *>(${byteFB.getArg(1)})->write_byte(${byteFB.getArg(2)} & 0xff);
+      s"""reinterpret_cast<$obType *>(${byteFB.getArg(1)})->write_byte(${byteFB.getArg(2)} & 0xff);
          |return 0
        """.stripMargin)
     val byteF = byteFB.addTo(tub)
 
     val flushFB = cxx.FunctionBuilder("encode_flush", Array("NativeStatus*" -> "st", "long" -> "buf"), "long")
     flushFB += cxx.Statement(
-      s"""reinterpret_cast<OutputBuffer *>(${flushFB.getArg(1)})->flush();
+      s"""reinterpret_cast<$obType *>(${flushFB.getArg(1)})->flush();
          |return 0
        """.stripMargin)
     val flushF = flushFB.addTo(tub)
 
     val closeFB = cxx.FunctionBuilder("encode_close", Array("NativeStatus*" -> "st", "long" -> "buf"), "long")
     closeFB += cxx.Statement(
-      s"""reinterpret_cast<OutputBuffer *>(${closeFB.getArg(1)})->close();
+      s"""reinterpret_cast<$obType *>(${closeFB.getArg(1)})->close();
          |return 0
        """.stripMargin)
     val closeF = closeFB.addTo(tub)
