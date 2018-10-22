@@ -261,4 +261,4 @@ class JavaTable(TableIR):
         self._jir = jir
 
     def render(self, r):
-        return f'(JavaTable {r.add_jir(self)})'
+        return f'(JavaTable {r.add_jir(self._jir)})'

@@ -15,9 +15,9 @@ class SparkBackend(Backend):
     def interpret(self, ir):
         assert isinstance(ir, hail.ir.IR)
 
-        r = Renderer(stop_at_jir=False)
+        r = Renderer(stop_at_jir=True)
         code = r(ir)
-        ir_map = {name: ir._jir for name, ir in r.jirs.items()}
+        ir_map = {name: jir for name, jir in r.jirs.items()}
 
         jir = Env.hail().expr.Parser.parse_value_ir(code, {}, ir_map)
 
