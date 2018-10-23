@@ -135,6 +135,29 @@ class Tests(unittest.TestCase):
         self.assertTrue(t1._same(t4a))
         self.assertTrue(t1._same(t4b))
 
+    def test_linreg_pass_through(self):
+        phenos = hl.import_table(resource('regressionLinear.pheno'),
+                                 types={'Pheno': hl.tfloat64},
+                                 key='Sample')
+        covs = hl.import_table(resource('regressionLinear.cov'),
+                               types={'Cov1': hl.tfloat64, 'Cov2': hl.tfloat64},
+                               key='Sample')
+
+        mt = hl.import_vcf(resource('regressionLinear.vcf')).annotate_rows(foo = hl.struct(bar=hl.rand_norm(0, 1)))
+
+        # single group
+        lr_result = hl.linear_regression_rows(phenos[mt.s].Pheno, mt.GT.n_alt_alleles(), [1.0],
+                                              pass_through=['filters', mt.foo.bar, mt.qual])
+
+        assert mt.aggregate_rows(hl.agg.all(mt.foo.bar == lr_result[mt.row_key].bar))
+
+        # chained
+        lr_result = hl.linear_regression_rows([[phenos[mt.s].Pheno]], mt.GT.n_alt_alleles(), [1.0],
+                                              pass_through=['filters', mt.foo.bar, mt.qual])
+
+        assert mt.aggregate_rows(hl.agg.all(mt.foo.bar == lr_result[mt.row_key].bar))
+
+
     def test_linreg_chained(self):
         phenos = hl.import_table(resource('regressionLinear.pheno'),
                                  types={'Pheno': hl.tfloat64},
