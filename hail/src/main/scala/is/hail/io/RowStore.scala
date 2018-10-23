@@ -191,13 +191,10 @@ final case class PackCodecSpec(child: BufferSpec) extends CodecSpec {
 
   def buildEncoder(t: PType): (OutputStream) => Encoder = {
     if (System.getenv("HAIL_ENABLE_CPP_CODEGEN") != null) {
-      { out: OutputStream =>
-        new NativePackEncoder(out, NativeEncoder(t, child))
-      }
+      val e: NativeEncoderModule = NativeEncoder(t, child);
+      { out: OutputStream => new NativePackEncoder(out, e) }
     } else {
-      { out: OutputStream =>
-        new PackEncoder(t, child.buildOutputBuffer(out))
-      }
+      { out: OutputStream => new PackEncoder(t, child.buildOutputBuffer(out)) }
     }
   }
   
@@ -1687,6 +1684,7 @@ object NativeEncoder {
     tub.include("hail/ObjectArray.h")
     tub.include("hail/Utils.h")
     tub.include("<cstdio>")
+    tub.include("<memory>")
 
     val outBufFB = cxx.FunctionBuilder("makeOutputBuffer", Array("NativeStatus*" -> "st", "long" -> "objects"), "NativeObjPtr")
     outBufFB += "UpcallEnv up;"
@@ -1733,7 +1731,7 @@ case class NativeEncoderModule(
   encodeRVF: String,
   encodeByteF: String,
   flushF: String,
-  closeF: String)
+  closeF: String) extends Serializable
 
 final class NativePackEncoder(out: OutputStream, module: NativeEncoderModule) extends Encoder {
   private[this] val st = new NativeStatus()

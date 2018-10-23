@@ -15,6 +15,7 @@ import org.apache.spark.SparkException
 import org.testng.annotations.Test
 import is.hail.utils._
 import is.hail.testUtils._
+import is.hail.variant.MatrixTable
 import org.apache.spark.sql.Row
 
 class NativeCodeSuite extends SparkSuite {
@@ -233,7 +234,7 @@ class NativeCodeSuite extends SparkSuite {
     fb += Statement(
       s"""
          |set_test_msg("Hello!");
-         |return 1000+${fb.getArg(1)}
+         |return 1000+${fb.getArg(1)};
        """.stripMargin)
 
     val f = fb.result()
@@ -256,12 +257,14 @@ class NativeCodeSuite extends SparkSuite {
     val tub = new TranslationUnitBuilder()
     tub.include("hail/hail.h")
     tub.include("hail/Encoder.h")
+    tub.include("hail/Upcalls.h")
     tub.include("hail/ObjectArray.h")
     tub.include("<cstdio>")
+    tub.include("<memory>")
 
     val makeHolderF = FunctionBuilder("makeObjectHolder", Array("NativeStatus*" -> "st", "long" -> "objects"), "NativeObjPtr")
 
-    makeHolderF += Statement(s"return std::make_shared<ObjectHolder>(reinterpret_cast<ObjectArray*>(${makeHolderF.getArg(1)}))")
+    makeHolderF += Statement(s"return std::make_shared<ObjectHolder>(reinterpret_cast<ObjectArray*>(${makeHolderF.getArg(1)}));")
     val holderF = makeHolderF.result()
     tub += holderF
 
@@ -308,6 +311,7 @@ class NativeCodeSuite extends SparkSuite {
     tub.include("hail/Encoder.h")
     tub.include("hail/ObjectArray.h")
     tub.include("<cstdio>")
+    tub.include("<memory>")
 
     val makeHolderF = FunctionBuilder("makeObjectHolder", Array("NativeStatus*" -> "st", "long" -> "objects"), "NativeObjPtr")
 

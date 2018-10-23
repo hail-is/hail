@@ -1,6 +1,8 @@
 #include "hail/Encoder.h"
 #include "hail/Upcalls.h"
 #include <jni.h>
+#include <cstring>
+#include <cstdio>
 #include "lz4.h"
 
 namespace hail {

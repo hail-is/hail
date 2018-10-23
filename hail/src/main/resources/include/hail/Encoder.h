@@ -1,9 +1,11 @@
 #ifndef HAIL_ENCODER_H
 #define HAIL_ENCODER_H 1
-#include <jni.h>
 #include "lz4.h"
 #include "hail/Upcalls.h"
 #include "hail/NativeObj.h"
+#include <jni.h>
+#include <memory>
+#include <cstring>
 
 namespace hail {
 
@@ -29,7 +31,7 @@ class StreamOutputBlockBuffer : public NativeObj {
   public:
     StreamOutputBlockBuffer(std::shared_ptr<OutputStream> os);
     void write_block(char * buf, int n);
-    void close() { output_stream_->close(); };
+    void close() { output_stream_->close(); }
 };
 
 template <int BLOCKSIZE, typename OutputBlockBuffer>
@@ -40,15 +42,15 @@ class LZ4OutputBlockBuffer : public NativeObj {
   public:
     LZ4OutputBlockBuffer(std::shared_ptr<OutputBlockBuffer> buf) :
       block_buf_(buf),
-      block_(new char[LZ4_compressBound(BLOCKSIZE) + 4]{}) { };
+      block_(new char[LZ4_compressBound(BLOCKSIZE) + 4]{}) { }
 
     void write_block(char * buf, int n) {
       int comp_length = LZ4_compress_default(buf, block_ + 4, n, LZ4_compressBound(BLOCKSIZE) + 4);
       reinterpret_cast<int *>(block_)[0] = n;
       block_buf_->write_block(block_, comp_length + 4);
-    };
+    }
 
-    void close() { block_buf_->close(); };
+    void close() { block_buf_->close(); }
 };
 
 template <int BLOCKSIZE, typename OutputBlockBuffer>
@@ -61,14 +63,14 @@ class BlockingOutputBuffer : public NativeObj {
   public:
     BlockingOutputBuffer(std::shared_ptr<OutputBlockBuffer> buf) :
       block_buf_(buf),
-      block_(new char[BLOCKSIZE]{}) { };
+      block_(new char[BLOCKSIZE]{}) { }
 
     void flush() {
       if (off_ > 0) {
         block_buf_->write_block(block_, off_);
         off_ = 0;
       }
-    };
+    }
 
     void write_byte(char c) {
       if (off_ + 1 > BLOCKSIZE) {
@@ -76,7 +78,7 @@ class BlockingOutputBuffer : public NativeObj {
       }
       block_[off_] = c;
       off_ += 1;
-    };
+    }
 
     void write_boolean(bool b) { write_byte(b ? 1 : 0); };
 
@@ -86,7 +88,7 @@ class BlockingOutputBuffer : public NativeObj {
       }
       memcpy(block_ + off_, reinterpret_cast<char *>(&i), 4);
       off_ += 4;
-    };
+    }
 
     void write_long(long l) {
       if (off_ + 8 > BLOCKSIZE) {
@@ -94,7 +96,7 @@ class BlockingOutputBuffer : public NativeObj {
       }
       memcpy(block_ + off_, reinterpret_cast<char *>(&l), 8);
       off_ += 8;
-    };
+    }
 
     void write_float(float f) {
       if (off_ + 4 > BLOCKSIZE) {
@@ -102,7 +104,7 @@ class BlockingOutputBuffer : public NativeObj {
       }
       memcpy(block_ + off_, reinterpret_cast<char *>(&f), 4);
       off_ += 4;
-    };
+    }
 
     void write_double(double d) {
       if (off_ + 8 > BLOCKSIZE) {
@@ -110,7 +112,7 @@ class BlockingOutputBuffer : public NativeObj {
       }
       memcpy(block_ + off_, reinterpret_cast<char *>(&d), 8);
       off_ += 8;
-    };
+    }
 
     void write_bytes(char * buf, int n) {
       int n_left = n;
@@ -122,9 +124,9 @@ class BlockingOutputBuffer : public NativeObj {
       }
       memcpy(block_ + off_, buf + (n - n_left), n_left);
       off_ += n_left;
-    };
+    }
 
-    void close() { flush(); block_buf_->close(); };
+    void close() { flush(); block_buf_->close(); }
 };
 
 template <typename OutputBuffer>
@@ -134,13 +136,13 @@ class LEB128OutputBuffer : public NativeObj {
 
   public:
     LEB128OutputBuffer(std::shared_ptr<OutputBuffer> buf) :
-      buf_(buf) { };
+      buf_(buf) { }
 
-    void flush() { buf_->flush(); };
+    void flush() { buf_->flush(); }
 
-    void write_byte(char c) { buf_->write_byte(c); };
+    void write_byte(char c) { buf_->write_byte(c); }
 
-    void write_boolean(bool b) { write_byte(b ? 1 : 0); };
+    void write_boolean(bool b) { write_byte(b ? 1 : 0); }
 
     void write_int(int i) {
       unsigned int unpacked = i;
@@ -152,7 +154,7 @@ class LEB128OutputBuffer : public NativeObj {
         }
         buf_->write_byte(static_cast<char>(b));
       } while (unpacked != 0);
-    };
+    }
 
     void write_long(long l) {
       unsigned long unpacked = l;
@@ -164,15 +166,15 @@ class LEB128OutputBuffer : public NativeObj {
         }
         buf_->write_byte(static_cast<char>(b));
       } while (unpacked != 0);
-    };
+    }
 
-    void write_float(float f) { buf_->write_float(f); };
+    void write_float(float f) { buf_->write_float(f); }
 
-    void write_double(double d) { buf_->write_double(d); };
+    void write_double(double d) { buf_->write_double(d); }
 
-    void write_bytes(char * buf, int n) { buf_->write_bytes(buf, n); };
+    void write_bytes(char * buf, int n) { buf_->write_bytes(buf, n); }
 
-    void close() { buf_->close(); };
+    void close() { buf_->close(); }
 };
 
 }

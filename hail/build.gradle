@@ -106,7 +106,7 @@ task testCppCodegen(type: Test) {
     environment HAIL_ENABLE_CPP_CODEGEN: '1'
 
     filter {
-        includeTestsMatching "is.hail.nativecode.NativeCode"
+        includeTestsMatching "is.hail.nativecode.NativeCodeSuite"
         includeTestsMatching "is.hail.annotations.AnnotationsSuite.testReadWrite"
         includeTestsMatching "is.hail.annotations.UnsafeSuite"
         includeTestsMatching "is.hail.expr.ir.TableIRSuite.testShuffleAndJoinDoesntMemoryLeak"
