@@ -2,49 +2,17 @@
 
 [![Zulip](https://img.shields.io/badge/zulip-join_chat-brightgreen.svg)](https://hail.zulipchat.com?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
 
-[Hail](https://hail.is) is an open-source, scalable framework for exploring and analyzing genomic data. 
+[Hail](https://hail.is) is an open-source, general-purpose, Python-based data analysis tool with additional data types and methods for working with genomic data. Hail is used throughout academia and industry as the analytical engine for major studies, projects, and services, including the Genome Aggregation Database (gnomad.broadinstitute.org) and Neale lab mega-GWAS (nealelab.is/uk-biobank).
 
-The Hail project began in Fall 2015 to empower the worldwide genetics community to [harness the flood of genomes](https://www.broadinstitute.org/blog/harnessing-flood-scaling-data-science-big-genomics-era) to discover the biology of human disease. Since then, Hail has expanded to enable analysis of large-scale datasets beyond the field of genomics. 
+Unlike the Python and R scientific computing stacks, Hail:
 
-Here are two examples of projects powered by Hail:
+- scales from laptop to large compute cluster or cloud, with the same code
+- is designed to work with datasets that do not fit in memory
+- has first-class support for multi-dimensional structured data, like genomic data as in this [tutorial](https://hail.is/docs/devel/tutorials/01-genome-wide-association-study.html)
 
-- The [gnomAD](http://gnomad.broadinstitute.org/) team uses Hail as its core analysis platform. gnomAD is among the most comprehensive catalogues of human genetic variation in the world, and one of the largest genetic datasets. Analysis results are shared publicly and have had sweeping impact on biomedical research and the clinical diagnosis of genetic disorders.
-- The Neale Lab at the Broad Institute used Hail to perform QC and stratified association analysis of 4203 phenotypes at each of 13M variants in 361,194 individuals from the UK Biobank in about a day. Results and code are [here](http://www.nealelab.is/uk-biobank).
- 
-For genomics applications, Hail can:
+Hail's methods are primarily written in Python, using primitives for distributed queries and linear algebra implemented in Scala, [Spark](https://spark.apache.org/docs/latest/index.html), and increasingly C++. We welcome the scientific community to leverage Hail to develop, share, and apply new methods at scale!
 
- - flexibly [import and export](https://hail.is/docs/devel/methods/impex.html) to a variety of data and annotation formats, including [VCF](https://samtools.github.io/hts-specs/VCFv4.2.pdf), [BGEN](http://www.well.ox.ac.uk/~gav/bgen_format/bgen_format_v1.2.html) and [PLINK](https://www.cog-genomics.org/plink2/formats)
- - generate variant annotations like call rate, Hardy-Weinberg equilibrium p-value, and population-specific allele count; and import annotations in parallel through the [annotation database](https://hail.is/docs/stable/annotationdb.html), [VEP](https://useast.ensembl.org/info/docs/tools/vep/index.html), and [Nirvana](https://github.com/Illumina/Nirvana/wiki)
- - generate sample annotations like mean depth, imputed sex, and TiTv ratio
- - generate new annotations from existing ones as well as genotypes, and use these to filter samples, variants, and genotypes
- - find Mendelian violations in trios, prune variants in linkage disequilibrium, analyze genetic similarity between samples, and compute sample scores and variant loadings using PCA
- - perform variant, gene-burden and eQTL association analyses using linear, logistic, and linear mixed regression, and estimate heritability
- - lots more!
-
-Hail's functionality is exposed through **[Python](https://www.python.org/)** and backed by distributed algorithms built on top of **[Apache Spark](https://spark.apache.org/docs/latest/index.html)** to efficiently analyze gigabyte-scale data on a laptop or terabyte-scale data on a cluster. 
-
-Users can script pipelines or explore data interactively in [Jupyter notebooks](http://jupyter.org/) that combine Hail's methods, PySpark's scalable [SQL](https://spark.apache.org/docs/latest/sql-programming-guide.html) and [machine learning algorithms](https://spark.apache.org/docs/latest/ml-guide.html), and Python libraries like [pandas](http://pandas.pydata.org/)'s [scikit-learn](http://scikit-learn.org/stable/) and [Matplotlib](https://matplotlib.org/). Hail also provides a flexible domain language to express complex quality control and analysis pipelines with concise, readable code.
-
-To learn more, you can view our talks at [Spark Summit East 2017](https://spark-summit.org/east-2017/events/scaling-genetic-data-analysis-with-apache-spark/) and [Spark Summit West 2017](https://spark-summit.org/2017/events/scaling-genetic-data-analysis-with-apache-spark/).
-
-### Getting Started
-
-To get started using Hail:
-
-- install Hail 0.2 using the instructions in [Installation](https://hail.is/docs/devel/getting_started.html)
-- read the [Overview](https://hail.is/docs/devel/overview.html) for a broad introduction to Hail
-- follow the [Tutorials](https://hail.is/docs/devel/tutorials-landing.html) for examples of how to use Hail
-- check out the [Python API](https://hail.is/docs/devel/api.html) for detailed information on the programming interface
-
-### User Support
-
-There are many ways to get in touch with the Hail team if you need help using Hail, or if you would like to suggest improvements or features. We also love to hear from new users about how they are using Hail.
-
-- chat with the Hail team in our [Zulip chatroom](https://hail.zulipchat.com).
-- post to the [Discussion Forum](http://discuss.hail.is) for user support and feature requests, or to share your Hail-powered science 
-- please report any suspected bugs to [GitHub issues](https://github.com/hail-is/hail/issues)
-
-Hail uses a continuous deployment approach to software development, which means we frequently add new features. We update users about changes to Hail via the Discussion Forum. We recommend creating an account on the Discussion Forum so that you can subscribe to these updates.
+See the [homepage](https://hail.is) for more info on using Hail.
 
 ### Contribute
 
@@ -55,6 +23,7 @@ Hail is committed to open-source development. If you'd like to contribute to the
 - visit the [Development Forum](http://dev.hail.is) for longer-form discussions
 <!--- - read [this post]() (coming soon!) for tips on submitting a successful Pull Request to our repository --->
 
+Hail uses a continuous deployment approach to software development, which means we frequently add new features. We update users about changes to Hail via the [Discussion Forum](http://discuss.hail.is). We recommend creating an account on the Discussion Forum so that you can subscribe to these updates as well.
 
 ### Hail Team
 
