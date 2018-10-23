@@ -2,6 +2,7 @@ apiVersion: apps/v1beta2
 kind: Deployment
 metadata:
   name: batch-deployment
+  namespace: default
   labels:
     app: batch
     hail.is/sha: "@sha@"
@@ -27,6 +28,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: batch
+  namespace: default
   labels:
     app: batch
 spec:
