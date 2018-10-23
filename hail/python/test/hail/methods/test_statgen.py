@@ -161,14 +161,14 @@ class Tests(unittest.TestCase):
                     pred = pred & ((hl.is_nan(a[0]) & hl.is_nan(a[1])) | (a[0] == a[1]))
             return pred
 
-        self.assertTrue(t1.aggregate(hl.agg.all(
+        assert t1.aggregate(hl.agg.all(
             all_eq(t1.n,
                    t1.sum_x,
                    t1.y_transpose_x,
                    t1.beta,
                    t1.standard_error,
                    t1.t_stat,
-                   t1.p_value))))
+                   t1.p_value)))
 
         mt2 = mt.filter_cols(mt.cov.Cov2 >= 0)
         mt3 = mt.filter_cols(mt.cov.Cov2 <= 0)
@@ -180,8 +180,8 @@ class Tests(unittest.TestCase):
                                                [hl.case().when(mt.cov.Cov2 <= 0, mt.pheno).or_missing()]],
                                             x=mt.x,
                                             covariates=[1, mt.cov.Cov1])
-        chained = chained.annotate(r0 = t2[chained.key], r1 = t3[chained.key])
-        self.assertTrue(chained.aggregate(hl.agg.all(
+        chained = chained.annotate(r0=t2[chained.key], r1=t3[chained.key])
+        assert chained.aggregate(hl.agg.all(
             all_eq([chained.n[0], chained.r0.n],
                    [chained.n[1], chained.r1.n],
                    [chained.sum_x[0], chained.r0.sum_x],
@@ -195,7 +195,37 @@ class Tests(unittest.TestCase):
                    [chained.t_stat[0][0], chained.r0.t_stat],
                    [chained.t_stat[1][0], chained.r1.t_stat],
                    [chained.p_value[0][0], chained.r0.p_value],
-                   [chained.p_value[1][0], chained.r1.p_value]))))
+                   [chained.p_value[1][0], chained.r1.p_value])))
+
+        # test differential missingness against each other
+        phenos = [hl.case().when(mt.cov.Cov2 >= -1, mt.pheno).or_missing(),
+                  hl.case().when(mt.cov.Cov2 <= 1, mt.pheno).or_missing()]
+        diff1 = hl.linear_regression_rows(phenos, mt.x, covariates=[1])
+        diff2 = hl.linear_regression_rows([phenos], mt.x, covariates=[1])
+
+        d1 = diff1.annotate(diff2=diff2[diff1.key])
+        d2 = d1.diff2
+
+        # split because of method code size errors
+        assert d1.aggregate(hl.agg.all(
+            all_eq(
+                (d2.n[0], d1.n),
+                (d2.sum_x[0], d1.sum_x),
+                (d2.y_transpose_x[0][0], d1.y_transpose_x[0]),
+                (d2.y_transpose_x[0][1], d1.y_transpose_x[1]),
+                (d2.beta[0][0], d1.beta[0]),
+                (d2.beta[0][1], d1.beta[1]),
+                (d2.standard_error[0]))))
+
+        assert d1.aggregate(hl.agg.all(
+            all_eq(
+                (d2.standard_error[0][0], d1.standard_error[0]),
+                (d2.standard_error[0][1], d1.standard_error[1]),
+                (d2.t_stat[0][0], d1.t_stat[0]),
+                (d2.t_stat[0][1], d1.t_stat[1]),
+                (d2.p_value[0][0], d1.p_value[0]),
+                (d2.p_value[0][1], d1.p_value[1]))))
+
 
     def test_linear_regression_without_intercept(self):
         pheno = hl.import_table(resource('regressionLinear.pheno'),

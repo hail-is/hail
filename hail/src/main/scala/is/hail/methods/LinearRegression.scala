@@ -52,7 +52,7 @@ object LinearRegression {
     ("t_stat", TArray(TArray(TFloat64()))),
     ("p_value", TArray(TArray(TFloat64()))))
 
-  def single(vsm: MatrixTable,
+  def single_group(vsm: MatrixTable,
     _yFields: java.util.ArrayList[String], xField: String, _covFields: java.util.ArrayList[String], rowBlockSize: Int
   ): Table = {
 
