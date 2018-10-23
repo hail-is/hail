@@ -173,6 +173,7 @@ class Tests(unittest.TestCase):
         mt2 = mt.filter_cols(mt.cov.Cov2 >= 0)
         mt3 = mt.filter_cols(mt.cov.Cov2 <= 0)
 
+        # test that chained linear regression can replicate separate calls with different missingness
         t2 = hl.linear_regression_rows(y=mt2.pheno, x=mt2.x, covariates=[1, mt2.cov.Cov1])
         t3 = hl.linear_regression_rows(y=mt3.pheno, x=mt3.x, covariates=[1, mt3.cov.Cov1])
 
@@ -200,31 +201,11 @@ class Tests(unittest.TestCase):
         # test differential missingness against each other
         phenos = [hl.case().when(mt.cov.Cov2 >= -1, mt.pheno).or_missing(),
                   hl.case().when(mt.cov.Cov2 <= 1, mt.pheno).or_missing()]
-        diff1 = hl.linear_regression_rows(phenos, mt.x, covariates=[1])
-        diff2 = hl.linear_regression_rows([phenos], mt.x, covariates=[1])
+        t4 = hl.linear_regression_rows(phenos, mt.x, covariates=[1])
+        t5 = hl.linear_regression_rows([phenos], mt.x, covariates=[1])
 
-        d1 = diff1.annotate(diff2=diff2[diff1.key])
-        d2 = d1.diff2
-
-        # split because of method code size errors
-        assert d1.aggregate(hl.agg.all(
-            all_eq(
-                (d2.n[0], d1.n),
-                (d2.sum_x[0], d1.sum_x),
-                (d2.y_transpose_x[0][0], d1.y_transpose_x[0]),
-                (d2.y_transpose_x[0][1], d1.y_transpose_x[1]),
-                (d2.beta[0][0], d1.beta[0]),
-                (d2.beta[0][1], d1.beta[1]),
-                (d2.standard_error[0]))))
-
-        assert d1.aggregate(hl.agg.all(
-            all_eq(
-                (d2.standard_error[0][0], d1.standard_error[0]),
-                (d2.standard_error[0][1], d1.standard_error[1]),
-                (d2.t_stat[0][0], d1.t_stat[0]),
-                (d2.t_stat[0][1], d1.t_stat[1]),
-                (d2.p_value[0][0], d1.p_value[0]),
-                (d2.p_value[0][1], d1.p_value[1]))))
+        t5 = t5.annotate(**{x: t5[x][0] for x in ['n', 'sum_x', 'y_transpose_x', 'beta', 'standard_error', 't_stat', 'p_value']})
+        assert t4._same(t5)
 
 
     def test_linear_regression_without_intercept(self):
