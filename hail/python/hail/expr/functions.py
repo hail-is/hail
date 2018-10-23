@@ -1578,7 +1578,7 @@ def pnorm(x) -> Float64Expression:
 
 @typecheck(x=expr_float64, lamb=expr_float64, lower_tail=expr_bool, log_p=expr_bool)
 def ppois(x, lamb, lower_tail=True, log_p=False) -> Float64Expression:
-    """The cumulative probability function of a Poisson distribution.
+    r"""The cumulative probability function of a Poisson distribution.
 
     Examples
     --------
@@ -1668,7 +1668,7 @@ def qnorm(p) -> Float64Expression:
 
 @typecheck(p=expr_float64, lamb=expr_float64, lower_tail=expr_bool, log_p=expr_bool)
 def qpois(p, lamb, lower_tail=True, log_p=False) -> Float64Expression:
-    """Inverts :meth:`.ppois`.
+    r"""Inverts :meth:`.ppois`.
 
     Examples
     --------
@@ -3986,7 +3986,7 @@ def is_valid_locus(contig, position, reference_genome='default') -> BooleanExpre
 
 @typecheck(locus=expr_locus(), is_female=expr_bool, father=expr_call, mother=expr_call, child=expr_call)
 def mendel_error_code(locus, is_female, father, mother, child):
-    """Compute a Mendelian violation code for genotypes.
+    r"""Compute a Mendelian violation code for genotypes.
 
     >>> father = hl.call(0, 0)
     >>> mother = hl.call(1, 1)

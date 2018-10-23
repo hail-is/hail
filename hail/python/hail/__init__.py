@@ -5,7 +5,7 @@ if sys.version_info < (3, 6):
         sys.version_info.major, sys.version_info.minor))
 del sys
 
-__doc__ = """
+__doc__ = r"""
     __  __     <>__ 
    / /_/ /__  __/ / 
   / __  / _ `/ / /  

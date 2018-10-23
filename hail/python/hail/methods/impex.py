@@ -641,7 +641,7 @@ def import_bed(path, reference_genome='default', skip_invalid_intervals=False) -
 
     # UCSC BED spec defined here: https://genome.ucsc.edu/FAQ/FAQformat.html#format1
 
-    t = import_table(path, no_header=True, delimiter="\s+", impute=False,
+    t = import_table(path, no_header=True, delimiter=r"\s+", impute=False,
                      skip_blank_lines=True, types={'f0': tstr, 'f1': tint32,
                                                    'f2': tint32, 'f3': tstr,
                                                    'f4': tstr},
@@ -751,7 +751,7 @@ def import_fam(path, quant_pheno=False, delimiter=r'\\s+', missing='NA') -> Tabl
            path=oneof(str, sequenceof(str)),
            max_count=int)
 def grep(regex, path, max_count=100):
-    """Searches given paths for all lines containing regex matches.
+    r"""Searches given paths for all lines containing regex matches.
 
         Examples
         --------

@@ -64,7 +64,7 @@ def trio_matrix(dataset, pedigree, complete_trios=False) -> MatrixTable:
 @typecheck(call=expr_call,
            pedigree=Pedigree)
 def mendel_errors(call, pedigree) -> Tuple[Table, Table, Table, Table]:
-    """Find Mendel errors; count per variant, individual and nuclear family.
+    r"""Find Mendel errors; count per variant, individual and nuclear family.
 
     .. include:: ../_templates/req_tstring.rst
 
@@ -291,7 +291,7 @@ def mendel_errors(call, pedigree) -> Tuple[Table, Table, Table, Table]:
 @typecheck(dataset=MatrixTable,
            pedigree=Pedigree)
 def transmission_disequilibrium_test(dataset, pedigree) -> Table:
-    """Performs the transmission disequilibrium test on trios.
+    r"""Performs the transmission disequilibrium test on trios.
 
     .. include:: ../_templates/req_tstring.rst
 
@@ -479,7 +479,7 @@ def de_novo(mt: MatrixTable,
             max_parent_ab: float = 0.05,
             min_child_ab: float = 0.20,
             min_dp_ratio: float = 0.10) -> Table:
-    """Call putative *de novo* events from trio data.
+    r"""Call putative *de novo* events from trio data.
 
     .. include:: ../_templates/req_tstring.rst
 
