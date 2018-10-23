@@ -1,55 +1,24 @@
-.PHONY: build build-site build-run-letsencrypt push push-site push-run-letsencrypt \
-  run-letsencrypt serve deploy-site clean
+.PHONY: deployment.yaml build push deploy clean
 
 PROJECT = $(shell gcloud config get-value project)
-DOMAIN ?= hail.is
-IP ?= 35.224.105.117
 
-STATIC_CONFIG = hail.nginx.conf run-letsencrypt-pod.yaml run-letsencrypt.nginx.conf service.yaml
+IMAGE = gcr.io/$(PROJECT)/site:$(shell docker images -q --no-trunc site | sed -e 's,[^:]*:,,')
 
-clean:
-	rm -rf $(STATIC_CONFIG) site-deployment.yaml site-image
-
-$(STATIC_CONFIG): %: %.in
-	sed -e "s,@project@,$(PROJECT),g" \
-	  -e "s,@domain@,$(DOMAIN),g" \
-	  -e "s,@ip@,$(IP),g" \
-	  < $< > $@
-
-# specialize
-site-deployment.yaml: %: %.in
+deployment.yaml: deployment.yaml.in build
 	sed -e "s,@sha@,$$(git rev-parse --short=12 HEAD),g" \
-	  -e "s,@image@,$$(cat site-image)," \
+	  -e "s,@image@,$(IMAGE)," \
 	  < $< > $@
 
-build: build-site build-run-letsencrypt
-
-build-site: hail.nginx.conf
+build:
 	docker build -t site .
 
-build-run-letsencrypt: run-letsencrypt.nginx.conf
-	docker build -t run-letsencrypt . -f Dockerfile.run-letsencrypt
-
-push: push-site push-run-letsencrypt
-
-push-site: IMAGE = gcr.io/$(PROJECT)/site:$(shell docker images -q --no-trunc site | sed -e 's,[^:]*:,,')
-push-site: build-site
-	echo $(IMAGE) > site-image
+push: build
 	docker tag site $(IMAGE)
 	docker push $(IMAGE)
 
-push-run-letsencrypt: build-run-letsencrypt
-	docker tag run-letsencrypt gcr.io/$(PROJECT)/run-letsencrypt
-	docker push gcr.io/$(PROJECT)/run-letsencrypt
-
-run-letsencrypt: run-letsencrypt-pod.yaml service.yaml
-	/bin/bash run-letsencrypt.sh
-
-serve:
-	docker run -it -p 80:80 -p 443:443 -v $$(pwd)/letsencrypt:/etc/letsencrypt site
-
-deploy-site: service.yaml site-deployment.yaml
+deploy: push deployment.yaml
 	kubectl apply -f service.yaml
-	kubectl delete --ignore-not-found=true deployment site-deployment
-	sleep 5
-	kubectl create -f site-deployment.yaml
+	kubectl apply -f deployment.yaml
+
+clean:
+	rm -rf deployment.yaml

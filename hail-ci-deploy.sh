@@ -1,7 +1,8 @@
 #!/bin/bash
 set -ex
 
-PROJECTS='hail batch ci site scorecard cloudtools upload spark'
+PROJECTS=$(cat projects.txt)
+
 SHA=$(git rev-parse --short=12 HEAD)
 
 for project in $PROJECTS; do

@@ -1,30 +1,23 @@
-FROM ubuntu:18.04
+FROM debian:9.5
 
-RUN apt-get update -y
-
-# get add-apt-repository
-RUN apt-get install -y software-properties-common
-RUN bash -c 'DEBIAN_FRONTEND=noninteractive apt-get install -y tzdata'
-
-RUN add-apt-repository -y ppa:certbot/certbot
-RUN apt-get update -y
-RUN apt-get install -y python-certbot-nginx
-
-RUN apt-get install -y nginx curl python-minimal rsyslog
+RUN apt-get update -y && \
+    apt-get install -y nginx curl python-minimal && \
+    rm -rf /var/lib/apt/lists/*
 
 RUN /bin/sh -c 'curl https://sdk.cloud.google.com | bash' && \
     mv /root/google-cloud-sdk /
 ENV PATH $PATH:/google-cloud-sdk/bin
 
-RUN rm -f /etc/nginx/sites-enabled/default
+# link nginx logs to docker log collectors
+RUN ln -sf /dev/stdout /var/log/nginx/access.log
+RUN ln -sf /dev/stderr /var/log/nginx/error.log
 
+RUN rm -f /etc/nginx/sites-enabled/default
 ADD hail.nginx.conf /etc/nginx/conf.d/hail.conf
 
-ADD poll-0.1.sh .
-ADD poll-0.2.sh .
-ADD site.sh .
+ADD poll.sh /poll.sh
+ADD poll-0.1.sh /poll-0.1.sh
+ADD poll-0.2.sh /poll-0.2.sh
+ADD site.sh /site.sh
 
-ADD poll-docs-crontab /etc/cron.d/
-ADD poll-docs-cron.sh .
-
-CMD ["bash", "/site.sh"]
+CMD ["/bin/bash", "/site.sh"]
