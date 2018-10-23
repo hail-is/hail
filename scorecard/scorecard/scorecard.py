@@ -98,6 +98,19 @@ def index():
                            user_data=user_data, random_user=random_user, updated=updated)
 
 @app.route('/users/<user>')
+def html_get_user(user):
+    user_data, updated = get_user(user)
+    return render_template('user.html', user=user, user_data=user_data, updated=updated)
+
+@app.route('/json/users/<user>')
+def json_user(user):
+    user_data, updated = get_user(user)
+    return jsonify(updated=updated, data=user_data)
+
+@app.route('/json/random')
+def json_random_user():
+    return jsonify(random.choice(users))
+
 def get_user(user):
     global data, timestamp
 
@@ -131,9 +144,9 @@ def get_user(user):
                 user_data['ISSUES'].append(issue)
 
     updated = humanize.naturaltime(
-        datetime.datetime.now() - datetime.timedelta(seconds = time.time() - cur_timestamp))
+        datetime.datetime.now() - datetime.timedelta(seconds=time.time() - cur_timestamp))
+    return (user_data, updated)
 
-    return render_template('user.html', user=user, user_data=user_data, updated=updated)
 
 def get_id(repo_name, number):
     if repo_name == default_repo:
