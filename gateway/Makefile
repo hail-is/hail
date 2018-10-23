@@ -27,8 +27,8 @@ push: build
 	docker push $(IMAGE)
 
 deploy: push service.yaml deployment.yaml
-	kubectl apply -f service.yaml
-	kubectl apply -f deployment.yaml
+	kubectl -n default apply -f service.yaml
+	kubectl -n default apply -f deployment.yaml
 
 clean:
 	rm -rf hail.nginx.conf service.yaml deployment.yaml
