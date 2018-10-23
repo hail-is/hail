@@ -224,14 +224,18 @@ class TableRepartition(TableIR):
     def render(self, r):
         return f'(TableRepartition {self.n} {self.shuffle} {r(self.child)})'
 
-class LocalizeEntries(TableIR):
-    def __init__(self, child, entry_field_name):
+class CastMatrixToTable(TableIR):
+    def __init__(self, child, entries_field_name, cols_field_name):
         super().__init__()
         self.child = child
-        self.entry_field_name = entry_field_name
+        self.entries_field_name = entries_field_name
+        self.cols_field_name = cols_field_name
 
     def render(self, r):
-        return f'(LocalizeEntries "{escape_str(self.entry_field_name)}" {r(self.child)})'
+        return f'(CastMatrixToTable ' \
+               f'"{escape_str(self.entries_field_name)}" ' \
+               f'"{escape_str(self.cols_field_name)}" ' \
+               f'{r(self.child)})'
 
 class TableRename(TableIR):
     def __init__(self, child, row_map, global_map):

@@ -2123,10 +2123,10 @@ case class TableToMatrixTable(
     )
   }
 
-  private val rowType = TStruct((rowKey ++ rowFields).map(f => f -> child.typ.rowType.fieldByName(f).typ): _*)
-  private val colType = TStruct((colKey ++ colFields).map(f => f -> child.typ.rowType.fieldByName(f).typ): _*)
+  private val rowType = TStruct((rowKey ++ rowFields).map(f => f -> child.typ.rowType.field(f).typ): _*)
+  private val colType = TStruct((colKey ++ colFields).map(f => f -> child.typ.rowType.field(f).typ): _*)
   private val entryFields = child.typ.rowType.fieldNames.filter(f => !fieldsUsed.contains(f))
-  private val entryType = TStruct(entryFields.map(f => f -> child.typ.rowType.fieldByName(f).typ): _*)
+  private val entryType = TStruct(entryFields.map(f => f -> child.typ.rowType.field(f).typ): _*)
 
   val typ: MatrixType = MatrixType.fromParts(
     child.typ.globalType,
@@ -2467,88 +2467,76 @@ case class MatrixExplodeCols(child: MatrixIR, path: IndexedSeq[String]) extends 
   }
 }
 
-/**
- * This is inteded to be an inverse to LocalizeEntries on a MatrixTable
- *
- * Some notes on semantics,
- * `rowsEntries`'s globals populate the resulting matrixtable, `cols`' are discarded
- * `entryFieldName` must refer to an array of structs field in `rowsEntries`
- * all elements in the array field that `entriesFieldName` refers to must be present. Furthermore,
- * all array elements must be the same length, though individual array items may be missing.
- */
-case class UnlocalizeEntries(rowsEntries: TableIR, cols: TableIR, entryFieldName: String) extends MatrixIR {
-  private val m = Map(entryFieldName -> MatrixType.entriesIdentifier)
-  private val entryFieldIdx = rowsEntries.typ.rowType.fieldIdx(entryFieldName)
-  private val entryFieldType = rowsEntries.typ.rowType.types(entryFieldIdx)
-  private val newRowType = rowsEntries.typ.rowType.rename(m)
+/** Create a MatrixTable from a Table, where the column values are stored in a
+  * global field 'colsFieldName', and the entry values are stored in a row
+  * field 'entriesFieldName'.
+  */
+case class CastTableToMatrix(
+  child: TableIR,
+  entriesFieldName: String,
+  colsFieldName: String,
+  colKey: IndexedSeq[String]
+) extends MatrixIR {
 
-  entryFieldType match {
-    case TArray(TStruct(_, _), _) => {}
-    case _ => fatal(s"expected entry field to be an array of structs, found ${ entryFieldType }")
+  private val m = Map(entriesFieldName -> MatrixType.entriesIdentifier)
+
+  child.typ.rowType.fieldType(entriesFieldName) match {
+    case TArray(TStruct(_, _), _) =>
+    case t => fatal(s"expected entry field to be an array of structs, found $t")
   }
+
+  private val (colType, colsFieldIdx) = child.typ.globalType.field(colsFieldName) match {
+    case Field(_, TArray(t@TStruct(_, _), _), idx) => (t, idx)
+    case Field(_, t, _) => fatal(s"expected cols field to be an array of structs, found $t")
+  }
+
+  private val newRowType = child.typ.rowType.rename(m)
 
   val typ: MatrixType = MatrixType(
-    rowsEntries.typ.globalType,
-    cols.typ.key,
-    cols.typ.rowType,
-    rowsEntries.typ.key,
+    child.typ.globalType.deleteKey(colsFieldName, colsFieldIdx),
+    colKey,
+    colType,
+    child.typ.key,
     newRowType)
 
-  def children: IndexedSeq[BaseIR] = Array(rowsEntries, cols)
+  def children: IndexedSeq[BaseIR] = Array(child)
 
-  def copy(newChildren: IndexedSeq[BaseIR]): UnlocalizeEntries = {
-    assert(newChildren.length == 2)
-    UnlocalizeEntries(
+  def copy(newChildren: IndexedSeq[BaseIR]): CastTableToMatrix = {
+    assert(newChildren.length == 1)
+    CastTableToMatrix(
       newChildren(0).asInstanceOf[TableIR],
-      newChildren(1).asInstanceOf[TableIR],
-      entryFieldName
-    )
+      entriesFieldName,
+      colsFieldName,
+      colKey)
   }
 
-  override def partitionCounts: Option[IndexedSeq[Long]] = rowsEntries.partitionCounts
+  override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
   def execute(hc: HailContext): MatrixValue = {
-    val rowtab = rowsEntries.execute(hc)
-    val coltab = cols.execute(hc)
+    val entries = GetField(Ref("row", child.typ.rowType), entriesFieldName)
+    val cols = GetField(Ref("global", child.typ.globalType), colsFieldName)
+    val checkedRow =
+      ir.If(ir.IsNA(entries),
+        ir.Die("missing entry array value in argument to CastTableToMatrix", child.typ.rowType),
+        ir.If(ir.ApplyComparisonOp(ir.EQ(TInt32()), ir.ArrayLen(entries), ir.ArrayLen(cols)),
+          Ref("row", child.typ.rowType),
+          Die("incorrect entry array length in argument to CastTableToMatrix", child.typ.rowType)))
+    val checkedChild = ir.TableMapRows(child, checkedRow)
 
-    val localColType = coltab.typ.rowType.physicalType
-    val localColData: Array[Annotation] = coltab.rvd.mapPartitions { it =>
-      it.map { rv => SafeRow(localColType, rv.region, rv.offset) : Annotation }
-    }.collect
+    val prev = checkedChild.execute(hc)
 
-    val field = GetField(Ref("row", rowtab.typ.rowType), entryFieldName)
-    val (_, lenF) = ir.Compile[Long, Int]("row", rowtab.typ.rowType,
-      ir.ArrayLen(field))
-
-    val (_, missingF) = ir.Compile[Long, Boolean]("row", rowsEntries.typ.rowType,
-      ir.IsNA(field))
-
-    var rowRVD = rowtab.rvd
-    rowRVD = rowRVD.mapPartitionsWithIndex(rowRVD.typ) { (i, it) =>
-      val missing = missingF(i)
-      val len = lenF(i)
-      it.map { rv =>
-        if (missing(rv.region, rv.offset, false)) {
-          fatal("missing entry array value in argument to UnlocalizeEntries")
-        }
-        val l = len(rv.region, rv.offset, false)
-        if (l != localColData.length) {
-          fatal(s"""incorrect entry array length in argument to UnlocalizeEntries:
-                   |   had ${l} elements, should have had ${localColData.length} elements""".stripMargin)
-        }
-        rv
-      }
+    val colValues = prev.globals.value.getAs[IndexedSeq[Annotation]](colsFieldIdx)
+    val newGlobals = {
+      val (pre, post) = prev.globals.value.toSeq.splitAt(colsFieldIdx)
+      Row.fromSeq(pre ++ post.tail)
     }
-    val newRVD = rowRVD.cast(newRowType).asInstanceOf[RVD]
+
+    val newRVD = prev.rvd.cast(newRowType)
 
     MatrixValue(
       typ,
-      rowtab.globals,
-      BroadcastIndexedSeq(
-        localColData,
-        TArray(coltab.typ.rowType),
-        hc.sc
-      ),
+      BroadcastRow(newGlobals, typ.globalType, hc.sc),
+      BroadcastIndexedSeq(colValues, TArray(typ.colType), hc.sc),
       newRVD
     )
   }

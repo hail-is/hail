@@ -264,8 +264,11 @@ object Pretty {
                 prettyIntOpt(nPartitions)
             case TableOrderBy(_, sortFields) => prettyIdentifiers(sortFields.map(sf =>
               (if (sf.sortOrder == Ascending) "A" else "D") + sf.field))
-            case LocalizeEntries(_, name) => prettyStringLiteral(name)
-            case UnlocalizeEntries(_, _, name) => prettyStringLiteral(name)
+            case CastMatrixToTable(_, entriesFieldName, colsFieldName) =>
+              s"${prettyStringLiteral(entriesFieldName)} ${prettyStringLiteral(colsFieldName)}"
+            case CastTableToMatrix(_, entriesFieldName, colsFieldName, colKey) =>
+              s"${prettyIdentifier(entriesFieldName)} ${prettyIdentifier(colsFieldName)} " +
+                prettyIdentifiers(colKey)
             case TableRename(_, rowMap, globalMap) =>
               val rowKV = rowMap.toArray
               val globalKV = globalMap.toArray

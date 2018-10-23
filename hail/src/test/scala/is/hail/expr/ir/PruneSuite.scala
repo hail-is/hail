@@ -302,6 +302,14 @@ class PruneSuite extends SparkSuite {
     checkMemo(tob, subsetTable(tob.typ), Array(subsetTable(tab.typ, "row.2", "row.2.2A")))
   }
 
+  @Test def testCastMatrixToTableMemo() {
+    val m2t = CastMatrixToTable(mat, "__entries", "__cols")
+    checkMemo(m2t,
+      subsetTable(m2t.typ, "row.r2", "global.__cols.c2", "global.g2", "row.__entries.e2"),
+      Array(subsetMatrixTable(mat.typ, "va.r2", "global.g2", "sa.c2", "g.e2"))
+    )
+  }
+
   @Test def testMatrixFilterColsMemo() {
     val mfc = MatrixFilterCols(mat, matrixRefBoolean(mat.typ, "global.g1", "sa.c2"))
     checkMemo(mfc,
@@ -395,6 +403,15 @@ class PruneSuite extends SparkSuite {
     checkMemo(mer,
       subsetMatrixTable(mer.typ, "va.r2"),
       Array(subsetMatrixTable(mat.typ, "va.r2", "sa.c3")))
+  }
+
+  @Test def testCastTableToMatrixMemo() {
+    val m2t = CastMatrixToTable(mat, "__entries", "__cols")
+    val t2m = CastTableToMatrix(m2t, "__entries", "__cols", FastIndexedSeq("ck"))
+    checkMemo(t2m,
+      subsetMatrixTable(mat.typ, "va.r2", "sa.c2", "global.g2", "g.e2"),
+      Array(subsetTable(m2t.typ, "row.r2", "global.g2", "global.__cols.ck", "global.__cols.c2", "row.__entries.e2"))
+    )
   }
 
   @Test def testMatrixAggregateRowsByKeyMemo() {

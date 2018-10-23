@@ -3,7 +3,7 @@ package is.hail.table
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.{ir, _}
-import is.hail.expr.ir.{IR, LiftLiterals, TableAggregateByKey, TableExplode, TableFilter, TableIR, TableJoin, TableKeyBy, TableKeyByAndAggregate, TableLiteral, TableMapGlobals, TableMapRows, TableOrderBy, TableParallelize, TableRange, TableToMatrixTable, TableUnion, TableValue, UnlocalizeEntries, _}
+import is.hail.expr.ir.{IR, LiftLiterals, TableAggregateByKey, TableExplode, TableFilter, TableIR, TableJoin, TableKeyBy, TableKeyByAndAggregate, TableLiteral, TableMapGlobals, TableMapRows, TableOrderBy, TableParallelize, TableRange, TableToMatrixTable, TableUnion, TableValue, CastTableToMatrix, _}
 import is.hail.expr.types._
 import is.hail.io.plink.{FamFileConfig, LoadPlink}
 import is.hail.rvd._
@@ -466,8 +466,13 @@ class Table(val hc: HailContext, val tir: TableIR) {
     ))
   }
 
-  def unlocalizeEntries(cols: Table, entriesFieldName: String): MatrixTable =
-    new MatrixTable(hc, UnlocalizeEntries(tir, cols.tir, entriesFieldName))
+  def unlocalizeEntries(
+    entriesFieldName: String,
+    colsFieldName: String,
+    colKey: java.util.ArrayList[String]
+  ): MatrixTable =
+    new MatrixTable(hc,
+      CastTableToMatrix(tir, entriesFieldName, colsFieldName, colKey.asScala.toFastIndexedSeq))
 
   def aggregateByKey(expr: String): Table = {
     val x = Parser.parse_value_ir(expr, IRParserEnvironment(typ.refMap))

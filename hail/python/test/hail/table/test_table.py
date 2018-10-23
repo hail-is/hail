@@ -597,9 +597,10 @@ class Tests(unittest.TestCase):
         ref_data = [{'row_idx': i, '__entries': [{'v': i+j} for j in range(6)]}
                     for i in range(8)]
         ref_tab = hl.Table.parallelize(ref_data, ref_schema).key_by('row_idx')
+        ref_tab = ref_tab.select_globals(__cols=[hl.struct(col_idx=i) for i in range(6)])
         mt = hl.utils.range_matrix_table(8, 6)
         mt = mt.annotate_entries(v=mt.row_idx+mt.col_idx)
-        t = mt._localize_entries('__entries')
+        t = mt._localize_entries('__entries', '__cols')
         self.assertTrue(t._same(ref_tab))
 
     def test_localize_self_join(self):
@@ -611,7 +612,7 @@ class Tests(unittest.TestCase):
         ref_tab = ref_tab.join(ref_tab, how='outer')
         mt = hl.utils.range_matrix_table(8, 6)
         mt = mt.annotate_entries(v=mt.row_idx+mt.col_idx)
-        t = mt._localize_entries('__entries')
+        t = mt._localize_entries('__entries', '__cols').drop('__cols')
         t = t.join(t, how='outer')
         self.assertTrue(t._same(ref_tab))
 

@@ -827,7 +827,7 @@ class IRSuite extends SparkSuite {
           FastIndexedSeq(TableRange(100, 10), TableRange(50, 10))),
         TableExplode(read, "mset"),
         TableOrderBy(TableKeyBy(read, FastIndexedSeq()), FastIndexedSeq(SortField("m", Ascending), SortField("m", Descending))),
-        LocalizeEntries(mtRead, " # entries"),
+        CastMatrixToTable(mtRead, " # entries", " # cols"),
         TableRename(read, Map("idx" -> "idx_foo"), Map("global_f32" -> "global_foo"))
       )
       xs.map(x => Array(x))
@@ -909,10 +909,11 @@ class IRSuite extends SparkSuite {
         MatrixExplodeRows(read, FastIndexedSeq("row_mset")),
         MatrixUnionRows(FastIndexedSeq(range1, range2)),
         MatrixExplodeCols(read, FastIndexedSeq("col_mset")),
-        UnlocalizeEntries(
-          LocalizeEntries(read, "all of the entries"),
-          MatrixColsTable(read),
-          "all of the entries"),
+        CastTableToMatrix(
+          CastMatrixToTable(read, " # entries", " # cols"),
+          " # entries",
+          " # cols",
+          read.typ.colKey),
         MatrixAnnotateColsTable(read, tableRead, "uid_123"),
         MatrixAnnotateRowsTable(read, tableRead, "uid_123", Some(FastIndexedSeq(I32(1))))
       )
