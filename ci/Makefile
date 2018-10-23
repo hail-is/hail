@@ -1,6 +1,6 @@
 .PHONY: run restart-proxy restart-batch-proxy restart-all-proxies
 .PHONY: setup-conda-env build-hail-ci push-hail-ci test-locally
-.PHONY: test-in-cluster run-service deploy
+.PHONY: run-service deploy
 
 HAIL_CI_LOCAL_BATCH_PORT ?= 8888
 
@@ -69,9 +69,6 @@ test-locally: restart-all-proxies
 	SELF_HOSTNAME=http://${PROXY_IP}:${HAIL_CI_REMOTE_PORT} \
 	BATCH_SERVER_URL=http://127.0.0.1:${HAIL_CI_LOCAL_BATCH_PORT} \
 	./test-locally.sh
-
-test-in-cluster:
-	./test-in-cluster.sh
 
 run-service:
 	kubectl apply -f service.yaml

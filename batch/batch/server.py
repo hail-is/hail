@@ -39,7 +39,7 @@ logging.basicConfig(
 
 REFRESH_INTERVAL_IN_SECONDS = int(os.environ.get('REFRESH_INTERVAL_IN_SECONDS', 5 * 60))
 
-POD_NAMESPACE = 'batch-pods'
+POD_NAMESPACE = os.environ.get('POD_NAMESPACE', 'batch-pods')
 
 log.info(f'REFRESH_INTERVAL_IN_SECONDS {REFRESH_INTERVAL_IN_SECONDS}')
 

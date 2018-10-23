@@ -240,6 +240,7 @@ class PRS(object):
                 security_context={
                     'fsGroup': 412,
                 },
+                service_account_name='deploy-svc',
                 attributes=attributes,
                 callback=SELF_HOSTNAME + '/deploy_build_done')
             log.info(f'deploying {target_ref.short_str()}:{latest_sha} in job {job.id}')

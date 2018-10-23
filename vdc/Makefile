@@ -15,7 +15,10 @@ create-deployment:
 	gcloud container clusters get-credentials vdc
 	kubectl create clusterrolebinding project-editor-cluster-admin-binding --clusterrole cluster-admin --user projectEditor:$(PROJECT)
 
-build-out-k8s: create-k8s-secrets create-k8s-certs-volume run-letsencrypt deploy-k8s
+build-out-k8s: k8s-config create-k8s-secrets create-k8s-certs-volume run-letsencrypt deploy-k8s
+
+k8s-config:
+	kubectl apply -f k8s-config.yaml
 
 create-k8s-secrets:
 	kubectl apply -f secrets.yaml

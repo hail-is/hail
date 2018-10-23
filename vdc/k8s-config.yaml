@@ -1,0 +1,146 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: batch-pods
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: test
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: batch-svc
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: batch-pods
+  name: batch-pods-admin
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["*"]
+- apiGroups: [""]
+  resources: ["pods/log"]
+  verbs: ["get"]
+- apiGroups: [""]
+  resources: ["services"]
+  verbs: ["*"]
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: batch-svc-batch-pods-admin-binding
+  namespace: batch-pods
+subjects:
+- kind: ServiceAccount
+  name: batch-svc
+  namespace: default
+roleRef:
+  kind: Role
+  name: batch-pods-admin
+  apiGroup: ""
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: test-svc-batch-pods-admin-binding
+  namespace: batch-pods
+subjects:
+- kind: ServiceAccount
+  name: test-svc
+  namespace: batch-pods
+roleRef:
+  kind: Role
+  name: batch-pods-admin
+  apiGroup: ""
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: deploy-svc
+  namespace: batch-pods
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: test-svc
+  namespace: batch-pods
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: default
+  name: default-deploy
+rules:
+- apiGroups: ["*"]
+  resources: ["*"]
+  verbs: ["*"]
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: test
+  name: test-test
+rules:
+- apiGroups: ["*"]
+  resources: ["*"]
+  verbs: ["*"]
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: deploy-svc-default-deploy-binding
+  namespace: default
+subjects:
+- kind: ServiceAccount
+  name: deploy-svc
+  namespace: batch-pods
+roleRef:
+  kind: Role
+  name: default-deploy
+  apiGroup: "rbac.authorization.k8s.io"
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: test-svc-test-test-binding
+  namespace: test
+subjects:
+- kind: ServiceAccount
+  name: test-svc
+  namespace: batch-pods
+roleRef:
+  kind: Role
+  name: test-test
+  apiGroup: "rbac.authorization.k8s.io"
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: batch-svc-default-deploy-binding
+  namespace: default
+subjects:
+- kind: ServiceAccount
+  name: batch-svc
+  namespace: default
+roleRef:
+  kind: Role
+  name: default-deploy
+  apiGroup: "rbac.authorization.k8s.io"
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: batch-svc-test-test-binding
+  namespace: default
+subjects:
+- kind: ServiceAccount
+  name: batch-svc
+  namespace: default
+roleRef:
+  kind: Role
+  name: test-test
+  apiGroup: "rbac.authorization.k8s.io"

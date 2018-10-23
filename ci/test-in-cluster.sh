@@ -15,12 +15,7 @@ cleanup() {
     kubectl delete service $SERVICE_NAME
 }
 trap cleanup EXIT
-
 trap "exit 42" INT TERM
-
-get_ip() {
-    kubectl get service $SERVICE_NAME --no-headers | awk '{print $4}'
-}
 
 mkdir github-tokens
 cp /secrets/user* github-tokens
@@ -31,6 +26,6 @@ cp /secrets/hail-ci-0-1.key gcloud-token
 
 export IN_CLUSTER=true
 export SELF_HOSTNAME=https://ci.hail.is/$SERVICE_NAME
-export BATCH_SERVER_URL=http://batch
+export BATCH_SERVER_URL=http://batch.default
 
 ./test-locally.sh
