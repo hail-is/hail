@@ -77,4 +77,4 @@ deploy:
 	sed -e "s,@sha@,$(shell git rev-parse --short=12 HEAD)," \
 	  -e "s,@image@,$(shell cat hail-ci-image)," \
 	  < deployment.yaml.in > k8s/deployment.yaml
-	kubectl apply -f k8s
+	kubectl -n default apply -f k8s

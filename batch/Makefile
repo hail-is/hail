@@ -45,7 +45,7 @@ deploy-batch:
 	sed -e "s,@sha@,$$(git rev-parse --short=12 HEAD)," \
 	  -e "s,@image@,$$(cat batch-image)," \
 	  < deployment.yaml.in > deployment.yaml
-	kubectl apply -f deployment.yaml
+	kubectl -n default apply -f deployment.yaml
 # ci can't recover from batch restart yet
-	kubectl rollout status deployment batch-deployment
-	kubectl delete pods -l app=hail-ci
+	kubectl -n default rollout status deployment batch-deployment
+	kubectl -n default delete pods -l app=hail-ci
