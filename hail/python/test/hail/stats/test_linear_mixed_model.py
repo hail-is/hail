@@ -230,9 +230,19 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(stats.chi_sq, chi_sq)
 
         # test from_random_effects, low-rank fit
-        model, p = LinearMixedModel.from_random_effects(y, x, z)
         s0, p0 = s0[:m], p0[:m, :]
-        self.assertTrue(model._same(LinearMixedModel(p0 @ y, p0 @ x, s0, y, x)))
+        # test BlockMatrix path
+        temp_path = utils.new_temp_file()
+        model, _ = LinearMixedModel.from_random_effects(y, x, 
+                                                        BlockMatrix.from_numpy(z),
+                                                        p_path=temp_path,
+                                                        complexity_bound=0)
+        lmm = LinearMixedModel(p0 @ y, p0 @ x, s0, y, x, p_path=temp_path)
+        self.assertTrue(model._same(lmm))
+        # test ndarray path
+        model, p = LinearMixedModel.from_random_effects(y, x, z)
+        lmm = LinearMixedModel(p0 @ y, p0 @ x, s0, y, x)
+        self.assertTrue(model._same(lmm))
 
         model.fit(np.log(gamma))
         self.assertTrue(np.allclose(model.beta, beta))
