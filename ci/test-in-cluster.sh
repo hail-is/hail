@@ -26,7 +26,7 @@ mkdir gcloud-token
 cp /secrets/hail-ci-0-1.key gcloud-token
 
 export IN_CLUSTER=true
-export SELF_HOSTNAME=https://ci.hail.is/$SERVICE_NAME
+export SELF_HOSTNAME=https://ci.hail.is/$SERVICE_NAME.batch-pods
 export BATCH_SERVER_URL=http://batch.default
 
 ./test-locally.sh
