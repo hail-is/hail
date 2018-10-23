@@ -6,6 +6,8 @@ import is.hail.utils.FastSeq
 object LowerMatrixIR {
   val entriesFieldName = "__entries"
   val colsFieldName = "__cols"
+  val colsField = Symbol(colsFieldName)
+  val entriesField = Symbol(entriesFieldName)
 
   def apply(ir: IR): IR = lower(ir)
   def apply(tir: TableIR): TableIR = lower(tir)
@@ -61,110 +63,53 @@ object LowerMatrixIR {
   def entries(tir: TableIR): IR =
     GetField(Ref("row", tir.typ.rowType), entriesFieldName)
 
+  import is.hail.expr.ir.IRBuilder._
+
   private[this] def matrixRules: PartialFunction[MatrixIR, TableIR] = {
     case MatrixKeyRowsBy(child, keys, isSorted) =>
-      TableKeyBy(lower(child), keys, isSorted)
+      lower(child).keyBy(keys, isSorted)
 
     case MatrixFilterRows(child, pred) =>
-      val lowered = lower(child)
-      TableRename(
-        TableFilter(
-          TableRename(lower(child), Map(entriesFieldName -> MatrixType.entriesIdentifier), Map.empty),
-          Let("va", Ref("row", lowered.typ.rowType), pred)),
-        Map(MatrixType.entriesIdentifier -> entriesFieldName), Map.empty)
+      lower(child)
+        .rename(Map(entriesFieldName -> MatrixType.entriesIdentifier))
+        .filter(let ('va <=: 'row) in pred)
+        .rename(Map(MatrixType.entriesIdentifier -> entriesFieldName))
 
     case MatrixFilterCols(child, pred) =>
-      val lowered = lower(child)
-
-      val filteredColIdx =
-        TableMapGlobals(
-          lowered,
-          InsertFields(Ref("global", lowered.typ.globalType),
-            Seq("newColIdx" ->
-              ArrayFilter(
-                ArrayRange(I32(0), nCols(lowered), I32(1)),
-                "i",
-                Let("sa", ArrayRef(colVals(lowered), Ref("i", TInt32())),
-                  Let("global", globals(lowered),
-                    pred))))))
-
-      val filteredEntryVals =
-        TableMapRows(
-          filteredColIdx,
-          InsertFields(Ref("row", filteredColIdx.typ.rowType),
-            Seq(entriesFieldName ->
-              ArrayMap(
-                GetField(Ref("global", filteredColIdx.typ.globalType), "newColIdx"),
-                "i",
-                ArrayRef(entries(filteredColIdx), Ref("i", TInt32()))))))
-
-      TableMapGlobals(
-        filteredEntryVals,
-        SelectFields(
-          InsertFields(Ref("global", filteredEntryVals.typ.globalType),
-            Seq(colsFieldName ->
-              ArrayMap(
-                GetField(Ref("global", filteredEntryVals.typ.globalType), "newColIdx"),
-                "i",
-                ArrayRef(colVals(filteredEntryVals), Ref("i", TInt32()))))),
-          lowered.typ.globalType.fieldNames))
+      lower(child)
+        .mapGlobals('global.insertFields('newColIdx ->
+          irRange(0, 'global(colsField).len)
+            .filter('i ~>
+              (let ('sa <=: 'global(colsField)('i),
+                    'global <=: 'global.dropFields(colsField))
+                in pred))))
+        .mapRows('row.insertFields(entriesField -> 'global('newColIdx).map('i ~> 'row(entriesField)('i))))
+        .mapGlobals('global
+          .insertFields(colsField ->
+            'global('newColIdx).map('i ~> 'global(colsField)('i)))
+          .dropFields('newColIdx))
 
     case MatrixChooseCols(child, oldIndices) =>
-      val lowered = lower(child)
-      val colIdx =
-        TableMapGlobals(
-          lowered,
-          InsertFields(Ref("global", lowered.typ.globalType),
-            Seq("newColIdx" ->
-              MakeArray(oldIndices.map(I32.apply), TArray(TInt32())))))
-
-      val filteredEntryVals =
-        TableMapRows(
-          colIdx,
-          InsertFields(Ref("row", colIdx.typ.rowType),
-            Seq(entriesFieldName ->
-              ArrayMap(
-                GetField(Ref("global", colIdx.typ.globalType), "newColIdx"),
-                "i",
-                ArrayRef(entries(colIdx), Ref("i", TInt32()))))))
-
-      TableMapGlobals(
-        filteredEntryVals,
-        SelectFields(
-          InsertFields(Ref("global", filteredEntryVals.typ.globalType),
-            Seq(colsFieldName ->
-              ArrayMap(
-                GetField(Ref("global", filteredEntryVals.typ.globalType), "newColIdx"),
-                "i",
-                ArrayRef(colVals(filteredEntryVals), Ref("i", TInt32()))))),
-          lowered.typ.globalType.fieldNames))
+      lower(child)
+        .mapGlobals('global.insertFields('newColIdx -> oldIndices.map(I32)))
+        .mapRows('row.insertFields(entriesField -> 'global('newColIdx).map('i ~> 'row(entriesField)('i))))
+        .mapGlobals('global.insertFields(colsField -> 'global('newColIdx).map('i ~> 'global(colsField)('i))))
 
     case MatrixMapGlobals(child, newGlobals) =>
-      val lowered = lower(child)
-      val loweredNewGlobals =
-        Let("global", globals(lowered), newGlobals)
-
-      TableMapGlobals(
-        lowered,
-        InsertFields(loweredNewGlobals, FastSeq(colsFieldName -> colVals(lowered))))
+      lower(child)
+        .mapGlobals(
+          (let ('global <=: 'global.dropFields(colsField)) in newGlobals)
+          .insertFields(colsField -> 'global(colsField)))
 
     case MatrixFilterEntries(child, pred) =>
-      val lowered = lower(child)
-      val newEntries =
-        ArrayMap(
-          ArrayRange(I32(0), nCols(lowered), I32(1)),
-          "i",
-          Let("g", ArrayRef(entries(lowered), Ref("i", TInt32())),
-            If(
-              Let("sa", ArrayRef(colVals(lowered), Ref("i", TInt32())),
-                pred),
-              Ref("g", child.typ.entryType),
-              NA(child.typ.entryType))))
-      val newRow = InsertFields(
-        Ref("row", lowered.typ.rowType),
-        FastSeq(entriesFieldName -> newEntries))
-
-      TableMapRows(lowered, newRow)
+      lower(child).mapRows('row.insertFields(entriesField ->
+        irRange(0, 'global(colsField).len).map { 'i ~>
+          (let ('g <=: 'row(entriesField)('i))
+            in irIf (let ('sa <=: 'global(colsField)('i),
+                          'va <=: 'row.dropFields(entriesField),
+                          'global <=: 'global.dropFields(colsField))
+                      in pred)
+              { 'g }{ NA(child.typ.entryType) })}))
   }
 
   private[this] def tableRules: PartialFunction[TableIR, TableIR] = {
