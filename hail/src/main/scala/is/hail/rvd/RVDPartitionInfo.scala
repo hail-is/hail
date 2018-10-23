@@ -35,12 +35,11 @@ object RVDPartitionInfo {
     producerContext: RVDContext
   ): RVDPartitionInfo = {
     using(RVDContext.default) { localctx =>
-      val pkOrd = typ.copy(key = typ.key.take(partitionKey)).kOrd
-      val minF = WritableRegionValue(typ.kType, localctx.freshRegion)
-      val maxF = WritableRegionValue(typ.kType, localctx.freshRegion)
-      val prevF = WritableRegionValue(typ.kType, localctx.freshRegion)
-
       val kPType = typ.kType.physicalType
+      val pkOrd = typ.copy(key = typ.key.take(partitionKey)).kOrd
+      val minF = WritableRegionValue(kPType, localctx.freshRegion)
+      val maxF = WritableRegionValue(kPType, localctx.freshRegion)
+      val prevF = WritableRegionValue(kPType, localctx.freshRegion)
 
       assert(it.hasNext)
       val f0 = it.next()
@@ -57,7 +56,7 @@ object RVDPartitionInfo {
       var i = 0
 
       if (sampleSize > 0) {
-        samples(0) = WritableRegionValue(typ.kType, f0, localctx.freshRegion)
+        samples(0) = WritableRegionValue(kPType, f0, localctx.freshRegion)
         i += 1
       }
 
@@ -84,7 +83,7 @@ object RVDPartitionInfo {
         prevF.set(f)
 
         if (i < sampleSize)
-          samples(i) = WritableRegionValue(typ.kType, f, localctx.freshRegion)
+          samples(i) = WritableRegionValue(kPType, f, localctx.freshRegion)
         else {
           val j = if (i > 0) rng.nextInt(i) else 0
           if (j < sampleSize)

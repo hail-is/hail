@@ -205,7 +205,7 @@ object VEP {
         val rv = RegionValue(region)
 
         it.map { case (v, vep) =>
-          rvb.start(vepRowType)
+          rvb.start(vepRowType.physicalType)
           rvb.startStruct()
           rvb.addAnnotation(vepRowType.types(0), v.asInstanceOf[Row].get(0))
           rvb.addAnnotation(vepRowType.types(1), v.asInstanceOf[Row].get(1))

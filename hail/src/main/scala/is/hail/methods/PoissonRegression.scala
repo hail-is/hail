@@ -80,9 +80,9 @@ object PoissonRegression {
           rv, fullRowType, entryArrayType, entryType, entryArrayIdx, fieldIdx)
 
         rvb.set(rv.region)
-        rvb.start(newRVDType.rowType)
+        rvb.start(newRVDType.rowType.physicalType)
         rvb.startStruct()
-        rvb.addFields(fullRowType, rv, keyIndices)
+        rvb.addFields(fullRowType.physicalType, rv, keyIndices)
         poisRegTestBc.value
           .test(X, yBc.value, nullFitBc.value, "poisson")
           .addToRVB(rvb)

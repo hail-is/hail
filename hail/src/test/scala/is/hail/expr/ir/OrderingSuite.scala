@@ -44,7 +44,7 @@ class OrderingSuite extends TestNGSuite {
   def addTupledArgsToRegion(region: Region, args: (Type, Annotation)*): Array[Long] = {
     val rvb = new RegionValueBuilder(region)
     args.map { case (t, a) =>
-      rvb.start(TTuple(t))
+      rvb.start(TTuple(t).physicalType)
       rvb.startTuple()
       rvb.addAnnotation(t, a)
       rvb.endTuple()
@@ -90,11 +90,11 @@ class OrderingSuite extends TestNGSuite {
       Region.scoped { region =>
         val rvb = new RegionValueBuilder(region)
 
-        rvb.start(t)
+        rvb.start(t.physicalType)
         rvb.addAnnotation(t, a1)
         val v1 = rvb.end()
 
-        rvb.start(t)
+        rvb.start(t.physicalType)
         rvb.addAnnotation(t, a2)
         val v2 = rvb.end()
 
@@ -274,11 +274,11 @@ class OrderingSuite extends TestNGSuite {
       Region.scoped { region =>
         val rvb = new RegionValueBuilder(region)
 
-        rvb.start(tset)
+        rvb.start(tset.physicalType)
         rvb.addAnnotation(tset, set)
         val soff = rvb.end()
 
-        rvb.start(TTuple(t))
+        rvb.start(TTuple(t).physicalType)
         rvb.addAnnotation(TTuple(t), Row(elem))
         val eoff = rvb.end()
 
@@ -312,11 +312,11 @@ class OrderingSuite extends TestNGSuite {
       Region.scoped { region =>
         val rvb = new RegionValueBuilder(region)
 
-        rvb.start(tdict)
+        rvb.start(tdict.physicalType)
         rvb.addAnnotation(tdict, dict)
         val soff = rvb.end()
 
-        rvb.start(TTuple(tdict.keyType))
+        rvb.start(TTuple(tdict.keyType).physicalType)
         rvb.addAnnotation(TTuple(tdict.keyType), Row(key))
         val eoff = rvb.end()
 

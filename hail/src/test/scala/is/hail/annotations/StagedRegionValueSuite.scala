@@ -210,7 +210,7 @@ class StagedRegionValueSuite extends SparkSuite {
     val region2 = Region()
     val rv2 = RegionValue(region2)
     val rvb = new RegionValueBuilder(region2)
-    rvb.start(rt)
+    rvb.start(rt.physicalType)
     rvb.startArray(2)
     for (i <- 1 to 2) {
       rvb.startStruct()
@@ -274,7 +274,7 @@ class StagedRegionValueSuite extends SparkSuite {
     val rv2 = RegionValue(region2)
     val rvb = new RegionValueBuilder(region2)
 
-    rvb.start(rt)
+    rvb.start(rt.physicalType)
     rvb.startStruct()
     rvb.addString(input)
     rvb.startArray(2)

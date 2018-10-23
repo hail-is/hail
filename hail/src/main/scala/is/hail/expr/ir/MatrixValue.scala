@@ -187,12 +187,12 @@ case class MatrixValue(
         val rv2 = RegionValue()
         it.map { rv =>
           rv2b.set(rv.region)
-          rv2b.start(localRowType)
+          rv2b.start(localRowType.physicalType)
           rv2b.startStruct()
           var i = 0
           while (i < fullRowType.size) {
             if (i != localEntriesIndex)
-              rv2b.addField(fullRowType, rv, i)
+              rv2b.addField(fullRowType.physicalType, rv, i)
             i += 1
           }
           rv2b.endStruct()
@@ -235,11 +235,11 @@ case class MatrixValue(
             val colRegion = ctx.freshRegion
             val colRVB = new RegionValueBuilder(colRegion)
             val colsType = TArray(localColType, required = true)
-            colRVB.start(colsType)
+            colRVB.start(colsType.physicalType)
             colRVB.addAnnotation(colsType, localSortedColValues.value)
             val colsOffset = colRVB.end()
 
-            val rowBuffer = new RegionValueArrayBuffer(fullRowType, ctx.freshRegion)
+            val rowBuffer = new RegionValueArrayBuffer(fullRowType.physicalType, ctx.freshRegion)
 
             val colsNewToOldIdx = localSortedColsToOldIdx.value.asInstanceOf[IndexedSeq[Int]]
 
@@ -252,19 +252,19 @@ case class MatrixValue(
                     localEntriesType.isElementDefined(row.region, fullRowType.loadField(row, localEntriesIndex), colsNewToOldIdx(i))
                   }.map { row =>
                     rv2b.clear()
-                    rv2b.start(resultStruct)
+                    rv2b.start(resultStruct.physicalType)
                     rv2b.startStruct()
 
                     var j = 0
                     while (j < fullRowType.size) {
                       if (j != localEntriesIndex)
-                        rv2b.addField(fullRowType, row, j)
+                        rv2b.addField(fullRowType.physicalType, row, j)
                       j += 1
                     }
 
-                    rv2b.addAllFields(localColType, colRegion, colsType.loadElement(colRegion, colsOffset, i))
+                    rv2b.addAllFields(localColType.physicalType, colRegion, colsType.loadElement(colRegion, colsOffset, i))
                     rv2b.addAllFields(
-                      localEntryType,
+                      localEntryType.physicalType,
                       row.region,
                       localEntriesType.loadElement(row.region, fullRowType.loadField(row, localEntriesIndex), colsNewToOldIdx(i)))
                     rv2b.endStruct()
@@ -316,7 +316,7 @@ case class MatrixValue(
           val rvb = new RegionValueBuilder()
           it.map { rv =>
             rvb.set(rv.region)
-            rvb.start(newRVType)
+            rvb.start(newRVType.physicalType)
 
             ins(rv.region, rv.offset, rvb,
               () => inserter(pc, rv, rvb)

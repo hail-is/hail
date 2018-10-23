@@ -23,7 +23,7 @@ class LeafNodeBuilder(keyType: Type, annotationType: Type, var firstIdx: Long) {
   val typ = LeafNodeBuilder.typ(keyType, annotationType)
 
   def write(rvb: RegionValueBuilder): Long = {
-    rvb.start(typ)
+    rvb.start(typ.physicalType)
     rvb.startStruct()
 
     rvb.addLong(firstIdx)

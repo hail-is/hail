@@ -80,7 +80,7 @@ object LinearRegression {
         val blockWRVs = new Array[WritableRegionValue](rowBlockSize)
         var i = 0
         while (i < rowBlockSize) {
-          blockWRVs(i) = WritableRegionValue(fullRowType, ctx.freshRegion)
+          blockWRVs(i) = WritableRegionValue(fullRowType.physicalType, ctx.freshRegion)
           i += 1
         }
 
@@ -126,9 +126,9 @@ object LinearRegression {
             (0 until blockLength).iterator.map { i =>
               val wrv = blockWRVs(i)
               rvb.set(wrv.region)
-              rvb.start(newRVDType.rowType)
+              rvb.start(newRVDType.rowType.physicalType)
               rvb.startStruct()
-              rvb.addFields(fullRowType, wrv.region, wrv.offset, keyIndices)
+              rvb.addFields(fullRowType.physicalType, wrv.region, wrv.offset, keyIndices)
               rvb.addInt(n)
               rvb.addDouble(AC(i))
 

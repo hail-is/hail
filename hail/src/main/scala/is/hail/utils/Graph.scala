@@ -55,13 +55,13 @@ object Graph {
           val rvb = new RegionValueBuilder()
           rvb.set(region)
 
-          rvb.start(wrappedNodeType)
+          rvb.start(wrappedNodeType.physicalType)
           rvb.startTuple()
           rvb.addAnnotation(nodeType, l)
           rvb.endTuple()
           val lOffset = rvb.end()
 
-          rvb.start(wrappedNodeType)
+          rvb.start(wrappedNodeType.physicalType)
           rvb.startTuple()
           rvb.addAnnotation(nodeType, r)
           rvb.endTuple()

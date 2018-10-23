@@ -247,7 +247,7 @@ object TestUtils {
           val rvb = new RegionValueBuilder(region)
 
           // copy args into region
-          rvb.start(argsType)
+          rvb.start(argsType.physicalType)
           rvb.startTuple()
           var i = 0
           while (i < inputsB.length) {
@@ -264,7 +264,7 @@ object TestUtils {
           var seqOpF = seqOps(0)
           while (i < (aggElements.length / 2)) {
             // FIXME use second region for elements
-            rvb.start(aggType)
+            rvb.start(aggType.physicalType)
             rvb.addAnnotation(aggType, aggElements(i))
             val aggElementOff = rvb.end()
 
@@ -279,7 +279,7 @@ object TestUtils {
           seqOpF = seqOps(1)
           while (i < aggElements.length) {
             // FIXME use second region for elements
-            rvb.start(aggType)
+            rvb.start(aggType.physicalType)
             rvb.addAnnotation(aggType, aggElements(i))
             val aggElementOff = rvb.end()
 
@@ -291,7 +291,7 @@ object TestUtils {
           rvAggs.zip(rvAggs2).foreach{ case(agg1, agg2) => agg1.combOp(agg2) }
 
           // build aggregation result
-          rvb.start(aggResultType)
+          rvb.start(aggResultType.physicalType)
           rvb.startTuple()
           i = 0
           while (i < rvAggs.length) {
@@ -313,7 +313,7 @@ object TestUtils {
 
         Region.scoped { region =>
           val rvb = new RegionValueBuilder(region)
-          rvb.start(argsType)
+          rvb.start(argsType.physicalType)
           rvb.startTuple()
           var i = 0
           while (i < inputsB.length) {

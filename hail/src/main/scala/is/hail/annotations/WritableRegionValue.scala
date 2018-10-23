@@ -5,26 +5,27 @@ import java.io.{ObjectInputStream, ObjectOutputStream}
 import scala.collection.generic.Growable
 import scala.collection.mutable.ArrayBuffer
 import is.hail.expr.types._
+import is.hail.expr.types.physical.{PBaseStruct, PStruct, PType}
 import is.hail.rvd.RVDContext
 import sun.reflect.generics.reflectiveObjects.NotImplementedException
 
 object WritableRegionValue {
-  def apply(t: Type, initial: RegionValue, region: Region): WritableRegionValue =
+  def apply(t: PType, initial: RegionValue, region: Region): WritableRegionValue =
     WritableRegionValue(t, initial.region, initial.offset, region)
 
-  def apply(t: Type, initialRegion: Region, initialOffset: Long, targetRegion: Region): WritableRegionValue = {
+  def apply(t: PType, initialRegion: Region, initialOffset: Long, targetRegion: Region): WritableRegionValue = {
     val wrv = WritableRegionValue(t, targetRegion)
     wrv.set(initialRegion, initialOffset)
     wrv
   }
 
-  def apply(t: Type, region: Region): WritableRegionValue = {
+  def apply(t: PType, region: Region): WritableRegionValue = {
     new WritableRegionValue(t, region)
   }
 }
 
 class WritableRegionValue private (
-  val t: Type,
+  val t: PType,
   val region: Region
 ) extends UnKryoSerializable {
   val value = RegionValue(region, 0)
@@ -32,9 +33,9 @@ class WritableRegionValue private (
 
   def offset: Long = value.offset
 
-  def setSelect(fromT: TStruct, fromFieldIdx: Array[Int], fromRV: RegionValue) {
+  def setSelect(fromT: PStruct, fromFieldIdx: Array[Int], fromRV: RegionValue) {
     (t: @unchecked) match {
-      case t: TStruct =>
+      case t: PStruct =>
         region.clear()
         rvb.start(t)
         rvb.startStruct()
@@ -57,7 +58,7 @@ class WritableRegionValue private (
     value.setOffset(rvb.end())
   }
 
-  def pretty: String = value.pretty(t)
+  def pretty: String = value.pretty(t.virtualType)
 
   private def writeObject(s: ObjectOutputStream): Unit = {
     throw new NotImplementedException()
@@ -68,7 +69,7 @@ class WritableRegionValue private (
   }
 }
 
-class RegionValueArrayBuffer(val t: Type, region: Region)
+class RegionValueArrayBuffer(val t: PType, region: Region)
   extends Iterable[RegionValue] with Growable[RegionValue] {
 
   val value = RegionValue(region, 0)
@@ -90,12 +91,12 @@ class RegionValueArrayBuffer(val t: Type, region: Region)
   }
 
   def appendSelect(
-    fromT: TStruct,
+    fromT: PStruct,
     fromFieldIdx: Array[Int],
     fromRV: RegionValue): this.type = {
 
     (t: @unchecked) match {
-      case t: TStruct =>
+      case t: PStruct =>
         rvb.start(t)
         rvb.selectRegionValue(fromT, fromFieldIdx, fromRV)
         idx += rvb.end()

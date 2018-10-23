@@ -36,7 +36,7 @@ class InternalNodeBuilder(keyType: Type, annotationType: Type) {
   }
 
   def write(rvb: RegionValueBuilder): Long = {
-    rvb.start(typ)
+    rvb.start(typ.physicalType)
     rvb.startStruct()
     rvb.startArray(size)
     var i = 0

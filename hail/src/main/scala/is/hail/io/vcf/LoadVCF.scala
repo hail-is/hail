@@ -789,7 +789,7 @@ object LoadVCF {
             val line = lwc.value
             try {
               val vcfLine = new VCFLine(line, arrayElementsRequired)
-              rvb.start(t)
+              rvb.start(t.physicalType)
               rvb.startStruct()
               present = vcfLine.parseAddVariant(rvb, rg, contigRecoding, skipInvalidLoci)
               if (present) {

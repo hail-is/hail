@@ -611,7 +611,7 @@ object Interpret {
         Region.scoped { region =>
           val rvb = new RegionValueBuilder()
           rvb.set(region)
-          rvb.start(argTuple)
+          rvb.start(argTuple.physicalType)
           rvb.startTuple()
           ir.args.zip(argTuple.types).foreach { case (arg, t) =>
             val argValue = interpret(arg, env, args, agg)
@@ -671,7 +671,7 @@ object Interpret {
             val rvb: RegionValueBuilder = new RegionValueBuilder()
             rvb.set(region)
 
-            rvb.start(localGlobalSignature)
+            rvb.start(localGlobalSignature.physicalType)
             rvb.addAnnotation(localGlobalSignature, globalsBc.value)
             val globals = rvb.end()
 
@@ -687,7 +687,7 @@ object Interpret {
             val r = ctx.freshRegion
             val rvb = new RegionValueBuilder()
             rvb.set(r)
-            rvb.start(localGlobalSignature)
+            rvb.start(localGlobalSignature.physicalType)
             rvb.addAnnotation(localGlobalSignature, globalsBc.value)
             val globalsOffset = rvb.end()
             val seqOpsFunction = seqOps(i)
@@ -702,13 +702,13 @@ object Interpret {
           val rvb: RegionValueBuilder = new RegionValueBuilder()
           rvb.set(region)
 
-          rvb.start(aggResultType)
+          rvb.start(aggResultType.physicalType)
           rvb.startTuple()
           aggResults.foreach(_.result(rvb))
           rvb.endTuple()
           val aggResultsOffset = rvb.end()
 
-          rvb.start(localGlobalSignature)
+          rvb.start(localGlobalSignature.physicalType)
           rvb.addAnnotation(localGlobalSignature, globalsBc.value)
           val globalsOffset = rvb.end()
 
@@ -754,7 +754,7 @@ object Interpret {
             val rvb: RegionValueBuilder = new RegionValueBuilder()
             rvb.set(region)
 
-            rvb.start(localGlobalSignature)
+            rvb.start(localGlobalSignature.physicalType)
             rvb.addAnnotation(localGlobalSignature, globalsBc.value)
             val globals = rvb.end()
 
@@ -771,10 +771,10 @@ object Interpret {
             val r = ctx.freshRegion
             val rvb = new RegionValueBuilder()
             rvb.set(r)
-            rvb.start(localGlobalSignature)
+            rvb.start(localGlobalSignature.physicalType)
             rvb.addAnnotation(localGlobalSignature, globalsBc.value)
             val globalsOffset = rvb.end()
-            rvb.start(localColsType)
+            rvb.start(localColsType.physicalType)
             rvb.addAnnotation(localColsType, colValuesBc.value)
             val colsOffset = rvb.end()
             val seqOpsFunction = seqOps(i)
@@ -789,13 +789,13 @@ object Interpret {
           val rvb: RegionValueBuilder = new RegionValueBuilder()
           rvb.set(region)
 
-          rvb.start(aggResultType)
+          rvb.start(aggResultType.physicalType)
           rvb.startTuple()
           aggResults.foreach(_.result(rvb))
           rvb.endTuple()
           val aggResultsOffset = rvb.end()
 
-          rvb.start(localGlobalSignature)
+          rvb.start(localGlobalSignature.physicalType)
           rvb.addAnnotation(localGlobalSignature, globalsBc.value)
           val globalsOffset = rvb.end()
 
