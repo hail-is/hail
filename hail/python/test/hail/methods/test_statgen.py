@@ -135,6 +135,68 @@ class Tests(unittest.TestCase):
         self.assertTrue(t1._same(t4a))
         self.assertTrue(t1._same(t4b))
 
+    def test_linreg_chained(self):
+        phenos = hl.import_table(resource('regressionLinear.pheno'),
+                                 types={'Pheno': hl.tfloat64},
+                                 key='Sample')
+        covs = hl.import_table(resource('regressionLinear.cov'),
+                               types={'Cov1': hl.tfloat64, 'Cov2': hl.tfloat64},
+                               key='Sample')
+
+        mt = hl.import_vcf(resource('regressionLinear.vcf'))
+        mt = mt.annotate_cols(pheno=phenos[mt.s].Pheno, cov=covs[mt.s])
+        mt = mt.annotate_entries(x=mt.GT.n_alt_alleles()).cache()
+
+        t1 = hl.linear_regression_rows(y=[[mt.pheno], [mt.pheno]], x=mt.x, covariates=[1, mt.cov.Cov1, mt.cov.Cov2])
+        def all_eq(*args):
+            pred = True
+            for a in args:
+                if isinstance(a, hl.expr.Expression) \
+                        and isinstance(a.dtype, hl.tarray) \
+                        and isinstance(a.dtype.element_type, hl.tarray):
+                    pred = pred & (hl.all(lambda x: x,
+                        hl.map(lambda elt: ((hl.is_nan(elt[0]) & hl.is_nan(elt[1])) | (elt[0] == elt[1])),
+                               hl.zip(a[0], a[1]))))
+                else:
+                    pred = pred & ((hl.is_nan(a[0]) & hl.is_nan(a[1])) | (a[0] == a[1]))
+            return pred
+
+        self.assertTrue(t1.aggregate(hl.agg.all(
+            all_eq(t1.n,
+                   t1.sum_x,
+                   t1.y_transpose_x,
+                   t1.beta,
+                   t1.standard_error,
+                   t1.t_stat,
+                   t1.p_value))))
+
+        mt2 = mt.filter_cols(mt.cov.Cov2 >= 0)
+        mt3 = mt.filter_cols(mt.cov.Cov2 <= 0)
+
+        t2 = hl.linear_regression_rows(y=mt2.pheno, x=mt2.x, covariates=[1, mt2.cov.Cov1])
+        t3 = hl.linear_regression_rows(y=mt3.pheno, x=mt3.x, covariates=[1, mt3.cov.Cov1])
+
+        chained = hl.linear_regression_rows(y=[[hl.case().when(mt.cov.Cov2 >= 0, mt.pheno).or_missing()],
+                                               [hl.case().when(mt.cov.Cov2 <= 0, mt.pheno).or_missing()]],
+                                            x=mt.x,
+                                            covariates=[1, mt.cov.Cov1])
+        chained = chained.annotate(r0 = t2[chained.key], r1 = t3[chained.key])
+        self.assertTrue(chained.aggregate(hl.agg.all(
+            all_eq([chained.n[0], chained.r0.n],
+                   [chained.n[1], chained.r1.n],
+                   [chained.sum_x[0], chained.r0.sum_x],
+                   [chained.sum_x[1], chained.r1.sum_x],
+                   [chained.y_transpose_x[0][0], chained.r0.y_transpose_x],
+                   [chained.y_transpose_x[1][0], chained.r1.y_transpose_x],
+                   [chained.beta[0][0], chained.r0.beta],
+                   [chained.beta[1][0], chained.r1.beta],
+                   [chained.standard_error[0][0], chained.r0.standard_error],
+                   [chained.standard_error[1][0], chained.r1.standard_error],
+                   [chained.t_stat[0][0], chained.r0.t_stat],
+                   [chained.t_stat[1][0], chained.r1.t_stat],
+                   [chained.p_value[0][0], chained.r0.p_value],
+                   [chained.p_value[1][0], chained.r1.p_value]))))
+
     def test_linear_regression_without_intercept(self):
         pheno = hl.import_table(resource('regressionLinear.pheno'),
                                 key='Sample',

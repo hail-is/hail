@@ -1,3 +1,4 @@
+import itertools
 import math
 import numpy as np
 from typing import *
@@ -232,7 +233,7 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
     return kt
 
 
-@typecheck(y=oneof(expr_float64, sequenceof(expr_float64)),
+@typecheck(y=oneof(expr_float64, sequenceof(expr_float64), sequenceof(sequenceof(expr_float64))),
            x=expr_float64,
            covariates=sequenceof(expr_float64),
            block_size=int)
@@ -250,12 +251,18 @@ def linear_regression_rows(y, x, covariates, block_size=16) -> hail.Table:
 
     Warning
     -------
+    As in the example, the intercept covariate ``1`` must be
+    included **explicitly** if desired.
+
+    Warning
+    -------
     :func:`.linear_regression_rows` considers the same set of
     columns (i.e., samples, points) for every response variable and row,
     namely those columns for which **all** response variables and covariates
-    are defined. For each row, missing values of `x` are mean-imputed over
-    these columns. As in the example, the intercept covariate ``1`` must be
-    included **explicitly** if desired.
+    are defined.
+
+    If the `y` parameter is a list of lists, then each inner list is treated
+    as an independent group, subsetting columns for missingness separately.
 
     Notes
     -----
@@ -278,6 +285,13 @@ def linear_regression_rows(y, x, covariates, block_size=16) -> hail.Table:
     If `y` is a list of expressions, then the last five fields instead have type
     :py:data:`.tarray` of :py:data:`.tfloat64`, with corresponding indexing of
     the list and each array.
+
+    If `y` is a list of list of expressions, then `n` and `sum_x` are of type
+    ``array<float64>``, and the last five fields are of type
+    ``array<array<float64>>``. Index into these arrays with
+    ``a[index_in_outer_list, index_in_inner_list]``. As an example, if `y` is
+    passed as ``y=[[a], [b,c]]`, then retrieve the p-value for `b` with
+    ``p_value[1][0]``.
 
     In the statistical genetics example above, the input variable `x` encodes
     genotype as the number of alternate alleles (0, 1, or 2). For each variant
@@ -323,34 +337,45 @@ def linear_regression_rows(y, x, covariates, block_size=16) -> hail.Table:
     check_entry_indexed('linear_regression_rows/x', x)
 
     y_is_list = isinstance(y, list)
+    if y_is_list and len(y) == 0:
+        raise ValueError(f"'linear_regression_rows': found no values for 'y'")
+    is_chained = y_is_list and isinstance(y[0], list)
 
-    all_exprs = []
     y = wrap_to_list(y)
-    for e in y:
-        all_exprs.append(e)
+
+    for e in (itertools.chain.from_iterable(y) if is_chained else y):
         analyze('linear_regression_rows/y', e, mt._col_indices)
+
     for e in covariates:
-        all_exprs.append(e)
         analyze('linear_regression_rows/covariates', e, mt._col_indices)
 
     _warn_if_no_intercept('linear_regression_rows', covariates)
 
     x_field_name = Env.get_uid()
-    y_field_names = list(f'__y{i}' for i in range(len(y)))
+    if is_chained:
+        y_field_names = [[f'__y_{j}_{i}' for i in range(len(y[j]))] for j in range(len(y))]
+        y_dict = dict(zip(itertools.chain.from_iterable(y_field_names), itertools.chain.from_iterable(y)))
+        func = Env.hail().methods.LinearRegression.chain
+
+    else:
+        y_field_names = list(f'__y_{i}' for i in range(len(y)))
+        y_dict = dict(zip(y_field_names, y))
+        func = Env.hail().methods.LinearRegression.single
+
     cov_field_names = list(f'__cov{i}' for i in range(len(covariates)))
 
     # FIXME: selecting an existing entry field should be emitted as a SelectFields
-    mt = mt._select_all(col_exprs=dict(**dict(zip(y_field_names, y)),
+    mt = mt._select_all(col_exprs=dict(**y_dict,
                                        **dict(zip(cov_field_names, covariates))),
                         row_exprs=dict(mt.row_key),
                         col_key=[],
                         entry_exprs={x_field_name: x})
 
-    jt = Env.hail().methods.LinearRegression.apply(
+    jt = func(
         mt._jvds,
-        jarray(Env.jvm().java.lang.String, y_field_names),
+        y_field_names,
         x_field_name,
-        jarray(Env.jvm().java.lang.String, cov_field_names),
+        cov_field_names,
         block_size)
 
     ht_result = Table(jt)
