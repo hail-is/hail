@@ -15,7 +15,6 @@ cleanup() {
     kubectl delete service $SERVICE_NAME
 }
 trap cleanup EXIT
-
 trap "exit 42" INT TERM
 
 mkdir github-tokens
