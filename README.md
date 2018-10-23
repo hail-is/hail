@@ -2,7 +2,7 @@
 
 [![Zulip](https://img.shields.io/badge/zulip-join_chat-brightgreen.svg)](https://hail.zulipchat.com?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
 
-[Hail](https://hail.is) is an open-source, general-purpose, Python-based data analysis tool with additional data types and methods for working with genomic data. Hail is used throughout academia and industry as the analytical engine for major studies, projects, and services, including the Genome Aggregation Database (gnomad.broadinstitute.org) and Neale lab mega-GWAS (nealelab.is/uk-biobank).
+[Hail](https://hail.is) is an open-source, general-purpose, Python-based data analysis tool with additional data types and methods for working with genomic data. Hail is used throughout academia and industry as the analytical engine for major studies, projects, and services, including the Genome Aggregation Database ([gnomad.broadinstitute.org](gnomad.broadinstitute.org)) and Neale lab mega-GWAS ([nealelab.is/uk-biobank](nealelab.is/uk-biobank)).
 
 Unlike the Python and R scientific computing stacks, Hail:
 
