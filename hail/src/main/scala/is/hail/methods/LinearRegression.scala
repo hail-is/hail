@@ -23,7 +23,7 @@ case class ChainedLinregInput(
   yyp: DenseVector[Double],
   d: Int)
 
-case class ChainedLinregIntermediate(
+case class ChainedLinregResult(
   n: Int,
   AC: DenseVector[Double],
   ytx: DenseMatrix[Double],
@@ -296,7 +296,7 @@ object LinearRegression {
               val t = b /:/ se
               val p = t.map(s => 2 * T.cumulative(-math.abs(s), cri.d, true, false))
 
-              ChainedLinregIntermediate(cri.n, AC, ytx, b, se, t, p)
+              ChainedLinregResult(cri.n, AC, ytx, b, se, t, p)
             }
 
             (0 until blockLength).iterator.map { i =>

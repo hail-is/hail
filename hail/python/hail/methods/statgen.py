@@ -286,7 +286,7 @@ def linear_regression_rows(y, x, covariates, block_size=16) -> hail.Table:
     :py:data:`.tarray` of :py:data:`.tfloat64`, with corresponding indexing of
     the list and each array.
 
-    If `y` is a list of list of expressions, then `n` and `sum_x` are of type
+    If `y` is a list of lists of expressions, then `n` and `sum_x` are of type
     ``array<float64>``, and the last five fields are of type
     ``array<array<float64>>``. Index into these arrays with
     ``a[index_in_outer_list, index_in_inner_list]``. For example, if
