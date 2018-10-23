@@ -1,0 +1,11 @@
+#!/bin/bash
+
+/etc/init.d/nginx start
+
+sleep 5
+
+rm -rf /etc/letsencrypt/*
+
+certbot --test-cert --cert-name @domain@ -n --agree-tos -m cseed@broadinstitute.org -d @domain@ -d www.@domain@ -d ci.@domain@ -d upload.@domain@ -d scorecard.@domain@ -d notebook.@domain@ -d test.@domain@ -d dev1.@domain@ --nginx
+
+cat /etc/nginx/conf.d/letsencrypt.conf
