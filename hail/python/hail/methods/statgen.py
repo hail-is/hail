@@ -237,7 +237,7 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
            covariates=sequenceof(expr_float64),
            block_size=int)
 def linear_regression_rows(y, x, covariates, block_size=16) -> hail.Table:
-    """For each row, test an input variable for association with
+    r"""For each row, test an input variable for association with
     response variables using linear regression.
 
     Examples
@@ -1378,7 +1378,7 @@ def pca(entry_expr, k=10, compute_loadings=False) -> Tuple[List[float], Table, T
            block_size=nullable(int))
 def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
               min_kinship=-float("inf"), statistics="all", block_size=None) -> Table:
-    """Compute relatedness estimates between individuals using a variant of the
+    r"""Compute relatedness estimates between individuals using a variant of the
     PC-Relate method.
 
     .. include:: ../_templates/req_diploid_gt.rst
@@ -2076,7 +2076,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep'):
 
 @typecheck(call_expr=expr_call)
 def genetic_relatedness_matrix(call_expr) -> BlockMatrix:
-    """Compute the genetic relatedness matrix (GRM).
+    r"""Compute the genetic relatedness matrix (GRM).
 
     Examples
     --------
@@ -2151,7 +2151,7 @@ def genetic_relatedness_matrix(call_expr) -> BlockMatrix:
 
 @typecheck(call_expr=expr_call)
 def realized_relationship_matrix(call_expr) -> BlockMatrix:
-    """Computes the realized relationship matrix (RRM).
+    r"""Computes the realized relationship matrix (RRM).
 
     Examples
     --------

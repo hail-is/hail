@@ -122,7 +122,7 @@ class HailContext(object):
                 '     __  __     <>__\n'
                 '    / /_/ /__  __/ /\n'
                 '   / __  / _ `/ / /\n'
-                '  /_/ /_/\_,_/_/_/   version {}\n'.format(version))
+                '  /_/ /_/\\_,_/_/_/   version {}\n'.format(version))
 
             if version.startswith('devel'):
                 sys.stderr.write('NOTE: This is a beta version. Interfaces may change\n'

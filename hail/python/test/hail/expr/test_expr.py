@@ -231,7 +231,7 @@ class Tests(unittest.TestCase):
     def test_first_match_in(self):
         string = hl.literal('1:25-100')
         self.assertTrue(hl.eval(string.first_match_in("([^:]*)[:\\t](\\d+)[\\-\\t](\\d+)")) == ['1', '25', '100'])
-        self.assertIsNone(hl.eval(string.first_match_in("hello (\w+)!")))
+        self.assertIsNone(hl.eval(string.first_match_in(r"hello (\w+)!")))
 
     def test_cond(self):
         self.assertEqual(hl.eval('A' + hl.cond(True, 'A', 'B')), 'AA')
