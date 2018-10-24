@@ -193,9 +193,13 @@ test_gcp() {
          gs://hail-ci-0-1/temp/$SOURCE_SHA/$TARGET_SHA/hail.zip
 
     time cluster start ${CLUSTER_NAME} \
+         --master-machine-type n1-standard-1 \
+         --master-boot-disk-size 40 \
+         --worker-machine-type n1-standard-1 \
+         --worker-boot-disk-size 40 \
          --version devel \
          --spark 2.2.0 \
-         --max-idle 40m \
+         --max-idle 10m \
          --bucket=hail-ci-0-1-dataproc-staging-bucket \
          --jar gs://hail-ci-0-1/temp/$SOURCE_SHA/$TARGET_SHA/hail.jar \
          --zip gs://hail-ci-0-1/temp/$SOURCE_SHA/$TARGET_SHA/hail.zip \
