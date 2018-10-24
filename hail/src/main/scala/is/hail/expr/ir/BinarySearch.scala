@@ -3,12 +3,12 @@ package is.hail.expr.ir
 import is.hail.annotations.{CodeOrdering, Region}
 import is.hail.asm4s._
 import is.hail.expr.types._
-import is.hail.expr.types.physical.{PBaseStruct, PType}
+import is.hail.expr.types.physical.{PBaseStruct, PContainer, PType}
 import is.hail.utils._
 
-class BinarySearch(mb: EmitMethodBuilder, typ: TContainer, keyOnly: Boolean) {
+class BinarySearch(mb: EmitMethodBuilder, typ: PContainer, keyOnly: Boolean) {
 
-  val elt: PType = typ.elementType.physicalType
+  val elt: PType = typ.elementType
   val ti: TypeInfo[_] = typeToTypeInfo(elt)
 
   val (compare: CodeOrdering.F[Int], equiv: CodeOrdering.F[Boolean], findElt: EmitMethodBuilder, t: PType) = if (keyOnly) {

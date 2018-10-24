@@ -102,7 +102,7 @@ object RandomSeededFunctions extends RegistryFunctions {
     }
 
     registerSeeded("rand_cat", TArray(TFloat64()), TInt32()) { case (mb, seed, a) =>
-      val tarray = TArray(TFloat64())
+      val pArray = PArray(PFloat64())
       val array = mb.newLocal[Array[Double]]
       val aoff = mb.newLocal[Long]
       val length = mb.newLocal[Int]
@@ -110,10 +110,10 @@ object RandomSeededFunctions extends RegistryFunctions {
       Code(
         aoff := a,
         i := 0,
-        length := tarray.loadLength(getRegion(mb), aoff),
+        length := pArray.loadLength(getRegion(mb), aoff),
         array := Code.newArray[Double](length),
         Code.whileLoop(i < length,
-          array.load().update(i, getRegion(mb).loadDouble(tarray.elementOffset(aoff, length, i))),
+          array.load().update(i, getRegion(mb).loadDouble(pArray.elementOffset(aoff, length, i))),
           i += 1),
         mb.newRNG(seed).invoke[Array[Double], Int]("rcat", array))
     }
