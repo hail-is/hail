@@ -136,10 +136,12 @@ abstract class PContainer extends PType {
     region.allocate(contentsAlignment, contentsByteSize(length))
   }
 
-  private def setMemory(region: Region, aoff: Long, value: Byte, count: Int) {
+  // TODO expose intrinsic to just memset this
+  private def writeMissingness(region: Region, aoff: Long, length: Int, value: Byte) {
+    val nMissingBytes = (length + 7) / 8
     var i = 0
-    while (i < count) {
-      region.storeByte(aoff + i, value)
+    while (i < nMissingBytes) {
+      region.storeByte(aoff + 4 + i, value)
       i += 1
     }
   }
@@ -147,15 +149,13 @@ abstract class PContainer extends PType {
   def setAllMissingBits(region: Region, aoff: Long, length: Int) {
     if (elementType.required)
       return
-    val nMissingBytes = (length + 7) / 8
-    setMemory(region, aoff + 4, -1, nMissingBytes)
+    writeMissingness(region, aoff + 4, length, -1)
   }
 
   def clearMissingBits(region: Region, aoff: Long, length: Int) {
     if (elementType.required)
       return
-    val nMissingBytes = (length + 7) / 8
-    setMemory(region, aoff + 4, 0, nMissingBytes)
+    writeMissingness(region, aoff + 4, length, 0)
   }
 
   def initialize(region: Region, aoff: Long, length: Int, setMissing: Boolean = false) {
