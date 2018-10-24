@@ -1,4 +1,5 @@
 #!/bin/bash
+set -ex
 
 /etc/init.d/nginx start
 
@@ -6,6 +7,21 @@ sleep 5
 
 rm -rf /etc/letsencrypt/*
 
-certbot --test-cert --cert-name @domain@ -n --agree-tos -m cseed@broadinstitute.org -d @domain@ -d www.@domain@ -d ci.@domain@ -d upload.@domain@ -d scorecard.@domain@ -d notebook.@domain@ -d test.@domain@ -d dev1.@domain@ --nginx
+# test 
+certbot --cert-name @domain@ -n --agree-tos -m cseed@broadinstitute.org -d @domain@ -d www.@domain@ -d ci.@domain@ -d upload.@domain@ -d scorecard.@domain@ -d notebook.@domain@ -d test.@domain@ -d dev1.@domain@ --nginx
 
 cat /etc/nginx/conf.d/letsencrypt.conf
+
+cat | kubectl apply -f - <<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: letsencrypt-config
+  namespace: default
+type: Opaque
+data:
+  fullchain.pem: $(base64 -w 0 /etc/letsencrypt/live/@domain@/fullchain.pem)
+  options-ssl-nginx.conf: $(base64 -w 0 /etc/letsencrypt/options-ssl-nginx.conf)
+  privkey.pem: $(base64 -w 0 /etc/letsencrypt/live/@domain@/privkey.pem)
+  ssl-dhparams.pem: $(base64 -w 0 /etc/letsencrypt/ssl-dhparams.pem)
+EOF
