@@ -122,7 +122,7 @@ final class Region() extends NativeBase() {
 
   final def appendBinary(v: Array[Byte]): Long = {
     val len: Int = v.length
-    val grain = if (TBinary.contentAlignment < 4) 4 else TBinary.contentAlignment
+    val grain = if (PBinary.contentAlignment < 4) 4 else PBinary.contentAlignment
     val addr = allocate(grain, grain+len) + (grain-4)
     storeInt(addr, len)
     storeBytes(addr+4, v)
@@ -136,10 +136,10 @@ final class Region() extends NativeBase() {
     len: Int
   ): Long = {
     assert(len >= 0)
-    val grain = if (TBinary.contentAlignment < 4) 4 else TBinary.contentAlignment
+    val grain = if (PBinary.contentAlignment < 4) 4 else PBinary.contentAlignment
     val addr = allocate(grain, grain+len) + (grain-4)
     storeInt(addr, len)
-    copyFrom(fromRegion, TBinary.bytesOffset(fromOff) + start, addr+4, len)
+    copyFrom(fromRegion, PBinary.bytesOffset(fromOff) + start, addr+4, len)
     addr
   }
 
@@ -203,7 +203,7 @@ final class Region() extends NativeBase() {
       case _: PFloat64 => v.visitFloat64(loadDouble(off))
       case _: PString =>
         val boff = off
-        v.visitString(TString.loadString(this, boff))
+        v.visitString(PString.loadString(this, boff))
       case _: PBinary =>
         val boff = off
         val length = PBinary.loadLength(this, boff)

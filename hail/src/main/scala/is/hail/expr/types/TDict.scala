@@ -15,10 +15,6 @@ final case class TDict(keyType: Type, valueType: Type, override val required: Bo
 
   val elementType: Type = +TStruct("key" -> keyType, "value" -> valueType)
 
-  val elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)
-
-  val contentsAlignment: Long = elementType.alignment.max(4)
-
   override val fundamentalType: TArray = TArray(elementType.fundamentalType, required)
 
   override def canCompare(other: Type): Boolean = other match {

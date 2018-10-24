@@ -49,8 +49,6 @@ class TFloat32(override val required: Boolean) extends TNumeric {
 
   val ordering: ExtendedOrdering =
     ExtendedOrdering.extendToNull(implicitly[Ordering[Float]])
-
-  override def byteSize: Long = 4
 }
 
 object TFloat32 {

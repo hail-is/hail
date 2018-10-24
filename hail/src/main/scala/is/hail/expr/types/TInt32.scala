@@ -55,8 +55,6 @@ class TInt32(override val required: Boolean) extends TIntegral {
         x.ceq(y)
     }
   }
-
-  override def byteSize: Long = 4
 }
 
 object TInt32 {

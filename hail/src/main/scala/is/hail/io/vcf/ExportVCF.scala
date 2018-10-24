@@ -42,7 +42,7 @@ object ExportVCF {
         else
           sb.append(x.formatted("%.5e"))
       case PString(_) =>
-        sb.append(TString.loadString(m, offset))
+        sb.append(PString.loadString(m, offset))
       case PCall(_) =>
         val c = m.loadInt(offset)
         Call.vcfString(c, sb)
@@ -359,7 +359,7 @@ object ExportVCF {
   
         if (idExists && fullRowType.isFieldDefined(rv, idIdx)) {
           val idOffset = fullRowType.loadField(rv, idIdx)
-          sb.append(TString.loadString(m, idOffset))
+          sb.append(PString.loadString(m, idOffset))
         } else
           sb += '.'
   

@@ -11,10 +11,6 @@ import scala.reflect.{ClassTag, _}
 final case class TSet(elementType: Type, override val required: Boolean = false) extends TIterable {
   lazy val physicalType: PSet = PSet(elementType.physicalType, required)
 
-  val elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)
-
-  val contentsAlignment: Long = elementType.alignment.max(4)
-
   override val fundamentalType: TArray = TArray(elementType.fundamentalType, required)
 
   def _toPretty = s"Set[$elementType]"

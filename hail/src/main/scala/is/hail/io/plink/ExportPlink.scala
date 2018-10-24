@@ -6,7 +6,7 @@ import is.hail.HailContext
 import is.hail.annotations.Region
 import is.hail.expr.ir.MatrixValue
 import is.hail.expr.types._
-import is.hail.expr.types.physical.PStruct
+import is.hail.expr.types.physical.{PString, PStruct}
 import is.hail.variant._
 import is.hail.utils._
 import org.apache.spark.TaskContext
@@ -150,7 +150,7 @@ class BimAnnotationView(rowType: PStruct) extends View {
 
   def varid(): String = {
     if (cachedVarid == null)
-      cachedVarid = TString.loadString(region, varidOffset)
+      cachedVarid = PString.loadString(region, varidOffset)
     cachedVarid
   }
 }

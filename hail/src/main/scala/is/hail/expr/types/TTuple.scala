@@ -40,10 +40,6 @@ final case class TTuple(_types: IndexedSeq[Type], override val required: Boolean
 
   val missingIdx = new Array[Int](size)
   val nMissing: Int = TBaseStruct.getMissingness(types, missingIdx)
-  val nMissingBytes = (nMissing + 7) >>> 3
-  val byteOffsets = new Array[Long](size)
-  override val byteSize: Long = TBaseStruct.getByteSizeAndOffsets(types, nMissingBytes, byteOffsets)
-  override val alignment: Long = TBaseStruct.alignment(types)
 
   def ++(that: TTuple): TTuple = TTuple(types ++ that.types, required = false)
 

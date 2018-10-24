@@ -30,39 +30,6 @@ object TBaseStruct {
     }
     i
   }
-
-  def getByteSizeAndOffsets(types: Array[Type], nMissingBytes: Long, byteOffsets: Array[Long]): Long = {
-    assert(byteOffsets.length == types.length)
-    val bp = new BytePacker()
-
-    var offset: Long = nMissingBytes
-    types.zipWithIndex.foreach { case (t, i) =>
-      val fSize = t.byteSize
-      val fAlignment = t.alignment
-
-      bp.getSpace(fSize, fAlignment) match {
-        case Some(start) =>
-          byteOffsets(i) = start
-        case None =>
-          val mod = offset % fAlignment
-          if (mod != 0) {
-            val shift = fAlignment - mod
-            bp.insertSpace(shift, offset)
-            offset += (fAlignment - mod)
-          }
-          byteOffsets(i) = offset
-          offset += fSize
-      }
-    }
-    offset
-  }
-
-  def alignment(types: Array[Type]): Long = {
-    if (types.isEmpty)
-      1
-    else
-      types.map(_.alignment).max
-  }
 }
 
 abstract class TBaseStruct extends Type {
@@ -140,11 +107,7 @@ abstract class TBaseStruct extends Type {
 
   override def scalaClassTag: ClassTag[Row] = classTag[Row]
 
-  def nMissingBytes: Int
-
   def missingIdx: Array[Int]
-
-  def byteOffsets: Array[Long]
 
   override def _showStr(a: Annotation, cfg: ShowStrConfig, sb: StringBuilder): Unit = {
     val r = a.asInstanceOf[Row]

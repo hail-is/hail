@@ -6,7 +6,7 @@ import is.hail.expr.ir._
 import is.hail.table.Table
 import is.hail.annotations._
 import is.hail.expr.types._
-import is.hail.expr.types.physical.PType
+import is.hail.expr.types.physical.{PString, PType}
 import is.hail.rvd.RVDContext
 import is.hail.sparkextras.ContextRDD
 import is.hail.variant.{Call, Genotype, HardCallView, MatrixTable}
@@ -341,8 +341,8 @@ object IBD {
     val rvd = kt.rvd
     rvd.map { rv =>
       val region = rv.region
-      val i = TString.loadString(region, ibdPType.loadField(rv, 0))
-      val j = TString.loadString(region, ibdPType.loadField(rv, 1))
+      val i = PString.loadString(region, ibdPType.loadField(rv, 0))
+      val j = PString.loadString(region, ibdPType.loadField(rv, 1))
       val ibd = IBDInfo.fromRegionValue(region, ibdPType.loadField(rv, 2))
       val ibs0 = region.loadLong(ibdPType.loadField(rv, 3))
       val ibs1 = region.loadLong(ibdPType.loadField(rv, 4))
