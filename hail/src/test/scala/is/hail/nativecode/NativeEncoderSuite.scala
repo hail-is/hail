@@ -169,7 +169,7 @@ class NativeEncoderSuite extends SparkSuite {
 
     Region.scoped { region =>
       val rvb = new RegionValueBuilder(region)
-      rvb.start(t)
+      rvb.start(t.physicalType)
       rvb.addAnnotation(t, a)
       val off = rvb.end()
       enc.writeRegionValue(region, off)
