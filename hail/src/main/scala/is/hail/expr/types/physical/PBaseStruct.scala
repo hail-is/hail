@@ -174,6 +174,16 @@ abstract class PBaseStruct extends PType {
     region.setBit(offset, missingIdx(fieldIdx))
   }
 
+  def setFieldPresent(region: Region, offset: Long, fieldIdx: Int) {
+    assert(!fieldRequired(fieldIdx))
+    region.clearBit(offset, missingIdx(fieldIdx))
+  }
+
+  def setFieldPresent(region: Code[Region], offset: Code[Long], fieldIdx: Int): Code[Unit] = {
+    assert(!fieldRequired(fieldIdx))
+    region.clearBit(offset, missingIdx(fieldIdx))
+  }
+
   def fieldOffset(offset: Long, fieldIdx: Int): Long =
     offset + byteOffsets(fieldIdx)
 

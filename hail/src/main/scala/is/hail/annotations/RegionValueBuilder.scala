@@ -230,6 +230,8 @@ class RegionValueBuilder(var region: Region) {
   def setPresent() {
     val i = indexstk.top
     typestk.top match {
+      case t: PBaseStruct =>
+        t.setFieldPresent(region, offsetstk.top, i)
       case t: PArray =>
         t.setElementPresent(region, offsetstk.top, i)
     }
