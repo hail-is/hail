@@ -13,7 +13,7 @@ class OutputStream {
   private:
     UpcallEnv up_;
     jobject joutput_stream_;
-    jbyteArray jbuf_;
+    jobject jbuf_;
     int jbuf_size_;
 
   public:

@@ -9,6 +9,7 @@ import is.hail.expr.types._
 import is.hail.io._
 import org.testng.annotations.Test
 import is.hail.utils._
+import is.hail.variant.MatrixTable
 import org.apache.spark.sql.Row
 
 class NativeEncoderSuite extends SparkSuite {
@@ -182,6 +183,11 @@ class NativeEncoderSuite extends SparkSuite {
     val expected = baos.toByteArray
 
     assert(compiled sameElements expected)
+  }
+
+  @Test def testReadWrite() {
+    val mt = MatrixTable.read(hc, "/Users/wang/data/vcf/profile225.mt")
+    mt.write("/Users/wang/data/vcf/test.mt", overwrite = true)
   }
 
 }

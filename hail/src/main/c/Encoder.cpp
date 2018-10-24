@@ -15,12 +15,13 @@ OutputStream::OutputStream(UpcallEnv up, jobject joutput_stream) :
 
 void OutputStream::write(char * buf, int n) {
   if (jbuf_size_ < n) {
-    jbuf_ = up_.env()->NewByteArray(n);
+    auto jbuf = up_.env()->NewByteArray(n);
+    jbuf_ = up_.env()->NewGlobalRef(jbuf);
     jbuf_size_ = n;
   }
-  auto byteBuf = up_.env()->GetByteArrayElements(jbuf_, nullptr);
+  auto byteBuf = up_.env()->GetByteArrayElements(reinterpret_cast<jbyteArray>(jbuf_), nullptr);
   memcpy(byteBuf, buf, n);
-  up_.env()->ReleaseByteArrayElements(jbuf_, byteBuf, 0);
+  up_.env()->ReleaseByteArrayElements(reinterpret_cast<jbyteArray>(jbuf_), byteBuf, 0);
   up_.env()->CallVoidMethod(joutput_stream_, up_.config()->OutputStream_write_, jbuf_, 0, n);
 }
 
@@ -33,6 +34,9 @@ void OutputStream::close() {
 }
 
 OutputStream::~OutputStream() {
+  if (jbuf_ != nullptr) {
+    up_.env()->DeleteGlobalRef(jbuf_);
+  }
   up_.env()->DeleteGlobalRef(joutput_stream_);
 }
 

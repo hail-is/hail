@@ -160,7 +160,8 @@ object ShowBuf {
 final case class PackCodecSpec(child: BufferSpec) extends CodecSpec {
 
   def buildEncoder(t: PType): (OutputStream) => Encoder = {
-    if (System.getenv("HAIL_ENABLE_CPP_CODEGEN") != null) {
+//    if (System.getenv("HAIL_ENABLE_CPP_CODEGEN_ENCODE") != null) {
+    if (true) {
       val e: NativeEncoderModule = NativeEncoder(t, child);
       { out: OutputStream => new NativePackEncoder(out, e) }
     } else {
