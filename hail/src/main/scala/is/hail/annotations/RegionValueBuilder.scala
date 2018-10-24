@@ -167,12 +167,7 @@ class RegionValueBuilder(var region: Region) {
     val length = t.loadLength(region, aoff)
     assert(length == indexstk.top)
 
-    typestk.pop()
-    offsetstk.pop()
-    elementsOffsetstk.pop()
-    indexstk.pop()
-
-    advance()
+    endArrayUnchecked()
   }
 
   // using this function, rather than startArray will set all elements of the array to missing by
