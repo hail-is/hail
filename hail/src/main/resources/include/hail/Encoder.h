@@ -24,7 +24,7 @@ class OutputStream {
     ~OutputStream();
 };
 
-class StreamOutputBlockBuffer : public NativeObj {
+class StreamOutputBlockBuffer {
   private:
     std::shared_ptr<OutputStream> output_stream_;
 
@@ -35,39 +35,39 @@ class StreamOutputBlockBuffer : public NativeObj {
 };
 
 template <int BLOCKSIZE, typename OutputBlockBuffer>
-class LZ4OutputBlockBuffer : public NativeObj {
+class LZ4OutputBlockBuffer {
   private:
-    std::shared_ptr<OutputBlockBuffer> block_buf_;
+    OutputBlockBuffer block_buf_;
     char * block_;
   public:
-    LZ4OutputBlockBuffer(std::shared_ptr<OutputBlockBuffer> buf) :
-      block_buf_(buf),
+    LZ4OutputBlockBuffer(std::shared_ptr<OutputStream> out) :
+      block_buf_(OutputBlockBuffer(out)),
       block_(new char[LZ4_compressBound(BLOCKSIZE) + 4]{}) { }
 
     void write_block(char * buf, int n) {
       int comp_length = LZ4_compress_default(buf, block_ + 4, n, LZ4_compressBound(BLOCKSIZE) + 4);
       reinterpret_cast<int *>(block_)[0] = n;
-      block_buf_->write_block(block_, comp_length + 4);
+      block_buf_.write_block(block_, comp_length + 4);
     }
 
-    void close() { block_buf_->close(); }
+    void close() { block_buf_.close(); }
 };
 
 template <int BLOCKSIZE, typename OutputBlockBuffer>
-class BlockingOutputBuffer : public NativeObj {
+class BlockingOutputBuffer {
   private:
-    std::shared_ptr<OutputBlockBuffer> block_buf_;
+    OutputBlockBuffer block_buf_;
     char * block_;
     int off_ = 0;
 
   public:
-    BlockingOutputBuffer(std::shared_ptr<OutputBlockBuffer> buf) :
-      block_buf_(buf),
+    BlockingOutputBuffer(std::shared_ptr<OutputStream> out) :
+      block_buf_(OutputBlockBuffer(out)),
       block_(new char[BLOCKSIZE]{}) { }
 
     void flush() {
       if (off_ > 0) {
-        block_buf_->write_block(block_, off_);
+        block_buf_.write_block(block_, off_);
         off_ = 0;
       }
     }
@@ -126,21 +126,21 @@ class BlockingOutputBuffer : public NativeObj {
       off_ += n_left;
     }
 
-    void close() { flush(); block_buf_->close(); }
+    void close() { flush(); block_buf_.close(); }
 };
 
 template <typename OutputBuffer>
-class LEB128OutputBuffer : public NativeObj {
+class LEB128OutputBuffer {
   private:
-    std::shared_ptr<OutputBuffer> buf_;
+    OutputBuffer buf_;
 
   public:
-    LEB128OutputBuffer(std::shared_ptr<OutputBuffer> buf) :
-      buf_(buf) { }
+    LEB128OutputBuffer(std::shared_ptr<OutputStream> out) :
+      buf_(OutputBuffer(out)) { }
 
-    void flush() { buf_->flush(); }
+    void flush() { buf_.flush(); }
 
-    void write_byte(char c) { buf_->write_byte(c); }
+    void write_byte(char c) { buf_.write_byte(c); }
 
     void write_boolean(bool b) { write_byte(b ? 1 : 0); }
 
@@ -152,7 +152,7 @@ class LEB128OutputBuffer : public NativeObj {
         if (unpacked != 0) {
           b |= 0x80;
         }
-        buf_->write_byte(static_cast<char>(b));
+        buf_.write_byte(static_cast<char>(b));
       } while (unpacked != 0);
     }
 
@@ -164,17 +164,28 @@ class LEB128OutputBuffer : public NativeObj {
         if (unpacked != 0) {
           b |= 0x80;
         }
-        buf_->write_byte(static_cast<char>(b));
+        buf_.write_byte(static_cast<char>(b));
       } while (unpacked != 0);
     }
 
-    void write_float(float f) { buf_->write_float(f); }
+    void write_float(float f) { buf_.write_float(f); }
 
-    void write_double(double d) { buf_->write_double(d); }
+    void write_double(double d) { buf_.write_double(d); }
 
-    void write_bytes(char * buf, int n) { buf_->write_bytes(buf, n); }
+    void write_bytes(char * buf, int n) { buf_.write_bytes(buf, n); }
 
-    void close() { buf_->close(); }
+    void close() { buf_.close(); }
+};
+
+template<typename OutputBuffer>
+class Encoder : public NativeObj {
+  private:
+    OutputBuffer buf_;
+
+  public:
+    Encoder(std::shared_ptr<OutputStream> out) :
+      buf_(OutputBuffer(out)) { }
+    OutputBuffer get_buf() { return buf_; }
 };
 
 }
