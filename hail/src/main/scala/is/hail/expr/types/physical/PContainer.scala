@@ -149,13 +149,13 @@ abstract class PContainer extends PType {
   def setAllMissingBits(region: Region, aoff: Long, length: Int) {
     if (elementType.required)
       return
-    writeMissingness(region, aoff + 4, length, -1)
+    writeMissingness(region, aoff, length, -1)
   }
 
   def clearMissingBits(region: Region, aoff: Long, length: Int) {
     if (elementType.required)
       return
-    writeMissingness(region, aoff + 4, length, 0)
+    writeMissingness(region, aoff, length, 0)
   }
 
   def initialize(region: Region, aoff: Long, length: Int, setMissing: Boolean = false) {
