@@ -78,9 +78,9 @@ object MatrixIR {
     val oldEntryArrayType = typ.entryArrayType
     val oldEntryType = typ.entryType
 
-    val newColValueType = TStruct(typ.colValueStruct.fields.map(f => f.copy(typ = TArray(f.typ, required = true))))
+    val newColValueType = TStruct(typ.colValueStruct.fields.map(f => f.copy(typ = TArray(f.typ, required = false))))
     val newColType = typ.colKeyStruct ++ newColValueType
-    val newEntryType = TStruct(typ.entryType.fields.map(f => f.copy(typ = TArray(f.typ, required = true))))
+    val newEntryType = TStruct(typ.entryType.fields.map(f => f.copy(typ = TArray(f.typ, required = false))))
     val newMatrixType = typ.copyParts(colType = newColType, entryType = newEntryType)
     val newRVRowType = newMatrixType.rvRowType
     val localRowSize = newRVRowType.size

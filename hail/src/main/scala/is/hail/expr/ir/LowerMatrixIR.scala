@@ -19,15 +19,24 @@ object LowerMatrixIR {
     case mir: MatrixIR => lower(mir)
   }
 
-  private[this] def lower(ir: IR): IR =
-    lowerChildren(ir).asInstanceOf[IR]
+  private[this] def lower(ir: IR): IR = {
+    val lowered = lowerChildren(ir).asInstanceOf[IR]
+    assert(lowered.typ == ir.typ)
+    lowered
+  }
 
-  private[this] def lower(tir: TableIR): TableIR =
-    tableRules.applyOrElse(tir, (tir: TableIR) => lowerChildren(tir).asInstanceOf[TableIR])
+  private[this] def lower(tir: TableIR): TableIR = {
+    val lowered = tableRules.applyOrElse(tir, (tir: TableIR) => lowerChildren(tir).asInstanceOf[TableIR])
+    assert(lowered.typ == tir.typ)
+    lowered
+  }
 
-  private[this] def lower(mir: MatrixIR): TableIR =
-    matrixRules.applyOrElse(mir, (mir: MatrixIR) =>
+  private[this] def lower(mir: MatrixIR): TableIR = {
+    val lowered = matrixRules.applyOrElse(mir, (mir: MatrixIR) =>
       CastMatrixToTable(lowerChildren(mir).asInstanceOf[MatrixIR], entriesFieldName, colsFieldName))
+    assert(lowered.typ == loweredType(mir.typ), lowered.typ + "\n" + loweredType(mir.typ))
+    lowered
+  }
 
   private[this] def lowerChildren(ir: BaseIR): BaseIR = {
     val loweredChildren = ir.children.map(lower)
@@ -63,6 +72,15 @@ object LowerMatrixIR {
   def entries(tir: TableIR): IR =
     GetField(Ref("row", tir.typ.rowType), entriesFieldName)
 
+  def loweredType(
+    typ: MatrixType,
+    entriesFieldName: String = entriesFieldName,
+    colsFieldName: String = colsFieldName
+  ): TableType = TableType(
+    rowType = typ.rvRowType.rename(Map(MatrixType.entriesIdentifier -> entriesFieldName)),
+    key = typ.rowKey,
+    globalType = typ.globalType.appendKey(colsFieldName, TArray(typ.colType)))
+
   import is.hail.expr.ir.IRBuilder._
 
   private[this] def matrixRules: PartialFunction[MatrixIR, TableIR] = {
@@ -72,7 +90,9 @@ object LowerMatrixIR {
     case MatrixFilterRows(child, pred) =>
       lower(child)
         .rename(Map(entriesFieldName -> MatrixType.entriesIdentifier))
-        .filter(let ('va <=: 'row) in pred)
+        .filter(let ('va <=: 'row,
+                     'global <=: 'global.dropFields(colsField))
+                in pred)
         .rename(Map(MatrixType.entriesIdentifier -> entriesFieldName))
 
     case MatrixFilterCols(child, pred) =>
@@ -93,7 +113,9 @@ object LowerMatrixIR {
       lower(child)
         .mapGlobals('global.insertFields('newColIdx -> oldIndices.map(I32)))
         .mapRows('row.insertFields(entriesField -> 'global('newColIdx).map('i ~> 'row(entriesField)('i))))
-        .mapGlobals('global.insertFields(colsField -> 'global('newColIdx).map('i ~> 'global(colsField)('i))))
+        .mapGlobals('global
+          .insertFields(colsField -> 'global('newColIdx).map('i ~> 'global(colsField)('i)))
+          .dropFields('newColIdx))
 
     case MatrixMapGlobals(child, newGlobals) =>
       lower(child)
@@ -109,7 +131,44 @@ object LowerMatrixIR {
                           'va <=: 'row.dropFields(entriesField),
                           'global <=: 'global.dropFields(colsField))
                       in pred)
-              { 'g }{ NA(child.typ.entryType) })}))
+              { 'g }{ NA(child.typ.entryType) })
+        }))
+
+    case MatrixMapEntries(child, newEntries) =>
+      lower(child).mapRows('row.insertFields(entriesField ->
+        irRange(0, 'global(colsField).len).map { 'i ~>
+          (let('g <=: 'row(entriesField)('i),
+               'sa <=: 'global(colsField)('i),
+               'va <=: 'row.dropFields(entriesField),
+               'global <=: 'global.dropFields(colsField))
+            in newEntries)
+        }))
+
+    case MatrixUnionRows(children) =>
+      // FIXME: should this check that all children have the same column keys? How?
+      TableUnion(children.map(lower))
+
+    case MatrixCollectColsByKey(child) =>
+      lower(child)
+        .mapGlobals('global.insertFields('newColIdx ->
+          irRange(0, 'global(colsField).len).map { 'i ~>
+            makeTuple('global(colsField)('i).selectFields(child.typ.colKey: _*),
+                      'i)
+          }.groupByKey.toArray))
+        .mapRows('row.insertFields(entriesField ->
+          'global('newColIdx).map { 'kv ~>
+            makeStruct(child.typ.entryType.fieldNames.map { s =>
+              (Symbol(s), 'kv('value).map { 'i ~> 'row(entriesField)('i)(Symbol(s))})}: _*)
+          }))
+        .mapGlobals('global
+          .insertFields(colsField ->
+            'global('newColIdx).map { 'kv ~>
+              'kv('key).insertFields(
+                child.typ.colValueStruct.fieldNames.map { s =>
+                  (Symbol(s), 'kv('value).map('i ~> 'global(colsField)('i)(Symbol(s))))}: _*)
+            })
+          .dropFields('newColIdx)
+        )
   }
 
   private[this] def tableRules: PartialFunction[TableIR, TableIR] = {

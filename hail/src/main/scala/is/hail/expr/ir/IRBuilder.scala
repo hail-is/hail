@@ -5,6 +5,7 @@ import is.hail.expr.types.{TArray, TStruct, Type}
 import scala.language.implicitConversions
 
 object IRBuilder {
+  case class EnvBinding(name: String, typ: Type)
   type E = Env[Type]
 
   implicit def tableIRToProxy(tir: TableIR): TableIRProxy =
@@ -36,6 +37,12 @@ object IRBuilder {
 
   def irIf(cond: IRProxy)(cnsq: IRProxy)(altr: IRProxy): IRProxy = (env: E) =>
     If(cond(env), cnsq(env), altr(env))
+
+  def makeStruct(fields: (Symbol, IRProxy)*): IRProxy = (env: E) =>
+    MakeStruct(fields.map { case (s, ir) => (s.name, ir(env)) })
+
+  def makeTuple(values: IRProxy*): IRProxy = (env: E) =>
+    MakeTuple(values.map(_(env)))
 
   class TableIRProxy(val tir: TableIR) {
     def empty: E = Env.empty
@@ -79,6 +86,13 @@ object IRBuilder {
       }
     }
 
+    def typecheck(t: Type): IRProxy = { (env: E) =>
+      val eval = ir(env)
+      TypeCheck(eval, env, None)
+      assert(eval.typ == t, t._toPretty + " " + eval.typ._toPretty)
+      eval
+    }
+
     def insertFields(fields: (Symbol, IRProxy)*): IRProxy = (env: E) =>
       InsertFields(ir(env), fields.map { case (s, fir) => (s.name, fir(env)) })
 
@@ -104,6 +118,10 @@ object IRBuilder {
       val eltType = array.typ.asInstanceOf[TArray].elementType
       ArrayMap(ir(env), f.s.name, f.body(env.bind(f.s.name -> eltType)))
     }
+
+    def groupByKey: IRProxy = (env: E) => GroupByKey(ir(env))
+
+    def toArray: IRProxy = (env: E) => ToArray(ir(env))
 
     private[ir] def apply(env: E) = ir(env)
   }
