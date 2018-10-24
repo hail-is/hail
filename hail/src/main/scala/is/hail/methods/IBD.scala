@@ -6,6 +6,7 @@ import is.hail.expr.ir._
 import is.hail.table.Table
 import is.hail.annotations._
 import is.hail.expr.types._
+import is.hail.expr.types.physical.PType
 import is.hail.rvd.RVDContext
 import is.hail.sparkextras.ContextRDD
 import is.hail.variant.{Call, Genotype, HardCallView, MatrixTable}
@@ -24,14 +25,16 @@ object IBDInfo {
   val signature =
     TStruct(("Z0", TFloat64()), ("Z1", TFloat64()), ("Z2", TFloat64()), ("PI_HAT", TFloat64()))
 
+  private val pType = signature.physicalType
+
   def fromRegionValue(rv: RegionValue): IBDInfo =
     fromRegionValue(rv.region, rv.offset)
 
   def fromRegionValue(region: Region, offset: Long): IBDInfo = {
-    val Z0 = region.loadDouble(signature.loadField(region, offset, 0))
-    val Z1 = region.loadDouble(signature.loadField(region, offset, 1))
-    val Z2 = region.loadDouble(signature.loadField(region, offset, 2))
-    val PI_HAT = region.loadDouble(signature.loadField(region, offset, 3))
+    val Z0 = region.loadDouble(pType.loadField(region, offset, 0))
+    val Z1 = region.loadDouble(pType.loadField(region, offset, 1))
+    val Z2 = region.loadDouble(pType.loadField(region, offset, 2))
+    val PI_HAT = region.loadDouble(pType.loadField(region, offset, 3))
     IBDInfo(Z0, Z1, Z2, PI_HAT)
   }
 }
@@ -56,14 +59,16 @@ object ExtendedIBDInfo {
   val signature =
     TStruct(("ibd", IBDInfo.signature), ("ibs0", TInt64()), ("ibs1", TInt64()), ("ibs2", TInt64()))
 
+  private val pType = signature.physicalType
+
   def fromRegionValue(rv: RegionValue): ExtendedIBDInfo =
     fromRegionValue(rv.region, rv.offset)
 
   def fromRegionValue(region: Region, offset: Long): ExtendedIBDInfo = {
-    val ibd = IBDInfo.fromRegionValue(region, signature.loadField(region, offset, 0))
-    val ibs0 = region.loadLong(signature.loadField(region, offset, 1))
-    val ibs1 = region.loadLong(signature.loadField(region, offset, 2))
-    val ibs2 = region.loadLong(signature.loadField(region, offset, 3))
+    val ibd = IBDInfo.fromRegionValue(region, pType.loadField(region, offset, 0))
+    val ibs0 = region.loadLong(pType.loadField(region, offset, 1))
+    val ibs1 = region.loadLong(pType.loadField(region, offset, 2))
+    val ibs2 = region.loadLong(pType.loadField(region, offset, 3))
     ExtendedIBDInfo(ibd, ibs0, ibs1, ibs2)
   }
 }

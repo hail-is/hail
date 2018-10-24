@@ -146,25 +146,6 @@ abstract class TBaseStruct extends Type {
 
   def byteOffsets: Array[Long]
 
-  def isFieldDefined(region: Region, offset: Long, fieldIdx: Int): Boolean =
-    fieldRequired(fieldIdx) || !region.loadBit(offset, missingIdx(fieldIdx))
-
-  def fieldOffset(offset: Long, fieldIdx: Int): Long =
-    offset + byteOffsets(fieldIdx)
-
-  def fieldOffset(offset: Code[Long], fieldIdx: Int): Code[Long] =
-    offset + byteOffsets(fieldIdx)
-
-  def loadField(rv: RegionValue, fieldIdx: Int): Long = loadField(rv.region, rv.offset, fieldIdx)
-
-  def loadField(region: Region, offset: Long, fieldIdx: Int): Long = {
-    val off = fieldOffset(offset, fieldIdx)
-    types(fieldIdx).fundamentalType match {
-      case _: TArray | _: TBinary => region.loadAddress(off)
-      case _ => off
-    }
-  }
-
   override def _showStr(a: Annotation, cfg: ShowStrConfig, sb: StringBuilder): Unit = {
     val r = a.asInstanceOf[Row]
     sb.append('(')

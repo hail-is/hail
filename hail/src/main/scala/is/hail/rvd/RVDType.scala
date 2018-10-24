@@ -71,12 +71,12 @@ final case class RVDType(rowType: TStruct, key: IndexedSeq[String] = FastIndexed
       // is above, always considering missing greatest.
       def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
 
-        val leftDefined = rowType.isFieldDefined(r1, o1, f1)
-        val rightDefined = other.rowType.isFieldDefined(r2, o2, f2)
+        val leftDefined = t1p.isFieldDefined(r1, o1, f1)
+        val rightDefined = t2p.isFieldDefined(r2, o2, f2)
 
         if (leftDefined && rightDefined) {
-          val k1 = t1.loadField(r1, o1, f1)
-          val k2 = t2.loadField(r2, o2, f2)
+          val k1 = t1p.loadField(r1, o1, f1)
+          val k2 = t2p.loadField(r2, o2, f2)
           if (intervalType.startDefined(r2, k2)) {
             val c = pord.compare(r1, k1, r2, intervalType.loadStart(r2, k2))
             if (c < 0 || (c == 0 && !intervalType.includesStart(r2, k2))) {
@@ -159,11 +159,11 @@ object RVDType {
         while (i < nFields) {
           val f1 = fields1(i)
           val f2 = fields2(i)
-          val leftDefined = t1.isFieldDefined(r1, o1, f1)
-          val rightDefined = t2.isFieldDefined(r2, o2, f2)
+          val leftDefined = t1p.isFieldDefined(r1, o1, f1)
+          val rightDefined = t2p.isFieldDefined(r2, o2, f2)
 
           if (leftDefined && rightDefined) {
-            val c = fieldOrderings(i).compare(r1, t1.loadField(r1, o1, f1), r2, t2.loadField(r2, o2, f2))
+            val c = fieldOrderings(i).compare(r1, t1p.loadField(r1, o1, f1), r2, t2p.loadField(r2, o2, f2))
             if (c != 0)
               return c
           } else if (leftDefined != rightDefined) {
