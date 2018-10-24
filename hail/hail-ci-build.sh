@@ -199,7 +199,7 @@ test_gcp() {
          --worker-boot-disk-size 40 \
          --version devel \
          --spark 2.2.0 \
-         --max-idle 20m \
+         --max-idle 10m \
          --bucket=hail-ci-0-1-dataproc-staging-bucket \
          --jar gs://hail-ci-0-1/temp/$SOURCE_SHA/$TARGET_SHA/hail.jar \
          --zip gs://hail-ci-0-1/temp/$SOURCE_SHA/$TARGET_SHA/hail.zip \
