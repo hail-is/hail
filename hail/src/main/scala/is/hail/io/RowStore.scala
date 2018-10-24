@@ -1595,6 +1595,7 @@ object NativeEncoder {
          |}""".stripMargin
 
     s"""${len.define}
+       |${i.define}
        |$copyLengthAndMissing
        |${eltOff.define}
        |while ($i < $len) {
