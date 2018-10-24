@@ -744,8 +744,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val localRightSamples = right.numCols
     val leftEntriesIndex = entriesIndex
     val rightEntriesIndex = right.entriesIndex
-    val localEntriesType = matrixType.entryArrayType
-    assert(right.matrixType.entryArrayType == localEntriesType)
+    val localEntriesType = matrixType.entryArrayType.physicalType
+    assert(right.matrixType.entryArrayType == matrixType.entryArrayType)
 
     val joiner = { (ctx: RVDContext, it: Iterator[JoinedRegionValue]) =>
       val rvb = ctx.rvb
@@ -775,13 +775,13 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
         i = 0
         while (i < localLeftSamples) {
-          rvb.addElement(localEntriesType.physicalType, lrv.region, leftEntriesOffset, i)
+          rvb.addElement(localEntriesType, lrv.region, leftEntriesOffset, i)
           i += 1
         }
 
         i = 0
         while (i < localRightSamples) {
-          rvb.addElement(localEntriesType.physicalType, rrv.region, rightEntriesOffset, i)
+          rvb.addElement(localEntriesType, rrv.region, rightEntriesOffset, i)
           i += 1
         }
 
@@ -818,7 +818,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val localNSamples = numCols
     val localRVRowType = rvRowType
     val localEntriesIndex = entriesIndex
-    val localEntriesType = localRVRowType.types(entriesIndex).asInstanceOf[TArray]
+    val localEntriesType = matrixType.entryArrayType.physicalType
     val localEntryType = matrixType.entryType.physicalType
 
     val newRVD = rvd.mapPartitions(ttyp.rvdType) { it =>
@@ -1362,7 +1362,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val partStartsBc = sparkContext.broadcast(partStarts)
 
     val rvRowType = matrixType.rvRowType
-    val entryArrayType = matrixType.entryArrayType
+    val entryArrayType = matrixType.entryArrayType.physicalType
     val entryType = matrixType.entryType
     val fieldType = entryType.field(entryField).typ
 
@@ -1478,7 +1478,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val localKeyFieldIdx = matrixType.rvdType.kFieldIdx
     val entriesIndex = localRVRowType.fieldIdx(MatrixType.entriesIdentifier)
     val nonEntryIndices = (0 until localRVRowType.size).filter(_ != entriesIndex).toArray
-    val entryArrayType = matrixType.entryArrayType
+    val entryArrayType = matrixType.entryArrayType.physicalType
     val entryType = matrixType.entryType.physicalType
     val rg = referenceGenome
 

@@ -75,8 +75,8 @@ object MatrixIR {
 
   def collectColsByKey(typ: MatrixType): (MatrixType, MatrixValue => MatrixValue) = {
     val oldRVRowType = typ.rvRowType
-    val oldEntryArrayType = typ.entryArrayType
-    val oldEntryType = typ.entryType
+    val oldEntryArrayType = typ.entryArrayType.physicalType
+    val oldEntryType = typ.entryType.physicalType
 
     val newColValueType = TStruct(typ.colValueStruct.fields.map(f => f.copy(typ = TArray(f.typ, required = true))))
     val newColType = typ.colKeyStruct ++ newColValueType
@@ -130,7 +130,7 @@ object MatrixIR {
               var k = 0
               while (k < idxMap(i).length) {
                 rvb.addField(
-                  oldEntryType.physicalType,
+                  oldEntryType,
                   rv.region,
                   oldEntryArrayType.loadElement(rv.region, entryArrayOffset, idxMap(i)(k)),
                   j
@@ -705,7 +705,7 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, entryExpr: IR, rowExpr: IR)
     val selectIdx = prev.typ.rvdType.kFieldIdx
     val keyOrd = prev.typ.rvdType.kRowOrd
     val localGlobalsType = prev.typ.globalType
-    val localColsType = TArray(minColType)
+    val localColsType = TArray(minColType).physicalType
     val colValuesBc = minColValues.broadcast
     val globalsBc = prev.globals.broadcast
     val newRVD = prev.rvd
@@ -720,8 +720,8 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, entryExpr: IR, rowExpr: IR)
         rvb.addAnnotation(localGlobalsType, globalsBc.value)
         val globals = rvb.end()
 
-        rvb.start(localColsType.physicalType)
-        rvb.addAnnotation(localColsType, colValuesBc.value)
+        rvb.start(localColsType)
+        rvb.addAnnotation(localColsType.virtualType, colValuesBc.value)
         val cols = rvb.end()
 
         val initializeRow = makeInitRow(i)
