@@ -2,10 +2,14 @@
 #define HAIL_ENCODER_H 1
 #include "lz4.h"
 #include "hail/Upcalls.h"
+#include "hail/Utils.h"
 #include "hail/NativeObj.h"
 #include <jni.h>
 #include <memory>
 #include <cstring>
+
+#define LIKELY(condition)   __builtin_expect(static_cast<bool>(condition), 1)
+#define UNLIKELY(condition) __builtin_expect(static_cast<bool>(condition), 0)
 
 namespace hail {
 
@@ -44,9 +48,11 @@ class LZ4OutputBlockBuffer {
       block_buf_(OutputBlockBuffer(out)),
       block_(new char[LZ4_compressBound(BLOCKSIZE) + 4]{}) { }
 
+    ~LZ4OutputBlockBuffer() { free(block_); }
+
     void write_block(char * buf, int n) {
       int comp_length = LZ4_compress_default(buf, block_ + 4, n, LZ4_compressBound(BLOCKSIZE) + 4);
-      reinterpret_cast<int *>(block_)[0] = n;
+      store_int(block_, n);
       block_buf_.write_block(block_, comp_length + 4);
     }
 
@@ -64,6 +70,8 @@ class BlockingOutputBuffer {
     BlockingOutputBuffer(std::shared_ptr<OutputStream> out) :
       block_buf_(OutputBlockBuffer(out)),
       block_(new char[BLOCKSIZE]{}) { }
+
+    ~BlockingOutputBuffer() { free(block_); }
 
     void flush() {
       if (off_ > 0) {
@@ -86,7 +94,7 @@ class BlockingOutputBuffer {
       if (off_ + 4 > BLOCKSIZE) {
         flush();
       }
-      memcpy(block_ + off_, reinterpret_cast<char *>(&i), 4);
+      store_int(block_ + off_, i);
       off_ += 4;
     }
 
@@ -94,7 +102,7 @@ class BlockingOutputBuffer {
       if (off_ + 8 > BLOCKSIZE) {
         flush();
       }
-      memcpy(block_ + off_, reinterpret_cast<char *>(&l), 8);
+      store_long(block_ + off_, l);
       off_ += 8;
     }
 
@@ -102,7 +110,7 @@ class BlockingOutputBuffer {
       if (off_ + 4 > BLOCKSIZE) {
         flush();
       }
-      memcpy(block_ + off_, reinterpret_cast<char *>(&f), 4);
+      store_float(block_ + off_, f);
       off_ += 4;
     }
 
@@ -110,7 +118,7 @@ class BlockingOutputBuffer {
       if (off_ + 8 > BLOCKSIZE) {
         flush();
       }
-      memcpy(block_ + off_, reinterpret_cast<char *>(&d), 8);
+      store_double(block_ + off_, d);
       off_ += 8;
     }
 
@@ -153,7 +161,7 @@ class LEB128OutputBuffer {
           b |= 0x80;
         }
         buf_.write_byte(static_cast<char>(b));
-      } while (unpacked != 0);
+      } while (UNLIKELY(unpacked != 0));
     }
 
     void write_long(long l) {
@@ -165,7 +173,7 @@ class LEB128OutputBuffer {
           b |= 0x80;
         }
         buf_.write_byte(static_cast<char>(b));
-      } while (unpacked != 0);
+      } while (UNLIKELY(unpacked != 0));
     }
 
     void write_float(float f) { buf_.write_float(f); }

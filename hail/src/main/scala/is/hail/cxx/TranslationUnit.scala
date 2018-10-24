@@ -5,12 +5,6 @@ import is.hail.utils.ArrayBuilder
 
 class TranslationUnit(preamble: String, definitions: Array[Definition]) {
 
-  val functions: Map[String, Function] =
-    definitions
-      .filter(_.isInstanceOf[Function])
-      .map(f => (f.name, f.asInstanceOf[Function]))
-      .toMap
-
   def source: String =
     new PrettyCode(s"""$preamble
        |
@@ -42,8 +36,6 @@ class TranslationUnitBuilder() {
     else
       includes += s"""#include "$header""""
   }
-
-
 
   def +=(definition: Definition): Unit =
     definitions += definition

@@ -38,15 +38,6 @@ class ObjectArray : public NativeObj {
 
 using ObjectArrayPtr = std::shared_ptr<ObjectArray>;
 
-class ObjectHolder : public NativeObj {
- public:
-  ObjectArrayPtr objects_;
-
-  ObjectHolder(ObjectArray* objects) :
-    objects_(std::dynamic_pointer_cast<ObjectArray>(objects->shared_from_this())) {
-  }
-};
-
 }
 
 #endif

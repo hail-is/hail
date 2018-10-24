@@ -9,4 +9,7 @@ package object cxx {
     s"${name}_$symCounter"
   }
 
+  type Code = String
+  type Type = String
+
 }

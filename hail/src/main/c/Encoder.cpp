@@ -39,6 +39,8 @@ void OutputStream::close() {
 OutputStream::~OutputStream() {
   if (jbuf_ != nullptr) {
     up_.env()->DeleteGlobalRef(jbuf_);
+    jbuf_ = nullptr;
+    jbuf_size_ = -1;
   }
   up_.env()->DeleteGlobalRef(joutput_stream_);
 }

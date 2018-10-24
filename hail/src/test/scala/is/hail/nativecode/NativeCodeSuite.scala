@@ -210,18 +210,18 @@ class NativeCodeSuite extends SparkSuite {
     testPlus.close()
   }
 
-  @Test def testCXXCodeFunctions: Unit = {
-    val tub= new TranslationUnitBuilder()
+  @Test def testCXXCodeFunctions(): Unit = {
+    val tub = new TranslationUnitBuilder()
     tub.include("hail/hail.h")
     tub.include("<cstdio>")
 
     val fb = FunctionBuilder("testUpcall", Array("NativeStatus*" -> "st", "long" -> "a0"), "long")
 
-    fb += Statement(
+    fb +=
       s"""
          |set_test_msg("Hello!");
          |return 1000+${fb.getArg(1)};
-       """.stripMargin)
+       """.stripMargin
 
     val f = fb.result()
     tub += f
@@ -232,7 +232,7 @@ class NativeCodeSuite extends SparkSuite {
     val testUpcall = mod.findLongFuncL1(st, f.name)
     mod.close()
     assert(st.ok, st.toString())
-    Upcalls.testMsg = "InitialValueOfTestMsg";
+    Upcalls.testMsg = "InitialValueOfTestMsg"
     assert(testUpcall(st, 99) == 1099)
     assert(Upcalls.testMsg.equals("Hello!"))
     st.close()

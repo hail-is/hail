@@ -1,14 +1,16 @@
 package is.hail.cxx
 
+import is.hail.utils.ArrayBuilder
+
 trait Definition {
   def name: String
   def typ: String
-  def define: Statement
+  def define: Code
 }
 
 object Variable {
-  def apply(prefix: String, typ: String, init: Statement): Variable =
-    new Variable(prefix, typ, Expression(init.toString))
+  def apply(prefix: String, typ: Type, init: Code): Variable =
+    new Variable(prefix, typ, Expression(init))
 }
 
 class Variable(prefix: String, val typ: String, init: Expression) extends Definition {
@@ -18,43 +20,40 @@ class Variable(prefix: String, val typ: String, init: Expression) extends Defini
 
   def toExpr: Expression = Expression(name)
 
-  def define: Statement = new Statement {
-    override def toString: String =
+  def define: Code =
       if (init == null)
         s"$typ $name;"
       else s"$typ $name = $init;"
-  }
 }
 
-class Function(returnType: String, prefix: String, args: Array[Variable], body: Block) extends Block(body.statements) with Definition {
-  val name: String = genSym(prefix)
+class Function(returnType: Type, val name: String, args: Array[Variable], body: Code) extends Definition {
 
-  def typ: String = returnType
+  def typ: Type = returnType
 
-  def define: Statement = Statement(s"$returnType $name(${args.map(a => s"${a.typ} ${a.name}").mkString(", ")}) $body")
+  def define: Code = s"$returnType $name(${args.map(a => s"${a.typ} ${a.name}").mkString(", ")}) {\n$body\n}"
 }
 
 object FunctionBuilder {
 
-  def apply(prefix: String, args: Array[(String, String)], returnType: String): FunctionBuilder =
+  def apply(prefix: String, args: Array[(Type, String)], returnType: Type): FunctionBuilder =
     new FunctionBuilder(
       prefix,
       args.map { case (typ, p) => new Variable(p, typ, null) },
       returnType)
 
-  def apply(prefix: String, argTypes: Array[String], returnType: String): FunctionBuilder =
+  def apply(prefix: String, argTypes: Array[Type], returnType: Type): FunctionBuilder =
     apply(prefix, argTypes.map(_ -> genSym("arg")), returnType)
 }
 
-class FunctionBuilder(prefix: String, args: Array[Variable], returnType: String) extends BlockBuilder {
+class FunctionBuilder(prefix: String, args: Array[Variable], returnType: Type) {
+
+  val statements: ArrayBuilder[Code] = new ArrayBuilder[Code]()
+
+  def +=(statement: Code) =
+    statements += statement
 
   def getArg(i: Int): Variable = args(i)
 
-  override def result(): Function = new Function(returnType, prefix, args, super.result())
+  def result(): Function = new Function(returnType, prefix, args, statements.result().mkString("\n"))
 
-  def addTo(tub: TranslationUnitBuilder): Function = {
-    val f = result()
-    tub += f
-    f
-  }
 }
