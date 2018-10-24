@@ -53,7 +53,7 @@ timsetamp = None
 def index():
     cur_data = data
     cur_timestamp = timestamp
-    
+
     unassigned = []
     user_data = collections.defaultdict(
         lambda: {'CHANGES_REQUESTED': [],
@@ -62,7 +62,7 @@ def index():
 
     def add_pr(repo_name, pr):
         state = pr['state']
-        
+
         if state == 'CHANGES_REQUESTED':
             d = user_data[pr['user']]
             d[state].append(pr)
@@ -83,7 +83,7 @@ def index():
             if len(pr['assignees']) == 0:
                 unassigned.append(pr)
                 continue
-            
+
             add_pr(repo_name, pr)
 
         for issue in repo_data['issues']:
@@ -98,6 +98,19 @@ def index():
                            user_data=user_data, random_user=random_user, updated=updated)
 
 @app.route('/users/<user>')
+def html_get_user(user):
+    user_data, updated = get_user(user)
+    return render_template('user.html', user=user, user_data=user_data, updated=updated)
+
+@app.route('/json/users/<user>')
+def json_user(user):
+    user_data, updated = get_user(user)
+    return jsonify(updated=updated, data=user_data)
+
+@app.route('/json/random')
+def json_random_user():
+    return jsonify(random.choice(users))
+
 def get_user(user):
     global data, timestamp
 
@@ -131,9 +144,9 @@ def get_user(user):
                 user_data['ISSUES'].append(issue)
 
     updated = humanize.naturaltime(
-        datetime.datetime.now() - datetime.timedelta(seconds = time.time() - cur_timestamp))
+        datetime.datetime.now() - datetime.timedelta(seconds=time.time() - cur_timestamp))
+    return (user_data, updated)
 
-    return render_template('user.html', user=user, user_data=user_data, updated=updated)
 
 def get_id(repo_name, number):
     if repo_name == default_repo:
@@ -187,15 +200,15 @@ def update_data():
 
     log.info(f'rate_limit {github.get_rate_limit()}')
     log.info('start updating_data')
-    
+
     new_data = {}
-    
+
     for repo_name in repos:
         new_data[repo_name] = {
             'prs': [],
             'issues': []
         }
-        
+
     for repo_name, fq_repo in repos.items():
         repo = github.get_repo(fq_repo)
 
@@ -207,9 +220,9 @@ def update_data():
             if issue.pull_request is None:
                 issue_data = get_issue_data(repo_name, issue)
                 new_data[repo_name]['issues'].append(issue_data)
-    
+
     log.info('updating_data done')
-    
+
     now = time.time()
 
     data = new_data
