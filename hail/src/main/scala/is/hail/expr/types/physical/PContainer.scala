@@ -136,26 +136,26 @@ abstract class PContainer extends PType {
     region.allocate(contentsAlignment, contentsByteSize(length))
   }
 
+  private def setMemory(region: Region, aoff: Long, value: Byte, count: Int) {
+    var i = 0
+    while (i < count) {
+      region.storeByte(aoff + i, value)
+      i += 1
+    }
+  }
+
   def setAllMissingBits(region: Region, aoff: Long, length: Int) {
     if (elementType.required)
       return
     val nMissingBytes = (length + 7) / 8
-    var i = 0
-    while (i < nMissingBytes) {
-      region.storeByte(aoff + 4 + i, -1)
-      i += 1
-    }
+    setMemory(region, aoff + 4, -1, nMissingBytes)
   }
 
   def clearMissingBits(region: Region, aoff: Long, length: Int) {
     if (elementType.required)
       return
     val nMissingBytes = (length + 7) / 8
-    var i = 0
-    while (i < nMissingBytes) {
-      region.storeByte(aoff + 4 + i, 0)
-      i += 1
-    }
+    setMemory(region, aoff + 4, 0, nMissingBytes)
   }
 
   def initialize(region: Region, aoff: Long, length: Int, setMissing: Boolean = false) {

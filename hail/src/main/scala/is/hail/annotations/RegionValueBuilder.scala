@@ -143,6 +143,19 @@ class RegionValueBuilder(var region: Region) {
   }
 
   def startArray(length: Int, init: Boolean = true) {
+    startArrayInternal(length, init, false)
+  }
+
+  // using this function, rather than startArray will set all elements of the array to missing by
+  // default, you will need to use setPresent to add a value to this array.
+  def startMissingArray(length: Int, init: Boolean = true) {
+    val t = currentType().asInstanceOf[PArray]
+    if (t.elementType.required)
+      fatal(s"cannot use random array pattern for required type ${ t.elementType }")
+    startArrayInternal(length, init, true)
+  }
+
+  private def startArrayInternal(length: Int, init: Boolean, setMissing: Boolean) {
     val t = currentType().asInstanceOf[PArray]
     val aoff = region.allocate(t.contentsAlignment, t.contentsByteSize(length))
 
@@ -158,7 +171,7 @@ class RegionValueBuilder(var region: Region) {
     offsetstk.push(aoff)
 
     if (init)
-      t.initialize(region, aoff, length)
+      t.initialize(region, aoff, length, setMissing)
   }
 
   def endArray() {
@@ -168,29 +181,6 @@ class RegionValueBuilder(var region: Region) {
     assert(length == indexstk.top)
 
     endArrayUnchecked()
-  }
-
-  // using this function, rather than startArray will set all elements of the array to missing by
-  // default, you will need to use setPresent to add a value to this array.
-  def startMissingArray(length: Int, init: Boolean = true) {
-    val t = currentType().asInstanceOf[PArray]
-    if (t.elementType.required)
-      fatal(s"cannot use random array pattern for required type ${ t.elementType }")
-    val aoff = region.allocate(t.contentsAlignment, t.contentsByteSize(length))
-
-    if (typestk.nonEmpty) {
-      val off = currentOffset()
-      region.storeAddress(off, aoff)
-    } else
-      start = aoff
-
-    typestk.push(t)
-    elementsOffsetstk.push(aoff + t.elementsOffset(length))
-    indexstk.push(0)
-    offsetstk.push(aoff)
-
-    if (init)
-      t.initialize(region, aoff, length, setMissing = true)
   }
 
   def endArrayUnchecked() {
