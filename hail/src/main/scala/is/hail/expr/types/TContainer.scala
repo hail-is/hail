@@ -58,13 +58,6 @@ abstract class TContainer extends Type {
     _elementsOffset(length)
   }
 
-  def contentsByteSize(length: Int): Long =
-    elementsOffset(length) + length * elementByteSize
-
-  def contentsByteSize(length: Code[Int]): Code[Long] = {
-    elementsOffset(length) + length.toL * elementByteSize
-  }
-
   def isElementMissing(region: Region, aoff: Long, i: Int): Boolean =
     !isElementDefined(region, aoff, i)
 
@@ -79,15 +72,6 @@ abstract class TContainer extends Type {
       true
     else
       !region.loadBit(aoff + 4, i.toL)
-
-  def setElementMissing(region: Region, aoff: Long, i: Int) {
-    assert(!elementType.required)
-    region.setBit(aoff + 4, i)
-  }
-
-  def setElementMissing(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Unit] = {
-    region.setBit(aoff + 4L, i.toL)
-  }
 
   def elementOffset(aoff: Long, length: Int, i: Int): Long =
     aoff + elementsOffset(length) + i * elementByteSize
@@ -122,40 +106,4 @@ abstract class TContainer extends Type {
 
   def loadElement(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Long] =
     loadElement(region, aoff, region.loadInt(aoff), i)
-
-  def allocate(region: Region, length: Int): Long = {
-    region.allocate(contentsAlignment, contentsByteSize(length))
-  }
-
-  def clearMissingBits(region: Region, aoff: Long, length: Int) {
-    if (elementType.required)
-      return
-    val nMissingBytes = (length + 7) / 8
-    var i = 0
-    while (i < nMissingBytes) {
-      region.storeByte(aoff + 4 + i, 0)
-      i += 1
-    }
-  }
-
-  def initialize(region: Region, aoff: Long, length: Int) {
-    region.storeInt(aoff, length)
-    clearMissingBits(region, aoff, length)
-  }
-
-  def initialize(region: Code[Region], aoff: Code[Long], length: Code[Int], a: Settable[Int]): Code[Unit] = {
-    var c = region.storeInt(aoff, length)
-    if (elementType.required)
-      return c
-    Code(
-      c,
-      a.store((length + 7) >>> 3),
-      Code.whileLoop(a > 0,
-        Code(
-          a.store(a - 1),
-          region.storeByte(aoff + 4L + a.toL, const(0))
-        )
-      )
-    )
-  }
 }

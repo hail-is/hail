@@ -146,28 +146,6 @@ abstract class TBaseStruct extends Type {
 
   def byteOffsets: Array[Long]
 
-  def allocate(region: Region): Long = {
-    region.allocate(alignment, byteSize)
-  }
-
-  def clearMissingBits(region: Region, off: Long) {
-    var i = 0
-    while (i < nMissingBytes) {
-      region.storeByte(off + i, 0)
-      i += 1
-    }
-  }
-
-  def clearMissingBits(region: Code[Region], off: Code[Long]): Code[Unit] = {
-    var c: Code[Unit] = Code._empty
-    var i = 0
-    while (i < nMissingBytes) {
-      c = Code(c, region.storeByte(off + i.toLong, const(0)))
-      i += 1
-    }
-    c
-  }
-
   def isFieldDefined(rv: RegionValue, fieldIdx: Int): Boolean =
     isFieldDefined(rv.region, rv.offset, fieldIdx)
 
@@ -182,16 +160,6 @@ abstract class TBaseStruct extends Type {
 
   def isFieldDefined(region: Code[Region], offset: Code[Long], fieldIdx: Int): Code[Boolean] =
     !isFieldMissing(region, offset, fieldIdx)
-
-  def setFieldMissing(region: Region, offset: Long, fieldIdx: Int) {
-    assert(!fieldRequired(fieldIdx))
-    region.setBit(offset, missingIdx(fieldIdx))
-  }
-
-  def setFieldMissing(region: Code[Region], offset: Code[Long], fieldIdx: Int): Code[Unit] = {
-    assert(!fieldRequired(fieldIdx))
-    region.setBit(offset, missingIdx(fieldIdx))
-  }
 
   def fieldOffset(offset: Long, fieldIdx: Int): Long =
     offset + byteOffsets(fieldIdx)
