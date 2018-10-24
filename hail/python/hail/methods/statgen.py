@@ -236,8 +236,9 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
 @typecheck(y=oneof(expr_float64, sequenceof(expr_float64), sequenceof(sequenceof(expr_float64))),
            x=expr_float64,
            covariates=sequenceof(expr_float64),
-           block_size=int)
-def linear_regression_rows(y, x, covariates, block_size=16) -> hail.Table:
+           block_size=int,
+           pass_through=sequenceof(oneof(str, Expression)))
+def linear_regression_rows(y, x, covariates, block_size=16, pass_through=()) -> hail.Table:
     r"""For each row, test an input variable for association with
     response variables using linear regression.
 
@@ -270,6 +271,7 @@ def linear_regression_rows(y, x, covariates, block_size=16) -> hail.Table:
     fields are added.
 
     - **<row key fields>** (Any) -- Row key fields.
+    - **<pass_through fields>** (Any) -- Row fields in `pass_through`.
     - **n** (:py:data:`.tint32`) -- Number of columns used.
     - **sum_x** (:py:data:`.tfloat64`) -- Sum of input values `x`.
     - **y_transpose_x** (:py:data:`.tfloat64`) -- Dot product of response
@@ -317,6 +319,12 @@ def linear_regression_rows(y, x, covariates, block_size=16) -> hail.Table:
     effect, with :math:`n` samples and :math:`k` covariates in addition to
     ``x``.
 
+    Note
+    ----
+    You can include additional row fields from the input :class:`.MatrixTable`
+    with the `pass_through` parameter. For example, you can include the "rsid"
+    field with either ``pass_through=['rsid']`` or ``pass_through=[mt.rsid]``.
+
     Parameters
     ----------
     y : :class:`.Float64Expression` or :obj:`list` of :class:`.Float64Expression`
@@ -328,6 +336,8 @@ def linear_regression_rows(y, x, covariates, block_size=16) -> hail.Table:
     block_size : :obj:`int`
         Number of row regressions to perform simultaneously per core. Larger blocks
         require more memory but may improve performance.
+    pass_through : :obj:`list` of :obj:`str` or :class:`.Expression`
+        Additional row fields to include in the resulting table.
 
     Returns
     -------
@@ -340,6 +350,8 @@ def linear_regression_rows(y, x, covariates, block_size=16) -> hail.Table:
     if y_is_list and len(y) == 0:
         raise ValueError(f"'linear_regression_rows': found no values for 'y'")
     is_chained = y_is_list and isinstance(y[0], list)
+    if is_chained and any(len(l) == 0 for l in y):
+        raise ValueError(f"'linear_regression_rows': found empty inner list for 'y'")
 
     y = wrap_to_list(y)
 
@@ -364,10 +376,35 @@ def linear_regression_rows(y, x, covariates, block_size=16) -> hail.Table:
 
     cov_field_names = list(f'__cov{i}' for i in range(len(covariates)))
 
+    row_fields = dict(mt.row_key)
+    for f in pass_through:
+        if isinstance(f, str):
+            if f not in mt.row:
+                raise ValueError(f"'linear_regression_rows/pass_through': MatrixTable has no row field {repr(f)}")
+            if f in row_fields:
+                # allow silent pass through of key fields
+                if f in mt.row_key:
+                    pass
+                else:
+                    raise ValueError(f"'linear_regression_rows/pass_through': found duplicated field {repr(f)}")
+            row_fields[f] = mt[f]
+        else:
+            assert isinstance(f, Expression)
+            if not f._ir.is_nested_field:
+                raise ValueError(f"'linear_regression_rows/pass_through': expect fields or nested fields, not complex expressions")
+            if not f._indices == mt._row_indices:
+                raise ValueError(f"'linear_regression_rows/pass_through': require row-indexed fields, found indices {f._indices.axes}")
+            name = f._ir.name
+            if name in row_fields:
+                # allow silent pass through of key fields
+                if not (name in mt.row_key and f._ir == mt[name]._ir):
+                    raise ValueError(f"'linear_regression_rows/pass_through': found duplicated field {repr(name)}")
+            row_fields[name] = f
+
     # FIXME: selecting an existing entry field should be emitted as a SelectFields
     mt = mt._select_all(col_exprs=dict(**y_dict,
                                        **dict(zip(cov_field_names, covariates))),
-                        row_exprs=dict(mt.row_key),
+                        row_exprs=row_fields,
                         col_key=[],
                         entry_exprs={x_field_name: x})
 
@@ -376,7 +413,8 @@ def linear_regression_rows(y, x, covariates, block_size=16) -> hail.Table:
         y_field_names,
         x_field_name,
         cov_field_names,
-        block_size)
+        block_size,
+        list(row_fields)[len(mt.row_key):])
 
     ht_result = Table(jt)
 

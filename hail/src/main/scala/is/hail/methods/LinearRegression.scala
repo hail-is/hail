@@ -53,11 +53,16 @@ object LinearRegression {
     ("p_value", TArray(TArray(TFloat64()))))
 
   def single_group(vsm: MatrixTable,
-    _yFields: java.util.ArrayList[String], xField: String, _covFields: java.util.ArrayList[String], rowBlockSize: Int
+    _yFields: java.util.ArrayList[String],
+    xField: String,
+    _covFields: java.util.ArrayList[String],
+    rowBlockSize: Int,
+    _passThrough: java.util.ArrayList[String]
   ): Table = {
 
     val yFields = _yFields.asScala.toArray
     val covFields = _covFields.asScala.toArray
+    val passThrough = _passThrough.asScala.toArray
 
     val (y, cov, completeColIdx) = RegressionUtils.getPhenosCovCompleteSamples(vsm, yFields, covFields)
 
@@ -97,9 +102,10 @@ object LinearRegression {
     val entryArrayIdx = vsm.entriesIndex
     val fieldIdx = entryType.fieldIdx(xField)
 
-    val tableType = TableType(vsm.rowKeyStruct ++ LinearRegression.schema, vsm.rowKey, TStruct())
+    val passThroughType = TStruct(passThrough.map(f => f -> vsm.rowType.field(f).typ): _*)
+    val tableType = TableType(vsm.rowKeyStruct ++ passThroughType ++ LinearRegression.schema, vsm.rowKey, TStruct())
     val newRVDType = tableType.rvdType
-    val keyIndices = vsm.rowKey.map(vsm.rvRowType.fieldIdx(_)).toArray
+    val copiedFieldIndices = (vsm.rowKey ++ passThrough).map(vsm.rvRowType.fieldIdx(_)).toArray
     val nDependentVariables = yFields.length
 
     val newRVD = vsm.rvd.boundary.mapPartitions(
@@ -161,7 +167,7 @@ object LinearRegression {
               rvb.set(wrv.region)
               rvb.start(newRVDType.rowType.physicalType)
               rvb.startStruct()
-              rvb.addFields(fullRowType.physicalType, wrv.region, wrv.offset, keyIndices)
+              rvb.addFields(fullRowType.physicalType, wrv.region, wrv.offset, copiedFieldIndices)
               rvb.addInt(n)
               rvb.addDouble(AC(i))
 
@@ -191,11 +197,16 @@ object LinearRegression {
   }
 
   def chain(vsm: MatrixTable,
-    _yFields: java.util.ArrayList[java.util.ArrayList[String]], xField: String, _covFields: java.util.ArrayList[String], rowBlockSize: Int
+    _yFields: java.util.ArrayList[java.util.ArrayList[String]],
+    xField: String,
+    _covFields: java.util.ArrayList[String],
+    rowBlockSize: Int,
+    _passThrough: java.util.ArrayList[String]
   ): Table = {
 
     val yFields = _yFields.asScala.map(_.asScala.toArray).toArray
     val covFields = _covFields.asScala.toArray
+    val passThrough = _passThrough.asScala.toArray
 
     val localData = yFields.map(RegressionUtils.getPhenosCovCompleteSamples(vsm, _, covFields))
 
@@ -233,9 +244,10 @@ object LinearRegression {
     val entryArrayIdx = vsm.entriesIndex
     val fieldIdx = entryType.fieldIdx(xField)
 
-    val tableType = TableType(vsm.rowKeyStruct ++ LinearRegression.chainedSchema, vsm.rowKey, TStruct())
+    val passThroughType = TStruct(passThrough.map(f => f -> vsm.rowType.field(f).typ): _*)
+    val tableType = TableType(vsm.rowKeyStruct ++ passThroughType ++ LinearRegression.chainedSchema, vsm.rowKey, TStruct())
     val newRVDType = tableType.rvdType
-    val keyIndices = vsm.rowKey.map(vsm.rvRowType.fieldIdx(_)).toArray
+    val copiedFieldIndices = (vsm.rowKey ++ passThrough).map(vsm.rvRowType.fieldIdx(_)).toArray
 
     val newRVD = vsm.rvd.boundary.mapPartitions(
       newRVDType, { (ctx, it) =>
@@ -304,7 +316,7 @@ object LinearRegression {
               rvb.set(wrv.region)
               rvb.start(newRVDType.rowType.physicalType)
               rvb.startStruct()
-              rvb.addFields(fullRowType.physicalType, wrv.region, wrv.offset, keyIndices)
+              rvb.addFields(fullRowType.physicalType, wrv.region, wrv.offset, copiedFieldIndices)
 
               // FIXME: the below has horrible cache behavior, but hard to get around
               // FIXME: it when doing a two-way in-memory transpose like this

@@ -1,6 +1,7 @@
 import unittest
 from subprocess import DEVNULL, call as syscall
 import numpy as np
+import pytest
 
 import hail as hl
 import hail.expr.aggregators as agg
@@ -134,6 +135,48 @@ class Tests(unittest.TestCase):
         self.assertTrue(t1._same(t3))
         self.assertTrue(t1._same(t4a))
         self.assertTrue(t1._same(t4b))
+
+    def test_linreg_pass_through(self):
+        phenos = hl.import_table(resource('regressionLinear.pheno'),
+                                 types={'Pheno': hl.tfloat64},
+                                 key='Sample')
+        covs = hl.import_table(resource('regressionLinear.cov'),
+                               types={'Cov1': hl.tfloat64, 'Cov2': hl.tfloat64},
+                               key='Sample')
+
+        mt = hl.import_vcf(resource('regressionLinear.vcf')).annotate_rows(foo = hl.struct(bar=hl.rand_norm(0, 1)))
+
+        # single group
+        lr_result = hl.linear_regression_rows(phenos[mt.s].Pheno, mt.GT.n_alt_alleles(), [1.0],
+                                              pass_through=['filters', mt.foo.bar, mt.qual])
+
+        assert mt.aggregate_rows(hl.agg.all(mt.foo.bar == lr_result[mt.row_key].bar))
+
+        # chained
+        lr_result = hl.linear_regression_rows([[phenos[mt.s].Pheno]], mt.GT.n_alt_alleles(), [1.0],
+                                              pass_through=['filters', mt.foo.bar, mt.qual])
+
+        assert mt.aggregate_rows(hl.agg.all(mt.foo.bar == lr_result[mt.row_key].bar))
+
+        # check types
+        assert 'filters' in lr_result.row
+        assert lr_result.filters.dtype == mt.filters.dtype
+
+        assert 'bar' in lr_result.row
+        assert lr_result.bar.dtype == mt.foo.bar.dtype
+
+        assert 'qual' in lr_result.row
+        assert lr_result.qual.dtype == mt.qual.dtype
+
+        # should run successfully with key fields
+        hl.linear_regression_rows([[phenos[mt.s].Pheno]], mt.GT.n_alt_alleles(), [1.0],
+                                  pass_through=['locus', 'alleles'])
+
+        # complex expression
+        with pytest.raises(ValueError):
+            hl.linear_regression_rows([[phenos[mt.s].Pheno]], mt.GT.n_alt_alleles(), [1.0],
+                                      pass_through=[mt.filters.length()])
+
 
     def test_linreg_chained(self):
         phenos = hl.import_table(resource('regressionLinear.pheno'),
