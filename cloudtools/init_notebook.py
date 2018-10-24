@@ -1,16 +1,10 @@
 #!/usr/bin/python
+from .utils import decode
 import json
 import os
 import subprocess as sp
 import sys
 from subprocess import check_output
-
-if sys.version_info >= (3,0):
-    # Python 3 check_output returns a byte string
-    decode_f = lambda x: x.decode()
-else:
-    # In Python 2, bytes and str are the same
-    decode_f = lambda x: x
 
 if sys.version_info >= (3,7):
     def safe_call(*args):
@@ -20,11 +14,11 @@ else:
         try:
             sp.check_output(args, stderr=sp.STDOUT)
         except sp.CalledProcessError as e:
-            print(decode_f(e.output))
+            print(decode(e.output))
             raise e
 
 def get_metadata(key):
-    return decode_f(check_output(['/usr/share/google/get_metadata_value', 'attributes/{}'.format(key)]))
+    return decode(check_output(['/usr/share/google/get_metadata_value', 'attributes/{}'.format(key)]))
 
 def mkdir_if_not_exists(path):
     try:
@@ -98,7 +92,7 @@ if role == 'Master':
     command.extend(pip_pkgs)
     safe_call(*command)
 
-    py4j = decode_f(check_output('ls /usr/lib/spark/python/lib/py4j*', shell=True).strip())
+    py4j = decode(check_output('ls /usr/lib/spark/python/lib/py4j*', shell=True).strip())
 
     print('getting metadata')
 

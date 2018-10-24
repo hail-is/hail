@@ -1,3 +1,4 @@
+from .utils import decode
 import argparse
 import sys
 from cloudtools import start
@@ -8,6 +9,7 @@ from cloudtools import stop
 from cloudtools import list_clusters
 from cloudtools import modify
 from cloudtools import describe
+from cloudtools import latest
 from cloudtools import __version__
 
 
@@ -43,6 +45,10 @@ def main():
                                       help='Gather information about a hail file (including the schema)',
                                       description='Gather information about a hail file (including the schema)')
 
+    latest_parser = subs.add_parser('latest',
+                                    help='Find the newest deployed SHA and the locations of the newest JARs and ZIPs',
+                                    description='Find the newest deployed SHA and the locations of the newest JARs and ZIPs')
+
     start_parser.set_defaults(module='start')
     start.init_parser(start_parser)
 
@@ -65,6 +71,9 @@ def main():
 
     describe_parser.set_defaults(module='describe')
     describe.init_parser(describe_parser)
+
+    latest_parser.set_defaults(module='latest')
+    latest.init_parser(latest_parser)
 
     if len(sys.argv) == 1:
         main_parser.print_help()
@@ -96,12 +105,13 @@ def main():
     elif args.module == 'describe':
         describe.main(args)
 
+    elif args.module == 'latest':
+        latest.main(args)
+
 
 if __name__ == '__main__':
     from subprocess import check_output
-    version = check_output(['pip', 'search', 'cloudtools', '|', 'grep', '"^cloudtools ("'])
-    if sys.version_info >= (3, 0):
-        version = version.decode()
+    version = decode(check_output(['pip', 'search', 'cloudtools', '|', 'grep', '"^cloudtools ("']))
     latest_version = version.strip().split()[1][1:-1]
     if __version__ != latest_version:
         print("cloudtools is out of date! CURRENT: {} LATEST: {}".format(__version__, latest_version))

@@ -38,6 +38,17 @@ do
     # check binary exists
     time cluster start --help
 
+    SHA=$(cluster latest --sha 0.1 2.0.2)
+    JAR=$(cluster latest --jar 0.1 2.0.2)
+    ZIP=$(cluster latest --zip 0.1 2.0.2)
+    gsutil ls $JAR
+    gsutil ls $ZIP
+    SHA=$(cluster latest --sha devel 2.2.0)
+    JAR=$(cluster latest --jar devel 2.2.0)
+    ZIP=$(cluster latest --zip devel 2.2.0)
+    gsutil ls $JAR
+    gsutil ls $ZIP
+
     # check 0.2 cluster starts and runs hail
     time cluster start ${CLUSTER_NAME_0_2} \
          --version 0.2 \

@@ -1,3 +1,5 @@
+from .cluster_config import ClusterConfig
+from .utils import latest_sha, load_config, load_config_file
 from subprocess import call, check_call, check_output
 import sys
 import json
@@ -29,44 +31,6 @@ machine_mem = {
     'n1-highcpu-32': 28.8,
     'n1-highcpu-64': 57.6
 }
-
-
-class ClusterConfig:
-    def __init__(self, json_str):
-        params = json.loads(json_str)
-        self.vars = params['vars']
-        self.flags = params['flags']
-
-    def extend_flag(self, flag, values):
-        if flag not in self.flags:
-            self.flags[flag] = values
-        elif isinstance(self.flags[flag], list):
-            assert isinstance(values, list)
-            self.flags[flag].extend(values)
-        else:
-            assert isinstance(self.flags[flag], dict)
-            assert isinstance(values, dict)
-            self.flags[flag].update(values)
-
-    def parse_and_extend(self, flag, values):
-        values = dict(tuple(pair.split('=')) for pair in values.split(',') if '=' in pair)
-        self.extend_flag(flag, values)
-
-    def format(self, obj):
-        if isinstance(obj, dict):
-            return self.format(['{}={}'.format(k, v) for k, v in obj.items()])
-        if isinstance(obj, list):
-            return self.format(','.join(obj))
-        else:
-            return str(obj).format(**self.vars)
-
-    def get_command(self, name):
-        flags = ['--{}={}'.format(f, self.format(v)) for f, v in self.flags.items()]
-        return ['gcloud',
-                'dataproc',
-                'clusters',
-                'create',
-                name] + flags
 
 
 def init_parser(parser):
@@ -131,14 +95,7 @@ def main(args):
         args.spark = '2.2.0' if args.version == '0.2' else '2.0.2'
 
     if args.hash == 'latest':
-        cloudtools_version = __version__.strip().split('.')
-        hash_file = 'gs://hail-common/builds/{}/latest-hash/cloudtools-{}-spark-{}.txt'.format(
-            args.version,
-            cloudtools_version[0],
-            args.spark)
-        hash = check_output(['gsutil', 'cat', hash_file]).strip()
-        # Python 3 check_output returns a byte string that needs decoding
-        hash = hash.decode() if sys.version_info >= (3, 0) else hash
+        hash = latest_sha(args.version, args.spark)
     else:
         hash_length = len(args.hash)
         if hash_length < 12:
@@ -150,22 +107,15 @@ def main(args):
             hash = args.hash
 
     if not args.config_file:
-        args.config_file = 'gs://hail-common/builds/{version}/config/hail-config-{version}-{hash}.json'.format(version=args.version, hash=hash)
-        exists = call(['gsutil', '-q', 'stat', args.config_file])
-        if exists != 0:
-            args.config_file = 'gs://hail-common/builds/{version}/config/hail-config-{version}-default.json'.format(version=args.version)
-    if args.config_file.startswith('gs://'):
-        conf = ClusterConfig(check_output(['gsutil', 'cat', args.config_file]).strip())
+        conf = load_config(hash, args.version)
     else:
-        conf = ClusterConfig(check_output(['cat', args.config_file]).strip())
+        conf = load_config_file(args.config_file)
 
     if args.spark not in conf.vars['supported_spark'].keys():
         sys.stderr.write("ERROR: Hail version '{}' requires one of Spark {}."
                          .format(args.version, ','.join(conf.vars['supported_spark'].keys())))
         sys.exit(1)
-    conf.vars['spark'] = args.spark
-    conf.vars['image'] = conf.vars['supported_spark'][args.spark]
-    conf.vars['hash'] = hash
+    conf.configure(hash, args.spark)
 
     # parse Spark and HDFS configuration parameters, combine into properties argument
     if args.properties:
