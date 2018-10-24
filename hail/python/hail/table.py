@@ -313,7 +313,6 @@ class Table(ExprContainer):
         self._tir = tir
         self._jtir = tir.to_java_ir()
         self._jt = Env.hail().table.Table(Env.hc()._jhc, self._jtir)
-        self._tir._jir = self._jtir
 
         jttype = self._jtir.typ()
 
