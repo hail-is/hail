@@ -24,6 +24,7 @@ LIBSIMDPP :=libsimdpp-2.1
 OBJECTS := \
   davies.o \
   ibs.o \
+  Decoder.o \
   Encoder.o \
   Logging.o \
   NativeCodeSuite.o \
@@ -32,7 +33,6 @@ OBJECTS := \
   NativePtr.o \
   NativeStatus.o \
   ObjectArray.o \
-  PackDecoder.o \
   Region.o \
   Upcalls.o
 

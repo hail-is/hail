@@ -31,10 +31,6 @@ UpcallConfig::UpcallConfig() {
   InputStream_close_ = env->GetMethodID(cl1, "close", "()V");
   InputStream_read_  = env->GetMethodID(cl1, "read", "([BII)I");
   InputStream_skip_  = env->GetMethodID(cl1, "skip", "(J)J");
-  // InputBuffer method[s (minimal set)
-  auto cl2 = env->FindClass("is/hail/io/InputBuffer");
-  InputBuffer_close_ = env->GetMethodID(cl2, "close", "()V");
-  InputBuffer_readToEndOfBlock_ = env->GetMethodID(cl2, "readToEndOfBlock", "(J[BII)I");
   // InputStream methods
   auto cl3 = env->FindClass("java/io/OutputStream");
   OutputStream_close_ = env->GetMethodID(cl3, "close", "()V");

@@ -29,6 +29,10 @@ class Variable(prefix: String, val typ: String, init: Expression) extends Defini
       else s"$typ $name = $init;"
 }
 
+class ArrayVariable(prefix: String, typ: String, length: Expression) extends Variable(prefix, typ, null) {
+  override def define: Code = s"$typ $name[$length];"
+}
+
 class Function(returnType: Type, val name: String, args: Array[Variable], body: Code) extends Definition {
 
   def typ: Type = returnType
