@@ -233,6 +233,36 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
     return kt
 
 
+def _get_regression_row_fields(mt, pass_through, method) -> Dict[str, str]:
+
+    # include key as base
+    row_fields = dict(mt.row_key)
+    for f in pass_through:
+        if isinstance(f, str):
+            if f not in mt.row:
+                raise ValueError(f"'{method}/pass_through': MatrixTable has no row field {repr(f)}")
+            if f in row_fields:
+                # allow silent pass through of key fields
+                if f in mt.row_key:
+                    pass
+                else:
+                    raise ValueError(f"'{method}/pass_through': found duplicated field {repr(f)}")
+            row_fields[f] = mt[f]
+        else:
+            assert isinstance(f, Expression)
+            if not f._ir.is_nested_field:
+                raise ValueError(f"'{method}/pass_through': expect fields or nested fields, not complex expressions")
+            if not f._indices == mt._row_indices:
+                raise ExpressionException(f"'{method}/pass_through': require row-indexed fields, found indices {f._indices.axes}")
+            name = f._ir.name
+            if name in row_fields:
+                # allow silent pass through of key fields
+                if not (name in mt.row_key and f._ir == mt[name]._ir):
+                    raise ValueError(f"'{method}/pass_through': found duplicated field {repr(name)}")
+            row_fields[name] = f
+    return row_fields
+
+
 @typecheck(y=oneof(expr_float64, sequenceof(expr_float64), sequenceof(sequenceof(expr_float64))),
            x=expr_float64,
            covariates=sequenceof(expr_float64),
@@ -376,30 +406,7 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=()) -> 
 
     cov_field_names = list(f'__cov{i}' for i in range(len(covariates)))
 
-    row_fields = dict(mt.row_key)
-    for f in pass_through:
-        if isinstance(f, str):
-            if f not in mt.row:
-                raise ValueError(f"'linear_regression_rows/pass_through': MatrixTable has no row field {repr(f)}")
-            if f in row_fields:
-                # allow silent pass through of key fields
-                if f in mt.row_key:
-                    pass
-                else:
-                    raise ValueError(f"'linear_regression_rows/pass_through': found duplicated field {repr(f)}")
-            row_fields[f] = mt[f]
-        else:
-            assert isinstance(f, Expression)
-            if not f._ir.is_nested_field:
-                raise ValueError(f"'linear_regression_rows/pass_through': expect fields or nested fields, not complex expressions")
-            if not f._indices == mt._row_indices:
-                raise ValueError(f"'linear_regression_rows/pass_through': require row-indexed fields, found indices {f._indices.axes}")
-            name = f._ir.name
-            if name in row_fields:
-                # allow silent pass through of key fields
-                if not (name in mt.row_key and f._ir == mt[name]._ir):
-                    raise ValueError(f"'linear_regression_rows/pass_through': found duplicated field {repr(name)}")
-            row_fields[name] = f
+    row_fields = _get_regression_row_fields(mt, pass_through, 'linear_regression_rows')
 
     # FIXME: selecting an existing entry field should be emitted as a SelectFields
     mt = mt._select_all(col_exprs=dict(**y_dict,
@@ -428,8 +435,9 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=()) -> 
 @typecheck(test=enumeration('wald', 'lrt', 'score', 'firth'),
            y=expr_float64,
            x=expr_float64,
-           covariates=sequenceof(expr_float64))
-def logistic_regression_rows(test, y, x, covariates) -> hail.Table:
+           covariates=sequenceof(expr_float64),
+           pass_through=sequenceof(oneof(str, Expression)))
+def logistic_regression_rows(test, y, x, covariates, pass_through=()) -> hail.Table:
     r"""For each row, test an input variable for association with a
     binary response variable using logistic regression.
 
@@ -609,6 +617,12 @@ def logistic_regression_rows(test, y, x, covariates) -> hail.Table:
 
     .. _EPACTS: http://genome.sph.umich.edu/wiki/EPACTS#Single_Variant_Tests
 
+    Note
+    ----
+    You can include additional row fields from the input :class:`.MatrixTable`
+    with the `pass_through` parameter. For example, you can include the "rsid"
+    field with either ``pass_through=['rsid']`` or ``pass_through=[mt.rsid]``.
+
     Parameters
     ----------
     test : {'wald', 'lrt', 'score', 'firth'}
@@ -622,6 +636,8 @@ def logistic_regression_rows(test, y, x, covariates) -> hail.Table:
         Entry-indexed expression for input variable.
     covariates : :obj:`list` of :class:`.Float64Expression`
         Non-empty list of column-indexed covariate expressions.
+    pass_through : :obj:`list` of :obj:`str` or :class:`.Expression`
+        Additional row fields to include in the resulting table.
 
     Returns
     -------
@@ -645,11 +661,12 @@ def logistic_regression_rows(test, y, x, covariates) -> hail.Table:
     x_field_name = Env.get_uid()
     y_field_name = '__y'
     cov_field_names = list(f'__cov{i}' for i in range(len(covariates)))
+    row_fields = _get_regression_row_fields(mt, pass_through, 'logistic_regression_rows')
 
-    # FIXME: selecting an existing entry field should be emitted as a SelectFields
+# FIXME: selecting an existing entry field should be emitted as a SelectFields
     mt = mt._select_all(col_exprs=dict(**{y_field_name: y},
                                        **dict(zip(cov_field_names, covariates))),
-                        row_exprs=dict(mt.row_key),
+                        row_exprs=row_fields,
                         col_key=[],
                         entry_exprs={x_field_name: x})
 
@@ -658,15 +675,17 @@ def logistic_regression_rows(test, y, x, covariates) -> hail.Table:
         test,
         y_field_name,
         x_field_name,
-        jarray(Env.jvm().java.lang.String, cov_field_names))
+        cov_field_names,
+        list(row_fields)[len(mt.row_key):])
     return Table._from_java(jt)
 
 
 @typecheck(test=enumeration('wald', 'lrt', 'score'),
            y=expr_float64,
            x=expr_float64,
-           covariates=sequenceof(expr_float64))
-def poisson_regression_rows(test, y, x, covariates) -> Table:
+           covariates=sequenceof(expr_float64),
+           pass_through=sequenceof(oneof(str, Expression)))
+def poisson_regression_rows(test, y, x, covariates, pass_through=()) -> Table:
     r"""For each row, test an input variable for association with a
     count response variable using `Poisson regression <https://en.wikipedia.org/wiki/Poisson_regression>`__.
 
@@ -674,6 +693,12 @@ def poisson_regression_rows(test, y, x, covariates) -> Table:
     -----
     See :func:`.logistic_regression_rows` for more info on statistical tests
     of general linear models.
+
+    Note
+    ----
+    You can include additional row fields from the input :class:`.MatrixTable`
+    with the `pass_through` parameter. For example, you can include the "rsid"
+    field with either ``pass_through=['rsid']`` or ``pass_through=[mt.rsid]``.
 
     Parameters
     ----------
@@ -684,6 +709,8 @@ def poisson_regression_rows(test, y, x, covariates) -> Table:
         Entry-indexed expression for input variable.
     covariates : :obj:`list` of :class:`.Float64Expression`
         Non-empty list of column-indexed covariate expressions.
+    pass_through : :obj:`list` of :obj:`str` or :class:`.Expression`
+        Additional row fields to include in the resulting table.
 
     Returns
     -------
@@ -707,11 +734,12 @@ def poisson_regression_rows(test, y, x, covariates) -> Table:
     x_field_name = Env.get_uid()
     y_field_name = '__y'
     cov_field_names = list(f'__cov{i}' for i in range(len(covariates)))
+    row_fields = _get_regression_row_fields(mt, pass_through, 'poisson_regression_rows')
 
     # FIXME: selecting an existing entry field should be emitted as a SelectFields
     mt = mt._select_all(col_exprs=dict(**{y_field_name: y},
                                        **dict(zip(cov_field_names, covariates))),
-                        row_exprs=dict(mt.row_key),
+                        row_exprs=row_fields,
                         col_key=[],
                         entry_exprs={x_field_name: x})
 
@@ -721,6 +749,8 @@ def poisson_regression_rows(test, y, x, covariates) -> Table:
         y_field_name,
         x_field_name,
         jarray(Env.jvm().java.lang.String, cov_field_names))
+        cov_field_names,
+        list(row_fields)[len(mt.row_key):])
     return Table._from_java(jt)
 
 
@@ -906,13 +936,15 @@ def linear_mixed_model(y,
            pa_t_path=nullable(str),
            a_t_path=nullable(str),
            mean_impute=bool,
-           partition_size=nullable(int))
+           partition_size=nullable(int),
+           pass_through=sequenceof(oneof(str, Expression)))
 def linear_mixed_regression_rows(entry_expr,
                                  model,
                                  pa_t_path=None,
                                  a_t_path=None,
                                  mean_impute=True,
-                                 partition_size=None):
+                                 partition_size=None,
+                                 pass_through=()):
     """For each row, test an input variable for association using a linear
     mixed model.
 
@@ -996,6 +1028,12 @@ def linear_mixed_regression_rows(entry_expr,
     The warning on :meth:`.BlockMatrix.write_from_entry_expr` applies to this
     method when the number of samples is large.
 
+    Note
+    ----
+    You can include additional row fields from the input :class:`.MatrixTable`
+    with the `pass_through` parameter. For example, you can include the "rsid"
+    field with either ``pass_through=['rsid']`` or ``pass_through=[mt.rsid]``.
+
     Parameters
     ----------
     entry_expr: :class:`.Float64Expression`
@@ -1014,6 +1052,8 @@ def linear_mixed_regression_rows(entry_expr,
     partition_size: :obj:`int`
         Number of rows to process per partition.
         Default given by block size of :math:`P`.
+    pass_through : :obj:`list` of :obj:`str` or :class:`.Expression`
+        Additional row fields to include in the resulting table.
 
     Returns
     -------
@@ -1048,8 +1088,11 @@ def linear_mixed_regression_rows(entry_expr,
     ht = model.fit_alternatives(pa_t_path,
                                 a_t_path if model.low_rank else None,
                                 partition_size)
-    mt = mt.add_row_index('__row_idx')
-    mt_keys = mt.select_rows().rows().add_index('__row_idx').key_by('__row_idx')
+    row_fields = _get_regression_row_fields(mt, pass_through, 'linear_mixed_regression_rows')
+    for k in mt.row_key:
+        del row_fields[k]
+
+    mt_keys = mt.select_rows(**row_fields).add_row_index('__row_idx').rows().add_index('__row_idx').key_by('__row_idx')
     return mt_keys.annotate(**ht[mt_keys['__row_idx']]).key_by(*mt.row_key).drop('__row_idx')
 
 

@@ -10,13 +10,18 @@ import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.storage.StorageLevel
 
+import scala.collection.JavaConverters._
+
 object LogisticRegression {
 
   def apply(vsm: MatrixTable,
     test: String,
     yField: String,
     xField: String,
-    covFields: Array[String]): Table = {
+    _covFields: java.util.ArrayList[String],
+    _passThrough: java.util.ArrayList[String]): Table = {
+    val covFields = _covFields.asScala.toArray
+    val passThrough = _passThrough.asScala.toArray
     val logRegTest = LogisticRegressionTest.tests(test)
 
     val (y, cov, completeColIdx) = RegressionUtils.getPhenoCovCompleteSamples(vsm, yField, covFields)
@@ -69,9 +74,10 @@ object LogisticRegression {
     val entryArrayIdx = vsm.entriesIndex
     val fieldIdx = entryType.fieldIdx(xField)
 
-    val tableType = TableType(vsm.rowKeyStruct ++ logRegTest.schema, vsm.rowKey, TStruct())
+    val passThroughType = TStruct(passThrough.map(f => f -> vsm.rowType.field(f).typ): _*)
+    val tableType = TableType(vsm.rowKeyStruct ++ passThroughType ++ logRegTest.schema, vsm.rowKey, TStruct())
     val newRVDType = tableType.rvdType
-    val keyIndices = vsm.rowKey.map(vsm.rvRowType.fieldIdx(_)).toArray
+    val copiedFieldIndices = (vsm.rowKey ++ passThrough).map(vsm.rvRowType.fieldIdx(_)).toArray
 
     val newRVD = vsm.rvd.mapPartitions(newRVDType) { it =>
       val rvb = new RegionValueBuilder()
@@ -89,7 +95,7 @@ object LogisticRegression {
         rvb.set(rv.region)
         rvb.start(newRVDType.rowType.physicalType)
         rvb.startStruct()
-        rvb.addFields(fullRowType.physicalType, rv, keyIndices)
+        rvb.addFields(fullRowType.physicalType, rv, copiedFieldIndices)
         logregAnnot.addToRVB(rvb)
         rvb.endStruct()
 

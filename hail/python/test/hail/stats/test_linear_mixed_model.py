@@ -370,3 +370,26 @@ class Tests(unittest.TestCase):
                                              model)
         assert np.allclose(ht.beta.collect(), beta_hail)
         assert np.allclose(ht.p_value.collect(), pval_hail)
+
+    def test_linear_mixed_regression_pass_through(self):
+        x_table = hl.import_table(resource('fastlmmCov.txt'), no_header=True, impute=True).key_by('f1')
+        y_table = hl.import_table(resource('fastlmmPheno.txt'), no_header=True, impute=True, delimiter=' ').key_by('f1')
+
+        mt = hl.import_plink(bed=resource('fastlmmTest.bed'),
+                             bim=resource('fastlmmTest.bim'),
+                             fam=resource('fastlmmTest.fam'),
+                             reference_genome=None)
+        mt = mt.annotate_cols(x=x_table[mt.col_key].f2)
+        mt = mt.annotate_cols(y=y_table[mt.col_key].f2).cache()
+        p_path = utils.new_temp_file()
+
+        mt_chr1 = mt.filter_rows((mt.locus.contig == '1') & (mt.locus.position < 200))
+        model, _ = hl.linear_mixed_model(y=mt_chr1.y, x=[1, mt_chr1.x], z_t=mt_chr1.GT.n_alt_alleles(), p_path=p_path)
+        model.fit()
+
+        mt_chr3 = mt.filter_rows((mt.locus.contig == '3') & (mt.locus.position < 2005))
+        mt_chr3 = mt_chr3.annotate_rows(stats=hl.agg.stats(mt_chr3.GT.n_alt_alleles()), foo=hl.struct(bar=hl.rand_norm(0, 1)))
+        ht = hl.linear_mixed_regression_rows((mt_chr3.GT.n_alt_alleles() - mt_chr3.stats.mean) / mt_chr3.stats.stdev,
+                                             model, pass_through=['stats', mt_chr3.foo.bar, mt_chr3.cm_position])
+
+        assert mt_chr3.aggregate_rows(hl.agg.all(mt_chr3.foo.bar == ht[mt_chr3.row_key].bar))

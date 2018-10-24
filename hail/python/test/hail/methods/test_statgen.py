@@ -760,6 +760,25 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(firth[16117953].beta, 0.5258, places=4)
         self.assertAlmostEqual(firth[16117953].p_value, 0.22562, places=4)
 
+    def test_logreg_pass_through(self):
+        covariates = hl.import_table(resource('regressionLogistic.cov'),
+                                     key='Sample',
+                                     types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat})
+        pheno = hl.import_table(resource('regressionLogisticBoolean.pheno'),
+                                key='Sample',
+                                missing='0',
+                                types={'isCase': hl.tbool})
+        mt = hl.import_vcf(resource('regressionLogistic.vcf')).annotate_rows(foo = hl.struct(bar=hl.rand_norm(0, 1)))
+        ht = hl.logistic_regression_rows('wald',
+                                         y=pheno[mt.s].isCase,
+                                         x=mt.GT.n_alt_alleles(),
+                                         covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2],
+                                         pass_through=['filters', mt.foo.bar, mt.qual])
+
+
+        assert mt.aggregate_rows(hl.agg.all(mt.foo.bar == ht[mt.row_key].bar))
+
+
     # comparing to R:
     # x = c(0, 1, 0, 0, 0, 1, 0, 0, 0, 0)
     # y = c(0, 2, 5, 3, 6, 2, 1, 1, 0, 0)
@@ -896,6 +915,25 @@ class Tests(unittest.TestCase):
         self.assertTrue(is_constant(results[8]))
         self.assertTrue(is_constant(results[9]))
         self.assertTrue(is_constant(results[10]))
+
+    def test_poisson_pass_through(self):
+        covariates = hl.import_table(resource('regressionLogistic.cov'),
+                                     key='Sample',
+                                     types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat})
+        pheno = hl.import_table(resource('regressionPoisson.pheno'),
+                                key='Sample',
+                                missing='-1',
+                                types={'count': hl.tint32})
+        mt = hl.import_vcf(resource('regressionLogistic.vcf')).annotate_rows(foo = hl.struct(bar=hl.rand_norm(0, 1)))
+        ht = hl.poisson_regression_rows(
+            test='wald',
+            y=pheno[mt.s].count,
+            x=mt.GT.n_alt_alleles(),
+            covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2],
+            pass_through=['filters', mt.foo.bar, mt.qual])
+
+        assert mt.aggregate_rows(hl.agg.all(mt.foo.bar == ht[mt.row_key].bar))
+
 
     def test_genetic_relatedness_matrix(self):
         n, m = 100, 200
