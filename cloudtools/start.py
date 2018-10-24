@@ -74,6 +74,7 @@ def init_parser(parser):
     parser.add_argument('--packages', '--pkgs',
                         help='Comma-separated list of Python packages to be installed on the master node.')
     parser.add_argument('--max-idle', type=str, help='If specified, maximum idle time before shutdown (e.g. 60m).')
+    parser.add_argument('--max-age', type=str, help='If specified, maximum age before shutdown (e.g. 60m).')
     parser.add_argument('--bucket', type=str, help='The Google Cloud Storage bucket to use for cluster staging (just the bucket name, no gs:// prefix).')
 
     # specify custom Hail jar and zip
@@ -173,9 +174,12 @@ def main(args):
     # command to start cluster
     cmd = conf.get_command(args.name)
 
-    if args.max_idle:
+    if args.max_idle or args.max_age:
         cmd.insert(1, 'beta')
+    if args.max_idle:
         cmd.append('--max-idle={}'.format(args.max_idle))
+    if args.max_age:
+        cmd.append('--max-age={}'.format(args.max_age))
 
     # print underlying gcloud command
     print('gcloud command:')
