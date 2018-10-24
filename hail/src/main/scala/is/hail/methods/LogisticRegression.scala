@@ -60,7 +60,7 @@ object LogisticRegression {
     val logRegTestBc = sc.broadcast(logRegTest)
 
     val fullRowType = vsm.rvRowType
-    val entryArrayType = vsm.matrixType.entryArrayType
+    val entryArrayType = vsm.matrixType.entryArrayType.physicalType
     val entryType = vsm.entryType
     val fieldType = entryType.field(xField).typ
 

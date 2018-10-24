@@ -4,6 +4,7 @@ import breeze.linalg._
 import is.hail.annotations.RegionValue
 import is.hail.expr._
 import is.hail.expr.types._
+import is.hail.expr.types.physical.PArray
 import is.hail.utils._
 import is.hail.variant.MatrixTable
 import org.apache.spark.sql.Row
@@ -15,7 +16,7 @@ object RegressionUtils {
     missingCompleteCols: ArrayBuilder[Int],
     rv: RegionValue,
     rvRowType: TStruct,
-    entryArrayType: TArray,
+    entryArrayType: PArray,
     entryType: TStruct,
     entryArrayIdx: Int,
     fieldIdx: Int) : Unit = {

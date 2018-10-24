@@ -2,13 +2,14 @@ package is.hail.annotations.aggregators
 
 import is.hail.annotations.{Region, RegionValueBuilder}
 import is.hail.expr.types.Type
+import is.hail.expr.types.physical.PType
 import is.hail.stats.InfoScoreCombiner
 
 object RegionValueInfoScoreAggregator {
   def typ = InfoScoreCombiner.signature
 }
 
-class RegionValueInfoScoreAggregator(typ: Type) extends RegionValueAggregator {
+class RegionValueInfoScoreAggregator(typ: PType) extends RegionValueAggregator {
   var combiner = new InfoScoreCombiner(typ)
 
   def seqOp(region: Region, offset: Long, missing: Boolean) {

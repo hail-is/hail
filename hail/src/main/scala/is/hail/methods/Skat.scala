@@ -225,7 +225,7 @@ object Skat {
 
     val sc = vsm.sparkContext
 
-    val entryArrayType = vsm.matrixType.entryArrayType
+    val entryArrayType = vsm.matrixType.entryArrayType.physicalType
     val entryType = vsm.entryType
     val fieldType = entryType.field(xField).typ
 

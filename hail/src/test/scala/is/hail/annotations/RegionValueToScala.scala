@@ -19,27 +19,4 @@ object RegionValueToScala {
     case TFloat64(false) => classTag[java.lang.Double]
     case t => throw new RuntimeException(s"classTagHail does not handle $t")
   }
-
-  def load[T](t: Type)(region: Region, off: Long): T = t match {
-    case _: TBoolean => region.loadBoolean(off).asInstanceOf[T]
-    case _: TInt32 => region.loadInt(off).asInstanceOf[T]
-    case _: TInt64 => region.loadLong(off).asInstanceOf[T]
-    case _: TFloat32 => region.loadFloat(off).asInstanceOf[T]
-    case _: TFloat64 => region.loadDouble(off).asInstanceOf[T]
-    case t: TArray => loadArray(t.elementType)(region, off)(classTagHail(t.elementType)).asInstanceOf[T]
-    case t => throw new RuntimeException(s"load does not handle $t")
-  }
-
-  def loadArray[T : ClassTag](elementType: Type)(region: Region, aOff: Long): Array[T] = {
-    val arrayType = TArray(elementType)
-    val len = arrayType.loadLength(region, aOff)
-    val a = new Array[T](len)
-    var i = 0
-    while (i < len) {
-      if (arrayType.isElementDefined(region, aOff, i))
-        a(i) = load[T](elementType)(region, arrayType.loadElement(region, aOff, i))
-      i += 1
-    }
-    a
-  }
 }

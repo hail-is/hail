@@ -2,19 +2,20 @@ package is.hail.stats
 
 import is.hail.annotations.{Annotation, Region, RegionValueBuilder}
 import is.hail.expr.types._
+import is.hail.expr.types.physical.{PArray, PFloat64, PType}
 import is.hail.utils._
 
 object InfoScoreCombiner {
   def signature = TStruct("score" -> TFloat64(), "n_included" -> TInt32())
 }
 
-class InfoScoreCombiner(t: Type) extends Serializable {
+class InfoScoreCombiner(t: PType) extends Serializable {
   var result = 0d
   var expectedAlleleCount = 0d
   var totalDosage = 0d
   var nIncluded = 0
-  assert(t.isOfType(TArray(TFloat64())))
-  val typ = t.asInstanceOf[TArray]
+  assert(t.isOfType(PArray(PFloat64())))
+  val typ = t.asInstanceOf[PArray]
 
   def expectedVariance(gp: IndexedSeq[java.lang.Double], mean: Double): Double = (gp(1) + 4 * gp(2)) - (mean * mean)
 
