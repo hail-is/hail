@@ -350,6 +350,8 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=()) -> 
     if y_is_list and len(y) == 0:
         raise ValueError(f"'linear_regression_rows': found no values for 'y'")
     is_chained = y_is_list and isinstance(y[0], list)
+    if is_chained and any(len(l) == 0 for l in y):
+        raise ValueError(f"'linear_regression_rows': found empty inner list for 'y'")
 
     y = wrap_to_list(y)
 
