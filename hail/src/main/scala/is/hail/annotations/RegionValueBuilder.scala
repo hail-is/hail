@@ -175,7 +175,9 @@ class RegionValueBuilder(var region: Region) {
     advance()
   }
 
-  def startRandomArray(length: Int, init: Boolean = true) {
+  // using this function, rather than startArray will set all elements of the array to missing by
+  // default, you will need to use setPresent to add a value to this array.
+  def startMissingArray(length: Int, init: Boolean = true) {
     val t = currentType().asInstanceOf[PArray]
     if (t.elementType.required)
       fatal(s"cannot use random array pattern for required type ${ t.elementType }")
@@ -196,11 +198,7 @@ class RegionValueBuilder(var region: Region) {
       t.initialize(region, aoff, length, setMissing = true)
   }
 
-  def endRandomArray() {
-    val t = typestk.top.asInstanceOf[PArray]
-    val aoff = offsetstk.top
-    val length = t.loadLength(region, aoff)
-
+  def endArrayUnchecked() {
     typestk.pop()
     offsetstk.pop()
     elementsOffsetstk.pop()
