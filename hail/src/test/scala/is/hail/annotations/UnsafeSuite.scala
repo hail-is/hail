@@ -6,7 +6,7 @@ import is.hail.SparkSuite
 import is.hail.check._
 import is.hail.check.Arbitrary._
 import is.hail.expr.types._
-import is.hail.expr.types.physical.PType
+import is.hail.expr.types.physical._
 import is.hail.io._
 import is.hail.utils._
 import org.apache.spark.SparkEnv
@@ -231,46 +231,46 @@ class UnsafeSuite extends SparkSuite {
 
   @Test def testPacking() {
 
-    def makeStruct(types: Type*): TStruct = {
-      TStruct(types.zipWithIndex.map { case (t, i) => (s"f$i", t) }: _*)
+    def makeStruct(types: PType*): PStruct = {
+      PStruct(types.zipWithIndex.map { case (t, i) => (s"f$i", t) }: _*)
     }
 
     val t1 = makeStruct( // missing byte is 0
-      TInt32(), //4-8
-      TInt32(), //8-12
-      TFloat64(), //16-24
-      TBoolean(), //1-2
-      TBoolean(), //2-3
-      TBoolean(), //3-4
-      TBoolean(), //12-13
-      TBoolean()) //13-14
+      PInt32(), //4-8
+      PInt32(), //8-12
+      PFloat64(), //16-24
+      PBoolean(), //1-2
+      PBoolean(), //2-3
+      PBoolean(), //3-4
+      PBoolean(), //12-13
+      PBoolean()) //13-14
     assert(t1.byteOffsets.toSeq == Seq(4, 8, 16, 1, 2, 3, 12, 13))
     assert(t1.byteSize == 24)
 
     val t2 = makeStruct( //missing bytes 0, 1
-      TBoolean(), //2-3
-      TInt32(), //4-8
-      TInt32(), //8-12
-      TFloat64(), //16-24
-      TInt32(), //12-16
-      TInt32(), //24-28
-      TFloat64(), //32-40
-      TInt32(), //28-32
-      TBoolean(), //3-4
-      TFloat64(), //40-48
-      TBoolean()) //48-49
+      PBoolean(), //2-3
+      PInt32(), //4-8
+      PInt32(), //8-12
+      PFloat64(), //16-24
+      PInt32(), //12-16
+      PInt32(), //24-28
+      PFloat64(), //32-40
+      PInt32(), //28-32
+      PBoolean(), //3-4
+      PFloat64(), //40-48
+      PBoolean()) //48-49
 
     assert(t2.byteOffsets.toSeq == Seq(2, 4, 8, 16, 12, 24, 32, 28, 3, 40, 48))
     assert(t2.byteSize == 49)
 
-    val t3 = makeStruct((0 until 512).map(_ => TFloat64()): _*)
+    val t3 = makeStruct((0 until 512).map(_ => PFloat64()): _*)
     assert(t3.byteSize == (512 / 8) + 512 * 8)
-    val t4 = makeStruct((0 until 256).flatMap(_ => Iterator(TInt32(), TInt32(), TFloat64(), TBoolean())): _*)
+    val t4 = makeStruct((0 until 256).flatMap(_ => Iterator(PInt32(), PInt32(), PFloat64(), PBoolean())): _*)
     assert(t4.byteSize == 256 * 4 / 8 + 256 * 4 * 2 + 256 * 8 + 256)
   }
 
   @Test def testEmptySize() {
-    assert(TStruct().byteSize == 0)
+    assert(PStruct().byteSize == 0)
   }
 
   @Test def testUnsafeOrdering() {
