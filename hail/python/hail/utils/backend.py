@@ -19,7 +19,7 @@ class SparkBackend(Backend):
         code = r(ir)
         ir_map = {name: jir for name, jir in r.jirs.items()}
 
-        jir = Env.hail().expr.Parser.parse_value_ir(code, {}, ir_map)
+        jir = ir.parse(code, {}, ir_map)
 
         typ = HailType._from_java(jir.typ())
         result = Env.hail().expr.ir.Interpret.interpretPyIR(code, {}, ir_map)

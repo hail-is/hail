@@ -1,5 +1,7 @@
 import abc
 from .renderer import Renderer
+from hail.utils.java import Env
+
 
 class BaseIR(object):
     def __init__(self):
@@ -8,6 +10,19 @@ class BaseIR(object):
     def __str__(self):
         r = Renderer(stop_at_jir = False)
         return r(self)
+
+    def to_java_ir(self):
+        if not hasattr(self, '_jir'):
+            r = Renderer(stop_at_jir=True)
+            code = r(self)
+            ir_map = {name: jir for name, jir in r.jirs.items()}
+            self._jir = self.parse(code, ir_map=ir_map)
+        return self._jir
+
+    @abc.abstractmethod
+    def parse(self, code, ref_map, ir_map):
+        return
+
 
 class IR(BaseIR):
     def __init__(self, *children):
@@ -48,12 +63,21 @@ class IR(BaseIR):
     def bound_variables(self):
         return {v for child in self.children for v in child.bound_variables}
 
+    def parse(self, code, ref_map={}, ir_map={}):
+        return Env.hail().expr.Parser.parse_value_ir(code, ref_map, ir_map)
+
 
 class TableIR(BaseIR):
     def __init__(self):
         super().__init__()
 
+    def parse(self, code, ref_map={}, ir_map={}):
+        return Env.hail().expr.Parser.parse_table_ir(code, ref_map, ir_map)
+
 
 class MatrixIR(BaseIR):
     def __init__(self):
         super().__init__()
+
+    def parse(self, code, ref_map={}, ir_map={}):
+        return Env.hail().expr.Parser.parse_matrix_ir(code, ref_map, ir_map)

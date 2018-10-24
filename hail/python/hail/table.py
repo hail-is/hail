@@ -311,12 +311,7 @@ class Table(ExprContainer):
         super(Table, self).__init__()
 
         self._tir = tir
-
-        r = Renderer(stop_at_jir=True)
-        code = r(tir)
-        ir_map = {name: jir for name, jir in r.jirs.items()}
-
-        self._jtir = Env.hail().expr.Parser.parse_table_ir(code, {}, ir_map)
+        self._jtir = tir.to_java_ir()
         self._jt = Env.hail().table.Table(Env.hc()._jhc, self._jtir)
         self._tir._jir = self._jtir
 
