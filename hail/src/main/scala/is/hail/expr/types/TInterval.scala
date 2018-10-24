@@ -54,38 +54,4 @@ case class TInterval(pointType: Type, override val required: Boolean = false) ex
   }
 
   override def subst() = TInterval(pointType.subst())
-
-  def startOffset(off: Code[Long]): Code[Long] = representation.fieldOffset(off, 0)
-
-  def endOffset(off: Code[Long]): Code[Long] = representation.fieldOffset(off, 1)
-
-  def loadStart(region: Region, off: Long): Long = representation.loadField(region, off, 0)
-
-  def loadStart(region: Code[Region], off: Code[Long]): Code[Long] = representation.loadField(region, off, 0)
-
-  def loadStart(rv: RegionValue): Long = loadStart(rv.region, rv.offset)
-
-  def loadEnd(region: Region, off: Long): Long = representation.loadField(region, off, 1)
-
-  def loadEnd(region: Code[Region], off: Code[Long]): Code[Long] = representation.loadField(region, off, 1)
-
-  def loadEnd(rv: RegionValue): Long = loadEnd(rv.region, rv.offset)
-
-  def startDefined(region: Region, off: Long): Boolean = representation.isFieldDefined(region, off, 0)
-
-  def endDefined(region: Region, off: Long): Boolean = representation.isFieldDefined(region, off, 1)
-
-  def includesStart(region: Region, off: Long): Boolean = region.loadBoolean(representation.loadField(region, off, 2))
-
-  def includesEnd(region: Region, off: Long): Boolean = region.loadBoolean(representation.loadField(region, off, 3))
-
-  def startDefined(region: Code[Region], off: Code[Long]): Code[Boolean] = representation.isFieldDefined(region, off, 0)
-
-  def endDefined(region: Code[Region], off: Code[Long]): Code[Boolean] = representation.isFieldDefined(region, off, 1)
-
-  def includeStart(region: Code[Region], off: Code[Long]): Code[Boolean] =
-    region.loadBoolean(representation.loadField(region, off, 2))
-
-  def includeEnd(region: Code[Region], off: Code[Long]): Code[Boolean] =
-    region.loadBoolean(representation.loadField(region, off, 3))
 }

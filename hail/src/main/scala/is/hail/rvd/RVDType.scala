@@ -63,8 +63,8 @@ final case class RVDType(rowType: TStruct, key: IndexedSeq[String] = FastIndexed
       val t2p = t2.physicalType
       val f1 = kFieldIdx(0)
       val f2 = other.kFieldIdx(0)
-      val intervalType = t2.types(f2).asInstanceOf[TInterval]
-      val pord = t1p.types(f1).unsafeOrdering(intervalType.pointType.physicalType)
+      val intervalType = t2.types(f2).asInstanceOf[TInterval].physicalType
+      val pord = t1p.types(f1).unsafeOrdering(intervalType.pointType)
 
       // Left is a point, right is an interval.
       // Returns -1 if point is below interval, 0 if it is inside, and 1 if it
