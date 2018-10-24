@@ -175,6 +175,45 @@ class RegionValueBuilder(var region: Region) {
     advance()
   }
 
+  def startRandomArray(length: Int, init: Boolean = true) {
+    val t = currentType().asInstanceOf[PArray]
+    if (t.elementType.required)
+      fatal(s"cannot use random array pattern for required type ${ t.elementType }")
+    val aoff = region.allocate(t.contentsAlignment, t.contentsByteSize(length))
+
+    if (typestk.nonEmpty) {
+      val off = currentOffset()
+      region.storeAddress(off, aoff)
+    } else
+      start = aoff
+
+    typestk.push(t)
+    elementsOffsetstk.push(aoff + t.elementsOffset(length))
+    indexstk.push(0)
+    offsetstk.push(aoff)
+
+    if (init)
+      t.initialize(region, aoff, length, setMissing = true)
+  }
+
+  def endRandomArray() {
+    val t = typestk.top.asInstanceOf[PArray]
+    val aoff = offsetstk.top
+    val length = t.loadLength(region, aoff)
+
+    typestk.pop()
+    offsetstk.pop()
+    elementsOffsetstk.pop()
+    indexstk.pop()
+
+    advance()
+  }
+
+  def setArrayIndex(newI: Int) {
+    assert(typestk.top.isInstanceOf[PArray])
+    indexstk(0) = newI
+  }
+
   def setFieldIndex(newI: Int) {
     assert(typestk.top.isInstanceOf[PBaseStruct])
     indexstk(0) = newI
@@ -193,6 +232,14 @@ class RegionValueBuilder(var region: Region) {
         t.setElementMissing(region, offsetstk.top, i)
     }
     advance()
+  }
+
+  def setPresent() {
+    val i = indexstk.top
+    typestk.top match {
+      case t: PArray =>
+        t.setElementPresent(region, offsetstk.top, i)
+    }
   }
 
   def addBoolean(b: Boolean) {

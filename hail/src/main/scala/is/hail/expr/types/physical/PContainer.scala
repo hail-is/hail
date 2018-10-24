@@ -89,6 +89,15 @@ abstract class PContainer extends PType {
     region.setBit(aoff + 4L, i.toL)
   }
 
+  def setElementPresent(region: Region, aoff: Long, i: Int) {
+    assert(!elementType.required)
+    region.clearBit(aoff + 4, i)
+  }
+
+  def setElementPresent(region: Code[Region], aoff: Code[Long], i: Code[Int]): Code[Unit] = {
+    region.clearBit(aoff + 4L, i.toL)
+  }
+
   def elementOffset(aoff: Long, length: Int, i: Int): Long =
     aoff + elementsOffset(length) + i * elementByteSize
 
@@ -127,6 +136,17 @@ abstract class PContainer extends PType {
     region.allocate(contentsAlignment, contentsByteSize(length))
   }
 
+  def setAllMissingBits(region: Region, aoff: Long, length: Int) {
+    if (elementType.required)
+      return
+    val nMissingBytes = (length + 7) / 8
+    var i = 0
+    while (i < nMissingBytes) {
+      region.storeByte(aoff + 4 + i, -1)
+      i += 1
+    }
+  }
+
   def clearMissingBits(region: Region, aoff: Long, length: Int) {
     if (elementType.required)
       return
@@ -138,9 +158,12 @@ abstract class PContainer extends PType {
     }
   }
 
-  def initialize(region: Region, aoff: Long, length: Int) {
+  def initialize(region: Region, aoff: Long, length: Int, setMissing: Boolean = false) {
     region.storeInt(aoff, length)
-    clearMissingBits(region, aoff, length)
+    if (setMissing)
+      setAllMissingBits(region, aoff, length)
+    else
+      clearMissingBits(region, aoff, length)
   }
 
   def initialize(region: Code[Region], aoff: Code[Long], length: Code[Int], a: Settable[Int]): Code[Unit] = {
