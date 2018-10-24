@@ -15,6 +15,9 @@ OutputStream::OutputStream(UpcallEnv up, jobject joutput_stream) :
 
 void OutputStream::write(char * buf, int n) {
   if (jbuf_size_ < n) {
+    if (jbuf_ != nullptr) {
+      up_.env()->DeleteGlobalRef(jbuf_);
+    }
     auto jbuf = up_.env()->NewByteArray(n);
     jbuf_ = up_.env()->NewGlobalRef(jbuf);
     jbuf_size_ = n;

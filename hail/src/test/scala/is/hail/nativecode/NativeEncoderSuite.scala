@@ -185,9 +185,4 @@ class NativeEncoderSuite extends SparkSuite {
     assert(compiled sameElements expected)
   }
 
-  @Test def testReadWrite() {
-    val mt = MatrixTable.read(hc, "/Users/wang/data/vcf/profile225.mt")
-    mt.write("/Users/wang/data/vcf/test.mt", overwrite = true)
-  }
-
 }
