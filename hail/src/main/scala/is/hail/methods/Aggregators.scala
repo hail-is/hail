@@ -3,6 +3,7 @@ package is.hail.methods
 import is.hail.annotations._
 import is.hail.expr._
 import is.hail.expr.types._
+import is.hail.expr.types.physical.PType
 import is.hail.stats._
 import is.hail.utils._
 import is.hail.variant._
@@ -495,7 +496,7 @@ class TakeByAggregator[T](var t: Type, var f: (Any) => Any, var n: Int)(implicit
   def copy() = new TakeByAggregator(t, f, n)
 }
 
-class LinearRegressionAggregator(xF: (Any) => Any, k: Int, k0: Int, xType: Type) extends TypedAggregator[Any] {
+class LinearRegressionAggregator(xF: (Any) => Any, k: Int, k0: Int, xType: PType) extends TypedAggregator[Any] {
   var combiner = new LinearRegressionCombiner(k, k0, xType)
 
   def seqOp(a: Any) = {

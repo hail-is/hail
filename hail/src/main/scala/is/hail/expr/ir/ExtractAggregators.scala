@@ -71,7 +71,7 @@ object ExtractAggregators {
         val transformed = this.extract(aggIR, newRVAggBuilder, newBuilder, GetField(newRef, "value"))
 
         val nestedAggs = newRVAggBuilder.result()
-        val agg = KeyedRegionValueAggregator(nestedAggs.map(_.rvAgg), key.typ)
+        val agg = KeyedRegionValueAggregator(nestedAggs.map(_.rvAgg), key.pType)
         val aggSig = AggSignature(Group(), Seq(), Some(Seq(TVoid)), Seq(key.typ, TVoid))
         val rt = TDict(key.typ, TTuple(nestedAggs.map(_.rt): _*))
         newRef.typ = -rt.elementType

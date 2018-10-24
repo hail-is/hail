@@ -525,7 +525,7 @@ object Interpret {
             val kValue = interpret(k, Env.empty[Any], null, null).asInstanceOf[Int]
             val k0Value = interpret(k0, Env.empty[Any], null, null).asInstanceOf[Int]
             val IndexedSeq(_, xType) = seqOpArgTypes
-            new LinearRegressionAggregator(null, kValue, k0Value, xType)
+            new LinearRegressionAggregator(null, kValue, k0Value, xType.physicalType)
           case Downsample() =>
             assert(seqOpArgTypes == FastIndexedSeq(TFloat64(), TFloat64(), TArray(TString())))
             val Seq(nDivisions) = constructorArgs

@@ -2,13 +2,14 @@ package is.hail.annotations.aggregators
 
 import is.hail.annotations.{Region, RegionValueBuilder}
 import is.hail.expr.types.Type
+import is.hail.expr.types.physical.PType
 import is.hail.stats.LinearRegressionCombiner
 
 object RegionValueLinearRegressionAggregator {
   def typ = LinearRegressionCombiner.typ
 }
 
-class RegionValueLinearRegressionAggregator(k: Int, k0: Int, xType: Type) extends RegionValueAggregator {
+class RegionValueLinearRegressionAggregator(k: Int, k0: Int, xType: PType) extends RegionValueAggregator {
   var combiner = new LinearRegressionCombiner(k, k0, xType)
 
   def seqOp(region: Region, y: Double, ym: Boolean, xsOffset: Long, xsMissing: Boolean) {
