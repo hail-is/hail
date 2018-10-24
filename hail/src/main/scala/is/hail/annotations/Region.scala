@@ -6,6 +6,7 @@ import java.util
 import com.esotericsoftware.kryo.io.{Input, Output}
 import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
 import is.hail.expr.types._
+import is.hail.expr.types.physical._
 import is.hail.utils._
 import is.hail.nativecode._
 import sun.reflect.generics.reflectiveObjects.NotImplementedException
@@ -193,24 +194,24 @@ final class Region() extends NativeBase() {
   final def appendStringSlice(fromRegion: Region, fromOff: Long, start: Int, n: Int): Long =
     appendBinarySlice(fromRegion, fromOff, start, n)
 
-  def visit(t: Type, off: Long, v: ValueVisitor) {
+  def visit(t: PType, off: Long, v: ValueVisitor) {
     t match {
-      case _: TBoolean => v.visitBoolean(loadBoolean(off))
-      case _: TInt32 => v.visitInt32(loadInt(off))
-      case _: TInt64 => v.visitInt64(loadLong(off))
-      case _: TFloat32 => v.visitFloat32(loadFloat(off))
-      case _: TFloat64 => v.visitFloat64(loadDouble(off))
-      case _: TString =>
+      case _: PBoolean => v.visitBoolean(loadBoolean(off))
+      case _: PInt32 => v.visitInt32(loadInt(off))
+      case _: PInt64 => v.visitInt64(loadLong(off))
+      case _: PFloat32 => v.visitFloat32(loadFloat(off))
+      case _: PFloat64 => v.visitFloat64(loadDouble(off))
+      case _: PString =>
         val boff = off
         v.visitString(TString.loadString(this, boff))
-      case _: TBinary =>
+      case _: PBinary =>
         val boff = off
-        val length = TBinary.loadLength(this, boff)
-        val b = loadBytes(TBinary.bytesOffset(boff), length)
+        val length = PBinary.loadLength(this, boff)
+        val b = loadBytes(PBinary.bytesOffset(boff), length)
         v.visitBinary(b)
-      case t: TContainer =>
+      case t: PContainer =>
         val aoff = off
-        val pt = t.physicalType
+        val pt = t
         val length = pt.loadLength(this, aoff)
         v.enterArray(t, length)
         var i = 0
@@ -223,7 +224,7 @@ final class Region() extends NativeBase() {
           i += 1
         }
         v.leaveArray()
-      case t: TStruct =>
+      case t: PStruct =>
         v.enterStruct(t)
         var i = 0
         while (i < t.size) {
@@ -237,7 +238,7 @@ final class Region() extends NativeBase() {
           i += 1
         }
         v.leaveStruct()
-      case t: TTuple =>
+      case t: PTuple =>
         v.enterTuple(t)
         var i = 0
         while (i < t.size) {
@@ -250,12 +251,12 @@ final class Region() extends NativeBase() {
           i += 1
         }
         v.leaveTuple()
-      case t: ComplexType =>
+      case t: ComplexPType =>
         visit(t.representation, off, v)
     }
   }
 
-  def pretty(t: Type, off: Long): String = {
+  def pretty(t: PType, off: Long): String = {
     val v = new PrettyVisitor()
     visit(t, off, v)
     v.result()

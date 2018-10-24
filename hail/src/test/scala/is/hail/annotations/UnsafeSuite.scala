@@ -129,40 +129,41 @@ class UnsafeSuite extends SparkSuite {
       .flatMap(t => Gen.zip(Gen.const(t), t.genValue, Gen.choose(0, 100), Gen.choose(0, 100)))
       .filter { case (t, a, n, n2) => a != null }
     val p = Prop.forAll(g) { case (t, a, n, n2) =>
+      val pt = t.physicalType
       t.typeCheck(a)
 
       // test addAnnotation
       region.clear()
       region.allocate(1, n) // preallocate
 
-      rvb.start(t.physicalType)
+      rvb.start(pt)
       rvb.addAnnotation(t, a)
       val offset = rvb.end()
 
-      val ur = UnsafeRow.read(t.physicalType, region, offset)
+      val ur = UnsafeRow.read(pt, region, offset)
       assert(t.valuesSimilar(a, ur), s"$a vs $ur")
 
       // test visitor
       val rv = RegionValue(region, offset)
-      rv.pretty(t)
+      rv.pretty(pt)
 
       // test addAnnotation from ur
       region2.clear()
       region2.allocate(1, n2) // preallocate
-      rvb2.start(t.physicalType)
+      rvb2.start(pt)
       rvb2.addAnnotation(t, ur)
       val offset2 = rvb2.end()
 
-      val ur2 = UnsafeRow.read(t.physicalType, region2, offset2)
+      val ur2 = UnsafeRow.read(pt, region2, offset2)
       assert(t.valuesSimilar(a, ur2), s"$a vs $ur2")
 
       // test addRegionValue
       region2.clear()
       region2.allocate(1, n2) // preallocate
-      rvb2.start(t.physicalType)
-      rvb2.addRegionValue(t.physicalType, region, offset)
+      rvb2.start(pt)
+      rvb2.addRegionValue(pt, region, offset)
       val offset3 = rvb2.end()
-      val ur3 = UnsafeRow.read(t.physicalType, region2, offset3)
+      val ur3 = UnsafeRow.read(pt, region2, offset3)
       assert(t.valuesSimilar(a, ur3), s"$a vs $ur3")
 
       // test addRegionValue nested
@@ -179,10 +180,10 @@ class UnsafeSuite extends SparkSuite {
       }
 
       // test addRegionValue to same region
-      rvb.start(t.physicalType)
-      rvb.addRegionValue(t.physicalType, region, offset)
+      rvb.start(pt)
+      rvb.addRegionValue(pt, region, offset)
       val offset5 = rvb.end()
-      val ur5 = UnsafeRow.read(t.physicalType, region, offset5)
+      val ur5 = UnsafeRow.read(pt, region, offset5)
       assert(t.valuesSimilar(a, ur5))
 
       // test addRegionValue to same region nested

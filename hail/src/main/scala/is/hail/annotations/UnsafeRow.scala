@@ -130,7 +130,7 @@ class UnsafeRow(var t: PBaseStruct,
 
   def copy(): Row = new UnsafeRow(t, region, offset)
 
-  def pretty(): String = region.pretty(t.virtualType, offset)
+  def pretty(): String = region.pretty(t, offset)
 
   override def getInt(i: Int): Int = {
     assertDefined(i)

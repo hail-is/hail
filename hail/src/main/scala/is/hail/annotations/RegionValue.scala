@@ -3,6 +3,7 @@ package is.hail.annotations
 import java.io._
 
 import is.hail.expr.types.Type
+import is.hail.expr.types.physical.PType
 import is.hail.utils.using
 import is.hail.io.{Decoder, Encoder}
 import sun.reflect.generics.reflectiveObjects.NotImplementedException
@@ -45,7 +46,7 @@ final class RegionValue(
     offset = newOffset
   }
 
-  def pretty(t: Type): String = region.pretty(t, offset)
+  def pretty(t: PType): String = region.pretty(t, offset)
 
   def toBytes(makeEnc: OutputStream => Encoder): Array[Byte] =
     using(new ByteArrayOutputStream()) { baos =>
