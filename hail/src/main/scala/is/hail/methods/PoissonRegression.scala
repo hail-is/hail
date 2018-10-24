@@ -60,12 +60,12 @@ object PoissonRegression {
     val nullFitBc = sc.broadcast(nullFit)
     val poisRegTestBc = sc.broadcast(poisRegTest)
 
-    val fullRowType = vsm.rvRowType
+    val fullRowType = vsm.rvRowType.physicalType
     val entryArrayType = vsm.matrixType.entryArrayType.physicalType
-    val entryType = vsm.entryType
+    val entryType = vsm.entryType.physicalType
     val fieldType = entryType.field(xField).typ
 
-    assert(fieldType.isOfType(TFloat64()))
+    assert(fieldType.virtualType.isOfType(TFloat64()))
 
     val entryArrayIdx = vsm.entriesIndex
     val fieldIdx = entryType.fieldIdx(xField)
@@ -89,7 +89,7 @@ object PoissonRegression {
         rvb.set(rv.region)
         rvb.start(newRVDType.rowType.physicalType)
         rvb.startStruct()
-        rvb.addFields(fullRowType.physicalType, rv, copiedFieldIndices)
+        rvb.addFields(fullRowType, rv, copiedFieldIndices)
         poisRegTestBc.value
           .test(X, yBc.value, nullFitBc.value, "poisson")
           .addToRVB(rvb)

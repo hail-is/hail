@@ -406,9 +406,4 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
       t.setRequired(required).asInstanceOf[TStruct]
     }
   }
-
-  def loadField(region: Code[Region], offset: Code[Long], fieldName: String): Code[Long] = {
-    val f = field(fieldName)
-    loadField(region, fieldOffset(offset, f.index), f.index)
-  }
 }

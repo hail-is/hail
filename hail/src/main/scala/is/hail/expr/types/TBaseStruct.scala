@@ -146,20 +146,8 @@ abstract class TBaseStruct extends Type {
 
   def byteOffsets: Array[Long]
 
-  def isFieldDefined(rv: RegionValue, fieldIdx: Int): Boolean =
-    isFieldDefined(rv.region, rv.offset, fieldIdx)
-
   def isFieldDefined(region: Region, offset: Long, fieldIdx: Int): Boolean =
     fieldRequired(fieldIdx) || !region.loadBit(offset, missingIdx(fieldIdx))
-
-  def isFieldMissing(region: Code[Region], offset: Code[Long], fieldIdx: Int): Code[Boolean] =
-    if (fieldRequired(fieldIdx))
-      false
-    else
-      region.loadBit(offset, missingIdx(fieldIdx))
-
-  def isFieldDefined(region: Code[Region], offset: Code[Long], fieldIdx: Int): Code[Boolean] =
-    !isFieldMissing(region, offset, fieldIdx)
 
   def fieldOffset(offset: Long, fieldIdx: Int): Long =
     offset + byteOffsets(fieldIdx)
@@ -174,16 +162,6 @@ abstract class TBaseStruct extends Type {
     types(fieldIdx).fundamentalType match {
       case _: TArray | _: TBinary => region.loadAddress(off)
       case _ => off
-    }
-  }
-
-  def loadField(region: Code[Region], offset: Code[Long], fieldIdx: Int): Code[Long] =
-    loadField(region, fieldOffset(offset, fieldIdx), types(fieldIdx))
-
-  private def loadField(region: Code[Region], fieldOffset: Code[Long], fieldType: Type): Code[Long] = {
-    fieldType.fundamentalType match {
-      case _: TArray | _: TBinary => region.loadAddress(fieldOffset)
-      case _ => fieldOffset
     }
   }
 

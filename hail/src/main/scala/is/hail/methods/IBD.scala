@@ -325,6 +325,8 @@ object IBD {
 
   private val ibdSignature = TStruct(("i", TString()), ("j", TString())) ++ ExtendedIBDInfo.signature
 
+  private val ibdPType = ibdSignature.physicalType
+
   def toKeyTable(sc: HailContext, ibdMatrix: RDD[((Annotation, Annotation), ExtendedIBDInfo)]): Table = {
     val ktRdd = ibdMatrix.map { case ((i, j), eibd) => eibd.makeRow(i, j) }
     Table(sc, ktRdd, ibdSignature, IndexedSeq("i", "j"))
@@ -334,12 +336,12 @@ object IBD {
     val rvd = kt.rvd
     rvd.map { rv =>
       val region = rv.region
-      val i = TString.loadString(region, ibdSignature.loadField(rv, 0))
-      val j = TString.loadString(region, ibdSignature.loadField(rv, 1))
-      val ibd = IBDInfo.fromRegionValue(region, ibdSignature.loadField(rv, 2))
-      val ibs0 = region.loadLong(ibdSignature.loadField(rv, 3))
-      val ibs1 = region.loadLong(ibdSignature.loadField(rv, 4))
-      val ibs2 = region.loadLong(ibdSignature.loadField(rv, 5))
+      val i = TString.loadString(region, ibdPType.loadField(rv, 0))
+      val j = TString.loadString(region, ibdPType.loadField(rv, 1))
+      val ibd = IBDInfo.fromRegionValue(region, ibdPType.loadField(rv, 2))
+      val ibs0 = region.loadLong(ibdPType.loadField(rv, 3))
+      val ibs1 = region.loadLong(ibdPType.loadField(rv, 4))
+      val ibs2 = region.loadLong(ibdPType.loadField(rv, 5))
       val eibd = ExtendedIBDInfo(ibd, ibs0, ibs1, ibs2)
       ((i, j), eibd)
     }
@@ -356,8 +358,8 @@ object IBD {
     val idx = rvRowType.fieldIdx(fieldName)
 
     (rv: RegionValue) => {
-      val isDefined = rvRowType.isFieldDefined(rv, idx)
-      val maf = rv.region.loadDouble(rvRowType.loadField(rv, idx))
+      val isDefined = rvRowPType.isFieldDefined(rv, idx)
+      val maf = rv.region.loadDouble(rvRowPType.loadField(rv, idx))
       if (!isDefined) {
         val row = new UnsafeRow(rvRowPType, rv).deleteField(entriesIdx)
         fatal(s"The minor allele frequency expression evaluated to NA at ${ rowKeysF(row) }.")

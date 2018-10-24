@@ -213,23 +213,22 @@ object Skat {
     // returns ((key, [(gs_v, weight_v)]), keyType)
     weightField: String): (RDD[(Annotation, Iterable[(BDV[Double], Double)])], Type) = {
 
-    val fullRowType = vsm.rvRowType
+    val fullRowType = vsm.rvRowType.physicalType
     val keyStructField = fullRowType.field(keyField)
     val keyIndex = keyStructField.index
     val keyType = keyStructField.typ
-    val keyPType = keyType.physicalType
 
     val weightStructField = fullRowType.field(weightField)
     val weightIndex = weightStructField.index
-    assert(weightStructField.typ.isOfType(TFloat64()))
+    assert(weightStructField.typ.virtualType.isOfType(TFloat64()))
 
     val sc = vsm.sparkContext
 
     val entryArrayType = vsm.matrixType.entryArrayType.physicalType
-    val entryType = vsm.entryType
+    val entryType = vsm.entryType.physicalType
     val fieldType = entryType.field(xField).typ
 
-    assert(fieldType.isOfType(TFloat64()))
+    assert(fieldType.virtualType.isOfType(TFloat64()))
 
     val entryArrayIdx = vsm.entriesIndex
     val fieldIdx = entryType.fieldIdx(xField)    
@@ -245,7 +244,7 @@ object Skat {
         val weight = rv.region.loadDouble(fullRowType.loadField(rv, weightIndex))
         if (weight < 0)
           fatal(s"Row weights must be non-negative, got $weight")
-        val key = Annotation.copy(keyType, UnsafeRow.read(keyType.physicalType, rv.region, fullRowType.loadField(rv, keyIndex)))
+        val key = Annotation.copy(keyType.virtualType, UnsafeRow.read(keyType, rv.region, fullRowType.loadField(rv, keyIndex)))
         val data = new Array[Double](n)
 
         RegressionUtils.setMeanImputedDoubles(data, 0, completeColIdxBc.value, new ArrayBuilder[Int](),
@@ -253,7 +252,7 @@ object Skat {
         Some(key -> (BDV(data), weight))
       } else None
     }
-    }.groupByKey(), keyType)
+    }.groupByKey(), keyType.virtualType)
   }
  
   

@@ -803,8 +803,8 @@ private class Emit(
         if (fields.isEmpty)
           emit(old)
         else
-          old.typ match {
-            case oldtype: TStruct =>
+          old.pType match {
+            case oldtype: PStruct =>
               val codeOld = emit(old)
               val xo = mb.newField[Long]
               val updateMap = Map(fields: _*)
@@ -854,7 +854,7 @@ private class Emit(
           }
 
       case GetField(o, name) =>
-        val t = coerce[TStruct](o.typ)
+        val t = coerce[PStruct](o.pType)
         val fieldIdx = t.fieldIdx(name)
         val codeO = emit(o)
         val xmo = mb.newLocal[Boolean]()
@@ -878,7 +878,7 @@ private class Emit(
         present(Code(srvb.start(init = true), wrapToMethod(fields, env)(addFields), srvb.offset))
 
       case GetTupleElement(o, idx) =>
-        val t = coerce[TTuple](o.typ)
+        val t = coerce[PTuple](o.pType)
         val codeO = emit(o)
         val xmo = mb.newLocal[Boolean]()
         val xo = mb.newLocal[Long]
@@ -891,7 +891,7 @@ private class Emit(
           region.loadIRIntermediate(t.types(idx))(t.fieldOffset(xo, idx)))
 
       case StringSlice(s, start, end) =>
-        val t = coerce[TString](s.typ)
+        val t = coerce[PString](s.pType)
         val cs = emit(s)
         val cstart = emit(start)
         val cend = emit(end)
@@ -904,7 +904,7 @@ private class Emit(
           vs := coerce[Long](cs.v),
           vstart := coerce[Int](cstart.v),
           vend := coerce[Int](cend.v),
-          vlen := TString.loadLength(region, vs),
+          vlen := PString.loadLength(region, vs),
           ((vstart < 0) || (vstart > vend) || (vend > vlen)).mux(
             Code._fatal(
               const("string slice out of bounds or invalid: \"")
@@ -930,7 +930,7 @@ private class Emit(
         strict(Code(checks, sliced), cs, cstart, cend)
 
       case StringLength(s) =>
-        val t = coerce[TString](s.typ)
+        val t = coerce[PString](s.pType)
         val cs = emit(s)
         strict(TString.loadLength(region, coerce[Long](cs.v)), cs)
 
