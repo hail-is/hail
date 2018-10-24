@@ -319,6 +319,12 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=()) -> 
     effect, with :math:`n` samples and :math:`k` covariates in addition to
     ``x``.
 
+    Note
+    ----
+    You can include additional row fields from the input :class:`.MatrixTable`
+    with the `pass_through` parameter. For example, you can include the "rsid"
+    field with either ``pass_through=['rsid']`` or ``pass_through=[mt.rsid]``.
+
     Parameters
     ----------
     y : :class:`.Float64Expression` or :obj:`list` of :class:`.Float64Expression`
@@ -331,7 +337,7 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=()) -> 
         Number of row regressions to perform simultaneously per core. Larger blocks
         require more memory but may improve performance.
     pass_through : :obj:`list` of :obj:`str` or :class:`.Expression`
-        Additional row fields to add
+        Additional row fields to include in the resulting table.
 
     Returns
     -------
@@ -385,7 +391,7 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=()) -> 
             if not f._ir.is_nested_field:
                 raise ValueError(f"'linear_regression_rows/pass_through': expect fields or nested fields, not complex expressions")
             if not f._indices == mt._row_indices:
-                raise ExpressionException(f"'linear_regression_rows/pass_through': require row-indexed fields, found indices {f._indices.axes}")
+                raise ValueError(f"'linear_regression_rows/pass_through': require row-indexed fields, found indices {f._indices.axes}")
             name = f._ir.name
             if name in row_fields:
                 # allow silent pass through of key fields
