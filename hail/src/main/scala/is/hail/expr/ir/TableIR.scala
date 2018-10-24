@@ -1158,10 +1158,7 @@ case class CastMatrixToTable(
   colsFieldName: String
 ) extends TableIR {
 
-  def typ: TableType = TableType(
-    rowType = child.typ.rvRowType.rename(Map(MatrixType.entriesIdentifier -> entriesFieldName)),
-    key = child.typ.rowKey,
-    globalType = child.typ.globalType.appendKey(colsFieldName, TArray(child.typ.colType)))
+  def typ: TableType = LowerMatrixIR.loweredType(child.typ, entriesFieldName, colsFieldName)
 
   def children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
 
