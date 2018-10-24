@@ -9,7 +9,6 @@ import is.hail.expr.types._
 import is.hail.io._
 import org.testng.annotations.Test
 import is.hail.utils._
-import is.hail.variant.MatrixTable
 import org.apache.spark.sql.Row
 
 class NativeEncoderSuite extends SparkSuite {

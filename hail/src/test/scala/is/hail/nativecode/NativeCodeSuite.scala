@@ -1,22 +1,8 @@
 package is.hail.nativecode
 
-import java.io.ByteArrayOutputStream
-
 import is.hail.SparkSuite
-import is.hail.annotations._
-import is.hail.check.Gen
-import is.hail.check.Prop.forAll
 import is.hail.cxx._
-import is.hail.expr._
-import is.hail.expr.types._
-import is.hail.io._
-import is.hail.nativecode._
-import org.apache.spark.SparkException
 import org.testng.annotations.Test
-import is.hail.utils._
-import is.hail.testUtils._
-import is.hail.variant.MatrixTable
-import org.apache.spark.sql.Row
 
 class NativeCodeSuite extends SparkSuite {
 
