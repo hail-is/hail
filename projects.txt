@@ -6,7 +6,6 @@ gateway
 hail
 image-fetcher
 letsencrypt
-notebook
 scorecard
 site
 spark
