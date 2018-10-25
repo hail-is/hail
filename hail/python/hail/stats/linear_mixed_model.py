@@ -500,7 +500,7 @@ class LinearMixedModel(object):
         except LinAlgError as e:
             raise Exception(f'linear algebra error while solving for REML estimate') from e
 
-    @typecheck_method(log_gamma=nullable(float), bounds=tupleof(numeric), tol=float, maxiter=int)
+    @typecheck_method(log_gamma=nullable(numeric), bounds=tupleof(numeric), tol=float, maxiter=int)
     def fit(self, log_gamma=None, bounds=(-8.0, 8.0), tol=1e-8, maxiter=500):
         r"""Find the triple :math:`(\beta, \sigma^2, \tau^2)` maximizing REML.
 
