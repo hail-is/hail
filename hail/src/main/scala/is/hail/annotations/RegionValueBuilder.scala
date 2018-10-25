@@ -143,6 +143,19 @@ class RegionValueBuilder(var region: Region) {
   }
 
   def startArray(length: Int, init: Boolean = true) {
+    startArrayInternal(length, init, false)
+  }
+
+  // using this function, rather than startArray will set all elements of the array to missing by
+  // default, you will need to use setPresent to add a value to this array.
+  def startMissingArray(length: Int, init: Boolean = true) {
+    val t = currentType().asInstanceOf[PArray]
+    if (t.elementType.required)
+      fatal(s"cannot use random array pattern for required type ${ t.elementType }")
+    startArrayInternal(length, init, true)
+  }
+
+  private def startArrayInternal(length: Int, init: Boolean, setMissing: Boolean) {
     val t = currentType().asInstanceOf[PArray]
     val aoff = region.allocate(t.contentsAlignment, t.contentsByteSize(length))
 
@@ -158,7 +171,7 @@ class RegionValueBuilder(var region: Region) {
     offsetstk.push(aoff)
 
     if (init)
-      t.initialize(region, aoff, length)
+      t.initialize(region, aoff, length, setMissing)
   }
 
   def endArray() {
@@ -167,12 +180,21 @@ class RegionValueBuilder(var region: Region) {
     val length = t.loadLength(region, aoff)
     assert(length == indexstk.top)
 
+    endArrayUnchecked()
+  }
+
+  def endArrayUnchecked() {
     typestk.pop()
     offsetstk.pop()
     elementsOffsetstk.pop()
     indexstk.pop()
 
     advance()
+  }
+
+  def setArrayIndex(newI: Int) {
+    assert(typestk.top.isInstanceOf[PArray])
+    indexstk(0) = newI
   }
 
   def setFieldIndex(newI: Int) {
@@ -193,6 +215,16 @@ class RegionValueBuilder(var region: Region) {
         t.setElementMissing(region, offsetstk.top, i)
     }
     advance()
+  }
+
+  def setPresent() {
+    val i = indexstk.top
+    typestk.top match {
+      case t: PBaseStruct =>
+        t.setFieldPresent(region, offsetstk.top, i)
+      case t: PArray =>
+        t.setElementPresent(region, offsetstk.top, i)
+    }
   }
 
   def addBoolean(b: Boolean) {
