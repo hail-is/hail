@@ -217,7 +217,7 @@ case class MatrixValue(
       val resultStruct = typ.entriesTableType.rowType
       val fullRowType = typ.rvRowType
       val localEntriesIndex = typ.entriesIdx
-      val localEntriesType = typ.entryArrayType
+      val localEntriesType = typ.entryArrayType.physicalType
       val localColType = typ.colType
       val localEntryType = typ.entryType
       val localRVDType = typ.rvdType
@@ -234,9 +234,9 @@ case class MatrixValue(
 
             val colRegion = ctx.freshRegion
             val colRVB = new RegionValueBuilder(colRegion)
-            val colsType = TArray(localColType, required = true)
-            colRVB.start(colsType.physicalType)
-            colRVB.addAnnotation(colsType, localSortedColValues.value)
+            val colsType = TArray(localColType, required = true).physicalType
+            colRVB.start(colsType)
+            colRVB.addAnnotation(colsType.virtualType, localSortedColValues.value)
             val colsOffset = colRVB.end()
 
             val rowBuffer = new RegionValueArrayBuffer(fullRowType.physicalType, ctx.freshRegion)

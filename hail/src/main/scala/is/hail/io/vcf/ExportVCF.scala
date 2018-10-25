@@ -3,6 +3,7 @@ package is.hail.io.vcf
 import is.hail
 import is.hail.annotations.Region
 import is.hail.expr.types._
+import is.hail.expr.types.physical.PContainer
 import is.hail.io.{VCFAttributes, VCFFieldAttributes, VCFMetadata}
 import is.hail.utils._
 import is.hail.variant.{Call, MatrixTable, RegionValueVariant}
@@ -50,7 +51,7 @@ object ExportVCF {
     }
   }
   
-  def iterableVCF(sb: StringBuilder, t: TIterable, m: Region, length: Int, offset: Long, delim: Char) {
+  def iterableVCF(sb: StringBuilder, t: PContainer, m: Region, length: Int, offset: Long, delim: Char) {
     if (length > 0) {
       var i = 0
       while (i < length) {
@@ -58,7 +59,7 @@ object ExportVCF {
           sb += delim
         if (t.isElementDefined(m, offset, i)) {
           val eOffset = t.loadElement(m, offset, length, i)
-          strVCF(sb, t.elementType, m, eOffset)
+          strVCF(sb, t.elementType.virtualType, m, eOffset)
         } else
           sb += '.'
         i += 1
@@ -69,8 +70,9 @@ object ExportVCF {
 
   def emitInfo(sb: StringBuilder, f: Field, m: Region, offset: Long, wroteLast: Boolean): Boolean = {
     f.typ match {
-      case it: TIterable if !it.elementType.isOfType(TBoolean()) =>
-        val length = it.loadLength(m, offset)
+      case it: TContainer if !it.elementType.isOfType(TBoolean()) =>
+        val pt = it.physicalType
+        val length = pt.loadLength(m, offset)
         if (length == 0)
           wroteLast
         else {
@@ -78,7 +80,7 @@ object ExportVCF {
             sb += ';'
           sb.append(f.name)
           sb += '='
-          iterableVCF(sb, it, m, length, offset, ',')
+          iterableVCF(sb, pt, m, length, offset, ',')
           true
         }
       case TBoolean(_) =>
@@ -170,10 +172,11 @@ object ExportVCF {
       val fOffset = tg.loadField(m, offset, j)
 
       tg.fields(j).typ match {
-        case it: TIterable =>
+        case it: TContainer =>
+          val pt = it.physicalType
           if (fIsDefined) {
-            val fLength = it.loadLength(m, fOffset)
-            iterableVCF(sb, it, m, fLength, fOffset, ',')
+            val fLength = pt.loadLength(m, fOffset)
+            iterableVCF(sb, pt, m, fLength, fOffset, ',')
           } else
             sb += '.'
         case t =>
@@ -327,15 +330,17 @@ object ExportVCF {
         case None => (false, 0)
       }
     }
-    
+    val filtersType = TSet(TString())
+    val filtersPType = filtersType.physicalType
+
     val (idExists, idIdx) = lookupVAField("rsid", "ID", Some(TString()))
     val (qualExists, qualIdx) = lookupVAField("qual", "QUAL", Some(TFloat64()))
-    val (filtersExists, filtersIdx) = lookupVAField("filters", "FILTERS", Some(TSet(TString())))
+    val (filtersExists, filtersIdx) = lookupVAField("filters", "FILTERS", Some(filtersType))
     val (infoExists, infoIdx) = lookupVAField("info", "INFO", None)
     
     val fullRowType = vsm.rvRowType.physicalType
     val localEntriesIndex = vsm.entriesIndex
-    val localEntriesType = vsm.matrixType.entryArrayType
+    val localEntriesType = vsm.matrixType.entryArrayType.physicalType
 
     vsm.rvd.mapPartitions { it =>
       val sb = new StringBuilder
@@ -376,11 +381,11 @@ object ExportVCF {
         
         if (filtersExists && fullRowType.isFieldDefined(rv, filtersIdx)) {
           val filtersOffset = fullRowType.loadField(rv, filtersIdx)
-          val filtersLength = TSet(TString()).loadLength(m, filtersOffset)
+          val filtersLength = filtersPType.loadLength(m, filtersOffset)
           if (filtersLength == 0)
             sb.append("PASS")
           else
-            iterableVCF(sb, TSet(TString()), m, filtersLength, filtersOffset, ';')
+            iterableVCF(sb, filtersPType, m, filtersLength, filtersOffset, ';')
         } else
           sb += '.'
 

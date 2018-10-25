@@ -210,13 +210,14 @@ final class Region() extends NativeBase() {
         v.visitBinary(b)
       case t: TContainer =>
         val aoff = off
-        val length = t.loadLength(this, aoff)
+        val pt = t.physicalType
+        val length = pt.loadLength(this, aoff)
         v.enterArray(t, length)
         var i = 0
         while (i < length) {
           v.enterElement(i)
-          if (t.isElementDefined(this, aoff, i))
-            visit(t.elementType, t.loadElement(this, aoff, length, i), v)
+          if (pt.isElementDefined(this, aoff, i))
+            visit(t.elementType, pt.loadElement(this, aoff, length, i), v)
           else
             v.visitMissing(t.elementType)
           i += 1

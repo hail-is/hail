@@ -88,10 +88,10 @@ class StagedRegionValueSuite extends SparkSuite {
 
   @Test
   def testArray() {
-    val rt = TArray(TInt32())
+    val rt = PArray(PInt32())
     val input = 3
     val fb = FunctionBuilder.functionBuilder[Region, Int, Long]
-    val srvb = new StagedRegionValueBuilder(fb, rt.physicalType)
+    val srvb = new StagedRegionValueBuilder(fb, rt)
 
     fb.emit(
       Code(
@@ -108,20 +108,20 @@ class StagedRegionValueSuite extends SparkSuite {
 
     if (showRVInfo) {
       printRegion(region, "array")
-      println(rv.pretty(rt))
+      println(rv.pretty(rt.virtualType))
     }
 
     val region2 = Region()
     val rv2 = RegionValue(region2)
-    rv2.setOffset(ScalaToRegionValue(region2, rt, FastIndexedSeq(input)))
+    rv2.setOffset(ScalaToRegionValue(region2, rt.virtualType, FastIndexedSeq(input)))
 
     if (showRVInfo) {
       printRegion(region2, "array")
-      println(rv2.pretty(rt))
+      println(rv2.pretty(rt.virtualType))
     }
 
     assert(rt.loadLength(rv.region, rv.offset) == 1)
-    assert(rv.pretty(rt) == rv2.pretty(rt))
+    assert(rv.pretty(rt.virtualType) == rv2.pretty(rt.virtualType))
     assert(rv.region.loadInt(rt.loadElement(rv.region, rv.offset, 0)) ==
       rv2.region.loadInt(rt.loadElement(rv2.region, rv2.offset, 0)))
   }

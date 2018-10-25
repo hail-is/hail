@@ -372,7 +372,7 @@ private class Emit(
           region.loadIRIntermediate(typ)(pArray.elementOffset(xa, len, xi))))
       case ArrayLen(a) =>
         val codeA = emit(a)
-        strict(TContainer.loadLength(region, coerce[Long](codeA.v)), codeA)
+        strict(PContainer.loadLength(region, coerce[Long](codeA.v)), codeA)
 
       case x@(_: ArraySort | _: ToSet | _: ToDict) =>
         val (a, ascending: IR, keyOnly) = x match {
