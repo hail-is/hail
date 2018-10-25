@@ -2,6 +2,7 @@ package is.hail.annotations.aggregators
 
 import is.hail.annotations.{Region, RegionValueBuilder, SafeRow}
 import is.hail.expr.types.Type
+import is.hail.expr.types.physical.PType
 
 import scala.collection.mutable
 
