@@ -48,7 +48,7 @@ class LZ4OutputBlockBuffer {
       block_buf_(OutputBlockBuffer(out)),
       block_(new char[LZ4_compressBound(BLOCKSIZE) + 4]{}) { }
 
-    ~LZ4OutputBlockBuffer() { free(block_); }
+    ~LZ4OutputBlockBuffer() { delete[] block_; }
 
     void write_block(char * buf, int n) {
       int comp_length = LZ4_compress_default(buf, block_ + 4, n, LZ4_compressBound(BLOCKSIZE) + 4);
@@ -71,7 +71,7 @@ class BlockingOutputBuffer {
       block_buf_(OutputBlockBuffer(out)),
       block_(new char[BLOCKSIZE]{}) { }
 
-    ~BlockingOutputBuffer() { free(block_); }
+    ~BlockingOutputBuffer() { delete[] block_; }
 
     void flush() {
       if (off_ > 0) {
