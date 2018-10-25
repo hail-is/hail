@@ -197,7 +197,7 @@ test_gcp() {
          --master-boot-disk-size 40 \
          --worker-machine-type n1-standard-1 \
          --worker-boot-disk-size 40 \
-         --version devel \
+         --version 0.2 \
          --spark 2.2.0 \
          --max-idle 10m \
          --bucket=hail-ci-0-1-dataproc-staging-bucket \
