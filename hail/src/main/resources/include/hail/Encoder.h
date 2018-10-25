@@ -21,6 +21,8 @@ class OutputStream {
     int jbuf_size_;
 
   public:
+    OutputStream() = delete;
+    OutputStream(OutputStream &os) = delete;
     OutputStream(UpcallEnv up, jobject joutput_stream);
     void write(char * buf, int n);
     void flush();
@@ -33,25 +35,26 @@ class StreamOutputBlockBuffer {
     std::shared_ptr<OutputStream> output_stream_;
 
   public:
+    StreamOutputBlockBuffer() = delete;
+    StreamOutputBlockBuffer(StreamOutputBlockBuffer &buf) = delete;
     StreamOutputBlockBuffer(std::shared_ptr<OutputStream> os);
     void write_block(char * buf, int n);
     void close() { output_stream_->close(); }
 };
 
-template <int BLOCKSIZE, typename OutputBlockBuffer>
+template <int BUFSIZE, typename OutputBlockBuffer>
 class LZ4OutputBlockBuffer {
   private:
     OutputBlockBuffer block_buf_;
-    char * block_;
+    char block_[BUFSIZE];
   public:
+    LZ4OutputBlockBuffer() = delete;
+    LZ4OutputBlockBuffer(LZ4OutputBlockBuffer &buf) = delete;
     LZ4OutputBlockBuffer(std::shared_ptr<OutputStream> out) :
-      block_buf_(OutputBlockBuffer(out)),
-      block_(new char[LZ4_compressBound(BLOCKSIZE) + 4]{}) { }
-
-    ~LZ4OutputBlockBuffer() { delete[] block_; }
+      block_buf_(out) { }
 
     void write_block(char * buf, int n) {
-      int comp_length = LZ4_compress_default(buf, block_ + 4, n, LZ4_compressBound(BLOCKSIZE) + 4);
+      int comp_length = LZ4_compress_default(buf, block_ + 4, n, BUFSIZE);
       store_int(block_, n);
       block_buf_.write_block(block_, comp_length + 4);
     }
@@ -63,15 +66,14 @@ template <int BLOCKSIZE, typename OutputBlockBuffer>
 class BlockingOutputBuffer {
   private:
     OutputBlockBuffer block_buf_;
-    char * block_;
+    char block_[BLOCKSIZE];
     int off_ = 0;
 
   public:
+    BlockingOutputBuffer() = delete;
+    BlockingOutputBuffer(BlockingOutputBuffer &buf) = delete;
     BlockingOutputBuffer(std::shared_ptr<OutputStream> out) :
-      block_buf_(OutputBlockBuffer(out)),
-      block_(new char[BLOCKSIZE]{}) { }
-
-    ~BlockingOutputBuffer() { delete[] block_; }
+      block_buf_(out) { }
 
     void flush() {
       if (off_ > 0) {
@@ -143,8 +145,10 @@ class LEB128OutputBuffer {
     OutputBuffer buf_;
 
   public:
+    LEB128OutputBuffer() = delete;
+    LEB128OutputBuffer(LEB128OutputBuffer &buf) = delete;
     LEB128OutputBuffer(std::shared_ptr<OutputStream> out) :
-      buf_(OutputBuffer(out)) { }
+      buf_(out) { }
 
     void flush() { buf_.flush(); }
 
@@ -187,13 +191,12 @@ class LEB128OutputBuffer {
 
 template<typename OutputBuffer>
 class Encoder : public NativeObj {
-  private:
-    OutputBuffer buf_;
-
   public:
+    OutputBuffer buf_;
+    Encoder() = delete;
+    Encoder(Encoder &enc) = delete;
     Encoder(std::shared_ptr<OutputStream> out) :
-      buf_(OutputBuffer(out)) { }
-    OutputBuffer get_buf() { return buf_; }
+    buf_(out) { }
 };
 
 }

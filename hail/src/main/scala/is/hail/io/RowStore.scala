@@ -59,7 +59,7 @@ final class LZ4BlockBufferSpec(blockSize: Int, child: BlockBufferSpec) extends B
 
   def buildOutputBuffer(out: OutputStream): OutputBlockBuffer = new LZ4OutputBlockBuffer(blockSize, child.buildOutputBuffer(out))
 
-  def nativeBufferType: String = s"LZ4OutputBlockBuffer<$blockSize, ${child.nativeBufferType}>"
+  def nativeBufferType: String = s"LZ4OutputBlockBuffer<${4 + LZ4Utils.maxCompressedLength(blockSize)}, ${child.nativeBufferType}>"
 }
 
 object StreamBlockBufferSpec {
@@ -1567,18 +1567,18 @@ object NativeEncoder {
   def encodeBinary(output_buf_ptr: cxx.Expression, off: cxx.Expression): cxx.Code = {
     val len = cxx.Variable("len", "int", s"load_length($off)")
     s"""${len.define}
-       |$output_buf_ptr.write_int($len);
-       |$output_buf_ptr.write_bytes($off + 4, $len);""".stripMargin
+       |$output_buf_ptr->write_int($len);
+       |$output_buf_ptr->write_bytes($off + 4, $len);""".stripMargin
   }
 
   def encodeArray(t: PArray, output_buf_ptr: cxx.Expression, off: cxx.Expression): cxx.Code = {
     val len = cxx.Variable("len", "int", s"load_length($off)")
     val i = cxx.Variable("i", "int", s"0")
     val copyLengthAndMissing = if (t.elementType.required)
-      s"$output_buf_ptr.write_int($len);"
+      s"$output_buf_ptr->write_int($len);"
     else
-      s"""$output_buf_ptr.write_int($len);
-         |$output_buf_ptr.write_bytes($off + 4, n_missing_bytes($len));""".stripMargin
+      s"""$output_buf_ptr->write_int($len);
+         |$output_buf_ptr->write_bytes($off + 4, n_missing_bytes($len));""".stripMargin
     val eltOff = cxx.Variable("eoff",
       "char *",
       s"round_up_alignment(${if (!t.elementType.required) s"$off + 4 + n_missing_bytes($len)" else s"$off + 4"}, ${t.elementType.alignment})")
@@ -1624,17 +1624,17 @@ object NativeEncoder {
            |}""".stripMargin
       }
     }
-    s"""$output_buf_ptr.write_bytes($off, $nMissingBytes);
+    s"""$output_buf_ptr->write_bytes($off, $nMissingBytes);
        |${storeFields.mkString("\n")}
       """.stripMargin
   }
 
   def encode(t: PType, output_buf_ptr: cxx.Expression, off: cxx.Expression): cxx.Code = t match {
-    case _: PBoolean => s"$output_buf_ptr.write_byte(*($off) ? 1 : 0);"
-    case _: PInt32 => s"$output_buf_ptr.write_int(load_int($off));"
-    case _: PInt64 => s"$output_buf_ptr.write_long(load_long($off));"
-    case _: PFloat32 => s"$output_buf_ptr.write_float(load_float($off));"
-    case _: PFloat64 => s"$output_buf_ptr.write_double(load_double($off));"
+    case _: PBoolean => s"$output_buf_ptr->write_byte(*($off) ? 1 : 0);"
+    case _: PInt32 => s"$output_buf_ptr->write_int(load_int($off));"
+    case _: PInt64 => s"$output_buf_ptr->write_long(load_long($off));"
+    case _: PFloat32 => s"$output_buf_ptr->write_float(load_float($off));"
+    case _: PFloat64 => s"$output_buf_ptr->write_double(load_double($off));"
     case _: PBinary => encodeBinary(output_buf_ptr, off)
     case t2: PArray => encodeArray(t2, output_buf_ptr, off)
     case t2: PBaseStruct => encodeBaseStruct(t2, output_buf_ptr, off)
@@ -1658,7 +1658,7 @@ object NativeEncoder {
     tub += outBufFB.result()
 
     val rowFB = cxx.FunctionBuilder("encode_row", Array("NativeStatus*" -> "st", "long" -> "buf", "long" -> "row"), "long")
-    val buf = cxx.Variable("buf", s"$bufType", s"reinterpret_cast<Encoder<$bufType> *>(${rowFB.getArg(1)})->get_buf()")
+    val buf = cxx.Variable("buf", s"$bufType *", s"&reinterpret_cast<Encoder<$bufType> *>(${rowFB.getArg(1)})->buf_")
     val row = cxx.Variable("row", "char *", s"reinterpret_cast<char *>(${rowFB.getArg(2)})")
     rowFB += buf.define
     rowFB += row.define
@@ -1667,17 +1667,17 @@ object NativeEncoder {
     tub += rowFB.result()
 
     val byteFB = cxx.FunctionBuilder("encode_byte", Array("NativeStatus*" -> "st", "long" -> "buf", "long" -> "b"), "long")
-    byteFB += s"""reinterpret_cast<Encoder<$bufType> *>(${byteFB.getArg(1)})->get_buf().write_byte(${byteFB.getArg(2)} & 0xff);"""
+    byteFB += s"""reinterpret_cast<Encoder<$bufType> *>(${byteFB.getArg(1)})->buf_.write_byte(${byteFB.getArg(2)} & 0xff);"""
     byteFB += "return 0;"
     tub += byteFB.result()
 
     val flushFB = cxx.FunctionBuilder("encoder_flush", Array("NativeStatus*" -> "st", "long" -> "buf"), "long")
-    flushFB += s"""reinterpret_cast<Encoder<$bufType> *>(${flushFB.getArg(1)})->get_buf().flush();"""
+    flushFB += s"""reinterpret_cast<Encoder<$bufType> *>(${flushFB.getArg(1)})->buf_.flush();"""
     flushFB += "return 0;"
     tub += flushFB.result()
 
     val closeFB = cxx.FunctionBuilder("encoder_close", Array("NativeStatus*" -> "st", "long" -> "buf"), "long")
-    closeFB +=s"""reinterpret_cast<Encoder<$bufType> *>(${closeFB.getArg(1)})->get_buf().close();
+    closeFB +=s"""reinterpret_cast<Encoder<$bufType> *>(${closeFB.getArg(1)})->buf_.close();
                  |return 0;""".stripMargin
     tub += closeFB.result()
 
