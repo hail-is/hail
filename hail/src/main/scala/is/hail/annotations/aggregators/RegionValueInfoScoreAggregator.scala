@@ -9,8 +9,8 @@ object RegionValueInfoScoreAggregator {
   def typ = InfoScoreCombiner.signature
 }
 
-class RegionValueInfoScoreAggregator(typ: PType) extends RegionValueAggregator {
-  var combiner = new InfoScoreCombiner(typ)
+class RegionValueInfoScoreAggregator(typ: Type) extends RegionValueAggregator {
+  var combiner = new InfoScoreCombiner(typ.physicalType)
 
   def seqOp(region: Region, offset: Long, missing: Boolean) {
     if (!missing) {
