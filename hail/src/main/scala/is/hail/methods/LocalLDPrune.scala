@@ -4,7 +4,7 @@ import java.util
 
 import is.hail.annotations._
 import is.hail.expr.types._
-import is.hail.expr.types.physical.PStruct
+import is.hail.expr.types.physical.{PInt64Required, PStruct}
 import org.apache.spark.storage.StorageLevel
 import is.hail.rvd.{RVD, RVDType}
 import is.hail.table.Table
@@ -12,7 +12,7 @@ import is.hail.variant._
 import is.hail.utils._
 
 object BitPackedVectorView {
-  val bpvElementSize = TInt64Required.byteSize
+  val bpvElementSize = PInt64Required.byteSize
 
   def rvRowType(locusType: Type, allelesType: Type): TStruct = TStruct("locus" -> locusType, "alleles" -> allelesType,
     "bpv" -> TArray(TInt64Required), "nSamples" -> TInt32Required, "mean" -> TFloat64Required, "centered_length_rec" -> TFloat64Required)
