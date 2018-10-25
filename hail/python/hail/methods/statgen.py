@@ -351,9 +351,9 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=()) -> 
 
     Note
     ----
-    You can include additional row fields from the input :class:`.MatrixTable`
-    with the `pass_through` parameter. For example, you can include the "rsid"
-    field with either ``pass_through=['rsid']`` or ``pass_through=[mt.rsid]``.
+    Use the `pass_through` parameter to include additional row fields from
+    matrix table underlying ``x``. For example, to include an "rsid" field, set
+    ``pass_through=['rsid']`` or ``pass_through=[mt.rsid]``.
 
     Parameters
     ----------
@@ -619,9 +619,9 @@ def logistic_regression_rows(test, y, x, covariates, pass_through=()) -> hail.Ta
 
     Note
     ----
-    You can include additional row fields from the input :class:`.MatrixTable`
-    with the `pass_through` parameter. For example, you can include the "rsid"
-    field with either ``pass_through=['rsid']`` or ``pass_through=[mt.rsid]``.
+    Use the `pass_through` parameter to include additional row fields from
+    matrix table underlying ``x``. For example, to include an "rsid" field, set
+    ``pass_through=['rsid']`` or ``pass_through=[mt.rsid]``.
 
     Parameters
     ----------
@@ -696,9 +696,9 @@ def poisson_regression_rows(test, y, x, covariates, pass_through=()) -> Table:
 
     Note
     ----
-    You can include additional row fields from the input :class:`.MatrixTable`
-    with the `pass_through` parameter. For example, you can include the "rsid"
-    field with either ``pass_through=['rsid']`` or ``pass_through=[mt.rsid]``.
+    Use the `pass_through` parameter to include additional row fields from
+    matrix table underlying ``x``. For example, to include an "rsid" field, set
+    ``pass_through=['rsid']`` or ``pass_through=[mt.rsid]``.
 
     Parameters
     ----------
@@ -748,7 +748,6 @@ def poisson_regression_rows(test, y, x, covariates, pass_through=()) -> Table:
         test,
         y_field_name,
         x_field_name,
-        jarray(Env.jvm().java.lang.String, cov_field_names))
         cov_field_names,
         list(row_fields)[len(mt.row_key):])
     return Table._from_java(jt)
@@ -1030,9 +1029,9 @@ def linear_mixed_regression_rows(entry_expr,
 
     Note
     ----
-    You can include additional row fields from the input :class:`.MatrixTable`
-    with the `pass_through` parameter. For example, you can include the "rsid"
-    field with either ``pass_through=['rsid']`` or ``pass_through=[mt.rsid]``.
+    Use the `pass_through` parameter to include additional row fields from
+    matrix table underlying ``entry_expr``. For example, to include an "rsid"
+    field, set` pass_through=['rsid']`` or ``pass_through=[mt.rsid]``.
 
     Parameters
     ----------
