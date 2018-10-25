@@ -1,10 +1,10 @@
-.PHONY: build push run clean
+STATIC_CONFIG = letsencrypt-pod.yaml letsencrypt.sh
+
+.PHONY: $(STATIC_CONFIG) build push run clean
 
 PROJECT = $(shell gcloud config get-value project)
 DOMAIN ?= hail.is
 IP ?= 35.224.105.117
-
-STATIC_CONFIG = letsencrypt-pod.yaml letsencrypt.sh
 
 $(STATIC_CONFIG): %: %.in
 	sed -e "s,@project@,$(PROJECT),g" \
