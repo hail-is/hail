@@ -273,6 +273,44 @@ class StagedRegionValueSuite extends SparkSuite {
   }
 
   @Test
+  def testSetFieldPresent() {
+    val rt = TStruct("a" -> TInt32(), "b" -> TString(), "c" -> TFloat64())
+    val intVal = 30
+    val floatVal = 39.273d
+    val r = Region()
+    val r2 = Region()
+    val rv = RegionValue(r)
+    val rv2 = RegionValue(r2)
+    val rvb = new RegionValueBuilder(r)
+    val rvb2 = new RegionValueBuilder(r2)
+    rvb.start(rt.physicalType)
+    rvb.startStruct()
+    rvb.setMissing()
+    rvb.setMissing()
+    rvb.addDouble(floatVal)
+    rvb.setFieldIndex(0)
+    rvb.setPresent()
+    rvb.addInt(intVal)
+    rvb.setFieldIndex(3)
+    rvb.endStruct()
+    rv.setOffset(rvb.end())
+
+    rvb2.start(rt.physicalType)
+    rvb2.startStruct()
+    rvb2.addInt(intVal)
+    rvb2.setMissing()
+    rvb2.addDouble(floatVal)
+    rvb2.endStruct()
+    rv2.setOffset(rvb2.end())
+
+    assert(rv.pretty(rt) == rv2.pretty(rt))
+    assert(rv.region.loadInt(rt.loadField(rv.region, rv.offset, 0)) ==
+      rv2.region.loadInt(rt.loadField(rv2.region, rv2.offset, 0)))
+    assert(rv.region.loadDouble(rt.loadField(rv.region, rv.offset, 2)) ==
+      rv2.region.loadDouble(rt.loadField(rv2.region, rv2.offset, 2)))
+  }
+
+  @Test
   def testStructWithArray() {
     val rt = TStruct("a" -> TString(), "b" -> TArray(TInt32()))
     val input = "hello"
