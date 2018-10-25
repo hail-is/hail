@@ -233,7 +233,7 @@ class StagedRegionValueSuite extends SparkSuite {
 
   @Test
   def testMissingRandomAccessArray() {
-    val rt = TArray(TStruct("a" -> TInt32(), "b" -> TString()))
+    val rt = TArray(TStruct("a" -> TInt32(), "b" -> TString())).physicalType
     val intVal = 20
     val strVal = "a string with a partner of 20"
     val region = Region()
@@ -242,7 +242,7 @@ class StagedRegionValueSuite extends SparkSuite {
     val rvb2 = new RegionValueBuilder(region2)
     val rv = RegionValue(region)
     val rv2 = RegionValue(region2)
-    rvb.start(rt.physicalType)
+    rvb.start(rt)
     rvb.startMissingArray(4)
     rvb.setArrayIndex(2)
     rvb.setPresent()
@@ -253,7 +253,7 @@ class StagedRegionValueSuite extends SparkSuite {
     rvb.endArrayUnchecked()
     rv.setOffset(rvb.end())
 
-    rvb2.start(rt.physicalType)
+    rvb2.start(rt)
     rvb2.startArray(4)
     for (i <- 0 to 3) {
       if (i == 2) {
@@ -268,13 +268,13 @@ class StagedRegionValueSuite extends SparkSuite {
     rvb2.endArray()
     rv2.setOffset(rvb2.end())
     assert(rv.pretty(rt) == rv2.pretty(rt))
-    assert(new UnsafeIndexedSeq(rt.physicalType, rv.region, rv.offset).sameElements(
-      new UnsafeIndexedSeq(rt.physicalType, rv2.region, rv2.offset)))
+    assert(new UnsafeIndexedSeq(rt, rv.region, rv.offset).sameElements(
+      new UnsafeIndexedSeq(rt, rv2.region, rv2.offset)))
   }
 
   @Test
   def testSetFieldPresent() {
-    val rt = TStruct("a" -> TInt32(), "b" -> TString(), "c" -> TFloat64())
+    val rt = TStruct("a" -> TInt32(), "b" -> TString(), "c" -> TFloat64()).physicalType
     val intVal = 30
     val floatVal = 39.273d
     val r = Region()
@@ -283,7 +283,7 @@ class StagedRegionValueSuite extends SparkSuite {
     val rv2 = RegionValue(r2)
     val rvb = new RegionValueBuilder(r)
     val rvb2 = new RegionValueBuilder(r2)
-    rvb.start(rt.physicalType)
+    rvb.start(rt)
     rvb.startStruct()
     rvb.setMissing()
     rvb.setMissing()
@@ -295,7 +295,7 @@ class StagedRegionValueSuite extends SparkSuite {
     rvb.endStruct()
     rv.setOffset(rvb.end())
 
-    rvb2.start(rt.physicalType)
+    rvb2.start(rt)
     rvb2.startStruct()
     rvb2.addInt(intVal)
     rvb2.setMissing()
