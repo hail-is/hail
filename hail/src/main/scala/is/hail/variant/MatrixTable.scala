@@ -816,7 +816,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       matrixType.globalType)
 
     val localNSamples = numCols
-    val localRVRowType = rvRowType
+    val localRVRowType = rvRowType.physicalType
     val localEntriesIndex = entriesIndex
     val localEntriesType = matrixType.entryArrayType.physicalType
     val localEntryType = matrixType.entryType.physicalType
@@ -824,7 +824,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val newRVD = rvd.mapPartitions(ttyp.rvdType) { it =>
       val rvb = new RegionValueBuilder()
       val rv2 = RegionValue()
-      val fullRow = new UnsafeRow(localRVRowType.physicalType)
+      val fullRow = new UnsafeRow(localRVRowType)
 
       it.map { rv =>
         fullRow.set(rv)
@@ -838,7 +838,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         var i = 0
         while (i < localRVRowType.size) {
           if (i != localEntriesIndex)
-            rvb.addField(localRVRowType.physicalType, rv, i)
+            rvb.addField(localRVRowType, rv, i)
           i += 1
         }
 

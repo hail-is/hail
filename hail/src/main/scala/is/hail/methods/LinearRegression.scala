@@ -92,12 +92,12 @@ object LinearRegression {
     val QtyBc = sc.broadcast(Qty)
     val yypBc = sc.broadcast(y.t(*, ::).map(r => r dot r) - Qty.t(*, ::).map(r => r dot r))
 
-    val fullRowType = vsm.rvRowType
+    val fullRowType = vsm.rvRowType.physicalType
     val entryArrayType = vsm.matrixType.entryArrayType.physicalType
-    val entryType = vsm.entryType
+    val entryType = vsm.entryType.physicalType
     val fieldType = entryType.field(xField).typ
 
-    assert(fieldType.isOfType(TFloat64()))
+    assert(fieldType.virtualType.isOfType(TFloat64()))
 
     val entryArrayIdx = vsm.entriesIndex
     val fieldIdx = entryType.fieldIdx(xField)
@@ -119,7 +119,7 @@ object LinearRegression {
         val blockWRVs = new Array[WritableRegionValue](rowBlockSize)
         var i = 0
         while (i < rowBlockSize) {
-          blockWRVs(i) = WritableRegionValue(fullRowType.physicalType, ctx.freshRegion)
+          blockWRVs(i) = WritableRegionValue(fullRowType, ctx.freshRegion)
           i += 1
         }
 
@@ -167,7 +167,7 @@ object LinearRegression {
               rvb.set(wrv.region)
               rvb.start(newRVDType.rowType.physicalType)
               rvb.startStruct()
-              rvb.addFields(fullRowType.physicalType, wrv.region, wrv.offset, copiedFieldIndices)
+              rvb.addFields(fullRowType, wrv.region, wrv.offset, copiedFieldIndices)
               rvb.addInt(n)
               rvb.addDouble(AC(i))
 
@@ -234,12 +234,12 @@ object LinearRegression {
     val bc = vsm.sparkContext.broadcast(bcData)
     val nGroups = bcData.length
 
-    val fullRowType = vsm.rvRowType
+    val fullRowType = vsm.rvRowType.physicalType
     val entryArrayType = vsm.matrixType.entryArrayType.physicalType
-    val entryType = vsm.entryType
+    val entryType = vsm.entryType.physicalType
     val fieldType = entryType.field(xField).typ
 
-    assert(fieldType.isOfType(TFloat64()))
+    assert(fieldType.virtualType.isOfType(TFloat64()))
 
     val entryArrayIdx = vsm.entriesIndex
     val fieldIdx = entryType.fieldIdx(xField)
@@ -261,7 +261,7 @@ object LinearRegression {
         val blockWRVs = new Array[WritableRegionValue](rowBlockSize)
         var i = 0
         while (i < rowBlockSize) {
-          blockWRVs(i) = WritableRegionValue(fullRowType.physicalType, ctx.freshRegion)
+          blockWRVs(i) = WritableRegionValue(fullRowType, ctx.freshRegion)
           i += 1
         }
 
@@ -316,7 +316,7 @@ object LinearRegression {
               rvb.set(wrv.region)
               rvb.start(newRVDType.rowType.physicalType)
               rvb.startStruct()
-              rvb.addFields(fullRowType.physicalType, wrv.region, wrv.offset, copiedFieldIndices)
+              rvb.addFields(fullRowType, wrv.region, wrv.offset, copiedFieldIndices)
 
               // FIXME: the below has horrible cache behavior, but hard to get around
               // FIXME: it when doing a two-way in-memory transpose like this

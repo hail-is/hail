@@ -34,14 +34,14 @@ object LocusFunctions extends RegistryFunctions {
     registerCode("contig", tv("T", _.isInstanceOf[TLocus]), TString()) {
       case (mb, locus: Code[Long]) =>
         val region = getRegion(mb)
-        val tlocus = types.coerce[TLocus](tv("T").t)
+        val tlocus = types.coerce[TLocus](tv("T").t).physicalType
         tlocus.contig(region, locus)
     }
 
     registerCode("position", tv("T", _.isInstanceOf[TLocus]), TInt32()) {
       case (mb, locus: Code[Long]) =>
         val region = getRegion(mb)
-        val tlocus = types.coerce[TLocus](tv("T").t)
+        val tlocus = types.coerce[TLocus](tv("T").t).physicalType
         tlocus.position(region, locus)
     }
 
