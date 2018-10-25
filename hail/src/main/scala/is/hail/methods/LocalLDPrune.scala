@@ -4,7 +4,7 @@ import java.util
 
 import is.hail.annotations._
 import is.hail.expr.types._
-import is.hail.expr.types.physical.{PInt64Required, PStruct}
+import is.hail.expr.types.physical.{PArray, PInt64Required, PStruct}
 import org.apache.spark.storage.StorageLevel
 import is.hail.rvd.{RVD, RVDType}
 import is.hail.table.Table
@@ -29,12 +29,13 @@ class BitPackedVectorView(rvRowType: PStruct) {
   private var nSamplesOffset: Long = _
   private var meanOffset: Long = _
   private var centeredLengthRecOffset: Long = _
+  private val bpvPType = PArray(PInt64Required)
 
   def setRegion(mb: Region, offset: Long) {
     this.m = mb
     bpvOffset = rvRowType.loadField(m, offset, rvRowType.fieldIdx("bpv"))
-    bpvLength = TArray(TInt64Required).loadLength(m, bpvOffset)
-    bpvElementOffset = TArray(TInt64Required).elementOffset(bpvOffset, bpvLength, 0)
+    bpvLength = bpvPType.loadLength(m, bpvOffset)
+    bpvElementOffset = bpvPType.elementOffset(bpvOffset, bpvLength, 0)
     nSamplesOffset = rvRowType.loadField(m, offset, rvRowType.fieldIdx("nSamples"))
     meanOffset = rvRowType.loadField(m, offset, rvRowType.fieldIdx("mean"))
     centeredLengthRecOffset = rvRowType.loadField(m, offset, rvRowType.fieldIdx("centered_length_rec"))

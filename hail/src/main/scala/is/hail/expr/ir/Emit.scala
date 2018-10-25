@@ -330,8 +330,8 @@ private class Emit(
       case x@ArrayRef(a, i) =>
         val typ = x.typ
         val ti = typeToTypeInfo(typ)
-        val tarray = coerce[TArray](a.typ)
-        val ati = coerce[Long](typeToTypeInfo(tarray))
+        val pArray = coerce[PArray](a.pType)
+        val ati = coerce[Long](typeToTypeInfo(pArray))
         val codeA = emit(a)
         val codeI = emit(i)
         val xma = mb.newLocal[Boolean]()
@@ -347,7 +347,7 @@ private class Emit(
         val setup = Code(
           codeA.setup,
           xma := codeA.m,
-          xa := coerce[Long](defaultValue(tarray)),
+          xa := coerce[Long](defaultValue(pArray)),
           codeI.setup,
           xmi := codeI.m,
           xi := coerce[Int](defaultValue(TInt32())),
@@ -357,9 +357,9 @@ private class Emit(
             Code(
               xa := coerce[Long](codeA.v),
               xi := coerce[Int](codeI.v),
-              len := tarray.loadLength(region, xa),
+              len := pArray.loadLength(region, xa),
               (xi < len && xi >= 0).mux(
-                xmv := !tarray.isElementDefined(region, xa, xi),
+                xmv := !pArray.isElementDefined(region, xa, xi),
                 Code._fatal(
                   const("array index out of bounds: ")
                     .concat(xi.load().toS)
@@ -369,7 +369,7 @@ private class Emit(
                     .concat(irString))))))
 
         EmitTriplet(setup, xmv, Code(
-          region.loadIRIntermediate(typ)(tarray.elementOffset(xa, len, xi))))
+          region.loadIRIntermediate(typ)(pArray.elementOffset(xa, len, xi))))
       case ArrayLen(a) =>
         val codeA = emit(a)
         strict(TContainer.loadLength(region, coerce[Long](codeA.v)), codeA)
@@ -410,7 +410,7 @@ private class Emit(
         emit(a)
 
       case x@LowerBoundOnOrderedCollection(orderedCollection, elem, onKey) =>
-        val typ = coerce[TContainer](orderedCollection.typ)
+        val typ = coerce[PContainer](orderedCollection.pType)
         val a = emit(orderedCollection)
         val e = emit(elem)
         val bs = new BinarySearch(mb, typ, keyOnly = onKey)
@@ -1241,7 +1241,7 @@ private class Emit(
         ArrayIteratorTriplet(Code._empty, None, f)
 
       case _ =>
-        val t: TArray = coerce[TArray](ir.typ)
+        val t: PArray = coerce[PArray](ir.pType)
         val i = mb.newLocal[Int]("i")
         val len = mb.newLocal[Int]("len")
         val aoff = mb.newLocal[Long]("aoff")

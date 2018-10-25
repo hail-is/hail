@@ -4,6 +4,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.expr.types._
 import is.hail.expr.types.coerce
+import is.hail.expr.types.physical.{PArray, PFloat64}
 import is.hail.utils._
 
 object ArrayFunctions extends RegistryFunctions {
@@ -306,8 +307,8 @@ object ArrayFunctions extends RegistryFunctions {
 
     registerCodeWithMissingness("corr", TArray(TFloat64()), TArray(TFloat64()), TFloat64()) {
       case (mb, EmitTriplet(setup1, m1, v1), EmitTriplet(setup2, m2, v2)) =>
-        val t1 = TArray(TFloat64())
-        val t2 = TArray(TFloat64())
+        val t1 = PArray(PFloat64())
+        val t2 = PArray(PFloat64())
         val region = getRegion(mb)
 
         val xSum = mb.newLocal[Double]

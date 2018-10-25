@@ -6,6 +6,7 @@ import is.hail.asm4s._
 import is.hail.expr.types._
 import is.hail.expr.ir.TestUtils._
 import is.hail.TestUtils._
+import is.hail.expr.types.physical._
 import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.scalatest.testng.TestNGSuite
@@ -269,13 +270,13 @@ class OrderingSuite extends TestNGSuite {
     val compareGen = Type.genArb.flatMap(t => Gen.zip(Gen.const(t), TSet(t).genNonmissingValue, t.genNonmissingValue))
     val p = Prop.forAll(compareGen.filter { case (t, a, elem) => a.asInstanceOf[Set[Any]].nonEmpty }) { case (t, a, elem) =>
       val set = a.asInstanceOf[Set[Any]]
-      val tset = TSet(t)
+      val pset = PSet(t.physicalType)
 
       Region.scoped { region =>
         val rvb = new RegionValueBuilder(region)
 
-        rvb.start(tset.physicalType)
-        rvb.addAnnotation(tset, set)
+        rvb.start(pset)
+        rvb.addAnnotation(pset.virtualType, set)
         val soff = rvb.end()
 
         rvb.start(TTuple(t).physicalType)
@@ -287,7 +288,7 @@ class OrderingSuite extends TestNGSuite {
         val cset = fb.getArg[Long](2)
         val cetuple = fb.getArg[Long](3)
 
-        val bs = new BinarySearch(fb.apply_method, tset, keyOnly = false)
+        val bs = new BinarySearch(fb.apply_method, pset, keyOnly = false)
         fb.emit(bs.getClosestIndex(cset, false, cregion.loadIRIntermediate(t)(TTuple(t).fieldOffset(cetuple, 0))))
 
         val asArray = SafeIndexedSeq(TArray(t).physicalType, region, soff)
@@ -306,18 +307,20 @@ class OrderingSuite extends TestNGSuite {
   @Test def testBinarySearchOnDict() {
     val compareGen = Gen.zip(Type.genArb, Type.genArb)
       .flatMap { case (k, v) => Gen.zip(Gen.const(TDict(k, v)), TDict(k, v).genNonmissingValue, k.genValue) }
-    val p = Prop.forAll(compareGen.filter { case (tdict, a, key) => a.asInstanceOf[Map[Any, Any]].nonEmpty }) { case (tdict, a, key) =>
+    val p = Prop.forAll(compareGen.filter { case (tdict, a, key) => a.asInstanceOf[Map[Any, Any]].nonEmpty }) { case (tDict, a, key) =>
       val dict = a.asInstanceOf[Map[Any, Any]]
+      val pDict = tDict.physicalType
 
       Region.scoped { region =>
         val rvb = new RegionValueBuilder(region)
 
-        rvb.start(tdict.physicalType)
-        rvb.addAnnotation(tdict, dict)
+        rvb.start(pDict)
+        rvb.addAnnotation(tDict, dict)
         val soff = rvb.end()
 
-        rvb.start(TTuple(tdict.keyType).physicalType)
-        rvb.addAnnotation(TTuple(tdict.keyType), Row(key))
+        val ptuple = PTuple(FastIndexedSeq(pDict.keyType))
+        rvb.start(ptuple)
+        rvb.addAnnotation(ptuple.virtualType, Row(key))
         val eoff = rvb.end()
 
         val fb = EmitFunctionBuilder[Region, Long, Long, Int]
@@ -325,12 +328,12 @@ class OrderingSuite extends TestNGSuite {
         val cdict = fb.getArg[Long](2)
         val cktuple = fb.getArg[Long](3)
 
-        val bs = new BinarySearch(fb.apply_method, tdict, keyOnly = true)
-        val m = TTuple(tdict.keyType).isFieldMissing(cregion, cktuple, 0)
-        val v = cregion.loadIRIntermediate(tdict.keyType)(TTuple(tdict.keyType).fieldOffset(cktuple, 0))
+        val bs = new BinarySearch(fb.apply_method, pDict, keyOnly = true)
+        val m = ptuple.isFieldMissing(cregion, cktuple, 0)
+        val v = cregion.loadIRIntermediate(pDict.keyType)(ptuple.fieldOffset(cktuple, 0))
         fb.emit(bs.getClosestIndex(cdict, m, v))
 
-        val asArray = SafeIndexedSeq(TArray(tdict.elementType).physicalType, region, soff)
+        val asArray = SafeIndexedSeq(PArray(pDict.elementType), region, soff)
 
         val f = fb.resultWithIndex()(0)
         val closestI = f(region, soff, eoff)
@@ -338,8 +341,8 @@ class OrderingSuite extends TestNGSuite {
         val maybeEqual = getKey(closestI)
 
         val closestIIsClosest =
-          (tdict.keyType.ordering.compare(key, maybeEqual) <= 0 || closestI == dict.size - 1) &&
-            (closestI == 0 || tdict.keyType.ordering.compare(key, getKey(closestI - 1)) > 0)
+          (pDict.keyType.virtualType.ordering.compare(key, maybeEqual) <= 0 || closestI == dict.size - 1) &&
+            (closestI == 0 || pDict.keyType.virtualType.ordering.compare(key, getKey(closestI - 1)) > 0)
 
         dict.contains(key) ==> (key == maybeEqual) && closestIIsClosest
 
