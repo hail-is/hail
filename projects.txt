@@ -3,6 +3,7 @@ ci
 cloudtools
 gateway
 hail
+image-fetcher
 letsencrypt
 scorecard
 site
