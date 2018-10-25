@@ -7,6 +7,7 @@ import is.hail.annotations._
 import is.hail.cxx._
 import is.hail.expr.types._
 import is.hail.io._
+import is.hail.io.compress.LZ4Utils
 import org.testng.annotations.Test
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -74,9 +75,9 @@ class NativeEncoderSuite extends SparkSuite {
          |auto jos = h->at(0);
          |
          |auto os = std::make_shared<OutputStream>(up, jos);
-         |using LZ4Buf = LZ4OutputBlockBuffer<32, StreamOutputBlockBuffer>;
+         |using LZ4Buf = LZ4OutputBlockBuffer<${LZ4Utils.maxCompressedLength(32) + 4}, StreamOutputBlockBuffer>;
          |using BlockBuf = BlockingOutputBuffer<32, LZ4Buf>;
-         |auto leb_buf = LEB128OutputBuffer<BlockBuf>(os);
+         |LEB128OutputBuffer<BlockBuf> leb_buf {os};
          |
          |leb_buf.write_boolean(true);
          |leb_buf.write_byte(3);
