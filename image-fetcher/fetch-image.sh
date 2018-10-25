@@ -7,7 +7,7 @@ gcloud auth activate-service-account \
 
 gcloud auth configure-docker
 
-while [ 1 ]
+while true
 do
     [ $(cat images | wc -l) -eq 0 ] || (cat images | xargs docker pull)
     sleep 360
