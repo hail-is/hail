@@ -1,6 +1,7 @@
 batch
 ci
 cloudtools
+notebook
 gateway
 hail
 letsencrypt
