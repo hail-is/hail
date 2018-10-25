@@ -1,6 +1,6 @@
 package is.hail.rvd
 
-import is.hail.annotations._
+import is.hail.annotations.ExtendedOrdering
 import is.hail.expr.types._
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -11,25 +11,31 @@ class RVDPartitioner(
   val kType: TStruct,
   // rangeBounds: Array[Interval[kType]]
   // rangeBounds is interval containing all keys within a partition
-  val rangeBounds: IndexedSeq[Interval],
+  val rangeBounds: Array[Interval],
   allowedOverlap: Int
 ) {
   def this(
     kType: TStruct,
+    rangeBounds: IndexedSeq[Interval],
+    allowedOverlap: Int
+  ) = this(kType, rangeBounds.toArray, kType.size)
+
+  def this(
+    kType: TStruct,
     rangeBounds: IndexedSeq[Interval]
-  ) = this(kType, rangeBounds, kType.size)
+  ) = this(kType, rangeBounds.toArray, kType.size)
 
   def this(
     partitionKey: Array[String],
     kType: TStruct,
     rangeBounds: IndexedSeq[Interval]
-  ) = this(kType, rangeBounds, math.max(partitionKey.length - 1, 0))
+  ) = this(kType, rangeBounds.toArray, math.max(partitionKey.length - 1, 0))
 
   def this(
     partitionKey: Option[Int],
     kType: TStruct,
     rangeBounds: IndexedSeq[Interval]
-  ) = this(kType, rangeBounds, partitionKey.map(_ - 1).getOrElse(kType.size))
+  ) = this(kType, rangeBounds.toArray, partitionKey.map(_ - 1).getOrElse(kType.size))
 
   require(rangeBounds.forall { case Interval(l, r, _, _) =>
     kType.relaxedTypeCheck(l) && kType.relaxedTypeCheck(r)
@@ -37,21 +43,25 @@ class RVDPartitioner(
   require(allowedOverlap >= 0 && allowedOverlap <= kType.size)
   require(RVDPartitioner.isValid(kType, rangeBounds, allowedOverlap))
 
+  val kord: ExtendedOrdering = kType.ordering
+  val intervalKeyLT: (Interval, Any) => Boolean = (i, k) => i.isBelowPosition(kord, k)
+  val keyIntervalLT: (Any, Interval) => Boolean = (k, i) => i.isAbovePosition(kord, k)
+  val intervalLT: (Interval, Interval) => Boolean = (i1, i2) => i1.isBelow(kord, i2)
+
+  def range: Option[Interval] =
+    if (rangeBounds.isEmpty)
+      None
+    else
+      Some(Interval(rangeBounds.head.left, rangeBounds.last.right))
+
   def satisfiesAllowedOverlap(testAllowedOverlap: Int): Boolean =
     RVDPartitioner.isValid(kType, rangeBounds, testAllowedOverlap)
 
   def isStrict: Boolean = satisfiesAllowedOverlap(kType.size - 1)
 
-  def strictify: RVDPartitioner = extendKey(kType)
+  def numPartitions: Int = rangeBounds.length
 
-  val numPartitions: Int = rangeBounds.length
-
-  val rangeBoundsType = TArray(TInterval(kType))
-
-  val rangeTree: IntervalTree[Int] = IntervalTree.fromSorted(kType.ordering,
-    Array.tabulate[(Interval, Int)](numPartitions) { i =>
-      (rangeBounds(i), i)
-    })
+  def rangeBoundsType = TArray(TInterval(kType))
 
   override def equals(other: Any): Boolean = other match {
     case that: RVDPartitioner =>
@@ -59,7 +69,32 @@ class RVDPartitioner(
     case _ => false
   }
 
-  def coarsenedRangeBounds(newKeyLen: Int): IndexedSeq[Interval] =
+  @transient
+  @volatile var partitionerBc: Broadcast[RVDPartitioner] = _
+
+  def broadcast(sc: SparkContext): Broadcast[RVDPartitioner] = {
+    if (partitionerBc == null) {
+      synchronized {
+        if (partitionerBc == null)
+          partitionerBc = sc.broadcast(this)
+      }
+    }
+    partitionerBc
+  }
+
+  def sparkPartitioner(sc: SparkContext): Partitioner = {
+    val selfBc = broadcast(sc)
+
+    new Partitioner {
+      def numPartitions: Int = selfBc.value.numPartitions
+
+      def getPartition(key: Any): Int = selfBc.value.lowerBound(key)
+    }
+  }
+
+  // Key manipulation
+
+  def coarsenedRangeBounds(newKeyLen: Int): Array[Interval] =
     rangeBounds.map(_.coarsen(newKeyLen))
 
   def coarsen(newKeyLen: Int): RVDPartitioner =
@@ -68,6 +103,8 @@ class RVDPartitioner(
       coarsenedRangeBounds(newKeyLen)
     )
 
+  def strictify: RVDPartitioner = extendKey(kType)
+
   // Adjusts 'rangeBounds' so that 'satisfiesAllowedOverlap(kType.size - 1)'
   // holds, then changes key type to 'newKType'. If 'newKType' is 'kType', still
   // adjusts 'rangeBounds'.
@@ -75,6 +112,8 @@ class RVDPartitioner(
     require(kType isPrefixOf newKType)
     RVDPartitioner.generate(newKType, rangeBounds)
   }
+
+  // Operators (produce new partitioners)
 
   def subdivide(
     cutPoints: IndexedSeq[IntervalEndpoint],
@@ -86,9 +125,10 @@ class RVDPartitioner(
     require(allowedOverlap >= 0 && allowedOverlap <= kType.size)
     require(satisfiesAllowedOverlap(allowedOverlap))
 
-    val kord = kType.ordering
-    val eord = kord.intervalEndpointOrdering.toOrdering.asInstanceOf[Ordering[IntervalEndpoint]]
-    val sorted = cutPoints.map(_.coarsenRight(allowedOverlap + 1)).sorted(eord)
+    val eord: ExtendedOrdering = kord.intervalEndpointOrdering
+    val scalaEOrd: Ordering[IntervalEndpoint] =
+      kord.intervalEndpointOrdering.toOrdering.asInstanceOf[Ordering[IntervalEndpoint]]
+    val sorted = cutPoints.map(_.coarsenRight(allowedOverlap + 1)).sorted(scalaEOrd)
 
     var i = 0
     def firstPast(threshold: IntervalEndpoint, start: Int): Int = {
@@ -112,8 +152,7 @@ class RVDPartitioner(
   def intersect(other: RVDPartitioner): RVDPartitioner = {
     require(kType isIsomorphicTo other.kType)
 
-    val kord = kType.ordering
-    val eord = kord.intervalEndpointOrdering.toOrdering.asInstanceOf[Ordering[IntervalEndpoint]]
+    val scalaEOrd = kord.intervalEndpointOrdering.toOrdering.asInstanceOf[Ordering[IntervalEndpoint]]
 
     val left = this.rangeBounds.iterator.buffered
     val right = other.rangeBounds.iterator.buffered
@@ -121,68 +160,20 @@ class RVDPartitioner(
 
     while (left.hasNext && right.hasNext) {
       val (leader, lagger) =
-        if (eord.gt(left.head.left, right.head.left))
+        if (scalaEOrd.gt(left.head.left, right.head.left))
           (left, right)
         else
           (right, left)
       // leader.head.left >= lagger.head.left
-      if (eord.lteq(lagger.head.right, leader.head.left))
+      if (scalaEOrd.lteq(lagger.head.right, leader.head.left))
         lagger.next()
-      else if (eord.lteq(lagger.head.right, leader.head.right))
+      else if (scalaEOrd.lteq(lagger.head.right, leader.head.right))
         ab += Interval(leader.head.left, lagger.next().right)
       else
         ab += leader.next()
     }
     new RVDPartitioner(kType, ab.result())
   }
-
-  def range: Option[Interval] = Option(rangeTree.root).map(_.range)
-
-  def contains(index: Int, key: Any): Boolean = {
-    require(kType.isComparableAt(key))
-    rangeBounds(index).contains(kType.ordering, key)
-  }
-
-  // Return the sequence of partition IDs overlapping the given interval of
-  // keys.
-  def getPartitionRange(query: Interval): Seq[Int] = {
-    require(kType.isComparableAt(query.start) && kType.isComparableAt(query.end))
-    if (!rangeTree.overlaps(kType.ordering, query))
-      FastSeq.empty[Int]
-    else
-      rangeTree.queryOverlappingValues(kType.ordering, query)
-  }
-
-  // Returns the least partition which is not completely below 'key', i.e. the
-  // least partition whose upper bound is greater than 'key'. Returns
-  // numPartitions if all partitions are below 'key'. The range of partitions
-  // which can contain 'key' is always [lowerBound, upperBound). lowerBound =
-  // upperBound if and only if 'key' is not contained in the partitioner, in
-  // which case i = lowerBound is the partition index at which a new partition
-  // containing 'key' would be inserted (becoming the new partition i, between
-  // the old partition i-1 and the old partition i).
-  def getSafePartitionLowerBound(key: Any): Int = {
-    require(rangeBounds.nonEmpty)
-    require(kType.isComparableAt(key))
-
-    val range = getPartitionRange(Interval(key, Row(), true, true))
-    range.headOption.getOrElse(numPartitions)
-  }
-
-  // Returns the least partition which is completely above 'key', i.e. the least
-  // partition whose upper bound is greater than 'key'. Returns numPartitions
-  // if no partition is above 'key'. The range of partitions which can contain
-  // 'key' is always [lowerBound, upperBound).
-  def getSafePartitionUpperBound(key: Any): Int = {
-    require(rangeBounds.nonEmpty)
-    require(kType.isComparableAt(key))
-
-    val range = getPartitionRange(Interval(Row(), key, true, true))
-    range.lastOption.getOrElse(-1) + 1
-  }
-
-  def getSafePartitionKeyRange(key: Any): Range =
-    Range(getSafePartitionLowerBound(key), getSafePartitionUpperBound(key))
 
   def rename(nameMap: Map[String, String]): RVDPartitioner = new RVDPartitioner(
     kType.rename(nameMap),
@@ -203,32 +194,85 @@ class RVDPartitioner(
     copy(rangeBounds = newRangeBounds)
   }
 
-  @transient
-  @volatile var partitionerBc: Broadcast[RVDPartitioner] = _
+  // Key queries
 
-  def broadcast(sc: SparkContext): Broadcast[RVDPartitioner] = {
-    if (partitionerBc == null) {
-      synchronized {
-        if (partitionerBc == null)
-          partitionerBc = sc.broadcast(this)
-      }
-    }
-    partitionerBc
+  def contains(index: Int, key: Any): Boolean =
+    rangeBounds(index).contains(kord, key)
+
+  /** Returns 0 <= i <= numPartitions such that partition i is the first which
+    * either contains 'key' or is above 'key', returning numPartitions if 'key'
+    * is above all partitions.
+    *
+    * 'key' may be either a Row or an IntervalEndpoint. In the latter case,
+    * returns the ID of the first partition which overlaps the interval with
+    * left endpoint 'key' and unbounded right endpoint, or numPartitions if
+    * none do.
+    */
+  def lowerBound(key: Any): Int = rangeBounds.lowerBound(key, intervalKeyLT)
+
+  /** Returns 0 <= i <= numPartitions such that partition i is the first which
+    * is above 'key', returning numPartitions if 'key' is above all partitions.
+    *
+    * 'key' may be either a Row or an IntervalEndpoint. In the latter case,
+    * returns the ID of the first partition which is completely above the
+    * interval with right endpoint 'key' and unbounded left endpoint, or
+    * numPartitions if none are.
+    */
+  def upperBound(key: Any): Int = rangeBounds.upperBound(key, keyIntervalLT)
+
+  /** Returns (lowerBound, upperBound). Interesting cases are:
+    * - partitioner contains 'key':
+    *   [lowerBound, upperBound) is the range of partition IDs containing 'key'.
+    * - 'key' falls in the gap between two partitions:
+    *   lowerBound = upperBound is the ID of the first partition above 'key'.
+    * - 'key' is below the first partition (or numPartitions = 0):
+    *   lowerBound = upperBound = 0
+    * - 'key' is above the last partition:
+    *   lowerBound = upperBound = numPartitions
+    */
+  def keyRange(key: Any): (Int, Int) = rangeBounds.equalRange(key, intervalKeyLT, keyIntervalLT)
+
+  def queryKey(key: Any): Range = {
+    val (l, u) = keyRange(key)
+    Range(l, u)
   }
 
-  def sparkPartitioner(sc: SparkContext): Partitioner = {
-    val selfBc = broadcast(sc)
+  def contains(x: Any): Boolean = rangeBounds.containsOrdered(x, intervalKeyLT, keyIntervalLT)
 
-    new Partitioner {
-      def numPartitions: Int = selfBc.value.numPartitions
+  // Interval queries
 
-      def getPartition(key: Any): Int = {
-        val value = selfBc.value
-        val tree = value.rangeTree
-        tree.querySingleValue(value.kType.ordering, key)
-      }
-    }
+  /** Returns 0 <= i <= numPartitions such that partition i is the first which
+    * either overlaps 'query' or is above 'query', returning numPartitions if
+    * 'query' is completely above all partitions.
+    */
+  def lowerBoundInterval(query: Interval): Int = rangeBounds.lowerBound(query, intervalLT)
+
+  /** Returns 0 <= i <= numPartitions such that partition i is the first which
+    * is above 'query', returning numPartitions if 'query' is completely above
+    * or overlaps all partitions.
+    */
+  def upperBoundInterval(query: Interval): Int = rangeBounds.upperBound(query, intervalLT)
+
+  /** Returns (lowerBound, upperBound). Interesting cases are:
+    * - partitioner overlaps 'query':
+    *   [lowerBound, upperBound) is the range of partition IDs overlapping 'query'.
+    * - 'query' falls in the gap between two partitions:
+    *   lowerBound = upperBound is the ID of the first partition above 'query'.
+    * - 'query' is completely below the first partition (or numPartitions = 0):
+    *   lowerBound = upperBound = 0
+    * - 'query' is completely above the last partition:
+    *   lowerBound = upperBound = numPartitions
+    */
+  def intervalRange(query: Interval): (Int, Int) = rangeBounds.equalRange(query, intervalLT)
+
+  def queryInterval(query: Interval): Range = {
+    val (l, u) = intervalRange(query)
+    Range(l, u)
   }
+
+  def overlaps(query: Interval): Boolean = rangeBounds.containsOrdered(query, intervalLT)
+
+  def isDisjointFrom(query: Interval): Boolean = !overlaps(query)
 }
 
 object RVDPartitioner {
@@ -259,7 +303,7 @@ object RVDPartitioner {
     union(kType, intervals, allowedOverlap).subdivide(intervals.map(_.right), allowedOverlap)
   }
 
-  private def union(
+  def union(
     kType: TStruct,
     intervals: IndexedSeq[Interval],
     allowedOverlap: Int

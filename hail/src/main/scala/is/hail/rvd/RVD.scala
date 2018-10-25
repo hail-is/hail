@@ -163,7 +163,7 @@ class RVD(
         (ur, key)
       }, { case ((ur, key), rv) =>
         ur.set(rv)
-        partBc.value.rangeTree.contains(kOrdering, key)
+        partBc.value.contains(key)
       }) else this
 
       val shuffled: RDD[(Any, Array[Byte])] = new ShuffledRDD(
@@ -460,15 +460,15 @@ class RVD(
     })
   }
 
-  def filterIntervals(intervals: IntervalTree[_], keep: Boolean): RVD = {
+  def filterIntervals(intervals: RVDPartitioner, keep: Boolean): RVD = {
     if (keep)
       filterToIntervals(intervals)
     else
       filterOutIntervals(intervals)
   }
 
-  def filterOutIntervals(intervals: IntervalTree[_]): RVD = {
-    val intervalsBc = crdd.sparkContext.broadcast(intervals)
+  def filterOutIntervals(intervals: RVDPartitioner): RVD = {
+    val intervalsBc = intervals.broadcast(sparkContext)
     val kType = typ.kType
     val kPType = kType.physicalType
     val kRowFieldIdx = typ.kFieldIdx
@@ -480,14 +480,13 @@ class RVD(
         ctx.rvb.start(kType.physicalType)
         ctx.rvb.selectRegionValue(rowPType, kRowFieldIdx, rv)
         kUR.set(ctx.region, ctx.rvb.end())
-        !intervalsBc.value.contains(kType.ordering, kUR)
+        !intervalsBc.value.contains(kUR)
       }
     })
   }
 
-  def filterToIntervals(intervals: IntervalTree[_]): RVD = {
-    val kOrdering = typ.kType.ordering
-    val intervalsBc = crdd.sparkContext.broadcast(intervals)
+  def filterToIntervals(intervals: RVDPartitioner): RVD = {
+    val intervalsBc = intervals.broadcast(sparkContext)
     val localRowPType = rowPType
     val kRowFieldIdx = typ.kFieldIdx
 
@@ -495,19 +494,16 @@ class RVD(
       val ur = new UnsafeRow(localRowPType, rv)
       val key = Row.fromSeq(
         kRowFieldIdx.map(i => ur.get(i)))
-      intervalsBc.value.contains(kOrdering, key)
+      intervalsBc.value.contains(key)
     }
 
     val nPartitions = getNumPartitions
     if (nPartitions <= 1)
       return filter(pred)
 
-    val newPartitionIndices = intervals.toIterator.flatMap { case (i, _) =>
-      partitioner.getPartitionRange(i)
-    }
-      .toSet[Int] // distinct
+    val newPartitionIndices = Iterator.range(0, partitioner.numPartitions)
+      .filter(i => intervals.overlaps(partitioner.rangeBounds(i)))
       .toArray
-      .sorted
 
     info(s"interval filter loaded ${ newPartitionIndices.length } of $nPartitions partitions")
 
@@ -918,6 +914,11 @@ class RVD(
       )(zipper))
   }
 
+  // Like alignAndZipPartitions, when 'that' is keyed by intervals.
+  // 'zipper' is called once for each partition of 'this', as in
+  // alignAndZipPartitions, but now the second iterator will contain all rows
+  // of 'that' whose key is an interval overlapping the range bounds of the
+  // current partition of 'this'.
   def intervalAlignAndZipPartitions(
     newTyp: RVDType,
     that: RVD
@@ -937,7 +938,7 @@ class RVD(
             start = Row(interval.start),
             end = Row(interval.end))
           val bytes = rv.toBytes(enc)
-          partBc.value.getPartitionRange(wrappedInterval).map(i => ((i, interval), bytes))
+          partBc.value.queryInterval(wrappedInterval).map(i => ((i, interval), bytes))
         } else
           Iterator()
       }.clearingRun
@@ -997,7 +998,7 @@ class RVD(
       codecSpec,
       partFiles,
       JSONAnnotationImpex.exportAnnotation(
-        partitioner.rangeBounds,
+        partitioner.rangeBounds.toFastSeq,
         partitioner.rangeBoundsType))
 }
 
@@ -1290,7 +1291,7 @@ object RVD {
               fatal(
                 s"""RVD error! Unexpected key in partition $i
                    |  Range bounds for partition $i: ${ partitionerBc.value.rangeBounds(i) }
-                   |  Range of partition IDs for key: [${ partitionerBc.value.getSafePartitionLowerBound(kUR) }, ${ partitionerBc.value.getSafePartitionUpperBound(kUR) })
+                   |  Range of partition IDs for key: [${ partitionerBc.value.lowerBound(kUR) }, ${ partitionerBc.value.upperBound(kUR) })
                    |  Invalid key: ${ kUR.toString() }""".stripMargin)
 
             rv

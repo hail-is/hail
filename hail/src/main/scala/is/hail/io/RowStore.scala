@@ -1726,7 +1726,7 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
     val rowsSpec = OrderedRVDSpec(t.rowRVDType,
       codecSpec,
       partFiles,
-      JSONAnnotationImpex.exportAnnotation(partitioner.rangeBounds, partitioner.rangeBoundsType))
+      JSONAnnotationImpex.exportAnnotation(partitioner.rangeBounds.toFastSeq, partitioner.rangeBoundsType))
     rowsSpec.write(hConf, path + "/rows/rows")
 
     val entriesSpec = UnpartitionedRVDSpec(entriesRVType, codecSpec, partFiles)

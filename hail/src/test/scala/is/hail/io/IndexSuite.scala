@@ -113,7 +113,6 @@ class IndexSuite extends SparkSuite {
       )
 
       expectedResult.foreach { case (s, expectedIdx) =>
-        assert(index.binarySearchLowerBound(n, s, f) == expectedIdx) // test single array binary search works
         assert(index.lowerBound(s) == expectedIdx) // test full b-tree search works
       }
     }
@@ -137,7 +136,6 @@ class IndexSuite extends SparkSuite {
       )
 
       expectedResult.foreach { case (s, expectedIdx) =>
-        assert(index.binarySearchUpperBound(n, s, f) == expectedIdx) // test single array binary search works
         assert(index.upperBound(s) == expectedIdx) // test full b-tree search works
       }
     }

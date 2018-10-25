@@ -34,63 +34,63 @@ class RVDPartitionerSuite extends TestNGSuite {
   }
 
   @Test def testGetPartitionWithPartitionKeys() {
-    assert(partitioner.getSafePartitionLowerBound(Row(-1, 7)) == 0)
-    assert(partitioner.getSafePartitionUpperBound(Row(-1, 7)) == 0)
+    assert(partitioner.lowerBound(Row(-1, 7)) == 0)
+    assert(partitioner.upperBound(Row(-1, 7)) == 0)
 
-    assert(partitioner.getSafePartitionLowerBound(Row(4, 2)) == 0)
-    assert(partitioner.getSafePartitionUpperBound(Row(4, 2)) == 1)
+    assert(partitioner.lowerBound(Row(4, 2)) == 0)
+    assert(partitioner.upperBound(Row(4, 2)) == 1)
 
-    assert(partitioner.getSafePartitionLowerBound(Row(4, 3)) == 1)
-    assert(partitioner.getSafePartitionUpperBound(Row(4, 3)) == 2)
+    assert(partitioner.lowerBound(Row(4, 3)) == 1)
+    assert(partitioner.upperBound(Row(4, 3)) == 2)
 
-    assert(partitioner.getSafePartitionLowerBound(Row(5, -10259)) == 1)
-    assert(partitioner.getSafePartitionUpperBound(Row(5, -10259)) == 2)
+    assert(partitioner.lowerBound(Row(5, -10259)) == 1)
+    assert(partitioner.upperBound(Row(5, -10259)) == 2)
 
-    assert(partitioner.getSafePartitionLowerBound(Row(7, 9)) == 2)
-    assert(partitioner.getSafePartitionUpperBound(Row(7, 9)) == 2)
+    assert(partitioner.lowerBound(Row(7, 9)) == 2)
+    assert(partitioner.upperBound(Row(7, 9)) == 2)
 
-    assert(partitioner.getSafePartitionLowerBound(Row(12, 19)) == 3)
-    assert(partitioner.getSafePartitionUpperBound(Row(12, 19)) == 3)
+    assert(partitioner.lowerBound(Row(12, 19)) == 3)
+    assert(partitioner.upperBound(Row(12, 19)) == 3)
   }
 
   @Test def testGetPartitionWithLargerKeys() {
-    assert(partitioner.getSafePartitionLowerBound(Row(0, 1, 3)) == 0)
-    assert(partitioner.getSafePartitionUpperBound(Row(0, 1, 3)) == 0)
+    assert(partitioner.lowerBound(Row(0, 1, 3)) == 0)
+    assert(partitioner.upperBound(Row(0, 1, 3)) == 0)
 
-    assert(partitioner.getSafePartitionLowerBound(Row(2, 7, 5)) == 0)
-    assert(partitioner.getSafePartitionUpperBound(Row(2, 7, 5)) == 1)
+    assert(partitioner.lowerBound(Row(2, 7, 5)) == 0)
+    assert(partitioner.upperBound(Row(2, 7, 5)) == 1)
 
-    assert(partitioner.getSafePartitionLowerBound(Row(4, 2, 1, 2.7, "bar")) == 0)
+    assert(partitioner.lowerBound(Row(4, 2, 1, 2.7, "bar")) == 0)
 
-    assert(partitioner.getSafePartitionLowerBound(Row(7, 9, 7)) == 2)
-    assert(partitioner.getSafePartitionUpperBound(Row(7, 9, 7)) == 2)
+    assert(partitioner.lowerBound(Row(7, 9, 7)) == 2)
+    assert(partitioner.upperBound(Row(7, 9, 7)) == 2)
 
-    assert(partitioner.getSafePartitionLowerBound(Row(11, 1, 42)) == 3)
+    assert(partitioner.lowerBound(Row(11, 1, 42)) == 3)
   }
 
    @Test def testGetPartitionPKWithSmallerKeys() {
-     assert(partitioner.getSafePartitionLowerBound(Row(2)) == 0)
-     assert(partitioner.getSafePartitionUpperBound(Row(2)) == 1)
+     assert(partitioner.lowerBound(Row(2)) == 0)
+     assert(partitioner.upperBound(Row(2)) == 1)
 
-     assert(partitioner.getSafePartitionLowerBound(Row(4)) == 0)
-     assert(partitioner.getSafePartitionUpperBound(Row(4)) == 2)
+     assert(partitioner.lowerBound(Row(4)) == 0)
+     assert(partitioner.upperBound(Row(4)) == 2)
 
-     assert(partitioner.getSafePartitionLowerBound(Row(11)) == 3)
-     assert(partitioner.getSafePartitionUpperBound(Row(11)) == 3)
+     assert(partitioner.lowerBound(Row(11)) == 3)
+     assert(partitioner.upperBound(Row(11)) == 3)
    }
 
   @Test def testGetPartitionRange() {
-    assert(partitioner.getPartitionRange(Interval(Row(3, 4), Row(7, 11), true, true)) == Seq(0, 1, 2))
-    assert(partitioner.getPartitionRange(Interval(Row(3, 4), Row(7, 9), true, false)) == Seq(0, 1))
-    assert(partitioner.getPartitionRange(Interval(Row(4), Row(5), true, true)) == Seq(0, 1))
-    assert(partitioner.getPartitionRange(Interval(Row(4), Row(5), false, true)) == Seq(1))
-    assert(partitioner.getPartitionRange(Interval(Row(-1, 7), Row(0, 9), true, false)) == Seq())
+    assert(partitioner.queryInterval(Interval(Row(3, 4), Row(7, 11), true, true)) == Seq(0, 1, 2))
+    assert(partitioner.queryInterval(Interval(Row(3, 4), Row(7, 9), true, false)) == Seq(0, 1))
+    assert(partitioner.queryInterval(Interval(Row(4), Row(5), true, true)) == Seq(0, 1))
+    assert(partitioner.queryInterval(Interval(Row(4), Row(5), false, true)) == Seq(1))
+    assert(partitioner.queryInterval(Interval(Row(-1, 7), Row(0, 9), true, false)) == Seq())
   }
 
   @Test def testGetSafePartitionKeyRange() {
-    assert(partitioner.getSafePartitionKeyRange(Row(0, 0)).isEmpty)
-    assert(partitioner.getSafePartitionKeyRange(Row(7, 10)).isEmpty)
-    assert(partitioner.getSafePartitionKeyRange(Row(7, 11)) == Range.inclusive(2, 2))
+    assert(partitioner.queryKey(Row(0, 0)).isEmpty)
+    assert(partitioner.queryKey(Row(7, 10)).isEmpty)
+    assert(partitioner.queryKey(Row(7, 11)) == Range.inclusive(2, 2))
   }
 
   @Test def testGenerateDisjoint() {

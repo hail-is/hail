@@ -1,7 +1,9 @@
 package is.hail.utils
 
 import is.hail.annotations.ExtendedOrdering
-import is.hail.expr.types.TInt32
+import is.hail.expr.types.{TInt32, TStruct}
+import is.hail.rvd.RVDPartitioner
+import org.apache.spark.sql.Row
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 import org.testng.Assert._
@@ -27,10 +29,13 @@ class IntervalSuite extends TestNGSuite {
     SetIntervalTree(Array[(SetInterval, Int)]()) +:
       test_intervals.flatMap { i1 =>
         SetIntervalTree(Array(i1).zipWithIndex) +:
-          test_intervals.map { i2 =>
-            SetIntervalTree(Array(i1, i2).zipWithIndex)
+          test_intervals.flatMap { i2 =>
+            if (i1.end <= i2.start)
+              Some(SetIntervalTree(Array(i1, i2).zipWithIndex))
+            else
+              None
           }
-      } :+ SetIntervalTree(test_intervals.toArray.zipWithIndex)
+      }
 
 
   @Test def interval_agrees_with_set_interval_greater_than_point() {
@@ -127,10 +132,8 @@ class IntervalSuite extends TestNGSuite {
       set_itree <- test_itrees
       p <- points
     } yield {
-      val atree = set_itree.annotationTree
       val itree = set_itree.intervalTree
-      assertEquals(itree.contains(pord, p), set_itree.contains(p))
-      assertEquals(atree.contains(pord, p), set_itree.contains(p))
+      assertEquals(itree.contains(Row(p)), set_itree.contains(p))
     }
   }
 
@@ -139,20 +142,9 @@ class IntervalSuite extends TestNGSuite {
       set_itree <- test_itrees
       set_interval <- test_intervals
     } yield {
-      val atree = set_itree.annotationTree
       val itree = set_itree.intervalTree
-      val interval = set_interval.interval
-      assertEquals(itree.overlaps(pord, interval), set_itree.probablyOverlaps(set_interval))
-      assertEquals(atree.overlaps(pord, interval), set_itree.probablyOverlaps(set_interval))
-    }
-  }
-
-  @Test def interval_tree_agrees_with_set_interval_tree_definitely_empty() {
-    for (set_itree <- test_itrees) {
-      val atree = set_itree.annotationTree
-      val itree = set_itree.intervalTree
-      assertEquals(itree.isEmpty(pord), set_itree.definitelyEmpty())
-      assertEquals(atree.isEmpty(pord), set_itree.definitelyEmpty())
+      val interval = set_interval.rowInterval
+      assertEquals(itree.overlaps(interval), set_itree.probablyOverlaps(set_interval))
     }
   }
 
@@ -161,26 +153,9 @@ class IntervalSuite extends TestNGSuite {
       set_itree <- test_itrees
       set_interval <- test_intervals
     } yield {
-      val atree = set_itree.annotationTree
       val itree = set_itree.intervalTree
-      val interval = set_interval.interval
-      assertEquals(itree.isDisjointFrom(pord, interval), set_itree.definitelyDisjoint(set_interval))
-      assertEquals(atree.isDisjointFrom(pord, interval), set_itree.definitelyDisjoint(set_interval))
-    }
-  }
-
-  @Test def interval_tree_agrees_with_set_interval_tree_query_intervals() {
-    for {
-      set_itree <- test_itrees
-      point <- points
-    } yield {
-      val atree = set_itree.annotationTree
-      val itree = set_itree.intervalTree
-      val resulta = atree.queryIntervals(pord, point)
-      val resulti = itree.queryIntervals(pord, point)
-
-      assertTrue(resulti.length < 2)
-      assertEquals(resulta.toSet, set_itree.queryIntervals(point))
+      val interval = set_interval.rowInterval
+      assertEquals(itree.isDisjointFrom(interval), set_itree.definitelyDisjoint(set_interval))
     }
   }
 
@@ -189,8 +164,8 @@ class IntervalSuite extends TestNGSuite {
       set_itree <- test_itrees
       point <- points
     } yield {
-      val itree = set_itree.annotationTree
-      val result = itree.queryValues(pord, point)
+      val itree = set_itree.intervalTree
+      val result = itree.queryKey(Row(point))
       assertTrue(result.areDistinct())
       assertEquals(result.toSet, set_itree.queryValues(point))
     }
@@ -201,9 +176,9 @@ class IntervalSuite extends TestNGSuite {
       set_itree <- test_itrees
       set_interval <- test_intervals
     } yield {
-      val itree = set_itree.annotationTree
-      val interval = set_interval.interval
-      val result = itree.queryOverlappingValues(pord, interval)
+      val itree = set_itree.intervalTree
+      val interval = set_interval.rowInterval
+      val result = itree.queryInterval(interval)
       assertTrue(result.areDistinct())
       assertEquals(result.toSet, set_itree.queryProbablyOverlappingValues(set_interval))
     }
@@ -226,6 +201,8 @@ case class SetInterval(start: Int, end: Int, includesStart: Boolean, includesEnd
   }
 
   val interval: Interval = Interval(start, end, includesStart, includesEnd)
+
+  val rowInterval: Interval = Interval(Row(start), Row(end), includesStart, includesEnd)
 
   def contains(point: Int): Boolean = doubledPointSet.contains(2 * point)
 
@@ -291,9 +268,7 @@ case class SetIntervalTree(annotations: Array[(SetInterval, Int)]) {
 
   val (intervals, values) = annotations.unzip
 
-  val annotationTree: IntervalTree[Int] = IntervalTree.annotationTree(pord, annotations.map { case (i, a) => (i.interval, a) })
-
-  val intervalTree: IntervalTree[Unit] = IntervalTree(pord, intervals.map(_.interval))
+  val intervalTree: RVDPartitioner = new RVDPartitioner(TStruct(("i", TInt32())), intervals.map(_.rowInterval))
 
   def contains(point: Int): Boolean = doubledPointSet.contains(2 * point)
 
