@@ -136,7 +136,7 @@ abstract class PContainer extends PType {
     region.allocate(contentsAlignment, contentsByteSize(length))
   }
 
-  // TODO expose intrinsic to just memset this
+  // FIXME expose intrinsic to just memset this
   private def writeMissingness(region: Region, aoff: Long, length: Int, value: Byte) {
     val nMissingBytes = (length + 7) / 8
     var i = 0
