@@ -385,7 +385,7 @@ class Tests(unittest.TestCase):
 
         mt_chr1 = mt.filter_rows((mt.locus.contig == '1') & (mt.locus.position < 200))
         model, _ = hl.linear_mixed_model(y=mt_chr1.y, x=[1, mt_chr1.x], z_t=mt_chr1.GT.n_alt_alleles(), p_path=p_path)
-        model.fit()
+        model.fit(log_gamma=0)
 
         mt_chr3 = mt.filter_rows((mt.locus.contig == '3') & (mt.locus.position < 2005))
         mt_chr3 = mt_chr3.annotate_rows(stats=hl.agg.stats(mt_chr3.GT.n_alt_alleles()), foo=hl.struct(bar=hl.rand_norm(0, 1)))
