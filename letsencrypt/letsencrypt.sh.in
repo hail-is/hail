@@ -8,7 +8,7 @@ sleep 5
 rm -rf /etc/letsencrypt/*
 
 # test 
-certbot --cert-name @domain@ -n --agree-tos -m cseed@broadinstitute.org -d @domain@ -d www.@domain@ -d ci.@domain@ -d upload.@domain@ -d scorecard.@domain@ -d notebook.@domain@ -d test.@domain@ -d dev1.@domain@ --nginx
+certbot --cert-name @domain@ -n --agree-tos -m cseed@broadinstitute.org -d @domains@ --nginx
 
 cat /etc/nginx/conf.d/letsencrypt.conf
 

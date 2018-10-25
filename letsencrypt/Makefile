@@ -8,6 +8,7 @@ IP ?= 35.224.105.117
 
 $(STATIC_CONFIG): %: %.in
 	sed -e "s,@project@,$(PROJECT),g" \
+	  -e "s;@domains@;$(shell paste -s -d, domains.txt);g" \
 	  -e "s,@domain@,$(DOMAIN),g" \
 	  -e "s,@ip@,$(IP),g" \
 	  < $< > $@
