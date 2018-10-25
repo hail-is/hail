@@ -35,6 +35,12 @@ UpcallConfig::UpcallConfig() {
   auto cl2 = env->FindClass("is/hail/io/InputBuffer");
   InputBuffer_close_ = env->GetMethodID(cl2, "close", "()V");
   InputBuffer_readToEndOfBlock_ = env->GetMethodID(cl2, "readToEndOfBlock", "(J[BII)I");
+  // InputStream methods
+  auto cl3 = env->FindClass("java/io/OutputStream");
+  OutputStream_close_ = env->GetMethodID(cl3, "close", "()V");
+  OutputStream_flush_ = env->GetMethodID(cl3, "flush", "()V");
+  OutputStream_write_ = env->GetMethodID(cl3, "write", "([BII)V");
+
 }
 
 namespace {

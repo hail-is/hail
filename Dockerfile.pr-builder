@@ -11,9 +11,8 @@ USER root
 RUN apt-get update && \
   apt-get -y install gnupg2 lsb-release curl apt-transport-https && \
   curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add - && \
-  echo \
-   "deb [arch=amd64] https://download.docker.com/linux/debian $(lsb_release -cs) stable" \
-    >>/etc/apt/sources.list && \
+  echo "deb [arch=amd64] https://download.docker.com/linux/debian $(lsb_release -cs) stable" >> /etc/apt/sources.list && \
+  echo "deb http://ftp.debian.org/debian $(lsb_release -cs) main contrib non-free" >> /etc/apt/sources.list && \
   apt-get update && \
   apt-get -y install \
     bash \
@@ -21,6 +20,7 @@ RUN apt-get update && \
     g++ \
     git \
     libnlopt-dev \
+    liblz4-dev \
     openjdk-8-jdk-headless \
     pandoc \
     r-base \

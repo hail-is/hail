@@ -24,6 +24,10 @@ class UpcallConfig {
   // InputBuffer methods
   jmethodID InputBuffer_close_; // close()
   jmethodID InputBuffer_readToEndOfBlock_;
+  // OutputStream methods
+  jmethodID OutputStream_close_;
+  jmethodID OutputStream_flush_;
+  jmethodID OutputStream_write_;
   
   UpcallConfig();
 };

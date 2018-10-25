@@ -1,16 +1,8 @@
 package is.hail.nativecode
 
 import is.hail.SparkSuite
-import is.hail.annotations._
-import is.hail.check.Gen
-import is.hail.check.Prop.forAll
-import is.hail.expr._
-import is.hail.expr.types._
-import is.hail.nativecode._
-import org.apache.spark.SparkException
+import is.hail.cxx._
 import org.testng.annotations.Test
-import is.hail.utils._
-import is.hail.testUtils._
 
 class NativeCodeSuite extends SparkSuite {
 
@@ -218,4 +210,32 @@ class NativeCodeSuite extends SparkSuite {
     testPlus.close()
   }
 
+  @Test def testCXXCodeFunctions(): Unit = {
+    val tub = new TranslationUnitBuilder()
+    tub.include("hail/hail.h")
+    tub.include("<cstdio>")
+
+    val fb = FunctionBuilder("testUpcall", Array("NativeStatus*" -> "st", "long" -> "a0"), "long")
+
+    fb +=
+      s"""
+         |set_test_msg("Hello!");
+         |return 1000+${fb.getArg(1)};
+       """.stripMargin
+
+    val f = fb.result()
+    tub += f
+
+    val mod = tub.result().build("")
+
+    val st = new NativeStatus()
+    val testUpcall = mod.findLongFuncL1(st, f.name)
+    mod.close()
+    assert(st.ok, st.toString())
+    Upcalls.testMsg = "InitialValueOfTestMsg"
+    assert(testUpcall(st, 99) == 1099)
+    assert(Upcalls.testMsg.equals("Hello!"))
+    st.close()
+    testUpcall.close()
+  }
 }
