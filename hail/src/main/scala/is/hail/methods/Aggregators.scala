@@ -496,8 +496,8 @@ class TakeByAggregator[T](var t: Type, var f: (Any) => Any, var n: Int)(implicit
   def copy() = new TakeByAggregator(t, f, n)
 }
 
-class LinearRegressionAggregator(xF: (Any) => Any, k: Int, k0: Int, xType: PType) extends TypedAggregator[Any] {
-  var combiner = new LinearRegressionCombiner(k, k0, xType)
+class LinearRegressionAggregator(xF: (Any) => Any, k: Int, k0: Int, xType: Type) extends TypedAggregator[Any] {
+  var combiner = new LinearRegressionCombiner(k, k0, xType.physicalType)
 
   def seqOp(a: Any) = {
     if (a != null) {

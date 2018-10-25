@@ -1,13 +1,14 @@
 package is.hail.annotations.aggregators
 
 import is.hail.annotations._
+import is.hail.expr.types.{TArray, TFloat64, TInt64, Type}
 import is.hail.expr.types.physical.{PArray, PFloat64, PInt64, PType}
 import is.hail.utils._
 
-class RegionValueArraySumLongAggregator(t: PType) extends RegionValueAggregator {
+class RegionValueArraySumLongAggregator(t: Type) extends RegionValueAggregator {
   private var sum: Array[Long] = _
-  assert(t.isOfType(PArray(PInt64())))
-  private val typ = t.asInstanceOf[PArray]
+  assert(t.isOfType(TArray(TInt64())))
+  private val typ = t.asInstanceOf[TArray].physicalType
 
   def seqOp(region: Region, aoff: Long, missing: Boolean) {
     if (!missing)
@@ -77,10 +78,10 @@ class RegionValueArraySumLongAggregator(t: PType) extends RegionValueAggregator 
   }
 }
 
-class RegionValueArraySumDoubleAggregator(t: PType) extends RegionValueAggregator {
+class RegionValueArraySumDoubleAggregator(t: Type) extends RegionValueAggregator {
   private var sum: Array[Double] = _
-  assert(t.isOfType(PArray(PFloat64())))
-  private val typ = t.asInstanceOf[PArray]
+  assert(t.isOfType(TArray(TFloat64())))
+  private val typ = t.asInstanceOf[TArray].physicalType
 
   def seqOp(region: Region, aoff: Long, missing: Boolean) {
     if (!missing)

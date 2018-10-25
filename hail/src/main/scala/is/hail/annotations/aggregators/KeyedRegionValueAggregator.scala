@@ -3,6 +3,7 @@ package is.hail.annotations.aggregators
 import java.util
 
 import is.hail.annotations.RegionValueBuilder
+import is.hail.expr.types.Type
 import is.hail.expr.types.physical.PType
 
 import scala.collection.JavaConverters._
@@ -10,7 +11,7 @@ import scala.language.implicitConversions
 
 case class KeyedRegionValueAggregator(
   rvAggs: Array[RegionValueAggregator],
-  keyType: PType) extends RegionValueAggregator {
+  keyType: Type) extends RegionValueAggregator {
 
   var m = new java.util.HashMap[Any, Array[RegionValueAggregator]]() // this can't be private for reflection to work
 
@@ -47,11 +48,11 @@ case class KeyedRegionValueAggregator(
   }
 
   override def result(rvb: RegionValueBuilder): Unit = {
-    val sorted = m.asScala.toArray.sortBy(f => f._1)(keyType.virtualType.ordering.toOrdering)
+    val sorted = m.asScala.toArray.sortBy(f => f._1)(keyType.ordering.toOrdering)
     rvb.startArray(m.size)
     sorted.foreach { case (group, rvagg) =>
       rvb.startStruct()
-      rvb.addAnnotation(keyType.virtualType, group)
+      rvb.addAnnotation(keyType, group)
       rvb.startTuple()
       var i = 0
       while(i < rvagg.length) {

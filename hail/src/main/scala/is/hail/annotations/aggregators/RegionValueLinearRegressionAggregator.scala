@@ -9,8 +9,8 @@ object RegionValueLinearRegressionAggregator {
   def typ = LinearRegressionCombiner.typ
 }
 
-class RegionValueLinearRegressionAggregator(k: Int, k0: Int, xType: PType) extends RegionValueAggregator {
-  var combiner = new LinearRegressionCombiner(k, k0, xType)
+class RegionValueLinearRegressionAggregator(k: Int, k0: Int, xType: Type) extends RegionValueAggregator {
+  var combiner = new LinearRegressionCombiner(k, k0, xType.physicalType)
 
   def seqOp(region: Region, y: Double, ym: Boolean, xsOffset: Long, xsMissing: Boolean) {
     if (!ym && !xsMissing) {
