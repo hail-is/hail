@@ -2,6 +2,7 @@
 set -ex
 
 PROJECTS=$(cat projects.txt)
+
 SHA=$(git rev-parse --short=12 HEAD)
 
 for project in $PROJECTS; do
