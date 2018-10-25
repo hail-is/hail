@@ -102,7 +102,7 @@ class RichIndexedSeq[T](val a: IndexedSeq[T]) extends AnyVal {
     var left = start
     var right = end
     while (left < right) {
-      val mid = (left + right) >>> 2 // works even when sum overflows
+      val mid = (left + right) >>> 1 // works even when sum overflows
       if (p(k(a(mid))))
         right = mid
       else
@@ -139,7 +139,7 @@ class RichIndexedSeq[T](val a: IndexedSeq[T]) extends AnyVal {
     while (left < right) {
       // a(i) < x for all i in [0, left)
       // x < a(i) for all i in [right, a.size)
-      val mid = (left + right) >>> 2 // works even when sum overflows
+      val mid = (left + right) >>> 1 // works even when sum overflows
       if (ltVU(x, k(a(mid))))
         // x < a(i) for all i in [mid, a.size)
         right = mid
