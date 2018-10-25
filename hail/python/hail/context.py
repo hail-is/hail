@@ -7,7 +7,7 @@ from hail.genetics.reference_genome import ReferenceGenome
 from hail.typecheck import nullable, typecheck, typecheck_method, enumeration
 from hail.utils import wrap_to_list, get_env_or_default
 from hail.utils.java import Env, joption, FatalError, connect_logger, install_exception_handler, uninstall_exception_handler
-from hail.utils.backend import SparkBackend
+from hail.backend import Backend, ServiceBackend, SparkBackend
 
 import sys
 import os
@@ -26,12 +26,13 @@ class HailContext(object):
                       tmp_dir=nullable(str),
                       default_reference=str,
                       idempotent=bool,
-                      global_seed=nullable(int))
+                      global_seed=nullable(int),
+                      _backend=nullable(Backend))
     def __init__(self, sc=None, app_name="Hail", master=None, local='local[*]',
                  log=None, quiet=False, append=False,
                  min_block_size=1, branching_factor=50, tmp_dir=None,
                  default_reference="GRCh37", idempotent=False,
-                 global_seed=6348563392232659379):
+                 global_seed=6348563392232659379, _backend=None):
 
         if Env._hc:
             if idempotent:
@@ -65,7 +66,9 @@ class HailContext(object):
 
         jsc = sc._jsc.sc() if sc else None
 
-        self._backend = SparkBackend()
+        if _backend is None:
+            _backend = SparkBackend()
+        self._backend = _backend
 
         tmp_dir = get_env_or_default(tmp_dir, 'TMPDIR', '/tmp')
 
@@ -168,12 +171,13 @@ class HailContext(object):
            tmp_dir=str,
            default_reference=enumeration('GRCh37', 'GRCh38'),
            idempotent=bool,
-           global_seed=nullable(int))
+           global_seed=nullable(int),
+           _backend=nullable(Backend))
 def init(sc=None, app_name='Hail', master=None, local='local[*]',
          log=None, quiet=False, append=False,
          min_block_size=1, branching_factor=50, tmp_dir='/tmp',
          default_reference='GRCh37', idempotent=False,
-         global_seed=6348563392232659379):
+         global_seed=6348563392232659379, _backend=None):
     """Initialize Hail and Spark.
 
     Parameters
@@ -209,7 +213,7 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
     """
     HailContext(sc, app_name, master, local, log, quiet, append,
                 min_block_size, branching_factor, tmp_dir,
-                default_reference, idempotent, global_seed)
+                default_reference, idempotent, global_seed, _backend)
 
 def stop():
     """Stop the currently running Hail session."""
