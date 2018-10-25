@@ -7,6 +7,7 @@ from hail.genetics.reference_genome import ReferenceGenome
 from hail.typecheck import nullable, typecheck, typecheck_method, enumeration
 from hail.utils import wrap_to_list, get_env_or_default
 from hail.utils.java import Env, joption, FatalError, connect_logger, install_exception_handler, uninstall_exception_handler
+from hail.utils.backend import SparkBackend
 
 import sys
 import os
@@ -63,6 +64,8 @@ class HailContext(object):
         Env._gateway = self._gateway
 
         jsc = sc._jsc.sc() if sc else None
+
+        self._backend = SparkBackend()
 
         tmp_dir = get_env_or_default(tmp_dir, 'TMPDIR', '/tmp')
 

@@ -97,11 +97,11 @@ def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None) -> 
     else:
         dataset = dataset.select_rows()
     dataset = dataset.select_cols().select_globals().select_entries('GT')
-    return Table(Env.hail().methods.IBD.apply(require_biallelic(dataset, 'ibd')._jvds,
-                                              joption('__maf' if maf is not None else None),
-                                              bounded,
-                                              joption(min),
-                                              joption(max)))
+    return Table._from_java(Env.hail().methods.IBD.apply(require_biallelic(dataset, 'ibd')._jvds,
+                                                         joption('__maf' if maf is not None else None),
+                                                         bounded,
+                                                         joption(min),
+                                                         joption(max)))
 
 
 @typecheck(call=expr_call,
@@ -416,7 +416,7 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=()) -> 
         block_size,
         list(row_fields)[len(mt.row_key):])
 
-    ht_result = Table(jt)
+    ht_result = Table._from_java(jt)
 
     if not y_is_list:
         fields = ['y_transpose_x', 'beta', 'standard_error', 't_stat', 'p_value']
@@ -659,7 +659,7 @@ def logistic_regression_rows(test, y, x, covariates) -> hail.Table:
         y_field_name,
         x_field_name,
         jarray(Env.jvm().java.lang.String, cov_field_names))
-    return Table(jt)
+    return Table._from_java(jt)
 
 
 @typecheck(test=enumeration('wald', 'lrt', 'score'),
@@ -721,7 +721,7 @@ def poisson_regression_rows(test, y, x, covariates) -> Table:
         y_field_name,
         x_field_name,
         jarray(Env.jvm().java.lang.String, cov_field_names))
-    return Table(jt)
+    return Table._from_java(jt)
 
 
 @typecheck(y=expr_float64,
@@ -1245,7 +1245,7 @@ def skat(key_expr, weight_expr, y, x, covariates, logistic=False,
         accuracy,
         iterations)
 
-    return Table(jt)
+    return Table._from_java(jt)
 
 
 @typecheck(call_expr=expr_call,
@@ -1425,10 +1425,10 @@ def pca(entry_expr, k=10, compute_loadings=False) -> Tuple[List[float], Table, T
     mt = mt.select_cols().select_rows().select_globals()
 
     r = Env.hail().methods.PCA.apply(mt._jvds, field, k, compute_loadings)
-    scores = Table(Env.hail().methods.PCA.scoresTable(mt._jvds, r._2()))
+    scores = Table._from_java(Env.hail().methods.PCA.scoresTable(mt._jvds, r._2()))
     loadings = from_option(r._3())
     if loadings:
-        loadings = Table(loadings)
+        loadings = Table._from_java(loadings)
     return jiterable_to_list(r._1()), scores, loadings
 
 
@@ -1735,14 +1735,14 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
 
     int_statistics = {'kin': 0, 'kin2': 1, 'kin20': 2, 'all': 3}[statistics]
 
-    ht = Table(scala_object(Env.hail().methods, 'PCRelate')
-            .apply(Env.hc()._jhc,
-                   g._jbm,
-                   scores_table._jt,
-                   min_individual_maf,
-                   block_size,
-                   min_kinship,
-                   int_statistics))
+    ht = Table._from_java(scala_object(Env.hail().methods, 'PCRelate')
+                          .apply(Env.hc()._jhc,
+                                 g._jbm,
+                                 scores_table._jt,
+                                 min_individual_maf,
+                                 block_size,
+                                 min_kinship,
+                                 int_statistics))
 
     if statistics == 'kin':
         ht = ht.drop('ibd0', 'ibd1', 'ibd2')
@@ -1886,7 +1886,7 @@ def split_multi(ds, keep_star=False, left_aligned=False):
             if rekey:
                 return ht.key_by('locus', 'alleles')
             else:
-                return Table(ht._jt.keyBy(
+                return Table._from_java(ht._jt.keyBy(
                     ['locus', 'alleles'],
                     True # isSorted
                 ))
@@ -3132,7 +3132,7 @@ def _local_ld_prune(mt, call_field, r2=0.2, bp_window_size=1000000, memory_per_c
 
     info(f'ld_prune: running local pruning stage with max queue size of {max_queue_size} variants')
 
-    sites_only_table = Table(Env.hail().methods.LocalLDPrune.apply(
+    sites_only_table = Table._from_java(Env.hail().methods.LocalLDPrune.apply(
         mt._jvds, call_field, float(r2), bp_window_size, max_queue_size))
 
     return sites_only_table

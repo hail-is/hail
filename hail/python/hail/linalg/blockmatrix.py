@@ -832,7 +832,7 @@ class BlockMatrix(object):
                       radius=int,
                       include_diagonal=bool)
     def _filtered_entries_table(self, table, radius, include_diagonal):
-        return Table(self._jbm.filteredEntriesTable(table._jt, radius, include_diagonal))
+        return Table._from_java(self._jbm.filteredEntriesTable(table._jt, radius, include_diagonal))
 
     @typecheck_method(lower=int, upper=int, blocks_only=bool)
     def sparsify_band(self, lower=0, upper=0, blocks_only=False):
@@ -1581,7 +1581,7 @@ class BlockMatrix(object):
         :class:`.Table`
             Table with a row for each entry.
         """
-        return Table(self._jbm.entriesTable(Env.hc()._jhc))
+        return Table._from_java(self._jbm.entriesTable(Env.hc()._jhc))
 
     @staticmethod
     @typecheck(path_in=str,

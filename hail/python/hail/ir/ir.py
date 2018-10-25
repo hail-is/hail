@@ -1397,4 +1397,4 @@ class JavaIR(IR):
         self._jir = jir
 
     def render(self, r):
-        return f'(JavaIR {r.add_jir(self)})'
+        return f'(JavaIR {r.add_jir(self._jir)})'

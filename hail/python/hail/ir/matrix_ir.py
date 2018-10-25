@@ -327,4 +327,4 @@ class JavaMatrix(MatrixIR):
         self._jir = jir
 
     def render(self, r):
-        return f'(JavaMatrix {r.add_jir(self)})'
+        return f'(JavaMatrix {r.add_jir(self._jir)})'

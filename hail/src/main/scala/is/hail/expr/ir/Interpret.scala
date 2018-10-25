@@ -6,19 +6,24 @@ import is.hail.{HailContext, Uploader, stats}
 import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.annotations._
 import is.hail.asm4s.AsmFunction3
-import is.hail.expr.{JSONAnnotationImpex, Parser, TypedAggregator}
+import is.hail.expr.{IRParserEnvironment, JSONAnnotationImpex, Parser, TypedAggregator}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PTuple
 import is.hail.methods._
 import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.json4s.jackson.JsonMethods
+import scala.collection.JavaConverters._
 
 object Interpret {
   type Agg = (IndexedSeq[Row], TStruct)
 
-  def interpretPyIR(s: String): String = {
-    val ir = Parser.parse_value_ir(s)
+  def interpretPyIR(s: String, refMap: java.util.HashMap[String, Type], irMap: java.util.HashMap[String, BaseIR]): String = {
+    interpretPyIR(s, refMap.asScala.toMap, irMap.asScala.toMap)
+  }
+
+  def interpretPyIR(s: String, refMap: Map[String, Type] = Map.empty, irMap: Map[String, BaseIR] = Map.empty): String = {
+    val ir = Parser.parse_value_ir(s, IRParserEnvironment(refMap, irMap))
     val t = ir.typ
     val value = Interpret[Any](ir)
     JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(value, t))

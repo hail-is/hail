@@ -143,7 +143,7 @@ def maximal_independent_set(i, j, keep=True, tie_breaker=None) -> Table:
     edges = t.key_by().select('i', 'j')
     nodes_in_set = Env.hail().utils.Graph.maximalIndependentSet(edges._jt.collect(), node_t._jtype, joption(tie_breaker_str))
 
-    nt = Table(nodes._jt.annotateGlobal(nodes_in_set, hl.tset(node_t)._jtype, 'nodes_in_set'))
+    nt = Table._from_java(nodes._jt.annotateGlobal(nodes_in_set, hl.tset(node_t)._jtype, 'nodes_in_set'))
     nt = (nt
           .filter(nt.nodes_in_set.contains(nt.node), keep)
           .drop('nodes_in_set'))
@@ -343,7 +343,7 @@ def filter_intervals(ds, intervals, keep=True) -> Union[Table, MatrixTable]:
         return MatrixTable(jmt)
     else:
         jt = Env.hail().methods.TableFilterIntervals.apply(ds._jt, intervals, keep)
-        return Table(jt)
+        return Table._from_java(jt)
 
 
 @typecheck(mt=MatrixTable, bp_window_size=int)

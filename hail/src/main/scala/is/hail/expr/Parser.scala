@@ -579,7 +579,8 @@ object Parser extends JavaTokenParsers {
       "ApplySeeded" ~> ir_identifier ~ int64_literal ~ ir_children(env) ^^ { case function ~ seed ~ args => ir.ApplySeeded(function, args, seed) } |
       ("ApplyIR" | "ApplySpecial" | "Apply") ~> ir_identifier ~ ir_children(env) ^^ { case function ~ args => ir.invoke(function, args: _*) } |
       "Uniroot" ~> ir_identifier >> { name => ir_value_expr(env + (name -> TFloat64())) ~ ir_value_expr(env) ~ ir_value_expr(env) ^^ { case f ~ min ~ max => ir.Uniroot(name, f, min, max) }} |
-      "JavaIR" ~> ir_identifier ^^ { name => env.irMap(name).asInstanceOf[IR] }
+      "JavaIR" ~> ir_identifier ^^ { name => env.irMap(name).asInstanceOf[IR] } |
+      "TableCount" ~> table_ir(env) ^^ { child => ir.TableCount(child) }
   }
 
   def ir_value: Parser[(Type, Any)] = type_expr ~ string_literal ^^ { case t ~ vJSONStr =>
@@ -695,15 +696,22 @@ object Parser extends JavaTokenParsers {
   }
 
   def parse_value_ir(s: String): IR = parse_value_ir(s, IRParserEnvironment())
-  def parse_value_ir(s: String, refMap: java.util.HashMap[String, Type]): IR = parse_value_ir(s, IRParserEnvironment(refMap = refMap.asScala.toMap))
+  def parse_value_ir(s: String, refMap: java.util.HashMap[String, Type], irMap: java.util.HashMap[String, BaseIR]): IR =
+    parse_value_ir(s, IRParserEnvironment(refMap.asScala.toMap, irMap.asScala.toMap))
   def parse_value_ir(s: String, env: IRParserEnvironment): IR = parse(ir_value_expr(env), s)
 
   def parse_named_value_irs(s: String): Array[(String, IR)] = parse_named_value_irs(s, IRParserEnvironment())
+  def parse_named_value_irs(s: String, refMap: java.util.HashMap[String, Type], irMap: java.util.HashMap[String, BaseIR]): Array[(String, IR)] =
+    parse_named_value_irs(s, IRParserEnvironment(refMap.asScala.toMap, irMap.asScala.toMap))
   def parse_named_value_irs(s: String, env: IRParserEnvironment): Array[(String, IR)] = parse(ir_named_value_exprs(env), s).toArray
 
   def parse_table_ir(s: String): TableIR = parse_table_ir(s, IRParserEnvironment())
+  def parse_table_ir(s: String, refMap: java.util.HashMap[String, Type], irMap: java.util.HashMap[String, BaseIR]): TableIR =
+    parse_table_ir(s, IRParserEnvironment(refMap.asScala.toMap, irMap.asScala.toMap))
   def parse_table_ir(s: String, env: IRParserEnvironment): TableIR = parse(table_ir(env), s)
 
   def parse_matrix_ir(s: String): MatrixIR = parse(matrix_ir(IRParserEnvironment()), s)
+  def parse_matrix_ir(s: String, refMap: java.util.HashMap[String, Type], irMap: java.util.HashMap[String, BaseIR]): MatrixIR =
+    parse_matrix_ir(s, IRParserEnvironment(refMap.asScala.toMap, irMap.asScala.toMap))
   def parse_matrix_ir(s: String, env: IRParserEnvironment): MatrixIR = parse(matrix_ir(env), s)
 }

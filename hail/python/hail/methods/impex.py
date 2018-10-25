@@ -744,7 +744,7 @@ def import_fam(path, quant_pheno=False, delimiter=r'\\s+', missing='NA') -> Tabl
 
     jkt = Env.hail().table.Table.importFam(Env.hc()._jhc, path,
                                            quant_pheno, delimiter, missing)
-    return Table(jkt)
+    return Table._from_java(jkt)
 
 
 @typecheck(regex=str,
@@ -1324,7 +1324,7 @@ def import_table(paths,
     jt = Env.hc()._jhc.importTable(paths, key, min_partitions, jtypes, comment,
                                    delimiter, missing, no_header, impute, quote,
                                    skip_blank_lines, force_bgz)
-    return Table(jt)
+    return Table._from_java(jt)
 
 
 @typecheck(paths=oneof(str, sequenceof(str)),
@@ -1970,7 +1970,7 @@ def read_table(path) -> Table:
     -------
     :class:`.Table`
     """
-    return Table(Env.hc()._jhc.readTable(path))
+    return Table._from_java(Env.hc()._jhc.readTable(path))
 
 @typecheck(t=Table,
            host=str,

@@ -741,7 +741,7 @@ class LinearMixedModel(object):
             maybe_ja_t = jsome(
                 Env.hail().linalg.RowMatrix.readBlockMatrix(Env.hc()._jhc, a_t_path, jsome(partition_size)))
 
-        return Table(self._scala_model.fit(jpa_t, maybe_ja_t))
+        return Table._from_java(self._scala_model.fit(jpa_t, maybe_ja_t))
 
     @typecheck_method(pa=np.ndarray, a=nullable(np.ndarray), return_pandas=bool)
     def fit_alternatives_numpy(self, pa, a=None, return_pandas=False):

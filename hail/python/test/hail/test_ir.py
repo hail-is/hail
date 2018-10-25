@@ -111,7 +111,7 @@ class ValueIRTests(unittest.TestCase):
                'x': hl.tint32}
         env = {name: t._jtype for name, t in env.items()}
         for x in self.value_irs():
-            Env.hail().expr.Parser.parse_value_ir(str(x), env)
+            Env.hail().expr.Parser.parse_value_ir(str(x), env, {})
 
     def test_copies(self):
         for x in self.value_irs():
@@ -254,5 +254,5 @@ class ValueTests(unittest.TestCase):
                 ir.InsertFields(
                     ir.Ref("global"),
                     [("foo", row_v)]))
-            new_globals = hl.eval(hl.Table._from_ir(map_globals_ir).globals)
+            new_globals = hl.eval(hl.Table(map_globals_ir).globals)
             self.assertEquals(new_globals, hl.Struct(foo=v))
