@@ -1613,7 +1613,7 @@ class WriteBlocksRDD(path: String,
       .unzip
 
     val rvRowType = matrixType.rvRowType
-    val entryArrayType = matrixType.entryArrayType
+    val entryArrayType = matrixType.entryArrayType.physicalType
     val entryType = matrixType.entryType
     val fieldType = entryType.field(entryField).typ
 

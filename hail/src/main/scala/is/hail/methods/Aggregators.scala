@@ -197,7 +197,7 @@ class CollectAggregator(t: Type) extends TypedAggregator[ArrayBuffer[Any]] {
   def copy() = new CollectAggregator(t)
 }
 
-class InfoScoreAggregator(t: Type) extends TypedAggregator[Annotation] {
+class InfoScoreAggregator(t: PType) extends TypedAggregator[Annotation] {
 
   var _state = new InfoScoreCombiner(t)
 

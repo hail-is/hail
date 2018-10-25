@@ -93,7 +93,7 @@ object LinearRegression {
     val yypBc = sc.broadcast(y.t(*, ::).map(r => r dot r) - Qty.t(*, ::).map(r => r dot r))
 
     val fullRowType = vsm.rvRowType
-    val entryArrayType = vsm.matrixType.entryArrayType
+    val entryArrayType = vsm.matrixType.entryArrayType.physicalType
     val entryType = vsm.entryType
     val fieldType = entryType.field(xField).typ
 
@@ -235,7 +235,7 @@ object LinearRegression {
     val nGroups = bcData.length
 
     val fullRowType = vsm.rvRowType
-    val entryArrayType = vsm.matrixType.entryArrayType
+    val entryArrayType = vsm.matrixType.entryArrayType.physicalType
     val entryType = vsm.entryType
     val fieldType = entryType.field(xField).typ
 

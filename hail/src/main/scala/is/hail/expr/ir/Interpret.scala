@@ -500,7 +500,7 @@ object Interpret {
           case Statistics() => new StatAggregator()
           case InfoScore() =>
             val IndexedSeq(aggType) = seqOpArgTypes
-            new InfoScoreAggregator(aggType)
+            new InfoScoreAggregator(aggType.physicalType)
           case Histogram() =>
             val Seq(start, end, bins) = constructorArgs
             val startValue = interpret(start, Env.empty[Any], null, null).asInstanceOf[Double]
