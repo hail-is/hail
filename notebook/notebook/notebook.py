@@ -159,16 +159,6 @@ def auth(requested_svc_name):
     return '', 403
 
 
-@app.route('/style.css')
-def style():
-    return render_template('style.css'), 201, {'Content-Type': 'text/css'}
-
-
-@app.route('/centering.css')
-def centering():
-    return render_template('centering.css'), 201, {'Content-Type': 'text/css'}
-
-
 @app.route('/workers')
 def workers():
     if not session.get('admin'):
