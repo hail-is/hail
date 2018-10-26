@@ -1,5 +1,5 @@
 python/**/*.pyc
-python/hail/dist
+python/dist
 python/hail/docs/_build/*
 src/main/c/.cxx.vsn
 src/main/c/libsimdpp-2*
