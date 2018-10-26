@@ -95,7 +95,10 @@ def hadoop_copy(src, dest):
     """Copy a file through the Hadoop filesystem API.
     Supports distributed file systems like hdfs, gs, and s3.
 
-    .. Hint:: Try using ``hadoop_open`` first, it's more efficient!
+    Hint
+    ----
+
+    Try using ``hadoop_open`` first, it's more efficient!
 
     Examples
     --------
