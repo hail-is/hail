@@ -98,7 +98,10 @@ def hadoop_copy(src, dest):
     Hint
     ----
 
-    Try using :func:`.hadoop_open` first, it's more efficient!
+    Try using :func:`.hadoop_open` first, it's more efficient! For example:
+
+    >>> with hadoop_open('gs://my_bucket/results.csv', 'w') as f: #doctest: +SKIP
+    ...     pandas_df.to_csv(f)
 
     Examples
     --------
