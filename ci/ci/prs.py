@@ -109,6 +109,14 @@ class PRS(object):
     def ready_to_merge(self, target):
         return [pr for pr in self.for_target(target) if pr.is_mergeable()]
 
+    def building(self):
+        return [pr
+                for target in self.live_targets()
+                for pr in self.building_for_target(target)]
+
+    def building_for_target(self, target):
+        return [pr for pr in self.for_target(target) if pr.is_building()]
+
     def update_watch_state(self, target_ref, action):
         assert isinstance(target_ref, FQRef)
         assert action in ('unwatch', 'watch', 'deploy')
@@ -143,8 +151,8 @@ class PRS(object):
 
     def build_next(self, target):
         approved = [pr for pr in self.for_target(target) if pr.is_approved()]
-        running = [x for x in approved if x.is_running()]
-        if len(running) != 0:
+        building = [x for x in approved if x.is_building()]
+        if len(building) != 0:
             to_build = []
         else:
             approved_and_need_status = [
@@ -357,8 +365,18 @@ class PRS(object):
         self.heal_target(target.ref)
 
     def refresh_from_ci_jobs(self, jobs):
+        lost_jobs = {(pr.source, pr.target) for pr in self.building()}
         for ((source, target), job) in jobs.items():
+            lost_jobs.remove((source, target))
             self.refresh_from_ci_job(source, target, job)
+        for (source, target) in lost_jobs:
+            log.info(f'{source.short_str()} {target.short_str()} were not '
+                     f'found in batch refresh, so they will be reset to '
+                     f'the buildable state')
+            pr = self._get(source.ref, target.ref)
+            self._set(source.ref,
+                      target.ref,
+                      pr.refresh_from_missing_job())
 
     def refresh_from_ci_job(self, source, target, job):
         assert isinstance(job, Job), job

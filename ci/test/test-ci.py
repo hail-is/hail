@@ -166,7 +166,7 @@ def poll_until_finished_pr(source_ref,
                            max_polls=MAX_POLLS):
     return poll_pr(
         source_ref,
-        lambda pr: pr.is_running() or pr.is_pending_build(),
+        lambda pr: pr.is_building() or pr.is_pending_build(),
         delay_in_seconds=delay_in_seconds,
         max_polls=max_polls)
 
@@ -386,7 +386,7 @@ def test_push_while_building(tmpdir):
         # get details on first job of slow branch
         pr[SLOW_BRANCH_NAME] = poll_until_pr_exists_and(
             SLOW_BRANCH_NAME,
-            lambda x: x.is_running())
+            lambda x: x.is_building())
         assertDictHasKVs(
             pr[SLOW_BRANCH_NAME].to_json(),
             {
