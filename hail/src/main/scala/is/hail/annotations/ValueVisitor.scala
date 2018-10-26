@@ -1,9 +1,10 @@
 package is.hail.annotations
 
 import is.hail.expr.types._
+import is.hail.expr.types.physical._
 
 trait ValueVisitor {
-  def visitMissing(t: Type): Unit
+  def visitMissing(t: PType): Unit
 
   def visitBoolean(b: Boolean): Unit
 
@@ -19,15 +20,15 @@ trait ValueVisitor {
 
   def visitBinary(b: Array[Byte]): Unit
 
-  def enterStruct(t: TStruct): Unit
+  def enterStruct(t: PStruct): Unit
 
-  def enterField(f: Field): Unit
+  def enterField(f: PField): Unit
 
   def leaveField(): Unit
 
   def leaveStruct(): Unit
 
-  def enterArray(t: TContainer, length: Int): Unit
+  def enterArray(t: PContainer, length: Int): Unit
 
   def leaveArray(): Unit
 
@@ -35,7 +36,7 @@ trait ValueVisitor {
 
   def leaveElement(): Unit
 
-  def enterTuple(t: TTuple): Unit
+  def enterTuple(t: PTuple): Unit
 
   def leaveTuple(): Unit
 }
@@ -45,7 +46,7 @@ final class PrettyVisitor extends ValueVisitor {
 
   def result(): String = sb.result()
 
-  def visitMissing(t: Type) {
+  def visitMissing(t: PType) {
     sb.append("NA")
   }
 
@@ -77,11 +78,11 @@ final class PrettyVisitor extends ValueVisitor {
     sb.append(s)
   }
 
-  def enterStruct(t: TStruct) {
+  def enterStruct(t: PStruct) {
     sb.append("{")
   }
 
-  def enterField(f: Field) {
+  def enterField(f: PField) {
     if (f.index > 0)
       sb.append(",")
     sb.append(" ")
@@ -95,7 +96,7 @@ final class PrettyVisitor extends ValueVisitor {
     sb.append(" }")
   }
 
-  def enterTuple(t: TTuple) {
+  def enterTuple(t: PTuple) {
     sb.append('(')
   }
 
@@ -103,11 +104,11 @@ final class PrettyVisitor extends ValueVisitor {
     sb.append(')')
   }
 
-  def enterArray(t: TContainer, length: Int) {
+  def enterArray(t: PContainer, length: Int) {
     t match {
-      case t: TSet =>
+      case t: PSet =>
         sb.append("Set")
-      case t: TDict =>
+      case t: PDict =>
         sb.append("Dict")
       case _ =>
     }

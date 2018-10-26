@@ -67,11 +67,11 @@ object RVDPartitionInfo {
         if (typ.kOrd.lt(f, prevF.value)) {
           if (pkOrd.lt(f, prevF.value)) {
             if (sortedness > UNSORTED)
-              log.info(s"unsorted: ${ f.pretty(typ.kType) }, ${ prevF.pretty }")
+              log.info(s"unsorted: ${ f.pretty(typ.kType.physicalType) }, ${ prevF.pretty }")
             sortedness = UNSORTED
           } else
             if (sortedness > TSORTED)
-              log.info(s"tsorted: ${ f.pretty(typ.kType) }, ${ prevF.pretty }")
+              log.info(s"tsorted: ${ f.pretty(typ.kType.physicalType) }, ${ prevF.pretty }")
             sortedness = sortedness.min(TSORTED)
         }
 

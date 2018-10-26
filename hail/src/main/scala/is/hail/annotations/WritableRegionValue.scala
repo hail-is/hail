@@ -58,7 +58,7 @@ class WritableRegionValue private (
     value.setOffset(rvb.end())
   }
 
-  def pretty: String = value.pretty(t.virtualType)
+  def pretty: String = value.pretty(t)
 
   private def writeObject(s: ObjectOutputStream): Unit = {
     throw new NotImplementedException()
