@@ -13,6 +13,12 @@ from typing import Dict, List
 def hadoop_open(path: str, mode: str = 'r', buffer_size: int = 8192):
     """Open a file through the Hadoop filesystem API. Supports distributed
     file systems like hdfs, gs, and s3.
+    
+    Caution
+    -------
+    
+    Due to an implementation limitation, :func:`hadoop_open` may be quite slow for
+    large data sets (anything larger than 50 MB).
 
     Examples
     --------
@@ -98,7 +104,8 @@ def hadoop_copy(src, dest):
     Hint
     ----
 
-    Try using :func:`.hadoop_open` first, it's more efficient! For example:
+    Try using :func:`.hadoop_open` first, it's simpler, but not great
+    for large data! For example:
 
     >>> with hadoop_open('gs://my_bucket/results.csv', 'w') as f: #doctest: +SKIP
     ...     pandas_df.to_csv(f)
