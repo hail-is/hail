@@ -4,6 +4,7 @@ cloudtools
 notebook
 gateway
 hail
+image-fetcher
 letsencrypt
 scorecard
 site
