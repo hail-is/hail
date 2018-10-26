@@ -98,7 +98,7 @@ def hadoop_copy(src, dest):
     Hint
     ----
 
-    Try using ``hadoop_open`` first, it's more efficient!
+    Try using :func:`.hadoop_open` first, it's more efficient!
 
     Examples
     --------
