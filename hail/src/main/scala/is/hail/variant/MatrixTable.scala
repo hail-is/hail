@@ -739,7 +739,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val newMatrixType = matrixType.copyParts() // move entries to the end
     val newRVRowType = newMatrixType.rvRowType
     val leftRVRowType = rvRowType.physicalType
-    val rightRVRowType = right.rvRowType
+    val rightRVRowType = right.rvRowType.physicalType
     val localLeftSamples = numCols
     val localRightSamples = right.numCols
     val leftEntriesIndex = entriesIndex
@@ -1315,7 +1315,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       "mother_entry" -> entryType
     )
 
-    val fullRowType = rvRowType
+    val fullRowType = rvRowType.physicalType
     val localEntriesIndex = entriesIndex
     val localEntriesType = matrixType.entryArrayType.physicalType
 
@@ -1361,12 +1361,12 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     assert(partStarts.length == rvd.getNumPartitions + 1)
     val partStartsBc = sparkContext.broadcast(partStarts)
 
-    val rvRowType = matrixType.rvRowType
+    val rvRowType = matrixType.rvRowType.physicalType
     val entryArrayType = matrixType.entryArrayType.physicalType
-    val entryType = matrixType.entryType
+    val entryType = matrixType.entryType.physicalType
     val fieldType = entryType.field(entryField).typ
 
-    assert(fieldType.isOfType(TFloat64()))
+    assert(fieldType.virtualType.isOfType(TFloat64()))
 
     val entryArrayIdx = matrixType.entriesIdx
     val fieldIdx = entryType.fieldIdx(entryField)

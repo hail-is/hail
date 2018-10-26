@@ -1612,12 +1612,12 @@ class WriteBlocksRDD(path: String,
     }
       .unzip
 
-    val rvRowType = matrixType.rvRowType
+    val rvRowType = matrixType.rvRowType.physicalType
     val entryArrayType = matrixType.entryArrayType.physicalType
-    val entryType = matrixType.entryType
+    val entryType = matrixType.entryType.physicalType
     val fieldType = entryType.field(entryField).typ
 
-    assert(fieldType.isOfType(TFloat64()))
+    assert(fieldType.virtualType.isOfType(TFloat64()))
 
     val entryArrayIdx = matrixType.entriesIdx
     val fieldIdx = entryType.fieldIdx(entryField)

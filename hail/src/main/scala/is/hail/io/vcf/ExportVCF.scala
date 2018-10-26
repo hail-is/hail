@@ -3,7 +3,7 @@ package is.hail.io.vcf
 import is.hail
 import is.hail.annotations.Region
 import is.hail.expr.types._
-import is.hail.expr.types.physical.PContainer
+import is.hail.expr.types.physical._
 import is.hail.io.{VCFAttributes, VCFFieldAttributes, VCFMetadata}
 import is.hail.utils._
 import is.hail.variant.{Call, MatrixTable, RegionValueVariant}
@@ -18,32 +18,32 @@ object ExportVCF {
     case _ => "1"
   }
 
-  def strVCF(sb: StringBuilder, elementType: Type, m: Region, offset: Long) {
+  def strVCF(sb: StringBuilder, elementType: PType, m: Region, offset: Long) {
     elementType match {
-      case TInt32(_) =>
+      case PInt32(_) =>
         val x = m.loadInt(offset)
         sb.append(x)
-      case TInt64(_) =>
+      case PInt64(_) =>
         val x = m.loadLong(offset)
         if (x > Int.MaxValue || x < Int.MinValue)
           fatal(s"Cannot convert Long to Int if value is greater than Int.MaxValue (2^31 - 1) " +
             s"or less than Int.MinValue (-2^31). Found $x.")
         sb.append(x)
-      case TFloat32(_) =>
+      case PFloat32(_) =>
         val x = m.loadFloat(offset)
         if (x.isNaN)
           sb += '.'
         else
           sb.append(x.formatted("%.5e"))
-      case TFloat64(_) =>
+      case PFloat64(_) =>
         val x = m.loadDouble(offset)
         if (x.isNaN)
           sb += '.'
         else
           sb.append(x.formatted("%.5e"))
-      case TString(_) =>
+      case PString(_) =>
         sb.append(TString.loadString(m, offset))
-      case TCall(_) =>
+      case PCall(_) =>
         val c = m.loadInt(offset)
         Call.vcfString(c, sb)
       case _ =>
@@ -59,7 +59,7 @@ object ExportVCF {
           sb += delim
         if (t.isElementDefined(m, offset, i)) {
           val eOffset = t.loadElement(m, offset, length, i)
-          strVCF(sb, t.elementType.virtualType, m, eOffset)
+          strVCF(sb, t.elementType, m, eOffset)
         } else
           sb += '.'
         i += 1
@@ -68,11 +68,10 @@ object ExportVCF {
       sb += '.'
   }
 
-  def emitInfo(sb: StringBuilder, f: Field, m: Region, offset: Long, wroteLast: Boolean): Boolean = {
+  def emitInfo(sb: StringBuilder, f: PField, m: Region, offset: Long, wroteLast: Boolean): Boolean = {
     f.typ match {
-      case it: TContainer if !it.elementType.isOfType(TBoolean()) =>
-        val pt = it.physicalType
-        val length = pt.loadLength(m, offset)
+      case it: PContainer if !it.elementType.virtualType.isOfType(TBoolean()) =>
+        val length = it.loadLength(m, offset)
         if (length == 0)
           wroteLast
         else {
@@ -80,10 +79,10 @@ object ExportVCF {
             sb += ';'
           sb.append(f.name)
           sb += '='
-          iterableVCF(sb, pt, m, length, offset, ',')
+          iterableVCF(sb, it, m, length, offset, ',')
           true
         }
-      case TBoolean(_) =>
+      case PBoolean(_) =>
         if (m.loadBoolean(offset)) {
           if (wroteLast)
             sb += ';'
@@ -130,16 +129,16 @@ object ExportVCF {
     case _ => None
   }
 
-  def formatType(f: Field): String = {
-    val tOption = f.typ match {
+  def formatType(fieldName: String, t: Type): String = {
+    val tOption = t match {
       case TArray(elt, _) => formatType(elt)
       case TSet(elt, _) => formatType(elt)
-      case t => formatType(t)
+      case _ => formatType(t)
     }
 
     tOption match {
       case Some(s) => s
-      case _ => fatal(s"FORMAT field '${ f.name }': VCF does not support type `${ f.typ }'.")
+      case _ => fatal(s"FORMAT field '$fieldName': VCF does not support type `$t'.")
     }
   }
 
@@ -166,14 +165,14 @@ object ExportVCF {
     }
   }
   
-  def emitGenotype(sb: StringBuilder, formatFieldOrder: Array[Int], tg: TStruct, m: Region, offset: Long) {
+  def emitGenotype(sb: StringBuilder, formatFieldOrder: Array[Int], tg: PStruct, m: Region, offset: Long) {
     formatFieldOrder.foreachBetween { j =>
       val fIsDefined = tg.isFieldDefined(m, offset, j)
       val fOffset = tg.loadField(m, offset, j)
 
       tg.fields(j).typ match {
-        case it: TContainer =>
-          val pt = it.physicalType
+        case it: PContainer =>
+          val pt = it
           if (fIsDefined) {
             val fLength = pt.loadLength(m, fOffset)
             iterableVCF(sb, pt, m, fLength, fOffset, ',')
@@ -182,7 +181,7 @@ object ExportVCF {
         case t =>
           if (fIsDefined)
             strVCF(sb, t, m, fOffset)
-          else if (t.isOfType(TCall()))
+          else if (t.virtualType.isOfType(TCall()))
             sb.append("./.")
           else
             sb += '.'
@@ -206,12 +205,12 @@ object ExportVCF {
     vsm.requireRowKeyVariant("export_vcf")
     
     val tg = vsm.entryType match {
-      case t: TStruct => t
+      case t: TStruct => t.physicalType
       case t =>
         fatal(s"export_vcf requires g to have type TStruct, found $t")
     }
 
-    checkFormatSignature(tg)
+    checkFormatSignature(tg.virtualType)
         
     val formatFieldOrder: Array[Int] = tg.fieldIdx.get("GT") match {
       case Some(i) => (i +: tg.fields.filter(fd => fd.name != "GT").map(_.index)).toArray
@@ -222,14 +221,14 @@ object ExportVCF {
     val tinfo =
       if (vsm.rowType.hasField("info")) {
         vsm.rowType.field("info").typ match {
-          case t: TStruct => t.asInstanceOf[TStruct]
+          case t: TStruct => t.asInstanceOf[TStruct].physicalType
           case t =>
             warn(s"export_vcf found row field 'info' of type $t, but expected type 'Struct'. Emitting no INFO fields.")
-            TStruct.empty()
+            PStruct.empty()
         }
       } else {
         warn(s"export_vcf found no row field 'info'. Emitting no INFO fields.")
-        TStruct.empty()
+        PStruct.empty()
       }
 
     val rg = vsm.referenceGenome
@@ -249,9 +248,9 @@ object ExportVCF {
         sb.append("##FORMAT=<ID=")
         sb.append(f.name)
         sb.append(",Number=")
-        sb.append(attrs.getOrElse("Number", infoNumber(f.typ)))
+        sb.append(attrs.getOrElse("Number", infoNumber(f.typ.virtualType)))
         sb.append(",Type=")
-        sb.append(formatType(f))
+        sb.append(formatType(f.name, f.typ.virtualType))
         sb.append(",Description=\"")
         sb.append(attrs.getOrElse("Description", ""))
         sb.append("\">\n")
@@ -267,7 +266,7 @@ object ExportVCF {
         sb.append("\">\n")
       }
 
-      tinfo.fields.foreach { f =>
+      tinfo.virtualType.fields.foreach { f =>
         val attrs = getAttributes("info", f.name, metadata).getOrElse(Map.empty[String, String])
         sb.append("##INFO=<ID=")
         sb.append(f.name)

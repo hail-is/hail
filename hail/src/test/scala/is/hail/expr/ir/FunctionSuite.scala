@@ -64,7 +64,7 @@ class FunctionSuite extends SparkSuite {
     val f = toF[Int, Long](ir)
     val off = f(region, 5, false)
     val expected = (5 * (5 + 1)) / 2
-    val actual = region.loadInt(TStruct("x"-> TInt32()).loadField(region, off, 0))
+    val actual = region.loadInt(TStruct("x"-> TInt32()).physicalType.loadField(region, off, 0))
     assert(actual == expected)
   }
 

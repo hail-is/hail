@@ -289,7 +289,7 @@ class OrderingSuite extends TestNGSuite {
         val cetuple = fb.getArg[Long](3)
 
         val bs = new BinarySearch(fb.apply_method, pset, keyOnly = false)
-        fb.emit(bs.getClosestIndex(cset, false, cregion.loadIRIntermediate(t)(TTuple(t).fieldOffset(cetuple, 0))))
+        fb.emit(bs.getClosestIndex(cset, false, cregion.loadIRIntermediate(t)(TTuple(t).physicalType.fieldOffset(cetuple, 0))))
 
         val asArray = SafeIndexedSeq(TArray(t).physicalType, region, soff)
 

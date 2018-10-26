@@ -74,7 +74,7 @@ object MatrixIR {
   }
 
   def collectColsByKey(typ: MatrixType): (MatrixType, MatrixValue => MatrixValue) = {
-    val oldRVRowType = typ.rvRowType
+    val oldRVRowType = typ.rvRowType.physicalType
     val oldEntryArrayType = typ.entryArrayType.physicalType
     val oldEntryType = typ.entryType.physicalType
 
@@ -117,7 +117,7 @@ object MatrixIR {
           rvb.startStruct()
           var i = 0
           while (i < localRowSize - 1) {
-            rvb.addField(oldRVRowType.physicalType, rv, i)
+            rvb.addField(oldRVRowType, rv, i)
             i += 1
           }
           rvb.startArray(idxMap.length) // start entries array
@@ -2230,14 +2230,14 @@ case class TableToMatrixTable(
         rvb.startStruct()
         var i = 0
         while (i < orderedRowIndices.length) {
-          rvb.addField(rowEntryStruct.physicalType, rowIt.value, orderedRowIndices(i))
+          rvb.addField(rowEntryStructPtype, rowIt.value, orderedRowIndices(i))
           i += 1
         }
         rvb.startArray(nCols)
         i = 0
         var lastSeen = -1
         for (rv <- rowIt) {
-          val nextInt = rv.region.loadInt(rowEntryStruct.loadField(rv.region, rv.offset, idxIndex))
+          val nextInt = rv.region.loadInt(rowEntryStructPtype.loadField(rv.region, rv.offset, idxIndex))
           if (nextInt == lastSeen) // duplicate (RK, CK) pair
             fatal(s"'to_matrix_table': duplicate (row key, col key) pairs are not supported\n" +
               s"  Row key: ${ rowKeyF(new UnsafeRow(rowEntryStructPtype, rv)) }\n" +
@@ -2448,7 +2448,7 @@ case class MatrixExplodeCols(child: MatrixIR, path: IndexedSeq[String]) extends 
     val sampleMapBc = hc.sc.broadcast(sampleMap)
     val localEntriesIndex = prev.typ.entriesIdx
     val localEntriesType = prev.typ.entryArrayType
-    val fullRowType = prev.typ.rvRowType
+    val fullRowType = prev.typ.rvRowType.physicalType
 
     prev.insertEntries(noOp, newColType = newColType,
       newColValues = prev.colValues.copy(value = newColValues, t = TArray(newColType)))(
