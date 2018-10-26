@@ -356,6 +356,10 @@ class PRS(object):
         # eagerly heal because a finished job might mean new work to do
         self.heal_target(target.ref)
 
+    def refresh_from_ci_jobs(self, jobs):
+        for ((source, target), job) in jobs.items():
+            self.refresh_from_ci_job(source, target, job)
+
     def refresh_from_ci_job(self, source, target, job):
         assert isinstance(job, Job), job
         assert isinstance(source, FQSHA), source

@@ -180,8 +180,7 @@ def refresh_ci_build_jobs(jobs):
                     f'cancelling {job.id}, preferring {job2.id}'
                 )
                 try_to_cancel_job(job)
-    for ((source, target), job) in latest_jobs.items():
-        prs.refresh_from_ci_job(source, target, job)
+    prs.refresh_from_ci_jobs(latest_jobs)
 
 def refresh_deploy_jobs(jobs):
     jobs = [
