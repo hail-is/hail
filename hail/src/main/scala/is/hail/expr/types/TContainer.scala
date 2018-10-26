@@ -8,11 +8,5 @@ abstract class TContainer extends Type {
 
   def elementType: Type
 
-  def elementByteSize: Long
-
-  override def byteSize: Long = 8
-
-  def contentsAlignment: Long
-
   override def children = FastSeq(elementType)
 }

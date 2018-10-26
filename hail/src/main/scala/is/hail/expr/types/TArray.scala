@@ -12,10 +12,6 @@ import scala.reflect.{ClassTag, _}
 final case class TArray(elementType: Type, override val required: Boolean = false) extends TIterable {
   lazy val physicalType: PArray = PArray(elementType.physicalType, required)
 
-  val elementByteSize: Long = UnsafeUtils.arrayElementSize(elementType)
-
-  val contentsAlignment: Long = elementType.alignment.max(4)
-
   override def pyString(sb: StringBuilder): Unit = {
     sb.append("array<")
     elementType.pyString(sb)

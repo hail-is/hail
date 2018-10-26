@@ -32,8 +32,6 @@ class TBoolean(override val required: Boolean) extends Type {
 
   val ordering: ExtendedOrdering =
     ExtendedOrdering.extendToNull(implicitly[Ordering[Boolean]])
-
-  override def byteSize: Long = 1
 }
 
 object TBoolean {

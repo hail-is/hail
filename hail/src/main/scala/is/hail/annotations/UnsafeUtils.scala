@@ -5,7 +5,6 @@ import is.hail.expr.types.Type
 import is.hail.expr.types.physical.PType
 
 object UnsafeUtils {
-  def arrayElementSize(t: Type): Long = roundUpAlignment(t.byteSize, t.alignment)
   def arrayElementSize(t: PType): Long = roundUpAlignment(t.byteSize, t.alignment)
 
   def roundUpAlignment(offset: Long, alignment: Long): Long = {

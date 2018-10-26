@@ -73,8 +73,6 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
   val nMissing: Int = TBaseStruct.getMissingness(types, missingIdx)
   val nMissingBytes = (nMissing + 7) >>> 3
   val byteOffsets = new Array[Long](size)
-  override val byteSize: Long = TBaseStruct.getByteSizeAndOffsets(types, nMissingBytes, byteOffsets)
-  override val alignment: Long = TBaseStruct.alignment(types)
 
   val ordering: ExtendedOrdering = TBaseStruct.getOrdering(types)
 

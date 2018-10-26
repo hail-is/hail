@@ -45,7 +45,7 @@ class StagedRegionValueSuite extends SparkSuite {
     }
 
     assert(rv.pretty(rt) == rv2.pretty(rt))
-    assert(TString.loadString(rv.region, rv.offset) ==
+    assert(PString.loadString(rv.region, rv.offset) ==
       PString.loadString(rv2.region, rv2.offset))
   }
 
@@ -162,8 +162,8 @@ class StagedRegionValueSuite extends SparkSuite {
     }
 
     assert(rv.pretty(rt) == rv2.pretty(rt))
-    assert(TString.loadString(rv.region, rt.loadField(rv.region, rv.offset, 0)) ==
-      TString.loadString(rv2.region, rt.loadField(rv2.region, rv2.offset, 0)))
+    assert(PString.loadString(rv.region, rt.loadField(rv.region, rv.offset, 0)) ==
+      PString.loadString(rv2.region, rt.loadField(rv2.region, rv2.offset, 0)))
     assert(rv.region.loadInt(rt.loadField(rv.region, rv.offset, 1)) ==
       rv2.region.loadInt(rt.loadField(rv2.region, rv2.offset, 1)))
   }

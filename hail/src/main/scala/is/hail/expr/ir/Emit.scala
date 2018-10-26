@@ -908,7 +908,7 @@ private class Emit(
           ((vstart < 0) || (vstart > vend) || (vend > vlen)).mux(
             Code._fatal(
               const("string slice out of bounds or invalid: \"")
-                .concat(TString.loadString(region, vs))
+                .concat(PString.loadString(region, vs))
                 .concat("\"[")
                 .concat(vstart.toS)
                 .concat(":")
@@ -932,7 +932,7 @@ private class Emit(
       case StringLength(s) =>
         val t = coerce[PString](s.pType)
         val cs = emit(s)
-        strict(TString.loadLength(region, coerce[Long](cs.v)), cs)
+        strict(PString.loadLength(region, coerce[Long](cs.v)), cs)
 
       case In(i, typ) =>
         EmitTriplet(Code._empty,

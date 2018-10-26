@@ -6,7 +6,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir
 import is.hail.expr.ir.{EmitMethodBuilder, EmitTriplet, StringLength}
 import is.hail.expr.types._
-import is.hail.expr.types.physical.{PArray, PString}
+import is.hail.expr.types.physical.{PArray, PBinary, PString}
 import is.hail.utils._
 import org.json4s.JValue
 import org.json4s.jackson.JsonMethods
@@ -188,14 +188,14 @@ object StringFunctions extends RegistryFunctions {
       val m = Code(
         v1 := e1.value[Long],
         v2 := e2.value[Long],
-        len := TBinary.loadLength(region, v1),
-        len.cne(TBinary.loadLength(region, v2)))
+        len := PBinary.loadLength(region, v1),
+        len.cne(PBinary.loadLength(region, v2)))
       val v =
         Code(n := 0,
           i := 0,
           Code.whileLoop(i < len,
-            region.loadByte(TBinary.bytesOffset(v1) + i.toL)
-              .cne(region.loadByte(TBinary.bytesOffset(v2) + i.toL)).mux(
+            region.loadByte(PBinary.bytesOffset(v1) + i.toL)
+              .cne(region.loadByte(PBinary.bytesOffset(v2) + i.toL)).mux(
               n += 1,
               Code._empty[Unit]),
             i += 1),

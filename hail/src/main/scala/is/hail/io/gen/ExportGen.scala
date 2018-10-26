@@ -3,7 +3,7 @@ package is.hail.io.gen
 import is.hail.HailContext
 import is.hail.annotations.Region
 import is.hail.expr.ir.MatrixValue
-import is.hail.expr.types.physical.PStruct
+import is.hail.expr.types.physical.{PString, PStruct}
 import is.hail.expr.types.{TString, TStruct}
 import is.hail.io.plink.BimAnnotationView
 import is.hail.variant.{ArrayGenotypeView, RegionValueVariant, VariantMethods, View}
@@ -133,13 +133,13 @@ class GenAnnotationView(rowType: PStruct) extends View {
 
   def varid(): String = {
     if (cachedVarid == null)
-      cachedVarid = TString.loadString(region, varidOffset)
+      cachedVarid = PString.loadString(region, varidOffset)
     cachedVarid
   }
 
   def rsid(): String = {
     if (cachedRsid == null)
-      cachedRsid = TString.loadString(region, rsidOffset)
+      cachedRsid = PString.loadString(region, rsidOffset)
     cachedRsid
   }
 }

@@ -31,8 +31,6 @@ class TString(override val required: Boolean) extends Type {
   val ordering: ExtendedOrdering =
     ExtendedOrdering.extendToNull(implicitly[Ordering[String]])
 
-  override def byteSize: Long = 8
-
   override def fundamentalType: Type = TBinary(required)
 
   override def _showStr(a: Annotation, cfg: ShowStrConfig, sb: StringBuilder): Unit = {
@@ -46,21 +44,4 @@ object TString {
   def apply(required: Boolean = false): TString = if (required) TStringRequired else TStringOptional
 
   def unapply(t: TString): Option[Boolean] = Option(t.required)
-
-  def loadString(region: Region, boff: Long): String = {
-    val length = TBinary.loadLength(region, boff)
-    new String(region.loadBytes(TBinary.bytesOffset(boff), length))
-  }
-
-  def loadString(region: Code[Region], boff: Code[Long]): Code[String] = {
-    val length = TBinary.loadLength(region, boff)
-    Code.newInstance[String, Array[Byte]](
-      region.loadBytes(TBinary.bytesOffset(boff), length))
-  }
-
-  def loadLength(region: Region, boff: Long): Int =
-    TBinary.loadLength(region, boff)
-
-  def loadLength(region: Code[Region], boff: Code[Long]): Code[Int] =
-    TBinary.loadLength(region, boff)
 }

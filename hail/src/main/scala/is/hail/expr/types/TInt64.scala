@@ -30,8 +30,6 @@ class TInt64(override val required: Boolean) extends TIntegral {
 
   val ordering: ExtendedOrdering =
     ExtendedOrdering.extendToNull(implicitly[Ordering[Long]])
-
-  override def byteSize: Long = 8
 }
 
 object TInt64 {
