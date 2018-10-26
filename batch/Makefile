@@ -46,6 +46,3 @@ deploy-batch:
 	  -e "s,@image@,$$(cat batch-image)," \
 	  < deployment.yaml.in > deployment.yaml
 	kubectl -n default apply -f deployment.yaml
-# ci can't recover from batch restart yet
-	kubectl -n default rollout status deployment batch-deployment
-	kubectl -n default delete pods -l app=hail-ci
