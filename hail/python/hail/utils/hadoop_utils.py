@@ -14,7 +14,11 @@ def hadoop_open(path: str, mode: str = 'r', buffer_size: int = 8192):
     """Open a file through the Hadoop filesystem API. Supports distributed
     file systems like hdfs, gs, and s3.
     
-    .. Caution:: Due to an implementation limitation, :func:`hadoop_open` may be quite slow for large data sets (anything larger than 50 MB).
+    Warning
+    -------
+    
+    Due to an implementation limitation, :func:`hadoop_open` may be quite
+    slow for large data sets (anything larger than 50 MB).
 
     Examples
     --------
