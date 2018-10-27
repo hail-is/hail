@@ -545,27 +545,27 @@ def de_novo(mt: MatrixTable,
 
     .. math::
 
-        \\mathrm{P_{\\text{de novo}}} = \\frac{\mathrm{P}(d\,|\,x)}{\mathrm{P}(d\,|\,x) + \mathrm{P}(m\,|\,x)}
+        \mathrm{P_{\text{de novo}}} = \frac{\mathrm{P}(d\,|\,x)}{\mathrm{P}(d\,|\,x) + \mathrm{P}(m\,|\,x)}
 
     Applying Bayes rule to the numerator and denominator yields
 
     .. math::
 
-        \\frac{\mathrm{P}(x\,|\,d)\,\mathrm{P}(d)}{\mathrm{P}(x\,|\,d)\,\mathrm{P}(d) +
+        \frac{\mathrm{P}(x\,|\,d)\,\mathrm{P}(d)}{\mathrm{P}(x\,|\,d)\,\mathrm{P}(d) +
         \mathrm{P}(x\,|\,m)\,\mathrm{P}(m)}
 
     The prior on de novo mutation is estimated from the rate in the literature:
 
     .. math::
 
-        \\mathrm{P}(d) = \\frac{1 \\text{mutation}}{30,000,000\, \\text{bases}}
+        \mathrm{P}(d) = \frac{1 \text{mutation}}{30,000,000\, \text{bases}}
 
     The prior used for at least one alternate allele between the parents
     depends on the alternate allele frequency:
 
     .. math::
 
-        \\mathrm{P}(m) = 1 - (1 - AF)^4
+        \mathrm{P}(m) = 1 - (1 - AF)^4
 
     The likelihoods :math:`\mathrm{P}(x\,|\,d)` and :math:`\mathrm{P}(x\,|\,m)`
     are computed from the PL (genotype likelihood) fields using these
@@ -573,21 +573,21 @@ def de_novo(mt: MatrixTable,
 
     .. math::
 
-        \\mathrm{P}(x = (AA, AA, AB) \,|\,d) = \\Big(
-        &\\mathrm{P}(x_{\\mathrm{father}} = AA \,|\, \\mathrm{father} = AA) \\\\
-        \\cdot &\\mathrm{P}(x_{\\mathrm{mother}} = AA \,|\, \\mathrm{mother} =
-        AA) \\\\ \\cdot &\\mathrm{P}(x_{\\mathrm{proband}} = AB \,|\,
-        \\mathrm{proband} = AB) \\Big)
+        \mathrm{P}(x = (AA, AA, AB) \,|\,d) = \Big(
+        &\mathrm{P}(x_{\mathrm{father}} = AA \,|\, \mathrm{father} = AA) \\
+        \cdot &\mathrm{P}(x_{\mathrm{mother}} = AA \,|\, \mathrm{mother} =
+        AA) \\ \cdot &\mathrm{P}(x_{\mathrm{proband}} = AB \,|\,
+        \mathrm{proband} = AB) \Big)
 
     .. math::
 
-        \\mathrm{P}(x = (AA, AA, AB) \,|\,m) = \\Big( &
-        \\mathrm{P}(x_{\\mathrm{father}} = AA \,|\, \\mathrm{father} = AB)
-        \\cdot \\mathrm{P}(x_{\\mathrm{mother}} = AA \,|\, \\mathrm{mother} =
-        AA) \\\\ + \, &\\mathrm{P}(x_{\\mathrm{father}} = AA \,|\,
-        \\mathrm{father} = AA) \\cdot \\mathrm{P}(x_{\\mathrm{mother}} = AA
-        \,|\, \\mathrm{mother} = AB) \\Big) \\\\ \\cdot \,
-        &\\mathrm{P}(x_{\\mathrm{proband}} = AB \,|\, \\mathrm{proband} = AB)
+        \mathrm{P}(x = (AA, AA, AB) \,|\,m) = \Big( &
+        \mathrm{P}(x_{\mathrm{father}} = AA \,|\, \mathrm{father} = AB)
+        \cdot \mathrm{P}(x_{\mathrm{mother}} = AA \,|\, \mathrm{mother} =
+        AA) \\ + \, &\mathrm{P}(x_{\mathrm{father}} = AA \,|\,
+        \mathrm{father} = AA) \cdot \mathrm{P}(x_{\mathrm{mother}} = AA
+        \,|\, \mathrm{mother} = AB) \Big) \\ \cdot \,
+        &\mathrm{P}(x_{\mathrm{proband}} = AB \,|\, \mathrm{proband} = AB)
 
     (Technically, the second factorization assumes there is exactly (rather
     than at least) one alternate allele among the parents, which may be
@@ -608,7 +608,7 @@ def de_novo(mt: MatrixTable,
        alternate reads divided by total reads).
      - ``AC`` refers to the count of alternate alleles across all individuals
        in the dataset at the site.
-     - ``p`` refers to :math:`\\mathrm{P_{\\text{de novo}}}`.
+     - ``p`` refers to :math:`\mathrm{P_{\text{de novo}}}`.
      - ``min_p`` refers to the ``min_p`` function parameter.
 
     HIGH-quality SNV:
