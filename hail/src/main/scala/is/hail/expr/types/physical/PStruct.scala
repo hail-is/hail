@@ -2,6 +2,7 @@ package is.hail.expr.types.physical
 
 import is.hail.annotations.{Annotation, AnnotationPathException, _}
 import is.hail.asm4s.Code
+import is.hail.cxx
 import is.hail.expr.Parser
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.{Field, TStruct}

@@ -1,19 +1,25 @@
 package is.hail.expr.ir
 
-import is.hail.SparkSuite
+import java.util.function.ToLongBiFunction
+
+import is.hail.{SparkSuite, cxx}
 import is.hail.expr.types._
 import is.hail.TestUtils._
+import is.hail.annotations.{Region, RegionValue, RegionValueBuilder, SafeRow}
 import is.hail.asm4s.Code
 import is.hail.expr.{IRParserEnvironment, Parser}
 import is.hail.expr.ir.IRSuite.TestFunctions
 import is.hail.expr.ir.functions.{IRFunctionRegistry, RegistryFunctions, SeededIRFunction}
+import is.hail.expr.types.physical.{PBaseStruct, PInt64, PStruct}
+import is.hail.nativecode.NativeStatus
 import is.hail.table.{Ascending, Descending, SortField, Table}
 import is.hail.utils._
 import is.hail.variant.MatrixTable
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
 
-object IRSuite { outer =>
+object IRSuite {
+  outer =>
   var globalCounter: Int = 0
 
   def incr(): Unit = {
@@ -60,6 +66,7 @@ object IRSuite { outer =>
       }
     }
   }
+
 }
 
 class IRSuite extends SparkSuite {
@@ -879,8 +886,8 @@ class IRSuite extends SparkSuite {
       val collectSig = AggSignature(Collect(), Seq(), None, Seq(TInt32()))
       val collect = ApplyAggOp(FastIndexedSeq(I32(0)), FastIndexedSeq.empty, None, collectSig)
 
-      val newRowAnn = MakeStruct(FastIndexedSeq("count_row"-> collect))
-      val newColAnn = MakeStruct(FastIndexedSeq("count_col"-> collect))
+      val newRowAnn = MakeStruct(FastIndexedSeq("count_row" -> collect))
+      val newColAnn = MakeStruct(FastIndexedSeq("count_col" -> collect))
       val newEntryAnn = MakeStruct(FastIndexedSeq("count_entry" -> collect))
 
       val xs = Array[MatrixIR](
@@ -986,6 +993,7 @@ class IRSuite extends SparkSuite {
 
   @Test def testEvaluations() {
     TestFunctions.registerAll()
+
     def test(x: IR, i: java.lang.Boolean, expectedEvaluations: Int) {
       val env = Env.empty[(Any, Type)]
       val args = IndexedSeq((i, TBoolean()))
@@ -1006,21 +1014,33 @@ class IRSuite extends SparkSuite {
     def i = In(0, TBoolean())
 
     def st = ApplySeeded("incr_s", FastSeq(True()), 0L)
+
     def sf = ApplySeeded("incr_s", FastSeq(True()), 0L)
+
     def sm = ApplySeeded("incr_s", FastSeq(NA(TBoolean())), 0L)
 
     def mt = ApplySeeded("incr_m", FastSeq(True()), 0L)
+
     def mf = ApplySeeded("incr_m", FastSeq(True()), 0L)
+
     def mm = ApplySeeded("incr_m", FastSeq(NA(TBoolean())), 0L)
 
     def vt = ApplySeeded("incr_v", FastSeq(True()), 0L)
+
     def vf = ApplySeeded("incr_v", FastSeq(True()), 0L)
+
     def vm = ApplySeeded("incr_v", FastSeq(NA(TBoolean())), 0L)
 
     // baseline
-    test(st, true, 1); test(sf, true, 1); test(sm, true, 1)
-    test(mt, true, 1); test(mf, true, 1); test(mm, true, 1)
-    test(vt, true, 1); test(vf, true, 1); test(vm, true, 0)
+    test(st, true, 1);
+    test(sf, true, 1);
+    test(sm, true, 1)
+    test(mt, true, 1);
+    test(mf, true, 1);
+    test(mm, true, 1)
+    test(vt, true, 1);
+    test(vf, true, 1);
+    test(vm, true, 0)
 
     // if
     // condition
@@ -1061,5 +1081,14 @@ class IRSuite extends SparkSuite {
     test(If(i, True(), vt), false, 1)
     test(If(i, True(), vf), false, 1)
     test(If(i, True(), vm), false, 0)
+  }
+
+  @Test def cxxTest() {
+    assertEvalsTo(ApplyBinaryPrimOp(Add(),
+        I64(7),
+        Ref("x", TInt64())),
+      Env.empty
+        .bind("x" -> (9L, TInt64())), FastIndexedSeq(), None,
+      16L)
   }
 }

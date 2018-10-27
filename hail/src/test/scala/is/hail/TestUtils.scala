@@ -5,9 +5,11 @@ import java.nio.file.{Files, Paths}
 
 import breeze.linalg.{DenseMatrix, Matrix, Vector}
 import is.hail.annotations.{Annotation, Region, RegionValueBuilder, SafeRow}
+import is.hail.cxx.CXXUnsupportedOperation
 import is.hail.expr.ir._
 import is.hail.expr.types._
 import is.hail.linalg.BlockMatrix
+import is.hail.nativecode.NativeStatus
 import is.hail.table.Table
 import is.hail.utils._
 import is.hail.testUtils._
@@ -187,7 +189,73 @@ object TestUtils {
     } else
       None
   }
-  
+
+  def nativeExecute(x: IR): Any = nativeExecute(x, Env.empty, FastIndexedSeq(), None)
+
+  def nativeExecute(x: IR, agg: (IndexedSeq[Row], TStruct)): Any = nativeExecute(x, Env.empty, FastIndexedSeq(), Some(agg))
+
+  def nativeExecute(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], agg: Option[(IndexedSeq[Row], TStruct)]): Any = {
+    // FIXME
+    if (agg.isDefined)
+      throw new CXXUnsupportedOperation
+
+    val inputTypesB = new ArrayBuilder[Type]()
+    val inputsB = new ArrayBuilder[Any]()
+
+    args.foreach { case (v, t) =>
+      inputsB += v
+      inputTypesB += t
+    }
+
+    env.m.foreach { case (name, (v, t)) =>
+      inputsB += v
+      inputTypesB += t
+    }
+
+    val argsType = TTuple(inputTypesB.result(): _*)
+    val resultType = TTuple(x.typ)
+    val argsVar = genUID()
+
+    val (_, substEnv) = env.m.foldLeft((args.length, Env.empty[IR])) { case ((i, env), (name, (v, t))) =>
+      (i + 1, env.bind(name, GetTupleElement(In(0, argsType), i)))
+    }
+
+    def rewrite(x: IR): IR = {
+      x match {
+        case In(i, t) =>
+          GetTupleElement(In(0, argsType), i)
+        case _ =>
+          MapIR(rewrite)(x)
+      }
+    }
+
+    val rewritten = Subst(rewrite(x), substEnv)
+    val f = cxx.Compile(
+      argsVar, argsType.physicalType,
+      MakeTuple(FastSeq(rewritten)))
+
+    Region.scoped { region =>
+      val rvb = new RegionValueBuilder(region)
+      rvb.start(argsType.physicalType)
+      rvb.startTuple()
+      var i = 0
+      while (i < inputsB.length) {
+        rvb.addAnnotation(inputTypesB(i), inputsB(i))
+        i += 1
+      }
+      rvb.endTuple()
+      val argsOff = rvb.end()
+
+      using(new NativeStatus) { st =>
+        val st = new NativeStatus()
+        val resultOff = f(st, region.get(), argsOff)
+        assert(st.ok, st.toString())
+
+        SafeRow(resultType.asInstanceOf[TBaseStruct].physicalType, region, resultOff).get(0)
+      }
+    }
+  }
+
   def eval(x: IR): Any = eval(x, Env.empty, FastIndexedSeq(), None)
 
   def eval(x: IR, agg: (IndexedSeq[Row], TStruct)): Any = eval(x, Env.empty, FastIndexedSeq(), Some(agg))
@@ -384,6 +452,15 @@ object TestUtils {
       val c = eval(x, env, args, agg)
       assert(t.typeCheck(c))
       assert(t.valuesSimilar(c, expected), s"$c, $expected")
+    }
+
+    try {
+      val c = nativeExecute(x, env, args, agg)
+      println("native!")
+      assert(t.typeCheck(c))
+      assert(t.valuesSimilar(c, expected), s"$c, $expected")
+    } catch {
+      case _: CXXUnsupportedOperation =>
     }
   }
 

@@ -3,6 +3,7 @@ package is.hail.expr.types.physical
 import is.hail.annotations._
 import is.hail.asm4s.{Code, _}
 import is.hail.check.Gen
+import is.hail.cxx
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -208,5 +209,14 @@ abstract class PBaseStruct extends PType {
       case _: PArray | _: PBinary => region.loadAddress(fieldOffset)
       case _ => fieldOffset
     }
+  }
+
+  def cxxIsFieldMissing(o: cxx.Code, fieldIdx: Int): cxx.Code = {
+    s"load_bit($o, ${ missingIdx(fieldIdx) })"
+  }
+
+  def cxxLoadField(o: cxx.Code, fieldIdx: Int): cxx.Code = {
+    val a = s"(((char *)$o) + (${ byteOffsets(fieldIdx) }))"
+    cxx.loadIRIntermediate(fields(fieldIdx).typ, a)
   }
 }
