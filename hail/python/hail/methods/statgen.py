@@ -307,11 +307,11 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=()) -> 
     - **y_transpose_x** (:py:data:`.tfloat64`) -- Dot product of response
       vector `y` with the input vector `x`.
     - **beta** (:py:data:`.tfloat64`) --
-      Fit effect coefficient of `x`, :math:`\hat\\beta_1` below.
+      Fit effect coefficient of `x`, :math:`\hat\beta_1` below.
     - **standard_error** (:py:data:`.tfloat64`) --
       Estimated standard error, :math:`\widehat{\mathrm{se}}_1`.
     - **t_stat** (:py:data:`.tfloat64`) -- :math:`t`-statistic, equal to
-      :math:`\hat\\beta_1 / \widehat{\mathrm{se}}_1`.
+      :math:`\hat\beta_1 / \widehat{\mathrm{se}}_1`.
     - **p_value** (:py:data:`.tfloat64`) -- :math:`p`-value.
 
     If `y` is a list of expressions, then the last five fields instead have type
@@ -332,14 +332,15 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=()) -> 
 
     .. math::
 
-        \mathrm{height} = \\beta_0 + \\beta_1 \, \mathrm{genotype}
-                          + \\beta_2 \, \mathrm{age}
-                          + \\beta_3 \, \mathrm{is\_female}
-                          + \\varepsilon, \quad \\varepsilon
-                        \sim \mathrm{N}(0, \sigma^2)
+        \mathrm{height} = \beta_0 + \beta_1 \, \mathrm{genotype}
+            + \beta_2 \, \mathrm{age}
+            + \beta_3 \, \mathrm{is\_female}
+            + \varepsilon,
+            \quad
+            \varepsilon \sim \mathrm{N}(0, \sigma^2)
 
     Boolean covariates like :math:`\mathrm{is\_female}` are encoded as 1 for
-    ``True`` and 0 for ``False``. The null model sets :math:`\\beta_1 = 0`.
+    ``True`` and 0 for ``False``. The null model sets :math:`\beta_1 = 0`.
 
     The standard least-squares linear regression model is derived in Section
     3.2 of `The Elements of Statistical Learning, 2nd Edition
@@ -1528,11 +1529,11 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
 
     .. math::
 
-      \\widehat{\\phi_{ij}} :=
-        \\frac{1}{|S_{ij}|}
-        \\sum_{s \\in S_{ij}}
-          \\frac{(g_{is} - 2 p_s) (g_{js} - 2 p_s)}
-                {4 \\sum_{s \\in S_{ij} p_s (1 - p_s)}}
+      \widehat{\phi_{ij}} :=
+        \frac{1}{|S_{ij}|}
+        \sum_{s \in S_{ij}}
+          \frac{(g_{is} - 2 p_s) (g_{js} - 2 p_s)}
+                {4 \sum_{s \in S_{ij} p_s (1 - p_s)}}
 
     This estimator is true under the model that the sharing of common
     (relative to the population) alleles is not very informative to
@@ -1569,23 +1570,23 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
      - :math:`S_{ij}` be the set of genetic loci at which both individuals
        :math:`i` and :math:`j` have a defined genotype
 
-     - :math:`g_{is} \\in {0, 1, 2}` be the number of alternate alleles that
+     - :math:`g_{is} \in {0, 1, 2}` be the number of alternate alleles that
        individual :math:`i` has at genetic locus :math:`s`
 
-     - :math:`\\widehat{\\mu_{is}} \\in [0, 1]` be the individual-specific allele
+     - :math:`\widehat{\mu_{is}} \in [0, 1]` be the individual-specific allele
        frequency for individual :math:`i` at genetic locus :math:`s`
 
-     - :math:`{\\widehat{\\sigma^2_{is}}} := \\widehat{\\mu_{is}} (1 - \\widehat{\\mu_{is}})`,
-       the binomial variance of :math:`\\widehat{\\mu_{is}}`
+     - :math:`{\widehat{\sigma^2_{is}}} := \widehat{\mu_{is}} (1 - \widehat{\mu_{is}})`,
+       the binomial variance of :math:`\widehat{\mu_{is}}`
 
-     - :math:`\\widehat{\\sigma_{is}} := \\sqrt{\\widehat{\\sigma^2_{is}}}`,
-       the binomial standard deviation of :math:`\\widehat{\\mu_{is}}`
+     - :math:`\widehat{\sigma_{is}} := \sqrt{\widehat{\sigma^2_{is}}}`,
+       the binomial standard deviation of :math:`\widehat{\mu_{is}}`
 
-     - :math:`\\text{IBS}^{(0)}_{ij} := \\sum_{s \\in S_{ij}} \\mathbb{1}_{||g_{is} - g_{js} = 2||}`,
+     - :math:`\text{IBS}^{(0)}_{ij} := \sum_{s \in S_{ij}} \mathbb{1}_{||g_{is} - g_{js} = 2||}`,
        the number of genetic loci at which individuals :math:`i` and :math:`j`
        share no alleles
 
-     - :math:`\\widehat{f_i} := 2 \\widehat{\\phi_{ii}} - 1`, the inbreeding
+     - :math:`\widehat{f_i} := 2 \widehat{\phi_{ii}} - 1`, the inbreeding
        coefficient for individual :math:`i`
 
      - :math:`g^D_{is}` be a dominance encoding of the genotype matrix, and
@@ -1594,52 +1595,52 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
     .. math::
 
         g^D_{is} :=
-          \\begin{cases}
-            \\widehat{\\mu_{is}}     & g_{is} = 0 \\\\
-            0                        & g_{is} = 1 \\\\
-            1 - \\widehat{\\mu_{is}} & g_{is} = 2
-          \\end{cases}
+          \begin{cases}
+            \widehat{\mu_{is}}     & g_{is} = 0 \\
+            0                        & g_{is} = 1 \\
+            1 - \widehat{\mu_{is}} & g_{is} = 2
+          \end{cases}
 
-        X_{is} := g^D_{is} - \\widehat{\\sigma^2_{is}} (1 - \\widehat{f_i})
+        X_{is} := g^D_{is} - \widehat{\sigma^2_{is}} (1 - \widehat{f_i})
 
     The estimator for kinship is given by:
 
     .. math::
 
-      \\widehat{\phi_{ij}} :=
-        \\frac{\sum_{s \\in S_{ij}}(g - 2 \\mu)_{is} (g - 2 \\mu)_{js}}
-              {4 * \\sum_{s \\in S_{ij}}
-                            \\widehat{\\sigma_{is}} \\widehat{\\sigma_{js}}}
+      \widehat{\phi_{ij}} :=
+        \frac{\sum_{s \in S_{ij}}(g - 2 \mu)_{is} (g - 2 \mu)_{js}}
+              {4 * \sum_{s \in S_{ij}}
+                            \widehat{\sigma_{is}} \widehat{\sigma_{js}}}
 
     The estimator for identity-by-descent two is given by:
 
     .. math::
 
-      \\widehat{k^{(2)}_{ij}} :=
-        \\frac{\\sum_{s \\in S_{ij}}X_{is} X_{js}}{\sum_{s \\in S_{ij}}
-          \\widehat{\\sigma^2_{is}} \\widehat{\\sigma^2_{js}}}
+      \widehat{k^{(2)}_{ij}} :=
+        \frac{\sum_{s \in S_{ij}}X_{is} X_{js}}{\sum_{s \in S_{ij}}
+          \widehat{\sigma^2_{is}} \widehat{\sigma^2_{js}}}
 
     The estimator for identity-by-descent zero is given by:
 
     .. math::
 
-      \\widehat{k^{(0)}_{ij}} :=
-        \\begin{cases}
-          \\frac{\\text{IBS}^{(0)}_{ij}}
-                {\\sum_{s \\in S_{ij}}
-                       \\widehat{\\mu_{is}}^2(1 - \\widehat{\\mu_{js}})^2
-                       + (1 - \\widehat{\\mu_{is}})^2\\widehat{\\mu_{js}}^2}
-            & \\widehat{\\phi_{ij}} > 2^{-5/2} \\\\
-          1 - 4 \\widehat{\\phi_{ij}} + k^{(2)}_{ij}
-            & \\widehat{\\phi_{ij}} \\le 2^{-5/2}
-        \\end{cases}
+      \widehat{k^{(0)}_{ij}} :=
+        \begin{cases}
+          \frac{\text{IBS}^{(0)}_{ij}}
+                {\sum_{s \in S_{ij}}
+                       \widehat{\mu_{is}}^2(1 - \widehat{\mu_{js}})^2
+                       + (1 - \widehat{\mu_{is}})^2\widehat{\mu_{js}}^2}
+            & \widehat{\phi_{ij}} > 2^{-5/2} \\
+          1 - 4 \widehat{\phi_{ij}} + k^{(2)}_{ij}
+            & \widehat{\phi_{ij}} \le 2^{-5/2}
+        \end{cases}
 
     The estimator for identity-by-descent one is given by:
 
     .. math::
 
-      \\widehat{k^{(1)}_{ij}} :=
-        1 - \\widehat{k^{(2)}_{ij}} - \\widehat{k^{(0)}_{ij}}
+      \widehat{k^{(1)}_{ij}} :=
+        1 - \widehat{k^{(2)}_{ij}} - \widehat{k^{(0)}_{ij}}
 
     Note that, even if present, phase information is ignored by this method.
 
@@ -1665,7 +1666,7 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
      - the algorithm does not provide an option to not use "overall
        standardization" (see R ``pcrelate`` documentation)
 
-    Under the PC-Relate model, kinship, :math:`\\phi_{ij}`, ranges from 0 to
+    Under the PC-Relate model, kinship, :math:`\phi_{ij}`, ranges from 0 to
     0.5, and is precisely half of the
     fraction-of-genetic-material-shared. Listed below are the statistics for
     a few pairings:
@@ -1696,10 +1697,10 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
 
      - `i` (``col_key.dtype``) -- First sample. (key field)
      - `j` (``col_key.dtype``) -- Second sample. (key field)
-     - `kin` (:py:data:`.tfloat64`) -- Kinship estimate, :math:`\\widehat{\\phi_{ij}}`.
-     - `ibd2` (:py:data:`.tfloat64`) -- IBD2 estimate, :math:`\\widehat{k^{(2)}_{ij}}`.
-     - `ibd0` (:py:data:`.tfloat64`) -- IBD0 estimate, :math:`\\widehat{k^{(0)}_{ij}}`.
-     - `ibd1` (:py:data:`.tfloat64`) -- IBD1 estimate, :math:`\\widehat{k^{(1)}_{ij}}`.
+     - `kin` (:py:data:`.tfloat64`) -- Kinship estimate, :math:`\widehat{\phi_{ij}}`.
+     - `ibd2` (:py:data:`.tfloat64`) -- IBD2 estimate, :math:`\widehat{k^{(2)}_{ij}}`.
+     - `ibd0` (:py:data:`.tfloat64`) -- IBD0 estimate, :math:`\widehat{k^{(0)}_{ij}}`.
+     - `ibd1` (:py:data:`.tfloat64`) -- IBD1 estimate, :math:`\widehat{k^{(1)}_{ij}}`.
 
     Here ``col_key`` refers to the column key of the source matrix table,
     and ``col_key.dtype`` is a struct containing the column key fields.
@@ -1707,7 +1708,7 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
     There is one row for each pair of distinct samples (columns), where `i`
     corresponds to the column of smaller column index. In particular, if the
     same column key value exists for :math:`n` columns, then the resulting
-    table will have :math:`\\binom{n-1}{2}` rows with both key fields equal to
+    table will have :math:`\binom{n-1}{2}` rows with both key fields equal to
     that column key value. This may result in unexpected behavior in downstream
     processing.
 
@@ -2193,7 +2194,7 @@ def genetic_relatedness_matrix(call_expr) -> BlockMatrix:
     The genetic relationship matrix (GRM) :math:`G` encodes genetic correlation
     between each pair of samples. It is defined by :math:`G = MM^T` where
     :math:`M` is a standardized version of the genotype matrix, computed as
-    follows. Let :math:`C` be the :math:`n \\times m` matrix of raw genotypes
+    follows. Let :math:`C` be the :math:`n \times m` matrix of raw genotypes
     in the variant dataset, with rows indexed by :math:`n` samples and columns
     indexed by :math:`m` bialellic autosomal variants; :math:`C_{ij}` is the
     number of alternate alleles of variant :math:`j` carried by sample
@@ -2204,7 +2205,7 @@ def genetic_relatedness_matrix(call_expr) -> BlockMatrix:
 
     .. math::
 
-        M_{ij} = \\frac{C_{ij}-2p_j}{\sqrt{2p_j(1-p_j)m}},
+        M_{ij} = \frac{C_{ij}-2p_j}{\sqrt{2p_j(1-p_j)m}},
 
     with :math:`M_{ij} = 0` for :math:`C_{ij}` missing (i.e. mean genotype
     imputation). This scaling normalizes genotype variances to a common value
@@ -2220,7 +2221,7 @@ def genetic_relatedness_matrix(call_expr) -> BlockMatrix:
 
     .. math::
 
-        G_{ik} = \\frac{1}{m} \\sum_{j=1}^m \\frac{(C_{ij}-2p_j)(C_{kj}-2p_j)}{2 p_j (1-p_j)}
+        G_{ik} = \frac{1}{m} \sum_{j=1}^m \frac{(C_{ij}-2p_j)(C_{kj}-2p_j)}{2 p_j (1-p_j)}
 
     This method drops variants with :math:`p_j = 0` or math:`p_j = 1` before
     computing kinship.
@@ -2266,7 +2267,7 @@ def realized_relationship_matrix(call_expr) -> BlockMatrix:
     Notes
     -----
     The realized relationship matrix (RRM) is defined as follows. Consider the
-    :math:`n \\times m` matrix :math:`C` of raw genotypes, with rows indexed by
+    :math:`n \times m` matrix :math:`C` of raw genotypes, with rows indexed by
     :math:`n` samples and columns indexed by the :math:`m` bialellic autosomal
     variants; :math:`C_{ij}` is the number of alternate alleles of variant
     :math:`j` carried by sample :math:`i`, which can be 0, 1, 2, or missing. For
@@ -2277,13 +2278,13 @@ def realized_relationship_matrix(call_expr) -> BlockMatrix:
     .. math::
 
         M_{ij} =
-          \\frac{C_{ij}-2p_j}
-                {\sqrt{\\frac{m}{n} \\sum_{k=1}^n (C_{ij}-2p_j)^2}},
+          \frac{C_{ij}-2p_j}
+                {\sqrt{\frac{m}{n} \sum_{k=1}^n (C_{ij}-2p_j)^2}},
 
     with :math:`M_{ij} = 0` for :math:`C_{ij}` missing (i.e. mean genotype
     imputation). This scaling normalizes each variant column to have empirical
     variance :math:`1/m`, which gives each sample row approximately unit total
-    variance (assuming linkage equilibrium) and yields the :math:`n \\times n`
+    variance (assuming linkage equilibrium) and yields the :math:`n \times n`
     sample correlation or realized relationship matrix (RRM) :math:`K` as simply
 
     .. math::
