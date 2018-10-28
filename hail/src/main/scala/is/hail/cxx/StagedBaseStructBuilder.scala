@@ -3,7 +3,7 @@ package is.hail.cxx
 import is.hail.expr.types.physical.PBaseStruct
 import is.hail.utils.ArrayBuilder
 
-class BaseStructBuilder(fb: FunctionBuilder, pStruct: PBaseStruct) {
+class StagedBaseStructBuilder(fb: FunctionBuilder, pStruct: PBaseStruct) {
   val ab = new ArrayBuilder[Code]
   val s = Variable("s", "char *", s"${ fb.getArg(0) }->allocate(${ pStruct.alignment }, ${ pStruct.byteSize })")
   ab += s.define

@@ -90,14 +90,14 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
           pStruct.cxxLoadField(ot.v, idx))
 
       case ir.MakeTuple(fields) =>
-        val sb = new BaseStructBuilder(fb, pType.asInstanceOf[PBaseStruct])
+        val sb = new StagedBaseStructBuilder(fb, pType.asInstanceOf[PBaseStruct])
         fields.foreach { x =>
           sb.add(emit(x))
         }
         sb.result()
 
       case ir.MakeStruct(fields) =>
-        val sb = new BaseStructBuilder(fb, pType.asInstanceOf[PBaseStruct])
+        val sb = new StagedBaseStructBuilder(fb, pType.asInstanceOf[PBaseStruct])
         fields.foreach { case (_, x) =>
           sb.add(emit(x))
         }
