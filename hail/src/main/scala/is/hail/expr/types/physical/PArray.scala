@@ -55,4 +55,5 @@ final case class PArray(elementType: PType, override val required: Boolean = fal
   }
 
   override def scalaClassTag: ClassTag[IndexedSeq[AnyRef]] = classTag[IndexedSeq[AnyRef]]
+
 }

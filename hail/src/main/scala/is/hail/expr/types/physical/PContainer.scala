@@ -2,6 +2,7 @@ package is.hail.expr.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s._
+import is.hail.cxx
 import is.hail.utils._
 
 object PContainer {
@@ -221,5 +222,44 @@ abstract class PContainer extends PType {
         Integer.compare(length1, length2)
       }
     }
+  }
+
+  def cxxLoadLength(a: cxx.Code): cxx.Code = {
+    s"load_int($a)"
+  }
+
+  def cxxIsElementMissing(a: cxx.Code, i: cxx.Code): cxx.Code = {
+    s"load_bit($a + 4, i)"
+  }
+
+  def cxxElementsOffset(len: cxx.Code): cxx.Code = {
+    if (elementType.required)
+      s"round_up_alignment(4, ${ elementType.alignment })"
+    else
+      s"round_up_alignment(4 + (($len + 7) >> 3), ${ elementType.alignment })"
+  }
+
+  def cxxElementOffset(a: cxx.Code, i: cxx.Code): cxx.Code = {
+    s"$a + ${ cxxElementsOffset(cxxLoadLength(a)) } + i * ${ elementType.byteSize }"
+  }
+
+  def cxxLoadElement(a: cxx.EmitTriplet, i: cxx.EmitTriplet): cxx.EmitTriplet = {
+    val __a = cxx.Variable("a", "char *")
+    val __i = cxx.Variable("i", "int")
+    val m = cxx.Variable("m", "bool")
+    cxx.EmitTriplet(elementType, s"""
+${ __a.define }
+${ __i.define }
+${ a.setup }
+${ i.setup }
+if (${ a.m } || ${ i.m })
+  $m = true;
+else {
+  ${ __a } = $a.v;
+  ${ __i } = $i.v;
+  $m = ${ cxxIsElementMissing(__a.toString, __i.toString) }
+}
+""", m.toString,
+      cxx.loadIRIntermediate(elementType, cxxElementOffset(__a.toString, __i.toString)))
   }
 }

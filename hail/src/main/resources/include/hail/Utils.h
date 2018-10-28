@@ -37,6 +37,10 @@ inline char * round_up_alignment(char * off, long alignment) {
   return reinterpret_cast<char *>((reinterpret_cast<long>(off) + (alignment - 1)) & ~(alignment - 1));
 }
 
+inline long round_up_alignment(long off, long alignment) {
+  return (off + (alignment - 1)) & ~(alignment - 1);
+}
+
 inline int floordiv(int n, int d) {
   int q = n / d;
   int r = n - q * d;
