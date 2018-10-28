@@ -4,11 +4,10 @@ import java.net.URI
 import java.nio.file.{Files, Paths}
 
 import breeze.linalg.{DenseMatrix, Matrix, Vector}
-import is.hail.annotations.{Annotation, Region, RegionValueBuilder, SafeRow}
+import is.hail.annotations.{Region, RegionValueBuilder, SafeRow}
 import is.hail.cxx.CXXUnsupportedOperation
 import is.hail.expr.ir._
 import is.hail.expr.types._
-import is.hail.linalg.BlockMatrix
 import is.hail.nativecode.NativeStatus
 import is.hail.table.Table
 import is.hail.utils._
@@ -195,7 +194,6 @@ object TestUtils {
   def nativeExecute(x: IR, agg: (IndexedSeq[Row], TStruct)): Any = nativeExecute(x, Env.empty, FastIndexedSeq(), Some(agg))
 
   def nativeExecute(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], agg: Option[(IndexedSeq[Row], TStruct)]): Any = {
-    // FIXME
     if (agg.isDefined)
       throw new CXXUnsupportedOperation
 
@@ -456,7 +454,6 @@ object TestUtils {
 
     try {
       val c = nativeExecute(x, env, args, agg)
-      println("native!")
       assert(t.typeCheck(c))
       assert(t.valuesSimilar(c, expected), s"$c, $expected")
     } catch {

@@ -58,8 +58,7 @@ package object cxx {
       case _: types.TBoolean => s"store_bool($a, $v)"
       case _: types.TBinary => s"store_address($a, $v)"
       case _: types.TArray => s"store_address($a, $v)"
-      case _: types.TBaseStruct =>
-        throw new CXXUnsupportedOperation(s"$pType")
+      case _: types.TBaseStruct => s"memcpy($a, $v, ${ pType.byteSize })"
       case _ => throw new RuntimeException(s"unsupported type found, $pType")
     }
   }

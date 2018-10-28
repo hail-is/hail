@@ -1,8 +1,6 @@
 package is.hail.expr.ir
 
-import java.util.function.ToLongBiFunction
-
-import is.hail.{SparkSuite, cxx}
+import is.hail.SparkSuite
 import is.hail.expr.types._
 import is.hail.TestUtils._
 import is.hail.annotations.{Region, RegionValue, RegionValueBuilder, SafeRow}
@@ -11,7 +9,6 @@ import is.hail.expr.{IRParserEnvironment, Parser}
 import is.hail.expr.ir.IRSuite.TestFunctions
 import is.hail.expr.ir.functions.{IRFunctionRegistry, RegistryFunctions, SeededIRFunction}
 import is.hail.expr.types.physical.{PBaseStruct, PInt64, PStruct}
-import is.hail.nativecode.NativeStatus
 import is.hail.table.{Ascending, Descending, SortField, Table}
 import is.hail.utils._
 import is.hail.variant.MatrixTable
@@ -1032,15 +1029,9 @@ class IRSuite extends SparkSuite {
     def vm = ApplySeeded("incr_v", FastSeq(NA(TBoolean())), 0L)
 
     // baseline
-    test(st, true, 1);
-    test(sf, true, 1);
-    test(sm, true, 1)
-    test(mt, true, 1);
-    test(mf, true, 1);
-    test(mm, true, 1)
-    test(vt, true, 1);
-    test(vf, true, 1);
-    test(vm, true, 0)
+    test(st, true, 1); test(sf, true, 1); test(sm, true, 1)
+    test(mt, true, 1); test(mf, true, 1); test(mm, true, 1)
+    test(vt, true, 1); test(vf, true, 1); test(vm, true, 0)
 
     // if
     // condition
@@ -1081,14 +1072,5 @@ class IRSuite extends SparkSuite {
     test(If(i, True(), vt), false, 1)
     test(If(i, True(), vf), false, 1)
     test(If(i, True(), vm), false, 0)
-  }
-
-  @Test def cxxTest() {
-    assertEvalsTo(ApplyBinaryPrimOp(Add(),
-        I64(7),
-        Ref("x", TInt64())),
-      Env.empty
-        .bind("x" -> (9L, TInt64())), FastIndexedSeq(), None,
-      16L)
   }
 }
