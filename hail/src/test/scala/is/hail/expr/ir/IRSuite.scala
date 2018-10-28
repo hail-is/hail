@@ -271,7 +271,7 @@ class IRSuite extends SparkSuite {
     val t = TStruct(true, "foo" -> TStruct("bar" -> TArray(TInt32Required, required = true)))
     val value = Row(Row(FastIndexedSeq(1, 2, 3)))
     assertEvalsTo(
-      If(
+      If.unify(
         In(0, TBoolean()),
         In(1, t),
         MakeStruct(Seq("foo" -> MakeStruct(Seq("bar" -> ArrayRange(I32(0), I32(1), I32(1))))))),
@@ -554,7 +554,7 @@ class IRSuite extends SparkSuite {
 
   @Test def testArrayFold() {
     def fold(array: IR, zero: IR, f: (IR, IR) => IR): IR =
-      ArrayFold(array, zero, "_accum", "_elt", f(Ref("_accum", coerce[TArray](array.typ).elementType), Ref("_elt", zero.typ)))
+      ArrayFold(array, zero, "_accum", "_elt", f(Ref("_accum", zero.typ), Ref("_elt", zero.typ)))
 
     assertEvalsTo(fold(ArrayRange(1, 2, 1), NA(TBoolean()), (accum, elt) => IsNA(accum)), true)
     assertEvalsTo(fold(TestUtils.IRArray(1, 2, 3), 0, (accum, elt) => accum + elt), 6)
@@ -565,7 +565,7 @@ class IRSuite extends SparkSuite {
 
   @Test def testArrayScan() {
     def scan(array: IR, zero: IR, f: (IR, IR) => IR): IR =
-      ArrayScan(array, zero, "_accum", "_elt", f(Ref("_accum", coerce[TArray](array.typ).elementType), Ref("_elt", zero.typ)))
+      ArrayScan(array, zero, "_accum", "_elt", f(Ref("_accum", zero.typ), Ref("_elt", zero.typ)))
 
     assertEvalsTo(scan(ArrayRange(1, 4, 1), NA(TBoolean()), (accum, elt) => IsNA(accum)), FastIndexedSeq(null, true, false, false))
     assertEvalsTo(scan(TestUtils.IRArray(1, 2, 3), 0, (accum, elt) => accum + elt), FastIndexedSeq(0, 1, 3, 6))
