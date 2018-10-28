@@ -3,7 +3,7 @@ package is.hail.expr.types
 import is.hail.annotations.{Annotation, AnnotationPathException, _}
 import is.hail.asm4s.Code
 import is.hail.expr.Parser
-import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.ir.{EmitMethodBuilder, Env}
 import is.hail.expr.types.physical.{PField, PStruct}
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -404,4 +404,6 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
       t.setRequired(required).asInstanceOf[TStruct]
     }
   }
+
+  def toEnv: Env[Type] = Env(fields.map(f => (f.name, f.typ)): _*)
 }

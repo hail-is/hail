@@ -525,7 +525,7 @@ object Parser extends JavaTokenParsers {
       "Cast" ~> type_expr ~ ir_value_expr(env) ^^ { case t ~ v => ir.Cast(v, t) } |
       "NA" ~> type_expr ^^ { t => ir.NA(t) } |
       "IsNA" ~> ir_value_expr(env) ^^ { value => ir.IsNA(value) } |
-      "If" ~> ir_value_expr(env) ~ ir_value_expr(env) ~ ir_value_expr(env) ^^ { case cond ~ consq ~ altr => ir.If(cond, consq, altr) } |
+      "If" ~> ir_value_expr(env) ~ ir_value_expr(env) ~ ir_value_expr(env) ^^ { case cond ~ consq ~ altr => ir.If.unify(cond, consq, altr) } |
       "Let" ~> ir_identifier ~ ir_value_expr(env) >> { case name ~ value =>
         ir_value_expr(env + (name -> value.typ)) ^^ { body => ir.Let(name, value, body) }} |
       "Ref" ~> ir_identifier ^^ { name => ir.Ref(name, env.refMap(name)) } |
