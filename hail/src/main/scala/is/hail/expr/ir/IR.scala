@@ -90,9 +90,7 @@ object If {
   }
 }
 
-final case class If(cond: IR, cnsq: IR, altr: IR) extends InferIR {
-  assert(cnsq.typ == altr.typ)
-}
+final case class If(cond: IR, cnsq: IR, altr: IR) extends InferIR
 
 final case class Let(name: String, value: IR, body: IR) extends InferIR
 final case class Ref(name: String, var typ: Type) extends IR
@@ -127,7 +125,6 @@ object MakeArray {
 }
 
 final case class MakeArray(args: Seq[IR], typ: TArray) extends IR {
-  assert(args.forall(arg => arg.typ == args.head.typ))
 }
 
 final case class ArrayRef(a: IR, i: IR) extends InferIR
