@@ -6,7 +6,7 @@ import is.hail.expr.types.physical.PType
 package object cxx {
 
   def typeToCXXType(pType: PType): Type = {
-    pType.virtualType match {
+    pType.virtualType.fundamentalType match {
       case _: types.TInt32 => "int"
       case _: types.TInt64 => "long"
       case _: types.TFloat32 => "float"

@@ -229,18 +229,32 @@ abstract class PContainer extends PType {
   }
 
   def cxxIsElementMissing(a: cxx.Code, i: cxx.Code): cxx.Code = {
-    s"load_bit($a + 4, i)"
+    if (elementType.required)
+      s"false"
+    else
+      s"load_bit($a + 4, $i)"
+  }
+
+  def cxxNMissingBytes(len: cxx.Code): cxx.Code = {
+    if (elementType.required)
+      "0"
+    else
+      s"(($len + 7) >> 3)"
+  }
+
+  def cxxContentsByteSize(len: cxx.Code): cxx.Code = {
+    s"${ cxxElementsOffset(len) } + $len * ${ elementByteSize }"
   }
 
   def cxxElementsOffset(len: cxx.Code): cxx.Code = {
     if (elementType.required)
       s"round_up_alignment(4, ${ elementType.alignment })"
     else
-      s"round_up_alignment(4 + (($len + 7) >> 3), ${ elementType.alignment })"
+      s"round_up_alignment(4 + ${ cxxNMissingBytes(len) }, ${ elementType.alignment })"
   }
 
   def cxxElementOffset(a: cxx.Code, i: cxx.Code): cxx.Code = {
-    s"$a + ${ cxxElementsOffset(cxxLoadLength(a)) } + i * ${ elementType.byteSize }"
+    s"$a + ${ cxxElementsOffset(cxxLoadLength(a)) } + $i * ${ elementByteSize }"
   }
 
   def cxxLoadElement(a: cxx.EmitTriplet, i: cxx.EmitTriplet): cxx.EmitTriplet = {
@@ -248,16 +262,17 @@ abstract class PContainer extends PType {
     val __i = cxx.Variable("i", "int")
     val m = cxx.Variable("m", "bool")
     cxx.EmitTriplet(elementType, s"""
-${ __a.define }
-${ __i.define }
 ${ a.setup }
 ${ i.setup }
+${ m.define }
+${ __a.define }
+${ __i.define }
 if (${ a.m } || ${ i.m })
   $m = true;
 else {
-  ${ __a } = $a.v;
-  ${ __i } = $i.v;
-  $m = ${ cxxIsElementMissing(__a.toString, __i.toString) }
+  ${ __a } = ${ a.v };
+  ${ __i } = ${ i.v };
+  $m = ${ cxxIsElementMissing(__a.toString, __i.toString) };
 }
 """, m.toString,
       cxx.loadIRIntermediate(elementType, cxxElementOffset(__a.toString, __i.toString)))

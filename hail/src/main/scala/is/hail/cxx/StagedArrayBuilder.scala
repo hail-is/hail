@@ -10,9 +10,9 @@ class StagedArrayBuilder(fb: FunctionBuilder, pArray: PArray) {
 
   def start(len: Code): Code = {
     val __len = cxx.Variable("len", "int", len)
-    val nMissingBytes = cxx.Variable("nMissingBytes", "long", s"(${ __len } + 7) >> 3")
+    val nMissingBytes = cxx.Variable("nMissingBytes", "long", pArray.cxxNMissingBytes(__len.toString))
     val elementsOffset = cxx.Variable("elementsOffset", "long",
-      s"round_up_alignment(4 + $nMissingBytes, ${ pArray.elementType.byteSize })")
+      pArray.cxxElementsOffset(__len.toString))
 
     s"""
 ${ __len.define }
@@ -21,7 +21,7 @@ ${ elementsOffset.define }
 ${ a.define }
 ${ b.define }
 ${ i.define }
-$a = ${ fb.getArg(0) }->allocate(${ pArray.alignment }, $elementsOffset + ${ __len } * ${ pArray.elementType.byteSize });
+$a = ${ fb.getArg(0) }->allocate(${ pArray.contentsAlignment }, ${ pArray.cxxContentsByteSize(__len.toString) });
 store_int($a, ${ __len });
 memset($a + 4, 0, $nMissingBytes);
 $b = $a + $elementsOffset;
