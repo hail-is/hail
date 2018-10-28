@@ -1,7 +1,7 @@
 package is.hail.cxx
 
 import is.hail.expr.ir
-import is.hail.expr.types.TStruct
+import is.hail.expr.types._
 import is.hail.expr.types.physical.{PBaseStruct, PStruct, PTuple}
 
 object Emit {
@@ -46,6 +46,8 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
         triplet("", "true", typeDefaultValue(pType))
 
       case ir.ApplyBinaryPrimOp(op, l, r) =>
+        assert(l.typ == r.typ)
+
         val lt = emit(l)
         val rt = emit(r)
 
@@ -53,9 +55,21 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
           case ir.Add() => s"${ lt.v } + ${ rt.v }"
           case ir.Subtract() => s"${ lt.v } - ${ rt.v }"
           case ir.Multiply() => s"${ lt.v } * ${ rt.v }"
-            // FIXME
-          case ir.FloatingPointDivide() => s"${ lt.v } / ${ rt.v }"
-          case ir.RoundToNegInfDivide() => s"${ lt.v } / ${ rt.v }"
+          case ir.FloatingPointDivide() =>
+            l.typ match {
+              case _: TInt32 | _: TInt64 | _: TFloat32 =>
+                s"static_cast<float>(${ lt.v }) / static_cast<float>(${ rt.v })"
+              case _: TFloat64 =>
+                s"static_cast<double>(${ lt.v }) / static_cast<double>(${ rt.v })"
+            }
+
+          case ir.RoundToNegInfDivide() =>
+            l.typ match {
+              case _: TInt32 => s"floordiv(${ lt.v }, ${ rt.v })"
+              case _: TInt64 => s"lfloordiv(${ lt.v }, ${ rt.v })"
+              case _: TFloat32 => s"floorf(${ lt.v } / ${ rt.v })"
+              case _: TFloat64 => s"floor(${ lt.v } / ${ rt.v })"
+            }
         }
 
         triplet(Code(lt.setup, rt.setup), s"${ lt.m } || ${ rt.m }", v)

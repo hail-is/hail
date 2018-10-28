@@ -2,6 +2,7 @@
 #define HAIL_UTILS_H 1
 
 inline char load_byte(char * off) { return *off; }
+inline bool load_bool(char * off) { return *off; }
 inline int load_int(char * off) { return *reinterpret_cast<int *>(off); }
 inline long load_long(char * off) { return *reinterpret_cast<long *>(off); }
 inline float load_float(char * off) { return *reinterpret_cast<float *>(off); }
@@ -14,6 +15,7 @@ inline bool load_bit(char * byte_offset, unsigned int bit_offset) {
 
 
 inline void store_byte(char * off, char b) { *off = b; }
+inline void store_bool(char * off, bool b) { *off = b; }
 inline void store_int(char * off, int i) { *reinterpret_cast<int *>(off) = i; }
 inline void store_long(char * off, long l) { *reinterpret_cast<long *>(off) = l; }
 inline void store_float(char * off, float f) { *reinterpret_cast<float *>(off) = f; }
@@ -35,5 +37,20 @@ inline char * round_up_alignment(char * off, long alignment) {
   return reinterpret_cast<char *>((reinterpret_cast<long>(off) + (alignment - 1)) & ~(alignment - 1));
 }
 
+inline int floordiv(int n, int d) {
+  int q = n / d;
+  int r = n - q * d;
+  if (r < 0)
+    --q;
+  return q;
+}
+
+inline long lfloordiv(long n, long d) {
+  long q = n / d;
+  long r = n - q * d;
+  if (r < 0)
+    --q;
+  return q;
+}
 
 #endif

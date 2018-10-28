@@ -37,6 +37,8 @@ return ${ v.v };
 #include "hail/Utils.h"
 #include "hail/Region.h"
 
+#include <math.h>
+
 NAMESPACE_HAIL_MODULE_BEGIN
 
 ${ f.define }

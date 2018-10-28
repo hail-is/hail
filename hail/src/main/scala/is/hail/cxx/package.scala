@@ -21,14 +21,14 @@ package object cxx {
   }
 
   def typeDefaultValue(pType: PType): Type = {
-    pType.virtualType match {
+    pType.virtualType.fundamentalType match {
       case _: types.TInt32 => "0"
       case _: types.TInt64 => "0l"
       case _: types.TFloat32 => "0.0f"
       case _: types.TFloat64 => "0.0"
       case _: types.TBoolean => "false"
       case _: types.TBinary => "(char *)nullptr"
-      case _: types.TArray => "char *)nullptr"
+      case _: types.TArray => "(char *)nullptr"
       case _: types.TBaseStruct => "(char *)nullptr"
       case types.TVoid => ""
       case _ => throw new RuntimeException(s"unsupported type found, $pType")
@@ -36,7 +36,7 @@ package object cxx {
   }
 
   def loadIRIntermediate(pType: PType, a: Code): Code = {
-    pType.virtualType match {
+    pType.virtualType.fundamentalType match {
       case _: types.TInt32 => s"load_int($a)"
       case _: types.TInt64 => s"load_long($a)"
       case _: types.TFloat32 => s"load_float($a)"
@@ -50,7 +50,7 @@ package object cxx {
   }
 
   def storeIRIntermediate(pType: PType, a: Code, v: Code): Code = {
-    pType.virtualType match {
+    pType.virtualType.fundamentalType match {
       case _: types.TInt32 => s"store_int($a, $v)"
       case _: types.TInt64 => s"store_long($a, $v)"
       case _: types.TFloat32 => s"store_float($a, $v)"
@@ -58,7 +58,8 @@ package object cxx {
       case _: types.TBoolean => s"store_bool($a, $v)"
       case _: types.TBinary => s"store_address($a, $v)"
       case _: types.TArray => s"store_address($a, $v)"
-      // FIXME case _: types.TBaseStruct => a
+      case _: types.TBaseStruct =>
+        throw new CXXUnsupportedOperation(s"$pType")
       case _ => throw new RuntimeException(s"unsupported type found, $pType")
     }
   }
