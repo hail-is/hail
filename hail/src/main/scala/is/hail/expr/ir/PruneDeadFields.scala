@@ -935,10 +935,7 @@ object PruneDeadFields {
         val cond2 = rebuild(cond, in, memo)
         val cnsq2 = rebuild(cnsq, in, memo)
         val alt2 = rebuild(alt, in, memo)
-        if (cnsq2.typ != alt2.typ)
-          If(cond2, upcast(cnsq2, requestedType), upcast(alt2, requestedType))
-        else
-          If(cond2, cnsq2, alt2)
+        If.unify(cond2, cnsq2, alt2)
       case Let(name, value, body) =>
         val value2 = rebuild(value, in, memo)
         Let(

@@ -77,7 +77,22 @@ final case class Cast(v: IR, typ: Type) extends IR
 final case class NA(typ: Type) extends IR { assert(!typ.required) }
 final case class IsNA(value: IR) extends IR { val typ = TBoolean() }
 
-final case class If(cond: IR, cnsq: IR, altr: IR) extends InferIR
+object If {
+  def unify(cond: IR, cnsq: IR, altr: IR): If = {
+    if (cnsq.typ == altr.typ)
+      If(cond, cnsq, altr)
+    else {
+      val t = cnsq.typ.deepOptional()
+      If(cond,
+        PruneDeadFields.upcast(cnsq, t),
+        PruneDeadFields.upcast(altr, t))
+    }
+  }
+}
+
+final case class If(cond: IR, cnsq: IR, altr: IR) extends InferIR {
+  assert(cnsq.typ == altr.typ)
+}
 
 final case class Let(name: String, value: IR, body: IR) extends InferIR
 final case class Ref(name: String, var typ: Type) extends IR
@@ -111,7 +126,9 @@ object MakeArray {
   }
 }
 
-final case class MakeArray(args: Seq[IR], typ: TArray) extends IR
+final case class MakeArray(args: Seq[IR], typ: TArray) extends IR {
+  assert(args.forall(arg => arg.typ == args.head.typ))
+}
 
 final case class ArrayRef(a: IR, i: IR) extends InferIR
 final case class ArrayLen(a: IR) extends IR { val typ = TInt32() }

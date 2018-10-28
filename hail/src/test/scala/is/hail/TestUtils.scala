@@ -365,6 +365,10 @@ object TestUtils {
   }
 
   def assertEvalsTo(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], agg: Option[(IndexedSeq[Row], TStruct)], expected: Any) {
+    TypeCheck(x,
+      env.mapValues(_._2),
+      agg.map(_._2.toEnv))
+
     val t = x.typ
     assert(t.typeCheck(expected))
 

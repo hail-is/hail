@@ -235,6 +235,8 @@ private class Emit(
         EmitTriplet(codeV.setup, const(false), codeV.m)
 
       case If(cond, cnsq, altr) =>
+        assert(cnsq.typ == altr.typ)
+
         if (cnsq.typ == TVoid) {
           val codeCond = emit(cond)
           val codeCnsq = emit(cnsq)
@@ -1215,6 +1217,8 @@ private class Emit(
         ArrayIteratorTriplet(Code._empty, Some(const(args.length)), f)
 
       case If(cond, cnsq, altr) =>
+        assert(cnsq.typ == altr.typ)
+        
         val codeCond = emit(cond)
         val mout = mb.newLocal[Boolean]()
         val cnsqArray = emitArrayIterator(cnsq)
