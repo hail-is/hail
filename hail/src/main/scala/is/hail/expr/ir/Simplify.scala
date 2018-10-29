@@ -335,14 +335,14 @@ object Simplify {
       val mct = MatrixColsTable(child)
       TableMapRows(
         mct,
-        Subst(newRow, Env.empty[IR].bind("sa" -> Ref("row", mct.typ.rowType))))
+        Subst(newRow, Env("sa" -> Ref("row", mct.typ.rowType))))
 
     case MatrixColsTable(MatrixFilterCols(child, pred))
       if !Mentions(pred, "g") && !Mentions(pred, "va") =>
       val mct = MatrixColsTable(child)
       TableFilter(
         mct,
-        Subst(pred, Env.empty[IR].bind("sa" -> Ref("row", mct.typ.rowType))))
+        Subst(pred, Env("sa" -> Ref("row", mct.typ.rowType))))
 
     case MatrixColsTable(MatrixMapGlobals(child, newGlobals)) => TableMapGlobals(MatrixColsTable(child), newGlobals)
     case MatrixColsTable(MatrixMapRows(child, _)) => MatrixColsTable(child)

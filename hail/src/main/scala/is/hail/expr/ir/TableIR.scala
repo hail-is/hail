@@ -656,8 +656,7 @@ case class TableMapGlobals(child: TableIR, newGlobals: IR) extends TableIR {
 
     val newGlobalVals = Interpret[Row](
       newGlobals,
-      Env.empty[(Any, Type)].bind(
-        "global" -> (tv.globals.value, child.typ.globalType)),
+      Env[(Any, Type)]("global" -> (tv.globals.value, child.typ.globalType)),
       FastIndexedSeq(),
       None)
 
