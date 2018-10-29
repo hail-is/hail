@@ -1,6 +1,6 @@
 .PHONY: build push deploy
 
-images: # ../notebook/notebook-worker-image
+images: ../notebook/notebook-worker-image
 	cat /dev/null $< > images
 
 build: images
