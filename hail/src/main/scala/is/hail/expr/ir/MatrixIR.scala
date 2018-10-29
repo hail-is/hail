@@ -1813,11 +1813,11 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
   }
 }
 
-case class MatrixMapGlobals(child: MatrixIR, newRow: IR) extends MatrixIR {
-  val children: IndexedSeq[BaseIR] = Array(child, newRow)
+case class MatrixMapGlobals(child: MatrixIR, newGlobals: IR) extends MatrixIR {
+  val children: IndexedSeq[BaseIR] = Array(child, newGlobals)
 
   val typ: MatrixType =
-    child.typ.copy(globalType = newRow.typ.asInstanceOf[TStruct])
+    child.typ.copy(globalType = newGlobals.typ.asInstanceOf[TStruct])
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixMapGlobals = {
     assert(newChildren.length == 2)
@@ -1831,14 +1831,14 @@ case class MatrixMapGlobals(child: MatrixIR, newRow: IR) extends MatrixIR {
   def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
 
-    val newGlobals = Interpret[Row](
-      newRow,
+    val newGlobalVals = Interpret[Row](
+      newGlobals,
       Env.empty[(Any, Type)].bind(
         "global" -> (prev.globals.value, child.typ.globalType)),
       FastIndexedSeq(),
       None)
 
-    prev.copy(typ = typ, globals = BroadcastRow(newGlobals, typ.globalType, hc.sc))
+    prev.copy(typ = typ, globals = BroadcastRow(newGlobalVals, typ.globalType, hc.sc))
   }
 }
 
