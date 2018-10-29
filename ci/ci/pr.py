@@ -378,7 +378,7 @@ class PR(object):
     def is_approved(self):
         return self.review == 'approved'
 
-    def is_running(self):
+    def is_building(self):
         return isinstance(self.build, Building)
 
     def is_pending_build(self):
@@ -454,6 +454,10 @@ class PR(object):
                 log.info(f'found deploy job {job.id} for wrong target {target}, should be {self.target}')
                 job.delete()
                 return self
+
+    def refresh_from_missing_job(self):
+        assert isinstance(self.build, Buildable)
+        return self.build_it()
 
     def update_from_completed_batch_job(self, job):
         assert isinstance(job, Job)
