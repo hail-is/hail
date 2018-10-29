@@ -416,6 +416,14 @@ object TestUtils {
 
     assert(t.valuesSimilar(i, c))
     assert(t.valuesSimilar(i2, c))
+
+    try {
+      val c2 = nativeExecute(x, env, args, agg)
+      assert(t.typeCheck(c2))
+      assert(t.valuesSimilar(c2, c))
+    } catch {
+      case _: CXXUnsupportedOperation =>
+    }
   }
 
   def assertEvalsTo(x: IR, expected: Any) {

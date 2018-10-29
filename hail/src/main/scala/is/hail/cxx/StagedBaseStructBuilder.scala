@@ -32,9 +32,15 @@ else
     i += 1
   }
 
-  def result(): EmitTriplet = {
+  def body(): Code = {
     assert(i == pStruct.size)
-
-    EmitTriplet(pStruct, ab.result().mkString, "false", s.toString)
+    ab.result().mkString
   }
+
+  def end(): Code = {
+    assert(i == pStruct.size)
+    s.toString
+  }
+
+  def triplet(): EmitTriplet = EmitTriplet(pStruct, body(), "false", end())
 }

@@ -2,7 +2,7 @@ package is.hail.cxx
 
 import is.hail.expr.ir
 import is.hail.expr.types._
-import is.hail.expr.types.physical.{PArray, PBaseStruct, PStruct, PTuple}
+import is.hail.expr.types.physical._
 import is.hail.utils.ArrayBuilder
 
 object Emit {
@@ -14,7 +14,12 @@ object Emit {
 
 class CXXUnsupportedOperation(msg: String = null) extends Exception(msg)
 
+abstract class ArrayEmitter(val setup: Code, val m: Code, val setupLen: Code, val length: Option[Code]) {
+  def emit(f: (Code, Code) => Code): Code
+}
+
 class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
+  outer =>
   type E = ir.Env[EmitTriplet]
 
   def emit(x: ir.IR): EmitTriplet = emit(x, ir.Env.empty[EmitTriplet])
@@ -36,7 +41,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
       case ir.F64(v) =>
         present(s"$v")
       case ir.F32(v) =>
-        present(s"${v}f")
+        present(s"${ v }f")
       case ir.True() =>
         present("true")
       case ir.False() =>
@@ -143,11 +148,11 @@ else {
       case ir.ArrayRef(a, i) =>
         val at = emit(a)
         val it = emit(i)
-        a.pType.asInstanceOf[PArray].cxxLoadElement(at, it)
+        a.pType.asInstanceOf[PContainer].cxxLoadElement(at, it)
 
       case ir.ArrayLen(a) =>
         val t = emit(a)
-        triplet(t.setup, t.m, a.pType.asInstanceOf[PArray].cxxLoadLength(t.v))
+        triplet(t.setup, t.m, a.pType.asInstanceOf[PContainer].cxxLoadLength(t.v))
 
       case ir.GetField(o, name) =>
         val fieldIdx = o.typ.asInstanceOf[TStruct].fieldIdx(name)
@@ -169,17 +174,191 @@ else {
         fields.foreach { x =>
           sb.add(emit(x))
         }
-        sb.result()
+        sb.triplet()
 
       case ir.MakeStruct(fields) =>
         val sb = new StagedBaseStructBuilder(fb, pType.asInstanceOf[PBaseStruct])
         fields.foreach { case (_, x) =>
           sb.add(emit(x))
         }
-        sb.result()
+        sb.triplet()
+
+      case ir.SelectFields(old, fields) =>
+        val pStruct = pType.asInstanceOf[PStruct]
+        val oldPStruct = old.pType.asInstanceOf[PStruct]
+        val oldt = emit(old)
+        val ov = Variable("old", typeToCXXType(oldPStruct), oldt.v)
+
+        val sb = new StagedBaseStructBuilder(fb, pStruct)
+        fields.foreach { f =>
+          val fieldIdx = oldPStruct.fieldIdx(f)
+          sb.add(
+            EmitTriplet(oldPStruct.fields(fieldIdx).typ, "",
+              oldPStruct.cxxIsFieldMissing(ov.toString, fieldIdx),
+              oldPStruct.cxxLoadField(ov.toString, fieldIdx)))
+        }
+
+        triplet(oldt.setup, oldt.m,
+          s"""({
+${ ov.define }
+${ sb.body() }
+${ sb.end() };
+})""")
+
+      case ir.InsertFields(old, fields) =>
+        val pStruct = pType.asInstanceOf[PStruct]
+        val oldPStruct = old.pType.asInstanceOf[PStruct]
+        val oldt = emit(old)
+        val ov = Variable("old", typeToCXXType(oldPStruct), oldt.v)
+
+        val fieldsMap = fields.toMap
+
+        val sb = new StagedBaseStructBuilder(fb, pStruct)
+        pStruct.fields.foreach { f =>
+          fieldsMap.get(f.name) match {
+            case Some(fx) =>
+              val fxt = emit(fx)
+              sb.add(fxt)
+            case None =>
+              val fieldIdx = oldPStruct.fieldIdx(f.name)
+              sb.add(
+                EmitTriplet(f.typ, "",
+                  oldPStruct.cxxIsFieldMissing(ov.toString, f.index),
+                  oldPStruct.cxxLoadField(ov.toString, f.index)))
+          }
+        }
+
+        triplet(oldt.setup, oldt.m,
+          s"""({
+${ ov.define }
+${ sb.body() }
+${ sb.end() };
+})""")
+
+      case ir.ToArray(a) =>
+        emit(a)
+
+      case ir.ArrayFold(a, zero, accumName, valueName, body) =>
+        val containerPType = a.pType.asInstanceOf[PContainer]
+        val ae = emitArray(a, env)
+        val am = Variable("am", "bool", ae.m)
+
+        val zerot = emit(zero)
+
+        val accm = Variable("accm", "bool")
+        val accv = Variable("accv", typeToCXXType(zero.pType))
+        val acct = EmitTriplet(zero.pType, "", accm.toString, accv.toString)
+
+        triplet(s"""
+${ ae.setup }
+${ am.define }
+${ accm.define }
+${ accv.define }
+if ($am)
+  $accm = true;
+else {
+  ${ zerot.setup }
+  $accm = ${ zerot.m };
+  if (!$accm)
+    $accv = ${ zerot.v };
+  ${ ae.setupLen }
+  ${
+          ae.emit { case (m, v) =>
+            val vm = Variable("vm", "bool")
+            val vv = Variable("vv", typeToCXXType(containerPType.elementType))
+            val vt = EmitTriplet(containerPType.elementType, "", vm.toString, vv.toString)
+
+            val bodyt = emit(body, env.bind(accumName -> acct, valueName -> vt))
+
+            // necessary because bodyt.v could be accm
+            val bodym = Variable("bodym", "bool", bodyt.m)
+            val bodyv = Variable("bodyv", typeToCXXType(body.pType))
+
+            s"""
+${ vm.define }
+${ vv.define }
+$vm = $m;
+if (!$m)
+  $vv = $v;
+${ bodyt.setup }
+${ bodym.define }
+${ bodyv.define }
+if (!$bodym) {
+  $bodyv = ${ bodyt.v };
+  $accv = $bodyv;
+}
+$accm = $bodym;
+"""
+          }
+        }
+}
+""",
+          accm.toString, accv.toString)
+
+      case _: ir.ArrayFilter | _: ir.ArrayRange | _: ir.ArrayMap =>
+        val containerPType = x.pType.asInstanceOf[PContainer]
+
+        val ae = emitArray(x, env)
+        ae.length match {
+          case Some(length) =>
+            val sab = new StagedContainerBuilder(fb, containerPType)
+            triplet(ae.setup, ae.m, s"""
+({
+  ${ ae.setupLen }
+  ${ sab.start(length) }
+  ${
+              ae.emit { case (m, v) =>
+                s"""
+if (${ m })
+  ${ sab.setMissing() }
+else
+  ${ sab.add(v) }
+${ sab.advance() }
+"""
+              }
+            }
+  ${ sab.end() };
+})
+""")
+
+          case None =>
+            val xs = genSym("xs")
+            val ms = genSym("ms")
+            val i = genSym("i")
+            val sab = new StagedContainerBuilder(fb, containerPType)
+            triplet(ae.setup, ae.m, s"""
+({
+  ${ ae.setupLen }
+  std::vector<${ typeToCXXType(containerPType.elementType) }> $xs;
+  std::vector<bool> $ms;
+  ${
+              ae.emit { case (m, v) =>
+                s"""
+if (${ m }) {
+  $ms.push_back(true);
+  $xs.push_back(${ typeDefaultValue(containerPType.elementType) });
+} else {
+  $ms.push_back(false);
+  $xs.push_back($v);
+}
+"""
+              }
+            }
+  ${ sab.start(s"$xs.size()") }
+  for (int $i = 0; $i < $xs.size(); ++$i) {
+    if ($ms[$i])
+      ${ sab.setMissing() }
+   else
+      ${ sab.add(s"$xs[$i]") }
+    ${ sab.advance() }
+  }
+  ${ sab.end() };
+})
+""")
+        }
 
       case ir.MakeArray(args, _) =>
-        val sab = new StagedArrayBuilder(fb, pType.asInstanceOf[PArray])
+        val sab = new StagedContainerBuilder(fb, pType.asInstanceOf[PArray])
         val sb = new ArrayBuilder[Code]
 
         sb += sab.start(s"${ args.length }")
@@ -207,6 +386,147 @@ ${ sab.advance() }
 
       case _ =>
         throw new CXXUnsupportedOperation(ir.Pretty(x))
+    }
+  }
+
+  def emitArray(x: ir.IR, env: E): ArrayEmitter = {
+    val elemType = x.pType.asInstanceOf[PContainer].elementType
+
+    x match {
+      case ir.ArrayRange(start, stop, step) =>
+        val startt = emit(start)
+        val stopt = emit(stop)
+        val stept = emit(step)
+
+        val startv = Variable("start", "int", startt.v)
+        val stopv = Variable("stop", "int", stopt.v)
+        val stepv = Variable("step", "int", stept.v)
+
+        val len = Variable("len", "int")
+        val llen = Variable("llen", "long")
+
+        new ArrayEmitter(s"""
+${ startt.setup }
+${ stopt.setup }
+${ stept.setup }
+""", s"${ startt.m } || ${ stopt.m } || ${ stept.m }", s"""
+${ startv.define }
+${ stopv.define }
+${ stepv.define }
+${ len.define }
+${ llen.define }
+if ($stepv == 0)
+  abort();
+else if ($stepv < 0)
+  $llen = ($startv <= $stopv) ? 0l : ((long)$startv - (long)$stopv - 1l) / (long)(-$stepv) + 1l;
+else
+  $llen = ($startv >= $stopv) ? 0l : ((long)$stopv - (long)$startv - 1l) / (long)$stepv + 1l;
+if ($llen > INT_MAX)
+  abort();
+else
+  $len = ($llen < 0) ? 0 : (int)$llen;
+""", Some(len.toString)) {
+          val i = Variable("i", "int", "0")
+          val v = Variable("v", "int", startv.toString)
+
+          def emit(f: (Code, Code) => Code): Code = {
+            s"""
+${ v.define }
+for (${ i.define } $i < $len; ++$i) {
+  ${ f("false", v.toString) }
+  $v += $stepv;
+}
+"""
+          }
+        }
+
+      case ir.MakeArray(args, _) =>
+        new ArrayEmitter("", "false", "", Some(args.length.toString)) {
+          def emit(f: (Code, Code) => Code): Code = {
+            val sb = new ArrayBuilder[Code]
+            args.foreach { arg =>
+              val argt = outer.emit(arg)
+              sb += argt.setup
+              sb += f(argt.m, argt.v)
+            }
+            sb.result().mkString
+          }
+        }
+
+      case ir.ArrayFilter(a, name, cond) =>
+        val ae = emitArray(a, env)
+        val vm = Variable("m", "bool")
+        val vv = Variable("v", typeToCXXType(elemType))
+        val condt = outer.emit(cond,
+          env.bind(name, EmitTriplet(elemType, "", vm.toString, vv.toString)))
+
+        new ArrayEmitter(ae.setup, ae.m, ae.setupLen, None) {
+          def emit(f: (Code, Code) => Code): Code = {
+            ae.emit { (m2: Code, v2: Code) =>
+              s"""{
+${ vm.define }
+${ vv.define }
+$vm = $m2;
+if (!$vm)
+  $vv = $v2;
+${ condt.setup }
+if (!${ condt.m } && ${ condt.v }) {
+  ${ f(vm.toString, vv.toString) }
+}
+}"""
+            }
+          }
+        }
+
+      case ir.ArrayMap(a, name, body) =>
+        val aElementPType = a.pType.asInstanceOf[PContainer].elementType
+        val ae = emitArray(a, env)
+
+        val vm = Variable("m", "bool")
+        val vv = Variable("v", typeToCXXType(aElementPType))
+        val bodyt = outer.emit(body,
+          env.bind(name, EmitTriplet(aElementPType, "", vm.toString, vv.toString)))
+
+        new ArrayEmitter(ae.setup, ae.m, ae.setupLen, ae.length) {
+          def emit(f: (Code, Code) => Code): Code = {
+            ae.emit { (m2: Code, v2: Code) =>
+              s"""{
+${ vm.define }
+${ vv.define }
+$vm = $m2;
+if (!$vm)
+  $vv = $v2;
+${ bodyt.setup }
+${ f(bodyt.m, bodyt.v) }
+}"""
+            }
+          }
+        }
+
+      case _ =>
+        val pArray = x.pType.asInstanceOf[PArray]
+        val t = emit(x, env)
+
+        val a = Variable("a", "char *", t.v)
+        val len = Variable("len", "int", pArray.cxxLoadLength(a.toString))
+        new ArrayEmitter(t.setup, t.m,
+          s"""
+${ a.define }
+${ len.define }
+""", Some(len.toString)) {
+          val i = Variable("i", "int", "0")
+
+          def emit(f: (Code, Code) => Code): Code = {
+            s"""
+for (${ i.define } $i < $len; ++$i) {
+  ${
+              f(pArray.cxxIsElementMissing(a.toString, i.toString),
+                loadIRIntermediate(pArray.elementType, pArray.cxxElementOffset(a.toString, i.toString)))
+            }
+}
+"""
+          }
+        }
     }
   }
 }

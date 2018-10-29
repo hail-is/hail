@@ -37,6 +37,7 @@ return ${ v.v };
 #include "hail/Utils.h"
 #include "hail/Region.h"
 
+#include <limits.h>
 #include <math.h>
 
 NAMESPACE_HAIL_MODULE_BEGIN
@@ -52,9 +53,7 @@ NAMESPACE_HAIL_MODULE_END
 
     val modCode = sb.toString()
 
-    println(modCode)
-
-    val options = "-ggdb -O2"
+    val options = "-ggdb -O1"
     val st = new NativeStatus()
     val mod = new NativeModule(options, modCode)
     mod.findOrBuild(st)
