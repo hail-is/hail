@@ -1,0 +1,42 @@
+<html lang="en">
+  <head>
+    <title>CI</title>
+    <link rel="stylesheet" type="text/css" href="/static/style.css">
+  </head>
+  <body>
+    <h1>CI.</h1>
+    {% for target, prs in prs_by_target %}
+    <h2>{{ target.short_str() }}</h2>
+    <table>
+      <thead>
+        <tr>
+          <th align="left">Number</th>
+          <th align="left">Title</th>
+          <th align="left">Build State</th>
+          <th align="left">Review State</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for pr in prs %}
+        <tr>
+          <td align="left">
+            <a href="https://github.com/{{ pr.target.ref.repo.qname }}/pull/{{ pr.number }}">
+              {{ pr.number }}
+            </a>
+          </td>
+          <td align="left">
+            {{ pr.title }}
+          </td>
+          <td align="left">
+            {{ pr.build }}
+          </td>
+          <td align="left">
+            {{ pr.review }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endfor %}
+  </body>
+</html>

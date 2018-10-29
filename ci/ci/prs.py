@@ -93,6 +93,10 @@ class PRS(object):
         pr = self._get(source.ref, target.ref)
         return pr and pr.source.sha == source.sha and pr.target.sha == target.sha
 
+    def all_by_target(self):
+        return {target: source_to_pr.values()
+                for target, source_to_pr in self.target_source_pr.items()}
+
     def live_targets(self):
         return self.target_source_pr.keys()
 

@@ -29,7 +29,7 @@ restart-proxy:
 	$(shell gcloud compute \
 	  --project "broad-ctsa" \
 	  ssh \
-	  --zone "us-central1-f" \
+	  --zone "us-central1-a" \
 	  "dk-test" \
 	  --ssh-flag="-R 0.0.0.0:${HAIL_CI_REMOTE_PORT}:127.0.0.1:5000" \
 	  --ssh-flag='-N' \
@@ -49,15 +49,17 @@ restart-batch-proxy:
                          | head -n 1))
 	kubectl port-forward ${BATCH_POD} 8888:5000 > batch-proxy.log 2>batch-proxy.err & echo $$! > batch-proxy.pid
 
-PROXY_IP=35.239.252.237
+
 
 run-local: HAIL_CI_REMOTE_PORT = 3000
+run-local: PROXY_IP=$(shell gcloud compute instances list --filter=name=dk-test --format="value(EXTERNAL_IP)")
 run-local: restart-all-proxies
 	SELF_HOSTNAME=http://${PROXY_IP}:${HAIL_CI_REMOTE_PORT} \
 	BATCH_SERVER_URL=http://127.0.0.1:${HAIL_CI_LOCAL_BATCH_PORT} \
 	source activate hail-ci && python ci/ci.py
 
 run-local-for-tests: HAIL_CI_REMOTE_PORT = 3001
+run-local-for-tests: PROXY_IP=$(shell gcloud compute instances list --filter=name=dk-test --format="value(EXTERNAL_IP)")
 run-local-for-tests: restart-all-proxies
 	SELF_HOSTNAME=http://${PROXY_IP}:${HAIL_CI_REMOTE_PORT} \
 	BATCH_SERVER_URL=http://127.0.0.1:${HAIL_CI_LOCAL_BATCH_PORT} \
@@ -65,6 +67,7 @@ run-local-for-tests: restart-all-proxies
 	source activate hail-ci && pip install ./batch && python ci/ci.py
 
 test-locally: HAIL_CI_REMOTE_PORT = 3001
+test-locally: PROXY_IP=$(shell gcloud compute instances list --filter=name=dk-test --format="value(EXTERNAL_IP)")
 test-locally: restart-all-proxies
 	SELF_HOSTNAME=http://${PROXY_IP}:${HAIL_CI_REMOTE_PORT} \
 	BATCH_SERVER_URL=http://127.0.0.1:${HAIL_CI_LOCAL_BATCH_PORT} \

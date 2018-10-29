@@ -7,7 +7,7 @@ from environment import \
     batch_client, \
     WATCHED_TARGETS, \
     REFRESH_INTERVAL_IN_SECONDS
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 from git_state import Repo, FQRef, FQSHA
 from github import open_pulls, overall_review_state, latest_sha_for_ref
@@ -305,6 +305,11 @@ def set_deployable():
     assert action in ('unwatch', 'watch', 'deploy')
     prs.update_watch_state(target_ref, action)
     return '', 200
+
+
+@app.route('/ui/')
+def ui_index():
+    return render_template('index.html', prs_by_target=prs.all_by_target().items())
 
 
 ###############################################################################
