@@ -1,4 +1,4 @@
-from math import log, isnan
+from math import log, isnan, log10
 
 import numpy as np
 from bokeh.models import *
@@ -312,8 +312,6 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, collect_
             else:
                 return mid
 
-    pvals = -hail.log10(pvals)
-
     if locus is None:
         locus = pvals._indices.source.locus
 
@@ -338,6 +336,8 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, collect_
 
     x = [point[0] for point in res]
     y = [point[1] for point in res]
+    y_inv_log = [-log10(p) for p in y]
+    hover_fields['p_value'] = y
 
     ref = locus.dtype.reference_genome
 
@@ -369,7 +369,7 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, collect_
             del labels[i - num_deleted]
             num_deleted += 1
 
-    p = scatter(x, y, label=label, title=title, xlabel='Chromosome', ylabel='P-value (-log10 scale)',
+    p = scatter(x, y_inv_log, label=label, title=title, xlabel='Chromosome', ylabel='P-value (-log10 scale)',
                 size=size, legend=False, source_fields=hover_fields)
 
     p.xaxis.ticker = mid_points
@@ -377,7 +377,6 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, collect_
     p.width = 1000
 
     tooltips = [(key, "@{}".format(key)) for key in hover_fields]
-    tooltips.append(tuple(('p-value', "$y")))
     p.add_tools(HoverTool(
         tooltips=tooltips
     ))
