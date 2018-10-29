@@ -371,7 +371,7 @@ class PRS(object):
     def refresh_from_ci_jobs(self, jobs):
         lost_jobs = {(pr.source, pr.target) for pr in self.building()}
         for ((source, target), job) in jobs.items():
-            lost_jobs.remove((source, target))
+            lost_jobs.discard((source, target))
             self.refresh_from_ci_job(source, target, job)
         for (source, target) in lost_jobs:
             log.info(f'{source.short_str()} {target.short_str()} were not '
