@@ -101,15 +101,6 @@ def hadoop_copy(src, dest):
     """Copy a file through the Hadoop filesystem API.
     Supports distributed file systems like hdfs, gs, and s3.
 
-    Hint
-    ----
-
-    Try using :func:`.hadoop_open` first, it's simpler, but not great
-    for large data! For example:
-
-    >>> with hadoop_open('gs://my_bucket/results.csv', 'w') as f: #doctest: +SKIP
-    ...     pandas_df.to_csv(f)
-
     Examples
     --------
     
@@ -119,7 +110,14 @@ def hadoop_copy(src, dest):
     ...             'file:///mnt/data/LCR.interval_list') # doctest: +SKIP
 
     Notes
-    -----
+    ----
+
+    Try using :func:`.hadoop_open` first, it's simpler, but not great
+    for large data! For example:
+
+    >>> with hadoop_open('gs://my_bucket/results.csv', 'w') as f: #doctest: +SKIP
+    ...     pandas_df.to_csv(f)
+
     The provided source and destination file paths must be URIs
     (uniform resource identifiers).
 
