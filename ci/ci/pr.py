@@ -456,7 +456,7 @@ class PR(object):
                 return self
 
     def refresh_from_missing_job(self):
-        assert isinstance(self.build, Buildable)
+        assert isinstance(self.build, Building)
         return self.build_it()
 
     def update_from_completed_batch_job(self, job):
