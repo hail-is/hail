@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.expr.types.{TArray, TStruct, Type}
 
-import scala.language.implicitConversions
+import scala.language.{implicitConversions, dynamics}
 
 object IRBuilder {
   type E = Env[Type]
@@ -31,8 +31,6 @@ object IRBuilder {
 
   def irRange(start: IRProxy, end: IRProxy, step: IRProxy = 1): IRProxy = (env: E) =>
     ArrayRange(start(env), end(env), step(env))
-
-  def let(bindings: BindingProxy*): LetProxy = new LetProxy(bindings.toList)
 
   def irIf(cond: IRProxy)(cnsq: IRProxy)(altr: IRProxy): IRProxy = (env: E) =>
     If(cond(env), cnsq(env), altr(env))
@@ -63,11 +61,14 @@ object IRBuilder {
       TableFilter(tir, ir(env))
   }
 
-  class IRProxy(val ir: E => IR) {
+  class IRProxy(val ir: E => IR) extends Dynamic {
     def <=: (s: Symbol): BindingProxy = new BindingProxy(s, ir)
 
     def apply(idx: IRProxy): IRProxy = (env: E) =>
       ArrayRef(ir(env), idx(env))
+
+    def selectDynamic(field: String): IRProxy = (env: E) =>
+      GetField(ir(env), field)
 
     def apply(lookup: Symbol): IRProxy = { (env: E) =>
       val eval = ir(env)
@@ -128,7 +129,16 @@ object IRBuilder {
       }
   }
 
-  class LetProxy(bindings: List[BindingProxy]) {
+  object let extends Dynamic {
+    def applyDynamicNamed(method: String)(args: (String, Any)*): LetProxy = {
+      assert(method == "apply")
+      LetProxy(args.map { case (s, b) => BindingProxy(Symbol(s), b.asInstanceOf[IRProxy]) })
+    }
+  }
+
+  class LetProxy(bindings: List[BindingProxy]) extends Dynamic {
+    def apply(body: IRProxy): IRProxy = in(body)
+
     def in(body: IRProxy): IRProxy = { (env: E) =>
       LetProxy.bind(bindings, body, env)
     }
