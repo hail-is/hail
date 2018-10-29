@@ -68,8 +68,7 @@ class TabixReader(val filePath: String, private val idxFilePath: Option[String])
       readInt(is) // unused
 
       // read the sequence dictionary
-      val l = readInt(is) // get the length of
-      buf = new Array[Byte](l)
+      buf = new Array[Byte](readInt(is)) // # sequences
       var (i, j, k) = (0, 0, 0)
       is.read(buf)
       while (i < buf.length) {
