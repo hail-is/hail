@@ -46,11 +46,13 @@ public class NativeCode {
     private static String libToLocalFile(String libName) throws IOException {
         File file = File.createTempFile(libName, ".so");
         ClassLoader loader = NativeCode.class.getClassLoader();
-        InputStream s = null;
-        if (isMac()) {
-            s = loader.getResourceAsStream("darwin/" + libName + ".dylib");
-        } else {
-            s = loader.getResourceAsStream("linux-x86-64/" + libName + ".so");
+        String resourceName = isMac() 
+            ? "darwin/" + libName + ".dylib" 
+            : "linux-x86-64/" + libName + ".so";
+        InputStream s = loader.getResourceAsStream(resourceName);
+        if (s == null) {
+            throw new RuntimeException(
+                "Native library " + resourceName + " could not be found, does the JAR contain this resource?");
         }
         Files.copy(s, file.getAbsoluteFile().toPath(), StandardCopyOption.REPLACE_EXISTING);
         return file.getAbsoluteFile().toPath().toString();
