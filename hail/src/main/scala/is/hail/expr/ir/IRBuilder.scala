@@ -1,27 +1,27 @@
 package is.hail.expr.ir
 
-import is.hail.expr.types.{TArray, TStruct, Type}
+import is.hail.expr.types.{TArray, TStruct, TableType, Type}
 
-import scala.language.{implicitConversions, dynamics}
+import scala.language.{dynamics, implicitConversions}
 
 object IRBuilder {
   type E = Env[Type]
 
+  implicit def funcToIRProxy(ir: E => IR): IRProxy = new IRProxy(ir)
+
   implicit def tableIRToProxy(tir: TableIR): TableIRProxy =
     new TableIRProxy(tir)
 
-  implicit def funcToIRProxy(ir: E => IR): IRProxy = new IRProxy(ir)
+  implicit def irToProxy(ir: IR): IRProxy = (_: E) => ir
 
-  implicit def irToProxy(ir: IR): IRProxy = new IRProxy(_ => ir)
+  implicit def intToProxy(i: Int): IRProxy = I32(i)
 
-  implicit def intToProxy(i: Int): IRProxy = irToProxy(I32(i))
-
-  implicit def ref(s: Symbol): IRProxy = new IRProxy( env =>
-    Ref(s.name, env.lookup(s.name)))
+  implicit def ref(s: Symbol): IRProxy = (env: E) =>
+    Ref(s.name, env.lookup(s.name))
 
   implicit def symbolToSymbolProxy(s: Symbol): SymbolProxy = new SymbolProxy(s)
 
-  implicit def arrayToProxy(seq: Seq[IRProxy]): IRProxy = { (env: E) =>
+  implicit def arrayToProxy(seq: Seq[IRProxy]): IRProxy = (env: E) => {
     val irs = seq.map(_(env))
     val elType = irs.head.typ
     MakeArray(irs, TArray(elType))
@@ -35,12 +35,18 @@ object IRBuilder {
   def irIf(cond: IRProxy)(cnsq: IRProxy)(altr: IRProxy): IRProxy = (env: E) =>
     If(cond(env), cnsq(env), altr(env))
 
-  class TableIRProxy(val tir: TableIR) {
-    def empty: E = Env.empty
-    def globalEnv: E = Env("global" -> typ.globalType)
-    def env: E = Env("row" -> typ.rowType, "global" -> typ.globalType)
+  def makeStruct(fields: (Symbol, IRProxy)*): IRProxy = (env: E) =>
+    MakeStruct(fields.map { case (s, ir) => (s.name, ir(env)) })
 
-    def typ = tir.typ
+  def makeTuple(values: IRProxy*): IRProxy = (env: E) =>
+    MakeTuple(values.map(_(env)))
+
+  class TableIRProxy(val tir: TableIR) extends AnyVal {
+    def empty: E = Env.empty
+    def globalEnv: E = typ.globalEnv
+    def env: E = typ.rowEnv
+
+    def typ: TableType = tir.typ
 
     def mapGlobals(newGlobals: IRProxy): TableIR =
       TableMapGlobals(tir, newGlobals(globalEnv))
@@ -61,8 +67,8 @@ object IRBuilder {
       TableFilter(tir, ir(env))
   }
 
-  class IRProxy(val ir: E => IR) extends Dynamic {
-    def <=: (s: Symbol): BindingProxy = new BindingProxy(s, ir)
+  class IRProxy(val ir: E => IR) extends AnyVal with Dynamic {
+    def <=: (s: Symbol): BindingProxy = BindingProxy(s, this)
 
     def apply(idx: IRProxy): IRProxy = (env: E) =>
       ArrayRef(ir(env), idx(env))
@@ -70,7 +76,7 @@ object IRBuilder {
     def selectDynamic(field: String): IRProxy = (env: E) =>
       GetField(ir(env), field)
 
-    def apply(lookup: Symbol): IRProxy = { (env: E) =>
+    def apply(lookup: Symbol): IRProxy = (env: E) => {
       val eval = ir(env)
       eval.typ match {
         case _: TStruct =>
@@ -80,13 +86,20 @@ object IRBuilder {
       }
     }
 
+    def typecheck(t: Type): IRProxy = (env: E) => {
+      val eval = ir(env)
+      TypeCheck(eval, env, None)
+      assert(eval.typ == t, t._toPretty + " " + eval.typ._toPretty)
+      eval
+    }
+
     def insertFields(fields: (Symbol, IRProxy)*): IRProxy = (env: E) =>
       InsertFields(ir(env), fields.map { case (s, fir) => (s.name, fir(env)) })
 
     def selectFields(fields: String*): IRProxy = (env: E) =>
       SelectFields(ir(env), fields)
 
-    def dropFields(fields: Symbol*): IRProxy = { (env: E) =>
+    def dropFields(fields: Symbol*): IRProxy = (env: E) => {
       val struct = ir(env)
       val typ = struct.typ.asInstanceOf[TStruct]
       SelectFields(struct, typ.fieldNames.diff(fields.map(_.name)))
@@ -106,7 +119,11 @@ object IRBuilder {
       ArrayMap(ir(env), f.s.name, f.body(env.bind(f.s.name -> eltType)))
     }
 
-    private[ir] def apply(env: E) = ir(env)
+    def groupByKey: IRProxy = (env: E) => GroupByKey(ir(env))
+
+    def toArray: IRProxy = (env: E) => ToArray(ir(env))
+
+    private[ir] def apply(env: E): IR = ir(env)
   }
 
   class LambdaProxy(val s: Symbol, val body: IRProxy)
@@ -118,13 +135,13 @@ object IRBuilder {
   case class BindingProxy(s: Symbol, value: IRProxy)
 
   object LetProxy {
-    def bind(bindings: List[BindingProxy], body: IRProxy, env: E): IR =
+    def bind(bindings: Seq[BindingProxy], body: IRProxy, env: E): IR =
       bindings match {
-        case BindingProxy(sym, binding) :: rest =>
+        case BindingProxy(sym, binding) +: rest =>
           val name = sym.name
           val value = binding(env)
           Let(name, value, bind(rest, body, env.bind(name -> value.typ)))
-        case Nil =>
+        case Seq() =>
           body(env)
       }
   }
@@ -132,11 +149,11 @@ object IRBuilder {
   object let extends Dynamic {
     def applyDynamicNamed(method: String)(args: (String, Any)*): LetProxy = {
       assert(method == "apply")
-      LetProxy(args.map { case (s, b) => BindingProxy(Symbol(s), b.asInstanceOf[IRProxy]) })
+      new LetProxy(args.map { case (s, b) => BindingProxy(Symbol(s), b.asInstanceOf[IRProxy]) })
     }
   }
 
-  class LetProxy(bindings: List[BindingProxy]) extends Dynamic {
+  class LetProxy(val bindings: Seq[BindingProxy]) extends AnyVal with Dynamic {
     def apply(body: IRProxy): IRProxy = in(body)
 
     def in(body: IRProxy): IRProxy = { (env: E) =>
