@@ -14,7 +14,7 @@ case "$PLATFORM" in
             open /Applications/Docker.app  # opening Docker.app seems necessary to put docker on $PATH
         }
         install-conda() {
-            tmpfile=$(mktemp /tmp/abc-script.XXXXXX)
+            tmpfile=$(mktemp)
             curl -L https://repo.continuum.io/miniconda/Miniconda3-latest-MacOSX-x86_64.sh > $tmpfile
             bash $tmpfile
         }
@@ -25,14 +25,16 @@ case "$PLATFORM" in
     linux*)
         install-docker() {
             echo "installing docker on $PLATFORM is unsupported, please manually install: https://docs.docker.com/install/linux/docker-ce/ubuntu"
+            exit 1
         }
         install-conda() {
-            tmpfile=$(mktemp /tmp/abc-script.XXXXXX)
+            tmpfile=$(mktemp)
             curl -L https://repo.continuum.io/miniconda/Miniconda3-latest-Linux-x86_64.sh > $tmpfile
             bash $tmpfile
         }
         install-gcloud() {
-            apt-get install gcloud || yum install gcloud
+            echo "installing gcloud on $PLATFORM is unsupported, please manually install: https://cloud.google.com/sdk/install"
+            exit 1
         }
         ;;
     *)
