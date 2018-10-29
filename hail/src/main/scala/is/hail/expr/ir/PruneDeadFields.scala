@@ -1030,6 +1030,7 @@ object PruneDeadFields {
     if (ir.typ == rType)
       ir
     else {
+      assert(isSupertype(rType, ir.typ))
       ir.typ match {
         case ts: TStruct =>
           val rs = rType.asInstanceOf[TStruct]
