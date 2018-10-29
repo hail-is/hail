@@ -16,26 +16,6 @@ import json
 import os
 
 
-def review_status(reviews):
-    latest_state_by_login = {}
-    for review in reviews:
-        login = review['user']['login']
-        state = review['state']
-        # reviews is chronological, so later ones are newer statuses
-        latest_state_by_login[login] = state
-    at_least_one_approved = False
-    for login, state in latest_state_by_login.items():
-        if (state == 'CHANGES_REQUESTED'):
-            return 'changes_requested'
-        elif (state == 'APPROVED'):
-            at_least_one_approved = True
-
-    if at_least_one_approved:
-        return 'approved'
-    else:
-        return 'pending'
-
-
 def try_new_build(source, target):
     img = maybe_get_image(target, source)
     if img:

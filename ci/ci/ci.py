@@ -16,7 +16,7 @@ from google_storage import \
     upload_public_gs_file_from_string
 from http_helper import BadStatus
 from http_helper import get_repo
-from pr import review_status, GitHubPR
+from pr import GitHubPR
 from prs import PRS
 import collections
 import json
@@ -103,15 +103,15 @@ def github_pull_request_review():
             # FIXME: track all reviewers, then we don't need to talk to github
             prs.review(
                 gh_pr,
-                review_status(
+                overall_review_state(
                     get_reviews(gh_pr.target_ref.repo,
                                 gh_pr.number)))
     elif action == 'dismissed':
         # FIXME: track all reviewers, then we don't need to talk to github
         prs.review(
             gh_pr,
-            review_status(get_reviews(gh_pr.target_ref.repo,
-                                      gh_pr.number)))
+            overall_review_state(get_reviews(gh_pr.target_ref.repo,
+                                             gh_pr.number)))
     else:
         log.info(f'ignoring pull_request_review with action {action}')
     return '', 200
