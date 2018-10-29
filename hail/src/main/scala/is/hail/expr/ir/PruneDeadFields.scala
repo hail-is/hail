@@ -1053,6 +1053,10 @@ object PruneDeadFields {
     if (ir.typ == rType)
       ir
     else {
+      // FIXME: Remove this assertion before this code is merged
+      assert(isSupertype(rType, ir.typ), s"""Error, supertype relation not satisfied in upcast.
+        |Supertype: ${ rType.toPrettyString(0, false) }
+        |Subtype  : ${ ir.typ.toPrettyString(0, false) }""".stripMargin)
       ir.typ match {
         case ts: TStruct =>
           val rs = rType.asInstanceOf[TStruct]
