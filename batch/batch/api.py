@@ -15,7 +15,7 @@ class API():
         """
         self.timeout = timeout
 
-    def create_job(url, spec, attributes, batch_id, callback):
+    def create_job(self, url, spec, attributes, batch_id, callback):
         d = {'spec': spec}
         if attributes:
             d['attributes'] = attributes
@@ -28,32 +28,32 @@ class API():
         r.raise_for_status()
         return r.json()
 
-    def list_jobs(url):
+    def list_jobs(self, url):
         r = requests.get(url + '/jobs', timeout=self.timeout)
         r.raise_for_status()
         return r.json()
 
-    def get_job(url, job_id):
+    def get_job(self, url, job_id):
         r = requests.get(url + '/jobs/{}'.format(job_id), timeout=self.timeout)
         r.raise_for_status()
         return r.json()
 
-    def get_job_log(url, job_id):
+    def get_job_log(self, url, job_id):
         r = requests.get(url + '/jobs/{}/log'.format(job_id), timeout=self.timeout)
         r.raise_for_status()
         return r.text
 
-    def delete_job(url, job_id):
+    def delete_job(self, url, job_id):
         r = requests.delete(url + '/jobs/{}/delete'.format(job_id), timeout=self.timeout)
         r.raise_for_status()
         return r.json()
 
-    def cancel_job(url, job_id):
+    def cancel_job(self, url, job_id):
         r = requests.post(url + '/jobs/{}/cancel'.format(job_id), timeout=self.timeout)
         r.raise_for_status()
         return r.json()
 
-    def create_batch(url, attributes):
+    def create_batch(self, url, attributes):
         d = {}
         if attributes:
             d['attributes'] = attributes
@@ -61,17 +61,17 @@ class API():
         r.raise_for_status()
         return r.json()
 
-    def get_batch(url, batch_id):
+    def get_batch(self, url, batch_id):
         r = requests.get(url + '/batches/{}'.format(batch_id), timeout=self.timeout)
         r.raise_for_status()
         return r.json()
 
-    def delete_batch(url, batch_id):
+    def delete_batch(self, url, batch_id):
         r = requests.delete(url + '/batches/{}'.format(batch_id), timeout=self.timeout)
         r.raise_for_status()
         return r.json()
 
-    def refresh_k8s_state(url):
+    def refresh_k8s_state(self, url):
         r = requests.post(url + '/refresh_k8s_state', timeout=self.timeout)
         r.raise_for_status()
 
