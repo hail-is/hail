@@ -87,11 +87,11 @@ def format_type(t):
     elif isinstance(t, hl.ttuple):
         return 'tuple'
     elif isinstance(t, hl.tarray):
-        return 'array'
+        return f'array<{format_type(t.element_type)}>'
     elif isinstance(t, hl.tset):
-        return 'set'
+        return f'set<{format_type(t.element_type)}>'
     elif isinstance(t, hl.tdict):
-        return 'dict'
+        return f'dict<{format_type(t.key_type)}, <{format_type(t.value_type)}>>'
     else:
         return str(t)
 
