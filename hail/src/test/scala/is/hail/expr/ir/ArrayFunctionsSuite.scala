@@ -53,12 +53,11 @@ class ArrayFunctionsSuite extends TestNGSuite {
 
   @Test def mean() {
     assertEvalsTo(invoke("mean", IRArray(3, 7)), 5.0)
-    /*
     assertEvalsTo(invoke("mean", IRArray(3, null, 7)), null)
     assertEvalsTo(invoke("mean", IRArray(3, 7, 11)), 7.0)
     assertEvalsTo(invoke("mean", IRArray()), Double.NaN)
     assertEvalsTo(invoke("mean", IRArray(null)), null)
-    assertEvalsTo(invoke("mean", naa), null) */
+    assertEvalsTo(invoke("mean", naa), null)
   }
 
   @Test def median() {
