@@ -79,7 +79,7 @@ class Batch(object):
                 i = i + 1
 
 class BatchClient(object):
-    def __init__(self, url=None, api=None):
+    def __init__(self, url=None, api=api.__default_api):
         if not url:
             url = 'http://batch'
         self.url = url
