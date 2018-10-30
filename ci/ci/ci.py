@@ -211,8 +211,7 @@ def refresh_deploy_jobs(jobs):
                     f'cancelling {job.id}, preferring {job2.id}'
                 )
                 try_to_cancel_job(job)
-    for (target, job) in latest_jobs.items():
-        prs.refresh_from_deploy_job(target, job)
+    refresh_from_deploy_jobs(latest_jobs)
 
 @app.route('/force_retest', methods=['POST'])
 def force_retest():

@@ -331,6 +331,17 @@ class PRS(object):
             self.latest_deployed[target.ref] = target.sha
         job.delete()
 
+    def refresh_from_deploy_jobs(jobs):
+        lost_jobs = {target_ref for target_ref in self.deploy_jobs.keys()}
+        for (target, job) in jobs.items():
+            lost_jobs.discard(target.ref)
+            self.refresh_from_deploy_job(target, job)
+        for target_ref in lost_jobs:
+            log.info(f'{target_ref.short_str()} was not found in batch refresh '
+                     f'and will be treated like a cancelled job')
+            self.deploy_jobs[target.ref].delete()
+            del self.deploy_jobs[target.ref]
+
     def refresh_from_deploy_job(self, target, job):
         assert isinstance(job, Job), job
         assert isinstance(target, FQSHA), target
