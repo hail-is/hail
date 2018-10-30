@@ -1,9 +1,6 @@
 .PHONY: build push deploy
 
-images: ../notebook/notebook-worker-image
-	cat /dev/null $< > images
-
-build: images
+build:
 	docker build . -t image-fetcher
 
 push: IMAGE = gcr.io/broad-ctsa/image-fetcher:$(shell docker images -q --no-trunc image-fetcher | sed -e 's,[^:]*:,,')

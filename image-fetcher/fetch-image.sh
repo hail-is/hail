@@ -9,6 +9,6 @@ gcloud auth configure-docker
 
 while true
 do
-    [ $(cat images | wc -l) -eq 0 ] || (cat images | xargs docker pull)
+    curl -sSL http://notebook/worker-image | xargs docker pull
     sleep 360
 done
