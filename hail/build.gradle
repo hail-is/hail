@@ -96,12 +96,12 @@ sourceSets {
 }
 compileScala.dependsOn(nativeLib)
 test.dependsOn(nativeLibTest)
-clean.dependsOn(nativeLibClean)	
+clean.dependsOn(nativeLibClean)
 
 task testCppCodegen(type: Test) {
     useTestNG {}
-    
-    
+
+
     // Enable C++ codegen for tests
     environment HAIL_ENABLE_CPP_CODEGEN: '1'
 
@@ -240,7 +240,6 @@ test {
 }
 
 test.dependsOn(checkSettings)
-test.dependsOn(testCppCodegen)
 
 task testPython(type: Exec, dependsOn: shadowJar) {
     commandLine 'pytest',
@@ -266,7 +265,7 @@ task doctest(type: Exec, dependsOn: shadowJar) {
     environment PYSPARK_PYTHON: 'python3'
 }
 
-task testAll(dependsOn: ['testPython', 'test', 'doctest'])
+task testAll(dependsOn: ['testPython', 'test', 'doctest', 'testCppCodegen'])
 
 tasks.withType(ShadowJar) {
     manifest {
