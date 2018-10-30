@@ -5,6 +5,7 @@ import java.util.Arrays.binarySearch
 
 import is.hail.annotations.Annotation
 import is.hail.expr.types._
+import is.hail.utils.fatal
 
 object HistogramCombiner {
   def schema: TStruct = TStruct(
@@ -15,6 +16,8 @@ object HistogramCombiner {
 }
 
 class HistogramCombiner(val indices: Array[Double]) extends Serializable {
+  if (indices.exists(x => x.isInfinite || x.isNaN))
+    fatal(s"cannot compute a histogram with NaN or infinite indices:\n  [ ${ indices.mkString(", ") } ]")
 
   val min = indices.head
   val max = indices(indices.length - 1)
@@ -34,11 +37,12 @@ class HistogramCombiner(val indices: Array[Double]) extends Serializable {
         -bs - 2
       else
         math.min(bs, frequency.length - 1)
-      assert(ind < frequency.length && ind >= 0,
-        s"""found out of bounds index $ind
-            |  Resulted from trying to merge $d
-            |  Indices are [${ indices.mkString(", ") }]
-            |  Binary search index was $bs""".stripMargin)
+      if (ind >= frequency.length || ind < 0)
+        fatal(
+          s"""found out of bounds index $ind
+             |  Resulted from trying to merge $d
+             |  Indices are [${ indices.mkString(", ") }]
+             |  Binary search index was $bs""".stripMargin)
       frequency(ind) += 1
     }
 

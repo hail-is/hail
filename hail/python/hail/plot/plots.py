@@ -44,7 +44,11 @@ def histogram(data, range=None, bins=50, legend=None, title=None):
                 start = range[0]
                 end = range[1]
             else:
-                start, end = agg_f((aggregators.min(data), aggregators.max(data)))
+                finite_data = hail.bind(lambda x: hail.case().when(hail.is_finite(x), x).or_missing(), data)
+                start, end = agg_f((aggregators.min(finite_data),
+                                    aggregators.max(finite_data)))
+                if start is None and end is None:
+                    raise ValueError(f"'data' contains no values that are defined and finite")
             data = agg_f(aggregators.hist(data, start, end, bins))
         else:
             return ValueError('Invalid input')
