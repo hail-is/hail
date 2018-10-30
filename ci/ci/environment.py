@@ -1,6 +1,7 @@
 from git_state import FQRef
 from ci_logging import log
 from batch.client import BatchClient
+from batch.api import API
 import json
 import os
 import uuid
@@ -56,4 +57,4 @@ log.info(f'INSTANCE_ID = {INSTANCE_ID}')
 log.info(f'CONTEXT = {CONTEXT}')
 
 
-batch_client = BatchClient(url=BATCH_SERVER_URL)
+batch_client = BatchClient(url=BATCH_SERVER_URL, api=API(timeout=5))
