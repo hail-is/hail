@@ -6,4 +6,4 @@ dependencies:
 - pip
 - pip:
   - kubernetes
-  - Flask_Socket
+  - Flask_Sockets
