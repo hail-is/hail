@@ -76,44 +76,44 @@ class API():
         r.raise_for_status()
 
 
-__default_api = API()
+default_api = API()
 
 
 def create_job(url, spec, attributes, batch_id, callback):
-    return __default_api.create_job(url, spec, attributes, batch_id, callback)
+    return default_api.create_job(url, spec, attributes, batch_id, callback)
 
 
 def list_jobs(url):
-    return __default_api.list_jobs(url)
+    return default_api.list_jobs(url)
 
 
 def get_job(url, job_id):
-    return __default_api.get_job(url, job_id)
+    return default_api.get_job(url, job_id)
 
 
 def get_job_log(url, job_id):
-    return __default_api.get_job_log(url, job_id)
+    return default_api.get_job_log(url, job_id)
 
 
 def delete_job(url, job_id):
-    return __default_api.delete_job(url, job_id)
+    return default_api.delete_job(url, job_id)
 
 
 def cancel_job(url, job_id):
-    return __default_api.cancel_job(url, job_id)
+    return default_api.cancel_job(url, job_id)
 
 
 def create_batch(url, attributes):
-    return __default_api.create_batch(url, attributes)
+    return default_api.create_batch(url, attributes)
 
 
 def get_batch(url, batch_id):
-    return __default_api.get_batch(url, batch_id)
+    return default_api.get_batch(url, batch_id)
 
 
 def delete_batch(url, batch_id):
-    return __default_api.delete_batch(url, batch_id)
+    return default_api.delete_batch(url, batch_id)
 
 
 def refresh_k8s_state(url):
-    return __default_api.refresh_k8s_state(url)
+    return default_api.refresh_k8s_state(url)
