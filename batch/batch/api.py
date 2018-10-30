@@ -4,7 +4,7 @@ import random
 import requests
 
 class API():
-    def __init__(self, timeout=None):
+    def __init__(self, timeout=60):
         """
         Python API for accessing the batch server's HTTP endpoints.
 
