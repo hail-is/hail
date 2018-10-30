@@ -29,6 +29,54 @@ object Interpret {
     JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(value, t))
   }
 
+  def apply(tir: TableIR): TableValue =
+    apply(tir, optimize = true, lowerMatrix = false)
+
+  def apply(tir: TableIR, optimize: Boolean): TableValue =
+    apply(tir, optimize, lowerMatrix = false)
+
+  def apply(tir: TableIR, optimize: Boolean, lowerMatrix: Boolean): TableValue = {
+    val tiropt = if (optimize)
+      Optimize(tir)
+    else
+      tir
+
+    val lowered = if (lowerMatrix) {
+      val tir = LowerMatrixIR(tiropt)
+      if (optimize) Optimize(tir) else tir
+    } else
+      tiropt
+
+    LiftLiterals(lowered).asInstanceOf[TableIR].execute(HailContext.get)
+  }
+
+  def apply(mir: MatrixIR): MatrixValue =
+    apply(mir, optimize = true, lowerMatrix = false)
+
+  def apply(mir: MatrixIR, optimize: Boolean): MatrixValue =
+    apply(mir, optimize, lowerMatrix = false)
+
+  def apply(mir: MatrixIR, optimize: Boolean, lowerMatrix: Boolean): MatrixValue = {
+    val miropt = if (optimize)
+      Optimize(mir)
+    else
+      mir
+
+    val lowered = if (lowerMatrix) {
+      var tir = LowerMatrixIR(miropt)
+      if (optimize) tir = Optimize(tir)
+
+      CastTableToMatrix(tir,
+        LowerMatrixIR.entriesFieldName,
+        LowerMatrixIR.colsFieldName,
+        mir.typ.colKey
+      )
+    } else
+      miropt
+
+    LiftLiterals(lowered).asInstanceOf[MatrixIR].execute(HailContext.get)
+  }
+
   def apply[T](ir: IR): T = apply(ir, Env.empty[(Any, Type)], FastIndexedSeq(), None).asInstanceOf[T]
 
   def apply[T](ir: IR, optimize: Boolean): T = apply(ir, Env.empty[(Any, Type)], FastIndexedSeq(), None, optimize).asInstanceOf[T]
@@ -37,19 +85,28 @@ object Interpret {
     env: Env[(Any, Type)],
     args: IndexedSeq[(Any, Type)],
     agg: Option[Agg],
-    optimize: Boolean = true): T = {
+    optimize: Boolean = true,
+    lowerMatrix: Boolean = false
+  ): T = {
     val (typeEnv, valueEnv) = env.m.foldLeft((Env.empty[Type], Env.empty[Any])) {
       case ((e1, e2), (k, (value, t))) => (e1.bind(k, t), e2.bind(k, value))
     }
 
     var ir = ir0.unwrap
-    if (optimize) {
+
+    def optimizeIR() {
       ir = Optimize(ir)
       TypeCheck(ir, typeEnv, agg.map { agg =>
         agg._2.fields.foldLeft(Env.empty[Type]) { case (env, f) =>
           env.bind(f.name, f.typ)
         }
       })
+    }
+
+    if (optimize) optimizeIR()
+    if (lowerMatrix) {
+      ir = LowerMatrixIR(ir)
+      if (optimize) optimizeIR()
     }
 
     ir = LiftLiterals(ir).asInstanceOf[IR]
@@ -644,7 +701,7 @@ object Interpret {
           .map(_.sum)
           .getOrElse(child.execute(HailContext.get).rvd.count())
       case MatrixWrite(child, f) =>
-        val mv = child.execute(HailContext.get)
+        val mv = Interpret(child, optimize = false)
         f(mv)
       case TableWrite(child, path, overwrite, stageLocally, codecSpecJSONStr) =>
         val hc = HailContext.get
@@ -725,7 +782,7 @@ object Interpret {
         }
       case MatrixAggregate(child, query) =>
         val localGlobalSignature = child.typ.globalType
-        val value = child.execute(HailContext.get)
+        val value = Interpret(child, optimize = false)
         val colArrayType = TArray(child.typ.colType)
         val (rvAggs, initOps, seqOps, aggResultType, postAggIR) = CompileWithAggregators[Long, Long, Long, Long](
           "global", child.typ.globalType,

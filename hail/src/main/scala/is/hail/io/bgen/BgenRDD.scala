@@ -33,6 +33,7 @@ sealed case class RowFields (
 case class BgenSettings(
   nSamples: Int,
   entries: EntriesSetting,
+  dropCols: Boolean,
   rowFields: RowFields,
   rg: Option[ReferenceGenome],
   indexAnnotationType: Type

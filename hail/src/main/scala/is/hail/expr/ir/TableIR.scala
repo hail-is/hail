@@ -34,7 +34,7 @@ abstract sealed class TableIR extends BaseIR {
 
   def partitionCounts: Option[IndexedSeq[Long]] = None
 
-  def execute(hc: HailContext): TableValue
+  protected[ir] def execute(hc: HailContext): TableValue
 
   override def copy(newChildren: IndexedSeq[BaseIR]): TableIR
 }

@@ -56,6 +56,7 @@ object IndexBgen {
     val settings: BgenSettings = BgenSettings(
       0, // nSamples not used if there are no entries
       NoEntries,
+      dropCols = true,
       RowFields(false, false, true, true),
       referenceGenome,
       annotationType
