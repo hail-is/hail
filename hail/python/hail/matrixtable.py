@@ -2242,7 +2242,7 @@ class MatrixTable(ExprContainer):
         :class:`.Table`
             Table with all non-global fields from the matrix, with **one row per entry of the matrix**.
         """
-        if self.col_key is not None and Env.hc()._warn_entries_order:
+        if Env.hc()._warn_entries_order and len(self.col_key) > 0:
             warn("entries(): Resulting entries table is sorted by '(row_key, col_key)'."
                  "\n    To preserve row-major matrix table order, "
                  "first unkey columns with 'key_cols_by()'")
