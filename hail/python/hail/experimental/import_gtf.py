@@ -123,7 +123,7 @@ def import_gtf(path, reference_genome=None, skip_invalid_contigs=False) -> hl.Ta
                           x.split(' ')[1].replace('"', '').replace(';$', '')),
                ht['attribute'].split('; '))))
 
-    attributes = ht.aggregate(hl.agg.collect_as_set(hl.agg.explode(ht['attribute'].keys())))
+    attributes = ht.aggregate(hl.agg.explode(lambda x: hl.agg.collect_as_set(x), ht['attribute'].keys()))
 
     ht = ht.transmute(**{x: hl.or_missing(ht['attribute'].contains(x),
                                           ht['attribute'][x])
