@@ -8,4 +8,4 @@ gcloud -q auth activate-service-account \
 
 gcloud -q auth configure-docker
 
-make push-hail-ci deploy
+make deploy
