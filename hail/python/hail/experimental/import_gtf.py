@@ -49,40 +49,38 @@ def import_gtf(path, reference_genome=None, skip_invalid_contigs=False) -> hl.Ta
        -------
 
        >>> ht = hl.experimental.import_gtf('data/test.gtf', 
-                                           reference_genome='GRCh37',
-                                           skip_invalid_contigs=True)
+       ...                                 reference_genome='GRCh37',
+       ...                                 skip_invalid_contigs=True)
+
        >>> ht.describe()
-
-       .. code-block:: text
-
-           ----------------------------------------
-           Global fields:
-           None
-           ----------------------------------------
-           Row fields:
-               'source': str
-               'feature': str
-               'score': float64
-               'strand': str
-               'frame': int32
-               'gene_type': str
-               'exon_id': str
-               'havana_transcript': str
-               'level': str
-               'transcript_name': str
-               'gene_status': str
-               'gene_id': str
-               'transcript_type': str
-               'tag': str
-               'transcript_status': str
-               'gene_name': str
-               'transcript_id': str
-               'exon_number': str
-               'havana_gene': str
-               'interval': interval<locus<GRCh37>>
-           ----------------------------------------
-           Key: ['interval']
-           ----------------------------------------
+       ----------------------------------------
+       Global fields:
+       None
+       ----------------------------------------
+       Row fields:
+           'source': str
+           'feature': str
+           'score': float64
+           'strand': str
+           'frame': int32
+           'gene_type': str
+           'exon_id': str
+           'havana_transcript': str
+           'level': str
+           'transcript_name': str
+           'gene_status': str
+           'gene_id': str
+           'transcript_type': str
+           'tag': str
+           'transcript_status': str
+           'gene_name': str
+           'transcript_id': str
+           'exon_number': str
+           'havana_gene': str
+           'interval': interval<locus<GRCh37>>
+       ----------------------------------------
+       Key: ['interval']
+       ----------------------------------------
 
        Parameters
        ----------
