@@ -210,6 +210,11 @@ def admin_login_post():
     return redirect(external_url_for('workers'))
 
 
+@app.route('/worker-image')
+def worker_image():
+    return WORKER_IMAGE, 200
+
+
 @sockets.route('/wait')
 def wait(ws):
     pod_name = session['pod_name']
@@ -225,7 +230,9 @@ def wait(ws):
         # FIXME, ERRORS?
         gevent.sleep(1)
     log.info(f'wait finished for {svc_name} {pod_name}')
+    gevent.sleep(5) # wait a bit for the service to get ready
     ws.send(external_url_for(f'instance/{svc_name}/?token={jupyter_token}'))
+    log.info(f'notification sent to user for {svc_name} {pod_name}')
 
 
 if __name__ == '__main__':
