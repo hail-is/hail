@@ -1,10 +1,4 @@
-import abc
-
-import collections
 from IPython.display import display
-from bokeh.io import save
-from bokeh.plotting import figure
-from bokeh.resources import CDN
 from ipywidgets import widgets, link, Layout
 
 import hail as hl
@@ -105,6 +99,7 @@ def format_type(t):
 def format_html(s):
     return '<p style="font-family:courier;white-space:pre;line-height: 115%;">{}</p>'.format(
         str(s).replace('<', '&lt').replace('>', '&gt').replace('\n', '</br>'))
+
 
 def recursive_build(dtype, path=hl.utils.LinkedList(str), override_path=None):
     frames = []
