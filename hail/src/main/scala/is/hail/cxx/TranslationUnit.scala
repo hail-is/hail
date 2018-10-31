@@ -6,14 +6,16 @@ import is.hail.utils.ArrayBuilder
 class TranslationUnit(preamble: String, definitions: Array[Definition]) {
 
   def source: String =
-    new PrettyCode(s"""$preamble
-       |
-       |NAMESPACE_HAIL_MODULE_BEGIN
-       |
-       |${definitions.map(d => if (d.isInstanceOf[Function]) d.define else s"${d.define};").mkString("\n\n")}
-       |
-       |NAMESPACE_HAIL_MODULE_END
-     """.stripMargin).toString()
+    new PrettyCode(
+      s"""
+         |$preamble
+         |
+         |NAMESPACE_HAIL_MODULE_BEGIN
+         |
+         |${ definitions.map(d => if (d.isInstanceOf[Function]) d.define else s"${ d.define };").mkString("\n\n") }
+         |
+         |NAMESPACE_HAIL_MODULE_END
+         |""".stripMargin).toString()
 
   def build(options: String): NativeModule = {
     val st = new NativeStatus()

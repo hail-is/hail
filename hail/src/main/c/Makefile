@@ -8,12 +8,12 @@ UNAME_P :=$(shell uname -p)
 BUILD :=build
 
 # Control optimization level and gdb-in-xterm code in NativePtr.cpp
-HAIL_ENABLE_DEBUG :=0
+HAIL_ENABLE_DEBUG := 0
 
 ifeq ($(HAIL_ENABLE_DEBUG),1)
-  HAIL_OPT_FLAGS :=-O1 -DHAIL_ENABLE_DEBUG=1
+  HAIL_OPT_FLAGS := -O1 -DHAIL_ENABLE_DEBUG=1
 else
-  HAIL_OPT_FLAGS :=-O3
+  HAIL_OPT_FLAGS := -O3
 endif
 
 # Change this setting to update the version of libsimdpp

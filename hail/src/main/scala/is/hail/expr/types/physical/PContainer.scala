@@ -2,6 +2,7 @@ package is.hail.expr.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s._
+import is.hail.cxx
 import is.hail.utils._
 
 object PContainer {
@@ -221,5 +222,42 @@ abstract class PContainer extends PType {
         Integer.compare(length1, length2)
       }
     }
+  }
+
+  def cxxLoadLength(a: cxx.Code): cxx.Code = {
+    s"load_int($a)"
+  }
+
+  def cxxIsElementMissing(a: cxx.Code, i: cxx.Code): cxx.Code = {
+    if (elementType.required)
+      s"false"
+    else
+      s"load_bit($a + 4, $i)"
+  }
+
+  def cxxNMissingBytes(len: cxx.Code): cxx.Code = {
+    if (elementType.required)
+      "0"
+    else
+      s"(($len + 7) >> 3)"
+  }
+
+  def cxxContentsByteSize(len: cxx.Code): cxx.Code = {
+    s"${ cxxElementsOffset(len) } + $len * ${ elementByteSize }"
+  }
+
+  def cxxElementsOffset(len: cxx.Code): cxx.Code = {
+    if (elementType.required)
+      s"${ UnsafeUtils.roundUpAlignment(4, elementType.alignment) }"
+    else
+      s"round_up_alignment(4 + ${ cxxNMissingBytes(len) }, ${ elementType.alignment })"
+  }
+
+  def cxxElementOffset(a: cxx.Code, i: cxx.Code): cxx.Code = {
+    s"$a + ${ cxxElementsOffset(cxxLoadLength(a)) } + $i * ${ elementByteSize }"
+  }
+
+  def cxxLoadElement(a: cxx.Code, i: cxx.Code): cxx.Code = {
+    cxx.loadIRIntermediate(elementType, cxxElementOffset(a, i))
   }
 }

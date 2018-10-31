@@ -9,6 +9,9 @@ trait Definition {
 }
 
 object Variable {
+  def apply(prefix: String, typ: Type): Variable =
+    new Variable(prefix, typ, null)
+
   def apply(prefix: String, typ: Type, init: Code): Variable =
     new Variable(prefix, typ, Expression(init))
 }
