@@ -23,37 +23,37 @@ object Compile {
 
     val v = Emit(fb, 2, body)
 
-    fb += s"""
-${v.setup}
-if (${ v.m })
-  abort();
-return ${ v.v };
-"""
+    fb +=
+      s"""
+         |${ v.setup }
+         |if (${ v.m })
+         |  abort();
+         |return ${ v.v };
+         |""".stripMargin
     val f = fb.result()
 
     val sb = new StringBuilder
-    sb.append(s"""
-#include "hail/hail.h"
-#include "hail/Utils.h"
-#include "hail/Region.h"
-
-#include <limits.h>
-#include <math.h>
-
-NAMESPACE_HAIL_MODULE_BEGIN
-
-${ f.define }
-
-long entrypoint(NativeStatus *st, long region, long v) {
-  return (long)${ f.name }(st, (Region *)region, (char *)v);
-}
-
-NAMESPACE_HAIL_MODULE_END
-""")
+    sb.append(
+      s"""
+         |#include "hail/hail.h"
+         |#include "hail/Utils.h"
+         |#include "hail/Region.h"
+         |
+         |#include <limits.h>
+         |#include <math.h>
+         |
+         |NAMESPACE_HAIL_MODULE_BEGIN
+         |
+         |${ f.define }
+         |
+         |long entrypoint(NativeStatus *st, long region, long v) {
+         |  return (long)${ f.name }(st, (Region *)region, (char *)v);
+         |}
+         |
+         |NAMESPACE_HAIL_MODULE_END
+         |""".stripMargin)
 
     val modCode = sb.toString()
-
-    println(modCode)
 
     val options = "-ggdb -O1"
     val st = new NativeStatus()

@@ -13,22 +13,23 @@ class StagedBaseStructBuilder(fb: FunctionBuilder, pStruct: PBaseStruct) {
 
   def add(t: EmitTriplet) {
     val f = pStruct.fields(i)
-    ab += s"""
-${ t.setup }
-if (${ t.m })
-  ${
-      if (pStruct.fieldRequired(i))
-        "abort();"
-      else
-        s"store_bit($s, ${ pStruct.missingIdx(i) }, 1);"
-    }
-else
-  ${
-      storeIRIntermediate(f.typ,
-        s"($s) + (${ pStruct.byteOffsets(i) })",
-        t.v)
-    };
-"""
+    ab +=
+      s"""
+         |${ t.setup }
+         |if (${ t.m })
+         |  ${
+        if (pStruct.fieldRequired(i))
+          "abort();"
+        else
+          s"store_bit($s, ${ pStruct.missingIdx(i) }, 1);"
+      }
+         |else
+         |  ${
+        storeIRIntermediate(f.typ,
+          s"($s) + (${ pStruct.byteOffsets(i) })",
+          t.v)
+      };
+         |""".stripMargin
     i += 1
   }
 

@@ -15,17 +15,17 @@ class StagedContainerBuilder(fb: FunctionBuilder, containerPType: PContainer) {
       containerPType.cxxElementsOffset(__len.toString))
 
     s"""
-${ __len.define }
-${ nMissingBytes.define }
-${ elementsOffset.define }
-${ a.define }
-${ b.define }
-${ i.define }
-$a = ${ fb.getArg(1) }->allocate(${ containerPType.contentsAlignment }, ${ containerPType.cxxContentsByteSize(__len.toString) });
-store_int($a, ${ __len });
-memset($a + 4, 0, $nMissingBytes);
-$b = $a + $elementsOffset;
-"""
+       |${ __len.define }
+       |${ nMissingBytes.define }
+       |${ elementsOffset.define }
+       |${ a.define }
+       |${ b.define }
+       |${ i.define }
+       |$a = ${ fb.getArg(1) }->allocate(${ containerPType.contentsAlignment }, ${ containerPType.cxxContentsByteSize(__len.toString) });
+       |store_int($a, ${ __len });
+       |memset($a + 4, 0, $nMissingBytes);
+       |$b = $a + $elementsOffset;
+       |""".stripMargin
   }
 
   def add(x: Code): Code = {

@@ -12,13 +12,14 @@ class EmitTriplet private(val pType: types.physical.PType, val setup: Code, val 
     val mv = Variable("memm", "bool", m)
     val vv = Variable("memv", typeToCXXType(pType))
 
-    EmitTriplet(pType, s"""
-$setup
-${ mv.define }
-${ vv.define }
-if (!$mv)
-  $vv = $v;
-""",
+    EmitTriplet(pType,
+      s"""
+         |$setup
+         |${ mv.define }
+         |${ vv.define }
+         |if (!$mv)
+         |  $vv = $v;
+         |""".stripMargin,
       mv.toString, vv.toString)
   }
 }

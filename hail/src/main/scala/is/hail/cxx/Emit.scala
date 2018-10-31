@@ -18,8 +18,7 @@ abstract class ArrayEmitter(val setup: Code, val m: Code, val setupLen: Code, va
   def emit(f: (Code, Code) => Code): Code
 }
 
-class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
-  outer =>
+class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) { outer =>
   type E = ir.Env[EmitTriplet]
 
   def emit(x: ir.IR): EmitTriplet = emit(x, ir.Env.empty[EmitTriplet])
@@ -70,24 +69,25 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
         val tcnsq = emit(cnsq)
         val taltr = emit(altr)
 
-        triplet(s"""
-${ tcond.setup }
-${ m.define }
-${ v.define }
-if (${ tcond.m })
-  $m = true;
-else {
-  if (${ tcond.v }) {
-    ${ tcnsq.setup }
-    $m = ${ tcnsq.m };
-    $v = ${ tcnsq.v };
-  } else {
-    ${ taltr.setup }
-    $m = ${ taltr.m };
-    $v = ${ taltr.v };
-  }
-}
-""",
+        triplet(
+          s"""
+             |${ tcond.setup }
+             |${ m.define }
+             |${ v.define }
+             |if (${ tcond.m })
+             |  $m = true;
+             |else {
+             |  if (${ tcond.v }) {
+             |    ${ tcnsq.setup }
+             |    $m = ${ tcnsq.m };
+             |    $v = ${ tcnsq.v };
+             |  } else {
+             |    ${ taltr.setup }
+             |    $m = ${ taltr.m };
+             |    $v = ${ taltr.v };
+             |  }
+             |}
+             |""".stripMargin,
           m.toString,
           v.toString)
 
@@ -162,22 +162,22 @@ else {
 
         triplet(Code(at.setup, it.setup,
           s"""
-${ m.define }
-${ av.define }
-${ iv.define }
-${ len.define }
-$m = ${ at.m } || ${ it.m };
-if (!$m) {
-  $iv = ${ it.v };
-  $av = ${ at.v };
-  $len = ${ pContainer.cxxLoadLength(av.toString) };
-  if ($iv < 0 || $iv >= $len) {
-    NATIVE_ERROR(${ fb.getArg(0) }, 1005, "array index out of bounds: %d / %d.  IR: %s", $iv, $len, "$s");
-    return nullptr;
-  }
-  $m = ${ pContainer.cxxIsElementMissing(av.toString, iv.toString) };
-}
-"""), m.toString, pContainer.cxxLoadElement(av.toString, iv.toString))
+             |${ m.define }
+             |${ av.define }
+             |${ iv.define }
+             |${ len.define }
+             |$m = ${ at.m }|| ${ it.m };
+             |if (!$m) {
+             |  $iv = ${ it.v };
+             |  $av = ${ at.v };
+             |  $len = ${ pContainer.cxxLoadLength(av.toString) };
+             |  if ($iv < 0 || $iv >= $len) {
+             |    NATIVE_ERROR(${ fb.getArg(0) }, 1005, "array index out of bounds: %d / %d.  IR: %s", $iv, $len, "$s");
+             |    return nullptr;
+             |  }
+             |  $m = ${ pContainer.cxxIsElementMissing(av.toString, iv.toString) };
+             |}
+             |""".stripMargin), m.toString, pContainer.cxxLoadElement(av.toString, iv.toString))
 
       case ir.ArrayLen(a) =>
         val t = emit(a)
@@ -229,10 +229,11 @@ if (!$m) {
 
         triplet(oldt.setup, oldt.m,
           s"""({
-${ ov.define }
-${ sb.body() }
-${ sb.end() };
-})""")
+             |${ ov.define }
+             |${ sb.body() }
+             |${ sb.end() };
+             |})
+             |""".stripMargin)
 
       case ir.InsertFields(old, fields) =>
         val pStruct = pType.asInstanceOf[PStruct]
@@ -259,10 +260,12 @@ ${ sb.end() };
 
         triplet(oldt.setup, oldt.m,
           s"""({
-${ ov.define }
-${ sb.body() }
-${ sb.end() };
-})""")
+             |${ ov.define }
+             |${ sb.body() }
+             |${ sb.end() };
+             |})
+             |""".stripMargin)
+
 
       case ir.ToArray(a) =>
         emit(a)
@@ -278,50 +281,51 @@ ${ sb.end() };
         val accv = Variable("accv", typeToCXXType(zero.pType))
         val acct = EmitTriplet(zero.pType, "", accm.toString, accv.toString)
 
-        triplet(s"""
-${ ae.setup }
-${ am.define }
-${ accm.define }
-${ accv.define }
-if ($am)
-  $accm = true;
-else {
-  ${ zerot.setup }
-  $accm = ${ zerot.m };
-  if (!$accm)
-    $accv = ${ zerot.v };
-  ${ ae.setupLen }
-  ${
-          ae.emit { case (m, v) =>
-            val vm = Variable("vm", "bool")
-            val vv = Variable("vv", typeToCXXType(containerPType.elementType))
-            val vt = EmitTriplet(containerPType.elementType, "", vm.toString, vv.toString)
+        triplet(
+          s"""
+             |${ ae.setup }
+             |${ am.define }
+             |${ accm.define }
+             |${ accv.define }
+             |if ($am)
+             |  $accm = true;
+             |else {
+             |  ${ zerot.setup }
+             |  $accm = ${ zerot.m };
+             |  if (!$accm)
+             |    $accv = ${ zerot.v };
+             |  ${ ae.setupLen }
+             |  ${
+            ae.emit { case (m, v) =>
+              val vm = Variable("vm", "bool")
+              val vv = Variable("vv", typeToCXXType(containerPType.elementType))
+              val vt = EmitTriplet(containerPType.elementType, "", vm.toString, vv.toString)
 
-            val bodyt = emit(body, env.bind(accumName -> acct, valueName -> vt))
+              val bodyt = emit(body, env.bind(accumName -> acct, valueName -> vt))
 
-            // necessary because bodyt.v could be accm
-            val bodym = Variable("bodym", "bool", bodyt.m)
-            val bodyv = Variable("bodyv", typeToCXXType(body.pType))
+              // necessary because bodyt.v could be accm
+              val bodym = Variable("bodym", "bool", bodyt.m)
+              val bodyv = Variable("bodyv", typeToCXXType(body.pType))
 
-            s"""
-${ vm.define }
-${ vv.define }
-$vm = $m;
-if (!$m)
-  $vv = $v;
-${ bodyt.setup }
-${ bodym.define }
-${ bodyv.define }
-if (!$bodym) {
-  $bodyv = ${ bodyt.v };
-  $accv = $bodyv;
-}
-$accm = $bodym;
-"""
+              s"""
+                 |${ vm.define }
+                 |${ vv.define }
+                 |$vm = $m;
+                 |if (!$m)
+                 |  $vv = $v;
+                 |${ bodyt.setup }
+                 |${ bodym.define }
+                 |${ bodyv.define }
+                 |if (!$bodym) {
+                 |  $bodyv = ${ bodyt.v };
+                 |  $accv = $bodyv;
+                 |}
+                 |$accm = $bodym;
+                 |""".stripMargin
+            }
           }
-        }
-}
-""",
+             |}
+             |""".stripMargin,
           accm.toString, accv.toString)
 
       case _: ir.ArrayFilter | _: ir.ArrayRange | _: ir.ArrayMap =>
@@ -331,59 +335,61 @@ $accm = $bodym;
         ae.length match {
           case Some(length) =>
             val sab = new StagedContainerBuilder(fb, containerPType)
-            triplet(ae.setup, ae.m, s"""
-({
-  ${ ae.setupLen }
-  ${ sab.start(length) }
-  ${
-              ae.emit { case (m, v) =>
-                s"""
-if (${ m })
-  ${ sab.setMissing() }
-else
-  ${ sab.add(v) }
-${ sab.advance() }
-"""
+            triplet(ae.setup, ae.m,
+              s"""
+                 |({
+                 |  ${ ae.setupLen }
+                 |  ${ sab.start(length) }
+                 |  ${
+                ae.emit { case (m, v) =>
+                  s"""
+                     |if (${ m })
+                     |  ${ sab.setMissing() }
+                     |else
+                     |  ${ sab.add(v) }
+                     |${ sab.advance() }
+                     |""".stripMargin
+                }
               }
-            }
-  ${ sab.end() };
-})
-""")
+                 |  ${ sab.end() };
+                 |})
+                 |""".stripMargin)
 
           case None =>
             val xs = genSym("xs")
             val ms = genSym("ms")
             val i = genSym("i")
             val sab = new StagedContainerBuilder(fb, containerPType)
-            triplet(ae.setup, ae.m, s"""
-({
-  ${ ae.setupLen }
-  std::vector<${ typeToCXXType(containerPType.elementType) }> $xs;
-  std::vector<bool> $ms;
-  ${
-              ae.emit { case (m, v) =>
-                s"""
-if (${ m }) {
-  $ms.push_back(true);
-  $xs.push_back(${ typeDefaultValue(containerPType.elementType) });
-} else {
-  $ms.push_back(false);
-  $xs.push_back($v);
-}
-"""
+            triplet(ae.setup, ae.m,
+              s"""
+                 |({
+                 |  ${ ae.setupLen }
+                 |  std::vector<${ typeToCXXType(containerPType.elementType) }> $xs;
+                 |  std::vector<bool> $ms;
+                 |  ${
+                ae.emit { case (m, v) =>
+                  s"""
+                     |if (${ m }) {
+                     |  $ms.push_back(true);
+                     |  $xs.push_back(${ typeDefaultValue(containerPType.elementType) });
+                     |} else {
+                     |  $ms.push_back(false);
+                     |  $xs.push_back($v);
+                     |}
+                     |""".stripMargin
+                }
               }
-            }
-  ${ sab.start(s"$xs.size()") }
-  for (int $i = 0; $i < $xs.size(); ++$i) {
-    if ($ms[$i])
-      ${ sab.setMissing() }
-   else
-      ${ sab.add(s"$xs[$i]") }
-    ${ sab.advance() }
-  }
-  ${ sab.end() };
-})
-""")
+                 |  ${ sab.start(s"$xs.size()") }
+                 |  for (int $i = 0; $i < $xs.size(); ++$i) {
+                 |    if ($ms[$i])
+                 |      ${ sab.setMissing() }
+                 |   else
+                 |      ${ sab.add(s"$xs[$i]") }
+                 |    ${ sab.advance() }
+                 |  }
+                 |  ${ sab.end() };
+                 |})
+                 |""".stripMargin)
         }
 
       case ir.MakeArray(args, _) =>
@@ -393,14 +399,15 @@ if (${ m }) {
         sb += sab.start(s"${ args.length }")
         args.foreach { arg =>
           val argt = emit(arg)
-          sb += s"""
-${ argt.setup }
-if (${ argt.m })
-  ${ sab.setMissing() }
-else
-  ${ sab.add(argt.v) }
-${ sab.advance() }
-"""
+          sb +=
+            s"""
+               |${ argt.setup }
+               |if (${ argt.m })
+               |  ${ sab.setMissing() }
+               |else
+               |  ${ sab.add(argt.v) }
+               |${ sab.advance() }
+               |""".stripMargin
         }
 
         triplet(sb.result().mkString, "false", sab.end())
@@ -439,40 +446,43 @@ ${ sab.advance() }
           s = s.substring(0, 100)
         s = StringEscapeUtils.escapeString(s)
 
-        new ArrayEmitter(s"""
-${ startt.setup }
-${ stopt.setup }
-${ stept.setup }
-""", s"${ startt.m } || ${ stopt.m } || ${ stept.m }", s"""
-${ startv.define }
-${ stopv.define }
-${ stepv.define }
-${ len.define }
-${ llen.define }
-if ($stepv == 0) {
-  NATIVE_ERROR(${ fb.getArg(0) }, 1006, "Array range step size cannot be 0.  IR: %s", "$s");
-  return nullptr;
-} else if ($stepv < 0)
-  $llen = ($startv <= $stopv) ? 0l : ((long)$startv - (long)$stopv - 1l) / (long)(-$stepv) + 1l;
-else
-  $llen = ($startv >= $stopv) ? 0l : ((long)$stopv - (long)$startv - 1l) / (long)$stepv + 1l;
-if ($llen > INT_MAX) {
-  NATIVE_ERROR(${ fb.getArg(0) }, 1007, "Array range cannot have more than INT_MAX elements.  IR: %s", "$s");
-  return nullptr;
-} else
-  $len = ($llen < 0) ? 0 : (int)$llen;
-""", Some(len.toString)) {
+        new ArrayEmitter(
+          s"""
+             |${ startt.setup }
+             |${ stopt.setup }
+             |${ stept.setup }
+             |""".stripMargin,
+          s"${ startt.m } || ${ stopt.m } || ${ stept.m }",
+          s"""
+             |${ startv.define }
+             |${ stopv.define }
+             |${ stepv.define }
+             |${ len.define }
+             |${ llen.define }
+             |if ($stepv == 0) {
+             |  NATIVE_ERROR(${ fb.getArg(0) }, 1006, "Array range step size cannot be 0.  IR: %s", "$s");
+             |  return nullptr;
+             |} else if ($stepv < 0)
+             |  $llen = ($startv <= $stopv) ? 0l : ((long)$startv - (long)$stopv - 1l) / (long)(-$stepv) + 1l;
+             |else
+             |  $llen = ($startv >= $stopv) ? 0l : ((long)$stopv - (long)$startv - 1l) / (long)$stepv + 1l;
+             |if ($llen > INT_MAX) {
+             |  NATIVE_ERROR(${ fb.getArg(0) }, 1007, "Array range cannot have more than INT_MAX elements.  IR: %s", "$s");
+             |  return nullptr;
+             |} else
+             |  $len = ($llen < 0) ? 0 : (int)$llen;
+             |""".stripMargin, Some(len.toString)) {
           val i = Variable("i", "int", "0")
           val v = Variable("v", "int", startv.toString)
 
           def emit(f: (Code, Code) => Code): Code = {
             s"""
-${ v.define }
-for (${ i.define } $i < $len; ++$i) {
-  ${ f("false", v.toString) }
-  $v += $stepv;
-}
-"""
+               |${ v.define }
+               |for (${ i.define } $i < $len; ++$i) {
+               |  ${ f("false", v.toString) }
+               |  $v += $stepv;
+               |}
+               |""".stripMargin
           }
         }
 
@@ -499,17 +509,19 @@ for (${ i.define } $i < $len; ++$i) {
         new ArrayEmitter(ae.setup, ae.m, ae.setupLen, None) {
           def emit(f: (Code, Code) => Code): Code = {
             ae.emit { (m2: Code, v2: Code) =>
-              s"""{
-${ vm.define }
-${ vv.define }
-$vm = $m2;
-if (!$vm)
-  $vv = $v2;
-${ condt.setup }
-if (!${ condt.m } && ${ condt.v }) {
-  ${ f(vm.toString, vv.toString) }
-}
-}"""
+              s"""
+                 |{
+                 |  ${ vm.define }
+                 |  ${ vv.define }
+                 |  $vm = $m2;
+                 |  if (!$vm)
+                 |    $vv = $v2;
+                 |  ${ condt.setup }
+                 |  if (!${ condt.m } && ${ condt.v }) {
+                 |    ${ f(vm.toString, vv.toString) }
+                 |  }
+                 |}
+                 |""".stripMargin
             }
           }
         }
@@ -526,15 +538,17 @@ if (!${ condt.m } && ${ condt.v }) {
         new ArrayEmitter(ae.setup, ae.m, ae.setupLen, ae.length) {
           def emit(f: (Code, Code) => Code): Code = {
             ae.emit { (m2: Code, v2: Code) =>
-              s"""{
-${ vm.define }
-${ vv.define }
-$vm = $m2;
-if (!$vm)
-  $vv = $v2;
-${ bodyt.setup }
-${ f(bodyt.m, bodyt.v) }
-}"""
+              s"""
+                 |{
+                 |  ${ vm.define }
+                 |  ${ vv.define }
+                 |  $vm = $m2;
+                 |  if (!$vm)
+                 |    $vv = $v2;
+                 |  ${ bodyt.setup }
+                 |  ${ f(bodyt.m, bodyt.v) }
+                 |}
+                 |""".stripMargin
             }
           }
         }
@@ -547,20 +561,20 @@ ${ f(bodyt.m, bodyt.v) }
         val len = Variable("len", "int", pArray.cxxLoadLength(a.toString))
         new ArrayEmitter(t.setup, t.m,
           s"""
-${ a.define }
-${ len.define }
-""", Some(len.toString)) {
+             |${ a.define }
+             |${ len.define }
+             |""".stripMargin, Some(len.toString)) {
           val i = Variable("i", "int", "0")
 
           def emit(f: (Code, Code) => Code): Code = {
             s"""
-for (${ i.define } $i < $len; ++$i) {
-  ${
+               |for (${ i.define } $i < $len; ++$i) {
+               |  ${
               f(pArray.cxxIsElementMissing(a.toString, i.toString),
                 loadIRIntermediate(pArray.elementType, pArray.cxxElementOffset(a.toString, i.toString)))
             }
-}
-"""
+               |}
+               |""".stripMargin
           }
         }
     }
