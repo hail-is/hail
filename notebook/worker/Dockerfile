@@ -7,4 +7,10 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 USER jovyan
 
-RUN pip install --no-cache-dir hail==0.2.3
+RUN pip install --no-cache-dir \
+  jupyter-spark \
+  hail==0.2.3 \
+  && \
+  jupyter serverextension enable --user --py jupyter_spark \
+  jupyter nbextension install --user --py jupyter_spark \
+  jupyter nbextension enable --user --py jupyter_spark
