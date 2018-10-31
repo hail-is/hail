@@ -1006,91 +1006,70 @@ object NativeDecoder {
 
   def decodeArray(t: PArray, rt: PArray, input_buf_ptr: cxx.Expression, region: cxx.Expression, off: cxx.Expression): cxx.Code = {
     val len = cxx.Variable("len", "int", s"$input_buf_ptr->read_int()")
-    val i = cxx.Variable("i", "int", "0")
+    val sab = new cxx.StagedContainerBuilder(region, rt)
+    var decodeElt = decode(t.elementType, rt.elementType, input_buf_ptr, region, cxx.Expression(sab.eltOffset))
+    if (rt.elementType.required)
+      decodeElt =
+        s"""if (!${rt.cxxIsElementMissing(sab.end(), sab.idx)}) {
+           |  $decodeElt
+           |}
+         """.stripMargin
 
-    if (t.elementType.required) {
-      val eltOff = s"${UnsafeUtils.roundUpAlignment(4, rt.elementType.alignment)}"
-      val aoff = cxx.Variable("aoff", "char *", s"$region->allocate(${rt.contentsAlignment}, $eltOff + (${rt.elementByteSize} * $len))")
-      s"""${len.define}
-         |${aoff.define}
-         |store_address($off, $aoff);
-         |store_int($aoff, $len);
-         |$aoff += $eltOff;
-         |for (${i.define} $i < $len; $i++) {
-         |  ${decode(t.elementType, rt.elementType, input_buf_ptr, region, aoff.toExpr)}
-         |  $aoff += ${rt.elementByteSize};
-         |}""".stripMargin
-
-    } else {
-      val eltOff = cxx.Variable("eoff", "long", s"round_up_offset(4 + n_missing_bytes($len), ${rt.elementType.alignment})")
-      val aoff = cxx.Variable("aoff", "char *", s"$region->allocate(${rt.contentsAlignment}, $eltOff + (${rt.elementByteSize} * $len))")
-      val missing = cxx.Variable("missing", "char *", s"$aoff + 4")
-      s"""${len.define}
-         |${eltOff.define}
-         |${aoff.define}
-         |${missing.define}
-         |store_address($off, $aoff);
-         |store_int($aoff, $len);
-         |$input_buf_ptr->read_bytes($missing, n_missing_bytes($len));
-         |$aoff += $eltOff;
-         |for (${i.define} $i < $len; $i++) {
-         |  if (!load_bit($missing, $i)) {
-         |    ${decode(t.elementType, rt.elementType, input_buf_ptr, region, aoff.toExpr)}
-         |  }
-         |  $aoff += ${rt.elementByteSize};
-         |}""".stripMargin
-    }
+    s"""${ len.define }
+       |${ sab.start(len) }
+       |store_address($off, ${sab.end()});
+       |${ if (rt.elementType.required) "" else s"$input_buf_ptr->read_bytes(${sab.end()} + 4, ${rt.cxxNMissingBytes(s"$len")});" }
+       |while (${sab.idx} < $len) {
+       |  $decodeElt
+       |  ${ sab.advance() }
+       |}
+     """.stripMargin
   }
 
   def decodeBaseStruct(t: PBaseStruct, rt: PBaseStruct, input_buf_ptr: cxx.Expression, region: cxx.Expression, off: cxx.Expression): cxx.Code = {
+    val ssb = new cxx.StagedBaseStructBuilder(rt, off)
+    def wrapMissing(missingBytes: cxx.Code, tidx: Int)(processField: cxx.Code): cxx.Code = {
+      if (!t.fieldRequired(tidx)) {
+        s"""if (!${t.cxxIsFieldMissing(missingBytes, tidx)}) {
+           |  $processField
+           |}""".stripMargin
+      } else processField
+    }
     if (t.size == rt.size) {
       assert((t.isInstanceOf[PTuple] && rt.isInstanceOf[PTuple]) || (t.asInstanceOf[PStruct].fieldNames sameElements t.asInstanceOf[PStruct].fieldNames))
-      var decodeFields = Array.tabulate[cxx.Code](rt.size) { idx =>
-        var processField = decode(t.types(idx), rt.types(idx), input_buf_ptr, region, cxx.Expression(s"$off + ${rt.byteOffsets(idx)}"))
-        if (!t.fieldRequired(idx)) {
-          processField = s"""if (!load_bit($off, ${t.missingIdx(idx)})) {
-                            |  $processField
-                            |}""".stripMargin
-        }
-        processField
+      val decodeFields = Array.tabulate[cxx.Code](rt.size) { idx =>
+        wrapMissing(s"$off", idx)(ssb.addField(idx, foff => decode(t.types(idx), rt.types(idx), input_buf_ptr, region, cxx.Expression(foff))))
       }.mkString("\n")
       if (t.nMissingBytes > 0) {
-        decodeFields =s"""$input_buf_ptr->read_bytes($off, ${ t.nMissingBytes });
-                          |$decodeFields""".stripMargin
-        }
-      decodeFields
+        s"""$input_buf_ptr->read_bytes($off, ${ t.nMissingBytes });
+           |$decodeFields""".stripMargin
+      } else
+        decodeFields
     } else {
       val names = t.asInstanceOf[PStruct].fieldNames
       val rnames = rt.asInstanceOf[PStruct].fieldNames
       val missing_bytes = cxx.ArrayVariable(s"missing", "char", s"${t.nMissingBytes}")
 
       var rtidx = 0
-      var decodeFields = Array.tabulate[cxx.Code](t.size) { tidx =>
+      val decodeFields = Array.tabulate[cxx.Code](t.size) { tidx =>
         val f = t.types(tidx)
         val skipField = rtidx >= rt.size || names(tidx) != rnames(rtidx)
-        var res = if (skipField)
-            skip(f, input_buf_ptr)
-          else
-            decode(f, rt.types(rtidx), input_buf_ptr, region, cxx.Expression(s"($off + ${ rt.byteOffsets(rtidx) })"))
-        if (!f.required) {
-          val missing = cxx.Variable("missingness", "bool", s"load_bit($missing_bytes, ${t.missingIdx(tidx)})")
-          res = s"""${missing.define}
-                   |if (!$missing) {
-                   |  ${if (!skipField) s"clear_bit($off, ${rt.missingIdx(rtidx)});" else ""}
-                   |  $res
-                   |}""".stripMargin
-        }
+        val processField = if (skipField)
+          skip(f, input_buf_ptr)
+        else
+          s"""${ if (f.required) "" else ssb.clearMissing(rtidx) }
+             |${ ssb.addField(rtidx, foff => decode(f, rt.types(rtidx), input_buf_ptr, region, cxx.Expression(foff))) }"""
         if (!skipField)
           rtidx += 1
-        res
+        wrapMissing(s"$missing_bytes", tidx)(processField)
       }.mkString("\n")
       if (t.nMissingBytes > 0) {
-        decodeFields = s"""${missing_bytes.define}
-                          |memset($off, 0xff, ${rt.nMissingBytes});
-                          |$input_buf_ptr->read_bytes($missing_bytes, ${t.nMissingBytes});
-                          |$decodeFields""".stripMargin
-      }
-      decodeFields
+        s"""${missing_bytes.define}
+           |${ ssb.setAllMissing() };
+           |$input_buf_ptr->read_bytes($missing_bytes, ${t.nMissingBytes});
+           |$decodeFields""".stripMargin
+      } else
+        decodeFields
     }
   }
 

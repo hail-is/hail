@@ -27,6 +27,9 @@ class Variable(prefix: String, val typ: String, init: Expression) extends Defini
       if (init == null)
         s"$typ $name;"
       else s"$typ $name = $init;"
+
+  def defineWith(value: Code): Code =
+    s"$typ $name = $value;"
 }
 
 object ArrayVariable {

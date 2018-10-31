@@ -3,48 +3,53 @@ package is.hail.cxx
 import is.hail.cxx
 import is.hail.expr.types.physical.PContainer
 
-class StagedContainerBuilder(fb: FunctionBuilder, containerPType: PContainer) {
-  val a = cxx.Variable("a", "char *")
-  val b = cxx.Variable("b", "char *")
-  val i = cxx.Variable("i", "int", "0")
+class StagedContainerBuilder(region: Expression, containerPType: PContainer) {
+  private[this] val aoff = cxx.Variable("aoff", "char *")
+  private[this] val eltOff = cxx.Variable("eltOff", "char *")
+  private[this] val i = cxx.Variable("i", "int", "0")
+  private[this] val eltRequired = containerPType.elementType.required
 
-  def start(len: Code): Code = {
+  def start(len: Code, clearMissing: Boolean = true): Code = {
     val __len = cxx.Variable("len", "int", len)
-    val nMissingBytes = cxx.Variable("nMissingBytes", "long", containerPType.cxxNMissingBytes(__len.toString))
-    val elementsOffset = cxx.Variable("elementsOffset", "long",
-      containerPType.cxxElementsOffset(__len.toString))
+    s"""${ __len.define }
+       |${ start(__len, clearMissing) }
+     """.stripMargin
+  }
 
-    s"""
-       |${ __len.define }
-       |${ nMissingBytes.define }
-       |${ elementsOffset.define }
-       |${ a.define }
-       |${ b.define }
+  def start(len: Variable, clearMissing: Boolean = true): Code = {
+    val nMissingBytes = containerPType.cxxNMissingBytes(len.toString)
+    val elementsOffset = containerPType.cxxElementsOffset(len.toString)
+    val allocate = s"${ region }->allocate(${ containerPType.contentsAlignment }, ${ containerPType.cxxContentsByteSize(len.toString) })"
+
+    s"""${ aoff.defineWith(allocate) }
+       |${ eltOff.defineWith(s"$aoff + $elementsOffset") }
        |${ i.define }
-       |$a = ${ fb.getArg(1) }->allocate(${ containerPType.contentsAlignment }, ${ containerPType.cxxContentsByteSize(__len.toString) });
-       |store_int($a, ${ __len });
-       |memset($a + 4, 0, $nMissingBytes);
-       |$b = $a + $elementsOffset;
-       |""".stripMargin
+       |store_int($aoff, ${ len });
+       |${ if (!eltRequired && clearMissing) s"memset($aoff + 4, 0, $nMissingBytes);" else "" }
+     """.stripMargin
+
   }
 
   def add(x: Code): Code = {
     s"${
       storeIRIntermediate(containerPType.elementType,
-        s"$b + $i * ${ containerPType.elementType.byteSize }",
+        eltOffset,
         x)
     };"
   }
 
   def setMissing(): Code = {
-    s"store_bit($a + 4, $i, 1);"
+    if (eltRequired)
+      "abort();"
+    else
+      s"set_bit($aoff + 4, $i);"
   }
 
-  def advance(): Code = {
-    s"++$i;"
-  }
+  def advance(): Code = s"++$i;"
 
-  def end(): Code = {
-    a.toString
-  }
+  def idx: Code = i.toString
+
+  def eltOffset: Code = s"$eltOff + $i * ${ containerPType.elementType.byteSize }"
+
+  def end(): Code = aoff.toString
 }
