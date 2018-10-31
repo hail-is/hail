@@ -1,9 +1,11 @@
 """
 A Jupyter notebook service with local-mode Hail pre-installed
 """
+import gevent
+# must happen before anytyhing else
+from gevent import monkey; monkey.patch_all()
 from flask import Flask, session, redirect, render_template, request
 from flask_sockets import Sockets
-import gevent
 import flask
 import kubernetes as kube
 import logging
