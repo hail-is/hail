@@ -21,7 +21,7 @@ ${ elementsOffset.define }
 ${ a.define }
 ${ b.define }
 ${ i.define }
-$a = ${ fb.getArg(0) }->allocate(${ containerPType.contentsAlignment }, ${ containerPType.cxxContentsByteSize(__len.toString) });
+$a = ${ fb.getArg(1) }->allocate(${ containerPType.contentsAlignment }, ${ containerPType.cxxContentsByteSize(__len.toString) });
 store_int($a, ${ __len });
 memset($a + 4, 0, $nMissingBytes);
 $b = $a + $elementsOffset;

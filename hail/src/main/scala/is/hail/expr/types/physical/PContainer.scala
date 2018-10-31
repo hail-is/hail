@@ -248,7 +248,7 @@ abstract class PContainer extends PType {
 
   def cxxElementsOffset(len: cxx.Code): cxx.Code = {
     if (elementType.required)
-      s"round_up_alignment(4, ${ elementType.alignment })"
+      s"${ UnsafeUtils.roundUpAlignment(4, elementType.alignment) }"
     else
       s"round_up_alignment(4 + ${ cxxNMissingBytes(len) }, ${ elementType.alignment })"
   }
@@ -257,24 +257,7 @@ abstract class PContainer extends PType {
     s"$a + ${ cxxElementsOffset(cxxLoadLength(a)) } + $i * ${ elementByteSize }"
   }
 
-  def cxxLoadElement(a: cxx.EmitTriplet, i: cxx.EmitTriplet): cxx.EmitTriplet = {
-    val __a = cxx.Variable("a", "char *")
-    val __i = cxx.Variable("i", "int")
-    val m = cxx.Variable("m", "bool")
-    cxx.EmitTriplet(elementType, s"""
-${ a.setup }
-${ i.setup }
-${ m.define }
-${ __a.define }
-${ __i.define }
-if (${ a.m } || ${ i.m })
-  $m = true;
-else {
-  ${ __a } = ${ a.v };
-  ${ __i } = ${ i.v };
-  $m = ${ cxxIsElementMissing(__a.toString, __i.toString) };
-}
-""", m.toString,
-      cxx.loadIRIntermediate(elementType, cxxElementOffset(__a.toString, __i.toString)))
+  def cxxLoadElement(a: cxx.Code, i: cxx.Code): cxx.Code = {
+    cxx.loadIRIntermediate(elementType, cxxElementOffset(a, i))
   }
 }

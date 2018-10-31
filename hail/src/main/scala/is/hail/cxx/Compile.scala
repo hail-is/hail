@@ -18,7 +18,7 @@ object Compile {
     assert(returnType.isInstanceOf[PBaseStruct])
 
     val fb = FunctionBuilder("f",
-      Array("Region *" -> "region", "char *" -> "v"),
+      Array("NativeStatus *" -> "st", "Region *" -> "region", "char *" -> "v"),
       "char *")
 
     val v = Emit(fb, 1, body)
@@ -45,7 +45,7 @@ NAMESPACE_HAIL_MODULE_BEGIN
 ${ f.define }
 
 long entrypoint(NativeStatus *st, long region, long v) {
-  return (long)${ f.name }((Region *)region, (char *)v);
+  return (long)${ f.name }(st, (Region *)region, (char *)v);
 }
 
 NAMESPACE_HAIL_MODULE_END

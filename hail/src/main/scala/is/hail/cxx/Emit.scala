@@ -3,7 +3,7 @@ package is.hail.cxx
 import is.hail.expr.ir
 import is.hail.expr.types._
 import is.hail.expr.types.physical._
-import is.hail.utils.ArrayBuilder
+import is.hail.utils.{ArrayBuilder, StringEscapeUtils}
 
 object Emit {
   def apply(fb: FunctionBuilder, nSpecialArgs: Int, x: ir.IR): EmitTriplet = {
@@ -61,7 +61,6 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
         triplet(t.setup, "false", t.m)
 
       case ir.If(cond, cnsq, altr) =>
-        // FIXME
         assert(pType == cnsq.pType)
         assert(pType == altr.pType)
 
@@ -146,9 +145,31 @@ else {
         triplet(t.setup, t.m, v)
 
       case ir.ArrayRef(a, i) =>
+        val pContainer = a.pType.asInstanceOf[PContainer]
         val at = emit(a)
         val it = emit(i)
-        a.pType.asInstanceOf[PContainer].cxxLoadElement(at, it)
+
+        val av = Variable("i", "int", at.v)
+        val iv = Variable("v", "int", it.v)
+        val len = Variable("len", "int", av.toString)
+
+        var s = ir.Pretty(x)
+        if (s.length > 100)
+          s = s.substring(0, 100)
+        s = StringEscapeUtils.escapeString(s)
+
+        triplet(Code(at.setup, it.setup),
+          s"${ at.m } || ${ it.m }",
+          s"""({
+  ${ av.define }
+  ${ iv.define }
+  ${ len.define }
+  if ($iv < 0 || $iv >= $len) {
+    NATIVE_ERROR(${ fb.getArg(0) }, "array index out of bounds: %d / %d.  IR: %s", $iv, $len, "$s");
+    return;
+  }
+  ${ pContainer.cxxLoadElement(av.toString, iv.toString) }
+})""")
 
       case ir.ArrayLen(a) =>
         val t = emit(a)
@@ -157,14 +178,14 @@ else {
       case ir.GetField(o, name) =>
         val fieldIdx = o.typ.asInstanceOf[TStruct].fieldIdx(name)
         val pStruct = o.pType.asInstanceOf[PStruct]
-        val ot = emit(o).memoize(fb)
+        val ot = emit(o).memoize()
         triplet(Code(ot.setup),
           s"${ ot.m } || (${ pStruct.cxxIsFieldMissing(ot.v, fieldIdx) })",
           pStruct.cxxLoadField(ot.v, fieldIdx))
 
       case ir.GetTupleElement(o, idx) =>
         val pStruct = o.pType.asInstanceOf[PTuple]
-        val ot = emit(o).memoize(fb)
+        val ot = emit(o).memoize()
         triplet(Code(ot.setup),
           s"${ ot.m } || (${ pStruct.cxxIsFieldMissing(ot.v, idx) })",
           pStruct.cxxLoadField(ot.v, idx))
@@ -223,8 +244,8 @@ ${ sb.end() };
               val fieldIdx = oldPStruct.fieldIdx(f.name)
               sb.add(
                 EmitTriplet(f.typ, "",
-                  oldPStruct.cxxIsFieldMissing(ov.toString, f.index),
-                  oldPStruct.cxxLoadField(ov.toString, f.index)))
+                  oldPStruct.cxxIsFieldMissing(ov.toString, fieldIdx),
+                  oldPStruct.cxxLoadField(ov.toString, fieldIdx)))
           }
         }
 
@@ -405,6 +426,11 @@ ${ sab.advance() }
         val len = Variable("len", "int")
         val llen = Variable("llen", "long")
 
+        var s = ir.Pretty(x)
+        if (s.length > 100)
+          s = s.substring(0, 100)
+        s = StringEscapeUtils.escapeString(s)
+
         new ArrayEmitter(s"""
 ${ startt.setup }
 ${ stopt.setup }
@@ -415,15 +441,17 @@ ${ stopv.define }
 ${ stepv.define }
 ${ len.define }
 ${ llen.define }
-if ($stepv == 0)
-  abort();
-else if ($stepv < 0)
+if ($stepv == 0) {
+  NATIVE_ERROR(${ fb.getArg(0) }, "Array range step size cannot be 0.  IR: %s", "$s");
+  return;
+} else if ($stepv < 0)
   $llen = ($startv <= $stopv) ? 0l : ((long)$startv - (long)$stopv - 1l) / (long)(-$stepv) + 1l;
 else
   $llen = ($startv >= $stopv) ? 0l : ((long)$stopv - (long)$startv - 1l) / (long)$stepv + 1l;
-if ($llen > INT_MAX)
-  abort();
-else
+if ($llen > INT_MAX) {
+  NATIVE_ERROR(${ fb.getArg(0) }, "Array range cannot have more than INT_MAX elements.  IR: %s", "$s");
+  return;
+} else
   $len = ($llen < 0) ? 0 : (int)$llen;
 """, Some(len.toString)) {
           val i = Variable("i", "int", "0")

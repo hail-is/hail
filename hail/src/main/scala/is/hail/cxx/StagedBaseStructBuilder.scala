@@ -5,7 +5,7 @@ import is.hail.utils.ArrayBuilder
 
 class StagedBaseStructBuilder(fb: FunctionBuilder, pStruct: PBaseStruct) {
   val ab = new ArrayBuilder[Code]
-  val s = Variable("s", "char *", s"${ fb.getArg(0) }->allocate(${ pStruct.alignment }, ${ pStruct.byteSize })")
+  val s = Variable("s", "char *", s"${ fb.getArg(1) }->allocate(${ pStruct.alignment }, ${ pStruct.byteSize })")
   ab += s.define
   ab += s"memset($s, 0, ${ pStruct.nMissingBytes });"
 
