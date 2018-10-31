@@ -76,7 +76,7 @@ test-locally: restart-all-proxies
 run-service:
 	kubectl apply -f service.yaml
 
-deploy:
+deploy: push-hail-ci
 	sed -e "s,@sha@,$(shell git rev-parse --short=12 HEAD)," \
 	  -e "s,@image@,$(shell cat hail-ci-image)," \
 	  < deployment.yaml.in > k8s/deployment.yaml
