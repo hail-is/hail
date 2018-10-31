@@ -1,6 +1,9 @@
 #ifndef HAIL_UTILS_H
 #define HAIL_UTILS_H 1
 
+#define LIKELY(condition)   __builtin_expect(static_cast<bool>(condition), 1)
+#define UNLIKELY(condition) __builtin_expect(static_cast<bool>(condition), 0)
+
 inline char load_byte(char * off) { return *off; }
 inline bool load_bool(char * off) { return *off; }
 inline int load_int(char * off) { return *reinterpret_cast<int *>(off); }

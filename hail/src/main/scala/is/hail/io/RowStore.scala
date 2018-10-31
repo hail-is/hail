@@ -951,7 +951,7 @@ object NativeDecoder {
          |  ${skip(t.elementType, input_buf_ptr)}
          |}""".stripMargin
     } else {
-      val missingBytes = new cxx.ArrayVariable(s"missing", "char", cxx.Expression(s"n_missing_bytes($len)"))
+      val missingBytes = cxx.ArrayVariable(s"missing", "char", s"n_missing_bytes($len)")
       s"""${len.define}
          |${missingBytes.define}
          |$input_buf_ptr->read_bytes($missingBytes, n_missing_bytes($len));
@@ -964,7 +964,7 @@ object NativeDecoder {
   }
 
   def skipBaseStruct(t: PBaseStruct, input_buf_ptr: cxx.Expression): cxx.Code = {
-    val missingBytes = new cxx.ArrayVariable("missing", "char", cxx.Expression(s"${t.nMissingBytes}"))
+    val missingBytes = cxx.ArrayVariable("missing", "char", s"${t.nMissingBytes}")
     val skipFields = Array.tabulate[cxx.Code](t.size) { idx =>
       val fieldType = t.types(idx)
       if (fieldType.required)
@@ -1062,7 +1062,7 @@ object NativeDecoder {
     } else {
       val names = t.asInstanceOf[PStruct].fieldNames
       val rnames = rt.asInstanceOf[PStruct].fieldNames
-      val missing_bytes = new cxx.ArrayVariable(s"missing", "char", cxx.Expression(s"${t.nMissingBytes}"))
+      val missing_bytes = cxx.ArrayVariable(s"missing", "char", s"${t.nMissingBytes}")
 
       var rtidx = 0
       var decodeFields = Array.tabulate[cxx.Code](t.size) { tidx =>
