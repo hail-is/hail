@@ -1,13 +1,16 @@
 """
 A Jupyter notebook service with local-mode Hail pre-installed
 """
+import gevent
+# must happen before anytyhing else
+from gevent import monkey; monkey.patch_all()
 from flask import Flask, session, redirect, render_template, request
 from flask_sockets import Sockets
-import gevent
 import flask
 import kubernetes as kube
 import logging
 import os
+import requests
 import time
 import uuid
 
@@ -231,6 +234,7 @@ def wait_websocket(ws):
     svc_name = session['svc_name']
     jupyter_token = session['jupyter_token']
     log.info(f'received wait websocket for {svc_name} {pod_name}')
+    # wait for endpoints to exist
     while True:
         endpoints = k8s.read_namespaced_endpoints(name=svc_name, namespace='default')
         if endpoints.subsets and all(subset.addresses for subset in endpoints.subsets):
@@ -239,8 +243,16 @@ def wait_websocket(ws):
         log.info(f'{svc_name} {pod_name} not ready! {endpoints.subsets}')
         # FIXME, ERRORS?
         gevent.sleep(1)
-    log.info(f'wait finished for {svc_name} {pod_name}')
-    gevent.sleep(5) # wait a bit for the service to get ready
+    log.info(f'endpoints ready for {svc_name} {pod_name}')
+    while True:
+        try:
+            requests.get(f'http://{svc_name}/instance/{svc_name}/?token={jupyter_token}',
+                         timeout=1)
+            break
+        except requests.exceptions.Timeout as e:
+            log.info(f'GET on jupyter failed for {svc_name} {pod_name}')
+            gevent.sleep(1)
+    log.info(f'GET on jupyter succeeded for {svc_name} {pod_name}')
     ws.send(external_url_for(f'instance/{svc_name}/?token={jupyter_token}'))
     log.info(f'notification sent to user for {svc_name} {pod_name}')
 
