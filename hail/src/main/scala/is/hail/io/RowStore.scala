@@ -1016,7 +1016,7 @@ object NativeDecoder {
          """.stripMargin
 
     s"""${ len.define }
-       |${ sab.start(len) }
+       |${ sab.start(len, clearMissing = false) }
        |store_address($off, ${sab.end()});
        |${ if (rt.elementType.required) "" else s"$input_buf_ptr->read_bytes(${sab.end()} + 4, ${rt.cxxNMissingBytes(s"$len")});" }
        |while (${sab.idx} < $len) {
