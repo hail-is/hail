@@ -331,7 +331,7 @@ class PRS(object):
             self.latest_deployed[target.ref] = target.sha
         job.delete()
 
-    def refresh_from_deploy_jobs(jobs):
+    def refresh_from_deploy_jobs(self, jobs):
         lost_jobs = {target_ref for target_ref in self.deploy_jobs.keys()}
         for (target, job) in jobs.items():
             lost_jobs.discard(target.ref)
