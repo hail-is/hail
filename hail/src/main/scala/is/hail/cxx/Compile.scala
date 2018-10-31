@@ -21,7 +21,7 @@ object Compile {
       Array("NativeStatus *" -> "st", "Region *" -> "region", "char *" -> "v"),
       "char *")
 
-    val v = Emit(fb, 1, body)
+    val v = Emit(fb, 2, body)
 
     fb += s"""
 ${v.setup}

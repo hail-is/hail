@@ -165,8 +165,8 @@ else {
   ${ iv.define }
   ${ len.define }
   if ($iv < 0 || $iv >= $len) {
-    NATIVE_ERROR(${ fb.getArg(0) }, "array index out of bounds: %d / %d.  IR: %s", $iv, $len, "$s");
-    return;
+    NATIVE_ERROR(${ fb.getArg(0) }, 1005, "array index out of bounds: %d / %d.  IR: %s", $iv, $len, "$s");
+    return nullptr;
   }
   ${ pContainer.cxxLoadElement(av.toString, iv.toString) }
 })""")
@@ -442,15 +442,15 @@ ${ stepv.define }
 ${ len.define }
 ${ llen.define }
 if ($stepv == 0) {
-  NATIVE_ERROR(${ fb.getArg(0) }, "Array range step size cannot be 0.  IR: %s", "$s");
-  return;
+  NATIVE_ERROR(${ fb.getArg(0) }, 1006, "Array range step size cannot be 0.  IR: %s", "$s");
+  return nullptr;
 } else if ($stepv < 0)
   $llen = ($startv <= $stopv) ? 0l : ((long)$startv - (long)$stopv - 1l) / (long)(-$stepv) + 1l;
 else
   $llen = ($startv >= $stopv) ? 0l : ((long)$stopv - (long)$startv - 1l) / (long)$stepv + 1l;
 if ($llen > INT_MAX) {
-  NATIVE_ERROR(${ fb.getArg(0) }, "Array range cannot have more than INT_MAX elements.  IR: %s", "$s");
-  return;
+  NATIVE_ERROR(${ fb.getArg(0) }, 1007, "Array range cannot have more than INT_MAX elements.  IR: %s", "$s");
+  return nullptr;
 } else
   $len = ($llen < 0) ? 0 : (int)$llen;
 """, Some(len.toString)) {
