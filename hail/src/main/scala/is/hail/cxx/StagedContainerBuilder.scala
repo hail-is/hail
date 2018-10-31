@@ -16,7 +16,7 @@ class StagedContainerBuilder(region: Expression, containerPType: PContainer) {
      """.stripMargin
   }
 
-  def start(len: Variable, clearMissing: Boolean = true): Code = {
+  def start(len: Variable, clearMissing: Boolean): Code = {
     val nMissingBytes = containerPType.cxxNMissingBytes(len.toString)
     val elementsOffset = containerPType.cxxElementsOffset(len.toString)
     val allocate = s"${ region }->allocate(${ containerPType.contentsAlignment }, ${ containerPType.cxxContentsByteSize(len.toString) })"
