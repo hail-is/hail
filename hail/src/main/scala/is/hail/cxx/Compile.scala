@@ -53,6 +53,8 @@ NAMESPACE_HAIL_MODULE_END
 
     val modCode = sb.toString()
 
+    println(modCode)
+
     val options = "-ggdb -O1"
     val st = new NativeStatus()
     val mod = new NativeModule(options, modCode)

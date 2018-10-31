@@ -149,27 +149,35 @@ else {
         val at = emit(a)
         val it = emit(i)
 
-        val av = Variable("i", "int", at.v)
-        val iv = Variable("v", "int", it.v)
-        val len = Variable("len", "int", av.toString)
+        val av = Variable("a", "char *", at.v)
+        val iv = Variable("i", "int", it.v)
+        val len = Variable("len", "int", pContainer.cxxLoadLength(av.toString))
+
+        val m = Variable("m", "bool")
 
         var s = ir.Pretty(x)
         if (s.length > 100)
           s = s.substring(0, 100)
         s = StringEscapeUtils.escapeString(s)
 
-        triplet(Code(at.setup, it.setup),
-          s"${ at.m } || ${ it.m }",
-          s"""({
-  ${ av.define }
-  ${ iv.define }
-  ${ len.define }
+        triplet(Code(at.setup, it.setup,
+          s"""
+${ m.define }
+${ av.define }
+${ iv.define }
+${ len.define }
+$m = ${ at.m } || ${ it.m };
+if (!$m) {
+  $iv = ${ it.v };
+  $av = ${ at.v };
+  $len = ${ pContainer.cxxLoadLength(av.toString) };
   if ($iv < 0 || $iv >= $len) {
     NATIVE_ERROR(${ fb.getArg(0) }, 1005, "array index out of bounds: %d / %d.  IR: %s", $iv, $len, "$s");
     return nullptr;
   }
-  ${ pContainer.cxxLoadElement(av.toString, iv.toString) }
-})""")
+  $m = ${ pContainer.cxxIsElementMissing(av.toString, iv.toString) };
+}
+"""), m.toString, pContainer.cxxLoadElement(av.toString, iv.toString))
 
       case ir.ArrayLen(a) =>
         val t = emit(a)
