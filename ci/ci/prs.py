@@ -339,7 +339,7 @@ class PRS(object):
         for target_ref in lost_jobs:
             log.info(f'{target_ref.short_str()} was not found in batch refresh '
                      f'and will be treated like a cancelled job')
-            del self.deploy_jobs[target.ref]
+            del self.deploy_jobs[target_ref]
 
     def refresh_from_deploy_job(self, target, job):
         assert isinstance(job, Job), job
