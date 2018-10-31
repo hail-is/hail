@@ -192,7 +192,7 @@ def refresh_deploy_jobs(jobs):
     jobs = [
         (target, job)
         for (target, job) in jobs
-        if target in prs.deploy_jobs
+        if target.ref in prs.deploy_jobs
     ]
     latest_jobs = {}
     for (target, job) in jobs:
