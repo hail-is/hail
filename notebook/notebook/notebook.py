@@ -134,6 +134,9 @@ def root():
 
 @app.route('/new', methods=['GET'])
 def new_get():
+    pod_name = session.get('pod_name')
+    if pod_name:
+        delete_worker_pod(pod_name)
     session.clear()
     return redirect(external_url_for('/'))
 
@@ -148,8 +151,11 @@ def new_post():
     session['svc_name'] = svc.metadata.name
     session['pod_name'] = pod.metadata.name
     session['jupyter_token'] = jupyter_token
-    return render_template('wait.html')
+    return redirect(external_url_for(f'wait'))
 
+@app.route('/wait', methods=['GET'])
+def wait_webpage():
+    return render_template('wait.html')
 
 @app.route('/auth/<requested_svc_name>')
 def auth(requested_svc_name):
@@ -184,6 +190,11 @@ def workers():
 
 @app.route('/workers/<pod_name>/delete')
 def workers_delete(pod_name):
+    delete_worker_pod(pod_name)
+    return redirect(external_url_for('workers'))
+
+
+def delete_worker_pod(pod_name):
     if not session.get('admin'):
         return redirect(external_url_for('admin-login'))
     pod = k8s.read_namespaced_pod(pod_name, 'default')
@@ -193,7 +204,6 @@ def workers_delete(pod_name):
                                                label_selector='uuid='+uuid).items
     assert(len(svcs) == 1)
     k8s.delete_namespaced_service(svcs[0].metadata.name, 'default', kube.client.V1DeleteOptions())
-    return redirect(external_url_for('workers'))
 
 
 @app.route('/admin-login', methods=['GET'])
@@ -216,7 +226,7 @@ def worker_image():
 
 
 @sockets.route('/wait')
-def wait(ws):
+def wait_websocket(ws):
     pod_name = session['pod_name']
     svc_name = session['svc_name']
     jupyter_token = session['jupyter_token']
