@@ -11,7 +11,7 @@ RUN pip install --no-cache-dir \
   'jupyter-spark<0.5' \
   hail==0.2.3 \
   && \
-  jupyter serverextension enable --py jupyter_spark && \
-  jupyter nbextension install --py jupyter_spark && \
-  jupyter nbextension enable --py jupyter_spark && \
-  jupyter nbextension enable --py widgetsnbextension
+  jupyter serverextension enable --user --py jupyter_spark && \
+  jupyter nbextension install --user --py jupyter_spark && \
+  jupyter nbextension enable --user --py jupyter_spark && \
+  jupyter nbextension enable --user --py widgetsnbextension
