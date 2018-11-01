@@ -1,4 +1,4 @@
-from constants import GITHUB_CLONE_URL, SHA_LENGTH
+from .constants import GITHUB_CLONE_URL, SHA_LENGTH
 import json
 
 

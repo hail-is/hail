@@ -1,9 +1,11 @@
-from batch.client import Job
-from batch_helper import try_to_cancel_job
-from ci_logging import log
-from environment import batch_client, CONTEXT
 import json
+
 import re
+from batch.client import Job
+
+from .batch_helper import try_to_cancel_job
+from .ci_logging import log
+from .environment import batch_client, CONTEXT
 
 
 def build_state_from_gh_json(d):

@@ -1,10 +1,12 @@
-from git_state import FQRef
-from ci_logging import log
-from batch.client import BatchClient
-from batch.api import API
 import json
 import os
+
 import uuid
+from batch.api import API
+from batch.client import BatchClient
+
+from .ci_logging import log
+from .git_state import FQRef
 
 INSTANCE_ID = uuid.uuid4().hex
 

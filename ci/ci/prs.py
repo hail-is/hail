@@ -1,16 +1,18 @@
+import json
+
 from batch.client import Job
-from batch_helper import short_str_build_job
-from ci_logging import log
-from constants import VERSION, DEPLOY_JOB_TYPE
-from environment import \
+from github import latest_sha_for_ref
+
+from .batch_helper import short_str_build_job
+from .ci_logging import log
+from .constants import VERSION, DEPLOY_JOB_TYPE
+from .environment import \
     PR_DEPLOY_SCRIPT, \
     batch_client, \
     SELF_HOSTNAME
-from git_state import FQRef, FQSHA, Repo
-from github import latest_sha_for_ref
-from http_helper import put_repo
-from pr import PR, GitHubPR, get_image_for_target
-import json
+from .git_state import FQRef, FQSHA, Repo
+from .http_helper import put_repo
+from .pr import PR, GitHubPR, get_image_for_target
 
 
 class PRS(object):

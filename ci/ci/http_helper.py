@@ -1,5 +1,5 @@
-from constants import GITHUB_API_URL
-from environment import oauth_token
+from .constants import GITHUB_API_URL
+from .environment import oauth_token
 import re
 import requests
 
