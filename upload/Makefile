@@ -11,7 +11,7 @@ push: build
 	docker push $(IMAGE)
 	echo $(IMAGE) > upload-image
 
-deploy:
+deploy: push
 	sed -e "s,@sha@,$$(git rev-parse --short=12 HEAD)," \
 	  -e "s,@image@,$$(cat upload-image)," \
 	  < deployment.yaml.in > deployment.yaml
