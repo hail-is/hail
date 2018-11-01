@@ -34,7 +34,8 @@ abstract sealed class TableIR extends BaseIR {
 
   def partitionCounts: Option[IndexedSeq[Long]] = None
 
-  protected[ir] def execute(hc: HailContext): TableValue
+  protected[ir] def execute(hc: HailContext): TableValue =
+    fatal("tried to execute unexecutable IR:\n" + Pretty(this))
 
   override def copy(newChildren: IndexedSeq[BaseIR]): TableIR
 }
@@ -49,7 +50,7 @@ case class TableLiteral(value: TableValue) extends TableIR {
     TableLiteral(value)
   }
 
-  def execute(hc: HailContext): TableValue = value
+  protected[ir] override def execute(hc: HailContext): TableValue = value
 }
 
 case class TableRead(path: String, spec: TableSpec, typ: TableType, dropRows: Boolean) extends TableIR {
@@ -65,7 +66,7 @@ case class TableRead(path: String, spec: TableSpec, typ: TableType, dropRows: Bo
     TableRead(path, spec, typ, dropRows)
   }
 
-  def execute(hc: HailContext): TableValue = {
+  protected[ir] override def execute(hc: HailContext): TableValue = {
     val globals = spec.globalsComponent.readLocal(hc, path, typ.globalType)(0)
     val rvd = if (dropRows)
       RVD.empty(hc.sc, typ.rvdType)
@@ -97,7 +98,7 @@ case class TableParallelize(rows: IR, nPartitions: Option[Int] = None) extends T
     FastIndexedSeq(),
     TStruct())
 
-  def execute(hc: HailContext): TableValue = {
+  protected[ir] override def execute(hc: HailContext): TableValue = {
     val rowsValue = Interpret[IndexedSeq[Row]](rows, optimize = false)
     rowsValue.zipWithIndex.foreach { case (r, idx) =>
       if (r == null)
@@ -125,7 +126,7 @@ case class TableImport(paths: Array[String], typ: TableType, readerOpts: TableRe
     TableImport(paths, typ, readerOpts)
   }
 
-  def execute(hc: HailContext): TableValue = {
+  protected[ir] override def execute(hc: HailContext): TableValue = {
     val rowTyp = typ.rowType
     val nFieldOrig = readerOpts.originalType.size
     val rowFields = rowTyp.fields
@@ -210,7 +211,7 @@ case class TableKeyBy(child: TableIR, keys: IndexedSeq[String], isSorted: Boolea
     TableKeyBy(newChildren(0).asInstanceOf[TableIR], keys, isSorted)
   }
 
-  def execute(hc: HailContext): TableValue = {
+  protected[ir] override def execute(hc: HailContext): TableValue = {
     val tv = child.execute(hc)
     val nPreservedFields = keys.zip(tv.rvd.typ.key).takeWhile { case (l, r) => l == r }.length
     assert(!isSorted || nPreservedFields > 0 || keys.isEmpty)
@@ -239,7 +240,7 @@ case class TableRange(n: Int, nPartitions: Int) extends TableIR {
     Array("idx"),
     TStruct.empty())
 
-  def execute(hc: HailContext): TableValue = {
+  protected[ir] override def execute(hc: HailContext): TableValue = {
     val localRowType = typ.rowType
     val localPartCounts = partCounts
     val partStarts = partCounts.scanLeft(0)(_ + _)
@@ -284,7 +285,7 @@ case class TableFilter(child: TableIR, pred: IR) extends TableIR {
     TableFilter(newChildren(0).asInstanceOf[TableIR], newChildren(1).asInstanceOf[IR])
   }
 
-  def execute(hc: HailContext): TableValue = {
+  protected[ir] override def execute(hc: HailContext): TableValue = {
     val tv = child.execute(hc)
 
     if (pred == True())
@@ -316,7 +317,7 @@ case class TableHead(child: TableIR, n: Long) extends TableIR {
   override def partitionCounts: Option[IndexedSeq[Long]] =
     child.partitionCounts.map(getHeadPartitionCounts(_, n))
 
-  def execute(hc: HailContext): TableValue = {
+  protected[ir] override def execute(hc: HailContext): TableValue = {
     val prev = child.execute(hc)
     prev.copy(rvd = prev.rvd.head(n, child.partitionCounts))
   }
@@ -332,7 +333,7 @@ case class TableRepartition(child: TableIR, n: Int, shuffle: Boolean) extends Ta
     TableRepartition(newChild, n, shuffle)
   }
 
-  override def execute(hc: HailContext): TableValue = {
+  protected[ir] override def execute(hc: HailContext): TableValue = {
     val prev = child.execute(hc)
     prev.copy(rvd = prev.rvd.coalesce(n, shuffle))
   }
@@ -447,7 +448,7 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
     }
   }
 
-  def execute(hc: HailContext): TableValue = {
+  protected[ir] override def execute(hc: HailContext): TableValue = {
     val leftTV = left.execute(hc)
     val rightTV = right.execute(hc)
 
@@ -485,7 +486,7 @@ case class TableLeftJoinRightDistinct(left: TableIR, right: TableIR, root: Strin
     TableLeftJoinRightDistinct(newLeft, newRight, root)
   }
 
-  override def execute(hc: HailContext): TableValue = {
+  protected[ir] override def execute(hc: HailContext): TableValue = {
     val leftValue = left.execute(hc)
     val rightValue = right.execute(hc)
 
@@ -509,7 +510,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
-  def execute(hc: HailContext): TableValue = {
+  protected[ir] override def execute(hc: HailContext): TableValue = {
     val tv = child.execute(hc)
     val globalsBc = tv.globals.broadcast
     val gType = typ.globalType
@@ -651,7 +652,7 @@ case class TableMapGlobals(child: TableIR, newGlobals: IR) extends TableIR {
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
-  def execute(hc: HailContext): TableValue = {
+  protected[ir] override def execute(hc: HailContext): TableValue = {
     val tv = child.execute(hc)
 
     val newGlobalVals = Interpret[Row](
@@ -680,7 +681,7 @@ case class TableExplode(child: TableIR, fieldName: String) extends TableIR {
     TableExplode(newChildren(0).asInstanceOf[TableIR], fieldName)
   }
 
-  def execute(hc: HailContext): TableValue = {
+  protected[ir] override def execute(hc: HailContext): TableValue = {
     val prev = child.execute(hc)
 
     val childRowType = child.typ.rowType
@@ -740,7 +741,7 @@ case class TableUnion(children: IndexedSeq[TableIR]) extends TableIR {
 
   val typ: TableType = children(0).typ
 
-  def execute(hc: HailContext): TableValue = {
+  protected[ir] override def execute(hc: HailContext): TableValue = {
     val tvs = children.map(_.execute(hc))
     tvs(0).copy(
       rvd = RVD.union(tvs.map(_.rvd), tvs(0).typ.key.length))
@@ -759,7 +760,7 @@ case class MatrixRowsTable(child: MatrixIR) extends TableIR {
 
   val typ: TableType = child.typ.rowsTableType
 
-  def execute(hc: HailContext): TableValue = {
+  protected[ir] override def execute(hc: HailContext): TableValue = {
     val mv = child.execute(hc)
     val rtv = mv.rowsTableValue
     assert(rtv.typ == typ)
@@ -777,7 +778,7 @@ case class MatrixColsTable(child: MatrixIR) extends TableIR {
 
   val typ: TableType = child.typ.colsTableType
 
-  def execute(hc: HailContext): TableValue = {
+  protected[ir] override def execute(hc: HailContext): TableValue = {
     val mv = child.execute(hc)
     val ctv = mv.colsTableValue
     assert(ctv.typ == typ)
@@ -795,7 +796,7 @@ case class MatrixEntriesTable(child: MatrixIR) extends TableIR {
 
   val typ: TableType = child.typ.entriesTableType
 
-  def execute(hc: HailContext): TableValue = {
+  protected[ir] override def execute(hc: HailContext): TableValue = {
     val mv = child.execute(hc)
     val etv = mv.entriesTableValue
     assert(etv.typ == typ)
@@ -813,7 +814,7 @@ case class TableDistinct(child: TableIR) extends TableIR {
 
   val typ: TableType = child.typ
 
-  def execute(hc: HailContext): TableValue = {
+  protected[ir] override def execute(hc: HailContext): TableValue = {
     val prev = child.execute(hc)
     prev.copy(rvd = prev.rvd.distinctByKey())
   }
@@ -842,7 +843,7 @@ case class TableKeyByAndAggregate(
     key = keyType.fieldNames
   )
 
-  def execute(hc: HailContext): TableValue = {
+  protected[ir] override def execute(hc: HailContext): TableValue = {
     val prev = child.execute(hc)
 
     val (rvAggs, makeInit, makeSeq, aggResultType, postAggIR) = ir.CompileWithAggregators[Long, Long, Long](
@@ -989,7 +990,7 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
 
   val typ: TableType = child.typ.copy(rowType = child.typ.keyType ++ coerce[TStruct](expr.typ))
 
-  def execute(hc: HailContext): TableValue = {
+  protected[ir] override def execute(hc: HailContext): TableValue = {
     val prev = child.execute(hc)
     val prevRVD = prev.rvd
 
@@ -1126,7 +1127,7 @@ case class TableOrderBy(child: TableIR, sortFields: IndexedSeq[SortField]) exten
 
   val typ: TableType = child.typ.copy(key = FastIndexedSeq())
 
-  def execute(hc: HailContext): TableValue = {
+  protected[ir] override def execute(hc: HailContext): TableValue = {
     val prev = child.execute(hc)
 
     val rowType = child.typ.rowType
@@ -1169,7 +1170,7 @@ case class CastMatrixToTable(
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
-  def execute(hc: HailContext): TableValue = {
+  protected[ir] override def execute(hc: HailContext): TableValue = {
     val prev = child.execute(hc)
     val newGlobals = BroadcastRow(
       Row.merge(prev.globals.safeValue, Row(prev.colValues.safeValue)),
@@ -1202,7 +1203,7 @@ case class TableRename(child: TableIR, rowMap: Map[String, String], globalMap: M
     TableRename(newChild, rowMap, globalMap)
   }
 
-  def execute(hc: HailContext): TableValue = {
+  protected[ir] override def execute(hc: HailContext): TableValue = {
     val prev = child.execute(hc)
 
     TableValue(typ, prev.globals, prev.rvd.cast(typ.rowType.physicalType))

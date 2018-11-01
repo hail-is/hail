@@ -167,12 +167,11 @@ abstract sealed class MatrixIR extends BaseIR {
   def getOrComputePartitionCounts(): IndexedSeq[Long] = {
     partitionCounts
       .getOrElse(
-        Optimize(
+        Interpret(
           TableMapRows(
             TableKeyBy(MatrixRowsTable(this), FastIndexedSeq()),
             MakeStruct(FastIndexedSeq())
           ))
-          .execute(HailContext.get)
           .rvd
           .countPerPartition()
           .toFastIndexedSeq)
@@ -180,7 +179,8 @@ abstract sealed class MatrixIR extends BaseIR {
 
   def columnCount: Option[Int] = None
 
-  protected[ir] def execute(hc: HailContext): MatrixValue
+  protected[ir] def execute(hc: HailContext): MatrixValue =
+    fatal("tried to execute unexecutable IR")
 
   override def copy(newChildren: IndexedSeq[BaseIR]): MatrixIR
 }
@@ -190,7 +190,7 @@ case class MatrixLiteral(value: MatrixValue) extends MatrixIR {
 
   def children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
-  def execute(hc: HailContext): MatrixValue = value
+  protected[ir] override def execute(hc: HailContext): MatrixValue = value
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixLiteral = {
     assert(newChildren.isEmpty)
@@ -422,7 +422,7 @@ case class MatrixRead(
     MatrixRead(typ, dropCols, dropRows, reader)
   }
 
-  def execute(hc: HailContext): MatrixValue = {
+  protected[ir] override def execute(hc: HailContext): MatrixValue = {
     val mv = reader(this)
     assert(mv.typ == typ)
     mv
@@ -462,7 +462,7 @@ case class MatrixFilterCols(child: MatrixIR, pred: IR) extends MatrixIR {
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
-  def execute(hc: HailContext): MatrixValue = {
+  protected[ir] override def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
 
     val localGlobals = prev.globals.broadcast
@@ -507,7 +507,7 @@ case class MatrixFilterRows(child: MatrixIR, pred: IR) extends MatrixIR {
 
   override def columnCount: Option[Int] = child.columnCount
 
-  def execute(hc: HailContext): MatrixValue = {
+  protected[ir] override def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
     assert(child.typ == prev.typ)
 
@@ -567,7 +567,7 @@ case class MatrixChooseCols(child: MatrixIR, oldIndices: IndexedSeq[Int]) extend
 
   override def columnCount: Option[Int] = Some(oldIndices.length)
 
-  def execute(hc: HailContext): MatrixValue = {
+  protected[ir] override def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
 
     colsF(prev, oldIndices.toArray)
@@ -582,11 +582,19 @@ case class MatrixCollectColsByKey(child: MatrixIR) extends MatrixIR {
     MatrixCollectColsByKey(newChildren(0).asInstanceOf[MatrixIR])
   }
 
-  val (typ, groupF) = MatrixIR.collectColsByKey(child.typ)
+  val (_, groupF) = MatrixIR.collectColsByKey(child.typ)
+
+  val typ: MatrixType = {
+    val newColValueType = TStruct(child.typ.colValueStruct.fields.map(f => f.copy(typ = TArray(f.typ))))
+    val newColType = child.typ.colKeyStruct ++ newColValueType
+    val newEntryType = TStruct(child.typ.entryType.fields.map(f => f.copy(typ = TArray(f.typ))))
+
+    child.typ.copyParts(colType = newColType, entryType = newEntryType)
+  }
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
-  def execute(hc: HailContext): MatrixValue = {
+  protected[ir] override def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
     groupF(prev)
   }
@@ -609,7 +617,7 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, entryExpr: IR, rowExpr: IR)
 
   override def columnCount: Option[Int] = child.columnCount
 
-  def execute(hc: HailContext): MatrixValue = {
+  protected[ir] override def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
 
     val nCols = prev.nCols
@@ -869,7 +877,7 @@ case class MatrixAggregateColsByKey(child: MatrixIR, entryExpr: IR, colExpr: IR)
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
-  def execute(hc: HailContext): MatrixValue = {
+  protected[ir] override def execute(hc: HailContext): MatrixValue = {
     val mv = child.execute(hc)
 
     // local things for serialization
@@ -1247,13 +1255,13 @@ case class MatrixMapEntries(child: MatrixIR, newEntries: IR) extends MatrixIR {
   }
 
   val typ: MatrixType =
-    child.typ.copy(rvRowType = newRow.typ)
+    child.typ.copy(rvRowType = child.typ.rvRowType.updateKey(MatrixType.entriesIdentifier, TArray(newEntries.typ)))
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
   override def columnCount: Option[Int] = child.columnCount
 
-  def execute(hc: HailContext): MatrixValue = {
+  protected[ir] override def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
 
     val (minColType, minColValues, rewriteIR) = PruneDeadFields.pruneColValues(prev, newRow, isArray = true)
@@ -1313,7 +1321,7 @@ case class MatrixKeyRowsBy(child: MatrixIR, keys: IndexedSeq[String], isSorted: 
 
   override def columnCount: Option[Int] = child.columnCount
 
-  def execute(hc: HailContext): MatrixValue = {
+  protected[ir] override def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
     val nPreservedFields = keys.zip(prev.rvd.typ.key).takeWhile { case (l, r) => l == r }.length
     assert(!isSorted || nPreservedFields > 0 || keys.isEmpty)
@@ -1348,7 +1356,7 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
 
   override def columnCount: Option[Int] = child.columnCount
 
-  def execute(hc: HailContext): MatrixValue = {
+  protected[ir] override def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
     assert(prev.typ == child.typ)
 
@@ -1554,7 +1562,7 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
 
   override def columnCount: Option[Int] = child.columnCount
 
-  def execute(hc: HailContext): MatrixValue = {
+  protected[ir] override def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
     assert(prev.typ == child.typ)
 
@@ -1828,7 +1836,7 @@ case class MatrixMapGlobals(child: MatrixIR, newGlobals: IR) extends MatrixIR {
 
   override def columnCount: Option[Int] = child.columnCount
 
-  def execute(hc: HailContext): MatrixValue = {
+  protected[ir] override def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
 
     val newGlobalVals = Interpret[Row](
@@ -1855,7 +1863,7 @@ case class MatrixFilterEntries(child: MatrixIR, pred: IR) extends MatrixIR {
 
   override def columnCount: Option[Int] = child.columnCount
 
-  def execute(hc: HailContext): MatrixValue = {
+  protected[ir] override def execute(hc: HailContext): MatrixValue = {
     val mv = child.execute(hc)
 
     val (minColType, minColValues, rewriteIR) = PruneDeadFields.pruneColValues(mv, pred)
@@ -1933,7 +1941,7 @@ case class MatrixAnnotateColsTable(
       root)
   }
 
-  def execute(hc: HailContext): MatrixValue = {
+  protected[ir] override def execute(hc: HailContext): MatrixValue = {
     val prev =  child.execute(hc)
     val tab = table.execute(hc)
 
@@ -1986,7 +1994,7 @@ case class MatrixAnnotateRowsTable(
     )
   }
 
-  override def execute(hc: HailContext): MatrixValue = {
+  protected[ir] override def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
     val tv = table.execute(hc)
     key match {
@@ -2038,21 +2046,20 @@ case class MatrixAnnotateRowsTable(
         val indexUID = ir.genUID()
 
         // has matrix row key and foreign join key
-        val mrt = Optimize(
+        val mrt = Interpret(
           MatrixRowsTable(
             MatrixMapRows(
               child,
               MakeStruct(
                 prevRowKeys.zip(
                   prevRowKeys.map(rk => GetField(Ref("va", child.typ.rvRowType), rk))
-                ) ++ newKeyUIDs.zip(newKeys))))
-        ).execute(hc)
+                ) ++ newKeyUIDs.zip(newKeys)))))
         val indexedRVD1 = mrt.rvd
           .zipWithIndex(indexUID, Some(partitionCounts))
         val tl1 = TableLiteral(mrt.copy(typ = mrt.typ.copy(rowType = indexedRVD1.rowType), rvd = indexedRVD1))
 
         // ordered by foreign key, filtered to remove null keys
-        val sortedTL = Optimize(
+        val sortedTL = Interpret(
           TableKeyBy(
             TableFilter(tl1,
               ApplyUnaryPrimOp(
@@ -2060,7 +2067,7 @@ case class MatrixAnnotateRowsTable(
                 newKeyUIDs
                   .map(k => IsNA(GetField(Ref("row", mrt.typ.rowType), k)))
                   .reduce[IR] { case(l, r) => ApplySpecial("||", FastIndexedSeq(l, r))})),
-            newKeyUIDs)).execute(hc)
+            newKeyUIDs))
 
         val left = sortedTL.rvd
         val right = tv.rvd
@@ -2135,7 +2142,7 @@ case class TableToMatrixTable(
     rowType,
     entryType)
 
-  def execute(hc: HailContext): MatrixValue = {
+  protected[ir] override def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
 
     val colKeyIndices = colKey.map(child.typ.rowType.fieldIdx(_)).toArray
@@ -2313,7 +2320,7 @@ case class MatrixExplodeRows(child: MatrixIR, path: IndexedSeq[String]) extends 
 
   val typ: MatrixType = child.typ.copy(rvRowType = newRVRow.typ)
 
-  def execute(hc: HailContext): MatrixValue = {
+  protected[ir] override def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
     val (_, l) = Compile[Long, Int]("va", rvRowType, length)
     val (t, f) = Compile[Long, Int, Long](
@@ -2377,7 +2384,7 @@ case class MatrixUnionRows(children: IndexedSeq[MatrixIR]) extends MatrixIR {
     }
   }
 
-  def execute(hc: HailContext): MatrixValue = {
+  protected[ir] override def execute(hc: HailContext): MatrixValue = {
     val values = children.map(_.execute(hc))
     checkColKeysSame(values.map(_.colValues.value))
     val rvds = values.map(_.rvd)
@@ -2415,7 +2422,7 @@ case class MatrixExplodeCols(child: MatrixIR, path: IndexedSeq[String]) extends 
   val (newColType, inserter) = child.typ.colType.structInsert(keyType, path.toList)
   val typ: MatrixType = child.typ.copy(colType = newColType)
 
-  def execute(hc: HailContext): MatrixValue = {
+  protected[ir] override def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
 
     var size = 0
@@ -2511,7 +2518,7 @@ case class CastTableToMatrix(
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
-  def execute(hc: HailContext): MatrixValue = {
+  protected[ir] override def execute(hc: HailContext): MatrixValue = {
     val entries = GetField(Ref("row", child.typ.rowType), entriesFieldName)
     val cols = GetField(Ref("global", child.typ.globalType), colsFieldName)
     val checkedRow =

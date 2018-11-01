@@ -413,7 +413,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   val rowKeyStruct: TStruct = TStruct(rowKey.zip(rowKeyTypes): _*)
 
-  lazy val value@MatrixValue(_, globals, colValues, rvd) = Interpret(ast, optimize = true, lowerMatrix = true)
+  lazy val value@MatrixValue(_, globals, colValues, rvd) = Interpret(ast, optimize = true)
 
   def partitionCounts(): Array[Long] = {
     ast.partitionCounts match {

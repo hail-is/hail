@@ -4,14 +4,18 @@ import is.hail.expr.types._
 import is.hail.utils.FastSeq
 
 object LowerMatrixIR {
-  val entriesFieldName = "__entries"
+  val entriesFieldName = MatrixType.entriesIdentifier
   val colsFieldName = "__cols"
   val colsField = Symbol(colsFieldName)
   val entriesField = Symbol(entriesFieldName)
 
   def apply(ir: IR): IR = lower(ir)
   def apply(tir: TableIR): TableIR = lower(tir)
-  def apply(mir: MatrixIR): TableIR = lower(mir)
+  def apply(mir: MatrixIR): MatrixIR =
+    CastTableToMatrix(lower(mir),
+      entriesFieldName,
+      colsFieldName,
+      mir.typ.colKey)
 
   private[this] def lower(bir: BaseIR): BaseIR = bir match {
     case ir: IR => lower(ir)
@@ -84,6 +88,9 @@ object LowerMatrixIR {
   import is.hail.expr.ir.IRBuilder._
 
   private[this] def matrixRules: PartialFunction[MatrixIR, TableIR] = {
+    case CastTableToMatrix(child, entries, cols, colKey) =>
+      TableRename(lower(child), Map(entries -> entriesFieldName), Map(cols -> colsFieldName))
+
     case MatrixKeyRowsBy(child, keys, isSorted) =>
       lower(child).keyBy(keys, isSorted)
 
@@ -128,12 +135,12 @@ object LowerMatrixIR {
         irRange(0, 'global(colsField).len).map { 'i ~>
           let (g = 'row(entriesField)('i)) {
             irIf (let (sa = 'global (colsField)('i),
-                       va = 'row.dropFields(entriesField),
+                       va = 'row,
                        global = 'global.dropFields(colsField))
-                   in pred) {
-              'g
-            } {
+                   in !irToProxy(pred)) {
               NA(child.typ.entryType)
+            } {
+              'g
             }
           }
         }))
@@ -143,7 +150,7 @@ object LowerMatrixIR {
         irRange(0, 'global(colsField).len).map { 'i ~>
           let (g = 'row(entriesField)('i),
                sa = 'global(colsField)('i),
-               va = 'row.dropFields(entriesField),
+               va = 'row,
                global = 'global.dropFields(colsField)) {
             newEntries
           }
@@ -178,10 +185,7 @@ object LowerMatrixIR {
 
   private[this] def tableRules: PartialFunction[TableIR, TableIR] = {
     case CastMatrixToTable(child, entries, cols) =>
-      CastMatrixToTable(
-        CastTableToMatrix(lower(child), entriesFieldName, colsFieldName, child.typ.colKey),
-        entries,
-        cols)
+      TableRename(lower(child), Map(entriesFieldName -> entries), Map(colsFieldName -> cols))
 
     case MatrixRowsTable(child) =>
       lower(child)

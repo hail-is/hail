@@ -352,7 +352,7 @@ class PruneSuite extends SparkSuite {
   }
 
   @Test def testMatrixAnnotateRowsTableMemo() {
-    val tl = TableLiteral(MatrixRowsTable(mat).execute(hc))
+    val tl = TableLiteral(Interpret(MatrixRowsTable(mat)))
     val mart = MatrixAnnotateRowsTable(mat, tl, "foo", None)
     checkMemo(mart, subsetMatrixTable(mart.typ,"va.foo.r3", "va.r3"),
       Array(subsetMatrixTable(mat.typ, "va.r3"), subsetTable(tl.typ, "row.r3")))
@@ -709,7 +709,7 @@ class PruneSuite extends SparkSuite {
   }
 
   @Test def testMatrixAnnotateRowsTableRebuild() {
-    val tl = TableLiteral(MatrixRowsTable(mat).execute(hc))
+    val tl = TableLiteral(Interpret(MatrixRowsTable(mat)))
     val mart = MatrixAnnotateRowsTable(mat, tl, "foo", None)
     checkRebuild(mart, subsetMatrixTable(mart.typ),
       (_: BaseIR, r: BaseIR) => {

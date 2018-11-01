@@ -197,7 +197,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
   def typ: TableType = tir.typ
 
-  lazy val value@TableValue(ktType, globals, rvd) = Interpret(tir, optimize = true, lowerMatrix = true)
+  lazy val value@TableValue(ktType, globals, rvd) = Interpret(tir, optimize = true)
 
   val TableType(signature, key, globalSignature) = tir.typ
 

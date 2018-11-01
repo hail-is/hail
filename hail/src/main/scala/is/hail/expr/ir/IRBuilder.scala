@@ -76,6 +76,8 @@ object IRBuilder {
     def selectDynamic(field: String): IRProxy = (env: E) =>
       GetField(ir(env), field)
 
+    def unary_! = new IRProxy((env: E) => ApplyUnaryPrimOp(Bang(), ir(env)))
+
     def apply(lookup: Symbol): IRProxy = (env: E) => {
       val eval = ir(env)
       eval.typ match {
@@ -147,9 +149,9 @@ object IRBuilder {
   }
 
   object let extends Dynamic {
-    def applyDynamicNamed(method: String)(args: (String, Any)*): LetProxy = {
+    def applyDynamicNamed(method: String)(args: (String, IRProxy)*): LetProxy = {
       assert(method == "apply")
-      new LetProxy(args.map { case (s, b) => BindingProxy(Symbol(s), b.asInstanceOf[IRProxy]) })
+      new LetProxy(args.map { case (s, b) => BindingProxy(Symbol(s), b) })
     }
   }
 

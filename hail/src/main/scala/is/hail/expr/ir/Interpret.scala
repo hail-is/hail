@@ -30,51 +30,39 @@ object Interpret {
   }
 
   def apply(tir: TableIR): TableValue =
-    apply(tir, optimize = true, lowerMatrix = false)
+    apply(tir, optimize = true)
 
-  def apply(tir: TableIR, optimize: Boolean): TableValue =
-    apply(tir, optimize, lowerMatrix = false)
-
-  def apply(tir: TableIR, optimize: Boolean, lowerMatrix: Boolean): TableValue = {
+  def apply(tir: TableIR, optimize: Boolean): TableValue = {
     val tiropt = if (optimize)
       Optimize(tir)
     else
       tir
 
-    val lowered = if (lowerMatrix) {
-      val tir = LowerMatrixIR(tiropt)
-      if (optimize) Optimize(tir) else tir
-    } else
-      tiropt
+    val lowered = LowerMatrixIR(LiftLiterals(tiropt).asInstanceOf[TableIR])
+    val lowopt = if (optimize)
+      Optimize(lowered, noisy = true, canGenerateLiterals = false)
+    else
+      lowered
 
-    LiftLiterals(lowered).asInstanceOf[TableIR].execute(HailContext.get)
+    lowopt.execute(HailContext.get)
   }
 
   def apply(mir: MatrixIR): MatrixValue =
-    apply(mir, optimize = true, lowerMatrix = false)
+    apply(mir, optimize = true)
 
-  def apply(mir: MatrixIR, optimize: Boolean): MatrixValue =
-    apply(mir, optimize, lowerMatrix = false)
-
-  def apply(mir: MatrixIR, optimize: Boolean, lowerMatrix: Boolean): MatrixValue = {
+  def apply(mir: MatrixIR, optimize: Boolean): MatrixValue = {
     val miropt = if (optimize)
       Optimize(mir)
     else
       mir
 
-    val lowered = if (lowerMatrix) {
-      var tir = LowerMatrixIR(miropt)
-      if (optimize) tir = Optimize(tir)
+    val lowered = LowerMatrixIR(LiftLiterals(miropt).asInstanceOf[MatrixIR])
+    val lowopt = if (optimize)
+      Optimize(lowered, noisy = true, canGenerateLiterals = false)
+    else
+      lowered
 
-      CastTableToMatrix(tir,
-        LowerMatrixIR.entriesFieldName,
-        LowerMatrixIR.colsFieldName,
-        mir.typ.colKey
-      )
-    } else
-      miropt
-
-    LiftLiterals(lowered).asInstanceOf[MatrixIR].execute(HailContext.get)
+    lowopt.execute(HailContext.get)
   }
 
   def apply[T](ir: IR): T = apply(ir, Env.empty[(Any, Type)], FastIndexedSeq(), None).asInstanceOf[T]
@@ -85,8 +73,7 @@ object Interpret {
     env: Env[(Any, Type)],
     args: IndexedSeq[(Any, Type)],
     agg: Option[Agg],
-    optimize: Boolean = true,
-    lowerMatrix: Boolean = false
+    optimize: Boolean = true
   ): T = {
     val (typeEnv, valueEnv) = env.m.foldLeft((Env.empty[Type], Env.empty[Any])) {
       case ((e1, e2), (k, (value, t))) => (e1.bind(k, t), e2.bind(k, value))
@@ -94,8 +81,8 @@ object Interpret {
 
     var ir = ir0.unwrap
 
-    def optimizeIR() {
-      ir = Optimize(ir)
+    def optimizeIR(canGenerateLiterals: Boolean) {
+      ir = Optimize(ir, noisy = true, canGenerateLiterals)
       TypeCheck(ir, typeEnv, agg.map { agg =>
         agg._2.fields.foldLeft(Env.empty[Type]) { case (env, f) =>
           env.bind(f.name, f.typ)
@@ -103,13 +90,10 @@ object Interpret {
       })
     }
 
-    if (optimize) optimizeIR()
-    if (lowerMatrix) {
-      ir = LowerMatrixIR(ir)
-      if (optimize) optimizeIR()
-    }
-
+    if (optimize) optimizeIR(true)
     ir = LiftLiterals(ir).asInstanceOf[IR]
+    ir = LowerMatrixIR(ir)
+    if (optimize) optimizeIR(false)
 
     val result = apply(ir, valueEnv, args, agg, None, Memo.empty[AsmFunction3[Region, Long, Boolean, Long]]).asInstanceOf[T]
 

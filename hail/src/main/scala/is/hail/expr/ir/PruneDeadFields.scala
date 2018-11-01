@@ -819,12 +819,6 @@ object PruneDeadFields {
         val expr2 = rebuild(expr, child2.typ, memo)
         val newKey2 = rebuild(newKey, child2.typ, memo)
         TableKeyByAndAggregate(child2, expr2, newKey2, nPartitions, bufferSize)
-      case CastMatrixToTable(child, entriesFieldName, colsFieldName) =>
-        val child2 = rebuild(child, memo)
-        if (dep.rowType.hasField(entriesFieldName))
-          CastMatrixToTable(child2, entriesFieldName, colsFieldName)
-        else
-          MatrixRowsTable(child2)
       case TableRename(child, rowMap, globalMap) =>
         val child2 = rebuild(child, memo)
         TableRename(
@@ -841,7 +835,7 @@ object PruneDeadFields {
         // IR should be a match error - all nodes with child value IRs should have a rule
         case childT: TableIR => rebuild(childT, memo)
         case childM: MatrixIR => rebuild(childM, memo)
-      }).asInstanceOf[TableIR]
+      })
     }
   }
 
@@ -918,7 +912,7 @@ object PruneDeadFields {
         // IR should be a match error - all nodes with child value IRs should have a rule
         case childT: TableIR => rebuild(childT, memo)
         case childM: MatrixIR => rebuild(childM, memo)
-      }).asInstanceOf[MatrixIR]
+      })
 
     }
   }
