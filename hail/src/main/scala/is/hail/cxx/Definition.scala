@@ -73,4 +73,16 @@ class FunctionBuilder(prefix: String, args: Array[Variable], returnType: Type) {
 
   def result(): Function = new Function(returnType, prefix, args, statements.result().mkString("\n"))
 
+  def defaultReturn: Code = {
+    if (returnType == "long")
+      "return 0l;"
+    else
+      "return nullptr;"
+  }
+
+  def nativeError(code: Int, msg: Code): Code =
+    s"""NATIVE_ERROR(${getArg(0)}, $code, $msg);
+       |$defaultReturn
+     """.stripMargin
+
 }

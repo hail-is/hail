@@ -3,7 +3,7 @@ package is.hail.cxx
 import is.hail.cxx
 import is.hail.expr.types.physical.PContainer
 
-class StagedContainerBuilder(st: Code, region: Code, containerPType: PContainer) {
+class StagedContainerBuilder(fb: FunctionBuilder, region: Code, containerPType: PContainer) {
   private[this] val aoff = cxx.Variable("aoff", "char *")
   private[this] val eltOff = cxx.Variable("eltOff", "char *")
   private[this] val i = cxx.Variable("i", "int", "0")
@@ -40,7 +40,7 @@ class StagedContainerBuilder(st: Code, region: Code, containerPType: PContainer)
 
   def setMissing(): Code = {
     if (eltRequired)
-      s"""NATIVE_ERROR($st, 1010, "Required array element cannot be missing.");"""
+      fb.nativeError(1010, "\"Required array element cannot be missing.\"")
     else
       s"set_bit($aoff + 4, $i);"
   }

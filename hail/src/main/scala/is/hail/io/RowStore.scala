@@ -999,7 +999,7 @@ object NativeDecoder {
     case _: PFloat64 => s"$input_buf_ptr->skip_double();"
   }
 
-  def decodeBinary(input_buf_ptr: cxx.Expression, region: cxx.Expression, off: cxx.Expression, st: cxx.Code): cxx.Code = {
+  def decodeBinary(input_buf_ptr: cxx.Expression, region: cxx.Expression, off: cxx.Expression, fb: cxx.FunctionBuilder): cxx.Code = {
     val len = cxx.Variable("len", "int", s"$input_buf_ptr->read_int()")
     val boff = cxx.Variable("boff", "char *", s"$region->allocate(${ PBinary.contentAlignment }, $len + 4)")
     s"""
@@ -1010,10 +1010,10 @@ object NativeDecoder {
        |$input_buf_ptr->read_bytes($boff + 4, $len);""".stripMargin
   }
 
-  def decodeArray(t: PArray, rt: PArray, input_buf_ptr: cxx.Expression, region: cxx.Expression, off: cxx.Expression, st: cxx.Code): cxx.Code = {
+  def decodeArray(t: PArray, rt: PArray, input_buf_ptr: cxx.Expression, region: cxx.Expression, off: cxx.Expression, fb: cxx.FunctionBuilder): cxx.Code = {
     val len = cxx.Variable("len", "int", s"$input_buf_ptr->read_int()")
-    val sab = new cxx.StagedContainerBuilder(st, region.toString, rt)
-    var decodeElt = decode(t.elementType, rt.elementType, input_buf_ptr, region, cxx.Expression(sab.eltOffset), st)
+    val sab = new cxx.StagedContainerBuilder(fb, region.toString, rt)
+    var decodeElt = decode(t.elementType, rt.elementType, input_buf_ptr, region, cxx.Expression(sab.eltOffset), fb)
     if (rt.elementType.required)
       decodeElt =
         s"""
@@ -1034,8 +1034,8 @@ object NativeDecoder {
      """.stripMargin
   }
 
-  def decodeBaseStruct(t: PBaseStruct, rt: PBaseStruct, input_buf_ptr: cxx.Expression, region: cxx.Expression, off: cxx.Expression, st: cxx.Code): cxx.Code = {
-    val ssb = new cxx.StagedBaseStructBuilder(st, rt, off)
+  def decodeBaseStruct(t: PBaseStruct, rt: PBaseStruct, input_buf_ptr: cxx.Expression, region: cxx.Expression, off: cxx.Expression, fb: cxx.FunctionBuilder): cxx.Code = {
+    val ssb = new cxx.StagedBaseStructBuilder(fb, rt, off)
 
     def wrapMissing(missingBytes: cxx.Code, tidx: Int)(processField: cxx.Code): cxx.Code = {
       if (!t.fieldRequired(tidx)) {
@@ -1049,7 +1049,7 @@ object NativeDecoder {
     if (t.size == rt.size) {
       assert((t.isInstanceOf[PTuple] && rt.isInstanceOf[PTuple]) || (t.asInstanceOf[PStruct].fieldNames sameElements t.asInstanceOf[PStruct].fieldNames))
       val decodeFields = Array.tabulate[cxx.Code](rt.size) { idx =>
-        wrapMissing(s"$off", idx)(ssb.addField(idx, foff => decode(t.types(idx), rt.types(idx), input_buf_ptr, region, cxx.Expression(foff), st)))
+        wrapMissing(s"$off", idx)(ssb.addField(idx, foff => decode(t.types(idx), rt.types(idx), input_buf_ptr, region, cxx.Expression(foff), fb)))
       }.mkString("\n")
       if (t.nMissingBytes > 0) {
         s"""
@@ -1070,7 +1070,7 @@ object NativeDecoder {
           wrapMissing(s"$t_missing_bytes", tidx)(skip(f, input_buf_ptr))
         else
           s"""
-             |${ wrapMissing(s"$t_missing_bytes", tidx)(ssb.addField(rtidx, foff => decode(f, rt.types(rtidx), input_buf_ptr, region, cxx.Expression(foff), st))) }
+             |${ wrapMissing(s"$t_missing_bytes", tidx)(ssb.addField(rtidx, foff => decode(f, rt.types(rtidx), input_buf_ptr, region, cxx.Expression(foff), fb))) }
              |${ if (f.required) "" else s" else { ${ ssb.setMissing(rtidx) } }" }
            """.stripMargin
         if (!skipField)
@@ -1088,15 +1088,15 @@ object NativeDecoder {
     }
   }
 
-  def decode(t: PType, rt: PType, input_buf_ptr: cxx.Expression, region: cxx.Expression, off: cxx.Expression, st: cxx.Code): cxx.Code = t match {
+  def decode(t: PType, rt: PType, input_buf_ptr: cxx.Expression, region: cxx.Expression, off: cxx.Expression, fb: cxx.FunctionBuilder): cxx.Code = t match {
     case _: PBoolean => s"store_byte($off, $input_buf_ptr->read_byte());"
     case _: PInt32 => s"store_int($off, $input_buf_ptr->read_int());"
     case _: PInt64 => s"store_long($off, $input_buf_ptr->read_long());"
     case _: PFloat32 => s"store_float($off, $input_buf_ptr->read_float());"
     case _: PFloat64 => s"store_double($off, $input_buf_ptr->read_double());"
-    case _: PBinary => decodeBinary(input_buf_ptr, region, off, st)
-    case t2: PArray => decodeArray(t2, rt.asInstanceOf[PArray], input_buf_ptr, region, off, st)
-    case t2: PBaseStruct => decodeBaseStruct(t2, rt.asInstanceOf[PBaseStruct], input_buf_ptr, region, off, st)
+    case _: PBinary => decodeBinary(input_buf_ptr, region, off, fb)
+    case t2: PArray => decodeArray(t2, rt.asInstanceOf[PArray], input_buf_ptr, region, off, fb)
+    case t2: PBaseStruct => decodeBaseStruct(t2, rt.asInstanceOf[PBaseStruct], input_buf_ptr, region, off, fb)
   }
 
   def apply(t: PType, rt: PType, bufSpec: BufferSpec): NativeDecoderModule = {
@@ -1128,7 +1128,7 @@ object NativeDecoder {
     rowFB += buf.define
     rowFB += region.define
     rowFB += row.define
-    rowFB += decode(t.fundamentalType, rt.fundamentalType, buf.ref, region.ref, row.ref, rowFB.getArg(0).toString)
+    rowFB += decode(t.fundamentalType, rt.fundamentalType, buf.ref, region.ref, row.ref, rowFB)
     rowFB += (rt match {
       case _: PArray | _: PBinary => s"return read_long($row);"
       case _ => s"return reinterpret_cast<long>($row);"

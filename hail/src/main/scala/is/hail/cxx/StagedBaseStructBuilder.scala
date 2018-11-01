@@ -3,7 +3,7 @@ package is.hail.cxx
 import is.hail.expr.types.physical.PBaseStruct
 import is.hail.utils.ArrayBuilder
 
-class StagedBaseStructBuilder(st: Code, pStruct: PBaseStruct, off: Expression) {
+class StagedBaseStructBuilder(fb: FunctionBuilder, pStruct: PBaseStruct, off: Expression) {
 
   def setAllMissing(): Code =
     s"memset($off, 0xff, ${ pStruct.nMissingBytes });"
@@ -13,7 +13,7 @@ class StagedBaseStructBuilder(st: Code, pStruct: PBaseStruct, off: Expression) {
 
   def setMissing(idx: Int): Code = {
     if (pStruct.fieldRequired(idx))
-      s"""NATIVE_ERROR($st, 1010, "Required field cannot be missing.");"""
+      fb.nativeError(1010, "\"Required field cannot be missing.\"")
     else
       s"set_bit($off, ${ pStruct.missingIdx(idx) });"
   }
@@ -31,9 +31,9 @@ class StagedBaseStructBuilder(st: Code, pStruct: PBaseStruct, off: Expression) {
   def offset: Code = off.toString
 }
 
-class StagedBaseStructTripletBuilder(st: Code, region: Code, pStruct: PBaseStruct) {
-  private[this] val s = Variable("s", "char *", s"$region->allocate(${ pStruct.alignment }, ${ pStruct.byteSize })")
-  private[this] val ssb = new StagedBaseStructBuilder(st, pStruct, s.ref)
+class StagedBaseStructTripletBuilder(fb: FunctionBuilder, pStruct: PBaseStruct) {
+  private[this] val s = Variable("s", "char *", s"${ fb.getArg(1) }->allocate(${ pStruct.alignment }, ${ pStruct.byteSize })")
+  private[this] val ssb = new StagedBaseStructBuilder(fb, pStruct, s.ref)
   private[this] val ab = new ArrayBuilder[Code]
   ab += s.define
   ab += ssb.clearAllMissing()
