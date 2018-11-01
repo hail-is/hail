@@ -603,7 +603,7 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, entryExpr: IR, rowExpr: IR)
   }
 
   val typ: MatrixType = child.typ.copyParts(
-    rowType = child.typ.rvdType.kType ++ coerce[TStruct](rowExpr.typ),
+    rowType = child.typ.rowKeyStruct ++ coerce[TStruct](rowExpr.typ),
     entryType = coerce[TStruct](entryExpr.typ)
   )
 
@@ -2071,7 +2071,7 @@ case class MatrixAnnotateRowsTable(
         // first, change the partitioner to include the index field in the key so the shuffled result is sorted by index
         val extendedKey = prev.rvd.typ.key ++ Array(indexUID)
         val rpJoined = joined.repartition(
-          prev.rvd.partitioner.extendKey(joined.typ.copy(key = extendedKey).kType),
+          prev.rvd.partitioner.extendKey(joined.typ.copy(key = extendedKey).kType.virtualType),
           shuffle = true)
 
         // the lift and dropLeft flags are used to optimize some of the struct manipulation operations
@@ -2175,7 +2175,7 @@ case class TableToMatrixTable(
     val rowKeyIndices = rowKey.map(rowEntryStruct.fieldIdx)
     val rowKeyF: Row => Row = r => Row.fromSeq(rowKeyIndices.map(r.get))
 
-    val rowEntryRVD = prev.rvd.mapPartitions(RVDType(rowEntryStruct)) { it =>
+    val rowEntryRVD = prev.rvd.mapPartitions(RVDType(rowEntryStruct.physicalType)) { it =>
       val ur = new UnsafeRow(localRowPType)
       val rvb = new RegionValueBuilder()
       val rv2 = RegionValue()
@@ -2205,8 +2205,8 @@ case class TableToMatrixTable(
       }
     }
 
-    val ordType = RVDType(rowEntryStruct, rowKey ++ FastIndexedSeq(INDEX_UID))
-    val ordTypeNoIndex = RVDType(rowEntryStruct, rowKey)
+    val ordType = RVDType(rowEntryStruct.physicalType, rowKey ++ FastIndexedSeq(INDEX_UID))
+    val ordTypeNoIndex = RVDType(rowEntryStruct.physicalType, rowKey)
     val ordered = rowEntryRVD.changeKey(ordType.key, rowKey.length)
     val orderedEntryIndices = entryFields.map(rowEntryStruct.fieldIdx)
     val orderedRowIndices = (rowKey ++ rowFields).map(rowEntryStruct.fieldIdx)
@@ -2531,7 +2531,7 @@ case class CastTableToMatrix(
       Row.fromSeq(pre ++ post.tail)
     }
 
-    val newRVD = prev.rvd.cast(newRowType)
+    val newRVD = prev.rvd.cast(newRowType.physicalType)
 
     MatrixValue(
       typ,

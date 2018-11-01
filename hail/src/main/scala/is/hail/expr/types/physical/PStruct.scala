@@ -257,6 +257,12 @@ final case class PStruct(fields: IndexedSeq[PField], override val required: Bool
     }
   }
 
+  def selectFields(names: Set[String], keep: Boolean = true): PStruct =
+    PStruct(
+      fields
+        .filter(f => if (keep) names.contains(f.name) else !names.contains(f.name))
+        .map(f => f.name -> f.typ): _*)
+
   def typeAfterSelect(keep: IndexedSeq[Int]): PStruct =
     PStruct(keep.map(i => fieldNames(i) -> types(i)): _*)
 

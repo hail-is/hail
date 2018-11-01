@@ -12,6 +12,7 @@ import is.hail.table.{Table, TableSpec}
 import is.hail.utils._
 import is.hail.{HailContext, utils}
 import is.hail.expr.types._
+import is.hail.expr.types.physical.PArray
 import is.hail.io.gen.ExportGen
 import is.hail.io.plink.ExportPlink
 import is.hail.sparkextras.{ContextRDD, RepartitionedOrderedRDD2}
@@ -509,7 +510,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     assert(!rowKey.contains(root))
 
     val valueType = if (product)
-      TArray(right.typ.valueType, required = true)
+      PArray(right.typ.valueType, required = true)
     else
       right.typ.valueType
 
@@ -518,7 +519,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     else
       right
 
-    val (newRVPType, ins) = rvRowType.physicalType.unsafeStructInsert(valueType.physicalType, List(root))
+    val (newRVPType, ins) = rvRowType.physicalType.unsafeStructInsert(valueType, List(root))
     val newRVType = newRVPType.virtualType
 
     val rightRowType = rightRVD.rowType
@@ -965,7 +966,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     val newMatrixType = MatrixType(newGlobalType, newColKey, newColType, newRowKey, newRVRowType)
 
-    val newRVD = rvd.cast(newRVRowType).asInstanceOf[RVD]
+    val newRVD = rvd.cast(newRVRowType.physicalType)
 
     new MatrixTable(hc, newMatrixType, globals, colValues, newRVD)
   }

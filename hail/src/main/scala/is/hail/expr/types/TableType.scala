@@ -12,7 +12,7 @@ class TableTypeSerializer extends CustomSerializer[TableType](format => (
   { case tt: TableType => JString(tt.toString) }))
 
 case class TableType(rowType: TStruct, key: IndexedSeq[String], globalType: TStruct) extends BaseType {
-  val rvdType = RVDType(rowType, key)
+  val rvdType = RVDType(rowType.physicalType, key)
 
   def env: Env[Type] = {
     Env.empty[Type]
@@ -31,9 +31,9 @@ case class TableType(rowType: TStruct, key: IndexedSeq[String], globalType: TStr
     "global" -> globalType,
     "row" -> rowType)
 
-  def keyType: TStruct = rvdType.kType
+  def keyType: TStruct = rvdType.kType.virtualType
   val keyFieldIdx: Array[Int] = rvdType.kFieldIdx
-  def valueType: TStruct = rvdType.valueType
+  def valueType: TStruct = rvdType.valueType.virtualType
   val valueFieldIdx: Array[Int] = rvdType.valueFieldIdx
 
   def pretty(sb: StringBuilder, indent0: Int = 0, compact: Boolean = false) {

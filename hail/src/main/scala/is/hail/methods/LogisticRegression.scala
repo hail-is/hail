@@ -93,7 +93,7 @@ object LogisticRegression {
         val logregAnnot = logRegTestBc.value.test(X, yBc.value, nullFitBc.value, "logistic")
 
         rvb.set(rv.region)
-        rvb.start(newRVDType.rowType.physicalType)
+        rvb.start(newRVDType.rowType)
         rvb.startStruct()
         rvb.addFields(fullRowType, rv, copiedFieldIndices)
         logregAnnot.addToRVB(rvb)

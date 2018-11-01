@@ -87,7 +87,7 @@ object PoissonRegression {
           rv, fullRowType, entryArrayType, entryType, entryArrayIdx, fieldIdx)
 
         rvb.set(rv.region)
-        rvb.start(newRVDType.rowType.physicalType)
+        rvb.start(newRVDType.rowType)
         rvb.startStruct()
         rvb.addFields(fullRowType, rv, copiedFieldIndices)
         poisRegTestBc.value

@@ -192,7 +192,7 @@ object VEP {
 
     val vepType: Type = if (csq) TArray(TString()) else vepSignature
 
-    val vepRVDType = prev.typ.copy(rowType = prev.rowType ++ TStruct("vep" -> vepType))
+    val vepRVDType = prev.typ.copy(rowType = (prev.rowType ++ TStruct("vep" -> vepType)).physicalType)
 
     val vepRowType = vepRVDType.rowType
 
@@ -205,11 +205,11 @@ object VEP {
         val rv = RegionValue(region)
 
         it.map { case (v, vep) =>
-          rvb.start(vepRowType.physicalType)
+          rvb.start(vepRowType)
           rvb.startStruct()
-          rvb.addAnnotation(vepRowType.types(0), v.asInstanceOf[Row].get(0))
-          rvb.addAnnotation(vepRowType.types(1), v.asInstanceOf[Row].get(1))
-          rvb.addAnnotation(vepRowType.types(2), vep)
+          rvb.addAnnotation(vepRowType.types(0).virtualType, v.asInstanceOf[Row].get(0))
+          rvb.addAnnotation(vepRowType.types(1).virtualType, v.asInstanceOf[Row].get(1))
+          rvb.addAnnotation(vepRowType.types(2).virtualType, vep)
           rvb.endStruct()
           rv.setOffset(rvb.end())
           rv
@@ -223,7 +223,7 @@ object VEP {
         (Row(), TStruct())
 
     new Table(ht.hc, TableLiteral(TableValue(
-      TableType(vepRowType, FastIndexedSeq("locus", "alleles"), globalType),
+      TableType(vepRowType.virtualType, FastIndexedSeq("locus", "alleles"), globalType),
       BroadcastRow(globalValue, globalType, ht.hc.sc),
       vepRVD)))
   }

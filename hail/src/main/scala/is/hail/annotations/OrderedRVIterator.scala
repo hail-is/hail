@@ -152,16 +152,16 @@ case class OrderedRVIterator(
             val rv = bit.next()
             val r = ctx.freshRegion
             rvb.set(r)
-            rvb.start(t.rowType.physicalType)
-            rvb.addRegionValue(t.rowType.physicalType, rv)
+            rvb.start(t.rowType)
+            rvb.addRegionValue(t.rowType, rv)
             q.enqueue(RegionValue(rvb.region, rvb.end()))
           } while (bit.hasNext && t.kInRowOrd.compare(q.head, bit.head) == 0)
         }
 
         rvb.set(consumerRegion)
-        rvb.start(t.rowType.physicalType)
+        rvb.start(t.rowType)
         val fromQueue = q.dequeue()
-        rvb.addRegionValue(t.rowType.physicalType, fromQueue)
+        rvb.addRegionValue(t.rowType, fromQueue)
         ctx.closeChild(fromQueue.region)
         rv.set(consumerRegion, rvb.end())
         rv

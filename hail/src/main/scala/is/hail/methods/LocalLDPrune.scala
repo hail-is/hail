@@ -14,8 +14,8 @@ import is.hail.utils._
 object BitPackedVectorView {
   val bpvElementSize = PInt64Required.byteSize
 
-  def rvRowType(locusType: Type, allelesType: Type): TStruct = TStruct("locus" -> locusType, "alleles" -> allelesType,
-    "bpv" -> TArray(TInt64Required), "nSamples" -> TInt32Required, "mean" -> TFloat64Required, "centered_length_rec" -> TFloat64Required)
+  def rvRowType(locusType: Type, allelesType: Type): PStruct = TStruct("locus" -> locusType, "alleles" -> allelesType,
+    "bpv" -> TArray(TInt64Required), "nSamples" -> TInt32Required, "mean" -> TFloat64Required, "centered_length_rec" -> TFloat64Required).physicalType
 }
 
 class BitPackedVectorView(rvRowType: PStruct) {
@@ -227,13 +227,12 @@ object LocalLDPrune {
 
   private def pruneLocal(inputRDD: RVD, r2Threshold: Double, windowSize: Int, queueSize: Option[Int]): RVD = {
     val localRowType = inputRDD.typ.rowType
-    val localRowPType = localRowType.physicalType
 
     inputRDD.mapPartitions(inputRDD.typ, { (ctx, it) =>
       val queue = new util.ArrayDeque[RegionValue](queueSize.getOrElse(16))
 
-      val bpvv = new BitPackedVectorView(localRowPType)
-      val bpvvPrev = new BitPackedVectorView(localRowPType)
+      val bpvv = new BitPackedVectorView(localRowType)
+      val bpvvPrev = new BitPackedVectorView(localRowType)
       val rvb = new RegionValueBuilder()
 
       it.filter { rv =>
@@ -259,8 +258,8 @@ object LocalLDPrune {
         if (keepVariant) {
           val r = ctx.freshRegion
           rvb.set(r)
-          rvb.start(localRowType.physicalType)
-          rvb.addRegionValue(localRowType.physicalType, rv)
+          rvb.start(localRowType)
+          rvb.addRegionValue(localRowType, rv)
           queue.addLast(RegionValue(rvb.region, rvb.end()))
           queueSize.foreach { qs =>
             if (queue.size() > qs) {
@@ -301,7 +300,7 @@ object LocalLDPrune {
           hcView.setRegion(rv)
           region.clear()
           rvb.set(region)
-          rvb.start(bpvType.physicalType)
+          rvb.start(bpvType)
           rvb.startStruct()
           rvb.addFields(fullRowPType, rv, Array(locusIndex, allelesIndex))
 
@@ -326,7 +325,7 @@ object LocalLDPrune {
     val fieldIndicesToAdd = Array("locus", "alleles", "mean", "centered_length_rec")
       .map(field => bpvType.fieldIdx(field))
     val sitesOnly = rvdLP.mapPartitions(
-      typ.copy(rowType = tableType.rowType)
+      tableType.rvdType
     )({ it =>
       val region = Region()
       val rvb = new RegionValueBuilder(region)
@@ -337,7 +336,7 @@ object LocalLDPrune {
         rvb.set(region)
         rvb.start(tableType.rowType.physicalType)
         rvb.startStruct()
-        rvb.addFields(bpvType.physicalType, rv, fieldIndicesToAdd)
+        rvb.addFields(bpvType, rv, fieldIndicesToAdd)
         rvb.endStruct()
         newRV.setOffset(rvb.end())
         newRV

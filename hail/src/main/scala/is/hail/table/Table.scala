@@ -149,12 +149,12 @@ object Table {
     globals: Annotation,
     isSorted: Boolean
   ): Table = {
-    val crdd2 = crdd.cmapPartitions((ctx, it) => it.toRegionValueIterator(ctx.region, signature))
+    val crdd2 = crdd.cmapPartitions((ctx, it) => it.toRegionValueIterator(ctx.region, signature.physicalType))
     new Table(hc, TableLiteral(
       TableValue(
         TableType(signature, FastIndexedSeq(), globalSignature),
         BroadcastRow(globals.asInstanceOf[Row], globalSignature, hc.sc),
-        RVD.unkeyed(signature, crdd2)))
+        RVD.unkeyed(signature.physicalType, crdd2)))
     ).keyBy(key, isSorted)
   }
 
@@ -192,7 +192,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
           TableValue(
             TableType(signature, key, globalSignature),
             BroadcastRow(globals, globalSignature, hc.sc),
-            RVD.coerce(RVDType(signature, key), crdd)))
+            RVD.coerce(RVDType(signature.physicalType, key), crdd)))
   )
 
   def typ: TableType = tir.typ
@@ -499,7 +499,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     val newRowType = deepExpand(signature).asInstanceOf[TStruct]
     val newRVD = rvd.truncateKey(IndexedSeq())
     copy2(
-      rvd = newRVD.changeType(newRowType),
+      rvd = newRVD.changeType(newRowType.physicalType),
       signature = newRowType)
   }
 
@@ -770,7 +770,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
         }
     }
 
-    val newRVDType = RVDType(newRowType, key)
+    val newRVDType = RVDType(newRowType.physicalType, key)
     val newRVD = rvd.intervalAlignAndZipPartitions(newRVDType, other.rvd)(zipper)
 
     copy2(rvd = newRVD, signature = newRowType)

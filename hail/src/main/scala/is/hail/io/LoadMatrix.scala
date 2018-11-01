@@ -387,7 +387,7 @@ object LoadMatrix {
       }
 
     val rvd = if (useIndex) {
-      val (partitioner, keepPartitions) = makePartitionerFromCounts(partitionCounts, matrixType.rvdType.kType)
+      val (partitioner, keepPartitions) = makePartitionerFromCounts(partitionCounts, matrixType.rvdType.kType.virtualType)
       RVD(matrixType.rvdType, partitioner, rdd.subsetPartitions(keepPartitions))
     } else
       RVD.coerce(matrixType.rvdType, rdd)

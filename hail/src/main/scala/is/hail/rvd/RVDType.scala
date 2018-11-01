@@ -3,6 +3,7 @@ package is.hail.rvd
 import is.hail.annotations._
 import is.hail.expr.Parser
 import is.hail.expr.types._
+import is.hail.expr.types.physical.{PStruct, PType}
 import is.hail.utils._
 import org.apache.commons.lang3.builder.HashCodeBuilder
 import org.json4s.CustomSerializer
@@ -14,20 +15,20 @@ class RVDTypeSerializer extends CustomSerializer[RVDType](format => ( {
   case rvdType: RVDType => JString(rvdType.toString)
 }))
 
-final case class RVDType(rowType: TStruct, key: IndexedSeq[String] = FastIndexedSeq())
+final case class RVDType(rowType: PStruct, key: IndexedSeq[String] = FastIndexedSeq())
   extends Serializable {
 
   val keySet: Set[String] = key.toSet
 
-  val (kType, _) = rowType.select(key)
-  val (valueType, _) = rowType.filter(f => !keySet.contains(f.name))
+  val kType: PStruct = rowType.typeAfterSelect(key.map(rowType.fieldIdx))
+  val valueType: PStruct = rowType.selectFields(keySet, keep = false)
 
   val kFieldIdx: Array[Int] = key.map(n => rowType.fieldIdx(n)).toArray
   val valueFieldIdx: Array[Int] = (0 until rowType.size)
     .filter(i => !keySet.contains(rowType.fields(i).name))
     .toArray
 
-  val kOrd: UnsafeOrdering = kType.physicalType.unsafeOrdering(missingGreatest = true)
+  val kOrd: UnsafeOrdering = kType.unsafeOrdering(missingGreatest = true)
   val kInRowOrd: UnsafeOrdering =
     RVDType.selectUnsafeOrdering(rowType, kFieldIdx, rowType, kFieldIdx)
   val kRowOrd: UnsafeOrdering =
@@ -59,24 +60,22 @@ final case class RVDType(rowType: TStruct, key: IndexedSeq[String] = FastIndexed
     new UnsafeOrdering {
       val t1 = rowType
       val t2 = other.rowType
-      val t1p = t1.physicalType
-      val t2p = t2.physicalType
       val f1 = kFieldIdx(0)
       val f2 = other.kFieldIdx(0)
       val intervalType = t2.types(f2).asInstanceOf[TInterval].physicalType
-      val pord = t1p.types(f1).unsafeOrdering(intervalType.pointType)
+      val pord = t1.types(f1).unsafeOrdering(intervalType.pointType)
 
       // Left is a point, right is an interval.
       // Returns -1 if point is below interval, 0 if it is inside, and 1 if it
       // is above, always considering missing greatest.
       def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
 
-        val leftDefined = t1p.isFieldDefined(r1, o1, f1)
-        val rightDefined = t2p.isFieldDefined(r2, o2, f2)
+        val leftDefined = t1.isFieldDefined(r1, o1, f1)
+        val rightDefined = t2.isFieldDefined(r2, o2, f2)
 
         if (leftDefined && rightDefined) {
-          val k1 = t1p.loadField(r1, o1, f1)
-          val k2 = t2p.loadField(r2, o2, f2)
+          val k1 = t1.loadField(r1, o1, f1)
+          val k2 = t2.loadField(r2, o2, f2)
           if (intervalType.startDefined(r2, k2)) {
             val c = pord.compare(r1, k1, r2, intervalType.loadStart(r2, k2))
             if (c < 0 || (c == 0 && !intervalType.includesStart(r2, k2))) {
@@ -99,22 +98,21 @@ final case class RVDType(rowType: TStruct, key: IndexedSeq[String] = FastIndexed
 
 
   def kRowOrdView(region: Region) = new OrderingView[RegionValue] {
-    val wrv = WritableRegionValue(kType.physicalType, region)
+    val wrv = WritableRegionValue(kType, region)
     def setFiniteValue(representative: RegionValue) {
-      wrv.setSelect(rowType.physicalType, kFieldIdx, representative)
+      wrv.setSelect(rowType, kFieldIdx, representative)
     }
     def compareFinite(rv: RegionValue): Int =
       kRowOrd.compare(wrv.value, rv)
   }
 
-  def insert(typeToInsert: Type, path: List[String]): (RVDType, UnsafeInserter) = {
+  def insert(typeToInsert: PType, path: List[String]): (RVDType, UnsafeInserter) = {
     assert(path.nonEmpty)
     assert(!key.contains(path.head))
 
-    val (newRowPType, inserter) = rowType.physicalType.unsafeInsert(typeToInsert.physicalType, path)
-    val newRowType = newRowPType.virtualType
+    val (newRowType, inserter) = rowType.unsafeStructInsert(typeToInsert, path)
 
-    (RVDType(newRowType.asInstanceOf[TStruct], key), inserter)
+    (RVDType(newRowType, key), inserter)
   }
 
   def toJSON: JValue =
@@ -137,19 +135,16 @@ final case class RVDType(rowType: TStruct, key: IndexedSeq[String] = FastIndexed
 }
 
 object RVDType {
-  def selectUnsafeOrdering(t1: TStruct, fields1: Array[Int],
-    t2: TStruct, fields2: Array[Int], missingEqual: Boolean=true): UnsafeOrdering = {
+  def selectUnsafeOrdering(t1: PStruct, fields1: Array[Int],
+    t2: PStruct, fields2: Array[Int], missingEqual: Boolean=true): UnsafeOrdering = {
     require(fields1.length == fields2.length)
     require((fields1, fields2).zipped.forall { case (f1, f2) =>
       t1.types(f1) isOfType t2.types(f2)
     })
 
-    val t1p = t1.physicalType
-    val t2p = t2.physicalType
-
     val nFields = fields1.length
     val fieldOrderings = Range(0, nFields).map { i =>
-      t1p.types(fields1(i)).unsafeOrdering(t2p.types(fields2(i)), missingGreatest = true)
+      t1.types(fields1(i)).unsafeOrdering(t2.types(fields2(i)), missingGreatest = true)
     }.toArray
 
     new UnsafeOrdering {
@@ -159,11 +154,11 @@ object RVDType {
         while (i < nFields) {
           val f1 = fields1(i)
           val f2 = fields2(i)
-          val leftDefined = t1p.isFieldDefined(r1, o1, f1)
-          val rightDefined = t2p.isFieldDefined(r2, o2, f2)
+          val leftDefined = t1.isFieldDefined(r1, o1, f1)
+          val rightDefined = t2.isFieldDefined(r2, o2, f2)
 
           if (leftDefined && rightDefined) {
-            val c = fieldOrderings(i).compare(r1, t1p.loadField(r1, o1, f1), r2, t2p.loadField(r2, o2, f2))
+            val c = fieldOrderings(i).compare(r1, t1.loadField(r1, o1, f1), r2, t2.loadField(r2, o2, f2))
             if (c != 0)
               return c
           } else if (leftDefined != rightDefined) {

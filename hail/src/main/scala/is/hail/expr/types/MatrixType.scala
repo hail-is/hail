@@ -79,9 +79,9 @@ case class MatrixType(
     TableType(resultStruct, rowKey ++ colKey, globalType)
   }
 
-  def rvdType: RVDType = RVDType(rvRowType, rowKey)
+  def rvdType: RVDType = RVDType(rvRowType.physicalType, rowKey)
 
-  def rowRVDType: RVDType = RVDType(rowType, rowKey)
+  def rowRVDType: RVDType = RVDType(rowType.physicalType, rowKey)
 
   def refMap: Map[String, Type] = Map(
     "global" -> globalType,

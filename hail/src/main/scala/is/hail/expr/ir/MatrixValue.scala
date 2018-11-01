@@ -181,7 +181,7 @@ case class MatrixValue(
       val fullRowType = typ.rvRowType
       val localEntriesIndex = typ.entriesIdx
       rvd.mapPartitions(
-        RVDType(typ.rowType, typ.rowKey)
+        RVDType(typ.rowType.physicalType, typ.rowKey)
       ) { it =>
         val rv2b = new RegionValueBuilder()
         val rv2 = RegionValue()
@@ -204,12 +204,12 @@ case class MatrixValue(
 
     def colsRVD(): RVD = {
       val hc = HailContext.get
-      val signature = typ.colType
+      val colPType = typ.colType.physicalType
 
       RVD.coerce(
         typ.colsTableType.rvdType,
         ContextRDD.parallelize(hc.sc, sortedColValues.safeValue.asInstanceOf[IndexedSeq[Row]])
-          .cmapPartitions { (ctx, it) => it.toRegionValueIterator(ctx.region, signature) }
+          .cmapPartitions { (ctx, it) => it.toRegionValueIterator(ctx.region, colPType) }
       )
     }
 

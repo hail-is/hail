@@ -165,7 +165,7 @@ object LinearRegression {
             (0 until blockLength).iterator.map { i =>
               val wrv = blockWRVs(i)
               rvb.set(wrv.region)
-              rvb.start(newRVDType.rowType.physicalType)
+              rvb.start(newRVDType.rowType)
               rvb.startStruct()
               rvb.addFields(fullRowType, wrv.region, wrv.offset, copiedFieldIndices)
               rvb.addInt(n)
@@ -314,7 +314,7 @@ object LinearRegression {
             (0 until blockLength).iterator.map { i =>
               val wrv = blockWRVs(i)
               rvb.set(wrv.region)
-              rvb.start(newRVDType.rowType.physicalType)
+              rvb.start(newRVDType.rowType)
               rvb.startStruct()
               rvb.addFields(fullRowType, wrv.region, wrv.offset, copiedFieldIndices)
 
