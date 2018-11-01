@@ -324,6 +324,8 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, collect_
 
     hover_fields['locus'] = hail.str(locus)
 
+    pvals = -hail.log10(pvals)
+
     if collect_all:
         res = hail.tuple([locus.global_position(), pvals, hail.struct(**hover_fields)]).collect()
         hf_struct = [point[2] for point in res]
@@ -331,7 +333,7 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, collect_
             hover_fields[key] = [item[key] for item in hf_struct]
     else:
         agg_f = pvals._aggregation_method()
-        res = agg_f(aggregators.downsample(locus.global_position(), -10 * hail.log10(pvals),
+        res = agg_f(aggregators.downsample(locus.global_position(), pvals,
                                            label=hail.array([hail.str(x) for x in hover_fields.values()]),
                                            n_divisions=n_divisions))
         fields = [point[2] for point in res]
@@ -340,7 +342,7 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, collect_
 
     x = [point[0] for point in res]
     y = [point[1] for point in res]
-    y_linear = [10 ** (-p/10) for p in y]
+    y_linear = [10 ** (-p) for p in y]
     hover_fields['p_value'] = y_linear
 
     ref = locus.dtype.reference_genome
