@@ -55,11 +55,11 @@ class StagedBaseStructTripletBuilder(st: Code, region: Code, pStruct: PBaseStruc
     ab +=
       s"""
          |${ t.setup }
-         |if (${ t.m })
+         |if (${ t.m }) {
          |  ${ ssb.setMissing(i) }
-         |else
+         |} else {
          |  ${ ssb.addField(i, off => storeIRIntermediate(f.typ, off, t.v)) };
-         |""".stripMargin
+         |}""".stripMargin
     i += 1
   }
 
