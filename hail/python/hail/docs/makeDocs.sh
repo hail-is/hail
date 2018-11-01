@@ -24,6 +24,6 @@ xsltproc --html -o build/www/about.html www/about.xslt build/tmp/about.html
 
 cp -R python build/tmp
 
-(cd build/tmp/python/hail/docs && make clean html)
+(cd build/tmp/python/hail/docs && make BUILDDIR=_build clean html)
 
 mv build/tmp/python/hail/docs/_build/html build/www/docs/$HAIL_VERSION
