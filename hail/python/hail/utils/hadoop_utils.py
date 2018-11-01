@@ -13,17 +13,34 @@ from typing import Dict, List
 def hadoop_open(path: str, mode: str = 'r', buffer_size: int = 8192):
     """Open a file through the Hadoop filesystem API. Supports distributed
     file systems like hdfs, gs, and s3.
+    
+    Warning
+    -------
+    
+    Due to an implementation limitation, :func:`hadoop_open` may be quite
+    slow for large data sets (anything larger than 50 MB).
 
     Examples
     --------
+
+    Write a Pandas DataFrame as a CSV directly into Google Cloud Storage:
+
+    >>> with hadoop_open('gs://my-bucket/df.csv', 'w') as f: # doctest: +SKIP
+    ...     pandas_df.to_csv(f)
+
+    Read and print the lines of a text file stored in Google Cloud Storage:
 
     >>> with hadoop_open('gs://my-bucket/notes.txt') as f: # doctest: +SKIP
     ...     for line in f:
     ...         print(line.strip())
 
+    Write two lines directly to a file in Google Cloud Storage:
+
     >>> with hadoop_open('gs://my-bucket/notes.txt', 'w') as f: # doctest: +SKIP
     ...     f.write('result1: %s\\n' % result1)
     ...     f.write('result2: %s\\n' % result2)
+
+    Unpack a packed Python struct directly from a file in Google Cloud Storage:
 
     >>> from struct import unpack
     >>> with hadoop_open('gs://my-bucket/notes.txt', 'rb') as f: # doctest: +SKIP
@@ -86,11 +103,21 @@ def hadoop_copy(src, dest):
 
     Examples
     --------
+    
+    Copy a file from Google Cloud Storage to a local file:
 
-    >>> hadoop_copy('gs://hail-common/LCR.interval_list', 'file:///mnt/data/LCR.interval_list') # doctest: +SKIP
+    >>> hadoop_copy('gs://hail-common/LCR.interval_list',
+    ...             'file:///mnt/data/LCR.interval_list') # doctest: +SKIP
 
     Notes
-    -----
+    ----
+
+    Try using :func:`.hadoop_open` first, it's simpler, but not great
+    for large data! For example:
+
+    >>> with hadoop_open('gs://my_bucket/results.csv', 'w') as f: #doctest: +SKIP
+    ...     pandas_df.to_csv(f)
+
     The provided source and destination file paths must be URIs
     (uniform resource identifiers).
 
