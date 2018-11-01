@@ -52,11 +52,13 @@ def get_1kg(output_dir, overwrite: bool = False):
     _mkdir(jhc, output_dir)
 
     matrix_table_path = os.path.join(output_dir, '1kg.mt')
+    vcf_path = os.path.join(output_dir, '1kg.vcf.bgz')
     annotations_path = os.path.join(output_dir, '1kg_annotations.txt')
 
     if (overwrite
             or not Env.jutils().dirExists(jhc, matrix_table_path)
-            or not Env.jutils().fileExists(jhc, annotations_path)):
+            or not Env.jutils().fileExists(jhc, annotations_path)
+            or not Env.jutils().fileExists(jhc, vcf_path)):
         init_temp_dir()
         tmp_vcf = os.path.join(tmp_dir, '1kg.vcf.bgz')
         source = resources['1kg_matrix_table']
@@ -73,6 +75,7 @@ def get_1kg(output_dir, overwrite: bool = False):
              f'  Source: {source}')
         urlretrieve(source, tmp_annot)
         hl.hadoop_copy(local_path_uri(tmp_annot), annotations_path)
+        hl.hadoop_copy(local_path_uri(tmp_vcf), vcf_path)
         info('Done!')
     else:
         info('1KG files found')

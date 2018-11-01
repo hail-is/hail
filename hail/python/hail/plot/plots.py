@@ -277,8 +277,8 @@ def qq(pvals, collect_all=False, n_divisions=500):
 
 
 @typecheck(pvals=expr_float64, locus=nullable(expr_locus()), title=nullable(str),
-           size=int, hover_fields=nullable(dictof(str, expr_any)), collect_all=bool, n_divisions=int)
-def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, collect_all=False, n_divisions=500):
+           size=int, hover_fields=nullable(dictof(str, expr_any)), collect_all=bool, n_divisions=int, significance_line=nullable(numeric))
+def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, collect_all=False, n_divisions=500, significance_line=5e-8):
     """Create a Manhattan plot. (https://en.wikipedia.org/wiki/Manhattan_plot)
 
     Parameters
@@ -297,6 +297,9 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, collect_
         Whether to collect all values or downsample before plotting.
     n_divisions : int
         Factor by which to downsample (default value = 500). A lower input results in fewer output datapoints.
+    significance_line : float, optional
+        Location at which to plot a dotted red line for genome-wide
+        significance (if ``None``, then no line is printed).
 
     Returns
     -------
@@ -384,5 +387,12 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, collect_
     p.add_tools(HoverTool(
         tooltips=tooltips
     ))
+
+    if significance_line is not None:
+        p.renderers.append(Span(location=-log10(significance_line),
+                                dimension='width',
+                                line_color='red',
+                                line_dash='dashed',
+                                line_width=1.5))
 
     return p
