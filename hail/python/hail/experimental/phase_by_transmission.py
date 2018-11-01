@@ -281,7 +281,7 @@ def phase_trio_matrix_by_transmission(tm: hl.MatrixTable, call_field: str = 'GT'
 
 @typecheck(tm=MatrixTable,
            col_keys=sequenceof(str))
-def explode_trio_matrix(tm: hl.MatrixTable, col_keys: List[str] = ['s']) -> hl.MatrixTable:
+def explode_trio_matrix(tm: hl.MatrixTable, col_keys: List[str] = ['s'], keep_trio_cols: bool = True, keep_trio_entries: bool = False) -> hl.MatrixTable:
     """Splits a trio MatrixTable back into a sample MatrixTable.
 
     Example
@@ -295,48 +295,52 @@ def explode_trio_matrix(tm: hl.MatrixTable, col_keys: List[str] = ['s']) -> hl.M
 
     Notes
     -----
-    This assumes that the input MatrixTable is a trio MatrixTable (similar to the result of :meth:`.methods.trio_matrix`)
-    In particular, it should have the following entry schema:
-    - proband_entry
-    - father_entry
-    - mother_entry
-    And the following column schema:
-    - proband
-    - father
-    - mother
+    The resulting MatrixTable column schema is the same as the proband/father/mother schema,
+    and the resulting entry schema is the same as the proband_entry/father_entry/mother_entry schema.
+    If the `keep_trio_cols` option is set, then an additional `source_trio` column is added with the trio column data.
+    If the `keep_trio_entries` option is set, then an additional `source_trio_entry` column is added with the trio entry data.
 
     Note
     ----
-    The only entries kept are `proband_entry`, `father_entry` and `mother_entry` are dropped.
-    The only columns kepy are `proband`, `father` and `mother`
+    This assumes that the input MatrixTable is a trio MatrixTable (similar to the result of :meth:`.methods.trio_matrix`)
+    Its entry schema has to contain 'proband_entry`, `father_entry` and `mother_entry` all with the same type.
+    Its column schema has to contain 'proband`, `father` and `mother` all with the same type.
 
     Parameters
     ----------
     tm : :class:`.MatrixTable`
         Trio MatrixTable (entries have to be a Struct with `proband_entry`, `mother_entry` and `father_entry` present)
-    call_field : :obj:`list` of str
+    col_keys : :obj:`list` of str
         Column key(s) for the resulting sample MatrixTable
+    keep_trio_cols: bool
+        Whether to add a `source_trio` column with the trio column data (default `True`)
+    keep_trio_entries: bool
+        Whether to add a `source_trio_entries` column with the trio entry data (default `False`)
 
     Returns
     -------
     :class:`.MatrixTable`
         Sample MatrixTable"""
 
-    tm = tm.select_entries(
-        __trio_entries=hl.array([tm.proband_entry, tm.father_entry, tm.mother_entry])
-    )
+    select_entries_expr = {'__trio_entries': hl.array([tm.proband_entry, tm.father_entry, tm.mother_entry])}
+    if keep_trio_entries:
+        select_entries_expr['source_trio_entry'] = hl.struct(**tm.entry)
+    tm = tm.select_entries(**select_entries_expr)
 
-    tm = tm.select_cols(
-        __trio_members=hl.zip_with_index(hl.array([tm.proband, tm.father, tm.mother]))
-    )
+    tm = tm.key_cols_by()
+    select_cols_expr = {'__trio_members': hl.zip_with_index(hl.array([tm.proband, tm.father, tm.mother]))}
+    if keep_trio_cols:
+        select_cols_expr['source_trio'] = hl.struct(**tm.col)
+    tm = tm.select_cols(**select_cols_expr)
+
     mt = tm.explode_cols(tm.__trio_members)
 
-    mt = mt.select_entries(
+    mt = mt.transmute_entries(
         **mt.__trio_entries[mt.__trio_members[0]]
     )
 
     mt = mt.key_cols_by()
-    mt = mt.select_cols(**mt.__trio_members[1])
+    mt = mt.transmute_cols(**mt.__trio_members[1])
 
     if col_keys:
         mt = mt.key_cols_by(*col_keys)
