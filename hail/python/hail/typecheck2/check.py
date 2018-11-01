@@ -282,7 +282,16 @@ known_checkers = {
     List: check_list,
     Tuple: check_tuple,
     Collection: check_collection,
-    Callable: check_callable
+    Callable: check_callable,
+    collections.abc.Callable: check_callable,
+    collections.abc.Collection: check_collection,
+    collections.abc.Mapping: check_mapping,
+    collections.abc.Sequence: check_sequence,
+    dict: check_dict,
+    frozenset: check_frozenset,
+    list: check_list,
+    set: check_set,
+    tuple: check_tuple,
 }
 
 
