@@ -17,7 +17,7 @@ run-docker:
 run:
 	GITHUB_TOKEN_PATH=secrets/scorecard-github-access-token.txt python scorecard/scorecard.py
 
-deploy:
+deploy: push
 	sed -e "s,@sha@,$(shell git rev-parse --short=12 HEAD)," \
 	  -e "s,@image@,$(shell cat scorecard-image)," \
 	  < deployment.yaml.in > deployment.yaml

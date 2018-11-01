@@ -41,7 +41,7 @@ test:
 test-local:
 	POD_IP='127.0.0.1' BATCH_URL='http://127.0.0.1:5000' python -m unittest -v test/test_batch.py
 
-deploy-batch:
+deploy-batch: push-batch
 	sed -e "s,@sha@,$$(git rev-parse --short=12 HEAD)," \
 	  -e "s,@image@,$$(cat batch-image)," \
 	  < deployment.yaml.in > deployment.yaml

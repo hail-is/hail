@@ -9,4 +9,4 @@ gcloud -q auth activate-service-account \
 gcloud -q auth configure-docker
 
 # requires docker
-make push-batch deploy-batch
+make deploy-batch
