@@ -2,6 +2,8 @@
 
 set -ex
 
+${CONDA_BINARY:=conda}
+
 CLUSTER_NAME=${HAIL_CLUSTER_NAME:-cs-test}
 echo "configuring environment for ${CLUSTER_NAME} (override by setting HAIL_CLUSTER_NAME)"
 
@@ -43,7 +45,7 @@ case "$PLATFORM" in
 esac
 
 docker version || install-docker
-conda -V || install-conda
+${CONDA_BINARY} -V || install-conda
 gcloud -v || install-gcloud
 
 gcloud auth login
@@ -69,7 +71,7 @@ for project in $(cat projects.txt)
 do
     if [[ -e $project/environment.yml ]]
     then
-        conda env create -f $project/environment.yml || conda env update -f $project/environment.yml
+        ${CONDA_BINARY} env create -f $project/environment.yml || ${CONDA_BINARY} env update -f $project/environment.yml
     fi
 done
 
