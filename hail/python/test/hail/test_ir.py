@@ -71,12 +71,11 @@ class ValueIRTests(unittest.TestCase):
             ir.AggFilter(ir.TrueIR(), ir.I32(0)),
             ir.AggExplode(ir.ArrayRange(ir.I32(0), ir.I32(2), ir.I32(1)), 'x', ir.I32(0)),
             ir.AggGroupBy(ir.TrueIR(), ir.I32(0)),
-            ir.ApplyAggOp([ir.I32(0)], [], None, collect_sig, hl.tarray(hl.tint32)),
-            ir.ApplyScanOp([ir.I32(0)], [], None, collect_sig, hl.tarray(hl.tint32)),
-            ir.ApplyAggOp(
-                [ir.F64(-2.11)], [ir.F64(-5.0), ir.F64(5.0), ir.I32(100)], None, hist_sig, hist_type),
-            ir.ApplyAggOp([call], [], [ir.I32(2)], call_stats_sig, call_stats_type),
-            ir.ApplyAggOp([ir.F64(-2.11), ir.F64(-2.11)], [ir.I32(10)], None, take_by_sig, take_by_type),
+            ir.ApplyAggOp([], None, [ir.I32(0)], collect_sig),
+            ir.ApplyScanOp([], None, [ir.I32(0)], collect_sig),
+            ir.ApplyAggOp([ir.F64(-5.0), ir.F64(5.0), ir.I32(100)], None, [ir.F64(-2.11)], hist_sig),
+            ir.ApplyAggOp([], [ir.I32(2)], [call], call_stats_sig),
+            ir.ApplyAggOp([ir.I32(10)], None, [ir.F64(-2.11), ir.F64(-2.11)], take_by_sig),
             ir.InitOp(ir.I32(0), [ir.I32(2)], call_stats_sig),
             ir.SeqOp(ir.I32(0), [i], collect_sig),
             ir.SeqOp(ir.I32(0), [ir.F64(-2.11), ir.I32(17)], take_by_sig),
@@ -182,7 +181,7 @@ class TableIRTests(unittest.TestCase):
                       contig_recoding={'01': '1'})
 
         collect_sig = ir.AggSignature('Collect', [], None, [hl.tint32])
-        collect = ir.MakeStruct([('x', ir.ApplyAggOp([ir.I32(0)], [], None, collect_sig, hl.tarray(hl.tint32)))])
+        collect = ir.MakeStruct([('x', ir.ApplyAggOp([], None, [ir.I32(0)], collect_sig))])
 
         matrix_read = ir.MatrixRead(
             resource('backward_compatability/1.0.0/matrix_table/0.hmt'), False, False)

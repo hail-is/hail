@@ -76,11 +76,9 @@ object Pretty {
               sb += ')'
             }(sb += '\n')
           }
-        case ApplyAggOp(seqOpArgs, ctorArgs, initOpArgs, aggSig) =>
+        case ApplyAggOp(ctorArgs, initOpArgs, seqOpArgs, aggSig) =>
           sb += ' '
           sb.append(prettyAggSignature(aggSig))
-          sb += '\n'
-          prettySeq(seqOpArgs, depth + 2)
           sb += '\n'
           prettySeq(ctorArgs, depth + 2)
           sb += '\n'
@@ -90,11 +88,11 @@ object Pretty {
               sb.append(" " * (depth + 2))
               sb.append("None")
           }
-        case ApplyScanOp(seqOpArgs, ctorArgs, initOpArgs, aggSig) =>
-          sb += ' '
-          sb.append(prettyAggSignature(aggSig))
           sb += '\n'
           prettySeq(seqOpArgs, depth + 2)
+        case ApplyScanOp(ctorArgs, initOpArgs, seqOpArgs, aggSig) =>
+          sb += ' '
+          sb.append(prettyAggSignature(aggSig))
           sb += '\n'
           prettySeq(ctorArgs, depth + 2)
           sb += '\n'
@@ -104,6 +102,8 @@ object Pretty {
               sb.append(" " * (depth + 2))
               sb.append("None")
           }
+          sb += '\n'
+          prettySeq(seqOpArgs, depth + 2)
         case InitOp(i, args, aggSig) =>
           sb += ' '
           sb.append(prettyAggSignature(aggSig))

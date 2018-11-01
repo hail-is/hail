@@ -289,9 +289,7 @@ class InterpretSuite {
       TStruct("a" -> TInt32()))
     val aggSig = AggSignature(Sum(), FastSeq(), None, FastSeq(TInt64()))
     assertEvalsTo(AggFilter(ApplyComparisonOp(LT(TInt32()), Ref("a", TInt32()), I32(11)),
-      ApplyAggOp(
-        FastSeq(Cast(Ref("a", TInt32()), TInt64())),
-      FastSeq(), None, aggSig)),
+      ApplyAggOp(FastSeq(), None, FastSeq(Cast(Ref("a", TInt32()), TInt64())), aggSig)),
       agg,
       15L)
   }

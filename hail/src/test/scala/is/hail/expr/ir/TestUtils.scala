@@ -75,26 +75,22 @@ object TestUtils {
 
     def IRAggCount: IR = {
     val aggSig = AggSignature(Count(), FastSeq.empty, None, FastSeq.empty)
-    ApplyAggOp(FastIndexedSeq.empty, FastIndexedSeq.empty, None, aggSig)
+    ApplyAggOp(FastIndexedSeq.empty, None, FastIndexedSeq.empty, aggSig)
   }
 
   def IRScanCount: IR = {
     val aggSig = AggSignature(Count(), FastSeq.empty, None, FastSeq.empty)
-    ApplyScanOp(FastIndexedSeq.empty, FastIndexedSeq.empty, None, aggSig)
+    ApplyScanOp(FastIndexedSeq.empty, None, FastIndexedSeq.empty, aggSig)
   }
 
   def IRAggCollect(ir: IR): IR = {
     val aggSig = AggSignature(Collect(), FastSeq.empty, None, FastSeq[Type](ir.typ))
-    ApplyAggOp(
-      FastIndexedSeq(ir),
-      FastIndexedSeq(), None, aggSig)
+    ApplyAggOp(FastIndexedSeq(), None, FastIndexedSeq(ir), aggSig)
   }
 
   def IRScanCollect(ir: IR): IR = {
     val aggSig = AggSignature(Collect(), FastSeq.empty, None, FastSeq[Type](ir.typ))
-    ApplyScanOp(
-      FastIndexedSeq(ir),
-      FastIndexedSeq(), None, aggSig)
+    ApplyScanOp(FastIndexedSeq(), None, FastIndexedSeq(ir), aggSig)
   }
 
   def IRStruct(fields: (String, IR)*): IR =

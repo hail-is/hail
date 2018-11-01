@@ -762,10 +762,13 @@ class IRSuite extends SparkSuite {
       ArrayFold(a, I32(0), "x", "v", v),
       ArrayScan(a, I32(0), "x", "v", v),
       ArrayFor(a, "v", Void()),
-      ApplyAggOp(FastIndexedSeq(I32(0)), FastIndexedSeq.empty, None, collectSig),
-      ApplyAggOp(FastIndexedSeq(F64(-2.11)), FastIndexedSeq(F64(-5.0), F64(5.0), I32(100)), None, histSig),
-      ApplyAggOp(FastIndexedSeq(call), FastIndexedSeq.empty, Some(FastIndexedSeq(I32(2))), callStatsSig),
-      ApplyAggOp(FastIndexedSeq(F64(-2.11)), FastIndexedSeq(I32(10)), None, takeBySig),
+      AggFilter(True(), I32(0)),
+      AggExplode(NA(TArray(TInt32())), "x", I32(0)),
+      AggGroupBy(True(), I32(0)),
+      ApplyAggOp(FastIndexedSeq.empty, None, FastIndexedSeq(I32(0)), collectSig),
+      ApplyAggOp(FastIndexedSeq(F64(-5.0), F64(5.0), I32(100)), None, FastIndexedSeq(F64(-2.11)), histSig),
+      ApplyAggOp(FastIndexedSeq.empty, Some(FastIndexedSeq(I32(2))), FastIndexedSeq(call), callStatsSig),
+      ApplyAggOp(FastIndexedSeq(I32(10)), None, FastIndexedSeq(F64(-2.11)), takeBySig),
       InitOp(I32(0), FastIndexedSeq(I32(2)), callStatsSig),
       SeqOp(I32(0), FastIndexedSeq(i), collectSig),
       SeqOp(I32(0), FastIndexedSeq(F64(-2.11), I32(17)), takeBySig),
@@ -881,7 +884,7 @@ class IRSuite extends SparkSuite {
       )
 
       val collectSig = AggSignature(Collect(), Seq(), None, Seq(TInt32()))
-      val collect = ApplyAggOp(FastIndexedSeq(I32(0)), FastIndexedSeq.empty, None, collectSig)
+      val collect = ApplyAggOp(FastIndexedSeq.empty, None, FastIndexedSeq(I32(0)), collectSig)
 
       val newRowAnn = MakeStruct(FastIndexedSeq("count_row" -> collect))
       val newColAnn = MakeStruct(FastIndexedSeq("count_col" -> collect))

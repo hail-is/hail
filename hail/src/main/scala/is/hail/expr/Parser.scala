@@ -561,8 +561,8 @@ object Parser extends JavaTokenParsers {
       "AggExplode" ~> ir_identifier ~ ir_value_expr(env) >> { case name ~ a =>
         ir_value_expr(env + (name -> coerce[TArray](a.typ).elementType)) ^^ { aggBody => ir.AggExplode(a, name, aggBody) }} |
       "AggGroupBy" ~> ir_value_expr(env) ~ ir_value_expr(env) ^^ { case key ~ aggIR => ir.AggGroupBy(key, aggIR) } |
-      "ApplyAggOp" ~> agg_signature ~ ir_value_exprs(env) ~ ir_value_exprs(env) ~ ir_value_exprs_opt(env) ^^ { case aggSig ~ seqOpArgs ~ ctorArgs ~ initOpArgs => ir.ApplyAggOp(seqOpArgs, ctorArgs, initOpArgs, aggSig) } |
-      "ApplyScanOp" ~> agg_signature ~ ir_value_exprs(env) ~ ir_value_exprs(env) ~ ir_value_exprs_opt(env) ^^ { case aggSig ~ seqOpArgs ~ ctorArgs ~ initOpArgs => ir.ApplyScanOp(seqOpArgs, ctorArgs, initOpArgs, aggSig) } |
+      "ApplyAggOp" ~> agg_signature ~ ir_value_exprs(env) ~ ir_value_exprs_opt(env) ~ ir_value_exprs(env) ^^ { case aggSig ~ ctorArgs ~ initOpArgs ~ seqOpArgs => ir.ApplyAggOp(ctorArgs, initOpArgs, seqOpArgs, aggSig) } |
+      "ApplyScanOp" ~> agg_signature ~ ir_value_exprs(env) ~ ir_value_exprs_opt(env) ~ ir_value_exprs(env) ^^ { case aggSig ~ ctorArgs ~ initOpArgs ~ seqOpArgs => ir.ApplyScanOp(ctorArgs, initOpArgs, seqOpArgs, aggSig) } |
       "InitOp" ~> agg_signature ~ ir_value_expr(env) ~ ir_value_exprs(env) ^^ { case aggSig ~ i ~ args => ir.InitOp(i, args, aggSig) } |
       "SeqOp" ~> agg_signature ~ ir_value_expr(env) ~ ir_value_exprs(env) ^^ { case aggSig ~ i ~ args => ir.SeqOp(i, args, aggSig) } |
       "Begin" ~> ir_children(env) ^^ { xs => ir.Begin(xs) } |
