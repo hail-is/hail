@@ -1394,7 +1394,11 @@ class ScanFunctions(object):
             af = func.__globals__['_agg_func']
             as_scan = getattr(af, '_as_scan')
             setattr(af, '_as_scan', True)
-            res = f(*args, **kwargs)
+            try:
+                res = f(*args, **kwargs)
+            except Exception as e:
+                setattr(af, '_as_scan', as_scan)
+                raise e
             setattr(af, '_as_scan', as_scan)
             return res
         update_wrapper(wrapper, f)
