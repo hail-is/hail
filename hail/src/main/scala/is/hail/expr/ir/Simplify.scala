@@ -389,7 +389,7 @@ object Simplify {
       TableMapRows(te, GetField(Ref("row", te.typ.rowType), "row"))
 
     case TableKeyByAndAggregate(child, MakeStruct(Seq()), k@MakeStruct(keyFields), _, _) if canRepartition =>
-      TableDistinct(TableMapRows(child, k))
+      TableDistinct(TableKeyBy(TableMapRows(child, k), k.typ.asInstanceOf[TStruct].fieldNames))
 
     case TableKeyByAndAggregate(child, expr, newKey, _, _)
       if newKey == MakeStruct(child.typ.key.map(k => k -> GetField(Ref("row", child.typ.rowType), k)))
