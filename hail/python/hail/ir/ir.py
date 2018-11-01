@@ -821,7 +821,7 @@ class BaseApplyAggOp(IR):
         constr_args = args[:n_constructor_args]
         init_op_args = args[n_constructor_args:-n_seq_op_args]
         seq_op_args = args[-n_seq_op_args:]
-        return new_instance(seq_op_args, constr_args, init_op_args if len(init_op_args) != 0 else None, self.agg_sig)
+        return new_instance(constr_args, init_op_args if len(init_op_args) != 0 else None, seq_op_args, self.agg_sig)
 
     def render(self, r):
         return '({} {} ({}) {} ({}))'.format(

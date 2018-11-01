@@ -101,8 +101,8 @@ class AggFunc(object):
         ref = construct_expr(Ref(var), elt, array_agg_expr._indices)
         self._agg_bindings.add(var)
         aggregated = f(ref)
-        self._agg_bindings.remove(var)
         _check_agg_bindings(aggregated, self._agg_bindings)
+        self._agg_bindings.remove(var)
 
         if len(aggregated._ir.search(lambda n: isinstance(n, BaseApplyAggOp))) == 0:
             raise ExpressionException("'{}.explode' must take mapping that contains aggregation expression.".format(self.correct_prefix()))
