@@ -1,6 +1,9 @@
 #ifndef HAIL_UTILS_H
 #define HAIL_UTILS_H 1
 
+#define LIKELY(condition)   __builtin_expect(static_cast<bool>(condition), 1)
+#define UNLIKELY(condition) __builtin_expect(static_cast<bool>(condition), 0)
+
 inline char load_byte(char * off) { return *off; }
 inline bool load_bool(char * off) { return *off; }
 inline int load_int(char * off) { return *reinterpret_cast<int *>(off); }
@@ -22,19 +25,32 @@ inline void store_float(char * off, float f) { *reinterpret_cast<float *>(off) =
 inline void store_double(char * off, double d) { *reinterpret_cast<double *>(off) = d; }
 inline void store_length(char * off, int len) { *reinterpret_cast<int *>(off) = len; }
 inline void store_address(char * off, char * addr) { *reinterpret_cast<long *>(off) = reinterpret_cast<long>(addr); }
-inline void store_bit(char * byte_offset, unsigned int bit_offset, bool b) {
-  auto off = byte_offset + (bit_offset >> 3);
-  auto byte = *off;
-  auto new_byte = b ? (byte | (1 << (bit_offset & 0x7))) : (byte & ~(1 << (bit_offset & 0x7)));
+
+inline void set_bit(char * byte_offset, unsigned int bit_offset) {
+  char * off = byte_offset + (bit_offset >> 3);
+  char new_byte = *off | (1 << (bit_offset & 0x7));
   *off = new_byte;
+}
+
+inline void clear_bit(char * byte_offset, unsigned int bit_offset) {
+  char * off = byte_offset + (bit_offset >> 3);
+  char new_byte = *off & ~(1 << (bit_offset & 0x7));
+  *off = new_byte;
+}
+inline void store_bit(char * byte_offset, unsigned int bit_offset, bool b) {
+  b ? set_bit(byte_offset, bit_offset) : clear_bit(byte_offset, bit_offset);
 }
 
 constexpr int n_missing_bytes(int array_len) {
   return ((unsigned long) array_len + 7L) >> 3;
 }
 
+inline long round_up_offset(long off, long alignment) {
+  return (off + (alignment - 1)) & ~(alignment - 1);
+}
+
 inline char * round_up_alignment(char * off, long alignment) {
-  return reinterpret_cast<char *>((reinterpret_cast<long>(off) + (alignment - 1)) & ~(alignment - 1));
+  return reinterpret_cast<char *>(round_up_offset(reinterpret_cast<long>(off), alignment));
 }
 
 inline long round_up_alignment(long off, long alignment) {

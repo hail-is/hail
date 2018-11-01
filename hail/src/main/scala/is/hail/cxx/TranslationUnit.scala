@@ -8,18 +8,19 @@ class TranslationUnit(preamble: String, definitions: Array[Definition]) {
   def source: String =
     new PrettyCode(
       s"""
-         |$preamble
-         |
-         |NAMESPACE_HAIL_MODULE_BEGIN
-         |
-         |${ definitions.map(d => if (d.isInstanceOf[Function]) d.define else s"${ d.define };").mkString("\n\n") }
-         |
-         |NAMESPACE_HAIL_MODULE_END
-         |""".stripMargin).toString()
+       |$preamble
+       |
+       |NAMESPACE_HAIL_MODULE_BEGIN
+       |
+       |${definitions.map(_.define).mkString("\n\n")}
+       |
+       |NAMESPACE_HAIL_MODULE_END
+     """.stripMargin).toString()
 
-  def build(options: String): NativeModule = {
+  def build(options: String, print: Option[java.io.PrintWriter] = None): NativeModule = {
     val st = new NativeStatus()
     val mod = new NativeModule(options, source)
+    print.foreach(_.print(source))
     mod.findOrBuild(st)
     assert(st.ok, st.toString())
     mod

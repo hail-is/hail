@@ -21,12 +21,26 @@ class Variable(prefix: String, val typ: String, init: Expression) extends Defini
 
   override def toString: String = name
 
-  def toExpr: Expression = Expression(name)
+  def ref: Expression = Expression(name)
 
   def define: Code =
       if (init == null)
         s"$typ $name;"
       else s"$typ $name = $init;"
+
+  def defineWith(value: Code): Code =
+    s"$typ $name = $value;"
+}
+
+object ArrayVariable {
+  def apply(prefix: String, typ: Type, len: Code): ArrayVariable =
+    new ArrayVariable(prefix, typ, Expression(len))
+}
+
+class ArrayVariable(prefix: String, typ: String, length: Expression) extends Variable(prefix, typ, null) {
+  override def define: Code = s"$typ $name[$length];"
+
+  override def defineWith(value: Code): Code = s"$typ $name[$length] = $value;"
 }
 
 class Function(returnType: Type, val name: String, args: Array[Variable], body: Code) extends Definition {
@@ -58,5 +72,17 @@ class FunctionBuilder(prefix: String, args: Array[Variable], returnType: Type) {
   def getArg(i: Int): Variable = args(i)
 
   def result(): Function = new Function(returnType, prefix, args, statements.result().mkString("\n"))
+
+  def defaultReturn: Code = {
+    if (returnType == "long")
+      "return 0l;"
+    else
+      "return nullptr;"
+  }
+
+  def nativeError(code: Int, msg: Code): Code =
+    s"""NATIVE_ERROR(${getArg(0)}, $code, $msg);
+       |$defaultReturn
+     """.stripMargin
 
 }
