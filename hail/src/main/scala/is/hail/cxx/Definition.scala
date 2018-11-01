@@ -21,7 +21,7 @@ class Variable(prefix: String, val typ: String, init: Expression) extends Defini
 
   override def toString: String = name
 
-  def toExpr: Expression = Expression(name)
+  def ref: Expression = Expression(name)
 
   def define: Code =
       if (init == null)
@@ -39,6 +39,8 @@ object ArrayVariable {
 
 class ArrayVariable(prefix: String, typ: String, length: Expression) extends Variable(prefix, typ, null) {
   override def define: Code = s"$typ $name[$length];"
+
+  override def defineWith(value: Code): Code = s"$typ $name[$length] = $value;"
 }
 
 class Function(returnType: Type, val name: String, args: Array[Variable], body: Code) extends Definition {

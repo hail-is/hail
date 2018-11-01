@@ -199,14 +199,14 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) { outer =>
           pStruct.cxxLoadField(ot.v, idx))
 
       case ir.MakeTuple(fields) =>
-        val sb = new StagedBaseStructTripletBuilder(fb.getArg(1), pType.asInstanceOf[PBaseStruct])
+        val sb = new StagedBaseStructTripletBuilder(fb.getArg(0).toString, fb.getArg(1).toString, pType.asInstanceOf[PBaseStruct])
         fields.foreach { x =>
           sb.add(emit(x))
         }
         sb.triplet()
 
       case ir.MakeStruct(fields) =>
-        val sb = new StagedBaseStructTripletBuilder(fb.getArg(1), pType.asInstanceOf[PBaseStruct])
+        val sb = new StagedBaseStructTripletBuilder(fb.getArg(0).toString, fb.getArg(1).toString, pType.asInstanceOf[PBaseStruct])
         fields.foreach { case (_, x) =>
           sb.add(emit(x))
         }
@@ -218,7 +218,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) { outer =>
         val oldt = emit(old)
         val ov = Variable("old", typeToCXXType(oldPStruct), oldt.v)
 
-        val sb = new StagedBaseStructTripletBuilder(fb.getArg(1), pStruct)
+        val sb = new StagedBaseStructTripletBuilder(fb.getArg(0).toString, fb.getArg(1).toString, pStruct)
         fields.foreach { f =>
           val fieldIdx = oldPStruct.fieldIdx(f)
           sb.add(
@@ -243,7 +243,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) { outer =>
 
         val fieldsMap = fields.toMap
 
-        val sb = new StagedBaseStructTripletBuilder(fb.getArg(1), pStruct)
+        val sb = new StagedBaseStructTripletBuilder(fb.getArg(0).toString, fb.getArg(1).toString, pStruct)
         pStruct.fields.foreach { f =>
           fieldsMap.get(f.name) match {
             case Some(fx) =>
@@ -334,7 +334,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) { outer =>
         val ae = emitArray(x, env)
         ae.length match {
           case Some(length) =>
-            val sab = new StagedContainerBuilder(fb.getArg(1).toExpr, containerPType)
+            val sab = new StagedContainerBuilder(fb.getArg(0).toString, fb.getArg(1).toString, containerPType)
             triplet(ae.setup, ae.m,
               s"""
                  |({
@@ -359,7 +359,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) { outer =>
             val xs = genSym("xs")
             val ms = genSym("ms")
             val i = genSym("i")
-            val sab = new StagedContainerBuilder(fb.getArg(1).toExpr, containerPType)
+            val sab = new StagedContainerBuilder(fb.getArg(0).toString, fb.getArg(1).toString, containerPType)
             triplet(ae.setup, ae.m,
               s"""
                  |({
@@ -393,7 +393,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) { outer =>
         }
 
       case ir.MakeArray(args, _) =>
-        val sab = new StagedContainerBuilder(fb.getArg(1).toExpr, pType.asInstanceOf[PArray])
+        val sab = new StagedContainerBuilder(fb.getArg(0).toString, fb.getArg(1).toString, pType.asInstanceOf[PArray])
         val sb = new ArrayBuilder[Code]
 
         sb += sab.start(s"${ args.length }")
