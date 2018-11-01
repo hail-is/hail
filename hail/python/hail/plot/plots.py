@@ -331,7 +331,7 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, collect_
             hover_fields[key] = [item[key] for item in hf_struct]
     else:
         agg_f = pvals._aggregation_method()
-        res = agg_f(aggregators.downsample(locus.global_position(), pvals,
+        res = agg_f(aggregators.downsample(locus.global_position(), -10 * hail.log10(pvals),
                                            label=hail.array([hail.str(x) for x in hover_fields.values()]),
                                            n_divisions=n_divisions))
         fields = [point[2] for point in res]
@@ -340,8 +340,8 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, collect_
 
     x = [point[0] for point in res]
     y = [point[1] for point in res]
-    y_inv_log = [-log10(p) for p in y]
-    hover_fields['p_value'] = y
+    y_linear = [10 ** (-p/10) for p in y]
+    hover_fields['p_value'] = y_linear
 
     ref = locus.dtype.reference_genome
 
@@ -373,7 +373,7 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, collect_
             del labels[i - num_deleted]
             num_deleted += 1
 
-    p = scatter(x, y_inv_log, label=label, title=title, xlabel='Chromosome', ylabel='P-value (-log10 scale)',
+    p = scatter(x, y, label=label, title=title, xlabel='Chromosome', ylabel='P-value (-log10 scale)',
                 size=size, legend=False, source_fields=hover_fields)
 
     p.xaxis.ticker = mid_points
