@@ -6,6 +6,20 @@ import is.hail.utils._
 import scala.collection.generic.Growable
 import scala.collection.mutable
 
+object OrderedRVIterator {
+  def multiZipJoin(
+    its: IndexedSeq[OrderedRVIterator]
+  ): Iterator[ArrayBuilder[(RegionValue, Int)]] = {
+    require(its.length > 0)
+    val first = its(0)
+    val flipbooks = its.map(_.iterator.toFlipbookIterator)
+    FlipbookIterator.multiZipJoin(
+      flipbooks.toArray,
+      first.t.joinComp(first.t).compare
+    )
+  }
+}
+
 case class OrderedRVIterator(
   t: RVDType,
   iterator: Iterator[RegionValue],
