@@ -127,7 +127,7 @@ object PackEncoder {
     encBuilder.result()
   }
 
-  def apply(t: PType, bufSpec: BufferSpec): NativeEncoderModule = {
+  def buildModule(t: PType, bufSpec: BufferSpec): NativeEncoderModule = {
     assert(t.isInstanceOf[PBaseStruct] || t.isInstanceOf[PArray])
     val tub = new TranslationUnitBuilder()
 

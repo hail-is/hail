@@ -177,7 +177,7 @@ final case class PackCodecSpec(child: BufferSpec) extends CodecSpec {
 
   def buildEncoder(t: PType): (OutputStream) => Encoder = {
     if (HailContext.get.flags.get("cpp") != null) {
-      val e: NativeEncoderModule = cxx.PackEncoder(t, child)
+      val e: NativeEncoderModule = cxx.PackEncoder.buildModule(t, child)
       (out: OutputStream) => new NativePackEncoder(out, e)
     } else {
       out: OutputStream => new PackEncoder(t, child.buildOutputBuffer(out))

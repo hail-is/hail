@@ -186,16 +186,6 @@ class LEB128OutputBuffer {
     void close() { buf_.close(); }
 };
 
-template<typename OutputBuffer>
-class Encoder : public NativeObj {
-  public:
-    OutputBuffer buf_;
-    Encoder() = delete;
-    Encoder(Encoder &enc) = delete;
-    Encoder(std::shared_ptr<OutputStream> out) :
-    buf_(out) { }
-};
-
 }
 
 #endif

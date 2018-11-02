@@ -209,16 +209,6 @@ class LEB128InputBuffer {
     bool read_boolean() { return buf_.read_boolean(); }
 };
 
-template<typename InputBuffer>
-class Decoder : public NativeObj {
-  public:
-    InputBuffer buf_;
-    Decoder() = delete;
-    Decoder(Decoder &dec) = delete;
-    Decoder(std::shared_ptr<InputStream> is) :
-      buf_(is) { }
-};
-
 }
 
 #endif
