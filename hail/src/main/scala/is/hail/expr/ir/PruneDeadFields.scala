@@ -272,6 +272,21 @@ object PruneDeadFields {
             // don't memoize right if we are going to elide it during rebuild
             memoizeTableIR(left, requestedType, memo)
         }
+      case TableMultiWayZipJoin(children, fieldName, globalName) =>
+        val gType = requestedType.globalType.fieldOption(globalName)
+          .map(_.typ.asInstanceOf[TArray].elementType)
+          .getOrElse(TStruct()).asInstanceOf[TStruct]
+        val rType = requestedType.rowType.fieldOption(fieldName)
+          .map(_.typ.asInstanceOf[TArray].elementType)
+          .getOrElse(TStruct()).asInstanceOf[TStruct]
+        children.foreach { child =>
+          val dep = child.typ.copy(
+            rowType = TStruct(child.typ.rowType.required, child.typ.rowType.fieldNames.flatMap(f =>
+                child.typ.keyType.fieldOption(f).orElse(rType.fieldOption(f)).map(reqF => f -> reqF.typ)
+              ): _*),
+            globalType = gType)
+          memoizeTableIR(child, dep, memo)
+        }
       case TableExplode(child, field) =>
         val minChild = minimal(child.typ)
         val dep2 = unify(child.typ, requestedType.copy(rowType = requestedType.rowType.filter(_.name != field)._1),
