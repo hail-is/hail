@@ -28,12 +28,12 @@ object IndexReaderBuilder {
     IndexReaderBuilder(settings.matrixType.rowKeyStruct, settings.indexAnnotationType)
 
   def apply(keyType: Type, annotationType: Type): (Configuration, String, Int) => IndexReader = {
-    val leafType = LeafNodeBuilder.typ(keyType, annotationType).physicalType
-    val internalType = InternalNodeBuilder.typ(keyType, annotationType).physicalType
+    val leafType = LeafNodeBuilder.typ(keyType, annotationType)
+    val internalType = InternalNodeBuilder.typ(keyType, annotationType)
 
     val codecSpec = CodecSpec.default
-    val leafDecoder = codecSpec.buildDecoder(leafType, leafType)
-    val internalDecoder = codecSpec.buildDecoder(internalType, internalType)
+    val leafDecoder = codecSpec.buildDecoder(leafType.physicalType, leafType.physicalType)
+    val internalDecoder = codecSpec.buildDecoder(internalType.physicalType, internalType.physicalType)
 
     (hConf, path, cacheCapacity) => new IndexReader(hConf, path, cacheCapacity, leafDecoder, internalDecoder)
   }

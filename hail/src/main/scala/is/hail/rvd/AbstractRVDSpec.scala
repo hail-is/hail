@@ -34,7 +34,7 @@ object AbstractRVDSpec {
       .extract[AbstractRVDSpec]
   }
 
-  def readLocal(hc: HailContext, path: String, rowType: TStruct, codecSpec: CodecSpec, partFiles: Array[String], requestedType: TStruct): IndexedSeq[Row] = {
+  def readLocal(hc: HailContext, path: String, rowType: PStruct, codecSpec: CodecSpec, partFiles: Array[String], requestedType: PStruct): IndexedSeq[Row] = {
     assert(partFiles.length == 1)
 
     val hConf = hc.hadoopConf
@@ -42,9 +42,9 @@ object AbstractRVDSpec {
       val f = path + "/parts/" + p
       hConf.readFile(f) { in =>
         using(RVDContext.default) { ctx =>
-          HailContext.readRowsPartition(codecSpec.buildDecoder(rowType.physicalType, requestedType.physicalType))(ctx, in)
+          HailContext.readRowsPartition(codecSpec.buildDecoder(rowType, requestedType))(ctx, in)
             .map { rv =>
-              val r = SafeRow(requestedType.physicalType, rv.region, rv.offset)
+              val r = SafeRow(requestedType, rv.region, rv.offset)
               ctx.region.clear()
               r
             }.toFastIndexedSeq
@@ -56,7 +56,7 @@ object AbstractRVDSpec {
   def writeLocal(
     hc: HailContext,
     path: String,
-    rowType: TStruct,
+    rowType: PStruct,
     codecSpec: CodecSpec,
     rows: IndexedSeq[Annotation]
   ): Array[Long] = {
@@ -68,17 +68,17 @@ object AbstractRVDSpec {
         using(RVDContext.default) { ctx =>
           val rvb = ctx.rvb
           val region = ctx.region
-          RichContextRDDRegionValue.writeRowsPartition(codecSpec.buildEncoder(rowType.physicalType))(ctx,
+          RichContextRDDRegionValue.writeRowsPartition(codecSpec.buildEncoder(rowType))(ctx,
             rows.iterator.map { a =>
-              rvb.start(rowType.physicalType)
-              rvb.addAnnotation(rowType, a)
+              rvb.start(rowType)
+              rvb.addAnnotation(rowType.virtualType, a)
               RegionValue(region, rvb.end())
             }, os)
         }
       }
 
     val spec = OrderedRVDSpec(
-      rowType.physicalType,
+      rowType,
       FastIndexedSeq(),
       codecSpec,
       Array("part-0"),
@@ -135,14 +135,14 @@ abstract class AbstractRVDSpec {
 
   def codecSpec: CodecSpec
 
-  def read(hc: HailContext, path: String, requestedType: TStruct): RVD = {
-    val rvdType = RVDType(requestedType.physicalType, key)
+  def read(hc: HailContext, path: String, requestedType: PStruct): RVD = {
+    val rvdType = RVDType(requestedType, key)
 
-    RVD(rvdType, partitioner, hc.readRows(path, encodedType.virtualType, codecSpec, partFiles, requestedType))
+    RVD(rvdType, partitioner, hc.readRows(path, encodedType, codecSpec, partFiles, requestedType))
   }
 
-  def readLocal(hc: HailContext, path: String, requestedType: TStruct): IndexedSeq[Row] =
-    AbstractRVDSpec.readLocal(hc, path, encodedType.virtualType, codecSpec, partFiles, requestedType)
+  def readLocal(hc: HailContext, path: String, requestedType: PStruct): IndexedSeq[Row] =
+    AbstractRVDSpec.readLocal(hc, path, encodedType, codecSpec, partFiles, requestedType)
 
   def write(hadoopConf: hadoop.conf.Configuration, path: String) {
     hadoopConf.writeTextFile(path + "/metadata.json.gz") { out =>

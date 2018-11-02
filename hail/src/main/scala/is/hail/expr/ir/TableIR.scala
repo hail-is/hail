@@ -69,11 +69,11 @@ case class TableRead(path: String, spec: AbstractTableSpec, typ: TableType, drop
   }
 
   protected[ir] override def execute(hc: HailContext): TableValue = {
-    val globals = spec.globalsComponent.readLocal(hc, path, typ.globalType)(0)
+    val globals = spec.globalsComponent.readLocal(hc, path, typ.globalType.physicalType)(0)
     val rvd = if (dropRows)
       RVD.empty(hc.sc, typ.rvdType)
     else {
-      val rvd = spec.rowsComponent.read(hc, path, typ.rowType)
+      val rvd = spec.rowsComponent.read(hc, path, typ.rowType.physicalType)
       if (rvd.typ.key startsWith typ.key)
         rvd
       else {
