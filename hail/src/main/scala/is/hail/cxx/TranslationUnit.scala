@@ -5,6 +5,8 @@ import is.hail.utils.ArrayBuilder
 
 class TranslationUnit(preamble: String, definitions: Array[Definition]) {
 
+  def addDefinition(d: Definition): TranslationUnit = new TranslationUnit(preamble, definitions :+ d)
+
   def source: String =
     new PrettyCode(
       s"""
@@ -45,6 +47,6 @@ class TranslationUnitBuilder() {
 
   def result(): TranslationUnit =
     new TranslationUnit(
-      includes.result().mkString("\n"),
+      includes.result().toSet.mkString("\n"),
       definitions.result())
 }

@@ -1,5 +1,7 @@
 package is.hail.variant
 
+import java.io.InputStream
+
 import is.hail.annotations._
 import is.hail.check.Gen
 import is.hail.linalg._
@@ -10,7 +12,7 @@ import is.hail.methods._
 import is.hail.rvd._
 import is.hail.table.{Table, TableSpec}
 import is.hail.utils._
-import is.hail.{HailContext, utils}
+import is.hail.{HailContext, cxx, utils}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PArray
 import is.hail.io.gen.ExportGen
@@ -103,6 +105,12 @@ case class RVDComponentSpec(rel_path: String) extends ComponentSpec {
     val rvdPath = path + "/" + rel_path
     RVDSpec.read(hc, rvdPath)
       .readLocal(hc, rvdPath, requestedType)
+  }
+
+  def cxxEmitRead(hc: HailContext, path: String, requestedType: TStruct, tub: cxx.TranslationUnitBuilder): cxx.RVDEmitTriplet[InputStream] = {
+    val rvdPath = path + "/" + rel_path
+    RVDSpec.read(hc, rvdPath)
+      .cxxEmitRead(hc, rvdPath, requestedType, tub)
   }
 }
 
