@@ -21,7 +21,7 @@ import scala.reflect.ClassTag
 
 abstract class RVDCoercer(val fullType: RVDType) {
   final def coerce(typ: RVDType, crdd: ContextRDD[RVDContext, RegionValue]): RVD = {
-    require(isSupertype(typ.rowType, fullType.rowType))
+    require(isSupertype(typ.rowType.virtualType, fullType.rowType.virtualType))
     require(typ.key.sameElements(fullType.key))
     _coerce(typ, crdd)
   }
