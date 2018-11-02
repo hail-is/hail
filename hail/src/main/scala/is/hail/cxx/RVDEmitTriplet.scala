@@ -3,13 +3,14 @@ package is.hail.cxx
 import java.io.{FileOutputStream, InputStream, OutputStream, PrintWriter}
 
 import is.hail.HailContext
+import is.hail.annotations.Region
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.types.TStruct
 import is.hail.io.CodecSpec
 import is.hail.nativecode.{NativeModule, NativeStatus, ObjectArray}
-import is.hail.rvd.{OrderedRVDSpec, RVDContext, RVDPartitioner, RVDType}
-import is.hail.sparkextras.ContextRDD
+import is.hail.rvd.{OrderedRVDSpec, RVDPartitioner, RVDType}
 import is.hail.utils._
+import org.apache.spark.rdd.RDD
 
 import scala.reflect.ClassTag
 
@@ -17,7 +18,7 @@ object RVDEmitTriplet {
   type ProcessRowF = Variable => Code
 
   def empty[T: ClassTag](typ: RVDType): RVDEmitTriplet[T] = {
-    new RVDEmitTriplet[T](typ, RVDPartitioner.empty(typ), ContextRDD.empty[RVDContext, T](HailContext.get.sc)) {
+    new RVDEmitTriplet[T](typ, RVDPartitioner.empty(typ), HailContext.get.sc.emptyRDD[T]) {
       def partitionSetup: Code = ""
 
       def makeIterator: Iterator[T] => Long = {it => 0}
@@ -41,12 +42,12 @@ object RVDEmitTriplet {
     tub.include("hail/Upcalls.h")
     tub.include("hail/Region.h")
     tub.include("hail/hail.h")
-    tub.include("hail/Encoder.h")
+    tub.include("hail/Decoder.h")
     tub.include("hail/ObjectArray.h")
     tub.include("<memory>")
 
     val hc = HailContext.get
-    val partsRDD = ContextRDD.weaken[RVDContext](hc.readPartitions(path, partFiles, (_, is, m) => Iterator.single(is)))
+    val partsRDD = hc.readPartitions(path, partFiles, (_, is, m) => Iterator.single(is))
 
     new RVDEmitTriplet[InputStream](requestedType, Option(partitioner).getOrElse(RVDPartitioner.unkeyed(partsRDD.getNumPartitions)), partsRDD) {
       private[this] val up = Variable("up", "UpcallEnv")
@@ -145,24 +146,23 @@ object RVDEmitTriplet {
 
     val transformIterator = t.makeIterator
 
-    val writeF = { (ctx: RVDContext, it: Iterator[T], os: OutputStream) =>
+    val writeF = { (it: Iterator[T], os: OutputStream) =>
       val st = new NativeStatus()
       val mod = new NativeModule(modKey, modBinary)
-
-      val f = mod.findLongFuncL3(st, "process_partition")
-      assert(st.ok, st.toString())
-
-      val osArray = new ObjectArray(os)
-
-      val nRows = f(st, ctx.region.get(), transformIterator(it), osArray.get())
-
-      f.close()
-      osArray.close()
-      mod.close()
-      st.close()
-      os.flush()
-      os.close()
-      nRows
+        val f = mod.findLongFuncL3(st, "process_partition")
+        assert(st.ok, st.toString())
+        val osArray = new ObjectArray(os)
+      Region.scoped { region =>
+        val nRows = f(st, region.get(), transformIterator(it), osArray.get())
+        assert(st.ok, st.toString())
+        f.close()
+        osArray.close()
+        mod.close()
+        st.close()
+        os.flush()
+        os.close()
+        nRows
+      }
     }
 
     val (partFiles, partitionCounts) = t.writePartitions(path, stageLocally, writeF)
@@ -172,7 +172,7 @@ object RVDEmitTriplet {
   }
 }
 
-abstract class RVDEmitTriplet[T : ClassTag](val typ: RVDType, val partitioner: RVDPartitioner, val rddBase: ContextRDD[RVDContext, T]) {
+abstract class RVDEmitTriplet[T : ClassTag](val typ: RVDType, val partitioner: RVDPartitioner, val rddBase: RDD[T]) {
 
   val st: Variable = Variable("st", "NativeStatus*")
   val region: Variable = Variable("region", "Region*")
@@ -192,6 +192,6 @@ abstract class RVDEmitTriplet[T : ClassTag](val typ: RVDType, val partitioner: R
       partitioner.rangeBounds.toFastSeq,
       partitioner.rangeBoundsType))
 
-  def writePartitions(path: String, stageLocally: Boolean, writeF: (RVDContext, Iterator[T], OutputStream) => Long): (Array[String], Array[Long]) =
+  def writePartitions(path: String, stageLocally: Boolean, writeF: (Iterator[T], OutputStream) => Long) =
     rddBase.writePartitions(path, stageLocally, writeF)
 }

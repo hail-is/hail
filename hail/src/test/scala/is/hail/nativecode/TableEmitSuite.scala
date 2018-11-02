@@ -1,8 +1,6 @@
 package is.hail.nativecode
 
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
-
-import is.hail.{SparkSuite, variant}
+import is.hail.SparkSuite
 import is.hail.cxx._
 import is.hail.expr.ir
 import is.hail.io.CodecSpec
