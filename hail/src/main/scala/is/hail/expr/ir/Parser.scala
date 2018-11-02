@@ -46,8 +46,8 @@ object IRLexer extends JavaTokenParsers {
   val token: Parser[Token] =
     "[()\\[\\]{}<>,:+@=]".r ^^ { p => PunctuationToken(p) } |
       identifier ^^ { id => IdentifierToken(id) } |
-      int64_literal ^^ { l => IntegerToken(l) } |
       float64_literal ^^ { d => FloatToken(d) } |
+      int64_literal ^^ { l => IntegerToken(l) } |
       string_literal ^^ { s => StringToken(s) }
 
   val lexer: Parser[Array[Token]] = rep(positioned(token)) ^^ { l => l.toArray }
