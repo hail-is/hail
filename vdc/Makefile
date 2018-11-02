@@ -45,14 +45,17 @@ create-k8s-secrets:
 	  --iam-account=gcr-push@$(PROJECT).iam.gserviceaccount.com \
 	  gcr-push-service-account-key.json
 	kubectl create secret generic gcr-push-service-account-key --from-file=gcr-push-service-account-key.json
+	rm -f gcr-push-service-account-key.json
 	gcloud iam service-accounts keys create \
 	  --iam-account=gcr-pull@$(PROJECT).iam.gserviceaccount.com \
 	  gcr-pull.json
 	kubectl create secret generic gcr-pull-key --from-file=gcr-pull.json
+	rm -f gcr-pull.json
 # empty secret to be filled in by letsencrypt
 	kubectl create secret generic letsencrypt-config
 
 run-letsencrypt:
+	$(MAKE) -C ../letsencrypt start-service
 	$(MAKE) -C ../gateway LETSENCRYPT_ONLY=1 deploy
 	kubectl -n default rollout status -w deployment gateway-deployment
 	$(MAKE) -C ../letsencrypt run
