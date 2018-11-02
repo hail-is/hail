@@ -646,16 +646,16 @@ object IRParser {
         AggGroupBy(key, aggIR)
       case "ApplyAggOp" =>
         val aggSig = agg_signature(it)
-        val seqOpArgs = ir_value_exprs(env)(it)
         val ctorArgs = ir_value_exprs(env)(it)
         val initOpArgs = opt(it, ir_value_exprs(env))
-        ApplyAggOp(seqOpArgs, ctorArgs, initOpArgs.map(_.toFastIndexedSeq), aggSig)
+        val seqOpArgs = ir_value_exprs(env)(it)
+        ApplyAggOp(ctorArgs, initOpArgs.map(_.toFastIndexedSeq), seqOpArgs, aggSig)
       case "ApplyScanOp" =>
         val aggSig = agg_signature(it)
-        val seqOpArgs = ir_value_exprs(env)(it)
         val ctorArgs = ir_value_exprs(env)(it)
         val initOpArgs = opt(it, ir_value_exprs(env))
-        ApplyScanOp(seqOpArgs, ctorArgs, initOpArgs.map(_.toFastIndexedSeq), aggSig)
+        val seqOpArgs = ir_value_exprs(env)(it)
+        ApplyScanOp(ctorArgs, initOpArgs.map(_.toFastIndexedSeq), seqOpArgs, aggSig)
       case "InitOp" =>
         val aggSig = agg_signature(it)
         val i = ir_value_expr(env)(it)
