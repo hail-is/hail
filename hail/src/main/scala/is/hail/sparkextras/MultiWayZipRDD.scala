@@ -8,8 +8,8 @@ import scala.reflect.ClassTag
 object MultiWayZipRDD {
   def apply[T: ClassTag , V: ClassTag](
     rdds: IndexedSeq[RDD[T]]
-  )(f: (Array[Iterator[T]]) => Iterator[V]): MultiWayJoinRDD[T, V] = {
-    new MultiWayJoinRDD(rdds.head.sparkContext, rdds, f)
+  )(f: (Array[Iterator[T]]) => Iterator[V]): MultiWayZipRDD[T, V] = {
+    new MultiWayZipRDD(rdds.head.sparkContext, rdds, f)
   }
 }
 
@@ -34,7 +34,7 @@ class MultiWayZipRDD[T: ClassTag, V: ClassTag](
   }
 
   override def compute(s: Partition, tc: TaskContext) = {
-    val partitions = s.asInstanceOf[MultiWayJoinPartition].partitions
+    val partitions = s.asInstanceOf[MultiWayZipPartition].partitions
     val arr = Array.tabulate(rdds.length)(i => rdds(i).iterator(partitions(i), tc))
     f(arr)
   }
