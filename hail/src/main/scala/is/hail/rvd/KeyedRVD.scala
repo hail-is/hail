@@ -35,13 +35,13 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
 
     val newPartitioner = {
       def leftPart = this.rvd.partitioner.strictify
-      def rightPart = right.rvd.partitioner.coarsen(key).extendKey(realType.kType)
+      def rightPart = right.rvd.partitioner.coarsen(key).extendKey(realType.kType.virtualType)
       (joinType: @unchecked) match {
         case "left" => leftPart
         case "right" => rightPart
         case "inner" => leftPart.intersect(rightPart)
         case "outer" => RVDPartitioner.generate(
-          realType.kType,
+          realType.kType.virtualType,
           leftPart.rangeBounds ++ rightPart.rangeBounds)
       }
     }
@@ -55,7 +55,7 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
       }
     val lTyp = virtType
     val rTyp = right.virtType
-    val rRowPType = right.realType.rowType.physicalType
+    val rRowPType = right.realType.rowType
 
     repartitionedLeft.alignAndZipPartitions(
       joinedType.copy(key = joinedType.key.take(realType.key.length)),

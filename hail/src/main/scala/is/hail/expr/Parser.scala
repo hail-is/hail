@@ -297,7 +297,7 @@ object Parser extends JavaTokenParsers {
   def rvd_type_expr: Parser[RVDType] =
     ((("RVDType" | "OrderedRVDType") ~ "{" ~ "key" ~ ":" ~ "[") ~> key) ~ (trailing_keys <~ "]") ~
       (("," ~ "row" ~ ":") ~> struct_expr <~ "}") ^^ { case partitionKey ~ restKey ~ rowType =>
-      RVDType(rowType, partitionKey ++ restKey)
+      RVDType(rowType.physicalType, partitionKey ++ restKey)
     }
 
   def table_type_expr: Parser[TableType] =

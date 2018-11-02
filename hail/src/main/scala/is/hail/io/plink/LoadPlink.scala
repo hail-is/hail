@@ -168,9 +168,9 @@ object LoadPlink {
         if (skipInvalidLoci && !rg.forall(_.isValidLocus(contig, pos)))
           None
         else {
-          rvb.start(kType.physicalType)
+          rvb.start(kType)
           rvb.startStruct()
-          rvb.addAnnotation(kType.types(0), Locus.annotation(contig, pos, rg))
+          rvb.addAnnotation(kType.types(0).virtualType, Locus.annotation(contig, pos, rg))
           rvb.startArray(2)
           rvb.addString(ref)
           rvb.addString(alt)
@@ -196,7 +196,7 @@ object LoadPlink {
         else {
           rvb.start(rvRowType.physicalType)
           rvb.startStruct()
-          rvb.addAnnotation(kType.types(0), Locus.annotation(contig, pos, rg))
+          rvb.addAnnotation(kType.types(0).virtualType, Locus.annotation(contig, pos, rg))
           rvb.startArray(2)
           rvb.addString(ref)
           rvb.addString(alt)

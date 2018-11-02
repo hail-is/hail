@@ -36,7 +36,7 @@ object LinearMixedModel {
   def toTable(hc: HailContext, partitioner: RVDPartitioner, rdd: RDD[RegionValue]): Table = {
     val typ = TableType(rowType, FastIndexedSeq("idx"), globalType = TStruct())
     
-    val rvd = RVD(RVDType(typ.rowType, Array("idx")),
+    val rvd = RVD(typ.rvdType,
       partitioner, ContextRDD.weaken[RVDContext](rdd)).persist(StorageLevel.MEMORY_AND_DISK)
     
     new Table(hc, TableLiteral(TableValue(typ, BroadcastRow(Row(), typ.globalType, hc.sc), rvd)))

@@ -101,7 +101,7 @@ case class UnpartitionedRVDSpec(
   partFiles: Array[String]) extends RVDSpec {
   def read(hc: HailContext, path: String, requestedType: TStruct): RVD =
     RVD.unkeyed(
-      requestedType,
+      requestedType.physicalType,
       hc.readRows(path, rowType, codecSpec, partFiles, requestedType))
 
   def readLocal(hc: HailContext, path: String, requestedType: TStruct): IndexedSeq[Row] =
@@ -114,16 +114,16 @@ case class OrderedRVDSpec(
   partFiles: Array[String],
   jRangeBounds: JValue) extends RVDSpec {
   def read(hc: HailContext, path: String, requestedType: TStruct): RVD = {
-    val requestedRVDType = rvdType.copy(rowType = requestedType)
+    val requestedRVDType = rvdType.copy(rowType = requestedType.physicalType)
     assert(requestedRVDType.kType == rvdType.kType)
 
-    val rangeBoundsType = TArray(TInterval(requestedRVDType.kType))
+    val rangeBoundsType = TArray(TInterval(requestedRVDType.kType.virtualType))
     RVD(requestedRVDType,
-      new RVDPartitioner(requestedRVDType.kType,
+      new RVDPartitioner(requestedRVDType.kType.virtualType,
         JSONAnnotationImpex.importAnnotation(jRangeBounds, rangeBoundsType, padNulls = false).asInstanceOf[IndexedSeq[Interval]]),
-      hc.readRows(path, rvdType.rowType, codecSpec, partFiles, requestedType))
+      hc.readRows(path, rvdType.rowType.virtualType, codecSpec, partFiles, requestedType))
   }
 
   def readLocal(hc: HailContext, path: String, requestedType: TStruct): IndexedSeq[Row] =
-    RVDSpec.readLocal(hc, path, rvdType.rowType, codecSpec, partFiles, requestedType)
+    RVDSpec.readLocal(hc, path, rvdType.rowType.virtualType, codecSpec, partFiles, requestedType)
 }

@@ -106,7 +106,7 @@ case class TableParallelize(rows: IR, nPartitions: Option[Int] = None) extends T
 
     log.info(s"parallelized ${ rowsValue.length } rows")
 
-    val rowTyp = typ.rowType
+    val rowTyp = typ.rowType.physicalType
     val rvd = ContextRDD.parallelize[RVDContext](hc.sc, rowsValue, nPartitions)
       .cmapPartitions((ctx, it) => it.toRegionValueIterator(ctx.region, rowTyp))
     TableValue(typ, BroadcastRow(Row(), typ.globalType, hc.sc), RVD.unkeyed(rowTyp, rvd))
@@ -180,7 +180,7 @@ case class TableImport(paths: Array[String], typ: TableType, readerOpts: TableRe
       }
     }
 
-    TableValue(typ, BroadcastRow(Row.empty, typ.globalType, hc.sc), RVD.unkeyed(rowTyp, crdd))
+    TableValue(typ, BroadcastRow(Row.empty, typ.globalType, hc.sc), RVD.unkeyed(rowTyp.physicalType, crdd))
   }
 }
 
@@ -247,7 +247,7 @@ case class TableRange(n: Int, nPartitions: Int) extends TableIR {
     TableValue(typ,
       BroadcastRow(Row(), typ.globalType, hc.sc),
       new RVD(
-        RVDType(typ.rowType, Array("idx")),
+        RVDType(typ.rowType.physicalType, Array("idx")),
         new RVDPartitioner(Array("idx"), typ.rowType,
           Array.tabulate(nPartitionsAdj) { i =>
             val start = partStarts(i)
@@ -373,9 +373,9 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
   val children: IndexedSeq[BaseIR] = Array(left, right)
 
   private val leftRVDType =
-    RVDType(left.typ.rowType, left.typ.key.take(joinKey))
+    RVDType(left.typ.rowType.physicalType, left.typ.key.take(joinKey))
   private val rightRVDType =
-    RVDType(right.typ.rowType, right.typ.key.take(joinKey))
+    RVDType(right.typ.rowType.physicalType, right.typ.key.take(joinKey))
 
   require(leftRVDType.rowType.fieldNames.toSet
     .intersect(rightRVDType.valueType.fieldNames.toSet)
@@ -386,7 +386,7 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
 
   private val newKey = left.typ.key ++ right.typ.key.drop(joinKey)
 
-  val typ: TableType = TableType(newRowType, newKey, newGlobalType)
+  val typ: TableType = TableType(newRowType.virtualType, newKey, newGlobalType)
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableJoin = {
     assert(newChildren.length == 2)
@@ -420,23 +420,23 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
           rvb.set(rrv.region)
         }
 
-        rvb.start(localNewRowType.physicalType)
+        rvb.start(localNewRowType)
         rvb.startStruct()
 
         if (lrv != null)
-          rvb.addFields(leftRowType.physicalType, lrv, leftKeyFieldIdx)
+          rvb.addFields(leftRowType, lrv, leftKeyFieldIdx)
         else {
           assert(rrv != null)
-          rvb.addFields(rightRowType.physicalType, rrv, rightKeyFieldIdx)
+          rvb.addFields(rightRowType, rrv, rightKeyFieldIdx)
         }
 
         if (lrv != null)
-          rvb.addFields(leftRowType.physicalType, lrv, leftValueFieldIdx)
+          rvb.addFields(leftRowType, lrv, leftValueFieldIdx)
         else
           rvb.skipFields(leftValueFieldIdx.length)
 
         if (rrv != null)
-          rvb.addFields(rightRowType.physicalType, rrv, rightValueFieldIdx)
+          rvb.addFields(rightRowType, rrv, rightValueFieldIdx)
         else
           rvb.skipFields(rightValueFieldIdx.length)
 
@@ -724,7 +724,7 @@ case class TableExplode(child: TableIR, fieldName: String) extends TableIR {
 
     val adjKey = prev.rvd.truncateKey(prev.rvd.typ.key.takeWhile(_ != fieldName))
     val newRVD = adjKey.boundary.mapPartitionsWithIndex(
-      adjKey.typ.copy(rowType = rowType),
+      adjKey.typ.copy(rowType = rowType.physicalType),
       itF)
 
     TableValue(typ, prev.globals, newRVD)
@@ -1021,7 +1021,7 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
 
     val newValueType = typ.valueType
     val newRowType = typ.rowType
-    val newRVDType = prevRVD.typ.copy(rowType = newRowType)
+    val newRVDType = prevRVD.typ.copy(rowType = newRowType.physicalType)
 
     val newRVD = prevRVD
       .repartition(prevRVD.partitioner.strictify)
@@ -1146,7 +1146,7 @@ case class TableOrderBy(child: TableIR, sortFields: IndexedSeq[SortField]) exten
     val codec = RVD.wireCodec
     val rdd = prev.rvd.keyedEncodedRDD(codec, sortFields.map(_.field)).sortBy(_._1)(ord, act)
     val orderedCRDD = codec.decodeRDD(rowType.physicalType, rdd.map(_._2))
-    TableValue(typ, prev.globals, RVD.unkeyed(rowType, orderedCRDD))
+    TableValue(typ, prev.globals, RVD.unkeyed(rowType.physicalType, orderedCRDD))
   }
 }
 
@@ -1181,7 +1181,7 @@ case class CastMatrixToTable(
       typ.globalType,
       hc.sc)
 
-    TableValue(typ, newGlobals, prev.rvd.cast(typ.rowType))
+    TableValue(typ, newGlobals, prev.rvd.cast(typ.rowType.physicalType))
   }
 }
 
@@ -1210,6 +1210,6 @@ case class TableRename(child: TableIR, rowMap: Map[String, String], globalMap: M
   def execute(hc: HailContext): TableValue = {
     val prev = child.execute(hc)
 
-    TableValue(typ, prev.globals, prev.rvd.cast(typ.rowType))
+    TableValue(typ, prev.globals, prev.rvd.cast(typ.rowType.physicalType))
   }
 }
