@@ -97,7 +97,7 @@ public:
   jclass class_ref_;
   jfieldID addrA_id_;
   jfieldID addrB_id_;
-  
+
 public:
   NativePtrInfo(JNIEnv* env, int line) {
     auto rc = env->GetJavaVM(&java_vm_); // needed for making C++-to-JVM calls
@@ -119,12 +119,12 @@ public:
 // cause trouble in other code, so we need to watch out for it.
 //
 // I suspect this may be related to gcc's use of STB_GNU_UNIQUE for static
-// data, though from this description it shouldn't be used for data in a 
+// data, though from this description it shouldn't be used for data in a
 // non-inline function:
 //
-// "On systems with recent GNU assembler and C library, the C++ compiler uses 
-// the STB_GNU_UNIQUE binding to make sure that definitions of template static 
-// data members and static local variables in inline functions are unique even 
+// "On systems with recent GNU assembler and C library, the C++ compiler uses
+// the STB_GNU_UNIQUE binding to make sure that definitions of template static
+// data members and static local variables in inline functions are unique even
 // in the presence of RTLD_LOCAL"
 
 
@@ -150,18 +150,18 @@ public:
     addrs_[0] = env->GetLongField(obj, info->addrA_id_);
     addrs_[1] = env->GetLongField(obj, info->addrB_id_);
   }
-  
+
   TwoAddrs(int64_t addrA, int64_t addrB) {
     addrs_[0] = addrA;
     addrs_[1] = addrB;
   }
-  
+
   TwoAddrs(NativeObjPtr&& b) {
     addrs_[0] = 0;
     addrs_[1] = 0;
     this->as_NativeObjPtr() = std::move(b);
   }
-  
+
   TwoAddrs(const NativeObjPtr& b) {
     addrs_[0] = 0;
     addrs_[1] = 0;
@@ -171,12 +171,12 @@ public:
   NativeObjPtr& as_NativeObjPtr() {
     return *reinterpret_cast<NativeObjPtr*>(this);
   }
-  
+
   void copy_to_scala(JNIEnv* env, jobject obj, NativePtrInfo* info) {
     env->SetLongField(obj, info->addrA_id_, addrs_[0]);
     env->SetLongField(obj, info->addrB_id_, addrs_[1]);
   }
-  
+
   int64_t get_addrA() const { return addrs_[0]; }
   int64_t get_addrB() const { return addrs_[1]; }
   void set_addrA(int64_t v) { addrs_[0] = v; }
@@ -428,12 +428,12 @@ NATIVEMETHOD(jlong, NativePtr, getFieldOffset)(
 class TestObjA : public hail::NativeObj {
 private:
   std::vector<int64_t> vec_;
-  
+
 public:
   TestObjA() : vec_() {
     fprintf(stderr, "DEBUG: TestObjA::ctor()\n");
   }
-  
+
   TestObjA(int64_t a0) : vec_({a0}) {
     fprintf(stderr, "DEBUG: TestObjA::ctor(%08lx)\n", (long)a0);
   }
