@@ -2,6 +2,8 @@ package is.hail.utils
 
 import scala.collection.GenTraversableOnce
 import scala.collection.generic.Growable
+import scala.collection.mutable.PriorityQueue
+import scala.reflect.ClassTag
 
 /**
   * A StateMachine has the same primary interface as FlipbookIterator, but the
@@ -84,6 +86,65 @@ object FlipbookIterator {
     StagingIterator(sm)
 
   def empty[A] = StagingIterator(StateMachine.terminal[A])
+
+  def multiZipJoin[A: ClassTag](
+    its: Array[FlipbookIterator[A]],
+    ord: (A, A) => Int
+  ): FlipbookIterator[ArrayBuilder[(A, Int)]] = {
+    object TmpOrd extends Ordering[(A, Int)] {
+      def compare(x: (A, Int), y: (A, Int)): Int = ord(y._1, x._1)
+    }
+    val indexed = its.zipWithIndex
+    val sm = new StateMachine[ArrayBuilder[(A, Int)]] {
+      var q: PriorityQueue[(A, Int)] = new PriorityQueue()(TmpOrd)
+      val value = new ArrayBuilder[(A, Int)](its.length)
+      var isValid = true
+
+      def advance() {
+        var i = 0; while (i < value.length) {
+          indexed(value(i)._2)._1.advance()
+          i += 1
+        }
+        if (q.isEmpty) { // if queue is empty try to fill it
+          var i = 0; while (i < its.length) {
+            if (indexed(i)._1.isValid) {
+              q.enqueue(indexed(i)._1.value -> indexed(i)._2)
+            }
+            i += 1
+          }
+        } else {
+          var i = 0; while (i < value.length) {
+            val j = value(i)._2
+            if (indexed(j)._1.isValid) {
+              q.enqueue(indexed(j)._1.value -> j)
+            }
+            i += 1
+          }
+        }
+        if (q.isEmpty) {
+          isValid = false
+          return
+        }
+        value.clear()
+        val v = q.dequeue()
+        value += v
+        var done = q.isEmpty
+        while (!done) {
+          val tmp = q.dequeue()
+          if (ord(tmp._1, value(0)._1) != 0) {
+            done = true
+            q.enqueue(tmp)
+          } else {
+            value += tmp
+            done = q.isEmpty
+          }
+        }
+      }
+    }
+
+    sm.advance()
+    FlipbookIterator(sm)
+  }
 }
 
 /**
