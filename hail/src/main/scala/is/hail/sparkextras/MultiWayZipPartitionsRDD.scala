@@ -5,18 +5,18 @@ import org.apache.spark.rdd.RDD
 
 import scala.reflect.ClassTag
 
-object MultiWayZipRDD {
+object MultiWayZipPartitionsRDD {
   def apply[T: ClassTag , V: ClassTag](
     rdds: IndexedSeq[RDD[T]]
-  )(f: (Array[Iterator[T]]) => Iterator[V]): MultiWayZipRDD[T, V] = {
-    new MultiWayZipRDD(rdds.head.sparkContext, rdds, f)
+  )(f: (Array[Iterator[T]]) => Iterator[V]): MultiWayZipPartitionsRDD[T, V] = {
+    new MultiWayZipPartitionsRDD(rdds.head.sparkContext, rdds, f)
   }
 }
 
 private case class MultiWayZipPartition(val index: Int, val partitions: IndexedSeq[Partition])
   extends Partition
 
-class MultiWayZipRDD[T: ClassTag, V: ClassTag](
+class MultiWayZipPartitionsRDD[T: ClassTag, V: ClassTag](
   sc: SparkContext,
   var rdds: IndexedSeq[RDD[T]],
   var f: (Array[Iterator[T]]) => Iterator[V]
