@@ -193,7 +193,7 @@ case class TableImport(paths: Array[String], typ: TableType, readerOpts: TableRe
   * Let n be the longest common prefix of 'keys' and the old key, i.e. the
   * number of key fields that are not being changed.
   * - If 'isSorted', then 'child' must already be sorted by 'keys', and n must
-  *   not be zero. Thus, if 'isSorted', TableKeyBy will not shuffle or scan. 
+  *   not be zero. Thus, if 'isSorted', TableKeyBy will not shuffle or scan.
   *   The new partitioner will be the old one with partition bounds truncated
   *   to length n.
   * - If n = 'keys.length', i.e. we are simply shortening the key, do nothing
@@ -498,7 +498,6 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableMultiWayZipJoin =
     TableMultiWayZipJoin(newChildren.asInstanceOf[IndexedSeq[TableIR]], fieldName, globalName)
-
 
   def execute(hc: HailContext): TableValue = {
     val rowType = rvdType.rowType
