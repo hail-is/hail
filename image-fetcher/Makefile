@@ -1,9 +1,11 @@
 .PHONY: build push deploy
 
+PROJECT = $(shell gcloud config get-value project)
+
 build:
 	docker build . -t image-fetcher
 
-push: IMAGE = gcr.io/broad-ctsa/image-fetcher:$(shell docker images -q --no-trunc image-fetcher | sed -e 's,[^:]*:,,')
+push: IMAGE = gcr.io/$(PROJECT)/image-fetcher:$(shell docker images -q --no-trunc image-fetcher | sed -e 's,[^:]*:,,')
 push: build
 	echo $(IMAGE) > image-fetcher-image
 	docker tag image-fetcher $(IMAGE)

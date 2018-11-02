@@ -11,7 +11,7 @@ push: build
 	docker tag scorecard $(IMAGE)
 	docker push $(IMAGE)
 
-run-docker:
+run-docker: build
 	docker run -i -p 5000:5000 -v secrets:/secrets -t scorecard
 
 run:

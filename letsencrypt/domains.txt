@@ -1,7 +1,5 @@
 @domain@
-www.@domain@
 ci.@domain@
-upload.@domain@
 scorecard.@domain@
 notebook.@domain@
 test.@domain@

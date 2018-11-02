@@ -4,7 +4,6 @@ STATIC_CONFIG = letsencrypt-pod.yaml letsencrypt.sh
 
 PROJECT = $(shell gcloud config get-value project)
 DOMAIN ?= hail.is
-IP ?= 35.224.105.117
 
 $(STATIC_CONFIG): %: %.in
 	sed -e "s,@project@,$(PROJECT),g" \

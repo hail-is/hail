@@ -10,6 +10,7 @@ beforehand:
 
    - Enable Identity and Access Management (IAM) API
    - Enable Cloud SQL Admin API
+   - Google Cloud Deployment Manager V2 API
 
  - In the GCP console, go to VPC network > External IP addresses >
    RESERVE STATIC IP ADDRESS and reserve a static IP address called

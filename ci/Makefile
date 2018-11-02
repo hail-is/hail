@@ -2,6 +2,8 @@
 .PHONY: setup-conda-env build-hail-ci push-hail-ci test-locally
 .PHONY: run-service deploy
 
+PROJECT = $(shell gcloud config get-value project)
+
 HAIL_CI_LOCAL_BATCH_PORT ?= 8888
 
 setup-conda-env:
@@ -13,7 +15,7 @@ update-conda-env:
 build-hail-ci:
 	cd ../ && docker build . -t hail-ci -f ci/Dockerfile
 
-push-hail-ci: IMAGE = gcr.io/broad-ctsa/hail-ci:$(shell docker images -q --no-trunc hail-ci | head -n 1 | sed -e 's,[^:]*:,,')
+push-hail-ci: IMAGE = gcr.io/$(PROJECT)/hail-ci:$(shell docker images -q --no-trunc hail-ci | head -n 1 | sed -e 's,[^:]*:,,')
 push-hail-ci: build-hail-ci
 	docker tag hail-ci ${IMAGE}
 	docker push ${IMAGE}
@@ -27,7 +29,7 @@ restart-proxy:
 	-kill -9 $(shell cat proxy.pid)
 	-rm -rf proxy.pid
 	$(shell gcloud compute \
-	  --project "broad-ctsa" \
+	  --project "$(PROJECT)" \
 	  ssh \
 	  --zone "us-central1-a" \
 	  "dk-test" \
