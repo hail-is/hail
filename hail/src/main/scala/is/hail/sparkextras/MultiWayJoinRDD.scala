@@ -7,10 +7,9 @@ import scala.reflect.ClassTag
 
 object MultiWayJoinRDD {
   def apply[T: ClassTag , V: ClassTag](
-    rdds: IndexedSeq[RDD[T]],
-    preservesPartitioning: Boolean = false
+    rdds: IndexedSeq[RDD[T]]
   )(f: (Array[Iterator[T]]) => Iterator[V]): MultiWayJoinRDD[T, V] = {
-    new MultiWayJoinRDD(rdds.head.sparkContext, rdds, f, preservesPartitioning)
+    new MultiWayJoinRDD(rdds.head.sparkContext, rdds, f)
   }
 }
 
@@ -20,14 +19,13 @@ private case class MultiWayJoinPartition(val index: Int, val partitions: Indexed
 class MultiWayJoinRDD[T: ClassTag, V: ClassTag](
   sc: SparkContext,
   var rdds: IndexedSeq[RDD[T]],
-  var f: (Array[Iterator[T]]) => Iterator[V],
-  preservesPartitioning: Boolean = false
+  var f: (Array[Iterator[T]]) => Iterator[V]
 ) extends RDD[V](sc, rdds.map(x => new OneToOneDependency(x))) {
   require(rdds.length > 0)
   private val numParts = rdds(0).partitions.length
   require(rdds.forall(rdd => rdd.partitions.length == numParts))
 
-  override val partitioner = if (preservesPartitioning) rdds(0).partitioner else None
+  override val partitioner = None
 
   override def getPartitions: Array[Partition] = {
     Array.tabulate[Partition](numParts) { i =>
