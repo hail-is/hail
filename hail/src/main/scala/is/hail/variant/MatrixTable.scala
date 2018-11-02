@@ -12,7 +12,7 @@ import is.hail.table.{Table, TableSpec}
 import is.hail.utils._
 import is.hail.{HailContext, utils}
 import is.hail.expr.types._
-import is.hail.expr.types.physical.PArray
+import is.hail.expr.types.physical.{PArray, PStruct}
 import is.hail.io.gen.ExportGen
 import is.hail.io.plink.ExportPlink
 import is.hail.sparkextras.{ContextRDD, RepartitionedOrderedRDD2}

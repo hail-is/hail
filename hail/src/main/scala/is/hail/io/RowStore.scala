@@ -4,7 +4,7 @@ import is.hail.annotations._
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.io.compress.LZ4Utils
 import is.hail.nativecode._
-import is.hail.rvd.{OrderedRVDSpec, RVDContext, RVDPartitioner, RVDSpec, UnpartitionedRVDSpec}
+import is.hail.rvd.{OrderedRVDSpec, RVDContext, RVDPartitioner, RVDSpec, RVDType, UnpartitionedRVDSpec}
 import is.hail.sparkextras._
 import is.hail.utils._
 import org.apache.spark.rdd.RDD
@@ -16,7 +16,7 @@ import scala.collection.mutable.ArrayBuffer
 import is.hail.asm4s._
 import is.hail.cxx
 import is.hail.expr.ir.{EmitUtils, EstimableEmitter, MethodBuilderLike}
-import is.hail.expr.types.MatrixType
+import is.hail.expr.types.{MatrixType, Type}
 import is.hail.expr.types.physical._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
 import org.apache.spark.sql.Row
@@ -121,11 +121,11 @@ object CodecSpec {
 trait CodecSpec extends Serializable {
   def buildEncoder(t: PType): (OutputStream) => Encoder
 
-  def buildDecoder(t: PType, requestedType: PType): (InputStream) => Decoder
+  def buildDecoder(t: PType, requestedType: Type): (InputStream) => Decoder
 
   // FIXME: is there a better place for this to live?
   def decodeRDD(t: PType, bytes: RDD[Array[Byte]]): ContextRDD[RVDContext, RegionValue] = {
-    val dec = buildDecoder(t, t)
+    val dec = buildDecoder(t, t.virtualType)
     ContextRDD.weaken[RVDContext](bytes).cmapPartitions { (ctx, it) =>
       val rv = RegionValue(ctx.region)
       it.map(RegionValue.fromBytes(dec, ctx.region, rv))
@@ -180,12 +180,12 @@ final case class PackCodecSpec(child: BufferSpec) extends CodecSpec {
     }
   }
 
-  def buildDecoder(t: PType, requestedType: PType): (InputStream) => Decoder = {
+  def buildDecoder(t: PType, requestedType: Type): (InputStream) => Decoder = {
     if (System.getenv("HAIL_ENABLE_CPP_CODEGEN") != null) {
-      val d: NativeDecoderModule = NativeDecoder(t, requestedType, child)
+      val d: NativeDecoderModule = NativeDecoder(t, requestedType.physicalType, child)
       (in: InputStream) => new NativePackDecoder(in, d)
     } else {
-      val f = EmitPackDecoder(t, requestedType)
+      val f = EmitPackDecoder(t, requestedType.physicalType)
       (in: InputStream) => new CompiledPackDecoder(child.buildInputBuffer(in), f)
     }
   }
@@ -1649,7 +1649,7 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
 
   def writeRowsSplit(
     path: String,
-    t: MatrixType,
+    t: RVDType,
     codecSpec: CodecSpec,
     partitioner: RVDPartitioner,
     stageLocally: Boolean
@@ -1665,15 +1665,15 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
     val nPartitions = crdd.getNumPartitions
     val d = digitsNeeded(nPartitions)
 
-    val fullRowType = t.rvRowType
-    val fullRowPType = fullRowType.physicalType
-    val rowsRVType = t.rowType
-    val localEntriesIndex = t.entriesIdx
-    val entriesRVType = t.entriesRVType
+    val fullRowType = t.rowType
+    val rowsRVType = MatrixType.getRowType(fullRowType)
+    val localEntriesIndex = MatrixType.getEntriesIndex(fullRowType)
+    val rowFieldIndices = Array.range(0, fullRowType.size).filter(_ != localEntriesIndex)
+    val entriesRVType = MatrixType.getEntriesType(fullRowType)
 
-    val makeRowsEnc = codecSpec.buildEncoder(rowsRVType.physicalType)
+    val makeRowsEnc = codecSpec.buildEncoder(rowsRVType)
 
-    val makeEntriesEnc = codecSpec.buildEncoder(t.entriesRVType.physicalType)
+    val makeEntriesEnc = codecSpec.buildEncoder(entriesRVType)
 
     val partFilePartitionCounts = crdd.cmapPartitionsWithIndex { (i, ctx, it) =>
       val hConf = sHConfBc.value.value
@@ -1708,23 +1708,21 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
               var rowCount = 0L
 
               val rvb = new RegionValueBuilder()
-              val fullRow = new UnsafeRow(fullRowPType)
 
               it.foreach { rv =>
-                fullRow.set(rv)
-                val row = fullRow.deleteField(localEntriesIndex)
-
                 val region = rv.region
                 rvb.set(region)
-                rvb.start(rowsRVType.physicalType)
-                rvb.addAnnotation(rowsRVType, row)
+                rvb.start(rowsRVType)
+                rvb.startStruct()
+                rvb.addFields(fullRowType, rv, rowFieldIndices)
+                rvb.endStruct()
 
                 rowsEN.writeByte(1)
                 rowsEN.writeRegionValue(region, rvb.end())
 
-                rvb.start(entriesRVType.physicalType)
+                rvb.start(entriesRVType)
                 rvb.startStruct()
-                rvb.addField(fullRowType.physicalType, rv, localEntriesIndex)
+                rvb.addField(fullRowType, rv, localEntriesIndex)
                 rvb.endStruct()
 
                 entriesEN.writeByte(1)
@@ -1761,7 +1759,7 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
 
     val (partFiles, partitionCounts) = partFilePartitionCounts.unzip
 
-    val rowsSpec = OrderedRVDSpec(t.rowRVDType,
+    val rowsSpec = OrderedRVDSpec(RVDType(rowsRVType, t.key),
       codecSpec,
       partFiles,
       JSONAnnotationImpex.exportAnnotation(partitioner.rangeBounds.toFastSeq, partitioner.rangeBoundsType))

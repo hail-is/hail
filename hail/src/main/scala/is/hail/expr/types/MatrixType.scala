@@ -3,6 +3,7 @@ package is.hail.expr.types
 import is.hail.annotations.Annotation
 import is.hail.expr.Parser
 import is.hail.expr.ir.Env
+import is.hail.expr.types.physical.{PArray, PStruct}
 import is.hail.rvd.RVDType
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -16,6 +17,12 @@ class MatrixTypeSerializer extends CustomSerializer[MatrixType](format => (
 
 object MatrixType {
   val entriesIdentifier = "the entries! [877f12a8827e18f61222c6c8c5fb04a8]"
+
+  def getRowType(rvRowType: PStruct): PStruct = rvRowType.selectFields(Set(entriesIdentifier), keep = false)
+  def getEntryArrayType(rvRowType: PStruct): PArray = rvRowType.field(entriesIdentifier).typ.asInstanceOf[PArray]
+  def getEntriesType(rvRowType: PStruct): PStruct = rvRowType.selectFields(Set(entriesIdentifier), keep = true)
+  def getEntryType(rvRowType: PStruct): PStruct = getEntryArrayType(rvRowType).elementType.asInstanceOf[PStruct]
+  def getEntriesIndex(rvRowType: PStruct): Int = rvRowType.fieldIdx(entriesIdentifier)
 
   def fromParts(
     globalType: TStruct,

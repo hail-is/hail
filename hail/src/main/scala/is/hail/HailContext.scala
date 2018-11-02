@@ -6,6 +6,7 @@ import java.util.Properties
 import is.hail.annotations._
 import is.hail.expr.ir.MatrixRead
 import is.hail.expr.types._
+import is.hail.expr.types.physical.PStruct
 import is.hail.io.{CodecSpec, Decoder, LoadMatrix}
 import is.hail.io.bgen.{IndexBgen, LoadBgen, MatrixBGENReader}
 import is.hail.io.gen.LoadGen
@@ -614,12 +615,12 @@ class HailContext private(val sc: SparkContext,
 
   def readRows(
     path: String,
-    t: TStruct,
+    t: PStruct,
     codecSpec: CodecSpec,
     partFiles: Array[String],
     requestedType: TStruct
   ): ContextRDD[RVDContext, RegionValue] = {
-    val makeDec = codecSpec.buildDecoder(t.physicalType, requestedType.physicalType)
+    val makeDec = codecSpec.buildDecoder(t, requestedType)
     ContextRDD.weaken[RVDContext](readPartitions(path, partFiles, (_, is, m) => Iterator.single(is -> m)))
       .cmapPartitions { (ctx, it) =>
         assert(it.hasNext)

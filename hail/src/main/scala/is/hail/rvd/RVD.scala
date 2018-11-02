@@ -617,14 +617,14 @@ class RVD(
   def find(region: Region)(p: (RegionValue) => Boolean): Option[RegionValue] =
     find(RVD.wireCodec, p).map(
       RegionValue.fromBytes(
-        RVD.wireCodec.buildDecoder(rowPType, rowPType),
+        RVD.wireCodec.buildDecoder(rowPType, rowType),
         region,
         RegionValue(region)))
 
   // Collecting
 
   def collect(codec: CodecSpec): Array[Row] = {
-    val dec = codec.buildDecoder(rowPType, rowPType)
+    val dec = codec.buildDecoder(rowPType, rowType)
     val encodedData = collectAsBytes(codec)
     Region.scoped { region =>
       encodedData.iterator
@@ -649,8 +649,7 @@ class RVD(
   def cache(): RVD = persist(StorageLevel.MEMORY_ONLY)
 
   def persist(level: StorageLevel): RVD = {
-    val localRowPType = rowPType
-    val makeDec = RVD.memoryCodec.buildDecoder(localRowPType, localRowPType)
+    val makeDec = RVD.memoryCodec.buildDecoder(rowPType, rowType)
 
     val persistedRDD = stabilize().persist(level)
 
@@ -687,10 +686,9 @@ class RVD(
 
   def writeRowsSplit(
     path: String,
-    t: MatrixType,
     codecSpec: CodecSpec,
     stageLocally: Boolean
-  ): Array[Long] = crdd.writeRowsSplit(path, t, codecSpec, partitioner, stageLocally)
+  ): Array[Long] = crdd.writeRowsSplit(path, typ, codecSpec, partitioner, stageLocally)
 
   // Joining
 
@@ -975,7 +973,7 @@ class RVD(
     stable: RDD[Array[Byte]],
     codec: CodecSpec = RVD.memoryCodec
   ): ContextRDD[RVDContext, RegionValue] = {
-    val dec = codec.buildDecoder(rowPType, rowPType)
+    val dec = codec.buildDecoder(rowPType, rowType)
     ContextRDD.weaken[RVDContext](stable).cmapPartitions { (ctx, it) =>
       val rv = RegionValue(ctx.region)
       it.map(RegionValue.fromBytes(dec, ctx.region, rv))
@@ -1228,7 +1226,7 @@ object RVD {
     codec: CodecSpec,
     rdd: RDD[Array[Byte]]
   ): RVD = {
-    val dec = codec.buildDecoder(typ.rowType, typ.rowType)
+    val dec = codec.buildDecoder(typ.rowType, typ.rowType.virtualType)
     apply(
       typ,
       partitioner,
