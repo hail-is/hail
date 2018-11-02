@@ -280,7 +280,9 @@ def phase_trio_matrix_by_transmission(tm: hl.MatrixTable, call_field: str = 'GT'
 
 
 @typecheck(tm=MatrixTable,
-           col_keys=sequenceof(str))
+           col_keys=sequenceof(str),
+           keep_trio_cols=bool,
+           keep_trio_entries=bool)
 def explode_trio_matrix(tm: hl.MatrixTable, col_keys: List[str] = ['s'], keep_trio_cols: bool = True, keep_trio_entries: bool = False) -> hl.MatrixTable:
     """Splits a trio MatrixTable back into a sample MatrixTable.
 
