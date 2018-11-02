@@ -316,11 +316,22 @@ class PRS(object):
         assert isinstance(job, Job), f'{job.id} {job.attributes}'
         expected_job = self.deploy_jobs.get(target.ref, None)
         if expected_job is None:
-            log.error(f'notified of unexpected deploy job {job.id} (I am not waiting ofr any for {target.short_str()})')
+            log.error(f'notified of unexpected deploy job {job.id} (I am not waiting for any for {target.short_str()})')
             return
         if expected_job.id != job.id:
-            log.error(f'notified of unexpected deploy job {job.id}, expected {expected_job.id} for {target.short_str()}')
-            return
+            expected_target = FQSHA.from_json(json.loads(expected_job.attributes['target']))
+            if expected_target == target:
+                expected_job.delete()
+                log.info(
+                    f'proceeding with unexpected deploy job {job.id}, '
+                    f'because targets matched: {target} {expected_target}. '
+                    f'Expected {expected_job.id}.')
+            else:
+                log.error(
+                    f'proceeding with unexpected deploy job {job.id}, '
+                    f'because targets matched: {target} {expected_target}. '
+                    f'Expected {expected_job.id}.')
+                return
         assert job.cached_status()['state'] == 'Complete'
         exit_code = job.cached_status()['exit_code']
         del self.deploy_jobs[target.ref]
