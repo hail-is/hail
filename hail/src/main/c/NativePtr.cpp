@@ -81,7 +81,6 @@ void on_signal(int sig) {
   void* callstack[20];
   int depth = backtrace(callstack, 20);
   backtrace_symbols_fd(callstack, depth, 2);
-  exit(1);
 }
 
 void catch_signals() {
