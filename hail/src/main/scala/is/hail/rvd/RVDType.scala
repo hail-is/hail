@@ -3,7 +3,7 @@ package is.hail.rvd
 import is.hail.annotations._
 import is.hail.expr.Parser
 import is.hail.expr.types._
-import is.hail.expr.types.physical.{PStruct, PType}
+import is.hail.expr.types.physical.{PInterval, PStruct, PType}
 import is.hail.utils._
 import org.apache.commons.lang3.builder.HashCodeBuilder
 import org.json4s.CustomSerializer
@@ -55,14 +55,14 @@ final case class RVDType(rowType: PStruct, key: IndexedSeq[String] = FastIndexed
     */
   def intervalJoinComp(other: RVDType): UnsafeOrdering = {
     require(other.key.length == 1)
-    require(other.rowType.field(other.key(0)).typ.asInstanceOf[TInterval].pointType == rowType.field(key(0)).typ)
+    require(other.rowType.field(other.key(0)).typ.asInstanceOf[PInterval].pointType.virtualType == rowType.field(key(0)).typ.virtualType)
 
     new UnsafeOrdering {
       val t1 = rowType
       val t2 = other.rowType
       val f1 = kFieldIdx(0)
       val f2 = other.kFieldIdx(0)
-      val intervalType = t2.types(f2).asInstanceOf[TInterval].physicalType
+      val intervalType = t2.types(f2).asInstanceOf[PInterval]
       val pord = t1.types(f1).unsafeOrdering(intervalType.pointType)
 
       // Left is a point, right is an interval.
