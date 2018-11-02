@@ -2601,4 +2601,11 @@ class Table(ExprContainer):
     def _unlocalize_entries(self, cols, entries_field_name):
         return hl.MatrixTable(self._jt.unlocalizeEntries(cols._jt, entries_field_name))
 
+    @staticmethod
+    def _multi_way_zip_join(tables, data_field_name, global_field_name):
+        jt = Env.hail().table.Table.multiWayZipJoin([t._jt for t in tables],
+                                                    data_field_name,
+                                                    global_field_name)
+        return Table._from_java(jt)
+
 table_type.set(Table)

@@ -163,7 +163,8 @@ class TableIRTests(unittest.TestCase):
             ir.TableOrderBy(ir.TableKeyBy(table_read, []), [('m', 'A'), ('m', 'D')]),
             ir.TableDistinct(table_read),
             ir.CastMatrixToTable(matrix_read, '__entries', '__cols'),
-            ir.TableRename(table_read, {'idx': 'idx_foo'}, {'global_f32': 'global_foo'})
+            ir.TableRename(table_read, {'idx': 'idx_foo'}, {'global_f32': 'global_foo'}),
+            ir.TableMultiWayZipJoin([table_read, table_read], '__data', '__globals'),
         ]
 
         return table_irs
