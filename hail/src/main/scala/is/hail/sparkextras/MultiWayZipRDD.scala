@@ -5,7 +5,7 @@ import org.apache.spark.rdd.RDD
 
 import scala.reflect.ClassTag
 
-object MultiWayJoinRDD {
+object MultiWayZipRDD {
   def apply[T: ClassTag , V: ClassTag](
     rdds: IndexedSeq[RDD[T]]
   )(f: (Array[Iterator[T]]) => Iterator[V]): MultiWayJoinRDD[T, V] = {
@@ -13,10 +13,10 @@ object MultiWayJoinRDD {
   }
 }
 
-private case class MultiWayJoinPartition(val index: Int, val partitions: IndexedSeq[Partition])
+private case class MultiWayZipPartition(val index: Int, val partitions: IndexedSeq[Partition])
   extends Partition
 
-class MultiWayJoinRDD[T: ClassTag, V: ClassTag](
+class MultiWayZipRDD[T: ClassTag, V: ClassTag](
   sc: SparkContext,
   var rdds: IndexedSeq[RDD[T]],
   var f: (Array[Iterator[T]]) => Iterator[V]
@@ -29,7 +29,7 @@ class MultiWayJoinRDD[T: ClassTag, V: ClassTag](
 
   override def getPartitions: Array[Partition] = {
     Array.tabulate[Partition](numParts) { i =>
-      MultiWayJoinPartition(i, rdds.map(rdd => rdd.partitions(i)))
+      MultiWayZipPartition(i, rdds.map(rdd => rdd.partitions(i)))
     }
   }
 
