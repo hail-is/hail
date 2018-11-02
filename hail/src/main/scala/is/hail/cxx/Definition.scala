@@ -14,6 +14,9 @@ object Variable {
 
   def apply(prefix: String, typ: Type, init: Code): Variable =
     new Variable(prefix, typ, Expression(init))
+
+  def make_shared(prefix: String, typ: Type, constructorArgs: Code*): Variable =
+    Variable(prefix, s"std::shared_ptr<$typ>", s"std::make_shared<$typ>(${ constructorArgs.mkString(", ") })")
 }
 
 class Variable(prefix: String, val typ: String, init: Expression) extends Definition {
@@ -91,6 +94,8 @@ class Class(val name: String, superClass: String, privateDefs: Array[Definition]
   def typ: Type = name
 
   override def toString: Type = name
+
+  def addSuperclass(newSuper: String): Class = new Class(name, newSuper, privateDefs, publicDefs)
 
   def define: Code =
     s"""class $name${ if (superClass == null) "" else s" : public $superClass" } {

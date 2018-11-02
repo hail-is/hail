@@ -5,6 +5,8 @@ import is.hail.utils.ArrayBuilder
 
 class TranslationUnit(preamble: String, definitions: Array[Definition]) {
 
+  def addDefinition(d: Definition): TranslationUnit = new TranslationUnit(preamble, definitions :+ d)
+
   def source: String =
     new PrettyCode(
       s"""
@@ -21,6 +23,7 @@ class TranslationUnit(preamble: String, definitions: Array[Definition]) {
     val st = new NativeStatus()
     val mod = new NativeModule(options, source)
     print.foreach(_.print(source))
+    print.foreach(_.flush())
     mod.findOrBuild(st)
     assert(st.ok, st.toString())
     mod
@@ -45,6 +48,6 @@ class TranslationUnitBuilder() {
 
   def result(): TranslationUnit =
     new TranslationUnit(
-      includes.result().mkString("\n"),
+      includes.result().toSet.mkString("\n"),
       definitions.result())
 }

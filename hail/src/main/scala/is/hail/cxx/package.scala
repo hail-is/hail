@@ -14,9 +14,9 @@ package object cxx {
       case _: TFloat32 => "float"
       case _: TFloat64 => "double"
       case _: TBoolean => "bool"
-      case _: TBinary => "char *"
-      case _: TArray => "char *"
-      case _: TBaseStruct => "char *"
+      case _: TBinary => "const char *"
+      case _: TArray => "const char *"
+      case _: TBaseStruct => "const char *"
       case TVoid => "void"
       case _ => throw new RuntimeException(s"unsupported type found, $pType")
     }

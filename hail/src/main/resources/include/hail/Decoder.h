@@ -237,15 +237,15 @@ public:
     read();
   }
 
-  class ReadIterator {
+  class Iterator {
   friend class Reader;
   private:
     Reader<Decoder> * reader_;
-    explicit ReadIterator(Reader<Decoder> * reader) :
+    explicit Iterator(Reader<Decoder> * reader) :
     reader_(reader) { }
 
   public:
-    ReadIterator& operator++() {
+    Iterator& operator++() {
       if (reader_ != nullptr && !(reader_->read())) {
         reader_ = nullptr;
       }
@@ -254,17 +254,17 @@ public:
 
     char const* operator*() const { return reader_->get(); }
 
-    friend bool operator==(ReadIterator const& lhs, ReadIterator const& rhs) {
+    friend bool operator==(Iterator const& lhs, Iterator const& rhs) {
       return (lhs.reader_ == rhs.reader_);
     }
 
-    friend bool operator!=(ReadIterator const& lhs, ReadIterator const& rhs) {
+    friend bool operator!=(Iterator const& lhs, Iterator const& rhs) {
       return !(lhs == rhs);
     }
   };
 
-  ReadIterator begin() { return ReadIterator(this); }
-  ReadIterator end() { return ReadIterator(nullptr); }
+  Iterator begin() { return Iterator(this); }
+  Iterator end() { return Iterator(nullptr); }
 };
 
 }
