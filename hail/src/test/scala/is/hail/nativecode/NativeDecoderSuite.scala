@@ -177,9 +177,9 @@ class NativeDecoderSuite extends SparkSuite {
     }
 
     val bais = new ByteArrayInputStream(baos.toByteArray)
-    val dec = new NativePackDecoder(bais, NativeDecoder(t.physicalType, t.physicalType, spec))
+    val dec = new NativePackDecoder(bais, PackDecoder.buildModule(t.physicalType, t.physicalType, spec))
     val bais2 = new ByteArrayInputStream(baos.toByteArray)
-    val dec2 = new NativePackDecoder(bais2, NativeDecoder(t.physicalType, rt.physicalType, spec))
+    val dec2 = new NativePackDecoder(bais2, PackDecoder.buildModule(t.physicalType, rt.physicalType, spec))
 
     Region.scoped { region =>
       val off = dec.readRegionValue(region)
@@ -188,5 +188,4 @@ class NativeDecoderSuite extends SparkSuite {
       assert(SafeRow.read(rt.physicalType, region, off2) == requested)
     }
   }
-
 }

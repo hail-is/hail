@@ -86,3 +86,45 @@ class FunctionBuilder(prefix: String, args: Array[Variable], returnType: Type) {
      """.stripMargin
 
 }
+
+class Class(val name: String, superClass: String, privateDefs: Array[Definition], publicDefs: Array[Definition]) extends Definition {
+  def typ: Type = name
+
+  override def toString: Type = name
+
+  def define: Code =
+    s"""class $name${ if (superClass == null) "" else s":$superClass" } {
+       |  private:
+       |    ${ privateDefs.map(_.define).mkString("\n") }
+       |  public:
+       |    ${ publicDefs.map(_.define).mkString("\n") }
+       |};
+     """.stripMargin
+}
+
+class ClassBuilder(val name: String, superClass: String = null) {
+  private[this] val privateDefs = new ArrayBuilder[Definition]()
+  private[this] val publicDefs = new ArrayBuilder[Definition]()
+
+  def +=(d: Definition) { publicDefs += d }
+
+  def addPrivate(d: Definition) { privateDefs += d }
+
+  def result(): Class = new Class(name, superClass, privateDefs.result(), publicDefs.result())
+
+  def addConstructor(definition: Code) {
+    publicDefs += new Definition {
+      def name: String = this.name
+      def typ: Type = name
+      def define: Code = definition
+    }
+  }
+
+  def addDestructor(definition: Code) {
+    publicDefs += new Definition {
+      def name: String = this.name
+      def typ: Type = name
+      def define: Code = definition
+    }
+  }
+}
