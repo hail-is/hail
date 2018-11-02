@@ -18,37 +18,36 @@ import scala.util.parsing.input.Positional
 
 abstract class Token extends Positional {
   def value: Any
+
+  def getName: String
 }
 
-final case class IdentifierToken(value: String) extends Token { }
-final case class StringToken(value: String) extends Token { }
-final case class IntegerToken(value: Long) extends Token { }
-final case class FloatToken(value: Double) extends Token { }
-final case class PunctuationToken(value: String) extends Token { }
+final case class IdentifierToken(value: String) extends Token {
+  def getName: String = "identifier"
+}
 
-case class TokenIterator(a: Array[Token]) extends BufferedIterator[Token] {
-  private var pos = 0
+final case class StringToken(value: String) extends Token {
+  def getName: String = "string"
+}
 
-  def next(): Token = {
-    val x = a(pos)
-    pos += 1
-    x
-  }
+final case class IntegerToken(value: Long) extends Token {
+  def getName: String = "integer"
+}
 
-  def hasNext(): Boolean = pos < a.length
+final case class FloatToken(value: Double) extends Token {
+  def getName: String = "float"
+}
 
-  def head(): Token = {
-    assert(hasNext())
-    a(pos)
-  }
+final case class PunctuationToken(value: String) extends Token {
+  def getName: String = "punctuation"
 }
 
 object IRLexer extends JavaTokenParsers {
   val token: Parser[Token] =
     "[()\\[\\]{}<>,:+@=]".r ^^ { p => PunctuationToken(p) } |
       identifier ^^ { id => IdentifierToken(id) } |
-      float64_literal ^^ { d => FloatToken(d) } |
       int64_literal ^^ { l => IntegerToken(l) } |
+      float64_literal ^^ { d => FloatToken(d) } |
       string_literal ^^ { s => StringToken(s) }
 
   val lexer: Parser[Array[Token]] = rep(positioned(token)) ^^ { l => l.toArray }
@@ -107,9 +106,10 @@ object IRLexer extends JavaTokenParsers {
   def int64_literal: Parser[Long] = wholeNumber.map(_.toLong)
 
   def float64_literal: Parser[Double] =
+    "nan" ^^ { _ => Double.NaN } |
+      "inf" ^^ { _ => Double.PositiveInfinity } |
       "-inf" ^^ { _ => Double.NegativeInfinity } |
-      """-?\d+(\.\d+)?[eE][+-]?\d+""".r ^^ { _.toDouble } |
-      """-?\d*\.\d+""".r ^^ { _.toDouble } // FIXME: Is this correct??
+      floatingPointNumber ^^ { _.toDouble }
 
   def parse(code: String): Array[Token] = {
     parseAll(lexer, code) match {
@@ -146,21 +146,21 @@ object IRParser {
   def punctuation(it: TokenIterator, symbol: String): String = {
     consumeToken(it) match {
       case x: PunctuationToken if x.value == symbol => x.value
-      case x: Token => error(x, s"Expected punctuation with symbol '$symbol' but found ${ x.getClass } with value '${ x.value }'.")
+      case x: Token => error(x, s"Expected punctuation '$symbol' but found ${ x.getName } '${ x.value }'.")
     }
   }
 
   def identifier(it: TokenIterator): String = {
     consumeToken(it) match {
       case x: IdentifierToken => x.value
-      case x: Token => error(x, s"Expected identifier but found ${ x.getClass } with value '${ x.value }'.")
+      case x: Token => error(x, s"Expected identifier but found ${ x.getName } '${ x.value }'.")
     }
   }
 
   def identifier(it: TokenIterator, expectedId: String): String = {
     consumeToken(it) match {
       case x: IdentifierToken if x.value == expectedId => x.value
-      case x: Token => error(x, s"Expected identifier with value '$expectedId' but found ${ x.getClass } with value '${ x.value }'.")
+      case x: Token => error(x, s"Expected identifier '$expectedId' but found ${ x.getName } '${ x.value }'.")
     }
   }
 
@@ -173,12 +173,9 @@ object IRParser {
 
   def boolean_literal(it: TokenIterator): Boolean = {
     consumeToken(it) match {
-      case x: IdentifierToken => x.value match {
-          case "True" => true
-          case "False" => false
-          case _ => error(x, s"Expected boolean but found ${ x.getClass } with value '${ x.value }'.")
-        }
-      case x: Token => error(x, s"Expected boolean but found ${ x.getClass } with value '${ x.value }'.")
+      case IdentifierToken("True") => true
+      case IdentifierToken("False") => false
+      case x: Token => error(x, s"Expected boolean but found ${ x.getName } '${ x.value }'.")
     }
   }
 
@@ -188,8 +185,8 @@ object IRParser {
         if (x.value >= Int.MinValue && x.value <= Int.MaxValue)
           x.value.toInt
         else
-          error(x, s"Found integer value '${ x.value }' that is outside the numeric range for int32.")
-      case x: Token => error(x, s"Expected int32 but found ${ x.getClass } with value '${ x.value }'.")
+          error(x, s"Found integer '${ x.value }' that is outside the numeric range for int32.")
+      case x: Token => error(x, s"Expected integer but found ${ x.getName } '${ x.value }'.")
     }
   }
 
@@ -203,7 +200,7 @@ object IRParser {
   def int64_literal(it: TokenIterator): Long = {
     consumeToken(it) match {
       case x: IntegerToken => x.value
-      case x: Token => error(x, s"Expected int64 but found ${ x.getClass } with value '${ x.value }'.")
+      case x: Token => error(x, s"Expected integer but found ${ x.getName } '${ x.value }'.")
     }
   }
 
@@ -213,15 +210,15 @@ object IRParser {
         if (x.value >= Float.MinValue && x.value <= Float.MaxValue)
           x.value.toFloat
         else
-          error(x, s"Found float value '${ x.value }' that is outside the numeric range for float32.")
+          error(x, s"Found float '${ x.value }' that is outside the numeric range for float32.")
       case x: IntegerToken => x.value.toFloat
       case x: IdentifierToken => x.value match {
         case "nan" => Float.NaN
         case "inf" => Float.PositiveInfinity
         case "neginf" => Float.NegativeInfinity
-        case _ => error(x, s"Expected float32 but found ${ x.getClass } with value '${ x.value }'.")
+        case _ => error(x, s"Expected float but found ${ x.getName } '${ x.value }'.")
       }
-      case x: Token => error(x, s"Expected float32 but found ${ x.getClass } with value '${ x.value }'.")
+      case x: Token => error(x, s"Expected float but found ${ x.getName } '${ x.value }'.")
     }
   }
 
@@ -233,16 +230,16 @@ object IRParser {
         case "nan" => Double.NaN
         case "inf" => Double.PositiveInfinity
         case "neginf" => Double.NegativeInfinity
-        case _ => error(x, s"Expected float64 but found ${ x.getClass } with value '${ x.value }'.")
+        case _ => error(x, s"Expected float but found ${ x.getName } '${ x.value }'.")
       }
-      case x: Token => error(x, s"Expected float64 but found ${ x.getClass } with value '${ x.value }'.")
+      case x: Token => error(x, s"Expected float but found ${ x.getName } '${ x.value }'.")
     }
   }
 
   def string_literal(it: TokenIterator): String = {
     consumeToken(it) match {
       case x: StringToken => x.value
-      case x: Token => error(x, s"Expected string but found ${ x.getClass } with value '${ x.value }'.")
+      case x: Token => error(x, s"Expected string but found ${ x.getName } '${ x.value }'.")
     }
   }
 
@@ -254,7 +251,7 @@ object IRParser {
   }
 
   def opt[T](it: TokenIterator, f: (TokenIterator) => T)(implicit tct: ClassTag[T]): Option[T] = {
-    it.head() match {
+    it.head match {
       case x: IdentifierToken if x.value == "None" =>
         consumeToken(it)
         None
@@ -268,9 +265,9 @@ object IRParser {
     sep: Token,
     end: Token)(implicit tct: ClassTag[T]): Array[T] = {
     val xs = new ArrayBuilder[T]()
-    while (it.hasNext() && it.head() != end) {
+    while (it.hasNext && it.head != end) {
       xs += f(it)
-      if (it.head() == sep)
+      if (it.head == sep)
         consumeToken(it)
     }
     xs.result()
@@ -280,7 +277,7 @@ object IRParser {
     f: (TokenIterator) => T,
     end: Token)(implicit tct: ClassTag[T]): Array[T] = {
     val xs = new ArrayBuilder[T]()
-    while (it.hasNext() && it.head() != end) {
+    while (it.hasNext && it.head != end) {
       xs += f(it)
     }
     xs.result()
@@ -298,7 +295,7 @@ object IRParser {
     val name = identifier(it)
     punctuation(it, ":")
     val typ = type_expr(it)
-    while (it.hasNext() && it.head() == PunctuationToken("@")) {
+    while (it.hasNext && it.head == PunctuationToken("@")) {
       decorator(it)
     }
     (name, typ)
@@ -312,7 +309,7 @@ object IRParser {
   }
 
   def type_expr(it: TokenIterator): Type = {
-    val req = it.head() match {
+    val req = it.head match {
       case x: PunctuationToken if x.value == "+" =>
         consumeToken(it)
         true
@@ -384,7 +381,7 @@ object IRParser {
   }
 
   def trailing_keys(it: TokenIterator): Array[String] = {
-    it.head() match {
+    it.head match {
       case x: PunctuationToken if x.value == "]" =>
         Array.empty[String]
       case x: PunctuationToken if x.value == "," =>
@@ -992,7 +989,7 @@ object IRParser {
   }
 
   def parse[T](s: String, f: (TokenIterator) => T): T = {
-    val it = TokenIterator(IRLexer.parse(s))
+    val it = IRLexer.parse(s).toIterator.buffered
     f(it)
   }
 
