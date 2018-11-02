@@ -14,14 +14,8 @@ object MultiWayJoinRDD {
   }
 }
 
-private class MultiWayJoinPartition[T: ClassTag](
-  idx: Int,
-  @transient private val rdds: Seq[RDD[T]]
-) extends Partition {
-  override val index: Int = idx
-  var partitionVals = rdds.map(rdd => rdd.partitions(idx))
-  def partitions = partitionVals
-}
+private case class MultiWayJoinPartition(val index: Int, val partitions: IndexedSeq[Partition])
+  extends Partition
 
 class MultiWayJoinRDD[T: ClassTag, V: ClassTag](
   sc: SparkContext,
@@ -29,17 +23,20 @@ class MultiWayJoinRDD[T: ClassTag, V: ClassTag](
   var f: (Array[Iterator[T]]) => Iterator[V],
   preservesPartitioning: Boolean = false
 ) extends RDD[V](sc, rdds.map(x => new OneToOneDependency(x))) {
+  require(rdds.length > 0)
+  private val numParts = rdds(0).partitions.length
+  require(rdds.forall(rdd => rdd.partitions.length == numParts))
 
-  override val partitioner = if (preservesPartitioning) firstParent[Any].partitioner else None
+  override val partitioner = if (preservesPartitioning) rdds(0).partitioner else None
 
   override def getPartitions: Array[Partition] = {
-    val numParts = rdds(0).partitions.length
-    require(rdds.forall(rdd => rdd.partitions.length == numParts))
-    Array.tabulate[Partition](numParts)(new MultiWayJoinPartition(_, rdds))
+    Array.tabulate[Partition](numParts) { i =>
+      MultiWayJoinPartition(i, rdds.map(rdd => rdd.partitions(i)))
+    }
   }
 
   override def compute(s: Partition, tc: TaskContext) = {
-    val partitions = s.asInstanceOf[MultiWayJoinPartition[T]].partitions
+    val partitions = s.asInstanceOf[MultiWayJoinPartition].partitions
     val arr = Array.tabulate(rdds.length)(i => rdds(i).iterator(partitions(i), tc))
     f(arr)
   }
