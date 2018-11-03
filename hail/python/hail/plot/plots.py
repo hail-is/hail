@@ -298,8 +298,8 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, collect_
     n_divisions : int
         Factor by which to downsample (default value = 500). A lower input results in fewer output datapoints.
     significance_line : float, optional
-        Location at which to plot a dotted red line for genome-wide
-        significance (if ``None``, then no line is printed).
+        p-value at which to add a horizontal, dotted red line indicating
+        genome-wide significance.  If ``None``, no line is added.
 
     Returns
     -------
