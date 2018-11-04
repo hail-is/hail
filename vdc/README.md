@@ -21,38 +21,26 @@ beforehand:
    `deploy@<project-id>.iam.gserviceaccount.com` with the project
    owner role.
 
- - Activate the deploy service account in `gcloud` by runnign `make
+ - Activate the deploy service account in `gcloud` by running `make
    activate-deploy`.
 
- - In the GCP console, go to APIs & Services > Credentials > OAuth
-   consent screen, and configure the consent screen.
-
- - In the GCP console, go to APIs & Services > Credentials >
-   Credentials and create an OAuth client ID.
-
-   - Choose application type "Web application".
-   - Authorized redirect URIs will be
-     `https://upload.hail.is/oauth2callback` adjusted for domain.
-
 ### Deploy
-
- - Put the OAuth client ID JSON in `./client_secret.json`.  It can be
-   downloaded from APIs & Services > Credentials > Credentials.
 
  - Put secrets.yaml in `./secrets.yaml`.
 
  - Run, for example:
 
 ```
-make build-out PROJECT=hail-vdc IP=35.188.91.25 DOMAIN=staging.hail.is
+make PROJECT=hail-vdc IP=35.188.91.25 DOMAIN=hail.is build-out
 ```
 
-   Warning: modifies gcloud project configuration setting
+   Warning: modifies gcloud, kubctl configuration setting
+
+ - Add `vdc-sa@<project-id>.iam.gserviceaccount.com` service account
+   to broad-ctsa/artifacts.broad-ctsa.appspot.com to Storage Object
+   Viewer role.
 
 ### FIXME
 
  - Doesn't deploy ci, which can't have multiple running instances.
- - Batch likely doesn't work, needs k8s service account to create pods.
  - Describe secrets.yaml.
- - List of APIs to enable is not exhaustive.  Run through in a fresh
-   project.

@@ -26,6 +26,7 @@ gcloud-config:
 	gcloud config set project $(PROJECT)
 	gcloud config set compute/region $(REGION)
 	gcloud config set compute/zone $(ZONE)
+	gcloud container clusters get-credentials vdc
 
 # deployment manager cannot manage appspot.com bucket because it requires domain ownership verification
 create-artifacts-bucket:
@@ -39,7 +40,6 @@ create-deployment: gcloud-config create-artifacts-bucket
 	  -e 's,@zone@,$(ZONE),g' \
 	  < gcp-config.yaml.in > gcp-config.yaml
 	gcloud beta -q deployment-manager deployments create default --config gcp-config.yaml
-	gcloud container clusters get-credentials vdc
 	kubectl create clusterrolebinding deploy-cluster-admin-binding --clusterrole cluster-admin --user deploy@$(PROJECT).iam.gserviceaccount.com
 # FIXME still trying to figure out out to add this to config
 	gsutil iam ch serviceAccount:gcr-push@$(PROJECT).iam.gserviceaccount.com:admin gs://artifacts.$(PROJECT).appspot.com
