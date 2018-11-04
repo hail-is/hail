@@ -7,12 +7,21 @@ export ZONE ?= us-central1-a
 export DOMAIN ?= staging.hail.is
 export IP ?= $(shell gcloud compute addresses describe --region $(REGION) site --format='value(address)')
 
-build-out: create-artifacts-bucket create-deployment build-out-k8s
+build-out: create-deployment build-out-k8s
 
 echo-ip:
 	echo IP=$(IP)
 
-gcloud-config:
+activate-deploy:
+	gcloud iam service-accounts keys create deploy-sa-key.json \
+	  --iam-account deploy@$(PROJECT).iam.gserviceaccount.com
+	gcloud auth activate-service-account --key-file=deploy-sa-key.json
+	rm deploy-sa-key.json
+
+set-account-deploy:
+	gcloud config set account deploy@$(PROJECT).iam.gserviceaccount.com
+
+gcloud-config: set-account-deploy
 	gcloud config set project $(PROJECT)
 	gcloud config set compute/region $(REGION)
 	gcloud config set compute/zone $(ZONE)
@@ -23,15 +32,18 @@ create-artifacts-bucket:
 	docker tag alpine:3.8 gcr.io/hail-vdc-staging/alpine:3.8
 	docker push gcr.io/$(PROJECT)/alpine:3.8
 
-create-deployment: gcloud-config
+create-deployment: gcloud-config create-artifacts-bucket
 	sed -e 's,@project@,$(PROJECT),g' \
 	  -e 's,@region@,$(REGION),g' \
 	  -e 's,@zone@,$(ZONE),g' \
 	  < gcp-config.yaml.in > gcp-config.yaml
 	gcloud beta -q deployment-manager deployments create default --config gcp-config.yaml
 	gcloud container clusters get-credentials vdc
-# FIXME this was insufficient, had to add cseed@broadinstitute.org as admin
-	kubectl create clusterrolebinding project-editor-cluster-admin-binding --clusterrole cluster-admin --user projectEditor:$(PROJECT)
+	kubectl create clusterrolebinding deploy-cluster-admin-binding --clusterrole cluster-admin --user deploy@$(PROJECT).iam.gserviceaccount.com
+# FIXME still trying to figure out out to add this to config
+	gsutil iam ch serviceAccount:gcr-push@$(PROJECT).iam.gserviceaccount.com:admin gs://artifacts.$(PROJECT).appspot.com
+	gsutil iam ch serviceAccount:gcr-pull@$(PROJECT).iam.gserviceaccount.com:objectViewer gs://artifacts.$(PROJECT).appspot.com
+	gsutil iam ch serviceAccount:vdc-sa@$(PROJECT).iam.gserviceaccount.com:objectViewer gs://artifacts.$(PROJECT).appspot.com
 
 build-out-k8s: k8s-config create-k8s-secrets run-letsencrypt deploy-k8s
 
@@ -62,8 +74,8 @@ run-letsencrypt:
 
 deploy-k8s:
 	$(MAKE) -C ../batch deploy
-# FIXME skip ci until it can handle running as a secondary
-#	$(MAKE) -C ../ci run-service
+# FIXME ci can't run as a secondary yet
+	$(MAKE) -C ../ci run-service
 	$(MAKE) -C ../notebook deploy
 	$(MAKE) -C ../image-fetcher deploy
 	$(MAKE) -C ../scorecard deploy
@@ -72,11 +84,12 @@ deploy-k8s:
 # last so the services are up
 	$(MAKE) -C ../gateway deploy
 
-delete-artifacts-bucket:
+clean-gcr:
+	bash delete-gcr-images.sh
 # don't fail if doesn't exist
 	-gsutil -m rm -r gs://artifacts.$(PROJECT).appspot.com
 
-tear-down: delete-deployment delete-artifacts-bucket
+tear-down: delete-deployment clean-gcr
 
 delete-deployment: gcloud-config
 	gcloud beta -q deployment-manager deployments delete default

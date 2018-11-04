@@ -76,7 +76,7 @@ test-locally: restart-all-proxies
 	./test-locally.sh
 
 run-service:
-	kubectl apply -f service.yaml
+	kubectl apply -f k8s/service.yaml
 
 deploy: push-hail-ci
 	sed -e "s,@sha@,$(shell git rev-parse --short=12 HEAD)," \

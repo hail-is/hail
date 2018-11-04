@@ -42,18 +42,3 @@ spec:
         - name: hail-ci-0-1-github-oauth-token
           secret:
             secretName: hail-ci-0-1-github-oauth-token
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: hail-ci
-  labels:
-    app: hail-ci
-spec:
-  ports:
-    - name: http
-      port: 80
-      protocol: TCP
-      targetPort: 5000
-  selector:
-    app: hail-ci

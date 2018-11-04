@@ -23,66 +23,25 @@ resources:
     displayName: pull to gcr.io
 # buckets
 # deployment manager cannot create artifacts.@project@.appspot.com
-# -N serializes otherwise you get conflicts
-- name: gcr-push-artifacts-1-bucket-owner
-  type: storage.v1.bucketAccessControl
-  metadata:
-    dependsOn:
-    - gcr-push
+# sql instance
+- name: sql-instance
+  type: sqladmin.v1beta4.instance
   properties:
-    bucket: artifacts.@project@.appspot.com
-    entity: user-gcr-push@@project@.iam.gserviceaccount.com
-    role: "OWNER"
-- name: gcr-push-artifacts-2-object-owner
-  type: storage.v1.defaultObjectAccessControl
-  metadata:
-    dependsOn:
-    - gcr-push
-    - gcr-push-artifacts-1-bucket-owner
-  properties:
-    bucket: artifacts.@project@.appspot.com
-    entity: user-gcr-push@@project@.iam.gserviceaccount.com
-    role: "OWNER"
-- name: gcr-pull-artifacts-3-bucket-reader
-  type: storage.v1.bucketAccessControl
-  metadata:
-    dependsOn:
-    - gcr-pull
-    - gcr-push-artifacts-2-object-owner
-  properties:
-    bucket: artifacts.@project@.appspot.com
-    entity: user-gcr-pull@@project@.iam.gserviceaccount.com
-    role: "READER"
-- name: gcr-pull-artifacts-4-object-reader
-  type: storage.v1.defaultObjectAccessControl
-  metadata:
-    dependsOn:
-    - gcr-pull
-    - gcr-pull-artifacts-3-bucket-reader
-  properties:
-    bucket: artifacts.@project@.appspot.com
-    entity: user-gcr-pull@@project@.iam.gserviceaccount.com
-    role: "READER"
-- name: vdc-sa-artifacts-5-bucket-reader
-  type: storage.v1.bucketAccessControl
-  metadata:
-    dependsOn:
-    - gcr-pull
-    - gcr-pull-artifacts-4-object-reader
-  properties:
-    bucket: artifacts.@project@.appspot.com
-    entity: user-vdc-sa@@project@.iam.gserviceaccount.com
-    role: "READER"
-- name: vdc-sa-artifacts-6-object-reader
-  type: storage.v1.defaultObjectAccessControl
-  metadata:
-    dependsOn:
-    - vdc-sa
-    - vdc-sa-artifacts-5-bucket-reader
-  properties:
-    bucket: artifacts.@project@.appspot.com
-    entity: user-vdc-sa@@project@.iam.gserviceaccount.com
-    role: "READER"
+    name: db-Vjg52
+    region: us-central1
+    settings:
+      activationPolicy: ALWAYS
+      ipConfiguration:
+        ipv4Enabled: false
+        privateNetwork: projects/@project@/global/networks/default
+      backupConfiguration:
+        enabled: true
+        startTime: 02:00
+      storageAutoResize: true
+      dataDiskSizeGb: 10
+      dataDiskType: PD_SSD
+      tier: db-f1-micro
+    databaseVersion: MYSQL_5_6
 # gke cluster
 - name: vdc-gke-cluster
   type: container.v1.cluster
