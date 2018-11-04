@@ -12,11 +12,17 @@ beforehand:
    - Enable Cloud SQL Admin API
    - Google Cloud Deployment Manager V2 API
 
- - In the GCP console, go to VPC network > External IP addresses >
-   RESERVE STATIC IP ADDRESS and reserve a static IP address called
-   `site`. Also see [address.yaml](address.yaml).
+ - Reserve a static IP address `site` by running `make create-address`.
 
  - Update the domain's DNS to point to `site`'s external IP address.
+   You can print the IP address by running `make echo-ip`.
+
+ - Create a service account
+   `deploy@<project-id>.iam.gserviceaccount.com` with the project
+   owner role.
+
+ - Activate the deploy service account in `gcloud` by runnign `make
+   activate-deploy`.
 
  - In the GCP console, go to APIs & Services > Credentials > OAuth
    consent screen, and configure the consent screen.

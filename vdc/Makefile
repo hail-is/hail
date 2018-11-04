@@ -21,10 +21,8 @@ activate-deploy:
 	gcloud auth activate-service-account --key-file=deploy-sa-key.json
 	rm deploy-sa-key.json
 
-set-account-deploy:
+gcloud-config:
 	gcloud config set account deploy@$(PROJECT).iam.gserviceaccount.com
-
-gcloud-config: set-account-deploy
 	gcloud config set project $(PROJECT)
 	gcloud config set compute/region $(REGION)
 	gcloud config set compute/zone $(ZONE)
@@ -32,7 +30,7 @@ gcloud-config: set-account-deploy
 # deployment manager cannot manage appspot.com bucket because it requires domain ownership verification
 create-artifacts-bucket:
 	docker pull alpine:3.8
-	docker tag alpine:3.8 gcr.io/hail-vdc-staging/alpine:3.8
+	docker tag alpine:3.8 gcr.io/$(PROJECT)/alpine:3.8
 	docker push gcr.io/$(PROJECT)/alpine:3.8
 
 create-deployment: gcloud-config create-artifacts-bucket
@@ -81,6 +79,7 @@ run-letsencrypt:
 endif
 
 deploy-k8s:
+	$(MAKE) -C ../letsencrypt start-service
 	$(MAKE) -C ../batch deploy
 # FIXME ci can't run as a secondary yet
 	$(MAKE) -C ../ci run-service

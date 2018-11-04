@@ -27,7 +27,7 @@ resources:
 - name: sql-instance
   type: sqladmin.v1beta4.instance
   properties:
-    name: db-Vjg52
+    name: db-gh0um
     region: us-central1
     settings:
       activationPolicy: ALWAYS
