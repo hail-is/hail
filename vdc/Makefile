@@ -5,7 +5,10 @@ export PROJECT ?= hail-vdc-staging
 export REGION ?= us-central1
 export ZONE ?= us-central1-a
 export DOMAIN ?= staging.hail.is
-export IP ?= $(shell gcloud compute addresses describe --region $(REGION) site --format='value(address)')
+export IP ?= $(shell gcloud --project $(PROJECT) compute addresses describe --region $(REGION) site --format='value(address)')
+
+# run letsencrypt, or take from letsencrypt-config.yaml
+RUN_LETSENCRYPT = 1
 
 build-out: create-deployment build-out-k8s
 
@@ -66,11 +69,16 @@ create-k8s-secrets:
 # empty secret to be filled in by letsencrypt
 	kubectl create secret generic letsencrypt-config
 
+ifeq ($(RUN_LETSENCRYPT),1)
 run-letsencrypt:
 	$(MAKE) -C ../letsencrypt start-service
 	$(MAKE) -C ../gateway LETSENCRYPT_ONLY=1 deploy
 	kubectl -n default rollout status -w deployment gateway-deployment
 	$(MAKE) -C ../letsencrypt run
+else
+run-letsencrypt:
+	kubectl apply -f letsencrypt-config.yaml
+endif
 
 deploy-k8s:
 	$(MAKE) -C ../batch deploy
