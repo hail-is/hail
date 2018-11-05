@@ -82,7 +82,7 @@ class PruneSuite extends SparkSuite {
       None)
   ).annotateGlobal(5, TInt32(), "g1").annotateGlobal(10, TInt32(), "g2").value)
 
-  lazy val tr = TableRead("", TableSpec(0, "", "", tab.typ, Map.empty), tab.typ, false)
+  lazy val tr = TableRead("", TableSpec.default(0, "", "", tab.typ, Map.empty), tab.typ, false)
 
   val mType = MatrixType.fromParts(
     TStruct("g1" -> TInt32(), "g2" -> TFloat64()),

@@ -1,5 +1,6 @@
 package is.hail.variant
 
+import is.hail.compatibility
 import is.hail.annotations._
 import is.hail.check.Gen
 import is.hail.linalg._
@@ -15,6 +16,7 @@ import is.hail.expr.types._
 import is.hail.expr.types.physical.PArray
 import is.hail.io.gen.ExportGen
 import is.hail.io.plink.ExportPlink
+import is.hail.compatibility.BackCompatibleReader
 import is.hail.sparkextras.{ContextRDD, RepartitionedOrderedRDD2}
 import org.apache.hadoop
 import org.apache.spark.rdd.RDD
@@ -35,7 +37,7 @@ object RelationalSpec {
   implicit val formats: Formats = new DefaultFormats() {
     override val typeHints = ShortTypeHints(List(
       classOf[ComponentSpec], classOf[RVDComponentSpec], classOf[PartitionCountsComponentSpec],
-      classOf[RelationalSpec], classOf[TableSpec], classOf[MatrixTableSpec]))
+      classOf[RelationalSpec]))
     override val typeHintFieldName = "name"
   } +
     new TableTypeSerializer +
@@ -50,24 +52,22 @@ object RelationalSpec {
     val fileVersion = jv \ "file_version" match {
       case JInt(rep) => SemanticVersion(rep.toInt)
       case _ =>
-        fatal(s"metadata does not contain file version: $metadataFile")
         fatal(
-          s"""cannot read matrix table: file not found: metadata does not contain file version: $metadataFile
+          s"""cannot read file: metadata does not contain file version: $metadataFile
              |  Common causes:
-             |    - File is an 0.1 VariantDataset (0.1 and 0.2 native formats are not compatible!)""".stripMargin)
-
+             |    - File is an 0.1 VariantDataset or KeyTable (0.1 and 0.2 native formats are not compatible!)""".stripMargin)
     }
 
     if (!FileFormat.version.supports(fileVersion))
       fatal(s"incompatible file format when reading: $path\n  supported version: ${ FileFormat.version }, found $fileVersion")
 
+    // FIXME this violates the abstraction of the serialization boundary
     val referencesRelPath = (jv \ "references_rel_path": @unchecked) match {
       case JString(p) => p
     }
-
     ReferenceGenome.importReferences(hc.hadoopConf, path + "/" + referencesRelPath)
 
-    jv.extract[RelationalSpec]
+    BackCompatibleReader.extract(fileVersion, jv)
   }
 }
 
@@ -108,17 +108,25 @@ case class RVDComponentSpec(rel_path: String) extends ComponentSpec {
 
 case class PartitionCountsComponentSpec(counts: Seq[Long]) extends ComponentSpec
 
-case class MatrixTableSpec(
-  file_version: Int,
-  hail_version: String,
-  references_rel_path: String,
-  matrix_type: MatrixType,
-  components: Map[String, ComponentSpec]) extends RelationalSpec {
+abstract class MatrixTableSpec extends RelationalSpec {
+  def matrix_type: MatrixType
+
+  def references_rel_path: String
+
   def colsComponent: RVDComponentSpec = getComponent[RVDComponentSpec]("cols")
 
   def rowsComponent: RVDComponentSpec = getComponent[RVDComponentSpec]("rows")
 
   def entriesComponent: RVDComponentSpec = getComponent[RVDComponentSpec]("entries")
+}
+
+object MatrixTableSpec {
+  def default(file_version: Int,
+    hail_version: String,
+    references_rel_path: String,
+    matrix_type: MatrixType,
+    components: Map[String, ComponentSpec]): MatrixTableSpec =
+    compatibility.MatrixTableSpec_1_0(file_version, hail_version, references_rel_path, matrix_type, components)
 }
 
 object FileFormat {

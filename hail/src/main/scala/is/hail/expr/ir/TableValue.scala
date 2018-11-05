@@ -75,7 +75,7 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
     ReferenceGenome.exportReferences(hc, referencesPath, typ.rowType)
     ReferenceGenome.exportReferences(hc, referencesPath, typ.globalType)
 
-    val spec = TableSpec(
+    val spec = TableSpec.default(
       FileFormat.version.rep,
       hc.version,
       "references",
