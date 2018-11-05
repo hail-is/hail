@@ -141,33 +141,6 @@ class TableSuite extends SparkSuite {
     kt2.explode(Array("field1")).export(outputFile)
   }
 
-  @Test def testKeyOrder() {
-    val kt1 = Table(hc,
-      sc.parallelize(Array(Row("foo", "bar", 3, "baz"))),
-      TStruct(
-        "f1" -> TString(),
-        "f2" -> TString(),
-        "f3" -> TInt32(),
-        "f4" -> TString()
-      ),
-      IndexedSeq("f3", "f2", "f1"))
-    kt1.typeCheck()
-
-    val kt2 = Table(hc,
-      sc.parallelize(Array(Row(3, "foo", "bar", "qux"))),
-      TStruct(
-        "f3" -> TInt32(),
-        "f1" -> TString(),
-        "f2" -> TString(),
-        "f5" -> TString()
-      ),
-      IndexedSeq("f3", "f2", "f1"))
-    kt2.typeCheck()
-
-    assert(kt1.join(kt2, "inner").count() == 1L)
-    kt1.join(kt2, "outer").typeCheck()
-  }
-
   @Test def testSame() {
     val kt = hc.importTable("src/test/resources/sampleAnnotations.tsv", impute = true)
     assert(kt.same(kt))

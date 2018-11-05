@@ -209,11 +209,11 @@ class GroupedTable(ExprContainer):
 
         base, cleanup = self._parent._process_joins(*group_exprs.values(), *named_exprs.values())
 
-        return Table._from_java(base._jt.keyByAndAggregate(
-            str(hl.struct(**named_exprs)._ir),
-            str(hl.struct(**group_exprs)._ir),
-            joption(self._npartitions),
-            self._buffer_size))
+        return cleanup(Table(TableKeyByAndAggregate(base._tir,
+                                                    hl.struct(**named_exprs)._ir,
+                                                    hl.struct(**group_exprs)._ir,
+                                                    self._npartitions,
+                                                    self._buffer_size)))
 
 
 class Table(ExprContainer):
@@ -517,11 +517,12 @@ class Table(ExprContainer):
         new_row = self.row.annotate(**key_fields)
         base, cleanup = self._process_joins(new_row)
 
-        return cleanup(Table._from_java(
-            base._jt
-                .keyBy([])
-                .mapRows(str(new_row._ir))
-                .keyBy(list(key_fields))))
+        return cleanup(Table(
+            TableKeyBy(
+                TableMapRows(
+                    TableKeyBy(base._tir, []),
+                    new_row._ir),
+                list(key_fields))))
 
     def annotate_globals(self, **named_exprs):
         """Add new global fields.
@@ -780,7 +781,7 @@ class Table(ExprContainer):
         analyze('Table.filter', expr, self._row_indices)
         base, cleanup = self._process_joins(expr)
 
-        return cleanup(Table._from_java(base._jt.filter(str(expr._ir), keep)))
+        return cleanup(Table(TableFilter(base._tir, filter_predicate_with_keep(expr._ir, keep))))
 
     @typecheck_method(exprs=oneof(Expression, str),
                       named_exprs=anytype)
@@ -1663,7 +1664,7 @@ class Table(ExprContainer):
                 raise ValueError(f"'union': table {i} has a different key."
                                 f"  Expected:  {left_key}\n"
                                 f"  Table {i}: {right_key}")
-        return Table._from_java(self._jt.union([table._jt for table in tables]))
+        return Table(TableUnion([self._tir] + [table._tir for table in tables]))
 
     @typecheck_method(n=int)
     def take(self, n):
@@ -1730,7 +1731,7 @@ class Table(ExprContainer):
             Table including the first `n` rows.
         """
 
-        return Table._from_java(self._jt.head(n))
+        return Table(TableHead(self._tir, n))
 
     @typecheck_method(p=numeric,
                       seed=nullable(int))
@@ -1794,7 +1795,7 @@ class Table(ExprContainer):
             Repartitioned table.
         """
 
-        return Table._from_java(self._jt.repartition(n, shuffle))
+        return Table(TableRepartition(self._tir, n, shuffle))
 
     @typecheck_method(right=table_type,
                       how=enumeration('inner', 'outer', 'left', 'right'),
@@ -1889,7 +1890,7 @@ class Table(ExprContainer):
             info(f'Table.join: renamed the following fields on the right to avoid name conflicts:' +
                  ''.join(f'\n    {repr(k)} -> {repr(v)}' for k, v in renames.items()))
 
-        return Table._from_java(self._jt.join(right._jt, how))
+        return Table(TableJoin(self._tir, right._tir, how, len(self.key)))
 
     @typecheck_method(expr=BooleanExpression)
     def all(self, expr):
@@ -1984,7 +1985,8 @@ class Table(ExprContainer):
         stray = set(mapping.keys()) - set(seen.values())
         if stray:
             raise ValueError(f"found rename rules for fields not present in table: {list(stray)}")
-        return Table._from_java(self._jt.rename(row_map, global_map))
+
+        return Table(TableRename(self._tir, row_map, global_map))
 
     def expand_types(self):
         """Expand complex types into structs and arrays.
@@ -2120,34 +2122,34 @@ class Table(ExprContainer):
         :class:`.Table`
             Table sorted by the given fields.
         """
-        sort_cols = []
+        sort_fields = []
         for e in exprs:
             if isinstance(e, str):
                 expr = self[e]
                 if not expr._indices == self._row_indices:
                     raise ValueError("Sort fields must be row-indexed, found global field '{}'".format(e))
-                sort_cols.append(asc(e)._j_obj())
+                sort_fields.append((e, 'A'))
             elif isinstance(e, Expression):
                 if not e in self._fields_inverse:
                     raise ValueError("Expect top-level field, found a complex expression")
                 if not e._indices == self._row_indices:
                     raise ValueError("Sort fields must be row-indexed, found global field '{}'".format(e))
-                sort_cols.append(asc(self._fields_inverse[e])._j_obj())
+                sort_fields.append((self._fields_inverse[e], 'A'))
             else:
                 assert isinstance(e, Ascending) or isinstance(e, Descending)
+                sort_type = 'A' if isinstance(e, Ascending) else 'D'
                 if isinstance(e.col, str):
                     expr = self[e.col]
                     if not expr._indices == self._row_indices:
                         raise ValueError("Sort fields must be row-indexed, found global field '{}'".format(e))
-                    sort_cols.append(e._j_obj())
+                    sort_fields.append((e.col, sort_type))
                 else:
                     if not e.col in self._fields_inverse:
                         raise ValueError("Expect top-level field, found a complex expression")
                     if not e.col._indices == self._row_indices:
                         raise ValueError("Sort fields must be row-indexed, found global field '{}'".format(e))
-                    e.col = self._fields_inverse[e.col]
-                    sort_cols.append(e._j_obj())
-        return Table._from_java(self._jt.orderBy(jarray(Env.hail().table.SortField, sort_cols)))
+                    sort_fields.append((e.col, sort_type))
+        return Table(TableOrderBy(self.key_by()._tir, sort_fields))
 
     @typecheck_method(field=oneof(str, Expression),
                       name=nullable(str))
@@ -2250,7 +2252,7 @@ class Table(ExprContainer):
                 raise ValueError(f"method 'explode' cannot explode a key field")
 
         f = self._fields_inverse[field]
-        t = Table._from_java(self._jt.explode(f))
+        t = Table(TableExplode(self._tir, f))
         if name is not None:
             t = t.rename({f: name})
         return t
@@ -2418,6 +2420,7 @@ class Table(ExprContainer):
         :class:`.Table`
             Table constructed from the Spark SQL DataFrame.
         """
+
         return Table._from_java(Env.hail().table.Table.fromDF(Env.hc()._jhc, df._jdf, key))
 
     @typecheck_method(flatten=bool)
@@ -2541,6 +2544,7 @@ class Table(ExprContainer):
         -------
         :class:`.Table`
         """
+
         return Table._from_java(self._jt.groupByKey(name))
 
     def distinct(self) -> 'Table':
@@ -2586,7 +2590,8 @@ class Table(ExprContainer):
         -------
         :class:`.Table`
         """
-        return Table._from_java(self._jt.distinctByKey())
+
+        return Table(TableDistinct(self._tir))
 
     @typecheck_method(parts=sequenceof(int), keep=bool)
     def _filter_partitions(self, parts, keep=True):
