@@ -15,12 +15,12 @@ resources:
   type: iam.v1.serviceAccount
   properties:
     accountId: gcr-pull
-    displayName: pull to gcr.io
+    displayName: pull from gcr.io
 - name: k8s-admin
   type: iam.v1.serviceAccount
   properties:
     accountId: k8s-admin
-    displayName: pull to gcr.io
+    displayName: k8s admin
 # buckets
 # deployment manager cannot create artifacts.@project@.appspot.com
 # sql instance

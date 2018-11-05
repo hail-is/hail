@@ -1,6 +1,6 @@
 resources:
 # address
-# name is not take from property
+# name is not taken from property
 - name: site
   type: compute.beta.address
   properties:

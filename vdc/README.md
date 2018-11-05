@@ -34,7 +34,7 @@ beforehand:
 make PROJECT=hail-vdc IP=35.188.91.25 DOMAIN=hail.is build-out
 ```
 
-   Warning: modifies gcloud, kubctl configuration setting
+   Warning: modifies gcloud, kubectl configuration setting
 
  - Add `vdc-sa@<project-id>.iam.gserviceaccount.com` service account
    to broad-ctsa/artifacts.broad-ctsa.appspot.com to Storage Object

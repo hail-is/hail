@@ -3,7 +3,7 @@
 
 export PROJECT ?= hail-vdc-staging
 export REGION ?= us-central1
-export ZONE ?= us-central1-a
+export ZONE ?= $(REGION)-a
 export DOMAIN ?= staging.hail.is
 export IP ?= $(shell gcloud --project $(PROJECT) compute addresses describe --region $(REGION) site --format='value(address)')
 
@@ -53,7 +53,7 @@ k8s-config:
 
 create-k8s-secrets:
 	kubectl apply -f secrets.yaml
-	kubectl delete secrets  --ignore-not-found=true gcr-push-service-account-key gcr-pull-key letsencrypt-config
+	kubectl delete secrets --ignore-not-found=true gcr-push-service-account-key gcr-pull-key letsencrypt-config
 	gcloud iam service-accounts keys create \
 	  --iam-account=gcr-push@$(PROJECT).iam.gserviceaccount.com \
 	  gcr-push-service-account-key.json
