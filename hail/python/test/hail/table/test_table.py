@@ -415,6 +415,17 @@ class Tests(unittest.TestCase):
         joined_nothing = hl.Table._multi_way_zip_join(ts, 'data', 'globals').drop('data', 'globals')
         self.assertEqual(joined_nothing._force_count(), 5)
 
+    def test_multi_way_zip_join_globals(self):
+        t1 = hl.utils.range_table(1).annotate_globals(x=hl.null(hl.tint32))
+        t2 = hl.utils.range_table(1).annotate_globals(x=5)
+        t3 = hl.utils.range_table(1).annotate_globals(x=0)
+        expected = hl.struct(__globals=hl.array([
+            hl.struct(x=hl.null(hl.tint32)),
+            hl.struct(x=5),
+            hl.struct(x=0)]))
+        joined = hl.Table._multi_way_zip_join([t1, t2, t3], '__data', '__globals')
+        self.assertEqual(hl.eval(joined.globals), hl.eval(expected))
+
     def test_index_maintains_count(self):
         t1 = hl.Table.parallelize([
             {'a': 'foo', 'b': 1},

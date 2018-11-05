@@ -325,4 +325,24 @@ class TableIRSuite extends SparkSuite {
     val expectedTable = Table(hc, expectedData, expectedSchema, key, globalSig, globalData)
     assert(testTable.same(expectedTable))
   }
+
+  @Test def testTableMultiWayZipJoinGlobals() {
+    val t1 = TableMapGlobals(TableRange(10, 1), MakeStruct(Seq("x" -> I32(5))))
+    val t2 = TableMapGlobals(TableRange(10, 1), MakeStruct(Seq("x" -> I32(0))))
+    val t3 = TableMapGlobals(TableRange(10, 1), MakeStruct(Seq("x" -> NA(TInt32()))))
+    val testIr = TableMultiWayZipJoin(IndexedSeq(t1, t2, t3), "__data", "__globals")
+    val testTable = new Table(hc, testIr)
+    val texp = new Table(hc, TableMapGlobals(
+      TableRange(10, 1),
+      MakeStruct(Seq("__globals" -> MakeArray(
+        Seq(
+          MakeStruct(Seq("x" -> I32(5))),
+          MakeStruct(Seq("x" -> I32(0))),
+          MakeStruct(Seq("x" -> NA(TInt32())))),
+        TArray(TStruct("x" -> TInt32()))
+      )
+    ))))
+
+    assert(testTable.globals.safeValue == texp.globals.safeValue)
+  }
 }
