@@ -1,7 +1,8 @@
 
 import hail as hl
 
-def import_gtf(path, reference_genome=None, skip_invalid_contigs=False) -> hl.Table:
+
+def import_gtf(path, reference_genome=None, skip_invalid_contigs=False, min_partitions=None) -> hl.Table:
     """Import a GTF file.
 
        The GTF file format is identical to the GFF version 2 file format,
@@ -92,6 +93,8 @@ def import_gtf(path, reference_genome=None, skip_invalid_contigs=False) -> hl.Ta
        skip_invalid_contigs : :obj:`bool`
            If ``True`` and `reference_genome` is not ``None``, skip lines where
            ``seqname`` is not consistent with the reference genome.
+       min_partitions : :obj:`int` or :obj:`None`
+           Minimum number of partitions (passed to import_table).
 
        Returns
        -------
@@ -99,6 +102,7 @@ def import_gtf(path, reference_genome=None, skip_invalid_contigs=False) -> hl.Ta
        """
 
     ht = hl.import_table(path,
+                         min_partitions=min_partitions,
                          comment='#',
                          no_header=True,
                          types={'f3': hl.tint,
