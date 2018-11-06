@@ -764,7 +764,7 @@ class HailFeatureFlags {
     flags.update(flag, value)
   }
 
-  def get(flag: String): String = flags.get(flag).get
+  def get(flag: String): String = flags(flag)
 
   def exists(flag: String): Boolean = flags.contains(flag)
 }
