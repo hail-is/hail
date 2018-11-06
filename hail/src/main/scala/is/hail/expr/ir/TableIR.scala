@@ -486,7 +486,7 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
   require(rest.forall(e => e.typ.globalType == first.typ.globalType),
     "all globals must have the same type")
 
-  private val rvdType = RVDType(first.typ.rowType.physicalType, first.typ.key)
+  private val rvdType = first.typ.rvdType
   private val newGlobalType = TStruct(globalName -> TArray(first.typ.globalType))
   private val newValueType = TStruct(fieldName -> TArray(rvdType.valueType.virtualType))
   private val newRowType = rvdType.kType.virtualType ++ newValueType
