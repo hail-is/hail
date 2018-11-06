@@ -228,6 +228,15 @@ class PruneSuite extends SparkSuite {
     )
   }
 
+  @Test def testTableMultiWayZipJoinMemo() {
+    val tk1 = TableKeyBy(tab, Array("1"))
+    val ts = Array(tk1, tk1, tk1)
+    val tmwzj = TableMultiWayZipJoin(ts, "data", "gbls")
+    checkMemo(tmwzj, subsetTable(tmwzj.typ, "row.1", "row.data"), ts.map { t =>
+      subsetTable(t.typ, "row.1")
+    })
+  }
+
   @Test def testTableExplodeMemo() {
     val te = TableExplode(tab, "2")
     checkMemo(te, subsetTable(te.typ), Array(subsetTable(tab.typ, "row.2")))
