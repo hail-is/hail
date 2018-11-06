@@ -1,11 +1,12 @@
 package is.hail.cxx
 
-import java.io.{FileOutputStream, InputStream, OutputStream, PrintWriter}
+import java.io.{InputStream, OutputStream}
 
 import is.hail.HailContext
 import is.hail.annotations.Region
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.types.TStruct
+import is.hail.expr.types.physical.{PStruct, PType}
 import is.hail.io.CodecSpec
 import is.hail.nativecode.{NativeModule, NativeStatus, ObjectArray}
 import is.hail.rvd.{OrderedRVDSpec, RVDPartitioner, RVDType}
@@ -17,11 +18,9 @@ import scala.reflect.ClassTag
 object RVDEmitTriplet {
   type ProcessRowF = Variable => Code
 
-  def empty[T: ClassTag](typ: RVDType): RVDEmitTriplet[T] = {
-    new RVDEmitTriplet[T](typ, RVDPartitioner.empty(typ), HailContext.get.sc.emptyRDD[T]) {
+  def empty[T: ClassTag](typ: RVDType): RVDEmitTriplet = {
+    new RVDEmitTriplet(typ, RVDPartitioner.empty(typ), HailContext.get.sc.emptyRDD[Long]) {
       def partitionSetup: Code = ""
-
-      def makeIterator: Iterator[T] => Long = {it => 0}
 
       def processRow(f: RVDEmitTriplet.ProcessRowF): Code = ""
     }
@@ -35,8 +34,8 @@ object RVDEmitTriplet {
     requestedType: RVDType,
     partitioner: RVDPartitioner,
     tub: TranslationUnitBuilder
-  ): RVDEmitTriplet[InputStream] = {
-    val decoder = codecSpec.buildNativeDecoderClass(t.physicalType, requestedType.rowType.physicalType, tub)
+  ): RVDEmitTriplet = {
+    val decoder = codecSpec.buildNativeDecoderClass(t.physicalType, requestedType.rowType, tub)
     tub += decoder
 
     tub.include("hail/Upcalls.h")
@@ -47,9 +46,9 @@ object RVDEmitTriplet {
     tub.include("<memory>")
 
     val hc = HailContext.get
-    val partsRDD = hc.readPartitions(path, partFiles, (_, is, m) => Iterator.single(is))
+    val partsRDD = hc.readPartitions(path, partFiles, (_, is, m) => Iterator.single(new ObjectArray(is).get()))
 
-    new RVDEmitTriplet[InputStream](requestedType, Option(partitioner).getOrElse(RVDPartitioner.unkeyed(partsRDD.getNumPartitions)), partsRDD) {
+    new RVDEmitTriplet(requestedType, Option(partitioner).getOrElse(RVDPartitioner.unkeyed(partsRDD.getNumPartitions)), partsRDD) {
       private[this] val up = Variable("up", "UpcallEnv")
       private[this] val dec = Variable("decoder", decoder.name, s"std::make_shared<InputStream>($up, reinterpret_cast<ObjectArray *>($iterator)->at(0))")
       def partitionSetup: Code =
@@ -57,11 +56,6 @@ object RVDEmitTriplet {
            |${ up.define }
            |${ dec.define }
          """.stripMargin
-
-      def makeIterator: Iterator[InputStream] => Long = { is: Iterator[InputStream] =>
-        val obj = new ObjectArray(is.next())
-        obj.get()
-      }
 
       def processRow(rowF: ProcessRowF): Code = {
         val row = Variable("row", "char *", s"$dec.decode_row($st, $region)")
@@ -75,34 +69,8 @@ object RVDEmitTriplet {
     }
   }
 
-  def transformRow[T : ClassTag](t: RVDEmitTriplet[T])(transform: ProcessRowF => ProcessRowF): RVDEmitTriplet[T] =
-    new RVDEmitTriplet[T](t.typ, t.partitioner, t.rddBase) {
-      override val st: Variable = t.st
-      override val region: Variable = t.region
-      override val iterator: Variable = t.iterator
-
-      override def makeIterator: Iterator[T] => Long = t.makeIterator
-
-      override val partitionSetup: Code = t.partitionSetup
-
-      override def processRow(f: ProcessRowF): Code = t.processRow(transform(f))
-    }
-
-  def changeRowType[T : ClassTag](t: RVDEmitTriplet[T], newRowType: TStruct): RVDEmitTriplet[T] =
-    new RVDEmitTriplet[T](t.typ.copy(rowType = newRowType), t.partitioner, t.rddBase) {
-      override val st: Variable = t.st
-      override val region: Variable = t.region
-      override val iterator: Variable = t.iterator
-
-      override def makeIterator: Iterator[T] => Long = t.makeIterator
-
-      override val partitionSetup: Code = t.partitionSetup
-
-      override def processRow(f: ProcessRowF): Code = t.processRow(f)
-    }
-
-  def write[T](t: RVDEmitTriplet[T], tub: TranslationUnitBuilder, path: String, stageLocally: Boolean, codecSpec: CodecSpec): Array[Long] = {
-    val encClass = codecSpec.buildNativeEncoderClass(t.typ.rowType.physicalType, tub)
+  def write[T](t: RVDEmitTriplet, tub: TranslationUnitBuilder, path: String, stageLocally: Boolean, codecSpec: CodecSpec): Array[Long] = {
+    val encClass = codecSpec.buildNativeEncoderClass(t.typ.rowType, tub)
     tub += encClass
     tub.include("hail/Encoder.h")
 
@@ -144,16 +112,14 @@ object RVDEmitTriplet {
     val modKey = mod.getKey
     val modBinary = mod.getBinary
 
-    val transformIterator = t.makeIterator
-
-    val writeF = { (it: Iterator[T], os: OutputStream) =>
+    val writeF = { (it: Iterator[Long], os: OutputStream) =>
       val st = new NativeStatus()
       val mod = new NativeModule(modKey, modBinary)
         val f = mod.findLongFuncL3(st, "process_partition")
         assert(st.ok, st.toString())
         val osArray = new ObjectArray(os)
       Region.scoped { region =>
-        val nRows = f(st, region.get(), transformIterator(it), osArray.get())
+        val nRows = f(st, region.get(), it.next(), osArray.get())
         assert(st.ok, st.toString())
         f.close()
         osArray.close()
@@ -165,20 +131,18 @@ object RVDEmitTriplet {
       }
     }
 
-    val (partFiles, partitionCounts) = t.writePartitions(path, stageLocally, writeF)
+    val (partFiles, partitionCounts) = t.rddBase.writePartitions(path, stageLocally, writeF)
 
     t.rvdSpec(codecSpec, partFiles).write(HailContext.get.sc.hadoopConfiguration, path)
     partitionCounts
   }
 }
 
-abstract class RVDEmitTriplet[T : ClassTag](val typ: RVDType, val partitioner: RVDPartitioner, val rddBase: RDD[T]) {
+abstract class RVDEmitTriplet(val typ: RVDType, val partitioner: RVDPartitioner, val rddBase: RDD[Long]) {
 
   val st: Variable = Variable("st", "NativeStatus*")
   val region: Variable = Variable("region", "Region*")
   val iterator: Variable = Variable("iterator", "long")
-
-  def makeIterator: Iterator[T] => Long
 
   def partitionSetup: Code
 
@@ -192,6 +156,17 @@ abstract class RVDEmitTriplet[T : ClassTag](val typ: RVDType, val partitioner: R
       partitioner.rangeBounds.toFastSeq,
       partitioner.rangeBoundsType))
 
-  def writePartitions(path: String, stageLocally: Boolean, writeF: (Iterator[T], OutputStream) => Long) =
-    rddBase.writePartitions(path, stageLocally, writeF)
+  def mapPartitions(rowType: PStruct, partSetup: Code)(mapRow: RVDEmitTriplet.ProcessRowF => RVDEmitTriplet.ProcessRowF): RVDEmitTriplet = {
+    val old = this
+    new RVDEmitTriplet(typ.copy(rowType = rowType), partitioner, rddBase) {
+
+      override val st: Variable = old.st
+      override val region: Variable = old.region
+      override val iterator: Variable = old.iterator
+
+      def partitionSetup: Code = s"${ old.partitionSetup }\n$partSetup"
+
+      def processRow(f: RVDEmitTriplet.ProcessRowF): Code = old.processRow(mapRow(f))
+    }
+  }
 }

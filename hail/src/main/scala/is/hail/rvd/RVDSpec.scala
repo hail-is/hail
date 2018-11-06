@@ -88,7 +88,7 @@ abstract class RVDSpec {
 
   def readLocal(hc: HailContext, path: String, requestedType: TStruct): IndexedSeq[Row]
 
-  def cxxEmitRead(hc: HailContext, path: String, requestedType: TStruct, tub: cxx.TranslationUnitBuilder): cxx.RVDEmitTriplet[InputStream]
+  def cxxEmitRead(hc: HailContext, path: String, requestedType: TStruct, tub: cxx.TranslationUnitBuilder): cxx.RVDEmitTriplet
 
   def write(hadoopConf: hadoop.conf.Configuration, path: String) {
     hadoopConf.writeTextFile(path + "/metadata.json.gz") { out =>
@@ -110,7 +110,7 @@ case class UnpartitionedRVDSpec(
   def readLocal(hc: HailContext, path: String, requestedType: TStruct): IndexedSeq[Row] =
     RVDSpec.readLocal(hc, path, rowType, codecSpec, partFiles, requestedType)
 
-  def cxxEmitRead(hc: HailContext, path: String, requestedType: TStruct, tub: cxx.TranslationUnitBuilder): cxx.RVDEmitTriplet[InputStream] = {
+  def cxxEmitRead(hc: HailContext, path: String, requestedType: TStruct, tub: cxx.TranslationUnitBuilder): cxx.RVDEmitTriplet = {
     cxx.RVDEmitTriplet.read(path, rowType, codecSpec, partFiles, RVDType(requestedType.physicalType), null, tub)
   }
 
@@ -132,7 +132,7 @@ case class OrderedRVDSpec(
       hc.readRows(path, rvdType.rowType.virtualType, codecSpec, partFiles, requestedType))
   }
 
-  def cxxEmitRead(hc: HailContext, path: String, requestedType: TStruct, tub: cxx.TranslationUnitBuilder): cxx.RVDEmitTriplet[InputStream] = {
+  def cxxEmitRead(hc: HailContext, path: String, requestedType: TStruct, tub: cxx.TranslationUnitBuilder): cxx.RVDEmitTriplet = {
     val requestedRVDType = rvdType.copy(rowType = requestedType.physicalType)
     assert(requestedRVDType.kType == rvdType.kType)
     val rangeBoundsType = TArray(TInterval(requestedRVDType.kType.virtualType))

@@ -16,12 +16,10 @@ import org.json4s.jackson.JsonMethods
 
 import scala.reflect.ClassTag
 
-case class TableEmitTriplet[T : ClassTag](typ: TableType, rvdEmitTriplet: RVDEmitTriplet[T], globals: BroadcastRow) {
-  def processRow(transform: RVDEmitTriplet.ProcessRowF => RVDEmitTriplet.ProcessRowF): TableEmitTriplet[T] =
-    new TableEmitTriplet(typ, RVDEmitTriplet.transformRow(rvdEmitTriplet)(transform), globals)
+case class TableEmitTriplet(typ: TableType, rvdEmitTriplet: RVDEmitTriplet, globals: BroadcastRow) {
 
-  def changeRowType(newRowType: TStruct): TableEmitTriplet[T] =
-    new TableEmitTriplet(typ.copy(rowType = newRowType), RVDEmitTriplet.changeRowType(rvdEmitTriplet, newRowType), globals)
+  def mapPartitions(newRowType: TStruct, partSetup: Code)(f: RVDEmitTriplet.ProcessRowF => RVDEmitTriplet.ProcessRowF): TableEmitTriplet =
+    TableEmitTriplet(typ.copy(rowType = newRowType), rvdEmitTriplet.mapPartitions(newRowType.physicalType, partSetup)(f), globals)
 
   def write(tub: TranslationUnitBuilder, path: String, overwrite: Boolean, stageLocally: Boolean, codecSpecJSONStr: String) {
     val hc = HailContext.get
@@ -69,20 +67,20 @@ case class TableEmitTriplet[T : ClassTag](typ: TableType, rvdEmitTriplet: RVDEmi
 }
 
 object TableEmit {
-  def apply(tub: TranslationUnitBuilder, x: ir.TableIR): TableEmitTriplet[_] = {
+  def apply(tub: TranslationUnitBuilder, x: ir.TableIR): TableEmitTriplet = {
     val emitter = new TableEmitter(tub)
     emitter.emit(x)
   }
 }
 
 class TableEmitter(tub: TranslationUnitBuilder) { outer =>
-  type E = ir.Env[TableEmitTriplet[_]]
+  type E = ir.Env[TableEmitTriplet]
 
-  def emit(x: ir.TableIR): TableEmitTriplet[_] = emit(x, ir.Env.empty[TableEmitTriplet[_]])
+  def emit(x: ir.TableIR): TableEmitTriplet = emit(x, ir.Env.empty[TableEmitTriplet])
 
-  def emit(x: ir.TableIR, env: E): TableEmitTriplet[_] = {
+  def emit(x: ir.TableIR, env: E): TableEmitTriplet = {
 
-    def emit(x: ir.TableIR, env: E = env): TableEmitTriplet[_] = this.emit(x, env)
+    def emit(x: ir.TableIR, env: E = env): TableEmitTriplet = this.emit(x, env)
 
     val typ = x.typ
     x match {
@@ -101,7 +99,7 @@ class TableEmitter(tub: TranslationUnitBuilder) { outer =>
 //          }
           rvd
         }
-        new TableEmitTriplet[InputStream](typ, rvd, BroadcastRow(globals, typ.globalType, hc.sc))
+        new TableEmitTriplet(typ, rvd, BroadcastRow(globals, typ.globalType, hc.sc))
 
       case ir.TableMapRows(child, newRow) =>
 
@@ -124,16 +122,15 @@ class TableEmitter(tub: TranslationUnitBuilder) { outer =>
         tub += mapF.result()
 
         val prev = emit(child)
-        prev.processRow { processRowF =>
+        prev.mapPartitions(newRow.typ.asInstanceOf[TStruct], "") { processRowF =>
           { row: Variable =>
             val newRow = Variable("mapped_row", "char *", s"$fName(${ prev.rvdEmitTriplet.st }, ${ prev.rvdEmitTriplet.region }, $row)")
             s"""
                |${ newRow.define }
                |${ processRowF(newRow) }
                """.stripMargin
-
           }
-        }.changeRowType(newRow.typ.asInstanceOf[TStruct])
+        }
 
       case ir.TableFilter(child, cond) =>
         val fName = genSym("filter_cond")
@@ -149,14 +146,13 @@ class TableEmitter(tub: TranslationUnitBuilder) { outer =>
         tub += condF.result()
 
         val prev = emit(child)
-        prev.processRow { processRowF =>
+        prev.mapPartitions(prev.typ.rowType, "") { processRowF =>
           { row: Variable =>
             s"""
                |if ($fName(${ prev.rvdEmitTriplet.st }, ${ prev.rvdEmitTriplet.region }, $row)) {
                |  ${ processRowF(row) }
                |}
                """.stripMargin
-
           }
         }
 
