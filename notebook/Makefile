@@ -1,9 +1,11 @@
 .PHONY: build push run-docker run deploy clean-workers build-worker push-worker
 
+PROJECT = $(shell gcloud config get-value project)
+
 build: push-worker
 	docker build . -t notebook
 
-push: IMAGE = gcr.io/broad-ctsa/notebook:$(shell docker images -q --no-trunc notebook | sed -e 's,[^:]*:,,')
+push: IMAGE = gcr.io/$(PROJECT)/notebook:$(shell docker images -q --no-trunc notebook | sed -e 's,[^:]*:,,')
 push: build
 	echo $(IMAGE) > notebook-image
 	docker tag notebook $(IMAGE)
@@ -12,7 +14,7 @@ push: build
 build-worker:
 	cd worker && docker build . -t notebook-worker
 
-push-worker: IMAGE = gcr.io/broad-ctsa/notebook-worker:$(shell docker images -q --no-trunc notebook-worker | sed -e 's,[^:]*:,,')
+push-worker: IMAGE = gcr.io/$(PROJECT)/notebook-worker:$(shell docker images -q --no-trunc notebook-worker | sed -e 's,[^:]*:,,')
 push-worker: build-worker
 	echo $(IMAGE) > notebook-worker-image
 	docker tag notebook-worker $(IMAGE)

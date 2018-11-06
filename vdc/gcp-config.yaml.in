@@ -1,33 +1,39 @@
 resources:
 # service accounts
-- name: vdc-service-account
+- name: vdc-sa
   type: iam.v1.serviceAccount
   properties:
-    accountId: vdc-svc
-    displayName: for vdc-svc
+# must be 6-30 characters
+    accountId: vdc-sa
+    displayName: for vdc
 - name: gcr-push
   type: iam.v1.serviceAccount
   properties:
     accountId: gcr-push
     displayName: push to gcr.io
-- name: gcr-push-key
-  type: iam.v1.serviceAccounts.key
-  metadata:
-    dependsOn:
-    - gcr-push
+- name: gcr-pull
+  type: iam.v1.serviceAccount
   properties:
-    parent: projects/hail-vdc/serviceAccounts/gcr-push@hail-vdc.iam.gserviceaccount.com
+    accountId: gcr-pull
+    displayName: pull from gcr.io
+- name: k8s-admin
+  type: iam.v1.serviceAccount
+  properties:
+    accountId: k8s-admin
+    displayName: k8s admin
+# buckets
+# deployment manager cannot create artifacts.@project@.appspot.com
 # sql instance
 - name: sql-instance
   type: sqladmin.v1beta4.instance
   properties:
-    name: db-07
+    name: db-gh0um
     region: us-central1
     settings:
       activationPolicy: ALWAYS
       ipConfiguration:
         ipv4Enabled: false
-        privateNetwork: projects/hail-vdc/global/networks/default
+        privateNetwork: projects/@project@/global/networks/default
       backupConfiguration:
         enabled: true
         startTime: 02:00
@@ -41,23 +47,23 @@ resources:
   type: container.v1.cluster
   metadata:
     dependsOn:
-    - vdc-service-account
+    - vdc-sa
   properties:
-    zone: us-central1-a
+    zone: @zone@
     cluster:
       addonsConfig:
         httpLoadBalancing: {}
         kubernetesDashboard: {disabled: true}
       initialClusterVersion: 1.10.7-gke.6
       ipAllocationPolicy: {useIpAliases: true}
-      location: us-central1-a
+      location: @zone@
       loggingService: logging.googleapis.com
       masterAuth:
         clientCertificateConfig: {}
       masterAuthorizedNetworksConfig: {}
       monitoringService: monitoring.googleapis.com
       name: vdc
-      network: projects/hail-vdc/global/networks/default
+      network: projects/@project@/global/networks/default
       networkPolicy: {}
       nodePools:
       - autoscaling: {}
@@ -65,7 +71,7 @@ resources:
           diskSizeGb: 100
           diskType: pd-standard
           imageType: COS
-          serviceAccount: vdc-svc@hail-vdc.iam.gserviceaccount.com
+          serviceAccount: vdc-sa@@project@.iam.gserviceaccount.com
           machineType: n1-standard-1
           oauthScopes: ['https://www.googleapis.com/auth/devstorage.read_only', 'https://www.googleapis.com/auth/logging.write',
             'https://www.googleapis.com/auth/monitoring', 'https://www.googleapis.com/auth/servicecontrol',
@@ -80,7 +86,7 @@ resources:
           diskType: pd-standard
           imageType: COS
           labels: {preemptible: 'true'}
-          serviceAccount: vdc-svc@hail-vdc.iam.gserviceaccount.com
+          serviceAccount: vdc-sa@@project@.iam.gserviceaccount.com
           machineType: n1-standard-8
           oauthScopes: ['https://www.googleapis.com/auth/devstorage.read_only', 'https://www.googleapis.com/auth/logging.write',
             'https://www.googleapis.com/auth/monitoring', 'https://www.googleapis.com/auth/servicecontrol',
@@ -92,4 +98,4 @@ resources:
         name: preemptible-pool
         version: 1.10.7-gke.6
       privateClusterConfig: {}
-      subnetwork: projects/hail-vdc/regions/us-central1/subnetworks/default
+      subnetwork: projects/@project@/regions/@region@/subnetworks/default
