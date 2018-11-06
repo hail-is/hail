@@ -14,7 +14,7 @@ Regardless of installation method, you will need:
   Note: it *must* be version eight. Hail does not support Java versions nine,
   ten, or eleven due to our dependency on Spark.
 - Python 3.6 or later, we recommend `Anaconda's Python 3
-  <https://www.continuum.io/downloads>`_
+  <https://www.anaconda.com/download/>`_
 
 For all methods *other than using pip*, you will additionally need `Spark
 2.2.x
