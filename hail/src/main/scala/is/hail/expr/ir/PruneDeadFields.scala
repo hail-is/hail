@@ -827,6 +827,11 @@ object PruneDeadFields {
           TableLeftJoinRightDistinct(rebuild(left, memo), rebuild(right, memo), root)
         else
           rebuild(left, memo)
+      case TableMultiWayZipJoin(children, fieldName, globalName) =>
+        val rebuilt = children.map { c => rebuild(c, memo) }
+        val requestedType = unify(rebuilt.head.typ, rebuilt.map(_.typ): _*)
+        val upcasted = rebuilt.map { t => upcastTable(t, requestedType) }
+        TableMultiWayZipJoin(upcasted, fieldName, globalName)
       case TableAggregateByKey(child, expr) =>
         val child2 = rebuild(child, memo)
         TableAggregateByKey(child2, rebuild(expr, child2.typ, memo))
