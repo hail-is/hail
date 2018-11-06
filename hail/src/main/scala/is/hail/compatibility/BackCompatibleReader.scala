@@ -4,7 +4,7 @@ import is.hail.expr.types.{MatrixType, TableType}
 import is.hail.table.TableSpec
 import is.hail.utils.SemanticVersion
 import is.hail.variant._
-import org.json4s.JsonAST.JValue
+import org.json4s.JsonAST.{JString, JValue}
 import org.json4s.{Formats, ShortTypeHints}
 
 case class MatrixTableSpec_1_0(
@@ -26,8 +26,8 @@ object BackCompatibleReader {
     implicit val formats: Formats = RelationalSpec.formats + ShortTypeHints(List(classOf[MatrixTableSpec_1_0], classOf[TableSpec_1_0]))
     fileVersion match {
       case SemanticVersion(1, 0, _) =>
-        jv.transformField { case ("MatrixTableSpec", value) => ("MatrixTableSpec_1_0", value) }
-          .transformField { case ("TableSpec", value) => ("TableSpec_1_0", value) }
+        jv.transformField { case ("name", JString("MatrixTableSpec")) => ("name", JString("MatrixTableSpec_1_0")) }
+          .transformField { case ("name", JString("TableSpec")) => ("name", JString("TableSpec_1_0")) }
           .extract[RelationalSpec]
     }
   }
