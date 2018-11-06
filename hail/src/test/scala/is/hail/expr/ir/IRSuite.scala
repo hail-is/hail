@@ -678,6 +678,7 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testTableAggregate() {
+    hc // need to initialize lazy HailContext
     val table = TableRange(3, 2)
     val countSig = AggSignature(Count(), Seq(), None, Seq())
     val count = ApplyAggOp(FastIndexedSeq.empty, None, FastIndexedSeq.empty, countSig)
