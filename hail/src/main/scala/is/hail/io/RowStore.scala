@@ -14,7 +14,7 @@ import java.io._
 
 import scala.collection.mutable.ArrayBuffer
 import is.hail.asm4s._
-import is.hail.cxx
+import is.hail.{HailContext, cxx}
 import is.hail.expr.ir.{EmitUtils, EstimableEmitter, MethodBuilderLike}
 import is.hail.expr.types.MatrixType
 import is.hail.expr.types.physical._
@@ -172,16 +172,16 @@ object ShowBuf {
 final case class PackCodecSpec(child: BufferSpec) extends CodecSpec {
 
   def buildEncoder(t: PType): (OutputStream) => Encoder = {
-    if (System.getenv("HAIL_ENABLE_CPP_CODEGEN") != null) {
+    if (HailContext.get.flags.get("cpp") != null) {
       val e: NativeEncoderModule = NativeEncoder(t, child)
       (out: OutputStream) => new NativePackEncoder(out, e)
     } else {
-      { out: OutputStream => new PackEncoder(t, child.buildOutputBuffer(out)) }
+      out: OutputStream => new PackEncoder(t, child.buildOutputBuffer(out))
     }
   }
 
   def buildDecoder(t: PType, requestedType: PType): (InputStream) => Decoder = {
-    if (System.getenv("HAIL_ENABLE_CPP_CODEGEN") != null) {
+    if (HailContext.get.flags.get("cpp") != null) {
       val d: NativeDecoderModule = NativeDecoder(t, requestedType, child)
       (in: InputStream) => new NativePackDecoder(in, d)
     } else {

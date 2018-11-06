@@ -19,7 +19,11 @@ object SparkSuite {
 }
 
 class SparkSuite extends TestNGSuite {
-  lazy val hc: HailContext = SparkSuite.hc
+  lazy val hc: HailContext = {
+    if (System.getenv("HAIL_ENABLE_CPP_CODEGEN") != null)
+      SparkSuite.hc.flags.set("cpp", "1")
+    SparkSuite.hc
+  }
 
   lazy val sc: SparkContext = hc.sc
 

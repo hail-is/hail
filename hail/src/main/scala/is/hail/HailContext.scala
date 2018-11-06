@@ -25,6 +25,7 @@ import org.apache.spark._
 import org.apache.spark.executor.InputMetrics
 
 import scala.collection.JavaConverters._
+import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.language.existentials
 import scala.reflect.ClassTag
@@ -336,6 +337,8 @@ class HailContext private(val sc: SparkContext,
   val tmpDir: String,
   val branchingFactor: Int) {
   val hadoopConf: hadoop.conf.Configuration = sc.hadoopConfiguration
+
+  val flags: HailFeatureFlags = new HailFeatureFlags()
 
   def version: String = is.hail.HAIL_PRETTY_VERSION
 
@@ -746,4 +749,22 @@ class HailContext private(val sc: SparkContext,
     warn(s"uploading $logFile")
     Uploader.upload("log", FileUtils.readFileToString(new File(logFile)))
   }
+}
+
+class HailFeatureFlags {
+  private[this] val flags: mutable.Map[String, String] =
+    mutable.Map[String, String](
+      "cpp" -> null
+    )
+
+  val available: java.util.ArrayList[String] =
+    new java.util.ArrayList[String](java.util.Arrays.asList[String](flags.keys.toSeq: _*))
+
+  def set(flag: String, value: String): Unit = {
+    flags.update(flag, value)
+  }
+
+  def get(flag: String): String = flags(flag)
+
+  def exists(flag: String): Boolean = flags.contains(flag)
 }
