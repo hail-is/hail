@@ -352,3 +352,16 @@ def upload_log():
     """
 
     Env.hc()._jhc.uploadLog()
+
+
+def _set_flags(**flags):
+    available = set(Env.hc()._jhc.flags().available())
+    invalid = []
+    for flag, value in flags.items():
+        if flag in available:
+            Env.hc()._jhc.flags().set(flag, value)
+        else:
+            invalid.append(flag)
+    if len(invalid) != 0:
+        raise FatalError("Flags {} not valid. Valid flags: \n    {}"
+                         .format(', '.join(invalid), '\n    '.join(available)))
