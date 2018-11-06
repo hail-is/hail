@@ -44,11 +44,11 @@ final case class PunctuationToken(value: String) extends Token {
 
 object IRLexer extends JavaTokenParsers {
   val token: Parser[Token] =
-    "[()\\[\\]{}<>,:+@=]".r ^^ { p => PunctuationToken(p) } |
-      identifier ^^ { id => IdentifierToken(id) } |
+    identifier ^^ { id => IdentifierToken(id) } |
       float64_literal ^^ { d => FloatToken(d) } |
       int64_literal ^^ { l => IntegerToken(l) } |
-      string_literal ^^ { s => StringToken(s) }
+      string_literal ^^ { s => StringToken(s) } |
+      "[()\\[\\]{}<>,:+@=]".r ^^ { p => PunctuationToken(p) }
 
   val lexer: Parser[Array[Token]] = rep(positioned(token)) ^^ { l => l.toArray }
 
@@ -109,7 +109,8 @@ object IRLexer extends JavaTokenParsers {
     "nan" ^^ { _ => Double.NaN } |
       "inf" ^^ { _ => Double.PositiveInfinity } |
       "-inf" ^^ { _ => Double.NegativeInfinity } |
-      floatingPointNumber ^^ { _.toDouble }
+      """[+-]?\d+(\.\d+)?[eE][+-]?\d+""".r ^^ { _.toDouble } |
+      """[+-]?\d*\.\d+""".r ^^ { _.toDouble }
 
   def parse(code: String): Array[Token] = {
     parseAll(lexer, code) match {
