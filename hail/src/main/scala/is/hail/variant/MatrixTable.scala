@@ -16,7 +16,7 @@ import is.hail.expr.types._
 import is.hail.expr.types.physical.PArray
 import is.hail.io.gen.ExportGen
 import is.hail.io.plink.ExportPlink
-import is.hail.compatibility.BackCompatibleReader
+import is.hail.compatibility.Compatibility
 import is.hail.sparkextras.{ContextRDD, RepartitionedOrderedRDD2}
 import org.apache.hadoop
 import org.apache.spark.rdd.RDD
@@ -67,7 +67,7 @@ object RelationalSpec {
     }
     ReferenceGenome.importReferences(hc.hadoopConf, path + "/" + referencesRelPath)
 
-    BackCompatibleReader.extract(fileVersion, jv)
+    Compatibility.extractRel(fileVersion, jv)
   }
 }
 
@@ -121,7 +121,7 @@ abstract class MatrixTableSpec extends RelationalSpec {
 }
 
 object MatrixTableSpec {
-  def default(file_version: Int,
+  def apply(file_version: Int,
     hail_version: String,
     references_rel_path: String,
     matrix_type: MatrixType,
@@ -130,7 +130,7 @@ object MatrixTableSpec {
 }
 
 object FileFormat {
-  val version: SemanticVersion = SemanticVersion(1, 0, 0)
+  val version: SemanticVersion = SemanticVersion(1, 1, 0)
 }
 
 object MatrixTable {

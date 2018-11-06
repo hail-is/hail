@@ -36,7 +36,7 @@ abstract class TableSpec extends RelationalSpec {
 }
 
 object TableSpec {
-  def default(file_version: Int,
+  def apply(file_version: Int,
     hail_version: String,
     references_rel_path: String,
     table_type: TableType,

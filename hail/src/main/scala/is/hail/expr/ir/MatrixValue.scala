@@ -46,7 +46,7 @@ case class MatrixValue(
 
       val partitionCounts = RVDSpec.writeLocal(hc, path + "/rows", typ.colType, codecSpec, colValues.value)
 
-      val colsSpec = TableSpec.default(
+      val colsSpec = TableSpec(
         FileFormat.version.rep,
         hc.version,
         "../references",
@@ -67,7 +67,7 @@ case class MatrixValue(
 
       RVDSpec.writeLocal(hc, path + "/globals", TStruct.empty(), codecSpec, Array[Annotation](Row()))
 
-      val globalsSpec = TableSpec.default(
+      val globalsSpec = TableSpec(
         FileFormat.version.rep,
         hc.version,
         "../references",
@@ -105,7 +105,7 @@ case class MatrixValue(
       hadoopConf.mkDir(globalsPath)
       writeGlobals(globalsPath, codecSpec)
 
-      val rowsSpec = TableSpec.default(
+      val rowsSpec = TableSpec(
         FileFormat.version.rep,
         hc.version,
         "../references",
@@ -117,7 +117,7 @@ case class MatrixValue(
 
       hadoopConf.writeTextFile(path + "/rows/_SUCCESS")(out => ())
 
-      val entriesSpec = TableSpec.default(
+      val entriesSpec = TableSpec(
         FileFormat.version.rep,
         hc.version,
         "../references",
@@ -138,7 +138,7 @@ case class MatrixValue(
         ReferenceGenome.exportReferences(hc, refPath, t)
       }
 
-      val spec = MatrixTableSpec.default(
+      val spec = MatrixTableSpec(
         FileFormat.version.rep,
         hc.version,
         "references",

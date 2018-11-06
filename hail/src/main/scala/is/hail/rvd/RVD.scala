@@ -993,13 +993,12 @@ class RVD(
     new KeyedRVD(this, key)
 
   private def rvdSpec(codecSpec: CodecSpec, partFiles: Array[String]): RVDSpec =
-    OrderedRVDSpec(
-      typ,
+    RVDSpec(
+      typ.rowType,
+      typ.key,
       codecSpec,
       partFiles,
-      JSONAnnotationImpex.exportAnnotation(
-        partitioner.rangeBounds.toFastSeq,
-        partitioner.rangeBoundsType))
+      partitioner)
 }
 
 object RVD {
