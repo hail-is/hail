@@ -580,7 +580,9 @@ object Parser extends JavaTokenParsers {
       ("ApplyIR" | "ApplySpecial" | "Apply") ~> ir_identifier ~ ir_children(env) ^^ { case function ~ args => ir.invoke(function, args: _*) } |
       "Uniroot" ~> ir_identifier >> { name => ir_value_expr(env + (name -> TFloat64())) ~ ir_value_expr(env) ~ ir_value_expr(env) ^^ { case f ~ min ~ max => ir.Uniroot(name, f, min, max) }} |
       "JavaIR" ~> ir_identifier ^^ { name => env.irMap(name).asInstanceOf[IR] } |
-      "TableCount" ~> table_ir(env) ^^ { child => ir.TableCount(child) }
+      "TableCount" ~> table_ir(env) ^^ { child => ir.TableCount(child) } |
+      "TableAggregate" ~> table_ir(env) >> { child =>
+        ir_value_expr(env.update(child.typ.refMap)) ^^ { query => ir.TableAggregate(child, query) }}
   }
 
   def ir_value: Parser[(Type, Any)] = type_expr ~ string_literal ^^ { case t ~ vJSONStr =>

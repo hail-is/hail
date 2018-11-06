@@ -23,23 +23,16 @@ class ValueIRTests(unittest.TestCase):
         t = ir.Ref('t')
         call = ir.Ref('call')
 
+        table = ir.TableRange(5, 3)
+
         collect_sig = ir.AggSignature('Collect', [], None, [hl.tint32])
 
         call_stats_sig = ir.AggSignature('CallStats', [], [hl.tint32], [hl.tcall])
-        call_stats_type = hl.tstruct(AC=hl.tarray(hl.tint32),
-                                     AF=hl.tarray(hl.tfloat64),
-                                     AN=hl.tint32,
-                                     homozygote_count=hl.tarray(hl.tint32))
 
         hist_sig = ir.AggSignature(
             'Histogram', [hl.tfloat64, hl.tfloat64, hl.tint32], None, [hl.tfloat64])
-        hist_type = hl.tstruct(bin_edges=hl.tarray(hl.tfloat64),
-                               bin_freq=hl.tarray(hl.tint64),
-                               n_smaller=hl.tint64,
-                               n_larger=hl.tint64)
 
         take_by_sig = ir.AggSignature('TakeBy', [hl.tint32], None, [hl.tfloat64, hl.tfloat64])
-        take_by_type = hl.tarray(hl.tfloat64)
 
         value_irs = [
             i, ir.I64(5), ir.F32(3.14), ir.F64(3.14), s, ir.TrueIR(), ir.FalseIR(), ir.Void(),
@@ -94,6 +87,8 @@ class ValueIRTests(unittest.TestCase):
             ir.Apply('toFloat64', i),
             ir.Uniroot('x', ir.F64(3.14), ir.F64(-5.0), ir.F64(5.0)),
             ir.Literal(hl.tarray(hl.tint32), [1, 2, None]),
+            ir.TableCount(table),
+            ir.TableAggregate(table, ir.MakeStruct([('foo', ir.ApplyAggOp([], None, [ir.I32(0)], collect_sig))])),
         ]
 
         return value_irs

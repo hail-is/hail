@@ -677,6 +677,13 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(TableCount(TableRange(7, 4)), 7L)
   }
 
+  @Test def testTableAggregate() {
+    val table = TableRange(3, 2)
+    val countSig = AggSignature(Count(), Seq(), None, Seq())
+    val count = ApplyAggOp(FastIndexedSeq.empty, None, FastIndexedSeq.empty, countSig)
+    assertEvalsTo(TableAggregate(table, MakeStruct(Seq("foo" -> count))), Row(3L))
+  }
+
   @Test def testGroupByKey() {
     def tuple(k: String, v: Int): IR = MakeTuple(Seq(Str(k), I32(v)))
 
@@ -734,6 +741,9 @@ class IRSuite extends SparkSuite {
 
     val takeBySig = AggSignature(TakeBy(), Seq(TInt32()), None, Seq(TFloat64(), TInt32()))
 
+    val countSig = AggSignature(Count(), Seq(), None, Seq())
+    val count = ApplyAggOp(FastIndexedSeq.empty, None, FastIndexedSeq.empty, countSig)
+
     val table = TableRange(100, 10)
 
     val irs = Array(
@@ -787,7 +797,8 @@ class IRSuite extends SparkSuite {
       invoke("toFloat64", i), // Apply
       Uniroot("x", F64(3.14), F64(-5.0), F64(5.0)),
       Literal(TStruct("x" -> TInt32()), Row(1)),
-      TableCount(table)
+      TableCount(table),
+      TableAggregate(table, MakeStruct(Seq("foo" -> count)))
     )
     irs.map(x => Array(x))
   }

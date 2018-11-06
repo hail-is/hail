@@ -19,13 +19,13 @@ object SparkSuite {
 }
 
 class SparkSuite extends TestNGSuite {
-  lazy val hc: HailContext = SparkSuite.hc
+  val hc: HailContext = SparkSuite.hc
 
-  lazy val sc: SparkContext = hc.sc
+  val sc: SparkContext = hc.sc
 
-  lazy val sqlContext: SQLContext = hc.sqlContext
+  val sqlContext: SQLContext = hc.sqlContext
 
-  lazy val hadoopConf: hadoop.conf.Configuration = hc.hadoopConf
+  val hadoopConf: hadoop.conf.Configuration = hc.hadoopConf
 
-  lazy val tmpDir: TempDir = TempDir(hadoopConf)
+  val tmpDir: TempDir = TempDir(hadoopConf)
 }

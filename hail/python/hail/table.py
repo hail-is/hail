@@ -1119,8 +1119,7 @@ class Table(ExprContainer):
         base, _ = self._process_joins(expr)
         analyze('Table.aggregate', expr, self._global_indices, {self._row_axis})
 
-        result_json = base._jt.aggregateJSON(str(expr._ir))
-        return expr.dtype._from_json(result_json)
+        return Env.hc()._backend.interpret(TableAggregate(base._tir, expr._ir))
 
     @typecheck_method(output=str,
                       overwrite=bool,
