@@ -201,6 +201,9 @@ object Simplify {
 
     case InsertFields(struct, Seq()) => struct
 
+    case SelectFields(old, fields) if coerce[TStruct](old.typ).fieldNames sameElements fields =>
+      old
+
     case SelectFields(SelectFields(old, _), fields) =>
       SelectFields(old, fields)
 
@@ -248,7 +251,7 @@ object Simplify {
 
   private[this] def tableRules(canRepartition: Boolean): PartialFunction[TableIR, TableIR] = {
 
-    case TableRename(child, m1, m2) if m1.isEmpty && m2.isEmpty => child
+    case TableRename(child, m1, m2) if m1.isTrivial && m2.isTrivial => child
 
     // TODO: Write more rules like this to bubble 'TableRename' nodes towards the root.
     case t@TableRename(TableKeyBy(child, keys, isSorted), rowMap, globalMap) =>
@@ -312,14 +315,14 @@ object Simplify {
     case MatrixColsTable(MatrixRead(typ, dropCols, false, reader)) =>
       MatrixColsTable(MatrixRead(typ, dropCols, dropRows = true, reader))
 
-    case MatrixRowsTable(MatrixFilterRows(child, newRow))
-      if !Mentions(newRow, "g") && !Mentions(newRow, "sa") && !ContainsAgg(newRow) =>
+    case MatrixRowsTable(MatrixFilterRows(child, pred))
+      if !Mentions(pred, "g") && !Mentions(pred, "sa") && !ContainsAgg(pred) =>
       val mrt = MatrixRowsTable(child)
       TableFilter(
         mrt,
-        Subst(newRow, Env.empty[IR].bind("va" -> Ref("row", mrt.typ.rowType))))
+        Subst(pred, Env("va" -> Ref("row", mrt.typ.rowType))))
 
-    case MatrixRowsTable(MatrixMapGlobals(child, newRow)) => TableMapGlobals(MatrixRowsTable(child), newRow)
+    case MatrixRowsTable(MatrixMapGlobals(child, newGlobals)) => TableMapGlobals(MatrixRowsTable(child), newGlobals)
     case MatrixRowsTable(MatrixMapCols(child, _, _)) => MatrixRowsTable(child)
     case MatrixRowsTable(MatrixMapEntries(child, _)) => MatrixRowsTable(child)
     case MatrixRowsTable(MatrixFilterEntries(child, _)) => MatrixRowsTable(child)
@@ -335,16 +338,16 @@ object Simplify {
       val mct = MatrixColsTable(child)
       TableMapRows(
         mct,
-        Subst(newRow, Env.empty[IR].bind("sa" -> Ref("row", mct.typ.rowType))))
+        Subst(newRow, Env("sa" -> Ref("row", mct.typ.rowType))))
 
     case MatrixColsTable(MatrixFilterCols(child, pred))
       if !Mentions(pred, "g") && !Mentions(pred, "va") =>
       val mct = MatrixColsTable(child)
       TableFilter(
         mct,
-        Subst(pred, Env.empty[IR].bind("sa" -> Ref("row", mct.typ.rowType))))
+        Subst(pred, Env("sa" -> Ref("row", mct.typ.rowType))))
 
-    case MatrixColsTable(MatrixMapGlobals(child, newRow)) => TableMapGlobals(MatrixColsTable(child), newRow)
+    case MatrixColsTable(MatrixMapGlobals(child, newGlobals)) => TableMapGlobals(MatrixColsTable(child), newGlobals)
     case MatrixColsTable(MatrixMapRows(child, _)) => MatrixColsTable(child)
     case MatrixColsTable(MatrixMapEntries(child, _)) => MatrixColsTable(child)
     case MatrixColsTable(MatrixFilterEntries(child, _)) => MatrixColsTable(child)
@@ -364,8 +367,8 @@ object Simplify {
       else
         tr
 
-    case TableHead(TableMapGlobals(child, newRow), n) =>
-      TableMapGlobals(TableHead(child, n), newRow)
+    case TableHead(TableMapGlobals(child, newGlobals), n) =>
+      TableMapGlobals(TableHead(child, n), newGlobals)
 
     case TableHead(TableOrderBy(child, sortFields), n)
       if sortFields.forall(_.sortOrder == Ascending) && n < 256 && canRepartition =>

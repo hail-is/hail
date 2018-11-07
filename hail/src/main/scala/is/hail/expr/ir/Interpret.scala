@@ -29,6 +29,42 @@ object Interpret {
     JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(value, t))
   }
 
+  def apply(tir: TableIR): TableValue =
+    apply(tir, optimize = true)
+
+  def apply(tir: TableIR, optimize: Boolean): TableValue = {
+    val tiropt = if (optimize)
+      Optimize(tir)
+    else
+      tir
+
+    val lowered = LowerMatrixIR(LiftLiterals(tiropt).asInstanceOf[TableIR])
+    val lowopt = if (optimize)
+      Optimize(lowered, noisy = true, canGenerateLiterals = false)
+    else
+      lowered
+
+    lowopt.execute(HailContext.get)
+  }
+
+  def apply(mir: MatrixIR): MatrixValue =
+    apply(mir, optimize = true)
+
+  def apply(mir: MatrixIR, optimize: Boolean): MatrixValue = {
+    val miropt = if (optimize)
+      Optimize(mir)
+    else
+      mir
+
+    val lowered = LowerMatrixIR(LiftLiterals(miropt).asInstanceOf[MatrixIR])
+    val lowopt = if (optimize)
+      Optimize(lowered, noisy = true, canGenerateLiterals = false)
+    else
+      lowered
+
+    lowopt.execute(HailContext.get)
+  }
+
   def apply[T](ir: IR): T = apply(ir, Env.empty[(Any, Type)], FastIndexedSeq(), None).asInstanceOf[T]
 
   def apply[T](ir: IR, optimize: Boolean): T = apply(ir, Env.empty[(Any, Type)], FastIndexedSeq(), None, optimize).asInstanceOf[T]
@@ -37,14 +73,16 @@ object Interpret {
     env: Env[(Any, Type)],
     args: IndexedSeq[(Any, Type)],
     agg: Option[Agg],
-    optimize: Boolean = true): T = {
+    optimize: Boolean = true
+  ): T = {
     val (typeEnv, valueEnv) = env.m.foldLeft((Env.empty[Type], Env.empty[Any])) {
       case ((e1, e2), (k, (value, t))) => (e1.bind(k, t), e2.bind(k, value))
     }
 
     var ir = ir0.unwrap
-    if (optimize) {
-      ir = Optimize(ir)
+
+    def optimizeIR(canGenerateLiterals: Boolean) {
+      ir = Optimize(ir, noisy = true, canGenerateLiterals)
       TypeCheck(ir, typeEnv, agg.map { agg =>
         agg._2.fields.foldLeft(Env.empty[Type]) { case (env, f) =>
           env.bind(f.name, f.typ)
@@ -52,7 +90,10 @@ object Interpret {
       })
     }
 
+    if (optimize) optimizeIR(true)
     ir = LiftLiterals(ir).asInstanceOf[IR]
+    ir = LowerMatrixIR(ir)
+    if (optimize) optimizeIR(false)
 
     val result = apply(ir, valueEnv, args, agg, None, Memo.empty[AsmFunction3[Region, Long, Boolean, Long]]).asInstanceOf[T]
 

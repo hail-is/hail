@@ -352,7 +352,7 @@ class PruneSuite extends SparkSuite {
   }
 
   @Test def testMatrixAnnotateRowsTableMemo() {
-    val tl = TableLiteral(MatrixRowsTable(mat).execute(hc))
+    val tl = TableLiteral(Interpret(MatrixRowsTable(mat)))
     val mart = MatrixAnnotateRowsTable(mat, tl, "foo", None)
     checkMemo(mart, subsetMatrixTable(mart.typ,"va.foo.r3", "va.r3"),
       Array(subsetMatrixTable(mat.typ, "va.r3"), subsetTable(tl.typ, "row.r3")))
@@ -583,7 +583,7 @@ class PruneSuite extends SparkSuite {
     checkRebuild(tmg, subsetTable(tmg.typ, "global.foo"),
       (_: BaseIR, r: BaseIR) => {
         val tmg = r.asInstanceOf[TableMapGlobals]
-        TypeCheck(tmg.newRow, PruneDeadFields.relationalTypeToEnv(tmg.child.typ), None)
+        TypeCheck(tmg.newGlobals, PruneDeadFields.relationalTypeToEnv(tmg.child.typ), None)
         tmg.child.typ == subsetTable(tr.typ, "global.g1")
       })
   }
@@ -680,7 +680,7 @@ class PruneSuite extends SparkSuite {
     checkRebuild(mmg, subsetMatrixTable(mmg.typ, "global.foo", "g.e1", "va.r2"),
       (_: BaseIR, r: BaseIR) => {
         val mmg = r.asInstanceOf[MatrixMapGlobals]
-        TypeCheck(mmg.newRow, PruneDeadFields.relationalTypeToEnv(mmg.child.typ), None)
+        TypeCheck(mmg.newGlobals, PruneDeadFields.relationalTypeToEnv(mmg.child.typ), None)
         mmg.child.asInstanceOf[MatrixRead].typ == subsetMatrixTable(mr.typ, "global.g1", "va.r2", "g.e1")
       }
     )
@@ -709,7 +709,7 @@ class PruneSuite extends SparkSuite {
   }
 
   @Test def testMatrixAnnotateRowsTableRebuild() {
-    val tl = TableLiteral(MatrixRowsTable(mat).execute(hc))
+    val tl = TableLiteral(Interpret(MatrixRowsTable(mat)))
     val mart = MatrixAnnotateRowsTable(mat, tl, "foo", None)
     checkRebuild(mart, subsetMatrixTable(mart.typ),
       (_: BaseIR, r: BaseIR) => {

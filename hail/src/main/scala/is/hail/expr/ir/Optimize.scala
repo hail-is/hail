@@ -22,10 +22,18 @@ object Optimize {
     ir
   }
 
-  def apply(ir: TableIR): TableIR = optimize(ir, noisy = true, canGenerateLiterals = true).asInstanceOf[TableIR]
+  def apply(ir: TableIR, noisy: Boolean, canGenerateLiterals: Boolean): TableIR =
+    optimize(ir, noisy, canGenerateLiterals).asInstanceOf[TableIR]
 
-  def apply(ir: MatrixIR): MatrixIR = optimize(ir, noisy = true, canGenerateLiterals = true).asInstanceOf[MatrixIR]
+  def apply(ir: TableIR): TableIR = apply(ir, true, true)
 
-  def apply(ir: IR, noisy: Boolean, canGenerateLiterals: Boolean): IR = optimize(ir, noisy, canGenerateLiterals).asInstanceOf[IR]
-  def apply(ir: IR): IR = optimize(ir, noisy = true, canGenerateLiterals = true).asInstanceOf[IR]
+  def apply(ir: MatrixIR, noisy: Boolean, canGenerateLiterals: Boolean): MatrixIR =
+   optimize(ir, noisy, canGenerateLiterals).asInstanceOf[MatrixIR]
+
+  def apply(ir: MatrixIR): MatrixIR = apply(ir, true, true)
+
+  def apply(ir: IR, noisy: Boolean, canGenerateLiterals: Boolean): IR =
+    optimize(ir, noisy, canGenerateLiterals).asInstanceOf[IR]
+
+  def apply(ir: IR): IR = apply(ir, true, true)
 }

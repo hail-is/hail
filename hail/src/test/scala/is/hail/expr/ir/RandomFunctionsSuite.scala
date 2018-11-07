@@ -66,7 +66,7 @@ class RandomFunctionsSuite extends SparkSuite {
   }
 
   @Test def testRandomAcrossJoins() {
-    def asArray(ir: TableIR) = ir.execute(hc).rdd.collect()
+    def asArray(ir: TableIR) = Interpret(ir).rdd.collect()
 
     val joined = TableJoin(
       mapped2(10, 4),
@@ -83,7 +83,7 @@ class RandomFunctionsSuite extends SparkSuite {
   }
 
   @Test def testRepartitioningAfterRandomness() {
-    val mapped = mapped2(15, 4).execute(hc).rvd
+    val mapped = Interpret(mapped2(15, 4)).rvd
     val newRangeBounds = FastIndexedSeq(
       Interval(Row(0), Row(4), true, true),
       Interval(Row(4), Row(10), false, true),
@@ -131,7 +131,7 @@ class RandomFunctionsSuite extends SparkSuite {
           "pi" -> partitionIdx,
           "counter" -> counter)))
 
-    val expected = tir.execute(hc).rvd.toRows.collect()
+    val expected = Interpret(tir).rvd.toRows.collect()
     val actual = new Table(hc, tir).rdd.collect()
 
     assert(expected.sameElements(actual))
