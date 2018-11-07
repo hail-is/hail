@@ -31,6 +31,7 @@ class StringFunctionsSuite extends TestNGSuite {
     assertEvalsTo(invoke("split", NA(TString()), Str(",")), null)
     assertEvalsTo(invoke("split", Str("a,b,c"), NA(TString())), null)
 
+    assertEvalsTo(invoke("split", Str("x"), Str("x")), FastIndexedSeq("", ""))
     assertEvalsTo(invoke("split", Str("a,b,c"), Str(",")), FastIndexedSeq("a", "b", "c"))
 
     assertEvalsTo(invoke("split", NA(TString()), Str(","), I32(2)), null)

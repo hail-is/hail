@@ -36,7 +36,7 @@ object StringFunctions extends RegistryFunctions {
   def replace(str: String, pattern1: String, pattern2: String): String =
     str.replaceAll(pattern1, pattern2)
 
-  def split(s: String, p: String): IndexedSeq[String] = s.split(p)
+  def split(s: String, p: String): IndexedSeq[String] = s.split(p, -1)
 
   def splitLimited(s: String, p: String, n: Int): IndexedSeq[String] = s.split(p, n)
 
