@@ -93,7 +93,7 @@ class Class(val name: String, superClass: String, privateDefs: Array[Definition]
   override def toString: Type = name
 
   def define: Code =
-    s"""class $name${ if (superClass == null) "" else s":$superClass" } {
+    s"""class $name${ if (superClass == null) "" else s" : public $superClass" } {
        |  private:
        |    ${ privateDefs.map(_.define).mkString("\n") }
        |  public:
