@@ -499,7 +499,7 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
   def copy(newChildren: IndexedSeq[BaseIR]): TableMultiWayZipJoin =
     TableMultiWayZipJoin(newChildren.asInstanceOf[IndexedSeq[TableIR]], fieldName, globalName)
 
-  def execute(hc: HailContext): TableValue = {
+  protected[ir] override def execute(hc: HailContext): TableValue = {
     val rowType = rvdType.rowType
     val keyIdx = rvdType.kFieldIdx
     val valIdx = rvdType.valueFieldIdx
