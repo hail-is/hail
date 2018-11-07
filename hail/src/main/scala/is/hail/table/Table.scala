@@ -378,12 +378,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
     new Table(hc, TableMapGlobals(tir, ir))
   }
 
-  def filter(cond: String, keep: Boolean): Table = {
-    var irPred = Parser.parse_value_ir(cond, IRParserEnvironment(typ.refMap))
-    new Table(hc,
-      TableFilter(tir, ir.filterPredicateWithKeep(irPred, keep)))
-  }
-
   def head(n: Long): Table = new Table(hc, TableHead(tir, n))
 
   def keyBy(keys: java.util.ArrayList[String]): Table =
@@ -407,9 +401,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
   def mapRows(newRow: IR): Table =
     new Table(hc, TableMapRows(tir, newRow))
-
-  def join(other: Table, joinType: String): Table =
-    new Table(hc, TableJoin(this.tir, other.tir, joinType, typ.key.length))
 
   def leftJoinRightDistinct(other: Table, root: String): Table =
     new Table(hc, TableLeftJoinRightDistinct(tir, other.tir, root))
@@ -450,15 +441,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
     nPartitions: Option[Int] = None
   ): MatrixTable = {
     new MatrixTable(hc, TableToMatrixTable(tir, rowKeys, colKeys, rowFields, colFields, nPartitions))
-  }
-
-  def keyByAndAggregate(expr: String, key: String, nPartitions: Option[Int], bufferSize: Int): Table = {
-    new Table(hc, TableKeyByAndAggregate(tir,
-      Parser.parse_value_ir(expr, IRParserEnvironment(typ.refMap)),
-      Parser.parse_value_ir(key, IRParserEnvironment(typ.refMap)),
-      nPartitions,
-      bufferSize
-    ))
   }
 
   def unlocalizeEntries(
@@ -563,19 +545,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
   }
 
   def unpersist(): Table = copy2(rvd = rvd.unpersist())
-
-  def orderBy(sortFields: Array[SortField]): Table = {
-    new Table(hc, TableOrderBy(TableKeyBy(tir, FastIndexedSeq()), sortFields))
-  }
-
-  def rename(rowMap: java.util.HashMap[String, String], globalMap: java.util.HashMap[String, String]): Table =
-    new Table(hc, TableRename(tir, rowMap.asScala.toMap, globalMap.asScala.toMap))
-
-  def repartition(n: Int, shuffle: Boolean = true): Table = new Table(hc, ir.TableRepartition(tir, n, shuffle))
-
-  def union(kts: java.util.ArrayList[Table]): Table = union(kts.asScala.toArray: _*)
-
-  def union(kts: Table*): Table = new Table(hc, TableUnion((tir +: kts.map(_.tir)).toFastIndexedSeq))
 
   def show(n: Int = 10, truncate: Option[Int] = None, printTypes: Boolean = true, maxWidth: Int = 100): Unit = {
     println(showString(n, truncate, printTypes, maxWidth))
