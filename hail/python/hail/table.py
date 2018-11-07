@@ -207,13 +207,13 @@ class GroupedTable(ExprContainer):
             raise ValueError(
                 f'GroupedTable.aggregate: Group names and aggregration expression names overlap: {intersection}')
 
-        base, cleanup = self._parent._process_joins(*group_exprs.values(), *named_exprs.values())
+        base, _ = self._parent._process_joins(*group_exprs.values(), *named_exprs.values())
 
-        return cleanup(Table(TableKeyByAndAggregate(base._tir,
-                                                    hl.struct(**named_exprs)._ir,
-                                                    hl.struct(**group_exprs)._ir,
-                                                    self._npartitions,
-                                                    self._buffer_size)))
+        return Table(TableKeyByAndAggregate(base._tir,
+                                            hl.struct(**named_exprs)._ir,
+                                            hl.struct(**group_exprs)._ir,
+                                            self._npartitions,
+                                            self._buffer_size))
 
 
 class Table(ExprContainer):
