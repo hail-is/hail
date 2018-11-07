@@ -299,7 +299,7 @@ class PR(object):
         try:
             post_repo(
                 self.target.ref.repo.qname,
-                'statuses/' + status_sha if status_sha is not None else self.source.sha,
+                'statuses/' + (status_sha if status_sha is not None else self.source.sha),
                 json=json,
                 status_code=201)
         except BadStatus as e:
