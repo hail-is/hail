@@ -105,19 +105,20 @@ class RegionValueIteratorSuite extends SparkSuite {
 
       val cb = new ClassBuilder("CXXIterator", "public NativeObj")
       val dec = Variable("dec", s"std::shared_ptr<${ decClass.name }>")
+      val region = Variable("region", s"Region *")
       cb.addPrivate(dec)
+      cb.addPrivate(region)
       cb.addConstructor(
-        s"""${cb.name}(jobject is) {
+        s"""${cb.name}(jobject is, Region * reg) : $region(reg) {
            |  UpcallEnv up;
            |  $dec = std::make_shared<${ decClass.name }>(std::make_shared<InputStream>(up, is));
            |}
          """.stripMargin)
 
-      val r = Variable("region", "Region *")
       val st = Variable("st", "NativeStatus *")
 
-      cb += new Function("bool", "has_next", Array(st, r), s"return $dec->decode_byte($st);")
-      cb += new Function("char *", "next", Array(st, r), s"return $dec->decode_row($st, $r);")
+      cb += new Function("bool", "has_next", Array(st), s"return $dec->decode_byte($st);")
+      cb += new Function("char *", "next", Array(st), s"return $dec->decode_row($st, $region);")
 
       cb.result()
     }

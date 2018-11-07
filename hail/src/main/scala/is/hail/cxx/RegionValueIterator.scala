@@ -22,13 +22,13 @@ object CXXRegionValueIterator {
     val st = Variable("st", "NativeStatus *")
     val region = Variable("region", "long")
     val ptr = Variable("it", "long")
-    tub += new Function("NativeObjPtr", "make_iterator", Array(st, ptr),
-      s"return std::make_shared<$cls>(reinterpret_cast<ObjectArray*>($ptr)->at(0));")
+    tub += new Function("NativeObjPtr", "make_iterator", Array(st, ptr, region),
+      s"return std::make_shared<$cls>(reinterpret_cast<ObjectArray*>($ptr)->at(0), reinterpret_cast<Region*>($region));")
 
-    tub += new Function("long", "next", Array(st, ptr, region),
-      s"return reinterpret_cast<long>(reinterpret_cast<${ cls.name } *>($ptr)->next($st, reinterpret_cast<Region*>($region)));")
-    tub += new Function("long", "has_next", Array(st, ptr, region),
-      s"return reinterpret_cast<${ cls.name } *>($ptr)->has_next($st, reinterpret_cast<Region*>($region));")
+    tub += new Function("long", "next", Array(st, ptr),
+      s"return reinterpret_cast<long>(reinterpret_cast<${ cls.name } *>($ptr)->next($st));")
+    tub += new Function("long", "has_next", Array(st, ptr),
+      s"return reinterpret_cast<${ cls.name } *>($ptr)->has_next($st);")
 
     val mod = tub.result().build("-O1 -llz4")
     val key = mod.getKey
@@ -44,14 +44,14 @@ class CXXRegionValueIterator(key: String, bin: Array[Byte], obj: AnyRef, region:
   private[this] val mod = new NativeModule(key, bin)
   private[this] val objArray = new ObjectArray(obj)
 
-  private[this] val itF = mod.findPtrFuncL1(st, "make_iterator")
+  private[this] val itF = mod.findPtrFuncL2(st, "make_iterator")
   assert(st.ok, st.toString)
-  private[this] val nextF = mod.findLongFuncL2(st, "next")
+  private[this] val nextF = mod.findLongFuncL1(st, "next")
   assert(st.ok, st.toString)
-  private[this] val hasNextF = mod.findLongFuncL2(st, "has_next")
+  private[this] val hasNextF = mod.findLongFuncL1(st, "has_next")
   assert(st.ok, st.toString)
 
-  private[this] val ptr = new NativePtr(itF, st, objArray.get())
+  private[this] val ptr = new NativePtr(itF, st, objArray.get(), region.get())
   itF.close()
   objArray.close()
 
@@ -63,7 +63,7 @@ class CXXRegionValueIterator(key: String, bin: Array[Byte], obj: AnyRef, region:
 
   def next(): RegionValue = {
     if (!next_called) {
-      nextRV = RegionValue(region, nextF(st, ptr.get(), region.get()))
+      nextRV = RegionValue(region, nextF(st, ptr.get()))
       has_next_called = false
       next_called = true
     }
@@ -72,7 +72,7 @@ class CXXRegionValueIterator(key: String, bin: Array[Byte], obj: AnyRef, region:
 
   def hasNext(): Boolean = {
     if (!has_next_called) {
-      has_next = hasNextF(st, ptr.get(), region.get()) != 0
+      has_next = hasNextF(st, ptr.get()) != 0
       has_next_called = true
       next_called = false
     }
