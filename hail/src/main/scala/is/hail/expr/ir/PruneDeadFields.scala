@@ -28,12 +28,12 @@ object PruneDeadFields {
             isSupertype(mt1.rowType, mt2.rowType) &&
             isSupertype(mt1.colType, mt2.colType) &&
             isSupertype(mt1.entryType, mt2.entryType)
-        case (TArray(et1, r1), TArray(et2, r2)) => r1 == r2 && isSupertype(et1, et2)
-        case (TSet(et1, r1), TSet(et2, r2)) => r1 == r2 && isSupertype(et1, et2)
-        case (TDict(kt1, vt1, r1), TDict(kt2, vt2, r2)) => r1 == r2 && isSupertype(kt1, kt2) && isSupertype(vt1, vt2)
+        case (TArray(et1, r1), TArray(et2, r2)) => (!r1 || r2) && isSupertype(et1, et2)
+        case (TSet(et1, r1), TSet(et2, r2)) => (!r1 || r2) && isSupertype(et1, et2)
+        case (TDict(kt1, vt1, r1), TDict(kt2, vt2, r2)) => (!r1 || r2) && isSupertype(kt1, kt2) && isSupertype(vt1, vt2)
         case (s1: TStruct, s2: TStruct) =>
           var idx = -1
-          s1.required == s2.required && s1.fields.forall { f =>
+          (!s1.required || s2.required) && s1.fields.forall { f =>
             val s2field = s2.field(f.name)
             if (s2field.index > idx) {
               idx = s2field.index
@@ -42,11 +42,11 @@ object PruneDeadFields {
               false
           }
         case (t1: TTuple, t2: TTuple) =>
-          t1.required == t2.required &&
+          (!t1.required || t2.required) &&
             t1.size == t2.size &&
             t1.types.zip(t2.types)
               .forall { case (elt1, elt2) => isSupertype(elt1, elt2) }
-        case (t1: Type, t2: Type) => t1 == t2
+        case (t1: Type, t2: Type) => t1 == t2 || t1.setRequired(true) == t2
         case _ => fatal(s"invalid comparison: $superType / $subType")
       }
     } catch {
