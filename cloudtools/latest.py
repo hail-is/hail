@@ -1,7 +1,7 @@
 from .utils import latest_sha, load_config
 
 def init_parser(parser):
-    parser.add_argument('version', type=str, choices=['0.1', 'devel'],
+    parser.add_argument('version', type=str, choices=['0.1', '0.2'],
                         help='Hail version to use (default: %(default)s).')
     parser.add_argument('spark', type=str,
                         help='Spark version used to build Hail (default: 2.2.0 for 0.2 and 2.0.2 for 0.1)')

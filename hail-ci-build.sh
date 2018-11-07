@@ -43,9 +43,9 @@ do
     ZIP=$(cluster latest --zip 0.1 2.0.2)
     gsutil ls $JAR
     gsutil ls $ZIP
-    SHA=$(cluster latest --sha devel 2.2.0)
-    JAR=$(cluster latest --jar devel 2.2.0)
-    ZIP=$(cluster latest --zip devel 2.2.0)
+    SHA=$(cluster latest --sha 0.2 2.2.0)
+    JAR=$(cluster latest --jar 0.2 2.2.0)
+    ZIP=$(cluster latest --zip 0.2 2.2.0)
     gsutil ls $JAR
     gsutil ls $ZIP
 
