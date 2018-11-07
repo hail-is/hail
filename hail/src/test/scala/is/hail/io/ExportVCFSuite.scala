@@ -5,6 +5,7 @@ import is.hail.annotations.Annotation
 import is.hail.check.Gen
 import is.hail.check.Prop._
 import is.hail.expr.types._
+import is.hail.expr.types.virtual._
 import is.hail.io.vcf.ExportVCF
 import is.hail.utils._
 import is.hail.variant.{Locus, MatrixTable, VSMSubgen}

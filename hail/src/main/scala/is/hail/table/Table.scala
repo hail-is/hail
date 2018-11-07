@@ -4,8 +4,9 @@ import is.hail.compatibility
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.{ir, _}
-import is.hail.expr.ir.{IR, LiftLiterals, TableAggregateByKey, TableExplode, TableFilter, TableIR, TableJoin, TableKeyBy, TableKeyByAndAggregate, TableLiteral, TableMapGlobals, TableMapRows, TableOrderBy, TableParallelize, TableRange, TableToMatrixTable, TableUnion, TableValue, CastTableToMatrix, _}
+import is.hail.expr.ir.{CastTableToMatrix, IR, LiftLiterals, TableAggregateByKey, TableExplode, TableFilter, TableIR, TableJoin, TableKeyBy, TableKeyByAndAggregate, TableLiteral, TableMapGlobals, TableMapRows, TableOrderBy, TableParallelize, TableRange, TableToMatrixTable, TableUnion, TableValue, _}
 import is.hail.expr.types._
+import is.hail.expr.types.virtual._
 import is.hail.io.plink.{FamFileConfig, LoadPlink}
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD

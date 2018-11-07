@@ -7,6 +7,7 @@ import is.hail.expr.ir
 import is.hail.expr.ir.{EmitMethodBuilder, EmitTriplet, StringLength}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PArray, PBinary, PString}
+import is.hail.expr.types.virtual._
 import is.hail.utils._
 import org.json4s.JValue
 import org.json4s.jackson.JsonMethods

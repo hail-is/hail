@@ -6,6 +6,7 @@ import java.util.Properties
 import is.hail.annotations._
 import is.hail.expr.ir.MatrixRead
 import is.hail.expr.types._
+import is.hail.expr.types.virtual._
 import is.hail.io.{CodecSpec, Decoder, LoadMatrix}
 import is.hail.io.bgen.{IndexBgen, LoadBgen, MatrixBGENReader}
 import is.hail.io.gen.LoadGen

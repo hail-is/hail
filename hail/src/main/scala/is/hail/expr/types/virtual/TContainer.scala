@@ -1,4 +1,4 @@
-package is.hail.expr.types
+package is.hail.expr.types.virtual
 
 import is.hail.expr.types.physical.PContainer
 import is.hail.utils._

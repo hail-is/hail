@@ -6,7 +6,7 @@ import java.util.Map.Entry
 
 import is.hail.annotations._
 import is.hail.expr.Parser
-import is.hail.expr.types.Type
+import is.hail.expr.types.virtual.Type
 import is.hail.io._
 import is.hail.io.bgen.BgenSettings
 import is.hail.utils._

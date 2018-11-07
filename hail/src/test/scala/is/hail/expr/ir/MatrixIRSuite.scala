@@ -6,6 +6,7 @@ import is.hail.expr.types._
 import is.hail.table.Table
 import is.hail.utils._
 import is.hail.TestUtils._
+import is.hail.expr.types.virtual._
 import is.hail.variant.MatrixTable
 import org.apache.spark.SparkException
 import org.apache.spark.sql.Row

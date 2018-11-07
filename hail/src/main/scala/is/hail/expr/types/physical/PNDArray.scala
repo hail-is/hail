@@ -2,7 +2,7 @@ package is.hail.expr.types.physical
 
 import is.hail.annotations.CodeOrdering
 import is.hail.expr.ir.EmitMethodBuilder
-import is.hail.expr.types.TNDArray
+import is.hail.expr.types.virtual.TNDArray
 import org.apache.spark.sql.Row
 
 import scala.reflect.{ClassTag, classTag}

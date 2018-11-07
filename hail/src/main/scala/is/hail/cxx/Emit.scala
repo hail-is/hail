@@ -3,6 +3,7 @@ package is.hail.cxx
 import is.hail.expr.ir
 import is.hail.expr.types._
 import is.hail.expr.types.physical._
+import is.hail.expr.types.virtual._
 import is.hail.utils.{ArrayBuilder, StringEscapeUtils}
 
 object Emit {

@@ -1,4 +1,4 @@
-package is.hail.expr.types
+package is.hail.expr.types.virtual
 
 object TNumeric {
   def promoteNumeric(types: Set[TNumeric]): Type = {

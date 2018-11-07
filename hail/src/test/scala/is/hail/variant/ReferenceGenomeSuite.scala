@@ -6,7 +6,7 @@ import is.hail.asm4s.FunctionBuilder
 import is.hail.check.Prop._
 import is.hail.check.Properties
 import is.hail.expr.ir.EmitFunctionBuilder
-import is.hail.expr.types.{TInterval, TLocus, TStruct}
+import is.hail.expr.types.virtual.{TLocus, TStruct}
 import is.hail.io.reference.FASTAReader
 import is.hail.table.Table
 import is.hail.utils.{HailException, Interval, SerializableHadoopConfiguration}

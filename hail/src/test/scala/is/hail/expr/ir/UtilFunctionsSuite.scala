@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.TestUtils._
 import is.hail.expr.types._
+import is.hail.expr.types.virtual.{TArray, TBoolean}
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 

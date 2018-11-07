@@ -2,11 +2,8 @@ package is.hail.expr.types.physical
 
 import is.hail.annotations.{Region, UnsafeOrdering, _}
 import is.hail.asm4s.Code
-import is.hail.check.Arbitrary._
-import is.hail.check.Gen
 import is.hail.expr.ir.EmitMethodBuilder
-import is.hail.expr.types.{TBinary, TBoolean}
-import is.hail.utils._
+import is.hail.expr.types.virtual.TBoolean
 
 import scala.reflect.{ClassTag, _}
 

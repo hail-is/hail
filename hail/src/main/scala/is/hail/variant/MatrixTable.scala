@@ -1,28 +1,26 @@
 package is.hail.variant
 
-import is.hail.compatibility
 import is.hail.annotations._
 import is.hail.check.Gen
-import is.hail.linalg._
-import is.hail.expr._
-import is.hail.expr.ir
+import is.hail.expr.{ir, _}
 import is.hail.expr.ir._
-import is.hail.methods._
-import is.hail.rvd._
-import is.hail.table.{AbstractTableSpec, Table, TableSpec}
-import is.hail.utils._
-import is.hail.{HailContext, utils}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PArray
+import is.hail.expr.types.virtual._
 import is.hail.io.gen.ExportGen
 import is.hail.io.plink.ExportPlink
-import is.hail.compatibility.UnpartitionedRVDSpec
+import is.hail.linalg._
+import is.hail.methods._
+import is.hail.rvd._
 import is.hail.sparkextras.{ContextRDD, RepartitionedOrderedRDD2}
+import is.hail.table.{Table, TableSpec}
+import is.hail.utils._
+import is.hail.{HailContext, utils}
 import org.apache.hadoop
+import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
-import org.apache.spark.SparkContext
 import org.json4s._
 import org.json4s.jackson.JsonMethods.parse
 import org.json4s.jackson.{JsonMethods, Serialization}

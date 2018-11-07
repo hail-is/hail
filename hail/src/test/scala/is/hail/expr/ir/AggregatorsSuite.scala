@@ -5,6 +5,7 @@ import is.hail.expr.types._
 import is.hail.utils._
 import is.hail.TestUtils._
 import is.hail.check.{Gen, Prop}
+import is.hail.expr.types.virtual._
 import is.hail.stats.PearsonCorrelationCombiner
 import org.testng.annotations.Test
 import is.hail.utils.{FastIndexedSeq, FastSeq}

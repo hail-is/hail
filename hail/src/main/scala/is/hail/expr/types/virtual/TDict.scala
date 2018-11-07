@@ -1,14 +1,12 @@
-package is.hail.expr.types
+package is.hail.expr.types.virtual
 
-import is.hail.annotations.{UnsafeUtils, _}
+import is.hail.annotations.{Annotation, ExtendedOrdering}
 import is.hail.check.Gen
-import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.physical.PDict
 import is.hail.utils._
-import org.apache.spark.sql.Row
 import org.json4s.jackson.JsonMethods
 
-import scala.reflect.{ClassTag, _}
+import scala.reflect.{ClassTag, classTag}
 
 final case class TDict(keyType: Type, valueType: Type, override val required: Boolean = false) extends TContainer {
   lazy val physicalType: PDict = PDict(keyType.physicalType, valueType.physicalType, required)

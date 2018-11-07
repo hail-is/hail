@@ -1,10 +1,9 @@
-package is.hail.expr.types
+package is.hail.expr.types.virtual
 
 import is.hail.annotations._
 import is.hail.check.Gen
-import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.types._
 import is.hail.expr.types.physical.PCall
-import is.hail.utils._
 import is.hail.variant.Call
 
 import scala.reflect.{ClassTag, _}

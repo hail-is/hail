@@ -2,7 +2,8 @@ package is.hail.expr.ir
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr.types._
+import is.hail.expr.types.{virtual, _}
+import is.hail.expr.types.virtual._
 import is.hail.utils._
 
 object PruneDeadFields {

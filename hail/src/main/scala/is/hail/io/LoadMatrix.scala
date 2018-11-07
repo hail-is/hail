@@ -3,7 +3,8 @@ package is.hail.io
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.types._
-import is.hail.rvd.{RVD, RVDPartitioner, RVDContext}
+import is.hail.expr.types.virtual._
+import is.hail.rvd.{RVD, RVDContext, RVDPartitioner}
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.variant._

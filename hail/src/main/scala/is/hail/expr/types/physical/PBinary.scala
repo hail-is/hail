@@ -6,7 +6,7 @@ import is.hail.asm4s._
 import is.hail.check.Arbitrary._
 import is.hail.check.Gen
 import is.hail.expr.ir.EmitMethodBuilder
-import is.hail.expr.types.{TBinary, Type}
+import is.hail.expr.types.virtual.TBinary
 import is.hail.utils._
 
 import scala.reflect.{ClassTag, _}

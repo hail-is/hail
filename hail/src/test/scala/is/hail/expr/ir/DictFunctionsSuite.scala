@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
-import is.hail.expr.types.{TDict, TInt32}
+import is.hail.expr.types.virtual.{TDict, TInt32}
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
 import org.scalatest.testng.TestNGSuite

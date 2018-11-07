@@ -2,7 +2,7 @@ package is.hail.annotations.aggregators
 import is.hail.annotations.RegionValueBuilder
 import is.hail.annotations._
 import is.hail.expr.types.physical.{PArray, PString}
-import is.hail.expr.types.{TArray, TFloat64, TString, TTuple}
+import is.hail.expr.types.virtual.{TArray, TFloat64, TString, TTuple}
 import is.hail.stats.DownsampleCombiner
 
 object RegionValueDownsampleAggregator {

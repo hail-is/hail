@@ -1,9 +1,8 @@
 package is.hail.expr.ir
 
+import is.hail.expr.types.virtual.{TInt32, TInt64, TStruct}
+import is.hail.table.Ascending
 import is.hail.utils._
-import is.hail.expr._
-import is.hail.expr.types.{TArray, TInt32, TInt64, TStruct}
-import is.hail.table.{Ascending, SortField}
 
 object Simplify {
 

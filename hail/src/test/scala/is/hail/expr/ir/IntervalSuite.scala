@@ -4,6 +4,7 @@ import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.{DataProvider, Test}
 import is.hail.expr.types._
 import is.hail.TestUtils._
+import is.hail.expr.types.virtual.{TBoolean, TInt32, TInterval}
 import is.hail.utils._
 import org.apache.spark.sql.Row
 

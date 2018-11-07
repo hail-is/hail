@@ -1,7 +1,6 @@
-package is.hail.expr.types
+package is.hail.expr.types.virtual
 
-import is.hail.annotations.{CodeOrdering, ExtendedOrdering}
-import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.annotations.ExtendedOrdering
 import is.hail.expr.types.physical.PVoid
 
 case object TVoid extends Type {

@@ -3,8 +3,8 @@ package is.hail.annotations.aggregators
 import java.util
 
 import is.hail.annotations.RegionValueBuilder
-import is.hail.expr.types.Type
 import is.hail.expr.types.physical.PType
+import is.hail.expr.types.virtual.Type
 
 import scala.collection.JavaConverters._
 import scala.language.implicitConversions

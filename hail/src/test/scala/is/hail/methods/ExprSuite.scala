@@ -7,6 +7,7 @@ import is.hail.check.Prop._
 import is.hail.check.Properties
 import is.hail.expr._
 import is.hail.expr.types._
+import is.hail.expr.types.virtual.{TFloat64, TInt32, Type}
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
 import is.hail.variant._

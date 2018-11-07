@@ -4,7 +4,7 @@ import java.io.{InputStream, OutputStream}
 
 import is.hail.HailContext
 import is.hail.expr.JSONAnnotationImpex
-import is.hail.expr.types.Type
+import is.hail.expr.types.virtual.Type
 import is.hail.table.Table
 import is.hail.variant.MatrixTable
 import org.apache.hadoop.fs.FileStatus

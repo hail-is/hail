@@ -1,7 +1,7 @@
 package is.hail.annotations.aggregators
 
 import is.hail.annotations.{Region, RegionValueBuilder, SafeRow}
-import is.hail.expr.types.{TSet, Type}
+import is.hail.expr.types.virtual.{TSet, Type}
 
 import scala.collection.mutable
 

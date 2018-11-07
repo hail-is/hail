@@ -4,6 +4,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.ir.{MatrixRead, MatrixReader, MatrixValue}
 import is.hail.expr.types._
+import is.hail.expr.types.virtual._
 import is.hail.io._
 import is.hail.io.index.IndexReader
 import is.hail.io.vcf.LoadVCF

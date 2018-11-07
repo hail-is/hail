@@ -3,12 +3,13 @@ package is.hail.linalg
 import java.io._
 
 import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV, sum => breezeSum, _}
-import breeze.numerics.{pow => breezePow, sqrt => breezeSqrt, log => breezeLog, abs => breezeAbs}
+import breeze.numerics.{abs => breezeAbs, log => breezeLog, pow => breezePow, sqrt => breezeSqrt}
 import breeze.stats.distributions.{RandBasis, ThreadLocalRandomGenerator}
 import is.hail._
 import is.hail.annotations._
 import is.hail.table.Table
 import is.hail.expr.types._
+import is.hail.expr.types.virtual.{TFloat64, TFloat64Optional, TInt64Optional, TStruct}
 import is.hail.io._
 import is.hail.rvd.RVDContext
 import is.hail.sparkextras.ContextRDD

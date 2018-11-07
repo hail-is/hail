@@ -3,6 +3,7 @@ package is.hail.methods
 import breeze.linalg.{*, DenseMatrix, DenseVector}
 import is.hail.annotations._
 import is.hail.expr.types._
+import is.hail.expr.types.virtual.{TArray, TFloat64, TStruct}
 import is.hail.rvd.RVDContext
 import is.hail.sparkextras.ContextRDD
 import is.hail.table.Table

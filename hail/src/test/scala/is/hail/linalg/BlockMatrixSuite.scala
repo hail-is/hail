@@ -9,6 +9,7 @@ import is.hail.check.Gen._
 import is.hail.check._
 import is.hail.linalg.BlockMatrix.ops._
 import is.hail.expr.types._
+import is.hail.expr.types.virtual.{TFloat64Optional, TInt64Optional, TStruct}
 import is.hail.table.Table
 import is.hail.utils._
 import org.apache.spark.sql.Row

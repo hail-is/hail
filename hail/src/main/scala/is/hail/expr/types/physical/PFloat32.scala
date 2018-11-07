@@ -5,7 +5,7 @@ import is.hail.asm4s.Code
 import is.hail.check.Arbitrary._
 import is.hail.check.Gen
 import is.hail.expr.ir.EmitMethodBuilder
-import is.hail.expr.types.{TFloat32, Type}
+import is.hail.expr.types.virtual.TFloat32
 import is.hail.utils._
 
 import scala.reflect.{ClassTag, _}

@@ -5,7 +5,7 @@ import is.hail.asm4s.Code
 import is.hail.check.Arbitrary._
 import is.hail.check.Gen
 import is.hail.expr.ir.EmitMethodBuilder
-import is.hail.expr.types.TInt64
+import is.hail.expr.types.virtual.TInt64
 import is.hail.utils._
 
 import scala.reflect.{ClassTag, _}

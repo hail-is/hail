@@ -4,7 +4,7 @@ import is.hail.annotations.{CodeOrdering, Region, StagedRegionValueBuilder}
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir._
 import is.hail.expr.types.physical.PInterval
-import is.hail.expr.types.{TBoolean, TBooleanOptional, TInterval}
+import is.hail.expr.types.virtual.{TBoolean, TBooleanOptional, TInterval}
 import is.hail.utils._
 
 object IntervalFunctions extends RegistryFunctions {

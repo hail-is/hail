@@ -1,7 +1,7 @@
 package is.hail.io.bgen
 
 import is.hail.HailContext
-import is.hail.expr.types.TStruct
+import is.hail.expr.types.virtual.TStruct
 import is.hail.io.index.IndexWriter
 import is.hail.rvd.{RVD, RVDPartitioner, RVDType}
 import is.hail.utils._

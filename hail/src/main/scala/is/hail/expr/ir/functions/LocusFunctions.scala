@@ -9,6 +9,7 @@ import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.variant._
 import is.hail.expr.ir._
 import is.hail.expr.types.physical.{PArray, PBaseStruct, PString, PTuple}
+import is.hail.expr.types.virtual._
 import is.hail.utils.{FastIndexedSeq, FastSeq}
 
 object LocusFunctions extends RegistryFunctions {

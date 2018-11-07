@@ -4,6 +4,7 @@ import is.hail.HailContext
 import is.hail.expr.ir.{AggSignature, BaseIR, IR, MatrixIR, TableIR}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PType
+import is.hail.expr.types.virtual._
 import is.hail.rvd.RVDType
 import is.hail.table.{Ascending, Descending, SortField}
 import is.hail.utils.StringEscapeUtils._

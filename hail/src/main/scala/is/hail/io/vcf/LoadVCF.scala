@@ -6,6 +6,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.ir.{MatrixRead, MatrixReader, MatrixValue, PruneDeadFields}
 import is.hail.expr.types._
+import is.hail.expr.types.virtual._
 import is.hail.io.vcf.LoadVCF.{getHeaderLines, parseHeader, parseLines}
 import is.hail.io.{VCFAttributes, VCFMetadata}
 import is.hail.rvd.{RVD, RVDContext}

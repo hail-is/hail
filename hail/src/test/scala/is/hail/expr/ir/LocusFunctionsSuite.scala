@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.TestUtils.assertEvalsTo
-import is.hail.expr.types.{TArray, TString}
+import is.hail.expr.types.virtual.{TArray, TString}
 import is.hail.utils.FastSeq
 import is.hail.variant.{Locus, RGBase, ReferenceGenome}
 import org.apache.spark.sql.Row

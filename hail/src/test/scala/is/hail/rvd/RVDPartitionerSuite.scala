@@ -2,6 +2,7 @@ package is.hail.rvd
 
 import is.hail.annotations.UnsafeIndexedSeq
 import is.hail.expr.types._
+import is.hail.expr.types.virtual.{TInt32, TStruct}
 import is.hail.utils.Interval
 import org.apache.spark.sql.Row
 import org.scalatest.testng.TestNGSuite

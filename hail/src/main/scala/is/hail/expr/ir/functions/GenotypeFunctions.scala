@@ -5,6 +5,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PArray
+import is.hail.expr.types.virtual.{TArray, TFloat64, TInt32}
 import is.hail.utils._
 import is.hail.variant.Genotype
 

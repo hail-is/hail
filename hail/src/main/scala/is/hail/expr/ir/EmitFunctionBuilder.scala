@@ -7,8 +7,8 @@ import is.hail.asm4s
 import is.hail.asm4s._
 import is.hail.expr.Parser
 import is.hail.expr.ir.functions.IRRandomness
-import is.hail.expr.types.Type
 import is.hail.expr.types.physical.PType
+import is.hail.expr.types.virtual.Type
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.TaskContext

@@ -7,6 +7,7 @@ import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir.functions.{IRFunctionRegistry, RegistryFunctions}
 import is.hail.expr.types._
+import is.hail.expr.types.virtual._
 import is.hail.variant.Call2
 import org.testng.annotations.Test
 

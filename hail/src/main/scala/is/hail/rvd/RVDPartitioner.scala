@@ -2,6 +2,7 @@ package is.hail.rvd
 
 import is.hail.annotations.ExtendedOrdering
 import is.hail.expr.types._
+import is.hail.expr.types.virtual.{TArray, TInterval, TStruct}
 import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.apache.spark.{Partitioner, SparkContext}

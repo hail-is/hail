@@ -5,6 +5,7 @@ import is.hail.annotations.aggregators.{KeyedRegionValueAggregator, _}
 import is.hail.asm4s._
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PType
+import is.hail.expr.types.virtual.Type
 
 import scala.reflect.ClassTag
 import scala.reflect.classTag

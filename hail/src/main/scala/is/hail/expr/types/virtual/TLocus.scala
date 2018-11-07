@@ -1,14 +1,12 @@
-package is.hail.expr.types
+package is.hail.expr.types.virtual
 
 import is.hail.annotations._
-import is.hail.asm4s.Code
 import is.hail.check._
 import is.hail.expr.types.physical.PLocus
 import is.hail.utils._
 import is.hail.variant._
 
-import scala.reflect.ClassTag
-import scala.reflect.classTag
+import scala.reflect.{ClassTag, classTag}
 
 object TLocus {
   def representation(required: Boolean = false): TStruct = {

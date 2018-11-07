@@ -2,6 +2,7 @@ package is.hail.experimental
 
 import is.hail.expr.types._
 import is.hail.expr.ir.functions._
+import is.hail.expr.types.virtual.{TFloat64, TInt32}
 
 object ExperimentalFunctions extends RegistryFunctions {
 

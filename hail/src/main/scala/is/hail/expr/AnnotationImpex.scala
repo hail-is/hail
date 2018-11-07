@@ -3,6 +3,7 @@ package is.hail.expr
 import is.hail.annotations.Annotation
 import is.hail.expr.ir.functions.UtilFunctions
 import is.hail.expr.types._
+import is.hail.expr.types.virtual._
 import is.hail.utils.{Interval, _}
 import is.hail.variant._
 import org.apache.spark.sql.Row

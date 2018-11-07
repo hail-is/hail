@@ -19,6 +19,7 @@ import scala.language.implicitConversions
 import is.hail.expr.Parser._
 import is.hail.expr.ir.EmitFunctionBuilder
 import is.hail.expr.ir.functions.{IRFunctionRegistry, LiftoverFunctions, ReferenceGenomeFunctions}
+import is.hail.expr.types.virtual.{TInt64, TInterval, TLocus, Type}
 import is.hail.io.reference.LiftOver
 import is.hail.variant.CopyState.CopyState
 import is.hail.variant.Sex.Sex

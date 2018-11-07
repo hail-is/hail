@@ -2,6 +2,7 @@ package is.hail.methods
 
 import is.hail.annotations.UnsafeRow
 import is.hail.expr.types._
+import is.hail.expr.types.virtual.{TArray, TInt64, TStruct}
 import is.hail.table.Table
 import is.hail.utils._
 import is.hail.variant._

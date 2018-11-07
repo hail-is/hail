@@ -4,6 +4,7 @@ import is.hail.annotations.{Region, _}
 import is.hail.asm4s._
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PArray, PStruct}
+import is.hail.expr.types.virtual.{TArray, TInterval, Type}
 import is.hail.io.index.IndexReader
 import is.hail.io.{ByteArrayReader, HadoopFSDataBinaryReader}
 import is.hail.utils._

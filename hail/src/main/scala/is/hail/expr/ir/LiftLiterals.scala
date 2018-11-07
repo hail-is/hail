@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.HailContext
 import is.hail.annotations.BroadcastRow
-import is.hail.expr.types.{TStruct, Type}
+import is.hail.expr.types.virtual.{TStruct, Type}
 import is.hail.utils._
 import org.apache.spark.sql.Row
 

@@ -8,6 +8,7 @@ import is.hail.annotations.{Region, RegionValueBuilder, SafeRow}
 import is.hail.cxx.CXXUnsupportedOperation
 import is.hail.expr.ir._
 import is.hail.expr.types._
+import is.hail.expr.types.virtual.{TBaseStruct, TStruct, Type}
 import is.hail.nativecode.NativeStatus
 import is.hail.table.Table
 import is.hail.utils._

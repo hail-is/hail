@@ -1,3 +1,3 @@
-package is.hail.expr.types
+package is.hail.expr.types.virtual
 
 abstract class TIntegral extends TNumeric
