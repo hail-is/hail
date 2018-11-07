@@ -439,6 +439,7 @@ class PRS(object):
         if status_code == 200:
             log.info(f'successful merge of {pr.short_str()}')
             self._set(pr.source.ref, pr.target.ref, pr.merged())
+            pr.notify_github(pr.build, status_sha=gh_response['sha'])
         else:
             assert status_code == 409, f'{status_code} {gh_response}'
             log.warning(

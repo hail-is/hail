@@ -286,7 +286,7 @@ class PR(object):
     def merged(self):
         return self._new_build(Merged(self.target.sha))
 
-    def notify_github(self, build):
+    def notify_github(self, build, status_sha=None):
         log.info(f'notifying github of {build} for {self.short_str()}')
         json = {
             'state': build.gh_state(),
@@ -299,7 +299,7 @@ class PR(object):
         try:
             post_repo(
                 self.target.ref.repo.qname,
-                'statuses/' + self.source.sha,
+                'statuses/' + (status_sha if status_sha is not None else self.source.sha),
                 json=json,
                 status_code=201)
         except BadStatus as e:
