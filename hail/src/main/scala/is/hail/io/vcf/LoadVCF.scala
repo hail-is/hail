@@ -1,5 +1,6 @@
 package is.hail.io.vcf
 
+import htsjdk.variant.variantcontext.VariantContext
 import htsjdk.variant.vcf._
 import is.hail.HailContext
 import is.hail.annotations._
@@ -1008,7 +1009,7 @@ case class MatrixVCFReader(
       coercer.coerce(requestedType.rvdType, parseLines { () =>
         new ParseLineContext(formatSignature, new BufferedLineIterator(headerLinesBc.value.iterator.buffered))
       } { (c, l, rvb) =>
-        val vc = c.codec.decode(l.line)
+        val vc = c.codec.decodeLoc(l.line).asInstanceOf[VariantContext]
         reader.readVariantInfo(vc, rvb, hasRSID, hasQual, hasFilters, infoSignature, infoFlagFieldNamesBc.value)
 
         rvb.startArray(nSamples) // gs
