@@ -725,11 +725,11 @@ object Interpret {
             initOps(0)(region, rvAggs, globals, false)
           }
 
-          val zval = rvAggs
           val combOp = { (rvAggs1: Array[RegionValueAggregator], rvAggs2: Array[RegionValueAggregator]) =>
             rvAggs1.zip(rvAggs2).foreach { case (rvAgg1, rvAgg2) => rvAgg1.combOp(rvAgg2) }
             rvAggs1
           }
+
           value.rvd.aggregateWithPartitionOp(rvAggs, (i, ctx) => {
             val r = ctx.freshRegion
             val rvb = new RegionValueBuilder()
