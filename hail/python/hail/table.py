@@ -2148,6 +2148,7 @@ class Table(ExprContainer):
                         raise ValueError("Expect top-level field, found a complex expression")
                     if not e.col._indices == self._row_indices:
                         raise ValueError("Sort fields must be row-indexed, found global field '{}'".format(e))
+                    e.col = self._fields_inverse[e.col]
                     sort_fields.append((e.col, sort_type))
         return Table(TableOrderBy(self.key_by()._tir, sort_fields))
 
