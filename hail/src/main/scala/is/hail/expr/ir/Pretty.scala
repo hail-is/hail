@@ -229,11 +229,14 @@ object Pretty {
                   "None"
                 else
                   typ.parsableString())
-            case TableWrite(_, path, overwrite, _, _) =>
-              if (overwrite)
-                s"${ StringEscapeUtils.escapeString(path) } overwrite"
-              else
-                path
+            case TableWrite(_, path, overwrite, stageLocally, codecSpecJSONStr) =>
+              prettyStringLiteral(path) + " " +
+                prettyBooleanLiteral(overwrite) + " " +
+                prettyBooleanLiteral(stageLocally) + " " +
+                (if (codecSpecJSONStr == null)
+                  "None"
+                else
+                  prettyStringLiteral(codecSpecJSONStr))
             case TableExport(_, path, typesFile, header, exportType) =>
               val args = Array(
                 Some(StringEscapeUtils.escapeString(path)),

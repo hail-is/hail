@@ -2,6 +2,7 @@ import unittest
 import hail as hl
 import hail.ir as ir
 from hail.utils.java import Env
+from hail.utils import new_temp_file
 from .helpers import *
 
 setUpModule = startTestHailContext
@@ -89,6 +90,7 @@ class ValueIRTests(unittest.TestCase):
             ir.Literal(hl.tarray(hl.tint32), [1, 2, None]),
             ir.TableCount(table),
             ir.TableAggregate(table, ir.MakeStruct([('foo', ir.ApplyAggOp([], None, [ir.I32(0)], collect_sig))])),
+            ir.TableWrite(table, new_temp_file(), False, True, "fake_codec_spec$$"),
         ]
 
         return value_irs
