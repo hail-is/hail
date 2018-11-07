@@ -251,7 +251,7 @@ object Simplify {
 
   private[this] def tableRules(canRepartition: Boolean): PartialFunction[TableIR, TableIR] = {
 
-    case TableRename(child, m1, m2) if m1.isEmpty && m2.isEmpty => child
+    case TableRename(child, m1, m2) if m1.isTrivial && m2.isTrivial => child
 
     // TODO: Write more rules like this to bubble 'TableRename' nodes towards the root.
     case t@TableRename(TableKeyBy(child, keys, isSorted), rowMap, globalMap) =>

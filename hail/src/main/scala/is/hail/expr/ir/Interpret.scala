@@ -685,7 +685,7 @@ object Interpret {
           .map(_.sum)
           .getOrElse(child.execute(HailContext.get).rvd.count())
       case MatrixWrite(child, f) =>
-        val mv = Interpret(child, optimize = false)
+        val mv = child.execute(HailContext.get)
         f(mv)
       case TableWrite(child, path, overwrite, stageLocally, codecSpecJSONStr) =>
         val hc = HailContext.get
@@ -766,7 +766,7 @@ object Interpret {
         }
       case MatrixAggregate(child, query) =>
         val localGlobalSignature = child.typ.globalType
-        val value = Interpret(child, optimize = false)
+        val value = child.execute(HailContext.get)
         val colArrayType = TArray(child.typ.colType)
         val (rvAggs, initOps, seqOps, aggResultType, postAggIR) = CompileWithAggregators[Long, Long, Long, Long](
           "global", child.typ.globalType,

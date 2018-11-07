@@ -68,8 +68,6 @@ object IRBuilder {
   }
 
   class IRProxy(val ir: E => IR) extends AnyVal with Dynamic {
-    def <=: (s: Symbol): BindingProxy = BindingProxy(s, this)
-
     def apply(idx: IRProxy): IRProxy = (env: E) =>
       ArrayRef(ir(env), idx(env))
 
