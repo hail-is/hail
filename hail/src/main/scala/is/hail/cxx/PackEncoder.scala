@@ -100,7 +100,7 @@ object PackEncoder {
     val buf = Variable("buf", s"std::shared_ptr<$bufType>")
     encBuilder.addPrivate(buf)
 
-    encBuilder.addConstructor(s"${ encBuilder.name }(std::shared_ptr<OutputStream> os) $buf(std::make_shared<$bufType>(os)) { }")
+    encBuilder.addConstructor(s"${ encBuilder.name }(std::shared_ptr<OutputStream> os) : $buf(std::make_shared<$bufType>(os)) { }")
 
     val rowFB = FunctionBuilder("encode_row", Array("NativeStatus*" -> "st", "char *" -> "row"), "void")
     rowFB += encode(t.fundamentalType, buf.ref, rowFB.getArg(1).ref)

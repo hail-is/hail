@@ -183,7 +183,7 @@ object PackDecoder {
     val buf = Variable("buf", s"std::shared_ptr<$bufType>")
     decoderBuilder.addPrivate(buf)
 
-    decoderBuilder.addConstructor(s"${ decoderBuilder.name }(std::shared_ptr<InputStream> is) $buf(std::make_shared<$bufType>(is)) { }")
+    decoderBuilder.addConstructor(s"${ decoderBuilder.name }(std::shared_ptr<InputStream> is) : $buf(std::make_shared<$bufType>(is)) { }")
 
     val rowFB = FunctionBuilder("decode_row", Array("NativeStatus*" -> "st", "Region *" -> "region"), "char *")
     val region = rowFB.getArg(1)

@@ -113,16 +113,18 @@ class ClassBuilder(val name: String, superClass: String = null) {
   def result(): Class = new Class(name, superClass, privateDefs.result(), publicDefs.result())
 
   def addConstructor(definition: Code) {
+    val className = name
     publicDefs += new Definition {
-      def name: String = this.name
+      def name: String = className
       def typ: Type = name
       def define: Code = definition
     }
   }
 
   def addDestructor(definition: Code) {
+    val className = name
     publicDefs += new Definition {
-      def name: String = this.name
+      def name: String = className
       def typ: Type = name
       def define: Code = definition
     }
