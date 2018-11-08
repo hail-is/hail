@@ -46,7 +46,7 @@ object PruneDeadFields {
             t1.size == t2.size &&
             t1.types.zip(t2.types)
               .forall { case (elt1, elt2) => isSupertype(elt1, elt2) }
-        case (t1: Type, t2: Type) => t1 == t2 || t1.setRequired(true) == t2
+        case (t1: Type, t2: Type) => t1 == t2 || t2.required && t2.isOfType(t1)
         case _ => fatal(s"invalid comparison: $superType / $subType")
       }
     } catch {
@@ -1055,8 +1055,8 @@ object PruneDeadFields {
     else {
       // FIXME: Remove this assertion before this code is merged
       assert(isSupertype(rType, ir.typ), s"""Error, supertype relation not satisfied in upcast.
-        |Supertype: ${ rType.toPrettyString(0, false) }
-        |Subtype  : ${ ir.typ.toPrettyString(0, false) }""".stripMargin)
+        |Supertype: ${ rType.parsableString() }
+        |Subtype  : ${ ir.typ.parsableString() }""".stripMargin)
       ir.typ match {
         case ts: TStruct =>
           val rs = rType.asInstanceOf[TStruct]
