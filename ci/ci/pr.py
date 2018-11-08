@@ -202,6 +202,7 @@ class PR(object):
         self.build = build
         self.number = number
         self.title = title
+        self.last_status = None
 
     keep = Sentinel()
 
@@ -273,6 +274,7 @@ class PR(object):
 
     def _new_build(self, new_build):
         if self.build != new_build:
+            self.last_status = self._status_url()
             self.notify_github(new_build)
             return self.copy(build=self.build.transition(new_build))
         else:
@@ -286,6 +288,9 @@ class PR(object):
     def merged(self):
         return self._new_build(Merged(self.target.sha))
 
+    def _status_url(self):
+        return f'https://storage.googleapis.com/{GCS_BUCKET}/ci/{self.source.sha}/{self.target.sha}/index.html'
+
     def notify_github(self, build, status_sha=None):
         log.info(f'notifying github of {build} for {self.short_str()}')
         json = {
@@ -294,8 +299,8 @@ class PR(object):
             'context': CONTEXT
         }
         if isinstance(build, Failure) or isinstance(build, Mergeable):
-            json['target_url'] = \
-                f'https://storage.googleapis.com/{GCS_BUCKET}/ci/{self.source.sha}/{self.target.sha}/index.html'
+            json['target_url'] = self.last_status
+
         try:
             post_repo(
                 self.target.ref.repo.qname,
