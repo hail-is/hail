@@ -444,6 +444,10 @@ object Parser extends JavaTokenParsers {
 
   def string_literal: Parser[String] = stringLiteral
 
+  def string_literal_opt: Parser[Option[String]] = string_literal ^^ {
+    Some(_)
+  } | "None" ^^ { _ => None }
+
   def string_literals: Parser[IndexedSeq[String]] = "(" ~> rep(string_literal).map(_.toFastIndexedSeq) <~ ")"
 
   def string_literals_opt: Parser[Option[IndexedSeq[String]]] = string_literals ^^ {
@@ -582,7 +586,10 @@ object Parser extends JavaTokenParsers {
       "JavaIR" ~> ir_identifier ^^ { name => env.irMap(name).asInstanceOf[IR] } |
       "TableCount" ~> table_ir(env) ^^ { child => ir.TableCount(child) } |
       "TableAggregate" ~> table_ir(env) >> { child =>
-        ir_value_expr(env.update(child.typ.refMap)) ^^ { query => ir.TableAggregate(child, query) }}
+        ir_value_expr(env.update(child.typ.refMap)) ^^ { query => ir.TableAggregate(child, query) }} |
+      "TableWrite" ~> string_literal ~ boolean_literal ~ boolean_literal ~ string_literal_opt ~ table_ir(env) ^^ {
+        case path ~ overwrite ~ shuffleLocally ~ codecSpecJsonStr ~ child =>
+          ir.TableWrite(child, path, overwrite, shuffleLocally, codecSpecJsonStr.orNull) }
   }
 
   def ir_value: Parser[(Type, Any)] = type_expr ~ string_literal ^^ { case t ~ vJSONStr =>

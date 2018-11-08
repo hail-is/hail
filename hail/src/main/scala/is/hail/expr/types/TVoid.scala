@@ -11,6 +11,10 @@ case object TVoid extends Type {
 
   override def _toPretty = "Void"
 
+  override def pyString(sb: StringBuilder): Unit = {
+    sb.append("void")
+  }
+
   val ordering: ExtendedOrdering = null
 
   override def scalaClassTag: scala.reflect.ClassTag[_ <: AnyRef] = throw new UnsupportedOperationException("No ClassTag for Void")

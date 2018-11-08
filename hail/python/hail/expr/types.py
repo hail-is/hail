@@ -36,6 +36,7 @@ __all__ = [
     'tinterval',
     'tlocus',
     'tcall',
+    'tvoid',
     'hts_entry_schema',
 ]
 
@@ -235,6 +236,18 @@ class HailType(object):
         f(self, obj)
 
 hail_type = oneof(HailType, transformed((str, dtype)))
+
+
+class _tvoid(HailType):
+    def __init__(self):
+        self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TVoid')
+        super(_tvoid, self).__init__()
+
+    def __str__(self):
+        return "void"
+
+    def _eq(self, other):
+        return isinstance(other, _tvoid)
 
 
 class _tint32(HailType):
@@ -1147,6 +1160,9 @@ class tinterval(HailType):
                 'end': self.point_type._convert_to_json_na(x.end),
                 'includeStart': x.includes_start,
                 'includeEnd': x.includes_end}
+
+
+tvoid = _tvoid()
 
 
 tint32 = _tint32()

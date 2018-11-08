@@ -269,4 +269,14 @@ class TableIRSuite extends SparkSuite {
     assert(beforeValue.globals.safeValue == after.globals.safeValue)
     assert(beforeValue.rdd.collect().toFastIndexedSeq == after.rdd.collect().toFastIndexedSeq)
   }
+
+  @Test def testTableWrite() {
+    val table = TableRange(5, 4)
+    val path = tmpDir.createLocalTempFile(extension = "ht")
+    Interpret(TableWrite(table, path))
+    val before = table.execute(hc)
+    val after = Table.read(hc, path)
+    assert(before.globals.safeValue == after.globals.safeValue)
+    assert(before.rdd.collect().toFastIndexedSeq == after.rdd.collect().toFastIndexedSeq)
+  }
 }

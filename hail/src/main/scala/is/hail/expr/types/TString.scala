@@ -22,6 +22,7 @@ class TString(override val required: Boolean) extends Type {
   override def pyString(sb: StringBuilder): Unit = {
     sb.append("str")
   }
+
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[String]
 
   override def genNonmissingValue: Gen[Annotation] = arbitrary[String]

@@ -12,7 +12,9 @@ import is.hail.expr.types.physical.PTuple
 import is.hail.methods._
 import is.hail.utils._
 import org.apache.spark.sql.Row
+import org.json4s.JsonAST.JNull
 import org.json4s.jackson.JsonMethods
+
 import scala.collection.JavaConverters._
 
 object Interpret {
@@ -26,7 +28,13 @@ object Interpret {
     val ir = Parser.parse_value_ir(s, IRParserEnvironment(refMap, irMap))
     val t = ir.typ
     val value = Interpret[Any](ir)
-    JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(value, t))
+
+    val jsonValue = t match {
+      case TVoid => JNull
+      case _ => JSONAnnotationImpex.exportAnnotation(value, t)
+    }
+
+    JsonMethods.compact(jsonValue)
   }
 
   def apply(tir: TableIR): TableValue =

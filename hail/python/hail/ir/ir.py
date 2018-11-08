@@ -1268,27 +1268,32 @@ class MatrixAggregate(IR):
 
 
 class TableWrite(IR):
-    @typecheck_method(child=TableIR, path=str, overwrite=bool)
-    def __init__(self, child, path, overwrite):
+    @typecheck_method(child=TableIR, path=str, overwrite=bool, stage_locally=bool, _codec_spec=nullable(str))
+    def __init__(self, child, path, overwrite, stage_locally, _codec_spec):
         super().__init__(child)
         self.child = child
         self.path = path
         self.overwrite = overwrite
+        self.stage_locally = stage_locally
+        self._codec_spec = _codec_spec
 
     @typecheck_method(child=TableIR)
     def copy(self, child):
         new_instance = self.__class__
-        return new_instance(child, self.path, self.overwrite)
+        return new_instance(child, self.path, self.overwrite, self.stage_locally, self._codec_spec)
 
     def render(self, r):
-        return '(TableWrite "{}" {} {})'.format(escape_str(self.path), self.overwrite, r(self.child))
+        return '(TableWrite "{}" {} {} {} {})'.format(escape_str(self.path), self.overwrite, self.stage_locally,
+                                                      "\"" + escape_str(self._codec_spec) + "\"" if self._codec_spec else "None",
+                                                        r(self.child))
 
     def __eq__(self, other):
         return isinstance(other, TableWrite) and \
                other.child == self.child and \
                other.path == self.path and \
-               other.overwrite == self.overwrite
-
+               other.overwrite == self.overwrite and \
+               other.stage_locally == self.stage_locally and \
+               other._codec_spec == self._codec_spec
 
 class TableExport(IR):
     @typecheck_method(child=TableIR,

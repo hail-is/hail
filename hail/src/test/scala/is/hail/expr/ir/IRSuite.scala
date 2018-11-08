@@ -799,7 +799,8 @@ class IRSuite extends SparkSuite {
       Uniroot("x", F64(3.14), F64(-5.0), F64(5.0)),
       Literal(TStruct("x" -> TInt32()), Row(1)),
       TableCount(table),
-      TableAggregate(table, MakeStruct(Seq("foo" -> count)))
+      TableAggregate(table, MakeStruct(Seq("foo" -> count))),
+      TableWrite(table, tmpDir.createLocalTempFile(extension = "ht"))
     )
     irs.map(x => Array(x))
   }
