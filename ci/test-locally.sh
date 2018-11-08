@@ -70,4 +70,4 @@ set +x
 ./setup-endpoints.sh hail-ci-test/${REPO_NAME} ${TOKEN} ${SELF_HOSTNAME}
 set -x
 
-PYTHONPATH=$PYTHONPATH:${PWD}/ci pytest -vv test/test-ci.py
+PYTHONPATH=${PWD}:${PYTHONPATH} pytest -vv test/

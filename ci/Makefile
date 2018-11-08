@@ -58,7 +58,7 @@ run-local: PROXY_IP=$(shell gcloud compute instances list --filter=name=dk-test 
 run-local: restart-all-proxies
 	SELF_HOSTNAME=http://${PROXY_IP}:${HAIL_CI_REMOTE_PORT} \
 	BATCH_SERVER_URL=http://127.0.0.1:${HAIL_CI_LOCAL_BATCH_PORT} \
-	source activate hail-ci && python ci/ci.py
+	source activate hail-ci && python run_ci.py
 
 run-local-for-tests: HAIL_CI_REMOTE_PORT = 3001
 run-local-for-tests: PROXY_IP=$(shell gcloud compute instances list --filter=name=dk-test --format="value(EXTERNAL_IP)")
@@ -66,7 +66,7 @@ run-local-for-tests: restart-all-proxies
 	SELF_HOSTNAME=http://${PROXY_IP}:${HAIL_CI_REMOTE_PORT} \
 	BATCH_SERVER_URL=http://127.0.0.1:${HAIL_CI_LOCAL_BATCH_PORT} \
 	WATCHED_TARGETS='[["hail-is/ci-test:master", true]]' \
-	source activate hail-ci && pip install ./batch && python ci/ci.py
+	source activate hail-ci && pip install ./batch && python run_ci.py
 
 test-locally: HAIL_CI_REMOTE_PORT = 3001
 test-locally: PROXY_IP=$(shell gcloud compute instances list --filter=name=dk-test --format="value(EXTERNAL_IP)")

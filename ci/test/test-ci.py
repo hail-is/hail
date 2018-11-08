@@ -1,16 +1,14 @@
-from http_helper import get_repo, post_repo, patch_repo
-from environment import INSTANCE_ID
-from pr import PR
-from subprocess import call, run
-import inspect
 import json
 import os
+
 import pkg_resources
 import requests
 import subprocess
-import tempfile
 import time
-import unittest
+from subprocess import call, run
+
+from ci.http_helper import get_repo, post_repo, patch_repo
+from ci.pr import PR
 
 CI_URL = 'http://localhost:5000'
 GITHUB_URL = 'https://api.github.com/'
@@ -117,7 +115,7 @@ def test_pull_request_comment_does_not_overwrite_approval():
         'comment-after-approve-pull-request-review.json')
     reviews = json.loads(data)
 
-    from github import overall_review_state
+    from ci.github import overall_review_state
 
     review_state = overall_review_state(reviews)
 

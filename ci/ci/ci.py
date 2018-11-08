@@ -369,7 +369,8 @@ def fix_werkzeug_logs():
         getattr(werkzeug_logger, type)('%s %s' % (self.address_string(), message % args))
 
 
-if __name__ == '__main__':
+def run():
+    """Main entry point."""
     fix_werkzeug_logs()
     threading.Thread(target=polling_event_loop).start()
     app.run(host='0.0.0.0', threaded=False)
