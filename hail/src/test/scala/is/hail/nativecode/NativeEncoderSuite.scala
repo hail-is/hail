@@ -140,7 +140,7 @@ class NativeEncoderSuite extends SparkSuite {
     val a = Row(Interval(Row(Set(-1478292367)), Row(Set(2084728308)), true, true))
 
     val baos = new ByteArrayOutputStream()
-    val enc = new NativePackEncoder(baos, NativeEncoder(t.physicalType, spec))
+    val enc = new NativePackEncoder(baos, PackEncoder.buildModule(t.physicalType, spec))
 
     val baos2 = new ByteArrayOutputStream()
     val enc2 = new PackEncoder(t.physicalType, spec.buildOutputBuffer(baos2))
