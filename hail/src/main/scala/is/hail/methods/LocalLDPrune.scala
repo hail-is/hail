@@ -16,7 +16,7 @@ object BitPackedVectorView {
   val bpvElementSize = PInt64Required.byteSize
 
   def rvRowType(locusType: Type, allelesType: Type): PStruct = TStruct("locus" -> locusType, "alleles" -> allelesType,
-    "bpv" -> TArray(TInt64Required), "nSamples" -> TInt32Required, "mean" -> TFloat64Required, "centered_length_rec" -> TFloat64Required).physicalType
+    "bpv" -> TArray(TInt64Required), "nSamples" -> TInt32Required, "mean" -> TFloat64(), "centered_length_rec" -> TFloat64()).physicalType
 }
 
 class BitPackedVectorView(rvRowType: PStruct) {
@@ -320,7 +320,7 @@ object LocalLDPrune {
     val rvdLP = pruneLocal(standardizedRDD, r2Threshold, windowSize, Some(maxQueueSize))
 
     val tableType = TableType(
-      rowType = mt.rowKeyStruct ++ TStruct("mean" -> TFloat64Required, "centered_length_rec" -> TFloat64Required),
+      rowType = mt.rowKeyStruct ++ TStruct("mean" -> TFloat64(), "centered_length_rec" -> TFloat64()),
       key = mt.rowKey, globalType = TStruct.empty())
 
     val fieldIndicesToAdd = Array("locus", "alleles", "mean", "centered_length_rec")
