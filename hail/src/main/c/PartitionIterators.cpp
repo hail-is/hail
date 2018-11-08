@@ -16,9 +16,14 @@ row_(nullptr) { }
 JavaIteratorWrapper::JavaIteratorWrapper(UpcallEnv up, jobject jrvit) :
 up_(up),
 jrvit_(up.env()->NewGlobalRef(jrvit)),
-row_(nullptr) { }
+row_(nullptr) {
+  advance();
+}
 
 bool JavaIteratorWrapper::advance() {
+  if (jrvit_ == nullptr) {
+    return false;
+  }
   bool has_next = up_.env()->CallBooleanMethod(jrvit_, up_.config()->RVIterator_hasNext_);
   if (has_next) {
     row_ = reinterpret_cast<char *>(up_.env()->CallLongMethod(jrvit_, up_.config()->RVIterator_next_));
