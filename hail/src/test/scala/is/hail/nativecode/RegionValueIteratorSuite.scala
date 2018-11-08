@@ -46,14 +46,15 @@ class RegionValueIteratorSuite extends SparkSuite {
     val partitionFB = FunctionBuilder("partition_f", Array("NativeStatus*" -> "st", "long" -> "objects"), "long")
     val up = Variable("up", "UpcallEnv")
     val encoder = Variable("encoder", encClass.name, s"std::make_shared<OutputStream>($up, reinterpret_cast<ObjectArray * >(${ partitionFB.getArg(1) })->at(1))")
-    val it = Variable("it", "JavaRVIterator", s"std::make_shared<JavaIteratorWrapper>($up, reinterpret_cast<ObjectArray * >(${ partitionFB.getArg(1) })->at(0))")
+    val jit = Variable("jit", "std::shared_ptr<JavaIteratorWrapper>", s"std::make_shared<JavaIteratorWrapper>($up, reinterpret_cast<ObjectArray * >(${ partitionFB.getArg(1) })->at(0))")
+    val it = Variable("it", "JavaRVIterator", s"begin($jit.get())")
 
     partitionFB += up.define
     partitionFB += encoder.define
-    partitionFB += it.define
+    partitionFB += jit.define
     partitionFB +=
       s"""
-         |for(++$it; $it != $it.end(); ++$it) {
+         |for(${ it.define } $it != end($jit.get()); ++$it) {
          |  $encoder.encode_row(${ partitionFB.getArg(0) }, *$it);
          |}
          |$encoder.flush(${ partitionFB.getArg(0) });

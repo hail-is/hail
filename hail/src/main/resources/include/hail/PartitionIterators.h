@@ -13,35 +13,37 @@ class JavaIteratorWrapper : public NativeObj {
   private:
     UpcallEnv up_;
     jobject jrvit_;
-    long n_read_;
+    char * row_;
 
   public:
     JavaIteratorWrapper() = delete;
     JavaIteratorWrapper(JavaIteratorWrapper &it);
     JavaIteratorWrapper(JavaIteratorWrapper &&it);
     JavaIteratorWrapper(UpcallEnv up, jobject jrvit);
-    char * next();
-    bool has_next();
+    bool advance();
+    char const* get();
     ~JavaIteratorWrapper();
-
 };
 
 class JavaRVIterator {
   private:
-    std::shared_ptr<JavaIteratorWrapper> jit_;
-    char * row_;
-    long n_read_;
+    JavaIteratorWrapper * jit_;
 
   public:
     JavaRVIterator() = delete;
-    JavaRVIterator(std::shared_ptr<JavaIteratorWrapper> jrvit);
+    JavaRVIterator(JavaIteratorWrapper * jrvit);
     JavaRVIterator& operator++();
-    bool operator==(JavaRVIterator other) const;
-    bool operator!=(JavaRVIterator other) const;
-    char * operator*() const;
-    JavaRVIterator begin() const;
-    JavaRVIterator end() const;
+    friend bool operator==(JavaRVIterator const& lhs, JavaRVIterator const& rhs) {
+      return (lhs.jit_ == rhs.jit_);
+    }
+    friend bool operator!=(JavaRVIterator const& lhs, JavaRVIterator const& rhs) {
+      return !(lhs == rhs);
+    }
+    char const* operator*();
 };
+
+JavaRVIterator begin(JavaIteratorWrapper * it) { return JavaRVIterator(it); };
+JavaRVIterator end(JavaIteratorWrapper * it) { return JavaRVIterator(nullptr); };
 
 }
 
