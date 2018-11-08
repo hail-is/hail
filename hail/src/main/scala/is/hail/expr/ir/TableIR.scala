@@ -4,11 +4,12 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.expr.types._
+import is.hail.expr.types.physical.PInt32
 import is.hail.expr.types.virtual._
 import is.hail.expr.{TableAnnotationImpex, ir}
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
-import is.hail.table.{Ascending, SortField, AbstractTableSpec}
+import is.hail.table.{AbstractTableSpec, Ascending, SortField}
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.sql.Row
@@ -295,10 +296,10 @@ case class TableFilter(child: TableIR, pred: IR) extends TableIR {
       return tv.copy(rvd = RVD.empty(hc.sc, typ.rvdType))
 
     val (rTyp, f) = ir.Compile[Long, Long, Boolean](
-      "row", child.typ.rowType,
-      "global", child.typ.globalType,
+      "row", child.typ.rowType.physicalType,
+      "global", child.typ.globalType.physicalType,
       pred)
-    assert(rTyp == TBoolean())
+    assert(rTyp.virtualType == TBoolean())
 
     tv.filterWithPartitionOp(f)((rowF, rv, globalRV) => rowF(rv.region, rv.offset, false, globalRV.offset, false))
   }
@@ -521,9 +522,9 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
     var rowIterationNeedsGlobals = false
 
     val (scanAggs, scanInitOps, scanSeqOps, scanResultType, postScanIR) = ir.CompileWithAggregators[Long, Long, Long](
-      "global", gType,
-      "global", gType,
-      "row", tv.typ.rowType,
+      "global", gType.physicalType,
+      "global", gType.physicalType,
+      "row", tv.typ.rowType.physicalType,
       CompileWithAggregators.liftScan(newRow), "SCANR",
       { (nAggs: Int, initOp: IR) =>
         scanInitNeedsGlobals |= Mentions(initOp, "global")
@@ -536,10 +537,10 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
 
     val (rTyp, f) = ir.Compile[Long, Long, Long, Long](
       "SCANR", scanResultType,
-      "global", child.typ.globalType,
-      "row", child.typ.rowType,
+      "global", child.typ.globalType.physicalType ,
+      "row", child.typ.rowType.physicalType ,
       postScanIR)
-    assert(rTyp == typ.rowType)
+    assert(rTyp.virtualType == typ.rowType)
 
     rowIterationNeedsGlobals |= Mentions(postScanIR, "global")
 
@@ -599,7 +600,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         val scanSeqOpF = scanSeqOps(i)
         it.map { rv =>
           rvb.set(rv.region)
-          rvb.start(scanResultType.physicalType)
+          rvb.start(scanResultType)
           rvb.startTuple()
           var j = 0
           while (j < partitionAggs.length) {
@@ -696,16 +697,16 @@ case class TableExplode(child: TableIR, fieldName: String) extends TableIR {
         fatal(s"expected field to explode to be an array or set, found ${ fieldType }")
     }
 
-    val (_, lengthF) = ir.Compile[Long, Int]("row", childRowType,
+    val (_, lengthF) = ir.Compile[Long, Int]("row", childRowType.physicalType,
       ir.If(IsNA(field), ir.I32(0), ir.ArrayLen(field)))
 
-    val (resultType, explodeF) = ir.Compile[Long, Int, Long]("row", childRowType,
-      "i", TInt32(),
+    val (resultType, explodeF) = ir.Compile[Long, Int, Long]("row", childRowType.physicalType,
+      "i", PInt32(),
       ir.InsertFields(Ref("row", childRowType),
         Array(fieldName -> ir.ArrayRef(
           field,
           ir.Ref("i", TInt32())))))
-    assert(resultType == typ.rowType)
+    assert(resultType.virtualType == typ.rowType)
 
     val itF: (Int, RVDContext, Iterator[RegionValue]) => Iterator[RegionValue] = { (i, ctx, it) =>
       val rv2 = RegionValue()
@@ -841,16 +842,16 @@ case class TableKeyByAndAggregate(
     val prev = child.execute(hc)
 
     val (rvAggs, makeInit, makeSeq, aggResultType, postAggIR) = ir.CompileWithAggregators[Long, Long, Long](
-      "global", child.typ.globalType,
-      "global", child.typ.globalType,
-      "row", child.typ.rowType,
+      "global", child.typ.globalType.physicalType,
+      "global", child.typ.globalType.physicalType,
+      "row", child.typ.rowType.physicalType,
       expr, "AGGR",
       (nAggs, initializeIR) => initializeIR,
       (nAggs, sequenceIR) => sequenceIR)
 
     val (rTyp, makeAnnotate) = ir.Compile[Long, Long, Long](
       "AGGR", aggResultType,
-      "global", child.typ.globalType,
+      "global", child.typ.globalType.physicalType,
       postAggIR)
 
     val init = makeInit(0)
@@ -861,7 +862,7 @@ case class TableKeyByAndAggregate(
 
     val nAggs = rvAggs.length
 
-    assert(coerce[TStruct](rTyp) == typ.valueType, s"$rTyp, ${ typ.valueType }")
+    assert(rTyp.virtualType == typ.valueType, s"$rTyp, ${ typ.valueType }")
 
     val globalsType = prev.typ.globalType
     val globalsBc = prev.globals.broadcast
@@ -871,8 +872,8 @@ case class TableKeyByAndAggregate(
     val newValueType = typ.valueType
     val newRowType = typ.rowType
     val (_, makeKeyF) = ir.Compile[Long, Long, Long](
-      "row", child.typ.rowType,
-      "global", child.typ.globalType,
+      "row", child.typ.rowType.physicalType,
+      "global", child.typ.globalType.physicalType,
       newKey
     )
 
@@ -934,7 +935,7 @@ case class TableKeyByAndAggregate(
         it.map { case (key, aggs) =>
 
           rvb.set(region)
-          rvb.start(aggResultType.physicalType)
+          rvb.start(aggResultType)
           rvb.startTuple()
           var j = 0
           while (j < nAggs) {
@@ -989,21 +990,21 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
     val prevRVD = prev.rvd
 
     val (rvAggs, makeInit, makeSeq, aggResultType, postAggIR) = ir.CompileWithAggregators[Long, Long, Long](
-      "global", child.typ.globalType,
-      "global", child.typ.globalType,
-      "row", child.typ.rowType,
+      "global", child.typ.globalType.physicalType,
+      "global", child.typ.globalType.physicalType,
+      "row", child.typ.rowType.physicalType,
       expr, "AGGR",
       (nAggs, initializeIR) => initializeIR,
       (nAggs, sequenceIR) => sequenceIR)
 
     val (rTyp, makeAnnotate) = ir.Compile[Long, Long, Long](
       "AGGR", aggResultType,
-      "global", child.typ.globalType,
+      "global", child.typ.globalType.physicalType,
       postAggIR)
 
     val nAggs = rvAggs.length
 
-    assert(coerce[TStruct](rTyp) == typ.valueType, s"$rTyp, ${ typ.valueType }")
+    assert(rTyp.virtualType == typ.valueType, s"$rTyp, ${ typ.valueType }")
 
     val rowType = prev.typ.rowType
     val keyType = prev.typ.keyType
@@ -1072,7 +1073,7 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
 
             rvb.set(consumerRegion)
 
-            rvb.start(aggResultType.physicalType)
+            rvb.start(aggResultType)
             rvb.startTuple()
             var j = 0
             while (j < nAggs) {

@@ -3,13 +3,13 @@ package is.hail.expr.ir
 import is.hail.annotations._
 import is.hail.annotations.aggregators._
 import is.hail.asm4s._
-import is.hail.expr.types._
+import is.hail.expr.types.physical.PTuple
 import is.hail.expr.types.virtual._
 import is.hail.utils._
 
 import scala.language.{existentials, postfixOps}
 
-case class ExtractedAggregators(postAggIR: IR, resultType: TTuple, init: IR, perElt: IR, rvAggs: Array[RegionValueAggregator])
+case class ExtractedAggregators(postAggIR: IR, resultType: PTuple, init: IR, perElt: IR, rvAggs: Array[RegionValueAggregator])
 
 object ExtractAggregators {
 
@@ -27,7 +27,7 @@ object ExtractAggregators {
     val ops = ab2.result()
     ExtractedAggregators(
       postAgg,
-      rt,
+      rt.physicalType,
       Begin(ops.flatMap(_.initOp)),
       Begin(ops.map(_.seqOp)),
       aggs.map(_.rvAgg))

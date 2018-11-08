@@ -654,10 +654,10 @@ object Interpret {
       case ir@ApplyIR(function, functionArgs, conversion) =>
         interpret(ir.explicitNode, env, args, agg)
       case ir: AbstractApplyNode[_] =>
-        val argTuple = TTuple(ir.args.map(_.typ): _*)
+        val argTuple = TTuple(ir.args.map(_.typ): _*).physicalType
         val f = functionMemo.getOrElseUpdate(ir, {
           val wrappedArgs: IndexedSeq[BaseIR] = ir.args.zipWithIndex.map { case (x, i) =>
-            GetTupleElement(Ref("in", argTuple), i)
+            GetTupleElement(Ref("in", argTuple.virtualType                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          ), i)
           }.toFastIndexedSeq
           val wrappedIR = Copy(ir, wrappedArgs).asInstanceOf[IR]
 
@@ -667,11 +667,11 @@ object Interpret {
         Region.scoped { region =>
           val rvb = new RegionValueBuilder()
           rvb.set(region)
-          rvb.start(argTuple.physicalType)
+          rvb.start(argTuple)
           rvb.startTuple()
           ir.args.zip(argTuple.types).foreach { case (arg, t) =>
             val argValue = interpret(arg, env, args, agg)
-            rvb.addAnnotation(t, argValue)
+            rvb.addAnnotation(t.virtualType, argValue)
           }
           rvb.endTuple()
           val offset = rvb.end()
@@ -707,16 +707,16 @@ object Interpret {
       case TableAggregate(child, query) =>
         val localGlobalSignature = child.typ.globalType
         val (rvAggs, initOps, seqOps, aggResultType, postAggIR) = CompileWithAggregators[Long, Long, Long](
-          "global", child.typ.globalType,
-          "global", child.typ.globalType,
-          "row", child.typ.rowType,
+          "global", child.typ.globalType.physicalType,
+          "global", child.typ.globalType.physicalType,
+          "row", child.typ.rowType.physicalType,
           MakeTuple(Array(query)), "AGGR",
           (nAggs: Int, initOpIR: IR) => initOpIR,
           (nAggs: Int, seqOpIR: IR) => seqOpIR)
 
         val (t, f) = Compile[Long, Long, Long](
           "AGGR", aggResultType,
-          "global", child.typ.globalType,
+          "global", child.typ.globalType.physicalType,
           postAggIR)
 
         val value = child.execute(HailContext.get)
@@ -758,7 +758,7 @@ object Interpret {
           val rvb: RegionValueBuilder = new RegionValueBuilder()
           rvb.set(region)
 
-          rvb.start(aggResultType.physicalType)
+          rvb.start(aggResultType)
           rvb.startTuple()
           aggResults.foreach(_.result(rvb))
           rvb.endTuple()
@@ -770,7 +770,7 @@ object Interpret {
 
           val resultOffset = f(0)(region, aggResultsOffset, false, globalsOffset, false)
 
-          SafeRow(coerce[PTuple](t.physicalType), region, resultOffset)
+          SafeRow(coerce[PTuple](t), region, resultOffset)
             .get(0)
         }
       case MatrixAggregate(child, query) =>
@@ -778,10 +778,10 @@ object Interpret {
         val value = child.execute(HailContext.get)
         val colArrayType = TArray(child.typ.colType)
         val (rvAggs, initOps, seqOps, aggResultType, postAggIR) = CompileWithAggregators[Long, Long, Long, Long](
-          "global", child.typ.globalType,
-          "global", child.typ.globalType,
-          "sa", colArrayType,
-          "va", child.typ.rvRowType,
+          "global", child.typ.globalType.physicalType,
+          "global", child.typ.globalType.physicalType,
+          "sa", colArrayType.physicalType,
+          "va", child.typ.rvRowType.physicalType,
           MakeTuple(Array(query)), "AGGR",
           (nAggs: Int, initOpIR: IR) => initOpIR,
           (nAggs: Int, seqOpIR: IR) =>
@@ -798,7 +798,7 @@ object Interpret {
 
         val (t, f) = Compile[Long, Long, Long](
           "AGGR", aggResultType,
-          "global", child.typ.globalType,
+          "global", child.typ.globalType.physicalType,
           postAggIR)
 
         val globalsBc = value.globals.broadcast
@@ -845,7 +845,7 @@ object Interpret {
           val rvb: RegionValueBuilder = new RegionValueBuilder()
           rvb.set(region)
 
-          rvb.start(aggResultType.physicalType)
+          rvb.start(aggResultType)
           rvb.startTuple()
           aggResults.foreach(_.result(rvb))
           rvb.endTuple()
@@ -857,7 +857,7 @@ object Interpret {
 
           val resultOffset = f(0)(region, aggResultsOffset, false, globalsOffset, false)
 
-          SafeRow(coerce[PTuple](t.physicalType), region, resultOffset)
+          SafeRow(coerce[PTuple](t), region, resultOffset)
             .get(0)
         }
     }
