@@ -63,8 +63,7 @@ class CXXStateMachine(key: String, bin: Array[Byte], obj: AnyRef, region: Region
   objArray.close()
 
   var isValid: Boolean = true
-  var value: RegionValue = _
-  advance()
+  var value: RegionValue = RegionValue(region, getF(st, ptr.get()))
 
   def advance(): Unit = {
     isValid = advanceF(st, ptr.get()) != 0

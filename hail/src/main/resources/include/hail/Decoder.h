@@ -212,7 +212,7 @@ class LEB128InputBuffer {
 };
 
 template<typename Decoder>
-class ReadIterator {
+class Reader {
 private:
   std::shared_ptr<Decoder> dec_;
   Region * region_;
@@ -220,19 +220,14 @@ private:
   char * value_;
 
 public:
-  ReadIterator() :
-  dec_(nullptr),
-  region_(nullptr),
-  st_(nullptr),
-  value_(nullptr) { }
+  Reader() : dec_(nullptr), region_(nullptr), st_(nullptr), value_(nullptr) { }
 
-  ReadIterator(std::shared_ptr<Decoder> dec, Region * region, NativeStatus* st) :
-  dec_(dec),
-  region_(region),
-  st_(st),
-  value_(nullptr) { }
+  Reader(std::shared_ptr<Decoder> dec, Region * region, NativeStatus* st) :
+  dec_(dec), region_(region), st_(st), value_(nullptr) {
+    read();
+  }
 
-  ReadIterator<Decoder>& operator++() {
+  bool read() {
     if (dec_ != nullptr) {
       if (dec_->decode_byte(st_)) {
         value_ = dec_->decode_row(st_, region_);
@@ -241,19 +236,44 @@ public:
         dec_ = nullptr;
       }
     }
+    return (value_ == nullptr);
+  }
+
+  char * get() { return value_; }
+};
+
+template<typename Decoder>
+class ReadIterator {
+private:
+  Reader<Decoder> * reader_;
+
+public:
+  ReadIterator(Reader<Decoder> * reader) :
+  reader_(reader) { }
+
+  ReadIterator<Decoder>& operator++() {
+    if (reader_ != nullptr && !(reader_->read())) {
+      reader_ = nullptr;
+    }
     return *this;
   }
 
-  bool operator==(ReadIterator other) const {
-    return (dec_ == other.dec_) && (value_ == other.value_);
+  char const* operator*() { return reader_->get(); }
+
+  friend bool operator==(ReadIterator<Decoder> const& lhs, ReadIterator<Decoder> const& rhs) {
+    return (lhs.reader_ == rhs.reader_);
   }
 
-  bool operator!=(ReadIterator other) const { return !(*this == other); }
-
-  char * operator*() { return value_; }
-  ReadIterator begin() const { return ReadIterator(dec_, region_, st_); }
-  ReadIterator end() const { return ReadIterator(); }
+  friend bool operator!=(ReadIterator<Decoder> const& lhs, ReadIterator<Decoder> const& rhs) {
+    return !(lhs == rhs);
+  }
 };
+
+template<typename Decoder>
+ReadIterator<Decoder> begin(Reader<Decoder> * reader) { return ReadIterator<Decoder>(reader); }
+
+template<typename Decoder>
+ReadIterator<Decoder> end(Reader<Decoder> * reader) { return ReadIterator<Decoder>(nullptr); }
 
 }
 

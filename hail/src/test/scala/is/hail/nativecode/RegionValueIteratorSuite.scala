@@ -106,18 +106,15 @@ class RegionValueIteratorSuite extends SparkSuite {
       tub += decClass
 
       val cb = new ClassBuilder("CXXIterator", "NativeObj")
-      val it = Variable("it", s"std::shared_ptr<ReadIterator<${ decClass.name }>>")
-      val region = Variable("region", s"Region *")
-      val st = Variable("st", s"NativeStatus *")
-      val value = Variable("v", s"char *")
+      val it = Variable("it", s"std::shared_ptr<Reader<${ decClass.name }>>")
       cb.addPrivate(it)
       cb.addConstructor(
         s"""${cb.name}(jobject is, Region * reg, NativeStatus * st) :
-           |$it(std::make_shared<ReadIterator<${ decClass.name }>>(std::make_shared<${ decClass.name }>(std::make_shared<InputStream>(UpcallEnv(), is)), reg, st)) { }
+           |$it(std::make_shared<Reader<${ decClass.name }>>(std::make_shared<${ decClass.name }>(std::make_shared<InputStream>(UpcallEnv(), is)), reg, st)) { }
          """.stripMargin)
 
-      cb += new Function(s"${ cb.name }&", "operator++", Array(), s"++(*$it); return *this;")
-      cb += new Function("char *", "operator*", Array(), s"return *(*$it);")
+      cb += new Function(s"${ cb.name }&", "operator++", Array(), s"++(begin($it.get())); return *this;")
+      cb += new Function("char const*", "operator*", Array(), s"return *(begin($it.get()));")
       cb.result()
     }
 
