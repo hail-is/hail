@@ -88,7 +88,7 @@ HAIL_CI_REMOTE_PORT=3001 make restart-all-proxies
 BATCH_SERVER_URL='http://localhost:8888' \
   SELF_HOSTNAME='http://35.232.159.176:3001' \
   WATCHED_TARGETS='[["hail-is/ci-test:master", true]]' \
-  python ci/ci.py
+  python run_ci.py
 ```
 
 From another terminal with the anaconda environment also activated, the

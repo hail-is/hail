@@ -61,7 +61,7 @@ popd
 
 # start CI system
 source activate hail-ci
-python ci/ci.py --debug & echo $! > ci.pid
+python run_ci.py --debug & echo $! > ci.pid
 
 sleep 10
 
