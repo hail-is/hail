@@ -4,7 +4,7 @@ import is.hail.annotations._
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.io.compress.LZ4Utils
 import is.hail.nativecode._
-import is.hail.rvd.{RVDSpec, RVDContext, RVDPartitioner}
+import is.hail.rvd.{AbstractRVDSpec, RVDContext, RVDPartitioner}
 import is.hail.sparkextras._
 import is.hail.utils._
 import org.apache.spark.rdd.RDD
@@ -133,7 +133,7 @@ trait CodecSpec extends Serializable {
   }
 
   override def toString: String = {
-    implicit val formats = RVDSpec.formats
+    implicit val formats = AbstractRVDSpec.formats
     val jv = Extraction.decompose(this)
     JsonMethods.compact(JsonMethods.render(jv))
   }
@@ -1761,10 +1761,10 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
 
     val (partFiles, partitionCounts) = partFilePartitionCounts.unzip
 
-    val rowsSpec = RVDSpec(t.rowType.physicalType, t.rowKey, codecSpec, partFiles, partitioner)
+    val rowsSpec = AbstractRVDSpec(t.rowType.physicalType, t.rowKey, codecSpec, partFiles, partitioner)
     rowsSpec.write(hConf, path + "/rows/rows")
 
-    val entriesSpec = RVDSpec(entriesRVType.physicalType, FastIndexedSeq(), codecSpec, partFiles, RVDPartitioner.unkeyed(partitionCounts.length))
+    val entriesSpec = AbstractRVDSpec(entriesRVType.physicalType, FastIndexedSeq(), codecSpec, partFiles, RVDPartitioner.unkeyed(partitionCounts.length))
     entriesSpec.write(hConf, path + "/entries/rows")
 
     info(s"wrote ${ partitionCounts.sum } items in $nPartitions partitions to $path")

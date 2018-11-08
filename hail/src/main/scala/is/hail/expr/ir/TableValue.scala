@@ -5,8 +5,8 @@ import is.hail.annotations.{BroadcastRow, RegionValue, RegionValueBuilder, Unsaf
 import is.hail.expr.TableAnnotationImpex
 import is.hail.expr.types.TableType
 import is.hail.io.{CodecSpec, exportTypes}
-import is.hail.rvd.{RVD, RVDSpec}
-import is.hail.table.TableSpec
+import is.hail.rvd.{AbstractRVDSpec, RVD}
+import is.hail.table.{AbstractTableSpec, TableSpec}
 import is.hail.utils._
 import is.hail.variant.{FileFormat, PartitionCountsComponentSpec, RVDComponentSpec, ReferenceGenome}
 import org.apache.spark.rdd.RDD
@@ -51,7 +51,7 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
 
     val codecSpec =
       if (codecSpecJSONStr != null) {
-        implicit val formats = RVDSpec.formats
+        implicit val formats = AbstractRVDSpec.formats
         val codecSpecJSON = JsonMethods.parse(codecSpecJSONStr)
         codecSpecJSON.extract[CodecSpec]
       } else
@@ -66,7 +66,7 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
 
     val globalsPath = path + "/globals"
     hc.hadoopConf.mkDir(globalsPath)
-    RVDSpec.writeLocal(hc, globalsPath, typ.globalType, codecSpec, Array(globals.value))
+    AbstractRVDSpec.writeLocal(hc, globalsPath, typ.globalType, codecSpec, Array(globals.value))
 
     val partitionCounts = rvd.write(path + "/rows", stageLocally, codecSpec)
 

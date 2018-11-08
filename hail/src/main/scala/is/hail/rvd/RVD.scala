@@ -992,8 +992,8 @@ class RVD(
   private[rvd] def keyBy(key: Int = typ.key.length): KeyedRVD =
     new KeyedRVD(this, key)
 
-  private def rvdSpec(codecSpec: CodecSpec, partFiles: Array[String]): RVDSpec =
-    RVDSpec(
+  private def rvdSpec(codecSpec: CodecSpec, partFiles: Array[String]): AbstractRVDSpec =
+    AbstractRVDSpec(
       typ.rowType,
       typ.key,
       codecSpec,

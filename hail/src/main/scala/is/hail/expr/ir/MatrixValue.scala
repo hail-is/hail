@@ -5,9 +5,9 @@ import is.hail.annotations._
 import is.hail.expr.types.{MatrixType, TArray, TStruct, TableType}
 import is.hail.expr.types._
 import is.hail.io.CodecSpec
-import is.hail.rvd.{RVD, RVDType, RVDSpec, _}
+import is.hail.rvd.{AbstractRVDSpec, RVD, RVDType, _}
 import is.hail.sparkextras.ContextRDD
-import is.hail.table.TableSpec
+import is.hail.table.{AbstractTableSpec, TableSpec}
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.SparkContext
@@ -44,7 +44,7 @@ case class MatrixValue(
       val hc = HailContext.get
       val hadoopConf = hc.hadoopConf
 
-      val partitionCounts = RVDSpec.writeLocal(hc, path + "/rows", typ.colType, codecSpec, colValues.value)
+      val partitionCounts = AbstractRVDSpec.writeLocal(hc, path + "/rows", typ.colType, codecSpec, colValues.value)
 
       val colsSpec = TableSpec(
         FileFormat.version.rep,
@@ -63,9 +63,9 @@ case class MatrixValue(
       val hc = HailContext.get
       val hadoopConf = hc.hadoopConf
 
-      val partitionCounts = RVDSpec.writeLocal(hc, path + "/rows", typ.globalType, codecSpec, Array(globals.value))
+      val partitionCounts = AbstractRVDSpec.writeLocal(hc, path + "/rows", typ.globalType, codecSpec, Array(globals.value))
 
-      RVDSpec.writeLocal(hc, path + "/globals", TStruct.empty(), codecSpec, Array[Annotation](Row()))
+      AbstractRVDSpec.writeLocal(hc, path + "/globals", TStruct.empty(), codecSpec, Array[Annotation](Row()))
 
       val globalsSpec = TableSpec(
         FileFormat.version.rep,
@@ -86,7 +86,7 @@ case class MatrixValue(
 
       val codecSpec =
         if (codecSpecJSONStr != null) {
-          implicit val formats = RVDSpec.formats
+          implicit val formats = AbstractRVDSpec.formats
           val codecSpecJSON = parse(codecSpecJSONStr)
           codecSpecJSON.extract[CodecSpec]
         } else

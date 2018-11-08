@@ -29,21 +29,18 @@ case object Descending extends SortOrder
 
 case class SortField(field: String, sortOrder: SortOrder)
 
-abstract class TableSpec extends RelationalSpec {
+abstract class AbstractTableSpec extends RelationalSpec {
   def references_rel_path: String
   def table_type: TableType
   def rowsComponent: RVDComponentSpec = getComponent[RVDComponentSpec]("rows")
 }
 
-object TableSpec {
-  def apply(file_version: Int,
-    hail_version: String,
-    references_rel_path: String,
-    table_type: TableType,
-    components: Map[String, ComponentSpec]): TableSpec =
-    compatibility.TableSpec_1_0(file_version, hail_version, references_rel_path, table_type, components)
-}
-
+case class TableSpec(
+  file_version: Int,
+  hail_version: String,
+  references_rel_path: String,
+  table_type: TableType,
+  components: Map[String, ComponentSpec]) extends AbstractTableSpec
 
 object Table {
   def range(hc: HailContext, n: Int, nPartitions: Option[Int] = None): Table =

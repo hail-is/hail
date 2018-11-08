@@ -10,7 +10,7 @@ import is.hail.io.bgen.MatrixBGENReader
 import is.hail.io.vcf.MatrixVCFReader
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
-import is.hail.table.TableSpec
+import is.hail.table.AbstractTableSpec
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.sql.Row
@@ -220,13 +220,13 @@ abstract class MatrixReader {
 
 case class MatrixNativeReader(path: String) extends MatrixReader {
 
-  val spec: MatrixTableSpec = (RelationalSpec.read(HailContext.get, path): @unchecked) match {
-    case mts: MatrixTableSpec => mts
-    case _: TableSpec => fatal(s"file is a Table, not a MatrixTable: '$path'")
+  val spec: AbstractMatrixTableSpec = (RelationalSpec.read(HailContext.get, path): @unchecked) match {
+    case mts: AbstractMatrixTableSpec => mts
+    case _: AbstractTableSpec => fatal(s"file is a Table, not a MatrixTable: '$path'")
   }
 
   lazy val columnCount: Option[Int] = Some(RelationalSpec.read(HailContext.get, path + "/cols")
-    .asInstanceOf[TableSpec]
+    .asInstanceOf[AbstractTableSpec]
     .partitionCounts
     .sum
     .toInt)

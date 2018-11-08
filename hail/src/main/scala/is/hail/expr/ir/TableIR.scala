@@ -7,7 +7,7 @@ import is.hail.expr.types._
 import is.hail.expr.{TableAnnotationImpex, ir}
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
-import is.hail.table.{Ascending, SortField, TableSpec}
+import is.hail.table.{Ascending, SortField, AbstractTableSpec}
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.sql.Row
@@ -21,8 +21,8 @@ object TableIR {
       fatal(s"write failed: file not found: $successFile")
 
     val spec = (RelationalSpec.read(hc, path): @unchecked) match {
-      case ts: TableSpec => ts
-      case _: MatrixTableSpec => fatal(s"file is a MatrixTable, not a Table: '$path'")
+      case ts: AbstractTableSpec => ts
+      case _: AbstractMatrixTableSpec => fatal(s"file is a MatrixTable, not a Table: '$path'")
     }
 
     TableRead(path, spec, requestedType.getOrElse(spec.table_type), dropRows = false)
@@ -52,7 +52,7 @@ case class TableLiteral(value: TableValue) extends TableIR {
   def execute(hc: HailContext): TableValue = value
 }
 
-case class TableRead(path: String, spec: TableSpec, typ: TableType, dropRows: Boolean) extends TableIR {
+case class TableRead(path: String, spec: AbstractTableSpec, typ: TableType, dropRows: Boolean) extends TableIR {
   assert(PruneDeadFields.isSupertype(typ, spec.table_type),
     s"\n  original:  ${ spec.table_type }\n  requested: $typ")
 

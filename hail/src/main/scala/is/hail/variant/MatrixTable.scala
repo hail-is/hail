@@ -9,7 +9,7 @@ import is.hail.expr.ir
 import is.hail.expr.ir._
 import is.hail.methods._
 import is.hail.rvd._
-import is.hail.table.{Table, TableSpec}
+import is.hail.table.{AbstractTableSpec, Table, TableSpec}
 import is.hail.utils._
 import is.hail.{HailContext, utils}
 import is.hail.expr.types._
@@ -37,7 +37,7 @@ object RelationalSpec {
   implicit val formats: Formats = new DefaultFormats() {
     override val typeHints = ShortTypeHints(List(
       classOf[ComponentSpec], classOf[RVDComponentSpec], classOf[PartitionCountsComponentSpec],
-      classOf[RelationalSpec]))
+      classOf[RelationalSpec], classOf[MatrixTableSpec], classOf[TableSpec]))
     override val typeHintFieldName = "name"
   } +
     new TableTypeSerializer +
@@ -67,7 +67,7 @@ object RelationalSpec {
     }
     ReferenceGenome.importReferences(hc.hadoopConf, path + "/" + referencesRelPath)
 
-    Compatibility.extractRel(fileVersion, jv)
+    Compatibility.extractRel(jv)
   }
 }
 
@@ -86,8 +86,7 @@ abstract class RelationalSpec {
 
   def write(hc: HailContext, path: String) {
     hc.hadoopConf.writeTextFile(path + "/metadata.json.gz") { out =>
-      implicit val formats = RelationalSpec.formats
-      Serialization.write(this, out)
+      Serialization.write(this, out)(RelationalSpec.formats)
     }
   }
 }
@@ -95,20 +94,20 @@ abstract class RelationalSpec {
 case class RVDComponentSpec(rel_path: String) extends ComponentSpec {
   def read(hc: HailContext, path: String, requestedType: TStruct): RVD = {
     val rvdPath = path + "/" + rel_path
-    RVDSpec.read(hc, rvdPath)
+    AbstractRVDSpec.read(hc, rvdPath)
       .read(hc, rvdPath, requestedType)
   }
 
   def readLocal(hc: HailContext, path: String, requestedType: TStruct): IndexedSeq[Row] = {
     val rvdPath = path + "/" + rel_path
-    RVDSpec.read(hc, rvdPath)
+    AbstractRVDSpec.read(hc, rvdPath)
       .readLocal(hc, rvdPath, requestedType)
   }
 }
 
 case class PartitionCountsComponentSpec(counts: Seq[Long]) extends ComponentSpec
 
-abstract class MatrixTableSpec extends RelationalSpec {
+abstract class AbstractMatrixTableSpec extends RelationalSpec {
   def matrix_type: MatrixType
 
   def references_rel_path: String
@@ -120,17 +119,15 @@ abstract class MatrixTableSpec extends RelationalSpec {
   def entriesComponent: RVDComponentSpec = getComponent[RVDComponentSpec]("entries")
 }
 
-object MatrixTableSpec {
-  def apply(file_version: Int,
-    hail_version: String,
-    references_rel_path: String,
-    matrix_type: MatrixType,
-    components: Map[String, ComponentSpec]): MatrixTableSpec =
-    compatibility.MatrixTableSpec_1_0(file_version, hail_version, references_rel_path, matrix_type, components)
-}
+case class MatrixTableSpec(
+  file_version: Int,
+  hail_version: String,
+  references_rel_path: String,
+  matrix_type: MatrixType,
+  components: Map[String, ComponentSpec]) extends AbstractMatrixTableSpec
 
 object FileFormat {
-  val version: SemanticVersion = SemanticVersion(1, 1, 0)
+  val version: SemanticVersion = SemanticVersion(1, 0, 0)
 }
 
 object MatrixTable {

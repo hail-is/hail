@@ -2,22 +2,21 @@ package is.hail.rvd
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.compatibility.{Compatibility, RVDSpec_1_1}
+import is.hail.compatibility.Compatibility
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PStruct
 import is.hail.io._
 import is.hail.utils._
-import is.hail.variant.FileFormat
 import org.apache.hadoop
 import org.apache.spark.sql.Row
 import org.json4s.jackson.{JsonMethods, Serialization}
-import org.json4s.{DefaultFormats, Formats, ShortTypeHints}
+import org.json4s.{DefaultFormats, Formats, JValue, ShortTypeHints}
 
-object RVDSpec {
+object AbstractRVDSpec {
   implicit val formats: Formats = new DefaultFormats() {
     override val typeHints = ShortTypeHints(List(
-      classOf[RVDSpec], classOf[RVDSpec_1_1],
+      classOf[AbstractRVDSpec], classOf[OrderedRVDSpec],
       classOf[CodecSpec], classOf[PackCodecSpec], classOf[BlockBufferSpec],
       classOf[LZ4BlockBufferSpec], classOf[StreamBlockBufferSpec],
       classOf[BufferSpec], classOf[LEB128BufferSpec], classOf[BlockingBufferSpec]))
@@ -26,7 +25,7 @@ object RVDSpec {
     new TStructSerializer +
     new RVDTypeSerializer
 
-  def read(hc: HailContext, path: String): RVDSpec = {
+  def read(hc: HailContext, path: String): AbstractRVDSpec = {
     val metadataFile = path + "/metadata.json.gz"
     val jv = hc.hadoopConf.readFile(metadataFile) { in => JsonMethods.parse(in) }
 
@@ -76,7 +75,7 @@ object RVDSpec {
         }
       }
 
-    val spec = RVDSpec(
+    val spec = AbstractRVDSpec(
       rowType.physicalType,
       FastIndexedSeq(),
       codecSpec,
@@ -91,23 +90,36 @@ object RVDSpec {
     key: IndexedSeq[String],
     codecSpec: CodecSpec,
     partFiles: Array[String],
-    partitioner: RVDPartitioner): RVDSpec = {
+    partitioner: RVDPartitioner): AbstractRVDSpec = {
 
-    RVDSpec_1_1(
-      FileFormat.version.rep,
-      rowType.virtualType,
-      key,
+    OrderedRVDSpec(
+      RVDType(rowType, key),
       codecSpec,
       partFiles,
       JSONAnnotationImpex.exportAnnotation(
         partitioner.rangeBounds.toFastSeq,
         partitioner.rangeBoundsType))
   }
-
 }
 
-abstract class RVDSpec {
-  def file_version: Int
+case class OrderedRVDSpec(
+  rvdType: RVDType,
+  codecSpec: CodecSpec,
+  partFiles: Array[String],
+  jRangeBounds: JValue
+) extends AbstractRVDSpec {
+  def key: IndexedSeq[String] = rvdType.key
+
+  override def encodedType: PStruct = rvdType.rowType
+
+  def partitioner: RVDPartitioner = {
+    val rangeBoundsType = TArray(TInterval(rvdType.kType.virtualType))
+    new RVDPartitioner(rvdType.kType.virtualType,
+      JSONAnnotationImpex.importAnnotation(jRangeBounds, rangeBoundsType, padNulls = false).asInstanceOf[IndexedSeq[Interval]])
+  }
+}
+
+abstract class AbstractRVDSpec {
   def partitioner: RVDPartitioner
 
   // FIXME introduce EType
@@ -126,11 +138,11 @@ abstract class RVDSpec {
   }
 
   def readLocal(hc: HailContext, path: String, requestedType: TStruct): IndexedSeq[Row] =
-    RVDSpec.readLocal(hc, path, encodedType.virtualType, codecSpec, partFiles, requestedType)
+    AbstractRVDSpec.readLocal(hc, path, encodedType.virtualType, codecSpec, partFiles, requestedType)
 
   def write(hadoopConf: hadoop.conf.Configuration, path: String) {
     hadoopConf.writeTextFile(path + "/metadata.json.gz") { out =>
-      implicit val formats = RVDSpec.formats
+      implicit val formats = AbstractRVDSpec.formats
       Serialization.write(this, out)
     }
   }
