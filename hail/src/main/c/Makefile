@@ -33,6 +33,7 @@ OBJECTS := \
   NativePtr.o \
   NativeStatus.o \
   ObjectArray.o \
+  PartitionIterators.o \
   Region.o \
   Upcalls.o
 

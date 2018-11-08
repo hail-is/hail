@@ -33,6 +33,7 @@ class RegionValueIteratorSuite extends SparkSuite {
   }
 
   @Test def testScalaRegionValueIterator(): Unit = {
+    hc
     val (spec, t, a) = getData()
     val decMod = PackDecoder.buildModule(t.physicalType, t.physicalType, spec)
 
@@ -41,18 +42,19 @@ class RegionValueIteratorSuite extends SparkSuite {
     tub += encClass
 
     tub.include("<jni.h>")
-    tub.include("hail/Iterator.h")
+    tub.include("hail/PartitionIterators.h")
     val partitionFB = FunctionBuilder("partition_f", Array("NativeStatus*" -> "st", "long" -> "objects"), "long")
     val up = Variable("up", "UpcallEnv")
     val encoder = Variable("encoder", encClass.name, s"std::make_shared<OutputStream>($up, reinterpret_cast<ObjectArray * >(${ partitionFB.getArg(1) })->at(1))")
-    val rvit = Variable("rvit", "RVIterator", s"{$up, reinterpret_cast<ObjectArray * >(${ partitionFB.getArg(1) })->at(0)}")
+    val it = Variable("it", "JavaRVIterator", s"std::make_shared<JavaIteratorWrapper>($up, reinterpret_cast<ObjectArray * >(${ partitionFB.getArg(1) })->at(0))")
 
     partitionFB += up.define
     partitionFB += encoder.define
-    partitionFB += rvit.define
+    partitionFB += it.define
     partitionFB +=
-      s"""while ($rvit.has_next()) {
-         |  $encoder.encode_row(${ partitionFB.getArg(0) }, $rvit.next());
+      s"""
+         |for(++$it; $it != $it.end(); ++$it) {
+         |  $encoder.encode_row(${ partitionFB.getArg(0) }, *$it);
          |}
          |$encoder.flush(${ partitionFB.getArg(0) });
          |return 0;
@@ -104,22 +106,18 @@ class RegionValueIteratorSuite extends SparkSuite {
       tub += decClass
 
       val cb = new ClassBuilder("CXXIterator", "public NativeObj")
-      val dec = Variable("dec", s"std::shared_ptr<${ decClass.name }>")
+      val it = Variable("it", s"std::shared_ptr<ReadIterator<${ decClass.name }>>")
       val region = Variable("region", s"Region *")
-      cb.addPrivate(dec)
-      cb.addPrivate(region)
+      val st = Variable("st", s"NativeStatus *")
+      val value = Variable("v", s"char *")
+      cb.addPrivate(it)
       cb.addConstructor(
-        s"""${cb.name}(jobject is, Region * reg) : $region(reg) {
-           |  UpcallEnv up;
-           |  $dec = std::make_shared<${ decClass.name }>(std::make_shared<InputStream>(up, is));
-           |}
+        s"""${cb.name}(jobject is, Region * reg, NativeStatus * st) :
+           |$it(std::make_shared<ReadIterator<${ decClass.name }>>(std::make_shared<${ decClass.name }>(std::make_shared<InputStream>(UpcallEnv(), is)), reg, st)) { }
          """.stripMargin)
 
-      val st = Variable("st", "NativeStatus *")
-
-      cb += new Function("bool", "has_next", Array(st), s"return $dec->decode_byte($st);")
-      cb += new Function("char *", "next", Array(st), s"return $dec->decode_row($st, $region);")
-
+      cb += new Function(s"${ cb.name }&", "operator++", Array(), s"++(*$it); return *this;")
+      cb += new Function("char *", "operator*", Array(), s"return *(*$it);")
       cb.result()
     }
 
@@ -145,7 +143,9 @@ class RegionValueIteratorSuite extends SparkSuite {
       val bais = new ByteArrayInputStream(it.next())
       makeIt(ctx.region, bais)
     }.mapPartitions { it =>
-      it.map { rv => SafeRow(t.asInstanceOf[TBaseStruct].physicalType, rv) }
+      it.map { rv =>
+        SafeRow(t.asInstanceOf[TBaseStruct].physicalType, rv)
+      }
     }.collect()
 
     assert(result sameElements a)
