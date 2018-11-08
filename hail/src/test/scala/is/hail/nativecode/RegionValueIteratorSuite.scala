@@ -105,7 +105,7 @@ class RegionValueIteratorSuite extends SparkSuite {
       val decClass = PackDecoder(t.physicalType, t.physicalType, spec, tub)
       tub += decClass
 
-      val cb = new ClassBuilder("CXXIterator", "public NativeObj")
+      val cb = new ClassBuilder("CXXIterator", "NativeObj")
       val it = Variable("it", s"std::shared_ptr<ReadIterator<${ decClass.name }>>")
       val region = Variable("region", s"Region *")
       val st = Variable("st", s"NativeStatus *")
