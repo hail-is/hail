@@ -4,7 +4,7 @@ import is.hail.annotations._
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.io.compress.LZ4Utils
 import is.hail.nativecode._
-import is.hail.rvd.{AbstractRVDSpec, RVDContext, RVDPartitioner}
+import is.hail.rvd.{AbstractRVDSpec, OrderedRVDSpec, RVDContext, RVDPartitioner}
 import is.hail.sparkextras._
 import is.hail.utils._
 import org.apache.spark.rdd.RDD
@@ -1761,10 +1761,10 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
 
     val (partFiles, partitionCounts) = partFilePartitionCounts.unzip
 
-    val rowsSpec = AbstractRVDSpec(t.rowType.physicalType, t.rowKey, codecSpec, partFiles, partitioner)
+    val rowsSpec = OrderedRVDSpec(t.rowType.physicalType, t.rowKey, codecSpec, partFiles, partitioner)
     rowsSpec.write(hConf, path + "/rows/rows")
 
-    val entriesSpec = AbstractRVDSpec(entriesRVType.physicalType, FastIndexedSeq(), codecSpec, partFiles, RVDPartitioner.unkeyed(partitionCounts.length))
+    val entriesSpec = OrderedRVDSpec(entriesRVType.physicalType, FastIndexedSeq(), codecSpec, partFiles, RVDPartitioner.unkeyed(partitionCounts.length))
     entriesSpec.write(hConf, path + "/entries/rows")
 
     info(s"wrote ${ partitionCounts.sum } items in $nPartitions partitions to $path")

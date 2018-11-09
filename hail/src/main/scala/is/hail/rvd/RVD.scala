@@ -993,7 +993,7 @@ class RVD(
     new KeyedRVD(this, key)
 
   private def rvdSpec(codecSpec: CodecSpec, partFiles: Array[String]): AbstractRVDSpec =
-    AbstractRVDSpec(
+    OrderedRVDSpec(
       typ.rowType,
       typ.key,
       codecSpec,

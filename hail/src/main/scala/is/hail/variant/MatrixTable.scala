@@ -16,7 +16,7 @@ import is.hail.expr.types._
 import is.hail.expr.types.physical.PArray
 import is.hail.io.gen.ExportGen
 import is.hail.io.plink.ExportPlink
-import is.hail.compatibility.Compatibility
+import is.hail.compatibility.UnpartitionedRVDSpec
 import is.hail.sparkextras.{ContextRDD, RepartitionedOrderedRDD2}
 import org.apache.hadoop
 import org.apache.spark.rdd.RDD
@@ -67,7 +67,7 @@ object RelationalSpec {
     }
     ReferenceGenome.importReferences(hc.hadoopConf, path + "/" + referencesRelPath)
 
-    Compatibility.extractRel(jv)
+    jv.extract[RelationalSpec]
   }
 }
 

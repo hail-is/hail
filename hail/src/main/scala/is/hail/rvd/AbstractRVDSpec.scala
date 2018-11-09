@@ -2,7 +2,7 @@ package is.hail.rvd
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.compatibility.Compatibility
+import is.hail.compatibility.UnpartitionedRVDSpec
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PStruct
@@ -19,7 +19,8 @@ object AbstractRVDSpec {
       classOf[AbstractRVDSpec], classOf[OrderedRVDSpec],
       classOf[CodecSpec], classOf[PackCodecSpec], classOf[BlockBufferSpec],
       classOf[LZ4BlockBufferSpec], classOf[StreamBlockBufferSpec],
-      classOf[BufferSpec], classOf[LEB128BufferSpec], classOf[BlockingBufferSpec]))
+      classOf[BufferSpec], classOf[LEB128BufferSpec], classOf[BlockingBufferSpec],
+      classOf[UnpartitionedRVDSpec]))
     override val typeHintFieldName = "name"
   } +
     new TStructSerializer +
@@ -27,9 +28,9 @@ object AbstractRVDSpec {
 
   def read(hc: HailContext, path: String): AbstractRVDSpec = {
     val metadataFile = path + "/metadata.json.gz"
-    val jv = hc.hadoopConf.readFile(metadataFile) { in => JsonMethods.parse(in) }
-
-    Compatibility.extractRVD(jv)
+    hc.hadoopConf.readFile(metadataFile) { in => JsonMethods.parse(in) }
+      .transformField { case ("orvdType", value) => ("rvdType", value) } // ugh
+      .extract[AbstractRVDSpec]
   }
 
   def readLocal(hc: HailContext, path: String, rowType: TStruct, codecSpec: CodecSpec, partFiles: Array[String], requestedType: TStruct): IndexedSeq[Row] = {
@@ -75,7 +76,7 @@ object AbstractRVDSpec {
         }
       }
 
-    val spec = AbstractRVDSpec(
+    val spec = OrderedRVDSpec(
       rowType.physicalType,
       FastIndexedSeq(),
       codecSpec,
@@ -85,7 +86,9 @@ object AbstractRVDSpec {
 
     Array(part0Count)
   }
+}
 
+object OrderedRVDSpec {
   def apply(rowType: PStruct,
     key: IndexedSeq[String],
     codecSpec: CodecSpec,
