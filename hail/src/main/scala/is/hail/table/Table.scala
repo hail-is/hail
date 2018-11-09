@@ -1,5 +1,6 @@
 package is.hail.table
 
+import is.hail.compatibility
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.{ir, _}
@@ -28,14 +29,18 @@ case object Descending extends SortOrder
 
 case class SortField(field: String, sortOrder: SortOrder)
 
+abstract class AbstractTableSpec extends RelationalSpec {
+  def references_rel_path: String
+  def table_type: TableType
+  def rowsComponent: RVDComponentSpec = getComponent[RVDComponentSpec]("rows")
+}
+
 case class TableSpec(
   file_version: Int,
   hail_version: String,
   references_rel_path: String,
   table_type: TableType,
-  components: Map[String, ComponentSpec]) extends RelationalSpec {
-  def rowsComponent: RVDComponentSpec = getComponent[RVDComponentSpec]("rows")
-}
+  components: Map[String, ComponentSpec]) extends AbstractTableSpec
 
 object Table {
   def range(hc: HailContext, n: Int, nPartitions: Option[Int] = None): Table =

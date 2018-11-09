@@ -992,14 +992,13 @@ class RVD(
   private[rvd] def keyBy(key: Int = typ.key.length): KeyedRVD =
     new KeyedRVD(this, key)
 
-  private def rvdSpec(codecSpec: CodecSpec, partFiles: Array[String]): RVDSpec =
+  private def rvdSpec(codecSpec: CodecSpec, partFiles: Array[String]): AbstractRVDSpec =
     OrderedRVDSpec(
-      typ,
+      typ.rowType,
+      typ.key,
       codecSpec,
       partFiles,
-      JSONAnnotationImpex.exportAnnotation(
-        partitioner.rangeBounds.toFastSeq,
-        partitioner.rangeBoundsType))
+      partitioner)
 }
 
 object RVD {

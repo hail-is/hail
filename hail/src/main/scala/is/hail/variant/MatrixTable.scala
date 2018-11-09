@@ -1,5 +1,6 @@
 package is.hail.variant
 
+import is.hail.compatibility
 import is.hail.annotations._
 import is.hail.check.Gen
 import is.hail.linalg._
@@ -8,13 +9,14 @@ import is.hail.expr.ir
 import is.hail.expr.ir._
 import is.hail.methods._
 import is.hail.rvd._
-import is.hail.table.{Table, TableSpec}
+import is.hail.table.{AbstractTableSpec, Table, TableSpec}
 import is.hail.utils._
 import is.hail.{HailContext, utils}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PArray
 import is.hail.io.gen.ExportGen
 import is.hail.io.plink.ExportPlink
+import is.hail.compatibility.UnpartitionedRVDSpec
 import is.hail.sparkextras.{ContextRDD, RepartitionedOrderedRDD2}
 import org.apache.hadoop
 import org.apache.spark.rdd.RDD
@@ -35,7 +37,7 @@ object RelationalSpec {
   implicit val formats: Formats = new DefaultFormats() {
     override val typeHints = ShortTypeHints(List(
       classOf[ComponentSpec], classOf[RVDComponentSpec], classOf[PartitionCountsComponentSpec],
-      classOf[RelationalSpec], classOf[TableSpec], classOf[MatrixTableSpec]))
+      classOf[RelationalSpec], classOf[MatrixTableSpec], classOf[TableSpec]))
     override val typeHintFieldName = "name"
   } +
     new TableTypeSerializer +
@@ -50,21 +52,19 @@ object RelationalSpec {
     val fileVersion = jv \ "file_version" match {
       case JInt(rep) => SemanticVersion(rep.toInt)
       case _ =>
-        fatal(s"metadata does not contain file version: $metadataFile")
         fatal(
-          s"""cannot read matrix table: file not found: metadata does not contain file version: $metadataFile
+          s"""cannot read file: metadata does not contain file version: $metadataFile
              |  Common causes:
-             |    - File is an 0.1 VariantDataset (0.1 and 0.2 native formats are not compatible!)""".stripMargin)
-
+             |    - File is an 0.1 VariantDataset or KeyTable (0.1 and 0.2 native formats are not compatible!)""".stripMargin)
     }
 
     if (!FileFormat.version.supports(fileVersion))
       fatal(s"incompatible file format when reading: $path\n  supported version: ${ FileFormat.version }, found $fileVersion")
 
+    // FIXME this violates the abstraction of the serialization boundary
     val referencesRelPath = (jv \ "references_rel_path": @unchecked) match {
       case JString(p) => p
     }
-
     ReferenceGenome.importReferences(hc.hadoopConf, path + "/" + referencesRelPath)
 
     jv.extract[RelationalSpec]
@@ -86,8 +86,7 @@ abstract class RelationalSpec {
 
   def write(hc: HailContext, path: String) {
     hc.hadoopConf.writeTextFile(path + "/metadata.json.gz") { out =>
-      implicit val formats = RelationalSpec.formats
-      Serialization.write(this, out)
+      Serialization.write(this, out)(RelationalSpec.formats)
     }
   }
 }
@@ -95,31 +94,37 @@ abstract class RelationalSpec {
 case class RVDComponentSpec(rel_path: String) extends ComponentSpec {
   def read(hc: HailContext, path: String, requestedType: TStruct): RVD = {
     val rvdPath = path + "/" + rel_path
-    RVDSpec.read(hc, rvdPath)
+    AbstractRVDSpec.read(hc, rvdPath)
       .read(hc, rvdPath, requestedType)
   }
 
   def readLocal(hc: HailContext, path: String, requestedType: TStruct): IndexedSeq[Row] = {
     val rvdPath = path + "/" + rel_path
-    RVDSpec.read(hc, rvdPath)
+    AbstractRVDSpec.read(hc, rvdPath)
       .readLocal(hc, rvdPath, requestedType)
   }
 }
 
 case class PartitionCountsComponentSpec(counts: Seq[Long]) extends ComponentSpec
 
-case class MatrixTableSpec(
-  file_version: Int,
-  hail_version: String,
-  references_rel_path: String,
-  matrix_type: MatrixType,
-  components: Map[String, ComponentSpec]) extends RelationalSpec {
+abstract class AbstractMatrixTableSpec extends RelationalSpec {
+  def matrix_type: MatrixType
+
+  def references_rel_path: String
+
   def colsComponent: RVDComponentSpec = getComponent[RVDComponentSpec]("cols")
 
   def rowsComponent: RVDComponentSpec = getComponent[RVDComponentSpec]("rows")
 
   def entriesComponent: RVDComponentSpec = getComponent[RVDComponentSpec]("entries")
 }
+
+case class MatrixTableSpec(
+  file_version: Int,
+  hail_version: String,
+  references_rel_path: String,
+  matrix_type: MatrixType,
+  components: Map[String, ComponentSpec]) extends AbstractMatrixTableSpec
 
 object FileFormat {
   val version: SemanticVersion = SemanticVersion(1, 0, 0)
