@@ -67,6 +67,7 @@ on_exit() {
     cp ${PIP_PACKAGE_LOG} ${ARTIFACTS}
     cp -R build/www ${ARTIFACTS}/www
     cp -R build/reports/tests ${ARTIFACTS}/test-report
+    cp -R build/reports/pytest.html ${ARTIFACTS}/hail-python-test.html
 
     COMP_STATUS=$(get_status "${COMP_SUCCESS}")
     SCALA_TEST_STATUS=$(get_status "${SCALA_TEST_SUCCESS}")
@@ -117,6 +118,10 @@ on_exit() {
 <tr>
 <td>${PYTHON_TEST_STATUS}</td>
 <td><a href='python-test.log'>PyTest log</a></td>
+</tr>
+<tr>
+<td>${PYTHON_TEST_STATUS}</td>
+<td><a href='hail-python-test.html'>PyTest report</a></td>
 </tr>
 <tr>
 <td>${DOCTEST_STATUS}</td>
