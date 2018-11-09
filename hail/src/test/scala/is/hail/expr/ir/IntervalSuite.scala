@@ -1,12 +1,11 @@
 package is.hail.expr.ir
 
-import org.scalatest.testng.TestNGSuite
-import org.testng.annotations.{DataProvider, Test}
-import is.hail.expr.types._
 import is.hail.TestUtils._
-import is.hail.expr.types.virtual.{TBoolean, TInt32, TInterval}
+import is.hail.expr.types.virtual.{TBoolean, TInt32, TInterval, TTuple}
 import is.hail.utils._
 import org.apache.spark.sql.Row
+import org.scalatest.testng.TestNGSuite
+import org.testng.annotations.Test
 
 class IntervalSuite extends TestNGSuite {
 

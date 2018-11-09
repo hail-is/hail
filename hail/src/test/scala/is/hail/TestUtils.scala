@@ -7,12 +7,11 @@ import breeze.linalg.{DenseMatrix, Matrix, Vector}
 import is.hail.annotations.{Region, RegionValueBuilder, SafeRow}
 import is.hail.cxx.CXXUnsupportedOperation
 import is.hail.expr.ir._
-import is.hail.expr.types._
-import is.hail.expr.types.virtual.{TBaseStruct, TStruct, Type}
+import is.hail.expr.types.virtual._
 import is.hail.nativecode.NativeStatus
 import is.hail.table.Table
-import is.hail.utils._
 import is.hail.testUtils._
+import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.SparkException
 import org.apache.spark.sql.Row
