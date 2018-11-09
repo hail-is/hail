@@ -880,8 +880,14 @@ object PruneDeadFields {
         val child2 = rebuild(child, memo)
         MatrixMapEntries(child2, rebuild(newEntries, child2.typ, memo))
       case MatrixMapRows(child, newRow) =>
-        var child2 = rebuild(child, memo)
-        MatrixMapRows(child2, rebuild(newRow, child2.typ, memo))
+        // XXX hack to preserve relative order of entries in rvRowType to preserve subtype relationships
+        val child2 = rebuild(child, memo)
+        val newRow2 = rebuild(newRow, child2.typ, memo)
+        if (newRow2.typ.asInstanceOf[TStruct].contains(MatrixType.entriesIdentifier))
+          MatrixMapRows(child2, newRow2)
+        else {
+          null // TODO make this thing work
+        }
       case MatrixMapCols(child, newCol, newKey) =>
         // FIXME account for key
         val child2 = rebuild(child, memo)
@@ -936,7 +942,6 @@ object PruneDeadFields {
         case childT: TableIR => rebuild(childT, memo)
         case childM: MatrixIR => rebuild(childM, memo)
       })
-
     }
   }
 
