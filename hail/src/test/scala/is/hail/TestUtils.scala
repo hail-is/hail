@@ -296,18 +296,18 @@ object TestUtils {
             env.bind(f.name, GetField(Ref(aggVar, aggType), f.name))
         }
         val (rvAggs, initOps, seqOps, aggResultType, postAggIR) = CompileWithAggregators[Long, Long, Long](
-          argsVar, argsType,
-          argsVar, argsType,
-          aggVar, aggType,
+          argsVar, argsType.physicalType,
+          argsVar, argsType.physicalType,
+          aggVar, aggType.physicalType,
           MakeTuple(FastSeq(rewrite(Subst(x, substEnv, substAggEnv)))), "AGGR",
           (i, x) => x,
           (i, x) => x)
 
         val (resultType2, f) = Compile[Long, Long, Long](
           "AGGR", aggResultType,
-          argsVar, argsType,
+          argsVar, argsType.physicalType,
           postAggIR)
-        assert(resultType2 == resultType)
+        assert(resultType2.virtualType == resultType)
 
         Region.scoped { region =>
           val rvb = new RegionValueBuilder(region)
@@ -357,7 +357,7 @@ object TestUtils {
           rvAggs.zip(rvAggs2).foreach{ case(agg1, agg2) => agg1.combOp(agg2) }
 
           // build aggregation result
-          rvb.start(aggResultType.physicalType)
+          rvb.start(aggResultType)
           rvb.startTuple()
           i = 0
           while (i < rvAggs.length) {
@@ -373,9 +373,9 @@ object TestUtils {
 
       case None =>
         val (resultType2, f) = Compile[Long, Long](
-          argsVar, argsType,
+          argsVar, argsType.physicalType,
           MakeTuple(FastSeq(rewrite(Subst(x, substEnv)))))
-        assert(resultType2 == resultType)
+        assert(resultType2.virtualType == resultType)
 
         Region.scoped { region =>
           val rvb = new RegionValueBuilder(region)

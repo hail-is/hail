@@ -2,7 +2,8 @@ package is.hail.utils
 
 import is.hail.annotations.{Region, RegionValueBuilder, SafeRow}
 import is.hail.expr.ir.{Compile, MakeTuple}
-import is.hail.expr.types.virtual.{TBaseStruct, TInt64, TTuple, Type}
+import is.hail.expr.types.physical.PBaseStruct
+import is.hail.expr.types.virtual.{TInt64, TTuple, Type}
 import is.hail.expr.{IRParserEnvironment, Parser}
 import org.apache.spark.sql.Row
 
@@ -47,8 +48,8 @@ object Graph {
 
     val tieBreakerF = tieBreaker.map { e =>
       val ir = Parser.parse_value_ir(e, IRParserEnvironment(refMap))
-      val (t, f) = Compile[Long, Long, Long]("l", wrappedNodeType, "r", wrappedNodeType, MakeTuple(FastSeq(ir)))
-      assert(t.isOfType(TTuple(TInt64())))
+      val (t, f) = Compile[Long, Long, Long]("l", wrappedNodeType.physicalType, "r", wrappedNodeType.physicalType, MakeTuple(FastSeq(ir)))
+      assert(t.virtualType.isOfType(TTuple(TInt64())))
 
       (l: Any, r: Any) => {
         Region.scoped { region =>
@@ -68,7 +69,7 @@ object Graph {
           val rOffset = rvb.end()
 
           val resultOffset = f(0)(region, lOffset, false, rOffset, false)
-          SafeRow(t.asInstanceOf[TBaseStruct].physicalType, region, resultOffset).get(0).asInstanceOf[Long]
+          SafeRow(t.asInstanceOf[PBaseStruct], region, resultOffset).get(0).asInstanceOf[Long]
         }
       }
     }
