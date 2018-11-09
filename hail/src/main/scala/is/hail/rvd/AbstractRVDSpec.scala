@@ -4,7 +4,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.compatibility.UnpartitionedRVDSpec
 import is.hail.expr.JSONAnnotationImpex
-import is.hail.expr.types._
+import is.hail.expr.types.virtual._
 import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual.{TStruct, TStructSerializer}
 import is.hail.io._

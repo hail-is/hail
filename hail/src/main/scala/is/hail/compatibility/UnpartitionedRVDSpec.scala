@@ -1,7 +1,7 @@
 package is.hail.compatibility
 
-import is.hail.expr.types._
 import is.hail.expr.types.physical.PStruct
+import is.hail.expr.types.virtual.TStruct
 import is.hail.io.CodecSpec
 import is.hail.rvd.{AbstractRVDSpec, RVDPartitioner}
 import is.hail.utils.FastIndexedSeq
