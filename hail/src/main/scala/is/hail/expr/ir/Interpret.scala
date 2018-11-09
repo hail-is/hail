@@ -9,6 +9,7 @@ import is.hail.asm4s.AsmFunction3
 import is.hail.expr.{IRParserEnvironment, JSONAnnotationImpex, Parser, TypedAggregator}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PTuple
+import is.hail.expr.types.virtual._
 import is.hail.methods._
 import is.hail.utils._
 import org.apache.spark.sql.Row

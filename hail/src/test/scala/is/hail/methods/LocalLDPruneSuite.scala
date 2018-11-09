@@ -6,6 +6,7 @@ import is.hail.annotations.{Annotation, Region, RegionValue, RegionValueBuilder}
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
 import is.hail.expr.types._
+import is.hail.expr.types.virtual.{TArray, TLocus, TString, TStruct}
 import is.hail.variant._
 import is.hail.utils._
 import is.hail.testUtils._

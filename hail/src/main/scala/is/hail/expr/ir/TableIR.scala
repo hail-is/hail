@@ -4,6 +4,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.expr.types._
+import is.hail.expr.types.virtual._
 import is.hail.expr.{TableAnnotationImpex, ir}
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD

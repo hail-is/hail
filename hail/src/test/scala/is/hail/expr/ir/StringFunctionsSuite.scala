@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.expr.types._
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
+import is.hail.expr.types.virtual._
 import is.hail.utils.FastIndexedSeq
 import org.json4s.jackson.JsonMethods
 import org.testng.annotations.{DataProvider, Test}

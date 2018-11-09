@@ -7,7 +7,7 @@ import is.hail.annotations._
 import is.hail.cxx._
 import is.hail.expr.Parser
 import is.hail.expr.types._
-import is.hail.expr.types.Type
+import is.hail.expr.types.virtual._
 import is.hail.io._
 import is.hail.io.compress.LZ4Utils
 import org.testng.annotations.Test

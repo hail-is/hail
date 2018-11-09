@@ -2,7 +2,7 @@ package is.hail.linalg
 
 import breeze.linalg.DenseMatrix
 import is.hail.HailContext
-import is.hail.expr.types.{TInt64, TStruct}
+import is.hail.expr.types.virtual.{TInt64, TStruct}
 import is.hail.io.InputBuffer
 import is.hail.rvd.RVDPartitioner
 import is.hail.utils._

@@ -7,6 +7,7 @@ import is.hail.expr.ir._
 import is.hail.expr.types
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PBaseStruct, PString, PStruct}
+import is.hail.expr.types.virtual._
 import is.hail.utils._
 import is.hail.variant.{Locus, RGBase, ReferenceGenome, VariantMethods}
 

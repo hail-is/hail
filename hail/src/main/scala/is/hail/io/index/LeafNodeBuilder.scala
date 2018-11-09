@@ -1,7 +1,7 @@
 package is.hail.io.index
 
 import is.hail.annotations.{Annotation, RegionValueBuilder}
-import is.hail.expr.types.{TArray, TInt64, TStruct, Type}
+import is.hail.expr.types.virtual.{TArray, TInt64, TStruct, Type}
 import is.hail.utils.ArrayBuilder
 
 object LeafNodeBuilder {

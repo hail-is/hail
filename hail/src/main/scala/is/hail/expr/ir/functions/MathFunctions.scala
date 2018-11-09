@@ -8,6 +8,7 @@ import org.apache.commons.math3.special.Gamma
 import is.hail.stats._
 import is.hail.utils._
 import is.hail.asm4s
+import is.hail.expr.types.virtual._
 
 object MathFunctions extends RegistryFunctions {
   def log(x: Double, b: Double): Double = math.log(x) / math.log(b)

@@ -1,9 +1,7 @@
-package is.hail.expr.types
+package is.hail.expr.types.virtual
 
 import is.hail.annotations._
-import is.hail.asm4s.{Code, _}
 import is.hail.check.Gen
-import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.physical.PBaseStruct
 import is.hail.utils._
 import org.apache.spark.sql.Row

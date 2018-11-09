@@ -2,12 +2,12 @@ package is.hail.expr.ir
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr.types.{MatrixType, TArray, TStruct, TableType}
-import is.hail.expr.types._
+import is.hail.expr.types.virtual.{TArray, TInt32, TStruct, Type}
+import is.hail.expr.types.{MatrixType, TableType}
 import is.hail.io.CodecSpec
 import is.hail.rvd.{AbstractRVDSpec, RVD, RVDType, _}
 import is.hail.sparkextras.ContextRDD
-import is.hail.table.{AbstractTableSpec, TableSpec}
+import is.hail.table.TableSpec
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.SparkContext

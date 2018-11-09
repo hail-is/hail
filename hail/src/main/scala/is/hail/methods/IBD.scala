@@ -7,6 +7,7 @@ import is.hail.table.Table
 import is.hail.annotations._
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PString, PType}
+import is.hail.expr.types.virtual.{TFloat64, TInt64, TString, TStruct}
 import is.hail.rvd.RVDContext
 import is.hail.sparkextras.ContextRDD
 import is.hail.variant.{Call, Genotype, HardCallView, MatrixTable}

@@ -3,6 +3,7 @@ package is.hail.stats
 import breeze.linalg.{Matrix, Vector}
 import is.hail.annotations.Annotation
 import is.hail.expr.types._
+import is.hail.expr.types.virtual.{TFloat64, TStruct}
 import net.sourceforge.jdistlib.T
 
 object LinearRegressionModel {

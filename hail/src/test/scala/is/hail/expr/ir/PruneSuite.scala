@@ -4,6 +4,7 @@ import is.hail.SparkSuite
 import is.hail.annotations.{BroadcastIndexedSeq, BroadcastRow}
 import is.hail.expr._
 import is.hail.expr.types._
+import is.hail.expr.types.virtual._
 import is.hail.rvd.RVD
 import is.hail.table._
 import is.hail.utils._

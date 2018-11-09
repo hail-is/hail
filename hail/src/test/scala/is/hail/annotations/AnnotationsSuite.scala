@@ -2,6 +2,7 @@ package is.hail.annotations
 
 import is.hail.SparkSuite
 import is.hail.expr.types._
+import is.hail.expr.types.virtual._
 import is.hail.utils._
 import is.hail.testUtils._
 import org.testng.annotations.Test

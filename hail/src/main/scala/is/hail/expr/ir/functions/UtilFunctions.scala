@@ -6,6 +6,7 @@ import is.hail.expr.ir._
 import is.hail.expr.types._
 import is.hail.utils._
 import is.hail.expr.types.coerce
+import is.hail.expr.types.virtual._
 import org.apache.spark.sql.Row
 
 object UtilFunctions extends RegistryFunctions {

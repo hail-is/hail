@@ -6,8 +6,9 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.PruneDeadFields.isSupertype
-import is.hail.expr.types._
+import is.hail.expr.types.{virtual, _}
 import is.hail.expr.types.physical.{PInt64, PStruct}
+import is.hail.expr.types.virtual.{TArray, TInterval, TStruct}
 import is.hail.io.CodecSpec
 import is.hail.sparkextras._
 import is.hail.utils._

@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.expr.JSONAnnotationImpex
-import is.hail.expr.types.TArray
+import is.hail.expr.types.virtual.TArray
 import is.hail.io.vcf.MatrixVCFReader
 import is.hail.table.Ascending
 import is.hail.utils._

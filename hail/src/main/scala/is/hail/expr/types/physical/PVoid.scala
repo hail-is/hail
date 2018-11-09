@@ -1,7 +1,7 @@
 package is.hail.expr.types.physical
 import is.hail.annotations.{CodeOrdering, ExtendedOrdering}
 import is.hail.expr.ir.EmitMethodBuilder
-import is.hail.expr.types.{TVoid, Type}
+import is.hail.expr.types.virtual.{TVoid, Type}
 
 case object PVoid extends PType {
   def virtualType: Type = TVoid

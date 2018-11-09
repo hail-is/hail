@@ -3,6 +3,7 @@ package is.hail.io.vcf
 import htsjdk.variant.variantcontext.VariantContext
 import is.hail.annotations._
 import is.hail.expr.types._
+import is.hail.expr.types.virtual._
 import is.hail.utils._
 
 class BufferedLineIterator(bit: BufferedIterator[String]) extends htsjdk.tribble.readers.LineIterator {

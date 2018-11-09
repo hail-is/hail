@@ -5,6 +5,7 @@ import java.util
 import is.hail.annotations._
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PArray, PInt64Required, PStruct}
+import is.hail.expr.types.virtual._
 import org.apache.spark.storage.StorageLevel
 import is.hail.rvd.{RVD, RVDType}
 import is.hail.table.Table

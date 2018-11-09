@@ -1,4 +1,4 @@
-package is.hail.expr.types
+package is.hail.expr.types.virtual
 
 abstract class ComplexType extends Type {
   val representation: Type

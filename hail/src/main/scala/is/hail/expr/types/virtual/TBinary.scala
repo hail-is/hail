@@ -1,13 +1,9 @@
-package is.hail.expr.types
+package is.hail.expr.types.virtual
 
-import is.hail.annotations.CodeOrdering
-import is.hail.annotations.{Region, UnsafeOrdering, _}
-import is.hail.asm4s._
+import is.hail.annotations._
 import is.hail.check.Arbitrary._
 import is.hail.check.Gen
-import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.physical.PBinary
-import is.hail.utils._
 
 import scala.reflect.{ClassTag, _}
 

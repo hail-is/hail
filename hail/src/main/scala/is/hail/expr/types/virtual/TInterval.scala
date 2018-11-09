@@ -1,14 +1,11 @@
-package is.hail.expr.types
+package is.hail.expr.types.virtual
 
-import is.hail.annotations._
-import is.hail.asm4s.Code
+import is.hail.annotations.{Annotation, ExtendedOrdering}
 import is.hail.check.Gen
-import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.physical.PInterval
-import is.hail.utils._
+import is.hail.utils.{FastSeq, Interval}
 
 import scala.reflect.{ClassTag, classTag}
-
 
 case class TInterval(pointType: Type, override val required: Boolean = false) extends ComplexType {
   lazy val physicalType: PInterval = PInterval(pointType.physicalType, required)

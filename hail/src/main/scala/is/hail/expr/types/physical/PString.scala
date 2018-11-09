@@ -6,7 +6,7 @@ import is.hail.annotations.{UnsafeOrdering, _}
 import is.hail.check.Arbitrary._
 import is.hail.check.Gen
 import is.hail.expr.ir.EmitMethodBuilder
-import is.hail.expr.types.TString
+import is.hail.expr.types.virtual.TString
 import is.hail.utils._
 
 import scala.reflect.{ClassTag, _}

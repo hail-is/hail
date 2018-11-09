@@ -6,9 +6,10 @@ import is.hail.check.Gen
 import is.hail.check.Prop.forAll
 import is.hail.expr._
 import is.hail.expr.types._
+import is.hail.expr.types.virtual._
 import is.hail.rvd.RVD
 import is.hail.table.Table
-import is.hail.variant.{ReferenceGenome$, MatrixTable, VSMSubgen}
+import is.hail.variant.{MatrixTable, ReferenceGenome$, VSMSubgen}
 import org.apache.spark.SparkException
 import org.testng.annotations.Test
 import is.hail.utils._

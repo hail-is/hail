@@ -2,6 +2,8 @@ package is.hail.utils
 
 import is.hail.expr.types._
 import is.hail.annotations._
+import is.hail.expr.types.virtual.{TArray, TFloat64}
+
 import scala.collection.mutable
 
 class MissingDoubleArrayBuilder extends Serializable {

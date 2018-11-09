@@ -1,8 +1,8 @@
 package is.hail.annotations.aggregators
 
 import is.hail.annotations._
-import is.hail.expr.types.{TArray, TFloat64, TInt64, Type}
 import is.hail.expr.types.physical.{PArray, PFloat64, PInt64, PType}
+import is.hail.expr.types.virtual.{TArray, TFloat64, TInt64, Type}
 import is.hail.utils._
 
 class RegionValueArraySumLongAggregator(t: Type) extends RegionValueAggregator {

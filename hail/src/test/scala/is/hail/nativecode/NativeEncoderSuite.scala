@@ -5,12 +5,12 @@ import java.io.ByteArrayOutputStream
 import is.hail.SparkSuite
 import is.hail.annotations._
 import is.hail.cxx._
-import is.hail.expr.types._
+import is.hail.expr.types.virtual.{TInt32, TInterval, TSet, TStruct, _}
 import is.hail.io._
 import is.hail.io.compress.LZ4Utils
-import org.testng.annotations.Test
 import is.hail.utils._
 import org.apache.spark.sql.Row
+import org.testng.annotations.Test
 
 class NativeEncoderSuite extends SparkSuite {
 

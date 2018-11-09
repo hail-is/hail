@@ -2,7 +2,7 @@ package is.hail.expr.types.physical
 
 import is.hail.annotations.{CodeOrdering, ExtendedOrdering}
 import is.hail.expr.ir.EmitMethodBuilder
-import is.hail.expr.types.TTuple
+import is.hail.expr.types.virtual.TTuple
 import is.hail.utils._
 
 final case class PTuple(_types: IndexedSeq[PType], override val required: Boolean = false) extends PBaseStruct {

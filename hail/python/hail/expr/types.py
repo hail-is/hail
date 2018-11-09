@@ -260,7 +260,7 @@ class _tint32(HailType):
     """
 
     def __init__(self):
-        self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TInt32Optional')
+        self._get_jtype = lambda: scala_object(Env.hail().expr.types.virtual, 'TInt32Optional')
         super(_tint32, self).__init__()
 
     def _convert_to_py(self, annotation):
@@ -304,7 +304,7 @@ class _tint64(HailType):
     """
 
     def __init__(self):
-        self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TInt64Optional')
+        self._get_jtype = lambda: scala_object(Env.hail().expr.types.virtual, 'TInt64Optional')
         super(_tint64, self).__init__()
 
     def _convert_to_py(self, annotation):
@@ -343,7 +343,7 @@ class _tfloat32(HailType):
     """
 
     def __init__(self):
-        self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TFloat32Optional')
+        self._get_jtype = lambda: scala_object(Env.hail().expr.types.virtual, 'TFloat32Optional')
         super(_tfloat32, self).__init__()
 
     def _convert_to_py(self, annotation):
@@ -385,7 +385,7 @@ class _tfloat64(HailType):
     """
 
     def __init__(self):
-        self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TFloat64Optional')
+        self._get_jtype = lambda: scala_object(Env.hail().expr.types.virtual, 'TFloat64Optional')
         super(_tfloat64, self).__init__()
 
     def _convert_to_py(self, annotation):
@@ -423,7 +423,7 @@ class _tstr(HailType):
     """
 
     def __init__(self):
-        self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TStringOptional')
+        self._get_jtype = lambda: scala_object(Env.hail().expr.types.virtual, 'TStringOptional')
         super(_tstr, self).__init__()
 
     def _convert_to_py(self, annotation):
@@ -450,7 +450,7 @@ class _tbool(HailType):
     """
 
     def __init__(self):
-        self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TBooleanOptional')
+        self._get_jtype = lambda: scala_object(Env.hail().expr.types.virtual, 'TBooleanOptional')
         super(_tbool, self).__init__()
 
     def _convert_to_py(self, annotation):
@@ -493,7 +493,7 @@ class tarray(HailType):
 
     @typecheck_method(element_type=hail_type)
     def __init__(self, element_type):
-        self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TArray').apply(element_type._jtype, False)
+        self._get_jtype = lambda: scala_object(Env.hail().expr.types.virtual, 'TArray').apply(element_type._jtype, False)
         self._element_type = element_type
         super(tarray, self).__init__()
 
@@ -577,7 +577,7 @@ class tset(HailType):
 
     @typecheck_method(element_type=hail_type)
     def __init__(self, element_type):
-        self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TSet').apply(element_type._jtype, False)
+        self._get_jtype = lambda: scala_object(Env.hail().expr.types.virtual, 'TSet').apply(element_type._jtype, False)
         self._element_type = element_type
         super(tset, self).__init__()
 
@@ -662,7 +662,7 @@ class tdict(HailType):
 
     @typecheck_method(key_type=hail_type, value_type=hail_type)
     def __init__(self, key_type, value_type):
-        self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TDict').apply(
+        self._get_jtype = lambda: scala_object(Env.hail().expr.types.virtual, 'TDict').apply(
             key_type._jtype, value_type._jtype, False)
         self._key_type = key_type
         self._value_type = value_type
@@ -764,7 +764,7 @@ class tstruct(HailType, Mapping):
         self._field_types = field_types
         self._fields = tuple(field_types)
 
-        self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TStruct').apply(
+        self._get_jtype = lambda: scala_object(Env.hail().expr.types.virtual, 'TStruct').apply(
             list(self._fields),
             [t._jtype for f, t in self._field_types.items()],
             False)
@@ -885,7 +885,7 @@ class ttuple(HailType):
 
     @typecheck_method(types=hail_type)
     def __init__(self, *types):
-        self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TTuple').apply(map(lambda t: t._jtype, types),
+        self._get_jtype = lambda: scala_object(Env.hail().expr.types.virtual, 'TTuple').apply(map(lambda t: t._jtype, types),
                                                                                       False)
         self._types = types
         super(ttuple, self).__init__()
@@ -968,7 +968,7 @@ class _tcall(HailType):
     """
 
     def __init__(self):
-        self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TCallOptional')
+        self._get_jtype = lambda: scala_object(Env.hail().expr.types.virtual, 'TCallOptional')
         super(_tcall, self).__init__()
 
     @typecheck_method(annotation=nullable(int))
@@ -1022,7 +1022,7 @@ class tlocus(HailType):
     @typecheck_method(reference_genome=reference_genome_type)
     def __init__(self, reference_genome='default'):
         self._rg = reference_genome
-        self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TLocus').apply(self._rg._jrep,
+        self._get_jtype = lambda: scala_object(Env.hail().expr.types.virtual, 'TLocus').apply(self._rg._jrep,
                                                                                       False)
         super(tlocus, self).__init__()
 
@@ -1094,7 +1094,7 @@ class tinterval(HailType):
 
     @typecheck_method(point_type=hail_type)
     def __init__(self, point_type):
-        self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TInterval').apply(self.point_type._jtype, False)
+        self._get_jtype = lambda: scala_object(Env.hail().expr.types.virtual, 'TInterval').apply(self.point_type._jtype, False)
         self._point_type = point_type
         super(tinterval, self).__init__()
 

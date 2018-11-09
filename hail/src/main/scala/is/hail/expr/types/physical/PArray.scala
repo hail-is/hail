@@ -3,7 +3,7 @@ package is.hail.expr.types.physical
 import is.hail.annotations.{UnsafeUtils, _}
 import is.hail.check.Gen
 import is.hail.expr.ir.EmitMethodBuilder
-import is.hail.expr.types.TArray
+import is.hail.expr.types.virtual.TArray
 import org.json4s.jackson.JsonMethods
 
 import scala.reflect.{ClassTag, _}

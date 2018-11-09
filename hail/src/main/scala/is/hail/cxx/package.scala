@@ -2,63 +2,65 @@ package is.hail
 
 import is.hail.expr.types
 import is.hail.expr.types.physical.PType
+import is.hail.expr.types.virtual
+import is.hail.expr.types.virtual._
 
 package object cxx {
 
   def typeToCXXType(pType: PType): Type = {
     pType.virtualType.fundamentalType match {
-      case _: types.TInt32 => "int"
-      case _: types.TInt64 => "long"
-      case _: types.TFloat32 => "float"
-      case _: types.TFloat64 => "double"
-      case _: types.TBoolean => "bool"
-      case _: types.TBinary => "char *"
-      case _: types.TArray => "char *"
-      case _: types.TBaseStruct => "char *"
-      case types.TVoid => "void"
+      case _: TInt32 => "int"
+      case _: TInt64 => "long"
+      case _: TFloat32 => "float"
+      case _: TFloat64 => "double"
+      case _: TBoolean => "bool"
+      case _: TBinary => "char *"
+      case _: TArray => "char *"
+      case _: TBaseStruct => "char *"
+      case TVoid => "void"
       case _ => throw new RuntimeException(s"unsupported type found, $pType")
     }
   }
 
   def typeDefaultValue(pType: PType): Type = {
     pType.virtualType.fundamentalType match {
-      case _: types.TInt32 => "0"
-      case _: types.TInt64 => "0l"
-      case _: types.TFloat32 => "0.0f"
-      case _: types.TFloat64 => "0.0"
-      case _: types.TBoolean => "false"
-      case _: types.TBinary => "(char *)nullptr"
-      case _: types.TArray => "(char *)nullptr"
-      case _: types.TBaseStruct => "(char *)nullptr"
-      case types.TVoid => ""
+      case _: TInt32 => "0"
+      case _: TInt64 => "0l"
+      case _: TFloat32 => "0.0f"
+      case _: TFloat64 => "0.0"
+      case _: TBoolean => "false"
+      case _: TBinary => "(char *)nullptr"
+      case _: TArray => "(char *)nullptr"
+      case _: TBaseStruct => "(char *)nullptr"
+      case TVoid => ""
       case _ => throw new RuntimeException(s"unsupported type found, $pType")
     }
   }
 
   def loadIRIntermediate(pType: PType, a: Code): Code = {
     pType.virtualType.fundamentalType match {
-      case _: types.TInt32 => s"load_int($a)"
-      case _: types.TInt64 => s"load_long($a)"
-      case _: types.TFloat32 => s"load_float($a)"
-      case _: types.TFloat64 => s"load_double($a)"
-      case _: types.TBoolean => s"load_bool($a)"
-      case _: types.TBinary => s"load_address($a)"
-      case _: types.TArray => s"load_address($a)"
-      case _: types.TBaseStruct => a
+      case _: TInt32 => s"load_int($a)"
+      case _: TInt64 => s"load_long($a)"
+      case _: TFloat32 => s"load_float($a)"
+      case _: TFloat64 => s"load_double($a)"
+      case _: TBoolean => s"load_bool($a)"
+      case _: TBinary => s"load_address($a)"
+      case _: TArray => s"load_address($a)"
+      case _: TBaseStruct => a
       case _ => throw new RuntimeException(s"unsupported type found, $pType")
     }
   }
 
   def storeIRIntermediate(pType: PType, a: Code, v: Code): Code = {
     pType.virtualType.fundamentalType match {
-      case _: types.TInt32 => s"store_int($a, $v)"
-      case _: types.TInt64 => s"store_long($a, $v)"
-      case _: types.TFloat32 => s"store_float($a, $v)"
-      case _: types.TFloat64 => s"store_double($a, $v)"
-      case _: types.TBoolean => s"store_bool($a, $v)"
-      case _: types.TBinary => s"store_address($a, $v)"
-      case _: types.TArray => s"store_address($a, $v)"
-      case _: types.TBaseStruct => s"memcpy($a, $v, ${ pType.byteSize })"
+      case _: TInt32 => s"store_int($a, $v)"
+      case _: TInt64 => s"store_long($a, $v)"
+      case _: TFloat32 => s"store_float($a, $v)"
+      case _: TFloat64 => s"store_double($a, $v)"
+      case _: TBoolean => s"store_bool($a, $v)"
+      case _: TBinary => s"store_address($a, $v)"
+      case _: TArray => s"store_address($a, $v)"
+      case _: TBaseStruct => s"memcpy($a, $v, ${ pType.byteSize })"
       case _ => throw new RuntimeException(s"unsupported type found, $pType")
     }
   }

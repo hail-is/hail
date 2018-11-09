@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
-import is.hail.expr.types._
+import is.hail.expr.types.{virtual, _}
+import is.hail.expr.types.virtual._
 
 object Infer {
   def apply(ir: InferIR): Type = {

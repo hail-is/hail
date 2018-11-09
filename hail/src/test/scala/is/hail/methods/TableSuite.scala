@@ -2,7 +2,8 @@ package is.hail.methods
 
 import is.hail.{SparkSuite, TestUtils}
 import is.hail.expr._
-import is.hail.expr.types._
+import is.hail.expr.types.{virtual, _}
+import is.hail.expr.types.virtual._
 import is.hail.rvd.RVD
 import is.hail.table.Table
 import is.hail.utils._

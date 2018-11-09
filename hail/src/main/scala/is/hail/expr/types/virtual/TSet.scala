@@ -1,12 +1,12 @@
-package is.hail.expr.types
+package is.hail.expr.types.virtual
 
-import is.hail.annotations.{UnsafeUtils, _}
+import is.hail.annotations.{Annotation, ExtendedOrdering}
 import is.hail.check.Gen
 import is.hail.expr.types.physical.PSet
 import is.hail.utils._
 import org.json4s.jackson.JsonMethods
 
-import scala.reflect.{ClassTag, _}
+import scala.reflect.{ClassTag, classTag}
 
 final case class TSet(elementType: Type, override val required: Boolean = false) extends TIterable {
   lazy val physicalType: PSet = PSet(elementType.physicalType, required)

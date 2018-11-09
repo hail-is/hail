@@ -2,7 +2,7 @@ package is.hail.rvd
 
 import is.hail.utils._
 import is.hail.annotations.{RegionValue, SafeRow, WritableRegionValue}
-import is.hail.expr.types.Type
+import is.hail.expr.types.virtual.Type
 
 case class RVDPartitionInfo(
   partitionIndex: Int,

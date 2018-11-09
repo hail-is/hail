@@ -9,6 +9,7 @@ import is.hail.utils._
 import is.hail.asm4s.coerce
 import is.hail.experimental.ExperimentalFunctions
 import is.hail.expr.types.physical.{PString, PType}
+import is.hail.expr.types.virtual._
 import is.hail.variant.Call
 
 import scala.collection.mutable

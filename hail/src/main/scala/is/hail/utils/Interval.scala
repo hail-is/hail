@@ -2,7 +2,7 @@ package is.hail.utils
 
 import is.hail.annotations._
 import is.hail.check._
-import is.hail.expr.types.{TBoolean, TInterval, TStruct}
+import is.hail.expr.types.virtual.{TBoolean, TStruct}
 import org.apache.spark.sql.Row
 import org.json4s.JValue
 import org.json4s.JsonAST.JObject

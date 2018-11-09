@@ -1,9 +1,8 @@
-package is.hail.expr.types
+package is.hail.expr.types.virtual
 
 import is.hail.annotations.{Annotation, AnnotationPathException, _}
-import is.hail.asm4s.Code
 import is.hail.expr.Parser
-import is.hail.expr.ir.{EmitMethodBuilder, Env}
+import is.hail.expr.ir.Env
 import is.hail.expr.types.physical.{PField, PStruct}
 import is.hail.utils._
 import org.apache.spark.sql.Row

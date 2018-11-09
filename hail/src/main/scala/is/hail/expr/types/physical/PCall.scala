@@ -3,7 +3,7 @@ package is.hail.expr.types.physical
 import is.hail.annotations._
 import is.hail.check.Gen
 import is.hail.expr.ir.EmitMethodBuilder
-import is.hail.expr.types.TCall
+import is.hail.expr.types.virtual.TCall
 import is.hail.variant.Call
 
 import scala.reflect.{ClassTag, _}

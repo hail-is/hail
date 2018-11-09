@@ -13,7 +13,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import com.sun.jna.Native
 import com.sun.jna.ptr.IntByReference
-import is.hail.expr.types.TStruct
+import is.hail.expr.types.virtual.{TFloat64, TInt32, TStruct, Type}
 
 /*
 Skat implements the burden test described in:

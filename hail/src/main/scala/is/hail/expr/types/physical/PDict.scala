@@ -3,7 +3,7 @@ package is.hail.expr.types.physical
 import is.hail.annotations.{UnsafeUtils, _}
 import is.hail.check.Gen
 import is.hail.expr.ir.EmitMethodBuilder
-import is.hail.expr.types.TDict
+import is.hail.expr.types.virtual.TDict
 import is.hail.utils._
 import org.json4s.jackson.JsonMethods
 

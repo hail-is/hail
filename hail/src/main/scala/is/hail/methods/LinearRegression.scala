@@ -4,7 +4,8 @@ import breeze.linalg._
 import breeze.numerics.sqrt
 import is.hail.annotations._
 import is.hail.expr.ir.{TableLiteral, TableValue}
-import is.hail.expr.types._
+import is.hail.expr.types.{virtual, _}
+import is.hail.expr.types.virtual.{TArray, TFloat64, TInt32, TStruct}
 import is.hail.stats._
 import is.hail.table.Table
 import is.hail.utils._

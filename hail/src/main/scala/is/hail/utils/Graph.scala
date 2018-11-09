@@ -2,7 +2,7 @@ package is.hail.utils
 
 import is.hail.annotations.{Region, RegionValueBuilder, SafeRow}
 import is.hail.expr.ir.{Compile, MakeTuple}
-import is.hail.expr.types._
+import is.hail.expr.types.virtual.{TBaseStruct, TInt64, TTuple, Type}
 import is.hail.expr.{IRParserEnvironment, Parser}
 import org.apache.spark.sql.Row
 

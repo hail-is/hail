@@ -3,9 +3,10 @@ package is.hail.expr.ir
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.annotations.aggregators.RegionValueAggregator
-import is.hail.expr.types._
+import is.hail.expr.types.{virtual, _}
 import is.hail.expr.types.physical.PStruct
 import is.hail.expr.ir
+import is.hail.expr.types.virtual._
 import is.hail.io.bgen.MatrixBGENReader
 import is.hail.io.vcf.MatrixVCFReader
 import is.hail.rvd._

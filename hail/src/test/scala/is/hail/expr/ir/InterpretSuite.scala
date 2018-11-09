@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.expr.types._
 import is.hail.utils.{FastIndexedSeq, FastSeq}
 import is.hail.TestUtils._
+import is.hail.expr.types.virtual._
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 

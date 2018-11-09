@@ -8,6 +8,7 @@ import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.{TableLiteral, TableValue}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PType
+import is.hail.expr.types.virtual._
 import is.hail.rvd.{RVD, RVDContext}
 import is.hail.sparkextras.ContextRDD
 import is.hail.table.Table

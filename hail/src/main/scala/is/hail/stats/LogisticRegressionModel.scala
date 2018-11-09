@@ -4,6 +4,7 @@ import breeze.linalg._
 import breeze.numerics._
 import is.hail.annotations.RegionValueBuilder
 import is.hail.expr.types._
+import is.hail.expr.types.virtual._
 import is.hail.utils.fatal
 
 object LogisticRegressionTest {

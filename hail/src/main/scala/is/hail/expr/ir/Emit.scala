@@ -6,6 +6,7 @@ import is.hail.annotations.aggregators._
 import is.hail.expr.ir.functions.MathFunctions
 import is.hail.expr.types._
 import is.hail.expr.types.physical._
+import is.hail.expr.types.virtual._
 import is.hail.utils._
 
 import scala.collection.mutable

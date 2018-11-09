@@ -9,6 +9,7 @@ import is.hail.table.Table
 import is.hail.utils._
 import is.hail.variant.{Call, HardCallView, MatrixTable}
 import is.hail.HailContext
+import is.hail.expr.types.virtual._
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}

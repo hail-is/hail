@@ -2,7 +2,7 @@ package is.hail.vds
 
 import is.hail.SparkSuite
 import is.hail.annotations._
-import is.hail.expr.types.{TLocus, TStruct}
+import is.hail.expr.types.virtual.{TLocus, TStruct}
 import is.hail.table.Table
 import is.hail.testUtils._
 import is.hail.variant.{Locus, MatrixTable, ReferenceGenome}

@@ -3,7 +3,8 @@ package is.hail.methods
 import breeze.linalg._
 import is.hail.annotations._
 import is.hail.expr.ir.{TableLiteral, TableValue}
-import is.hail.expr.types.{TFloat64, TStruct, TableType}
+import is.hail.expr.types.virtual.{TFloat64, TStruct}
+import is.hail.expr.types.TableType
 import is.hail.stats._
 import is.hail.table.Table
 import is.hail.utils._

@@ -4,7 +4,7 @@ import is.hail.annotations._
 import is.hail.asm4s.Code
 import is.hail.check._
 import is.hail.expr.ir.EmitMethodBuilder
-import is.hail.expr.types.TLocus
+import is.hail.expr.types.virtual.TLocus
 import is.hail.utils._
 import is.hail.variant._
 

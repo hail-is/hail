@@ -5,6 +5,7 @@ import is.hail.annotations.BroadcastRow
 import is.hail.expr.ir
 import is.hail.expr.ir.{Interpret, MatrixAnnotateRowsTable, TableLiteral, TableValue}
 import is.hail.expr.types._
+import is.hail.expr.types.virtual.{TInt32, TStruct}
 import is.hail.rvd.RVD
 import is.hail.table.Table
 import is.hail.variant.MatrixTable

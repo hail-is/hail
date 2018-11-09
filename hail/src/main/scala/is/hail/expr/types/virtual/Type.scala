@@ -1,10 +1,10 @@
-package is.hail.expr.types
+package is.hail.expr.types.virtual
 
 import is.hail.annotations._
 import is.hail.check.{Arbitrary, Gen}
-import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.types._
 import is.hail.expr.types.physical.PType
-import is.hail.expr.{JSONAnnotationImpex, Parser, SparkAnnotationImpex}
+import is.hail.expr.{JSONAnnotationImpex, SparkAnnotationImpex}
 import is.hail.utils
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
