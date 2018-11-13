@@ -1548,6 +1548,7 @@ class WriteBlocksRDD(path: String,
 
   private val blockSize = gp.blockSize
   private val crdd = rvd.crdd
+  private val rvRowType = rvd.rowPType
 
   private val d = digitsNeeded(gp.numPartitions)
   private val sHadoopBc = sc.broadcast(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
@@ -1619,7 +1620,6 @@ class WriteBlocksRDD(path: String,
     }
       .unzip
 
-    val rvRowType = rvd.rowPType
     val entryArrayType = MatrixType.getEntryArrayType(rvRowType)
     val entryType = MatrixType.getEntryType(rvRowType)
     val fieldType = entryType.field(entryField).typ
