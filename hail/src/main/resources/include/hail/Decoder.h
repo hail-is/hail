@@ -9,6 +9,7 @@
 #include <jni.h>
 #include <memory>
 #include <cstring>
+#include <cassert>
 
 namespace hail {
 
@@ -214,66 +215,57 @@ class LEB128InputBuffer {
 template<typename Decoder>
 class Reader {
 private:
-  std::shared_ptr<Decoder> dec_;
+  Decoder dec_;
   Region * region_;
   NativeStatus * st_;
   char * value_;
 
-public:
-  Reader() : dec_(nullptr), region_(nullptr), st_(nullptr), value_(nullptr) { }
+  bool read() {
+    if (dec_.decode_byte(st_)) {
+      value_ = dec_.decode_row(st_, region_);
+    } else {
+      value_ = nullptr;
+    }
+  return (value_ == nullptr);
+  }
 
-  Reader(std::shared_ptr<Decoder> dec, Region * region, NativeStatus* st) :
+  char * get() const { return value_; }
+
+public:
+  Reader(Decoder dec, Region * region, NativeStatus* st) :
   dec_(dec), region_(region), st_(st), value_(nullptr) {
     read();
   }
 
-  bool read() {
-    if (dec_ != nullptr) {
-      if (dec_->decode_byte(st_)) {
-        value_ = dec_->decode_row(st_, region_);
-      } else {
-        value_ = nullptr;
-        dec_ = nullptr;
+  class ReadIterator {
+  friend class Reader;
+  private:
+    Reader<Decoder> * reader_;
+    explicit ReadIterator(Reader<Decoder> * reader) :
+    reader_(reader) { }
+
+  public:
+    ReadIterator& operator++() {
+      if (reader_ != nullptr && !(reader_->read())) {
+        reader_ = nullptr;
       }
+      return *this;
     }
-    return (value_ == nullptr);
-  }
 
-  char * get() { return value_; }
-};
+    char const* operator*() const { return reader_->get(); }
 
-template<typename Decoder>
-class ReadIterator {
-private:
-  Reader<Decoder> * reader_;
-
-public:
-  ReadIterator(Reader<Decoder> * reader) :
-  reader_(reader) { }
-
-  ReadIterator<Decoder>& operator++() {
-    if (reader_ != nullptr && !(reader_->read())) {
-      reader_ = nullptr;
+    friend bool operator==(ReadIterator const& lhs, ReadIterator const& rhs) {
+      return (lhs.reader_ == rhs.reader_);
     }
-    return *this;
-  }
 
-  char const* operator*() { return reader_->get(); }
+    friend bool operator!=(ReadIterator const& lhs, ReadIterator const& rhs) {
+      return !(lhs == rhs);
+    }
+  };
 
-  friend bool operator==(ReadIterator<Decoder> const& lhs, ReadIterator<Decoder> const& rhs) {
-    return (lhs.reader_ == rhs.reader_);
-  }
-
-  friend bool operator!=(ReadIterator<Decoder> const& lhs, ReadIterator<Decoder> const& rhs) {
-    return !(lhs == rhs);
-  }
+  ReadIterator begin() { return ReadIterator(this); }
+  ReadIterator end() { return ReadIterator(nullptr); }
 };
-
-template<typename Decoder>
-ReadIterator<Decoder> begin(Reader<Decoder> * reader) { return ReadIterator<Decoder>(reader); }
-
-template<typename Decoder>
-ReadIterator<Decoder> end(Reader<Decoder> * reader) { return ReadIterator<Decoder>(nullptr); }
 
 }
 

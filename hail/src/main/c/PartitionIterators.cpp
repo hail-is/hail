@@ -3,24 +3,24 @@
 #include <jni.h>
 
 namespace hail {
-JavaIteratorWrapper::JavaIteratorWrapper(JavaIteratorWrapper &it) :
+JavaIteratorObject::JavaIteratorObject(JavaIteratorObject &it) :
 up_(it.up_),
 jrvit_(it.up_.env()->NewGlobalRef(it.jrvit_)),
 row_(nullptr) { }
 
-JavaIteratorWrapper::JavaIteratorWrapper(JavaIteratorWrapper &&it) :
+JavaIteratorObject::JavaIteratorObject(JavaIteratorObject &&it) :
 up_(it.up_),
 jrvit_(std::move(it.jrvit_)),
 row_(nullptr) { }
 
-JavaIteratorWrapper::JavaIteratorWrapper(UpcallEnv up, jobject jrvit) :
+JavaIteratorObject::JavaIteratorObject(UpcallEnv up, jobject jrvit) :
 up_(up),
 jrvit_(up.env()->NewGlobalRef(jrvit)),
 row_(nullptr) {
   advance();
 }
 
-bool JavaIteratorWrapper::advance() {
+bool JavaIteratorObject::advance() {
   if (jrvit_ == nullptr) {
     return false;
   }
@@ -35,26 +35,26 @@ bool JavaIteratorWrapper::advance() {
   return has_next;
 }
 
-char const* JavaIteratorWrapper::get() { return row_; }
+char const* JavaIteratorObject::get() const { return row_; }
 
-JavaIteratorWrapper::~JavaIteratorWrapper() {
+JavaIteratorObject::~JavaIteratorObject() {
   if (jrvit_ != nullptr) {
     up_.env()->DeleteGlobalRef(jrvit_);
     jrvit_ = nullptr;
   }
 }
 
-JavaRVIterator::JavaRVIterator(JavaIteratorWrapper * jrvit) :
+JavaIteratorObject::RVIterator::RVIterator(JavaIteratorObject * jrvit) :
 jit_(jrvit) { }
 
-JavaRVIterator& JavaRVIterator::operator++() {
+JavaIteratorObject::RVIterator& JavaIteratorObject::RVIterator::operator++() {
   if (jit_ != nullptr && !jit_->advance()) {
     jit_ = nullptr;
   }
   return *this;
 }
 
-char const* JavaRVIterator::operator*() {
+char const* JavaIteratorObject::RVIterator::operator*() const {
   return jit_->get();
 }
 

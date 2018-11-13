@@ -9,41 +9,43 @@
 
 namespace hail {
 
-class JavaIteratorWrapper : public NativeObj {
+class JavaIteratorObject : public NativeObj {
   private:
     UpcallEnv up_;
     jobject jrvit_;
     char * row_;
-
-  public:
-    JavaIteratorWrapper() = delete;
-    JavaIteratorWrapper(JavaIteratorWrapper &it);
-    JavaIteratorWrapper(JavaIteratorWrapper &&it);
-    JavaIteratorWrapper(UpcallEnv up, jobject jrvit);
     bool advance();
-    char const* get();
-    ~JavaIteratorWrapper();
-};
-
-class JavaRVIterator {
-  private:
-    JavaIteratorWrapper * jit_;
+    char const* get() const;
 
   public:
-    JavaRVIterator() = delete;
-    JavaRVIterator(JavaIteratorWrapper * jrvit);
-    JavaRVIterator& operator++();
-    friend bool operator==(JavaRVIterator const& lhs, JavaRVIterator const& rhs) {
-      return (lhs.jit_ == rhs.jit_);
-    }
-    friend bool operator!=(JavaRVIterator const& lhs, JavaRVIterator const& rhs) {
-      return !(lhs == rhs);
-    }
-    char const* operator*();
+    JavaIteratorObject() = delete;
+    JavaIteratorObject(JavaIteratorObject &it);
+    JavaIteratorObject(JavaIteratorObject &&it);
+    JavaIteratorObject(UpcallEnv up, jobject jrvit);
+    ~JavaIteratorObject();
+
+    class RVIterator {
+      friend class JavaIteratorObject;
+      private:
+        JavaIteratorObject * jit_;
+        explicit RVIterator(JavaIteratorObject * jrvit);
+
+      public:
+        RVIterator() = delete;
+        RVIterator& operator++();
+        friend bool operator==(RVIterator const& lhs, RVIterator const& rhs) {
+          return (lhs.jit_ == rhs.jit_);
+        }
+        friend bool operator!=(RVIterator const& lhs, RVIterator const& rhs) {
+          return !(lhs == rhs);
+        }
+        char const* operator*() const;
+    };
+    RVIterator begin() { return RVIterator(this); };
+    RVIterator end() { return RVIterator(nullptr); };
 };
 
-JavaRVIterator begin(JavaIteratorWrapper * it) { return JavaRVIterator(it); };
-JavaRVIterator end(JavaIteratorWrapper * it) { return JavaRVIterator(nullptr); };
+using RVIterator = JavaIteratorObject::RVIterator;
 
 }
 

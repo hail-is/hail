@@ -46,15 +46,15 @@ class RegionValueIteratorSuite extends SparkSuite {
     val partitionFB = FunctionBuilder("partition_f", Array("NativeStatus*" -> "st", "long" -> "objects"), "long")
     val up = Variable("up", "UpcallEnv")
     val encoder = Variable("encoder", encClass.name, s"std::make_shared<OutputStream>($up, reinterpret_cast<ObjectArray * >(${ partitionFB.getArg(1) })->at(1))")
-    val jit = Variable("jit", "std::shared_ptr<JavaIteratorWrapper>", s"std::make_shared<JavaIteratorWrapper>($up, reinterpret_cast<ObjectArray * >(${ partitionFB.getArg(1) })->at(0))")
-    val it = Variable("it", "JavaRVIterator", s"begin($jit.get())")
+    val jit = Variable("jit", "JavaIteratorObject", s"JavaIteratorObject($up, reinterpret_cast<ObjectArray * >(${ partitionFB.getArg(1) })->at(0))")
+    val it = Variable("it", "RVIterator", s"$jit.begin()")
 
     partitionFB += up.define
     partitionFB += encoder.define
     partitionFB += jit.define
     partitionFB +=
       s"""
-         |for(${ it.define } $it != end($jit.get()); ++$it) {
+         |for(${ it.define } $it != $jit.end(); ++$it) {
          |  $encoder.encode_row(${ partitionFB.getArg(0) }, *$it);
          |}
          |$encoder.flush(${ partitionFB.getArg(0) });
@@ -107,15 +107,15 @@ class RegionValueIteratorSuite extends SparkSuite {
       tub += decClass
 
       val cb = new ClassBuilder("CXXIterator", "NativeObj")
-      val it = Variable("it", s"std::shared_ptr<Reader<${ decClass.name }>>")
+      val it = Variable("it", s"Reader<${ decClass.name }>")
       cb.addPrivate(it)
       cb.addConstructor(
         s"""${cb.name}(jobject is, Region * reg, NativeStatus * st) :
-           |$it(std::make_shared<Reader<${ decClass.name }>>(std::make_shared<${ decClass.name }>(std::make_shared<InputStream>(UpcallEnv(), is)), reg, st)) { }
+           |$it(Reader<${ decClass.name }>(${ decClass.name }(std::make_shared<InputStream>(UpcallEnv(), is)), reg, st)) { }
          """.stripMargin)
 
-      cb += new Function(s"${ cb.name }&", "operator++", Array(), s"++(begin($it.get())); return *this;")
-      cb += new Function("char const*", "operator*", Array(), s"return *(begin($it.get()));")
+      cb += new Function(s"${ cb.name }&", "operator++", Array(), s"++($it.begin()); return *this;")
+      cb += new Function("char const*", "operator*", Array(), s"return *($it.begin());")
       cb.result()
     }
 
@@ -140,7 +140,7 @@ class RegionValueIteratorSuite extends SparkSuite {
     val result = ContextRDD.weaken[RVDContext](encoded).cmapPartitions { case (ctx, it) =>
       val bais = new ByteArrayInputStream(it.next())
       makeIt(ctx.region, bais)
-    }.mapPartitions { it =>
+    }.mapPartitions { it: Iterator[RegionValue] =>
       it.map { rv =>
         SafeRow(t.asInstanceOf[TBaseStruct].physicalType, rv)
       }
