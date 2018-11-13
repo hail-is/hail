@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.HailContext
 import is.hail.annotations._
+import is.hail.expr.types.physical.{PArray, PStruct, PType}
 import is.hail.expr.types.virtual.{TArray, TInt32, TStruct, Type}
 import is.hail.expr.types.{MatrixType, TableType}
 import is.hail.io.CodecSpec
@@ -280,28 +281,27 @@ case class MatrixValue(
       newColKey: IndexedSeq[String] = typ.colKey,
       newColValues: BroadcastIndexedSeq = colValues,
       newGlobalType: TStruct = typ.globalType,
-      newGlobals: BroadcastRow = globals)(newEntryType: TStruct,
+      newGlobals: BroadcastRow = globals)(newEntryType: PStruct,
       inserter: (PC, RegionValue, RegionValueBuilder) => Unit): MatrixValue = {
       insertIntoRow(makePartitionContext, newColType, newColKey, newColValues, newGlobalType, newGlobals)(
-        TArray(newEntryType), MatrixType.entriesIdentifier, inserter)
+        PArray(newEntryType), MatrixType.entriesIdentifier, inserter)
     }
 
     def insertIntoRow[PC](makePartitionContext: () => PC, newColType: TStruct = typ.colType,
       newColKey: IndexedSeq[String] = typ.colKey,
       newColValues: BroadcastIndexedSeq = colValues,
       newGlobalType: TStruct = typ.globalType,
-      newGlobals: BroadcastRow = globals)(typeToInsert: Type, path: String,
+      newGlobals: BroadcastRow = globals)(typeToInsert: PType, path: String,
       inserter: (PC, RegionValue, RegionValueBuilder) => Unit): MatrixValue = {
       assert(!typ.rowKey.contains(path))
 
-      val fullRowType = typ.rvRowType
-      val localEntriesIndex = typ.entriesIdx
+      val fullRowType = rvd.rowPType
+      val localEntriesIndex = MatrixType.getEntriesIndex(fullRowType)
 
-      val (newRVPType, ins) = fullRowType.physicalType.unsafeStructInsert(typeToInsert.physicalType, List(path))
-      val newRVType = newRVPType.virtualType
+      val (newRVPType, ins) = fullRowType.unsafeStructInsert(typeToInsert, List(path))
 
 
-      val newMatrixType = typ.copy(rvRowType = newRVType, colType = newColType,
+      val newMatrixType = typ.copy(rvRowType = newRVPType.virtualType, colType = newColType,
         colKey = newColKey, globalType = newGlobalType)
 
       MatrixValue(
@@ -316,7 +316,7 @@ case class MatrixValue(
           val rvb = new RegionValueBuilder()
           it.map { rv =>
             rvb.set(rv.region)
-            rvb.start(newRVType.physicalType)
+            rvb.start(newRVPType)
 
             ins(rv.region, rv.offset, rvb,
               () => inserter(pc, rv, rvb)
