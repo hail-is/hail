@@ -21,7 +21,7 @@ class OutputStream {
     OutputStream() = delete;
     OutputStream(OutputStream &os) = delete;
     OutputStream(UpcallEnv up, jobject joutput_stream);
-    void write(char * buf, int n);
+    void write(char const* buf, int n);
     void flush();
     void close();
     ~OutputStream();
@@ -35,7 +35,7 @@ class StreamOutputBlockBuffer {
     StreamOutputBlockBuffer() = delete;
     StreamOutputBlockBuffer(StreamOutputBlockBuffer &buf) = delete;
     StreamOutputBlockBuffer(std::shared_ptr<OutputStream> os);
-    void write_block(char * buf, int n);
+    void write_block(char const* buf, int n);
     void close() { output_stream_->close(); }
 };
 
@@ -50,7 +50,7 @@ class LZ4OutputBlockBuffer {
     LZ4OutputBlockBuffer(std::shared_ptr<OutputStream> out) :
       block_buf_(out) { }
 
-    void write_block(char * buf, int n) {
+    void write_block(char const* buf, int n) {
       int comp_length = LZ4_compress_default(buf, block_ + 4, n, BUFSIZE);
       store_int(block_, n);
       block_buf_.write_block(block_, comp_length + 4);
@@ -121,7 +121,7 @@ class BlockingOutputBuffer {
       off_ += 8;
     }
 
-    void write_bytes(char * buf, int n) {
+    void write_bytes(char const* buf, int n) {
       int n_left = n;
       while (n_left > BLOCKSIZE - off_) {
         memcpy(block_ + off_, buf + (n - n_left), BLOCKSIZE - off_);
@@ -181,7 +181,7 @@ class LEB128OutputBuffer {
 
     void write_double(double d) { buf_.write_double(d); }
 
-    void write_bytes(char * buf, int n) { buf_.write_bytes(buf, n); }
+    void write_bytes(char const* buf, int n) { buf_.write_bytes(buf, n); }
 
     void close() { buf_.close(); }
 };

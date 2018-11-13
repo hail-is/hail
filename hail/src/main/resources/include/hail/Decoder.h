@@ -4,9 +4,12 @@
 #include "hail/Upcalls.h"
 #include "hail/Utils.h"
 #include "hail/NativeObj.h"
+#include "hail/Region.h"
+#include "hail/NativeStatus.h"
 #include <jni.h>
 #include <memory>
 #include <cstring>
+#include <cassert>
 
 namespace hail {
 
@@ -207,6 +210,61 @@ class LEB128InputBuffer {
     void skip_bytes(int n) { buf_.skip_bytes(n); }
     void skip_boolean() { buf_.skip_boolean(); }
     bool read_boolean() { return buf_.read_boolean(); }
+};
+
+template<typename Decoder>
+class Reader {
+private:
+  Decoder dec_;
+  Region * region_;
+  NativeStatus * st_;
+  char * value_;
+
+  bool read() {
+    if (dec_.decode_byte(st_)) {
+      value_ = dec_.decode_row(st_, region_);
+    } else {
+      value_ = nullptr;
+    }
+  return (value_ != nullptr);
+  }
+
+  char * get() const { return value_; }
+
+public:
+  Reader(Decoder dec, Region * region, NativeStatus* st) :
+  dec_(dec), region_(region), st_(st), value_(nullptr) {
+    read();
+  }
+
+  class ReadIterator {
+  friend class Reader;
+  private:
+    Reader<Decoder> * reader_;
+    explicit ReadIterator(Reader<Decoder> * reader) :
+    reader_(reader) { }
+
+  public:
+    ReadIterator& operator++() {
+      if (reader_ != nullptr && !(reader_->read())) {
+        reader_ = nullptr;
+      }
+      return *this;
+    }
+
+    char const* operator*() const { return reader_->get(); }
+
+    friend bool operator==(ReadIterator const& lhs, ReadIterator const& rhs) {
+      return (lhs.reader_ == rhs.reader_);
+    }
+
+    friend bool operator!=(ReadIterator const& lhs, ReadIterator const& rhs) {
+      return !(lhs == rhs);
+    }
+  };
+
+  ReadIterator begin() { return ReadIterator(this); }
+  ReadIterator end() { return ReadIterator(nullptr); }
 };
 
 }
