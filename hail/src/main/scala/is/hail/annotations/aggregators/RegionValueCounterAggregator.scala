@@ -22,15 +22,17 @@ class RegionValueCounterAggregator(t: Type) extends RegionValueAggregator {
 
   override def result(rvb: RegionValueBuilder) {
     rvb.startArray(m.size)
-    m.foreach { case (k, v) =>
-      rvb.startStruct()
-      if (k == null)
-        rvb.setMissing()
-      else
-        rvb.addAnnotation(t, k)
-      rvb.addLong(v)
-      rvb.endStruct()
-    }
+    m.toArray
+      .sortBy(f => f._1)(t.ordering.toOrdering)
+      .foreach { case (k, v) =>
+        rvb.startStruct()
+        if (k == null)
+          rvb.setMissing()
+        else
+          rvb.addAnnotation(t, k)
+        rvb.addLong(v)
+        rvb.endStruct()
+      }
     rvb.endArray()
   }
 
