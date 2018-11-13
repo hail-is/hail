@@ -5,7 +5,7 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 import is.hail.SparkSuite
 import is.hail.annotations._
 import is.hail.cxx._
-import is.hail.expr.types._
+import is.hail.expr.types.virtual._
 import is.hail.io._
 import is.hail.rvd.RVDContext
 import is.hail.sparkextras.ContextRDD
