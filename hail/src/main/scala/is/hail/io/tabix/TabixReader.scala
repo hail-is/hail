@@ -32,7 +32,7 @@ object TabixReader {
     ByteBuffer.wrap(buf).order(ByteOrder.LITTLE_ENDIAN).getLong
   }
 
-  def apply(val filePath: String): TabixReader = new TabixReader(filePath, None)
+  def apply(filePath: String): TabixReader = new TabixReader(filePath, None)
 }
 
 class TabixReader(val filePath: String, private val idxFilePath: Option[String]) {
@@ -55,7 +55,8 @@ class TabixReader(val filePath: String, private val idxFilePath: Option[String])
   def readIndex(is: InputStream): Tabix = {
     var buf = new Array[Byte](4)
     is.read(buf, 0, 4)
-    assert(Magic sameElements buf, "magic number failed validation")
+    assert(Magic sameElements buf, s"""magic number failed validation
+      """) // FIXME Validation
     val seqs = new Array[String](readInt(is))
     val format = readInt(is)
     val colSeq = readInt(is)
