@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.SparkSuite
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.types._
-import is.hail.expr.types.virtual.{TArray, TInt32, TString, TStruct}
+import is.hail.expr.types.virtual.{TArray, TInt32, TString, TStruct, TFloat64}
 import is.hail.rvd.{RVD, RVDPartitioner}
 import is.hail.table.Table
 import is.hail.utils._
