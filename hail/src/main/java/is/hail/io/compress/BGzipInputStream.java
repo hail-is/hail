@@ -1,5 +1,6 @@
 package is.hail.io.compress;
 
+import htsjdk.samtools.util.BlockCompressedFilePointerUtil;
 import org.apache.hadoop.fs.Seekable;
 import org.apache.hadoop.io.compress.SplitCompressionInputStream;
 import org.apache.hadoop.io.compress.SplittableCompressionCodec;
@@ -244,5 +245,14 @@ public class BGzipInputStream extends SplitCompressionInputStream {
             assert (inputBufferSize < BGZF_MAX_BLOCK_SIZE);
             inputBufferPos = inputBufferSize;
         }
+    }
+
+    // pos is a virtual file pointer, it is not a strict offset into the compressed data.
+    // The upper 48 bits of pos are the offset into the compressed data, the lower 16 bits
+    // are the offset into the uncompressed block that begins at the pointed to location
+    // by the upper 48 bits.
+    public void vSeek(final long pos) throws IOException {
+        final long compOff = BlockCompressedFilePointerUtil.getBlockAddress(pos);
+        final long uncompOff = BlockCompressedFilePointerUtil.getBlockOffset(pos);
     }
 }
