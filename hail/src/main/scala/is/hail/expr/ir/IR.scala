@@ -229,7 +229,15 @@ final case class In(i: Int, typ: Type) extends IR
 final case class Die(message: String, typ: Type) extends IR
 
 final case class ApplyIR(function: String, args: Seq[IR], conversion: Seq[IR] => IR) extends IR {
-  lazy val explicitNode: IR = conversion(args)
+  lazy val explicitNode: IR = {
+    val refs = args.map(a => Ref(genUID(), a.typ)).toArray
+    var body = conversion(refs)
+    refs.zip(args).reverseIterator.foreach { case (ref, inputIR) =>
+      // reverse because arg1 should be evaluated before arg2
+      body = Let(ref.name, inputIR, body)
+    }
+    body
+  }
 
   def typ: Type = explicitNode.typ
 }
