@@ -52,7 +52,7 @@ class TabixReader(val filePath: String, private val idxFilePath: Option[String])
   private val sc = hc.sc
   private val hConf = sc.hadoopConfiguration
 
-  def readIndex(is: InputStream): Tabix = {
+  val index: Tabix = hConf.readFile(indexPath) { is =>
     var buf = new Array[Byte](4)
     is.read(buf, 0, 4)
     assert(Magic sameElements buf, s"""magic number failed validation
@@ -114,8 +114,6 @@ class TabixReader(val filePath: String, private val idxFilePath: Option[String])
     is.close()
     new Tabix(format, colSeq, colBeg, meta, seqs, chr2tid, indices.result())
   }
-
-  lazy val index: Tabix = hConf.readFile(indexPath)(readIndex(_))
 }
 
 class Tabix(
