@@ -274,6 +274,10 @@ class Tests(unittest.TestCase):
         self.assertTrue(r.assert1)
         self.assertTrue(r.assert2)
 
+    def test_counter_ordering(self):
+        ht = hl.utils.range_table(10)
+        assert ht.aggregate(hl.agg.counter(10 - ht.idx).get(10, -1)) == 1
+
     def test_agg_filter(self):
         t = hl.utils.range_table(10)
         tests = [(agg.filter(t.idx > 7,
