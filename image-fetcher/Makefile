@@ -15,4 +15,4 @@ deploy: push
 	sed -e "s,@sha@,$(shell git rev-parse --short=12 HEAD)," \
 	  -e "s,@image@,$(shell cat image-fetcher-image)," \
 	  < deployment.yaml.in > deployment.yaml
-	kubectl apply -f deployment.yaml
+	kubectl -n default apply -f deployment.yaml
