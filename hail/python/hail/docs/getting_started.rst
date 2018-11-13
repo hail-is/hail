@@ -89,12 +89,12 @@ Running Hail locally
 
 Once you've set up Hail, we recommend that you run the Python tutorials to get
 an overview of Hail functionality and learn about the powerful query language.
-To try Hail out, run the below commands to start a Jupyter Notebook server in
-the tutorials directory.
+To try Hail out, run the below commands from the Hail home directory to start
+a Jupyter Notebook server in the tutorials directory.
 
 .. code-block:: text
 
-    cd $HAIL_HOME/tutorials
+    cd tutorials
     jhail
 
 You can now click on the "01-genome-wide-association-study" notebook to get started!
