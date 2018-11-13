@@ -141,9 +141,9 @@ def maximal_independent_set(i, j, keep=True, tie_breaker=None) -> Table:
              .select())
 
     edges = t.key_by().select('i', 'j')
-    nodes_in_set = Env.hail().utils.Graph.maximalIndependentSet(edges._jt.collect(), node_t._jtype, joption(tie_breaker_str))
+    nodes_in_set = Env.hail().utils.Graph.maximalIndependentSet(edges._jt.collect(), node_t._parsable_string(), joption(tie_breaker_str))
 
-    nt = Table._from_java(nodes._jt.annotateGlobal(nodes_in_set, hl.tset(node_t)._jtype, 'nodes_in_set'))
+    nt = Table._from_java(nodes._jt.annotateGlobal(nodes_in_set, hl.tset(node_t)._parsable_string(), 'nodes_in_set'))
     nt = (nt
           .filter(nt.nodes_in_set.contains(nt.node), keep)
           .drop('nodes_in_set'))
@@ -215,7 +215,7 @@ def require_biallelic(dataset, method) -> MatrixTable:
     require_row_key_variant(dataset, method)
     return dataset._select_rows(method,
                                 hl.case()
-                                .when(dataset.alleles.length() == 2, dataset._rvrow)
+                                .when(dataset.alleles.length() == 2, dataset.row)
                                 .or_error(f"'{method}' expects biallelic variants ('alleles' field of length 2), found " +
                                         hl.str(dataset.locus) + ", " + hl.str(dataset.alleles)))
 

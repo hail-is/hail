@@ -2,6 +2,7 @@ package is.hail.utils
 
 import is.hail.annotations._
 import is.hail.check._
+import is.hail.expr.Parser
 import is.hail.expr.types.virtual.{TBoolean, TStruct}
 import org.apache.spark.sql.Row
 import org.json4s.JValue
@@ -63,8 +64,18 @@ class Interval(val left: IntervalEndpoint, val right: IntervalEndpoint) extends 
   def contains(pord: ExtendedOrdering, p: Any): Boolean =
     ext(pord).lt(left, p) && ext(pord).gt(right, p)
 
+  def contains(t: String, p: Any): Boolean = {
+    val pord = Parser.parseType(t).ordering
+    contains(pord, p)
+  }
+
   def includes(pord: ExtendedOrdering, other: Interval): Boolean =
     ext(pord).lteq(this.left, other.left) && ext(pord).gteq(this.right, other.right)
+
+  def includes(t: String, other: Interval): Boolean = {
+    val pord = Parser.parseType(t).ordering
+    includes(pord, other)
+  }
 
   def overlaps(pord: ExtendedOrdering, other: Interval): Boolean =
     ext(pord).lt(this.left, other.right) && ext(pord).gt(this.right, other.left)

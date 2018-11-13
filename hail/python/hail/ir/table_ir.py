@@ -113,7 +113,7 @@ class TableImport(TableIR):
     def render(self, r):
         return '(TableImport ({}) {} {})'.format(
             ' '.join([escape_str(path) for path in self.paths]),
-            self.typ._jtype.parsableString(),
+            self.typ._parsable_string(),
             escape_str(json.dumps(self.reader_options)))
 
 

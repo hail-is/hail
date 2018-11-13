@@ -58,10 +58,10 @@ class Tests(unittest.TestCase):
                 else:
                     self.assertNotEqual(ts[i], ts2[j])
 
-    def test_jvm_roundtrip(self):
+    def test_type_parser_roundtrip(self):
         ts = self.types_to_test()
         for t in ts:
-            rev_str = t._jtype.toString()
+            rev_str = t._parsable_string()
             self.assertEqual(t, dtype(rev_str))
 
     def test_pretty_roundtrip(self):

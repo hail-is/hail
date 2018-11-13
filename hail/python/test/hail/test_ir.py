@@ -93,7 +93,7 @@ class ValueIRTests(unittest.TestCase):
                't': hl.ttuple(hl.tint32, hl.tint64, hl.tfloat64),
                'call': hl.tcall,
                'x': hl.tint32}
-        env = {name: t._jtype for name, t in env.items()}
+        env = {name: t._parsable_string() for name, t in env.items()}
         for x in self.value_irs():
             Env.hail().expr.ir.IRParser.parse_value_ir(str(x), env, {})
 

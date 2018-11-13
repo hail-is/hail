@@ -33,6 +33,9 @@ object Graph {
     m
   }
 
+  def maximalIndependentSet(edges: Array[Row], nodeType: String, tieBreaker: Option[String]): Set[Any] =
+    maximalIndependentSet(edges, Parser.parseType(nodeType), tieBreaker)
+
   def maximalIndependentSet(edges: Array[Row], nodeType: Type, tieBreaker: Option[String]): Set[Any] = {
     val edges2 = edges.map { r =>
       val Row(x, y) = r

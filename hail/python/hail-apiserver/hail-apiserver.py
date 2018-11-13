@@ -17,7 +17,7 @@ def execute():
     
     jir = Env.hail().expr.ir.IRParser.parse_value_ir(code, {}, {})
     
-    typ = hl.HailType._from_java(jir.typ())
+    typ = hl.dtype(jir.typ().toString())
     value = Env.hail().expr.ir.Interpret.interpretPyIR(code, {}, {})
 
     result = {

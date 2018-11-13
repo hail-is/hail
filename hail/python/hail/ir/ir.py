@@ -153,7 +153,7 @@ class Cast(IR):
         return new_instance(v, self.typ)
 
     def render(self, r):
-        return '(Cast {} {})'.format(self.typ._jtype.parsableString(), r(self.v))
+        return '(Cast {} {})'.format(self.typ._parsable_string(), r(self.v))
 
     def __eq__(self, other):
         return isinstance(other, Cast) and \
@@ -172,7 +172,7 @@ class NA(IR):
         return new_instance(self.typ)
 
     def render(self, r):
-        return '(NA {})'.format(self.typ._jtype.parsableString())
+        return '(NA {})'.format(self.typ._parsable_string())
 
     def __eq__(self, other):
         return isinstance(other, NA) and \
@@ -363,7 +363,7 @@ class MakeArray(IR):
 
     def render(self, r):
         return '(MakeArray {} {})'.format(
-            self.typ._jtype.parsableString() if self.typ is not None else 'None',
+            self.typ._parsable_string() if self.typ is not None else 'None',
             ' '.join([r(x) for x in self.args]))
 
     def __eq__(self, other):
@@ -1060,7 +1060,7 @@ class In(IR):
         return new_instance(self.i, self.typ)
 
     def render(self, r):
-        return '(In {} {})'.format(self.typ._jtype.parsableString(), self.i)
+        return '(In {} {})'.format(self.typ._parsable_string(), self.i)
 
     def __eq__(self, other):
         return isinstance(other, In) and \
@@ -1080,7 +1080,7 @@ class Die(IR):
         return new_instance(self.message, self.typ)
 
     def render(self, r):
-        return '(Die {} {})'.format(self.typ._jtype.parsableString(), r(self.message))
+        return '(Die {} {})'.format(self.typ._parsable_string(), r(self.message))
 
     def __eq__(self, other):
         return isinstance(other, Die) and \
@@ -1275,7 +1275,7 @@ class TableExport(IR):
             escape_str(self.path),
             escape_str(self.types_file),
             escape_str(self.header),
-            self.export_type._jtype.parsableString(),
+            self.export_type,
             r(self.child))
 
     def __eq__(self, other):
@@ -1321,7 +1321,7 @@ class Literal(IR):
         return Literal(self.dtype, self.value)
 
     def render(self, r):
-        return f'(Literal {self.dtype._jtype.parsableString()} ' \
+        return f'(Literal {self.dtype._parsable_string()} ' \
                f'"{escape_str(self.dtype._to_json(self.value))}")'
 
     def __eq__(self, other):
