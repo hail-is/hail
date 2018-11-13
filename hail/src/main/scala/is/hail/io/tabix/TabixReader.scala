@@ -56,7 +56,8 @@ class TabixReader(val filePath: String, private val idxFilePath: Option[String])
     var buf = new Array[Byte](4)
     is.read(buf, 0, 4)
     assert(Magic sameElements buf, s"""magic number failed validation
-      """) // FIXME Validation
+      |magic: ${ Magic.mkString("[", ",", "]") }
+      |data : ${ buf.mkString("[", ",", "]") }""".stripMargin)
     val seqs = new Array[String](readInt(is))
     val format = readInt(is)
     val colSeq = readInt(is)

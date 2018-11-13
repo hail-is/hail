@@ -240,6 +240,7 @@ object HailContext {
     sparkContext.hadoopConfiguration.set("io.compression.codecs",
       "org.apache.hadoop.io.compress.DefaultCodec," +
         "is.hail.io.compress.BGzipCodec," +
+        "is.hail.io.compress.BGzipCodecTbi," +
         "org.apache.hadoop.io.compress.GzipCodec"
     )
 
