@@ -60,6 +60,7 @@ class TabixReader(val filePath: String, private val idxFilePath: Option[String])
     val colBeg = readInt(is)
     val colEnd = readInt(is)
     val meta = readInt(is)
+    val chr2tid = new HashMap[String, Int]()
     readInt(is) // unused, need to consume
 
     // read the sequence dictionary
@@ -69,7 +70,7 @@ class TabixReader(val filePath: String, private val idxFilePath: Option[String])
     while (i < buf.length) {
       if (buf(i) == 0) {
         val contig = new String(buf.slice(j, i))
-        // TODO map????
+        chr2tid += contig -> k
         seqs(k) = contig
         k += 1
         j = i + 1
@@ -107,7 +108,7 @@ class TabixReader(val filePath: String, private val idxFilePath: Option[String])
       i += 1
     }
     is.close()
-    new Tabix(format, colSeq, colBeg, meta, seqs, indices.result())
+    new Tabix(format, colSeq, colBeg, meta, seqs, chr2tid, indices.result())
   }
 
   lazy val index: Tabix = hConf.readFile(indexPath)(readIndex(_))
@@ -119,6 +120,7 @@ class Tabix(
   val colBeg: Int,
   val meta: Int,
   val seqs: Array[String],
+  val chr2tid: HashMap[String, Int],
   val indicies: Array[(HashMap[Int, Array[TbiPair]], Array[Long])]
 )
 
