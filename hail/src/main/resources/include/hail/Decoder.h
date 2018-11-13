@@ -226,7 +226,7 @@ private:
     } else {
       value_ = nullptr;
     }
-  return (value_ == nullptr);
+  return (value_ != nullptr);
   }
 
   char * get() const { return value_; }
