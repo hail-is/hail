@@ -826,7 +826,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val localEntriesType = matrixType.entryArrayType.physicalType
     val localEntryType = matrixType.entryType.physicalType
 
-    val newRVD = rvd.mapPartitions(ttyp.rvdType) { it =>
+    val newRVD = rvd.mapPartitions(ttyp.canonicalRVDType) { it =>
       val rvb = new RegionValueBuilder()
       val rv2 = RegionValue()
       val fullRow = new UnsafeRow(localRVRowType)

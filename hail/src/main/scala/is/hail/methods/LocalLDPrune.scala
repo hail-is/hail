@@ -326,7 +326,7 @@ object LocalLDPrune {
     val fieldIndicesToAdd = Array("locus", "alleles", "mean", "centered_length_rec")
       .map(field => bpvType.fieldIdx(field))
     val sitesOnly = rvdLP.mapPartitions(
-      tableType.rvdType
+      tableType.canonicalRVDType
     )({ it =>
       val region = Region()
       val rvb = new RegionValueBuilder(region)

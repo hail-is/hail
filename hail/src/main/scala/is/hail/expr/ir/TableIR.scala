@@ -4,7 +4,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.expr.types._
-import is.hail.expr.types.physical.PInt32
+import is.hail.expr.types.physical.{PInt32, PStruct}
 import is.hail.expr.types.virtual._
 import is.hail.expr.{TableAnnotationImpex, ir}
 import is.hail.rvd._
@@ -71,7 +71,7 @@ case class TableRead(path: String, spec: AbstractTableSpec, typ: TableType, drop
   protected[ir] override def execute(hc: HailContext): TableValue = {
     val globals = spec.globalsComponent.readLocal(hc, path, typ.globalType.physicalType)(0)
     val rvd = if (dropRows)
-      RVD.empty(hc.sc, typ.rvdType)
+      RVD.empty(hc.sc, typ.canonicalRVDType)
     else {
       val rvd = spec.rowsComponent.read(hc, path, typ.rowType.physicalType)
       if (rvd.typ.key startsWith typ.key)
@@ -293,7 +293,7 @@ case class TableFilter(child: TableIR, pred: IR) extends TableIR {
     if (pred == True())
       return tv
     else if (pred == False())
-      return tv.copy(rvd = RVD.empty(hc.sc, typ.rvdType))
+      return tv.copy(rvd = RVD.empty(hc.sc, typ.canonicalRVDType))
 
     val (rTyp, f) = ir.Compile[Long, Long, Boolean](
       "row", child.typ.rowType.physicalType,
@@ -723,7 +723,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
 
     tv.copy(
       typ = typ,
-      rvd = tv.rvd.mapPartitionsWithIndex(typ.rvdType, itF))
+      rvd = tv.rvd.mapPartitionsWithIndex(RVDType(rTyp.asInstanceOf[PStruct], typ.key), itF))
   }
 }
 
@@ -1053,7 +1053,7 @@ case class TableKeyByAndAggregate(
 
     prev.copy(
       typ = typ,
-      rvd = RVD.coerce(typ.rvdType, crdd))
+      rvd = RVD.coerce(RVDType(rTyp.asInstanceOf[PStruct], typ.key), crdd))
   }
 }
 
