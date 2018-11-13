@@ -38,8 +38,8 @@ This must be the ``pip`` for a ``python`` version 3.6 or later, the default
 ``python`` on Mac OS X will not work.
 
 
-Running Hail locally with a pre-compiled distribution
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Installing Hail locally with a pre-compiled distribution
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. include:: distLinks.rst
 
@@ -83,6 +83,10 @@ To install Python dependencies, create a conda environment for Hail:
     conda env create -n hail -f $HAIL_HOME/python/hail/environment.yml
     source activate hail
 
+
+Running Hail locally
+~~~~~~~~~~~~~~~~~~~~
+
 Once you've set up Hail, we recommend that you run the Python tutorials to get
 an overview of Hail functionality and learn about the powerful query language.
 To try Hail out, run the below commands to start a Jupyter Notebook server in
@@ -123,8 +127,8 @@ The ``SPARK_HOME`` environment variable should point to an installation of the d
 
 The version of the Py4J ZIP file in the hail alias must match the version in ``$SPARK_HOME/python/lib`` in your version of Spark.
 
-Running on a Spark cluster
-~~~~~~~~~~~~~~~~~~~~~~~~~~
+Running Hail on a Spark cluster
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Hail can run on any Spark 2.2 cluster. For example,
 `Google <https://cloud.google.com/dataproc/>`_ and `Amazon
@@ -220,8 +224,8 @@ parameters to ``spark-submit``
 .. _running-on-a-cloudera-cluster:
 
 
-Running on a Cloudera cluster
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Running Hail on a Cloudera cluster
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 `These instructions
 <https://www.cloudera.com/documentation/spark2/latest/topics/spark2_installing.html>`_
