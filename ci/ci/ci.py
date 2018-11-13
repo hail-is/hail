@@ -1,29 +1,29 @@
-from batch.client import Job
-from batch_helper import try_to_cancel_job, job_ordering
-from build_state import build_state_from_gh_json
-from ci_logging import log
-from constants import BUILD_JOB_TYPE, GCS_BUCKET, DEPLOY_JOB_TYPE
-from environment import \
-    batch_client, \
-    WATCHED_TARGETS, \
-    REFRESH_INTERVAL_IN_SECONDS
-from flask import Flask, request, jsonify, render_template
-from flask_cors import CORS
-from git_state import Repo, FQRef, FQSHA
-from github import open_pulls, overall_review_state, latest_sha_for_ref
-from google_storage import \
-    upload_public_gs_file_from_filename, \
-    upload_public_gs_file_from_string
-from http_helper import BadStatus
-from http_helper import get_repo
-from pr import GitHubPR
-from prs import PRS
-import collections
 import json
 import logging
+
+import collections
 import requests
 import threading
 import time
+from batch.client import Job
+from flask import Flask, request, jsonify, render_template
+from flask_cors import CORS
+
+from .batch_helper import try_to_cancel_job, job_ordering
+from .ci_logging import log
+from .constants import BUILD_JOB_TYPE, GCS_BUCKET, DEPLOY_JOB_TYPE
+from .environment import \
+    batch_client, \
+    WATCHED_TARGETS, \
+    REFRESH_INTERVAL_IN_SECONDS
+from .git_state import Repo, FQRef, FQSHA
+from .github import open_pulls, overall_review_state, latest_sha_for_ref
+from .google_storage import \
+    upload_public_gs_file_from_filename, \
+    upload_public_gs_file_from_string
+from .http_helper import BadStatus, get_repo
+from .pr import GitHubPR
+from .prs import PRS
 
 prs = PRS({k: v for [k, v] in WATCHED_TARGETS})
 
@@ -369,7 +369,8 @@ def fix_werkzeug_logs():
         getattr(werkzeug_logger, type)('%s %s' % (self.address_string(), message % args))
 
 
-if __name__ == '__main__':
+def run():
+    """Main entry point."""
     fix_werkzeug_logs()
     threading.Thread(target=polling_event_loop).start()
     app.run(host='0.0.0.0', threaded=False)

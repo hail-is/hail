@@ -1,8 +1,9 @@
-from constants import SHA_LENGTH
-from ci_logging import log
-from git_state import FQSHA
-import requests
 import json
+
+import requests
+
+from .ci_logging import log
+from .git_state import FQSHA
 
 
 def try_to_cancel_job(job):
