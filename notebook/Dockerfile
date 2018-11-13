@@ -8,8 +8,9 @@ RUN apk add \
   musl-dev \
   openssl-dev \
   python3 \
-  python3-dev \
-  && pip3 install --no-cache-dir \
+  python3-dev && \
+  pip3 install -U pip && \
+  pip3 install --no-cache-dir \
   flask \
   Flask_Sockets \
   kubernetes \
