@@ -1425,7 +1425,7 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
 
     val (partFiles, partitionCounts) = partFilePartitionCounts.unzip
 
-    val rowsSpec = OrderedRVDSpec(t.rowType, t.key, codecSpec, partFiles, partitioner)
+    val rowsSpec = OrderedRVDSpec(rowsRVType, t.key, codecSpec, partFiles, partitioner)
     rowsSpec.write(hConf, path + "/rows/rows")
 
     val entriesSpec = OrderedRVDSpec(entriesRVType, FastIndexedSeq(), codecSpec, partFiles, RVDPartitioner.unkeyed(partitionCounts.length))
