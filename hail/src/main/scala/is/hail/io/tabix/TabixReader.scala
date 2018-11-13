@@ -31,6 +31,8 @@ object TabixReader {
     is.read(buf)
     ByteBuffer.wrap(buf).order(ByteOrder.LITTLE_ENDIAN).getLong
   }
+
+  def apply(val filePath: String): TabixReader = new TabixReader(filePath, None)
 }
 
 class TabixReader(val filePath: String, private val idxFilePath: Option[String]) {
