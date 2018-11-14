@@ -774,9 +774,9 @@ class Expression(object):
         assert src is not None
         assert len(self._indices.axes) > 0
         if isinstance(src, hl.MatrixTable):
-            if self._indices.axes == {'row'}:
+            if self._indices == src._row_indices:
                 return src.aggregate_rows
-            elif self._indices.axes == {'col'}:
+            elif self._indices == src._col_indices:
                 return src.aggregate_cols
             else:
                 return src.aggregate_entries
