@@ -9,7 +9,7 @@ import is.hail.utils.{ArrayBuilder, StringEscapeUtils}
 object Emit {
   def apply(fb: FunctionBuilder, nSpecialArgs: Int, x: ir.IR): EmitTriplet = {
     val emitter = new Emitter(fb, nSpecialArgs)
-    emitter.emit(x)
+    emitter.emit(x, ir.Env.empty[EmitTriplet])
   }
 }
 
@@ -21,8 +21,6 @@ abstract class ArrayEmitter(val setup: Code, val m: Code, val setupLen: Code, va
 
 class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) { outer =>
   type E = ir.Env[EmitTriplet]
-
-  def emit(x: ir.IR): EmitTriplet = emit(x, ir.Env.empty[EmitTriplet])
 
   def emit(x: ir.IR, env: E): EmitTriplet = {
     def triplet(setup: Code, m: Code, v: Code): EmitTriplet =
@@ -181,7 +179,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) { outer =>
              |""".stripMargin), m.toString, pContainer.cxxLoadElement(av.toString, iv.toString))
 
       case ir.ArrayLen(a) =>
-        val t = emit(a)
+        val t = emit(a, env)
         triplet(t.setup, t.m, a.pType.asInstanceOf[PContainer].cxxLoadLength(t.v))
 
       case ir.GetField(o, name) =>
@@ -431,9 +429,9 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) { outer =>
 
     x match {
       case ir.ArrayRange(start, stop, step) =>
-        val startt = emit(start)
-        val stopt = emit(stop)
-        val stept = emit(step)
+        val startt = emit(start, env)
+        val stopt = emit(stop, env)
+        val stept = emit(step, env)
 
         val startv = Variable("start", "int", startt.v)
         val stopv = Variable("stop", "int", stopt.v)
@@ -492,7 +490,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) { outer =>
           def emit(f: (Code, Code) => Code): Code = {
             val sb = new ArrayBuilder[Code]
             args.foreach { arg =>
-              val argt = outer.emit(arg)
+              val argt = outer.emit(arg, env)
               sb += argt.setup
               sb += f(argt.m, argt.v)
             }

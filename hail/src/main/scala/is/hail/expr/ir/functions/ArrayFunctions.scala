@@ -175,6 +175,7 @@ object ArrayFunctions extends RegistryFunctions {
       val value = genUID()
       val m = genUID()
       val idx = genUID()
+      println(s"a is $a")
 
       def updateAccum(min: IR, midx: IR): IR =
         MakeStruct(FastSeq("m" -> min, "midx" -> midx))
