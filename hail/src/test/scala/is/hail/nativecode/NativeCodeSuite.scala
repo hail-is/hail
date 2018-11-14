@@ -1,7 +1,14 @@
 package is.hail.nativecode
 
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
+
 import is.hail.SparkSuite
+import is.hail.annotations.{Region, SafeRow}
 import is.hail.cxx._
+import is.hail.expr.types.virtual.{TArray, TInt64, TStruct}
+import is.hail.io._
+import is.hail.utils.ArrayBuilder
+import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
 class NativeCodeSuite extends SparkSuite {
@@ -237,5 +244,80 @@ class NativeCodeSuite extends SparkSuite {
     assert(Upcalls.testMsg.equals("Hello!"))
     st.close()
     testUpcall.close()
+  }
+
+  @Test def testNewRegions() = {
+    hc
+    val monitorType = TStruct("n_regions" -> +TInt64(), "n_blocks" -> +TInt64(), "sized_blocks"-> +TArray(+TInt64()))
+    val spec = CodecSpec.bufferSpecs(0)
+    val enc = PackEncoder.apply(monitorType.physicalType, spec, new TranslationUnitBuilder())
+
+    val sb = new StringBuilder()
+    sb.append(
+      s"""#include "hail/hail.h"
+        |#include "hail/Encoder.h"
+        |#include "hail/ObjectArray.h"
+        |#include "hail/Region2.h"
+        |#include "hail/Upcalls.h"
+        |#include <cstring>
+        |#include <jni.h>
+        |#include <lz4.h>
+        |
+        |NAMESPACE_HAIL_MODULE_BEGIN
+        |
+        |${ enc.define }
+        |
+        |long testRegions(NativeStatus* st, long os) {
+        |  UpcallEnv up;
+        |
+        |  ${ enc.name } enc {std::make_shared<OutputStream>(up, reinterpret_cast<ObjectArray *>(os)->at(0))};
+        |  auto pool = new RegionPool();
+        |  auto tracker = new RegionPoolTracker<${ enc.name }>(pool, &enc);
+        |  auto region = pool->get_region();
+        |
+        |  tracker->write(st);
+        |  for (int i = 0; i < 200; ++i) {
+        |    region->allocate(4, 1024);
+        |  }
+        |  region->allocate(4, 70000);
+        |
+        |  tracker->write(st);
+        |  region->clear();
+        |
+        |  tracker->write(st);
+        |  region = nullptr;
+        |
+        |  tracker->write(st);
+        |  tracker->stop(st);
+        |  return 0;
+        |}
+        |
+        |NAMESPACE_HAIL_MODULE_END
+        |""".stripMargin
+    )
+    val st = new NativeStatus()
+    val mod = new NativeModule("", sb.toString())
+    val baos = new ByteArrayOutputStream()
+    val obj = new ObjectArray(baos)
+    val testUpcall = mod.findLongFuncL1(st, "testRegions")
+    mod.close()
+    assert(st.ok, st.toString())
+    assert(testUpcall(st, obj.get()) == 0)
+    st.close()
+    testUpcall.close()
+    val bais = new ByteArrayInputStream(baos.toByteArray)
+    val dec = new PackCodecSpec(spec).buildDecoder(monitorType.physicalType, monitorType.physicalType)(bais)
+
+    val res = Region.scoped { region =>
+      val ab = new ArrayBuilder[Row]()
+      while(dec.readByte() == 1) {
+        val off = dec.readRegionValue(region)
+        ab += SafeRow(monitorType.physicalType, region, off)
+        region.clear()
+      }
+      ab.result()
+    }
+    println(res.mkString("\n"))
+
   }
 }
