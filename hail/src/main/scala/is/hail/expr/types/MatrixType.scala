@@ -21,7 +21,7 @@ object MatrixType {
 
   def getRowType(rvRowType: PStruct): PStruct = rvRowType.selectFields(Set(entriesIdentifier), keep = false)
   def getEntryArrayType(rvRowType: PStruct): PArray = rvRowType.field(entriesIdentifier).typ.asInstanceOf[PArray]
-  def getEntriesType(rvRowType: PStruct): PStruct = rvRowType.selectFields(Set(entriesIdentifier), keep = true)
+  def getSplitEntriesType(rvRowType: PStruct): PStruct = rvRowType.selectFields(Set(entriesIdentifier), keep = true)
   def getEntryType(rvRowType: PStruct): PStruct = getEntryArrayType(rvRowType).elementType.asInstanceOf[PStruct]
   def getEntriesIndex(rvRowType: PStruct): Int = rvRowType.fieldIdx(entriesIdentifier)
 

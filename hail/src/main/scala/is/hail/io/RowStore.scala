@@ -1335,7 +1335,7 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
     val rowsRVType = MatrixType.getRowType(fullRowType)
     val localEntriesIndex = MatrixType.getEntriesIndex(fullRowType)
     val rowFieldIndices = Array.range(0, fullRowType.size).filter(_ != localEntriesIndex)
-    val entriesRVType = MatrixType.getEntriesType(fullRowType)
+    val entriesRVType = MatrixType.getSplitEntriesType(fullRowType)
 
     val makeRowsEnc = codecSpec.buildEncoder(rowsRVType)
 
