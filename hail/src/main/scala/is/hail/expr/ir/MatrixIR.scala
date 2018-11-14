@@ -240,7 +240,8 @@ case class MatrixNativeReader(path: String) extends MatrixReader {
     val hc = HailContext.get
 
     val requestedType = mr.typ
-    assert(PruneDeadFields.isSupertype(requestedType, spec.matrix_type))
+    assert(PruneDeadFields.isSupertype(requestedType, spec.matrix_type),
+      s"R: ${ requestedType.parsableString() }\nS: ${ spec.matrix_type.parsableString() }")
 
     val globals = spec.globalsComponent.readLocal(hc, path, requestedType.globalType)(0).asInstanceOf[Row]
 
