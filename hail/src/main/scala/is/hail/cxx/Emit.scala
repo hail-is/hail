@@ -148,7 +148,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) { outer =>
         val at = emit(a)
         val it = emit(i)
 
-        val av = Variable("a", "char *", at.v)
+        val av = Variable("a", "const char *", at.v)
         val iv = Variable("i", "int", it.v)
         val len = Variable("len", "int", pContainer.cxxLoadLength(av.toString))
 
@@ -556,7 +556,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) { outer =>
         val pArray = x.pType.asInstanceOf[PArray]
         val t = emit(x, env)
 
-        val a = Variable("a", "char *", t.v)
+        val a = Variable("a", "const char *", t.v)
         val len = Variable("len", "int", pArray.cxxLoadLength(a.toString))
         new ArrayEmitter(t.setup, t.m,
           s"""
