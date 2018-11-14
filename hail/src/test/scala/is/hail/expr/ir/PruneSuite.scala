@@ -232,8 +232,8 @@ class PruneSuite extends SparkSuite {
     val tk1 = TableKeyBy(tab, Array("1"))
     val ts = Array(tk1, tk1, tk1)
     val tmwzj = TableMultiWayZipJoin(ts, "data", "gbls")
-    checkMemo(tmwzj, subsetTable(tmwzj.typ, "row.1", "row.data"), ts.map { t =>
-      subsetTable(t.typ, "row.1")
+    checkMemo(tmwzj, subsetTable(tmwzj.typ, "row.data.2", "global.gbls.g1"), ts.map { t =>
+      subsetTable(t.typ, "row.2", "global.g1")
     })
   }
 
@@ -626,6 +626,21 @@ class PruneSuite extends SparkSuite {
           tu.typ == subsetTable(tunion.typ, "row.foo", "global.g1")
       })
   }
+
+  @Test def testTableMultiWayZipJoinRebuildUnifiesRowTypes() {
+    val t1 = TableKeyBy(tab, Array("1"))
+    val t2 = TableFilter(t1, tableRefBoolean(t1.typ, "row.2"))
+    val t3 = TableFilter(t1, tableRefBoolean(t1.typ, "row.3"))
+    val ts = Array(t1, t2, t3)
+    val tmwzj = TableMultiWayZipJoin(ts, "data", "gbls")
+    val childRType = subsetTable(t1.typ, "row.2", "global.g1")
+    checkRebuild(tmwzj, subsetTable(tmwzj.typ, "row.data.2", "global.gbls.g1"),
+      (_: BaseIR, rebuilt: BaseIR) => {
+        val t = rebuilt.asInstanceOf[TableMultiWayZipJoin]
+        t.children.forall { c => c.typ == childRType }
+      })
+  }
+
 
   @Test def testMatrixFilterColsRebuild() {
     val mfc = MatrixFilterCols(mr, matrixRefBoolean(mr.typ, "sa.c2", "va.r2"))

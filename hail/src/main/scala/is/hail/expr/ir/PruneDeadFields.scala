@@ -279,14 +279,13 @@ object PruneDeadFields {
         val rType = requestedType.rowType.fieldOption(fieldName)
           .map(_.typ.asInstanceOf[TArray].elementType)
           .getOrElse(TStruct()).asInstanceOf[TStruct]
-        children.foreach { child =>
-          val dep = child.typ.copy(
-            rowType = TStruct(child.typ.rowType.required, child.typ.rowType.fieldNames.flatMap(f =>
-                child.typ.keyType.fieldOption(f).orElse(rType.fieldOption(f)).map(reqF => f -> reqF.typ)
-              ): _*),
-            globalType = gType)
-          memoizeTableIR(child, dep, memo)
-        }
+        val child1 = children.head
+        val dep = child1.typ.copy(
+          rowType = TStruct(child1.typ.rowType.required, child1.typ.rowType.fieldNames.flatMap(f =>
+              child1.typ.keyType.fieldOption(f).orElse(rType.fieldOption(f)).map(reqF => f -> reqF.typ)
+            ): _*),
+          globalType = gType)
+        children.foreach(memoizeTableIR(_, dep, memo))
       case TableExplode(child, field) =>
         val minChild = minimal(child.typ)
         val dep2 = unify(child.typ, requestedType.copy(rowType = requestedType.rowType.filter(_.name != field)._1),
