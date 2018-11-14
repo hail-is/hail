@@ -305,7 +305,7 @@ object Parser extends JavaTokenParsers {
     (("Table" ~ "{" ~ "global" ~ ":") ~> struct_expr) ~
       (("," ~ "key" ~ ":") ~> ("None" ^^ { _ => FastIndexedSeq() } | key ^^ { key => key.toFastIndexedSeq })) ~
       (("," ~ "row" ~ ":") ~> struct_expr <~ "}") ^^ { case globalType ~ key ~ rowType =>
-      TableType(rowType, key, globalType)
+      TableType(rowType, key, globalType.setRequired(false).asInstanceOf[TStruct])
     }
 
   def matrix_type_expr: Parser[MatrixType] =
@@ -315,7 +315,7 @@ object Parser extends JavaTokenParsers {
       (("," ~ "row_key" ~ ":" ~ "[") ~> key) ~ (trailing_keys <~ "]") ~
       (("," ~ "row" ~ ":") ~> struct_expr) ~
       (("," ~ "entry" ~ ":") ~> struct_expr <~ "}") ^^ { case globalType ~ colKey ~ colType ~ rowPartitionKey ~ rowRestKey ~ rowType ~ entryType =>
-      MatrixType.fromParts(globalType, colKey, colType, rowPartitionKey ++ rowRestKey, rowType, entryType)
+      MatrixType.fromParts(globalType.setRequired(false).asInstanceOf[TStruct], colKey, colType, rowPartitionKey ++ rowRestKey, rowType, entryType)
     }
 
   def call: Parser[Call] = {
