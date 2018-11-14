@@ -42,8 +42,6 @@ object UtilFunctions extends RegistryFunctions {
 
     registerCode("triangle", TInt32(), TInt32()) { (_, n: Code[Int]) => (n * (n + 1)) / 2 }
 
-    registerIR("[]", tv("T", _.isInstanceOf[TTuple]), TInt32()) { (a, i) => GetTupleElement(a, i.asInstanceOf[I32].x) }
-
     registerIR("annotate", tv("T", _.isInstanceOf[TStruct]), tv("U", _.isInstanceOf[TStruct])) { (s, s2) =>
       s2 match {
         case s2: MakeStruct => InsertFields(s, s2.fields)
