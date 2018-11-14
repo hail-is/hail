@@ -119,9 +119,10 @@ class BGzipCodecSuite extends SparkSuite {
 
   @Test def testVirtualSeek() {
     sc.hadoopConfiguration.setLong("mapreduce.input.fileinputformat.split.minsize", 1L)
-    // real offsets of the start of each block.
+    // real offsets of the start of each block
     val blockStarts = Array[Long](14653, 28034, 40231, 55611, 69140, 82949, 96438, 110192, 121461, 133703,
       146664, 158711, 171239, 181362)
+    // offsets into the uncompressed file
     val uncompBlockStarts = Array[Long](65280, 130560, 195840, 261120, 326400, 391680, 456960, 522240,
       587520, 652800, 718080, 783360, 848640, 913920)
 
@@ -143,10 +144,10 @@ class BGzipCodecSuite extends SparkSuite {
          extra <- Seq(0, 50)) {
       val decompData = new Array[Byte](100)
       val uncompData = new Array[Byte](100)
-      val vptr = cOff << blockPointerOffset
+      val vptr = cOff << blockPointerOffset | extra
 
       decompIS.virtualSeek(vptr)
-      uncompIS.seek(uOff)
+      uncompIS.seek(uOff + extra)
 
       val decompRead = decompIS.read(decompData)
       val uncompRead = uncompIS.read(uncompData)
