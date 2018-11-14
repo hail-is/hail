@@ -116,7 +116,6 @@ class BGzipCodecSuite extends SparkSuite {
     p.check()
   }
 
-
   @Test def testVirtualSeek() {
     sc.hadoopConfiguration.setLong("mapreduce.input.fileinputformat.split.minsize", 1L)
     // real offsets of the start of each block
@@ -152,10 +151,20 @@ class BGzipCodecSuite extends SparkSuite {
       val decompRead = decompIS.read(decompData)
       val uncompRead = uncompIS.read(uncompData)
 
-      Assert.assertEquals(decompRead, uncompRead, s"""decomp bytes read: ${ decompRead }
+      Assert.assertEquals(decompRead, uncompRead, s"""compressed offset: ${ cOff }
+        |decomp bytes read: ${ decompRead }
         |uncomp bytes read: ${ uncompRead }\n""".stripMargin)
-      Assert.assertEquals(decompData, uncompData)
+      Assert.assertEquals(decompData, uncompData, s"data differs for compressed offset: ${ cOff }")
     }
+
+    try {
+      val vptr = blockStarts(3) << blockPointerOffset | uncompBlockStarts(0)
+      decompIS.virtualSeek(vptr)
+      assert(false, "Invalid seek did not throw")
+    } catch {
+      case _: java.io.IOException => {}
+    }
+
     uncompIS.close()
     decompIS.close()
   }
