@@ -178,6 +178,22 @@ abstract class RegistryFunctions {
             v.isNull.mux(srvb.setMissing(), srvb.addInt(v.invoke[Int]("intValue"))),
             srvb.advance())),
         srvb.offset)
+    case TArray(_: TFloat64, _) => c =>
+      val srvb = new StagedRegionValueBuilder(mb, t.physicalType)
+      val alocal = mb.newLocal[IndexedSeq[Double]]
+      val len = mb.newLocal[Int]
+      val v = mb.newLocal[java.lang.Double]
+
+      Code(
+        alocal := coerce[IndexedSeq[Double]](c),
+        len := alocal.invoke[Int]("size"),
+        Code(
+          srvb.start(len),
+          Code.whileLoop(srvb.arrayIdx < len,
+            v := Code.checkcast[java.lang.Double](alocal.invoke[Int, java.lang.Object]("apply", srvb.arrayIdx)),
+            v.isNull.mux(srvb.setMissing(), srvb.addDouble(v.invoke[Double]("doubleValue"))),
+            srvb.advance())),
+        srvb.offset)
     case TArray(_: TString, _) => c =>
       val srvb = new StagedRegionValueBuilder(mb, t.physicalType)
       val alocal = mb.newLocal[IndexedSeq[String]]
@@ -234,6 +250,7 @@ abstract class RegistryFunctions {
     def ct(typ: Type): ClassTag[_] = typ match {
       case _: TString => classTag[String]
       case TArray(_: TInt32, _) => classTag[IndexedSeq[Int]]
+      case TArray(_: TFloat64, _) => classTag[IndexedSeq[Double]]
       case TArray(_: TString, _) => classTag[IndexedSeq[String]]
       case TSet(_: TString, _) => classTag[Set[String]]
       case t => TypeToIRIntermediateClassTag(t)
