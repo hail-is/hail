@@ -1479,7 +1479,7 @@ class TupleExpression(Expression, Sequence):
         """
         if not 0 <= item < len(self):
             raise IndexError("Out of bounds index. Tuple length is {}.".format(len(self)))
-        return self._index(self.dtype.types[item], item)
+        return construct_expr(ir.GetTupleElement(self._ir, item), self.dtype.types[item], self._indices)
 
     def __len__(self):
         """Returns the length of the tuple.
