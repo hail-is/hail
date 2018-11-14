@@ -16,7 +16,7 @@ public class BGzipInputStream extends SplitCompressionInputStream {
     private static final int OUTPUT_BUFFER_CAPACITY = BGZF_MAX_BLOCK_SIZE;
 
     private static final String ZIP_EXCEPTION_MESSAGE = "File does not conform to block gzip format.";
-    
+
     public static class BGzipHeader {
         /* `bsize' is the size of the current BGZF block.
            It is the `BSIZE' entry of the BGZF extra subfield + 1.  */
@@ -251,12 +251,12 @@ public class BGzipInputStream extends SplitCompressionInputStream {
     // The upper 48 bits of pos are the offset into the compressed data, the lower 16 bits
     // are the offset into the uncompressed block that begins at the pointed to location
     // by the upper 48 bits.
-    public void vSeek(final long pos) throws IOException {
+    public void virtualSeek(final long pos) throws IOException {
         final long compOff = BlockCompressedFilePointerUtil.getBlockAddress(pos);
         final int uncompOff = BlockCompressedFilePointerUtil.getBlockOffset(pos);
         if (inputBufferInPos != compOff) {
             ((Seekable) in).seek(compOff);
-            inputBufferInPos = compOff;
+            resetState();
             decompressNextBlock();
         }
         if (uncompOff > outputBufferSize) {

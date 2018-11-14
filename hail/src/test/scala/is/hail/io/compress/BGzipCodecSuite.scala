@@ -6,6 +6,7 @@ import is.hail.check.Prop.forAll
 import is.hail.utils._
 import org.apache.commons.io.IOUtils
 import org.apache.{hadoop => hd}
+import org.testng.Assert
 import org.testng.annotations.Test
 
 import scala.collection.JavaConverters._
@@ -113,5 +114,48 @@ class BGzipCodecSuite extends SparkSuite {
       rddLines.sameElements(lines)
     }
     p.check()
+  }
+
+
+  @Test def testVirtualSeek() {
+    sc.hadoopConfiguration.setLong("mapreduce.input.fileinputformat.split.minsize", 1L)
+    // real offsets of the start of each block.
+    val blockStarts = Array[Long](14653, 28034, 40231, 55611, 69140, 82949, 96438, 110192, 121461, 133703,
+      146664, 158711, 171239, 181362)
+    val uncompBlockStarts = Array[Long](65280, 130560, 195840, 261120, 326400, 391680, 456960, 522240,
+      587520, 652800, 718080, 783360, 848640, 913920)
+
+    val blockPointerOffset = 16 // magic number for creating virtual file pointers into bgzipped files
+
+    val uncompPath = "src/test/resources/sample.vcf"
+    val compPath = "src/test/resources/sample.vcf.gz"
+
+    val uncompHPath = new hd.fs.Path(uncompPath)
+    val compHPath = new hd.fs.Path(compPath)
+
+    val fs = uncompHPath.getFileSystem(hadoopConf)
+    val compIS = fs.open(compHPath)
+    val uncompIS = fs.open(uncompHPath)
+
+    val decompIS = new BGzipInputStream(compIS)
+
+    for ((cOff, uOff) <- blockStarts.zip(uncompBlockStarts);
+         extra <- Seq(0, 50)) {
+      val decompData = new Array[Byte](100)
+      val uncompData = new Array[Byte](100)
+      val vptr = cOff << blockPointerOffset
+
+      decompIS.virtualSeek(vptr)
+      uncompIS.seek(uOff)
+
+      val decompRead = decompIS.read(decompData)
+      val uncompRead = uncompIS.read(uncompData)
+
+      Assert.assertEquals(decompRead, uncompRead, s"""decomp bytes read: ${ decompRead }
+        |uncomp bytes read: ${ uncompRead }\n""".stripMargin)
+      Assert.assertEquals(decompData, uncompData)
+    }
+    uncompIS.close()
+    decompIS.close()
   }
 }
