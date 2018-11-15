@@ -260,6 +260,8 @@ object Pretty {
             case TableHead(_, n) => n.toString
             case TableJoin(_, _, joinType, joinKey) => s"$joinType $joinKey"
             case TableLeftJoinRightDistinct(_, _, root) => prettyIdentifier(root)
+            case TableMultiWayZipJoin(_, dataName, globalName) =>
+              s"${ prettyStringLiteral(dataName) } ${ prettyStringLiteral(globalName) }"
             case TableKeyByAndAggregate(_, _, _, nPartitions, bufferSize) =>
               prettyIntOpt(nPartitions) + " " + bufferSize.toString
             case TableExplode(_, field) => field
@@ -268,15 +270,15 @@ object Pretty {
             case TableOrderBy(_, sortFields) => prettyIdentifiers(sortFields.map(sf =>
               (if (sf.sortOrder == Ascending) "A" else "D") + sf.field))
             case CastMatrixToTable(_, entriesFieldName, colsFieldName) =>
-              s"${prettyStringLiteral(entriesFieldName)} ${prettyStringLiteral(colsFieldName)}"
+              s"${ prettyStringLiteral(entriesFieldName) } ${ prettyStringLiteral(colsFieldName) }"
             case CastTableToMatrix(_, entriesFieldName, colsFieldName, colKey) =>
-              s"${prettyIdentifier(entriesFieldName)} ${prettyIdentifier(colsFieldName)} " +
+              s"${ prettyIdentifier(entriesFieldName) } ${ prettyIdentifier(colsFieldName) } " +
                 prettyIdentifiers(colKey)
             case TableRename(_, rowMap, globalMap) =>
               val rowKV = rowMap.toArray
               val globalKV = globalMap.toArray
-              s"${prettyStrings(rowKV.map(_._1))} ${prettyStrings(rowKV.map(_._2))} " +
-                s"${prettyStrings(globalKV.map(_._1))} ${prettyStrings(globalKV.map(_._2))}"
+              s"${ prettyStrings(rowKV.map(_._1)) } ${ prettyStrings(rowKV.map(_._2)) } " +
+                s"${ prettyStrings(globalKV.map(_._1)) } ${ prettyStrings(globalKV.map(_._2)) }"
             case _ => ""
           }
 

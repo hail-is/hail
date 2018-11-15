@@ -830,6 +830,7 @@ class IRSuite extends SparkSuite {
         TableJoin(read,
           TableRange(100, 10), "inner", 1),
         TableLeftJoinRightDistinct(read, TableRange(100, 10), "root"),
+        TableMultiWayZipJoin(IndexedSeq(read, read), " * data * ", "globals"),
         MatrixEntriesTable(mtRead),
         MatrixRowsTable(mtRead),
         TableRepartition(read, 10, false),

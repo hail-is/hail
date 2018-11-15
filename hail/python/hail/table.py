@@ -2601,4 +2601,21 @@ class Table(ExprContainer):
     def _unlocalize_entries(self, cols, entries_field_name):
         return hl.MatrixTable(self._jt.unlocalizeEntries(cols._jt, entries_field_name))
 
+    @staticmethod
+    @typecheck(tables=sequenceof(table_type), data_field_name=str, global_field_name=str)
+    def _multi_way_zip_join(tables, data_field_name, global_field_name):
+        if not tables:
+            raise ValueError('multi_way_zip_join must have at least one table as an argument')
+        head = tables[0]
+        if any(head.key.dtype != t.key.dtype for t in tables):
+            raise TypeError('All input tables to multi_way_zip_join must have the same key type')
+        if any(head.row.dtype != t.row.dtype for t in tables):
+            raise TypeError('All input tables to multi_way_zip_join must have the same row type')
+        if any(head.globals.dtype != t.globals.dtype for t in tables):
+            raise TypeError('All input tables to multi_way_zip_join must have the same global type')
+        jt = Env.hail().table.Table.multiWayZipJoin([t._jt for t in tables],
+                                                    data_field_name,
+                                                    global_field_name)
+        return Table._from_java(jt)
+
 table_type.set(Table)

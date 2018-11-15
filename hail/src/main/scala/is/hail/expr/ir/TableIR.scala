@@ -193,7 +193,7 @@ case class TableImport(paths: Array[String], typ: TableType, readerOpts: TableRe
   * Let n be the longest common prefix of 'keys' and the old key, i.e. the
   * number of key fields that are not being changed.
   * - If 'isSorted', then 'child' must already be sorted by 'keys', and n must
-  *   not be zero. Thus, if 'isSorted', TableKeyBy will not shuffle or scan. 
+  *   not be zero. Thus, if 'isSorted', TableKeyBy will not shuffle or scan.
   *   The new partitioner will be the old one with partition bounds truncated
   *   to length n.
   * - If n = 'keys.length', i.e. we are simply shortening the key, do nothing
@@ -469,6 +469,92 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
       RVDType(newRowType, newKey))
 
     TableValue(typ, newGlobals, joinedRVD)
+  }
+}
+
+case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String, globalName: String) extends TableIR {
+  require(children.length > 0, "there must be at least one table as an argument")
+
+  private val first = children.head
+  private val rest = children.tail
+
+  require(
+    rest.forall(e => e.typ.keyType isIsomorphicTo first.typ.keyType),
+    "all keys must be the same type"
+  )
+  require(rest.forall(e => e.typ.rowType == first.typ.rowType), "all rows must have the same type")
+  require(rest.forall(e => e.typ.globalType == first.typ.globalType),
+    "all globals must have the same type")
+
+  private val rvdType = first.typ.rvdType
+  private val newGlobalType = TStruct(globalName -> TArray(first.typ.globalType))
+  private val newValueType = TStruct(fieldName -> TArray(rvdType.valueType.virtualType))
+  private val newRowType = rvdType.kType.virtualType ++ newValueType
+
+  def typ: TableType = first.typ.copy(
+    rowType = newRowType,
+    globalType = newGlobalType
+  )
+
+  def copy(newChildren: IndexedSeq[BaseIR]): TableMultiWayZipJoin =
+    TableMultiWayZipJoin(newChildren.asInstanceOf[IndexedSeq[TableIR]], fieldName, globalName)
+
+  protected[ir] override def execute(hc: HailContext): TableValue = {
+    val rowType = rvdType.rowType
+    val keyIdx = rvdType.kFieldIdx
+    val valIdx = rvdType.valueFieldIdx
+    val localRVDType = rvdType
+    val localNewRowType = newRowType.physicalType
+    val localDataLength = children.length
+    val rvMerger = { it: Iterator[ArrayBuilder[(RegionValue, Int)]] =>
+      val rvb = new RegionValueBuilder()
+      val newRegionValue = RegionValue()
+
+      it.map { rvs =>
+        val rv = rvs(0)._1
+        rvb.set(rv.region)
+        rvb.start(localNewRowType)
+        rvb.startStruct()
+        rvb.addFields(rowType, rv, keyIdx) // Add the key
+        rvb.startMissingArray(localDataLength) // add the values
+        var i = 0
+        while (i < rvs.length) {
+          val (rv, j) = rvs(i)
+          rvb.setArrayIndex(j)
+          rvb.setPresent()
+          rvb.startStruct()
+          rvb.addFields(rowType, rv, valIdx)
+          rvb.endStruct()
+          i += 1
+        }
+        rvb.endArrayUnchecked()
+        rvb.endStruct()
+
+        newRegionValue.set(rvb.region, rvb.end())
+        newRegionValue
+      }
+    }
+
+    val childValues = children.map(_.execute(hc))
+    val childRVDs = childValues.map(_.rvd)
+    val childRanges = childRVDs.flatMap(_.partitioner.rangeBounds)
+    val newPartitioner = RVDPartitioner.generate(childRVDs.head.typ.kType.virtualType, childRanges)
+    val repartitionedRVDs = childRVDs.map(_.repartition(newPartitioner))
+    val newRVDType = RVDType(localNewRowType, localRVDType.key)
+    val rvd = RVD(
+      typ = newRVDType,
+      partitioner = newPartitioner,
+      crdd = ContextRDD.czipNPartitions(repartitionedRVDs.map(_.crdd)) { (ctx, its) =>
+        val orvIters = its.map(it => OrderedRVIterator(localRVDType, it, ctx))
+        rvMerger(OrderedRVIterator.multiZipJoin(orvIters))
+      })
+
+    val newGlobals = BroadcastRow(
+      Row(childValues.map(_.globals.value)),
+      newGlobalType,
+      childValues.head.rvd.sparkContext)
+
+    TableValue(typ, newGlobals, rvd)
   }
 }
 

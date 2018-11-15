@@ -256,6 +256,20 @@ class TableRename(TableIR):
                f'{r(self.child)})'
 
 
+class TableMultiWayZipJoin(TableIR):
+    def __init__(self, childs, data_name, global_name):
+        super().__init__()
+        self.childs = childs
+        self.data_name = data_name
+        self.global_name = global_name
+
+    def render(self, r):
+        return f'(TableMultiWayZipJoin '\
+               f'"{escape_str(self.data_name)}" '\
+               f'"{escape_str(self.global_name)}" '\
+               f'{" ".join([r(child) for child in self.childs])})'
+
+
 class JavaTable(TableIR):
     def __init__(self, jir):
         self._jir = jir
