@@ -500,11 +500,6 @@ object Parser extends JavaTokenParsers {
 
   def type_exprs_opt: Parser[Option[Seq[Type]]] = type_exprs ^^ { ts => Some(ts) } | "None" ^^ { _ => None }
 
-  def agg_signature: Parser[AggSignature] =
-    "(" ~> ir_agg_op ~ type_exprs ~ type_exprs_opt ~ type_exprs <~ ")" ^^ { case op ~ ctorArgTypes ~ initOpArgTypes ~ seqOpArgTypes =>
-      AggSignature(op, ctorArgTypes.map(t => -t), initOpArgTypes.map(_.map(t => -t)), seqOpArgTypes.map(t => -t))
-    }
-
   def ir_named_value_exprs(env: IRParserEnvironment): Parser[Seq[(String, ir.IR)]] =
     rep(ir_named_value_expr(env))
 
@@ -566,10 +561,12 @@ object Parser extends JavaTokenParsers {
       "AggExplode" ~> ir_identifier ~ ir_value_expr(env) >> { case name ~ a =>
         ir_value_expr(env + (name -> coerce[TArray](a.typ).elementType)) ^^ { aggBody => ir.AggExplode(a, name, aggBody) }} |
       "AggGroupBy" ~> ir_value_expr(env) ~ ir_value_expr(env) ^^ { case key ~ aggIR => ir.AggGroupBy(key, aggIR) } |
-      "ApplyAggOp" ~> agg_signature ~ ir_value_exprs(env) ~ ir_value_exprs_opt(env) ~ ir_value_exprs(env) ^^ { case aggSig ~ ctorArgs ~ initOpArgs ~ seqOpArgs => ir.ApplyAggOp(ctorArgs, initOpArgs, seqOpArgs, aggSig) } |
-      "ApplyScanOp" ~> agg_signature ~ ir_value_exprs(env) ~ ir_value_exprs_opt(env) ~ ir_value_exprs(env) ^^ { case aggSig ~ ctorArgs ~ initOpArgs ~ seqOpArgs => ir.ApplyScanOp(ctorArgs, initOpArgs, seqOpArgs, aggSig) } |
-      "InitOp" ~> agg_signature ~ ir_value_expr(env) ~ ir_value_exprs(env) ^^ { case aggSig ~ i ~ args => ir.InitOp(i, args, aggSig) } |
-      "SeqOp" ~> agg_signature ~ ir_value_expr(env) ~ ir_value_exprs(env) ^^ { case aggSig ~ i ~ args => ir.SeqOp(i, args, aggSig) } |
+      "ApplyAggOp" ~> ir_agg_op ~ ir_value_exprs(env) ~ ir_value_exprs_opt(env) ~ ir_value_exprs(env) ^^ { case aggOp ~ ctorArgs ~ initOpArgs ~ seqOpArgs =>
+        val aggSig = AggSignature(aggOp, ctorArgs.map(arg => -arg.typ), initOpArgs.map(_.map(arg => -arg.typ)), seqOpArgs.map(arg => -arg.typ))
+        ir.ApplyAggOp(ctorArgs, initOpArgs, seqOpArgs, aggSig) } |
+      "ApplyScanOp" ~> ir_agg_op ~ ir_value_exprs(env) ~ ir_value_exprs_opt(env) ~ ir_value_exprs(env) ^^ { case aggOp ~ ctorArgs ~ initOpArgs ~ seqOpArgs =>
+        val aggSig = AggSignature(aggOp, ctorArgs.map(arg => -arg.typ), initOpArgs.map(_.map(arg => -arg.typ)), seqOpArgs.map(arg => -arg.typ))
+        ir.ApplyScanOp(ctorArgs, initOpArgs, seqOpArgs, aggSig) } |
       "Begin" ~> ir_children(env) ^^ { xs => ir.Begin(xs) } |
       "MakeStruct" ~> ir_named_value_exprs(env) ^^ { fields => ir.MakeStruct(fields) } |
       "SelectFields" ~> ir_identifiers ~ ir_value_expr(env) ^^ { case fields ~ old => ir.SelectFields(old, fields) } |
