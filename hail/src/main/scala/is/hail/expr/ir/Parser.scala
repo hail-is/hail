@@ -464,15 +464,8 @@ object IRParser {
     MatrixType.fromParts(globalType, colKey, colType, rowPartitionKey ++ rowRestKey, rowType, entryType)
   }
 
-  def agg_signature(it: TokenIterator): AggSignature = {
-    punctuation(it, "(")
-    val op = AggOp.fromString(identifier(it))
-    val ctorArgs = type_exprs(it).map(t => -t)
-    val initOpArgs = opt(it, type_exprs).map(_.map(t => -t))
-    val seqOpArgs = type_exprs(it).map(t => -t)
-    punctuation(it, ")")
-    AggSignature(op, ctorArgs, initOpArgs.map(_.toFastIndexedSeq), seqOpArgs)
-  }
+  def agg_op(it: TokenIterator): AggOp =
+    AggOp.fromString(identifier(it))
 
   def ir_value(it: TokenIterator): (Type, Any) = {
     val typ = type_expr(it)
@@ -637,27 +630,19 @@ object IRParser {
         val aggIR = ir_value_expr(env)(it)
         AggGroupBy(key, aggIR)
       case "ApplyAggOp" =>
-        val aggSig = agg_signature(it)
+        val aggOp = agg_op(it)
         val ctorArgs = ir_value_exprs(env)(it)
         val initOpArgs = opt(it, ir_value_exprs(env))
         val seqOpArgs = ir_value_exprs(env)(it)
+        val aggSig = AggSignature(aggOp, ctorArgs.map(arg => -arg.typ), initOpArgs.map(_.map(arg => -arg.typ)), seqOpArgs.map(arg => -arg.typ))
         ApplyAggOp(ctorArgs, initOpArgs.map(_.toFastIndexedSeq), seqOpArgs, aggSig)
       case "ApplyScanOp" =>
-        val aggSig = agg_signature(it)
+        val aggOp = agg_op(it)
         val ctorArgs = ir_value_exprs(env)(it)
         val initOpArgs = opt(it, ir_value_exprs(env))
         val seqOpArgs = ir_value_exprs(env)(it)
+        val aggSig = AggSignature(aggOp, ctorArgs.map(arg => -arg.typ), initOpArgs.map(_.map(arg => -arg.typ)), seqOpArgs.map(arg => -arg.typ))
         ApplyScanOp(ctorArgs, initOpArgs.map(_.toFastIndexedSeq), seqOpArgs, aggSig)
-      case "InitOp" =>
-        val aggSig = agg_signature(it)
-        val i = ir_value_expr(env)(it)
-        val args = ir_value_exprs(env)(it)
-        InitOp(i, args, aggSig)
-      case "SeqOp" =>
-        val aggSig = agg_signature(it)
-        val i = ir_value_expr(env)(it)
-        val args = ir_value_exprs(env)(it)
-        SeqOp(i, args, aggSig)
       case "Begin" =>
         val xs = ir_value_children(env)(it)
         Begin(xs)

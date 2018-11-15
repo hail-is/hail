@@ -2,7 +2,6 @@ import hail
 from hail.expr.types import hail_type
 from hail.typecheck import *
 from hail.utils.java import escape_str, escape_id
-from .aggsig import AggSignature
 from .base_ir import *
 
 
@@ -802,17 +801,17 @@ class AggGroupBy(IR):
 
 
 class BaseApplyAggOp(IR):
-    @typecheck_method(constructor_args=sequenceof(IR),
+    @typecheck_method(agg_op=str,
+                      constructor_args=sequenceof(IR),
                       init_op_args=nullable(sequenceof(IR)),
-                      seq_op_args=sequenceof(IR),
-                      agg_sig=AggSignature)
-    def __init__(self, constructor_args, init_op_args, seq_op_args, agg_sig):
+                      seq_op_args=sequenceof(IR))
+    def __init__(self, agg_op, constructor_args, init_op_args, seq_op_args):
         init_op_children = [] if init_op_args is None else init_op_args
         super().__init__(*constructor_args, *init_op_children, *seq_op_args)
+        self.agg_op = agg_op
         self.constructor_args = constructor_args
         self.init_op_args = init_op_args
         self.seq_op_args = seq_op_args
-        self.agg_sig = agg_sig
 
     def copy(self, *args):
         new_instance = self.__class__
@@ -821,12 +820,12 @@ class BaseApplyAggOp(IR):
         constr_args = args[:n_constructor_args]
         init_op_args = args[n_constructor_args:-n_seq_op_args]
         seq_op_args = args[-n_seq_op_args:]
-        return new_instance(constr_args, init_op_args if len(init_op_args) != 0 else None, seq_op_args, self.agg_sig)
+        return new_instance(self.agg_op, constr_args, init_op_args if len(init_op_args) != 0 else None, seq_op_args)
 
     def render(self, r):
         return '({} {} ({}) {} ({}))'.format(
             self.__class__.__name__,
-            self.agg_sig,
+            self.agg_op,
             ' '.join([r(x) for x in self.constructor_args]),
             '(' + ' '.join([r(x) for x in self.init_op_args]) + ')' if self.init_op_args else 'None',
             ' '.join([r(x) for x in self.seq_op_args]))
@@ -838,71 +837,28 @@ class BaseApplyAggOp(IR):
 
     def __eq__(self, other):
         return isinstance(other, self.__class__) and \
+               other.agg_op == self.agg_op and \
                other.constructor_args == self.constructor_args and \
                other.init_op_args == self.init_op_args and \
-               other.seq_op_args == self.seq_op_args and \
-               other.agg_sig == self.agg_sig
+               other.seq_op_args == self.seq_op_args
 
 
 class ApplyAggOp(BaseApplyAggOp):
-    @typecheck_method(constructor_args=sequenceof(IR),
+    @typecheck_method(agg_op=str,
+                      constructor_args=sequenceof(IR),
                       init_op_args=nullable(sequenceof(IR)),
-                      seq_op_args=sequenceof(IR),
-                      agg_sig=AggSignature)
-    def __init__(self, constructor_args, init_op_args, seq_op_args, agg_sig):
-        super().__init__(constructor_args, init_op_args, seq_op_args, agg_sig)
+                      seq_op_args=sequenceof(IR))
+    def __init__(self, agg_op, constructor_args, init_op_args, seq_op_args):
+        super().__init__(agg_op, constructor_args, init_op_args, seq_op_args)
 
 
 class ApplyScanOp(BaseApplyAggOp):
-    @typecheck_method(constructor_args=sequenceof(IR),
+    @typecheck_method(agg_op=str,
+                      constructor_args=sequenceof(IR),
                       init_op_args=nullable(sequenceof(IR)),
-                      seq_op_args=sequenceof(IR),
-                      agg_sig=AggSignature)
-    def __init__(self, constructor_args, init_op_args, seq_op_args, agg_sig):
-        super().__init__(constructor_args, init_op_args, seq_op_args, agg_sig)
-
-
-class InitOp(IR):
-    @typecheck_method(i=IR, args=sequenceof(IR), agg_sig=AggSignature)
-    def __init__(self, i, args, agg_sig):
-        super().__init__(i, *args)
-        self.i = i
-        self.args = args
-        self.agg_sig = agg_sig
-
-    def copy(self, i, *args):
-        new_instance = self.__class__
-        return new_instance(i, list(args), self.agg_sig)
-
-    def render(self, r):
-        return '(InitOp {} {} ({}))'.format(self.agg_sig, r(self.i), ' '.join([r(x) for x in self.args]))
-
-    def __eq__(self, other):
-        return isinstance(other, InitOp) and \
-               other.i == self.i and \
-               other.args == self.args and \
-               other.agg_sig == self.agg_sig
-
-class SeqOp(IR):
-    @typecheck_method(i=IR, args=sequenceof(IR), agg_sig=AggSignature)
-    def __init__(self, i, args, agg_sig):
-        super().__init__(i, *args)
-        self.i = i
-        self.args = args
-        self.agg_sig = agg_sig
-
-    def copy(self, i, *args):
-        new_instance = self.__class__
-        return new_instance(i, list(args), self.agg_sig)
-
-    def render(self, r):
-        return '(SeqOp {} {} ({}))'.format(self.agg_sig, r(self.i), ' '.join([r(x) for x in self.args]))
-
-    def __eq__(self, other):
-        return isinstance(other, SeqOp) and \
-               other.i == self.i and \
-               other.args == self.args and \
-               other.agg_sig == self.agg_sig
+                      seq_op_args=sequenceof(IR))
+    def __init__(self, agg_op, constructor_args, init_op_args, seq_op_args):
+        super().__init__(agg_op, constructor_args, init_op_args, seq_op_args)
 
 
 class Begin(IR):

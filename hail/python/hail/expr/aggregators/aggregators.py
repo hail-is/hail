@@ -55,12 +55,12 @@ class AggFunc(object):
                             caller=caller,
                             incorrect=self.incorrect_plural()))
 
-    @typecheck_method(name=str,
+    @typecheck_method(agg_op=str,
                       seq_op_args=sequenceof(expr_any),
                       ret_type=hail_type,
                       constructor_args=sequenceof(expr_any),
                       init_op_args=nullable(sequenceof(expr_any)))
-    def __call__(self, name, seq_op_args, ret_type, constructor_args=(), init_op_args=None):
+    def __call__(self, agg_op, seq_op_args, ret_type, constructor_args=(), init_op_args=None):
         args = constructor_args if init_op_args is None else constructor_args + init_op_args
         indices, aggregations = unify_all(*seq_op_args, *args)
         if aggregations:
@@ -68,22 +68,17 @@ class AggFunc(object):
         for a in seq_op_args + args:
             _check_agg_bindings(a, self._agg_bindings)
 
-        signature = AggSignature(name,
-                                 [expr.dtype for expr in constructor_args],
-                                 None if init_op_args is None else [expr.dtype for expr in init_op_args],
-                                 [expr.dtype for expr in seq_op_args])
-
         if self._as_scan:
-            ir = ApplyScanOp([expr._ir for expr in constructor_args],
+            ir = ApplyScanOp(agg_op,
+                             [expr._ir for expr in constructor_args],
                              None if init_op_args is None else [expr._ir for expr in init_op_args],
-                             [expr._ir for expr in seq_op_args],
-                             signature)
+                             [expr._ir for expr in seq_op_args])
             aggs = aggregations
         else:
-            ir = ApplyAggOp([expr._ir for expr in constructor_args],
+            ir = ApplyAggOp(agg_op,
+                            [expr._ir for expr in constructor_args],
                             None if init_op_args is None else [expr._ir for expr in init_op_args],
-                            [expr._ir for expr in seq_op_args],
-                            signature)
+                            [expr._ir for expr in seq_op_args])
             aggs = aggregations.push(Aggregation(*seq_op_args, *args))
         return construct_expr(ir, ret_type, Indices(indices.source, set()), aggs)
 

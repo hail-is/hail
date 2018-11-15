@@ -26,17 +26,6 @@ class ValueIRTests(unittest.TestCase):
 
         table = ir.TableRange(5, 3)
 
-        collect_sig = ir.AggSignature('Collect', [], None, [hl.tint32])
-
-        call_stats_sig = ir.AggSignature('CallStats', [], [hl.tint32], [hl.tcall])
-
-        hist_sig = ir.AggSignature(
-            'Histogram', [hl.tfloat64, hl.tfloat64, hl.tint32], None, [hl.tfloat64])
-
-        take_by_sig = ir.AggSignature('TakeBy', [hl.tint32], None, [hl.tfloat64, hl.tfloat64])
-
-        table = ir.TableRange(10, 4)
-
         value_irs = [
             i, ir.I64(5), ir.F32(3.14), ir.F64(3.14), s, ir.TrueIR(), ir.FalseIR(), ir.Void(),
             ir.Cast(i, hl.tfloat64),
@@ -67,14 +56,11 @@ class ValueIRTests(unittest.TestCase):
             ir.AggFilter(ir.TrueIR(), ir.I32(0)),
             ir.AggExplode(ir.ArrayRange(ir.I32(0), ir.I32(2), ir.I32(1)), 'x', ir.I32(0)),
             ir.AggGroupBy(ir.TrueIR(), ir.I32(0)),
-            ir.ApplyAggOp([], None, [ir.I32(0)], collect_sig),
-            ir.ApplyScanOp([], None, [ir.I32(0)], collect_sig),
-            ir.ApplyAggOp([ir.F64(-5.0), ir.F64(5.0), ir.I32(100)], None, [ir.F64(-2.11)], hist_sig),
-            ir.ApplyAggOp([], [ir.I32(2)], [call], call_stats_sig),
-            ir.ApplyAggOp([ir.I32(10)], None, [ir.F64(-2.11), ir.F64(-2.11)], take_by_sig),
-            ir.InitOp(ir.I32(0), [ir.I32(2)], call_stats_sig),
-            ir.SeqOp(ir.I32(0), [i], collect_sig),
-            ir.SeqOp(ir.I32(0), [ir.F64(-2.11), ir.I32(17)], take_by_sig),
+            ir.ApplyAggOp('Collect', [], None, [ir.I32(0)]),
+            ir.ApplyScanOp('Collect', [], None, [ir.I32(0)]),
+            ir.ApplyAggOp('Histogram', [ir.F64(-5.0), ir.F64(5.0), ir.I32(100)], None, [ir.F64(-2.11)]),
+            ir.ApplyAggOp('CallStats', [], [ir.I32(2)], [call]),
+            ir.ApplyAggOp('TakeBy', [ir.I32(10)], None, [ir.F64(-2.11), ir.F64(-2.11)]),
             ir.Begin([ir.Void()]),
             ir.MakeStruct([('x', i)]),
             ir.SelectFields(s, ['x', 'z']),
@@ -91,7 +77,7 @@ class ValueIRTests(unittest.TestCase):
             ir.Uniroot('x', ir.F64(3.14), ir.F64(-5.0), ir.F64(5.0)),
             ir.Literal(hl.tarray(hl.tint32), [1, 2, None]),
             ir.TableCount(table),
-            ir.TableAggregate(table, ir.MakeStruct([('foo', ir.ApplyAggOp([], None, [ir.I32(0)], collect_sig))])),
+            ir.TableAggregate(table, ir.MakeStruct([('foo', ir.ApplyAggOp('Collect', [], None, [ir.I32(0)]))])),
             ir.TableWrite(table, new_temp_file(), False, True, "fake_codec_spec$$"),
         ]
 
@@ -180,8 +166,7 @@ class TableIRTests(unittest.TestCase):
                       reference_genome=hail.get_reference('GRCh37'),
                       contig_recoding={'01': '1'})
 
-        collect_sig = ir.AggSignature('Collect', [], None, [hl.tint32])
-        collect = ir.MakeStruct([('x', ir.ApplyAggOp([], None, [ir.I32(0)], collect_sig))])
+        collect = ir.MakeStruct([('x', ir.ApplyAggOp('Collect', [], None, [ir.I32(0)]))])
 
         matrix_read = ir.MatrixRead(
             resource('backward_compatability/1.0.0/matrix_table/0.hmt'), False, False)
