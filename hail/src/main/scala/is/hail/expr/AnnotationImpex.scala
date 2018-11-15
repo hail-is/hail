@@ -200,7 +200,7 @@ object JSONAnnotationImpex {
             }
           }
 
-          Annotation(a: _*)
+          Annotation.fromSeq(a)
         }
       case (JArray(elts), t: TTuple) =>
         if (t.size == 0)
@@ -216,7 +216,7 @@ object JSONAnnotationImpex {
             i += 1
           }
 
-          Annotation(a: _*)
+          Annotation.fromSeq(a)
         }
       case (_, TLocus(_, _)) =>
         jv.extract[Locus]

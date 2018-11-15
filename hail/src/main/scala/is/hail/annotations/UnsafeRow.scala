@@ -186,7 +186,7 @@ object SafeRow {
 
   def selectFields(t: PBaseStruct, region: Region, off: Long)(selectIdx: Array[Int]): Row = {
     val fullRow = new UnsafeRow(t, region, off)
-    Row(selectIdx.map(i => Annotation.copy(t.types(i).virtualType, fullRow.get(i))): _*)
+    Row.fromSeq(selectIdx.map(i => Annotation.copy(t.types(i).virtualType, fullRow.get(i))))
   }
 
   def selectFields(t: PBaseStruct, rv: RegionValue)(selectIdx: Array[Int]): Row =
