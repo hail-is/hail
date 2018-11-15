@@ -1,9 +1,11 @@
 package is.hail.io.tabix
 
 import is.hail.HailContext
+import is.hail.io.compress.BGzipInputStream
 import is.hail.utils._
 
 import htsjdk.tribble.util.{ParsingUtils, TabixUtils}
+import org.apache.{hadoop => hd}
 import org.apache.hadoop.io.compress.SplitCompressionInputStream
 
 import java.io.InputStream
@@ -12,6 +14,38 @@ import java.nio.{ByteBuffer, ByteOrder}
 import scala.collection.mutable.HashMap
 import scala.language.implicitConversions
 
+// Helper data classes
+
+class Tabix(
+  val format: Int,
+  val colSeq: Int,
+  val colBeg: Int,
+  val meta: Int,
+  val seqs: Array[String],
+  val chr2tid: HashMap[String, Int],
+  val indicies: Array[(HashMap[Int, Array[TbiPair]], Array[Long])]
+)
+
+case class TbiPair(_1: Long, _2: Long)
+
+object TbiPair {
+  implicit def tup2Pair(t: (Long, Long)): TbiPair = new TbiPair(t._1, t._2)
+}
+
+object TbiOrd extends Ordering[TbiPair] {
+  def compare(t: TbiPair, u: TbiPair) = less64(t._1, u._1)
+
+  // Helper function for unsigned long comparison
+  def less64(u: Long, v: Long) = if (u == v) {
+    0
+  } else if ((u < v) ^ (u < 0) ^ (v < 0)) {
+    -1
+  } else {
+    1
+  }
+}
+
+// Tabix reader
 // Tabix file format is described here: https://samtools.github.io/hts-specs/tabix.pdf
 
 object TabixReader {
@@ -116,28 +150,30 @@ class TabixReader(val filePath: String, private val idxFilePath: Option[String])
   }
 }
 
-class Tabix(
-  val format: Int,
-  val colSeq: Int,
-  val colBeg: Int,
-  val meta: Int,
-  val seqs: Array[String],
-  val chr2tid: HashMap[String, Int],
-  val indicies: Array[(HashMap[Int, Array[TbiPair]], Array[Long])]
-)
-
-case class TbiPair(_1: Long, _2: Long)
-
-object TbiPair {
-  implicit def tup2Pair(t: (Long, Long)): TbiPair = new TbiPair(t._1, t._2)
-}
-
-object TbiPairOrd extends Ordering[TbiPair] {
-  def compare(t: TbiPair, u: TbiPair) = if (t._1 == u._1) {
-    0
-  } else if ((t._1 < u._1) ^ (t._1 < 0) ^ (u._1 < 0)) {
-    -1
-  } else {
-    1
+class TabixLineIterator(private val filePath: String, private val offsets: Array[TbiPair])
+  extends Iterator[String]
+{
+  private val hConf = HailContext.get.sc.hadoopConfiguration
+  private var i: Int = -1
+  private var curOff: Long = 0
+  private var isEof = false
+  private var is = {
+    val path = new hd.fs.Path(filePath)
+    val fs = path.getFileSystem(hConf)
+    new BGzipInputStream(fs.open(path))
   }
+  def hasNext: Boolean = isEof
+
+  def next(): String = {
+    if (isEof)
+      null
+    else {
+      var s: String = null
+      while (s == null || !isEof) {
+        // FIXME do the thing
+      }
+      s
+    }
+  }
+
 }
