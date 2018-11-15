@@ -2,7 +2,6 @@ import hail
 from hail.expr.types import hail_type
 from hail.typecheck import *
 from hail.utils.java import escape_str, escape_id
-from .aggsig import AggSignature
 from .base_ir import *
 
 
@@ -808,7 +807,7 @@ class BaseApplyAggOp(IR):
                       seq_op_args=sequenceof(IR))
     def __init__(self, agg_op, constructor_args, init_op_args, seq_op_args):
         init_op_children = [] if init_op_args is None else init_op_args
-        super().__init__(agg_op, *constructor_args, *init_op_children, *seq_op_args)
+        super().__init__(*constructor_args, *init_op_children, *seq_op_args)
         self.agg_op = agg_op
         self.constructor_args = constructor_args
         self.init_op_args = init_op_args
