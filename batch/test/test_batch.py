@@ -1,9 +1,10 @@
+import batch
+import os
+import re
+import requests
 import threading
 import time
-import os
 import unittest
-import batch
-import requests
 from werkzeug.serving import make_server
 from flask import Flask, request, jsonify, url_for, Response
 

@@ -107,3 +107,67 @@ class JobSpec:
 
     def __repr__(self):
         return self.__str__()
+
+
+class DagNodeSpec:
+    schema = {
+        'name': {'type': 'string'},
+        'parent_names': {'type': 'list', 'schema': {'type': 'string'}},
+        'job_spec': {'type': 'dict', 'schema': JobSpec.schema}
+    }
+    validator = cerberus.Validator(schema)
+
+    @staticmethod
+    def from_json(doc):
+        try:
+            return DagNodeSpec(doc['name'],
+                               doc['parent_names'],
+                               JobSpec.from_json(doc['job_spec']))
+        except KeyError as err:
+            raise ValueError(
+                f'could not parse {doc} into a DagNodeSpec') from err
+
+    def __init__(self, name, parent_names, job_spec):
+        self.name = name
+        self.parent_names = parent_names
+        self.job_spec = job_spec
+
+    def to_json(self):
+        return {
+            'name': self.name,
+            'parent_names': self.parent_names,
+            'job_spec': self.job_spec.to_json(),
+        }
+
+    def __str__(self):
+        return str(self.to_json())
+
+    def __repr__(self):
+        return self.__str__()
+
+
+class Dag:
+    schema = {
+        'nodes': {'type': 'list', 'schema': {'type': 'dict', 'schema': DagNodeSpec.schema}}
+    }
+    validator = cerberus.Validator(schema)
+
+    @staticmethod
+    def from_json(doc):
+        try:
+            return Dag([DagNodeSpec.from_json(node) for node in doc['nodes']])
+        except KeyError as err:
+            raise ValueError(
+                f'could not parse {doc} into a Dag') from err
+
+    def __init__(self, nodes):
+        self.nodes = nodes
+
+    def to_json(self):
+        return {'nodes': [node.to_json() for node in self.nodes]}
+
+    def __str__(self):
+        return str(self.to_json())
+
+    def __repr__(self):
+        return self.__str__()

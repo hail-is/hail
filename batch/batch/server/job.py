@@ -60,10 +60,14 @@ class Job:
         assert self._state == 'Cancelled'
         return None
 
-    def __init__(self, spec):
+    def __init__(self, spec, dag=None):
         self.id = next_id()
         job_id_job[self.id] = self
         self.spec = spec
+
+        self.dag = dag
+        if self.dag:
+            self.dag.link_job(self)
 
         if self.spec.batch_id:
             batch = batch_id_batch[self.spec.batch_id]
@@ -135,6 +139,9 @@ class Job:
             self._pod_name = None
 
         self.set_state('Complete')
+
+        if self.dag:
+            self.dag.mark_complete()
 
         log.info('job {} complete, exit_code {}'.format(
             self.id, self.exit_code))

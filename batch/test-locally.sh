@@ -22,4 +22,4 @@ do
     sleep 1
 done
 
-POD_IP='127.0.0.1' BATCH_URL='http://127.0.0.1:5000' python -m unittest -v test/test_batch.py
+POD_IP='127.0.0.1' BATCH_URL='http://127.0.0.1:5000' pytest ${PYTEST_ARGS:-test}

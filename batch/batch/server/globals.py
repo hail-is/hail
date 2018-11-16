@@ -15,6 +15,7 @@ log.info(f'INSTANCE_ID = {INSTANCE_ID}')
 pod_name_job = {}
 job_id_job = {}
 batch_id_batch = {}
+dag_id_dag = {}
 
 
 def _log_path(id):

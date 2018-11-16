@@ -2,7 +2,7 @@ import time
 import random
 
 from . import api
-from .data import JobSpec
+from .data import JobSpec, Dag
 
 
 class Job:
@@ -144,3 +144,9 @@ class BatchClient:
     def create_batch(self, attributes=None):
         batch = self.api.create_batch(self.url, attributes)
         return Batch(self, batch['id'])
+
+    def create_dag(self, nodes):
+        return self.api.create_dag(self.url, Dag(nodes))
+
+    def get_dag(self, id):
+        return Dag.from_json(self.api.get_dag(self.url, id))

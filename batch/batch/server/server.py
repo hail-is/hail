@@ -12,12 +12,14 @@ import requests
 from ..data import JobSpec
 
 from .batch import Batch
+from .dag import Dag
 from .globals import max_id, pod_name_job, job_id_job, _log_path, _read_file
 from .globals import batch_id_batch, next_id, REFRESH_INTERVAL_IN_SECONDS
-from .globals import POD_NAMESPACE, INSTANCE_ID
+from .globals import POD_NAMESPACE, INSTANCE_ID, dag_id_dag
 from .job import Job
 from .kubernetes import v1
 from .log import log
+from .user_error import UserError
 
 if not os.path.exists('logs'):
     os.mkdir('logs')
@@ -27,6 +29,11 @@ else:
 
 
 app = Flask('batch')
+
+
+@app.errorhandler(UserError)
+def handle_invalid_usage(err):
+    return jsonify(err.data), err.status_code
 
 
 @app.route('/jobs/create', methods=['POST'])
@@ -128,6 +135,24 @@ def delete_batch(batch_id):
         abort(404)
     batch.delete()
     return jsonify({})
+
+
+@app.route('/dag/create', methods=['POST'])
+def create_dag():
+    doc = request.json
+    if not Dag.validator.validate(doc):
+        abort(400, 'invalid request: {}'.format(Dag.validator.errors))
+    dag = Dag.from_json(next_id(), doc)
+    dag_id_dag[dag.id] = dag
+    return str(dag.id), 201
+
+
+@app.route('/dag/<int:dag_id>', methods=['GET'])
+def get_dag(dag_id):  # pylint: disable=R1710
+    dag = dag_id_dag.get(dag_id)
+    if dag:
+        return jsonify(dag.to_get_json())
+    abort(404)
 
 
 def update_job_with_pod(job, pod):

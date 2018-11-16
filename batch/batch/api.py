@@ -66,6 +66,16 @@ class API():
         response = requests.post(url + '/refresh_k8s_state', timeout=self.timeout)
         raise_on_failure(response)
 
+    def create_dag(self, url, dag):
+        response = requests.post(url + '/dag/create', json=dag.to_json(), timeout=self.timeout)
+        raise_on_failure(response)
+        return response.json()
+
+    def get_dag(self, url, id):
+        response = requests.get(f'{url}/dag/{id}', timeout=self.timeout)
+        raise_on_failure(response)
+        return response.json()
+
 
 DEFAULT_API = API()
 
@@ -108,3 +118,11 @@ def delete_batch(url, batch_id):
 
 def refresh_k8s_state(url):
     return DEFAULT_API.refresh_k8s_state(url)
+
+
+def create_dag(url, dag):
+    return DEFAULT_API.creat_dag(url, dag)
+
+
+def get_dag(url, id):
+    return DEFAULT_API.get_dag(url, id)
