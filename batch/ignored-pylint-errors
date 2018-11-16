@@ -1,4 +1,0 @@
-************* Module batch.server
-batch/server.py:278:0: R1710: Either all return statements in a function should return an expression, or none of them should. (inconsistent-return-statements)
-batch/server.py:449:15: W0703: Catching too general exception Exception (broad-except)
-batch/server.py:484:15: W0703: Catching too general exception Exception (broad-except)

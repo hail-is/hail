@@ -290,7 +290,7 @@ def get_job(job_id):
 
 
 @app.route('/jobs/<int:job_id>/log', methods=['GET'])
-def get_job_log(job_id):
+def get_job_log(job_id):  # pylint: disable=R1710
     if job_id > counter:
         abort(404)
 
@@ -465,7 +465,7 @@ def run_forever(target, *args, **kwargs):
             log.info(f'run_forever: run target {target_name}')
             target(*args, **kwargs)
             log.info(f'run_forever: target {target_name} returned')
-        except Exception:
+        except Exception:  # pylint: disable=W0703
             log.error(f'run_forever: target {target_name} threw exception', exc_info=sys.exc_info())
         end = time.time()
 
@@ -500,7 +500,7 @@ def polling_event_loop():
             response.raise_for_status()
         except requests.HTTPError as exc:
             log.error(f'Could not poll due to exception: {exc}, text: {exc.response.text}')
-        except Exception as exc:
+        except Exception as exc:  # pylint: disable=W0703
             log.error(f'Could not poll due to exception: {exc}')
         time.sleep(REFRESH_INTERVAL_IN_SECONDS)
 
