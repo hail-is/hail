@@ -60,7 +60,8 @@ class RichContextRDD[T: ClassTag](crdd: ContextRDD[RVDContext, T]) {
     assert(nPartitions == partitionCounts.length)
 
     info(s"wrote $itemCount ${ plural(itemCount, "item") } " +
-      s"in ${ nPartitions } ${ plural(nPartitions, "partition") }")
+      s"in ${ nPartitions } ${ plural(nPartitions, "partition") } " +
+      s"to $path")
 
     (partFiles, partitionCounts)
   }
