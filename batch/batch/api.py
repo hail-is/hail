@@ -1,4 +1,5 @@
 import requests
+from .requests_helper import raise_on_failure
 
 
 class API():
@@ -23,32 +24,32 @@ class API():
             doc['callback'] = callback
 
         response = requests.post(url + '/jobs/create', json=doc, timeout=self.timeout)
-        response.raise_for_status()
+        raise_on_failure(response)
         return response.json()
 
     def list_jobs(self, url):
         response = requests.get(url + '/jobs', timeout=self.timeout)
-        response.raise_for_status()
+        raise_on_failure(response)
         return response.json()
 
     def get_job(self, url, job_id):
         response = requests.get(url + '/jobs/{}'.format(job_id), timeout=self.timeout)
-        response.raise_for_status()
+        raise_on_failure(response)
         return response.json()
 
     def get_job_log(self, url, job_id):
         response = requests.get(url + '/jobs/{}/log'.format(job_id), timeout=self.timeout)
-        response.raise_for_status()
+        raise_on_failure(response)
         return response.text
 
     def delete_job(self, url, job_id):
         response = requests.delete(url + '/jobs/{}/delete'.format(job_id), timeout=self.timeout)
-        response.raise_for_status()
+        raise_on_failure(response)
         return response.json()
 
     def cancel_job(self, url, job_id):
         response = requests.post(url + '/jobs/{}/cancel'.format(job_id), timeout=self.timeout)
-        response.raise_for_status()
+        raise_on_failure(response)
         return response.json()
 
     def create_batch(self, url, attributes):
@@ -56,22 +57,22 @@ class API():
         if attributes:
             doc['attributes'] = attributes
         response = requests.post(url + '/batches/create', json=doc, timeout=self.timeout)
-        response.raise_for_status()
+        raise_on_failure(response)
         return response.json()
 
     def get_batch(self, url, batch_id):
         response = requests.get(url + '/batches/{}'.format(batch_id), timeout=self.timeout)
-        response.raise_for_status()
+        raise_on_failure(response)
         return response.json()
 
     def delete_batch(self, url, batch_id):
         response = requests.delete(url + '/batches/{}'.format(batch_id), timeout=self.timeout)
-        response.raise_for_status()
+        raise_on_failure(response)
         return response.json()
 
     def refresh_k8s_state(self, url):
         response = requests.post(url + '/refresh_k8s_state', timeout=self.timeout)
-        response.raise_for_status()
+        raise_on_failure(response)
 
 
 DEFAULT_API = API()
