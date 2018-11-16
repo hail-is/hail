@@ -2,7 +2,6 @@ import sys
 import os
 import time
 import random
-from collections import Counter
 import threading
 from flask import Flask, request, jsonify, abort
 import kubernetes as kube
@@ -109,32 +108,6 @@ def cancel_job(job_id):
         abort(404)
     job.cancel()
     return jsonify({})
-
-
-class Batch:
-    def __init__(self, attributes):
-        self.attributes = attributes
-        self.id = next_id()
-        batch_id_batch[self.id] = self
-        self.jobs = []
-
-    def delete(self):
-        del batch_id_batch[self.id]
-        for j in self.jobs:
-            assert j.batch_id == self.id
-            j.batch_id = None
-
-    def to_json(self):
-        state_count = Counter([j._state for j in self.jobs])
-        return {
-            'id': self.id,
-            'jobs': {
-                'Created': state_count.get('Created', 0),
-                'Complete': state_count.get('Complete', 0),
-                'Cancelled': state_count.get('Cancelled', 0)
-            },
-            'attributes': self.attributes
-        }
 
 
 @app.route('/batches/create', methods=['POST'])
