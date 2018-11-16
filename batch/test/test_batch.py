@@ -180,16 +180,17 @@ class Test(unittest.TestCase):
 
         port = 5869
         server = ServerThread(app, host=self.ip, port=port)
-        server.start()
+        try:
+            server.start()
 
-        j = self.batch.create_job('alpine', ['echo', 'test'],
-                                  attributes={'foo': 'bar'},
-                                  callback='http://{}:{}/test'.format(self.ip, port))
-        j.wait()
+            j = self.batch.create_job('alpine', ['echo', 'test'],
+                                      attributes={'foo': 'bar'},
+                                      callback='http://{}:{}/test'.format(self.ip, port))
+            j.wait()
 
-        status = d['status']
-        self.assertEqual(status['state'], 'Complete')
-        self.assertEqual(status['attributes'], {'foo': 'bar'})
-
-        server.shutdown()
-        server.join()
+            status = d['status']
+            self.assertEqual(status['state'], 'Complete')
+            self.assertEqual(status['attributes'], {'foo': 'bar'})
+        finally:
+            server.shutdown()
+            server.join()
