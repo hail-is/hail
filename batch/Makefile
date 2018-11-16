@@ -27,7 +27,7 @@ run-docker: build
 	docker run -e BATCH_USE_KUBE_CONFIG=1 -i -v $(HOME)/.kube:/root/.kube -p 5000:5000 -t batch
 
 run:
-	BATCH_USE_KUBE_CONFIG=1 python batch/server.py
+	BATCH_USE_KUBE_CONFIG=1 python -c 'import batch.server; batch.server.serve()'
 
 test: push-test
 	sed -e "s,@image@,$$(cat batch-test-image)," \
@@ -35,7 +35,7 @@ test: push-test
 	kubectl create -f test-batch-pod.yaml
 
 test-local:
-	./test-locally.sh
+	POD_NAMESPACE='test' BATCH_USE_KUBE_CONFIG=1 ./test-locally.sh
 
 deploy: push
 	sed -e "s,@sha@,$$(git rev-parse --short=12 HEAD)," \

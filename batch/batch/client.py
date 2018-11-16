@@ -2,7 +2,8 @@ import json
 import time
 import random
 import requests
-import batch.api as api
+
+from . import api
 
 class Job(object):
     def __init__(self, client, id, attributes=None, _status=None):
