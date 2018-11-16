@@ -248,7 +248,7 @@ class NativeCodeSuite extends SparkSuite {
 
   @Test def testNewRegions() = {
     hc
-    val monitorType = TStruct("n_regions" -> +TInt64(), "n_blocks" -> +TInt64(), "sized_blocks"-> +TArray(+TInt64()))
+    val monitorType = TStruct("n_regions" -> +TInt64(), "n_blocks" -> +TInt64())
     val spec = CodecSpec.bufferSpecs(0)
     val enc = PackEncoder.apply(monitorType.physicalType, spec, new TranslationUnitBuilder())
 
@@ -272,23 +272,23 @@ class NativeCodeSuite extends SparkSuite {
         |
         |  ${ enc.name } enc {std::make_shared<OutputStream>(up, reinterpret_cast<ObjectArray *>(os)->at(0))};
         |  auto pool = new RegionPool();
-        |  auto tracker = new RegionPoolTracker<${ enc.name }>(pool, &enc);
+        |  auto tracker = new RegionPoolTracker<${ enc.name }>(st, pool, &enc);
         |  auto region = pool->get_region();
         |
-        |  tracker->write(st);
+        |  tracker->log_state();
         |  for (int i = 0; i < 200; ++i) {
         |    region->allocate(4, 1024);
         |  }
         |  region->allocate(4, 70000);
         |
-        |  tracker->write(st);
+        |  tracker->log_state();
         |  region->clear();
         |
-        |  tracker->write(st);
+        |  tracker->log_state();
         |  region = nullptr;
         |
-        |  tracker->write(st);
-        |  tracker->stop(st);
+        |  tracker->log_state();
+        |  tracker->stop();
         |  return 0;
         |}
         |
