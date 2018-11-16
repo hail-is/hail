@@ -1,26 +1,25 @@
 package is.hail.io
 
-import is.hail.annotations._
-import is.hail.expr.JSONAnnotationImpex
-import is.hail.io.compress.LZ4Utils
-import is.hail.nativecode._
-import is.hail.rvd.{AbstractRVDSpec, OrderedRVDSpec, RVDContext, RVDPartitioner}
-import is.hail.sparkextras._
-import is.hail.utils._
-import org.apache.spark.rdd.RDD
-import org.json4s.{Extraction, JValue}
-import org.json4s.jackson.JsonMethods
 import java.io._
 
-import scala.collection.mutable.ArrayBuffer
+import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.{HailContext, cxx}
 import is.hail.expr.ir.{EmitUtils, EstimableEmitter, MethodBuilderLike}
 import is.hail.expr.types.MatrixType
 import is.hail.expr.types.physical._
+import is.hail.expr.types.virtual.Type
+import is.hail.io.compress.LZ4Utils
+import is.hail.nativecode._
+import is.hail.rvd.{AbstractRVDSpec, OrderedRVDSpec, RVDContext, RVDPartitioner, RVDType}
+import is.hail.sparkextras._
+import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
+import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.{ExposedMetrics, TaskContext}
+import org.json4s.jackson.JsonMethods
+import org.json4s.{Extraction, JValue}
 
 trait BufferSpec extends Serializable {
   def buildInputBuffer(in: InputStream): InputBuffer
@@ -1316,7 +1315,7 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
 
   def writeRowsSplit(
     path: String,
-    t: MatrixType,
+    t: RVDType,
     codecSpec: CodecSpec,
     partitioner: RVDPartitioner,
     stageLocally: Boolean
@@ -1332,15 +1331,15 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
     val nPartitions = crdd.getNumPartitions
     val d = digitsNeeded(nPartitions)
 
-    val fullRowType = t.rvRowType
-    val fullRowPType = fullRowType.physicalType
-    val rowsRVType = t.rowType
-    val localEntriesIndex = t.entriesIdx
-    val entriesRVType = t.entriesRVType
+    val fullRowType = t.rowType
+    val rowsRVType = MatrixType.getRowType(fullRowType)
+    val localEntriesIndex = MatrixType.getEntriesIndex(fullRowType)
+    val rowFieldIndices = Array.range(0, fullRowType.size).filter(_ != localEntriesIndex)
+    val entriesRVType = MatrixType.getSplitEntriesType(fullRowType)
 
-    val makeRowsEnc = codecSpec.buildEncoder(rowsRVType.physicalType)
+    val makeRowsEnc = codecSpec.buildEncoder(rowsRVType)
 
-    val makeEntriesEnc = codecSpec.buildEncoder(t.entriesRVType.physicalType)
+    val makeEntriesEnc = codecSpec.buildEncoder(entriesRVType)
 
     val partFilePartitionCounts = crdd.cmapPartitionsWithIndex { (i, ctx, it) =>
       val hConf = sHConfBc.value.value
@@ -1375,23 +1374,21 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
               var rowCount = 0L
 
               val rvb = new RegionValueBuilder()
-              val fullRow = new UnsafeRow(fullRowPType)
 
               it.foreach { rv =>
-                fullRow.set(rv)
-                val row = fullRow.deleteField(localEntriesIndex)
-
                 val region = rv.region
                 rvb.set(region)
-                rvb.start(rowsRVType.physicalType)
-                rvb.addAnnotation(rowsRVType, row)
+                rvb.start(rowsRVType)
+                rvb.startStruct()
+                rvb.addFields(fullRowType, rv, rowFieldIndices)
+                rvb.endStruct()
 
                 rowsEN.writeByte(1)
                 rowsEN.writeRegionValue(region, rvb.end())
 
-                rvb.start(entriesRVType.physicalType)
+                rvb.start(entriesRVType)
                 rvb.startStruct()
-                rvb.addField(fullRowType.physicalType, rv, localEntriesIndex)
+                rvb.addField(fullRowType, rv, localEntriesIndex)
                 rvb.endStruct()
 
                 entriesEN.writeByte(1)
@@ -1428,10 +1425,10 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
 
     val (partFiles, partitionCounts) = partFilePartitionCounts.unzip
 
-    val rowsSpec = OrderedRVDSpec(t.rowType.physicalType, t.rowKey, codecSpec, partFiles, partitioner)
+    val rowsSpec = OrderedRVDSpec(rowsRVType, t.key, codecSpec, partFiles, partitioner)
     rowsSpec.write(hConf, path + "/rows/rows")
 
-    val entriesSpec = OrderedRVDSpec(entriesRVType.physicalType, FastIndexedSeq(), codecSpec, partFiles, RVDPartitioner.unkeyed(partitionCounts.length))
+    val entriesSpec = OrderedRVDSpec(entriesRVType, FastIndexedSeq(), codecSpec, partFiles, RVDPartitioner.unkeyed(partitionCounts.length))
     entriesSpec.write(hConf, path + "/entries/rows")
 
     info(s"wrote ${ partitionCounts.sum } items in $nPartitions partitions to $path")

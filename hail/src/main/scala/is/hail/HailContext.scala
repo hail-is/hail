@@ -6,24 +6,25 @@ import java.util.Properties
 import is.hail.annotations._
 import is.hail.expr.ir.MatrixRead
 import is.hail.expr.types._
+import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual._
-import is.hail.io.{CodecSpec, Decoder, LoadMatrix}
 import is.hail.io.bgen.{IndexBgen, LoadBgen, MatrixBGENReader}
 import is.hail.io.gen.LoadGen
 import is.hail.io.plink.{FamFileConfig, LoadPlink}
 import is.hail.io.vcf._
+import is.hail.io.{CodecSpec, Decoder, LoadMatrix}
 import is.hail.rvd.RVDContext
-import is.hail.table.Table
 import is.hail.sparkextras.ContextRDD
+import is.hail.table.Table
 import is.hail.utils.{log, _}
-import is.hail.variant.{MatrixTable, ReferenceGenome, VSMSubgen}
+import is.hail.variant.{MatrixTable, ReferenceGenome}
 import org.apache.commons.io.FileUtils
 import org.apache.hadoop
 import org.apache.log4j.{ConsoleAppender, LogManager, PatternLayout, PropertyConfigurator}
-import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.SQLContext
 import org.apache.spark._
 import org.apache.spark.executor.InputMetrics
+import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.SQLContext
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -618,12 +619,12 @@ class HailContext private(val sc: SparkContext,
 
   def readRows(
     path: String,
-    t: TStruct,
+    t: PStruct,
     codecSpec: CodecSpec,
     partFiles: Array[String],
-    requestedType: TStruct
+    requestedType: PStruct
   ): ContextRDD[RVDContext, RegionValue] = {
-    val makeDec = codecSpec.buildDecoder(t.physicalType, requestedType.physicalType)
+    val makeDec = codecSpec.buildDecoder(t, requestedType)
     ContextRDD.weaken[RVDContext](readPartitions(path, partFiles, (_, is, m) => Iterator.single(is -> m)))
       .cmapPartitions { (ctx, it) =>
         assert(it.hasNext)

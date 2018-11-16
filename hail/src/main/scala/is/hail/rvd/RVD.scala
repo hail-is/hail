@@ -650,8 +650,7 @@ class RVD(
   def cache(): RVD = persist(StorageLevel.MEMORY_ONLY)
 
   def persist(level: StorageLevel): RVD = {
-    val localRowPType = rowPType
-    val makeDec = RVD.memoryCodec.buildDecoder(localRowPType, localRowPType)
+    val makeDec = RVD.memoryCodec.buildDecoder(rowPType, rowPType)
 
     val persistedRDD = stabilize().persist(level)
 
@@ -688,10 +687,9 @@ class RVD(
 
   def writeRowsSplit(
     path: String,
-    t: MatrixType,
     codecSpec: CodecSpec,
     stageLocally: Boolean
-  ): Array[Long] = crdd.writeRowsSplit(path, t, codecSpec, partitioner, stageLocally)
+  ): Array[Long] = crdd.writeRowsSplit(path, typ, codecSpec, partitioner, stageLocally)
 
   // Joining
 

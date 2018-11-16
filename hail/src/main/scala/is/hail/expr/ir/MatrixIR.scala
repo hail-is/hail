@@ -243,13 +243,13 @@ case class MatrixNativeReader(path: String) extends MatrixReader {
     assert(PruneDeadFields.isSupertype(requestedType, spec.matrix_type),
       s"R: ${ requestedType.parsableString() }\nS: ${ spec.matrix_type.parsableString() }")
 
-    val globals = spec.globalsComponent.readLocal(hc, path, requestedType.globalType)(0).asInstanceOf[Row]
+    val globals = spec.globalsComponent.readLocal(hc, path, requestedType.globalType.physicalType)(0).asInstanceOf[Row]
 
     val colAnnotations =
       if (mr.dropCols)
         FastIndexedSeq.empty[Annotation]
       else
-        spec.colsComponent.readLocal(hc, path, requestedType.colType).asInstanceOf[IndexedSeq[Annotation]]
+        spec.colsComponent.readLocal(hc, path, requestedType.colType.physicalType).asInstanceOf[IndexedSeq[Annotation]]
 
     val rvd =
       if (mr.dropRows)
@@ -258,7 +258,7 @@ case class MatrixNativeReader(path: String) extends MatrixReader {
         val fullRowType = requestedType.rvRowType
         val localEntriesIndex = requestedType.entriesIdx
 
-        val rowsRVD = spec.rowsComponent.read(hc, path, requestedType.rowType)
+        val rowsRVD = spec.rowsComponent.read(hc, path, requestedType.rowType.physicalType)
         if (mr.dropCols) {
           val (t2, makeF) = ir.Compile[Long, Long](
             "row", requestedType.rowType.physicalType,
@@ -282,7 +282,7 @@ case class MatrixNativeReader(path: String) extends MatrixReader {
             }
           }
         } else {
-          val entriesRVD = spec.entriesComponent.read(hc, path, requestedType.entriesRVType)
+          val entriesRVD = spec.entriesComponent.read(hc, path, requestedType.entriesRVType.physicalType)
           val entriesRowType = entriesRVD.rowType
 
           val (t2, makeF) = ir.Compile[Long, Long, Long](

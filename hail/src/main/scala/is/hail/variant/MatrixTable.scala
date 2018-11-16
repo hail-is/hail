@@ -2,11 +2,11 @@ package is.hail.variant
 
 import is.hail.annotations._
 import is.hail.check.Gen
-import is.hail.expr.{ir, _}
 import is.hail.expr.ir._
 import is.hail.expr.types._
-import is.hail.expr.types.physical.PArray
+import is.hail.expr.types.physical.{PArray, PStruct}
 import is.hail.expr.types.virtual._
+import is.hail.expr.{ir, _}
 import is.hail.io.gen.ExportGen
 import is.hail.io.plink.ExportPlink
 import is.hail.linalg._
@@ -90,13 +90,13 @@ abstract class RelationalSpec {
 }
 
 case class RVDComponentSpec(rel_path: String) extends ComponentSpec {
-  def read(hc: HailContext, path: String, requestedType: TStruct): RVD = {
+  def read(hc: HailContext, path: String, requestedType: PStruct): RVD = {
     val rvdPath = path + "/" + rel_path
     AbstractRVDSpec.read(hc, rvdPath)
       .read(hc, rvdPath, requestedType)
   }
 
-  def readLocal(hc: HailContext, path: String, requestedType: TStruct): IndexedSeq[Row] = {
+  def readLocal(hc: HailContext, path: String, requestedType: PStruct): IndexedSeq[Row] = {
     val rvdPath = path + "/" + rel_path
     AbstractRVDSpec.read(hc, rvdPath)
       .readLocal(hc, rvdPath, requestedType)
