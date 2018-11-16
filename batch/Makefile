@@ -35,7 +35,7 @@ test: push-test
 	kubectl create -f test-batch-pod.yaml
 
 test-local:
-	POD_IP='127.0.0.1' BATCH_URL='http://127.0.0.1:5000' python -m unittest -v test/test_batch.py
+	./test-locally.sh
 
 deploy: push
 	sed -e "s,@sha@,$$(git rev-parse --short=12 HEAD)," \
