@@ -8,7 +8,7 @@ cleanup() {
 trap cleanup EXIT
 trap "exit 24" INT TERM
 
-# BATCH_USE_KUBE_CONFIG=1 python batch/server.py &
+BATCH_USE_KUBE_CONFIG=1 python batch/server.py &
 server_pid=$!
 
 until curl -fL 127.0.0.1:5000/jobs >/dev/null 2>&1
