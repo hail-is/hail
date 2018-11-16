@@ -1,11 +1,10 @@
-import json
 import time
 import random
-import requests
 
 from . import api
 
-class Job(object):
+
+class Job:
     def __init__(self, client, id, attributes=None, _status=None):
         if attributes is None:
             attributes = {}
@@ -18,12 +17,12 @@ class Job(object):
     def is_complete(self):
         if self._status:
             state = self._status['state']
-            if state == 'Complete' or state == 'Cancelled':
+            if state in ('Complete', 'Cancelled'):
                 return True
         return False
 
     def cached_status(self):
-        assert self._status != None
+        assert self._status is not None
         return self._status
 
     def status(self):
@@ -33,7 +32,7 @@ class Job(object):
     def wait(self):
         i = 0
         while True:
-            self.status() # update
+            self.status()  # update
             if self.is_complete():
                 return self._status
             j = random.randrange(2 ** i)
@@ -55,7 +54,8 @@ class Job(object):
     def log(self):
         return self.client._get_job_log(self.id)
 
-class Batch(object):
+
+class Batch:
     def __init__(self, client, id):
         self.client = client
         self.id = id
@@ -63,8 +63,9 @@ class Batch(object):
     def create_job(self, image, command=None, args=None, env=None, ports=None,
                    resources=None, tolerations=None, volumes=None, security_context=None,
                    service_account_name=None, attributes=None, callback=None):
-        return self.client._create_job(image, command, args, env, ports, resources, tolerations, volumes, security_context, service_account_name,
-                                       attributes, self.id, callback)
+        return self.client._create_job(
+            image, command, args, env, ports, resources, tolerations, volumes, security_context,
+            service_account_name, attributes, self.id, callback)
 
     def status(self):
         return self.client._get_batch(self.id)
@@ -81,15 +82,28 @@ class Batch(object):
             if i < 9:
                 i = i + 1
 
-class BatchClient(object):
-    def __init__(self, url=None, api=api.default_api):
+
+class BatchClient:
+    def __init__(self, url=None, api=api.DEFAULT_API):
         if not url:
             url = 'http://batch.default'
         self.url = url
         self.api = api
 
-    def _create_job(self, image, command, args, env, ports, resources, tolerations, volumes, security_context, service_account_name,
-                    attributes, batch_id, callback):
+    def _create_job(self,
+                    image,
+                    command,
+                    args,
+                    env,
+                    ports,
+                    resources,
+                    tolerations,
+                    volumes,
+                    security_context,
+                    service_account_name,
+                    attributes,
+                    batch_id,
+                    callback):
         if env:
             env = [{'name': k, 'value': v} for (k, v) in env.items()]
         else:
@@ -181,9 +195,10 @@ class BatchClient(object):
                    service_account_name=None,
                    attributes=None,
                    callback=None):
-        return self._create_job(image, command, args, env, ports, resources, tolerations, volumes, security_context,
-                                service_account_name, attributes, None, callback)
+        return self._create_job(
+            image, command, args, env, ports, resources, tolerations, volumes, security_context,
+            service_account_name, attributes, None, callback)
 
     def create_batch(self, attributes=None):
-        b = self.api.create_batch(self.url, attributes)
-        return Batch(self, b['id'])
+        batch = self.api.create_batch(self.url, attributes)
+        return Batch(self, batch['id'])
