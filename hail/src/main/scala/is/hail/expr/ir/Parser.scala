@@ -2,7 +2,8 @@ package is.hail.expr.ir
 
 import is.hail.HailContext
 import is.hail.expr.{JSONAnnotationImpex, ParserUtils}
-import is.hail.expr.types._
+import is.hail.expr.types.{MatrixType, TableType}
+import is.hail.expr.types.virtual._
 import is.hail.expr.types.physical.PType
 import is.hail.rvd.RVDType
 import is.hail.table.{Ascending, Descending, SortField}
