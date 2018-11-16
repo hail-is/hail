@@ -13,7 +13,7 @@ server_pid=$!
 
 until curl -fL 127.0.0.1:5000/jobs >/dev/null 2>&1
 do
-    ((tries++)) && [ $tries -lt 2 ]
+    ((tries++)) && [ $tries -lt 30 ]
     sleep 1
 done
 
