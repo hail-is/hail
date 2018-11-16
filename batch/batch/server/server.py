@@ -4,7 +4,6 @@ import time
 import random
 import uuid
 from collections import Counter
-import logging
 import threading
 from flask import Flask, request, jsonify, abort
 import kubernetes as kube
@@ -13,6 +12,8 @@ import requests
 
 from .globals import max_id, pod_name_job, job_id_job, _log_path, _read_file, batch_id_batch
 from .globals import next_id
+from .kubernetes import v1
+from .log import log
 
 if not os.path.exists('logs'):
     os.mkdir('logs')
@@ -20,45 +21,13 @@ else:
     if not os.path.isdir('logs'):
         raise OSError('logs exists but is not a directory')
 
-
-def make_logger():
-    fmt = logging.Formatter(
-        # NB: no space after levename because WARNING is so long
-        '%(levelname)s\t| %(asctime)s \t| %(filename)s \t| %(funcName)s:%(lineno)d | '
-        '%(message)s')
-
-    file_handler = logging.FileHandler('batch.log')
-    file_handler.setLevel(logging.INFO)
-    file_handler.setFormatter(fmt)
-
-    stream_handler = logging.StreamHandler()
-    stream_handler.setLevel(logging.INFO)
-    stream_handler.setFormatter(fmt)
-
-    log = logging.getLogger('batch')
-    log.setLevel(logging.INFO)
-
-    logging.basicConfig(handlers=[file_handler, stream_handler], level=logging.INFO)
-
-    return log
-
-
-log = make_logger()
-
 KUBERNETES_TIMEOUT_IN_SECONDS = float(os.environ.get('KUBERNETES_TIMEOUT_IN_SECONDS', 5.0))
-
 REFRESH_INTERVAL_IN_SECONDS = int(os.environ.get('REFRESH_INTERVAL_IN_SECONDS', 5 * 60))
 
 POD_NAMESPACE = os.environ.get('POD_NAMESPACE', 'batch-pods')
 
 log.info(f'KUBERNETES_TIMEOUT_IN_SECONDS {KUBERNETES_TIMEOUT_IN_SECONDS}')
 log.info(f'REFRESH_INTERVAL_IN_SECONDS {REFRESH_INTERVAL_IN_SECONDS}')
-
-if 'BATCH_USE_KUBE_CONFIG' in os.environ:
-    kube.config.load_kube_config()
-else:
-    kube.config.load_incluster_config()
-v1 = kube.client.CoreV1Api()
 
 instance_id = uuid.uuid4().hex
 log.info(f'instance_id = {instance_id}')
