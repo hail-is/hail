@@ -2,7 +2,5 @@
 set -ex
 
 flake8 batch
-PYLINT_OUTPUT_FILE=$(mktemp)
-pylint batch --rcfile batch/pylintrc >$PYLINT_OUTPUT_FILE --score=n || true
-diff $PYLINT_OUTPUT_FILE ignored-pylint-errors
+pylint batch --rcfile batch/pylintrc --score=n
 make test-local-in-cluster
