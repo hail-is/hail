@@ -686,7 +686,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     newColKey: IndexedSeq[String] = colKey,
     newColValues: BroadcastIndexedSeq = colValues,
     newGlobalType: TStruct = globalType,
-    newGlobals: BroadcastRow = globals)(newEntryType: TStruct,
+    newGlobals: BroadcastRow = globals)(newEntryType: PStruct,
     inserter: (PC, RegionValue, RegionValueBuilder) => Unit): MatrixTable = {
     val newValue = value.insertEntries(makePartitionContext, newColType, newColKey,
       newColValues, newGlobalType, newGlobals)(newEntryType, inserter)
@@ -1319,7 +1319,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     insertEntries(noOp,
       newColType = newColType,
       newColKey = Array("id"),
-      newColValues = colValues.copy(value = newColValues, t = TArray(newColType)))(newEntryType, { case (_, rv, rvb) =>
+      newColValues = colValues.copy(value = newColValues, t = TArray(newColType)))(newEntryType.physicalType, { case (_, rv, rvb) =>
       val entriesOffset = fullRowType.loadField(rv, localEntriesIndex)
 
       rvb.startArray(nTrios)
