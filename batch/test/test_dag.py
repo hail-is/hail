@@ -80,6 +80,7 @@ def test_cancel(client):
         JobSpec.from_parameters('alpine:3.8', ['echo', 'tail']))
     id = client.create_dag([head, tail])
     client.cancel_dag(id)
+    dag = client.get_dag(id)
 
 
 def test_delete(client):
