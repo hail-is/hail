@@ -143,7 +143,7 @@ $(BUILD)/functional-tests: ibs.cpp test.cpp
 	$(CXX) $(CXXFLAGS) -DNUMBER_OF_GENOTYPES_PER_ROW=256 ibs.cpp test.cpp -o $(BUILD)/functional-tests
 
 $(BUILD)/unit-tests: all
-	$(CXX) $(LIBFLAGS) $(LIBDIRS) $(CXXFLAGS) -o $(BUILD)/unit-tests $(BUILD_OBJECTS)
+	$(CXX) $(LIBDIRS) $(CXXFLAGS) -o $(BUILD)/unit-tests $(BUILD_OBJECTS)
 
 prebuilt: all
 	@echo updating $(PREBUILT) ...
