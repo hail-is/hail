@@ -1588,7 +1588,7 @@ class WriteBlocksRDD(path: String,
         pi -= 1
 
       parts(blockRow) = WriteBlocksRDDPartition(blockRow, start, skip, end,
-        (start until end).map(i => parentPartitions(i)).toArray)
+        (start to end).map(i => parentPartitions(i)).toArray)
 
       firstRowInBlock = firstRowInNextBlock
       blockRow += 1
