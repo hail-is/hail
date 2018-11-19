@@ -97,7 +97,7 @@ def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None) -> 
     else:
         dataset = dataset.select_rows()
     dataset = dataset.select_cols().select_globals().select_entries('GT')
-    return Table._from_java(Env.hail().methods.IBD.apply(require_biallelic(dataset, 'ibd')._jvds,
+    return Table._from_java(Env.hail().methods.IBD.apply(require_biallelic(dataset, 'ibd')._jmt,
                                                          joption('__maf' if maf is not None else None),
                                                          bounded,
                                                          joption(min),
@@ -417,7 +417,7 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=()) -> 
                         entry_exprs={x_field_name: x})
 
     jt = func(
-        mt._jvds,
+        mt._jmt,
         y_field_names,
         x_field_name,
         cov_field_names,
@@ -672,7 +672,7 @@ def logistic_regression_rows(test, y, x, covariates, pass_through=()) -> hail.Ta
                         entry_exprs={x_field_name: x})
 
     jt = Env.hail().methods.LogisticRegression.apply(
-        mt._jvds,
+        mt._jmt,
         test,
         y_field_name,
         x_field_name,
@@ -745,7 +745,7 @@ def poisson_regression_rows(test, y, x, covariates, pass_through=()) -> Table:
                         entry_exprs={x_field_name: x})
 
     jt = Env.hail().methods.PoissonRegression.apply(
-        mt._jvds,
+        mt._jmt,
         test,
         y_field_name,
         x_field_name,
@@ -1277,7 +1277,7 @@ def skat(key_expr, weight_expr, y, x, covariates, logistic=False,
                           entry_exprs=entry_expr)
 
     jt = Env.hail().methods.Skat.apply(
-        mt._jvds,
+        mt._jmt,
         key_field_name,
         weight_field_name,
         y_field_name,
@@ -1467,8 +1467,8 @@ def pca(entry_expr, k=10, compute_loadings=False) -> Tuple[List[float], Table, T
         mt = mt.select_entries(**{field: entry_expr})
     mt = mt.select_cols().select_rows().select_globals()
 
-    r = Env.hail().methods.PCA.apply(mt._jvds, field, k, compute_loadings)
-    scores = Table._from_java(Env.hail().methods.PCA.scoresTable(mt._jvds, r._2()))
+    r = Env.hail().methods.PCA.apply(mt._jmt, field, k, compute_loadings)
+    scores = Table._from_java(Env.hail().methods.PCA.scoresTable(mt._jmt, r._2()))
     loadings = from_option(r._3())
     if loadings:
         loadings = Table._from_java(loadings)
@@ -1906,7 +1906,7 @@ def split_multi(ds, keep_star=False, left_aligned=False):
             if rekey:
                 return mt.key_rows_by('locus', 'alleles')
             else:
-                return MatrixTable(mt._jvds.keyRowsBy(
+                return MatrixTable._from_java(mt._jmt.keyRowsBy(
                     ['locus', 'alleles'],
                     True # isSorted
                 ))
@@ -3176,7 +3176,7 @@ def _local_ld_prune(mt, call_field, r2=0.2, bp_window_size=1000000, memory_per_c
     info(f'ld_prune: running local pruning stage with max queue size of {max_queue_size} variants')
 
     sites_only_table = Table._from_java(Env.hail().methods.LocalLDPrune.apply(
-        mt._jvds, call_field, float(r2), bp_window_size, max_queue_size))
+        mt._jmt, call_field, float(r2), bp_window_size, max_queue_size))
 
     return sites_only_table
 

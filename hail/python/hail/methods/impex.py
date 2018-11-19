@@ -161,7 +161,7 @@ def export_gen(dataset, output, precision=4, gp=None, id1=None, id2=None,
                                   row_exprs=gen_exprs,
                                   entry_exprs=entry_exprs)
 
-    dataset._jvds.exportGen(output, precision)
+    dataset._jmt.exportGen(output, precision)
 
 
 @typecheck(dataset=MatrixTable,
@@ -303,7 +303,7 @@ def export_plink(dataset, output, call=None, fam_id=None, ind_id=None, pat_id=No
     if errors:
         raise TypeError("\n".join(errors))
 
-    dataset._jvds.exportPlink(output)
+    dataset._jmt.exportPlink(output)
 
 
 @typecheck(dataset=MatrixTable,
@@ -417,7 +417,7 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
 
     require_row_key_variant(dataset, 'export_vcf')
     typ = tdict(tstr, tdict(tstr, tdict(tstr, tstr)))
-    Env.hail().io.vcf.ExportVCF.apply(dataset._jvds, output, joption(append_to_header),
+    Env.hail().io.vcf.ExportVCF.apply(dataset._jmt, output, joption(append_to_header),
                                       Env.hail().utils.ExportType.getExportType(parallel),
                                       joption(typ._convert_to_j(metadata)))
 
@@ -1015,7 +1015,7 @@ def import_bgen(path,
                                     'GT' in entry_set, 'GP' in entry_set, 'dosage' in entry_set,
                                     'varid' in row_set, 'rsid' in row_set, joption(n_partitions),
                                     joption(block_size), index_file_map, joption(variants))
-    return MatrixTable(jmt)
+    return MatrixTable._from_java(jmt)
 
 
 @typecheck(path=oneof(str, sequenceof(str)),
@@ -1125,7 +1125,7 @@ def import_gen(path,
     jmt = Env.hc()._jhc.importGens(jindexed_seq_args(path), sample_file, joption(chromosome), joption(min_partitions),
                                    tolerance, joption(rg), joption(contig_recoding),
                                    skip_invalid_loci)
-    return MatrixTable(jmt)
+    return MatrixTable._from_java(jmt)
 
 
 @typecheck(paths=oneof(str, sequenceof(str)),
@@ -1505,7 +1505,7 @@ def import_matrix_table(paths,
 
     jmt = Env.hc()._jhc.importMatrix(paths, jrow_fields, row_key, entry_type._jtype, missing, joption(min_partitions),
                                      no_header, force_bgz, sep)
-    return MatrixTable(jmt)
+    return MatrixTable._from_java(jmt)
 
 
 @typecheck(bed=str,
@@ -1653,7 +1653,7 @@ def import_plink(bed, bim, fam,
                                     joption(contig_recoding),
                                     skip_invalid_loci)
 
-    return MatrixTable(jmt)
+    return MatrixTable._from_java(jmt)
 
 
 @typecheck(path=oneof(str, sequenceof(str)),
@@ -1671,7 +1671,7 @@ def read_matrix_table(path, _drop_cols=False, _drop_rows=False) -> MatrixTable:
     -------
     :class:`.MatrixTable`
     """
-    return MatrixTable(Env.hc()._jhc.read(path, _drop_cols, _drop_rows))
+    return MatrixTable._from_java(Env.hc()._jhc.read(path, _drop_cols, _drop_rows))
 
 
 @typecheck(path=str)
@@ -1894,7 +1894,7 @@ def import_vcf(path,
         force_bgz,
         force
     )
-    return MatrixTable(jmt)
+    return MatrixTable._from_java(jmt)
 
 
 @typecheck(path=oneof(str, sequenceof(str)),
