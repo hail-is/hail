@@ -1,12 +1,14 @@
-import batch
 import os
-import re
-import requests
 import threading
 import time
 import unittest
+
+import requests
 from werkzeug.serving import make_server
-from flask import Flask, request, jsonify, url_for, Response
+from flask import Flask, request, Response
+
+import batch
+
 
 class ServerThread(threading.Thread):
     def __init__(self, app, host='127.0.0.1', port=5000):
