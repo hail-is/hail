@@ -1431,8 +1431,6 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
     val entriesSpec = OrderedRVDSpec(entriesRVType, FastIndexedSeq(), codecSpec, partFiles, RVDPartitioner.unkeyed(partitionCounts.length))
     entriesSpec.write(hConf, path + "/entries/rows")
 
-    info(s"wrote ${ partitionCounts.sum } items in $nPartitions partitions to $path")
-
     partitionCounts
   }
 
