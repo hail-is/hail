@@ -67,30 +67,6 @@ class RegionPool {
 
 using Region2 = RegionPool::Region;
 
-template<typename Encoder>
-class RegionPoolTracker {
-  private:
-    NativeStatus* st_;
-    RegionPool * pool_;
-    Encoder * encoder_;
-
-  public:
-    RegionPoolTracker(NativeStatus * st, RegionPool * pool, Encoder * enc) : st_(st), pool_(pool), encoder_(enc) { }
-    void log_state() {
-      encoder_->encode_byte(st_, 1);
-      long * row = (long*) malloc((sizeof(long) * 2));
-      *row = (long) pool_->num_free_regions();
-      *(row + 1) = (long) pool_->num_free_blocks();
-      encoder_->encode_row(st_, (char *) row);
-      free(row);
-    }
-
-    void stop() {
-      encoder_->encode_byte(st_, 0);
-      encoder_->flush(st_);
-    }
-};
-
 }
 
 #endif

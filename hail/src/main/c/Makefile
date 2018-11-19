@@ -36,7 +36,8 @@ OBJECTS := \
   PartitionIterators.o \
   Region.o \
   Region2.o \
-  Upcalls.o
+  Upcalls.o \
+  unit-tests.o
 
 BUILD_OBJECTS := $(OBJECTS:%=$(BUILD)/%)
 
@@ -141,12 +142,16 @@ $(BUILD)/functional-tests: ibs.cpp test.cpp
 	-mkdir -p build
 	$(CXX) $(CXXFLAGS) -DNUMBER_OF_GENOTYPES_PER_ROW=256 ibs.cpp test.cpp -o $(BUILD)/functional-tests
 
+$(BUILD)/unit-tests: all
+	$(CXX) $(CXXFLAGS) -o $(BUILD)/unit-tests $(BUILD_OBJECTS)
+
 prebuilt: all
 	@echo updating $(PREBUILT) ...
 	cp -p -f $(LIBBOOT) $(PREBUILT)/$(LIBBOOT)
 	cp -p -f $(LIBHAIL) $(PREBUILT)/$(LIBHAIL)
 
-test: $(BUILD)/functional-tests
+test: $(BUILD)/unit-tests $(BUILD)/functional-tests
+	./$(BUILD)/unit-tests -w NoAssertions -d yes -# --use-colour yes -r xml -o ../../../build/reports/cxx-test.xml
 	./$(BUILD)/functional-tests
 
 clean:
