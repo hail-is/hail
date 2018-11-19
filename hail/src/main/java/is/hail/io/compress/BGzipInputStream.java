@@ -194,6 +194,11 @@ public class BGzipInputStream extends SplitCompressionInputStream {
             return 0;
         if (outputBufferSize == 0)
             return -1;  // EOF
+        if (outputBufferPos == outputBufferSize) {
+            decompressNextBlock();
+            return read(b, off, len);
+        }
+
         assert(outputBufferPos < outputBufferSize);
 
         if (outputBufferPos == 0)
@@ -202,9 +207,6 @@ public class BGzipInputStream extends SplitCompressionInputStream {
         int toCopy = Math.min(len, outputBufferSize - outputBufferPos);
         System.arraycopy(outputBuffer, outputBufferPos, b, off, toCopy);
         outputBufferPos += toCopy;
-
-        if (outputBufferPos == outputBufferSize)
-            decompressNextBlock();
 
         return toCopy;
     }
@@ -259,7 +261,7 @@ public class BGzipInputStream extends SplitCompressionInputStream {
             resetState(); // FIXME, this is probably less efficient than it could be, but it works for now
             decompressNextBlock();
         }
-        if (uncompOff >= outputBufferSize) {
+        if (uncompOff > outputBufferSize) {
             throw new IOException("Invalid virtual offset: " + pos + "\n" +
                     "uncompOff: " + uncompOff + "\n" +
                     "compOff: " + compOff + "\n" +
