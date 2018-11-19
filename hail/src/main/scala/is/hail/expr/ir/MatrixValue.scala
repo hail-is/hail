@@ -155,7 +155,7 @@ case class MatrixValue(
       val nRows = partitionCounts.sum
       val nCols = colValues.value.length
       info(s"wrote matrix table with $nRows ${ plural(nRows, "row") } " +
-        s" and $nCols ${ plural(nCols, "column") } " +
+        s"and $nCols ${ plural(nCols, "column") } " +
         s"in ${ partitionCounts.length } ${ plural(partitionCounts.length, "partition") } " +
         s"to $path")
 
