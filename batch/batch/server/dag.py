@@ -1,6 +1,7 @@
-from .job import Job
-from ..log import log
 from .. import data
+
+from .job import Job
+from .log import log
 from .user_error import UserError
 
 
@@ -65,8 +66,7 @@ class DagNode:
             assert self.job is not None
 
     def create_job(self):
-        job_spec = self.spec.job_spec
-        return Job(job_spec.pod_spec, None, job_spec.attributes, job_spec.callback, self)
+        return Job(self.spec.job_spec, self)
 
 
 class Dag:
