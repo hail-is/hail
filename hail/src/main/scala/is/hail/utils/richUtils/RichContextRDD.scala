@@ -59,10 +59,6 @@ class RichContextRDD[T: ClassTag](crdd: ContextRDD[RVDContext, T]) {
     val itemCount = partitionCounts.sum
     assert(nPartitions == partitionCounts.length)
 
-    info(s"wrote $itemCount ${ plural(itemCount, "item") } " +
-      s"in ${ nPartitions } ${ plural(nPartitions, "partition") } " +
-      s"to $path")
-
     (partFiles, partitionCounts)
   }
 }

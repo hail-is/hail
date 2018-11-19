@@ -716,7 +716,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       1
     }
 
-    val (partFiles, _) = blocks.writePartitions(uri, stageLocally, writeBlock)
+    val (partFiles, partitionCounts) = blocks.writePartitions(uri, stageLocally, writeBlock)
 
     hadoop.writeDataFile(uri + metadataRelativePath) { os =>
       implicit val formats = defaultJSONFormats
@@ -726,6 +726,13 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     }
 
     hadoop.writeTextFile(uri + "/_SUCCESS")(out => ())
+
+    val nBlocks = partitionCounts.length
+    assert(nBlocks == partitionCounts.sum)
+    info(s"wrote matrix with $nRows ${ plural(nRows, "row") } " +
+      s"and $nCols ${ plural(nCols, "column") } " +
+      s"as $nBlocks ${ plural(nBlocks, "block") } " +
+      s"of size $blockSize to $uri")
   }
 
   def cache(): this.type = {

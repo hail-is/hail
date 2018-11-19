@@ -86,6 +86,12 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
     spec.write(hc, path)
 
     hc.hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
+
+    val nRows = partitionCounts.sum
+    info(s"wrote table with $nRows ${ plural(nRows, "row") } " +
+      s"in ${ partitionCounts.length } ${ plural(partitionCounts.length, "partition") } " +
+      s"to $path")
+
   }
 
   def export(path: String, typesFile: String = null, header: Boolean = true, exportType: Int = ExportType.CONCATENATED) {
