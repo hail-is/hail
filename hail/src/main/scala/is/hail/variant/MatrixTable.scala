@@ -1420,7 +1420,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     hadoop.mkDir(dirname + "/parts")
     val gp = GridPartitioner(blockSize, nRows, localNCols)
     val blockPartFiles =
-      new WriteBlocksRDD(dirname, rvd.crdd, sparkContext, matrixType, partStarts, entryField, gp)
+      new WriteBlocksRDD(dirname, rvd, sparkContext, partStarts, entryField, gp)
         .collect()
 
     val blockCount = blockPartFiles.length
