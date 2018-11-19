@@ -2487,7 +2487,13 @@ def downcode(c, i) -> CallExpression:
     Preserve the third allele and downcode all other alleles to reference.
 
     >>> hl.eval(hl.downcode(hl.call(1, 2), 2))
-    Call(alleles=[0, 2], phased=False)
+    Call(alleles=[0, 1], phased=False)
+
+    >>> hl.eval(hl.downcode(hl.call(2, 2), 2))
+    Call(alleles=[1, 1], phased=False)
+
+    >>> hl.eval(hl.downcode(hl.call(0, 1), 2))
+    Call(alleles=[0, 0], phased=False)
 
     Parameters
     ----------
