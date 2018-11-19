@@ -14,16 +14,8 @@ class API():
         """
         self.timeout = timeout
 
-    def create_job(self, url, spec, attributes, batch_id, callback):
-        doc = {'spec': spec}
-        if attributes:
-            doc['attributes'] = attributes
-        if batch_id:
-            doc['batch_id'] = batch_id
-        if callback:
-            doc['callback'] = callback
-
-        response = requests.post(url + '/jobs/create', json=doc, timeout=self.timeout)
+    def create_job(self, url, job_spec):
+        response = requests.post(url + '/jobs/create', json=job_spec.to_json(), timeout=self.timeout)
         raise_on_failure(response)
         return response.json()
 

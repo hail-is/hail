@@ -4,12 +4,17 @@ import time
 import random
 import threading
 from flask import Flask, request, jsonify, abort
+
 import kubernetes as kube
 import cerberus
 import requests
 
-from .globals import max_id, pod_name_job, job_id_job, _log_path, _read_file, batch_id_batch
-from .globals import next_id, REFRESH_INTERVAL_IN_SECONDS, POD_NAMESPACE, INSTANCE_ID
+from ..data import JobSpec
+
+from .batch import Batch
+from .globals import max_id, pod_name_job, job_id_job, _log_path, _read_file
+from .globals import batch_id_batch, next_id, REFRESH_INTERVAL_IN_SECONDS
+from .globals import POD_NAMESPACE, INSTANCE_ID
 from .job import Job
 from .kubernetes import v1
 from .log import log
@@ -26,39 +31,18 @@ app = Flask('batch')
 
 @app.route('/jobs/create', methods=['POST'])
 def create_job():
-    parameters = request.json
+    doc = request.json
 
-    schema = {
-        # will be validated when creating pod
-        'spec': {
-            'type': 'dict',
-            'required': True,
-            'allow_unknown': True,
-            'schema': {}
-        },
-        'batch_id': {'type': 'integer'},
-        'attributes': {
-            'type': 'dict',
-            'keyschema': {'type': 'string'},
-            'valueschema': {'type': 'string'}
-        },
-        'callback': {'type': 'string'}
-    }
-    validator = cerberus.Validator(schema)
-    if not validator.validate(parameters):
-        abort(404, 'invalid request: {}'.format(validator.errors))
+    if not JobSpec.validator.validate(doc):
+        abort(404, 'invalid request: {}'.format(JobSpec.validator.errors))
 
-    pod_spec = v1.api_client._ApiClient__deserialize(
-        parameters['spec'], kube.client.V1PodSpec)
+    job_spec = JobSpec.from_json(doc)
 
-    batch_id = parameters.get('batch_id')
-    if batch_id:
-        if batch_id not in batch_id_batch:
-            abort(404, 'valid request: batch_id {} not found'.format(batch_id))
+    if job_spec.batch_id:
+        if job_spec.batch_id not in batch_id_batch:
+            abort(404, 'valid request: batch_id {} not found'.format(job_spec.batch_id))
 
-    job = Job(
-        pod_spec, batch_id, parameters.get('attributes'), parameters.get('callback'))
-    return jsonify(job.to_json())
+    return jsonify(Job(job_spec).to_json())
 
 
 @app.route('/jobs', methods=['GET'])

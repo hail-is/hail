@@ -12,6 +12,10 @@ from .globals import KUBERNETES_TIMEOUT_IN_SECONDS
 
 
 class Job:
+    @staticmethod
+    def pod_exit_code(pod):
+        return pod.status.container_statuses[0].state.terminated.exit_code
+
     def _create_pod(self):
         assert not self._pod_name
 
@@ -56,17 +60,14 @@ class Job:
         assert self._state == 'Cancelled'
         return None
 
-    def __init__(self, pod_spec, batch_id, attributes, callback):
+    def __init__(self, spec):
         self.id = next_id()
         job_id_job[self.id] = self
+        self.spec = spec
 
-        self.batch_id = batch_id
-        if batch_id:
-            batch = batch_id_batch[batch_id]
+        if self.spec.batch_id:
+            batch = batch_id_batch[self.spec.batch_id]
             batch.jobs.append(self)
-
-        self.attributes = attributes
-        self.callback = callback
 
         self.pod_template = kube.client.V1Pod(
             metadata=kube.client.V1ObjectMeta(generate_name='job-{}-'.format(self.id),
@@ -75,7 +76,7 @@ class Job:
                                                   'hail.is/batch-instance': INSTANCE_ID,
                                                   'uuid': uuid.uuid4().hex
                                               }),
-            spec=pod_spec)
+            spec=self.spec.pod_spec)
 
         self._pod_name = None
         self.exit_code = None
@@ -102,8 +103,8 @@ class Job:
     def delete(self):
         # remove from structures
         del job_id_job[self.id]
-        if self.batch_id:
-            batch = batch_id_batch[self.batch_id]
+        if self.spec.batch_id:
+            batch = batch_id_batch[self.spec.batch_id]
             batch.remove(self)
 
         self._delete_pod()
@@ -118,7 +119,7 @@ class Job:
         self._create_pod()
 
     def mark_complete(self, pod):
-        self.exit_code = pod.status.container_statuses[0].state.terminated.exit_code
+        self.exit_code = Job.pod_exit_code(pod)
 
         pod_log = v1.read_namespaced_pod_log(
             pod.metadata.name,
@@ -138,16 +139,16 @@ class Job:
         log.info('job {} complete, exit_code {}'.format(
             self.id, self.exit_code))
 
-        if self.callback:
+        if self.spec.callback:
             def handler(id, callback, json):
                 try:
                     requests.post(callback, json=json, timeout=120)
                 except requests.exceptions.RequestException as exc:
                     log.warning(
-                        f'callback for job {id} failed due to an error, I will not retry. '
-                        f'Error: {exc}')
+                        f'callback for job {id} failed due to an error, I will '
+                        f'not retry. Error: {exc}')
 
-            threading.Thread(target=handler, args=(self.id, self.callback, self.to_json())).start()
+            threading.Thread(target=handler, args=(self.id, self.spec.callback, self.to_json())).start()
 
     def to_json(self):
         result = {
@@ -159,6 +160,6 @@ class Job:
         pod_log = self._read_log()
         if pod_log:
             result['log'] = pod_log
-        if self.attributes:
-            result['attributes'] = self.attributes
+        if self.spec.attributes:
+            result['attributes'] = self.spec.attributes
         return result

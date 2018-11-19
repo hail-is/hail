@@ -2,6 +2,7 @@ import time
 import random
 
 from . import api
+from .data import JobSpec
 
 
 class Job:
@@ -64,8 +65,9 @@ class Batch:
                    resources=None, tolerations=None, volumes=None, security_context=None,
                    service_account_name=None, attributes=None, callback=None):
         return self.client._create_job(
-            image, command, args, env, ports, resources, tolerations, volumes, security_context,
-            service_account_name, attributes, self.id, callback)
+            JobSpec.from_parameters(
+                image, command, args, env, ports, resources, tolerations, volumes,
+                security_context, service_account_name, attributes, self.id, callback))
 
     def status(self):
         return self.client._get_batch(self.id)
@@ -90,69 +92,8 @@ class BatchClient:
         self.url = url
         self.api = api
 
-    def _create_job(self,
-                    image,
-                    command,
-                    args,
-                    env,
-                    ports,
-                    resources,
-                    tolerations,
-                    volumes,
-                    security_context,
-                    service_account_name,
-                    attributes,
-                    batch_id,
-                    callback):
-        if env:
-            env = [{'name': k, 'value': v} for (k, v) in env.items()]
-        else:
-            env = []
-        env.extend([{
-            'name': 'POD_IP',
-            'valueFrom': {
-                'fieldRef': {'fieldPath': 'status.podIP'}
-            }
-        }, {
-            'name': 'POD_NAME',
-            'valueFrom': {
-                'fieldRef': {'fieldPath': 'metadata.name'}
-            }
-        }])
-
-        container = {
-            'image': image,
-            'name': 'default'
-        }
-        if command:
-            container['command'] = command
-        if args:
-            container['args'] = args
-        if env:
-            container['env'] = env
-        if ports:
-            container['ports'] = [{
-                'containerPort': p,
-                'protocol': 'TCP'
-            } for p in ports]
-        if resources:
-            container['resources'] = resources
-        if volumes:
-            container['volumeMounts'] = [v['volume_mount'] for v in volumes]
-        spec = {
-            'containers': [container],
-            'restartPolicy': 'Never'
-        }
-        if volumes:
-            spec['volumes'] = [v['volume'] for v in volumes]
-        if tolerations:
-            spec['tolerations'] = tolerations
-        if security_context:
-            spec['securityContext'] = security_context
-        if service_account_name:
-            spec['serviceAccountName'] = service_account_name
-
-        j = self.api.create_job(self.url, spec, attributes, batch_id, callback)
+    def _create_job(self, spec):
+        j = self.api.create_job(self.url, spec)
         return Job(self, j['id'], j.get('attributes'))
 
     def _get_job(self, id):
@@ -196,8 +137,9 @@ class BatchClient:
                    attributes=None,
                    callback=None):
         return self._create_job(
-            image, command, args, env, ports, resources, tolerations, volumes, security_context,
-            service_account_name, attributes, None, callback)
+            JobSpec.from_parameters(
+                image, command, args, env, ports, resources, tolerations, volumes,
+                security_context, service_account_name, attributes, None, callback))
 
     def create_batch(self, attributes=None):
         batch = self.api.create_batch(self.url, attributes)
