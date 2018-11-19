@@ -4,9 +4,9 @@ import is.hail.SparkSuite
 import is.hail.check.Gen
 import is.hail.check.Prop.forAll
 import is.hail.utils._
+import htsjdk.samtools.util.BlockCompressedFilePointerUtil
 import org.apache.commons.io.IOUtils
 import org.apache.{hadoop => hd}
-import org.testng.Assert
 import org.testng.annotations.Test
 
 import scala.collection.JavaConverters._
@@ -117,15 +117,12 @@ class BGzipCodecSuite extends SparkSuite {
   }
 
   @Test def testVirtualSeek() {
-    sc.hadoopConfiguration.setLong("mapreduce.input.fileinputformat.split.minsize", 1L)
     // real offsets of the start of each block
-    val blockStarts = Array[Long](14653, 28034, 40231, 55611, 69140, 82949, 96438, 110192, 121461, 133703,
+    val blockStarts = Array[Long](0, 14653, 28034, 40231, 55611, 69140, 82949, 96438, 110192, 121461, 133703,
       146664, 158711, 171239, 181362)
     // offsets into the uncompressed file
-    val uncompBlockStarts = Array[Long](65280, 130560, 195840, 261120, 326400, 391680, 456960, 522240,
+    val uncompBlockStarts = Array[Int](0, 65280, 130560, 195840, 261120, 326400, 391680, 456960, 522240,
       587520, 652800, 718080, 783360, 848640, 913920)
-
-    val blockPointerOffset = 16 // magic number for creating virtual file pointers into bgzipped files
 
     val uncompPath = "src/test/resources/sample.vcf"
     val compPath = "src/test/resources/sample.vcf.gz"
@@ -135,37 +132,37 @@ class BGzipCodecSuite extends SparkSuite {
 
     val fs = uncompHPath.getFileSystem(hadoopConf)
     val compIS = fs.open(compHPath)
-    val uncompIS = fs.open(uncompHPath)
+    using (fs.open(uncompHPath)) { uncompIS => using (new BGzipInputStream(compIS)) { decompIS =>
 
-    val decompIS = new BGzipInputStream(compIS)
+      for ((cOff, uOff) <- blockStarts.zip(uncompBlockStarts);
+           extra <- Seq(0, 50)) {
+        val decompData = new Array[Byte](100)
+        val uncompData = new Array[Byte](100)
+        val vptr = BlockCompressedFilePointerUtil.makeFilePointer(cOff, extra)
 
-    for ((cOff, uOff) <- blockStarts.zip(uncompBlockStarts);
-         extra <- Seq(0, 50)) {
-      val decompData = new Array[Byte](100)
-      val uncompData = new Array[Byte](100)
-      val vptr = cOff << blockPointerOffset | extra
+        decompIS.virtualSeek(vptr)
+        uncompIS.seek(uOff + extra)
 
-      decompIS.virtualSeek(vptr)
-      uncompIS.seek(uOff + extra)
+        val decompRead = decompIS.read(decompData)
+        val uncompRead = uncompIS.read(uncompData)
 
-      val decompRead = decompIS.read(decompData)
-      val uncompRead = uncompIS.read(uncompData)
+        assert(decompRead == uncompRead, s"""compressed offset: ${ cOff }
+          |decomp bytes read: ${ decompRead }
+          |uncomp bytes read: ${ uncompRead }\n""".stripMargin)
+        assert(decompData sameElements uncompData, s"data differs for compressed offset: ${ cOff }")
+      }
 
-      Assert.assertEquals(decompRead, uncompRead, s"""compressed offset: ${ cOff }
-        |decomp bytes read: ${ decompRead }
-        |uncomp bytes read: ${ uncompRead }\n""".stripMargin)
-      Assert.assertEquals(decompData, uncompData, s"data differs for compressed offset: ${ cOff }")
-    }
+      intercept [java.io.IOException] {
+        val vptr = BlockCompressedFilePointerUtil.makeFilePointer(blockStarts(4), uncompBlockStarts(1));
+        decompIS.virtualSeek(vptr)
+      }
 
-    try {
-      val vptr = blockStarts(3) << blockPointerOffset | uncompBlockStarts(0)
-      decompIS.virtualSeek(vptr)
-      assert(false, "Invalid seek did not throw")
-    } catch {
-      case _: java.io.IOException => {}
-    }
-
-    uncompIS.close()
-    decompIS.close()
+      // try to seek to exactly end of file which should fail as we don't know if we're at the end of file.
+      intercept [java.io.IOException] {
+        val lastBlockLen = 55936 // magic number determined by counting bytes from sample.vcf from uncompBlockStarts(-1) to the end of the file
+        val lastOffset = BlockCompressedFilePointerUtil.makeFilePointer(blockStarts(blockStarts.size - 1), lastBlockLen)
+        decompIS.virtualSeek(lastOffset)
+      }
+    }}
   }
 }
