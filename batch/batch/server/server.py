@@ -148,11 +148,11 @@ def create_dag():
 
 
 @app.route('/dag/<int:dag_id>', methods=['GET'])
-def get_dag(dag_id):  # pylint: disable=R1710
+def get_dag(dag_id):
     dag = dag_id_dag.get(dag_id)
-    if dag:
-        return jsonify(dag.to_get_json())
-    abort(404)
+    if not dag:
+        abort(404)
+    return jsonify(dag.to_get_json())
 
 
 def update_job_with_pod(job, pod):
