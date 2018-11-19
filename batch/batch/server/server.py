@@ -83,7 +83,7 @@ def get_job_log(job_id):  # pylint: disable=R1710
     abort(404)
 
 
-@app.route('/jobs/<int:job_id>/delete', methods=['DELETE'])
+@app.route('/jobs/<int:job_id>', methods=['DELETE'])
 def delete_job(job_id):
     job = job_id_job.get(job_id)
     if not job:
@@ -128,7 +128,7 @@ def get_batch(batch_id):
     return jsonify(batch.to_json())
 
 
-@app.route('/batches/<int:batch_id>/delete', methods=['DELETE'])
+@app.route('/batches/<int:batch_id>', methods=['DELETE'])
 def delete_batch(batch_id):
     batch = batch_id_batch.get(batch_id)
     if not batch:
@@ -147,12 +147,32 @@ def create_dag():
     return str(dag.id), 201
 
 
-@app.route('/dag/<int:dag_id>', methods=['GET'])
-def get_dag(dag_id):
-    dag = dag_id_dag.get(dag_id)
+@app.route('/dag/<int:id>', methods=['GET'])
+def get_dag(id):
+    dag = dag_id_dag.get(id)
     if not dag:
         abort(404)
     return jsonify(dag.to_get_json())
+
+
+@app.route('/dag/<int:id>', methods=['DELETE'])
+def delete_dag(id):
+    dag = dag_id_dag.get(id)
+    if not dag:
+        abort(404)
+    dag.delete()
+    return jsonify({})
+
+
+@app.route('/dag/<int:id>/cancel', methods=['POST'])
+def cancel_dag(id):
+    dag = dag_id_dag.get(id)
+    if not dag:
+        abort(404)
+    if dag.cancelled:
+        raise UserError('dag already cancelled')
+    dag.cancel()
+    return jsonify({})
 
 
 def update_job_with_pod(job, pod):

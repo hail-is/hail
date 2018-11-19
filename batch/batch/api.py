@@ -35,7 +35,7 @@ class API():
         return response.text
 
     def delete_job(self, url, job_id):
-        response = requests.delete(url + '/jobs/{}/delete'.format(job_id), timeout=self.timeout)
+        response = requests.delete(url + '/jobs/{}'.format(job_id), timeout=self.timeout)
         raise_on_failure(response)
         return response.json()
 
@@ -73,6 +73,16 @@ class API():
 
     def get_dag(self, url, id):
         response = requests.get(f'{url}/dag/{id}', timeout=self.timeout)
+        raise_on_failure(response)
+        return response.json()
+
+    def delete_dag(self, url, id):
+        response = requests.delete(f'{url}/dag/{id}', timeout=self.timeout)
+        raise_on_failure(response)
+        return response.json()
+
+    def cancel_dag(self, url, id):
+        response = requests.post(f'{url}/dag/{id}/cancel', timeout=self.timeout)
         raise_on_failure(response)
         return response.json()
 
@@ -126,3 +136,11 @@ def create_dag(url, dag):
 
 def get_dag(url, id):
     return DEFAULT_API.get_dag(url, id)
+
+
+def delete_dag(url, id):
+    return DEFAULT_API.delete_dag(url, id)
+
+
+def cancel_dag(url, id):
+    return DEFAULT_API.cancel_dag(url, id)

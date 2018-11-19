@@ -1,5 +1,6 @@
 from .. import data
 
+from .globals import dag_id_dag
 from .job import Job
 from .log import log
 from .user_error import UserError
@@ -20,9 +21,20 @@ class DagNode:
     def add_child(self, child):
         self.children.append(child)
 
+    def link_job(self, job):
+        assert self.job is None
+        self.job = job
+
     def to_json(self):
         return {
             'spec': self.spec.to_json(),
+            'parents': [parent.spec.name for parent in self._parents],
+            'children': [child.spec.name for child in self.children]
+        }
+
+    def to_get_json(self):
+        return {
+            'job': self.job,
             'parents': [parent.spec.name for parent in self._parents],
             'children': [child.spec.name for child in self.children]
         }
@@ -32,16 +44,6 @@ class DagNode:
 
     def __repr__(self):
         return self.__str__()
-
-    def to_get_json(self):
-        return {
-            'job': self.job,
-            'parents': [parent.name for parent in self._parents],
-            'children': [child.name for child in self.children]
-        }
-
-    def link_job(self, job):
-        self.job = job
 
     def mark_complete(self):
         exit_code = self.job.exit_code
@@ -68,6 +70,14 @@ class DagNode:
     def create_job(self):
         return Job(self.spec.job_spec, self)
 
+    def delete(self):
+        if self.job:
+            self.job.delete()
+
+    def cancel(self):
+        if self.job:
+            self.job.cancel()
+
 
 class Dag:
     schema = data.Dag.schema
@@ -81,6 +91,7 @@ class Dag:
         self.id = id
         self.roots = []
         self.nodes = []
+        self.cancelled = False
 
         by_name = {}
         for spec in specs:
@@ -107,3 +118,13 @@ class Dag:
 
     def to_get_json(self):
         return self.to_data_dag().to_json()
+
+    def cancel(self):
+        for node in self.nodes:
+            node.cancel()
+        self.cancelled = True
+
+    def delete(self):
+        for node in self.nodes:
+            node.delete()
+        del dag_id_dag[self.id]

@@ -150,3 +150,9 @@ class BatchClient:
 
     def get_dag(self, id):
         return Dag.from_json(self.api.get_dag(self.url, id))
+
+    def delete_dag(self, id):
+        self.api.delete_dag(self.url, id)
+
+    def cancel_dag(self, id):
+        self.api.cancel_dag(self.url, id)
