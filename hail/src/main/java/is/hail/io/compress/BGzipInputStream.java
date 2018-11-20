@@ -94,6 +94,7 @@ public class BGzipInputStream extends SplitCompressionInputStream {
     int outputBufferSize = 0;
     int outputBufferPos = 0;
 
+    long currentBlockPos;
     long currentPos;
 
     public BGzipInputStream(InputStream in, long start, long end, SplittableCompressionCodec.READ_MODE readMode) throws IOException {
@@ -139,6 +140,7 @@ public class BGzipInputStream extends SplitCompressionInputStream {
         outputBufferPos = 0;
 
         fillInputBuffer();
+        currentBlockPos = inputBufferInPos;
         assert (inputBufferPos == 0);
         if (inputBufferSize != 0) {
             bgzipHeader = new BGzipHeader(inputBuffer, inputBufferPos, inputBufferSize);
@@ -170,8 +172,11 @@ public class BGzipInputStream extends SplitCompressionInputStream {
     }
 
     public long blockPos() {
-        assert(outputBufferPos == 0);
-        return inputBufferInPos;
+        return currentBlockPos;
+    }
+
+    public long getVirtualOffset() {
+        return BlockCompressedFilePointerUtil.makeFilePointer(currentBlockPos, outputBufferPos);
     }
 
     public int readBlock(byte[] b) throws IOException {

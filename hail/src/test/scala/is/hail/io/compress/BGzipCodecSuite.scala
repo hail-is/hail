@@ -117,8 +117,8 @@ class BGzipCodecSuite extends SparkSuite {
   }
 
   @Test def testVirtualSeek() {
-    // real offsets of the start of each block
-    val blockStarts = Array[Long](0, 69140, 133703, 181362)
+    // real offsets of the start of each block, paired with the offset to the next block
+    val blockStarts = Array[(Long, Long)]((0, 14653), (69140, 82949), (133703, 146664), (181362, -1))
     // magic number determined by indexing the target file
     val maxBlockSize = 65280
     // magic number determined by counting bytes from sample.vcf from uncompBlockStarts(-1) to the end of the file
@@ -136,18 +136,19 @@ class BGzipCodecSuite extends SparkSuite {
     val compIS = fs.open(compHPath)
     using (fs.open(uncompHPath)) { uncompIS => using (new BGzipInputStream(compIS)) { decompIS =>
 
-      for ((cOff, uOff) <- blockStarts.zip(uncompBlockStarts);
+      for (((cOff, nOff), uOff) <- blockStarts.zip(uncompBlockStarts);
            e <- Seq(0, 1024, maxBlockSize)) {
         val decompData = new Array[Byte](100)
         val uncompData = new Array[Byte](100)
-        val extra = if (cOff == blockStarts(blockStarts.size-1) && e == maxBlockSize) {
+        val extra = if (cOff == blockStarts(blockStarts.size-1)._1 && e == maxBlockSize) {
           lastBlockLen
         } else {
           e
         }
-        val vptr = BlockCompressedFilePointerUtil.makeFilePointer(cOff, extra)
+        val vOff = BlockCompressedFilePointerUtil.makeFilePointer(cOff, extra)
 
-        decompIS.virtualSeek(vptr)
+        decompIS.virtualSeek(vOff)
+        assert(decompIS.getVirtualOffset() == vOff);
         uncompIS.seek(uOff + extra)
 
         val decompRead = decompIS.read(decompData)
@@ -157,20 +158,28 @@ class BGzipCodecSuite extends SparkSuite {
           |decomp bytes read: ${ decompRead }
           |uncomp bytes read: ${ uncompRead }\n""".stripMargin)
         assert(decompData sameElements uncompData, s"data differs for compressed offset: ${ cOff }")
+        if (decompRead != -1) {
+          val expectedVirtualOffset = if (e != maxBlockSize) {
+            BlockCompressedFilePointerUtil.makeFilePointer(cOff, extra + decompRead)
+          } else {
+            BlockCompressedFilePointerUtil.makeFilePointer(nOff, decompRead)
+          }
+          assert(expectedVirtualOffset == decompIS.getVirtualOffset(), s"\ncOff = ${ cOff } ; extra = ${ extra } ; getPos = ${ decompIS.getPos() }")
+        }
       }
 
       // Trying to seek to the end of a block should succeed
-      val vOff = BlockCompressedFilePointerUtil.makeFilePointer(blockStarts(1), maxBlockSize);
+      val vOff = BlockCompressedFilePointerUtil.makeFilePointer(blockStarts(1)._1, maxBlockSize);
       decompIS.virtualSeek(vOff)
 
       // Trying to seek past the end of a block should fail
       intercept [java.io.IOException] {
-        val vOff = BlockCompressedFilePointerUtil.makeFilePointer(blockStarts(0), maxBlockSize + 1);
+        val vOff = BlockCompressedFilePointerUtil.makeFilePointer(blockStarts(0)._1, maxBlockSize + 1);
         decompIS.virtualSeek(vOff)
       }
 
       // trying to seek to exactly end of file should succeed
-      val lastOffset = BlockCompressedFilePointerUtil.makeFilePointer(blockStarts(blockStarts.size - 1), lastBlockLen)
+      val lastOffset = BlockCompressedFilePointerUtil.makeFilePointer(blockStarts(blockStarts.size - 1)._1, lastBlockLen)
       decompIS.virtualSeek(lastOffset)
       assert(-1 == decompIS.read())
 
