@@ -164,7 +164,7 @@ class BGzipCodecSuite extends SparkSuite {
           } else {
             BlockCompressedFilePointerUtil.makeFilePointer(nOff, decompRead)
           }
-          assert(expectedVirtualOffset == decompIS.getVirtualOffset(), s"\ncOff = ${ cOff } ; extra = ${ extra } ; getPos = ${ decompIS.getPos() }")
+          assert(expectedVirtualOffset == decompIS.getVirtualOffset())
         }
       }
 
