@@ -70,7 +70,7 @@ endif
 # The code relies heavily on C++11's std::shared_ptr, so you need a compiler
 # that supports at least the C++11 standard.
 
-CXXSTD := -std=c++11
+CXXSTD := -std=c++14
 
 # Check for any inherited CXXFLAGS which could interfere with
 # ABI compatibility.  Such flags will cause a warning, then will be
