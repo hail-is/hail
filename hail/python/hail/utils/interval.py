@@ -157,7 +157,7 @@ class Interval(object):
         --------
 
         >>> interval2.point_type
-        tint32
+        dtype('int32')
 
         Returns
         -------

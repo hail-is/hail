@@ -684,8 +684,8 @@ class MatrixTable(ExprContainer):
         --------
         Get the first five non-key row field names:
 
-            >>> list(dataset.row)[:5]
-            ['rsid', 'qual', 'filters']
+            >>> list(dataset.row_value)[:5]
+            ['rsid', 'qual', 'filters', 'info', 'use_as_marker']
 
         Returns
         -------
@@ -702,7 +702,7 @@ class MatrixTable(ExprContainer):
         --------
         Get all column field names:
 
-        >>> list(dataset.col)
+        >>> list(dataset.col)  # doctest: +NOTEST
         ['s', 'sample_qc', 'is_case', 'pheno', 'cov', 'cov1', 'cov2', 'cohorts', 'pop']
 
         Returns
@@ -720,7 +720,7 @@ class MatrixTable(ExprContainer):
         --------
         Get all non-key column field names:
 
-        >>> list(dataset.col_value)
+        >>> list(dataset.col_value)  # doctest: +NOTEST
         ['sample_qc', 'is_case', 'pheno', 'cov', 'cov1', 'cov2', 'cohorts', 'pop']
 
         Returns
@@ -1640,7 +1640,7 @@ class MatrixTable(ExprContainer):
 
         >>> dataset.aggregate_rows(hl.struct(n_high_quality=agg.count_where(dataset.qual > 40),
         ...                                  mean_qual=agg.mean(dataset.qual)))
-        Struct(n_high_quality=100150224, mean_qual=50.12515572)
+        Struct(n_high_quality=13, mean_qual=544323.8915384616)
 
         Notes
         -----
@@ -1686,7 +1686,7 @@ class MatrixTable(ExprContainer):
         >>> dataset.aggregate_cols(
         ...    hl.struct(fraction_female=agg.fraction(dataset.pheno.is_female),
         ...              case_ratio=agg.count_where(dataset.is_case) / agg.count()))
-        Struct(fraction_female=0.5102222, case_ratio=0.35156)
+        Struct(fraction_female=0.48, case_ratio=1.0)
 
         Notes
         -----
@@ -1732,7 +1732,7 @@ class MatrixTable(ExprContainer):
 
         >>> dataset.aggregate_entries(hl.struct(global_gq_mean=agg.mean(dataset.GQ),
         ...                                     call_rate=agg.fraction(hl.is_defined(dataset.GT))))
-        Struct(global_gq_mean=31.16200, call_rate=0.981682)
+        Struct(global_gq_mean=64.01841473178543, call_rate=0.9607692307692308)
 
         Notes
         -----
@@ -2020,8 +2020,8 @@ class MatrixTable(ExprContainer):
         +---------+--------------+
         |   int32 | array<int32> |
         +---------+--------------+
-        |       1 | [2,3]        |
         |       0 | [1]          |
+        |       1 | [2,3]        |
         |       2 | [4,5,6]      |
         +---------+--------------+
 
@@ -2031,14 +2031,14 @@ class MatrixTable(ExprContainer):
         +---------+---------+--------------+--------------+
         |   int32 |   int32 | array<int32> | array<int32> |
         +---------+---------+--------------+--------------+
-        |       0 |       1 | [2,3]        | [0,0]        |
         |       0 |       0 | [1]          | [0]          |
+        |       0 |       1 | [2,3]        | [0,0]        |
         |       0 |       2 | [4,5,6]      | [0,0,0]      |
-        |       1 |       1 | [2,3]        | [2,3]        |
         |       1 |       0 | [1]          | [1]          |
+        |       1 |       1 | [2,3]        | [2,3]        |
         |       1 |       2 | [4,5,6]      | [4,5,6]      |
-        |       2 |       1 | [2,3]        | [4,6]        |
         |       2 |       0 | [1]          | [2]          |
+        |       2 |       1 | [2,3]        | [4,6]        |
         |       2 |       2 | [4,5,6]      | [8,10,12]    |
         +---------+---------+--------------+--------------+
 

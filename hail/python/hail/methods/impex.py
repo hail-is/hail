@@ -1371,7 +1371,7 @@ def import_matrix_table(paths,
     >>> matrix1 = hl.import_matrix_table('data/matrix1.tsv',
     ...                                  row_fields={'Barcode': hl.tstr, 'Tissue': hl.tstr, 'Days':hl.tfloat32},
     ...                                  row_key='Barcode')
-    >>> matrix1.describe()
+    >>> matrix1.describe()  # doctest: +NOTEST
     ----------------------------------------
     Global fields:
         None
@@ -1681,7 +1681,7 @@ def get_vcf_metadata(path):
     Examples
     --------
 
-    >>> metadata = hl.get_vcf_metadata('data/example2.vcf.bgz')
+    >>> hl.get_vcf_metadata('data/example2.vcf.bgz')  # doctest: +NOTEST
     {'filter': {'LowQual': {'Description': ''}, ...},
      'format': {'AD': {'Description': 'Allelic depths for the ref and alt alleles in the order listed',
                        'Number': 'R',

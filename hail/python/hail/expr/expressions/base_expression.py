@@ -654,10 +654,10 @@ class Expression(object):
         +-------+-----+
         | int32 | str |
         +-------+-----+
-        |     1 | M   |
-        |     2 | M   |
-        |     3 | F   |
-        |     4 | F   |
+        |     1 | "M" |
+        |     2 | "M" |
+        |     3 | "F" |
+        |     4 | "F" |
         +-------+-----+
 
         >>> hl.literal(123).show()
@@ -723,7 +723,7 @@ class Expression(object):
 
         Take the first three rows:
 
-        >>> first3 = table1.X.take(3)
+        >>> table1.X.take(3)
         [5, 6, 7]
 
         Warning
@@ -750,7 +750,7 @@ class Expression(object):
 
         Collect all the values from `C1`:
 
-        >>> first3 = table1.C1.collect()
+        >>> table1.C1.collect()
         [2, 2, 10, 11]
 
         Warning

@@ -173,7 +173,7 @@ def eval_typed(expression):
 
     >>> x = 6
     >>> hl.eval_typed(hl.cond(x % 2 == 0, 'Even', 'Odd'))
-    ('Odd', tstr)
+    ('Even', dtype('str'))
 
     Parameters
     ----------

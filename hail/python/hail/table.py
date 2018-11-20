@@ -647,23 +647,23 @@ class Table(ExprContainer):
         Create a single field from an expression of `C1`, `C2`, and `C3`.
 
         >>> table4.show()
-        +-------+------+-------+-------+-------+-------+-------+-------+
-        |     A | B.B0 | B.B1  | C     | D.cat | D.dog |   E.A |   E.B |
-        +-------+------+-------+-------+-------+-------+-------+-------+
-        | int32 | bool | str   | bool  | int32 | int32 | int32 | int32 |
-        +-------+------+-------+-------+-------+-------+-------+-------+
-        |    32 | true | hello | false |     5 |     7 |     5 |     7 |
-        +-------+------+-------+-------+-------+-------+-------+-------+
+        +-------+------+---------+-------+-------+-------+-------+-------+
+        |     A | B.B0 | B.B1    | C     | D.cat | D.dog |   E.A |   E.B |
+        +-------+------+---------+-------+-------+-------+-------+-------+
+        | int32 | bool | str     | bool  | int32 | int32 | int32 | int32 |
+        +-------+------+---------+-------+-------+-------+-------+-------+
+        |    32 | true | "hello" | false |     5 |     7 |     5 |     7 |
+        +-------+------+---------+-------+-------+-------+-------+-------+
 
         >>> table_result = table4.transmute(F=table4.A + 2 * table4.E.B)
         >>> table_result.show()
-        +------+-------+-------+-------+-------+-------+
-        | B.B0 | B.B1  | C     | D.cat | D.dog |     F |
-        +------+-------+-------+-------+-------+-------+
-        | bool | str   | bool  | int32 | int32 | int32 |
-        +------+-------+-------+-------+-------+-------+
-        | true | hello | false |     5 |     7 |    46 |
-        +------+-------+-------+-------+-------+-------+
+        +------+---------+-------+-------+-------+-------+
+        | B.B0 | B.B1    | C     | D.cat | D.dog |     F |
+        +------+---------+-------+-------+-------+-------+
+        | bool | str     | bool  | int32 | int32 | int32 |
+        +------+---------+-------+-------+-------+-------+
+        | true | "hello" | false |     5 |     7 |    46 |
+        +------+---------+-------+-------+-------+-------+
 
         Notes
         -----
@@ -1166,10 +1166,10 @@ class Table(ExprContainer):
         +-------+-------+-----+-------+-------+-------+-------+-------+
         | int32 | int32 | str | int32 | int32 | int32 | int32 | int32 |
         +-------+-------+-----+-------+-------+-------+-------+-------+
-        |     1 |    65 | M   |     5 |     4 |     2 |    50 |     5 |
-        |     2 |    72 | M   |     6 |     3 |     2 |    61 |     1 |
-        |     3 |    70 | F   |     7 |     3 |    10 |    81 |    -5 |
-        |     4 |    60 | F   |     8 |     2 |    11 |    90 |   -10 |
+        |     1 |    65 | "M" |     5 |     4 |     2 |    50 |     5 |
+        |     2 |    72 | "M" |     6 |     3 |     2 |    61 |     1 |
+        |     3 |    70 | "F" |     7 |     3 |    10 |    81 |    -5 |
+        |     4 |    60 | "F" |     8 |     2 |    11 |    90 |   -10 |
         +-------+-------+-----+-------+-------+-------+-------+-------+
 
         Parameters
@@ -1202,16 +1202,16 @@ class Table(ExprContainer):
 
         >>> table_result = table1.select(B = table2.index(table1.ID).B)
         >>> table_result.B.show()
-        +-------+--------+
-        |    ID | B      |
-        +-------+--------+
-        | int32 | str    |
-        +-------+--------+
-        |     1 | cat    |
-        |     2 | dog    |
-        |     3 | mouse  |
-        |     4 | rabbit |
-        +-------+--------+
+        +-------+----------+
+        |    ID | B        |
+        +-------+----------+
+        | int32 | str      |
+        +-------+----------+
+        |     1 | "cat"    |
+        |     2 | "dog"    |
+        |     3 | "mouse"  |
+        |     4 | "rabbit" |
+        +-------+----------+
 
         Using `key` as the sole index expression is equivalent to passing all
         key fields individually:
@@ -1223,16 +1223,16 @@ class Table(ExprContainer):
 
         >>> table_result = table1.select(B = table2.index(table1.C1 % 4).B)
         >>> table_result.show()
-        +-------+-------+
-        |    ID | B     |
-        +-------+-------+
-        | int32 | str   |
-        +-------+-------+
-        |     1 | dog   |
-        |     2 | dog   |
-        |     3 | dog   |
-        |     4 | mouse |
-        +-------+-------+
+        +-------+---------+
+        |    ID | B       |
+        +-------+---------+
+        | int32 | str     |
+        +-------+---------+
+        |     1 | "dog"   |
+        |     2 | "dog"   |
+        |     3 | "dog"   |
+        |     4 | "mouse" |
+        +-------+---------+
 
         Notes
         -----
@@ -1587,7 +1587,7 @@ class Table(ExprContainer):
         --------
 
         >>> table_result = table1.add_index()
-        >>> table_result.show()
+        >>> table_result.show()  # doctest: +NOTEST
         +-------+-------+-----+-------+-------+-------+-------+-------+-------+
         |    ID |    HT | SEX |     X |     Z |    C1 |    C2 |    C3 |   idx |
         +-------+-------+-----+-------+-------+-------+-------+-------+-------+
@@ -1674,10 +1674,10 @@ class Table(ExprContainer):
         Take the first three rows:
 
         >>> first3 = table1.take(3)
-        >>> print(first3)
-        [Struct(HT=65, SEX=M, X=5, C3=5, C2=50, C1=2, Z=4, ID=1),
-         Struct(HT=72, SEX=M, X=6, C3=1, C2=61, C1=2, Z=3, ID=2),
-         Struct(HT=70, SEX=F, X=7, C3=-5, C2=81, C1=10, Z=3, ID=3)]
+        >>> first3
+        [Struct(ID=1, HT=65, SEX='M', X=5, Z=4, C1=2, C2=50, C3=5),
+         Struct(ID=2, HT=72, SEX='M', X=6, Z=3, C1=2, C2=61, C3=1),
+         Struct(ID=3, HT=70, SEX='F', X=7, Z=3, C1=10, C2=81, C3=-5)]
 
         Notes
         -----
@@ -2167,49 +2167,49 @@ class Table(ExprContainer):
         `people_table` is a :class:`.Table` with three fields: `Name`, `Age` and `Children`.
 
         >>> people_table.show()
-        +----------+-------+--------------------------+
-        | Name     |   Age | Children                 |
-        +----------+-------+--------------------------+
-        | str      | int32 | array<str>               |
-        +----------+-------+--------------------------+
-        | Alice    |    34 | ["Dave","Ernie","Frank"] |
-        | Bob      |    51 | ["Gaby","Helen"]         |
-        | Caroline |    10 | []                       |
-        +----------+-------+--------------------------+
+        +------------+-------+--------------------------+
+        | Name       |   Age | Children                 |
+        +------------+-------+--------------------------+
+        | str        | int32 | array<str>               |
+        +------------+-------+--------------------------+
+        | "Alice"    |    34 | ["Dave","Ernie","Frank"] |
+        | "Bob"      |    51 | ["Gaby","Helen"]         |
+        | "Caroline" |    10 | []                       |
+        +------------+-------+--------------------------+
 
         :meth:`.Table.explode` can be used to produce a distinct row for each
         element in the `Children` field:
 
         >>> exploded = people_table.explode('Children')
         >>> exploded.show()
-        +-------+-------+----------+
-        | Name  |   Age | Children |
-        +-------+-------+----------+
-        | str   | int32 | str      |
-        +-------+-------+----------+
-        | Alice |    34 | Dave     |
-        | Alice |    34 | Ernie    |
-        | Alice |    34 | Frank    |
-        | Bob   |    51 | Gaby     |
-        | Bob   |    51 | Helen    |
-        +-------+-------+----------+
+        +---------+-------+----------+
+        | Name    |   Age | Children |
+        +---------+-------+----------+
+        | str     | int32 | str      |
+        +---------+-------+----------+
+        | "Alice" |    34 | "Dave"   |
+        | "Alice" |    34 | "Ernie"  |
+        | "Alice" |    34 | "Frank"  |
+        | "Bob"   |    51 | "Gaby"   |
+        | "Bob"   |    51 | "Helen"  |
+        +---------+-------+----------+
 
         The `name` parameter can be used to produce more appropriate field
         names:
 
         >>> exploded = people_table.explode('Children', name='Child')
         >>> exploded.show()
-        +-------+-------+-------+
-        | Name  |   Age | Child |
-        +-------+-------+-------+
-        | str   | int32 | str   |
-        +-------+-------+-------+
-        | Alice |    34 | Dave  |
-        | Alice |    34 | Ernie |
-        | Alice |    34 | Frank |
-        | Bob   |    51 | Gaby  |
-        | Bob   |    51 | Helen |
-        +-------+-------+-------+
+        +---------+-------+---------+
+        | Name    |   Age | Child   |
+        +---------+-------+---------+
+        | str     | int32 | str     |
+        +---------+-------+---------+
+        | "Alice" |    34 | "Dave"  |
+        | "Alice" |    34 | "Ernie" |
+        | "Alice" |    34 | "Frank" |
+        | "Bob"   |    51 | "Gaby"  |
+        | "Bob"   |    51 | "Helen" |
+        +---------+-------+---------+
 
         Notes
         -----
@@ -2317,12 +2317,12 @@ class Table(ExprContainer):
         The data type of the globals struct:
 
         >>> table1.globals.dtype
-        dtype('struct{}')
+        dtype('struct{global_field_1: int32, global_field_2: int32}')
 
         The number of global fields:
 
         >>> len(table1.globals)
-        0
+        2
 
         Returns
         -------
@@ -2509,27 +2509,27 @@ class Table(ExprContainer):
         ...     key='t')
 
         >>> t1.show()
-        +------+-------+-----+
-        | t    |     x | y   |
-        +------+-------+-----+
-        | str  | int32 | str |
-        +------+-------+-----+
-        | foo  |     4 | A   |
-        | bar  |     2 | B   |
-        | bar  |    -3 | C   |
-        | quam |     0 | D   |
-        +------+-------+-----+
+        +--------+-------+-----+
+        | t      |     x | y   |
+        +--------+-------+-----+
+        | str    | int32 | str |
+        +--------+-------+-----+
+        | "bar"  |     2 | "B" |
+        | "bar"  |    -3 | "C" |
+        | "foo"  |     4 | "A" |
+        | "quam" |     0 | "D" |
+        +--------+-------+-----+
 
         >>> t1.collect_by_key().show()
-        +------+------------------------------------+
-        | t    | values                             |
-        +------+------------------------------------+
-        | str  | array<struct{x: int32, y: str}>    |
-        +------+------------------------------------+
-        | bar  | [{"x":2,"y":"B"},{"x":-3,"y":"C"}] |
-        | foo  | [{"x":4,"y":"A"}]                  |
-        | quam | [{"x":0,"y":"D"}]                  |
-        +------+------------------------------------+
+        +--------+---------------------------------+
+        | t      | values                          |
+        +--------+---------------------------------+
+        | str    | array<struct{x: int32, y: str}> |
+        +--------+---------------------------------+
+        | "bar"  | [(2,"B"),(-3,"C")]              |
+        | "foo"  | [(4,"A")]                       |
+        | "quam" | [(0,"D")]                       |
+        +--------+---------------------------------+
 
         Notes
         -----
@@ -2562,25 +2562,25 @@ class Table(ExprContainer):
         ...     key='a')
 
         >>> t1.show()
-        +-----+-------+
-        | a   |     b |
-        +-----+-------+
-        | str | int32 |
-        +-----+-------+
-        | foo |     1 |
-        | bar |     5 |
-        | bar |     2 |
-        +-----+-------+
+        +-------+-------+
+        | a     |     b |
+        +-------+-------+
+        | str   | int32 |
+        +-------+-------+
+        | "bar" |     5 |
+        | "bar" |     2 |
+        | "foo" |     1 |
+        +-------+-------+
 
         >>> t1.distinct().show()
-        +-----+-------+
-        | a   |     b |
-        +-----+-------+
-        | str | int32 |
-        +-----+-------+
-        | bar |     5 |
-        | foo |     1 |
-        +-----+-------+
+        +-------+-------+
+        | a     |     b |
+        +-------+-------+
+        | str   | int32 |
+        +-------+-------+
+        | "bar" |     5 |
+        | "foo" |     1 |
+        +-------+-------+
 
         Notes
         -----

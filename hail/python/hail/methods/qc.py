@@ -871,7 +871,7 @@ def summarize_variants(mt: MatrixTable, show=True):
 
     Examples
     --------
-    >>> hl.summarize_variants(dataset)
+    >>> hl.summarize_variants(dataset)  # doctest: +SKIP
     ==============================
     Number of variants: 346
     ==============================

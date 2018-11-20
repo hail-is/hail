@@ -65,7 +65,7 @@ class Struct(Mapping):
         return str(self)
 
     def __str__(self):
-        return 'Struct({})'.format(', '.join('{}={}'.format(k, v) for k, v in self._fields.items()))
+        return 'Struct({})'.format(', '.join('{}={}'.format(k, repr(v)) for k, v in self._fields.items()))
 
     def __eq__(self, other):
         return isinstance(other, Struct) and self._fields == other._fields
