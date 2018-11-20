@@ -22,23 +22,26 @@ LIBSIMDPP :=libsimdpp-2.1
 # If you want to add a new cpp file, like foo.cpp, to the library, add foo.o to
 # this list
 OBJECTS := \
-  davies.o \
-  ibs.o \
-  Decoder.o \
-  Encoder.o \
-  Logging.o \
-  NativeCodeSuite.o \
-  NativeLongFunc.o \
-  NativeModule.o \
-  NativePtr.o \
-  NativeStatus.o \
-  ObjectArray.o \
-  PartitionIterators.o \
-  Region.o \
-  Upcalls.o
+  davies \
+  ibs \
+  Decoder \
+  Encoder \
+  Logging \
+  NativeCodeSuite \
+  NativeLongFunc \
+  NativeModule \
+  NativePtr \
+  NativeStatus \
+  ObjectArray \
+  PartitionIterators \
+  Region \
+  Region2 \
+  Upcalls \
 
-BUILD_OBJECTS := $(OBJECTS:%=$(BUILD)/%)
-TEST_OBJECTS := $(BUILD)/unit-tests.o
+BUILD_OBJECTS := $(OBJECTS:%=$(BUILD)/%.o)
+
+TEST_OBJECTS := $(foreach obj, $(OBJECTS), $(foreach file, $(wildcard $(obj)_test.cpp), $(BUILD)/$(basename $(file)).o))
+TEST_OBJECTS += $(BUILD)/unit-tests.o
 
 $(BUILD)/unit-tests.o: testutils/unit-tests.cpp
 	$(CXX) -o $@ $(CXXFLAGS) -c $<
