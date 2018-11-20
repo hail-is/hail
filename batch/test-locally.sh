@@ -5,13 +5,11 @@ set -ex
 cleanup() {
     set +e
     trap "" INT TERM
-    kill -9 $server_pid
+    [[ -z $server_pid ]] || kill -9 $server_pid
 }
 trap cleanup EXIT
 trap "exit 24" INT TERM
 
-which python
-python -c 'import kubernetes'
 python -c 'import batch.server; batch.server.serve()' &
 server_pid=$!
 
