@@ -24,7 +24,7 @@ inline void store_long(char * off, long l) { *reinterpret_cast<long *>(off) = l;
 inline void store_float(char * off, float f) { *reinterpret_cast<float *>(off) = f; }
 inline void store_double(char * off, double d) { *reinterpret_cast<double *>(off) = d; }
 inline void store_length(char * off, int len) { *reinterpret_cast<int *>(off) = len; }
-inline void store_address(char * off, char * addr) { *reinterpret_cast<long *>(off) = reinterpret_cast<long>(addr); }
+inline void store_address(char * off, const char * addr) { *reinterpret_cast<long *>(off) = reinterpret_cast<long>(addr); }
 
 inline void set_bit(char * byte_offset, unsigned int bit_offset) {
   char * off = byte_offset + (bit_offset >> 3);

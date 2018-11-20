@@ -18,7 +18,7 @@ object Compile {
     assert(returnType.isInstanceOf[PBaseStruct])
 
     val fb = FunctionBuilder("f",
-      Array("NativeStatus *" -> "st", "Region *" -> "region", "char *" -> "v"),
+      Array("NativeStatus *" -> "st", "Region *" -> "region", "const char *" -> "v"),
       "char *")
 
     val v = Emit(fb, 2, body)

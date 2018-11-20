@@ -24,28 +24,28 @@ class JavaIteratorObject : public NativeObj {
     JavaIteratorObject(UpcallEnv up, jobject jrvit);
     ~JavaIteratorObject();
 
-    class RVIterator {
+    class Iterator {
       friend class JavaIteratorObject;
       private:
         JavaIteratorObject * jit_;
-        explicit RVIterator(JavaIteratorObject * jrvit);
+        explicit Iterator(JavaIteratorObject * jrvit);
 
       public:
-        RVIterator() = delete;
-        RVIterator& operator++();
-        friend bool operator==(RVIterator const& lhs, RVIterator const& rhs) {
+        Iterator() = delete;
+        Iterator& operator++();
+        friend bool operator==(Iterator const& lhs, Iterator const& rhs) {
           return (lhs.jit_ == rhs.jit_);
         }
-        friend bool operator!=(RVIterator const& lhs, RVIterator const& rhs) {
+        friend bool operator!=(Iterator const& lhs, Iterator const& rhs) {
           return !(lhs == rhs);
         }
         char const* operator*() const;
     };
-    RVIterator begin() { return RVIterator(this); };
-    RVIterator end() { return RVIterator(nullptr); };
+    Iterator begin() { return Iterator(this); };
+    Iterator end() { return Iterator(nullptr); };
 };
 
-using RVIterator = JavaIteratorObject::RVIterator;
+using RVIterator = JavaIteratorObject::Iterator;
 
 }
 

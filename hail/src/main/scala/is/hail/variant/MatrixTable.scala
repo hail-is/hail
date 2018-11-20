@@ -1,5 +1,7 @@
 package is.hail.variant
 
+import java.io.InputStream
+
 import is.hail.annotations._
 import is.hail.check.Gen
 import is.hail.expr.ir._
@@ -15,7 +17,7 @@ import is.hail.rvd._
 import is.hail.sparkextras.{ContextRDD, RepartitionedOrderedRDD2}
 import is.hail.table.{Table, TableSpec}
 import is.hail.utils._
-import is.hail.{HailContext, utils}
+import is.hail.{HailContext, cxx, utils}
 import org.apache.hadoop
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
@@ -100,6 +102,12 @@ case class RVDComponentSpec(rel_path: String) extends ComponentSpec {
     val rvdPath = path + "/" + rel_path
     AbstractRVDSpec.read(hc, rvdPath)
       .readLocal(hc, rvdPath, requestedType)
+  }
+
+  def cxxEmitRead(hc: HailContext, path: String, requestedType: TStruct, tub: cxx.TranslationUnitBuilder): cxx.RVDEmitTriplet = {
+    val rvdPath = path + "/" + rel_path
+    AbstractRVDSpec.read(hc, rvdPath)
+      .cxxEmitRead(hc, rvdPath, requestedType, tub)
   }
 }
 

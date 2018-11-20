@@ -44,17 +44,17 @@ JavaIteratorObject::~JavaIteratorObject() {
   }
 }
 
-JavaIteratorObject::RVIterator::RVIterator(JavaIteratorObject * jrvit) :
+RVIterator::Iterator(JavaIteratorObject * jrvit) :
 jit_(jrvit) { }
 
-JavaIteratorObject::RVIterator& JavaIteratorObject::RVIterator::operator++() {
+RVIterator& RVIterator::operator++() {
   if (jit_ != nullptr && !jit_->advance()) {
     jit_ = nullptr;
   }
   return *this;
 }
 
-char const* JavaIteratorObject::RVIterator::operator*() const {
+char const* RVIterator::operator*() const {
   return jit_->get();
 }
 
