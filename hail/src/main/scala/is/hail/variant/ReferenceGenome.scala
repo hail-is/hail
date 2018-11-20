@@ -417,12 +417,12 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     liftoverFunctions -= destRGName
   }
 
-  def liftoverLocus(destRGName: String, l: Locus, minMatch: Double): Locus = {
+  def liftoverLocus(destRGName: String, l: Locus, minMatch: Double): (Locus, Boolean) = {
     val lo = getLiftover(destRGName)
     lo.queryLocus(l, minMatch)
   }
 
-  def liftoverLocusInterval(destRGName: String, interval: Interval, minMatch: Double): Interval = {
+  def liftoverLocusInterval(destRGName: String, interval: Interval, minMatch: Double): (Interval, Boolean) = {
     val lo = getLiftover(destRGName)
     lo.queryInterval(interval, minMatch)
   }
