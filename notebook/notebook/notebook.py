@@ -46,11 +46,13 @@ def read_string(f):
     with open(f, 'r') as f:
         return f.read().strip()
 
+KUBERNETES_TIMEOUT_IN_SECONDS = float(os.environ.get('KUBERNETES_TIMEOUT_IN_SECONDS', 5.0))
 app.secret_key = read_string('/notebook-secrets/secret-key')
 PASSWORD = read_string('/notebook-secrets/password')
 ADMIN_PASSWORD = read_string('/notebook-secrets/admin-password')
 INSTANCE_ID = uuid.uuid4().hex
 
+log.info(f'KUBERNETES_TIMEOUT_IN_SECONDS {KUBERNETES_TIMEOUT_IN_SECONDS}')
 log.info(f'INSTANCE_ID {INSTANCE_ID}')
 
 try:
@@ -78,7 +80,11 @@ def start_pod(jupyter_token):
                 'hail.is/notebook-instance': INSTANCE_ID,
                 'uuid': pod_id}),
         spec=service_spec)
-    svc = k8s.create_namespaced_service('default', service_template)
+    svc = k8s.create_namespaced_service(
+        'default',
+        service_template,
+        _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS
+    )
     pod_spec = kube.client.V1PodSpec(
         containers=[
             kube.client.V1Container(
@@ -106,7 +112,10 @@ def start_pod(jupyter_token):
                 'uuid': pod_id,
             }),
         spec=pod_spec)
-    pod = k8s.create_namespaced_pod('default', pod_template)
+    pod = k8s.create_namespaced_pod(
+        'default',
+        pod_template,
+        _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
     return svc, pod
 
 
@@ -172,13 +181,17 @@ def auth(requested_svc_name):
 def workers():
     if not session.get('admin'):
         return redirect(external_url_for('admin-login'))
-    workers = k8s.list_pod_for_all_namespaces(watch=False,
-                                              label_selector='app=notebook-worker')
+    workers = k8s.list_pod_for_all_namespaces(
+        watch=False,
+        label_selector='app=notebook-worker',
+        _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
     workers_and_svcs = []
     for w in workers.items:
         uuid = w.metadata.labels['uuid']
-        svcs = k8s.list_service_for_all_namespaces(watch=False,
-                                                   label_selector='uuid='+uuid).items
+        svcs = k8s.list_service_for_all_namespaces(
+            watch=False,
+            label_selector='uuid='+uuid,
+            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS).items
         assert len(svcs) <= 1
         if len(svcs) == 1:
             workers_and_svcs.append((w, svcs[0]))
@@ -200,13 +213,26 @@ def workers_delete(pod_name):
 def delete_worker_pod(pod_name):
     if not session.get('admin'):
         return redirect(external_url_for('admin-login'))
-    pod = k8s.read_namespaced_pod(pod_name, 'default')
+    pod = k8s.read_namespaced_pod(
+        pod_name,
+        'default',
+        _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
     uuid = pod.metadata.labels['uuid']
-    k8s.delete_namespaced_pod(pod_name, 'default', kube.client.V1DeleteOptions())
-    svcs = k8s.list_service_for_all_namespaces(watch=False,
-                                               label_selector='uuid='+uuid).items
+    k8s.delete_namespaced_pod(
+        pod_name,
+        'default',
+        kube.client.V1DeleteOptions(),
+        _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+    svcs = k8s.list_service_for_all_namespaces(
+        watch=False,
+        label_selector='uuid='+uuid,
+        _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS).items
     assert(len(svcs) == 1)
-    k8s.delete_namespaced_service(svcs[0].metadata.name, 'default', kube.client.V1DeleteOptions())
+    k8s.delete_namespaced_service(
+        svcs[0].metadata.name,
+        'default',
+        kube.client.V1DeleteOptions(),
+        _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
 
 
 @app.route('/admin-login', methods=['GET'])
@@ -236,7 +262,10 @@ def wait_websocket(ws):
     log.info(f'received wait websocket for {svc_name} {pod_name}')
     # wait for endpoints to exist
     while True:
-        endpoints = k8s.read_namespaced_endpoints(name=svc_name, namespace='default')
+        endpoints = k8s.read_namespaced_endpoints(
+            name=svc_name,
+            namespace='default',
+            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
         if endpoints.subsets and all(subset.addresses for subset in endpoints.subsets):
             log.info(f'{svc_name} {pod_name} is ready! {endpoints.subsets}')
             break

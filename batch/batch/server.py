@@ -37,10 +37,13 @@ logging.basicConfig(
     handlers=[fh, ch],
     level=logging.INFO)
 
+KUBERNETES_TIMEOUT_IN_SECONDS = float(os.environ.get('KUBERNETES_TIMEOUT_IN_SECONDS', 5.0))
+
 REFRESH_INTERVAL_IN_SECONDS = int(os.environ.get('REFRESH_INTERVAL_IN_SECONDS', 5 * 60))
 
 POD_NAMESPACE = os.environ.get('POD_NAMESPACE', 'batch-pods')
 
+log.info(f'KUBERNETES_TIMEOUT_IN_SECONDS {KUBERNETES_TIMEOUT_IN_SECONDS}')
 log.info(f'REFRESH_INTERVAL_IN_SECONDS {REFRESH_INTERVAL_IN_SECONDS}')
 
 if 'BATCH_USE_KUBE_CONFIG' in os.environ:
@@ -73,7 +76,10 @@ class Job(object):
     def _create_pod(self):
         assert not self._pod_name
 
-        pod = v1.create_namespaced_pod(POD_NAMESPACE, self.pod_template)
+        pod = v1.create_namespaced_pod(
+            POD_NAMESPACE,
+            self.pod_template,
+            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
         self._pod_name = pod.metadata.name
         pod_name_job[self._pod_name] = self
 
@@ -82,7 +88,11 @@ class Job(object):
     def _delete_pod(self):
         if self._pod_name:
             try:
-                v1.delete_namespaced_pod(self._pod_name, POD_NAMESPACE, kube.client.V1DeleteOptions())
+                v1.delete_namespaced_pod(
+                    self._pod_name,
+                    POD_NAMESPACE,
+                    kube.client.V1DeleteOptions(),
+                    _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
             except kube.client.rest.ApiException as e:
                 if e.status == 404:
                     pass
@@ -95,7 +105,10 @@ class Job(object):
         if self._state == 'Created':
             if self._pod_name:
                 try:
-                    return v1.read_namespaced_pod_log(self._pod_name, POD_NAMESPACE)
+                    return v1.read_namespaced_pod_log(
+                        self._pod_name,
+                        POD_NAMESPACE,
+                        _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
                 except:
                     pass
         elif self._state == 'Complete':
@@ -168,7 +181,10 @@ class Job(object):
     def mark_complete(self, pod):
         self.exit_code = pod.status.container_statuses[0].state.terminated.exit_code
 
-        pod_log = v1.read_namespaced_pod_log(pod.metadata.name, POD_NAMESPACE)
+        pod_log = v1.read_namespaced_pod_log(
+            pod.metadata.name,
+            POD_NAMESPACE,
+            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
         p = _log_path(self.id)
         with open(p, 'w') as f:
             f.write(pod_log)
@@ -369,7 +385,10 @@ def pod_changed():
     job = pod_name_job.get(pod_name)
     if job and not job.is_complete():
         try:
-            pod = v1.read_namespaced_pod(pod_name, POD_NAMESPACE)
+            pod = v1.read_namespaced_pod(
+                pod_name,
+                POD_NAMESPACE,
+                _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
         except kube.client.rest.ApiException as e:
             if e.status == 404:
                 pod = None
@@ -386,7 +405,8 @@ def refresh_k8s_state():
 
     pods = v1.list_namespaced_pod(
         POD_NAMESPACE,
-        label_selector=f'app=batch-job,hail.is/batch-instance={instance_id}')
+        label_selector=f'app=batch-job,hail.is/batch-instance={instance_id}',
+        _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
 
     seen_pods = set()
     for pod in pods.items:
