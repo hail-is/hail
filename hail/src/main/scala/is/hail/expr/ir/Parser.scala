@@ -107,9 +107,7 @@ object IRLexer extends JavaTokenParsers {
   def int64_literal: Parser[Long] = wholeNumber.map(_.toLong)
 
   def float64_literal: Parser[Double] =
-    "nan" ^^ { _ => Double.NaN } |
-      "inf" ^^ { _ => Double.PositiveInfinity } |
-      "-inf" ^^ { _ => Double.NegativeInfinity } |
+      "-inf" ^^ { _ => Double.NegativeInfinity } | // inf, neginf, and nan are parsed as identifiers
       """[+-]?\d+(\.\d+)?[eE][+-]?\d+""".r ^^ { _.toDouble } |
       """[+-]?\d*\.\d+""".r ^^ { _.toDouble }
 
@@ -336,11 +334,6 @@ object IRParser {
         val id = identifier(it)
         punctuation(it, ")")
         ReferenceGenome.getReference(id).locusType
-      case "LocusAlleles" =>
-        punctuation(it, "(")
-        val id = identifier(it)
-        punctuation(it, ")")
-        ReferenceGenome.getReference(id).intervalType
       case "Call" => TCall()
       case "Array" =>
         punctuation(it, "[")
