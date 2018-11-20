@@ -2,13 +2,8 @@
 
 set -e
 
-export HAIL_RELEASE=${HAIL_VERSION}-$(git rev-parse --short=12 HEAD)
-
 # make directories
 mkdir -p build/www/ build/tmp/python/ build/tmp/docs build/www/docs
-
-# copy levene haldane
-# cp docs/LeveneHaldane.pdf build/www/ does not exist
 
 # copy website content
 cp www/*.{js,css,css.map,html,png} build/www #  www/annotationdb/* does not exist
@@ -26,4 +21,4 @@ cp -R python build/tmp
 
 (cd build/tmp/python/hail/docs && make BUILDDIR=_build clean html)
 
-mv build/tmp/python/hail/docs/_build/html build/www/docs/$HAIL_VERSION
+mv build/tmp/python/hail/docs/_build/html build/www/docs/$HAIL_SHORT_VERSION

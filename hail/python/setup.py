@@ -1,23 +1,21 @@
 #!/usr/bin/env python
 
 from setuptools import setup, find_packages
+from hail._generated_version_info import hail_pip_version
 
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
-with open('hail/version', 'r') as f:
-    version = f.read().strip()
-
 setup(
     name="hail",
-    version=version,
+    version=hail_pip_version,
     author="Hail Team",
     author_email="hail-team@broadinstitute.org",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://hail.is",
     packages=find_packages(),
-    package_data={'': ['version', 'hail-all-spark.jar']},
+    package_data={'': ['hail-all-spark.jar']},
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",

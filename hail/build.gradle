@@ -31,7 +31,13 @@ buildScan {
     licenseAgree = 'yes'
 }
 
-String hailVersion = "0.2"
+// Hail has three notions of version:
+//  - hail short version: MAJOR.MINOR
+//  - hail pip version: MAJOR.MINOR.PATCH
+//  - hail version: MAJOR.MINOR.PATCH-GIT_SHA, calculated by generateBuildInfo
+String hailShortVersion = "0.2"
+// By default pip hides versions ending in ".devN". Use these for testing.
+String hailPipVersion = hailShortVersion + ".4" + System.getProperty("hail.pip-version-suffix", "")
 String[] deployedSparkVersions = new File("deployed-spark-versions.txt").readLines()
 
 String sparkVersion = System.getProperty("spark.version", "2.2.0")
@@ -136,7 +142,12 @@ compileJava {
 }
 
 task generateBuildInfo(type: Exec) {
-    commandLine 'bash', 'generate-build-info.sh', sparkVersion, hailVersion
+    commandLine 'bash', 'generate-build-info.sh', sparkVersion, hailPipVersion
+    outputs.upToDateWhen { false }
+}
+
+task deploy(type: Exec, dependsOn: ['generateBuildInfo', 'shadowJar']) {
+    commandLine 'bash', 'python/deploy.sh'
     outputs.upToDateWhen { false }
 }
 
@@ -442,26 +453,26 @@ task cleanDocs(type: Exec) {
 task generateDistLinks(type: Exec, dependsOn: ['cleanDocs']) {
     executable 'sh'
     args(['generate-dist-links.sh'])
-    args(hailVersion)
+    args(hailShortVersion)
     args(deployedSparkVersions)
 }
 
-task makeDocs(type: Exec, dependsOn: ['shadowJar', 'generateDistLinks']) {
+task makeDocs(type: Exec, dependsOn: ['shadowJar', 'generateDistLinks', 'generateBuildInfo']) {
     commandLine 'bash', 'python/hail/docs/makeDocs.sh'
     environment SPARK_HOME: sparkHome
     environment PYSPARK_SUBMIT_ARGS: '--master local[4] --conf spark.driver.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar --conf spark.executor.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar pyspark-shell'
     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
-    environment HAIL_VERSION: hailVersion
+    environment HAIL_SHORT_VERSION: hailShortVersion
     environment SPHINXOPTS: '-tchecktutorial'
 }
 
-task makeDocsNoTest(type: Exec, dependsOn: ['shadowJar', 'generateDistLinks']) {
+task makeDocsNoTest(type: Exec, dependsOn: ['shadowJar', 'generateDistLinks', 'generateBuildInfo']) {
     commandLine 'bash', 'python/hail/docs/makeDocs.sh'
     environment SPARK_HOME: sparkHome
     // makeDocsNoTest does not try to run the notebook contents
     // so we do not need the PySpark args.
     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
-    environment HAIL_VERSION: hailVersion
+    environment HAIL_SHORT_VERSION: hailShortVersion
     environment SPHINXOPTS: ''
 }
 

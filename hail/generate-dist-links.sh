@@ -7,7 +7,7 @@ mkdir -p build/tmp/python/hail/docs
 TARGET=build/tmp/python/hail/docs/distLinks.rst
 rm -f $TARGET
 
-HAIL_VERSION=$1
+HAIL_SHORT_VERSION=$1
 HASH=$(git rev-parse --short=12 HEAD)
 
 
@@ -22,6 +22,6 @@ echo "" >> $TARGET
 shift
 while test ${#} -gt 0
 do
-  echo "- \`Current distribution of Hail for Spark $1 <https://storage.googleapis.com/hail-common/distributions/$HAIL_VERSION/Hail-$HAIL_VERSION-$HASH-Spark-$1.zip>\`_" >> $TARGET
+  echo "- \`Current distribution of Hail for Spark $1 <https://storage.googleapis.com/hail-common/distributions/$HAIL_SHORT_VERSION/Hail-$HAIL_SHORT_VERSION-$HASH-Spark-$1.zip>\`_" >> $TARGET
   shift
 done
