@@ -10,13 +10,14 @@ import org.apache.hadoop.io.compress.SplitCompressionInputStream
 
 import java.io.InputStream
 import java.nio.{ByteBuffer, ByteOrder}
+import java.util.Arrays
 
 import scala.collection.mutable.HashMap
 import scala.language.implicitConversions
 
 // Helper data classes
 
-class Tabix(
+case class Tabix(
   val format: Int,
   val colSeq: Int,
   val colBeg: Int,
@@ -26,23 +27,25 @@ class Tabix(
   val indicies: Array[(HashMap[Int, Array[TbiPair]], Array[Long])]
 )
 
-case class TbiPair(_1: Long, _2: Long)
+case class TbiPair(_1: Long, _2: Long) extends java.lang.Comparable[TbiPair] { // FIXME: _1 = u , _2 = v DON"T COMMIT
+  @Override
+  def compareTo(other: TbiPair) = TbiOrd.compare(this, other)
+}
 
 object TbiPair {
   implicit def tup2Pair(t: (Long, Long)): TbiPair = new TbiPair(t._1, t._2)
 }
 
 object TbiOrd extends Ordering[TbiPair] {
-  def compare(t: TbiPair, u: TbiPair) = less64(t._1, u._1)
-
-  // Helper function for unsigned long comparison
-  def less64(u: Long, v: Long) = if (u == v) {
+  def compare(u: TbiPair, v: TbiPair) = if (u._1 == v._1) {
     0
-  } else if ((u < v) ^ (u < 0) ^ (v < 0)) {
+  } else if ((u._1 < v._1) ^ (u._1 < 0) ^ (v._1 < 0)) {
     -1
   } else {
     1
   }
+
+  def less64(u: Long, v: Long) = (u < v) ^ (u < 0) ^ (v < 0)
 }
 
 // Tabix reader
@@ -64,6 +67,18 @@ object TabixReader {
     val buf = new Array[Byte](8)
     is.read(buf)
     ByteBuffer.wrap(buf).order(ByteOrder.LITTLE_ENDIAN).getLong
+  }
+
+  def readLine(is: InputStream): String = readLine(is, DefaultBufferSize)
+
+  def readLine(is: InputStream, initialBufferSize: Int): String = {
+    val buf = new StringBuffer(initialBufferSize)
+    var c = is.read()
+    while (c >= 0 && c != '\n') {
+      buf.append(c)
+      c = is.read()
+    }
+    buf.toString()
   }
 
   def apply(filePath: String): TabixReader = new TabixReader(filePath, None)
@@ -88,16 +103,18 @@ class TabixReader(val filePath: String, private val idxFilePath: Option[String])
 
   val index: Tabix = hConf.readFile(indexPath) { is =>
     var buf = new Array[Byte](4)
-    is.read(buf, 0, 4)
+    is.read(buf, 0, 4) // read magic bytes "TBI\1"
     assert(Magic sameElements buf, s"""magic number failed validation
       |magic: ${ Magic.mkString("[", ",", "]") }
       |data : ${ buf.mkString("[", ",", "]") }""".stripMargin)
     val seqs = new Array[String](readInt(is))
     val format = readInt(is)
+    assert(format == 2) // require VCF for now
     val colSeq = readInt(is)
     val colBeg = readInt(is)
     val colEnd = readInt(is)
     val meta = readInt(is)
+    assert(meta == '#') // meta char for VCF is '#'
     val chr2tid = new HashMap[String, Int]()
     readInt(is) // unused, need to consume
 
@@ -146,34 +163,123 @@ class TabixReader(val filePath: String, private val idxFilePath: Option[String])
       i += 1
     }
     is.close()
-    new Tabix(format, colSeq, colBeg, meta, seqs, chr2tid, indices.result())
+    Tabix(format, colSeq, colBeg, meta, seqs, chr2tid, indices.result())
+  }
+
+  def queryPairs(tid: Int, beg: Int, end: Int): Array[TbiPair] =
+    if (tid < 0 || tid > index.indicies.length) {
+      new Array[TbiPair](0)
+    } else {
+      val idx = index.indicies(tid)
+      val bins = reg2bins(beg, end)
+      val minOff = if (idx._2.length > 0 && (beg >> TadLidxShift) >= idx._2.length) {
+        idx._2(idx._2.length - 1)
+      } else if (idx._2.length > 0) {
+        idx._2(beg >> TadLidxShift)
+      } else {
+        0L
+      }
+      var i = 0
+      var nOff = 0
+      while (i < bins.length) {
+        nOff += idx._1.get(bins(i)).map(_.length).getOrElse(0)
+        i += 1
+      }
+      var off = new Array[TbiPair](nOff)
+      nOff = 0
+      i = 0
+      while (i < bins.length) {
+        val c = idx._1.getOrElse(bins(i), null)
+        val l = if (c == null) { 0 } else { c.length }
+        var j = 0
+        while (j < l) {
+          if (TbiOrd.less64(minOff, c(j)._2)) {
+            off(nOff) = c(j)
+            nOff += 1
+          }
+          j += 1
+        }
+      }
+      Arrays.sort(off, 0, nOff, null)
+      ???
+    }
+
+  private def reg2bins(beg: Int, _end: Int): Array[Int] = {
+    if (beg >= _end)
+      new Array[Int](0)
+    else {
+      var end = _end
+      val bins = new ArrayBuilder[Int](MaxBin)
+      if (end >= (1 << 29)) {
+        end = 1 << 29
+      }
+      end -= 1
+      bins += 0
+      var k = 1 + (beg >> 26)
+      while (k <= 1 + (end >> 26)) {
+        bins += k
+        k += 1
+      }
+      k = 9 + (beg >> 23)
+      while (k <= 9 + (end >> 23)) {
+        bins += k
+        k += 1
+      }
+      k = 73 + (beg >> 20)
+      while (k <= 73 + (end >> 20)) {
+        bins += k
+        k += 1
+      }
+      k = 585 + (beg >> 17)
+      while (k <= 585 + (end >> 17)) {
+        bins += k
+        k += 1
+      }
+      k = 4681 + (beg >> 14)
+      while (k <= 4681 + (end >> 14)) {
+        bins += k
+        k += 1
+      }
+      bins.result()
+    }
   }
 }
 
 class TabixLineIterator(private val filePath: String, private val offsets: Array[TbiPair])
-  extends Iterator[String]
 {
   private val hConf = HailContext.get.sc.hadoopConfiguration
   private var i: Int = -1
-  private var curOff: Long = 0
+  private var curOff: Long = 0 // virtual file offset, not real offset
   private var isEof = false
   private var is = {
     val path = new hd.fs.Path(filePath)
     val fs = path.getFileSystem(hConf)
     new BGzipInputStream(fs.open(path))
   }
-  def hasNext: Boolean = isEof
 
   def next(): String = {
-    if (isEof)
-      null
-    else {
-      var s: String = null
-      while (s == null || !isEof) {
-        // FIXME do the thing
+    var s: String = null
+    while (s == null && !isEof) {
+      if (curOff == 0 || !TbiOrd.less64(curOff, offsets(i)._2)) { // jump to next chunk
+        if (i == offsets.size - 1) {
+          isEof = true
+          return s
+        }
+        if (i >= 0) assert(curOff == offsets(i)._2)
+        if (i < 0 || offsets(i)._2 != offsets(i + 1)._1) {
+          is.virtualSeek(offsets(i + 1)._1)
+          curOff = is.getVirtualOffset()
+        }
+        i += 1
       }
-      s
+      s = TabixReader.readLine(is)
+      if (s != null) {
+        curOff = is.getVirtualOffset()
+        if (s.isEmpty() || s.charAt(0) == '#')
+          s = null // continue
+      } else
+        isEof = true
     }
+    s
   }
-
 }

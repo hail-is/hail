@@ -4,7 +4,6 @@ import is.hail.{SparkSuite, TestUtils}
 import is.hail.io.tabix.TabixReader
 import is.hail.testUtils._
 
-import org.testng.Assert
 import org.testng.asserts.SoftAssert
 import org.testng.annotations.{BeforeTest, Test}
 
@@ -28,7 +27,7 @@ class TabixSuite extends SparkSuite {
     expectedSeqNames(23) = "Y";
 
     val sequenceNames = reader.index.chr2tid.keySet
-    Assert.assertEquals(expectedSeqNames.length, sequenceNames.size)
+    assert(expectedSeqNames.length == sequenceNames.size)
 
     val asserts = new SoftAssert()
     for (s <- expectedSeqNames) {
@@ -39,8 +38,11 @@ class TabixSuite extends SparkSuite {
 
   @Test def testSequenceSet() {
     val chrs = reader.index.chr2tid.keySet
-    Assert.assertFalse(chrs.isEmpty)
-    Assert.assertTrue(chrs.contains("1"))
-    Assert.assertFalse(chrs.contains("MT"))
+    assert(!chrs.isEmpty)
+    assert(chrs.contains("1"))
+    assert(!chrs.contains("MT"))
+  }
+
+  @Test def testLineIterator() {
   }
 }
