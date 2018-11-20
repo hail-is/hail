@@ -104,7 +104,6 @@ sourceSets {
     }
 }
 compileScala.dependsOn(nativeLib)
-test.dependsOn(nativeLibTest)
 clean.dependsOn(nativeLibClean)
 
 task testCppCodegen(type: Test) {
