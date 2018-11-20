@@ -46,3 +46,5 @@ gsutil acl set public-read ${DOCS}
 echo ${SHA} > latest-hash-spark-${SPARK_VERSION}.txt
 gsutil cp ./latest-hash-spark-${SPARK_VERSION}.txt ${HASH_TARGET}
 gsutil acl set public-read ${HASH_TARGET}
+
+./gradlew deploy
