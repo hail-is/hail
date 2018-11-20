@@ -486,10 +486,9 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
   require(rest.forall(e => e.typ.globalType == first.typ.globalType),
     "all globals must have the same type")
 
-  private val rvdType = first.typ.rvdType
   private val newGlobalType = TStruct(globalName -> TArray(first.typ.globalType))
-  private val newValueType = TStruct(fieldName -> TArray(rvdType.valueType.virtualType))
-  private val newRowType = rvdType.kType.virtualType ++ newValueType
+  private val newValueType = TStruct(fieldName -> TArray(first.typ.valueType))
+  private val newRowType = first.typ.keyType ++ newValueType
 
   def typ: TableType = first.typ.copy(
     rowType = newRowType,
@@ -500,6 +499,10 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
     TableMultiWayZipJoin(newChildren.asInstanceOf[IndexedSeq[TableIR]], fieldName, globalName)
 
   protected[ir] override def execute(hc: HailContext): TableValue = {
+    val childValues = children.map(_.execute(hc))
+    assert(childValues.map(_.rvd.typ).toSet.size == 1) // same physical types
+
+    val rvdType = childValues(0).rvd.typ
     val rowType = rvdType.rowType
     val keyIdx = rvdType.kFieldIdx
     val valIdx = rvdType.valueFieldIdx
@@ -535,7 +538,6 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
       }
     }
 
-    val childValues = children.map(_.execute(hc))
     val childRVDs = childValues.map(_.rvd)
     val childRanges = childRVDs.flatMap(_.partitioner.rangeBounds)
     val newPartitioner = RVDPartitioner.generate(childRVDs.head.typ.kType.virtualType, childRanges)
