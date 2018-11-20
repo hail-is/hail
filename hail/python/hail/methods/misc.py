@@ -254,7 +254,7 @@ def rename_duplicates(dataset, name='unique_id') -> MatrixTable:
     :class:`.MatrixTable`
     """
 
-    return MatrixTable(dataset._jvds.renameDuplicates(name))
+    return MatrixTable._from_java(dataset._jmt.renameDuplicates(name))
 
 
 @typecheck(ds=oneof(Table, MatrixTable),
@@ -339,8 +339,8 @@ def filter_intervals(ds, intervals, keep=True) -> Union[Table, MatrixTable]:
 
     intervals = [wrap_input(x)._jrep for x in hl.eval(intervals)]
     if isinstance(ds, MatrixTable):
-        jmt = Env.hail().methods.MatrixFilterIntervals.apply(ds._jvds, intervals, keep)
-        return MatrixTable(jmt)
+        jmt = Env.hail().methods.MatrixFilterIntervals.apply(ds._jmt, intervals, keep)
+        return MatrixTable._from_java(jmt)
     else:
         jt = Env.hail().methods.TableFilterIntervals.apply(ds._jt, intervals, keep)
         return Table._from_java(jt)
@@ -394,4 +394,4 @@ def window_by_locus(mt: MatrixTable, bp_window_size: int) -> MatrixTable:
     :class:`.MatrixTable`
     """
     require_first_key_field_locus(mt, 'window_by_locus')
-    return MatrixTable(mt._jvds.windowVariants(bp_window_size))
+    return MatrixTable._from_java(mt._jmt.windowVariants(bp_window_size))

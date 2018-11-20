@@ -1372,7 +1372,7 @@ class Table(ExprContainer):
                     key = None
                 else:
                     key = [str(k._ir) for k in exprs]
-                joiner = lambda left: MatrixTable(left._jvds.annotateRowsTableIR(right._jt, uid, key))
+                joiner = lambda left: MatrixTable._from_java(left._jmt.annotateRowsTableIR(right._jt, uid, key))
                 ast = Join(GetField(TopLevelReference('va'), uid),
                            [uid],
                            exprs,
@@ -1384,7 +1384,7 @@ class Table(ExprContainer):
                         exprs[i] is src.col_key[i] for i in range(len(exprs))]):
                     # key is already correct
                     def joiner(left):
-                        return MatrixTable(left._jvds.annotateColsTable(right._jt, uid))
+                        return MatrixTable._from_java(left._jmt.annotateColsTable(right._jt, uid))
                 else:
                     index_uid = Env.get_uid()
                     uids = [Env.get_uid() for _ in exprs]
@@ -1402,10 +1402,10 @@ class Table(ExprContainer):
                                   .join(self, 'inner')
                                   .key_by(index_uid)
                                   .drop(*uids))
-                        result = MatrixTable(left.add_col_index(index_uid)
-                                             .key_cols_by(index_uid)
-                                             ._jvds
-                                             .annotateColsTable(joined._jt, uid)).key_cols_by(*prev_key)
+                        result = MatrixTable._from_java(left.add_col_index(index_uid)
+                                                        .key_cols_by(index_uid)
+                                                        ._jmt
+                                                        .annotateColsTable(joined._jt, uid)).key_cols_by(*prev_key)
                         return result
                 ir = Join(GetField(TopLevelReference('sa'), uid),
                           all_uids,
@@ -1434,7 +1434,7 @@ class Table(ExprContainer):
         def joiner(obj):
             from hail.matrixtable import MatrixTable
             if isinstance(obj, MatrixTable):
-                return MatrixTable(Env.jutils().joinGlobals(obj._jvds, self._jt, uid))
+                return MatrixTable._from_java(Env.jutils().joinGlobals(obj._jmt, self._jt, uid))
             assert isinstance(obj, Table)
             return Table._from_java(Env.jutils().joinGlobals(obj._jt, self._jt, uid))
 
@@ -2302,11 +2302,11 @@ class Table(ExprContainer):
         if len(col_key) == 0:
             raise ValueError(f"'to_matrix_table': require at least one col key field")
 
-        return hl.MatrixTable(self._jt.jToMatrixTable(row_key,
-                                                      col_key,
-                                                      row_fields,
-                                                      col_fields,
-                                                      n_partitions))
+        return hl.MatrixTable._from_java(self._jt.jToMatrixTable(row_key,
+                                                                 col_key,
+                                                                 row_fields,
+                                                                 col_fields,
+                                                                 n_partitions))
 
     @property
     def globals(self) -> 'StructExpression':
@@ -2599,7 +2599,7 @@ class Table(ExprContainer):
 
     @typecheck_method(cols=table_type, entries_field_name=str)
     def _unlocalize_entries(self, cols, entries_field_name):
-        return hl.MatrixTable(self._jt.unlocalizeEntries(cols._jt, entries_field_name))
+        return hl.MatrixTable._from_java(self._jt.unlocalizeEntries(cols._jt, entries_field_name))
 
     @staticmethod
     @typecheck(tables=sequenceof(table_type), data_field_name=str, global_field_name=str)

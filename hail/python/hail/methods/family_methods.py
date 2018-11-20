@@ -59,7 +59,7 @@ def trio_matrix(dataset, pedigree, complete_trios=False) -> MatrixTable:
     -------
     :class:`.MatrixTable`
     """
-    return MatrixTable(dataset._jvds.trioMatrix(pedigree._jrep, complete_trios))
+    return MatrixTable._from_java(dataset._jmt.trioMatrix(pedigree._jrep, complete_trios))
 
 @typecheck(call=expr_call,
            pedigree=Pedigree)
