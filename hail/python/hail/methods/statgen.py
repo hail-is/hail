@@ -7,6 +7,7 @@ import hail as hl
 import hail.expr.aggregators as agg
 from hail.expr.expressions import *
 from hail.expr.types import *
+from hail.ir import *
 from hail.genetics.reference_genome import reference_genome_type
 from hail.linalg import BlockMatrix
 from hail.matrixtable import MatrixTable
@@ -1906,10 +1907,7 @@ def split_multi(ds, keep_star=False, left_aligned=False):
             if rekey:
                 return mt.key_rows_by('locus', 'alleles')
             else:
-                return MatrixTable._from_java(mt._jmt.keyRowsBy(
-                    ['locus', 'alleles'],
-                    True # isSorted
-                ))
+                return MatrixTable(MatrixKeyRowsBy(mt._mir, ['locus', 'alleles'], is_sorted=True))
         else:
             assert isinstance(ds, Table)
             ht = (ds.annotate(**{new_id: expr})
@@ -1929,11 +1927,7 @@ def split_multi(ds, keep_star=False, left_aligned=False):
             if rekey:
                 return ht.key_by('locus', 'alleles')
             else:
-                return Table._from_java(ht._jt.keyBy(
-                    ['locus', 'alleles'],
-                    True # isSorted
-                ))
-
+                return Table(TableKeyBy(ht._tir, ['locus', 'alleles'], is_sorted=True))
 
     if left_aligned:
         def make_struct(i):

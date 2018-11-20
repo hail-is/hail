@@ -55,20 +55,6 @@ object Parser extends JavaTokenParsers {
     }
   }
 
-  def parseAnnotationRoot(code: String, root: String): List[String] = {
-    val path = parseAll(annotationIdentifier, code) match {
-      case Success(result, _) => result.asInstanceOf[List[String]]
-      case NoSuccess(msg, _) => fatal(msg)
-    }
-
-    if (path.isEmpty)
-      fatal(s"expected an annotation path starting in `$root', but got an empty path")
-    else if (path.head != root)
-      fatal(s"expected an annotation path starting in `$root', but got a path starting in '${ path.head }'")
-    else
-      path.tail
-  }
-
   def parseLocusInterval(input: String, rg: RGBase): Interval = {
     parseAll[Interval](locusInterval(rg), input) match {
       case Success(r, _) => r

@@ -276,6 +276,7 @@ class MatrixUnionRows(MatrixIR):
     def render(self, r):
         return '(MatrixUnionRows {})'.format(' '.join(map(r, self.children)))
 
+
 class MatrixDistinctByRow(MatrixIR):
     def __init__(self, child):
         super().__init__()
@@ -283,6 +284,7 @@ class MatrixDistinctByRow(MatrixIR):
 
     def render(self, r):
         return f'(MatrixDistinctByRow {r(self.child)})'
+
 
 class MatrixExplodeCols(MatrixIR):
     def __init__(self, child, path):
