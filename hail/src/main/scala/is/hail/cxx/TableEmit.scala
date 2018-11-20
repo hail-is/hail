@@ -34,7 +34,7 @@ case class TableEmitTriplet(typ: TableType, rvdEmitTriplet: RVDEmitTriplet, glob
 
     val globalsPath = path + "/globals"
     hc.hadoopConf.mkDir(globalsPath)
-    AbstractRVDSpec.writeLocal(hc, globalsPath, typ.globalType, codecSpec, Array(globals.value))
+    AbstractRVDSpec.writeLocal(hc, globalsPath, typ.globalType.physicalType, codecSpec, Array(globals.value))
 
     val partitionCounts = RVDEmitTriplet.write(rvdEmitTriplet, tub, path + "/rows", stageLocally, codecSpec)
 
@@ -77,7 +77,7 @@ class TableEmitter(tub: TranslationUnitBuilder) { outer =>
     x match {
       case ir.TableRead(path, spec, _, dropRows) =>
         val hc = HailContext.get
-        val globals = spec.globalsComponent.readLocal(hc, path, typ.globalType)(0)
+        val globals = spec.globalsComponent.readLocal(hc, path, typ.globalType.physicalType)(0)
         val rvd = if (dropRows)
           RVDEmitTriplet.empty[InputStream](typ.rvdType)
         else {
