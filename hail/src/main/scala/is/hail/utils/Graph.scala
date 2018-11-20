@@ -1,10 +1,9 @@
 package is.hail.utils
 
 import is.hail.annotations.{Region, RegionValueBuilder, SafeRow}
-import is.hail.expr.ir.{Compile, MakeTuple}
+import is.hail.expr.ir.{Compile, MakeTuple, IRParserEnvironment, IRParser}
 import is.hail.expr.types.physical.PBaseStruct
 import is.hail.expr.types.virtual.{TInt64, TTuple, Type}
-import is.hail.expr.{IRParserEnvironment, Parser}
 import org.apache.spark.sql.Row
 
 import scala.collection.mutable
@@ -47,7 +46,7 @@ object Graph {
     val refMap = Map("l" -> wrappedNodeType, "r" -> wrappedNodeType)
 
     val tieBreakerF = tieBreaker.map { e =>
-      val ir = Parser.parse_value_ir(e, IRParserEnvironment(refMap))
+      val ir = IRParser.parse_value_ir(e, IRParserEnvironment(refMap))
       val (t, f) = Compile[Long, Long, Long]("l", wrappedNodeType.physicalType, "r", wrappedNodeType.physicalType, MakeTuple(FastSeq(ir)))
       assert(t.virtualType.isOfType(TTuple(TInt64())))
 

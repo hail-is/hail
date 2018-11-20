@@ -1,11 +1,8 @@
 package is.hail.expr.ir
 
 import is.hail.expr.JSONAnnotationImpex
-import is.hail.expr.types.virtual.TArray
-import is.hail.io.vcf.MatrixVCFReader
 import is.hail.table.Ascending
 import is.hail.utils._
-import is.hail.variant.RelationalSpec
 import org.json4s.jackson.{JsonMethods, Serialization}
 
 object Pretty {
@@ -163,7 +160,7 @@ object Pretty {
             case Ref(name, _) => prettyIdentifier(name)
             case ApplyBinaryPrimOp(op, _, _) => prettyClass(op)
             case ApplyUnaryPrimOp(op, _) => prettyClass(op)
-            case ApplyComparisonOp(op, _, _) => s"(${ prettyClass(op) } ${ op.t1.parsableString() } ${ op.t2.parsableString() })"
+            case ApplyComparisonOp(op, _, _) => prettyClass(op)
             case GetField(_, name) => prettyIdentifier(name)
             case GetTupleElement(_, idx) => idx.toString
             case MakeArray(_, typ) => typ.parsableString()

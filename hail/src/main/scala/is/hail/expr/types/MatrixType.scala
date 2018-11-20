@@ -1,8 +1,7 @@
 package is.hail.expr.types
 
 import is.hail.annotations.Annotation
-import is.hail.expr.Parser
-import is.hail.expr.ir.Env
+import is.hail.expr.ir.{Env, IRParser}
 import is.hail.expr.types.physical.{PArray, PStruct}
 import is.hail.expr.types.virtual.{TArray, TStruct, Type}
 import is.hail.rvd.RVDType
@@ -13,7 +12,7 @@ import org.json4s.JsonAST.JString
 
 
 class MatrixTypeSerializer extends CustomSerializer[MatrixType](format => (
-  { case JString(s) => Parser.parseMatrixType(s) },
+  { case JString(s) => IRParser.parseMatrixType(s) },
   { case mt: MatrixType => JString(mt.toString) }))
 
 object MatrixType {

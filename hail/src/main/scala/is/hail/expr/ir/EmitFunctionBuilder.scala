@@ -170,7 +170,7 @@ class EmitFunctionBuilder[F >: Null](
     val references = ReferenceGenome.getReferences(t.virtualType).toArray
     val setup = Code(Code(references.map(addReferenceGenome): _*),
       Code.invokeScalaObject[String, PType](
-        Parser.getClass, "parsePType", const(t.parsableString())))
+        IRParser.getClass, "parsePType", const(t.parsableString())))
     pTypeMap.getOrElseUpdate(t,
       newLazyField[PType](setup))
   }
@@ -179,7 +179,7 @@ class EmitFunctionBuilder[F >: Null](
     val references = ReferenceGenome.getReferences(t).toArray
     val setup = Code(Code(references.map(addReferenceGenome): _*),
       Code.invokeScalaObject[String, Type](
-        Parser.getClass, "parseType", const(t.parsableString())))
+        IRParser.getClass, "parseType", const(t.parsableString())))
     typMap.getOrElseUpdate(t,
       newLazyField[Type](setup))
   }

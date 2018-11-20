@@ -5,8 +5,8 @@ import java.util
 import java.util.Map.Entry
 
 import is.hail.annotations._
-import is.hail.expr.Parser
 import is.hail.expr.types.virtual.Type
+import is.hail.expr.ir.IRParser
 import is.hail.io._
 import is.hail.io.bgen.BgenSettings
 import is.hail.utils._
@@ -19,8 +19,8 @@ import org.json4s.jackson.JsonMethods
 object IndexReaderBuilder {
   def apply(hConf: Configuration, path: String): (Configuration, String, Int) => IndexReader = {
     val metadata = IndexReader.readMetadata(hConf, path)
-    val keyType = Parser.parseType(metadata.keyType)
-    val annotationType = Parser.parseType(metadata.annotationType)
+    val keyType = IRParser.parseType(metadata.keyType)
+    val annotationType = IRParser.parseType(metadata.annotationType)
     IndexReaderBuilder(keyType, annotationType)
   }
 
@@ -67,8 +67,8 @@ class IndexReader(hConf: Configuration,
   val indexRelativePath = metadata.indexPath
 
   val version = SemanticVersion(metadata.fileVersion)
-  val keyType = Parser.parseType(metadata.keyType)
-  val annotationType = Parser.parseType(metadata.annotationType)
+  val keyType = IRParser.parseType(metadata.keyType)
+  val annotationType = IRParser.parseType(metadata.annotationType)
   val leafType = LeafNodeBuilder.typ(keyType, annotationType)
   val leafPType = leafType.physicalType
   val internalType = InternalNodeBuilder.typ(keyType, annotationType)

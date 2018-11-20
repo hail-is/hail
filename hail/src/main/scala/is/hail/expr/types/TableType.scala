@@ -9,7 +9,7 @@ import org.json4s.CustomSerializer
 import org.json4s.JsonAST.JString
 
 class TableTypeSerializer extends CustomSerializer[TableType](format => (
-  { case JString(s) => Parser.parseTableType(s) },
+  { case JString(s) => IRParser.parseTableType(s) },
   { case tt: TableType => JString(tt.toString) }))
 
 case class TableType(rowType: TStruct, key: IndexedSeq[String], globalType: TStruct) extends BaseType {

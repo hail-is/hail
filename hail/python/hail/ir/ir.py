@@ -342,7 +342,7 @@ class ApplyComparisonOp(IR):
         return new_instance(self.op, l, r)
 
     def render(self, r):
-        return '(ApplyComparisonOp ({}) {} {})'.format(escape_id(self.op), r(self.l), r(self.r))
+        return '(ApplyComparisonOp {} {} {})'.format(escape_id(self.op), r(self.l), r(self.r))
 
     def __eq__(self, other):
         return isinstance(other, ApplyComparisonOp) and \

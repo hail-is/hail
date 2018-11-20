@@ -11,6 +11,8 @@ import is.hail.utils._
 import scala.language.implicitConversions
 
 package object ir {
+  type TokenIterator = BufferedIterator[Token]
+
   var uidCounter: Long = 0
 
   def genUID(): String = {

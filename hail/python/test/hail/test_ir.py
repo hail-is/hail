@@ -35,6 +35,8 @@ class ValueIRTests(unittest.TestCase):
 
         take_by_sig = ir.AggSignature('TakeBy', [hl.tint32], None, [hl.tfloat64, hl.tfloat64])
 
+        table = ir.TableRange(10, 4)
+
         value_irs = [
             i, ir.I64(5), ir.F32(3.14), ir.F64(3.14), s, ir.TrueIR(), ir.FalseIR(), ir.Void(),
             ir.Cast(i, hl.tfloat64),
@@ -107,7 +109,7 @@ class ValueIRTests(unittest.TestCase):
                'x': hl.tint32}
         env = {name: t._jtype for name, t in env.items()}
         for x in self.value_irs():
-            Env.hail().expr.Parser.parse_value_ir(str(x), env, {})
+            Env.hail().expr.ir.IRParser.parse_value_ir(str(x), env, {})
 
     def test_copies(self):
         for x in self.value_irs():
@@ -171,7 +173,7 @@ class TableIRTests(unittest.TestCase):
 
     def test_parses(self):
         for x in self.table_irs():
-            Env.hail().expr.Parser.parse_table_ir(str(x))
+            Env.hail().expr.ir.IRParser.parse_table_ir(str(x))
 
     def test_matrix_ir_parses(self):
         hl.index_bgen(resource('example.8bits.bgen'),
@@ -218,7 +220,7 @@ class TableIRTests(unittest.TestCase):
 
         for x in matrix_irs:
             try:
-                Env.hail().expr.Parser.parse_matrix_ir(str(x))
+                Env.hail().expr.ir.IRParser.parse_matrix_ir(str(x))
             except Exception as e:
                 raise ValueError(str(x)) from e
 

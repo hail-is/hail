@@ -6,7 +6,7 @@ import is.hail.{HailContext, Uploader, stats}
 import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.annotations._
 import is.hail.asm4s.AsmFunction3
-import is.hail.expr.{IRParserEnvironment, JSONAnnotationImpex, Parser, TypedAggregator}
+import is.hail.expr.{JSONAnnotationImpex, TypedAggregator}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PTuple
 import is.hail.expr.types.virtual._
@@ -26,7 +26,7 @@ object Interpret {
   }
 
   def interpretPyIR(s: String, refMap: Map[String, Type] = Map.empty, irMap: Map[String, BaseIR] = Map.empty): String = {
-    val ir = Parser.parse_value_ir(s, IRParserEnvironment(refMap, irMap))
+    val ir = IRParser.parse_value_ir(s, IRParserEnvironment(refMap, irMap))
     val t = ir.typ
     val value = Interpret[Any](ir)
 
