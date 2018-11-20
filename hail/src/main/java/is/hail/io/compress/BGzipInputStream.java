@@ -261,13 +261,14 @@ public class BGzipInputStream extends SplitCompressionInputStream {
     public void virtualSeek(final long pos) throws IOException {
         final long compOff = BlockCompressedFilePointerUtil.getBlockAddress(pos);
         final int uncompOff = BlockCompressedFilePointerUtil.getBlockOffset(pos);
-        if (inputBufferInPos != compOff) {
+        if (currentBlockPos != compOff) {
             ((Seekable) in).seek(compOff);
             resetState(); // FIXME, this is probably less efficient than it could be, but it works for now
             decompressNextBlock();
+            assert(currentBlockPos == compOff);
         }
         if (uncompOff > outputBufferSize) {
-            throw new IOException("Invalid virtual offset: " + pos)
+            throw new IOException("Invalid virtual offset: " + pos);
         }
         outputBufferPos = uncompOff;
     }
