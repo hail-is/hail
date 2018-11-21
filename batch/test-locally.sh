@@ -1,19 +1,24 @@
+#!/bin/bash
+
 set -ex
+
+. activate hail-batch
 
 cleanup() {
     set +e
     trap "" INT TERM
-    kill -9 $server_pid
+    [[ -z $server_pid ]] || kill -9 $server_pid
 }
 trap cleanup EXIT
 trap "exit 24" INT TERM
 
-BATCH_USE_KUBE_CONFIG=1 python batch/server.py &
+python -c 'import batch.server; batch.server.serve()' &
 server_pid=$!
 
+: $((tries = 0))
 until curl -fL 127.0.0.1:5000/jobs >/dev/null 2>&1
 do
-    ((tries++)) && [ $tries -lt 30 ]
+    : $((tries = tries + 1)) && [ $tries -lt 30 ]
     sleep 1
 done
 

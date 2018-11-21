@@ -473,16 +473,18 @@ def polling_event_loop():
             pass
         time.sleep(REFRESH_INTERVAL_IN_SECONDS)
 
-kube_thread = threading.Thread(target=run_forever, args=(kube_event_loop,))
-kube_thread.start()
 
-polling_thread = threading.Thread(target=run_forever, args=(polling_event_loop,))
-polling_thread.start()
+def serve():
+    kube_thread = threading.Thread(target=run_forever, args=(kube_event_loop,))
+    kube_thread.start()
 
-# debug/reloader must run in main thread
-# see: https://stackoverflow.com/questions/31264826/start-a-flask-application-in-separate-thread
-# flask_thread = threading.Thread(target=flask_event_loop)
-# flask_thread.start()
-run_forever(flask_event_loop)
+    polling_thread = threading.Thread(target=run_forever, args=(polling_event_loop,))
+    polling_thread.start()
 
-kube_thread.join()
+    # debug/reloader must run in main thread
+    # see: https://stackoverflow.com/questions/31264826/start-a-flask-application-in-separate-thread
+    # flask_thread = threading.Thread(target=flask_event_loop)
+    # flask_thread.start()
+    run_forever(flask_event_loop)
+
+    kube_thread.join()
