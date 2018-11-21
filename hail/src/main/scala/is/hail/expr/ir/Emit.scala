@@ -533,8 +533,7 @@ private class Emit(
             }
 
             val processArrayElts = aout.arrayEmitter(cont)
-            EmitTriplet(processArrayElts.setup, processArrayElts.m.getOrElse(const(false)), Code(
-              vab.clear,
+            EmitTriplet(Code(vab.clear, processArrayElts.setup), processArrayElts.m.getOrElse(const(false)), Code(
               aout.calcLength,
               processArrayElts.addElements,
               len := vab.size,
