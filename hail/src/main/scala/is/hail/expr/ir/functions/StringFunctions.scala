@@ -4,7 +4,7 @@ import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s
 import is.hail.asm4s._
 import is.hail.expr.ir
-import is.hail.expr.ir.{EmitMethodBuilder, EmitTriplet, StringLength}
+import is.hail.expr.ir.{ApplyBinaryPrimOp, EmitMethodBuilder, EmitTriplet, I32, StringLength}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PArray, PBinary, PString}
 import is.hail.expr.types.virtual._
@@ -49,76 +49,29 @@ object StringFunctions extends RegistryFunctions {
     val thisClass = getClass
 
     registerIR("[]", TString(), TInt32()) { (s, idx) =>
-      val adjIdxName = ir.genUID()
-      val adjIdx = ir.Ref(adjIdxName, TInt32())
+      // rather than do a bunch of bounds checking here, check the length of the StringSlice result - way easier
+      val sName = ir.genUID()
+      val sResult = ir.Ref(sName, TString())
       ir.Let(
-        adjIdxName,
-        ir.If(
-          ir.ApplyComparisonOp(ir.LT(TInt32()), idx, ir.I32(0)),
-          ir.ApplyBinaryPrimOp(ir.Add(), ir.StringLength(s), idx),
-          idx),
+        sName,
         ir.StringSlice(
           s,
-          adjIdx,
-          ir.ApplyBinaryPrimOp(ir.Add(), adjIdx, ir.I32(1)))
+          idx,
+          ir.If(
+            ir.ApplyComparisonOp(ir.EQ(TInt32()), idx, I32(-1)),
+            ir.StringLength(s),
+            ApplyBinaryPrimOp(ir.Add(), idx, ir.I32(1)))),
+        ir.If(
+          ir.ApplyComparisonOp(ir.EQ(TInt32()), ir.StringLength(sResult), ir.I32(0)),
+          ir.Die("string index out of bounds", TString()), // FIXME: Die needs to take a string IR for a better error message
+          sResult
+        )
       )
     }
-
     registerIR("[:]", TString())(x => x)
-    registerIR("[*:]", TString(), TInt32()) { (s, start) =>
-      val lenName = ir.genUID()
-      val len = ir.Ref(lenName, TInt32())
-      ir.Let(lenName, ir.StringLength(s),
-        ir.StringSlice(
-          s,
-          ir.If(
-            ir.ApplyComparisonOp(ir.LT(TInt32()), start, ir.I32(0)),
-            UtilFunctions.max(
-              ir.ApplyBinaryPrimOp(ir.Add(), len, start),
-              ir.I32(0)),
-            UtilFunctions.min(start, len)),
-          len))
-    }
-    registerIR("[:*]", TString(), TInt32()) { (s, end) =>
-      val lenName = ir.genUID()
-      val len = ir.Ref(lenName, TInt32())
-      ir.Let(lenName, ir.StringLength(s),
-        ir.StringSlice(
-          s,
-          ir.I32(0),
-          ir.If(
-            ir.ApplyComparisonOp(ir.LT(TInt32()), end, ir.I32(0)),
-            UtilFunctions.max(
-              ir.ApplyBinaryPrimOp(ir.Add(), len, end),
-              ir.I32(0)),
-            UtilFunctions.min(end, len))))
-    }
-    registerIR("[*:*]", TString(), TInt32(), TInt32()) { (s, start, end) =>
-      val lenName = ir.genUID()
-      val len = ir.Ref(lenName, TInt32())
-      val startName = ir.genUID()
-      val startRef = ir.Ref(startName, TInt32())
-      ir.Let(lenName, ir.StringLength(s),
-        ir.Let(
-          startName,
-          ir.If(
-            ir.ApplyComparisonOp(ir.LT(TInt32()), start, ir.I32(0)),
-            UtilFunctions.max(
-              ir.ApplyBinaryPrimOp(ir.Add(), len, start),
-              ir.I32(0)),
-            UtilFunctions.min(start, len)),
-          ir.StringSlice(
-            s,
-            startRef,
-            ir.If(
-              ir.ApplyComparisonOp(ir.LT(TInt32()), end, ir.I32(0)),
-              UtilFunctions.max(
-                ir.ApplyBinaryPrimOp(ir.Add(), len, end),
-                startRef),
-              UtilFunctions.max(
-                UtilFunctions.min(end, len),
-                startRef)))))
-    }
+    registerIR("[*:]", TString(), TInt32()) { (s, start) => ir.StringSlice(s, start, StringLength(s)) }
+    registerIR("[:*]", TString(), TInt32()) { (s, end) => ir.StringSlice(s, ir.I32(0), end) }
+    registerIR("[*:*]", TString(), TInt32(), TInt32()) { (s, start, end) => ir.StringSlice(s, start, end) }
 
     registerCode("str", tv("T"), TString()) { (mb, a) =>
       val typ = tv("T").subst()

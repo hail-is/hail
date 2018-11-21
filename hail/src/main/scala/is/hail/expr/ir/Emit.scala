@@ -903,34 +903,27 @@ private class Emit(
         val vend = mb.newLocal[Int]()
         val vlen = mb.newLocal[Int]()
         val vnewLen = mb.newLocal[Int]()
-        val checks = Code(
+        val sliced = Code(
           vs := coerce[Long](cs.v),
           vstart := coerce[Int](cstart.v),
           vend := coerce[Int](cend.v),
           vlen := PString.loadLength(region, vs),
-          ((vstart < 0) || (vstart > vend) || (vend > vlen)).mux(
-            Code._fatal(
-              const("string slice out of bounds or invalid: \"")
-                .concat(PString.loadString(region, vs))
-                .concat("\"[")
-                .concat(vstart.toS)
-                .concat(":")
-                .concat(vend.toS)
-                .concat("]")
-            ),
-            Code._empty)
-        )
-        val sliced = Code(
-          vnewLen := (vend - vstart),
+          vstart := (vstart < 0).mux(vstart + vlen, vstart),
+          vstart := (vstart < 0).mux(0, vstart),
+          vend := (vend < 0).mux(vend + vlen, vend),
+          vend := (vend < 0).mux(0, vend),
+          vstart := (vstart > vlen).mux(vlen, vstart),
+          vend := (vend > vlen).mux(vlen, vend),
+          vnewLen := vend - vstart,
           // if vstart = vlen = vend, then we want an empty string, but memcpy
           // with a pointer one past the end of the allocated region is probably
           // not safe, so for *all* empty slices, we just inline the code to
           // stick the length (the contents is size zero so we needn't allocate
           // for it or really do anything)
-          vnewLen.ceq(0).mux(
+          (vnewLen <= 0).mux(
             region.appendInt(0),
             region.appendStringSlice(region, vs, vstart, vnewLen)))
-        strict(Code(checks, sliced), cs, cstart, cend)
+        strict(sliced, cs, cstart, cend)
 
       case StringLength(s) =>
         val t = coerce[PString](s.pType)

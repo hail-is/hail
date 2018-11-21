@@ -103,10 +103,10 @@ class StringFunctionsSuite extends TestNGSuite {
     assertEvalsTo(invoke("[]", In(0, TString()), I32(-2)), IndexedSeq("Baz" -> TString()), "a")
     assertEvalsTo(invoke("[]", In(0, TString()), I32(-3)), IndexedSeq("Baz" -> TString()), "B")
 
-    interceptFatal("string slice out of bounds") {
+    interceptFatal("string index out of bounds") {
       assertEvalsTo(invoke("[]", In(0, TString()), I32(3)), IndexedSeq("Baz" -> TString()), "B")
     }
-    interceptFatal("string slice out of bounds") {
+    interceptFatal("string index out of bounds") {
       assertEvalsTo(invoke("[]", In(0, TString()), I32(-4)), IndexedSeq("Baz" -> TString()), "B")
     }
   }
