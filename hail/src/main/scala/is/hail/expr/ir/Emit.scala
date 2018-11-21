@@ -399,12 +399,12 @@ private class Emit(
         val processArrayElts = aout.arrayEmitter(cont)
         EmitTriplet(
           Code(
+            vab.clear,
             processArrayElts.setup,
             codeAsc.setup,
             xAsc := coerce[Boolean](codeAsc.m.mux(true, codeAsc.v))),
           processArrayElts.m.getOrElse(const(false)),
           Code(
-            vab.clear,
             aout.calcLength,
             processArrayElts.addElements,
             sorter.sortIntoRegion(ascending = xAsc, distinct = !ir.isInstanceOf[ArraySort])))
@@ -454,8 +454,7 @@ private class Emit(
         val srvb = new StagedRegionValueBuilder(mb, ir.pType)
 
         val processArrayElts = aout.arrayEmitter(cont)
-        EmitTriplet(processArrayElts.setup, processArrayElts.m.getOrElse(const(false)), Code(
-          eab.clear,
+        EmitTriplet(Code(eab.clear, processArrayElts.setup), processArrayElts.m.getOrElse(const(false)), Code(
           nab.clear,
           aout.calcLength,
           processArrayElts.addElements,
