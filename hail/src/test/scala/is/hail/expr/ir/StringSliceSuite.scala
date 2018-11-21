@@ -77,19 +77,6 @@ class StringSliceSuite extends TestNGSuite {
     assertEvalsTo(invoke("[*:*]", Str("abc"), I32(1), I32(-1)), "b")
   }
 
-  @Test def rawIROutOfBoundsFatals() {
-    assertFatal(StringSlice(Str("abc"), I32(4), I32(4)),
-      "string slice out of bounds or invalid: \"abc\"\\[4:4\\]")
-    assertFatal(StringSlice(Str("abc"), I32(3), I32(2)),
-      "string slice out of bounds or invalid: \"abc\"\\[3:2\\]")
-    assertFatal(StringSlice(Str("abc"), I32(-1), I32(2)),
-      "string slice out of bounds or invalid: \"abc\"\\[-1:2\\]")
-    assertFatal(StringSlice(Str("abc"), I32(-1), I32(-1)),
-      "string slice out of bounds or invalid: \"abc\"\\[-1:-1\\]")
-    assertFatal(StringSlice(Str("abc"), I32(1), I32(-1)),
-      "string slice out of bounds or invalid: \"abc\"\\[1:-1\\]")
-  }
-
   @Test def bothSidesSliceFunctionOutOfBoundsNotFatal() {
     assertEvalsTo(invoke("[*:*]", Str("abc"), I32(4), I32(4)), "")
     assertEvalsTo(invoke("[*:*]", Str("abc"), I32(3), I32(2)), "")
@@ -117,5 +104,25 @@ class StringSliceSuite extends TestNGSuite {
     assertEvalsTo(invoke("[:*]", Str("abc"), I32(-3)), "")
     assertEvalsTo(invoke("[:*]", Str("abc"), I32(-4)), "")
     assertEvalsTo(invoke("[:*]", Str("abc"), I32(-100)), "")
+  }
+
+  @Test def testStringIndex() {
+    assertEvalsTo(invoke("[]", In(0, TString()), I32(0)), IndexedSeq("Baz" -> TString()), "B")
+    assertEvalsTo(invoke("[]", In(0, TString()), I32(1)), IndexedSeq("Baz" -> TString()), "a")
+    assertEvalsTo(invoke("[]", In(0, TString()), I32(2)), IndexedSeq("Baz" -> TString()), "z")
+    assertEvalsTo(invoke("[]", In(0, TString()), I32(-1)), IndexedSeq("Baz" -> TString()), "z")
+    assertEvalsTo(invoke("[]", In(0, TString()), I32(-2)), IndexedSeq("Baz" -> TString()), "a")
+    assertEvalsTo(invoke("[]", In(0, TString()), I32(-3)), IndexedSeq("Baz" -> TString()), "B")
+
+    interceptFatal("string index out of bounds") {
+      assertEvalsTo(invoke("[]", In(0, TString()), I32(3)), IndexedSeq("Baz" -> TString()), "B")
+    }
+    interceptFatal("string index out of bounds") {
+      assertEvalsTo(invoke("[]", In(0, TString()), I32(-4)), IndexedSeq("Baz" -> TString()), "B")
+    }
+  }
+
+  @Test def testStringCopy() {
+    assertEvalsTo(invoke("[:]", In(0, TString())), IndexedSeq("Baz" -> TString()), "Baz")
   }
 }
