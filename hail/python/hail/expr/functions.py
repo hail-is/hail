@@ -2578,7 +2578,7 @@ def filter(f: Callable, collection):
     >>> hl.eval(hl.filter(lambda x: x % 2 == 0, a))
     [2, 4]
 
-    >>> hl.eval(hl.filter(lambda x: ~(x[-1] == 'e'), s))  # doctest: +NOTEST
+    >>> hl.eval(hl.filter(lambda x: ~(x[-1] == 'e'), s))
     {'Bob'}
 
     Notes
@@ -2600,7 +2600,6 @@ def filter(f: Callable, collection):
     :class:`.ArrayExpression` or :class:`.SetExpression`
         Expression of the same type as `collection`.
     """
-    # FIXME: enable doctest
     return collection.filter(f)
 
 
@@ -2615,7 +2614,7 @@ def any(f: Callable, collection) -> BooleanExpression:
     >>> a = ['The', 'quick', 'brown', 'fox']
     >>> s = {1, 3, 5, 6, 7, 9}
 
-    >>> hl.eval(hl.any(lambda x: x[-1] == 'x', a))  # doctest: +NOTEST
+    >>> hl.eval(hl.any(lambda x: x[-1] == 'x', a))
     True
 
     >>> hl.eval(hl.any(lambda x: x % 4 == 0, s))
@@ -2638,7 +2637,6 @@ def any(f: Callable, collection) -> BooleanExpression:
     :class:`.BooleanExpression`.
         ``True`` if `f` returns ``True`` for any element, ``False`` otherwise.
     """
-    # FIXME: enable doctest
     return collection.any(f)
 
 
@@ -2691,7 +2689,7 @@ def find(f: Callable, collection):
     >>> a = ['The', 'quick', 'brown', 'fox']
     >>> s = {1, 3, 5, 6, 7, 9}
 
-    >>> hl.eval(hl.find(lambda x: x[-1] == 'x', a))  # doctest: +NOTEST
+    >>> hl.eval(hl.find(lambda x: x[-1] == 'x', a))
     'fox'
 
     >>> hl.eval(hl.find(lambda x: x % 4 == 0, s))
@@ -2717,7 +2715,6 @@ def find(f: Callable, collection):
     :class:`.Expression`
         Expression whose type is the element type of the collection.
     """
-    # FIXME: enable doctest
     return collection.find(f)
 
 
