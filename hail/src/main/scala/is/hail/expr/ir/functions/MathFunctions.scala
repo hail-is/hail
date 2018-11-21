@@ -23,11 +23,27 @@ object MathFunctions extends RegistryFunctions {
 
   def ceil(x: Double): Double = math.ceil(x)
 
+  def mod(x: Int, y: Int): Int = {
+    if (y == 0)
+      fatal(s"$x % 0: modulo by zero")
+    java.lang.Math.floorMod(x, y)
+  }
+
+  def mod(x: Long, y: Long): Long = {
+    if (y == 0L)
+      fatal(s"$x % 0: modulo by zero")
+    java.lang.Math.floorMod(x, y)
+  }
+
   def mod(x: Float, y: Float): Float = {
+    if (y == 0.0)
+      fatal(s"$x % 0: modulo by zero")
     val t = x % y
     if (t < 0) t + y else t
   }
   def mod(x: Double, y: Double): Double = {
+    if (y == 0.0)
+      fatal(s"$x % 0: modulo by zero")
     val t = x % y
     if (t < 0) t + y else t
   }
@@ -37,9 +53,18 @@ object MathFunctions extends RegistryFunctions {
   def pow(x: Float, y: Float): Double = math.pow(x, y)
   def pow(x: Double, y: Double): Double = math.pow(x, y)
 
-  def floorDiv(x: Int, y: Int): Int = java.lang.Math.floorDiv(x, y)
+  def floorDiv(x: Int, y: Int): Int = {
+    if (y == 0)
+      fatal(s"$x // 0: integer division by zero")
+    java.lang.Math.floorDiv(x, y)
+  }
 
-  def floorDiv(x: Long, y: Long): Long = java.lang.Math.floorDiv(x, y)
+
+  def floorDiv(x: Long, y: Long): Long = {
+    if (y == 0L)
+      fatal(s"$x // 0: integer division by zero")
+    java.lang.Math.floorDiv(x, y)
+  }
 
   def floorDiv(x: Float, y: Float): Float = math.floor(x / y).toFloat
 
@@ -132,8 +157,8 @@ object MathFunctions extends RegistryFunctions {
     registerScalaFunction("ceil", TFloat32(), TFloat32())(thisClass, "ceil")
     registerScalaFunction("ceil", TFloat64(), TFloat64())(thisClass, "ceil")
 
-    registerJavaStaticFunction("%", TInt32(), TInt32(), TInt32())(jMathClass, "floorMod")
-    registerJavaStaticFunction("%", TInt64(), TInt64(), TInt64())(jMathClass, "floorMod")
+    registerScalaFunction("%", TInt32(), TInt32(), TInt32())(thisClass, "mod")
+    registerScalaFunction("%", TInt64(), TInt64(), TInt64())(thisClass, "mod")
     registerScalaFunction("%", TFloat32(), TFloat32(), TFloat32())(thisClass, "mod")
     registerScalaFunction("%", TFloat64(), TFloat64(), TFloat64())(thisClass, "mod")
 
