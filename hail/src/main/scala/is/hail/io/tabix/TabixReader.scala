@@ -27,7 +27,7 @@ case class Tabix(
   val indicies: Array[(HashMap[Int, Array[TbiPair]], Array[Long])]
 )
 
-case class TbiPair(_1: Long, _2: Long) extends java.lang.Comparable[TbiPair] { // FIXME: _1 = u , _2 = v DON"T COMMIT
+case class TbiPair(var _1: Long, var _2: Long) extends java.lang.Comparable[TbiPair] {
   @Override
   def compareTo(other: TbiPair) = TbiOrd.compare(this, other)
 }
@@ -166,7 +166,7 @@ class TabixReader(val filePath: String, private val idxFilePath: Option[String])
     Tabix(format, colSeq, colBeg, meta, seqs, chr2tid, indices.result())
   }
 
-  def queryPairs(tid: Int, beg: Int, end: Int): Array[TbiPair] =
+  def queryPairs(tid: Int, beg: Int, end: Int): Array[TbiPair] = {
     if (tid < 0 || tid > index.indicies.length) {
       new Array[TbiPair](0)
     } else {
@@ -190,9 +190,9 @@ class TabixReader(val filePath: String, private val idxFilePath: Option[String])
       i = 0
       while (i < bins.length) {
         val c = idx._1.getOrElse(bins(i), null)
-        val l = if (c == null) { 0 } else { c.length }
+        val len = if (c == null) { 0 } else { c.length }
         var j = 0
-        while (j < l) {
+        while (j < len) {
           if (TbiOrd.less64(minOff, c(j)._2)) {
             off(nOff) = c(j)
             nOff += 1
@@ -201,8 +201,52 @@ class TabixReader(val filePath: String, private val idxFilePath: Option[String])
         }
       }
       Arrays.sort(off, 0, nOff, null)
-      ???
+      // resolve contained adjacent blocks
+      var l = 0
+      i = 1
+      while (i < nOff) {
+        if (TbiOrd.less64(off(l)._2, off(i)._2)) {
+          l += 1
+          off(l)._1 = off(i)._1
+          off(l)._2 = off(i)._2
+        }
+        i += 1
+      }
+      nOff = l + 1
+      // resolve overlaps
+      i = 1
+      while (i < nOff) {
+        if (!TbiOrd.less64(off(i - 1)._2, off(i)._1))
+          off(i - 1)._2 = off(i)._1
+        i += 1
+      }
+      // merge blocks
+      i = 1
+      l = 0
+      while (i < nOff) {
+        if ((off(l)._2 >> 16) == (off(i)._1 >> 16))
+          off(l)._2 = off(i)._1
+        else {
+          l += 1
+          off(l)._1 = off(i)._1
+          off(l)._2 = off(i)._2
+        }
+        i += 1
+      }
+      nOff = l + 1
+      val ret = Array.fill[TbiPair](nOff)(null)
+      i = 0
+      while (i < nOff) {
+        if (off(i) != null)
+          ret(i) = TbiPair(off(i)._1, off(i)._2)
+        i += 1
+      }
+      if (ret.length == 0 || (ret.length == 1 && ret(0) == null))
+        new Array[TbiPair](0)
+      else
+        ret
     }
+  }
 
   private def reg2bins(beg: Int, _end: Int): Array[Int] = {
     if (beg >= _end)
