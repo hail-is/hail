@@ -2997,13 +2997,11 @@ def reversed(x):
     :class:`.Expression`
     """
 
-    def reverse(seq):
-        seq = range(0, len(seq)).map(lambda i: seq[len(seq) - 1 - i])
-        if x.dtype == tstr:
-            seq = hl.delimit(seq, '')
-        return seq
-
-    return bind(lambda seq: cond(len(seq) != 0, reverse(seq), seq), x)
+    typ = x.dtype
+    x = range(0, len(x)).map(lambda i: x[len(x) - 1 - i])
+    if typ == tstr:
+        x = hl.delimit(x, '')
+    return x
 
 
 @typecheck(exprs=expr_oneof(expr_numeric, expr_set(expr_numeric), expr_array(expr_numeric)),
