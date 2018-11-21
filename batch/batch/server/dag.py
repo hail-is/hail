@@ -67,6 +67,17 @@ class DagNode:
             self.create_job()
             assert self.job is not None
 
+    STATUS_ORDERING = [
+        'Failure', 'Cancelled', 'PendingCreation', 'Created', 'Succeeded']
+    STATUS_INDEX = {v: index for index, v in enumerate(STATUS_ORDERING)}
+
+    @staticmethod
+    def status_to_int_low_is_failure(status):
+        return DagNode.STATUS_INDEX[status]
+
+    def status(self):
+        return self.job.status() if self.job else 'PendingCreation'
+
     def create_job(self):
         return Job(self.spec.job_spec, self)
 
@@ -113,11 +124,18 @@ class Dag:
         for root in self.roots:
             root.create_job()
 
-    def to_data_dag(self):
-        return data.Dag([node.spec for node in self.nodes])
-
     def to_get_json(self):
-        return self.to_data_dag().to_json()
+        return {
+            'id': self.id,
+            'nodes': [node.spec.to_json() for node in self.nodes],
+            'dag_cancelled': self.cancelled,
+            'composite_status': self.composite_status(),
+        }
+
+    def composite_status(self):
+        return min(
+            [node.status() for node in self.nodes],
+            key=DagNode.status_to_int_low_is_failure)
 
     def cancel(self):
         for node in self.nodes:

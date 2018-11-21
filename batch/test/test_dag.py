@@ -27,7 +27,7 @@ def test_duplicate_name_is_400(client):
         assert err.response.status_code == 400
         assert re.match('.*duplicate name: head.*', err.response.text)
         return
-    assert False
+p    assert False
 
 
 def test_missing_dependency_is_400(client):

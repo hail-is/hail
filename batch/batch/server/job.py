@@ -98,6 +98,20 @@ class Job:
                 new_state))
             self._state = new_state
 
+    STATUS_ORDERING = ['Failure', 'Cancelled', 'Created', 'Succeeded']
+    STATUS_INDEX = {v: index for index, v in enumerate(STATUS_ORDERING)}
+
+    @staticmethod
+    def status_to_int_low_is_failure(status):
+        return Job.STATUS_INDEX[status]
+
+    def status(self):
+        if self._state == 'Complete':
+            if self.exit_code == 0:
+                return 'Succeeded'
+            return 'Failed'
+        return self._state
+
     def cancel(self):
         if self.is_complete():
             return

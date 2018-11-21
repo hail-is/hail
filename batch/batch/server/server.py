@@ -3,7 +3,8 @@ import os
 import time
 import random
 import threading
-from flask import Flask, request, jsonify, abort
+from flask import Flask, request, jsonify, abort, render_template
+from jinja2 import StrictUndefined
 
 import kubernetes as kube
 import cerberus
@@ -16,6 +17,7 @@ from .dag import Dag
 from .globals import max_id, pod_name_job, job_id_job, _log_path, _read_file
 from .globals import batch_id_batch, next_id, REFRESH_INTERVAL_IN_SECONDS
 from .globals import POD_NAMESPACE, INSTANCE_ID, dag_id_dag
+from .globals import KUBERNETES_TIMEOUT_IN_SECONDS
 from .job import Job
 from .kubernetes import v1
 from .log import log
@@ -29,6 +31,7 @@ else:
 
 
 app = Flask('batch')
+app.jinja_env.undefined = StrictUndefined
 
 
 @app.errorhandler(UserError)
@@ -162,6 +165,16 @@ def delete_dag(id):
         abort(404)
     dag.delete()
     return jsonify({})
+
+@app.route('/ui/dag/<int:id>')
+def ui_dag(id):
+    dag = dag_id_dag.get(id)
+    if not dag:
+        abort(404)
+    return render_template(
+        'dag.html',
+        dag=dag,
+    )
 
 
 @app.route('/dag/<int:id>/cancel', methods=['POST'])
