@@ -655,6 +655,30 @@ object Interpret {
       case Die(message, typ) => fatal(message)
       case ir@ApplyIR(function, functionArgs, conversion) =>
         interpret(ir.explicitNode, env, args, agg)
+      case ApplySpecial("||", Seq(left_, right_)) =>
+        val left = interpret(left_)
+        if (left == true)
+          true
+        else {
+          val right = interpret(right_)
+          if (right == true)
+            true
+          else if (left == null || right == null)
+            null
+          else false
+        }
+      case ApplySpecial("&&", Seq(left_, right_)) =>
+        val left = interpret(left_)
+        if (left == false)
+          false
+        else {
+          val right = interpret(right_)
+          if (right == false)
+            false
+          else if (left == null || right == null)
+            null
+          else true
+        }
       case ir: AbstractApplyNode[_] =>
         val argTuple = TTuple(ir.args.map(_.typ): _*).physicalType
         val f = functionMemo.getOrElseUpdate(ir, {
