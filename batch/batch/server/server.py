@@ -57,7 +57,20 @@ def create_job():
 
 @app.route('/jobs', methods=['GET'])
 def get_job_list():
-    return jsonify([job.to_json() for _, job in job_id_job.items()])
+    return jsonify([job.to_json() for job in job_id_job.values()])
+
+
+@app.route('/ui/')
+def ui():
+    return ui_jobs()
+
+
+@app.route('/ui/jobs')
+def ui_jobs():
+    return render_template(
+        'jobs.html',
+        jobs=job_id_job.values(),
+    )
 
 
 @app.route('/jobs/<int:job_id>', methods=['GET'])
@@ -66,6 +79,17 @@ def get_job(job_id):
     if not job:
         abort(404)
     return jsonify(job.to_json())
+
+
+@app.route('/ui/jobs/<int:id>')
+def ui_job(id):
+    job = job_id_job.get(id)
+    if not job:
+        abort(404)
+    return render_template(
+        'job.html',
+        job=job,
+    )
 
 
 @app.route('/jobs/<int:job_id>/log', methods=['GET'])

@@ -7,16 +7,23 @@ from .user_error import UserError
 
 
 class DagNode:
-    def __init__(self, spec, parents, children):
+    def __init__(self, spec, parents, children, dag_id):
         self.spec = spec
         self._parents = parents
         self.children = children
+        self.dag_id = dag_id
         self.unfinished_parents = set([])
         self.job = None
 
+    def name(self):
+        return self.spec.name
+
+    def fqname(self):
+        return f'{self.dag_id}:{self.spec.name}'
+
     def add_parent(self, parent):
         self._parents.append(parent)
-        self.unfinished_parents.add(parent.spec.name)
+        self.unfinished_parents.add(parent.name())
 
     def add_child(self, child):
         self.children.append(child)
@@ -28,15 +35,15 @@ class DagNode:
     def to_json(self):
         return {
             'spec': self.spec.to_json(),
-            'parents': [parent.spec.name for parent in self._parents],
-            'children': [child.spec.name for child in self.children]
+            'parents': [parent.name() for parent in self._parents],
+            'children': [child.name() for child in self.children]
         }
 
     def to_get_json(self):
         return {
             'job': self.job,
-            'parents': [parent.spec.name for parent in self._parents],
-            'children': [child.spec.name for child in self.children]
+            'parents': [parent.name() for parent in self._parents],
+            'children': [child.name() for child in self.children]
         }
 
     def __str__(self):
@@ -54,15 +61,15 @@ class DagNode:
             log.warning(f'failing pod {exit_code} will not trigger dag completion')
 
     def mark_parent_complete(self, parent):
-        parent_name = parent.spec.name
-        log.info(f'parent {parent_name}/{parent.job.id} completed for child {self.spec.name}')
+        parent_name = parent.name()
+        log.info(f'parent {parent_name}/{parent.job.id} completed for child {self.name()}')
         if parent_name not in self.unfinished_parents:
             raise ValueError(
                 f'unknown parent: {parent_name} not in {self.unfinished_parents}. '
                 f'{self}')
         self.unfinished_parents.remove(parent_name)
         if not self.unfinished_parents:
-            log.info(f'all parents completed for child {self.spec.name}')
+            log.info(f'all parents completed for child {self.name()}')
             assert self.job is None
             self.create_job()
             assert self.job is not None
@@ -106,7 +113,7 @@ class Dag:
 
         by_name = {}
         for spec in specs:
-            node = DagNode(spec, [], [])
+            node = DagNode(spec, [], [], id)
             if spec.name in by_name:
                 raise UserError(f'duplicate name: {spec.name}')
             by_name[spec.name] = node
