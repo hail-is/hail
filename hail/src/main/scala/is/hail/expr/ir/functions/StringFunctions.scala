@@ -45,10 +45,24 @@ object StringFunctions extends RegistryFunctions {
 
   def setMkString(s: Set[String], sep: String): String = s.mkString(sep)
 
-  def index(s: String, i: Int): String = s.slice(i, i + 1)
-
   def registerAll(): Unit = {
     val thisClass = getClass
+
+    registerIR("[]", TString(), TInt32()) { (s, idx) =>
+      val adjIdxName = ir.genUID()
+      val adjIdx = ir.Ref(adjIdxName, TInt32())
+      ir.Let(
+        adjIdxName,
+        ir.If(
+          ir.ApplyComparisonOp(ir.LT(TInt32()), idx, ir.I32(0)),
+          ir.ApplyBinaryPrimOp(ir.Add(), ir.StringLength(s), idx),
+          idx),
+        ir.StringSlice(
+          s,
+          adjIdx,
+          ir.ApplyBinaryPrimOp(ir.Add(), adjIdx, ir.I32(1)))
+      )
+    }
 
     registerIR("[:]", TString())(x => x)
     registerIR("[*:]", TString(), TInt32()) { (s, start) =>
@@ -120,8 +134,6 @@ object StringFunctions extends RegistryFunctions {
       val str = Code.invokeScalaObject[JValue, String](JsonMethods.getClass, "compact", json)
       EmitTriplet(Code._empty, false, unwrapReturn(mb, TString())(str))
     }
-
-    registerWrappedScalaFunction("[]", TString(), TInt32(), TString())(thisClass, "index")
 
     registerWrappedScalaFunction("upper", TString(), TString())(thisClass, "upper")
     registerWrappedScalaFunction("lower", TString(), TString())(thisClass, "lower")

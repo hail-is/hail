@@ -67,24 +67,74 @@ class StringFunctionsSuite extends TestNGSuite {
     // FIXME matches current FunctionRegistry, but should be a,NA,c
     assertEvalsTo(invoke("mkString", IRStringSet("a", null, "c"), Str(",")), "a,c,null")
 
-    @DataProvider(name="str")
-    def strData(): Array[Array[Any]] = Array(
-      Array(NA(TString()), TString()),
-      Array(NA(TStruct("x" -> TInt32())), TStruct("x" -> TInt32())),
-      Array(F32(3.14f), TFloat32()),
-      Array(I64(7), TInt64()),
-      Array(IRArray(1, null, 5), TArray(TInt32())),
-      Array(MakeTuple(Seq(1, NA(TInt32()), 5.7)), TTuple(TInt32(), TInt32(), TFloat64()))
-    )
+  }
 
-    @Test(dataProvider = "str")
-    def str(annotation: IR, typ: Type) {
-      assertEvalsTo(invoke("str", annotation), {val a = eval(annotation); if (a == null) null else typ.str(a) })
-    }
+  @DataProvider(name = "str")
+  def strData(): Array[Array[Any]] = Array(
+    Array(NA(TString()), TString()),
+    Array(NA(TStruct("x" -> TInt32())), TStruct("x" -> TInt32())),
+    Array(F32(3.14f), TFloat32()),
+    Array(I64(7), TInt64()),
+    Array(IRArray(1, null, 5), TArray(TInt32())),
+    Array(MakeTuple(Seq(1, NA(TInt32()), 5.7)), TTuple(TInt32(), TInt32(), TFloat64()))
+  )
 
-    @Test(dataProvider = "str")
-    def json(annotation: IR, typ: Type) {
-      assertEvalsTo(invoke("json", annotation), JsonMethods.compact(typ.toJSON(eval(annotation))))
+  @Test(dataProvider = "str")
+  def str(annotation: IR, typ: Type) {
+    assertEvalsTo(invoke("str", annotation), {
+      val a = eval(annotation); if (a == null) null else typ.str(a)
+    })
+  }
+
+  @Test(dataProvider = "str")
+  def json(annotation: IR, typ: Type) {
+    assertEvalsTo(invoke("json", annotation), JsonMethods.compact(typ.toJSON(eval(annotation))))
+  }
+
+  @Test def testStringCopy() {
+    assertEvalsTo(invoke("[:]", In(0, TString())), IndexedSeq("Baz" -> TString()), "Baz")
+  }
+
+  @Test def testStringIndex() {
+    assertEvalsTo(invoke("[]", In(0, TString()), I32(0)), IndexedSeq("Baz" -> TString()), "B")
+    assertEvalsTo(invoke("[]", In(0, TString()), I32(1)), IndexedSeq("Baz" -> TString()), "a")
+    assertEvalsTo(invoke("[]", In(0, TString()), I32(2)), IndexedSeq("Baz" -> TString()), "z")
+    assertEvalsTo(invoke("[]", In(0, TString()), I32(-1)), IndexedSeq("Baz" -> TString()), "z")
+    assertEvalsTo(invoke("[]", In(0, TString()), I32(-2)), IndexedSeq("Baz" -> TString()), "a")
+    assertEvalsTo(invoke("[]", In(0, TString()), I32(-3)), IndexedSeq("Baz" -> TString()), "B")
+
+    interceptFatal("string slice out of bounds") {
+      assertEvalsTo(invoke("[]", In(0, TString()), I32(3)), IndexedSeq("Baz" -> TString()), "B")
     }
+    interceptFatal("string slice out of bounds") {
+      assertEvalsTo(invoke("[]", In(0, TString()), I32(-4)), IndexedSeq("Baz" -> TString()), "B")
+    }
+  }
+
+  @Test def testStringSliceEnd() {
+    assertEvalsTo(invoke("[:*]", In(0, TString()), I32(0)), IndexedSeq("Baz" -> TString()), "")
+    assertEvalsTo(invoke("[:*]", In(0, TString()), I32(1)), IndexedSeq("Baz" -> TString()), "B")
+    assertEvalsTo(invoke("[:*]", In(0, TString()), I32(2)), IndexedSeq("Baz" -> TString()), "Ba")
+    assertEvalsTo(invoke("[:*]", In(0, TString()), I32(3)), IndexedSeq("Baz" -> TString()), "Baz")
+    assertEvalsTo(invoke("[:*]", In(0, TString()), I32(4)), IndexedSeq("Baz" -> TString()), "Baz")
+    assertEvalsTo(invoke("[:*]", In(0, TString()), I32(-1)), IndexedSeq("Baz" -> TString()), "Ba")
+    assertEvalsTo(invoke("[:*]", In(0, TString()), I32(-3)), IndexedSeq("Baz" -> TString()), "")
+  }
+
+  @Test def testStringSliceStart() {
+    assertEvalsTo(invoke("[*:]", In(0, TString()), I32(0)), IndexedSeq("Baz" -> TString()), "Baz")
+    assertEvalsTo(invoke("[*:]", In(0, TString()), I32(1)), IndexedSeq("Baz" -> TString()), "az")
+    assertEvalsTo(invoke("[*:]", In(0, TString()), I32(2)), IndexedSeq("Baz" -> TString()), "z")
+    assertEvalsTo(invoke("[*:]", In(0, TString()), I32(3)), IndexedSeq("Baz" -> TString()), "")
+    assertEvalsTo(invoke("[*:]", In(0, TString()), I32(-1)), IndexedSeq("Baz" -> TString()), "z")
+    assertEvalsTo(invoke("[*:]", In(0, TString()), I32(-2)), IndexedSeq("Baz" -> TString()), "az")
+    assertEvalsTo(invoke("[*:]", In(0, TString()), I32(-4)), IndexedSeq("Baz" -> TString()), "Baz")
+  }
+
+  @Test def testStringSliceStartEnd() {
+    assertEvalsTo(invoke("[*:*]", In(0, TString()), I32(0), I32(0)), IndexedSeq("Baz" -> TString()), "")
+    assertEvalsTo(invoke("[*:*]", In(0, TString()), I32(0), I32(4)), IndexedSeq("Baz" -> TString()), "Baz")
+    assertEvalsTo(invoke("[*:*]", In(0, TString()), I32(-1), I32(3)), IndexedSeq("Baz" -> TString()), "z")
+    assertEvalsTo(invoke("[*:*]", In(0, TString()), I32(-2), I32(-1)), IndexedSeq("Baz" -> TString()), "a")
   }
 }
