@@ -100,12 +100,12 @@ def get_job_log(job_id):  # pylint: disable=R1710
     job = job_id_job.get(job_id)
     if job:
         job_log = job._read_log()
-        if job_log:
-            return job_log
     else:
         fname = _log_path(job_id)
         if os.path.exists(fname):
-            return _read_file(fname)
+            job_log = _read_file(fname)
+    if job_log:
+        return job_log, 200, {'Content-Type': 'text/plain'}
 
     abort(404)
 
