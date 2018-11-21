@@ -639,10 +639,12 @@ object Interpret {
           null
         else {
           val vs = maybeString.asInstanceOf[String]
-          if (vstart < 0 || vstart > vend || vend > vs.length)
-            fatal(s"""string slice out of bounds or invalid: "$vs"[$vstart:$vend]""")
-          else
-            vs.substring(vstart, vend)
+          val length = vs.length
+          var start_ = if (vstart < 0) vstart + length else vstart
+          start_ = math.min(math.max(start_, 0), length)
+          var end_ = if (vend < 0) vend + length else vend
+          end_ = math.min(math.max(end_, start_), length)
+          vs.substring(start_, end_)
         }
       case StringLength(s) =>
         val vs = interpret(s).asInstanceOf[String]
@@ -653,6 +655,30 @@ object Interpret {
       case Die(message, typ) => fatal(message)
       case ir@ApplyIR(function, functionArgs, conversion) =>
         interpret(ir.explicitNode, env, args, agg)
+      case ApplySpecial("||", Seq(left_, right_)) =>
+        val left = interpret(left_)
+        if (left == true)
+          true
+        else {
+          val right = interpret(right_)
+          if (right == true)
+            true
+          else if (left == null || right == null)
+            null
+          else false
+        }
+      case ApplySpecial("&&", Seq(left_, right_)) =>
+        val left = interpret(left_)
+        if (left == false)
+          false
+        else {
+          val right = interpret(right_)
+          if (right == false)
+            false
+          else if (left == null || right == null)
+            null
+          else true
+        }
       case ir: AbstractApplyNode[_] =>
         val argTuple = TTuple(ir.args.map(_.typ): _*).physicalType
         val f = functionMemo.getOrElseUpdate(ir, {

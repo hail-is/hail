@@ -448,22 +448,22 @@ object TestUtils {
 
     val i = Interpret[Any](x, env, args, agg)
     assert(t.typeCheck(i))
-    assert(t.valuesSimilar(i, expected), s"$i, $expected")
+    assert(t.valuesSimilar(i, expected), s"($i, $expected)")
 
     val i2 = Interpret[Any](x, env, args, agg, optimize = false)
     assert(t.typeCheck(i2))
-    assert(t.valuesSimilar(i2, expected), s"$i2 $expected")
+    assert(t.valuesSimilar(i2, expected), s"($i2, $expected)")
 
     if (Compilable(x)) {
       val c = eval(x, env, args, agg)
       assert(t.typeCheck(c))
-      assert(t.valuesSimilar(c, expected), s"$c, $expected")
+      assert(t.valuesSimilar(c, expected), s"($c, $expected)")
     }
 
     try {
       val c = nativeExecute(x, env, args, agg)
       assert(t.typeCheck(c))
-      assert(t.valuesSimilar(c, expected), s"$c, $expected")
+      assert(t.valuesSimilar(c, expected), s"($c, $expected)")
     } catch {
       case _: CXXUnsupportedOperation =>
     }
