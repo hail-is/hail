@@ -1,2 +1,2 @@
 #!/bin/sh
-make test-local
+make test-local-in-cluster
