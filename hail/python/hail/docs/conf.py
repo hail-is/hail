@@ -20,7 +20,9 @@
 import os
 import sys
 
-from ..generated_version_info import hail_version
+# sphinx essentially evals this file, so we cannot rely on package structure
+sys.path.append(os.getcwd()+'/../')
+from _generated_version_info import hail_version
 
 sys.path.insert(0, os.path.abspath('./_ext'))
 

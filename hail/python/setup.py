@@ -1,7 +1,11 @@
 #!/usr/bin/env python
 
 from setuptools import setup, find_packages
-from hail._generated_version_info import hail_pip_version
+# avoid evaluating hail/__init__.py just to get hail_pip_version
+import os
+import sys
+sys.path.append(os.getcwd()+'/hail')
+from _generated_version_info import hail_pip_version
 
 with open("README.md", "r") as fh:
     long_description = fh.read()

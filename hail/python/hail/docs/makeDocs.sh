@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -e
+set -ex
 
 # make directories
 mkdir -p build/www/ build/tmp/python/ build/tmp/docs build/www/docs
