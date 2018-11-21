@@ -191,4 +191,11 @@ class MathFunctionsSuite extends TestNGSuite {
     assert(D0_==(pValue, r.getDouble(0)))
     assert(D0_==(hetFreq, r.getDouble(1)))
   }
+
+  @Test def modulusTest() {
+    assertFatal(invoke("%", I32(1), I32(0)), "modulo by zero")
+    assertFatal(invoke("%", I64(1), I64(0)), "modulo by zero")
+    assertFatal(invoke("%", F32(1), F32(0)), "modulo by zero")
+    assertFatal(invoke("%", F64(1), F64(0)), "modulo by zero")
+  }
 }
