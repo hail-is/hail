@@ -29,12 +29,11 @@ tables, referring to a "Hail table".
     +-------+-------+-----+-------+-------+-------+-------+-------+
     | int32 | int32 | str | int32 | int32 | int32 | int32 | int32 |
     +-------+-------+-----+-------+-------+-------+-------+-------+
-    |     1 |    65 | M   |     5 |     4 |     2 |    50 |     5 |
-    |     2 |    72 | M   |     6 |     3 |     2 |    61 |     1 |
-    |     3 |    70 | F   |     7 |     3 |    10 |    81 |    -5 |
-    |     4 |    60 | F   |     8 |     2 |    11 |    90 |   -10 |
+    |     1 |    65 | "M" |     5 |     4 |     2 |    50 |     5 |
+    |     2 |    72 | "M" |     6 |     3 |     2 |    61 |     1 |
+    |     3 |    70 | "F" |     7 |     3 |    10 |    81 |    -5 |
+    |     4 |    60 | "F" |     8 |     2 |    11 |    90 |   -10 |
     +-------+-------+-----+-------+-------+-------+-------+-------+
-
 
 Global Fields
 =============
@@ -61,7 +60,7 @@ but the value ``5`` is only stored once for the entire dataset and NOT once per
 row of the table. The output of :meth:`.Table.describe` lists what all of the row
 fields and global fields are.
 
-    >>> ht.describe()
+    >>> ht.describe()  # doctest: +NOTEST
     ----------------------------------------
     Global fields:
         None
@@ -100,10 +99,10 @@ special characters in it. The Python type of each attribute is an
 :class:`.Expression` that also contains context about its type and source, in
 this case a row field of table `ht`.
 
-    >>> ht
+    >>> ht  # doctest: +NOTEST
     <hail.table.Table at 0x110791a20>
 
-    >>> ht.ID
+    >>> ht.ID  # doctest: +NOTEST
     <Int32Expression of type int32>
 
 
@@ -144,15 +143,14 @@ possible with a combination of :meth:`Table.group_by` and
     >>> ht_agg = (ht.group_by(ht.SEX)
     ...             .aggregate(mean = hl.agg.mean(ht.HT)))
     >>> ht_agg.show()
-    +-----+-------------+
-    | SEX |        mean |
-    +-----+-------------+
-    | str |     float64 |
-    +-----+-------------+
-    | M   | 6.85000e+01 |
-    | F   | 6.50000e+01 |
-    +-----+-------------+
-
+    +-----+----------+
+    | SEX |     mean |
+    +-----+----------+
+    | str |  float64 |
+    +-----+----------+
+    | "F" | 6.50e+01 |
+    | "M" | 6.85e+01 |
+    +-----+----------+
 
 Note that the result of ``ht.group_by(...).aggregate(...)`` is a new
 :class:`.Table` while the result of ``ht.aggregate(...)`` is a Python value.
@@ -175,16 +173,16 @@ appended with a unique identifier "_N".
 
     >>> ht_join = ht.join(ht2)
     >>> ht_join.show()
-    +-------+-------+-----+-------+-------+-------+-------+-------+-------+--------+
-    |    ID |    HT | SEX |     X |     Z |    C1 |    C2 |    C3 |     A | B      |
-    +-------+-------+-----+-------+-------+-------+-------+-------+-------+--------+
-    | int32 | int32 | str | int32 | int32 | int32 | int32 | int32 | int32 | str    |
-    +-------+-------+-----+-------+-------+-------+-------+-------+-------+--------+
-    |     3 |    70 | F   |     7 |     3 |    10 |    81 |    -5 |    70 | mouse  |
-    |     4 |    60 | F   |     8 |     2 |    11 |    90 |   -10 |    60 | rabbit |
-    |     2 |    72 | M   |     6 |     3 |     2 |    61 |     1 |    72 | dog    |
-    |     1 |    65 | M   |     5 |     4 |     2 |    50 |     5 |    65 | cat    |
-    +-------+-------+-----+-------+-------+-------+-------+-------+-------+--------+
+    +-------+-------+-----+-------+-------+-------+-------+-------+-------+----------+
+    |    ID |    HT | SEX |     X |     Z |    C1 |    C2 |    C3 |     A | B        |
+    +-------+-------+-----+-------+-------+-------+-------+-------+-------+----------+
+    | int32 | int32 | str | int32 | int32 | int32 | int32 | int32 | int32 | str      |
+    +-------+-------+-----+-------+-------+-------+-------+-------+-------+----------+
+    |     1 |    65 | "M" |     5 |     4 |     2 |    50 |     5 |    65 | "cat"    |
+    |     2 |    72 | "M" |     6 |     3 |     2 |    61 |     1 |    72 | "dog"    |
+    |     3 |    70 | "F" |     7 |     3 |    10 |    81 |    -5 |    70 | "mouse"  |
+    |     4 |    60 | "F" |     8 |     2 |    11 |    90 |   -10 |    60 | "rabbit" |
+    +-------+-------+-----+-------+-------+-------+-------+-------+-------+----------+
 
 In addition to the :meth:`.Table.join` method, Hail provides another
 join syntax using Python's bracket indexing syntax. The syntax looks like
@@ -197,16 +195,16 @@ we add the field 'B' from `ht2` to `ht`:
 
     >>> ht1 = ht.annotate(B = ht2[ht.ID].B)
     >>> ht1.show()
-    +-------+-------+-----+-------+-------+-------+-------+-------+--------+
-    |    ID |    HT | SEX |     X |     Z |    C1 |    C2 |    C3 | B      |
-    +-------+-------+-----+-------+-------+-------+-------+-------+--------+
-    | int32 | int32 | str | int32 | int32 | int32 | int32 | int32 | str    |
-    +-------+-------+-----+-------+-------+-------+-------+-------+--------+
-    |     3 |    70 | F   |     7 |     3 |    10 |    81 |    -5 | mouse  |
-    |     4 |    60 | F   |     8 |     2 |    11 |    90 |   -10 | rabbit |
-    |     2 |    72 | M   |     6 |     3 |     2 |    61 |     1 | dog    |
-    |     1 |    65 | M   |     5 |     4 |     2 |    50 |     5 | cat    |
-    +-------+-------+-----+-------+-------+-------+-------+-------+--------+
+    +-------+-------+-----+-------+-------+-------+-------+-------+----------+
+    |    ID |    HT | SEX |     X |     Z |    C1 |    C2 |    C3 | B        |
+    +-------+-------+-----+-------+-------+-------+-------+-------+----------+
+    | int32 | int32 | str | int32 | int32 | int32 | int32 | int32 | str      |
+    +-------+-------+-----+-------+-------+-------+-------+-------+----------+
+    |     1 |    65 | "M" |     5 |     4 |     2 |    50 |     5 | "cat"    |
+    |     2 |    72 | "M" |     6 |     3 |     2 |    61 |     1 | "dog"    |
+    |     3 |    70 | "F" |     7 |     3 |    10 |    81 |    -5 | "mouse"  |
+    |     4 |    60 | "F" |     8 |     2 |    11 |    90 |   -10 | "rabbit" |
+    +-------+-------+-----+-------+-------+-------+-------+-------+----------+
 
 Interacting with Tables Locally
 ===============================
@@ -220,18 +218,18 @@ Python list:
 
     >>> first3 = ht.take(3)
     >>> first3
-    [Struct(ID=3, HT=70, SEX=F, X=7, Z=3, C1=10, C2=81, C3=-5),
-     Struct(ID=4, HT=60, SEX=F, X=8, Z=2, C1=11, C2=90, C3=-10),
-     Struct(ID=2, HT=72, SEX=M, X=6, Z=3, C1=2, C2=61, C3=1)]
+    [Struct(ID=1, HT=65, SEX='M', X=5, Z=4, C1=2, C2=50, C3=5),
+     Struct(ID=2, HT=72, SEX='M', X=6, Z=3, C1=2, C2=61, C3=1),
+     Struct(ID=3, HT=70, SEX='F', X=7, Z=3, C1=10, C2=81, C3=-5)]
 
 Note that each element of the list is a :class:`.Struct` whose elements can be
 accessed using Python's get attribute or get item notation:
 
     >>> first3[0].ID
-    3
+    1
 
     >>> first3[0]['ID']
-    3
+    1
 
 The :meth:`.Table.head` method is helpful for testing pipelines. It subsets a
 table to the first `n` rows, causing downstream operations to run much more
