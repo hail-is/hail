@@ -81,6 +81,7 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
     group_by
     fold
     array_scan
+    reversed
 
 .. rubric:: Numeric functions
 

@@ -2977,6 +2977,35 @@ def len(x) -> Int32Expression:
         return apply_expr(lambda x: ArrayLen(x), tint32, array(x))
 
 
+@typecheck(x=expr_oneof(expr_array(), expr_str))
+def reversed(x):
+    """Reverses the elements of a collection.
+
+    Examples
+    --------
+    >>> a = ['The', 'quick', 'brown', 'fox']
+    >>> hl.eval(hl.reversed(a))
+    ['fox', 'brown', 'quick', 'The']
+
+    Parameters
+    ----------
+    x : :class:`.ArrayExpression` or :class:`.StringExpression`
+        Array or string expression.
+
+    Returns
+    -------
+    :class:`.Expression`
+    """
+
+    def reverse(seq):
+        seq = range(0, len(seq)).map(lambda i: seq[len(seq) - 1 - i])
+        if x.dtype == tstr:
+            seq = hl.delimit(seq, '')
+        return seq
+
+    return bind(lambda seq: cond(len(seq) != 0, reverse(seq), seq), x)
+
+
 @typecheck(exprs=expr_oneof(expr_numeric, expr_set(expr_numeric), expr_array(expr_numeric)),
            filter_missing=bool)
 def max(*exprs, filter_missing: bool = True) -> NumericExpression:

@@ -2322,3 +2322,20 @@ class Tests(unittest.TestCase):
 
     def test_string_unicode(self):
         self.assertTrue(hl.eval(hl.str("李") == "李"))
+
+    def test_reversed(self):
+        a = hl.array(['a', 'b', 'c'])
+        ea = hl.empty_array(hl.tint)
+        na = hl.null(hl.tarray(hl.tbool))
+
+        assert hl.eval(hl.reversed(a)) == ['c', 'b', 'a']
+        assert hl.eval(hl.reversed(ea)) == []
+        assert hl.eval(hl.reversed(na)) is None
+
+        s = hl.str('abc')
+        es = ''
+        ns = hl.null(hl.tstr)
+
+        assert hl.eval(hl.reversed(s)) == 'cba'
+        assert hl.eval(hl.reversed(es)) == ''
+        assert hl.eval(hl.reversed(ns)) is None
