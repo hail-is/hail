@@ -1,8 +1,10 @@
 package is.hail.io
 
 import is.hail.{SparkSuite, TestUtils}
-import is.hail.io.tabix.TabixReader
+import is.hail.io.tabix._
 import is.hail.testUtils._
+
+import htsjdk.tribble.readers.{TabixReader => HtsjdkTabixReader}
 
 import org.testng.asserts.SoftAssert
 import org.testng.annotations.{BeforeTest, Test}
@@ -44,5 +46,16 @@ class TabixSuite extends SparkSuite {
   }
 
   @Test def testLineIterator() {
+    val htsjdkrdr = new HtsjdkTabixReader(vcfGzFile)
+    for (chr <- Seq("1", "19", "X")) {
+      val tid = reader.chr2tid(chr)
+      val pairs = reader.queryPairs(tid, 1, 400);
+      val hailIter = new TabixLineIterator(reader.filePath, pairs)
+      val htsIter = htsjdkrdr.query(chr, 1, 400);
+      val hailStr = hailIter.next()
+      val htsStr = htsIter.next()
+      assert(hailStr == htsStr)
+      assert(hailIter.next() == null)
+    }
   }
 }

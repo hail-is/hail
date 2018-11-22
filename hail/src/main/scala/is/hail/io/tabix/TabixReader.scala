@@ -75,7 +75,7 @@ object TabixReader {
     val buf = new StringBuffer(initialBufferSize)
     var c = is.read()
     while (c >= 0 && c != '\n') {
-      buf.append(c)
+      buf.append(c.asInstanceOf[Char])
       c = is.read()
     }
     buf.toString()
@@ -166,6 +166,11 @@ class TabixReader(val filePath: String, private val idxFilePath: Option[String])
     Tabix(format, colSeq, colBeg, meta, seqs, chr2tid, indices.result())
   }
 
+  def chr2tid(chr: String): Int = index.chr2tid.get(chr) match {
+      case Some(i) => i
+      case _ => -1
+    }
+
   def queryPairs(tid: Int, beg: Int, end: Int): Array[TbiPair] = {
     if (tid < 0 || tid > index.indicies.length) {
       new Array[TbiPair](0)
@@ -199,6 +204,7 @@ class TabixReader(val filePath: String, private val idxFilePath: Option[String])
           }
           j += 1
         }
+        i += 1
       }
       Arrays.sort(off, 0, nOff, null)
       // resolve contained adjacent blocks
