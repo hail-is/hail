@@ -47,6 +47,7 @@ class TabixSuite extends SparkSuite {
 
   @Test def testLineIterator() {
     val htsjdkrdr = new HtsjdkTabixReader(vcfGzFile)
+    // In range access
     for (chr <- Seq("1", "19", "X")) {
       val tid = reader.chr2tid(chr)
       val pairs = reader.queryPairs(tid, 1, 400);
@@ -56,6 +57,44 @@ class TabixSuite extends SparkSuite {
       val htsStr = htsIter.next()
       assert(hailStr == htsStr)
       assert(hailIter.next() == null)
+    }
+
+    // Out of range access
+    for (chr <- Seq("1", "19", "X")) {
+      val tid = reader.chr2tid(chr)
+      val pairs = reader.queryPairs(tid, 400, 400);
+      val hailIter = new TabixLineIterator(reader.filePath, pairs)
+      val htsIter = htsjdkrdr.query(chr, 400, 400);
+      val hailStr = hailIter.next()
+      val htsStr = htsIter.next()
+      assert(hailStr == null)
+      assert(hailStr == htsStr)
+    }
+  }
+
+  @Test def testLineIterator2() {
+    val vcfFile = "src/test/resources/sample.vcf.gz"
+    val chr = "20"
+    val start = 10570000
+    val end = 13000000
+    val htsjdkrdr = new HtsjdkTabixReader(vcfFile)
+    val hailrdr = TabixReader(vcfFile)
+    val tid = hailrdr.chr2tid(chr)
+
+    // One approximate interval, one (almost) exact interval
+    for ((start, end) <- Seq(10570000 -> 13000000, 10019092 -> 16360860)) {
+      val pairs = hailrdr.queryPairs(tid, start, end)
+      val htsIter = htsjdkrdr.query(chr, start, end)
+      val hailIter = new TabixLineIterator(hailrdr.filePath, pairs)
+      var hailStr = hailIter.next()
+      while (hailStr != null) {
+        val htsStr = htsIter.next()
+        assert(htsStr != null)
+        assert(htsStr == hailStr)
+
+        hailStr = hailIter.next()
+      }
+      assert(htsIter.next() == null)
     }
   }
 }

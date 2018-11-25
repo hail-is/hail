@@ -177,80 +177,84 @@ class TabixReader(val filePath: String, private val idxFilePath: Option[String])
     } else {
       val idx = index.indicies(tid)
       val bins = reg2bins(beg, end)
-      val minOff = if (idx._2.length > 0 && (beg >> TadLidxShift) >= idx._2.length) {
-        idx._2(idx._2.length - 1)
-      } else if (idx._2.length > 0) {
-        idx._2(beg >> TadLidxShift)
-      } else {
-        0L
-      }
+      val minOff = if (idx._2.length > 0 && (beg >> TadLidxShift) >= idx._2.length)
+          idx._2(idx._2.length - 1)
+        else if (idx._2.length > 0)
+          idx._2(beg >> TadLidxShift)
+        else
+          0L
+
       var i = 0
       var nOff = 0
       while (i < bins.length) {
         nOff += idx._1.get(bins(i)).map(_.length).getOrElse(0)
         i += 1
       }
-      var off = new Array[TbiPair](nOff)
-      nOff = 0
-      i = 0
-      while (i < bins.length) {
-        val c = idx._1.getOrElse(bins(i), null)
-        val len = if (c == null) { 0 } else { c.length }
-        var j = 0
-        while (j < len) {
-          if (TbiOrd.less64(minOff, c(j)._2)) {
-            off(nOff) = c(j)
-            nOff += 1
-          }
-          j += 1
-        }
-        i += 1
-      }
-      Arrays.sort(off, 0, nOff, null)
-      // resolve contained adjacent blocks
-      var l = 0
-      i = 1
-      while (i < nOff) {
-        if (TbiOrd.less64(off(l)._2, off(i)._2)) {
-          l += 1
-          off(l)._1 = off(i)._1
-          off(l)._2 = off(i)._2
-        }
-        i += 1
-      }
-      nOff = l + 1
-      // resolve overlaps
-      i = 1
-      while (i < nOff) {
-        if (!TbiOrd.less64(off(i - 1)._2, off(i)._1))
-          off(i - 1)._2 = off(i)._1
-        i += 1
-      }
-      // merge blocks
-      i = 1
-      l = 0
-      while (i < nOff) {
-        if ((off(l)._2 >> 16) == (off(i)._1 >> 16))
-          off(l)._2 = off(i)._1
-        else {
-          l += 1
-          off(l)._1 = off(i)._1
-          off(l)._2 = off(i)._2
-        }
-        i += 1
-      }
-      nOff = l + 1
-      val ret = Array.fill[TbiPair](nOff)(null)
-      i = 0
-      while (i < nOff) {
-        if (off(i) != null)
-          ret(i) = TbiPair(off(i)._1, off(i)._2)
-        i += 1
-      }
-      if (ret.length == 0 || (ret.length == 1 && ret(0) == null))
+      if (nOff == 0)
         new Array[TbiPair](0)
-      else
-        ret
+      else {
+        var off = new Array[TbiPair](nOff)
+        nOff = 0
+        i = 0
+        while (i < bins.length) {
+          val c = idx._1.getOrElse(bins(i), null)
+          val len = if (c == null) { 0 } else { c.length }
+          var j = 0
+          while (j < len) {
+            if (TbiOrd.less64(minOff, c(j)._2)) {
+              off(nOff) = TbiPair(c(j)._1, c(j)._2)
+              nOff += 1
+            }
+            j += 1
+          }
+          i += 1
+        }
+        Arrays.sort(off, 0, nOff, null)
+        // resolve contained adjacent blocks
+        var l = 0
+        i = 1
+        while (i < nOff) {
+          if (TbiOrd.less64(off(l)._2, off(i)._2)) {
+            l += 1
+            off(l)._1 = off(i)._1
+            off(l)._2 = off(i)._2
+          }
+          i += 1
+        }
+        nOff = l + 1
+        // resolve overlaps
+        i = 1
+        while (i < nOff) {
+          if (!TbiOrd.less64(off(i - 1)._2, off(i)._1))
+            off(i - 1)._2 = off(i)._1
+          i += 1
+        }
+        // merge blocks
+        i = 1
+        l = 0
+        while (i < nOff) {
+          if ((off(l)._2 >> 16) == (off(i)._1 >> 16))
+            off(l)._2 = off(i)._2
+          else {
+            l += 1
+            off(l)._1 = off(i)._1
+            off(l)._2 = off(i)._2
+          }
+          i += 1
+        }
+        nOff = l + 1
+        val ret = Array.fill[TbiPair](nOff)(null)
+        i = 0
+        while (i < nOff) {
+          if (off(i) != null)
+            ret(i) = TbiPair(off(i)._1, off(i)._2)
+          i += 1
+        }
+        if (ret.length == 0 || (ret.length == 1 && ret(0) == null))
+          new Array[TbiPair](0)
+        else
+          ret
+      }
     }
   }
 
