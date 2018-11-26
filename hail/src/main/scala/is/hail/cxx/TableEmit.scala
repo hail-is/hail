@@ -79,7 +79,7 @@ class TableEmitter(tub: TranslationUnitBuilder) { outer =>
         val hc = HailContext.get
         val globals = spec.globalsComponent.readLocal(hc, path, typ.globalType.physicalType)(0)
         val rvd = if (dropRows)
-          RVDEmitTriplet.empty[InputStream](typ.canonicalRVDType)
+          RVDEmitTriplet.empty[InputStream](typ.rvdType)
         else {
           val rvd = spec.rowsComponent.cxxEmitRead(hc, path, typ.rowType, tub)
 //          if (rvd.typ.key startsWith typ.key)
@@ -148,7 +148,7 @@ class TableEmitter(tub: TranslationUnitBuilder) { outer =>
         prev.copy(
           typ = typ,
           rvdEmitTriplet = rvd.copy(
-            typ = typ.canonicalRVDType,
+            typ = typ.rvdType,
             setup = newSetup,
             iterator = newIt,
             end = newEnd))

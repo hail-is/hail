@@ -71,7 +71,7 @@ case class TableRead(path: String, spec: AbstractTableSpec, typ: TableType, drop
   protected[ir] override def execute(hc: HailContext): TableValue = {
     val globals = spec.globalsComponent.readLocal(hc, path, typ.globalType.physicalType)(0)
     val rvd = if (dropRows)
-      RVD.empty(hc.sc, typ.canonicalRVDType)
+      RVD.empty(hc.sc, typ.rvdType)
     else {
       val rvd = spec.rowsComponent.read(hc, path, typ.rowType.physicalType)
       if (rvd.typ.key startsWith typ.key)
@@ -293,7 +293,7 @@ case class TableFilter(child: TableIR, pred: IR) extends TableIR {
     if (pred == True())
       return tv
     else if (pred == False())
-      return tv.copy(rvd = RVD.empty(hc.sc, typ.canonicalRVDType))
+      return tv.copy(rvd = RVD.empty(hc.sc, typ.rvdType))
 
     val (rTyp, f) = ir.Compile[Long, Long, Boolean](
       "row", child.typ.rowType.physicalType,

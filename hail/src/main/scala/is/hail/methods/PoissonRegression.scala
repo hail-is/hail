@@ -73,7 +73,7 @@ object PoissonRegression {
 
     val passThroughType = TStruct(passThrough.map(f => f -> vsm.rowType.field(f).typ): _*)
     val tableType = TableType(vsm.rowKeyStruct ++ passThroughType ++ poisRegTest.schema, vsm.rowKey, TStruct())
-    val newRVDType = tableType.canonicalRVDType
+    val newRVDType = tableType.rvdType
     val copiedFieldIndices = (vsm.rowKey ++ passThrough).map(vsm.rvRowType.fieldIdx(_)).toArray
 
     val newRVD = vsm.rvd.mapPartitions(newRVDType) { it =>

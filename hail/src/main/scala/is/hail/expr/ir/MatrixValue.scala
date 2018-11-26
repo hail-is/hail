@@ -216,7 +216,7 @@ case class MatrixValue(
       val colPType = typ.colType.physicalType
 
       RVD.coerce(
-        typ.colsTableType.canonicalRVDType,
+        typ.colsTableType.rvdType,
         ContextRDD.parallelize(hc.sc, sortedColValues.safeValue.asInstanceOf[IndexedSeq[Row]])
           .cmapPartitions { (ctx, it) => it.toRegionValueIterator(ctx.region, colPType) }
       )
@@ -236,7 +236,7 @@ case class MatrixValue(
       val localSortedColsToOldIdx = sortedColsToOldIdx.broadcast
 
       rvd.repartition(rvd.partitioner.strictify).boundary
-        .mapPartitions(typ.entriesTableType.canonicalRVDType.copy(key = typ.rowKey),
+        .mapPartitions(typ.entriesTableType.rvdType.copy(key = typ.rowKey),
           { (ctx, it) =>
             val rv2b = ctx.rvb
             val rv2 = RegionValue(ctx.region)
