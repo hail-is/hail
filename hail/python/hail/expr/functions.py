@@ -2997,9 +2997,8 @@ def reversed(x):
     :class:`.Expression`
     """
 
-    typ = x.dtype
     x = range(0, len(x)).map(lambda i: x[len(x) - 1 - i])
-    if typ == tstr:
+    if x.dtype == tstr:
         x = hl.delimit(x, '')
     return x
 
