@@ -388,10 +388,10 @@ object LoadMatrix {
       }
 
     val rvd = if (useIndex) {
-      val (partitioner, keepPartitions) = makePartitionerFromCounts(partitionCounts, matrixType.rvdType.kType.virtualType)
-      RVD(matrixType.rvdType, partitioner, rdd.subsetPartitions(keepPartitions))
+      val (partitioner, keepPartitions) = makePartitionerFromCounts(partitionCounts, matrixType.canonicalRVDType.kType.virtualType)
+      RVD(matrixType.canonicalRVDType, partitioner, rdd.subsetPartitions(keepPartitions))
     } else
-      RVD.coerce(matrixType.rvdType, rdd)
+      RVD.coerce(matrixType.canonicalRVDType, rdd)
 
     new MatrixTable(hc,
       matrixType,

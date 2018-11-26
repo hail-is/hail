@@ -96,7 +96,7 @@ class PruneSuite extends SparkSuite {
     mType,
     BroadcastRow(Row(1, 1.0), mType.globalType, sc),
     BroadcastIndexedSeq(FastIndexedSeq(Row("1", 2, FastIndexedSeq(Row(3)))), TArray(mType.colType), sc),
-    RVD.empty(sc, mType.rvdType)))
+    RVD.empty(sc, mType.canonicalRVDType)))
 
   val mr = MatrixRead(mat.typ, false, false,
     new MatrixReader {

@@ -154,7 +154,7 @@ object MatrixTable {
     val ds = new MatrixTable(hc, matrixType,
       BroadcastRow(globals.asInstanceOf[Row], matrixType.globalType, hc.sc),
       BroadcastIndexedSeq(colValues, TArray(matrixType.colType), hc.sc),
-      RVD.coerce(matrixType.rvdType,
+      RVD.coerce(matrixType.canonicalRVDType,
         ContextRDD.weaken[RVDContext](rdd).cmapPartitions { (ctx, it) =>
           val region = ctx.region
           val rvb = new RegionValueBuilder(region)
@@ -212,7 +212,7 @@ object MatrixTable {
     val rvRowType = matrixType.rvRowType.physicalType
     val oldRowType = kt.signature.physicalType
 
-    val rvd = kt.rvd.mapPartitions(matrixType.rvdType) { it =>
+    val rvd = kt.rvd.mapPartitions(matrixType.canonicalRVDType) { it =>
       val rvb = new RegionValueBuilder()
       val rv2 = RegionValue()
 
@@ -572,7 +572,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       right.typ.key.length,
       "left",
       joiner,
-      newMatrixType.rvdType
+      newMatrixType.canonicalRVDType
     )
 
     copyMT(matrixType = newMatrixType, rvd = joinedRVD)
@@ -799,7 +799,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     copyMT(matrixType = newMatrixType,
       colValues = colValues.copy(value = colValues.value ++ right.colValues.value),
-      rvd = rvd.orderedJoinDistinct(right.rvd, "inner", joiner, newMatrixType.rvdType))
+      rvd = rvd.orderedJoinDistinct(right.rvd, "inner", joiner, newMatrixType.canonicalRVDType))
   }
 
   def makeTable(separator: String = "."): Table = {
@@ -826,7 +826,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val localEntriesType = matrixType.entryArrayType.physicalType
     val localEntryType = matrixType.entryType.physicalType
 
-    val newRVD = rvd.mapPartitions(ttyp.rvdType) { it =>
+    val newRVD = rvd.mapPartitions(ttyp.canonicalRVDType) { it =>
       val rvb = new RegionValueBuilder()
       val rv2 = RegionValue()
       val fullRow = new UnsafeRow(localRVRowType)
@@ -1136,8 +1136,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     matrixType: MatrixType = matrixType,
     globals: BroadcastRow = globals,
     colValues: BroadcastIndexedSeq = colValues): MatrixTable = {
-    assert(rvd.typ == matrixType.rvdType,
-      s"mismatch in rvdType:\n  rdd: ${ rvd.typ }\n  mat: ${ matrixType.rvdType }")
+    assert(rvd.typ == matrixType.canonicalRVDType,
+      s"mismatch in rvdType:\n  rdd: ${ rvd.typ }\n  mat: ${ matrixType.canonicalRVDType }")
     new MatrixTable(hc,
       matrixType, globals, colValues, rvd)
   }
@@ -1480,7 +1480,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val localRVRowType = rvRowType.physicalType
     val locusIndex = localRVRowType.fieldIdx("locus")
     val keyOrdering = matrixType.rowKeyStruct.ordering
-    val localKeyFieldIdx = matrixType.rvdType.kFieldIdx
+    val localKeyFieldIdx = matrixType.canonicalRVDType.kFieldIdx
     val entriesIndex = localRVRowType.fieldIdx(MatrixType.entriesIdentifier)
     val nonEntryIndices = (0 until localRVRowType.size).filter(_ != entriesIndex).toArray
     val entryArrayType = matrixType.entryArrayType.physicalType
@@ -1605,7 +1605,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     }
 
     copyMT(
-      rvd = RVD(newType.rvdType, rvd.partitioner, newRDD),
+      rvd = RVD(newType.canonicalRVDType, rvd.partitioner, newRDD),
       matrixType = newType)
   }
 }

@@ -47,7 +47,7 @@ object MatrixIR {
       val keepBc = mv.sparkContext.broadcast(keep)
       mv.copy(typ = newMatrixType,
         colValues = mv.colValues.copy(value = keep.map(mv.colValues.value)),
-        rvd = mv.rvd.mapPartitionsWithIndex(newMatrixType.rvdType, { (i, ctx, it) =>
+        rvd = mv.rvd.mapPartitionsWithIndex(newMatrixType.canonicalRVDType, { (i, ctx, it) =>
           val f = makeF(i)
           val keep = keepBc.value
           val rv2 = RegionValue()
@@ -168,7 +168,7 @@ case class MatrixNativeReader(path: String) extends MatrixReader {
 
     val rvd =
       if (mr.dropRows)
-        RVD.empty(hc.sc, requestedType.rvdType)
+        RVD.empty(hc.sc, requestedType.canonicalRVDType)
       else {
         val fullRowType = requestedType.rvRowType
         val localEntriesIndex = requestedType.entriesIdx
@@ -187,7 +187,7 @@ case class MatrixNativeReader(path: String) extends MatrixReader {
               }))
           assert(t2.virtualType == fullRowType)
 
-          rowsRVD.mapPartitionsWithIndex(requestedType.rvdType) { (i, it) =>
+          rowsRVD.mapPartitionsWithIndex(requestedType.canonicalRVDType) { (i, it) =>
             val f = makeF(i)
             val rv2 = RegionValue()
             it.map { rv =>
@@ -213,7 +213,7 @@ case class MatrixNativeReader(path: String) extends MatrixReader {
               }))
           assert(t2.virtualType == fullRowType)
 
-          rowsRVD.zipPartitionsWithIndex(requestedType.rvdType, entriesRVD) { (i, ctx, it1, it2) =>
+          rowsRVD.zipPartitionsWithIndex(requestedType.canonicalRVDType, entriesRVD) { (i, ctx, it1, it2) =>
             val f = makeF(i)
             val region = ctx.region
             val rv3 = RegionValue(region)
@@ -273,9 +273,9 @@ case class MatrixRangeReader(nRows: Int, nCols: Int, nPartitions: Option[Int]) e
     val localNCols = if (mr.dropCols) 0 else nCols
 
     val rvd = if (mr.dropRows)
-      RVD.empty(hc.sc, fullType.rvdType)
+      RVD.empty(hc.sc, fullType.canonicalRVDType)
     else {
-      RVD(fullType.rvdType,
+      RVD(fullType.canonicalRVDType,
         new RVDPartitioner(
           fullType.rowKeyStruct,
           Array.tabulate(nPartitionsAdj) { i =>
@@ -539,8 +539,8 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, entryExpr: IR, rowExpr: IR)
     // Iterate through rows and aggregate
     val newRVType = typ.rvRowType
     val newRowKeyType = typ.rowKeyStruct
-    val selectIdx = prev.typ.rvdType.kFieldIdx
-    val keyOrd = prev.typ.rvdType.kRowOrd
+    val selectIdx = prev.typ.canonicalRVDType.kFieldIdx
+    val keyOrd = prev.typ.canonicalRVDType.kRowOrd
     val localGlobalsType = prev.typ.globalType
     val localColsType = TArray(minColType).physicalType
     val colValuesBc = minColValues.broadcast
@@ -548,7 +548,7 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, entryExpr: IR, rowExpr: IR)
     val newRVD = prev.rvd
       .repartition(prev.rvd.partitioner.strictify)
       .boundary
-      .mapPartitionsWithIndex(typ.rvdType, { (i, ctx, it) =>
+      .mapPartitionsWithIndex(typ.canonicalRVDType, { (i, ctx, it) =>
         val rvb = new RegionValueBuilder()
         val partRegion = ctx.freshContext.region
 
@@ -1704,7 +1704,7 @@ case class MatrixAnnotateRowsTable(
           prev.rvd.rowPType.unsafeStructInsert(table.typ.valueType.physicalType, List(root))
 
         val rightRVDType = tv.rvd.typ
-        val leftRVDType = child.typ.rvdType
+        val leftRVDType = child.typ.canonicalRVDType
 
         val zipper = { (ctx: RVDContext, it: Iterator[RegionValue], intervals: Iterator[RegionValue]) =>
           val rvb = new RegionValueBuilder()
@@ -2028,7 +2028,7 @@ case class MatrixExplodeRows(child: MatrixIR, path: IndexedSeq[String]) extends 
     MatrixValue(typ,
       prev.globals,
       prev.colValues,
-      prev.rvd.boundary.mapPartitionsWithIndex(typ.rvdType, { (i, ctx, it) =>
+      prev.rvd.boundary.mapPartitionsWithIndex(typ.canonicalRVDType, { (i, ctx, it) =>
         val region2 = ctx.region
         val rv2 = RegionValue(region2)
         val lenF = l(i)
@@ -2057,7 +2057,7 @@ case class MatrixUnionRows(children: IndexedSeq[MatrixIR]) extends MatrixIR {
 
   val typ: MatrixType = children.head.typ
 
-  require(children.tail.forall(_.typ.rvdType == typ.rvdType))
+  require(children.tail.forall(_.typ.canonicalRVDType == typ.canonicalRVDType))
   require(children.tail.forall(_.typ.colKeyStruct == typ.colKeyStruct))
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixUnionRows =
