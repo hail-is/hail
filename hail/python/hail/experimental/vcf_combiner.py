@@ -6,11 +6,12 @@ import hail as hl
 from hail.matrixtable import MatrixTable
 from hail.expr import ArrayExpression, Expression, NumericExpression, StructExpression
 
+
 def transform_one(mt: MatrixTable) -> MatrixTable:
     """transforms a gvcf into a form suitable for combining"""
     mt = mt.annotate_entries(
         # local (alt) allele index into global (alt) alleles
-        LA = hl.range(0, hl.len(mt.alleles) - 1),
+        LA=hl.range(0, hl.len(mt.alleles) - 1),
         END=mt.info.END,
         PL=mt['PL'][0:],
         BaseQRankSum=mt.info['BaseQRankSum'],
@@ -23,13 +24,13 @@ def transform_one(mt: MatrixTable) -> MatrixTable:
     # when needed
     mt = mt.annotate_rows(
         # now minrep'ed (ref, alt) allele pairs
-        alleles = hl.bind(lambda ref: mt.alleles[1:].map(lambda alt:
-                                                         # minrep <NON_REF>
-                                                         hl.struct(ref=hl.cond(alt == "<NON_REF>",
-                                                                               ref[0:1],
-                                                                               ref),
-                                                                   alt=alt)),
-                          mt.alleles[0]),
+        alleles=hl.bind(lambda ref: mt.alleles[1:].map(lambda alt:
+                                                       # minrep <NON_REF>
+                                                       hl.struct(ref=hl.cond(alt == "<NON_REF>",
+                                                                             ref[0:1],
+                                                                             ref),
+                                                                 alt=alt)),
+                        mt.alleles[0]),
         info=mt.info.annotate(
             SB=hl.agg.array_sum(mt.entry.SB)
         ).select(
@@ -48,9 +49,11 @@ def transform_one(mt: MatrixTable) -> MatrixTable:
 def merge_alleles(alleles) -> ArrayExpression:
     return hl.array(hl.set(hl.flatten(alleles)))
 
+
 def renumber_entry(entry, old_to_new) -> StructExpression:
     # global index of alternate (non-ref) alleles
-    return entry.annotate(LA = entry.LA.map(lambda lak: old_to_new[lak]))
+    return entry.annotate(LA=entry.LA.map(lambda lak: old_to_new[lak]))
+
 
 def combine(ts):
     # pylint: disable=protected-access
