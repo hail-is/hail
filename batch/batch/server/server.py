@@ -11,6 +11,9 @@ import kubernetes as kube
 import cerberus
 import requests
 
+from .globals import max_id, pod_name_job, job_id_job, _log_path, _read_file, batch_id_batch
+from .globals import next_id
+
 if not os.path.exists('logs'):
     os.mkdir('logs')
 else:
@@ -59,28 +62,6 @@ v1 = kube.client.CoreV1Api()
 
 instance_id = uuid.uuid4().hex
 log.info(f'instance_id = {instance_id}')
-
-counter = 0
-
-
-def next_id():
-    global counter
-
-    counter = counter + 1
-    return counter
-
-
-pod_name_job = {}
-job_id_job = {}
-
-
-def _log_path(id):
-    return f'logs/job-{id}.log'
-
-
-def _read_file(fname):
-    with open(fname, 'r') as f:
-        return f.read()
 
 
 class Job:
@@ -291,7 +272,7 @@ def get_job(job_id):
 
 @app.route('/jobs/<int:job_id>/log', methods=['GET'])
 def get_job_log(job_id):  # pylint: disable=R1710
-    if job_id > counter:
+    if job_id > max_id():
         abort(404)
 
     job = job_id_job.get(job_id)
@@ -323,9 +304,6 @@ def cancel_job(job_id):
         abort(404)
     job.cancel()
     return jsonify({})
-
-
-batch_id_batch = {}
 
 
 class Batch:
