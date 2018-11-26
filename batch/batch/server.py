@@ -6,7 +6,7 @@ import uuid
 from collections import Counter
 import logging
 import threading
-from flask import Flask, request, jsonify, abort, url_for
+from flask import Flask, request, jsonify, abort
 import kubernetes as kube
 import cerberus
 import requests
@@ -17,25 +17,30 @@ else:
     if not os.path.isdir('logs'):
         raise OSError('logs exists but is not a directory')
 
-fmt = logging.Formatter(
-    # NB: no space after levename because WARNING is so long
-    '%(levelname)s\t| %(asctime)s \t| %(filename)s \t| %(funcName)s:%(lineno)d | '
-    '%(message)s')
 
-fh = logging.FileHandler('batch.log')
-fh.setLevel(logging.INFO)
-fh.setFormatter(fmt)
+def make_logger():
+    fmt = logging.Formatter(
+        # NB: no space after levename because WARNING is so long
+        '%(levelname)s\t| %(asctime)s \t| %(filename)s \t| %(funcName)s:%(lineno)d | '
+        '%(message)s')
 
-ch = logging.StreamHandler()
-ch.setLevel(logging.INFO)
-ch.setFormatter(fmt)
+    file_handler = logging.FileHandler('batch.log')
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(fmt)
 
-log = logging.getLogger('batch')
-log.setLevel(logging.INFO)
+    stream_handler = logging.StreamHandler()
+    stream_handler.setLevel(logging.INFO)
+    stream_handler.setFormatter(fmt)
 
-logging.basicConfig(
-    handlers=[fh, ch],
-    level=logging.INFO)
+    log = logging.getLogger('batch')
+    log.setLevel(logging.INFO)
+
+    logging.basicConfig(handlers=[file_handler, stream_handler], level=logging.INFO)
+
+    return log
+
+
+log = make_logger()
 
 KUBERNETES_TIMEOUT_IN_SECONDS = float(os.environ.get('KUBERNETES_TIMEOUT_IN_SECONDS', 5.0))
 
@@ -56,23 +61,29 @@ instance_id = uuid.uuid4().hex
 log.info(f'instance_id = {instance_id}')
 
 counter = 0
+
+
 def next_id():
     global counter
 
     counter = counter + 1
     return counter
 
+
 pod_name_job = {}
 job_id_job = {}
+
 
 def _log_path(id):
     return f'logs/job-{id}.log'
 
-def _read_file(p):
-    with open(p, 'r') as f:
+
+def _read_file(fname):
+    with open(fname, 'r') as f:
         return f.read()
 
-class Job(object):
+
+class Job:
     def _create_pod(self):
         assert not self._pod_name
 
@@ -93,8 +104,8 @@ class Job(object):
                     POD_NAMESPACE,
                     kube.client.V1DeleteOptions(),
                     _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
-            except kube.client.rest.ApiException as e:
-                if e.status == 404:
+            except kube.client.rest.ApiException as err:
+                if err.status == 404:
                     pass
                 else:
                     raise
@@ -109,14 +120,13 @@ class Job(object):
                         self._pod_name,
                         POD_NAMESPACE,
                         _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
-                except:
+                except kube.client.rest.ApiException:
                     pass
-        elif self._state == 'Complete':
-            p = _log_path(self.id)
-            return _read_file(p)
-        else:
-            assert self._state == 'Cancelled'
             return None
+        if self._state == 'Complete':
+            return _read_file(_log_path(self.id))
+        assert self._state == 'Cancelled'
+        return None
 
     def __init__(self, pod_spec, batch_id, attributes, callback):
         self.id = next_id()
@@ -131,15 +141,16 @@ class Job(object):
         self.callback = callback
 
         self.pod_template = kube.client.V1Pod(
-            metadata = kube.client.V1ObjectMeta(generate_name = 'job-{}-'.format(self.id),
-                                                labels = {
-                                                    'app': 'batch-job',
-                                                    'hail.is/batch-instance': instance_id,
-                                                    'uuid': uuid.uuid4().hex
-                                                }),
-            spec = pod_spec)
+            metadata=kube.client.V1ObjectMeta(generate_name='job-{}-'.format(self.id),
+                                              labels={
+                                                  'app': 'batch-job',
+                                                  'hail.is/batch-instance': instance_id,
+                                                  'uuid': uuid.uuid4().hex
+                                              }),
+            spec=pod_spec)
 
         self._pod_name = None
+        self.exit_code = None
 
         self._state = 'Created'
         log.info('created job {}'.format(self.id))
@@ -164,7 +175,7 @@ class Job(object):
         # remove from structures
         del job_id_job[self.id]
         if self.batch_id:
-            batch = batch_id_batch[batch_id]
+            batch = batch_id_batch[self.batch_id]
             batch.remove(self)
 
         self._delete_pod()
@@ -185,10 +196,10 @@ class Job(object):
             pod.metadata.name,
             POD_NAMESPACE,
             _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
-        p = _log_path(self.id)
-        with open(p, 'w') as f:
+        fname = _log_path(self.id)
+        with open(fname, 'w') as f:
             f.write(pod_log)
-        log.info(f'wrote log for job {self.id} to {p}')
+        log.info(f'wrote log for job {self.id} to {fname}')
 
         if self._pod_name:
             del pod_name_job[self._pod_name]
@@ -200,13 +211,15 @@ class Job(object):
             self.id, self.exit_code))
 
         if self.callback:
-            def f(id, callback, json):
+            def handler(id, callback, json):
                 try:
-                    requests.post(callback, json = json, timeout=120)
-                except requests.exceptions.RequestException as re:
-                    log.warn(f'callback for job {id} failed due to an error, I will not retry. Error: {re}')
+                    requests.post(callback, json=json, timeout=120)
+                except requests.exceptions.RequestException as exc:
+                    log.warning(
+                        f'callback for job {id} failed due to an error, I will not retry. '
+                        f'Error: {exc}')
 
-            threading.Thread(target=f, args=(self.id, self.callback, self.to_json())).start()
+            threading.Thread(target=handler, args=(self.id, self.callback, self.to_json())).start()
 
     def to_json(self):
         result = {
@@ -222,7 +235,9 @@ class Job(object):
             result['attributes'] = self.attributes
         return result
 
+
 app = Flask('batch')
+
 
 @app.route('/jobs/create', methods=['POST'])
 def create_job():
@@ -230,10 +245,11 @@ def create_job():
 
     schema = {
         # will be validated when creating pod
-        'spec': {'type': 'dict',
-                 'required': True,
-                 'allow_unknown': True,
-                 'schema': {}
+        'spec': {
+            'type': 'dict',
+            'required': True,
+            'allow_unknown': True,
+            'schema': {}
         },
         'batch_id': {'type': 'integer'},
         'attributes': {
@@ -243,10 +259,9 @@ def create_job():
         },
         'callback': {'type': 'string'}
     }
-    v = cerberus.Validator(schema)
-    if (not v.validate(parameters)):
-        # print(v.errors)
-        abort(404, 'invalid request: {}'.format(v.errors))
+    validator = cerberus.Validator(schema)
+    if not validator.validate(parameters):
+        abort(404, 'invalid request: {}'.format(validator.errors))
 
     pod_spec = v1.api_client._ApiClient__deserialize(
         parameters['spec'], kube.client.V1PodSpec)
@@ -260,9 +275,11 @@ def create_job():
         pod_spec, batch_id, parameters.get('attributes'), parameters.get('callback'))
     return jsonify(job.to_json())
 
+
 @app.route('/jobs', methods=['GET'])
 def get_job_list():
     return jsonify([job.to_json() for _, job in job_id_job.items()])
+
 
 @app.route('/jobs/<int:job_id>', methods=['GET'])
 def get_job(job_id):
@@ -271,22 +288,24 @@ def get_job(job_id):
         abort(404)
     return jsonify(job.to_json())
 
+
 @app.route('/jobs/<int:job_id>/log', methods=['GET'])
-def get_job_log(job_id):
+def get_job_log(job_id):  # pylint: disable=R1710
     if job_id > counter:
         abort(404)
-    
+
     job = job_id_job.get(job_id)
     if job:
         job_log = job._read_log()
         if job_log:
             return job_log
     else:
-        p = _log_path(job_id)
-        if os.path.exists(p):
-            return _read_file(p)
+        fname = _log_path(job_id)
+        if os.path.exists(fname):
+            return _read_file(fname)
 
     abort(404)
+
 
 @app.route('/jobs/<int:job_id>/delete', methods=['DELETE'])
 def delete_job(job_id):
@@ -296,6 +315,7 @@ def delete_job(job_id):
     job.delete()
     return jsonify({})
 
+
 @app.route('/jobs/<int:job_id>/cancel', methods=['POST'])
 def cancel_job(job_id):
     job = job_id_job.get(job_id)
@@ -304,9 +324,11 @@ def cancel_job(job_id):
     job.cancel()
     return jsonify({})
 
+
 batch_id_batch = {}
 
-class Batch(object):
+
+class Batch:
     def __init__(self, attributes):
         self.attributes = attributes
         self.id = next_id()
@@ -331,6 +353,7 @@ class Batch(object):
             'attributes': self.attributes
         }
 
+
 @app.route('/batches/create', methods=['POST'])
 def create_batch():
     parameters = request.json
@@ -342,12 +365,13 @@ def create_batch():
             'valueschema': {'type': 'string'}
         }
     }
-    v = cerberus.Validator(schema)
-    if (not v.validate(parameters)):
-        abort(404, 'invalid request: {}'.format(v.errors))
+    validator = cerberus.Validator(schema)
+    if not validator.validate(parameters):
+        abort(404, 'invalid request: {}'.format(validator.errors))
 
     batch = Batch(parameters.get('attributes'))
     return jsonify(batch.to_json())
+
 
 @app.route('/batches/<int:batch_id>', methods=['GET'])
 def get_batch(batch_id):
@@ -355,6 +379,7 @@ def get_batch(batch_id):
     if not batch:
         abort(404)
     return jsonify(batch.to_json())
+
 
 @app.route('/batches/<int:batch_id>/delete', methods=['DELETE'])
 def delete_batch(batch_id):
@@ -364,17 +389,19 @@ def delete_batch(batch_id):
     batch.delete()
     return jsonify({})
 
+
 def update_job_with_pod(job, pod):
     if pod:
         if pod.status.container_statuses:
             assert len(pod.status.container_statuses) == 1
             container_status = pod.status.container_statuses[0]
             assert container_status.name == 'default'
-            
+
             if container_status.state and container_status.state.terminated:
                 job.mark_complete(pod)
     else:
         job.mark_unscheduled()
+
 
 @app.route('/pod_changed', methods=['POST'])
 def pod_changed():
@@ -389,8 +416,8 @@ def pod_changed():
                 pod_name,
                 POD_NAMESPACE,
                 _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
-        except kube.client.rest.ApiException as e:
-            if e.status == 404:
+        except kube.client.rest.ApiException as exc:
+            if exc.status == 404:
                 pod = None
             else:
                 raise
@@ -398,6 +425,7 @@ def pod_changed():
         update_job_with_pod(job, pod)
 
     return '', 204
+
 
 @app.route('/refresh_k8s_state', methods=['POST'])
 def refresh_k8s_state():
@@ -425,33 +453,36 @@ def refresh_k8s_state():
 
     return '', 204
 
+
 def run_forever(target, *args, **kwargs):
     # target should be a function
     target_name = target.__name__
 
-    expected_retry_interval_ms = 15 * 1000 # 15s
+    expected_retry_interval_ms = 15 * 1000
     while True:
         start = time.time()
         try:
             log.info(f'run_forever: run target {target_name}')
             target(*args, **kwargs)
             log.info(f'run_forever: target {target_name} returned')
-        except:
+        except Exception:  # pylint: disable=W0703
             log.error(f'run_forever: target {target_name} threw exception', exc_info=sys.exc_info())
         end = time.time()
 
         run_time_ms = int((end - start) * 1000 + 0.5)
-        t = random.randrange(expected_retry_interval_ms * 2) - run_time_ms
-        if t > 0:
-            log.debug(f'run_forever: {target_name}: sleep {t}ms')
-            time.sleep(t / 1000.0)
+        sleep_duration_ms = random.randrange(expected_retry_interval_ms * 2) - run_time_ms
+        if sleep_duration_ms > 0:
+            log.debug(f'run_forever: {target_name}: sleep {sleep_duration_ms}ms')
+            time.sleep(sleep_duration_ms / 1000.0)
+
 
 def flask_event_loop():
     app.run(threaded=False, host='0.0.0.0')
 
+
 def kube_event_loop():
-    w = kube.watch.Watch()
-    stream = w.stream(
+    watch = kube.watch.Watch()
+    stream = watch.stream(
         v1.list_namespaced_pod,
         POD_NAMESPACE,
         label_selector=f'app=batch-job,hail.is/batch-instance={instance_id}')
@@ -460,17 +491,17 @@ def kube_event_loop():
         name = pod.metadata.name
         requests.post('http://127.0.0.1:5000/pod_changed', json={'pod_name': name}, timeout=120)
 
+
 def polling_event_loop():
     time.sleep(1)
     while True:
         try:
-           r = requests.post('http://127.0.0.1:5000/refresh_k8s_state', timeout=120)
-           r.raise_for_status()
-        except requests.HTTPError as e: 
-            log.error(f'Could not poll due to exception: {e}, text: {e.response.text}')
-        except Exception as e:
-            log.error(f'Could not poll due to exception: {e}')
-            pass
+            response = requests.post('http://127.0.0.1:5000/refresh_k8s_state', timeout=120)
+            response.raise_for_status()
+        except requests.HTTPError as exc:
+            log.error(f'Could not poll due to exception: {exc}, text: {exc.response.text}')
+        except Exception as exc:  # pylint: disable=W0703
+            log.error(f'Could not poll due to exception: {exc}')
         time.sleep(REFRESH_INTERVAL_IN_SECONDS)
 
 
