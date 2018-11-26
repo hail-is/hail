@@ -1148,7 +1148,7 @@ case class MatrixVCFReader(
   }
 }
 
-object ImportGVCFs {
+object ImportVCFs {
   def pyApply(
     files: java.util.ArrayList[String],
     callFields: java.util.ArrayList[String],
@@ -1160,7 +1160,7 @@ object ImportGVCFs {
     forceGZ: Boolean,
     partitionsJSON: String
   ): Array[MatrixTable] = {
-    val reader = GVCFsReader(
+    val reader = VCFsReader(
       files.asScala.toArray,
       callFields.asScala.toSet,
       Option(rg),
@@ -1175,14 +1175,14 @@ object ImportGVCFs {
   }
 }
 
-case class GVCFInfo(
+case class VCFInfo(
   headerLines: Array[String],
   sampleIDs: Array[String],
   infoFlagFieldNames: Set[String],
   typ: MatrixType,
   partitions: Array[Partition])
 
-case class GVCFsReader(
+case class VCFsReader(
   files: Array[String],
   callFields: Set[String],
   rg: Option[String],
@@ -1260,13 +1260,13 @@ case class GVCFsReader(
           .toArray
       }
 
-      GVCFInfo(headerLines, header.sampleIds, infoFlagFieldNames, typ, partitions)
+      VCFInfo(headerLines, header.sampleIds, infoFlagFieldNames, typ, partitions)
     }
       .collect()
   }
 
   def readFile(reader: HtsjdkRecordReader, file: String, i: Int): MatrixTable = {
-    val GVCFInfo(headerLines, sampleIDs, localInfoFlagFieldNames, typ, partitions) = fileInfo(i)
+    val VCFInfo(headerLines, sampleIDs, localInfoFlagFieldNames, typ, partitions) = fileInfo(i)
 
     val lines = ContextRDD.weaken[RVDContext](
       new PartitionedVCFRDD(sc, file, partitions)
