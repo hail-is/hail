@@ -173,15 +173,30 @@ class BGzipCodecSuite extends SparkSuite {
         decompIS.virtualSeek(vOff)
       }
 
-      // trying to seek to exactly end of file should succeed
+      // trying to seek to exactly end of file via the last block should succeed
       val lastOffset = BlockCompressedFilePointerUtil.makeFilePointer(blockStarts.last._1, lastBlockLen)
       decompIS.virtualSeek(lastOffset)
       assert(-1 == decompIS.read())
 
-      // trying to seek past the end of the file should fail
+      // trying to seek to the end of file directly should succeed
+      decompIS.virtualSeek(0)
+      val eofOffset = BlockCompressedFilePointerUtil.makeFilePointer(blockStarts.last._2, 0)
+      decompIS.virtualSeek(eofOffset)
+      assert(-1 == decompIS.read())
+
+      // trying to seek past the end of the file via the last block should fail
+      decompIS.virtualSeek(0)
       intercept[java.io.IOException] {
         decompIS.virtualSeek(lastOffset+1)
       }
+
+      // seeking past end of file directly should also fail
+      decompIS.virtualSeek(0)
+      intercept[java.io.IOException] {
+        val vOff = BlockCompressedFilePointerUtil.makeFilePointer(blockStarts.last._2, 1)
+        decompIS.virtualSeek(vOff)
+      }
+
     }}
   }
 }
