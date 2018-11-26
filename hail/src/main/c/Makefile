@@ -156,7 +156,6 @@ prebuilt: all
 	cp -p -f $(LIBHAIL) $(PREBUILT)/$(LIBHAIL)
 
 test: $(BUILD)/functional-tests $(BUILD)/unit-tests
-
 	./$(BUILD)/unit-tests -w NoAssertions -d yes -# --use-colour yes -r xml -o $(BUILD)/cxx-test.xml; \
     	case "$$?" in \
     		*) \
@@ -165,6 +164,15 @@ test: $(BUILD)/functional-tests $(BUILD)/unit-tests
     		xsltproc -o $(BUILD)/reports/index.html testutils/test-reporter.xslt $(BUILD)/cxx-test.xml;; \
 		esac
 	./$(BUILD)/functional-tests
+
+benchmark: $(BUILD)/unit-tests
+	./$(BUILD)/unit-tests "[!benchmark]" -s -d yes -# -r xml -o $(BUILD)/cxx-benchmark.xml; \
+    	case "$$?" in \
+    		*) \
+    		mkdir -p $(BUILD)/benchmark-reports; \
+    		cp testutils/style.css $(BUILD)/benchmark-reports; \
+    		xsltproc -o $(BUILD)/benchmark-reports/index.html testutils/test-reporter.xslt $(BUILD)/cxx-benchmark.xml;; \
+    	esac
 
 clean:
 	-rm -rf $(BUILD) $(LIBSIMDPP) $(LIBBOOT) $(LIBHAIL)
