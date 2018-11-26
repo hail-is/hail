@@ -3,6 +3,14 @@
 set -ex
 
 cd $(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+
+cleanup() {
+    trap "" INT TERM
+    rm hail/hail-all-spark.jar
+}
+trap cleanup EXIT
+trap "exit 24" INT TERM
+
 python3=${HAIL_PYTHON3:-python3}
 
 published=$(
