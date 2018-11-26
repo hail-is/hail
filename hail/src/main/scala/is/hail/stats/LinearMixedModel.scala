@@ -33,14 +33,11 @@ object LinearMixedModel {
       "sigma_sq" -> TFloat64(),
       "chi_sq" -> TFloat64(),
       "p_value" -> TFloat64())
-  
-  def toTable(hc: HailContext, partitioner: RVDPartitioner, rdd: RDD[RegionValue]): Table = {
-    val typ = TableType(rowType, FastIndexedSeq("idx"), globalType = TStruct())
-    
-    val rvd = RVD(typ.rvdType,
-      partitioner, ContextRDD.weaken[RVDContext](rdd)).persist(StorageLevel.MEMORY_AND_DISK)
-    
-    new Table(hc, TableLiteral(TableValue(typ, BroadcastRow(Row(), typ.globalType, hc.sc), rvd)))
+
+  private val tableType = TableType(rowType, FastIndexedSeq("idx"), TStruct())
+
+  def toTable(hc: HailContext, rvd: RVD): Table = {
+    new Table(hc, TableLiteral(TableValue(tableType, BroadcastRow(Row(), tableType.globalType, hc.sc), rvd)))
   }
 }
 
@@ -62,8 +59,8 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
         
     val sc = hc.sc
     val lmmDataBc = sc.broadcast(lmmData)
-    val rowTypeBc = sc.broadcast(LinearMixedModel.rowType)
-    
+    val rowType = LinearMixedModel.rowType.physicalType
+
     val rdd = pa_t.rows.zipPartitions(a_t.rows) { case (itPAt, itAt) =>
       val LMMData(gamma, nullResidualSq, py, px, d, ydy, xdy0, xdx0, Some(y), Some(x)) = lmmDataBc.value
       val xdy = xdy0.copy
@@ -77,7 +74,6 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
       val region = Region()
       val rv = RegionValue(region)
       val rvb = new RegionValueBuilder(region)
-      val rowType = rowTypeBc.value
 
       itPAt.zip(itAt).map { case ((i, pa0), (i2, a0)) =>
         assert(i == i2)
@@ -92,7 +88,7 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
         xdx(r0, r1) := xdx(r1, r0).t
        
         region.clear()
-        rvb.start(rowType.physicalType)
+        rvb.start(rowType)
         try {
           val beta = xdx \ xdy
           val residualSq = ydy - (xdy dot beta)
@@ -121,14 +117,18 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
         rv
       }
     }
-    
-    LinearMixedModel.toTable(hc, pa_t.partitioner(), rdd)
+    val rvd = RVD(
+      RVDType(rowType, LinearMixedModel.tableType.key),
+      pa_t.partitioner(),
+      ContextRDD.weaken[RVDContext](rdd)).persist(StorageLevel.MEMORY_AND_DISK)
+
+    LinearMixedModel.toTable(hc, rvd)
   }
   
   def fitFullRank(pa_t: RowMatrix): Table = {
     val sc = hc.sc
     val lmmDataBc = sc.broadcast(lmmData)
-    val rowTypeBc = sc.broadcast(LinearMixedModel.rowType)
+    val rowType = LinearMixedModel.rowType.physicalType
     
     val rdd = pa_t.rows.mapPartitions { itPAt =>
       val LMMData(_, nullResidualSq, py, px, d, ydy, xdy0, xdx0, _, _) = lmmDataBc.value
@@ -143,7 +143,6 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
       val region = Region()
       val rv = RegionValue(region)
       val rvb = new RegionValueBuilder(region)
-      val rowType = rowTypeBc.value
 
       itPAt.map { case (i, pa0) =>
         val pa = BDV(pa0)
@@ -155,7 +154,7 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
         xdx(r0, r1) := xdx(r1, r0).t
         
         region.clear()
-        rvb.start(rowType.physicalType)
+        rvb.start(rowType)
         try {          
           val beta = xdx \ xdy
           val residualSq = ydy - (xdy dot beta)
@@ -184,7 +183,12 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
         rv
       }
     }
-    
-    LinearMixedModel.toTable(hc, pa_t.partitioner(), rdd)
+
+    val rvd = RVD(
+      RVDType(rowType, LinearMixedModel.tableType.key),
+      pa_t.partitioner(),
+      ContextRDD.weaken[RVDContext](rdd)).persist(StorageLevel.MEMORY_AND_DISK)
+
+    LinearMixedModel.toTable(hc, rvd)
   }
 }

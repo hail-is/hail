@@ -4,7 +4,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.expr.types._
-import is.hail.expr.types.physical.PInt32
+import is.hail.expr.types.physical.{PInt32, PStruct}
 import is.hail.expr.types.virtual._
 import is.hail.expr.{TableAnnotationImpex, ir}
 import is.hail.rvd._
@@ -486,10 +486,9 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
   require(rest.forall(e => e.typ.globalType == first.typ.globalType),
     "all globals must have the same type")
 
-  private val rvdType = first.typ.rvdType
   private val newGlobalType = TStruct(globalName -> TArray(first.typ.globalType))
-  private val newValueType = TStruct(fieldName -> TArray(rvdType.valueType.virtualType))
-  private val newRowType = rvdType.kType.virtualType ++ newValueType
+  private val newValueType = TStruct(fieldName -> TArray(first.typ.valueType))
+  private val newRowType = first.typ.keyType ++ newValueType
 
   def typ: TableType = first.typ.copy(
     rowType = newRowType,
@@ -500,6 +499,10 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
     TableMultiWayZipJoin(newChildren.asInstanceOf[IndexedSeq[TableIR]], fieldName, globalName)
 
   protected[ir] override def execute(hc: HailContext): TableValue = {
+    val childValues = children.map(_.execute(hc))
+    assert(childValues.map(_.rvd.typ).toSet.size == 1) // same physical types
+
+    val rvdType = childValues(0).rvd.typ
     val rowType = rvdType.rowType
     val keyIdx = rvdType.kFieldIdx
     val valIdx = rvdType.valueFieldIdx
@@ -535,7 +538,6 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
       }
     }
 
-    val childValues = children.map(_.execute(hc))
     val childRVDs = childValues.map(_.rvd)
     val childRanges = childRVDs.flatMap(_.partitioner.rangeBounds)
     val newPartitioner = RVDPartitioner.generate(childRVDs.head.typ.kType.virtualType, childRanges)
@@ -723,7 +725,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
 
     tv.copy(
       typ = typ,
-      rvd = tv.rvd.mapPartitionsWithIndex(typ.rvdType, itF))
+      rvd = tv.rvd.mapPartitionsWithIndex(RVDType(rTyp.asInstanceOf[PStruct], typ.key), itF))
   }
 }
 
@@ -955,8 +957,7 @@ case class TableKeyByAndAggregate(
 
     val localKeyType = keyType
     val localKeyPType = keyType.physicalType
-    val newValueType = typ.valueType
-    val newRowType = typ.rowType
+    val newRowType = typ.rowType.physicalType
     val (_, makeKeyF) = ir.Compile[Long, Long, Long](
       "row", child.typ.rowType.physicalType,
       "global", child.typ.globalType.physicalType,
@@ -1031,7 +1032,7 @@ case class TableKeyByAndAggregate(
           rvb.endTuple()
           val aggResultOff = rvb.end()
 
-          rvb.start(newRowType.physicalType)
+          rvb.start(newRowType)
           rvb.startStruct()
           var i = 0
           while (i < localKeyType.size) {
@@ -1043,7 +1044,7 @@ case class TableKeyByAndAggregate(
             aggResultOff, false,
             globals, false)
 
-          rvb.addAllFields(newValueType.physicalType, region, newValueOff)
+          rvb.addAllFields(rTyp.asInstanceOf[PStruct], region, newValueOff)
 
           rvb.endStruct()
           rv.setOffset(rvb.end())
@@ -1053,7 +1054,7 @@ case class TableKeyByAndAggregate(
 
     prev.copy(
       typ = typ,
-      rvd = RVD.coerce(typ.rvdType, crdd))
+      rvd = RVD.coerce(RVDType(newRowType, keyType.fieldNames), crdd))
   }
 }
 

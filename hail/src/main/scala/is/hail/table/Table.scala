@@ -727,14 +727,14 @@ class Table(val hc: HailContext, val tir: TableIR) {
     val (newRowPType, ins) = signature.physicalType.unsafeStructInsert(typToInsert.physicalType, List(fieldName))
     val newRowType = newRowPType.virtualType
 
-    val rightTyp = other.typ
-    val leftRVDType = typ.rvdType
+    val rightRVDType = other.rvd.typ
+    val leftRVDType = rvd.typ
 
     val zipper = { (ctx: RVDContext, it: Iterator[RegionValue], intervals: Iterator[RegionValue]) =>
       val rvb = new RegionValueBuilder()
       val rv2 = RegionValue()
       OrderedRVIterator(leftRVDType, it, ctx).leftIntervalJoinDistinct(
-        OrderedRVIterator(rightTyp.rvdType, intervals, ctx)
+        OrderedRVIterator(rightRVDType, intervals, ctx)
       )
         .map { case Muple(rv, i) =>
           rvb.set(rv.region)
@@ -743,7 +743,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
             rv.region,
             rv.offset,
             rvb,
-            () => if (i == null) rvb.setMissing() else rvb.selectRegionValue(rightTyp.rowType.physicalType, rightTyp.valueFieldIdx, i))
+            () => if (i == null) rvb.setMissing() else rvb.selectRegionValue(rightRVDType.rowType, rightRVDType.valueFieldIdx, i))
           rv2.set(rv.region, rvb.end())
 
           rv2

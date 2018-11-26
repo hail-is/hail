@@ -1703,14 +1703,14 @@ case class MatrixAnnotateRowsTable(
         val (newRVPType, ins) =
           prev.rvd.rowPType.unsafeStructInsert(table.typ.valueType.physicalType, List(root))
 
-        val rightTyp = table.typ
+        val rightRVDType = tv.rvd.typ
         val leftRVDType = child.typ.rvdType
 
         val zipper = { (ctx: RVDContext, it: Iterator[RegionValue], intervals: Iterator[RegionValue]) =>
           val rvb = new RegionValueBuilder()
           val rv2 = RegionValue()
           OrderedRVIterator(leftRVDType, it, ctx).leftIntervalJoinDistinct(
-            OrderedRVIterator(rightTyp.rvdType, intervals, ctx)
+            OrderedRVIterator(rightRVDType, intervals, ctx)
           )
             .map { case Muple(rv, i) =>
               rvb.set(rv.region)
@@ -1719,7 +1719,7 @@ case class MatrixAnnotateRowsTable(
                 rv.region,
                 rv.offset,
                 rvb,
-                () => if (i == null) rvb.setMissing() else rvb.selectRegionValue(rightTyp.rowType.physicalType, rightTyp.valueFieldIdx, i))
+                () => if (i == null) rvb.setMissing() else rvb.selectRegionValue(rightRVDType.rowType, rightRVDType.valueFieldIdx, i))
               rv2.set(rv.region, rvb.end())
 
               rv2

@@ -282,7 +282,7 @@ case class MatrixValue(
                   }
               }
             }
-          }).extendKeyPreservesPartitioning(typ.entriesTableType.rvdType.key)
+          }).extendKeyPreservesPartitioning(typ.entriesTableType.key)
     }
 
     def insertEntries[PC](makePartitionContext: () => PC, newColType: TStruct = typ.colType,
