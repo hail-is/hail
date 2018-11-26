@@ -888,9 +888,15 @@ object LoadVCF {
     Map("filter" -> filterAttrs, "info" -> infoAttrs, "format" -> formatAttrs)
   }
 
-  def parseLine(reader: HtsjdkRecordReader, c: ParseLineContext, l: VCFLine, rvb: RegionValueBuilder): Unit = {
+  def parseLine(
+    reader: HtsjdkRecordReader,
+    c: ParseLineContext,
+    l: VCFLine,
+    rvb: RegionValueBuilder,
+    dropSamples: Boolean = false
+  ): Unit = {
     val vc = c.codec.decode(l.line)
-    val nSamples = vc.getNSamples
+    val nSamples = if (!dropSamples) vc.getNSamples else 0
 
     reader.readVariantInfo(vc, rvb, c.hasRSID, c.hasQual, c.hasFilters, c.infoSignature, c.infoFlagFieldNames)
 
@@ -1120,8 +1126,8 @@ case class MatrixVCFReader(
     val localTyp = mr.typ
     val localInfoFlagFieldNames = infoFlagFieldNames
 
-    val localSampleIDs: Array[String] = if (mr.dropCols) Array.empty[String] else sampleIDs
-    val nSamples = localSampleIDs.length
+    val dropSamples = mr.dropCols
+    val localSampleIDs: Array[String] = if (dropSamples) Array.empty[String] else sampleIDs
 
     val rvd = if (mr.dropRows)
       RVD.empty(sc, requestedType.canonicalRVDType)
@@ -1130,7 +1136,7 @@ case class MatrixVCFReader(
         new ParseLineContext(localTyp,
           localInfoFlagFieldNames,
           new BufferedLineIterator(headerLinesBc.value.iterator.buffered))
-      } { (c, l, rvb) => LoadVCF.parseLine(reader, c, l, rvb) }(
+      } { (c, l, rvb) => LoadVCF.parseLine(reader, c, l, rvb, dropSamples) }(
         lines, requestedType.rvRowType, referenceGenome, contigRecoding, arrayElementsRequired, skipInvalidLoci
       ))
 
