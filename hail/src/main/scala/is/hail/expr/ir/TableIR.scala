@@ -957,8 +957,7 @@ case class TableKeyByAndAggregate(
 
     val localKeyType = keyType
     val localKeyPType = keyType.physicalType
-    val newValueType = typ.valueType
-    val newRowType = typ.rowType
+    val newRowType = typ.rowType.physicalType
     val (_, makeKeyF) = ir.Compile[Long, Long, Long](
       "row", child.typ.rowType.physicalType,
       "global", child.typ.globalType.physicalType,
@@ -1033,7 +1032,7 @@ case class TableKeyByAndAggregate(
           rvb.endTuple()
           val aggResultOff = rvb.end()
 
-          rvb.start(newRowType.physicalType)
+          rvb.start(newRowType)
           rvb.startStruct()
           var i = 0
           while (i < localKeyType.size) {
@@ -1045,7 +1044,7 @@ case class TableKeyByAndAggregate(
             aggResultOff, false,
             globals, false)
 
-          rvb.addAllFields(newValueType.physicalType, region, newValueOff)
+          rvb.addAllFields(rTyp.asInstanceOf[PStruct], region, newValueOff)
 
           rvb.endStruct()
           rv.setOffset(rvb.end())
@@ -1055,7 +1054,7 @@ case class TableKeyByAndAggregate(
 
     prev.copy(
       typ = typ,
-      rvd = RVD.coerce(RVDType(rTyp.asInstanceOf[PStruct], typ.key), crdd))
+      rvd = RVD.coerce(RVDType(newRowType, keyType.fieldNames), crdd))
   }
 }
 
