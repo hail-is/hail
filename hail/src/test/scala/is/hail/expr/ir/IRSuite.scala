@@ -1090,4 +1090,18 @@ class IRSuite extends SparkSuite {
     test(If(i, True(), vf), false, 1)
     test(If(i, True(), vm), false, 0)
   }
+
+  @Test def testArrayContinuationDealsWithIfCorrectly() {
+    val ir = ArrayMap(
+      If(IsNA(In(0, TBoolean())),
+        NA(TArray(TInt32())),
+        In(1, TArray(TInt32()))),
+      "x", Cast(Ref("x", TInt32()), TInt64()))
+
+    val env = Env.empty[(Any, Type)]
+      .bind("flag" -> (true, TBoolean()))
+      .bind("array" -> (FastIndexedSeq(0), TArray(TInt32())))
+
+    assertEvalsTo(ir, FastIndexedSeq(true -> TBoolean(), FastIndexedSeq(0) -> TArray(TInt32())), FastIndexedSeq(0L))
+  }
 }
