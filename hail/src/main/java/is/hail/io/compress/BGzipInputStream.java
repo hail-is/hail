@@ -263,7 +263,9 @@ public class BGzipInputStream extends SplitCompressionInputStream {
         final int uncompOff = BlockCompressedFilePointerUtil.getBlockOffset(pos);
         if (currentBlockPos != compOff) {
             ((Seekable) in).seek(compOff);
-            resetState(); // FIXME, this is probably less efficient than it could be, but it works for now
+            inputBufferSize = 0;
+            inputBufferPos = 0;
+            inputBufferInPos = compOff;
             decompressNextBlock();
             assert(currentBlockPos == compOff);
         }

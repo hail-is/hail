@@ -119,9 +119,8 @@ class BGzipCodecSuite extends SparkSuite {
   @Test def testVirtualSeek() {
     // real offsets of the start of some blocks, paired with the offset to the next block
     val blockStarts = Array[(Long, Long)]((0, 14653), (69140, 82949), (133703, 146664), (181362, 192983 /* end of file */))
-    // magic number determined by indexing the target file
     val maxBlockSize = 65280
-    // magic number determined by counting bytes from sample.vcf from uncompBlockStarts(-1) to the end of the file
+    // number determined by counting bytes from sample.vcf from uncompBlockStarts.last to the end of the file
     val lastBlockLen = 55936
     // offsets into the uncompressed file
     val uncompBlockStarts = Array[Int](0, 326400, 652800, 913920)
@@ -140,7 +139,7 @@ class BGzipCodecSuite extends SparkSuite {
            e <- Seq(0, 1024, maxBlockSize)) {
         val decompData = new Array[Byte](100)
         val uncompData = new Array[Byte](100)
-        val extra = if (cOff == blockStarts(blockStarts.size-1)._1 && e == maxBlockSize)
+        val extra = if (cOff == blockStarts.last._1 && e == maxBlockSize)
             lastBlockLen
           else
             e
@@ -175,7 +174,7 @@ class BGzipCodecSuite extends SparkSuite {
       }
 
       // trying to seek to exactly end of file should succeed
-      val lastOffset = BlockCompressedFilePointerUtil.makeFilePointer(blockStarts(blockStarts.size - 1)._1, lastBlockLen)
+      val lastOffset = BlockCompressedFilePointerUtil.makeFilePointer(blockStarts.last._1, lastBlockLen)
       decompIS.virtualSeek(lastOffset)
       assert(-1 == decompIS.read())
 
