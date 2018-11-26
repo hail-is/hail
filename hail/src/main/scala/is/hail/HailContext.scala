@@ -671,7 +671,8 @@ class HailContext private(val sc: SparkContext,
     rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
     contigRecoding: Option[Map[String, String]] = None,
     arrayElementsRequired: Boolean = true,
-    skipInvalidLoci: Boolean = false): MatrixTable = {
+    skipInvalidLoci: Boolean = false,
+    partitionsJSON: String = null): MatrixTable = {
     val addedReference = rg.exists { referenceGenome =>
       if (!ReferenceGenome.hasReference(referenceGenome.name)) {
         ReferenceGenome.addReference(referenceGenome)
@@ -689,7 +690,8 @@ class HailContext private(val sc: SparkContext,
       arrayElementsRequired,
       skipInvalidLoci,
       forceBGZ,
-      force
+      force,
+      partitionsJSON
     )
     if (addedReference)
       ReferenceGenome.removeReference(rg.get.name)
