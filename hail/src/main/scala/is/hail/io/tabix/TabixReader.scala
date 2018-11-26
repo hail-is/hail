@@ -300,6 +300,7 @@ class TabixReader(val filePath: String, private val idxFilePath: Option[String])
 }
 
 class TabixLineIterator(private val filePath: String, private val offsets: Array[TbiPair])
+  extends java.lang.AutoCloseable
 {
   private val hConf = HailContext.get.sc.hadoopConfiguration
   private var i: Int = -1
@@ -335,5 +336,10 @@ class TabixLineIterator(private val filePath: String, private val offsets: Array
         isEof = true
     }
     s
+  }
+
+  override def close() = if (is != null) {
+    is.close()
+    is = null
   }
 }
