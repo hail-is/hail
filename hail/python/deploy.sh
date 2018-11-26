@@ -10,9 +10,7 @@ published=$(
      | grep '^hail ' \
      | sed 's/hail (//' \
      | sed 's/).*//')
-current=$(
-    grep 'hail_pip_version = ' hail/_generated_version_info.py \
-     | sed -E "s/.*hail_pip_version = \"(.*)\"/\1/")
+current=$(cat hail/hail_pip_version)
 
 if [[ "${published}" != "${current}" ]]
 then

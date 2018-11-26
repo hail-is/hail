@@ -23,7 +23,5 @@ echo_build_properties() {
 mkdir -p src/main/resources/
 
 echo_build_properties $1 $2 > "src/main/resources/build-info.properties"
-cat > python/hail/_generated_version_info.py <<EOF
-hail_pip_version = "${HAIL_PIP_VERSION}"
-hail_version = hail_pip_version + "-${REVISION:0:12}"
-EOF
+printf ${HAIL_PIP_VERSION} > python/hail/hail_pip_version
+printf ${HAIL_PIP_VERSION}-${REVISION:0:12} > python/hail/hail_version
