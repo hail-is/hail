@@ -269,7 +269,7 @@ public class BGzipInputStream extends SplitCompressionInputStream {
             decompressNextBlock();
             assert(currentBlockPos == compOff);
         }
-        if (uncompOff > outputBufferSize) {
+        if (uncompOff > outputBufferSize || (outputBufferSize > 0 && uncompOff == outputBufferSize)) {
             throw new IOException("Invalid virtual offset: " + pos);
         }
         outputBufferPos = uncompOff;
