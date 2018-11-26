@@ -14,7 +14,7 @@ class TabixSuite extends SparkSuite {
   val vcfGzFile = vcfFile + ".gz"
   val vcfGzTbiFile = vcfGzFile + ".tbi"
 
-  lazy val reader = TabixReader(vcfGzFile)
+  lazy val reader = new TabixReader(vcfGzFile)
 
   @BeforeTest def initialize() {
     hc // reference to initialize
@@ -78,7 +78,7 @@ class TabixSuite extends SparkSuite {
     val start = 10570000
     val end = 13000000
     val htsjdkrdr = new HtsjdkTabixReader(vcfFile)
-    val hailrdr = TabixReader(vcfFile)
+    val hailrdr = new TabixReader(vcfFile)
     val tid = hailrdr.chr2tid(chr)
 
     // One approximate interval, one (almost) exact interval

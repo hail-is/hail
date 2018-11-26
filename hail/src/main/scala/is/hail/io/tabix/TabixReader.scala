@@ -81,7 +81,6 @@ object TabixReader {
     buf.toString()
   }
 
-  def apply(filePath: String): TabixReader = new TabixReader(filePath, None)
 }
 
 class TabixReader(val filePath: String, private val idxFilePath: Option[String]) {
@@ -96,6 +95,8 @@ class TabixReader(val filePath: String, private val idxFilePath: Option[String])
         fatal(s"unknown file extension for tabix index: ${s}")
     }
   }
+
+  def this(filePath: String) = this(filePath, None)
 
   private val hc = HailContext.get
   private val sc = hc.sc
