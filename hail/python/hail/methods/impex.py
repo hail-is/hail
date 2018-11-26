@@ -13,6 +13,7 @@ from hail.methods.misc import require_biallelic, require_row_key_variant, requir
 import hail as hl
 
 _cached_loadvcf = None
+_cached_importvcfs = None
 
 
 def locus_interval_expr(contig, start, end, includes_start, includes_end,
@@ -1756,7 +1757,9 @@ def get_vcf_metadata(path):
            reference_genome=nullable(reference_genome_type),
            contig_recoding=nullable(dictof(str, str)),
            array_elements_required=bool,
-           skip_invalid_loci=bool)
+           skip_invalid_loci=bool,
+           # json
+           _partitions=nullable(str))
 def import_vcf(path,
                force=False,
                force_bgz=False,
@@ -1767,7 +1770,8 @@ def import_vcf(path,
                reference_genome='default',
                contig_recoding=None,
                array_elements_required=True,
-               skip_invalid_loci=False) -> MatrixTable:
+               skip_invalid_loci=False,
+               _partitions=None) -> MatrixTable:
     """Import VCF file(s) as a :class:`.MatrixTable`.
 
     Examples
@@ -1906,10 +1910,48 @@ def import_vcf(path,
         array_elements_required,
         skip_invalid_loci,
         force_bgz,
-        force
+        force,
+        _partitions,
     )
     return MatrixTable._from_java(jmt)
 
+@typecheck(path=sequenceof(str),
+           _partitions=str,
+           force=bool,
+           force_bgz=bool,
+           call_fields=oneof(str, sequenceof(str)),
+           reference_genome=nullable(reference_genome_type),
+           contig_recoding=nullable(dictof(str, str)),
+           array_elements_required=bool,
+           skip_invalid_loci=bool)
+def import_vcfs(path,
+                 _partitions,
+                 force=False,
+                 force_bgz=False,
+                 call_fields=[],
+                 reference_genome='default',
+                 contig_recoding=None,
+                 array_elements_required=True,
+                 skip_invalid_loci=False) -> MatrixTable:
+    """Experimental."""
+
+    rg = reference_genome.name if reference_genome else None
+
+    global _cached_importvcfs
+    if _cached_importvcfs is None:
+        _cached_importvcfs = Env.hail().io.vcf.ImportVCFs
+
+    jmts = _cached_importvcfs.pyApply(
+        wrap_to_list(path),
+        wrap_to_list(call_fields),
+        rg,
+        contig_recoding,
+        array_elements_required,
+        skip_invalid_loci,
+        force_bgz,
+        force,
+        _partitions)
+    return [MatrixTable(jmt) for jmt in jmts]
 
 @typecheck(path=oneof(str, sequenceof(str)),
            index_file_map=nullable(dictof(str, str)),
