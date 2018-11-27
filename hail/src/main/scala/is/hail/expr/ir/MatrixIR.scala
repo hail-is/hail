@@ -1124,6 +1124,8 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
     child.typ.copy(rvRowType = newRVRow.typ.asInstanceOf[TStruct])
   }
 
+  override lazy val rvRowPType: PStruct = newRVRow.pType.asInstanceOf[PStruct]
+
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
   override def columnCount: Option[Int] = child.columnCount
@@ -1329,6 +1331,8 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
     val newColKey = newKey.getOrElse(child.typ.colKey)
     child.typ.copy(colKey = newColKey, colType = newColType)
   }
+
+  override lazy val rvRowPType: PStruct = child.rvRowPType
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
@@ -1599,6 +1603,8 @@ case class MatrixMapGlobals(child: MatrixIR, newGlobals: IR) extends MatrixIR {
   val typ: MatrixType =
     child.typ.copy(globalType = newGlobals.typ.asInstanceOf[TStruct])
 
+  override lazy val rvRowPType: PStruct = child.rvRowPType
+
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixMapGlobals = {
     assert(newChildren.length == 2)
     MatrixMapGlobals(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[IR])
@@ -1638,6 +1644,8 @@ case class MatrixAnnotateColsTable(
 
   private val (colType, inserter) = child.typ.colType.structInsert(table.typ.valueType, List(root))
   val typ: MatrixType = child.typ.copy(colType = colType)
+
+  override lazy val rvRowPType: PStruct = child.rvRowPType
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixAnnotateColsTable = {
     MatrixAnnotateColsTable(
@@ -1686,6 +1694,8 @@ case class MatrixAnnotateRowsTable(
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
   val typ: MatrixType = child.typ.copy(rvRowType = child.typ.rvRowType ++ TStruct(root -> table.typ.valueType))
+
+  override lazy val rvRowPType: PStruct = child.rvRowPType.appendKey(root, table.rvRowPType.selectFields(table.typ.key.toSet, keep = false))
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixAnnotateRowsTable = {
     val (child: MatrixIR) +: (table: TableIR) +: newKey = newChildren
@@ -1843,6 +1853,8 @@ case class TableToMatrixTable(
     rowKey,
     rowType,
     entryType)
+
+  override lazy val rvRowPType: PStruct = typ.rvRowType.physicalType // FIXME: Canonical() when that arrives
 
   protected[ir] override def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
@@ -2021,6 +2033,8 @@ case class MatrixExplodeRows(child: MatrixIR, path: IndexedSeq[String]) extends 
   }
 
   val typ: MatrixType = child.typ.copy(rvRowType = newRVRow.typ)
+
+  override lazy val rvRowPType: PStruct = newRVRow.pType
 
   protected[ir] override def execute(hc: HailContext): MatrixValue = {
     val prev = child.execute(hc)
@@ -2208,6 +2222,8 @@ case class CastTableToMatrix(
     colType,
     child.typ.key,
     newRowType)
+
+  override lazy val rvRowPType: PStruct = child.rvRowPType.rename(m)
 
   def children: IndexedSeq[BaseIR] = Array(child)
 
