@@ -257,6 +257,16 @@ class MatrixExplodeRows(MatrixIR):
             ' '.join([escape_id(id) for id in self.path]),
             r(self.child))
 
+class MatrixRepartition(MatrixIR):
+    def __init__(self, child, n, shuffle):
+        super().__init__()
+        self.child = child
+        self.n = n
+        self.shuffle = shuffle
+
+    def render(self, r):
+        return f'(MatrixRepartition {r(self.child)} {self.n} {self.shuffle})'
+
 
 class MatrixUnionRows(MatrixIR):
     def __init__(self, *children):

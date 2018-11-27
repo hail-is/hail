@@ -188,6 +188,7 @@ class TableIRTests(unittest.TestCase):
         table_read = ir.TableRead(resource('backward_compatability/1.0.0/table/0.ht'), False, None)
 
         matrix_irs = [
+            ir.MatrixRepartition(ir.MatrixRange(5, 5, 1), 100, True),
             ir.MatrixUnionRows(ir.MatrixRange(5, 5, 1), ir.MatrixRange(5, 5, 1)),
             ir.CastTableToMatrix(
                 ir.CastMatrixToTable(matrix_read, '__entries', '__cols'),

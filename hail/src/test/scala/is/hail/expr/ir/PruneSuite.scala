@@ -399,6 +399,15 @@ class PruneSuite extends SparkSuite {
       Array(subsetMatrixTable(mat.typ, "va.r2", "va.r3")))
   }
 
+  @Test def testMatrixRepartitionMemo() {
+    checkMemo(
+      MatrixRepartition(mat, 10, true),
+      subsetMatrixTable(mat.typ, "va.r2", "global.g1"),
+      Array(subsetMatrixTable(mat.typ, "va.r2", "global.g1"),
+        subsetMatrixTable(mat.typ, "va.r2", "global.g1"))
+    )
+  }
+
   @Test def testMatrixUnionRowsMemo() {
     checkMemo(
       MatrixUnionRows(FastIndexedSeq(mat, mat)),
