@@ -2070,6 +2070,20 @@ case class MatrixUnionRows(children: IndexedSeq[MatrixIR]) extends MatrixIR {
     }
 }
 
+case class MatrixDistinctByRow(child: MatrixIR) extends MatrixIR {
+
+  val typ: MatrixType = child.typ
+
+  def children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): MatrixDistinctByRow = {
+    val IndexedSeq(newChild: MatrixIR) = newChildren
+    MatrixDistinctByRow(newChild)
+  }
+
+  override def columnCount: Option[Int] = child.columnCount
+}
+
 case class MatrixExplodeCols(child: MatrixIR, path: IndexedSeq[String]) extends MatrixIR {
 
   def children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
