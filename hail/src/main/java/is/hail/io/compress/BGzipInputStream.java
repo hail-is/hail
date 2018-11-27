@@ -176,6 +176,8 @@ public class BGzipInputStream extends SplitCompressionInputStream {
     }
 
     public long getVirtualOffset() {
+        if (outputBufferPos == outputBufferSize && bgzipHeader != null)
+            return BlockCompressedFilePointerUtil.makeFilePointer(currentBlockPos + bgzipHeader.getBlockSize(), 0);
         return BlockCompressedFilePointerUtil.makeFilePointer(currentBlockPos, outputBufferPos);
     }
 
