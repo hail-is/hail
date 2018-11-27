@@ -156,7 +156,7 @@ prebuilt: all
 	cp -p -f $(LIBHAIL) $(PREBUILT)/$(LIBHAIL)
 
 test: $(BUILD)/functional-tests $(BUILD)/unit-tests
-	./$(BUILD)/unit-tests -w NoAssertions -d yes -# --use-colour yes -r xml -o $(BUILD)/cxx-test.xml; \
+	./$(BUILD)/unit-tests -w NoAssertions -s -d yes -# --use-colour yes -r xml -o $(BUILD)/cxx-test.xml; \
     	case "$$?" in \
     		*) \
     		mkdir -p $(BUILD)/reports; \

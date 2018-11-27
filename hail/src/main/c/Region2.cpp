@@ -7,7 +7,48 @@
 
 namespace hail {
 
-RegionPool::Region::Region(RegionPool * pool) :
+void RegionPtr::clear() {
+  if (region_ != nullptr) {
+    --(region_->references_);
+    if (region_->references_ == 0) {
+      region_->clear();
+      region_->pool_->free_regions_.push_back(region_);
+    }
+    region_ = nullptr;
+  }
+}
+
+RegionPtr::SharedPtr(Region * region) : region_(region) {
+  if (region_ != nullptr) { ++(region_->references_); }
+}
+RegionPtr::SharedPtr(const RegionPtr &ptr) : region_(ptr.region_) {
+  if (region_ != nullptr) { ++(region_->references_); }
+}
+
+RegionPtr::SharedPtr(RegionPtr &&ptr) : region_(nullptr) {
+  region_ = ptr.region_;
+  ptr.region_ = nullptr;
+}
+
+RegionPtr& RegionPtr::operator=(const RegionPtr& other) {
+  if (this != &other) { region_ = other.region_; }
+  return *this;
+}
+
+RegionPtr& RegionPtr::operator=(RegionPtr&& other) {
+  if (this != &other) {
+    region_ = other.region_;
+    other.region_ = nullptr;
+  }
+  return *this;
+}
+
+RegionPtr& RegionPtr::operator=(std::nullptr_t) noexcept {
+  this->clear();
+  return *this;
+}
+
+Region2::Region(RegionPool * pool) :
 pool_(pool),
 block_offset_(0),
 current_block_(pool->get_block()) { }
@@ -32,26 +73,12 @@ void Region2::clear() {
   parents_.clear();
 }
 
-std::shared_ptr<Region2> Region2::get_region() {
+RegionPtr Region2::get_region() {
   return pool_->get_region();
 }
 
-void Region2::add_reference_to(std::shared_ptr<Region2> region) {
+void Region2::add_reference_to(RegionPtr region) {
   parents_.push_back(std::move(region));
-}
-
-void RegionPool::RegionDeleter::operator()(Region2* p) const {
-  p->clear();
-  pool_->free_regions_.push_back(p);
-}
-
-RegionPool::RegionPool() :
-del_(RegionDeleter(this)) { }
-
-RegionPool::~RegionPool() {
-  for (Region2 * region : free_regions_) {
-    delete region;
-  }
 }
 
 std::unique_ptr<char[]> RegionPool::get_block() {
@@ -63,17 +90,18 @@ std::unique_ptr<char[]> RegionPool::get_block() {
   return block;
 }
 
-std::shared_ptr<Region2> RegionPool::new_region() {
-  return std::shared_ptr<Region2>(new Region2(this), del_);
+RegionPtr RegionPool::new_region() {
+  regions_.push_back(std::make_unique<Region2>(this));
+  return RegionPtr(regions_.back().get());
 }
 
-std::shared_ptr<Region2> RegionPool::get_region() {
+RegionPtr RegionPool::get_region() {
   if (free_regions_.empty()) {
     return new_region();
   }
   Region2 * region = std::move(free_regions_.back());
   free_regions_.pop_back();
-  return std::shared_ptr<Region2>(region, del_);
+  return RegionPtr(region);
 }
 
 }
