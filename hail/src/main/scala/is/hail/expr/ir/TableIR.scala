@@ -899,7 +899,7 @@ case class TableDistinct(child: TableIR) extends TableIR {
 
   protected[ir] override def execute(hc: HailContext): TableValue = {
     val prev = child.execute(hc)
-    prev.copy(rvd = prev.rvd.distinctByKey())
+    prev.copy(rvd = prev.rvd.truncateKey(prev.typ.key).distinctByKey())
   }
 }
 
