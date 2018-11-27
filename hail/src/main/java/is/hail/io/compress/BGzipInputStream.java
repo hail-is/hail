@@ -87,14 +87,14 @@ public class BGzipInputStream extends SplitCompressionInputStream {
     int inputBufferSize = 0;
     int inputBufferPos = 0;
 
-    /* `inputBufferInPos' is the position in the compressed input stream corresponding to `inputBuffer[0]'. */
+    /* `inputBufferInPos' is the position in the compressed input stream corresponding to `inputBuffer[0]'.
+     * This position is also the position of the start of the block that is being read from */
     long inputBufferInPos = 0;
 
     final byte[] outputBuffer = new byte[OUTPUT_BUFFER_CAPACITY];
     int outputBufferSize = 0;
     int outputBufferPos = 0;
 
-    long currentBlockPos;
     long currentPos;
 
     public BGzipInputStream(InputStream in, long start, long end, SplittableCompressionCodec.READ_MODE readMode) throws IOException {
@@ -140,7 +140,6 @@ public class BGzipInputStream extends SplitCompressionInputStream {
         outputBufferPos = 0;
 
         fillInputBuffer();
-        currentBlockPos = inputBufferInPos;
         assert (inputBufferPos == 0);
         if (inputBufferSize != 0) {
             bgzipHeader = new BGzipHeader(inputBuffer, inputBufferPos, inputBufferSize);
@@ -172,13 +171,11 @@ public class BGzipInputStream extends SplitCompressionInputStream {
     }
 
     public long blockPos() {
-        return currentBlockPos;
+        return inputBufferInPos;
     }
 
     public long getVirtualOffset() {
-        if (outputBufferPos == outputBufferSize && bgzipHeader != null)
-            return BlockCompressedFilePointerUtil.makeFilePointer(currentBlockPos + bgzipHeader.getBlockSize(), 0);
-        return BlockCompressedFilePointerUtil.makeFilePointer(currentBlockPos, outputBufferPos);
+        return BlockCompressedFilePointerUtil.makeFilePointer(inputBufferInPos, outputBufferPos);
     }
 
     public int readBlock(byte[] b) throws IOException {
@@ -201,11 +198,6 @@ public class BGzipInputStream extends SplitCompressionInputStream {
             return 0;
         if (outputBufferSize == 0)
             return -1;  // EOF
-        if (outputBufferPos == outputBufferSize) {
-            decompressNextBlock();
-            return read(b, off, len);
-        }
-
         assert(outputBufferPos < outputBufferSize);
 
         if (outputBufferPos == 0)
@@ -214,6 +206,9 @@ public class BGzipInputStream extends SplitCompressionInputStream {
         int toCopy = Math.min(len, outputBufferSize - outputBufferPos);
         System.arraycopy(outputBuffer, outputBufferPos, b, off, toCopy);
         outputBufferPos += toCopy;
+
+        if (outputBufferPos == outputBufferSize)
+            decompressNextBlock();
 
         return toCopy;
     }
@@ -263,13 +258,13 @@ public class BGzipInputStream extends SplitCompressionInputStream {
     public void virtualSeek(final long pos) throws IOException {
         final long compOff = BlockCompressedFilePointerUtil.getBlockAddress(pos);
         final int uncompOff = BlockCompressedFilePointerUtil.getBlockOffset(pos);
-        if (currentBlockPos != compOff) {
+        if (inputBufferInPos != compOff) {
             ((Seekable) in).seek(compOff);
             inputBufferSize = 0;
             inputBufferPos = 0;
             inputBufferInPos = compOff;
             decompressNextBlock();
-            assert(currentBlockPos == compOff);
+            assert(inputBufferInPos == compOff);
         }
         if (uncompOff > outputBufferSize || (outputBufferSize > 0 && uncompOff == outputBufferSize)) {
             throw new IOException("Invalid virtual offset: " + pos);
