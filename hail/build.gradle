@@ -159,7 +159,7 @@ dependencies {
     compile 'org.apache.spark:spark-mllib_' + scalaMajorVersion + ':' + sparkVersion
     compile 'org.lz4:lz4-java:1.4.0'
     compile 'org.scalanlp:breeze-natives_' + scalaMajorVersion + ':' + breezeVersion
-    compile 'com.github.samtools:htsjdk:2.14.2'
+    compile 'com.github.samtools:htsjdk:2.18.0'
 
     compile group: 'org.slf4j', name: 'slf4j-api', version: '1.7.25'
 

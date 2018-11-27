@@ -1,5 +1,6 @@
 package is.hail.io.compress;
 
+import htsjdk.samtools.util.BlockCompressedFilePointerUtil;
 import org.apache.hadoop.fs.Seekable;
 import org.apache.hadoop.io.compress.SplitCompressionInputStream;
 import org.apache.hadoop.io.compress.SplittableCompressionCodec;
@@ -15,7 +16,7 @@ public class BGzipInputStream extends SplitCompressionInputStream {
     private static final int OUTPUT_BUFFER_CAPACITY = BGZF_MAX_BLOCK_SIZE;
 
     private static final String ZIP_EXCEPTION_MESSAGE = "File does not conform to block gzip format.";
-    
+
     public static class BGzipHeader {
         /* `bsize' is the size of the current BGZF block.
            It is the `BSIZE' entry of the BGZF extra subfield + 1.  */
@@ -86,7 +87,8 @@ public class BGzipInputStream extends SplitCompressionInputStream {
     int inputBufferSize = 0;
     int inputBufferPos = 0;
 
-    /* `inputBufferInPos' is the position in the compressed input stream corresponding to `inputBuffer[0]'. */
+    /* `inputBufferInPos' is the position in the compressed input stream corresponding to `inputBuffer[0]'.
+     * This position is also the position of the start of the block that is being read from */
     long inputBufferInPos = 0;
 
     final byte[] outputBuffer = new byte[OUTPUT_BUFFER_CAPACITY];
@@ -169,8 +171,11 @@ public class BGzipInputStream extends SplitCompressionInputStream {
     }
 
     public long blockPos() {
-        assert(outputBufferPos == 0);
         return inputBufferInPos;
+    }
+
+    public long getVirtualOffset() {
+        return BlockCompressedFilePointerUtil.makeFilePointer(inputBufferInPos, outputBufferPos);
     }
 
     public int readBlock(byte[] b) throws IOException {
@@ -244,5 +249,26 @@ public class BGzipInputStream extends SplitCompressionInputStream {
             assert (inputBufferSize < BGZF_MAX_BLOCK_SIZE);
             inputBufferPos = inputBufferSize;
         }
+    }
+
+    // pos is a virtual file pointer, it is not a strict offset into the compressed data.
+    // The upper 48 bits of pos are the offset into the compressed data, the lower 16 bits
+    // are the offset into the uncompressed block that begins at the pointed to location
+    // by the upper 48 bits.
+    public void virtualSeek(final long pos) throws IOException {
+        final long compOff = BlockCompressedFilePointerUtil.getBlockAddress(pos);
+        final int uncompOff = BlockCompressedFilePointerUtil.getBlockOffset(pos);
+        if (inputBufferInPos != compOff) {
+            ((Seekable) in).seek(compOff);
+            inputBufferSize = 0;
+            inputBufferPos = 0;
+            inputBufferInPos = compOff;
+            decompressNextBlock();
+            assert(inputBufferInPos == compOff);
+        }
+        if (uncompOff > outputBufferSize || (outputBufferSize > 0 && uncompOff == outputBufferSize)) {
+            throw new IOException("Invalid virtual offset: " + pos);
+        }
+        outputBufferPos = uncompOff;
     }
 }
