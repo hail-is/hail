@@ -296,6 +296,8 @@ case class TableFilter(child: TableIR, pred: IR) extends TableIR {
 
   val typ: TableType = child.typ
 
+  override val rvRowPType: PStruct = child.rvRowPType
+
   def copy(newChildren: IndexedSeq[BaseIR]): TableFilter = {
     assert(newChildren.length == 2)
     TableFilter(newChildren(0).asInstanceOf[TableIR], newChildren(1).asInstanceOf[IR])
@@ -323,6 +325,8 @@ case class TableHead(child: TableIR, n: Long) extends TableIR {
   require(n >= 0, fatal(s"TableHead: n must be non-negative! Found '$n'."))
   def typ: TableType = child.typ
 
+  override val rvRowPType: PStruct = child.rvRowPType
+
   def children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableHead = {
@@ -341,6 +345,13 @@ case class TableHead(child: TableIR, n: Long) extends TableIR {
 
 case class TableRepartition(child: TableIR, n: Int, shuffle: Boolean) extends TableIR {
   def typ: TableType = child.typ
+
+  override val rvRowPType: PStruct = {
+    if (shuffle)
+      typ.rowType.physicalType // FIXME: Canonical() when that arrives
+    else
+      child.rvRowPType
+  }
 
   def children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
 
@@ -607,6 +618,8 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
 
   val typ: TableType = child.typ.copy(rowType = newRow.typ.asInstanceOf[TStruct])
 
+  override lazy val rvRowPType: PStruct = newRow.pType.asInstanceOf[PStruct]
+
   def copy(newChildren: IndexedSeq[BaseIR]): TableMapRows = {
     assert(newChildren.length == 2)
     TableMapRows(newChildren(0).asInstanceOf[TableIR], newChildren(1).asInstanceOf[IR])
@@ -749,6 +762,8 @@ case class TableMapGlobals(child: TableIR, newGlobals: IR) extends TableIR {
   val typ: TableType =
     child.typ.copy(globalType = newGlobals.typ.asInstanceOf[TStruct])
 
+  override lazy val rvRowPType: PStruct = child.rvRowPType
+
   def copy(newChildren: IndexedSeq[BaseIR]): TableMapGlobals = {
     assert(newChildren.length == 2)
     TableMapGlobals(newChildren(0).asInstanceOf[TableIR], newChildren(1).asInstanceOf[IR])
@@ -855,6 +870,8 @@ case class TableUnion(children: IndexedSeq[TableIR]) extends TableIR {
 case class MatrixRowsTable(child: MatrixIR) extends TableIR {
   val children: IndexedSeq[BaseIR] = Array(child)
 
+  override lazy val rvRowPType: PStruct = child.rvRowPType.deleteField(MatrixType.entriesIdentifier)
+
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixRowsTable = {
@@ -874,6 +891,8 @@ case class MatrixColsTable(child: MatrixIR) extends TableIR {
   }
 
   val typ: TableType = child.typ.colsTableType
+
+  override lazy val rvRowPType: PStruct = typ.rowType.physicalType
 
   protected[ir] override def execute(hc: HailContext): TableValue = {
     val mv = child.execute(hc)
@@ -903,6 +922,8 @@ case class MatrixEntriesTable(child: MatrixIR) extends TableIR {
 
 case class TableDistinct(child: TableIR) extends TableIR {
   def children: IndexedSeq[BaseIR] = Array(child)
+
+  override lazy val rvRowPType: PStruct = child.rvRowPType
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableDistinct = {
     val IndexedSeq(newChild) = newChildren
@@ -1223,6 +1244,8 @@ case class TableOrderBy(child: TableIR, sortFields: IndexedSeq[SortField]) exten
 
   val typ: TableType = child.typ.copy(key = FastIndexedSeq())
 
+  override lazy val rvRowPType: PStruct = typ.rowType.physicalType // FIXME: Canonical() when that arrives
+
   protected[ir] override def execute(hc: HailContext): TableValue = {
     val prev = child.execute(hc)
 
@@ -1257,6 +1280,8 @@ case class CastMatrixToTable(
 
   def typ: TableType = LowerMatrixIR.loweredType(child.typ, entriesFieldName, colsFieldName)
 
+  override lazy val rvRowPType: PStruct = child.rvRowPType.rename(Map(MatrixType.entriesIdentifier -> entriesFieldName))
+
   def children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
 
   def copy(newChildren: IndexedSeq[BaseIR]): CastMatrixToTable = {
@@ -1289,6 +1314,8 @@ case class TableRename(child: TableIR, rowMap: Map[String, String], globalMap: M
     globalType = child.typ.globalType.rename(globalMap),
     key = child.typ.key.map(k => rowMap.getOrElse(k, k))
   )
+
+  override lazy val rvRowPType: PStruct = child.rvRowPType.rename(rowMap)
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 

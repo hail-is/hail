@@ -186,8 +186,9 @@ final case class PStruct(fields: IndexedSeq[PField], override val required: Bool
     PStruct(newFields, required)
   }
 
-  def deleteKey(key: String, index: Int): PStruct = {
+  def deleteField(key: String): PStruct = {
     assert(fieldIdx.contains(key))
+    val index = fieldIdx(key)
     if (fields.length == 1)
       PStruct.empty()
     else {
