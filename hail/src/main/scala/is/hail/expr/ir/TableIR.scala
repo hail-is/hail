@@ -795,6 +795,24 @@ case class TableExplode(child: TableIR, fieldName: String) extends TableIR {
 
   val typ: TableType = child.typ.copy(rowType = rowType)
 
+  private val childRowType = child.typ.rowType
+
+  private val field = fieldType match {
+    case TArray(_, _) =>
+      GetField(Ref("row", childRowType), fieldName)
+    case TSet(_, _) =>
+      ToArray(GetField(Ref("row", childRowType), fieldName))
+    case _ =>
+      fatal(s"expected field to explode to be an array or set, found ${ fieldType }")
+  }
+
+  private val insertIR = ir.InsertFields(Ref("row", childRowType),
+    Array(fieldName -> ir.ArrayRef(
+      field,
+      ir.Ref("i", TInt32()))))
+
+  override lazy val rvRowPType: PStruct = insertIR.pType
+
   def copy(newChildren: IndexedSeq[BaseIR]): TableExplode = {
     assert(newChildren.length == 1)
     TableExplode(newChildren(0).asInstanceOf[TableIR], fieldName)
@@ -803,27 +821,11 @@ case class TableExplode(child: TableIR, fieldName: String) extends TableIR {
   protected[ir] override def execute(hc: HailContext): TableValue = {
     val prev = child.execute(hc)
 
-    val childRowType = child.typ.rowType
-
-    val field = fieldType match {
-      case TArray(_, _) =>
-        GetField(Ref("row", childRowType), fieldName)
-      case TSet(_, _) =>
-        ToArray(GetField(Ref("row", childRowType), fieldName))
-      case _ =>
-        fatal(s"expected field to explode to be an array or set, found ${ fieldType }")
-    }
-
     val (_, lengthF) = ir.Compile[Long, Int]("row", childRowType.physicalType,
       ir.If(IsNA(field), ir.I32(0), ir.ArrayLen(field)))
 
     val (resultType, explodeF) = ir.Compile[Long, Int, Long]("row", childRowType.physicalType,
-      "i", PInt32(),
-      ir.InsertFields(Ref("row", childRowType),
-        Array(fieldName -> ir.ArrayRef(
-          field,
-          ir.Ref("i", TInt32())))))
-    assert(resultType.virtualType == typ.rowType)
+      "i", PInt32(), insertIR)
 
     val itF: (Int, RVDContext, Iterator[RegionValue]) => Iterator[RegionValue] = { (i, ctx, it) =>
       val rv2 = RegionValue()
