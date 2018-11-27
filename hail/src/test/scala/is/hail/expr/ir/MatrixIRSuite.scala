@@ -269,7 +269,7 @@ class MatrixIRSuite extends SparkSuite {
     params.foreach { case (n, shuffle) =>
       val rvd = Interpret(MatrixRepartition(range, n, shuffle), optimize = false).rvd
       assert(rvd.getNumPartitions == n, n -> shuffle)
-      val values =rvd.collect(CodecSpec.default).map(r => r.getAs[Int](0))
+      val values = rvd.collect(CodecSpec.default).map(r => r.getAs[Int](0))
       assert(values.isSorted && values.length == 11, n -> shuffle)
     }
   }

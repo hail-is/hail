@@ -199,7 +199,7 @@ object Pretty {
               prettyStringLiteral(uid)
             case MatrixExplodeRows(_, path) => prettyIdentifiers(path)
             case MatrixExplodeCols(_, path) => prettyIdentifiers(path)
-            case MatrixRepartition(_, n, shuffle) => n.toString + prettyBooleanLiteral(shuffle)
+            case MatrixRepartition(_, n, shuffle) => n.toString + " " + prettyBooleanLiteral(shuffle)
             case MatrixChooseCols(_, oldIndices) => prettyInts(oldIndices)
             case MatrixMapCols(_, _, newKey) => prettyStringsOpt(newKey)
             case MatrixKeyRowsBy(_, keys, isSorted) =>
