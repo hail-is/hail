@@ -61,6 +61,8 @@ case class TableRead(path: String, spec: AbstractTableSpec, typ: TableType, drop
   assert(PruneDeadFields.isSupertype(typ, spec.table_type),
     s"\n  original:  ${ spec.table_type }\n  requested: $typ")
 
+  override lazy val rvRowPType: PStruct = typ.rowType.physicalType // FIXME: Canonical() when that arrives
+
   override def partitionCounts: Option[IndexedSeq[Long]] = Some(spec.partitionCounts)
 
   val children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
@@ -89,6 +91,12 @@ case class TableRead(path: String, spec: AbstractTableSpec, typ: TableType, drop
 
 case class TableParallelize(rows: IR, nPartitions: Option[Int] = None) extends TableIR {
   require(rows.typ.isInstanceOf[TArray] && rows.typ.asInstanceOf[TArray].elementType.isInstanceOf[TStruct])
+
+  override lazy val rvRowPType: PStruct = rows.typ
+    .asInstanceOf[TArray]
+    .elementType
+    .asInstanceOf[TStruct]
+    .physicalType // FIXME: Canonical() when that arrives
 
   val children: IndexedSeq[BaseIR] = FastIndexedSeq(rows)
 
@@ -124,6 +132,8 @@ case class TableImport(paths: Array[String], typ: TableType, readerOpts: TableRe
   assert(typ.rowType.size == readerOpts.useColIndices.length)
 
   val children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
+
+  override lazy val rvRowPType: PStruct = typ.rowType.physicalType // FIXME: Canonical() when that arrives
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableImport = {
     assert(newChildren.isEmpty)
@@ -243,6 +253,8 @@ case class TableRange(n: Int, nPartitions: Int) extends TableIR {
     TStruct("idx" -> TInt32()),
     Array("idx"),
     TStruct.empty())
+
+  override lazy val rvRowPType: PStruct = typ.rowType.physicalType // FIXME: Canonical() when that arrives
 
   protected[ir] override def execute(hc: HailContext): TableValue = {
     val localRowType = typ.rowType

@@ -106,6 +106,8 @@ abstract sealed class MatrixIR extends BaseIR {
 case class MatrixLiteral(value: MatrixValue) extends MatrixIR {
   val typ: MatrixType = value.typ
 
+  override val rvRowPType: PStruct = value.rvd.rowPType
+
   def children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
   protected[ir] override def execute(hc: HailContext): MatrixValue = value
@@ -333,6 +335,8 @@ case class MatrixRead(
   dropCols: Boolean,
   dropRows: Boolean,
   reader: MatrixReader) extends MatrixIR {
+
+  override lazy val rvRowPType: PStruct = typ.rvRowType.physicalType // FIXME: Canonical() when that arrives
 
   def children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
