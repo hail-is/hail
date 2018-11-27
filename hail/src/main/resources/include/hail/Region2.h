@@ -4,7 +4,6 @@
 #include <memory>
 #include <vector>
 #include <utility>
-#include "hail/Upcalls.h"
 #include "hail/NativeStatus.h"
 
 namespace hail {
@@ -60,6 +59,20 @@ class RegionPool {
         Region(Region &&pool) = delete;
         Region& operator=(Region pool) = delete;
         void clear();
+        void align(size_t a) {
+          block_offset_ = (block_offset_ + a-1) & ~(a-1);
+        }
+
+        char* allocate(size_t n) {
+          if (block_offset_ + n <= block_size) {
+            char* p = (current_block_.get() + block_offset_);
+            block_offset_ += n;
+            return p;
+          } else {
+            return (n <= block_threshold) ? allocate_new_block(n) : allocate_big_chunk(n);
+          }
+        }
+
         char * allocate(size_t alignment, size_t n) {
           size_t aligned_off = (block_offset_ + alignment - 1) & ~(alignment - 1);
           if (aligned_off + n <= block_size) {

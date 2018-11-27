@@ -34,7 +34,6 @@ OBJECTS := \
   NativeStatus \
   ObjectArray \
   PartitionIterators \
-  Region \
   Region2 \
   Upcalls \
 

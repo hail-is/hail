@@ -1,20 +1,13 @@
 package is.hail.annotations
 
-import java.io.{ObjectInputStream, ObjectOutputStream}
-import java.util
-
-import com.esotericsoftware.kryo.io.{Input, Output}
-import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
-import is.hail.expr.types._
 import is.hail.expr.types.physical._
 import is.hail.utils._
 import is.hail.nativecode._
-import sun.reflect.generics.reflectiveObjects.NotImplementedException
+
+import scala.collection.mutable
 
 object Region {
-  def apply(sizeHint: Long = 128): Region = {
-    new Region()
-  }
+  def apply(sizeHint: Long = 128): Region = new Region()
 
   def scoped[T](f: Region => T): T =
     using(Region())(f)
@@ -32,8 +25,8 @@ object Region {
 //    within-Region references to/from absolute addresses.
 
 final class Region() extends NativeBase() {
-  @native def nativeCtor(): Unit
-  nativeCtor()
+  @native def nativeCtor(p: RegionPool): Unit
+  nativeCtor(RegionPool.get)
   
   def this(b: Region) {
     this()
@@ -266,4 +259,26 @@ final class Region() extends NativeBase() {
     "FIXME: implement prettyBits on Region"
   }
 
+}
+
+object RegionPool {
+  private val pools = new mutable.HashMap[Long, (Object, RegionPool)]()
+
+  private val contextLock = new Object()
+
+  private val theRegionPool: RegionPool = new RegionPool()
+
+  def get: RegionPool = {
+    val (contextLock, rp) = pools.getOrElseUpdate(Thread.currentThread().getId(), (new Object, new RegionPool()))
+
+    contextLock.synchronized {
+      rp
+    }
+  }
+}
+
+class RegionPool() extends NativeBase() {
+  var i = 0
+  @native def nativeCtor(): Unit
+  nativeCtor()
 }

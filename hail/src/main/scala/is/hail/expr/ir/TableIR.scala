@@ -1013,7 +1013,7 @@ case class TableKeyByAndAggregate(
       .boundary
       .mapPartitionsWithIndex { (i, ctx, it) =>
         val rvb = new RegionValueBuilder()
-        val partRegion = ctx.freshContext.region
+        val partRegion = ctx.freshRegion
 
         rvb.set(partRegion)
         rvb.start(globalsType.physicalType)
@@ -1046,7 +1046,7 @@ case class TableKeyByAndAggregate(
         val region = ctx.region
 
         val rvb = new RegionValueBuilder()
-        val partRegion = ctx.freshContext.region
+        val partRegion = ctx.freshRegion
         rvb.set(partRegion)
         rvb.start(globalsType.physicalType)
         rvb.addAnnotation(globalsType, globalsBc.value)
@@ -1144,7 +1144,7 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
       .boundary
       .mapPartitionsWithIndex(newRVDType, { (i, ctx, it) =>
         val rvb = new RegionValueBuilder()
-        val partRegion = ctx.freshContext.region
+        val partRegion = ctx.freshRegion
 
         rvb.set(partRegion)
         rvb.start(globalsType.physicalType)

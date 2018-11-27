@@ -1398,13 +1398,12 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     val newRDD = RepartitionedOrderedRDD2(rvd, adjBounds).cmapPartitionsWithIndex { (i, context, it) =>
       val bit = it.buffered
-      val newContext = context.freshContext
 
       val rb = new mutable.ArrayStack[Region]()
 
       def fetchRegion(): Region = {
         if (rb.isEmpty)
-          newContext.freshRegion
+          context.freshRegion
         else
           rb.pop()
       }

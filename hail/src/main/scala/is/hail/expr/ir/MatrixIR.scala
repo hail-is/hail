@@ -556,7 +556,7 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, entryExpr: IR, rowExpr: IR)
       .boundary
       .mapPartitionsWithIndex(typ.canonicalRVDType, { (i, ctx, it) =>
         val rvb = new RegionValueBuilder()
-        val partRegion = ctx.freshContext.region
+        val partRegion = ctx.freshRegion
 
         rvb.set(partRegion)
         rvb.start(localGlobalsType.physicalType)
@@ -977,7 +977,7 @@ case class MatrixAggregateColsByKey(child: MatrixIR, entryExpr: IR, colExpr: IR)
     val mapPartitionF = { (i: Int, ctx: RVDContext, it: Iterator[RegionValue]) =>
       val rvb = new RegionValueBuilder()
 
-      val partitionRegion = ctx.freshContext.region
+      val partitionRegion = ctx.freshRegion
 
       rvb.set(partitionRegion)
       rvb.start(oldGlobalsType.physicalType)
@@ -1223,7 +1223,7 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
         prev.rvd.collectPerPartition { (i, ctx, it) =>
           val globals = if (scanSeqNeedsGlobals) {
             val rvb = new RegionValueBuilder()
-            val partRegion = ctx.freshContext.region
+            val partRegion = ctx.freshRegion
             rvb.set(partRegion)
             rvb.start(localGlobalsType.physicalType)
             rvb.addAnnotation(localGlobalsType, globalsBc.value)
@@ -1250,7 +1250,7 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
       val partitionAggs = scanAggsPerPartition(i)
       val rvb = new RegionValueBuilder()
       val newRV = RegionValue()
-      val partRegion = ctx.freshContext.region
+      val partRegion = ctx.freshRegion
 
       rvb.set(partRegion)
       val globals = if (rowIterationNeedsGlobals) {
