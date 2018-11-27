@@ -189,6 +189,7 @@ class TableIRTests(unittest.TestCase):
 
         matrix_irs = [
             ir.MatrixUnionRows(ir.MatrixRange(5, 5, 1), ir.MatrixRange(5, 5, 1)),
+            ir.MatrixDistinctByRow(ir.MatrixRange(5, 5, 1)),
             ir.CastTableToMatrix(
                 ir.CastMatrixToTable(matrix_read, '__entries', '__cols'),
                 '__entries',

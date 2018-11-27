@@ -574,6 +574,8 @@ object PruneDeadFields {
         memoizeMatrixIR(child, dep, memo)
       case MatrixUnionRows(children) =>
         children.foreach(memoizeMatrixIR(_, requestedType, memo))
+      case MatrixDistinctByRow(child) =>
+        memoizeMatrixIR(child, requestedType, memo)
       case CastTableToMatrix(child, entriesFieldName, colsFieldName, _) =>
         val m = Map(MatrixType.entriesIdentifier -> entriesFieldName)
         val childDep = child.typ.copy(

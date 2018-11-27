@@ -628,8 +628,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   def forceCountCols(): Long = colValues.value.length
 
   def distinctByRow(): MatrixTable =
-    copy2(rvd = rvd.boundary.mapPartitions(rvd.typ,
-      SortedDistinctRowIterator.transformer(rvd.typ)))
+    copyAST(ast = MatrixDistinctByRow(ast))
 
   def distinctByCol(): MatrixTable = {
     val colKeys = dropRows().colKeys

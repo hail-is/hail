@@ -161,6 +161,8 @@ object LowerMatrixIR {
       // FIXME: this should check that all children have the same column keys.
       TableUnion(children.map(lower))
 
+    case MatrixDistinctByRow(child) => TableDistinct(lower(child))
+
     case MatrixCollectColsByKey(child) =>
       lower(child)
         .mapGlobals('global.insertFields('newColIdx ->
