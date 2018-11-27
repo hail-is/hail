@@ -4,7 +4,8 @@ import is.hail.SparkSuite
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.types._
 import is.hail.expr.types.virtual.{TArray, TInt32, TString, TStruct, TFloat64}
-import is.hail.rvd.{RVD, RVDPartitioner}
+import is.hail.rvd.{RVD, RVDContext, RVDPartitioner}
+import is.hail.sparkextras.ContextRDD
 import is.hail.table.Table
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -245,6 +246,18 @@ class TableIRSuite extends SparkSuite {
         joinType, 1))
       .rdd.collect()
     assert(joined sameElements expected.filter(pred).map(joinProjectF))
+  }
+
+  @Test def testTableKeyBy() {
+    val data = Array(Array("A", 1), Array("A", 2), Array("B", 1))
+    val rdd = sc.parallelize(data.map(Row.fromSeq(_)))
+    val signature = TStruct(("field1", TString()), ("field2", TInt32()))
+    val keyNames = IndexedSeq("field1", "field2")
+    val kt = Table(hc, rdd, signature, keyNames)
+    val distinct = Interpret(TableDistinct(TableLiteral(
+      kt.value.copy(typ = kt.typ.copy(key = IndexedSeq("field1")))
+    ))).rdd.collect()
+    assert(distinct.length == 2)
   }
 
   @Test def testShuffleAndJoinDoesntMemoryLeak() {
