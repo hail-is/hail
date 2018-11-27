@@ -7,6 +7,7 @@ import is.hail.table.Table
 import is.hail.utils._
 import is.hail.TestUtils._
 import is.hail.expr.types.virtual._
+import is.hail.io.CodecSpec
 import is.hail.variant.MatrixTable
 import org.apache.spark.SparkException
 import org.apache.spark.sql.Row
@@ -252,5 +253,24 @@ class MatrixIRSuite extends SparkSuite {
       MakeStruct(FastIndexedSeq("bar" -> IRAggCount))
     )
     assert(Interpret(m).rowsRVD().count() == 3)
+  }
+
+  @Test def testMatrixRepartition() {
+    val range = MatrixTable.range(hc, 11, 3, Some(10)).ast
+
+    val params = Array(
+      1 -> true,
+      1 -> false,
+      5 -> true,
+      5 -> false,
+      10 -> true,
+      10 -> false
+    )
+    params.foreach { case (n, shuffle) =>
+      val rvd = Interpret(MatrixRepartition(range, n, shuffle), optimize = false).rvd
+      assert(rvd.getNumPartitions == n, n -> shuffle)
+      val values =rvd.collect(CodecSpec.default).map(r => r.getAs[Int](0))
+      assert(values.isSorted && values.length == 11, n -> shuffle)
+    }
   }
 }

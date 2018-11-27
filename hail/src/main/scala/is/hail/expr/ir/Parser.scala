@@ -968,6 +968,9 @@ object IRParser {
       case "MatrixCollectColsByKey" =>
         val child = matrix_ir(env)(it)
         MatrixCollectColsByKey(child)
+      case "MatrixRepartition" =>
+        val child = matrix_ir(env)(it)
+        MatrixRepartition(child, int32_literal(it), boolean_literal(it))
       case "MatrixUnionRows" =>
         val children = matrix_ir_children(env)(it)
         MatrixUnionRows(children)
