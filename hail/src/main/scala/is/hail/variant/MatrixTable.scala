@@ -1144,15 +1144,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   }
 
   def write(path: String, overwrite: Boolean = false, stageLocally: Boolean = false, codecSpecJSONStr: String = null) {
-    ir.Interpret(ir.MatrixWrite(ast, _.write(path, overwrite, stageLocally, codecSpecJSONStr)))
-  }
-
-  def exportPlink(path: String) {
-    ir.Interpret(ir.MatrixWrite(ast, (mv: MatrixValue) => ExportPlink(mv, path)))
-  }
-
-  def exportGen(path: String, precision: Int = 4) {
-    ir.Interpret(ir.MatrixWrite(ast, (mv: MatrixValue) => ExportGen(mv, path, precision)))
+    ir.Interpret(ir.MatrixWrite(ast, MatrixNativeWriter(path, overwrite, stageLocally, codecSpecJSONStr)))
   }
 
   def trioMatrix(pedigree: Pedigree, completeTrios: Boolean): MatrixTable = {

@@ -26,6 +26,9 @@ class ValueIRTests(unittest.TestCase):
 
         table = ir.TableRange(5, 3)
 
+        matrix_read = ir.MatrixRead(
+            resource('backward_compatability/1.0.0/matrix_table/0.hmt'), False, False)
+
         value_irs = [
             i, ir.I64(5), ir.F32(3.14), ir.F64(3.14), s, ir.TrueIR(), ir.FalseIR(), ir.Void(),
             ir.Cast(i, hl.tfloat64),
@@ -79,6 +82,10 @@ class ValueIRTests(unittest.TestCase):
             ir.TableCount(table),
             ir.TableAggregate(table, ir.MakeStruct([('foo', ir.ApplyAggOp('Collect', [], None, [ir.I32(0)]))])),
             ir.TableWrite(table, new_temp_file(), False, True, "fake_codec_spec$$"),
+            ir.MatrixWrite(matrix_read, ir.MatrixNativeWriter(new_temp_file(), False, False, "")),
+            ir.MatrixWrite(matrix_read, ir.MatrixVCFWriter(new_temp_file(), None, False, None)),
+            ir.MatrixWrite(matrix_read, ir.MatrixGENWriter(new_temp_file(), 4)),
+            ir.MatrixWrite(matrix_read, ir.MatrixPLINKWriter(new_temp_file())),
         ]
 
         return value_irs

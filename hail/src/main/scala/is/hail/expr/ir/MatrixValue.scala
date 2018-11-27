@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.types.physical.{PArray, PStruct, PType}
-import is.hail.expr.types.virtual.{TArray, TInt32, TStruct, Type}
+import is.hail.expr.types.virtual._
 import is.hail.expr.types.{MatrixType, TableType}
 import is.hail.io.CodecSpec
 import is.hail.rvd.{AbstractRVDSpec, RVD, RVDType, _}
@@ -33,6 +33,39 @@ case class MatrixValue(
     def sampleIds: IndexedSeq[Row] = {
       val queriers = typ.colKey.map(field => typ.colType.query(field))
       colValues.value.map(a => Row.fromSeq(queriers.map(_ (a))))
+    }
+
+    def stringSampleIds: IndexedSeq[String] = {
+      val colKeyTypes = typ.colKeyStruct.types
+      assert(colKeyTypes.length == 1 && colKeyTypes(0).isInstanceOf[TString], colKeyTypes.toSeq)
+      val querier = typ.colType.query(typ.colKey(0))
+      colValues.value.map(querier(_).asInstanceOf[String])
+    }
+
+    def requireRowKeyVariant(method: String) {
+      val rowKeyTypes = typ.rowKeyStruct.types
+      typ.rowKey.zip(rowKeyTypes) match {
+        case IndexedSeq(("locus", TLocus(_, _)), ("alleles", TArray(TString(_), _))) =>
+        case _ =>
+          fatal(s"in $method: row key must be ('locus' (type 'locus'), 'alleles': (type 'array<str>'), found: ${
+            typ.rowKey.zip(rowKeyTypes).mkString(", ")
+          }")
+      }
+    }
+
+    def requireColKeyString(method: String) {
+      typ.colKeyStruct.types match {
+        case Array(_: TString) =>
+        case t =>
+          fatal(s"in $method: column key must be type 'str', found: ${t.mkString("[",",","]")}")
+      }
+    }
+
+    def referenceGenome: ReferenceGenome = {
+      val firstKeyField = typ.rowKeyStruct.types(0)
+      firstKeyField match {
+        case TLocus(rg: ReferenceGenome, _) => rg
+      }
     }
 
     def colsTableValue: TableValue = TableValue(typ.colsTableType, globals, colsRVD())

@@ -733,6 +733,12 @@ object IRParser {
         val codecSpecJsonStr = opt(it, string_literal)
         val child = table_ir(env)(it)
         TableWrite(child, path, overwrite, shuffleLocally, codecSpecJsonStr.orNull)
+      case "MatrixWrite" =>
+        val writerStr = string_literal(it)
+        implicit val formats = MatrixWriter.formats
+        val writer = Serialization.read[MatrixWriter](writerStr)
+        val child = matrix_ir(env)(it)
+        MatrixWrite(child, writer)
       case "JavaIR" =>
         val name = identifier(it)
         env.irMap(name).asInstanceOf[IR]

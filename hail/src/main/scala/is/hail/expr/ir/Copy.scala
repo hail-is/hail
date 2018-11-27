@@ -151,9 +151,9 @@ object Copy {
         val IndexedSeq(fn: IR, min: IR, max: IR) = newChildren
         Uniroot(argname, fn, min, max)
       // from MatrixIR
-      case MatrixWrite(_, f) =>
+      case MatrixWrite(_, writer) =>
         val IndexedSeq(child: MatrixIR) = newChildren
-        MatrixWrite(child, f)
+        MatrixWrite(child, writer)
       // from TableIR
       case TableCount(_) =>
         val IndexedSeq(child: TableIR) = newChildren
