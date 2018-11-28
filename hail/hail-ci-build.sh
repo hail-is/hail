@@ -70,7 +70,7 @@ on_exit() {
     cp ${PIP_PACKAGE_LOG} ${ARTIFACTS}
     cp -R build/www ${ARTIFACTS}/www
     cp -R build/reports/scala-tests ${ARTIFACTS}/test-report
-    cp -R build/reports/tests ${ARTIFACTS}/cpp-codegen-report
+    cp -R build/reports/tests ${ARTIFACTS}/codegen-test-report
     cp -R build/reports/pytest.html ${ARTIFACTS}/hail-python-test.html
 
     COMP_STATUS=$(get_status "${COMP_SUCCESS}")
