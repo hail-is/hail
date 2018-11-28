@@ -2319,3 +2319,6 @@ class Tests(unittest.TestCase):
         hl.tuple((mt.AD, mt.PL)).show()
         hl.array([mt.AD, mt.PL]).show()
         hl.array([mt.AD, [1,2]]).show()
+
+    def test_string_unicode(self):
+        self.assertTrue(hl.eval(hl.str("李") == "李"))
