@@ -3,6 +3,7 @@ package is.hail.io
 import is.hail.{SparkSuite, TestUtils}
 import is.hail.io.tabix._
 import is.hail.testUtils._
+import is.hail.utils.SerializableHadoopConfiguration
 
 import htsjdk.tribble.readers.{TabixReader => HtsjdkTabixReader}
 
@@ -15,6 +16,7 @@ class TabixSuite extends SparkSuite {
   val vcfGzTbiFile = vcfGzFile + ".tbi"
 
   lazy val reader = new TabixReader(vcfGzFile)
+  lazy val serHdConf = new SerializableHadoopConfiguration(hc.hadoopConf)
 
   @BeforeTest def initialize() {
     hc // reference to initialize
@@ -51,7 +53,7 @@ class TabixSuite extends SparkSuite {
     for (chr <- Seq("1", "19", "X")) {
       val tid = reader.chr2tid(chr)
       val pairs = reader.queryPairs(tid, 1, 400);
-      val hailIter = new TabixLineIterator(reader.filePath, pairs)
+      val hailIter = new TabixLineIterator(serHdConf, reader.filePath, pairs)
       val htsIter = htsjdkrdr.query(chr, 1, 400);
       val hailStr = hailIter.next()
       val htsStr = htsIter.next()
@@ -63,7 +65,7 @@ class TabixSuite extends SparkSuite {
     for (chr <- Seq("1", "19", "X")) {
       val tid = reader.chr2tid(chr)
       val pairs = reader.queryPairs(tid, 400, 400);
-      val hailIter = new TabixLineIterator(reader.filePath, pairs)
+      val hailIter = new TabixLineIterator(serHdConf, reader.filePath, pairs)
       val htsIter = htsjdkrdr.query(chr, 400, 400);
       val hailStr = hailIter.next()
       val htsStr = htsIter.next()
@@ -79,13 +81,15 @@ class TabixSuite extends SparkSuite {
     val hailrdr = new TabixReader(vcfFile)
     val tid = hailrdr.chr2tid(chr)
 
-    // One approximate interval, one (almost) exact interval, there is a slight difference in
-    // behavior between htsjdk and hail in that htsjdk will query the half closed interval
-    // (beg,end], whereas hail will query the closed interval [beg,end]
-    for ((start, end) <- Seq(10570000 -> 13000000, 10019092 -> 16360860)) {
+    for ((start, end, fixup) <-
+         Seq((10570000, 13000000, false), // Open interval
+            (10019093, 16360860, true),   // Closed interval
+            (11000000, 13029764, false),  // Half open (beg, end]
+            (17434340, 18000000, true)    // Half open [beg, end)
+          )) {
       val pairs = hailrdr.queryPairs(tid, start, end)
-      val htsIter = htsjdkrdr.query(chr, start, end)
-      val hailIter = new TabixLineIterator(hailrdr.filePath, pairs)
+      val htsIter = htsjdkrdr.query(chr, start - (if (fixup) 1 else 0), end)
+      val hailIter = new TabixLineIterator(serHdConf, hailrdr.filePath, pairs)
       var hailStr = hailIter.next()
       while (hailStr != null) {
         val htsStr = htsIter.next()

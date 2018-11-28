@@ -306,10 +306,14 @@ class TabixReader(val filePath: String, private val idxFilePath: Option[String] 
   }
 }
 
-class TabixLineIterator(private val filePath: String, private val offsets: Array[TbiPair])
+class TabixLineIterator(
+  private val serHadoopConf: SerializableHadoopConfiguration,
+  private val filePath: String,
+  private val offsets: Array[TbiPair]
+)
   extends java.lang.AutoCloseable
 {
-  private val hConf = HailContext.get.sc.hadoopConfiguration
+  private val hConf = serHadoopConf.value
   private var i: Int = -1
   private var curOff: Long = 0 // virtual file offset, not real offset
   private var isEof = false
