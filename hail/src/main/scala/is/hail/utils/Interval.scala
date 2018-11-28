@@ -2,15 +2,13 @@ package is.hail.utils
 
 import is.hail.annotations._
 import is.hail.check._
-import is.hail.expr.Parser
-import is.hail.expr.types.virtual.{TBoolean, TStruct}
+import is.hail.expr.ir.IRParser
+import is.hail.expr.types.virtual.TBoolean
 import org.apache.spark.sql.Row
 import org.json4s.JValue
 import org.json4s.JsonAST.JObject
 
-import scala.collection.mutable
 import scala.language.implicitConversions
-import scala.reflect.ClassTag
 
 case class IntervalEndpoint(point: Any, sign: Int) extends Serializable {
   require(-1 <= sign && sign <= 1)
@@ -65,7 +63,7 @@ class Interval(val left: IntervalEndpoint, val right: IntervalEndpoint) extends 
     ext(pord).lt(left, p) && ext(pord).gt(right, p)
 
   def contains(t: String, p: Any): Boolean = {
-    val pord = Parser.parseType(t).ordering
+    val pord = IRParser.parseType(t).ordering
     contains(pord, p)
   }
 
@@ -73,7 +71,7 @@ class Interval(val left: IntervalEndpoint, val right: IntervalEndpoint) extends 
     ext(pord).lteq(this.left, other.left) && ext(pord).gteq(this.right, other.right)
 
   def includes(t: String, other: Interval): Boolean = {
-    val pord = Parser.parseType(t).ordering
+    val pord = IRParser.parseType(t).ordering
     includes(pord, other)
   }
 

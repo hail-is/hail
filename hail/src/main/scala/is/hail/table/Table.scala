@@ -390,7 +390,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
   }
 
   def annotateGlobal(a: Annotation, t: String, name: String): Table =
-    annotateGlobal(a, Parser.parseType(t), name)
+    annotateGlobal(a, IRParser.parseType(t), name)
 
   def selectGlobal(expr: String): Table = {
     val ir = IRParser.parse_value_ir(expr, IRParserEnvironment(typ.refMap))

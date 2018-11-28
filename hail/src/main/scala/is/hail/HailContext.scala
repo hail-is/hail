@@ -5,7 +5,7 @@ import java.util.Properties
 
 import is.hail.annotations._
 import is.hail.expr.Parser
-import is.hail.expr.ir.MatrixRead
+import is.hail.expr.ir.{IRParser, MatrixRead}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual._
@@ -508,7 +508,7 @@ class HailContext private(val sc: SparkContext,
     forceBGZ: Boolean
   ): Table = importTables(inputs.asScala,
     Option(keyNames).map(_.asScala.toFastIndexedSeq),
-    if (nPartitions == null) None else Some(nPartitions), types.asScala.toMap.mapValues(Parser.parseType), comment.asScala.toArray,
+    if (nPartitions == null) None else Some(nPartitions), types.asScala.toMap.mapValues(IRParser.parseType), comment.asScala.toArray,
     separator, missing, noHeader, impute, quote, skipBlankLines, forceBGZ)
 
   def importTable(input: String,
@@ -701,8 +701,8 @@ class HailContext private(val sc: SparkContext,
     noHeader: Boolean,
     forceBGZ: Boolean,
     sep: String = "\t"): MatrixTable =
-    importMatrices(files.asScala, rowFields.asScala.toMap.mapValues(Parser.parseType), keyNames.asScala.toArray,
-      Parser.parseType(cellType), missingVal, minPartitions, noHeader, forceBGZ, sep)
+    importMatrices(files.asScala, rowFields.asScala.toMap.mapValues(IRParser.parseType), keyNames.asScala.toArray,
+      IRParser.parseType(cellType), missingVal, minPartitions, noHeader, forceBGZ, sep)
 
   def importMatrices(files: Seq[String],
     rowFields: Map[String, Type],
