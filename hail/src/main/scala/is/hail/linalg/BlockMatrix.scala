@@ -265,7 +265,7 @@ object BlockMatrix {
                     k += 1
                   }
                   sb.append(data(n - 1))
-                  if (blockCol < stopBlockCol)
+                  if (blockCol < stopBlockCol - 1)
                     sb.append(delimiter)
                   else
                     sb.append("\n")
