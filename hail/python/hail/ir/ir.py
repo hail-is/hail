@@ -1124,7 +1124,7 @@ class Die(IR):
         return new_instance(self.message, self.typ)
 
     def render(self, r):
-        return '(Die {} "{}")'.format(self.typ._jtype.parsableString(), r(self.message))
+        return '(Die {} {})'.format(self.typ._jtype.parsableString(), r(self.message))
 
     def __eq__(self, other):
         return isinstance(other, Die) and \
