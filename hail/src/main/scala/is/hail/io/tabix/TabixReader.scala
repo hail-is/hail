@@ -116,7 +116,8 @@ class TabixReader(val filePath: String, private val idxFilePath: Option[String] 
     val colBeg = readInt(is)
     val colEnd = readInt(is)
     val meta = readInt(is)
-    assert(meta == '#') // meta char for VCF is '#'
+    // meta char for VCF is '#'
+    assert(meta == '#', s"Meta character was ${ meta }, should be '#' for VCF")
     val chr2tid = new HashMap[String, Int]()
     readInt(is) // unused, need to consume
 
@@ -174,8 +175,9 @@ class TabixReader(val filePath: String, private val idxFilePath: Option[String] 
     }
 
   // This method returns an array of tuples suitable to be passed to the constructor of
-  // TabixLineIterator. The arguments beg and end are endpoints to a closed interval of
-  // loci within tid.
+  // TabixLineIterator. The arguments beg and end are endpoints to an interval of loci within tid.
+  // The iterator returned will return all line with loci between beg and end inclusive, and may
+  // return slightly more data on either end due to the indexing being inexact.
   def queryPairs(tid: Int, beg: Int, end: Int): Array[TbiPair] = {
     if (tid < 0 || tid > index.indices.length) {
       new Array[TbiPair](0)
