@@ -69,6 +69,7 @@ class BinarySearch(mb: EmitMethodBuilder, typ: PContainer, keyOnly: Boolean) {
         low := i + 1)),
     low))
 
+  // check missingness of v before calling
   def getClosestIndex(array: Code[Long], m: Code[Boolean], v: Code[_]): Code[Int] = {
     val region = mb.getArg[Region](1).load()
     findElt.invoke(region, array, m, v)

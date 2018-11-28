@@ -1,17 +1,15 @@
 package is.hail.expr.ir
 
-import is.hail.asm4s._
 import is.hail.annotations._
 import is.hail.annotations.aggregators._
+import is.hail.asm4s._
 import is.hail.expr.ir.functions.MathFunctions
-import is.hail.expr.types._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.utils._
 
 import scala.collection.mutable
-import scala.language.existentials
-import scala.language.postfixOps
+import scala.language.{existentials, postfixOps}
 
 object Emit {
   type E = Env[(TypeInfo[_], Code[Boolean], Code[_])]
@@ -125,8 +123,7 @@ private class Emit(
 
   val methods: mutable.Map[String, Seq[(Seq[Type], EmitMethodBuilder)]] = mutable.Map().withDefaultValue(FastSeq())
 
-  import Emit.E
-  import Emit.F
+  import Emit.{E, F}
 
   class EmitMethodBuilderLike(val emit: Emit) extends MethodBuilderLike[EmitMethodBuilderLike] {
     type MB = EmitMethodBuilder
@@ -418,10 +415,17 @@ private class Emit(
         val e = emit(elem)
         val bs = new BinarySearch(mb, typ, keyOnly = onKey)
 
+        val localA = mb.newLocal[Long]()
+        val localElementMB = mb.newLocal[Boolean]()
+        val localElementValue = mb.newLocal()(typeToTypeInfo(elem.pType))
         EmitTriplet(
           Code(a.setup, e.setup),
           a.m,
-          bs.getClosestIndex(a.value[Long], e.m, e.v))
+          Code(
+            localA := a.value[Long],
+            localElementMB := e.m,
+            localElementMB.mux(localElementValue.storeAny(defaultValue(elem.pType)), localElementValue.storeAny(e.v)),
+            bs.getClosestIndex(localA, localElementMB, localElementValue)))
 
       case GroupByKey(collection) =>
         //sort collection by group
