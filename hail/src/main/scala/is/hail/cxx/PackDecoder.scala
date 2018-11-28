@@ -1,7 +1,5 @@
 package is.hail.cxx
 
-import java.io.PrintWriter
-
 import is.hail.expr.types.physical._
 import is.hail.io.{BufferSpec, NativeDecoderModule}
 
@@ -84,7 +82,7 @@ object PackDecoder {
     val len = Variable("len", "int", s"$input_buf_ptr->read_int()")
     val sab = new StagedContainerBuilder(fb, region.toString, rt)
     var decodeElt = decode(t.elementType, rt.elementType, input_buf_ptr, region, Expression(sab.eltOffset), fb)
-    if (rt.elementType.required)
+    if (!rt.elementType.required)
       decodeElt =
         s"""
            |if (!${ rt.cxxIsElementMissing(sab.end(), sab.idx) }) {
@@ -145,7 +143,7 @@ object PackDecoder {
            """.stripMargin
         if (!skipField)
           rtidx += 1
-        wrapMissing(s"$t_missing_bytes", tidx)(processField)
+        processField
       }.mkString("\n")
       if (t.nMissingBytes > 0) {
         s"""

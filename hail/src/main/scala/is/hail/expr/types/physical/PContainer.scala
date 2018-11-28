@@ -243,7 +243,7 @@ abstract class PContainer extends PType {
   }
 
   def cxxContentsByteSize(len: cxx.Code): cxx.Code = {
-    s"${ cxxElementsOffset(len) } + $len * ${ elementByteSize }"
+    s"${ cxxElementsOffset(len) } + $len * ${ UnsafeUtils.arrayElementSize(elementType) }"
   }
 
   def cxxElementsOffset(len: cxx.Code): cxx.Code = {
@@ -254,7 +254,7 @@ abstract class PContainer extends PType {
   }
 
   def cxxElementOffset(a: cxx.Code, i: cxx.Code): cxx.Code = {
-    s"$a + ${ cxxElementsOffset(cxxLoadLength(a)) } + $i * ${ elementByteSize }"
+    s"$a + ${ cxxElementsOffset(cxxLoadLength(a)) } + $i * ${ UnsafeUtils.arrayElementSize(elementType) }"
   }
 
   def cxxLoadElement(a: cxx.Code, i: cxx.Code): cxx.Code = {
