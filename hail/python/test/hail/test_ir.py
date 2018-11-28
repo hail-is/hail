@@ -85,7 +85,7 @@ class ValueIRTests(unittest.TestCase):
             ir.StringSlice(st, ir.I32(1), ir.I32(2)),
             ir.StringLength(st),
             ir.In(2, hl.tfloat64),
-            ir.Die('mumblefoo', hl.tfloat64),
+            ir.Die(ir.Str('mumblefoo'), hl.tfloat64),
             ir.Apply('&&', b, c),
             ir.Apply('toFloat64', i),
             ir.Uniroot('x', ir.F64(3.14), ir.F64(-5.0), ir.F64(5.0)),

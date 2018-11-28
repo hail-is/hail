@@ -99,7 +99,7 @@ object Children {
     case In(i, typ) =>
       none
     case Die(message, typ) =>
-      none
+      Array(message)
     case ApplyIR(_, args, _) =>
       args.toFastIndexedSeq
     case Apply(_, args) =>

@@ -226,7 +226,12 @@ final case class StringLength(s: IR) extends IR {
 
 final case class In(i: Int, typ: Type) extends IR
 // FIXME: should be type any
-final case class Die(message: String, typ: Type) extends IR
+
+object Die {
+  def apply(message: String, typ: Type): Die = Die(Str(message), typ)
+}
+
+final case class Die(message: IR, typ: Type) extends IR
 
 final case class ApplyIR(function: String, args: Seq[IR], conversion: Seq[IR] => IR) extends IR {
   lazy val explicitNode: IR = {

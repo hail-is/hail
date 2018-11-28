@@ -1,6 +1,6 @@
 from hail.typecheck import typecheck_method
 from hail.expr.expressions import unify_types, unify_types_limited, expr_any, \
-    expr_bool, ExpressionException, construct_expr
+    expr_bool, ExpressionException, construct_expr, expr_str
 from hail import ir
 
 
@@ -285,7 +285,7 @@ class CaseBuilder(ConditionalBuilder):
         from hail.expr.functions import null
         return self._finish(null(self._ret_type))
 
-    @typecheck_method(message=str)
+    @typecheck_method(message=expr_str)
     def or_error(self, message):
         """Finish the case statement by throwing an error with the given message.
 
