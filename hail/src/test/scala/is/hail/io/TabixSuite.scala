@@ -62,11 +62,27 @@ class TabixSuite extends SparkSuite {
     }
 
     // Out of range access
+    // NOTE: We use the larger interval for the htsjdk iterator because the
+    // hail iterator may return the one record that is contained in each of the
+    // chromosomes we check
     for (chr <- Seq("1", "19", "X")) {
       val tid = reader.chr2tid(chr)
-      val pairs = reader.queryPairs(tid, 400, 400);
+      val pairs = reader.queryPairs(tid, 350, 400);
       val hailIter = new TabixLineIterator(serHdConf, reader.filePath, pairs)
-      val htsIter = htsjdkrdr.query(chr, 400, 400);
+      val htsIter = htsjdkrdr.query(chr, 1, 400);
+      val hailStr = hailIter.next()
+      val htsStr = htsIter.next()
+      if (hailStr != null)
+        assert(hailStr == htsStr)
+      assert(hailIter.next() == null)
+    }
+
+    // beg == end
+    for (chr <- Seq("1", "19", "X")) {
+      val tid = reader.chr2tid(chr)
+      val pairs = reader.queryPairs(tid, 100, 100);
+      val hailIter = new TabixLineIterator(serHdConf, reader.filePath, pairs)
+      val htsIter = htsjdkrdr.query(chr, 100, 100);
       val hailStr = hailIter.next()
       val htsStr = htsIter.next()
       assert(hailStr == null)
@@ -81,28 +97,34 @@ class TabixSuite extends SparkSuite {
     val hailrdr = new TabixReader(vcfFile)
     val tid = hailrdr.chr2tid(chr)
 
-    for ((start, end, fixup) <-
+    for ((start, end) <-
       Seq(
-        (12990058, 12990059, false),  // Small interval, containing just one locus at end
-        (10570000, 13000000, false),  // Open interval
-        (10019093, 16360860, true),   // Closed interval
-        (11000000, 13029764, false),  // Half open (beg, end]
-        (17434340, 18000000, true),   // Half open [beg, end)
-        (13943975, 14733634, false),  // Random (half-)open intervals (beg, end) or (beg, end]
-        (11578765, 15291865, false),
-        (12703588, 16751726, false))) {
+        (12990058, 12990059),  // Small interval, containing just one locus at end
+        (10570000, 13000000),  // Open interval
+        (10019093, 16360860),  // Closed interval
+        (11000000, 13029764),  // Half open (beg, end]
+        (17434340, 18000000),  // Half open [beg, end)
+        (13943975, 14733634),  // Some random intervals
+        (11578765, 15291865),
+        (12703588, 16751726))) {
       val pairs = hailrdr.queryPairs(tid, start, end)
-      val htsIter = htsjdkrdr.query(chr, start - (if (fixup) 1 else 0), end)
+      val htsIter = htsjdkrdr.query(chr, start, end)
       val hailIter = new TabixLineIterator(serHdConf, hailrdr.filePath, pairs)
-      var hailStr = hailIter.next()
-      while (hailStr != null) {
-        val htsStr = htsIter.next()
-        assert(htsStr != null)
-        assert(htsStr == hailStr)
-
-        hailStr = hailIter.next()
+      var htsStr = htsIter.next()
+      var test = false
+      while (htsStr != null) {
+        val hailStr = hailIter.next()
+        println(s"hail   : $hailStr")
+        if (test) {
+          assert(hailStr == htsStr, s"\nhail   : $hailStr\nhtsjdk : $htsStr")
+          htsStr = htsIter.next()
+        } else if (hailStr == htsStr) {
+          htsStr = htsIter.next()
+          test = true
+        } else {
+          assert(hailStr != null)
+        }
       }
-      assert(htsIter.next() == null)
     }
   }
 }
