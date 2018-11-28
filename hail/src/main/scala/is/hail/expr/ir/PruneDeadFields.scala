@@ -572,6 +572,8 @@ object PruneDeadFields {
         val dep = requestedType.copy(colType = unify(child.typ.colType,
           requestedType.colType.insert(prunedPreExplosionFieldType, path.toList)._1.asInstanceOf[TStruct]))
         memoizeMatrixIR(child, dep, memo)
+      case MatrixRepartition(child, _, _) =>
+        memoizeMatrixIR(child, requestedType, memo)
       case MatrixUnionRows(children) =>
         children.foreach(memoizeMatrixIR(_, requestedType, memo))
       case MatrixDistinctByRow(child) =>

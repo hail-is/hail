@@ -1202,8 +1202,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def entriesTable(): Table = new Table(hc, MatrixEntriesTable(ast))
 
-  def coalesce(k: Int, shuffle: Boolean = true): MatrixTable = copy2(rvd = rvd.coalesce(k, shuffle))
-
   def persist(storageLevel: String = "MEMORY_AND_DISK"): MatrixTable = {
     val level = try {
       StorageLevel.fromString(storageLevel)

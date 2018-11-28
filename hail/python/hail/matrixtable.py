@@ -536,18 +536,18 @@ class MatrixTable(ExprContainer):
     >>> print(entry_stats.call_rate)
     >>> print(entry_stats.global_gq_mean)
     """
-    
+
     @staticmethod
     def _from_java(jmt):
         return MatrixTable(JavaMatrix(jmt.ast()))
 
     def __init__(self, mir):
         super(MatrixTable, self).__init__()
-        
+
         self._mir = mir
         self._jmir = mir.to_java_ir()
         self._jmt = Env.hail().variant.MatrixTable(Env.hc()._jhc, self._jmir)
-        
+
         jmtype = self._jmir.typ()
 
         self._globals = None
@@ -776,8 +776,8 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
         """
         key_fields = get_select_exprs("MatrixTable.key_cols_by",
-                                keys, named_keys, self._col_indices,
-                                protect_keys=False)
+                                      keys, named_keys, self._col_indices,
+                                      protect_keys=False)
         return self._select_cols("MatrixTable.key_cols_by",
                                  self.col.annotate(**key_fields),
                                  new_key=list(key_fields.keys()))
@@ -821,8 +821,8 @@ class MatrixTable(ExprContainer):
         """
 
         key_fields = get_select_exprs("MatrixTable.key_rows_by",
-                             keys, named_keys, self._row_indices,
-                             protect_keys=False)
+                                      keys, named_keys, self._row_indices,
+                                      protect_keys=False)
 
         new_row = self._rvrow.annotate(**key_fields)
         base, cleanup = self._process_joins(new_row)
@@ -1130,8 +1130,8 @@ class MatrixTable(ExprContainer):
             MatrixTable with specified row fields.
         """
         row = get_select_exprs("MatrixTable.select_rows",
-                                     exprs, named_exprs, self._row_indices,
-                                     protect_keys=True)
+                               exprs, named_exprs, self._row_indices,
+                               protect_keys=True)
         return self._select_rows('MatrixTable.select_rows', self.row_key.annotate(**row))
 
     def select_cols(self, *exprs, **named_exprs) -> 'MatrixTable':
@@ -1177,8 +1177,8 @@ class MatrixTable(ExprContainer):
             MatrixTable with specified column fields.
         """
         col = get_select_exprs("MatrixTable.select_cols",
-                                     exprs, named_exprs, self._col_indices,
-                                     protect_keys=True)
+                               exprs, named_exprs, self._col_indices,
+                               protect_keys=True)
         return self._select_cols('MatrixTable.select_cols', self.col_key.annotate(**col))
 
     def select_entries(self, *exprs, **named_exprs) -> 'MatrixTable':
@@ -1217,8 +1217,8 @@ class MatrixTable(ExprContainer):
             MatrixTable with specified entry fields.
         """
         entry = get_select_exprs("MatrixTable.select_entries",
-                                       exprs, named_exprs, self._entry_indices,
-                                       protect_keys=True)
+                                 exprs, named_exprs, self._entry_indices,
+                                 protect_keys=True)
         return self._select_entries("MatrixTable.select_entries", hl.struct(**entry))
 
     @typecheck_method(exprs=oneof(str, Expression))
@@ -2759,8 +2759,7 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
             Repartitioned dataset.
         """
-        jmt = self._jmt.coalesce(n_partitions, shuffle)
-        return MatrixTable._from_java(jmt)
+        return MatrixTable(MatrixRepartition(self._mir, n_partitions, shuffle))
 
     @typecheck_method(max_partitions=int)
     def naive_coalesce(self, max_partitions: int) -> 'MatrixTable':
