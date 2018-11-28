@@ -17,7 +17,6 @@ object CXXRegionValueIterator {
   def apply(itClass: TranslationUnitBuilder => Class): (Region, AnyRef) => StagingIterator[RegionValue] = {
     val tub = new TranslationUnitBuilder()
     val cls = itClass(tub)
-    tub += cls
     tub.include("hail/ObjectArray.h")
 
     val st = Variable("st", "NativeStatus *")
@@ -37,7 +36,7 @@ object CXXRegionValueIterator {
          |return (*it == nullptr) ? 0 : 1;
        """.stripMargin)
 
-    val mod = tub.result().build("-O1 -llz4")
+    val mod = tub.end().build("-O1 -llz4")
     val key = mod.getKey
     val bin = mod.getBinary
 

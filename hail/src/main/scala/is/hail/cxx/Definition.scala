@@ -1,10 +1,10 @@
 package is.hail.cxx
 
+import is.hail.cxx
 import is.hail.utils.ArrayBuilder
 
 trait Definition {
   def name: String
-  def typ: String
   def define: Code
 }
 
@@ -53,28 +53,18 @@ class Function(returnType: Type, val name: String, args: Array[Variable], body: 
   def define: Code = s"$returnType $name(${args.map(a => s"${a.typ} ${a.name}").mkString(", ")}) {\n$body\n}"
 }
 
-object FunctionBuilder {
-
-  def apply(prefix: String, args: Array[(Type, String)], returnType: Type): FunctionBuilder =
-    new FunctionBuilder(
-      prefix,
-      args.map { case (typ, p) => new Variable(p, typ, null) },
-      returnType)
-
-  def apply(prefix: String, argTypes: Array[Type], returnType: Type): FunctionBuilder =
-    apply(prefix, argTypes.map(_ -> genSym("arg")), returnType)
-}
-
-class FunctionBuilder(prefix: String, args: Array[Variable], returnType: Type) {
+class FunctionBuilder(val parent: ScopeBuilder, prefix: String, args: Array[Variable], returnType: Type)
+  extends DefinitionBuilder[Function] {
 
   val statements: ArrayBuilder[Code] = new ArrayBuilder[Code]()
 
-  def +=(statement: Code) =
+  def +=(statement: Code) {
     statements += statement
+  }
 
   def getArg(i: Int): Variable = args(i)
 
-  def result(): Function = new Function(returnType, prefix, args, statements.result().mkString("\n"))
+  def build(): Function = new Function(returnType, prefix, args, statements.result().mkString("\n"))
 
   def defaultReturn: Code = {
     if (returnType == "long")
@@ -90,48 +80,25 @@ class FunctionBuilder(prefix: String, args: Array[Variable], returnType: Type) {
 
 }
 
-class Class(val name: String, superClass: String, privateDefs: Array[Definition], publicDefs: Array[Definition]) extends Definition {
+class Class(val name: String, superClass: String, definitions: Array[Code]) extends Definition {
   def typ: Type = name
 
   override def toString: Type = name
 
-  def addSuperclass(newSuper: String): Class = new Class(name, newSuper, privateDefs, publicDefs)
+  def addSuperclass(newSuper: String): Class = new Class(name, newSuper, definitions)
 
   def define: Code =
     s"""class $name${ if (superClass == null) "" else s" : public $superClass" } {
-       |  private:
-       |    ${ privateDefs.map(_.define).mkString("\n") }
        |  public:
-       |    ${ publicDefs.map(_.define).mkString("\n") }
+       |    ${ definitions.mkString("\n") }
        |};
      """.stripMargin
 }
 
-class ClassBuilder(val name: String, superClass: String = null) {
-  private[this] val privateDefs = new ArrayBuilder[Definition]()
-  private[this] val publicDefs = new ArrayBuilder[Definition]()
+class ClassBuilder(val parent: ScopeBuilder, val name: String, superClass: String = null)
+  extends ScopeBuilder with DefinitionBuilder[Class] {
+  def build(): Class = new Class(name, superClass, definitions.result())
 
-  def +=(d: Definition) { publicDefs += d }
-
-  def addPrivate(d: Definition) { privateDefs += d }
-
-  def result(): Class = new Class(name, superClass, privateDefs.result(), publicDefs.result())
-
-  def addConstructor(definition: Code) {
-    val className = name
-    publicDefs += new Definition {
-      def name: String = className
-      def typ: Type = name
-      def define: Code = definition
-    }
-  }
-
-  def addDestructor(definition: Code) {
-    val className = name
-    publicDefs += new Definition {
-      def name: String = className
-      def typ: Type = name
-      def define: Code = definition
-    }
-  }
+  def buildMethod(prefix: String, args: Array[(cxx.Type, String)], returnType: Type): FunctionBuilder =
+    new FunctionBuilder(this, prefix, args.map { case (typ, p) => new Variable(p, typ, null) }, returnType)
 }

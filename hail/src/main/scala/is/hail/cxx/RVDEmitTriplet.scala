@@ -91,7 +91,7 @@ object RVDEmitTriplet {
          |return $nRows;
        """.stripMargin)
 
-    val mod = tub.result().build("-O2 -llz4")
+    val mod = tub.end().build("-O2 -llz4")
     val modKey = mod.getKey
     val modBinary = mod.getBinary
 

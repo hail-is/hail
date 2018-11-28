@@ -1,5 +1,7 @@
 package is.hail.cxx
 
+import java.io.PrintWriter
+
 import is.hail.expr.ir
 import is.hail.expr.types.physical._
 import is.hail.nativecode.{NativeLongFuncL2, NativeModule, NativeStatus}
@@ -17,7 +19,17 @@ object Compile {
     assert(ir.TypeToIRIntermediateClassTag(returnType.virtualType) == classTag[Long])
     assert(returnType.isInstanceOf[PBaseStruct])
 
-    val fb = FunctionBuilder("f",
+    val tub = new TranslationUnitBuilder
+
+    tub.include("hail/hail.h")
+    tub.include("hail/Utils.h")
+    tub.include("hail/Region.h")
+    tub.include("hail/Ordering.h")
+
+    tub.include("<limits.h>")
+    tub.include("<math.h>")
+
+    val fb = tub.buildFunction("f",
       Array("NativeStatus *" -> "st", "Region *" -> "region", "const char *" -> "v"),
       "char *")
 
@@ -30,34 +42,25 @@ object Compile {
          |  abort();
          |return ${ v.v };
          |""".stripMargin
-    val f = fb.result()
+    val f = fb.end()
 
-    val sb = new StringBuilder
-    sb.append(
-      s"""
-         |#include "hail/hail.h"
-         |#include "hail/Utils.h"
-         |#include "hail/Region.h"
-         |
-         |#include <limits.h>
-         |#include <math.h>
-         |
-         |NAMESPACE_HAIL_MODULE_BEGIN
-         |
-         |${ f.define }
-         |
-         |long entrypoint(NativeStatus *st, long region, long v) {
-         |  return (long)${ f.name }(st, (Region *)region, (char *)v);
-         |}
-         |
-         |NAMESPACE_HAIL_MODULE_END
-         |""".stripMargin)
+    tub += new Definition {
+      def name: String = "entrypoint"
 
-    val modCode = sb.toString()
+      def define: String =
+        s"""
+           |long entrypoint(NativeStatus *st, long region, long v) {
+           |  return (long)${ f.name }(st, (Region *)region, (char *)v);
+           |}
+         """.stripMargin
+    }
 
-    val options = "-ggdb -O1"
+    val tu = tub.end()
+    val mod = tu.build("-ggdb -O1"
+      , System.out
+    )
+
     val st = new NativeStatus()
-    val mod = new NativeModule(options, modCode)
     mod.findOrBuild(st)
     assert(st.ok, st.toString())
     val nativef = mod.findLongFuncL2(st, "entrypoint")

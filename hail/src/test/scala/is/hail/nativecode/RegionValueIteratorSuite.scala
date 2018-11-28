@@ -39,11 +39,10 @@ class RegionValueIteratorSuite extends SparkSuite {
 
     val tub = new TranslationUnitBuilder
     val encClass = PackEncoder(t.physicalType, spec, tub)
-    tub += encClass
 
     tub.include("<jni.h>")
     tub.include("hail/PartitionIterators.h")
-    val partitionFB = FunctionBuilder("partition_f", Array("NativeStatus*" -> "st", "long" -> "objects"), "long")
+    val partitionFB = tub.buildFunction("partition_f", Array("NativeStatus*" -> "st", "long" -> "objects"), "long")
     val up = Variable("up", "UpcallEnv")
     val encoder = Variable("encoder", encClass.name, s"std::make_shared<OutputStream>($up, reinterpret_cast<ObjectArray * >(${ partitionFB.getArg(1) })->at(1))")
     val jit = Variable("jit", "JavaIteratorObject", s"JavaIteratorObject($up, reinterpret_cast<ObjectArray * >(${ partitionFB.getArg(1) })->at(0))")
@@ -61,9 +60,7 @@ class RegionValueIteratorSuite extends SparkSuite {
          |return 0;
        """.stripMargin
 
-    tub += partitionFB.result()
-
-    val mod = tub.result().build("-O2 -llz4")
+    val mod = tub.end().build("-O2 -llz4")
     val key = mod.getKey
     val bin = mod.getBinary
 
@@ -104,21 +101,20 @@ class RegionValueIteratorSuite extends SparkSuite {
 
     val makeIt = CXXRegionValueIterator { tub: TranslationUnitBuilder =>
       val decClass = PackDecoder(t.physicalType, t.physicalType, spec, tub)
-      tub += decClass
 
-      val cb = new ClassBuilder("CXXIterator", "NativeObj")
+      val cb = tub.buildClass("CXXIterator", "NativeObj")
       val it = Variable("it", s"Reader<${ decClass.name }>")
-      cb.addPrivate(it)
-      cb.addConstructor(
+      cb += it
+      cb +=
         s"""${cb.name}(jobject is, Region * reg, NativeStatus * st) :
            |$it(Reader<${ decClass.name }>(${ decClass.name }(std::make_shared<InputStream>(UpcallEnv(), is)), reg, st)) { }
-         """.stripMargin)
+         """.stripMargin
 
       cb += new Function(s"${ cb.name }&", "operator++", Array(), s"++($it.begin()); return *this;")
       cb += new Function("char const*", "operator*", Array(), s"return *($it.begin());")
-      cb.result()
+      cb.end()
     }
-
+    
     val encoded = hc.sc.parallelize(a, 2).mapPartitions { case (rowsIt) =>
       val rows = rowsIt.toIndexedSeq
       Region.scoped { region =>

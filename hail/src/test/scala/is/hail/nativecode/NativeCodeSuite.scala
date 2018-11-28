@@ -215,7 +215,7 @@ class NativeCodeSuite extends SparkSuite {
     tub.include("hail/hail.h")
     tub.include("<cstdio>")
 
-    val fb = FunctionBuilder("testUpcall", Array("NativeStatus*" -> "st", "long" -> "a0"), "long")
+    val fb = tub.buildFunction("testUpcall", Array("NativeStatus*" -> "st", "long" -> "a0"), "long")
 
     fb +=
       s"""
@@ -223,10 +223,9 @@ class NativeCodeSuite extends SparkSuite {
          |return 1000+${fb.getArg(1)};
        """.stripMargin
 
-    val f = fb.result()
-    tub += f
+    val f = fb.end()
 
-    val mod = tub.result().build("")
+    val mod = tub.end().build("")
 
     val st = new NativeStatus()
     val testUpcall = mod.findLongFuncL1(st, f.name)

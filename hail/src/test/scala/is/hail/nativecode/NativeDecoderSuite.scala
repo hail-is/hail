@@ -26,30 +26,30 @@ class NativeDecoderSuite extends SparkSuite {
     tub.include("<cstdio>")
     tub.include("<memory>")
 
-    val fb = FunctionBuilder("testInputStream", Array("NativeStatus*" -> "st", "long" -> "array"), "long")
+    val fb = tub.buildFunction("testInputStream", Array("NativeStatus*" -> "st", "long" -> "array"), "long")
 
-    fb += s"""UpcallEnv up;
-             |auto h = reinterpret_cast<ObjectArray*>(${fb.getArg(1)});
-             |auto jis = h->at(0);
-             |
-             |char buf[15];
-             |
-             |auto is = std::make_shared<InputStream>(up, jis);
-             |is->read(buf, 15);
-             |
-             |long equals = 1;
-             |for (int i = 0; i < 15; i++) {
-             |  if (buf[i] != 97 + i) {
-             |    equals = 0;
-             |  }
-             |}
-             |
-             |return equals;""".stripMargin
+    fb +=
+      s"""UpcallEnv up;
+         |auto h = reinterpret_cast<ObjectArray*>(${ fb.getArg(1) });
+         |auto jis = h->at(0);
+         |
+         |char buf[15];
+         |
+         |auto is = std::make_shared<InputStream>(up, jis);
+         |is->read(buf, 15);
+         |
+         |long equals = 1;
+         |for (int i = 0; i < 15; i++) {
+         |  if (buf[i] != 97 + i) {
+         |    equals = 0;
+         |  }
+         |}
+         |
+         |return equals;""".stripMargin
 
-    val f = fb.result()
-    tub += f
+    val f = fb.end()
 
-    val mod = tub.result().build("")
+    val mod = tub.end().build("")
 
     val st = new NativeStatus()
     val testIS = mod.findLongFuncL1(st, f.name)
@@ -73,43 +73,43 @@ class NativeDecoderSuite extends SparkSuite {
       tub.include("<cstdio>")
       tub.include("<memory>")
 
-      val fb = FunctionBuilder("testInputBuffers", Array("NativeStatus*" -> "st", "long" -> "holder"), "long")
+      val fb = tub.buildFunction("testInputBuffers", Array("NativeStatus*" -> "st", "long" -> "holder"), "long")
 
-      fb +=s"""
-              |UpcallEnv up;
-              |auto h = reinterpret_cast<ObjectArray*>(${fb.getArg(1)});
-              |auto jis = h->at(0);
-              |
-              |auto is = std::make_shared<InputStream>(up, jis);
-              |${spec.nativeInputBufferType} leb_buf {is};
-              |
-              |leb_buf.skip_boolean();
-              |if (leb_buf.read_boolean() != true) { return 0; }
-              |leb_buf.skip_byte();
-              |if (leb_buf.read_byte() != 3) { return 0; }
-              |leb_buf.skip_int();
-              |if (leb_buf.read_int() != 3) { return 0; }
-              |leb_buf.skip_long();
-              |if (leb_buf.read_long() != 500) { return 0; }
-              |leb_buf.skip_float();
-              |if (leb_buf.read_float() != 5.5) { return 0; }
-              |leb_buf.skip_double();
-              |if (leb_buf.read_double() != 5.5) { return 0; }
-              |leb_buf.skip_bytes(3);
-              |char b[5];
-              |leb_buf.read_bytes(b, 5);
-              |for (int i = 0; i < 5; i++) {
-              |  if (b[i] != 100 + i) {
-              |    return 0;
-              |  }
-              |}
-              |return 1;
+      fb +=
+        s"""
+           |UpcallEnv up;
+           |auto h = reinterpret_cast<ObjectArray*>(${ fb.getArg(1) });
+           |auto jis = h->at(0);
+           |
+           |auto is = std::make_shared<InputStream>(up, jis);
+           |${ spec.nativeInputBufferType } leb_buf {is};
+           |
+           |leb_buf.skip_boolean();
+           |if (leb_buf.read_boolean() != true) { return 0; }
+           |leb_buf.skip_byte();
+           |if (leb_buf.read_byte() != 3) { return 0; }
+           |leb_buf.skip_int();
+           |if (leb_buf.read_int() != 3) { return 0; }
+           |leb_buf.skip_long();
+           |if (leb_buf.read_long() != 500) { return 0; }
+           |leb_buf.skip_float();
+           |if (leb_buf.read_float() != 5.5) { return 0; }
+           |leb_buf.skip_double();
+           |if (leb_buf.read_double() != 5.5) { return 0; }
+           |leb_buf.skip_bytes(3);
+           |char b[5];
+           |leb_buf.read_bytes(b, 5);
+           |for (int i = 0; i < 5; i++) {
+           |  if (b[i] != 100 + i) {
+           |    return 0;
+           |  }
+           |}
+           |return 1;
        """.stripMargin
 
-      val f = fb.result()
-      tub += f
+      val f = fb.end()
 
-      val mod = tub.result().build("-O1 -llz4")
+      val mod = tub.end().build("-O1 -llz4")
 
       val data = new ByteArrayOutputStream()
       val ob = spec.buildOutputBuffer(data)
