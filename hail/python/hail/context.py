@@ -291,8 +291,8 @@ def set_global_seed(seed):
 
 
 def read_version_info() -> str:
-    from ._generated_version_info import hail_version
-    return hail_version
+    # https://stackoverflow.com/questions/6028000/how-to-read-a-static-file-from-inside-a-python-package
+    return pkg_resources.resource_string(__name__, 'hail_version').decode().strip()
 
 @typecheck(url=str)
 def _set_upload_url(str):
