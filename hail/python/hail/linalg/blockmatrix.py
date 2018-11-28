@@ -1831,7 +1831,7 @@ class BlockMatrix(object):
                n_partitions=nullable(int),
                write_bytes=bool)
     def export_rectangles(path_in, path_out, rectangles, delimiter='\t', n_partitions=None, write_bytes=False):
-        """Export rectangular regions from a stored block matrix to delimited text files.
+        """Export rectangular regions from a stored block matrix to delimited text or binary files.
 
         Examples
         --------
@@ -1868,7 +1868,7 @@ class BlockMatrix(object):
 
         The second file is ``rect-1_0-3-0-2``:
 
-        .. code-block:: text
+        .. code-block:: textd
 
             1.0 2.0
             5.0 6.0
@@ -1890,11 +1890,7 @@ class BlockMatrix(object):
         Notes
         -----
         This method exports rectangular regions of a stored block matrix
-        to delimited text files, in parallel by region.
-
-        The block matrix can be sparse so long as all blocks overlapping
-        the rectangles are present, i.e. this method does not currently
-        support implicit zeros.
+        to delimited text or binary files, in parallel by region.
 
         Each rectangle is encoded as a list of length four of
         the form ``[row_start, row_stop, col_start, col_stop]``,
@@ -1908,6 +1904,19 @@ class BlockMatrix(object):
 
         Each file name encodes the index of the rectangle in `rectangles`
         and the bounds as formatted in the example.
+
+        The block matrix can be sparse so long as all blocks overlapping
+        the rectangles are present, i.e. this method does not currently
+        support implicit zeros.
+
+        If `write_bytes` is true, each element is exported as 8 bytes, in row
+        major order with no delimiting, new lines, or shape information. Such
+        files can instantiate, for example, NumPy ndarrays using
+        `fromfile <https://docs.scipy.org/doc/numpy/reference/generated/numpy.fromfile.html>`__
+        and
+        `reshape <https://docs.scipy.org/doc/numpy/reference/generated/numpy.reshape.html>`__.
+        Note however that these binary files are not platform independent; in
+        particular, no byte-order or data-type information is saved.
 
         The number of rectangles must be less than :math:`2^{29}`.
 
@@ -1926,7 +1935,7 @@ class BlockMatrix(object):
             Maximum parallelism of export.
             Defaults to (and cannot exceed) the number of rectangles.
         write_bytes: :obj:`bool`
-            If true, export raw doubles in row major.
+            If true, export elements as raw bytes in row major order.
         """
         n_rectangles = len(rectangles)
         if n_rectangles == 0:

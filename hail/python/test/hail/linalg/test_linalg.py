@@ -637,11 +637,9 @@ class Tests(unittest.TestCase):
         for rects in [rects1, rects2, rects3]:
             for block_size in [3, 4, 10]:
                 bm_uri = new_temp_file()
+
                 rect_path = new_local_temp_dir()
                 rect_uri = local_path_uri(rect_path)
-
-                rect_path_bytes = new_local_temp_dir()
-                rect_uri_bytes = local_path_uri(rect_path_bytes)
 
                 (BlockMatrix.from_numpy(nd, block_size=block_size)
                     .sparsify_rectangles(rects)
@@ -652,8 +650,11 @@ class Tests(unittest.TestCase):
                 for (i, r) in enumerate(rects):
                     file = rect_path + '/rect-' + str(i) + '_' + '-'.join(map(str, r))
                     expected = nd[r[0]:r[1], r[2]:r[3]]
-                    actual = np.reshape(np.loadtxt(file), (r[1] - r[0], r[3] - r[2]))
+                    actual = np.loadtxt(file)
                     self._assert_eq(expected, actual)
+
+                rect_path_bytes = new_local_temp_dir()
+                rect_uri_bytes = local_path_uri(rect_path_bytes)
 
                 BlockMatrix.export_rectangles(bm_uri, rect_uri_bytes, rects, write_bytes=True)
 
