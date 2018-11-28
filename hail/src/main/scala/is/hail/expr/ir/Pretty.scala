@@ -19,18 +19,6 @@ object Pretty {
   def prettyClass(x: AnyRef): String =
     x.getClass.getName.split("\\.").last
 
-  def prettyAggSignature(aggSig: AggSignature): String = {
-    val sb = new StringBuilder
-    sb += '('
-    sb.append(prettyClass(aggSig.op))
-    sb += ' '
-    sb.append(aggSig.constructorArgs.map(_.parsableString()).mkString(" (", " ", ")"))
-    sb.append(aggSig.initOpArgs.map(_.map(_.parsableString()).mkString(" (", " ", ")")).getOrElse(" None"))
-    sb.append(aggSig.seqOpArgs.map(_.parsableString()).mkString(" (", " ", ")"))
-    sb += ')'
-    sb.result()
-  }
-
   def prettyIntOpt(x: Option[Int]): String = x.map(_.toString).getOrElse("None")
 
   def prettyLongs(x: IndexedSeq[Long]): String = x.mkString("(", " ", ")")
@@ -75,7 +63,7 @@ object Pretty {
           }
         case ApplyAggOp(ctorArgs, initOpArgs, seqOpArgs, aggSig) =>
           sb += ' '
-          sb.append(prettyAggSignature(aggSig))
+          sb.append(prettyClass(aggSig.op))
           sb += '\n'
           prettySeq(ctorArgs, depth + 2)
           sb += '\n'
@@ -89,7 +77,7 @@ object Pretty {
           prettySeq(seqOpArgs, depth + 2)
         case ApplyScanOp(ctorArgs, initOpArgs, seqOpArgs, aggSig) =>
           sb += ' '
-          sb.append(prettyAggSignature(aggSig))
+          sb.append(prettyClass(aggSig.op))
           sb += '\n'
           prettySeq(ctorArgs, depth + 2)
           sb += '\n'
@@ -101,20 +89,6 @@ object Pretty {
           }
           sb += '\n'
           prettySeq(seqOpArgs, depth + 2)
-        case InitOp(i, args, aggSig) =>
-          sb += ' '
-          sb.append(prettyAggSignature(aggSig))
-          sb += '\n'
-          pretty(i, depth + 2)
-          sb += '\n'
-          prettySeq(args, depth + 2)
-        case SeqOp(i, args, aggSig) =>
-          sb += ' '
-          sb.append(prettyAggSignature(aggSig))
-          sb += '\n'
-          pretty(i, depth + 2)
-          sb += '\n'
-          prettySeq(args, depth + 2)
         case InsertFields(old, fields) =>
           sb += '\n'
           pretty(old, depth + 2)
