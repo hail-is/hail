@@ -103,61 +103,7 @@ object Parser extends JavaTokenParsers {
       }
     }
   }
-
-  def annotationIdentifier: Parser[List[String]] =
-    rep1sep(identifier, ".") ^^ {
-      _.toList
-    }
-
-  def identifier = backtickLiteral | ident
-
-  def quotedLiteral(delim: Char, what: String): Parser[String] =
-    new Parser[String] {
-      def apply(in: Input): ParseResult[String] = {
-        var r = in
-
-        val source = in.source
-        val offset = in.offset
-        val start = handleWhiteSpace(source, offset)
-        r = r.drop(start - offset)
-
-        if (r.atEnd || r.first != delim)
-          return Failure(s"expected $what", r)
-        r = r.rest
-
-        val sb = new StringBuilder()
-
-        val escapeChars = "\\bfnrtu'\"`".toSet
-        var continue = true
-        while (continue) {
-          if (r.atEnd)
-            return Failure(s"unterminated $what", r)
-          val c = r.first
-          r = r.rest
-          if (c == delim)
-            continue = false
-          else {
-            sb += c
-            if (c == '\\') {
-              if (r.atEnd)
-                return Failure(s"unterminated $what", r)
-              val d = r.first
-              if (!escapeChars.contains(d))
-                return Failure(s"invalid escape character in $what", r)
-              sb += d
-              r = r.rest
-            }
-          }
-        }
-        Success(unescapeString(sb.result()), r)
-      }
-    }
-
-  def backtickLiteral: Parser[String] = quotedLiteral('`', "backtick identifier")
-
-  override def stringLiteral: Parser[String] =
-    quotedLiteral('"', "string literal") | quotedLiteral('\'', "string literal")
-
+  
   def call: Parser[Call] = {
     wholeNumber ~ "/" ~ rep1sep(wholeNumber, "/") ^^ { case a0 ~ _ ~ arest =>
       CallN(coerceInt(a0) +: arest.map(coerceInt).toArray, phased = false)
