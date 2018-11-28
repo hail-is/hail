@@ -3,6 +3,7 @@ import unittest
 from hail.expr import coercer_from_dtype
 from hail.expr.types import *
 from ..helpers import *
+from hail.utils.java import Env
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
@@ -62,8 +63,8 @@ class Tests(unittest.TestCase):
         ts = self.types_to_test()
         for t in ts:
             rev_str = t._parsable_string()
-            jtyp =
-            self.assertEqual(t, dtype(rev_str))
+            jtyp = Env.hail().expr.ir.IRParser.parseType(rev_str)
+            self.assertEqual(t, dtype(jtyp.toString()))
 
     def test_pretty_roundtrip(self):
         ts = self.types_to_test()
