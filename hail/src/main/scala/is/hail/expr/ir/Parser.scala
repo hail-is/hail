@@ -69,7 +69,7 @@ object IRLexer extends JavaTokenParsers {
 
         val sb = new StringBuilder()
 
-        val escapeChars = "\\bfnrt'\"`".toSet
+        val escapeChars = "\\bfnrtu'\"`".toSet
         var continue = true
         while (continue) {
           if (r.atEnd)
