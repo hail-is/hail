@@ -200,7 +200,7 @@ export GRADLE_OPTS="-Xmx2048m"
 export GRADLE_USER_HOME="/gradle-cache"
 
 echo "Compiling..."
-./gradlew shadowJar archiveZip nativeLibPrebuilt > ${COMPILE_LOG} 2>&1
+./gradlew shadowJar archiveZip > ${COMPILE_LOG} 2>&1
 touch ${COMP_SUCCESS}
 
 test_project() {
