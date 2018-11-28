@@ -15,7 +15,7 @@ def execute():
     
     info(f'execute: {code}')
     
-    jir = Env.hail().expr.Parser.parse_value_ir(code, {}, {})
+    jir = Env.hail().expr.ir.IRParser.parse_value_ir(code, {}, {})
     
     typ = hl.HailType._from_java(jir.typ())
     value = Env.hail().expr.ir.Interpret.interpretPyIR(code, {}, {})
