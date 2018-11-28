@@ -82,11 +82,15 @@ class TabixSuite extends SparkSuite {
     val tid = hailrdr.chr2tid(chr)
 
     for ((start, end, fixup) <-
-         Seq((10570000, 13000000, false), // Open interval
-            (10019093, 16360860, true),   // Closed interval
-            (11000000, 13029764, false),  // Half open (beg, end]
-            (17434340, 18000000, true)    // Half open [beg, end)
-          )) {
+      Seq(
+        (12990058, 12990059, false),  // Small interval, containing just one locus at end
+        (10570000, 13000000, false),  // Open interval
+        (10019093, 16360860, true),   // Closed interval
+        (11000000, 13029764, false),  // Half open (beg, end]
+        (17434340, 18000000, true),   // Half open [beg, end)
+        (13943975, 14733634, false),  // Random (half-)open intervals (beg, end) or (beg, end]
+        (11578765, 15291865, false),
+        (12703588, 16751726, false))) {
       val pairs = hailrdr.queryPairs(tid, start, end)
       val htsIter = htsjdkrdr.query(chr, start - (if (fixup) 1 else 0), end)
       val hailIter = new TabixLineIterator(serHdConf, hailrdr.filePath, pairs)
