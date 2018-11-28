@@ -1,5 +1,6 @@
 package is.hail.cxx
 
+import is.hail.annotations.UnsafeUtils
 import is.hail.cxx
 import is.hail.expr.types.physical.PContainer
 
@@ -49,7 +50,7 @@ class StagedContainerBuilder(fb: FunctionBuilder, region: Code, containerPType: 
 
   def idx: Code = i.toString
 
-  def eltOffset: Code = s"$eltOff + $i * ${ containerPType.elementType.byteSize }"
+  def eltOffset: Code = s"$eltOff + $i * ${ UnsafeUtils.arrayElementSize(containerPType.elementType) }"
 
   def end(): Code = aoff.toString
 }
