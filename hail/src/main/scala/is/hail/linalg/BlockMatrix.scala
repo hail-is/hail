@@ -14,7 +14,7 @@ import is.hail.io._
 import is.hail.rvd.{RVD, RVDContext}
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
-import is.hail.utils.richUtils.RichDenseMatrixDouble
+import is.hail.utils.richUtils.{RichArray, RichDenseMatrixDouble}
 import org.apache.commons.lang3.StringUtils
 import org.apache.commons.math3.random.MersenneTwister
 import org.apache.spark.executor.InputMetrics
@@ -151,7 +151,8 @@ object BlockMatrix {
     output: String,
     flattenedRectangles: Array[Long],
     delimiter: String,
-    nPartitions: Int): Unit = {
+    nPartitions: Int,
+    writeBytes: Boolean): Unit = {
     require(flattenedRectangles.length % 4 == 0)
 
     checkWriteSuccess(hc, input)
@@ -171,8 +172,11 @@ object BlockMatrix {
       val sb = new StringBuilder(blockSize << 2)
       val paddedIndex = StringUtils.leftPad(index.toString, dRect, "0")
       val outputFile = output + "/rect-" + paddedIndex + "_" + r.mkString("-")
-
-      val osw = new OutputStreamWriter(sHadoopBc.value.value.unsafeWriter(outputFile))
+      val uos = sHadoopBc.value.value.unsafeWriter(outputFile)
+      val os = if (writeBytes)
+          new DoubleOutputBuffer(uos, RichArray.defaultBufSize)
+        else
+          new OutputStreamWriter(uos)
       try {
         val startRow = r(0)
         val stopRow = r(1)
@@ -249,22 +253,25 @@ object BlockMatrix {
                 val n = stopColOffsetInBlock - startColOffsetInBlock
 
                 inPerBlockCol(blockCol - startBlockCol).readDoubles(data, 0, n)
+                
+                if (writeBytes) {
+                  os.asInstanceOf[DoubleOutputBuffer].writeDoubles(data, 0, n)
+                } else {
+                  sb.clear()
+                  var k = 0
+                  while (k < n - 1) {
+                    sb.append(data(k))
+                    sb.append(delimiter)
+                    k += 1
+                  }
+                  sb.append(data(n - 1))
+                  if (blockCol < stopBlockCol)
+                    sb.append(delimiter)
+                  else
+                    sb.append("\n")
 
-                sb.clear()
-                var k = 0
-                while (k < n - 1) {
-                  sb.append(data(k))
-                  sb.append(delimiter)
-                  k += 1
+                  os.asInstanceOf[OutputStreamWriter].write(sb.result())
                 }
-                sb.append(data(n - 1))
-                if (blockCol < stopBlockCol)
-                  sb.append(delimiter)
-                else
-                  sb.append("\n")
-
-                osw.write(sb.result())
-
                 blockCol += 1
               }
               i += 1
@@ -279,7 +286,7 @@ object BlockMatrix {
           }
         }
       } finally {
-        osw.close()
+        os.close()
       }
       
       1

@@ -1828,8 +1828,9 @@ class BlockMatrix(object):
                path_out=str,
                rectangles=sequenceof(sequenceof(int)),
                delimiter=str,
-               n_partitions=nullable(int))
-    def export_rectangles(path_in, path_out, rectangles, delimiter='\t', n_partitions=None):
+               n_partitions=nullable(int),
+               write_bytes=bool)
+    def export_rectangles(path_in, path_out, rectangles, delimiter='\t', n_partitions=None, write_bytes=False):
         """Export rectangular regions from a stored block matrix to delimited text files.
 
         Examples
@@ -1924,6 +1925,8 @@ class BlockMatrix(object):
         n_partitions: :obj:`int`, optional
             Maximum parallelism of export.
             Defaults to (and cannot exceed) the number of rectangles.
+        write_bytes: :obj:`bool`
+            If true, export raw doubles in row major.
         """
         n_rectangles = len(rectangles)
         if n_rectangles == 0:
@@ -1954,7 +1957,7 @@ class BlockMatrix(object):
         flattened_rectangles = jarray(Env.jvm().long, list(itertools.chain(*rectangles)))
 
         return Env.hail().linalg.BlockMatrix.exportRectangles(
-            Env.hc()._jhc, path_in, path_out, flattened_rectangles, delimiter, n_partitions)
+            Env.hc()._jhc, path_in, path_out, flattened_rectangles, delimiter, n_partitions, write_bytes)
 
     @typecheck_method(compute_uv=bool,
                       complexity_bound=int)
