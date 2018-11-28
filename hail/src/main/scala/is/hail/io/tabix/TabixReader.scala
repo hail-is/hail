@@ -24,7 +24,7 @@ case class Tabix(
   val meta: Int,
   val seqs: Array[String],
   val chr2tid: HashMap[String, Int],
-  val indicies: Array[(HashMap[Int, Array[TbiPair]], Array[Long])]
+  val indices: Array[(HashMap[Int, Array[TbiPair]], Array[Long])]
 )
 
 case class TbiPair(var _1: Long, var _2: Long) extends java.lang.Comparable[TbiPair] {
@@ -39,7 +39,7 @@ object TbiPair {
 object TbiOrd extends Ordering[TbiPair] {
   def compare(u: TbiPair, v: TbiPair) = if (u._1 == v._1) {
     0
-  } else if ((u._1 < v._1) ^ (u._1 < 0) ^ (v._1 < 0)) {
+  } else if (less64(u._1, v._1)) {
     -1
   } else {
     1
@@ -57,17 +57,21 @@ object TabixReader {
   val DefaultBufferSize: Int = 1000
   val Magic: Array[Byte] = Array(84, 66, 73, 1) // "TBI\1"
 
-  def readInt(is: InputStream): Int = {
-    val buf = new Array[Byte](4)
-    is.read(buf)
-    ByteBuffer.wrap(buf).order(ByteOrder.LITTLE_ENDIAN).getInt
-  }
+  def readInt(is: InputStream): Int =
+    (is.read() & 0xff) |
+    ((is.read() & 0xff) << 8) |
+    ((is.read() & 0xff) << 16) |
+    ((is.read() & 0xff) << 24)
 
-  def readLong(is: InputStream): Long = {
-    val buf = new Array[Byte](8)
-    is.read(buf)
-    ByteBuffer.wrap(buf).order(ByteOrder.LITTLE_ENDIAN).getLong
-  }
+  def readLong(is: InputStream): Long =
+    (is.read() & 0xff).asInstanceOf[Long] |
+    ((is.read() & 0xff).asInstanceOf[Long] << 8) |
+    ((is.read() & 0xff).asInstanceOf[Long] << 16) |
+    ((is.read() & 0xff).asInstanceOf[Long] << 24) |
+    ((is.read() & 0xff).asInstanceOf[Long] << 32) |
+    ((is.read() & 0xff).asInstanceOf[Long] << 40) |
+    ((is.read() & 0xff).asInstanceOf[Long] << 48) |
+    ((is.read() & 0xff).asInstanceOf[Long] << 56)
 
   def readLine(is: InputStream): String = readLine(is, DefaultBufferSize)
 
@@ -83,24 +87,20 @@ object TabixReader {
 
 }
 
-class TabixReader(val filePath: String, private val idxFilePath: Option[String]) {
+class TabixReader(val filePath: String, private val idxFilePath: Option[String] = None) {
   import TabixReader._
 
   val indexPath: String = idxFilePath match {
     case None => ParsingUtils.appendToPath(filePath, TabixUtils.STANDARD_INDEX_EXTENSION)
     case Some(s) => {
-      if (s.endsWith(".tbi"))
+      if (s.endsWith(TabixUtils.STANDARD_INDEX_EXTENSION))
         s
       else
         fatal(s"unknown file extension for tabix index: ${s}")
     }
   }
 
-  def this(filePath: String) = this(filePath, None)
-
-  private val hc = HailContext.get
-  private val sc = hc.sc
-  private val hConf = sc.hadoopConfiguration
+  private val hConf = HailContext.get.hadoopConf
 
   val index: Tabix = hConf.readFile(indexPath) { is =>
     var buf = new Array[Byte](4)
@@ -110,7 +110,8 @@ class TabixReader(val filePath: String, private val idxFilePath: Option[String])
       |data : ${ buf.mkString("[", ",", "]") }""".stripMargin)
     val seqs = new Array[String](readInt(is))
     val format = readInt(is)
-    assert(format == 2) // require VCF for now
+    // Require VCF for now
+    assert(format == 2, s"Hail only supports tabix indexing for VCF, found format code ${ format }")
     val colSeq = readInt(is)
     val colBeg = readInt(is)
     val colEnd = readInt(is)
@@ -172,11 +173,14 @@ class TabixReader(val filePath: String, private val idxFilePath: Option[String])
       case _ => -1
     }
 
+  // This method returns an array of tuples suitable to be passed to the constructor of
+  // TabixLineIterator. The arguments beg and end are endpoints to a closed interval of
+  // loci within tid.
   def queryPairs(tid: Int, beg: Int, end: Int): Array[TbiPair] = {
-    if (tid < 0 || tid > index.indicies.length) {
+    if (tid < 0 || tid > index.indices.length) {
       new Array[TbiPair](0)
     } else {
-      val idx = index.indicies(tid)
+      val idx = index.indices(tid)
       val bins = reg2bins(beg, end)
       val minOff = if (idx._2.length > 0 && (beg >> TadLidxShift) >= idx._2.length)
           idx._2(idx._2.length - 1)
@@ -244,11 +248,13 @@ class TabixReader(val filePath: String, private val idxFilePath: Option[String])
           i += 1
         }
         nOff = l + 1
-        val ret = Array.fill[TbiPair](nOff)(null)
+        val ret = new Array[TbiPair](nOff)
         i = 0
         while (i < nOff) {
           if (off(i) != null)
             ret(i) = TbiPair(off(i)._1, off(i)._2)
+          else
+            ret(i) = null
           i += 1
         }
         if (ret.length == 0 || (ret.length == 1 && ret(0) == null))

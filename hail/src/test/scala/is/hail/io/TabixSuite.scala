@@ -75,13 +75,13 @@ class TabixSuite extends SparkSuite {
   @Test def testLineIterator2() {
     val vcfFile = "src/test/resources/sample.vcf.gz"
     val chr = "20"
-    val start = 10570000
-    val end = 13000000
     val htsjdkrdr = new HtsjdkTabixReader(vcfFile)
     val hailrdr = new TabixReader(vcfFile)
     val tid = hailrdr.chr2tid(chr)
 
-    // One approximate interval, one (almost) exact interval
+    // One approximate interval, one (almost) exact interval, there is a slight difference in
+    // behavior between htsjdk and hail in that htsjdk will query the half closed interval
+    // (beg,end], whereas hail will query the closed interval [beg,end]
     for ((start, end) <- Seq(10570000 -> 13000000, 10019092 -> 16360860)) {
       val pairs = hailrdr.queryPairs(tid, start, end)
       val htsIter = htsjdkrdr.query(chr, start, end)
