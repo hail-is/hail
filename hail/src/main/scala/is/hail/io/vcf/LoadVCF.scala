@@ -974,7 +974,7 @@ case class MatrixVCFReader(
   }
 
   private lazy val coercer = RVD.makeCoercer(
-    fullType.rvdType,
+    fullType.canonicalRVDType,
     1,
     parseLines(
       () => ()
@@ -1005,9 +1005,9 @@ case class MatrixVCFReader(
     val nSamples = localSampleIDs.length
 
     val rvd = if (mr.dropRows)
-      RVD.empty(sc, requestedType.rvdType)
+      RVD.empty(sc, requestedType.canonicalRVDType)
     else
-      coercer.coerce(requestedType.rvdType, parseLines { () =>
+      coercer.coerce(requestedType.canonicalRVDType, parseLines { () =>
         new ParseLineContext(formatSignature, new BufferedLineIterator(headerLinesBc.value.iterator.buffered))
       } { (c, l, rvb) =>
         val vc = c.codec.decodeLoc(l.line).asInstanceOf[VariantContext]

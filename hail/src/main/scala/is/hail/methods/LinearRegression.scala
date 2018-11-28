@@ -105,7 +105,7 @@ object LinearRegression {
 
     val passThroughType = TStruct(passThrough.map(f => f -> vsm.rowType.field(f).typ): _*)
     val tableType = TableType(vsm.rowKeyStruct ++ passThroughType ++ LinearRegression.schema, vsm.rowKey, TStruct())
-    val newRVDType = tableType.rvdType
+    val newRVDType = tableType.canonicalRVDType
     val copiedFieldIndices = (vsm.rowKey ++ passThrough).map(vsm.rvRowType.fieldIdx(_)).toArray
     val nDependentVariables = yFields.length
 
@@ -247,7 +247,7 @@ object LinearRegression {
 
     val passThroughType = TStruct(passThrough.map(f => f -> vsm.rowType.field(f).typ): _*)
     val tableType = TableType(vsm.rowKeyStruct ++ passThroughType ++ LinearRegression.chainedSchema, vsm.rowKey, TStruct())
-    val newRVDType = tableType.rvdType
+    val newRVDType = tableType.canonicalRVDType
     val copiedFieldIndices = (vsm.rowKey ++ passThrough).map(vsm.rvRowType.fieldIdx(_)).toArray
 
     val newRVD = vsm.rvd.boundary.mapPartitions(

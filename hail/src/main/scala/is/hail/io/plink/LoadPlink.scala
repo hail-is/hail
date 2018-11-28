@@ -155,7 +155,7 @@ object LoadPlink {
       rowKey = Array("locus", "alleles"),
       entryType = TStruct("GT" -> TCall()))
 
-    val kType = matrixType.rvdType.kType
+    val kType = matrixType.canonicalRVDType.kType
     val rvRowType = matrixType.rvRowType
 
     val fastKeys = crdd.cmapPartitions { (ctx, it) =>
@@ -216,7 +216,7 @@ object LoadPlink {
     new MatrixTable(hc, matrixType,
       BroadcastRow(Row.empty, matrixType.globalType, sc),
       BroadcastIndexedSeq(sampleAnnotations, TArray(matrixType.colType), sc),
-      RVD.coerce(matrixType.rvdType, rdd2, fastKeys))
+      RVD.coerce(matrixType.canonicalRVDType, rdd2, fastKeys))
   }
 
   def apply(hc: HailContext, bedPath: String, bimPath: String, famPath: String, ffConfig: FamFileConfig,

@@ -428,9 +428,9 @@ case class MatrixBGENReader(
     assert(mr.typ.rowKeyStruct == indexKeyType)
 
     val rvd = if (mr.dropRows)
-      RVD.empty(sc, requestedType.rvdType)
+      RVD.empty(sc, requestedType.canonicalRVDType)
     else
-      new RVD(requestedType.rvdType,
+      new RVD(requestedType.canonicalRVDType,
         partitioner,
         BgenRDD(sc, partitions, settings, variants))
 
