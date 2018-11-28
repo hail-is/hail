@@ -5,8 +5,9 @@ import is.hail.expr.types.{virtual, _}
 import is.hail.TestUtils._
 import is.hail.annotations.{Region, RegionValue, RegionValueBuilder, SafeRow}
 import is.hail.asm4s.Code
+import is.hail.expr.ir
 import is.hail.expr.ir.IRSuite.TestFunctions
-import is.hail.expr.ir.functions.{IRFunctionRegistry, RegistryFunctions, SeededIRFunction}
+import is.hail.expr.ir.functions.{IRFunctionRegistry, RegistryFunctions, SeededIRFunction, SetFunctions}
 import is.hail.expr.types.physical.{PBaseStruct, PInt64, PStruct}
 import is.hail.expr.types.virtual._
 import is.hail.table.{Ascending, Descending, SortField, Table}
@@ -1104,5 +1105,66 @@ class IRSuite extends SparkSuite {
       .bind("array" -> (FastIndexedSeq(0), TArray(TInt32())))
 
     assertEvalsTo(ir, FastIndexedSeq(true -> TBoolean(), FastIndexedSeq(0) -> TArray(TInt32())), FastIndexedSeq(0L))
+  }
+
+  @Test def setContainsSegfault: Unit = {
+    hc // assert initialized
+    val irStr =
+      """
+        |(TableFilter
+        |  (TableMapRows
+        |    (TableKeyBy () False
+        |      (TableMapRows
+        |        (TableKeyBy () False
+        |          (TableMapRows
+        |            (TableRange 1 12)
+        |            (InsertFields
+        |              (Ref row)
+        |              (s
+        |                (Literal Set[String] "[\"foo\"]"))
+        |              (nested
+        |                (NA Struct{elt:String})))))
+        |        (InsertFields
+        |          (Ref row))))
+        |    (SelectFields (s nested)
+        |      (Ref row)))
+        |  (Let __uid_1
+        |    (If
+        |      (IsNA
+        |        (GetField s
+        |          (Ref row)))
+        |      (NA Boolean)
+        |      (Let __iruid_1
+        |        (LowerBoundOnOrderedCollection False
+        |          (GetField s
+        |            (Ref row))
+        |          (GetField elt
+        |            (GetField nested
+        |              (Ref row))))
+        |        (If
+        |          (ApplyComparisonOp EQ
+        |            (Ref __iruid_1)
+        |            (ArrayLen
+        |              (ToArray
+        |                (GetField s
+        |                  (Ref row)))))
+        |          (False)
+        |          (ApplyComparisonOp EQ
+        |            (ArrayRef
+        |              (ToArray
+        |                (GetField s
+        |                  (Ref row)))
+        |              (Ref __iruid_1))
+        |            (GetField elt
+        |              (GetField nested
+        |                (Ref row)))))))
+        |    (If
+        |      (IsNA
+        |        (Ref __uid_1))
+        |      (False)
+        |      (Ref __uid_1))))
+      """.stripMargin
+
+    Interpret(ir.IRParser.parse_table_ir(irStr), optimize = false).rvd.count()
   }
 }
