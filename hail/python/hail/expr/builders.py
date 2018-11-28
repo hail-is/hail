@@ -296,7 +296,7 @@ class CaseBuilder(ConditionalBuilder):
 
         Parameters
         ----------
-        message : :obj:`str`
+        message : :class:`.Expression` of type :data:`tstr`
 
         Returns
         -------
