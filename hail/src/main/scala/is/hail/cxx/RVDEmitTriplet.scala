@@ -34,7 +34,6 @@ object RVDEmitTriplet {
     tub: TranslationUnitBuilder
   ): RVDEmitTriplet = {
     val decoder = codecSpec.buildNativeDecoderClass(t, requestedType.rowType, tub)
-    tub += decoder
     tub.include("hail/Decoder.h")
     tub.include("hail/ObjectArray.h")
     tub.include("<memory>")
@@ -64,7 +63,6 @@ object RVDEmitTriplet {
 
   def write[T](t: RVDEmitTriplet, tub: TranslationUnitBuilder, path: String, stageLocally: Boolean, codecSpec: CodecSpec): Array[Long] = {
     val encClass = codecSpec.buildNativeEncoderClass(t.typ.rowType, tub)
-    tub += encClass
     tub.include("hail/Encoder.h")
 
     val os = Variable("os", "long")
