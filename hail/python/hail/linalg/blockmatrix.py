@@ -1868,7 +1868,7 @@ class BlockMatrix(object):
 
         The second file is ``rect-1_0-3-0-2``:
 
-        .. code-block:: textd
+        .. code-block:: text
 
             1.0 2.0
             5.0 6.0
