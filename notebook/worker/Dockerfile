@@ -9,9 +9,11 @@ USER jovyan
 
 RUN pip install --no-cache-dir \
   'jupyter-spark<0.5' \
-  hail==0.2.3 \
+  hail==0.2 \
   && \
   jupyter serverextension enable --user --py jupyter_spark && \
   jupyter nbextension install --user --py jupyter_spark && \
   jupyter nbextension enable --user --py jupyter_spark && \
   jupyter nbextension enable --user --py widgetsnbextension
+
+COPY ./resources/ /
