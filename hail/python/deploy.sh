@@ -7,6 +7,7 @@ cd $(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 cleanup() {
     trap "" INT TERM
     rm hail/hail-all-spark.jar
+    rm README.md
 }
 trap cleanup EXIT
 trap "exit 24" INT TERM
@@ -24,6 +25,7 @@ if [[ "${published}" != "${current}" ]]
 then
     echo deploying ${current}, was ${published}
     cp ../build/libs/hail-all-spark.jar hail/
+    cp ../../README.md .
     rm -f dist/*
     $python3 setup.py sdist bdist_wheel
     if [[ -e /secrets/pypi-username && -e /secrets/pypi-password ]]
