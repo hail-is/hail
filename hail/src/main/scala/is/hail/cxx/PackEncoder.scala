@@ -161,7 +161,7 @@ object PackEncoder {
     closeFB += "return 0;"
     tub += closeFB.result()
 
-    val mod = tub.result().build("-O1 -llz4")
+    val mod = tub.result().build("-O1")
 
     NativeEncoderModule(mod.getKey, mod.getBinary)
   }

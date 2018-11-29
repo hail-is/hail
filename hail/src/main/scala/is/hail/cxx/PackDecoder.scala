@@ -230,7 +230,7 @@ object PackDecoder {
     byteFB += s"return (long) reinterpret_cast<$decoder *>(${ byteFB.getArg(1) })->decode_byte(${ byteFB.getArg(0) });"
     tub += byteFB.result()
 
-    val mod = tub.result().build("-O2 -llz4")
+    val mod = tub.result().build("-O2")
 
     NativeDecoderModule(mod.getKey, mod.getBinary)
   }
