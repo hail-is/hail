@@ -59,6 +59,7 @@ class RegionValueIteratorSuite extends SparkSuite {
          |$encoder.flush(${ partitionFB.getArg(0) });
          |return 0;
        """.stripMargin
+    partitionFB.end()
 
     val mod = tub.end().build("-O2 -llz4")
     val key = mod.getKey
