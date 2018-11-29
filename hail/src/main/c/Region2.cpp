@@ -13,8 +13,8 @@ void RegionPtr::clear() {
     if (region_->references_ == 0) {
       region_->clear();
       region_->pool_->free_regions_.push_back(region_);
-      region_ = nullptr;
     }
+    region_ = nullptr;
   }
 }
 
@@ -23,10 +23,10 @@ pool_(pool),
 block_offset_(0),
 current_block_(pool->get_block()) { }
 
-char * Region2::allocate_new_block() {
+char * Region2::allocate_new_block(size_t n) {
   used_blocks_.push_back(std::move(current_block_));
   current_block_ = pool_->get_block();
-  block_offset_ = 0;
+  block_offset_ = n;
   return current_block_.get();
 }
 

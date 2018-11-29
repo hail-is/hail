@@ -21,7 +21,7 @@ class RegionPool {
             Region * region_;
             void clear();
           public:
-            SharedPtr(Region * region) {
+            SharedPtr(Region * region) : region_(region) {
               if (region_ != nullptr) { ++(region_->references_); }
             }
             SharedPtr(const SharedPtr &ptr) : SharedPtr(ptr.region_) { }
@@ -31,8 +31,8 @@ class RegionPool {
             }
             ~SharedPtr() { clear(); }
 
-            void swap(RegionPtr &other) { std::swap(region_, other.region_); }
-            RegionPtr& RegionPtr::operator=(RegionPtr other) {
+            void swap(SharedPtr &other) { std::swap(region_, other.region_); }
+            SharedPtr& operator=(SharedPtr other) {
               swap(other);
               return *this;
             }
@@ -53,7 +53,7 @@ class RegionPool {
         std::vector<std::unique_ptr<char[]>> used_blocks_{};
         std::vector<std::unique_ptr<char[]>> big_chunks_{};
         std::vector<SharedPtr> parents_{};
-        char * allocate_new_block();
+        char * allocate_new_block(size_t n);
         char * allocate_big_chunk(size_t size);
       public:
         Region(RegionPool * pool);
@@ -65,7 +65,7 @@ class RegionPool {
             block_offset_ = aligned_off + n;
             return p;
           } else {
-            return (n <= block_threshold) ? allocate_new_block() : allocate_big_chunk(n);
+            return (n <= block_threshold) ? allocate_new_block(n) : allocate_big_chunk(n);
           }
         }
         SharedPtr get_region();

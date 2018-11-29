@@ -30,6 +30,13 @@ TEST_CASE("region pools allocate and manage regions/blocks") {
       CHECK(pool.num_free_regions() == 0);
       CHECK(pool.num_free_blocks() == 0);
 
+      SECTION("allocation at start of block allocates correctly") {
+        auto off1 = region->allocate(1, 10);
+        auto off2 = region->allocate(1, 10);
+        CHECK(off2 - off1 == 10);
+        region = nullptr;
+      }
+
       SECTION("blocks are not released until region is released") {
         region->allocate(4, 10);
         CHECK(pool.num_free_blocks() == 0);
