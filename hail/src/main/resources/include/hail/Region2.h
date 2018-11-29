@@ -17,18 +17,16 @@ class RegionPool {
     class Region {
       public:
         class SharedPtr {
+          friend class RegionPool;
           private:
             Region * region_;
             void clear();
-          public:
-            SharedPtr(Region * region) : region_(region) {
+            explicit SharedPtr(Region * region) : region_(region) {
               if (region_ != nullptr) { ++(region_->references_); }
             }
+          public:
             SharedPtr(const SharedPtr &ptr) : SharedPtr(ptr.region_) { }
-            SharedPtr(SharedPtr &&ptr) : region_(nullptr) {
-              region_ = ptr.region_;
-              ptr.region_ = nullptr;
-            }
+            SharedPtr(SharedPtr &&ptr) : region_(ptr.region_) { ptr.region_ = nullptr; }
             ~SharedPtr() { clear(); }
 
             void swap(SharedPtr &other) { std::swap(region_, other.region_); }
@@ -40,9 +38,9 @@ class RegionPool {
               clear();
               return *this;
             }
-            inline Region * get() { return region_; }
-            inline Region & operator*() { return *region_; }
-            inline Region * operator->() { return region_; }
+            Region * get() { return region_; }
+            Region & operator*() { return *region_; }
+            Region * operator->() { return region_; }
         };
 
       private:
@@ -56,9 +54,12 @@ class RegionPool {
         char * allocate_new_block(size_t n);
         char * allocate_big_chunk(size_t size);
       public:
-        Region(RegionPool * pool);
+        explicit Region(RegionPool * pool);
+        Region(Region &pool) = delete;
+        Region(Region &&pool) = delete;
+        Region& operator=(Region pool) = delete;
         void clear();
-        inline char * allocate(size_t alignment, size_t n) {
+        char * allocate(size_t alignment, size_t n) {
           size_t aligned_off = (block_offset_ + alignment - 1) & ~(alignment - 1);
           if (aligned_off + n <= block_size) {
             char* p = current_block_.get() + aligned_off;

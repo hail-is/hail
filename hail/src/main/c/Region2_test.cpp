@@ -63,6 +63,14 @@ TEST_CASE("region pools allocate and manage regions/blocks") {
       CHECK(pool.num_regions() == 2);
       CHECK(pool.num_free_regions() == 2);
     }
+
+    SECTION("copy assignment from one RegionPtr to another increments ref count") {
+      auto region2 {region};
+      region2 = nullptr;
+      CHECK(pool.num_free_regions() == 0);
+      region = nullptr;
+      CHECK(pool.num_free_regions() == 1);
+    }
   }
 }
 
