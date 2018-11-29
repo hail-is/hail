@@ -13,39 +13,9 @@ void RegionPtr::clear() {
     if (region_->references_ == 0) {
       region_->clear();
       region_->pool_->free_regions_.push_back(region_);
+      region_ = nullptr;
     }
-    region_ = nullptr;
   }
-}
-
-RegionPtr::SharedPtr(Region * region) : region_(region) {
-  if (region_ != nullptr) { ++(region_->references_); }
-}
-RegionPtr::SharedPtr(const RegionPtr &ptr) : region_(ptr.region_) {
-  if (region_ != nullptr) { ++(region_->references_); }
-}
-
-RegionPtr::SharedPtr(RegionPtr &&ptr) : region_(nullptr) {
-  region_ = ptr.region_;
-  ptr.region_ = nullptr;
-}
-
-RegionPtr& RegionPtr::operator=(const RegionPtr& other) {
-  if (this != &other) { region_ = other.region_; }
-  return *this;
-}
-
-RegionPtr& RegionPtr::operator=(RegionPtr&& other) {
-  if (this != &other) {
-    region_ = other.region_;
-    other.region_ = nullptr;
-  }
-  return *this;
-}
-
-RegionPtr& RegionPtr::operator=(std::nullptr_t) noexcept {
-  this->clear();
-  return *this;
 }
 
 Region2::Region(RegionPool * pool) :

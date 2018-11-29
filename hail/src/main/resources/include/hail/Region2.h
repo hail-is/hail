@@ -21,13 +21,25 @@ class RegionPool {
             Region * region_;
             void clear();
           public:
-            SharedPtr(Region * region);
-            SharedPtr(const SharedPtr &ptr);
-            SharedPtr(SharedPtr &&ptr);
-            SharedPtr& operator=(const SharedPtr& other);
-            SharedPtr& operator=(SharedPtr&& other);
+            SharedPtr(Region * region) {
+              if (region_ != nullptr) { ++(region_->references_); }
+            }
+            SharedPtr(const SharedPtr &ptr) : SharedPtr(ptr.region_) { }
+            SharedPtr(SharedPtr &&ptr) : region_(nullptr) {
+              region_ = ptr.region_;
+              ptr.region_ = nullptr;
+            }
             ~SharedPtr() { clear(); }
-            SharedPtr& operator=(std::nullptr_t) noexcept;
+
+            void swap(RegionPtr &other) { std::swap(region_, other.region_); }
+            RegionPtr& RegionPtr::operator=(RegionPtr other) {
+              swap(other);
+              return *this;
+            }
+            SharedPtr& operator=(std::nullptr_t) noexcept {
+              clear();
+              return *this;
+            }
             inline Region * get() { return region_; }
             inline Region & operator*() { return *region_; }
             inline Region * operator->() { return region_; }
