@@ -650,7 +650,7 @@ class Tests(unittest.TestCase):
                 for (i, r) in enumerate(rects):
                     file = rect_path + '/rect-' + str(i) + '_' + '-'.join(map(str, r))
                     expected = nd[r[0]:r[1], r[2]:r[3]]
-                    actual = np.loadtxt(file)
+                    actual = np.loadtxt(file, ndmin = 2)
                     self._assert_eq(expected, actual)
 
                 rect_path_bytes = new_local_temp_dir()
