@@ -16,4 +16,4 @@ RUN pip install --no-cache-dir \
   jupyter nbextension enable --user --py jupyter_spark && \
   jupyter nbextension enable --user --py widgetsnbextension
 
-COPY ./resources/ /
+COPY ./resources/ /home/jovyan
