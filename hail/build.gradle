@@ -35,9 +35,12 @@ buildScan {
 //  - hail short version: MAJOR.MINOR
 //  - hail pip version: MAJOR.MINOR.PATCH
 //  - hail version: MAJOR.MINOR.PATCH-GIT_SHA, calculated by generateBuildInfo
-String hailShortVersion = "0.2"
+String MAJOR = 0
+String MINOR = 2
+String PATCH = 4
+String hailShortVersion = MAJOR.toString() + "." + MINOR.toString()
 // By default pip hides versions ending in ".devN". Use these for testing.
-String hailPipVersion = hailShortVersion + ".4" + System.getProperty("hail.pip-version-suffix", "")
+String hailPipVersion = hailShortVersion + "." + PATCH + System.getProperty("hail.pip-version-suffix", "")
 String[] deployedSparkVersions = new File("deployed-spark-versions.txt").readLines()
 
 String sparkVersion = System.getProperty("spark.version", "2.2.0")

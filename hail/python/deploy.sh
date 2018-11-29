@@ -40,6 +40,9 @@ then
           twine upload dist/*
         set -x
     fi
+
+    git tag ${current} -m "Hail version ${current}"
+    git push https://github.com/hail-is/hail.git ${current}
 else
     echo nothing to do ${published} == ${current}
 fi
