@@ -466,7 +466,7 @@ class GroupedMatrixTable(ExprContainer):
 
         Notes
         -----
-        Alias for :meth:`aggregate_entries`.:meth:`result`.
+        Alias for :meth:`aggregate_entries`, :meth:`result`.
 
         See Also
         --------
