@@ -319,11 +319,7 @@ class TabixLineIterator(
   private var i: Int = -1
   private var curOff: Long = 0 // virtual file offset, not real offset
   private var isEof = false
-  private var is = {
-    val path = new hd.fs.Path(filePath)
-    val fs = path.getFileSystem(hConf)
-    new BGzipInputStream(fs.open(path))
-  }
+  private var is = new BGzipInputStream(hConf.unsafeReader(filePath, checkCodec = false))
 
   def next(): String = {
     var s: String = null
