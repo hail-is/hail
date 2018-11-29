@@ -24,7 +24,6 @@ object Compile {
     tub.include("hail/hail.h")
     tub.include("hail/Utils.h")
     tub.include("hail/Region.h")
-    tub.include("hail/Ordering.h")
 
     tub.include("<limits.h>")
     tub.include("<math.h>")
