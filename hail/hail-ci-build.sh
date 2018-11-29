@@ -16,6 +16,7 @@ gcloud config set project broad-ctsa
 mkdir -p build
 
 COMPILE_LOG="build/compilation.log"
+CXX_TEST_LOG="build/cxx-test.log"
 SCALA_TEST_LOG="build/scala-test.log"
 CXX_CODEGEN_TEST_LOG="build/codegen-test.log"
 PYTHON_TEST_LOG="build/python-test.log"
@@ -25,6 +26,7 @@ GCP_LOG="build/gcp.log"
 PIP_PACKAGE_LOG="build/pip-package.log"
 
 COMP_SUCCESS="build/_COMP_SUCCESS"
+CXX_TEST_SUCCESS="build/_CXX_TEST_SUCCESS"
 SCALA_TEST_SUCCESS="build/_SCALA_TEST_SUCCESS"
 CXX_CODEGEN_TEST_SUCCESS="build/_CXX_CODEGEN_TEST_SUCCESS"
 PYTHON_TEST_SUCCESS="build/_PYTHON_TEST_SUCCESS"
@@ -61,6 +63,7 @@ on_exit() {
     cp build/libs/hail-all-spark.jar ${ARTIFACTS}/hail-all-spark.jar
     cp build/distributions/hail-python.zip ${ARTIFACTS}/hail-python.zip
     cp ${COMPILE_LOG} ${ARTIFACTS}
+    cp ${CXX_TEST_LOG} ${ARTIFACTS}
     cp ${SCALA_TEST_LOG} ${ARTIFACTS}
     cp ${CXX_CODEGEN_TEST_LOG} ${ARTIFACTS}
     cp ${PYTHON_TEST_LOG} ${ARTIFACTS}
@@ -69,12 +72,14 @@ on_exit() {
     cp ${GCP_LOG} ${ARTIFACTS}
     cp ${PIP_PACKAGE_LOG} ${ARTIFACTS}
     cp -R build/www ${ARTIFACTS}/www
+    cp -R src/main/c/build/reports ${ARTIFACTS}/cxx-report
     cp -R build/reports/scala-tests ${ARTIFACTS}/test-report
     cp -R build/reports/tests ${ARTIFACTS}/codegen-test-report
     cp -R build/reports/pytest.html ${ARTIFACTS}/hail-python-test.html
 
     COMP_STATUS=$(get_status "${COMP_SUCCESS}")
-    SCALA_TEST_STATUS=$(get_status "${SCALA_TEST_SUCCESS}")
+    CXX_TEST_STATUS=$(get_status "${CXX_TEST_SUCCESS}")
+    SCALA_TEST_STATUS=$(get_status "${SCALA_TEST_SUCCESS}" "${CXX_TEST_STATUS}")
     CXX_CODEGEN_TEST_STATUS=$(get_status "${CXX_CODEGEN_TEST_SUCCESS}" "${SCALA_TEST_STATUS}")
     PYTHON_TEST_STATUS=$(get_status "${PYTHON_TEST_SUCCESS}" "${CXX_CODEGEN_TEST_STATUS}")
     DOCTEST_STATUS=$(get_status "${DOCTEST_SUCCESS}" "${PYTHON_TEST_STATUS}")
@@ -112,6 +117,14 @@ on_exit() {
 <h3>Tests</h3>
 <table>
 <tbody>
+<tr>
+<td>${CXX_TEST_STATUS}</td>
+<td><a href='cxx-test.log'>C++ test log</a></td>
+</tr>
+<tr>
+<td>${CXX_TEST_STATUS}</td>
+<td><a href='cxx-report/index.html'>Catch2 report</a></td>
+</tr>
 <tr>
 <td>${SCALA_TEST_STATUS}</td>
 <td><a href='scala-test.log'>Scala test log</a></td>
@@ -187,10 +200,12 @@ export GRADLE_OPTS="-Xmx2048m"
 export GRADLE_USER_HOME="/gradle-cache"
 
 echo "Compiling..."
-./gradlew shadowJar archiveZip nativeLibPrebuilt > ${COMPILE_LOG} 2>&1
+./gradlew shadowJar archiveZip > ${COMPILE_LOG} 2>&1
 touch ${COMP_SUCCESS}
 
 test_project() {
+    ./gradlew nativeLibTest > ${CXX_TEST_LOG} 2>&1
+    touch ${CXX_TEST_SUCCESS}
     ./gradlew test > ${SCALA_TEST_LOG} 2>&1
     touch ${SCALA_TEST_SUCCESS}
     mv build/reports/tests build/reports/scala-tests

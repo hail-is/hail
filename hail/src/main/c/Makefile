@@ -38,6 +38,10 @@ OBJECTS := \
   Upcalls.o
 
 BUILD_OBJECTS := $(OBJECTS:%=$(BUILD)/%)
+TEST_OBJECTS := $(BUILD)/unit-tests.o
+
+$(BUILD)/unit-tests.o: testutils/unit-tests.cpp
+	$(CXX) -o $@ $(CXXFLAGS) -c $<
 
 $(BUILD)/%.o: %.cpp
 	$(CXX) -o $@ $(CXXFLAGS) -c $<
@@ -140,12 +144,23 @@ $(BUILD)/functional-tests: ibs.cpp test.cpp
 	-mkdir -p build
 	$(CXX) $(CXXFLAGS) -DNUMBER_OF_GENOTYPES_PER_ROW=256 ibs.cpp test.cpp -o $(BUILD)/functional-tests
 
+$(BUILD)/unit-tests: all $(TEST_OBJECTS)
+	$(CXX) $(CXXFLAGS) -ldl -o $(BUILD)/unit-tests $(BUILD_OBJECTS) $(TEST_OBJECTS)
+
 prebuilt: all
 	@echo updating $(PREBUILT) ...
 	cp -p -f $(LIBBOOT) $(PREBUILT)/$(LIBBOOT)
 	cp -p -f $(LIBHAIL) $(PREBUILT)/$(LIBHAIL)
 
-test: $(BUILD)/functional-tests
+test: $(BUILD)/functional-tests $(BUILD)/unit-tests
+
+	./$(BUILD)/unit-tests -w NoAssertions -d yes -# --use-colour yes -r xml -o $(BUILD)/cxx-test.xml; \
+    	case "$$?" in \
+    		*) \
+    		mkdir -p $(BUILD)/reports; \
+    		cp testutils/style.css $(BUILD)/reports; \
+    		xsltproc -o $(BUILD)/reports/index.html testutils/test-reporter.xslt $(BUILD)/cxx-test.xml;; \
+		esac
 	./$(BUILD)/functional-tests
 
 clean:

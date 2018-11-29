@@ -76,6 +76,8 @@ RUN wget -O qctool_v2.0.1-CentOS6.8-x86_64.tgz http://www.well.ox.ac.uk/~gav/res
     rm -rf qctool_v2.0.1-CentOS6.8-x86_64.tgz && \
     ln -s /qctool/qctool /bin/qctool
 
+RUN wget -O /usr/local/include/catch.hpp https://github.com/catchorg/Catch2/releases/download/v2.4.2/catch.hpp
+
 # creates /hail
 WORKDIR /hail
 RUN mkdir -p /gradle-cache
