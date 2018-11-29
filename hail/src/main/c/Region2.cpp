@@ -75,4 +75,68 @@ RegionPtr RegionPool::get_region() {
   return RegionPtr(region);
 }
 
+void ScalaRegionPool::Region::clear() {
+  auto r2 = region_->get_region();
+  region_ = nullptr;
+  region_ = std::move(r2);
+}
+
+#define REGIONMETHOD(rtype, scala_class, scala_method) \
+  extern "C" __attribute__((visibility("default"))) \
+    rtype Java_is_hail_annotations_##scala_class##_##scala_method
+
+REGIONMETHOD(void, RegionPool, nativeCtor)(
+  JNIEnv* env,
+  jobject thisJ
+) {
+  NativeObjPtr ptr = std::make_shared<ScalaRegionPool>();
+  init_NativePtr(env, thisJ, &ptr);
+}
+
+REGIONMETHOD(void, Region, nativeCtor)(
+  JNIEnv* env,
+  jobject thisJ,
+  jobject poolJ
+) {
+  auto pool = static_cast<ScalaRegionPool*>(get_from_NativePtr(env, poolJ));
+  NativeObjPtr ptr = std::make_shared<ScalaRegionPool::Region>(pool);
+  init_NativePtr(env, thisJ, &ptr);
+}
+
+REGIONMETHOD(void, Region, clearButKeepMem)(
+  JNIEnv* env,
+  jobject thisJ
+) {
+  auto r = static_cast<ScalaRegionPool::Region*>(get_from_NativePtr(env, thisJ));
+  r->clear();
+}
+
+REGIONMETHOD(void, Region, nativeAlign)(
+  JNIEnv* env,
+  jobject thisJ,
+  jlong a
+) {
+  auto r = static_cast<ScalaRegionPool::Region*>(get_from_NativePtr(env, thisJ));
+  r->align(a);
+}
+
+REGIONMETHOD(jlong, Region, nativeAlignAllocate)(
+  JNIEnv* env,
+  jobject thisJ,
+  jlong a,
+  jlong n
+) {
+  auto r = static_cast<ScalaRegionPool::Region*>(get_from_NativePtr(env, thisJ));
+  return reinterpret_cast<jlong>(r->allocate((size_t)a, (size_t)n));
+}
+
+REGIONMETHOD(jlong, Region, nativeAllocate)(
+  JNIEnv* env,
+  jobject thisJ,
+  jlong n
+) {
+  auto r = static_cast<ScalaRegionPool::Region*>(get_from_NativePtr(env, thisJ));
+  return reinterpret_cast<jlong>(r->allocate((size_t)n));
+}
+
 }
