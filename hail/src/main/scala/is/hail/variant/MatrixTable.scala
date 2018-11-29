@@ -193,13 +193,6 @@ object MatrixTable {
   def gen(hc: HailContext, gen: VSMSubgen): Gen[MatrixTable] =
     gen.gen(hc)
 
-  def unionRows(datasets: java.util.ArrayList[MatrixTable]): MatrixTable =
-    unionRows(datasets.asScala.toArray)
-
-  def unionRows(datasets: Array[MatrixTable]): MatrixTable = {
-    new MatrixTable(datasets.head.hc, MatrixUnionRows(datasets.map(_.ast).toFastIndexedSeq))
-  }
-
   def fromRowsTable(kt: Table): MatrixTable = {
     val matrixType = MatrixType.fromParts(
       kt.globalSignature,
@@ -447,16 +440,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     (r: Row) => Row.fromSeq(queriers.map(_ (r)))
   }
 
-  def keyRowsBy(keys: java.util.ArrayList[String]): MatrixTable =
-    keyRowsBy(keys.asScala.toFastIndexedSeq, false)
-
-  def keyRowsBy(keys: java.util.ArrayList[String], isSorted: Boolean): MatrixTable =
-    keyRowsBy(keys.asScala.toFastIndexedSeq, isSorted)
-
-  def keyRowsBy(keys: IndexedSeq[String], isSorted: Boolean): MatrixTable = {
-    new MatrixTable(hc, MatrixKeyRowsBy(ast, keys, isSorted))
-  }
-
   def stringSampleIds: IndexedSeq[String] = {
     assert(colKeyTypes.length == 1 && colKeyTypes(0).isInstanceOf[TString], colKeyTypes.toSeq)
     val querier = colType.query(colKey(0))
@@ -472,38 +455,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         s"\n  @1", dups.sortBy(-_._2).map { case (id, count) => s"""($count) "$id"""" }.truncatable("\n  "))
   }
 
-  def collectColsByKey(): MatrixTable = new MatrixTable(hc, MatrixCollectColsByKey(ast))
-
-  def aggregateColsByKey(entryExpr: String, colExpr: String): MatrixTable = {
-    val env = IRParserEnvironment(matrixType.refMap)
-    val entriesIR = IRParser.parse_value_ir(entryExpr, env)
-    val colsIR = IRParser.parse_value_ir(colExpr, env)
-    new MatrixTable(hc, MatrixAggregateColsByKey(ast, entriesIR, colsIR))
-  }
-
-  def aggregateRowsByKey(entryExpr: String, rowExpr: String): MatrixTable = {
-    val env = IRParserEnvironment(matrixType.refMap)
-    val entriesIR = IRParser.parse_value_ir(entryExpr, env)
-    val rowsIR = IRParser.parse_value_ir(rowExpr, env)
-    new MatrixTable(hc, MatrixAggregateRowsByKey(ast, entriesIR, rowsIR))
-  }
-
   def annotateGlobal(a: Annotation, t: Type, name: String): MatrixTable = {
     new MatrixTable(hc, MatrixMapGlobals(ast,
       ir.InsertFields(ir.Ref("global", ast.typ.globalType), FastSeq(name -> ir.Literal.coerce(t, a)))))
-  }
-
-  def annotateCols(signature: Type, path: List[String], annotations: Array[Annotation]): MatrixTable = {
-    val (t, ins) = colType.structInsert(signature, path)
-
-    val newAnnotations = new Array[Annotation](numCols)
-
-    for (i <- colValues.value.indices) {
-      newAnnotations(i) = ins(colValues.value(i), annotations(i))
-      t.typeCheck(newAnnotations(i))
-    }
-
-    copyMT(matrixType = matrixType.copy(colType = t), colValues = colValues.copy(value = newAnnotations, t = TArray(t)))
   }
 
   def annotateColsTable(kt: Table, root: String): MatrixTable = {
@@ -588,30 +542,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     new MatrixTable(hc, MatrixAnnotateRowsTable(ast, table.tir, uid, key))
   }
 
-  def selectGlobals(expr: String): MatrixTable = {
-    val globalIR = IRParser.parse_value_ir(expr, IRParserEnvironment(matrixType.refMap))
-    new MatrixTable(hc, MatrixMapGlobals(ast, globalIR))
-  }
-
-  def selectCols(expr: String, newKey: java.util.ArrayList[String]): MatrixTable =
-    selectCols(expr, Option(newKey).map(_.asScala.toFastIndexedSeq))
-
-  def selectCols(expr: String, newKey: Option[IndexedSeq[String]]): MatrixTable = {
-    val ir = IRParser.parse_value_ir(expr, IRParserEnvironment(matrixType.refMap))
-    val newColKey = newKey.getOrElse(colKey)
-    new MatrixTable(hc, MatrixMapCols(ast, ir, newKey))
-  }
-
-  def selectRows(expr: String): MatrixTable = {
-    val rowsIR = IRParser.parse_value_ir(expr, IRParserEnvironment(matrixType.refMap))
-    new MatrixTable(hc, MatrixMapRows(ast, rowsIR))
-  }
-
-  def selectEntries(expr: String): MatrixTable = {
-    val ir = IRParser.parse_value_ir(expr, IRParserEnvironment(matrixType.refMap))
-    new MatrixTable(hc, MatrixMapEntries(ast, ir))
-  }
-
   def nPartitions: Int = rvd.getNumPartitions
 
   def annotateRowsVDS(right: MatrixTable, root: String): MatrixTable =
@@ -649,34 +579,12 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def dropRows(): MatrixTable = copyAST(MatrixFilterRows(ast, ir.False()))
 
-  def explodeRows(root: String): MatrixTable = {
-    val path = Parser.parseAnnotationRoot(root, Annotation.ROW_HEAD)
-    copyAST(MatrixExplodeRows(ast, path.toFastIndexedSeq))
-  }
-
-  def explodeCols(code: String): MatrixTable = {
-    val path = Parser.parseAnnotationRoot(code, Annotation.COL_HEAD)
-    copyAST(MatrixExplodeCols(ast, path.toFastIndexedSeq))
-  }
-
   def localizeEntries(entriesFieldName: String, colsFieldName: String): Table =
     new Table(hc, CastMatrixToTable(ast, entriesFieldName, colsFieldName))
 
   def filterCols(p: (Annotation, Int) => Boolean): MatrixTable = {
     val (newType, filterF) = MatrixIR.filterCols(matrixType)
     copyAST(ast = MatrixLiteral(filterF(value, p)))
-  }
-
-  def filterColsExpr(filterExpr: String, keep: Boolean = true): MatrixTable = {
-    var irPred = IRParser.parse_value_ir(filterExpr, IRParserEnvironment(matrixType.refMap))
-    new MatrixTable(hc,
-      MatrixFilterCols(ast, ir.filterPredicateWithKeep(irPred, keep)))
-  }
-
-  def filterRowsExpr(filterExpr: String, keep: Boolean = true): MatrixTable = {
-    var irPred = IRParser.parse_value_ir(filterExpr, IRParserEnvironment(matrixType.refMap))
-    new MatrixTable(hc,
-      MatrixFilterRows(ast, ir.filterPredicateWithKeep(irPred, keep)))
   }
 
   def sparkContext: SparkContext = hc.sc

@@ -441,13 +441,15 @@ class GroupedMatrixTable(ExprContainer):
 
         if self._col_keys is not None:
             keyed_mt = base._select_cols_processed(hl.struct(**group_exprs))
-            mt = MatrixTable._from_java(keyed_mt._jmt.aggregateColsByKey(str(hl.struct(**entry_exprs)._ir),
-                                                               str(hl.struct(**col_exprs)._ir)))
+            mt = MatrixTable(MatrixAggregateColsByKey(keyed_mt._mir,
+                                                      hl.struct(**entry_exprs)._ir,
+                                                      hl.struct(**col_exprs)._ir))
         else:
             assert self._row_keys is not None
             keyed_mt = base._select_rows_processed(hl.struct(**group_exprs))
-            mt = MatrixTable._from_java(keyed_mt._jmt.aggregateRowsByKey(str(hl.struct(**entry_exprs)._ir),
-                                                               str(hl.struct(**row_exprs)._ir)))
+            mt = MatrixTable(MatrixAggregateRowsByKey(keyed_mt._mir,
+                                                      hl.struct(**entry_exprs)._ir,
+                                                      hl.struct(**row_exprs)._ir))
 
         return cleanup(mt)
 
@@ -827,11 +829,12 @@ class MatrixTable(ExprContainer):
         new_row = self._rvrow.annotate(**key_fields)
         base, cleanup = self._process_joins(new_row)
 
-        return cleanup(MatrixTable._from_java(
-            base._jmt
-                .keyRowsBy([])
-                .selectRows(str(new_row._ir))
-                .keyRowsBy(list(key_fields))))
+        return cleanup(MatrixTable(
+            MatrixKeyRowsBy(
+                MatrixMapRows(
+                    MatrixKeyRowsBy(base._mir, []),
+                    new_row._ir),
+                list(key_fields))))
 
     def annotate_globals(self, **named_exprs) -> 'MatrixTable':
         """Create new global fields by name.
@@ -1367,7 +1370,7 @@ class MatrixTable(ExprContainer):
             return mt.filter_rows(mt[bool_uid], keep).drop(bool_uid)
 
         base, cleanup = self._process_joins(expr)
-        mt = MatrixTable._from_java(base._jmt.filterRowsExpr(str(expr._ir), keep))
+        mt = MatrixTable(MatrixFilterRows(base._mir, filter_predicate_with_keep(expr._ir, keep)))
         return cleanup(mt)
 
     @typecheck_method(expr=expr_bool, keep=bool)
@@ -1440,7 +1443,7 @@ class MatrixTable(ExprContainer):
             return mt.filter_cols(mt[bool_uid], keep).drop(bool_uid)
 
         base, cleanup = self._process_joins(expr)
-        mt = MatrixTable._from_java(base._jmt.filterColsExpr(str(expr._ir), keep))
+        mt = MatrixTable(MatrixFilterCols(base._mir, filter_predicate_with_keep(expr._ir, keep)))
         return cleanup(mt)
 
     @typecheck_method(expr=expr_bool, keep=bool)
@@ -1495,7 +1498,7 @@ class MatrixTable(ExprContainer):
         base, cleanup = self._process_joins(expr)
         analyze('MatrixTable.filter_entries', expr, self._entry_indices)
 
-        m = MatrixTable._from_java(base._jmt.filterEntries(str(expr._ir), keep))
+        m = MatrixTable(MatrixFilterEntries(base._mir, filter_predicate_with_keep(expr._ir, keep)))
         return cleanup(m)
 
     def transmute_globals(self, **named_exprs) -> 'MatrixTable':
@@ -1811,19 +1814,19 @@ class MatrixTable(ExprContainer):
             elif self._fields[field_expr]._indices != self._row_indices:
                 raise ExpressionException("Method 'explode_rows' expects a field indexed by row, found axes '{}'"
                                           .format(self._fields[field_expr]._indices.axes))
-            root = 'va.{}'.format(escape_id(field_expr))
+            root = [field_expr]
             field_expr = self._fields[field_expr]
         else:
             analyze('MatrixTable.explode_rows', field_expr, self._row_indices, set(self._fields.keys()))
             if not field_expr._ir.is_nested_field:
                 raise ExpressionException(
                     "method 'explode_rows' requires a field or subfield, not a complex expression")
-            root = [field_expr._ir.name]
             nested = field_expr._ir
+            root = []
             while isinstance(nested, GetField):
-                nested = nested.o
                 root.append(nested.name)
-            root = '.'.join([escape_id(r) for r in reversed(root)])
+                nested = nested.o
+            root = [r for r in reversed(root)]
 
         if not isinstance(field_expr.dtype, (tarray, tset)):
             raise ValueError(f"method 'explode_rows' expects array or set, found: {field_expr.dtype}")
@@ -1833,7 +1836,7 @@ class MatrixTable(ExprContainer):
                 if k is field_expr:
                     raise ValueError(f"method 'explode_rows' cannot explode a key field")
 
-        return MatrixTable._from_java(self._jmt.explodeRows(root))
+        return MatrixTable(MatrixExplodeRows(self._mir, root))
 
     @typecheck_method(field_expr=oneof(str, Expression))
     def explode_cols(self, field_expr) -> 'MatrixTable':
@@ -1873,19 +1876,19 @@ class MatrixTable(ExprContainer):
             elif self._fields[field_expr]._indices != self._col_indices:
                 raise ExpressionException("Method 'explode_cols' expects a field indexed by col, found axes '{}'"
                                           .format(self._fields[field_expr]._indices.axes))
-            root = 'sa.{}'.format(escape_id(field_expr))
+            root = [field_expr]
             field_expr = self._fields[field_expr]
         else:
             analyze('MatrixTable.explode_cols', field_expr, self._col_indices)
             if not field_expr._ir.is_nested_field:
                 raise ExpressionException(
                     "method 'explode_cols' requires a field or subfield, not a complex expression")
-            root = [field_expr._ir.name]
+            root = []
             nested = field_expr._ir
             while isinstance(nested, GetField):
-                nested = nested.o
                 root.append(nested.name)
-            root = '.'.join([escape_id(r) for r in reversed(root)])
+                nested = nested.o
+            root = [r for r in reversed(root)]
 
         if not isinstance(field_expr.dtype, (tarray, tset)):
             raise ValueError(f"method 'explode_cols' expects array or set, found: {field_expr.dtype}")
@@ -1895,7 +1898,7 @@ class MatrixTable(ExprContainer):
                 if k is field_expr:
                     raise ValueError(f"method 'explode_cols' cannot explode a key field")
 
-        return MatrixTable._from_java(self._jmt.explodeCols(root))
+        return MatrixTable(MatrixExplodeCols(self._mir, root))
 
     @typecheck_method(exprs=oneof(str, Expression), named_exprs=expr_any)
     def group_rows_by(self, *exprs, **named_exprs) -> 'GroupedMatrixTable':
@@ -2068,7 +2071,8 @@ class MatrixTable(ExprContainer):
         -------
         :class:`.MatrixTable`
         """
-        return MatrixTable._from_java(self._jmt.collectColsByKey())
+
+        return MatrixTable(MatrixCollectColsByKey(self._mir))
 
     def count_rows(self) -> int:
         """Count the number of rows in the matrix.
@@ -2085,6 +2089,7 @@ class MatrixTable(ExprContainer):
         :obj:`int`
             Number of rows in the matrix.
         """
+
         return self._jmt.countRows()
 
     def _force_count_rows(self):
@@ -2186,7 +2191,8 @@ class MatrixTable(ExprContainer):
         :class:`.Table`
             Table with all row fields from the matrix, with one row per row of the matrix.
         """
-        return Table._from_java(self._jmt.rowsTable())
+
+        return Table(MatrixRowsTable(self._mir))
 
     def cols(self) -> Table:
         """Returns a table with all column fields in the matrix.
@@ -2218,7 +2224,7 @@ class MatrixTable(ExprContainer):
                  "first unkey columns with 'key_cols_by()'")
             Env.hc()._warn_cols_order = False
 
-        return Table._from_java(self._jmt.colsTable())
+        return Table(MatrixColsTable(self._mir))
 
     def entries(self) -> Table:
         """Returns a matrix in coordinate table form.
@@ -2257,7 +2263,7 @@ class MatrixTable(ExprContainer):
                  "first unkey columns with 'key_cols_by()'")
             Env.hc()._warn_entries_order = False
 
-        return Table._from_java(self._jmt.entriesTable())
+        return Table(MatrixEntriesTable(self._mir))
 
     def index_globals(self) -> Expression:
         """Return this matrix table's global variables for use in another
@@ -2535,21 +2541,22 @@ class MatrixTable(ExprContainer):
                                          global_exprs.values()))
 
         base, cleanup = self._process_joins(*all_exprs)
-        jmt = base._jmt
+        mir = base._mir
+
         if row_exprs:
             row_struct = InsertFields(base.row._ir, [(n, e._ir) for (n, e) in row_exprs.items()])
-            jmt = jmt.selectRows(str(row_struct))
+            mir = MatrixMapRows(mir, row_struct)
         if col_exprs:
             col_struct = InsertFields(base.col._ir, [(n, e._ir) for (n, e) in col_exprs.items()])
-            jmt = jmt.selectCols(str(col_struct), None)
+            mir = MatrixMapCols(mir, col_struct, None)
         if entry_exprs:
             entry_struct = InsertFields(base.entry._ir, [(n, e._ir) for (n, e) in entry_exprs.items()])
-            jmt = jmt.selectEntries(str(entry_struct))
+            mir = MatrixMapEntries(mir, entry_struct)
         if global_exprs:
             globals_struct = InsertFields(base.globals._ir, [(n, e._ir) for (n, e) in global_exprs.items()])
-            jmt = jmt.selectGlobals(str(globals_struct))
+            mir = MatrixMapGlobals(mir, globals_struct)
 
-        return cleanup(MatrixTable._from_java(jmt))
+        return cleanup(MatrixTable(mir))
 
     @typecheck_method(row_exprs=dictof(str, expr_any),
                       row_key=nullable(sequenceof(str)),
@@ -2571,29 +2578,29 @@ class MatrixTable(ExprContainer):
                                          global_exprs.values()))
 
         base, cleanup = self._process_joins(*all_exprs)
-        jmt = base._jmt
+        mir = base._mir
 
         if row_key is not None:
-            jmt = jmt.keyRowsBy([])
+            mir = MatrixKeyRowsBy(mir, [])
         row_struct = hl.struct(**row_exprs)
         analyze("MatrixTable.select_rows", row_struct, self._row_indices)
-        jmt = jmt.selectRows(str(row_struct._ir))
+        mir = MatrixMapRows(mir, row_struct._ir)
         if row_key is not None:
-            jmt = jmt.keyRowsBy(row_key)
+            mir = MatrixKeyRowsBy(mir, row_key)
 
         col_struct = hl.struct(**col_exprs)
         analyze("MatrixTable.select_cols", col_struct, self._col_indices)
-        jmt = jmt.selectCols(str(col_struct._ir), col_key)
+        mir = MatrixMapCols(mir, col_struct._ir, col_key)
 
         entry_struct = hl.struct(**entry_exprs)
         analyze("MatrixTable.select_entries", entry_struct, self._entry_indices)
-        jmt = jmt.selectEntries(str(entry_struct._ir))
+        mir = MatrixMapEntries(mir, entry_struct._ir)
 
         globals_struct = hl.struct(**global_exprs)
         analyze("MatrixTable.select_globals", globals_struct, self._global_indices)
-        jmt = jmt.selectGlobals(str(globals_struct._ir))
+        mir = MatrixMapGlobals(mir, globals_struct._ir)
 
-        return cleanup(MatrixTable._from_java(jmt))
+        return cleanup(MatrixTable(mir))
 
     def _process_joins(self, *exprs):
         return process_joins(self, exprs)
@@ -2684,8 +2691,7 @@ class MatrixTable(ExprContainer):
         for i in indices:
             if not 0 <= i < n_cols:
                 raise ValueError(f"'choose_cols': expect indices between 0 and {n_cols}, found {i}")
-        jmt = self._jmt.chooseCols(indices)
-        return MatrixTable._from_java(jmt)
+        return MatrixTable(MatrixChooseCols(self._mir, indices))
 
     def n_partitions(self) -> int:
         """Number of partitions.
@@ -2934,15 +2940,14 @@ class MatrixTable(ExprContainer):
     def _select_entries(self, caller, s) -> 'MatrixTable':
         base, cleanup = self._process_joins(s)
         analyze(caller, s, self._entry_indices)
-        return cleanup(MatrixTable._from_java(base._jmt.selectEntries(str(s._ir))))
+        return cleanup(MatrixTable(MatrixMapEntries(base._mir, s._ir)))
 
     @typecheck_method(caller=str,
                       row=expr_struct())
     def _select_rows(self, caller, row):
         analyze(caller, row, self._row_indices, {self._col_axis})
         base, cleanup = self._process_joins(row)
-
-        return cleanup(MatrixTable._from_java(base._jmt.selectRows(str(row._ir))))
+        return cleanup(MatrixTable(MatrixMapRows(base._mir, row._ir)))
 
     @typecheck_method(key_struct=expr_struct())
     def _select_rows_processed(self, key_struct):
@@ -2950,7 +2955,12 @@ class MatrixTable(ExprContainer):
         keys = Env.get_uid()
         fields = [(n, GetField(Ref(keys), n)) for (n, t) in key_struct.dtype.items()]
         row_ir = Let(keys, key_struct._ir, InsertFields(self.row._ir, fields))
-        return MatrixTable._from_java(self._jmt.keyRowsBy([]).selectRows(str(row_ir)).keyRowsBy(new_key))
+        return MatrixTable(
+            MatrixKeyRowsBy(
+                MatrixMapRows(
+                    MatrixKeyRowsBy(self._mir, []),
+                row_ir),
+            new_key))
 
     @typecheck_method(caller=str,
                       col=expr_struct(),
@@ -2958,7 +2968,7 @@ class MatrixTable(ExprContainer):
     def _select_cols(self, caller, col, new_key=None):
         analyze(caller, col, self._col_indices, {self._row_axis})
         base, cleanup = self._process_joins(col)
-        return cleanup(MatrixTable._from_java(base._jmt.selectCols(str(col._ir), new_key)))
+        return cleanup(MatrixTable(MatrixMapCols(base._mir, col._ir, new_key)))
 
     @typecheck_method(key_struct=expr_struct())
     def _select_cols_processed(self, key_struct):
@@ -2966,13 +2976,13 @@ class MatrixTable(ExprContainer):
         keys = Env.get_uid()
         fields = [(n, GetField(Ref(keys), n)) for (n, t) in key_struct.dtype.items()]
         col_ir = Let(keys, key_struct._ir, InsertFields(self.col._ir, fields))
-        return MatrixTable._from_java(self._jmt.selectCols(str(col_ir), new_key))
+        return MatrixTable(MatrixMapCols(self._mir, col_ir, new_key))
 
     @typecheck_method(caller=str, s=expr_struct())
     def _select_globals(self, caller, s) -> 'MatrixTable':
         base, cleanup = self._process_joins(s)
         analyze(caller, s, self._global_indices)
-        return cleanup(MatrixTable._from_java(base._jmt.selectGlobals(str(s._ir))))
+        return cleanup(MatrixTable(MatrixMapGlobals(base._mir, s._ir)))
 
     @typecheck(datasets=matrix_table_type)
     def union_rows(*datasets: 'MatrixTable') -> 'MatrixTable':
@@ -3054,7 +3064,7 @@ class MatrixTable(ExprContainer):
                     raise ValueError(error_msg.format(
                         "col key types", 0, first.col_key.dtype, i+1, next.col_key.dtype
                     ))
-            return MatrixTable._from_java(Env.hail().variant.MatrixTable.unionRows([d._jmt for d in datasets]))
+            return MatrixTable(MatrixUnionRows(*[d._mir for d in datasets]))
 
     @typecheck_method(other=matrix_table_type)
     def union_cols(self, other: 'MatrixTable') -> 'MatrixTable':
