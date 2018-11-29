@@ -693,7 +693,7 @@ private class Emit(
                 Code._null,
                 aggSig.seqOpArgs(0) match {
                   case _: TBoolean => Code.boxBoolean(key.value[Boolean])
-                  case _: TInt32 => Code.boxInt(key.value[Int])
+                  case _: TInt32 | _: TCall => Code.boxInt(key.value[Int])
                   case _: TInt64 => Code.boxLong(key.value[Long])
                   case _: TFloat32 => Code.boxFloat(key.value[Float])
                   case _: TFloat64 => Code.boxDouble(key.value[Double])

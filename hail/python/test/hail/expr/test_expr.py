@@ -338,6 +338,12 @@ class Tests(unittest.TestCase):
         for aggregation, expected in tests:
             self.assertEqual(t.aggregate(aggregation), expected)
 
+    def test_agg_group_by_on_call(self):
+        t = hl.utils.range_table(10)
+        t = t.annotate(call = hl.call(0, 0), x = 1)
+        res = t.aggregate(hl.agg.group_by(t.call, hl.agg.sum(t.x)))
+        self.assertEqual(res, {hl.Call([0, 0]): 10})
+
     def test_aggregators_with_randomness(self):
         t = hl.utils.range_table(10)
         res = t.aggregate(agg.filter(hl.rand_bool(0.5), hl.struct(collection=agg.collect(t.idx), sum=agg.sum(t.idx))))
