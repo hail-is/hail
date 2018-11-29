@@ -29,7 +29,7 @@ object Compile {
     tub.include("<math.h>")
 
     val fb = tub.buildFunction("f",
-      Array("NativeStatus *" -> "st", "Region *" -> "region", "const char *" -> "v"),
+      Array("NativeStatus *" -> "st", "ScalaRegion *" -> "region", "const char *" -> "v"),
       "char *")
 
     val v = Emit(fb, 2, body)
@@ -49,7 +49,7 @@ object Compile {
       def define: String =
         s"""
            |long entrypoint(NativeStatus *st, long region, long v) {
-           |  return (long)${ f.name }(st, (Region *)region, (char *)v);
+           |  return (long)${ f.name }(st, (ScalaRegion *)region, (char *)v);
            |}
          """.stripMargin
     }

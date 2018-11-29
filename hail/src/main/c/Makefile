@@ -34,7 +34,7 @@ OBJECTS := \
   NativeStatus \
   ObjectArray \
   PartitionIterators \
-  Region2 \
+  Region \
   Upcalls \
 
 BUILD_OBJECTS := $(OBJECTS:%=$(BUILD)/%.o)

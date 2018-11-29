@@ -108,8 +108,8 @@ class RegionPool {
     size_t num_free_blocks() { return free_blocks_.size(); }
 };
 
-using Region2 = RegionPool::Region;
-using RegionPtr = Region2::SharedPtr;
+using Region = RegionPool::Region;
+using RegionPtr = Region::SharedPtr;
 
 class ScalaRegionPool : public NativeObj {
   RegionPool pool_{};
@@ -134,6 +134,8 @@ class ScalaRegionPool : public NativeObj {
     }
     virtual const char* get_class_name() { return "RegionPool"; }
 };
+
+using ScalaRegion = ScalaRegionPool::Region;
 
 }
 

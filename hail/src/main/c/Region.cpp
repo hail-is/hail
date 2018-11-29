@@ -1,4 +1,4 @@
-#include "hail/Region2.h"
+#include "hail/Region.h"
 #include "hail/Upcalls.h"
 #include <memory>
 #include <vector>
@@ -19,24 +19,24 @@ void RegionPtr::clear() {
   }
 }
 
-Region2::Region(RegionPool * pool) :
+Region::Region(RegionPool * pool) :
 pool_(pool),
 block_offset_(0),
 current_block_(pool->get_block()) { }
 
-char * Region2::allocate_new_block(size_t n) {
+char * Region::allocate_new_block(size_t n) {
   used_blocks_.push_back(std::move(current_block_));
   current_block_ = pool_->get_block();
   block_offset_ = n;
   return current_block_.get();
 }
 
-char * Region2::allocate_big_chunk(size_t n) {
+char * Region::allocate_big_chunk(size_t n) {
   big_chunks_.push_back(std::make_unique<char[]>(n));
   return big_chunks_.back().get();
 }
 
-void Region2::clear() {
+void Region::clear() {
   block_offset_ = 0;
   std::move(std::begin(used_blocks_), std::end(used_blocks_), std::back_inserter(pool_->free_blocks_));
   used_blocks_.clear();
@@ -44,11 +44,11 @@ void Region2::clear() {
   parents_.clear();
 }
 
-RegionPtr Region2::get_region() {
+RegionPtr Region::get_region() {
   return pool_->get_region();
 }
 
-void Region2::add_reference_to(RegionPtr region) {
+void Region::add_reference_to(RegionPtr region) {
   parents_.push_back(std::move(region));
 }
 
@@ -70,7 +70,7 @@ RegionPtr RegionPool::get_region() {
   if (free_regions_.empty()) {
     return new_region();
   }
-  Region2 * region = std::move(free_regions_.back());
+  Region * region = std::move(free_regions_.back());
   free_regions_.pop_back();
   return RegionPtr(region);
 }

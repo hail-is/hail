@@ -4,7 +4,7 @@
 #include "hail/Upcalls.h"
 #include "hail/Utils.h"
 #include "hail/NativeObj.h"
-#include "hail/Region2.h"
+#include "hail/Region.h"
 #include "hail/NativeStatus.h"
 #include <jni.h>
 #include <memory>
