@@ -16,6 +16,7 @@ spec:
         app: notebook
         hail.is/sha: "@sha@"
     spec:
+      serviceAccountName: notebook
       containers:
       - name: notebook
         image: @image@
