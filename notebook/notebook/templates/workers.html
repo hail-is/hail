@@ -29,7 +29,7 @@
             <td>{{ w[0].status.start_time }}</td>
             <td>{{ w[1].metadata.name }}</td>
             <td>{{ w[0].metadata.labels.get("hail.is/notebook-instance") }}</td>
-            <td><a href="{{ workers_url }}/{{ w[0].metadata.name }}/delete">delete</a></td>
+            <td><a href="{{ workers_url }}/{{ w[0].metadata.name }}/{{w[1].metadata.name}}/delete">delete</a></td>
           </tr>
           {% endfor %}
         </tbody>

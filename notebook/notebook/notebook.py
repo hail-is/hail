@@ -147,8 +147,9 @@ def root():
 @app.route('/new', methods=['GET'])
 def new_get():
     pod_name = session.get('pod_name')
+    svc_name = session.get('svc_name')
     if pod_name:
-        delete_worker_pod(pod_name)
+        delete_worker_pod(pod_name, svc_name)
     session.clear()
     return redirect(external_url_for('/'))
 
@@ -206,43 +207,31 @@ def workers():
                            leader_instance=INSTANCE_ID)
 
 
-@app.route('/workers/<pod_name>/delete')
-def workers_delete(pod_name):
-    delete_worker_pod(pod_name)
+@app.route('/workers/<pod_name>/<svc_name>/delete')
+def workers_delete(pod_name, svc_name):
+    delete_worker_pod(pod_name, svc_name)
     return redirect(external_url_for('workers'))
 
 
-def delete_worker_pod(pod_name):
+def delete_worker_pod(pod_name, svc_name):
     if not session.get('admin'):
         return redirect(external_url_for('admin-login'))
     try:
-        pod = k8s.read_namespaced_pod(
-            pod_name,
-            'default',
-            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
-        uuid = pod.metadata.labels['uuid']
         k8s.delete_namespaced_pod(
             pod_name,
             'default',
             kube.client.V1DeleteOptions(),
             _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
     except kube.client.rest.ApiException as e:
-        log.info(f'pod {pod_name} already deleted {e}')
-
+        log.info(f'pod {pod_name} or associated service already deleted {e}')
     try:
-        svcs = k8s.list_namespaced_service(
-            namespace='default',
-            watch=False,
-            label_selector='uuid='+uuid,
-            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS).items
-        assert(len(svcs) == 1)
         k8s.delete_namespaced_service(
-            svcs[0].metadata.name,
+            svc_name,
             'default',
             kube.client.V1DeleteOptions(),
             _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
     except kube.client.rest.ApiException as e:
-        log.info(f'service for pod {pod_name} already deleted {e}')
+        log.info(f'service {svc_name} (for pod {pod_name}) already deleted {e}')
 
 
 @app.route('/admin-login', methods=['GET'])
