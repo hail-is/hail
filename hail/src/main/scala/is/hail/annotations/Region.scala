@@ -265,7 +265,9 @@ object RegionPool {
   private val pools = new java.util.concurrent.ConcurrentHashMap[Long, RegionPool]()
 
   def get: RegionPool = {
-    val makePool: java.util.function.Function[Long, RegionPool] = { _: Long => new RegionPool() }
+    val makePool: java.util.function.Function[Long, RegionPool] = new java.util.function.Function[Long, RegionPool] {
+      def apply(id: Long): RegionPool = new RegionPool()
+    }
     pools.computeIfAbsent(Thread.currentThread().getId(), makePool)
   }
 }
