@@ -3,7 +3,6 @@ package is.hail.io
 import is.hail.{SparkSuite, TestUtils}
 import is.hail.io.tabix._
 import is.hail.testUtils._
-import is.hail.utils.SerializableHadoopConfiguration
 
 import htsjdk.tribble.readers.{TabixReader => HtsjdkTabixReader}
 
@@ -18,7 +17,6 @@ class TabixSuite extends SparkSuite {
   val vcfGzTbiFile = vcfGzFile + ".tbi"
 
   lazy val reader = new TabixReader(vcfGzFile)
-  lazy val serHdConf = new SerializableHadoopConfiguration(hc.hadoopConf)
 
   @BeforeTest def initialize() {
     hc // reference to initialize
@@ -55,7 +53,7 @@ class TabixSuite extends SparkSuite {
     for (chr <- Seq("1", "19", "X")) {
       val tid = reader.chr2tid(chr)
       val pairs = reader.queryPairs(tid, 1, 400);
-      val hailIter = new TabixLineIterator(serHdConf, reader.filePath, pairs)
+      val hailIter = new TabixLineIterator(hc.sc, reader.filePath, pairs)
       val htsIter = htsjdkrdr.query(chr, 1, 400);
       val hailStr = hailIter.next()
       val htsStr = htsIter.next()
@@ -70,7 +68,7 @@ class TabixSuite extends SparkSuite {
     for (chr <- Seq("1", "19", "X")) {
       val tid = reader.chr2tid(chr)
       val pairs = reader.queryPairs(tid, 350, 400);
-      val hailIter = new TabixLineIterator(serHdConf, reader.filePath, pairs)
+      val hailIter = new TabixLineIterator(hc.sc, reader.filePath, pairs)
       val htsIter = htsjdkrdr.query(chr, 1, 400);
       val hailStr = hailIter.next()
       val htsStr = htsIter.next()
@@ -83,7 +81,7 @@ class TabixSuite extends SparkSuite {
     for (chr <- Seq("1", "19", "X")) {
       val tid = reader.chr2tid(chr)
       val pairs = reader.queryPairs(tid, 100, 100);
-      val hailIter = new TabixLineIterator(serHdConf, reader.filePath, pairs)
+      val hailIter = new TabixLineIterator(hc.sc, reader.filePath, pairs)
       val htsIter = htsjdkrdr.query(chr, 100, 100);
       val hailStr = hailIter.next()
       val htsStr = htsIter.next()
@@ -111,7 +109,7 @@ class TabixSuite extends SparkSuite {
         (12703588, 16751726))) {
       val pairs = hailrdr.queryPairs(tid, start, end)
       val htsIter = htsjdkrdr.query(chr, start, end)
-      val hailIter = new TabixLineIterator(serHdConf, hailrdr.filePath, pairs)
+      val hailIter = new TabixLineIterator(hc.sc, hailrdr.filePath, pairs)
       var htsStr = htsIter.next()
       var test = false
       while (htsStr != null) {

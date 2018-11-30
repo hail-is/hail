@@ -7,6 +7,7 @@ import is.hail.utils._
 import htsjdk.tribble.util.{ParsingUtils, TabixUtils}
 import org.apache.{hadoop => hd}
 import org.apache.hadoop.io.compress.SplitCompressionInputStream
+import org.apache.spark.SparkContext
 
 import java.io.InputStream
 import java.nio.{ByteBuffer, ByteOrder}
@@ -309,17 +310,17 @@ class TabixReader(val filePath: String, private val idxFilePath: Option[String] 
 }
 
 class TabixLineIterator(
-  private val serHadoopConf: SerializableHadoopConfiguration,
+  @transient private val sc: SparkContext,
   private val filePath: String,
   private val offsets: Array[TbiPair]
 )
   extends java.lang.AutoCloseable
 {
-  private val hConf = serHadoopConf.value
+  private val shConfBc = sc.broadcast(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
   private var i: Int = -1
   private var curOff: Long = 0 // virtual file offset, not real offset
   private var isEof = false
-  private var is = new BGzipInputStream(hConf.unsafeReader(filePath, checkCodec = false))
+  private var is = new BGzipInputStream(shConfBc.value.value.unsafeReader(filePath, checkCodec = false))
 
   def next(): String = {
     var s: String = null
