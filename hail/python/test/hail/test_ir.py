@@ -118,7 +118,7 @@ class TableIRTests(unittest.TestCase):
         table_read_row_type = hl.dtype('struct{idx: int32, f32: float32, i64: int64, m: float64, astruct: struct{a: int32, b: float64}, mstruct: struct{x: int32, y: str}, aset: set<str>, mset: set<float64>, d: dict<array<str>, float64>, md: dict<int32, str>, h38: locus<GRCh38>, ml: locus<GRCh37>, i: interval<locus<GRCh37>>, c: call, mc: call, t: tuple(call, str, str), mt: tuple(locus<GRCh37>, bool)}')
 
         matrix_read = ir.MatrixRead(
-            resource('backward_compatability/1.0.0/matrix_table/0.hmt'), False, False)
+            ir.MatrixNativeReader(resource('backward_compatability/1.0.0/matrix_table/0.hmt')), False, False)
 
         range = ir.TableRange(10, 4)
         table_irs = [
@@ -176,13 +176,15 @@ class TableIRTests(unittest.TestCase):
         collect = ir.MakeStruct([('x', ir.ApplyAggOp('Collect', [], None, [ir.I32(0)]))])
 
         matrix_read = ir.MatrixRead(
-            resource('backward_compatability/1.0.0/matrix_table/0.hmt'), False, False)
+            ir.MatrixNativeReader(resource('backward_compatability/1.0.0/matrix_table/0.hmt')), False, False)
         table_read = ir.TableRead(resource('backward_compatability/1.0.0/table/0.ht'), False, None)
 
+        matrix_range = ir.MatrixRead(ir.MatrixRangeReader(1, 1, 10))
+
         matrix_irs = [
-            ir.MatrixRepartition(ir.MatrixRange(5, 5, 1), 100, True),
-            ir.MatrixUnionRows(ir.MatrixRange(5, 5, 1), ir.MatrixRange(5, 5, 1)),
-            ir.MatrixDistinctByRow(ir.MatrixRange(5, 5, 1)),
+            ir.MatrixRepartition(matrix_range, 100, True),
+            ir.MatrixUnionRows(matrix_range, matrix_range),
+            ir.MatrixDistinctByRow(matrix_range),
             ir.CastTableToMatrix(
                 ir.CastMatrixToTable(matrix_read, '__entries', '__cols'),
                 '__entries',
@@ -190,11 +192,11 @@ class TableIRTests(unittest.TestCase):
                 []),
             ir.MatrixAggregateRowsByKey(matrix_read, collect, collect),
             ir.MatrixAggregateColsByKey(matrix_read, collect, collect),
-            ir.MatrixRange(1, 1, 10),
-            ir.MatrixImportVCF([resource('sample.vcf')], False, False, None, None, False, ['GT'],
-                               hail.get_reference('GRCh37'), {}, True, False),
-            ir.MatrixImportBGEN([resource('example.8bits.bgen')], ['GP'], resource('example.sample'), {}, 10, 1,
-                                ['varid'], None),
+            matrix_read,
+            matrix_range,
+            ir.MatrixRead(ir.MatrixVCFReader(resource('sample.vcf'), ['GT'], None, None, None, None,
+                                             False, True, False, True)),
+            ir.MatrixRead(ir.MatrixBGENReader(resource('example.8bits.bgen'), None, {}, 10, 1, None)),
             ir.MatrixFilterRows(matrix_read, ir.FalseIR()),
             ir.MatrixFilterCols(matrix_read, ir.FalseIR()),
             ir.MatrixFilterEntries(matrix_read, ir.FalseIR()),

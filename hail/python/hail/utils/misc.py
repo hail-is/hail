@@ -55,7 +55,7 @@ def range_matrix_table(n_rows, n_cols, n_partitions=None) -> 'hail.MatrixTable':
     check_positive_and_in_range('range_matrix_table', 'n_cols', n_cols)
     if n_partitions is not None:
         check_positive_and_in_range('range_matrix_table', 'n_partitions', n_partitions)
-    return hail.MatrixTable._from_java(Env.hail().variant.MatrixTable.range(Env.hc()._jhc, n_rows, n_cols, joption(n_partitions)))
+    return hail.MatrixTable(hail.ir.MatrixRead(hail.ir.MatrixRangeReader(n_rows, n_cols, n_partitions)))
 
 @typecheck(n=int, n_partitions=nullable(int))
 def range_table(n, n_partitions=None) -> 'hail.Table':

@@ -5,6 +5,7 @@ import is.hail.expr.{JSONAnnotationImpex, ParserUtils}
 import is.hail.expr.types.{MatrixType, TableType}
 import is.hail.expr.types.virtual._
 import is.hail.expr.types.physical.PType
+import is.hail.io.bgen.MatrixBGENReaderSerializer
 import is.hail.rvd.RVDType
 import is.hail.table.{Ascending, Descending, SortField}
 import is.hail.utils.StringEscapeUtils._
@@ -936,13 +937,13 @@ object IRParser {
         val rowExpr = ir_value_expr(newEnv)(it)
         MatrixAggregateRowsByKey(child, entryExpr, rowExpr)
       case "MatrixRead" =>
-        val typ = opt(it, matrix_type_expr)
+        val requestedType = opt(it, matrix_type_expr)
         val dropCols = boolean_literal(it)
         val dropRows = boolean_literal(it)
         val readerStr = string_literal(it)
-        implicit val formats = MatrixReader.formats
+        implicit val formats = MatrixReader.formats + new MatrixBGENReaderSerializer(env)
         val reader = Serialization.read[MatrixReader](readerStr)
-        MatrixRead(typ.getOrElse(reader.fullType), dropCols, dropRows, reader)
+        MatrixRead(requestedType.getOrElse(reader.fullType), dropCols, dropRows, reader)
       case "TableToMatrixTable" =>
         val rowKey = string_literals(it)
         val colKey = string_literals(it)

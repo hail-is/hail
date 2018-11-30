@@ -6,13 +6,10 @@ from hail.matrixtable import MatrixTable
 from hail.table import Table
 from hail.expr.types import *
 from hail.expr.expressions import *
-from hail.ir import MatrixWrite
-from hail.ir.matrix_writer import *
+from hail.ir import *
 from hail.genetics.reference_genome import reference_genome_type
 from hail.methods.misc import require_biallelic, require_row_key_variant, require_row_key_variant_w_struct_locus, require_col_key_str
 import hail as hl
-
-_cached_loadvcf = None
 
 
 def locus_interval_expr(contig, start, end, includes_start, includes_end,
@@ -957,17 +954,18 @@ def import_bgen(path,
     if n_partitions is None and block_size is None:
         block_size = 128
 
-    if index_file_map:
-        index_file_map = tdict(tstr, tstr)._convert_to_j(index_file_map)
+    if index_file_map is None:
+        index_file_map = {}
+    java_index_file_map = tdict(tstr, tstr)._convert_to_j(index_file_map)
 
     entry_set = set(entry_fields)
     row_set = set(_row_fields)
 
+    # have to get reference genome from the index files!
+    reference_genome = Env.hail().io.bgen.LoadBgen.getReferenceGenome(Env.hc()._jhc.hadoopConf(), wrap_to_list(path), java_index_file_map)
+    lt = tlocus(reference_genome) if reference_genome else tstruct(contig=tstr, position=tint32)
+
     if variants is not None:
-        # have to get reference genome from the index files!
-        reference_genome = Env.hail().io.bgen.LoadBgen.getReferenceGenome(Env.hc()._jhc.hadoopConf(), wrap_to_list(path), index_file_map)        
-        
-        lt = tlocus(reference_genome) if reference_genome else tstruct(contig=tstr, position=tint32)
         expected_vtype = tstruct(locus=lt, alleles=tarray(tstr))
         
         if isinstance(variants, StructExpression) or isinstance(variants, LocusExpression):
@@ -983,44 +981,46 @@ def import_bgen(path,
             fnames = list(variants.dtype)
             variants = variants._to_table(uid) # This will add back the other key fields of the source, which we don't want
             variants = variants.key_by(**{fname: variants[uid][fname] for fname in fnames})
-            variants = variants.select()._jt
+            variants = variants.select()
         elif isinstance(variants, Table):
             if len(variants.key) == 0 or not variants.key.dtype._is_prefix_of(expected_vtype):
                 raise TypeError("'import_bgen' requires the row key type for 'variants' is a non-empty prefix of the BGEN key type: \n" +
                                  f"\tFound: {repr(variants.key.dtype)}\n" +
                                   f"\tExpected: {repr(expected_vtype)}\n")
-            variants = variants.select()._jt
+            variants = variants.select()
         else:
             assert isinstance(variants, list)
             try:
                 if len(variants) == 0:
                     variants = hl.Table.parallelize(variants,
                                                     schema=expected_vtype,
-                                                    key=['locus', 'alleles'])._jt
+                                                    key=['locus', 'alleles'])
                 else:
                     first_v = variants[0]
                     if isinstance(first_v, hl.Locus):
                         variants = hl.Table.parallelize([hl.Struct(locus=v) for v in variants],
                                                         schema=hl.tstruct(locus=lt),
-                                                        key='locus')._jt
+                                                        key='locus')
                     else:
                         assert isinstance(first_v, hl.utils.Struct)
                         if len(first_v) == 1:
                             variants = hl.Table.parallelize(variants,
                                                             schema=hl.tstruct(locus=lt),
-                                                            key='locus')._jt
+                                                            key='locus')
                         else:
                             variants = hl.Table.parallelize(variants,
                                                             schema=expected_vtype,
-                                                            key=['locus', 'alleles'])._jt
+                                                            key=['locus', 'alleles'])
             except:
                 raise TypeError(f"'import_bgen' requires all elements in 'variants' are a non-empty prefix of the BGEN key type: {repr(expected_vtype)}")
 
-    jmt = Env.hc()._jhc.importBgens(jindexed_seq_args(path), joption(sample_file),
-                                    'GT' in entry_set, 'GP' in entry_set, 'dosage' in entry_set,
-                                    'varid' in row_set, 'rsid' in row_set, joption(n_partitions),
-                                    joption(block_size), index_file_map, joption(variants))
-    return MatrixTable._from_java(jmt)
+    reader = MatrixBGENReader(path, sample_file, index_file_map, n_partitions, block_size, variants)
+
+    mt = (MatrixTable(MatrixRead(reader))
+          .drop(*[fd for fd in ['GT', 'GP', 'dosage'] if fd not in entry_set],
+                *[fd for fd in ['rsid', 'varid', 'offset', 'file_idx'] if fd not in row_set]))
+
+    return mt
 
 
 @typecheck(path=oneof(str, sequenceof(str)),
@@ -1676,7 +1676,7 @@ def read_matrix_table(path, _drop_cols=False, _drop_rows=False) -> MatrixTable:
     -------
     :class:`.MatrixTable`
     """
-    return MatrixTable._from_java(Env.hc()._jhc.read(path, _drop_cols, _drop_rows))
+    return MatrixTable(MatrixRead(MatrixNativeReader(path), _drop_cols, _drop_rows))
 
 
 @typecheck(path=str)
@@ -1880,26 +1880,10 @@ def import_vcf(path,
     :class:`.MatrixTable`
     """
 
-    rg = reference_genome.name if reference_genome else None
-
-    global _cached_loadvcf
-    if _cached_loadvcf is None:
-        _cached_loadvcf = Env.hail().io.vcf.LoadVCF
-
-    jmt = _cached_loadvcf.pyApply(
-        wrap_to_list(path),
-        wrap_to_list(call_fields),
-        header_file,
-        joption(min_partitions),
-        drop_samples,
-        rg,
-        contig_recoding,
-        array_elements_required,
-        skip_invalid_loci,
-        force_bgz,
-        force
-    )
-    return MatrixTable._from_java(jmt)
+    reader = MatrixVCFReader(path, call_fields, header_file, min_partitions,
+                             reference_genome, contig_recoding, array_elements_required,
+                             skip_invalid_loci, force_bgz, force)
+    return MatrixTable(MatrixRead(reader, drop_cols=drop_samples))
 
 
 @typecheck(path=oneof(str, sequenceof(str)),

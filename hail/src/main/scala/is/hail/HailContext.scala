@@ -677,7 +677,7 @@ class HailContext private(val sc: SparkContext,
         ReferenceGenome.addReference(referenceGenome)
         true
       } else false
-    }
+    } // Needed for tests
 
     val reader = MatrixVCFReader(
       Array(file),
