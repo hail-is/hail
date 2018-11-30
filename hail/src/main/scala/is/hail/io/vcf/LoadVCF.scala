@@ -949,7 +949,7 @@ class PartitionedVCFRDD(
   def compute(split: Partition, context: TaskContext): Iterator[String] = {
     val p = split.asInstanceOf[PartitionedVCFPartition]
 
-    val lines = new TabixLineIterator(file, p.reg)
+    val lines = new TabixLineIterator(sc, file, p.reg)
 
     // clean up
     val context = TaskContext.get
