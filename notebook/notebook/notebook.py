@@ -181,14 +181,16 @@ def auth(requested_svc_name):
 def workers():
     if not session.get('admin'):
         return redirect(external_url_for('admin-login'))
-    workers = k8s.list_pod_for_all_namespaces(
+    workers = k8s.list_namespaced_pod(
+        namespace='default',
         watch=False,
         label_selector='app=notebook-worker',
         _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
     workers_and_svcs = []
     for w in workers.items:
         uuid = w.metadata.labels['uuid']
-        svcs = k8s.list_service_for_all_namespaces(
+        svcs = k8s.list_namespaced_service(
+            namespace='default',
             watch=False,
             label_selector='uuid='+uuid,
             _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS).items
@@ -223,7 +225,8 @@ def delete_worker_pod(pod_name):
         'default',
         kube.client.V1DeleteOptions(),
         _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
-    svcs = k8s.list_service_for_all_namespaces(
+    svcs = k8s.list_namespaced_service(
+        namespace='default',
         watch=False,
         label_selector='uuid='+uuid,
         _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS).items
