@@ -62,7 +62,7 @@ std::unique_ptr<char[]> RegionPool::get_block() {
 }
 
 RegionPtr RegionPool::new_region() {
-  regions_.emplace_back(new Region2(this));
+  regions_.emplace_back(new Region(this));
   return RegionPtr(regions_.back().get());
 }
 
@@ -76,10 +76,10 @@ RegionPtr RegionPool::get_region() {
 }
 
 void ScalaRegionPool::own(RegionPool &&pool) {
-  auto p = std::move(pool);
-  for (auto &region : p.free_regions_) {
-    if (region.references_ != 0) {
-      this->pool_.push_back(std::move(region));
+  for (auto &region : pool.regions_) {
+    if (region->references_ != 0) {
+      region->pool_ = &this->pool_;
+      this->pool_.regions_.push_back(std::move(region));
     }
   }
 }

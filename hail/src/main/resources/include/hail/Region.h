@@ -20,6 +20,7 @@ class RegionPool {
   public:
     class Region {
       friend class RegionPool;
+      friend class ScalaRegionPool;
       public:
         class SharedPtr {
           friend class RegionPool;
@@ -116,7 +117,7 @@ class ScalaRegionPool : public NativeObj {
   public:
     class Region : public NativeObj {
       private:
-        RegionPtr region_;
+        RegionPool::Region::SharedPtr region_;
 
       public:
         Region(ScalaRegionPool * pool) : region_(pool->pool_.get_region()) { }
