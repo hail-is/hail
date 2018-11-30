@@ -13,6 +13,7 @@ __all__ = [
 resources = {
     '1kg_annotations': 'https://storage.googleapis.com/hail-tutorial/1kg_annotations.txt',
     '1kg_matrix_table': 'https://storage.googleapis.com/hail-tutorial/1kg.vcf.bgz',
+    'ensembl_gene_annotations': 'https://storage.googleapis.com/hail-tutorial/ensembl_gene_annotations.txt',
     'movie_lens_100k': 'http://files.grouplens.org/datasets/movielens/ml-100k.zip',
 }
 
@@ -53,12 +54,14 @@ def get_1kg(output_dir, overwrite: bool = False):
 
     matrix_table_path = os.path.join(output_dir, '1kg.mt')
     vcf_path = os.path.join(output_dir, '1kg.vcf.bgz')
-    annotations_path = os.path.join(output_dir, '1kg_annotations.txt')
+    sample_annotations_path = os.path.join(output_dir, '1kg_annotations.txt')
+    gene_annotations_path = os.path.join(output_dir, 'ensembl_gene_annotations.txt')
 
     if (overwrite
             or not Env.jutils().dirExists(jhc, matrix_table_path)
-            or not Env.jutils().fileExists(jhc, annotations_path)
-            or not Env.jutils().fileExists(jhc, vcf_path)):
+            or not Env.jutils().fileExists(jhc, sample_annotations_path)
+            or not Env.jutils().fileExists(jhc, vcf_path)
+            or not Env.jutils().fileExists(jhc, gene_annotations_path)):
         init_temp_dir()
         tmp_vcf = os.path.join(tmp_dir, '1kg.vcf.bgz')
         source = resources['1kg_matrix_table']
@@ -69,12 +72,20 @@ def get_1kg(output_dir, overwrite: bool = False):
         info('importing VCF and writing to matrix table...')
         hl.import_vcf(cluster_readable_vcf, min_partitions=16).write(matrix_table_path, overwrite=True)
 
-        tmp_annot = os.path.join(tmp_dir, '1kg_annotations.txt')
+        tmp_sample_annot = os.path.join(tmp_dir, '1kg_annotations.txt')
         source = resources['1kg_annotations']
         info(f'downloading 1KG annotations ...\n'
              f'  Source: {source}')
-        urlretrieve(source, tmp_annot)
-        hl.hadoop_copy(local_path_uri(tmp_annot), annotations_path)
+        urlretrieve(source, tmp_sample_annot)
+
+        tmp_gene_annot = os.path.join(tmp_dir, 'ensembl_gene_annotations.txt')
+        source = resources['ensembl_gene_annotations']
+        info(f'downloading Ensembl gene annotations ...\n'
+             f'  Source: {source}')
+        urlretrieve(source, tmp_gene_annot)
+
+        hl.hadoop_copy(local_path_uri(tmp_sample_annot), sample_annotations_path)
+        hl.hadoop_copy(local_path_uri(tmp_gene_annot), gene_annotations_path)
         hl.hadoop_copy(local_path_uri(tmp_vcf), vcf_path)
         info('Done!')
     else:
