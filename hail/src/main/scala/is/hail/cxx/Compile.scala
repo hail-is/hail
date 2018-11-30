@@ -55,9 +55,7 @@ object Compile {
     }
 
     val tu = tub.end()
-    val mod = tu.build("-ggdb -O1"
-      , System.out
-    )
+    val mod = tu.build("-ggdb -O1")
 
     val st = new NativeStatus()
     mod.findOrBuild(st)
