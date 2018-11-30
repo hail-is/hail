@@ -1,24 +1,24 @@
 apiVersion: apps/v1beta2
 kind: Deployment
 metadata:
-  name: notebook-deployment
+  name: notebook2-deployment
   labels:
-    app: notebook
+    app: notebook2
     hail.is/sha: "@sha@"
 spec:
   selector:
     matchLabels:
-      app: notebook
+      app: notebook2
   replicas: 1
   template:
     metadata:
       labels:
-        app: notebook
+        app: notebook2
         hail.is/sha: "@sha@"
     spec:
       serviceAccountName: notebook
       containers:
-      - name: notebook
+      - name: notebook2
         image: @image@
         ports:
         - containerPort: 5000
@@ -34,13 +34,13 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: notebook
+  name: notebook2
   labels:
-    app: notebook
+    app: notebook2
 spec:
   ports:
   - port: 80
     protocol: TCP
     targetPort: 5000
   selector:
-    app: notebook
+    app: notebook2

@@ -275,7 +275,7 @@ def wait_websocket(ws):
     log.info(f'endpoints ready for {svc_name} {pod_name}')
     while True:
         try:
-            requests.get(f'http://{svc_name}/instance/{svc_name}/?token={jupyter_token}',
+            requests.get(f'https://notebook.hail.is/instance-ready/{svc_name}',
                          timeout=1)
             break
         except requests.exceptions.Timeout as e:
