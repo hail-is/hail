@@ -876,5 +876,22 @@ class PruneSuite extends SparkSuite {
         ir.child.typ == subsetMatrixTable(mr.typ, "va.r2")
       })
   }
+
+  @Test def testIfUnification() {
+    val pred = False()
+    val t = TStruct("a" -> TInt32(), "b" -> TInt32())
+    val pruneT = TStruct("a" -> TInt32())
+    val cnsq = Ref("x", t)
+    val altr = NA(t)
+    val ifIR = If(pred, cnsq, altr)
+    val memo = Memo.empty[BaseType]
+      .bind(pred, TBoolean())
+      .bind(cnsq, pruneT)
+      .bind(altr, pruneT)
+      .bind(ifIR, pruneT)
+
+    // should run without error!
+    PruneDeadFields.rebuild(ifIR, Env.empty[Type].bind("a", t), memo)
+  }
 }
 

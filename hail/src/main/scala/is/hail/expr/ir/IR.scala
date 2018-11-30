@@ -79,11 +79,11 @@ final case class NA(typ: Type) extends IR { assert(!typ.required) }
 final case class IsNA(value: IR) extends IR { val typ = TBoolean() }
 
 object If {
-  def unify(cond: IR, cnsq: IR, altr: IR): If = {
+  def unify(cond: IR, cnsq: IR, altr: IR, unifyType: Option[Type] = None): If = {
     if (cnsq.typ == altr.typ)
       If(cond, cnsq, altr)
     else {
-      val t = cnsq.typ.deepOptional()
+      val t = unifyType.getOrElse(cnsq.typ)
       If(cond,
         PruneDeadFields.upcast(cnsq, t),
         PruneDeadFields.upcast(altr, t))
