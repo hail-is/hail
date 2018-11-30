@@ -21,6 +21,11 @@ metadata:
 apiVersion: v1
 kind: ServiceAccount
 metadata:
+  name: notebook
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
   name: letsencrypt
 ---
 kind: Role
@@ -46,6 +51,30 @@ subjects:
 roleRef:
   kind: Role
   name: read-letsencrypt-config
+  apiGroup: ""
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: default
+  name: create-services
+rules:
+- apiGroups: [""]
+  resources: ["services"]
+  verbs: ["*"]
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: default
+  name: notebook-create-services
+subjects:
+- kind: ServiceAccount
+  name: notebook
+  namespace: default
+roleRef:
+  kind: Role
+  name: create-services
   apiGroup: ""
 ---
 kind: Role
