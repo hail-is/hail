@@ -61,7 +61,7 @@ std::unique_ptr<char[]> RegionPool::get_block() {
 }
 
 RegionPtr RegionPool::new_region() {
-  regions_.push_back(std::make_unique<Region2>(this));
+  regions_.emplace_back(new Region2(this));
   return RegionPtr(regions_.back().get());
 }
 

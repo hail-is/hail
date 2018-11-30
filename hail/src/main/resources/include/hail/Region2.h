@@ -15,6 +15,7 @@ class RegionPool {
 
   public:
     class Region {
+      friend class RegionPool;
       public:
         class SharedPtr {
           friend class RegionPool;
@@ -53,8 +54,8 @@ class RegionPool {
         std::vector<SharedPtr> parents_{};
         char * allocate_new_block(size_t n);
         char * allocate_big_chunk(size_t size);
-      public:
         explicit Region(RegionPool * pool);
+      public:
         Region(Region &pool) = delete;
         Region(Region &&pool) = delete;
         Region& operator=(Region pool) = delete;
