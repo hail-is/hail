@@ -262,22 +262,15 @@ final class Region() extends NativeBase() {
 }
 
 object RegionPool {
-  private val pools = new mutable.HashMap[Long, (Object, RegionPool)]()
-
-  private val contextLock = new Object()
-
-  private val theRegionPool: RegionPool = new RegionPool()
+  private val pools = new java.util.concurrent.ConcurrentHashMap[Long, RegionPool]()
 
   def get: RegionPool = {
-    val (contextLock, rp) = pools.getOrElseUpdate(Thread.currentThread().getId(), (new Object, new RegionPool()))
-
-    contextLock.synchronized {
-      rp
-    }
+    val makePool: java.util.function.Function[Long, RegionPool] = { _: Long => new RegionPool() }
+    pools.computeIfAbsent(Thread.currentThread().getId(), makePool)
   }
 }
 
-class RegionPool() extends NativeBase() {
+class RegionPool private() extends NativeBase() {
   var i = 0
   @native def nativeCtor(): Unit
   nativeCtor()
