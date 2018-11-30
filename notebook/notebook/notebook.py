@@ -215,27 +215,34 @@ def workers_delete(pod_name):
 def delete_worker_pod(pod_name):
     if not session.get('admin'):
         return redirect(external_url_for('admin-login'))
-    pod = k8s.read_namespaced_pod(
-        pod_name,
-        'default',
-        _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
-    uuid = pod.metadata.labels['uuid']
-    k8s.delete_namespaced_pod(
-        pod_name,
-        'default',
-        kube.client.V1DeleteOptions(),
-        _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
-    svcs = k8s.list_namespaced_service(
-        namespace='default',
-        watch=False,
-        label_selector='uuid='+uuid,
-        _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS).items
-    assert(len(svcs) == 1)
-    k8s.delete_namespaced_service(
-        svcs[0].metadata.name,
-        'default',
-        kube.client.V1DeleteOptions(),
-        _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+    try:
+        pod = k8s.read_namespaced_pod(
+            pod_name,
+            'default',
+            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+        uuid = pod.metadata.labels['uuid']
+        k8s.delete_namespaced_pod(
+            pod_name,
+            'default',
+            kube.client.V1DeleteOptions(),
+            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+    except kube.client.rest.ApiException as e:
+        log.info(f'pod {pod_name} already deleted {e}')
+
+    try:
+        svcs = k8s.list_namespaced_service(
+            namespace='default',
+            watch=False,
+            label_selector='uuid='+uuid,
+            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS).items
+        assert(len(svcs) == 1)
+        k8s.delete_namespaced_service(
+            svcs[0].metadata.name,
+            'default',
+            kube.client.V1DeleteOptions(),
+            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+    except kube.client.rest.ApiException as e:
+        log.info(f'service for pod {pod_name} already deleted {e}')
 
 
 @app.route('/admin-login', methods=['GET'])
