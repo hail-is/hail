@@ -75,6 +75,15 @@ RegionPtr RegionPool::get_region() {
   return RegionPtr(region);
 }
 
+void ScalaRegionPool::own(RegionPool &&pool) {
+  auto p = std::move(pool);
+  for (auto &region : p.free_regions_) {
+    if (region.references_ != 0) {
+      this->pool_.push_back(std::move(region));
+    }
+  }
+}
+
 void ScalaRegionPool::Region::clear() {
   auto r2 = region_->get_region();
   region_ = nullptr;

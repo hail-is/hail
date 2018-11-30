@@ -10,7 +10,10 @@
 
 namespace hail {
 
+class ScalaRegionPool;
+
 class RegionPool {
+  friend class ScalaRegionPool;
   static constexpr ssize_t block_size = 64*1024;
   static constexpr ssize_t block_threshold = 4096;
 
@@ -108,9 +111,6 @@ class RegionPool {
     size_t num_free_blocks() { return free_blocks_.size(); }
 };
 
-using Region = RegionPool::Region;
-using RegionPtr = Region::SharedPtr;
-
 class ScalaRegionPool : public NativeObj {
   RegionPool pool_{};
   public:
@@ -121,20 +121,24 @@ class ScalaRegionPool : public NativeObj {
       public:
         Region(ScalaRegionPool * pool) : region_(pool->pool_.get_region()) { }
         void clear();
-        inline void align(size_t alignment) { region_->align(alignment); }
-        inline char * allocate(size_t alignment, size_t n) { return region_->allocate(alignment, n); }
-        inline char * allocate(size_t n) { return region_->allocate(n); }
+        void align(size_t alignment) { region_->align(alignment); }
+        char * allocate(size_t alignment, size_t n) { return region_->allocate(alignment, n); }
+        char * allocate(size_t n) { return region_->allocate(n); }
 
         virtual const char* get_class_name() { return "Region"; }
         virtual ~Region() { region_ = nullptr; }
     };
 
-    inline std::shared_ptr<Region> get_region() {
-      return std::make_shared<Region>(this);
-    }
+    std::shared_ptr<Region> get_region() { return std::make_shared<Region>(this); }
+    void own(RegionPool &&pool);
+
+
     virtual const char* get_class_name() { return "RegionPool"; }
 };
 
+
+using Region = RegionPool::Region;
+using RegionPtr = Region::SharedPtr;
 using ScalaRegion = ScalaRegionPool::Region;
 
 }
