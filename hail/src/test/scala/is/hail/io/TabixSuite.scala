@@ -11,6 +11,8 @@ import org.testng.asserts.SoftAssert
 import org.testng.annotations.{BeforeTest, Test}
 
 class TabixSuite extends SparkSuite {
+  // use .gz for several tests and .bgz for another to test handling of both
+  // extensions.
   val vcfFile = "src/test/resources/trioDup.vcf"
   val vcfGzFile = vcfFile + ".gz"
   val vcfGzTbiFile = vcfGzFile + ".tbi"
@@ -91,7 +93,7 @@ class TabixSuite extends SparkSuite {
   }
 
   @Test def testLineIterator2() {
-    val vcfFile = "src/test/resources/sample.vcf.gz"
+    val vcfFile = "src/test/resources/sample.vcf.bgz"
     val chr = "20"
     val htsjdkrdr = new HtsjdkTabixReader(vcfFile)
     val hailrdr = new TabixReader(vcfFile)
