@@ -242,6 +242,8 @@ object TypeCheck {
       case In(i, typ) =>
         assert(typ != null)
       case Die(msg, typ) =>
+        check(msg)
+        assert(msg.typ isOfType TString())
       case x@ApplyIR(fn, args, conversion) =>
         check(x.explicitNode)
       case x: AbstractApplyNode[_] =>

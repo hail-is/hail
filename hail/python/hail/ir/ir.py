@@ -1113,7 +1113,7 @@ class In(IR):
 
 
 class Die(IR):
-    @typecheck_method(message=str, typ=hail_type)
+    @typecheck_method(message=IR, typ=hail_type)
     def __init__(self, message, typ):
         super().__init__()
         self.message = message
@@ -1124,7 +1124,7 @@ class Die(IR):
         return new_instance(self.message, self.typ)
 
     def render(self, r):
-        return '(Die {} "{}")'.format(self.typ._jtype.parsableString(), escape_str(self.message))
+        return '(Die {} {})'.format(self.typ._jtype.parsableString(), r(self.message))
 
     def __eq__(self, other):
         return isinstance(other, Die) and \

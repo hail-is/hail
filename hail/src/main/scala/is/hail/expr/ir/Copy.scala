@@ -136,7 +136,9 @@ object Copy {
         val IndexedSeq(s: IR) = newChildren
         StringLength(s)
       case In(i, t) => In(i, t)
-      case Die(message, typ) => Die(message, typ)
+      case Die(_, typ) =>
+        val IndexedSeq(s: IR) = newChildren
+        Die(s, typ)
       case ApplyIR(fn, args, conversion) =>
         ApplyIR(fn, newChildren.map(_.asInstanceOf[IR]), conversion)
       case Apply(fn, args) =>

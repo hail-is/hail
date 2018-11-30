@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.annotations._
 import is.hail.annotations.aggregators._
 import is.hail.asm4s._
-import is.hail.expr.ir.functions.MathFunctions
+import is.hail.expr.ir.functions.{MathFunctions, StringFunctions}
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.utils._
@@ -937,7 +937,12 @@ private class Emit(
           mb.getArg[Boolean](normalArgumentPosition(i) + 1),
           mb.getArg(normalArgumentPosition(i))(typeToTypeInfo(typ)))
       case Die(m, typ) =>
-        present(Code._throw(Code.newInstance[HailException, String](m)))
+        val cm = emit(m)
+        present(
+          Code._throw(Code.newInstance[HailException, String](
+            cm.m.mux[String](
+              "<exception message missing>",
+               coerce[String](StringFunctions.wrapArg(mb, m.typ)(cm.v))))))
       case ir@ApplyIR(fn, args, conversion) =>
         if (ir.explicitNode.size < 10)
           emit(ir.explicitNode)

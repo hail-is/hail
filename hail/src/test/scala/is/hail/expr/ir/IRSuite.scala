@@ -581,6 +581,7 @@ class IRSuite extends SparkSuite {
 
   @Test def testDie() {
     assertFatal(Die("mumblefoo", TFloat64()), "mble")
+    assertFatal(Die(NA(TString()), TFloat64()), "message missing")
   }
 
   @Test def testArrayRange() {

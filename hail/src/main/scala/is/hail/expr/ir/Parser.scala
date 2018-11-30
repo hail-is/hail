@@ -697,7 +697,7 @@ object IRParser {
         In(idx, typ)
       case "Die" =>
         val typ = type_expr(it)
-        val msg = string_literal(it)
+        val msg = ir_value_expr(env)(it)
         Die(msg, typ)
       case "ApplySeeded" =>
         val function = identifier(it)
