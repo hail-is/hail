@@ -22,23 +22,26 @@ LIBSIMDPP :=libsimdpp-2.1
 # If you want to add a new cpp file, like foo.cpp, to the library, add foo.o to
 # this list
 OBJECTS := \
-  davies.o \
-  ibs.o \
-  Decoder.o \
-  Encoder.o \
-  Logging.o \
-  NativeCodeSuite.o \
-  NativeLongFunc.o \
-  NativeModule.o \
-  NativePtr.o \
-  NativeStatus.o \
-  ObjectArray.o \
-  PartitionIterators.o \
-  Region.o \
-  Upcalls.o
+  davies \
+  ibs \
+  Decoder \
+  Encoder \
+  Logging \
+  NativeCodeSuite \
+  NativeLongFunc \
+  NativeModule \
+  NativePtr \
+  NativeStatus \
+  ObjectArray \
+  PartitionIterators \
+  Region \
+  Region2 \
+  Upcalls \
 
-BUILD_OBJECTS := $(OBJECTS:%=$(BUILD)/%)
-TEST_OBJECTS := $(BUILD)/unit-tests.o
+BUILD_OBJECTS := $(OBJECTS:%=$(BUILD)/%.o)
+
+TEST_OBJECTS := $(foreach obj, $(OBJECTS), $(foreach file, $(wildcard $(obj)_test.cpp), $(BUILD)/$(basename $(file)).o))
+TEST_OBJECTS += $(BUILD)/unit-tests.o
 
 $(BUILD)/unit-tests.o: testutils/unit-tests.cpp
 	$(CXX) -o $@ $(CXXFLAGS) -c $<
@@ -67,7 +70,7 @@ endif
 # The code relies heavily on C++11's std::shared_ptr, so you need a compiler
 # that supports at least the C++11 standard.
 
-CXXSTD := -std=c++11
+CXXSTD := -std=c++14
 
 # Check for any inherited CXXFLAGS which could interfere with
 # ABI compatibility.  Such flags will cause a warning, then will be
@@ -153,8 +156,7 @@ prebuilt: all
 	cp -p -f $(LIBHAIL) $(PREBUILT)/$(LIBHAIL)
 
 test: $(BUILD)/functional-tests $(BUILD)/unit-tests
-
-	./$(BUILD)/unit-tests -w NoAssertions -d yes -# --use-colour yes -r xml -o $(BUILD)/cxx-test.xml; \
+	./$(BUILD)/unit-tests -w NoAssertions -s -d yes -# --use-colour yes -r xml -o $(BUILD)/cxx-test.xml; \
     	case "$$?" in \
     		*) \
     		mkdir -p $(BUILD)/reports; \
@@ -162,6 +164,15 @@ test: $(BUILD)/functional-tests $(BUILD)/unit-tests
     		xsltproc -o $(BUILD)/reports/index.html testutils/test-reporter.xslt $(BUILD)/cxx-test.xml;; \
 		esac
 	./$(BUILD)/functional-tests
+
+benchmark: $(BUILD)/unit-tests
+	./$(BUILD)/unit-tests "[!benchmark]" -s -d yes -# -r xml -o $(BUILD)/cxx-benchmark.xml; \
+    	case "$$?" in \
+    		*) \
+    		mkdir -p $(BUILD)/benchmark-reports; \
+    		cp testutils/style.css $(BUILD)/benchmark-reports; \
+    		xsltproc -o $(BUILD)/benchmark-reports/index.html testutils/test-reporter.xslt $(BUILD)/cxx-benchmark.xml;; \
+    	esac
 
 clean:
 	-rm -rf $(BUILD) $(LIBSIMDPP) $(LIBBOOT) $(LIBHAIL)
