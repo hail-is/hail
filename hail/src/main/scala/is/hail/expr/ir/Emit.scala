@@ -939,10 +939,12 @@ private class Emit(
       case Die(m, typ) =>
         val cm = emit(m)
         present(
-          Code._throw(Code.newInstance[HailException, String](
-            cm.m.mux[String](
-              "<exception message missing>",
-               coerce[String](StringFunctions.wrapArg(mb, m.typ)(cm.v))))))
+          Code(
+            cm.setup,
+            Code._throw(Code.newInstance[HailException, String](
+              cm.m.mux[String](
+                "<exception message missing>",
+                coerce[String](StringFunctions.wrapArg(mb, m.typ)(cm.v)))))))
       case ir@ApplyIR(fn, args, conversion) =>
         if (ir.explicitNode.size < 10)
           emit(ir.explicitNode)

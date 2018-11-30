@@ -216,7 +216,8 @@ def require_biallelic(dataset, method) -> MatrixTable:
     return dataset._select_rows(method,
                                 hl.case()
                                 .when(dataset.alleles.length() == 2, dataset._rvrow)
-                                .or_error(f"'{method}' expects biallelic variants ('alleles' field has length 2)"))
+                                .or_error(f"'{method}' expects biallelic variants ('alleles' field of length 2), found " +
+                                        hl.str(dataset.locus) + ", " + hl.str(dataset.alleles)))
 
 
 @typecheck(dataset=MatrixTable, name=str)
