@@ -97,12 +97,6 @@ server {
         proxy_pass http://notebook2/auth/$jupyter_auth_name;
     }
 
-    location = /instance-ready-check {
-        internal;
-        resolver kube-dns.kube-system.svc.cluster.local;
-        proxy_pass http://$pod_name.default.svc.cluster.local/instance/$pod_name/;
-    }
-
     location ~ /instance/([^/]+)/(.*) {
         set $jupyter_auth_name $1;
         auth_request /auth;
@@ -123,10 +117,9 @@ server {
         proxy_read_timeout 86400;
     }
 
-    location ~ /instance-ready/([^/]+) {
-        set $pod_name $1;
-        auth_request /instance-ready-check;
-        return 200 '';
+    location ~ /instance-ready/([^/]+)/ {
+        resolver kube-dns.kube-system.svc.cluster.local;
+        proxy_pass http://$1.default.svc.cluster.local/instance/$1/;
     }
 
     location / {

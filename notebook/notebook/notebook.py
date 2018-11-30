@@ -260,24 +260,11 @@ def wait_websocket(ws):
     svc_name = session['svc_name']
     jupyter_token = session['jupyter_token']
     log.info(f'received wait websocket for {svc_name} {pod_name}')
-    # wait for endpoints to exist
-    while True:
-        endpoints = k8s.read_namespaced_endpoints(
-            name=svc_name,
-            namespace='default',
-            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
-        if endpoints.subsets and all(subset.addresses for subset in endpoints.subsets):
-            log.info(f'{svc_name} {pod_name} is ready! {endpoints.subsets}')
-            break
-        log.info(f'{svc_name} {pod_name} not ready! {endpoints.subsets}')
-        # FIXME, ERRORS?
-        gevent.sleep(1)
-    log.info(f'endpoints ready for {svc_name} {pod_name}')
+    # wait for instance ready
     while True:
         try:
-            requests.get(f'https://notebook.hail.is/instance-ready/{svc_name}',
-                         timeout=1)
-            break
+            response = requests.head(f'https://notebook.hail.is/instance-ready/{svc_name}/',
+                                     timeout=1)
         except requests.exceptions.Timeout as e:
             log.info(f'GET on jupyter failed for {svc_name} {pod_name}')
             gevent.sleep(1)
