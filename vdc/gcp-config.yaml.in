@@ -97,5 +97,21 @@ resources:
         management: {autoRepair: true}
         name: preemptible-pool
         version: 1.10.7-gke.6
+      - autoscaling: {}
+        config:
+          diskSizeGb: 100
+          diskType: pd-standard
+          imageType: COS
+          labels: {preemptible: 'true'}
+          serviceAccount: vdc-sa@@project@.iam.gserviceaccount.com
+          machineType: n1-standard-8
+          oauthScopes: ['https://www.googleapis.com/auth/devstorage.read_only', 'https://www.googleapis.com/auth/logging.write',
+            'https://www.googleapis.com/auth/monitoring', 'https://www.googleapis.com/auth/servicecontrol',
+            'https://www.googleapis.com/auth/service.management.readonly', 'https://www.googleapis.com/auth/trace.append']
+          preemptible: false
+        initialNodeCount: 1
+        management: {autoRepair: true}
+        name: non-preemptible-pool
+        version: 1.10.7-gke.6
       privateClusterConfig: {}
       subnetwork: projects/@project@/regions/@region@/subnetworks/default
