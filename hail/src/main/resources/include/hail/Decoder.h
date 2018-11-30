@@ -216,7 +216,7 @@ template<typename Decoder>
 class Reader {
 private:
   Decoder dec_;
-  ScalaRegionPool::Region * region_;
+  ScalaRegion * region_;
   NativeStatus * st_;
   char * value_;
 

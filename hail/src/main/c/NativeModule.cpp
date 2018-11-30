@@ -1,3 +1,4 @@
+#include "hail/NativeMethod.h"
 #include "hail/NativeModule.h"
 #include "hail/NativeObj.h"
 #include "hail/NativePtr.h"

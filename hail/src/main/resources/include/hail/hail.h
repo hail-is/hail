@@ -1,7 +1,6 @@
 #ifndef HAIL_HAIL_H
 #define HAIL_HAIL_H 1
 // hail.h - top-level header file for use by dynamically-generated C++ code
-#include "hail/Logging.h"
 #include "hail/NativeObj.h"
 #include "hail/NativeStatus.h"
 

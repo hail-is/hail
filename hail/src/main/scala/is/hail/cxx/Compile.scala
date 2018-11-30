@@ -11,7 +11,7 @@ import scala.reflect.classTag
 object Compile {
   def apply(
     arg0: String, arg0Type: PType,
-    body: ir.IR): NativeLongFuncL2 = {
+    body: ir.IR, optimize: Boolean): NativeLongFuncL2 = {
     assert(ir.TypeToIRIntermediateClassTag(arg0Type.virtualType) == classTag[Long])
     assert(arg0Type.isInstanceOf[PBaseStruct])
     val returnType = body.pType
@@ -26,6 +26,7 @@ object Compile {
     tub.include("hail/Region.h")
     tub.include("hail/Ordering.h")
 
+    tub.include("<cstring>")
     tub.include("<limits.h>")
     tub.include("<math.h>")
 
@@ -56,7 +57,7 @@ object Compile {
     }
 
     val tu = tub.end()
-    val mod = tu.build("-ggdb -O1")
+    val mod = tu.build(if (optimize) "-ggdb -O1" else "-ggdb -O0")
 
     val st = new NativeStatus()
     mod.findOrBuild(st)

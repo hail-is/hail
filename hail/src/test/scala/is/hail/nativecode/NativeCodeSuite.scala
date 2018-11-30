@@ -132,11 +132,13 @@ class NativeCodeSuite extends SparkSuite {
     val sb = new StringBuilder()
     sb.append(
     """#include "hail/hail.h"
+      |#include "hail/Upcalls.h"
       |
       |NAMESPACE_HAIL_MODULE_BEGIN
       |
       |long testUpcall(NativeStatus* st, long a0) {
-      |  set_test_msg("Hello!");
+      |  UpcallEnv up {};
+      |  up.set_test_msg("Hello!");
       |  return 1000+a0;
       |}
       |
@@ -213,13 +215,15 @@ class NativeCodeSuite extends SparkSuite {
   @Test def testCXXCodeFunctions(): Unit = {
     val tub = new TranslationUnitBuilder()
     tub.include("hail/hail.h")
+    tub.include("hail/Upcalls.h")
     tub.include("<cstdio>")
 
     val fb = tub.buildFunction("testUpcall", Array("NativeStatus*" -> "st", "long" -> "a0"), "long")
 
     fb +=
       s"""
-         |set_test_msg("Hello!");
+         |UpcallEnv up {};
+         |up.set_test_msg("Hello!");
          |return 1000+${fb.getArg(1)};
        """.stripMargin
 

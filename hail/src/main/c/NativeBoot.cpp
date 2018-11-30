@@ -1,12 +1,7 @@
 #include <jni.h>
 #include <dlfcn.h>
 #include <cstdio>
-
-// Declare a function to be exported from a DLL with "C" linkage
-
-#define NATIVEMETHOD(cppReturnType, scalaClass, scalaMethod) \
-  extern "C" __attribute__((visibility("default"))) \
-    cppReturnType Java_is_hail_nativecode_##scalaClass##_##scalaMethod
+#include "hail/NativeMethod.h"
 
 NATIVEMETHOD(jlong, NativeCode, dlopenGlobal)(
   JNIEnv* env,
