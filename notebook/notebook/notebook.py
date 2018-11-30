@@ -265,6 +265,9 @@ def wait_websocket(ws):
         try:
             response = requests.head(f'https://notebook.hail.is/instance-ready/{svc_name}/',
                                      timeout=1)
+            # if someone responds, the notebook server is alive, we are only
+            # trying to prevent 504 gateway issues with this loop
+            break;
         except requests.exceptions.Timeout as e:
             log.info(f'GET on jupyter failed for {svc_name} {pod_name}')
             gevent.sleep(1)
