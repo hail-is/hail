@@ -117,6 +117,11 @@ server {
         proxy_read_timeout 86400;
     }
 
+    location ~ /instance-ready/([^/]+)/ {
+        resolver kube-dns.kube-system.svc.cluster.local;
+        proxy_pass http://$1.default.svc.cluster.local/instance/$1/;
+    }
+
     location / {
         proxy_pass http://notebook/;
 

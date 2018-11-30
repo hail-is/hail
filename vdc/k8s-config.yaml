@@ -81,6 +81,33 @@ kind: Role
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
   namespace: default
+  name: create-services-and-pods
+rules:
+- apiGroups: [""]
+  resources: ["services"]
+  verbs: ["*"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["*"]
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: default
+  name: notebook-create-services-and-pods
+subjects:
+- kind: ServiceAccount
+  name: notebook
+  namespace: default
+roleRef:
+  kind: Role
+  name: create-services
+  apiGroup: ""
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: default
   name: update-letsencrypt-config
 rules:
 - apiGroups: [""]
