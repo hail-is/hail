@@ -98,22 +98,22 @@ class TableEmitter(tub: TranslationUnitBuilder) { outer =>
         val oldRowIt = rvd.iterator
 
         val mapName = genSym("MapRowIterator")
-        val mapper = new ClassBuilder(mapName)
+        val mapper = tub.buildClass(mapName)
 
         val st = Variable("st", "NativeStatus *")
         val region = Variable("region", "Region *")
         val prevIt = Variable("it", oldRowIt.typ)
-        mapper.addPrivate(st)
-        mapper.addPrivate(region)
-        mapper.addPrivate(prevIt)
+        mapper += st
+        mapper += region
+        mapper += prevIt
 
-        mapper.addConstructor(
+        mapper +=
           s"""
              |$mapName(NativeStatus * st, Region * region, ${ oldRowIt.typ } it) :
              |$st(st), $region(region), $prevIt(it) { }
-           """.stripMargin)
+           """.stripMargin
 
-        val mapF = FunctionBuilder("map_row", Array("NativeStatus*" -> "st", "Region*" -> "region", "const char *" -> "row"), "char *")
+        val mapF = tub.buildFunction("map_row", Array("NativeStatus*" -> "st", "Region*" -> "region", "const char *" -> "row"), "char *")
         val substEnv = ir.Env.empty[ir.IR].bind("row", ir.In(1, child.typ.rowType))
         val et = Emit(mapF, 1, ir.Subst(newRow, substEnv))
         mapF +=
@@ -125,7 +125,7 @@ class TableEmitter(tub: TranslationUnitBuilder) { outer =>
              |  return ${ et.v };
              |}
            """.stripMargin
-        mapper += mapF.result()
+        mapF.end()
 
         mapper += new Function(s"$mapName&", "operator++", Array(), s"++$prevIt; return *this;")
         mapper += new Function(s"char const*", "operator*", Array(), s"return map_row($st, $region, *$prevIt);")
@@ -134,7 +134,7 @@ class TableEmitter(tub: TranslationUnitBuilder) { outer =>
         mapper += new Function(s"friend bool", "operator==", Array(lhs, rhs), s"return $lhs.$prevIt == $rhs.$prevIt;")
         mapper += new Function(s"friend bool", "operator!=", Array(lhs, rhs), s"return !($lhs == $rhs);")
 
-        tub += mapper.result()
+        mapper.end()
 
         val newIt = Variable("mapIt", mapName, s"{${ rvd.st }, ${ rvd.region }, $oldRowIt}")
         val newEnd = Variable("end", mapName, s"{${ rvd.st }, ${ rvd.region }, ${ rvd.end }}")
@@ -159,18 +159,18 @@ class TableEmitter(tub: TranslationUnitBuilder) { outer =>
         val oldRowIt = rvd.iterator
 
         val filterName = genSym("FilterRowIterator")
-        val filter = new ClassBuilder(filterName)
+        val filter = tub.buildClass(filterName)
 
         val st = Variable("st", "NativeStatus *")
         val region = Variable("region", "Region *")
         val prevIt = Variable("it", oldRowIt.typ)
         val endIt = Variable("end", oldRowIt.typ)
-        filter.addPrivate(st)
-        filter.addPrivate(region)
-        filter.addPrivate(prevIt)
-        filter.addPrivate(endIt)
+        filter += st
+        filter += region
+        filter += prevIt
+        filter += endIt
 
-        filter.addConstructor(
+        filter +=
           s"""
              |$filterName(NativeStatus * st, Region * region, ${ oldRowIt.typ } it, ${ oldRowIt.typ } end) :
              |$st(st), $region(region), $prevIt(it), $endIt(end) {
@@ -178,9 +178,9 @@ class TableEmitter(tub: TranslationUnitBuilder) { outer =>
              |    ++$prevIt;
              |  }
              |}
-           """.stripMargin)
+           """.stripMargin
 
-        val filterF = FunctionBuilder("keep_row", Array("NativeStatus*" -> "st", "Region*" -> "region", "const char *" -> "row"), "bool")
+        val filterF = tub.buildFunction("keep_row", Array("NativeStatus*" -> "st", "Region*" -> "region", "const char *" -> "row"), "bool")
         val substEnv = ir.Env.empty[ir.IR].bind("row", ir.In(1, child.typ.rowType))
         val et = Emit(filterF, 1, ir.Subst(cond, substEnv))
         filterF +=
@@ -188,7 +188,7 @@ class TableEmitter(tub: TranslationUnitBuilder) { outer =>
              |${ et.setup }
              |return !(${ et.m }) && (${ et.v });
            """.stripMargin
-        filter += filterF.result()
+        filterF.end()
 
         filter += new Function(s"$filterName&", "operator++", Array(),
           s"""
@@ -203,7 +203,7 @@ class TableEmitter(tub: TranslationUnitBuilder) { outer =>
         filter += new Function(s"friend bool", "operator==", Array(lhs, rhs), s"return $lhs.$prevIt == $rhs.$prevIt;")
         filter += new Function(s"friend bool", "operator!=", Array(lhs, rhs), s"return !($lhs == $rhs);")
 
-        tub += filter.result()
+        filter.end()
 
         val newIt = Variable("filterIt", filterName, s"{${ rvd.st }, ${ rvd.region }, $oldRowIt, ${ rvd.end }}")
         val newEnd = Variable("end", filterName, s"{${ rvd.st }, ${ rvd.region }, ${ rvd.end }, ${ rvd.end }}")

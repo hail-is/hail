@@ -175,15 +175,15 @@ object PackDecoder {
     tub.include("<cstdio>")
     tub.include("<memory>")
 
-    val decoderBuilder = new ClassBuilder(genSym("Decoder"), "NativeObj")
+    val decoderBuilder = tub.buildClass(genSym("Decoder"), "NativeObj")
 
     val bufType = bufSpec.nativeInputBufferType
     val buf = Variable("buf", s"std::shared_ptr<$bufType>")
-    decoderBuilder.addPrivate(buf)
+    decoderBuilder += buf
 
-    decoderBuilder.addConstructor(s"${ decoderBuilder.name }(std::shared_ptr<InputStream> is) : $buf(std::make_shared<$bufType>(is)) { }")
+    decoderBuilder += s"${ decoderBuilder.name }(std::shared_ptr<InputStream> is) : $buf(std::make_shared<$bufType>(is)) { }"
 
-    val rowFB = FunctionBuilder("decode_row", Array("NativeStatus*" -> "st", "Region *" -> "region"), "char *")
+    val rowFB = decoderBuilder.buildMethod("decode_row", Array("NativeStatus*" -> "st", "Region *" -> "region"), "char *")
     val region = rowFB.getArg(1)
     val initialSize = rt match {
       case _: PArray | _: PBinary => 8
@@ -196,13 +196,13 @@ object PackDecoder {
       case _: PArray | _: PBinary => s"return load_address($row);"
       case _ => s"return $row;"
     })
-    decoderBuilder += rowFB.result()
+    rowFB.end()
 
-    val byteFB = FunctionBuilder("decode_byte", Array("NativeStatus*" -> "st"), "char")
+    val byteFB = decoderBuilder.buildMethod("decode_byte", Array("NativeStatus*" -> "st"), "char")
     byteFB += s"return $buf->read_byte();"
-    decoderBuilder += byteFB.result()
+    byteFB.end()
 
-    decoderBuilder.result()
+    decoderBuilder.end()
   }
 
   def buildModule(t: PType, rt: PType, bufSpec: BufferSpec): NativeDecoderModule = {
@@ -210,27 +210,26 @@ object PackDecoder {
     val tub = new TranslationUnitBuilder()
 
     val decoder = apply(t, rt, bufSpec, tub)
-    tub += decoder
-
+    
     tub.include("hail/Decoder.h")
     tub.include("hail/ObjectArray.h")
     tub.include("<memory>")
 
-    val inBufFB = FunctionBuilder("make_input_buffer", Array("NativeStatus*" -> "st", "long" -> "objects"), "NativeObjPtr")
+    val inBufFB = tub.buildFunction("make_input_buffer", Array("NativeStatus*" -> "st", "long" -> "objects"), "NativeObjPtr")
     inBufFB += "UpcallEnv up;"
     inBufFB += s"auto jinput_stream = reinterpret_cast<ObjectArray*>(${ inBufFB.getArg(1) })->at(0);"
     inBufFB += s"return std::make_shared<$decoder>(std::make_shared<InputStream>(up, jinput_stream));"
-    tub += inBufFB.result()
+    inBufFB.end()
 
-    val rowFB = FunctionBuilder("decode_row", Array("NativeStatus*" -> "st", "long" -> "buf", "long" -> "region"), "long")
+    val rowFB = tub.buildFunction("decode_row", Array("NativeStatus*" -> "st", "long" -> "buf", "long" -> "region"), "long")
     rowFB += s"return (long) reinterpret_cast<$decoder *>(${ rowFB.getArg(1) })->decode_row(${ rowFB.getArg(0) }, reinterpret_cast<Region *>(${ rowFB.getArg(2) }));"
-    tub += rowFB.result()
+    rowFB.end()
 
-    val byteFB = FunctionBuilder("decode_byte", Array("NativeStatus*" -> "st", "long" -> "buf"), "long")
+    val byteFB = tub.buildFunction("decode_byte", Array("NativeStatus*" -> "st", "long" -> "buf"), "long")
     byteFB += s"return (long) reinterpret_cast<$decoder *>(${ byteFB.getArg(1) })->decode_byte(${ byteFB.getArg(0) });"
-    tub += byteFB.result()
+    byteFB.end()
 
-    val mod = tub.result().build("-O2")
+    val mod = tub.end().build("-O2")
 
     NativeDecoderModule(mod.getKey, mod.getBinary)
   }
