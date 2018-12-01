@@ -19,16 +19,21 @@ class TableEmitSuite extends SparkSuite {
     rt.write(readPath)
 
     val read = ir.TableIR.read(hc, readPath, false, None)
-    def tir(orig: ir.TableIR): ir.TableIR =
-      ir.TableFilter(
-        ir.TableMapRows(orig,
-          ir.InsertFields(ir.Ref("row", read.typ.rowType), FastIndexedSeq("x" -> ir.I32(0)))),
-        ir.True())
 
-    val tub = new TranslationUnitBuilder()
-    TableEmit(tub, tir(read)).write(tub, writePath, true, false, CodecSpec.default.toString)
+    def tir(orig: ir.TableIR): ir.TableIR =
+      ir.TableExplode(
+        ir.TableFilter(
+          ir.TableMapRows(orig,
+            ir.InsertFields(ir.Ref("row", read.typ.rowType),
+              FastIndexedSeq("x" -> ir.ArrayRange(ir.I32(0), ir.GetField(ir.Ref("row", read.typ.rowType), "idx"), ir.I32(1))))),
+          ir.True()), "x")
 
     val expected = new Table(hc, tir(rt.tir))
+
+    val tub = new TranslationUnitBuilder()
+    val irt = tir(read)
+    TableEmit(tub, irt).write(irt.typ, writePath, true, false, CodecSpec.default.toString)
+
     val result = Table.read(hc, writePath)
     assert(result.same(expected))
   }

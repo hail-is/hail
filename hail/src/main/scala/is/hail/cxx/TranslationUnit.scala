@@ -6,6 +6,8 @@ import is.hail.expr.types.physical.PType
 import is.hail.nativecode._
 import is.hail.utils.ArrayBuilder
 
+import scala.collection.mutable
+
 class TranslationUnit(preamble: String, definitions: Array[Code]) {
 
   def addDefinition(d: Definition): TranslationUnit = new TranslationUnit(preamble, definitions :+ d.define)
@@ -97,7 +99,7 @@ class TranslationUnitBuilder() extends ScopeBuilder {
 
   val orderings: Orderings = new Orderings
 
-  val includes: ArrayBuilder[String] = new ArrayBuilder[String]()
+  val includes: mutable.HashSet[String] = new mutable.HashSet[String]()
 
   def include(header: String): Unit = {
     if (header.startsWith("<") && header.endsWith(">"))

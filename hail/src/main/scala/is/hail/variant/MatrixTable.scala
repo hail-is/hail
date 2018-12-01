@@ -102,10 +102,10 @@ case class RVDComponentSpec(rel_path: String) extends ComponentSpec {
       .readLocal(hc, rvdPath, requestedType)
   }
 
-  def cxxEmitRead(hc: HailContext, path: String, requestedType: TStruct, tub: cxx.TranslationUnitBuilder): cxx.RVDEmitTriplet = {
+  def cxxEmitRead(hc: HailContext, path: String, requestedType: TStruct, ctx: cxx.PartitionContext): cxx.TableEmitTriplet = {
     val rvdPath = path + "/" + rel_path
     AbstractRVDSpec.read(hc, rvdPath)
-      .cxxEmitRead(hc, rvdPath, requestedType, tub)
+      .cxxEmitRead(hc, rvdPath, requestedType, ctx)
   }
 }
 

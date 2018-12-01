@@ -1,21 +1,130 @@
 package is.hail.cxx
-import java.io.InputStream
+
+import java.io.OutputStream
 
 import is.hail.HailContext
-import is.hail.annotations.BroadcastRow
-import is.hail.expr.ir
-import is.hail.expr.types._
+import is.hail.annotations.{BroadcastRow, Region, RegionValueBuilder}
+import is.hail.expr.{JSONAnnotationImpex, ir}
+import is.hail.expr.types.TableType
+import is.hail.expr.types.physical.PStruct
+import is.hail.expr.types.virtual.TInt32
 import is.hail.io.CodecSpec
-import is.hail.rvd.AbstractRVDSpec
+import is.hail.nativecode.{NativeModule, NativeStatus, ObjectArray}
+import is.hail.rvd.{AbstractRVDSpec, OrderedRVDSpec, RVDPartitioner, RVDType}
 import is.hail.table.TableSpec
 import is.hail.utils._
 import is.hail.variant.{FileFormat, PartitionCountsComponentSpec, RVDComponentSpec, ReferenceGenome}
+import org.apache.spark.rdd.RDD
 import org.json4s.jackson.JsonMethods
 
-case class TableEmitTriplet(typ: TableType, rvdEmitTriplet: RVDEmitTriplet, globals: BroadcastRow) {
+case class PartitionContext(globals: BroadcastRow, tub: TranslationUnitBuilder) {
+  val st: Variable = tub.variable("st", "NativeStatus*")
+  val up: Variable = tub.variable("up", "UpcallEnv")
+  val globalsInput: Variable = tub.variable("globals", "long")
+  val rddInput: Variable = tub.variable("input_objects", "long")
+  val cxxCtx: Variable = tub.variable("ctx", "PartitionContext", s"{$st, reinterpret_cast<const char *>($globalsInput)}")
+  val setup: Code =
+    s"""
+       |${up.define}
+       |${cxxCtx.define}""".stripMargin
+}
 
-  def write(tub: TranslationUnitBuilder, path: String, overwrite: Boolean, stageLocally: Boolean, codecSpecJSONStr: String) {
+object PartitionEmitTriplet {
+  def read(
+    path: String,
+    t: PStruct,
+    requestedType: PStruct,
+    codecSpec: CodecSpec,
+    ctx: PartitionContext
+  ): PartitionEmitTriplet = {
+    val tub = ctx.tub
+    tub.include("hail/Decoder.h")
+    tub.include("hail/table/TableEmit.h")
+    tub.include("hail/table/TableRead.h")
+    tub.include("hail/ObjectArray.h")
+
+    val decoder = codecSpec.buildNativeDecoderClass(t, requestedType, tub)
+    val is = Variable.make_shared("is", "InputStream", ctx.up.toString, s"reinterpret_cast<ObjectArray *>(${ ctx.rddInput })->at(0)")
+    val range = tub.variable("read_range", s"TablePartitionRange<TableNativeRead<${decoder.name}>>", s"{${decoder.name}($is), &${ctx.cxxCtx}}")
+
+    val setup =
+      s"""
+         |${ is.define }
+         |${ range.define }""".stripMargin
+
+    PartitionEmitTriplet(ctx, setup, range, requestedType)
+  }
+}
+
+case class PartitionEmitTriplet(ctx: PartitionContext, setup: Code, range: Variable, rowType: PStruct) {
+  def write(codecSpec: CodecSpec): Unit = {
+    val tub = ctx.tub
+    tub.include("hail/Encoder.h")
+    val encClass = codecSpec.buildNativeEncoderClass(rowType, tub)
+
+    val os = Variable("os", "long")
+    val enc = Variable("encoder", encClass.name, s"std::make_shared<OutputStream>(${ ctx.up }, reinterpret_cast<ObjectArray *>($os)->at(0))")
+    val nRows = Variable("n_rows", "long", "0")
+    val it = Variable("write_it", s"char *")
+
+    val part = new FunctionBuilder(tub, "process_partition", Array(ctx.st, ctx.globalsInput, ctx.rddInput, os), "long")
+    part +=
+      s"""
+         |${ctx.setup}
+         |$setup
+         |${ enc.define }
+         |${nRows.define}
+         |for (auto $it : $range) {
+         |  $enc.encode_byte(1);
+         |  $enc.encode_row($it);
+         |  ++$nRows;
+         |}
+         |$enc.encode_byte(0);
+         |$enc.flush();
+         |return $nRows;
+       """.stripMargin
+    part.end()
+  }
+
+}
+
+object TableEmitTriplet {
+  def empty(ctx: PartitionContext, typ: RVDType): TableEmitTriplet =
+    TableEmitTriplet(
+      PartitionEmitTriplet(ctx, "", null, typ.rowType),
+      HailContext.get.sc.emptyRDD[Long],
+      RVDPartitioner.empty(typ))
+
+  def read(
+    path: String,
+    t: PStruct,
+    codecSpec: CodecSpec,
+    partFiles: Array[String],
+    requestedType: RVDType,
+    partitioner: RVDPartitioner,
+    ctx: PartitionContext
+  ): TableEmitTriplet = {
     val hc = HailContext.get
+    val pet = PartitionEmitTriplet.read(path, t, requestedType.rowType, codecSpec, ctx)
+    val partsRDD = hc.readPartitions(path, partFiles, (_, is, m) => Iterator.single(new ObjectArray(is).get()))
+    val part = Option(partitioner).getOrElse(RVDPartitioner.unkeyed(partsRDD.getNumPartitions))
+
+    TableEmitTriplet(pet, partsRDD, part)
+  }
+}
+
+case class TableEmitTriplet(t: PartitionEmitTriplet, baseRDD: RDD[Long], partitioner: RVDPartitioner) {
+  def rvdSpec(typ: RVDType, codecSpec: CodecSpec, partFiles: Array[String]) = OrderedRVDSpec(
+    typ,
+    codecSpec,
+    partFiles,
+    JSONAnnotationImpex.exportAnnotation(
+      partitioner.rangeBounds.toFastSeq,
+      partitioner.rangeBoundsType))
+
+  def write(typ: TableType, path: String, overwrite: Boolean, stageLocally: Boolean, codecSpecJSONStr: String) {
+    val hc = HailContext.get
+    val ctx = t.ctx
 
     val codecSpec =
       if (codecSpecJSONStr != null) {
@@ -34,9 +143,40 @@ case class TableEmitTriplet(typ: TableType, rvdEmitTriplet: RVDEmitTriplet, glob
 
     val globalsPath = path + "/globals"
     hc.hadoopConf.mkDir(globalsPath)
-    AbstractRVDSpec.writeLocal(hc, globalsPath, typ.globalType.physicalType, codecSpec, Array(globals.value))
+    AbstractRVDSpec.writeLocal(hc, globalsPath, typ.globalType.physicalType, codecSpec, Array(ctx.globals.value))
 
-    val partitionCounts = RVDEmitTriplet.write(rvdEmitTriplet, tub, path + "/rows", stageLocally, codecSpec)
+    t.write(codecSpec)
+
+    val mod = ctx.tub.end().build("-O2 -llz4")
+    val modKey = mod.getKey
+    val modBinary = mod.getBinary
+    val gtyp = typ.globalType
+    val globs = ctx.globals.broadcast
+
+    val writeF = { (it: Iterator[Long], os: OutputStream) =>
+      val st = new NativeStatus()
+      val mod = new NativeModule(modKey, modBinary)
+      val f = mod.findLongFuncL3(st, "process_partition")
+      assert(st.ok, st.toString())
+      val osArray = new ObjectArray(os)
+      Region.scoped { region =>
+        val rvb = new RegionValueBuilder(region)
+        rvb.start(gtyp.physicalType)
+        rvb.addAnnotation(gtyp, globs.value)
+        val nRows = f(st, rvb.end(), it.next(), osArray.get())
+        assert(st.ok, st.toString())
+        f.close()
+        osArray.close()
+        mod.close()
+        st.close()
+        os.flush()
+        os.close()
+        nRows
+      }
+    }
+
+    val (partFiles, partitionCounts) = baseRDD.writePartitions(path + "/rows", stageLocally, writeF)
+    rvdSpec(typ.canonicalRVDType, codecSpec, partFiles).write(HailContext.get.sc.hadoopConfiguration, path + "/rows")
 
     val referencesPath = path + "/references"
     hc.hadoopConf.mkDir(referencesPath)
@@ -55,6 +195,7 @@ case class TableEmitTriplet(typ: TableType, rvdEmitTriplet: RVDEmitTriplet, glob
 
     hc.hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
   }
+
 }
 
 object TableEmit {
@@ -64,7 +205,8 @@ object TableEmit {
   }
 }
 
-class TableEmitter(tub: TranslationUnitBuilder) { outer =>
+class TableEmitter(tub: TranslationUnitBuilder) {
+  outer =>
   type E = ir.Env[TableEmitTriplet]
 
   def emit(x: ir.TableIR): TableEmitTriplet = emit(x, ir.Env.empty[TableEmitTriplet])
@@ -78,41 +220,34 @@ class TableEmitter(tub: TranslationUnitBuilder) { outer =>
       case ir.TableRead(path, spec, _, dropRows) =>
         val hc = HailContext.get
         val globals = spec.globalsComponent.readLocal(hc, path, typ.globalType.physicalType)(0)
-        val rvd = if (dropRows)
-          RVDEmitTriplet.empty[InputStream](tub, typ.canonicalRVDType)
+        val ctx = PartitionContext(BroadcastRow(globals, typ.globalType, hc.sc), tub)
+        if (dropRows)
+          TableEmitTriplet.empty(ctx, typ.canonicalRVDType)
         else {
-          val rvd = spec.rowsComponent.cxxEmitRead(hc, path, typ.rowType, tub)
-//          if (rvd.typ.key startsWith typ.key)
-//            rvd
-//          else {
-//            log.info("Sorting a table after read. Rewrite the table to prevent this in the future.")
-//            rvd.changeKey(typ.key)
-//          }
-          rvd
+          val t = spec.rowsComponent.cxxEmitRead(hc, path, typ.rowType, ctx)
+          //          if (rvd.typ.key startsWith typ.key)
+          //            rvd
+          //          else {
+          //            log.info("Sorting a table after read. Rewrite the table to prevent this in the future.")
+          //            rvd.changeKey(typ.key)
+          //          }
+          t
         }
-        new TableEmitTriplet(typ, rvd, BroadcastRow(globals, typ.globalType, hc.sc))
 
       case ir.TableMapRows(child, newRow) =>
         val prev = emit(child)
-        val rvd = prev.rvdEmitTriplet
-        val oldRowIt = rvd.iterator
+        val ctx = prev.t.ctx
+        tub.include("hail/table/TableMapRows.h")
+        val mapper = tub.buildClass(tub.genSym("Mapper"))
 
-        val mapName = tub.genSym("MapRowIterator")
-        val mapper = tub.buildClass(mapName)
-
-        val region = tub.variable("region", "ScalaRegion *")
-        val prevIt = tub.variable("it", oldRowIt.typ)
-        mapper += region
-        mapper += prevIt
-
-        mapper +=
-          s"""
-             |$mapName(ScalaRegion * region, ${ oldRowIt.typ } it) :
-             |$region(region), $prevIt(it) { }
-           """.stripMargin
-
-        val mapF = tub.buildFunction("map_row", Array("ScalaRegion*" -> "region", "const char *" -> "row"), "char *")
-        val substEnv = ir.Env.empty[ir.IR].bind("row", ir.In(0, child.typ.rowType))
+        val mapF = mapper.buildMethod("operator()",
+          Array("NativeStatus*" -> "st",
+            "Region*" -> "region",
+            "const char *" -> "globals",
+            "const char *" -> "row"), "const char *")
+        val substEnv = ir.Env.empty[ir.IR]
+          .bind("globals", ir.In(0, child.typ.globalType))
+          .bind("row", ir.In(1, child.typ.rowType))
         val et = Emit(mapF, 1, ir.Subst(newRow, substEnv))
         mapF +=
           s"""
@@ -124,60 +259,36 @@ class TableEmitter(tub: TranslationUnitBuilder) { outer =>
              |}
            """.stripMargin
         mapF.end()
-
-        mapper += new Function(s"$mapName&", "operator++", Array(), s"++$prevIt; return *this;")
-        mapper += new Function(s"char const*", "operator*", Array(), s"return map_row($region, *$prevIt);")
-        val lhs = tub.variable("lhs", s"$mapName&")
-        val rhs = tub.variable("rhs", s"$mapName&")
-        mapper += new Function(s"friend bool", "operator==", Array(lhs, rhs), s"return $lhs.$prevIt == $rhs.$prevIt;")
-        mapper += new Function(s"friend bool", "operator!=", Array(lhs, rhs), s"return !($lhs == $rhs);")
-
         mapper.end()
 
-        val newIt = tub.variable("mapIt", mapName, s"{${ rvd.region }, $oldRowIt}")
-        val newEnd = tub.variable("end", mapName, s"{${ rvd.region }, ${ rvd.end }}")
-        val newSetup =
-          s"""
-             |${ rvd.setup }
-             |${ newIt.define }
-             |${ newEnd.define }
-           """.stripMargin
+        val range = tub.variable("map_range",
+          s"TablePartitionRange<TableMapRows<${ prev.t.range.typ }, ${ mapper.name }>>",
+          s"{&${ ctx.cxxCtx }, ${ prev.t.range }}")
 
-        prev.copy(
-          typ = typ,
-          rvdEmitTriplet = rvd.copy(
-            typ = typ.canonicalRVDType,
-            setup = newSetup,
-            iterator = newIt,
-            end = newEnd))
+        val setup =
+          s"""
+             |${ prev.t.setup }
+             |${ range.define }""".stripMargin
+
+        val newPet = PartitionEmitTriplet(ctx, setup, range, newRow.typ.physicalType.asInstanceOf[PStruct])
+        prev.copy(t = newPet)
 
       case ir.TableFilter(child, cond) =>
         val prev = emit(child)
-        val rvd = prev.rvdEmitTriplet
-        val oldRowIt = rvd.iterator
+        val prevPartition: PartitionEmitTriplet = prev.t
+        val ctx = prevPartition.ctx
+        tub.include("hail/table/TableFilterRows.h")
+        val filter = tub.buildClass(tub.genSym("Filter"))
 
-        val filterName = tub.genSym("FilterRowIterator")
-        val filter = tub.buildClass(filterName)
-
-        val region = tub.variable("region", "ScalaRegion *")
-        val prevIt = tub.variable("it", oldRowIt.typ)
-        val endIt = tub.variable("end", oldRowIt.typ)
-        filter += region
-        filter += prevIt
-        filter += endIt
-
-        filter +=
-          s"""
-             |$filterName(ScalaRegion * region, ${ oldRowIt.typ } it, ${ oldRowIt.typ } end) :
-             |$region(region), $prevIt(it), $endIt(end) {
-             |  while(($prevIt != $endIt) && !keep_row($region, *$prevIt)) {
-             |    ++$prevIt;
-             |  }
-             |}
-           """.stripMargin
-
-        val filterF = tub.buildFunction("keep_row", Array("ScalaRegion*" -> "region", "const char *" -> "row"), "bool")
-        val substEnv = ir.Env.empty[ir.IR].bind("row", ir.In(0, child.typ.rowType))
+        val filterF = filter.buildMethod("operator()",
+          Array("NativeStatus*" -> "st",
+            "Region*" -> "region",
+            "const char *" -> "globals",
+            "const char *" -> "row"),
+          "bool")
+        val substEnv = ir.Env.empty[ir.IR]
+          .bind("globals", ir.In(0, child.typ.globalType))
+          .bind("row", ir.In(1, child.typ.rowType))
         val et = Emit(filterF, 1, ir.Subst(cond, substEnv))
         filterF +=
           s"""
@@ -185,36 +296,72 @@ class TableEmitter(tub: TranslationUnitBuilder) { outer =>
              |return !(${ et.m }) && (${ et.v });
            """.stripMargin
         filterF.end()
-
-        filter += new Function(s"$filterName&", "operator++", Array(),
-          s"""
-             |do {
-             |  ++$prevIt;
-             |} while(($prevIt != $endIt) && !keep_row($region, *$prevIt));
-             |return *this;
-           """.stripMargin)
-        filter += new Function(s"char const*", "operator*", Array(), s"return *$prevIt;")
-        val lhs = tub.variable("lhs", s"$filterName&")
-        val rhs = tub.variable("rhs", s"$filterName&")
-        filter += new Function(s"friend bool", "operator==", Array(lhs, rhs), s"return $lhs.$prevIt == $rhs.$prevIt;")
-        filter += new Function(s"friend bool", "operator!=", Array(lhs, rhs), s"return !($lhs == $rhs);")
-
         filter.end()
 
-        val newIt = tub.variable("filterIt", filterName, s"{${ rvd.region }, $oldRowIt, ${ rvd.end }}")
-        val newEnd = tub.variable("end", filterName, s"{${ rvd.region }, ${ rvd.end }, ${ rvd.end }}")
-        val newSetup =
-          s"""
-             |${ rvd.setup }
-             |${ newIt.define }
-             |${ newEnd.define }
-           """.stripMargin
+        val range = tub.variable("filter_range",
+          s"TablePartitionRange<TableFilterRows<${ prevPartition.range.typ }, ${ filter.name }>>",
+          s"{&${ ctx.cxxCtx }, ${ prevPartition.range }}")
 
-        prev.copy(
-          rvdEmitTriplet = rvd.copy(
-            setup = newSetup,
-            iterator = newIt,
-            end = newEnd))
+        val setup =
+          s"""
+             |${ prevPartition.setup }
+             |${ range.define }
+       """.stripMargin
+
+        prev.copy(t = prevPartition.copy(setup = setup, range = range))
+      case x@ir.TableExplode(child, fname) =>
+        val prev = emit(child)
+        val ctx = prev.t.ctx
+        tub.include("hail/table/TableExplodeRows.h")
+        val exploder = tub.buildClass(tub.genSym("Exploder"))
+
+        val lenF = exploder.buildMethod("len",
+          Array("NativeStatus*" -> "st",
+            "Region*" -> "region",
+            "const char *" -> "row"), "int")
+        val lenEnv = ir.Env.empty[ir.IR]
+          .bind("row", ir.In(0, child.typ.rowType))
+        val lent = Emit(lenF, 1, ir.Subst(x.lengthIR, lenEnv))
+        lenF +=
+          s"""
+             |${ lent.setup }
+             |return (${ lent.m }) ? 0 : (${ lent.v });
+           """.stripMargin
+        lenF.end()
+
+        val explodeF = exploder.buildMethod("operator()",
+          Array("NativeStatus*" -> "st",
+            "Region*" -> "region",
+            "const char *" -> "row",
+            "int" -> "i"), "const char *")
+        val substEnv = ir.Env.empty[ir.IR]
+          .bind("row", ir.In(1, child.typ.rowType))
+          .bind("i", ir.In(2, TInt32()))
+        val et = Emit(explodeF, 1, ir.Subst(x.insertIR, substEnv))
+        explodeF +=
+          s"""
+             |${ et.setup }
+             |if (${ et.m }) {
+             |  ${ explodeF.nativeError("\"exploded row can't be missing!\"") }
+             |} else {
+             |  return ${ et.v };
+             |}
+           """.stripMargin
+        explodeF.end()
+        exploder.end()
+
+        val range = tub.variable("map_range",
+          s"TablePartitionRange<TableExplodeRows<${ prev.t.range.typ }, ${ exploder.name }>>",
+          s"{&${ ctx.cxxCtx }, ${ prev.t.range }}")
+
+        val setup =
+          s"""
+             |${ prev.t.setup }
+             |${ range.define }""".stripMargin
+
+        val newPet = PartitionEmitTriplet(ctx, setup, range, x.typ.rowType.physicalType.asInstanceOf[PStruct])
+        prev.copy(t = newPet)
+
       case _ =>
         throw new CXXUnsupportedOperation(ir.Pretty(x))
     }
