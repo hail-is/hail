@@ -212,61 +212,6 @@ class LEB128InputBuffer {
     bool read_boolean() { return buf_.read_boolean(); }
 };
 
-template<typename Decoder>
-class Reader {
-private:
-  Decoder dec_;
-  ScalaRegion * region_;
-  mutable char * value_;
-
-  bool read() const {
-    if (dec_.decode_byte()) {
-      value_ = dec_.decode_row(region_->get_wrapped_region());
-    } else {
-      value_ = nullptr;
-    }
-  return (value_ != nullptr);
-  }
-
-  char * get() const { return value_; }
-
-public:
-  Reader(Decoder dec, ScalaRegion * region) :
-  dec_(dec), region_(region), value_(nullptr) {
-    read();
-  }
-
-  class Iterator {
-  friend class Reader;
-  private:
-    const Reader<Decoder> * reader_;
-    explicit Iterator(const Reader<Decoder> * reader) :
-    reader_(reader) { }
-    explicit Iterator(std::nullptr_t) : reader_(nullptr) { }
-
-  public:
-    Iterator& operator++() {
-      if (reader_ != nullptr && !(reader_->read())) {
-        reader_ = nullptr;
-      }
-      return *this;
-    }
-
-    char const* operator*() const { return reader_->get(); }
-
-    friend bool operator==(Iterator const& lhs, Iterator const& rhs) {
-      return (lhs.reader_ == rhs.reader_);
-    }
-
-    friend bool operator!=(Iterator const& lhs, Iterator const& rhs) {
-      return !(lhs == rhs);
-    }
-  };
-
-  Iterator begin() const { return Iterator(this); }
-  Iterator end() const { return Iterator(nullptr); }
-};
-
 }
 
 #endif

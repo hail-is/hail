@@ -123,13 +123,13 @@ case class OrderedRVDSpec(
       JSONAnnotationImpex.importAnnotation(jRangeBounds, rangeBoundsType, padNulls = false).asInstanceOf[IndexedSeq[Interval]])
   }
 
-  def cxxEmitRead(hc: HailContext, path: String, requestedType: TStruct, tub: cxx.TranslationUnitBuilder): cxx.RVDEmitTriplet = {
+  def cxxEmitRead(hc: HailContext, path: String, requestedType: TStruct, ctx: cxx.PartitionContext): cxx.TableEmitTriplet = {
     val requestedRVDType = rvdType.copy(rowType = requestedType.physicalType)
     assert(requestedRVDType.kType == rvdType.kType)
     val rangeBoundsType = TArray(TInterval(requestedRVDType.kType.virtualType))
     val partitioner = new RVDPartitioner(requestedRVDType.kType.virtualType,
       JSONAnnotationImpex.importAnnotation(jRangeBounds, rangeBoundsType, padNulls = false).asInstanceOf[IndexedSeq[Interval]])
-    cxx.RVDEmitTriplet.read(path, rvdType.rowType, codecSpec, partFiles, requestedRVDType, partitioner, tub)
+    cxx.TableEmitTriplet.read(path, rvdType.rowType, codecSpec, partFiles, requestedRVDType, partitioner, ctx)
   }
 }
 
@@ -151,7 +151,7 @@ abstract class AbstractRVDSpec {
     RVD(rvdType, partitioner, hc.readRows(path, encodedType, codecSpec, partFiles, requestedType))
   }
 
-  def cxxEmitRead(hc: HailContext, path: String, requestedType: TStruct, tub: cxx.TranslationUnitBuilder): cxx.RVDEmitTriplet
+  def cxxEmitRead(hc: HailContext, path: String, requestedType: TStruct, ctx: cxx.PartitionContext): cxx.TableEmitTriplet
 
   def readLocal(hc: HailContext, path: String, requestedType: PStruct): IndexedSeq[Row] =
     AbstractRVDSpec.readLocal(hc, path, encodedType, codecSpec, partFiles, requestedType)

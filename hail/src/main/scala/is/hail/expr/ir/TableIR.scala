@@ -852,7 +852,7 @@ case class TableExplode(child: TableIR, path: IndexedSeq[String]) extends TableI
 
   private val childRowType = child.typ.rowType
 
-  private val length: IR = {
+  val length: IR = {
     val lenUID = genUID()
     Let(lenUID,
       ArrayLen(ToArray(
