@@ -232,7 +232,7 @@ private:
   char * get() const { return value_; }
 
 public:
-  Reader(Decoder dec, ScalaRegionPool::Region * region, NativeStatus* st) :
+  Reader(Decoder dec, ScalaRegion * region, NativeStatus* st) :
   dec_(dec), region_(region), st_(st), value_(nullptr) {
     read();
   }

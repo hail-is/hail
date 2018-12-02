@@ -107,7 +107,7 @@ class RegionValueIteratorSuite extends SparkSuite {
       val it = Variable("it", s"Reader<${ decClass.name }>")
       cb += it
       cb +=
-        s"""${cb.name}(jobject is, Region * reg, NativeStatus * st) :
+        s"""${cb.name}(jobject is, ScalaRegion * reg, NativeStatus * st) :
            |$it(Reader<${ decClass.name }>(${ decClass.name }(std::make_shared<InputStream>(UpcallEnv(), is)), reg, st)) { }
          """.stripMargin
 
