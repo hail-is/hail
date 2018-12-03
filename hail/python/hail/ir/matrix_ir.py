@@ -56,7 +56,8 @@ class MatrixImportVCF(MatrixIR):
                  reference_genome,
                  contig_recoding,
                  array_elements_required,
-                 skip_invalid_loci):
+                 skip_invalid_loci,
+                 _partitions):
         super().__init__()
         self.paths = paths
         self.force = force
@@ -69,6 +70,7 @@ class MatrixImportVCF(MatrixIR):
         self.contig_recoding = contig_recoding
         self.array_elements_required = array_elements_required
         self.skip_invalid_loci = skip_invalid_loci
+        self._partitions = _partitions
 
     def render(self, r):
         config = dict(
@@ -82,7 +84,8 @@ class MatrixImportVCF(MatrixIR):
             arrayElementsRequired=self.array_elements_required,
             skipInvalidLoci=self.skip_invalid_loci,
             gzAsBGZ=self.force_bgz,
-            forceGZ=self.force
+            forceGZ=self.force,
+            partitionsJSON=self._partitions
         )
         return f'(MatrixRead None {self.drop_samples} False "{escape_str(json.dumps(config))}")'
 

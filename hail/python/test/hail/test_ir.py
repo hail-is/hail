@@ -192,7 +192,7 @@ class TableIRTests(unittest.TestCase):
             ir.MatrixAggregateColsByKey(matrix_read, collect, collect),
             ir.MatrixRange(1, 1, 10),
             ir.MatrixImportVCF([resource('sample.vcf')], False, False, None, None, False, ['GT'],
-                               hail.get_reference('GRCh37'), {}, True, False),
+                               hail.get_reference('GRCh37'), {}, True, False, None),
             ir.MatrixImportBGEN([resource('example.8bits.bgen')], ['GP'], resource('example.sample'), {}, 10, 1,
                                 ['varid'], None),
             ir.MatrixFilterRows(matrix_read, ir.FalseIR()),
