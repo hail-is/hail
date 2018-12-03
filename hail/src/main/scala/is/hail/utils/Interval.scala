@@ -69,7 +69,7 @@ class Interval(val left: IntervalEndpoint, val right: IntervalEndpoint) extends 
 
   def includes(pord: ExtendedOrdering, other: Interval): Boolean =
     ext(pord).lteq(this.left, other.left) && ext(pord).gteq(this.right, other.right)
-  
+
   def overlaps(pord: ExtendedOrdering, other: Interval): Boolean =
     ext(pord).lt(this.left, other.right) && ext(pord).gt(this.right, other.left)
 

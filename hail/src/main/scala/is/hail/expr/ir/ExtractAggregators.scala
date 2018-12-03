@@ -90,7 +90,7 @@ object ExtractAggregators {
   }
 
   private def newAggregator(ir: ApplyAggOp): RegionValueAggregator = ir match {
-    case x@ApplyAggOp(constructorArgs, _, seqOpArgs, aggSig) =>
+    case x@ApplyAggOp(constructorArgs, _, _, aggSig) =>
       val fb = EmitFunctionBuilder[Region, RegionValueAggregator]
       var codeConstructorArgs = constructorArgs.map(Emit.toCode(_, fb, 1))
 
