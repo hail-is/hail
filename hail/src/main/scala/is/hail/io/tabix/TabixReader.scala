@@ -81,8 +81,13 @@ object TabixReader {
     val buf = new ArrayBuilder[Byte](initialBufferSize)
     var c = is.read()
     while (c >= 0 && c != '\n') {
-      buf += c.asInstanceOf[Byte]
-      c = is.read()
+      if (c == '\r') {
+        c = is.read()
+        if (c != '\n') fatal("invalid '\\r' character in line")
+      } else {
+        buf += c.asInstanceOf[Byte]
+        c = is.read()
+      }
     }
     new String(buf.result(), StandardCharsets.UTF_8)
   }
