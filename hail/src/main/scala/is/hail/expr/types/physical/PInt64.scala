@@ -24,7 +24,7 @@ class PInt64(override val required: Boolean) extends PIntegral {
 
   override def scalaClassTag: ClassTag[java.lang.Long] = classTag[java.lang.Long]
 
-  override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = new UnsafeOrdering {
+  override def unsafeOrdering(): UnsafeOrdering = new UnsafeOrdering {
     def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
       java.lang.Long.compare(r1.loadLong(o1), r2.loadLong(o2))
     }

@@ -24,7 +24,7 @@ class PFloat32(override val required: Boolean) extends PNumeric {
 
   override def scalaClassTag: ClassTag[java.lang.Float] = classTag[java.lang.Float]
 
-  override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = new UnsafeOrdering {
+  override def unsafeOrdering(): UnsafeOrdering = new UnsafeOrdering {
     def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
       java.lang.Float.compare(r1.loadFloat(o1), r2.loadFloat(o2))
     }

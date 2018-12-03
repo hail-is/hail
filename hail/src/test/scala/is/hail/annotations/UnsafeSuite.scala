@@ -309,7 +309,7 @@ class UnsafeSuite extends SparkSuite {
       assert(tv.valuesSimilar(a2, ur2))
 
       val ord = tv.ordering
-      val uord = t.unsafeOrdering(missingGreatest = true)
+      val uord = t.unsafeOrdering()
 
       val c1 = ord.compare(a1, a2)
       val c2 = ord.compare(ur1, ur2)

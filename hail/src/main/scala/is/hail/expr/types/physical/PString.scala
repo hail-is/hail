@@ -25,7 +25,7 @@ class PString(override val required: Boolean) extends PType {
 
   override def scalaClassTag: ClassTag[String] = classTag[String]
 
-  override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = PBinary(required).unsafeOrdering(missingGreatest)
+  override def unsafeOrdering(): UnsafeOrdering = PBinary(required).unsafeOrdering()
 
   override def byteSize: Long = 8
 

@@ -38,7 +38,7 @@ case class PLocus(rg: RGBase, override val required: Boolean = false) extends Co
   override def scalaClassTag: ClassTag[Locus] = classTag[Locus]
 
   // FIXME: Remove when representation of contig/position is a naturally-ordered Long
-  override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = {
+  override def unsafeOrdering(): UnsafeOrdering = {
     val repr = representation.fundamentalType
 
     new UnsafeOrdering {
