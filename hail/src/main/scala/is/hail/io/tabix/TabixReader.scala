@@ -11,6 +11,7 @@ import org.apache.spark.SparkContext
 
 import java.io.InputStream
 import java.nio.{ByteBuffer, ByteOrder}
+import java.nio.charset.StandardCharsets
 import java.util.Arrays
 
 import scala.collection.mutable.HashMap
@@ -77,13 +78,13 @@ object TabixReader {
   def readLine(is: InputStream): String = readLine(is, DefaultBufferSize)
 
   def readLine(is: InputStream, initialBufferSize: Int): String = {
-    val buf = new StringBuffer(initialBufferSize)
+    val buf = new ArrayBuilder[Byte](initialBufferSize)
     var c = is.read()
     while (c >= 0 && c != '\n') {
-      buf.append(c.asInstanceOf[Char])
+      buf += c.asInstanceOf[Byte]
       c = is.read()
     }
-    buf.toString()
+    new String(buf.result(), StandardCharsets.UTF_8)
   }
 
 }
