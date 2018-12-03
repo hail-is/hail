@@ -277,7 +277,7 @@ class TypeTests(unittest.TestCase):
     def test_table_type_parses(self):
         tt = ir.TableType(
             global_type=hl.tstruct(foo=hl.tstr),
-            row_type=hl.tstruct(a=hl.tint, b=hl.tbool),
+            row_type=hl.tstruct(a=hl.tint, b=hl.tbool, c=hl.tfloat),
             key=['a', 'b']
         )
 

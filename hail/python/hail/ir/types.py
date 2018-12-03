@@ -11,8 +11,8 @@ class MatrixType(object):
                       entry_type=tstruct)
     def __init__(self, global_type, col_key, col_type, row_key,
                  row_type, entry_type):
-        assert set(list(col_type)) == set(col_key)
-        assert set(list(row_type)) == set(row_key)
+        assert set(col_key).intersection(set(list(col_type))) == set(col_key)
+        assert set(row_key).intersection(set(list(row_type))) == set(row_key)
 
         self.global_type = global_type
         self.col_key = col_key
@@ -38,7 +38,7 @@ class TableType(object):
                       key=sequenceof(str),
                       global_type=tstruct)
     def __init__(self, row_type, key, global_type):
-        assert set(list(row_type)) == set(key)
+        assert set(key).intersection(set(list(row_type))) == set(key)
 
         self.row_type = row_type
         self.key = key
