@@ -8,9 +8,9 @@ object EmitTriplet {
 }
 
 class EmitTriplet private(val pType: types.physical.PType, val setup: Code, val m: Code, val v: Code) {
-  def memoize(): EmitTriplet = {
-    val mv = Variable("memm", "bool", m)
-    val vv = Variable("memv", typeToCXXType(pType))
+  def memoize(fb: FunctionBuilder): EmitTriplet = {
+    val mv = fb.variable("memm", "bool", m)
+    val vv = fb.variable("memv", typeToCXXType(pType))
 
     EmitTriplet(pType,
       s"""

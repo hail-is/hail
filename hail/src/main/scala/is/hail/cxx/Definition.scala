@@ -9,19 +9,17 @@ trait Definition {
 }
 
 object Variable {
-  def apply(prefix: String, typ: Type): Variable =
-    new Variable(prefix, typ, null)
+  def apply(name: String, typ: Type): Variable =
+    new Variable(name, typ, null)
 
-  def apply(prefix: String, typ: Type, init: Code): Variable =
-    new Variable(prefix, typ, Expression(init))
+  def apply(name: String, typ: Type, init: Code): Variable =
+    new Variable(name, typ, Expression(init))
 
   def make_shared(prefix: String, typ: Type, constructorArgs: Code*): Variable =
     Variable(prefix, s"std::shared_ptr<$typ>", s"std::make_shared<$typ>(${ constructorArgs.mkString(", ") })")
 }
 
-class Variable(prefix: String, val typ: String, init: Expression) extends Definition {
-  val name: String = genSym(prefix)
-
+class Variable(val name: String, val typ: String, init: Expression) extends Definition {
   override def toString: String = name
 
   def ref: Expression = Expression(name)
@@ -54,17 +52,11 @@ class Function(returnType: Type, val name: String, args: Array[Variable], body: 
 }
 
 class FunctionBuilder(val parent: ScopeBuilder, prefix: String, args: Array[Variable], returnType: Type)
-  extends DefinitionBuilder[Function] {
-
-  val statements: ArrayBuilder[Code] = new ArrayBuilder[Code]()
-
-  def +=(statement: Code) {
-    statements += statement
-  }
+  extends ScopeBuilder with DefinitionBuilder[Function] {
 
   def getArg(i: Int): Variable = args(i)
 
-  def build(): Function = new Function(returnType, prefix, args, statements.result().mkString("\n"))
+  def build(): Function = new Function(returnType, prefix, args, definitions.result().mkString("\n"))
 
   def defaultReturn: Code = {
     if (returnType == "long")

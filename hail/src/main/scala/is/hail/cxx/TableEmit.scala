@@ -79,7 +79,7 @@ class TableEmitter(tub: TranslationUnitBuilder) { outer =>
         val hc = HailContext.get
         val globals = spec.globalsComponent.readLocal(hc, path, typ.globalType.physicalType)(0)
         val rvd = if (dropRows)
-          RVDEmitTriplet.empty[InputStream](typ.canonicalRVDType)
+          RVDEmitTriplet.empty[InputStream](tub, typ.canonicalRVDType)
         else {
           val rvd = spec.rowsComponent.cxxEmitRead(hc, path, typ.rowType, tub)
 //          if (rvd.typ.key startsWith typ.key)
@@ -97,12 +97,12 @@ class TableEmitter(tub: TranslationUnitBuilder) { outer =>
         val rvd = prev.rvdEmitTriplet
         val oldRowIt = rvd.iterator
 
-        val mapName = genSym("MapRowIterator")
+        val mapName = tub.genSym("MapRowIterator")
         val mapper = tub.buildClass(mapName)
 
-        val st = Variable("st", "NativeStatus *")
-        val region = Variable("region", "ScalaRegion *")
-        val prevIt = Variable("it", oldRowIt.typ)
+        val st = tub.variable("st", "NativeStatus *")
+        val region = tub.variable("region", "ScalaRegion *")
+        val prevIt = tub.variable("it", oldRowIt.typ)
         mapper += st
         mapper += region
         mapper += prevIt
@@ -129,15 +129,15 @@ class TableEmitter(tub: TranslationUnitBuilder) { outer =>
 
         mapper += new Function(s"$mapName&", "operator++", Array(), s"++$prevIt; return *this;")
         mapper += new Function(s"char const*", "operator*", Array(), s"return map_row($st, $region, *$prevIt);")
-        val lhs = Variable("lhs", s"$mapName&")
-        val rhs = Variable("rhs", s"$mapName&")
+        val lhs = tub.variable("lhs", s"$mapName&")
+        val rhs = tub.variable("rhs", s"$mapName&")
         mapper += new Function(s"friend bool", "operator==", Array(lhs, rhs), s"return $lhs.$prevIt == $rhs.$prevIt;")
         mapper += new Function(s"friend bool", "operator!=", Array(lhs, rhs), s"return !($lhs == $rhs);")
 
         mapper.end()
 
-        val newIt = Variable("mapIt", mapName, s"{${ rvd.st }, ${ rvd.region }, $oldRowIt}")
-        val newEnd = Variable("end", mapName, s"{${ rvd.st }, ${ rvd.region }, ${ rvd.end }}")
+        val newIt = tub.variable("mapIt", mapName, s"{${ rvd.st }, ${ rvd.region }, $oldRowIt}")
+        val newEnd = tub.variable("end", mapName, s"{${ rvd.st }, ${ rvd.region }, ${ rvd.end }}")
         val newSetup =
           s"""
              |${ rvd.setup }
@@ -158,13 +158,20 @@ class TableEmitter(tub: TranslationUnitBuilder) { outer =>
         val rvd = prev.rvdEmitTriplet
         val oldRowIt = rvd.iterator
 
-        val filterName = genSym("FilterRowIterator")
+        val filterName = tub.genSym("FilterRowIterator")
         val filter = tub.buildClass(filterName)
 
+<<<<<<< HEAD
         val st = Variable("st", "NativeStatus *")
         val region = Variable("region", "ScalaRegion *")
         val prevIt = Variable("it", oldRowIt.typ)
         val endIt = Variable("end", oldRowIt.typ)
+=======
+        val st = tub.variable("st", "NativeStatus *")
+        val region = tub.variable("region", "Region *")
+        val prevIt = tub.variable("it", oldRowIt.typ)
+        val endIt = tub.variable("end", oldRowIt.typ)
+>>>>>>> wip
         filter += st
         filter += region
         filter += prevIt
@@ -198,15 +205,15 @@ class TableEmitter(tub: TranslationUnitBuilder) { outer =>
              |return *this;
            """.stripMargin)
         filter += new Function(s"char const*", "operator*", Array(), s"return *$prevIt;")
-        val lhs = Variable("lhs", s"$filterName&")
-        val rhs = Variable("rhs", s"$filterName&")
+        val lhs = tub.variable("lhs", s"$filterName&")
+        val rhs = tub.variable("rhs", s"$filterName&")
         filter += new Function(s"friend bool", "operator==", Array(lhs, rhs), s"return $lhs.$prevIt == $rhs.$prevIt;")
         filter += new Function(s"friend bool", "operator!=", Array(lhs, rhs), s"return !($lhs == $rhs);")
 
         filter.end()
 
-        val newIt = Variable("filterIt", filterName, s"{${ rvd.st }, ${ rvd.region }, $oldRowIt, ${ rvd.end }}")
-        val newEnd = Variable("end", filterName, s"{${ rvd.st }, ${ rvd.region }, ${ rvd.end }, ${ rvd.end }}")
+        val newIt = tub.variable("filterIt", filterName, s"{${ rvd.st }, ${ rvd.region }, $oldRowIt, ${ rvd.end }}")
+        val newEnd = tub.variable("end", filterName, s"{${ rvd.st }, ${ rvd.region }, ${ rvd.end }, ${ rvd.end }}")
         val newSetup =
           s"""
              |${ rvd.setup }

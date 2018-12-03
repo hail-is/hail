@@ -43,10 +43,10 @@ class RegionValueIteratorSuite extends SparkSuite {
     tub.include("<jni.h>")
     tub.include("hail/PartitionIterators.h")
     val partitionFB = tub.buildFunction("partition_f", Array("NativeStatus*" -> "st", "long" -> "objects"), "long")
-    val up = Variable("up", "UpcallEnv")
-    val encoder = Variable("encoder", encClass.name, s"std::make_shared<OutputStream>($up, reinterpret_cast<ObjectArray * >(${ partitionFB.getArg(1) })->at(1))")
-    val jit = Variable("jit", "JavaIteratorObject", s"JavaIteratorObject($up, reinterpret_cast<ObjectArray * >(${ partitionFB.getArg(1) })->at(0))")
-    val it = Variable("it", "RVIterator", s"$jit.begin()")
+    val up = tub.variable("up", "UpcallEnv")
+    val encoder = tub.variable("encoder", encClass.name, s"std::make_shared<OutputStream>($up, reinterpret_cast<ObjectArray * >(${ partitionFB.getArg(1) })->at(1))")
+    val jit = tub.variable("jit", "JavaIteratorObject", s"JavaIteratorObject($up, reinterpret_cast<ObjectArray * >(${ partitionFB.getArg(1) })->at(0))")
+    val it = tub.variable("it", "RVIterator", s"$jit.begin()")
 
     partitionFB += up.define
     partitionFB += encoder.define
@@ -104,7 +104,7 @@ class RegionValueIteratorSuite extends SparkSuite {
       val decClass = PackDecoder(t.physicalType, t.physicalType, spec, tub)
 
       val cb = tub.buildClass("CXXIterator", "NativeObj")
-      val it = Variable("it", s"Reader<${ decClass.name }>")
+      val it = tub.variable("it", s"Reader<${ decClass.name }>")
       cb += it
       cb +=
         s"""${cb.name}(jobject is, ScalaRegion * reg, NativeStatus * st) :

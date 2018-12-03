@@ -6,6 +6,8 @@ import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.utils.{ArrayBuilder, StringEscapeUtils}
 
+import scala.collection.mutable
+
 object Emit {
   def apply(fb: FunctionBuilder, nSpecialArgs: Int, x: ir.IR): EmitTriplet = {
     val emitter = new Emitter(fb, nSpecialArgs)
@@ -17,6 +19,160 @@ class CXXUnsupportedOperation(msg: String = null) extends Exception(msg)
 
 abstract class ArrayEmitter(val setup: Code, val m: Code, val setupLen: Code, val length: Option[Code]) {
   def emit(f: (Code, Code) => Code): Code
+}
+
+class Orderings {
+  val orderings = new ArrayBuilder[Code]
+  val typeOrdering = mutable.Map.empty[(PType, PType), String]
+
+  private def makeOrdering(tub: TranslationUnitBuilder, lp: PType, rp: PType): String = {
+    lp.virtualType match {
+      case TFloat32(_) => "FloatOrd"
+      case TFloat64(_) => "DoubleOrd"
+      case TInt32(_) => "IntOrd"
+      case TInt64(_) => "LongOrd"
+      case TBoolean(_) => "BoolOrd"
+
+      case TString(_) | TBinary(_) => "BinaryOrd"
+
+      case t: TContainer =>
+        val lContainerP = lp.asInstanceOf[PContainer]
+        val rContainerP = rp.asInstanceOf[PContainer]
+
+        val lElemP = lContainerP.elementType
+        val rElemP = rContainerP.elementType
+
+        val elemOrd = ordering(tub, lContainerP.elementType, rContainerP.elementType)
+        val eElemOrd = s"ExtOrd<$elemOrd>"
+
+        s"ArrayOrd<${ lContainerP.cxxImpl },${ rContainerP.cxxImpl },ExtOrd<$elemOrd>>"
+
+      case t: TBaseStruct =>
+        val ord = tub.genSym("Ord")
+
+        val lBaseStructP = lp.asInstanceOf[PBaseStruct]
+        val rBaseStructP = rp.asInstanceOf[PBaseStruct]
+
+        def comparisonTemplate(
+          op: String,
+          rType: String,
+          fieldTest: (TranslationUnitBuilder, String, Code, Code, Code, Code) => Code,
+          finalValue: Code): Code = {
+          s"""
+             |static $rType $op(const char *l, const char *r) {
+             |  ${
+            t.fields.zipWithIndex.map { case (f, i) =>
+              val fOrd = ordering(tub, lBaseStructP.fields(i).typ, rBaseStructP.fields(i).typ)
+
+              val lm = tub.variable("lm", "bool", lBaseStructP.cxxIsFieldMissing("l", i))
+              val lv = tub.variable("lv", typeToCXXType(lBaseStructP.fields(i).typ))
+
+              val rm = tub.variable("rm", "bool", rBaseStructP.cxxIsFieldMissing("r", i))
+              val rv = tub.variable("lv", typeToCXXType(rBaseStructP.fields(i).typ))
+
+              s"""
+                 |${lm.define}
+                 |${lv.define}
+                 |if (!$lm)
+                 |  $lv = ${lBaseStructP.cxxLoadField("l", i)};
+                 |${rm.define}
+                 |${rv.define}
+                 |if (!$rm)
+                 |  $rv = ${rBaseStructP.cxxLoadField("r", i)};
+                 |${ fieldTest(tub, s"ExtOrd<$fOrd>", lm.toString, lv.toString, rm.toString, rv.toString) }
+               """.stripMargin
+            }.mkString
+          }
+             |  return $finalValue;
+             |}
+           """.stripMargin
+        }
+
+        orderings +=
+          s"""
+             |class $ord {
+             |public:
+             |  using T = const char *;
+             |  ${
+            comparisonTemplate("compare", "int",
+              { (tub, efOrd, lm, lv, rm, rv) =>
+                val c = tub.genSym("c")
+                s"""
+                   |int $c = $efOrd::compare($lm, $lv, $rm, $rv);
+                   |if ($c != 0) return $c;
+               """.stripMargin
+              },
+              "0")
+          }
+             |  ${
+            comparisonTemplate("lt", "bool",
+              { (tub, efOrd, lm, lv, rm, rv) =>
+                s"""
+                   |if ($efOrd::lt($lm, $lv, $rm, $rv)) return true;
+                   |if (!$efOrd::eq($lm, $lv, $rm, $rv)) return false;
+               """.stripMargin
+              },
+              "false")
+          }
+             |  ${
+            comparisonTemplate("lteq", "bool",
+              { (tub, efOrd, lm, lv, rm, rv) =>
+                s"""
+                   |if ($efOrd::lt($lm, $lv, $rm, $rv)) return true;
+                   |if (!$efOrd::eq($lm, $lv, $rm, $rv)) return false;
+               """.stripMargin
+              },
+              "true")
+          }
+             |  ${
+            comparisonTemplate("gt", "bool",
+              { (tub, efOrd, lm, lv, rm, rv) =>
+                s"""
+                   |if ($efOrd::gt($lm, $lv, $rm, $rv)) return true;
+                   |if (!$efOrd::eq($lm, $lv, $rm, $rv)) return false;
+               """.stripMargin
+              },
+              "false")
+          }
+             |  ${
+            comparisonTemplate("gteq", "bool",
+              { (tub, efOrd, lm, lv, rm, rv) =>
+                s"""
+                   |if ($efOrd::gt($lm, $lv, $rm, $rv)) return true;
+                   |if (!$efOrd::eq($lm, $lv, $rm, $rv)) return false;
+               """.stripMargin
+              },
+              "true")
+          }
+             |  ${
+            comparisonTemplate("eq", "bool",
+              { (tub, efOrd, lm, lv, rm, rv) =>
+                s"""
+                   |if (!$efOrd::eq($lm, $lv, $rm, $rv)) return false;
+               """.stripMargin
+              },
+              "true")
+          }
+             |  static bool neq(const char *l, const char *r) { return !eq(l, r); }
+             |};
+           """.stripMargin
+
+        ord
+
+      case _: TInterval =>
+        throw new CXXUnsupportedOperation()
+    }
+  }
+
+  def ordering(tub: TranslationUnitBuilder, lp: PType, rp: PType): String = {
+    typeOrdering.get((lp, rp)) match {
+      case Some(o) => o
+      case None =>
+        val o = makeOrdering(tub, lp, rp)
+        typeOrdering += (lp, rp) -> o
+        o
+    }
+  }
 }
 
 class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) { outer =>
@@ -62,8 +218,8 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) { outer =>
         assert(pType == cnsq.pType)
         assert(pType == altr.pType)
 
-        val m = Variable("m", "bool")
-        val v = Variable("v", typeToCXXType(pType))
+        val m = fb.variable("m", "bool")
+        val v = fb.variable("v", typeToCXXType(pType))
         val tcond = emit(cond)
         val tcnsq = emit(cnsq)
         val taltr = emit(altr)
@@ -92,8 +248,8 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) { outer =>
 
       case ir.Let(name, value, body) =>
         val tvalue = emit(value)
-        val m = Variable("m", "bool", tvalue.m)
-        val v = Variable("v", typeToCXXType(value.pType))
+        val m = fb.variable("m", "bool", tvalue.m)
+        val v = fb.variable("v", typeToCXXType(value.pType))
         val tbody = emit(body, env.bind(name, EmitTriplet(value.pType, "", m.toString, v.toString)))
 
         triplet(
@@ -143,16 +299,61 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) { outer =>
 
         triplet(t.setup, t.m, v)
 
+      case ir.ApplyComparisonOp(op, l, r) =>
+        val lt = emit(l)
+        val rt = emit(r)
+
+        val o = fb.parent.ordering(l.pType, r.pType)
+
+        val opf = op match {
+          case ir.GT(_, _) => "gt"
+          case ir.GTEQ(_, _) => "gteq"
+          case ir.LT(_, _) => "lt"
+          case ir.LTEQ(_, _) => "lteq"
+          case ir.EQ(_, _) => "eq"
+          case ir.NEQ(_, _) => "neq"
+          case ir.EQWithNA(_, _) => "eq"
+          case ir.NEQWithNA(_, _) => "neq"
+        }
+
+        if (op.strict) {
+          triplet(Code(lt.setup, rt.setup),
+            s"${ lt.m } || ${ rt.m }",
+            s"$o::$opf(${ lt.v }, ${ rt.v })")
+        } else {
+          val lm = fb.variable("lm", "bool", lt.m)
+          val lv = fb.variable("lv", typeToCXXType(l.pType))
+
+          val rm = fb.variable("rm", "bool", rt.m)
+          val rv = fb.variable("rv", typeToCXXType(r.pType))
+
+          triplet(Code(lt.setup, rt.setup),
+            "false",
+            s"""
+               |({
+               |  ${ lm.define }
+               |  ${ lv.define }
+               |  if (!$lm)
+               |    $lv = ${ lt.v };
+               |  ${ rm.define }
+               |  ${ rv.define }
+               |  if (!$rm)
+               |    $rv = ${ rt.v };
+               |  ExtOrd<$o>::$opf($lm, $lv, $rm, $rv);
+               |})
+             """.stripMargin)
+        }
+
       case ir.ArrayRef(a, i) =>
         val pContainer = a.pType.asInstanceOf[PContainer]
         val at = emit(a)
         val it = emit(i)
 
-        val av = Variable("a", "const char *", at.v)
-        val iv = Variable("i", "int", it.v)
-        val len = Variable("len", "int", pContainer.cxxLoadLength(av.toString))
+        val av = fb.variable("a", "const char *", at.v)
+        val iv = fb.variable("i", "int", it.v)
+        val len = fb.variable("len", "int", pContainer.cxxLoadLength(av.toString))
 
-        val m = Variable("m", "bool")
+        val m = fb.variable("m", "bool")
 
         var s = ir.Pretty(x)
         if (s.length > 100)
@@ -185,14 +386,14 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) { outer =>
       case ir.GetField(o, name) =>
         val fieldIdx = o.typ.asInstanceOf[TStruct].fieldIdx(name)
         val pStruct = o.pType.asInstanceOf[PStruct]
-        val ot = emit(o).memoize()
+        val ot = emit(o).memoize(fb)
         triplet(Code(ot.setup),
           s"${ ot.m } || (${ pStruct.cxxIsFieldMissing(ot.v, fieldIdx) })",
           pStruct.cxxLoadField(ot.v, fieldIdx))
 
       case ir.GetTupleElement(o, idx) =>
         val pStruct = o.pType.asInstanceOf[PTuple]
-        val ot = emit(o).memoize()
+        val ot = emit(o).memoize(fb)
         triplet(Code(ot.setup),
           s"${ ot.m } || (${ pStruct.cxxIsFieldMissing(ot.v, idx) })",
           pStruct.cxxLoadField(ot.v, idx))
@@ -215,7 +416,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) { outer =>
         val pStruct = pType.asInstanceOf[PStruct]
         val oldPStruct = old.pType.asInstanceOf[PStruct]
         val oldt = emit(old)
-        val ov = Variable("old", typeToCXXType(oldPStruct), oldt.v)
+        val ov = fb.variable("old", typeToCXXType(oldPStruct), oldt.v)
 
         val sb = new StagedBaseStructTripletBuilder(fb, pStruct)
         fields.foreach { f =>
@@ -238,7 +439,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) { outer =>
         val pStruct = pType.asInstanceOf[PStruct]
         val oldPStruct = old.pType.asInstanceOf[PStruct]
         val oldt = emit(old)
-        val ov = Variable("old", typeToCXXType(oldPStruct), oldt.v)
+        val ov = fb.variable("old", typeToCXXType(oldPStruct), oldt.v)
 
         val fieldsMap = fields.toMap
 
@@ -272,12 +473,12 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) { outer =>
       case ir.ArrayFold(a, zero, accumName, valueName, body) =>
         val containerPType = a.pType.asInstanceOf[PContainer]
         val ae = emitArray(a, env)
-        val am = Variable("am", "bool", ae.m)
+        val am = fb.variable("am", "bool", ae.m)
 
         val zerot = emit(zero)
 
-        val accm = Variable("accm", "bool")
-        val accv = Variable("accv", typeToCXXType(zero.pType))
+        val accm = fb.variable("accm", "bool")
+        val accv = fb.variable("accv", typeToCXXType(zero.pType))
         val acct = EmitTriplet(zero.pType, "", accm.toString, accv.toString)
 
         triplet(
@@ -296,15 +497,15 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) { outer =>
              |  ${ ae.setupLen }
              |  ${
             ae.emit { case (m, v) =>
-              val vm = Variable("vm", "bool")
-              val vv = Variable("vv", typeToCXXType(containerPType.elementType))
+              val vm = fb.variable("vm", "bool")
+              val vv = fb.variable("vv", typeToCXXType(containerPType.elementType))
               val vt = EmitTriplet(containerPType.elementType, "", vm.toString, vv.toString)
 
               val bodyt = emit(body, env.bind(accumName -> acct, valueName -> vt))
 
               // necessary because bodyt.v could be accm
-              val bodym = Variable("bodym", "bool", bodyt.m)
-              val bodyv = Variable("bodyv", typeToCXXType(body.pType))
+              val bodym = fb.variable("bodym", "bool", bodyt.m)
+              val bodyv = fb.variable("bodyv", typeToCXXType(body.pType))
 
               s"""
                  |${ vm.define }
@@ -355,9 +556,9 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) { outer =>
                  |""".stripMargin)
 
           case None =>
-            val xs = genSym("xs")
-            val ms = genSym("ms")
-            val i = genSym("i")
+            val xs = fb.genSym("xs")
+            val ms = fb.genSym("ms")
+            val i = fb.genSym("i")
             val sab = new StagedContainerBuilder(fb, fb.getArg(1).toString, containerPType)
             triplet(ae.setup, ae.m,
               s"""
@@ -413,6 +614,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) { outer =>
 
       case x@ir.ApplyIR(_, _, _) =>
         // FIXME small only
+        println("explicitNode", ir.Pretty(x.explicitNode))
         emit(x.explicitNode)
 
       case ir.In(i, _) =>
@@ -425,6 +627,8 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) { outer =>
   }
 
   def emitArray(x: ir.IR, env: E): ArrayEmitter = {
+    def emit(x: ir.IR, env: E = env): EmitTriplet = this.emit(x, env)
+
     val elemType = x.pType.asInstanceOf[PContainer].elementType
 
     x match {
@@ -433,12 +637,12 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) { outer =>
         val stopt = emit(stop, env)
         val stept = emit(step, env)
 
-        val startv = Variable("start", "int", startt.v)
-        val stopv = Variable("stop", "int", stopt.v)
-        val stepv = Variable("step", "int", stept.v)
+        val startv = fb.variable("start", "int", startt.v)
+        val stopv = fb.variable("stop", "int", stopt.v)
+        val stepv = fb.variable("step", "int", stept.v)
 
-        val len = Variable("len", "int")
-        val llen = Variable("llen", "long")
+        val len = fb.variable("len", "int")
+        val llen = fb.variable("llen", "long")
 
         var s = ir.Pretty(x)
         if (s.length > 100)
@@ -471,8 +675,8 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) { outer =>
              |} else
              |  $len = ($llen < 0) ? 0 : (int)$llen;
              |""".stripMargin, Some(len.toString)) {
-          val i = Variable("i", "int", "0")
-          val v = Variable("v", "int", startv.toString)
+          val i = fb.variable("i", "int", "0")
+          val v = fb.variable("v", "int", startv.toString)
 
           def emit(f: (Code, Code) => Code): Code = {
             s"""
@@ -500,8 +704,8 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) { outer =>
 
       case ir.ArrayFilter(a, name, cond) =>
         val ae = emitArray(a, env)
-        val vm = Variable("m", "bool")
-        val vv = Variable("v", typeToCXXType(elemType))
+        val vm = fb.variable("m", "bool")
+        val vv = fb.variable("v", typeToCXXType(elemType))
         val condt = outer.emit(cond,
           env.bind(name, EmitTriplet(elemType, "", vm.toString, vv.toString)))
 
@@ -529,8 +733,8 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) { outer =>
         val aElementPType = a.pType.asInstanceOf[PContainer].elementType
         val ae = emitArray(a, env)
 
-        val vm = Variable("m", "bool")
-        val vv = Variable("v", typeToCXXType(aElementPType))
+        val vm = fb.variable("m", "bool")
+        val vv = fb.variable("v", typeToCXXType(aElementPType))
         val bodyt = outer.emit(body,
           env.bind(name, EmitTriplet(aElementPType, "", vm.toString, vv.toString)))
 
@@ -556,14 +760,14 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) { outer =>
         val pArray = x.pType.asInstanceOf[PArray]
         val t = emit(x, env)
 
-        val a = Variable("a", "const char *", t.v)
-        val len = Variable("len", "int", pArray.cxxLoadLength(a.toString))
+        val a = fb.variable("a", "const char *", t.v)
+        val len = fb.variable("len", "int", pArray.cxxLoadLength(a.toString))
         new ArrayEmitter(t.setup, t.m,
           s"""
              |${ a.define }
              |${ len.define }
              |""".stripMargin, Some(len.toString)) {
-          val i = Variable("i", "int", "0")
+          val i = fb.variable("i", "int", "0")
 
           def emit(f: (Code, Code) => Code): Code = {
             s"""
