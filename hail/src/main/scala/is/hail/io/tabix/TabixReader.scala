@@ -83,7 +83,7 @@ object TabixReader {
     while (c >= 0 && c != '\n') {
       if (c == '\r') {
         c = is.read()
-        if (c != '\n') fatal("invalid '\\r' character in line")
+        if (c != '\n') buf += '\r'
       } else {
         buf += c.asInstanceOf[Byte]
         c = is.read()
