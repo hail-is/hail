@@ -32,7 +32,7 @@ class PBoolean(override val required: Boolean) extends PType {
     new CodeOrdering {
       type T = Boolean
 
-      def compareNonnull(rx: Code[Region], x: Code[T], ry: Code[Region], y: Code[T], missingGreatest: Boolean): Code[Int] =
+      def compareNonnull(rx: Code[Region], x: Code[T], ry: Code[Region], y: Code[T]): Code[Int] =
         Code.invokeStatic[java.lang.Boolean, Boolean, Boolean, Int]("compare", x, y)
     }
   }

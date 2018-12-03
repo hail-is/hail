@@ -65,7 +65,7 @@ case class PLocus(rg: RGBase, override val required: Boolean = false) extends Co
     new CodeOrdering {
       type T = Long
 
-      override def compareNonnull(rx: Code[Region], x: Code[Long], ry: Code[Region], y: Code[Long], missingGreatest: Boolean): Code[Int] = {
+      override def compareNonnull(rx: Code[Region], x: Code[Long], ry: Code[Region], y: Code[Long]): Code[Int] = {
         val cmp = mb.newLocal[Int]
 
         val c1 = representation.loadField(rx, x, 0)

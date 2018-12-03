@@ -50,7 +50,7 @@ class PBinary(override val required: Boolean) extends PType {
     new CodeOrdering {
       type T = Long
 
-      def compareNonnull(rx: Code[Region], x: Code[T], ry: Code[Region], y: Code[T], missingGreatest: Boolean): Code[Int] = {
+      def compareNonnull(rx: Code[Region], x: Code[T], ry: Code[Region], y: Code[T]): Code[Int] = {
         val l1 = mb.newLocal[Int]
         val l2 = mb.newLocal[Int]
         val lim = mb.newLocal[Int]
