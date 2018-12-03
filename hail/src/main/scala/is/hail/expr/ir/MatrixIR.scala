@@ -5,7 +5,7 @@ import is.hail.annotations._
 import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.expr.ir
 import is.hail.expr.types._
-import is.hail.expr.types.physical.{PInt32, PStruct}
+import is.hail.expr.types.physical.{PArray, PInt32, PStruct}
 import is.hail.expr.types.virtual._
 import is.hail.io.bgen.MatrixBGENReader
 import is.hail.io.plink.MatrixPLINKReader
@@ -139,6 +139,10 @@ abstract class MatrixReader {
   def partitionCounts: Option[IndexedSeq[Long]]
 
   def fullType: MatrixType
+
+  def rvRowPType(requestedType: MatrixType): PStruct
+
+  def physicalKey(requestedType: MatrixType): IndexedSeq[String]
 }
 
 case class MatrixNativeReader(path: String) extends MatrixReader {
@@ -147,6 +151,11 @@ case class MatrixNativeReader(path: String) extends MatrixReader {
     case mts: AbstractMatrixTableSpec => mts
     case _: AbstractTableSpec => fatal(s"file is a Table, not a MatrixTable: '$path'")
   }
+
+  val (rvRowPType: PStruct, physicalKey: IndexedSeq[String]) = spec.physicalTypeInfo(path)
+
+  def rvRowPType(requestedType: MatrixType): PStruct = rvRowPType.subsetTo(requestedType.rvRowType).asInstanceOf[PStruct]
+  def physicalKey(requestedType: MatrixType): IndexedSeq[String] = physicalKey.filter(requestedType.rowType.hasField)
 
   lazy val columnCount: Option[Int] = Some(RelationalSpec.read(HailContext.get, path + "/cols")
     .asInstanceOf[AbstractTableSpec]
@@ -261,6 +270,9 @@ case class MatrixRangeReader(nRows: Int, nCols: Int, nPartitions: Option[Int]) e
     rowType = TStruct("row_idx" -> TInt32()),
     entryType = TStruct.empty())
 
+  def rvRowPType(requestedType: MatrixType): PStruct = PStruct("row_idx" -> PInt32(), MatrixType.entriesIdentifier -> PArray(PStruct()))
+  def physicalKey(requestedType: MatrixType): IndexedSeq[String] = requestedType.rowKey
+
   val columnCount: Option[Int] = Some(nCols)
 
   lazy val partitionCounts: Option[IndexedSeq[Long]] = {
@@ -275,7 +287,7 @@ case class MatrixRangeReader(nRows: Int, nCols: Int, nPartitions: Option[Int]) e
     val nPartitionsAdj = mr.partitionCounts.get.length
 
     val hc = HailContext.get
-    val localRVType = fullType.rvRowType
+    val localRVType = rvRowPType(mr.typ)
     val partStarts = partCounts.scanLeft(0)(_ + _)
     val localNCols = if (mr.dropCols) 0 else nCols
 
@@ -298,7 +310,7 @@ case class MatrixRangeReader(nRows: Int, nCols: Int, nPartitions: Option[Int]) e
             val start = partStarts(i)
             Iterator.range(start, start + partCounts(i))
               .map { j =>
-                rvb.start(localRVType.physicalType)
+                rvb.start(localRVType)
                 rvb.startStruct()
 
                 // row idx field
@@ -339,7 +351,9 @@ case class MatrixRead(
   dropRows: Boolean,
   reader: MatrixReader) extends MatrixIR {
 
-  override lazy val rvRowPType: PStruct = typ.rvRowType.physicalType // FIXME: Canonical() when that arrives
+  override lazy val rvRowPType: PStruct = reader.rvRowPType(typ)
+
+  override def physicalRowKey: IndexedSeq[String] = reader.physicalKey(typ)
 
   def children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 

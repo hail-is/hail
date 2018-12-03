@@ -7,6 +7,7 @@ import is.hail.annotations._
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.{MatrixLiteral, MatrixRead, MatrixReader, MatrixValue, PruneDeadFields}
 import is.hail.expr.types._
+import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual._
 import is.hail.io._
 import is.hail.io.vcf.LoadVCF.{getHeaderLines, parseHeader, parseLines}
@@ -1066,6 +1067,10 @@ case class MatrixVCFReader(
       rangeBounds.asInstanceOf[IndexedSeq[Interval]])
   } else
     null
+
+  def rvRowPType(requestedType: MatrixType): PStruct = requestedType.rvRowType.physicalType
+
+  def physicalKey(requestedType: MatrixType): IndexedSeq[String] = requestedType.rowKey
 
   private lazy val lines = {
     hc.maybeGZipAsBGZip(gzAsBGZ) {

@@ -4,6 +4,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.ir.{IRParser, IRParserEnvironment, MatrixRead, MatrixReader, MatrixValue, Pretty}
 import is.hail.expr.types._
+import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual._
 import is.hail.io._
 import is.hail.io.index.IndexReader
@@ -397,6 +398,10 @@ case class MatrixBGENReader(
   private val referenceGenome = LoadBgen.getReferenceGenome(fileMetadata)
 
   val fullType: MatrixType = MatrixBGENReader.getMatrixType(referenceGenome)
+
+  def rvRowPType(requestedType: MatrixType): PStruct = requestedType.rvRowType.physicalType
+
+  def physicalKey(requestedType: MatrixType): IndexedSeq[String] = requestedType.rowKey
 
   val (indexKeyType, indexAnnotationType) = LoadBgen.getIndexTypes(fileMetadata)
 

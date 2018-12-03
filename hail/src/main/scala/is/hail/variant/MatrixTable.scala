@@ -123,6 +123,12 @@ abstract class AbstractMatrixTableSpec extends RelationalSpec {
   def rowsComponent: RVDComponentSpec = getComponent[RVDComponentSpec]("rows")
 
   def entriesComponent: RVDComponentSpec = getComponent[RVDComponentSpec]("entries")
+
+  def physicalTypeInfo(path: String): (PStruct, IndexedSeq[String]) = {
+    val rows = AbstractRVDSpec.read(HailContext.get, path + "/" + rowsComponent.rel_path)
+    val entries = AbstractRVDSpec.read(HailContext.get, path + "/" + entriesComponent.rel_path)
+    rows.encodedType.appendKey(MatrixType.entriesIdentifier, entries.encodedType) -> rows.key
+  }
 }
 
 case class MatrixTableSpec(
