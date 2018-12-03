@@ -282,10 +282,10 @@ class UnsafeSuite extends SparkSuite {
     val rvb2 = new RegionValueBuilder(region2)
 
     val g = PType.genStruct
-      .flatMap(t => Gen.zip(Gen.const(t), Gen.zip(t.virtualType.genValue, t.virtualType.genValue), arbitrary[Boolean]))
-      .filter { case (t, (a1, a2), b) => a1 != null && a2 != null }
+      .flatMap(t => Gen.zip(Gen.const(t), Gen.zip(t.virtualType.genValue, t.virtualType.genValue)))
+      .filter { case (t, (a1, a2)) => a1 != null && a2 != null }
       .resize(10)
-    val p = Prop.forAll(g) { case (t, (a1, a2), b) =>
+    val p = Prop.forAll(g) { case (t, (a1, a2)) =>
 
       val tv = t.virtualType
 
@@ -309,10 +309,10 @@ class UnsafeSuite extends SparkSuite {
       assert(tv.valuesSimilar(a2, ur2))
 
       val ord = tv.ordering
-      val uord = t.unsafeOrdering(b)
+      val uord = t.unsafeOrdering()
 
-      val c1 = ord.compare(a1, a2, b)
-      val c2 = ord.compare(ur1, ur2, b)
+      val c1 = ord.compare(a1, a2)
+      val c2 = ord.compare(ur1, ur2)
       val c3 = uord.compare(ur1.region, ur1.offset, ur2.region, ur2.offset)
 
       val p1 = math.signum(c1) == math.signum(c2)

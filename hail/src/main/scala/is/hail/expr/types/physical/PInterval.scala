@@ -36,9 +36,9 @@ case class PInterval(pointType: PType, override val required: Boolean = false) e
   }
 
 
-  override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering =
+  override def unsafeOrdering(): UnsafeOrdering =
     new UnsafeOrdering {
-      private val pOrd = pointType.unsafeOrdering(missingGreatest)
+      private val pOrd = pointType.unsafeOrdering()
       def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
         val sdef1 = startDefined(r1, o1)
         if (sdef1 == startDefined(r2, o2)) {
@@ -55,11 +55,11 @@ case class PInterval(pointType: PType, override val required: Boolean = false) e
                     0
                   } else if (includesE1) 1 else -1
                 } else cmp
-              } else if (edef1 == missingGreatest) -1 else 1
+              } else if (edef1) -1 else 1
             } else if (includesS1) -1 else 1
           } else cmp
         } else {
-          if (sdef1 == missingGreatest) -1 else 1
+          if (sdef1) -1 else 1
         }
       }
     }

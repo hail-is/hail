@@ -28,7 +28,7 @@ final case class RVDType(rowType: PStruct, key: IndexedSeq[String] = FastIndexed
     .filter(i => !keySet.contains(rowType.fields(i).name))
     .toArray
 
-  val kOrd: UnsafeOrdering = kType.unsafeOrdering(missingGreatest = true)
+  val kOrd: UnsafeOrdering = kType.unsafeOrdering()
   val kInRowOrd: UnsafeOrdering =
     RVDType.selectUnsafeOrdering(rowType, kFieldIdx, rowType, kFieldIdx)
   val kRowOrd: UnsafeOrdering =
@@ -144,7 +144,7 @@ object RVDType {
 
     val nFields = fields1.length
     val fieldOrderings = Range(0, nFields).map { i =>
-      t1.types(fields1(i)).unsafeOrdering(t2.types(fields2(i)), missingGreatest = true)
+      t1.types(fields1(i)).unsafeOrdering(t2.types(fields2(i)))
     }.toArray
 
     new UnsafeOrdering {
