@@ -2,14 +2,13 @@ package is.hail.utils
 
 import is.hail.annotations._
 import is.hail.check._
-import is.hail.expr.types.virtual.{TBoolean, TStruct}
+import is.hail.expr.ir.IRParser
+import is.hail.expr.types.virtual.TBoolean
 import org.apache.spark.sql.Row
 import org.json4s.JValue
 import org.json4s.JsonAST.JObject
 
-import scala.collection.mutable
 import scala.language.implicitConversions
-import scala.reflect.ClassTag
 
 case class IntervalEndpoint(point: Any, sign: Int) extends Serializable {
   require(-1 <= sign && sign <= 1)
@@ -63,11 +62,21 @@ class Interval(val left: IntervalEndpoint, val right: IntervalEndpoint) extends 
   def contains(pord: ExtendedOrdering, p: Any): Boolean =
     ext(pord).lt(left, p) && ext(pord).gt(right, p)
 
+  def contains(t: String, p: Any): Boolean = {
+    val pord = IRParser.parseType(t).ordering
+    contains(pord, p)
+  }
+
   def includes(pord: ExtendedOrdering, other: Interval): Boolean =
     ext(pord).lteq(this.left, other.left) && ext(pord).gteq(this.right, other.right)
 
   def overlaps(pord: ExtendedOrdering, other: Interval): Boolean =
     ext(pord).lt(this.left, other.right) && ext(pord).gt(this.right, other.left)
+
+  def overlaps(t: String, other: Interval): Boolean = {
+    val pord = IRParser.parseType(t).ordering
+    overlaps(pord, other)
+  }
 
   def isAbovePosition(pord: ExtendedOrdering, p: Any): Boolean =
     ext(pord).gt(left, p)

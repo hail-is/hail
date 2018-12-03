@@ -4,7 +4,8 @@ import java.io.{File, InputStream}
 import java.util.Properties
 
 import is.hail.annotations._
-import is.hail.expr.ir.MatrixRead
+import is.hail.expr.Parser
+import is.hail.expr.ir.{IRParser, MatrixRead}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual._
@@ -498,7 +499,7 @@ class HailContext private(val sc: SparkContext,
   def importTable(inputs: java.util.ArrayList[String],
     keyNames: java.util.ArrayList[String],
     nPartitions: java.lang.Integer,
-    types: java.util.HashMap[String, Type],
+    types: java.util.HashMap[String, String],
     comment: java.util.ArrayList[String],
     separator: String,
     missing: String,
@@ -509,7 +510,7 @@ class HailContext private(val sc: SparkContext,
     forceBGZ: Boolean
   ): Table = importTables(inputs.asScala,
     Option(keyNames).map(_.asScala.toFastIndexedSeq),
-    if (nPartitions == null) None else Some(nPartitions), types.asScala.toMap, comment.asScala.toArray,
+    if (nPartitions == null) None else Some(nPartitions), types.asScala.toMap.mapValues(IRParser.parseType), comment.asScala.toArray,
     separator, missing, noHeader, impute, quote, skipBlankLines, forceBGZ)
 
   def importTable(input: String,
@@ -694,16 +695,16 @@ class HailContext private(val sc: SparkContext,
   }
 
   def importMatrix(files: java.util.ArrayList[String],
-    rowFields: java.util.HashMap[String, Type],
+    rowFields: java.util.HashMap[String, String],
     keyNames: java.util.ArrayList[String],
-    cellType: Type,
+    cellType: String,
     missingVal: String,
     minPartitions: Option[Int],
     noHeader: Boolean,
     forceBGZ: Boolean,
     sep: String = "\t"): MatrixTable =
-    importMatrices(files.asScala, rowFields.asScala.toMap, keyNames.asScala.toArray,
-      cellType, missingVal, minPartitions, noHeader, forceBGZ, sep)
+    importMatrices(files.asScala, rowFields.asScala.toMap.mapValues(IRParser.parseType), keyNames.asScala.toArray,
+      IRParser.parseType(cellType), missingVal, minPartitions, noHeader, forceBGZ, sep)
 
   def importMatrices(files: Seq[String],
     rowFields: Map[String, Type],

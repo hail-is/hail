@@ -75,7 +75,7 @@ object Pretty {
           }
         case ApplyAggOp(ctorArgs, initOpArgs, seqOpArgs, aggSig) =>
           sb += ' '
-          sb.append(prettyAggSignature(aggSig))
+          sb.append(prettyClass(aggSig.op))
           sb += '\n'
           prettySeq(ctorArgs, depth + 2)
           sb += '\n'
@@ -89,7 +89,7 @@ object Pretty {
           prettySeq(seqOpArgs, depth + 2)
         case ApplyScanOp(ctorArgs, initOpArgs, seqOpArgs, aggSig) =>
           sb += ' '
-          sb.append(prettyAggSignature(aggSig))
+          sb.append(prettyClass(aggSig.op))
           sb += '\n'
           prettySeq(ctorArgs, depth + 2)
           sb += '\n'

@@ -27,7 +27,8 @@ def create_all_values_datasets():
         c=hl.call(0, 1),
         mc=hl.null(hl.tcall),
         t=hl.tuple([hl.call(1, 2, phased=True), 'foo', hl.null(hl.tstr)]),
-        mt=hl.null(hl.ttuple(hl.tlocus('GRCh37'), hl.tbool)))
+        mt=hl.null(hl.ttuple(hl.tlocus('GRCh37'), hl.tbool))
+    )
 
     def prefix(s, p):
         return hl.struct(**{p + k: s[k] for k in s})

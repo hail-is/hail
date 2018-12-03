@@ -563,10 +563,10 @@ class MatrixTable(ExprContainer):
         self._col_indices = Indices(self, {self._col_axis})
         self._entry_indices = Indices(self, {self._row_axis, self._col_axis})
 
-        self._global_type = HailType._from_java(jmtype.globalType())
-        self._col_type = HailType._from_java(jmtype.colType())
-        self._row_type = HailType._from_java(jmtype.rowType())
-        self._entry_type = HailType._from_java(jmtype.entryType())
+        self._global_type = hl.dtype(jmtype.globalType().toString())
+        self._col_type = hl.dtype(jmtype.colType().toString())
+        self._row_type = hl.dtype(jmtype.rowType().toString())
+        self._entry_type = hl.dtype(jmtype.entryType().toString())
 
         assert isinstance(self._global_type, tstruct), self._global_type
         assert isinstance(self._col_type, tstruct), self._col_type
@@ -576,7 +576,7 @@ class MatrixTable(ExprContainer):
         self._globals = construct_reference('global', self._global_type,
                                             indices=self._global_indices)
         self._rvrow = construct_reference('va',
-                                          HailType._from_java(jmtype.rvRowType()),
+                                          hl.dtype(jmtype.rvRowType().toString()),
                                           indices=self._row_indices)
         self._row = hail.struct(**{k: self._rvrow[k] for k in self._row_type.keys()})
         self._col = construct_reference('sa', self._col_type,

@@ -321,8 +321,8 @@ class Table(ExprContainer):
         self._global_indices = Indices(axes=set(), source=self)
         self._row_indices = Indices(axes={self._row_axis}, source=self)
 
-        self._global_type = HailType._from_java(jttype.globalType())
-        self._row_type = HailType._from_java(jttype.rowType())
+        self._global_type = hl.dtype(jttype.globalType().toString())
+        self._row_type = hl.dtype(jttype.rowType().toString())
 
         assert isinstance(self._global_type, tstruct)
         assert isinstance(self._row_type, tstruct)

@@ -1,7 +1,7 @@
 import abc
 
 from hail.utils.java import *
-from hail.expr.types import HailType
+from hail.expr.types import dtype
 from hail.ir.renderer import Renderer
 
 
@@ -21,7 +21,7 @@ class SparkBackend(Backend):
 
         jir = ir.to_java_ir()
 
-        typ = HailType._from_java(jir.typ())
+        typ = dtype(jir.typ().toString())
         result = Env.hail().expr.ir.Interpret.interpretPyIR(code, {}, ir_map)
 
         return typ._from_json(result)

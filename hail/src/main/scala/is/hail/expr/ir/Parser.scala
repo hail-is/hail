@@ -464,9 +464,12 @@ object IRParser {
     MatrixType.fromParts(globalType, colKey, colType, rowPartitionKey ++ rowRestKey, rowType, entryType)
   }
 
+  def agg_op(it: TokenIterator): AggOp =
+    AggOp.fromString(identifier(it))
+
   def agg_signature(it: TokenIterator): AggSignature = {
     punctuation(it, "(")
-    val op = AggOp.fromString(identifier(it))
+    val op = agg_op(it)
     val ctorArgs = type_exprs(it).map(t => -t)
     val initOpArgs = opt(it, type_exprs).map(_.map(t => -t))
     val seqOpArgs = type_exprs(it).map(t => -t)
@@ -637,16 +640,18 @@ object IRParser {
         val aggIR = ir_value_expr(env)(it)
         AggGroupBy(key, aggIR)
       case "ApplyAggOp" =>
-        val aggSig = agg_signature(it)
+        val aggOp = agg_op(it)
         val ctorArgs = ir_value_exprs(env)(it)
         val initOpArgs = opt(it, ir_value_exprs(env))
         val seqOpArgs = ir_value_exprs(env)(it)
+        val aggSig = AggSignature(aggOp, ctorArgs.map(arg => -arg.typ), initOpArgs.map(_.map(arg => -arg.typ)), seqOpArgs.map(arg => -arg.typ))
         ApplyAggOp(ctorArgs, initOpArgs.map(_.toFastIndexedSeq), seqOpArgs, aggSig)
       case "ApplyScanOp" =>
-        val aggSig = agg_signature(it)
+        val aggOp = agg_op(it)
         val ctorArgs = ir_value_exprs(env)(it)
         val initOpArgs = opt(it, ir_value_exprs(env))
         val seqOpArgs = ir_value_exprs(env)(it)
+        val aggSig = AggSignature(aggOp, ctorArgs.map(arg => -arg.typ), initOpArgs.map(_.map(arg => -arg.typ)), seqOpArgs.map(arg => -arg.typ))
         ApplyScanOp(ctorArgs, initOpArgs.map(_.toFastIndexedSeq), seqOpArgs, aggSig)
       case "InitOp" =>
         val aggSig = agg_signature(it)
@@ -997,18 +1002,18 @@ object IRParser {
   }
 
   def parse_value_ir(s: String): IR = parse_value_ir(s, IRParserEnvironment())
-  def parse_value_ir(s: String, refMap: java.util.HashMap[String, Type], irMap: java.util.HashMap[String, BaseIR]): IR =
-    parse_value_ir(s, IRParserEnvironment(refMap.asScala.toMap, irMap.asScala.toMap))
+  def parse_value_ir(s: String, refMap: java.util.HashMap[String, String], irMap: java.util.HashMap[String, BaseIR]): IR =
+    parse_value_ir(s, IRParserEnvironment(refMap.asScala.toMap.mapValues(parseType), irMap.asScala.toMap))
   def parse_value_ir(s: String, env: IRParserEnvironment): IR = parse(s, ir_value_expr(env))
 
   def parse_table_ir(s: String): TableIR = parse_table_ir(s, IRParserEnvironment())
-  def parse_table_ir(s: String, refMap: java.util.HashMap[String, Type], irMap: java.util.HashMap[String, BaseIR]): TableIR =
-    parse_table_ir(s, IRParserEnvironment(refMap.asScala.toMap, irMap.asScala.toMap))
+  def parse_table_ir(s: String, refMap: java.util.HashMap[String, String], irMap: java.util.HashMap[String, BaseIR]): TableIR =
+    parse_table_ir(s, IRParserEnvironment(refMap.asScala.toMap.mapValues(parseType), irMap.asScala.toMap))
   def parse_table_ir(s: String, env: IRParserEnvironment): TableIR = parse(s, table_ir(env))
 
   def parse_matrix_ir(s: String): MatrixIR = parse_matrix_ir(s, IRParserEnvironment())
-  def parse_matrix_ir(s: String, refMap: java.util.HashMap[String, Type], irMap: java.util.HashMap[String, BaseIR]): MatrixIR =
-    parse_matrix_ir(s, IRParserEnvironment(refMap.asScala.toMap, irMap.asScala.toMap))
+  def parse_matrix_ir(s: String, refMap: java.util.HashMap[String, String], irMap: java.util.HashMap[String, BaseIR]): MatrixIR =
+    parse_matrix_ir(s, IRParserEnvironment(refMap.asScala.toMap.mapValues(parseType), irMap.asScala.toMap))
   def parse_matrix_ir(s: String, env: IRParserEnvironment): MatrixIR = parse(s, matrix_ir(env))
 
   def parseType(code: String): Type = parse(code, type_expr)

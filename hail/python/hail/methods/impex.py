@@ -1318,7 +1318,7 @@ def import_table(paths,
     :class:`.Table`
     """
     paths = wrap_to_list(paths)
-    jtypes = {k: v._jtype for k, v in types.items()}
+    jtypes = {k: v._parsable_string() for k, v in types.items()}
     comment = wrap_to_list(comment)
 
     jt = Env.hc()._jhc.importTable(paths, key, min_partitions, jtypes, comment,
@@ -1490,7 +1490,7 @@ def import_matrix_table(paths,
     """
 
     paths = wrap_to_list(paths)
-    jrow_fields = {k: v._jtype for k, v in row_fields.items()}
+    jrow_fields = {k: v._parsable_string() for k, v in row_fields.items()}
     for k, v in row_fields.items():
         if v not in {tint32, tint64, tfloat32, tfloat64, tstr}:
             raise FatalError("""import_matrix_table expects field types to be one of: 
@@ -1503,7 +1503,7 @@ def import_matrix_table(paths,
     if len(sep) != 1:
         raise FatalError('sep must be a single character')
 
-    jmt = Env.hc()._jhc.importMatrix(paths, jrow_fields, row_key, entry_type._jtype, missing, joption(min_partitions),
+    jmt = Env.hc()._jhc.importMatrix(paths, jrow_fields, row_key, entry_type._parsable_string(), missing, joption(min_partitions),
                                      no_header, force_bgz, sep)
     return MatrixTable._from_java(jmt)
 
