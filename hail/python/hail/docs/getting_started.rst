@@ -35,6 +35,7 @@ Create a `conda enviroment
 ``hail`` and install the Hail python library in that environment:
 
 .. code-block:: sh
+
     conda create --name hail python>=3.6
     conda activate hail
     pip install hail
