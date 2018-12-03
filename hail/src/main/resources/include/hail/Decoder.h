@@ -217,12 +217,11 @@ class Reader {
 private:
   Decoder dec_;
   ScalaRegion * region_;
-  NativeStatus * st_;
   char * value_;
 
   bool read() {
-    if (dec_.decode_byte(st_)) {
-      value_ = dec_.decode_row(st_, region_);
+    if (dec_.decode_byte()) {
+      value_ = dec_.decode_row(region_->get_wrapped_region());
     } else {
       value_ = nullptr;
     }
@@ -232,8 +231,8 @@ private:
   char * get() const { return value_; }
 
 public:
-  Reader(Decoder dec, ScalaRegion * region, NativeStatus* st) :
-  dec_(dec), region_(region), st_(st), value_(nullptr) {
+  Reader(Decoder dec, ScalaRegion * region) :
+  dec_(dec), region_(region), value_(nullptr) {
     read();
   }
 

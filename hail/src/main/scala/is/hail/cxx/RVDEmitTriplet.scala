@@ -46,7 +46,7 @@ object RVDEmitTriplet {
       Option(partitioner).getOrElse(RVDPartitioner.unkeyed(partsRDD.getNumPartitions)),
       partsRDD)
     val is = Variable.make_shared("is", "InputStream", rvdBase.up.toString, s"reinterpret_cast<ObjectArray *>(${ rvdBase.rddInput })->at(0)")
-    val reader = Variable.make_shared("reader", s"Reader<${ decoder.name }>", s"${decoder.name}($is)", rvdBase.region.toString, rvdBase.st.toString)
+    val reader = Variable.make_shared("reader", s"Reader<${ decoder.name }>", s"${decoder.name}($is)", rvdBase.region.toString)
     val iterator = tub.variable("it", s"Reader<${ decoder.name }> *", s"$reader.get()")
     val begin = tub.variable("it", s"Reader<${ decoder.name }>::Iterator", s"$iterator->begin()")
     val end = tub.variable("it", s"Reader<${ decoder.name }>::Iterator", s"$iterator->end()")
@@ -80,13 +80,13 @@ object RVDEmitTriplet {
          |${ enc.define }
          |${ nRows.define }
          |while($it != $end) {
-         |  $enc.encode_byte(${ t.st }, 1);
-         |  $enc.encode_row(${ t.st }, *$it);
+         |  $enc.encode_byte(1);
+         |  $enc.encode_row(*$it);
          |  ++$nRows;
          |  ++$it;
          |}
-         |$enc.encode_byte(${ t.st }, 0);
-         |$enc.flush(${ t.st });
+         |$enc.encode_byte(0);
+         |$enc.flush();
          |return $nRows;
        """.stripMargin)
 

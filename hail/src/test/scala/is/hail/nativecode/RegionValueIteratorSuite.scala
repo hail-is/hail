@@ -54,9 +54,9 @@ class RegionValueIteratorSuite extends SparkSuite {
     partitionFB +=
       s"""
          |for(${ it.define } $it != $jit.end(); ++$it) {
-         |  $encoder.encode_row(${ partitionFB.getArg(0) }, *$it);
+         |  $encoder.encode_row(*$it);
          |}
-         |$encoder.flush(${ partitionFB.getArg(0) });
+         |$encoder.flush();
          |return 0;
        """.stripMargin
     partitionFB.end()
@@ -108,7 +108,7 @@ class RegionValueIteratorSuite extends SparkSuite {
       cb += it
       cb +=
         s"""${cb.name}(jobject is, ScalaRegion * reg, NativeStatus * st) :
-           |$it(Reader<${ decClass.name }>(${ decClass.name }(std::make_shared<InputStream>(UpcallEnv(), is)), reg, st)) { }
+           |$it(Reader<${ decClass.name }>(${ decClass.name }(std::make_shared<InputStream>(UpcallEnv(), is)), reg)) { }
          """.stripMargin
 
       cb += new Function(s"${ cb.name }&", "operator++", Array(), s"++($it.begin()); return *this;")

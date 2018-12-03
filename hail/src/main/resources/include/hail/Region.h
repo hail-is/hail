@@ -98,6 +98,8 @@ class ScalaRegion : public NativeObj {
     void align(size_t alignment) { region_->align(alignment); }
     char * allocate(size_t alignment, size_t n) { return region_->allocate(alignment, n); }
     char * allocate(size_t n) { return region_->allocate(n); }
+    // should only be used for things like Compile and PackDecoder, where underlying region is not supposed to change.
+    Region * get_wrapped_region() { return region_.get(); };
 
     virtual const char* get_class_name() { return "Region"; }
     virtual ~ScalaRegion() = default;
