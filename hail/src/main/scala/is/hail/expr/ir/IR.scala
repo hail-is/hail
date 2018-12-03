@@ -83,7 +83,7 @@ object If {
     if (cnsq.typ == altr.typ)
       If(cond, cnsq, altr)
     else {
-      val t = unifyType.getOrElse(cnsq.typ)
+      val t = unifyType.getOrElse(cnsq.typ.deepOptional())
       If(cond,
         PruneDeadFields.upcast(cnsq, t),
         PruneDeadFields.upcast(altr, t))

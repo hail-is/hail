@@ -48,7 +48,7 @@ object TypeCheck {
         check(cnsq)
         check(altr)
         assert(cond.typ.isOfType(TBoolean()))
-        assert(cnsq.typ == altr.typ, s"${ cnsq.typ }, ${ altr.typ }, $cond")
+        assert(cnsq.typ == altr.typ, s"Type mismatch:\n  cnsq: ${ cnsq.typ.parsableString() }\n  altr: ${ altr.typ.parsableString() }\n  $x")
         assert(x.typ == cnsq.typ)
 
       case x@Let(name, value, body) =>
