@@ -477,29 +477,3 @@ task makeDocsNoTest(type: Exec, dependsOn: ['shadowJar', 'generateDistLinks', 'g
     environment HAIL_SHORT_VERSION: hailShortVersion
     environment SPHINXOPTS: ''
 }
-
-task assemblePackage(type: Copy, dependsOn: ['makeDocs' , 'shadowJar']) {
-    from('python') {
-        into 'python'
-    }
-    from('build/www/docs') {
-        into 'docs'
-    }
-    from('scripts') {
-        into 'bin'
-    }
-    from('build/libs/hail-all-spark.jar') {
-        into 'jars'
-    }
-    from('python/hail/docs/tutorials') {
-        into 'tutorials'
-        include '*.ipynb'
-    }
-    into 'build/package'
-}
-
-task createPackage(type: Zip, dependsOn: ['assemblePackage']) {
-    from 'build/package'
-    into 'hail'
-    baseName 'hail'
-}
