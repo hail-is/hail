@@ -257,3 +257,31 @@ class ValueTests(unittest.TestCase):
                     [("foo", row_v)]))
             new_globals = hl.eval(hl.Table(map_globals_ir).globals)
             self.assertEquals(new_globals, hl.Struct(foo=v))
+
+
+class TypeTests(unittest.TestCase):
+    def test_matrix_type_parses(self):
+        mt = ir.MatrixType(
+            global_type=hl.tstruct(),
+            col_key=['s', 'foo'],
+            col_type=hl.tstruct(s=hl.tstr, foo=hl.tbool),
+            row_key=['locus', 'alleles'],
+            row_type=hl.tstruct(locus=hl.tlocus(), alleles=hl.tarray(hl.tstr)),
+            entry_type=hl.tstruct(GT=hl.tcall))
+
+        try:
+            Env.hail().expr.ir.IRParser.parseMatrixType(str(mt))
+        except Exception as e:
+            raise ValueError(str(mt)) from e
+
+    def test_table_type_parses(self):
+        tt = ir.TableType(
+            global_type=hl.tstruct(foo=hl.tstr),
+            row_type=hl.tstruct(a=hl.tint, b=hl.tbool),
+            key=['a', 'b']
+        )
+
+        try:
+            Env.hail().expr.ir.IRParser.parseTableType(str(tt))
+        except Exception as e:
+            raise ValueError(str(tt)) from e
