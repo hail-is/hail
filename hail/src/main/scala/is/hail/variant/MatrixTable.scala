@@ -369,16 +369,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     rvd: RVD) =
     this(hc, MatrixLiteral(MatrixValue(matrixType, globals, colValues, rvd)))
 
-  def requireRowKeyVariant(method: String) {
-    rowKey.zip(rowKeyTypes) match {
-      case IndexedSeq(("locus", TLocus(_, _)), ("alleles", TArray(TString(_), _))) =>
-      case _ =>
-        fatal(s"in $method: row key must be ('locus' (type 'locus'), 'alleles': (type 'array<str>'), found: ${
-          rowKey.zip(rowKeyTypes).mkString(", ")
-        }")
-    }
-  }
-
   def requireColKeyString(method: String) {
     colKeyTypes match {
       case Array(_: TString) =>

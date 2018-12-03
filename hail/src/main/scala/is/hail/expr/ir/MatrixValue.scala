@@ -42,22 +42,16 @@ case class MatrixValue(
       colValues.value.map(querier(_).asInstanceOf[String])
     }
 
-    def requireRowKeyVariant(method: String) {
+    def requireRowKeyVariant() {
       val rowKeyTypes = typ.rowKeyStruct.types
       typ.rowKey.zip(rowKeyTypes) match {
         case IndexedSeq(("locus", TLocus(_, _)), ("alleles", TArray(TString(_), _))) =>
-        case _ =>
-          fatal(s"in $method: row key must be ('locus' (type 'locus'), 'alleles': (type 'array<str>'), found: ${
-            typ.rowKey.zip(rowKeyTypes).mkString(", ")
-          }")
       }
     }
 
-    def requireColKeyString(method: String) {
+    def requireColKeyString() {
       typ.colKeyStruct.types match {
         case Array(_: TString) =>
-        case t =>
-          fatal(s"in $method: column key must be type 'str', found: ${t.mkString("[",",","]")}")
       }
     }
 

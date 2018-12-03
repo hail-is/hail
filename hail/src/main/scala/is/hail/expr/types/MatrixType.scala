@@ -3,7 +3,7 @@ package is.hail.expr.types
 import is.hail.annotations.Annotation
 import is.hail.expr.ir.{Env, IRParser}
 import is.hail.expr.types.physical.{PArray, PStruct}
-import is.hail.expr.types.virtual.{TArray, TStruct, Type}
+import is.hail.expr.types.virtual.{TArray, TString, TStruct, Type}
 import is.hail.rvd.RVDType
 import is.hail.utils._
 import org.apache.spark.sql.Row

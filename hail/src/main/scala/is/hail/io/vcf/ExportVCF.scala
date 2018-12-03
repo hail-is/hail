@@ -208,10 +208,10 @@ object ExportVCF {
   def apply(mv: MatrixValue, path: String, append: Option[String],
     exportType: Int, metadata: Option[VCFMetadata]) {
 
-    val typ = mv.typ
+    mv.requireColKeyString()
+    mv.requireRowKeyVariant()
 
-    mv.requireColKeyString("export_vcf")
-    mv.requireRowKeyVariant("export_vcf")
+    val typ = mv.typ
 
     val tg = typ.entryType match {
       case t: TStruct => t.physicalType

@@ -274,34 +274,36 @@ class MatrixIRSuite extends SparkSuite {
     }
   }
 
-  @Test def testMatrixWrite() {
-    // Native Writer
+  @Test def testMatrixNativeWrite() {
     val range = MatrixTable.range(hc, 11, 3, Some(10))
-    var path = tmpDir.createLocalTempFile(extension = "mt")
+    val path = tmpDir.createLocalTempFile(extension = "mt")
     Interpret(MatrixWrite(range.ast, MatrixNativeWriter(path)))
     val read = MatrixTable.read(hc, path)
     assert(read.same(range))
+  }
 
-    // Export VCF
+  @Test def testMatrixVCFWrite() {
     val vcf = hc.importVCF("src/test/resources/sample.vcf")
-    path = tmpDir.createLocalTempFile(extension = "vcf")
+    val path = tmpDir.createLocalTempFile(extension = "vcf")
     Interpret(MatrixWrite(vcf.ast, MatrixVCFWriter(path)))
+  }
 
-    // Export PLINK
+  @Test def testMatrixPLINKWrite() {
     val plinkPath = "src/test/resources/skip_invalid_loci"
     val plink = hc.importPlink(plinkPath + ".bed", plinkPath + ".bim", plinkPath + ".fam", skipInvalidLoci = true)
-    val plinkIR = MatrixMapRows(plink.ast, InsertFields(Ref("va", plink.rvRowType), // FIXME: Make importPlink output varid as field name instead of rsid
+    val plinkIR = MatrixMapRows(plink.ast, InsertFields(Ref("va", plink.rvRowType),
       FastIndexedSeq("varid" -> GetField(Ref("va", plink.rvRowType), "rsid"))))
-    path = tmpDir.createLocalTempFile()
+    val path = tmpDir.createLocalTempFile()
     Interpret(MatrixWrite(plinkIR, MatrixPLINKWriter(path)))
+  }
 
-    // Export GEN
+  @Test def testMatrixGENWrite() {
     val gen = hc.importGen("src/test/resources/example.gen", "src/test/resources/example.sample",
       contigRecoding = Some(Map("01" -> "1")))
     val genIR = MatrixMapCols(gen.ast, SelectFields(InsertFields(Ref("sa", gen.colType),
       FastIndexedSeq("id1" -> Str(""), "id2" -> Str(""), "missing" -> F64(0.0))), FastIndexedSeq("id1", "id2", "missing")),
-      Some(FastIndexedSeq("id1"))) // FIXME: Make importGen add sample annotations from the sample file
-    path = tmpDir.createLocalTempFile()
+      Some(FastIndexedSeq("id1")))
+    val path = tmpDir.createLocalTempFile()
     Interpret(MatrixWrite(genIR, MatrixGENWriter(path)))
   }
 }
