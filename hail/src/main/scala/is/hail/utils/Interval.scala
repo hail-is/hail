@@ -39,7 +39,7 @@ case class IntervalEndpoint(point: Any, sign: Int) extends Serializable {
   * Precisely, 'Interval' assumes that there exists a Hail type 't: Type' such
   * that either
   * - 't: TBaseStruct', and 't.relaxedTypeCheck(left)', 't.relaxedTypeCheck(right),
-  *   and 't.ordering.intervalEndpointOrdering.lt(left, right)', or
+  * and 't.ordering.intervalEndpointOrdering.lt(left, right)', or
   * - 't.typeCheck(left)', 't.typeCheck(right)', and 't.ordering.lt(left, right)'
   *
   * Moreover, every method on 'Interval' taking a 'pord' has the precondition
@@ -53,8 +53,11 @@ case class IntervalEndpoint(point: Any, sign: Int) extends Serializable {
   */
 class Interval(val left: IntervalEndpoint, val right: IntervalEndpoint) extends Serializable {
   def start: Any = left.point
+
   def end: Any = right.point
+
   def includesStart = left.sign < 0
+
   def includesEnd = right.sign > 0
 
   private def ext(pord: ExtendedOrdering): ExtendedOrdering = pord.intervalEndpointOrdering
@@ -91,6 +94,7 @@ class Interval(val left: IntervalEndpoint, val right: IntervalEndpoint) extends 
     Interval(start, end, includesStart, includesEnd)
 
   def extendLeft(newLeft: IntervalEndpoint): Interval = Interval(newLeft, right)
+
   def extendRight(newRight: IntervalEndpoint): Interval = Interval(left, newRight)
 
   def toJSON(f: (Any) => JValue): JValue =
@@ -119,14 +123,30 @@ class Interval(val left: IntervalEndpoint, val right: IntervalEndpoint) extends 
 
   def hull(pord: ExtendedOrdering, other: Interval): Interval =
     Interval(
-      ext(pord).min(this.left, other.left).asInstanceOf[IntervalEndpoint],
-      ext(pord).max(this.right, other.right).asInstanceOf[IntervalEndpoint])
+      // min(this.left, other.left)
+      if (ext(pord).lt(this.left, other.left))
+        this.left
+      else
+        other.left,
+      //  max(this.right, other.right)
+      if (ext(pord).lt(this.right, other.right))
+        other.right
+      else
+        this.right)
 
   def intersect(pord: ExtendedOrdering, other: Interval): Option[Interval] =
     if (overlaps(pord, other)) {
       Some(Interval(
-        ext(pord).max(this.left, other.left).asInstanceOf[IntervalEndpoint],
-        ext(pord).min(this.right, other.right).asInstanceOf[IntervalEndpoint]))
+        // max(this.left, other.left)
+        if (ext(pord).lt(this.left, other.left))
+          other.left
+        else
+          this.left,
+        // min(this.right, other.right)
+        if (ext(pord).lt(this.right, other.right))
+          this.right
+        else
+          other.right))
     } else
       None
 

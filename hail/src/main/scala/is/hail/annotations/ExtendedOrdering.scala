@@ -12,35 +12,7 @@ object ExtendedOrdering {
 
       override def lteqNonnull(x: T, y: T): Boolean = ord.lteq(x.asInstanceOf[S], y.asInstanceOf[S])
 
-      override def gtNonnull(x: T, y: T): Boolean = ord.gt(x.asInstanceOf[S], y.asInstanceOf[S])
-
-      override def gteqNonnull(x: T, y: T): Boolean = ord.gteq(x.asInstanceOf[S], y.asInstanceOf[S])
-
       override def equivNonnull(x: T, y: T): Boolean = ord.equiv(x.asInstanceOf[S], y.asInstanceOf[S])
-
-      override def minNonnull(x: T, y: T): T = ord.min(x.asInstanceOf[S], y.asInstanceOf[S])
-
-      override def maxNonnull(x: T, y: T): T = ord.max(x.asInstanceOf[S], y.asInstanceOf[S])
-    }
-  }
-
-  def extendToNull(ord: ExtendedOrdering): ExtendedOrdering = {
-    new ExtendedOrdering {
-      def compareNonnull(x: T, y: T): Int = ord.compare(x, y)
-
-      override def ltNonnull(x: T, y: T): Boolean = ord.lt(x, y)
-
-      override def lteqNonnull(x: T, y: T): Boolean = ord.lteq(x, y)
-
-      override def gtNonnull(x: T, y: T): Boolean = ord.gt(x, y)
-
-      override def gteqNonnull(x: T, y: T): Boolean = ord.gteq(x, y)
-
-      override def equivNonnull(x: T, y: T): Boolean = ord.equiv(x, y)
-
-      override def minNonnull(x: T, y: T): T = ord.min(x, y)
-
-      override def maxNonnull(x: T, y: T): T = ord.max(x, y)
     }
   }
 
@@ -58,17 +30,89 @@ object ExtendedOrdering {
 
         java.lang.Boolean.compare(xit.hasNext, yit.hasNext)
       }
+
+      override def ltNonnull(x: T, y: T): Boolean = {
+        val xit = x.asInstanceOf[Iterable[T]].iterator
+        val yit = y.asInstanceOf[Iterable[T]].iterator
+
+        while (xit.hasNext && yit.hasNext) {
+          val xi = xit.next()
+          val yi = yit.next()
+          if (ord.lt(xi, yi))
+            return true
+          else if (!ord.equiv(xi, yi))
+            return false
+        }
+
+        xit.hasNext < yit.hasNext
+      }
+
+      override def lteqNonnull(x: T, y: T): Boolean = {
+        val xit = x.asInstanceOf[Iterable[T]].iterator
+        val yit = y.asInstanceOf[Iterable[T]].iterator
+
+        while (xit.hasNext && yit.hasNext) {
+          val xi = xit.next()
+          val yi = yit.next()
+          if (ord.lt(xi, yi))
+            return true
+          else if (!ord.equiv(xi, yi))
+            return false
+        }
+
+        xit.hasNext <= yit.hasNext
+      }
+
+      override def equivNonnull(x: T, y: T): Boolean = {
+        val xit = x.asInstanceOf[Iterable[T]].iterator
+        val yit = y.asInstanceOf[Iterable[T]].iterator
+
+        while (xit.hasNext && yit.hasNext) {
+          val xi = xit.next()
+          val yi = yit.next()
+          if (!ord.equiv(xi, yi))
+            return false
+        }
+
+        xit.hasNext == yit.hasNext
+      }
     }
 
   def sortArrayOrdering(ord: ExtendedOrdering): ExtendedOrdering =
     new ExtendedOrdering {
       private val itOrd = iterableOrdering(ord)
+      private val elemOrd = ord.toOrdering
       
       def compareNonnull(x: T, y: T): Int = {
         val ax = x.asInstanceOf[Array[T]]
         val ay = y.asInstanceOf[Array[T]]
-        val scalaOrd = ord.toOrdering
-        itOrd.compareNonnull(ax.sorted(scalaOrd).toFastIndexedSeq, ay.sorted(scalaOrd).toFastIndexedSeq)
+        itOrd.compareNonnull(
+          x.asInstanceOf[Array[T]].sorted(elemOrd).toFastIndexedSeq,
+          y.asInstanceOf[Array[T]].sorted(elemOrd).toFastIndexedSeq)
+      }
+
+      override def ltNonnull(x: T, y: T): Boolean = {
+        val ax = x.asInstanceOf[Array[T]]
+        val ay = y.asInstanceOf[Array[T]]
+        itOrd.ltNonnull(
+          x.asInstanceOf[Array[T]].sorted(elemOrd).toFastIndexedSeq,
+          y.asInstanceOf[Array[T]].sorted(elemOrd).toFastIndexedSeq)
+      }
+
+      override def lteqNonnull(x: T, y: T): Boolean = {
+        val ax = x.asInstanceOf[Array[T]]
+        val ay = y.asInstanceOf[Array[T]]
+        itOrd.lteqNonnull(
+          x.asInstanceOf[Array[T]].sorted(elemOrd).toFastIndexedSeq,
+          y.asInstanceOf[Array[T]].sorted(elemOrd).toFastIndexedSeq)
+      }
+
+      override def equivNonnull(x: T, y: T): Boolean = {
+        val ax = x.asInstanceOf[Array[T]]
+        val ay = y.asInstanceOf[Array[T]]
+        itOrd.equivNonnull(
+          x.asInstanceOf[Array[T]].sorted(elemOrd).toFastIndexedSeq,
+          y.asInstanceOf[Array[T]].sorted(elemOrd).toFastIndexedSeq)
       }
     }
 
@@ -77,9 +121,27 @@ object ExtendedOrdering {
       private val saOrd = sortArrayOrdering(ord)
 
       def compareNonnull(x: T, y: T): Int = {
-        val ix = x.asInstanceOf[Iterable[T]]
-        val iy = y.asInstanceOf[Iterable[T]]
-        saOrd.compareNonnull(ix.toArray, iy.toArray)
+        saOrd.compareNonnull(
+          x.asInstanceOf[Iterable[T]].toArray,
+          y.asInstanceOf[Iterable[T]].toArray)
+      }
+
+      override def ltNonnull(x: T, y: T): Boolean = {
+        saOrd.ltNonnull(
+          x.asInstanceOf[Iterable[T]].toArray,
+          y.asInstanceOf[Iterable[T]].toArray)
+      }
+
+      override def lteqNonnull(x: T, y: T): Boolean = {
+        saOrd.lteqNonnull(
+          x.asInstanceOf[Iterable[T]].toArray,
+          y.asInstanceOf[Iterable[T]].toArray)
+      }
+
+      override def equivNonnull(x: T, y: T): Boolean = {
+        saOrd.equivNonnull(
+          x.asInstanceOf[Iterable[T]].toArray,
+          y.asInstanceOf[Iterable[T]].toArray)
       }
     }
 
@@ -87,13 +149,27 @@ object ExtendedOrdering {
     new ExtendedOrdering {
       private val saOrd = sortArrayOrdering(ord)
 
+      private def toArrayOfT(x: T): Array[T] =
+        x.asInstanceOf[Map[_, _]].iterator.map { case (k, v) => Row(k, v): T }.toArray
+
       def compareNonnull(x: T, y: T): Int = {
-        val mx = x.asInstanceOf[Map[T, T]]
-        val my = y.asInstanceOf[Map[T, T]]
-        
         saOrd.compareNonnull(
-          mx.toArray.map { case (k, v) => Row(k, v): T },
-          my.toArray.map { case (k, v) => Row(k, v): T })
+          toArrayOfT(x), toArrayOfT(y))
+      }
+
+      override def ltNonnull(x: T, y: T): Boolean = {
+        saOrd.ltNonnull(
+          toArrayOfT(x), toArrayOfT(y))
+      }
+
+      override def lteqNonnull(x: T, y: T): Boolean = {
+        saOrd.lteqNonnull(
+          toArrayOfT(x), toArrayOfT(y))
+      }
+
+      override def equivNonnull(x: T, y: T): Boolean = {
+        saOrd.equivNonnull(
+          toArrayOfT(x), toArrayOfT(y))
       }
     }
 
@@ -179,25 +255,11 @@ abstract class ExtendedOrdering extends Serializable {
 
   def lteqNonnull(x: T, y: T): Boolean  = compareNonnull(x, y) <= 0
 
-  def gtNonnull(x: T, y: T): Boolean = compareNonnull(x, y) > 0
-
-  def gteqNonnull(x: T, y: T): Boolean = compareNonnull(x, y) >= 0
-
   def equivNonnull(x: T, y: T): Boolean = compareNonnull(x, y) == 0
 
-  def minNonnull(x: T, y: T): T = {
-    if (ltNonnull(x, y))
-      x
-    else
-      y
-  }
+  def gtNonnull(x: T, y: T): Boolean = ltNonnull(y, x)
 
-  def maxNonnull(x: T, y: T): T = {
-    if (gtNonnull(x, y))
-      x
-    else
-      y
-  }
+  def gteqNonnull(x: T, y: T): Boolean = lteqNonnull(y, x)
 
   def compare(x: T, y: T): Int = {
     if (y == null) {
@@ -240,31 +302,6 @@ abstract class ExtendedOrdering extends Serializable {
     }
   }
 
-  def gt(x: T, y: T): Boolean = {
-    if (y == null)
-      false
-    else {
-      if (x == null)
-        true
-      else
-        gtNonnull(x, y)
-    }
-  }
-
-  def gteq(x: T, y: T): Boolean = {
-    if (y == null) {
-      if (x == null)
-        true
-      else
-        false
-    } else {
-      if (x == null)
-        true
-      else
-        gteqNonnull(x, y)
-    }
-  }
-
   def equiv(x: T, y: T): Boolean = {
     if (y == null) {
       if (x == null)
@@ -279,27 +316,9 @@ abstract class ExtendedOrdering extends Serializable {
     }
   }
 
-  def min(x: T, y: T): T = {
-    if (y == null) {
-      x
-    } else {
-      if (x == null)
-        y
-      else
-        minNonnull(x, y)
-    }
-  }
+  def gt(x: T, y: T): Boolean = lt(y, x)
 
-  def max(x: T, y: T): T = {
-    if (y == null) {
-      y
-    } else {
-      if (x == null)
-        x
-      else
-        maxNonnull(x, y)
-    }
-  }
+  def gteq(x: T, y: T): Boolean = lteq(y, x)
 
   // reverses the sense of the non-null comparison only
   def reverse: ExtendedOrdering = new ExtendedOrdering {
@@ -311,15 +330,7 @@ abstract class ExtendedOrdering extends Serializable {
 
     override def lteqNonnull(x: T, y: T): Boolean = outer.lteqNonnull(y, x)
 
-    override def gtNonnull(x: T, y: T): Boolean = outer.gtNonnull(y, x)
-
-    override def gteqNonnull(x: T, y: T): Boolean = outer.gteqNonnull(y, x)
-
     override def equivNonnull(x: T, y: T): Boolean = outer.equivNonnull(y, x)
-
-    override def minNonnull(x: T, y: T): T = outer.maxNonnull(x, y)
-
-    override def maxNonnull(x: T, y: T): T = outer.minNonnull(x, y)
   }
 
   def toOrdering: Ordering[T] = new Ordering[T] {
@@ -329,33 +340,7 @@ abstract class ExtendedOrdering extends Serializable {
 
     override def lteq(x: T, y: T): Boolean = outer.lteq(x, y)
 
-    override def gt(x: T, y: T): Boolean = outer.gt(x, y)
-
-    override def gteq(x: T, y: T): Boolean = outer.gteq(x, y)
-
     override def equiv(x: T, y: T): Boolean = outer.equiv(x, y)
-
-    override def min(x: T, y: T): T = outer.min(x, y)
-
-    override def max(x: T, y: T): T = outer.max(x, y)
-  }
-
-  def toOrdering(missingGreatest: Boolean): Ordering[T] = new Ordering[T] {
-    def compare(x: T, y: T): Int = outer.compare(x, y)
-
-    override def lt(x: T, y: T): Boolean = outer.lt(x, y)
-
-    override def lteq(x: T, y: T): Boolean = outer.lteq(x, y)
-
-    override def gt(x: T, y: T): Boolean = outer.gt(x, y)
-
-    override def gteq(x: T, y: T): Boolean = outer.gteq(x, y)
-
-    override def equiv(x: T, y: T): Boolean = outer.equiv(x, y)
-
-    override def min(x: T, y: T): T = outer.min(x, y)
-
-    override def max(x: T, y: T): T = outer.max(x, y)
   }
 
   lazy val intervalEndpointOrdering: IntervalEndpointOrdering =

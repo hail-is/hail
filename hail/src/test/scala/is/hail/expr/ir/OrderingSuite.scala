@@ -372,6 +372,10 @@ class OrderingSuite extends TestNGSuite {
     }
   }
 
+  // FIXME test Set
+  // FIXME use generator
+  // FIXME add Row test
+  // FIXME add Map test (like row, but with key + value)
   @Test def testOrderingArrayDouble() {
     val xs = Array[java.lang.Double](null, Double.NegativeInfinity, -0.0, 0.0, 1.0, Double.PositiveInfinity, Double.NaN)
 
@@ -382,7 +386,7 @@ class OrderingSuite extends TestNGSuite {
     val t = TArray(TFloat64())
 
     for (a <- as; b <- as) {
-      println("a", a, "b", b)
+      // FIXME all comparisons
       assertEvalSame(ApplyComparisonOp(EQ(t, t), In(0, t), In(1, t)),
         IndexedSeq(a -> t, b -> t))
     }
