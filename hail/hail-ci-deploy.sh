@@ -17,7 +17,6 @@ GRADLE_OPTS=-Xmx2048m ./gradlew \
            shadowJar \
            archiveZip \
            makeDocs \
-           createPackage \
            --gradle-user-home /gradle-cache
 
 # update jar, zip, and distribution
@@ -28,10 +27,6 @@ gsutil acl set public-read ${GS_JAR}
 GS_HAIL_ZIP=gs://hail-common/builds/${BRANCH}/python/hail-${BRANCH}-${SHA}.zip
 gsutil cp build/distributions/hail-python.zip ${GS_HAIL_ZIP}
 gsutil acl set public-read ${GS_HAIL_ZIP}
-
-DISTRIBUTION=gs://hail-common/distributions/${BRANCH}/Hail-${BRANCH}-${SHA}-Spark-${SPARK_VERSION}.zip
-gsutil cp build/distributions/hail.zip $DISTRIBUTION
-gsutil acl set public-read $DISTRIBUTION
 
 CONFIG=gs://hail-common/builds/${BRANCH}/config/hail-config-${BRANCH}-${SHA}.json
 python ./create_config_file.py $BRANCH ./hail-config-${BRANCH}-${SHA}.json
