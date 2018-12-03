@@ -30,10 +30,14 @@ Installing Hail on Mac OS X or GNU/Linux with pip
 If you have Mac OS X, this is the recommended installation method for running
 hail locally (i.e. not on a cluster).
 
+Create a `conda enviroment
+<https://conda.io/docs/user-guide/concepts.html#conda-environments>`__ named
+``hail`` and install the Hail python library in that environment:
+
 .. code-block:: sh
-
-    python -m pip install hail
-
+    conda create --name hail python>=3.6
+    conda activate hail
+    pip install hail
 
 Running Hail locally with a pre-compiled distribution
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
