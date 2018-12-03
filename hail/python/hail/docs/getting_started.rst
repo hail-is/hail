@@ -32,10 +32,7 @@ hail locally (i.e. not on a cluster).
 
 .. code-block:: sh
 
-    pip install hail
-
-This must be the ``pip`` for a ``python`` version 3.6 or later, the default
-``python`` on Mac OS X will not work.
+    python -m pip install hail
 
 
 Running Hail locally with a pre-compiled distribution
