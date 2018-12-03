@@ -147,5 +147,6 @@ __all__ = ['HailType',
            'min_rep',
            'uniroot',
            'format',
-           'approx_equal'
+           'approx_equal',
+           'reversed'
            ]
