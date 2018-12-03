@@ -101,7 +101,7 @@ class TableEmitter(tub: TranslationUnitBuilder) { outer =>
         val mapper = tub.buildClass(mapName)
 
         val st = Variable("st", "NativeStatus *")
-        val region = Variable("region", "Region *")
+        val region = Variable("region", "ScalaRegion *")
         val prevIt = Variable("it", oldRowIt.typ)
         mapper += st
         mapper += region
@@ -109,11 +109,11 @@ class TableEmitter(tub: TranslationUnitBuilder) { outer =>
 
         mapper +=
           s"""
-             |$mapName(NativeStatus * st, Region * region, ${ oldRowIt.typ } it) :
+             |$mapName(NativeStatus * st, ScalaRegion * region, ${ oldRowIt.typ } it) :
              |$st(st), $region(region), $prevIt(it) { }
            """.stripMargin
 
-        val mapF = tub.buildFunction("map_row", Array("NativeStatus*" -> "st", "Region*" -> "region", "const char *" -> "row"), "char *")
+        val mapF = tub.buildFunction("map_row", Array("NativeStatus*" -> "st", "ScalaRegion*" -> "region", "const char *" -> "row"), "char *")
         val substEnv = ir.Env.empty[ir.IR].bind("row", ir.In(1, child.typ.rowType))
         val et = Emit(mapF, 1, ir.Subst(newRow, substEnv))
         mapF +=
@@ -162,7 +162,7 @@ class TableEmitter(tub: TranslationUnitBuilder) { outer =>
         val filter = tub.buildClass(filterName)
 
         val st = Variable("st", "NativeStatus *")
-        val region = Variable("region", "Region *")
+        val region = Variable("region", "ScalaRegion *")
         val prevIt = Variable("it", oldRowIt.typ)
         val endIt = Variable("end", oldRowIt.typ)
         filter += st
@@ -172,7 +172,7 @@ class TableEmitter(tub: TranslationUnitBuilder) { outer =>
 
         filter +=
           s"""
-             |$filterName(NativeStatus * st, Region * region, ${ oldRowIt.typ } it, ${ oldRowIt.typ } end) :
+             |$filterName(NativeStatus * st, ScalaRegion * region, ${ oldRowIt.typ } it, ${ oldRowIt.typ } end) :
              |$st(st), $region(region), $prevIt(it), $endIt(end) {
              |  while(($prevIt != $endIt) && !keep_row($st, $region, *$prevIt)) {
              |    ++$prevIt;
@@ -180,7 +180,7 @@ class TableEmitter(tub: TranslationUnitBuilder) { outer =>
              |}
            """.stripMargin
 
-        val filterF = tub.buildFunction("keep_row", Array("NativeStatus*" -> "st", "Region*" -> "region", "const char *" -> "row"), "bool")
+        val filterF = tub.buildFunction("keep_row", Array("NativeStatus*" -> "st", "ScalaRegion*" -> "region", "const char *" -> "row"), "bool")
         val substEnv = ir.Env.empty[ir.IR].bind("row", ir.In(1, child.typ.rowType))
         val et = Emit(filterF, 1, ir.Subst(cond, substEnv))
         filterF +=
