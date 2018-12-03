@@ -133,16 +133,12 @@ abstract class PType extends BaseType with Serializable {
 
   def subst(): PType = this.setRequired(false)
 
-  def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = ???
+  def unsafeOrdering(): UnsafeOrdering = ???
 
-  def unsafeOrdering(): UnsafeOrdering = unsafeOrdering(false)
-
-  def unsafeOrdering(rightType: PType, missingGreatest: Boolean): UnsafeOrdering = {
+  def unsafeOrdering(rightType: PType): UnsafeOrdering = {
     require(this.isOfType(rightType))
-    unsafeOrdering(missingGreatest)
+    unsafeOrdering()
   }
-
-  def unsafeOrdering(rightType: PType): UnsafeOrdering = unsafeOrdering(rightType, false)
 
   def unsafeInsert(typeToInsert: PType, path: List[String]): (PType, UnsafeInserter) =
     PStruct.empty().unsafeInsert(typeToInsert, path)

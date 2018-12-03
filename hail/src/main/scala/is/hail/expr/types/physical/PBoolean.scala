@@ -21,7 +21,7 @@ class PBoolean(override val required: Boolean) extends PType {
 
   override def scalaClassTag: ClassTag[java.lang.Boolean] = classTag[java.lang.Boolean]
 
-  override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = new UnsafeOrdering {
+  override def unsafeOrdering(): UnsafeOrdering = new UnsafeOrdering {
     def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
       java.lang.Boolean.compare(r1.loadBoolean(o1), r2.loadBoolean(o2))
     }
@@ -32,7 +32,7 @@ class PBoolean(override val required: Boolean) extends PType {
     new CodeOrdering {
       type T = Boolean
 
-      def compareNonnull(rx: Code[Region], x: Code[T], ry: Code[Region], y: Code[T], missingGreatest: Boolean): Code[Int] =
+      def compareNonnull(rx: Code[Region], x: Code[T], ry: Code[Region], y: Code[T]): Code[Int] =
         Code.invokeStatic[java.lang.Boolean, Boolean, Boolean, Int]("compare", x, y)
     }
   }

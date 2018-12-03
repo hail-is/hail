@@ -183,16 +183,15 @@ abstract class PContainer extends PType {
     )
   }
 
-  override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering =
-    unsafeOrdering(this, missingGreatest)
+  override def unsafeOrdering(): UnsafeOrdering =
+    unsafeOrdering(this)
 
-  override def unsafeOrdering(rightType: PType, missingGreatest: Boolean): UnsafeOrdering = {
+  override def unsafeOrdering(rightType: PType): UnsafeOrdering = {
     require(this.isOfType(rightType))
 
     val right = rightType.asInstanceOf[PContainer]
     val eltOrd = elementType.unsafeOrdering(
-      right.elementType,
-      missingGreatest)
+      right.elementType)
 
     new UnsafeOrdering {
       override def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
@@ -212,10 +211,7 @@ abstract class PContainer extends PType {
               return c
           } else if (leftDefined != rightDefined) {
             val c = if (leftDefined) -1 else 1
-            if (missingGreatest)
-              return c
-            else
-              return -c
+            return c
           }
           i += 1
         }

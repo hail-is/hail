@@ -22,7 +22,7 @@ class PBinary(override val required: Boolean) extends PType {
 
   override def scalaClassTag: ClassTag[Array[Byte]] = classTag[Array[Byte]]
 
-  override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = new UnsafeOrdering {
+  override def unsafeOrdering(): UnsafeOrdering = new UnsafeOrdering {
     def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
       val l1 = PBinary.loadLength(r1, o1)
       val l2 = PBinary.loadLength(r2, o2)
@@ -50,7 +50,7 @@ class PBinary(override val required: Boolean) extends PType {
     new CodeOrdering {
       type T = Long
 
-      def compareNonnull(rx: Code[Region], x: Code[T], ry: Code[Region], y: Code[T], missingGreatest: Boolean): Code[Int] = {
+      def compareNonnull(rx: Code[Region], x: Code[T], ry: Code[Region], y: Code[T]): Code[Int] = {
         val l1 = mb.newLocal[Int]
         val l2 = mb.newLocal[Int]
         val lim = mb.newLocal[Int]

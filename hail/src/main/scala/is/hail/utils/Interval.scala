@@ -184,16 +184,16 @@ object Interval {
       }
 
   def ordering(pord: ExtendedOrdering, startPrimary: Boolean): ExtendedOrdering = new ExtendedOrdering {
-    override def compareNonnull(x: Any, y: Any, missingGreatest: Boolean): Int = {
+    override def compareNonnull(x: Any, y: Any): Int = {
       val xi = x.asInstanceOf[Interval]
       val yi = y.asInstanceOf[Interval]
 
       if (startPrimary) {
-        val c = pord.intervalEndpointOrdering.compare(xi.left, yi.left, missingGreatest)
-        if (c != 0) c else pord.intervalEndpointOrdering.compare(xi.right, yi.right, missingGreatest)
+        val c = pord.intervalEndpointOrdering.compare(xi.left, yi.left)
+        if (c != 0) c else pord.intervalEndpointOrdering.compare(xi.right, yi.right)
       } else {
-        val c = pord.intervalEndpointOrdering.compare(xi.right, yi.right, missingGreatest)
-        if (c != 0) c else pord.intervalEndpointOrdering.compare(xi.left, yi.left, missingGreatest)
+        val c = pord.intervalEndpointOrdering.compare(xi.right, yi.right)
+        if (c != 0) c else pord.intervalEndpointOrdering.compare(xi.left, yi.left)
       }
     }
   }
