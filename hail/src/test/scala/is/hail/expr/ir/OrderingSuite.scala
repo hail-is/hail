@@ -9,7 +9,7 @@ import is.hail.expr.types.virtual._
 import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.scalatest.testng.TestNGSuite
-import org.testng.annotations.Test
+import org.testng.annotations.{DataProvider, Test}
 
 class OrderingSuite extends TestNGSuite {
 
@@ -372,23 +372,81 @@ class OrderingSuite extends TestNGSuite {
     }
   }
 
-  // FIXME test Set
-  // FIXME use generator
-  // FIXME add Row test
-  // FIXME add Map test (like row, but with key + value)
-  @Test def testOrderingArrayDouble() {
-    val xs = Array[java.lang.Double](null, Double.NegativeInfinity, -0.0, 0.0, 1.0, Double.PositiveInfinity, Double.NaN)
+  @DataProvider(name = "arrayDoubleOrderingData")
+  def arrayDoubleOrderingData(): Array[Array[Any]] = {
+    val xs = Array[Any](null, Double.NegativeInfinity, -0.0, 0.0, 1.0, Double.PositiveInfinity, Double.NaN)
 
-    val as = Array(null) ++
-      (for (x <- xs) yield IndexedSeq(x)) ++
-      (for (x <- xs; y <- xs) yield IndexedSeq(x, y))
+    val as = Array(null: IndexedSeq[Any]) ++
+      (for (x <- xs) yield IndexedSeq[Any](x))
 
+    for (a <- as; a2 <- as)
+      yield Array[Any](a, a2)
+  }
+
+  @Test(dataProvider = "arrayDoubleOrderingData")
+  def testOrderingArrayDouble(
+    a: IndexedSeq[Any], a2: IndexedSeq[Any]) {
     val t = TArray(TFloat64())
 
-    for (a <- as; b <- as) {
-      // FIXME all comparisons
-      assertEvalSame(ApplyComparisonOp(EQ(t, t), In(0, t), In(1, t)),
-        IndexedSeq(a -> t, b -> t))
-    }
+    val args = IndexedSeq(a -> t, a2 -> t)
+
+    assertEvalSame(ApplyComparisonOp(EQ(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(EQWithNA(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(NEQ(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(NEQWithNA(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(LT(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(LTEQ(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(GT(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(GTEQ(t, t), In(0, t), In(1, t)), args)
+  }
+
+  @Test(dataProvider = "arrayDoubleOrderingData")
+  def testOrderingSetDouble(
+    a: IndexedSeq[Any], a2: IndexedSeq[Any]) {
+    val t = TSet(TFloat64())
+
+    val s = if (a != null) a.toSet else null
+    val s2 = if (a2 != null) a2.toSet else null
+    val args = IndexedSeq(s -> t, s2 -> t)
+
+    assertEvalSame(ApplyComparisonOp(EQ(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(EQWithNA(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(NEQ(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(NEQWithNA(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(LT(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(LTEQ(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(GT(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(GTEQ(t, t), In(0, t), In(1, t)), args)
+  }
+
+  @DataProvider(name = "rowDoubleOrderingData")
+  def rowDoubleOrderingData(): Array[Array[Any]] = {
+    val xs = Array[Any](null, Double.NegativeInfinity, -0.0, 0.0, 1.0, Double.PositiveInfinity, Double.NaN)
+    val as = Array(null: IndexedSeq[Any]) ++
+      (for (x <- xs) yield IndexedSeq[Any](x))
+    val ss = Array[Any](null, "a", "aa")
+
+    val rs = for (x <- xs; s <- ss)
+      yield Row(x, s)
+
+    for (r <- rs; r2 <- rs)
+      yield Array[Any](r, r2)
+  }
+
+  @Test(dataProvider = "rowDoubleOrderingData")
+  def testOrderingRowDouble(
+    r: Row, r2: Row) {
+    val t = TStruct("x" -> TFloat64(), "s" -> TString())
+
+    val args = IndexedSeq(r -> t, r2 -> t)
+
+    assertEvalSame(ApplyComparisonOp(EQ(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(EQWithNA(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(NEQ(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(NEQWithNA(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(LT(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(LTEQ(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(GT(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(GTEQ(t, t), In(0, t), In(1, t)), args)
   }
 }

@@ -81,8 +81,10 @@ object ExtendedOrdering {
   def sortArrayOrdering(ord: ExtendedOrdering): ExtendedOrdering =
     new ExtendedOrdering {
       private val itOrd = iterableOrdering(ord)
-      private val elemOrd = ord.toOrdering
-      
+
+      // ord can be null if the element type is a TVariable
+      private val elemOrd = if (ord != null) ord.toOrdering else null
+
       def compareNonnull(x: T, y: T): Int = {
         val ax = x.asInstanceOf[Array[T]]
         val ay = y.asInstanceOf[Array[T]]
@@ -190,6 +192,69 @@ object ExtendedOrdering {
 
         // equal
         0
+      }
+
+      override def ltNonnull(x: T, y: T): Boolean = {
+        val rx = x.asInstanceOf[Row]
+        val ry = y.asInstanceOf[Row]
+
+        val commonPrefix = math.min(fieldOrd.length, math.min(rx.length, ry.length))
+        var i = 0
+        while (i < commonPrefix) {
+          val fOrd = fieldOrd(i)
+          val rxi = rx.get(i)
+          val ryi = ry.get(i)
+
+          if (fOrd.lt(rxi, ryi))
+            return true
+          if (!fOrd.equiv(rxi, ryi))
+            return false
+          i += 1
+        }
+
+        // equal
+        false
+      }
+
+      override def lteqNonnull(x: T, y: T): Boolean = {
+        val rx = x.asInstanceOf[Row]
+        val ry = y.asInstanceOf[Row]
+
+        val commonPrefix = math.min(fieldOrd.length, math.min(rx.length, ry.length))
+        var i = 0
+        while (i < commonPrefix) {
+          val fOrd = fieldOrd(i)
+          val rxi = rx.get(i)
+          val ryi = ry.get(i)
+
+          if (fOrd.lt(rxi, ryi))
+            return true
+          if (!fOrd.equiv(rxi, ryi))
+            return false
+          i += 1
+        }
+
+        // equal
+        true
+      }
+
+      override def equivNonnull(x: T, y: T): Boolean = {
+        val rx = x.asInstanceOf[Row]
+        val ry = y.asInstanceOf[Row]
+
+        val commonPrefix = math.min(fieldOrd.length, math.min(rx.length, ry.length))
+        var i = 0
+        while (i < commonPrefix) {
+          val fOrd = fieldOrd(i)
+          val rxi = rx.get(i)
+          val ryi = ry.get(i)
+          if (!fOrd.equiv(rxi, ryi))
+            return false
+          i += 1
+        }
+
+        // equal
+        true
       }
 
       override lazy val intervalEndpointOrdering = new IntervalEndpointOrdering {
