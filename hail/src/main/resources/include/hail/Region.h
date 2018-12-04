@@ -1,5 +1,5 @@
-#ifndef HAIL_REGION2_H
-#define HAIL_REGION2_H 1
+#ifndef HAIL_REGION_H
+#define HAIL_REGION_H 1
 
 #include <memory>
 #include <vector>
