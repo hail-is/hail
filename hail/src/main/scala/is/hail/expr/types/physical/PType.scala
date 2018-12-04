@@ -3,14 +3,10 @@ package is.hail.expr.types.physical
 import is.hail.annotations._
 import is.hail.check.{Arbitrary, Gen}
 import is.hail.expr.ir.EmitMethodBuilder
-import is.hail.expr.types.BaseType
-import is.hail.expr.types.virtual.Type
-import is.hail.expr.{JSONAnnotationImpex, Parser, SparkAnnotationImpex}
-import is.hail.utils
+import is.hail.expr.types.virtual._
+import is.hail.expr.types.{BaseType, EncodedType}
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
-import org.apache.spark.sql.types.DataType
-import org.json4s.JValue
 
 import scala.reflect.ClassTag
 
@@ -114,6 +110,51 @@ object PType {
   val genInsertable: Gen[PStruct] = genInsertableStruct
 
   implicit def arbType = Arbitrary(genArb)
+
+  def canonical(t: Type): PType = {
+    t match {
+      case t: TInt32 => PInt32(t.required)
+      case t: TInt64 => PInt64(t.required)
+      case t: TFloat32 => PFloat32(t.required)
+      case t: TFloat64 => PFloat64(t.required)
+      case t: TBoolean => PBoolean(t.required)
+      case t: TBinary => PBinary(t.required)
+      case t: TString => PString(t.required)
+      case t: TCall => PCall(t.required)
+      case t: TLocus => PLocus(t.rg, t.required)
+      case t: TInterval => PInterval(canonical(t.pointType), t.required)
+      case t: TArray => PArray(canonical(t.elementType), t.required)
+      case t: TSet => PSet(canonical(t.elementType), t.required)
+      case t: TDict => PDict(canonical(t.keyType), canonical(t.valueType), t.required)
+      case t: TTuple => PTuple(t.types.map(canonical), t.required)
+      case t: TStruct => PStruct(t.fields.map(f => PField(f.name, canonical(f.typ), f.index)), t.required)
+      case t: TNDArray => PNDArray(canonical(t.elementType), t.required)
+    }
+  }
+
+  // currently identity
+  def canonical(t: PType): PType = {
+    t match {
+      case t: PInt32 => PInt32(t.required)
+      case t: PInt64 => PInt64(t.required)
+      case t: PFloat32 => PFloat32(t.required)
+      case t: PFloat64 => PFloat64(t.required)
+      case t: PBoolean => PBoolean(t.required)
+      case t: PBinary => PBinary(t.required)
+      case t: PString => PString(t.required)
+      case t: PCall => PCall(t.required)
+      case t: PLocus => PLocus(t.rg, t.required)
+      case t: PInterval => PInterval(canonical(t.pointType), t.required)
+      case t: PArray => PArray(canonical(t.elementType), t.required)
+      case t: PSet => PSet(canonical(t.elementType), t.required)
+      case t: PTuple => PTuple(t.types.map(canonical), t.required)
+      case t: PStruct => PStruct(t.fields.map(f => PField(f.name, canonical(f.typ), f.index)), t.required)
+      case t: PNDArray => PNDArray(canonical(t.elementType), t.required)
+      case t: PDict => PDict(canonical(t.keyType), canonical(t.valueType), t.required)
+    }
+  }
+
+  def canonical(t: EncodedType): PType = canonical(t.virtualType)
 }
 
 abstract class PType extends BaseType with Serializable {
@@ -134,6 +175,8 @@ abstract class PType extends BaseType with Serializable {
   def subst(): PType = this.setRequired(false)
 
   def unsafeOrdering(): UnsafeOrdering = ???
+
+  def isCanonical: Boolean = PType.canonical(this) == this  // will recons, may need to rewrite this method
 
   def unsafeOrdering(rightType: PType): UnsafeOrdering = {
     require(this.isOfType(rightType))
