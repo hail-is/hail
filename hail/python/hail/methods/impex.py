@@ -1951,7 +1951,7 @@ def import_vcfs(path,
         force_bgz,
         force,
         _partitions)
-    return [MatrixTable(jmt) for jmt in jmts]
+    return [MatrixTable._from_java(jmt) for jmt in jmts]
 
 @typecheck(path=oneof(str, sequenceof(str)),
            index_file_map=nullable(dictof(str, str)),

@@ -945,11 +945,12 @@ class PartitionedVCFRDD(
   @(transient@param) _partitions: Array[Partition]
 ) extends RDD[String](sc, Seq()) {
   protected def getPartitions: Array[Partition] = _partitions
+  val confBc = sc.broadcast(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
 
   def compute(split: Partition, context: TaskContext): Iterator[String] = {
     val p = split.asInstanceOf[PartitionedVCFPartition]
 
-    val lines = new TabixLineIterator(sc, file, p.reg)
+    val lines = new TabixLineIterator(confBc, file, p.reg)
 
     // clean up
     val context = TaskContext.get
