@@ -3,7 +3,7 @@ from collections import Counter
 from pprint import pprint
 from typing import *
 from hail.typecheck import *
-from hail.utils.java import Env
+from hail.utils.java import Env, info
 from hail.utils.misc import divide_null
 from hail.matrixtable import MatrixTable
 from hail.table import Table
@@ -285,9 +285,51 @@ def variant_qc(mt, name='variant_qc') -> MatrixTable:
     return mt.annotate_rows(**{name: result})
 
 
+def concordance2(left, right, *, _localize_global_statistics=True):
+    print('conc2')
+    require_col_key_str(left, 'concordance, left')
+    require_col_key_str(right, 'concordance, right')
+    left = require_biallelic(left, 'concordance, left')
+    right = require_biallelic(right, 'concordance, right')
+
+    left = left.select_entries('GT').select_rows().select_cols()
+    right = right.select_entries('GT').select_rows().select_cols()
+
+    joined = hl.experimental.full_outer_join_mt(left, right)
+
+    def get_idx(struct):
+        return hl.cond(
+            hl.is_missing(struct),
+            0,
+            hl.coalesce(2 + struct.GT.n_alt_alleles(), 1))
+
+    aggr = hl.agg.counter(get_idx(joined.left_entry) + 5 * get_idx(joined.right_entry))
+
+    def concordance_array(counter):
+        return hl.range(0, 5).map(lambda i: hl.range(0, 5).map(lambda j: counter.get(i + 5 * j, 0)))
+
+    def n_discordant(counter):
+        return hl.sum(hl.array(counter)
+                      .filter(lambda tup: ~hl.literal({i ** 2 for i in range(5)}).contains(tup[0]))
+                      .map(lambda tup: tup[1]))
+
+    glob: Tuple[Tuple[int]] = joined.aggregate_entries(concordance_array(aggr), _localize=_localize_global_statistics)
+
+    per_variant = joined.annotate_rows(concordance=aggr)
+    per_variant = per_variant.annotate_rows(concordance=concordance_array(per_variant.concordance),
+                                            n_discordant=n_discordant(per_variant.concordance))
+
+    per_sample = joined.annotate_cols(concordance=aggr)
+    per_sample = per_sample.annotate_cols(concordance=concordance_array(per_sample.concordance),
+                                          n_discordant=n_discordant(per_sample.concordance))
+
+    return glob, per_variant.rows(), per_sample.cols()
+
+
 @typecheck(left=MatrixTable,
-           right=MatrixTable)
-def concordance(left, right) -> Tuple[List[List[int]], Table, Table]:
+           right=MatrixTable,
+           _localize_global_statistics=bool)
+def concordance(left, right, *, _localize_global_statistics=True) -> Tuple[List[List[int]], Table, Table]:
     """Calculate call concordance with another dataset.
 
     .. include:: ../_templates/req_tstring.rst
@@ -402,20 +444,66 @@ def concordance(left, right) -> Tuple[List[List[int]], Table, Table]:
 
     require_col_key_str(left, 'concordance, left')
     require_col_key_str(right, 'concordance, right')
-    left = left.select_rows().select_cols().select_globals().select_entries('GT')
-    right = right.select_rows().select_cols().select_globals().select_entries('GT')
-    left = require_biallelic(left, "concordance, left")
-    right = require_biallelic(right, "concordance, right")
 
-    r = Env.hail().methods.CalculateConcordance.pyApply(
-        Env.spark_backend('concordance')._to_java_ir(left._mir),
-        Env.spark_backend('concordance')._to_java_ir(right._mir))
-    j_global_conc = r._1()
-    col_conc = Table._from_java(r._2())
-    row_conc = Table._from_java(r._3())
-    global_conc = [[j_global_conc.apply(j).apply(i) for i in range(5)] for j in range(5)]
+    left_sample_counter = left.aggregate_cols(hl.agg.counter(left.col_key[0]))
+    right_sample_counter = right.aggregate_cols(hl.agg.counter(right.col_key[0]))
 
-    return global_conc, col_conc, row_conc
+    left_bad = [f'{k!r}: {v}' for k, v in left_sample_counter.items() if v > 1]
+    right_bad = [f'{k!r}: {v}' for k, v in right_sample_counter.items() if v > 1]
+    if left_bad or right_bad:
+        raise ValueError(f"Found duplicate sample IDs:\n"
+                         f"  left:  {', '.join(left_bad)}\n"
+                         f"  right: {', '.join(right_bad)}")
+
+    included = set(left_sample_counter.keys()).intersection(set(right_sample_counter.keys()))
+
+    info(f"concordance: including {included} shared samples "
+         f"({len(left_sample_counter)} total on left, {len(right_sample_counter)} total on right)")
+
+    left = require_biallelic(left, 'concordance, left')
+    right = require_biallelic(right, 'concordance, right')
+
+    lit = hl.literal(included, dtype=hl.tset(hl.tstr))
+    left = left.filter_cols(lit.contains(left.col_key[0]))
+    right = right.filter_cols(lit.contains(right.col_key[0]))
+
+    left = left.select_entries('GT').select_rows().select_cols()
+    right = right.select_entries('GT').select_rows().select_cols()
+
+    joined = hl.experimental.full_outer_join_mt(left, right)
+
+    def get_idx(struct):
+        return hl.cond(
+            hl.is_missing(struct),
+            0,
+            hl.coalesce(2 + struct.GT.n_alt_alleles(), 1))
+
+    aggr = hl.agg.counter(get_idx(joined.left_entry) + 5 * get_idx(joined.right_entry))
+
+    def concordance_array(counter):
+        return hl.range(0, 5).map(lambda i: hl.range(0, 5).map(lambda j: counter.get(i + 5 * j, 0)))
+
+    def n_discordant(counter):
+        return hl.sum(
+            hl.array(counter)
+                .filter(lambda tup: ~hl.literal({i ** 2 for i in range(5)}).contains(tup[0]))
+                .map(lambda tup: tup[1]))
+
+    glob = joined.aggregate_entries(concordance_array(aggr), _localize=_localize_global_statistics)
+    if _localize_global_statistics:
+        total_conc = [x[1:] for x in glob[1:]]
+        on_diag = sum(total_conc[i][i] for i in range(len(total_conc)))
+        total_obs = sum(sum(x) for x in total_conc)
+        info(f"concordance: total concordance {on_diag/total_obs * 100:.2f}%")
+
+    per_variant = joined.annotate_rows(concordance=aggr)
+    per_variant = per_variant.annotate_rows(concordance=concordance_array(per_variant.concordance),
+                                            n_discordant=n_discordant(per_variant.concordance))
+    per_sample = joined.annotate_cols(concordance=aggr)
+    per_sample = per_sample.annotate_cols(concordance=concordance_array(per_sample.concordance),
+                                          n_discordant=n_discordant(per_sample.concordance))
+
+    return glob, per_sample.cols(), per_variant.rows()
 
 
 @typecheck(dataset=oneof(Table, MatrixTable),
