@@ -123,7 +123,7 @@ object Pretty {
             fields.foreachBetween { case (n, a) =>
               sb.append(" " * (depth + 2))
               sb += '('
-              sb.append(n)
+              sb.append(prettyIdentifier(n))
               sb += '\n'
               pretty(a, depth + 4)
               sb += ')'
@@ -144,6 +144,11 @@ object Pretty {
           conf.useColIndices.foreachBetween(i => sb.append(i))(sb.append(','))
           sb += ')'
           sb += ')'
+        case MatrixUnionRows(unmappedChildren) =>
+          if (unmappedChildren.nonEmpty) {
+            sb += '\n'
+            unmappedChildren.foreachBetween(c => pretty(c, depth + 2))(sb += '\n')
+          }
         case _ =>
           val header = ir match {
             case I32(x) => x.toString
