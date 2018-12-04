@@ -3,15 +3,13 @@ package is.hail.expr.ir
 import is.hail.annotations._
 import is.hail.check.{Gen, Prop}
 import is.hail.asm4s._
-import is.hail.expr.types._
-import is.hail.expr.ir.TestUtils._
 import is.hail.TestUtils._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.scalatest.testng.TestNGSuite
-import org.testng.annotations.Test
+import org.testng.annotations.{DataProvider, Test}
 
 class OrderingSuite extends TestNGSuite {
 
@@ -20,7 +18,7 @@ class OrderingSuite extends TestNGSuite {
       case ti: TInterval => recursiveSize(ti.pointType)
       case tc: TContainer => recursiveSize(tc.elementType)
       case tbs: TBaseStruct =>
-        tbs.types.map{ t => recursiveSize(t) }.sum
+        tbs.types.map { t => recursiveSize(t) }.sum
       case _ => 0
     }
     inner + 1
@@ -184,7 +182,7 @@ class OrderingSuite extends TestNGSuite {
       telt = TTuple(kt, vt)
       a <- TArray(telt).genNonmissingValue
     } yield (telt, a)
-    val p = Prop.forAll(compareGen) { case (telt: TTuple, a: IndexedSeq[Row] @unchecked) =>
+    val p = Prop.forAll(compareGen) { case (telt: TTuple, a: IndexedSeq[Row]@unchecked) =>
       val array: IndexedSeq[Row] = a ++ a
       val irF = { irs: Seq[IR] => ToDict(irs(0)) }
       val f = getCompiledFunction(irF, TArray(telt), TArray(+telt))
@@ -220,7 +218,7 @@ class OrderingSuite extends TestNGSuite {
   @Test def testSetContainsOnRandomSet() {
     val compareGen = Type.genArb
       .flatMap(t => Gen.zip(Gen.const(TSet(t)), TSet(t).genNonmissingValue, t.genValue))
-    val p = Prop.forAll(compareGen) { case (tset: TSet, set: Set[Any] @unchecked, test1) =>
+    val p = Prop.forAll(compareGen) { case (tset: TSet, set: Set[Any]@unchecked, test1) =>
       val telt = tset.elementType
 
       val ir = { irs: Seq[IR] => invoke("contains", irs(0), irs(1)) }
@@ -248,7 +246,7 @@ class OrderingSuite extends TestNGSuite {
       case (k, v) =>
         Gen.zip(Gen.const(TDict(k, v)), TDict(k, v).genNonmissingValue, k.genNonmissingValue)
     }
-    val p = Prop.forAll(compareGen) { case (tdict: TDict, dict: Map[Any, Any] @unchecked, testKey1) =>
+    val p = Prop.forAll(compareGen) { case (tdict: TDict, dict: Map[Any, Any]@unchecked, testKey1) =>
       assertEvalsTo(invoke("get", In(0, tdict), In(1, -tdict.keyType)),
         IndexedSeq(dict -> tdict,
           testKey1 -> -tdict.keyType),
@@ -338,7 +336,9 @@ class OrderingSuite extends TestNGSuite {
 
         val f = fb.resultWithIndex()(0)
         val closestI = f(region, soff, eoff)
+
         def getKey(i: Int) = asArray(i).asInstanceOf[Row].get(0)
+
         val maybeEqual = getKey(closestI)
 
         val closestIIsClosest =
@@ -358,10 +358,10 @@ class OrderingSuite extends TestNGSuite {
     val set2 = ToSet(MakeArray(Seq(I32(9), I32(1), I32(4)), TArray(TInt32())))
     val ir =
       ArrayFold(ToArray(set1), True(), "accumulator", "setelt",
-      ApplySpecial("&&",
-        FastSeq(
-          Ref("accumulator", TBoolean()),
-          invoke("contains", set2, Ref("setelt", TInt32())))))
+        ApplySpecial("&&",
+          FastSeq(
+            Ref("accumulator", TBoolean()),
+            invoke("contains", set2, Ref("setelt", TInt32())))))
 
     val fb = EmitFunctionBuilder[Region, Boolean]
     Emit(ir, fb)
@@ -370,5 +370,83 @@ class OrderingSuite extends TestNGSuite {
     Region.scoped { region =>
       assert(f(region))
     }
+  }
+
+  @DataProvider(name = "arrayDoubleOrderingData")
+  def arrayDoubleOrderingData(): Array[Array[Any]] = {
+    val xs = Array[Any](null, Double.NegativeInfinity, -0.0, 0.0, 1.0, Double.PositiveInfinity, Double.NaN)
+
+    val as = Array(null: IndexedSeq[Any]) ++
+      (for (x <- xs) yield IndexedSeq[Any](x))
+
+    for (a <- as; a2 <- as)
+      yield Array[Any](a, a2)
+  }
+
+  @Test(dataProvider = "arrayDoubleOrderingData")
+  def testOrderingArrayDouble(
+    a: IndexedSeq[Any], a2: IndexedSeq[Any]) {
+    val t = TArray(TFloat64())
+
+    val args = IndexedSeq(a -> t, a2 -> t)
+
+    assertEvalSame(ApplyComparisonOp(EQ(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(EQWithNA(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(NEQ(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(NEQWithNA(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(LT(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(LTEQ(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(GT(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(GTEQ(t, t), In(0, t), In(1, t)), args)
+  }
+
+  @Test(dataProvider = "arrayDoubleOrderingData")
+  def testOrderingSetDouble(
+    a: IndexedSeq[Any], a2: IndexedSeq[Any]) {
+    val t = TSet(TFloat64())
+
+    val s = if (a != null) a.toSet else null
+    val s2 = if (a2 != null) a2.toSet else null
+    val args = IndexedSeq(s -> t, s2 -> t)
+
+    assertEvalSame(ApplyComparisonOp(EQ(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(EQWithNA(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(NEQ(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(NEQWithNA(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(LT(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(LTEQ(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(GT(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(GTEQ(t, t), In(0, t), In(1, t)), args)
+  }
+
+  @DataProvider(name = "rowDoubleOrderingData")
+  def rowDoubleOrderingData(): Array[Array[Any]] = {
+    val xs = Array[Any](null, Double.NegativeInfinity, -0.0, 0.0, 1.0, Double.PositiveInfinity, Double.NaN)
+    val as = Array(null: IndexedSeq[Any]) ++
+      (for (x <- xs) yield IndexedSeq[Any](x))
+    val ss = Array[Any](null, "a", "aa")
+
+    val rs = for (x <- xs; s <- ss)
+      yield Row(x, s)
+
+    for (r <- rs; r2 <- rs)
+      yield Array[Any](r, r2)
+  }
+
+  @Test(dataProvider = "rowDoubleOrderingData")
+  def testOrderingRowDouble(
+    r: Row, r2: Row) {
+    val t = TStruct("x" -> TFloat64(), "s" -> TString())
+
+    val args = IndexedSeq(r -> t, r2 -> t)
+
+    assertEvalSame(ApplyComparisonOp(EQ(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(EQWithNA(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(NEQ(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(NEQWithNA(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(LT(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(LTEQ(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(GT(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(GTEQ(t, t), In(0, t), In(1, t)), args)
   }
 }

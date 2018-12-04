@@ -399,6 +399,10 @@ object TestUtils {
     assertEvalSame(x, Env.empty, FastIndexedSeq(), None)
   }
 
+  def assertEvalSame(x: IR, args: IndexedSeq[(Any, Type)]) {
+    assertEvalSame(x, Env.empty, args, None)
+  }
+
   def assertEvalSame(x: IR, agg: (IndexedSeq[Row], TStruct)) {
     assertEvalSame(x, Env.empty, FastIndexedSeq(), Some(agg))
   }
@@ -414,13 +418,13 @@ object TestUtils {
     assert(t.typeCheck(i2))
     assert(t.typeCheck(c))
 
-    assert(t.valuesSimilar(i, c))
-    assert(t.valuesSimilar(i2, c))
+    assert(t.valuesSimilar(i, c), s"interpret $i vs compile $c")
+    assert(t.valuesSimilar(i2, c), s"interpret (optimize = false) $i vs compile $c")
 
     try {
       val c2 = nativeExecute(x, env, args, agg)
       assert(t.typeCheck(c2))
-      assert(t.valuesSimilar(c2, c))
+      assert(t.valuesSimilar(c2, c), s"native compile $c2 vs compile $c")
     } catch {
       case _: CXXUnsupportedOperation =>
     }

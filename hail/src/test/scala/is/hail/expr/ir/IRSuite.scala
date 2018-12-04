@@ -1,14 +1,11 @@
 package is.hail.expr.ir
 
 import is.hail.SparkSuite
-import is.hail.expr.types.{virtual, _}
 import is.hail.TestUtils._
-import is.hail.annotations.{Region, RegionValue, RegionValueBuilder, SafeRow}
 import is.hail.asm4s.Code
 import is.hail.expr.ir
 import is.hail.expr.ir.IRSuite.TestFunctions
 import is.hail.expr.ir.functions.{IRFunctionRegistry, RegistryFunctions, SeededIRFunction, SetFunctions}
-import is.hail.expr.types.physical.{PBaseStruct, PInt64, PStruct}
 import is.hail.expr.types.virtual._
 import is.hail.table.{Ascending, Descending, SortField, Table}
 import is.hail.utils._
