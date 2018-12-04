@@ -56,14 +56,14 @@ class Interval(val left: IntervalEndpoint, val right: IntervalEndpoint) extends 
 
   def end: Any = right.point
 
-  def includesStart = left.sign < 0
+  def includesStart: Boolean = left.sign < 0
 
-  def includesEnd = right.sign > 0
+  def includesEnd: Boolean = right.sign > 0
 
   private def ext(pord: ExtendedOrdering): ExtendedOrdering = pord.intervalEndpointOrdering
 
   def contains(pord: ExtendedOrdering, p: Any): Boolean =
-    ext(pord).lt(left, p) && ext(pord).gt(right, p)
+    ext(pord).compare(left, p) < 0 && ext(pord).compare(right, p) > 0
 
   def contains(t: String, p: Any): Boolean = {
     val pord = IRParser.parseType(t).ordering
@@ -71,10 +71,10 @@ class Interval(val left: IntervalEndpoint, val right: IntervalEndpoint) extends 
   }
 
   def includes(pord: ExtendedOrdering, other: Interval): Boolean =
-    ext(pord).lteq(this.left, other.left) && ext(pord).gteq(this.right, other.right)
+    ext(pord).compare(this.left, other.left) <= 0 && ext(pord).compare(this.right, other.right) >= 0
 
   def overlaps(pord: ExtendedOrdering, other: Interval): Boolean =
-    ext(pord).lt(this.left, other.right) && ext(pord).gt(this.right, other.left)
+    ext(pord).compare(this.left, other.right) < 0 && ext(pord).compare(this.right, other.left) > 0
 
   def overlaps(t: String, other: Interval): Boolean = {
     val pord = IRParser.parseType(t).ordering
@@ -82,10 +82,10 @@ class Interval(val left: IntervalEndpoint, val right: IntervalEndpoint) extends 
   }
 
   def isAbovePosition(pord: ExtendedOrdering, p: Any): Boolean =
-    ext(pord).gt(left, p)
+    ext(pord).compare(left, p) > 0
 
   def isBelowPosition(pord: ExtendedOrdering, p: Any): Boolean =
-    ext(pord).lt(right, p)
+    ext(pord).compare(right, p) < 0
 
   def isDisjointFrom(pord: ExtendedOrdering, other: Interval): Boolean =
     !overlaps(pord, other)
@@ -104,16 +104,16 @@ class Interval(val left: IntervalEndpoint, val right: IntervalEndpoint) extends 
       "includeEnd" -> TBoolean().toJSON(includesEnd))
 
   def isBelow(pord: ExtendedOrdering, other: Interval): Boolean =
-    ext(pord).lteq(this.right, other.left)
+    ext(pord).compare(this.right, other.left) <= 0
 
   def isAbove(pord: ExtendedOrdering, other: Interval): Boolean =
-    ext(pord).gteq(this.left, other.right)
+    ext(pord).compare(this.left, other.right) >= 0
 
   def abutts(pord: ExtendedOrdering, other: Interval): Boolean =
-    ext(pord).equiv(this.left, other.right) || ext(pord).equiv(this.right, other.left)
+    ext(pord).compare(this.left, other.right) == 0 || ext(pord).compare(this.right, other.left) == 0
 
   def canMergeWith(pord: ExtendedOrdering, other: Interval): Boolean =
-    ext(pord).lteq(this.left, other.right) && ext(pord).gteq(this.right, other.left)
+    ext(pord).compare(this.left, other.right) <= 0 && ext(pord).compare(this.right, other.left) >= 0
 
   def merge(pord: ExtendedOrdering, other: Interval): Option[Interval] =
     if (canMergeWith(pord, other))
@@ -124,12 +124,12 @@ class Interval(val left: IntervalEndpoint, val right: IntervalEndpoint) extends 
   def hull(pord: ExtendedOrdering, other: Interval): Interval =
     Interval(
       // min(this.left, other.left)
-      if (ext(pord).lt(this.left, other.left))
+      if (ext(pord).compare(this.left, other.left) < 0)
         this.left
       else
         other.left,
       //  max(this.right, other.right)
-      if (ext(pord).lt(this.right, other.right))
+      if (ext(pord).compare(this.right, other.right) < 0)
         other.right
       else
         this.right)
@@ -138,12 +138,12 @@ class Interval(val left: IntervalEndpoint, val right: IntervalEndpoint) extends 
     if (overlaps(pord, other)) {
       Some(Interval(
         // max(this.left, other.left)
-        if (ext(pord).lt(this.left, other.left))
+        if (ext(pord).compare(this.left, other.left) < 0)
           other.left
         else
           this.left,
         // min(this.right, other.right)
-        if (ext(pord).lt(this.right, other.right))
+        if (ext(pord).compare(this.right, other.right) < 0)
           this.right
         else
           other.right))
@@ -192,7 +192,7 @@ object Interval {
     includesStart: Boolean, includesEnd: Boolean
   ): Boolean = {
     val (left, right) = toIntervalEndpoints(start, end, includesStart, includesEnd)
-    pord.intervalEndpointOrdering.lt(left, right)
+    pord.intervalEndpointOrdering.compare(left, right) < 0
   }
 
   def toIntervalEndpoints(
@@ -204,9 +204,9 @@ object Interval {
 
   def gen[P](pord: ExtendedOrdering, pgen: Gen[P]): Gen[Interval] =
     Gen.zip(pgen, pgen, Gen.coin(), Gen.coin())
-      .filter { case (x, y, s, e) => !pord.equiv(x, y) || (s && e) }
+      .filter { case (x, y, s, e) => pord.compare(x, y) != 0 || (s && e) }
       .map { case (x, y, s, e) =>
-        if (pord.lt(x, y))
+        if (pord.compare(x, y) < 0)
           Interval(x, y, s, e)
         else
           Interval(y, x, s, e)
