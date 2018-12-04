@@ -4,7 +4,10 @@ import breeze.linalg.DenseMatrix
 import is.hail.annotations._
 import is.hail.check.Prop._
 import is.hail.check.Parameters
+import is.hail.expr.ir
+import is.hail.expr.ir.{Interpret, MatrixRepartition, TableRead, TableRepartition}
 import is.hail.linalg.BlockMatrix
+import is.hail.table.Table
 import is.hail.utils._
 import is.hail.testUtils._
 import is.hail.variant._
@@ -79,5 +82,13 @@ class VSMSuite extends SparkSuite {
     TestUtils.interceptFatal("metadata does not contain file version") {
       hc.readVDS("src/test/resources/0.1-1fd5cc7.vds").count()
     }
+  }
+
+  @Test def testFilesWithRequiredGlobals() {
+    val ht = Table.read(hc, "src/test/resources/required_globals.ht").tir
+    Interpret(TableRepartition(ht, 10, true)).rvd.count()
+
+    val mt = MatrixTable.read(hc, "src/test/resources/required_globals.mt").ast
+    Interpret(MatrixRepartition(mt, 10, true)).rvd.count()
   }
 }

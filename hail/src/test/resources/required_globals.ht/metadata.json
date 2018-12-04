@@ -1,0 +1,1 @@
+{"name":"TableSpec","file_version":65536,"hail_version":"0.2.4-6212cdefaf19","references_rel_path":"references","table_type":"Table{global:+Struct{},key:[idx],row:Struct{idx:Int32}}","components":{"globals":{"name":"RVDComponentSpec","rel_path":"globals"},"rows":{"name":"RVDComponentSpec","rel_path":"rows"},"partition_counts":{"name":"PartitionCountsComponentSpec","counts":[1]}}}
