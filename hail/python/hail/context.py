@@ -316,7 +316,6 @@ def set_upload_email(email):
 
     Env.hc()._jhc.setUploadEmail(email)
 
-@typecheck(email=str)
 def enable_pipeline_upload():
     """Upload all subsequent pipelines to the Hail team in order to
     help improve Hail.
