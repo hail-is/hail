@@ -116,16 +116,10 @@ class ScalaRegionPool : public NativeObj {
   RegionPool pool_{};
   public:
     class Region : public NativeObj {
-      private:
-        RegionPool::Region::SharedPtr region_;
-
       public:
+        RegionPool::Region::SharedPtr region_;
         Region(ScalaRegionPool * pool) : region_(pool->pool_.get_region()) { }
-        void clear();
-        void align(size_t alignment) { region_->align(alignment); }
-        char * allocate(size_t alignment, size_t n) { return region_->allocate(alignment, n); }
-        char * allocate(size_t n) { return region_->allocate(n); }
-
+        
         virtual const char* get_class_name() { return "Region"; }
         virtual ~Region() { region_ = nullptr; }
     };
