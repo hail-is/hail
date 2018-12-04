@@ -82,7 +82,7 @@ echo "Configuring service account with name ${SVC_ACCT_FULL_NAME} with key file 
 if [ ! -e "${KEY_FILE}" ]
 then
     echo "${KEY_FILE} not found, will attempt to create a key file (and user if necessary)"
-    gcloud iam service-accounts describe ${SVC_ACCT_FULL_NAME} || gcloud iam service-accounts create ${SVC_ACCT_FULL_NAME}
+    gcloud iam service-accounts describe ${SVC_ACCT_FULL_NAME} || gcloud iam service-accounts create ${SVC_ACCT_NAME}
     gcloud projects add-iam-policy-binding \
            ${PROJECT_NAME} \
            --member "serviceAccount:${SVC_ACCT_FULL_NAME}" \
