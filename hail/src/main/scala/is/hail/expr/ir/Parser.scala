@@ -421,7 +421,7 @@ object IRParser {
     punctuation(it, ":")
     val rowType = coerce[TStruct](type_expr(it))
     punctuation(it, "}")
-    TableType(rowType, key.toFastIndexedSeq, globalType)
+    TableType(rowType, key.toFastIndexedSeq, coerce[TStruct](-globalType))
   }
 
   def matrix_type_expr(it: TokenIterator): MatrixType = {
@@ -461,7 +461,7 @@ object IRParser {
     val entryType = coerce[TStruct](type_expr(it))
     punctuation(it, "}")
 
-    MatrixType.fromParts(globalType, colKey, colType, rowPartitionKey ++ rowRestKey, rowType, entryType)
+    MatrixType.fromParts(coerce[TStruct](-globalType), colKey, colType, rowPartitionKey ++ rowRestKey, rowType, entryType)
   }
 
   def agg_op(it: TokenIterator): AggOp =
