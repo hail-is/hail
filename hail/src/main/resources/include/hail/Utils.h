@@ -45,7 +45,7 @@ constexpr int n_missing_bytes(int array_len) {
   return ((unsigned long) array_len + 7L) >> 3;
 }
 
-inline long round_up_offset(long off, long alignment) {
+constexpr long round_up_offset(long off, long alignment) {
   return (off + (alignment - 1)) & ~(alignment - 1);
 }
 
@@ -72,5 +72,61 @@ inline long lfloordiv(long n, long d) {
     --q;
   return q;
 }
+
+template<bool elem_required, size_t elem_size, size_t elem_align>
+class BaseArrayImpl {
+private:
+  static constexpr size_t array_elem_size = round_up_offset(elem_size, elem_align);
+  
+public:
+  static int load_length(const char *a) {
+    return load_int(a);
+  }
+  
+  static bool is_element_missing(const char *a, int i) {
+    if (elem_required)
+      return false;
+    else
+      return load_bit(a + 4, i);
+  }
+
+  static constexpr int elements_offset(int len) {
+    return round_up_alignment(4 + (elem_required ? 0 : n_missing_bytes(len)), elem_align);
+  }
+  
+  static const char *elements_address(const char *a, int len) {
+    return a + elements_offset(len);
+  }
+  
+  static const char *elements_address(const char *a) {
+    return elements_address(a, load_length(a));
+  }
+  
+  static const char *element_address(const char *a, int i) {
+    return elements_address(a) + i * array_elem_size;
+  }
+};
+
+template<bool elem_required, size_t elem_size, size_t elem_align>
+class ArrayStructImpl : public BaseArrayImpl<elem_required, elem_size, elem_align> {
+public:
+  using Base = BaseArrayImpl<elem_required, elem_size, elem_align>;
+  using T = const char *;
+  
+  static const char *load_element(const char *a, int i) {
+    return Base::element_address(a, i);
+  }
+};
+
+template<typename ElemT, bool elem_required, size_t elem_size, size_t elem_align>
+class ArrayScalarImpl : public BaseArrayImpl<elem_required, elem_size, elem_align> {
+public:
+  using Base = BaseArrayImpl<elem_required, elem_size, elem_align>;
+  using T = ElemT;
+  
+  static ElemT load_element(const char *a, int i) {
+    return *reinterpret_cast<const ElemT *>(Base::element_address(a, i));
+  }
+};
 
 #endif

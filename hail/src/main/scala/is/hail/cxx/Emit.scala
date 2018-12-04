@@ -570,7 +570,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) { outer =>
                |for (${ i.define } $i < $len; ++$i) {
                |  ${
               f(pArray.cxxIsElementMissing(a.toString, i.toString),
-                loadIRIntermediate(pArray.elementType, pArray.cxxElementOffset(a.toString, i.toString)))
+                loadIRIntermediate(pArray.elementType, pArray.cxxElementAddress(a.toString, i.toString)))
             }
                |}
                |""".stripMargin

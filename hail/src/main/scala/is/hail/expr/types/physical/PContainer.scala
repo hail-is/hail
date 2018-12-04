@@ -220,15 +220,21 @@ abstract class PContainer extends PType {
     }
   }
 
+  def cxxImpl: String = {
+    elementType match {
+      case _: PStruct =>
+        s"ArrayStructImpl<${ elementType.required },${ elementType.byteSize },${ elementType.alignment }>"
+      case _ =>
+        s"ArrayScalarImpl<${ cxx.typeToCXXType(elementType) },${ elementType.required },${ elementType.byteSize },${ elementType.alignment }>"
+    }
+  }
+
   def cxxLoadLength(a: cxx.Code): cxx.Code = {
-    s"load_int($a)"
+    s"$cxxImpl::load_length($a)"
   }
 
   def cxxIsElementMissing(a: cxx.Code, i: cxx.Code): cxx.Code = {
-    if (elementType.required)
-      s"false"
-    else
-      s"load_bit($a + 4, $i)"
+    s"$cxxImpl::is_element_missing($a, $i)"
   }
 
   def cxxNMissingBytes(len: cxx.Code): cxx.Code = {
@@ -243,17 +249,14 @@ abstract class PContainer extends PType {
   }
 
   def cxxElementsOffset(len: cxx.Code): cxx.Code = {
-    if (elementType.required)
-      s"${ UnsafeUtils.roundUpAlignment(4, elementType.alignment) }"
-    else
-      s"round_up_alignment(4 + ${ cxxNMissingBytes(len) }, ${ elementType.alignment })"
+    s"$cxxImpl::elements_offset($len)"
   }
 
-  def cxxElementOffset(a: cxx.Code, i: cxx.Code): cxx.Code = {
-    s"$a + ${ cxxElementsOffset(cxxLoadLength(a)) } + $i * ${ UnsafeUtils.arrayElementSize(elementType) }"
+  def cxxElementAddress(a: cxx.Code, i: cxx.Code): cxx.Code = {
+    s"$cxxImpl::element_address($a, $i)"
   }
 
   def cxxLoadElement(a: cxx.Code, i: cxx.Code): cxx.Code = {
-    cxx.loadIRIntermediate(elementType, cxxElementOffset(a, i))
+    s"$cxxImpl::load_element($a, $i)"
   }
 }
