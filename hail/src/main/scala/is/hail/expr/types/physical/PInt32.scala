@@ -21,8 +21,6 @@ class PInt32(override val required: Boolean) extends PIntegral {
     sb.append("int32")
   }
 
-  override def scalaClassTag: ClassTag[java.lang.Integer] = classTag[java.lang.Integer]
-
   override def unsafeOrdering(): UnsafeOrdering = new UnsafeOrdering {
     def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
       Integer.compare(r1.loadInt(o1), r2.loadInt(o2))

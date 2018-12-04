@@ -23,8 +23,6 @@ class PString(override val required: Boolean) extends PType {
     sb.append("str")
   }
 
-  override def scalaClassTag: ClassTag[String] = classTag[String]
-
   override def unsafeOrdering(): UnsafeOrdering = PBinary(required).unsafeOrdering()
 
   override def byteSize: Long = 8

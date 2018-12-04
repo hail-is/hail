@@ -10,9 +10,5 @@ case object PVoid extends PType {
 
   override def _toPretty = "Void"
 
-  override def scalaClassTag: scala.reflect.ClassTag[_ <: AnyRef] = throw new UnsupportedOperationException("No ClassTag for Void")
-
-  override def isRealizable = false
-
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = null
 }

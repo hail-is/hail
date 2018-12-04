@@ -64,8 +64,6 @@ abstract class PBaseStruct extends PType {
 
   def fieldRequired: Array[Boolean]
 
-  override def children: Seq[PType] = types
-
   def size: Int
 
   def _toPretty: String = {
@@ -84,8 +82,6 @@ abstract class PBaseStruct extends PType {
     fields.zip(other.fields).forall{ case (l, r) => l.typ isOfType r.typ }
 
   def truncate(newSize: Int): PBaseStruct
-
-  override def scalaClassTag: ClassTag[Row] = classTag[Row]
 
   override def unsafeOrdering(): UnsafeOrdering =
     unsafeOrdering(this)

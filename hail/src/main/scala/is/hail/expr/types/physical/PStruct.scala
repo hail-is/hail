@@ -31,8 +31,7 @@ object PStruct {
     if (sNames.length != sTypes.length)
       fatal(s"number of names does not match number of types: found ${ sNames.length } names and ${ sTypes.length } types")
 
-    val t = PStruct(sNames.zip(sTypes): _*)
-    t.setRequired(required).asInstanceOf[PStruct]
+    PStruct(required, sNames.zip(sTypes): _*)
   }
 }
 
@@ -75,24 +74,6 @@ final case class PStruct(fields: IndexedSeq[PField], override val required: Bool
 
   def fieldByName(name: String): PField = fields(fieldIdx(name))
 
-  override def canCompare(other: PType): Boolean = other match {
-    case t: PStruct => size == t.size && fields.zip(t.fields).forall { case (f1, f2) =>
-      f1.name == f2.name && f1.typ.canCompare(f2.typ)
-    }
-    case _ => false
-  }
-
-  override def unify(concrete: PType): Boolean = concrete match {
-    case PStruct(cfields, _) =>
-      fields.length == cfields.length &&
-        (fields, cfields).zipped.forall { case (f, cf) =>
-          f.unify(cf)
-        }
-    case _ => false
-  }
-
-  override def subst() = PStruct(fields.map(f => f.copy(typ = f.typ.subst().asInstanceOf[PType])))
-
   def index(str: String): Option[Int] = fieldIdx.get(str)
 
   def selfField(name: String): Option[PField] = fieldIdx.get(name).map(i => fields(i))
@@ -100,19 +81,6 @@ final case class PStruct(fields: IndexedSeq[PField], override val required: Bool
   def hasField(name: String): Boolean = fieldIdx.contains(name)
 
   def field(name: String): PField = fields(fieldIdx(name))
-
-  def toTTuple: PTuple = PTuple(types, required)
-
-  override def fieldOption(path: List[String]): Option[PField] =
-    if (path.isEmpty)
-      None
-    else {
-      val f = selfField(path.head)
-      if (path.length == 1)
-        f
-      else
-        f.flatMap(_.typ.fieldOption(path.tail))
-    }
 
   def unsafeStructInsert(typeToInsert: PType, path: List[String]): (PStruct, UnsafeInserter) = {
     assert(typeToInsert.isInstanceOf[PStruct] || path.nonEmpty)
@@ -273,8 +241,7 @@ final case class PStruct(fields: IndexedSeq[PField], override val required: Bool
       .forall { case (f, ft) => f.typ == ft })
       this
     else {
-      val t = PStruct((fields, fundamentalFieldTypes).zipped.map { case (f, ft) => (f.name, ft) }: _*)
-      t.setRequired(required).asInstanceOf[PStruct]
+      PStruct(required, (fields, fundamentalFieldTypes).zipped.map { case (f, ft) => (f.name, ft) }: _*)
     }
   }
 

@@ -29,20 +29,6 @@ final case class PArray(elementType: PType, override val required: Boolean = fal
 
   def _toPretty = s"Array[$elementType]"
 
-  override def canCompare(other: PType): Boolean = other match {
-    case PArray(otherType, _) => elementType.canCompare(otherType)
-    case _ => false
-  }
-
-  override def unify(concrete: PType): Boolean = {
-    concrete match {
-      case PArray(celementType, _) => elementType.unify(celementType)
-      case _ => false
-    }
-  }
-
-  override def subst() = PArray(elementType.subst().setRequired(false))
-
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
     sb.append("Array[")
     elementType.pretty(sb, indent, compact)
@@ -53,7 +39,4 @@ final case class PArray(elementType: PType, override val required: Boolean = fal
     assert(this isOfType other)
     CodeOrdering.iterableOrdering(this, other.asInstanceOf[PArray], mb)
   }
-
-  override def scalaClassTag: ClassTag[IndexedSeq[AnyRef]] = classTag[IndexedSeq[AnyRef]]
-
 }

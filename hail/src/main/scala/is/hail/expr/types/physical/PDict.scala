@@ -20,22 +20,6 @@ final case class PDict(keyType: PType, valueType: PType, override val required: 
 
   override val fundamentalType: PArray = PArray(elementType.fundamentalType, required)
 
-  override def canCompare(other: PType): Boolean = other match {
-    case PDict(okt, ovt, _) => keyType.canCompare(okt) && valueType.canCompare(ovt)
-    case _ => false
-  }
-
-  override def children = FastSeq(keyType, valueType)
-
-  override def unify(concrete: PType): Boolean = {
-    concrete match {
-      case PDict(kt, vt, _) => keyType.unify(kt) && valueType.unify(vt)
-      case _ => false
-    }
-  }
-
-  override def subst() = PDict(keyType.subst(), valueType.subst())
-
   def _toPretty = s"Dict[$keyType, $valueType]"
 
   override def pyString(sb: StringBuilder): Unit = {
@@ -56,8 +40,6 @@ final case class PDict(keyType: PType, valueType: PType, override val required: 
     valueType.pretty(sb, indent, compact)
     sb.append("]")
   }
-
-  override def scalaClassTag: ClassTag[Map[_, _]] = classTag[Map[_, _]]
 
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
     assert(other isOfType this)
