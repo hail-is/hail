@@ -37,8 +37,7 @@ object TStruct {
     if (sNames.length != sTypes.length)
       fatal(s"number of names does not match number of types: found ${ sNames.length } names and ${ sTypes.length } types")
 
-    val t = TStruct(sNames.zip(sTypes): _*)
-    t.setRequired(required).asInstanceOf[TStruct]
+    TStruct(required, sNames.zip(sTypes): _*)
   }
 }
 
@@ -399,10 +398,8 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     if ((fields, fundamentalFieldTypes).zipped
       .forall { case (f, ft) => f.typ == ft })
       this
-    else {
-      val t = TStruct((fields, fundamentalFieldTypes).zipped.map { case (f, ft) => (f.name, ft) }: _*)
-      t.setRequired(required).asInstanceOf[TStruct]
-    }
+    else
+      TStruct(required, (fields, fundamentalFieldTypes).zipped.map { case (f, ft) => (f.name, ft) }: _*)
   }
 
   def toEnv: Env[Type] = Env(fields.map(f => (f.name, f.typ)): _*)

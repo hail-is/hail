@@ -37,12 +37,12 @@ case class TInterval(pointType: Type, override val required: Boolean = false) ex
   val ordering: ExtendedOrdering = Interval.ordering(pointType.ordering, startPrimary=true)
 
   val representation: TStruct = {
-    val rep = TStruct(
+    TStruct(
+      required,
       "start" -> pointType,
       "end" -> pointType,
       "includesStart" -> TBooleanRequired,
       "includesEnd" -> TBooleanRequired)
-    rep.setRequired(required).asInstanceOf[TStruct]
   }
 
   override def unify(concrete: Type): Boolean = concrete match {
