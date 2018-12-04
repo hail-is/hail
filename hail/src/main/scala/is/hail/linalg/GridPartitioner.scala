@@ -123,9 +123,21 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, maybeBlocks
     v(firstCol until firstCol + blockColNCols(j))
   }
 
-  def maybeBlockRows(): Option[Array[Int]] = maybeBlocks.map(_.map(blockBlockRow).distinct)
+  def maybeBlockRows(): Option[Array[Int]] =
+    maybeBlocks match {
+      case Some(bis) =>
+        val bisRow = bis.map(blockBlockRow).distinct
+        if (bisRow.length < nBlockRows) Some(bisRow) else None
+      case None => None
+    }
 
-  def maybeBlockCols(): Option[Array[Int]] = maybeBlocks.map(_.map(blockBlockCol).distinct)
+  def maybeBlockCols(): Option[Array[Int]] =
+    maybeBlocks match {
+      case Some(bis) =>
+        val bisCol = bis.map(blockBlockCol).distinct
+        if (bisCol.length < nBlockCols) Some(bisCol) else None
+      case None => None
+    }
 
   // returns increasing array of all blocks intersecting the diagonal band consisting of
   //   all elements with lower <= jj - ii <= upper
