@@ -47,6 +47,21 @@ class JavaIteratorObject : public NativeObj {
 
 using RVIterator = JavaIteratorObject::Iterator;
 
+template <typename IteratorRange>
+class ScalaIterator : public NativeObj {
+  private:
+    std::shared_ptr<IteratorRange> range_{};
+    typename IteratorRange::Iterator it_;
+    typename IteratorRange::Iterator end_;
+  public:
+    ScalaIterator(std::shared_ptr<IteratorRange> range) :
+    range_(range),
+    it_(range->begin()),
+    end_(range->end()) { }
+    char const * get() { return *it_; }
+    bool advance() { return ++it_ != end_; }
+};
+
 }
 
 #endif
