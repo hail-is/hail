@@ -2,8 +2,15 @@
 <head>
     <title>Scorecard</title>
     <style type="text/css">
-      td { padding: 0 20px 0 0; }
-      th { padding: 0 20px 0 0; }
+      td {
+          padding: 3px 10px 3px 10px;
+          vertical-align: top;
+      }
+      tr:nth-child(even) { background-color: #f2f2f2; }
+      th { padding: 0px 10px 3px 10px; }
+
+      h1 { font-size: 1.4em; }
+      h2 { font-size: 1.2em; }
 
       #avatar {
           float: left;
@@ -12,10 +19,16 @@
           margin: 0 8px 0 0;
           border-radius: 3px;
       }
+      #urgent {
+        color: red;
+        font-weight: bold;
+      }
       .grid-container {
           display: inline-grid;
-          grid-template-columns: auto auto;
+          justify-content: space-evenly;
+          grid-template-columns: auto;
       }
+      .grid-item { padding: 10px 5px 10px 5px; }
 
     body {
         font-family: "Lucida Sans Unicode", "Lucida Grande", sans-serif;
@@ -25,9 +38,8 @@
 </head>
 <body>
 <div class="grid-container">
-    <div class="grid-item"></div>
     <div class="grid-item">
-        <p>Scorecard!</p>
+        <h1>Scorecard!</h1>
 
         <table>
             <thead>
@@ -67,18 +79,42 @@
             <a href="{{ pr.html_url }}">{{ pr.id }}</a>
             {% endfor %}
         </p>
-
-        <p>
-            <small>last updated {{ updated }}</small>
-        </p>
     </div>
+
+    {% if urgent_issues %}
+    <div class="grid-item">
+        <h2 id="urgent">&#x1F525;&#x1F525;&#x1F525;URGENT&#x1F525;&#x1F525;&#x1F525;</h1>
+
+        <table>
+            <thead>
+                <tr>
+                    <th align="left">asignee</th>
+                    <th align="left">time outstanding</th>
+                    <th align="left">issue</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for issue in urgent_issues %}
+                <tr>
+                    <td align="left"><a href="/users/{{ issue['USER'] }}">{{ issue['USER'] }}</a></td>
+                    <td align="left">{{ issue['AGE'] }}</td>
+                    <td align="left">
+                        <a href="{{ issue['ISSUE'].html_url }}">{{ issue['ISSUE'].title }}</a>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
 
     <div class="grid-item">
         <p><img id="avatar" src="https://github.com/{{ random_user }}.png?s=88"></p>
-    </div>
-
-    <div class="grid-item">
-        <p>Random user: {{ random_user }}</p>
+        <p>
+            Random user: {{ random_user }}
+            <br>
+            <small>last updated {{ updated }}</small>
+        </p>
     </div>
 </div>
 

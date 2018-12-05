@@ -60,6 +60,8 @@ def index():
                  'NEEDS_REVIEW': [],
                  'ISSUES': []})
 
+    urgent_issues = []
+
     def add_pr(repo_name, pr):
         state = pr['state']
 
@@ -76,7 +78,15 @@ def index():
     def add_issue(repo_name, issue):
         for user in issue['assignees']:
             d = user_data[user]
-            d['ISSUES'].append(issue)
+            if issue['urgent']:
+                time = datetime.datetime.now() - issue['created_at']
+                urgent_issues.append({
+                    'USER': user,
+                    'ISSUE': issue,
+                    'timedelta': time,
+                    'AGE': humanize.naturaltime(time)})
+            else:
+                d['ISSUES'].append(issue)
 
     for repo_name, repo_data in cur_data.items():
         for pr in repo_data['prs']:
@@ -91,11 +101,13 @@ def index():
 
     random_user = random.choice(users)
 
+    list.sort(urgent_issues, key=lambda issue: issue['timedelta'], reverse=True)
+
     updated = humanize.naturaltime(
         datetime.datetime.now() - datetime.timedelta(seconds = time.time() - cur_timestamp))
 
     return render_template('index.html', unassigned=unassigned,
-                           user_data=user_data, random_user=random_user, updated=updated)
+                           user_data=user_data, urgent_issues=urgent_issues, random_user=random_user, updated=updated)
 
 @app.route('/users/<user>')
 def html_get_user(user):
@@ -192,7 +204,9 @@ def get_issue_data(repo_name, issue):
         'id': get_id(repo_name, issue.number),
         'title': issue.title,
         'assignees': assignees,
-        'html_url': issue.html_url
+        'html_url': issue.html_url,
+        'urgent': any(label.name == "prio:high" for label in issue.labels),
+        'created_at': issue.created_at
     }
 
 def update_data():
@@ -220,6 +234,7 @@ def update_data():
             if issue.pull_request is None:
                 issue_data = get_issue_data(repo_name, issue)
                 new_data[repo_name]['issues'].append(issue_data)
+
 
     log.info('updating_data done')
 
