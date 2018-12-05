@@ -259,7 +259,7 @@ class RVD(
       val rvb = consumerCtx.rvb
       val outRV = RegionValue(consumerRegion)
 
-      val bufferRegion = consumerCtx.freshContext.region
+      val bufferRegion = consumerCtx.freshRegion
       val buffer = new RegionValueArrayBuffer(localType.valueType, bufferRegion)
 
       val producerCtx = consumerCtx.freshContext

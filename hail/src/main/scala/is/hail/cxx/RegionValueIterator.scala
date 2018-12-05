@@ -23,7 +23,7 @@ object CXXRegionValueIterator {
     val region = Variable("region", "long")
     val ptr = Variable("it", "long")
     tub += new Function("NativeObjPtr", "make_iterator", Array(st, ptr, region),
-      s"return std::make_shared<$cls>(reinterpret_cast<ObjectArray*>($ptr)->at(0), reinterpret_cast<Region*>($region), $st);")
+      s"return std::make_shared<$cls>(reinterpret_cast<ObjectArray*>($ptr)->at(0), reinterpret_cast<ScalaRegion*>($region), $st);")
 
     tub += new Function("long", "get", Array(st, ptr),
       s"""

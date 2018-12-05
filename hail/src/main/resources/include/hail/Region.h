@@ -1,113 +1,144 @@
 #ifndef HAIL_REGION_H
 #define HAIL_REGION_H 1
 
-#include "hail/hail.h"
-#include "hail/NativeObj.h"
-#include "hail/NativePtr.h"
-#include <cstdlib>
-#include <cstring>
-#include <algorithm>
 #include <memory>
 #include <vector>
+#include <utility>
+#include "hail/NativeStatus.h"
+#include "hail/NativeObj.h"
+#include "hail/NativePtr.h"
 
 namespace hail {
 
-class Region;
-using RegionPtr = std::shared_ptr<Region>;
+class ScalaRegionPool;
 
-class Region : public NativeObj {
-private:
-  static constexpr ssize_t kChunkCap = 64*1024;
-  static constexpr ssize_t kMaxSmall = 4*1024;
-  static constexpr ssize_t kNumBigToKeep = 4;
-  
-  class UniqueChunk {
-   public:
-    char* buf_;
-    ssize_t size_;
-    
-    UniqueChunk(const UniqueChunk& b) = delete;
-    
-    // no-args constructor is needed only for resize()
-    UniqueChunk() : buf_(nullptr), size_(0) { }
-    
-    UniqueChunk(ssize_t n) : buf_((char*)malloc(n)), size_(n) { }
-   
-    UniqueChunk(UniqueChunk&& b) : buf_(b.buf_), size_(b.size_) { b.buf_ = nullptr; }
-    
-    ~UniqueChunk() { if (buf_) free(buf_); }
-     
-    UniqueChunk& operator=(UniqueChunk&& b) {
-      if (buf_) free(buf_);
-      buf_ = b.buf_;
-      size_ = b.size_;
-      b.buf_ = nullptr;
-      return *this;
-    }
-  };
-  
-public:
-  char* buf_;
-  ssize_t pos_;
-  ssize_t chunks_used_;
-  std::vector<UniqueChunk> chunks_;
-  std::vector<UniqueChunk> big_free_;
-  std::vector<UniqueChunk> big_used_;
-  std::vector<RegionPtr> required_regions_;
+class RegionPool {
+  friend class ScalaRegionPool;
+  static constexpr ssize_t block_size = 64*1024;
+  static constexpr ssize_t block_threshold = 4096;
 
- public:  
-  Region() :
-    buf_(nullptr),
-    pos_(kChunkCap),
-    chunks_used_(0) {
-  }
-  
-  // clear_but_keep_mem() will make the Region empty without free'ing chunks
-  void clear_but_keep_mem();
-  
- private:
-  char* new_chunk_alloc(ssize_t n);
-  
-  // Restrict the choice of block sizes to improve re-use
-  ssize_t choose_big_size(ssize_t n);
-  
-  char* big_alloc(ssize_t n);
- 
- public: 
-  inline void align(ssize_t a) {
-    pos_ = (pos_ + a-1) & ~(a-1);
-  }
-  
-  inline char* allocate(ssize_t a, ssize_t n) {
-    ssize_t mask = (a-1);
-    ssize_t apos = ((pos_ + mask) & ~mask);
-    if (apos+n <= kChunkCap) {
-      char* p = (buf_ + apos);
-      pos_ = (apos + n);
-      return p;
-    }
-    return (n <= kMaxSmall) ? new_chunk_alloc(n) : big_alloc(n);
-  }
-    
-  inline char* allocate(ssize_t n) {
-    ssize_t apos = pos_;
-    if (apos+n <= kChunkCap) {
-      char* p = (buf_ + apos);
-      pos_ = (apos + n);
-      return p;
-    }
-    return (n <= kMaxSmall) ? new_chunk_alloc(n) : big_alloc(n);
-  }
-  
-  virtual const char* get_class_name() { return "Region"; }
-  
-  virtual int64_t get_field_offset(int field_size, const char* s) {
-    if (strcmp(s, "buf_") == 0) return ((char*)&buf_ - (char*)this);
-    if (strcmp(s, "pos_") == 0) return ((char*)&pos_ - (char*)this);
-    return -1;
-  }
+  public:
+    class Region {
+      friend class RegionPool;
+      friend class ScalaRegionPool;
+      public:
+        class SharedPtr {
+          friend class RegionPool;
+          private:
+            Region * region_;
+            void clear();
+            explicit SharedPtr(Region * region) : region_(region) {
+              if (region_ != nullptr) { ++(region_->references_); }
+            }
+          public:
+            SharedPtr(const SharedPtr &ptr) : SharedPtr(ptr.region_) { }
+            SharedPtr(SharedPtr &&ptr) : region_(ptr.region_) { ptr.region_ = nullptr; }
+            ~SharedPtr() { clear(); }
+
+            void swap(SharedPtr &other) { std::swap(region_, other.region_); }
+            SharedPtr& operator=(SharedPtr other) {
+              swap(other);
+              return *this;
+            }
+            SharedPtr& operator=(std::nullptr_t) noexcept {
+              clear();
+              return *this;
+            }
+            Region * get() { return region_; }
+            Region & operator*() { return *region_; }
+            Region * operator->() { return region_; }
+        };
+
+      private:
+        RegionPool * pool_;
+        int references_ {0};
+        size_t block_offset_;
+        std::unique_ptr<char[]> current_block_;
+        std::vector<std::unique_ptr<char[]>> used_blocks_{};
+        std::vector<std::unique_ptr<char[]>> big_chunks_{};
+        std::vector<SharedPtr> parents_{};
+        char * allocate_new_block(size_t n);
+        char * allocate_big_chunk(size_t size);
+        explicit Region(RegionPool * pool);
+      public:
+        Region(Region &pool) = delete;
+        Region(Region &&pool) = delete;
+        Region& operator=(Region pool) = delete;
+        void clear();
+        void align(size_t a) {
+          block_offset_ = (block_offset_ + a-1) & ~(a-1);
+        }
+
+        char* allocate(size_t n) {
+          if (block_offset_ + n <= block_size) {
+            char* p = (current_block_.get() + block_offset_);
+            block_offset_ += n;
+            return p;
+          } else {
+            return (n <= block_threshold) ? allocate_new_block(n) : allocate_big_chunk(n);
+          }
+        }
+
+        char * allocate(size_t alignment, size_t n) {
+          size_t aligned_off = (block_offset_ + alignment - 1) & ~(alignment - 1);
+          if (aligned_off + n <= block_size) {
+            char* p = current_block_.get() + aligned_off;
+            block_offset_ = aligned_off + n;
+            return p;
+          } else {
+            return (n <= block_threshold) ? allocate_new_block(n) : allocate_big_chunk(n);
+          }
+        }
+        SharedPtr get_region();
+        void add_reference_to(SharedPtr region);
+    };
+
+  private:
+    std::vector<std::unique_ptr<Region>> regions_{};
+    std::vector<Region *> free_regions_{};
+    std::vector<std::unique_ptr<char[]>> free_blocks_{};
+    std::unique_ptr<char[]> get_block();
+    Region::SharedPtr new_region();
+
+  public:
+    RegionPool() = default;
+    RegionPool(RegionPool &p) = delete;
+    RegionPool(RegionPool &&p) = delete;
+    Region::SharedPtr get_region();
+
+    //tracking methods:
+    size_t num_regions() { return regions_.size(); }
+    size_t num_free_regions() { return free_regions_.size(); }
+    size_t num_free_blocks() { return free_blocks_.size(); }
 };
 
-} // end hail
+class ScalaRegionPool : public NativeObj {
+  RegionPool pool_{};
+  public:
+    class Region : public NativeObj {
+      public:
+        RegionPool::Region::SharedPtr region_;
+        Region(ScalaRegionPool * pool) : region_(pool->pool_.get_region()) { }
+
+        void align(size_t a) { region_->align(a); }
+        char * allocate(size_t n) { return region_->allocate(n); }
+        char * allocate(size_t alignment, size_t n) { return region_->allocate(alignment, n); }
+        virtual const char* get_class_name() { return "Region"; }
+        virtual ~Region() { region_ = nullptr; }
+    };
+
+    std::shared_ptr<Region> get_region() { return std::make_shared<Region>(this); }
+    void own(RegionPool &&pool);
+
+
+    virtual const char* get_class_name() { return "RegionPool"; }
+};
+
+
+using Region = RegionPool::Region;
+using RegionPtr = Region::SharedPtr;
+using ScalaRegion = ScalaRegionPool::Region;
+
+}
 
 #endif

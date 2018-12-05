@@ -35,7 +35,6 @@ OBJECTS := \
   ObjectArray \
   PartitionIterators \
   Region \
-  Region2 \
   Upcalls \
 
 BUILD_OBJECTS := $(OBJECTS:%=$(BUILD)/%.o)

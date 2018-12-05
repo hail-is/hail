@@ -123,7 +123,7 @@ case class BaseRVD(partitioner: RVDPartitioner, rddBase: RDD[Long]) {
   val st: Variable = Variable("st", "NativeStatus*")
   val up: Variable = Variable("up", "UpcallEnv")
   val regionLong: Variable = Variable("region", "long")
-  val region: Variable = Variable("region", "Region*")
+  val region: Variable = Variable("region", "ScalaRegion*")
   val rddInput: Variable = Variable("input_objects", "long")
 
   def setup(t: TranslationUnitBuilder): Code = {
@@ -133,7 +133,7 @@ case class BaseRVD(partitioner: RVDPartitioner, rddBase: RDD[Long]) {
 
     s"""
        |${ up.define }
-       |${ region.defineWith(s"reinterpret_cast<Region *>($regionLong)") }
+       |${ region.defineWith(s"reinterpret_cast<ScalaRegion *>($regionLong)") }
      """.stripMargin
   }
 }

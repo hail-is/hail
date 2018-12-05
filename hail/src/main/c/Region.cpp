@@ -1,77 +1,108 @@
 #include "hail/Region.h"
-#include "hail/NativeObj.h"
-#include "hail/NativePtr.h"
-#include <jni.h>
+#include "hail/Upcalls.h"
+#include <memory>
+#include <vector>
+#include <utility>
+#include <algorithm>
+#include <iostream>
 
 namespace hail {
 
-constexpr ssize_t Region::kChunkCap;
-constexpr ssize_t Region::kMaxSmall;
-constexpr ssize_t Region::kNumBigToKeep;
-
-void Region::clear_but_keep_mem() {
-  buf_ = nullptr;
-  pos_ = kChunkCap;
-  chunks_used_ = 0;
-  // Move big_used_ to big_free_
-  for (auto& used : big_used_) big_free_.emplace_back(std::move(used));
-  big_used_.clear();
-  // Sort in descending order of size
-  std::sort(
-    big_free_.begin(),
-    big_free_.end(),
-    [](const UniqueChunk& a, const UniqueChunk& b)->bool { return (a.size_ > b.size_); }
-  );
-  if (big_free_.size() > kNumBigToKeep) big_free_.resize(kNumBigToKeep);
-}
-
-char* Region::new_chunk_alloc(ssize_t n) {
-  if (chunks_used_ >= ssize(chunks_)) {
-    chunks_.emplace_back(kChunkCap);
-  }
-  auto& chunk = chunks_[chunks_used_++];
-  buf_ = chunk.buf_;
-  pos_ = n;
-  return buf_;
-}
-  
-// Restrict the choice of block sizes to improve re-use
-ssize_t Region::choose_big_size(ssize_t n) {
-  for (ssize_t b = 1024;; b <<= 1) {
-    if (n <= b) return b;
-    // sqrt(2) is 1.414213, 181/128 is 1.414062
-    ssize_t bmid = (((181*b) >> 7) + 0x3f) & ~0x3f;
-    if (n <= bmid) return bmid;
+void RegionPtr::clear() {
+  if (region_ != nullptr) {
+    --(region_->references_);
+    if (region_->references_ == 0) {
+      region_->clear();
+      region_->pool_->free_regions_.push_back(region_);
+    }
+    region_ = nullptr;
   }
 }
-  
-char* Region::big_alloc(ssize_t n) {
-  char* buf = nullptr;
-  n = ((n + 0x3f) & ~0x3f); // round up to multiple of 64byte cache line
-  for (ssize_t idx = big_free_.size(); --idx >= 0;) {
-    auto& b = big_free_[idx];
-    if (n <= big_free_[idx].size_) {
-      buf = b.buf_;
-      big_used_.emplace_back(std::move(b));
-      // Fast enough for small kNumBigToKeep
-      big_free_.erase(big_free_.begin()+idx);
-      return buf;
+
+Region::Region(RegionPool * pool) :
+pool_(pool),
+block_offset_(0),
+current_block_(pool->get_block()) { }
+
+char * Region::allocate_new_block(size_t n) {
+  used_blocks_.push_back(std::move(current_block_));
+  current_block_ = pool_->get_block();
+  block_offset_ = n;
+  return current_block_.get();
+}
+
+char * Region::allocate_big_chunk(size_t n) {
+  big_chunks_.push_back(std::make_unique<char[]>(n));
+  return big_chunks_.back().get();
+}
+
+void Region::clear() {
+  block_offset_ = 0;
+  std::move(std::begin(used_blocks_), std::end(used_blocks_), std::back_inserter(pool_->free_blocks_));
+  used_blocks_.clear();
+  big_chunks_.clear();
+  parents_.clear();
+}
+
+RegionPtr Region::get_region() {
+  return pool_->get_region();
+}
+
+void Region::add_reference_to(RegionPtr region) {
+  parents_.push_back(std::move(region));
+}
+
+std::unique_ptr<char[]> RegionPool::get_block() {
+  if (free_blocks_.empty()) {
+    return std::make_unique<char[]>(block_size);
+  }
+  std::unique_ptr<char[]> block = std::move(free_blocks_.back());
+  free_blocks_.pop_back();
+  return block;
+}
+
+RegionPtr RegionPool::new_region() {
+  regions_.emplace_back(new Region(this));
+  return RegionPtr(regions_.back().get());
+}
+
+RegionPtr RegionPool::get_region() {
+  if (free_regions_.empty()) {
+    return new_region();
+  }
+  Region * region = std::move(free_regions_.back());
+  free_regions_.pop_back();
+  return RegionPtr(region);
+}
+
+void ScalaRegionPool::own(RegionPool &&pool) {
+  for (auto &region : pool.regions_) {
+    if (region->references_ != 0) {
+      region->pool_ = &this->pool_;
+      this->pool_.regions_.push_back(std::move(region));
     }
   }
-  n = choose_big_size(n);
-  big_used_.emplace_back(n);
-  return big_used_.back().buf_;
 }
 
 #define REGIONMETHOD(rtype, scala_class, scala_method) \
   extern "C" __attribute__((visibility("default"))) \
     rtype Java_is_hail_annotations_##scala_class##_##scala_method
 
-REGIONMETHOD(void, Region, nativeCtor)(
+REGIONMETHOD(void, RegionPool, nativeCtor)(
   JNIEnv* env,
   jobject thisJ
 ) {
-  NativeObjPtr ptr = std::make_shared<Region>();
+  NativeObjPtr ptr = std::make_shared<ScalaRegionPool>();
+  init_NativePtr(env, thisJ, &ptr);
+}
+
+REGIONMETHOD(void, Region, nativeCtor)(
+  JNIEnv* env,
+  jobject thisJ,
+  jobject poolJ
+) {
+  auto pool = static_cast<ScalaRegionPool*>(get_from_NativePtr(env, poolJ));
+  NativeObjPtr ptr = std::make_shared<ScalaRegionPool::Region>(pool);
   init_NativePtr(env, thisJ, &ptr);
 }
 
@@ -79,8 +110,9 @@ REGIONMETHOD(void, Region, clearButKeepMem)(
   JNIEnv* env,
   jobject thisJ
 ) {
-  auto r = static_cast<Region*>(get_from_NativePtr(env, thisJ));
-  r->clear_but_keep_mem();
+  auto r = static_cast<ScalaRegionPool::Region*>(get_from_NativePtr(env, thisJ));
+  auto r2 = r->region_->get_region();
+  r->region_ = std::move(r2);
 }
 
 REGIONMETHOD(void, Region, nativeAlign)(
@@ -88,8 +120,8 @@ REGIONMETHOD(void, Region, nativeAlign)(
   jobject thisJ,
   jlong a
 ) {
-  auto r = static_cast<Region*>(get_from_NativePtr(env, thisJ));
-  r->align(a);
+  auto r = static_cast<ScalaRegionPool::Region*>(get_from_NativePtr(env, thisJ));
+  r->region_->align(a);
 }
 
 REGIONMETHOD(jlong, Region, nativeAlignAllocate)(
@@ -98,8 +130,8 @@ REGIONMETHOD(jlong, Region, nativeAlignAllocate)(
   jlong a,
   jlong n
 ) {
-  auto r = static_cast<Region*>(get_from_NativePtr(env, thisJ));
-  return reinterpret_cast<jlong>(r->allocate(a, n));
+  auto r = static_cast<ScalaRegionPool::Region*>(get_from_NativePtr(env, thisJ));
+  return reinterpret_cast<jlong>(r->region_->allocate((size_t)a, (size_t)n));
 }
 
 REGIONMETHOD(jlong, Region, nativeAllocate)(
@@ -107,8 +139,8 @@ REGIONMETHOD(jlong, Region, nativeAllocate)(
   jobject thisJ,
   jlong n
 ) {
-  auto r = static_cast<Region*>(get_from_NativePtr(env, thisJ));
-  return reinterpret_cast<jlong>(r->allocate(n));
+  auto r = static_cast<ScalaRegionPool::Region*>(get_from_NativePtr(env, thisJ));
+  return reinterpret_cast<jlong>(r->region_->allocate((size_t)n));
 }
 
-} // end hail
+}

@@ -1,5 +1,5 @@
 #include "catch.hpp"
-#include "hail/Region2.h"
+#include "hail/Region.h"
 #include <vector>
 #include <ctime>
 #include <cstring>

@@ -216,7 +216,7 @@ template<typename Decoder>
 class Reader {
 private:
   Decoder dec_;
-  Region * region_;
+  ScalaRegionPool::Region * region_;
   NativeStatus * st_;
   char * value_;
 
@@ -232,7 +232,7 @@ private:
   char * get() const { return value_; }
 
 public:
-  Reader(Decoder dec, Region * region, NativeStatus* st) :
+  Reader(Decoder dec, ScalaRegion * region, NativeStatus* st) :
   dec_(dec), region_(region), st_(st), value_(nullptr) {
     read();
   }
