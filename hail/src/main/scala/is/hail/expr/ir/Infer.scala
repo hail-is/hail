@@ -83,6 +83,7 @@ object Infer {
         query.typ
       case MatrixAggregate(child, query) =>
         query.typ
+      case TableGetGlobals(child) => child.typ.globalType
     }
   }
 }

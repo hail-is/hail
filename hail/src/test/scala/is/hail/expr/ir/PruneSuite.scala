@@ -562,6 +562,10 @@ class PruneSuite extends SparkSuite {
     checkMemo(TableCount(tab), TInt64(), Array(subsetTable(tab.typ)))
   }
 
+  @Test def testTableGetGlobalsMemo() {
+    checkMemo(TableGetGlobals(tab), TStruct("g1" -> TInt32()), Array(subsetTable(tab.typ, "global.g1")))
+  }
+
   @Test def testTableAggregateMemo() {
     checkMemo(TableAggregate(tab, tableRefBoolean(tab.typ, "global.g1")),
       TBoolean(),

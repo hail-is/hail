@@ -770,6 +770,9 @@ object PruneDeadFields {
       case TableCount(child) =>
         memoizeTableIR(child, minimal(child.typ), memo)
         Env.empty[(Type, Type)]
+      case TableGetGlobals(child) =>
+        memoizeTableIR(child, minimal(child.typ).copy(globalType = requestedType.asInstanceOf[TStruct]), memo)
+        Env.empty[(Type, Type)]
       case TableAggregate(child, query) =>
         val queryDep = memoizeAndGetDep(query, query.typ, child.typ, memo)
         memoizeTableIR(child, queryDep, memo)

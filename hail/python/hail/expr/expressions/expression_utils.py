@@ -1,4 +1,5 @@
 from hail.utils import warn, error, java
+from hail.utils.java import Env
 from .indices import *
 from ..expressions import Expression, ExpressionException, expr_any
 from typing import *
@@ -189,9 +190,7 @@ def eval_typed(expression):
     analyze('eval_typed', expression, Indices(expression._indices.source))
 
     if expression._indices.source is None:
-        return (expression.dtype._from_json(
-            java.Env.hail().expr.ir.Interpret.interpretPyIR(str(expression._ir), {}, {})),
-                expression.dtype)
+        return (Env.hc()._backend.interpret(expression._ir), expression.dtype)
     else:
         return expression.collect()[0], expression.dtype
 

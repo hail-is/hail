@@ -676,6 +676,10 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(TableCount(TableRange(7, 4)), 7L)
   }
 
+  @Test def testTableGetGlobals() {
+    assertEvalsTo(TableGetGlobals(TableMapGlobals(TableRange(0, 1), Literal(TStruct("a" -> TInt32()), Row(1)))), Row(1))
+  }
+
   @Test def testTableAggregate() {
     hc // need to initialize lazy HailContext
     val table = TableRange(3, 2)
@@ -805,6 +809,7 @@ class IRSuite extends SparkSuite {
       Uniroot("x", F64(3.14), F64(-5.0), F64(5.0)),
       Literal(TStruct("x" -> TInt32()), Row(1)),
       TableCount(table),
+      TableGetGlobals(table),
       TableAggregate(table, MakeStruct(Seq("foo" -> count))),
       TableWrite(table, tmpDir.createLocalTempFile(extension = "ht")),
       MatrixWrite(mt, MatrixNativeWriter(tmpDir.createLocalTempFile(extension = "mt"))),

@@ -722,6 +722,9 @@ object IRParser {
       case "TableCount" =>
         val child = table_ir(env)(it)
         TableCount(child)
+      case "TableGetGlobals" =>
+        val child = table_ir(env)(it)
+        TableGetGlobals(child)
       case "TableAggregate" =>
         val child = table_ir(env)(it)
         val query = ir_value_expr(env.update(child.typ.refMap))(it)

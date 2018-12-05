@@ -80,6 +80,7 @@ class ValueIRTests(unittest.TestCase):
             ir.Uniroot('x', ir.F64(3.14), ir.F64(-5.0), ir.F64(5.0)),
             ir.Literal(hl.tarray(hl.tint32), [1, 2, None]),
             ir.TableCount(table),
+            ir.TableGetGlobals(table),
             ir.TableAggregate(table, ir.MakeStruct([('foo', ir.ApplyAggOp('Collect', [], None, [ir.I32(0)]))])),
             ir.TableWrite(table, new_temp_file(), False, True, "fake_codec_spec$$"),
             ir.MatrixWrite(matrix_read, ir.MatrixNativeWriter(new_temp_file(), False, False, "")),
