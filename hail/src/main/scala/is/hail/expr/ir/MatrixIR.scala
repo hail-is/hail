@@ -2105,7 +2105,9 @@ case class MatrixUnionRows(children: IndexedSeq[MatrixIR]) extends MatrixIR {
 
   val typ = MatrixUnionRows.fixup(children.head).typ
 
-  require(children.tail.forall(_.typ.canonicalRVDType == typ.canonicalRVDType))
+  require(children.tail.forall(_.typ.rowKeyStruct == typ.rowKeyStruct))
+  require(children.tail.forall(_.typ.rowType == typ.rowType))
+  require(children.tail.forall(_.typ.entryType == typ.entryType))
   require(children.tail.forall(_.typ.colKeyStruct == typ.colKeyStruct))
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixUnionRows =
