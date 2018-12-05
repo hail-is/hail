@@ -4171,8 +4171,8 @@ def min_rep(locus, alleles):
 @typecheck(x=oneof(expr_locus(), expr_interval(expr_locus())),
            dest_reference_genome=reference_genome_type,
            min_match=builtins.float,
-           include_negative_strand=builtins.bool)
-def liftover(x, dest_reference_genome, min_match=0.95, include_negative_strand=False):
+           include_strand=builtins.bool)
+def liftover(x, dest_reference_genome, min_match=0.95, include_strand=False):
     """Lift over coordinates to a different reference genome.
 
     Examples
@@ -4214,7 +4214,7 @@ def liftover(x, dest_reference_genome, min_match=0.95, include_negative_strand=F
         Reference genome to convert to.
     min_match : :obj:`float`
         Minimum ratio of bases that must remap.
-    include_negative_strand : :obj:`bool`
+    include_strand : :obj:`bool`
         If True, output the result as a :class:`.StructExpression` with the first field `result` being
         the locus or locus interval and the second field `is_negative_strand` is a boolean indicating
         whether the locus or locus interval has been mapped to the negative strand of the destination
@@ -4243,7 +4243,7 @@ def liftover(x, dest_reference_genome, min_match=0.95, include_negative_strand=F
         Use 'add_liftover' to load a liftover chain file.""".format(rg.name, dest_reference_genome.name))
 
     expr = _func(method_name, rtype, x, to_expr(min_match, tfloat))
-    if not include_negative_strand:
+    if not include_strand:
         expr = expr.result
     return expr
 
