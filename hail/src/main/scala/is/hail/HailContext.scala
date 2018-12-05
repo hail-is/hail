@@ -215,8 +215,10 @@ object HailContext {
       // see: https://docs.oracle.com/javase/9/migrate/toc.htm#JSMIG-GUID-3A71ECEF-5FC5-46FE-9BA9-88CBFCE828CB
       case javaVersion("1", major, minor) =>
         if (major.toInt < 8)
-          fatal(s"Hail requires at least Java 1.8, found $versionString")
+          fatal(s"Hail requires Java 1.8, found $versionString")
       case javaVersion(major, minor, security) =>
+        if (major.toInt > 8)
+          fatal(s"Hail requires Java 8, found $versionString")
       case _ =>
         fatal(s"Unknown JVM version string: $versionString")
     }
