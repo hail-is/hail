@@ -108,7 +108,7 @@ public:
 };
 
 template<bool elem_required, size_t elem_size, size_t elem_align>
-class ArrayStructImpl : public BaseArrayImpl<elem_required, elem_size, elem_align> {
+class ArrayAddrImpl : public BaseArrayImpl<elem_required, elem_size, elem_align> {
 public:
   using Base = BaseArrayImpl<elem_required, elem_size, elem_align>;
   using T = const char *;
@@ -119,7 +119,7 @@ public:
 };
 
 template<typename ElemT, bool elem_required, size_t elem_size, size_t elem_align>
-class ArrayScalarImpl : public BaseArrayImpl<elem_required, elem_size, elem_align> {
+class ArrayLoadImpl : public BaseArrayImpl<elem_required, elem_size, elem_align> {
 public:
   using Base = BaseArrayImpl<elem_required, elem_size, elem_align>;
   using T = ElemT;

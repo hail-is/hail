@@ -223,9 +223,9 @@ abstract class PContainer extends PType {
   def cxxImpl: String = {
     elementType match {
       case _: PStruct =>
-        s"ArrayStructImpl<${ elementType.required },${ elementType.byteSize },${ elementType.alignment }>"
+        s"ArrayAddrImpl<${ elementType.required },${ elementType.byteSize },${ elementType.alignment }>"
       case _ =>
-        s"ArrayScalarImpl<${ cxx.typeToCXXType(elementType) },${ elementType.required },${ elementType.byteSize },${ elementType.alignment }>"
+        s"ArrayLoadImpl<${ cxx.typeToCXXType(elementType) },${ elementType.required },${ elementType.byteSize },${ elementType.alignment }>"
     }
   }
 
