@@ -786,6 +786,7 @@ class IRSuite extends SparkSuite {
       MakeStruct(Seq("x" -> i)),
       SelectFields(s, Seq("x", "z")),
       InsertFields(s, Seq("x" -> i)),
+      InsertFields(s, Seq("* x *" -> i)), // Won't parse as a simple identifier
       GetField(s, "x"),
       MakeTuple(Seq(i, b)),
       GetTupleElement(t, 1),

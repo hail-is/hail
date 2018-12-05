@@ -123,7 +123,7 @@ object Pretty {
             fields.foreachBetween { case (n, a) =>
               sb.append(" " * (depth + 2))
               sb += '('
-              sb.append(n)
+              sb.append(prettyIdentifier(n))
               sb += '\n'
               pretty(a, depth + 4)
               sb += ')'

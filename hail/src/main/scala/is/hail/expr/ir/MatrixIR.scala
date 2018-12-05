@@ -2086,13 +2086,30 @@ case class MatrixRepartition(child: MatrixIR, n: Int, shuffle: Boolean) extends 
   override def columnCount: Option[Int] = child.columnCount
 }
 
-case class MatrixUnionRows(children: IndexedSeq[MatrixIR]) extends MatrixIR {
+object MatrixUnionRows {
+  private def fixup(mir: MatrixIR): MatrixIR = {
+    MatrixMapRows(mir,
+      InsertFields(
+        SelectFields(
+          Ref("va", mir.typ.rvRowType),
+          mir.typ.rvRowType.fieldNames.filter(_ != MatrixType.entriesIdentifier)
+        ),
+        Seq(MatrixType.entriesIdentifier -> GetField(Ref("va", mir.typ.rvRowType), MatrixType.entriesIdentifier))
+      )
+    )
+  }
 
+  def unify(mirs: IndexedSeq[MatrixIR]): IndexedSeq[MatrixIR] = mirs.map(fixup)
+}
+
+case class MatrixUnionRows(children: IndexedSeq[MatrixIR]) extends MatrixIR {
   require(children.length > 1)
 
-  val typ: MatrixType = children.head.typ
+  val typ = MatrixUnionRows.fixup(children.head).typ
 
-  require(children.tail.forall(_.typ.canonicalRVDType == typ.canonicalRVDType))
+  require(children.tail.forall(_.typ.rowKeyStruct == typ.rowKeyStruct))
+  require(children.tail.forall(_.typ.rowType == typ.rowType))
+  require(children.tail.forall(_.typ.entryType == typ.entryType))
   require(children.tail.forall(_.typ.colKeyStruct == typ.colKeyStruct))
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixUnionRows =

@@ -161,7 +161,7 @@ object LowerMatrixIR {
 
     case MatrixUnionRows(children) =>
       // FIXME: this should check that all children have the same column keys.
-      TableUnion(children.map(lower))
+      TableUnion(MatrixUnionRows.unify(children).map(lower))
 
     case MatrixDistinctByRow(child) => TableDistinct(lower(child))
 
