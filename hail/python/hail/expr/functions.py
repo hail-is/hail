@@ -4218,7 +4218,7 @@ def liftover(x, dest_reference_genome, min_match=0.95, include_negative_strand=F
         If True, output the result as a :class:`.StructExpression` with the first field `result` being
         the locus or locus interval and the second field `is_negative_strand` is a boolean indicating
         whether the locus or locus interval has been mapped to the negative strand of the destination
-        reference genome.
+        reference genome. Otherwise, output the converted locus or locus interval.
 
     Returns
     -------
