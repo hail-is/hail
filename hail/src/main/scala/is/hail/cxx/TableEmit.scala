@@ -161,17 +161,10 @@ class TableEmitter(tub: TranslationUnitBuilder) { outer =>
         val filterName = tub.genSym("FilterRowIterator")
         val filter = tub.buildClass(filterName)
 
-<<<<<<< HEAD
-        val st = Variable("st", "NativeStatus *")
-        val region = Variable("region", "ScalaRegion *")
-        val prevIt = Variable("it", oldRowIt.typ)
-        val endIt = Variable("end", oldRowIt.typ)
-=======
         val st = tub.variable("st", "NativeStatus *")
-        val region = tub.variable("region", "Region *")
+        val region = tub.variable("region", "ScalaRegion *")
         val prevIt = tub.variable("it", oldRowIt.typ)
         val endIt = tub.variable("end", oldRowIt.typ)
->>>>>>> wip
         filter += st
         filter += region
         filter += prevIt
