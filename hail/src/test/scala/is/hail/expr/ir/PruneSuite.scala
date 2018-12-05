@@ -10,7 +10,7 @@ import is.hail.table._
 import is.hail.utils._
 import is.hail.variant.MatrixTable
 import org.apache.spark.sql.Row
-import org.testng.annotations.Test
+import org.testng.annotations.{DataProvider, Test}
 
 class PruneSuite extends SparkSuite {
   @Test def testUnionType() {
@@ -892,6 +892,26 @@ class PruneSuite extends SparkSuite {
 
     // should run without error!
     PruneDeadFields.rebuild(ifIR, Env.empty[Type].bind("a", t), memo)
+  }
+
+  @DataProvider(name = "supertypePairs")
+  def supertypePairs: Array[Array[Type]] = Array(
+      Array(TInt32(), TInt32().setRequired(true)),
+      Array(
+        TStruct(
+          "a" -> TInt32().setRequired(true),
+          "b" -> TArray(TInt64())),
+        TStruct(
+          "a" -> TInt32().setRequired(true),
+          "b" -> TArray(TInt64().setRequired(true)).setRequired(true))),
+      Array(TSet(TString()), TSet(TString()).setRequired(true))
+    )
+
+  @Test(dataProvider = "supertypePairs")
+  def testIsSupertypeRequiredness(t1: Type, t2: Type) = {
+    assert(PruneDeadFields.isSupertype(t1, t2), s"""Failure, supertype relationship not met
+      | supertype: ${ t1.toPrettyString(0, true) }
+      | subtype:   ${ t2.toPrettyString(0, true) }""".stripMargin)
   }
 }
 
