@@ -1,10 +1,17 @@
 #!/usr/bin/python
-from .utils import decode
 import json
 import os
 import subprocess as sp
 import sys
 from subprocess import check_output
+
+
+if sys.version_info >= (3,0):
+    decode = lambda s: s.decode()
+    # Python 3 check_output returns a byte string
+else:
+    # In Python 2, bytes and str are the same
+    decode = lambda s: s
 
 if sys.version_info >= (3,7):
     def safe_call(*args):
@@ -78,7 +85,7 @@ if role == 'Master':
     except:
         pass
     else:
-        pip_pkgs.extend(user_pkgs.split(','))
+        pip_pkgs.extend(user_pkgs.split('|'))
 
     safe_call('/opt/conda/bin/conda', 'update', 'setuptools')
 

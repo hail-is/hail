@@ -3,15 +3,13 @@ import subprocess as sp
 import sys
 from . import __version__
 
+
 if sys.version_info >= (3,0):
+    decode = lambda s: s.decode()
     # Python 3 check_output returns a byte string
-    def decode(s):
-        return s.decode()
 else:
     # In Python 2, bytes and str are the same
-    def decode(s):
-        return s
-
+    decode = lambda s: s
 
 def latest_sha(version, spark):
     cloudtools_version = __version__.strip().split('.')

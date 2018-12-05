@@ -4,7 +4,7 @@ from subprocess import call, check_call, check_output
 import sys
 import json
 from . import __version__
-
+import re
 
 COMPATIBILITY_VERSION = 1
 init_script = 'gs://hail-common/cloudtools/init_notebook{}.py'.format(COMPATIBILITY_VERSION)
@@ -149,12 +149,13 @@ def main(args):
     # if Python packages requested, add metadata variable
     if args.packages:
         metadata_pkgs = conf.flags['metadata'].get('PKGS')
+        packages = []
+        split_regex = r'[|,]'
         if metadata_pkgs:
-            base = [metadata_pkgs]
-        else:
-            base = []
-        packages = '|'.join(base + args.packages.split(','))
-        conf.extend_flag('metadata', {'PKGS': packages})
+            packages.extend(re.split(split_regex, metadata_pkgs))
+
+        packages.extend(re.split(split_regex, args.packages))
+        conf.extend_flag('metadata', {'PKGS': '|'.join(packages)})
 
     conf.vars['driver_memory'] = str(int(machine_mem[args.master_machine_type] * args.master_memory_fraction))
     conf.flags['master-machine-type'] = args.master_machine_type
