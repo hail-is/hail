@@ -36,6 +36,8 @@ abstract sealed class TableIR extends BaseIR {
 
   def rvRowPType: PStruct = typ.rowType.physicalType  // remove when all nodes have type rules
 
+  def physicalRowKey: IndexedSeq[String] = ???
+
   def partitionCounts: Option[IndexedSeq[Long]] = None
 
   protected[ir] def execute(hc: HailContext): TableValue =

@@ -80,6 +80,8 @@ abstract sealed class MatrixIR extends BaseIR {
 
   def rvRowPType: PStruct = typ.rvRowType.physicalType  // remove when all nodes have type rules
 
+  def physicalRowKey: IndexedSeq[String] = ???
+
   def partitionCounts: Option[IndexedSeq[Long]] = None
 
   def getOrComputePartitionCounts(): IndexedSeq[Long] = {
