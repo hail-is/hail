@@ -1706,7 +1706,10 @@ case class MatrixAnnotateRowsTable(
 
   val typ: MatrixType = child.typ.copy(rvRowType = child.typ.rvRowType ++ TStruct(root -> table.typ.valueType))
 
-  override lazy val rvdType: RVDType = child.rvdType
+  override lazy val rvdType: RVDType = child.rvdType.copy(
+    rowType = child.rvdType.rowType.appendKey(
+      root,
+      table.rvdType.rowType.dropFields(table.typ.key.toSet)))
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixAnnotateRowsTable = {
     val (child: MatrixIR) +: (table: TableIR) +: newKey = newChildren

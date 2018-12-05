@@ -12,7 +12,7 @@ import scala.language.existentials
 sealed trait IR extends BaseIR {
   def typ: Type
 
-  def pType: PType = typ.physicalType
+  def pType: PType = PType.canonical(typ)
 
   override def children: IndexedSeq[BaseIR] =
     Children(this)
@@ -55,13 +55,15 @@ final case class Literal(typ: Type, value: Annotation) extends IR {
 }
 
 sealed trait InferIR extends IR {
-  var _typ: Type = null
+  var _ptype: PType = null
 
-  def typ: Type = {
-    if (_typ == null)
-      _typ = Infer(this)
-    _typ
+  override def pType: PType = {
+    if (_ptype == null)
+      _ptype = Infer(this)
+    _ptype
   }
+
+  def typ: Type = pType.virtualType
 }
 
 final case class I32(x: Int) extends IR { val typ = TInt32() }
