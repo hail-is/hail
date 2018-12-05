@@ -85,6 +85,9 @@ void ScalaRegionPool::own(RegionPool &&pool) {
   }
 }
 
+ScalaRegion::ScalaRegion(ScalaRegionPool * pool) :
+region_(pool->pool_.get_region()) { }
+
 #define REGIONMETHOD(rtype, scala_class, scala_method) \
   extern "C" __attribute__((visibility("default"))) \
     rtype Java_is_hail_annotations_##scala_class##_##scala_method
