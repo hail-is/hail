@@ -17,8 +17,7 @@ object TTuple {
   def apply(args: Type*): TTuple = apply(false, args: _*)
 
   def apply(types: java.util.ArrayList[Type], required: Boolean): TTuple = {
-    val t = TTuple(types.asScala.toArray)
-    t.setRequired(required).asInstanceOf[TTuple]
+    TTuple(types.asScala.toArray, required)
   }
 }
 
@@ -68,7 +67,7 @@ final case class TTuple(_types: IndexedSeq[Type], override val required: Boolean
     sb.append("tuple(")
     fields.foreachBetween({ field =>
       field.typ.pyString(sb)
-    }) { sb.append(", ")}
+    }) { sb.append(", ") }
     sb.append(')')
   }
 
@@ -78,9 +77,7 @@ final case class TTuple(_types: IndexedSeq[Type], override val required: Boolean
     if ((types, fundamentalFieldTypes).zipped
       .forall { case (t, ft) => t == ft })
       this
-    else {
-      val t = TTuple(fundamentalFieldTypes)
-      t.setRequired(required).asInstanceOf[TTuple]
-    }
+    else
+      TTuple(fundamentalFieldTypes, required)
   }
 }

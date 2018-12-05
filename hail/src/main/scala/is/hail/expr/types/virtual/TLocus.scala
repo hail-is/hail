@@ -10,10 +10,9 @@ import scala.reflect.{ClassTag, classTag}
 
 object TLocus {
   def representation(required: Boolean = false): TStruct = {
-    val rep = TStruct(
+    TStruct(required,
       "contig" -> +TString(),
       "position" -> +TInt32())
-    rep.setRequired(required).asInstanceOf[TStruct]
   }
 
   def schemaFromRG(rg: Option[ReferenceGenome], required: Boolean = false): Type = rg match {

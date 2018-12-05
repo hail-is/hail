@@ -321,51 +321,51 @@ object IRParser {
         punctuation(it, "[")
         val pointType = type_expr(it)
         punctuation(it, "]")
-        TInterval(pointType)
-      case "Boolean" => TBoolean()
-      case "Int32" => TInt32()
-      case "Int64" => TInt64()
-      case "Int" => TInt32()
-      case "Float32" => TFloat32()
-      case "Float64" => TFloat64()
-      case "String" => TString()
+        TInterval(pointType, req)
+      case "Boolean" => TBoolean(req)
+      case "Int32" => TInt32(req)
+      case "Int64" => TInt64(req)
+      case "Int" => TInt32(req)
+      case "Float32" => TFloat32(req)
+      case "Float64" => TFloat64(req)
+      case "String" => TString(req)
       case "Locus" =>
         punctuation(it, "(")
         val id = identifier(it)
         punctuation(it, ")")
-        ReferenceGenome.getReference(id).locusType
-      case "Call" => TCall()
+        ReferenceGenome.getReference(id).locusType.setRequired(req)
+      case "Call" => TCall(req)
       case "Array" =>
         punctuation(it, "[")
         val elementType = type_expr(it)
         punctuation(it, "]")
-        TArray(elementType)
+        TArray(elementType, req)
       case "Set" =>
         punctuation(it, "[")
         val elementType = type_expr(it)
         punctuation(it, "]")
-        TSet(elementType)
+        TSet(elementType, req)
       case "Dict" =>
         punctuation(it, "[")
         val keyType = type_expr(it)
         punctuation(it, ",")
         val valueType = type_expr(it)
         punctuation(it, "]")
-        TDict(keyType, valueType)
+        TDict(keyType, valueType, req)
       case "Tuple" =>
         punctuation(it, "[")
         val types = repsepUntil(it, type_expr, PunctuationToken(","), PunctuationToken("]"))
         punctuation(it, "]")
-        TTuple(types)
+        TTuple(types, req)
       case "Struct" =>
         punctuation(it, "{")
         val args = repsepUntil(it, type_field, PunctuationToken(","), PunctuationToken("}"))
         punctuation(it, "}")
         val fields = args.zipWithIndex.map { case ((id, t), i) => Field(id, t, i) }
-        TStruct(fields)
+        TStruct(fields, req)
     }
-
-    typ.setRequired(req)
+    assert(typ.required == req)
+    typ
   }
 
   def keys(it: TokenIterator): Array[String] = {
