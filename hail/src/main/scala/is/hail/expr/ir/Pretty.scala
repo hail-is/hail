@@ -44,7 +44,7 @@ object Pretty {
 
   def prettyIdentifiersOpt(x: Option[IndexedSeq[String]]): String = x.map(prettyIdentifiers).getOrElse("None")
 
-  def apply(ir: BaseIR): String = {
+  def apply(ir: BaseIR, elideLiterals: Boolean = false): String = {
     val sb = new StringBuilder
 
     def prettySeq(xs: Seq[BaseIR], depth: Int) {
@@ -154,8 +154,12 @@ object Pretty {
             case Cast(_, typ) => typ.parsableString()
             case NA(typ) => typ.parsableString()
             case Literal(typ, value) =>
-              s"${ typ.parsableString() } " +
-                s"${ prettyStringLiteral(JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(value, typ))) }"
+              s"${ typ.parsableString() } " + (
+                  if (!elideLiterals)
+                    s"${ prettyStringLiteral(JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(value, typ))) }"
+                  else
+                    "<literal value>"
+                )
             case Let(name, _, _) => prettyIdentifier(name)
             case Ref(name, _) => prettyIdentifier(name)
             case ApplyBinaryPrimOp(op, _, _) => prettyClass(op)

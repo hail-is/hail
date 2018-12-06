@@ -5,7 +5,7 @@ import is.hail.utils._
 object Optimize {
   private def optimize(ir0: BaseIR, noisy: Boolean, canGenerateLiterals: Boolean): BaseIR = {
     if (noisy)
-      log.info("optimize: before:\n" + Pretty(ir0))
+      log.info("optimize: before:\n" + Pretty(ir0, elideLiterals = true))
 
     var ir = ir0
     ir = FoldConstants(ir, canGenerateLiterals = canGenerateLiterals)
@@ -17,7 +17,7 @@ object Optimize {
         s"\n  Before IR:\n  ----------\n${ Pretty(ir0) }\n  After IR:\n  ---------\n${ Pretty(ir) }")
 
     if (noisy)
-      log.info("optimize: after:\n" + Pretty(ir))
+      log.info("optimize: after:\n" + Pretty(ir, elideLiterals = true))
 
     ir
   }
