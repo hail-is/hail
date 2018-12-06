@@ -231,7 +231,7 @@ object PruneDeadFields {
       case TableRead(_, _, _, _) =>
       case TableLiteral(_) =>
       case TableParallelize(rowsAndGlobals, _) =>
-        memoizeValueIR(rowsAndGlobals, TStruct("rows" -> TArray(requestedType.rowType), "globals" -> requestedType.globalType), memo)
+        memoizeValueIR(rowsAndGlobals, TStruct("rows" -> TArray(requestedType.rowType), "global" -> requestedType.globalType), memo)
       case TableImport(paths, typ, readerOpts) =>
       case TableRange(_, _) =>
       case TableRepartition(child, _, _) => memoizeTableIR(child, requestedType, memo)

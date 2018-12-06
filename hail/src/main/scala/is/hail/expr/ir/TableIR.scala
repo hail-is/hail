@@ -110,9 +110,9 @@ case class TableParallelize(rowsAndGlobals: IR, nPartitions: Option[Int] = None)
   }
 
   val typ: TableType = TableType(
-    rowsAndGlobals.typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct],
+    rowsType.elementType.asInstanceOf[TStruct],
     FastIndexedSeq(),
-    TStruct())
+    globalsType)
 
   protected[ir] override def execute(hc: HailContext): TableValue = {
     val Row(rows: IndexedSeq[Row], globals: Row) = Interpret[Row](rowsAndGlobals, optimize = false)
