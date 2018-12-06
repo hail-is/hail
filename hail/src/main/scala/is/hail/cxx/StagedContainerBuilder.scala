@@ -5,13 +5,13 @@ import is.hail.cxx
 import is.hail.expr.types.physical.PContainer
 
 class StagedContainerBuilder(fb: FunctionBuilder, region: Code, containerPType: PContainer) {
-  private[this] val aoff = cxx.Variable("aoff", "char *")
-  private[this] val eltOff = cxx.Variable("eltOff", "char *")
-  private[this] val i = cxx.Variable("i", "int", "0")
+  private[this] val aoff = fb.variable("aoff", "char *")
+  private[this] val eltOff = fb.variable("eltOff", "char *")
+  private[this] val i = fb.variable("i", "int", "0")
   private[this] val eltRequired = containerPType.elementType.required
 
   def start(len: Code, clearMissing: Boolean = true): Code = {
-    val __len = cxx.Variable("len", "int", len)
+    val __len = fb.variable("len", "int", len)
     s"""${ __len.define }
        |${ start(__len, clearMissing) }
      """.stripMargin

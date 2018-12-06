@@ -2,6 +2,7 @@ package is.hail.cxx
 
 import java.io.PrintStream
 
+import is.hail.expr.types.physical.PType
 import is.hail.nativecode._
 import is.hail.utils.ArrayBuilder
 
@@ -58,16 +59,41 @@ trait ScopeBuilder {
     definitions += c
   }
 
+  def variable(prefix: String, typ: String, init: Code): Variable = {
+    Variable(genSym(prefix), typ, init)
+  }
+
+  def variable(prefix: String, typ: String): Variable = {
+    Variable(genSym(prefix), typ)
+  }
+
+  def arrayVariable(prefix: String, typ: String, len: Code): ArrayVariable = {
+    ArrayVariable(genSym(prefix), typ, len)
+  }
+
+  def make_shared(prefix: String, typ: String, args: Code*): Variable = {
+    Variable.make_shared(genSym(prefix), typ, args: _*)
+  }
+
   def translationUnitBuilder(): TranslationUnitBuilder = {
     this match {
       case tub: TranslationUnitBuilder => tub
       case _ => parent.translationUnitBuilder()
     }
   }
+
+  def ordering(lp: PType, rp: PType): String = {
+    val tub = translationUnitBuilder()
+    tub.orderings.ordering(tub, lp, rp)
+  }
+
+  def genSym(name: String): String = translationUnitBuilder().genSym(name)
 }
 
 class TranslationUnitBuilder() extends ScopeBuilder {
   val parent: ScopeBuilder = null
+
+  val orderings: Orderings = new Orderings
 
   val includes: ArrayBuilder[String] = new ArrayBuilder[String]()
 
@@ -81,14 +107,22 @@ class TranslationUnitBuilder() extends ScopeBuilder {
   def buildFunction(prefix: String, args: Array[(Type, String)], returnType: Type): FunctionBuilder = {
     new FunctionBuilder(this,
       prefix,
-      args.map { case (typ, p) => new Variable(p, typ, null) },
+      args.map { case (typ, p) => variable(p, typ) },
       returnType)
   }
 
   def buildClass(name: String, superClass: String = null): ClassBuilder =
     new ClassBuilder(this, name, superClass)
 
+  private var symCounter: Long = 0
+
+  override def genSym(name: String): String = {
+    symCounter += 1
+    s"$name$symCounter"
+  }
+
   def end(): TranslationUnit = {
+
     new TranslationUnit(
       includes.result().mkString("\n"),
       definitions.result())

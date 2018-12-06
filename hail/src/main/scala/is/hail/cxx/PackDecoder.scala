@@ -4,46 +4,46 @@ import is.hail.expr.types.physical._
 import is.hail.io.{BufferSpec, NativeDecoderModule}
 
 object PackDecoder {
-  def skipBinary(input_buf_ptr: Expression): Code = {
-    val len = Variable("skip_len", "int", s"$input_buf_ptr->read_int()")
+  def skipBinary(input_buf_ptr: Expression, fb: FunctionBuilder): Code = {
+    val len = fb.variable("skip_len", "int", s"$input_buf_ptr->read_int()")
     s"""
        |${ len.define }
        |$input_buf_ptr->skip_bytes($len);""".stripMargin
   }
 
-  def skipArray(t: PArray, input_buf_ptr: Expression): Code = {
-    val len = Variable("len", "int", s"$input_buf_ptr->read_int()")
-    val i = Variable("i", "int", "0")
+  def skipArray(t: PArray, input_buf_ptr: Expression, fb: FunctionBuilder): Code = {
+    val len = fb.variable("len", "int", s"$input_buf_ptr->read_int()")
+    val i = fb.variable("i", "int", "0")
     if (t.elementType.required) {
       s"""
          |${ len.define }
          |for (${ i.define } $i < $len; $i++) {
-         |  ${ skip(t.elementType, input_buf_ptr) }
+         |  ${ skip(t.elementType, input_buf_ptr, fb) }
          |}""".stripMargin
     } else {
-      val missingBytes = ArrayVariable(s"missing", "char", s"n_missing_bytes($len)")
+      val missingBytes = fb.arrayVariable(s"missing", "char", s"n_missing_bytes($len)")
       s"""
          |${ len.define }
          |${ missingBytes.define }
          |$input_buf_ptr->read_bytes($missingBytes, n_missing_bytes($len));
          |for (${ i.define } $i < $len; $i++) {
          |  if (!load_bit($missingBytes, $i)) {
-         |    ${ skip(t.elementType, input_buf_ptr) }
+         |    ${ skip(t.elementType, input_buf_ptr, fb) }
          |  }
          |}""".stripMargin
     }
   }
 
-  def skipBaseStruct(t: PBaseStruct, input_buf_ptr: Expression): Code = {
-    val missingBytes = ArrayVariable("missing", "char", s"${ t.nMissingBytes }")
+  def skipBaseStruct(t: PBaseStruct, input_buf_ptr: Expression, fb: FunctionBuilder): Code = {
+    val missingBytes = fb.arrayVariable("missing", "char", s"${ t.nMissingBytes }")
     val skipFields = Array.tabulate[Code](t.size) { idx =>
       val fieldType = t.types(idx)
       if (fieldType.required)
-        skip(fieldType, input_buf_ptr)
+        skip(fieldType, input_buf_ptr, fb)
       else
         s"""
            |if (!load_bit($missingBytes, ${ t.missingIdx(idx) })) {
-           |  ${ skip(fieldType, input_buf_ptr) }
+           |  ${ skip(fieldType, input_buf_ptr, fb) }
            |}""".stripMargin
     }
 
@@ -56,10 +56,10 @@ object PackDecoder {
       skipFields.mkString("\n")
   }
 
-  def skip(t: PType, input_buf_ptr: Expression): Code = t match {
-    case t2: PArray => skipArray(t2, input_buf_ptr)
-    case t2: PBaseStruct => skipBaseStruct(t2, input_buf_ptr)
-    case _: PBinary => skipBinary(input_buf_ptr)
+  def skip(t: PType, input_buf_ptr: Expression, fb: FunctionBuilder): Code = t match {
+    case t2: PArray => skipArray(t2, input_buf_ptr, fb)
+    case t2: PBaseStruct => skipBaseStruct(t2, input_buf_ptr, fb)
+    case _: PBinary => skipBinary(input_buf_ptr, fb)
     case _: PBoolean => s"$input_buf_ptr->skip_boolean();"
     case _: PInt32 => s"$input_buf_ptr->skip_int();"
     case _: PInt64 => s"$input_buf_ptr->skip_long();"
@@ -68,8 +68,8 @@ object PackDecoder {
   }
 
   def decodeBinary(input_buf_ptr: Expression, region: Expression, off: Expression, fb: FunctionBuilder): Code = {
-    val len = Variable("len", "int", s"$input_buf_ptr->read_int()")
-    val boff = Variable("boff", "char *", s"$region->allocate(${ PBinary.contentAlignment }, $len + 4)")
+    val len = fb.variable("len", "int", s"$input_buf_ptr->read_int()")
+    val boff = fb.variable("boff", "char *", s"$region->allocate(${ PBinary.contentAlignment }, $len + 4)")
     s"""
        |${ len.define }
        |${ boff.define }
@@ -79,7 +79,7 @@ object PackDecoder {
   }
 
   def decodeArray(t: PArray, rt: PArray, input_buf_ptr: Expression, region: Expression, off: Expression, fb: FunctionBuilder): Code = {
-    val len = Variable("len", "int", s"$input_buf_ptr->read_int()")
+    val len = fb.variable("len", "int", s"$input_buf_ptr->read_int()")
     val sab = new StagedContainerBuilder(fb, region.toString, rt)
     var decodeElt = decode(t.elementType, rt.elementType, input_buf_ptr, region, Expression(sab.eltOffset), fb)
     if (!rt.elementType.required)
@@ -128,14 +128,14 @@ object PackDecoder {
     } else {
       val names = t.asInstanceOf[PStruct].fieldNames
       val rnames = rt.asInstanceOf[PStruct].fieldNames
-      val t_missing_bytes = ArrayVariable(s"missing", "char", s"${ t.nMissingBytes }")
+      val t_missing_bytes = fb.arrayVariable(s"missing", "char", s"${ t.nMissingBytes }")
 
       var rtidx = 0
       val decodeFields = Array.tabulate[Code](t.size) { tidx =>
         val f = t.types(tidx)
         val skipField = rtidx >= rt.size || names(tidx) != rnames(rtidx)
         val processField = if (skipField)
-          wrapMissing(s"$t_missing_bytes", tidx)(skip(f, input_buf_ptr))
+          wrapMissing(s"$t_missing_bytes", tidx)(skip(f, input_buf_ptr, fb))
         else
           s"""
              |${ wrapMissing(s"$t_missing_bytes", tidx)(ssb.addField(rtidx, foff => decode(f, rt.types(rtidx), input_buf_ptr, region, Expression(foff), fb))) }
@@ -175,10 +175,10 @@ object PackDecoder {
     tub.include("<cstdio>")
     tub.include("<memory>")
 
-    val decoderBuilder = tub.buildClass(genSym("Decoder"), "NativeObj")
+    val decoderBuilder = tub.buildClass(tub.genSym("Decoder"), "NativeObj")
 
     val bufType = bufSpec.nativeInputBufferType
-    val buf = Variable("buf", s"std::shared_ptr<$bufType>")
+    val buf = decoderBuilder.variable("buf", s"std::shared_ptr<$bufType>")
     decoderBuilder += buf
 
     decoderBuilder += s"${ decoderBuilder.name }(std::shared_ptr<InputStream> is) : $buf(std::make_shared<$bufType>(is)) { }"
@@ -189,7 +189,7 @@ object PackDecoder {
       case _: PArray | _: PBinary => 8
       case _ => rt.byteSize
     }
-    val row = Variable("row", "char *", s"$region->allocate(${ rt.alignment }, $initialSize)")
+    val row = rowFB.variable("row", "char *", s"$region->allocate(${ rt.alignment }, $initialSize)")
     rowFB += row.define
     rowFB += decode(t.fundamentalType, rt.fundamentalType, buf.ref, region.ref, row.ref, rowFB)
     rowFB += (rt match {

@@ -18,10 +18,10 @@ import scala.reflect.ClassTag
 object RVDEmitTriplet {
   type ProcessRowF = Variable => Code
 
-  def empty[T: ClassTag](typ: RVDType): RVDEmitTriplet = {
+  def empty[T: ClassTag](tub: TranslationUnitBuilder, typ: RVDType): RVDEmitTriplet = {
     new RVDEmitTriplet(
-      BaseRVD(RVDPartitioner.empty(typ), HailContext.get.sc.emptyRDD[Long]), typ,
-      "", Variable("??", "??"), Variable("??", "??"))
+      BaseRVD(tub, RVDPartitioner.empty(typ), HailContext.get.sc.emptyRDD[Long]), typ,
+      "", tub.variable("??", "??"), tub.variable("??", "??"))
   }
 
   def read(
@@ -42,13 +42,14 @@ object RVDEmitTriplet {
     val partsRDD = hc.readPartitions(path, partFiles, (_, is, m) => Iterator.single(new ObjectArray(is).get()))
 
     val rvdBase = BaseRVD(
+      tub,
       Option(partitioner).getOrElse(RVDPartitioner.unkeyed(partsRDD.getNumPartitions)),
       partsRDD)
     val is = Variable.make_shared("is", "InputStream", rvdBase.up.toString, s"reinterpret_cast<ObjectArray *>(${ rvdBase.rddInput })->at(0)")
     val reader = Variable.make_shared("reader", s"Reader<${ decoder.name }>", s"${decoder.name}($is)", rvdBase.region.toString, rvdBase.st.toString)
-    val iterator = Variable("it", s"Reader<${ decoder.name }> *", s"$reader.get()")
-    val begin = Variable("it", s"Reader<${ decoder.name }>::Iterator", s"$iterator->begin()")
-    val end = Variable("it", s"Reader<${ decoder.name }>::Iterator", s"$iterator->end()")
+    val iterator = tub.variable("it", s"Reader<${ decoder.name }> *", s"$reader.get()")
+    val begin = tub.variable("it", s"Reader<${ decoder.name }>::Iterator", s"$iterator->begin()")
+    val end = tub.variable("it", s"Reader<${ decoder.name }>::Iterator", s"$iterator->end()")
     val setup =
       s"""
          |${ is.define }
@@ -65,9 +66,9 @@ object RVDEmitTriplet {
     val encClass = codecSpec.buildNativeEncoderClass(t.typ.rowType, tub)
     tub.include("hail/Encoder.h")
 
-    val os = Variable("os", "long")
-    val enc = Variable("encoder", encClass.name, s"std::make_shared<OutputStream>(${ t.rvd.up }, reinterpret_cast<ObjectArray *>($os)->at(0))")
-    val nRows = Variable("n_rows", "long", "0")
+    val os = tub.variable("os", "long")
+    val enc = tub.variable("encoder", encClass.name, s"std::make_shared<OutputStream>(${ t.rvd.up }, reinterpret_cast<ObjectArray *>($os)->at(0))")
+    val nRows = tub.variable("n_rows", "long", "0")
     val it = t.iterator
     val end = t.end
 
@@ -119,12 +120,12 @@ object RVDEmitTriplet {
   }
 }
 
-case class BaseRVD(partitioner: RVDPartitioner, rddBase: RDD[Long]) {
-  val st: Variable = Variable("st", "NativeStatus*")
-  val up: Variable = Variable("up", "UpcallEnv")
-  val regionLong: Variable = Variable("region", "long")
-  val region: Variable = Variable("region", "ScalaRegion*")
-  val rddInput: Variable = Variable("input_objects", "long")
+case class BaseRVD(tub: TranslationUnitBuilder, partitioner: RVDPartitioner, rddBase: RDD[Long]) {
+  val st: Variable = tub.variable("st", "NativeStatus*")
+  val up: Variable = tub.variable("up", "UpcallEnv")
+  val regionLong: Variable = tub.variable("region", "long")
+  val region: Variable = tub.variable("region", "ScalaRegion*")
+  val rddInput: Variable = tub.variable("input_objects", "long")
 
   def setup(t: TranslationUnitBuilder): Code = {
     t.include("hail/Region.h")
