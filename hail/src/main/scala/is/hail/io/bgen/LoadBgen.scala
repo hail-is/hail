@@ -9,7 +9,7 @@ import is.hail.expr.types.virtual._
 import is.hail.io._
 import is.hail.io.index.IndexReader
 import is.hail.io.vcf.LoadVCF
-import is.hail.rvd.{RVD, RVDPartitioner}
+import is.hail.rvd.{RVD, RVDPartitioner, RVDType}
 import is.hail.sparkextras.RepartitionedOrderedRDD2
 import is.hail.table.Table
 import is.hail.utils._
@@ -399,9 +399,7 @@ case class MatrixBGENReader(
 
   val fullType: MatrixType = MatrixBGENReader.getMatrixType(referenceGenome)
 
-  def rvRowPType(requestedType: MatrixType): PStruct = requestedType.rvRowType.physicalType
-
-  def physicalKey(requestedType: MatrixType): IndexedSeq[String] = requestedType.rowKey
+  val fullRVDType: RVDType = RVDType(fullType.rvRowType.physicalType, fullType.rowKey)
 
   val (indexKeyType, indexAnnotationType) = LoadBgen.getIndexTypes(fileMetadata)
 

@@ -89,6 +89,8 @@ abstract class RelationalSpec {
       Serialization.write(this, out)(RelationalSpec.formats)
     }
   }
+
+  def rvdType(path: String): RVDType
 }
 
 case class RVDComponentSpec(rel_path: String) extends ComponentSpec {
@@ -124,10 +126,10 @@ abstract class AbstractMatrixTableSpec extends RelationalSpec {
 
   def entriesComponent: RVDComponentSpec = getComponent[RVDComponentSpec]("entries")
 
-  def physicalTypeInfo(path: String): (PStruct, IndexedSeq[String]) = {
+  def rvdType(path: String): RVDType = {
     val rows = AbstractRVDSpec.read(HailContext.get, path + "/" + rowsComponent.rel_path)
     val entries = AbstractRVDSpec.read(HailContext.get, path + "/" + entriesComponent.rel_path)
-    rows.encodedType.appendKey(MatrixType.entriesIdentifier, entries.encodedType) -> rows.key
+    RVDType(rows.encodedType.appendKey(MatrixType.entriesIdentifier, entries.encodedType), rows.key)
   }
 }
 

@@ -13,6 +13,7 @@ import is.hail.io._
 import is.hail.io.vcf.LoadVCF.{getHeaderLines, parseHeader, parseLines}
 import is.hail.io.tabix._
 import is.hail.rvd.{RVD, RVDContext, RVDPartitioner}
+import is.hail.io.{VCFAttributes, VCFMetadata}
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.variant._
@@ -1068,9 +1069,7 @@ case class MatrixVCFReader(
   } else
     null
 
-  def rvRowPType(requestedType: MatrixType): PStruct = requestedType.rvRowType.physicalType
-
-  def physicalKey(requestedType: MatrixType): IndexedSeq[String] = requestedType.rowKey
+  val fullRVDType: RVDType = RVDType(fullType.rvRowType.physicalType, fullType.rowKey)
 
   private lazy val lines = {
     hc.maybeGZipAsBGZip(gzAsBGZ) {
