@@ -208,8 +208,8 @@ object ExportVCF {
   def apply(mv: MatrixValue, path: String, append: Option[String],
     exportType: Int, metadata: Option[VCFMetadata]) {
 
-    mv.requireColKeyString()
-    mv.requireRowKeyVariant()
+    mv.typ.requireColKeyString()
+    mv.typ.requireRowKeyVariant()
 
     val typ = mv.typ
 

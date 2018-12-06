@@ -369,20 +369,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     rvd: RVD) =
     this(hc, MatrixLiteral(MatrixValue(matrixType, globals, colValues, rvd)))
 
-  def requireColKeyString(method: String) {
-    colKeyTypes match {
-      case Array(_: TString) =>
-      case t =>
-        fatal(s"in $method: column key must be type 'str', found: ${t.mkString("[",",","]")}")
-    }
-  }
-
-  def referenceGenome: ReferenceGenome = {
-    val firstKeyField = rowKeyTypes(0)
-    firstKeyField match {
-      case TLocus(rg: ReferenceGenome, _) => rg
-    }
-  }
+  def referenceGenome: ReferenceGenome = matrixType.referenceGenome
 
   val matrixType: MatrixType = ast.typ
 
@@ -700,7 +687,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   }
 
   def makeTable(separator: String = "."): Table = {
-    requireColKeyString("make_table")
+    matrixType.requireColKeyString()
     requireUniqueSamples("make_table")
 
     val sampleIds = stringSampleIds
@@ -873,7 +860,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   }
 
   def renameDuplicates(id: String): MatrixTable = {
-    requireColKeyString("rename duplicates")
+    matrixType.requireColKeyString()
     val (newIds, duplicates) = mangle(stringSampleIds.toArray)
     if (duplicates.nonEmpty)
       info(s"Renamed ${ duplicates.length } duplicate ${ plural(duplicates.length, "sample ID") }. " +

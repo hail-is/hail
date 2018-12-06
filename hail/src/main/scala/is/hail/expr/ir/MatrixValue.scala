@@ -42,25 +42,7 @@ case class MatrixValue(
       colValues.value.map(querier(_).asInstanceOf[String])
     }
 
-    def requireRowKeyVariant() {
-      val rowKeyTypes = typ.rowKeyStruct.types
-      typ.rowKey.zip(rowKeyTypes) match {
-        case IndexedSeq(("locus", TLocus(_, _)), ("alleles", TArray(TString(_), _))) =>
-      }
-    }
-
-    def requireColKeyString() {
-      typ.colKeyStruct.types match {
-        case Array(_: TString) =>
-      }
-    }
-
-    def referenceGenome: ReferenceGenome = {
-      val firstKeyField = typ.rowKeyStruct.types(0)
-      firstKeyField match {
-        case TLocus(rg: ReferenceGenome, _) => rg
-      }
-    }
+    def referenceGenome: ReferenceGenome = typ.referenceGenome
 
     def colsTableValue: TableValue = TableValue(typ.colsTableType, globals, colsRVD())
 
