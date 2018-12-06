@@ -1,3 +1,4 @@
+import json
 import hail as hl
 from ..helpers import *
 from hail.utils import new_temp_file, FatalError, run_command, uri_path
@@ -37,7 +38,7 @@ class VCFTests(unittest.TestCase):
         t = new_temp_file('vcf')
         mt = hl.import_vcf(resource('sample.vcf'))
         hl.export_vcf(mt.filter_cols((mt.s != "C1048::HG02024") & (mt.s != "HG00255")), t)
-        
+
         with self.assertRaisesRegex(FatalError, 'invalid sample IDs'):
             (hl.import_vcf([resource('sample.vcf'), t])
              ._force_count_rows())
@@ -185,7 +186,7 @@ class PLINKTests(unittest.TestCase):
                 if len(line.strip()) != 0:
                     i += 1
         self.assertEqual(nfam, i)
-        
+
     def test_export_import_plink_same(self):
         mt = get_dataset()
         mt = mt.select_rows(rsid=hl.delimit([mt.locus.contig, hl.str(mt.locus.position), mt.alleles[0], mt.alleles[1]], ':'),
@@ -391,6 +392,7 @@ class PLINKTests(unittest.TestCase):
         with self.assertRaisesRegex(FatalError, "no white space allowed:"):
             hl.export_plink(ds, new_temp_file(), varid="hello world")
 
+<<<<<<< HEAD
     def test_contig_recoding_defaults(self):
         hl.import_plink(resource('sex_mt_contigs.bed'),
                         resource('sex_mt_contigs.bim'),
@@ -409,6 +411,43 @@ class PLINKTests(unittest.TestCase):
                         resource('sex_mt_contigs.bim'),
                         resource('sex_mt_contigs.fam'),
                         reference_genome='random')
+
+    def test_import_vcfs(self):
+        path = resource('sample.vcf.bgz')
+        parts = [
+                    {'start': {'locus': {'contig': '20', 'position': 1}},
+                     'end': {'locus': {'contig': '20', 'position': 13509135}},
+                     'includeStart': True,
+                     'includeEnd': True},
+                    {'start': {'locus': {'contig': '20', 'position': 13509136}},
+                     'end': {'locus': {'contig': '20', 'position': 16493533}},
+                     'includeStart': True,
+                     'includeEnd': True},
+                    {'start': {'locus': {'contig': '20', 'position': 16493534}},
+                     'end': {'locus': {'contig': '20', 'position': 20000000}},
+                     'includeStart': True,
+                     'includeEnd': True},
+                ]
+        parts_str = json.dumps(parts)
+        vcf1 = hl.import_vcf(path).key_rows_by('locus')  # import_vcfs keys by 'locus'
+        vcf2 = hl.import_vcfs([path], parts_str)[0]
+        self.assertEqual(len(parts), vcf2.n_partitions())
+        self.assertTrue(vcf1._same(vcf2))
+
+        interval = [hl.parse_locus_interval('[20:13509136-16493533]')]
+        filter1 = hl.filter_intervals(vcf1, interval)
+        filter2 = hl.filter_intervals(vcf2, interval)
+        self.assertEqual(1, filter2.n_partitions())
+        self.assertTrue(filter1._same(filter2))
+
+        # we've selected exactly the middle partition ±1 position on either end
+        interval_a = [hl.parse_locus_interval('[20:13509135-16493533]')]
+        interval_b = [hl.parse_locus_interval('[20:13509136-16493534]')]
+        interval_c = [hl.parse_locus_interval('[20:13509135-16493534]')]
+        self.assertEqual(hl.filter_intervals(vcf2, interval_a).n_partitions(), 2)
+        self.assertEqual(hl.filter_intervals(vcf2, interval_b).n_partitions(), 2)
+        self.assertEqual(hl.filter_intervals(vcf2, interval_c).n_partitions(), 3)
+
 
 # this routine was used to generate resources random.gen, random.sample
 # random.bgen was generated with qctool v2.0rc9:
@@ -1013,7 +1052,7 @@ class LocusIntervalTests(unittest.TestCase):
 
         t = hl.import_bed(bed_file, reference_genome=None, skip_invalid_intervals=True)
         self.assertTrue(t.count() == 4)
-        
+
 
 class ImportMatrixTableTests(unittest.TestCase):
     def test_import_matrix_table(self):
