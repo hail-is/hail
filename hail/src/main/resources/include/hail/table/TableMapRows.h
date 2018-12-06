@@ -1,40 +1,27 @@
 #ifndef HAIL_TABLEMAPROWS_H
 #define HAIL_TABLEMAPROWS_H 1
 
-#include "hail/table/TableEmit.h"
-#include "hail/NativeStatus.h"
-#include "hail/Utils.h"
+#include "hail/table/PartitionContext.h"
 
 namespace hail {
 
-template<typename Prev, typename Mapper>
+template<typename Next, typename Mapper>
 class TableMapRows {
-  friend class TablePartitionRange<TableMapRows>;
   private:
-    typename Prev::Iterator it_;
-    typename Prev::Iterator end_;
-    PartitionContext * ctx_;
+    Next next_;
     Mapper mapper_{};
-    char const * value_ = nullptr;
-    bool advance() {
-      ++it_;
-      if (LIKELY(it_ != end_)) {
-        value_ = mapper_(ctx_->st_, ctx_->region_.get(), ctx_->globals_, *it_);
-      } else {
-        value_ = nullptr;
-      }
-      return (value_ != nullptr);
-    }
 
   public:
-    TableMapRows(PartitionContext * ctx, Prev & prev) :
-    it_(prev.begin()),
-    end_(prev.end()),
-    ctx_(ctx) {
-      if (LIKELY(it_ != end_)) {
-        value_ = mapper_(ctx_->st_, ctx_->region_.get(), ctx_->globals_, *it_);
-      }
+    using Endpoint = typename Next::Endpoint;
+    Endpoint * end() { return next_.end(); }
+    PartitionContext * ctx() { return next_.ctx(); }
+
+    void operator()(const char * value) {
+      next_(mapper_(ctx()->st_, ctx()->region_.get(), ctx()->globals_, value));
     }
+
+    template<typename ... Args>
+    explicit TableMapRows(Args ... args) : next_(args...) { }
 };
 
 }

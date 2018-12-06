@@ -19,18 +19,20 @@ object Variable {
     Variable(prefix, s"std::shared_ptr<$typ>", s"std::make_shared<$typ>(${ constructorArgs.mkString(", ") })")
 }
 
-class Variable(val name: String, val typ: String, init: Expression) extends Definition {
+class Variable(val name: String, val typ: String, val init: Expression) extends Definition {
   override def toString: String = name
 
   def ref: Expression = Expression(name)
 
   def define: Code =
-      if (init == null)
-        s"$typ $name;"
-      else s"$typ $name = $init;"
+      if (init == null) s"$typ $name;"
+      else defineWith(init.toString)
 
-  def defineWith(value: Code): Code =
-    s"$typ $name = $value;"
+  def defineWith(value: Code): Code = {
+    if (value.matches("\\{.*\\}")) s"$typ $name $value;"
+    else s"$typ $name = $value;"
+  }
+
 }
 
 object ArrayVariable {

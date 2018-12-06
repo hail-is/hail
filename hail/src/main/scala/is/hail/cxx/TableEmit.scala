@@ -39,48 +39,61 @@ object PartitionEmitTriplet {
   ): PartitionEmitTriplet = {
     val tub = ctx.tub
     tub.include("hail/Decoder.h")
-    tub.include("hail/table/TableEmit.h")
     tub.include("hail/table/TableRead.h")
     tub.include("hail/ObjectArray.h")
 
     val decoder = codecSpec.buildNativeDecoderClass(t, requestedType, tub)
-    val is = Variable.make_shared("is", "InputStream", ctx.up.toString, s"reinterpret_cast<ObjectArray *>(${ ctx.rddInput })->at(0)")
-    val range = tub.variable("read_range", s"TablePartitionRange<TableNativeRead<${decoder.name}>>", s"{${decoder.name}($is), &${ctx.cxxCtx}}")
+    val is = tub.variable("is", "std::shared_ptr<InputStream>", s"std::make_shared<InputStream>(${ ctx.up }, reinterpret_cast<ObjectArray *>(${ ctx.rddInput })->at(0))")
 
-    val setup =
-      s"""
-         |${ is.define }
-         |${ range.define }""".stripMargin
+    val setup = is.define
+    val producerBuilder = ProducerBuilder(
+      t => s"TableNativeRead<$t, ${ decoder.typ }>",
+      tub.genSym("reader"),
+      Array(s"${ decoder.name }($is)"))
 
-    PartitionEmitTriplet(ctx, setup, range, requestedType)
+    PartitionEmitTriplet(ctx, setup, producerBuilder, requestedType)
   }
 }
 
-case class PartitionEmitTriplet(ctx: PartitionContext, setup: Code, range: Variable, rowType: PStruct) {
+case class ProducerBuilder(typ: Type => Type, name: String, constructorArgs: Array[Code]) {
+  def addArgs(args: Code*): ProducerBuilder = ProducerBuilder(typ, name, (constructorArgs.toFastIndexedSeq ++ args).toArray)
+
+  def transformType(f: Type => Type): ProducerBuilder = ProducerBuilder({ t: Type => typ(f(t)) }, name, constructorArgs)
+
+  def toVariable(t: Type): Variable = Variable(name, typ(t), s"{ ${ constructorArgs.mkString(", ") } }")
+}
+
+case class PartitionEmitTriplet(ctx: PartitionContext, setup: Code, producer: ProducerBuilder, rowType: PStruct) {
   def write(codecSpec: CodecSpec): Unit = {
     val tub = ctx.tub
     tub.include("hail/Encoder.h")
+    tub.include("hail/table/TableWrite.h")
     val encClass = codecSpec.buildNativeEncoderClass(rowType, tub)
 
-    val os = Variable("os", "long")
-    val enc = Variable("encoder", encClass.name, s"std::make_shared<OutputStream>(${ ctx.up }, reinterpret_cast<ObjectArray *>($os)->at(0))")
-    val nRows = Variable("n_rows", "long", "0")
-    val it = Variable("write_it", s"char *")
+    val os = tub.variable("os", "long")
+    val nRows = tub.variable("n_rows", "long", "0")
 
     val part = new FunctionBuilder(tub, "process_partition", Array(ctx.st, ctx.globalsInput, ctx.rddInput, os), "long")
+    val prod = producer
+      .addArgs(s"&${ ctx.cxxCtx }",
+        s"std::make_shared<OutputStream>(${ ctx.up }, reinterpret_cast<ObjectArray *>($os)->at(0))")
+      .toVariable(s"TableNativeWrite<${ encClass.name }>")
+
+    val enc = tub.variable("enc", "auto", s"$prod.end()")
+
     part +=
       s"""
-         |${ctx.setup}
+         |${ ctx.setup }
          |$setup
-         |${ enc.define }
-         |${nRows.define}
-         |for (auto $it : $range) {
-         |  $enc.encode_byte(1);
-         |  $enc.encode_row($it);
+         |${ prod.define }
+         |${ nRows.define }
+         |while ($prod.advance()) {
+         |  $prod.consume();
          |  ++$nRows;
          |}
-         |$enc.encode_byte(0);
-         |$enc.flush();
+         |${ enc.define }
+         |$enc->encode_byte(0);
+         |$enc->flush();
          |return $nRows;
        """.stripMargin
     part.end()
@@ -91,7 +104,7 @@ case class PartitionEmitTriplet(ctx: PartitionContext, setup: Code, range: Varia
 object TableEmitTriplet {
   def empty(ctx: PartitionContext, typ: RVDType): TableEmitTriplet =
     TableEmitTriplet(
-      PartitionEmitTriplet(ctx, "", null, typ.rowType),
+      PartitionEmitTriplet(ctx, null, null, typ.rowType),
       HailContext.get.sc.emptyRDD[Long],
       RVDPartitioner.empty(typ))
 
@@ -234,9 +247,33 @@ class TableEmitter(tub: TranslationUnitBuilder) {
           t
         }
 
+      case ir.TableFilter(child, cond) =>
+        val prev = emit(child)
+        tub.include("hail/table/TableFilterRows.h")
+        val filter = tub.buildClass(tub.genSym("Filter"))
+
+        val filterF = filter.buildMethod("operator()",
+          Array("NativeStatus*" -> "st",
+            "Region*" -> "region",
+            "const char *" -> "globals",
+            "const char *" -> "row"),
+          "bool")
+        val substEnv = ir.Env.empty[ir.IR]
+          .bind("globals", ir.In(1, child.typ.globalType))
+          .bind("row", ir.In(2, child.typ.rowType))
+        val et = Emit(filterF, 1, ir.Subst(cond, substEnv))
+        filterF +=
+          s"""
+             |${ et.setup }
+             |return !(${ et.m }) && (${ et.v });
+           """.stripMargin
+        filterF.end()
+        filter.end()
+        val newPet = prev.t.copy(producer = prev.t.producer.transformType(t => s"TableFilterRows<$t, ${ filter.name }>"))
+        prev.copy(t = newPet)
+
       case ir.TableMapRows(child, newRow) =>
         val prev = emit(child)
-        val ctx = prev.t.ctx
         tub.include("hail/table/TableMapRows.h")
         val mapper = tub.buildClass(tub.genSym("Mapper"))
 
@@ -261,57 +298,12 @@ class TableEmitter(tub: TranslationUnitBuilder) {
         mapF.end()
         mapper.end()
 
-        val range = tub.variable("map_range",
-          s"TablePartitionRange<TableMapRows<${ prev.t.range.typ }, ${ mapper.name }>>",
-          s"{&${ ctx.cxxCtx }, ${ prev.t.range }}")
-
-        val setup =
-          s"""
-             |${ prev.t.setup }
-             |${ range.define }""".stripMargin
-
-        val newPet = PartitionEmitTriplet(ctx, setup, range, newRow.typ.physicalType.asInstanceOf[PStruct])
+        val newPet = prev.t.copy(
+          producer = prev.t.producer.transformType(t => s"TableMapRows<$t, ${ mapper.name }>"),
+          rowType = newRow.typ.physicalType.asInstanceOf[PStruct])
         prev.copy(t = newPet)
-
-      case ir.TableFilter(child, cond) =>
-        val prev = emit(child)
-        val prevPartition: PartitionEmitTriplet = prev.t
-        val ctx = prevPartition.ctx
-        tub.include("hail/table/TableFilterRows.h")
-        val filter = tub.buildClass(tub.genSym("Filter"))
-
-        val filterF = filter.buildMethod("operator()",
-          Array("NativeStatus*" -> "st",
-            "Region*" -> "region",
-            "const char *" -> "globals",
-            "const char *" -> "row"),
-          "bool")
-        val substEnv = ir.Env.empty[ir.IR]
-          .bind("globals", ir.In(0, child.typ.globalType))
-          .bind("row", ir.In(1, child.typ.rowType))
-        val et = Emit(filterF, 1, ir.Subst(cond, substEnv))
-        filterF +=
-          s"""
-             |${ et.setup }
-             |return !(${ et.m }) && (${ et.v });
-           """.stripMargin
-        filterF.end()
-        filter.end()
-
-        val range = tub.variable("filter_range",
-          s"TablePartitionRange<TableFilterRows<${ prevPartition.range.typ }, ${ filter.name }>>",
-          s"{&${ ctx.cxxCtx }, ${ prevPartition.range }}")
-
-        val setup =
-          s"""
-             |${ prevPartition.setup }
-             |${ range.define }
-       """.stripMargin
-
-        prev.copy(t = prevPartition.copy(setup = setup, range = range))
       case x@ir.TableExplode(child, fname) =>
         val prev = emit(child)
-        val ctx = prev.t.ctx
         tub.include("hail/table/TableExplodeRows.h")
         val exploder = tub.buildClass(tub.genSym("Exploder"))
 
@@ -350,16 +342,9 @@ class TableEmitter(tub: TranslationUnitBuilder) {
         explodeF.end()
         exploder.end()
 
-        val range = tub.variable("map_range",
-          s"TablePartitionRange<TableExplodeRows<${ prev.t.range.typ }, ${ exploder.name }>>",
-          s"{&${ ctx.cxxCtx }, ${ prev.t.range }}")
-
-        val setup =
-          s"""
-             |${ prev.t.setup }
-             |${ range.define }""".stripMargin
-
-        val newPet = PartitionEmitTriplet(ctx, setup, range, x.typ.rowType.physicalType.asInstanceOf[PStruct])
+        val newPet = prev.t.copy(
+          producer = prev.t.producer.transformType(t => s"TableExplodeRows<$t, ${ exploder.name }>"),
+          rowType =  x.typ.rowType.physicalType.asInstanceOf[PStruct])
         prev.copy(t = newPet)
 
       case _ =>

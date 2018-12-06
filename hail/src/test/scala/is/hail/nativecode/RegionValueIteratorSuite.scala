@@ -103,7 +103,28 @@ class RegionValueIteratorSuite extends SparkSuite {
     tub.include("hail/PartitionIterators.h")
     tub.include("hail/ObjectArray.h")
     val makeItF = tub.buildFunction("make_iterator", Array("NativeStatus *"->"st", "long" -> "reg", "long" -> "obj"), "NativeObjPtr")
-    val itType = s"Reader<${ decClass.name }>"
+
+    val cb = tub.buildClass("CXXIterator", "NativeObj")
+    val dec = tub.variable("dec", decClass.name)
+    val reg = tub.variable("reg", "ScalaRegion *")
+    val value = tub.variable("value", "char const *", "nullptr")
+    cb += dec
+    cb += reg
+    cb += value
+    cb +=
+      s"""${cb.name}(jobject is, ScalaRegion * reg, NativeStatus * st) :
+         |$dec(std::make_shared<InputStream>(UpcallEnv(), is)), $reg(reg) {
+         |  $value = ($dec.decode_byte()) ? $dec.decode_row($reg->get_wrapped_region()) : nullptr;
+         |}
+         """.stripMargin
+
+    cb += new Function(s"${ cb.name }&",
+      "operator++", Array(),
+      s"$value = ($dec.decode_byte()) ? $dec.decode_row($reg->get_wrapped_region()) : nullptr; return *this;")
+    cb += new Function("char const*", "operator*", Array(), s"return $value;")
+    cb.end()
+
+    val itType = cb.name
     val is = s"std::make_shared<InputStream>(UpcallEnv(), reinterpret_cast<ObjectArray *>(${ makeItF.getArg(2) })->at(0))"
     makeItF += s"return std::make_shared<ScalaStagingIterator<$itType>>(${ decClass.name }($is), reinterpret_cast<ScalaRegion *>(${ makeItF.getArg(1) }));"
     makeItF.end()
