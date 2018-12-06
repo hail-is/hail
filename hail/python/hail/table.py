@@ -49,17 +49,27 @@ def desc(col):
     return Descending(col)
 
 class ExprContainer(object):
+
+    # this can only grow as big as the object dir, so no need to worry about memory leak
+    _warned_about = set()
+
     def __init__(self):
         self._fields: Dict[str, Expression] = {}
         self._fields_inverse: Dict[Expression, str] = {}
         super(ExprContainer, self).__init__()
 
     def _set_field(self, key, value):
+        assert key not in self._fields_inverse, key
         self._fields[key] = value
         self._fields_inverse[value] = key
-        if key in dir(self):
-            warn(f"Name collision: field {repr(key)} already in object dict. "
-                 "This field must be referenced with indexing syntax")
+
+        # key is in __dir for methods
+        # key is in __dict__ for private class fields
+        if hasattr(self, key):
+            if key not in ExprContainer._warned_about:
+                ExprContainer._warned_about.add(key)
+                warn(f"Name collision: field {repr(key)} already in object dict. "
+                     f"\n  This field must be referenced with __getitem__ syntax: obj[{repr(key)}]")
         else:
             self.__dict__[key] = value
 

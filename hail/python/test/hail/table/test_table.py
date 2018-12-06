@@ -815,6 +815,12 @@ class Tests(unittest.TestCase):
         ht = ht.group_by(x=ht.idx % 5).aggregate(aggr = hl.agg.count())
         assert(ht.count() == 5)
 
+    def test_field_method_assignment(self):
+        ht = hl.utils.range_table(10)
+        ht = ht.annotate(sample=1)
+        ht = ht.annotate(_row=2)
+        assert ht['sample'].dtype == hl.tint32
+        assert ht['_row'].dtype == hl.tint32
 
 def assert_time(f, max_duration):
     start = timer()
