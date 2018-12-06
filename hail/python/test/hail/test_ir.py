@@ -141,7 +141,9 @@ class TableIRTests(unittest.TestCase):
                 ir.TableRange(100, 10), 'inner', 1),
             ir.MatrixEntriesTable(matrix_read),
             ir.MatrixRowsTable(matrix_read),
-            ir.TableParallelize(ir.Literal(hl.tarray(hl.tstruct(a=hl.tint32)), [{'a':None}, {'a':5}, {'a':-3}]), None),
+            ir.TableParallelize(ir.MakeStruct([
+                ('rows', ir.Literal(hl.tarray(hl.tstruct(a=hl.tint32)), [{'a':None}, {'a':5}, {'a':-3}])),
+                ('global', ir.MakeStruct())]), None),
             ir.TableMapRows(
                 ir.TableKeyBy(table_read, []),
                 ir.MakeStruct([

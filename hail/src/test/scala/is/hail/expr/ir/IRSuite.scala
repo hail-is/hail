@@ -860,10 +860,12 @@ class IRSuite extends SparkSuite {
         TableRepartition(read, 10, false),
         TableHead(read, 10),
         TableParallelize(
-          MakeArray(FastSeq(
+          MakeStruct(FastSeq(
+            "rows" -> MakeArray(FastSeq(
             MakeStruct(FastSeq("a" -> NA(TInt32()))),
             MakeStruct(FastSeq("a" -> I32(1)))
-          ), TArray(TStruct("a" -> TInt32()))), None),
+          ), TArray(TStruct("a" -> TInt32()))),
+            "global" -> MakeStruct(FastSeq()))), None),
         TableMapRows(TableKeyBy(read, FastIndexedSeq()),
           MakeStruct(FastIndexedSeq(
             "a" -> GetField(Ref("row", read.typ.rowType), "f32"),
