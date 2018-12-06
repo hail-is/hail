@@ -1242,11 +1242,13 @@ case class VCFsReader(
       val partitions = {
         val r = new TabixReader(file)
         localRangeBounds.zipWithIndex.map { case (b, i) =>
-          assert(b.includesStart, b.includesEnd)
+          if (!(b.includesStart && b.includesEnd))
+            fatal("range bounds must be inclusive")
 
           val start = b.start.asInstanceOf[Row].getAs[Locus](0)
           val end = b.end.asInstanceOf[Row].getAs[Locus](0)
-          assert(start.contig == end.contig)
+          if (start.contig != end.contig)
+            fatal(s"partion spec must not cross contig boundaries, start: ${ start.contig } | end: ${ end.contig }")
 
           val contig = start.contig
           val startPos = start.position
