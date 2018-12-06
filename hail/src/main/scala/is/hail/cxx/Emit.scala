@@ -43,119 +43,108 @@ class Orderings {
         val rElemP = rContainerP.elementType
 
         val elemOrd = ordering(tub, lContainerP.elementType, rContainerP.elementType)
-        val eElemOrd = s"ExtOrd<$elemOrd>"
 
         s"ArrayOrd<${ lContainerP.cxxImpl },${ rContainerP.cxxImpl },ExtOrd<$elemOrd>>"
 
       case t: TBaseStruct =>
-        val ord = tub.genSym("Ord")
-
         val lBaseStructP = lp.asInstanceOf[PBaseStruct]
         val rBaseStructP = rp.asInstanceOf[PBaseStruct]
 
-        def comparisonTemplate(
+        def buildComparisonMethod(
+          cb: ClassBuilder,
           op: String,
           rType: String,
           fieldTest: (TranslationUnitBuilder, String, Code, Code, Code, Code) => Code,
-          finalValue: Code): Code = {
-          s"""
-             |static $rType $op(const char *l, const char *r) {
-             |  ${
-            t.fields.zipWithIndex.map { case (f, i) =>
-              val fOrd = ordering(tub, lBaseStructP.fields(i).typ, rBaseStructP.fields(i).typ)
+          finalValue: Code) {
 
-              val lm = tub.variable("lm", "bool", lBaseStructP.cxxIsFieldMissing("l", i))
-              val lv = tub.variable("lv", typeToCXXType(lBaseStructP.fields(i).typ))
+          val mb = cb.buildMethod(op, Array("const char *" -> "l", "const char *" -> "r"), rType)
+          val l = mb.getArg(0)
+          val r = mb.getArg(1)
 
-              val rm = tub.variable("rm", "bool", rBaseStructP.cxxIsFieldMissing("r", i))
-              val rv = tub.variable("lv", typeToCXXType(rBaseStructP.fields(i).typ))
+          t.fields.zipWithIndex.foreach { case (f, i) =>
+            val fOrd = ordering(tub, lBaseStructP.fields(i).typ, rBaseStructP.fields(i).typ)
 
-              s"""
-                 |${lm.define}
-                 |${lv.define}
+            val lm = tub.variable("lm", "bool", lBaseStructP.cxxIsFieldMissing(l.toString, i))
+            val lv = tub.variable("lv", typeToCXXType(lBaseStructP.fields(i).typ))
+
+            val rm = tub.variable("rm", "bool", rBaseStructP.cxxIsFieldMissing(r.toString, i))
+            val rv = tub.variable("lv", typeToCXXType(rBaseStructP.fields(i).typ))
+
+            mb +=
+              """
+                 |${ lm.define }
+                 |${ lv.define }
                  |if (!$lm)
-                 |  $lv = ${lBaseStructP.cxxLoadField("l", i)};
-                 |${rm.define}
-                 |${rv.define}
+                 |  $lv = ${ lBaseStructP.cxxLoadField("l", i) };
+                 |${ rm.define }
+                 |${ rv.define }
                  |if (!$rm)
-                 |  $rv = ${rBaseStructP.cxxLoadField("r", i)};
+                 |  $rv = ${ rBaseStructP.cxxLoadField("r", i) };
                  |${ fieldTest(tub, s"ExtOrd<$fOrd>", lm.toString, lv.toString, rm.toString, rv.toString) }
                """.stripMargin
-            }.mkString
           }
-             |  return $finalValue;
-             |}
-           """.stripMargin
+
+          mb += "return $finalValue;"
+
+          mb.end()
         }
 
-        orderings +=
+        val ord = tub.genSym("Ord")
+        val cb = tub.buildClass(ord)
+        cb += "using T = const char *;"
+
+        buildComparisonMethod(cb, "compare", "int", { (tub, efOrd, lm, lv, rm, rv) =>
+          val c = cb.variable("c", "int")
           s"""
-             |class $ord {
-             |public:
-             |  using T = const char *;
-             |  ${
-            comparisonTemplate("compare", "int",
-              { (tub, efOrd, lm, lv, rm, rv) =>
-                val c = tub.genSym("c")
-                s"""
-                   |int $c = $efOrd::compare($lm, $lv, $rm, $rv);
-                   |if ($c != 0) return $c;
+             |${ c.define }
+             |$c = $efOrd::compare($lm, $lv, $rm, $rv);
+             |if ($c != 0) return $c;
+             """.stripMargin
+        },
+          "0")
+
+        buildComparisonMethod(cb, "lt", "bool", { (tub, efOrd, lm, lv, rm, rv) =>
+          s"""
+             |if ($efOrd::lt($lm, $lv, $rm, $rv)) return true;
+             |if (!$efOrd::eq($lm, $lv, $rm, $rv)) return false;
                """.stripMargin
-              },
-              "0")
-          }
-             |  ${
-            comparisonTemplate("lt", "bool",
-              { (tub, efOrd, lm, lv, rm, rv) =>
-                s"""
-                   |if ($efOrd::lt($lm, $lv, $rm, $rv)) return true;
-                   |if (!$efOrd::eq($lm, $lv, $rm, $rv)) return false;
+        },
+          "false")
+
+        buildComparisonMethod(cb, "lteq", "bool", { (tub, efOrd, lm, lv, rm, rv) =>
+          s"""
+             |if ($efOrd::lt($lm, $lv, $rm, $rv)) return true;
+             |if (!$efOrd::eq($lm, $lv, $rm, $rv)) return false;
                """.stripMargin
-              },
-              "false")
-          }
-             |  ${
-            comparisonTemplate("lteq", "bool",
-              { (tub, efOrd, lm, lv, rm, rv) =>
-                s"""
-                   |if ($efOrd::lt($lm, $lv, $rm, $rv)) return true;
-                   |if (!$efOrd::eq($lm, $lv, $rm, $rv)) return false;
+        },
+          "true")
+
+        buildComparisonMethod(cb, "gt", "bool", { (tub, efOrd, lm, lv, rm, rv) =>
+          s"""
+             |if ($efOrd::gt($lm, $lv, $rm, $rv)) return true;
+             |if (!$efOrd::eq($lm, $lv, $rm, $rv)) return false;
                """.stripMargin
-              },
-              "true")
-          }
-             |  ${
-            comparisonTemplate("gt", "bool",
-              { (tub, efOrd, lm, lv, rm, rv) =>
-                s"""
-                   |if ($efOrd::gt($lm, $lv, $rm, $rv)) return true;
-                   |if (!$efOrd::eq($lm, $lv, $rm, $rv)) return false;
+        },
+          "false")
+
+        buildComparisonMethod(cb, "gteq", "bool", { (tub, efOrd, lm, lv, rm, rv) =>
+          s"""
+             |if ($efOrd::gt($lm, $lv, $rm, $rv)) return true;
+             |if (!$efOrd::eq($lm, $lv, $rm, $rv)) return false;
                """.stripMargin
-              },
-              "false")
-          }
-             |  ${
-            comparisonTemplate("gteq", "bool",
-              { (tub, efOrd, lm, lv, rm, rv) =>
-                s"""
-                   |if ($efOrd::gt($lm, $lv, $rm, $rv)) return true;
-                   |if (!$efOrd::eq($lm, $lv, $rm, $rv)) return false;
+        },
+          "true")
+
+        buildComparisonMethod(cb, "eq", "bool", { (tub, efOrd, lm, lv, rm, rv) =>
+          s"""
+             |if (!$efOrd::eq($lm, $lv, $rm, $rv)) return false;
                """.stripMargin
-              },
-              "true")
-          }
-             |  ${
-            comparisonTemplate("eq", "bool",
-              { (tub, efOrd, lm, lv, rm, rv) =>
-                s"""
-                   |if (!$efOrd::eq($lm, $lv, $rm, $rv)) return false;
-               """.stripMargin
-              },
-              "true")
-          }
-             |  static bool neq(const char *l, const char *r) { return !eq(l, r); }
-             |};
-           """.stripMargin
+        },
+          "true")
+
+        cb += "static bool neq(const char *l, const char *r) { return !eq(l, r); }"
+
+        orderings += cb.end().define
 
         ord
 
@@ -175,7 +164,8 @@ class Orderings {
   }
 }
 
-class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) { outer =>
+class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
+  outer =>
   type E = ir.Env[EmitTriplet]
 
   def emit(x: ir.IR, env: E): EmitTriplet = {
