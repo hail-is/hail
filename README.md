@@ -22,10 +22,11 @@ To update to the latest version: `pip install cloudtools --upgrade`
 
 All functionality in cloudtools is accessed through the `cluster` module.
 
-There are 6 commands within the `cluster` module:
+There are 7 commands within the `cluster` module:
 - `cluster start <name> [args]`
 - `cluster submit <name> [args]`
 - `cluster connect <name> [args]`
+- `cluster modify <name> [args]`
 - `cluster diagnose <name> [args]`
 - `cluster stop <name>`
 - `cluster list`
@@ -264,6 +265,36 @@ optional arguments:
 ```
 
 ```
+$ cluster modify -h
+usage: cluster modify [-h] [--jar JAR] [--zip ZIP] [--num-workers NUM_WORKERS]
+                      [--num-preemptible-workers NUM_PREEMPTIBLE_WORKERS]
+                      [--graceful-decommission-timeout GRACEFUL_DECOMMISSION_TIMEOUT]
+                      [--max-idle MAX_IDLE] [--dry-run] [--zone ZONE]
+                      name
+
+Modify active Dataproc clusters.
+
+positional arguments:
+  name                  Cluster name.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --jar JAR             New Hail JAR.
+  --zip ZIP             New Hail ZIP.
+  --num-workers NUM_WORKERS, --n-workers NUM_WORKERS, -w NUM_WORKERS
+                        New number of worker machines (min. 2).
+  --num-preemptible-workers NUM_PREEMPTIBLE_WORKERS, --n-pre-workers NUM_PREEMPTIBLE_WORKERS, -p NUM_PREEMPTIBLE_WORKERS
+                        New number of preemptible worker machines.
+  --graceful-decommission-timeout GRACEFUL_DECOMMISSION_TIMEOUT, --graceful GRACEFUL_DECOMMISSION_TIMEOUT
+                        If set, cluster size downgrade will use graceful
+                        decommissionnig with the given timeout (e.g. "60m").
+  --max-idle MAX_IDLE   New maximum idle time before shutdown (e.g. "60m").
+  --dry-run             Print gcloud dataproc command, but don't run it.
+  --zone ZONE, -z ZONE  Compute zone for Dataproc cluster (default: us-
+                        central1-b).
+```
+
+```
 $ cluster diagnose -h
 usage: cluster diagnose [-h] --dest DEST [--hail-log HAIL_LOG] [--overwrite]
                         [--no-diagnose] [--compress]
@@ -296,6 +327,16 @@ Shut down a Dataproc cluster.
 
 positional arguments:
   name        Cluster name.
+
+optional arguments:
+  -h, --help  show this help message and exit
+```
+
+```
+cluster list -h
+usage: cluster list [-h]
+
+List active Dataproc clusters.
 
 optional arguments:
   -h, --help  show this help message and exit
