@@ -47,7 +47,7 @@ object LiftOver {
 class LiftOver(val hConf: SerializableHadoopConfiguration, val chainFile: String) extends Serializable {
   val lo = new SerializableHtsjdkLiftOver(hConf, chainFile)
 
-  def queryInterval(interval: is.hail.utils.Interval, minMatch: Double = htsjdk.samtools.liftover.LiftOver.DEFAULT_LIFTOVER_MINMATCH): is.hail.utils.Interval = {
+  def queryInterval(interval: is.hail.utils.Interval, minMatch: Double = htsjdk.samtools.liftover.LiftOver.DEFAULT_LIFTOVER_MINMATCH): (is.hail.utils.Interval, Boolean) = {
     val start = interval.start.asInstanceOf[Locus]
     val end = interval.end.asInstanceOf[Locus]
 
@@ -60,19 +60,20 @@ class LiftOver(val hConf: SerializableHadoopConfiguration, val chainFile: String
 
     val result = lo.value.liftOver(new htsjdk.samtools.util.Interval(contig, startPos, endPos), minMatch)
     if (result != null)
-      Interval(
+      (Interval(
         Locus(result.getContig, result.getStart),
         Locus(result.getContig, result.getEnd),
         includesStart = true,
-        includesEnd = true)
+        includesEnd = true),
+      result.isNegativeStrand)
     else
       null
   }
 
-  def queryLocus(l: Locus, minMatch: Double = htsjdk.samtools.liftover.LiftOver.DEFAULT_LIFTOVER_MINMATCH): Locus = {
+  def queryLocus(l: Locus, minMatch: Double = htsjdk.samtools.liftover.LiftOver.DEFAULT_LIFTOVER_MINMATCH): (Locus, Boolean) = {
     val result = lo.value.liftOver(new htsjdk.samtools.util.Interval(l.contig, l.position, l.position), minMatch)
     if (result != null)
-      Locus(result.getContig, result.getStart)
+      (Locus(result.getContig, result.getStart), result.isNegativeStrand)
     else
       null
   }

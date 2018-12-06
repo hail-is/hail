@@ -4170,8 +4170,9 @@ def min_rep(locus, alleles):
 
 @typecheck(x=oneof(expr_locus(), expr_interval(expr_locus())),
            dest_reference_genome=reference_genome_type,
-           min_match=builtins.float)
-def liftover(x, dest_reference_genome, min_match=0.95):
+           min_match=builtins.float,
+           include_strand=builtins.bool)
+def liftover(x, dest_reference_genome, min_match=0.95, include_strand=False):
     """Lift over coordinates to a different reference genome.
 
     Examples
@@ -4211,8 +4212,13 @@ def liftover(x, dest_reference_genome, min_match=0.95):
         Locus or locus interval to lift over.
     dest_reference_genome : :obj:`str` or :class:`.ReferenceGenome`
         Reference genome to convert to.
-    min_match : :class:`.Expression` of type :py:data:`.tfloat64`
+    min_match : :obj:`float`
         Minimum ratio of bases that must remap.
+    include_strand : :obj:`bool`
+        If True, output the result as a :class:`.StructExpression` with the first field `result` being
+        the locus or locus interval and the second field `is_negative_strand` is a boolean indicating
+        whether the locus or locus interval has been mapped to the negative strand of the destination
+        reference genome. Otherwise, output the converted locus or locus interval.
 
     Returns
     -------
@@ -4226,17 +4232,20 @@ def liftover(x, dest_reference_genome, min_match=0.95):
     if isinstance(x.dtype, tlocus):
         rg = x.dtype.reference_genome
         method_name = "liftoverLocus({})({})".format(rg.name, dest_reference_genome.name)
-        rtype = tlocus(dest_reference_genome)
+        rtype = tstruct(result=tlocus(dest_reference_genome), is_negative_strand=tbool)
     else:
         rg = x.dtype.point_type.reference_genome
         method_name = "liftoverLocusInterval({})({})".format(rg.name, dest_reference_genome.name)
-        rtype = tinterval(tlocus(dest_reference_genome))
+        rtype = tstruct(result=tinterval(tlocus(dest_reference_genome)), is_negative_strand=tbool)
 
     if not rg.has_liftover(dest_reference_genome.name):
         raise TypeError("""Reference genome '{}' does not have liftover to '{}'.
         Use 'add_liftover' to load a liftover chain file.""".format(rg.name, dest_reference_genome.name))
 
-    return _func(method_name, rtype, x, to_expr(min_match, tfloat))
+    expr = _func(method_name, rtype, x, to_expr(min_match, tfloat))
+    if not include_strand:
+        expr = expr.result
+    return expr
 
 
 @typecheck(f=func_spec(1, expr_float64),
