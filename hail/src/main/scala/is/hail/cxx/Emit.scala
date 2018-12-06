@@ -556,16 +556,16 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) { outer =>
                  |""".stripMargin)
 
           case None =>
-            val xs = fb.genSym("xs")
-            val ms = fb.genSym("ms")
-            val i = fb.genSym("i")
+            val xs = fb.variable("xs", s"std::vector<${ typeToCXXType(containerPType.elementType) }>")
+            val ms = fb.variable("ms", "std::vector<bool>")
+            val i = fb.variable("i", "int")
             val sab = new StagedContainerBuilder(fb, fb.getArg(1).toString, containerPType)
             triplet(ae.setup, ae.m,
               s"""
                  |({
                  |  ${ ae.setupLen }
-                 |  std::vector<${ typeToCXXType(containerPType.elementType) }> $xs;
-                 |  std::vector<bool> $ms;
+                 |  ${ xs.define }
+                 |  ${ ms.define }
                  |  ${
                 ae.emit { case (m, v) =>
                   s"""
@@ -580,7 +580,8 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) { outer =>
                 }
               }
                  |  ${ sab.start(s"$xs.size()") }
-                 |  for (int $i = 0; $i < $xs.size(); ++$i) {
+                 |  ${ i.define }
+                 |  for ($i = 0; $i < $xs.size(); ++$i) {
                  |    if ($ms[$i])
                  |      ${ sab.setMissing() }
                  |   else
@@ -614,7 +615,6 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) { outer =>
 
       case x@ir.ApplyIR(_, _, _) =>
         // FIXME small only
-        println("explicitNode", ir.Pretty(x.explicitNode))
         emit(x.explicitNode)
 
       case ir.In(i, _) =>
