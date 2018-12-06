@@ -810,6 +810,11 @@ class Tests(unittest.TestCase):
         assert j.globals.dtype == hl.tstruct(glob1=hl.tint32, glob1_1=hl.tint32)
         j._force_count()
 
+    def test_key_by_aggregate_rewriting(self):
+        ht = hl.utils.range_table(10)
+        ht = ht.group_by(x=ht.idx % 5).aggregate(aggr = hl.agg.count())
+        assert(ht.count() == 5)
+
 
 def assert_time(f, max_duration):
     start = timer()
