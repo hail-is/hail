@@ -122,10 +122,9 @@ class TranslationUnitBuilder() extends ScopeBuilder {
   }
 
   def end(): TranslationUnit = {
-    val ordDefs = orderings.orderings.result()
 
     new TranslationUnit(
       includes.result().mkString("\n"),
-      ordDefs ++ definitions.result())
+      definitions.result())
   }
 }

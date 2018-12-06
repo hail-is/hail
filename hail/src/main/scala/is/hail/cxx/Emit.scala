@@ -22,7 +22,6 @@ abstract class ArrayEmitter(val setup: Code, val m: Code, val setupLen: Code, va
 }
 
 class Orderings {
-  val orderings = new ArrayBuilder[Code]
   val typeOrdering = mutable.Map.empty[(PType, PType), String]
 
   private def makeOrdering(tub: TranslationUnitBuilder, lp: PType, rp: PType): String = {
@@ -62,16 +61,19 @@ class Orderings {
           val r = mb.getArg(1)
 
           t.fields.zipWithIndex.foreach { case (f, i) =>
-            val fOrd = ordering(tub, lBaseStructP.fields(i).typ, rBaseStructP.fields(i).typ)
+            val lfTyp  = lBaseStructP.fields(i).typ
+            val rfTyp = rBaseStructP.fields(i).typ
+
+            val fOrd = ordering(tub, lfTyp, rfTyp)
 
             val lm = tub.variable("lm", "bool", lBaseStructP.cxxIsFieldMissing(l.toString, i))
-            val lv = tub.variable("lv", typeToCXXType(lBaseStructP.fields(i).typ))
+            val lv = tub.variable("lv", typeToCXXType(lfTyp), typeDefaultValue(lfTyp))
 
             val rm = tub.variable("rm", "bool", rBaseStructP.cxxIsFieldMissing(r.toString, i))
-            val rv = tub.variable("lv", typeToCXXType(rBaseStructP.fields(i).typ))
+            val rv = tub.variable("lv", typeToCXXType(rfTyp), typeDefaultValue(rfTyp))
 
             mb +=
-              """
+              s"""
                  |${ lm.define }
                  |${ lv.define }
                  |if (!$lm)
@@ -84,7 +86,7 @@ class Orderings {
                """.stripMargin
           }
 
-          mb += "return $finalValue;"
+          mb += s"return $finalValue;"
 
           mb.end()
         }
@@ -93,7 +95,7 @@ class Orderings {
         val cb = tub.buildClass(ord)
         cb += "using T = const char *;"
 
-        buildComparisonMethod(cb, "compare", "int", { (tub, efOrd, lm, lv, rm, rv) =>
+        buildComparisonMethod(cb, "compare", "static int", { (tub, efOrd, lm, lv, rm, rv) =>
           val c = cb.variable("c", "int")
           s"""
              |${ c.define }
@@ -103,7 +105,7 @@ class Orderings {
         },
           "0")
 
-        buildComparisonMethod(cb, "lt", "bool", { (tub, efOrd, lm, lv, rm, rv) =>
+        buildComparisonMethod(cb, "lt", "static bool", { (tub, efOrd, lm, lv, rm, rv) =>
           s"""
              |if ($efOrd::lt($lm, $lv, $rm, $rv)) return true;
              |if (!$efOrd::eq($lm, $lv, $rm, $rv)) return false;
@@ -111,7 +113,7 @@ class Orderings {
         },
           "false")
 
-        buildComparisonMethod(cb, "lteq", "bool", { (tub, efOrd, lm, lv, rm, rv) =>
+        buildComparisonMethod(cb, "lteq", "static bool", { (tub, efOrd, lm, lv, rm, rv) =>
           s"""
              |if ($efOrd::lt($lm, $lv, $rm, $rv)) return true;
              |if (!$efOrd::eq($lm, $lv, $rm, $rv)) return false;
@@ -119,7 +121,7 @@ class Orderings {
         },
           "true")
 
-        buildComparisonMethod(cb, "gt", "bool", { (tub, efOrd, lm, lv, rm, rv) =>
+        buildComparisonMethod(cb, "gt", "static bool", { (tub, efOrd, lm, lv, rm, rv) =>
           s"""
              |if ($efOrd::gt($lm, $lv, $rm, $rv)) return true;
              |if (!$efOrd::eq($lm, $lv, $rm, $rv)) return false;
@@ -127,7 +129,7 @@ class Orderings {
         },
           "false")
 
-        buildComparisonMethod(cb, "gteq", "bool", { (tub, efOrd, lm, lv, rm, rv) =>
+        buildComparisonMethod(cb, "gteq", "static bool", { (tub, efOrd, lm, lv, rm, rv) =>
           s"""
              |if ($efOrd::gt($lm, $lv, $rm, $rv)) return true;
              |if (!$efOrd::eq($lm, $lv, $rm, $rv)) return false;
@@ -135,7 +137,7 @@ class Orderings {
         },
           "true")
 
-        buildComparisonMethod(cb, "eq", "bool", { (tub, efOrd, lm, lv, rm, rv) =>
+        buildComparisonMethod(cb, "eq", "static bool", { (tub, efOrd, lm, lv, rm, rv) =>
           s"""
              |if (!$efOrd::eq($lm, $lv, $rm, $rv)) return false;
                """.stripMargin
@@ -143,8 +145,7 @@ class Orderings {
           "true")
 
         cb += "static bool neq(const char *l, const char *r) { return !eq(l, r); }"
-
-        orderings += cb.end().define
+        cb.end()
 
         ord
 

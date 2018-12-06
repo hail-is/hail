@@ -1,7 +1,7 @@
 #ifndef HAIL_ORDERING_H
 #define HAIL_ORDERING_H 1
 
-#include <math.h>
+#include <cmath>
 
 namespace hail {
 
