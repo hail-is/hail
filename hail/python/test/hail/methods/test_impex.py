@@ -392,7 +392,6 @@ class PLINKTests(unittest.TestCase):
         with self.assertRaisesRegex(FatalError, "no white space allowed:"):
             hl.export_plink(ds, new_temp_file(), varid="hello world")
 
-<<<<<<< HEAD
     def test_contig_recoding_defaults(self):
         hl.import_plink(resource('sex_mt_contigs.bed'),
                         resource('sex_mt_contigs.bim'),
@@ -447,6 +446,22 @@ class PLINKTests(unittest.TestCase):
         self.assertEqual(hl.filter_intervals(vcf2, interval_a).n_partitions(), 2)
         self.assertEqual(hl.filter_intervals(vcf2, interval_b).n_partitions(), 2)
         self.assertEqual(hl.filter_intervals(vcf2, interval_c).n_partitions(), 3)
+
+    def test_import_vcfs_subset(self):
+        path = resource('sample.vcf.bgz')
+        parts = [
+                    {'start': {'locus': {'contig': '20', 'position': 13509136}},
+                     'end': {'locus': {'contig': '20', 'position': 16493533}},
+                     'includeStart': True,
+                     'includeEnd': True},
+                ]
+        parts_str = json.dumps(parts)
+        vcf1 = hl.import_vcf(path).key_rows_by('locus')  # import_vcfs keys by 'locus'
+        vcf2 = hl.import_vcfs([path], parts_str)[0]
+        interval = [hl.parse_locus_interval('[20:13509136-16493533]')]
+        filter1 = hl.filter_intervals(vcf1, interval)
+        self.assertTrue(vcf2._same(filter1))
+        self.assertEqual(len(parts), vcf2.n_partitions())
 
 
 # this routine was used to generate resources random.gen, random.sample
