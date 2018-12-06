@@ -246,8 +246,9 @@ object Simplify {
     case TableGetGlobals(TableLeftJoinRightDistinct(child, _, _)) => TableGetGlobals(child)
     case TableGetGlobals(TableMapRows(child, _)) => TableGetGlobals(child)
     case TableGetGlobals(TableMapGlobals(child, newGlobals)) =>
-      val ref = Ref("global", child.typ.globalType)
-      Let("global", TableGetGlobals(child), newGlobals)
+      val uid = genUID()
+      val ref = Ref(uid, child.typ.globalType)
+      Let(uid, TableGetGlobals(child), Subst(newGlobals, Env.empty[IR].bind("global", ref)))
     case TableGetGlobals(TableExplode(child, _)) => TableGetGlobals(child)
     case TableGetGlobals(TableUnion(children)) => TableGetGlobals(children.head)
     case TableGetGlobals(TableDistinct(child)) => TableGetGlobals(child)

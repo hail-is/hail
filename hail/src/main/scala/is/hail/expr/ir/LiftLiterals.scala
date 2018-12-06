@@ -36,33 +36,47 @@ object LiftLiterals {
   }
 
   def addLiterals(tir: TableIR, literals: Map[String, IR]): TableIR = {
-    TableMapGlobals(tir,
-      InsertFields(
-        Ref("global", tir.typ.globalType),
-        literals.toFastIndexedSeq))
+    if (literals.isEmpty)
+      tir
+    else
+      TableMapGlobals(tir,
+        InsertFields(
+          Ref("global", tir.typ.globalType),
+          literals.toFastIndexedSeq))
   }
 
   def addLiterals(mir: MatrixIR, literals: Map[String, IR]): MatrixIR = {
-    MatrixMapGlobals(mir,
-      InsertFields(
-        Ref("global", mir.typ.globalType),
-        literals.toFastIndexedSeq))
+    if (literals.isEmpty)
+      mir
+    else
+      MatrixMapGlobals(mir,
+        InsertFields(
+          Ref("global", mir.typ.globalType),
+          literals.toFastIndexedSeq))
   }
 
   def removeLiterals(tir: TableIR, literals: Map[String, IR]): TableIR = {
-    val literalFields = literals.keySet
-    TableMapGlobals(tir,
-      SelectFields(
-        Ref("global", tir.typ.globalType),
-        tir.typ.globalType.fieldNames.filter(f => !literalFields.contains(f))))
+    if (literals.isEmpty)
+      tir
+    else {
+      val literalFields = literals.keySet
+      TableMapGlobals(tir,
+        SelectFields(
+          Ref("global", tir.typ.globalType),
+          tir.typ.globalType.fieldNames.filter(f => !literalFields.contains(f))))
+    }
   }
 
   def removeLiterals(mir: MatrixIR, literals: Map[String, IR]): MatrixIR = {
-    val literalFields = literals.keySet
-    MatrixMapGlobals(mir,
-      SelectFields(
-        Ref("global", mir.typ.globalType),
-        mir.typ.globalType.fieldNames.filter(f => !literalFields.contains(f))))
+    if (literals.isEmpty)
+      mir
+    else {
+      val literalFields = literals.keySet
+      MatrixMapGlobals(mir,
+        SelectFields(
+          Ref("global", mir.typ.globalType),
+          mir.typ.globalType.fieldNames.filter(f => !literalFields.contains(f))))
+    }
   }
 
   def rewriteIR(ir: IR, newGlobalType: Type, literals: Map[String, IR]): IR = {
