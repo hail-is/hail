@@ -108,6 +108,9 @@ class Tests(unittest.TestCase):
         t = hl.Table.parallelize(rows, schema)
         self.assertTrue(t.all(hl.liftover(t.i37, 'GRCh38') == t.i38))
 
+        grch37.remove_liftover("GRCh38")
+        grch38.remove_liftover("GRCh37")
+
     def test_liftover_strand(self):
         grch37 = hl.get_reference('GRCh37')
         grch37.add_liftover(resource('grch37_to_grch38_chr20.over.chain.gz'), 'GRCh38')
@@ -119,4 +122,6 @@ class Tests(unittest.TestCase):
                                              'GRCh38', include_strand=True)),
                          hl.eval(hl.struct(result=hl.locus_interval('chr12', 32563117, 32563121, True, True, 'GRCh38'),
                                            is_negative_strand=True)))
+
+        grch37.remove_liftover("GRCh38")
 
