@@ -16,12 +16,5 @@
             .removeClass("active"); $("#home").addClass("active");});});
         </script>
     </xsl:template>
-    <xsl:template name="jobs-banner">
-        <a id="banner" href="jobs.html">
-            <div id="banner-jobs" class="alert alert-info" role="alert">
-                <p>Hail is hiring engineers!</p>
-            </div>
-        </a>
-    </xsl:template>
 
 </xsl:stylesheet>
