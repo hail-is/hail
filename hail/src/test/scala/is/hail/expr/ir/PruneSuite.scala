@@ -75,14 +75,16 @@ class PruneSuite extends SparkSuite {
   lazy val tab = TableLiteral(new Table(hc,
     TableParallelize(
       Literal(
-        TArray(TStruct("1" -> TString(),
-          "2" -> TArray(TStruct("2A" -> TInt32())),
-          "3" -> TString(),
-          "4" -> TStruct("A" -> TInt32(), "B" -> TArray(TStruct("i" -> TString()))),
-          "5" -> TString())),
-        FastIndexedSeq(Row("hi", FastIndexedSeq(Row(1)), "bye", Row(2, FastIndexedSeq(Row("bar"))), "foo"))),
+        TStruct(
+          "rows" -> TArray(TStruct("1" -> TString(),
+            "2" -> TArray(TStruct("2A" -> TInt32())),
+            "3" -> TString(),
+            "4" -> TStruct("A" -> TInt32(), "B" -> TArray(TStruct("i" -> TString()))),
+            "5" -> TString())),
+          "global" -> TStruct("g1" -> TInt32(), "g2" -> TInt32())),
+        Row(FastIndexedSeq(Row("hi", FastIndexedSeq(Row(1)), "bye", Row(2, FastIndexedSeq(Row("bar"))), "foo")), Row(5, 10))),
       None)
-  ).annotateGlobal(5, TInt32(), "g1").annotateGlobal(10, TInt32(), "g2").value)
+  ).value)
 
   lazy val tr = TableRead("", TableSpec(0, "", "", tab.typ, Map.empty), tab.typ, false)
 
