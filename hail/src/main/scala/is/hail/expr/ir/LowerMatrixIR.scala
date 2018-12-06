@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.expr.types._
-import is.hail.expr.types.virtual.TArray
+import is.hail.expr.types.virtual.{TArray, TInt32}
 import is.hail.utils.FastSeq
 
 object LowerMatrixIR {
@@ -196,5 +196,19 @@ object LowerMatrixIR {
       lower(child)
         .mapGlobals('global.dropFields(colsField))
         .mapRows('row.dropFields(entriesField))
+
+    case MatrixColsTable(child) =>
+      val uid1 = genUID()
+      let (Symbol(uid1) = lower(child).getGlobals) {
+        val sortedCols = irRange(0, irArrayLen(Symbol(uid1)), 1)
+          .map { 'i ~> makeStruct(
+            '_1 -> Symbol(uid1)(colsField)('i),
+            '_2 -> 'i)
+          }
+          .sort(true, onKey = true)
+          .map { 'elt ~> 'elt('_1_)}
+          .parallelize(None)
+          .mapGlobals(Symbol(uid1).dropFields(colsField))
+      }
   }
 }
