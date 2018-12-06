@@ -39,10 +39,14 @@ OBJECTS := \
 
 BUILD_OBJECTS := $(OBJECTS:%=$(BUILD)/%.o)
 
-TEST_OBJECTS := $(foreach obj, $(OBJECTS), $(foreach file, $(wildcard $(obj)_test.cpp), $(BUILD)/$(basename $(file)).o))
+TEST_OBJECTS := $(patsubst test/%.cpp,$(BUILD)/test_%.o,$(wildcard test/*.cpp))
+TEST_OBJECTS += $(foreach obj, $(OBJECTS), $(foreach file, $(wildcard $(obj)_test.cpp), $(BUILD)/$(basename $(file)).o))
 TEST_OBJECTS += $(BUILD)/unit-tests.o
 
 $(BUILD)/unit-tests.o: testutils/unit-tests.cpp
+	$(CXX) -o $@ $(CXXFLAGS) -c $<
+
+$(BUILD)/test_%.o: test/%.cpp
 	$(CXX) -o $@ $(CXXFLAGS) -c $<
 
 $(BUILD)/%.o: %.cpp

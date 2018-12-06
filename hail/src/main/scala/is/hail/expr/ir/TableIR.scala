@@ -882,15 +882,6 @@ case class TableExplode(child: TableIR, fieldName: String) extends TableIR {
     TableExplode(newChildren(0).asInstanceOf[TableIR], fieldName)
   }
 
-  private val field: IR = fieldType match {
-    case TArray(_, _) =>
-      GetField(Ref("row", child.typ.rowType), fieldName)
-    case TSet(_, _) =>
-      ToArray(GetField(Ref("row", child.typ.rowType), fieldName))
-    case _ =>
-      fatal(s"expected field to explode to be an array or set, found ${ fieldType }")
-  }
-
   def lengthIR: IR = ir.If(IsNA(field), ir.I32(0), ir.ArrayLen(field))
 
   protected[ir] override def execute(hc: HailContext): TableValue = {
