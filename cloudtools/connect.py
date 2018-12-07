@@ -60,5 +60,6 @@ def main(args):
             'http://localhost:{}'.format(connect_port),
             '--proxy-server=socks5://localhost:{}'.format(args.port),
             '--host-resolver-rules=MAP * 0.0.0.0 , EXCLUDE localhost',
+            '--proxy-bypass-list=<-loopback>', # https://chromium.googlesource.com/chromium/src/+/da790f920bbc169a6805a4fb83b4c2ab09532d91
             '--user-data-dir=/tmp/'
         ], stdout=f, stderr=f)
