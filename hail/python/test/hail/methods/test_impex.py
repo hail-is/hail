@@ -390,7 +390,25 @@ class PLINKTests(unittest.TestCase):
         # Test white-space in varid expr raises error
         with self.assertRaisesRegex(FatalError, "no white space allowed:"):
             hl.export_plink(ds, new_temp_file(), varid="hello world")
-            
+
+    def test_contig_recoding_defaults(self):
+        hl.import_plink(resource('sex_mt_contigs.bed'),
+                        resource('sex_mt_contigs.bim'),
+                        resource('sex_mt_contigs.fam'),
+                        reference_genome='GRCh37')
+
+        hl.import_plink(resource('sex_mt_contigs.bed'),
+                        resource('sex_mt_contigs.bim'),
+                        resource('sex_mt_contigs.fam'),
+                        reference_genome='GRCh38')
+
+        rg_random = hl.ReferenceGenome("random", ['23', '24', '25', '26'],
+                                       {'23': 10, '24': 10, '25': 10, '26': 10})
+
+        hl.import_plink(resource('sex_mt_contigs.bed'),
+                        resource('sex_mt_contigs.bim'),
+                        resource('sex_mt_contigs.fam'),
+                        reference_genome='random')
 
 # this routine was used to generate resources random.gen, random.sample
 # random.bgen was generated with qctool v2.0rc9:

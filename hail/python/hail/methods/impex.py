@@ -1526,10 +1526,7 @@ def import_plink(bed, bim, fam,
                  quant_pheno=False,
                  a2_reference=True,
                  reference_genome='default',
-                 contig_recoding={'23': 'X',
-                                  '24': 'Y',
-                                  '25': 'X',
-                                  '26': 'MT'},
+                 contig_recoding=None,
                  skip_invalid_loci=False) -> MatrixTable:
     """Import a PLINK dataset (BED, BIM, FAM) as a :class:`.MatrixTable`.
 
@@ -1631,7 +1628,10 @@ def import_plink(bed, bim, fam,
 
     contig_recoding : :obj:`dict` of :obj:`str` to :obj:`str`, optional
         Dict of old contig name to new contig name. The new contig name must be
-        in the reference genome given by ``reference_genome``.
+        in the reference genome given by ``reference_genome``. If ``None``, the
+        default is dependent on the ``reference_genome``. For "GRCh37", the default
+        is ``{'23': 'X', '24': 'Y', '25': 'X', '26': 'MT'}``. For "GRCh38", the
+        default is ``{'23': 'chrX', '24': 'chrY', '25': 'chrX', '26': 'chrM'}``.
 
     skip_invalid_loci : :obj:`bool`
         If ``True``, skip loci that are not consistent with `reference_genome`.
@@ -1643,9 +1643,15 @@ def import_plink(bed, bim, fam,
 
     rg = reference_genome._jrep if reference_genome else None
 
-    if contig_recoding:
-        contig_recoding = tdict(tstr,
-                                tstr)._convert_to_j(contig_recoding)
+    if contig_recoding is None:
+        if reference_genome.name == "GRCh37":
+            contig_recoding = {'23': 'X', '24': 'Y', '25': 'X', '26': 'MT'}
+        elif reference_genome.name == "GRCh38":
+            contig_recoding = {'23': 'chrX', '24': 'chrY', '25': 'chrX', '26': 'chrM'}
+        else:
+            contig_recoding = {}
+
+    contig_recoding = tdict(tstr, tstr)._convert_to_j(contig_recoding)
 
     jmt = Env.hc()._jhc.importPlink(bed, bim, fam, joption(min_partitions),
                                     delimiter, missing, quant_pheno,
