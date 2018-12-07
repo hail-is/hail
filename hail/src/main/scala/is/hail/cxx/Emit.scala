@@ -25,6 +25,7 @@ class Orderings {
   val typeOrdering = mutable.Map.empty[(PType, PType), String]
 
   private def makeOrdering(tub: TranslationUnitBuilder, lp: PType, rp: PType): String = {
+    tub.include("hail/Ordering.h")
     lp.virtualType match {
       case TFloat32(_) => "FloatOrd"
       case TFloat64(_) => "DoubleOrd"
@@ -270,6 +271,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
             }
 
           case ir.RoundToNegInfDivide() =>
+            fb.translationUnitBuilder().include("<math.h>")
             l.typ match {
               case _: TInt32 => s"floordiv(${ lt.v }, ${ rt.v })"
               case _: TInt64 => s"lfloordiv(${ lt.v }, ${ rt.v })"
@@ -624,6 +626,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
 
     x match {
       case ir.ArrayRange(start, stop, step) =>
+        fb.translationUnitBuilder().include("<limits.h>")
         val startt = emit(start, env)
         val stopt = emit(stop, env)
         val stept = emit(step, env)

@@ -24,11 +24,8 @@ object Compile {
     tub.include("hail/hail.h")
     tub.include("hail/Utils.h")
     tub.include("hail/Region.h")
-    tub.include("hail/Ordering.h")
 
     tub.include("<cstring>")
-    tub.include("<limits.h>")
-    tub.include("<math.h>")
 
     val fb = tub.buildFunction("f",
       Array("NativeStatus *" -> "st", "ScalaRegion *" -> "region", "const char *" -> "v"),
