@@ -6,14 +6,14 @@
 
 namespace hail {
 
-template<typename Next, typename Filter>
+template<typename Consumer, typename Filter>
 class TableFilterRows {
   private:
-    Next next_;
+    Consumer next_;
     Filter filter_{};
 
   public:
-    using Endpoint = typename Next::Endpoint;
+    using Endpoint = typename Consumer::Endpoint;
     Endpoint * end() { return next_.end(); }
     PartitionContext * ctx() { return next_.ctx(); }
 

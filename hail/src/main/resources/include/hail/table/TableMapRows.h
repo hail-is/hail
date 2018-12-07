@@ -6,14 +6,14 @@
 
 namespace hail {
 
-template<typename Next, typename Mapper>
+template<typename Consumer, typename Mapper>
 class TableMapRows {
   private:
-    Next next_;
+    Consumer next_;
     Mapper mapper_{};
 
   public:
-    using Endpoint = typename Next::Endpoint;
+    using Endpoint = typename Consumer::Endpoint;
     Endpoint * end() { return next_.end(); }
     PartitionContext * ctx() { return next_.ctx(); }
 

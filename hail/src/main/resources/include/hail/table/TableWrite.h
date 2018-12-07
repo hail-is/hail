@@ -24,7 +24,6 @@ class TableNativeWrite : public Encoder {
       encode_row(value);
       region = nullptr;
     }
-
     using Encoder::Encoder;
     template<typename ... Args>
     explicit TableNativeWrite(PartitionContext * ctx, Args ... args) :

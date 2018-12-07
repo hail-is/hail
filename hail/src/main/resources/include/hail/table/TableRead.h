@@ -6,13 +6,13 @@
 
 namespace hail {
 
-template<typename Next, typename Decoder>
+template<typename Consumer, typename Decoder>
 class TableNativeRead {
   private:
-    Next next_;
+    Consumer next_;
     Decoder dec_;
   public:
-    using Endpoint = typename Next::Endpoint;
+    using Endpoint = typename Consumer::Endpoint;
     Endpoint * end() { return next_.end(); }
     PartitionContext * ctx() { return next_.ctx(); }
 

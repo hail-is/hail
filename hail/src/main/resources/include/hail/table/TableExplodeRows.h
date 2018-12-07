@@ -6,16 +6,16 @@
 
 namespace hail {
 
-template<typename Next, typename Exploder>
+template<typename Consumer, typename Exploder>
 class TableExplodeRows {
   private:
-    Next next_;
+    Consumer next_;
     Exploder exploder_{};
     //exploder_.len(st, old_region, it_);
     //exploder_(st, new_region, it_, i);
 
   public:
-    using Endpoint = typename Next::Endpoint;
+    using Endpoint = typename Consumer::Endpoint;
     Endpoint * end() { return next_.end(); }
     PartitionContext * ctx() { return next_.ctx(); }
 
