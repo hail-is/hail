@@ -19,6 +19,7 @@ Contents
     How-To Guides <guides>
     For Software Developers <getting_started_developing>
     Other Resources <other_resources>
+    Change Log <change_log>
 
 ==================
 Indices and tables
