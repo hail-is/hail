@@ -5,7 +5,7 @@ from . import api
 
 
 class Job:
-    def __init__(self, client, id, attributes=None, _status=None):
+    def __init__(self, client, id, attributes=None, parents=[], _status=None):
         if attributes is None:
             attributes = {}
 
@@ -103,7 +103,8 @@ class BatchClient:
                     service_account_name,
                     attributes,
                     batch_id,
-                    callback):
+                    callback,
+                    parents):
         if env:
             env = [{'name': k, 'value': v} for (k, v) in env.items()]
         else:
@@ -152,8 +153,8 @@ class BatchClient:
         if service_account_name:
             spec['serviceAccountName'] = service_account_name
 
-        j = self.api.create_job(self.url, spec, attributes, batch_id, callback)
-        return Job(self, j['id'], j.get('attributes'))
+        j = self.api.create_job(self.url, spec, attributes, batch_id, callback, parents)
+        return Job(self, j['id'], j.get('attributes'), j.get('parents', []))
 
     def _get_job(self, id):
         return self.api.get_job(self.url, id)
@@ -175,12 +176,12 @@ class BatchClient:
 
     def list_jobs(self):
         jobs = self.api.list_jobs(self.url)
-        return [Job(self, j['id'], j.get('attributes'), j) for j in jobs]
+        return [Job(self, j['id'], j.get('attributes'), j.get('parents', []), j) for j in jobs]
 
     def get_job(self, id):
         # make sure job exists
         j = self.api.get_job(self.url, id)
-        return Job(self, j['id'], j.get('attributes'), j)
+        return Job(self, j['id'], j.get('attributes'), j.get('parents', []), j)
 
     def create_job(self,
                    image,
@@ -194,10 +195,13 @@ class BatchClient:
                    security_context=None,
                    service_account_name=None,
                    attributes=None,
-                   callback=None):
+                   callback=None,
+                   parents=None):
+        if parents is None:
+            parents = []
         return self._create_job(
             image, command, args, env, ports, resources, tolerations, volumes, security_context,
-            service_account_name, attributes, None, callback)
+            service_account_name, attributes, None, callback, parents)
 
     def create_batch(self, attributes=None):
         batch = self.api.create_batch(self.url, attributes)
