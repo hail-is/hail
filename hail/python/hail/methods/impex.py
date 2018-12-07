@@ -1644,7 +1644,9 @@ def import_plink(bed, bim, fam,
     rg = reference_genome._jrep if reference_genome else None
 
     if contig_recoding is None:
-        if reference_genome.name == "GRCh37":
+        if reference_genome is None:
+            contig_recoding = {}
+        elif reference_genome.name == "GRCh37":
             contig_recoding = {'23': 'X', '24': 'Y', '25': 'X', '26': 'MT'}
         elif reference_genome.name == "GRCh38":
             contig_recoding = {**{str(i):f'chr{i}' for i in range(1, 23)},
