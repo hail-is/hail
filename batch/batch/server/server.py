@@ -145,7 +145,10 @@ class Job:
         self._state = 'Created'
         log.info('created job {}'.format(self.id))
 
-        self.refresh_parents_and_maybe_create()
+        if not self.parents:
+            self._create_pod()
+        else:
+            self.refresh_parents_and_maybe_create()
 
     def refresh_parents_and_maybe_create(self):
         for parent in self.parents:
@@ -165,7 +168,7 @@ class Job:
         for child_id in self.children:
             child = job_id_job[child_id]
             if child:
-                child.parent_new_state(new_state, self.id)
+                child.parent_new_state(new_state, self.id, self.exit_code)
             else:
                 log.info(f'lost child: {child_id}')
                 del job_id_job[child_id]

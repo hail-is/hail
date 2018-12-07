@@ -70,7 +70,7 @@ class Batch:
             parents = []
         return self.client._create_job(
             image, command, args, env, ports, resources, tolerations, volumes, security_context,
-            service_account_name, attributes, self.id, callback)
+            service_account_name, attributes, self.id, callback, parents)
 
     def status(self):
         return self.client._get_batch(self.id)
