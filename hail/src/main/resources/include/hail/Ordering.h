@@ -2,6 +2,7 @@
 #define HAIL_ORDERING_H 1
 
 #include <cmath>
+#include <cstring>
 
 namespace hail {
 
