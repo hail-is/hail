@@ -1,7 +1,7 @@
 .PHONY: build build-test \
   push push-test \
   run-docker run \
-  test test-local deploy
+  test test-local deploy clean
 
 PROJECT = $(shell gcloud config get-value project)
 PY_FILES = $(shell find batch -iname \*.py -not -exec git check-ignore -q {} \; -print)

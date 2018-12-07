@@ -5,8 +5,9 @@ dependencies:
 - flask
 - pip
 - pip:
+  - cerberus
+  - flake8
   - kubernetes
   - pylint
-  - flake8
-  - cerberus
+  - pytest
   - requests
