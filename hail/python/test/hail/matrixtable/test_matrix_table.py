@@ -699,6 +699,10 @@ class Tests(unittest.TestCase):
         self.assertEqual(ht.order_by(hl.asc('idx')).idx.collect(), list(range(10)))
         self.assertEqual(ht.order_by(hl.desc('idx')).idx.collect(), list(range(10))[::-1])
 
+    def test_order_by_complex_exprs(self):
+        ht = hl.utils.range_table(10)
+        assert ht.order_by(-ht.idx).idx.collect() == list(range(10))[::-1]
+
     def test_order_by_intervals(self):
         intervals = {0: hl.Interval(0, 3, includes_start=True, includes_end=False),
                      1: hl.Interval(0, 4, includes_start=True, includes_end=True),

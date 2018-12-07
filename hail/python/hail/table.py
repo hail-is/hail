@@ -2131,35 +2131,46 @@ class Table(ExprContainer):
         :class:`.Table`
             Table sorted by the given fields.
         """
-        sort_fields = []
+        lifted_exprs = []
         for e in exprs:
             if isinstance(e, str):
                 expr = self[e]
-                if not expr._indices == self._row_indices:
-                    raise ValueError("Sort fields must be row-indexed, found global field '{}'".format(e))
-                sort_fields.append((e, 'A'))
+                lifted_exprs.append((expr, 'A'))
             elif isinstance(e, Expression):
-                if not e in self._fields_inverse:
-                    raise ValueError("Expect top-level field, found a complex expression")
-                if not e._indices == self._row_indices:
-                    raise ValueError("Sort fields must be row-indexed, found global field '{}'".format(e))
-                sort_fields.append((self._fields_inverse[e], 'A'))
+                lifted_exprs.append((e, 'A'))
             else:
                 assert isinstance(e, Ascending) or isinstance(e, Descending)
                 sort_type = 'A' if isinstance(e, Ascending) else 'D'
-                if isinstance(e.col, str):
-                    expr = self[e.col]
-                    if not expr._indices == self._row_indices:
-                        raise ValueError("Sort fields must be row-indexed, found global field '{}'".format(e))
-                    sort_fields.append((e.col, sort_type))
+                lifted_exprs.append((e.col, sort_type))
+
+        sort_fields = []
+        complex_exprs = {}
+
+        for e, sort_type in lifted_exprs:
+            if e._indices.source is not self:
+                if e._indices.source is None:
+                    raise ValueError("Sort fields must be fields of the callee Table, found scalar expression")
                 else:
-                    if not e.col in self._fields_inverse:
-                        raise ValueError("Expect top-level field, found a complex expression")
-                    if not e.col._indices == self._row_indices:
-                        raise ValueError("Sort fields must be row-indexed, found global field '{}'".format(e))
-                    e.col = self._fields_inverse[e.col]
-                    sort_fields.append((e.col, sort_type))
-        return Table(TableOrderBy(self.key_by()._tir, sort_fields))
+                    raise ValueError(f"Sort fields must be fields of the callee Table,"
+                                     f" found field of {e._indices.source}")
+            elif e._indices != self._row_indices:
+                raise ValueError(f"Sort fields must be row-indexed, found global sort expression")
+            else:
+                field_name = self._fields_inverse.get(e)
+                if field_name is None:
+                    field_name = Env.get_uid()
+                    complex_exprs[field_name] = e
+                sort_fields.append((field_name, sort_type))
+
+        t = self
+        if complex_exprs:
+            t = t.annotate(**complex_exprs)
+        t = t.key_by()
+        t = Table(TableOrderBy(t._tir, sort_fields))
+        if complex_exprs:
+            t = t.drop(*complex_exprs.keys())
+        return t
+
 
     @typecheck_method(field=oneof(str, Expression),
                       name=nullable(str))
