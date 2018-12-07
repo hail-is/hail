@@ -2133,15 +2133,17 @@ class Table(ExprContainer):
         """
         lifted_exprs = []
         for e in exprs:
-            if isinstance(e, str):
+            sort_type = 'A'
+            if isinstance(e, Ascending):
+                expr = e.col
+            elif isinstance(e, Descending):
+                expr = e.col
+                sort_type = 'D'
+            elif isinstance(e, str):
                 expr = self[e]
-                lifted_exprs.append((expr, 'A'))
-            elif isinstance(e, Expression):
-                lifted_exprs.append((e, 'A'))
             else:
-                assert isinstance(e, Ascending) or isinstance(e, Descending)
-                sort_type = 'A' if isinstance(e, Ascending) else 'D'
-                lifted_exprs.append((e.col, sort_type))
+                expr = e
+            lifted_exprs.append((expr, sort_type))
 
         sort_fields = []
         complex_exprs = {}
