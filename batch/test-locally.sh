@@ -1,9 +1,7 @@
 #!/bin/bash
+# do not execute this file, use the Makefile
 
 set -ex
-
-. ../loadconda
-conda activate hail-batch
 
 cleanup() {
     set +e
