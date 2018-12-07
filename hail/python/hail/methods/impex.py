@@ -1916,7 +1916,7 @@ def import_vcf(path,
     return MatrixTable._from_java(jmt)
 
 @typecheck(path=sequenceof(str),
-           _partitions=str,
+           partitions=str,
            force=bool,
            force_bgz=bool,
            call_fields=oneof(str, sequenceof(str)),
@@ -1925,15 +1925,46 @@ def import_vcf(path,
            array_elements_required=bool,
            skip_invalid_loci=bool)
 def import_vcfs(path,
-                 _partitions,
-                 force=False,
-                 force_bgz=False,
-                 call_fields=[],
-                 reference_genome='default',
-                 contig_recoding=None,
-                 array_elements_required=True,
-                 skip_invalid_loci=False) -> MatrixTable:
-    """Experimental."""
+                partitions,
+                force=False,
+                force_bgz=False,
+                call_fields=[],
+                reference_genome='default',
+                contig_recoding=None,
+                array_elements_required=True,
+                skip_invalid_loci=False) -> MatrixTable:
+    """Experimental. Import multiple vcfs as :class:`MatrixTable`s
+
+    The arguments to this function are almost identical to :func:`.import_vcf`,
+    the only difference is the `partitions` argument, which must be a JSON string
+    that will deserialize to an Array of Intervals of Locus structs. For example:
+
+    .. code-block:: text
+        [
+          {
+            "start": {
+              "locus": {
+                "contig": "chr22",
+                "position": 1
+              }
+            },
+            "end": {
+              "locus": {
+                "contig": "chr22",
+                "position": 5332423
+              }
+            },
+            "includeStart": true,
+            "includeEnd": true
+          }
+        ]
+
+    The `includeStart` and `includeEnd` keys must be `true`. The `contig` fields must
+    be the same.
+
+    One key difference between :func:`.import_vcfs` and :func:`.import_vcf` is that
+    :func:`.import_vcfs` only keys by `locus` rather than `locus, alleles`.
+    """
 
     rg = reference_genome.name if reference_genome else None
 
@@ -1950,7 +1981,7 @@ def import_vcfs(path,
         skip_invalid_loci,
         force_bgz,
         force,
-        _partitions)
+        partitions)
     return [MatrixTable._from_java(jmt) for jmt in jmts]
 
 @typecheck(path=oneof(str, sequenceof(str)),
