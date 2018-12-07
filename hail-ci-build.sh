@@ -1,8 +1,6 @@
 #!/bin/bash
 set -ex
 
-./loadconda
-
 PROJECTS=$(cat projects.txt)
 
 for project in $PROJECTS; do
