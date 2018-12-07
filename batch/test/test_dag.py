@@ -41,8 +41,9 @@ def test_already_deleted_parent_is_400(client):
     try:
         batch = client.create_batch()
         head = batch.create_job('alpine:3.8', command=['echo', 'head'])
+        head_id = head.id
         head.delete()
-        tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parents=[head.id])
+        tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parents=[head_id])
     except requests.exceptions.HTTPError as err:
         assert err.response.status_code == 400
         assert re.search('.*invalid parent: no job with id.*', err.response.text)
@@ -196,8 +197,9 @@ def test_parent_deleted(client):
     tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parents=[left.id, right.id])
     left.delete()
     status = batch.wait()
-    assert status['jobs']['Complete'] == 3
-    for node in [head, right, tail]:
+    assert status['jobs']['Complete'] == 2
+    for node in [head, right]:
         status = node.status()
         assert status['state'] == 'Complete'
         assert status['exit_code'] == 0
+    assert tail.status()['state'] == 'Cancelled'
