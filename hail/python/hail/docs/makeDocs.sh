@@ -16,14 +16,17 @@ mkdir -p build/www/ build/tmp/python/ build/tmp/docs build/www/docs
 # copy website content
 cp www/*.{js,css,css.map,html,png} build/www #  www/annotationdb/* does not exist
 
-pandoc -s www/landing.md -f markdown -t html --mathjax --highlight-style=pygments --columns 10000 -o build/tmp/landing.html
-xsltproc --html -o build/www/index.html www/readme-to-index.xslt build/tmp/landing.html
-
-pandoc -s www/jobs.md -f markdown -t html --mathjax --highlight-style=pygments --columns 10000 -o build/tmp/jobs.html
-xsltproc --html -o build/www/jobs.html www/jobs.xslt build/tmp/jobs.html
-
-pandoc -s www/about.md -f markdown -t html --mathjax --highlight-style=pygments --columns 10000 -o build/tmp/about.html
-xsltproc --html -o build/www/about.html www/about.xslt build/tmp/about.html
+for f in $(find www -name \*.md)
+do
+    base=$(basename $f | sed 's/\.md//')
+    pandoc -s $f \
+           -f markdown \
+           -t html \
+           --mathjax \
+           --highlight-style=pygments \
+           --columns 10000 \
+        | xsltproc -o build/www/$base.html --html www/$base.xslt -
+done
 
 # sed for creating GitHub links
 pandoc <(cat python/hail/docs/change_log.md | sed -E "s/\(hail\#([0-9]+)\)/(\[#\1](https:\/\/github.com\/hail-is\/hail\/pull\/\1))/g") -o python/hail/docs/change_log.rst
