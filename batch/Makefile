@@ -5,6 +5,10 @@
 
 PROJECT = $(shell gcloud config get-value project)
 
+build/conda-env: environment.yml
+	conda env update -f environment.yml || conda env create -f environment.yml
+	mkdir -p build && touch build/conda-env
+
 build:
 	docker build -t batch .
 
@@ -26,21 +30,21 @@ push-test: build-test
 run-docker: build
 	docker run -e BATCH_USE_KUBE_CONFIG=1 -i -v $(HOME)/.kube:/root/.kube -p 5000:5000 -t batch
 
-run:
-	BATCH_USE_KUBE_CONFIG=1 python -c 'import batch.server; batch.server.serve()'
+run: build/conda-env
+	. activate hail-batch && BATCH_USE_KUBE_CONFIG=1 python -c 'import batch.server; batch.server.serve()'
 
 test: push-test
 	sed -e "s,@image@,$$(cat batch-test-image)," \
 	  < test-batch-pod.yaml.in > test-batch-pod.yaml
 	kubectl create -f test-batch-pod.yaml
 
-test-local:
-	POD_NAMESPACE='test' BATCH_USE_KUBE_CONFIG=1 ./test-locally.sh
+test-local: build/conda-env
+	. activate hail-batch && POD_NAMESPACE='test' BATCH_USE_KUBE_CONFIG=1 ./test-locally.sh
 
 # local means server and test client are two processes on one machine
 # in-cluster means in a k8s pod (from which we get k8s creds)
-test-local-in-cluster:
-	POD_NAMESPACE='test' ./test-locally.sh
+test-local-in-cluster: build/conda-env
+	. activate hail-batch && POD_NAMESPACE='test' ./test-locally.sh
 
 deploy: push
 	sed -e "s,@sha@,$$(git rev-parse --short=12 HEAD)," \

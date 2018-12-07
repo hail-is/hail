@@ -2,8 +2,6 @@
 
 set -ex
 
-. activate hail-batch
-
 cleanup() {
     set +e
     trap "" INT TERM
