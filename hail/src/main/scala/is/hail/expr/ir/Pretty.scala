@@ -190,6 +190,8 @@ object Pretty {
               prettyBooleanLiteral(dropCols) + " " +
               prettyBooleanLiteral(dropRows) + " " +
               '"' + StringEscapeUtils.escapeString(Serialization.write(reader)(MatrixReader.formats)) + '"'
+            case MatrixWrite(_, writer) =>
+              '"' + StringEscapeUtils.escapeString(Serialization.write(writer)(MatrixWriter.formats)) + '"'
             case TableToMatrixTable(_, rowKey, colKey, rowFields, colFields, nPartitions) =>
               prettyStrings(rowKey) + " " +
               prettyStrings(colKey) +  " " +

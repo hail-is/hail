@@ -746,6 +746,12 @@ class IRSuite extends SparkSuite {
 
     val table = TableRange(100, 10)
 
+    val mt = MatrixTable.range(hc, 20, 2, Some(3)).ast.asInstanceOf[MatrixRead]
+    val vcf = hc.importVCF("src/test/resources/sample.vcf")
+      .ast.asInstanceOf[MatrixRead]
+    val bgen = hc.importBgens(FastIndexedSeq("src/test/resources/example.8bits.bgen"))
+      .ast.asInstanceOf[MatrixRead]
+
     val irs = Array(
       i, I64(5), F32(3.14f), F64(3.14), str, True(), False(), Void(),
       Cast(i, TFloat64()),
@@ -800,7 +806,11 @@ class IRSuite extends SparkSuite {
       Literal(TStruct("x" -> TInt32()), Row(1)),
       TableCount(table),
       TableAggregate(table, MakeStruct(Seq("foo" -> count))),
-      TableWrite(table, tmpDir.createLocalTempFile(extension = "ht"))
+      TableWrite(table, tmpDir.createLocalTempFile(extension = "ht")),
+      MatrixWrite(mt, MatrixNativeWriter(tmpDir.createLocalTempFile(extension = "mt"))),
+      MatrixWrite(vcf, MatrixVCFWriter(tmpDir.createLocalTempFile(extension = "vcf"))),
+      MatrixWrite(vcf, MatrixPLINKWriter(tmpDir.createLocalTempFile())),
+      MatrixWrite(bgen, MatrixGENWriter(tmpDir.createLocalTempFile()))
     )
     irs.map(x => Array(x))
   }

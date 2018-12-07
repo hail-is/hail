@@ -6,6 +6,8 @@ from hail.matrixtable import MatrixTable
 from hail.table import Table
 from hail.expr.types import *
 from hail.expr.expressions import *
+from hail.ir import MatrixWrite
+from hail.ir.matrix_writer import *
 from hail.genetics.reference_genome import reference_genome_type
 from hail.methods.misc import require_biallelic, require_row_key_variant, require_row_key_variant_w_struct_locus, require_col_key_str
 import hail as hl
@@ -161,7 +163,8 @@ def export_gen(dataset, output, precision=4, gp=None, id1=None, id2=None,
                                   row_exprs=gen_exprs,
                                   entry_exprs=entry_exprs)
 
-    dataset._jmt.exportGen(output, precision)
+    writer = MatrixGENWriter(output, precision)
+    Env.hc()._backend.interpret(MatrixWrite(dataset._mir, writer))
 
 
 @typecheck(dataset=MatrixTable,
@@ -303,7 +306,8 @@ def export_plink(dataset, output, call=None, fam_id=None, ind_id=None, pat_id=No
     if errors:
         raise TypeError("\n".join(errors))
 
-    dataset._jmt.exportPlink(output)
+    writer = MatrixPLINKWriter(output)
+    Env.hc()._backend.interpret(MatrixWrite(dataset._mir, writer))
 
 
 @typecheck(dataset=MatrixTable,
@@ -408,7 +412,7 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
         ``'separate_header'``, return a separate VCF header file and a set of
         VCF files (one per partition) without the header. If ``None``,
         concatenate the header and all partitions into one VCF file.
-    metadata : :obj:`dict[str]` or :obj:`dict[str, dict[str, str]`, optional
+    metadata : :obj:`dict[str, dict[str, dict[str, str]]]`, optional
         Dictionary with information to fill in the VCF header. See
         :func:`get_vcf_metadata` for how this
         dictionary should be structured.
@@ -416,10 +420,11 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
     """
 
     require_row_key_variant(dataset, 'export_vcf')
-    typ = tdict(tstr, tdict(tstr, tdict(tstr, tstr)))
-    Env.hail().io.vcf.ExportVCF.apply(dataset._jmt, output, joption(append_to_header),
-                                      Env.hail().utils.ExportType.getExportType(parallel),
-                                      joption(typ._convert_to_j(metadata)))
+    writer = MatrixVCFWriter(output,
+                             append_to_header,
+                             Env.hail().utils.ExportType.getExportType(parallel),
+                             metadata)
+    Env.hc()._backend.interpret(MatrixWrite(dataset._mir, writer))
 
 
 @typecheck(path=str,

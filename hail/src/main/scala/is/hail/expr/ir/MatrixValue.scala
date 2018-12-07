@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.types.physical.{PArray, PStruct, PType}
-import is.hail.expr.types.virtual.{TArray, TInt32, TStruct, Type}
+import is.hail.expr.types.virtual._
 import is.hail.expr.types.{MatrixType, TableType}
 import is.hail.io.CodecSpec
 import is.hail.rvd.{AbstractRVDSpec, RVD, RVDType, _}
@@ -34,6 +34,15 @@ case class MatrixValue(
       val queriers = typ.colKey.map(field => typ.colType.query(field))
       colValues.value.map(a => Row.fromSeq(queriers.map(_ (a))))
     }
+
+    def stringSampleIds: IndexedSeq[String] = {
+      val colKeyTypes = typ.colKeyStruct.types
+      assert(colKeyTypes.length == 1 && colKeyTypes(0).isInstanceOf[TString], colKeyTypes.toSeq)
+      val querier = typ.colType.query(typ.colKey(0))
+      colValues.value.map(querier(_).asInstanceOf[String])
+    }
+
+    def referenceGenome: ReferenceGenome = typ.referenceGenome
 
     def colsTableValue: TableValue = TableValue(typ.colsTableType, globals, colsRVD())
 

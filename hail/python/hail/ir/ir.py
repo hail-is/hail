@@ -1,8 +1,10 @@
-import hail
+import json
+
 from hail.expr.types import hail_type
 from hail.typecheck import *
 from hail.utils.java import escape_str, escape_id
 from .base_ir import *
+from .matrix_writer import MatrixWriter
 
 
 class I32(IR):
@@ -1288,7 +1290,7 @@ class TableExport(IR):
 
 
 class MatrixWrite(IR):
-    @typecheck_method(child=MatrixIR, matrix_writer=str)
+    @typecheck_method(child=MatrixIR, matrix_writer=MatrixWriter)
     def __init__(self, child, matrix_writer):
         super().__init__(child)
         self.child = child
@@ -1300,8 +1302,9 @@ class MatrixWrite(IR):
         return new_instance(child, self.matrix_writer)
 
     def render(self, r):
-        return '(MatrixWrite {} {})'.format(
-            self.matrix_writer, r(self.child))
+        return '(MatrixWrite "{}" {})'.format(
+            r(self.matrix_writer),
+            r(self.child))
 
     def __eq__(self, other):
         return isinstance(other, MatrixWrite) and \

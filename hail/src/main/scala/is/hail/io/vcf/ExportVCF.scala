@@ -1,8 +1,9 @@
 package is.hail.io.vcf
 
 import is.hail
+import is.hail.HailContext
 import is.hail.annotations.Region
-import is.hail.expr.types._
+import is.hail.expr.ir.MatrixValue
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io.{VCFAttributes, VCFFieldAttributes, VCFMetadata}
@@ -199,13 +200,20 @@ object ExportVCF {
   def getAttributes(k1: String, k2: String, k3: String, attributes: Option[VCFMetadata]): Option[String] =
     getAttributes(k1, k2, attributes).flatMap(_.get(k3))
 
-  def apply(vsm: MatrixTable, path: String, append: Option[String] = None,
+  def apply(mt: MatrixTable, path: String, append: Option[String] = None,
     exportType: Int = ExportType.CONCATENATED, metadata: Option[VCFMetadata] = None) {
-    
-    vsm.requireColKeyString("export_vcf")
-    vsm.requireRowKeyVariant("export_vcf")
-    
-    val tg = vsm.entryType match {
+    ExportVCF(mt.value, path, append, exportType, metadata)
+  }
+
+  def apply(mv: MatrixValue, path: String, append: Option[String],
+    exportType: Int, metadata: Option[VCFMetadata]) {
+
+    mv.typ.requireColKeyString()
+    mv.typ.requireRowKeyVariant()
+
+    val typ = mv.typ
+
+    val tg = typ.entryType match {
       case t: TStruct => t.physicalType
       case t =>
         fatal(s"export_vcf requires g to have type TStruct, found $t")
@@ -220,8 +228,8 @@ object ExportVCF {
     val formatFieldString = formatFieldOrder.map(i => tg.fields(i).name).mkString(":")
 
     val tinfo =
-      if (vsm.rowType.hasField("info")) {
-        vsm.rowType.field("info").typ match {
+      if (typ.rowType.hasField("info")) {
+        typ.rowType.field("info").typ match {
           case t: TStruct => t.asInstanceOf[TStruct].physicalType
           case t =>
             warn(s"export_vcf found row field 'info' of type $t, but expected type 'Struct'. Emitting no INFO fields.")
@@ -232,10 +240,10 @@ object ExportVCF {
         PStruct.empty()
       }
 
-    val rg = vsm.referenceGenome
+    val rg = mv.referenceGenome
     val assembly = rg.name
-    
-    val localNSamples = vsm.numCols
+
+    val localNSamples = mv.nCols
     val hasSamples = localNSamples > 0
 
     def header: String = {
@@ -281,7 +289,7 @@ object ExportVCF {
       }
 
       append.foreach { f =>
-        vsm.sparkContext.hadoopConfiguration.readFile(f) { s =>
+        mv.sparkContext.hadoopConfiguration.readFile(f) { s =>
           Source.fromInputStream(s)
             .getLines()
             .filterNot(_.isEmpty)
@@ -307,19 +315,19 @@ object ExportVCF {
       sb.append("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO")
       if (hasSamples)
         sb.append("\tFORMAT")
-      vsm.stringSampleIds.foreach { id =>
+      mv.stringSampleIds.foreach { id =>
         sb += '\t'
         sb.append(id)
       }
       sb.result()
     }
 
-    val fieldIdx = vsm.rowType.fieldIdx
+    val fieldIdx = typ.rowType.fieldIdx
 
     def lookupVAField(fieldName: String, vcfColName: String, expectedTypeOpt: Option[Type]): (Boolean, Int) = {
       fieldIdx.get(fieldName) match {
         case Some(idx) =>
-          val t = vsm.rowType.types(idx)
+          val t = typ.rowType.types(idx)
           if (expectedTypeOpt.forall(t == _)) // FIXME: make sure this is right
             (true, idx)
           else {
@@ -338,11 +346,11 @@ object ExportVCF {
     val (filtersExists, filtersIdx) = lookupVAField("filters", "FILTERS", Some(filtersType))
     val (infoExists, infoIdx) = lookupVAField("info", "INFO", None)
     
-    val fullRowType = vsm.rvRowType.physicalType
-    val localEntriesIndex = vsm.entriesIndex
-    val localEntriesType = vsm.matrixType.entryArrayType.physicalType
+    val fullRowType = typ.rvRowType.physicalType
+    val localEntriesIndex = typ.entriesIdx
+    val localEntriesType = typ.entryArrayType.physicalType
 
-    vsm.rvd.mapPartitions { it =>
+    mv.rvd.mapPartitions { it =>
       val sb = new StringBuilder
       var m: Region = null
 
@@ -426,6 +434,6 @@ object ExportVCF {
         
         sb.result()
       }
-    }.writeTable(path, vsm.hc.tmpDir, Some(header), exportType = exportType)
+    }.writeTable(path, HailContext.get.tmpDir, Some(header), exportType = exportType)
   }
 }

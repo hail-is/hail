@@ -2159,7 +2159,8 @@ class MatrixTable(ExprContainer):
             If ``True``, overwrite an existing file at the destination.
         """
 
-        self._jmt.write(output, overwrite, stage_locally, _codec_spec)
+        writer = MatrixNativeWriter(output, overwrite, stage_locally, _codec_spec)
+        Env.hc()._backend.interpret(MatrixWrite(self._mir, writer))
 
     def globals_table(self) -> Table:
         """Returns a table with a single row with the globals of the matrix table.

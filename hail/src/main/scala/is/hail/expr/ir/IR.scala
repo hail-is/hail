@@ -289,7 +289,7 @@ final case class TableExport(
 
 final case class MatrixWrite(
   child: MatrixIR,
-  f: (MatrixValue) => Unit) extends IR {
+  writer: MatrixWriter) extends IR {
   val typ: Type = TVoid
 }
 

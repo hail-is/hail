@@ -723,9 +723,9 @@ object Interpret {
         child.partitionCounts
           .map(_.sum)
           .getOrElse(child.execute(HailContext.get).rvd.count())
-      case MatrixWrite(child, f) =>
+      case MatrixWrite(child, writer) =>
         val mv = child.execute(HailContext.get)
-        f(mv)
+        writer(mv)
       case TableWrite(child, path, overwrite, stageLocally, codecSpecJSONStr) =>
         val hc = HailContext.get
         val tableValue = child.execute(hc)

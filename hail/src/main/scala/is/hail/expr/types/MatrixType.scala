@@ -3,9 +3,10 @@ package is.hail.expr.types
 import is.hail.annotations.Annotation
 import is.hail.expr.ir.{Env, IRParser}
 import is.hail.expr.types.physical.{PArray, PStruct}
-import is.hail.expr.types.virtual.{TArray, TStruct, Type}
+import is.hail.expr.types.virtual._
 import is.hail.rvd.RVDType
 import is.hail.utils._
+import is.hail.variant.ReferenceGenome
 import org.apache.spark.sql.Row
 import org.json4s.CustomSerializer
 import org.json4s.JsonAST.JString
@@ -172,4 +173,24 @@ case class MatrixType(
     .bind("sa" -> colType)
     .bind("va" -> rvRowType)
     .bind("g" -> entryType)
+
+  def requireRowKeyVariant() {
+    val rowKeyTypes = rowKeyStruct.types
+    rowKey.zip(rowKeyTypes) match {
+      case IndexedSeq(("locus", TLocus(_, _)), ("alleles", TArray(TString(_), _))) =>
+    }
+  }
+
+  def requireColKeyString() {
+    colKeyStruct.types match {
+      case Array(_: TString) =>
+    }
+  }
+
+  def referenceGenome: ReferenceGenome = {
+    val firstKeyField = rowKeyStruct.types(0)
+    firstKeyField match {
+      case TLocus(rg: ReferenceGenome, _) => rg
+    }
+  }
 }
