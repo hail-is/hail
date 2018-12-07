@@ -19,7 +19,7 @@ def get_mt():
 
 
 def benchmark(f):
-    _registry.append(Benchmark(f, f.__name__))
+    _registry[f.__name__] = Benchmark(f, f.__name__)
     return f
 
 
@@ -32,7 +32,7 @@ class Benchmark(object):
         self.f()
 
 
-_registry = []
+_registry = {}
 _data_dir = ''
 _mt = None
 _initialized = False
@@ -82,17 +82,14 @@ def _run(benchmark, n_iter):
 
 def run_all(n_iter=3, cores=1):
     _initialize(cores)
-    for benchmark in _registry:
+    for name, benchmark in _registry.items():
         _run(benchmark, n_iter)
 
 
 def run_single(name, n_iter=3, cores=1):
     _initialize(cores)
 
-    to_test = [b for b in _registry if b.name == name]
-    assert len(to_test) <= 1
-
-    if not to_test:
+    if not name in _registry:
         raise ValueError(f'test {repr(name)} not found')
     else:
-        _run(to_test[0], n_iter)
+        _run(_registry[name], n_iter)

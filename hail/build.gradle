@@ -281,8 +281,7 @@ task doctest(type: Exec, dependsOn: shadowJar) {
 }
 
 task benchmark(type: Exec, dependsOn: shadowJar) {
-    commandLine 'python',
-            'scripts/run_benchmarks.py'
+    commandLine 'python', '-m', 'benchmark'
     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
 }
 
