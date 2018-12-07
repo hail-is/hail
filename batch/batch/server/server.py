@@ -111,24 +111,27 @@ class Job:
 
     def __init__(self, pod_spec, batch_id, attributes, callback, parents):
         self.id = next_id()
-        self.children = []
-        job_id_job[self.id] = self
-
-        for parent in parents:
-            if parent not in job_id_job:
-                abort(400, f'invalid parent: no job with id {parent}')
-        self.parents = parents
-        self.incomplete_parents = set(self.parents)
-        for parent in self.parents:
-            job_id_job[parent].children.append(self.id)
-
         self.batch_id = batch_id
-        if batch_id:
-            batch = batch_id_batch[batch_id]
-            batch.jobs.append(self)
-
         self.attributes = attributes
         self.callback = callback
+        self.children = set([])
+        self.parents = parents
+        self.incomplete_parents = set(self.parents)
+        self._pod_name = None
+        self.exit_code = None
+        self._state = 'Created'
+
+        job_id_job[self.id] = self
+
+        for parent in self.parents:
+            if parent not in job_id_job:
+                abort(400, f'invalid parent: no job with id {parent}')
+        for parent in self.parents:
+            job_id_job[parent].children.add(self.id)
+
+        if batch_id:
+            batch = batch_id_batch[batch_id]
+            batch.jobs.add(self)
 
         self.pod_template = kube.client.V1Pod(
             metadata=kube.client.V1ObjectMeta(generate_name='job-{}-'.format(self.id),
@@ -139,10 +142,6 @@ class Job:
                                               }),
             spec=pod_spec)
 
-        self._pod_name = None
-        self.exit_code = None
-
-        self._state = 'Created'
         log.info('created job {}'.format(self.id))
 
         if not self.parents:
@@ -166,12 +165,11 @@ class Job:
 
     def notify_children(self, new_state):
         for child_id in self.children:
-            child = job_id_job[child_id]
+            child = job_id_job.get(child_id)
             if child:
                 child.parent_new_state(new_state, self.id, self.exit_code)
             else:
-                log.info(f'lost child: {child_id}')
-                del job_id_job[child_id]
+                log.info(f'missing child: {child_id}')
 
     def parent_new_state(self, new_state, parent_id, maybe_exit_code):
         if new_state == 'Complete' and maybe_exit_code == 0:
@@ -355,13 +353,16 @@ class Batch:
         self.attributes = attributes
         self.id = next_id()
         batch_id_batch[self.id] = self
-        self.jobs = []
+        self.jobs = set([])
 
     def delete(self):
         del batch_id_batch[self.id]
         for j in self.jobs:
             assert j.batch_id == self.id
             j.batch_id = None
+
+    def remove(self, job):
+        self.jobs.remove(job)
 
     def to_json(self):
         state_count = Counter([j._state for j in self.jobs])
