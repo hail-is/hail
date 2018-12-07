@@ -1,10 +1,8 @@
 """A work in progress pipeline to combine (g)VCFs into an alternate format"""
 
-import operator
-
 import hail as hl
 from hail.matrixtable import MatrixTable
-from hail.expr import ArrayExpression, Expression, NumericExpression, StructExpression
+from hail.expr import ArrayExpression, StructExpression
 
 
 def transform_one(mt: MatrixTable) -> MatrixTable:
@@ -79,27 +77,25 @@ def combine(ts):
             hl.range(0, hl.len(tmp.data)).flatmap(
                 lambda i:
                 hl.cond(hl.is_missing(tmp.data[i].__entries),
-                        hl.range(0, tmp.g[i].ncol).map(lambda _: hl.null(tmp.data[i].__entries.dtype.element_type)),
+                        hl.range(0, hl.len(tmp.g[i].__cols))
+                          .map(lambda _: hl.null(tmp.data[i].__entries.dtype.element_type)),
                         hl.bind(
                             lambda old_to_new: tmp.data[i].__entries.map(lambda e: renumber_entry(e, old_to_new)),
                             hl.range(0, hl.len(tmp.data[i].alleles)).map(
                                 lambda j: combined_allele_index[tmp.data[i].alleles[j]])))),
             hl.dict(hl.range(0, hl.len(tmp.alleles)).map(
                 lambda j: hl.tuple([tmp.alleles[j], j])))))
+    tmp = tmp.annotate_globals(__cols=hl.flatten(tmp.g.map(lambda g: g.__cols)))
 
-    tmp = tmp.drop('data', 'g')
-
-    # tmp.describe()
-
-    return tmp
+    return tmp.drop('data', 'g')
 
 
-def combine_vcfs_mw(mts):
+def combine_gvcfs(mts):
     """merges vcfs using multi way join"""
 
     # pylint: disable=protected-access
     def localize(mt):
-        return mt._localize_entries('__entries')
+        return mt._localize_entries('__entries', '__cols')
 
     cols = None
     for mt in mts:
@@ -107,12 +103,9 @@ def combine_vcfs_mw(mts):
             cols = mt.key_cols_by().cols()
         else:
             cols = cols.union(mt.key_cols_by().cols())
-    ts = hl.Table._multi_way_zip_join(
-        [localize(mt.annotate_globals(ncol=mt.cols().count())) for mt in mts],
-        'data',
-        'g')
+    ts = hl.Table._multi_way_zip_join([localize(mt) for mt in mts], 'data', 'g')
     combined = combine(ts)
-    return combined._unlocalize_entries(cols, '__entries')
+    return combined._unlocalize_entries('__entries', '__cols', ['s'])
 
 # NOTE: these are just @chrisvittal's notes on how gVCF fields are combined
 #       some of it is copied from GenomicsDB's wiki.

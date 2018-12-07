@@ -256,6 +256,34 @@ class VCFTests(unittest.TestCase):
         pos268 = set(filt268.locus.position.collect())
         self.assertFalse(pos096 & pos268)
 
+    def test_combiner_works(self):
+        from hail.experimental.vcf_combiner import transform_one, combine_gvcfs
+        _paths = ['gvcfs/HG00096.g.vcf.gz', 'gvcfs/HG00268.g.vcf.gz']
+        paths = [resource(p) for p in _paths]
+        parts = [
+                    {'start': {'locus': {'contig': 'chr20', 'position': 17821257}},
+                     'end':   {'locus': {'contig': 'chr20', 'position': 18708366}},
+                     'includeStart': True,
+                     'includeEnd': True},
+                    {'start': {'locus': {'contig': 'chr20', 'position': 18708367}},
+                     'end':   {'locus': {'contig': 'chr20', 'position': 19776611}},
+                     'includeStart': True,
+                     'includeEnd': True},
+                    {'start': {'locus': {'contig': 'chr20', 'position': 19776612}},
+                     'end':   {'locus': {'contig': 'chr20', 'position': 21144633}},
+                     'includeStart': True,
+                     'includeEnd': True},
+                ]
+        parts_str = json.dumps(parts)
+        vcfs = [transform_one(mt.annotate_rows(info=mt.info.annotate(
+            MQ_DP=hl.null(hl.tint32),
+            VarDP=hl.null(hl.tint32),
+            QUALapprox=hl.null(hl.tint32))))
+                for mt in hl.import_vcfs(paths, parts_str, reference_genome='GRCh38')]
+        comb = combine_gvcfs(vcfs)
+        self.assertEqual(len(parts), comb.n_partitions())
+        comb._force_count_rows()
+
 
 class PLINKTests(unittest.TestCase):
     def test_import_fam(self):
