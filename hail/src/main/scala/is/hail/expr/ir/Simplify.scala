@@ -240,7 +240,7 @@ object Simplify {
     case TableGetGlobals(TableFilter(child, _)) => TableGetGlobals(child)
     case TableGetGlobals(TableHead(child, _)) => TableGetGlobals(child)
     case TableGetGlobals(TableRepartition(child, _, _)) => TableGetGlobals(child)
-    case TableGetGlobals(TableJoin(child, _, _, _)) => TableGetGlobals(child)
+    case TableGetGlobals(TableJoin(child1, child2, _, _)) => invoke("annotate", TableGetGlobals(child1), TableGetGlobals(child2))
     case TableGetGlobals(x@TableMultiWayZipJoin(children, _, globalName)) =>
       MakeStruct(FastSeq(globalName -> MakeArray(children.map(TableGetGlobals), TArray(x.typ.globalType))))
     case TableGetGlobals(TableLeftJoinRightDistinct(child, _, _)) => TableGetGlobals(child)
