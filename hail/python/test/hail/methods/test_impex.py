@@ -175,6 +175,87 @@ class VCFTests(unittest.TestCase):
         metadata_imported = hl.get_vcf_metadata('/tmp/sample.vcf')
         self.assertDictEqual(vcf_metadata, metadata_imported)
 
+    def test_import_vcfs(self):
+        path = resource('sample.vcf.bgz')
+        parts = [
+                    {'start': {'locus': {'contig': '20', 'position': 1}},
+                     'end': {'locus': {'contig': '20', 'position': 13509135}},
+                     'includeStart': True,
+                     'includeEnd': True},
+                    {'start': {'locus': {'contig': '20', 'position': 13509136}},
+                     'end': {'locus': {'contig': '20', 'position': 16493533}},
+                     'includeStart': True,
+                     'includeEnd': True},
+                    {'start': {'locus': {'contig': '20', 'position': 16493534}},
+                     'end': {'locus': {'contig': '20', 'position': 20000000}},
+                     'includeStart': True,
+                     'includeEnd': True},
+                ]
+        parts_str = json.dumps(parts)
+        vcf1 = hl.import_vcf(path).key_rows_by('locus')  # import_vcfs keys by 'locus'
+        vcf2 = hl.import_vcfs([path], parts_str)[0]
+        self.assertEqual(len(parts), vcf2.n_partitions())
+        self.assertTrue(vcf1._same(vcf2))
+
+        interval = [hl.parse_locus_interval('[20:13509136-16493533]')]
+        filter1 = hl.filter_intervals(vcf1, interval)
+        filter2 = hl.filter_intervals(vcf2, interval)
+        self.assertEqual(1, filter2.n_partitions())
+        self.assertTrue(filter1._same(filter2))
+
+        # we've selected exactly the middle partition ±1 position on either end
+        interval_a = [hl.parse_locus_interval('[20:13509135-16493533]')]
+        interval_b = [hl.parse_locus_interval('[20:13509136-16493534]')]
+        interval_c = [hl.parse_locus_interval('[20:13509135-16493534]')]
+        self.assertEqual(hl.filter_intervals(vcf2, interval_a).n_partitions(), 2)
+        self.assertEqual(hl.filter_intervals(vcf2, interval_b).n_partitions(), 2)
+        self.assertEqual(hl.filter_intervals(vcf2, interval_c).n_partitions(), 3)
+
+    def test_import_vcfs_subset(self):
+        path = resource('sample.vcf.bgz')
+        parts = [
+                    {'start': {'locus': {'contig': '20', 'position': 13509136}},
+                     'end': {'locus': {'contig': '20', 'position': 16493533}},
+                     'includeStart': True,
+                     'includeEnd': True},
+                ]
+        parts_str = json.dumps(parts)
+        vcf1 = hl.import_vcf(path).key_rows_by('locus')  # import_vcfs keys by 'locus'
+        vcf2 = hl.import_vcfs([path], parts_str)[0]
+        interval = [hl.parse_locus_interval('[20:13509136-16493533]')]
+        filter1 = hl.filter_intervals(vcf1, interval)
+        self.assertTrue(vcf2._same(filter1))
+        self.assertEqual(len(parts), vcf2.n_partitions())
+
+    def test_import_multiple_vcfs(self):
+        _paths = ['gvcfs/HG00096.g.vcf.gz', 'gvcfs/HG00268.g.vcf.gz']
+        paths = [resource(p) for p in _paths]
+        parts = [
+                    {'start': {'locus': {'contig': 'chr20', 'position': 17821257}},
+                     'end':   {'locus': {'contig': 'chr20', 'position': 18708366}},
+                     'includeStart': True,
+                     'includeEnd': True},
+                    {'start': {'locus': {'contig': 'chr20', 'position': 18708367}},
+                     'end':   {'locus': {'contig': 'chr20', 'position': 19776611}},
+                     'includeStart': True,
+                     'includeEnd': True},
+                    {'start': {'locus': {'contig': 'chr20', 'position': 19776612}},
+                     'end':   {'locus': {'contig': 'chr20', 'position': 21144633}},
+                     'includeStart': True,
+                     'includeEnd': True},
+                ]
+        int0 = hl.parse_locus_interval('[chr20:17821257-18708366]', reference_genome='GRCh38')
+        int1 = hl.parse_locus_interval('[chr20:18708367-19776611]', reference_genome='GRCh38')
+        parts_str = json.dumps(parts)
+        hg00096, hg00268 = hl.import_vcfs(paths, parts_str, reference_genome='GRCh38')
+        filt096 = hl.filter_intervals(hg00096, [int0])
+        filt268 = hl.filter_intervals(hg00268, [int1])
+        self.assertEqual(1, filt096.n_partitions())
+        self.assertEqual(1, filt268.n_partitions())
+        pos096 = set(filt096.locus.position.collect())
+        pos268 = set(filt268.locus.position.collect())
+        self.assertFalse(pos096 & pos268)
+
 
 class PLINKTests(unittest.TestCase):
     def test_import_fam(self):
@@ -410,58 +491,6 @@ class PLINKTests(unittest.TestCase):
                         resource('sex_mt_contigs.bim'),
                         resource('sex_mt_contigs.fam'),
                         reference_genome='random')
-
-    def test_import_vcfs(self):
-        path = resource('sample.vcf.bgz')
-        parts = [
-                    {'start': {'locus': {'contig': '20', 'position': 1}},
-                     'end': {'locus': {'contig': '20', 'position': 13509135}},
-                     'includeStart': True,
-                     'includeEnd': True},
-                    {'start': {'locus': {'contig': '20', 'position': 13509136}},
-                     'end': {'locus': {'contig': '20', 'position': 16493533}},
-                     'includeStart': True,
-                     'includeEnd': True},
-                    {'start': {'locus': {'contig': '20', 'position': 16493534}},
-                     'end': {'locus': {'contig': '20', 'position': 20000000}},
-                     'includeStart': True,
-                     'includeEnd': True},
-                ]
-        parts_str = json.dumps(parts)
-        vcf1 = hl.import_vcf(path).key_rows_by('locus')  # import_vcfs keys by 'locus'
-        vcf2 = hl.import_vcfs([path], parts_str)[0]
-        self.assertEqual(len(parts), vcf2.n_partitions())
-        self.assertTrue(vcf1._same(vcf2))
-
-        interval = [hl.parse_locus_interval('[20:13509136-16493533]')]
-        filter1 = hl.filter_intervals(vcf1, interval)
-        filter2 = hl.filter_intervals(vcf2, interval)
-        self.assertEqual(1, filter2.n_partitions())
-        self.assertTrue(filter1._same(filter2))
-
-        # we've selected exactly the middle partition ±1 position on either end
-        interval_a = [hl.parse_locus_interval('[20:13509135-16493533]')]
-        interval_b = [hl.parse_locus_interval('[20:13509136-16493534]')]
-        interval_c = [hl.parse_locus_interval('[20:13509135-16493534]')]
-        self.assertEqual(hl.filter_intervals(vcf2, interval_a).n_partitions(), 2)
-        self.assertEqual(hl.filter_intervals(vcf2, interval_b).n_partitions(), 2)
-        self.assertEqual(hl.filter_intervals(vcf2, interval_c).n_partitions(), 3)
-
-    def test_import_vcfs_subset(self):
-        path = resource('sample.vcf.bgz')
-        parts = [
-                    {'start': {'locus': {'contig': '20', 'position': 13509136}},
-                     'end': {'locus': {'contig': '20', 'position': 16493533}},
-                     'includeStart': True,
-                     'includeEnd': True},
-                ]
-        parts_str = json.dumps(parts)
-        vcf1 = hl.import_vcf(path).key_rows_by('locus')  # import_vcfs keys by 'locus'
-        vcf2 = hl.import_vcfs([path], parts_str)[0]
-        interval = [hl.parse_locus_interval('[20:13509136-16493533]')]
-        filter1 = hl.filter_intervals(vcf1, interval)
-        self.assertTrue(vcf2._same(filter1))
-        self.assertEqual(len(parts), vcf2.n_partitions())
 
 
 # this routine was used to generate resources random.gen, random.sample
