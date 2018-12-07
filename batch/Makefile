@@ -22,6 +22,10 @@ build/pylint: $(PY_FILES) build/conda-env
 	. ../loadconda && conda activate hail-batch && python -m pylint --rcfile batch/pylintrc batch --score=n
 	mkdir -p build && touch $@
 
+build/conda-env: environment.yml
+	conda env update -f environment.yml || conda env create -f environment.yml
+	mkdir -p build && touch build/conda-env
+
 build:
 	docker build -t batch .
 
