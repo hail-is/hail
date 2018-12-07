@@ -290,7 +290,7 @@ class MatrixBGENReaderSerializer(env: IRParserEnvironment) extends CustomSeriali
   format =>
   ({ case jObj: JObject =>
     implicit val fmt = format
-    val files = (jObj \ "path").extract[Array[String]]
+    val files = (jObj \ "files").extract[Array[String]]
     val sampleFile = (jObj \ "sampleFile").extractOpt[String]
     val indexFileMap = (jObj \ "indexFileMap").extract[Map[String, String]]
     val nPartitions = (jObj \ "nPartitions").extractOpt[Int]
@@ -300,7 +300,7 @@ class MatrixBGENReaderSerializer(env: IRParserEnvironment) extends CustomSeriali
     MatrixBGENReader(files, sampleFile, indexFileMap, nPartitions, blockSizeInMB, includedVariants)
   }, { case reader: MatrixBGENReader =>
     JObject(List(
-      "path" -> JArray(reader.files.map(JString).toList),
+      "files" -> JArray(reader.files.map(JString).toList),
       "sampleFile" -> reader.sampleFile.map(JString).getOrElse(JNull),
       "indexFileMap" -> JArray(reader.indexFileMap.map { case (k, v) => JObject(
         "key" -> JString(k), "value" -> JString(v)

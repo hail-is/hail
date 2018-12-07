@@ -137,7 +137,7 @@ class MatrixBGENReader(MatrixReader):
 
     def render(self, r):
         reader = {'name': 'MatrixBGENReader',
-                  'path': self.path,
+                  'files': self.path,
                   'sampleFile': self.sample_file,
                   'indexFileMap': self.index_file_map,
                   'nPartitions': self.n_partitions,
