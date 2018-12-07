@@ -143,7 +143,7 @@ class TableIRTests(unittest.TestCase):
             ir.MatrixRowsTable(matrix_read),
             ir.TableParallelize(ir.MakeStruct([
                 ('rows', ir.Literal(hl.tarray(hl.tstruct(a=hl.tint32)), [{'a':None}, {'a':5}, {'a':-3}])),
-                ('global', ir.MakeStruct())]), None),
+                ('global', ir.MakeStruct([]))]), None),
             ir.TableMapRows(
                 ir.TableKeyBy(table_read, []),
                 ir.MakeStruct([

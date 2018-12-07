@@ -467,7 +467,7 @@ class Table(ExprContainer):
                             .format(rows.dtype))
         table = Table(TableParallelize(MakeStruct([
             ('rows', rows._ir),
-            ('global', MakeStruct())]), n_partitions))
+            ('global', MakeStruct([]))]), n_partitions))
         if key is not None:
             table = table.key_by(*key)
         return table
