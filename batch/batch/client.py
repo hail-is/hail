@@ -5,13 +5,16 @@ from . import api
 
 
 class Job:
-    def __init__(self, client, id, attributes=None, parents=[], _status=None):
+    def __init__(self, client, id, attributes=None, parents=None, _status=None):
+        if parents is None:
+            parents = []
         if attributes is None:
             attributes = {}
 
         self.client = client
         self.id = id
         self.attributes = attributes
+        self.parents = parents
         self._status = _status
 
     def is_complete(self):
@@ -62,7 +65,9 @@ class Batch:
 
     def create_job(self, image, command=None, args=None, env=None, ports=None,
                    resources=None, tolerations=None, volumes=None, security_context=None,
-                   service_account_name=None, attributes=None, callback=None):
+                   service_account_name=None, attributes=None, callback=None, parents=None):
+        if parents is None:
+            parents = []
         return self.client._create_job(
             image, command, args, env, ports, resources, tolerations, volumes, security_context,
             service_account_name, attributes, self.id, callback)
