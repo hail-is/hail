@@ -981,9 +981,7 @@ class PartitionedVCFRDD(
       val pos = l.substring(t1 + 1, t2).toInt
 
       assert(chrom == p.chrom)
-      chrom == p.chrom &&
-        p.start <= pos &&
-        pos <= p.end
+      p.start <= pos && pos <= p.end
     }
   }
 }
@@ -1092,9 +1090,10 @@ case class MatrixVCFReader(
     val jv = JsonMethods.parse(partitionsJSON)
     val rangeBounds = JSONAnnotationImpex.importAnnotation(jv, pkType)
 
-    new RVDPartitioner(fullType.rowKeyStruct,
-      rangeBounds.asInstanceOf[IndexedSeq[Interval]],
-      0)
+    new RVDPartitioner(
+      Array("locus"),
+      fullType.rowKeyStruct,
+      rangeBounds.asInstanceOf[IndexedSeq[Interval]])
   } else
     null
 
@@ -1209,9 +1208,10 @@ case class VCFsReader(
     val jv = JsonMethods.parse(partitionsJSON)
     val rangeBounds = JSONAnnotationImpex.importAnnotation(jv, pkType)
 
-    new RVDPartitioner(rowKeyType,
-      rangeBounds.asInstanceOf[IndexedSeq[Interval]],
-      0)
+    new RVDPartitioner(
+      Array("locus"),
+      fullType.rowKeyStruct,
+      rangeBounds.asInstanceOf[IndexedSeq[Interval]])
   }
 
   private val fileInfo = {
