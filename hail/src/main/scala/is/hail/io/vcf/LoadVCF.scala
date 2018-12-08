@@ -1210,7 +1210,7 @@ case class VCFsReader(
 
     new RVDPartitioner(
       Array("locus"),
-      fullType.rowKeyStruct,
+      rowKeyType,
       rangeBounds.asInstanceOf[IndexedSeq[Interval]])
   }
 
