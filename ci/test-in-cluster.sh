@@ -28,7 +28,7 @@ cp /secrets/hail-ci-0-1.key gcloud-token
 
 export IN_CLUSTER=true
 export SELF_HOSTNAME=https://ci.hail.is/$SERVICE_NAME
-export BATCH_SERVER_URL=http://127.0.0.1:5001/
+export BATCH_SERVER_URL=http://127.0.0.1:5001
 
 (cd ../batch && make run & batch_pid=$!)
 
