@@ -26,8 +26,8 @@ class ValueIRTests(unittest.TestCase):
 
         table = ir.TableRange(5, 3)
 
-        matrix_read = ir.MatrixRead(
-            resource('backward_compatability/1.0.0/matrix_table/0.hmt'), False, False)
+        matrix_read = ir.MatrixRead(ir.MatrixNativeReader(
+            resource('backward_compatability/1.0.0/matrix_table/0.hmt')), False, False)
 
         value_irs = [
             i, ir.I64(5), ir.F32(3.14), ir.F64(3.14), s, ir.TrueIR(), ir.FalseIR(), ir.Void(),
