@@ -7,7 +7,9 @@ import breeze.linalg.{DenseMatrix, Matrix, Vector}
 import is.hail.annotations.{Region, RegionValueBuilder, SafeRow}
 import is.hail.cxx.CXXUnsupportedOperation
 import is.hail.expr.ir._
+import is.hail.expr.types.MatrixType
 import is.hail.expr.types.virtual._
+import is.hail.io.bgen.{LoadBgen, MatrixBGENReader}
 import is.hail.io.vcf.MatrixVCFReader
 import is.hail.nativecode.NativeStatus
 import is.hail.table.Table
@@ -541,5 +543,42 @@ object TestUtils {
     if (addedReference)
       ReferenceGenome.removeReference(rg.get.name)
     new MatrixTable(HailContext.get, MatrixRead(reader.fullType, dropSamples, false, reader))
+  }
+
+  def importBgens(files: Seq[String],
+    sampleFile: Option[String] = None,
+    includeGT: Boolean = true,
+    includeGP: Boolean = true,
+    includeDosage: Boolean = false,
+    includeVarid: Boolean = true,
+    includeRsid: Boolean = true,
+    nPartitions: Option[Int] = None,
+    blockSizeInMB: Option[Int] = None,
+    indexFileMap: Map[String, String] = null,
+    includedVariants: Option[Table] = None
+  ): MatrixTable = {
+    val hc = HailContext.get
+    val referenceGenome = LoadBgen.getReferenceGenome(hc.hadoopConf, files.toArray, indexFileMap)
+
+    val requestedType: MatrixType = MatrixBGENReader.getMatrixType(
+      referenceGenome,
+      includeRsid,
+      includeVarid,
+      includeOffset = false,
+      includeFileIdx = false,
+      includeGT,
+      includeGP,
+      includeDosage
+    )
+
+    val reader = MatrixBGENReader(
+      files, sampleFile, Option(indexFileMap).getOrElse(Map.empty[String, String]), nPartitions,
+      if (nPartitions.isEmpty && blockSizeInMB.isEmpty)
+        Some(128)
+      else
+        blockSizeInMB,
+      includedVariants)
+
+    new MatrixTable(hc, MatrixRead(requestedType, dropCols = false, dropRows = false, reader))
   }
 }

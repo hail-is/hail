@@ -384,43 +384,7 @@ class HailContext private(val sc: SparkContext,
     IndexBgen(this, files.toArray, indexFileMap, rg, contigRecoding, skipInvalidLoci)
     info(s"Number of BGEN files indexed: ${ files.length }")
   }
-
-  def importBgens(files: Seq[String],
-    sampleFile: Option[String] = None,
-    includeGT: Boolean = true,
-    includeGP: Boolean = true,
-    includeDosage: Boolean = false,
-    includeVarid: Boolean = true,
-    includeRsid: Boolean = true,
-    nPartitions: Option[Int] = None,
-    blockSizeInMB: Option[Int] = None,
-    indexFileMap: Map[String, String] = null,
-    includedVariants: Option[Table] = None
-  ): MatrixTable = {
-    val referenceGenome = LoadBgen.getReferenceGenome(hadoopConf, files.toArray, indexFileMap)
-
-    val requestedType: MatrixType = MatrixBGENReader.getMatrixType(
-      referenceGenome,
-      includeRsid,
-      includeVarid,
-      includeOffset = false,
-      includeFileIdx = false,
-      includeGT,
-      includeGP,
-      includeDosage
-    )
-
-    val reader = MatrixBGENReader(
-      files, sampleFile, Option(indexFileMap).getOrElse(Map.empty[String, String]), nPartitions,
-      if (nPartitions.isEmpty && blockSizeInMB.isEmpty)
-        Some(128)
-      else
-        blockSizeInMB,
-      includedVariants)
-
-    new MatrixTable(this, MatrixRead(requestedType, dropCols = false, dropRows = false, reader))
-  }
-
+  
   def importGen(file: String,
     sampleFile: String,
     chromosome: Option[String] = None,
