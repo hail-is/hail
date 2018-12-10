@@ -1,0 +1,113 @@
+# TODO: make this a js file that uses graphql tag
+# and compose the config pieces to avoid copy-pasta
+
+# Store phenotype and sex as strings...because graphql has strict type coercion
+# and seems to have difficulty converting "2" to a number...
+type JobSample {
+  IID: String!
+  FID: String
+  FatherID: String
+  MotherID: String
+  Phenotype: String
+  Sex: String
+}
+
+input JobSampleInput {
+  IID: String!
+  FID: String
+  FatherID: String
+  MotherID: String
+  Phenotype: String
+  Sex: String
+}
+
+type JobOptions {
+  regression: String!
+  hwe: String
+  maf: String
+  geno: String
+  email: String
+}
+
+input JobOptionsInput {
+  regression: String!
+  hwe: String
+  maf: String
+  geno: String
+  email: String
+}
+
+type JobFlags {
+  pca: Boolean
+  hwe: Boolean
+}
+
+input JobFlagsInput {
+  pca: Boolean
+  hwe: Boolean
+}
+
+type JobFilePaths {
+  fam: String!
+  data: String!
+}
+
+input JobFilePathsInput {
+  fam: String!
+  data: String!
+}
+
+type JobConfig {
+  flags: JobFlags!
+  options: JobOptions!
+  samplesSelected: [JobSample]
+  filesSelected: JobFilePaths!
+}
+
+input JobConfigInput {
+  flags: JobFlagsInput!
+  options: JobOptionsInput!
+  samplesSelected: [JobSampleInput]
+  filesSelected: JobFilePathsInput!
+}
+
+type Log {
+  exception: String
+  progress: Float
+  skipped: Int
+  messages: [String]
+}
+
+type QueueStats {
+  ttr: Int
+  age: Int
+}
+
+type Submission {
+  attempts: Int
+  state: String
+  submittedDate: String
+  type: String
+  log: Log
+  queueStats: QueueStats
+}
+
+type Job {
+  id: ID!
+  assembly: String
+  config: JobConfig
+  results: String
+  createdAt: String
+  name: String
+  updatedAt: String
+  submission: Submission
+}
+
+type Query {
+  jobs: [Job]
+  job(id: ID!): Job
+}
+
+type Mutation {
+  submitJob(jobConfig: JobConfigInput!): Job
+}

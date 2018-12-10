@@ -1,0 +1,126 @@
+//from http://creativeit.github.io/getmdl-select/#download
+.chosen-container .chosen-results {
+  padding:0px;
+  margin:0px;
+}
+
+.chosen-container-single, .chosen-container {
+  .chosen-drop { 
+    border-radius: 0 0 4px 4px;
+    overflow:hidden;
+  }
+}
+
+.chosen-container .chosen-results li {
+  &, &.active-result {
+    -moz-user-select: none;
+    background-color: transparent;
+    border: medium none;
+    color: @gray;
+    cursor: pointer;
+    display: block;
+    font-size: 14px;
+    font-weight: 400;
+    height: 48px;
+    letter-spacing: 0;
+    line-height: 48px;
+    margin: 0;
+    opacity: 1;
+    outline-color: #bdbdbd;
+    overflow: hidden;
+    padding: 0 16px;
+    position: relative;
+    text-align: left;
+    text-decoration: none;
+    transition: opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1) 0s;
+    white-space: nowrap;
+    text-align:left;
+
+    &.highlighted {
+      background-color: transparent;
+      background-image: none;
+      color: @gray;
+    }
+
+    &:hover {
+      font-weight:initial;
+      background-color:@light-gray;
+    }
+
+    &.result-selected {
+      font-weight: 700; 
+    }
+  }
+  
+}
+// .chosen-container abbr::before {
+//   content: "X";
+//   line-height: 1;
+//   position: absolute;
+//   top: 3px;
+//   right: 6px;
+//   height: 100%;
+// }
+
+// .chosen-container.chosen-container-single .chosen-single abbr {
+//   background: transparent none repeat scroll 0px 0px;
+//   border-radius: 50%;
+//   display: block;
+//   font-size: 14px;
+//   height: 22px;
+//   position: absolute;
+//   right: 36px;
+//   text-align: center;
+//   top: 5px;
+//   width: 22px;
+//   border: 1px solid @red;
+//   color: @red;
+// }
+
+
+.chosen-container.chosen-container-single .chosen-single div {
+  align-self: flex-start;
+  color: @gray;
+  display: table;
+  flex-flow: column nowrap;
+  height: 100%;
+  position: absolute;
+  right: 0px;
+  text-align: center;
+  vertical-align: top;
+  width: 26px;
+}
+
+// .chosen-single.chosen-single-with-deselect {
+//   padding-right: 27px !important;
+// }
+
+// .chosen-container-single .chosen-single div b {
+//   align-self: flex-start;
+//   display: flex;
+//   flex-flow: column nowrap;
+//   font-family: FontAwesome;
+//   font-size: 18px;
+//   height: 20px;
+//   position: relative;
+//   text-align: left;
+//   vertical-align: top;
+//   width: 100%;
+//   background: transparent none repeat scroll 0px 0px;
+//   left: 0px;
+//   top: -6px;
+// }
+
+.chosen-container-single .chosen-single span {
+  text-align: left;
+}
+
+// .chosen-single.chosen-single-with-deselect b::before {
+//   content: "";
+// }
+
+.chosen-container-single .chosen-single abbr {
+  width:18px;
+  top: 11px;
+  /* left: 0; */
+}

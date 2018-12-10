@@ -1,0 +1,163 @@
+.theme-site {
+  .md-open-menu-container md-menu-divider {
+    background: @light-gray;
+  }
+
+  md-tooltip {
+    height:auto!important;
+  }
+
+  // have the mask hide md-menu items
+  md-backdrop.md-dialog-backdrop {
+    z-index: 101;
+  }
+  // Fix for using md-dialog with transcluded component
+  // need to wrap the component in md-dialog in order for the component to  not
+  // be opaque, but that prevent the md-dialog > form styles from being applied
+  // since the component element is not replaced
+  md-dialog > *:first-child {
+    box-direction: normal;
+    box-orient: vertical;
+    display: flex;
+    flex-direction: column;
+    overflow: auto;
+  }
+
+  md-fab-speed-dial {
+    outline:none;
+  }
+
+  // md-dialog has buttons in the dialog being margin:8px 0 8px 8px
+  // this only works well with a min-width of 88px on the buttons, which I find
+  // far too wide
+  md-dialog .md-actions .md-button, md-dialog md-dialog-actions .md-button {
+    margin:8px;
+  }
+
+  // similarly this is padding-right:8px by default which only works for 88px buttons
+  md-dialog .md-actions, md-dialog md-dialog-actions {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .hint {
+    bottom: 7px;
+    color: #333;
+    font-size: 12px;
+    left: 2px;
+    line-height: 14px;
+    position: absolute;
+    right: auto;
+    transition: all 0.3s cubic-bezier(0.55, 0, 0.55, 0.2);
+  }
+
+   .hint.ng-hide, .hint.ng-enter, .hint.ng-leave.ng-leave-active {
+    bottom: 26px;
+    opacity: 0; 
+  }
+  .hint.ng-leave, .hint.ng-enter.ng-enter-active {
+    bottom: 7px;
+    opacity: 1; 
+ }
+
+  .hint-2line br {
+    display:none;
+  }
+
+  .hidden {
+    display: none;
+  }
+
+  .center {
+    align-self: center;
+  }
+
+  .md-padding-left {
+    padding-left:20px;
+  }
+
+  .md-virtual-repeat-container.md-autocomplete-suggestions-container,.autocomplete-custom-template {
+    background: @white;
+  }
+
+  .autocomplete-custom-template li {
+    border-bottom: 1px solid @light-gray;
+    height: auto;
+    padding-top: 8px;
+    padding-bottom: 8px;
+    white-space: normal; }
+
+  .autocomplete-custom-template li:last-child {
+    border-bottom-width: 0; }
+
+   .autocomplete-custom-template .item-title,
+   .autocomplete-custom-template .item-metadata {
+    display: block;
+    line-height: 2; }
+
+  .autocomplete-custom-template .item-title md-icon {
+    height: 18px;
+    width: 18px; }
+
+  md-option * {
+  max-width: inherit;
+  overflow: hidden;
+  text-overflow: ellipsis;
+} 
+
+ md-option, .autocomplete-custom-template {
+    background: @white;
+    height: auto;
+    min-height:48px;
+    padding: 10px;
+    line-height:2;
+    // padding-top:10px;
+    // padding-bottom:10px;
+
+    .detail {
+      padding-left:8px;
+    }
+  }
+
+  md-option + md-option {
+    border-top:1px solid @light-gray;
+  }
+
+  .italic {
+    font-style:italic;
+  }
+  
+  .md-select-menu-container {
+    max-width:600px;
+  }
+
+  .middle-card-content {
+    margin: 0px!important;
+    padding: 16px 36px 16px 36px;
+    border-bottom: 1px solid @light-gray;
+    border-top: 1px solid @light-gray;
+  }
+  
+}
+
+@media all and (max-width: 600px) {
+  .theme-site {
+    .md-select-menu-container, md-select-menu {
+      max-width:98%;
+    }
+
+  }
+}
+
+@media all and (max-width: 480px) {
+  .theme-site {
+    .hint-2line {
+      bottom:-7px;
+    }
+
+    .hint-2line br {
+      display:block;
+    }
+
+  }
+}

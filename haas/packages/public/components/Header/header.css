@@ -1,0 +1,23 @@
+.app-bar {
+    background-color: "#fff";
+    font-size: 20px;
+    letter-spacing: ".005em";
+    font-weight: 400;
+    display: "flex";
+    align-items: "center";
+    flex-direction: "row";
+    width: "100%";
+    height: 64;
+    max-height: 64;
+    padding: "0 16px";
+    margin: 0px;
+}
+
+.is-active {
+    color: blue;
+}
+
+.button {
+    text-transform: "none";
+    color: "#333";
+}

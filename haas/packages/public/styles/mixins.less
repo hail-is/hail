@@ -1,0 +1,39 @@
+//mixins should be all caps, snake case to distniguish from reg classes
+.INVALID_INPUT_ELEM {
+  color: @red;
+  border-color: @red; //box-shadow:0 1px 1px rgba(0, 0, 0, 0.075) inset, 0 0 8px fade(@red, 0.6);
+  &:focus {
+    border-color: @red;
+    box-shadow: none;
+    outline: 0 none;
+  }
+}
+
+.FORM_ERROR_TEXT {
+  margin: 0 auto @headerMarginTopBottom;
+  position: relative;
+  .error {
+    left: 0;
+    position: absolute;
+    font-size: 12px;
+    color: @red;
+  }
+}
+
+.Aligner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.Aligner-item {
+  max-width: 50%;
+}
+
+.Aligner-item--top {
+  align-self: flex-start;
+}
+
+.Aligner-item--bottom {
+  align-self: flex-end;
+}

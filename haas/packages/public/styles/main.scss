@@ -1,0 +1,783 @@
+/**
+ * This is the main application stylesheet. It defines all global styles
+ * For now only defining things needed on every pagrgbae
+ * Styled-jsx is the alternative, but it is enormous
+ */
+
+// Components
+@import 'variables.scss';
+@font-face {
+  font-family: 'Raleway';
+  font-style: normal;
+  font-weight: 400;
+  src: local('Raleway'), local('Raleway-Regular'), url(https://fonts.gstatic.com/s/raleway/v12/1Ptug8zYS_SKggPNyC0IT4ttDfA.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+// @font-face {
+//   font-family: 'Material Icons';
+//   font-style: normal;
+//   font-weight: 400;
+//   src: url('/static/MaterialIcons-Regular.eot');
+// }
+.material-icons {
+  font-family: 'Material Icons';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  /* Preferred icon size */
+  display: inline-block;
+  line-height: 1;
+  text-transform: none;
+  letter-spacing: normal;
+  word-wrap: normal;
+  white-space: nowrap;
+  direction: ltr;
+  /* Support for all WebKit browsers. */
+  -webkit-font-smoothing: antialiased;
+  /* Support for Safari and Chrome. */
+  text-rendering: optimizeLegibility;
+  /* Support for Firefox. */
+  -moz-osx-font-smoothing: grayscale;
+  /* Support for IE. */
+  font-feature-settings: 'liga';
+}
+
+/* Rules for sizing the icon. */
+
+.material-icons.md-18 {
+  font-size: 18px;
+}
+
+.material-icons.md-24 {
+  font-size: 24px;
+}
+
+.material-icons.md-36 {
+  font-size: 36px;
+}
+
+.material-icons.md-48 {
+  font-size: 48px;
+}
+
+/* Rules for using icons as black on a light background. */
+
+.material-icons.md-dark {
+  color: rgba(0, 0, 0, 0.54);
+}
+
+.material-icons.md-dark.md-inactive {
+  color: rgba(0, 0, 0, 0.26);
+}
+
+/* Rules for using icons as white on a dark background. */
+
+.material-icons.md-light {
+  color: rgba(255, 255, 255, 1);
+}
+
+.material-icons.md-light.md-inactive {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+b,
+strong {
+  font-weight: $heavyFontWeight !important;
+}
+
+a {
+  text-decoration: none;
+}
+
+a,
+button {
+  cursor: pointer;
+  &.link {
+    text-transform: none; // background-color: inherit;
+  }
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  -webkit-font-smoothing: 'antialiased';
+  font-family: 'Raleway';
+}
+
+space {
+  margin-left: 5px;
+}
+
+select {
+  -webkit-appearance: none;
+  color: $black;
+}
+
+input {
+  -webkit-appearance: none;
+  -webkit-border-radius: 0;
+  font-size: 1rem;
+}
+
+.theme-site {
+  padding: 10px;
+  margin: 0px;
+  background-color: $white;
+  color: $gray;
+  .primary {
+    color: $light-blue;
+  }
+  .accent {
+    color: $red;
+  }
+  .error {
+    color: $red;
+  }
+  a,
+  .button,
+  .icon-button {
+    color: $gray;
+    &:active {
+      outline: none;
+    }
+    &:hover,
+    &.is-active {
+      color: $black;
+    }
+    &.primary:hover {
+      color: $blue;
+    }
+  }
+  .material-icons {
+    color: $gray;
+  }
+}
+
+.theme-site.theme-dark {
+  background-color: $black;
+  color: $light-gray;
+  a,
+  .button,
+  .icon-button {
+    color: inherit;
+    &:hover,
+    &.is-active {
+      color: $white;
+    }
+  }
+  .material-icons {
+    color: $white;
+  }
+}
+
+.svg-icon {
+  fill: currentColor;
+  width: 1em;
+  height: 1em;
+  display: inline-block;
+  font-size: 24px;
+  transition: fill 200ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.button {
+  padding: 8px 16px;
+  font-size: 0.875rem;
+  min-width: 64px;
+  box-sizing: border-box;
+  min-height: 36px;
+  transition: background-color 250ms cubic-bezier(0.4, 0, 0.2, 1) 0ms, box-shadow 250ms cubic-bezier(0.4, 0, 0.2, 1) 0ms, border 250ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;
+  font-weight: 500;
+  border-radius: 4px;
+  text-transform: uppercase;
+  border: 0;
+  margin: 0;
+  cursor: pointer;
+  display: inline-flex;
+  outline: none;
+  padding: 0;
+  position: relative;
+  align-items: center;
+  user-select: none;
+  border-radius: 0;
+  vertical-align: middle;
+  justify-content: center;
+  -moz-appearance: none;
+  text-decoration: none;
+  background-color: transparent;
+  -webkit-appearance: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.icon-button {
+  cursor: pointer;
+  width: 20px;
+  height: 20px;
+  line-height: 0.85;
+  flex: 0 0 auto;
+  margin-left: 20px;
+  padding: 12px;
+  overflow: visible;
+  font-size: 1.5rem;
+  text-align: center;
+  transition: background-color 150ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;
+  border-radius: 50%;
+  border: 0;
+  margin: 0;
+  display: inline-flex;
+  outline: none;
+  position: relative;
+  align-items: center;
+  user-select: none;
+  border-radius: 0;
+  vertical-align: middle;
+  justify-content: center;
+  -moz-appearance: none;
+  text-decoration: none;
+  background-color: transparent;
+  -webkit-appearance: none;
+  -webkit-tap-highlight-color: transparent;
+  &label {
+    width: 20px;
+    height: 20px;
+    line-height: 0.85;
+  }
+}
+
+#_app {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  box-sizing: border-box;
+  flex-direction: column;
+  justify-content: center;
+  justify-items: center;
+  height: calc(100vh - 53px * 2);
+  align-items: center;
+  justify-self: center;
+}
+
+#Header {
+  #appBar {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    letter-spacing: 0.005em;
+    text-transform: none;
+    flex-direction: row;
+    background-color: transparent !important;
+    top: 0;
+    left: auto;
+    right: 0;
+    position: sticky;
+  }
+  #home {
+    @extend .icon-button;
+  }
+  .link-button {
+    @extend .button;
+    text-transform: none;
+    padding: 0 15px 0 15px;
+  }
+} // body.md-default-theme,
+// body {
+//     background-color: #fff;
+//     margin: 0px;
+// }
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  margin: 0;
+}
+
+h1 {
+  font-size: 56px;
+  font-weight: 100;
+}
+
+h2 {
+  font-size: 45px;
+  font-weight: 100;
+}
+
+h3 {
+  font-size: 34px;
+  font-weight: 100;
+}
+
+h4 {
+  font-size: 24px;
+}
+
+h5 {
+  font-size: 20px;
+}
+
+h6 {
+  font-size: 16px;
+}
+
+.hero {
+  min-height: 170px;
+  height: calc(100vh - 53px * 2); // text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+// .site-sibling-margin + .site-sibling-margin {
+//   margin-top: 10px;
+// }
+// .help-block {
+//   margin-top: $headerMarginTopBottom;
+//   margin-bottom: $headerMarginTopBottom;
+//   color: $gray;
+// }
+// .transparent {
+//   opacity: 0;
+// }
+// .result-button {
+//   display: inline-block;
+//   margin-right: ($headerMarginTopBottom / 2);
+//   &:last-child {
+//     margin-right: 0px;
+//   }
+// }
+// .chosen-container,
+// .chosen-container * {
+//   z-index: 999 !important;
+// }
+// // main {
+// //   min-height:$hero-height;
+// // }
+// input {
+//   border-bottom: 1px solid $gray;
+// }
+// .hero-inner  {
+//   align-items: center;
+//   display: flex;
+//   flex-direction: column;
+//   justify-content: center;
+//   padding: 0;
+//   text-align: center;
+//   width: 100%;
+//   min-height:$hero-height;
+//   position:relative;
+// }
+// .hero {
+//     // align-items: center;
+//     // display: flex;
+//     // flex-direction: column;
+//     // justify-content: center;
+//     // padding: ( $headerMarginTopBottom * 2 ) 0;
+//     // text-align: center;
+//     min-height: $hero-height;
+//     position: relative;
+//     &.top {
+//         justify-content: flex-start;
+//     }
+//     .hero-center {
+//         margin: 0 auto;
+//     }
+//     .hero-top {
+//         align-self: center;
+//         margin-top: 0px;
+//     }
+// }
+// .hero {
+//   height: calc(100vh - 64px);
+//   text-align: center;
+//   display: flex;
+//   flex-direction: column;
+//   align-items: center;
+//   justify-content: center;
+// }
+// .hero-vertical {
+//   align-items: center;
+//   display: flex;
+//   flex: 1 1 0;
+//   flex-flow: column nowrap;
+//   width: 100%;
+// }
+// .hero-horizontal {
+//   display: flex;
+//   flex: 1 1 0;
+//   justify-content: center;
+//   width: 100%;
+// }
+// .inline-block {
+//   display: inline-block;
+// }
+// .header-buttons {
+//   float: right;
+// }
+/**
+ * Typography
+ */
+
+/*
+$font-face {
+  font-family: 'Roboto';
+  font-style: normal;
+  font-weight: 400;
+  src: local('Roboto Regular'), local('Roboto-Regular'), url(fonts/Roboto-Regular.woff) format('woff');
+}
+
+$font-face {
+  font-family: 'Roboto';
+  font-style: normal;
+  font-weight: 400;
+  src: local('Roboto Regular'), local('Roboto-Regular'), url(fonts/Roboto-Regular.woff) format('woff');
+}*/
+
+// .container-fluid {
+//   margin: 0 auto;
+//   max-width: 1800px; //1440 was previous
+//   padding: 0 $headerMarginTopBottom;
+// }
+// .page-header {
+//   margin-top: 60px;
+//   &:first-child {
+//     margin-top: $headerMarginTopBottom;
+//   }
+// }
+// .btn-primary {
+//   background-color: $light-blue;
+//   border-color: $light-blue;
+// }
+// .btn-default {
+//   border-color: $black;
+//   color: $black;
+// }
+// .btn-inverse {
+//   border: 1px solid $light-blue !important;
+//   border-radius: 4px !important;
+//   color: #fff !important;
+//   background-color: $light-blue !important;
+// }
+// // h2 {
+// //   margin: $headerMarginTopBottom 0;
+// //   color: #666;
+// // }
+// .container .jumbotron {
+//   padding-top: 52px;
+//   > .header {
+//     border-bottom: 3px solid #428bca !important;
+//     margin-bottom: 15px;
+//     margin-top: 30px;
+//     padding-bottom: 30px;
+//   }
+// }
+/*h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
+  font-family: "Helvetica Neue",Helvetica,Arial,sans-serif; /*Bitter, sans-serif is a nice font*/
+
+/*}*/
+
+/**App-wide animations
+*
+**/
+
+/*
+.animate-slide{
+  -webkit-transition:all cubic-bezier(0.250, 0.460, 0.450, 0.940) 1.5s;
+  -moz-transition:all cubic-bezier(0.250, 0.460, 0.450, 0.940) 1.5s;
+  -o-transition:all cubic-bezier(0.250, 0.460, 0.450, 0.940) 1.5s;
+  transition:all cubic-bezier(0.250, 0.460, 0.450, 0.940) 1.5s;
+}*/
+
+/*
+.animate-slide {
+    -moz-transition: opacity 0.4s ease-in-out;
+    -o-transition: opacity 0.4s ease-in-out;
+    -webkit-transition: opacity 0.4s ease-in-out;
+    transition: opacity 0.4s ease-in-out;
+}
+*/
+
+/*
+.animate-slide.ng-enter
+{
+  transition: height 1s;
+  height: 0px;
+  overflow: hidden;
+}
+.animate-slide.ng-enter.ng-enter-active{
+  height:300px;
+}
+*/
+
+/* 200ms will be applied between each sucessive enter operation */
+
+/*
+.animate-slide.second{
+  -webkit-transition-delay:1s;
+  transition-delay:1s;
+}
+  
+
+.animate-show {
+  opacity:1
+}
+
+.animate-show.ng-hide-add.ng-hide-add-active,
+.animate-show.ng-hide-remove.ng-hide-remove-active, {
+  -webkit-transition:all linear 0.5s;
+  transition:all linear 0.5s;
+   -webkit-transition-delay:0.2s;
+  transition-delay:0.2s;
+}
+
+.animate-show.ng-hide {
+  line-height:0;
+  opacity:0;
+  padding:0 0;
+}
+*/
+
+// .animate-slide {
+//   opacity: 1;
+//   &.ng-enter {
+//     opacity: 0;
+//   }
+//   &.ng-enter.ng-enter-active {
+//     opacity: 1;
+//     transition: 1s linear all;
+//     -webkit-transition: 1s linear all;
+//     -moz-transition: 1s linear all;
+//     -o-transition: 1s linear all;
+//   }
+// }
+// .animate-if.ng-enter,
+// .animate-if.ng-leave {
+//   -webkit-transition: all cubic-bezier(0.25, 0.46, 0.45, 0.94) 0.5s;
+//   transition: all cubic-bezier(0.25, 0.46, 0.45, 0.94) 0.5s;
+// }
+// .animate-if.ng-enter,
+// .animate-if.ng-leave.ng-leave-active {
+//   opacity: 0;
+// }
+// .animate-if.ng-leave,
+// .animate-if.ng-enter.ng-enter-active {
+//   opacity: 1;
+// }
+// .slide-in-fade-out {
+//   -webkit-transition: color 0.15s, background-color 0.15s;
+//   -moz-transition: color 0.15s, background-color 0.15s;
+//   -ms-transition: color 0.15s, background-color 0.15s;
+//   transition: color 0.15s, background-color 0.15s;
+//   &.ng-enter {
+//     display: none;
+//     -webkit-animation: fadeInLeft 0.3s;
+//     -moz-animation: fadeInLeft 0.3s;
+//     -ms-animation: fadeInLeft 0.3s;
+//     animation: fadeInLeft 0.3s;
+//   }
+//   &.right.ng-enter {
+//     display: none;
+//     -webkit-animation: fadeInRight 0.3s;
+//     -moz-animation: fadeInRight 0.3s;
+//     -ms-animation: fadeInRight 0.3s;
+//     animation: fadeInRight 0.3s;
+//   }
+//   &.bottom.ng-enter {
+//     opacity: none;
+//     -webkit-animation: fadeInUp 0.3s;
+//     -moz-animation: fadeInUp 0.3s;
+//     -ms-animation: fadeInUp 0.3s;
+//     animation: fadeInUp 0.3s;
+//   }
+//   &.ng-enter-active {
+//     display: block !important;
+//   }
+//   &.loading.ng-leave,
+//   &.ng-leave {
+//     display: none;
+//   }
+//   /* &.ng-leave {
+//     -webkit-animation: fadeOut @include 2s;
+//     -moz-animation: fadeOut @include 2s;
+//     -ms-animation: fadeOut @include 2s;
+//     animation: fadeOut @include 2s;
+//   }*/
+// }
+// .fade-in-fade-out {
+//   opacity: 1;
+//   &.ng-enter {
+//     opacity: 0;
+//     -webkit-animation: fadeIn 0.3s;
+//     -moz-animation: fadeIn 0.3s;
+//     -ms-animation: fadeIn 0.3s;
+//     animation: fadeIn 0.3s;
+//     &.delay {
+//       -webkit-animation-delay: 0.2s;
+//       animation-delay: 0.2s;
+//       transition-delay: 0.2s;
+//     }
+//   }
+//   &.up.ng-enter {
+//     opacity: 1;
+//     -webkit-animation: fadeInUp 0.3s;
+//     -moz-animation: fadeInUp 0.3s;
+//     -ms-animation: fadeInUp 0.3s;
+//     animation: fadeInUp 0.3s;
+//   }
+//   &.ng-leave {
+//     display: none;
+//     /*opacity:0;
+//     -webkit-animation: fadeOut @include 2s;
+//     -moz-animation: fadeOut @include 2s;
+//     -ms-animation: fadeOut @include 2s;
+//     animation: fadeOut @include 2s;
+//     &.up
+//     {
+//       -webkit-animation: fadeOutUp @include 3s;
+//       -moz-animation: fadeOutUp @include 3s;
+//       -ms-animation: fadeOutUp @include 3s;
+//       animation: fadeOutUp @include 3s;
+//     }*/
+//   }
+// }
+// .loading-header + .mdl-adjust-huener {
+//   margin-left: ($headerMarginTopBottom - 6px);
+// }
+// .stagger-fade {
+//   h1,
+//   h2,
+//   h3,
+//   h4,
+//   h5,
+//   h6 {
+//     display: inline-block;
+//     /*needed for chrome to animate?*/
+//     position: relative;
+//   }
+// }
+// .stagger-fade.ng-enter {
+//   /* standard transition code */
+//   transition: 0.5s linear all;
+//   -webkit-transition: 0.5s linear all;
+//   opacity: 0;
+// }
+// .stagger-fade.ng-enter-stagger,
+// .fade-in-fade-out.ng-enter-stagger {
+//   /* this will have a 100ms delay between each successive leave animation */
+//   transition-delay: 0.1s;
+//   -webkit-transition-delay: 0.1s;
+//   /* in case the stagger doesn't work then the duration value
+//    must be set to 0 to avoid an accidental CSS inheritance */
+//   transition-duration: 0s;
+//   -webkit-transition-duration: 0s;
+// }
+// .stagger-fade.ng-enter.ng-enter-active {
+//   /* standard transition styles */
+//   opacity: 1;
+// }
+// .text-zoom {
+//   -webkit-transition: color 0.15s, background-color 0.15s;
+//   -moz-transition: color 0.15s, background-color 0.15s;
+//   -ms-transition: color 0.15s, background-color 0.15s;
+//   transition: color 0.15s, background-color 0.15s;
+//   -webkit-animation: fadeIn 0.3s;
+//   -moz-animation: fadeIn 0.3s;
+//   -ms-animation: fadeIn 0.3s;
+//   animation: fadeIn 0.3s;
+//   &.add {
+//   }
+//   &.remove {
+//   }
+// }
+// /**
+//  * Now that all app-wide styles have been applied, we can load the styles for
+//  * all the submodules and components we are using.
+//  *
+//  * TODO: In a later version of this boilerplate, I'd like to automate this.
+//  */
+// .header {
+//   //float: left;
+//   h1 {
+//     margin-top: 50px;
+//     padding-bottom: 30px;
+//     width: 100%;
+//   }
+//   h2 {
+//     margin: 0 15px;
+//   }
+// }
+// .fade.in {
+//   background-color: rgba(0, 0, 0, 0.5);
+// }
+// .center-absolute {
+//   position: absolute;
+//   right: 50%;
+//   top: 50%;
+//   > *:first-child {
+//     right: -50%;
+//     top: -50%; //this doesn't seem to do anything
+//   }
+// }
+// .login-status {
+//   position: absolute;
+//   right: $headerMarginTopBottom;
+//   z-index: 9999;
+//   &.center {
+//     right: 50%;
+//     .status-inner {
+//       right: -50%;
+//     }
+//   }
+//   .status-inner {
+//     position: relative;
+//     &.mdl-card {
+//       min-width: auto;
+//     }
+//     .mdl-adjust-huener {
+//       align-self: center;
+//       margin-left: $headerMarginTopBottom;
+//     }
+//   }
+//   &.ng-enter {
+//     animation: swift-out 0.12s cubic-bezier(0.55, 0, 0.1, 1);
+//     animation-fill-mode: forwards;
+//   }
+// }
+// [ng-cloak] {
+//   display: none !important;
+// }
+// //http://codepen.io/thetallweeks/pen/yybGra
+// @keyframes swift-out {
+//   0% {
+//     top: 0px;
+//   }
+//   100% {
+//     top: 60px;
+//   }
+// }
+// .loading-ellipsis {
+//   font-size: 30px;
+// }
+// .loading-ellipsis:after {
+//   overflow: hidden;
+//   display: inline-block;
+//   vertical-align: bottom;
+//   -webkit-animation: ellipsis steps(4, end) 900ms infinite;
+//   animation: ellipsis steps(4, end) 900ms infinite;
+//   content: '\2026';
+//   /* ascii code for the ellipsis character */
+//   width: 0px;
+// }
+// @keyframes ellipsis {
+//   to {
+//     width: 1.25em;
+//   }
+// }
+// @-webkit-keyframes ellipsis {
+//   to {
+//     width: 1.25em;
+//   }
+// }
+// @import './main-narrow.less.part';
