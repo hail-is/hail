@@ -1359,7 +1359,7 @@ class Join(IR):
                       join_exprs=sequenceof(anytype),
                       join_func=func_spec(1, anytype))
     def __init__(self, virtual_ir, temp_vars, join_exprs, join_func):
-        super(Join, self).__init__(*(e._ir for e in join_exprs))
+        super(Join, self).__init__(virtual_ir, *(e._ir for e in join_exprs))
         self.virtual_ir = virtual_ir
         self.temp_vars = temp_vars
         self.join_exprs = join_exprs
@@ -1367,12 +1367,96 @@ class Join(IR):
         self.idx = Join._idx
         Join._idx += 1
 
+    def copy(self, virtual_ir, *join_irs):
+        new_instance = self.__class__
+        assert len(join_irs) == len(self.join_exprs)
+
+        def replace_ir(expr, new_ir):
+            expr._ir = new_ir
+            return expr
+
+        new_instance = new_instance(virtual_ir,
+                                    self.temp_vars,
+                                    [replace_ir(expr, new_ir) for new_ir, expr in zip(join_irs, self.join_exprs)],
+                                    self.join_func)
+        new_instance.idx = self.idx
+        return new_instance
+
     def render(self, r):
         return r(self.virtual_ir)
 
+
 class JavaIR(IR):
     def __init__(self, jir):
+        super(JavaIR, self).__init__()
         self._jir = jir
 
     def render(self, r):
         return f'(JavaIR {r.add_jir(self._jir)})'
+
+
+def subst(ir, env, agg_env):
+    def _subst(ir, env2=None, agg_env2=None):
+        return subst(ir, env2 if env2 else env, agg_env2 if agg_env2 else agg_env)
+
+    def delete(env, name):
+        new_env = copy.deepcopy(env)
+        if name in new_env:
+            del new_env[name]
+        return new_env
+
+    if isinstance(ir, Ref):
+        return env.get(ir.name, ir)
+    elif isinstance(ir, Let):
+        return Let(ir.name,
+                   _subst(ir.value),
+                   _subst(ir.body, env))
+    elif isinstance(ir, ArrayMap):
+        return ArrayMap(_subst(ir.a),
+                        ir.name,
+                        _subst(ir.body, delete(env, ir.name)))
+    elif isinstance(ir, ArrayFilter):
+        return ArrayFilter(_subst(ir.a),
+                           ir.name,
+                           _subst(ir.body, delete(env, ir.name)))
+    elif isinstance(ir, ArrayFlatMap):
+        return ArrayFlatMap(_subst(ir.a),
+                            ir.name,
+                            _subst(ir.body, delete(env, ir.name)))
+    elif isinstance(ir, ArrayFold):
+        return ArrayFold(_subst(ir.a),
+                         _subst(ir.zero),
+                         ir.accum_name,
+                         ir.value_name,
+                         _subst(ir.body, delete(delete(env, ir.accum_name), ir.value_name)))
+    elif isinstance(ir, ArrayScan):
+        return ArrayScan(_subst(ir.a),
+                         _subst(ir.zero),
+                         ir.accum_name,
+                         ir.value_name,
+                         _subst(ir.body, delete(delete(env, ir.accum_name), ir.value_name)))
+    elif isinstance(ir, ArrayFor):
+        return ArrayFor(_subst(ir.a),
+                        ir.value_name,
+                        _subst(ir.body, delete(env, ir.value_name)))
+    elif isinstance(ir, AggFilter):
+        return AggFilter(_subst(ir.cond, agg_env),
+                         _subst(ir.agg_ir, agg_env))
+    elif isinstance(ir, AggExplode):
+        return AggExplode(_subst(ir.array, agg_env),
+                          ir.name,
+                          _subst(ir.agg_body, delete(agg_env, ir.name), delete(agg_env, ir.name)))
+    elif isinstance(ir, AggGroupBy):
+        return AggGroupBy(_subst(ir.key, agg_env),
+                          _subst(ir.agg_ir, agg_env))
+    elif isinstance(ir, ApplyAggOp):
+        subst_constr_args = [x.map_ir(lambda x: _subst(x)) for x in ir.constructor_args]
+        subst_init_op_args = [x.map_ir(lambda x: _subst(x)) for x in ir.init_op_args] if ir.init_op_args else ir.init_op_args
+        subst_seq_op_args = [subst(x, agg_env, {}) for x in ir.seq_op_args]
+        return ApplyAggOp(ir.agg_op,
+                          subst_constr_args,
+                          subst_init_op_args,
+                          subst_seq_op_args)
+    else:
+        assert isinstance(ir, IR)
+        return ir.map_ir(lambda x: _subst(x))

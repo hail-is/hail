@@ -737,6 +737,10 @@ object IRParser {
         val codecSpecJsonStr = opt(it, string_literal)
         val child = table_ir(env)(it)
         TableWrite(child, path, overwrite, shuffleLocally, codecSpecJsonStr.orNull)
+      case "MatrixAggregate" =>
+        val child = matrix_ir(env)(it)
+        val query = ir_value_expr(env.update(child.typ.refMap))(it)
+        MatrixAggregate(child, query)
       case "MatrixWrite" =>
         val writerStr = string_literal(it)
         implicit val formats = MatrixWriter.formats

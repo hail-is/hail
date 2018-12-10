@@ -1681,11 +1681,9 @@ class MatrixTable(ExprContainer):
             Aggregated value dependent on `expr`.
         """
         base, _ = self._process_joins(expr)
-
         analyze('MatrixTable.aggregate_rows', expr, self._global_indices, {self._row_axis})
-
-        result_json = base._jmt.aggregateRowsJSON(str(expr._ir))
-        return expr.dtype._from_json(result_json)
+        subst_query = subst(expr._ir, {}, {'va': Ref('row')})
+        return Env.hc()._backend.interpret(TableAggregate(MatrixRowsTable(base._mir), subst_query))
 
     @typecheck_method(expr=expr_any)
     def aggregate_cols(self, expr) -> Any:
@@ -1728,11 +1726,9 @@ class MatrixTable(ExprContainer):
             Aggregated value dependent on `expr`.
         """
         base, _ = self._process_joins(expr)
-
         analyze('MatrixTable.aggregate_cols', expr, self._global_indices, {self._col_axis})
-
-        result_json = base._jmt.aggregateColsJSON(str(expr._ir))
-        return expr.dtype._from_json(result_json)
+        subst_query = subst(expr._ir, {}, {'sa': Ref('row')})
+        return Env.hc()._backend.interpret(TableAggregate(MatrixColsTable(base._mir), subst_query))
 
     @typecheck_method(expr=expr_any)
     def aggregate_entries(self, expr) -> Any:
@@ -1771,11 +1767,8 @@ class MatrixTable(ExprContainer):
         """
 
         base, _ = self._process_joins(expr)
-
         analyze('MatrixTable.aggregate_entries', expr, self._global_indices, {self._row_axis, self._col_axis})
-
-        result_json = base._jmt.aggregateEntriesJSON(str(expr._ir))
-        return expr.dtype._from_json(result_json)
+        return Env.hc()._backend.interpret(MatrixAggregate(base._mir, expr._ir))
 
     @typecheck_method(field_expr=oneof(str, Expression))
     def explode_rows(self, field_expr) -> 'MatrixTable':
