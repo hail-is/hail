@@ -24,6 +24,7 @@ push-hail-ci: build-hail-ci
 
 restart-all-proxies: restart-proxy restart-batch-proxy
 
+restart-proxy: ZONE = $(shell gcloud compute instances list --filter=name=dk-test --format="value(ZONE)")
 restart-proxy:
 	-kill $(shell cat proxy.pid)
 	-kill -9 $(shell cat proxy.pid)
@@ -31,7 +32,7 @@ restart-proxy:
 	$(shell gcloud compute \
 	  --project "$(PROJECT)" \
 	  ssh \
-	  --zone "us-east1-b" \
+	  --zone "$(ZONE)" \
 	  "dk-test" \
 	  --ssh-flag="-R 0.0.0.0:${HAIL_CI_REMOTE_PORT}:127.0.0.1:5000" \
 	  --ssh-flag='-N' \

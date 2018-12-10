@@ -17,6 +17,17 @@ fi
 for ENDPOINT in push pull_request pull_request_review
 do
     echo "creating endpoint ${ENDPOINT}"
+    echo "curl -XPOST "
+    echo "     -i "
+    echo "     https://api.github.com/repos/${FULLY_QUALIFIED_REPO_NAME}/hooks"
+    echo "     -H \"Authorization: token REDACTED\""
+    echo      -d '{ "name": "web"
+             , "config": {
+                 "url": "'${CALLBACK_URL}/${ENDPOINT}'"
+               , "content_type": "json"
+               }
+             , "events": ["'${ENDPOINT}'"]
+             }'
     curl -XPOST \
          -i \
          https://api.github.com/repos/${FULLY_QUALIFIED_REPO_NAME}/hooks \

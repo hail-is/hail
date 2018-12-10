@@ -499,11 +499,11 @@ def run_forever(target, *args, **kwargs):
             time.sleep(sleep_duration_ms / 1000.0)
 
 
-def flask_event_loop():
-    app.run(threaded=False, host='0.0.0.0')
+def flask_event_loop(port):
+    app.run(threaded=False, host='0.0.0.0', port=port)
 
 
-def kube_event_loop():
+def kube_event_loop(port):
     watch = kube.watch.Watch()
     stream = watch.stream(
         v1.list_namespaced_pod,
@@ -512,14 +512,14 @@ def kube_event_loop():
     for event in stream:
         pod = event['object']
         name = pod.metadata.name
-        requests.post('http://127.0.0.1:5000/pod_changed', json={'pod_name': name}, timeout=120)
+        requests.post(f'http://127.0.0.1:{port}/pod_changed', json={'pod_name': name}, timeout=120)
 
 
-def polling_event_loop():
+def polling_event_loop(port):
     time.sleep(1)
     while True:
         try:
-            response = requests.post('http://127.0.0.1:5000/refresh_k8s_state', timeout=120)
+            response = requests.post(f'http://127.0.0.1:{port}/refresh_k8s_state', timeout=120)
             response.raise_for_status()
         except requests.HTTPError as exc:
             log.error(f'Could not poll due to exception: {exc}, text: {exc.response.text}')
@@ -528,17 +528,17 @@ def polling_event_loop():
         time.sleep(REFRESH_INTERVAL_IN_SECONDS)
 
 
-def serve():
-    kube_thread = threading.Thread(target=run_forever, args=(kube_event_loop,))
+def serve(port):
+    kube_thread = threading.Thread(target=run_forever, args=(kube_event_loop, port))
     kube_thread.start()
 
-    polling_thread = threading.Thread(target=run_forever, args=(polling_event_loop,))
+    polling_thread = threading.Thread(target=run_forever, args=(polling_event_loop, port))
     polling_thread.start()
 
     # debug/reloader must run in main thread
     # see: https://stackoverflow.com/questions/31264826/start-a-flask-application-in-separate-thread
     # flask_thread = threading.Thread(target=flask_event_loop)
     # flask_thread.start()
-    run_forever(flask_event_loop)
+    run_forever(flask_event_loop, port)
 
     kube_thread.join()
