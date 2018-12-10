@@ -2135,11 +2135,12 @@ class Table(ExprContainer):
         for e in exprs:
             sort_type = 'A'
             if isinstance(e, Ascending):
-                expr = e.col
+                e = e.col
             elif isinstance(e, Descending):
-                expr = e.col
+                e = e.col
                 sort_type = 'D'
-            elif isinstance(e, str):
+
+            if isinstance(e, str):
                 expr = self[e]
             else:
                 expr = e
