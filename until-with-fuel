@@ -11,8 +11,8 @@
 #
 # This script is intended to be POSIX compliant.
 
-${DELAY:=1}
-${MAX_TRIES:=$1}
+DELAY=${DELAY:-1}
+MAX_TRIES=${MAX_TRIES:-$1}
 
 shift
 

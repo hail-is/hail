@@ -26,6 +26,9 @@ restart-all-proxies: restart-proxy restart-batch-proxy
 
 restart-proxy: ZONE = $(shell gcloud compute instances list --filter=name=dk-test --format="value(ZONE)")
 restart-proxy:
+ifndef HAIL_CI_REMOTE_PORT
+  $(error HAIL_CI_REMOTE_PORT is undefined)
+endif
 	-kill $(shell cat proxy.pid)
 	-kill -9 $(shell cat proxy.pid)
 	-rm -rf proxy.pid
