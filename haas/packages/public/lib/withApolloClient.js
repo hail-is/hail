@@ -1,19 +1,11 @@
 // Injects apollo client into applicaiton context
 // React context: https://reactjs.org/docs/context.html
 import { Component } from 'react';
-import cookie from 'cookie';
 import initApollo from './initApollo';
 import Head from 'next/head';
 import { getDataFromTree } from 'react-apollo';
 import PropTypes from 'prop-types';
 import Auth from './Auth';
-
-function parseCookies(req, options = {}) {
-  return cookie.parse(
-    req ? req.headers.cookie || '' : document.cookie,
-    options
-  );
-}
 
 const apolloConfig = { getToken: Auth.getAccessToken };
 

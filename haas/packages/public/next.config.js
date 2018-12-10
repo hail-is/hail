@@ -3,6 +3,8 @@ const withSass = require('@zeit/next-sass');
 const withTypescript = require('@zeit/next-typescript');
 const withPurgeCss = require('next-purgecss');
 const ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin');
+// const withOffline = require('next-offline');
+
 require('dotenv').config('.env');
 
 module.exports = withTypescript(
@@ -17,6 +19,7 @@ module.exports = withTypescript(
           if (options.isServer) {
             config.plugins.push(new ForkTsCheckerWebpackPlugin());
           }
+
           return config;
         }
       })
