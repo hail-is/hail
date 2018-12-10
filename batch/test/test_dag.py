@@ -3,7 +3,6 @@ import pytest
 import re
 import requests
 
-from batch.data import dag, job
 from batch.client import BatchClient
 
 

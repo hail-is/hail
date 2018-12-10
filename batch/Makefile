@@ -22,10 +22,6 @@ build/pylint: $(PY_FILES) build/conda-env
 	. ../loadconda && conda activate hail-batch && python -m pylint --rcfile batch/pylintrc batch --score=n
 	mkdir -p build && touch $@
 
-build/pip-install: $(PY_FILES) build/conda-env
-	. ../loadconda && conda activate hail-batch && python -m pip install batch
-	mkdir -p build && touch $@
-
 build:
 	docker build -t batch .
 
@@ -55,7 +51,7 @@ test: push-test
 	  < test-batch-pod.yaml.in > test-batch-pod.yaml
 	kubectl create -f test-batch-pod.yaml
 
-test-local: build/conda-env build/pip-install $(PY_CHECKERS)
+test-local: build/conda-env $(PY_CHECKERS)
 	. ../loadconda && conda activate hail-batch && POD_NAMESPACE='test' BATCH_USE_KUBE_CONFIG=1 ./test-locally.sh
 
 # local means server and test client are two processes on one machine
