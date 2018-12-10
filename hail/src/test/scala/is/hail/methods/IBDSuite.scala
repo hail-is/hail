@@ -1,6 +1,6 @@
 package is.hail.methods
 
-import is.hail.SparkSuite
+import is.hail.{SparkSuite, TestUtils}
 import is.hail.annotations.Annotation
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
@@ -102,7 +102,7 @@ class IBDSuite extends SparkSuite {
   val tolerance = 5e-5
 
   @Test def ibdPlinkSameOnRealVCF() {
-    val vds = hc.importVCF("src/test/resources/sample.vcf")
+    val vds = TestUtils.importVCF("src/test/resources/sample.vcf")
 
     val us = IBD.toRDD(IBD(vds)).collect().toMap
 
@@ -114,7 +114,7 @@ class IBDSuite extends SparkSuite {
   }
 
   @Test def ibdSchemaCorrect() {
-    val vds = hc.importVCF("src/test/resources/sample.vcf")
+    val vds = TestUtils.importVCF("src/test/resources/sample.vcf")
     val us = IBD(vds).typeCheck()
   }
 }

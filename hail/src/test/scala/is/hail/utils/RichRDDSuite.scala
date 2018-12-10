@@ -1,6 +1,6 @@
 package is.hail.utils
 
-import is.hail.SparkSuite
+import is.hail.{SparkSuite, TestUtils}
 import org.testng.annotations.Test
 
 class RichRDDSuite extends SparkSuite {
@@ -25,7 +25,7 @@ class RichRDDSuite extends SparkSuite {
       assert(t.getNumPartitions == getExpectedNumPartitions(nActual))
     }
 
-    val vds = hc.importVCF("src/test/resources/sample.vcf")
+    val vds = TestUtils.importVCF("src/test/resources/sample.vcf")
     assert(vds.head(3).countRows() == 3)
   }
 

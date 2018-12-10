@@ -8,6 +8,7 @@ import is.hail.annotations.{Region, RegionValueBuilder, SafeRow}
 import is.hail.cxx.CXXUnsupportedOperation
 import is.hail.expr.ir._
 import is.hail.expr.types.virtual._
+import is.hail.io.vcf.MatrixVCFReader
 import is.hail.nativecode.NativeStatus
 import is.hail.table.Table
 import is.hail.testUtils._
@@ -505,5 +506,40 @@ object TestUtils {
 
   def assertCompiledFatal(x: IR, regex: String) {
     assertCompiledThrows[HailException](x, regex)
+  }
+
+
+  def importVCF(file: String, force: Boolean = false,
+    forceBGZ: Boolean = false,
+    headerFile: Option[String] = None,
+    nPartitions: Option[Int] = None,
+    dropSamples: Boolean = false,
+    callFields: Set[String] = Set.empty[String],
+    rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
+    contigRecoding: Option[Map[String, String]] = None,
+    arrayElementsRequired: Boolean = true,
+    skipInvalidLoci: Boolean = false): MatrixTable = {
+    val addedReference = rg.exists { referenceGenome =>
+      if (!ReferenceGenome.hasReference(referenceGenome.name)) {
+        ReferenceGenome.addReference(referenceGenome)
+        true
+      } else false
+    } // Needed for tests
+
+    val reader = MatrixVCFReader(
+      Array(file),
+      callFields,
+      headerFile,
+      nPartitions,
+      rg.map(_.name),
+      contigRecoding.getOrElse(Map.empty[String, String]),
+      arrayElementsRequired,
+      skipInvalidLoci,
+      forceBGZ,
+      force
+    )
+    if (addedReference)
+      ReferenceGenome.removeReference(rg.get.name)
+    new MatrixTable(HailContext.get, MatrixRead(reader.fullType, dropSamples, false, reader))
   }
 }

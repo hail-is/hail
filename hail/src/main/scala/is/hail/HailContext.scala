@@ -662,40 +662,6 @@ class HailContext private(val sc: SparkContext,
     }
   }
 
-  def importVCF(file: String, force: Boolean = false,
-    forceBGZ: Boolean = false,
-    headerFile: Option[String] = None,
-    nPartitions: Option[Int] = None,
-    dropSamples: Boolean = false,
-    callFields: Set[String] = Set.empty[String],
-    rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
-    contigRecoding: Option[Map[String, String]] = None,
-    arrayElementsRequired: Boolean = true,
-    skipInvalidLoci: Boolean = false): MatrixTable = {
-    val addedReference = rg.exists { referenceGenome =>
-      if (!ReferenceGenome.hasReference(referenceGenome.name)) {
-        ReferenceGenome.addReference(referenceGenome)
-        true
-      } else false
-    } // Needed for tests
-
-    val reader = MatrixVCFReader(
-      Array(file),
-      callFields,
-      headerFile,
-      nPartitions,
-      rg.map(_.name),
-      contigRecoding.getOrElse(Map.empty[String, String]),
-      arrayElementsRequired,
-      skipInvalidLoci,
-      forceBGZ,
-      force
-    )
-    if (addedReference)
-      ReferenceGenome.removeReference(rg.get.name)
-    new MatrixTable(HailContext.get, MatrixRead(reader.fullType, dropSamples, false, reader))
-  }
-
   def importMatrix(files: java.util.ArrayList[String],
     rowFields: java.util.HashMap[String, String],
     keyNames: java.util.ArrayList[String],

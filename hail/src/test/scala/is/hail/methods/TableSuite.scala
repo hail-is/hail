@@ -99,7 +99,7 @@ class TableSuite extends SparkSuite {
   }
 
   @Test def testToMatrixTable() {
-    val vds = hc.importVCF("src/test/resources/sample.vcf")
+    val vds = TestUtils.importVCF("src/test/resources/sample.vcf")
     val gkt = vds.entriesTable()
 
     val reVDS = gkt.toMatrixTable(Array("locus", "alleles"),

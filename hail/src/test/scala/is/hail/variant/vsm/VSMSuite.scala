@@ -23,7 +23,7 @@ class VSMSuite extends SparkSuite {
   @Test def testSkipDropSame() {
     val f = tmpDir.createTempFile("sample", extension = ".vds")
 
-    hc.importVCF("src/test/resources/sample2.vcf")
+    TestUtils.importVCF("src/test/resources/sample2.vcf")
       .write(f)
 
     assert(hc.readVDS(f, dropSamples = true)
@@ -67,7 +67,7 @@ class VSMSuite extends SparkSuite {
 
   @Test def testOverwrite() {
     val out = tmpDir.createTempFile("out", "vds")
-    val vds = hc.importVCF("src/test/resources/sample2.vcf")
+    val vds = TestUtils.importVCF("src/test/resources/sample2.vcf")
 
     vds.write(out)
 
