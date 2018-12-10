@@ -77,7 +77,7 @@ object ExportPlink {
     val nSamples = mv.colValues.value.length
     val fullRowType = mv.typ.rvRowType.physicalType
 
-    val (partFiles, nRecordsWritten) = mv.rvd.mapPartitionsWithIndex { (i, ctx, it) =>
+    val (partFiles, nRecordsWrittenPerPartition) = mv.rvd.mapPartitionsWithIndex { (i, ctx, it) =>
       val hConf = sHConfBc.value.value
       val f = partFile(d, i, TaskContext.get)
       val bedPartPath = tmpBedDir + "/" + f
@@ -105,9 +105,9 @@ object ExportPlink {
       }
 
       Iterator.single(f -> rowCount)
-    }.collect().foldLeft(
-      (FastIndexedSeq[String](), 0L)
-    ) { case ((files, sum), (f, n)) => (files :+ f, sum + n) }
+    }.collect().unzip
+
+    val nRecordsWritten = nRecordsWrittenPerPartition.sum
 
     hConf.writeFile(tmpBedDir + "/_SUCCESS")(out => ())
     hConf.writeFile(tmpBedDir + "/header")(out => out.write(ExportPlink.bedHeader))
