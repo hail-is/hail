@@ -2580,34 +2580,29 @@ class MatrixTable(ExprContainer):
                     entry_exprs={},
                     global_exprs={},
                     ) -> 'MatrixTable':
-        all_exprs = list(itertools.chain(row_exprs.values(),
-                                         col_exprs.values(),
-                                         entry_exprs.values(),
-                                         global_exprs.values()))
 
-        mt = self._annotate_all(row_exprs,
-                                col_exprs,
-                                entry_exprs,
-                                global_exprs)
+        all_names = list(itertools.chain(row_exprs.keys(),
+                                         col_exprs.keys(),
+                                         entry_exprs.keys(),
+                                         global_exprs.keys()))
+        uids = {k: Env.get_uid() for k in all_names}
+
+        mt = self._annotate_all({uids[k]: v for k, v in row_exprs.items()},
+                                {uids[k]: v for k, v in col_exprs.items()},
+                                {uids[k]: v for k, v in entry_exprs.items()},
+                                {uids[k]: v for k, v in global_exprs.items()})
 
         if row_key is None:
             row_key = []
-        mt = mt.key_rows_by(*row_key)
+        mt = mt.key_rows_by(*(uids[k] for k in row_key))
 
         if col_key is None:
             col_key = []
-        mt = mt.key_cols_by(*col_key)
+        mt = mt.key_cols_by(*(uids[k] for k in col_key))
 
-        fields_to_keep = set(
-            list(mt.row_key)
-            + list(mt.col_key)
-            + list(row_exprs)
-            + list(col_exprs)
-            + list(entry_exprs)
-            + list(global_exprs)
-        )
-
-        return mt.drop(*(f for f in mt._fields if f not in fields_to_keep))
+        uid_set = set(uids.values())
+        return (mt.drop(*(f for f in mt._fields if f not in uid_set)) \
+                .rename({uid: original for original, uid in uids.items()}))
 
     def _process_joins(self, *exprs):
         return process_joins(self, exprs)
