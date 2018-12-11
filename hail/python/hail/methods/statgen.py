@@ -2121,6 +2121,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep'):
     if isinstance(ds, Table):
         return split.annotate(**update_rows_expression).drop('old_locus', 'old_alleles')
 
+    split = split.annotate_rows(**update_rows_expression)
     entry_fields = ds.entry
 
     expected_field_types = {
@@ -2169,9 +2170,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep'):
         update_entries_expression['PGT'] = hl.downcode(split.PGT, split.a_index)
     if 'PID' in entry_fields:
         update_entries_expression['PID'] = split.PID
-    return split._annotate_all(
-        row_exprs=update_rows_expression,
-        entry_exprs=update_entries_expression).drop('old_locus', 'old_alleles')
+    return split.annotate_entries(**update_entries_expression).drop('old_locus', 'old_alleles')
 
 
 @typecheck(call_expr=expr_call)

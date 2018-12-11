@@ -2541,6 +2541,13 @@ class MatrixTable(ExprContainer):
                                          entry_exprs.values(),
                                          global_exprs.values()))
 
+        for field_name in list(itertools.chain(row_exprs.keys(),
+                                               col_exprs.keys(),
+                                               entry_exprs.keys(),
+                                               global_exprs.keys())):
+            if field_name in self._fields:
+                raise RuntimeError(f'field {repr(field_name)} already in matrix table, cannot use _annotate_all')
+
         base, cleanup = self._process_joins(*all_exprs)
         mir = base._mir
 
@@ -2578,30 +2585,29 @@ class MatrixTable(ExprContainer):
                                          entry_exprs.values(),
                                          global_exprs.values()))
 
-        base, cleanup = self._process_joins(*all_exprs)
-        mir = base._mir
+        mt = self._annotate_all(row_exprs,
+                                col_exprs,
+                                entry_exprs,
+                                global_exprs)
 
-        if row_key is not None:
-            mir = MatrixKeyRowsBy(mir, [])
-        row_struct = hl.struct(**row_exprs)
-        analyze("MatrixTable.select_rows", row_struct, self._row_indices)
-        mir = MatrixMapRows(mir, row_struct._ir)
-        if row_key is not None:
-            mir = MatrixKeyRowsBy(mir, row_key)
+        if row_key is None:
+            row_key = []
+        mt = mt.key_rows_by(*row_key)
 
-        col_struct = hl.struct(**col_exprs)
-        analyze("MatrixTable.select_cols", col_struct, self._col_indices)
-        mir = MatrixMapCols(mir, col_struct._ir, col_key)
+        if col_key is None:
+            col_key = []
+        mt = mt.key_cols_by(*col_key)
 
-        entry_struct = hl.struct(**entry_exprs)
-        analyze("MatrixTable.select_entries", entry_struct, self._entry_indices)
-        mir = MatrixMapEntries(mir, entry_struct._ir)
+        fields_to_keep = set(
+            list(mt.row_key)
+            + list(mt.col_key)
+            + list(row_exprs)
+            + list(col_exprs)
+            + list(entry_exprs)
+            + list(global_exprs)
+        )
 
-        globals_struct = hl.struct(**global_exprs)
-        analyze("MatrixTable.select_globals", globals_struct, self._global_indices)
-        mir = MatrixMapGlobals(mir, globals_struct._ir)
-
-        return cleanup(MatrixTable(mir))
+        return mt.drop(*(f for f in mt._fields if f not in fields_to_keep))
 
     def _process_joins(self, *exprs):
         return process_joins(self, exprs)
