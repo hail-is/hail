@@ -7,7 +7,10 @@ import breeze.linalg.{DenseMatrix, Matrix, Vector}
 import is.hail.annotations.{Region, RegionValueBuilder, SafeRow}
 import is.hail.cxx.CXXUnsupportedOperation
 import is.hail.expr.ir._
+import is.hail.expr.types.MatrixType
 import is.hail.expr.types.virtual._
+import is.hail.io.bgen.{LoadBgen, MatrixBGENReader}
+import is.hail.io.vcf.MatrixVCFReader
 import is.hail.nativecode.NativeStatus
 import is.hail.table.Table
 import is.hail.testUtils._
@@ -505,5 +508,77 @@ object TestUtils {
 
   def assertCompiledFatal(x: IR, regex: String) {
     assertCompiledThrows[HailException](x, regex)
+  }
+
+
+  def importVCF(hc: HailContext, file: String, force: Boolean = false,
+    forceBGZ: Boolean = false,
+    headerFile: Option[String] = None,
+    nPartitions: Option[Int] = None,
+    dropSamples: Boolean = false,
+    callFields: Set[String] = Set.empty[String],
+    rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
+    contigRecoding: Option[Map[String, String]] = None,
+    arrayElementsRequired: Boolean = true,
+    skipInvalidLoci: Boolean = false): MatrixTable = {
+    val addedReference = rg.exists { referenceGenome =>
+      if (!ReferenceGenome.hasReference(referenceGenome.name)) {
+        ReferenceGenome.addReference(referenceGenome)
+        true
+      } else false
+    } // Needed for tests
+
+    val reader = MatrixVCFReader(
+      Array(file),
+      callFields,
+      headerFile,
+      nPartitions,
+      rg.map(_.name),
+      contigRecoding.getOrElse(Map.empty[String, String]),
+      arrayElementsRequired,
+      skipInvalidLoci,
+      forceBGZ,
+      force
+    )
+    if (addedReference)
+      ReferenceGenome.removeReference(rg.get.name)
+    new MatrixTable(hc, MatrixRead(reader.fullType, dropSamples, false, reader))
+  }
+
+  def importBgens(hc: HailContext,
+    files: Seq[String],
+    sampleFile: Option[String] = None,
+    includeGT: Boolean = true,
+    includeGP: Boolean = true,
+    includeDosage: Boolean = false,
+    includeVarid: Boolean = true,
+    includeRsid: Boolean = true,
+    nPartitions: Option[Int] = None,
+    blockSizeInMB: Option[Int] = None,
+    indexFileMap: Map[String, String] = null,
+    includedVariants: Option[Table] = None
+  ): MatrixTable = {
+    val referenceGenome = LoadBgen.getReferenceGenome(hc.hadoopConf, files.toArray, indexFileMap)
+
+    val requestedType: MatrixType = MatrixBGENReader.getMatrixType(
+      referenceGenome,
+      includeRsid,
+      includeVarid,
+      includeOffset = false,
+      includeFileIdx = false,
+      includeGT,
+      includeGP,
+      includeDosage
+    )
+
+    val reader = MatrixBGENReader(
+      files, sampleFile, Option(indexFileMap).getOrElse(Map.empty[String, String]), nPartitions,
+      if (nPartitions.isEmpty && blockSizeInMB.isEmpty)
+        Some(128)
+      else
+        blockSizeInMB,
+      includedVariants)
+
+    new MatrixTable(hc, MatrixRead(requestedType, dropCols = false, dropRows = false, reader))
   }
 }

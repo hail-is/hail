@@ -14,109 +14,15 @@ class MatrixAggregateRowsByKey(MatrixIR):
 
 
 class MatrixRead(MatrixIR):
-    def __init__(self, path, drop_cols, drop_rows):
+    def __init__(self, reader, drop_cols=False, drop_rows=False):
         super().__init__()
-        self.path = path
+        self.reader = reader
         self.drop_cols = drop_cols
         self.drop_rows = drop_rows
 
     def render(self, r):
-        config = dict(
-            name='MatrixNativeReader',
-            path=self.path
-        )
-        return f'(MatrixRead None {self.drop_cols} {self.drop_rows} "{escape_str(json.dumps(config))}")'
+        return f'(MatrixRead None {self.drop_cols} {self.drop_rows} "{r(self.reader)}")'
 
-
-class MatrixRange(MatrixIR):
-    def __init__(self, n_rows, n_cols, n_partitions):
-        super().__init__()
-        self.n_rows = n_rows
-        self.n_cols = n_cols
-        self.n_partitions = n_partitions
-
-    def render(self, r):
-        config = dict(
-            name='MatrixRangeReader',
-            nRows=self.n_rows,
-            nCols=self.n_cols,
-            nPartitions=self.n_partitions
-        )
-        return f'(MatrixRead None False False "{escape_str(json.dumps(config))}")'
-
-class MatrixImportVCF(MatrixIR):
-    def __init__(self,
-                 paths,
-                 force,
-                 force_bgz,
-                 header_file,
-                 min_partitions,
-                 drop_samples,
-                 call_fields,
-                 reference_genome,
-                 contig_recoding,
-                 array_elements_required,
-                 skip_invalid_loci):
-        super().__init__()
-        self.paths = paths
-        self.force = force
-        self.force_bgz = force_bgz
-        self.header_file = header_file
-        self.min_partitions = min_partitions
-        self.drop_samples = drop_samples
-        self.call_fields = call_fields
-        self.reference_genome = reference_genome
-        self.contig_recoding = contig_recoding
-        self.array_elements_required = array_elements_required
-        self.skip_invalid_loci = skip_invalid_loci
-
-    def render(self, r):
-        config = dict(
-            name='MatrixVCFReader',
-            files=self.paths,
-            callFields=list(self.call_fields),
-            headerFile=self.header_file,
-            minPartitions=self.min_partitions,
-            rg=self.reference_genome.name if self.reference_genome else None,
-            contigRecoding=self.contig_recoding,
-            arrayElementsRequired=self.array_elements_required,
-            skipInvalidLoci=self.skip_invalid_loci,
-            gzAsBGZ=self.force_bgz,
-            forceGZ=self.force
-        )
-        return f'(MatrixRead None {self.drop_samples} False "{escape_str(json.dumps(config))}")'
-
-class MatrixImportBGEN(MatrixIR):
-    def __init__(self,
-                 paths,
-                 entry_fields,
-                 sample_file,
-                 index_file_map,
-                 n_partitions,
-                 block_size,
-                 row_fields,
-                 included_variants):
-        super().__init__()
-        self.paths = paths
-        self.entry_fields = entry_fields
-        self.sample_file = sample_file
-        self.index_file_map = index_file_map
-        self.n_partitions = n_partitions
-        self.block_size = block_size
-        self.row_fields = row_fields
-        self.included_variants = included_variants
-
-    def render(self, r):
-        config = dict(
-            name='MatrixBGENReader',
-            files=self.paths,
-            sampleFile=self.sample_file,
-            indexFileMap=self.index_file_map,
-            nPartitions=self.n_partitions,
-            blockSizeInMB=self.block_size,
-            includedVariants=self.included_variants,
-            )
-        return f'(MatrixRead None False False "{escape_str(json.dumps(config))}")'
 
 class MatrixFilterRows(MatrixIR):
     def __init__(self, child, pred):

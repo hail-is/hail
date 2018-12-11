@@ -1,6 +1,6 @@
 package is.hail.annotations
 
-import is.hail.SparkSuite
+import is.hail.{SparkSuite, TestUtils}
 import is.hail.expr.types._
 import is.hail.expr.types.virtual._
 import is.hail.utils._
@@ -21,7 +21,7 @@ class AnnotationsSuite extends SparkSuite {
           3. the strings stored in the AnnotationData classes convert correctly to the proper type
     */
 
-    val vds = hc.importVCF("src/test/resources/sample.vcf")
+    val vds = TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
 
     val vas = vds.rowType
     val variantAnnotationMap = vds.variantsAndAnnotations.collect().toMap
@@ -69,8 +69,8 @@ class AnnotationsSuite extends SparkSuite {
   }
 
   @Test def testReadWrite() {
-    val vds1 = hc.importVCF("src/test/resources/sample.vcf")
-    val vds2 = hc.importVCF("src/test/resources/sample.vcf")
+    val vds1 = TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
+    val vds2 = TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
     assert(vds1.same(vds2))
 
     val f = tmpDir.createTempFile("sample", extension = ".vds")
