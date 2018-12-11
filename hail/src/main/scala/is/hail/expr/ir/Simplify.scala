@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.expr.types.virtual.{TInt32, TInt64, TStruct}
+import is.hail.expr.types.virtual.{TArray, TInt32, TInt64, TStruct}
 import is.hail.table.Ascending
 import is.hail.utils._
 
@@ -222,27 +222,49 @@ object Simplify {
     case GetTupleElement(MakeTuple(xs), idx) => xs(idx)
 
     case TableCount(TableMapGlobals(child, _)) => TableCount(child)
-
     case TableCount(TableMapRows(child, _)) => TableCount(child)
-
     case TableCount(TableRepartition(child, _, _)) => TableCount(child)
-
     case TableCount(TableUnion(children)) =>
       children.map(TableCount).reduce[IR](ApplyBinaryPrimOp(Add(), _, _))
-
     case TableCount(TableKeyBy(child, _, _)) => TableCount(child)
-
     case TableCount(TableOrderBy(child, _)) => TableCount(child)
-
     case TableCount(TableLeftJoinRightDistinct(child, _, _)) => TableCount(child)
-
     case TableCount(TableRange(n, _)) => I64(n)
-
     case TableCount(TableParallelize(rows, _)) => Cast(ArrayLen(rows), TInt64())
-
     case TableCount(TableRename(child, _, _)) => TableCount(child)
-
     case TableCount(TableAggregateByKey(child, _)) => TableCount(TableDistinct(child))
+
+    // TableGetGlobals should simplify very aggressively
+    case TableGetGlobals(child) if child.typ.globalType == TStruct() => MakeStruct(FastSeq())
+    case TableGetGlobals(TableKeyBy(child, _, _)) => TableGetGlobals(child)
+    case TableGetGlobals(TableFilter(child, _)) => TableGetGlobals(child)
+    case TableGetGlobals(TableHead(child, _)) => TableGetGlobals(child)
+    case TableGetGlobals(TableRepartition(child, _, _)) => TableGetGlobals(child)
+    case TableGetGlobals(TableJoin(child1, child2, _, _)) => invoke("annotate", TableGetGlobals(child1), TableGetGlobals(child2))
+    case TableGetGlobals(x@TableMultiWayZipJoin(children, _, globalName)) =>
+      MakeStruct(FastSeq(globalName -> MakeArray(children.map(TableGetGlobals), TArray(x.typ.globalType))))
+    case TableGetGlobals(TableLeftJoinRightDistinct(child, _, _)) => TableGetGlobals(child)
+    case TableGetGlobals(TableMapRows(child, _)) => TableGetGlobals(child)
+    case TableGetGlobals(TableMapGlobals(child, newGlobals)) =>
+      val uid = genUID()
+      val ref = Ref(uid, child.typ.globalType)
+      Let(uid, TableGetGlobals(child), Subst(newGlobals, Env.empty[IR].bind("global", ref)))
+    case TableGetGlobals(TableExplode(child, _)) => TableGetGlobals(child)
+    case TableGetGlobals(TableUnion(children)) => TableGetGlobals(children.head)
+    case TableGetGlobals(TableDistinct(child)) => TableGetGlobals(child)
+    case TableGetGlobals(TableAggregateByKey(child, _)) => TableGetGlobals(child)
+    case TableGetGlobals(TableKeyByAndAggregate(child, _, _, _, _)) => TableGetGlobals(child)
+    case TableGetGlobals(TableOrderBy(child, _)) => TableGetGlobals(child)
+    case TableGetGlobals(TableRename(child, _, globalMap)) =>
+      if (globalMap.isEmpty)
+        TableGetGlobals(child)
+      else {
+        val uid = genUID()
+        val ref = Ref(uid, child.typ.globalType)
+        Let(uid, TableGetGlobals(child), MakeStruct(child.typ.globalType.fieldNames.map { f =>
+          globalMap.getOrElse(f, f) -> GetField(ref, f)
+        }))
+      }
 
     case ApplyIR("annotate", Seq(s, MakeStruct(fields)), _) =>
       InsertFields(s, fields)

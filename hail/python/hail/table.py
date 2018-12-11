@@ -1439,20 +1439,7 @@ class Table(ExprContainer):
         -------
         :class:`.StructExpression`
         """
-        uid = Env.get_uid()
-
-        def joiner(obj):
-            from hail.matrixtable import MatrixTable
-            if isinstance(obj, MatrixTable):
-                return MatrixTable._from_java(Env.jutils().joinGlobals(obj._jmt, self._jt, uid))
-            assert isinstance(obj, Table)
-            return Table._from_java(Env.jutils().joinGlobals(obj._jt, self._jt, uid))
-
-        ir = Join(GetField(TopLevelReference('global'), uid),
-                  [uid],
-                  [],
-                  joiner)
-        return construct_expr(ir, self.globals.dtype)
+        return construct_expr(TableGetGlobals(self._tir), self.globals.dtype)
 
     def _process_joins(self, *exprs):
         return process_joins(self, exprs)

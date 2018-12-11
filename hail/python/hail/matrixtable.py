@@ -2280,21 +2280,7 @@ class MatrixTable(ExprContainer):
         -------
         :class:`.StructExpression`
         """
-
-        uid = Env.get_uid()
-
-        def joiner(obj):
-            if isinstance(obj, MatrixTable):
-                return MatrixTable._from_java(Env.jutils().joinGlobals(obj._jmt, self._jmt, uid))
-            else:
-                assert isinstance(obj, Table)
-                return Table._from_java(Env.jutils().joinGlobals(obj._jt, self._jmt, uid))
-
-        ir = Join(GetField(TopLevelReference('global'), uid),
-                  [uid],
-                  [],
-                  joiner)
-        return construct_expr(ir, self.globals.dtype)
+        return construct_expr(TableGetGlobals(MatrixRowsTable(self._mir)), self.globals.dtype)
 
     def index_rows(self, *exprs):
         """Expose the row values as if looked up in a dictionary, indexing
