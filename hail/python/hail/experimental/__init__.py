@@ -5,6 +5,7 @@ from .plots import hail_metadata, plot_roc_curve
 from .phase_by_transmission import *
 from .datasets import load_dataset
 from .import_gtf import import_gtf
+from .write_multiple import write_matrix_tables
 
 __all__ = ['ld_score',
            'filtering_allele_frequency',
@@ -15,4 +16,5 @@ __all__ = ['ld_score',
            'plot_roc_curve',
            'load_dataset',
            'import_gtf',
-           'haplotype_freq_em']
+           'haplotype_freq_em',
+           'write_matrix_tables']

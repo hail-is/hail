@@ -674,6 +674,14 @@ class RVD(
     stageLocally: Boolean
   ): Array[Long] = crdd.writeRowsSplit(path, typ, codecSpec, partitioner, stageLocally)
 
+  def writeRowsSplitFiles(
+    path: String,
+    codecSpec: CodecSpec,
+    stageLocally: Boolean
+  ): Array[(Int, Long)] = {
+    ???
+  }
+
   // Joining
 
   def orderedLeftJoinDistinctAndInsert(
