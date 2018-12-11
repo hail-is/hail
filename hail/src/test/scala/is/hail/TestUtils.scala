@@ -511,7 +511,7 @@ object TestUtils {
   }
 
 
-  def importVCF(file: String, force: Boolean = false,
+  def importVCF(hc: HailContext, file: String, force: Boolean = false,
     forceBGZ: Boolean = false,
     headerFile: Option[String] = None,
     nPartitions: Option[Int] = None,
@@ -542,10 +542,11 @@ object TestUtils {
     )
     if (addedReference)
       ReferenceGenome.removeReference(rg.get.name)
-    new MatrixTable(HailContext.get, MatrixRead(reader.fullType, dropSamples, false, reader))
+    new MatrixTable(hc, MatrixRead(reader.fullType, dropSamples, false, reader))
   }
 
-  def importBgens(files: Seq[String],
+  def importBgens(hc: HailContext,
+    files: Seq[String],
     sampleFile: Option[String] = None,
     includeGT: Boolean = true,
     includeGP: Boolean = true,
@@ -557,7 +558,6 @@ object TestUtils {
     indexFileMap: Map[String, String] = null,
     includedVariants: Option[Table] = None
   ): MatrixTable = {
-    val hc = HailContext.get
     val referenceGenome = LoadBgen.getReferenceGenome(hc.hadoopConf, files.toArray, indexFileMap)
 
     val requestedType: MatrixType = MatrixBGENReader.getMatrixType(

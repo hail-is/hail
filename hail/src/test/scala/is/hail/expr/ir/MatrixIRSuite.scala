@@ -283,7 +283,7 @@ class MatrixIRSuite extends SparkSuite {
   }
 
   @Test def testMatrixVCFWrite() {
-    val vcf = is.hail.TestUtils.importVCF("src/test/resources/sample.vcf")
+    val vcf = is.hail.TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
     val path = tmpDir.createLocalTempFile(extension = "vcf")
     Interpret(MatrixWrite(vcf.ast, MatrixVCFWriter(path)))
   }

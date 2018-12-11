@@ -747,9 +747,9 @@ class IRSuite extends SparkSuite {
     val table = TableRange(100, 10)
 
     val mt = MatrixTable.range(hc, 20, 2, Some(3)).ast.asInstanceOf[MatrixRead]
-    val vcf = is.hail.TestUtils.importVCF("src/test/resources/sample.vcf")
+    val vcf = is.hail.TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
       .ast.asInstanceOf[MatrixRead]
-    val bgen = is.hail.TestUtils.importBgens(FastIndexedSeq("src/test/resources/example.8bits.bgen"))
+    val bgen = is.hail.TestUtils.importBgens(hc, FastIndexedSeq("src/test/resources/example.8bits.bgen"))
       .ast.asInstanceOf[MatrixRead]
 
     val irs = Array(
@@ -884,9 +884,9 @@ class IRSuite extends SparkSuite {
         .ast.asInstanceOf[MatrixRead]
       val range = MatrixTable.range(hc, 3, 7, None)
         .ast.asInstanceOf[MatrixRead]
-      val vcf = is.hail.TestUtils.importVCF("src/test/resources/sample.vcf")
+      val vcf = is.hail.TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
         .ast.asInstanceOf[MatrixRead]
-      val bgen = is.hail.TestUtils.importBgens(FastIndexedSeq("src/test/resources/example.8bits.bgen"))
+      val bgen = is.hail.TestUtils.importBgens(hc, FastIndexedSeq("src/test/resources/example.8bits.bgen"))
         .ast.asInstanceOf[MatrixRead]
       val range1 = MatrixTable.range(hc, 20, 2, Some(3))
         .ast.asInstanceOf[MatrixRead]

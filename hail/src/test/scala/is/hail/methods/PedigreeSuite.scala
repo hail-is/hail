@@ -7,7 +7,7 @@ import org.testng.annotations.Test
 
 class PedigreeSuite extends SparkSuite {
   @Test def test() {
-    val vds = TestUtils.importVCF("src/test/resources/pedigree.vcf")
+    val vds = TestUtils.importVCF(hc, "src/test/resources/pedigree.vcf")
     val ped = Pedigree.read("src/test/resources/pedigree.fam", sc.hadoopConfiguration).filterTo(vds.stringSampleIdSet)
     val f = tmpDir.createTempFile("pedigree", ".fam")
     ped.write(f, sc.hadoopConfiguration)

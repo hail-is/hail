@@ -139,7 +139,7 @@ object LocalLDPruneSuite {
 class LocalLDPruneSuite extends SparkSuite {
   val memoryPerCoreBytes = 256 * 1024 * 1024
   val nCores = 4
-  lazy val vds = TestUtils.importVCF("src/test/resources/sample.vcf.bgz", nPartitions = Option(10))
+  lazy val vds = TestUtils.importVCF(hc, "src/test/resources/sample.vcf.bgz", nPartitions = Option(10))
   lazy val maxQueueSize = LocalLDPruneSuite.estimateMemoryRequirements(vds.countRows(), vds.numCols, memoryPerCoreBytes)
   
   def toC2(i: Int): BoxedCall = if (i == -1) null else Call2.fromUnphasedDiploidGtIndex(i)

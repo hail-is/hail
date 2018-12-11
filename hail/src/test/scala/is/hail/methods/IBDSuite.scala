@@ -102,7 +102,7 @@ class IBDSuite extends SparkSuite {
   val tolerance = 5e-5
 
   @Test def ibdPlinkSameOnRealVCF() {
-    val vds = TestUtils.importVCF("src/test/resources/sample.vcf")
+    val vds = TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
 
     val us = IBD.toRDD(IBD(vds)).collect().toMap
 
@@ -114,7 +114,7 @@ class IBDSuite extends SparkSuite {
   }
 
   @Test def ibdSchemaCorrect() {
-    val vds = TestUtils.importVCF("src/test/resources/sample.vcf")
+    val vds = TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
     val us = IBD(vds).typeCheck()
   }
 }

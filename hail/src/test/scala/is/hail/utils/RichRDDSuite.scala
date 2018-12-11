@@ -25,7 +25,7 @@ class RichRDDSuite extends SparkSuite {
       assert(t.getNumPartitions == getExpectedNumPartitions(nActual))
     }
 
-    val vds = TestUtils.importVCF("src/test/resources/sample.vcf")
+    val vds = TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
     assert(vds.head(3).countRows() == 3)
   }
 
