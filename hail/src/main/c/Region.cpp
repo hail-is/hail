@@ -14,7 +14,7 @@ void RegionPtr::clear() {
     --(region_->references_);
     if (region_->references_ == 0) {
       region_->clear();
-      region_->pool_->free_regions_.push_back(region_);
+      region_->pool_->free_region(*this);
     }
     region_ = nullptr;
   }
@@ -39,8 +39,7 @@ char * Region::allocate_big_chunk(size_t n) {
 
 void Region::clear() {
   block_offset_ = 0;
-  std::move(std::begin(used_blocks_), std::end(used_blocks_), std::back_inserter(pool_->free_blocks_));
-  used_blocks_.clear();
+  used_blocks_ = pool_->free_blocks(std::move(used_blocks_));
   big_chunks_.clear();
   parents_.clear();
 }
