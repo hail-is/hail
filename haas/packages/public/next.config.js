@@ -30,14 +30,14 @@ module.exports = withOffline(
   )
 );
 
-module.exports.serverRuntimeConfig = {
+const serverRuntimeConfig = {
   // Will only be available on the server side
   GITHUB: {
     ACCESS_TOKEN: process.env.GITHUB_ACCESS_TOKEN
   }
 };
 
-module.exports.publicRuntimeConfig = {
+const publicRuntimeConfig = {
   // Will be available on both server and client
   staticFolder: '/static',
   API_UPLOAD_URL:
@@ -52,9 +52,17 @@ module.exports.publicRuntimeConfig = {
     AUDIENCE: process.env.AUTH0_AUDIENCE,
     REDIRECT_URI:
       process.env.AUTH0_REDIRECT_URI || 'http://localhost:3000/auth0callback',
-    CLIENT_ID:
-      process.env.AUTH0_CLIENT_ID || 'PYHMcItGAEL2PCvBJCEF05tFsdMkt4GG',
+    CLIENT_ID: process.env.AUTH0_CLIENT_ID,
     RESPONSE_TYPE: process.env.AUTH0_RESPONSE_TYPE || 'token id_token',
-    SCOPE: 'openid profile repo read:user delete_repo admin:repo_hook' //process.env.AUTH0_SCOPE ||
-  }
+    SCOPE: 'openid profile' //process.env.AUTH0_SCOPE ||
+  },
+  GITHUB: {
+    ACCESS_TOKEN_UNSAFE: process.env.GITHUB_ACCESS_TOKEN
+  },
+  SCORECARD: { URL: process.env.SCORECARD_URL || 'http://localhost:5000/json' }
 };
+
+serverRuntimeConfig.SCORECARD = publicRuntimeConfig.SCORECARD;
+
+module.exports.publicRuntimeConfig = publicRuntimeConfig;
+module.exports.serverRuntimeConfig = serverRuntimeConfig;
