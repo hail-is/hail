@@ -206,14 +206,14 @@ class PLINKTests(unittest.TestCase):
         mt = get_dataset().filter_cols(False)
         bfile = '/tmp/test_empty_fam'
         hl.export_plink(mt, bfile, ind_id=mt.s)
-        with self.assertRaisesRegex(FatalError, "Empty .fam file"):
+        with self.assertRaisesRegex(FatalError, "Empty FAM file"):
             hl.import_plink(bfile + '.bed', bfile + '.bim', bfile + '.fam')
 
     def test_import_plink_empty_bim(self):
         mt = get_dataset().filter_rows(False)
         bfile = '/tmp/test_empty_bim'
         hl.export_plink(mt, bfile, ind_id=mt.s)
-        with self.assertRaisesRegex(FatalError, ".bim file does not contain any variants"):
+        with self.assertRaisesRegex(FatalError, "BIM file does not contain any variants"):
             hl.import_plink(bfile + '.bed', bfile + '.bim', bfile + '.fam')
 
     def test_import_plink_a1_major(self):
@@ -275,9 +275,10 @@ class PLINKTests(unittest.TestCase):
         self.assertTrue(mt._force_count_rows() == 3)
 
         with self.assertRaisesRegex(FatalError, 'Invalid locus'):
-            hl.import_plink(resource('skip_invalid_loci.bed'),
+            (hl.import_plink(resource('skip_invalid_loci.bed'),
                             resource('skip_invalid_loci.bim'),
                             resource('skip_invalid_loci.fam'))
+             ._force_count_rows())
 
     def test_export_plink(self):
         vcf_file = resource('sample.vcf')

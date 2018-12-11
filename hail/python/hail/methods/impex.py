@@ -1646,8 +1646,6 @@ def import_plink(bed, bim, fam,
     :class:`.MatrixTable`
     """
 
-    rg = reference_genome._jrep if reference_genome else None
-
     if contig_recoding is None:
         if reference_genome is None:
             contig_recoding = {}
@@ -1659,15 +1657,10 @@ def import_plink(bed, bim, fam,
         else:
             contig_recoding = {}
 
-    contig_recoding = tdict(tstr, tstr)._convert_to_j(contig_recoding)
-
-    jmt = Env.hc()._jhc.importPlink(bed, bim, fam, joption(min_partitions),
-                                    delimiter, missing, quant_pheno,
-                                    a2_reference, joption(rg),
-                                    joption(contig_recoding),
-                                    skip_invalid_loci)
-
-    return MatrixTable._from_java(jmt)
+    reader = MatrixPLINKReader(bed, bim, fam, min_partitions, missing, delimiter,
+                               quant_pheno, a2_reference, reference_genome, contig_recoding,
+                               skip_invalid_loci)
+    return MatrixTable(MatrixRead(reader, drop_cols=False, drop_rows=False))
 
 
 @typecheck(path=oneof(str, sequenceof(str)),

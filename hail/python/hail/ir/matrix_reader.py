@@ -153,3 +153,52 @@ class MatrixBGENReader(MatrixReader):
                other.index_file_map == self.index_file_map and \
                other.block_size == self.block_size and \
                other.included_variants == self.included_variants
+
+
+class MatrixPLINKReader(MatrixReader):
+    @typecheck_method(bed=str, bim=str, fam=str, min_partitions=nullable(int),
+                      missing=str, delimiter=str, quant_pheno=bool,
+                      a2_reference=bool, reference_genome=nullable(reference_genome_type),
+                      contig_recoding=nullable(dictof(str, str)), skip_invalid_loci=bool)
+    def __init__(self, bed, bim, fam, min_partitions, missing, delimiter, quant_pheno, a2_reference,
+                 reference_genome, contig_recoding, skip_invalid_loci):
+        self.bed = bed
+        self.bim = bim
+        self.fam = fam
+        self.min_partitions = min_partitions
+        self.missing = missing
+        self.delimiter = delimiter
+        self.quant_pheno = quant_pheno
+        self.a2_reference = a2_reference
+        self.reference_genome = reference_genome
+        self.contig_recoding = contig_recoding
+        self.skip_invalid_loci = skip_invalid_loci
+
+    def render(self, r):
+        reader = {'name': 'MatrixPLINKReader',
+                  'bed': self.bed,
+                  'bim': self.bim,
+                  'fam': self.fam,
+                  'nPartitions': self.min_partitions,
+                  'missing': self.missing,
+                  'delimiter': self.delimiter,
+                  'quantPheno': self.quant_pheno,
+                  'a2Reference': self.a2_reference,
+                  'rg': self.reference_genome.name if self.reference_genome else None,
+                  'contigRecoding': self.contig_recoding if self.contig_recoding else {},
+                  'skipInvalidLoci': self.skip_invalid_loci}
+        return escape_str(json.dumps(reader))
+
+    def __eq__(self, other):
+        return isinstance(other, MatrixPLINKReader) and \
+               other.bed == self.bed and \
+               other.bim == self.bim and \
+               other.fam == self.fam and \
+               other.min_partitions == self.min_partitions and \
+               other.missing == self.missing and \
+               other.delimiter == self.delimiter and \
+               other.quant_pheno == self.quant_pheno and \
+               other.a2_reference == self.a2_reference and \
+               other.reference_genome == self.reference_genome and \
+               other.contig_recoding == self.contig_recoding and \
+               other.skip_invalid_loci == self.skip_invalid_loci
