@@ -236,8 +236,7 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
 
 def _get_regression_row_fields(mt, pass_through, method) -> Dict[str, str]:
 
-    # include key as base
-    row_fields = dict(mt.row_key)
+    row_fields = {}
     for f in pass_through:
         if isinstance(f, str):
             if f not in mt.row:
@@ -1090,8 +1089,6 @@ def linear_mixed_regression_rows(entry_expr,
                                 a_t_path if model.low_rank else None,
                                 partition_size)
     row_fields = _get_regression_row_fields(mt, pass_through, 'linear_mixed_regression_rows')
-    for k in mt.row_key:
-        del row_fields[k]
 
     mt_keys = mt.select_rows(**row_fields).add_row_index('__row_idx').rows().add_index('__row_idx').key_by('__row_idx')
     return mt_keys.annotate(**ht[mt_keys['__row_idx']]).key_by(*mt.row_key).drop('__row_idx')

@@ -2592,16 +2592,21 @@ class MatrixTable(ExprContainer):
                                 {uids[k]: v for k, v in entry_exprs.items()},
                                 {uids[k]: v for k, v in global_exprs.items()})
 
-        if row_key is None:
-            row_key = []
-        mt = mt.key_rows_by(*(uids[k] for k in row_key))
+        keep = set()
+        if row_key is not None:
+            old_key = list(mt.row_key)
+            mt = mt.key_rows_by(*(uids[k] for k in row_key)).drop(*old_key)
+        else:
+            keep = keep.union(set(mt.row_key))
 
-        if col_key is None:
-            col_key = []
-        mt = mt.key_cols_by(*(uids[k] for k in col_key))
+        if col_key is not None:
+            old_key = list(mt.col_key)
+            mt = mt.key_cols_by(*(uids[k] for k in col_key)).drop(*old_key)
+        else:
+            keep = keep.union(set(mt.col_key))
 
-        uid_set = set(uids.values())
-        return (mt.drop(*(f for f in mt._fields if f not in uid_set)) \
+        keep = keep.union(uids.values())
+        return (mt.drop(*(f for f in mt._fields if f not in keep)) \
                 .rename({uid: original for original, uid in uids.items()}))
 
     def _process_joins(self, *exprs):
