@@ -9,6 +9,9 @@ gcloud auth configure-docker
 
 while true
 do
-    curl -sSL http://notebook/worker-image | xargs docker pull
+    for image in `curl -sSL http://notebook/worker-image`
+    do
+    	docker pull $image
+    done
     sleep 360
 done

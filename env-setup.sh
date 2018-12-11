@@ -4,7 +4,7 @@ set -ex
 
 ${CONDA_BINARY:=conda}
 
-CLUSTER_NAME=${HAIL_CLUSTER_NAME:-cs-test}
+CLUSTER_NAME=${HAIL_CLUSTER_NAME:-vdc}
 echo "configuring environment for ${CLUSTER_NAME} (override by setting HAIL_CLUSTER_NAME)"
 
 PLATFORM="${HAIL_PLATFORM:-${OSTYPE}}"
@@ -65,7 +65,7 @@ then
 fi
 
 kubectl version -c || gcloud components install kubectl
-kubectl version || gcloud container clusters get-credentials $CLUSTER_NAME
+gcloud container clusters get-credentials $CLUSTER_NAME --region us-central1-a
 
 for project in $(cat projects.txt)
 do
