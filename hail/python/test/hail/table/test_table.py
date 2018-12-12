@@ -9,7 +9,6 @@ from hail.utils import new_temp_file
 from hail.utils.java import Env
 from ..helpers import *
 from test.hail.matrixtable.test_file_formats import create_all_values_datasets
-from timeit import default_timer as timer
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
@@ -822,22 +821,16 @@ class Tests(unittest.TestCase):
         assert ht['sample'].dtype == hl.tint32
         assert ht['_row'].dtype == hl.tint32
 
-def assert_time(f, max_duration):
-    start = timer()
-    x = f()
-    end = timer()
-    assert (start - end) < max_duration
-    print(start - end)
-    return x
-
-
 def test_large_number_of_fields(tmpdir):
-    mt = hl.utils.range_table(100)
-    mt = mt.annotate(**{
+    ht = hl.utils.range_table(100)
+    ht = ht.annotate(**{
         str(k): k for k in range(1000)
     })
-    f = tmpdir.join("foo.mt")
-    assert_time(lambda: mt.count(), 5)
-    assert_time(lambda: mt.write(str(f)), 5)
-    mt = assert_time(lambda: hl.read_table(str(f)), 5)
-    assert_time(lambda: mt.count(), 5)
+    f = tmpdir.join("foo.ht")
+    assert_time(lambda: ht.count(), 5)
+    assert_time(lambda: ht.write(str(f)), 5)
+    ht = assert_time(lambda: hl.read_table(str(f)), 5)
+    assert_time(lambda: ht.count(), 5)
+
+def test_import_many_fields():
+    assert_time(lambda: hl.import_table(resource('many_cols.txt')), 5)

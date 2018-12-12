@@ -1,4 +1,5 @@
 import os
+from timeit import default_timer as timer
 
 import hail
 
@@ -77,3 +78,11 @@ def get_dataset():
     if _dataset is None:
         _dataset = hail.split_multi_hts(hail.import_vcf(resource('sample.vcf'))).cache()
     return _dataset
+
+def assert_time(f, max_duration):
+    start = timer()
+    x = f()
+    end = timer()
+    assert (start - end) < max_duration
+    print(f'took {end - start:.3f}')
+    return x

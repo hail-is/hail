@@ -56,6 +56,7 @@ class ExprContainer(object):
     def __init__(self):
         self._fields: Dict[str, Expression] = {}
         self._fields_inverse: Dict[Expression, str] = {}
+        self._dir = dir(self)
         super(ExprContainer, self).__init__()
 
     def _set_field(self, key, value):
@@ -65,7 +66,7 @@ class ExprContainer(object):
 
         # key is in __dir for methods
         # key is in __dict__ for private class fields
-        if hasattr(self, key):
+        if key in self._dir or key in self.__dict__:
             if key not in ExprContainer._warned_about:
                 ExprContainer._warned_about.add(key)
                 warn(f"Name collision: field {repr(key)} already in object dict. "
