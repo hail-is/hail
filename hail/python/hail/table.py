@@ -56,7 +56,7 @@ class ExprContainer(object):
     def __init__(self):
         self._fields: Dict[str, Expression] = {}
         self._fields_inverse: Dict[Expression, str] = {}
-        self._dir = dir(self)
+        self._dir = set(dir(self))
         super(ExprContainer, self).__init__()
 
     def _set_field(self, key, value):
