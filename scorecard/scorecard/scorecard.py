@@ -46,7 +46,7 @@ repos = {
 }
 
 app = Flask('scorecard')
-CORS(app, resources={r"/json/*": {"origins": "*"}})
+CORS(app, resources={r'/json/*': {'origins': '*'}})
 
 data = None
 timsetamp = None
@@ -221,7 +221,7 @@ def get_issue_data(repo_name, issue):
         'title': issue.title,
         'assignees': assignees,
         'html_url': issue.html_url,
-        'urgent': any(label.name == "prio:high" for label in issue.labels),
+        'urgent': any(label.name == 'prio:high' for label in issue.labels),
         'created_at': issue.created_at
     }
 
@@ -290,5 +290,5 @@ def run_forever(target, *args, **kwargs):
 poll_thread = threading.Thread(target=run_forever, args=(poll,), daemon=True)
 poll_thread.start()
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     app.run(host='0.0.0.0')
