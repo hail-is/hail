@@ -233,7 +233,7 @@ object TestUtils {
     val rewritten = Subst(rewrite(x), substEnv)
     val f = cxx.Compile(
       argsVar, argsType.physicalType,
-      MakeTuple(FastSeq(rewritten)))
+      MakeTuple(FastSeq(rewritten)), false)
 
     Region.scoped { region =>
       val rvb = new RegionValueBuilder(region)

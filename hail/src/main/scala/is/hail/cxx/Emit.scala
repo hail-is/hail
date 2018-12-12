@@ -25,6 +25,7 @@ class Orderings {
   val typeOrdering = mutable.Map.empty[(PType, PType), String]
 
   private def makeOrdering(tub: TranslationUnitBuilder, lp: PType, rp: PType): String = {
+    tub.include("hail/Ordering.h")
     lp.virtualType match {
       case TFloat32(_) => "FloatOrd"
       case TFloat64(_) => "DoubleOrd"
@@ -226,11 +227,15 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
              |  if (${ tcond.v }) {
              |    ${ tcnsq.setup }
              |    $m = ${ tcnsq.m };
-             |    $v = ${ tcnsq.v };
+             |    if (!$m) {
+             |      $v = ${ tcnsq.v };
+             |    }
              |  } else {
              |    ${ taltr.setup }
              |    $m = ${ taltr.m };
-             |    $v = ${ taltr.v };
+             |    if (!$m) {
+             |      $v = ${ taltr.v };
+             |    }
              |  }
              |}
              |""".stripMargin,
@@ -239,8 +244,8 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
 
       case ir.Let(name, value, body) =>
         val tvalue = emit(value)
-        val m = fb.variable("m", "bool", tvalue.m)
-        val v = fb.variable("v", typeToCXXType(value.pType))
+        val m = fb.variable("let_m", "bool", tvalue.m)
+        val v = fb.variable("let_v", typeToCXXType(value.pType))
         val tbody = emit(body, env.bind(name, EmitTriplet(value.pType, "", m.toString, v.toString)))
 
         triplet(
@@ -270,6 +275,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
             }
 
           case ir.RoundToNegInfDivide() =>
+            fb.translationUnitBuilder().include("<math.h>")
             l.typ match {
               case _: TInt32 => s"floordiv(${ lt.v }, ${ rt.v })"
               case _: TInt64 => s"lfloordiv(${ lt.v }, ${ rt.v })"
@@ -340,9 +346,9 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
         val at = emit(a)
         val it = emit(i)
 
-        val av = fb.variable("a", "const char *", at.v)
-        val iv = fb.variable("i", "int", it.v)
-        val len = fb.variable("len", "int", pContainer.cxxLoadLength(av.toString))
+        val av = fb.variable("a", "const char *")
+        val iv = fb.variable("i", "int")
+        val len = fb.variable("len", "int")
 
         val m = fb.variable("m", "bool")
 
@@ -624,6 +630,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
 
     x match {
       case ir.ArrayRange(start, stop, step) =>
+        fb.translationUnitBuilder().include("<limits.h>")
         val startt = emit(start, env)
         val stopt = emit(stop, env)
         val stept = emit(step, env)

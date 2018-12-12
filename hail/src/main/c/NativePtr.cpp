@@ -1,3 +1,4 @@
+#include "hail/NativeMethod.h"
 #include "hail/NativePtr.h"
 #include "hail/NativeObj.h"
 #include "hail/hail.h"
@@ -410,17 +411,6 @@ NATIVEMETHOD(void, NativePtr, nativePtrFuncL8)(
 ) {
   NativeObjPtr ptr = get_PtrFuncN(funcObjAddr)(to_status(st), a0, a1, a2, a3, a4, a5, a6, a7);
   init_NativePtr(env, thisJ, &ptr);
-}
-
-NATIVEMETHOD(jlong, NativePtr, getFieldOffset)(
-  JNIEnv* env,
-  jobject thisJ,
-  jlong fieldSize,
-  jstring fieldNameJ
-) {
-  auto obj = get_from_NativePtr(env, thisJ);
-  JString fieldName(env, fieldNameJ);
-  return(obj ? obj->get_field_offset(fieldSize, fieldName) : -1L);
 }
 
 // Test code for nativePtrFunc

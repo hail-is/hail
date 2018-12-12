@@ -42,8 +42,6 @@ class NativePtr() extends NativeBase() {
   @native def nativePtrFuncL8(func: Long, st: Long,
                               a0: Long, a1: Long, a2: Long, a3: Long,
                               a4: Long, a5: Long, a6: Long, a7: Long): Unit
-
-  @native def getFieldOffset(fieldSize: Int, fieldName: String): Long
   
   // copy-constructor
   def this(b: NativePtr) {
