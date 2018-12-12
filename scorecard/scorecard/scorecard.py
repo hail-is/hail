@@ -4,6 +4,7 @@ import datetime
 import os
 import sys
 from flask import Flask, render_template, request, jsonify, abort, url_for
+from flask_cors import CORS
 from github import Github
 import random
 import threading
@@ -45,12 +46,44 @@ repos = {
 }
 
 app = Flask('scorecard')
+CORS(app, resources={r"/json/*": {"origins": "*"}})
 
 data = None
 timsetamp = None
 
 @app.route('/')
 def index():
+    user_data, unassigned, urgent_issues, updated = getUsers()
+
+    random_user = random.choice(users)
+
+    return render_template('index.html', unassigned=unassigned,
+                           user_data=user_data, urgent_issues=urgent_issues, random_user=random_user, updated=updated)
+
+@app.route('/users/<user>')
+def html_get_user(user):
+    user_data, updated = get_user(user)
+    return render_template('user.html', user=user, user_data=user_data, updated=updated)
+
+@app.route('/json')
+def json_all_users():
+    user_data, unassigned, urgent_issues, updated = getUsers()
+
+    for issue in urgent_issues:
+        issue['timedelta'] = humanize.naturaltime(issue['timedelta'])
+
+    return jsonify(updated=updated, user_data=user_data, unassigned=unassigned, urgent_issues=urgent_issues)
+
+@app.route('/json/users/<user>')
+def json_user(user):
+    user_data, updated = get_user(user)
+    return jsonify(updated=updated, data=user_data)
+
+@app.route('/json/random')
+def json_random_user():
+    return jsonify(random.choice(users))
+
+def getUsers():
     cur_data = data
     cur_timestamp = timestamp
 
@@ -99,29 +132,12 @@ def index():
         for issue in repo_data['issues']:
             add_issue(repo_name, issue)
 
-    random_user = random.choice(users)
-
     list.sort(urgent_issues, key=lambda issue: issue['timedelta'], reverse=True)
 
     updated = humanize.naturaltime(
         datetime.datetime.now() - datetime.timedelta(seconds = time.time() - cur_timestamp))
 
-    return render_template('index.html', unassigned=unassigned,
-                           user_data=user_data, urgent_issues=urgent_issues, random_user=random_user, updated=updated)
-
-@app.route('/users/<user>')
-def html_get_user(user):
-    user_data, updated = get_user(user)
-    return render_template('user.html', user=user, user_data=user_data, updated=updated)
-
-@app.route('/json/users/<user>')
-def json_user(user):
-    user_data, updated = get_user(user)
-    return jsonify(updated=updated, data=user_data)
-
-@app.route('/json/random')
-def json_random_user():
-    return jsonify(random.choice(users))
+    return (user_data, unassigned, urgent_issues, updated)
 
 def get_user(user):
     global data, timestamp
