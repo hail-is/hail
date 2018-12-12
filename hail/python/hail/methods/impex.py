@@ -11,6 +11,7 @@ from hail.genetics.reference_genome import reference_genome_type
 from hail.methods.misc import require_biallelic, require_row_key_variant, require_row_key_variant_w_struct_locus, require_col_key_str
 import hail as hl
 
+_cached_importvcfs = None
 
 def locus_interval_expr(contig, start, end, includes_start, includes_end,
                         reference_genome, skip_invalid_intervals):
@@ -967,7 +968,7 @@ def import_bgen(path,
 
     if variants is not None:
         expected_vtype = tstruct(locus=lt, alleles=tarray(tstr))
-        
+
         if isinstance(variants, StructExpression) or isinstance(variants, LocusExpression):
             if isinstance(variants, LocusExpression):
                 variants = hl.struct(locus=variants)
@@ -1498,11 +1499,11 @@ def import_matrix_table(paths,
     jrow_fields = {k: v._parsable_string() for k, v in row_fields.items()}
     for k, v in row_fields.items():
         if v not in {tint32, tint64, tfloat32, tfloat64, tstr}:
-            raise FatalError("""import_matrix_table expects field types to be one of: 
+            raise FatalError("""import_matrix_table expects field types to be one of:
             'int32', 'int64', 'float32', 'float64', 'str': field {} had type '{}'""".format(repr(k), v))
     row_key = wrap_to_list(row_key)
     if entry_type not in {tint32, tint64, tfloat32, tfloat64, tstr}:
-        raise FatalError("""import_matrix_table expects entry types to be one of: 
+        raise FatalError("""import_matrix_table expects entry types to be one of:
         'int32', 'int64', 'float32', 'float64', 'str': found '{}'""".format(entry_type))
 
     if len(sep) != 1:
@@ -1756,7 +1757,9 @@ def get_vcf_metadata(path):
            reference_genome=nullable(reference_genome_type),
            contig_recoding=nullable(dictof(str, str)),
            array_elements_required=bool,
-           skip_invalid_loci=bool)
+           skip_invalid_loci=bool,
+           # json
+           _partitions=nullable(str))
 def import_vcf(path,
                force=False,
                force_bgz=False,
@@ -1767,7 +1770,8 @@ def import_vcf(path,
                reference_genome='default',
                contig_recoding=None,
                array_elements_required=True,
-               skip_invalid_loci=False) -> MatrixTable:
+               skip_invalid_loci=False,
+               _partitions=None) -> MatrixTable:
     """Import VCF file(s) as a :class:`.MatrixTable`.
 
     Examples
@@ -1879,7 +1883,7 @@ def import_vcf(path,
         parameter to ``False`` for Hail to allow array fields with missing
         values such as ``1,.,5``. In this case, the second element will be
         missing. However, in the case of a single missing element ``.``, the
-        entire field will be missing and **not** an array with one missing 
+        entire field will be missing and **not** an array with one missing
         element.
     skip_invalid_loci : :obj:`bool`
         If ``True``, skip loci that are not consistent with `reference_genome`.
@@ -1891,9 +1895,81 @@ def import_vcf(path,
 
     reader = MatrixVCFReader(path, call_fields, header_file, min_partitions,
                              reference_genome, contig_recoding, array_elements_required,
-                             skip_invalid_loci, force_bgz, force)
+                             skip_invalid_loci, force_bgz, force, _partitions)
     return MatrixTable(MatrixRead(reader, drop_cols=drop_samples))
 
+@typecheck(path=sequenceof(str),
+           partitions=str,
+           force=bool,
+           force_bgz=bool,
+           call_fields=oneof(str, sequenceof(str)),
+           reference_genome=nullable(reference_genome_type),
+           contig_recoding=nullable(dictof(str, str)),
+           array_elements_required=bool,
+           skip_invalid_loci=bool)
+def import_vcfs(path,
+                partitions,
+                force=False,
+                force_bgz=False,
+                call_fields=[],
+                reference_genome='default',
+                contig_recoding=None,
+                array_elements_required=True,
+                skip_invalid_loci=False) -> MatrixTable:
+    """Experimental. Import multiple vcfs as :class:`MatrixTable`s
+
+    The arguments to this function are almost identical to :func:`.import_vcf`,
+    the only difference is the `partitions` argument, which is used to divide
+    and filter the vcfs. It must be a JSON string that will deserialize to an
+    Array of Intervals of Locus structs. A partition will be created for every
+    element of the array. Loci that fall outside of any interval will not be
+    imported. For example:
+
+    .. code-block:: text
+        [
+          {
+            "start": {
+              "locus": {
+                "contig": "chr22",
+                "position": 1
+              }
+            },
+            "end": {
+              "locus": {
+                "contig": "chr22",
+                "position": 5332423
+              }
+            },
+            "includeStart": true,
+            "includeEnd": true
+          }
+        ]
+
+    The `includeStart` and `includeEnd` keys must be `true`. The `contig` fields must
+    be the same.
+
+    One difference between :func:`.import_vcfs` and :func:`.import_vcf` is that
+    :func:`.import_vcfs` only keys the resulting matrix tables by `locus`
+    rather than `locus, alleles`.
+    """
+
+    rg = reference_genome.name if reference_genome else None
+
+    global _cached_importvcfs
+    if _cached_importvcfs is None:
+        _cached_importvcfs = Env.hail().io.vcf.ImportVCFs
+
+    jmts = _cached_importvcfs.pyApply(
+        wrap_to_list(path),
+        wrap_to_list(call_fields),
+        rg,
+        contig_recoding,
+        array_elements_required,
+        skip_invalid_loci,
+        force_bgz,
+        force,
+        partitions)
+    return [MatrixTable._from_java(jmt) for jmt in jmts]
 
 @typecheck(path=oneof(str, sequenceof(str)),
            index_file_map=nullable(dictof(str, str)),

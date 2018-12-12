@@ -384,7 +384,7 @@ class HailContext private(val sc: SparkContext,
     IndexBgen(this, files.toArray, indexFileMap, rg, contigRecoding, skipInvalidLoci)
     info(s"Number of BGEN files indexed: ${ files.length }")
   }
-  
+
   def importGen(file: String,
     sampleFile: String,
     chromosome: Option[String] = None,

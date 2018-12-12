@@ -2609,9 +2609,12 @@ class Table(ExprContainer):
     def _filter_partitions(self, parts, keep=True):
         return Table._from_java(self._jt.filterPartitions(parts, keep))
 
-    @typecheck_method(cols=table_type, entries_field_name=str)
-    def _unlocalize_entries(self, cols, entries_field_name):
-        return hl.MatrixTable._from_java(self._jt.unlocalizeEntries(cols._jt, entries_field_name))
+    @typecheck_method(cols_field_name=str,
+                      entries_field_name=str,
+                      col_key=sequenceof(str))
+    def _unlocalize_entries(self, entries_field_name, cols_field_name, col_key):
+        return hl.MatrixTable._from_java(
+                self._jt.unlocalizeEntries(entries_field_name, cols_field_name, col_key))
 
     @staticmethod
     @typecheck(tables=sequenceof(table_type), data_field_name=str, global_field_name=str)
