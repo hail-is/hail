@@ -53,7 +53,7 @@ timsetamp = None
 
 @app.route('/')
 def index():
-    user_data, unassigned, urgent_issues, updated = getUsers()
+    user_data, unassigned, urgent_issues, updated = get_users()
 
     random_user = random.choice(users)
 
@@ -67,7 +67,7 @@ def html_get_user(user):
 
 @app.route('/json')
 def json_all_users():
-    user_data, unassigned, urgent_issues, updated = getUsers()
+    user_data, unassigned, urgent_issues, updated = get_users()
 
     for issue in urgent_issues:
         issue['timedelta'] = humanize.naturaltime(issue['timedelta'])
@@ -83,7 +83,7 @@ def json_user(user):
 def json_random_user():
     return jsonify(random.choice(users))
 
-def getUsers():
+def get_users():
     cur_data = data
     cur_timestamp = timestamp
 
