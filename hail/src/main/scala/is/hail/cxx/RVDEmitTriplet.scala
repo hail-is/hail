@@ -72,22 +72,28 @@ object RVDEmitTriplet {
     val it = t.iterator
     val end = t.end
 
+    val st: Variable = tub.variable("st", "NativeStatus*")
     tub += new Function(
-      "long", "process_partition", Array(t.st, t.rvd.regionLong, t.rvd.rddInput, os),
+      "long", "process_partition", Array(st, t.rvd.regionLong, t.rvd.rddInput, os),
       s"""
-         |${ t.rvd.setup(tub) }
-         |${ t.setup }
-         |${ enc.define }
-         |${ nRows.define }
-         |while($it != $end) {
-         |  $enc.encode_byte(1);
-         |  $enc.encode_row(*$it);
-         |  ++$nRows;
-         |  ++$it;
+         |try {
+         |  ${ t.rvd.setup(tub) }
+         |  ${ t.setup }
+         |  ${ enc.define }
+         |  ${ nRows.define }
+         |  while($it != $end) {
+         |    $enc.encode_byte(1);
+         |    $enc.encode_row(*$it);
+         |    ++$nRows;
+         |    ++$it;
+         |  }
+         |  $enc.encode_byte(0);
+         |  $enc.flush();
+         |  return $nRows;
+         |} catch (const HailFatalError& e) {
+         |  NATIVE_ERROR($st, 1005, e.what());
+         |  return -1;
          |}
-         |$enc.encode_byte(0);
-         |$enc.flush();
-         |return $nRows;
        """.stripMargin)
 
     val mod = tub.end().build("-O2 -llz4")
@@ -121,7 +127,6 @@ object RVDEmitTriplet {
 }
 
 case class BaseRVD(tub: TranslationUnitBuilder, partitioner: RVDPartitioner, rddBase: RDD[Long]) {
-  val st: Variable = tub.variable("st", "NativeStatus*")
   val up: Variable = tub.variable("up", "UpcallEnv")
   val regionLong: Variable = tub.variable("region", "long")
   val region: Variable = tub.variable("region", "ScalaRegion*")
@@ -142,7 +147,6 @@ case class BaseRVD(tub: TranslationUnitBuilder, partitioner: RVDPartitioner, rdd
 case class RVDEmitTriplet(rvd: BaseRVD, typ: RVDType, setup: Code, iterator: Variable, end: Variable) {
 
   def region: Variable = rvd.region
-  def st: Variable = rvd.st
   def up: Variable = rvd.up
 
   def rvdSpec(codecSpec: CodecSpec, partFiles: Array[String]) = OrderedRVDSpec(

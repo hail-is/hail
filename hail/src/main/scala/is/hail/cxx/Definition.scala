@@ -58,17 +58,7 @@ class FunctionBuilder(val parent: ScopeBuilder, prefix: String, args: Array[Vari
 
   def build(): Function = new Function(returnType, prefix, args, definitions.result().mkString("\n"), const)
 
-  def defaultReturn: Code = {
-    if (returnType == "long")
-      "return 0l;"
-    else
-      "return nullptr;"
-  }
-
-  def nativeError(code: Int, msg: Code): Code =
-    s"""NATIVE_ERROR(${getArg(0)}, $code, $msg);
-       |$defaultReturn
-     """.stripMargin
+  def nativeError(msg: String, args: Code*): Code = s"""throw HailFatalError("$msg"${ args.map(a => s", ($a)").mkString });"""
 
 }
 

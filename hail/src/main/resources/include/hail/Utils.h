@@ -1,6 +1,10 @@
 #ifndef HAIL_UTILS_H
 #define HAIL_UTILS_H 1
 
+#include <exception>
+#include <string>
+#include <cstdarg>
+
 #define LIKELY(condition)   __builtin_expect(static_cast<bool>(condition), 1)
 #define UNLIKELY(condition) __builtin_expect(static_cast<bool>(condition), 0)
 
@@ -127,6 +131,21 @@ public:
   static ElemT load_element(const char *a, int i) {
     return *reinterpret_cast<const ElemT *>(Base::element_address(a, i));
   }
+};
+
+struct HailFatalError: public std::exception {
+  private:
+    static constexpr int max_error_len = 512;
+    char error_msg[max_error_len];
+  public:
+    virtual const char * what() const throw() { return error_msg; }
+    virtual ~HailFatalError() throw() {};
+    explicit HailFatalError(const char * fmtstring, ...) : std::exception() {
+      va_list args;
+      va_start(args, fmtstring);
+      vsnprintf(error_msg, max_error_len, fmtstring, args);
+      va_end(args);
+    }
 };
 
 #endif

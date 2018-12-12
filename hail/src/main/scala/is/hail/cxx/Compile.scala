@@ -28,10 +28,10 @@ object Compile {
     tub.include("<cstring>")
 
     val fb = tub.buildFunction("f",
-      Array("NativeStatus *" -> "st", "Region *" -> "region", "const char *" -> "v"),
+      Array("Region *" -> "region", "const char *" -> "v"),
       "char *")
 
-    val v = Emit(fb, 2, body)
+    val v = Emit(fb, 1, body)
 
     fb +=
       s"""
@@ -48,7 +48,12 @@ object Compile {
       def define: String =
         s"""
            |long entrypoint(NativeStatus *st, long region, long v) {
-           |  return (long)${ f.name }(st, ((ScalaRegion *)region)->get_wrapped_region(), (char *)v);
+           |  try {
+           |    return (long)${ f.name }(((ScalaRegion *)region)->get_wrapped_region(), (char *)v);
+           |  } catch (const HailFatalError& e) {
+           |    NATIVE_ERROR(st, 1005, e.what());
+           |    return -1;
+           |  }
            |}
          """.stripMargin
     }
