@@ -162,7 +162,7 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
 
     val partFileStatuses = partFilesOpt match {
       case None => glob(sourceFolder + "/part-*")
-      case Some(files) => files.map(fileStatus _).toArray
+      case Some(files) => files.map(f => fileStatus(sourceFolder + "/" + f)).toArray
     }
     val sortedPartFileStatuses = partFileStatuses.sortBy(fs => getPartNumber(fs.getPath.getName)
 )
