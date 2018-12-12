@@ -158,6 +158,9 @@ object Copy {
       case TableCount(_) =>
         val IndexedSeq(child: TableIR) = newChildren
         TableCount(child)
+      case TableGetGlobals(_) =>
+        val IndexedSeq(child: TableIR) = newChildren
+        TableGetGlobals(child)
       case TableAggregate(_, _) =>
         val IndexedSeq(child: TableIR, query: IR) = newChildren
         TableAggregate(child, query)

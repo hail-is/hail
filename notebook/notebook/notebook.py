@@ -10,6 +10,7 @@ import flask
 import kubernetes as kube
 import logging
 import os
+import re
 import requests
 import time
 import uuid
@@ -56,15 +57,17 @@ log.info(f'KUBERNETES_TIMEOUT_IN_SECONDS {KUBERNETES_TIMEOUT_IN_SECONDS}')
 log.info(f'INSTANCE_ID {INSTANCE_ID}')
 
 try:
-    with open('notebook-worker-image', 'r') as f:
-        WORKER_IMAGE = f.read().strip()
+    with open('notebook-worker-images', 'r') as f:
+        def get_name(line):
+            return re.search("/([^/:]+):", line).group(1)
+        WORKER_IMAGES = {get_name(line): line.strip() for line in f}
 except FileNotFoundError as e:
     raise ValueError(
-        "working directory must contain a file called `notebook-worker-image' "
+        "working directory must contain a file called `notebook-worker-images' "
         "containing the name of the docker image to use for worker pods.") from e
 
 
-def start_pod(jupyter_token):
+def start_pod(jupyter_token, image):
     pod_id = uuid.uuid4().hex
     service_spec = kube.client.V1ServiceSpec(
         selector={
@@ -95,7 +98,7 @@ def start_pod(jupyter_token):
                     f'--NotebookApp.base_url=/instance/{svc.metadata.name}/'
                 ],
                 name='default',
-                image=WORKER_IMAGE,
+                image=image,
                 ports=[kube.client.V1ContainerPort(container_port=8888)],
                 resources=kube.client.V1ResourceRequirements(
                     requests={'cpu': '3.001', 'memory': '4G'}),
@@ -137,7 +140,10 @@ def healthcheck():
 def root():
     if 'svc_name' not in session:
         log.info(f'no svc_name found in session {session.keys()}')
-        return render_template('index.html', form_action_url=external_url_for('new'))
+        return render_template('index.html',
+                               form_action_url=external_url_for('new'),
+                               images=list(WORKER_IMAGES),
+                               default='hail')
     svc_name = session['svc_name']
     jupyter_token = session['jupyter_token']
     log.info('redirecting to ' + external_url_for(f'instance/{svc_name}/?token={jupyter_token}'))
@@ -157,10 +163,11 @@ def new_get():
 def new_post():
     log.info('new received')
     password = request.form['password']
-    if password != PASSWORD:
+    image = request.form['image']
+    if password != PASSWORD or image not in WORKER_IMAGES:
         return '403 Forbidden', 403
     jupyter_token = uuid.uuid4().hex  # FIXME: probably should be cryptographically secure
-    svc, pod = start_pod(jupyter_token)
+    svc, pod = start_pod(jupyter_token, image)
     session['svc_name'] = svc.metadata.name
     session['pod_name'] = pod.metadata.name
     session['jupyter_token'] = jupyter_token
@@ -250,7 +257,7 @@ def admin_login_post():
 
 @app.route('/worker-image')
 def worker_image():
-    return WORKER_IMAGE, 200
+    return '\n'.join(WORKER_IMAGES.values()), 200
 
 
 @sockets.route('/wait')

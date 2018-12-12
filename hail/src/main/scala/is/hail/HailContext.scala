@@ -385,42 +385,6 @@ class HailContext private(val sc: SparkContext,
     info(s"Number of BGEN files indexed: ${ files.length }")
   }
 
-  def importBgens(files: Seq[String],
-    sampleFile: Option[String] = None,
-    includeGT: Boolean = true,
-    includeGP: Boolean = true,
-    includeDosage: Boolean = false,
-    includeVarid: Boolean = true,
-    includeRsid: Boolean = true,
-    nPartitions: Option[Int] = None,
-    blockSizeInMB: Option[Int] = None,
-    indexFileMap: Map[String, String] = null,
-    includedVariants: Option[Table] = None
-  ): MatrixTable = {
-    val referenceGenome = LoadBgen.getReferenceGenome(hadoopConf, files.toArray, indexFileMap)
-
-    val requestedType: MatrixType = MatrixBGENReader.getMatrixType(
-      referenceGenome,
-      includeRsid,
-      includeVarid,
-      includeOffset = false,
-      includeFileIdx = false,
-      includeGT,
-      includeGP,
-      includeDosage
-    )
-
-    val reader = MatrixBGENReader(
-      files, sampleFile, Option(indexFileMap).getOrElse(Map.empty[String, String]), nPartitions,
-      if (nPartitions.isEmpty && blockSizeInMB.isEmpty)
-        Some(128)
-      else
-        blockSizeInMB,
-      includedVariants)
-
-    new MatrixTable(this, MatrixRead(requestedType, dropCols = false, dropRows = false, reader))
-  }
-
   def importGen(file: String,
     sampleFile: String,
     chromosome: Option[String] = None,
@@ -660,42 +624,6 @@ class HailContext private(val sc: SparkContext,
         hadoopConf.set(codecsKey, defaultCodecs)
       }
     }
-  }
-
-  def importVCF(file: String, force: Boolean = false,
-    forceBGZ: Boolean = false,
-    headerFile: Option[String] = None,
-    nPartitions: Option[Int] = None,
-    dropSamples: Boolean = false,
-    callFields: Set[String] = Set.empty[String],
-    rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
-    contigRecoding: Option[Map[String, String]] = None,
-    arrayElementsRequired: Boolean = true,
-    skipInvalidLoci: Boolean = false,
-    partitionsJSON: String = null): MatrixTable = {
-    val addedReference = rg.exists { referenceGenome =>
-      if (!ReferenceGenome.hasReference(referenceGenome.name)) {
-        ReferenceGenome.addReference(referenceGenome)
-        true
-      } else false
-    }
-
-    val reader = MatrixVCFReader(
-      Array(file),
-      callFields,
-      headerFile,
-      nPartitions,
-      rg.map(_.name),
-      contigRecoding.getOrElse(Map.empty[String, String]),
-      arrayElementsRequired,
-      skipInvalidLoci,
-      forceBGZ,
-      force,
-      partitionsJSON
-    )
-    if (addedReference)
-      ReferenceGenome.removeReference(rg.get.name)
-    new MatrixTable(HailContext.get, MatrixRead(reader.fullType, dropSamples, false, reader))
   }
 
   def importMatrix(files: java.util.ArrayList[String],

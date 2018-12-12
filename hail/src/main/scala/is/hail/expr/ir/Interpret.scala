@@ -723,6 +723,8 @@ object Interpret {
         child.partitionCounts
           .map(_.sum)
           .getOrElse(child.execute(HailContext.get).rvd.count())
+      case TableGetGlobals(child) =>
+        child.execute(HailContext.get).globals.value
       case MatrixWrite(child, writer) =>
         val mv = child.execute(HailContext.get)
         writer(mv)

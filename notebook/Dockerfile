@@ -17,7 +17,7 @@ RUN apk add \
   'urllib3<1.24'
 
 COPY notebook /notebook
-COPY notebook-worker-image /notebook
+COPY notebook-worker-images /notebook
 
 EXPOSE 5000
 

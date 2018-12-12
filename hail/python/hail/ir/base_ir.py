@@ -41,7 +41,7 @@ class IR(BaseIR):
         return False
 
     def search(self, criteria):
-        others = [node for child in self.children for node in child.search(criteria)]
+        others = [node for child in self.children if isinstance(child, IR) for node in child.search(criteria)]
         if criteria(self):
             return others + [self]
         return others

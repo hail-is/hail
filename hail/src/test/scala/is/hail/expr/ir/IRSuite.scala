@@ -2,11 +2,14 @@ package is.hail.expr.ir
 
 import is.hail.SparkSuite
 import is.hail.TestUtils._
+import is.hail.annotations.BroadcastRow
 import is.hail.asm4s.Code
 import is.hail.expr.ir
 import is.hail.expr.ir.IRSuite.TestFunctions
 import is.hail.expr.ir.functions.{IRFunctionRegistry, RegistryFunctions, SeededIRFunction, SetFunctions}
+import is.hail.expr.types.TableType
 import is.hail.expr.types.virtual._
+import is.hail.rvd.RVD
 import is.hail.table.{Ascending, Descending, SortField, Table}
 import is.hail.utils._
 import is.hail.variant.MatrixTable
@@ -676,6 +679,10 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(TableCount(TableRange(7, 4)), 7L)
   }
 
+  @Test def testTableGetGlobals() {
+    assertEvalsTo(TableGetGlobals(TableMapGlobals(TableRange(0, 1), Literal(TStruct("a" -> TInt32()), Row(1)))), Row(1))
+  }
+
   @Test def testTableAggregate() {
     hc // need to initialize lazy HailContext
     val table = TableRange(3, 2)
@@ -747,9 +754,9 @@ class IRSuite extends SparkSuite {
     val table = TableRange(100, 10)
 
     val mt = MatrixTable.range(hc, 20, 2, Some(3)).ast.asInstanceOf[MatrixRead]
-    val vcf = hc.importVCF("src/test/resources/sample.vcf")
+    val vcf = is.hail.TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
       .ast.asInstanceOf[MatrixRead]
-    val bgen = hc.importBgens(FastIndexedSeq("src/test/resources/example.8bits.bgen"))
+    val bgen = is.hail.TestUtils.importBgens(hc, FastIndexedSeq("src/test/resources/example.8bits.bgen"))
       .ast.asInstanceOf[MatrixRead]
 
     val irs = Array(
@@ -805,6 +812,7 @@ class IRSuite extends SparkSuite {
       Uniroot("x", F64(3.14), F64(-5.0), F64(5.0)),
       Literal(TStruct("x" -> TInt32()), Row(1)),
       TableCount(table),
+      TableGetGlobals(table),
       TableAggregate(table, MakeStruct(Seq("foo" -> count))),
       TableWrite(table, tmpDir.createLocalTempFile(extension = "ht")),
       MatrixWrite(mt, MatrixNativeWriter(tmpDir.createLocalTempFile(extension = "mt"))),
@@ -884,9 +892,9 @@ class IRSuite extends SparkSuite {
         .ast.asInstanceOf[MatrixRead]
       val range = MatrixTable.range(hc, 3, 7, None)
         .ast.asInstanceOf[MatrixRead]
-      val vcf = hc.importVCF("src/test/resources/sample.vcf")
+      val vcf = is.hail.TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
         .ast.asInstanceOf[MatrixRead]
-      val bgen = hc.importBgens(FastIndexedSeq("src/test/resources/example.8bits.bgen"))
+      val bgen = is.hail.TestUtils.importBgens(hc, FastIndexedSeq("src/test/resources/example.8bits.bgen"))
         .ast.asInstanceOf[MatrixRead]
       val range1 = MatrixTable.range(hc, 20, 2, Some(3))
         .ast.asInstanceOf[MatrixRead]
@@ -1116,7 +1124,7 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(ir, FastIndexedSeq(true -> TBoolean(), FastIndexedSeq(0) -> TArray(TInt32())), FastIndexedSeq(0L))
   }
 
-  @Test def setContainsSegfault: Unit = {
+  @Test def setContainsSegfault(): Unit = {
     hc // assert initialized
     val irStr =
       """
@@ -1175,5 +1183,16 @@ class IRSuite extends SparkSuite {
       """.stripMargin
 
     Interpret(ir.IRParser.parse_table_ir(irStr), optimize = false).rvd.count()
+  }
+
+  @Test def testTableGetGlobalsSimplifyRules() {
+    val t1 = TableType(TStruct("a" -> TInt32()), IndexedSeq("a"), TStruct("g1" -> TInt32(), "g2" -> TFloat64()))
+    val t2 = TableType(TStruct("a" -> TInt32()), IndexedSeq("a"), TStruct("g3" -> TInt32(), "g4" -> TFloat64()))
+    val tab1 = TableLiteral(TableValue(t1, BroadcastRow(Row(1, 1.1), t1.globalType, sc), RVD.empty(sc, t1.canonicalRVDType)))
+    val tab2 = TableLiteral(TableValue(t2, BroadcastRow(Row(2, 2.2), t2.globalType, sc), RVD.empty(sc, t2.canonicalRVDType)))
+
+    assertEvalsTo(TableGetGlobals(TableJoin(tab1, tab2, "left")), Row(1, 1.1, 2, 2.2))
+    assertEvalsTo(TableGetGlobals(TableMapGlobals(tab1, InsertFields(Ref("global", t1.globalType), Seq("g1" -> I32(3))))), Row(3, 1.1))
+    assertEvalsTo(TableGetGlobals(TableRename(tab1, Map.empty, Map("g2" -> "g3"))), Row(1, 1.1))
   }
 }

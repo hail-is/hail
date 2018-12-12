@@ -38,3 +38,8 @@ def hwe_normalized_pca():
     mt = get_mt()
     mt = mt.filter_rows(mt.info.AF[0] > 0.01)
     hl.hwe_normalized_pca(mt.GT)
+
+@benchmark
+def split_multi_hts():
+    mt = hl.read_matrix_table(resource('profile.mt'))
+    hl.split_multi_hts(mt)._force_count_rows()

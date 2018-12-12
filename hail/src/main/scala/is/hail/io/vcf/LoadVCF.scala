@@ -850,36 +850,6 @@ object LoadVCF {
     }
   }
 
-  def pyApply(
-    files: java.util.ArrayList[String],
-    callFields: java.util.ArrayList[String],
-    headerFile: String,
-    minPartitions: Option[Int],
-    dropSamples: Boolean,
-    rg: String,
-    contigRecoding: java.util.Map[String, String],
-    arrayElementsRequired: Boolean,
-    skipInvalidLoci: Boolean,
-    gzAsBGZ: Boolean,
-    forceGZ: Boolean,
-    partitionsJSON: String
-  ): MatrixTable = {
-    val reader = MatrixVCFReader(
-      files.asScala.toFastIndexedSeq,
-      callFields.asScala.toSet,
-      Option(headerFile),
-      minPartitions,
-      Option(rg),
-      Option(contigRecoding).map(_.asScala.toMap).getOrElse(Map.empty[String, String]),
-      arrayElementsRequired,
-      skipInvalidLoci,
-      gzAsBGZ,
-      forceGZ,
-      partitionsJSON
-    )
-    new MatrixTable(HailContext.get, MatrixRead(reader.fullType, dropSamples, dropRows = false, reader))
-  }
-
   def parseHeaderMetadata(hc: HailContext, reader: HtsjdkRecordReader, headerFile: String): VCFMetadata = {
     val hConf = hc.hadoopConf
     val headerLines = getHeaderLines(hConf, headerFile)
