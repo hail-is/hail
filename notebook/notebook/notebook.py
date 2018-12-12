@@ -167,7 +167,7 @@ def new_post():
     if password != PASSWORD or image not in WORKER_IMAGES:
         return '403 Forbidden', 403
     jupyter_token = uuid.uuid4().hex  # FIXME: probably should be cryptographically secure
-    svc, pod = start_pod(jupyter_token, image)
+    svc, pod = start_pod(jupyter_token, WORKER_IMAGES[image])
     session['svc_name'] = svc.metadata.name
     session['pod_name'] = pod.metadata.name
     session['jupyter_token'] = jupyter_token
