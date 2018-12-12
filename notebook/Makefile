@@ -1,4 +1,4 @@
-.PHONY: build push run-docker run deploy
+.PHONY: build push run-docker run deploy clean clean-workers
 
 PROJECT = $(shell gcloud config get-value project)
 BUILT = $(shell ls -1 images | awk '{print "build/images/" $$0 "/_BUILT"}')
@@ -15,15 +15,12 @@ build/images/%/_PUSHED: build/images/%/_BUILT
 	docker push $(IMAGE)
 	echo $(IMAGE) > $@
 
-
 notebook-worker-images: $(PUSHED)
 	cat $^ > $@
-
 
 build: $(BUILT) notebook-worker-images
 	echo $(BUILT)
 	docker build . -t notebook
-
 
 push: IMAGE = gcr.io/$(PROJECT)/notebook:$(shell docker images -q --no-trunc notebook | sed -e 's,[^:]*:,,')
 push: build $(PUSHED)
@@ -46,3 +43,6 @@ deploy: push
 clean-workers:
 	kubectl delete pods -l app=notebook-worker
 	kubectl delete services -l app=notebook-worker
+
+clean:
+	rm -rf build

@@ -65,7 +65,7 @@ then
 fi
 
 kubectl version -c || gcloud components install kubectl
-gcloud container clusters get-credentials $CLUSTER_NAME --region us-central1-a
+kubectl version || gcloud container clusters get-credentials $CLUSTER_NAME --region us-central1-a
 
 for project in $(cat projects.txt)
 do

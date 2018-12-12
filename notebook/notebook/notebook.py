@@ -59,7 +59,7 @@ log.info(f'INSTANCE_ID {INSTANCE_ID}')
 try:
     with open('notebook-worker-images', 'r') as f:
         def get_name(line):
-            return re.search("/[^/:]+:", line).group()[1:-1]
+            return re.search("/([^/:]+):", line).group(1)
         WORKER_IMAGES = {get_name(line): line.strip() for line in f}
 except FileNotFoundError as e:
     raise ValueError(
