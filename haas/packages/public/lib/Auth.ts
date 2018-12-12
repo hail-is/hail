@@ -238,7 +238,7 @@ function setStateOrLogout(req?: any): Error | void {
       loggedOutReason: null,
       userProfile: null
     };
-    console.info('auth state', Auth.state.user);
+
     setRenewal(Auth.state.exp);
   } catch (err) {
     console.error('error setting state', err);
