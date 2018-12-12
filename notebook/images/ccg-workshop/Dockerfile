@@ -40,7 +40,10 @@ RUN pip install --no-cache-dir \
   jupyter nbextension enable --user move_selected_cells/main
 
 RUN mkdir samtools
-ADD --chown=jovyan:users https://github.com/samtools/samtools/releases/download/1.9/samtools-1.9.tar.bz2 samtools/
+ADD https://github.com/samtools/samtools/releases/download/1.9/samtools-1.9.tar.bz2 samtools/
+USER root
+RUN chown jovyan:users -R samtools/
+USER jovyan
 RUN (cd samtools && \
      tar -xf samtools-1.9.tar.bz2 && \
      rm -rf samtools-1.9.tar.bz2 && \
@@ -52,7 +55,10 @@ RUN git clone --recursive https://github.com/vcflib/vcflib.git && \
     (cd vcflib && make -j8)
 
 RUN mkdir vcftools
-ADD --chown=jovyan:users https://github.com/vcftools/vcftools/releases/download/v0.1.16/vcftools-0.1.16.tar.gz vcftools
+ADD https://github.com/vcftools/vcftools/releases/download/v0.1.16/vcftools-0.1.16.tar.gz vcftools
+USER root
+RUN chown jovyan:users -R vcftools/
+USER jovyan
 RUN (cd vcftools && \
      wget https://github.com/vcftools/vcftools/releases/download/v0.1.16/vcftools-0.1.16.tar.gz && \
      tar -xf vcftools-0.1.16.tar.gz && \
@@ -63,13 +69,19 @@ RUN (cd vcftools && \
      echo 'export PERL5LIB='${HOME}'/vcftools/src/perl/' >> ${HOME}/.profile
 
 RUN mkdir plink
-ADD --chown=jovyan:users http://s3.amazonaws.com/plink2-assets/plink2_linux_x86_64_20181028.zip plink
+ADD http://s3.amazonaws.com/plink2-assets/plink2_linux_x86_64_20181028.zip plink
+USER root
+RUN chown jovyan:users -R plink/
+USER jovyan
 RUN (cd plink && \
      unzip plink2_linux_x86_64_20181028.zip && \
      rm -rf plink2_linux_x86_64_20181028.zip)
 
 RUN mkdir king
-ADD --chown=jovyan:users http://people.virginia.edu/~wc9c/KING/Linux-king.tar.gz king/
+ADD http://people.virginia.edu/~wc9c/KING/Linux-king.tar.gz king/
+USER root
+RUN chown jovyan:users -R king/
+USER jovyan
 RUN (cd king && tar -xf Linux-king.tar.gz)
 
 RUN mkdir gcta && \
@@ -87,7 +99,10 @@ RUN mkdir eigenstrat && \
      make install)
 
 RUN mkdir plink19
-ADD --chown=jovyan:users http://s3.amazonaws.com/plink1-assets/plink_linux_x86_64_20181202.zip plink19
+ADD http://s3.amazonaws.com/plink1-assets/plink_linux_x86_64_20181202.zip plink19
+USER root
+RUN chown jovyan:users -R plink19/
+USER jovyan
 RUN (cd plink19 && \
      unzip plink_linux_x86_64_20181202.zip && \
      rm -rf plink_linux_x86_64_20181202.zip)
