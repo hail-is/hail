@@ -61,13 +61,6 @@ RUN (cd plink && \
      unzip plink2_linux_x86_64_20181028.zip && \
      rm -rf plink2_linux_x86_64_20181028.zip)
 
-# RUN mkdir genotype-harmonizer
-# ADD --chown=jovyan:users wget http://www.molgenis.org/downloads/GenotypeHarmonizer/GenotypeHarmonizer-1.4.20-dist.tar.gz
-# RUN (cd genotype-harmonizer && \
-#      tar -xf GenotypeHarmonizer-1.4.20-dist.tar.gz && \
-#      rm -rf GenotypeHarmonizer-1.4.20-dist.tar.gz) && \
-#     echo 'export PATH=${PATH}:'${HOME}'/genotype-harmonizer/' >> ${HOME}/.profile
-
 RUN mkdir king
 ADD --chown=jovyan:users http://people.virginia.edu/~wc9c/KING/Linux-king.tar.gz king/
 RUN (cd king && tar -xf Linux-king.tar.gz)
