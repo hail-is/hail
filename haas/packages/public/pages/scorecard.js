@@ -45,7 +45,7 @@ import ErrorMessage from '../components/ErrorMessage';
 const { serverRuntimeConfig, publicRuntimeConfig } = getConfig();
 
 const url = publicRuntimeConfig.SCORECARD.URL;
-console.info('url', url);
+
 // const httpLink = new HttpLink({
 //   uri: 'https://api.github.com/graphql' // Server URL (must be absolute)
 // });
