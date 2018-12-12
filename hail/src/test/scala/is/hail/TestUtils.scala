@@ -134,7 +134,7 @@ object TestUtils {
 
   def fileHaveSameBytes(file1: String, file2: String): Boolean =
     Files.readAllBytes(Paths.get(URI.create(file1))) sameElements Files.readAllBytes(Paths.get(URI.create(file2)))
-  
+
   // !useHWE: mean 0, norm exactly sqrt(n), variance 1
   // useHWE: mean 0, norm approximately sqrt(m), variance approx. m / n
   // missing gt are mean imputed, constant variants return None, only HWE uses nVariants
@@ -520,7 +520,8 @@ object TestUtils {
     rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
     contigRecoding: Option[Map[String, String]] = None,
     arrayElementsRequired: Boolean = true,
-    skipInvalidLoci: Boolean = false): MatrixTable = {
+    skipInvalidLoci: Boolean = false,
+    partitionsJSON: String = null): MatrixTable = {
     val addedReference = rg.exists { referenceGenome =>
       if (!ReferenceGenome.hasReference(referenceGenome.name)) {
         ReferenceGenome.addReference(referenceGenome)
@@ -538,7 +539,8 @@ object TestUtils {
       arrayElementsRequired,
       skipInvalidLoci,
       forceBGZ,
-      force
+      force,
+      partitionsJSON
     )
     if (addedReference)
       ReferenceGenome.removeReference(rg.get.name)
