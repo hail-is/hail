@@ -13,7 +13,7 @@ cleanup() {
 trap cleanup EXIT
 trap "exit 24" INT TERM
 
-python -c 'import batch.server; batch.server.serve()' &
+python -c 'import batch.server; batch.server.serve(5000)' &
 server_pid=$!
 
 ../until-with-fuel 30 curl -fL 127.0.0.1:5000/jobs
