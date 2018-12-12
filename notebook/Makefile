@@ -19,7 +19,6 @@ notebook-worker-images: $(PUSHED)
 	cat $^ > $@
 
 build: $(BUILT) notebook-worker-images
-	echo $(BUILT)
 	docker build . -t notebook
 
 push: IMAGE = gcr.io/$(PROJECT)/notebook:$(shell docker images -q --no-trunc notebook | sed -e 's,[^:]*:,,')
