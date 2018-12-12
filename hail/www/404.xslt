@@ -8,7 +8,7 @@
     <xsl:template name="navbar-script">
         <script>
           $(document).ready(function () {
-            $("#hail-navbar").load("//navbar.html",
+            $("#hail-navbar").load("navbar.html",
                                    function () {});
           });
         </script>

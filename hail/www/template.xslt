@@ -18,11 +18,11 @@
                 <title><xsl:call-template name="page-title"/></title>
                 <link rel='shortcut icon' href='hail_logo_sq.png' type='image/x-icon'/>
                 <xsl:call-template name="meta-description"/>
-                <script src="//jquery-3.1.1.min.js"></script>
-                <script src="//bootstrap.min.js"></script>
-                <link rel="stylesheet" href="//bootstrap.min.css" type="text/css"/>
-                <link rel="stylesheet" href="//style.css"/>
-                <link rel="stylesheet" href="//navbar.css"/>
+                <script src="jquery-3.1.1.min.js"></script>
+                <script src="bootstrap.min.js"></script>
+                <link rel="stylesheet" href="bootstrap.min.css" type="text/css"/>
+                <link rel="stylesheet" href="style.css"/>
+                <link rel="stylesheet" href="navbar.css"/>
                 <xsl:call-template name="navbar-script"/>
                 <script>
                     (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
