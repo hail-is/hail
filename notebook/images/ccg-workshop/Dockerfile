@@ -3,17 +3,22 @@ MAINTAINER Hail Team <hail@broadinstitute.org>
 
 USER root
 RUN apt-get update && apt-get install -y \
+    bash \
     build-essential \
     g++ \
     gcc \
     git \
+    less \
     libgsl-dev \
+    liblapacke-dev \
     libopenblas-dev \
     openjdk-8-jre-headless \
     perl \
-    bash \
     r-base \
-    && rm -rf /var/lib/apt/lists/*
+    && \
+    rm -rf /var/lib/apt/lists/* \
+    && \
+    Rscript -e "install.packages('IRkernel')" \
 USER jovyan
 
 RUN pip install --no-cache-dir \
@@ -23,6 +28,8 @@ RUN pip install --no-cache-dir \
   pandas==0.23.4 \
   matplotlib==3.0.2 \
   jupyter_contrib_nbextensions \
+  && \
+  Rscript -e 'IRkernel::installspec()' \
   && \
   jupyter serverextension enable --user --py jupyter_spark && \
   jupyter nbextension install --user --py jupyter_spark && \
@@ -71,10 +78,6 @@ RUN mkdir gcta && \
      unzip gcta_1.91.7beta.zip && \
      rm -rf gcta_1.91.7beta.zip)
 
-USER root
-RUN apt-get update && apt-get install -y liblapacke-dev && rm -rf /var/lib/apt/lists/*
-USER jovyan
-
 RUN mkdir eigenstrat && \
     (cd eigenstrat && \
      git clone https://github.com/DReichLab/EIG.git && \
@@ -102,4 +105,5 @@ RUN (cd /home/jovyan && \
           vcflib/bin \
           -type f -executable \
         | xargs -I % /bin/sh -c 'set -ex ; ln -s ${PWD}/% /usr/local/bin/$(basename %)')
+RUN chown jovyan:users -R /home/jovyan
 USER jovyan
