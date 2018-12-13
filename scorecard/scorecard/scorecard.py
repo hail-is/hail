@@ -44,6 +44,7 @@ users = [
     'catoverdrive',
     'patrick-schultz',
     'chrisvittal',
+    'akotlar',
 ]
 
 default_repo = 'hail'
