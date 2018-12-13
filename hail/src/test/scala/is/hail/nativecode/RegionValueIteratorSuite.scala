@@ -46,15 +46,14 @@ class RegionValueIteratorSuite extends SparkSuite {
     val up = tub.variable("up", "UpcallEnv")
     val encoder = tub.variable("encoder", encClass.name, s"std::make_shared<OutputStream>($up, reinterpret_cast<ObjectArray * >(${ partitionFB.getArg(1) })->at(1))")
     val jit = tub.variable("jit", "JavaIteratorObject", s"JavaIteratorObject($up, reinterpret_cast<ObjectArray * >(${ partitionFB.getArg(1) })->at(0))")
-    val it = tub.variable("it", "RVIterator", s"$jit.begin()")
 
-    partitionFB += up.define
-    partitionFB += encoder.define
-    partitionFB += jit.define
     partitionFB +=
       s"""
-         |for(${ it.define } $it != $jit.end(); ++$it) {
-         |  $encoder.encode_row(*$it);
+         |${ up.define }
+         |${ encoder.define }
+         |${ jit.define }
+         |for(auto it : $jit) {
+         |  $encoder.encode_row(it);
          |}
          |$encoder.flush();
          |return 0;
@@ -106,8 +105,7 @@ class RegionValueIteratorSuite extends SparkSuite {
     val makeItF = tub.buildFunction("make_iterator", Array("NativeStatus *"->"st", "long" -> "reg", "long" -> "obj"), "NativeObjPtr")
     val itType = s"Reader<${ decClass.name }>"
     val is = s"std::make_shared<InputStream>(UpcallEnv(), reinterpret_cast<ObjectArray *>(${ makeItF.getArg(2) })->at(0))"
-    val itPtr = s"std::make_shared<$itType>(${ decClass.name }($is), reinterpret_cast<ScalaRegion *>(${ makeItF.getArg(1) }))"
-    makeItF += s"return std::make_shared<ScalaIterator<$itType>>($itPtr);"
+    makeItF += s"return std::make_shared<ScalaStagingIterator<$itType>>(${ decClass.name }($is), reinterpret_cast<ScalaRegion *>(${ makeItF.getArg(1) }));"
     makeItF.end()
 
     val modToPtr = { (mod: NativeModule, region: Region, obj: ObjectArray) =>
@@ -122,7 +120,7 @@ class RegionValueIteratorSuite extends SparkSuite {
       ptr
     }
 
-    val makeIt = CXXRegionValueIterator(s"ScalaIterator<$itType>", tub, modToPtr)
+    val makeIt = CXXRegionValueIterator(s"ScalaStagingIterator<$itType>", tub, modToPtr)
 
     val encoded = hc.sc.parallelize(a, 2).mapPartitions { case (rowsIt) =>
       val rows = rowsIt.toIndexedSeq
