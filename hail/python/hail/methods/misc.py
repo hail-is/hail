@@ -140,9 +140,8 @@ def maximal_independent_set(i, j, keep=True, tie_breaker=None) -> Table:
              .key_by('node')
              .select())
 
-    edges = t.key_by().select('i', 'j')
+    edges = t.select(__i=i, __j=j).key_by().select('__i', '__j')
     nodes_in_set = Env.hail().utils.Graph.maximalIndependentSet(edges._jt.collect(), node_t._parsable_string(), joption(tie_breaker_str))
-
     nt = Table._from_java(nodes._jt.annotateGlobal(nodes_in_set, hl.tset(node_t)._parsable_string(), 'nodes_in_set'))
     nt = (nt
           .filter(nt.nodes_in_set.contains(nt.node), keep)
