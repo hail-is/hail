@@ -20,6 +20,7 @@ object LiftLiterals {
         case ta: TableAggregate => true
         case ma: MatrixAggregate => true
         case tgg: TableGetGlobals => true
+        case tgg: TableCollect => true
         case tc: TableCount => true
         case _ => false
       }

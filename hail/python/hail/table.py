@@ -1553,7 +1553,7 @@ class Table(ExprContainer):
         :obj:`list` of :class:`.Struct`
             List of rows.
         """
-        return hl.tarray(self.row.dtype)._from_json(self._jt.collectJSON())
+        return Env.hc()._backend.interpret(GetField(TableCollect(self._tir), 'rows'))
 
     def describe(self, handler=print):
         """Print information about the fields in the table."""

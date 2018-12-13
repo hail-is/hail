@@ -268,6 +268,7 @@ object TypeCheck {
       case TableExport(_, _, _, _, _) =>
       case TableCount(_) =>
       case TableGetGlobals(_) =>
+      case TableCollect(_) =>
     }
   }
 }

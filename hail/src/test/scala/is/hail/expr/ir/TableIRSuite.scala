@@ -12,6 +12,7 @@ import is.hail.TestUtils._
 import is.hail.io.CodecSpec
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
+import is.hail.TestUtils._
 
 class TableIRSuite extends SparkSuite {
   def getKT: Table = {
@@ -375,5 +376,19 @@ class TableIRSuite extends SparkSuite {
     ))))
 
     assert(testTable.globals.safeValue == texp.globals.safeValue)
+  }
+
+  @Test def testTableParallelizeCollectIdentity() {
+    hc // ensure initialized
+    val t = TStruct("rows" -> TArray(TStruct("a" -> TInt32(), "b" -> TString())), "global" -> TStruct("x" -> TString()))
+    val value = Row(IndexedSeq(Row(0, "row1"), Row(1, "row2")), Row("glob"))
+
+    assertEvalsTo(
+      TableCollect(
+        TableParallelize(
+          Literal(
+            t,
+            value
+          ))), value)
   }
 }

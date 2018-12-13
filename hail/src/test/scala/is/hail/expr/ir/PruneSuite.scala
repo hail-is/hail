@@ -570,6 +570,13 @@ class PruneSuite extends SparkSuite {
     checkMemo(TableGetGlobals(tab), TStruct("g1" -> TInt32()), Array(subsetTable(tab.typ, "global.g1")))
   }
 
+  @Test def testTableCollectMemo() {
+    checkMemo(
+      TableCollect(tab),
+      TStruct("rows" -> TArray(TStruct("3" -> TString())), "global" -> TStruct("g2" -> TInt32())),
+      Array(subsetTable(tab.typ, "row.3", "global.g1")))
+  }
+
   @Test def testTableAggregateMemo() {
     checkMemo(TableAggregate(tab, tableRefBoolean(tab.typ, "global.g1")),
       TBoolean(),
@@ -873,6 +880,19 @@ class PruneSuite extends SparkSuite {
       (_: BaseIR, r: BaseIR) => {
         val ir = r.asInstanceOf[TableAggregate]
         ir.child.typ == subsetTable(tr.typ, "row.2")
+      })
+  }
+
+  @Test def testTableCollectRebuild() {
+    val tc = TableCollect(tab)
+    checkRebuild(tc, TStruct("global" -> TStruct("g1" -> TInt32())),
+      (_: BaseIR, r: BaseIR) => {
+        r.asInstanceOf[MakeStruct].fields.head._2.isInstanceOf[TableGetGlobals]
+      })
+
+    checkRebuild(tc, TStruct(),
+      (_: BaseIR, r: BaseIR) => {
+        r == MakeStruct(Seq())
       })
   }
 

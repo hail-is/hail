@@ -1218,6 +1218,26 @@ class TableGetGlobals(IR):
         return isinstance(other, TableGetGlobals) and \
                other.child == self.child
 
+
+class TableCollect(IR):
+    @typecheck_method(child=TableIR)
+    def __init__(self, child):
+        super().__init__(child)
+        self.child = child
+
+    @typecheck_method(child=TableIR)
+    def copy(self, child):
+        new_instance = self.__class__
+        return new_instance(child)
+
+    def render(self, r):
+        return '(TableCollect {})'.format(r(self.child))
+
+    def __eq__(self, other):
+        return isinstance(other, TableCollect) and \
+               other.child == self.child
+
+
 class TableAggregate(IR):
     @typecheck_method(child=TableIR, query=IR)
     def __init__(self, child, query):

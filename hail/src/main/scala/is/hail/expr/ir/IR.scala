@@ -296,6 +296,7 @@ final case class MatrixWrite(
 }
 
 final case class TableGetGlobals(child: TableIR) extends InferIR
+final case class TableCollect(child: TableIR) extends InferIR
 
 class PrimitiveIR(val self: IR) extends AnyVal {
   def +(other: IR): IR = ApplyBinaryPrimOp(Add(), self, other)

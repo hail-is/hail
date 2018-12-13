@@ -267,6 +267,9 @@ object Simplify {
         }))
       }
 
+    case TableCollect(TableParallelize(x, _)) => x
+    case ArrayLen(GetField(TableCollect(child), "rows")) => TableCount(child)
+
     case ApplyIR("annotate", Seq(s, MakeStruct(fields)), _) =>
       InsertFields(s, fields)
 
@@ -429,6 +432,8 @@ object Simplify {
 
     case TableAggregateByKey(TableKeyBy(child, keys, _), expr) if canRepartition =>
       TableKeyByAndAggregate(child, expr, MakeStruct(keys.map(k => k -> GetField(Ref("row", child.typ.rowType), k))))
+
+    case TableParallelize(TableCollect(child), _) if isDeterministicallyRepartitionable(child) => child
   }
 
   private[this] def matrixRules(canRepartition: Boolean): PartialFunction[MatrixIR, MatrixIR] = {
