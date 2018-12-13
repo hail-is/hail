@@ -97,6 +97,14 @@ class Tests(unittest.TestCase):
         self.assertTrue(mis.all(mis.node.is_case))
         self.assertTrue(set([row.id for row in mis.select(mis.node.id).collect()]) in expected_sets)
 
+    def test_maximal_independent_set_types(self):
+        ht = hl.utils.range_table(10)
+        ht = ht.annotate(i=hl.struct(a='1', b=hl.rand_norm(0, 1)),
+                         j=hl.struct(a='2', b=hl.rand_norm(0, 1)))
+        ht = ht.annotate(ii=hl.struct(id=ht.i, rank=hl.rand_norm(0, 1)),
+                         jj=hl.struct(id=ht.j, rank=hl.rand_norm(0, 1)))
+        hl.maximal_independent_set(ht.ii, ht.jj).count()
+
     def test_matrix_filter_intervals(self):
         ds = hl.import_vcf(resource('sample.vcf'), min_partitions=20)
 
