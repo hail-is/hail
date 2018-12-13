@@ -198,17 +198,16 @@ object LowerMatrixIR {
         .mapRows('row.dropFields(entriesField))
 
     case MatrixColsTable(child) =>
-      val uid1 = genUID()
-      let (Symbol(uid1) = lower(child).getGlobals) {
-        val sortedCols = irRange(0, irArrayLen(Symbol(uid1)), 1)
+      let (__let_uid = lower(child).getGlobals) {
+        val sortedCols = irRange(0, irArrayLen('__let_uid(colsField)), 1)
           .map { 'i ~> makeStruct(
-            '_1 -> Symbol(uid1)(colsField)('i),
+            '_1 -> '__let_uid(colsField)('i),
             '_2 -> 'i)
           }
           .sort(true, onKey = true)
-          .map { 'elt ~> 'elt('_1_)}
-          .parallelize(None)
-          .mapGlobals(Symbol(uid1).dropFields(colsField))
-      }
+          .map { 'elt ~> 'elt('_1)}
+
+          makeStruct('rows -> sortedCols, 'global -> '__let_uid.dropFields(colsField))
+      }.parallelize(None).keyBy(child.typ.colKey)
   }
 }

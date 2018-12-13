@@ -54,7 +54,7 @@ object IRBuilder {
 
     def typ: TableType = tir.typ
 
-    def getGlobals: TableGetGlobals = TableGetGlobals(tir)
+    def getGlobals: IR = TableGetGlobals(tir)
 
     def mapGlobals(newGlobals: IRProxy): TableIR =
       TableMapGlobals(tir, newGlobals(globalEnv))
@@ -133,7 +133,7 @@ object IRBuilder {
 
     def toArray: IRProxy = (env: E) => ToArray(ir(env))
 
-    def parallelize(nPartitions: Option[Int] = None): TableIRProxy = TableParallelize(ir(Env.empty), nPartitions)
+    def parallelize(nPartitions: Option[Int] = None): TableIR = TableParallelize(ir(Env.empty), nPartitions)
 
     private[ir] def apply(env: E): IR = ir(env)
   }

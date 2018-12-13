@@ -900,13 +900,6 @@ case class MatrixColsTable(child: MatrixIR) extends TableIR {
   }
 
   val typ: TableType = child.typ.colsTableType
-
-  protected[ir] override def execute(hc: HailContext): TableValue = {
-    val mv = child.execute(hc)
-    val ctv = mv.colsTableValue
-    assert(ctv.typ == typ)
-    ctv
-  }
 }
 
 case class MatrixEntriesTable(child: MatrixIR) extends TableIR {
