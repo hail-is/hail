@@ -339,16 +339,36 @@ class Expression(object):
         handler(s)
 
     def __lt__(self, other):
-        return self._bin_op("<", other, hl.tbool)
+        other = to_expr(other)
+        left, right, success = unify_exprs(self, other)
+        if not success:
+            raise TypeError(f"Invalid '<' comparison, cannot compare expressions "
+                            f"of type '{self.dtype}' and '{other.dtype}'")
+        return left._bin_op("<", right, hl.tbool)
 
     def __le__(self, other):
-        return self._bin_op("<=", other, hl.tbool)
+        other = to_expr(other)
+        left, right, success = unify_exprs(self, other)
+        if not success:
+            raise TypeError(f"Invalid '<=' comparison, cannot compare expressions "
+                            f"of type '{self.dtype}' and '{other.dtype}'")
+        return left._bin_op("<=", right, hl.tbool)
 
     def __gt__(self, other):
-        return self._bin_op(">", other, hl.tbool)
+        other = to_expr(other)
+        left, right, success = unify_exprs(self, other)
+        if not success:
+            raise TypeError(f"Invalid '>' comparison, cannot compare expressions "
+                            f"of type '{self.dtype}' and '{other.dtype}'")
+        return left._bin_op(">", right, hl.tbool)
 
     def __ge__(self, other):
-        return self._bin_op(">=", other, hl.tbool)
+        other = to_expr(other)
+        left, right, success = unify_exprs(self, other)
+        if not success:
+            raise TypeError(f"Invalid '>=' comparison, cannot compare expressions "
+                            f"of type '{self.dtype}' and '{other.dtype}'")
+        return left._bin_op(">=", right, hl.tbool)
 
     def __nonzero__(self):
         raise ExpressionException(
