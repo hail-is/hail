@@ -3,32 +3,27 @@ const withSass = require('@zeit/next-sass');
 const withTypescript = require('@zeit/next-typescript');
 const withPurgeCss = require('next-purgecss');
 const ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin');
-const withOffline = require('next-offline');
+// const withOffline = require('next-offline');
 
 require('dotenv').config('.env');
 
-module.exports = withOffline(
-  withTypescript(
-    withSass(
-      withCSS(
-        withPurgeCss({
-          purgeCss: {
-            //for animate.css bundle reduction
-            keyframes: true,
-            fontFace: true
-          },
-          nextConfig: {
-            generateInDevMode: true
-          },
-          webpack(config, options) {
-            if (options.isServer) {
-              config.plugins.push(new ForkTsCheckerWebpackPlugin());
-            }
-
-            return config;
+module.exports = withTypescript(
+  withSass(
+    withCSS(
+      withPurgeCss({
+        purgeCss: {
+          //for animate.css bundle reduction
+          keyframes: true,
+          fontFace: true
+        },
+        webpack(config, options) {
+          if (options.isServer) {
+            config.plugins.push(new ForkTsCheckerWebpackPlugin());
           }
-        })
-      )
+
+          return config;
+        }
+      })
     )
   )
 );
