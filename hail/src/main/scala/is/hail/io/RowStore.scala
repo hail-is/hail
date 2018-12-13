@@ -15,6 +15,7 @@ import is.hail.rvd.{AbstractRVDSpec, OrderedRVDSpec, RVDContext, RVDPartitioner,
 import is.hail.sparkextras._
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
+import org.apache.commons.lang3.StringUtils
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.{ExposedMetrics, TaskContext}
@@ -1312,6 +1313,147 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
   def writeRows(path: String, t: PStruct, stageLocally: Boolean, codecSpec: CodecSpec): (Array[String], Array[Long]) = {
     crdd.writePartitions(path, stageLocally, RichContextRDDRegionValue.writeRowsPartition(codecSpec.buildEncoder(t)))
   }
+
+  def writeRowsSplitFiles(
+    path: String,
+    t: RVDType,
+    codecSpec: CodecSpec,
+    partitioners: Array[RVDPartitioner],
+    stageLocally: Boolean
+  ): Array[Array[Long]] = {
+    val sc = crdd.sparkContext
+    val hConf = sc.hadoopConfiguration
+    val rdd = crdd.rdd.asInstanceOf[OriginUnionRDD[RegionValue]]
+    require(partitioners.length == rdd.rdds.length)
+
+    val partitions = rdd.partitions
+    val partDigits = digitsNeeded(rdd.getNumPartitions)
+    val fileDigits = digitsNeeded(partitioners.length)
+    for (i <- 0 until partitioners.length) {
+      val s = StringUtils.leftPad(i.toString, fileDigits, '0')
+      hConf.mkDir(path + s + ".mt" + "/rows/rows/parts")
+      hConf.mkDir(path + s + ".mt" + "/entries/rows/parts")
+    }
+
+    val sHConfBc = sc.broadcast(new SerializableHadoopConfiguration(hConf))
+
+    val fullRowType = t.rowType
+    val rowsRVType = MatrixType.getRowType(fullRowType)
+    val localEntriesIndex = MatrixType.getEntriesIndex(fullRowType)
+    val rowFieldIndices = Array.range(0, fullRowType.size).filter(_ != localEntriesIndex)
+    val entriesRVType = MatrixType.getSplitEntriesType(fullRowType)
+
+    val makeRowsEnc = codecSpec.buildEncoder(rowsRVType)
+
+    val makeEntriesEnc = codecSpec.buildEncoder(entriesRVType)
+    val partFilePartitionCounts = crdd.cmapPartitionsWithIndex { (i, ctx, it) =>
+      val hConf = sHConfBc.value.value
+      val context = TaskContext.get
+      val originIdx = partitions(i).asInstanceOf[OriginUnionPartition[_]].originIdx
+      val f = partFile(partDigits, i, context)
+      val s = StringUtils.leftPad(originIdx.toString, fileDigits, '0')
+      val outputMetrics = context.taskMetrics().outputMetrics
+      val finalRowsPartPath = path + s + ".mt" + "/rows/rows/parts" + f
+      val finalEntriesPartPath = path + s + ".mt" + "/entries/rows/parts" + f
+
+      val (rowsPartPath, entriesPartPath) =
+        if (stageLocally) {
+          val rowsPartPath = hConf.getTemporaryFile("file:///tmp")
+          val entriesPartPath = hConf.getTemporaryFile("file:///tmp")
+          context.addTaskCompletionListener { context =>
+            hConf.delete(rowsPartPath, recursive = false)
+            hConf.delete(entriesPartPath, recursive = false)
+          }
+          (rowsPartPath, entriesPartPath)
+        } else
+          (finalRowsPartPath, finalEntriesPartPath)
+
+      val rowCount = hConf.writeFile(rowsPartPath) { rowsOS =>
+        val trackedRowsOS = new ByteTrackingOutputStream(rowsOS)
+        using(makeRowsEnc(trackedRowsOS)) { rowsEN =>
+
+          hConf.writeFile(entriesPartPath) { entriesOS =>
+            val trackedEntriesOS = new ByteTrackingOutputStream(entriesOS)
+            using(makeEntriesEnc(trackedEntriesOS)) { entriesEN =>
+
+              var rowCount = 0L
+
+              val rvb = new RegionValueBuilder()
+
+              it.foreach { rv =>
+                val region = rv.region
+                rvb.set(region)
+                rvb.start(rowsRVType)
+                rvb.startStruct()
+                rvb.addFields(fullRowType, rv, rowFieldIndices)
+                rvb.endStruct()
+
+                rowsEN.writeByte(1)
+                rowsEN.writeRegionValue(region, rvb.end())
+
+                rvb.start(entriesRVType)
+                rvb.startStruct()
+                rvb.addField(fullRowType, rv, localEntriesIndex)
+                rvb.endStruct()
+
+                entriesEN.writeByte(1)
+                entriesEN.writeRegionValue(region, rvb.end())
+
+                ctx.region.clear()
+
+                rowCount += 1
+
+                ExposedMetrics.setBytes(outputMetrics, trackedRowsOS.bytesWritten + trackedEntriesOS.bytesWritten)
+                ExposedMetrics.setRecords(outputMetrics, 2 * rowCount)
+              }
+
+              rowsEN.writeByte(0) // end
+              entriesEN.writeByte(0)
+
+              rowsEN.flush()
+              entriesEN.flush()
+              ExposedMetrics.setBytes(outputMetrics, trackedRowsOS.bytesWritten + trackedEntriesOS.bytesWritten)
+
+              rowCount
+            }
+          }
+        }
+      }
+
+      if (stageLocally) {
+        hConf.copy(rowsPartPath, finalRowsPartPath)
+        hConf.copy(entriesPartPath, finalEntriesPartPath)
+      }
+
+      Iterator.single((f, rowCount, originIdx))
+    }.collect()
+    val partFilesByOrigin = new Array[ArrayBuilder[String]](rdd.rdds.length)
+    val partitionCountsByOrigin = new Array[ArrayBuilder[Long]](rdd.rdds.length)
+
+    for ((f, rowCount, oidx) <- partFilePartitionCounts) {
+      partFilesByOrigin(oidx) += f
+      partitionCountsByOrigin(oidx) += rowCount
+    }
+
+    val partFiles = partFilesByOrigin.map(_.result())
+    val partCounts = partitionCountsByOrigin.map(_.result())
+
+    var i = 0
+    while (i < rdd.rdds.length) {
+      val s = StringUtils.leftPad(i.toString, fileDigits, '0')
+      val basePath = path + s + ".mt"
+
+      val rowsSpec = OrderedRVDSpec(rowsRVType, t.key, codecSpec, partFiles(i), partitioners(i))
+      rowsSpec.write(hConf, basePath + "/rows/rows")
+
+      val entriesSpec = OrderedRVDSpec(entriesRVType, FastIndexedSeq(), codecSpec, partFiles(i), RVDPartitioner.unkeyed(partCounts(i).length))
+      rowsSpec.write(hConf, basePath + "/entries/rows")
+
+      i += 1
+    }
+    partCounts
+  }
+
 
   def writeRowsSplit(
     path: String,
