@@ -101,7 +101,15 @@ class Tests(unittest.TestCase):
             x33=(kt.a == 0) & (kt.b == 5),
             x34=(kt.a == 0) | (kt.b == 5),
             x35=False,
-            x36=True
+            x36=True,
+            x37=kt.e > "helln",
+            x38=kt.e < "hellp",
+            x39=kt.e <= "hello",
+            x40=kt.e >= "hello",
+            x41="helln" > kt.e,
+            x42="hellp" < kt.e,
+            x43="hello" >= kt.e,
+            x44="hello" >= kt.e,
         ).take(1)[0])
 
         expected = {'a': 4, 'b': 1, 'c': 3, 'd': 5, 'e': "hello", 'f': [1, 2, 3],
@@ -115,7 +123,10 @@ class Tests(unittest.TestCase):
                     'x24': True, 'x25': False, 'x26': True,
                     'x27': False, 'x28': True, 'x29': False,
                     'x30': False, 'x31': True, 'x32': False,
-                    'x33': False, 'x34': False, 'x35': False, 'x36': True}
+                    'x33': False, 'x34': False, 'x35': False,
+                    'x36': True, 'x37': True, 'x38': True,
+                    'x39': True, 'x40': True, 'x41': False,
+                    'x42': False, 'x43': True, 'x44': True}
 
         for k, v in expected.items():
             if isinstance(v, float):

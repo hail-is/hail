@@ -339,16 +339,16 @@ class Expression(object):
         handler(s)
 
     def __lt__(self, other):
-        raise NotImplementedError("'<' comparison with expression of type {}".format(str(self._type)))
+        return self._bin_op("<", other, hl.tbool)
 
     def __le__(self, other):
-        raise NotImplementedError("'<=' comparison with expression of type {}".format(str(self._type)))
+        return self._bin_op("<=", other, hl.tbool)
 
     def __gt__(self, other):
-        raise NotImplementedError("'>' comparison with expression of type {}".format(str(self._type)))
+        return self._bin_op(">", other, hl.tbool)
 
     def __ge__(self, other):
-        raise NotImplementedError("'>=' comparison with expression of type {}".format(str(self._type)))
+        return self._bin_op(">=", other, hl.tbool)
 
     def __nonzero__(self):
         raise ExpressionException(
