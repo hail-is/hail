@@ -1,0 +1,55 @@
+#scorecard {
+  margin-left: 5px;
+  margin-top: 16px;
+  table {
+    border-collapse: collapse;
+  } // thead {
+  //   color: rgba(0, 0, 0, 0.6);
+  // }
+  // th h3 {
+  //   font-weight: 700;
+  // }
+  tr {
+    border-bottom: 1px solid #efefef;
+  }
+  tbody {
+    display: table-row-group;
+    vertical-align: middle;
+    border-color: inherit;
+  }
+  td,
+  th {
+    padding: 8px 5px;
+    display: table-cell;
+    text-align: left;
+    vertical-align: middle;
+    border-radius: 2px;
+    &:nth-child(n + 2) {
+      padding-left: 80px;
+    }
+  }
+  a {
+    color: #428bca;
+  }
+  #avatar {
+    float: left;
+    width: 44px;
+    height: 44px;
+    margin: 0 8px 0 0;
+    border-radius: 3px;
+  }
+  #urgent {
+    color: red;
+  }
+  .grid-container {
+    display: inline-grid;
+    justify-content: space-evenly;
+    grid-template-columns: auto;
+  }
+  .grid-item {
+    padding: 10px 5px 10px 5px;
+  }
+  body {
+    font-family: 'Lucida Sans Unicode', 'Lucida Grande', sans-serif;
+  }
+}

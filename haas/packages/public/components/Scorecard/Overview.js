@@ -1,15 +1,14 @@
 // TODO: Convert to TypeScript, add prop validation
-import { Component } from 'react';
+import React from 'react';
 import Link from 'next/link';
-
-import '../../styles/scorecard/scorecard.scss';
+import './scorecard.scss';
 
 const PullRequestLink = props =>
   props.data.map((pr, idx) => [
     idx > 0 && ', ',
-    <Link href={`${pr.html_url}`} key={idx}>
-      <a target="_b"> {pr.id}</a>
-    </Link>
+    <a href={pr.html_url} key={idx} target="_blank">
+      {pr.id}
+    </a>
   ]);
 
 const Overview = ({ data }) => {
@@ -43,11 +42,15 @@ const Overview = ({ data }) => {
               {urgent_issues.map((issue, idx) => (
                 <tr key={idx}>
                   <td align="left">
-                    <a href={`/users/${issue.USER}`}>{issue.USER}</a>
+                    <Link href={`/scorecard?u=${issue.USER}`}>
+                      <a>{issue.USER}</a>
+                    </Link>
                   </td>
                   <td align="left">{issue.AGE}</td>
                   <td align="left">
-                    <a href={issue.ISSUE.html_url}>{issue.ISSUE.title}</a>
+                    <a href={issue.ISSUE.html_url} target="_blank">
+                      {issue.ISSUE.title}
+                    </a>
                   </td>
                 </tr>
               ))}
@@ -78,8 +81,8 @@ const Overview = ({ data }) => {
             {Object.keys(user_data).map((userName, idx) => (
               <tr key={idx}>
                 <td align="left">
-                  <Link href={`/users/${userName}`}>
-                    <a target="_b"> {userName}</a>
+                  <Link href={`/scorecard?u=${userName}`}>
+                    <a> {userName}</a>
                   </Link>
                 </td>
                 <td align="left" className="link">

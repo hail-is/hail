@@ -5,7 +5,7 @@ const { createError } = require('apollo-errors');
 // TODO: Retrieve from process.env (yaml)
 const s3Bucket = process.env.S3_BUCKET;
 const s3Exception = createError('S3Exception', {
-  message: `Couldn't retrieve data from your the ${Bucket} bucket`
+  message: `Couldn't retrieve data from your the ${s3Bucket} bucket`
 });
 
 const {

@@ -13,10 +13,13 @@ module.exports = withOffline(
       withCSS(
         withPurgeCss({
           purgeCss: {
-            keyframes: true, //for animate.css
+            //for animate.css bundle reduction
+            keyframes: true,
             fontFace: true
           },
-          workboxOpts: {},
+          nextConfig: {
+            generateInDevMode: true
+          },
           webpack(config, options) {
             if (options.isServer) {
               config.plugins.push(new ForkTsCheckerWebpackPlugin());
@@ -59,7 +62,11 @@ const publicRuntimeConfig = {
   GITHUB: {
     ACCESS_TOKEN_UNSAFE: process.env.GITHUB_ACCESS_TOKEN
   },
-  SCORECARD: { URL: process.env.SCORECARD_URL || 'http://localhost:5000/json' }
+  SCORECARD: {
+    URL: process.env.SCORECARD_URL || 'http://localhost:5000/json',
+    USER_URL:
+      process.env.SCORECARD_USER_URL || 'http://localhost:5000/json/users'
+  }
 };
 
 serverRuntimeConfig.SCORECARD = publicRuntimeConfig.SCORECARD;

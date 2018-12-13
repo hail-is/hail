@@ -11,7 +11,7 @@ console.info(
   'mongo connection string is',
   `mongodb://${dbConfig.uri}/${dbConfig.database}${options}`
 );
-\
+
 Mongoose.connect(
   `mongodb://${dbConfig.uri}/${dbConfig.database}${options}`,
   {
