@@ -674,14 +674,6 @@ class RVD(
     stageLocally: Boolean
   ): Array[Long] = crdd.writeRowsSplit(path, typ, codecSpec, partitioner, stageLocally)
 
-  def writeRowsSplitFiles(
-    path: String,
-    codecSpec: CodecSpec,
-    stageLocally: Boolean
-  ): Array[(Int, Long)] = {
-    ???
-  }
-
   // Joining
 
   def orderedLeftJoinDistinctAndInsert(
@@ -1301,4 +1293,19 @@ object RVD {
 
   def union(rvds: Seq[RVD]): RVD =
     union(rvds, rvds.head.typ.key.length)
+
+  def writeRowsSplitFiles(
+    rvds: Array[RVD],
+    path: String,
+    codecSpec: CodecSpec,
+    stageLocally: Boolean
+  ): Array[Array[Long]] = {
+    val first = rvds.head
+    require(rvds.forall(_.typ == first.typ))
+    val crdd = new ContextRDD(
+        new OriginUnionRDD(first.crdd.rdd.sparkContext, rvds.map(_.crdd.rdd)),
+        first.crdd.mkc
+      )
+    crdd.writeRowsSplitFiles(path, first.typ, codecSpec, rvds.map(_.partitioner), stageLocally)
+  }
 }
