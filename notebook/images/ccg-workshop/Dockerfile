@@ -122,3 +122,6 @@ RUN (cd /home/jovyan && \
         | xargs -I % /bin/sh -c 'set -ex ; ln -s ${PWD}/% /usr/local/bin/$(basename %)')
 RUN chown jovyan:users -R /home/jovyan
 USER jovyan
+
+ENV R_LIBS=/home/jovyan/.R_libs/
+RUN mkdir -p $R_LIBS

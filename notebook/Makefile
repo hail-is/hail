@@ -1,8 +1,11 @@
 .PHONY: build push run-docker run deploy clean clean-workers
 
 PROJECT = $(shell gcloud config get-value project)
-BUILT = $(shell ls -1 images | awk '{print "build/images/" $$0 "/_BUILT"}')
-PUSHED = $(shell ls -1 images | awk '{print "build/images/" $$0 "/_PUSHED"}')
+IMAGE_SHORT_NAMES = $(shell ls -1 images)
+BUILT = $(foreach image,$(IMAGE_SHORT_NAMES),build/images/$(image)/_BUILT)
+PUSHED = $(foreach image,$(IMAGE_SHORT_NAMES),build/images/$(image)/_PUSHED)
+
+.PHONY: $(IMAGE_SHORT_NAMES) $(IMAGE_RUN_TARGETS)
 
 build/images/%/_BUILT: images/%/Dockerfile $(shell find images/$*)
 	mkdir -p $(dir $@)
@@ -14,6 +17,8 @@ build/images/%/_PUSHED: build/images/%/_BUILT
 	docker tag $* $(IMAGE)
 	docker push $(IMAGE)
 	echo $(IMAGE) > $@
+
+$(IMAGE_SHORT_NAMES): %: build/images/%/_BUILT
 
 notebook-worker-images: $(PUSHED)
 	cat $^ > $@
