@@ -5,7 +5,7 @@ IMAGE_SHORT_NAMES = $(shell ls -1 images)
 BUILT = $(foreach image,$(IMAGE_SHORT_NAMES),build/images/$(image)/_BUILT)
 PUSHED = $(foreach image,$(IMAGE_SHORT_NAMES),build/images/$(image)/_PUSHED)
 
-.PHONY: $(IMAGE_SHORT_NAMES) $(IMAGE_RUN_TARGETS)
+.PHONY: $(IMAGE_SHORT_NAMES)
 
 build/images/%/_BUILT: images/%/Dockerfile $(shell find images/$*)
 	mkdir -p $(dir $@)
