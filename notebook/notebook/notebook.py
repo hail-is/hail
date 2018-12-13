@@ -101,7 +101,7 @@ def start_pod(jupyter_token, image):
                 image=image,
                 ports=[kube.client.V1ContainerPort(container_port=8888)],
                 resources=kube.client.V1ResourceRequirements(
-                    requests={'cpu': '3.001', 'memory': '4G'}),
+                    requests={'cpu': '1.601', 'memory': '1.601G'}),
                 readiness_probe=kube.client.V1Probe(
                     http_get=kube.client.V1HTTPGetAction(
                         path=f'/instance/{svc.metadata.name}/login',
