@@ -125,3 +125,10 @@ USER jovyan
 
 ENV R_LIBS=/home/jovyan/.R_libs/
 RUN mkdir -p $R_LIBS
+
+ADD https://www.dropbox.com/s/fwqy9vze5p7w7wi/WEScourse.ISB101.2018.tar.gz?dl=1 ./
+USER root
+RUN chown jovyan:users WEScourse.ISB101.2018.tar.gz
+USER jovyan
+RUN tar -xf WEScourse.ISB101.2018.tar.gz && \
+    rm -rf WEScourse.ISB101.2018.tar.gz
