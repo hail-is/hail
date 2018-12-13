@@ -12,7 +12,7 @@ import is.hail.expr.types.virtual._
 import is.hail.io._
 import is.hail.io.vcf.LoadVCF.{getHeaderLines, parseHeader, parseLines}
 import is.hail.io.tabix._
-import is.hail.rvd.{RVD, RVDContext, RVDPartitioner}
+import is.hail.rvd.{RVD, RVDContext, RVDPartitioner, RVDType}
 import is.hail.io.{VCFAttributes, VCFMetadata}
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
