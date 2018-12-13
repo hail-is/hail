@@ -102,22 +102,22 @@ object PackEncoder {
 
     encBuilder += s"${ encBuilder.name }(std::shared_ptr<OutputStream> os) : $buf(std::make_shared<$bufType>(os)) { }"
 
-    val rowFB = encBuilder.buildMethod("encode_row", Array("NativeStatus*" -> "st", "const char *" -> "row"), "void")
-    rowFB += encode(tub, t.fundamentalType, buf.ref, rowFB.getArg(1).ref)
+    val rowFB = encBuilder.buildMethod("encode_row", Array("const char *" -> "row"), "void")
+    rowFB += encode(tub, t.fundamentalType, buf.ref, rowFB.getArg(0).ref)
     rowFB += "return;"
     rowFB.end()
 
-    val byteFB = encBuilder.buildMethod("encode_byte", Array("NativeStatus*" -> "st", "char" -> "b"), "void")
-    byteFB += s"$buf->write_byte(${ byteFB.getArg(1) });"
+    val byteFB = encBuilder.buildMethod("encode_byte", Array("char" -> "b"), "void")
+    byteFB += s"$buf->write_byte(${ byteFB.getArg(0) });"
     byteFB += "return;"
     byteFB.end()
 
-    val flushFB = encBuilder.buildMethod("flush", Array("NativeStatus*" -> "st"), "void")
+    val flushFB = encBuilder.buildMethod("flush", Array(), "void")
     flushFB += s"$buf->flush();"
     flushFB += "return;"
     flushFB.end()
 
-    val closeFB = encBuilder.buildMethod("close", Array("NativeStatus*" -> "st"), "void")
+    val closeFB = encBuilder.buildMethod("close", Array(), "void")
     closeFB +=
       s"""
          |$buf->close();
@@ -141,22 +141,22 @@ object PackEncoder {
     outBufFB.end()
 
     val rowFB = tub.buildFunction("encode_row", Array("NativeStatus*" -> "st", "long" -> "buf", "long" -> "row"), "long")
-    rowFB += s"reinterpret_cast<$encClass *>(${ rowFB.getArg(1) })->encode_row(${ rowFB.getArg(0) }, reinterpret_cast<char *>(${ rowFB.getArg(2) }));"
+    rowFB += s"reinterpret_cast<$encClass *>(${ rowFB.getArg(1) })->encode_row(reinterpret_cast<char *>(${ rowFB.getArg(2) }));"
     rowFB += "return 0;"
     rowFB.end()
 
     val byteFB = tub.buildFunction("encode_byte", Array("NativeStatus*" -> "st", "long" -> "buf", "long" -> "b"), "long")
-    byteFB += s"reinterpret_cast<$encClass *>(${ byteFB.getArg(1) })->encode_byte(${ byteFB.getArg(0) }, ${ byteFB.getArg(2) } & 0xff);"
+    byteFB += s"reinterpret_cast<$encClass *>(${ byteFB.getArg(1) })->encode_byte(${ byteFB.getArg(2) } & 0xff);"
     byteFB += "return 0;"
     byteFB.end()
 
     val flushFB = tub.buildFunction("encoder_flush", Array("NativeStatus*" -> "st", "long" -> "buf"), "long")
-    flushFB += s"reinterpret_cast<$encClass *>(${ flushFB.getArg(1) })->flush(${ flushFB.getArg(0) });"
+    flushFB += s"reinterpret_cast<$encClass *>(${ flushFB.getArg(1) })->flush();"
     flushFB += "return 0;"
     flushFB.end()
 
     val closeFB = tub.buildFunction("encoder_close", Array("NativeStatus*" -> "st", "long" -> "buf"), "long")
-    closeFB += s"reinterpret_cast<$encClass *>(${ closeFB.getArg(1) })->close(${ closeFB.getArg(0) });"
+    closeFB += s"reinterpret_cast<$encClass *>(${ closeFB.getArg(1) })->close();"
     closeFB += "return 0;"
     closeFB.end()
 
