@@ -49,3 +49,18 @@ case class MatrixPLINKWriter(
 ) extends MatrixWriter {
   def apply(mv: MatrixValue): Unit = ExportPlink(mv, path)
 }
+
+object MatrixNativeMultiWriter {
+  implicit val formats: Formats = new DefaultFormats() {
+    override val typeHints = ShortTypeHints(List(classOf[MatrixNativeMultiWriter]))
+    override val typeHintFieldName = "name"
+  }
+}
+
+case class MatrixNativeMultiWriter(
+  prefix: String,
+  overwrite: Boolean = false,
+  stageLocally: Boolean = false
+) {
+  def apply(mvs: Array[MatrixValue]): Unit = MatrixValue.writeMultiple(mvs, prefix, overwrite, stageLocally)
+}

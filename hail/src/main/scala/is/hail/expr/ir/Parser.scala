@@ -759,6 +759,12 @@ object IRParser {
         val writer = Serialization.read[MatrixWriter](writerStr)
         val child = matrix_ir(env)(it)
         MatrixWrite(child, writer)
+      case "MatrixMultiWrite" =>
+        val writerStr = string_literal(it)
+        implicit val formats = MatrixNativeMultiWriter.formats
+        val writer = Serialization.read[MatrixNativeMultiWriter](writerStr)
+        val children = matrix_ir_children(env)(it)
+        MatrixMultiWrite(children, writer)
       case "JavaIR" =>
         val name = identifier(it)
         env.irMap(name).asInstanceOf[IR]

@@ -112,6 +112,7 @@ object Children {
       FastIndexedSeq(fn, min, max)
     // from MatrixIR
     case MatrixWrite(child, _) => IndexedSeq(child)
+    case MatrixMultiWrite(children, _) => children
     // from TableIR
     case TableCount(child) => IndexedSeq(child)
     case TableGetGlobals(child) => IndexedSeq(child)

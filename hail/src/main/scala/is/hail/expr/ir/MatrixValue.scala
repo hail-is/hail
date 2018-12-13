@@ -345,3 +345,14 @@ case class MatrixValue(
         })
     }
   }
+
+object MatrixValue {
+  def writeMultiple(
+    mvs: Array[MatrixValue],
+    prefix: String,
+    overwrite: Boolean,
+    stageLocally: Boolean
+  ): Unit = {
+    ???
+  }
+}
