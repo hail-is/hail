@@ -1,0 +1,9 @@
+md-padding {
+  padding: 20px;
+}
+
+.site-theme {
+  .layout-align-center-center {
+    text-align:center;
+  }
+}

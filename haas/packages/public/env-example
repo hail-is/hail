@@ -1,0 +1,7 @@
+AUTH0_DOMAIN='my_domain.auth0.com'
+AUTH0_REDIRECT_URI='http://localhost:3000/auth0callback'
+AUTH0_CLIENT_ID='my_client_id'
+AUTH0_RESPONSE_TYPE='token id_token'
+AUTH0_SCOPE='openid'
+UPLOAD_API_URL='http://localhost:8000/api/jobs/upload'
+GRAPHQL_ENDPOINT='http://localhost:8000/graphql'

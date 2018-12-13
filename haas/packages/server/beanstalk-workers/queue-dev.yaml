@@ -1,0 +1,21 @@
+beanstalkd:
+  host: 172.31.56.119
+  port: 11300
+  tubes:
+    annotation:
+      submission: annotation_dev
+      events: annotation_dev_events
+    saveFromQuery:
+      submission: saveFromQuery_dev
+      events: saveFromQuery_dev_events
+    index:
+      submission: index_dev
+      events: index_dev_events
+    filters:
+      submission: filters_dev
+      events: filters_dev_events
+  events:
+    started : started
+    completed : completed
+    failed : failed
+    progress : progress

@@ -1,0 +1,14 @@
+@media screen and (max-width: 393px) {
+  .chosen-container:nth-of-type(even) {
+    margin-top: (@headerMarginTopBottom / 2);
+  }
+}
+
+@media screen and (max-width: 767px) {
+  // main {
+  //   min-height: (@narrow-hero-height + 2 * @headerMarginTopBottom);
+  // }
+  // .hero{
+  //   height: @narrow-hero-height;
+  // }
+}

@@ -1,0 +1,18 @@
+type Data {
+  assembly: String! #could make this whitelist
+  email: String
+}
+
+type File {
+  filename: String!
+  mimetype: String!
+  encoding: String!
+}
+
+type Query {
+  uploads: [File]
+}
+
+type Mutation {
+  uploadFile(file: Upload!): File!
+}
