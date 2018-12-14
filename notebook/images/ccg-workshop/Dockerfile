@@ -117,3 +117,11 @@ RUN wget -O WEScourse.ISB101.2018.tar.gz https://www.dropbox.com/s/fwqy9vze5p7w7
     rm -rf WEScourse.ISB101.2018.tar.gz
 
 COPY ccg_workshop_2018_python3.ipynb .
+
+COPY python_part_2.ipynb .
+
+COPY some_numbers.txt .
+
+COPY stooges_fixed.csv .
+
+COPY stooges.csv .
