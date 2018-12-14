@@ -72,6 +72,7 @@ TEST_CASE("TableRead<TableWrite> works") {
     Reader reader { TestStringDecoder(str_rows), &ctx };
     while (reader.advance()) { reader.consume(); }
     CHECK(reader.end()->rows_ == transformed);
+    CHECK(ctx.pool_.num_free_regions() == ctx.pool_.num_regions());
   }
 
   SECTION("TableRead<TableMapRows<TableWrite>> works") {
@@ -81,6 +82,7 @@ TEST_CASE("TableRead<TableWrite> works") {
     Reader reader { TestStringDecoder(str_rows), &ctx };
     while (reader.advance()) { reader.consume(); }
     CHECK(reader.end()->rows_ == transformed);
+    CHECK(ctx.pool_.num_free_regions() == ctx.pool_.num_regions());
   }
 
   SECTION("TableRead<TableFilterRows<TableWrite>> works") {
@@ -90,6 +92,7 @@ TEST_CASE("TableRead<TableWrite> works") {
     Reader reader { TestStringDecoder(str_rows), &ctx };
     while (reader.advance()) { reader.consume(); }
     CHECK(reader.end()->rows_ == transformed);
+    CHECK(ctx.pool_.num_free_regions() == ctx.pool_.num_regions());
   }
 
   SECTION("TableRead<TableExplodeRows<TableWrite>> works") {
@@ -101,6 +104,7 @@ TEST_CASE("TableRead<TableWrite> works") {
     Reader reader { TestStringDecoder(str_rows), &ctx };
     while (reader.advance()) { reader.consume(); }
     CHECK(reader.end()->rows_ == transformed);
+    CHECK(ctx.pool_.num_free_regions() == ctx.pool_.num_regions());
   }
 }
 
