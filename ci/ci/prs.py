@@ -2,7 +2,7 @@ import json
 
 from batch.client import Job
 
-from .batch_helper import short_str_build_job
+from .batch_helper import short_str_build_job, try_to_cancel_job
 from .ci_logging import log
 from .constants import VERSION, DEPLOY_JOB_TYPE
 from .environment import \
@@ -323,7 +323,7 @@ class PRS(object):
         if expected_job.id != job.id:
             expected_target = FQSHA.from_json(json.loads(expected_job.attributes['target']))
             if expected_target == target:
-                expected_job.delete()
+                try_to_cancel_job(expected_job)
                 log.info(
                     f'proceeding with unexpected deploy job {job.id}, '
                     f'because targets matched: {target} {expected_target}. '
