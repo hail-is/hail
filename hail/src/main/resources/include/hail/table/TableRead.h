@@ -29,6 +29,12 @@ class TableNativeRead {
     explicit TableNativeRead(Decoder &&dec, Args ... args) :
     next_(args...),
     dec_(std::move(dec)) { }
+    TableNativeRead() = delete;
+    TableNativeRead(TableNativeRead &r) = delete;
+    TableNativeRead(TableNativeRead &&r) = delete;
+    TableNativeRead &operator=(TableNativeRead &r) = delete;
+    TableNativeRead &operator=(TableNativeRead &&r) = delete;
+    ~TableNativeRead() = default;
 };
 
 }
