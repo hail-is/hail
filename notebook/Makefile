@@ -9,7 +9,7 @@ PUSHED = $(foreach image,$(IMAGE_SHORT_NAMES),build/images/$(image)/_PUSHED)
 
 build/images/%/_BUILT: images/%/Dockerfile $(shell find images/$*)
 	mkdir -p $(dir $@)
-	cd images/$* && docker build . -t $*
+	cd images/$* && time docker build . -t $*
 	touch $@
 
 build/images/%/_PUSHED: IMAGE = gcr.io/$(PROJECT)/$*:$(shell docker images -q --no-trunc $* | sed -e 's,[^:]*:,,')
