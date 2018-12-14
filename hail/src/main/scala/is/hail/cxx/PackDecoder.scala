@@ -183,7 +183,7 @@ object PackDecoder {
 
     decoderBuilder += s"${ decoderBuilder.name }(std::shared_ptr<InputStream> is) : $buf(std::make_shared<$bufType>(is)) { }"
 
-    val rowFB = decoderBuilder.buildMethod("decode_row", Array("Region *" -> "region"), "char *")
+    val rowFB = decoderBuilder.buildMethod("decode_row", Array("Region *" -> "region"), "char *", const = true)
     val region = rowFB.getArg(0)
     val initialSize = rt match {
       case _: PArray | _: PBinary => 8
@@ -198,7 +198,7 @@ object PackDecoder {
     })
     rowFB.end()
 
-    val byteFB = decoderBuilder.buildMethod("decode_byte", Array(), "char")
+    val byteFB = decoderBuilder.buildMethod("decode_byte", Array(), "char", const = true)
     byteFB += s"return $buf->read_byte();"
     byteFB.end()
 
