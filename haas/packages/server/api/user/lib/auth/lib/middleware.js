@@ -115,10 +115,20 @@ class AuthMiddleware {
       throw new InvalidTokenError();
     }
 
+    const accessToken = await this.extractAccessToken(userID);
+
+    req.accessToken = accessToken;
+
+    next();
+  }
+
+  async extractAccessToken(userID) {
+    let accessToken;
+
     // NOTE: This requires userID to change by auth0provide
     // typically auth0, at least social, connections
     // are in the form provider|id
-    let accessToken = await getAsync(userID);
+    accessToken = await getAsync(userID);
 
     if (!accessToken) {
       const oauthRes = await auth0oauthTokenPromise.then(r => r.json());
@@ -139,9 +149,7 @@ class AuthMiddleware {
       setAsync(userID, accessToken);
     }
 
-    req.accessToken = accessToken;
-
-    next();
+    return accessToken;
   }
 }
 
