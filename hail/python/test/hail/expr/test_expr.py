@@ -118,6 +118,7 @@ class Tests(unittest.TestCase):
             x50=kt.f > [1.0, 3.0],
             x51=[1.0, 2.0, 3.0] <= kt.f,
             x52=[1.0, 2.0, 3.0] >= kt.f,
+            x53=hl.tuple([True, 1.0]) < (1.0, 0.0),
         ).take(1)[0])
 
         expected = {'a': 4, 'b': 1, 'c': 3, 'd': 5, 'e': "hello", 'f': [1, 2, 3],
@@ -137,7 +138,7 @@ class Tests(unittest.TestCase):
                     'x42': False, 'x43': True, 'x44': True,
                     'x45': True, 'x46': True, 'x47': True,
                     'x48': True, 'x49': False, 'x50': False,
-                    'x51': True, 'x52': True}
+                    'x51': True, 'x52': True, 'x53': False}
 
         for k, v in expected.items():
             if isinstance(v, float):

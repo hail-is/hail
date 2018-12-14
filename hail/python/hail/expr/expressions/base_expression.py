@@ -339,36 +339,16 @@ class Expression(object):
         handler(s)
 
     def __lt__(self, other):
-        other = to_expr(other)
-        left, right, success = unify_exprs(self, other)
-        if not success:
-            raise TypeError(f"Invalid '<' comparison, cannot compare expressions "
-                            f"of type '{self.dtype}' and '{other.dtype}'")
-        return left._bin_op("<", right, hl.tbool)
+        return self._compare_op("<", other)
 
     def __le__(self, other):
-        other = to_expr(other)
-        left, right, success = unify_exprs(self, other)
-        if not success:
-            raise TypeError(f"Invalid '<=' comparison, cannot compare expressions "
-                            f"of type '{self.dtype}' and '{other.dtype}'")
-        return left._bin_op("<=", right, hl.tbool)
+        return self._compare_op("<=", other)
 
     def __gt__(self, other):
-        other = to_expr(other)
-        left, right, success = unify_exprs(self, other)
-        if not success:
-            raise TypeError(f"Invalid '>' comparison, cannot compare expressions "
-                            f"of type '{self.dtype}' and '{other.dtype}'")
-        return left._bin_op(">", right, hl.tbool)
+        return self._compare_op(">", other)
 
     def __ge__(self, other):
-        other = to_expr(other)
-        left, right, success = unify_exprs(self, other)
-        if not success:
-            raise TypeError(f"Invalid '>=' comparison, cannot compare expressions "
-                            f"of type '{self.dtype}' and '{other.dtype}'")
-        return left._bin_op(">=", right, hl.tbool)
+        return self._compare_op(">=", other)
 
     def __nonzero__(self):
         raise ExpressionException(
@@ -379,6 +359,15 @@ class Expression(object):
 
     def __iter__(self):
         raise ExpressionException(f"{repr(self)} object is not iterable")
+
+    def _compare_op(self, op, other):
+        other = to_expr(other)
+        left, right, success = unify_exprs(self, other)
+        if not success:
+            raise TypeError(f"Invalid '{op}' comparison, cannot compare expressions "
+                            f"of type '{self.dtype}' and '{other.dtype}'")
+        res = left._bin_op(op, right, hl.tbool)
+        return res
 
     def _is_scalar(self):
         return self._indices.source is None
@@ -551,12 +540,7 @@ class Expression(object):
         :class:`.BooleanExpression`
             ``True`` if the two expressions are equal.
         """
-        other = to_expr(other)
-        left, right, success = unify_exprs(self, other)
-        if not success:
-            raise TypeError(f"Invalid '==' comparison, cannot compare expressions "
-                            f"of type '{self.dtype}' and '{other.dtype}'")
-        return left._bin_op("==", right, tbool)
+        return self._compare_op("==", other)
 
     def __ne__(self, other):
         """Returns ``True`` if the two expressions are not equal.
@@ -589,12 +573,7 @@ class Expression(object):
         :class:`.BooleanExpression`
             ``True`` if the two expressions are not equal.
         """
-        other = to_expr(other)
-        left, right, success = unify_exprs(self, other)
-        if not success:
-            raise TypeError(f"Invalid '!=' comparison, cannot compare expressions "
-                            f"of type '{self.dtype}' and '{other.dtype}'")
-        return left._bin_op("!=", right, tbool)
+        return self._compare_op("!=", other)
 
     def _to_table(self, name):
         source = self._indices.source
