@@ -216,13 +216,13 @@ def workers():
 
 @app.route('/workers/<pod_name>/<svc_name>/delete')
 def workers_delete(pod_name, svc_name):
+    if not session.get('admin'):
+        return redirect(external_url_for('admin-login'))
     delete_worker_pod(pod_name, svc_name)
     return redirect(external_url_for('workers'))
 
 
 def delete_worker_pod(pod_name, svc_name):
-    if not session.get('admin'):
-        return redirect(external_url_for('admin-login'))
     try:
         k8s.delete_namespaced_pod(
             pod_name,
@@ -271,13 +271,21 @@ def wait_websocket(ws):
         try:
             response = requests.head(f'https://notebook.hail.is/instance-ready/{svc_name}/',
                                      timeout=1)
-            # if someone responds, the notebook server is alive, we are only
-            # trying to prevent 504 gateway issues with this loop
+            if response.status_code < 500:
+                log.info(f'HEAD on jupyter succeeded for {svc_name} {pod_name} response: {response}')
+                # if someone responds with a 2xx, 3xx, or 4xx, the notebook
+                # server is alive and functioning properly (in particular, our
+                # HEAD request will return 405 METHOD NOT ALLOWED)
+                break
+            else:
+                # somewhat unusual, means the gateway had an error before we
+                # timed out, usually means the gateway itself is broken
+                log.info(f'HEAD on jupyter failed for {svc_name} {pod_name} response: {response}')
+                gevent.sleep(1)
             break
         except requests.exceptions.Timeout as e:
             log.info(f'GET on jupyter failed for {svc_name} {pod_name}')
             gevent.sleep(1)
-    log.info(f'GET on jupyter succeeded for {svc_name} {pod_name}')
     ws.send(external_url_for(f'instance/{svc_name}/?token={jupyter_token}'))
     log.info(f'notification sent to user for {svc_name} {pod_name}')
 

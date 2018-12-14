@@ -92,6 +92,9 @@ server {
 server {
     server_name notebook.@domain@;
 
+    # needed to correctly handle error_page with internal handles
+    recursive_error_pages on;
+
     location = /auth {
         internal;
         proxy_pass http://notebook/auth/$jupyter_auth_name;
@@ -104,10 +107,10 @@ server {
         resolver kube-dns.kube-system.svc.cluster.local;
         proxy_pass http://$1.default.svc.cluster.local/instance/$1/$2$is_args$args;
 
-        proxy_set_header Host $host;
+        proxy_set_header Host $http_host;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Host $host;
-        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-Host $http_host;
+        proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_http_version 1.1;
         proxy_redirect off;
@@ -115,6 +118,16 @@ server {
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
         proxy_read_timeout 86400;
+
+        proxy_connect_timeout 5s;
+
+        proxy_intercept_errors on;
+        # 502: no service, 504: pod not responding
+        error_page 502 504 = @pod_dead;
+    }
+
+    location @pod_dead {
+        return 307 $scheme://$http_host/new;
     }
 
     location ~ /instance-ready/([^/]+)/ {
@@ -125,10 +138,10 @@ server {
     location / {
         proxy_pass http://notebook/;
 
-        proxy_set_header Host $host;
+        proxy_set_header Host $http_host;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Host $host;
-        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-Host $http_host;
+        proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_http_version 1.1;
         proxy_redirect off;
