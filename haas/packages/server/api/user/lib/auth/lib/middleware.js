@@ -29,8 +29,6 @@ const options = {
   })
 };
 
-const auth0oauthTokenPromise = fetch(tokenUrl, options);
-
 const findProviderObject = (userManagementResponse, userID) => {
   // [providerName, id]
   const idParts = userID.split('|');
@@ -44,6 +42,35 @@ const findProviderObject = (userManagementResponse, userID) => {
 
   return githubObject;
 };
+
+// TODO: Prefetch all user access tokens in Redis
+// .json() returns a promise;
+// https://stackoverflow.com/questions/41111411/node-fetch-only-returning-promise-pending
+const auth0oauthTokenPromise = fetch(tokenUrl, options).then(r => r.json());
+
+auth0oauthTokenPromise
+  .then(oauthRes =>
+    fetch(managementUrl, {
+      headers: {
+        Authorization: `Bearer ${oauthRes.access_token}`
+      }
+    }).then(r => r.json())
+  )
+  .then(userData => {
+    userData.forEach(user => {
+      user.identities.forEach(idObject => {
+        // TODO: Make sure closed over variables stay in scope
+        const userID = `${idObject.provider}|${idObject.user_id}`;
+        const accessToken = idObject.access_token;
+
+        getAsync(userID).then(val => {
+          if (!val) {
+            setAsync(userID, accessToken);
+          }
+        });
+      });
+    });
+  });
 
 class AuthMiddleware {
   constructor(User, tokenManager) {
@@ -123,32 +150,31 @@ class AuthMiddleware {
   }
 
   async extractAccessToken(userID) {
-    let accessToken;
-
     // NOTE: This requires userID to change by auth0provide
     // typically auth0, at least social, connections
     // are in the form provider|id
-    accessToken = await getAsync(userID);
+    let accessToken = await getAsync(userID);
 
-    if (!accessToken) {
-      const oauthRes = await auth0oauthTokenPromise.then(r => r.json());
-
-      const userManagementResponse = await fetch(`${managementUrl}/${userID}`, {
-        headers: {
-          Authorization: `Bearer ${oauthRes.access_token}`
-        }
-      });
-
-      const githubData = findProviderObject(
-        userManagementResponse.json(),
-        userID
-      );
-
-      accessToken = githubData.access_token;
-
-      setAsync(userID, accessToken);
+    if (accessToken) {
+      return accessToken;
     }
 
+    const oauthRes = await auth0oauthTokenPromise;
+
+    const userManagementResponse = await fetch(`${managementUrl}/${userID}`, {
+      headers: {
+        Authorization: `Bearer ${oauthRes.access_token}`
+      }
+    });
+
+    const githubData = findProviderObject(
+      userManagementResponse.json(),
+      userID
+    );
+
+    accessToken = githubData.access_token;
+
+    setAsync(userID, accessToken);
     return accessToken;
   }
 }
