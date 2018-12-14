@@ -44,19 +44,19 @@ class ArrayVariable(prefix: String, typ: String, length: Expression) extends Var
   override def defineWith(value: Code): Code = s"$typ $name[$length] = $value;"
 }
 
-class Function(returnType: Type, val name: String, args: Array[Variable], body: Code) extends Definition {
+class Function(returnType: Type, val name: String, args: Array[Variable], body: Code, const: Boolean = false) extends Definition {
 
   def typ: Type = returnType
 
-  def define: Code = s"$returnType $name(${args.map(a => s"${a.typ} ${a.name}").mkString(", ")}) {\n$body\n}"
+  def define: Code = s"$returnType $name(${args.map(a => s"${a.typ} ${a.name}").mkString(", ")}) ${ if (const) "const " else "" }{\n$body\n}"
 }
 
-class FunctionBuilder(val parent: ScopeBuilder, prefix: String, args: Array[Variable], returnType: Type)
+class FunctionBuilder(val parent: ScopeBuilder, prefix: String, args: Array[Variable], returnType: Type, const: Boolean = false)
   extends ScopeBuilder with DefinitionBuilder[Function] {
 
   def getArg(i: Int): Variable = args(i)
 
-  def build(): Function = new Function(returnType, prefix, args, definitions.result().mkString("\n"))
+  def build(): Function = new Function(returnType, prefix, args, definitions.result().mkString("\n"), const)
 
   def defaultReturn: Code = {
     if (returnType == "long")
@@ -91,6 +91,6 @@ class ClassBuilder(val parent: ScopeBuilder, val name: String, superClass: Strin
   extends ScopeBuilder with DefinitionBuilder[Class] {
   def build(): Class = new Class(name, superClass, definitions.result())
 
-  def buildMethod(prefix: String, args: Array[(cxx.Type, String)], returnType: Type): FunctionBuilder =
-    new FunctionBuilder(this, prefix, args.map { case (typ, p) => new Variable(p, typ, null) }, returnType)
+  def buildMethod(prefix: String, args: Array[(cxx.Type, String)], returnType: Type, const: Boolean = false): FunctionBuilder =
+    new FunctionBuilder(this, prefix, args.map { case (typ, p) => new Variable(p, typ, null) }, returnType, const)
 }

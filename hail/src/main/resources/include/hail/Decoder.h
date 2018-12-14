@@ -217,9 +217,9 @@ class Reader {
 private:
   Decoder dec_;
   ScalaRegion * region_;
-  char * value_;
+  mutable char * value_;
 
-  bool read() {
+  bool read() const {
     if (dec_.decode_byte()) {
       value_ = dec_.decode_row(region_->get_wrapped_region());
     } else {
@@ -239,9 +239,10 @@ public:
   class Iterator {
   friend class Reader;
   private:
-    Reader<Decoder> * reader_;
-    explicit Iterator(Reader<Decoder> * reader) :
+    const Reader<Decoder> * reader_;
+    explicit Iterator(const Reader<Decoder> * reader) :
     reader_(reader) { }
+    explicit Iterator(nullptr_t) : reader_(nullptr) { }
 
   public:
     Iterator& operator++() {
@@ -262,8 +263,8 @@ public:
     }
   };
 
-  Iterator begin() { return Iterator(this); }
-  Iterator end() { return Iterator(nullptr); }
+  Iterator begin() const { return Iterator(this); }
+  Iterator end() const { return Iterator(nullptr); }
 };
 
 }

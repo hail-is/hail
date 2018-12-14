@@ -50,9 +50,9 @@ using RVIterator = JavaIteratorObject::Iterator;
 template <typename Range>
 class ScalaStagingIterator : public NativeObj {
   private:
-    Range range_;
+    const Range range_;
     typename Range::Iterator it_ = range_.begin();
-    typename Range::Iterator end_ = range_.end();
+    const typename Range::Iterator end_ = range_.end();
   public:
     template <typename ... Args>
     ScalaStagingIterator(Args ... args) :
