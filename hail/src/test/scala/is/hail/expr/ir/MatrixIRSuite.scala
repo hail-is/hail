@@ -290,7 +290,7 @@ class MatrixIRSuite extends SparkSuite {
 
   @Test def testMatrixPLINKWrite() {
     val plinkPath = "src/test/resources/skip_invalid_loci"
-    val plink = hc.importPlink(plinkPath + ".bed", plinkPath + ".bim", plinkPath + ".fam", skipInvalidLoci = true)
+    val plink = is.hail.TestUtils.importPlink(hc, plinkPath + ".bed", plinkPath + ".bim", plinkPath + ".fam", skipInvalidLoci = true)
     val plinkIR = MatrixMapRows(plink.ast, InsertFields(Ref("va", plink.rvRowType),
       FastIndexedSeq("varid" -> GetField(Ref("va", plink.rvRowType), "rsid"))))
     val path = tmpDir.createLocalTempFile()

@@ -15,7 +15,7 @@ abstract class KeySerializedValueRecord[K] extends Serializable {
     this.input = arr
   }
 
-  def getValue(rvb: RegionValueBuilder): Unit
+  def getValue(rvb: RegionValueBuilder, includeGT: Boolean): Unit
 
   def setKey(k: K) {
     this.key = k
