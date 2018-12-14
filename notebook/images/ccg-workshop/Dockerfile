@@ -125,3 +125,7 @@ COPY some_numbers.txt .
 COPY stooges_fixed.csv .
 
 COPY stooges.csv .
+
+RUN Rscript -e 'source("https://bioconductor.org/biocLite.R"); \
+                biocLite("Biostrings"); \
+                install.packages("dplyr")'
