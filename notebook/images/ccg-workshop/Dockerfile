@@ -18,7 +18,7 @@ RUN apt-get update && apt-get install -y \
     && \
     rm -rf /var/lib/apt/lists/* \
     && \
-    Rscript -e "install.packages('IRkernel')" \
+    Rscript -e "install.packages(c('IRkernel', 'Biostrings', 'ggplot2'))"
 USER jovyan
 
 RUN pip install --no-cache-dir \
@@ -27,6 +27,7 @@ RUN pip install --no-cache-dir \
   numpy==1.15.4 \
   pandas==0.23.4 \
   matplotlib==3.0.2 \
+  scikit-learn \
   jupyter_contrib_nbextensions \
   && \
   Rscript -e 'IRkernel::installspec()' \
