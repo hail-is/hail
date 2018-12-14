@@ -3,6 +3,7 @@
 
 #include "hail/table/PartitionContext.h"
 #include "hail/Encoder.h"
+#include "hail/Region.h"
 
 namespace hail {
 
@@ -18,9 +19,10 @@ class TableNativeWrite : public Encoder {
     Endpoint * end() { return this; }
     PartitionContext * ctx() { return ctx_; }
 
-    void operator()(const char * value) {
+    void operator()(RegionPtr &&region, const char * value) {
       encode_byte(1);
       encode_row(value);
+      region = nullptr;
     }
 
     using Encoder::Encoder;

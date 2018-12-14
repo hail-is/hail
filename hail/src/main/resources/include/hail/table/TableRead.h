@@ -2,6 +2,7 @@
 #define HAIL_TABLEREAD_H 1
 
 #include "hail/table/PartitionContext.h"
+#include "hail/Region.h"
 
 namespace hail {
 
@@ -16,11 +17,11 @@ class TableNativeRead {
     PartitionContext * ctx() { return next_.ctx(); }
 
     void consume() {
-      next_(dec_.decode_row(ctx()->region_.get()));
+      auto region = ctx()->pool_.get_region();
+      next_(std::move(region), dec_.decode_row(region.get()));
     }
 
     bool advance() {
-      ctx()->new_region();
       return dec_.decode_byte();
     }
 
