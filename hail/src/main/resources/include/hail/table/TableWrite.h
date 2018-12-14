@@ -29,6 +29,12 @@ class TableNativeWrite : public Encoder {
     template<typename ... Args>
     explicit TableNativeWrite(PartitionContext * ctx, Args ... args) :
     Encoder(args...), ctx_(ctx) { }
+    TableNativeWrite() = delete;
+    TableNativeWrite(TableNativeWrite &r) = delete;
+    TableNativeWrite(TableNativeWrite &&r) = delete;
+    TableNativeWrite &operator=(TableNativeWrite &r) = delete;
+    TableNativeWrite &operator=(TableNativeWrite &&r) = delete;
+    ~TableNativeWrite() = default;
 
 };
 

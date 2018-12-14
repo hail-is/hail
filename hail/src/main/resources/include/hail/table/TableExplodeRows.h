@@ -30,6 +30,12 @@ class TableExplodeRows {
 
     template<typename ... Args>
     explicit TableExplodeRows(Args ... args) : next_(args...) { }
+    TableExplodeRows() = delete;
+    TableExplodeRows(TableExplodeRows &r) = delete;
+    TableExplodeRows(TableExplodeRows &&r) = delete;
+    TableExplodeRows &operator=(TableExplodeRows &r) = delete;
+    TableExplodeRows &operator=(TableExplodeRows &&r) = delete;
+    ~TableExplodeRows() = default;
 };
 
 }

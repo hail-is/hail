@@ -25,6 +25,12 @@ class TableFilterRows {
 
     template<typename ... Args>
     explicit TableFilterRows(Args ... args) : next_(args...) { }
+    TableFilterRows() = delete;
+    TableFilterRows(TableFilterRows &r) = delete;
+    TableFilterRows(TableFilterRows &&r) = delete;
+    TableFilterRows &operator=(TableFilterRows &r) = delete;
+    TableFilterRows &operator=(TableFilterRows &&r) = delete;
+    ~TableFilterRows() = default;
 };
 
 }

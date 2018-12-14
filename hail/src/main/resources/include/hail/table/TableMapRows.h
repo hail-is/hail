@@ -23,6 +23,13 @@ class TableMapRows {
 
     template<typename ... Args>
     explicit TableMapRows(Args ... args) : next_(args...) { }
+    TableMapRows() = delete;
+    TableMapRows(TableMapRows &r) = delete;
+    TableMapRows(TableMapRows &&r) = delete;
+    TableMapRows &operator=(TableMapRows &r) = delete;
+    TableMapRows &operator=(TableMapRows &&r) = delete;
+    ~TableMapRows() = default;
+
 };
 
 }
