@@ -133,14 +133,15 @@ public:
   }
 };
 
-struct HailFatalError: public std::exception {
+struct FatalError: public std::exception {
   private:
     static constexpr int max_error_len = 512;
+    int errno_;
     char error_msg[max_error_len];
   public:
-    virtual const char * what() const throw() { return error_msg; }
-    virtual ~HailFatalError() throw() {};
-    explicit HailFatalError(const char * fmtstring, ...) : std::exception() {
+    virtual const char * what() const throw() { return (std::string("FatalError ") + std::to_string(errno_) + ": " + error_msg).c_str(); }
+    virtual ~FatalError() throw() {}
+    explicit FatalError(int errno, const char * fmtstring, ...) : std::exception(), errno_(errno) {
       va_list args;
       va_start(args, fmtstring);
       vsnprintf(error_msg, max_error_len, fmtstring, args);

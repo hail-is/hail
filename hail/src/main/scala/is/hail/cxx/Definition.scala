@@ -58,7 +58,7 @@ class FunctionBuilder(val parent: ScopeBuilder, prefix: String, args: Array[Vari
 
   def build(): Function = new Function(returnType, prefix, args, definitions.result().mkString("\n"), const)
 
-  def nativeError(msg: String, args: Code*): Code = s"""throw HailFatalError("$msg"${ args.map(a => s", ($a)").mkString });"""
+  def nativeError(msg: String, args: Code*): Code = s"""throw FatalError($genErr, "$msg"${ args.map(a => s", ($a)").mkString });"""
 
 }
 

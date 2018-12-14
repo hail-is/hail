@@ -88,6 +88,8 @@ trait ScopeBuilder {
   }
 
   def genSym(name: String): String = translationUnitBuilder().genSym(name)
+
+  def genErr: Long = translationUnitBuilder().genErr
 }
 
 class TranslationUnitBuilder() extends ScopeBuilder {
@@ -120,6 +122,8 @@ class TranslationUnitBuilder() extends ScopeBuilder {
     symCounter += 1
     s"$name$symCounter"
   }
+
+  override def genErr: Long = symCounter
 
   def end(): TranslationUnit = {
 
