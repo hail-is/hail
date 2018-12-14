@@ -20,25 +20,16 @@ TEST_CASE("PartitionContext globals set correctly") {
 
 TEST_CASE("PartitionContext regions reference counted correctly") {
   PartitionContext ctx;
-  REQUIRE(ctx.pool_.num_regions() == 1);
+  REQUIRE(ctx.pool_.num_regions() == 0);
   REQUIRE(ctx.pool_.num_free_regions() == 0);
 
-  SECTION("replacing region frees old region and immediately reuses") {
-    ctx.new_region();
+  SECTION("can get + release region from context pool") {
+    auto region = ctx.pool_.get_region();
     REQUIRE(ctx.pool_.num_regions() == 1);
     REQUIRE(ctx.pool_.num_free_regions() == 0);
-    ctx.region_ = nullptr;
+    region = nullptr;
     REQUIRE(ctx.pool_.num_regions() == 1);
     REQUIRE(ctx.pool_.num_free_regions() == 1);
-  }
-
-  SECTION("if old region is referenced outside context, region does not get freed") {
-    auto region = std::move(ctx.region_);
-    ctx.new_region();
-    CHECK(ctx.pool_.num_regions() == 2);
-    CHECK(ctx.pool_.num_free_regions() == 0);
-    region = nullptr;
-    CHECK(ctx.pool_.num_free_regions() == 1);
   }
 }
 
@@ -49,9 +40,10 @@ TEST_CASE("TestDecoder/Encoder works") {
   TestStringDecoder dec { str_rows };
   TestStringEncoder enc;
 
+  auto region = ctx.pool_.get_region();
   std::vector<char const *> rows;
   while (dec.decode_byte()) {
-    rows.push_back(dec.decode_row(ctx.region_.get()));
+    rows.push_back(dec.decode_row(region.get()));
   }
 
   for (char const * row : rows) {

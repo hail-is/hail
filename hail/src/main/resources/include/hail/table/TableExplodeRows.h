@@ -19,13 +19,12 @@ class TableExplodeRows {
     Endpoint * end() { return next_.end(); }
     PartitionContext * ctx() { return next_.ctx(); }
 
-    void operator()(const char * value) {
-      auto old_region = std::move(ctx()->region_);
-      auto len = exploder_.len(ctx()->st_, old_region.get(), value);
+    void operator()(RegionPtr &&region, const char * value) {
+      auto len = exploder_.len(ctx()->st_, region.get(), value);
       for (int i=0; i<len; ++i) {
-        ctx()->new_region();
-        ctx()->region_->add_reference_to(old_region);
-        next_(exploder_(ctx()->st_, ctx()->region_.get(), value, i));
+        auto new_region = ctx()->pool_.get_region();
+        new_region->add_reference_to(region);
+        next_(std::move(new_region), exploder_(ctx()->st_, new_region.get(), value, i));
       }
     }
 
