@@ -79,6 +79,7 @@ const auth0instance = new auth0.WebAuth({
   scope: publicRuntimeConfig.AUTH0.SCOPE
 });
 
+console.info('audience ', publicRuntimeConfig.AUTH0.AUDIENCE);
 const Auth = {} as Auth;
 
 Auth.state = store({
@@ -176,9 +177,7 @@ Auth.getIdToken = req => {
 };
 
 Auth.login = () => {
-  auth0instance.authorize({
-    connection: 'github'
-  });
+  auth0instance.authorize();
 };
 
 Auth.handleAuthenticationAsync = (cb: authCallback) => {
@@ -238,7 +237,7 @@ function setStateOrLogout(req?: any): Error | void {
       loggedOutReason: null,
       userProfile: null
     };
-
+    console.info('auth state', Auth.state);
     setRenewal(Auth.state.exp);
   } catch (err) {
     console.error('error setting state', err);

@@ -1,5 +1,5 @@
 // TODO: Convert to TypeScript, add prop validation
-import { Component } from 'react';
+import React from 'react';
 import Link from 'next/link';
 import Router from 'next/router';
 import './scorecard.scss';
@@ -11,7 +11,7 @@ const PullRequestTable = props =>
         {props.data.map((pr, idx) => (
           <tr key={idx}>
             <td>
-              <a href={pr.html_url} target="_blank">
+              <a href={pr.html_url} target="_blank" rel="noopener noreferrer">
                 {pr.id}
               </a>
             </td>
@@ -50,12 +50,20 @@ const User = ({ userName, data }) => {
             {userData.NEEDS_REVIEW.map((pr, idx) => (
               <tr key={idx}>
                 <td>
-                  <a href={pr.html_url} target="_blank">
+                  <a
+                    href={pr.html_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
                     {pr.id}
                   </a>
                 </td>
                 <td>
-                  <a href={`https://github.com/${userName}`} target="_blank">
+                  <a
+                    href={`https://github.com/${userName}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
                     {pr.user}
                   </a>
                 </td>

@@ -1,6 +1,5 @@
 // Server-rendered component, rendered only once, even in SPA mode
 // A good place to inject site-wide <head> tags </head>
-import React from 'react';
 import Document, { Head, Main, NextScript } from 'next/document';
 
 class MyDocument extends Document {

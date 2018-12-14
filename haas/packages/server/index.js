@@ -21,37 +21,38 @@
 // https://github.com/Automattic/socket.io-emitter
 
 // fill process.env
-require("dotenv").load();
+require('dotenv').load();
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = 0;
 /* Express related*/
-const express = require("express");
-const fs = require("fs-extra"); // adds functions like mkdirp (mkdir -p)
-const bodyParser = require("body-parser");
-const cookieParser = require("cookie-parser");
-const compression = require("compression");
-const morgan = require("morgan");
-const http = require("http");
-const helmet = require("helmet");
-const _ = require("lodash");
-const cors = require("cors");
-const { ApolloServer } = require("apollo-server-express");
-const { mergeTypes } = require("merge-graphql-schemas");
+const express = require('express');
+const fs = require('fs-extra'); // adds functions like mkdirp (mkdir -p)
+const bodyParser = require('body-parser');
+const cookieParser = require('cookie-parser');
+const compression = require('compression');
+const morgan = require('morgan');
+const http = require('http');
+const helmet = require('helmet');
+const _ = require('lodash');
+const cors = require('cors');
+const { ApolloServer } = require('apollo-server-express');
+const { mergeTypes } = require('merge-graphql-schemas');
 
 // local lib modules
-const log = require("./common/logger");
-const config = require("./common/config");
+const log = require('./common/logger');
+const config = require('./common/config');
 
 // graphql
-const { postSchema, postResolver } = require("./api/post");
-const { jobSchema, JobResolver } = require("./api/jobs");
-const { s3Schema, s3Resolver } = require("./api/s3");
+const { postSchema, postResolver } = require('./api/post');
+const { jobSchema, JobResolver } = require('./api/jobs');
+const { s3Schema, s3Resolver } = require('./api/s3');
 
 // REST and models
-const User = require("./api/user");
-const Comm = require("./api/communication");
-const { Jobs } = require("./api/jobs");
-const SeqAws = require("./api/aws");
-const appRouter = require("./router");
+const User = require('./api/user');
+const Comm = require('./api/communication');
+const { Jobs } = require('./api/jobs');
+const SeqAws = require('./api/aws');
+const CI = require('./api/ci');
+const appRouter = require('./router');
 
 /**
  * Express configuration.
@@ -62,7 +63,7 @@ fs.ensureDir(config.router.publicPath, err => {
   }
 });
 
-fs.ensureDir("./logs", err => {
+fs.ensureDir('./logs', err => {
   if (err) {
     throw new Error(err);
   }
@@ -75,7 +76,7 @@ fs.ensureDir("./logs", err => {
  * Create Express server.
  */
 const corsOptions = {
-  origin: "localhost:3000",
+  origin: 'localhost:3000',
   optionsSuccessStatus: 200 // some legacy browsers (IE11, various SmartTVs) choke on 204
 };
 
@@ -94,16 +95,16 @@ const app = express(); //cors(corsOptions)
 // app.use(helmet());
 app.use(express.static(config.router.publicPath));
 
-app.set("port", 8000); //config.server.port);
+app.set('port', 8000); //config.server.port);
 app.use(compression());
 app.use(
   bodyParser.json({
-    limit: "1000mb"
+    limit: '1000mb'
   })
 );
 app.use(
   bodyParser.urlencoded({
-    limit: "1000mb",
+    limit: '1000mb',
     extended: true
   })
 );
@@ -128,15 +129,15 @@ app.use(
 // app.use(allowCrossDomain);
 
 app.use((req, res, next) => {
-  res.header("X-Frame-Options", "SAMEORIGIN");
-  res.header("Access-Control-Allow-Credentials", true);
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header("Access-Control-Allow-Methods", "GET,PUT,POST,DELETE");
+  res.header('X-Frame-Options', 'SAMEORIGIN');
+  res.header('Access-Control-Allow-Credentials', true);
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE');
   res.header(
-    "Access-Control-Allow-Headers",
-    "Authorization, X-Requested-With, X-HTTP-Method-Override, Content-Type, Accept, Cache-Control"
+    'Access-Control-Allow-Headers',
+    'Authorization, X-Requested-With, X-HTTP-Method-Override, Content-Type, Accept, Cache-Control'
   );
-  if (req.method === "OPTIONS") {
+  if (req.method === 'OPTIONS') {
     // console.info('Option');
     res.status(200).end();
   } else {
@@ -157,12 +158,12 @@ app.use(cookieParser());
 
 // // initialize everything shared
 
-if (process.env.NODE_ENV === "development") {
-  fs.ensureDir("./logs/heapdumps");
+if (process.env.NODE_ENV === 'development') {
+  fs.ensureDir('./logs/heapdumps');
 }
 
 // Grab our .env configuration (show path to .env config explicitly)
-require("dotenv").config("./.env");
+require('dotenv').config('./.env');
 
 const httpServer = http.createServer(app);
 
@@ -177,18 +178,21 @@ const user = User(app, config);
 const comm = Comm(httpServer, user, config);
 const jobs = Jobs(comm, user, config);
 const aws = SeqAws(user, config);
+const ci = CI(user, config);
 
 const jobResolver = JobResolver(jobs.jobModel, user.getUserId);
 const schemas = mergeTypes([postSchema, jobSchema, s3Schema]);
 const resolvers = _.merge(postResolver, jobResolver, s3Resolver);
 
 app.use(
-  morgan("combined", {
+  morgan('combined', {
     stream: log.stream
   })
 );
 
-app.use("/graphql", user.middleware.verifyToken);
+appRouter(app, [user, jobs, aws, ci], config);
+
+app.use('/graphql', user.middleware.verifyToken);
 
 const apolloServer = new ApolloServer({
   typeDefs: schemas,
@@ -202,13 +206,11 @@ const apolloServer = new ApolloServer({
   }
 });
 
-apolloServer.applyMiddleware({ app, path: "/graphql" });
+apolloServer.applyMiddleware({ app, path: '/graphql' });
 
 apolloServer.installSubscriptionHandlers(httpServer);
 
-appRouter(app, [user, jobs, aws], config);
-
-const port = app.get("port");
+const port = app.get('port');
 httpServer.listen(port, () => {
   console.log(
     `🚀 Server ready at http://localhost:${port}${apolloServer.graphqlPath}`

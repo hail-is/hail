@@ -1,6 +1,5 @@
 // TODO: remove unneeded dependencies
 // TODO: improve documentation, comments
-import React from 'react';
 import App, { Container } from 'next/app';
 import { ApolloProvider } from 'react-apollo';
 

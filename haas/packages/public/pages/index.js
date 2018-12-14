@@ -1,5 +1,3 @@
-/* eslint-disable jsx-a11y/anchor-is-valid */
-
 import { Fragment } from 'react';
 import Head from 'next/head';
 import 'animate.css';

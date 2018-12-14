@@ -64,6 +64,8 @@ const publicRuntimeConfig = {
   }
 };
 
+console.info('stuff', publicRuntimeConfig);
+
 serverRuntimeConfig.SCORECARD = publicRuntimeConfig.SCORECARD;
 
 module.exports.publicRuntimeConfig = publicRuntimeConfig;

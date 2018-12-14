@@ -1,12 +1,11 @@
 // TODO: Convert to TypeScript, add prop validation
-import React from 'react';
 import Link from 'next/link';
 import './scorecard.scss';
 
 const PullRequestLink = props =>
   props.data.map((pr, idx) => [
     idx > 0 && ', ',
-    <a href={pr.html_url} key={idx} target="_blank">
+    <a href={pr.html_url} key={idx} target="_blank" rel="noopener noreferrer">
       {pr.id}
     </a>
   ]);
@@ -48,7 +47,11 @@ const Overview = ({ data }) => {
                   </td>
                   <td align="left">{issue.AGE}</td>
                   <td align="left">
-                    <a href={issue.ISSUE.html_url} target="_blank">
+                    <a
+                      href={issue.ISSUE.html_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
                       {issue.ISSUE.title}
                     </a>
                   </td>

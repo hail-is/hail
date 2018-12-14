@@ -23,3 +23,7 @@ yarn install
 # Run web app in dev mode on port 3000
 npm run dev
 ```
+
+# TODO
+
+1. Remove superagent from auth0 library. adds ~20KB to bundle

@@ -35,10 +35,7 @@ module.exports = function userFactory(app, config) {
   };
 
   // TODO: Move to just ._id
-  uF.getUserId = function getUserId(user) {
-    // sub is what auth0 uses
-    return user && (user.id || user._id || user.sub);
-  };
+  uF.getUserId = uF.middleware.getUserId;
 
   return uF;
 };
