@@ -26,9 +26,9 @@ class TableNativeRead {
     }
 
     template<typename ... Args>
-    explicit TableNativeRead(Decoder &&dec, Args ... args) :
+    explicit TableNativeRead(Decoder dec, Args ... args) :
     next_(args...),
-    dec_(std::move(dec)) { }
+    dec_(dec) { }
     TableNativeRead() = delete;
     TableNativeRead(TableNativeRead &r) = delete;
     TableNativeRead(TableNativeRead &&r) = delete;

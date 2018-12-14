@@ -27,6 +27,7 @@ class Region {
           if (region_ != nullptr) { ++(region_->references_); }
         }
       public:
+        SharedPtr(std::nullptr_t) : region_(nullptr) { }
         SharedPtr(const SharedPtr &ptr) : SharedPtr(ptr.region_) { }
         SharedPtr(SharedPtr &&ptr) : region_(ptr.region_) { ptr.region_ = nullptr; }
         ~SharedPtr() { clear(); }
@@ -36,6 +37,9 @@ class Region {
           swap(other);
           return *this;
         }
+        bool operator==(std::nullptr_t) { return region_ == nullptr; }
+        bool operator!=(std::nullptr_t) { return region_ != nullptr; }
+
         SharedPtr& operator=(std::nullptr_t) noexcept {
           clear();
           return *this;
@@ -43,6 +47,7 @@ class Region {
         Region * get() { return region_; }
         Region & operator*() { return *region_; }
         Region * operator->() { return region_; }
+        int num_references() { return region_->references_; }
     };
 
   private:

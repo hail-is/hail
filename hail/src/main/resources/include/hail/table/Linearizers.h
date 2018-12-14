@@ -9,6 +9,23 @@
 
 namespace hail {
 
+struct RegionValue {
+  RegionPtr region_ = nullptr;
+  char const * value_ = nullptr;
+  RegionValue(RegionPtr && region, char const * value) : region_(region), value_(value) { }
+  RegionValue(nullptr_t) : RegionValue(nullptr, nullptr) { }
+
+  RegionValue() = default;
+  RegionValue(RegionValue &rv) : region_(rv.region_), value_(rv.value_) { }
+  RegionValue(RegionValue &&rv) : region_(std::move(rv.region_)), value_(rv.value_) { rv = nullptr; }
+  RegionValue & operator=(std::nullptr_t) { region_ = nullptr; value_ = nullptr; return *this; }
+  RegionValue & operator=(RegionValue &rv) { region_ = rv.region_; value_ = rv.value_; return *this; }
+  RegionValue & operator=(RegionValue &&rv) { region_ = rv.region_; value_ = rv.value_; rv = nullptr; return *this; }
+
+  bool operator==(std::nullptr_t) { return value_ == nullptr; }
+  bool operator!=(std::nullptr_t) { return value_ != nullptr; }
+};
+
 class NestedLinearizerEndpoint {
   private:
     PartitionContext * ctx_;
@@ -17,30 +34,21 @@ class NestedLinearizerEndpoint {
     Endpoint * end() { return this; }
     PartitionContext * ctx() { return ctx_; }
 
-    std::vector<RegionPtr> regions_{};
-    std::vector<char const *> values_{};
+    std::vector<RegionValue> values_{};
     size_t off_ = 0;
 
-    void operator()(const char * value) {
-      regions_.push_back(ctx_->region_);
-      values_.push_back(value);
+    void operator()(RegionPtr &&region, const char * value) {
+      values_.emplace_back(std::move(region), value);
     }
 
     bool has_value() {
-      if (off_ == regions_.size()) {
-        regions_.clear();
-        values_.clear();
-        off_ = 0;
-        return false;
-      }
-      return true;
+      if (off_ != values_.size()) { return true; }
+      values_.clear();
+      off_ = 0;
+      return false;
     }
 
-    char const * get_next_value() {
-      if (off_ > 0) { regions_[off_ - 1] = nullptr; }
-      ctx_->region_ = regions_[off_];
-      return values_[off_++];
-    }
+    RegionValue && get_next_value() { return std::move(values_[off_++]); }
 
     NestedLinearizerEndpoint(PartitionContext * ctx) : ctx_(ctx) { }
 };
@@ -53,19 +61,13 @@ class UnnestedLinearizerEndpoint {
     Endpoint * end() { return this; }
     PartitionContext * ctx() { return ctx_; }
 
-    char const * value_ = nullptr;
+    RegionValue value_{};
 
-    void operator()(const char * value) {
-      value_ = value;
-    }
+    void operator()(RegionPtr && region, const char * value) { value_ = { std::move(region), value }; }
 
     bool has_value() { return value_ != nullptr; }
-    char const * get_next_value() {
-      auto v = value_;
-      value_ = nullptr;
-      return v;
-    }
 
+    RegionValue && get_next_value() { return std::move(value_); }
     UnnestedLinearizerEndpoint(PartitionContext * ctx) : ctx_(ctx) { }
 };
 
@@ -75,17 +77,22 @@ class LinearizedPullStream {
   LinearizableConsumer cons_;
   typename LinearizableConsumer::Endpoint * linearizer_ = cons_.end();
 
-  char const * get() { return linearizer_->get_next_value(); }
+  mutable RegionValue value_ {};
 
-  void advance() {
+  RegionValue & get() const { return value_; }
+
+  bool advance() {
     while (!linearizer_->has_value() && cons_.advance()) {
       cons_.consume();
     }
+    value_ = linearizer_->get_next_value();
+    return value_ != nullptr;
   }
 
   public:
-    explicit LinearizedPullStream(LinearizableConsumer &&cons) :
-    cons_(cons) { advance(); }
+    template<typename ... Args>
+    explicit LinearizedPullStream(Args&& ... args) :
+    cons_(args...) { advance(); }
 
     class Iterator {
       friend class LinearizedPullStream;
@@ -95,8 +102,9 @@ class LinearizedPullStream {
       public:
         Iterator() = delete;
         Iterator& operator++() {
-          stream_->advance();
-          if (!stream_->linearizer_->has_value()) { stream_ = nullptr; }
+          if (!stream_->advance()) {
+            stream_ = nullptr;
+          }
           return *this;
         }
 
@@ -106,10 +114,10 @@ class LinearizedPullStream {
         friend bool operator!=(Iterator const& lhs, Iterator const& rhs) {
           return !(lhs == rhs);
         }
-        char const* operator*() const { return stream_->get(); }
+        RegionValue & operator*() const { return stream_->get(); }
     };
 
-    Iterator begin() { return Iterator(linearizer_->has_value() ? this : nullptr); }
+    Iterator begin() { return Iterator(this); }
     Iterator end() { return Iterator(nullptr); }
 };
 
