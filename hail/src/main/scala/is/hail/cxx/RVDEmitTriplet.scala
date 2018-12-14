@@ -90,7 +90,7 @@ object RVDEmitTriplet {
          |  $enc.encode_byte(0);
          |  $enc.flush();
          |  return $nRows;
-         |} catch (const HailFatalError& e) {
+         |} catch (const FatalError& e) {
          |  NATIVE_ERROR($st, 1005, e.what());
          |  return -1;
          |}

@@ -50,7 +50,7 @@ object Compile {
            |long entrypoint(NativeStatus *st, long region, long v) {
            |  try {
            |    return (long)${ f.name }(((ScalaRegion *)region)->get_wrapped_region(), (char *)v);
-           |  } catch (const HailFatalError& e) {
+           |  } catch (const FatalError& e) {
            |    NATIVE_ERROR(st, 1005, e.what());
            |    return -1;
            |  }
