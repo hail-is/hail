@@ -1373,6 +1373,7 @@ class Join(IR):
 class JavaIR(IR):
     def __init__(self, jir):
         self._jir = jir
+        super().__init__()
 
     def render(self, r):
         return f'(JavaIR {r.add_jir(self._jir)})'
