@@ -50,13 +50,14 @@ using RVIterator = JavaIteratorObject::Iterator;
 template <typename Range>
 class ScalaStagingIterator : public NativeObj {
   private:
-    const Range range_;
-    const typename Range::Iterator it_ = range_.begin();
-    const typename Range::Iterator end_ = range_.end();
+    Range range_;
+    typename Range::Iterator it_ = range_.begin();
+    typename Range::Iterator end_ = range_.end();
   public:
     template <typename ... Args>
-    ScalaStagingIterator(Args ... args) : range_(args ...) { }
-    char const * get() { return *it_; }
+    ScalaStagingIterator(Args ... args) :
+    range_(args ...) { }
+    char const * get() const { return *it_; }
     bool advance() { return ++it_ != end_; }
 };
 
