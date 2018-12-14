@@ -18,7 +18,7 @@ RUN apt-get update && apt-get install -y \
     && \
     rm -rf /var/lib/apt/lists/* \
     && \
-    Rscript -e "install.packages(c('IRkernel', 'Biostrings', 'ggplot2'))"
+    Rscript -e "install.packages(c('IRkernel', 'ggplot2'))"
 USER jovyan
 
 RUN pip install --no-cache-dir \
