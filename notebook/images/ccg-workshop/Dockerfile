@@ -130,6 +130,7 @@ RUN Rscript -e 'source("https://bioconductor.org/biocLite.R"); \
                 biocLite("Biostrings"); \
                 install.packages("dplyr")'
 
+<<<<<<< HEAD
 USER root
 RUN apt-get update && apt-get install -y vim dos2unix
 USER jovyan
@@ -141,4 +142,4 @@ RUN mkdir genotype-harmonizer && \
      rm -rf GenotypeHarmonizer-1.4.20-dist.tar.gz && \
      find . -name '*.sh' | xargs dos2unix)
 
-COPY workshop_cars.txt workshop_plants.txt .
+COPY workshop_cars.txt workshop_plants.txt ./
