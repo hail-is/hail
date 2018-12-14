@@ -1,4 +1,5 @@
 import json
+import copy
 
 from hail.expr.types import hail_type
 from hail.typecheck import *
@@ -1359,7 +1360,7 @@ class Join(IR):
                       join_exprs=sequenceof(anytype),
                       join_func=func_spec(1, anytype))
     def __init__(self, virtual_ir, temp_vars, join_exprs, join_func):
-        super(Join, self).__init__(virtual_ir, *(e._ir for e in join_exprs))
+        super(Join, self).__init__(virtual_ir)
         self.virtual_ir = virtual_ir
         self.temp_vars = temp_vars
         self.join_exprs = join_exprs
@@ -1367,20 +1368,21 @@ class Join(IR):
         self.idx = Join._idx
         Join._idx += 1
 
-    def copy(self, virtual_ir, *join_irs):
+    def copy(self, virtual_ir):
         new_instance = self.__class__
-        assert len(join_irs) == len(self.join_exprs)
-
-        def replace_ir(expr, new_ir):
-            expr._ir = new_ir
-            return expr
-
         new_instance = new_instance(virtual_ir,
                                     self.temp_vars,
-                                    [replace_ir(expr, new_ir) for new_ir, expr in zip(join_irs, self.join_exprs)],
+                                    self.join_exprs,
                                     self.join_func)
         new_instance.idx = self.idx
         return new_instance
+
+    def search(self, criteria):
+        matches = []
+        for e in self.join_exprs:
+            matches += e._ir.search(criteria)
+        matches += super(Join, self).search(criteria)
+        return matches
 
     def render(self, r):
         return r(self.virtual_ir)
