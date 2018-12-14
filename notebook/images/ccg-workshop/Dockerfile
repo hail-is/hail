@@ -140,3 +140,5 @@ RUN mkdir genotype-harmonizer && \
      tar -xf GenotypeHarmonizer-1.4.20-dist.tar.gz && \
      rm -rf GenotypeHarmonizer-1.4.20-dist.tar.gz && \
      find . -name '*.sh' | xargs dos2unix)
+
+COPY workshop_cars.txt workshop_plants.txt .
