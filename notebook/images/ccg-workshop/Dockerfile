@@ -2,6 +2,7 @@ FROM jupyter/scipy-notebook
 MAINTAINER Hail Team <hail@broadinstitute.org>
 
 USER root
+ENV MAKE="make -j8"
 RUN apt-get update && apt-get install -y \
     bash \
     build-essential \
@@ -40,12 +41,9 @@ RUN pip install --no-cache-dir \
   jupyter nbextension enable --user collapsible_headings/main && \
   jupyter nbextension enable --user move_selected_cells/main
 
-RUN mkdir samtools
-ADD https://github.com/samtools/samtools/releases/download/1.9/samtools-1.9.tar.bz2 samtools/
-USER root
-RUN chown jovyan:users -R samtools/
-USER jovyan
-RUN (cd samtools && \
+RUN mkdir samtools && \
+    (cd samtools && \
+     wget https://github.com/samtools/samtools/releases/download/1.9/samtools-1.9.tar.bz2 && \
      tar -xf samtools-1.9.tar.bz2 && \
      rm -rf samtools-1.9.tar.bz2 && \
      cd samtools-1.9 && \
@@ -55,12 +53,8 @@ RUN (cd samtools && \
 RUN git clone --recursive https://github.com/vcflib/vcflib.git && \
     (cd vcflib && make -j8)
 
-RUN mkdir vcftools
-ADD https://github.com/vcftools/vcftools/releases/download/v0.1.16/vcftools-0.1.16.tar.gz vcftools
-USER root
-RUN chown jovyan:users -R vcftools/
-USER jovyan
-RUN (cd vcftools && \
+RUN mkdir vcftools && \
+    (cd vcftools && \
      wget https://github.com/vcftools/vcftools/releases/download/v0.1.16/vcftools-0.1.16.tar.gz && \
      tar -xf vcftools-0.1.16.tar.gz && \
      rm -rf vcftools-0.1.16.tar.gz && \
@@ -69,21 +63,16 @@ RUN (cd vcftools && \
      make -j8) && \
      echo 'export PERL5LIB='${HOME}'/vcftools/src/perl/' >> ${HOME}/.profile
 
-RUN mkdir plink
-ADD http://s3.amazonaws.com/plink2-assets/plink2_linux_x86_64_20181028.zip plink
-USER root
-RUN chown jovyan:users -R plink/
-USER jovyan
-RUN (cd plink && \
+RUN mkdir plink && \
+    (cd plink && \
+     wget http://s3.amazonaws.com/plink2-assets/plink2_linux_x86_64_20181028.zip && \
      unzip plink2_linux_x86_64_20181028.zip && \
      rm -rf plink2_linux_x86_64_20181028.zip)
 
-RUN mkdir king
-ADD http://people.virginia.edu/~wc9c/KING/Linux-king.tar.gz king/
-USER root
-RUN chown jovyan:users -R king/
-USER jovyan
-RUN (cd king && tar -xf Linux-king.tar.gz)
+RUN mkdir king && \
+    (cd king && \
+     wget http://people.virginia.edu/~wc9c/KING/Linux-king.tar.gz && \
+     tar -xf Linux-king.tar.gz)
 
 RUN mkdir gcta && \
     (cd gcta && \
@@ -99,37 +88,32 @@ RUN mkdir eigenstrat && \
      LDLIBS="-llapacke" make -j8 && \
      make install)
 
-RUN mkdir plink19
-ADD http://s3.amazonaws.com/plink1-assets/plink_linux_x86_64_20181202.zip plink19
-USER root
-RUN chown jovyan:users -R plink19/
-USER jovyan
-RUN (cd plink19 && \
+RUN mkdir plink19 && \
+    (cd plink19 && \
+     wget http://s3.amazonaws.com/plink1-assets/plink_linux_x86_64_20181202.zip && \
      unzip plink_linux_x86_64_20181202.zip && \
      rm -rf plink_linux_x86_64_20181202.zip)
 
 USER root
-RUN (cd /home/jovyan && \
-     (cd vcftools/vcftools-0.1.16 && make install) && \
-     (cd samtools/samtools-1.9 && make install) && \
-     find \
-          eigenstrat/EIG/bin \
-          gcta/gcta_1.91.7beta \
-          king \
-          plink \
-          plink19 \
-          vcflib/bin \
-          -type f -executable \
-        | xargs -I % /bin/sh -c 'set -ex ; ln -s ${PWD}/% /usr/local/bin/$(basename %)')
+RUN (cd vcftools/vcftools-0.1.16 && make install) && \
+    (cd samtools/samtools-1.9 && make install) && \
+    find \
+         eigenstrat/EIG/bin \
+         gcta/gcta_1.91.7beta \
+         king \
+         plink \
+         plink19 \
+         vcflib/bin \
+         -type f -executable \
+       | xargs -I % /bin/sh -c 'set -ex ; ln -s ${PWD}/% /usr/local/bin/$(basename %)'
 RUN chown jovyan:users -R /home/jovyan
 USER jovyan
 
 ENV R_LIBS=/home/jovyan/.R_libs/
 RUN mkdir -p $R_LIBS
 
-ADD https://www.dropbox.com/s/fwqy9vze5p7w7wi/WEScourse.ISB101.2018.tar.gz?dl=1 ./
-USER root
-RUN chown jovyan:users WEScourse.ISB101.2018.tar.gz
-USER jovyan
-RUN tar -xf WEScourse.ISB101.2018.tar.gz && \
+RUN wget -O WEScourse.ISB101.2018.tar.gz https://www.dropbox.com/s/fwqy9vze5p7w7wi/WEScourse.ISB101.2018.tar.gz?dl=1 && \
+    tar -xf WEScourse.ISB101.2018.tar.gz && \
     rm -rf WEScourse.ISB101.2018.tar.gz
+
+COPY ccg_workshop_2018_python3.ipynb .
