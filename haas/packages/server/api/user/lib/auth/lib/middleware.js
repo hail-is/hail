@@ -161,16 +161,15 @@ class AuthMiddleware {
 
     const oauthRes = await auth0oauthTokenPromise;
 
+    //Ensure we acutally resolve the promise with json data before handing
+    //to synchronous methods
     const userManagementResponse = await fetch(`${managementUrl}/${userID}`, {
       headers: {
         Authorization: `Bearer ${oauthRes.access_token}`
       }
-    });
+    }).then(r => r.json());
 
-    const githubData = findProviderObject(
-      userManagementResponse.json(),
-      userID
-    );
+    const githubData = findProviderObject(userManagementResponse, userID);
 
     accessToken = githubData.access_token;
 
