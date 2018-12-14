@@ -129,3 +129,14 @@ COPY stooges.csv .
 RUN Rscript -e 'source("https://bioconductor.org/biocLite.R"); \
                 biocLite("Biostrings"); \
                 install.packages("dplyr")'
+
+USER root
+RUN apt-get update && apt-get install -y vim dos2unix
+USER jovyan
+
+RUN mkdir genotype-harmonizer && \
+    (cd genotype-harmonizer && \
+     wget https://molgenis26.gcc.rug.nl/downloads/GenotypeHarmonizer/GenotypeHarmonizer-1.4.20-dist.tar.gz && \
+     tar -xf GenotypeHarmonizer-1.4.20-dist.tar.gz && \
+     rm -rf GenotypeHarmonizer-1.4.20-dist.tar.gz && \
+     find . -name '*.sh' | xargs dos2unix)
