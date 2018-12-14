@@ -5,7 +5,7 @@ from hail.expr.types import hail_type
 from hail.typecheck import *
 from hail.utils.java import escape_str, escape_id
 from .base_ir import *
-from .matrix_writer import MatrixWriter
+from .matrix_writer import MatrixWriter, MatrixNativeMultiWriter
 
 
 class I32(IR):
@@ -1365,6 +1365,27 @@ class MatrixWrite(IR):
         return isinstance(other, MatrixWrite) and \
                other.child == self.child and \
                other.matrix_writer == self.matrix_writer
+
+
+class MatrixMultiWrite(IR):
+    @typecheck_method(children=sequenceof(MatrixIR), writer=MatrixNativeMultiWriter)
+    def __init__(self, children, writer):
+        super().__init__(*children)
+        self.writer = writer
+
+    def copy(self, *children):
+        new_instance = self.__class__
+        return new_instance(list(children), self.writer)
+
+    def render(self, r):
+        return '(MatrixMultiWrite "{}" {})'.format(
+            r(self.writer),
+            ' '.join(map(r, self.children)))
+
+    def __eq__(self, other):
+        return isinstance(other, MatrixMultiWrite) and \
+               other.children == self.children and \
+               other.writer == self.writer
 
 
 class Literal(IR):
