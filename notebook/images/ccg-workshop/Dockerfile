@@ -130,7 +130,6 @@ RUN Rscript -e 'source("https://bioconductor.org/biocLite.R"); \
                 biocLite("Biostrings"); \
                 install.packages("dplyr")'
 
-<<<<<<< HEAD
 USER root
 RUN apt-get update && apt-get install -y vim dos2unix
 USER jovyan
