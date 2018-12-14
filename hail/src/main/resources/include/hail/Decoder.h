@@ -242,7 +242,7 @@ public:
     const Reader<Decoder> * reader_;
     explicit Iterator(const Reader<Decoder> * reader) :
     reader_(reader) { }
-    explicit Iterator(nullptr_t) : reader_(nullptr) { }
+    explicit Iterator(std::nullptr_t) : reader_(nullptr) { }
 
   public:
     Iterator& operator++() {
