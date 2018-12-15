@@ -1,4 +1,0 @@
-{
-  "verbose": true,
-  "ignore": ["node_modules/","logs/","*.log","**/*.heapsnapshot", "**/.DS_Store", ".DS_Store"]
-}
