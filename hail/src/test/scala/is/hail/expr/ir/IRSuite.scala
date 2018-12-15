@@ -684,11 +684,17 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testTableAggregate() {
-    hc // need to initialize lazy HailContext
-    val table = TableRange(3, 2)
+    val table = Table.range(hc, 3, Some(2))
     val countSig = AggSignature(Count(), Seq(), None, Seq())
     val count = ApplyAggOp(FastIndexedSeq.empty, None, FastIndexedSeq.empty, countSig)
-    assertEvalsTo(TableAggregate(table, MakeStruct(Seq("foo" -> count))), Row(3L))
+    assertEvalsTo(TableAggregate(table.tir, MakeStruct(Seq("foo" -> count))), Row(3L))
+  }
+
+  @Test def testMatrixAggregate() {
+    val matrix = MatrixTable.range(hc, 5, 5, None)
+    val countSig = AggSignature(Count(), Seq(), None, Seq())
+    val count = ApplyAggOp(FastIndexedSeq.empty, None, FastIndexedSeq.empty, countSig)
+    assertEvalsTo(MatrixAggregate(matrix.ast, MakeStruct(Seq("foo" -> count))), Row(25L))
   }
 
   @Test def testGroupByKey() {
@@ -818,7 +824,8 @@ class IRSuite extends SparkSuite {
       MatrixWrite(mt, MatrixNativeWriter(tmpDir.createLocalTempFile(extension = "mt"))),
       MatrixWrite(vcf, MatrixVCFWriter(tmpDir.createLocalTempFile(extension = "vcf"))),
       MatrixWrite(vcf, MatrixPLINKWriter(tmpDir.createLocalTempFile())),
-      MatrixWrite(bgen, MatrixGENWriter(tmpDir.createLocalTempFile()))
+      MatrixWrite(bgen, MatrixGENWriter(tmpDir.createLocalTempFile())),
+      MatrixAggregate(mt, MakeStruct(Seq("foo" -> count)))
     )
     irs.map(x => Array(x))
   }

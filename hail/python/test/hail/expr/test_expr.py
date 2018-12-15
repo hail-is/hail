@@ -101,7 +101,24 @@ class Tests(unittest.TestCase):
             x33=(kt.a == 0) & (kt.b == 5),
             x34=(kt.a == 0) | (kt.b == 5),
             x35=False,
-            x36=True
+            x36=True,
+            x37=kt.e > "helln",
+            x38=kt.e < "hellp",
+            x39=kt.e <= "hello",
+            x40=kt.e >= "hello",
+            x41="helln" > kt.e,
+            x42="hellp" < kt.e,
+            x43="hello" >= kt.e,
+            x44="hello" <= kt.e,
+            x45=kt.f > [1, 2],
+            x46=kt.f < [1, 3],
+            x47=kt.f >= [1, 2, 3],
+            x48=kt.f <= [1, 2, 3],
+            x49=kt.f < [1.0, 2.0],
+            x50=kt.f > [1.0, 3.0],
+            x51=[1.0, 2.0, 3.0] <= kt.f,
+            x52=[1.0, 2.0, 3.0] >= kt.f,
+            x53=hl.tuple([True, 1.0]) < (1.0, 0.0),
         ).take(1)[0])
 
         expected = {'a': 4, 'b': 1, 'c': 3, 'd': 5, 'e': "hello", 'f': [1, 2, 3],
@@ -115,7 +132,13 @@ class Tests(unittest.TestCase):
                     'x24': True, 'x25': False, 'x26': True,
                     'x27': False, 'x28': True, 'x29': False,
                     'x30': False, 'x31': True, 'x32': False,
-                    'x33': False, 'x34': False, 'x35': False, 'x36': True}
+                    'x33': False, 'x34': False, 'x35': False,
+                    'x36': True, 'x37': True, 'x38': True,
+                    'x39': True, 'x40': True, 'x41': False,
+                    'x42': False, 'x43': True, 'x44': True,
+                    'x45': True, 'x46': True, 'x47': True,
+                    'x48': True, 'x49': False, 'x50': False,
+                    'x51': True, 'x52': True, 'x53': False}
 
         for k, v in expected.items():
             if isinstance(v, float):

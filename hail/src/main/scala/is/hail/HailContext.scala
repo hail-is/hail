@@ -519,37 +519,6 @@ class HailContext private(val sc: SparkContext,
     }
   }
 
-  def importPlink(bed: String, bim: String, fam: String,
-    nPartitions: Option[Int] = None,
-    delimiter: String = "\\\\s+",
-    missing: String = "NA",
-    quantPheno: Boolean = false,
-    a2Reference: Boolean = true,
-    rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
-    contigRecoding: Option[Map[String, String]] = None,
-    skipInvalidLoci: Boolean = false): MatrixTable = {
-
-    rg.foreach(ref => contigRecoding.foreach(ref.validateContigRemap))
-
-    val ffConfig = FamFileConfig(quantPheno, delimiter, missing)
-
-    LoadPlink(this, bed, bim, fam,
-      ffConfig, nPartitions, a2Reference, rg, contigRecoding.getOrElse(Map.empty[String, String]), skipInvalidLoci)
-  }
-
-  def importPlinkBFile(bfileRoot: String,
-    nPartitions: Option[Int] = None,
-    delimiter: String = "\\\\s+",
-    missing: String = "NA",
-    quantPheno: Boolean = false,
-    a2Reference: Boolean = true,
-    rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
-    contigRecoding: Option[Map[String, String]] = None,
-    skipInvalidLoci: Boolean = false): MatrixTable = {
-    importPlink(bfileRoot + ".bed", bfileRoot + ".bim", bfileRoot + ".fam",
-      nPartitions, delimiter, missing, quantPheno, a2Reference, rg, contigRecoding, skipInvalidLoci)
-  }
-
   def read(file: String, dropCols: Boolean = false, dropRows: Boolean = false): MatrixTable = {
     MatrixTable.read(this, file, dropCols = dropCols, dropRows = dropRows)
   }

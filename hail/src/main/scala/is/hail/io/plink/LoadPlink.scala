@@ -2,6 +2,7 @@ package is.hail.io.plink
 
 import is.hail.HailContext
 import is.hail.annotations._
+import is.hail.expr.ir.{MatrixRead, MatrixReader, MatrixValue, PruneDeadFields}
 import is.hail.expr.types._
 import is.hail.expr.types.virtual._
 import is.hail.io.vcf.LoadVCF
@@ -15,8 +16,6 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.io.LongWritable
 import org.apache.spark.sql.Row
 
-case class SampleInfo(sampleIds: Array[String], annotations: IndexedSeq[Annotation], signatures: TStruct)
-
 case class FamFileConfig(isQuantPheno: Boolean = false,
   delimiter: String = "\\t",
   missingValue: String = "NA")
@@ -24,7 +23,7 @@ case class FamFileConfig(isQuantPheno: Boolean = false,
 object LoadPlink {
   def expectedBedSize(nSamples: Int, nVariants: Long): Long = 3 + nVariants * ((nSamples + 3) / 4)
 
-  private def parseBim(bimPath: String, hConf: Configuration, a2Reference: Boolean = true,
+  def parseBim(bimPath: String, hConf: Configuration, a2Reference: Boolean = true,
     contigRecoding: Map[String, String] = Map.empty[String, String]): Array[(String, Int, Double, String, String, String)] = {
     hConf.readLines(bimPath)(_.map(_.map { line =>
       line.split("\\s+") match {
@@ -59,7 +58,6 @@ object LoadPlink {
 
     val m = hConf.readLines(filename) {
       _.foreachLine { line =>
-
         val split = line.split(delimiter)
         if (split.length != 6)
           fatal(s"expected 6 fields, but found ${ split.length }")
@@ -114,155 +112,182 @@ object LoadPlink {
     LoadVCF.warnDuplicates(sampleIds)
 
     if (sampleIds.isEmpty)
-      fatal("Empty .fam file")
+      fatal("Empty FAM file")
 
     (structBuilder.result(), signature)
   }
+}
 
-  private def parseBed(hc: HailContext,
-    bedPath: String,
-    sampleAnnotations: IndexedSeq[Annotation],
-    sampleAnnotationSignature: TStruct,
-    variants: Array[(String, Int, Double, String, String, String)],
-    nPartitions: Option[Int] = None,
-    a2Reference: Boolean = true,
-    rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
-    skipInvalidLoci: Boolean = false): MatrixTable = {
+case class MatrixPLINKReader(
+  bed: String,
+  bim: String,
+  fam: String,
+  nPartitions: Option[Int] = None,
+  delimiter: String = "\\\\s+",
+  missing: String = "NA",
+  quantPheno: Boolean = false,
+  a2Reference: Boolean = true,
+  rg: Option[String],
+  contigRecoding: Map[String, String] = Map.empty[String, String],
+  skipInvalidLoci: Boolean = false
+) extends MatrixReader {
+  private val hc = HailContext.get
+  private val sc = hc.sc
+  private val referenceGenome = rg.map(ReferenceGenome.getReference)
+  referenceGenome.foreach(_.validateContigRemap(contigRecoding))
 
-    val sc = hc.sc
-    val nSamples = sampleAnnotations.length
-    val variantsBc = sc.broadcast(variants)
-    sc.hadoopConfiguration.setInt("nSamples", nSamples)
-    sc.hadoopConfiguration.setBoolean("a2Reference", a2Reference)
+  val ffConfig = FamFileConfig(quantPheno, delimiter, missing)
 
-    val crdd = ContextRDD.weaken[RVDContext](
-      sc.hadoopFile(
-        bedPath,
-        classOf[PlinkInputFormat],
-        classOf[LongWritable],
-        classOf[PlinkRecord],
-        nPartitions.getOrElse(sc.defaultMinPartitions)))
+  val (sampleInfo, signature) = LoadPlink.parseFam(fam, ffConfig, hc.hadoopConf)
 
-    val matrixType = MatrixType.fromParts(
-      globalType = TStruct.empty(),
-      colKey = Array("s"),
-      colType = sampleAnnotationSignature,
-      rowType = TStruct(
-        "locus" -> TLocus.schemaFromRG(rg),
-        "alleles" -> TArray(TString()),
-        "rsid" -> TString(),
-        "cm_position" -> TFloat64()),
-      rowKey = Array("locus", "alleles"),
-      entryType = TStruct("GT" -> TCall()))
+  val nameMap = Map("id" -> "s")
+  val saSignature = signature.copy(fields = signature.fields.map(f => f.copy(name = nameMap.getOrElse(f.name, f.name))))
 
-    val kType = matrixType.canonicalRVDType.kType
-    val rvRowType = matrixType.rvRowType
+  val nSamples = sampleInfo.length
+  if (nSamples <= 0)
+    fatal("FAM file does not contain any samples")
 
-    val fastKeys = crdd.cmapPartitions { (ctx, it) =>
-      val region = ctx.region
-      val rvb = new RegionValueBuilder(region)
-      val rv = RegionValue(region)
+  val variants = LoadPlink.parseBim(bim, hc.hadoopConf, a2Reference, contigRecoding)
+  val nVariants = variants.length
+  if (nVariants <= 0)
+    fatal("BIM file does not contain any variants")
 
-      it.flatMap { case (_, record) =>
-        val (contig, pos, _, ref, alt, _) = variantsBc.value(record.getKey)
+  info(s"Found $nSamples samples in fam file.")
+  info(s"Found $nVariants variants in bim file.")
 
-        if (skipInvalidLoci && !rg.forall(_.isValidLocus(contig, pos)))
-          None
-        else {
-          rvb.start(kType)
-          rvb.startStruct()
-          rvb.addAnnotation(kType.types(0).virtualType, Locus.annotation(contig, pos, rg))
-          rvb.startArray(2)
-          rvb.addString(ref)
-          rvb.addString(alt)
-          rvb.endArray()
-          rvb.endStruct()
+  hc.sc.hadoopConfiguration.readFile(bed) { dis =>
+    val b1 = dis.read()
+    val b2 = dis.read()
+    val b3 = dis.read()
 
-          rv.setOffset(rvb.end())
-          Some(rv)
-        }
-      }
-    }
+    if (b1 != 108 || b2 != 27)
+      fatal("First two bytes of BED file do not match PLINK magic numbers 108 & 27")
 
-    val rdd2 = crdd.cmapPartitions { (ctx, it) =>
-      val region = ctx.region
-      val rvb = new RegionValueBuilder(region)
-      val rv = RegionValue(region)
-
-      it.flatMap { case (_, record) =>
-        val (contig, pos, cmPos, ref, alt, rsid) = variantsBc.value(record.getKey)
-
-        if (skipInvalidLoci && !rg.forall(_.isValidLocus(contig, pos)))
-          None
-        else {
-          rvb.start(rvRowType.physicalType)
-          rvb.startStruct()
-          rvb.addAnnotation(kType.types(0).virtualType, Locus.annotation(contig, pos, rg))
-          rvb.startArray(2)
-          rvb.addString(ref)
-          rvb.addString(alt)
-          rvb.endArray()
-          rvb.addAnnotation(rvRowType.types(2), rsid)
-          rvb.addDouble(cmPos)
-          record.getValue(rvb)
-          rvb.endStruct()
-
-          rv.setOffset(rvb.end())
-          Some(rv)
-        }
-      }
-    }
-
-    new MatrixTable(hc, matrixType,
-      BroadcastRow(Row.empty, matrixType.globalType, sc),
-      BroadcastIndexedSeq(sampleAnnotations, TArray(matrixType.colType), sc),
-      RVD.coerce(matrixType.canonicalRVDType, rdd2, fastKeys))
+    if (b3 == 0)
+      fatal("BED file is in individual major mode. First use plink with --make-bed to convert file to snp major mode before using Hail")
   }
 
-  def apply(hc: HailContext, bedPath: String, bimPath: String, famPath: String, ffConfig: FamFileConfig,
-    nPartitions: Option[Int] = None, a2Reference: Boolean = true, rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
-    contigRecoding: Map[String, String] = Map.empty[String, String], skipInvalidLoci: Boolean = false): MatrixTable = {
-    val (sampleInfo, signature) = parseFam(famPath, ffConfig, hc.hadoopConf)
+  val bedSize = hc.sc.hadoopConfiguration.getFileSize(bed)
+  if (bedSize != LoadPlink.expectedBedSize(nSamples, nVariants))
+    fatal("BED file size does not match expected number of bytes based on BIM and FAM files")
 
-    val nameMap = Map("id" -> "s")
-    val saSignature = signature.copy(fields = signature.fields.map(f => f.copy(name = nameMap.getOrElse(f.name, f.name))))
+  if (bedSize < nPartitions.getOrElse(hc.sc.defaultMinPartitions))
+    fatal(s"The number of partitions requested (${ nPartitions.getOrElse(hc.sc.defaultMinPartitions) }) is greater than the file size ($bedSize)")
 
-    val nSamples = sampleInfo.length
-    if (nSamples <= 0)
-      fatal(".fam file does not contain any samples")
+  val columnCount: Option[Int] = Some(nSamples)
 
-    val variants = parseBim(bimPath, hc.hadoopConf, a2Reference, contigRecoding)
-    val nVariants = variants.length
-    if (nVariants <= 0)
-      fatal(".bim file does not contain any variants")
+  val partitionCounts: Option[IndexedSeq[Long]] = None
 
-    info(s"Found $nSamples samples in fam file.")
-    info(s"Found $nVariants variants in bim file.")
+  val fullType: MatrixType = MatrixType.fromParts(
+    globalType = TStruct.empty(),
+    colKey = Array("s"),
+    colType = saSignature,
+    rowType = TStruct(
+      "locus" -> TLocus.schemaFromRG(referenceGenome),
+      "alleles" -> TArray(TString()),
+      "rsid" -> TString(),
+      "cm_position" -> TFloat64()),
+    rowKey = Array("locus", "alleles"),
+    entryType = TStruct("GT" -> TCall()))
 
-    hc.sc.hadoopConfiguration.readFile(bedPath) { dis =>
-      val b1 = dis.read()
-      val b2 = dis.read()
-      val b3 = dis.read()
+  def apply(mr: MatrixRead): MatrixValue = {
+    val requestedType = mr.typ
+    assert(PruneDeadFields.isSupertype(requestedType, fullType))
 
-      if (b1 != 108 || b2 != 27)
-        fatal("First two bytes of bed file do not match PLINK magic numbers 108 & 27")
+    val rvd = if (mr.dropRows)
+      RVD.empty(sc, requestedType.canonicalRVDType)
+    else {
+      val variantsBc = sc.broadcast(variants)
+      sc.hadoopConfiguration.setInt("nSamples", nSamples)
+      sc.hadoopConfiguration.setBoolean("a2Reference", a2Reference)
 
-      if (b3 == 0)
-        fatal("Bed file is in individual major mode. First use plink with --make-bed to convert file to snp major mode before using Hail")
+      val crdd = ContextRDD.weaken[RVDContext](
+        sc.hadoopFile(
+          bed,
+          classOf[PlinkInputFormat],
+          classOf[LongWritable],
+          classOf[PlinkRecord],
+          nPartitions.getOrElse(sc.defaultMinPartitions)))
+
+      val kType = requestedType.canonicalRVDType.kType
+      val rvRowType = requestedType.rvRowType
+
+      val hasRsid = requestedType.rowType.hasField("rsid")
+      val hasCmPos = requestedType.rowType.hasField("cm_position")
+      val hasGT = requestedType.entryType.hasField("GT")
+
+      val skipInvalidLociLocal = skipInvalidLoci
+      val rgLocal = referenceGenome
+
+      val fastKeys = crdd.cmapPartitions { (ctx, it) =>
+        val region = ctx.region
+        val rvb = new RegionValueBuilder(region)
+        val rv = RegionValue(region)
+
+        it.flatMap { case (_, record) =>
+          val (contig, pos, _, ref, alt, _) = variantsBc.value(record.getKey)
+          if (skipInvalidLociLocal && !rgLocal.forall(_.isValidLocus(contig, pos)))
+            None
+          else {
+            rvb.start(kType)
+            rvb.startStruct()
+            rvb.addAnnotation(kType.types(0).virtualType, Locus.annotation(contig, pos, rgLocal))
+            rvb.startArray(2)
+            rvb.addString(ref)
+            rvb.addString(alt)
+            rvb.endArray()
+            rvb.endStruct()
+
+            rv.setOffset(rvb.end())
+            Some(rv)
+          }
+        }
+      }
+
+      val rdd2 = crdd.cmapPartitions { (ctx, it) =>
+        val region = ctx.region
+        val rvb = new RegionValueBuilder(region)
+        val rv = RegionValue(region)
+
+        it.flatMap { case (_, record) =>
+          val (contig, pos, cmPos, ref, alt, rsid) = variantsBc.value(record.getKey)
+
+          if (skipInvalidLociLocal && !rgLocal.forall(_.isValidLocus(contig, pos)))
+            None
+          else {
+            rvb.start(rvRowType.physicalType)
+            rvb.startStruct()
+            rvb.addAnnotation(kType.types(0).virtualType, Locus.annotation(contig, pos, rgLocal))
+            rvb.startArray(2)
+            rvb.addString(ref)
+            rvb.addString(alt)
+            rvb.endArray()
+            if (hasRsid)
+              rvb.addAnnotation(rvRowType.types(2), rsid)
+            if (hasCmPos)
+              rvb.addDouble(cmPos)
+            record.getValue(rvb, hasGT)
+            rvb.endStruct()
+
+            rv.setOffset(rvb.end())
+            Some(rv)
+          }
+        }
+      }
+
+      RVD.coerce(requestedType.canonicalRVDType, rdd2, fastKeys)
     }
 
-    val bedSize = hc.sc.hadoopConfiguration.getFileSize(bedPath)
-    if (bedSize != expectedBedSize(nSamples, nVariants))
-      fatal("bed file size does not match expected number of bytes based on bed and fam files")
-
-    if (bedSize < nPartitions.getOrElse(hc.sc.defaultMinPartitions))
-      fatal(s"The number of partitions requested (${ nPartitions.getOrElse(hc.sc.defaultMinPartitions) }) is greater than the file size ($bedSize)")
-
-    val vds = parseBed(hc, bedPath, sampleInfo, saSignature, variants, nPartitions, a2Reference, rg, skipInvalidLoci)
-    if (skipInvalidLoci && rg.isDefined && vds.countRows() != nVariants) {
-      val nFiltered = nVariants - vds.countRows()
-      info(s"Filtered out $nFiltered ${ plural(nFiltered, "variant") } that are inconsistent with reference genome '${ rg.get.name }'.")
+    if (skipInvalidLoci && referenceGenome.isDefined) {
+      val nFiltered = rvd.count() - nVariants
+      if (nFiltered > 0)
+        info(s"Filtered out $nFiltered ${ plural(nFiltered, "variant") } that are inconsistent with reference genome '${ referenceGenome.get.name }'.")
     }
-    vds
+
+    MatrixValue(requestedType,
+      BroadcastRow(Row.empty, requestedType.globalType, sc),
+      BroadcastIndexedSeq(if (mr.dropCols) Array.empty[Annotation] else sampleInfo, TArray(requestedType.colType), sc),
+      rvd
+    )
   }
 }

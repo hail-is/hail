@@ -217,12 +217,11 @@ class Reader {
 private:
   Decoder dec_;
   ScalaRegion * region_;
-  NativeStatus * st_;
-  char * value_;
+  mutable char * value_;
 
-  bool read() {
-    if (dec_.decode_byte(st_)) {
-      value_ = dec_.decode_row(st_, region_);
+  bool read() const {
+    if (dec_.decode_byte()) {
+      value_ = dec_.decode_row(region_->get_wrapped_region());
     } else {
       value_ = nullptr;
     }
@@ -232,17 +231,18 @@ private:
   char * get() const { return value_; }
 
 public:
-  Reader(Decoder dec, ScalaRegion * region, NativeStatus* st) :
-  dec_(dec), region_(region), st_(st), value_(nullptr) {
+  Reader(Decoder dec, ScalaRegion * region) :
+  dec_(dec), region_(region), value_(nullptr) {
     read();
   }
 
   class Iterator {
   friend class Reader;
   private:
-    Reader<Decoder> * reader_;
-    explicit Iterator(Reader<Decoder> * reader) :
+    const Reader<Decoder> * reader_;
+    explicit Iterator(const Reader<Decoder> * reader) :
     reader_(reader) { }
+    explicit Iterator(std::nullptr_t) : reader_(nullptr) { }
 
   public:
     Iterator& operator++() {
@@ -263,8 +263,8 @@ public:
     }
   };
 
-  Iterator begin() { return Iterator(this); }
-  Iterator end() { return Iterator(nullptr); }
+  Iterator begin() const { return Iterator(this); }
+  Iterator end() const { return Iterator(nullptr); }
 };
 
 }

@@ -183,8 +183,8 @@ object PackDecoder {
 
     decoderBuilder += s"${ decoderBuilder.name }(std::shared_ptr<InputStream> is) : $buf(std::make_shared<$bufType>(is)) { }"
 
-    val rowFB = decoderBuilder.buildMethod("decode_row", Array("NativeStatus*" -> "st", "ScalaRegion *" -> "region"), "char *")
-    val region = rowFB.getArg(1)
+    val rowFB = decoderBuilder.buildMethod("decode_row", Array("Region *" -> "region"), "char *", const = true)
+    val region = rowFB.getArg(0)
     val initialSize = rt match {
       case _: PArray | _: PBinary => 8
       case _ => rt.byteSize
@@ -198,7 +198,7 @@ object PackDecoder {
     })
     rowFB.end()
 
-    val byteFB = decoderBuilder.buildMethod("decode_byte", Array("NativeStatus*" -> "st"), "char")
+    val byteFB = decoderBuilder.buildMethod("decode_byte", Array(), "char", const = true)
     byteFB += s"return $buf->read_byte();"
     byteFB.end()
 
@@ -222,11 +222,11 @@ object PackDecoder {
     inBufFB.end()
 
     val rowFB = tub.buildFunction("decode_row", Array("NativeStatus*" -> "st", "long" -> "buf", "long" -> "region"), "long")
-    rowFB += s"return (long) reinterpret_cast<$decoder *>(${ rowFB.getArg(1) })->decode_row(${ rowFB.getArg(0) }, reinterpret_cast<ScalaRegion *>(${ rowFB.getArg(2) }));"
+    rowFB += s"return (long) reinterpret_cast<$decoder *>(${ rowFB.getArg(1) })->decode_row(reinterpret_cast<ScalaRegion *>(${ rowFB.getArg(2) })->get_wrapped_region());"
     rowFB.end()
 
     val byteFB = tub.buildFunction("decode_byte", Array("NativeStatus*" -> "st", "long" -> "buf"), "long")
-    byteFB += s"return (long) reinterpret_cast<$decoder *>(${ byteFB.getArg(1) })->decode_byte(${ byteFB.getArg(0) });"
+    byteFB += s"return (long) reinterpret_cast<$decoder *>(${ byteFB.getArg(1) })->decode_byte();"
     byteFB.end()
 
     val mod = tub.end().build("-O2")
