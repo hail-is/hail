@@ -2520,6 +2520,13 @@ class MatrixTable(ExprContainer):
                                          entry_exprs.values(),
                                          global_exprs.values()))
 
+        for field_name in list(itertools.chain(row_exprs.keys(),
+                                               col_exprs.keys(),
+                                               entry_exprs.keys(),
+                                               global_exprs.keys())):
+            if field_name in self._fields:
+                raise RuntimeError(f'field {repr(field_name)} already in matrix table, cannot use _annotate_all')
+
         base, cleanup = self._process_joins(*all_exprs)
         mir = base._mir
 
@@ -2552,35 +2559,34 @@ class MatrixTable(ExprContainer):
                     entry_exprs={},
                     global_exprs={},
                     ) -> 'MatrixTable':
-        all_exprs = list(itertools.chain(row_exprs.values(),
-                                         col_exprs.values(),
-                                         entry_exprs.values(),
-                                         global_exprs.values()))
 
-        base, cleanup = self._process_joins(*all_exprs)
-        mir = base._mir
+        all_names = list(itertools.chain(row_exprs.keys(),
+                                         col_exprs.keys(),
+                                         entry_exprs.keys(),
+                                         global_exprs.keys()))
+        uids = {k: Env.get_uid() for k in all_names}
 
+        mt = self._annotate_all({uids[k]: v for k, v in row_exprs.items()},
+                                {uids[k]: v for k, v in col_exprs.items()},
+                                {uids[k]: v for k, v in entry_exprs.items()},
+                                {uids[k]: v for k, v in global_exprs.items()})
+
+        keep = set()
         if row_key is not None:
-            mir = MatrixKeyRowsBy(mir, [])
-        row_struct = hl.struct(**row_exprs)
-        analyze("MatrixTable.select_rows", row_struct, self._row_indices)
-        mir = MatrixMapRows(mir, row_struct._ir)
-        if row_key is not None:
-            mir = MatrixKeyRowsBy(mir, row_key)
+            old_key = list(mt.row_key)
+            mt = mt.key_rows_by(*(uids[k] for k in row_key)).drop(*old_key)
+        else:
+            keep = keep.union(set(mt.row_key))
 
-        col_struct = hl.struct(**col_exprs)
-        analyze("MatrixTable.select_cols", col_struct, self._col_indices)
-        mir = MatrixMapCols(mir, col_struct._ir, col_key)
+        if col_key is not None:
+            old_key = list(mt.col_key)
+            mt = mt.key_cols_by(*(uids[k] for k in col_key)).drop(*old_key)
+        else:
+            keep = keep.union(set(mt.col_key))
 
-        entry_struct = hl.struct(**entry_exprs)
-        analyze("MatrixTable.select_entries", entry_struct, self._entry_indices)
-        mir = MatrixMapEntries(mir, entry_struct._ir)
-
-        globals_struct = hl.struct(**global_exprs)
-        analyze("MatrixTable.select_globals", globals_struct, self._global_indices)
-        mir = MatrixMapGlobals(mir, globals_struct._ir)
-
-        return cleanup(MatrixTable(mir))
+        keep = keep.union(uids.values())
+        return (mt.drop(*(f for f in mt._fields if f not in keep)) \
+                .rename({uid: original for original, uid in uids.items()}))
 
     def _process_joins(self, *exprs):
         return process_joins(self, exprs)

@@ -1465,3 +1465,14 @@ class Tests(unittest.TestCase):
                            [mt.row_idx, mt.col_idx, mt.GT.n_alt_alleles()]]:
             self.assertTrue(hl.methods.statgen._warn_if_no_intercept('', covariates))
             self.assertFalse(hl.methods.statgen._warn_if_no_intercept('', [intercept] + covariates))
+
+    def test_regression_field_dependence(self):
+        mt = hl.utils.range_matrix_table(10, 10)
+        mt = mt.annotate_cols(c1 = hl.literal([x % 2 == 0 for x in range(10)])[mt.col_idx], c2 = hl.rand_norm(0, 1))
+        mt = mt.annotate_entries(e1 = hl.int(hl.rand_norm(0, 1) * 10))
+
+        x_expr = hl.case().when(mt.c2 < 0, 0).default(mt.e1)
+
+        hl.logistic_regression_rows('wald', y=mt.c1, x=x_expr, covariates=[1])
+        hl.poisson_regression_rows('wald', y=mt.c1, x=x_expr, covariates=[1])
+        hl.linear_regression_rows(y=mt.c1, x=x_expr, covariates=[1])

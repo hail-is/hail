@@ -236,8 +236,7 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
 
 def _get_regression_row_fields(mt, pass_through, method) -> Dict[str, str]:
 
-    # include key as base
-    row_fields = dict(mt.row_key)
+    row_fields = dict(zip(mt.row_key.keys(), mt.row_key.keys()))
     for f in pass_through:
         if isinstance(f, str):
             if f not in mt.row:
@@ -261,6 +260,8 @@ def _get_regression_row_fields(mt, pass_through, method) -> Dict[str, str]:
                 if not (name in mt.row_key and f._ir == mt[name]._ir):
                     raise ValueError(f"'{method}/pass_through': found duplicated field {repr(name)}")
             row_fields[name] = f
+    for k in mt.row_key:
+        del row_fields[k]
     return row_fields
 
 
@@ -423,7 +424,7 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=()) -> 
         x_field_name,
         cov_field_names,
         block_size,
-        list(row_fields)[len(mt.row_key):])
+        [x for x in row_fields if x not in mt.row_key])
 
     ht_result = Table._from_java(jt)
 
@@ -678,7 +679,7 @@ def logistic_regression_rows(test, y, x, covariates, pass_through=()) -> hail.Ta
         y_field_name,
         x_field_name,
         cov_field_names,
-        list(row_fields)[len(mt.row_key):])
+        [x for x in row_fields if x not in mt.row_key])
     return Table._from_java(jt)
 
 
@@ -751,7 +752,7 @@ def poisson_regression_rows(test, y, x, covariates, pass_through=()) -> Table:
         y_field_name,
         x_field_name,
         cov_field_names,
-        list(row_fields)[len(mt.row_key):])
+        [x for x in row_fields if x not in mt.row_key])
     return Table._from_java(jt)
 
 
@@ -1090,8 +1091,6 @@ def linear_mixed_regression_rows(entry_expr,
                                 a_t_path if model.low_rank else None,
                                 partition_size)
     row_fields = _get_regression_row_fields(mt, pass_through, 'linear_mixed_regression_rows')
-    for k in mt.row_key:
-        del row_fields[k]
 
     mt_keys = mt.select_rows(**row_fields).add_row_index('__row_idx').rows().add_index('__row_idx').key_by('__row_idx')
     return mt_keys.annotate(**ht[mt_keys['__row_idx']]).key_by(*mt.row_key).drop('__row_idx')
@@ -2121,6 +2120,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep'):
     if isinstance(ds, Table):
         return split.annotate(**update_rows_expression).drop('old_locus', 'old_alleles')
 
+    split = split.annotate_rows(**update_rows_expression)
     entry_fields = ds.entry
 
     expected_field_types = {
@@ -2169,9 +2169,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep'):
         update_entries_expression['PGT'] = hl.downcode(split.PGT, split.a_index)
     if 'PID' in entry_fields:
         update_entries_expression['PID'] = split.PID
-    return split._annotate_all(
-        row_exprs=update_rows_expression,
-        entry_exprs=update_entries_expression).drop('old_locus', 'old_alleles')
+    return split.annotate_entries(**update_entries_expression).drop('old_locus', 'old_alleles')
 
 
 @typecheck(call_expr=expr_call)

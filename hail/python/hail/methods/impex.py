@@ -145,9 +145,7 @@ def export_gen(dataset, output, precision=4, gp=None, id1=None, id2=None,
     l = dataset.locus
     a = dataset.alleles
 
-    gen_exprs = {'locus': l,
-                 'alleles': a,
-                 'varid': expr_or_else(varid, hl.delimit([l.contig, hl.str(l.position), a[0], a[1]], ':')),
+    gen_exprs = {'varid': expr_or_else(varid, hl.delimit([l.contig, hl.str(l.position), a[0], a[1]], ':')),
                  'rsid': expr_or_else(rsid, ".")}
 
     for exprs, axis in [(sample_exprs, dataset._col_indices),
@@ -274,9 +272,7 @@ def export_plink(dataset, output, call=None, fam_id=None, ind_id=None, pat_id=No
     l = dataset.locus
     a = dataset.alleles
 
-    bim_exprs = {'locus': l,
-                 'alleles': a,
-                 'varid': expr_or_else(varid, hl.delimit([l.contig, hl.str(l.position), a[0], a[1]], ':')),
+    bim_exprs = {'varid': expr_or_else(varid, hl.delimit([l.contig, hl.str(l.position), a[0], a[1]], ':')),
                  'cm_position': expr_or_else(cm_position, 0.0)}
 
     for exprs, axis in [(fam_exprs, dataset._col_indices),
