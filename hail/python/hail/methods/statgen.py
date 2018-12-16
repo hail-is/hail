@@ -236,7 +236,7 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
 
 def _get_regression_row_fields(mt, pass_through, method) -> Dict[str, str]:
 
-    row_fields = {}
+    row_fields = dict(zip(mt.row_key.keys(), mt.row_key.keys()))
     for f in pass_through:
         if isinstance(f, str):
             if f not in mt.row:
@@ -260,6 +260,8 @@ def _get_regression_row_fields(mt, pass_through, method) -> Dict[str, str]:
                 if not (name in mt.row_key and f._ir == mt[name]._ir):
                     raise ValueError(f"'{method}/pass_through': found duplicated field {repr(name)}")
             row_fields[name] = f
+    for k in mt.row_key:
+        del row_fields[k]
     return row_fields
 
 
