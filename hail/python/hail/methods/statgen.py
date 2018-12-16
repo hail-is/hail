@@ -422,7 +422,7 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=()) -> 
         x_field_name,
         cov_field_names,
         block_size,
-        list(row_fields)[len(mt.row_key):])
+        [x for x in row_fields if x not in mt.row_key])
 
     ht_result = Table._from_java(jt)
 
@@ -677,7 +677,7 @@ def logistic_regression_rows(test, y, x, covariates, pass_through=()) -> hail.Ta
         y_field_name,
         x_field_name,
         cov_field_names,
-        list(row_fields)[len(mt.row_key):])
+        [x for x in row_fields if x not in mt.row_key])
     return Table._from_java(jt)
 
 
@@ -750,7 +750,7 @@ def poisson_regression_rows(test, y, x, covariates, pass_through=()) -> Table:
         y_field_name,
         x_field_name,
         cov_field_names,
-        list(row_fields)[len(mt.row_key):])
+        [x for x in row_fields if x not in mt.row_key])
     return Table._from_java(jt)
 
 
