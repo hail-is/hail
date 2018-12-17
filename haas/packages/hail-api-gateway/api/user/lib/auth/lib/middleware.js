@@ -101,7 +101,7 @@ class AuthMiddleware {
       audience: process.env.AUTH0_AUDIENCE,
       issuer: process.env.AUTH0_DOMAIN,
       algorithms: ['RS256'],
-      credentialsRequired: false
+      credentialsRequired: true
     };
 
     this.verifyTokenPermissiveFn = jwtMiddleware(
@@ -116,15 +116,6 @@ class AuthMiddleware {
       this
     );
   }
-
-  // hasRole(requiredRole) {
-  //   return function hasRoleClosure(req, res, next) {
-  //     if (!this.User.hasRole(req.user, requiredRole)) {
-  //       return res.send(403);
-  //     }
-  //     next();
-  //   };
-  // }
 
   // like verify token, but will check if the user submitted a valid refresh token
   // this is useful in the case the user hasn't had a chance to refresh their
