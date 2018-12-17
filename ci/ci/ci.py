@@ -307,7 +307,26 @@ def set_deployable():
 
 @app.route('/ui/')
 def ui_index():
-    return render_template('index.html', prs_by_target=prs.all_by_target().items())
+    targets = {}
+    for target_ref, deployed_sha in prs.latest_deployed.items():
+        targets[target_ref] = {
+            'ref': target_ref,
+            'deployed_sha': deployed_sha,
+            'job': prs.deploy_jobs.get(target_ref, None)
+        }
+    return render_template(
+        'index.html',
+        prs_by_target=prs.all_by_target().items(),
+        targets=targets)
+
+
+@app.route('/ui/job-log/<id>')
+def job_log(id):
+    j = batch_client.get_job(id)
+    return render_template(
+        'job-log.html',
+        id=j.id,
+        log=j.log())
 
 
 ###############################################################################
