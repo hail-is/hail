@@ -1,5 +1,27 @@
 # Change Log
 
+## 0.2.6
+
+Released 2018-12-17
+
+### New features
+
+ - (hail#4962) Expanded comparison operators (`==`, `!=`, `<`, `<=`, `>`, `>=`) to support expressions of every type.
+ - (hail#4927) Expanded functionality of `Table.order_by` to support ordering by arbitrary expressions, instead of just top-level fields.
+ - (hail#4926) Expanded default GRCh38 contig recoding behavior in `import_plink`.
+  
+### Performance improvements
+
+ - (hail#4952) Resolved lingering issues related to (hail#4909).
+
+### Bug fixes
+
+ - (hail#4941) Fixed variable scoping error in regression methods.
+ - (hail#4857) Fixed bug in maximal_independent_set appearing when nodes were named something other than `i` and `j`.
+ - (hail#4932) Fixed possible error in `export_plink` related to tolerance of writer process failure.
+ - (hail#4920) Fixed bad error message in `Table.order_by`.
+ 
+-----
 
 ## 0.2.5 
 
