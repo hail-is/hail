@@ -373,7 +373,9 @@ object MatrixValue {
     val partitionCounts = RVD.writeRowsSplitFiles(mvs.map(_.rvd), prefix, codecSpec, stageLocally)
     for ((mv, path, partCounts) <- (mvs, paths, partitionCounts).zipped) {
       val globalsPath = path + "/globals"
+      hConf.mkDir(globalsPath)
       mv.writeGlobals(globalsPath, codecSpec)
+
       val rowsSpec = TableSpec(
         FileFormat.version.rep,
         hc.version,
@@ -383,8 +385,8 @@ object MatrixValue {
           "rows" -> RVDComponentSpec("rows"),
           "partition_counts" -> PartitionCountsComponentSpec(partCounts)))
       rowsSpec.write(hc, path + "/rows")
-
       hConf.writeTextFile(path + "/rows/_SUCCESS")(out => ())
+
       val entriesSpec = TableSpec(
         FileFormat.version.rep,
         hc.version,
@@ -394,7 +396,6 @@ object MatrixValue {
           "rows" -> RVDComponentSpec("rows"),
           "partition_counts" -> PartitionCountsComponentSpec(partCounts)))
       entriesSpec.write(hc, path + "/entries")
-
       hConf.writeTextFile(path + "/entries/_SUCCESS")(out => ())
 
       hConf.mkDir(path + "/cols")

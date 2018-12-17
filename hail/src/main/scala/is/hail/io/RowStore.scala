@@ -1353,8 +1353,8 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
       val f = partFile(partDigits, i, context)
       val s = StringUtils.leftPad(originIdx.toString, fileDigits, '0')
       val outputMetrics = context.taskMetrics().outputMetrics
-      val finalRowsPartPath = path + s + ".mt" + "/rows/rows/parts" + f
-      val finalEntriesPartPath = path + s + ".mt" + "/entries/rows/parts" + f
+      val finalRowsPartPath = path + s + ".mt" + "/rows/rows/parts/" + f
+      val finalEntriesPartPath = path + s + ".mt" + "/entries/rows/parts/" + f
 
       val (rowsPartPath, entriesPartPath) =
         if (stageLocally) {
@@ -1447,7 +1447,7 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
       rowsSpec.write(hConf, basePath + "/rows/rows")
 
       val entriesSpec = OrderedRVDSpec(entriesRVType, FastIndexedSeq(), codecSpec, partFiles(i), RVDPartitioner.unkeyed(partCounts(i).length))
-      rowsSpec.write(hConf, basePath + "/entries/rows")
+      entriesSpec.write(hConf, basePath + "/entries/rows")
 
       i += 1
     }

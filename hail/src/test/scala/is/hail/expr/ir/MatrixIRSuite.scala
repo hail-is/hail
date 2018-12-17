@@ -306,4 +306,23 @@ class MatrixIRSuite extends SparkSuite {
     val path = tmpDir.createLocalTempFile()
     Interpret(MatrixWrite(genIR, MatrixGENWriter(path)))
   }
+
+  @Test def testMatrixMultiWrite() {
+    val ranges = IndexedSeq(MatrixTable.range(hc, 15, 3, Some(10)), MatrixTable.range(hc, 8, 27, Some(1)))
+    val path = tmpDir.createLocalTempFile()
+    Interpret(MatrixMultiWrite(ranges.map(_.ast), MatrixNativeMultiWriter(path)))
+    val read0 = MatrixTable.read(hc, path + "0.mt")
+    val read1 = MatrixTable.read(hc, path + "1.mt")
+    assert(ranges(0).same(read0))
+    assert(ranges(1).same(read1))
+  }
+
+  @Test def testMatrixMultiWriteDifferentTypesFails() {
+    val vcf = is.hail.TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
+    val range = MatrixTable.range(hc, 10, 2, None)
+    val path = tmpDir.createLocalTempFile()
+    intercept[java.lang.IllegalArgumentException] {
+      val ir = MatrixMultiWrite(IndexedSeq(vcf.ast, range.ast), MatrixNativeMultiWriter(path))
+    }
+  }
 }
