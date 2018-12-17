@@ -142,3 +142,5 @@ RUN mkdir genotype-harmonizer && \
      find . -name '*.sh' | xargs dos2unix)
 
 COPY workshop_cars.txt workshop_plants.txt ./
+
+RUN Rscript -e "install.packages('tidyverse')"
