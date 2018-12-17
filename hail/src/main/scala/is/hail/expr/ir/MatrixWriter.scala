@@ -62,5 +62,5 @@ case class MatrixNativeMultiWriter(
   overwrite: Boolean = false,
   stageLocally: Boolean = false
 ) {
-  def apply(mvs: Array[MatrixValue]): Unit = MatrixValue.writeMultiple(mvs, prefix, overwrite, stageLocally)
+  def apply(mvs: IndexedSeq[MatrixValue]): Unit = MatrixValue.writeMultiple(mvs, prefix, overwrite, stageLocally)
 }

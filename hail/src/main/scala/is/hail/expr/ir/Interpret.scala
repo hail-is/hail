@@ -718,6 +718,10 @@ object Interpret {
       case MatrixWrite(child, writer) =>
         val mv = child.execute(HailContext.get)
         writer(mv)
+      case MatrixMultiWrite(children, writer) =>
+        val hc = HailContext.get
+        val mvs = children.map(_.execute(hc))
+        writer(mvs)
       case TableWrite(child, path, overwrite, stageLocally, codecSpecJSONStr) =>
         val hc = HailContext.get
         val tableValue = child.execute(hc)

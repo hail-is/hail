@@ -827,7 +827,7 @@ class IRSuite extends SparkSuite {
       MatrixWrite(vcf, MatrixVCFWriter(tmpDir.createLocalTempFile(extension = "vcf"))),
       MatrixWrite(vcf, MatrixPLINKWriter(tmpDir.createLocalTempFile())),
       MatrixWrite(bgen, MatrixGENWriter(tmpDir.createLocalTempFile())),
-      MatrixMultiWrite(Array(mt), MatrixNativeMultiWriter(tmpDir.createLocalTempFile())),
+      MatrixMultiWrite(Array(mt, mt), MatrixNativeMultiWriter(tmpDir.createLocalTempFile())),
       MatrixAggregate(mt, MakeStruct(Seq("foo" -> count)))
     )
     irs.map(x => Array(x))

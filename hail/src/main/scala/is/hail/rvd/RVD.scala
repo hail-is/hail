@@ -1295,7 +1295,7 @@ object RVD {
     union(rvds, rvds.head.typ.key.length)
 
   def writeRowsSplitFiles(
-    rvds: Array[RVD],
+    rvds: IndexedSeq[RVD],
     path: String,
     codecSpec: CodecSpec,
     stageLocally: Boolean

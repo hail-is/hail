@@ -1318,7 +1318,7 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
     path: String,
     t: RVDType,
     codecSpec: CodecSpec,
-    partitioners: Array[RVDPartitioner],
+    partitioners: IndexedSeq[RVDPartitioner],
     stageLocally: Boolean
   ): Array[Array[Long]] = {
     val sc = crdd.sparkContext
@@ -1427,8 +1427,8 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
 
       Iterator.single((f, rowCount, originIdx))
     }.collect()
-    val partFilesByOrigin = new Array[ArrayBuilder[String]](rdd.rdds.length)
-    val partitionCountsByOrigin = new Array[ArrayBuilder[Long]](rdd.rdds.length)
+    val partFilesByOrigin = Array.fill[ArrayBuilder[String]](rdd.rdds.length)(new ArrayBuilder())
+    val partitionCountsByOrigin = Array.fill[ArrayBuilder[Long]](rdd.rdds.length)(new ArrayBuilder())
 
     for ((f, rowCount, oidx) <- partFilePartitionCounts) {
       partFilesByOrigin(oidx) += f

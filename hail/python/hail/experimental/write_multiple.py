@@ -1,12 +1,15 @@
 from typing import List
 
 from hail import MatrixTable
-from hail.typecheck import sequenceof, typecheck_method
+from hail.ir import MatrixMultiWrite, MatrixNativeMultiWriter
+from hail.typecheck import sequenceof, typecheck
+from hail.utils.java import Env
 
-@typecheck_method(objs=sequenceof(MatrixTable),
-                  prefix=str,
-                  overwrite=bool,
-                  stage_locally=bool)
-def write_matrix_tables(objs: List[MatrixTable], prefix: str, overwrite: bool = False,
+@typecheck(mts=sequenceof(MatrixTable),
+           prefix=str,
+           overwrite=bool,
+           stage_locally=bool)
+def write_matrix_tables(mts: List[MatrixTable], prefix: str, overwrite: bool = False,
                         stage_locally: bool = False):
-    pass  # TODO, implement
+    writer = MatrixNativeMultiWriter(prefix, overwrite, stage_locally)
+    Env.hc()._backend.interpret(MatrixMultiWrite([mt._mir for mt in mts], writer))

@@ -11,6 +11,7 @@ import is.hail.sparkextras.ContextRDD
 import is.hail.table.TableSpec
 import is.hail.utils._
 import is.hail.variant._
+import org.apache.commons.lang3.StringUtils
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.Row
 import org.json4s.jackson.JsonMethods.parse
@@ -348,11 +349,82 @@ case class MatrixValue(
 
 object MatrixValue {
   def writeMultiple(
-    mvs: Array[MatrixValue],
+    mvs: IndexedSeq[MatrixValue],
     prefix: String,
     overwrite: Boolean,
     stageLocally: Boolean
   ): Unit = {
-    ???
+    val first = mvs.head
+    require(mvs.forall(_.typ == first.typ))
+    val hc = HailContext.get
+    val hConf = hc.hadoopConf
+    val codecSpec = CodecSpec.default
+
+    val d = digitsNeeded(mvs.length)
+    val paths = (0 until mvs.length).map { i => prefix + StringUtils.leftPad(i.toString, d, '0') + ".mt" }
+    paths.foreach { path =>
+      if (overwrite)
+        hConf.delete(path, recursive = true)
+      else if (hConf.exists(path))
+        fatal(s"file already exists: $path")
+      hConf.mkDir(path)
+    }
+
+    val partitionCounts = RVD.writeRowsSplitFiles(mvs.map(_.rvd), prefix, codecSpec, stageLocally)
+    for ((mv, path, partCounts) <- (mvs, paths, partitionCounts).zipped) {
+      val globalsPath = path + "/globals"
+      mv.writeGlobals(globalsPath, codecSpec)
+      val rowsSpec = TableSpec(
+        FileFormat.version.rep,
+        hc.version,
+        "../references",
+        mv.typ.rowsTableType,
+        Map("globals" -> RVDComponentSpec("../globals/rows"),
+          "rows" -> RVDComponentSpec("rows"),
+          "partition_counts" -> PartitionCountsComponentSpec(partCounts)))
+      rowsSpec.write(hc, path + "/rows")
+
+      hConf.writeTextFile(path + "/rows/_SUCCESS")(out => ())
+      val entriesSpec = TableSpec(
+        FileFormat.version.rep,
+        hc.version,
+        "../references",
+        TableType(mv.typ.entriesRVType, FastIndexedSeq(), mv.typ.globalType),
+        Map("globals" -> RVDComponentSpec("../globals/rows"),
+          "rows" -> RVDComponentSpec("rows"),
+          "partition_counts" -> PartitionCountsComponentSpec(partCounts)))
+      entriesSpec.write(hc, path + "/entries")
+
+      hConf.writeTextFile(path + "/entries/_SUCCESS")(out => ())
+
+      hConf.mkDir(path + "/cols")
+      mv.writeCols(path + "/cols", codecSpec)
+
+      val refPath = path + "/references"
+      hc.hadoopConf.mkDir(refPath)
+      Array(mv.typ.colType, mv.typ.rowType, mv.typ.entryType, mv.typ.globalType).foreach { t =>
+        ReferenceGenome.exportReferences(hc, refPath, t)
+      }
+
+      val spec = MatrixTableSpec(
+        FileFormat.version.rep,
+        hc.version,
+        "references",
+        mv.typ,
+        Map("globals" -> RVDComponentSpec("globals/rows"),
+          "cols" -> RVDComponentSpec("cols/rows"),
+          "rows" -> RVDComponentSpec("rows/rows"),
+          "entries" -> RVDComponentSpec("entries/rows"),
+          "partition_counts" -> PartitionCountsComponentSpec(partCounts)))
+      spec.write(hc, path)
+
+      hConf.writeTextFile(path + "/_SUCCESS")(out => ())
+      val nRows = partCounts.sum
+      val nCols = mv.colValues.value.length
+      info(s"wrote matrix table with $nRows ${ plural(nRows, "row") } " +
+        s"and $nCols ${ plural(nCols, "column") } " +
+        s"in ${ partCounts.length } ${ plural(partCounts.length, "partition") } " +
+        s"to $path")
+    }
   }
 }
