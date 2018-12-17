@@ -42,7 +42,7 @@ class MatrixIRSuite extends SparkSuite {
 
     val newMatrix = MatrixMapRows(mt, newRow)
     val rows = getRows(newMatrix)
-    assert(rows.forall { case Row(row_idx: Int, range: IndexedSeq[Int]) => range sameElements Array.range(0, row_idx) })
+    assert(rows.forall { case Row(row_idx: Int, range: IndexedSeq[_]) => range sameElements Array.range(0, row_idx) })
   }
 
   @Test def testScanCollectBehavesLikeRangeWithAggregationOnRows() {
@@ -53,7 +53,7 @@ class MatrixIRSuite extends SparkSuite {
 
     val newMatrix = MatrixMapRows(mt, newRow)
     val rows = getRows(newMatrix)
-    assert(rows.forall { case Row(row_idx: Int, n: Long, range: IndexedSeq[Int]) => (n == 20) && (range sameElements Array.range(0, row_idx)) })
+    assert(rows.forall { case Row(row_idx: Int, n: Long, range: IndexedSeq[_]) => (n == 20) && (range sameElements Array.range(0, row_idx)) })
   }
 
   @Test def testScanCountBehavesLikeIndexOnCols() {
@@ -75,7 +75,7 @@ class MatrixIRSuite extends SparkSuite {
 
     val newMatrix = MatrixMapCols(mt, newCol, None)
     val cols = getCols(newMatrix)
-    assert(cols.forall { case Row(col_idx: Int, range: IndexedSeq[Int]) => range sameElements Array.range(0, col_idx) })
+    assert(cols.forall { case Row(col_idx: Int, range: IndexedSeq[_]) => range sameElements Array.range(0, col_idx) })
   }
 
   @Test def testScanCollectBehavesLikeRangeWithAggregationOnCols() {
@@ -86,7 +86,7 @@ class MatrixIRSuite extends SparkSuite {
 
     val newMatrix = MatrixMapCols(mt, newCol, None)
     val cols = getCols(newMatrix)
-    assert(cols.forall { case Row(col_idx: Int, n: Long, range: IndexedSeq[Int]) => (n == 20) && (range sameElements Array.range(0, col_idx)) })
+    assert(cols.forall { case Row(col_idx: Int, n: Long, range: IndexedSeq[_]) => (n == 20) && (range sameElements Array.range(0, col_idx)) })
   }
 
   def rangeRowMatrix(start: Int, end: Int): MatrixIR = {
