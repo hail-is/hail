@@ -11,7 +11,7 @@ const InvalidTokenError = require.main.require(
 );
 
 const redisClient = require('redis').createClient({
-  parser: 'hiredis'
+  // parser: 'hiredis'
 });
 
 const getAsync = promisify(redisClient.get).bind(redisClient);
@@ -101,7 +101,7 @@ class AuthMiddleware {
       audience: process.env.AUTH0_AUDIENCE,
       issuer: process.env.AUTH0_DOMAIN,
       algorithms: ['RS256'],
-      credentialsRequired: true
+      credentialsRequired: false
     };
 
     this.verifyTokenPermissiveFn = jwtMiddleware(
@@ -133,18 +133,9 @@ class AuthMiddleware {
     return (req, res, next) => this.verifyTokenPermissiveFn(req, res, next);
   }
 
-  async getAuth0ProviderAccessToken(req, res, next) {
-    // No need to catch, express handles it
-    // https://expressjs.com/en/guide/error-handling.html
-    const userID = req.user ? this.getUserId(req.user) : null;
-
-    if (!userID) {
-      next(new InvalidTokenError());
-      return;
-    }
-
+  async getAuth0ProviderAccessToken(req, _, next) {
     try {
-      const accessToken = await this.extractAccessToken(userID);
+      const accessToken = await this.extractAccessToken(req.user);
       req.accessToken = accessToken;
       next();
     } catch (e) {
@@ -152,7 +143,15 @@ class AuthMiddleware {
     }
   }
 
-  async extractAccessToken(userID) {
+  async extractAccessToken(user) {
+    // No need to catch, express handles it
+    // https://expressjs.com/en/guide/error-handling.html
+    const userID = this.getUserId(user);
+
+    if (!userID) {
+      throw new InvalidTokenError();
+    }
+
     // NOTE: This requires userID to change by auth0provide
     // typically auth0, at least social, connections
     // are in the form provider|id

@@ -1,4 +1,7 @@
-module.exports = (userInstance /*config*/) => {
+// Its job wil lbe to interact with the CI interface in an authenticated way
+// TODO: specify API;
+// I propose something like: /api/ci?q=/ci/endpoint
+module.exports = userInstance => {
   const uM = userInstance.middleware;
 
   const route1 = {
@@ -8,7 +11,6 @@ module.exports = (userInstance /*config*/) => {
       uM.verifyToken,
       uM.getAuth0ProviderAccessToken,
       async (req, res) => {
-        console.info(req.accessToken);
         res.end();
       }
     ]

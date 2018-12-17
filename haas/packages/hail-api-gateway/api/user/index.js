@@ -1,7 +1,7 @@
 const Auth = require('./lib/auth');
 
 let uF;
-module.exports = function userFactory(config) {
+module.exports = function userFactory(config = {}) {
   if (uF) {
     return uF;
   }
@@ -9,8 +9,6 @@ module.exports = function userFactory(config) {
   uF = {
     routesRootName: 'user'
   };
-
-  uF.config = config.user;
 
   uF.middleware = new Auth.AuthMiddleware(uF.Model, uF.tokenManager);
 

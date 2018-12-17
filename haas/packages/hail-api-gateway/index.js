@@ -1,21 +1,14 @@
 //populate process.env
 require('dotenv').load();
-
 require('dotenv').config('./.env');
-const InvalidTokenError = require.main.require(
-  './common/auth/errors/InvalidTokenError'
-);
+
 const polka = require('polka');
 const fs = require('fs-extra'); // adds functions like mkdirp (mkdir -p)
 const http = require('http');
-const { json } = require('body-parser');
-const { makeExecutableSchema } = require('graphql-tools');
 const { ApolloServer } = require('apollo-server-express');
-const { mergeTypes } = require('merge-graphql-schemas');
-const _ = require('lodash');
+const { mergeSchemas, makeExecutableSchema } = require('graphql-tools');
 
 // local lib modules
-const log = require('./common/logger');
 const config = require('./common/config');
 
 const { PORT = 8000 } = process.env;
@@ -25,26 +18,11 @@ const { PORT = 8000 } = process.env;
 const CI = require('./api/ci');
 const userFactory = require('./api/user');
 const { jobSchema, jobResolver } = require('./api/jobs');
+const github = require('./api/github');
 
 const user = userFactory(config);
-// socketio requires the http.createServer return obj not app
-// const comm = Comm(httpServer, user, config);
-// const jobs = Jobs(comm, user, config);
-// const aws = SeqAws(user, config);
+
 const ci = CI(user, config);
-
-// const jobResolver = JobResolver(jobs.jobModel, user.middleware.getUserId);
-const schemas = mergeTypes([jobSchema]);
-const resolvers = _.merge([jobResolver]);
-
-/**
- * Express configuration.
- */
-fs.ensureDir(config.router.publicPath, err => {
-  if (err) {
-    throw new Error(err);
-  }
-});
 
 fs.ensureDir('./logs', err => {
   if (err) {
@@ -53,12 +31,14 @@ fs.ensureDir('./logs', err => {
 });
 
 const httpServer = http.createServer();
+
 const app = polka({
   server: httpServer
 });
 
 app.use('/', (req, res, next) => {
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST');
@@ -76,22 +56,6 @@ app.use('/', (req, res, next) => {
   }
 });
 
-// const schema = (module.exports = makeExecutableSchema({ typeDefs, resolvers }));
-
-app.use('/graphql', user.middleware.verifyToken);
-
-const apolloServer = new ApolloServer({
-  typeDefs: schemas,
-  resolvers,
-  context: ({ req }) => {
-    // Look at the request to run custom user logic
-    return { user: req.user };
-  },
-  engine: {
-    apiKey: process.env.APOLLO_ENGINE_API_KEY
-  }
-});
-
 const routes = [...ci.routes];
 
 routes.forEach(route => {
@@ -101,7 +65,44 @@ routes.forEach(route => {
   }
 });
 
-app.listen(PORT, err => {
-  if (err) throw err;
-  console.log(`Ready on port ${PORT}`);
-});
+(async () => {
+  const githubSchema = await github(user);
+
+  const schema = mergeSchemas({
+    schemas: [
+      makeExecutableSchema({ typeDefs: jobSchema, resolvers: jobResolver }),
+      githubSchema
+    ]
+  });
+
+  const apolloServer = new ApolloServer({
+    // typeDefs: jobSchema,
+    // resolvers: jobResolver,
+    schema,
+    // resolvers,
+    context: ({ req }) => {
+      // Look at the request to run custom user logic
+      return { user: req.user };
+    },
+    engine: {
+      apiKey: process.env.APOLLO_ENGINE_API_KEY
+    },
+    playground: {
+      endpoint: '/graphql'
+      // subscriptionEndpoint?: string
+    },
+    cacheControl: {
+      defaultMaxAge: 5,
+      stripFormattedExtensions: false,
+      calculateCacheControlHeaders: false
+    }
+  });
+
+  app.use('/graphql', user.middleware.verifyToken);
+  apolloServer.applyMiddleware({ app }, '/graphql');
+
+  app.listen(PORT, err => {
+    if (err) throw err;
+    console.log(`Ready on port ${PORT}`);
+  });
+})();

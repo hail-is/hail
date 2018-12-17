@@ -1,7 +1,7 @@
 const Router = require('./lib/router');
 
 let aF;
-exports = module.exports = function jobsFactory(User, config) {
+exports = module.exports = function jobsFactory(User) {
   if (aF) {
     return aF;
   }
