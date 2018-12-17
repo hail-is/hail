@@ -180,6 +180,16 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
          global_seed=6348563392232659379, _backend=None):
     """Initialize Hail and Spark.
 
+    Notes
+    -----
+    This function is used to initialize Hail and Spark. If Hail functionality
+    that requires initialization is used before :func:`.init` is called, then
+    Hail will be automatically initialized with default arguments.
+
+    See Also
+    --------
+    :func:`.stop`
+
     Parameters
     ----------
     sc : pyspark.SparkContext, optional
