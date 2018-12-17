@@ -50,6 +50,15 @@ HAIL_CI_REMOTE_PORT=3001 make restart-proxy
 
 Webhooks can be configured in the Settings tab of a repo on GitHub.
 
+We'll also need to know which Google Cloud Compute instance to use
+
+```
+export HAIL_CI_INSTANCE=<tag or instance_name>
+```
+
+If not specified, the first instance listed by
+`gcloud compute instance list` will be chosen
+
 Now you can start a local version of the hail-ci server:
 
 ```

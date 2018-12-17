@@ -1,8 +1,18 @@
-.PHONY: run restart-proxy restart-batch-proxy restart-all-proxies
-.PHONY: setup-conda-env build-hail-ci push-hail-ci test-locally
-.PHONY: run-service deploy
+.PHONY: pre_build run restart-proxy restart-batch-proxy restart-all-proxies
+.PHONY: pre_build setup-conda-env build-hail-ci push-hail-ci test-locally
+.PHONY: pre_build run-service deploy
 
-PROJECT = $(shell gcloud config get-value project)
+PROJECT=$(shell gcloud config get-value project)
+
+# Get unique instance name, external_ip, and zone, to avoid hardcoding vars
+# There may be a better way of doing this, but simply ${ARR[N]} did not work
+# 1) Get a unique instance name, either based on passed instance name, passed tag name,
+# or by choosing first listed instance
+# 2) Based on that instance, get EXTERNAL_IP and ZONE, to avoid hardcoding
+# TODO: This behavior (choosing first instance if no instance specified) may be undesirable
+INSTANCE=$(shell gcloud compute instances list --format='table(NAME,STATUS,tags.list())' | tail -n +2 | grep "${HAIL_CI_INSTANCE}" | grep RUNNING | head -n 1 | tr -s ' ' '\t' | cut -f1 )
+EXTERNAL_IP=$(shell gcloud compute instances list --format='table(NAME,EXTERNAL_IP)' | tail -n +2 | grep "${INSTANCE}" | tr -s ' ' '\t' | cut -f2 )
+ZONE=$(shell gcloud compute instances list --format='table(NAME,ZONE)' | tail -n +2 | grep "${INSTANCE}" | tr -s ' ' '\t' | cut -f2 )
 
 HAIL_CI_LOCAL_BATCH_PORT ?= 8888
 
@@ -15,7 +25,7 @@ update-conda-env:
 build-hail-ci:
 	cd ../ && docker build . -t hail-ci -f ci/Dockerfile
 
-push-hail-ci: IMAGE = gcr.io/$(PROJECT)/hail-ci:$(shell docker images -q --no-trunc hail-ci | head -n 1 | sed -e 's,[^:]*:,,')
+push-hail-ci: IMAGE = gcr.io/${PROJECT}/hail-ci:$(shell docker images -q --no-trunc hail-ci | head -n 1 | sed -e 's,[^:]*:,,')
 push-hail-ci: build-hail-ci
 	docker tag hail-ci ${IMAGE}
 	docker push ${IMAGE}
@@ -28,11 +38,7 @@ restart-proxy:
 	-kill $(shell cat proxy.pid)
 	-kill -9 $(shell cat proxy.pid)
 	-rm -rf proxy.pid
-	$(shell gcloud compute \
-	  --project "$(PROJECT)" \
-	  ssh \
-	  --zone "us-central1-a" \
-	  "dk-test" \
+	$(shell gcloud compute ssh --project ${PROJECT} --zone ${ZONE} ${INSTANCE} \
 	  --ssh-flag="-R 0.0.0.0:${HAIL_CI_REMOTE_PORT}:127.0.0.1:5000" \
 	  --ssh-flag='-N' \
 	  --ssh-flag='-T' \
@@ -51,27 +57,22 @@ restart-batch-proxy:
                          | head -n 1))
 	kubectl port-forward ${BATCH_POD} 8888:5000 > batch-proxy.log 2>batch-proxy.err & echo $$! > batch-proxy.pid
 
-
-
 run-local: HAIL_CI_REMOTE_PORT = 3000
-run-local: PROXY_IP=$(shell gcloud compute instances list --filter=name=dk-test --format="value(EXTERNAL_IP)")
 run-local: restart-all-proxies
-	SELF_HOSTNAME=http://${PROXY_IP}:${HAIL_CI_REMOTE_PORT} \
+	SELF_HOSTNAME=http://${EXTERNAL_IP}:${HAIL_CI_REMOTE_PORT} \
 	BATCH_SERVER_URL=http://127.0.0.1:${HAIL_CI_LOCAL_BATCH_PORT} \
 	source activate hail-ci && python run_ci.py
 
 run-local-for-tests: HAIL_CI_REMOTE_PORT = 3001
-run-local-for-tests: PROXY_IP=$(shell gcloud compute instances list --filter=name=dk-test --format="value(EXTERNAL_IP)")
 run-local-for-tests: restart-all-proxies
-	SELF_HOSTNAME=http://${PROXY_IP}:${HAIL_CI_REMOTE_PORT} \
+	SELF_HOSTNAME=http://${EXTERNAL_IP}:${HAIL_CI_REMOTE_PORT} \
 	BATCH_SERVER_URL=http://127.0.0.1:${HAIL_CI_LOCAL_BATCH_PORT} \
 	WATCHED_TARGETS='[["hail-is/ci-test:master", true]]' \
-	source activate hail-ci && pip install ./batch && python run_ci.py
+	source activate hail-ci && pip install ../batch && python run_ci.py
 
 test-locally: HAIL_CI_REMOTE_PORT = 3001
-test-locally: PROXY_IP=$(shell gcloud compute instances list --filter=name=dk-test --format="value(EXTERNAL_IP)")
 test-locally: restart-all-proxies
-	SELF_HOSTNAME=http://${PROXY_IP}:${HAIL_CI_REMOTE_PORT} \
+	SELF_HOSTNAME=http://${EXTERNAL_IP}:${HAIL_CI_REMOTE_PORT} \
 	BATCH_SERVER_URL=http://127.0.0.1:${HAIL_CI_LOCAL_BATCH_PORT} \
 	./test-locally.sh
 
