@@ -295,7 +295,7 @@ def read_version_info() -> str:
     return pkg_resources.resource_string(__name__, 'hail_version').decode().strip()
 
 @typecheck(url=str)
-def _set_upload_url(str):
+def _set_upload_url(url):
     Env.hc()._jhc.setUploadURL(url)
 
 @typecheck(email=nullable(str))
