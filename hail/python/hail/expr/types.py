@@ -836,14 +836,14 @@ class tstruct(HailType, Mapping):
                 and all(self[f] == other[f] for f in self._fields))
 
     def _pretty(self, l, indent, increment):
-        if not self.items():
+        if not self._field_types:
             l.append('struct {}')
             return
 
         pre_indent = indent
         indent += increment
         l.append('struct {')
-        for i, (f, t) in enumerate(self.items()):
+        for i, (f, t) in enumerate(self._field_types):
             if i > 0:
                 l.append(', ')
             l.append('\n')
