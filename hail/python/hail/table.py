@@ -354,13 +354,7 @@ class Table(ExprContainer):
             self._set_field(k, v)
 
     @property
-    def schema(self) -> ttable:
-        """The schema of the table.
-
-        Returns
-        -------
-        :class:`.ttable`
-        """
+    def _schema(self) -> ttable:
         return ttable(self._global_type, self._row_type, list(self._key))
 
     def __getitem__(self, item):

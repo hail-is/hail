@@ -1,6 +1,6 @@
 from .types import *
-from .table_type import ttable
-from .matrix_type import tmatrix
+from .table_type import *
+from .matrix_type import *
 from .expressions import eval, eval_typed
 from .functions import *
 __all__ = ['HailType',

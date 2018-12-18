@@ -606,13 +606,7 @@ class MatrixTable(ExprContainer):
             self._set_field(k, v)
 
     @property
-    def schema(self) -> tmatrix:
-        """The schema of the matrix table.
-
-        Returns
-        -------
-        :class:`.tmatrix`
-        """
+    def _schema(self) -> tmatrix:
         return tmatrix(
             self._global_type,
             self._col_type, list(self._col_key),

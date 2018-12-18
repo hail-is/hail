@@ -86,7 +86,7 @@ import pprint
 _old_printer = pprint.PrettyPrinter
 
 
-class TypePrettyPrinter(pprint.PrettyPrinter):
+class PrettyPrinter(pprint.PrettyPrinter):
     def _format(self, object, stream, indent, allowance, context, level):
         if isinstance(object, tmatrix):
             stream.write(object.pretty(self._indent_per_level))
@@ -94,4 +94,4 @@ class TypePrettyPrinter(pprint.PrettyPrinter):
             return _old_printer._format(self, object, stream, indent, allowance, context, level)
 
 
-pprint.PrettyPrinter = TypePrettyPrinter  # monkey-patch pprint
+pprint.PrettyPrinter = PrettyPrinter  # monkey-patch pprint
