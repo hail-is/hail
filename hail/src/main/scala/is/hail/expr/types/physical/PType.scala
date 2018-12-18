@@ -259,4 +259,9 @@ abstract class PType extends BaseType with Serializable {
       case t =>
         t.setRequired(false)
     }
+
+  def subsetTo(t: Type): PType = {
+    // FIXME
+    t.physicalType
+  }
 }

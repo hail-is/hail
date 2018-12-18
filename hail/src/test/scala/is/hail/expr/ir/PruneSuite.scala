@@ -4,8 +4,9 @@ import is.hail.SparkSuite
 import is.hail.annotations.{BroadcastIndexedSeq, BroadcastRow}
 import is.hail.expr._
 import is.hail.expr.types._
+import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual._
-import is.hail.rvd.RVD
+import is.hail.rvd.{RVD, RVDType}
 import is.hail.table._
 import is.hail.utils._
 import is.hail.variant.MatrixTable
@@ -104,6 +105,7 @@ class PruneSuite extends SparkSuite {
       def partitionCounts: Option[IndexedSeq[Long]] = ???
       def columnCount: Option[Int] = ???
       def fullType: MatrixType = mat.typ
+      def fullRVDType: RVDType = ???
     })
 
   val emptyTableDep = TableType(TStruct(), FastIndexedSeq(), TStruct())
