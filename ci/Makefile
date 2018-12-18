@@ -2,7 +2,7 @@
 .PHONY: setup-conda-env build-hail-ci push-hail-ci test-locally
 .PHONY: run-service deploy
 
-PROJECT=${shell gcloud config get-value project}
+PROJECT := ${shell gcloud config get-value project}
 
 # Get unique instance name, external_ip, and zone, to avoid hardcoding vars
 # There may be a better way of doing this, but simply ${ARR[N]} did not work
@@ -10,9 +10,9 @@ PROJECT=${shell gcloud config get-value project}
 # or by choosing first listed instance
 # 2) Based on that instance, get EXTERNAL_IP and ZONE, to avoid hardcoding
 # TODO: This behavior (choosing first instance if no instance specified) may be undesirable
-INSTANCE:=${shell gcloud compute instances list --format='table(NAME,STATUS,tags.list())' | tail -n +2 | grep "${HAIL_CI_INSTANCE}" | grep RUNNING | head -n 1 | tr -s ' ' '\t' | cut -f1 }
-EXTERNAL_IP:=${shell gcloud compute instances list --format='table(NAME,EXTERNAL_IP)' | tail -n +2 | grep "${INSTANCE}" | tr -s ' ' '\t' | cut -f2 }
-ZONE:=${shell gcloud compute instances list --format='table(NAME,ZONE)' | tail -n +2 | grep "${INSTANCE}" | tr -s ' ' '\t' | cut -f2 }
+INSTANCE := ${shell gcloud compute instances list --format='table(NAME,STATUS,tags.list())' | tail -n +2 | grep "${HAIL_CI_INSTANCE}" | grep RUNNING | head -n 1 | tr -s ' ' '\t' | cut -f1 }
+EXTERNAL_IP := ${shell gcloud compute instances list --format='table(NAME,EXTERNAL_IP)' | tail -n +2 | grep "${INSTANCE}" | tr -s ' ' '\t' | cut -f2 }
+ZONE := ${shell gcloud compute instances list --format='table(NAME,ZONE)' | tail -n +2 | grep "${INSTANCE}" | tr -s ' ' '\t' | cut -f2 }
 
 HAIL_CI_LOCAL_BATCH_PORT ?= 8888
 
@@ -59,21 +59,21 @@ restart-batch-proxy:
 
 run-local: HAIL_CI_REMOTE_PORT = 3000
 run-local: restart-all-proxies
-	SELF_HOSTNAME=http://${EXTERNAL_IP}:${HAIL_CI_REMOTE_PORT} \
+	SELF_HOSTNAME = http://${EXTERNAL_IP}:${HAIL_CI_REMOTE_PORT} \
 	BATCH_SERVER_URL=http://127.0.0.1:${HAIL_CI_LOCAL_BATCH_PORT} \
 	source activate hail-ci && python run_ci.py
 
 run-local-for-tests: HAIL_CI_REMOTE_PORT = 3001
 run-local-for-tests: restart-all-proxies
-	SELF_HOSTNAME=http://${EXTERNAL_IP}:${HAIL_CI_REMOTE_PORT} \
-	BATCH_SERVER_URL=http://127.0.0.1:${HAIL_CI_LOCAL_BATCH_PORT} \
-	WATCHED_TARGETS='[["hail-is/ci-test:master", true]]' \
+	SELF_HOSTNAME = http://${EXTERNAL_IP}:${HAIL_CI_REMOTE_PORT} \
+	BATCH_SERVER_URL = http://127.0.0.1:${HAIL_CI_LOCAL_BATCH_PORT} \
+	WATCHED_TARGETS = '[["hail-is/ci-test:master", true]]' \
 	source activate hail-ci && pip install ../batch && python run_ci.py
 
 test-locally: HAIL_CI_REMOTE_PORT = 3001
 test-locally: restart-all-proxies
-	SELF_HOSTNAME=http://${EXTERNAL_IP}:${HAIL_CI_REMOTE_PORT} \
-	BATCH_SERVER_URL=http://127.0.0.1:${HAIL_CI_LOCAL_BATCH_PORT} \
+	SELF_HOSTNAME = http://${EXTERNAL_IP}:${HAIL_CI_REMOTE_PORT} \
+	BATCH_SERVER_URL = http://127.0.0.1:${HAIL_CI_LOCAL_BATCH_PORT} \
 	./test-locally.sh
 
 run-service:
