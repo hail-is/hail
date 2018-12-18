@@ -6,6 +6,7 @@ cleanup() {
     trap "" INT TERM
     set +e
     rm -f python/hail/docs/change_log.rst
+    rm -rf build/tmp/
 }
 trap cleanup EXIT
 trap 'exit 1' INT TERM
