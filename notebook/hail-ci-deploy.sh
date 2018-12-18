@@ -6,4 +6,4 @@ gcloud -q auth activate-service-account \
 
 gcloud -q auth configure-docker
 
-CI_BUILD=true make deploy
+CI_BUILD=true make deploy push-all-latest-tag

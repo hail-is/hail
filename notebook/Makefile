@@ -1,9 +1,10 @@
-.PHONY: build push run-docker run deploy clean clean-workers
+.PHONY: build push run-docker run deploy clean clean-workers push-latest-tag
 
 PROJECT = $(shell gcloud config get-value project)
 IMAGE_SHORT_NAMES = $(shell ls -1 images)
 BUILT = $(foreach image,$(IMAGE_SHORT_NAMES),build/images/$(image)/_BUILT)
 PUSHED = $(foreach image,$(IMAGE_SHORT_NAMES),build/images/$(image)/_PUSHED)
+PUSHED_LATEST_TAG = $(foreach image,$(IMAGE_SHORT_NAMES),build/images/$(image)/_PUSHED_LATEST_TAG)
 
 .PHONY: $(IMAGE_SHORT_NAMES)
 
@@ -21,10 +22,12 @@ build/images/%/_PUSHED: IMAGE = gcr.io/$(PROJECT)/$*:$(shell docker images -q --
 build/images/%/_PUSHED: build/images/%/_BUILT
 	docker tag $* $(IMAGE)
 	docker push $(IMAGE)
-ifeq ($(CI_BUILD),true)
-	docker tag $* gcr.io/$(PROJECT)/$*:latest
-	docker push gcr.io/$(PROJECT)/$*:latest
-endif
+	echo $(IMAGE) > $@
+
+build/images/%/_PUSHED_LATEST_TAG: IMAGE = gcr.io/$(PROJECT)/$*:latest
+build/images/%/_PUSHED_LATEST_TAG: build/images/%/_BUILT
+	docker tag $* $(IMAGE)
+	docker push $(IMAGE)
 	echo $(IMAGE) > $@
 
 $(IMAGE_SHORT_NAMES): %: build/images/%/_BUILT
@@ -44,11 +47,14 @@ push: IMAGE = gcr.io/$(PROJECT)/notebook:$(shell docker images -q --no-trunc not
 push: build $(PUSHED)
 	docker tag notebook $(IMAGE)
 	docker push $(IMAGE)
-ifeq ($(CI_BUILD),true)
-	docker tag notebook gcr.io/$(PROJECT)/notebook:latest
-	docker push gcr.io/$(PROJECT)/notebook:latest
-endif
 	echo $(IMAGE) > notebook-image
+
+push-latest-tag: IMAGE = gcr.io/$(PROJECT)/notebook:latest
+push-latest-tag: build
+	docker tag notebook $(IMAGE)
+	docker push $(IMAGE)
+
+push-all-latest-tag: push-latest-tag $(PUSHED_LATEST_TAG)
 
 run-docker: build
 	docker run -i -p 5000:5000 -t notebook
