@@ -25,8 +25,14 @@ github, you'll need to start proxies to each, respectively. The following
 command sets up a proxy to the batch server from your local port `8888`. If a
 proxy was previously created by this command, it kills it.
 
+We'll need to know which Google Cloud Compute instance to use,
+by passing the `HAIL_CI_INSTANCE` with an instance name, or one of an instance's tags
+
+If the `HAIL_CI_INSTANCE` value isn't unique to one instance, the first
+matching instance will be used
+
 ```
-make restart-batch-proxy
+HAIL_CI_INSTANCE='dk-test' make restart-batch-proxy
 ```
 
 For `batch` and GitHub to contact your local instance, you need a proxy open to
@@ -44,31 +50,20 @@ gcloud compute firewall-rules create \
   --source-tags=dk-test \
   --source-ranges=0.0.0.0/0 \
   --description="for testing pr builder"
-HAIL_CI_REMOTE_PORT=3001 make restart-proxy
-```
 
+HAIL_CI_REMOTE_PORT=3001 HAIL_CI_INSTANCE='dk-test' make restart-proxy
+```
 
 Webhooks can be configured in the Settings tab of a repo on GitHub.
 
-We'll also need to know which Google Cloud Compute instance to use
-
 ```
-export HAIL_CI_INSTANCE=<tag or instance_name>
-```
-
-If not specified, the first instance listed by
-`gcloud compute instance list` will be chosen
-
-Now you can start a local version of the hail-ci server:
-
-```
-HAIL_CI_REMOTE_PORT=3001 make run
+HAIL_CI_REMOTE_PORT=3001 HAIL_CI_INSTANCE='dk-test' make run
 ```
 
 And if you want to cleanly restart fresh:
 
 ```
-HAIL_CI_REMOTE_PORT=3001 make update-conda-env restart-all-proxies run
+HAIL_CI_REMOTE_PORT=3001 HAIL_CI_INSTANCE='dk-test' make update-conda-env restart-all-proxies run
 ```
 
 Setting up a New Repo
@@ -93,7 +88,7 @@ configured appropriately for local testing. There already exist webhooks on the
 
 ```
 pip install ./batch
-HAIL_CI_REMOTE_PORT=3001 make restart-all-proxies
+HAIL_CI_REMOTE_PORT=3001 HAIL_CI_INSTANCE='dk-test' make restart-all-proxies
 BATCH_SERVER_URL='http://localhost:8888' \
   SELF_HOSTNAME='http://35.232.159.176:3001' \
   WATCHED_TARGETS='[["hail-is/ci-test:master", true]]' \
