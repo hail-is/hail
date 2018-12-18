@@ -14,7 +14,7 @@
 namespace hail {
 
 TEST_CASE("PartitionContext globals set correctly") {
-  PartitionContext ctx { nullptr, "hello" };
+  PartitionContext ctx { "hello" };
   CHECK(strcmp(ctx.globals_, "hello") == 0);
 }
 
@@ -62,7 +62,7 @@ TEST_CASE("TableRead<TableWrite> works") {
   char * gbuf = (char *) malloc(9);
   *reinterpret_cast<int *>(gbuf) = 5;
   strcpy(gbuf + sizeof(int), globals.c_str());
-  PartitionContext ctx { nullptr, gbuf };
+  PartitionContext ctx { gbuf };
 
   using Writer = TableNativeWrite<TestStringEncoder>;
   SECTION("TableRead<TableWrite> works") {

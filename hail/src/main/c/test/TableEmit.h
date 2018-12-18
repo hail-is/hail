@@ -86,7 +86,7 @@ struct TestStringEncoder {
 };
 
 struct AppendString {
-  char const * operator()(NativeStatus * st, Region * region, const char * globals, const char * row) {
+  char const * operator()(Region * region, const char * globals, const char * row) {
     int len = *reinterpret_cast<const int *>(row);
     int lenglob = *reinterpret_cast<const int *>(globals);
     char * off = region->allocate(len + lenglob + sizeof(int));
@@ -103,18 +103,18 @@ struct FilterString {
     int lenglob = *reinterpret_cast<const int *>(globals);
     return len == lenglob;
   }
-  bool operator()(NativeStatus * st, Region * region, const char * globals, const char * row) {
+  bool operator()(Region * region, const char * globals, const char * row) {
     return filter(globals, row);
   }
 };
 
 
 struct ExplodeToChars {
-  int len(NativeStatus * st, Region * region, const char * value) {
+  int len(Region * region, const char * value) {
     return *reinterpret_cast<const int *>(value);
   }
 
-  const char * operator()(NativeStatus * st, Region * region, const char * row, int i) {
+  const char * operator()(Region * region, const char * row, int i) {
     auto off = region->allocate(sizeof(int) + 1);
     *reinterpret_cast<int *>(off) = 1;
     *(off + sizeof(int)) = row[i + sizeof(int)];
