@@ -2,9 +2,9 @@
 
 .. py:currentmodule:: hail
 
-=========
-Hailpedia
-=========
+=============
+Hail Overview
+=============
 
 Hail is a library for analyzing structured tabular and matrix data. Hail
 contains a collection of primitives for operating on data in parallel, as well
@@ -16,11 +16,11 @@ architecture, primitives, classes, and libraries.
 .. toctree::
     :maxdepth: 2
 
-        Types <hailpedia/types.rst>
-        Expressions <hailpedia/expressions.rst>
-        Tables <hailpedia/table.rst>
-        MatrixTables <hailpedia/matrix_table.rst>
-..
+    Types <types.rst>
+    Expressions <expressions.rst>
+    Tables <table.rst>
+    MatrixTables <matrix_table.rst>
+
     --------------
     Linear Algebra
     --------------

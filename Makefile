@@ -20,5 +20,5 @@ push-hail-ci-build-image: hail-ci-build-image
 
 default:
 	echo Do not use this makefile to build hail, for information on how to \
-	     build hail see: https://hail.is/docs/devel/
+	     build hail see: https://hail.is/docs/0.2/
 	exit 1
