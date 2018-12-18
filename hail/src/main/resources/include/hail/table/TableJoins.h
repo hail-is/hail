@@ -15,7 +15,7 @@ class TableLeftJoinRightDistinct {
     Consumer next_;
     JoinF joinf_{};
     // int joinf_.compare(rowL, rowR);
-    // const char * joinf_(st, new_region, rowL, rowR);
+    // const char * joinf_(new_region, rowL, rowR);
     typename RightPartitionPullStream::Iterator it_;
     typename RightPartitionPullStream::Iterator end_;
     RegionValue row_ {std::move(*it_)};
@@ -33,9 +33,9 @@ class TableLeftJoinRightDistinct {
         auto new_region = ctx()->pool_.get_region();
         new_region->add_reference_to(std::move(region));
         new_region->add_reference_to(row_.region_);
-        next_(std::move(new_region), joinf_(ctx()->st_, new_region.get(), value, row_.value_));
+        next_(std::move(new_region), joinf_(new_region.get(), value, row_.value_));
       } else {
-        next_(std::move(region), joinf_(ctx()->st_, region.get(), value, nullptr));
+        next_(std::move(region), joinf_(region.get(), value, nullptr));
       }
     }
 

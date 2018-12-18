@@ -21,7 +21,7 @@ struct JoinOnFirstChar {
     return *(left + sizeof(int)) - *(right + sizeof(int));
   }
 
-  char const * operator()(NativeStatus * st, Region * region, char const * left, char const * right) {
+  char const * operator()(Region * region, char const * left, char const * right) {
     if (right == nullptr) { return left; }
     int rlen = *reinterpret_cast<int const *>(right);
     if (rlen == 0) { return left; }
@@ -50,7 +50,7 @@ TEST_CASE("TableLeftJoinRightDistinct on first character of str") {
   using Join = TableLeftJoinRightDistinct<Writer, RightReaderStream, JoinOnFirstChar>;
   using LeftReader = TableNativeRead<Join, TestStringDecoder>;
 
-  SECTION("1") {
+  SECTION("join t1 (left) with t2 (right) ") {
     std::vector<std::string> expected { "bar1ar12345", "baz12ar12345", "foo123oo123456", "goo1234" };
 
     RightReaderStream r_stream { dec2, &ctx };
@@ -62,7 +62,7 @@ TEST_CASE("TableLeftJoinRightDistinct on first character of str") {
     CHECK(ctx.pool_.num_free_regions() == ctx.pool_.num_regions() - 1);
   }
 
-  SECTION("2") {
+SECTION("join t2 (left) with t1 (right) ") {
     std::vector<std::string> expected { "bar12345ar1", "foo123456oo123", "qux1234567" };
 
     RightReaderStream r_stream { dec1, &ctx };
