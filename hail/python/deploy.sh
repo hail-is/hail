@@ -8,6 +8,7 @@ cleanup() {
     trap "" INT TERM
     rm hail/hail-all-spark.jar
     rm README.md
+    rm -rf build/lib
 }
 trap cleanup EXIT
 trap "exit 24" INT TERM
