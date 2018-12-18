@@ -2950,7 +2950,9 @@ class MatrixTable(ExprContainer):
     def _select_entries(self, caller, s) -> 'MatrixTable':
         base, cleanup = self._process_joins(s)
         analyze(caller, s, self._entry_indices)
-        return cleanup(MatrixTable(MatrixMapEntries(base._mir, s._ir)))
+
+        map_missing = If(IsNA(Ref('g')), NA(s.dtype), s._ir)
+        return cleanup(MatrixTable(MatrixMapEntries(base._mir, map_missing)))
 
     @typecheck_method(caller=str,
                       row=expr_struct())
