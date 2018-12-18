@@ -6,4 +6,4 @@ gcloud -q auth activate-service-account \
 
 gcloud -q auth configure-docker
 
-make deploy
+CI_BUILD=true make deploy
