@@ -41,7 +41,7 @@ class StagedContainerBuilder(fb: FunctionBuilder, region: Code, containerPType: 
 
   def setMissing(): Code = {
     if (eltRequired)
-      fb.nativeError(1010, "\"Required array element cannot be missing.\"")
+      fb.nativeError("Required array element cannot be missing.")
     else
       s"set_bit($aoff + 4, $i);"
   }

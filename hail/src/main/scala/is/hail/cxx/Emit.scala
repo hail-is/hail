@@ -171,6 +171,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
   type E = ir.Env[EmitTriplet]
 
   def emit(x: ir.IR, env: E): EmitTriplet = {
+    def region: Variable = fb.getArg(0)
     def triplet(setup: Code, m: Code, v: Code): EmitTriplet =
       EmitTriplet(x.pType, setup, m, v)
 
@@ -369,8 +370,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
              |  $av = ${ at.v };
              |  $len = ${ pContainer.cxxLoadLength(av.toString) };
              |  if ($iv < 0 || $iv >= $len) {
-             |    NATIVE_ERROR(${ fb.getArg(0) }, 1005, "array index out of bounds: %d / %d.  IR: %s", $iv, $len, "$s");
-             |    return nullptr;
+             |    ${ fb.nativeError(s"array index out of bounds: %d / %d.  IR: $s", iv.toString, len.toString) }
              |  }
              |  $m = ${ pContainer.cxxIsElementMissing(av.toString, iv.toString) };
              |}
@@ -531,7 +531,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
         val ae = emitArray(x, env)
         ae.length match {
           case Some(length) =>
-            val sab = new StagedContainerBuilder(fb, fb.getArg(1).toString, containerPType)
+            val sab = new StagedContainerBuilder(fb, region.toString, containerPType)
             triplet(ae.setup, ae.m,
               s"""
                  |({
@@ -556,7 +556,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
             val xs = fb.variable("xs", s"std::vector<${ typeToCXXType(containerPType.elementType) }>")
             val ms = fb.variable("ms", "std::vector<bool>")
             val i = fb.variable("i", "int")
-            val sab = new StagedContainerBuilder(fb, fb.getArg(1).toString, containerPType)
+            val sab = new StagedContainerBuilder(fb, region.toString, containerPType)
             triplet(ae.setup, ae.m,
               s"""
                  |({
@@ -591,7 +591,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
         }
 
       case ir.MakeArray(args, _) =>
-        val sab = new StagedContainerBuilder(fb, fb.getArg(1).toString, pType.asInstanceOf[PArray])
+        val sab = new StagedContainerBuilder(fb, region.toString, pType.asInstanceOf[PArray])
         val sb = new ArrayBuilder[Code]
 
         sb += sab.start(s"${ args.length }")
@@ -661,14 +661,14 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
              |${ len.define }
              |${ llen.define }
              |if ($stepv == 0) {
-             |  NATIVE_ERROR(${ fb.getArg(0) }, 1006, "Array range step size cannot be 0.  IR: %s", "$s");
+             |  ${ fb.nativeError("Array range step size cannot be 0.  IR: %s".format(s)) }
              |  return nullptr;
              |} else if ($stepv < 0)
              |  $llen = ($startv <= $stopv) ? 0l : ((long)$startv - (long)$stopv - 1l) / (long)(-$stepv) + 1l;
              |else
              |  $llen = ($startv >= $stopv) ? 0l : ((long)$stopv - (long)$startv - 1l) / (long)$stepv + 1l;
              |if ($llen > INT_MAX) {
-             |  NATIVE_ERROR(${ fb.getArg(0) }, 1007, "Array range cannot have more than INT_MAX elements.  IR: %s", "$s");
+             |  ${ fb.nativeError("Array range cannot have more than INT_MAX elements.  IR: %s".format(s)) }
              |  return nullptr;
              |} else
              |  $len = ($llen < 0) ? 0 : (int)$llen;

@@ -100,27 +100,25 @@ class TableEmitter(tub: TranslationUnitBuilder) { outer =>
         val mapName = tub.genSym("MapRowIterator")
         val mapper = tub.buildClass(mapName)
 
-        val st = tub.variable("st", "NativeStatus *")
         val region = tub.variable("region", "ScalaRegion *")
         val prevIt = tub.variable("it", oldRowIt.typ)
-        mapper += st
         mapper += region
         mapper += prevIt
 
         mapper +=
           s"""
-             |$mapName(NativeStatus * st, ScalaRegion * region, ${ oldRowIt.typ } it) :
-             |$st(st), $region(region), $prevIt(it) { }
+             |$mapName(ScalaRegion * region, ${ oldRowIt.typ } it) :
+             |$region(region), $prevIt(it) { }
            """.stripMargin
 
-        val mapF = tub.buildFunction("map_row", Array("NativeStatus*" -> "st", "ScalaRegion*" -> "region", "const char *" -> "row"), "char *")
-        val substEnv = ir.Env.empty[ir.IR].bind("row", ir.In(1, child.typ.rowType))
+        val mapF = tub.buildFunction("map_row", Array("ScalaRegion*" -> "region", "const char *" -> "row"), "char *")
+        val substEnv = ir.Env.empty[ir.IR].bind("row", ir.In(0, child.typ.rowType))
         val et = Emit(mapF, 1, ir.Subst(newRow, substEnv))
         mapF +=
           s"""
              |${ et.setup }
              |if (${ et.m }) {
-             |  ${ mapF.nativeError(1011, "\"mapped row can't be missing!\"") }
+             |  ${ mapF.nativeError("mapped row can't be missing!") }
              |} else {
              |  return ${ et.v };
              |}
@@ -128,7 +126,7 @@ class TableEmitter(tub: TranslationUnitBuilder) { outer =>
         mapF.end()
 
         mapper += new Function(s"$mapName&", "operator++", Array(), s"++$prevIt; return *this;")
-        mapper += new Function(s"char const*", "operator*", Array(), s"return map_row($st, $region, *$prevIt);")
+        mapper += new Function(s"char const*", "operator*", Array(), s"return map_row($region, *$prevIt);")
         val lhs = tub.variable("lhs", s"$mapName&")
         val rhs = tub.variable("rhs", s"$mapName&")
         mapper += new Function(s"friend bool", "operator==", Array(lhs, rhs), s"return $lhs.$prevIt == $rhs.$prevIt;")
@@ -136,8 +134,8 @@ class TableEmitter(tub: TranslationUnitBuilder) { outer =>
 
         mapper.end()
 
-        val newIt = tub.variable("mapIt", mapName, s"{${ rvd.st }, ${ rvd.region }, $oldRowIt}")
-        val newEnd = tub.variable("end", mapName, s"{${ rvd.st }, ${ rvd.region }, ${ rvd.end }}")
+        val newIt = tub.variable("mapIt", mapName, s"{${ rvd.region }, $oldRowIt}")
+        val newEnd = tub.variable("end", mapName, s"{${ rvd.region }, ${ rvd.end }}")
         val newSetup =
           s"""
              |${ rvd.setup }
@@ -161,27 +159,25 @@ class TableEmitter(tub: TranslationUnitBuilder) { outer =>
         val filterName = tub.genSym("FilterRowIterator")
         val filter = tub.buildClass(filterName)
 
-        val st = tub.variable("st", "NativeStatus *")
         val region = tub.variable("region", "ScalaRegion *")
         val prevIt = tub.variable("it", oldRowIt.typ)
         val endIt = tub.variable("end", oldRowIt.typ)
-        filter += st
         filter += region
         filter += prevIt
         filter += endIt
 
         filter +=
           s"""
-             |$filterName(NativeStatus * st, ScalaRegion * region, ${ oldRowIt.typ } it, ${ oldRowIt.typ } end) :
-             |$st(st), $region(region), $prevIt(it), $endIt(end) {
-             |  while(($prevIt != $endIt) && !keep_row($st, $region, *$prevIt)) {
+             |$filterName(ScalaRegion * region, ${ oldRowIt.typ } it, ${ oldRowIt.typ } end) :
+             |$region(region), $prevIt(it), $endIt(end) {
+             |  while(($prevIt != $endIt) && !keep_row($region, *$prevIt)) {
              |    ++$prevIt;
              |  }
              |}
            """.stripMargin
 
-        val filterF = tub.buildFunction("keep_row", Array("NativeStatus*" -> "st", "ScalaRegion*" -> "region", "const char *" -> "row"), "bool")
-        val substEnv = ir.Env.empty[ir.IR].bind("row", ir.In(1, child.typ.rowType))
+        val filterF = tub.buildFunction("keep_row", Array("ScalaRegion*" -> "region", "const char *" -> "row"), "bool")
+        val substEnv = ir.Env.empty[ir.IR].bind("row", ir.In(0, child.typ.rowType))
         val et = Emit(filterF, 1, ir.Subst(cond, substEnv))
         filterF +=
           s"""
@@ -194,7 +190,7 @@ class TableEmitter(tub: TranslationUnitBuilder) { outer =>
           s"""
              |do {
              |  ++$prevIt;
-             |} while(($prevIt != $endIt) && !keep_row($st, $region, *$prevIt));
+             |} while(($prevIt != $endIt) && !keep_row($region, *$prevIt));
              |return *this;
            """.stripMargin)
         filter += new Function(s"char const*", "operator*", Array(), s"return *$prevIt;")
@@ -205,8 +201,8 @@ class TableEmitter(tub: TranslationUnitBuilder) { outer =>
 
         filter.end()
 
-        val newIt = tub.variable("filterIt", filterName, s"{${ rvd.st }, ${ rvd.region }, $oldRowIt, ${ rvd.end }}")
-        val newEnd = tub.variable("end", filterName, s"{${ rvd.st }, ${ rvd.region }, ${ rvd.end }, ${ rvd.end }}")
+        val newIt = tub.variable("filterIt", filterName, s"{${ rvd.region }, $oldRowIt, ${ rvd.end }}")
+        val newEnd = tub.variable("end", filterName, s"{${ rvd.region }, ${ rvd.end }, ${ rvd.end }}")
         val newSetup =
           s"""
              |${ rvd.setup }
