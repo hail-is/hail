@@ -124,6 +124,8 @@ COPY ccg_workshop_2018_python3.ipynb .
 
 COPY basic_R.ipynb .
 
+COPY python_part_1.ipynb .
+
 COPY python_part_2.ipynb .
 
 COPY some_numbers.txt .
