@@ -22,7 +22,7 @@ TEST_CASE("Linearized Map/Filter/Explode works") {
   char * gbuf = (char *) malloc(9);
   *reinterpret_cast<int *>(gbuf) = 5;
   strcpy(gbuf + sizeof(int), globals.c_str());
-  PartitionContext ctx { nullptr, gbuf };
+  PartitionContext ctx { gbuf };
 
   TestStringImplementation tester {str_rows, globals};
   TestStringEncoder encoder;
