@@ -116,7 +116,13 @@ RUN wget -O WEScourse.ISB101.2018.tar.gz https://www.dropbox.com/s/fwqy9vze5p7w7
     tar -xf WEScourse.ISB101.2018.tar.gz && \
     rm -rf WEScourse.ISB101.2018.tar.gz
 
+RUN wget -O awk.tar https://www.dropbox.com/s/80d3km03yhnhlh1/awk.tar?dl=1 && \
+    tar -xf awk.tar && \
+    rm -rf awk.tar
+
 COPY ccg_workshop_2018_python3.ipynb .
+
+COPY basic_R.ipynb .
 
 COPY python_part_2.ipynb .
 
