@@ -7,6 +7,8 @@ import hail
 import hail as hl
 from hail.expr.expressions import *
 from hail.expr.types import *
+from hail.expr.table_type import *
+from hail.expr.matrix_type import *
 from hail.ir import *
 from hail.table import Table, ExprContainer
 from hail.typecheck import *
@@ -602,6 +604,20 @@ class MatrixTable(ExprContainer):
                                     self._col.items(),
                                     self._entry.items()):
             self._set_field(k, v)
+
+    @property
+    def schema(self) -> tmatrix:
+        """The schema of the matrix table.
+
+        Returns
+        -------
+        :class:`.tmatrix`
+        """
+        return tmatrix(
+            self._global_type,
+            self._col_type, list(self._col_key),
+            self._row_type, list(self._row_key),
+            self._entry_type)
 
     def __getitem__(self, item):
         invalid_usage = TypeError(f"MatrixTable.__getitem__: invalid index argument(s)\n"
