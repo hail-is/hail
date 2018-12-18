@@ -20,11 +20,11 @@ class TableExplodeRows {
     PartitionContext * ctx() { return next_.ctx(); }
 
     void operator()(RegionPtr &&region, const char * value) {
-      auto len = exploder_.len(ctx()->st_, region.get(), value);
+      auto len = exploder_.len(region.get(), value);
       for (int i=0; i<len; ++i) {
         auto new_region = ctx()->pool_.get_region();
         new_region->add_reference_to(region);
-        next_(std::move(new_region), exploder_(ctx()->st_, new_region.get(), value, i));
+        next_(std::move(new_region), exploder_(new_region.get(), value, i));
       }
     }
 

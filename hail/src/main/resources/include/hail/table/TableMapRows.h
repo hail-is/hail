@@ -18,7 +18,7 @@ class TableMapRows {
     PartitionContext * ctx() { return next_.ctx(); }
 
     void operator()(RegionPtr &&region, const char * value) {
-      next_(std::move(region), mapper_(ctx()->st_, region.get(), ctx()->globals_, value));
+      next_(std::move(region), mapper_(region.get(), ctx()->globals_, value));
     }
 
     template<typename ... Args>

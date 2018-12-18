@@ -18,11 +18,10 @@ import org.apache.spark.rdd.RDD
 import org.json4s.jackson.JsonMethods
 
 case class PartitionContext(globals: BroadcastRow, tub: TranslationUnitBuilder) {
-  val st: Variable = tub.variable("st", "NativeStatus*")
   val up: Variable = tub.variable("up", "UpcallEnv")
   val globalsInput: Variable = tub.variable("globals", "long")
   val rddInput: Variable = tub.variable("input_objects", "long")
-  val cxxCtx: Variable = tub.variable("ctx", "PartitionContext", s"{$st, reinterpret_cast<const char *>($globalsInput)}")
+  val cxxCtx: Variable = tub.variable("ctx", "PartitionContext", s"{reinterpret_cast<const char *>($globalsInput)}")
   val setup: Code =
     s"""
        |${up.define}
@@ -73,7 +72,7 @@ case class PartitionEmitTriplet(ctx: PartitionContext, setup: Code, producer: Pr
     val os = tub.variable("os", "long")
     val nRows = tub.variable("n_rows", "long", "0")
 
-    val part = new FunctionBuilder(tub, "process_partition", Array(ctx.st, ctx.globalsInput, ctx.rddInput, os), "long")
+    val part = new FunctionBuilder(tub, "process_partition", Array(ctx.globalsInput, ctx.rddInput, os), "long")
     val prod = producer
       .addArgs(s"&${ ctx.cxxCtx }",
         s"std::make_shared<OutputStream>(${ ctx.up }, reinterpret_cast<ObjectArray *>($os)->at(0))")
@@ -253,8 +252,7 @@ class TableEmitter(tub: TranslationUnitBuilder) {
         val filter = tub.buildClass(tub.genSym("Filter"))
 
         val filterF = filter.buildMethod("operator()",
-          Array("NativeStatus*" -> "st",
-            "Region*" -> "region",
+          Array("Region*" -> "region",
             "const char *" -> "globals",
             "const char *" -> "row"),
           "bool")
@@ -278,8 +276,7 @@ class TableEmitter(tub: TranslationUnitBuilder) {
         val mapper = tub.buildClass(tub.genSym("Mapper"))
 
         val mapF = mapper.buildMethod("operator()",
-          Array("NativeStatus*" -> "st",
-            "Region*" -> "region",
+          Array("Region*" -> "region",
             "const char *" -> "globals",
             "const char *" -> "row"), "const char *")
         val substEnv = ir.Env.empty[ir.IR]
@@ -308,8 +305,7 @@ class TableEmitter(tub: TranslationUnitBuilder) {
         val exploder = tub.buildClass(tub.genSym("Exploder"))
 
         val lenF = exploder.buildMethod("len",
-          Array("NativeStatus*" -> "st",
-            "Region*" -> "region",
+          Array("Region*" -> "region",
             "const char *" -> "row"), "int")
         val lenEnv = ir.Env.empty[ir.IR]
           .bind("row", ir.In(0, child.typ.rowType))
@@ -322,8 +318,7 @@ class TableEmitter(tub: TranslationUnitBuilder) {
         lenF.end()
 
         val explodeF = exploder.buildMethod("operator()",
-          Array("NativeStatus*" -> "st",
-            "Region*" -> "region",
+          Array("Region*" -> "region",
             "const char *" -> "row",
             "int" -> "i"), "const char *")
         val substEnv = ir.Env.empty[ir.IR]

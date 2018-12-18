@@ -18,7 +18,7 @@ class TableFilterRows {
     PartitionContext * ctx() { return next_.ctx(); }
 
     void operator()(RegionPtr &&region, const char * value) {
-      if (filter_(ctx()->st_, region.get(), ctx()->globals_, value)) {
+      if (filter_(region.get(), ctx()->globals_, value)) {
         next_(std::move(region), value);
       }
     }

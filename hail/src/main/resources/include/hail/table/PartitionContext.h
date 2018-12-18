@@ -5,12 +5,10 @@
 namespace hail {
 
 struct PartitionContext {
-  NativeStatus * st_;
   const char * globals_;
   RegionPool pool_{};
 
-  PartitionContext(NativeStatus * st, const char * globals) : st_(st), globals_(globals) { }
-  PartitionContext(NativeStatus * st) : PartitionContext(st, nullptr) { }
+  PartitionContext(const char * globals) : globals_(globals) { }
   PartitionContext() : PartitionContext(nullptr) { }
 };
 
