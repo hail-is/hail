@@ -85,4 +85,7 @@ class ClassBuilder(val parent: ScopeBuilder, val name: String, superClass: Strin
 
   def buildMethod(prefix: String, args: Array[(cxx.Type, String)], returnType: Type, const: Boolean = false): FunctionBuilder =
     new FunctionBuilder(this, prefix, args.map { case (typ, p) => new Variable(p, typ, null) }, returnType, const)
+
+  def buildClass(name: String, superClass: String = null): ClassBuilder =
+    new ClassBuilder(this, name, superClass)
 }

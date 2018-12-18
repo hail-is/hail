@@ -107,26 +107,36 @@ class RegionValueIteratorSuite extends SparkSuite {
     val cb = tub.buildClass("CXXIterator", "NativeObj")
     val dec = tub.variable("dec", decClass.name)
     val reg = tub.variable("reg", "ScalaRegion *")
-    val value = tub.variable("value", "char const *", "nullptr")
+    val value = tub.variable("value", "mutable char const *", "nullptr")
     cb += dec
     cb += reg
     cb += value
     cb +=
-      s"""${cb.name}(jobject is, ScalaRegion * reg, NativeStatus * st) :
+      s"""${cb.name}(jobject is, ScalaRegion * reg) :
          |$dec(std::make_shared<InputStream>(UpcallEnv(), is)), $reg(reg) {
          |  $value = ($dec.decode_byte()) ? $dec.decode_row($reg->get_wrapped_region()) : nullptr;
          |}
          """.stripMargin
 
-    cb += new Function(s"${ cb.name }&",
-      "operator++", Array(),
-      s"$value = ($dec.decode_byte()) ? $dec.decode_row($reg->get_wrapped_region()) : nullptr; return *this;")
-    cb += new Function("char const*", "operator*", Array(), s"return $value;")
+    cb += new Function("bool", "advance", Array(),
+      s"$value = ($dec.decode_byte()) ? $dec.decode_row($reg->get_wrapped_region()) : nullptr; return ($value == nullptr);", const = true)
+    cb += new Function("char const*", "get", Array(), s"return $value;", const = true)
+
+    val itclass = cb.buildClass("Iterator")
+    val range = tub.variable("range", s"const ${ cb.name } *")
+    itclass += range
+    itclass += s"Iterator(const ${ cb.name } * range) : ${ range }(range) { } "
+    itclass += new Function(s"Iterator&", "operator++", Array(), s"if ($range->advance()) { $range = nullptr; } return *this;")
+    itclass += new Function("char const *", "operator*", Array(), s"return $range->get();", const = true)
+    itclass += new Function("friend bool", "operator==", Array(Variable("lhs", "const Iterator &"), Variable("rhs", "const Iterator &")), s"return (lhs.$range == rhs.$range);")
+    itclass += new Function("friend bool", "operator!=", Array(Variable("lhs", "const Iterator &"), Variable("rhs", "const Iterator &")), s"return !(lhs == rhs);")
+    itclass.end()
+    cb += new Function(s"Iterator", "begin", Array(), s"return Iterator(this);", const=true)
+    cb += new Function(s"Iterator", "end", Array(), s"return Iterator(nullptr);", const=true)
     cb.end()
 
     val itType = cb.name
-    val is = s"std::make_shared<InputStream>(UpcallEnv(), reinterpret_cast<ObjectArray *>(${ makeItF.getArg(2) })->at(0))"
-    makeItF += s"return std::make_shared<ScalaStagingIterator<$itType>>(${ decClass.name }($is), reinterpret_cast<ScalaRegion *>(${ makeItF.getArg(1) }));"
+    makeItF += s"return std::make_shared<ScalaStagingIterator<$itType>>(reinterpret_cast<ObjectArray *>(${ makeItF.getArg(2) })->at(0), reinterpret_cast<ScalaRegion *>(${ makeItF.getArg(1) }));"
     makeItF.end()
 
     val modToPtr = { (mod: NativeModule, region: Region, obj: ObjectArray) =>
