@@ -19,7 +19,13 @@ module.exports = withTypescript(
         webpack(config, options) {
           if (options.isServer) {
             config.plugins.push(new ForkTsCheckerWebpackPlugin());
+          } else {
+            config.optimization.splitChunks.cacheGroups.commons.minChunks = 2;
+            console.info(config.optimization.splitChunks.cacheGroups);
           }
+
+          // console.info(config.plugins);
+          config.resolve.modules.push('./');
 
           return config;
         }
@@ -63,8 +69,6 @@ const publicRuntimeConfig = {
       process.env.SCORECARD_USER_URL || 'http://localhost:5000/json/users'
   }
 };
-
-console.info('stuff', publicRuntimeConfig);
 
 serverRuntimeConfig.SCORECARD = publicRuntimeConfig.SCORECARD;
 

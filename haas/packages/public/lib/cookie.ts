@@ -6,7 +6,7 @@ import jsCookie from 'js-cookie';
 // TODO: we can't use httponly cookies while also implementing
 // TODO: make request object pass with a type that has on headers, the cookie
 // checkSession....find an alternative to checkSession
-const secure = process.env.NODE_ENV === 'production';
+const secure = !!process.env.SSL;
 
 export const setCookie = (
   key: string,
@@ -16,7 +16,6 @@ export const setCookie = (
   if (exp !== undefined) {
     jsCookie.set(key, value, { expires: exp, path: '/', secure: secure });
   } else {
-    console.info(`setting session cookie for ${key}`);
     // session cookie
     jsCookie.set(key, value, { path: '/', secure: secure });
   }
@@ -48,8 +47,6 @@ export const getCookieFromServer = (key: string, req: any) => {
   }
 
   return rawCookie.split('=')[1];
-
-  // return cookie.parse(req.headers.cookie)[key];     √ √Ç
 };
 
 export const getCookie = (key: string, req?: any) => {
@@ -57,11 +54,3 @@ export const getCookie = (key: string, req?: any) => {
     ? getCookieFromBrowser(key)
     : getCookieFromServer(key, req);
 };
-
-// export {
-//   setCookie,
-//   removeCookie,
-//   getCookieFromBrowser,
-//   getCookieFromServer,
-//   getCookie
-// };

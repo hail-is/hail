@@ -8,15 +8,11 @@ import PropTypes from 'prop-types';
 import Link from 'next/link';
 import Router, { withRouter } from 'next/router';
 
-import MenuItem from '@material-ui/core/MenuItem';
-import Menu from '@material-ui/core/Menu';
+// import MenuItem from '@material-ui/core/MenuItem';
+// import Menu from '@material-ui/core/Menu';
 
 import classNames from 'classnames';
 import { view } from 'react-easy-state';
-
-import initApollo from '../lib/initApollo';
-
-import Auth from '../lib/Auth';
 
 const LoginLink = (props, context) => {
   return (
@@ -71,21 +67,6 @@ class Header extends Component {
     return (
       <span id="Header">
         <div id="appBar">
-          {/* <Snackbar
-          anchorOrigin={{
-            vertical: 'top',
-            horizontal: 'right'
-          }}
-          open={this.state.openLogoutSnackbar}
-          autoHideDuration={6000}
-          onClose={this.handleClose}
-        >
-          <MySnackbarContentWrapper
-            onClose={() => this.setState({ openLogoutSnackbar: false })}
-            variant="info"
-            message="Logged out (your session expired)"
-          />
-        </Snackbar> */}
           <Link href="/" passHref>
             <a
               href="/"
@@ -140,7 +121,7 @@ class Header extends Component {
           </Link>
 
           <span style={{ marginLeft: 'auto' }}>
-            {Auth.state.user ? (
+            {this.props.auth.state.user ? (
               <Fragment>
                 <span
                   aria-owns={open ? 'menu-appbar' : null}
@@ -152,27 +133,6 @@ class Header extends Component {
                 >
                   <i className="material-icons">account_circle</i>
                 </span>
-                <Menu
-                  id="menu-appbar"
-                  anchorEl={anchorEl}
-                  anchorOrigin={{
-                    vertical: 'top',
-                    horizontal: 'right'
-                  }}
-                  transformOrigin={{
-                    vertical: 'top',
-                    horizontal: 'right'
-                  }}
-                  open={open}
-                  onClose={this.handleClose}
-                >
-                  {/* <Link href="/profile" passHref> */}
-                  <MenuItem>Profile</MenuItem>
-                  {/* </Link> */}
-                  {/* <Link href="/logout" passHref> */}
-                  <MenuItem onClick={onLogout}>Log out</MenuItem>
-                  {/* </Link> */}
-                </Menu>
               </Fragment>
             ) : (
               <LoginLink onLogin={onLogin} />

@@ -1,3 +1,17 @@
 {
-  "presets": ["next/babel", "@zeit/next-typescript/babel"]
+  "presets": [
+    [
+      "env",
+      {
+        "modules": false,
+        "debug": false,
+        "useBuiltIns": true,
+        "targets": {
+          "browsers": ["last 2 Chrome versions"]
+        }
+      }
+    ],
+    "next/babel",
+    "@zeit/next-typescript/babel"
+  ]
 }
