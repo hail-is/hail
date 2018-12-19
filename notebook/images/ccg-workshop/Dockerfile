@@ -122,7 +122,7 @@ RUN wget -O awk.tar https://www.dropbox.com/s/80d3km03yhnhlh1/awk.tar?dl=1 && \
 
 COPY ccg_workshop_2018_python3.ipynb .
 
-COPY basic_R.ipynb .
+COPY Basic_R.ipynb .
 
 COPY python_part_1.ipynb .
 
