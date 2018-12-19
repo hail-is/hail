@@ -34,7 +34,7 @@ class IR(BaseIR):
     def aggregations(self):
         if self._aggregations is None:
             self._aggregations = [agg for child in self.children for agg in child.aggregations]
-        return self._aggregationsta
+        return self._aggregations
 
     @property
     def is_nested_field(self):
