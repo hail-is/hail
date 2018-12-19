@@ -2,6 +2,8 @@ import abc
 
 from hail.utils.java import *
 from hail.expr.types import dtype
+from hail.expr.table_type import *
+from hail.expr.matrix_type import *
 from hail.ir.renderer import Renderer
 
 
@@ -10,21 +12,36 @@ class Backend(object):
     def interpret(self, ir):
         return
 
+    @abc.abstractmethod
+    def table_read_type(self, table_read_ir):
+        return
+
+    @abc.abstractmethod
+    def matrix_read_type(self, matrix_read_ir):
+        return
+
 
 class SparkBackend(Backend):
+    def _to_java_ir(self, ir):
+        if not hasattr(ir, '_jir'):
+            r = Renderer(stop_at_jir=True)
+            code = r(ir)
+            # FIXME parse should be static
+            ir._jir = ir.parse(code, ir_map=r.jirs)
+        return ir._jir
+
     def interpret(self, ir):
-        assert isinstance(ir, hail.ir.IR)
+        return ir.typ._from_json(
+            Env.hail().expr.ir.Interpret.interpretJSON(
+                self._to_java_ir(ir)))
 
-        r = Renderer(stop_at_jir=True)
-        code = r(ir)
-        ir_map = {name: jir for name, jir in r.jirs.items()}
+    def table_read_type(self, tir):
+        jir = self._to_java_ir(tir)
+        return ttable._from_java(jir.typ())
 
-        jir = ir.to_java_ir()
-
-        typ = dtype(jir.typ().toString())
-        result = Env.hail().expr.ir.Interpret.interpretPyIR(code, {}, ir_map)
-
-        return typ._from_json(result)
+    def matrix_read_type(self, mir):
+        jir = self._to_java_ir(mir)
+        return tmatrix._from_java(jir.typ())
 
 
 class ServiceBackend(Backend):
@@ -34,8 +51,6 @@ class ServiceBackend(Backend):
         self.port = port
 
     def interpret(self, ir):
-        assert isinstance(ir, hail.ir.IR)
-
         r = Renderer(stop_at_jir=True)
         code = r(ir)
         assert len(r.jirs) == 0

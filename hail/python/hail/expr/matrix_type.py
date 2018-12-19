@@ -1,8 +1,19 @@
 from hail.typecheck import *
 from hail.utils.java import escape_parsable
-from hail.expr.types import tstruct
+from hail.expr.types import dtype, tstruct
+from hail.utils.java import jiterable_to_list
 
 class tmatrix(object):
+    @staticmethod
+    def _from_java(jtt):
+        return tmatrix(
+            dtype(jtt.globalType().toString()),
+            dtype(jtt.colType().toString()),
+            jiterable_to_list(jtt.colKey()),
+            dtype(jtt.rowType().toString()),
+            jiterable_to_list(jtt.rowKey()),
+            dtype(jtt.entryType().toString()))
+
     @typecheck_method(global_type=tstruct,
                       col_type=tstruct, col_key=sequenceof(str),
                       row_type=tstruct, row_key=sequenceof(str),

@@ -1,6 +1,5 @@
 package is.hail.expr.types
 
-import is.hail.expr.Parser
 import is.hail.expr.ir._
 import is.hail.expr.types.virtual.{TStruct, Type}
 import is.hail.rvd.RVDType

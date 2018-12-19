@@ -324,21 +324,18 @@ class Table(ExprContainer):
         super(Table, self).__init__()
 
         self._tir = tir
-        self._jtir = tir.to_java_ir()
-        self._jt = Env.hail().table.Table(Env.hc()._jhc, self._jtir)
+        self._jt = Env.hail().table.Table(
+            Env.hc()._jhc, Env.hc()._backend._to_java_ir(self._tir))
 
-        jttype = self._jtir.typ()
+        self._type = self._tir.typ
 
         self._row_axis = 'row'
 
         self._global_indices = Indices(axes=set(), source=self)
         self._row_indices = Indices(axes={self._row_axis}, source=self)
 
-        self._global_type = hl.dtype(jttype.globalType().toString())
-        self._row_type = hl.dtype(jttype.rowType().toString())
-
-        assert isinstance(self._global_type, tstruct)
-        assert isinstance(self._row_type, tstruct)
+        self._global_type = self._type.global_type
+        self._row_type = self._type.row_type
 
         self._globals = construct_reference('global', self._global_type, indices=self._global_indices)
         self._row = construct_reference('row', self._row_type, indices=self._row_indices)
@@ -347,7 +344,7 @@ class Table(ExprContainer):
                                   'row': self._row_indices}
 
         self._key = hail.struct(
-            **{k: self._row[k] for k in jiterable_to_list(jttype.key())})
+            **{k: self._row[k] for k in self._type.row_key})
 
         for k, v in itertools.chain(self._globals.items(),
                                     self._row.items()):
