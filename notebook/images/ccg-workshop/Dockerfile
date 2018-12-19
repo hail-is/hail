@@ -158,3 +158,8 @@ RUN Rscript -e "install.packages('tidyverse')"
 USER root
 RUN apt-get update && apt-get install -y bedtools
 USER jovyan
+
+# keep this last
+USER root
+RUN chown jovyan:users -R /home/jovyan
+USER jovyan
