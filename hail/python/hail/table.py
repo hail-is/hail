@@ -994,7 +994,9 @@ class Table(ExprContainer):
             the export will be slower.
         """
 
-        self._jt.export(output, types_file, header, Env.hail().utils.ExportType.getExportType(parallel))
+        Env.backend().execute(
+            # FIXME write getExportType in Python
+            TableExport(self._tir, output, types_file, header, Env.hail().utils.ExportType.getExportType(parallel)))
 
     def group_by(self, *exprs, **named_exprs) -> 'GroupedTable':
         """Group by a new key for use with :meth:`.GroupedTable.aggregate`.
@@ -1339,10 +1341,11 @@ class Table(ExprContainer):
             def joiner(left):
                 if not is_key:
                     original_key = list(left.key)
-                    left = Table._from_java(left.key_by()._jt.mapRows(str(Apply('annotate',
-                                                             left._row._ir,
-                                                             hl.struct(**dict(zip(uids, exprs)))._ir)))
-                                 ).key_by(*uids)
+                    left = Table(TableMapRows(left.key_by()._tir,
+                                              Apply('annotate',
+                                                    left._row._ir,
+                                                    hl.struct(**dict(zip(uids, exprs)))._ir))
+                           ).key_by(*uids)
                     rekey_f = lambda t: t.key_by(*original_key)
                 else:
                     rekey_f = identity
@@ -1350,7 +1353,7 @@ class Table(ExprContainer):
                 if is_interval:
                     left = Table._from_java(left._jt.intervalJoin(self._jt, uid))
                 else:
-                    left = Table._from_java(left._jt.leftJoinRightDistinct(self._jt, uid))
+                    left = Table(TableLeftJoinRightDistinct(left._tir, self._tir, uid))
                 return rekey_f(left)
 
             all_uids.append(uid)
@@ -1385,7 +1388,8 @@ class Table(ExprContainer):
                     key = None
                 else:
                     key = [str(k._ir) for k in exprs]
-                joiner = lambda left: MatrixTable._from_java(left._jmt.annotateRowsTableIR(right._jt, uid, key))
+                joiner = lambda left: MatrixTable(MatrixAnnotateRowsTable(
+                    left._mir, right._tir, uid, key))
                 ast = Join(GetField(TopLevelReference('va'), uid),
                            [uid],
                            exprs,
@@ -1397,7 +1401,7 @@ class Table(ExprContainer):
                         exprs[i] is src.col_key[i] for i in range(len(exprs))]):
                     # key is already correct
                     def joiner(left):
-                        return MatrixTable._from_java(left._jmt.annotateColsTable(right._jt, uid))
+                        return MatrixTable(MatrixAnnotateColsTable(left._mir, right._tir, uid))
                 else:
                     index_uid = Env.get_uid()
                     uids = [Env.get_uid() for _ in exprs]
@@ -1415,10 +1419,12 @@ class Table(ExprContainer):
                                   .join(self, 'inner')
                                   .key_by(index_uid)
                                   .drop(*uids))
-                        result = MatrixTable._from_java(left.add_col_index(index_uid)
-                                                        .key_cols_by(index_uid)
-                                                        ._jmt
-                                                        .annotateColsTable(joined._jt, uid)).key_cols_by(*prev_key)
+                        result = MatrixTable(MatrixAnnotateColsTable(
+                            (left.add_col_index(index_uid)
+                             .key_cols_by(index_uid)
+                             ._mir),
+                            joined._tir,
+                            uid)).key_cols_by(*prev_key)
                         return result
                 ir = Join(GetField(TopLevelReference('sa'), uid),
                           all_uids,
@@ -2316,11 +2322,8 @@ class Table(ExprContainer):
         if len(col_key) == 0:
             raise ValueError(f"'to_matrix_table': require at least one col key field")
 
-        return hl.MatrixTable._from_java(self._jt.jToMatrixTable(row_key,
-                                                                 col_key,
-                                                                 row_fields,
-                                                                 col_fields,
-                                                                 n_partitions))
+        return hl.MatrixTable(TableToMatrixTable(
+            self._tir, row_key, col_key, row_fields, col_fields, n_partitions))
 
     @property
     def globals(self) -> 'StructExpression':
@@ -2615,8 +2618,8 @@ class Table(ExprContainer):
                       entries_field_name=str,
                       col_key=sequenceof(str))
     def _unlocalize_entries(self, entries_field_name, cols_field_name, col_key):
-        return hl.MatrixTable._from_java(
-                self._jt.unlocalizeEntries(entries_field_name, cols_field_name, col_key))
+        return hl.MatrixTable(CastTableToMatrix(
+            self._tir, entries_field_name, cols_field_name, col_key))
 
     @staticmethod
     @typecheck(tables=sequenceof(table_type), data_field_name=str, global_field_name=str)
@@ -2630,9 +2633,7 @@ class Table(ExprContainer):
             raise TypeError('All input tables to multi_way_zip_join must have the same row type')
         if any(head.globals.dtype != t.globals.dtype for t in tables):
             raise TypeError('All input tables to multi_way_zip_join must have the same global type')
-        jt = Env.hail().table.Table.multiWayZipJoin([t._jt for t in tables],
-                                                    data_field_name,
-                                                    global_field_name)
-        return Table._from_java(jt)
+        return Table(TableMultiWayZipJoin(
+            [t._tir for t in tables], data_field_name, global_field_name))
 
 table_type.set(Table)

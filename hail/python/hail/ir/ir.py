@@ -1291,9 +1291,9 @@ class TableWrite(IR):
 class TableExport(IR):
     @typecheck_method(child=TableIR,
                       path=str,
-                      types_file=str,
+                      types_file=nullable(str),
                       header=bool,
-                      export_type=hail_type)
+                      export_type=int)
     def __init__(self, child, path, types_file, header, export_type):
         super().__init__(child)
         self.child = child
@@ -1308,12 +1308,12 @@ class TableExport(IR):
         return new_instance(child, self.path, self.types_file, self.header, self.export_type)
 
     def render(self, r):
-        return '(TableExport "{}" "{}" "{}" {} {})'.format(
+        return '(TableExport {} "{}" "{}" {} {})'.format(
+            r(self.child),
             escape_str(self.path),
-            escape_str(self.types_file),
-            escape_str(self.header),
-            self.export_type,
-            r(self.child))
+            escape_str(self.types_file) if self.types_file else 'None',
+            self.header,
+            self.export_type)
 
     def __eq__(self, other):
         return isinstance(other, TableExport) and \
