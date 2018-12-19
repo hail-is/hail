@@ -153,11 +153,11 @@ RUN mkdir genotype-harmonizer && \
 
 COPY workshop_cars.txt workshop_plants.txt ./
 
-RUN Rscript -e "install.packages('tidyverse')"
-
 USER root
-RUN apt-get update && apt-get install -y bedtools
+RUN apt-get update && apt-get install -y r-cran-curl r-cran-openssl bedtools
 USER jovyan
+
+RUN Rscript -e "install.packages('tidyverse')"
 
 # keep this last
 USER root
