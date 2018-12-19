@@ -3,11 +3,13 @@ package is.hail.expr.ir
 import is.hail.SparkSuite
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.types._
-import is.hail.expr.types.virtual.{TArray, TInt32, TString, TStruct, TFloat64}
+import is.hail.expr.types.virtual.{TArray, TFloat64, TInt32, TString, TStruct}
 import is.hail.rvd.{RVD, RVDContext, RVDPartitioner}
 import is.hail.sparkextras.ContextRDD
 import is.hail.table.Table
 import is.hail.utils._
+import is.hail.TestUtils._
+import is.hail.io.CodecSpec
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
 
@@ -262,6 +264,18 @@ class TableIRSuite extends SparkSuite {
       kt.value.copy(typ = kt.typ.copy(key = IndexedSeq("field1")))
     ))).rdd.collect()
     assert(distinct.length == 2)
+  }
+
+  @Test def testTableParallelize() {
+    val r = Row(FastIndexedSeq(Row(1), Row(2)), Row("the global"))
+    val l = Literal(
+      TStruct("rows" -> TArray(TStruct("foo" -> TInt32())), "global" -> TStruct("bar" -> TString())),
+      r
+    )
+
+    val tv = TableParallelize(l, None).execute(hc)
+    assert(tv.rvd.collect(CodecSpec.default).toFastIndexedSeq == r.get(0))
+    assert(tv.globals.value == r.get(1))
   }
 
   @Test def testShuffleAndJoinDoesntMemoryLeak() {

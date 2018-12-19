@@ -89,12 +89,12 @@ case class TableRead(path: String, spec: AbstractTableSpec, typ: TableType, drop
   }
 }
 
-case class TableParallelize(rowsAndGlobals: IR, nPartitions: Option[Int] = None) extends TableIR {
-  require(rowsAndGlobals.typ.isInstanceOf[TStruct])
-  require(rowsAndGlobals.typ.asInstanceOf[TStruct].fieldNames.sameElements(Array("rows", "global")))
+case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) extends TableIR {
+  require(rowsAndGlobal.typ.isInstanceOf[TStruct])
+  require(rowsAndGlobal.typ.asInstanceOf[TStruct].fieldNames.sameElements(Array("rows", "global")))
 
-  private val rowsType = rowsAndGlobals.typ.asInstanceOf[TStruct].fieldType("rows").asInstanceOf[TArray]
-  private val globalsType = rowsAndGlobals.typ.asInstanceOf[TStruct].fieldType("global").asInstanceOf[TStruct]
+  private val rowsType = rowsAndGlobal.typ.asInstanceOf[TStruct].fieldType("rows").asInstanceOf[TArray]
+  private val globalsType = rowsAndGlobal.typ.asInstanceOf[TStruct].fieldType("global").asInstanceOf[TStruct]
 
   override lazy val rvdType: RVDType = RVDType(rowsType
     .elementType
@@ -102,7 +102,7 @@ case class TableParallelize(rowsAndGlobals: IR, nPartitions: Option[Int] = None)
     .physicalType, // FIXME: Canonical() when that arrives
     FastIndexedSeq())
 
-  val children: IndexedSeq[BaseIR] = FastIndexedSeq(rowsAndGlobals)
+  val children: IndexedSeq[BaseIR] = FastIndexedSeq(rowsAndGlobal)
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableParallelize = {
     val IndexedSeq(newRowsAndGlobals: IR) = newChildren
@@ -115,7 +115,7 @@ case class TableParallelize(rowsAndGlobals: IR, nPartitions: Option[Int] = None)
     globalsType)
 
   protected[ir] override def execute(hc: HailContext): TableValue = {
-    val Row(rows: IndexedSeq[Row], globals: Row) = Interpret[Row](rowsAndGlobals, optimize = false)
+    val Row(rows: IndexedSeq[Row], globals: Row) = Interpret[Row](rowsAndGlobal, optimize = false)
     rows.zipWithIndex.foreach { case (r, idx) =>
       if (r == null)
         fatal(s"cannot parallelize null values: found null value at index $idx")
