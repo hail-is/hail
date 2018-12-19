@@ -3,11 +3,13 @@ package is.hail.expr.ir
 import is.hail.SparkSuite
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.types._
-import is.hail.expr.types.virtual.{TArray, TInt32, TString, TStruct, TFloat64}
+import is.hail.expr.types.virtual.{TArray, TFloat64, TInt32, TString, TStruct}
 import is.hail.rvd.{RVD, RVDContext, RVDPartitioner}
 import is.hail.sparkextras.ContextRDD
 import is.hail.table.Table
 import is.hail.utils._
+import is.hail.TestUtils._
+import is.hail.io.CodecSpec
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
 
@@ -215,7 +217,9 @@ class TableIRSuite extends SparkSuite {
     val (leftType, leftProjectF) = rowType.filter(f => !leftProject.contains(f.index))
     val left = new Table(hc, TableKeyBy(
       TableParallelize(
-        Literal(TArray(leftType), leftData.map(leftProjectF.asInstanceOf[Row => Row])),
+        Literal(
+          TStruct("rows" -> TArray(leftType), "global" -> TStruct()),
+          Row(leftData.map(leftProjectF.asInstanceOf[Row => Row]), Row())),
         Some(1)),
       if (!leftProject.contains(1)) IndexedSeq("A", "B") else IndexedSeq("A")))
     val partitionedLeft = left.copy2(
@@ -225,7 +229,9 @@ class TableIRSuite extends SparkSuite {
     val (rightType, rightProjectF) = rowType.filter(f => !rightProject.contains(f.index))
     val right = new Table(hc, TableKeyBy(
       TableParallelize(
-        Literal(TArray(rightType), rightData.map(rightProjectF.asInstanceOf[Row => Row])),
+        Literal(
+          TStruct("rows" -> TArray(rightType), "global" -> TStruct()),
+          Row(rightData.map(rightProjectF.asInstanceOf[Row => Row]), Row())),
         Some(1)),
       if (!rightProject.contains(1)) IndexedSeq("A", "B") else IndexedSeq("A")))
     val partitionedRight = right.copy2(
@@ -258,6 +264,18 @@ class TableIRSuite extends SparkSuite {
       kt.value.copy(typ = kt.typ.copy(key = IndexedSeq("field1")))
     ))).rdd.collect()
     assert(distinct.length == 2)
+  }
+
+  @Test def testTableParallelize() {
+    val r = Row(FastIndexedSeq(Row(1), Row(2)), Row("the global"))
+    val l = Literal(
+      TStruct("rows" -> TArray(TStruct("foo" -> TInt32())), "global" -> TStruct("bar" -> TString())),
+      r
+    )
+
+    val tv = TableParallelize(l, None).execute(hc)
+    assert(tv.rvd.collect(CodecSpec.default).toFastIndexedSeq == r.get(0))
+    assert(tv.globals.value == r.get(1))
   }
 
   @Test def testShuffleAndJoinDoesntMemoryLeak() {

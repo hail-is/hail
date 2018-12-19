@@ -838,8 +838,8 @@ object IRParser {
         TableMultiWayZipJoin(children, dataName, globalsName)
       case "TableParallelize" =>
         val nPartitions = opt(it, int32_literal)
-        val rows = ir_value_expr(env)(it)
-        TableParallelize(rows, nPartitions)
+        val rowsAndGlobal = ir_value_expr(env)(it)
+        TableParallelize(rowsAndGlobal, nPartitions)
       case "TableMapRows" =>
         val child = table_ir(env)(it)
         val newRow = ir_value_expr(env.withRefMap(child.typ.refMap))(it)

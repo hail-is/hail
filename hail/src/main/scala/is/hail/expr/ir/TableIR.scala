@@ -89,34 +89,44 @@ case class TableRead(path: String, spec: AbstractTableSpec, typ: TableType, drop
   }
 }
 
-case class TableParallelize(rows: IR, nPartitions: Option[Int] = None) extends TableIR {
-  require(rows.typ.isInstanceOf[TArray] && rows.typ.asInstanceOf[TArray].elementType.isInstanceOf[TStruct])
+case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) extends TableIR {
+  require(rowsAndGlobal.typ.isInstanceOf[TStruct])
+  require(rowsAndGlobal.typ.asInstanceOf[TStruct].fieldNames.sameElements(Array("rows", "global")))
 
-  val children: IndexedSeq[BaseIR] = FastIndexedSeq(rows)
+  private val rowsType = rowsAndGlobal.typ.asInstanceOf[TStruct].fieldType("rows").asInstanceOf[TArray]
+  private val globalsType = rowsAndGlobal.typ.asInstanceOf[TStruct].fieldType("global").asInstanceOf[TStruct]
+
+  override lazy val rvdType: RVDType = RVDType(rowsType
+    .elementType
+    .asInstanceOf[TStruct]
+    .physicalType, // FIXME: Canonical() when that arrives
+    FastIndexedSeq())
+
+  val children: IndexedSeq[BaseIR] = FastIndexedSeq(rowsAndGlobal)
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableParallelize = {
-    val IndexedSeq(newRows: IR) = newChildren
-    TableParallelize(newRows, nPartitions)
+    val IndexedSeq(newrowsAndGlobal: IR) = newChildren
+    TableParallelize(newrowsAndGlobal, nPartitions)
   }
 
   val typ: TableType = TableType(
-    rows.typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct],
+    rowsType.elementType.asInstanceOf[TStruct],
     FastIndexedSeq(),
-    TStruct())
+    globalsType)
 
   protected[ir] override def execute(hc: HailContext): TableValue = {
-    val rowsValue = Interpret[IndexedSeq[Row]](rows, optimize = false)
-    rowsValue.zipWithIndex.foreach { case (r, idx) =>
+    val Row(rows: IndexedSeq[Row], globals: Row) = Interpret[Row](rowsAndGlobal, optimize = false)
+    rows.zipWithIndex.foreach { case (r, idx) =>
       if (r == null)
         fatal(s"cannot parallelize null values: found null value at index $idx")
     }
 
-    log.info(s"parallelized ${ rowsValue.length } rows")
+    log.info(s"parallelized ${ rows.length } rows")
 
     val rowTyp = typ.rowType.physicalType
-    val rvd = ContextRDD.parallelize[RVDContext](hc.sc, rowsValue, nPartitions)
+    val rvd = ContextRDD.parallelize[RVDContext](hc.sc, rows, nPartitions)
       .cmapPartitions((ctx, it) => it.toRegionValueIterator(ctx.region, rowTyp))
-    TableValue(typ, BroadcastRow(Row(), typ.globalType, hc.sc), RVD.unkeyed(rowTyp, rvd))
+    TableValue(typ, BroadcastRow(globals, typ.globalType, hc.sc), RVD.unkeyed(rowTyp, rvd))
   }
 }
 

@@ -467,7 +467,9 @@ class Table(ExprContainer):
         if not isinstance(rows.dtype.element_type, tstruct):
             raise TypeError("'parallelize' expects an array with element type 'struct', found '{}'"
                             .format(rows.dtype))
-        table = Table(TableParallelize(rows._ir, n_partitions))
+        table = Table(TableParallelize(MakeStruct([
+            ('rows', rows._ir),
+            ('global', MakeStruct([]))]), n_partitions))
         if key is not None:
             table = table.key_by(*key)
         return table

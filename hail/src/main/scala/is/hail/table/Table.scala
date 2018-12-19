@@ -63,11 +63,6 @@ object Table {
   def read(hc: HailContext, path: String): Table =
     new Table(hc, TableIR.read(hc, path, dropRows = false, None))
 
-  def parallelize(ir: String, nPartitions: Option[Int]): Table = {
-    val rowsIR = IRParser.parse_value_ir(ir)
-    new Table(HailContext.get, TableParallelize(rowsIR, nPartitions))
-  }
-
   def importFam(hc: HailContext, path: String, isQuantPheno: Boolean = false,
     delimiter: String = "\\t",
     missingValue: String = "NA"): Table = {

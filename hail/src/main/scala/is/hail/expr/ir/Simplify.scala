@@ -230,7 +230,7 @@ object Simplify {
     case TableCount(TableOrderBy(child, _)) => TableCount(child)
     case TableCount(TableLeftJoinRightDistinct(child, _, _)) => TableCount(child)
     case TableCount(TableRange(n, _)) => I64(n)
-    case TableCount(TableParallelize(rows, _)) => Cast(ArrayLen(rows), TInt64())
+    case TableCount(TableParallelize(rowsAndGlobal, _)) => Cast(ArrayLen(GetField(rowsAndGlobal, "rows")), TInt64())
     case TableCount(TableRename(child, _, _)) => TableCount(child)
     case TableCount(TableAggregateByKey(child, _)) => TableCount(TableDistinct(child))
 
