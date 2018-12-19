@@ -8,7 +8,9 @@
     <div class="center">
       <h1>Hail Notebook Workers</h1>
       <p>Leader instance: {{ leader_instance }}</p>
-      <a href="{{ workers_url }}/delete-all-notebooks">Kill all workers</a>
+      <form action="{{ workers_url }}/delete-all-workers", method="post">
+        <input type="submit" value="Kill all workers" />
+      </form>
       <table>
         <thead>
           <tr>

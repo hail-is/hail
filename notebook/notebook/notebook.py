@@ -227,7 +227,7 @@ def workers_delete(pod_name, svc_name):
     return redirect(external_url_for('workers'))
 
 
-@app.route('/workers/delete-all-notebooks')
+@app.route('/workers/delete-all-workers', methods=['POST'])
 def delete_all_workers():
     if not session.get('admin'):
         return redirect(external_url_for('admin-login'))
