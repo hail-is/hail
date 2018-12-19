@@ -2982,12 +2982,10 @@ def construct_expr(ir: IR,
         raise NotImplementedError(type)
 
 
-@typecheck(name=str, type=HailType, indices=Indices, prefix=nullable(str))
-def construct_reference(name, type, indices, prefix=None):
-    if prefix is not None:
-        ir = GetField(TopLevelReference(prefix), name)
-    else:
-        ir = TopLevelReference(name)
+@typecheck(name=str, type=HailType, indices=Indices)
+def construct_reference(name, type, indices):
+    assert isinstance(type, hl.tstruct)
+    ir = SelectFields(TopLevelReference(name), list(type))
     return construct_expr(ir, type, indices)
 
 @typecheck(name=str, type=HailType, indices=Indices, aggregations=LinkedList)
