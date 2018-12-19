@@ -173,9 +173,9 @@ class MatrixColsTable(TableIR):
 
 
 class TableParallelize(TableIR):
-    def __init__(self, rows_and_globals, n_partitions):
+    def __init__(self, rows_and_global, n_partitions):
         super().__init__()
-        self.rows_and_globals = rows_and_globals
+        self.rows_and_globals = rows_and_global
         self.n_partitions = n_partitions
 
     def render(self, r):

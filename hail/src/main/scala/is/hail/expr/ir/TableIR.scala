@@ -105,8 +105,8 @@ case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) 
   val children: IndexedSeq[BaseIR] = FastIndexedSeq(rowsAndGlobal)
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableParallelize = {
-    val IndexedSeq(newRowsAndGlobals: IR) = newChildren
-    TableParallelize(newRowsAndGlobals, nPartitions)
+    val IndexedSeq(newrowsAndGlobal: IR) = newChildren
+    TableParallelize(newrowsAndGlobal, nPartitions)
   }
 
   val typ: TableType = TableType(
