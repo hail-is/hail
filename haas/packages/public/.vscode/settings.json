@@ -1,5 +1,4 @@
 {
-  "python.pythonPath": "/usr/local/opt/python/bin/python3.7",
   "typescript.tsdk": "node_modules/typescript/lib",
   "eslint.nodePath": "node_modules"
 }
