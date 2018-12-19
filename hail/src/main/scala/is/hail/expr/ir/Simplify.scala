@@ -268,6 +268,12 @@ object Simplify {
 
     case ApplyIR("annotate", Seq(s, MakeStruct(fields)), _) =>
       InsertFields(s, fields)
+
+    // simplify Boolean equality
+    case ApplyComparisonOp(EQ(_, _), expr, True()) => expr
+    case ApplyComparisonOp(EQ(_, _), True(), expr) => expr
+    case ApplyComparisonOp(EQ(_, _), expr, False()) => ApplyUnaryPrimOp(Bang(), expr)
+    case ApplyComparisonOp(EQ(_, _), False(), expr) => ApplyUnaryPrimOp(Bang(), expr)
   }
 
   private[this] def tableRules(canRepartition: Boolean): PartialFunction[TableIR, TableIR] = {
