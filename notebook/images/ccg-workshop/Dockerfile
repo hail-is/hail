@@ -159,6 +159,11 @@ USER jovyan
 
 RUN Rscript -e "install.packages('tidyverse')"
 
+RUN (cd WEScourse/tools/gatk3 && \
+     wget https://www.dropbox.com/s/2z70te3b1x8wcpa/GenomeAnalysisTK.1.8.jar)
+
+COPY runAnalysis.1.8.sh WEScourse/
+
 # keep this last
 USER root
 RUN chown jovyan:users -R /home/jovyan
