@@ -7,6 +7,8 @@ from typing import *
 import hail as hl
 from hail.expr.expressions import *
 from hail.expr.types import *
+from hail.expr.table_type import *
+from hail.expr.matrix_type import *
 from hail.ir import *
 from hail.typecheck import *
 from hail.utils import wrap_to_list, storage_level, LinkedList, Struct
@@ -351,6 +353,9 @@ class Table(ExprContainer):
                                     self._row.items()):
             self._set_field(k, v)
 
+    @property
+    def _schema(self) -> ttable:
+        return ttable(self._global_type, self._row_type, list(self._key))
 
     def __getitem__(self, item):
         if isinstance(item, str):

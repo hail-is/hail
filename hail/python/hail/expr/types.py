@@ -128,9 +128,6 @@ class HailType(object):
     def __str__(self):
         return
 
-    def __ne__(self, other):
-        return not self.__eq__(other)
-
     def __hash__(self):
         # FIXME this is a bit weird
         return 43 + hash(str(self))
@@ -148,6 +145,7 @@ class HailType(object):
         :obj:`str`
         """
         l = []
+        l.append(' ' * indent)
         self._pretty(l, indent, increment)
         return ''.join(l)
 
@@ -835,6 +833,10 @@ class tstruct(HailType, Mapping):
                 and all(self[f] == other[f] for f in self._fields))
 
     def _pretty(self, l, indent, increment):
+        if not self._fields:
+            l.append('struct {}')
+            return
+
         pre_indent = indent
         indent += increment
         l.append('struct {')
@@ -1281,7 +1283,6 @@ def types_match(left, right) -> bool:
 import pprint
 
 _old_printer = pprint.PrettyPrinter
-
 
 
 class TypePrettyPrinter(pprint.PrettyPrinter):
