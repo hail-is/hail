@@ -180,6 +180,39 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
          global_seed=6348563392232659379, _backend=None):
     """Initialize Hail and Spark.
 
+    Examples
+    --------
+    Import and initialize Hail using GRCh38 as the default reference genome:
+
+    >>> import hail as hl
+    >>> hl.init(default_reference='GRCh38')  # doctest: +SKIP
+
+    Notes
+    -----
+    Hail is not only a Python library; most of Hail is written in Java/Scala
+    and runs together with Apache Spark in the Java Virtual Machine (JVM).
+    In order to use Hail, a JVM needs to run as well. The :func:`.init`
+    function is used to initialize Hail and Spark.
+
+    This function also sets global configuration parameters used for the Hail
+    session, like the default reference genome and log file location.
+
+    This function will be called automatically (with default parameters) if
+    any Hail functionality requiring the backend (most of the libary!) is used.
+    To initialize Hail explicitly with non-default arguments, be sure to do so
+    directly after importing the module, as in the above example.
+
+    Note
+    ----
+    If a :class:`pyspark.SparkContext` is already running, then Hail must be
+    initialized with it as an argument:
+
+    >>> hl.init(sc=sc)  # doctest: +SKIP
+
+    See Also
+    --------
+    :func:`.stop`
+
     Parameters
     ----------
     sc : pyspark.SparkContext, optional
