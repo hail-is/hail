@@ -2,6 +2,7 @@ package is.hail.stats
 
 import is.hail.annotations.{Annotation, RegionValueBuilder}
 import is.hail.expr.types._
+import is.hail.expr.types.virtual.{TFloat64, TInt64, TStruct}
 import is.hail.utils._
 import is.hail.variant.{Call, Genotype}
 
@@ -21,6 +22,10 @@ class InbreedingCombiner extends Serializable {
   def merge(c: Call, af: Double): InbreedingCombiner = {
     nCalled += 1
     expectedHoms += 1 - (2 * af * (1 - af))
+
+    if (Call.unphasedDiploidGtIndex(c) > 2) {
+      fatal(s"inbreeding does not support multiallelic variants/genotypes. Found genotype ${ Call.toString(c) }")
+    }
 
     if (Call.isHomRef(c) || Call.isHomVar(c))
       observedHoms += 1

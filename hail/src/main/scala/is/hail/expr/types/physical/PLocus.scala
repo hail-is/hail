@@ -4,19 +4,17 @@ import is.hail.annotations._
 import is.hail.asm4s.Code
 import is.hail.check._
 import is.hail.expr.ir.EmitMethodBuilder
-import is.hail.expr.types.TLocus
+import is.hail.expr.types.virtual.TLocus
 import is.hail.utils._
 import is.hail.variant._
 
 import scala.reflect.{ClassTag, classTag}
 
 object PLocus {
-  def representation(required: Boolean = false): PStruct = {
-    val rep = PStruct(
-      "contig" -> +PString(),
-      "position" -> +PInt32())
-    rep.setRequired(required).asInstanceOf[PStruct]
-  }
+  def representation(required: Boolean = false): PStruct = PStruct(
+      required,
+      "contig" -> PString(required = true),
+      "position" -> PInt32(required = true))
 
   def schemaFromRG(rg: Option[ReferenceGenome], required: Boolean = false): PType = rg match {
     case Some(ref) => PLocus(ref)
@@ -35,10 +33,8 @@ case class PLocus(rg: RGBase, override val required: Boolean = false) extends Co
     sb.append('>')
   }
 
-  override def scalaClassTag: ClassTag[Locus] = classTag[Locus]
-
   // FIXME: Remove when representation of contig/position is a naturally-ordered Long
-  override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = {
+  override def unsafeOrdering(): UnsafeOrdering = {
     val repr = representation.fundamentalType
 
     new UnsafeOrdering {
@@ -65,7 +61,7 @@ case class PLocus(rg: RGBase, override val required: Boolean = false) extends Co
     new CodeOrdering {
       type T = Long
 
-      override def compareNonnull(rx: Code[Region], x: Code[Long], ry: Code[Region], y: Code[Long], missingGreatest: Boolean): Code[Int] = {
+      override def compareNonnull(rx: Code[Region], x: Code[Long], ry: Code[Region], y: Code[Long]): Code[Int] = {
         val cmp = mb.newLocal[Int]
 
         val c1 = representation.loadField(rx, x, 0)
@@ -90,15 +86,6 @@ case class PLocus(rg: RGBase, override val required: Boolean = false) extends Co
 
   val representation: PStruct = PLocus.representation(required)
 
-  override def unify(concrete: PType): Boolean = concrete match {
-    case PLocus(crg, _) => rg.unify(crg)
-    case _ => false
-  }
-
-  override def clear(): Unit = rg.clear()
-
-  override def subst() = copy(rg = rg.subst())
-  
   def contig(region: Code[Region], off: Code[Long]): Code[Long] = representation.loadField(region, off, 0)
   
   def position(region: Code[Region], off: Code[Long]): Code[Int] = region.loadInt(representation.loadField(region, off, 1))

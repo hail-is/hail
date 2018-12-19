@@ -6,6 +6,7 @@ import is.hail.HailContext
 import is.hail.annotations.Region
 import is.hail.expr.ir.MatrixValue
 import is.hail.expr.types._
+import is.hail.expr.types.physical.{PString, PStruct}
 import is.hail.variant._
 import is.hail.utils._
 import org.apache.spark.TaskContext
@@ -74,9 +75,9 @@ object ExportPlink {
     val d = digitsNeeded(nPartitions)
 
     val nSamples = mv.colValues.value.length
-    val fullRowType = mv.typ.rvRowType
+    val fullRowType = mv.typ.rvRowType.physicalType
 
-    val nRecordsWritten = mv.rvd.mapPartitionsWithIndex { (i, ctx, it) =>
+    val (partFiles, nRecordsWrittenPerPartition) = mv.rvd.mapPartitionsWithIndex { (i, ctx, it) =>
       val hConf = sHConfBc.value.value
       val f = partFile(d, i, TaskContext.get)
       val bedPartPath = tmpBedDir + "/" + f
@@ -103,15 +104,17 @@ object ExportPlink {
         }
       }
 
-      Iterator.single(rowCount)
-    }.collect().sum
+      Iterator.single(f -> rowCount)
+    }.collect().unzip
+
+    val nRecordsWritten = nRecordsWrittenPerPartition.sum
 
     hConf.writeFile(tmpBedDir + "/_SUCCESS")(out => ())
     hConf.writeFile(tmpBedDir + "/header")(out => out.write(ExportPlink.bedHeader))
-    hConf.copyMerge(tmpBedDir, path + ".bed", nPartitions, header = true)
+    hConf.copyMerge(tmpBedDir, path + ".bed", nPartitions, header = true, partFilesOpt = Some(partFiles))
 
     hConf.writeTextFile(tmpBimDir + "/_SUCCESS")(out => ())
-    hConf.copyMerge(tmpBimDir, path + ".bim", nPartitions, header = false)
+    hConf.copyMerge(tmpBimDir, path + ".bim", nPartitions, header = false, partFilesOpt = Some(partFiles))
 
     mv.colsTableValue.export(path + ".fam", header = false)
 
@@ -119,7 +122,7 @@ object ExportPlink {
   }
 }
 
-class BimAnnotationView(rowType: TStruct) extends View {
+class BimAnnotationView(rowType: PStruct) extends View {
   private val varidField = rowType.fieldByName("varid")
   private val cmPosField = rowType.fieldByName("cm_position")
 
@@ -149,7 +152,7 @@ class BimAnnotationView(rowType: TStruct) extends View {
 
   def varid(): String = {
     if (cachedVarid == null)
-      cachedVarid = TString.loadString(region, varidOffset)
+      cachedVarid = PString.loadString(region, varidOffset)
     cachedVarid
   }
 }

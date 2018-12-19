@@ -3,7 +3,8 @@ package is.hail.utils.richUtils
 import java.io.PrintWriter
 
 import is.hail.annotations.{Region, RegionValue, RegionValueBuilder}
-import is.hail.expr.types.TStruct
+import is.hail.expr.types.physical.PStruct
+import is.hail.expr.types.virtual.TStruct
 
 import scala.collection.JavaConverters._
 import scala.io.Source
@@ -105,12 +106,12 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
 }
 
 class RichRowIterator(val it: Iterator[Row]) extends AnyVal {
-  def toRegionValueIterator(region: Region, rowTyp: TStruct): Iterator[RegionValue] = {
+  def toRegionValueIterator(region: Region, rowTyp: PStruct): Iterator[RegionValue] = {
     val rvb = new RegionValueBuilder(region)
     val rv = RegionValue(region)
     it.map { row =>
       rvb.start(rowTyp)
-      rvb.addAnnotation(rowTyp, row)
+      rvb.addAnnotation(rowTyp.virtualType, row)
       rv.setOffset(rvb.end())
       rv
     }

@@ -2,7 +2,7 @@ package is.hail
 
 import java.io._
 import java.lang.reflect.Method
-import java.net.URI
+import java.net.{URI, URLClassLoader}
 import java.util.zip.Inflater
 
 import is.hail.check.Gen
@@ -624,6 +624,20 @@ package object utils extends Logging
       s
   }
 
+  def toMapFast[T, K, V](
+    ts: TraversableOnce[T]
+  )(key: T => K,
+    value: T => V
+  ): collection.Map[K, V] = {
+    val it = ts.toIterator
+    val m = mutable.Map[K, V]()
+    while (it.hasNext) {
+      val t = it.next
+      m.put(key(t), value(t))
+    }
+    m
+  }
+
   def toMapIfUnique[K, K2, V](
     kvs: Traversable[(K, V)]
   )(keyBy: K => K2
@@ -659,6 +673,19 @@ package object utils extends Logging
         ab += n - scan(lastIdx - 1)
       ab.result()
     }
+  }
+
+  def dumpClassLoader(cl: ClassLoader) {
+    System.err.println(s"ClassLoader ${ cl.getClass.getCanonicalName }:")
+    cl match {
+      case cl: URLClassLoader =>
+        System.err.println(s"  ${ cl.getURLs.mkString(" ") }")
+      case _ =>
+        System.err.println("  non-URLClassLoader")
+    }
+    val parent = cl.getParent
+    if (parent != null)
+      dumpClassLoader(parent)
   }
 }
 

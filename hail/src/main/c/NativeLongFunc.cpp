@@ -1,3 +1,4 @@
+#include "hail/NativeMethod.h"
 #include "hail/NativePtr.h"
 #include "hail/NativeStatus.h"
 #include <cassert>

@@ -1,7 +1,9 @@
 package is.hail.expr
 
 import is.hail.annotations.Annotation
+import is.hail.expr.ir.functions.UtilFunctions
 import is.hail.expr.types._
+import is.hail.expr.types.virtual._
 import is.hail.utils.{Interval, _}
 import is.hail.variant._
 import org.apache.spark.sql.Row
@@ -99,6 +101,8 @@ object JSONAnnotationImpex {
         case _: TFloat32 => JDouble(a.asInstanceOf[Float])
         case _: TFloat64 => JDouble(a.asInstanceOf[Double])
         case _: TString => JString(a.asInstanceOf[String])
+        case TVoid =>
+          JNull
         case TArray(elementType, _) =>
           val arr = a.asInstanceOf[Seq[Any]]
           JArray(arr.map(elem => exportAnnotation(elem, elementType)).toList)
@@ -198,7 +202,7 @@ object JSONAnnotationImpex {
             }
           }
 
-          Annotation(a: _*)
+          Annotation.fromSeq(a)
         }
       case (JArray(elts), t: TTuple) =>
         if (t.size == 0)
@@ -214,7 +218,7 @@ object JSONAnnotationImpex {
             i += 1
           }
 
-          Annotation(a: _*)
+          Annotation.fromSeq(a)
         }
       case (_, TLocus(_, _)) =>
         jv.extract[Locus]
@@ -278,11 +282,11 @@ object TableAnnotationImpex {
   def importAnnotation(a: String, t: Type): Annotation = {
     (t: @unchecked) match {
       case _: TString => a
-      case _: TInt32 => a.toInt
-      case _: TInt64 => a.toLong
-      case _: TFloat32 => a.toFloat
-      case _: TFloat64 => if (a == "nan") Double.NaN else a.toDouble
-      case _: TBoolean => a.toBoolean
+      case _: TInt32 => UtilFunctions.parseInt32(a)
+      case _: TInt64 => UtilFunctions.parseInt64(a)
+      case _: TFloat32 => UtilFunctions.parseFloat32(a)
+      case _: TFloat64 => UtilFunctions.parseFloat64(a)
+      case _: TBoolean => UtilFunctions.parseBoolean(a)
       case tl: TLocus => Locus.parse(a, tl.rg)
       // FIXME legacy
       case TInterval(TLocus(rg, _), _) => Locus.parseInterval(a, rg)

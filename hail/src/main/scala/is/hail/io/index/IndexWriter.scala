@@ -2,6 +2,7 @@ package is.hail.io.index
 
 import is.hail.annotations.{Annotation, Region, RegionValueBuilder}
 import is.hail.expr.types._
+import is.hail.expr.types.virtual.Type
 import is.hail.io.CodecSpec
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
@@ -51,9 +52,10 @@ class IndexWriter(
   internalNodeBuilders += new InternalNodeBuilder(keyType, annotationType)
 
   private val trackedOS = new ByteTrackingOutputStream(hConf.unsafeWriter(path + "/index"))
+
   private val codecSpec = CodecSpec.default
-  private val leafEncoder = codecSpec.buildEncoder(leafNodeBuilder.typ)(trackedOS)
-  private val internalEncoder = codecSpec.buildEncoder(InternalNodeBuilder.typ(keyType, annotationType))(trackedOS)
+  private val leafEncoder = codecSpec.buildEncoder(leafNodeBuilder.typ.physicalType)(trackedOS)
+  private val internalEncoder = codecSpec.buildEncoder(InternalNodeBuilder.typ(keyType, annotationType).physicalType)(trackedOS)
 
   private def height: Int = internalNodeBuilders.length + 1 // have one leaf node layer
 

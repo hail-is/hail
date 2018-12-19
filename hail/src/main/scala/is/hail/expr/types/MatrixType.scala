@@ -1,21 +1,29 @@
 package is.hail.expr.types
 
 import is.hail.annotations.Annotation
-import is.hail.expr.Parser
-import is.hail.expr.ir.Env
-import is.hail.rvd.OrderedRVDType
+import is.hail.expr.ir.{Env, IRParser}
+import is.hail.expr.types.physical.{PArray, PStruct}
+import is.hail.expr.types.virtual._
+import is.hail.rvd.RVDType
 import is.hail.utils._
+import is.hail.variant.ReferenceGenome
 import org.apache.spark.sql.Row
 import org.json4s.CustomSerializer
 import org.json4s.JsonAST.JString
 
 
 class MatrixTypeSerializer extends CustomSerializer[MatrixType](format => (
-  { case JString(s) => Parser.parseMatrixType(s) },
+  { case JString(s) => IRParser.parseMatrixType(s) },
   { case mt: MatrixType => JString(mt.toString) }))
 
 object MatrixType {
   val entriesIdentifier = "the entries! [877f12a8827e18f61222c6c8c5fb04a8]"
+
+  def getRowType(rvRowType: PStruct): PStruct = rvRowType.selectFields(Set(entriesIdentifier), keep = false)
+  def getEntryArrayType(rvRowType: PStruct): PArray = rvRowType.field(entriesIdentifier).typ.asInstanceOf[PArray]
+  def getSplitEntriesType(rvRowType: PStruct): PStruct = rvRowType.selectFields(Set(entriesIdentifier), keep = true)
+  def getEntryType(rvRowType: PStruct): PStruct = getEntryArrayType(rvRowType).elementType.asInstanceOf[PStruct]
+  def getEntriesIndex(rvRowType: PStruct): Int = rvRowType.fieldIdx(entriesIdentifier)
 
   def fromParts(
     globalType: TStruct,
@@ -69,25 +77,17 @@ case class MatrixType(
   val colValueFieldIdx: Array[Int] = colValueStruct.fieldNames.map(colType.fieldIdx)
 
   val colsTableType: TableType =
-    TableType(
-      colType,
-      if (colKey.isEmpty) None else Some(colKey),
-      globalType)
+    TableType(colType, colKey, globalType)
 
   val rowsTableType: TableType =
-    TableType(
-      rowType,
-      if (rowKey.isEmpty) None else Some(rowKey),
-      globalType)
+    TableType(rowType, rowKey, globalType)
 
   lazy val entriesTableType: TableType = {
     val resultStruct = TStruct((rowType.fields ++ colType.fields ++ entryType.fields).map(f => f.name -> f.typ): _*)
-    TableType(resultStruct, Some(rowKey ++ colKey), globalType)
+    TableType(resultStruct, rowKey ++ colKey, globalType)
   }
 
-  def orvdType: OrderedRVDType = OrderedRVDType(rowKey, rvRowType)
-
-  def rowORVDType: OrderedRVDType = OrderedRVDType(rowKey, rowType)
+  def canonicalRVDType: RVDType = RVDType(rvRowType.physicalType, rowKey)
 
   def refMap: Map[String, Type] = Map(
     "global" -> globalType,
@@ -173,4 +173,24 @@ case class MatrixType(
     .bind("sa" -> colType)
     .bind("va" -> rvRowType)
     .bind("g" -> entryType)
+
+  def requireRowKeyVariant() {
+    val rowKeyTypes = rowKeyStruct.types
+    rowKey.zip(rowKeyTypes) match {
+      case IndexedSeq(("locus", TLocus(_, _)), ("alleles", TArray(TString(_), _))) =>
+    }
+  }
+
+  def requireColKeyString() {
+    colKeyStruct.types match {
+      case Array(_: TString) =>
+    }
+  }
+
+  def referenceGenome: ReferenceGenome = {
+    val firstKeyField = rowKeyStruct.types(0)
+    firstKeyField match {
+      case TLocus(rg: ReferenceGenome, _) => rg
+    }
+  }
 }

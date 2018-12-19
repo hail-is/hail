@@ -1,30 +1,27 @@
 package is.hail.expr.ir.functions
 
 import is.hail.expr.ir._
-import is.hail.expr.types._
+import is.hail.expr.types.{virtual, _}
 import is.hail.expr.types
+import is.hail.expr.types.virtual.{TArray, TBoolean, TInt32, TSet}
 import is.hail.utils.FastSeq
 
 object SetFunctions extends RegistryFunctions {
-  def contains(set: IR, elem: IR) =
+  def contains(set: IR, elem: IR) = {
+    val i = Ref(genUID(), TInt32())
+
     If(IsNA(set),
       NA(TBoolean()),
-      !ArrayLen(ToArray(set)).ceq(0) && ApplyComparisonOp(
-        EQWithNA(elem.typ),
-        ArrayRef(ToArray(set), LowerBoundOnOrderedCollection(set, elem, onKey=false)),
-        elem))
+      Let(i.name,
+        LowerBoundOnOrderedCollection(set, elem, onKey = false),
+        If(i.ceq(ArrayLen(ToArray(set))),
+          False(),
+          ApplyComparisonOp(EQWithNA(elem.typ), ArrayRef(ToArray(set), i), elem))))
+  }
 
   def registerAll() {
     registerIR("toSet", TArray(tv("T"))) { a =>
       ToSet(a)
-    }
-
-    registerIR("toArray", TSet(tv("T"))) { a =>
-      ToArray(a)
-    }
-
-    registerIR("size", TSet(tv("T"))) { s =>
-      ArrayLen(ToArray(s))
     }
 
     registerIR("isEmpty", TSet(tv("T"))) { s =>
@@ -147,11 +144,6 @@ object SetFunctions extends RegistryFunctions {
               If(invoke("%", size, 2).cne(0),
                 ref(midIdx), // odd number of non-missing elements
                 div(ref(midIdx) + ref(midIdx + 1), Cast(2, t)))))))
-    }
-
-    registerIR("flatten", TSet(tv("T"))) { s =>
-      val elt = Ref(genUID(), types.coerce[TContainer](s.typ).elementType)
-      ToSet(ArrayFlatMap(ToArray(s), elt.name, ToArray(elt)))
     }
   }
 }

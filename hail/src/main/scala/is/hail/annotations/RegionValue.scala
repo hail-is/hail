@@ -1,11 +1,11 @@
 package is.hail.annotations
 
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream, ObjectInputStream, ObjectOutputStream}
+import java.io._
 
-import com.esotericsoftware.kryo.io.{Input, Output}
-import com.esotericsoftware.kryo.{Kryo, KryoSerializable}
-import is.hail.expr.types.Type
-import is.hail.io.{CodecSpec, Decoder, Encoder}
+import is.hail.expr.types.physical.PType
+import is.hail.expr.types.virtual.Type
+import is.hail.utils.using
+import is.hail.io.{Decoder, Encoder}
 import sun.reflect.generics.reflectiveObjects.NotImplementedException
 
 object RegionValue {
@@ -14,6 +14,19 @@ object RegionValue {
   def apply(region: Region): RegionValue = new RegionValue(region, 0)
 
   def apply(region: Region, offset: Long) = new RegionValue(region, offset)
+
+  def fromBytes(
+    makeDec: InputStream => Decoder,
+    r: Region,
+    carrierRv: RegionValue
+  )(bytes: Array[Byte]
+  ): RegionValue =
+    using(new ByteArrayInputStream(bytes)) { bais =>
+      using(makeDec(bais)) { dec =>
+        carrierRv.setOffset(dec.readRegionValue(r))
+        carrierRv
+      }
+    }
 }
 
 final class RegionValue(
@@ -33,7 +46,16 @@ final class RegionValue(
     offset = newOffset
   }
 
-  def pretty(t: Type): String = region.pretty(t, offset)
+  def pretty(t: PType): String = region.pretty(t, offset)
+
+  def toBytes(makeEnc: OutputStream => Encoder): Array[Byte] =
+    using(new ByteArrayOutputStream()) { baos =>
+      using(makeEnc(baos)) { enc =>
+        enc.writeRegionValue(region, offset)
+        enc.flush()
+        baos.toByteArray
+      }
+    }
 
   private def writeObject(s: ObjectOutputStream): Unit = {
     throw new NotImplementedException()

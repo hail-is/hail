@@ -5,11 +5,14 @@ import is.hail.asm4s._
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PType
+import is.hail.expr.types.virtual._
 import is.hail.utils._
 
 import scala.language.implicitConversions
 
 package object ir {
+  type TokenIterator = BufferedIterator[Token]
+
   var uidCounter: Long = 0
 
   def genUID(): String = {
@@ -64,7 +67,7 @@ package object ir {
 
   private[ir] def coerce[T <: Type](x: Type): T = types.coerce[T](x)
 
-  private[ir] def coerce[T <: PType](x: PType): T = x.asInstanceOf[T]
+  private[ir] def coerce[T <: PType](x: PType): T = types.coerce[T](x)
 
   def invoke(name: String, args: IR*): IR = IRFunctionRegistry.lookupConversion(name, args.map(_.typ)) match {
     case Some(f) => f(args)

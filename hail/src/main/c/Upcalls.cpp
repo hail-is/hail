@@ -31,6 +31,16 @@ UpcallConfig::UpcallConfig() {
   InputStream_close_ = env->GetMethodID(cl1, "close", "()V");
   InputStream_read_  = env->GetMethodID(cl1, "read", "([BII)I");
   InputStream_skip_  = env->GetMethodID(cl1, "skip", "(J)J");
+  // InputStream methods
+  auto cl3 = env->FindClass("java/io/OutputStream");
+  OutputStream_close_ = env->GetMethodID(cl3, "close", "()V");
+  OutputStream_flush_ = env->GetMethodID(cl3, "flush", "()V");
+  OutputStream_write_ = env->GetMethodID(cl3, "write", "([BII)V");
+  // RegionValueIterator methods
+  auto cl4 = env->FindClass("is/hail/cxx/RegionValueIterator");
+  RVIterator_hasNext_ = env->GetMethodID(cl4, "hasNext", "()Z");
+  RVIterator_next_ = env->GetMethodID(cl4, "next", "()J");
+
 }
 
 namespace {
@@ -104,4 +114,4 @@ void UpcallEnv::error(const std::string& msg) {
   env_->DeleteLocalRef(msgJ);
 }
 
-} // end hail
+} // namespace hail

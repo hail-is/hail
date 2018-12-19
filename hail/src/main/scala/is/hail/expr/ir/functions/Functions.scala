@@ -8,7 +8,8 @@ import is.hail.expr.types._
 import is.hail.utils._
 import is.hail.asm4s.coerce
 import is.hail.experimental.ExperimentalFunctions
-import is.hail.expr.types.physical.PType
+import is.hail.expr.types.physical.{PString, PType}
+import is.hail.expr.types.virtual._
 import is.hail.variant.Call
 
 import scala.collection.mutable
@@ -125,7 +126,7 @@ abstract class RegistryFunctions {
     case _: TCall => coerce[Int]
     case _: TString => c =>
       Code.invokeScalaObject[Region, Long, String](
-        TString.getClass, "loadString",
+        PString.getClass, "loadString",
         getRegion(mb), coerce[Long](c))
     case _ => c =>
       Code.invokeScalaObject[PType, Region, Long, Any](
@@ -143,7 +144,7 @@ abstract class RegistryFunctions {
     case _: TCall => c => Code.boxInt(coerce[Int](c))
     case _: TString => c =>
       Code.invokeScalaObject[Region, Long, String](
-        TString.getClass, "loadString",
+        PString.getClass, "loadString",
         getRegion(mb), coerce[Long](c))
     case _ => c =>
       Code.invokeScalaObject[PType, Region, Long, Any](
@@ -162,7 +163,7 @@ abstract class RegistryFunctions {
       getRegion(mb).appendString(coerce[String](c))
     case _: TCall => coerce[Int]
     case TArray(_: TInt32, _) => c =>
-      val srvb = new StagedRegionValueBuilder(mb, t)
+      val srvb = new StagedRegionValueBuilder(mb, t.physicalType)
       val alocal = mb.newLocal[IndexedSeq[Int]]
       val len = mb.newLocal[Int]
       val v = mb.newLocal[java.lang.Integer]
@@ -177,8 +178,24 @@ abstract class RegistryFunctions {
             v.isNull.mux(srvb.setMissing(), srvb.addInt(v.invoke[Int]("intValue"))),
             srvb.advance())),
         srvb.offset)
+    case TArray(_: TFloat64, _) => c =>
+      val srvb = new StagedRegionValueBuilder(mb, t.physicalType)
+      val alocal = mb.newLocal[IndexedSeq[Double]]
+      val len = mb.newLocal[Int]
+      val v = mb.newLocal[java.lang.Double]
+
+      Code(
+        alocal := coerce[IndexedSeq[Double]](c),
+        len := alocal.invoke[Int]("size"),
+        Code(
+          srvb.start(len),
+          Code.whileLoop(srvb.arrayIdx < len,
+            v := Code.checkcast[java.lang.Double](alocal.invoke[Int, java.lang.Object]("apply", srvb.arrayIdx)),
+            v.isNull.mux(srvb.setMissing(), srvb.addDouble(v.invoke[Double]("doubleValue"))),
+            srvb.advance())),
+        srvb.offset)
     case TArray(_: TString, _) => c =>
-      val srvb = new StagedRegionValueBuilder(mb, t)
+      val srvb = new StagedRegionValueBuilder(mb, t.physicalType)
       val alocal = mb.newLocal[IndexedSeq[String]]
       val len = mb.newLocal[Int]
       val v = mb.newLocal[java.lang.String]
@@ -233,6 +250,7 @@ abstract class RegistryFunctions {
     def ct(typ: Type): ClassTag[_] = typ match {
       case _: TString => classTag[String]
       case TArray(_: TInt32, _) => classTag[IndexedSeq[Int]]
+      case TArray(_: TFloat64, _) => classTag[IndexedSeq[Double]]
       case TArray(_: TString, _) => classTag[IndexedSeq[String]]
       case TSet(_: TString, _) => classTag[Set[String]]
       case t => TypeToIRIntermediateClassTag(t)

@@ -60,7 +60,7 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
     - `n_transversion` (``int64``) -- Number of transversion alternate alleles.
     - `n_star` (``int64``) -- Number of star (upstream deletion) alleles.
     - `r_ti_tv` (``float64``) -- Transition/Transversion ratio.
-    - `r_het_hom_var (``float64``) -- Het/HomVar call ratio.
+    - `r_het_hom_var` (``float64``) -- Het/HomVar call ratio.
     - `r_insertion_deletion` (``float64``) -- Insertion/Deletion allele ratio.
 
     Missing values ``NA`` may result from division by zero.
@@ -123,7 +123,9 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
     def get_allele_type(allele_idx):
         return hl.cond(allele_idx > 0, mt[variant_atypes][allele_idx - 1], hl.null(hl.tint32))
 
-    exprs['allele_type_counts'] = hl.agg.counter(hl.agg.explode(hl.range(0, mt['GT'].ploidy).map(lambda i: get_allele_type(mt['GT'][i]))))
+    exprs['allele_type_counts'] = hl.agg.explode(
+        lambda elt: hl.agg.counter(elt),
+        hl.range(0, mt['GT'].ploidy).map(lambda i: get_allele_type(mt['GT'][i])))
 
     mt = mt.annotate_cols(**{name: hl.struct(**exprs)})
 
@@ -408,10 +410,10 @@ def concordance(left, right) -> Tuple[List[List[int]], Table, Table]:
     left = require_biallelic(left, "concordance, left")
     right = require_biallelic(right, "concordance, right")
 
-    r = Env.hail().methods.CalculateConcordance.apply(left._jvds, right._jvds)
+    r = Env.hail().methods.CalculateConcordance.apply(left._jmt, right._jmt)
     j_global_conc = r._1()
-    col_conc = Table(r._2())
-    row_conc = Table(r._3())
+    col_conc = Table._from_java(r._2())
+    row_conc = Table._from_java(r._3())
     global_conc = [[j_global_conc.apply(j).apply(i) for i in range(5)] for j in range(5)]
 
     return global_conc, col_conc, row_conc
@@ -451,31 +453,29 @@ def vep(dataset: Union[Table, MatrixTable], config, block_size=1000, name='vep',
     - `env` (object) -- A map of environment variables to values to add to the environment when invoking the command.  The value of each object member must be a string.
     - `vep_json_schema` (string): The type of the VEP JSON schema (as produced by the VEP when invoked with the `--json` option).  Note: This is the old-style 'parseable' Hail type syntax.  This will change.
 
-    Here is an example configuration file for invoking VEP release 81
+    Here is an example configuration file for invoking VEP release 85
     installed in `/vep` with the Loftee plugin:
 
     .. code-block:: text
 
-        {"command": [
-            "/usr/bin/perl",
-            "/vep/variant_effect_predictor/variant_effect_predictor.pl",
-            "--format", "vcf",
-            "__OUTPUT_FORMAT_FLAG__",
-            "--everything",
-            "--allele_number",
-            "--no_stats",
-            "--cache", "--offline",
-            "--dir", "/vep",
-            "--fasta", "/vep/homo_sapiens/81_GRCh37/Homo_sapiens.GRCh37.75.dna.primary_assembly.fa",
-            "--minimal",
-            "--assembly", "GRCh37",
-            "--plugin", "LoF,human_ancestor_fa:/vep/loftee_data/human_ancestor.fa.gz,filter_position:0.05,min_intron_size:15,conservation_file:/vep/loftee_data/phylocsf.sql",
-            "-o", "STDOUT"
-        ],
-         "env": {
-             "PERL5LIB": "/vep/loftee"
-         },
-         "vep_json_schema": "Struct{assembly_name:String,allele_string:String,ancestral:String,colocated_variants:Array[Struct{aa_allele:String,aa_maf:Float64,afr_allele:String,afr_maf:Float64,allele_string:String,amr_allele:String,amr_maf:Float64,clin_sig:Array[String],end:Int32,eas_allele:String,eas_maf:Float64,ea_allele:String,ea_maf:Float64,eur_allele:String,eur_maf:Float64,exac_adj_allele:String,exac_adj_maf:Float64,exac_allele:String,exac_afr_allele:String,exac_afr_maf:Float64,exac_amr_allele:String,exac_amr_maf:Float64,exac_eas_allele:String,exac_eas_maf:Float64,exac_fin_allele:String,exac_fin_maf:Float64,exac_maf:Float64,exac_nfe_allele:String,exac_nfe_maf:Float64,exac_oth_allele:String,exac_oth_maf:Float64,exac_sas_allele:String,exac_sas_maf:Float64,id:String,minor_allele:String,minor_allele_freq:Float64,phenotype_or_disease:Int32,pubmed:Array[Int32],sas_allele:String,sas_maf:Float64,somatic:Int32,start:Int32,strand:Int32}],context:String,end:Int32,id:String,input:String,intergenic_consequences:Array[Struct{allele_num:Int32,consequence_terms:Array[String],impact:String,minimised:Int32,variant_allele:String}],most_severe_consequence:String,motif_feature_consequences:Array[Struct{allele_num:Int32,consequence_terms:Array[String],high_inf_pos:String,impact:String,minimised:Int32,motif_feature_id:String,motif_name:String,motif_pos:Int32,motif_score_change:Float64,strand:Int32,variant_allele:String}],regulatory_feature_consequences:Array[Struct{allele_num:Int32,biotype:String,consequence_terms:Array[String],impact:String,minimised:Int32,regulatory_feature_id:String,variant_allele:String}],seq_region_name:String,start:Int32,strand:Int32,transcript_consequences:Array[Struct{allele_num:Int32,amino_acids:String,biotype:String,canonical:Int32,ccds:String,cdna_start:Int32,cdna_end:Int32,cds_end:Int32,cds_start:Int32,codons:String,consequence_terms:Array[String],distance:Int32,domains:Array[Struct{db:String,name:String}],exon:String,gene_id:String,gene_pheno:Int32,gene_symbol:String,gene_symbol_source:String,hgnc_id:String,hgvsc:String,hgvsp:String,hgvs_offset:Int32,impact:String,intron:String,lof:String,lof_flags:String,lof_filter:String,lof_info:String,minimised:Int32,polyphen_prediction:String,polyphen_score:Float64,protein_end:Int32,protein_start:Int32,protein_id:String,sift_prediction:String,sift_score:Float64,strand:Int32,swissprot:String,transcript_id:String,trembl:String,uniparc:String,variant_allele:String}],variant_class:String}"
+        {
+        	"command": [
+        		"/vep",
+        		"--format", "vcf",
+        		"__OUTPUT_FORMAT_FLAG__",
+        		"--everything",
+        		"--allele_number",
+        		"--no_stats",
+        		"--cache", "--offline",
+        		"--minimal",
+        		"--assembly", "GRCh37",
+        		"--plugin", "LoF,human_ancestor_fa:/root/.vep/loftee_data/human_ancestor.fa.gz,filter_position:0.05,min_intron_size:15,conservation_file:/root/.vep/loftee_data/phylocsf_gerp.sql,gerp_file:/root/.vep/loftee_data/GERP_scores.final.sorted.txt.gz",
+        		"-o", "STDOUT"
+        	],
+        	"env": {
+        		"PERL5LIB": "/vep_data/loftee"
+        	},
+        	"vep_json_schema": "Struct{assembly_name:String,allele_string:String,ancestral:String,colocated_variants:Array[Struct{aa_allele:String,aa_maf:Float64,afr_allele:String,afr_maf:Float64,allele_string:String,amr_allele:String,amr_maf:Float64,clin_sig:Array[String],end:Int32,eas_allele:String,eas_maf:Float64,ea_allele:String,ea_maf:Float64,eur_allele:String,eur_maf:Float64,exac_adj_allele:String,exac_adj_maf:Float64,exac_allele:String,exac_afr_allele:String,exac_afr_maf:Float64,exac_amr_allele:String,exac_amr_maf:Float64,exac_eas_allele:String,exac_eas_maf:Float64,exac_fin_allele:String,exac_fin_maf:Float64,exac_maf:Float64,exac_nfe_allele:String,exac_nfe_maf:Float64,exac_oth_allele:String,exac_oth_maf:Float64,exac_sas_allele:String,exac_sas_maf:Float64,id:String,minor_allele:String,minor_allele_freq:Float64,phenotype_or_disease:Int32,pubmed:Array[Int32],sas_allele:String,sas_maf:Float64,somatic:Int32,start:Int32,strand:Int32}],context:String,end:Int32,id:String,input:String,intergenic_consequences:Array[Struct{allele_num:Int32,consequence_terms:Array[String],impact:String,minimised:Int32,variant_allele:String}],most_severe_consequence:String,motif_feature_consequences:Array[Struct{allele_num:Int32,consequence_terms:Array[String],high_inf_pos:String,impact:String,minimised:Int32,motif_feature_id:String,motif_name:String,motif_pos:Int32,motif_score_change:Float64,strand:Int32,variant_allele:String}],regulatory_feature_consequences:Array[Struct{allele_num:Int32,biotype:String,consequence_terms:Array[String],impact:String,minimised:Int32,regulatory_feature_id:String,variant_allele:String}],seq_region_name:String,start:Int32,strand:Int32,transcript_consequences:Array[Struct{allele_num:Int32,amino_acids:String,biotype:String,canonical:Int32,ccds:String,cdna_start:Int32,cdna_end:Int32,cds_end:Int32,cds_start:Int32,codons:String,consequence_terms:Array[String],distance:Int32,domains:Array[Struct{db:String,name:String}],exon:String,gene_id:String,gene_pheno:Int32,gene_symbol:String,gene_symbol_source:String,hgnc_id:String,hgvsc:String,hgvsp:String,hgvs_offset:Int32,impact:String,intron:String,lof:String,lof_flags:String,lof_filter:String,lof_info:String,minimised:Int32,polyphen_prediction:String,polyphen_score:Float64,protein_end:Int32,protein_start:Int32,protein_id:String,sift_prediction:String,sift_score:Float64,strand:Int32,swissprot:String,transcript_id:String,trembl:String,uniparc:String,variant_allele:String}],variant_class:String}"
         }
 
     **Annotations**
@@ -514,11 +514,11 @@ def vep(dataset: Union[Table, MatrixTable], config, block_size=1000, name='vep',
         require_table_key_variant(dataset, 'vep')
         ht = dataset.select()
 
-    annotations = Table(Env.hail().methods.VEP.apply(ht._jt, config, csq, block_size))
+    annotations = Table._from_java(Env.hail().methods.VEP.apply(ht._jt, config, csq, block_size))
 
     if csq:
         dataset = dataset.annotate_globals(
-            **{name + '_csq_header': annotations['vep_csq_header'].value})
+            **{name + '_csq_header': annotations.index_globals()['vep_csq_header']})
 
     if isinstance(dataset, MatrixTable):
         return dataset.annotate_rows(**{name: annotations[dataset.row_key].vep})
@@ -857,7 +857,7 @@ def nirvana(dataset: Union[MatrixTable, Table], config, block_size=500000, name=
         require_table_key_variant(dataset, 'nirvana')
         ht = dataset.select()
 
-    annotations = Table(Env.hail().methods.Nirvana.apply(ht._jt, config, block_size))
+    annotations = Table._from_java(Env.hail().methods.Nirvana.apply(ht._jt, config, block_size))
 
     if isinstance(dataset, MatrixTable):
         return dataset.annotate_rows(**{name: annotations[dataset.row_key].nirvana})
@@ -871,7 +871,7 @@ def summarize_variants(mt: MatrixTable, show=True):
 
     Examples
     --------
-    >>> hl.summarize_variants(dataset)
+    >>> hl.summarize_variants(dataset)  # doctest: +SKIP
     ==============================
     Number of variants: 346
     ==============================
@@ -917,7 +917,7 @@ def summarize_variants(mt: MatrixTable, show=True):
     require_row_key_variant(mt, 'summarize_variants')
     alleles_per_variant = hl.range(1, hl.len(mt.alleles)).map(lambda i: hl.allele_type(mt.alleles[0], mt.alleles[i]))
     allele_types, contigs, allele_counts, n_variants = mt.aggregate_rows(
-        (hl.agg.counter(hl.agg.explode(alleles_per_variant)),
+        (hl.agg.explode(lambda elt: hl.agg.counter(elt), alleles_per_variant),
          hl.agg.counter(mt.locus.contig),
          hl.agg.counter(hl.len(mt.alleles)),
          hl.agg.count()))

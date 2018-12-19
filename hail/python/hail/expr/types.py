@@ -36,6 +36,7 @@ __all__ = [
     'tinterval',
     'tlocus',
     'tcall',
+    'tvoid',
     'hts_entry_schema',
 ]
 
@@ -110,18 +111,11 @@ class HailType(object):
     """
 
     def __init__(self):
-        self._cached_jtype = None
         super(HailType, self).__init__()
 
     def __repr__(self):
         s = str(self).replace("'", "\\'")
         return "dtype('{}')".format(s)
-
-    @property
-    def _jtype(self):
-        if self._cached_jtype is None:
-            self._cached_jtype = self._get_jtype()
-        return self._cached_jtype
 
     @abc.abstractmethod
     def _eq(self, other):
@@ -133,9 +127,6 @@ class HailType(object):
     @abc.abstractmethod
     def __str__(self):
         return
-
-    def __ne__(self, other):
-        return not self.__eq__(other)
 
     def __hash__(self):
         # FIXME this is a bit weird
@@ -154,24 +145,15 @@ class HailType(object):
         :obj:`str`
         """
         l = []
+        l.append(' ' * indent)
         self._pretty(l, indent, increment)
         return ''.join(l)
 
     def _pretty(self, l, indent, increment):
         l.append(str(self))
 
-    @classmethod
-    def _from_java(cls, jtype):
-        t = hl.dtype(jtype.toString())
-        t._add_jtype(jtype)
-        return t
-
-    def _add_jtype(self, jtype):
-        if self.__class__ not in _interned_types:
-            self._cached_jtype = jtype
-        self._propagate_jtypes(jtype)
-
-    def _propagate_jtypes(self, jtype):
+    @abc.abstractmethod
+    def _parsable_string(self):
         pass
 
     def typecheck(self, value):
@@ -234,8 +216,21 @@ class HailType(object):
         """
         f(self, obj)
 
-
 hail_type = oneof(HailType, transformed((str, dtype)))
+
+
+class _tvoid(HailType):
+    def __init__(self):
+        super(_tvoid, self).__init__()
+
+    def __str__(self):
+        return "void"
+
+    def _eq(self, other):
+        return isinstance(other, _tvoid)
+
+    def _parsable_string(self):
+        return "Void"
 
 
 class _tint32(HailType):
@@ -248,7 +243,6 @@ class _tint32(HailType):
     """
 
     def __init__(self):
-        self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TInt32Optional')
         super(_tint32, self).__init__()
 
     def _convert_to_py(self, annotation):
@@ -274,6 +268,9 @@ class _tint32(HailType):
     def _eq(self, other):
         return isinstance(other, _tint32)
 
+    def _parsable_string(self):
+        return "Int32"
+
     @property
     def min_value(self):
         return -(1 << 31)
@@ -292,7 +289,6 @@ class _tint64(HailType):
     """
 
     def __init__(self):
-        self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TInt64Optional')
         super(_tint64, self).__init__()
 
     def _convert_to_py(self, annotation):
@@ -315,6 +311,9 @@ class _tint64(HailType):
     def _eq(self, other):
         return isinstance(other, _tint64)
 
+    def _parsable_string(self):
+        return "Int64"
+
     @property
     def min_value(self):
         return -(1 << 63)
@@ -331,7 +330,6 @@ class _tfloat32(HailType):
     """
 
     def __init__(self):
-        self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TFloat32Optional')
         super(_tfloat32, self).__init__()
 
     def _convert_to_py(self, annotation):
@@ -356,6 +354,9 @@ class _tfloat32(HailType):
     def _eq(self, other):
         return isinstance(other, _tfloat32)
 
+    def _parsable_string(self):
+        return "Float32"
+
     def _convert_from_json(self, x):
         return float(x)
 
@@ -373,7 +374,6 @@ class _tfloat64(HailType):
     """
 
     def __init__(self):
-        self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TFloat64Optional')
         super(_tfloat64, self).__init__()
 
     def _convert_to_py(self, annotation):
@@ -394,6 +394,9 @@ class _tfloat64(HailType):
     def _eq(self, other):
         return isinstance(other, _tfloat64)
 
+    def _parsable_string(self):
+        return "Float64"
+
     def _convert_from_json(self, x):
         return float(x)
 
@@ -411,7 +414,6 @@ class _tstr(HailType):
     """
 
     def __init__(self):
-        self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TStringOptional')
         super(_tstr, self).__init__()
 
     def _convert_to_py(self, annotation):
@@ -430,6 +432,9 @@ class _tstr(HailType):
     def _eq(self, other):
         return isinstance(other, _tstr)
 
+    def _parsable_string(self):
+        return "String"
+
 
 class _tbool(HailType):
     """Hail type for Boolean (``True`` or ``False``) values.
@@ -438,7 +443,6 @@ class _tbool(HailType):
     """
 
     def __init__(self):
-        self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TBooleanOptional')
         super(_tbool, self).__init__()
 
     def _convert_to_py(self, annotation):
@@ -456,6 +460,9 @@ class _tbool(HailType):
 
     def _eq(self, other):
         return isinstance(other, _tbool)
+
+    def _parsable_string(self):
+        return "Boolean"
 
 
 class tarray(HailType):
@@ -481,7 +488,6 @@ class tarray(HailType):
 
     @typecheck_method(element_type=hail_type)
     def __init__(self, element_type):
-        self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TArray').apply(element_type._jtype, False)
         self._element_type = element_type
         super(tarray, self).__init__()
 
@@ -532,6 +538,9 @@ class tarray(HailType):
         self.element_type._pretty(l, indent, increment)
         l.append('>')
 
+    def _parsable_string(self):
+        return "Array[" + self.element_type._parsable_string() + "]"
+
     def _convert_from_json(self, x):
         return [self.element_type._convert_from_json_na(elt) for elt in x]
 
@@ -565,7 +574,6 @@ class tset(HailType):
 
     @typecheck_method(element_type=hail_type)
     def __init__(self, element_type):
-        self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TSet').apply(element_type._jtype, False)
         self._element_type = element_type
         super(tset, self).__init__()
 
@@ -616,6 +624,9 @@ class tset(HailType):
         self.element_type._pretty(l, indent, increment)
         l.append('>')
 
+    def _parsable_string(self):
+        return "Set[" + self.element_type._parsable_string() + "]"
+
     def _convert_from_json(self, x):
         return {self.element_type._convert_from_json_na(elt) for elt in x}
 
@@ -650,8 +661,6 @@ class tdict(HailType):
 
     @typecheck_method(key_type=hail_type, value_type=hail_type)
     def __init__(self, key_type, value_type):
-        self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TDict').apply(
-            key_type._jtype, value_type._jtype, False)
         self._key_type = key_type
         self._value_type = value_type
         super(tdict, self).__init__()
@@ -720,6 +729,9 @@ class tdict(HailType):
         self.value_type._pretty(l, indent, increment)
         l.append('>')
 
+    def _parsable_string(self):
+        return "Dict[{},{}]".format(self.key_type._parsable_string(), self.value_type._parsable_string())
+
     def _convert_from_json(self, x):
         return {self.key_type._convert_from_json_na(elt['key']): self.value_type._convert_from_json_na(elt['value']) for
                 elt in x}
@@ -751,12 +763,6 @@ class tstruct(HailType, Mapping):
     def __init__(self, **field_types):
         self._field_types = field_types
         self._fields = tuple(field_types)
-
-        self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TStruct').apply(
-            list(self._fields),
-            [t._jtype for f, t in self._field_types.items()],
-            False)
-
         super(tstruct, self).__init__()
 
     @property
@@ -805,10 +811,6 @@ class tstruct(HailType, Mapping):
                 raise TypeError("type 'struct' expected type Mapping (e.g. dict or hail.utils.Struct), but found '%s'" %
                                 type(annotation))
 
-    def _propagate_jtypes(self, jtype):
-        for (n, t) in self._field_types.items():
-            t._add_jtype(self._jtype.field(n).typ())
-
     @typecheck_method(item=oneof(int, str))
     def __getitem__(self, item):
         if not isinstance(item, str):
@@ -831,6 +833,10 @@ class tstruct(HailType, Mapping):
                 and all(self[f] == other[f] for f in self._fields))
 
     def _pretty(self, l, indent, increment):
+        if not self._fields:
+            l.append('struct {}')
+            return
+
         pre_indent = indent
         indent += increment
         l.append('struct {')
@@ -845,11 +851,20 @@ class tstruct(HailType, Mapping):
         l.append(' ' * pre_indent)
         l.append('}')
 
+    def _parsable_string(self):
+        return "Struct{{{}}}".format(
+            ','.join('{}:{}'.format(escape_parsable(f), t._parsable_string()) for f, t in self.items()))
+
     def _convert_from_json(self, x):
         return Struct(**{f: t._convert_from_json_na(x.get(f)) for f, t in self.items()})
 
     def _convert_to_json(self, x):
         return {f: t._convert_to_json_na(x[f]) for f, t in self.items()}
+
+    def _is_prefix_of(self, other):
+        return (isinstance(other, tstruct) and
+                len(self._fields) <= len(other._fields) and
+                all(x == y for x, y in zip(self._field_types.values(), other._field_types.values())))
 
 class ttuple(HailType):
     """Hail type for tuples.
@@ -868,8 +883,6 @@ class ttuple(HailType):
 
     @typecheck_method(types=hail_type)
     def __init__(self, *types):
-        self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TTuple').apply(map(lambda t: t._jtype, types),
-                                                                                      False)
         self._types = types
         super(ttuple, self).__init__()
 
@@ -933,16 +946,15 @@ class ttuple(HailType):
         l.append(' ' * pre_indent)
         l.append(')')
 
+    def _parsable_string(self):
+        return "Tuple[{}]".format(",".join([t._parsable_string() for t in self.types]))
+
     def _convert_from_json(self, x):
         return tuple(self.types[i]._convert_from_json_na(x[i]) for i in range(len(self.types)))
 
     def _convert_to_json(self, x):
         return [self.types[i]._convert_to_json_na(x[i]) for i in range(len(self.types))]
 
-    def _propagate_jtypes(self, jtype):
-        jtypes = jtype._types()
-        for i, t in enumerate(self._types):
-            t._add_jtype(jtypes.apply(i))
 
 class _tcall(HailType):
     """Hail type for a diploid genotype.
@@ -951,7 +963,6 @@ class _tcall(HailType):
     """
 
     def __init__(self):
-        self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TCallOptional')
         super(_tcall, self).__init__()
 
     @typecheck_method(annotation=nullable(int))
@@ -979,6 +990,9 @@ class _tcall(HailType):
     def _eq(self, other):
         return isinstance(other, _tcall)
 
+    def _parsable_string(self):
+        return "Call"
+
     def _convert_from_json(self, x):
         return hl.Call._from_java(hl.Call._call_jobject().parse(x))
 
@@ -1005,8 +1019,6 @@ class tlocus(HailType):
     @typecheck_method(reference_genome=reference_genome_type)
     def __init__(self, reference_genome='default'):
         self._rg = reference_genome
-        self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TLocus').apply(self._rg._jrep,
-                                                                                      False)
         super(tlocus, self).__init__()
 
     def _convert_to_py(self, annotation):
@@ -1032,6 +1044,9 @@ class tlocus(HailType):
 
     def __str__(self):
         return "locus<{}>".format(escape_parsable(str(self.reference_genome)))
+
+    def _parsable_string(self):
+        return "Locus({})".format(escape_parsable(str(self.reference_genome)))
 
     def _eq(self, other):
         return isinstance(other, tlocus) and self.reference_genome == other.reference_genome
@@ -1077,7 +1092,6 @@ class tinterval(HailType):
 
     @typecheck_method(point_type=hail_type)
     def __init__(self, point_type):
-        self._get_jtype = lambda: scala_object(Env.hail().expr.types, 'TInterval').apply(self.point_type._jtype, False)
         self._point_type = point_type
         super(tinterval, self).__init__()
 
@@ -1091,9 +1105,6 @@ class tinterval(HailType):
             Interval point type.
         """
         return self._point_type
-
-    def _propagate_jtypes(self, jtype):
-        self._point_type._add_jtype(jtype.pointType())
 
     def _convert_to_py(self, annotation):
         if annotation is not None:
@@ -1132,6 +1143,9 @@ class tinterval(HailType):
         self.point_type._pretty(l, indent, increment)
         l.append('>')
 
+    def _parsable_string(self):
+        return "Interval[{}]".format(self.point_type._parsable_string())
+
     def _convert_from_json(self, x):
         return Interval(self.point_type._convert_from_json_na(x['start']),
                         self.point_type._convert_from_json_na(x['end']),
@@ -1143,6 +1157,9 @@ class tinterval(HailType):
                 'end': self.point_type._convert_to_json_na(x.end),
                 'includeStart': x.includes_start,
                 'includeEnd': x.includes_end}
+
+
+tvoid = _tvoid()
 
 
 tint32 = _tint32()
@@ -1266,7 +1283,6 @@ def types_match(left, right) -> bool:
 import pprint
 
 _old_printer = pprint.PrettyPrinter
-
 
 
 class TypePrettyPrinter(pprint.PrettyPrinter):

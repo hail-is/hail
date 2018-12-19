@@ -1,12 +1,15 @@
-import hail
-from hail.utils.java import Env, joption, error
-from hail.typecheck import enumeration, typecheck, nullable
-import difflib
-from collections import defaultdict, Counter, OrderedDict
 import atexit
+import datetime
+import difflib
 import shutil
 import tempfile
+from collections import defaultdict, Counter, OrderedDict
 from random import Random
+
+import hail
+from hail.typecheck import enumeration, typecheck, nullable
+from hail.utils.java import Env, joption, error
+
 
 @typecheck(n_rows=int, n_cols=int, n_partitions=nullable(int))
 def range_matrix_table(n_rows, n_cols, n_partitions=None) -> 'hail.MatrixTable':
@@ -52,7 +55,7 @@ def range_matrix_table(n_rows, n_cols, n_partitions=None) -> 'hail.MatrixTable':
     check_positive_and_in_range('range_matrix_table', 'n_cols', n_cols)
     if n_partitions is not None:
         check_positive_and_in_range('range_matrix_table', 'n_partitions', n_partitions)
-    return hail.MatrixTable(Env.hail().variant.MatrixTable.range(Env.hc()._jhc, n_rows, n_cols, joption(n_partitions)))
+    return hail.MatrixTable(hail.ir.MatrixRead(hail.ir.MatrixRangeReader(n_rows, n_cols, n_partitions)))
 
 @typecheck(n=int, n_partitions=nullable(int))
 def range_table(n, n_partitions=None) -> 'hail.Table':
@@ -90,7 +93,7 @@ def range_table(n, n_partitions=None) -> 'hail.Table':
     if n_partitions is not None:
         check_positive_and_in_range('range_table', 'n_partitions', n_partitions)
 
-    return hail.Table(Env.hail().table.Table.range(Env.hc()._jhc, n, joption(n_partitions)))
+    return hail.Table._from_java(Env.hail().table.Table.range(Env.hc()._jhc, n, joption(n_partitions)))
 
 def check_positive_and_in_range(caller, name, value):
     if value <= 0:
@@ -379,3 +382,10 @@ class HailSeedGenerator(object):
 
     def next_seed(self):
         return self.generator.randint(0, (1 << 63) - 1)
+
+
+def timestamp_path(base, suffix=''):
+    return ''.join([base,
+                    '-',
+                    datetime.datetime.now().strftime("%Y%m%d-%H%M"),
+                    suffix])

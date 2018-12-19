@@ -1,0 +1,2 @@
+class Sentinel(object):
+    pass

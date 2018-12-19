@@ -1,29 +1,34 @@
 package is.hail
 
-import java.io.InputStream
+import java.io.{File, InputStream}
 import java.util.Properties
 
 import is.hail.annotations._
-import is.hail.expr.ir.MatrixRead
+import is.hail.expr.Parser
+import is.hail.expr.ir.{IRParser, MatrixRead}
 import is.hail.expr.types._
-import is.hail.io.{CodecSpec, Decoder, LoadMatrix}
-import is.hail.io.bgen.{LoadBgen, MatrixBGENReader}
+import is.hail.expr.types.physical.PStruct
+import is.hail.expr.types.virtual._
+import is.hail.io.bgen.{IndexBgen, LoadBgen, MatrixBGENReader}
 import is.hail.io.gen.LoadGen
 import is.hail.io.plink.{FamFileConfig, LoadPlink}
 import is.hail.io.vcf._
+import is.hail.io.{CodecSpec, Decoder, LoadMatrix}
 import is.hail.rvd.RVDContext
-import is.hail.table.Table
 import is.hail.sparkextras.ContextRDD
+import is.hail.table.Table
 import is.hail.utils.{log, _}
-import is.hail.variant.{MatrixTable, ReferenceGenome, VSMSubgen}
+import is.hail.variant.{MatrixTable, ReferenceGenome}
+import org.apache.commons.io.FileUtils
 import org.apache.hadoop
 import org.apache.log4j.{ConsoleAppender, LogManager, PatternLayout, PropertyConfigurator}
-import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.SQLContext
 import org.apache.spark._
 import org.apache.spark.executor.InputMetrics
+import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.SQLContext
 
 import scala.collection.JavaConverters._
+import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.language.existentials
 import scala.reflect.ClassTag
@@ -39,7 +44,9 @@ object HailContext {
 
   private var theContext: HailContext = _
 
-  def get: HailContext = contextLock.synchronized { theContext }
+  def get: HailContext = contextLock.synchronized {
+    theContext
+  }
 
   def checkSparkCompatibility(jarVersion: String, sparkVersion: String): Unit = {
     def majorMinor(version: String): String = version.split("\\.", 3).take(2).mkString(".")
@@ -74,6 +81,7 @@ object HailContext {
       "spark.hadoop.io.compression.codecs",
       "org.apache.hadoop.io.compress.DefaultCodec," +
         "is.hail.io.compress.BGzipCodec," +
+        "is.hail.io.compress.BGzipCodecTbi," +
         "org.apache.hadoop.io.compress.GzipCodec")
 
     conf.set("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
@@ -145,11 +153,11 @@ object HailContext {
   }
 
   /**
-   * If a HailContext has already been initialized, this function returns it regardless of the
-   * parameters with which it was initialized.
-   *
-   * Otherwise, it initializes and returns a new HailContext.
-   */
+    * If a HailContext has already been initialized, this function returns it regardless of the
+    * parameters with which it was initialized.
+    *
+    * Otherwise, it initializes and returns a new HailContext.
+    */
   def getOrCreate(sc: SparkContext = null,
     appName: String = "Hail",
     master: Option[String] = None,
@@ -171,7 +179,7 @@ object HailContext {
         "tmpDir" -> Seq(tmpDir, hc.tmpDir),
         "branchingFactor" -> Seq(branchingFactor, hc.branchingFactor),
         "minBlockSize" -> Seq(minBlockSize, hc.sc.getConf.getLong("spark.hadoop.mapreduce.input.fileinputformat.split.minsize", 0L) / 1024L / 1024L)
-       ) ++ master.map(m => "master" -> Seq(m, hc.sc.master))).filter(_._2.areDistinct())
+      ) ++ master.map(m => "master" -> Seq(m, hc.sc.master))).filter(_._2.areDistinct())
       val paramsDiffStr = paramsDiff.map { case (name, Seq(provided, existing)) =>
         s"Param: $name, Provided value: $provided, Existing value: $existing"
       }.mkString("\n")
@@ -207,8 +215,10 @@ object HailContext {
       // see: https://docs.oracle.com/javase/9/migrate/toc.htm#JSMIG-GUID-3A71ECEF-5FC5-46FE-9BA9-88CBFCE828CB
       case javaVersion("1", major, minor) =>
         if (major.toInt < 8)
-          fatal(s"Hail requires at least Java 1.8, found $versionString")
+          fatal(s"Hail requires Java 1.8, found $versionString")
       case javaVersion(major, minor, security) =>
+        if (major.toInt > 8)
+          fatal(s"Hail requires Java 8, found $versionString")
       case _ =>
         fatal(s"Unknown JVM version string: $versionString")
     }
@@ -233,6 +243,7 @@ object HailContext {
     sparkContext.hadoopConfiguration.set("io.compression.codecs",
       "org.apache.hadoop.io.compress.DefaultCodec," +
         "is.hail.io.compress.BGzipCodec," +
+        "is.hail.io.compress.BGzipCodecTbi," +
         "org.apache.hadoop.io.compress.GzipCodec"
     )
 
@@ -241,11 +252,24 @@ object HailContext {
 
     val sqlContext = new org.apache.spark.sql.SQLContext(sparkContext)
     val hailTempDir = TempDir.createTempDir(tmpDir, sparkContext.hadoopConfiguration)
-    val hc = new HailContext(sparkContext, sqlContext, hailTempDir, branchingFactor)
+    val hc = new HailContext(sparkContext, sqlContext, logFile, hailTempDir, branchingFactor)
     sparkContext.uiWebUrl.foreach(ui => info(s"SparkUI: $ui"))
+
+    var uploadEmail = System.getenv("HAIL_UPLOAD_EMAIL")
+    if (uploadEmail == null)
+      uploadEmail = sparkContext.getConf.get("hail.uploadEmail", null)
+    if (uploadEmail != null)
+      hc.setUploadEmail(uploadEmail)
+
+    var enableUploadStr = System.getenv("HAIL_ENABLE_PIPELINE_UPLOAD")
+    if (enableUploadStr == null)
+      enableUploadStr = sparkContext.getConf.get("hail.enablePipelineUpload", null)
+    if (enableUploadStr != null && enableUploadStr == "true")
+      hc.enablePipelineUpload()
 
     info(s"Running Hail version ${ hc.version }")
     theContext = hc
+
     hc
   }
 
@@ -316,9 +340,12 @@ object HailContext {
 
 class HailContext private(val sc: SparkContext,
   val sqlContext: SQLContext,
+  val logFile: String,
   val tmpDir: String,
   val branchingFactor: Int) {
   val hadoopConf: hadoop.conf.Configuration = sc.hadoopConfiguration
+
+  val flags: HailFeatureFlags = new HailFeatureFlags()
 
   def version: String = is.hail.HAIL_PRETTY_VERSION
 
@@ -341,57 +368,21 @@ class HailContext private(val sc: SparkContext,
   def getTemporaryFile(nChar: Int = 10, prefix: Option[String] = None, suffix: Option[String] = None): String =
     sc.hadoopConfiguration.getTemporaryFile(tmpDir, nChar, prefix, suffix)
 
-  def importBgens(files: Seq[String],
-    sampleFile: Option[String] = None,
-    includeGT: Boolean = true,
-    includeGP: Boolean = true,
-    includeDosage: Boolean = false,
-    includeLid: Boolean = true,
-    includeRsid: Boolean = true,
-    includeFileRowIdx: Boolean = false,
-    nPartitions: Option[Int] = None,
-    blockSizeInMB: Option[Int] = None,
+  def indexBgen(file: String,
+    indexFileMap: Map[String, String],
+    rg: Option[String],
+    contigRecoding: Map[String, String],
+    skipInvalidLoci: Boolean) {
+    indexBgen(FastSeq(file), indexFileMap, rg, contigRecoding, skipInvalidLoci)
+  }
+
+  def indexBgen(files: Seq[String],
+    indexFileMap: Map[String, String] = null,
     rg: Option[String] = None,
-    contigRecoding: Map[String, String] = null,
-    skipInvalidLoci: Boolean = false,
-    includedVariantsPerUnresolvedFilePath: Map[String, Seq[Int]] = Map.empty
-  ): MatrixTable = {
-    val referenceGenome = rg.map(ReferenceGenome.getReference)
-
-    val typedRowFields = Array(
-      (true, "locus" -> TLocus.schemaFromRG(referenceGenome)),
-      (true, "alleles" -> TArray(TString())),
-      (includeRsid, "rsid" -> TString()),
-      (includeLid, "varid" -> TString()),
-      (includeFileRowIdx, "file_row_idx" -> TInt64()))
-      .withFilter(_._1).map(_._2)
-
-    val typedEntryFields: Array[(String, Type)] =
-      Array(
-        (includeGT, "GT" -> TCall()),
-        (includeGP, "GP" -> +TArray(+TFloat64())),
-        (includeDosage, "dosage" -> +TFloat64()))
-        .withFilter(_._1).map(_._2)
-
-    val requestedType: MatrixType = MatrixType.fromParts(
-      globalType = TStruct.empty(),
-      colKey = Array("s"),
-      colType = TStruct("s" -> TString()),
-      rowType = TStruct(typedRowFields: _*),
-      rowKey = Array("locus", "alleles"),
-      entryType = TStruct(typedEntryFields: _*))
-
-    val reader = MatrixBGENReader(
-      files, sampleFile, nPartitions,
-      if (nPartitions.isEmpty && blockSizeInMB.isEmpty)
-        Some(128)
-      else
-        blockSizeInMB,
-      rg,
-      Option(contigRecoding).getOrElse(Map.empty[String, String]),
-      skipInvalidLoci,
-      includedVariantsPerUnresolvedFilePath)
-    new MatrixTable(this, MatrixRead(requestedType, dropCols = false, dropRows = false, reader))
+    contigRecoding: Map[String, String] = Map.empty[String, String],
+    skipInvalidLoci: Boolean = false) {
+    IndexBgen(this, files.toArray, indexFileMap, rg, contigRecoding, skipInvalidLoci)
+    info(s"Number of BGEN files indexed: ${ files.length }")
   }
 
   def importGen(file: String,
@@ -474,7 +465,7 @@ class HailContext private(val sc: SparkContext,
   def importTable(inputs: java.util.ArrayList[String],
     keyNames: java.util.ArrayList[String],
     nPartitions: java.lang.Integer,
-    types: java.util.HashMap[String, Type],
+    types: java.util.HashMap[String, String],
     comment: java.util.ArrayList[String],
     separator: String,
     missing: String,
@@ -485,7 +476,7 @@ class HailContext private(val sc: SparkContext,
     forceBGZ: Boolean
   ): Table = importTables(inputs.asScala,
     Option(keyNames).map(_.asScala.toFastIndexedSeq),
-    if (nPartitions == null) None else Some(nPartitions), types.asScala.toMap, comment.asScala.toArray,
+    if (nPartitions == null) None else Some(nPartitions), types.asScala.toMap.mapValues(IRParser.parseType), comment.asScala.toArray,
     separator, missing, noHeader, impute, quote, skipBlankLines, forceBGZ)
 
   def importTable(input: String,
@@ -528,37 +519,6 @@ class HailContext private(val sc: SparkContext,
     }
   }
 
-  def importPlink(bed: String, bim: String, fam: String,
-    nPartitions: Option[Int] = None,
-    delimiter: String = "\\\\s+",
-    missing: String = "NA",
-    quantPheno: Boolean = false,
-    a2Reference: Boolean = true,
-    rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
-    contigRecoding: Option[Map[String, String]] = None,
-    skipInvalidLoci: Boolean = false): MatrixTable = {
-
-    rg.foreach(ref => contigRecoding.foreach(ref.validateContigRemap))
-
-    val ffConfig = FamFileConfig(quantPheno, delimiter, missing)
-
-    LoadPlink(this, bed, bim, fam,
-      ffConfig, nPartitions, a2Reference, rg, contigRecoding.getOrElse(Map.empty[String, String]), skipInvalidLoci)
-  }
-
-  def importPlinkBFile(bfileRoot: String,
-    nPartitions: Option[Int] = None,
-    delimiter: String = "\\\\s+",
-    missing: String = "NA",
-    quantPheno: Boolean = false,
-    a2Reference: Boolean = true,
-    rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
-    contigRecoding: Option[Map[String, String]] = None,
-    skipInvalidLoci: Boolean = false): MatrixTable = {
-    importPlink(bfileRoot + ".bed", bfileRoot + ".bim", bfileRoot + ".fam",
-      nPartitions, delimiter, missing, quantPheno, a2Reference, rg, contigRecoding, skipInvalidLoci)
-  }
-
   def read(file: String, dropCols: Boolean = false, dropRows: Boolean = false): MatrixTable = {
     MatrixTable.read(this, file, dropCols = dropCols, dropRows = dropRows)
   }
@@ -597,10 +557,10 @@ class HailContext private(val sc: SparkContext,
 
   def readRows(
     path: String,
-    t: TStruct,
+    t: PStruct,
     codecSpec: CodecSpec,
     partFiles: Array[String],
-    requestedType: TStruct
+    requestedType: PStruct
   ): ContextRDD[RVDContext, RegionValue] = {
     val makeDec = codecSpec.buildDecoder(t, requestedType)
     ContextRDD.weaken[RVDContext](readPartitions(path, partFiles, (_, is, m) => Iterator.single(is -> m)))
@@ -635,51 +595,17 @@ class HailContext private(val sc: SparkContext,
     }
   }
 
-  def importVCF(file: String, force: Boolean = false,
-    forceBGZ: Boolean = false,
-    headerFile: Option[String] = None,
-    nPartitions: Option[Int] = None,
-    dropSamples: Boolean = false,
-    callFields: Set[String] = Set.empty[String],
-    rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
-    contigRecoding: Option[Map[String, String]] = None,
-    arrayElementsRequired: Boolean = true,
-    skipInvalidLoci: Boolean = false): MatrixTable = {
-    val addedReference = rg.exists { referenceGenome =>
-      if (!ReferenceGenome.hasReference(referenceGenome.name)) {
-        ReferenceGenome.addReference(referenceGenome)
-        true
-      } else false
-    }
-
-    val reader = MatrixVCFReader(
-      Array(file),
-      callFields,
-      headerFile,
-      nPartitions,
-      rg.map(_.name),
-      contigRecoding.getOrElse(Map.empty[String, String]),
-      arrayElementsRequired,
-      skipInvalidLoci,
-      forceBGZ,
-      force
-    )
-    if (addedReference)
-      ReferenceGenome.removeReference(rg.get.name)
-    new MatrixTable(HailContext.get, MatrixRead(reader.fullType, dropSamples, false, reader))
-  }
-
   def importMatrix(files: java.util.ArrayList[String],
-    rowFields: java.util.HashMap[String, Type],
+    rowFields: java.util.HashMap[String, String],
     keyNames: java.util.ArrayList[String],
-    cellType: Type,
+    cellType: String,
     missingVal: String,
     minPartitions: Option[Int],
     noHeader: Boolean,
     forceBGZ: Boolean,
     sep: String = "\t"): MatrixTable =
-    importMatrices(files.asScala, rowFields.asScala.toMap, keyNames.asScala.toArray,
-      cellType, missingVal, minPartitions, noHeader, forceBGZ, sep)
+    importMatrices(files.asScala, rowFields.asScala.toMap.mapValues(IRParser.parseType), keyNames.asScala.toArray,
+      IRParser.parseType(cellType), missingVal, minPartitions, noHeader, forceBGZ, sep)
 
   def importMatrices(files: Seq[String],
     rowFields: Map[String, Type],
@@ -699,34 +625,52 @@ class HailContext private(val sc: SparkContext,
     }
   }
 
-  def indexBgen(file: String) {
-    indexBgen(List(file))
+  def setUploadURL(url: String) {
+    Uploader.url = url
   }
 
-  def indexBgen(files: Seq[String]) {
-    val inputs = hadoopConf.globAll(files).flatMap { file =>
-      if (!file.endsWith(".bgen"))
-        warn(s"Input file does not have .bgen extension: $file")
-
-      if (hadoopConf.isDir(file))
-        hadoopConf.listStatus(file)
-          .map(_.getPath.toString)
-          .filter(p => ".*part-[0-9]+".r.matches(p))
-      else
-        Array(file)
-    }
-
-    if (inputs.isEmpty)
-      fatal(s"arguments refer to no files: '${ files.mkString(",") }'")
-
-    val conf = new SerializableHadoopConfiguration(hadoopConf)
-
-    sc.parallelize(inputs, numSlices = inputs.length).foreach { in =>
-      LoadBgen.index(conf.value, in)
-    }
-
-    info(s"Number of BGEN files indexed: ${ inputs.length }")
+  def setUploadEmail(email: String) {
+    Uploader.email = email
+    if (email != null)
+      warn(s"set upload email: $email")
+    else
+      warn("reset upload email, subsequent uploads will be anonymous")
   }
 
-  def genDataset(): MatrixTable = VSMSubgen.realistic.gen(this).sample()
+  def getUploadEmail: String = {
+    Uploader.email
+  }
+
+  def enablePipelineUpload() {
+    Uploader.uploadEnabled = true
+    warn("pipeline upload enabled")
+  }
+
+  def disablePipelineUpload() {
+    Uploader.uploadEnabled = false
+    warn("pipeline upload disabled")
+  }
+
+  def uploadLog() {
+    warn(s"uploading $logFile")
+    Uploader.upload("log", FileUtils.readFileToString(new File(logFile)))
+  }
+}
+
+class HailFeatureFlags {
+  private[this] val flags: mutable.Map[String, String] =
+    mutable.Map[String, String](
+      "cpp" -> null
+    )
+
+  val available: java.util.ArrayList[String] =
+    new java.util.ArrayList[String](java.util.Arrays.asList[String](flags.keys.toSeq: _*))
+
+  def set(flag: String, value: String): Unit = {
+    flags.update(flag, value)
+  }
+
+  def get(flag: String): String = flags(flag)
+
+  def exists(flag: String): Boolean = flags.contains(flag)
 }

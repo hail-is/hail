@@ -80,16 +80,13 @@ class TableKeyBy(TableIR):
 
 
 class TableMapRows(TableIR):
-    def __init__(self, child, new_row, new_key):
+    def __init__(self, child, new_row):
         super().__init__()
         self.child = child
         self.new_row = new_row
-        self.new_key = new_key
 
     def render(self, r):
-        return '(TableMapRows {} {} {})'.format(
-            ' '.join([escape_id(x) for x in self.new_key]) if self.new_key else 'None',
-            r(self.child), r(self.new_row))
+        return '(TableMapRows {} {})'.format(r(self.child), r(self.new_row))
 
 
 class TableRead(TableIR):
@@ -97,26 +94,26 @@ class TableRead(TableIR):
         super().__init__()
         self.path = path
         self.drop_rows = drop_rows
-        self.typ = typ
+        self._typ = typ
 
     def render(self, r):
         return '(TableRead "{}" {} {})'.format(
             escape_str(self.path),
             self.drop_rows,
-            self.typ)
+            self._typ)
 
 
 class TableImport(TableIR):
     def __init__(self, paths, typ, reader_options):
         super().__init__()
         self.paths = paths
-        self.typ = typ
+        self._typ = typ
         self.reader_options = reader_options
 
     def render(self, r):
         return '(TableImport ({}) {} {})'.format(
             ' '.join([escape_str(path) for path in self.paths]),
-            self.typ._jtype.parsableString(),
+            self._typ._parsable_string(),
             escape_str(json.dumps(self.reader_options)))
 
 
@@ -217,6 +214,7 @@ class TableDistinct(TableIR):
     def render(self, r):
         return f'(TableDistinct {r(self.child)})'
 
+
 class TableRepartition(TableIR):
     def __init__(self, child, n, shuffle):
         super().__init__()
@@ -227,14 +225,20 @@ class TableRepartition(TableIR):
     def render(self, r):
         return f'(TableRepartition {self.n} {self.shuffle} {r(self.child)})'
 
-class LocalizeEntries(TableIR):
-    def __init__(self, child, entry_field_name):
+
+class CastMatrixToTable(TableIR):
+    def __init__(self, child, entries_field_name, cols_field_name):
         super().__init__()
         self.child = child
-        self.entry_field_name = entry_field_name
+        self.entries_field_name = entries_field_name
+        self.cols_field_name = cols_field_name
 
     def render(self, r):
-        return f'(LocalizeEntries "{escape_str(self.entry_field_name)}" {r(self.child)})'
+        return f'(CastMatrixToTable ' \
+               f'"{escape_str(self.entries_field_name)}" ' \
+               f'"{escape_str(self.cols_field_name)}" ' \
+               f'{r(self.child)})'
+
 
 class TableRename(TableIR):
     def __init__(self, child, row_map, global_map):
@@ -252,9 +256,23 @@ class TableRename(TableIR):
                f'{r(self.child)})'
 
 
+class TableMultiWayZipJoin(TableIR):
+    def __init__(self, childs, data_name, global_name):
+        super().__init__()
+        self.childs = childs
+        self.data_name = data_name
+        self.global_name = global_name
+
+    def render(self, r):
+        return f'(TableMultiWayZipJoin '\
+               f'"{escape_str(self.data_name)}" '\
+               f'"{escape_str(self.global_name)}" '\
+               f'{" ".join([r(child) for child in self.childs])})'
+
+
 class JavaTable(TableIR):
     def __init__(self, jir):
         self._jir = jir
 
     def render(self, r):
-        return f'(JavaTable {r.add_jir(self)})'
+        return f'(JavaTable {r.add_jir(self._jir)})'

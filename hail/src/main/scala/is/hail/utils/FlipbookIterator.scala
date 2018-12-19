@@ -2,6 +2,8 @@ package is.hail.utils
 
 import scala.collection.GenTraversableOnce
 import scala.collection.generic.Growable
+import scala.collection.mutable.PriorityQueue
+import scala.reflect.ClassTag
 
 /**
   * A StateMachine has the same primary interface as FlipbookIterator, but the
@@ -84,6 +86,47 @@ object FlipbookIterator {
     StagingIterator(sm)
 
   def empty[A] = StagingIterator(StateMachine.terminal[A])
+
+  def multiZipJoin[A: ClassTag](
+    its: Array[FlipbookIterator[A]],
+    ord: (A, A) => Int
+  ): FlipbookIterator[ArrayBuilder[(A, Int)]] = {
+    object TmpOrd extends Ordering[(A, Int)] {
+      def compare(x: (A, Int), y: (A, Int)): Int = ord(y._1, x._1)
+    }
+    val sm = new StateMachine[ArrayBuilder[(A, Int)]] {
+      val q: PriorityQueue[(A, Int)] = new PriorityQueue()(TmpOrd)
+      val value = new ArrayBuilder[(A, Int)](its.length)
+      var isValid = true
+
+      var i = 0; while (i < its.length) {
+        if (its(i).isValid) q.enqueue(its(i).value -> i)
+        i += 1
+      }
+
+      def advance() {
+        var i = 0; while (i < value.length) {
+          val j = value(i)._2
+          its(j).advance()
+          if (its(j).isValid) q.enqueue(its(j).value -> j)
+          i += 1
+        }
+        value.clear()
+        if (q.isEmpty) {
+          isValid = false
+        } else {
+          val v = q.dequeue()
+          value += v
+          while (!q.isEmpty && ord(q.head._1, v._1) == 0) {
+            value += q.dequeue()
+          }
+        }
+      }
+    }
+
+    sm.advance()
+    FlipbookIterator(sm)
+  }
 }
 
 /**
@@ -271,16 +314,37 @@ abstract class FlipbookIterator[A] extends BufferedIterator[A] { self =>
 
   def leftJoinDistinct[B](
     that: FlipbookIterator[B],
-    leftOrd: OrderingView[A],
-    rightOrd: OrderingView[B],
     leftDefault: A,
     rightDefault: B,
     mixedOrd: (A, B) => Int
   ): FlipbookIterator[Muple[A, B]] = {
-    val result = Muple[A, B](leftDefault, rightDefault)
-    for { Muple(l, r) <- this.cogroup(that, leftOrd, rightOrd, mixedOrd)
-          lrv <- l
-    } yield result.set(lrv, r.valueOrElse(rightDefault))
+    val left = self
+    val right = that
+    val sm = new StateMachine[Muple[A, B]] {
+      val value = Muple(leftDefault, rightDefault)
+      var isValid = true
+      def setValue() {
+        if (!left.isValid)
+          isValid = false
+        else {
+          var c = 0
+          while (right.isValid && {c = mixedOrd(left.value, right.value); c > 0})
+            right.advance()
+          if (!right.isValid || c < 0)
+            value.set(left.value, rightDefault)
+          else // c == 0
+            value.set(left.value, right.value)
+        }
+      }
+      def advance() {
+        left.advance()
+        setValue()
+      }
+
+      setValue()
+    }
+
+    FlipbookIterator(sm)
   }
 
   def innerJoin[B](

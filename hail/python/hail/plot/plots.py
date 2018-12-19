@@ -1,4 +1,4 @@
-from math import log, isnan
+from math import log, isnan, log10
 
 import numpy as np
 from bokeh.models import *
@@ -44,7 +44,11 @@ def histogram(data, range=None, bins=50, legend=None, title=None):
                 start = range[0]
                 end = range[1]
             else:
-                start, end = agg_f((aggregators.min(data), aggregators.max(data)))
+                finite_data = hail.bind(lambda x: hail.case().when(hail.is_finite(x), x).or_missing(), data)
+                start, end = agg_f((aggregators.min(finite_data),
+                                    aggregators.max(finite_data)))
+                if start is None and end is None:
+                    raise ValueError(f"'data' contains no values that are defined and finite")
             data = agg_f(aggregators.hist(data, start, end, bins))
         else:
             return ValueError('Invalid input')
@@ -245,11 +249,11 @@ def qq(pvals, collect_all=False, n_divisions=500):
                 obs = [-log(p, 10) for p in spvals]
             else:
                 if isinstance(source, Table):
-                    ht = source.select(pval=pvals)
+                    ht = source.select(pval=pvals).key_by().persist().key_by('pval')
                 else:
-                    ht = source.select_rows(pval=pvals).rows()
+                    ht = source.select_rows(pval=pvals).rows().key_by().select('pval').persist().key_by('pval')
                 n = ht.count()
-                ht = ht.order_by('pval').add_index()
+                ht = ht.select(idx=hail.scan.count())
                 ht = ht.annotate(expected_p=(ht.idx + 1) / n)
                 pvals = ht.aggregate(
                     aggregators.downsample(-hail.log10(ht.expected_p), -hail.log10(ht.pval), n_divisions=n_divisions))
@@ -273,8 +277,8 @@ def qq(pvals, collect_all=False, n_divisions=500):
 
 
 @typecheck(pvals=expr_float64, locus=nullable(expr_locus()), title=nullable(str),
-           size=int, hover_fields=nullable(dictof(str, expr_any)), collect_all=bool, n_divisions=int)
-def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, collect_all=False, n_divisions=500):
+           size=int, hover_fields=nullable(dictof(str, expr_any)), collect_all=bool, n_divisions=int, significance_line=nullable(numeric))
+def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, collect_all=False, n_divisions=500, significance_line=5e-8):
     """Create a Manhattan plot. (https://en.wikipedia.org/wiki/Manhattan_plot)
 
     Parameters
@@ -293,6 +297,9 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, collect_
         Whether to collect all values or downsample before plotting.
     n_divisions : int
         Factor by which to downsample (default value = 500). A lower input results in fewer output datapoints.
+    significance_line : float, optional
+        p-value at which to add a horizontal, dotted red line indicating
+        genome-wide significance.  If ``None``, no line is added.
 
     Returns
     -------
@@ -312,8 +319,6 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, collect_
             else:
                 return mid
 
-    pvals = -hail.log10(pvals)
-
     if locus is None:
         locus = pvals._indices.source.locus
 
@@ -321,6 +326,8 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, collect_
         hover_fields = {}
 
     hover_fields['locus'] = hail.str(locus)
+
+    pvals = -hail.log10(pvals)
 
     if collect_all:
         res = hail.tuple([locus.global_position(), pvals, hail.struct(**hover_fields)]).collect()
@@ -338,6 +345,8 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, collect_
 
     x = [point[0] for point in res]
     y = [point[1] for point in res]
+    y_linear = [10 ** (-p) for p in y]
+    hover_fields['p_value'] = y_linear
 
     ref = locus.dtype.reference_genome
 
@@ -377,9 +386,15 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, collect_
     p.width = 1000
 
     tooltips = [(key, "@{}".format(key)) for key in hover_fields]
-    tooltips.append(tuple(('p-value', "$y")))
     p.add_tools(HoverTool(
         tooltips=tooltips
     ))
+
+    if significance_line is not None:
+        p.renderers.append(Span(location=-log10(significance_line),
+                                dimension='width',
+                                line_color='red',
+                                line_dash='dashed',
+                                line_width=1.5))
 
     return p

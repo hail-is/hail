@@ -1,3 +1,4 @@
+#include "hail/NativeMethod.h"
 #include "hail/NativeStatus.h"
 #include "hail/NativePtr.h"
 #include <jni.h>

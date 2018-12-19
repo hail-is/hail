@@ -5,8 +5,8 @@ import is.hail.annotations.{BroadcastRow, RegionValue, RegionValueBuilder, Unsaf
 import is.hail.expr.TableAnnotationImpex
 import is.hail.expr.types.TableType
 import is.hail.io.{CodecSpec, exportTypes}
-import is.hail.rvd.{OrderedRVD, OrderedRVDType, RVD, RVDSpec, UnpartitionedRVD}
-import is.hail.table.TableSpec
+import is.hail.rvd.{AbstractRVDSpec, RVD}
+import is.hail.table.{AbstractTableSpec, TableSpec}
 import is.hail.utils._
 import is.hail.variant.{FileFormat, PartitionCountsComponentSpec, RVDComponentSpec, ReferenceGenome}
 import org.apache.spark.rdd.RDD
@@ -15,16 +15,14 @@ import org.json4s.jackson.JsonMethods
 
 case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
   require(typ.rowType == rvd.rowType)
-  require(rvd.isInstanceOf[OrderedRVD])
-  require(typ.key.forall(k => rvd.asInstanceOf[OrderedRVD].typ.key.startsWith(k)))
+  require(rvd.typ.key.startsWith(typ.key))
 
   def rdd: RDD[Row] =
     rvd.toRows
 
   def keyedRDD(): RDD[(Row, Row)] = {
-    require(typ.key.isDefined)
     val fieldIndices = typ.rowType.fields.map(f => f.name -> f.index).toMap
-    val keyIndices = typ.key.get.map(fieldIndices)
+    val keyIndices = typ.key.map(fieldIndices)
     val keyIndexSet = keyIndices.toSet
     val valueIndices = typ.rowType.fields.filter(f => !keyIndexSet.contains(f.index)).map(_.index)
     rdd.map { r => (Row.fromSeq(keyIndices.map(r.get)), Row.fromSeq(valueIndices.map(r.get))) }
@@ -38,7 +36,7 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
         val globalRegion = ctx.freshRegion
         val rvb = new RegionValueBuilder()
         rvb.set(globalRegion)
-        rvb.start(globalType)
+        rvb.start(globalType.physicalType)
         rvb.addAnnotation(globalType, localGlobals.value)
         (partitionOp(partitionIdx), RegionValue(globalRegion, rvb.end()))
       }, { case ((p, glob), rv) => pred(p, rv, glob) }))
@@ -53,7 +51,7 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
 
     val codecSpec =
       if (codecSpecJSONStr != null) {
-        implicit val formats = RVDSpec.formats
+        implicit val formats = AbstractRVDSpec.formats
         val codecSpecJSON = JsonMethods.parse(codecSpecJSONStr)
         codecSpecJSON.extract[CodecSpec]
       } else
@@ -68,7 +66,7 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
 
     val globalsPath = path + "/globals"
     hc.hadoopConf.mkDir(globalsPath)
-    RVD.writeLocalUnpartitioned(hc, globalsPath, typ.globalType, codecSpec, Array(globals.value))
+    AbstractRVDSpec.writeLocal(hc, globalsPath, typ.globalType.physicalType, codecSpec, Array(globals.value))
 
     val partitionCounts = rvd.write(path + "/rows", stageLocally, codecSpec)
 
@@ -88,6 +86,12 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
     spec.write(hc, path)
 
     hc.hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
+
+    val nRows = partitionCounts.sum
+    info(s"wrote table with $nRows ${ plural(nRows, "row") } " +
+      s"in ${ partitionCounts.length } ${ plural(partitionCounts.length, "partition") } " +
+      s"to $path")
+
   }
 
   def export(path: String, typesFile: String = null, header: Boolean = true, exportType: Int = ExportType.CONCATENATED) {

@@ -261,6 +261,9 @@ object Code {
   def _return[T](c: Code[T])(implicit tti: TypeInfo[T]): Code[Unit] =
     Code(c, Code(new InsnNode(tti.returnOp)))
 
+  def _println(c: Code[AnyRef]): Code[Unit] =
+    Code.invokeScalaObject[AnyRef, Unit](scala.Console.getClass, "println", c)
+
   def checkcast[T](v: Code[AnyRef])(implicit tct: ClassTag[T]): Code[T] = Code(
     v,
     new TypeInsnNode(CHECKCAST, Type.getInternalName(tct.runtimeClass)))

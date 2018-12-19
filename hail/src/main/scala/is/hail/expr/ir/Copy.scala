@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 object Copy {
-  def apply(x: IR, newChildren: IndexedSeq[BaseIR]): BaseIR = {
+  def apply(x: IR, newChildren: IndexedSeq[BaseIR]): IR = {
     x match {
       case I32(value) => I32(value)
       case I64(value) => I64(value)
@@ -10,7 +10,7 @@ object Copy {
       case Str(value) => Str(value)
       case True() => True()
       case False() => False()
-      case Literal(typ, value, id) => Literal(typ, value, id)
+      case Literal(typ, value) => Literal(typ, value)
       case Void() => Void()
       case Cast(_, typ) =>
         val IndexedSeq(v: IR) = newChildren
@@ -83,6 +83,15 @@ object Copy {
       case ArrayFor(_, valueName, _) =>
         val IndexedSeq(a: IR, body: IR) = newChildren
         ArrayFor(a, valueName, body)
+      case AggFilter(_, _) =>
+        val IndexedSeq(cond: IR, aggIR: IR) = newChildren
+        AggFilter(cond, aggIR)
+      case AggExplode(_, name, _) =>
+        val IndexedSeq(array: IR, aggBody: IR) = newChildren
+        AggExplode(array, name, aggBody)
+      case AggGroupBy(_, _) =>
+        val IndexedSeq(key: IR, aggIR: IR) = newChildren
+        AggGroupBy(key, aggIR)
       case MakeStruct(fields) =>
         assert(fields.length == newChildren.length)
         MakeStruct(fields.zip(newChildren).map { case ((n, _), a) => (n, a.asInstanceOf[IR]) })
@@ -101,19 +110,19 @@ object Copy {
         SeqOp(newChildren.head.asInstanceOf[IR], newChildren.tail.map(_.asInstanceOf[IR]), aggSig)
       case Begin(_) =>
         Begin(newChildren.map(_.asInstanceOf[IR]))
-      case x@ApplyAggOp(_, _, initOpArgs, aggSig) =>
+      case x@ApplyAggOp(_, initOpArgs, _, aggSig) =>
         val args = newChildren.map(_.asInstanceOf[IR])
         ApplyAggOp(
-          args.head,
-          args.tail.take(x.nConstructorArgs),
-          initOpArgs.map(_ => args.drop(x.nConstructorArgs + 1)),
+          args.take(x.nConstructorArgs),
+          initOpArgs.map(_ => args.drop(x.nConstructorArgs).dropRight(x.nSeqOpArgs)),
+          args.takeRight(x.nSeqOpArgs),
           aggSig)
-      case x@ApplyScanOp(_, _, initOpArgs, aggSig) =>
+      case x@ApplyScanOp(_, initOpArgs, _, aggSig) =>
         val args = newChildren.map(_.asInstanceOf[IR])
         ApplyScanOp(
-          args.head,
-          args.tail.take(x.nConstructorArgs),
-          initOpArgs.map(_ => args.drop(x.nConstructorArgs + 1)),
+          args.take(x.nConstructorArgs),
+          initOpArgs.map(_ => args.drop(x.nConstructorArgs).dropRight(x.nSeqOpArgs)),
+          args.takeRight(x.nSeqOpArgs),
           aggSig)
       case MakeTuple(_) =>
         MakeTuple(newChildren.map(_.asInstanceOf[IR]))
@@ -127,7 +136,9 @@ object Copy {
         val IndexedSeq(s: IR) = newChildren
         StringLength(s)
       case In(i, t) => In(i, t)
-      case Die(message, typ) => Die(message, typ)
+      case Die(_, typ) =>
+        val IndexedSeq(s: IR) = newChildren
+        Die(s, typ)
       case ApplyIR(fn, args, conversion) =>
         ApplyIR(fn, newChildren.map(_.asInstanceOf[IR]), conversion)
       case Apply(fn, args) =>
@@ -140,13 +151,16 @@ object Copy {
         val IndexedSeq(fn: IR, min: IR, max: IR) = newChildren
         Uniroot(argname, fn, min, max)
       // from MatrixIR
-      case MatrixWrite(_, f) =>
+      case MatrixWrite(_, writer) =>
         val IndexedSeq(child: MatrixIR) = newChildren
-        MatrixWrite(child, f)
+        MatrixWrite(child, writer)
       // from TableIR
       case TableCount(_) =>
         val IndexedSeq(child: TableIR) = newChildren
         TableCount(child)
+      case TableGetGlobals(_) =>
+        val IndexedSeq(child: TableIR) = newChildren
+        TableGetGlobals(child)
       case TableAggregate(_, _) =>
         val IndexedSeq(child: TableIR, query: IR) = newChildren
         TableAggregate(child, query)

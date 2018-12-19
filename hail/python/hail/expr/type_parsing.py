@@ -4,7 +4,8 @@ from hail.utils.java import unescape_parsable
 
 type_grammar = Grammar(
     r"""
-    type = _ (array / set / dict / struct / tuple / interval / int64 / int32 / float32 / float64 / bool / str / call / str / locus) _
+    type = _ (array / set / dict / struct / tuple / interval / int64 / int32 / float32 / float64 / bool / str / call / str / locus / void) _
+    void = "void" / "tvoid"
     int64 = "int64" / "tint64"
     int32 = "int32" / "tint32" / "int" / "tint"
     float32 = "float32" / "tfloat32"
@@ -35,6 +36,9 @@ class TypeConstructor(NodeVisitor):
     def visit_type(self, node, visited_children):
         _, [t], _ = visited_children
         return t
+
+    def visit_void(self, node, visited_children):
+        return hl.tvoid
 
     def visit_int64(self, node, visited_children):
         return hl.tint64

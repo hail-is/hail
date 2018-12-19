@@ -7,8 +7,8 @@ import is.hail.asm4s
 import is.hail.asm4s._
 import is.hail.expr.Parser
 import is.hail.expr.ir.functions.IRRandomness
-import is.hail.expr.types.Type
 import is.hail.expr.types.physical.PType
+import is.hail.expr.types.virtual.Type
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.TaskContext
@@ -70,17 +70,17 @@ class EmitMethodBuilder(
 
   def getPType(t: PType): Code[PType] = fb.getPType(t)
 
-  def getCodeOrdering[T](t: PType, op: CodeOrdering.Op, missingGreatest: Boolean): CodeOrdering.F[T] =
-    getCodeOrdering[T](t, op, missingGreatest, ignoreMissingness = false)
+  def getCodeOrdering[T](t: PType, op: CodeOrdering.Op): CodeOrdering.F[T] =
+    getCodeOrdering[T](t, op, ignoreMissingness = false)
 
-  def getCodeOrdering[T](t: PType, op: CodeOrdering.Op, missingGreatest: Boolean, ignoreMissingness: Boolean): CodeOrdering.F[T] =
-    fb.getCodeOrdering[T](t, op, missingGreatest, ignoreMissingness)
+  def getCodeOrdering[T](t: PType, op: CodeOrdering.Op, ignoreMissingness: Boolean): CodeOrdering.F[T] =
+    fb.getCodeOrdering[T](t, op, ignoreMissingness)
 
-  def getCodeOrdering[T](t1: PType, t2: PType, op: CodeOrdering.Op, missingGreatest: Boolean): CodeOrdering.F[T] =
-    fb.getCodeOrdering[T](t1, t2, op, missingGreatest, ignoreMissingness = false)
+  def getCodeOrdering[T](t1: PType, t2: PType, op: CodeOrdering.Op): CodeOrdering.F[T] =
+    fb.getCodeOrdering[T](t1, t2, op, ignoreMissingness = false)
 
-  def getCodeOrdering[T](t1: PType, t2: PType, op: CodeOrdering.Op, missingGreatest: Boolean, ignoreMissingness: Boolean): CodeOrdering.F[T] =
-    fb.getCodeOrdering[T](t1, t2, op, missingGreatest, ignoreMissingness)
+  def getCodeOrdering[T](t1: PType, t2: PType, op: CodeOrdering.Op, ignoreMissingness: Boolean): CodeOrdering.F[T] =
+    fb.getCodeOrdering[T](t1, t2, op, ignoreMissingness)
 
   def newRNG(seed: Long): Code[IRRandomness] = fb.newRNG(seed)
 }
@@ -128,8 +128,8 @@ class EmitFunctionBuilder[F >: Null](
 
   private[this] val pTypeMap: mutable.Map[PType, Code[PType]] = mutable.Map[PType, Code[PType]]()
 
-  private[this] val compareMap: mutable.Map[(PType, PType, CodeOrdering.Op, Boolean, Boolean), CodeOrdering.F[_]] =
-    mutable.Map[(PType, PType, CodeOrdering.Op, Boolean, Boolean), CodeOrdering.F[_]]()
+  private[this] val compareMap: mutable.Map[(PType, PType, CodeOrdering.Op, Boolean), CodeOrdering.F[_]] =
+    mutable.Map[(PType, PType, CodeOrdering.Op, Boolean), CodeOrdering.F[_]]()
 
   def numReferenceGenomes: Int = rgMap.size
 
@@ -170,7 +170,7 @@ class EmitFunctionBuilder[F >: Null](
     val references = ReferenceGenome.getReferences(t.virtualType).toArray
     val setup = Code(Code(references.map(addReferenceGenome): _*),
       Code.invokeScalaObject[String, PType](
-        Parser.getClass, "parsePType", const(t.parsableString())))
+        IRParser.getClass, "parsePType", const(t.parsableString())))
     pTypeMap.getOrElseUpdate(t,
       newLazyField[PType](setup))
   }
@@ -179,13 +179,13 @@ class EmitFunctionBuilder[F >: Null](
     val references = ReferenceGenome.getReferences(t).toArray
     val setup = Code(Code(references.map(addReferenceGenome): _*),
       Code.invokeScalaObject[String, Type](
-        Parser.getClass, "parseType", const(t.parsableString())))
+        IRParser.getClass, "parseType", const(t.parsableString())))
     typMap.getOrElseUpdate(t,
       newLazyField[Type](setup))
   }
 
-  def getCodeOrdering[T](t1: PType, t2: PType, op: CodeOrdering.Op, missingGreatest: Boolean, ignoreMissingness: Boolean): CodeOrdering.F[T] = {
-    val f = compareMap.getOrElseUpdate((t1, t2, op, missingGreatest, ignoreMissingness), {
+  def getCodeOrdering[T](t1: PType, t2: PType, op: CodeOrdering.Op, ignoreMissingness: Boolean): CodeOrdering.F[T] = {
+    val f = compareMap.getOrElseUpdate((t1, t2, op, ignoreMissingness), {
       val ti = typeToTypeInfo(t1)
       val rt = if (op == CodeOrdering.compare) typeInfo[Int] else typeInfo[Boolean]
 
@@ -197,13 +197,13 @@ class EmitFunctionBuilder[F >: Null](
         val v1 = newMB.getArg(2)(ti)
         val v2 = newMB.getArg(4)(ti)
         val c: Code[_] = op match {
-          case CodeOrdering.compare => ord.compareNonnull(r1, coerce[ord.T](v1), r2, coerce[ord.T](v2), missingGreatest)
-          case CodeOrdering.equiv => ord.equivNonnull(r1, coerce[ord.T](v1), r2, coerce[ord.T](v2), missingGreatest)
-          case CodeOrdering.lt => ord.ltNonnull(r1, coerce[ord.T](v1), r2, coerce[ord.T](v2), missingGreatest)
-          case CodeOrdering.lteq => ord.lteqNonnull(r1, coerce[ord.T](v1), r2, coerce[ord.T](v2), missingGreatest)
-          case CodeOrdering.gt => ord.gtNonnull(r1, coerce[ord.T](v1), r2, coerce[ord.T](v2), missingGreatest)
-          case CodeOrdering.gteq => ord.gteqNonnull(r1, coerce[ord.T](v1), r2, coerce[ord.T](v2), missingGreatest)
-          case CodeOrdering.neq => !ord.equivNonnull(r1, coerce[ord.T](v1), r2, coerce[ord.T](v2), missingGreatest)
+          case CodeOrdering.compare => ord.compareNonnull(r1, coerce[ord.T](v1), r2, coerce[ord.T](v2))
+          case CodeOrdering.equiv => ord.equivNonnull(r1, coerce[ord.T](v1), r2, coerce[ord.T](v2))
+          case CodeOrdering.lt => ord.ltNonnull(r1, coerce[ord.T](v1), r2, coerce[ord.T](v2))
+          case CodeOrdering.lteq => ord.lteqNonnull(r1, coerce[ord.T](v1), r2, coerce[ord.T](v2))
+          case CodeOrdering.gt => ord.gtNonnull(r1, coerce[ord.T](v1), r2, coerce[ord.T](v2))
+          case CodeOrdering.gteq => ord.gteqNonnull(r1, coerce[ord.T](v1), r2, coerce[ord.T](v2))
+          case CodeOrdering.neq => !ord.equivNonnull(r1, coerce[ord.T](v1), r2, coerce[ord.T](v2))
         }
         newMB.emit(c)
         newMB
@@ -217,13 +217,13 @@ class EmitFunctionBuilder[F >: Null](
         val m2 = newMB.getArg[Boolean](5)
         val v2 = newMB.getArg(6)(ti)
         val c: Code[_] = op match {
-          case CodeOrdering.compare => ord.compare(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)), missingGreatest)
-          case CodeOrdering.equiv => ord.equiv(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)), missingGreatest)
-          case CodeOrdering.lt => ord.lt(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)), missingGreatest)
-          case CodeOrdering.lteq => ord.lteq(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)), missingGreatest)
-          case CodeOrdering.gt => ord.gt(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)), missingGreatest)
-          case CodeOrdering.gteq => ord.gteq(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)), missingGreatest)
-          case CodeOrdering.neq => !ord.equiv(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)), missingGreatest)
+          case CodeOrdering.compare => ord.compare(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)))
+          case CodeOrdering.equiv => ord.equiv(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)))
+          case CodeOrdering.lt => ord.lt(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)))
+          case CodeOrdering.lteq => ord.lteq(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)))
+          case CodeOrdering.gt => ord.gt(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)))
+          case CodeOrdering.gteq => ord.gteq(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)))
+          case CodeOrdering.neq => !ord.equiv(r1, (m1, coerce[ord.T](v1)), r2, (m2, coerce[ord.T](v2)))
         }
         newMB.emit(c)
         newMB
@@ -239,8 +239,8 @@ class EmitFunctionBuilder[F >: Null](
     (r1: Code[Region], v1: (Code[Boolean], Code[_]), r2: Code[Region], v2: (Code[Boolean], Code[_])) => coerce[T](f(r1, v1, r2, v2))
   }
 
-  def getCodeOrdering[T](t: PType, op: CodeOrdering.Op, missingGreatest: Boolean, ignoreMissingness: Boolean): CodeOrdering.F[T] =
-    getCodeOrdering[T](t, t, op, missingGreatest, ignoreMissingness)
+  def getCodeOrdering[T](t: PType, op: CodeOrdering.Op, ignoreMissingness: Boolean): CodeOrdering.F[T] =
+    getCodeOrdering[T](t, t, op, ignoreMissingness)
 
   override val apply_method: EmitMethodBuilder = {
     val m = new EmitMethodBuilder(this, "apply", parameterTypeInfo.map(_.base), returnTypeInfo.base)

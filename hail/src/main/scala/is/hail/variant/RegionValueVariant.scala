@@ -2,15 +2,15 @@ package is.hail.variant
 
 import is.hail.utils._
 import is.hail.annotations._
-import is.hail.expr.types._
+import is.hail.expr.types.physical.{PArray, PString, PStruct}
 
-class RegionValueVariant(rowType: TStruct) extends View {
+class RegionValueVariant(rowType: PStruct) extends View {
   private val locusField = rowType.fieldByName("locus")
   private val allelesField = rowType.fieldByName("alleles")
   private val locusIdx = locusField.index
   private val allelesIdx = allelesField.index
-  private val tl: TStruct = locusField.typ.fundamentalType.asInstanceOf[TStruct]
-  private val taa: TArray = allelesField.typ.asInstanceOf[TArray]
+  private val tl: PStruct = locusField.typ.fundamentalType.asInstanceOf[PStruct]
+  private val taa: PArray = allelesField.typ.asInstanceOf[PArray]
   private var region: Region = _
   private var locusOffset: Long = _
   private var allelesOffset: Long = _
@@ -35,7 +35,7 @@ class RegionValueVariant(rowType: TStruct) extends View {
 
   def contig(): String = {
     if (cachedContig == null)
-      cachedContig = TString.loadString(region, tl.loadField(region, locusOffset, 0))
+      cachedContig = PString.loadString(region, tl.loadField(region, locusOffset, 0))
     cachedContig
   }
 
@@ -50,7 +50,7 @@ class RegionValueVariant(rowType: TStruct) extends View {
       var i = 0
       while (i < nAlleles) {
         if (taa.isElementDefined(region, allelesOffset, i))
-         cachedAlleles(i) = TString.loadString(region, taa.loadElement(region, allelesOffset, i))
+         cachedAlleles(i) = PString.loadString(region, taa.loadElement(region, allelesOffset, i))
         i += 1
       }
     }

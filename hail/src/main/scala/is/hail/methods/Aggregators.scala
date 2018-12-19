@@ -3,6 +3,8 @@ package is.hail.methods
 import is.hail.annotations._
 import is.hail.expr._
 import is.hail.expr.types._
+import is.hail.expr.types.physical.PType
+import is.hail.expr.types.virtual.Type
 import is.hail.stats._
 import is.hail.utils._
 import is.hail.variant._
@@ -196,7 +198,7 @@ class CollectAggregator(t: Type) extends TypedAggregator[ArrayBuffer[Any]] {
   def copy() = new CollectAggregator(t)
 }
 
-class InfoScoreAggregator(t: Type) extends TypedAggregator[Annotation] {
+class InfoScoreAggregator(t: PType) extends TypedAggregator[Annotation] {
 
   var _state = new InfoScoreCombiner(t)
 
@@ -496,7 +498,7 @@ class TakeByAggregator[T](var t: Type, var f: (Any) => Any, var n: Int)(implicit
 }
 
 class LinearRegressionAggregator(xF: (Any) => Any, k: Int, k0: Int, xType: Type) extends TypedAggregator[Any] {
-  var combiner = new LinearRegressionCombiner(k, k0, xType)
+  var combiner = new LinearRegressionCombiner(k, k0, xType.physicalType)
 
   def seqOp(a: Any) = {
     if (a != null) {
@@ -523,6 +525,26 @@ class LinearRegressionAggregator(xF: (Any) => Any, k: Int, k0: Int, xType: Type)
     val lra = new LinearRegressionAggregator(xF, k, k0, xType)
     lra.combiner = combiner.copy()
     lra
+  }
+}
+
+class PearsonCorrelationAggregator() extends TypedAggregator[Any] {
+  var combiner = new PearsonCorrelationCombiner()
+
+  def seqOp(xy: Any) = {
+    val (x, y) = xy.asInstanceOf[(Any, Any)]
+    if (x != null && y != null)
+      combiner.merge(x.asInstanceOf[Double], y.asInstanceOf[Double])
+  }
+
+  def combOp(agg2: this.type): Unit = combiner.merge(agg2.combiner)
+
+  def result: Annotation = combiner.result()
+
+  def copy(): TypedAggregator[Any] = {
+    val pca = new PearsonCorrelationAggregator()
+    pca.combiner = combiner.copy()
+    pca
   }
 }
 

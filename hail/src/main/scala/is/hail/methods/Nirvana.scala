@@ -7,7 +7,9 @@ import is.hail.annotations._
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.{TableLiteral, TableValue}
 import is.hail.expr.types._
-import is.hail.rvd.{OrderedRVD, RVDContext}
+import is.hail.expr.types.physical.PType
+import is.hail.expr.types.virtual._
+import is.hail.rvd.{RVD, RVDContext}
 import is.hail.sparkextras.ContextRDD
 import is.hail.table.Table
 import is.hail.utils._
@@ -339,7 +341,7 @@ object Nirvana {
     w("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT")
   }
 
-  def printElement(vaSignature: Type)(w: (String) => Unit, v: (Locus, Array[String])) {
+  def printElement(vaSignature: PType)(w: (String) => Unit, v: (Locus, Array[String])) {
     val (locus, alleles) = v
 
     val sb = new StringBuilder()
@@ -399,14 +401,14 @@ object Nirvana {
     val startQuery = nirvanaSignature.query("position")
     val refQuery = nirvanaSignature.query("refAllele")
     val altsQuery = nirvanaSignature.query("altAlleles")
-    val localRowType = ht.typ.rowType
+    val localRowType = ht.typ.rowType.physicalType
     val localBlockSize = blockSize
 
-    val rowKeyOrd = ht.typ.keyType.get.ordering
+    val rowKeyOrd = ht.typ.keyType.ordering
 
     info("Running Nirvana")
 
-    val prev = ht.value.rvd.asInstanceOf[OrderedRVD]
+    val prev = ht.value.rvd
 
     val annotations = prev
       .mapPartitions { it =>
@@ -448,12 +450,12 @@ object Nirvana {
       }
       .persist(StorageLevel.MEMORY_AND_DISK)
 
-    val nirvanaORVDType = prev.typ.copy(rowType = localRowType ++ TStruct("nirvana" -> nirvanaSignature))
+    val nirvanaRVDType = prev.typ.copy(rowType = (ht.typ.rowType ++ TStruct("nirvana" -> nirvanaSignature)).physicalType)
 
-    val nirvanaRowType = nirvanaORVDType.rowType
+    val nirvanaRowType = nirvanaRVDType.rowType
 
-    val nirvanaRVD: OrderedRVD = OrderedRVD(
-      nirvanaORVDType,
+    val nirvanaRVD: RVD = RVD(
+      nirvanaRVDType,
       prev.partitioner,
       ContextRDD.weaken[RVDContext](annotations).cmapPartitions { (ctx, it) =>
         val region = ctx.region
@@ -463,9 +465,9 @@ object Nirvana {
         it.map { case (v, nirvana) =>
           rvb.start(nirvanaRowType)
           rvb.startStruct()
-          rvb.addAnnotation(nirvanaRowType.types(0), v.asInstanceOf[Row].get(0))
-          rvb.addAnnotation(nirvanaRowType.types(1), v.asInstanceOf[Row].get(1))
-          rvb.addAnnotation(nirvanaRowType.types(2), nirvana)
+          rvb.addAnnotation(nirvanaRowType.types(0).virtualType, v.asInstanceOf[Row].get(0))
+          rvb.addAnnotation(nirvanaRowType.types(1).virtualType, v.asInstanceOf[Row].get(1))
+          rvb.addAnnotation(nirvanaRowType.types(2).virtualType, nirvana)
           rvb.endStruct()
           rv.setOffset(rvb.end())
 
@@ -475,7 +477,7 @@ object Nirvana {
 
     new Table(ht.hc, TableLiteral(
       TableValue(
-        TableType(nirvanaRowType, Some(FastIndexedSeq("locus", "alleles")), TStruct()),
+        TableType(nirvanaRowType.virtualType, FastIndexedSeq("locus", "alleles"), TStruct()),
         BroadcastRow(Row(), TStruct(), ht.hc.sc),
         nirvanaRVD
       )))

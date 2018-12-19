@@ -1,29 +1,41 @@
 #!/bin/bash
 
-set -e
+set -ex
 
-export HAIL_RELEASE=${HAIL_VERSION}-$(git rev-parse --short=12 HEAD)
+cleanup() {
+    trap "" INT TERM
+    set +e
+    rm -f python/hail/docs/change_log.rst
+    rm -rf build/tmp/
+}
+trap cleanup EXIT
+trap 'exit 1' INT TERM
 
 # make directories
 mkdir -p build/www/ build/tmp/python/ build/tmp/docs build/www/docs
 
-# copy levene haldane
-# cp docs/LeveneHaldane.pdf build/www/ does not exist
-
 # copy website content
 cp www/*.{js,css,css.map,html,png} build/www #  www/annotationdb/* does not exist
 
-pandoc -s ../README.md -f markdown -t html --mathjax --highlight-style=pygments --columns 10000 -o build/tmp/README.html
-xsltproc --html -o build/www/index.html www/readme-to-index.xslt build/tmp/README.html
+for f in $(find www -name \*.md)
+do
+    base=$(basename $f | sed 's/\.md//')
+    pandoc -s $f \
+           -f markdown \
+           -t html \
+           --mathjax \
+           --highlight-style=pygments \
+           --columns 10000 \
+        | xsltproc -o build/www/$base.html --html www/$base.xslt -
+done
 
-pandoc -s www/jobs.md -f markdown -t html --mathjax --highlight-style=pygments --columns 10000 -o build/tmp/jobs.html
-xsltproc --html -o build/www/jobs.html www/jobs.xslt build/tmp/jobs.html
-
-pandoc -s www/about.md -f markdown -t html --mathjax --highlight-style=pygments --columns 10000 -o build/tmp/about.html
-xsltproc --html -o build/www/about.html www/about.xslt build/tmp/about.html
+# sed for creating GitHub links
+pandoc <(cat python/hail/docs/change_log.md | sed -E "s/\(hail\#([0-9]+)\)/(\[#\1](https:\/\/github.com\/hail-is\/hail\/pull\/\1))/g") -o python/hail/docs/change_log.rst
 
 cp -R python build/tmp
 
-(cd build/tmp/python/hail/docs && make clean html)
+(cd build/tmp/python/hail/docs && make BUILDDIR=_build clean html)
 
-mv build/tmp/python/hail/docs/_build/html build/www/docs/$HAIL_VERSION
+DEST="build/www/docs/${HAIL_SHORT_VERSION}/"
+rm -rf ${DEST}
+mv build/tmp/python/hail/docs/_build/html $DEST

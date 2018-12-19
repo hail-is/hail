@@ -1,8 +1,9 @@
 package is.hail.expr.ir
 
-import is.hail.expr.types._
+import is.hail.expr.types.{virtual, _}
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
+import is.hail.expr.types.virtual.{TArray, TInt32}
 import is.hail.utils.FastIndexedSeq
 import org.testng.annotations.{DataProvider, Test}
 import org.scalatest.testng.TestNGSuite
@@ -20,18 +21,6 @@ class ArrayFunctionsSuite extends TestNGSuite {
 
   @DataProvider(name = "basicPairs")
   def basicPairsData(): Array[Array[Any]] = basicData().flatten.combinations(2).toArray
-
-  @Test(dataProvider = "basic")
-  def length(a: Seq[Integer]) {
-    assertEvalsTo(invoke("length", toIRArray(a)),
-      Option(a).map(_.length).orNull)
-  }
-
-  @Test(dataProvider = "basic")
-  def size(a: Seq[Integer]) {
-    assertEvalsTo(invoke("size", toIRArray(a)),
-      Option(a).map(_.length).orNull)
-  }
 
   @Test(dataProvider = "basic")
   def isEmpty(a: Seq[Integer]) {

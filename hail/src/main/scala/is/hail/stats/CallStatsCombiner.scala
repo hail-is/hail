@@ -2,6 +2,7 @@ package is.hail.stats
 
 import is.hail.annotations.{Annotation, RegionValueBuilder}
 import is.hail.expr.types._
+import is.hail.expr.types.virtual.{TArray, TFloat64, TInt32, TStruct}
 import is.hail.utils._
 import is.hail.variant.Call
 
@@ -26,15 +27,22 @@ class CallStatsCombiner(val nAlleles: Int) extends Serializable {
   var alleleCount = new Array[Int](nAlleles)
   var homozygoteCount = new Array[Int](nAlleles)
 
+  @inline def increment(idx: Int): Unit = {
+    if (idx >= nAlleles)
+      fatal(s"call_stats: expected alleles with maximum index ${nAlleles - 1}, found allele with index $idx" +
+        s"\n  This can happen with invalid input data, or failure to reconcile alleles and genotypes after 'split_multi'")
+    alleleCount(idx) += 1
+  }
+
   def merge(c: Call): CallStatsCombiner = {
     (Call.ploidy(c): @switch) match {
       case 0 =>
       case 1 =>
-        alleleCount(Call.alleleByIndex(c, 0)) += 1
+        increment(Call.alleleByIndex(c, 0))
       case 2 =>
         val p = Call.allelePair(c)
-        alleleCount(p.j) += 1
-        alleleCount(p.k) += 1
+        increment(p.j)
+        increment(p.k)
         if (p.j == p.k)
           homozygoteCount(p.j) += 1
       case _ => throw new UnsupportedOperationException
@@ -43,6 +51,7 @@ class CallStatsCombiner(val nAlleles: Int) extends Serializable {
   }
 
   def merge(that: CallStatsCombiner): CallStatsCombiner = {
+    assert(nAlleles == that.nAlleles)
     alleleCount.indices.foreach { i => alleleCount(i) += that.alleleCount(i) }
     homozygoteCount.indices.foreach { i => homozygoteCount(i) += that.homozygoteCount(i) }
     this

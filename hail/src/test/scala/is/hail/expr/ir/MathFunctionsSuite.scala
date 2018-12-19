@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.expr.types._
 import is.hail.utils._
 import is.hail.TestUtils._
+import is.hail.expr.types.virtual.{TArray, TFloat64}
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
 import org.scalatest.testng.TestNGSuite
@@ -49,6 +50,35 @@ class MathFunctionsSuite extends TestNGSuite {
     assertEvalsTo(invoke("isnan", F64(0)), false)
     assertEvalsTo(invoke("isnan", F64(Double.NaN)), true)
   }
+
+  @Test def is_finite() {
+    assertEvalsTo(invoke("is_finite", F32(0)), expected = true)
+    assertEvalsTo(invoke("is_finite", F32(Float.MaxValue)), expected = true)
+    assertEvalsTo(invoke("is_finite", F32(Float.NaN)), expected = false)
+    assertEvalsTo(invoke("is_finite", F32(Float.PositiveInfinity)), expected = false)
+    assertEvalsTo(invoke("is_finite", F32(Float.NegativeInfinity)), expected = false)
+
+    assertEvalsTo(invoke("is_finite", F64(0)), expected = true)
+    assertEvalsTo(invoke("is_finite", F64(Double.MaxValue)), expected = true)
+    assertEvalsTo(invoke("is_finite", F64(Double.NaN)), expected = false)
+    assertEvalsTo(invoke("is_finite", F64(Double.PositiveInfinity)), expected = false)
+    assertEvalsTo(invoke("is_finite", F64(Double.NegativeInfinity)), expected = false)
+  }
+
+  @Test def is_infinite() {
+    assertEvalsTo(invoke("is_infinite", F32(0)), expected = false)
+    assertEvalsTo(invoke("is_infinite", F32(Float.MaxValue)), expected = false)
+    assertEvalsTo(invoke("is_infinite", F32(Float.NaN)), expected = false)
+    assertEvalsTo(invoke("is_infinite", F32(Float.PositiveInfinity)), expected = true)
+    assertEvalsTo(invoke("is_infinite", F32(Float.NegativeInfinity)), expected = true)
+
+    assertEvalsTo(invoke("is_infinite", F64(0)), expected = false)
+    assertEvalsTo(invoke("is_infinite", F64(Double.MaxValue)), expected = false)
+    assertEvalsTo(invoke("is_infinite", F64(Double.NaN)), expected = false)
+    assertEvalsTo(invoke("is_infinite", F64(Double.PositiveInfinity)), expected = true)
+    assertEvalsTo(invoke("is_infinite", F64(Double.NegativeInfinity)), expected = true)
+  }
+
 
   @Test def sign() {
     assertEvalsTo(invoke("sign", I32(2)), 1)
@@ -160,5 +190,12 @@ class MathFunctionsSuite extends TestNGSuite {
     val r = eval(invoke("hardy_weinberg_test", nHomRef, nHet, nHomVar)).asInstanceOf[Row]
     assert(D0_==(pValue, r.getDouble(0)))
     assert(D0_==(hetFreq, r.getDouble(1)))
+  }
+
+  @Test def modulusTest() {
+    assertFatal(invoke("%", I32(1), I32(0)), "modulo by zero")
+    assertFatal(invoke("%", I64(1), I64(0)), "modulo by zero")
+    assertFatal(invoke("%", F32(1), F32(0)), "modulo by zero")
+    assertFatal(invoke("%", F64(1), F64(0)), "modulo by zero")
   }
 }

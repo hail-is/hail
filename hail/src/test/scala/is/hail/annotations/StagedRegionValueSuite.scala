@@ -3,6 +3,8 @@ package is.hail.annotations
 import is.hail.SparkSuite
 import is.hail.asm4s._
 import is.hail.expr.types._
+import is.hail.expr.types.physical._
+import is.hail.expr.types.virtual._
 import is.hail.utils._
 import org.testng.annotations.Test
 
@@ -12,7 +14,7 @@ class StagedRegionValueSuite extends SparkSuite {
 
   @Test
   def testString() {
-    val rt = TString()
+    val rt = PString()
     val input = "hello"
     val fb = FunctionBuilder.functionBuilder[Region, String, Long]
     val srvb = new StagedRegionValueBuilder(fb, rt)
@@ -44,13 +46,13 @@ class StagedRegionValueSuite extends SparkSuite {
     }
 
     assert(rv.pretty(rt) == rv2.pretty(rt))
-    assert(TString.loadString(rv.region, rv.offset) ==
-      TString.loadString(rv2.region, rv2.offset))
+    assert(PString.loadString(rv.region, rv.offset) ==
+      PString.loadString(rv2.region, rv2.offset))
   }
 
   @Test
   def testInt() {
-    val rt = TInt32()
+    val rt = PInt32()
     val input = 3
     val fb = FunctionBuilder.functionBuilder[Region, Int, Long]
     val srvb = new StagedRegionValueBuilder(fb, rt)
@@ -87,10 +89,10 @@ class StagedRegionValueSuite extends SparkSuite {
 
   @Test
   def testArray() {
-    val rt = TArray(TInt32())
+    val rt = PArray(PInt32())
     val input = 3
     val fb = FunctionBuilder.functionBuilder[Region, Int, Long]
-    val srvb = new StagedRegionValueBuilder(fb, TArray(TInt32()))
+    val srvb = new StagedRegionValueBuilder(fb, rt)
 
     fb.emit(
       Code(
@@ -112,7 +114,7 @@ class StagedRegionValueSuite extends SparkSuite {
 
     val region2 = Region()
     val rv2 = RegionValue(region2)
-    rv2.setOffset(ScalaToRegionValue(region2, TArray(TInt32()), FastIndexedSeq(input)))
+    rv2.setOffset(ScalaToRegionValue(region2, rt.virtualType, FastIndexedSeq(input)))
 
     if (showRVInfo) {
       printRegion(region2, "array")
@@ -127,7 +129,7 @@ class StagedRegionValueSuite extends SparkSuite {
 
   @Test
   def testStruct() {
-    val rt = TStruct("a" -> TString(), "b" -> TInt32())
+    val rt = TStruct("a" -> TString(), "b" -> TInt32()).physicalType
     val input = 3
     val fb = FunctionBuilder.functionBuilder[Region, Int, Long]
     val srvb = new StagedRegionValueBuilder(fb, rt)
@@ -161,15 +163,15 @@ class StagedRegionValueSuite extends SparkSuite {
     }
 
     assert(rv.pretty(rt) == rv2.pretty(rt))
-    assert(TString.loadString(rv.region, rt.loadField(rv.region, rv.offset, 0)) ==
-      TString.loadString(rv2.region, rt.loadField(rv2.region, rv2.offset, 0)))
+    assert(PString.loadString(rv.region, rt.loadField(rv.region, rv.offset, 0)) ==
+      PString.loadString(rv2.region, rt.loadField(rv2.region, rv2.offset, 0)))
     assert(rv.region.loadInt(rt.loadField(rv.region, rv.offset, 1)) ==
       rv2.region.loadInt(rt.loadField(rv2.region, rv2.offset, 1)))
   }
 
   @Test
   def testArrayOfStruct() {
-    val rt = TArray(TStruct("a" -> TInt32(), "b" -> TString()))
+    val rt = TArray(TStruct("a" -> TInt32(), "b" -> TString())).physicalType
     val input = "hello"
     val fb = FunctionBuilder.functionBuilder[Region, String, Long]
     val srvb = new StagedRegionValueBuilder(fb, rt)
@@ -188,7 +190,7 @@ class StagedRegionValueSuite extends SparkSuite {
         srvb.start(2),
         Code.whileLoop(srvb.arrayIdx < 2,
           Code(
-            srvb.addBaseStruct(rt.elementType.asInstanceOf[TStruct], struct),
+            srvb.addBaseStruct(rt.elementType.asInstanceOf[PStruct], struct),
             srvb.advance()
           )
         ),
@@ -226,13 +228,92 @@ class StagedRegionValueSuite extends SparkSuite {
     }
 
     assert(rv.pretty(rt) == rv2.pretty(rt))
-    assert(new UnsafeIndexedSeq(rt.physicalType, rv.region, rv.offset).sameElements(
-      new UnsafeIndexedSeq(rt.physicalType, rv2.region, rv2.offset)))
+    assert(new UnsafeIndexedSeq(rt, rv.region, rv.offset).sameElements(
+      new UnsafeIndexedSeq(rt, rv2.region, rv2.offset)))
+  }
+
+  @Test
+  def testMissingRandomAccessArray() {
+    val rt = TArray(TStruct("a" -> TInt32(), "b" -> TString())).physicalType
+    val intVal = 20
+    val strVal = "a string with a partner of 20"
+    val region = Region()
+    val region2 = Region()
+    val rvb = new RegionValueBuilder(region)
+    val rvb2 = new RegionValueBuilder(region2)
+    val rv = RegionValue(region)
+    val rv2 = RegionValue(region2)
+    rvb.start(rt)
+    rvb.startMissingArray(4)
+    rvb.setArrayIndex(2)
+    rvb.setPresent()
+    rvb.startStruct()
+    rvb.addInt(intVal)
+    rvb.addString(strVal)
+    rvb.endStruct()
+    rvb.endArrayUnchecked()
+    rv.setOffset(rvb.end())
+
+    rvb2.start(rt)
+    rvb2.startArray(4)
+    for (i <- 0 to 3) {
+      if (i == 2) {
+        rvb2.startStruct()
+        rvb2.addInt(intVal)
+        rvb2.addString(strVal)
+        rvb2.endStruct()
+      } else {
+        rvb2.setMissing()
+      }
+    }
+    rvb2.endArray()
+    rv2.setOffset(rvb2.end())
+    assert(rv.pretty(rt) == rv2.pretty(rt))
+    assert(new UnsafeIndexedSeq(rt, rv.region, rv.offset).sameElements(
+      new UnsafeIndexedSeq(rt, rv2.region, rv2.offset)))
+  }
+
+  @Test
+  def testSetFieldPresent() {
+    val rt = TStruct("a" -> TInt32(), "b" -> TString(), "c" -> TFloat64()).physicalType
+    val intVal = 30
+    val floatVal = 39.273d
+    val r = Region()
+    val r2 = Region()
+    val rv = RegionValue(r)
+    val rv2 = RegionValue(r2)
+    val rvb = new RegionValueBuilder(r)
+    val rvb2 = new RegionValueBuilder(r2)
+    rvb.start(rt)
+    rvb.startStruct()
+    rvb.setMissing()
+    rvb.setMissing()
+    rvb.addDouble(floatVal)
+    rvb.setFieldIndex(0)
+    rvb.setPresent()
+    rvb.addInt(intVal)
+    rvb.setFieldIndex(3)
+    rvb.endStruct()
+    rv.setOffset(rvb.end())
+
+    rvb2.start(rt)
+    rvb2.startStruct()
+    rvb2.addInt(intVal)
+    rvb2.setMissing()
+    rvb2.addDouble(floatVal)
+    rvb2.endStruct()
+    rv2.setOffset(rvb2.end())
+
+    assert(rv.pretty(rt) == rv2.pretty(rt))
+    assert(rv.region.loadInt(rt.loadField(rv.region, rv.offset, 0)) ==
+      rv2.region.loadInt(rt.loadField(rv2.region, rv2.offset, 0)))
+    assert(rv.region.loadDouble(rt.loadField(rv.region, rv.offset, 2)) ==
+      rv2.region.loadDouble(rt.loadField(rv2.region, rv2.offset, 2)))
   }
 
   @Test
   def testStructWithArray() {
-    val rt = TStruct("a" -> TString(), "b" -> TArray(TInt32()))
+    val rt = TStruct("a" -> TString(), "b" -> TArray(TInt32())).physicalType
     val input = "hello"
     val fb = FunctionBuilder.functionBuilder[Region, String, Long]
     val codeInput = fb.getArg[String](2)
@@ -255,7 +336,7 @@ class StagedRegionValueSuite extends SparkSuite {
         srvb.start(),
         srvb.addString(codeInput),
         srvb.advance(),
-        srvb.addArray(TArray(TInt32()), array),
+        srvb.addArray(PArray(PInt32()), array),
         srvb.end()
       )
     )
@@ -291,13 +372,13 @@ class StagedRegionValueSuite extends SparkSuite {
     }
 
     assert(rv.pretty(rt) == rv2.pretty(rt))
-    assert(new UnsafeRow(rt.physicalType, rv.region, rv.offset) ==
-      new UnsafeRow(rt.physicalType, rv2.region, rv2.offset))
+    assert(new UnsafeRow(rt, rv.region, rv.offset) ==
+      new UnsafeRow(rt, rv2.region, rv2.offset))
   }
 
   @Test
   def testMissingArray() {
-    val rt = TArray(TInt32())
+    val rt = TArray(TInt32()).physicalType
     val input = 3
     val fb = FunctionBuilder.functionBuilder[Region, Int, Long]
     val codeInput = fb.getArg[Int](2)
@@ -333,8 +414,8 @@ class StagedRegionValueSuite extends SparkSuite {
     }
 
     assert(rv.pretty(rt) == rv2.pretty(rt))
-    assert(new UnsafeIndexedSeq(rt.physicalType, rv.region, rv.offset).sameElements(
-      new UnsafeIndexedSeq(rt.physicalType, rv2.region, rv2.offset)))
+    assert(new UnsafeIndexedSeq(rt, rv.region, rv.offset).sameElements(
+      new UnsafeIndexedSeq(rt, rv2.region, rv2.offset)))
   }
 
   def printRegion(region: Region, string: String) {
@@ -343,18 +424,18 @@ class StagedRegionValueSuite extends SparkSuite {
 
   @Test
   def testAddPrimitive() {
-    val t = TStruct("a" -> TInt32(), "b" -> TBoolean(), "c" -> TFloat64())
+    val t = TStruct("a" -> TInt32(), "b" -> TBoolean(), "c" -> TFloat64()).physicalType
     val fb = FunctionBuilder.functionBuilder[Region, Int, Boolean, Double, Long]
     val srvb = new StagedRegionValueBuilder(fb, t)
 
     fb.emit(
       Code(
         srvb.start(),
-        srvb.addIRIntermediate(TInt32())(fb.getArg[Int](2)),
+        srvb.addIRIntermediate(PInt32())(fb.getArg[Int](2)),
         srvb.advance(),
-        srvb.addIRIntermediate(TBoolean())(fb.getArg[Boolean](3)),
+        srvb.addIRIntermediate(PBoolean())(fb.getArg[Boolean](3)),
         srvb.advance(),
-        srvb.addIRIntermediate(TFloat64())(fb.getArg[Double](4)),
+        srvb.addIRIntermediate(PFloat64())(fb.getArg[Double](4)),
         srvb.advance(),
         srvb.end()
       )

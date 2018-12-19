@@ -6,6 +6,8 @@ import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.expr.types
 import is.hail.expr.types._
+import is.hail.expr.types.physical.{PBaseStruct, PString, PStruct}
+import is.hail.expr.types.virtual._
 import is.hail.utils._
 import is.hail.variant.{Locus, RGBase, ReferenceGenome, VariantMethods}
 
@@ -14,7 +16,7 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
   def rgCode(mb: EmitMethodBuilder): Code[ReferenceGenome] = mb.getReferenceGenome(rg)
 
   def emitLocus(mb: EmitMethodBuilder, locus: Code[Locus]): Code[Long] = {
-    val srvb = new StagedRegionValueBuilder(mb, tlocus)
+    val srvb = new StagedRegionValueBuilder(mb, tlocus.physicalType)
     Code(emitLocus(srvb, locus), srvb.offset)
   }
 
@@ -34,7 +36,7 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
     val vlocal = mb.newLocal[(Locus, IndexedSeq[String])]
     val alocal = mb.newLocal[IndexedSeq[String]]
     val len = mb.newLocal[Int]
-    val srvb = new StagedRegionValueBuilder(mb, tvariant)
+    val srvb = new StagedRegionValueBuilder(mb, tvariant.physicalType)
     val addLocus = { srvb: StagedRegionValueBuilder =>
       emitLocus(srvb, Code.checkcast[Locus](vlocal.get[java.lang.Object]("_1")))
     }
@@ -51,33 +53,75 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
       alocal := Code.checkcast[IndexedSeq[String]](vlocal.get[java.lang.Object]("_2")),
       len := alocal.invoke[Int]("size"),
       srvb.start(),
-      srvb.addBaseStruct(types.coerce[TStruct](tlocus.fundamentalType), addLocus),
+      srvb.addBaseStruct(types.coerce[PStruct](tlocus.fundamentalType.physicalType), addLocus),
       srvb.advance(),
-      srvb.addArray(talleles, addAlleles),
+      srvb.addArray(talleles.physicalType, addAlleles),
       srvb.advance(),
       srvb.offset)
   }
 
   def emitInterval(mb: EmitMethodBuilder, interval: Code[Interval]): Code[Long] = {
-    val ilocal = mb.newLocal[Interval]
-    val plocal = mb.newLocal[Locus]
-    val srvb = new StagedRegionValueBuilder(mb, tinterval)
+    val srvb = new StagedRegionValueBuilder(mb, tinterval.physicalType)
+    Code(emitInterval(srvb, interval), srvb.offset)
+  }
+
+  def emitInterval(srvb: StagedRegionValueBuilder, interval: Code[Interval]): Code[Unit] = {
+    val ilocal = srvb.mb.newLocal[Interval]
     val addLocus = { (srvb: StagedRegionValueBuilder, point: String) =>
       emitLocus(srvb, Code.checkcast[Locus](ilocal.invoke[java.lang.Object](point)))
     }
 
-    asm4s.coerce[Long](Code(
+    asm4s.coerce[Unit](Code(
       ilocal := interval,
       srvb.start(),
-      srvb.addBaseStruct(types.coerce[TBaseStruct](tlocus.fundamentalType), addLocus(_, "start")),
+      srvb.addBaseStruct(types.coerce[PBaseStruct](tlocus.fundamentalType.physicalType), addLocus(_, "start")),
       srvb.advance(),
-      srvb.addBaseStruct(types.coerce[TBaseStruct](tlocus.fundamentalType), addLocus(_, "end")),
+      srvb.addBaseStruct(types.coerce[PBaseStruct](tlocus.fundamentalType.physicalType), addLocus(_, "end")),
       srvb.advance(),
       srvb.addBoolean(ilocal.invoke[Boolean]("includesStart")),
       srvb.advance(),
       srvb.addBoolean(ilocal.invoke[Boolean]("includesEnd")),
+      srvb.advance()))
+  }
+
+  def emitLiftoverLocus(mb: EmitMethodBuilder, result: Code[(Locus, Boolean)]): Code[Long] = {
+    val rlocal = mb.newLocal[(Locus, Boolean)]
+    val blocal = mb.newLocal[Boolean]
+    val srvb = new StagedRegionValueBuilder(mb, TTuple(tlocus, TBoolean()).physicalType)
+    val addLocus = { srvb: StagedRegionValueBuilder =>
+      emitLocus(srvb, Code.checkcast[Locus](rlocal.get[java.lang.Object]("_1")))
+    }
+
+    Code(
+      rlocal := result,
+      blocal := Code.checkcast[java.lang.Boolean](rlocal.get[java.lang.Object]("_2")).invoke[Boolean]("booleanValue"),
+      srvb.start(),
+      srvb.addBaseStruct(types.coerce[PStruct](tlocus.fundamentalType.physicalType), addLocus),
       srvb.advance(),
-      srvb.offset))
+      srvb.addBoolean(blocal),
+      srvb.advance(),
+      srvb.offset)
+  }
+
+  def emitLiftoverLocusInterval(mb: EmitMethodBuilder, result: Code[(Interval, Boolean)]): Code[Long] = {
+    val rlocal = mb.newLocal[(Interval, Boolean)]
+    val ilocal = mb.newLocal[Interval]
+    val blocal = mb.newLocal[Boolean]
+    val srvb = new StagedRegionValueBuilder(mb, TTuple(tinterval, TBoolean()).physicalType)
+    val addInterval = { srvb: StagedRegionValueBuilder =>
+      emitInterval(srvb, ilocal)
+    }
+
+    Code(
+      rlocal := result,
+      ilocal := Code.checkcast[Interval](rlocal.get[java.lang.Object]("_1")),
+      blocal := Code.checkcast[java.lang.Boolean](rlocal.get[java.lang.Object]("_2")).invoke[Boolean]("booleanValue"),
+      srvb.start(),
+      srvb.addBaseStruct(types.coerce[PStruct](tinterval.fundamentalType.physicalType), addInterval),
+      srvb.advance(),
+      srvb.addBoolean(blocal),
+      srvb.advance(),
+      srvb.offset)
   }
 
   var registered: Set[String] = Set[String]()
@@ -155,12 +199,12 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
 
     registerRGCode("Locus", TString(), TInt32(), TLocus(rg)) {
       (mb, contig: Code[Long], pos: Code[Int]) =>
-        val srvb = new StagedRegionValueBuilder(mb, tlocus)
+        val srvb = new StagedRegionValueBuilder(mb, tlocus.physicalType)
         val scontig = asm4s.coerce[String](wrapArg(mb, TString())(contig))
         Code(
           rgCode(mb).invoke[String, Int, Unit]("checkLocus", scontig, pos),
           srvb.start(),
-          srvb.addIRIntermediate(TString())(contig),
+          srvb.addIRIntermediate(PString())(contig),
           srvb.advance(),
           srvb.addInt(pos),
           srvb.offset)
@@ -257,29 +301,29 @@ class LiftoverFunctions(rg: ReferenceGenome, destRG: ReferenceGenome) extends Re
 
   override def registerAll() {
 
-    registerLiftoverCode("liftoverLocus", tlocus, TFloat64(), TLocus(destRG)) {
+    registerLiftoverCode("liftoverLocus", tlocus, TFloat64(), TStruct("result" -> TLocus(destRG), "is_negative_strand" -> TBoolean())) {
       (mb, loc, minMatch) =>
         val locus = Code.checkcast[Locus](asm4s.coerce[AnyRef](wrapArg(mb, TLocus(rg))(loc.value[Long])))
-        val llocal = mb.newLocal[Locus]
-        val lifted = rgCode(mb).invoke[String, Locus, Double, Locus]("liftoverLocus", destRG.name, locus, minMatch.value[Double])
+        val tlocal = mb.newLocal[(Locus, Boolean)]
+        val lifted = rgCode(mb).invoke[String, Locus, Double, (Locus, Boolean)]("liftoverLocus", destRG.name, locus, minMatch.value[Double])
 
         EmitTriplet(
-          Code(loc.setup, minMatch.setup, llocal := Code._null),
-          loc.m || minMatch.m || Code(llocal := lifted, llocal.isNull),
-          emitLocus(mb, llocal)
+          Code(loc.setup, minMatch.setup, tlocal := Code._null),
+          loc.m || minMatch.m || Code(tlocal := lifted, tlocal.isNull),
+          emitLiftoverLocus(mb, tlocal)
         )
     }
 
-    registerLiftoverCode("liftoverLocusInterval", tinterval, TFloat64(), TInterval(TLocus(destRG))) {
+    registerLiftoverCode("liftoverLocusInterval", tinterval, TFloat64(), TStruct("result" -> TInterval(TLocus(destRG)), "is_negative_strand" -> TBoolean())) {
       (mb, i, minMatch) =>
         val interval = Code.checkcast[Interval](asm4s.coerce[AnyRef](wrapArg(mb, tinterval)(i.value[Long])))
-        val ilocal = mb.newLocal[Interval]
-        val lifted = rgCode(mb).invoke[String, Interval, Double, Interval]("liftoverLocusInterval", destRG.name, interval, minMatch.value[Double])
+        val tlocal = mb.newLocal[(Interval, Boolean)]
+        val lifted = rgCode(mb).invoke[String, Interval, Double, (Interval, Boolean)]("liftoverLocusInterval", destRG.name, interval, minMatch.value[Double])
 
         EmitTriplet(
-          Code(i.setup, minMatch.setup, ilocal := Code._null),
-          i.m || minMatch.m || Code(ilocal := lifted, ilocal.isNull),
-          emitInterval(mb, ilocal)
+          Code(i.setup, minMatch.setup, tlocal := Code._null),
+          i.m || minMatch.m || Code(tlocal := lifted, tlocal.isNull),
+          emitLiftoverLocusInterval(mb, tlocal)
         )
     }
   }

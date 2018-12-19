@@ -1,5 +1,7 @@
 from .types import *
-from .expressions import eval_expr, eval_expr_typed
+from .table_type import *
+from .matrix_type import *
+from .expressions import eval, eval_typed
 from .functions import *
 __all__ = ['HailType',
            'dtype',
@@ -19,9 +21,12 @@ __all__ = ['HailType',
            'tinterval',
            'tlocus',
            'tcall',
+           'tvoid',
+           'ttable',
+           'tmatrix',
            'hts_entry_schema',
-           'eval_expr',
-           'eval_expr_typed',
+           'eval',
+           'eval_typed',
            'literal',
            'chi_squared_test',
            'cond',
@@ -48,6 +53,8 @@ __all__ = ['HailType',
            'is_defined',
            'is_missing',
            'is_nan',
+           'is_finite',
+           'is_infinite',
            'json',
            'log',
            'log10',
@@ -74,6 +81,7 @@ __all__ = ['HailType',
            'rand_cat',
            'rand_dirichlet',
            'sqrt',
+           'corr',
            'str',
            'is_snp',
            'is_mnp',
@@ -143,5 +151,6 @@ __all__ = ['HailType',
            'min_rep',
            'uniroot',
            'format',
-           'approx_equal'
+           'approx_equal',
+           'reversed'
            ]

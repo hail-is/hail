@@ -1,7 +1,8 @@
 package is.hail.annotations.aggregators
 
 import is.hail.annotations.{Region, RegionValueBuilder}
-import is.hail.expr.types.Type
+import is.hail.expr.types.physical.PType
+import is.hail.expr.types.virtual.Type
 import is.hail.stats.LinearRegressionCombiner
 
 object RegionValueLinearRegressionAggregator {
@@ -9,7 +10,7 @@ object RegionValueLinearRegressionAggregator {
 }
 
 class RegionValueLinearRegressionAggregator(k: Int, k0: Int, xType: Type) extends RegionValueAggregator {
-  var combiner = new LinearRegressionCombiner(k, k0, xType)
+  var combiner = new LinearRegressionCombiner(k, k0, xType.physicalType)
 
   def seqOp(region: Region, y: Double, ym: Boolean, xsOffset: Long, xsMissing: Boolean) {
     if (!ym && !xsMissing) {

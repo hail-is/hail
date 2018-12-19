@@ -3,13 +3,9 @@ package is.hail.sparkextras
 import is.hail.utils._
 import org.apache.spark._
 import org.apache.spark.rdd._
-import org.apache.spark.storage._
-import org.apache.spark.util.random._
 import org.apache.spark.ExposedUtils
-import org.apache.spark.util.Utils
 
 import scala.reflect.ClassTag
-import scala.util._
 
 object ContextRDD {
   def apply[C <: AutoCloseable : Pointed, T: ClassTag](
@@ -117,6 +113,20 @@ object ContextRDD {
   def parallelize[C <: AutoCloseable] = parallelizeInstance.asInstanceOf[Parallelize[C]]
 
   type ElementType[C, T] = C => Iterator[T]
+
+  def czipNPartitions[C <: AutoCloseable, T: ClassTag, U: ClassTag](
+    crdds: IndexedSeq[ContextRDD[C, T]],
+    preservesPartitioning: Boolean = false
+  )(f: (C, Array[Iterator[T]]) => Iterator[U]
+  ): ContextRDD[C, U] = {
+    val mkc = crdds.head.mkc
+    def inCtx(f: C => Iterator[U]): Iterator[C => Iterator[U]] = Iterator.single(f)
+    new ContextRDD(
+      MultiWayZipPartitionsRDD(crdds.map(_.rdd)) { its =>
+        inCtx(ctx => f(ctx, its.map(_.flatMap(_(ctx)))))
+      },
+      mkc)
+  }
 }
 
 class ContextRDD[C <: AutoCloseable, T: ClassTag](
@@ -435,20 +445,6 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
 
   def reorderPartitions(oldIndices: Array[Int]): ContextRDD[C, T] =
     onRDD(_.reorderPartitions(oldIndices))
-
-  def adjustPartitions(
-    adjustments: IndexedSeq[Array[Adjustment[T]]]
-  ): ContextRDD[C, T] = {
-    def contextIgnorantPartitionFunction(
-      f: Iterator[T] => Iterator[T]
-    ): Iterator[C => Iterator[T]] => Iterator[C => Iterator[T]] =
-      it => inCtx(ctx => f(it.flatMap(useCtx => useCtx(ctx))))
-    def contextIgnorantAdjustment(a: Adjustment[T]): Adjustment[C => Iterator[T]] =
-      Adjustment(a.index, contextIgnorantPartitionFunction(a.f))
-    val contextIgnorantAdjustments =
-      adjustments.map(as => as.map(a => contextIgnorantAdjustment(a)))
-    onRDD(rdd => new AdjustedPartitionsRDD(rdd, contextIgnorantAdjustments))
-  }
 
   def noShuffleCoalesce(numPartitions: Int): ContextRDD[C, T] =
     onRDD(_.coalesce(numPartitions, false))

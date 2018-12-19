@@ -1,0 +1,12 @@
+name: hail-batch
+dependencies:
+- python=3.6
+- werkzeug
+- flask
+- pip
+- pip:
+  - kubernetes
+  - pylint
+  - flake8
+  - cerberus
+  - requests

@@ -32,6 +32,7 @@ Collection functions
     group_by
     fold
     array_scan
+    reversed
 
 .. autofunction:: len
 .. autofunction:: map
@@ -47,3 +48,4 @@ Collection functions
 .. autofunction:: group_by
 .. autofunction:: fold
 .. autofunction:: array_scan
+.. autofunction:: reversed

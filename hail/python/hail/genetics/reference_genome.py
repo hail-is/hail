@@ -19,6 +19,28 @@ class ReferenceGenome(object):
     >>> par = [("X", 60001, 2699521)]
     >>> my_ref = hl.ReferenceGenome("my_ref", contigs, lengths, "X", "Y", "MT", par)
 
+    Notes
+    -----
+    Hail comes with predefined reference genomes (case sensitive!):
+
+     - GRCh37
+     - GRCh38
+     - GRCm38
+
+    You can access these reference genome objects using :func:`.get_reference`:
+
+    >>> rg = hl.get_reference('GRCh37')
+
+    Note that constructing a new reference genome, either by using the class
+    constructor or by using :meth:`.ReferenceGenome.read` will add the
+    reference genome to the list of known references; it is possible to access
+    the reference genome using :func:`.get_reference` anytime afterwards.
+
+    Note
+    ----
+    Reference genome names must be unique. It is not possible to overwrite the
+    built-in reference genomes.
+
     Parameters
     ----------
     name : :obj:`str`
@@ -271,6 +293,17 @@ class ReferenceGenome(object):
     def add_sequence(self, fasta_file, index_file):
         """Load the reference sequence from a FASTA file.
 
+        Examples
+        --------
+        Access the GRCh37 reference genome using :func:`.get_reference`:
+
+        >>> rg = hl.get_reference('GRCh37') # doctest: +SKIP
+
+        Add a sequence file:
+
+        >>> rg.add_sequence('gs://hail-common/references/human_g1k_v37.fasta.gz',
+        ...                 'gs://hail-common/references/human_g1k_v37.fasta.fai') # doctest: +SKIP
+
         Notes
         -----
         This method can only be run once per reference genome. Use
@@ -388,6 +421,17 @@ class ReferenceGenome(object):
                       dest_reference_genome=reference_genome_type)
     def add_liftover(self, chain_file, dest_reference_genome):
         """Register a chain file for liftover.
+
+        Examples
+        --------
+        Access GRCh37 and GRCh38 using :func:`.get_reference`:
+
+        >>> rg37 = hl.get_reference('GRCh37') # doctest: +SKIP
+        >>> rg38 = hl.get_reference('GRCh38') # doctest: +SKIP
+
+        Add a chain file from 37 to 38:
+
+        >>> rg37.add_liftover('gs://hail-common/references/grch37_to_grch38.over.chain.gz', rg38) # doctest: +SKIP
 
         Notes
         -----

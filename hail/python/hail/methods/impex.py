@@ -6,12 +6,12 @@ from hail.matrixtable import MatrixTable
 from hail.table import Table
 from hail.expr.types import *
 from hail.expr.expressions import *
+from hail.ir import *
 from hail.genetics.reference_genome import reference_genome_type
 from hail.methods.misc import require_biallelic, require_row_key_variant, require_row_key_variant_w_struct_locus, require_col_key_str
 import hail as hl
 
-_cached_loadvcf = None
-
+_cached_importvcfs = None
 
 def locus_interval_expr(contig, start, end, includes_start, includes_end,
                         reference_genome, skip_invalid_intervals):
@@ -145,9 +145,7 @@ def export_gen(dataset, output, precision=4, gp=None, id1=None, id2=None,
     l = dataset.locus
     a = dataset.alleles
 
-    gen_exprs = {'locus': l,
-                 'alleles': a,
-                 'varid': expr_or_else(varid, hl.delimit([l.contig, hl.str(l.position), a[0], a[1]], ':')),
+    gen_exprs = {'varid': expr_or_else(varid, hl.delimit([l.contig, hl.str(l.position), a[0], a[1]], ':')),
                  'rsid': expr_or_else(rsid, ".")}
 
     for exprs, axis in [(sample_exprs, dataset._col_indices),
@@ -159,10 +157,10 @@ def export_gen(dataset, output, precision=4, gp=None, id1=None, id2=None,
     dataset = dataset._select_all(col_exprs=sample_exprs,
                                   col_key=[],
                                   row_exprs=gen_exprs,
-                                  row_key=['locus', 'alleles'],
                                   entry_exprs=entry_exprs)
 
-    dataset._jvds.exportGen(output, precision)
+    writer = MatrixGENWriter(output, precision)
+    Env.hc()._backend.interpret(MatrixWrite(dataset._mir, writer))
 
 
 @typecheck(dataset=MatrixTable,
@@ -274,9 +272,7 @@ def export_plink(dataset, output, call=None, fam_id=None, ind_id=None, pat_id=No
     l = dataset.locus
     a = dataset.alleles
 
-    bim_exprs = {'locus': l,
-                 'alleles': a,
-                 'varid': expr_or_else(varid, hl.delimit([l.contig, hl.str(l.position), a[0], a[1]], ':')),
+    bim_exprs = {'varid': expr_or_else(varid, hl.delimit([l.contig, hl.str(l.position), a[0], a[1]], ':')),
                  'cm_position': expr_or_else(cm_position, 0.0)}
 
     for exprs, axis in [(fam_exprs, dataset._col_indices),
@@ -288,7 +284,6 @@ def export_plink(dataset, output, call=None, fam_id=None, ind_id=None, pat_id=No
     dataset = dataset._select_all(col_exprs=fam_exprs,
                                   col_key=[],
                                   row_exprs=bim_exprs,
-                                  row_key=['locus', 'alleles'],
                                   entry_exprs=entry_exprs)
 
     # check FAM ids for white space
@@ -305,7 +300,8 @@ def export_plink(dataset, output, call=None, fam_id=None, ind_id=None, pat_id=No
     if errors:
         raise TypeError("\n".join(errors))
 
-    dataset._jvds.exportPlink(output)
+    writer = MatrixPLINKWriter(output)
+    Env.hc()._backend.interpret(MatrixWrite(dataset._mir, writer))
 
 
 @typecheck(dataset=MatrixTable,
@@ -410,7 +406,7 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
         ``'separate_header'``, return a separate VCF header file and a set of
         VCF files (one per partition) without the header. If ``None``,
         concatenate the header and all partitions into one VCF file.
-    metadata : :obj:`dict[str]` or :obj:`dict[str, dict[str, str]`, optional
+    metadata : :obj:`dict[str, dict[str, dict[str, str]]]`, optional
         Dictionary with information to fill in the VCF header. See
         :func:`get_vcf_metadata` for how this
         dictionary should be structured.
@@ -418,10 +414,11 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
     """
 
     require_row_key_variant(dataset, 'export_vcf')
-    typ = tdict(tstr, tdict(tstr, tdict(tstr, tstr)))
-    Env.hail().io.vcf.ExportVCF.apply(dataset._jvds, output, joption(append_to_header),
-                                      Env.hail().utils.ExportType.getExportType(parallel),
-                                      joption(typ._convert_to_j(metadata)))
+    writer = MatrixVCFWriter(output,
+                             append_to_header,
+                             Env.hail().utils.ExportType.getExportType(parallel),
+                             metadata)
+    Env.hc()._backend.interpret(MatrixWrite(dataset._mir, writer))
 
 
 @typecheck(path=str,
@@ -643,7 +640,7 @@ def import_bed(path, reference_genome='default', skip_invalid_intervals=False) -
 
     # UCSC BED spec defined here: https://genome.ucsc.edu/FAQ/FAQformat.html#format1
 
-    t = import_table(path, no_header=True, delimiter="\s+", impute=False,
+    t = import_table(path, no_header=True, delimiter=r"\s+", impute=False,
                      skip_blank_lines=True, types={'f0': tstr, 'f1': tint32,
                                                    'f2': tint32, 'f3': tstr,
                                                    'f4': tstr},
@@ -746,14 +743,14 @@ def import_fam(path, quant_pheno=False, delimiter=r'\\s+', missing='NA') -> Tabl
 
     jkt = Env.hail().table.Table.importFam(Env.hc()._jhc, path,
                                            quant_pheno, delimiter, missing)
-    return Table(jkt)
+    return Table._from_java(jkt)
 
 
 @typecheck(regex=str,
            path=oneof(str, sequenceof(str)),
            max_count=int)
 def grep(regex, path, max_count=100):
-    """Searches given paths for all lines containing regex matches.
+    r"""Searches given paths for all lines containing regex matches.
 
         Examples
         --------
@@ -793,41 +790,57 @@ def grep(regex, path, max_count=100):
            entry_fields=sequenceof(enumeration('GT', 'GP', 'dosage')),
            n_partitions=nullable(int),
            block_size=nullable(int),
-           reference_genome=nullable(reference_genome_type),
-           contig_recoding=nullable(dictof(str, str)),
-           skip_invalid_loci=bool,
-           _row_fields=sequenceof(enumeration('varid', 'rsid', 'file_row_idx')),
-           _variants_per_file=dictof(str, sequenceof(int)))
+           index_file_map=nullable(dictof(str, str)),
+           variants=nullable(oneof(sequenceof(hl.utils.Struct), sequenceof(hl.genetics.Locus),
+                                   StructExpression, LocusExpression, Table)),
+           _row_fields=sequenceof(enumeration('varid', 'rsid')))
 def import_bgen(path,
                 entry_fields,
                 sample_file=None,
                 n_partitions=None,
                 block_size=None,
-                reference_genome='default',
-                contig_recoding=None,
-                skip_invalid_loci=False,
-                _row_fields=['varid', 'rsid'],
-                _variants_per_file={}) -> MatrixTable:
+                index_file_map=None,
+                variants=None,
+                _row_fields=['varid', 'rsid']) -> MatrixTable:
     """Import BGEN file(s) as a :class:`.MatrixTable`.
 
     Examples
     --------
 
-    Import a BGEN file as a matrix table with GT and GP entry fields,
-    renaming contig name "01" to "1":
+    Import a BGEN file as a matrix table with GT and GP entry fields:
 
     >>> ds_result = hl.import_bgen("data/example.8bits.bgen",
     ...                            entry_fields=['GT', 'GP'],
-    ...                            sample_file="data/example.8bits.sample",
-    ...                            contig_recoding={"01": "1"})
+    ...                            sample_file="data/example.8bits.sample")
 
-    Import a BGEN file as a matrix table with genotype dosage entry field,
-    renaming contig name "01" to "1":
+    Import a BGEN file as a matrix table with genotype dosage entry field:
 
     >>> ds_result = hl.import_bgen("data/example.8bits.bgen",
     ...                             entry_fields=['dosage'],
-    ...                             sample_file="data/example.8bits.sample",
-    ...                             contig_recoding={"01": "1"})
+    ...                             sample_file="data/example.8bits.sample")
+
+    Load a single variant from a BGEN file:
+
+    >>> ds_result = hl.import_bgen("data/example.8bits.bgen",
+    ...                            entry_fields=['dosage'],
+    ...                            sample_file="data/example.8bits.sample",
+    ...                            variants=[hl.eval(hl.parse_variant('1:2000:A:G'))])
+
+    Load a set of variants specified by a table expression from a BGEN file:
+
+    >>> variants = hl.import_table("data/bgen-variants.txt")
+    >>> variants = variants.annotate(v=hl.parse_variant(variants.v)).key_by('v')
+    >>> ds_result = hl.import_bgen("data/example.8bits.bgen",
+    ...                            entry_fields=['dosage'],
+    ...                            sample_file="data/example.8bits.sample",
+    ...                            variants=variants.v)
+
+    Load a set of variants specified by a table keyed by 'locus' and 'alleles' from a BGEN file:
+
+    >>> ds_result = hl.import_bgen("data/example.8bits.bgen",
+    ...                            entry_fields=['dosage'],
+    ...                            sample_file="data/example.8bits.sample",
+    ...                            variants=variants_table)
 
     Notes
     -----
@@ -840,11 +853,12 @@ def import_bgen(path,
     must be bi-allelic.
 
     Each BGEN file must have a corresponding index file, which can be generated
-    with :func:`.index_bgen`. To load multiple files at the same time,
+    with :func:`.index_bgen`. All files must have been indexed with the same
+    reference genome. To load multiple files at the same time,
     use :ref:`Hadoop Glob Patterns <sec-hadoop-glob>`.
 
     If n_partitions and block_size are both specified, block_size is
-    used.  If neither are specified, the default is a 128MB block
+    used. If neither are specified, the default is a 128MB block
     size.
 
     **Column Fields**
@@ -885,7 +899,8 @@ def import_bgen(path,
     genotype data.
 
     - `GT` (:py:data:`.tcall`) -- The hard call corresponding to the genotype with
-      the greatest probability.
+      the greatest probability. If there is not a unique maximum probability, the
+      hard call is set to missing.
     - `GP` (:class:`.tarray` of :py:data:`.tfloat64`) -- Genotype probabilities
       as defined by the BGEN file spec. For bi-allelic variants, the array has
       three elements giving the probabilities of homozygous reference,
@@ -894,6 +909,10 @@ def import_bgen(path,
       alternate alleles, given by the probability of heterozygous genotype plus
       twice the probability of homozygous alternate genotype. All variants must
       be bi-allelic.
+
+    See Also
+    --------
+    :func:`.index_bgen`
 
     Parameters
     ----------
@@ -909,13 +928,16 @@ def import_bgen(path,
         Number of partitions.
     block_size : :obj:`int`, optional
         Block size, in MB.
-    reference_genome : :obj:`str` or :class:`.ReferenceGenome`, optional
-        Reference genome to use.
-    contig_recoding : :obj:`dict` of :obj:`str` to :obj:`str`, optional
-        Dict of old contig name to new contig name. The new contig name must be
-        in the reference genome given by `reference_genome`.
-    skip_invalid_loci : :obj:`bool`
-        If ``True``, skip loci that are not consistent with `reference_genome`.
+    index_file_map : :obj:`dict` of :obj:`str` to :obj:`str`, optional
+        Dict of BGEN file to index file location. Cannot use Hadoop glob
+        patterns in file names.
+    variants : :class:`.StructExpression` or :class:`.LocusExpression` or :obj:`list` of :class:`.Struct` or :obj:`list` of :class:`.Locus` or :class:`.Table`
+        Variants to filter to. The underlying type of the input (row key in the case of a :class:`.Table`)
+        must be either a :class:`.tlocus`, a struct with one field `locus`, or a struct with two fields:
+        `locus` and `alleles`. The type of `locus` can either be a :class:`.tlocus` or a :class:`.tstruct`
+        with two fields: `contig` of type :class:`.tstr` and `position` of type :class:`.tint`. If the
+        type of `locus` is :class:`.tlocus`, the reference genome must match that used to index the BGEN
+        file(s). The type of `alleles` is a :class:`.tarray` of :class:`.tstr`.
     _row_fields : :obj:`list` of :obj:`str`
         List of non-key row fields to create.
         Options: ``'varid'``, ``'rsid'``
@@ -929,20 +951,73 @@ def import_bgen(path,
     if n_partitions is None and block_size is None:
         block_size = 128
 
-    rg = reference_genome.name if reference_genome else None
+    if index_file_map is None:
+        index_file_map = {}
+    java_index_file_map = tdict(tstr, tstr)._convert_to_j(index_file_map)
 
     entry_set = set(entry_fields)
     row_set = set(_row_fields)
 
-    if contig_recoding:
-        contig_recoding = tdict(tstr, tstr)._convert_to_j(contig_recoding)
+    # have to get reference genome from the index files!
+    reference_genome = Env.hail().io.bgen.LoadBgen.getReferenceGenome(Env.hc()._jhc.hadoopConf(), wrap_to_list(path), java_index_file_map)
+    lt = tlocus(reference_genome) if reference_genome else tstruct(contig=tstr, position=tint32)
 
-    jmt = Env.hc()._jhc.importBgens(jindexed_seq_args(path), joption(sample_file),
-                                    'GT' in entry_set, 'GP' in entry_set, 'dosage' in entry_set,
-                                    'varid' in row_set, 'rsid' in row_set, 'file_row_idx' in row_set,
-                                    joption(n_partitions), joption(block_size), joption(rg), contig_recoding,
-                                    skip_invalid_loci, tdict(tstr, tarray(tint32))._convert_to_j(_variants_per_file))
-    return MatrixTable(jmt)
+    if variants is not None:
+        expected_vtype = tstruct(locus=lt, alleles=tarray(tstr))
+
+        if isinstance(variants, StructExpression) or isinstance(variants, LocusExpression):
+            if isinstance(variants, LocusExpression):
+                variants = hl.struct(locus=variants)
+
+            if len(variants.dtype) == 0 or not variants.dtype._is_prefix_of(expected_vtype):
+                raise TypeError("'import_bgen' requires the expression type for 'variants' is a non-empty prefix of the BGEN key type: \n" +
+                                 f"\tFound: {repr(variants.dtype)}\n" +
+                                  f"\tExpected: {repr(expected_vtype)}\n")
+
+            uid = Env.get_uid()
+            fnames = list(variants.dtype)
+            variants = variants._to_table(uid) # This will add back the other key fields of the source, which we don't want
+            variants = variants.key_by(**{fname: variants[uid][fname] for fname in fnames})
+            variants = variants.select()
+        elif isinstance(variants, Table):
+            if len(variants.key) == 0 or not variants.key.dtype._is_prefix_of(expected_vtype):
+                raise TypeError("'import_bgen' requires the row key type for 'variants' is a non-empty prefix of the BGEN key type: \n" +
+                                 f"\tFound: {repr(variants.key.dtype)}\n" +
+                                  f"\tExpected: {repr(expected_vtype)}\n")
+            variants = variants.select()
+        else:
+            assert isinstance(variants, list)
+            try:
+                if len(variants) == 0:
+                    variants = hl.Table.parallelize(variants,
+                                                    schema=expected_vtype,
+                                                    key=['locus', 'alleles'])
+                else:
+                    first_v = variants[0]
+                    if isinstance(first_v, hl.Locus):
+                        variants = hl.Table.parallelize([hl.Struct(locus=v) for v in variants],
+                                                        schema=hl.tstruct(locus=lt),
+                                                        key='locus')
+                    else:
+                        assert isinstance(first_v, hl.utils.Struct)
+                        if len(first_v) == 1:
+                            variants = hl.Table.parallelize(variants,
+                                                            schema=hl.tstruct(locus=lt),
+                                                            key='locus')
+                        else:
+                            variants = hl.Table.parallelize(variants,
+                                                            schema=expected_vtype,
+                                                            key=['locus', 'alleles'])
+            except:
+                raise TypeError(f"'import_bgen' requires all elements in 'variants' are a non-empty prefix of the BGEN key type: {repr(expected_vtype)}")
+
+    reader = MatrixBGENReader(path, sample_file, index_file_map, n_partitions, block_size, variants)
+
+    mt = (MatrixTable(MatrixRead(reader))
+          .drop(*[fd for fd in ['GT', 'GP', 'dosage'] if fd not in entry_set],
+                *[fd for fd in ['rsid', 'varid', 'offset', 'file_idx'] if fd not in row_set]))
+
+    return mt
 
 
 @typecheck(path=oneof(str, sequenceof(str)),
@@ -1052,7 +1127,7 @@ def import_gen(path,
     jmt = Env.hc()._jhc.importGens(jindexed_seq_args(path), sample_file, joption(chromosome), joption(min_partitions),
                                    tolerance, joption(rg), joption(contig_recoding),
                                    skip_invalid_loci)
-    return MatrixTable(jmt)
+    return MatrixTable._from_java(jmt)
 
 
 @typecheck(paths=oneof(str, sequenceof(str)),
@@ -1245,13 +1320,13 @@ def import_table(paths,
     :class:`.Table`
     """
     paths = wrap_to_list(paths)
-    jtypes = {k: v._jtype for k, v in types.items()}
+    jtypes = {k: v._parsable_string() for k, v in types.items()}
     comment = wrap_to_list(comment)
 
     jt = Env.hc()._jhc.importTable(paths, key, min_partitions, jtypes, comment,
                                    delimiter, missing, no_header, impute, quote,
                                    skip_blank_lines, force_bgz)
-    return Table(jt)
+    return Table._from_java(jt)
 
 
 @typecheck(paths=oneof(str, sequenceof(str)),
@@ -1298,7 +1373,7 @@ def import_matrix_table(paths,
     >>> matrix1 = hl.import_matrix_table('data/matrix1.tsv',
     ...                                  row_fields={'Barcode': hl.tstr, 'Tissue': hl.tstr, 'Days':hl.tfloat32},
     ...                                  row_key='Barcode')
-    >>> matrix1.describe()
+    >>> matrix1.describe()  # doctest: +NOTEST
     ----------------------------------------
     Global fields:
         None
@@ -1417,22 +1492,22 @@ def import_matrix_table(paths,
     """
 
     paths = wrap_to_list(paths)
-    jrow_fields = {k: v._jtype for k, v in row_fields.items()}
+    jrow_fields = {k: v._parsable_string() for k, v in row_fields.items()}
     for k, v in row_fields.items():
         if v not in {tint32, tint64, tfloat32, tfloat64, tstr}:
-            raise FatalError("""import_matrix_table expects field types to be one of: 
+            raise FatalError("""import_matrix_table expects field types to be one of:
             'int32', 'int64', 'float32', 'float64', 'str': field {} had type '{}'""".format(repr(k), v))
     row_key = wrap_to_list(row_key)
     if entry_type not in {tint32, tint64, tfloat32, tfloat64, tstr}:
-        raise FatalError("""import_matrix_table expects entry types to be one of: 
+        raise FatalError("""import_matrix_table expects entry types to be one of:
         'int32', 'int64', 'float32', 'float64', 'str': found '{}'""".format(entry_type))
 
     if len(sep) != 1:
         raise FatalError('sep must be a single character')
 
-    jmt = Env.hc()._jhc.importMatrix(paths, jrow_fields, row_key, entry_type._jtype, missing, joption(min_partitions),
+    jmt = Env.hc()._jhc.importMatrix(paths, jrow_fields, row_key, entry_type._parsable_string(), missing, joption(min_partitions),
                                      no_header, force_bgz, sep)
-    return MatrixTable(jmt)
+    return MatrixTable._from_java(jmt)
 
 
 @typecheck(bed=str,
@@ -1453,10 +1528,7 @@ def import_plink(bed, bim, fam,
                  quant_pheno=False,
                  a2_reference=True,
                  reference_genome='default',
-                 contig_recoding={'23': 'X',
-                                  '24': 'Y',
-                                  '25': 'X',
-                                  '26': 'MT'},
+                 contig_recoding=None,
                  skip_invalid_loci=False) -> MatrixTable:
     """Import a PLINK dataset (BED, BIM, FAM) as a :class:`.MatrixTable`.
 
@@ -1558,7 +1630,10 @@ def import_plink(bed, bim, fam,
 
     contig_recoding : :obj:`dict` of :obj:`str` to :obj:`str`, optional
         Dict of old contig name to new contig name. The new contig name must be
-        in the reference genome given by ``reference_genome``.
+        in the reference genome given by ``reference_genome``. If ``None``, the
+        default is dependent on the ``reference_genome``. For "GRCh37", the default
+        is ``{'23': 'X', '24': 'Y', '25': 'X', '26': 'MT'}``. For "GRCh38", the
+        default is ``{'1': 'chr1', ..., '22': 'chr22', '23': 'chrX', '24': 'chrY', '25': 'chrX', '26': 'chrM'}``.
 
     skip_invalid_loci : :obj:`bool`
         If ``True``, skip loci that are not consistent with `reference_genome`.
@@ -1568,19 +1643,21 @@ def import_plink(bed, bim, fam,
     :class:`.MatrixTable`
     """
 
-    rg = reference_genome._jrep if reference_genome else None
+    if contig_recoding is None:
+        if reference_genome is None:
+            contig_recoding = {}
+        elif reference_genome.name == "GRCh37":
+            contig_recoding = {'23': 'X', '24': 'Y', '25': 'X', '26': 'MT'}
+        elif reference_genome.name == "GRCh38":
+            contig_recoding = {**{str(i):f'chr{i}' for i in range(1, 23)},
+                               **{'23': 'chrX', '24': 'chrY', '25': 'chrX', '26': 'chrM'}}
+        else:
+            contig_recoding = {}
 
-    if contig_recoding:
-        contig_recoding = tdict(tstr,
-                                tstr)._convert_to_j(contig_recoding)
-
-    jmt = Env.hc()._jhc.importPlink(bed, bim, fam, joption(min_partitions),
-                                    delimiter, missing, quant_pheno,
-                                    a2_reference, joption(rg),
-                                    joption(contig_recoding),
-                                    skip_invalid_loci)
-
-    return MatrixTable(jmt)
+    reader = MatrixPLINKReader(bed, bim, fam, min_partitions, missing, delimiter,
+                               quant_pheno, a2_reference, reference_genome, contig_recoding,
+                               skip_invalid_loci)
+    return MatrixTable(MatrixRead(reader, drop_cols=False, drop_rows=False))
 
 
 @typecheck(path=oneof(str, sequenceof(str)),
@@ -1598,7 +1675,7 @@ def read_matrix_table(path, _drop_cols=False, _drop_rows=False) -> MatrixTable:
     -------
     :class:`.MatrixTable`
     """
-    return MatrixTable(Env.hc()._jhc.read(path, _drop_cols, _drop_rows))
+    return MatrixTable(MatrixRead(MatrixNativeReader(path), _drop_cols, _drop_rows))
 
 
 @typecheck(path=str)
@@ -1608,7 +1685,7 @@ def get_vcf_metadata(path):
     Examples
     --------
 
-    >>> metadata = hl.get_vcf_metadata('data/example2.vcf.bgz')
+    >>> hl.get_vcf_metadata('data/example2.vcf.bgz')  # doctest: +NOTEST
     {'filter': {'LowQual': {'Description': ''}, ...},
      'format': {'AD': {'Description': 'Allelic depths for the ref and alt alleles in the order listed',
                        'Number': 'R',
@@ -1669,18 +1746,21 @@ def get_vcf_metadata(path):
            reference_genome=nullable(reference_genome_type),
            contig_recoding=nullable(dictof(str, str)),
            array_elements_required=bool,
-           skip_invalid_loci=bool)
+           skip_invalid_loci=bool,
+           # json
+           _partitions=nullable(str))
 def import_vcf(path,
                force=False,
                force_bgz=False,
                header_file=None,
                min_partitions=None,
                drop_samples=False,
-               call_fields=[],
+               call_fields=['PGT'],
                reference_genome='default',
                contig_recoding=None,
                array_elements_required=True,
-               skip_invalid_loci=False) -> MatrixTable:
+               skip_invalid_loci=False,
+               _partitions=None) -> MatrixTable:
     """Import VCF file(s) as a :class:`.MatrixTable`.
 
     Examples
@@ -1779,8 +1859,8 @@ def import_vcf(path,
         If ``True``, create sites-only dataset. Don't load sample IDs or
         entries.
     call_fields : :obj:`list` of :obj:`str`
-        List of FORMAT fields to load as :py:data:`.tcall`. "GT" is loaded as
-        a call automatically.
+        List of FORMAT fields to load as :py:data:`.tcall`. "GT" is
+        loaded as a call automatically.
     reference_genome: :obj:`str` or :class:`.ReferenceGenome`, optional
         Reference genome to use.
     contig_recoding: :obj:`dict` of (:obj:`str`, :obj:`str`)
@@ -1792,7 +1872,7 @@ def import_vcf(path,
         parameter to ``False`` for Hail to allow array fields with missing
         values such as ``1,.,5``. In this case, the second element will be
         missing. However, in the case of a single missing element ``.``, the
-        entire field will be missing and **not** an array with one missing 
+        entire field will be missing and **not** an array with one missing
         element.
     skip_invalid_loci : :obj:`bool`
         If ``True``, skip loci that are not consistent with `reference_genome`.
@@ -1802,53 +1882,142 @@ def import_vcf(path,
     :class:`.MatrixTable`
     """
 
+    reader = MatrixVCFReader(path, call_fields, header_file, min_partitions,
+                             reference_genome, contig_recoding, array_elements_required,
+                             skip_invalid_loci, force_bgz, force, _partitions)
+    return MatrixTable(MatrixRead(reader, drop_cols=drop_samples))
+
+@typecheck(path=sequenceof(str),
+           partitions=str,
+           force=bool,
+           force_bgz=bool,
+           call_fields=oneof(str, sequenceof(str)),
+           reference_genome=nullable(reference_genome_type),
+           contig_recoding=nullable(dictof(str, str)),
+           array_elements_required=bool,
+           skip_invalid_loci=bool)
+def import_vcfs(path,
+                partitions,
+                force=False,
+                force_bgz=False,
+                call_fields=[],
+                reference_genome='default',
+                contig_recoding=None,
+                array_elements_required=True,
+                skip_invalid_loci=False) -> MatrixTable:
+    """Experimental. Import multiple vcfs as :class:`MatrixTable`s
+
+    The arguments to this function are almost identical to :func:`.import_vcf`,
+    the only difference is the `partitions` argument, which is used to divide
+    and filter the vcfs. It must be a JSON string that will deserialize to an
+    Array of Intervals of Locus structs. A partition will be created for every
+    element of the array. Loci that fall outside of any interval will not be
+    imported. For example:
+
+    .. code-block:: text
+        [
+          {
+            "start": {
+              "locus": {
+                "contig": "chr22",
+                "position": 1
+              }
+            },
+            "end": {
+              "locus": {
+                "contig": "chr22",
+                "position": 5332423
+              }
+            },
+            "includeStart": true,
+            "includeEnd": true
+          }
+        ]
+
+    The `includeStart` and `includeEnd` keys must be `true`. The `contig` fields must
+    be the same.
+
+    One difference between :func:`.import_vcfs` and :func:`.import_vcf` is that
+    :func:`.import_vcfs` only keys the resulting matrix tables by `locus`
+    rather than `locus, alleles`.
+    """
+
     rg = reference_genome.name if reference_genome else None
 
-    global _cached_loadvcf
-    if _cached_loadvcf is None:
-        _cached_loadvcf = Env.hail().io.vcf.LoadVCF
+    global _cached_importvcfs
+    if _cached_importvcfs is None:
+        _cached_importvcfs = Env.hail().io.vcf.ImportVCFs
 
-    jmt = _cached_loadvcf.pyApply(
+    jmts = _cached_importvcfs.pyApply(
         wrap_to_list(path),
         wrap_to_list(call_fields),
-        header_file,
-        joption(min_partitions),
-        drop_samples,
         rg,
         contig_recoding,
         array_elements_required,
         skip_invalid_loci,
         force_bgz,
-        force
-    )
-    return MatrixTable(jmt)
+        force,
+        partitions)
+    return [MatrixTable._from_java(jmt) for jmt in jmts]
 
-
-@typecheck(path=oneof(str, sequenceof(str)))
-def index_bgen(path):
+@typecheck(path=oneof(str, sequenceof(str)),
+           index_file_map=nullable(dictof(str, str)),
+           reference_genome=nullable(reference_genome_type),
+           contig_recoding=nullable(dictof(str, str)),
+           skip_invalid_loci=bool)
+def index_bgen(path,
+               index_file_map=None,
+               reference_genome='default',
+               contig_recoding=None,
+               skip_invalid_loci=False):
     """Index BGEN files as required by :func:`.import_bgen`.
 
     The index file is generated in the same directory as `path` with the
-    filename of `path` appended by `.idx`.
+    filename of `path` appended by `.idx2` unless `directory` is specified.
 
     Example
     -------
+    Index a BGEN file, renaming contig name "01" to "1":
 
-    >>> hl.index_bgen("data/example.8bits.bgen")
+    >>> hl.index_bgen("data/example.8bits.bgen",
+    ...               contig_recoding={"01": "1"})
 
     Warning
     -------
-
     While this method parallelizes over a list of BGEN files, each file is
     indexed serially by one core. Indexing several BGEN files on a large cluster
     is a waste of resources, so indexing should generally be done once,
     separately from large analyses.
 
-    path: :obj:`str` or :obj:`list` of :obj:`str`
+    See Also
+    --------
+    :func:`.import_bgen`
+
+    Parameters
+    ----------
+    path : :obj:`str` or :obj:`list` of :obj:`str`
         .bgen files to index.
+    index_file_map : :obj:`dict` of :obj:`str` to :obj:`str`, optional
+        Dict of BGEN file to index file location. Index file location must have
+        a `.idx2` file extension. Cannot use Hadoop glob patterns in file names.
+    reference_genome : :obj:`str` or :class:`.ReferenceGenome`, optional
+        Reference genome to use.
+    contig_recoding : :obj:`dict` of :obj:`str` to :obj:`str`, optional
+        Dict of old contig name to new contig name. The new contig name must be
+        in the reference genome given by `reference_genome`.
+    skip_invalid_loci : :obj:`bool`
+        If ``True``, skip loci that are not consistent with `reference_genome`.
 
     """
-    Env.hc()._jhc.indexBgen(jindexed_seq_args(path))
+    rg = reference_genome.name if reference_genome else None
+
+    if contig_recoding:
+        contig_recoding = tdict(tstr, tstr)._convert_to_j(contig_recoding)
+
+    if index_file_map:
+        index_file_map = tdict(tstr, tstr)._convert_to_j(index_file_map)
+
+    Env.hc()._jhc.indexBgen(jindexed_seq_args(path), index_file_map, joption(rg), contig_recoding, skip_invalid_loci)
 
 
 @typecheck(path=str)
@@ -1864,7 +2033,7 @@ def read_table(path) -> Table:
     -------
     :class:`.Table`
     """
-    return Table(Env.hc()._jhc.readTable(path))
+    return Table._from_java(Env.hc()._jhc.readTable(path))
 
 @typecheck(t=Table,
            host=str,

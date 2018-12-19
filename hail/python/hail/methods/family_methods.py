@@ -59,12 +59,12 @@ def trio_matrix(dataset, pedigree, complete_trios=False) -> MatrixTable:
     -------
     :class:`.MatrixTable`
     """
-    return MatrixTable(dataset._jvds.trioMatrix(pedigree._jrep, complete_trios))
+    return MatrixTable._from_java(dataset._jmt.trioMatrix(pedigree._jrep, complete_trios))
 
 @typecheck(call=expr_call,
            pedigree=Pedigree)
 def mendel_errors(call, pedigree) -> Tuple[Table, Table, Table, Table]:
-    """Find Mendel errors; count per variant, individual and nuclear family.
+    r"""Find Mendel errors; count per variant, individual and nuclear family.
 
     .. include:: ../_templates/req_tstring.rst
 
@@ -259,8 +259,8 @@ def mendel_errors(call, pedigree) -> Tuple[Table, Table, Table, Table]:
 
     table3 = tm.annotate_cols(all_errors=hl.or_else(hl.agg.array_sum(implicated[tm.mendel_code]), [0, 0, 0]),
                               snp_errors=hl.or_else(
-                                  hl.agg.array_sum(hl.agg.filter(hl.is_snp(tm.alleles[0], tm.alleles[1]),
-                                                                 implicated[tm.mendel_code])),
+                                  hl.agg.filter(hl.is_snp(tm.alleles[0], tm.alleles[1]),
+                                                hl.agg.array_sum(implicated[tm.mendel_code])),
                                   [0, 0, 0])).key_cols_by().cols()
 
     table3 = table3.select(xs=[
@@ -291,7 +291,7 @@ def mendel_errors(call, pedigree) -> Tuple[Table, Table, Table, Table]:
 @typecheck(dataset=MatrixTable,
            pedigree=Pedigree)
 def transmission_disequilibrium_test(dataset, pedigree) -> Table:
-    """Performs the transmission disequilibrium test on trios.
+    r"""Performs the transmission disequilibrium test on trios.
 
     .. include:: ../_templates/req_tstring.rst
 
@@ -305,15 +305,15 @@ def transmission_disequilibrium_test(dataset, pedigree) -> Table:
     
     >>> pedigree = hl.Pedigree.read('data/tdt_trios.fam')
     >>> tdt_table = hl.transmission_disequilibrium_test(tdt_dataset, pedigree)
-    >>> tdt_table.show(2)
-    +---------------+------------+-------+-------+-------------+-------------+
-    | locus         | alleles    |     t |     u |      chi_sq |     p_value |
-    +---------------+------------+-------+-------+-------------+-------------+
-    | locus<GRCh37> | array<str> | int32 | int32 |     float64 |     float64 |
-    +---------------+------------+-------+-------+-------------+-------------+
-    | 1:246714629   | ["C","A"]  |     0 |     4 | 4.00000e+00 | 4.55003e-02 |
-    | 2:167262169   | ["T","C"]  |    NA |    NA |          NA |          NA |
-    +---------------+------------+-------+-------+-------------+-------------+
+    >>> tdt_table.show(2)  # doctest: +NOTEST
+    +---------------+------------+-------+-------+----------+----------+
+    | locus         | alleles    |     t |     u |   chi_sq |  p_value |
+    +---------------+------------+-------+-------+----------+----------+
+    | locus<GRCh37> | array<str> | int64 | int64 |  float64 |  float64 |
+    +---------------+------------+-------+-------+----------+----------+
+    | 1:246714629   | ["C","A"]  |     0 |     4 | 4.00e+00 | 4.55e-02 |
+    | 2:167262169   | ["T","C"]  |    NA |    NA |       NA |       NA |
+    +---------------+------------+-------+-------+----------+----------+
 
     Export variants with p-values below 0.001:
 
@@ -453,7 +453,7 @@ def transmission_disequilibrium_test(dataset, pedigree) -> Table:
               tri.mother_entry.GT.n_alt_alleles(),
               copy_state)
 
-    tri = tri.annotate_rows(counts = agg.array_sum(agg.filter(parent_is_valid_het, count_map.get(config))))
+    tri = tri.annotate_rows(counts = agg.filter(parent_is_valid_het, agg.array_sum(count_map.get(config))))
 
     tab = tri.rows().select('counts')
     tab = tab.transmute(t = tab.counts[0], u = tab.counts[1])
@@ -479,7 +479,7 @@ def de_novo(mt: MatrixTable,
             max_parent_ab: float = 0.05,
             min_child_ab: float = 0.20,
             min_dp_ratio: float = 0.10) -> Table:
-    """Call putative *de novo* events from trio data.
+    r"""Call putative *de novo* events from trio data.
 
     .. include:: ../_templates/req_tstring.rst
 
@@ -545,27 +545,27 @@ def de_novo(mt: MatrixTable,
 
     .. math::
 
-        \\mathrm{P_{\\text{de novo}}} = \\frac{\mathrm{P}(d\,|\,x)}{\mathrm{P}(d\,|\,x) + \mathrm{P}(m\,|\,x)}
+        \mathrm{P_{\text{de novo}}} = \frac{\mathrm{P}(d\,|\,x)}{\mathrm{P}(d\,|\,x) + \mathrm{P}(m\,|\,x)}
 
     Applying Bayes rule to the numerator and denominator yields
 
     .. math::
 
-        \\frac{\mathrm{P}(x\,|\,d)\,\mathrm{P}(d)}{\mathrm{P}(x\,|\,d)\,\mathrm{P}(d) +
+        \frac{\mathrm{P}(x\,|\,d)\,\mathrm{P}(d)}{\mathrm{P}(x\,|\,d)\,\mathrm{P}(d) +
         \mathrm{P}(x\,|\,m)\,\mathrm{P}(m)}
 
     The prior on de novo mutation is estimated from the rate in the literature:
 
     .. math::
 
-        \\mathrm{P}(d) = \\frac{1 \\text{mutation}}{30,000,000\, \\text{bases}}
+        \mathrm{P}(d) = \frac{1 \text{mutation}}{30,000,000\, \text{bases}}
 
     The prior used for at least one alternate allele between the parents
     depends on the alternate allele frequency:
 
     .. math::
 
-        \\mathrm{P}(m) = 1 - (1 - AF)^4
+        \mathrm{P}(m) = 1 - (1 - AF)^4
 
     The likelihoods :math:`\mathrm{P}(x\,|\,d)` and :math:`\mathrm{P}(x\,|\,m)`
     are computed from the PL (genotype likelihood) fields using these
@@ -573,21 +573,21 @@ def de_novo(mt: MatrixTable,
 
     .. math::
 
-        \\mathrm{P}(x = (AA, AA, AB) \,|\,d) = \\Big(
-        &\\mathrm{P}(x_{\\mathrm{father}} = AA \,|\, \\mathrm{father} = AA) \\\\
-        \\cdot &\\mathrm{P}(x_{\\mathrm{mother}} = AA \,|\, \\mathrm{mother} =
-        AA) \\\\ \\cdot &\\mathrm{P}(x_{\\mathrm{proband}} = AB \,|\,
-        \\mathrm{proband} = AB) \\Big)
+        \mathrm{P}(x = (AA, AA, AB) \,|\,d) = \Big(
+        &\mathrm{P}(x_{\mathrm{father}} = AA \,|\, \mathrm{father} = AA) \\
+        \cdot &\mathrm{P}(x_{\mathrm{mother}} = AA \,|\, \mathrm{mother} =
+        AA) \\ \cdot &\mathrm{P}(x_{\mathrm{proband}} = AB \,|\,
+        \mathrm{proband} = AB) \Big)
 
     .. math::
 
-        \\mathrm{P}(x = (AA, AA, AB) \,|\,m) = \\Big( &
-        \\mathrm{P}(x_{\\mathrm{father}} = AA \,|\, \\mathrm{father} = AB)
-        \\cdot \\mathrm{P}(x_{\\mathrm{mother}} = AA \,|\, \\mathrm{mother} =
-        AA) \\\\ + \, &\\mathrm{P}(x_{\\mathrm{father}} = AA \,|\,
-        \\mathrm{father} = AA) \\cdot \\mathrm{P}(x_{\\mathrm{mother}} = AA
-        \,|\, \\mathrm{mother} = AB) \\Big) \\\\ \\cdot \,
-        &\\mathrm{P}(x_{\\mathrm{proband}} = AB \,|\, \\mathrm{proband} = AB)
+        \mathrm{P}(x = (AA, AA, AB) \,|\,m) = \Big( &
+        \mathrm{P}(x_{\mathrm{father}} = AA \,|\, \mathrm{father} = AB)
+        \cdot \mathrm{P}(x_{\mathrm{mother}} = AA \,|\, \mathrm{mother} =
+        AA) \\ + \, &\mathrm{P}(x_{\mathrm{father}} = AA \,|\,
+        \mathrm{father} = AA) \cdot \mathrm{P}(x_{\mathrm{mother}} = AA
+        \,|\, \mathrm{mother} = AB) \Big) \\ \cdot \,
+        &\mathrm{P}(x_{\mathrm{proband}} = AB \,|\, \mathrm{proband} = AB)
 
     (Technically, the second factorization assumes there is exactly (rather
     than at least) one alternate allele among the parents, which may be
@@ -608,7 +608,7 @@ def de_novo(mt: MatrixTable,
        alternate reads divided by total reads).
      - ``AC`` refers to the count of alternate alleles across all individuals
        in the dataset at the site.
-     - ``p`` refers to :math:`\\mathrm{P_{\\text{de novo}}}`.
+     - ``p`` refers to :math:`\mathrm{P_{\text{de novo}}}`.
      - ``min_p`` refers to the ``min_p`` function parameter.
 
     HIGH-quality SNV:

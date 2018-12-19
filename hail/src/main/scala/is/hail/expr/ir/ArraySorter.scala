@@ -3,11 +3,11 @@ package is.hail.expr.ir
 import is.hail.annotations.{CodeOrdering, Region, StagedRegionValueBuilder}
 import is.hail.expr.types._
 import is.hail.asm4s._
-import is.hail.expr.types.physical.{PBaseStruct, PType}
+import is.hail.expr.types.physical.{PArray, PBaseStruct, PType}
 import is.hail.utils._
 
 class ArraySorter(mb: EmitMethodBuilder, array: StagedArrayBuilder, keyOnly: Boolean) {
-  val typ: PType = array.elt.physicalType
+  val typ: PType = array.elt
   val ti: TypeInfo[_] = typeToTypeInfo(typ)
   val sortmb: EmitMethodBuilder = mb.fb.newMethod[Region, Int, Int, Boolean, Unit]
 
@@ -26,12 +26,12 @@ class ArraySorter(mb: EmitMethodBuilder, array: StagedArrayBuilder, keyOnly: Boo
           val k1 = mk1l.mux(defaultValue(kt), r1.loadIRIntermediate(kt)(ttype.fieldOffset(v1, 0)))
           val k2 = mk2l.mux(defaultValue(kt), r2.loadIRIntermediate(kt)(ttype.fieldOffset(v2, 0)))
 
-          mb.getCodeOrdering[Boolean](kt, CodeOrdering.equiv, missingGreatest = true)(r1, (mk1, k1), r2, (mk2, k2))
+          mb.getCodeOrdering[Boolean](kt, CodeOrdering.equiv)(r1, (mk1, k1), r2, (mk2, k2))
       }
     }
     ceq
   } else
-      mb.getCodeOrdering[Boolean](typ, CodeOrdering.equiv, missingGreatest = true)
+      mb.getCodeOrdering[Boolean](typ, CodeOrdering.equiv)
 
   def sort(ascending: Code[Boolean]): Code[Unit] = {
 
@@ -56,7 +56,7 @@ class ArraySorter(mb: EmitMethodBuilder, array: StagedArrayBuilder, keyOnly: Boo
 
       val k1 = mk1.mux(defaultValue(kt), sorterRegion.loadIRIntermediate(kt)(ttype.fieldOffset(v1, 0)))
       val k2 = mk2.mux(defaultValue(kt), sorterRegion.loadIRIntermediate(kt)(ttype.fieldOffset(v2, 0)))
-      val cmp = sorter.getCodeOrdering[Int](kt, CodeOrdering.compare, missingGreatest = true, ignoreMissingness = false)
+      val cmp = sorter.getCodeOrdering[Int](kt, CodeOrdering.compare, ignoreMissingness = false)
       sorter.emit(Code(
         mk1 := ttype.isFieldMissing(sorterRegion, v1, 0),
         mk2 := ttype.isFieldMissing(sorterRegion, v2, 0),
@@ -64,7 +64,7 @@ class ArraySorter(mb: EmitMethodBuilder, array: StagedArrayBuilder, keyOnly: Boo
           cmp(sorterRegion, (mk1, k1), sorterRegion, (mk2, k2)) < 0,
           cmp(sorterRegion, (mk1, k1), sorterRegion, (mk2, k2)) > 0)))
     } else {
-      val cmp = sorter.getCodeOrdering[Int](typ, CodeOrdering.compare, missingGreatest = true, ignoreMissingness = true)(
+      val cmp = sorter.getCodeOrdering[Int](typ, CodeOrdering.compare, ignoreMissingness = true)(
         sorterRegion, (false, sorter.getArg(1)(ti)),
         sorterRegion, (false, sorter.getArg(2)(ti)))
       sorter.emit(asc.mux(cmp < 0, cmp > 0))
@@ -76,13 +76,13 @@ class ArraySorter(mb: EmitMethodBuilder, array: StagedArrayBuilder, keyOnly: Boo
   }
 
   def toRegion(): Code[Long] = {
-    val srvb = new StagedRegionValueBuilder(mb, TArray(typ.virtualType))
+    val srvb = new StagedRegionValueBuilder(mb, PArray(typ))
     Code(
       srvb.start(array.size),
       Code.whileLoop(srvb.arrayIdx < array.size,
         array.isMissing(srvb.arrayIdx).mux(
           srvb.setMissing(),
-          srvb.addIRIntermediate(typ.virtualType)(array(srvb.arrayIdx))),
+          srvb.addIRIntermediate(typ)(array(srvb.arrayIdx))),
         srvb.advance()),
       srvb.end())
   }

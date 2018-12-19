@@ -2,10 +2,11 @@ package is.hail.expr.ir
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr.types.{MatrixType, TArray, TStruct, TableType}
-import is.hail.expr.types._
+import is.hail.expr.types.physical.{PArray, PStruct, PType}
+import is.hail.expr.types.virtual._
+import is.hail.expr.types.{MatrixType, TableType}
 import is.hail.io.CodecSpec
-import is.hail.rvd.{OrderedRVD, OrderedRVDType, RVD, RVDSpec, _}
+import is.hail.rvd.{AbstractRVDSpec, RVD, RVDType, _}
 import is.hail.sparkextras.ContextRDD
 import is.hail.table.TableSpec
 import is.hail.utils._
@@ -18,9 +19,10 @@ case class MatrixValue(
   typ: MatrixType,
   globals: BroadcastRow,
   colValues: BroadcastIndexedSeq,
-  rvd: OrderedRVD) {
+  rvd: RVD) {
 
-    assert(rvd.typ == typ.orvdType, s"\nrvdType: ${rvd.typ}\nmatType: ${typ.orvdType}")
+    require(typ.rvRowType == rvd.rowType, s"\nmat rowType: ${typ.rowType}\nrvd rowType: ${rvd.rowType}")
+    require(rvd.typ.key.startsWith(typ.rowKey), s"\nmat row key: ${typ.rowKey}\nrvd key: ${rvd.typ.key}")
 
     def sparkContext: SparkContext = rvd.sparkContext
 
@@ -33,6 +35,15 @@ case class MatrixValue(
       colValues.value.map(a => Row.fromSeq(queriers.map(_ (a))))
     }
 
+    def stringSampleIds: IndexedSeq[String] = {
+      val colKeyTypes = typ.colKeyStruct.types
+      assert(colKeyTypes.length == 1 && colKeyTypes(0).isInstanceOf[TString], colKeyTypes.toSeq)
+      val querier = typ.colType.query(typ.colKey(0))
+      colValues.value.map(querier(_).asInstanceOf[String])
+    }
+
+    def referenceGenome: ReferenceGenome = typ.referenceGenome
+
     def colsTableValue: TableValue = TableValue(typ.colsTableType, globals, colsRVD())
 
     def rowsTableValue: TableValue = TableValue(typ.rowsTableType, globals, rowsRVD())
@@ -43,7 +54,7 @@ case class MatrixValue(
       val hc = HailContext.get
       val hadoopConf = hc.hadoopConf
 
-      val partitionCounts = RVD.writeLocalUnpartitioned(hc, path + "/rows", typ.colType, codecSpec, colValues.value)
+      val partitionCounts = AbstractRVDSpec.writeLocal(hc, path + "/rows", typ.colType.physicalType, codecSpec, colValues.value)
 
       val colsSpec = TableSpec(
         FileFormat.version.rep,
@@ -62,15 +73,15 @@ case class MatrixValue(
       val hc = HailContext.get
       val hadoopConf = hc.hadoopConf
 
-      val partitionCounts = RVD.writeLocalUnpartitioned(hc, path + "/rows", typ.globalType, codecSpec, Array(globals.value))
+      val partitionCounts = AbstractRVDSpec.writeLocal(hc, path + "/rows", typ.globalType.physicalType, codecSpec, Array(globals.value))
 
-      RVD.writeLocalUnpartitioned(hc, path + "/globals", TStruct.empty(), codecSpec, Array[Annotation](Row()))
+      AbstractRVDSpec.writeLocal(hc, path + "/globals", TStruct.empty().physicalType, codecSpec, Array[Annotation](Row()))
 
       val globalsSpec = TableSpec(
         FileFormat.version.rep,
         hc.version,
         "../references",
-        TableType(typ.globalType, None, TStruct.empty()),
+        TableType(typ.globalType, FastIndexedSeq(), TStruct.empty()),
         Map("globals" -> RVDComponentSpec("globals"),
           "rows" -> RVDComponentSpec("rows"),
           "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
@@ -85,7 +96,7 @@ case class MatrixValue(
 
       val codecSpec =
         if (codecSpecJSONStr != null) {
-          implicit val formats = RVDSpec.formats
+          implicit val formats = AbstractRVDSpec.formats
           val codecSpecJSON = parse(codecSpecJSONStr)
           codecSpecJSON.extract[CodecSpec]
         } else
@@ -98,7 +109,7 @@ case class MatrixValue(
 
       hc.hadoopConf.mkDir(path)
 
-      val partitionCounts = rvd.writeRowsSplit(path, typ, codecSpec, stageLocally)
+      val partitionCounts = rvd.writeRowsSplit(path, codecSpec, stageLocally)
 
       val globalsPath = path + "/globals"
       hadoopConf.mkDir(globalsPath)
@@ -120,7 +131,7 @@ case class MatrixValue(
         FileFormat.version.rep,
         hc.version,
         "../references",
-        TableType(typ.entriesRVType, None, typ.globalType),
+        TableType(typ.entriesRVType, FastIndexedSeq(), typ.globalType),
         Map("globals" -> RVDComponentSpec("../globals/rows"),
           "rows" -> RVDComponentSpec("rows"),
           "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
@@ -150,6 +161,14 @@ case class MatrixValue(
       spec.write(hc, path)
 
       hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
+
+      val nRows = partitionCounts.sum
+      val nCols = colValues.value.length
+      info(s"wrote matrix table with $nRows ${ plural(nRows, "row") } " +
+        s"and $nCols ${ plural(nCols, "column") } " +
+        s"in ${ partitionCounts.length } ${ plural(partitionCounts.length, "partition") } " +
+        s"to $path")
+
     }
 
     lazy val (sortedColValues, sortedColsToOldIdx): (BroadcastIndexedSeq, BroadcastIndexedSeq) = {
@@ -175,23 +194,23 @@ case class MatrixValue(
       }
     }
 
-    def rowsRVD(): OrderedRVD = {
+    def rowsRVD(): RVD = {
       val localRowType = typ.rowType
       val fullRowType = typ.rvRowType
       val localEntriesIndex = typ.entriesIdx
-      rvd.mapPartitionsPreservesPartitioning(
-        OrderedRVDType(typ.rowKey, typ.rowType)
+      rvd.mapPartitions(
+        RVDType(typ.rowType.physicalType, typ.rowKey)
       ) { it =>
         val rv2b = new RegionValueBuilder()
         val rv2 = RegionValue()
         it.map { rv =>
           rv2b.set(rv.region)
-          rv2b.start(localRowType)
+          rv2b.start(localRowType.physicalType)
           rv2b.startStruct()
           var i = 0
           while (i < fullRowType.size) {
             if (i != localEntriesIndex)
-              rv2b.addField(fullRowType, rv, i)
+              rv2b.addField(fullRowType.physicalType, rv, i)
             i += 1
           }
           rv2b.endStruct()
@@ -203,46 +222,46 @@ case class MatrixValue(
 
     def colsRVD(): RVD = {
       val hc = HailContext.get
-      val signature = typ.colType
+      val colPType = typ.colType.physicalType
 
-      OrderedRVD.coerce(
-        typ.colsTableType.rvdType,
+      RVD.coerce(
+        typ.colsTableType.canonicalRVDType,
         ContextRDD.parallelize(hc.sc, sortedColValues.safeValue.asInstanceOf[IndexedSeq[Row]])
-          .cmapPartitions { (ctx, it) => it.toRegionValueIterator(ctx.region, signature) }
+          .cmapPartitions { (ctx, it) => it.toRegionValueIterator(ctx.region, colPType) }
       )
     }
 
-    def entriesRVD(): OrderedRVD = {
+    def entriesRVD(): RVD = {
       val resultStruct = typ.entriesTableType.rowType
-      val fullRowType = typ.rvRowType
+      val fullRowType = typ.rvRowType.physicalType
       val localEntriesIndex = typ.entriesIdx
-      val localEntriesType = typ.entryArrayType
+      val localEntriesType = typ.entryArrayType.physicalType
       val localColType = typ.colType
       val localEntryType = typ.entryType
-      val localOrvdType = typ.orvdType
+      val localRVDType = typ.canonicalRVDType
       val localNCols = nCols
 
       val localSortedColValues = sortedColValues.broadcast
       val localSortedColsToOldIdx = sortedColsToOldIdx.broadcast
 
-      rvd.constrainToOrderedPartitioner(rvd.partitioner.strictify).boundary
-        .mapPartitionsPreservesPartitioning(typ.entriesTableType.rvdType.copy(key = typ.rowKey),
+      rvd.repartition(rvd.partitioner.strictify).boundary
+        .mapPartitions(typ.entriesTableType.canonicalRVDType.copy(key = typ.rowKey),
           { (ctx, it) =>
             val rv2b = ctx.rvb
             val rv2 = RegionValue(ctx.region)
 
             val colRegion = ctx.freshRegion
             val colRVB = new RegionValueBuilder(colRegion)
-            val colsType = TArray(localColType, required = true)
+            val colsType = TArray(localColType, required = true).physicalType
             colRVB.start(colsType)
-            colRVB.addAnnotation(colsType, localSortedColValues.value)
+            colRVB.addAnnotation(colsType.virtualType, localSortedColValues.value)
             val colsOffset = colRVB.end()
 
             val rowBuffer = new RegionValueArrayBuffer(fullRowType, ctx.freshRegion)
 
             val colsNewToOldIdx = localSortedColsToOldIdx.value.asInstanceOf[IndexedSeq[Int]]
 
-            OrderedRVIterator(localOrvdType, it, ctx).staircase.flatMap { step =>
+            OrderedRVIterator(localRVDType, it, ctx).staircase.flatMap { step =>
               rowBuffer.clear()
               rowBuffer ++= step
               (0 until localNCols).iterator.flatMap { i =>
@@ -251,7 +270,7 @@ case class MatrixValue(
                     localEntriesType.isElementDefined(row.region, fullRowType.loadField(row, localEntriesIndex), colsNewToOldIdx(i))
                   }.map { row =>
                     rv2b.clear()
-                    rv2b.start(resultStruct)
+                    rv2b.start(resultStruct.physicalType)
                     rv2b.startStruct()
 
                     var j = 0
@@ -261,9 +280,9 @@ case class MatrixValue(
                       j += 1
                     }
 
-                    rv2b.addAllFields(localColType, colRegion, colsType.loadElement(colRegion, colsOffset, i))
+                    rv2b.addAllFields(localColType.physicalType, colRegion, colsType.loadElement(colRegion, colsOffset, i))
                     rv2b.addAllFields(
-                      localEntryType,
+                      localEntryType.physicalType,
                       row.region,
                       localEntriesType.loadElement(row.region, fullRowType.loadField(row, localEntriesIndex), colsNewToOldIdx(i)))
                     rv2b.endStruct()
@@ -272,42 +291,41 @@ case class MatrixValue(
                   }
               }
             }
-          }).extendKeyPreservesPartitioning(typ.entriesTableType.rvdType.key)
+          }).extendKeyPreservesPartitioning(typ.entriesTableType.key)
     }
 
     def insertEntries[PC](makePartitionContext: () => PC, newColType: TStruct = typ.colType,
       newColKey: IndexedSeq[String] = typ.colKey,
       newColValues: BroadcastIndexedSeq = colValues,
       newGlobalType: TStruct = typ.globalType,
-      newGlobals: BroadcastRow = globals)(newEntryType: TStruct,
+      newGlobals: BroadcastRow = globals)(newEntryType: PStruct,
       inserter: (PC, RegionValue, RegionValueBuilder) => Unit): MatrixValue = {
       insertIntoRow(makePartitionContext, newColType, newColKey, newColValues, newGlobalType, newGlobals)(
-        TArray(newEntryType), MatrixType.entriesIdentifier, inserter)
+        PArray(newEntryType), MatrixType.entriesIdentifier, inserter)
     }
 
     def insertIntoRow[PC](makePartitionContext: () => PC, newColType: TStruct = typ.colType,
       newColKey: IndexedSeq[String] = typ.colKey,
       newColValues: BroadcastIndexedSeq = colValues,
       newGlobalType: TStruct = typ.globalType,
-      newGlobals: BroadcastRow = globals)(typeToInsert: Type, path: String,
+      newGlobals: BroadcastRow = globals)(typeToInsert: PType, path: String,
       inserter: (PC, RegionValue, RegionValueBuilder) => Unit): MatrixValue = {
       assert(!typ.rowKey.contains(path))
 
-      val fullRowType = typ.rvRowType
-      val localEntriesIndex = typ.entriesIdx
+      val fullRowType = rvd.rowPType
+      val localEntriesIndex = MatrixType.getEntriesIndex(fullRowType)
 
-      val (newRVPType, ins) = fullRowType.physicalType.unsafeStructInsert(typeToInsert.physicalType, List(path))
-      val newRVType = newRVPType.virtualType
+      val (newRVPType, ins) = fullRowType.unsafeStructInsert(typeToInsert, List(path))
 
 
-      val newMatrixType = typ.copy(rvRowType = newRVType, colType = newColType,
+      val newMatrixType = typ.copy(rvRowType = newRVPType.virtualType, colType = newColType,
         colKey = newColKey, globalType = newGlobalType)
 
       MatrixValue(
         newMatrixType,
         newGlobals,
         newColValues,
-        rvd.mapPartitionsPreservesPartitioning(newMatrixType.orvdType) { it =>
+        rvd.mapPartitions(newMatrixType.canonicalRVDType) { it =>
 
           val pc = makePartitionContext()
 
@@ -315,7 +333,7 @@ case class MatrixValue(
           val rvb = new RegionValueBuilder()
           it.map { rv =>
             rvb.set(rv.region)
-            rvb.start(newRVType)
+            rvb.start(newRVPType)
 
             ins(rv.region, rv.offset, rvb,
               () => inserter(pc, rv, rvb)

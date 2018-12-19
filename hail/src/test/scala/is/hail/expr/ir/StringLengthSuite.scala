@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.TestUtils._
 import is.hail.expr.types._
+import is.hail.expr.types.virtual.TString
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
@@ -22,12 +23,7 @@ class StringLengthSuite extends TestNGSuite {
     assertEvalsTo(StringLength(Str(poopEmoji + poopEmoji)), 8)
   }
 
-  @Test def isStrict() {
+  @Test def testIsStrict() {
     assertEvalsTo(StringLength(NA(TString())), null)
-  }
-
-  @Test def funRegistryLenWorks() {
-    assertEvalsTo(invoke("len", NA(TString())), null)
-    assertEvalsTo(invoke("len", Str("abc")), 3)
   }
 }

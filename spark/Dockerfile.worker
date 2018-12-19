@@ -1,0 +1,5 @@
+FROM spark-base
+
+COPY start-worker.sh /
+
+CMD ["/start-worker.sh"]

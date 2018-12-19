@@ -3,7 +3,8 @@ package is.hail.expr.ir
 import is.hail.annotations.Annotation
 import is.hail.expr.types._
 import is.hail.expr.ir.functions._
-import is.hail.expr.types.physical.PType
+import is.hail.expr.types.physical.{PStruct, PType}
+import is.hail.expr.types.virtual._
 import is.hail.utils.{ExportType, FastIndexedSeq}
 
 import scala.language.existentials
@@ -16,7 +17,7 @@ sealed trait IR extends BaseIR {
   override def children: IndexedSeq[BaseIR] =
     Children(this)
 
-  override def copy(newChildren: IndexedSeq[BaseIR]): BaseIR =
+  override def copy(newChildren: IndexedSeq[BaseIR]): IR =
     Copy(this, newChildren)
 
   def size: Int = 1 + children.map {
@@ -33,7 +34,7 @@ sealed trait IR extends BaseIR {
 }
 
 object Literal {
-  def apply(x: Any, t: Type): IR = {
+  def coerce(t: Type, x: Any): IR = {
     if (x == null)
       return NA(t)
     t match {
@@ -43,13 +44,14 @@ object Literal {
       case _: TFloat64 => F64(x.asInstanceOf[Double])
       case _: TBoolean => if (x.asInstanceOf[Boolean]) True() else False()
       case _: TString => Str(x.asInstanceOf[String])
-      case _ => Literal(t, x, genUID())
+      case _ => Literal(t, x)
     }
   }
 }
 
-final case class Literal(typ: Type, value: Annotation, id: String) extends IR {
-  require(id.startsWith("_"))
+final case class Literal(typ: Type, value: Annotation) extends IR {
+  require(!CanEmit(typ))
+  require(value != null)
 }
 
 sealed trait InferIR extends IR {
@@ -76,6 +78,19 @@ final case class Cast(v: IR, typ: Type) extends IR
 final case class NA(typ: Type) extends IR { assert(!typ.required) }
 final case class IsNA(value: IR) extends IR { val typ = TBoolean() }
 
+object If {
+  def unify(cond: IR, cnsq: IR, altr: IR, unifyType: Option[Type] = None): If = {
+    if (cnsq.typ == altr.typ)
+      If(cond, cnsq, altr)
+    else {
+      val t = unifyType.getOrElse(cnsq.typ.deepOptional())
+      If(cond,
+        PruneDeadFields.upcast(cnsq, t),
+        PruneDeadFields.upcast(altr, t))
+    }
+  }
+}
+
 final case class If(cond: IR, cnsq: IR, altr: IR) extends InferIR
 
 final case class Let(name: String, value: IR, body: IR) extends InferIR
@@ -85,7 +100,34 @@ final case class ApplyBinaryPrimOp(op: BinaryOp, l: IR, r: IR) extends InferIR
 final case class ApplyUnaryPrimOp(op: UnaryOp, x: IR) extends InferIR
 final case class ApplyComparisonOp(op: ComparisonOp, l: IR, r: IR) extends InferIR
 
-final case class MakeArray(args: Seq[IR], typ: TArray) extends IR
+object MakeArray {
+  def unify(args: Seq[IR], typ: TArray = null): MakeArray = {
+    assert(typ != null || args.nonEmpty)
+    var t = typ
+    if (t == null) {
+      t = if (args.tail.forall(_.typ == args.head.typ)) {
+        TArray(args.head.typ)
+      } else TArray(args.head.typ.deepOptional())
+    }
+    assert(t.elementType.deepOptional() == t.elementType ||
+      args.forall(a => a.typ == t.elementType),
+      s"${ t.parsableString() }: ${ args.map(a => "\n    " + a.typ.parsableString()).mkString } ")
+
+    MakeArray(args.map { arg =>
+      if (arg.typ == t.elementType)
+        arg
+      else {
+        val upcast = PruneDeadFields.upcast(arg, t.elementType)
+        assert(upcast.typ == t.elementType)
+        upcast
+      }
+    }, t)
+  }
+}
+
+final case class MakeArray(args: Seq[IR], typ: TArray) extends IR {
+}
+
 final case class ArrayRef(a: IR, i: IR) extends InferIR
 final case class ArrayLen(a: IR) extends IR { val typ = TInt32() }
 final case class ArrayRange(start: IR, stop: IR, step: IR) extends IR { val typ: TArray = TArray(TInt32()) }
@@ -117,10 +159,18 @@ final case class ArrayFor(a: IR, valueName: String, body: IR) extends IR {
   val typ = TVoid
 }
 
-final case class ApplyAggOp(a: IR, constructorArgs: IndexedSeq[IR], initOpArgs: Option[IndexedSeq[IR]], aggSig: AggSignature) extends InferIR {
-  assert(!(a +: (constructorArgs ++ initOpArgs.getOrElse(FastIndexedSeq.empty[IR]))).exists(ContainsScan(_)))
+final case class AggFilter(cond: IR, aggIR: IR) extends InferIR
+
+final case class AggExplode(array: IR, name: String, aggBody: IR) extends InferIR
+
+final case class AggGroupBy(key: IR, aggIR: IR) extends InferIR
+
+final case class ApplyAggOp(constructorArgs: IndexedSeq[IR], initOpArgs: Option[IndexedSeq[IR]], seqOpArgs: IndexedSeq[IR], aggSig: AggSignature) extends InferIR {
+  assert(!(seqOpArgs ++ constructorArgs ++ initOpArgs.getOrElse(FastIndexedSeq.empty[IR])).exists(ContainsScan(_)))
   assert(constructorArgs.map(_.typ) == aggSig.constructorArgs)
   assert(initOpArgs.map(_.map(_.typ)) == aggSig.initOpArgs)
+
+  def nSeqOpArgs = seqOpArgs.length
 
   def nConstructorArgs = constructorArgs.length
 
@@ -129,10 +179,12 @@ final case class ApplyAggOp(a: IR, constructorArgs: IndexedSeq[IR], initOpArgs: 
   def op: AggOp = aggSig.op
 }
 
-final case class ApplyScanOp(a: IR, constructorArgs: IndexedSeq[IR], initOpArgs: Option[IndexedSeq[IR]], aggSig: AggSignature) extends InferIR {
-  assert(!(a +: (constructorArgs ++ initOpArgs.getOrElse(FastIndexedSeq.empty[IR]))).exists(ContainsAgg(_)))
+final case class ApplyScanOp(constructorArgs: IndexedSeq[IR], initOpArgs: Option[IndexedSeq[IR]], seqOpArgs: IndexedSeq[IR], aggSig: AggSignature) extends InferIR {
+  assert(!(seqOpArgs ++ constructorArgs ++ initOpArgs.getOrElse(FastIndexedSeq.empty[IR])).exists(ContainsAgg(_)))
   assert(constructorArgs.map(_.typ) == aggSig.constructorArgs)
   assert(initOpArgs.map(_.map(_.typ)) == aggSig.initOpArgs)
+
+  def nSeqOpArgs = seqOpArgs.length
 
   def nConstructorArgs = constructorArgs.length
 
@@ -156,6 +208,8 @@ final case class MakeStruct(fields: Seq[(String, IR)]) extends InferIR
 final case class SelectFields(old: IR, fields: Seq[String]) extends InferIR
 final case class InsertFields(old: IR, fields: Seq[(String, IR)]) extends InferIR {
   override def typ: TStruct = coerce[TStruct](super.typ)
+
+  override def pType: PStruct = coerce[PStruct](super.pType)
 }
 
 final case class GetField(o: IR, name: String) extends InferIR
@@ -172,10 +226,21 @@ final case class StringLength(s: IR) extends IR {
 
 final case class In(i: Int, typ: Type) extends IR
 // FIXME: should be type any
-final case class Die(message: String, typ: Type) extends IR
+
+object Die {
+  def apply(message: String, typ: Type): Die = Die(Str(message), typ)
+}
+
+final case class Die(message: IR, typ: Type) extends IR
 
 final case class ApplyIR(function: String, args: Seq[IR], conversion: Seq[IR] => IR) extends IR {
-  lazy val explicitNode: IR = conversion(args)
+  lazy val explicitNode: IR = {
+    val refs = args.map(a => Ref(genUID(), a.typ)).toArray
+    var body = conversion(refs)
+
+    // foldRight because arg1 should be at the top so it is evaluated first
+    refs.zip(args).foldRight(body) { case ((ref, arg), bodyIR) => Let(ref.name, arg, bodyIR) }
+  }
 
   def typ: Type = explicitNode.typ
 }
@@ -224,9 +289,11 @@ final case class TableExport(
 
 final case class MatrixWrite(
   child: MatrixIR,
-  f: (MatrixValue) => Unit) extends IR {
+  writer: MatrixWriter) extends IR {
   val typ: Type = TVoid
 }
+
+final case class TableGetGlobals(child: TableIR) extends InferIR
 
 class PrimitiveIR(val self: IR) extends AnyVal {
   def +(other: IR): IR = ApplyBinaryPrimOp(Add(), self, other)

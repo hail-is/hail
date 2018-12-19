@@ -1,9 +1,8 @@
 package is.hail.expr.ir
 
-import is.hail.utils._
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
-import is.hail.expr.types.{TDict, TInt32}
+import is.hail.expr.types.virtual.{TDict, TInt32}
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
 import org.scalatest.testng.TestNGSuite
@@ -30,12 +29,6 @@ class DictFunctionsSuite extends TestNGSuite {
   @Test(dataProvider = "basic")
   def dictFromSet(a: Seq[(Integer, Integer)]) {
     assertEvalsTo(invoke("dict", ToSet(toIRPairArray(a))), tuplesToMap(a))
-  }
-
-  @Test(dataProvider = "basic")
-  def size(a: Seq[(Integer, Integer)]) {
-    assertEvalsTo(invoke("size", toIRDict(a)),
-      Option(a).map(_.count(_ != null)).orNull)
   }
 
   @Test(dataProvider = "basic")
@@ -89,34 +82,48 @@ class DictFunctionsSuite extends TestNGSuite {
     assertEvalsTo(invoke("values", toIRDict(a)), values)
   }
 
-  val d = IRDict((1, 3), (2, 7), (3, null))
+  val d = IRDict((1, 3), (3, 7), (5, null), (null, 5))
+  val dwoutna = IRDict((1, 3), (3, 7), (5, null))
   val na = NA(TInt32())
 
   @Test def dictGet() {
     assertEvalsTo(invoke("get", NA(TDict(TInt32(), TInt32())), 1, na), null)
+    assertEvalsTo(invoke("get", d, 0, na), null)
     assertEvalsTo(invoke("get", d, 1, na), 3)
-    assertEvalsTo(invoke("get", d, 2, 50), 7)
-    assertEvalsTo(invoke("get", d, 3, 50), null)
+    assertEvalsTo(invoke("get", d, 2, na), null)
+    assertEvalsTo(invoke("get", d, 3, 50), 7)
+    assertEvalsTo(invoke("get", d, 4, -7), -7)
+    assertEvalsTo(invoke("get", d, 5, 50), null)
+    assertEvalsTo(invoke("get", d, na, 50), 5)
+    assertEvalsTo(invoke("get", dwoutna, na, 50), 50)
     assertEvalsTo(invoke("get", d, 100, 50), 50)
     assertEvalsTo(invoke("get", d, 100, na), null)
+    assertEvalsTo(invoke("get", dwoutna, 100, 50), 50)
+
     assertEvalsTo(invoke("get", IRDict(), 100, na), null)
     assertEvalsTo(invoke("get", IRDict(), 100, 50), 50)
 
     assertEvalsTo(invoke("[]", d, 1), 3)
-    assertEvalsTo(invoke("[]", d, 3), null)
+    assertEvalsTo(invoke("[]", d, 5), null)
+    assertEvalsTo(invoke("[]", d, na), 5)
+
+    assertFatal(invoke("[]", d, -5), "dictionary")
     assertFatal(invoke("[]", d, 100), "dictionary")
     assertFatal(invoke("[]", IRDict(), 100), "dictionary")
-
-    assertEvalsTo(invoke("get", d, na, 50), null)
-    assertEvalsTo(invoke("[]", d, na), null)
   }
 
   @Test def dictContains() {
-    assertEvalsTo(invoke("contains", NA(TDict(TInt32(), TInt32())), 1), null)
+    assertEvalsTo(invoke("contains", d, 0), false)
     assertEvalsTo(invoke("contains", d, 1), true)
+    assertEvalsTo(invoke("contains", d, 2), false)
     assertEvalsTo(invoke("contains", d, 3), true)
+    assertEvalsTo(invoke("contains", d, 4), false)
+    assertEvalsTo(invoke("contains", d, 5), true)
     assertEvalsTo(invoke("contains", d, 100), false)
+    assertEvalsTo(invoke("contains", dwoutna, 100), false)
+    assertEvalsTo(invoke("contains", d, na), true)
+
     assert(eval(invoke("contains", IRDict(), 100)) == false)
-    assertEvalsTo(invoke("contains", d, na), false)
+    assertEvalsTo(invoke("contains", NA(TDict(TInt32(), TInt32())), 1), null)
   }
 }

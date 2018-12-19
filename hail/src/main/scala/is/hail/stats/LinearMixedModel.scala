@@ -4,14 +4,16 @@ import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV}
 import is.hail.HailContext
 import is.hail.annotations.{BroadcastRow, Region, RegionValue, RegionValueBuilder}
 import is.hail.expr.ir.{TableLiteral, TableValue}
-import is.hail.expr.types.{TFloat64, TInt64, TStruct, TableType}
+import is.hail.expr.types.virtual.{TFloat64, TInt64, TStruct}
+import is.hail.expr.types.TableType
 import is.hail.linalg.RowMatrix
-import is.hail.rvd.{OrderedRVD, OrderedRVDPartitioner, OrderedRVDType, RVDContext}
+import is.hail.rvd.{RVD, RVDContext, RVDPartitioner, RVDType}
 import is.hail.sparkextras.ContextRDD
 import is.hail.table.Table
 import is.hail.utils._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
+import org.apache.spark.storage.StorageLevel
 
 case class LMMData(gamma: Double, residualSq: Double, py: BDV[Double], px: BDM[Double], d: BDV[Double],
   ydy: Double, xdy: BDV[Double], xdx: BDM[Double], yOpt: Option[BDV[Double]], xOpt: Option[BDM[Double]])
@@ -31,17 +33,11 @@ object LinearMixedModel {
       "sigma_sq" -> TFloat64(),
       "chi_sq" -> TFloat64(),
       "p_value" -> TFloat64())
-  
-  def toTable(hc: HailContext,
-    orderedRVDPartitioner: OrderedRVDPartitioner,
-    rdd: RDD[RegionValue]): Table = {
-    
-    val typ = TableType(rowType, Some(FastIndexedSeq("idx")), globalType = TStruct())
-    
-    val orderedRVD = OrderedRVD(new OrderedRVDType(Array("idx"), typ.rowType),
-      orderedRVDPartitioner, ContextRDD.weaken[RVDContext](rdd))
-    
-    new Table(hc, TableLiteral(TableValue(typ, BroadcastRow(Row(), typ.globalType, hc.sc), orderedRVD)))
+
+  private val tableType = TableType(rowType, FastIndexedSeq("idx"), TStruct())
+
+  def toTable(hc: HailContext, rvd: RVD): Table = {
+    new Table(hc, TableLiteral(TableValue(tableType, BroadcastRow(Row(), tableType.globalType, hc.sc), rvd)))
   }
 }
 
@@ -63,8 +59,8 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
         
     val sc = hc.sc
     val lmmDataBc = sc.broadcast(lmmData)
-    val rowTypeBc = sc.broadcast(LinearMixedModel.rowType)
-    
+    val rowType = LinearMixedModel.rowType.physicalType
+
     val rdd = pa_t.rows.zipPartitions(a_t.rows) { case (itPAt, itAt) =>
       val LMMData(gamma, nullResidualSq, py, px, d, ydy, xdy0, xdx0, Some(y), Some(x)) = lmmDataBc.value
       val xdy = xdy0.copy
@@ -78,7 +74,6 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
       val region = Region()
       val rv = RegionValue(region)
       val rvb = new RegionValueBuilder(region)
-      val rowType = rowTypeBc.value
 
       itPAt.zip(itAt).map { case ((i, pa0), (i2, a0)) =>
         assert(i == i2)
@@ -122,14 +117,18 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
         rv
       }
     }
-    
-    LinearMixedModel.toTable(hc, pa_t.orderedRVDPartitioner(), rdd)
+    val rvd = RVD(
+      RVDType(rowType, LinearMixedModel.tableType.key),
+      pa_t.partitioner(),
+      ContextRDD.weaken[RVDContext](rdd)).persist(StorageLevel.MEMORY_AND_DISK)
+
+    LinearMixedModel.toTable(hc, rvd)
   }
   
   def fitFullRank(pa_t: RowMatrix): Table = {
     val sc = hc.sc
     val lmmDataBc = sc.broadcast(lmmData)
-    val rowTypeBc = sc.broadcast(LinearMixedModel.rowType)
+    val rowType = LinearMixedModel.rowType.physicalType
     
     val rdd = pa_t.rows.mapPartitions { itPAt =>
       val LMMData(_, nullResidualSq, py, px, d, ydy, xdy0, xdx0, _, _) = lmmDataBc.value
@@ -144,7 +143,6 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
       val region = Region()
       val rv = RegionValue(region)
       val rvb = new RegionValueBuilder(region)
-      val rowType = rowTypeBc.value
 
       itPAt.map { case (i, pa0) =>
         val pa = BDV(pa0)
@@ -185,7 +183,12 @@ class LinearMixedModel(hc: HailContext, lmmData: LMMData) {
         rv
       }
     }
-    
-    LinearMixedModel.toTable(hc, pa_t.orderedRVDPartitioner(), rdd)
+
+    val rvd = RVD(
+      RVDType(rowType, LinearMixedModel.tableType.key),
+      pa_t.partitioner(),
+      ContextRDD.weaken[RVDContext](rdd)).persist(StorageLevel.MEMORY_AND_DISK)
+
+    LinearMixedModel.toTable(hc, rvd)
   }
 }

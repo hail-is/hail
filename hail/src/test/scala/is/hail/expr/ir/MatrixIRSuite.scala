@@ -6,7 +6,10 @@ import is.hail.expr.types._
 import is.hail.table.Table
 import is.hail.utils._
 import is.hail.TestUtils._
+import is.hail.expr.types.virtual._
+import is.hail.io.CodecSpec
 import is.hail.variant.MatrixTable
+import org.apache.spark.SparkException
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
 
@@ -15,10 +18,10 @@ class MatrixIRSuite extends SparkSuite {
   def rangeMatrix: MatrixIR = MatrixTable.range(hc, 20, 20, Some(4)).ast
 
   def getRows(mir: MatrixIR): Array[Row] =
-    MatrixRowsTable(mir).execute(hc).rdd.collect()
+    Interpret(MatrixRowsTable(mir)).rdd.collect()
 
   def getCols(mir: MatrixIR): Array[Row] =
-    MatrixColsTable(mir).execute(hc).rdd.collect()
+    Interpret(MatrixColsTable(mir)).rdd.collect()
 
   @Test def testScanCountBehavesLikeIndexOnRows() {
     val mt = rangeMatrix
@@ -26,7 +29,7 @@ class MatrixIRSuite extends SparkSuite {
 
     val newRow = InsertFields(oldRow, Seq("idx" -> IRScanCount))
 
-    val newMatrix = MatrixMapRows(mt, newRow, None)
+    val newMatrix = MatrixMapRows(mt, newRow)
     val rows = getRows(newMatrix)
     assert(rows.forall { case Row(row_idx, idx) => row_idx == idx })
   }
@@ -37,7 +40,7 @@ class MatrixIRSuite extends SparkSuite {
 
     val newRow = InsertFields(oldRow, Seq("range" -> IRScanCollect(GetField(oldRow, "row_idx"))))
 
-    val newMatrix = MatrixMapRows(mt, newRow, None)
+    val newMatrix = MatrixMapRows(mt, newRow)
     val rows = getRows(newMatrix)
     assert(rows.forall { case Row(row_idx: Int, range: IndexedSeq[Int]) => range sameElements Array.range(0, row_idx) })
   }
@@ -48,7 +51,7 @@ class MatrixIRSuite extends SparkSuite {
 
     val newRow = InsertFields(oldRow, Seq("n" -> IRAggCount, "range" -> IRScanCollect(GetField(oldRow, "row_idx").toL)))
 
-    val newMatrix = MatrixMapRows(mt, newRow, None)
+    val newMatrix = MatrixMapRows(mt, newRow)
     val rows = getRows(newMatrix)
     assert(rows.forall { case Row(row_idx: Int, n: Long, range: IndexedSeq[Int]) => (n == 20) && (range sameElements Array.range(0, row_idx)) })
   }
@@ -90,12 +93,13 @@ class MatrixIRSuite extends SparkSuite {
     val i = end - start
     val baseRange = MatrixTable.range(hc, i, 5, Some(math.min(4, i))).ast
     val row = Ref("va", baseRange.typ.rvRowType)
-    MatrixMapRows(baseRange,
-      InsertFields(
-        row,
-        FastIndexedSeq("row_idx" -> (GetField(row, "row_idx") + start))),
-      Some(FastIndexedSeq("row_idx") ->
-        FastIndexedSeq.empty))
+    MatrixKeyRowsBy(
+      MatrixMapRows(
+        MatrixKeyRowsBy(baseRange, FastIndexedSeq()),
+        InsertFields(
+          row,
+          FastIndexedSeq("row_idx" -> (GetField(row, "row_idx") + start)))),
+      FastIndexedSeq("row_idx"))
   }
 
   @DataProvider(name = "unionRowsData")
@@ -138,7 +142,7 @@ class MatrixIRSuite extends SparkSuite {
     val range = MatrixTable.range(hc, 5, 2, None).ast
 
     val field = path.init.foldRight(path.last -> toIRArray(collection))(_ -> IRStruct(_))
-    val annotated = MatrixMapRows(range, InsertFields(Ref("va", range.typ.rvRowType), FastIndexedSeq(field)), None)
+    val annotated = MatrixMapRows(range, InsertFields(Ref("va", range.typ.rvRowType), FastIndexedSeq(field)))
 
     val q = annotated.typ.rowType.query(path: _*)
     val exploded = getRows(MatrixExplodeRows(annotated, path.toIndexedSeq)).map(q(_).asInstanceOf[Integer])
@@ -148,108 +152,91 @@ class MatrixIRSuite extends SparkSuite {
   }
 
   // these two items are helper for UnlocalizedEntries testing,
-  def makeLocalizedTable(data: Array[Array[Any]]): Table = {
-    val rowRdd = sc.parallelize(data.map(Row.fromSeq(_)))
+  def makeLocalizedTable(rdata: Array[Row], cdata: Array[Row]): Table = {
+    val rowRdd = sc.parallelize(rdata)
     val rowSig = TStruct(
-      "idx" -> TInt32(),
+      "row_idx" -> TInt32(),
       "animal" -> TString(),
       "__entries" -> TArray(TStruct("ent1" -> TString(), "ent2" -> TFloat64()))
     )
-    val keyNames = IndexedSeq("idx")
-    Table(hc, rowRdd, rowSig, Some(keyNames))
-  }
-  def getLocalizedCols: Table = {
-    val cdata = Array(
-      Array(1, "atag"),
-      Array(2, "btag")
-    )
-    val colRdd = sc.parallelize(cdata.map(Row.fromSeq(_)))
-    val colSig = TStruct("idx" -> TInt32(), "tag" -> TString())
-    val keyNames = IndexedSeq("idx")
-    Table(hc, colRdd, colSig, Some(keyNames))
+    val keyNames = IndexedSeq("row_idx")
+
+    val colSig = TStruct("col_idx" -> TInt32(), "tag" -> TString())
+
+    Table(hc, rowRdd, rowSig, keyNames, TStruct(("__cols", TArray(colSig))), Row(cdata.toIndexedSeq))
   }
 
-  @Test def testUnlocalizeEntries() {
+  @Test def testCastTableToMatrix() {
     val rdata = Array(
-      Array(1, "fish", IndexedSeq(Row.fromSeq(Array("a", 1.0)), Row.fromSeq(Array("x", 2.0)))),
-      Array(2, "cat", IndexedSeq(Row.fromSeq(Array("b", 0.0)), Row.fromSeq(Array("y", 0.1)))),
-      Array(3, "dog", IndexedSeq(Row.fromSeq(Array("c", -1.0)), Row.fromSeq(Array("z", 30.0))))
+      Row(1, "fish", IndexedSeq(Row("a", 1.0), Row("x", 2.0))),
+      Row(2, "cat", IndexedSeq(Row("b", 0.0), Row("y", 0.1))),
+      Row(3, "dog", IndexedSeq(Row("c", -1.0), Row("z", 30.0)))
     )
-    val rowTab = makeLocalizedTable(rdata)
-    val colTab = getLocalizedCols
+    val cdata = Array(
+      Row(1, "atag"),
+      Row(2, "btag")
+    )
+    val rowTab = makeLocalizedTable(rdata, cdata)
 
-    val mir = UnlocalizeEntries(rowTab.tir, colTab.tir, "__entries")
+    val mir = CastTableToMatrix(rowTab.tir, "__entries", "__cols", Array("col_idx"))
     // cols are same
-    val mtCols = MatrixColsTable(mir).execute(hc).rdd.collect()
-    val taCols = colTab.tir.execute(hc).rdd.collect()
-    assert(mtCols sameElements taCols)
+    val mtCols = Interpret(MatrixColsTable(mir)).rdd.collect()
+    assert(mtCols sameElements cdata)
 
     // Rows are same
-    val mtRows = MatrixRowsTable(mir).execute(hc).rdd.collect()
-    val taRows = rowTab.tir.execute(hc).rdd
-    assert(mtRows sameElements taRows.map(row => Row.fromSeq(row.toSeq.take(2))).collect())
+    val mtRows = Interpret(MatrixRowsTable(mir)).rdd.collect()
+    assert(mtRows sameElements rdata.map(row => Row.fromSeq(row.toSeq.take(2))))
 
     // Round trip
-    val localRows = new MatrixTable(hc, mir).localizeEntries("__entries").tir.execute(hc).rdd.collect()
-    assert(localRows sameElements taRows.collect())
+    val roundTrip = Interpret(CastMatrixToTable(mir, "__entries", "__cols"))
+    val localRows = roundTrip.rdd.collect()
+    assert(localRows sameElements rdata)
+    val localCols = roundTrip.globals.value.getAs[IndexedSeq[Row]](0)
+    assert(localCols sameElements cdata)
   }
 
-  @Test def testUnlocalizeEntriesErrors() {
+  @Test def testCastTableToMatrixErrors() {
     val rdata = Array(
-      Array(1, "fish", IndexedSeq(Row.fromSeq(Array("x", 2.0)))),
-      Array(2, "cat", IndexedSeq(Row.fromSeq(Array("b", 0.0)), Row.fromSeq(Array("y", 0.1)))),
-      Array(3, "dog", IndexedSeq(Row.fromSeq(Array("c", -1.0)), Row.fromSeq(Array("z", 30.0))))
+      Row(1, "fish", IndexedSeq(Row("x", 2.0))),
+      Row(2, "cat", IndexedSeq(Row("b", 0.0), Row("y", 0.1))),
+      Row(3, "dog", IndexedSeq(Row("c", -1.0), Row("z", 30.0)))
     )
-    val rowTab = makeLocalizedTable(rdata)
-    val colTab = getLocalizedCols
-    val mir = UnlocalizeEntries(rowTab.tir, colTab.tir, "__entries")
+    val cdata = Array(
+      Row(1, "atag"),
+      Row(2, "btag")
+    )
+    val rowTab = makeLocalizedTable(rdata, cdata)
+
+    val mir = CastTableToMatrix(rowTab.tir, "__entries", "__cols", Array("col_idx"))
+
     // All rows must have the same number of elements in the entry field as colTab has rows
-    try {
-      val mv = mir.execute(hc)
-      mv.rvd.count // force evaluation of mapPartitionsPreservesPartitioning in UnlocalizeEntries.execute
-      assert(false, "should have thrown an error, as the number of columns must match "
-        + "the number of array entries")
-    } catch {
-      case e: org.apache.spark.SparkException => {
-        assert(e.getCause.getClass.toString.contains("HailException"))
-        assert(e.getCause.getMessage.contains("incorrect entry array length"))
-      }
+    interceptSpark("incorrect entry array length") {
+      Interpret(mir).rvd.count()
     }
 
     // The entry field must be an array
-    try {
-      val mir1 = UnlocalizeEntries(rowTab.tir, colTab.tir, "animal")
-    } catch {
-      case e: is.hail.utils.HailException => {}
+    interceptFatal("") {
+      CastTableToMatrix(rowTab.tir, "animal", "__cols", Array("col_idx"))
     }
 
     val rdata2 = Array(
-      Array(1, "fish", null),
-      Array(2, "cat", IndexedSeq(Row.fromSeq(Array("b", 0.0)), Row.fromSeq(Array("y", 0.1)))),
-      Array(3, "dog", IndexedSeq(Row.fromSeq(Array("c", -1.0)), Row.fromSeq(Array("z", 30.0))))
+      Row(1, "fish", null),
+      Row(2, "cat", IndexedSeq(Row("b", 0.0), Row("y", 0.1))),
+      Row(3, "dog", IndexedSeq(Row("c", -1.0), Row("z", 30.0)))
     )
-    val rowTab2 = makeLocalizedTable(rdata2)
-    val mir2 = UnlocalizeEntries(rowTab2.tir, colTab.tir, "__entries")
+    val rowTab2 = makeLocalizedTable(rdata2, cdata)
+    val mir2 = CastTableToMatrix(rowTab2.tir, "__entries", "__cols", Array("col_idx"))
 
-    try {
-      val mv = mir2.execute(hc)
-      mv.rvd.count // force evaluation of mapPartitionsPreservesPartitioning in UnlocalizeEntries.execute
-      assert(false, "should have thrown an error, as no array should be missing")
-    } catch {
-      case e: org.apache.spark.SparkException => {
-        assert(e.getCause.getClass.toString.contains("HailException"))
-        assert(e.getCause.getMessage.contains("missing"))
-      }
-    }
+    interceptSpark("missing") { Interpret(mir2).rvd.count() }
   }
 
   @Test def testMatrixFiltersWorkWithRandomness() {
     val range = MatrixTable.range(hc, 20, 20, Some(4)).ast
     val rand = ApplySeeded("rand_bool", FastIndexedSeq(0.5), seed=0)
 
-    val cols = MatrixFilterCols(range, rand).execute(hc).nCols
-    val rows = MatrixFilterRows(range, rand).execute(hc).rvd.count()
-    val entries = MatrixEntriesTable(MatrixFilterEntries(range, rand)).execute(hc).rvd.count()
+    val cols = Interpret(MatrixFilterCols(range, rand)).nCols
+    val rows = Interpret(MatrixFilterRows(range, rand)).rvd.count()
+    val entries = Interpret(MatrixEntriesTable(MatrixFilterEntries(range, rand))).rvd.count()
 
     assert(cols < 20 && cols > 0)
     assert(rows < 20 && rows > 0)
@@ -261,9 +248,62 @@ class MatrixIRSuite extends SparkSuite {
     val withEntries = MatrixMapEntries(range, MakeStruct(FastIndexedSeq("x" -> 2)))
     val m = MatrixAggregateColsByKey(
       MatrixMapRows(withEntries,
-        InsertFields(Ref("va", withEntries.typ.rvRowType), FastIndexedSeq("a" -> 1)),
-        None),
-      MakeStruct(FastIndexedSeq("foo" -> IRAggCount)))
-    assert(m.execute(hc).rowsRVD().count() == 3)
+        InsertFields(Ref("va", withEntries.typ.rvRowType), FastIndexedSeq("a" -> 1))),
+      MakeStruct(FastIndexedSeq("foo" -> IRAggCount)),
+      MakeStruct(FastIndexedSeq("bar" -> IRAggCount))
+    )
+    assert(Interpret(m).rowsRVD().count() == 3)
+  }
+
+  @Test def testMatrixRepartition() {
+    val range = MatrixTable.range(hc, 11, 3, Some(10)).ast
+
+    val params = Array(
+      1 -> true,
+      1 -> false,
+      5 -> true,
+      5 -> false,
+      10 -> true,
+      10 -> false
+    )
+    params.foreach { case (n, shuffle) =>
+      val rvd = Interpret(MatrixRepartition(range, n, shuffle), optimize = false).rvd
+      assert(rvd.getNumPartitions == n, n -> shuffle)
+      val values = rvd.collect(CodecSpec.default).map(r => r.getAs[Int](0))
+      assert(values.isSorted && values.length == 11, n -> shuffle)
+    }
+  }
+
+  @Test def testMatrixNativeWrite() {
+    val range = MatrixTable.range(hc, 11, 3, Some(10))
+    val path = tmpDir.createLocalTempFile(extension = "mt")
+    Interpret(MatrixWrite(range.ast, MatrixNativeWriter(path)))
+    val read = MatrixTable.read(hc, path)
+    assert(read.same(range))
+  }
+
+  @Test def testMatrixVCFWrite() {
+    val vcf = is.hail.TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
+    val path = tmpDir.createLocalTempFile(extension = "vcf")
+    Interpret(MatrixWrite(vcf.ast, MatrixVCFWriter(path)))
+  }
+
+  @Test def testMatrixPLINKWrite() {
+    val plinkPath = "src/test/resources/skip_invalid_loci"
+    val plink = is.hail.TestUtils.importPlink(hc, plinkPath + ".bed", plinkPath + ".bim", plinkPath + ".fam", skipInvalidLoci = true)
+    val plinkIR = MatrixMapRows(plink.ast, InsertFields(Ref("va", plink.rvRowType),
+      FastIndexedSeq("varid" -> GetField(Ref("va", plink.rvRowType), "rsid"))))
+    val path = tmpDir.createLocalTempFile()
+    Interpret(MatrixWrite(plinkIR, MatrixPLINKWriter(path)))
+  }
+
+  @Test def testMatrixGENWrite() {
+    val gen = hc.importGen("src/test/resources/example.gen", "src/test/resources/example.sample",
+      contigRecoding = Some(Map("01" -> "1")))
+    val genIR = MatrixMapCols(gen.ast, SelectFields(InsertFields(Ref("sa", gen.colType),
+      FastIndexedSeq("id1" -> Str(""), "id2" -> Str(""), "missing" -> F64(0.0))), FastIndexedSeq("id1", "id2", "missing")),
+      Some(FastIndexedSeq("id1")))
+    val path = tmpDir.createLocalTempFile()
+    Interpret(MatrixWrite(genIR, MatrixGENWriter(path)))
   }
 }

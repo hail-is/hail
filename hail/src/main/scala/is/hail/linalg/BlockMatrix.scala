@@ -3,14 +3,15 @@ package is.hail.linalg
 import java.io._
 
 import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV, sum => breezeSum, _}
-import breeze.numerics.{pow => breezePow, sqrt => breezeSqrt, log => breezeLog, abs => breezeAbs}
+import breeze.numerics.{abs => breezeAbs, log => breezeLog, pow => breezePow, sqrt => breezeSqrt}
 import breeze.stats.distributions.{RandBasis, ThreadLocalRandomGenerator}
 import is.hail._
 import is.hail.annotations._
 import is.hail.table.Table
 import is.hail.expr.types._
+import is.hail.expr.types.virtual.{TFloat64, TFloat64Optional, TInt64Optional, TStruct}
 import is.hail.io._
-import is.hail.rvd.RVDContext
+import is.hail.rvd.{RVD, RVDContext}
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.utils.richUtils.RichDenseMatrixDouble
@@ -715,7 +716,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       1
     }
 
-    val (partFiles, _) = blocks.writePartitions(uri, stageLocally, writeBlock)
+    val (partFiles, partitionCounts) = blocks.writePartitions(uri, stageLocally, writeBlock)
 
     hadoop.writeDataFile(uri + metadataRelativePath) { os =>
       implicit val formats = defaultJSONFormats
@@ -725,6 +726,13 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     }
 
     hadoop.writeTextFile(uri + "/_SUCCESS")(out => ())
+
+    val nBlocks = partitionCounts.length
+    assert(nBlocks == partitionCounts.sum)
+    info(s"wrote matrix with $nRows ${ plural(nRows, "row") } " +
+      s"and $nCols ${ plural(nCols, "column") } " +
+      s"as $nBlocks ${ plural(nBlocks, "block") } " +
+      s"of size $blockSize to $uri")
   }
 
   def cache(): this.type = {
@@ -1182,7 +1190,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
 
       block.activeIterator
         .map { case ((i, j), entry) =>
-          rvb.start(rvRowType)
+          rvb.start(rvRowType.physicalType)
           rvb.startStruct()
           rvb.addLong(rowOffset + i)
           rvb.addLong(colOffset + j)
@@ -1193,7 +1201,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
         }
     }
 
-    new Table(hc, entriesRDD, rvRowType, Some(Array("i", "j")))
+    new Table(hc, entriesRDD, rvRowType, Array("i", "j"))
   }
 }
 
@@ -1527,22 +1535,27 @@ private class BlockMatrixMultiplyRDD(l: BlockMatrix, r: BlockMatrix)
 // On compute, WriteBlocksRDDPartition writes the block row with index `index`
 // [`start`, `end`] is the range of indices of parent partitions overlapping this block row
 // `skip` is the index in the start partition corresponding to the first row of this block row
-case class WriteBlocksRDDPartition(index: Int, start: Int, skip: Int, end: Int) extends Partition {
+case class WriteBlocksRDDPartition(
+  index: Int,
+  start: Int,
+  skip: Int,
+  end: Int,
+  parentPartitions: Array[Partition]) extends Partition {
   def range: Range = start to end
 }
 
 class WriteBlocksRDD(path: String,
-  crdd: ContextRDD[RVDContext, RegionValue],
+  @transient rvd: RVD,
   sc: SparkContext,
-  matrixType: MatrixType,
-  parentPartStarts: Array[Long],
+  @transient parentPartStarts: Array[Long],
   entryField: String,
   gp: GridPartitioner) extends RDD[(Int, String)](sc, Nil) {
 
   require(gp.nRows == parentPartStarts.last)
 
-  private val parentParts = crdd.partitions
   private val blockSize = gp.blockSize
+  private val crdd = rvd.crdd
+  private val rvRowType = rvd.rowPType
 
   private val d = digitsNeeded(gp.numPartitions)
   private val sHadoopBc = sc.broadcast(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
@@ -1561,6 +1574,7 @@ class WriteBlocksRDD(path: String,
     val nBlockRows = gp.nBlockRows
 
     val parts = new Array[Partition](nBlockRows)
+    val parentPartitions = crdd.partitions
 
     var firstRowInBlock = 0L
     var firstRowInNextBlock = 0L
@@ -1580,7 +1594,8 @@ class WriteBlocksRDD(path: String,
       if (parentPartStarts(pi) > firstRowInNextBlock)
         pi -= 1
 
-      parts(blockRow) = WriteBlocksRDDPartition(blockRow, start, skip, end)
+      parts(blockRow) = WriteBlocksRDDPartition(blockRow, start, skip, end,
+        (start to end).map(i => parentPartitions(i)).toArray)
 
       firstRowInBlock = firstRowInNextBlock
       blockRow += 1
@@ -1612,22 +1627,21 @@ class WriteBlocksRDD(path: String,
     }
       .unzip
 
-    val rvRowType = matrixType.rvRowType
-    val entryArrayType = matrixType.entryArrayType
-    val entryType = matrixType.entryType
+    val entryArrayType = MatrixType.getEntryArrayType(rvRowType)
+    val entryType = MatrixType.getEntryType(rvRowType)
     val fieldType = entryType.field(entryField).typ
 
-    assert(fieldType.isOfType(TFloat64()))
+    assert(fieldType.virtualType.isOfType(TFloat64()))
 
-    val entryArrayIdx = matrixType.entriesIdx
+    val entryArrayIdx = MatrixType.getEntriesIndex(rvRowType)
     val fieldIdx = entryType.fieldIdx(entryField)
 
     val data = new Array[Double](blockSize)
     val writeBlocksPart = split.asInstanceOf[WriteBlocksRDDPartition]
     val start = writeBlocksPart.start
-    writeBlocksPart.range.foreach { pi =>
+    writeBlocksPart.range.zip(writeBlocksPart.parentPartitions).foreach { case (pi, pPart) =>
       using(crdd.mkc()) { ctx =>
-        val it = crdd.iterator(parentParts(pi), context, ctx)
+        val it = crdd.iterator(pPart, context, ctx)
 
         if (pi == start) {
           var j = 0

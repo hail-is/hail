@@ -3,124 +3,26 @@ from hail.ir.base_ir import *
 from hail.utils.java import escape_str, escape_id, parsable_strings
 
 class MatrixAggregateRowsByKey(MatrixIR):
-    def __init__(self, child, expr):
+    def __init__(self, child, entry_expr, row_expr):
         super().__init__()
         self.child = child
-        self.expr = expr
+        self.entry_expr = entry_expr
+        self.row_expr = row_expr
 
     def render(self, r):
-        return f'(MatrixAggregateRowsByKey {r(self.child)} {r(self.expr)})'
+        return f'(MatrixAggregateRowsByKey {r(self.child)} {r(self.entry_expr)} {r(self.row_expr)})'
 
 
 class MatrixRead(MatrixIR):
-    def __init__(self, path, drop_cols, drop_rows):
+    def __init__(self, reader, drop_cols=False, drop_rows=False):
         super().__init__()
-        self.path = path
+        self.reader = reader
         self.drop_cols = drop_cols
         self.drop_rows = drop_rows
 
     def render(self, r):
-        config = dict(
-            name='MatrixNativeReader',
-            path=self.path
-        )
-        return f'(MatrixRead None {self.drop_cols} {self.drop_rows} "{escape_str(json.dumps(config))}")'
+        return f'(MatrixRead None {self.drop_cols} {self.drop_rows} "{r(self.reader)}")'
 
-
-class MatrixRange(MatrixIR):
-    def __init__(self, n_rows, n_cols, n_partitions):
-        super().__init__()
-        self.n_rows = n_rows
-        self.n_cols = n_cols
-        self.n_partitions = n_partitions
-
-    def render(self, r):
-        config = dict(
-            name='MatrixRangeReader',
-            nRows=self.n_rows,
-            nCols=self.n_cols,
-            nPartitions=self.n_partitions
-        )
-        return f'(MatrixRead None False False "{escape_str(json.dumps(config))}")'
-
-class MatrixImportVCF(MatrixIR):
-    def __init__(self,
-                 paths,
-                 force,
-                 force_bgz,
-                 header_file,
-                 min_partitions,
-                 drop_samples,
-                 call_fields,
-                 reference_genome,
-                 contig_recoding,
-                 array_elements_required,
-                 skip_invalid_loci):
-        super().__init__()
-        self.paths = paths
-        self.force = force
-        self.force_bgz = force_bgz
-        self.header_file = header_file
-        self.min_partitions = min_partitions
-        self.drop_samples = drop_samples
-        self.call_fields = call_fields
-        self.reference_genome = reference_genome
-        self.contig_recoding = contig_recoding
-        self.array_elements_required = array_elements_required
-        self.skip_invalid_loci = skip_invalid_loci
-
-    def render(self, r):
-        config = dict(
-            name='MatrixVCFReader',
-            files=self.paths,
-            callFields=list(self.call_fields),
-            headerFile=self.header_file,
-            minPartitions=self.min_partitions,
-            rg=self.reference_genome.name if self.reference_genome else None,
-            contigRecoding=self.contig_recoding,
-            arrayElementsRequired=self.array_elements_required,
-            skipInvalidLoci=self.skip_invalid_loci,
-            gzAsBGZ=self.force_bgz,
-            forceGZ=self.force
-        )
-        return f'(MatrixRead None {self.drop_samples} False "{escape_str(json.dumps(config))}")'
-
-class MatrixImportBGEN(MatrixIR):
-    def __init__(self,
-                 paths,
-                 entry_fields,
-                 sample_file,
-                 n_partitions,
-                 block_size,
-                 reference_genome,
-                 contig_recoding,
-                 skip_invalid_loci,
-                 row_fields,
-                 variants_per_file):
-        super().__init__()
-        self.paths = paths
-        self.entry_fields = entry_fields
-        self.sample_file = sample_file
-        self.n_partitions = n_partitions
-        self.block_size = block_size
-        self.reference_genome = reference_genome
-        self.contig_recoding = contig_recoding
-        self.skip_invalid_loci = skip_invalid_loci
-        self.row_fields = row_fields
-        self.variants_per_file = variants_per_file
-
-    def render(self, r):
-        config = dict(
-            name='MatrixBGENReader',
-            files=self.paths,
-            sampleFile=self.sample_file,
-            nPartitions=self.n_partitions,
-            blockSizeInMB=self.block_size,
-            rg=self.reference_genome.name if self.reference_genome else None,
-            contigRecoding=self.contig_recoding,
-            skipInvalidLoci=self.skip_invalid_loci,
-            includedVariantsPerUnresolvedFilePath=self.variants_per_file)
-        return f'(MatrixRead None False False "{escape_str(json.dumps(config))}")'
 
 class MatrixFilterRows(MatrixIR):
     def __init__(self, child, pred):
@@ -171,18 +73,27 @@ class MatrixFilterEntries(MatrixIR):
     def render(self, r):
         return '(MatrixFilterEntries {} {})'.format(r(self.child), r(self.pred))
 
+class MatrixKeyRowsBy(MatrixIR):
+    def __init__(self, child, keys, is_sorted=False):
+        super().__init__()
+        self.child = child
+        self.keys = keys
+        self.is_sorted = is_sorted
+
+    def render(self, r):
+        return '(MatrixKeyRowsBy ({}) {} {})'.format(
+            ' '.join([escape_id(x) for x in self.keys]),
+            self.is_sorted,
+            r(self.child))
+
 class MatrixMapRows(MatrixIR):
-    def __init__(self, child, new_row, new_key):
+    def __init__(self, child, new_row):
         super().__init__()
         self.child = child
         self.new_row = new_row
-        self.new_key = new_key
 
     def render(self, r):
-        return '(MatrixMapRows {} {} {} {})'.format(
-            '(' + ' '.join(f'"{escape_str(f)}"' for f in self.new_key[0]) + ')' if self.new_key is not None else 'None',
-            '(' + ' '.join(f'"{escape_str(f)}"' for f in self.new_key[1]) + ')' if self.new_key is not None else 'None',
-            r(self.child), r(self.new_row))
+        return '(MatrixMapRows {} {})'.format(r(self.child), r(self.new_row))
 
 class MatrixMapGlobals(MatrixIR):
     def __init__(self, child, new_row):
@@ -211,13 +122,15 @@ class MatrixCollectColsByKey(MatrixIR):
         return f'(MatrixCollectColsByKey {r(self.child)})'
 
 class MatrixAggregateColsByKey(MatrixIR):
-    def __init__(self, child, agg_ir):
+    def __init__(self, child, entry_expr, col_expr):
         super().__init__()
         self.child = child
-        self.agg_ir = agg_ir
+        self.entry_expr = entry_expr
+        self.col_expr = col_expr
 
     def render(self, r):
-        return '(MatrixAggregateColsByKey {} {})'.format(r(self.child), r(self.agg_ir))
+        return '(MatrixAggregateColsByKey {} {} {})'.format(r(self.child), r(self.entry_expr), r(self.col_expr))
+
 
 class TableToMatrixTable(MatrixIR):
     def __init__(self, child, row_key, col_key, row_fields, col_fields, n_partitions):
@@ -250,6 +163,16 @@ class MatrixExplodeRows(MatrixIR):
             ' '.join([escape_id(id) for id in self.path]),
             r(self.child))
 
+class MatrixRepartition(MatrixIR):
+    def __init__(self, child, n, shuffle):
+        super().__init__()
+        self.child = child
+        self.n = n
+        self.shuffle = shuffle
+
+    def render(self, r):
+        return f'(MatrixRepartition {r(self.child)} {self.n} {self.shuffle})'
+
 
 class MatrixUnionRows(MatrixIR):
     def __init__(self, *children):
@@ -258,6 +181,15 @@ class MatrixUnionRows(MatrixIR):
 
     def render(self, r):
         return '(MatrixUnionRows {})'.format(' '.join(map(r, self.children)))
+
+
+class MatrixDistinctByRow(MatrixIR):
+    def __init__(self, child):
+        super().__init__()
+        self.child = child
+
+    def render(self, r):
+        return f'(MatrixDistinctByRow {r(self.child)})'
 
 
 class MatrixExplodeCols(MatrixIR):
@@ -272,18 +204,20 @@ class MatrixExplodeCols(MatrixIR):
             r(self.child))
 
 
-class UnlocalizeEntries(MatrixIR):
-    def __init__(self, rows_entries, cols, entry_field_name):
+class CastTableToMatrix(MatrixIR):
+    def __init__(self, child, entries_field_name, cols_field_name, col_key):
         super().__init__()
-        self.rows_entries = rows_entries
-        self.cols = cols
-        self.entry_field_name = entry_field_name
+        self.child = child
+        self.entries_field_name = entries_field_name
+        self.cols_field_name = cols_field_name
+        self.col_key = col_key
 
     def render(self, r):
-        return '(UnlocalizeEntries ' \
-                f'"{escape_str(self.entry_field_name)}" ' \
-                f'{r(self.rows_entries)} ' \
-                f'{r(self.cols)})'
+        return '(CastTableToMatrix {} {} ({}) {})'.format(
+           escape_str(self.entries_field_name),
+           escape_str(self.cols_field_name),
+           ' '.join([escape_id(id) for id in self.col_key]),
+           r(self.child))
 
 
 class MatrixAnnotateRowsTable(MatrixIR):
@@ -318,4 +252,4 @@ class JavaMatrix(MatrixIR):
         self._jir = jir
 
     def render(self, r):
-        return f'(JavaMatrix {r.add_jir(self)})'
+        return f'(JavaMatrix {r.add_jir(self._jir)})'

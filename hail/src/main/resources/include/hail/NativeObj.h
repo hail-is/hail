@@ -1,16 +1,7 @@
 #ifndef HAIL_NATIVEOBJ_H
 #define HAIL_NATIVEOBJ_H 1
 
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
 #include <memory>
-
-// Declare a function to be exported from a DLL with "C" linkage
-
-#define NATIVEMETHOD(cppReturnType, scalaClass, scalaMethod) \
-  extern "C" __attribute__((visibility("default"))) \
-    cppReturnType Java_is_hail_nativecode_##scalaClass##_##scalaMethod
 
 namespace hail {
 
@@ -29,12 +20,6 @@ class NativeObj :
     // Subclasses should override getClassName, which may be helpful
     // for debugging.
     virtual const char* get_class_name() { return "NativeObj"; }
-    
-    // If a subclass wants to make some fields visible to Jvm Unsafe
-    // access, it can publish their offsets.  This is probably only
-    // useful for integer types, so we pass in one parameter to
-    // identify the fieldSize as 1, 2, 4, or 8 bytes.
-    virtual int64_t get_field_offset(int fieldSize, const char* fieldName) { return(-1); }
 };
 
 // On the Jvm side, we don't have distinct classes/types for NativePtr

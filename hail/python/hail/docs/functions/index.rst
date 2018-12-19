@@ -23,6 +23,7 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
 
 .. autosummary::
 
+    eval
     literal
     cond
     switch
@@ -80,6 +81,7 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
     group_by
     fold
     array_scan
+    reversed
 
 .. rubric:: Numeric functions
 
@@ -89,6 +91,8 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
     approx_equal
     exp
     is_nan
+    is_finite
+    is_infinite
     log
     log10
     sign
@@ -116,6 +120,7 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
     cumulative_sum
     argmin
     argmax
+    corr
 
 .. rubric:: String functions
 

@@ -3,6 +3,8 @@ package is.hail.expr.ir.functions
 import is.hail.annotations.StagedRegionValueBuilder
 import is.hail.asm4s.Code
 import is.hail.expr.types._
+import is.hail.expr.types.physical.{PArray, PFloat64}
+import is.hail.expr.types.virtual.{TArray, TBoolean, TFloat64, TInt32}
 import is.hail.utils._
 import net.sourceforge.jdistlib.rng.MersenneTwister
 import net.sourceforge.jdistlib.{Beta, Gamma, Poisson}
@@ -67,7 +69,7 @@ object RandomSeededFunctions extends RegistryFunctions {
 
     registerSeeded("rand_pois", TInt32(), TFloat64(), TArray(TFloat64())) { case (mb, seed, n, lambda) =>
       val length = mb.newLocal[Int]
-      val srvb = new StagedRegionValueBuilder(mb, TArray(TFloat64()))
+      val srvb = new StagedRegionValueBuilder(mb, PArray(PFloat64()))
       Code(
         length := n,
         srvb.start(n),
@@ -101,7 +103,7 @@ object RandomSeededFunctions extends RegistryFunctions {
     }
 
     registerSeeded("rand_cat", TArray(TFloat64()), TInt32()) { case (mb, seed, a) =>
-      val tarray = TArray(TFloat64())
+      val pArray = PArray(PFloat64())
       val array = mb.newLocal[Array[Double]]
       val aoff = mb.newLocal[Long]
       val length = mb.newLocal[Int]
@@ -109,10 +111,10 @@ object RandomSeededFunctions extends RegistryFunctions {
       Code(
         aoff := a,
         i := 0,
-        length := tarray.loadLength(getRegion(mb), aoff),
+        length := pArray.loadLength(getRegion(mb), aoff),
         array := Code.newArray[Double](length),
         Code.whileLoop(i < length,
-          array.load().update(i, getRegion(mb).loadDouble(tarray.elementOffset(aoff, length, i))),
+          array.load().update(i, getRegion(mb).loadDouble(pArray.elementOffset(aoff, length, i))),
           i += 1),
         mb.newRNG(seed).invoke[Array[Double], Int]("rcat", array))
     }

@@ -1,6 +1,6 @@
 package is.hail.nativecode
 
-import com.sun.jna.Native
+import org.apache.spark.TaskContext
 
 // NativeModule refers to a single DLL.
 //
@@ -27,38 +27,40 @@ class NativeModule() extends NativeBase() {
   // Constructor with master parameters only
   def this(options: String, source: String) {
     this()
-    val includeDir = NativeCode.getIncludeDir()
+    // on master
+    assert(TaskContext.get() == null)
+    val includeDir = NativeCode.getIncludeDir
     nativeCtorMaster(options, source, includeDir)
   }
 
   // Constructor with worker parameters only  
   def this(key: String, binary: Array[Byte]) {
     this()
-    nativeCtorWorker(false, key, binary)
+    nativeCtorWorker(isGlobal = false, key, binary)
   }
 
   // Constructor for fake module "global" to find all funcs in program
   def this(fakeKeyGlobal: String) {
     this()
-    nativeCtorWorker(true, "global", Array[Byte]())
+    nativeCtorWorker(isGlobal = true, "global", Array[Byte]())
   }
 
-  def copyAssign(b: NativeModule) = super.copyAssign(b)
-  def moveAssign(b: NativeModule) = super.moveAssign(b)
+  def copyAssign(b: NativeModule): Unit = super.copyAssign(b)
+  def moveAssign(b: NativeModule): Unit = super.moveAssign(b)
   
   //
   // Compilation and DLL file reading/writing
   //    
   @native def nativeFindOrBuild(st: Long): Unit
   
-  def findOrBuild(st: NativeStatus) = nativeFindOrBuild(st.get())
+  def findOrBuild(st: NativeStatus): Unit = nativeFindOrBuild(st.get())
 
   //
   // Methods needed for sending module to workers
   //
-  @native def getKey(): String
+  @native def getKey: String
 
-  @native def getBinary(): Array[Byte]
+  @native def getBinary: Array[Byte]
 
   // Once we have a NativeModule, we can find particular funcs and makers
   // We pass in an unmangled C++ function name, which should be declared

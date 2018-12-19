@@ -25,9 +25,9 @@ both = {
     }
 }
 
-devel = {
+v0_2 = {
     'vars': {
-        'version': 'devel',
+        'version': '0.2',
         'supported_spark': {'2.2.0': '1.2-deb9'}
     },
     'flags': {
@@ -59,8 +59,8 @@ def merge(target, source):
     return target
 
 if __name__ == '__main__':
-    if sys.argv[1] == 'devel':
-        configs = merge(devel, both)
+    if sys.argv[1] == '0.2':
+        configs = merge(v0_2, both)
     else:
         assert sys.argv[1] == '0.1'
         configs = merge(v0_1, both)

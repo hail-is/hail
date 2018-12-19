@@ -3,12 +3,18 @@ package is.hail.io.bgen
 import is.hail.annotations._
 import is.hail.asm4s.AsmFunction4
 import is.hail.expr.types._
+import is.hail.expr.types.physical.PStruct
+import is.hail.expr.types.virtual.{TStruct, Type}
 import is.hail.io.HadoopFSDataBinaryReader
+import is.hail.io.index.{IndexReader, IndexReaderBuilder, LeafChild}
 import is.hail.rvd._
 import is.hail.sparkextras._
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.rdd.RDD
-import org.apache.spark.{Partition, SparkContext, TaskContext}
+import org.apache.spark.sql.Row
+import org.apache.spark.{OneToOneDependency, Partition, SparkContext, TaskContext}
+
+import scala.language.reflectiveCalls
 
 sealed trait EntriesSetting
 final case object NoEntries extends EntriesSetting
@@ -21,41 +27,33 @@ final case class EntriesWithFields (
 sealed case class RowFields (
   varid: Boolean,
   rsid: Boolean,
-  fileRowIndex: Boolean
+  offset: Boolean,
+  fileIdx: Boolean
 )
 
 case class BgenSettings(
   nSamples: Int,
   entries: EntriesSetting,
+  dropCols: Boolean,
   rowFields: RowFields,
   rg: Option[ReferenceGenome],
-  private val userContigRecoding: Map[String, String],
-  skipInvalidLoci: Boolean
+  indexAnnotationType: Type
 ) {
-  private[this] val typedRowFields = Array(
-    (true, "locus" -> TLocus.schemaFromRG(rg)),
-    (true, "alleles" -> TArray(TString())),
-    (rowFields.rsid, "rsid" -> TString()),
-    (rowFields.varid, "varid" -> TString()),
-    (rowFields.fileRowIndex, "file_row_idx" -> TInt64()))
-    .withFilter(_._1).map(_._2)
-
-  private[this] val typedEntryFields: Array[(String, Type)] = entries match {
-    case NoEntries => Array.empty
-    case EntriesWithFields(gt, gp, dosage) => Array(
-      (gt, "GT" -> TCall()),
-      (gp, "GP" -> +TArray(+TFloat64())),
-      (dosage, "dosage" -> +TFloat64()))
-        .withFilter(_._1).map(_._2)
+  val (includeGT, includeGP, includeDosage) = entries match {
+    case NoEntries => (false, false, false)
+    case EntriesWithFields(gt, gp, dosage) => (gt, gp, dosage)
   }
 
-  val matrixType: MatrixType = MatrixType.fromParts(
-    globalType = TStruct.empty(),
-    colKey = Array("s"),
-    colType = TStruct("s" -> TString()),
-    rowType = TStruct(typedRowFields: _*),
-    rowKey = Array("locus", "alleles"),
-    entryType = TStruct(typedEntryFields: _*))
+  val matrixType: MatrixType = MatrixBGENReader.getMatrixType(
+    rg,
+    rowFields.rsid,
+    rowFields.varid,
+    rowFields.offset,
+    rowFields.fileIdx,
+    includeGT,
+    includeGP,
+    includeDosage
+  )
 
   val typ: TStruct = entries match {
     case NoEntries =>
@@ -64,28 +62,18 @@ case class BgenSettings(
       matrixType.rvRowType
   }
 
-  def recodeContig(bgenContig: String): String = {
-    val hailContig = bgenContig match {
-      case "23" => "X"
-      case "24" => "Y"
-      case "25" => "X"
-      case "26" => "MT"
-      case x => x
-    }
-    userContigRecoding.getOrElse(hailContig, hailContig)
-  }
+  def pType: PStruct = typ.physicalType
 }
 
 object BgenRDD {
   def apply(
     sc: SparkContext,
-    files: Seq[BgenHeader],
-    fileNPartitions: Array[Int],
-    includedVariantsPerFile: Map[String, Seq[Int]],
-    settings: BgenSettings
-  ): ContextRDD[RVDContext, RegionValue] =
-    ContextRDD(
-      new BgenRDD(sc, files, fileNPartitions, includedVariantsPerFile, settings))
+    partitions: Array[Partition],
+    settings: BgenSettings,
+    keys: RDD[Row]
+  ): ContextRDD[RVDContext, RegionValue] = {
+    ContextRDD(new BgenRDD(sc, partitions, settings, keys))
+  }
 
   private[bgen] def decompress(
     input: Array[Byte],
@@ -95,34 +83,47 @@ object BgenRDD {
 
 private class BgenRDD(
   sc: SparkContext,
-  files: Seq[BgenHeader],
-  fileNPartitions: Array[Int],
-  includedVariantsPerFile: Map[String, Seq[Int]],
-  settings: BgenSettings
-) extends RDD[RVDContext => Iterator[RegionValue]](sc, Nil) {
+  parts: Array[Partition],
+  settings: BgenSettings,
+  keys: RDD[Row]
+) extends RDD[RVDContext => Iterator[RegionValue]](sc, if (keys == null) Nil else Seq(new OneToOneDependency(keys))) {
   private[this] val f = CompileDecoder(settings)
-  private[this] val parts = BgenRDDPartitions(
-    sc,
-    files,
-    fileNPartitions,
-    includedVariantsPerFile,
-    settings)
+  private[this] val indexBuilder = IndexReaderBuilder(settings)
 
   protected def getPartitions: Array[Partition] = parts
 
   def compute(split: Partition, context: TaskContext): Iterator[RVDContext => Iterator[RegionValue]] =
     Iterator.single { (ctx: RVDContext) =>
-      new BgenRecordIterator(ctx, split.asInstanceOf[BgenPartition], settings, f()).flatten }
+      split match {
+        case p: IndexBgenPartition =>
+          assert(keys == null)
+          new IndexBgenRecordIterator(ctx, p, settings, f()).flatten
+        case p: LoadBgenPartition =>
+          val index: IndexReader = indexBuilder(p.sHadoopConfBc.value.value, p.indexPath, 8)
+          context.addTaskCompletionListener { context =>
+            index.close()
+          }
+          if (keys == null)
+            new BgenRecordIteratorWithoutFilter(ctx, p, settings, f(), index).flatten
+          else {
+            val keyIterator = keys.iterator(p.filterPartition, context)
+            new BgenRecordIteratorWithFilter(ctx, p, settings, f(), index, keyIterator).flatten
+          }
+      }
+    }
 }
 
-private class BgenRecordIterator(
+private class IndexBgenRecordIterator(
   ctx: RVDContext,
-  p: BgenPartition,
+  p: IndexBgenPartition,
   settings: BgenSettings,
   f: AsmFunction4[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long]
 ) extends Iterator[Option[RegionValue]] {
   private[this] val bfis = p.makeInputStream
+  bfis.seek(p.startByteOffset)
+
   private[this] val rv = RegionValue(ctx.region)
+
   def next(): Option[RegionValue] = {
     val maybeOffset = f(ctx.region, p, bfis, settings)
     if (maybeOffset == -1) {
@@ -134,5 +135,94 @@ private class BgenRecordIterator(
   }
 
   def hasNext(): Boolean =
-    p.hasNext(bfis)
+    bfis.getPosition < p.endByteOffset
+}
+
+private class BgenRecordIteratorWithoutFilter(
+  ctx: RVDContext,
+  p: LoadBgenPartition,
+  settings: BgenSettings,
+  f: AsmFunction4[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long],
+  index: IndexReader
+) extends Iterator[Option[RegionValue]] {
+  private[this] val bfis = p.makeInputStream
+  private[this] val it = index.iterator(p.startIndex, p.endIndex)
+  private[this] val rv = RegionValue(ctx.region)
+
+  def next(): Option[RegionValue] = {
+    val recordOffset = it.next().recordOffset
+    if (recordOffset != bfis.getPosition)
+      bfis.seek(recordOffset)
+
+    val maybeOffset = f(ctx.region, p, bfis, settings)
+    if (maybeOffset == -1) {
+      None
+    } else {
+      rv.setOffset(maybeOffset)
+      Some(rv)
+    }
+  }
+
+  def hasNext(): Boolean =
+    it.hasNext
+}
+
+private class BgenRecordIteratorWithFilter(
+  ctx: RVDContext,
+  p: LoadBgenPartition,
+  settings: BgenSettings,
+  f: AsmFunction4[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long],
+  index: IndexReader,
+  keys: Iterator[Annotation]
+) extends Iterator[Option[RegionValue]] {
+  private[this] val bfis = p.makeInputStream
+  private[this] val rv = RegionValue(ctx.region)
+  private[this] val it = index.iterator(p.startIndex, p.endIndex)
+  private[this] var isEnd = false
+  private[this] var current: LeafChild = _
+  private[this] var key: Annotation = _
+  private[this] val ordering = index.keyType.ordering
+
+  def next(): Option[RegionValue] = {
+    val recordOffset = current.recordOffset
+    if (recordOffset != bfis.getPosition)
+      bfis.seek(recordOffset)
+
+    val maybeOffset = f(ctx.region, p, bfis, settings)
+    val result = if (maybeOffset == -1) {
+      None
+    } else {
+      rv.setOffset(maybeOffset)
+      Some(rv)
+    }
+    current = null
+    result
+  }
+
+  def hasNext(): Boolean = {
+    if (isEnd)
+      return false
+
+    if ((current == null && !it.hasNext) || (key == null && !keys.hasNext)) {
+      isEnd = true
+      return false
+    }
+
+    if (key == null)
+      key = keys.next()
+
+    if (current == null)
+      current = it.next()
+
+    while (current != null && key != null && !ordering.equiv(current.key, key)) {
+      if (ordering.lt(key, current.key))
+        key = if (keys.hasNext) keys.next() else null
+      else {
+        it.seek(key)
+        current = if (it.hasNext) it.next() else null
+      }
+    }
+
+    current != null && key != null
+  }
 }

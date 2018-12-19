@@ -26,11 +26,6 @@ class ExpressionWarning(Warning):
 def impute_type(x):
     if isinstance(x, Expression):
         return x.dtype
-    if isinstance(x, expressions.Aggregable):
-        raise ExpressionException("Cannot use the result of 'agg.explode' or 'agg.filter' in expressions\n"
-                                  "    These methods produce 'Aggregable' objects that can only be aggregated\n"
-                                  "    with aggregator functions or used with further calls to 'agg.explode'\n"
-                                  "    and 'agg.filter'. They support no other operations.")
     elif isinstance(x, bool):
         return tbool
     elif isinstance(x, int):
@@ -161,7 +156,7 @@ def _to_expr(e, dtype):
                      else hl.literal(element, dtype.element_type)
                      for element in elements]
             indices, aggregations = unify_all(*exprs)
-        ir = MakeArray([e._ir for e in exprs], dtype)
+        ir = MakeArray([e._ir for e in exprs], None)
         return expressions.construct_expr(ir, dtype, indices, aggregations)
     elif isinstance(dtype, tset):
         elements = []
@@ -178,7 +173,7 @@ def _to_expr(e, dtype):
                      else hl.literal(element, dtype.element_type)
                      for element in elements]
             indices, aggregations = unify_all(*exprs)
-            ir = ToSet(MakeArray([e._ir for e in exprs], tarray(dtype.element_type)))
+            ir = ToSet(MakeArray([e._ir for e in exprs], None))
             return expressions.construct_expr(ir, dtype, indices, aggregations)
     elif isinstance(dtype, ttuple):
         elements = []
@@ -344,16 +339,16 @@ class Expression(object):
         handler(s)
 
     def __lt__(self, other):
-        raise NotImplementedError("'<' comparison with expression of type {}".format(str(self._type)))
+        return self._compare_op("<", other)
 
     def __le__(self, other):
-        raise NotImplementedError("'<=' comparison with expression of type {}".format(str(self._type)))
+        return self._compare_op("<=", other)
 
     def __gt__(self, other):
-        raise NotImplementedError("'>' comparison with expression of type {}".format(str(self._type)))
+        return self._compare_op(">", other)
 
     def __ge__(self, other):
-        raise NotImplementedError("'>=' comparison with expression of type {}".format(str(self._type)))
+        return self._compare_op(">=", other)
 
     def __nonzero__(self):
         raise ExpressionException(
@@ -364,6 +359,15 @@ class Expression(object):
 
     def __iter__(self):
         raise ExpressionException(f"{repr(self)} object is not iterable")
+
+    def _compare_op(self, op, other):
+        other = to_expr(other)
+        left, right, success = unify_exprs(self, other)
+        if not success:
+            raise TypeError(f"Invalid '{op}' comparison, cannot compare expressions "
+                            f"of type '{self.dtype}' and '{other.dtype}'")
+        res = left._bin_op(op, right, hl.tbool)
+        return res
 
     def _is_scalar(self):
         return self._indices.source is None
@@ -515,10 +519,10 @@ class Expression(object):
         >>> y = hl.literal(5)
         >>> z = hl.literal(1)
 
-        >>> (x == y).value
+        >>> hl.eval(x == y)
         True
 
-        >>> (x == z).value
+        >>> hl.eval(x == z)
         False
 
         Notes
@@ -536,12 +540,7 @@ class Expression(object):
         :class:`.BooleanExpression`
             ``True`` if the two expressions are equal.
         """
-        other = to_expr(other)
-        left, right, success = unify_exprs(self, other)
-        if not success:
-            raise TypeError(f"Invalid '==' comparison, cannot compare expressions "
-                            f"of type '{self.dtype}' and '{other.dtype}'")
-        return left._bin_op("==", right, tbool)
+        return self._compare_op("==", other)
 
     def __ne__(self, other):
         """Returns ``True`` if the two expressions are not equal.
@@ -553,10 +552,10 @@ class Expression(object):
         >>> y = hl.literal(5)
         >>> z = hl.literal(1)
 
-        >>> (x != y).value
+        >>> hl.eval(x != y)
         False
 
-        >>> (x != z).value
+        >>> hl.eval(x != z)
         True
 
         Notes
@@ -574,12 +573,7 @@ class Expression(object):
         :class:`.BooleanExpression`
             ``True`` if the two expressions are not equal.
         """
-        other = to_expr(other)
-        left, right, success = unify_exprs(self, other)
-        if not success:
-            raise TypeError(f"Invalid '!=' comparison, cannot compare expressions "
-                            f"of type '{self.dtype}' and '{other.dtype}'")
-        return left._bin_op("!=", right, tbool)
+        return self._compare_op("!=", other)
 
     def _to_table(self, name):
         source = self._indices.source
@@ -634,12 +628,12 @@ class Expression(object):
                         m = m.rename({field_name: name})
                     else:
                         m = source.select_cols(**{name: self})
-                    to_return = m.cols().select_globals()
+                    to_return = m.key_cols_by().cols().select_globals()
         else:
             assert len(axes) == 2
             assert isinstance(source, hail.MatrixTable)
             source = source.select_entries(**{name: self}).select_rows().select_cols()
-            to_return = source.entries().select_globals()
+            to_return = source.key_cols_by().entries().select_globals()
         assert self.dtype == to_return[name].dtype, f'type mismatch:\n' \
                                                     f'  Actual:    {self.dtype}\n' \
                                                     f'  Should be: {to_return[name].dtype}'
@@ -659,10 +653,10 @@ class Expression(object):
         +-------+-----+
         | int32 | str |
         +-------+-----+
-        |     1 | M   |
-        |     2 | M   |
-        |     3 | F   |
-        |     4 | F   |
+        |     1 | "M" |
+        |     2 | "M" |
+        |     3 | "F" |
+        |     4 | "F" |
         +-------+-----+
 
         >>> hl.literal(123).show()
@@ -728,7 +722,7 @@ class Expression(object):
 
         Take the first three rows:
 
-        >>> first3 = table1.X.take(3)
+        >>> table1.X.take(3)
         [5, 6, 7]
 
         Warning
@@ -755,7 +749,7 @@ class Expression(object):
 
         Collect all the values from `C1`:
 
-        >>> first3 = table1.C1.collect()
+        >>> table1.C1.collect()
         [2, 2, 10, 11]
 
         Warning
@@ -771,128 +765,19 @@ class Expression(object):
         :obj:`list`
         """
         uid = Env.get_uid()
-        t = self._to_table(uid)
-        return [r[uid] for r in t._select("collect", hl.struct(**{uid: t[uid]}), []).collect()]
-
-    @property
-    def value(self):
-        """Evaluate this expression.
-
-        Notes
-        -----
-        This expression must have no indices, but can refer to the
-        globals of a :class:`.hail.Table` or
-        :class:`.hail.MatrixTable`.
-
-        Returns
-        -------
-            The value of this expression.
-
-        """
-        return hl.eval_expr(self)
+        t = self._to_table(uid).key_by()
+        return [r[uid] for r in t._select("collect", hl.struct(**{uid: t[uid]})).collect()]
 
     def _aggregation_method(self):
         src = self._indices.source
         assert src is not None
         assert len(self._indices.axes) > 0
         if isinstance(src, hl.MatrixTable):
-            if self._indices.axes == {'row'}:
+            if self._indices == src._row_indices:
                 return src.aggregate_rows
-            elif self._indices.axes == {'col'}:
+            elif self._indices == src._col_indices:
                 return src.aggregate_cols
             else:
                 return src.aggregate_entries
         else:
             return src.aggregate
-
-
-class Aggregable(object):
-    """Expression that can only be aggregated.
-
-    An :class:`.Aggregable` is produced by the :meth:`.explode` or :meth:`.filter`
-    methods. These objects can be aggregated using aggregator functions, but
-    cannot otherwise be used in expressions.
-    """
-
-    def __init__(self, ir, type, indices, aggregations, transformations=lambda x, cont: cont(x)):
-        self._ir = ir
-        self._type = type
-        self._indices = indices
-        self._aggregations = aggregations
-        self._transformations = transformations
-
-    def __nonzero__(self):
-        raise NotImplementedError('Truth value of an aggregable collection is undefined')
-
-    def __eq__(self, other):
-        raise NotImplementedError('Comparison of aggregable collections is undefined')
-
-    def __ne__(self, other):
-        raise NotImplementedError('Comparison of aggregable collections is undefined')
-
-    def _map(self, f):
-        uid = Env.get_uid()
-        ref = expressions.construct_variable(uid, self._type,
-                                             self._indices, self._aggregations)
-        mapped = f(ref)
-        indices, aggregations = unify_all(ref, mapped)
-        def transform_ir(agg, continuation):
-            indices, aggregations = unify_all(ref, mapped, agg)
-            return continuation(expressions.construct_expr(Let(uid, agg._ir, mapped._ir), mapped._type, indices, aggregations))
-
-
-        return Aggregable(self._ir,
-                          mapped.dtype,
-                          indices, aggregations,
-                          transformations=lambda x, cont: self._transformations(x, lambda x2: transform_ir(x2, cont)))
-
-    def _flatmap(self, f):
-        uid = Env.get_uid()
-        ref = expressions.construct_variable(uid, self._type,
-                                             self._indices, self._aggregations)
-        res_expr = f(ref)
-        indices, aggregations = unify_all(ref, res_expr)
-        def transform_ir(agg, continuation):
-            elt_uid = Env.get_uid()
-            elt_ref = expressions.construct_variable(elt_uid, res_expr.dtype.element_type,
-                                                     res_expr._indices,
-                                                     res_expr._aggregations)
-
-            ir = ArrayFor(ToArray(Let(uid, agg._ir, res_expr._ir)),
-                          elt_uid,
-                          continuation(elt_ref)._ir)
-            return expressions.construct_expr(ir, res_expr.dtype.element_type, indices, aggregations)
-
-        return Aggregable(self._ir,
-                          res_expr.dtype.element_type,
-                          indices,
-                          aggregations,
-                          transformations=lambda x, cont: self._transformations(x, lambda x2: transform_ir(x2, cont)))
-
-    def _filter(self, f):
-        uid = Env.get_uid()
-        ref = expressions.construct_variable(uid, self._type, self._indices, self._aggregations)
-        if callable(f):
-            pred = f(ref)
-        else:
-            pred = f
-        indices, aggregations = unify_all(ref, pred)
-
-        def transform_ir(agg, continuation):
-            agg_uid = Env.get_uid()
-            agg_ref = expressions.construct_variable(agg_uid, self._type, agg._indices, agg._aggregations)
-            ir = Let(agg_uid, agg._ir,
-                     If(Let(uid, agg_ref._ir, pred._ir),
-                        continuation(agg_ref)._ir,
-                        Begin([])))
-            return expressions.construct_expr(ir, self._type, self._indices, self._aggregations)
-
-
-        return Aggregable(self._ir,
-                          self.dtype,
-                          indices, aggregations,
-                          transformations=lambda x, cont: self._transformations(x, lambda x2: transform_ir(x2, cont)))
-
-    @property
-    def dtype(self) -> HailType:
-        return self._type

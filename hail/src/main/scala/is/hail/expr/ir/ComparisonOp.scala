@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.annotations.CodeOrdering
 import is.hail.asm4s.Code
 import is.hail.expr.types._
+import is.hail.expr.types.virtual.Type
 import is.hail.utils.lift
 
 object ComparisonOp {
@@ -39,7 +40,7 @@ sealed trait ComparisonOp {
   def op: CodeOrdering.Op
   val strict: Boolean = true
   def codeOrdering(mb: EmitMethodBuilder): CodeOrdering.F[Boolean] = {
-    mb.getCodeOrdering[Boolean](t1.physicalType, t2.physicalType, op, missingGreatest = true)
+    mb.getCodeOrdering[Boolean](t1.physicalType, t2.physicalType, op)
   }
 }
 

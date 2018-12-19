@@ -1,7 +1,7 @@
 package is.hail.io.index
 
 import is.hail.annotations.RegionValueBuilder
-import is.hail.expr.types.{TArray, TInt64, TStruct, Type}
+import is.hail.expr.types.virtual.{TArray, TInt64, TStruct, Type}
 import is.hail.utils.ArrayBuilder
 
 object InternalNodeBuilder {
@@ -36,7 +36,7 @@ class InternalNodeBuilder(keyType: Type, annotationType: Type) {
   }
 
   def write(rvb: RegionValueBuilder): Long = {
-    rvb.start(typ)
+    rvb.start(typ.physicalType)
     rvb.startStruct()
     rvb.startArray(size)
     var i = 0

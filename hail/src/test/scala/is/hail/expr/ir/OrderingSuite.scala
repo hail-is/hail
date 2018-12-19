@@ -3,13 +3,13 @@ package is.hail.expr.ir
 import is.hail.annotations._
 import is.hail.check.{Gen, Prop}
 import is.hail.asm4s._
-import is.hail.expr.types._
-import is.hail.expr.ir.TestUtils._
 import is.hail.TestUtils._
+import is.hail.expr.types.physical._
+import is.hail.expr.types.virtual._
 import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.scalatest.testng.TestNGSuite
-import org.testng.annotations.Test
+import org.testng.annotations.{DataProvider, Test}
 
 class OrderingSuite extends TestNGSuite {
 
@@ -18,7 +18,7 @@ class OrderingSuite extends TestNGSuite {
       case ti: TInterval => recursiveSize(ti.pointType)
       case tc: TContainer => recursiveSize(tc.elementType)
       case tbs: TBaseStruct =>
-        tbs.types.map{ t => recursiveSize(t) }.sum
+        tbs.types.map { t => recursiveSize(t) }.sum
       case _ => 0
     }
     inner + 1
@@ -44,7 +44,7 @@ class OrderingSuite extends TestNGSuite {
   def addTupledArgsToRegion(region: Region, args: (Type, Annotation)*): Array[Long] = {
     val rvb = new RegionValueBuilder(region)
     args.map { case (t, a) =>
-      rvb.start(TTuple(t))
+      rvb.start(TTuple(t).physicalType)
       rvb.startTuple()
       rvb.addAnnotation(t, a)
       rvb.endTuple()
@@ -90,11 +90,11 @@ class OrderingSuite extends TestNGSuite {
       Region.scoped { region =>
         val rvb = new RegionValueBuilder(region)
 
-        rvb.start(t)
+        rvb.start(t.physicalType)
         rvb.addAnnotation(t, a1)
         val v1 = rvb.end()
 
-        rvb.start(t)
+        rvb.start(t.physicalType)
         rvb.addAnnotation(t, a2)
         val v2 = rvb.end()
 
@@ -143,7 +143,7 @@ class OrderingSuite extends TestNGSuite {
       asc <- Gen.coin()
     } yield (elt, a, asc)
     val p = Prop.forAll(compareGen) { case (t, a: IndexedSeq[Any], asc: Boolean) =>
-      val irF = { irs: Seq[IR] => ArraySort(irs(0), Literal(asc, TBoolean())) }
+      val irF = { irs: Seq[IR] => ArraySort(irs(0), Literal.coerce(TBoolean(), asc)) }
       val f = getCompiledFunction(irF, TArray(t), TArray(t))
       val ord = if (asc) t.ordering.toOrdering else t.ordering.reverse.toOrdering
 
@@ -182,7 +182,7 @@ class OrderingSuite extends TestNGSuite {
       telt = TTuple(kt, vt)
       a <- TArray(telt).genNonmissingValue
     } yield (telt, a)
-    val p = Prop.forAll(compareGen) { case (telt: TTuple, a: IndexedSeq[Row] @unchecked) =>
+    val p = Prop.forAll(compareGen) { case (telt: TTuple, a: IndexedSeq[Row]@unchecked) =>
       val array: IndexedSeq[Row] = a ++ a
       val irF = { irs: Seq[IR] => ToDict(irs(0)) }
       val f = getCompiledFunction(irF, TArray(telt), TArray(+telt))
@@ -218,7 +218,7 @@ class OrderingSuite extends TestNGSuite {
   @Test def testSetContainsOnRandomSet() {
     val compareGen = Type.genArb
       .flatMap(t => Gen.zip(Gen.const(TSet(t)), TSet(t).genNonmissingValue, t.genValue))
-    val p = Prop.forAll(compareGen) { case (tset: TSet, set: Set[Any] @unchecked, test1) =>
+    val p = Prop.forAll(compareGen) { case (tset: TSet, set: Set[Any]@unchecked, test1) =>
       val telt = tset.elementType
 
       val ir = { irs: Seq[IR] => invoke("contains", irs(0), irs(1)) }
@@ -246,7 +246,7 @@ class OrderingSuite extends TestNGSuite {
       case (k, v) =>
         Gen.zip(Gen.const(TDict(k, v)), TDict(k, v).genNonmissingValue, k.genNonmissingValue)
     }
-    val p = Prop.forAll(compareGen) { case (tdict: TDict, dict: Map[Any, Any] @unchecked, testKey1) =>
+    val p = Prop.forAll(compareGen) { case (tdict: TDict, dict: Map[Any, Any]@unchecked, testKey1) =>
       assertEvalsTo(invoke("get", In(0, tdict), In(1, -tdict.keyType)),
         IndexedSeq(dict -> tdict,
           testKey1 -> -tdict.keyType),
@@ -254,7 +254,7 @@ class OrderingSuite extends TestNGSuite {
 
       if (dict.nonEmpty) {
         val testKey2 = dict.keys.toSeq.head
-        val expected2 = if (testKey2 == null) null else dict(testKey2)
+        val expected2 = dict(testKey2)
         assertEvalsTo(invoke("get", In(0, tdict), In(1, -tdict.keyType)),
           IndexedSeq(dict -> tdict,
             testKey2 -> -tdict.keyType),
@@ -269,16 +269,16 @@ class OrderingSuite extends TestNGSuite {
     val compareGen = Type.genArb.flatMap(t => Gen.zip(Gen.const(t), TSet(t).genNonmissingValue, t.genNonmissingValue))
     val p = Prop.forAll(compareGen.filter { case (t, a, elem) => a.asInstanceOf[Set[Any]].nonEmpty }) { case (t, a, elem) =>
       val set = a.asInstanceOf[Set[Any]]
-      val tset = TSet(t)
+      val pset = PSet(t.physicalType)
 
       Region.scoped { region =>
         val rvb = new RegionValueBuilder(region)
 
-        rvb.start(tset)
-        rvb.addAnnotation(tset, set)
+        rvb.start(pset)
+        rvb.addAnnotation(pset.virtualType, set)
         val soff = rvb.end()
 
-        rvb.start(TTuple(t))
+        rvb.start(TTuple(t).physicalType)
         rvb.addAnnotation(TTuple(t), Row(elem))
         val eoff = rvb.end()
 
@@ -287,8 +287,8 @@ class OrderingSuite extends TestNGSuite {
         val cset = fb.getArg[Long](2)
         val cetuple = fb.getArg[Long](3)
 
-        val bs = new BinarySearch(fb.apply_method, tset, keyOnly = false)
-        fb.emit(bs.getClosestIndex(cset, false, cregion.loadIRIntermediate(t)(TTuple(t).fieldOffset(cetuple, 0))))
+        val bs = new BinarySearch(fb.apply_method, pset, keyOnly = false)
+        fb.emit(bs.getClosestIndex(cset, false, cregion.loadIRIntermediate(t)(TTuple(t).physicalType.fieldOffset(cetuple, 0))))
 
         val asArray = SafeIndexedSeq(TArray(t).physicalType, region, soff)
 
@@ -306,18 +306,20 @@ class OrderingSuite extends TestNGSuite {
   @Test def testBinarySearchOnDict() {
     val compareGen = Gen.zip(Type.genArb, Type.genArb)
       .flatMap { case (k, v) => Gen.zip(Gen.const(TDict(k, v)), TDict(k, v).genNonmissingValue, k.genValue) }
-    val p = Prop.forAll(compareGen.filter { case (tdict, a, key) => a.asInstanceOf[Map[Any, Any]].nonEmpty }) { case (tdict, a, key) =>
+    val p = Prop.forAll(compareGen.filter { case (tdict, a, key) => a.asInstanceOf[Map[Any, Any]].nonEmpty }) { case (tDict, a, key) =>
       val dict = a.asInstanceOf[Map[Any, Any]]
+      val pDict = tDict.physicalType
 
       Region.scoped { region =>
         val rvb = new RegionValueBuilder(region)
 
-        rvb.start(tdict)
-        rvb.addAnnotation(tdict, dict)
+        rvb.start(pDict)
+        rvb.addAnnotation(tDict, dict)
         val soff = rvb.end()
 
-        rvb.start(TTuple(tdict.keyType))
-        rvb.addAnnotation(TTuple(tdict.keyType), Row(key))
+        val ptuple = PTuple(FastIndexedSeq(pDict.keyType))
+        rvb.start(ptuple)
+        rvb.addAnnotation(ptuple.virtualType, Row(key))
         val eoff = rvb.end()
 
         val fb = EmitFunctionBuilder[Region, Long, Long, Int]
@@ -325,21 +327,23 @@ class OrderingSuite extends TestNGSuite {
         val cdict = fb.getArg[Long](2)
         val cktuple = fb.getArg[Long](3)
 
-        val bs = new BinarySearch(fb.apply_method, tdict, keyOnly = true)
-        val m = TTuple(tdict.keyType).isFieldMissing(cregion, cktuple, 0)
-        val v = cregion.loadIRIntermediate(tdict.keyType)(TTuple(tdict.keyType).fieldOffset(cktuple, 0))
+        val bs = new BinarySearch(fb.apply_method, pDict, keyOnly = true)
+        val m = ptuple.isFieldMissing(cregion, cktuple, 0)
+        val v = cregion.loadIRIntermediate(pDict.keyType)(ptuple.fieldOffset(cktuple, 0))
         fb.emit(bs.getClosestIndex(cdict, m, v))
 
-        val asArray = SafeIndexedSeq(TArray(tdict.elementType).physicalType, region, soff)
+        val asArray = SafeIndexedSeq(PArray(pDict.elementType), region, soff)
 
         val f = fb.resultWithIndex()(0)
         val closestI = f(region, soff, eoff)
+
         def getKey(i: Int) = asArray(i).asInstanceOf[Row].get(0)
+
         val maybeEqual = getKey(closestI)
 
         val closestIIsClosest =
-          (tdict.keyType.ordering.compare(key, maybeEqual) <= 0 || closestI == dict.size - 1) &&
-            (closestI == 0 || tdict.keyType.ordering.compare(key, getKey(closestI - 1)) > 0)
+          (pDict.keyType.virtualType.ordering.compare(key, maybeEqual) <= 0 || closestI == dict.size - 1) &&
+            (closestI == 0 || pDict.keyType.virtualType.ordering.compare(key, getKey(closestI - 1)) > 0)
 
         dict.contains(key) ==> (key == maybeEqual) && closestIIsClosest
 
@@ -354,10 +358,10 @@ class OrderingSuite extends TestNGSuite {
     val set2 = ToSet(MakeArray(Seq(I32(9), I32(1), I32(4)), TArray(TInt32())))
     val ir =
       ArrayFold(ToArray(set1), True(), "accumulator", "setelt",
-      ApplySpecial("&&",
-        FastSeq(
-          Ref("accumulator", TBoolean()),
-          invoke("contains", set2, Ref("setelt", TInt32())))))
+        ApplySpecial("&&",
+          FastSeq(
+            Ref("accumulator", TBoolean()),
+            invoke("contains", set2, Ref("setelt", TInt32())))))
 
     val fb = EmitFunctionBuilder[Region, Boolean]
     Emit(ir, fb)
@@ -366,5 +370,83 @@ class OrderingSuite extends TestNGSuite {
     Region.scoped { region =>
       assert(f(region))
     }
+  }
+
+  @DataProvider(name = "arrayDoubleOrderingData")
+  def arrayDoubleOrderingData(): Array[Array[Any]] = {
+    val xs = Array[Any](null, Double.NegativeInfinity, -0.0, 0.0, 1.0, Double.PositiveInfinity, Double.NaN)
+
+    val as = Array(null: IndexedSeq[Any]) ++
+      (for (x <- xs) yield IndexedSeq[Any](x))
+
+    for (a <- as; a2 <- as)
+      yield Array[Any](a, a2)
+  }
+
+  @Test(dataProvider = "arrayDoubleOrderingData")
+  def testOrderingArrayDouble(
+    a: IndexedSeq[Any], a2: IndexedSeq[Any]) {
+    val t = TArray(TFloat64())
+
+    val args = IndexedSeq(a -> t, a2 -> t)
+
+    assertEvalSame(ApplyComparisonOp(EQ(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(EQWithNA(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(NEQ(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(NEQWithNA(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(LT(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(LTEQ(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(GT(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(GTEQ(t, t), In(0, t), In(1, t)), args)
+  }
+
+  @Test(dataProvider = "arrayDoubleOrderingData")
+  def testOrderingSetDouble(
+    a: IndexedSeq[Any], a2: IndexedSeq[Any]) {
+    val t = TSet(TFloat64())
+
+    val s = if (a != null) a.toSet else null
+    val s2 = if (a2 != null) a2.toSet else null
+    val args = IndexedSeq(s -> t, s2 -> t)
+
+    assertEvalSame(ApplyComparisonOp(EQ(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(EQWithNA(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(NEQ(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(NEQWithNA(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(LT(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(LTEQ(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(GT(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(GTEQ(t, t), In(0, t), In(1, t)), args)
+  }
+
+  @DataProvider(name = "rowDoubleOrderingData")
+  def rowDoubleOrderingData(): Array[Array[Any]] = {
+    val xs = Array[Any](null, Double.NegativeInfinity, -0.0, 0.0, 1.0, Double.PositiveInfinity, Double.NaN)
+    val as = Array(null: IndexedSeq[Any]) ++
+      (for (x <- xs) yield IndexedSeq[Any](x))
+    val ss = Array[Any](null, "a", "aa")
+
+    val rs = for (x <- xs; s <- ss)
+      yield Row(x, s)
+
+    for (r <- rs; r2 <- rs)
+      yield Array[Any](r, r2)
+  }
+
+  @Test(dataProvider = "rowDoubleOrderingData")
+  def testOrderingRowDouble(
+    r: Row, r2: Row) {
+    val t = TStruct("x" -> TFloat64(), "s" -> TString())
+
+    val args = IndexedSeq(r -> t, r2 -> t)
+
+    assertEvalSame(ApplyComparisonOp(EQ(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(EQWithNA(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(NEQ(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(NEQWithNA(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(LT(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(LTEQ(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(GT(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(GTEQ(t, t), In(0, t), In(1, t)), args)
   }
 }

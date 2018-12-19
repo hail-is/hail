@@ -3,7 +3,8 @@ package is.hail.expr.ir.functions
 import is.hail.annotations.{CodeOrdering, Region, StagedRegionValueBuilder}
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir._
-import is.hail.expr.types.{TBoolean, TBooleanOptional, TInterval}
+import is.hail.expr.types.physical.PInterval
+import is.hail.expr.types.virtual.{TBoolean, TBooleanOptional, TInterval}
 import is.hail.utils._
 
 object IntervalFunctions extends RegistryFunctions {
@@ -12,17 +13,17 @@ object IntervalFunctions extends RegistryFunctions {
 
     registerCodeWithMissingness("Interval", tv("T"), tv("T"), TBoolean(), TBoolean(), TInterval(tv("T"))) {
       (mb, start, end, includeStart, includeEnd) =>
-        val srvb = new StagedRegionValueBuilder(mb, TInterval(tv("T").t))
+        val srvb = new StagedRegionValueBuilder(mb, PInterval(tv("T").t.physicalType))
         val missing = includeStart.m || includeEnd.m
         val value = Code(
           srvb.start(),
           start.m.mux(
             srvb.setMissing(),
-            srvb.addIRIntermediate(tv("T").t)(start.v)),
+            srvb.addIRIntermediate(tv("T").t.physicalType)(start.v)),
           srvb.advance(),
           end.m.mux(
             srvb.setMissing(),
-            srvb.addIRIntermediate(tv("T").t)(end.v)),
+            srvb.addIRIntermediate(tv("T").t.physicalType)(end.v)),
           srvb.advance(),
           srvb.addBoolean(includeStart.value[Boolean]),
           srvb.advance(),
@@ -39,7 +40,7 @@ object IntervalFunctions extends RegistryFunctions {
 
     registerCodeWithMissingness("start", TInterval(tv("T")), tv("T")) {
       case (mb, interval) =>
-        val tinterval = TInterval(tv("T").t)
+        val tinterval = TInterval(tv("T").t).physicalType
         val region = getRegion(mb)
         val iv = mb.newLocal[Long]
         EmitTriplet(
@@ -51,37 +52,37 @@ object IntervalFunctions extends RegistryFunctions {
 
     registerCodeWithMissingness("end", TInterval(tv("T")), tv("T")) {
       case (mb, interval) =>
-        val tinterval = TInterval(tv("T").t)
+        val pinteval = TInterval(tv("T").t).physicalType
         val region = getRegion(mb)
         val iv = mb.newLocal[Long]
         EmitTriplet(
-          Code(interval.setup, iv.storeAny(defaultValue(tinterval))),
-          interval.m || !Code(iv := interval.value[Long], tinterval.endDefined(region, iv)),
-          region.loadIRIntermediate(tv("T").t)(tinterval.endOffset(iv))
+          Code(interval.setup, iv.storeAny(defaultValue(pinteval))),
+          interval.m || !Code(iv := interval.value[Long], pinteval.endDefined(region, iv)),
+          region.loadIRIntermediate(tv("T").t)(pinteval.endOffset(iv))
         )
     }
 
     registerCode("includesStart", TInterval(tv("T")), TBooleanOptional) {
       case (mb, interval: Code[Long]) =>
         val region = getRegion(mb)
-        TInterval(tv("T").t).includeStart(region, interval)
+        PInterval(tv("T").t.physicalType).includeStart(region, interval)
     }
 
     registerCode("includesEnd", TInterval(tv("T")), TBooleanOptional) {
       case (mb, interval: Code[Long]) =>
         val region = getRegion(mb)
-        TInterval(tv("T").t).includeEnd(region, interval)
+        PInterval(tv("T").t.physicalType).includeEnd(region, interval)
     }
 
     registerCodeWithMissingness("contains", TInterval(tv("T")), tv("T"), TBoolean()) {
       case (mb, intTriplet, pointTriplet) =>
-        val pointType = tv("T").t
+        val pointType = tv("T").t.physicalType
 
         val mPoint = mb.newLocal[Boolean]
         val vPoint = mb.newLocal()(typeToTypeInfo(pointType))
 
         val cmp = mb.newLocal[Int]
-        val interval = new IRInterval(mb, TInterval(pointType), intTriplet.value[Long])
+        val interval = new IRInterval(mb, PInterval(pointType), intTriplet.value[Long])
         val compare = interval.ordering(CodeOrdering.compare)
 
         val contains = Code(
@@ -101,7 +102,7 @@ object IntervalFunctions extends RegistryFunctions {
 
     registerCode("isEmpty", TInterval(tv("T")), TBoolean()) {
       case (mb, intOff) =>
-        val interval = new IRInterval(mb, TInterval(tv("T").t), intOff)
+        val interval = new IRInterval(mb, PInterval(tv("T").t.physicalType), intOff)
 
         Code(
           interval.storeToLocal,
@@ -111,10 +112,10 @@ object IntervalFunctions extends RegistryFunctions {
 
     registerCode("overlaps", TInterval(tv("T")), TInterval(tv("T")), TBoolean()) {
       case (mb, iOff1, iOff2) =>
-        val pointType = tv("T").t
+        val pointType = tv("T").t.physicalType
 
-        val interval1 = new IRInterval(mb, TInterval(pointType), iOff1)
-        val interval2 = new IRInterval(mb, TInterval(pointType), iOff2)
+        val interval1 = new IRInterval(mb, PInterval(pointType), iOff1)
+        val interval2 = new IRInterval(mb, PInterval(pointType), iOff2)
 
         Code(
           interval1.storeToLocal,
@@ -127,12 +128,12 @@ object IntervalFunctions extends RegistryFunctions {
   }
 }
 
-class IRInterval(mb: EmitMethodBuilder, typ: TInterval, value: Code[Long]) {
+class IRInterval(mb: EmitMethodBuilder, typ: PInterval, value: Code[Long]) {
   val ref: LocalRef[Long] = mb.newLocal[Long]
   val region: Code[Region] = IntervalFunctions.getRegion(mb)
 
   def ordering[T](op: CodeOrdering.Op): ((Code[Boolean], Code[_]), (Code[Boolean], Code[_])) => Code[T] =
-    mb.getCodeOrdering[T](typ.pointType.physicalType, op, missingGreatest = true)(region, _, region, _)
+    mb.getCodeOrdering[T](typ.pointType, op)(region, _, region, _)
 
   def storeToLocal: Code[Unit] = ref := value
 

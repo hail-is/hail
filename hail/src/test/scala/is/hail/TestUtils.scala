@@ -4,13 +4,18 @@ import java.net.URI
 import java.nio.file.{Files, Paths}
 
 import breeze.linalg.{DenseMatrix, Matrix, Vector}
-import is.hail.annotations.{Annotation, Region, RegionValueBuilder, SafeRow}
+import is.hail.annotations.{Region, RegionValueBuilder, SafeRow}
+import is.hail.cxx.CXXUnsupportedOperation
 import is.hail.expr.ir._
-import is.hail.expr.types._
-import is.hail.linalg.BlockMatrix
+import is.hail.expr.types.MatrixType
+import is.hail.expr.types.virtual._
+import is.hail.io.bgen.{LoadBgen, MatrixBGENReader}
+import is.hail.io.plink.MatrixPLINKReader
+import is.hail.io.vcf.MatrixVCFReader
+import is.hail.nativecode.NativeStatus
 import is.hail.table.Table
-import is.hail.utils._
 import is.hail.testUtils._
+import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.SparkException
 import org.apache.spark.sql.Row
@@ -130,7 +135,7 @@ object TestUtils {
 
   def fileHaveSameBytes(file1: String, file2: String): Boolean =
     Files.readAllBytes(Paths.get(URI.create(file1))) sameElements Files.readAllBytes(Paths.get(URI.create(file2)))
-  
+
   // !useHWE: mean 0, norm exactly sqrt(n), variance 1
   // useHWE: mean 0, norm approximately sqrt(m), variance approx. m / n
   // missing gt are mean imputed, constant variants return None, only HWE uses nVariants
@@ -187,7 +192,72 @@ object TestUtils {
     } else
       None
   }
-  
+
+  def nativeExecute(x: IR): Any = nativeExecute(x, Env.empty, FastIndexedSeq(), None)
+
+  def nativeExecute(x: IR, agg: (IndexedSeq[Row], TStruct)): Any = nativeExecute(x, Env.empty, FastIndexedSeq(), Some(agg))
+
+  def nativeExecute(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], agg: Option[(IndexedSeq[Row], TStruct)]): Any = {
+    if (agg.isDefined)
+      throw new CXXUnsupportedOperation
+
+    val inputTypesB = new ArrayBuilder[Type]()
+    val inputsB = new ArrayBuilder[Any]()
+
+    args.foreach { case (v, t) =>
+      inputsB += v
+      inputTypesB += t
+    }
+
+    env.m.foreach { case (name, (v, t)) =>
+      inputsB += v
+      inputTypesB += t
+    }
+
+    val argsType = TTuple(inputTypesB.result(): _*)
+    val resultType = TTuple(x.typ)
+    val argsVar = genUID()
+
+    val (_, substEnv) = env.m.foldLeft((args.length, Env.empty[IR])) { case ((i, env), (name, (v, t))) =>
+      (i + 1, env.bind(name, GetTupleElement(In(0, argsType), i)))
+    }
+
+    def rewrite(x: IR): IR = {
+      x match {
+        case In(i, t) =>
+          GetTupleElement(In(0, argsType), i)
+        case _ =>
+          MapIR(rewrite)(x)
+      }
+    }
+
+    val rewritten = Subst(rewrite(x), substEnv)
+    val f = cxx.Compile(
+      argsVar, argsType.physicalType,
+      MakeTuple(FastSeq(rewritten)), false)
+
+    Region.scoped { region =>
+      val rvb = new RegionValueBuilder(region)
+      rvb.start(argsType.physicalType)
+      rvb.startTuple()
+      var i = 0
+      while (i < inputsB.length) {
+        rvb.addAnnotation(inputTypesB(i), inputsB(i))
+        i += 1
+      }
+      rvb.endTuple()
+      val argsOff = rvb.end()
+
+      using(new NativeStatus) { st =>
+        val st = new NativeStatus()
+        val resultOff = f(st, region.get(), argsOff)
+        assert(st.ok, st.toString())
+
+        SafeRow(resultType.asInstanceOf[TBaseStruct].physicalType, region, resultOff).get(0)
+      }
+    }
+  }
+
   def eval(x: IR): Any = eval(x, Env.empty, FastIndexedSeq(), None)
 
   def eval(x: IR, agg: (IndexedSeq[Row], TStruct)): Any = eval(x, Env.empty, FastIndexedSeq(), Some(agg))
@@ -230,24 +300,24 @@ object TestUtils {
             env.bind(f.name, GetField(Ref(aggVar, aggType), f.name))
         }
         val (rvAggs, initOps, seqOps, aggResultType, postAggIR) = CompileWithAggregators[Long, Long, Long](
-          argsVar, argsType,
-          argsVar, argsType,
-          aggVar, aggType,
+          argsVar, argsType.physicalType,
+          argsVar, argsType.physicalType,
+          aggVar, aggType.physicalType,
           MakeTuple(FastSeq(rewrite(Subst(x, substEnv, substAggEnv)))), "AGGR",
           (i, x) => x,
           (i, x) => x)
 
         val (resultType2, f) = Compile[Long, Long, Long](
           "AGGR", aggResultType,
-          argsVar, argsType,
+          argsVar, argsType.physicalType,
           postAggIR)
-        assert(resultType2 == resultType)
+        assert(resultType2.virtualType == resultType)
 
         Region.scoped { region =>
           val rvb = new RegionValueBuilder(region)
 
           // copy args into region
-          rvb.start(argsType)
+          rvb.start(argsType.physicalType)
           rvb.startTuple()
           var i = 0
           while (i < inputsB.length) {
@@ -264,7 +334,7 @@ object TestUtils {
           var seqOpF = seqOps(0)
           while (i < (aggElements.length / 2)) {
             // FIXME use second region for elements
-            rvb.start(aggType)
+            rvb.start(aggType.physicalType)
             rvb.addAnnotation(aggType, aggElements(i))
             val aggElementOff = rvb.end()
 
@@ -279,7 +349,7 @@ object TestUtils {
           seqOpF = seqOps(1)
           while (i < aggElements.length) {
             // FIXME use second region for elements
-            rvb.start(aggType)
+            rvb.start(aggType.physicalType)
             rvb.addAnnotation(aggType, aggElements(i))
             val aggElementOff = rvb.end()
 
@@ -292,13 +362,13 @@ object TestUtils {
 
           // build aggregation result
           rvb.start(aggResultType)
-          rvb.startStruct()
+          rvb.startTuple()
           i = 0
           while (i < rvAggs.length) {
             rvAggs(i).result(rvb)
             i += 1
           }
-          rvb.endStruct()
+          rvb.endTuple()
           val aggResultsOff = rvb.end()
 
           val resultOff = f(0)(region, aggResultsOff, false, argsOff, false)
@@ -307,13 +377,13 @@ object TestUtils {
 
       case None =>
         val (resultType2, f) = Compile[Long, Long](
-          argsVar, argsType,
+          argsVar, argsType.physicalType,
           MakeTuple(FastSeq(rewrite(Subst(x, substEnv)))))
-        assert(resultType2 == resultType)
+        assert(resultType2.virtualType == resultType)
 
         Region.scoped { region =>
           val rvb = new RegionValueBuilder(region)
-          rvb.start(argsType)
+          rvb.start(argsType.physicalType)
           rvb.startTuple()
           var i = 0
           while (i < inputsB.length) {
@@ -333,6 +403,10 @@ object TestUtils {
     assertEvalSame(x, Env.empty, FastIndexedSeq(), None)
   }
 
+  def assertEvalSame(x: IR, args: IndexedSeq[(Any, Type)]) {
+    assertEvalSame(x, Env.empty, args, None)
+  }
+
   def assertEvalSame(x: IR, agg: (IndexedSeq[Row], TStruct)) {
     assertEvalSame(x, Env.empty, FastIndexedSeq(), Some(agg))
   }
@@ -348,8 +422,16 @@ object TestUtils {
     assert(t.typeCheck(i2))
     assert(t.typeCheck(c))
 
-    assert(t.valuesSimilar(i, c))
-    assert(t.valuesSimilar(i2, c))
+    assert(t.valuesSimilar(i, c), s"interpret $i vs compile $c")
+    assert(t.valuesSimilar(i2, c), s"interpret (optimize = false) $i vs compile $c")
+
+    try {
+      val c2 = nativeExecute(x, env, args, agg)
+      assert(t.typeCheck(c2))
+      assert(t.valuesSimilar(c2, c), s"native compile $c2 vs compile $c")
+    } catch {
+      case _: CXXUnsupportedOperation =>
+    }
   }
 
   def assertEvalsTo(x: IR, expected: Any) {
@@ -365,21 +447,33 @@ object TestUtils {
   }
 
   def assertEvalsTo(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], agg: Option[(IndexedSeq[Row], TStruct)], expected: Any) {
+    TypeCheck(x,
+      env.mapValues(_._2),
+      agg.map(_._2.toEnv))
+
     val t = x.typ
     assert(t.typeCheck(expected))
 
     val i = Interpret[Any](x, env, args, agg)
     assert(t.typeCheck(i))
-    assert(t.valuesSimilar(i, expected), s"$i, $expected")
+    assert(t.valuesSimilar(i, expected), s"($i, $expected)")
 
     val i2 = Interpret[Any](x, env, args, agg, optimize = false)
     assert(t.typeCheck(i2))
-    assert(t.valuesSimilar(i2, expected), s"$i2 $expected")
+    assert(t.valuesSimilar(i2, expected), s"($i2, $expected)")
 
     if (Compilable(x)) {
       val c = eval(x, env, args, agg)
       assert(t.typeCheck(c))
-      assert(t.valuesSimilar(c, expected), s"$c, $expected")
+      assert(t.valuesSimilar(c, expected), s"($c, $expected)")
+    }
+
+    try {
+      val c = nativeExecute(x, env, args, agg)
+      assert(t.typeCheck(c))
+      assert(t.valuesSimilar(c, expected), s"($c, $expected)")
+    } catch {
+      case _: CXXUnsupportedOperation =>
     }
   }
 
@@ -415,5 +509,100 @@ object TestUtils {
 
   def assertCompiledFatal(x: IR, regex: String) {
     assertCompiledThrows[HailException](x, regex)
+  }
+
+
+  def importVCF(hc: HailContext, file: String, force: Boolean = false,
+    forceBGZ: Boolean = false,
+    headerFile: Option[String] = None,
+    nPartitions: Option[Int] = None,
+    dropSamples: Boolean = false,
+    callFields: Set[String] = Set.empty[String],
+    rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
+    contigRecoding: Option[Map[String, String]] = None,
+    arrayElementsRequired: Boolean = true,
+    skipInvalidLoci: Boolean = false,
+    partitionsJSON: String = null): MatrixTable = {
+    val addedReference = rg.exists { referenceGenome =>
+      if (!ReferenceGenome.hasReference(referenceGenome.name)) {
+        ReferenceGenome.addReference(referenceGenome)
+        true
+      } else false
+    } // Needed for tests
+
+    val reader = MatrixVCFReader(
+      Array(file),
+      callFields,
+      headerFile,
+      nPartitions,
+      rg.map(_.name),
+      contigRecoding.getOrElse(Map.empty[String, String]),
+      arrayElementsRequired,
+      skipInvalidLoci,
+      forceBGZ,
+      force,
+      partitionsJSON
+    )
+    if (addedReference)
+      ReferenceGenome.removeReference(rg.get.name)
+    new MatrixTable(hc, MatrixRead(reader.fullType, dropSamples, false, reader))
+  }
+
+  def importBgens(hc: HailContext,
+    files: Seq[String],
+    sampleFile: Option[String] = None,
+    includeGT: Boolean = true,
+    includeGP: Boolean = true,
+    includeDosage: Boolean = false,
+    includeVarid: Boolean = true,
+    includeRsid: Boolean = true,
+    nPartitions: Option[Int] = None,
+    blockSizeInMB: Option[Int] = None,
+    indexFileMap: Map[String, String] = null,
+    includedVariants: Option[Table] = None
+  ): MatrixTable = {
+    val referenceGenome = LoadBgen.getReferenceGenome(hc.hadoopConf, files.toArray, indexFileMap)
+
+    val requestedType: MatrixType = MatrixBGENReader.getMatrixType(
+      referenceGenome,
+      includeRsid,
+      includeVarid,
+      includeOffset = false,
+      includeFileIdx = false,
+      includeGT,
+      includeGP,
+      includeDosage
+    )
+
+    val reader = MatrixBGENReader(
+      files, sampleFile, Option(indexFileMap).getOrElse(Map.empty[String, String]), nPartitions,
+      if (nPartitions.isEmpty && blockSizeInMB.isEmpty)
+        Some(128)
+      else
+        blockSizeInMB,
+      includedVariants)
+
+    new MatrixTable(hc, MatrixRead(requestedType, dropCols = false, dropRows = false, reader))
+  }
+
+  def importPlink(hc: HailContext,
+    bed: String,
+    bim: String,
+    fam: String,
+    nPartitions: Option[Int] = None,
+    delimiter: String = "\\\\s+",
+    missing: String = "NA",
+    quantPheno: Boolean = false,
+    a2Reference: Boolean = true,
+    rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
+    contigRecoding: Option[Map[String, String]] = None,
+    skipInvalidLoci: Boolean = false): MatrixTable = {
+
+    val reader = MatrixPLINKReader(bed, bim, fam,
+      nPartitions, delimiter, missing, quantPheno,
+      a2Reference, rg.map(_.name), contigRecoding.getOrElse(Map.empty[String, String]),
+      skipInvalidLoci)
+
+    new MatrixTable(hc, MatrixRead(reader.fullType, dropCols = false, dropRows = false, reader))
   }
 }

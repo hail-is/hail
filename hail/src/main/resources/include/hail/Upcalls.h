@@ -21,6 +21,13 @@ class UpcallConfig {
   jmethodID InputStream_close_; // close()
   jmethodID InputStream_read_;  // read(buf: Array[Byte], off: int, len: Int): Int
   jmethodID InputStream_skip_;  // skip(len: Long): Long
+  // OutputStream methods
+  jmethodID OutputStream_close_;
+  jmethodID OutputStream_flush_;
+  jmethodID OutputStream_write_;
+  // RVIterator methods
+  jmethodID RVIterator_hasNext_;
+  jmethodID RVIterator_next_;
   
   UpcallConfig();
 };
@@ -49,6 +56,7 @@ class UpcallEnv {
   void info(const std::string& msg);
   void warn(const std::string& msg);
   void error(const std::string& msg);
+
 };
 
 } // end hail

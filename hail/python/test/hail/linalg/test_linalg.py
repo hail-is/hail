@@ -425,12 +425,18 @@ class Tests(unittest.TestCase):
         nd2[3, 5] = 4.0
         bm2 = BlockMatrix.from_numpy(nd2, block_size=2).sparsify_rectangles([[2, 4, 4, 6]])
 
-        nd3 = np.zeros(shape=(5, 7))
-        bm3 = BlockMatrix.fill(5, 7, value=0.0, block_size=2).sparsify_rectangles([])
+        bm3 = BlockMatrix.from_numpy(nd2, block_size=2).sparsify_rectangles([[2, 4, 4, 6], [0, 5, 0, 1]])
+
+        bm4 = BlockMatrix.from_numpy(nd2, block_size=2).sparsify_rectangles([[2, 4, 4, 6], [0, 1, 0, 7]])
+
+        nd5 = np.zeros(shape=(5, 7))
+        bm5 = BlockMatrix.fill(5, 7, value=0.0, block_size=2).sparsify_rectangles([])
 
         sums_agree(bm, nd)
         sums_agree(bm2, nd2)
-        sums_agree(bm3, nd3)
+        sums_agree(bm3, nd2)
+        sums_agree(bm4, nd2)
+        sums_agree(bm5, nd5)
 
     def test_slicing(self):
         nd = np.array(np.arange(0, 80, dtype=float)).reshape(8, 10)

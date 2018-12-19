@@ -140,10 +140,9 @@ def maximal_independent_set(i, j, keep=True, tie_breaker=None) -> Table:
              .key_by('node')
              .select())
 
-    edges = t.key_by(None).select('i', 'j')
-    nodes_in_set = Env.hail().utils.Graph.maximalIndependentSet(edges._jt.collect(), node_t._jtype, joption(tie_breaker_str))
-
-    nt = Table(nodes._jt.annotateGlobal(nodes_in_set, hl.tset(node_t)._jtype, 'nodes_in_set'))
+    edges = t.select(__i=i, __j=j).key_by().select('__i', '__j')
+    nodes_in_set = Env.hail().utils.Graph.maximalIndependentSet(edges._jt.collect(), node_t._parsable_string(), joption(tie_breaker_str))
+    nt = Table._from_java(nodes._jt.annotateGlobal(nodes_in_set, hl.tset(node_t)._parsable_string(), 'nodes_in_set'))
     nt = (nt
           .filter(nt.nodes_in_set.contains(nt.node), keep)
           .drop('nodes_in_set'))
@@ -186,7 +185,7 @@ def require_row_key_variant_w_struct_locus(dataset, method):
             (not isinstance(dataset['locus'].dtype, tlocus) and
                      dataset['locus'].dtype != hl.dtype('struct{contig: str, position: int32}'))):
         raise ValueError("Method '{}' requires row key to be two fields 'locus'"
-                         " (type 'locus<any>' or 'struct{contig: str, position: int32}') and "
+                         " (type 'locus<any>' or 'struct{{contig: str, position: int32}}') and "
                          "'alleles' (type 'array<str>')\n"
                          "  Found:{}".format(method, ''.join(
             "\n    '{}': {}".format(k, str(dataset[k].dtype)) for k in dataset.row_key)))
@@ -215,8 +214,9 @@ def require_biallelic(dataset, method) -> MatrixTable:
     require_row_key_variant(dataset, method)
     return dataset._select_rows(method,
                                 hl.case()
-                                .when(dataset.alleles.length() == 2, dataset._rvrow)
-                                .or_error(f"'{method}' expects biallelic variants ('alleles' field has length 2)"))
+                                .when(dataset.alleles.length() == 2, dataset.row)
+                                .or_error(f"'{method}' expects biallelic variants ('alleles' field of length 2), found " +
+                                        hl.str(dataset.locus) + ", " + hl.str(dataset.alleles)))
 
 
 @typecheck(dataset=MatrixTable, name=str)
@@ -254,7 +254,7 @@ def rename_duplicates(dataset, name='unique_id') -> MatrixTable:
     :class:`.MatrixTable`
     """
 
-    return MatrixTable(dataset._jvds.renameDuplicates(name))
+    return MatrixTable._from_java(dataset._jmt.renameDuplicates(name))
 
 
 @typecheck(ds=oneof(Table, MatrixTable),
@@ -337,13 +337,13 @@ def filter_intervals(ds, intervals, keep=True) -> Union[Table, MatrixTable]:
         else:
             return interval
 
-    intervals = [wrap_input(x)._jrep for x in intervals.value]
+    intervals = [wrap_input(x)._jrep for x in hl.eval(intervals)]
     if isinstance(ds, MatrixTable):
-        jmt = Env.hail().methods.MatrixFilterIntervals.apply(ds._jvds, intervals, keep)
-        return MatrixTable(jmt)
+        jmt = Env.hail().methods.MatrixFilterIntervals.apply(ds._jmt, intervals, keep)
+        return MatrixTable._from_java(jmt)
     else:
         jt = Env.hail().methods.TableFilterIntervals.apply(ds._jt, intervals, keep)
-        return Table(jt)
+        return Table._from_java(jt)
 
 
 @typecheck(mt=MatrixTable, bp_window_size=int)
@@ -394,4 +394,4 @@ def window_by_locus(mt: MatrixTable, bp_window_size: int) -> MatrixTable:
     :class:`.MatrixTable`
     """
     require_first_key_field_locus(mt, 'window_by_locus')
-    return MatrixTable(mt._jvds.windowVariants(bp_window_size))
+    return MatrixTable._from_java(mt._jmt.windowVariants(bp_window_size))

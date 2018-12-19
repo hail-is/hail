@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: letsencrypt
+  labels:
+    app: letsencrypt
+spec:
+  serviceAccountName: letsencrypt
+  containers:
+  - name: letsencrypt
+    image: gcr.io/@project@/letsencrypt
+    ports:
+    - containerPort: 80
+    volumeMounts:
+      - mountPath: /etc/letsencrypt
+        name: letsencrypt-certs
+  restartPolicy: Never
+  volumes:
+    - name: letsencrypt-certs
+      persistentVolumeClaim:
+        claimName: letsencrypt-certs

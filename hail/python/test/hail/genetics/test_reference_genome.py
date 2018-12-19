@@ -17,7 +17,7 @@ class Tests(unittest.TestCase):
         self.assertListEqual(rg.x_contigs, ["X"])
         self.assertListEqual(rg.y_contigs, ["Y"])
         self.assertListEqual(rg.mt_contigs, ["MT"])
-        self.assertEqual(rg.par[0], hl.parse_locus_interval("X:60001-2699521").value)
+        self.assertEqual(rg.par[0], hl.eval(hl.parse_locus_interval("X:60001-2699521")))
         self.assertEqual(rg.contig_length("1"), 249250621)
 
         name = "test"
@@ -34,7 +34,7 @@ class Tests(unittest.TestCase):
         self.assertListEqual(gr2.x_contigs, x_contigs)
         self.assertListEqual(gr2.y_contigs, y_contigs)
         self.assertListEqual(gr2.mt_contigs, mt_contigs)
-        self.assertEqual(gr2.par, [hl.parse_locus_interval("X:5-1000", gr2).value])
+        self.assertEqual(gr2.par, [hl.eval(hl.parse_locus_interval("X:5-1000", gr2))])
         self.assertEqual(gr2.contig_length("1"), 10000)
         self.assertDictEqual(gr2.lengths, lengths)
         gr2.write("/tmp/my_gr.json")
@@ -51,10 +51,10 @@ class Tests(unittest.TestCase):
         self.assertTrue(gr4.x_contigs == ["a"])
 
         t = hl.import_table(resource("fake_reference.tsv"), impute=True)
-        self.assertTrue(t.all(hl.get_sequence(t.contig, t.pos, reference_genome=gr4) == t.base))
+        self.assertTrue(hl.eval(t.all(hl.get_sequence(t.contig, t.pos, reference_genome=gr4) == t.base)))
 
         l = hl.locus("a", 7, gr4)
-        self.assertTrue(l.sequence_context(before=3, after=3).value == "TTTCGAA")
+        self.assertTrue(hl.eval(l.sequence_context(before=3, after=3) == "TTTCGAA"))
 
     def test_reference_genome_liftover(self):
         grch37 = hl.get_reference('GRCh37')
@@ -107,3 +107,21 @@ class Tests(unittest.TestCase):
         schema = hl.tstruct(i37=hl.tinterval(hl.tlocus(grch37)), i38=hl.tinterval(hl.tlocus(grch38)))
         t = hl.Table.parallelize(rows, schema)
         self.assertTrue(t.all(hl.liftover(t.i37, 'GRCh38') == t.i38))
+
+        grch37.remove_liftover("GRCh38")
+        grch38.remove_liftover("GRCh37")
+
+    def test_liftover_strand(self):
+        grch37 = hl.get_reference('GRCh37')
+        grch37.add_liftover(resource('grch37_to_grch38_chr20.over.chain.gz'), 'GRCh38')
+
+        self.assertEqual(hl.eval(hl.liftover(hl.locus('20', 60001, 'GRCh37'), 'GRCh38', include_strand=True)),
+                         hl.eval(hl.struct(result=hl.locus('chr20', 79360, 'GRCh38'), is_negative_strand=False)))
+
+        self.assertEqual(hl.eval(hl.liftover(hl.locus_interval('20', 37007582, 37007586, True, True, 'GRCh37'),
+                                             'GRCh38', include_strand=True)),
+                         hl.eval(hl.struct(result=hl.locus_interval('chr12', 32563117, 32563121, True, True, 'GRCh38'),
+                                           is_negative_strand=True)))
+
+        grch37.remove_liftover("GRCh38")
+

@@ -1,6 +1,7 @@
 from hail.utils import warn, error, java
+from hail.utils.java import Env
 from .indices import *
-from ..expressions import Expression, Aggregable, ExpressionException, expr_any
+from ..expressions import Expression, ExpressionException, expr_any
 from typing import *
 
 
@@ -129,39 +130,36 @@ def analyze(caller: str,
 
 
 @typecheck(expression=expr_any)
-def eval_expr(expression):
+def eval(expression):
     """Evaluate a Hail expression, returning the result.
 
-    This method is extremely useful for learning about Hail expressions and understanding
-    how to compose them.
+    This method is extremely useful for learning about Hail expressions and
+    understanding how to compose them.
 
     The expression must have no indices, but can refer to the globals
-    of a :class:`.hail.Table` or :class:`.hail.MatrixTable`.
+    of a :class:`.Table` or :class:`.MatrixTable`.
 
     Examples
     --------
-
     Evaluate a conditional:
 
     >>> x = 6
-    >>> hl.eval_expr(hl.cond(x % 2 == 0, 'Even', 'Odd'))
+    >>> hl.eval(hl.cond(x % 2 == 0, 'Even', 'Odd'))
     'Even'
 
     Parameters
     ----------
-    expression : :class:`.Expression`
-        Any expression, or a Python value that can be implicitly interpreted as an expression.
+    expression
 
     Returns
     -------
-    any
-        Result of evaluating `expression`.
+    Any
     """
-    return eval_expr_typed(expression)[0]
+    return eval_typed(expression)[0]
 
 
 @typecheck(expression=expr_any)
-def eval_expr_typed(expression):
+def eval_typed(expression):
     """Evaluate a Hail expression, returning the result and the type of the result.
 
     This method is extremely useful for learning about Hail expressions and understanding
@@ -175,8 +173,8 @@ def eval_expr_typed(expression):
     Evaluate a conditional:
 
     >>> x = 6
-    >>> hl.eval_expr_typed(hl.cond(x % 2 == 0, 'Even', 'Odd'))
-    ('Odd', tstr)
+    >>> hl.eval_typed(hl.cond(x % 2 == 0, 'Even', 'Odd'))
+    ('Even', dtype('str'))
 
     Parameters
     ----------
@@ -189,17 +187,15 @@ def eval_expr_typed(expression):
         Result of evaluating `expression`, and its type.
 
     """
-    analyze('eval_expr_typed', expression, Indices(expression._indices.source))
+    analyze('eval_typed', expression, Indices(expression._indices.source))
 
     if expression._indices.source is None:
-        return (expression.dtype._from_json(
-            java.Env.hail().expr.ir.Interpret.interpretPyIR(str(expression._ir))),
-                expression.dtype)
+        return (Env.hc()._backend.interpret(expression._ir), expression.dtype)
     else:
         return expression.collect()[0], expression.dtype
 
 
-def _get_refs(expr: Union[Expression, Aggregable], builder: Dict[str, Indices]) -> None:
+def _get_refs(expr: Expression, builder: Dict[str, Indices]) -> None:
     from hail.ir import GetField, TopLevelReference
 
     for ir in expr._ir.search(
@@ -229,7 +225,7 @@ def extract_refs_by_indices(exprs, indices):
                 s.add(name)
     return s
 
-def get_refs(*exprs: Union[Expression, Aggregable]) -> Dict[str, Indices]:
+def get_refs(*exprs: Expression) -> Dict[str, Indices]:
     builder = {}
     for e in exprs:
         _get_refs(e, builder)

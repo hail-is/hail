@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.expr.types._
+import is.hail.expr.types.virtual._
 import is.hail.utils.{FastIndexedSeq, FastSeq}
 import is.hail.variant.Call
 
@@ -35,7 +36,7 @@ object TestUtils {
     if (a == null)
       NA(TArray(TString()))
     else
-      MakeArray(a.map(s => Literal(s, TString())), TArray(TString()))
+      MakeArray(a.map(s => Literal.coerce(TString(), s)), TArray(TString()))
 
   def IRStringArray(a: String*): IR = toIRStringArray(a)
 
@@ -75,26 +76,22 @@ object TestUtils {
 
     def IRAggCount: IR = {
     val aggSig = AggSignature(Count(), FastSeq.empty, None, FastSeq.empty)
-    ApplyAggOp(SeqOp(0, FastIndexedSeq.empty, aggSig), FastIndexedSeq.empty, None, aggSig)
+    ApplyAggOp(FastIndexedSeq.empty, None, FastIndexedSeq.empty, aggSig)
   }
 
   def IRScanCount: IR = {
     val aggSig = AggSignature(Count(), FastSeq.empty, None, FastSeq.empty)
-    ApplyScanOp(SeqOp(0, FastIndexedSeq.empty, aggSig), FastIndexedSeq.empty, None, aggSig)
+    ApplyScanOp(FastIndexedSeq.empty, None, FastIndexedSeq.empty, aggSig)
   }
 
   def IRAggCollect(ir: IR): IR = {
     val aggSig = AggSignature(Collect(), FastSeq.empty, None, FastSeq[Type](ir.typ))
-    ApplyAggOp(
-      SeqOp(0, FastIndexedSeq(ir), aggSig),
-      FastIndexedSeq(), None, aggSig)
+    ApplyAggOp(FastIndexedSeq(), None, FastIndexedSeq(ir), aggSig)
   }
 
   def IRScanCollect(ir: IR): IR = {
     val aggSig = AggSignature(Collect(), FastSeq.empty, None, FastSeq[Type](ir.typ))
-    ApplyScanOp(
-      SeqOp(0, FastIndexedSeq(ir), aggSig),
-      FastIndexedSeq(), None, aggSig)
+    ApplyScanOp(FastIndexedSeq(), None, FastIndexedSeq(ir), aggSig)
   }
 
   def IRStruct(fields: (String, IR)*): IR =

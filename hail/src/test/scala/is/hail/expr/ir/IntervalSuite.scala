@@ -1,11 +1,11 @@
 package is.hail.expr.ir
 
-import org.scalatest.testng.TestNGSuite
-import org.testng.annotations.{DataProvider, Test}
-import is.hail.expr.types._
 import is.hail.TestUtils._
+import is.hail.expr.types.virtual.{TBoolean, TInt32, TInterval, TTuple}
 import is.hail.utils._
 import org.apache.spark.sql.Row
+import org.scalatest.testng.TestNGSuite
+import org.testng.annotations.Test
 
 class IntervalSuite extends TestNGSuite {
 
@@ -15,7 +15,7 @@ class IntervalSuite extends TestNGSuite {
 
   def point(i: Int): IR = MakeTuple(Seq(I32(i)))
   def interval(start: IR, end: IR, includeStart: java.lang.Boolean, includeEnd: java.lang.Boolean): IR = {
-    invoke("Interval", start, end, Literal(includeStart, TBoolean()), Literal(includeEnd, TBoolean()))
+    invoke("Interval", start, end, Literal.coerce(TBoolean(), includeStart), Literal.coerce(TBoolean(), includeEnd))
   }
 
   val i1 = interval(point(1), point(2), true, false)

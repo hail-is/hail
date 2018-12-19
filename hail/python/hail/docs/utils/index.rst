@@ -14,6 +14,7 @@ utils
     hadoop_is_dir
     hadoop_stat
     hadoop_ls
+    copy_log
     range_table
     range_matrix_table
     get_1kg
@@ -28,6 +29,7 @@ utils
 .. autofunction:: hadoop_is_dir
 .. autofunction:: hadoop_stat
 .. autofunction:: hadoop_ls
+.. autofunction:: copy_log
 .. autofunction:: range_table
 .. autofunction:: range_matrix_table
 .. autofunction:: get_1kg

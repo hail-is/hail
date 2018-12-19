@@ -10,6 +10,8 @@ Numeric functions
     approx_equal
     exp
     is_nan
+    is_finite
+    is_infinite
     log
     log10
     sign
@@ -37,12 +39,15 @@ Numeric functions
     cumulative_sum
     argmin
     argmax
+    corr
 
 
 .. autofunction:: abs
 .. autofunction:: approx_equal
 .. autofunction:: exp
 .. autofunction:: is_nan
+.. autofunction:: is_finite
+.. autofunction:: is_infinite
 .. autofunction:: log
 .. autofunction:: log10
 .. autofunction:: floor
@@ -58,4 +63,5 @@ Numeric functions
 .. autofunction:: cumulative_sum
 .. autofunction:: argmin
 .. autofunction:: argmax
+.. autofunction:: corr
 .. autofunction:: uniroot

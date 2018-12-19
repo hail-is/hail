@@ -2,6 +2,7 @@ import unittest
 import hail as hl
 import hail.ir as ir
 from hail.utils.java import Env
+from hail.utils import new_temp_file
 from .helpers import *
 
 setUpModule = startTestHailContext
@@ -11,26 +12,22 @@ tearDownModule = stopTestHailContext
 class ValueIRTests(unittest.TestCase):
     def value_irs(self):
         b = ir.TrueIR()
-        c = ir.Ref('c', hl.tbool)
+        c = ir.Ref('c')
         i = ir.I32(5)
         j = ir.I32(7)
         st = ir.Str('Hail')
-        a = ir.Ref('a', hl.tarray(hl.tint32))
-        aa = ir.Ref('aa', hl.tarray(hl.tarray(hl.tint32)))
-        da = ir.Ref('da', hl.tarray(hl.ttuple(hl.tint32, hl.tstr)))
-        v = ir.Ref('v', hl.tint32)
-        s = ir.Ref('s', hl.tstruct(x = hl.tint32, y = hl.tint64, z = hl.tfloat64))
-        t = ir.Ref('t', hl.ttuple(hl.tint32, hl.tint64, hl.tfloat64))
-        call = ir.Ref('call', hl.tcall)
+        a = ir.Ref('a')
+        aa = ir.Ref('aa')
+        da = ir.Ref('da')
+        v = ir.Ref('v')
+        s = ir.Ref('s')
+        t = ir.Ref('t')
+        call = ir.Ref('call')
 
-        collect_sig = ir.AggSignature('Collect', [], None, [hl.tint32])
+        table = ir.TableRange(5, 3)
 
-        call_stats_sig = ir.AggSignature('CallStats', [], [hl.tint32], [hl.tcall])
-
-        hist_sig = ir.AggSignature(
-            'Histogram', [hl.tfloat64, hl.tfloat64, hl.tint32], None, [hl.tfloat64])
-
-        take_by_sig = ir.AggSignature('TakeBy', [hl.tint32], None, [hl.tfloat64, hl.tfloat64])
+        matrix_read = ir.MatrixRead(ir.MatrixNativeReader(
+            resource('backward_compatability/1.0.0/matrix_table/0.hmt')), False, False)
 
         value_irs = [
             i, ir.I64(5), ir.F32(3.14), ir.F64(3.14), s, ir.TrueIR(), ir.FalseIR(), ir.Void(),
@@ -39,7 +36,7 @@ class ValueIRTests(unittest.TestCase):
             ir.IsNA(i),
             ir.If(b, i, j),
             ir.Let('v', i, v),
-            ir.Ref('x', hl.tint32),
+            ir.Ref('x'),
             ir.ApplyBinaryOp('+', i, j),
             ir.ApplyUnaryOp('-', i),
             ir.ApplyComparisonOp('EQ', i, j),
@@ -59,15 +56,14 @@ class ValueIRTests(unittest.TestCase):
             ir.ArrayFold(a, ir.I32(0), 'x', 'v', v),
             ir.ArrayScan(a, ir.I32(0), 'x', 'v', v),
             ir.ArrayFor(a, 'v', ir.Void()),
-            ir.ApplyAggOp(ir.I32(0), [], None, collect_sig),
-            ir.ApplyScanOp(ir.I32(0), [], None, collect_sig),
-            ir.ApplyAggOp(
-                ir.F64(-2.11), [ir.F64(-5.0), ir.F64(5.0), ir.I32(100)], None, hist_sig),
-            ir.ApplyAggOp(call, [], [ir.I32(2)], call_stats_sig),
-            ir.ApplyAggOp(ir.F64(-2.11), [ir.I32(10)], None, take_by_sig),
-            ir.InitOp(ir.I32(0), [ir.I32(2)], call_stats_sig),
-            ir.SeqOp(ir.I32(0), [i], collect_sig),
-            ir.SeqOp(ir.I32(0), [ir.F64(-2.11), ir.I32(17)], take_by_sig),
+            ir.AggFilter(ir.TrueIR(), ir.I32(0)),
+            ir.AggExplode(ir.ArrayRange(ir.I32(0), ir.I32(2), ir.I32(1)), 'x', ir.I32(0)),
+            ir.AggGroupBy(ir.TrueIR(), ir.I32(0)),
+            ir.ApplyAggOp('Collect', [], None, [ir.I32(0)]),
+            ir.ApplyScanOp('Collect', [], None, [ir.I32(0)]),
+            ir.ApplyAggOp('Histogram', [ir.F64(-5.0), ir.F64(5.0), ir.I32(100)], None, [ir.F64(-2.11)]),
+            ir.ApplyAggOp('CallStats', [], [ir.I32(2)], [call]),
+            ir.ApplyAggOp('TakeBy', [ir.I32(10)], None, [ir.F64(-2.11), ir.F64(-2.11)]),
             ir.Begin([ir.Void()]),
             ir.MakeStruct([('x', i)]),
             ir.SelectFields(s, ['x', 'z']),
@@ -78,19 +74,37 @@ class ValueIRTests(unittest.TestCase):
             ir.StringSlice(st, ir.I32(1), ir.I32(2)),
             ir.StringLength(st),
             ir.In(2, hl.tfloat64),
-            ir.Die('mumblefoo', hl.tfloat64),
+            ir.Die(ir.Str('mumblefoo'), hl.tfloat64),
             ir.Apply('&&', b, c),
             ir.Apply('toFloat64', i),
-            ir.Apply('isDefined', s),
             ir.Uniroot('x', ir.F64(3.14), ir.F64(-5.0), ir.F64(5.0)),
-            ir.Literal(hl.tint32, 20),
+            ir.Literal(hl.tarray(hl.tint32), [1, 2, None]),
+            ir.TableCount(table),
+            ir.TableGetGlobals(table),
+            ir.TableAggregate(table, ir.MakeStruct([('foo', ir.ApplyAggOp('Collect', [], None, [ir.I32(0)]))])),
+            ir.TableWrite(table, new_temp_file(), False, True, "fake_codec_spec$$"),
+            ir.MatrixAggregate(matrix_read, ir.MakeStruct([('foo', ir.ApplyAggOp('Collect', [], None, [ir.I32(0)]))])),
+            ir.MatrixWrite(matrix_read, ir.MatrixNativeWriter(new_temp_file(), False, False, "")),
+            ir.MatrixWrite(matrix_read, ir.MatrixVCFWriter(new_temp_file(), None, False, None)),
+            ir.MatrixWrite(matrix_read, ir.MatrixGENWriter(new_temp_file(), 4)),
+            ir.MatrixWrite(matrix_read, ir.MatrixPLINKWriter(new_temp_file())),
         ]
 
         return value_irs
 
     def test_parses(self):
+        env = {'c': hl.tbool,
+               'a': hl.tarray(hl.tint32),
+               'aa': hl.tarray(hl.tarray(hl.tint32)),
+               'da': hl.tarray(hl.ttuple(hl.tint32, hl.tstr)),
+               'v': hl.tint32,
+               's': hl.tstruct(x=hl.tint32, y=hl.tint64, z=hl.tfloat64),
+               't': hl.ttuple(hl.tint32, hl.tint64, hl.tfloat64),
+               'call': hl.tcall,
+               'x': hl.tint32}
+        env = {name: t._parsable_string() for name, t in env.items()}
         for x in self.value_irs():
-            Env.hail().expr.Parser.parse_value_ir(str(x))
+            Env.hail().expr.ir.IRParser.parse_value_ir(str(x), env, {})
 
     def test_copies(self):
         for x in self.value_irs():
@@ -106,7 +120,7 @@ class TableIRTests(unittest.TestCase):
         table_read_row_type = hl.dtype('struct{idx: int32, f32: float32, i64: int64, m: float64, astruct: struct{a: int32, b: float64}, mstruct: struct{x: int32, y: str}, aset: set<str>, mset: set<float64>, d: dict<array<str>, float64>, md: dict<int32, str>, h38: locus<GRCh38>, ml: locus<GRCh37>, i: interval<locus<GRCh37>>, c: call, mc: call, t: tuple(call, str, str), mt: tuple(locus<GRCh37>, bool)}')
 
         matrix_read = ir.MatrixRead(
-            resource('backward_compatability/1.0.0/matrix_table/0.hmt'), False, False)
+            ir.MatrixNativeReader(resource('backward_compatability/1.0.0/matrix_table/0.hmt')), False, False)
 
         range = ir.TableRange(10, 4)
         table_irs = [
@@ -131,9 +145,8 @@ class TableIRTests(unittest.TestCase):
             ir.TableMapRows(
                 ir.TableKeyBy(table_read, []),
                 ir.MakeStruct([
-                    ('a', ir.GetField(ir.Ref('row', table_read_row_type), 'f32')),
-                    ('b', ir.F64(-2.11))]),
-                None),
+                    ('a', ir.GetField(ir.Ref('row'), 'f32')),
+                    ('b', ir.F64(-2.11))])),
             ir.TableMapGlobals(
                 table_read,
                 ir.MakeStruct([
@@ -146,39 +159,53 @@ class TableIRTests(unittest.TestCase):
             ir.TableHead(table_read, 10),
             ir.TableOrderBy(ir.TableKeyBy(table_read, []), [('m', 'A'), ('m', 'D')]),
             ir.TableDistinct(table_read),
-            ir.LocalizeEntries(matrix_read, '__entries'),
-            ir.TableRename(table_read, {'idx': 'idx_foo'}, {'global_f32': 'global_foo'})
+            ir.CastMatrixToTable(matrix_read, '__entries', '__cols'),
+            ir.TableRename(table_read, {'idx': 'idx_foo'}, {'global_f32': 'global_foo'}),
+            ir.TableMultiWayZipJoin([table_read, table_read], '__data', '__globals'),
         ]
 
         return table_irs
 
     def test_parses(self):
         for x in self.table_irs():
-            Env.hail().expr.Parser.parse_table_ir(str(x))
+            Env.hail().expr.ir.IRParser.parse_table_ir(str(x))
 
     def test_matrix_ir_parses(self):
+        hl.index_bgen(resource('example.8bits.bgen'),
+                      reference_genome=hail.get_reference('GRCh37'),
+                      contig_recoding={'01': '1'})
+
+        collect = ir.MakeStruct([('x', ir.ApplyAggOp('Collect', [], None, [ir.I32(0)]))])
+
         matrix_read = ir.MatrixRead(
-            resource('backward_compatability/1.0.0/matrix_table/0.hmt'), False, False)
+            ir.MatrixNativeReader(resource('backward_compatability/1.0.0/matrix_table/0.hmt')), False, False)
         table_read = ir.TableRead(resource('backward_compatability/1.0.0/table/0.ht'), False, None)
+
+        matrix_range = ir.MatrixRead(ir.MatrixRangeReader(1, 1, 10))
+
         matrix_irs = [
-            ir.MatrixUnionRows(ir.MatrixRange(5, 5, 1), ir.MatrixRange(5, 5, 1)),
-            ir.UnlocalizeEntries(
-                ir.LocalizeEntries(matrix_read, '__entries'),
-                ir.MatrixColsTable(matrix_read),
-                '__entries'),
-            ir.MatrixAggregateRowsByKey(matrix_read, ir.MakeStruct([('x', ir.I32(2))])),
-            ir.MatrixAggregateColsByKey(matrix_read, ir.MakeStruct([('x', ir.I32(2))])),
-            ir.MatrixRange(1, 1, 10),
-            ir.MatrixImportVCF([resource('sample.vcf')], False, False, None, None, False, ['GT'],
-                               hail.get_reference('GRCh37'), {}, True, False),
-            ir.MatrixImportBGEN([resource('example.8bits.bgen')], ['GP'], resource('example.sample'), 10, 1,
-                                hail.get_reference('GRCh37'), {}, False, ['varid'], {}),
+            ir.MatrixRepartition(matrix_range, 100, True),
+            ir.MatrixUnionRows(matrix_range, matrix_range),
+            ir.MatrixDistinctByRow(matrix_range),
+            ir.CastTableToMatrix(
+                ir.CastMatrixToTable(matrix_read, '__entries', '__cols'),
+                '__entries',
+                '__cols',
+                []),
+            ir.MatrixAggregateRowsByKey(matrix_read, collect, collect),
+            ir.MatrixAggregateColsByKey(matrix_read, collect, collect),
+            matrix_read,
+            matrix_range,
+            ir.MatrixRead(ir.MatrixVCFReader(resource('sample.vcf'), ['GT'], None, None, None, None,
+                                             False, True, False, True, None)),
+            ir.MatrixRead(ir.MatrixBGENReader(resource('example.8bits.bgen'), None, {}, 10, 1, None)),
             ir.MatrixFilterRows(matrix_read, ir.FalseIR()),
             ir.MatrixFilterCols(matrix_read, ir.FalseIR()),
             ir.MatrixFilterEntries(matrix_read, ir.FalseIR()),
             ir.MatrixChooseCols(matrix_read, [1, 0]),
             ir.MatrixMapCols(matrix_read, ir.MakeStruct([('x', ir.I64(20))]), ['x']),
-            ir.MatrixMapRows(matrix_read, ir.MakeStruct([('x', ir.I64(20))]), (['x'], [])),
+            ir.MatrixKeyRowsBy(matrix_read, ['row_i64'], False),
+            ir.MatrixMapRows(ir.MatrixKeyRowsBy(matrix_read, []), ir.MakeStruct([('x', ir.I64(20))])),
             ir.MatrixMapEntries(matrix_read, ir.MakeStruct([('x', ir.I64(20))])),
             ir.MatrixMapGlobals(matrix_read, ir.MakeStruct([('x', ir.I64(20))])),
             ir.TableToMatrixTable(table_read, ['f32', 'i64'], ['m', 'astruct'], ['aset'], ['mset'], 100),
@@ -191,7 +218,7 @@ class TableIRTests(unittest.TestCase):
 
         for x in matrix_irs:
             try:
-                Env.hail().expr.Parser.parse_matrix_ir(str(x))
+                Env.hail().expr.ir.IRParser.parse_matrix_ir(str(x))
             except Exception as e:
                 raise ValueError(str(x)) from e
 
@@ -222,7 +249,7 @@ class ValueTests(unittest.TestCase):
             map_globals_ir = ir.TableMapGlobals(
                 ir.TableRange(1, 1),
                 ir.InsertFields(
-                    ir.Ref("global", hl.tstruct()),
+                    ir.Ref("global"),
                     [("foo", row_v)]))
-            new_globals = hl.Table._from_ir(map_globals_ir).globals.value
+            new_globals = hl.eval(hl.Table(map_globals_ir).globals)
             self.assertEquals(new_globals, hl.Struct(foo=v))

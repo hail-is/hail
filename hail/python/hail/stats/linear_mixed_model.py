@@ -2,12 +2,13 @@ import numpy as np
 import pandas as pd
 
 import hail as hl
-from hail.utils.misc import plural
-from hail.typecheck import *
-from hail.utils.java import Env, jnone, jsome, info
-from hail.table import Table
 from hail.linalg import BlockMatrix
 from hail.linalg.utils import _check_dims
+from hail.table import Table
+from hail.typecheck import *
+from hail.utils.java import Env, jnone, jsome, info
+from hail.utils.misc import plural
+
 
 class LinearMixedModel(object):
     r"""Class representing a linear mixed model.
@@ -499,7 +500,7 @@ class LinearMixedModel(object):
         except LinAlgError as e:
             raise Exception(f'linear algebra error while solving for REML estimate') from e
 
-    @typecheck_method(log_gamma=nullable(float), bounds=tupleof(numeric), tol=float, maxiter=int)
+    @typecheck_method(log_gamma=nullable(numeric), bounds=tupleof(numeric), tol=float, maxiter=int)
     def fit(self, log_gamma=None, bounds=(-8.0, 8.0), tol=1e-8, maxiter=500):
         r"""Find the triple :math:`(\beta, \sigma^2, \tau^2)` maximizing REML.
 
@@ -740,7 +741,7 @@ class LinearMixedModel(object):
             maybe_ja_t = jsome(
                 Env.hail().linalg.RowMatrix.readBlockMatrix(Env.hc()._jhc, a_t_path, jsome(partition_size)))
 
-        return Table(self._scala_model.fit(jpa_t, maybe_ja_t))
+        return Table._from_java(self._scala_model.fit(jpa_t, maybe_ja_t))
 
     @typecheck_method(pa=np.ndarray, a=nullable(np.ndarray), return_pandas=bool)
     def fit_alternatives_numpy(self, pa, a=None, return_pandas=False):
@@ -874,10 +875,10 @@ class LinearMixedModel(object):
         ...               [ 0.94512946, -0.97320323,  0.98294169,  1.        ]])
         >>> model, p = LinearMixedModel.from_kinship(y, x, k)
         >>> model.fit()
-        >>> model.h_sq
+        >>> model.h_sq  # doctest: +NOTEST
         0.2525148830695317
 
-        >>> model.s
+        >>> model.s  # doctest: +NOTEST
         array([3.83501295, 0.13540343, 0.02454114, 0.00504248])
 
         Truncate to a rank :math:`r=2` model:
@@ -887,7 +888,7 @@ class LinearMixedModel(object):
         >>> p_r = p[:r, :]
         >>> model_r = LinearMixedModel(p_r @ y, p_r @ x, s_r, y, x)
         >>> model.fit()
-        >>> model.h_sq
+        >>> model.h_sq  # doctest: +NOTEST
         0.25193197591429695
 
         Notes
@@ -982,7 +983,7 @@ class LinearMixedModel(object):
         ...               [2.0, 4.0, 8.0]])
         >>> model, p = LinearMixedModel.from_random_effects(y, x, z)
         >>> model.fit()
-        >>> model.h_sq
+        >>> model.h_sq  # doctest: +NOTEST
         0.38205307244271675
 
         Notes
@@ -1105,7 +1106,7 @@ class LinearMixedModel(object):
             else:
                 BlockMatrix.from_numpy(p).write(p_path, overwrite=overwrite)
         if p_is_bm:
-            py, px = (p @ y).to_numpy(), (p @ x).to_numpy()
+            py, px = (p @ y.reshape(n, 1)).to_numpy().flatten(), (p @ x).to_numpy()
         else:
             py, px = p @ y, p @ x
 
@@ -1150,3 +1151,4 @@ class LinearMixedModel(object):
             print(f'different p_path:\n{self.p_path}\n{other.p_path}')
             same = False
         return same
+

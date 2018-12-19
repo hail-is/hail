@@ -6,7 +6,7 @@ import is.hail.asm4s.FunctionBuilder
 import is.hail.check.Prop._
 import is.hail.check.Properties
 import is.hail.expr.ir.EmitFunctionBuilder
-import is.hail.expr.types.{TInterval, TLocus, TStruct}
+import is.hail.expr.types.virtual.{TLocus, TStruct}
 import is.hail.io.reference.FASTAReader
 import is.hail.table.Table
 import is.hail.utils.{HailException, Interval, SerializableHadoopConfiguration}
@@ -216,9 +216,9 @@ class ReferenceGenomeSuite extends SparkSuite {
 
     grch37.addLiftover(hc, liftoverFile, "GRCh38")
 
-    val fb = EmitFunctionBuilder[String, Locus, Double, Locus]
+    val fb = EmitFunctionBuilder[String, Locus, Double, (Locus, Boolean)]
     val rgfield = fb.newLazyField(grch37.codeSetup(fb))
-    fb.emit(rgfield.invoke[String, Locus, Double, Locus]("liftoverLocus", fb.getArg[String](1), fb.getArg[Locus](2), fb.getArg[Double](3)))
+    fb.emit(rgfield.invoke[String, Locus, Double, (Locus, Boolean)]("liftoverLocus", fb.getArg[String](1), fb.getArg[Locus](2), fb.getArg[Double](3)))
 
     val f = fb.resultWithIndex()(0)
     assert(f("GRCh38", Locus("20", 60001), 0.95) == grch37.liftoverLocus("GRCh38", Locus("20", 60001), 0.95))

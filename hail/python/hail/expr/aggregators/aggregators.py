@@ -19,28 +19,12 @@ class AggregableChecker(TypeChecker):
         return self.coercer.expects()
 
     def format(self, arg):
-        if isinstance(arg, Aggregable):
-            return f'<aggregable Expression of type {repr(arg.dtype)}>'
-        else:
-            return self.coercer.format(arg)
+        return self.coercer.format(arg)
 
     def check(self, x, caller, param):
-        coercer = self.coercer
-        if isinstance(x, Aggregable):
-            if coercer.can_coerce(x.dtype):
-                if coercer.requires_conversion(x.dtype):
-                    return x._map(lambda x_: coercer.coerce(x_))
-                else:
-                    return x
-            else:
-                raise TypecheckFailure
-        else:
-            x = coercer.check(x, caller, param)
-            return _to_agg(x)
-
-
-def _to_agg(x):
-    return Aggregable(x._ir, x._type, x._indices, x._aggregations)
+        x = self.coercer.check(x, caller, param)
+        assert(len(x._ir.search(lambda node: isinstance(node, BaseApplyAggOp))) != 0)
+        return x
 
 
 agg_expr = AggregableChecker
@@ -49,124 +33,135 @@ agg_expr = AggregableChecker
 class AggFunc(object):
     def __init__(self):
         self._as_scan = False
+        self._agg_bindings = set()
 
-    @typecheck_method(name=str,
-                      aggregable=Aggregable,
+    def correct_prefix(self):
+        return "scan" if self._as_scan else "agg"
+
+    def incorrect_prefix(self):
+        return "agg" if self._as_scan else "scan"
+
+    def correct_plural(self):
+        return "scans" if self._as_scan else "aggregations"
+
+    def incorrect_plural(self):
+        return "aggregations" if self._as_scan else "scans"
+
+    def check_scan_agg_compatibility(self, caller, node):
+        if self._as_scan != isinstance(node, ApplyScanOp):
+            raise ExpressionException(
+                "'{correct}.{caller}' cannot contain {incorrect}"
+                    .format(correct=self.correct_prefix(),
+                            caller=caller,
+                            incorrect=self.incorrect_plural()))
+
+    @typecheck_method(agg_op=str,
+                      seq_op_args=sequenceof(expr_any),
                       ret_type=hail_type,
                       constructor_args=sequenceof(expr_any),
-                      init_op_args=nullable(sequenceof(expr_any)),
-                      seq_op_args=nullable(sequenceof(oneof(expr_any, func_spec(1, expr_any)))))
-    def __call__(self, name, aggregable, ret_type, constructor_args=(), init_op_args=None, seq_op_args=None):
+                      init_op_args=nullable(sequenceof(expr_any)))
+    def __call__(self, agg_op, seq_op_args, ret_type, constructor_args=(), init_op_args=None):
         args = constructor_args if init_op_args is None else constructor_args + init_op_args
-        if seq_op_args is None:
-            seq_op_args = [lambda x: x]
-        indices, aggregations = unify_all(aggregable, *args)
+        indices, aggregations = unify_all(*seq_op_args, *args)
         if aggregations:
             raise ExpressionException('Cannot aggregate an already-aggregated expression')
-        for a in args:
-            _check_agg_bindings(a)
-        _check_agg_bindings(aggregable)
-
-        uid = Env.get_uid()
-
-        def get_type(expr):
-            return expr.dtype
-
-        def get_ir(expr):
-            return expr._ir
-
-        def apply_seq_ops(seq_op_args, agg):
-            ref = construct_variable(uid, get_type(agg), agg._indices)
-            return [x(ref) if callable(x) else x for x in seq_op_args]
-
-        def agg_sig(applied_seq_ops):
-            return AggSignature(name,
-                                list(map(get_type, constructor_args)),
-                                None if init_op_args is None else list(map(get_type, init_op_args)),
-                                list(map(get_type, applied_seq_ops)))
-
-        def make_seq_op(agg):
-            applied_seq_ops = apply_seq_ops(seq_op_args, agg)
-            return construct_expr(
-                Let(uid, get_ir(agg), SeqOp(I32(0), [get_ir(x) for x in applied_seq_ops], agg_sig(applied_seq_ops))), None)
-
-        seq_op = aggregable._transformations(aggregable, make_seq_op)
-        applied_seq_ops = apply_seq_ops(seq_op_args, aggregable)
-        signature = agg_sig(applied_seq_ops)
+        for a in seq_op_args + args:
+            _check_agg_bindings(a, self._agg_bindings)
 
         if self._as_scan:
-            ir = ApplyScanOp(seq_op._ir,
-                             list(map(get_ir, constructor_args)),
-                             None if init_op_args is None else list(map(get_ir, init_op_args)),
-                             signature)
+            ir = ApplyScanOp(agg_op,
+                             [expr._ir for expr in constructor_args],
+                             None if init_op_args is None else [expr._ir for expr in init_op_args],
+                             [expr._ir for expr in seq_op_args])
             aggs = aggregations
         else:
-            ir = ApplyAggOp(seq_op._ir,
-                            list(map(get_ir, constructor_args)),
-                            None if init_op_args is None else list(map(get_ir, init_op_args)),
-                            signature)
-            aggs = aggregations.push(Aggregation(aggregable, *args))
+            ir = ApplyAggOp(agg_op,
+                            [expr._ir for expr in constructor_args],
+                            None if init_op_args is None else [expr._ir for expr in init_op_args],
+                            [expr._ir for expr in seq_op_args])
+            aggs = aggregations.push(Aggregation(*seq_op_args, *args))
         return construct_expr(ir, ret_type, Indices(indices.source, set()), aggs)
 
-    def _group_by(self, group, agg_expr):
-        if group._aggregations:
-            raise ExpressionException("'group_by' does not support an already-aggregated expression as the argument to 'group'")
+    @typecheck_method(f=func_spec(1, expr_any),
+                      array_agg_expr=expr_oneof(expr_array(), expr_set()))
+    def explode(self, f, array_agg_expr):
+        if len(array_agg_expr._ir.search(lambda n: isinstance(n, BaseApplyAggOp))) != 0:
+            raise ExpressionException("'{}.explode' does not support an already-aggregated expression as the argument to 'collection'".format(self.correct_prefix()))
+        _check_agg_bindings(array_agg_expr, self._agg_bindings)
 
-        if isinstance(agg_expr._ir, ApplyScanOp):
-            if not self._as_scan:
-                raise TypeError("'agg.group_by' requires a non-scan aggregation expression (agg.*) as the argument to 'agg_expr'")
-        elif isinstance(agg_expr._ir, ApplyAggOp):
-            if self._as_scan:
-                raise TypeError("'scan.group_by' requires a scan aggregation expression (scan.*) as the argument to 'agg_expr'")
-        elif not isinstance(agg_expr._ir, ApplyAggOp) and not isinstance(agg_expr._ir, ApplyScanOp):
-            raise TypeError("'group_by' requires an aggregation expression as the argument to 'agg_expr'")
+        if isinstance(array_agg_expr.dtype, tset):
+            array_agg_expr = hl.array(array_agg_expr)
+        elt = array_agg_expr.dtype.element_type
+        var = Env.get_uid()
+        ref = construct_expr(Ref(var), elt, array_agg_expr._indices)
+        self._agg_bindings.add(var)
+        aggregated = f(ref)
+        _check_agg_bindings(aggregated, self._agg_bindings)
+        self._agg_bindings.remove(var)
 
-        ir = agg_expr._ir
-        agg_sig = ir.agg_sig
-        a = ir.a
+        if len(aggregated._ir.search(lambda n: isinstance(n, BaseApplyAggOp))) == 0:
+            raise ExpressionException("'{}.explode' must take mapping that contains aggregation expression.".format(self.correct_prefix()))
 
-        new_agg_sig = AggSignature(f'Keyed({agg_sig.op})',
-                                    agg_sig.ctor_arg_types,
-                                    agg_sig.initop_arg_types,
-                                    [group.dtype] + agg_sig.seqop_arg_types)
+        indices, _ = unify_all(array_agg_expr, aggregated)
+        aggregations = hl.utils.LinkedList(Aggregation)
+        if not self._as_scan:
+            aggregations = aggregations.push(Aggregation(array_agg_expr, aggregated))
+        return construct_expr(AggExplode(array_agg_expr._ir, var, aggregated._ir),
+                              aggregated.dtype,
+                              aggregated._indices,
+                              aggregations)
 
-        def rewrite_a(ir):
-            if isinstance(ir, SeqOp):
-                return SeqOp(ir.i, [group._ir] + ir.args, new_agg_sig)
-            else:
-                return ir.map_ir(rewrite_a)
+    @typecheck_method(condition=expr_bool,
+                      aggregation=agg_expr(expr_any))
+    def filter(self, condition, aggregation):
+        if len(condition._ir.search(lambda n: isinstance(n, BaseApplyAggOp))) != 0:
+            raise ExpressionException("'agg.filter' does not support an already-aggregated expression as the argument to 'condition'")
+        if len(aggregation._ir.search(lambda n: isinstance(n, BaseApplyAggOp))) == 0:
+            raise ExpressionException("'{}.filter' must have aggregation in argument to 'aggregation'".format(self.correct_prefix()))
 
-        new_a = rewrite_a(a)
+        _check_agg_bindings(condition, self._agg_bindings)
+        _check_agg_bindings(aggregation, self._agg_bindings)
+        unify_all(condition, aggregation)
 
-        if isinstance(agg_expr._ir, ApplyAggOp):
-            ir = ApplyAggOp(new_a,
-                            ir.constructor_args,
-                            ir.init_op_args,
-                            new_agg_sig)
-        else:
-            assert isinstance(agg_expr._ir, ApplyScanOp)
-            ir = ApplyScanOp(new_a,
-                             ir.constructor_args,
-                             ir.init_op_args,
-                             new_agg_sig)
+        aggregations = hl.utils.LinkedList(Aggregation)
+        if not self._as_scan:
+            aggregations = aggregations.push(Aggregation(condition, aggregation))
+        return construct_expr(AggFilter(condition._ir, aggregation._ir),
+                              aggregation.dtype,
+                              aggregation._indices,
+                              aggregations)
 
-        return construct_expr(ir,
-                              hl.tdict(group.dtype, agg_expr.dtype),
-                              agg_expr._indices,
-                              agg_expr._aggregations)
+    def group_by(self, group, aggregation):
+        if len(group._ir.search(lambda n: isinstance(n, BaseApplyAggOp))) != 0:
+            raise ExpressionException("'{}.group_by' does not support an already-aggregated expression as the argument to 'group'".format(self.correct_prefix()))
+        if len(aggregation._ir.search(lambda n: isinstance(n, BaseApplyAggOp))) == 0:
+            raise ExpressionException("'{}.group_by' must have aggregation in argument to 'aggregation'".format(self.correct_prefix()))
+
+        _check_agg_bindings(group, self._agg_bindings)
+        _check_agg_bindings(aggregation, self._agg_bindings)
+        unify_all(group, aggregation)
+
+        aggregations = hl.utils.LinkedList(Aggregation)
+        if not self._as_scan:
+            aggregations = aggregations.push(Aggregation(aggregation))
+
+        return construct_expr(AggGroupBy(group._ir, aggregation._ir),
+                              tdict(group.dtype, aggregation.dtype),
+                              aggregation._indices,
+                              aggregations)
 
 
 _agg_func = AggFunc()
 
 
-def _check_agg_bindings(expr):
+def _check_agg_bindings(expr, bindings):
     bound_references = {ref.name for ref in expr._ir.search(lambda ir: isinstance(ir, Ref) and not isinstance(ir, TopLevelReference))}
-    free_variables = bound_references - expr._ir.bound_variables
+    free_variables = bound_references - expr._ir.bound_variables - bindings
     if free_variables:
         raise ExpressionException("dynamic variables created by 'hl.bind' or lambda methods like 'hl.map' may not be aggregated")
 
 
-@typecheck(expr=agg_expr(expr_any))
+@typecheck(expr=expr_any)
 def collect(expr) -> ArrayExpression:
     """Collect records into an array.
 
@@ -174,7 +169,7 @@ def collect(expr) -> ArrayExpression:
     --------
     Collect the `ID` field where `HT` is greater than 68:
 
-    >>> table1.aggregate(agg.collect(agg.filter(table1.HT > 68, table1.ID)))
+    >>> table1.aggregate(agg.filter(table1.HT > 68, agg.collect(table1.ID)))
     [2, 3]
 
     Notes
@@ -198,10 +193,10 @@ def collect(expr) -> ArrayExpression:
     :class:`.ArrayExpression`
         Array of all `expr` records.
     """
-    return _agg_func('Collect', expr, tarray(expr.dtype))
+    return _agg_func('Collect', [expr], tarray(expr.dtype))
 
 
-@typecheck(expr=agg_expr(expr_any))
+@typecheck(expr=expr_any)
 def collect_as_set(expr) -> SetExpression:
     """Collect records into a set.
 
@@ -209,8 +204,8 @@ def collect_as_set(expr) -> SetExpression:
     --------
     Collect the unique `ID` field where `HT` is greater than 68:
 
-    >>> table1.aggregate(agg.collect_as_set(agg.filter(table1.HT > 68, table1.ID)))
-    set([2, 3]
+    >>> table1.aggregate(agg.filter(table1.HT > 68, agg.collect_as_set(table1.ID)))
+    {2, 3}
 
     Warning
     -------
@@ -226,11 +221,11 @@ def collect_as_set(expr) -> SetExpression:
     :class:`.SetExpression`
         Set of unique `expr` records.
     """
-    return _agg_func('CollectAsSet', expr, tset(expr.dtype))
+    return _agg_func('CollectAsSet', [expr], tset(expr.dtype))
 
 
-@typecheck(expr=nullable(agg_expr(expr_any)))
-def count(expr=None) -> Int64Expression:
+@typecheck()
+def count() -> Int64Expression:
     """Count the number of records.
 
     Examples
@@ -245,31 +240,16 @@ def count(expr=None) -> Int64Expression:
     +-----+-------+
     | str | int64 |
     +-----+-------+
-    | M   |     2 |
-    | F   |     2 |
+    | "F" |     2 |
+    | "M" |     2 |
     +-----+-------+
-
-    Notes
-    -----
-    If `expr` is not provided, then this method will count the number of
-    records aggregated. If `expr` is provided, then the result should
-    make use of :meth:`filter` or :meth:`explode` so that the number of
-    records aggregated changes.
-
-    Parameters
-    ----------
-    expr : :class:`.Expression`, or :obj:`None`
-        Expression to count.
 
     Returns
     -------
     :class:`.Expression` of type :py:data:`.tint64`
         Total number of records.
     """
-    if expr is not None:
-        return _agg_func('Count', expr, tint64, seq_op_args=())
-    else:
-        return _agg_func('Count', _to_agg(hl.int32(0)), tint64, seq_op_args=())
+    return _agg_func('Count', [], tint64)
 
 
 @typecheck(condition=expr_bool)
@@ -295,10 +275,10 @@ def count_where(condition) -> Int64Expression:
         Total number of records where `condition` is ``True``.
     """
 
-    return _agg_func('Count', filter(condition, 0), tint64, seq_op_args=())
+    return _agg_func('Sum', [hl.int64(condition)], tint64)
 
 
-@typecheck(condition=agg_expr(expr_bool))
+@typecheck(condition=expr_bool)
 def any(condition) -> BooleanExpression:
     """Returns ``True`` if `condition` is ``True`` for any record.
 
@@ -313,8 +293,8 @@ def any(condition) -> BooleanExpression:
     +-----+-------------+
     | str | bool        |
     +-----+-------------+
-    | M   | true        |
-    | F   | false       |
+    | "F" | false       |
+    | "M" | true        |
     +-----+-------------+
 
     Notes
@@ -333,10 +313,10 @@ def any(condition) -> BooleanExpression:
     -------
     :class:`.BooleanExpression`
     """
-    return count(filter(lambda x: x, condition)) > 0
+    return count_where(condition) > 0
 
 
-@typecheck(condition=agg_expr(expr_bool))
+@typecheck(condition=expr_bool)
 def all(condition) -> BooleanExpression:
     """Returns ``True`` if `condition` is ``True`` for every record.
 
@@ -351,8 +331,8 @@ def all(condition) -> BooleanExpression:
     +-----+--------------+
     | str | bool         |
     +-----+--------------+
-    | M   | false        |
-    | F   | false        |
+    | "F" | false        |
+    | "M" | false        |
     +-----+--------------+
 
     Notes
@@ -371,12 +351,10 @@ def all(condition) -> BooleanExpression:
     -------
     :class:`.BooleanExpression`
     """
-    n_defined = count(filter(lambda x: hl.is_defined(x), condition))
-    n_true = count(filter(lambda x: hl.is_defined(x) & x, condition))
-    return n_defined == n_true
+    return count_where(~condition) == 0
 
 
-@typecheck(expr=agg_expr(expr_any))
+@typecheck(expr=expr_any)
 def counter(expr) -> DictExpression:
     """Count the occurrences of each unique record and return a dictionary.
 
@@ -384,7 +362,7 @@ def counter(expr) -> DictExpression:
     --------
     Count the number of individuals for each unique `SEX` value:
 
-    >>> table1.aggregate(agg.counter(table1.SEX))
+    >>> table1.aggregate(agg.counter(table1.SEX))  # doctest: +NOTEST
     {'M': 2L, 'F': 2L}
 
     Notes
@@ -411,10 +389,10 @@ def counter(expr) -> DictExpression:
     :class:`.DictExpression`
         Dictionary with the number of occurrences of each unique record.
     """
-    return _agg_func('Counter', expr, tdict(expr.dtype, tint64))
+    return _agg_func('Counter', [expr], tdict(expr.dtype, tint64))
 
 
-@typecheck(expr=agg_expr(expr_any),
+@typecheck(expr=expr_any,
            n=int,
            ordering=nullable(oneof(expr_any, func_spec(1, expr_any))))
 def take(expr, n, ordering=None) -> ArrayExpression:
@@ -471,12 +449,12 @@ def take(expr, n, ordering=None) -> ArrayExpression:
     """
     n = to_expr(n)
     if ordering is None:
-        return _agg_func('Take', expr, tarray(expr.dtype), [n])
+        return _agg_func('Take', [expr], tarray(expr.dtype), [n])
     else:
-        return _agg_func('TakeBy', expr, tarray(expr.dtype), [n], seq_op_args=[lambda expr: expr, ordering])
+        return _agg_func('TakeBy', [expr, ordering], tarray(expr.dtype), [n])
 
 
-@typecheck(expr=agg_expr(expr_numeric))
+@typecheck(expr=expr_numeric)
 def min(expr) -> NumericExpression:
     """Compute the minimum `expr`.
 
@@ -485,7 +463,7 @@ def min(expr) -> NumericExpression:
     Compute the minimum value of `HT`:
 
     >>> table1.aggregate(agg.min(table1.HT))
-    min_ht=60
+    60
 
     Notes
     -----
@@ -502,10 +480,10 @@ def min(expr) -> NumericExpression:
     :class:`.NumericExpression`
         Minimum value of all `expr` records, same type as `expr`.
     """
-    return _agg_func('Min', expr, expr.dtype)
+    return _agg_func('Min', [expr], expr.dtype)
 
 
-@typecheck(expr=agg_expr(expr_numeric))
+@typecheck(expr=expr_numeric)
 def max(expr) -> NumericExpression:
     """Compute the maximum `expr`.
 
@@ -514,7 +492,7 @@ def max(expr) -> NumericExpression:
     Compute the maximum value of `HT`:
 
     >>> table1.aggregate(agg.max(table1.HT))
-    max_ht=72
+    72
 
     Notes
     -----
@@ -531,10 +509,10 @@ def max(expr) -> NumericExpression:
     :class:`.NumericExpression`
         Maximum value of all `expr` records, same type as `expr`.
     """
-    return _agg_func('Max', expr, expr.dtype)
+    return _agg_func('Max', [expr], expr.dtype)
 
 
-@typecheck(expr=agg_expr(expr_oneof(expr_int64, expr_float64)))
+@typecheck(expr=expr_oneof(expr_int64, expr_float64))
 def sum(expr):
     """Compute the sum of all records of `expr`.
 
@@ -569,10 +547,10 @@ def sum(expr):
     :class:`.Expression` of type :py:data:`.tint64` or :py:data:`.tfloat64`
         Sum of records of `expr`.
     """
-    return _agg_func('Sum', expr, expr.dtype)
+    return _agg_func('Sum', [expr], expr.dtype)
 
 
-@typecheck(expr=agg_expr(expr_array(expr_oneof(expr_int64, expr_float64))))
+@typecheck(expr=expr_array(expr_oneof(expr_int64, expr_float64)))
 def array_sum(expr) -> ArrayExpression:
     """Compute the coordinate-wise sum of all records of `expr`.
 
@@ -581,7 +559,7 @@ def array_sum(expr) -> ArrayExpression:
     Compute the sum of `C1` and `C2`:
 
     >>> table1.aggregate(agg.array_sum([table1.C1, table1.C2]))
-    [25, 46]
+    [25, 282]
 
     Notes
     ------
@@ -596,10 +574,10 @@ def array_sum(expr) -> ArrayExpression:
     -------
     :class:`.ArrayExpression` with element type :py:data:`.tint64` or :py:data:`.tfloat64`
     """
-    return _agg_func('Sum', expr, expr.dtype)
+    return _agg_func('Sum', [expr], expr.dtype)
 
 
-@typecheck(expr=agg_expr(expr_float64))
+@typecheck(expr=expr_float64)
 def mean(expr) -> Float64Expression:
     """Compute the mean value of records of `expr`.
 
@@ -624,10 +602,10 @@ def mean(expr) -> Float64Expression:
     :class:`.Expression` of type :py:data:`.tfloat64`
         Mean value of records of `expr`.
     """
-    return sum(expr)/count(filter(lambda x: hl.is_defined(x), expr))
+    return sum(expr)/count_where(hl.is_defined(expr))
 
 
-@typecheck(expr=agg_expr(expr_float64))
+@typecheck(expr=expr_float64)
 def stats(expr) -> StructExpression:
     """Compute a number of useful statistics about `expr`.
 
@@ -636,7 +614,7 @@ def stats(expr) -> StructExpression:
     Compute statistics about field `HT`:
 
     >>> table1.aggregate(agg.stats(table1.HT))
-    Struct(min=60.0, max=72.0, sum=267.0, stdev=4.65698400255, n=4, mean=66.75)
+    Struct(mean=66.75, stdev=4.656984002549289, min=60.0, max=72.0, n=4, sum=267.0)
 
     Notes
     -----
@@ -660,15 +638,15 @@ def stats(expr) -> StructExpression:
         Struct expression with fields `mean`, `stdev`, `min`, `max`,
         `n`, and `sum`.
     """
-    return _agg_func('Statistics', expr, tstruct(mean=tfloat64,
-                                                 stdev=tfloat64,
-                                                 min=tfloat64,
-                                                 max=tfloat64,
-                                                 n=tint64,
-                                                 sum=tfloat64))
+    return _agg_func('Statistics', [expr], tstruct(mean=tfloat64,
+                                                   stdev=tfloat64,
+                                                   min=tfloat64,
+                                                   max=tfloat64,
+                                                   n=tint64,
+                                                   sum=tfloat64))
 
 
-@typecheck(expr=agg_expr(expr_oneof(expr_int64, expr_float64)))
+@typecheck(expr=expr_oneof(expr_int64, expr_float64))
 def product(expr):
     """Compute the product of all records of `expr`.
 
@@ -704,9 +682,10 @@ def product(expr):
         Product of records of `expr`.
     """
 
-    return _agg_func('Product', expr, expr.dtype)
+    return _agg_func('Product', [expr], expr.dtype)
 
-@typecheck(predicate=agg_expr(expr_bool))
+
+@typecheck(predicate=expr_bool)
 def fraction(predicate) -> Float64Expression:
     """Compute the fraction of records where `predicate` is ``True``.
 
@@ -731,10 +710,10 @@ def fraction(predicate) -> Float64Expression:
     :class:`.Expression` of type :py:data:`.tfloat64`
         Fraction of records where `predicate` is ``True``.
     """
-    return _agg_func("Fraction", predicate, tfloat64)
+    return _agg_func("Fraction", [predicate], tfloat64)
 
 
-@typecheck(expr=agg_expr(expr_call))
+@typecheck(expr=expr_call)
 def hardy_weinberg_test(expr) -> StructExpression:
     """Performs test of Hardy-Weinberg equilibrium.
 
@@ -747,7 +726,8 @@ def hardy_weinberg_test(expr) -> StructExpression:
     Test each row on a sub-population:
 
     >>> dataset_result = dataset.annotate_rows(
-    ...     hwe_eas = agg.hardy_weinberg_test(agg.filter(dataset.pop == 'EAS', dataset.GT)))
+    ...     hwe_eas = agg.filter(dataset.pop == 'EAS',
+    ...                          agg.hardy_weinberg_test(dataset.GT)))
 
     Notes
     -----
@@ -785,64 +765,54 @@ def hardy_weinberg_test(expr) -> StructExpression:
         Struct expression with fields `het_freq_hwe` and `p_value`.
     """
     t = tstruct(het_freq_hwe=tfloat64, p_value=tfloat64)
-    return _agg_func('HardyWeinberg', expr, t)
+    return _agg_func('HardyWeinberg', [expr], t)
 
 
-@typecheck(expr=agg_expr(expr_oneof(expr_array(), expr_set())))
-def explode(expr) -> Aggregable:
+@typecheck(f=func_spec(1, agg_expr(expr_any)), array_agg_expr=expr_oneof(expr_array(), expr_set()))
+def explode(f, array_agg_expr) -> Expression:
     """Explode an array or set expression to aggregate the elements of all records.
 
     Examples
     --------
     Compute the mean of all elements in fields `C1`, `C2`, and `C3`:
 
-    >>> table1.aggregate(agg.mean(agg.explode([table1.C1, table1.C2, table1.C3])))
-    24.8333333333
+    >>> table1.aggregate(agg.explode(lambda elt: agg.mean(elt), [table1.C1, table1.C2, table1.C3]))
+    24.833333333333332
 
     Compute the set of all observed elements in the `filters` field (``Set[String]``):
 
-    >>> dataset.aggregate_rows(agg.collect_as_set(agg.explode(dataset.filters)))
-    set([u'VQSRTrancheSNP99.80to99.90',
-         u'VQSRTrancheINDEL99.95to100.00',
-         u'VQSRTrancheINDEL99.00to99.50',
-         u'VQSRTrancheINDEL97.00to99.00',
-         u'VQSRTrancheSNP99.95to100.00',
-         u'VQSRTrancheSNP99.60to99.80',
-         u'VQSRTrancheINDEL99.50to99.90',
-         u'VQSRTrancheSNP99.90to99.95',
-         u'VQSRTrancheINDEL96.00to97.00']))
+    >>> dataset.aggregate_rows(agg.explode(lambda elt: agg.collect_as_set(elt), dataset.filters))
+    {'VQSRTrancheINDEL97.00to99.00'}
 
     Notes
     -----
     This method can be used with aggregator functions to aggregate the elements
     of collection types (:class:`.tarray` and :class:`.tset`).
 
-    The result of the :meth:`explode` and :meth:`filter` methods is an
-    :class:`.Aggregable` expression which can be used only in aggregator
-    methods.
-
     Parameters
     ----------
-    expr : :class:`.CollectionExpression`
+    f : Function from :class:`.Expression` to :class:`.Expression`
+        Aggregation function to apply to each element of the exploded array.
+    array_agg_expr : :class:`.CollectionExpression`
         Expression of type :class:`.tarray` or :class:`.tset`.
 
     Returns
     -------
-    :class:`.Aggregable`
-        Aggregable expression.
+    :class:`.Expression`
+        Aggregation expression.
     """
-    return expr._flatmap(identity)
+    return _agg_func.explode(f, array_agg_expr)
 
 
-@typecheck(condition=oneof(func_spec(1, expr_bool), expr_bool), expr=agg_expr(expr_any))
-def filter(condition, expr) -> Aggregable:
+@typecheck(condition=expr_bool, aggregation=agg_expr(expr_any))
+def filter(condition,  aggregation) -> Expression:
     """Filter records according to a predicate.
 
     Examples
     --------
     Collect the `ID` field where `HT` >= 70:
 
-    >>> table1.aggregate(agg.collect(agg.filter(table1.HT >= 70, table1.ID)))
+    >>> table1.aggregate(agg.filter(table1.HT >= 70, agg.collect(table1.ID)))
     [2, 3]
 
     Notes
@@ -850,16 +820,12 @@ def filter(condition, expr) -> Aggregable:
     This method can be used with aggregator functions to remove records from
     aggregation.
 
-    The result of the :meth:`explode` and :meth:`filter` methods is an
-    :class:`.Aggregable` expression which can be used only in aggregator
-    methods.
-
     Parameters
     ----------
-    condition : :class:`.BooleanExpression` or function ( (arg) -> :class:`.BooleanExpression`)
-        Filter expression, or a function to evaluate for each record.
-    expr : :class:`.Expression`
-        Expression to filter.
+    condition : :class:`.BooleanExpression`
+        Filter expression.
+    aggregation : :class:`.Expression`
+        Aggregation expression to filter.
 
     Returns
     -------
@@ -867,23 +833,10 @@ def filter(condition, expr) -> Aggregable:
         Aggregable expression.
     """
 
-    f = condition if callable(condition) else lambda x: condition
-    return expr._filter(f)
+    return _agg_func.filter(condition, aggregation)
 
 
-@typecheck(f=oneof(func_spec(1, expr_any), expr_any), expr=agg_expr(expr_any))
-def _map(f, expr) -> Aggregable:
-    f2 = f if callable(f) else lambda x: f
-    return expr._map(f2)
-
-
-@typecheck(f=oneof(func_spec(1, expr_array()), expr_array()), expr=agg_expr(expr_any))
-def _flatmap(f, expr) -> Aggregable:
-    f2 = f if callable(f) else lambda x: f
-    return expr._flatmap(f2)
-
-
-@typecheck(expr=agg_expr(expr_call), prior=expr_float64)
+@typecheck(expr=expr_call, prior=expr_float64)
 def inbreeding(expr, prior) -> StructExpression:
     """Compute inbreeding statistics on calls.
 
@@ -892,23 +845,24 @@ def inbreeding(expr, prior) -> StructExpression:
     Compute inbreeding statistics per column:
 
     >>> dataset_result = dataset.annotate_cols(IB = agg.inbreeding(dataset.GT, dataset.variant_qc.AF[1]))
-    >>> dataset_result.cols().show()
-    +----------------+--------------+-------------+------------------+------------------+
-    | s              |    IB.f_stat | IB.n_called | IB.expected_homs | IB.observed_homs |
-    +----------------+--------------+-------------+------------------+------------------+
-    | str            |      float64 |       int64 |          float64 |            int64 |
-    +----------------+--------------+-------------+------------------+------------------+
-    | C1046::HG02024 | -1.23867e-01 |         338 |      2.96180e+02 |              291 |
-    | C1046::HG02025 |  2.02944e-02 |         339 |      2.97151e+02 |              298 |
-    | C1046::HG02026 |  5.47269e-02 |         336 |      2.94742e+02 |              297 |
-    | C1047::HG00731 | -1.89046e-02 |         337 |      2.95779e+02 |              295 |
-    | C1047::HG00732 |  1.38718e-01 |         337 |      2.95202e+02 |              301 |
-    | C1047::HG00733 |  3.50684e-01 |         338 |      2.96418e+02 |              311 |
-    | C1048::HG02024 | -1.95603e-01 |         338 |      2.96180e+02 |              288 |
-    | C1048::HG02025 |  2.02944e-02 |         339 |      2.97151e+02 |              298 |
-    | C1048::HG02026 |  6.74296e-02 |         338 |      2.96180e+02 |              299 |
-    | C1049::HG00731 | -1.00467e-02 |         337 |      2.95418e+02 |              295 |
-    +----------------+--------------+-------------+------------------+------------------+
+    >>> dataset_result.IB.show()
+    +------------------+-----------+-------------+------------------+------------------+
+    | s                | IB.f_stat | IB.n_called | IB.expected_homs | IB.observed_homs |
+    +------------------+-----------+-------------+------------------+------------------+
+    | str              |   float64 |       int64 |          float64 |            int64 |
+    +------------------+-----------+-------------+------------------+------------------+
+    | "C1046::HG02024" |  3.88e-01 |          12 |         1.04e+01 |               11 |
+    | "C1046::HG02025" |  3.99e-01 |          13 |         1.13e+01 |               12 |
+    | "C1046::HG02026" |  3.88e-01 |          12 |         1.04e+01 |               11 |
+    | "C1047::HG00731" | -1.31e+00 |          12 |         1.07e+01 |                9 |
+    | "C1047::HG00732" |  1.00e+00 |          12 |         1.04e+01 |               12 |
+    | "C1047::HG00733" | -8.04e-01 |          13 |         1.13e+01 |               10 |
+    | "C1048::HG02024" |  3.88e-01 |          12 |         1.04e+01 |               11 |
+    | "C1048::HG02025" |  3.99e-01 |          13 |         1.13e+01 |               12 |
+    | "C1048::HG02026" |  1.00e+00 |          12 |         1.04e+01 |               12 |
+    | "C1049::HG00731" | -1.41e+00 |          13 |         1.13e+01 |                9 |
+    +------------------+-----------+-------------+------------------+------------------+
+    showing top 10 rows
 
     Notes
     -----
@@ -945,10 +899,10 @@ def inbreeding(expr, prior) -> StructExpression:
                 n_called=tint64,
                 expected_homs=tfloat64,
                 observed_homs=tint64)
-    return _agg_func('Inbreeding', expr, t, seq_op_args=[lambda expr: expr, prior])
+    return _agg_func('Inbreeding', [expr, prior], t)
 
 
-@typecheck(call=agg_expr(expr_call), alleles=expr_array(expr_str))
+@typecheck(call=expr_call, alleles=expr_array(expr_str))
 def call_stats(call, alleles) -> StructExpression:
     """Compute useful call statistics.
 
@@ -958,22 +912,41 @@ def call_stats(call, alleles) -> StructExpression:
 
     >>> dataset_result = dataset.annotate_rows(gt_stats = agg.call_stats(dataset.GT, dataset.alleles))
     >>> dataset_result.rows().key_by('locus').select('gt_stats').show()
-    +---------------+--------------+----------------+-------------+---------------------------+
-    | locus         | gt_stats.AC  | gt_stats.AF    | gt_stats.AN | gt_stats.homozygote_count |
-    +---------------+--------------+----------------+-------------+---------------------------+
-    | locus<GRCh37> | array<int32> | array<float64> |       int32 | array<int32>              |
-    +---------------+--------------+----------------+-------------+---------------------------+
-    | 20:10579373   | [199,1]      | [0.995,0.005]  |         200 | [99,0]                    |
-    | 20:13695607   | [177,23]     | [0.885,0.115]  |         200 | [77,0]                    |
-    | 20:13698129   | [198,2]      | [0.99,0.01]    |         200 | [98,0]                    |
-    | 20:14306896   | [142,58]     | [0.71,0.29]    |         200 | [51,9]                    |
-    | 20:14306953   | [121,79]     | [0.605,0.395]  |         200 | [38,17]                   |
-    | 20:15948325   | [172,2]      | [0.989,0.012]  |         174 | [85,0]                    |
-    | 20:15948326   | [174,8]      | [0.956,0.043]  |         182 | [83,0]                    |
-    | 20:17479423   | [199,1]      | [0.995,0.005]  |         200 | [99,0]                    |
-    | 20:17600357   | [79,121]     | [0.395,0.605]  |         200 | [24,45]                   |
-    | 20:17640833   | [193,3]      | [0.985,0.015]  |         196 | [95,0]                    |
-    +---------------+--------------+----------------+-------------+---------------------------+
+    +---------------+--------------+---------------------+-------------+
+    | locus         | gt_stats.AC  | gt_stats.AF         | gt_stats.AN |
+    +---------------+--------------+---------------------+-------------+
+    | locus<GRCh37> | array<int32> | array<float64>      |       int32 |
+    +---------------+--------------+---------------------+-------------+
+    | 20:12990057   | [148,52]     | [7.40e-01,2.60e-01] |         200 |
+    | 20:13029862   | [0,198]      | [0.00e+00,1.00e+00] |         198 |
+    | 20:13074235   | [13,187]     | [6.50e-02,9.35e-01] |         200 |
+    | 20:13140720   | [194,6]      | [9.70e-01,3.00e-02] |         200 |
+    | 20:13695498   | [175,25]     | [8.75e-01,1.25e-01] |         200 |
+    | 20:13714384   | [199,1]      | [9.95e-01,5.00e-03] |         200 |
+    | 20:13765944   | [132,2]      | [9.85e-01,1.49e-02] |         134 |
+    | 20:13765954   | [180,2]      | [9.89e-01,1.10e-02] |         182 |
+    | 20:13845987   | [2,198]      | [1.00e-02,9.90e-01] |         200 |
+    | 20:16223957   | [145,45]     | [7.63e-01,2.37e-01] |         190 |
+    +---------------+--------------+---------------------+-------------+
+    <BLANKLINE>
+    +---------------------------+
+    | gt_stats.homozygote_count |
+    +---------------------------+
+    | array<int32>              |
+    +---------------------------+
+    | [57,9]                    |
+    | [0,99]                    |
+    | [1,88]                    |
+    | [95,1]                    |
+    | [75,0]                    |
+    | [99,0]                    |
+    | [65,0]                    |
+    | [89,0]                    |
+    | [0,98]                    |
+    | [64,14]                   |
+    +---------------------------+
+    showing top 10 rows
+    <BLANKLINE>
 
     Notes
     -----
@@ -1009,10 +982,10 @@ def call_stats(call, alleles) -> StructExpression:
                 AN=tint32,
                 homozygote_count=tarray(tint32))
 
-    return _agg_func('CallStats', call, t, [], init_op_args=[n_alleles])
+    return _agg_func('CallStats', [call], t, [], init_op_args=[n_alleles])
 
 
-@typecheck(expr=agg_expr(expr_float64), start=expr_float64, end=expr_float64, bins=expr_int32)
+@typecheck(expr=expr_float64, start=expr_float64, end=expr_float64, bins=expr_int32)
 def hist(expr, start, end, bins) -> StructExpression:
     """Compute binned counts of a numeric expression.
 
@@ -1020,7 +993,7 @@ def hist(expr, start, end, bins) -> StructExpression:
     --------
     Compute a histogram of field `GQ`:
 
-    >>> dataset.aggregate_entries(agg.hist(dataset.GQ, 0, 100, 10))
+    >>> dataset.aggregate_entries(agg.hist(dataset.GQ, 0, 100, 10))  # doctest: +NOTEST
     Struct(bin_edges=[0.0, 10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0, 90.0, 100.0],
            bin_freq=[2194L, 637L, 2450L, 1081L, 518L, 402L, 11168L, 1918L, 1379L, 11973L]),
            n_smaller=0,
@@ -1060,12 +1033,14 @@ def hist(expr, start, end, bins) -> StructExpression:
                 bin_freq=tarray(tint64),
                 n_smaller=tint64,
                 n_larger=tint64)
-    return _agg_func('Histogram', expr, t, constructor_args=[start, end, bins])
+    return _agg_func('Histogram', [expr], t, constructor_args=[start, end, bins])
 
 
 @typecheck(x=expr_float64, y=expr_float64, label=nullable(oneof(expr_str, expr_array(expr_str))), n_divisions=int)
 def downsample(x, y, label=None, n_divisions=500) -> ArrayExpression:
     """Downsample (x, y) coordinate datapoints.
+
+    .. include: _templates/experimental.rst
 
     Parameters
     ---------
@@ -1088,11 +1063,11 @@ def downsample(x, y, label=None, n_divisions=500) -> ArrayExpression:
         label = hl.null(hl.tarray(hl.tstr))
     elif isinstance(label, StringExpression):
         label = hl.array([label])
-    return _agg_func('downsample', _to_agg(x), tarray(ttuple(tfloat64, tfloat64, tarray(tstr))),
-                     constructor_args=[n_divisions], seq_op_args=[lambda x: x, y, label])
+    return _agg_func('downsample', [x, y, label], tarray(ttuple(tfloat64, tfloat64, tarray(tstr))),
+                     constructor_args=[n_divisions])
 
 
-@typecheck(gp=agg_expr(expr_array(expr_float64)))
+@typecheck(gp=expr_array(expr_float64))
 def info_score(gp) -> StructExpression:
     r"""Compute the IMPUTE information score.
 
@@ -1179,7 +1154,7 @@ def info_score(gp) -> StructExpression:
         Struct with fields `score` and `n_included`.
     """
     t = hl.tstruct(score=hl.tfloat64, n_included=hl.tint32)
-    return _agg_func('InfoScore', gp, t)
+    return _agg_func('InfoScore', [gp], t)
 
 
 @typecheck(y=expr_float64,
@@ -1193,7 +1168,7 @@ def linreg(y, x, nested_dim=1, weight=None) -> StructExpression:
     --------
     Regress HT against an intercept (1), SEX, and C1:
 
-    >>> table1.aggregate(agg.linreg(table1.HT, [1, table1.SEX == 'F', table1.C1]))
+    >>> table1.aggregate(agg.linreg(table1.HT, [1, table1.SEX == 'F', table1.C1]))  # doctest: +NOTEST
     Struct(beta=[88.50000000000014, 81.50000000000057, -10.000000000000068],
            standard_error=[14.430869689661844, 59.70552738231206, 7.000000000000016],
            t_stat=[6.132686518775844, 1.365032746099571, -1.428571428571435],
@@ -1323,11 +1298,43 @@ def _linreg(y, x, nested_dim):
     k = hl.int32(k)
     k0 = hl.int32(k0)
 
-    return _agg_func('LinearRegression', _to_agg(y), t, [k, k0], seq_op_args=[lambda y: y, x])
+    return _agg_func('LinearRegression', [y, x], t, [k, k0])
 
+@typecheck(x=expr_float64, y=expr_float64)
+def corr(x, y) -> Float64Expression:
+    """Computes the
+    `Pearson correlation coefficient <https://en.wikipedia.org/wiki/Pearson_correlation_coefficient>`__
+    between `x` and `y`.
+
+    Examples
+    --------
+    >>> ds.aggregate_cols(hl.agg.corr(ds.pheno.age, ds.pheno.blood_pressure))  # doctest: +NOTEST
+    0.16592876044845484
+
+    Notes
+    -----
+    Only records where both `x` and `y` are non-missing will be included in the
+    calculation.
+
+    In the case that there are no non-missing pairs, the result will be missing.
+
+    See Also
+    --------
+    :func:`linreg`
+
+    Parameters
+    ----------
+    x : :class:`.Expression` of type ``tfloat64``
+    y : :class:`.Expression` of type ``tfloat64``
+
+    Returns
+    -------
+    :class:`.Float64Expression`
+    """
+    return _agg_func('corr', [x, y], tfloat64)
 
 @typecheck(group=expr_any,
-           agg_expr=expr_any)
+           agg_expr=agg_expr(expr_any))
 def group_by(group, agg_expr) -> DictExpression:
     """Compute aggregation statistics stratified by one or more groups.
 
@@ -1338,7 +1345,7 @@ def group_by(group, agg_expr) -> DictExpression:
     Compute linear regression statistics stratified by SEX:
 
     >>> table1.aggregate(agg.group_by(table1.SEX,
-    ...                               agg.linreg(table1.HT, table1.C1, nested_dim=0)))
+    ...                               agg.linreg(table1.HT, table1.C1, nested_dim=0)))  # doctest: +NOTEST
     {
     'F': Struct(beta=[6.153846153846154],
                 standard_error=[0.7692307692307685],
@@ -1381,7 +1388,7 @@ def group_by(group, agg_expr) -> DictExpression:
         `agg_expr` for each unique value of `group`.
     """
 
-    return _agg_func._group_by(group, agg_expr)
+    return _agg_func.group_by(group, agg_expr)
 
 
 class ScanFunctions(object):
@@ -1394,9 +1401,14 @@ class ScanFunctions(object):
         def wrapper(*args, **kwargs):
             func = getattr(f, '__wrapped__')
             af = func.__globals__['_agg_func']
+            as_scan = getattr(af, '_as_scan')
             setattr(af, '_as_scan', True)
-            res = f(*args, **kwargs)
-            setattr(af, '_as_scan', False)
+            try:
+                res = f(*args, **kwargs)
+            except Exception as e:
+                setattr(af, '_as_scan', as_scan)
+                raise e
+            setattr(af, '_as_scan', as_scan)
             return res
         update_wrapper(wrapper, f)
         return wrapper

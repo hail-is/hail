@@ -27,7 +27,8 @@ def create_all_values_datasets():
         c=hl.call(0, 1),
         mc=hl.null(hl.tcall),
         t=hl.tuple([hl.call(1, 2, phased=True), 'foo', hl.null(hl.tstr)]),
-        mt=hl.null(hl.ttuple(hl.tlocus('GRCh37'), hl.tbool)))
+        mt=hl.null(hl.ttuple(hl.tlocus('GRCh37'), hl.tbool))
+    )
 
     def prefix(s, p):
         return hl.struct(**{p + k: s[k] for k in s})
@@ -55,23 +56,27 @@ def create_backward_compatibility_files():
     file_version = Env.hail().variant.FileFormat.version().toString()
     supported_codecs = scala_object(Env.hail().io, 'CodecSpec').supportedCodecSpecs()
 
-    table_dir = 'backward_compatability/{}/table'.format(file_version)
+    table_dir = resource(os.path.join('backward_compatability', str(file_version), 'table'))
     if not os.path.exists(table_dir):
         os.makedirs(table_dir)
 
-    matrix_table_dir = 'backward_compatability/{}/matrix_table'.format(file_version)
+    matrix_table_dir = resource(os.path.join('backward_compatability', str(file_version), 'matrix_table'))
     if not os.path.exists(matrix_table_dir):
         os.makedirs(matrix_table_dir)
 
     i = 0
     for codec in supported_codecs:
-        all_values_table.write('{}/{}.ht'.format(table_dir, i), overwrite=True, _codec_spec=codec.toString())
-        all_values_matrix_table.write('{}/{}.hmt'.format(matrix_table_dir, i), overwrite=True,
+        all_values_table.write(os.path.join(table_dir, f'{i}.ht'), overwrite=True, _codec_spec=codec.toString())
+        all_values_matrix_table.write(os.path.join(matrix_table_dir, f'{i}.hmt'), overwrite=True,
                                       _codec_spec=codec.toString())
         i += 1
 
 
 class Tests(unittest.TestCase):
+    @unittest.skip  # comment this line to generate files for new versions
+    def test_write(self):
+        create_backward_compatibility_files()
+
     def test_backward_compatability(self):
         import os
 

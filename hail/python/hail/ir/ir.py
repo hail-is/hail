@@ -1,9 +1,11 @@
-import hail
+import json
+import copy
+
 from hail.expr.types import hail_type
 from hail.typecheck import *
 from hail.utils.java import escape_str, escape_id
-from .aggsig import AggSignature
 from .base_ir import *
+from .matrix_writer import MatrixWriter
 
 
 class I32(IR):
@@ -146,38 +148,46 @@ class Cast(IR):
     def __init__(self, v, typ):
         super().__init__(v)
         self.v = v
-        self.typ = typ
+        self._typ = typ
+
+    @property
+    def typ(self):
+        return self._typ
 
     @typecheck_method(v=IR)
     def copy(self, v):
         new_instance = self.__class__
-        return new_instance(v, self.typ)
+        return new_instance(v, self._typ)
 
     def render(self, r):
-        return '(Cast {} {})'.format(self.typ._jtype.parsableString(), r(self.v))
+        return '(Cast {} {})'.format(self._typ._parsable_string(), r(self.v))
 
     def __eq__(self, other):
         return isinstance(other, Cast) and \
         other.v == self.v and \
-        other.typ == self.typ
+        other._typ == self._typ
 
 
 class NA(IR):
     @typecheck_method(typ=hail_type)
     def __init__(self, typ):
         super().__init__()
-        self.typ = typ
+        self._typ = typ
+
+    @property
+    def typ(self):
+        return self._typ
 
     def copy(self):
         new_instance = self.__class__
-        return new_instance(self.typ)
+        return new_instance(self._typ)
 
     def render(self, r):
-        return '(NA {})'.format(self.typ._jtype.parsableString())
+        return '(NA {})'.format(self._typ._parsable_string())
 
     def __eq__(self, other):
         return isinstance(other, NA) and \
-               other.typ == self.typ
+               other._typ == self._typ
 
 
 class IsNA(IR):
@@ -249,31 +259,27 @@ class Let(IR):
 
 
 class Ref(IR):
-    @typecheck_method(name=str, typ=nullable(hail_type))
-    def __init__(self, name, typ):
+    @typecheck_method(name=str)
+    def __init__(self, name):
         super().__init__()
         self.name = name
-        self.typ = typ
 
     def copy(self):
         new_instance = self.__class__
-        return new_instance(self.name, self.typ)
+        return new_instance(self.name)
 
     def render(self, r):
-        if self.typ is None:
-            return '(Ref {})'.format(escape_id(self.name))
-        return '(Ref {} {})'.format(self.typ._jtype.parsableString(), escape_id(self.name))
+        return '(Ref {})'.format(escape_id(self.name))
 
     def __eq__(self, other):
         return isinstance(other, Ref) and \
-               other.name == self.name and \
-               other.typ == self.typ
+               other.name == self.name
 
 
 class TopLevelReference(Ref):
     @typecheck_method(name=str)
     def __init__(self, name):
-        super().__init__(name, None)
+        super().__init__(name)
 
     @property
     def is_nested_field(self):
@@ -346,7 +352,7 @@ class ApplyComparisonOp(IR):
         return new_instance(self.op, l, r)
 
     def render(self, r):
-        return '(ApplyComparisonOp ({}) {} {})'.format(escape_id(self.op), r(self.l), r(self.r))
+        return '(ApplyComparisonOp {} {} {})'.format(escape_id(self.op), r(self.l), r(self.r))
 
     def __eq__(self, other):
         return isinstance(other, ApplyComparisonOp) and \
@@ -356,23 +362,25 @@ class ApplyComparisonOp(IR):
 
 
 class MakeArray(IR):
-    @typecheck_method(args=sequenceof(IR), typ=hail_type)
-    def __init__(self, args, typ):
+    @typecheck_method(args=sequenceof(IR), element_type=nullable(hail_type))
+    def __init__(self, args, element_type):
         super().__init__(*args)
         self.args = args
-        self.typ = typ
+        self._element_type = element_type
 
     def copy(self, *args):
         new_instance = self.__class__
-        return new_instance(list(args), self.typ)
+        return new_instance(list(args), self._element_type)
 
     def render(self, r):
-        return '(MakeArray {} {})'.format(self.typ._jtype.parsableString(), ' '.join([r(x) for x in self.args]))
+        return '(MakeArray {} {})'.format(
+            self._element_type._parsable_string() if self._element_type is not None else 'None',
+            ' '.join([r(x) for x in self.args]))
 
     def __eq__(self, other):
         return isinstance(other, MakeArray) and \
                other.args == self.args and \
-               other.typ == self.typ
+               other._element_type == self._element_type
 
 
 class ArrayRef(IR):
@@ -734,34 +742,104 @@ class ArrayFor(IR):
                other.body == self.body
 
 
+class AggFilter(IR):
+    @typecheck_method(cond=IR, agg_ir=IR)
+    def __init__(self, cond, agg_ir):
+        super().__init__(cond, agg_ir)
+        self.cond = cond
+        self.agg_ir = agg_ir
+
+    @typecheck_method(cond=IR, agg_ir=IR)
+    def copy(self, cond, agg_ir):
+        new_instance = self.__class__
+        return new_instance(cond, agg_ir)
+
+    def render(self, r):
+        return '(AggFilter {} {})'.format(r(self.cond), r(self.agg_ir))
+
+    def __eq__(self, other):
+        return isinstance(other, AggFilter) and \
+               other.cond == self.cond and \
+               other.agg_ir == self.agg_ir
+
+
+class AggExplode(IR):
+    @typecheck_method(array=IR, name=str, agg_body=IR)
+    def __init__(self, array, name, agg_body):
+        super().__init__(array, agg_body)
+        self.name = name
+        self.array = array
+        self.agg_body = agg_body
+
+    @typecheck_method(array=IR, agg_body=IR)
+    def copy(self, array, agg_body):
+        new_instance = self.__class__
+        return new_instance(array, self.name, agg_body)
+
+    def render(self, r):
+        return '(AggExplode {} {} {})'.format(escape_id(self.name), r(self.array), r(self.agg_body))
+
+    @property
+    def bound_variables(self):
+        return {self.name} | super().bound_variables
+
+    def __eq__(self, other):
+        return isinstance(other, AggExplode) and \
+               other.array == self.array and \
+               other.name == self.name and \
+               other.agg_body == self.agg_body
+
+
+class AggGroupBy(IR):
+    @typecheck_method(key=IR, agg_ir=IR)
+    def __init__(self, key, agg_ir):
+        super().__init__(key, agg_ir)
+        self.key = key
+        self.agg_ir = agg_ir
+
+    @typecheck_method(key=IR, agg_ir=IR)
+    def copy(self, key, agg_ir):
+        new_instance = self.__class__
+        return new_instance(key, agg_ir)
+
+    def render(self, r):
+        return '(AggGroupBy {} {})'.format(r(self.key), r(self.agg_ir))
+
+    def __eq__(self, other):
+        return isinstance(other, AggGroupBy) and \
+               other.key == self.key and \
+               other.agg_ir == self.agg_ir
+
+
 class BaseApplyAggOp(IR):
-    @typecheck_method(a=IR,
+    @typecheck_method(agg_op=str,
                       constructor_args=sequenceof(IR),
                       init_op_args=nullable(sequenceof(IR)),
-                      agg_sig=AggSignature)
-    def __init__(self, a, constructor_args, init_op_args, agg_sig):
+                      seq_op_args=sequenceof(IR))
+    def __init__(self, agg_op, constructor_args, init_op_args, seq_op_args):
         init_op_children = [] if init_op_args is None else init_op_args
-        super().__init__(a, *constructor_args, *init_op_children)
-        self.a = a
+        super().__init__(*constructor_args, *init_op_children, *seq_op_args)
+        self.agg_op = agg_op
         self.constructor_args = constructor_args
         self.init_op_args = init_op_args
-        self.agg_sig = agg_sig
+        self.seq_op_args = seq_op_args
 
     def copy(self, *args):
         new_instance = self.__class__
+        n_seq_op_args = len(self.seq_op_args)
         n_constructor_args = len(self.constructor_args)
-        a = args[0]
-        constr_args = args[1:n_constructor_args + 1]
-        init_op_args = args[n_constructor_args + 1:]
-        return new_instance(a, constr_args, init_op_args if len(init_op_args) != 0 else None, self.agg_sig)
+        constr_args = args[:n_constructor_args]
+        init_op_args = args[n_constructor_args:-n_seq_op_args]
+        seq_op_args = args[-n_seq_op_args:]
+        return new_instance(self.agg_op, constr_args, init_op_args if len(init_op_args) != 0 else None, seq_op_args)
 
     def render(self, r):
-        return '({} {} {} ({}) {})'.format(
+        return '({} {} ({}) {} ({}))'.format(
             self.__class__.__name__,
-            self.agg_sig,
-            r(self.a),
+            self.agg_op,
             ' '.join([r(x) for x in self.constructor_args]),
-            '(' + ' '.join([r(x) for x in self.init_op_args]) + ')' if self.init_op_args else 'None')
+            '(' + ' '.join([r(x) for x in self.init_op_args]) + ')' if self.init_op_args else 'None',
+            ' '.join([r(x) for x in self.seq_op_args]))
 
     @property
     def aggregations(self):
@@ -770,71 +848,28 @@ class BaseApplyAggOp(IR):
 
     def __eq__(self, other):
         return isinstance(other, self.__class__) and \
-               other.a == self.a and \
+               other.agg_op == self.agg_op and \
                other.constructor_args == self.constructor_args and \
                other.init_op_args == self.init_op_args and \
-               other.agg_sig == self.agg_sig
+               other.seq_op_args == self.seq_op_args
 
 
 class ApplyAggOp(BaseApplyAggOp):
-    @typecheck_method(a=IR,
+    @typecheck_method(agg_op=str,
                       constructor_args=sequenceof(IR),
                       init_op_args=nullable(sequenceof(IR)),
-                      agg_sig=AggSignature)
-    def __init__(self, a, constructor_args, init_op_args, agg_sig):
-        super().__init__(a, constructor_args, init_op_args, agg_sig)
+                      seq_op_args=sequenceof(IR))
+    def __init__(self, agg_op, constructor_args, init_op_args, seq_op_args):
+        super().__init__(agg_op, constructor_args, init_op_args, seq_op_args)
 
 
 class ApplyScanOp(BaseApplyAggOp):
-    @typecheck_method(a=IR,
+    @typecheck_method(agg_op=str,
                       constructor_args=sequenceof(IR),
                       init_op_args=nullable(sequenceof(IR)),
-                      agg_sig=AggSignature)
-    def __init__(self, a, constructor_args, init_op_args, agg_sig):
-        super().__init__(a, constructor_args, init_op_args, agg_sig)
-
-
-class InitOp(IR):
-    @typecheck_method(i=IR, args=sequenceof(IR), agg_sig=AggSignature)
-    def __init__(self, i, args, agg_sig):
-        super().__init__(i, *args)
-        self.i = i
-        self.args = args
-        self.agg_sig = agg_sig
-
-    def copy(self, i, *args):
-        new_instance = self.__class__
-        return new_instance(i, list(args), self.agg_sig)
-
-    def render(self, r):
-        return '(InitOp {} {} ({}))'.format(self.agg_sig, r(self.i), ' '.join([r(x) for x in self.args]))
-
-    def __eq__(self, other):
-        return isinstance(other, InitOp) and \
-               other.i == self.i and \
-               other.args == self.args and \
-               other.agg_sig == self.agg_sig
-
-class SeqOp(IR):
-    @typecheck_method(i=IR, args=sequenceof(IR), agg_sig=AggSignature)
-    def __init__(self, i, args, agg_sig):
-        super().__init__(i, *args)
-        self.i = i
-        self.args = args
-        self.agg_sig = agg_sig
-
-    def copy(self, i, *args):
-        new_instance = self.__class__
-        return new_instance(i, list(args), self.agg_sig)
-
-    def render(self, r):
-        return '(SeqOp {} {} ({}))'.format(self.agg_sig, r(self.i), ' '.join([r(x) for x in self.args]))
-
-    def __eq__(self, other):
-        return isinstance(other, SeqOp) and \
-               other.i == self.i and \
-               other.args == self.args and \
-               other.agg_sig == self.agg_sig
+                      seq_op_args=sequenceof(IR))
+    def __init__(self, agg_op, constructor_args, init_op_args, seq_op_args):
+        super().__init__(agg_op, constructor_args, init_op_args, seq_op_args)
 
 
 class Begin(IR):
@@ -1029,39 +1064,47 @@ class In(IR):
     def __init__(self, i, typ):
         super().__init__()
         self.i = i
-        self.typ = typ
+        self._typ = typ
+
+    @property
+    def typ(self):
+        return self._typ
 
     def copy(self):
         new_instance = self.__class__
-        return new_instance(self.i, self.typ)
+        return new_instance(self.i, self._typ)
 
     def render(self, r):
-        return '(In {} {})'.format(self.typ._jtype.parsableString(), self.i)
+        return '(In {} {})'.format(self._typ._parsable_string(), self.i)
 
     def __eq__(self, other):
         return isinstance(other, In) and \
                other.i == self.i and \
-               other.typ == self.typ
+               other._typ == self._typ
 
 
 class Die(IR):
-    @typecheck_method(message=str, typ=hail_type)
+    @typecheck_method(message=IR, typ=hail_type)
     def __init__(self, message, typ):
         super().__init__()
         self.message = message
-        self.typ = typ
+        self._typ = typ
+
+    @property
+    def typ(self):
+        return self._typ
 
     def copy(self):
         new_instance = self.__class__
-        return new_instance(self.message, self.typ)
+        return new_instance(self.message, self._typ)
 
     def render(self, r):
-        return '(Die {} "{}")'.format(self.typ._jtype.parsableString(), escape_str(self.message))
+        return '(Die {} {})'.format(self._typ._parsable_string(), r(self.message))
 
     def __eq__(self, other):
         return isinstance(other, Die) and \
                other.message == self.message and \
-               other.typ == self.typ
+               other._typ == self._typ
 
 
 class Apply(IR):
@@ -1157,6 +1200,24 @@ class TableCount(IR):
                other.child == self.child
 
 
+class TableGetGlobals(IR):
+    @typecheck_method(child=TableIR)
+    def __init__(self, child):
+        super().__init__(child)
+        self.child = child
+
+    @typecheck_method(child=TableIR)
+    def copy(self, child):
+        new_instance = self.__class__
+        return new_instance(child)
+
+    def render(self, r):
+        return '(TableGetGlobals {})'.format(r(self.child))
+
+    def __eq__(self, other):
+        return isinstance(other, TableGetGlobals) and \
+               other.child == self.child
+
 class TableAggregate(IR):
     @typecheck_method(child=TableIR, query=IR)
     def __init__(self, child, query):
@@ -1200,27 +1261,32 @@ class MatrixAggregate(IR):
 
 
 class TableWrite(IR):
-    @typecheck_method(child=TableIR, path=str, overwrite=bool)
-    def __init__(self, child, path, overwrite):
+    @typecheck_method(child=TableIR, path=str, overwrite=bool, stage_locally=bool, _codec_spec=nullable(str))
+    def __init__(self, child, path, overwrite, stage_locally, _codec_spec):
         super().__init__(child)
         self.child = child
         self.path = path
         self.overwrite = overwrite
+        self.stage_locally = stage_locally
+        self._codec_spec = _codec_spec
 
     @typecheck_method(child=TableIR)
     def copy(self, child):
         new_instance = self.__class__
-        return new_instance(child, self.path, self.overwrite)
+        return new_instance(child, self.path, self.overwrite, self.stage_locally, self._codec_spec)
 
     def render(self, r):
-        return '(TableWrite "{}" {} {})'.format(escape_str(self.path), self.overwrite, r(self.child))
+        return '(TableWrite "{}" {} {} {} {})'.format(escape_str(self.path), self.overwrite, self.stage_locally,
+                                                      "\"" + escape_str(self._codec_spec) + "\"" if self._codec_spec else "None",
+                                                        r(self.child))
 
     def __eq__(self, other):
         return isinstance(other, TableWrite) and \
                other.child == self.child and \
                other.path == self.path and \
-               other.overwrite == self.overwrite
-
+               other.overwrite == self.overwrite and \
+               other.stage_locally == self.stage_locally and \
+               other._codec_spec == self._codec_spec
 
 class TableExport(IR):
     @typecheck_method(child=TableIR,
@@ -1246,7 +1312,7 @@ class TableExport(IR):
             escape_str(self.path),
             escape_str(self.types_file),
             escape_str(self.header),
-            self.export_type._jtype.parsableString(),
+            self.export_type,
             r(self.child))
 
     def __eq__(self, other):
@@ -1259,7 +1325,7 @@ class TableExport(IR):
 
 
 class MatrixWrite(IR):
-    @typecheck_method(child=MatrixIR, matrix_writer=str)
+    @typecheck_method(child=MatrixIR, matrix_writer=MatrixWriter)
     def __init__(self, child, matrix_writer):
         super().__init__(child)
         self.child = child
@@ -1271,8 +1337,9 @@ class MatrixWrite(IR):
         return new_instance(child, self.matrix_writer)
 
     def render(self, r):
-        return '(MatrixWrite {} {})'.format(
-            self.matrix_writer, r(self.child))
+        return '(MatrixWrite "{}" {})'.format(
+            r(self.matrix_writer),
+            r(self.child))
 
     def __eq__(self, other):
         return isinstance(other, MatrixWrite) and \
@@ -1281,33 +1348,24 @@ class MatrixWrite(IR):
 
 
 class Literal(IR):
-    _idx = 0
-
     @typecheck_method(dtype=hail_type,
-                      value=anytype,
-                      id=nullable(str))
-    def __init__(self, dtype, value, id=None):
+                      value=anytype)
+    def __init__(self, dtype, value):
         super(Literal, self).__init__()
         self.dtype: 'hail.HailType' = dtype
         self.value = value
-        if id is None:
-            id = f'__py_literal_{Literal._idx}'
-        self.id = id
-        Literal._idx += 1
 
     def copy(self):
-        return Literal(self.dtype, self.value, self.id)
+        return Literal(self.dtype, self.value)
 
     def render(self, r):
-        return f'(Literal {self.dtype._jtype.parsableString()} ' \
-               f'"{escape_str(self.dtype._to_json(self.value))}" ' \
-               f'"{self.id}")'
+        return f'(Literal {self.dtype._parsable_string()} ' \
+               f'"{escape_str(self.dtype._to_json(self.value))}")'
 
     def __eq__(self, other):
         return isinstance(other, Literal) and \
                other.dtype == self.dtype and \
-               other.value == self.value and \
-               other.id == self.id
+               other.value == self.value
 
 
 class Join(IR):
@@ -1318,7 +1376,7 @@ class Join(IR):
                       join_exprs=sequenceof(anytype),
                       join_func=func_spec(1, anytype))
     def __init__(self, virtual_ir, temp_vars, join_exprs, join_func):
-        super(Join, self).__init__(*(e._ir for e in join_exprs))
+        super(Join, self).__init__(virtual_ir)
         self.virtual_ir = virtual_ir
         self.temp_vars = temp_vars
         self.join_exprs = join_exprs
@@ -1326,12 +1384,98 @@ class Join(IR):
         self.idx = Join._idx
         Join._idx += 1
 
+    def copy(self, virtual_ir):
+        new_instance = self.__class__
+        new_instance = new_instance(virtual_ir,
+                                    self.temp_vars,
+                                    self.join_exprs,
+                                    self.join_func)
+        new_instance.idx = self.idx
+        return new_instance
+
+    def search(self, criteria):
+        matches = []
+        for e in self.join_exprs:
+            matches += e._ir.search(criteria)
+        matches += super(Join, self).search(criteria)
+        return matches
+
     def render(self, r):
         return r(self.virtual_ir)
 
+
 class JavaIR(IR):
     def __init__(self, jir):
+        super(JavaIR, self).__init__()
         self._jir = jir
+        super().__init__()
 
     def render(self, r):
-        return f'(JavaIR {r.add_jir(self)})'
+        return f'(JavaIR {r.add_jir(self._jir)})'
+
+
+def subst(ir, env, agg_env):
+    def _subst(ir, env2=None, agg_env2=None):
+        return subst(ir, env2 if env2 else env, agg_env2 if agg_env2 else agg_env)
+
+    def delete(env, name):
+        new_env = copy.deepcopy(env)
+        if name in new_env:
+            del new_env[name]
+        return new_env
+
+    if isinstance(ir, Ref):
+        return env.get(ir.name, ir)
+    elif isinstance(ir, Let):
+        return Let(ir.name,
+                   _subst(ir.value),
+                   _subst(ir.body, env))
+    elif isinstance(ir, ArrayMap):
+        return ArrayMap(_subst(ir.a),
+                        ir.name,
+                        _subst(ir.body, delete(env, ir.name)))
+    elif isinstance(ir, ArrayFilter):
+        return ArrayFilter(_subst(ir.a),
+                           ir.name,
+                           _subst(ir.body, delete(env, ir.name)))
+    elif isinstance(ir, ArrayFlatMap):
+        return ArrayFlatMap(_subst(ir.a),
+                            ir.name,
+                            _subst(ir.body, delete(env, ir.name)))
+    elif isinstance(ir, ArrayFold):
+        return ArrayFold(_subst(ir.a),
+                         _subst(ir.zero),
+                         ir.accum_name,
+                         ir.value_name,
+                         _subst(ir.body, delete(delete(env, ir.accum_name), ir.value_name)))
+    elif isinstance(ir, ArrayScan):
+        return ArrayScan(_subst(ir.a),
+                         _subst(ir.zero),
+                         ir.accum_name,
+                         ir.value_name,
+                         _subst(ir.body, delete(delete(env, ir.accum_name), ir.value_name)))
+    elif isinstance(ir, ArrayFor):
+        return ArrayFor(_subst(ir.a),
+                        ir.value_name,
+                        _subst(ir.body, delete(env, ir.value_name)))
+    elif isinstance(ir, AggFilter):
+        return AggFilter(_subst(ir.cond, agg_env),
+                         _subst(ir.agg_ir, agg_env))
+    elif isinstance(ir, AggExplode):
+        return AggExplode(_subst(ir.array, agg_env),
+                          ir.name,
+                          _subst(ir.agg_body, delete(agg_env, ir.name), delete(agg_env, ir.name)))
+    elif isinstance(ir, AggGroupBy):
+        return AggGroupBy(_subst(ir.key, agg_env),
+                          _subst(ir.agg_ir, agg_env))
+    elif isinstance(ir, ApplyAggOp):
+        subst_constr_args = [x.map_ir(lambda x: _subst(x)) for x in ir.constructor_args]
+        subst_init_op_args = [x.map_ir(lambda x: _subst(x)) for x in ir.init_op_args] if ir.init_op_args else ir.init_op_args
+        subst_seq_op_args = [subst(x, agg_env, {}) for x in ir.seq_op_args]
+        return ApplyAggOp(ir.agg_op,
+                          subst_constr_args,
+                          subst_init_op_args,
+                          subst_seq_op_args)
+    else:
+        assert isinstance(ir, IR)
+        return ir.map_ir(lambda x: _subst(x))

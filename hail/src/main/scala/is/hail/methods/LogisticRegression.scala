@@ -2,10 +2,16 @@ package is.hail.methods
 
 import breeze.linalg._
 import is.hail.annotations._
-import is.hail.expr.types.TFloat64
+import is.hail.expr.ir.{TableLiteral, TableValue}
+import is.hail.expr.types.virtual.{TFloat64, TStruct}
+import is.hail.expr.types.TableType
 import is.hail.stats._
+import is.hail.table.Table
 import is.hail.utils._
 import is.hail.variant._
+import org.apache.spark.storage.StorageLevel
+
+import scala.collection.JavaConverters._
 
 object LogisticRegression {
 
@@ -13,14 +19,19 @@ object LogisticRegression {
     test: String,
     yField: String,
     xField: String,
-    covFields: Array[String],
-    root: String): MatrixTable = {
+    _covFields: java.util.ArrayList[String],
+    _passThrough: java.util.ArrayList[String]): Table = {
+    val covFields = _covFields.asScala.toArray
+    val passThrough = _passThrough.asScala.toArray
     val logRegTest = LogisticRegressionTest.tests(test)
 
     val (y, cov, completeColIdx) = RegressionUtils.getPhenoCovCompleteSamples(vsm, yField, covFields)
 
     if (!y.forall(yi => yi == 0d || yi == 1d))
-      fatal(s"For logistic regression, phenotype must be bool or numeric with all present values equal to 0 or 1")
+      fatal(s"For logistic regression, y must be bool or numeric with all present values equal to 0 or 1")
+    val sumY = sum(y)
+    if (sumY == 0d || sumY == y.length)
+      fatal(s"For logistic regression, y must be non-constant")
 
     val n = y.size
     val k = cov.cols
@@ -29,15 +40,15 @@ object LogisticRegression {
     if (d < 1)
       fatal(s"$n samples and ${ k + 1 } ${ plural(k, "covariate") } (including x) implies $d degrees of freedom.")
 
-    info(s"logistic_regression: running $test on $n samples for response variable y,\n"
+    info(s"logistic_regression_rows: running $test on $n samples for response variable y,\n"
       + s"    with input variable x, and ${ k } additional ${ plural(k, "covariate") }...")
 
     val nullModel = new LogisticRegressionModel(cov, y)
     var nullFit = nullModel.fit()
 
     if (!nullFit.converged)
-      if (logRegTest == FirthTest)
-        nullFit = LogisticRegressionFit(nullModel.bInterceptOnly(),
+      if (logRegTest == LogisticFirthTest)
+        nullFit = GLMFit(nullModel.bInterceptOnly(),
           None, None, 0, nullFit.nIter, exploded = nullFit.exploded, converged = false)
       else
         fatal("Failed to fit logistic regression null model (standard MLE with covariates only): " + (
@@ -54,21 +65,22 @@ object LogisticRegression {
     val nullFitBc = sc.broadcast(nullFit)
     val logRegTestBc = sc.broadcast(logRegTest)
 
-    val fullRowType = vsm.rvRowType
-    val entryArrayType = vsm.matrixType.entryArrayType
-    val entryType = vsm.entryType
+    val fullRowType = vsm.rvRowType.physicalType
+    val entryArrayType = vsm.matrixType.entryArrayType.physicalType
+    val entryType = vsm.entryType.physicalType
     val fieldType = entryType.field(xField).typ
 
-    assert(fieldType.isOfType(TFloat64()))
+    assert(fieldType.virtualType.isOfType(TFloat64()))
 
     val entryArrayIdx = vsm.entriesIndex
     val fieldIdx = entryType.fieldIdx(xField)
 
-    val (newRVPType, inserter) = vsm.rvRowType.physicalType.unsafeStructInsert(logRegTest.schema.physicalType, List(root))
-    val newRVType = newRVPType.virtualType
-    val newMatrixType = vsm.matrixType.copy(rvRowType = newRVType)
+    val passThroughType = TStruct(passThrough.map(f => f -> vsm.rowType.field(f).typ): _*)
+    val tableType = TableType(vsm.rowKeyStruct ++ passThroughType ++ logRegTest.schema, vsm.rowKey, TStruct())
+    val newRVDType = tableType.canonicalRVDType
+    val copiedFieldIndices = (vsm.rowKey ++ passThrough).map(vsm.rvRowType.fieldIdx(_)).toArray
 
-    val newRVD = vsm.rvd.mapPartitionsPreservesPartitioning(newMatrixType.orvdType) { it =>
+    val newRVD = vsm.rvd.mapPartitions(newRVDType) { it =>
       val rvb = new RegionValueBuilder()
       val rv2 = RegionValue()
 
@@ -79,19 +91,19 @@ object LogisticRegression {
         RegressionUtils.setMeanImputedDoubles(X.data, n * k, completeColIdxBc.value, missingCompleteCols, 
           rv, fullRowType, entryArrayType, entryType, entryArrayIdx, fieldIdx)
 
-        val logregAnnot = logRegTestBc.value.test(X, yBc.value, nullFitBc.value).toAnnotation
+        val logregAnnot = logRegTestBc.value.test(X, yBc.value, nullFitBc.value, "logistic")
 
         rvb.set(rv.region)
-        rvb.start(newRVType)
-        inserter(rv.region, rv.offset, rvb,
-          () => rvb.addAnnotation(logRegTest.schema, logregAnnot))
+        rvb.start(newRVDType.rowType)
+        rvb.startStruct()
+        rvb.addFields(fullRowType, rv, copiedFieldIndices)
+        logregAnnot.addToRVB(rvb)
+        rvb.endStruct()
 
         rv2.set(rv.region, rvb.end())
         rv2
       }
-    }
-
-    vsm.copyMT(matrixType = newMatrixType,
-      rvd = newRVD)
+    }.persist(StorageLevel.MEMORY_AND_DISK)
+    new Table(vsm.hc, TableLiteral(TableValue(tableType, BroadcastRow.empty(sc), newRVD)))
   }
 }

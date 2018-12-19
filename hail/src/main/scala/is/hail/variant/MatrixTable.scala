@@ -1,25 +1,28 @@
 package is.hail.variant
 
+import java.io.InputStream
+
 import is.hail.annotations._
 import is.hail.check.Gen
-import is.hail.linalg._
-import is.hail.expr._
-import is.hail.expr.ir
 import is.hail.expr.ir._
-import is.hail.methods._
-import is.hail.rvd._
-import is.hail.table.{Table, TableSpec}
-import is.hail.utils._
-import is.hail.{HailContext, utils}
 import is.hail.expr.types._
+import is.hail.expr.types.physical.{PArray, PStruct}
+import is.hail.expr.types.virtual._
+import is.hail.expr.{ir, _}
 import is.hail.io.gen.ExportGen
 import is.hail.io.plink.ExportPlink
-import is.hail.sparkextras.{Adjustment, ContextRDD}
+import is.hail.linalg._
+import is.hail.methods._
+import is.hail.rvd._
+import is.hail.sparkextras.{ContextRDD, RepartitionedOrderedRDD2}
+import is.hail.table.{Table, TableSpec}
+import is.hail.utils._
+import is.hail.{HailContext, cxx, utils}
 import org.apache.hadoop
+import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
-import org.apache.spark.{Partitioner, SparkContext}
 import org.json4s._
 import org.json4s.jackson.JsonMethods.parse
 import org.json4s.jackson.{JsonMethods, Serialization}
@@ -34,7 +37,7 @@ object RelationalSpec {
   implicit val formats: Formats = new DefaultFormats() {
     override val typeHints = ShortTypeHints(List(
       classOf[ComponentSpec], classOf[RVDComponentSpec], classOf[PartitionCountsComponentSpec],
-      classOf[RelationalSpec], classOf[TableSpec], classOf[MatrixTableSpec]))
+      classOf[RelationalSpec], classOf[MatrixTableSpec], classOf[TableSpec]))
     override val typeHintFieldName = "name"
   } +
     new TableTypeSerializer +
@@ -49,21 +52,19 @@ object RelationalSpec {
     val fileVersion = jv \ "file_version" match {
       case JInt(rep) => SemanticVersion(rep.toInt)
       case _ =>
-        fatal(s"metadata does not contain file version: $metadataFile")
         fatal(
-          s"""cannot read matrix table: file not found: metadata does not contain file version: $metadataFile
+          s"""cannot read file: metadata does not contain file version: $metadataFile
              |  Common causes:
-             |    - File is an 0.1 VariantDataset (0.1 and 0.2 native formats are not compatible!)""".stripMargin)
-
+             |    - File is an 0.1 VariantDataset or KeyTable (0.1 and 0.2 native formats are not compatible!)""".stripMargin)
     }
 
     if (!FileFormat.version.supports(fileVersion))
       fatal(s"incompatible file format when reading: $path\n  supported version: ${ FileFormat.version }, found $fileVersion")
 
+    // FIXME this violates the abstraction of the serialization boundary
     val referencesRelPath = (jv \ "references_rel_path": @unchecked) match {
       case JString(p) => p
     }
-
     ReferenceGenome.importReferences(hc.hadoopConf, path + "/" + referencesRelPath)
 
     jv.extract[RelationalSpec]
@@ -85,40 +86,59 @@ abstract class RelationalSpec {
 
   def write(hc: HailContext, path: String) {
     hc.hadoopConf.writeTextFile(path + "/metadata.json.gz") { out =>
-      implicit val formats = RelationalSpec.formats
-      Serialization.write(this, out)
+      Serialization.write(this, out)(RelationalSpec.formats)
     }
   }
+
+  def rvdType(path: String): RVDType
 }
 
 case class RVDComponentSpec(rel_path: String) extends ComponentSpec {
-  def read(hc: HailContext, path: String, requestedType: TStruct): RVD = {
+  def read(hc: HailContext, path: String, requestedType: PStruct): RVD = {
     val rvdPath = path + "/" + rel_path
-    RVDSpec.read(hc, rvdPath)
+    AbstractRVDSpec.read(hc, rvdPath)
       .read(hc, rvdPath, requestedType)
   }
 
-  def readLocal(hc: HailContext, path: String, requestedType: TStruct): IndexedSeq[Row] = {
+  def readLocal(hc: HailContext, path: String, requestedType: PStruct): IndexedSeq[Row] = {
     val rvdPath = path + "/" + rel_path
-    RVDSpec.read(hc, rvdPath)
+    AbstractRVDSpec.read(hc, rvdPath)
       .readLocal(hc, rvdPath, requestedType)
+  }
+
+  def cxxEmitRead(hc: HailContext, path: String, requestedType: TStruct, tub: cxx.TranslationUnitBuilder): cxx.RVDEmitTriplet = {
+    val rvdPath = path + "/" + rel_path
+    AbstractRVDSpec.read(hc, rvdPath)
+      .cxxEmitRead(hc, rvdPath, requestedType, tub)
   }
 }
 
 case class PartitionCountsComponentSpec(counts: Seq[Long]) extends ComponentSpec
+
+abstract class AbstractMatrixTableSpec extends RelationalSpec {
+  def matrix_type: MatrixType
+
+  def references_rel_path: String
+
+  def colsComponent: RVDComponentSpec = getComponent[RVDComponentSpec]("cols")
+
+  def rowsComponent: RVDComponentSpec = getComponent[RVDComponentSpec]("rows")
+
+  def entriesComponent: RVDComponentSpec = getComponent[RVDComponentSpec]("entries")
+
+  def rvdType(path: String): RVDType = {
+    val rows = AbstractRVDSpec.read(HailContext.get, path + "/" + rowsComponent.rel_path)
+    val entries = AbstractRVDSpec.read(HailContext.get, path + "/" + entriesComponent.rel_path)
+    RVDType(rows.encodedType.appendKey(MatrixType.entriesIdentifier, entries.encodedType), rows.key)
+  }
+}
 
 case class MatrixTableSpec(
   file_version: Int,
   hail_version: String,
   references_rel_path: String,
   matrix_type: MatrixType,
-  components: Map[String, ComponentSpec]) extends RelationalSpec {
-  def colsComponent: RVDComponentSpec = getComponent[RVDComponentSpec]("cols")
-
-  def rowsComponent: RVDComponentSpec = getComponent[RVDComponentSpec]("rows")
-
-  def entriesComponent: RVDComponentSpec = getComponent[RVDComponentSpec]("entries")
-}
+  components: Map[String, ComponentSpec]) extends AbstractMatrixTableSpec
 
 object FileFormat {
   val version: SemanticVersion = SemanticVersion(1, 0, 0)
@@ -142,7 +162,7 @@ object MatrixTable {
     val ds = new MatrixTable(hc, matrixType,
       BroadcastRow(globals.asInstanceOf[Row], matrixType.globalType, hc.sc),
       BroadcastIndexedSeq(colValues, TArray(matrixType.colType), hc.sc),
-      OrderedRVD.coerce(matrixType.orvdType,
+      RVD.coerce(matrixType.canonicalRVDType,
         ContextRDD.weaken[RVDContext](rdd).cmapPartitions { (ctx, it) =>
           val region = ctx.region
           val rvb = new RegionValueBuilder(region)
@@ -152,7 +172,7 @@ object MatrixTable {
             val vaRow = va.asInstanceOf[Row]
             assert(matrixType.rowType.typeCheck(vaRow), s"${ matrixType.rowType }, $vaRow")
 
-            rvb.start(localRVRowType)
+            rvb.start(localRVRowType.physicalType)
             rvb.startStruct()
             var i = 0
             while (i < vaRow.length) {
@@ -181,27 +201,19 @@ object MatrixTable {
   def gen(hc: HailContext, gen: VSMSubgen): Gen[MatrixTable] =
     gen.gen(hc)
 
-  def unionRows(datasets: java.util.ArrayList[MatrixTable]): MatrixTable =
-    unionRows(datasets.asScala.toArray)
-
-  def unionRows(datasets: Array[MatrixTable]): MatrixTable = {
-    new MatrixTable(datasets.head.hc, MatrixUnionRows(datasets.map(_.ast).toFastIndexedSeq))
-  }
-
   def fromRowsTable(kt: Table): MatrixTable = {
-    require(!kt.key.isEmpty)
     val matrixType = MatrixType.fromParts(
       kt.globalSignature,
       Array.empty[String],
       TStruct.empty(),
-      kt.key.get,
+      kt.key,
       kt.signature,
       TStruct.empty())
-    val rvRowType = matrixType.rvRowType
 
-    val oldRowType = kt.signature
+    val rvRowType = matrixType.rvRowType.physicalType
+    val oldRowType = kt.signature.physicalType
 
-    val rdd = kt.rvd.mapPartitions(matrixType.rvRowType) { it =>
+    val rvd = kt.rvd.mapPartitions(matrixType.canonicalRVDType) { it =>
       val rvb = new RegionValueBuilder()
       val rv2 = RegionValue()
 
@@ -218,10 +230,10 @@ object MatrixTable {
       }
     }
 
-    new MatrixTable(kt.hc, matrixType,
-      kt.globals,
-      BroadcastIndexedSeq(Array.empty[Annotation], TArray(matrixType.colType), kt.hc.sc),
-      OrderedRVD.coerce(matrixType.orvdType, rdd))
+    val colValues =
+      BroadcastIndexedSeq(Array.empty[Annotation], TArray(matrixType.colType), kt.hc.sc)
+
+    new MatrixTable(kt.hc, matrixType, kt.globals, colValues, rvd)
   }
 }
 
@@ -362,33 +374,10 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     matrixType: MatrixType,
     globals: BroadcastRow,
     colValues: BroadcastIndexedSeq,
-    rvd: OrderedRVD) =
+    rvd: RVD) =
     this(hc, MatrixLiteral(MatrixValue(matrixType, globals, colValues, rvd)))
 
-  def requireRowKeyVariant(method: String) {
-    rowKey.zip(rowKeyTypes) match {
-      case IndexedSeq(("locus", TLocus(_, _)), ("alleles", TArray(TString(_), _))) =>
-      case _ =>
-        fatal(s"in $method: row key must be ('locus' (type 'locus'), 'alleles': (type 'array<str>'), found: ${
-          rowKey.zip(rowKeyTypes).mkString(", ")
-        }")
-    }
-  }
-
-  def requireColKeyString(method: String) {
-    colKeyTypes match {
-      case Array(_: TString) =>
-      case t =>
-        fatal(s"in $method: column key must be type 'str', found: ${t.mkString("[",",","]")}")
-    }
-  }
-
-  def referenceGenome: ReferenceGenome = {
-    val firstKeyField = rowKeyTypes(0)
-    firstKeyField match {
-      case TLocus(rg: ReferenceGenome, _) => rg
-    }
-  }
+  def referenceGenome: ReferenceGenome = matrixType.referenceGenome
 
   val matrixType: MatrixType = ast.typ
 
@@ -413,14 +402,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   val rowKeyStruct: TStruct = TStruct(rowKey.zip(rowKeyTypes): _*)
 
-  lazy val value: MatrixValue = {
-    val opt = LiftLiterals(ir.Optimize(ast)).asInstanceOf[MatrixIR]
-    val v = opt.execute(hc)
-    assert(v.rvd.typ == matrixType.orvdType, s"\n${ v.rvd.typ }\n${ matrixType.orvdType }")
-    v
-  }
-
-  lazy val MatrixValue(_, globals, colValues, rvd) = value
+  lazy val value@MatrixValue(_, globals, colValues, rvd) = Interpret(ast, optimize = true)
 
   def partitionCounts(): Array[Long] = {
     ast.partitionCounts match {
@@ -443,31 +425,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     (r: Row) => Row.fromSeq(queriers.map(_ (r)))
   }
 
-  def keyRowsBy(keys: java.util.ArrayList[String], partitionKeys: java.util.ArrayList[String]): MatrixTable =
-    keyRowsBy(keys.asScala.toArray, partitionKeys.asScala.toArray)
-
-  def keyRowsBy(keys: Array[String], partitionKeys: Array[String]): MatrixTable = {
-    require(keys.nonEmpty)
-    require(partitionKeys.nonEmpty)
-    val rowFields = rowType.fieldNames.toSet
-    assert(keys.forall(rowFields.contains), s"${ keys.filter(k => !rowFields.contains(k)).mkString(", ") }")
-    assert(partitionKeys.length <= keys.length)
-    assert(keys.zip(partitionKeys).forall { case (k, pk) => k == pk })
-
-    val newMatrixType = matrixType.copy(rowKey = keys)
-
-    copyMT(matrixType = newMatrixType,
-      rvd = OrderedRVD.coerce(newMatrixType.orvdType, rvd))
-  }
-
-  def keyColsBy(keys: java.util.ArrayList[String]): MatrixTable = keyColsBy(keys.asScala: _*)
-
-  def keyColsBy(keys: String*): MatrixTable = {
-    val colFields = colType.fieldNames.toSet
-    assert(keys.forall(colFields.contains))
-    copyMT(matrixType = matrixType.copy(colKey = keys.toArray[String]))
-  }
-
   def stringSampleIds: IndexedSeq[String] = {
     assert(colKeyTypes.length == 1 && colKeyTypes(0).isInstanceOf[TString], colKeyTypes.toSeq)
     val querier = colType.query(colKey(0))
@@ -483,46 +440,20 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         s"\n  @1", dups.sortBy(-_._2).map { case (id, count) => s"""($count) "$id"""" }.truncatable("\n  "))
   }
 
-  def collectColsByKey(): MatrixTable = new MatrixTable(hc, MatrixCollectColsByKey(ast))
-
-  def aggregateColsByKey(aggExpr: String): MatrixTable = {
-    val aggIR = Parser.parse_value_ir(aggExpr, IRParserEnvironment(matrixType.refMap))
-    new MatrixTable(hc, MatrixAggregateColsByKey(ast, aggIR))
-  }
-
-  def aggregateRowsByKey(expr: String): MatrixTable = {
-    log.info(expr)
-    val rowsIR = Parser.parse_value_ir(expr, IRParserEnvironment(matrixType.refMap))
-    new MatrixTable(hc, MatrixAggregateRowsByKey(ast, rowsIR))
-  }
-
   def annotateGlobal(a: Annotation, t: Type, name: String): MatrixTable = {
     new MatrixTable(hc, MatrixMapGlobals(ast,
-      ir.InsertFields(ir.Ref("global", ast.typ.globalType), FastSeq(name -> ir.Literal(t, a, ir.genUID())))))
-  }
-
-  def annotateCols(signature: Type, path: List[String], annotations: Array[Annotation]): MatrixTable = {
-    val (t, ins) = colType.structInsert(signature, path)
-
-    val newAnnotations = new Array[Annotation](numCols)
-
-    for (i <- colValues.value.indices) {
-      newAnnotations(i) = ins(colValues.value(i), annotations(i))
-      t.typeCheck(newAnnotations(i))
-    }
-
-    copyMT(matrixType = matrixType.copy(colType = t), colValues = colValues.copy(value = newAnnotations, t = TArray(t)))
+      ir.InsertFields(ir.Ref("global", ast.typ.globalType), FastSeq(name -> ir.Literal.coerce(t, a)))))
   }
 
   def annotateColsTable(kt: Table, root: String): MatrixTable = {
     new MatrixTable(hc, MatrixAnnotateColsTable(ast, kt.tir, root))
   }
 
-  def orderedRVDLeftJoinDistinctAndInsert(right: OrderedRVD, root: String, product: Boolean): MatrixTable = {
+  def rvdLeftJoinDistinctAndInsert(right: RVD, root: String, product: Boolean): MatrixTable = {
     assert(!rowKey.contains(root))
 
     val valueType = if (product)
-      TArray(right.typ.valueType, required = true)
+      PArray(right.typ.valueType, required = true)
     else
       right.typ.valueType
 
@@ -531,7 +462,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     else
       right
 
-    val (newRVPType, ins) = rvRowType.physicalType.unsafeStructInsert(valueType.physicalType, List(root))
+    val (newRVPType, ins) = rvRowType.physicalType.unsafeStructInsert(valueType, List(root))
     val newRVType = newRVPType.virtualType
 
     val rightRowType = rightRVD.rowType
@@ -546,7 +477,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
       it.map { jrv =>
         val lrv = jrv.rvLeft
-        rvb.start(newRVType)
+        rvb.start(newRVType.physicalType)
         ins(lrv.region, lrv.offset, rvb,
           () => {
             if (product) {
@@ -554,7 +485,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
                 rvb.startArray(0)
                 rvb.endArray()
               } else
-                rvb.addField(rightRowType, jrv.rvRight, rightValueIndices(0))
+                rvb.addField(rightRowType.physicalType, jrv.rvRight, rightValueIndices(0))
             } else {
               if (jrv.rvRight == null)
                 rvb.setMissing()
@@ -562,7 +493,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
                 rvb.startStruct()
                 var i = 0
                 while (i < rightValueIndices.length) {
-                  rvb.addField(rightRowType, jrv.rvRight, rightValueIndices(i))
+                  rvb.addField(rightRowType.physicalType, jrv.rvRight, rightValueIndices(i))
                   i += 1
                 }
                 rvb.endStruct()
@@ -580,7 +511,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       right.typ.key.length,
       "left",
       joiner,
-      newMatrixType.orvdType
+      newMatrixType.canonicalRVDType
     )
 
     copyMT(matrixType = newMatrixType, rvd = joinedRVD)
@@ -591,42 +522,15 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val key = Option(irs).map { irs =>
       irs.asScala
         .toFastIndexedSeq
-        .map(Parser.parse_value_ir(_, parseEnv))
+        .map(IRParser.parse_value_ir(_, parseEnv))
     }
     new MatrixTable(hc, MatrixAnnotateRowsTable(ast, table.tir, uid, key))
-  }
-
-  def selectGlobals(expr: String): MatrixTable = {
-    val globalIR = Parser.parse_value_ir(expr, IRParserEnvironment(matrixType.refMap))
-    new MatrixTable(hc, MatrixMapGlobals(ast, globalIR))
-  }
-
-  def selectCols(expr: String, newKey: java.util.ArrayList[String]): MatrixTable =
-    selectCols(expr, Option(newKey).map(_.asScala.toFastIndexedSeq))
-
-  def selectCols(expr: String, newKey: Option[IndexedSeq[String]]): MatrixTable = {
-    val ir = Parser.parse_value_ir(expr, IRParserEnvironment(matrixType.refMap))
-    val newColKey = newKey.getOrElse(colKey)
-    new MatrixTable(hc, MatrixMapCols(ast, ir, newKey))
-  }
-
-  def selectRows(expr: String, newKey: java.util.ArrayList[String]): MatrixTable =
-    selectRows(expr, Option(newKey).map(_.asScala.toFastIndexedSeq))
-
-  def selectRows(expr: String, newKey: Option[IndexedSeq[String]]): MatrixTable = {
-    val rowsIR = Parser.parse_value_ir(expr, IRParserEnvironment(matrixType.refMap))
-    new MatrixTable(hc, MatrixMapRows(ast, rowsIR, newKey.map(a => (a, FastIndexedSeq()))))
-  }
-
-  def selectEntries(expr: String): MatrixTable = {
-    val ir = Parser.parse_value_ir(expr, IRParserEnvironment(matrixType.refMap))
-    new MatrixTable(hc, MatrixMapEntries(ast, ir))
   }
 
   def nPartitions: Int = rvd.getNumPartitions
 
   def annotateRowsVDS(right: MatrixTable, root: String): MatrixTable =
-    orderedRVDLeftJoinDistinctAndInsert(right.value.rowsRVD(), root, product = false)
+    rvdLeftJoinDistinctAndInsert(right.value.rowsRVD(), root, product = false)
 
   def count(): (Long, Long) = (countRows(), countCols())
 
@@ -639,8 +543,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   def forceCountCols(): Long = colValues.value.length
 
   def distinctByRow(): MatrixTable =
-    copy2(rvd = rvd.boundary.mapPartitionsPreservesPartitioning(rvd.typ,
-      SortedDistinctRowIterator.transformer(rvd.typ)))
+    copyAST(ast = MatrixDistinctByRow(ast))
 
   def distinctByCol(): MatrixTable = {
     val colKeys = dropRows().colKeys
@@ -661,34 +564,12 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def dropRows(): MatrixTable = copyAST(MatrixFilterRows(ast, ir.False()))
 
-  def explodeRows(root: String): MatrixTable = {
-    val path = Parser.parseAnnotationRoot(root, Annotation.ROW_HEAD)
-    copyAST(MatrixExplodeRows(ast, path.toFastIndexedSeq))
-  }
-
-  def explodeCols(code: String): MatrixTable = {
-    val path = Parser.parseAnnotationRoot(code, Annotation.COL_HEAD)
-    copyAST(MatrixExplodeCols(ast, path.toFastIndexedSeq))
-  }
-
-  def localizeEntries(entriesFieldName: String): Table =
-    new Table(hc, LocalizeEntries(ast, entriesFieldName))
+  def localizeEntries(entriesFieldName: String, colsFieldName: String): Table =
+    new Table(hc, CastMatrixToTable(ast, entriesFieldName, colsFieldName))
 
   def filterCols(p: (Annotation, Int) => Boolean): MatrixTable = {
     val (newType, filterF) = MatrixIR.filterCols(matrixType)
     copyAST(ast = MatrixLiteral(filterF(value, p)))
-  }
-
-  def filterColsExpr(filterExpr: String, keep: Boolean = true): MatrixTable = {
-    var irPred = Parser.parse_value_ir(filterExpr, IRParserEnvironment(matrixType.refMap))
-    new MatrixTable(hc,
-      MatrixFilterCols(ast, ir.filterPredicateWithKeep(irPred, keep)))
-  }
-
-  def filterRowsExpr(filterExpr: String, keep: Boolean = true): MatrixTable = {
-    var irPred = Parser.parse_value_ir(filterExpr, IRParserEnvironment(matrixType.refMap))
-    new MatrixTable(hc,
-      MatrixFilterRows(ast, ir.filterPredicateWithKeep(irPred, keep)))
   }
 
   def sparkContext: SparkContext = hc.sc
@@ -705,7 +586,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     newColKey: IndexedSeq[String] = colKey,
     newColValues: BroadcastIndexedSeq = colValues,
     newGlobalType: TStruct = globalType,
-    newGlobals: BroadcastRow = globals)(newEntryType: TStruct,
+    newGlobals: BroadcastRow = globals)(newEntryType: PStruct,
     inserter: (PC, RegionValue, RegionValueBuilder) => Unit): MatrixTable = {
     val newValue = value.insertEntries(makePartitionContext, newColType, newColKey,
       newColValues, newGlobalType, newGlobals)(newEntryType, inserter)
@@ -754,14 +635,14 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     val newMatrixType = matrixType.copyParts() // move entries to the end
     val newRVRowType = newMatrixType.rvRowType
-    val leftRVRowType = rvRowType
-    val rightRVRowType = right.rvRowType
+    val leftRVRowType = rvRowType.physicalType
+    val rightRVRowType = right.rvRowType.physicalType
     val localLeftSamples = numCols
     val localRightSamples = right.numCols
     val leftEntriesIndex = entriesIndex
     val rightEntriesIndex = right.entriesIndex
-    val localEntriesType = matrixType.entryArrayType
-    assert(right.matrixType.entryArrayType == localEntriesType)
+    val localEntriesType = matrixType.entryArrayType.physicalType
+    assert(right.matrixType.entryArrayType == matrixType.entryArrayType)
 
     val joiner = { (ctx: RVDContext, it: Iterator[JoinedRegionValue]) =>
       val rvb = ctx.rvb
@@ -771,7 +652,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         val lrv = jrv.rvLeft
         val rrv = jrv.rvRight
 
-        rvb.start(newRVRowType)
+        rvb.start(newRVRowType.physicalType)
         rvb.startStruct()
         var i = 0
         while (i < leftRVRowType.size) {
@@ -810,11 +691,11 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     copyMT(matrixType = newMatrixType,
       colValues = colValues.copy(value = colValues.value ++ right.colValues.value),
-      rvd = rvd.orderedJoinDistinct(right.rvd, "inner", joiner, newMatrixType.orvdType))
+      rvd = rvd.orderedJoinDistinct(right.rvd, "inner", joiner, newMatrixType.canonicalRVDType))
   }
 
   def makeTable(separator: String = "."): Table = {
-    requireColKeyString("make_table")
+    matrixType.requireColKeyString()
     requireUniqueSamples("make_table")
 
     val sampleIds = stringSampleIds
@@ -828,19 +709,19 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
               newName -> f.typ
             }
           }: _*),
-      Some(matrixType.rowKey),
+      matrixType.rowKey,
       matrixType.globalType)
 
     val localNSamples = numCols
-    val localRVRowType = rvRowType
+    val localRVRowType = rvRowType.physicalType
     val localEntriesIndex = entriesIndex
-    val localEntriesType = localRVRowType.types(entriesIndex).asInstanceOf[TArray]
-    val localEntryType = matrixType.entryType
+    val localEntriesType = matrixType.entryArrayType.physicalType
+    val localEntryType = matrixType.entryType.physicalType
 
-    val orvd = rvd.mapPartitionsPreservesPartitioning(ttyp.rvdType) { it =>
+    val newRVD = rvd.mapPartitions(ttyp.canonicalRVDType) { it =>
       val rvb = new RegionValueBuilder()
       val rv2 = RegionValue()
-      val fullRow = new UnsafeRow(localRVRowType.physicalType)
+      val fullRow = new UnsafeRow(localRVRowType)
 
       it.map { rv =>
         fullRow.set(rv)
@@ -848,7 +729,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         val region = rv.region
 
         rvb.set(region)
-        rvb.start(ttyp.rowType)
+        rvb.start(ttyp.rowType.physicalType)
         rvb.startStruct()
 
         var i = 0
@@ -881,11 +762,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         rv2
       }
     }
-    new Table(hc,
-      TableLiteral(
-        TableValue(ttyp,
-          globals,
-          orvd.toOldStyleRVD)))
+    new Table(hc, TableLiteral(TableValue(ttyp, globals, newRVD)))
   }
 
   def aggregateRowsJSON(expr: String): String = {
@@ -907,12 +784,12 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   }
 
   def aggregateEntries(expr: String): (Annotation, Type) = {
-    val qir = Parser.parse_value_ir(expr, IRParserEnvironment(matrixType.refMap))
+    val qir = IRParser.parse_value_ir(expr, IRParserEnvironment(matrixType.refMap))
     (Interpret(MatrixAggregate(ast, qir)), qir.typ)
   }
 
   def aggregateCols(expr: String): (Annotation, Type) = {
-    val qir = Parser.parse_value_ir(expr, IRParserEnvironment(matrixType.refMap))
+    val qir = IRParser.parse_value_ir(expr, IRParserEnvironment(matrixType.refMap))
     val ct = colsTable()
     val aggEnv = new ir.Env[ir.IR].bind("sa" -> ir.Ref("row", ct.typ.rowType))
     val sqir = ir.Subst(qir.unwrap, ir.Env.empty, aggEnv)
@@ -920,7 +797,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   }
 
   def aggregateRows(expr: String): (Annotation, Type) = {
-    val qir = Parser.parse_value_ir(expr, IRParserEnvironment(matrixType.refMap))
+    val qir = IRParser.parse_value_ir(expr, IRParserEnvironment(matrixType.refMap))
     val rt = rowsTable()
     val aggEnv = new ir.Env[ir.IR].bind("va" -> ir.Ref("row", rt.typ.rowType))
     val sqir = ir.Subst(qir.unwrap, ir.Env.empty, aggEnv)
@@ -985,13 +862,13 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     val newMatrixType = MatrixType(newGlobalType, newColKey, newColType, newRowKey, newRVRowType)
 
-    val newRVD = rvd.cast(newRVRowType).asInstanceOf[OrderedRVD]
+    val newRVD = rvd.cast(newRVRowType.physicalType)
 
     new MatrixTable(hc, newMatrixType, globals, colValues, newRVD)
   }
 
   def renameDuplicates(id: String): MatrixTable = {
-    requireColKeyString("rename duplicates")
+    matrixType.requireColKeyString()
     val (newIds, duplicates) = mangle(stringSampleIds.toArray)
     if (duplicates.nonEmpty)
       info(s"Renamed ${ duplicates.length } duplicate ${ plural(duplicates.length, "sample ID") }. " +
@@ -1068,45 +945,56 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val localColKeys = colKeys
 
     metadataSame &&
-      rvd.crdd.czip(
-        that.rvd.constrainToOrderedPartitioner(
-          rvd.partitioner.enlargeToRange(that.rvd.partitioner.range)
-        ).crdd) { (ctx, rv1, rv2) =>
-        var partSame = true
-
+      this.rvd.orderedZipJoin(that.rvd).mapPartitions { it =>
         val fullRow1 = new UnsafeRow(leftRVType.physicalType)
         val fullRow2 = new UnsafeRow(rightRVType.physicalType)
 
-        fullRow1.set(rv1)
-        fullRow2.set(rv2)
-        val row1 = fullRow1.deleteField(localLeftEntriesIndex)
-        val row2 = fullRow2.deleteField(localRightEntriesIndex)
-
-        if (!localRowType.valuesSimilar(row1, row2, tolerance, absolute)) {
-          println(
-            s"""row fields not the same:
-               |  $row1
-               |  $row2""".stripMargin)
-          partSame = false
-        }
-
-        val gs1 = fullRow1.getAs[IndexedSeq[Annotation]](localLeftEntriesIndex)
-        val gs2 = fullRow2.getAs[IndexedSeq[Annotation]](localRightEntriesIndex)
-
-        var i = 0
-        while (partSame && i < gs1.length) {
-          if (!localEntryType.valuesSimilar(gs1(i), gs2(i), tolerance, absolute)) {
-            partSame = false
-            println(
-              s"""different entry at row ${ localRKF(row1) }, col ${ localColKeys(i) }
-                 |  ${ gs1(i) }
-                 |  ${ gs2(i) }""".stripMargin)
+        it.map { case Muple(rv1, rv2) =>
+          if (rv2 == null) {
+            fullRow1.set(rv1)
+            val row1 = fullRow1.deleteField(localRightEntriesIndex)
+            println(s"row ${ localRKF(row1) } present in left but not right")
+            false
+          } else if (rv1 == null) {
+            fullRow2.set(rv2)
+            val row2 = fullRow2.deleteField(localRightEntriesIndex)
+            println(s"row ${ localRKF(row2) } present in right but not left")
+            false
           }
-          i += 1
+          else {
+            var partSame = true
+
+            fullRow1.set(rv1)
+            fullRow2.set(rv2)
+            val row1 = fullRow1.deleteField(localLeftEntriesIndex)
+            val row2 = fullRow2.deleteField(localRightEntriesIndex)
+
+            if (!localRowType.valuesSimilar(row1, row2, tolerance, absolute)) {
+              println(
+                s"""row fields not the same:
+                   |  $row1
+                   |  $row2""".stripMargin)
+              partSame = false
+            }
+
+            val gs1 = fullRow1.getAs[IndexedSeq[Annotation]](localLeftEntriesIndex)
+            val gs2 = fullRow2.getAs[IndexedSeq[Annotation]](localRightEntriesIndex)
+
+            var i = 0
+            while (partSame && i < gs1.length) {
+              if (!localEntryType.valuesSimilar(gs1(i), gs2(i), tolerance, absolute)) {
+                partSame = false
+                println(
+                  s"""different entry at row ${ localRKF(row1) }, col ${ localColKeys(i) }
+                     |  ${ gs1(i) }
+                     |  ${ gs2(i) }""".stripMargin)
+              }
+              i += 1
+            }
+            partSame
+          }
         }
-        ctx.region.clear()
-        partSame
-      }.run.forall(t => t)
+      }.clearingRun.forall(t => t)
   }
 
   def colValuesSimilar(that: MatrixTable, tolerance: Double = utils.defaultTolerance, absolute: Boolean = false): Boolean = {
@@ -1116,7 +1004,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       }
   }
 
-  def copy2(rvd: OrderedRVD = rvd,
+  def copy2(rvd: RVD = rvd,
     colValues: BroadcastIndexedSeq = colValues,
     colKey: IndexedSeq[String] = colKey,
     globals: BroadcastRow = globals,
@@ -1136,12 +1024,12 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       globals, colValues, rvd)
   }
 
-  def copyMT(rvd: OrderedRVD = rvd,
+  def copyMT(rvd: RVD = rvd,
     matrixType: MatrixType = matrixType,
     globals: BroadcastRow = globals,
     colValues: BroadcastIndexedSeq = colValues): MatrixTable = {
-    assert(rvd.typ == matrixType.orvdType,
-      s"mismatch in orvdType:\n  rdd: ${ rvd.typ }\n  mat: ${ matrixType.orvdType }")
+    assert(rvd.typ == matrixType.canonicalRVDType,
+      s"mismatch in rvdType:\n  rdd: ${ rvd.typ }\n  mat: ${ matrixType.canonicalRVDType }")
     new MatrixTable(hc,
       matrixType, globals, colValues, rvd)
   }
@@ -1200,14 +1088,12 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     Table(hc,
       sparkContext.parallelize[Row](Array(globals.value)),
       globalType,
-      None)
+      FastIndexedSeq())
   }
 
   def rowsTable(): Table = new Table(hc, MatrixRowsTable(ast))
 
   def entriesTable(): Table = new Table(hc, MatrixEntriesTable(ast))
-
-  def coalesce(k: Int, shuffle: Boolean = true): MatrixTable = copy2(rvd = rvd.coalesce(k, shuffle))
 
   def persist(storageLevel: String = "MEMORY_AND_DISK"): MatrixTable = {
     val level = try {
@@ -1238,20 +1124,12 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   }
 
   def filterEntries(filterExpr: String, keep: Boolean = true): MatrixTable = {
-    val filterIR = Parser.parse_value_ir(filterExpr, IRParserEnvironment(matrixType.refMap))
+    val filterIR = IRParser.parse_value_ir(filterExpr, IRParserEnvironment(matrixType.refMap))
     new MatrixTable(hc, MatrixFilterEntries(ast, ir.filterPredicateWithKeep(filterIR, keep)))
   }
 
   def write(path: String, overwrite: Boolean = false, stageLocally: Boolean = false, codecSpecJSONStr: String = null) {
-    ir.Interpret(ir.MatrixWrite(ast, _.write(path, overwrite, stageLocally, codecSpecJSONStr)))
-  }
-
-  def exportPlink(path: String) {
-    ir.Interpret(ir.MatrixWrite(ast, (mv: MatrixValue) => ExportPlink(mv, path)))
-  }
-
-  def exportGen(path: String, precision: Int = 4) {
-    ir.Interpret(ir.MatrixWrite(ast, (mv: MatrixValue) => ExportGen(mv, path, precision)))
+    ir.Interpret(ir.MatrixWrite(ast, MatrixNativeWriter(path, overwrite, stageLocally, codecSpecJSONStr)))
   }
 
   def trioMatrix(pedigree: Pedigree, completeTrios: Boolean): MatrixTable = {
@@ -1324,14 +1202,14 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       "mother_entry" -> entryType
     )
 
-    val fullRowType = rvRowType
+    val fullRowType = rvRowType.physicalType
     val localEntriesIndex = entriesIndex
-    val localEntriesType = matrixType.entryArrayType
+    val localEntriesType = matrixType.entryArrayType.physicalType
 
     insertEntries(noOp,
       newColType = newColType,
       newColKey = Array("id"),
-      newColValues = colValues.copy(value = newColValues, t = TArray(newColType)))(newEntryType, { case (_, rv, rvb) =>
+      newColValues = colValues.copy(value = newColValues, t = TArray(newColType)))(newEntryType.physicalType, { case (_, rv, rvb) =>
       val entriesOffset = fullRowType.loadField(rv, localEntriesIndex)
 
       rvb.startArray(nTrios)
@@ -1370,12 +1248,12 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     assert(partStarts.length == rvd.getNumPartitions + 1)
     val partStartsBc = sparkContext.broadcast(partStarts)
 
-    val rvRowType = matrixType.rvRowType
-    val entryArrayType = matrixType.entryArrayType
-    val entryType = matrixType.entryType
+    val rvRowType = matrixType.rvRowType.physicalType
+    val entryArrayType = matrixType.entryArrayType.physicalType
+    val entryType = matrixType.entryType.physicalType
     val fieldType = entryType.field(entryField).typ
 
-    assert(fieldType.isOfType(TFloat64()))
+    assert(fieldType.virtualType.isOfType(TFloat64()))
 
     val entryArrayIdx = matrixType.entriesIdx
     val fieldIdx = entryType.fieldIdx(entryField)
@@ -1432,7 +1310,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     hadoop.mkDir(dirname + "/parts")
     val gp = GridPartitioner(blockSize, nRows, localNCols)
     val blockPartFiles =
-      new WriteBlocksRDD(dirname, rvd.crdd, sparkContext, matrixType, partStarts, entryField, gp)
+      new WriteBlocksRDD(dirname, rvd, sparkContext, partStarts, entryField, gp)
         .collect()
 
     val blockCount = blockPartFiles.length
@@ -1474,43 +1352,35 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       entryType = matrixType.entryType ++ TStruct("prev_entries" -> TArray(matrixType.entryType))
     )
 
-    val partitioner = rvd.partitioner
-    val adjustments = partitioner
-      .rangeBounds
-      .zipWithIndex
-      .map { case (bound, i) =>
-        val startLocus = bound.start.asInstanceOf[Row].getAs[Locus](0)
-        val minPartitionNeeded = partitioner.getSafePartitionLowerBound(
-          Row(startLocus.copy(position = startLocus.position - basePairs)))
-        (minPartitionNeeded to i)
-          .map(Adjustment[RegionValue](_, identity))
-          .toArray
-      }.toArray
+    val oldBounds = rvd.partitioner.rangeBounds
+    val adjBounds = oldBounds.map { interval =>
+      val startLocus = interval.start.asInstanceOf[Row].getAs[Locus](0)
+      val newStartLocus = startLocus.copy(position = startLocus.position - basePairs)
+      interval.copy(start = Row(newStartLocus))
+    }
 
-    val adjRDD = rvd.crdd.adjustPartitions(adjustments)
-
-    val localRVRowType = rvRowType
+    val localRVRowType = rvRowType.physicalType
     val locusIndex = localRVRowType.fieldIdx("locus")
+    val keyOrdering = matrixType.rowKeyStruct.ordering
+    val localKeyFieldIdx = matrixType.canonicalRVDType.kFieldIdx
     val entriesIndex = localRVRowType.fieldIdx(MatrixType.entriesIdentifier)
     val nonEntryIndices = (0 until localRVRowType.size).filter(_ != entriesIndex).toArray
-    val entryArrayType = matrixType.entryArrayType
-    val entryType = matrixType.entryType
+    val entryArrayType = matrixType.entryArrayType.physicalType
+    val entryType = matrixType.entryType.physicalType
     val rg = referenceGenome
 
-    val locusStartsBc = sparkContext.broadcast(partitioner.rangeBounds.map { interval =>
-      val locus = interval.start.asInstanceOf[Row].getAs[Locus](0)
-      locus.copy(position = locus.position - basePairs)
-    })
+    val rangeBoundsBc = sparkContext.broadcast(oldBounds)
 
     val nCols = numCols
-    val newRDD = adjRDD.cmapPartitionsAndContextWithIndex { (partitionIndex, context, it) =>
-      val newContext = context.freshContext
+
+    val newRDD = RepartitionedOrderedRDD2(rvd, adjBounds).cmapPartitionsWithIndex { (i, context, it) =>
+      val bit = it.buffered
 
       val rb = new mutable.ArrayStack[Region]()
 
       def fetchRegion(): Region = {
         if (rb.isEmpty)
-          newContext.freshRegion
+          context.freshRegion
         else
           rb.pop()
       }
@@ -1521,100 +1391,102 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
       val deque = new java.util.ArrayDeque[(Locus, RegionValue)]()
 
-      it.flatMap { f =>
-        // these rows are loaded from previous partitions
-        val inAdjustment = it.hasNext
-        val rvIterator = f(newContext)
+      val region = context.region
+      val rv2 = RegionValue()
+      val rvb = new RegionValueBuilder()
 
-        val region = context.region
-        val rv2 = RegionValue()
-        val rvb = new RegionValueBuilder()
-        rvIterator.flatMap { rv =>
-          val locus = UnsafeRow.readLocus(rv.region, localRVRowType.loadField(rv, locusIndex), rg)
+      def pushRow(locus: Locus, row: RegionValue) {
+        val cpRegion = fetchRegion()
+        rvb.set(cpRegion)
+        rvb.clear()
+        rvb.start(localRVRowType)
+        rvb.startStruct()
+        rvb.addAllFields(localRVRowType, row)
+        rvb.endStruct()
+        deque.push(locus -> RegionValue(cpRegion, rvb.end()))
+      }
 
-          val result = if (inAdjustment) {
-            None
-          } else {
-            def discard(x: (Locus, RegionValue)): Boolean = x != null && (x._1.position < locus.position - basePairs
-              || x._1.contig != locus.contig)
+      def getLocus(row: RegionValue): Locus =
+        UnsafeRow.readLocus(row.region, localRVRowType.loadField(row, locusIndex), rg)
 
-            while (discard(deque.peekLast()))
-              recycleRegion(deque.removeLast()._2.region)
+      val unsafeRow = new UnsafeRow(localRVRowType)
+      val keyView = new KeyedRow(unsafeRow, localKeyFieldIdx)
+      while (bit.hasNext && { unsafeRow.set(bit.head); rangeBoundsBc.value(i).isAbovePosition(keyOrdering, keyView) }) {
+        val rv = bit.next()
+        pushRow(getLocus(rv), rv)
+      }
 
-            val rvs = deque.iterator().asScala.map(_._2).toArray
+      bit.map { rv =>
+        val locus = UnsafeRow.readLocus(rv.region, localRVRowType.loadField(rv, locusIndex), rg)
 
-            rvb.set(region)
-            rvb.clear()
-            region.clear()
-            rvb.start(newType.rvRowType)
-            rvb.startStruct()
-            rvb.addFields(localRVRowType, rv, nonEntryIndices)
+        def discard(x: (Locus, RegionValue)): Boolean = x != null && (x._1.position < locus.position - basePairs
+          || x._1.contig != locus.contig)
 
-            // prev_rows
-            rvb.startArray(rvs.length)
-            var j = 0
-            while (j < rvs.length) {
-              val rvj = rvs(j)
-              rvb.startStruct()
-              rvb.addFields(localRVRowType, rvj, nonEntryIndices)
-              rvb.endStruct()
-              j += 1
-            }
-            rvb.endArray()
+        while (discard(deque.peekLast()))
+          recycleRegion(deque.removeLast()._2.region)
 
-            rvb.startArray(nCols)
+        val rvs = deque.iterator().asScala.map(_._2).toArray
 
-            val entriesOffset = localRVRowType.loadField(rv, entriesIndex)
-            val prevEntriesOffsets = rvs.map(localRVRowType.loadField(_, entriesIndex))
+        rvb.set(region)
+        rvb.clear()
+        rvb.start(newType.rvRowType.physicalType)
+        rvb.startStruct()
+        rvb.addFields(localRVRowType, rv, nonEntryIndices)
 
-            j = 0
-            while (j < nCols) {
-              rvb.startStruct()
-              if (entryArrayType.isElementDefined(rv.region, entriesOffset, j))
-                rvb.addAllFields(entryType, rv.region, entryArrayType.loadElement(rv.region, entriesOffset, j))
-              else
-                rvb.skipFields(entryType.size)
-
-              // prev_entries
-              rvb.startArray(rvs.length)
-              var k = 0
-              while (k < rvs.length) {
-                rvb.startStruct()
-                if (entryArrayType.isElementDefined(rvs(k).region, prevEntriesOffsets(k), j))
-                  rvb.addAllFields(entryType, rvs(k).region, entryArrayType.loadElement(rvs(k).region, prevEntriesOffsets(k), j))
-                else
-                  rvb.skipFields(entryType.size)
-                rvb.endStruct()
-                k += 1
-              }
-              rvb.endArray()
-              rvb.endStruct()
-
-              j += 1
-            }
-            rvb.endArray()
-            rvb.endStruct()
-
-            rv2.set(region, rvb.end())
-            Some(rv2)
-          }
-
-          if (!inAdjustment || rg.compare(locusStartsBc.value(partitionIndex), locus) <= 0) {
-            val cpRegion = fetchRegion()
-            rvb.set(cpRegion)
-            rvb.clear()
-            rvb.start(localRVRowType)
-            rvb.startStruct()
-            rvb.addAllFields(localRVRowType, rv)
-            rvb.endStruct()
-            deque.push(locus -> RegionValue(cpRegion, rvb.end()))
-          }
-
-          result
+        // prev_rows
+        rvb.startArray(rvs.length)
+        var j = 0
+        while (j < rvs.length) {
+          val rvj = rvs(j)
+          rvb.startStruct()
+          rvb.addFields(localRVRowType, rvj, nonEntryIndices)
+          rvb.endStruct()
+          j += 1
         }
+        rvb.endArray()
+
+        rvb.startArray(nCols)
+
+        val entriesOffset = localRVRowType.loadField(rv, entriesIndex)
+        val prevEntriesOffsets = rvs.map(localRVRowType.loadField(_, entriesIndex))
+
+        j = 0
+        while (j < nCols) {
+          rvb.startStruct()
+          if (entryArrayType.isElementDefined(rv.region, entriesOffset, j))
+            rvb.addAllFields(entryType, rv.region, entryArrayType.loadElement(rv.region, entriesOffset, j))
+          else
+            rvb.skipFields(entryType.size)
+
+          // prev_entries
+          rvb.startArray(rvs.length)
+          var k = 0
+          while (k < rvs.length) {
+            rvb.startStruct()
+            if (entryArrayType.isElementDefined(rvs(k).region, prevEntriesOffsets(k), j))
+              rvb.addAllFields(entryType, rvs(k).region, entryArrayType.loadElement(rvs(k).region, prevEntriesOffsets(k), j))
+            else
+              rvb.skipFields(entryType.size)
+            rvb.endStruct()
+            k += 1
+          }
+          rvb.endArray()
+          rvb.endStruct()
+
+          j += 1
+        }
+        rvb.endArray()
+        rvb.endStruct()
+
+        rv2.set(region, rvb.end())
+
+        pushRow(locus, rv)
+        rv2
       }
     }
 
-    copyMT(rvd = new OrderedRVD(newType.orvdType, partitioner, newRDD), matrixType = newType)
+    copyMT(
+      rvd = RVD(newType.canonicalRVDType, rvd.partitioner, newRDD),
+      matrixType = newType)
   }
 }

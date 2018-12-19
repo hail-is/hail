@@ -8,6 +8,7 @@ import org.apache.commons.math3.special.Gamma
 import is.hail.stats._
 import is.hail.utils._
 import is.hail.asm4s
+import is.hail.expr.types.virtual._
 
 object MathFunctions extends RegistryFunctions {
   def log(x: Double, b: Double): Double = math.log(x) / math.log(b)
@@ -22,11 +23,27 @@ object MathFunctions extends RegistryFunctions {
 
   def ceil(x: Double): Double = math.ceil(x)
 
+  def mod(x: Int, y: Int): Int = {
+    if (y == 0)
+      fatal(s"$x % 0: modulo by zero")
+    java.lang.Math.floorMod(x, y)
+  }
+
+  def mod(x: Long, y: Long): Long = {
+    if (y == 0L)
+      fatal(s"$x % 0: modulo by zero")
+    java.lang.Math.floorMod(x, y)
+  }
+
   def mod(x: Float, y: Float): Float = {
+    if (y == 0.0)
+      fatal(s"$x % 0: modulo by zero")
     val t = x % y
     if (t < 0) t + y else t
   }
   def mod(x: Double, y: Double): Double = {
+    if (y == 0.0)
+      fatal(s"$x % 0: modulo by zero")
     val t = x % y
     if (t < 0) t + y else t
   }
@@ -36,9 +53,18 @@ object MathFunctions extends RegistryFunctions {
   def pow(x: Float, y: Float): Double = math.pow(x, y)
   def pow(x: Double, y: Double): Double = math.pow(x, y)
 
-  def floorDiv(x: Int, y: Int): Int = java.lang.Math.floorDiv(x, y)
+  def floorDiv(x: Int, y: Int): Int = {
+    if (y == 0)
+      fatal(s"$x // 0: integer division by zero")
+    java.lang.Math.floorDiv(x, y)
+  }
 
-  def floorDiv(x: Long, y: Long): Long = java.lang.Math.floorDiv(x, y)
+
+  def floorDiv(x: Long, y: Long): Long = {
+    if (y == 0L)
+      fatal(s"$x // 0: integer division by zero")
+    java.lang.Math.floorDiv(x, y)
+  }
 
   def floorDiv(x: Float, y: Float): Float = math.floor(x / y).toFloat
 
@@ -73,9 +99,10 @@ object MathFunctions extends RegistryFunctions {
   
   def irentropy(s: String): Double = entropy(s)
 
+  val mathPackageClass: Class[_] = Class.forName("scala.math.package$")
+
   def registerAll() {
     val thisClass = getClass
-    val mathPackageClass = Class.forName("scala.math.package$")
     val statsPackageClass = Class.forName("is.hail.stats.package$")
     val jMathClass = classOf[java.lang.Math]
     val jIntegerClass = classOf[java.lang.Integer]
@@ -130,14 +157,20 @@ object MathFunctions extends RegistryFunctions {
     registerScalaFunction("ceil", TFloat32(), TFloat32())(thisClass, "ceil")
     registerScalaFunction("ceil", TFloat64(), TFloat64())(thisClass, "ceil")
 
-    registerJavaStaticFunction("%", TInt32(), TInt32(), TInt32())(jMathClass, "floorMod")
-    registerJavaStaticFunction("%", TInt64(), TInt64(), TInt64())(jMathClass, "floorMod")
+    registerScalaFunction("%", TInt32(), TInt32(), TInt32())(thisClass, "mod")
+    registerScalaFunction("%", TInt64(), TInt64(), TInt64())(thisClass, "mod")
     registerScalaFunction("%", TFloat32(), TFloat32(), TFloat32())(thisClass, "mod")
     registerScalaFunction("%", TFloat64(), TFloat64(), TFloat64())(thisClass, "mod")
 
     registerJavaStaticFunction("isnan", TFloat32(), TBoolean())(jFloatClass, "isNaN")
     registerJavaStaticFunction("isnan", TFloat64(), TBoolean())(jDoubleClass, "isNaN")
-  
+
+    registerJavaStaticFunction("is_finite", TFloat32(), TBoolean())(jFloatClass, "isFinite")
+    registerJavaStaticFunction("is_finite", TFloat64(), TBoolean())(jDoubleClass, "isFinite")
+
+    registerJavaStaticFunction("is_infinite", TFloat32(), TBoolean())(jFloatClass, "isInfinite")
+    registerJavaStaticFunction("is_infinite", TFloat64(), TBoolean())(jDoubleClass, "isInfinite")
+
     registerJavaStaticFunction("sign", TInt32(), TInt32())(jIntegerClass, "signum")
     registerScalaFunction("sign", TInt64(), TInt64())(mathPackageClass, "signum")
     registerJavaStaticFunction("sign", TFloat32(), TFloat32())(jMathClass, "signum")
@@ -149,7 +182,7 @@ object MathFunctions extends RegistryFunctions {
 
     registerCode("fisher_exact_test", TInt32(), TInt32(), TInt32(), TInt32(), fetStruct){ case (mb, a, b, c, d) =>
       val res = mb.newLocal[Array[Double]]
-      val srvb = new StagedRegionValueBuilder(mb, fetStruct)
+      val srvb = new StagedRegionValueBuilder(mb, fetStruct.physicalType)
       Code(
         res := Code.invokeScalaObject[Int, Int, Int, Int, Array[Double]](statsPackageClass, "fisherExactTest", a, b, c, d),
         srvb.start(),
@@ -167,7 +200,7 @@ object MathFunctions extends RegistryFunctions {
     
     registerCode("chi_squared_test", TInt32(), TInt32(), TInt32(), TInt32(), chisqStruct){ case (mb, a, b, c, d) =>
       val res = mb.newLocal[Array[Double]]
-      val srvb = new StagedRegionValueBuilder(mb, chisqStruct)
+      val srvb = new StagedRegionValueBuilder(mb, chisqStruct.physicalType)
       Code(
         res := Code.invokeScalaObject[Int, Int, Int, Int, Array[Double]](statsPackageClass, "chiSquaredTest", a, b, c, d),
         srvb.start(),
@@ -181,7 +214,7 @@ object MathFunctions extends RegistryFunctions {
 
     registerCode("contingency_table_test", TInt32(), TInt32(), TInt32(), TInt32(), TInt32(), chisqStruct){ case (mb, a, b, c, d, min_cell_count) =>
       val res = mb.newLocal[Array[Double]]
-      val srvb = new StagedRegionValueBuilder(mb, chisqStruct)
+      val srvb = new StagedRegionValueBuilder(mb, chisqStruct.physicalType)
       Code(
         res := Code.invokeScalaObject[Int, Int, Int, Int, Int, Array[Double]](statsPackageClass, "contingencyTableTest", a, b, c, d, min_cell_count),
         srvb.start(),
@@ -195,7 +228,7 @@ object MathFunctions extends RegistryFunctions {
 
     registerCode("hardy_weinberg_test", TInt32(), TInt32(), TInt32(), hweStruct){ case (mb, nHomRef, nHet, nHomVar) =>
       val res = mb.newLocal[Array[Double]]
-      val srvb = new StagedRegionValueBuilder(mb, hweStruct)
+      val srvb = new StagedRegionValueBuilder(mb, hweStruct.physicalType)
       Code(
         res := Code.invokeScalaObject[Int, Int, Int, Array[Double]](statsPackageClass, "hardyWeinbergTest", nHomRef, nHet, nHomVar),
         srvb.start(),

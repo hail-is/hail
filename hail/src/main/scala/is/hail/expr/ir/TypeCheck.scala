@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.expr.types._
+import is.hail.expr.types.virtual._
 import is.hail.utils._
 
 object TypeCheck {
@@ -29,7 +30,7 @@ object TypeCheck {
       case True() =>
       case False() =>
       case Str(x) =>
-      case Literal(_, _, _) =>
+      case Literal(_, _) =>
       case Void() =>
 
       case Cast(v, typ) =>
@@ -47,7 +48,7 @@ object TypeCheck {
         check(cnsq)
         check(altr)
         assert(cond.typ.isOfType(TBoolean()))
-        assert(cnsq.typ == altr.typ, s"${ cnsq.typ }, ${ altr.typ }, $cond")
+        assert(cnsq.typ == altr.typ, s"Type mismatch:\n  cnsq: ${ cnsq.typ.parsableString() }\n  altr: ${ altr.typ.parsableString() }\n  $x")
         assert(x.typ == cnsq.typ)
 
       case x@Let(name, value, body) =>
@@ -67,18 +68,15 @@ object TypeCheck {
       case x@ApplyComparisonOp(op, l, r) =>
         check(l)
         check(r)
-        assert(op.t1.fundamentalType == l.typ.fundamentalType)
-        assert(op.t2.fundamentalType == r.typ.fundamentalType)
+        assert(-op.t1.fundamentalType == -l.typ.fundamentalType)
+        assert(-op.t2.fundamentalType == -r.typ.fundamentalType)
         assert(x.typ == TBoolean())
       case x@MakeArray(args, typ) =>
-        if (args.length == 0)
-          assert(typ != null)
-        else {
-          args.foreach(check(_))
-          val t = args.head.typ
-          args.map(_.typ).zipWithIndex.tail.foreach { case (x, i) => assert(x.isOfType(t), s"at position $i type mismatch: $t $x") }
-          assert(x.typ == TArray(t))
+        assert(typ != null)
+        args.map(_.typ).zipWithIndex.foreach { case (x, i) => assert(x == typ.elementType,
+          s"at position $i type mismatch: ${ typ.parsableString() } ${ x.parsableString() }")
         }
+        args.foreach(check(_))
       case x@ArrayRef(a, i) =>
         check(a)
         check(i)
@@ -155,6 +153,20 @@ object TypeCheck {
         val tarray = coerce[TArray](a.typ)
         check(body, env = env.bind(valueName -> -tarray.elementType))
         assert(body.typ == TVoid)
+      case x@AggFilter(cond, aggIR) =>
+        check(cond, env = aggEnv.get)
+        check(aggIR)
+        assert(cond.typ isOfType TBoolean())
+        assert(x.typ == aggIR.typ)
+      case x@AggExplode(array, name, aggBody) =>
+        check(array, env = aggEnv.get)
+        assert(array.typ.isInstanceOf[TArray])
+        check(aggBody, env = env, aggEnv = aggEnv.map(_.bind(name -> -coerce[TArray](array.typ).elementType)))
+        assert(x.typ == aggBody.typ)
+      case x@AggGroupBy(key, aggIR) =>
+        check(key, env = aggEnv.get)
+        check(aggIR)
+        assert(x.typ == TDict(key.typ, aggIR.typ))
       case x@InitOp(i, args, aggSig) =>
         args.foreach(check(_))
         check(i)
@@ -170,17 +182,15 @@ object TypeCheck {
           check(x)
           assert(x.typ == TVoid)
         }
-      case x@ApplyAggOp(a, constructorArgs, initOpArgs, aggSig) =>
-        check(a, env = aggEnv.get)
+      case x@ApplyAggOp(constructorArgs, initOpArgs, seqOpArgs, aggSig) =>
+        seqOpArgs.foreach(check(_, env = aggEnv.get))
         constructorArgs.foreach(check(_))
         initOpArgs.foreach(_.foreach(check(_)))
-        assert(a.typ == TVoid)
         assert(x.typ == AggOp.getType(aggSig))
-      case x@ApplyScanOp(a, constructorArgs, initOpArgs, aggSig) =>
-        check(a)
+      case x@ApplyScanOp(constructorArgs, initOpArgs, seqOpArgs, aggSig) =>
         constructorArgs.foreach(check(_))
         initOpArgs.foreach(_.foreach(check(_)))
-        assert(a.typ == TVoid)
+        seqOpArgs.foreach(check(_, env = aggEnv.get))
         assert(x.typ == AggOp.getType(aggSig))
       case x@MakeStruct(fields) =>
         fields.foreach { case (name, a) => check(a) }
@@ -232,6 +242,8 @@ object TypeCheck {
       case In(i, typ) =>
         assert(typ != null)
       case Die(msg, typ) =>
+        check(msg)
+        assert(msg.typ isOfType TString())
       case x@ApplyIR(fn, args, conversion) =>
         check(x.explicitNode)
       case x: AbstractApplyNode[_] =>
@@ -255,6 +267,7 @@ object TypeCheck {
       case TableWrite(_, _, _, _, _) =>
       case TableExport(_, _, _, _, _) =>
       case TableCount(_) =>
+      case TableGetGlobals(_) =>
     }
   }
 }

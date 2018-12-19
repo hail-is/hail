@@ -6,6 +6,8 @@ import is.hail.expr.ir._
 import is.hail.table.Table
 import is.hail.annotations._
 import is.hail.expr.types._
+import is.hail.expr.types.physical.{PString, PType}
+import is.hail.expr.types.virtual.{TFloat64, TInt64, TString, TStruct}
 import is.hail.rvd.RVDContext
 import is.hail.sparkextras.ContextRDD
 import is.hail.variant.{Call, Genotype, HardCallView, MatrixTable}
@@ -24,14 +26,16 @@ object IBDInfo {
   val signature =
     TStruct(("Z0", TFloat64()), ("Z1", TFloat64()), ("Z2", TFloat64()), ("PI_HAT", TFloat64()))
 
+  private val pType = signature.physicalType
+
   def fromRegionValue(rv: RegionValue): IBDInfo =
     fromRegionValue(rv.region, rv.offset)
 
   def fromRegionValue(region: Region, offset: Long): IBDInfo = {
-    val Z0 = region.loadDouble(signature.loadField(region, offset, 0))
-    val Z1 = region.loadDouble(signature.loadField(region, offset, 1))
-    val Z2 = region.loadDouble(signature.loadField(region, offset, 2))
-    val PI_HAT = region.loadDouble(signature.loadField(region, offset, 3))
+    val Z0 = region.loadDouble(pType.loadField(region, offset, 0))
+    val Z1 = region.loadDouble(pType.loadField(region, offset, 1))
+    val Z2 = region.loadDouble(pType.loadField(region, offset, 2))
+    val PI_HAT = region.loadDouble(pType.loadField(region, offset, 3))
     IBDInfo(Z0, Z1, Z2, PI_HAT)
   }
 }
@@ -56,14 +60,16 @@ object ExtendedIBDInfo {
   val signature =
     TStruct(("ibd", IBDInfo.signature), ("ibs0", TInt64()), ("ibs1", TInt64()), ("ibs2", TInt64()))
 
+  private val pType = signature.physicalType
+
   def fromRegionValue(rv: RegionValue): ExtendedIBDInfo =
     fromRegionValue(rv.region, rv.offset)
 
   def fromRegionValue(region: Region, offset: Long): ExtendedIBDInfo = {
-    val ibd = IBDInfo.fromRegionValue(region, signature.loadField(region, offset, 0))
-    val ibs0 = region.loadLong(signature.loadField(region, offset, 1))
-    val ibs1 = region.loadLong(signature.loadField(region, offset, 2))
-    val ibs2 = region.loadLong(signature.loadField(region, offset, 3))
+    val ibd = IBDInfo.fromRegionValue(region, pType.loadField(region, offset, 0))
+    val ibs0 = region.loadLong(pType.loadField(region, offset, 1))
+    val ibs1 = region.loadLong(pType.loadField(region, offset, 2))
+    val ibs2 = region.loadLong(pType.loadField(region, offset, 3))
     ExtendedIBDInfo(ibd, ibs0, ibs1, ibs2)
   }
 }
@@ -215,8 +221,9 @@ object IBD {
     val nSamples = vds.numCols
 
     val rowType = vds.rvRowType
+    val rowPType = rowType.physicalType
     val unnormalizedIbse = vds.rvd.mapPartitions { it =>
-      val view = HardCallView(rowType)
+      val view = HardCallView(rowPType)
       it.map { rv =>
         view.setRegion(rv)
         ibsForGenotypes(view, computeMaf.map(f => f(rv)))
@@ -226,7 +233,7 @@ object IBD {
     val ibse = unnormalizedIbse.normalized
 
     val chunkedGenotypeMatrix = vds.rvd.mapPartitions { it =>
-      val view = HardCallView(rowType)
+      val view = HardCallView(rowPType)
       it.map { rv =>
         view.setRegion(rv)
         Array.tabulate[Byte](view.getLength) { i =>
@@ -287,7 +294,7 @@ object IBD {
           eibd = calculateIBDInfo(ibses(idx * 3), ibses(idx * 3 + 1), ibses(idx * 3 + 2), ibse, bounded)
           if min.forall(eibd.ibd.PI_HAT >= _) && max.forall(eibd.ibd.PI_HAT <= _)
         } yield {
-          rvb.start(ibdSignature)
+          rvb.start(ibdSignature.physicalType)
           rvb.startStruct()
           rvb.addString(sampleIds(i))
           rvb.addString(sampleIds(j))
@@ -319,26 +326,28 @@ object IBD {
     val sampleIds = vds.stringSampleIds
 
     val ktRdd2 = computeIBDMatrix(vds, computeMaf, min, max, sampleIds, bounded)
-    new Table(vds.hc, ktRdd2, ibdSignature, Some(IndexedSeq("i", "j")))
+    new Table(vds.hc, ktRdd2, ibdSignature, IndexedSeq("i", "j"))
   }
 
   private val ibdSignature = TStruct(("i", TString()), ("j", TString())) ++ ExtendedIBDInfo.signature
 
+  private val ibdPType = ibdSignature.physicalType
+
   def toKeyTable(sc: HailContext, ibdMatrix: RDD[((Annotation, Annotation), ExtendedIBDInfo)]): Table = {
     val ktRdd = ibdMatrix.map { case ((i, j), eibd) => eibd.makeRow(i, j) }
-    Table(sc, ktRdd, ibdSignature, Some(IndexedSeq("i", "j")))
+    Table(sc, ktRdd, ibdSignature, IndexedSeq("i", "j"))
   }
 
   def toRDD(kt: Table): RDD[((Annotation, Annotation), ExtendedIBDInfo)] = {
     val rvd = kt.rvd
     rvd.map { rv =>
       val region = rv.region
-      val i = TString.loadString(region, ibdSignature.loadField(rv, 0))
-      val j = TString.loadString(region, ibdSignature.loadField(rv, 1))
-      val ibd = IBDInfo.fromRegionValue(region, ibdSignature.loadField(rv, 2))
-      val ibs0 = region.loadLong(ibdSignature.loadField(rv, 3))
-      val ibs1 = region.loadLong(ibdSignature.loadField(rv, 4))
-      val ibs2 = region.loadLong(ibdSignature.loadField(rv, 5))
+      val i = PString.loadString(region, ibdPType.loadField(rv, 0))
+      val j = PString.loadString(region, ibdPType.loadField(rv, 1))
+      val ibd = IBDInfo.fromRegionValue(region, ibdPType.loadField(rv, 2))
+      val ibs0 = region.loadLong(ibdPType.loadField(rv, 3))
+      val ibs1 = region.loadLong(ibdPType.loadField(rv, 4))
+      val ibs2 = region.loadLong(ibdPType.loadField(rv, 5))
       val eibd = ExtendedIBDInfo(ibd, ibs0, ibs1, ibs2)
       ((i, j), eibd)
     }
@@ -355,8 +364,8 @@ object IBD {
     val idx = rvRowType.fieldIdx(fieldName)
 
     (rv: RegionValue) => {
-      val isDefined = rvRowType.isFieldDefined(rv, idx)
-      val maf = rv.region.loadDouble(rvRowType.loadField(rv, idx))
+      val isDefined = rvRowPType.isFieldDefined(rv, idx)
+      val maf = rv.region.loadDouble(rvRowPType.loadField(rv, idx))
       if (!isDefined) {
         val row = new UnsafeRow(rvRowPType, rv).deleteField(entriesIdx)
         fatal(s"The minor allele frequency expression evaluated to NA at ${ rowKeysF(row) }.")

@@ -118,8 +118,8 @@ class Tests(unittest.TestCase):
         results = kt.aggregate(hl.Struct(q1=agg.sum(kt.b),
                                          q2=agg.count(),
                                          q3=agg.collect(kt.e),
-                                         q4=agg.collect(agg.filter((kt.d >= 5) | (kt.a == 0), kt.e)),
-                                         q5=agg.mean(agg.explode(kt.f))))
+                                         q4=agg.filter((kt.d >= 5) | (kt.a == 0), agg.collect(kt.e)),
+                                         q5=agg.explode(lambda elt: agg.mean(elt), kt.f)))
 
         self.assertEqual(results.q1, 8)
         self.assertEqual(results.q2, 3)
@@ -139,7 +139,7 @@ class Tests(unittest.TestCase):
             kt.group_by(status=kt.status)
                 .aggregate(
                 x1=agg.collect(kt.qPheno * 2),
-                x2=agg.collect(agg.explode([kt.qPheno, kt.qPheno + 1])),
+                x2=agg.explode(lambda elt: agg.collect(elt), [kt.qPheno, kt.qPheno + 1]),
                 x3=agg.min(kt.qPheno),
                 x4=agg.max(kt.qPheno),
                 x5=agg.sum(kt.qPheno),
@@ -153,8 +153,8 @@ class Tests(unittest.TestCase):
                 x14=agg.call_stats(kt.GT, ["A", "T"]),
                 x15=agg.collect(hl.Struct(a=5, b="foo", c=hl.Struct(banana='apple')))[0],
                 x16=agg.collect(hl.Struct(a=5, b="foo", c=hl.Struct(banana='apple')).c.banana)[0],
-                x17=agg.collect(agg.explode(hl.null(hl.tarray(hl.tint32)))),
-                x18=agg.collect(agg.explode(hl.null(hl.tset(hl.tint32)))),
+                x17=agg.explode(lambda elt: agg.collect(elt), hl.null(hl.tarray(hl.tint32))),
+                x18=agg.explode(lambda elt: agg.collect(elt), hl.null(hl.tset(hl.tint32))),
                 x19=agg.take(kt.GT, 1, ordering=-kt.qPheno)
             ).take(1)[0])
 
@@ -178,7 +178,7 @@ class Tests(unittest.TestCase):
     def test_aggregate_ir(self):
         kt = hl.utils.range_table(10).annotate_globals(g1=5)
         r = kt.aggregate(hl.struct(x=agg.sum(kt.idx) + kt.g1,
-                                   y=agg.sum(agg.filter(kt.idx % 2 != 0, kt.idx + 2)) + kt.g1,
+                                   y=agg.filter(kt.idx % 2 != 0, agg.sum(kt.idx + 2)) + kt.g1,
                                    z=agg.sum(kt.g1 + kt.idx) + kt.g1))
         self.assertEqual(convert_struct_to_dict(r), {u'x': 50, u'y': 40, u'z': 100})
 
@@ -188,7 +188,7 @@ class Tests(unittest.TestCase):
         r = kt.aggregate(hl.null(hl.tint32))
         self.assertEqual(r, None)
 
-        r = kt.aggregate(agg.sum(agg.filter(kt.idx % 2 != 0, kt.idx + 2)) + kt.g1)
+        r = kt.aggregate(agg.filter(kt.idx % 2 != 0, agg.sum(kt.idx + 2)) + kt.g1)
         self.assertEqual(r, 40)
 
     def test_group_aggregate_by_key(self):
@@ -251,7 +251,7 @@ class Tests(unittest.TestCase):
     def test_transmute_key(self):
         ht = hl.utils.range_table(10)
         self.assertEqual(ht.transmute(y = ht.idx + 2).row.dtype, hl.dtype('struct{idx: int32, y: int32}'))
-        ht = ht.key_by(None)
+        ht = ht.key_by()
         self.assertEqual(ht.transmute(y = ht.idx + 2).row.dtype, hl.dtype('struct{y: int32}'))
 
     def test_select(self):
@@ -340,12 +340,12 @@ class Tests(unittest.TestCase):
 
         kt = hl.utils.range_table(1)
         kt = kt.annotate_globals(foo=5)
-        self.assertEqual(kt.foo.value, 5)
+        self.assertEqual(hl.eval(kt.foo), 5)
 
         kt2 = hl.utils.range_table(1)
 
         kt2 = kt2.annotate_globals(kt_foo=kt.index_globals().foo)
-        self.assertEqual(kt2.globals.kt_foo.value, 5)
+        self.assertEqual(hl.eval(kt2.globals.kt_foo), 5)
 
     def test_interval_join(self):
         left = hl.utils.range_table(50, n_partitions=10)
@@ -372,6 +372,58 @@ class Tests(unittest.TestCase):
         mt2 = mt2.annotate_entries(x=mt2.row_idx + mt2.col_idx)
         mt.select_entries(a=mt2[mt.row_idx, mt.col_idx].x,
                           b=mt2[mt.row_idx, mt.col_idx].x)
+
+    def test_multi_way_zip_join(self):
+        d1 = [{"id": 0, "name": "a", "data": 0.0},
+              {"id": 1, "name": "b", "data": 3.14},
+              {"id": 2, "name": "c", "data": 2.78}]
+        d2 = [{"id": 0, "name": "d", "data": 1.1},
+              {"id": 0, "name": "x", "data": 2.2},
+              {"id": 2, "name": "v", "data": 7.89}]
+        d3 = [{"id": 1, "name": "f", "data":  9.99},
+              {"id": 2, "name": "g", "data": -1.0},
+              {"id": 3, "name": "z", "data":  0.01}]
+        s = hl.tstruct(id=hl.tint32, name=hl.tstr, data=hl.tfloat64)
+        ts = [hl.Table.parallelize(r, schema=s, key='id') for r in [d1, d2, d3]]
+        joined = hl.Table._multi_way_zip_join(ts, '__data', '__globals').drop('__globals')
+        dexpected = [{"id": 0, "__data": [{"name": "a", "data": 0.0},
+                                          {"name": "d", "data": 1.1},
+                                          None]},
+                     {"id": 0, "__data": [None,
+                                          {"name": "x", "data": 2.2},
+                                          None]},
+                     {"id": 1, "__data": [{"name": "b", "data": 3.14},
+                                          None,
+                                          {"name": "f", "data":  9.99}]},
+                     {"id": 2, "__data": [{"name": "c", "data": 2.78},
+                                          {"name": "v", "data": 7.89},
+                                          {"name": "g", "data": -1.0}]},
+                     {"id": 3, "__data": [None,
+                                          None,
+                                          {"name": "z", "data":  0.01}]}]
+        expected = hl.Table.parallelize(
+            dexpected,
+            schema=hl.tstruct(id=hl.tint32, __data=hl.tarray(hl.tstruct(name=hl.tstr, data=hl.tfloat64))),
+            key='id')
+        self.assertTrue(expected._same(joined))
+
+        expected2 = expected.transmute(data=expected['__data'])
+        joined_same_name = hl.Table._multi_way_zip_join(ts, 'data', 'globals').drop('globals')
+        self.assertTrue(expected2._same(joined_same_name))
+
+        joined_nothing = hl.Table._multi_way_zip_join(ts, 'data', 'globals').drop('data', 'globals')
+        self.assertEqual(joined_nothing._force_count(), 5)
+
+    def test_multi_way_zip_join_globals(self):
+        t1 = hl.utils.range_table(1).annotate_globals(x=hl.null(hl.tint32))
+        t2 = hl.utils.range_table(1).annotate_globals(x=5)
+        t3 = hl.utils.range_table(1).annotate_globals(x=0)
+        expected = hl.struct(__globals=hl.array([
+            hl.struct(x=hl.null(hl.tint32)),
+            hl.struct(x=5),
+            hl.struct(x=0)]))
+        joined = hl.Table._multi_way_zip_join([t1, t2, t3], '__data', '__globals')
+        self.assertEqual(hl.eval(joined.globals), hl.eval(expected))
 
     def test_index_maintains_count(self):
         t1 = hl.Table.parallelize([
@@ -401,12 +453,12 @@ class Tests(unittest.TestCase):
 
         ktd = kt.drop('idx')
         self.assertEqual(set(ktd.row), {'foo', 'sq', 'bar'})
-        ktd = ktd.key_by(None).drop('foo')
+        ktd = ktd.key_by().drop('foo')
         self.assertEqual(list(ktd.key), [])
 
         self.assertEqual(set(kt.drop(kt['idx']).row), {'foo', 'sq', 'bar'})
 
-        d = kt.key_by(None).drop(*list(kt.row))
+        d = kt.key_by().drop(*list(kt.row))
         self.assertEqual(list(d.row), [])
         self.assertEqual(list(d.key), [])
 
@@ -556,7 +608,9 @@ class Tests(unittest.TestCase):
         t = t.annotate(a=hl.set(['a', 'b', 'c']))
         t = t.explode('a')
         self.assertEqual(set(t.collect()),
-                         {hl.struct(idx=0, a='a').value, hl.struct(idx=0, a='b').value, hl.struct(idx=0, a='c').value})
+                         hl.eval(hl.set([hl.struct(idx=0, a='a'),
+                                         hl.struct(idx=0, a='b'),
+                                         hl.struct(idx=0, a='c')])))
 
     def test_write_stage_locally(self):
         t = hl.utils.range_table(5)
@@ -594,9 +648,10 @@ class Tests(unittest.TestCase):
         ref_data = [{'row_idx': i, '__entries': [{'v': i+j} for j in range(6)]}
                     for i in range(8)]
         ref_tab = hl.Table.parallelize(ref_data, ref_schema).key_by('row_idx')
+        ref_tab = ref_tab.select_globals(__cols=[hl.struct(col_idx=i) for i in range(6)])
         mt = hl.utils.range_matrix_table(8, 6)
         mt = mt.annotate_entries(v=mt.row_idx+mt.col_idx)
-        t = mt._localize_entries('__entries')
+        t = mt._localize_entries('__entries', '__cols')
         self.assertTrue(t._same(ref_tab))
 
     def test_localize_self_join(self):
@@ -608,7 +663,7 @@ class Tests(unittest.TestCase):
         ref_tab = ref_tab.join(ref_tab, how='outer')
         mt = hl.utils.range_matrix_table(8, 6)
         mt = mt.annotate_entries(v=mt.row_idx+mt.col_idx)
-        t = mt._localize_entries('__entries')
+        t = mt._localize_entries('__entries', '__cols').drop('__cols')
         t = t.join(t, how='outer')
         self.assertTrue(t._same(ref_tab))
 
@@ -622,8 +677,8 @@ class Tests(unittest.TestCase):
         t3 = t3.key_by(idx = t3.idx + 10)
 
         self.assertTrue(t1.union(t2, t3)._same(hl.utils.range_table(15)))
-        self.assertTrue(t1.key_by(None).union(t2.key_by(None), t3.key_by(None))
-                        ._same(hl.utils.range_table(15).key_by(None)))
+        self.assertTrue(t1.key_by().union(t2.key_by(), t3.key_by())
+                        ._same(hl.utils.range_table(15).key_by()))
 
     def test_table_head_returns_right_number(self):
         rt = hl.utils.range_table(10, 11)
@@ -753,3 +808,29 @@ class Tests(unittest.TestCase):
         assert j.row.dtype == hl.tstruct(idx=hl.tint32, row1=hl.tint32, row1_1=hl.tint32)
         assert j.globals.dtype == hl.tstruct(glob1=hl.tint32, glob1_1=hl.tint32)
         j._force_count()
+
+    def test_key_by_aggregate_rewriting(self):
+        ht = hl.utils.range_table(10)
+        ht = ht.group_by(x=ht.idx % 5).aggregate(aggr = hl.agg.count())
+        assert(ht.count() == 5)
+
+    def test_field_method_assignment(self):
+        ht = hl.utils.range_table(10)
+        ht = ht.annotate(sample=1)
+        ht = ht.annotate(_row=2)
+        assert ht['sample'].dtype == hl.tint32
+        assert ht['_row'].dtype == hl.tint32
+
+def test_large_number_of_fields(tmpdir):
+    ht = hl.utils.range_table(100)
+    ht = ht.annotate(**{
+        str(k): k for k in range(1000)
+    })
+    f = tmpdir.join("foo.ht")
+    assert_time(lambda: ht.count(), 5)
+    assert_time(lambda: ht.write(str(f)), 5)
+    ht = assert_time(lambda: hl.read_table(str(f)), 5)
+    assert_time(lambda: ht.count(), 5)
+
+def test_import_many_fields():
+    assert_time(lambda: hl.import_table(resource('many_cols.txt')), 5)

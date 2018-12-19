@@ -3,9 +3,13 @@ package is.hail.io.bgen
 import is.hail.annotations.{Region, _}
 import is.hail.asm4s._
 import is.hail.expr.types._
-import is.hail.io.{ByteArrayReader, HadoopFSDataBinaryReader, OnDiskBTreeIndexToValue}
+import is.hail.expr.types.physical.{PArray, PStruct}
+import is.hail.expr.types.virtual.{TArray, TInterval, Type}
+import is.hail.io.index.IndexReader
+import is.hail.io.{ByteArrayReader, HadoopFSDataBinaryReader}
 import is.hail.utils._
 import is.hail.variant.{Call2, ReferenceGenome}
+import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.{Partition, SparkContext}
@@ -15,157 +19,150 @@ trait BgenPartition extends Partition {
 
   def compressed: Boolean
 
-  def makeInputStream: HadoopFSDataBinaryReader
+  def skipInvalidLoci: Boolean
 
-  // advances the reader to the next variant position and returns the index of
-  // said variant
-  def advance(bfis: HadoopFSDataBinaryReader): Long
+  def contigRecoding: Map[String, String]
 
-  def hasNext(bfis: HadoopFSDataBinaryReader): Boolean
+  def sHadoopConfBc: Broadcast[SerializableHadoopConfiguration]
+
+  def makeInputStream: HadoopFSDataBinaryReader = {
+    val hadoopPath = new Path(path)
+    val fs = hadoopPath.getFileSystem(sHadoopConfBc.value.value)
+    val bfis = new HadoopFSDataBinaryReader(fs.open(hadoopPath))
+    bfis
+  }
+
+  def recodeContig(contig: String): String =
+    contigRecoding.getOrElse(contig, contig)
+}
+
+private case class LoadBgenPartition(
+  path: String,
+  indexPath: String,
+  filterPartition: Partition,
+  compressed: Boolean,
+  skipInvalidLoci: Boolean,
+  contigRecoding: Map[String, String],
+  partitionIndex: Int,
+  startIndex: Long,
+  endIndex: Long,
+  sHadoopConfBc: Broadcast[SerializableHadoopConfiguration]
+) extends BgenPartition {
+  assert(startIndex <= endIndex)
+
+  def index = partitionIndex
 }
 
 object BgenRDDPartitions extends Logging {
+  def checkFilesDisjoint(hConf: Configuration, fileMetadata: Seq[BgenFileMetadata], keyType: Type): Array[Interval] = {
+    assert(fileMetadata.nonEmpty)
+    val pord = keyType.ordering
+    val bounds = fileMetadata.map(md => (md.path, md.rangeBounds))
 
-  private case class BgenFileMetadata(
-    file: String,
-    byteFileSize: Long,
-    dataByteOffset: Long,
-    nVariants: Int,
-    compressed: Boolean
-  )
+    val overlappingBounds = new ArrayBuilder[(String, Interval, String, Interval)]
+    var i = 0
+    while (i < bounds.length) {
+      var j = 0
+      while (j < i) {
+        val b1 = bounds(i)
+        val b2 = bounds(j)
+        if (!b1._2.isDisjointFrom(pord, b2._2))
+          overlappingBounds += (b1._1, b1._2, b2._1, b2._2)
+        j += 1
+      }
+      i += 1
+    }
+
+    if (!overlappingBounds.isEmpty)
+      fatal(
+        s"""Each BGEN file must contain a region of the genome disjoint from other files. Found the following overlapping files:
+          |  ${ overlappingBounds.result().map { case (f1, i1, f2, i2) =>
+          s"file1: $f1\trangeBounds1: $i1\tfile2: $f2\trangeBounds2: $i2"
+        }.mkString("\n  ") })""".stripMargin)
+
+    bounds.map(_._2).toArray
+  }
 
   def apply(
     sc: SparkContext,
-    files: Seq[BgenHeader],
-    fileNPartitions: Array[Int],
-    includedVariantsPerFile: Map[String, Seq[Int]],
-    settings: BgenSettings
-  ): Array[Partition] = {
+    files: Seq[BgenFileMetadata],
+    blockSizeInMB: Option[Int],
+    nPartitions: Option[Int],
+    keyType: Type
+  ): (Array[Partition], Array[Interval]) = {
     val hConf = sc.hadoopConfiguration
     val sHadoopConfBc = sc.broadcast(new SerializableHadoopConfiguration(hConf))
-    val filesWithVariantFilters = files.map { header =>
-      val nKeptVariants = includedVariantsPerFile.get(header.path)
-        .map(_.length)
-        .getOrElse(header.nVariants)
-      header.copy(nVariants = nKeptVariants)
+
+    val fileRangeBounds = checkFilesDisjoint(hConf, files, keyType)
+    val intervalOrdering = TInterval(keyType).ordering
+
+    val sortedFiles = files.zip(fileRangeBounds)
+      .sortWith { case ((_, i1), (_, i2)) => intervalOrdering.lt(i1, i2) }
+      .map(_._1)
+
+    val totalSize = sortedFiles.map(_.header.fileByteSize).sum
+
+    val fileNPartitions = (blockSizeInMB, nPartitions) match {
+      case (Some(blockSizeInMB), _) =>
+        val blockSizeInB = blockSizeInMB * 1024 * 1024
+        sortedFiles.map { md =>
+          val size = md.header.fileByteSize
+          ((size + blockSizeInB - 1) / blockSizeInB).toInt
+        }
+      case (_, Some(nParts)) =>
+        sortedFiles.map { md =>
+          val size = md.header.fileByteSize
+          ((size * nParts + totalSize - 1) / totalSize).toInt
+        }
+      case (None, None) => fatal(s"Must specify either of 'blockSizeInMB' or 'nPartitions'.")
     }
-    val nonEmptyFilesAfterFilter = filesWithVariantFilters.filter(_.nVariants > 0)
+
+    val nonEmptyFilesAfterFilter = sortedFiles.filter(_.nVariants > 0)
+
     if (nonEmptyFilesAfterFilter.isEmpty) {
-      Array.empty
+      (Array.empty, Array.empty)
     } else {
       val partitions = new ArrayBuilder[Partition]()
+      val rangeBounds = new ArrayBuilder[Interval]()
       var fileIndex = 0
       while (fileIndex < nonEmptyFilesAfterFilter.length) {
         val file = nonEmptyFilesAfterFilter(fileIndex)
-        val nPartitions = fileNPartitions(fileIndex)
-        using(new OnDiskBTreeIndexToValue(file.path + ".idx", hConf)) { index =>
-          includedVariantsPerFile.get(file.path) match {
-            case None =>
-              val partNVariants = partition(file.nVariants, nPartitions)
-              val partFirstVariantIndex = partNVariants.scan(0)(_ + _).init
-              val partFirstByteOffset = index.positionOfVariants(partFirstVariantIndex)
-              var i = 0
-              while (i < nPartitions) {
-                partitions += BgenPartitionWithoutFilter(
-                  file.path,
-                  file.compressed,
-                  partFirstVariantIndex(i),
-                  partFirstByteOffset(i),
-                  if (i < nPartitions - 1) partFirstByteOffset(i + 1) else file.fileByteSize,
-                  partitions.length,
-                  sHadoopConfBc,
-                  settings
-                )
-                i += 1
-              }
-            case Some(variantIndices) =>
-              val partNVariants = partition(variantIndices.length, nPartitions)
-              val partFirstVariantIndex = partNVariants.scan(0)(_ + _).init
-              val variantIndexByteOffset = index.positionOfVariants(variantIndices.toArray)
-              var i = 0
-              while (i < nPartitions) {
-                var firstVariantIndex = partFirstVariantIndex(i)
-                var lastVariantIndex = firstVariantIndex + partNVariants(i)
-                partitions += BgenPartitionWithFilter(
-                  file.path,
-                  file.compressed,
-                  partitions.length,
-                  variantIndexByteOffset.slice(firstVariantIndex, lastVariantIndex),
-                  variantIndices.slice(firstVariantIndex, lastVariantIndex).toArray,
-                  sHadoopConfBc,
-                  settings
-                )
-                i += 1
-              }
+        using(IndexReader(hConf, file.indexPath)) { index =>
+          val nPartitions = math.min(fileNPartitions(fileIndex), file.nVariants.toInt)
+          val partNVariants = partition(file.nVariants.toInt, nPartitions)
+          val partFirstVariantIndex = partNVariants.scan(0)(_ + _).init
+          var i = 0
+          while (i < nPartitions) {
+            val firstVariantIndex = partFirstVariantIndex(i)
+            val lastVariantIndex = firstVariantIndex + partNVariants(i)
+            val partitionIndex = partitions.length
+
+            partitions += LoadBgenPartition(
+              file.path,
+              file.indexPath,
+              filterPartition = null,
+              file.header.compressed,
+              file.skipInvalidLoci,
+              file.contigRecoding,
+              partitionIndex,
+              firstVariantIndex,
+              lastVariantIndex,
+              sHadoopConfBc
+            )
+
+            rangeBounds += Interval(
+                index.queryByIndex(firstVariantIndex).key,
+                index.queryByIndex(lastVariantIndex - 1).key,
+                includesStart = true,
+                includesEnd = true) // this must be true -- otherwise boundaries with duplicates will have the wrong range bounds
+
+            i += 1
           }
         }
         fileIndex += 1
       }
-      partitions.result()
+      (partitions.result(), rangeBounds.result())
     }
-  }
-
-  private case class BgenPartitionWithoutFilter(
-    path: String,
-    compressed: Boolean,
-    firstRecordIndex: Long,
-    startByteOffset: Long,
-    endByteOffset: Long,
-    partitionIndex: Int,
-    sHadoopConfBc: Broadcast[SerializableHadoopConfiguration],
-    settings: BgenSettings
-  ) extends BgenPartition {
-    private[this] var records = firstRecordIndex - 1
-
-    def index = partitionIndex
-
-    def makeInputStream = {
-      val hadoopPath = new Path(path)
-      val fs = hadoopPath.getFileSystem(sHadoopConfBc.value.value)
-      val bfis = new HadoopFSDataBinaryReader(fs.open(hadoopPath))
-      bfis.seek(startByteOffset)
-      bfis
-    }
-
-    def advance(bfis: HadoopFSDataBinaryReader): Long = {
-      records += 1
-      records
-    }
-
-    def hasNext(bfis: HadoopFSDataBinaryReader): Boolean =
-      bfis.getPosition < endByteOffset
-  }
-
-  private case class BgenPartitionWithFilter(
-    path: String,
-    compressed: Boolean,
-    partitionIndex: Int,
-    keptVariantOffsets: Array[Long],
-    keptVariantIndices: Array[Int],
-    sHadoopConfBc: Broadcast[SerializableHadoopConfiguration],
-    settings: BgenSettings
-  ) extends BgenPartition {
-    private[this] var keptVariantIndex = -1
-    assert(keptVariantOffsets != null)
-    assert(keptVariantIndices != null)
-    assert(keptVariantOffsets.length == keptVariantIndices.length)
-
-    def index = partitionIndex
-
-    def makeInputStream = {
-      val hadoopPath = new Path(path)
-      val fs = hadoopPath.getFileSystem(sHadoopConfBc.value.value)
-      new HadoopFSDataBinaryReader(fs.open(hadoopPath))
-    }
-
-    def advance(bfis: HadoopFSDataBinaryReader): Long = {
-      keptVariantIndex += 1
-      bfis.seek(keptVariantOffsets(keptVariantIndex))
-      keptVariantIndices(keptVariantIndex)
-    }
-
-    def hasNext(bfis: HadoopFSDataBinaryReader): Boolean =
-      keptVariantIndex < keptVariantIndices.length - 1
   }
 }
 
@@ -178,8 +175,9 @@ object CompileDecoder {
     val cp = mb.getArg[BgenPartition](2).load()
     val cbfis = mb.getArg[HadoopFSDataBinaryReader](3).load()
     val csettings = mb.getArg[BgenSettings](4).load()
-    val srvb = new StagedRegionValueBuilder(mb, settings.typ)
-    val fileRowIndex = mb.newLocal[Long]
+    val srvb = new StagedRegionValueBuilder(mb, settings.pType)
+    val offset = mb.newLocal[Long]
+    val fileIdx = mb.newLocal[Int]
     val varid = mb.newLocal[String]
     val rsid = mb.newLocal[String]
     val contig = mb.newLocal[String]
@@ -210,7 +208,8 @@ object CompileDecoder {
     val d1 = mb.newLocal[Int]
     val d2 = mb.newLocal[Int]
     val c = Code(
-      fileRowIndex := cp.invoke[HadoopFSDataBinaryReader, Long]("advance", cbfis),
+      offset := cbfis.invoke[Long]("getPosition"),
+      fileIdx := cp.invoke[Int]("index"),
       if (settings.rowFields.varid) {
         varid := cbfis.invoke[Int, String]("readLengthAndString", 2)
       } else {
@@ -222,9 +221,9 @@ object CompileDecoder {
         cbfis.invoke[Int, Unit]("readLengthAndSkipString", 2)
       },
       contig := cbfis.invoke[Int, String]("readLengthAndString", 2),
-      contigRecoded := csettings.invoke[String, String]("recodeContig", contig),
+      contigRecoded := cp.invoke[String, String]("recodeContig", contig),
       position := cbfis.invoke[Int]("readInt"),
-      if (settings.skipInvalidLoci) {
+      cp.invoke[Boolean]("skipInvalidLoci").mux(
         Code(
           invalidLocus :=
             (if (settings.rg.nonEmpty) {
@@ -245,8 +244,7 @@ object CompileDecoder {
               Code._return(-1L) // return -1 to indicate we are skipping this variant
             ),
             Code._empty // if locus is valid, continue
-          ))
-      } else {
+          )),
         if (settings.rg.nonEmpty) {
           // verify the locus is valid before continuing
           csettings.invoke[Option[ReferenceGenome]]("rg")
@@ -255,9 +253,9 @@ object CompileDecoder {
         } else {
           Code._empty // if locus is valid continue
         }
-      },
+      ),
       srvb.start(),
-      srvb.addBaseStruct(settings.typ.types(settings.typ.fieldIdx("locus")).fundamentalType.asInstanceOf[TBaseStruct], { srvb =>
+      srvb.addBaseStruct(settings.pType.field("locus").typ.fundamentalType.asInstanceOf[PStruct], { srvb =>
         Code(
           srvb.start(),
           srvb.addString(contigRecoded),
@@ -271,7 +269,7 @@ object CompileDecoder {
           const("Only biallelic variants supported, found variant with ")
             .concat(nAlleles.toS)),
         Code._empty),
-      srvb.addArray(settings.typ.types(settings.typ.fieldIdx("alleles")).asInstanceOf[TArray], { srvb =>
+      srvb.addArray(settings.pType.field("alleles").typ.fundamentalType.asInstanceOf[PArray], { srvb =>
         Code(
           srvb.start(nAlleles),
           i := 0,
@@ -287,18 +285,29 @@ object CompileDecoder {
       if (settings.rowFields.varid)
         Code(srvb.addString(varid), srvb.advance())
       else Code._empty,
-      if (settings.rowFields.fileRowIndex)
-        Code(srvb.addLong(fileRowIndex), srvb.advance())
+      if (settings.rowFields.offset)
+        Code(srvb.addLong(offset), srvb.advance())
+      else Code._empty,
+      if (settings.rowFields.fileIdx)
+        Code(srvb.addInt(fileIdx), srvb.advance())
       else Code._empty,
       dataSize := cbfis.invoke[Int]("readInt"),
       settings.entries match {
         case NoEntries =>
           Code.toUnit(cbfis.invoke[Long, Long]("skipBytes", dataSize.toL))
 
-        case EntriesWithFields(gt, gp, dosage) if !(gt || gp || dosage) =>
-          assert(settings.matrixType.entryType.byteSize == 0)
+        case EntriesWithFields(_, _, _) if settings.dropCols =>
           Code(
-            srvb.addArray(settings.matrixType.entryArrayType, { srvb =>
+            srvb.addArray(settings.matrixType.entryArrayType.physicalType, { srvb =>
+              srvb.start(0)
+            }),
+            srvb.advance(),
+            Code.toUnit(cbfis.invoke[Long, Long]("skipBytes", dataSize.toL)))
+
+        case EntriesWithFields(gt, gp, dosage) if !(gt || gp || dosage) =>
+          assert(settings.matrixType.entryType.physicalType.byteSize == 0)
+          Code(
+            srvb.addArray(settings.matrixType.entryArrayType.physicalType, { srvb =>
               Code(
                 srvb.start(settings.nSamples),
                 i := 0,
@@ -397,14 +406,14 @@ object CompileDecoder {
             c0 := Call2.fromUnphasedDiploidGtIndex(0),
             c1 := Call2.fromUnphasedDiploidGtIndex(1),
             c2 := Call2.fromUnphasedDiploidGtIndex(2),
-            srvb.addArray(settings.matrixType.entryArrayType, { srvb =>
+            srvb.addArray(settings.matrixType.entryArrayType.physicalType, { srvb =>
               Code(
                 srvb.start(settings.nSamples),
                 i := 0,
                 Code.whileLoop(i < settings.nSamples,
                   (data(i + 8) & 0x80).cne(0).mux(
                     srvb.setMissing(),
-                    srvb.addBaseStruct(settings.matrixType.entryType, { srvb =>
+                    srvb.addBaseStruct(settings.matrixType.entryType.physicalType , { srvb =>
                       Code(
                         srvb.start(),
                         off := const(settings.nSamples + 10) + i * 2,
@@ -431,7 +440,7 @@ object CompileDecoder {
                         } else Code._empty,
                         if (includeGP) {
                           Code(
-                            srvb.addArray(settings.matrixType.entryType.types(settings.matrixType.entryType.fieldIdx("GP")).asInstanceOf[TArray], { srvb =>
+                            srvb.addArray(settings.matrixType.entryType.types(settings.matrixType.entryType.fieldIdx("GP")).asInstanceOf[TArray].physicalType, { srvb =>
                               Code(
                                 srvb.start(3),
                                 srvb.addDouble(d0.toD / 255.0),

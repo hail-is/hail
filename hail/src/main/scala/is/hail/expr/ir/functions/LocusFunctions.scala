@@ -8,7 +8,9 @@ import is.hail.asm4s
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.variant._
 import is.hail.expr.ir._
-import is.hail.utils.FastSeq
+import is.hail.expr.types.physical.{PArray, PBaseStruct, PString, PTuple}
+import is.hail.expr.types.virtual._
+import is.hail.utils.{FastIndexedSeq, FastSeq}
 
 object LocusFunctions extends RegistryFunctions {
 
@@ -33,14 +35,14 @@ object LocusFunctions extends RegistryFunctions {
     registerCode("contig", tv("T", _.isInstanceOf[TLocus]), TString()) {
       case (mb, locus: Code[Long]) =>
         val region = getRegion(mb)
-        val tlocus = types.coerce[TLocus](tv("T").t)
+        val tlocus = types.coerce[TLocus](tv("T").t).physicalType
         tlocus.contig(region, locus)
     }
 
     registerCode("position", tv("T", _.isInstanceOf[TLocus]), TInt32()) {
       case (mb, locus: Code[Long]) =>
         val region = getRegion(mb)
-        val tlocus = types.coerce[TLocus](tv("T").t)
+        val tlocus = types.coerce[TLocus](tv("T").t).physicalType
         tlocus.position(region, locus)
     }
 
@@ -61,11 +63,11 @@ object LocusFunctions extends RegistryFunctions {
       val newLocus = Code.checkcast[Locus](returnTuple.load().get[java.lang.Object]("_1"))
       val newAlleles = Code.checkcast[IndexedSeq[String]](returnTuple.load().get[java.lang.Object]("_2"))
 
-      val srvb = new StagedRegionValueBuilder(mb, TTuple(tv("T").t, TArray(TString())))
+      val srvb = new StagedRegionValueBuilder(mb, PTuple(FastIndexedSeq(tv("T").t.physicalType, PArray(PString()))))
       Code(
         returnTuple := tuple,
         srvb.start(),
-        srvb.addBaseStruct(types.coerce[TBaseStruct](tv("T").t.fundamentalType), { locusBuilder =>
+        srvb.addBaseStruct(types.coerce[PBaseStruct](tv("T").t.fundamentalType.physicalType), { locusBuilder =>
           Code(
             locusBuilder.start(),
             locusBuilder.addString(newLocus.invoke[String]("contig")),
@@ -73,7 +75,7 @@ object LocusFunctions extends RegistryFunctions {
             locusBuilder.addInt(newLocus.invoke[Int]("position")))
         }),
         srvb.advance(),
-        srvb.addArray(TArray(TString()), { allelesBuilder =>
+        srvb.addArray(PArray(PString()), { allelesBuilder =>
           Code(
             allelesBuilder.start(newAlleles.invoke[Int]("size")),
             Code.whileLoop(allelesBuilder.arrayIdx < newAlleles.invoke[Int]("size"),

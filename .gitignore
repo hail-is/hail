@@ -6,6 +6,7 @@
 .pytest_cache/
 build/
 hail.iml
-hail.log
+hail*.log
 out/
 target
+.DS_Store

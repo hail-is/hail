@@ -1,6 +1,7 @@
 package is.hail.annotations
 
 import is.hail.expr.types._
+import is.hail.expr.types.virtual.{TArray, TBaseStruct, TStruct, Type}
 import org.apache.spark.SparkContext
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.Row
@@ -15,7 +16,7 @@ abstract class BroadcastValue[T: ClassTag](value: T, t: Type, sc: SparkContext) 
 
   def toRegion(region: Region): Long = {
     val rvb = new RegionValueBuilder(region)
-    rvb.start(t)
+    rvb.start(t.physicalType)
     rvb.addAnnotation(t, value)
     rvb.end()
   }

@@ -9,6 +9,7 @@ import is.hail.table.Table
 import is.hail.utils._
 import is.hail.variant.{Call, HardCallView, MatrixTable}
 import is.hail.HailContext
+import is.hail.expr.types.virtual._
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
@@ -60,7 +61,7 @@ object PCRelate {
     
     val result = new PCRelate(maf, blockSize, statistics, defaultStorageLevel)(hc, blockedG, pcs)
 
-    Table(hc, toRowRdd(result, blockSize, minKinship, statistics), sig, Some(keys))
+    Table(hc, toRowRdd(result, blockSize, minKinship, statistics), sig, keys)
   }
 
   private[methods] def apply(hc: HailContext,
@@ -88,9 +89,9 @@ object PCRelate {
     ).map { case (name, expr) => s"($name $expr)" }
     val irExpr = s"(MakeStruct ${irFields.mkString(" ")})"
 
-    Table(vds.hc, toRowRdd(result, blockSize, minKinship, statistics), sig, None)
+    Table(vds.hc, toRowRdd(result, blockSize, minKinship, statistics), sig, FastIndexedSeq())
       .annotateGlobal(sampleIds.toFastIndexedSeq, TArray(TString()), "sample_ids")
-      .select(irExpr, IndexedSeq(), 0)
+      .mapRows(irExpr)
       .keyBy(keys.toArray)
   }
 
@@ -177,10 +178,11 @@ object PCRelate {
   private[methods] def vdsToMeanImputedMatrix(vds: MatrixTable): IndexedRowMatrix = {
     val nSamples = vds.numCols
     val localRowType = vds.rvRowType
+    val localRowPType = localRowType.physicalType
     val partStarts = vds.partitionStarts()
     val partStartsBc = vds.sparkContext.broadcast(partStarts)
     val rdd = vds.rvd.mapPartitionsWithIndex { (partIdx, it) =>
-      val view = HardCallView(localRowType)
+      val view = HardCallView(localRowPType)
       val missingIndices = new ArrayBuilder[Int]()
 
       var rowIdx = partStartsBc.value(partIdx)

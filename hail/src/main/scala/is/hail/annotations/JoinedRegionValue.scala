@@ -1,6 +1,6 @@
 package is.hail.annotations
 
-import is.hail.expr.types.Type
+import is.hail.expr.types.virtual.Type
 
 object JoinedRegionValue {
   def apply(): JoinedRegionValue = new JoinedRegionValue(null, null)

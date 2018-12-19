@@ -65,10 +65,10 @@ operations are allowed for a given expression.
 When evaluated in a Python interpreter, we can see ``mt.locus`` is a
 :class:`.LocusExpression` with type ``locus<GRCh37>``.
 
-    >>> mt
+    >>> mt  # doctest: +NOTEST
     <hail.matrixtable.MatrixTable at 0x1107e54a8>
 
-    >>> mt.locus
+    >>> mt.locus  # doctest: +NOTEST
     <LocusExpression of type locus<GRCh37>>
 
 Likewise, ``mt.DP`` is an :class:`.Int32Expression` with type ``int32``
@@ -80,7 +80,7 @@ expression, if any. For example, ``mt.DP.describe()`` tells us that ``mt.DP``
 has type ``int32`` and is an entry field of ``mt``, since it is indexed
 by both rows and columns:
 
-    >>> mt.DP.describe()
+    >>> mt.DP.describe()  # doctest: +NOTEST
     --------------------------------------------------------
     Type:
         int32
@@ -104,7 +104,7 @@ variety of file formats: :func:`.import_vcf`, :func:`.import_plink`,
 The :meth:`.MatrixTable.describe` method prints all fields in the table and
 their types, as well as the keys.
 
-    >>> mt.describe()
+    >>> mt.describe()  # doctest: +NOTEST
     ----------------------------------------
     Global fields:
         None
@@ -182,7 +182,7 @@ The simplest example is adding a new global field `foo` that just contains the c
 5.
 
     >>> mt_new = mt.annotate_globals(foo = 5)
-    >>> print(mt.globals.dtype.pretty())
+    >>> print(mt_new.globals.dtype.pretty())
     struct {
         foo: int32
     }
@@ -259,8 +259,10 @@ One use case of explode is to duplicate rows:
     >>> mt_new = mt_new.explode_rows(mt_new['replicate_num'])
     >>> mt.count_rows()
     346
+
     >>> mt_new.count_rows()
     692
+
     >>> mt_new.replicate_num.show()
     +---------------+------------+---------------+
     | locus         | alleles    | replicate_num |
@@ -278,6 +280,7 @@ One use case of explode is to duplicate rows:
     | 20:10030452   | ["G","A"]  |             1 |
     | 20:10030452   | ["G","A"]  |             2 |
     +---------------+------------+---------------+
+    showing top 10 rows
 
 Aggregation
 ===========
@@ -293,7 +296,7 @@ a Python value.
 
 An example of querying entries is to compute the global mean of field `GQ`:
 
-    >>> mt.aggregate_entries(hl.agg.mean(mt.GQ))
+    >>> mt.aggregate_entries(hl.agg.mean(mt.GQ))  # doctest: +NOTEST
     67.73196915777027
 
 It is possible to compute multiple values simultaneously by
@@ -301,7 +304,7 @@ creating a tuple or struct. This is encouraged, because grouping two
 computations together is far more efficient by traversing the dataset only once
 rather than twice.
 
-    >>> mt.aggregate_entries((agg.stats(mt.DP), agg.stats(mt.GQ)))
+    >>> mt.aggregate_entries((agg.stats(mt.DP), agg.stats(mt.GQ)))  # doctest: +NOTEST
     (Struct(mean=41.83915800445897, stdev=41.93057654787303, min=0.0, max=450.0, n=34537, sum=1444998.9999999995),
     Struct(mean=67.73196915777027, stdev=29.80840934057741, min=0.0, max=99.0, n=33720, sum=2283922.0000000135))
 
@@ -340,7 +343,7 @@ Next we group the columns by `case_status` and aggregate:
         }
     }
     >>> print(mt_grouped.col.dtype)
-    struct{status: str}
+    struct{case_status: str}
 
 Joins
 =====

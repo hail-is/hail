@@ -1,11 +1,14 @@
 package is.hail.io.index
 
+import java.io.InputStream
 import java.util
 import java.util.Map.Entry
 
 import is.hail.annotations._
-import is.hail.expr.Parser
+import is.hail.expr.types.virtual.Type
+import is.hail.expr.ir.IRParser
 import is.hail.io._
+import is.hail.io.bgen.BgenSettings
 import is.hail.utils._
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.FSDataInputStream
@@ -13,16 +16,50 @@ import org.apache.spark.sql.Row
 import org.json4s.Formats
 import org.json4s.jackson.JsonMethods
 
-object IndexReader {
-  def readMetadata(hConf: Configuration, metadataFile: String): IndexMetadata = {
-    val jv = hConf.readFile(metadataFile) { in => JsonMethods.parse(in) }
-    implicit val formats: Formats = defaultJSONFormats
-    jv.extract[IndexMetadata]
+object IndexReaderBuilder {
+  def apply(hConf: Configuration, path: String): (Configuration, String, Int) => IndexReader = {
+    val metadata = IndexReader.readMetadata(hConf, path)
+    val keyType = IRParser.parseType(metadata.keyType)
+    val annotationType = IRParser.parseType(metadata.annotationType)
+    IndexReaderBuilder(keyType, annotationType)
+  }
+
+  def apply(settings: BgenSettings): (Configuration, String, Int) => IndexReader =
+    IndexReaderBuilder(settings.matrixType.rowKeyStruct, settings.indexAnnotationType)
+
+  def apply(keyType: Type, annotationType: Type): (Configuration, String, Int) => IndexReader = {
+    val leafType = LeafNodeBuilder.typ(keyType, annotationType).physicalType
+    val internalType = InternalNodeBuilder.typ(keyType, annotationType).physicalType
+
+    val codecSpec = CodecSpec.default
+    val leafDecoder = codecSpec.buildDecoder(leafType, leafType)
+    val internalDecoder = codecSpec.buildDecoder(internalType, internalType)
+
+    (hConf, path, cacheCapacity) => new IndexReader(hConf, path, cacheCapacity, leafDecoder, internalDecoder)
   }
 }
 
-class IndexReader(hConf: Configuration, path: String, cacheCapacity: Int = 8) extends AutoCloseable {
-  private[io] val metadata = IndexReader.readMetadata(hConf, path + "/metadata.json.gz")
+object IndexReader {
+  def readMetadata(hConf: Configuration, path: String): IndexMetadata = {
+    val jv = hConf.readFile(path + "/metadata.json.gz") { in => JsonMethods.parse(in) }
+    implicit val formats: Formats = defaultJSONFormats
+    jv.extract[IndexMetadata]
+  }
+
+  def apply(hConf: Configuration, path: String, cacheCapacity: Int = 8): IndexReader = {
+    val builder = IndexReaderBuilder(hConf, path)
+    builder(hConf, path, cacheCapacity)
+  }
+}
+
+
+
+class IndexReader(hConf: Configuration,
+  path: String,
+  cacheCapacity: Int = 8,
+  leafDecoderBuilder: (InputStream) => Decoder,
+  internalDecoderBuilder: (InputStream) => Decoder) extends AutoCloseable {
+  private[io] val metadata = IndexReader.readMetadata(hConf, path)
   val branchingFactor = metadata.branchingFactor
   val height = metadata.height
   val nKeys = metadata.nKeys
@@ -30,8 +67,8 @@ class IndexReader(hConf: Configuration, path: String, cacheCapacity: Int = 8) ex
   val indexRelativePath = metadata.indexPath
 
   val version = SemanticVersion(metadata.fileVersion)
-  val keyType = Parser.parseType(metadata.keyType)
-  val annotationType = Parser.parseType(metadata.annotationType)
+  val keyType = IRParser.parseType(metadata.keyType)
+  val annotationType = IRParser.parseType(metadata.annotationType)
   val leafType = LeafNodeBuilder.typ(keyType, annotationType)
   val leafPType = leafType.physicalType
   val internalType = InternalNodeBuilder.typ(keyType, annotationType)
@@ -39,10 +76,8 @@ class IndexReader(hConf: Configuration, path: String, cacheCapacity: Int = 8) ex
   val ordering = keyType.ordering
 
   private val is = hConf.unsafeReader(path + "/" + indexRelativePath).asInstanceOf[FSDataInputStream]
-  private val codecSpec = CodecSpec.default
-
-  private val leafDecoder = codecSpec.buildDecoder(leafType, leafType)(is)
-  private val internalDecoder = codecSpec.buildDecoder(internalType, internalType)(is)
+  private val leafDecoder = leafDecoderBuilder(is)
+  private val internalDecoder = internalDecoderBuilder(is)
 
   private val region = new Region()
   private val rv = RegionValue(region)
@@ -86,41 +121,15 @@ class IndexReader(hConf: Configuration, path: String, cacheCapacity: Int = 8) ex
     }
   }
 
-  // Returns smallest i, 0 <= i < n, for which p(i) holds, or returns n if p(i) is false for all i.
-  // Assumes all i for which p(i) is true are greater than all i for which p(i) is false.
-  // Returned value j has the property that p(i) is false for all i in [0, j),
-  // and p(i) is true for all i in [j, n).
-  private def findPartitionPoint(n: Int, p: (Int) => Boolean): Int = {
-    var left = 0
-    var right = n
-    while (left < right) {
-      val mid = left + (right - left) / 2
-      if (p(mid))
-        right = mid
-      else
-        left = mid + 1
-    }
-    left
-  }
-
-  // Returns smallest i, 0 <= i < n, for which f(i) >= key, or returns n if f(i) < key for all i
-  private[io] def binarySearchLowerBound(n: Int, key: Annotation, f: (Int) => Annotation): Int =
-    findPartitionPoint(n, i => ordering.gteq(f(i), key))
-
-  // Returns smallest i, 0 <= i < n, for which f(i) > key, or returns n if f(i) <= key for all i
-  private[io] def binarySearchUpperBound(n: Int, key: Annotation, f: (Int) => Annotation): Int =
-    findPartitionPoint(n, i => ordering.gt(f(i), key))
-
   private def lowerBound(key: Annotation, level: Int, offset: Long): Long = {
     if (level == 0) {
       val node = readLeafNode(offset)
-      val idx = binarySearchLowerBound(node.children.length, key, { i => node.children(i).key })
+      val idx = node.children.lowerBound(key, ordering.lt, _.key)
       node.firstIndex + idx
     } else {
       val node = readInternalNode(offset)
       val children = node.children
-      val n = children.length
-      val idx = binarySearchLowerBound(n, key, { i => children(i).firstKey })
+      val idx = children.lowerBound(key, ordering.lt, _.firstKey)
       lowerBound(key, level - 1, children(idx - 1).indexFileOffset)
     }
   }
@@ -135,13 +144,13 @@ class IndexReader(hConf: Configuration, path: String, cacheCapacity: Int = 8) ex
   private def upperBound(key: Annotation, level: Int, offset: Long): Long = {
     if (level == 0) {
       val node = readLeafNode(offset)
-      val idx = binarySearchUpperBound(node.children.length, key, { i => node.children(i).key })
+      val idx = node.children.upperBound(key, ordering.lt, _.key)
       node.firstIndex + idx
     } else {
       val node = readInternalNode(offset)
       val children = node.children
       val n = children.length
-      val idx = binarySearchUpperBound(n, key, { i => children(i).firstKey })
+      val idx = children.upperBound(key, ordering.lt, _.firstKey)
       upperBound(key, level - 1, children(idx - 1).indexFileOffset)
     }
   }
@@ -218,6 +227,13 @@ class IndexReader(hConf: Configuration, path: String, cacheCapacity: Int = 8) ex
     }
 
     def hasNext: Boolean = pos < end
+
+    def seek(key: Annotation) {
+      val newPos = lowerBound(key)
+      assert(newPos >= pos)
+      localPos += (newPos - pos).toInt
+      pos = newPos
+    }
   }
 
   def iterateFrom(key: Annotation): Iterator[LeafChild] =

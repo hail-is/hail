@@ -6,6 +6,7 @@ import is.hail.HailContext
 import is.hail.expr._
 import is.hail.expr.ir.TableImport
 import is.hail.expr.types._
+import is.hail.expr.types.virtual._
 import is.hail.table.Table
 import is.hail.utils.StringEscapeUtils._
 import org.apache.spark.rdd.RDD
@@ -285,7 +286,7 @@ object TextTableReader {
 
     info(sb.result())
 
-    val ttyp = TableType(TStruct(namesAndTypes: _*), None, TStruct())
+    val ttyp = TableType(TStruct(namesAndTypes: _*), FastIndexedSeq(), TStruct())
     val readerOpts = TableReaderOptions(nPartitions, commentStartsWith, commentRegexes,
       separator, missing, noHeader, header, quote, skipBlankLines, namesAndTypes.indices.toArray,
       ttyp.rowType)

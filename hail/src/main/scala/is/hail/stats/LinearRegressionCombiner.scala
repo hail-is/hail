@@ -4,7 +4,9 @@ import breeze.linalg.{DenseMatrix, DenseVector, diag, inv}
 import breeze.numerics._
 import is.hail.annotations.{Annotation, Region, RegionValueBuilder}
 import is.hail.expr.types._
-import net.sourceforge.jdistlib.{T, F}
+import is.hail.expr.types.physical.{PArray, PFloat64, PType}
+import is.hail.expr.types.virtual._
+import net.sourceforge.jdistlib.{F, T}
 
 object LinearRegressionCombiner {
   val typ: Type = TStruct(
@@ -20,11 +22,11 @@ object LinearRegressionCombiner {
     "n" -> TInt64())
 }
 
-class LinearRegressionCombiner(k: Int, k0: Int, t: Type) extends Serializable {
+class LinearRegressionCombiner(k: Int, k0: Int, t: PType) extends Serializable {
   assert(k > 0)
   assert(k0 >= 0 && k0 <= k)
-  assert(t.isOfType(TArray(TFloat64())))
-  val xType = t.asInstanceOf[TArray]
+  assert(t.isOfType(PArray(PFloat64())))
+  val xType = t.asInstanceOf[PArray]
 
   var n = 0L
   var x = new Array[Double](k)

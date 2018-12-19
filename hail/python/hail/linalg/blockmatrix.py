@@ -386,6 +386,10 @@ class BlockMatrix(object):
 
         Warning
         -------
+        If the rows of the matrix table have been filtered to a small fraction,
+        then :meth:`.MatrixTable.repartition` before this method to improve
+        performance.
+
         If you encounter a Hadoop write/replication error, increase the
         number of persistent workers or the disk size per persistent worker,
         or use :meth:`write_from_entry_expr` to write to external storage.
@@ -626,6 +630,10 @@ class BlockMatrix(object):
 
         Warning
         -------
+        If the rows of the matrix table have been filtered to a small fraction,
+        then :meth:`.MatrixTable.repartition` before this method to improve
+        performance.
+
         This method opens ``n_cols / block_size`` files concurrently per task.
         To not blow out memory when the number of columns is very large,
         limit the Hadoop write buffer size; e.g. on GCP, set this property on
@@ -661,7 +669,7 @@ class BlockMatrix(object):
         if (not (mean_impute or center or normalize)) and (entry_expr in mt._fields_inverse):
             #  FIXME: remove once select_entries on a field is free
             field = mt._fields_inverse[entry_expr]
-            mt._jvds.writeBlockMatrix(path, overwrite, field, block_size)
+            mt._jmt.writeBlockMatrix(path, overwrite, field, block_size)
         else:
             n_cols = mt.count_cols()
             mt = mt.select_entries(__x=entry_expr)
@@ -694,7 +702,7 @@ class BlockMatrix(object):
                         expr = hl.or_else(expr, mt['__mean'])
 
             field = Env.get_uid()
-            mt.select_entries(**{field: expr}).select_cols()._jvds.writeBlockMatrix(path, overwrite, field, block_size)
+            mt.select_entries(**{field: expr}).select_cols()._jmt.writeBlockMatrix(path, overwrite, field, block_size)
 
     @staticmethod
     def _check_indices(indices, size):
@@ -824,7 +832,7 @@ class BlockMatrix(object):
                       radius=int,
                       include_diagonal=bool)
     def _filtered_entries_table(self, table, radius, include_diagonal):
-        return Table(self._jbm.filteredEntriesTable(table._jt, radius, include_diagonal))
+        return Table._from_java(self._jbm.filteredEntriesTable(table._jt, radius, include_diagonal))
 
     @typecheck_method(lower=int, upper=int, blocks_only=bool)
     def sparsify_band(self, lower=0, upper=0, blocks_only=False):
@@ -844,7 +852,7 @@ class BlockMatrix(object):
         Filter to a band from one below the diagonal to
         two above the diagonal and collect to NumPy:
 
-        >>> bm.sparsify_band(lower=-1, upper=2).to_numpy()
+        >>> bm.sparsify_band(lower=-1, upper=2).to_numpy()  # doctest: +NOTEST
         array([[ 1.,  2.,  3.,  0.],
                [ 5.,  6.,  7.,  8.],
                [ 0., 10., 11., 12.],
@@ -853,7 +861,7 @@ class BlockMatrix(object):
         Set all blocks fully outside the diagonal to zero
         and collect to NumPy:
 
-        >>> bm.sparsify_band(lower=0, upper=0, blocks_only=True).to_numpy()
+        >>> bm.sparsify_band(lower=0, upper=0, blocks_only=True).to_numpy()  # doctest: +NOTEST
         array([[ 1.,  2.,  0.,  0.],
                [ 5.,  6.,  0.,  0.],
                [ 0.,  0., 11., 12.],
@@ -918,7 +926,7 @@ class BlockMatrix(object):
 
         Filter to the upper triangle and collect to NumPy:
 
-        >>> bm.sparsify_triangle().to_numpy()
+        >>> bm.sparsify_triangle().to_numpy()  # doctest: +NOTEST
         array([[ 1.,  2.,  3.,  4.],
                [ 0.,  6.,  7.,  8.],
                [ 0.,  0., 11., 12.],
@@ -927,7 +935,7 @@ class BlockMatrix(object):
         Set all blocks fully outside the upper triangle to zero
         and collect to NumPy:
 
-        >>> bm.sparsify_triangle(blocks_only=True).to_numpy()
+        >>> bm.sparsify_triangle(blocks_only=True).to_numpy()  # doctest: +NOTEST
         array([[ 1.,  2.,  3.,  4.],
                [ 5.,  6.,  7.,  8.],
                [ 0.,  0., 11., 12.],
@@ -986,7 +994,7 @@ class BlockMatrix(object):
 
         >>> (bm.sparsify_row_intervals(starts=[1, 0, 2, 2],
         ...                            stops= [2, 0, 3, 4])
-        ...    .to_numpy())
+        ...    .to_numpy())  # doctest: +NOTEST
         array([[ 0.,  2.,  0.,  0.],
                [ 0.,  0.,  0.,  0.],
                [ 0.,  0., 11.,  0.],
@@ -998,7 +1006,7 @@ class BlockMatrix(object):
         >>> (bm.sparsify_row_intervals(starts=[1, 0, 2, 2],
         ...                            stops= [2, 0, 3, 4],
         ...                            blocks_only=True)
-        ...    .to_numpy())
+        ...    .to_numpy())  # doctest: +NOTEST
         array([[ 1.,  2.,  0.,  0.],
                [ 5.,  6.,  0.,  0.],
                [ 0.,  0., 11., 12.],
@@ -1541,16 +1549,16 @@ class BlockMatrix(object):
         >>> block_matrix = BlockMatrix.from_numpy(np.array([[5, 7], [2, 8]]), 2)
         >>> entries_table = block_matrix.entries()
         >>> entries_table.show()
-        +-------+-------+-------------+
-        |     i |     j |       entry |
-        +-------+-------+-------------+
-        | int64 | int64 |     float64 |
-        +-------+-------+-------------+
-        |     0 |     0 | 5.00000e+00 |
-        |     0 |     1 | 7.00000e+00 |
-        |     1 |     0 | 2.00000e+00 |
-        |     1 |     1 | 8.00000e+00 |
-        +-------+-------+-------------+
+        +-------+-------+----------+
+        |     i |     j |    entry |
+        +-------+-------+----------+
+        | int64 | int64 |  float64 |
+        +-------+-------+----------+
+        |     0 |     0 | 5.00e+00 |
+        |     0 |     1 | 7.00e+00 |
+        |     1 |     0 | 2.00e+00 |
+        |     1 |     1 | 8.00e+00 |
+        +-------+-------+----------+
 
         Notes
         -----
@@ -1573,7 +1581,7 @@ class BlockMatrix(object):
         :class:`.Table`
             Table with a row for each entry.
         """
-        return Table(self._jbm.entriesTable(Env.hc()._jhc))
+        return Table._from_java(self._jbm.entriesTable(Env.hc()._jhc))
 
     @staticmethod
     @typecheck(path_in=str,
@@ -1764,7 +1772,7 @@ class BlockMatrix(object):
 
         Filter to blocks covering three rectangles and collect to NumPy:
 
-        >>> bm.sparsify_rectangles([[0, 1, 0, 1], [0, 3, 0, 2], [1, 2, 0, 4]]).to_numpy()
+        >>> bm.sparsify_rectangles([[0, 1, 0, 1], [0, 3, 0, 2], [1, 2, 0, 4]]).to_numpy()  # doctest: +NOTEST
         array([[ 1.,  2.,  3.,  4.],
                [ 5.,  6.,  7.,  8.],
                [ 9., 10.,  0.,  0.],

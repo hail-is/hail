@@ -1,7 +1,7 @@
 package is.hail.annotations.aggregators
 
 import is.hail.annotations.{Region, RegionValueBuilder}
-import is.hail.expr.types.TStruct
+import is.hail.expr.types.virtual.TStruct
 import is.hail.stats.HWECombiner
 import is.hail.variant.Call
 

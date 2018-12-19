@@ -31,23 +31,23 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
       os
   }
 
-  private def open(filename: String): InputStream = {
+  private def open(filename: String, checkCodec: Boolean = true): InputStream = {
     val fs = fileSystem(filename)
     val hPath = new hadoop.fs.Path(filename)
     val is = fs.open(hPath)
-    val codecFactory = new CompressionCodecFactory(hConf)
-    val codec = codecFactory.getCodec(hPath)
-    if (codec != null)
-      codec.createInputStream(is)
-    else
+    if (checkCodec) {
+      val codecFactory = new CompressionCodecFactory(hConf)
+      val codec = codecFactory.getCodec(hPath)
+      if (codec != null)
+        codec.createInputStream(is)
+      else
+        is
+    } else
       is
   }
 
-  def getFileSize(filename: String): Long = {
-    val fs = fileSystem(filename)
-    val hPath = new hadoop.fs.Path(filename)
-    fs.getFileStatus(hPath).getLen
-  }
+  def getFileSize(filename: String): Long =
+    fileStatus(filename).getLen
 
   def listStatus(filename: String): Array[FileStatus] = {
     val fs = fileSystem(filename)
@@ -140,7 +140,14 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
       false, hConf)
   }
 
-  def copyMerge(sourceFolder: String, destinationFile: String, numPartFilesExpected: Int, deleteSource: Boolean = true, header: Boolean = true) {
+  def copyMerge(
+    sourceFolder: String,
+    destinationFile: String,
+    numPartFilesExpected: Int,
+    deleteSource: Boolean = true,
+    header: Boolean = true,
+    partFilesOpt: Option[IndexedSeq[String]] = None
+  ) {
     if (!exists(sourceFolder + "/_SUCCESS"))
       fatal("write failed: no success indicator found")
 
@@ -153,12 +160,16 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
     else if (!header && headerFileStatus.nonEmpty)
       fatal(s"Found unexpected header file")
 
-    val partFileStatuses = glob(sourceFolder + "/part-*").sortBy(fs => getPartNumber(fs.getPath.getName))
+    val partFileStatuses = partFilesOpt match {
+      case None => glob(sourceFolder + "/part-*")
+      case Some(files) => files.map(f => fileStatus(sourceFolder + "/" + f)).toArray
+    }
+    val sortedPartFileStatuses = partFileStatuses.sortBy(fs => getPartNumber(fs.getPath.getName)
+)
+    if (sortedPartFileStatuses.length != numPartFilesExpected)
+      fatal(s"Expected $numPartFilesExpected part files but found ${ sortedPartFileStatuses.length }")
 
-    if (partFileStatuses.length != numPartFilesExpected)
-      fatal(s"Expected $numPartFilesExpected part files but found ${ partFileStatuses.length }")
-
-    val filesToMerge = headerFileStatus ++ partFileStatuses
+    val filesToMerge = headerFileStatus ++ sortedPartFileStatuses
 
     val (_, dt) = time {
       copyMergeList(filesToMerge, destinationFile, deleteSource)
@@ -241,7 +252,10 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
       }.getOrElse("")
   }
 
-  def fileStatus(filename: String): FileStatus = fileSystem(filename).getFileStatus(new hadoop.fs.Path(filename))
+  def fileStatus(filename: String): FileStatus = {
+    val p = new hadoop.fs.Path(filename)
+    p.getFileSystem(hConf).getFileStatus(p)
+  }
 
   def writeObjectFile[T](filename: String)(f: (ObjectOutputStream) => T): T =
     using(create(filename)) { ois => using(new ObjectOutputStream(ois))(f) }
@@ -302,7 +316,7 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
     }
   }
 
-  def unsafeReader(filename: String): InputStream = open(filename)
+  def unsafeReader(filename: String, checkCodec: Boolean = true): InputStream = open(filename, checkCodec)
 
   def unsafeWriter(filename: String): OutputStream = create(filename)
 

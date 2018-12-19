@@ -1,21 +1,15 @@
 package is.hail.methods
 
 import is.hail.{SparkSuite, TestUtils}
-import is.hail.annotations._
-import is.hail.check.Prop.forAll
 import is.hail.expr._
-import is.hail.expr.types._
-import is.hail.rvd.{OrderedRVD, UnpartitionedRVD}
+import is.hail.expr.types.{virtual, _}
+import is.hail.expr.types.virtual._
+import is.hail.rvd.RVD
 import is.hail.table.Table
 import is.hail.utils._
 import is.hail.testUtils._
-import is.hail.variant.{MatrixTable, VSMSubgen}
 import org.apache.spark.sql.Row
-import org.apache.spark.util.StatCounter
-import org.scalatest.Matchers.assert
 import org.testng.annotations.Test
-
-import scala.collection.mutable
 
 class TableSuite extends SparkSuite {
   def sampleKT1: Table = {
@@ -24,7 +18,7 @@ class TableSuite extends SparkSuite {
     val signature = TStruct(("Sample", TString()), ("field1", TInt32()), ("field2", TInt32()))
     val keyNames = IndexedSeq("Sample")
 
-    val kt = Table(hc, rdd, signature, Some(keyNames))
+    val kt = Table(hc, rdd, signature, keyNames)
     kt.typeCheck()
     kt
   }
@@ -35,7 +29,7 @@ class TableSuite extends SparkSuite {
     val rdd = sc.parallelize(data.map(Row.fromSeq(_)))
     val signature = TStruct(("Sample", TString()), ("field1", TArray(TInt32())), ("field2", TInt32()))
     val keyNames = IndexedSeq("Sample")
-    val kt = Table(hc, rdd, signature, Some(keyNames))
+    val kt = Table(hc, rdd, signature, keyNames)
     kt.typeCheck()
     kt
   }
@@ -46,7 +40,7 @@ class TableSuite extends SparkSuite {
     val rdd = sc.parallelize(data.map(Row.fromSeq(_)))
     val signature = TStruct(("Sample", TString()), ("field1", TArray(TArray(TInt32()))), ("field2", TArray(TInt32())))
     val keyNames = IndexedSeq("Sample")
-    val kt = Table(hc, rdd, signature, Some(keyNames))
+    val kt = Table(hc, rdd, signature, keyNames)
     kt.typeCheck()
     kt
   }
@@ -72,7 +66,6 @@ class TableSuite extends SparkSuite {
     sampleKT1.write(outputFile)
     val read = Table.read(hc, outputFile)
 
-    assert(read.rvd.isInstanceOf[OrderedRVD])
     assert(read.same(sampleKT1))
   }
 
@@ -95,10 +88,10 @@ class TableSuite extends SparkSuite {
   }
 
   @Test def testTableToMatrixTableWithDuplicateKeys(): Unit = {
-    val table = new Table(hc, ir.TableParallelize(ir.Literal(TArray(TStruct("locus" -> TString(), "pval" -> TFloat32Required,
+    val table = new Table(hc, ir.TableParallelize(ir.Literal.coerce(TArray(TStruct("locus" -> TString(), "pval" -> TFloat32Required,
       "phenotype" -> TString())), FastIndexedSeq(
       Row("1:100", 0.5.toFloat, "trait1"),
-      Row("1:100", 0.6.toFloat, "trait1")), ir.genUID()), None))
+      Row("1:100", 0.6.toFloat, "trait1"))), None))
 
     TestUtils.interceptSpark("duplicate \\(row key, col key\\) pairs are not supported")(
       table.toMatrixTable(Array("locus"), Array("phenotype"), Array(),
@@ -106,7 +99,7 @@ class TableSuite extends SparkSuite {
   }
 
   @Test def testToMatrixTable() {
-    val vds = hc.importVCF("src/test/resources/sample.vcf")
+    val vds = TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
     val gkt = vds.entriesTable()
 
     val reVDS = gkt.toMatrixTable(Array("locus", "alleles"),
@@ -131,7 +124,7 @@ class TableSuite extends SparkSuite {
     val resRDD2 = sc.parallelize(result2.map(Row.fromSeq(_)))
     val ktResult2 = Table(hc, resRDD2,
       TStruct(("Sample", TString()), ("field1", TInt32()), ("field2", TInt32())),
-      key = Some(IndexedSeq("Sample")))
+      key = IndexedSeq("Sample"))
     ktResult2.typeCheck()
 
     val result3 = Array(Array("Sample1", 9, 5), Array("Sample1", 10, 5), Array("Sample1", 9, 6), Array("Sample1", 10, 6),
@@ -139,7 +132,7 @@ class TableSuite extends SparkSuite {
     val resRDD3 = sc.parallelize(result3.map(Row.fromSeq(_)))
     val ktResult3 = Table(hc, resRDD3,
       TStruct(("Sample", TString()), ("field1", TInt32()), ("field2", TInt32())),
-      key = Some(IndexedSeq("Sample")))
+      key = IndexedSeq("Sample"))
     ktResult3.typeCheck()
 
     assert(ktResult2.same(kt2.explode(Array("field1"))))
@@ -147,33 +140,6 @@ class TableSuite extends SparkSuite {
 
     val outputFile = tmpDir.createTempFile("explode", "tsv")
     kt2.explode(Array("field1")).export(outputFile)
-  }
-
-  @Test def testKeyOrder() {
-    val kt1 = Table(hc,
-      sc.parallelize(Array(Row("foo", "bar", 3, "baz"))),
-      TStruct(
-        "f1" -> TString(),
-        "f2" -> TString(),
-        "f3" -> TInt32(),
-        "f4" -> TString()
-      ),
-      Some(IndexedSeq("f3", "f2", "f1")))
-    kt1.typeCheck()
-
-    val kt2 = Table(hc,
-      sc.parallelize(Array(Row(3, "foo", "bar", "qux"))),
-      TStruct(
-        "f3" -> TInt32(),
-        "f1" -> TString(),
-        "f2" -> TString(),
-        "f5" -> TString()
-      ),
-      Some(IndexedSeq("f3", "f2", "f1")))
-    kt2.typeCheck()
-
-    assert(kt1.join(kt2, "inner").count() == 1L)
-    kt1.join(kt2, "outer").typeCheck()
   }
 
   @Test def testSame() {

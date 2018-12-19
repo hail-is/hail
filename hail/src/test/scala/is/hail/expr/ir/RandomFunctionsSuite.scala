@@ -4,8 +4,9 @@ import is.hail.SparkSuite
 import is.hail.asm4s.Code
 import is.hail.expr.ir.functions.{IRRandomness, RegistryFunctions}
 import is.hail.expr.types._
-import is.hail.rvd.OrderedRVD
+import is.hail.rvd.RVD
 import is.hail.TestUtils._
+import is.hail.expr.types.virtual.{TArray, TInt32, TInt64}
 import is.hail.table.Table
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -59,15 +60,14 @@ class RandomFunctionsSuite extends SparkSuite {
     InsertFields(Ref("row", TableRange(1, 1).typ.rowType),
       FastSeq(
         "pi" -> partitionIdx,
-        "counter" -> counter)),
-    Some(FastIndexedSeq("idx")))
+        "counter" -> counter)))
 
   @BeforeClass def registerFunctions() {
     TestRandomFunctions.registerAll()
   }
 
   @Test def testRandomAcrossJoins() {
-    def asArray(ir: TableIR) = ir.execute(hc).rdd.collect()
+    def asArray(ir: TableIR) = Interpret(ir).rdd.collect()
 
     val joined = TableJoin(
       mapped2(10, 4),
@@ -84,15 +84,15 @@ class RandomFunctionsSuite extends SparkSuite {
   }
 
   @Test def testRepartitioningAfterRandomness() {
-    val mapped = mapped2(15, 4).execute(hc).rvd.asInstanceOf[OrderedRVD]
+    val mapped = Interpret(mapped2(15, 4)).rvd
     val newRangeBounds = FastIndexedSeq(
       Interval(Row(0), Row(4), true, true),
       Interval(Row(4), Row(10), false, true),
       Interval(Row(10), Row(14), false, true))
     val newPartitioner = mapped.partitioner.copy(rangeBounds=newRangeBounds)
 
-    val repartitioned = mapped.constrainToOrderedPartitioner(newPartitioner)
-    val cachedAndRepartitioned = mapped.cache().constrainToOrderedPartitioner(newPartitioner)
+    val repartitioned = mapped.repartition(newPartitioner)
+    val cachedAndRepartitioned = mapped.cache().repartition(newPartitioner)
 
     assert(mapped.toRows.collect() sameElements repartitioned.toRows.collect())
     assert(mapped.toRows.collect() sameElements cachedAndRepartitioned.toRows.collect())
@@ -119,9 +119,20 @@ class RandomFunctionsSuite extends SparkSuite {
   }
 
   @Test def testRepartitioningSimplifyRules() {
-    val tir = TableHead(mapped2(10, 3), 5L)
+    val tir =
+    TableMapRows(
+      TableHead(
+        TableMapRows(
+          TableRange(10, 3),
+          Ref("row", TableRange(1, 1).typ.rowType)),
+        5L),
+      InsertFields(
+        Ref("row", TableRange(1, 1).typ.rowType),
+        FastSeq(
+          "pi" -> partitionIdx,
+          "counter" -> counter)))
 
-    val expected = tir.execute(hc).rvd.toRows.collect()
+    val expected = Interpret(tir).rvd.toRows.collect()
     val actual = new Table(hc, tir).rdd.collect()
 
     assert(expected.sameElements(actual))

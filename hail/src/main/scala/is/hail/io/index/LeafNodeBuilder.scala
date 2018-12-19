@@ -1,7 +1,7 @@
 package is.hail.io.index
 
 import is.hail.annotations.{Annotation, RegionValueBuilder}
-import is.hail.expr.types.{TArray, TInt64, TStruct, Type}
+import is.hail.expr.types.virtual.{TArray, TInt64, TStruct, Type}
 import is.hail.utils.ArrayBuilder
 
 object LeafNodeBuilder {
@@ -23,7 +23,7 @@ class LeafNodeBuilder(keyType: Type, annotationType: Type, var firstIdx: Long) {
   val typ = LeafNodeBuilder.typ(keyType, annotationType)
 
   def write(rvb: RegionValueBuilder): Long = {
-    rvb.start(typ)
+    rvb.start(typ.physicalType)
     rvb.startStruct()
 
     rvb.addLong(firstIdx)

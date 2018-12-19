@@ -1,10 +1,11 @@
 package is.hail.methods
 
-import is.hail.SparkSuite
+import is.hail.{SparkSuite, TestUtils}
 import is.hail.annotations.Annotation
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
 import is.hail.expr.types._
+import is.hail.expr.types.virtual.{TFloat64, TInt32, TString}
 import is.hail.io.vcf.ExportVCF
 import is.hail.utils.AbsoluteFuzzyComparable._
 import is.hail.utils.{AbsoluteFuzzyComparable, TextTableReader, _}
@@ -101,7 +102,7 @@ class IBDSuite extends SparkSuite {
   val tolerance = 5e-5
 
   @Test def ibdPlinkSameOnRealVCF() {
-    val vds = hc.importVCF("src/test/resources/sample.vcf")
+    val vds = TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
 
     val us = IBD.toRDD(IBD(vds)).collect().toMap
 
@@ -113,7 +114,7 @@ class IBDSuite extends SparkSuite {
   }
 
   @Test def ibdSchemaCorrect() {
-    val vds = hc.importVCF("src/test/resources/sample.vcf")
+    val vds = TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
     val us = IBD(vds).typeCheck()
   }
 }

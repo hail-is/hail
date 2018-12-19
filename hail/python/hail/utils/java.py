@@ -71,7 +71,7 @@ class Env:
     def dummy_table():
         if Env._dummy_table is None:
             import hail
-            Env._dummy_table = hail.utils.range_table(1, 1).key_by(None).cache()
+            Env._dummy_table = hail.utils.range_table(1, 1).key_by().cache()
         return Env._dummy_table
 
     @staticmethod

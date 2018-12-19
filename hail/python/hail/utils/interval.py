@@ -157,7 +157,7 @@ class Interval(object):
         --------
 
         >>> interval2.point_type
-        tint32
+        dtype('int32')
 
         Returns
         -------
@@ -192,7 +192,7 @@ class Interval(object):
         value_type = impute_type(value)
         if value_type != self.point_type:
             raise TypeError("'value' is incompatible with the interval point type: '{}', '{}'".format(value_type, self.point_type))
-        return self._jrep.contains(self.point_type._jtype.ordering(), self.point_type._convert_to_j(value))
+        return self._jrep.contains(self.point_type._parsable_string(), self.point_type._convert_to_j(value))
 
     @typecheck_method(interval=interval_type)
     def overlaps(self, interval):
@@ -210,6 +210,6 @@ class Interval(object):
 
         if self.point_type != interval.point_type:
             raise TypeError("'interval' must have the point type '{}', but found '{}'".format(self.point_type, interval.point_type))
-        return self._jrep.overlaps(self.point_type._jtype.ordering(), interval._jrep)
+        return self._jrep.overlaps(self.point_type._parsable_string(), interval._jrep)
 
 interval_type.set(Interval)

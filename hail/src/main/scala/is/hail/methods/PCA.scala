@@ -3,6 +3,7 @@ package is.hail.methods
 import breeze.linalg.{*, DenseMatrix, DenseVector}
 import is.hail.annotations._
 import is.hail.expr.types._
+import is.hail.expr.types.virtual.{TArray, TFloat64, TStruct}
 import is.hail.rvd.RVDContext
 import is.hail.sparkextras.ContextRDD
 import is.hail.table.Table
@@ -32,7 +33,7 @@ object PCA {
       val localRowType = rowTypeBc.value
 
       it.map { case (s, i) =>
-        rvb.start(localRowType)
+        rvb.start(localRowType.physicalType)
         rvb.startStruct()
         var j = 0
         val keys = s.asInstanceOf[Row]
@@ -52,7 +53,7 @@ object PCA {
         rv
       }
     }
-    new Table(hc, scoresRDD, rowType, Some(vsm.colKey))
+    new Table(hc, scoresRDD, rowType, vsm.colKey)
   }
 
   // returns (eigenvalues, sample scores, optional variant loadings)
@@ -90,7 +91,7 @@ object PCA {
 
     val optionLoadings = if (computeLoadings) {
       val rowType = TStruct(vsm.rowKey.zip(vsm.rowKeyTypes): _*) ++ TStruct("loadings" -> TArray(TFloat64()))
-      val rowTypeBc = vsm.sparkContext.broadcast(rowType)
+      val rowPTypeBc = vsm.sparkContext.broadcast(rowType.physicalType)
       val rowKeysBc = vsm.sparkContext.broadcast(collectRowKeys())
       val localRowKeySignature = vsm.rowKeyTypes
 
@@ -99,7 +100,7 @@ object PCA {
         val rv = RegionValue(region)
         val rvb = new RegionValueBuilder(region)
         it.map { ir =>
-          rvb.start(rowTypeBc.value)
+          rvb.start(rowPTypeBc.value)
           rvb.startStruct()
 
           val rowKeys = rowKeysBc.value(ir.index.toInt).asInstanceOf[Row]
@@ -121,7 +122,7 @@ object PCA {
           rv
         }
       }
-      Some(new Table(vsm.hc, rdd, rowType, Some(vsm.rowKey)))
+      Some(new Table(vsm.hc, rdd, rowType, vsm.rowKey))
     } else {
       None
     }

@@ -2,6 +2,7 @@ package is.hail.methods
 
 import is.hail.annotations.UnsafeRow
 import is.hail.expr.types._
+import is.hail.expr.types.virtual.{TArray, TInt64, TStruct}
 import is.hail.table.Table
 import is.hail.utils._
 import is.hail.variant._
@@ -113,8 +114,8 @@ object CalculateConcordance {
     val sampleResults = join.mapPartitions { it =>
       val comb = Array.fill(nSamples)(new ConcordanceCombiner)
 
-      val lview = HardCallView(leftRowType)
-      val rview = HardCallView(rightRowType)
+      val lview = HardCallView(leftRowPType)
+      val rview = HardCallView(rightRowPType)
 
       it.foreach { jrv =>
         val lrv = jrv.rvLeft
@@ -170,8 +171,8 @@ object CalculateConcordance {
 
       val lur = new UnsafeRow(leftRowPType)
       val rur = new UnsafeRow(rightRowPType)
-      val lview = HardCallView(leftRowType)
-      val rview = HardCallView(rightRowType)
+      val lview = HardCallView(leftRowPType)
+      val rview = HardCallView(rightRowPType)
 
       it.map { jrv =>
         comb.reset()
@@ -230,9 +231,9 @@ object CalculateConcordance {
     val sampleRDD = left.hc.sc.parallelize(leftFiltered.stringSampleIds.zip(sampleResults)
       .map { case (id, comb) => Row(id, comb.nDiscordant, comb.toAnnotation) })
 
-    val sampleKT = Table(left.hc, sampleRDD, sampleSchema, Some(left.colKey))
+    val sampleKT = Table(left.hc, sampleRDD, sampleSchema, left.colKey)
 
-    val variantKT = Table(left.hc, variantCRDD, variantSchema, Some(left.rowKey), isSorted = false)
+    val variantKT = Table(left.hc, variantCRDD, variantSchema, left.rowKey, isSorted = false)
 
     (global.toAnnotation, sampleKT, variantKT)
   }

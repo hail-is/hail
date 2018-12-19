@@ -1,3 +1,4 @@
+import itertools
 import math
 import numpy as np
 from typing import *
@@ -6,6 +7,7 @@ import hail as hl
 import hail.expr.aggregators as agg
 from hail.expr.expressions import *
 from hail.expr.types import *
+from hail.ir import *
 from hail.genetics.reference_genome import reference_genome_type
 from hail.linalg import BlockMatrix
 from hail.matrixtable import MatrixTable
@@ -96,11 +98,11 @@ def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None) -> 
     else:
         dataset = dataset.select_rows()
     dataset = dataset.select_cols().select_globals().select_entries('GT')
-    return Table(Env.hail().methods.IBD.apply(require_biallelic(dataset, 'ibd')._jvds,
-                                              joption('__maf' if maf is not None else None),
-                                              bounded,
-                                              joption(min),
-                                              joption(max)))
+    return Table._from_java(Env.hail().methods.IBD.apply(require_biallelic(dataset, 'ibd')._jmt,
+                                                         joption('__maf' if maf is not None else None),
+                                                         bounded,
+                                                         joption(min),
+                                                         joption(max)))
 
 
 @typecheck(call=expr_call,
@@ -232,51 +234,98 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
     return kt
 
 
-@typecheck(y=oneof(expr_float64, sequenceof(expr_float64)),
+def _get_regression_row_fields(mt, pass_through, method) -> Dict[str, str]:
+
+    row_fields = dict(zip(mt.row_key.keys(), mt.row_key.keys()))
+    for f in pass_through:
+        if isinstance(f, str):
+            if f not in mt.row:
+                raise ValueError(f"'{method}/pass_through': MatrixTable has no row field {repr(f)}")
+            if f in row_fields:
+                # allow silent pass through of key fields
+                if f in mt.row_key:
+                    pass
+                else:
+                    raise ValueError(f"'{method}/pass_through': found duplicated field {repr(f)}")
+            row_fields[f] = mt[f]
+        else:
+            assert isinstance(f, Expression)
+            if not f._ir.is_nested_field:
+                raise ValueError(f"'{method}/pass_through': expect fields or nested fields, not complex expressions")
+            if not f._indices == mt._row_indices:
+                raise ExpressionException(f"'{method}/pass_through': require row-indexed fields, found indices {f._indices.axes}")
+            name = f._ir.name
+            if name in row_fields:
+                # allow silent pass through of key fields
+                if not (name in mt.row_key and f._ir == mt[name]._ir):
+                    raise ValueError(f"'{method}/pass_through': found duplicated field {repr(name)}")
+            row_fields[name] = f
+    for k in mt.row_key:
+        del row_fields[k]
+    return row_fields
+
+
+@typecheck(y=oneof(expr_float64, sequenceof(expr_float64), sequenceof(sequenceof(expr_float64))),
            x=expr_float64,
            covariates=sequenceof(expr_float64),
-           root=str,
-           block_size=int)
-def linear_regression(y, x, covariates, root='linreg', block_size=16) -> MatrixTable:
-    """For each row, test an input variable for association with
+           block_size=int,
+           pass_through=sequenceof(oneof(str, Expression)))
+def linear_regression_rows(y, x, covariates, block_size=16, pass_through=()) -> hail.Table:
+    r"""For each row, test an input variable for association with
     response variables using linear regression.
 
     Examples
     --------
 
-    >>> result_ds = hl.linear_regression(
+    >>> result_ht = hl.linear_regression_rows(
     ...     y=dataset.pheno.height,
     ...     x=dataset.GT.n_alt_alleles(),
     ...     covariates=[1, dataset.pheno.age, dataset.pheno.is_female])
 
     Warning
     -------
-    :func:`.linear_regression` considers the same set of columns (i.e., samples, points)
-    for every response variable and row, namely those columns for which **all**
-    response variables and covariates are defined. For each row, missing values
-    of `x` are mean-imputed over these columns. As in the example, the intercept
-    covariate ``1`` must be included **explicitly** if desired.
+    As in the example, the intercept covariate ``1`` must be
+    included **explicitly** if desired.
+
+    Warning
+    -------
+    If `y` is a single value or a list, :func:`.linear_regression_rows`
+    considers the same set of columns (i.e., samples, points) for every response
+    variable and row, namely those columns for which **all** response variables
+    and covariates are defined.
+
+    If `y` is a list of lists, then each inner list is treated as an
+    independent group, subsetting columns for missingness separately.
 
     Notes
     -----
     With the default root and `y` a single expression, the following row-indexed
     fields are added.
 
-    - **linreg.n** (:py:data:`.tint32`) -- Number of columns used.
-    - **linreg.sum_x** (:py:data:`.tfloat64`) -- Sum of input values `x`.
-    - **linreg.y_transpose_x** (:py:data:`.tfloat64`) -- Dot product of response
+    - **<row key fields>** (Any) -- Row key fields.
+    - **<pass_through fields>** (Any) -- Row fields in `pass_through`.
+    - **n** (:py:data:`.tint32`) -- Number of columns used.
+    - **sum_x** (:py:data:`.tfloat64`) -- Sum of input values `x`.
+    - **y_transpose_x** (:py:data:`.tfloat64`) -- Dot product of response
       vector `y` with the input vector `x`.
-    - **linreg.beta** (:py:data:`.tfloat64`) --
-      Fit effect coefficient of `x`, :math:`\hat\\beta_1` below.
-    - **linreg.standard_error** (:py:data:`.tfloat64`) --
+    - **beta** (:py:data:`.tfloat64`) --
+      Fit effect coefficient of `x`, :math:`\hat\beta_1` below.
+    - **standard_error** (:py:data:`.tfloat64`) --
       Estimated standard error, :math:`\widehat{\mathrm{se}}_1`.
-    - **linreg.t_stat** (:py:data:`.tfloat64`) -- :math:`t`-statistic, equal to
-      :math:`\hat\\beta_1 / \widehat{\mathrm{se}}_1`.
-    - **linreg.p_value** (:py:data:`.tfloat64`) -- :math:`p`-value.
+    - **t_stat** (:py:data:`.tfloat64`) -- :math:`t`-statistic, equal to
+      :math:`\hat\beta_1 / \widehat{\mathrm{se}}_1`.
+    - **p_value** (:py:data:`.tfloat64`) -- :math:`p`-value.
 
     If `y` is a list of expressions, then the last five fields instead have type
     :py:data:`.tarray` of :py:data:`.tfloat64`, with corresponding indexing of
     the list and each array.
+
+    If `y` is a list of lists of expressions, then `n` and `sum_x` are of type
+    ``array<float64>``, and the last five fields are of type
+    ``array<array<float64>>``. Index into these arrays with
+    ``a[index_in_outer_list, index_in_inner_list]``. For example, if
+    ``y=[[a], [b, c]]`` then the p-value for ``b`` is ``p_value[1][0]``.
+
 
     In the statistical genetics example above, the input variable `x` encodes
     genotype as the number of alternate alleles (0, 1, or 2). For each variant
@@ -285,14 +334,15 @@ def linear_regression(y, x, covariates, root='linreg', block_size=16) -> MatrixT
 
     .. math::
 
-        \mathrm{height} = \\beta_0 + \\beta_1 \, \mathrm{genotype}
-                          + \\beta_2 \, \mathrm{age}
-                          + \\beta_3 \, \mathrm{is\_female}
-                          + \\varepsilon, \quad \\varepsilon
-                        \sim \mathrm{N}(0, \sigma^2)
+        \mathrm{height} = \beta_0 + \beta_1 \, \mathrm{genotype}
+            + \beta_2 \, \mathrm{age}
+            + \beta_3 \, \mathrm{is\_female}
+            + \varepsilon,
+            \quad
+            \varepsilon \sim \mathrm{N}(0, \sigma^2)
 
     Boolean covariates like :math:`\mathrm{is\_female}` are encoded as 1 for
-    ``True`` and 0 for ``False``. The null model sets :math:`\\beta_1 = 0`.
+    ``True`` and 0 for ``False``. The null model sets :math:`\beta_1 = 0`.
 
     The standard least-squares linear regression model is derived in Section
     3.2 of `The Elements of Statistical Learning, 2nd Edition
@@ -302,6 +352,12 @@ def linear_regression(y, x, covariates, root='linreg', block_size=16) -> MatrixT
     effect, with :math:`n` samples and :math:`k` covariates in addition to
     ``x``.
 
+    Note
+    ----
+    Use the `pass_through` parameter to include additional row fields from
+    matrix table underlying ``x``. For example, to include an "rsid" field, set
+    ``pass_through=['rsid']`` or ``pass_through=[mt.rsid]``.
+
     Parameters
     ----------
     y : :class:`.Float64Expression` or :obj:`list` of :class:`.Float64Expression`
@@ -310,78 +366,81 @@ def linear_regression(y, x, covariates, root='linreg', block_size=16) -> MatrixT
         Entry-indexed expression for input variable.
     covariates : :obj:`list` of :class:`.Float64Expression`
         List of column-indexed covariate expressions.
-    root : :obj:`str`
-        Name of resulting row-indexed field.
     block_size : :obj:`int`
         Number of row regressions to perform simultaneously per core. Larger blocks
         require more memory but may improve performance.
+    pass_through : :obj:`list` of :obj:`str` or :class:`.Expression`
+        Additional row fields to include in the resulting table.
 
     Returns
     -------
-    :class:`.MatrixTable`
-        Matrix table with regression results in a new row-indexed field.
+    :class:`.Table`
     """
-    mt = matrix_table_source('linear_regression/x', x)
-    check_entry_indexed('linear_regression/x', x)
+    mt = matrix_table_source('linear_regression_rows/x', x)
+    check_entry_indexed('linear_regression_rows/x', x)
 
     y_is_list = isinstance(y, list)
+    if y_is_list and len(y) == 0:
+        raise ValueError(f"'linear_regression_rows': found no values for 'y'")
+    is_chained = y_is_list and isinstance(y[0], list)
+    if is_chained and any(len(l) == 0 for l in y):
+        raise ValueError(f"'linear_regression_rows': found empty inner list for 'y'")
 
-    all_exprs = []
     y = wrap_to_list(y)
-    for e in y:
-        all_exprs.append(e)
-        analyze('linear_regression/y', e, mt._col_indices)
+
+    for e in (itertools.chain.from_iterable(y) if is_chained else y):
+        analyze('linear_regression_rows/y', e, mt._col_indices)
+
     for e in covariates:
-        all_exprs.append(e)
-        analyze('linear_regression/covariates', e, mt._col_indices)
+        analyze('linear_regression_rows/covariates', e, mt._col_indices)
 
-    _warn_if_no_intercept('linear_regression', covariates)
+    _warn_if_no_intercept('linear_regression_rows', covariates)
 
-    # FIXME: remove this logic when annotation is better optimized
-    if x in mt._fields_inverse:
-        x_field_name = mt._fields_inverse[x]
-        fields_to_drop = []
-        entry_expr = {}
+    x_field_name = Env.get_uid()
+    if is_chained:
+        y_field_names = [[f'__y_{i}_{j}' for j in range(len(y[i]))] for i in range(len(y))]
+        y_dict = dict(zip(itertools.chain.from_iterable(y_field_names), itertools.chain.from_iterable(y)))
+        func = Env.hail().methods.LinearRegression.chain
+
     else:
-        x_field_name = Env.get_uid()
-        fields_to_drop = [x_field_name]
-        entry_expr = {x_field_name: x}
+        y_field_names = list(f'__y_{i}' for i in range(len(y)))
+        y_dict = dict(zip(y_field_names, y))
+        func = Env.hail().methods.LinearRegression.single_group
 
-    y_field_names = list(f'__y{i}' for i in range(len(y)))
     cov_field_names = list(f'__cov{i}' for i in range(len(covariates)))
 
-    fields_to_drop.extend(y_field_names)
-    fields_to_drop.extend(cov_field_names)
+    row_fields = _get_regression_row_fields(mt, pass_through, 'linear_regression_rows')
 
-    mt = mt._annotate_all(col_exprs=dict(**dict(zip(y_field_names, y)),
-                                         **dict(zip(cov_field_names, covariates))),
-                          entry_exprs=entry_expr)
+    # FIXME: selecting an existing entry field should be emitted as a SelectFields
+    mt = mt._select_all(col_exprs=dict(**y_dict,
+                                       **dict(zip(cov_field_names, covariates))),
+                        row_exprs=row_fields,
+                        col_key=[],
+                        entry_exprs={x_field_name: x})
 
-    jm = Env.hail().methods.LinearRegression.apply(
-        mt._jvds,
-        jarray(Env.jvm().java.lang.String, y_field_names),
+    jt = func(
+        mt._jmt,
+        y_field_names,
         x_field_name,
-        jarray(Env.jvm().java.lang.String, cov_field_names),
-        root,
-        block_size)
+        cov_field_names,
+        block_size,
+        [x for x in row_fields if x not in mt.row_key])
 
-    mt_result = MatrixTable(jm).drop(*fields_to_drop)
+    ht_result = Table._from_java(jt)
 
     if not y_is_list:
         fields = ['y_transpose_x', 'beta', 'standard_error', 't_stat', 'p_value']
-        linreg = mt_result[root]
-        mt_result = mt_result.annotate_rows(
-            **{root: linreg.annotate(**{f: linreg[f][0] for f in fields})})
+        ht_result = ht_result.annotate(**{f: ht_result[f][0] for f in fields})
 
-    return mt_result
+    return ht_result
 
 
 @typecheck(test=enumeration('wald', 'lrt', 'score', 'firth'),
            y=expr_float64,
            x=expr_float64,
            covariates=sequenceof(expr_float64),
-           root=str)
-def logistic_regression(test, y, x, covariates, root='logreg') -> MatrixTable:
+           pass_through=sequenceof(oneof(str, Expression)))
+def logistic_regression_rows(test, y, x, covariates, pass_through=()) -> hail.Table:
     r"""For each row, test an input variable for association with a
     binary response variable using logistic regression.
 
@@ -391,7 +450,7 @@ def logistic_regression(test, y, x, covariates, root='logreg') -> MatrixTable:
     phenotype, intercept and two covariates stored in column-indexed
     fields:
 
-    >>> result_ds = hl.logistic_regression(
+    >>> result_ht = hl.logistic_regression_rows(
     ...     test='wald',
     ...     y=dataset.pheno.is_case,
     ...     x=dataset.GT.n_alt_alleles(),
@@ -399,25 +458,25 @@ def logistic_regression(test, y, x, covariates, root='logreg') -> MatrixTable:
 
     Warning
     -------
-    :func:`.logistic_regression` considers the same set of columns (i.e.,
-    samples, points) for every row, namely those columns for which **all**
-    covariates are defined. For each row, missing values of `x` are mean-imputed
-    over these columns. As in the example, the intercept covariate ``1`` must be
-    included **explicitly** if desired.
+    :func:`.logistic_regression_rows` considers the same set of
+    columns (i.e., samples, points) for every row, namely those columns for
+    which **all** covariates are defined. For each row, missing values of
+    `x` are mean-imputed over these columns. As in the example, the
+    intercept covariate ``1`` must be included **explicitly** if desired.
 
     Notes
     -----
     This method performs, for each row, a significance test of the input
-    variable in predicting a binary (case-control) response variable based on
-    the logistic regression model. The response variable type must either be
-    numeric (with all present values 0 or 1) or Boolean, in which case true and
-    false are coded as 1 and 0, respectively.
+    variable in predicting a binary (case-control) response variable based
+    on the logistic regression model. The response variable type must either
+    be numeric (with all present values 0 or 1) or Boolean, in which case
+    true and false are coded as 1 and 0, respectively.
 
-    Hail supports the Wald test ('wald'), likelihood ratio test ('lrt'), Rao
-    score test ('score'), and Firth test ('firth'). Hail only includes columns
-    for which the response variable and all covariates are defined. For each
-    row, Hail imputes missing input values as the mean of the non-missing
-    values.
+    Hail supports the Wald test ('wald'), likelihood ratio test ('lrt'),
+    Rao score test ('score'), and Firth test ('firth'). Hail only includes
+    columns for which the response variable and all covariates are defined.
+    For each row, Hail imputes missing input values as the mean of the
+    non-missing values.
 
     The example above considers a model of the form
 
@@ -438,45 +497,45 @@ def logistic_regression(test, y, x, covariates, root='logreg') -> MatrixTable:
 
     .. _sigmoid function: https://en.wikipedia.org/wiki/Sigmoid_function
 
-    The resulting variant annotations depend on the test statistic as shown
-    in the tables below.
+    The structure of the emitted row field depends on the test statistic as
+    shown in the tables below.
 
-    ========== ======================= ======= ============================================
-    Test       Field                   Type    Value
-    ========== ======================= ======= ============================================
-    Wald       `logreg.beta`           float64 fit effect coefficient,
-                                               :math:`\hat\beta_1`
-    Wald       `logreg.standard_error` float64 estimated standard error,
-                                               :math:`\widehat{\mathrm{se}}`
-    Wald       `logreg.z_stat`         float64 Wald :math:`z`-statistic, equal to
-                                               :math:`\hat\beta_1 / \widehat{\mathrm{se}}`
-    Wald       `logreg.p_value`        float64 Wald p-value testing :math:`\beta_1 = 0`
-    LRT, Firth `logreg.beta`           float64 fit effect coefficient,
-                                               :math:`\hat\beta_1`
-    LRT, Firth `logreg.chi_sq_stat`    float64 deviance statistic
-    LRT, Firth `logreg.p_value`        float64 LRT / Firth p-value testing
-                                               :math:`\beta_1 = 0`
-    Score      `logreg.chi_sq_stat`    float64 score statistic
-    Score      `logreg.p_value`        float64 score p-value testing :math:`\beta_1 = 0`
-    ========== ======================= ======= ============================================
+    ========== ================== ======= ============================================
+    Test       Field              Type    Value
+    ========== ================== ======= ============================================
+    Wald       `beta`             float64 fit effect coefficient,
+                                          :math:`\hat\beta_1`
+    Wald       `standard_error`   float64 estimated standard error,
+                                          :math:`\widehat{\mathrm{se}}`
+    Wald       `z_stat`           float64 Wald :math:`z`-statistic, equal to
+                                          :math:`\hat\beta_1 / \widehat{\mathrm{se}}`
+    Wald       `p_value`          float64 Wald p-value testing :math:`\beta_1 = 0`
+    LRT, Firth `beta`             float64 fit effect coefficient,
+                                          :math:`\hat\beta_1`
+    LRT, Firth `chi_sq_stat`      float64 deviance statistic
+    LRT, Firth `p_value`          float64 LRT / Firth p-value testing
+                                          :math:`\beta_1 = 0`
+    Score      `chi_sq_stat`      float64 score statistic
+    Score      `p_value`          float64 score p-value testing :math:`\beta_1 = 0`
+    ========== ================== ======= ============================================
 
     For the Wald and likelihood ratio tests, Hail fits the logistic model for
-    each row using Newton iteration and only emits the above annotations
+    each row using Newton iteration and only emits the above fields
     when the maximum likelihood estimate of the coefficients converges. The
     Firth test uses a modified form of Newton iteration. To help diagnose
-    convergence issues, Hail also emits three variant annotations which
-    summarize the iterative fitting process:
+    convergence issues, Hail also emits three fields which summarize the
+    iterative fitting process:
 
-    ================ ========================= ======= ===============================
-    Test             Field                     Type    Value
-    ================ ========================= ======= ===============================
-    Wald, LRT, Firth `logreg.fit.n_iterations` int32   number of iterations until
-                                                       convergence, explosion, or
-                                                       reaching the max (25 for
-                                                       Wald, LRT; 100 for Firth)
-    Wald, LRT, Firth `logreg.fit.converged`    bool    ``True`` if iteration converged
-    Wald, LRT, Firth `logreg.fit.exploded`     bool    ``True`` if iteration exploded
-    ================ ========================= ======= ===============================
+    ================ =================== ======= ===============================
+    Test             Field               Type    Value
+    ================ =================== ======= ===============================
+    Wald, LRT, Firth `fit.n_iterations`  int32   number of iterations until
+                                                 convergence, explosion, or
+                                                 reaching the max (25 for
+                                                 Wald, LRT; 100 for Firth)
+    Wald, LRT, Firth `fit.converged`      bool    ``True`` if iteration converged
+    Wald, LRT, Firth `fit.exploded`       bool    ``True`` if iteration exploded
+    ================ =================== ======= ===============================
 
     We consider iteration to have converged when every coordinate of
     :math:`\beta` changes by less than :math:`10^{-6}`. For Wald and LRT,
@@ -492,13 +551,14 @@ def logistic_regression(test, y, x, covariates, root='logreg') -> MatrixTable:
     variants that are observed only in cases (or controls). Such variants
     inevitably arise when testing millions of variants with very low minor
     allele count. The maximum likelihood estimate of :math:`\beta` under
-    logistic regression is then undefined but convergence may still occur after
-    a large number of iterations due to a very flat likelihood surface. In
-    testing, we find that such variants produce a secondary bump from 10 to 15
-    iterations in the histogram of number of iterations per variant. We also
-    find that this faux convergence produces large standard errors and large
-    (insignificant) p-values. To not miss such variants, consider using Firth
-    logistic regression, linear regression, or group-based tests.
+    logistic regression is then undefined but convergence may still occur
+    after a large number of iterations due to a very flat likelihood
+    surface. In testing, we find that such variants produce a secondary bump
+    from 10 to 15 iterations in the histogram of number of iterations per
+    variant. We also find that this faux convergence produces large standard
+    errors and large (insignificant) p-values. To not miss such variants,
+    consider using Firth logistic regression, linear regression, or
+    group-based tests.
 
     Here's a concrete illustration of quasi-complete seperation in R. Suppose
     we have 2010 samples distributed as follows for a particular variant:
@@ -530,15 +590,15 @@ def logistic_regression(test, y, x, covariates, root='logreg') -> MatrixTable:
     significant association.
 
     The Firth test reduces bias from small counts and resolves the issue of
-    separation by penalizing maximum likelihood estimation by the
-    `Jeffrey's invariant prior <https://en.wikipedia.org/wiki/Jeffreys_prior>`__.
-    This test is slower, as both the null and full model must be fit per
-    variant, and convergence of the modified Newton method is linear rather than
-    quadratic. For Firth, 100 iterations are attempted for the null model and,
-    if that is successful, for the full model as well. In testing we find 20
-    iterations nearly always suffices. If the null model fails to converge, then
-    the `logreg.fit` fields reflect the null model; otherwise, they reflect the
-    full model.
+    separation by penalizing maximum likelihood estimation by the `Jeffrey's
+    invariant prior <https://en.wikipedia.org/wiki/Jeffreys_prior>`__. This
+    test is slower, as both the null and full model must be fit per variant,
+    and convergence of the modified Newton method is linear rather than
+    quadratic. For Firth, 100 iterations are attempted for the null model
+    and, if that is successful, for the full model as well. In testing we
+    find 20 iterations nearly always suffices. If the null model fails to
+    converge, then the `logreg.fit` fields reflect the null model;
+    otherwise, they reflect the full model.
 
     See
     `Recommended joint and meta-analysis strategies for case-control association testing of single low-count variants <http://www.ncbi.nlm.nih.gov/pmc/articles/PMC4049324/>`__
@@ -551,13 +611,20 @@ def logistic_regression(test, y, x, covariates, root='logreg') -> MatrixTable:
     Heinze and Schemper further analyze Firth's approach in
     `A solution to the problem of separation in logistic regression, 2002 <https://cemsiis.meduniwien.ac.at/fileadmin/msi_akim/CeMSIIS/KB/volltexte/Heinze_Schemper_2002_Statistics_in_Medicine.pdf>`__.
 
-    Hail's logistic regression tests correspond to the ``b.wald``, ``b.lrt``,
-    and ``b.score`` tests in `EPACTS`_. For each variant, Hail imputes missing
-    input values as the mean of non-missing input values, whereas EPACTS
-    subsets to those samples with called genotypes. Hence, Hail and EPACTS
-    results will currently only agree for variants with no missing genotypes.
+    Hail's logistic regression tests correspond to the ``b.wald``,
+    ``b.lrt``, and ``b.score`` tests in `EPACTS`_. For each variant, Hail
+    imputes missing input values as the mean of non-missing input values,
+    whereas EPACTS subsets to those samples with called genotypes. Hence,
+    Hail and EPACTS results will currently only agree for variants with no
+    missing genotypes.
 
     .. _EPACTS: http://genome.sph.umich.edu/wiki/EPACTS#Single_Variant_Tests
+
+    Note
+    ----
+    Use the `pass_through` parameter to include additional row fields from
+    matrix table underlying ``x``. For example, to include an "rsid" field, set
+    ``pass_through=['rsid']`` or ``pass_through=[mt.rsid]``.
 
     Parameters
     ----------
@@ -572,58 +639,121 @@ def logistic_regression(test, y, x, covariates, root='logreg') -> MatrixTable:
         Entry-indexed expression for input variable.
     covariates : :obj:`list` of :class:`.Float64Expression`
         Non-empty list of column-indexed covariate expressions.
-    root : :obj:`str`, optional
-        Name of resulting row-indexed field.
+    pass_through : :obj:`list` of :obj:`str` or :class:`.Expression`
+        Additional row fields to include in the resulting table.
 
     Returns
     -------
-    :class:`.MatrixTable`
-        Matrix table with regression results in a new row-indexed field.
+    :class:`.Table`
     """
     if len(covariates) == 0:
         raise ValueError('logistic regression requires at least one covariate expression')
 
-    mt = matrix_table_source('logistic_regression/x', x)
-    check_entry_indexed('logistic_regression/x', x)
+    mt = matrix_table_source('logistic_regresion_rows/x', x)
+    check_entry_indexed('logistic_regresion_rows/x', x)
 
-    analyze('logistic_regression/y', y, mt._col_indices)
+    analyze('logistic_regresion_rows/y', y, mt._col_indices)
 
     all_exprs = [y]
     for e in covariates:
         all_exprs.append(e)
         analyze('logistic_regression/covariates', e, mt._col_indices)
 
-    _warn_if_no_intercept('logistic_regression', covariates)
+    _warn_if_no_intercept('logistic_regresion_rows', covariates)
 
-    # FIXME: remove this logic when annotation is better optimized
-    if x in mt._fields_inverse:
-        x_field_name = mt._fields_inverse[x]
-        fields_to_drop = []
-        entry_expr = {}
-    else:
-        x_field_name = Env.get_uid()
-        fields_to_drop = [x_field_name]
-        entry_expr = {x_field_name: x}
-
+    x_field_name = Env.get_uid()
     y_field_name = '__y'
     cov_field_names = list(f'__cov{i}' for i in range(len(covariates)))
+    row_fields = _get_regression_row_fields(mt, pass_through, 'logistic_regression_rows')
 
-    fields_to_drop.append(y_field_name)
-    fields_to_drop.extend(cov_field_names)
+# FIXME: selecting an existing entry field should be emitted as a SelectFields
+    mt = mt._select_all(col_exprs=dict(**{y_field_name: y},
+                                       **dict(zip(cov_field_names, covariates))),
+                        row_exprs=row_fields,
+                        col_key=[],
+                        entry_exprs={x_field_name: x})
 
-    mt = mt._annotate_all(col_exprs=dict(**{y_field_name: y},
-                                         **dict(zip(cov_field_names, covariates))),
-                          entry_exprs=entry_expr)
-
-    jmt = Env.hail().methods.LogisticRegression.apply(
-        mt._jvds,
+    jt = Env.hail().methods.LogisticRegression.apply(
+        mt._jmt,
         test,
         y_field_name,
         x_field_name,
-        jarray(Env.jvm().java.lang.String, cov_field_names),
-        root)
+        cov_field_names,
+        [x for x in row_fields if x not in mt.row_key])
+    return Table._from_java(jt)
 
-    return MatrixTable(jmt).drop(*fields_to_drop)
+
+@typecheck(test=enumeration('wald', 'lrt', 'score'),
+           y=expr_float64,
+           x=expr_float64,
+           covariates=sequenceof(expr_float64),
+           pass_through=sequenceof(oneof(str, Expression)))
+def poisson_regression_rows(test, y, x, covariates, pass_through=()) -> Table:
+    r"""For each row, test an input variable for association with a
+    count response variable using `Poisson regression <https://en.wikipedia.org/wiki/Poisson_regression>`__.
+
+    Notes
+    -----
+    See :func:`.logistic_regression_rows` for more info on statistical tests
+    of general linear models.
+
+    Note
+    ----
+    Use the `pass_through` parameter to include additional row fields from
+    matrix table underlying ``x``. For example, to include an "rsid" field, set
+    ``pass_through=['rsid']`` or ``pass_through=[mt.rsid]``.
+
+    Parameters
+    ----------
+    y : :class:`.Float64Expression`
+        Column-indexed response expression.
+        All non-missing values must evaluate to a non-negative integer.
+    x : :class:`.Float64Expression`
+        Entry-indexed expression for input variable.
+    covariates : :obj:`list` of :class:`.Float64Expression`
+        Non-empty list of column-indexed covariate expressions.
+    pass_through : :obj:`list` of :obj:`str` or :class:`.Expression`
+        Additional row fields to include in the resulting table.
+
+    Returns
+    -------
+    :class:`.Table`
+    """
+    if len(covariates) == 0:
+        raise ValueError('Poisson regression requires at least one covariate expression')
+
+    mt = matrix_table_source('poisson_regression_rows/x', x)
+    check_entry_indexed('poisson_regression_rows/x', x)
+
+    analyze('poisson_regression_rows/y', y, mt._col_indices)
+
+    all_exprs = [y]
+    for e in covariates:
+        all_exprs.append(e)
+        analyze('poisson_regression_rows/covariates', e, mt._col_indices)
+
+    _warn_if_no_intercept('poisson_regression_rows', covariates)
+
+    x_field_name = Env.get_uid()
+    y_field_name = '__y'
+    cov_field_names = list(f'__cov{i}' for i in range(len(covariates)))
+    row_fields = _get_regression_row_fields(mt, pass_through, 'poisson_regression_rows')
+
+    # FIXME: selecting an existing entry field should be emitted as a SelectFields
+    mt = mt._select_all(col_exprs=dict(**{y_field_name: y},
+                                       **dict(zip(cov_field_names, covariates))),
+                        row_exprs=row_fields,
+                        col_key=[],
+                        entry_exprs={x_field_name: x})
+
+    jt = Env.hail().methods.PoissonRegression.apply(
+        mt._jmt,
+        test,
+        y_field_name,
+        x_field_name,
+        cov_field_names,
+        [x for x in row_fields if x not in mt.row_key])
+    return Table._from_java(jt)
 
 
 @typecheck(y=expr_float64,
@@ -669,7 +799,7 @@ def linear_mixed_model(y,
 
     For this value of :math:`h^2`, test each variant for association:
 
-    >>> result_ds = hl.linear_mixed_regression(dataset.GT.n_alt_alleles(), model)
+    >>> result_table = hl.linear_mixed_regression_rows(dataset.GT.n_alt_alleles(), model)
 
     Alternatively, one can define a full-rank model using a pre-computed kinship
     matrix :math:`K` in ndarray form. When :math:`K` is the realized
@@ -702,7 +832,7 @@ def linear_mixed_model(y,
 
     If `k` is set, the model is full-rank. For correct results, the indices of
     `k` **must be aligned** with columns of the source of `y`.
-    Set `p_path` if you plan to use the model in :meth:`linear_mixed_regression`.
+    Set `p_path` if you plan to use the model in :meth:`.linear_mixed_regression_rows`.
     `k` must be positive semi-definite; symmetry is not checked as only the
     lower triangle is used. See :meth:`.LinearMixedModel.from_kinship` for more
     details.
@@ -712,6 +842,12 @@ def linear_mixed_model(y,
     which case missing values of are set to the row mean. We recommend setting
     `mean_impute` to false if you expect no missing values, both for performance
     and as a sanity check.
+
+    Warning
+    -------
+    If the rows of the matrix table have been filtered to a small fraction,
+    then :meth:`.MatrixTable.repartition` before this method to improve
+    performance.
 
     Parameters
     ----------
@@ -753,8 +889,8 @@ def linear_mixed_model(y,
     """
     source = matrix_table_source('linear_mixed_model/y', y)
 
-    if ((z_t is None and k is None) or 
-       (z_t is not None and k is not None)):
+    if ((z_t is None and k is None) or
+            (z_t is not None and k is not None)):
         raise ValueError("linear_mixed_model: set exactly one of 'z_t' and 'k'")
 
     if len(x) == 0:
@@ -802,15 +938,15 @@ def linear_mixed_model(y,
            pa_t_path=nullable(str),
            a_t_path=nullable(str),
            mean_impute=bool,
-           root=str,
-           partition_size=nullable(int))
-def linear_mixed_regression(entry_expr,
-                            model,
-                            pa_t_path=None,
-                            a_t_path=None,
-                            mean_impute=True,
-                            root='lmmreg',
-                            partition_size=None):
+           partition_size=nullable(int),
+           pass_through=sequenceof(oneof(str, Expression)))
+def linear_mixed_regression_rows(entry_expr,
+                                 model,
+                                 pa_t_path=None,
+                                 a_t_path=None,
+                                 mean_impute=True,
+                                 partition_size=None,
+                                 pass_through=()):
     """For each row, test an input variable for association using a linear
     mixed model.
 
@@ -835,8 +971,8 @@ def linear_mixed_regression(entry_expr,
        ``(n_rows / block_size) * (model.r / block_size)``.
 
     4. Compute regression results per row with
-       :meth:`.LinearMixedModel.fit_alternatives` and row-annotate the statistics
-       at `root`. The parallelism is ``n_rows / partition_size``.
+       :meth:`.LinearMixedModel.fit_alternatives`.
+       The parallelism is ``n_rows / partition_size``.
 
     If `pa_t_path` and `a_t_path` are not set, temporary files are used.
 
@@ -856,16 +992,14 @@ def linear_mixed_regression(entry_expr,
     So having run linear mixed regression once, we can
     compute :math:`h^2` and regression statistics for another response or set of
     fixed effects on the **same samples** at the roughly the speed of
-    :meth:`linear_regression`.
+    :func:`.linear_regression_rows`.
 
     For example, having collected another `y` and `x` as ndarrays, one can
-    construct a new linear mixed model directly using:
-
-    >>> from hail.stats import LinearMixedModel
+    construct a new linear mixed model directly.
 
     Supposing the model is full-rank and `p` is an ndarray:
 
-    >>> model = LinearMixedModel(p @ y, p @ x, s)      # doctest: +SKIP
+    >>> model = hl.stats.LinearMixedModel(p @ y, p @ x, s)      # doctest: +SKIP
     >>> model.fit()                                    # doctest: +SKIP
     >>> result_ht = model.fit_alternatives(pa_t_path)  # doctest: +SKIP
 
@@ -887,14 +1021,20 @@ def linear_mixed_regression(entry_expr,
     -------
     For correct results, the column-index of `entry_expr` must correspond to the
     sample index of the model. This will be true, for example, if `model`
-    was created with :meth:`linear_mixed_model` using (a possibly row-filtered
+    was created with :func:`.linear_mixed_model` using (a possibly row-filtered
     version of) the source of `entry_expr`, or if `y` and `x` were collected to
     arrays from this source. Hail will raise an error if the number of columns
     does not match ``model.n``, but will not detect, for example, permuted
     samples.
 
-    The warning on :meth:`.write_from_entry_expr` applies to this
+    The warning on :meth:`.BlockMatrix.write_from_entry_expr` applies to this
     method when the number of samples is large.
+
+    Note
+    ----
+    Use the `pass_through` parameter to include additional row fields from
+    matrix table underlying ``entry_expr``. For example, to include an "rsid"
+    field, set` pass_through=['rsid']`` or ``pass_through=[mt.rsid]``.
 
     Parameters
     ----------
@@ -911,30 +1051,29 @@ def linear_mixed_regression(entry_expr,
         If not set, a temporary file is used.
     mean_impute: :obj:`bool`
         Mean-impute missing values of `entry_expr` by row.
-    root: :obj:`str`
-        Name of resulting row-indexed field.
     partition_size: :obj:`int`
         Number of rows to process per partition.
         Default given by block size of :math:`P`.
+    pass_through : :obj:`list` of :obj:`str` or :class:`.Expression`
+        Additional row fields to include in the resulting table.
 
     Returns
     -------
-    :class:`.MatrixTable`
-        Matrix table with regression results in a new row-indexed field.
+    :class:`.Table`
     """
-    mt = matrix_table_source('linear_mixed_regression', entry_expr)
+    mt = matrix_table_source('linear_mixed_regression_rows', entry_expr)
     n = mt.count_cols()
 
-    check_entry_indexed('linear_mixed_regression', entry_expr)
+    check_entry_indexed('linear_mixed_regression_rows', entry_expr)
     if not model._fitted:
-        raise ValueError("linear_mixed_regression: 'model' has not been fit "
+        raise ValueError("linear_mixed_regression_rows: 'model' has not been fit "
                          "using 'fit()'")
     if model.p_path is None:
-        raise ValueError("linear_mixed_regression: 'model' property 'p_path' "
+        raise ValueError("linear_mixed_regression_rows: 'model' property 'p_path' "
                          "was not set at initialization")
 
     if model.n != n:
-        raise ValueError(f"linear_mixed_regression: linear mixed model expects {model.n} samples, "
+        raise ValueError(f"linear_mixed_regression_rows: linear mixed model expects {model.n} samples, "
                          f"\n    but 'entry_expr' source has {n} columns.")
 
     pa_t_path = new_temp_file() if pa_t_path is None else pa_t_path
@@ -951,10 +1090,10 @@ def linear_mixed_regression(entry_expr,
     ht = model.fit_alternatives(pa_t_path,
                                 a_t_path if model.low_rank else None,
                                 partition_size)
-    mt = mt.add_row_index('__row_idx')
-    mt = mt.annotate_rows(**{root: ht[mt['__row_idx']]})
-    mt = mt.drop('__row_idx')
-    return mt
+    row_fields = _get_regression_row_fields(mt, pass_through, 'linear_mixed_regression_rows')
+
+    mt_keys = mt.select_rows(**row_fields).add_row_index('__row_idx').rows().add_index('__row_idx').key_by('__row_idx')
+    return mt_keys.annotate(**ht[mt_keys['__row_idx']]).key_by(*mt.row_key).drop('__row_idx')
 
 
 @typecheck(key_expr=expr_any,
@@ -1138,7 +1277,7 @@ def skat(key_expr, weight_expr, y, x, covariates, logistic=False,
                           entry_exprs=entry_expr)
 
     jt = Env.hail().methods.Skat.apply(
-        mt._jvds,
+        mt._jmt,
         key_field_name,
         weight_field_name,
         y_field_name,
@@ -1149,7 +1288,7 @@ def skat(key_expr, weight_expr, y, x, covariates, logistic=False,
         accuracy,
         iterations)
 
-    return Table(jt)
+    return Table._from_java(jt)
 
 
 @typecheck(call_expr=expr_call,
@@ -1328,11 +1467,11 @@ def pca(entry_expr, k=10, compute_loadings=False) -> Tuple[List[float], Table, T
         mt = mt.select_entries(**{field: entry_expr})
     mt = mt.select_cols().select_rows().select_globals()
 
-    r = Env.hail().methods.PCA.apply(mt._jvds, field, k, compute_loadings)
-    scores = Table(Env.hail().methods.PCA.scoresTable(mt._jvds, r._2()))
+    r = Env.hail().methods.PCA.apply(mt._jmt, field, k, compute_loadings)
+    scores = Table._from_java(Env.hail().methods.PCA.scoresTable(mt._jmt, r._2()))
     loadings = from_option(r._3())
     if loadings:
-        loadings = Table(loadings)
+        loadings = Table._from_java(loadings)
     return jiterable_to_list(r._1()), scores, loadings
 
 
@@ -1345,10 +1484,9 @@ def pca(entry_expr, k=10, compute_loadings=False) -> Tuple[List[float], Table, T
            block_size=nullable(int))
 def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
               min_kinship=-float("inf"), statistics="all", block_size=None) -> Table:
-    """Compute relatedness estimates between individuals using a variant of the
+    r"""Compute relatedness estimates between individuals using a variant of the
     PC-Relate method.
 
-    .. include:: ../_templates/experimental.rst
     .. include:: ../_templates/req_diploid_gt.rst
 
     Examples
@@ -1391,11 +1529,11 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
 
     .. math::
 
-      \\widehat{\\phi_{ij}} :=
-        \\frac{1}{|S_{ij}|}
-        \\sum_{s \\in S_{ij}}
-          \\frac{(g_{is} - 2 p_s) (g_{js} - 2 p_s)}
-                {4 \\sum_{s \\in S_{ij} p_s (1 - p_s)}}
+      \widehat{\phi_{ij}} :=
+        \frac{1}{|S_{ij}|}
+        \sum_{s \in S_{ij}}
+          \frac{(g_{is} - 2 p_s) (g_{js} - 2 p_s)}
+                {4 \sum_{s \in S_{ij} p_s (1 - p_s)}}
 
     This estimator is true under the model that the sharing of common
     (relative to the population) alleles is not very informative to
@@ -1432,23 +1570,23 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
      - :math:`S_{ij}` be the set of genetic loci at which both individuals
        :math:`i` and :math:`j` have a defined genotype
 
-     - :math:`g_{is} \\in {0, 1, 2}` be the number of alternate alleles that
+     - :math:`g_{is} \in {0, 1, 2}` be the number of alternate alleles that
        individual :math:`i` has at genetic locus :math:`s`
 
-     - :math:`\\widehat{\\mu_{is}} \\in [0, 1]` be the individual-specific allele
+     - :math:`\widehat{\mu_{is}} \in [0, 1]` be the individual-specific allele
        frequency for individual :math:`i` at genetic locus :math:`s`
 
-     - :math:`{\\widehat{\\sigma^2_{is}}} := \\widehat{\\mu_{is}} (1 - \\widehat{\\mu_{is}})`,
-       the binomial variance of :math:`\\widehat{\\mu_{is}}`
+     - :math:`{\widehat{\sigma^2_{is}}} := \widehat{\mu_{is}} (1 - \widehat{\mu_{is}})`,
+       the binomial variance of :math:`\widehat{\mu_{is}}`
 
-     - :math:`\\widehat{\\sigma_{is}} := \\sqrt{\\widehat{\\sigma^2_{is}}}`,
-       the binomial standard deviation of :math:`\\widehat{\\mu_{is}}`
+     - :math:`\widehat{\sigma_{is}} := \sqrt{\widehat{\sigma^2_{is}}}`,
+       the binomial standard deviation of :math:`\widehat{\mu_{is}}`
 
-     - :math:`\\text{IBS}^{(0)}_{ij} := \\sum_{s \\in S_{ij}} \\mathbb{1}_{||g_{is} - g_{js} = 2||}`,
+     - :math:`\text{IBS}^{(0)}_{ij} := \sum_{s \in S_{ij}} \mathbb{1}_{||g_{is} - g_{js} = 2||}`,
        the number of genetic loci at which individuals :math:`i` and :math:`j`
        share no alleles
 
-     - :math:`\\widehat{f_i} := 2 \\widehat{\\phi_{ii}} - 1`, the inbreeding
+     - :math:`\widehat{f_i} := 2 \widehat{\phi_{ii}} - 1`, the inbreeding
        coefficient for individual :math:`i`
 
      - :math:`g^D_{is}` be a dominance encoding of the genotype matrix, and
@@ -1457,52 +1595,52 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
     .. math::
 
         g^D_{is} :=
-          \\begin{cases}
-            \\widehat{\\mu_{is}}     & g_{is} = 0 \\\\
-            0                        & g_{is} = 1 \\\\
-            1 - \\widehat{\\mu_{is}} & g_{is} = 2
-          \\end{cases}
+          \begin{cases}
+            \widehat{\mu_{is}}     & g_{is} = 0 \\
+            0                        & g_{is} = 1 \\
+            1 - \widehat{\mu_{is}} & g_{is} = 2
+          \end{cases}
 
-        X_{is} := g^D_{is} - \\widehat{\\sigma^2_{is}} (1 - \\widehat{f_i})
+        X_{is} := g^D_{is} - \widehat{\sigma^2_{is}} (1 - \widehat{f_i})
 
     The estimator for kinship is given by:
 
     .. math::
 
-      \\widehat{\phi_{ij}} :=
-        \\frac{\sum_{s \\in S_{ij}}(g - 2 \\mu)_{is} (g - 2 \\mu)_{js}}
-              {4 * \\sum_{s \\in S_{ij}}
-                            \\widehat{\\sigma_{is}} \\widehat{\\sigma_{js}}}
+      \widehat{\phi_{ij}} :=
+        \frac{\sum_{s \in S_{ij}}(g - 2 \mu)_{is} (g - 2 \mu)_{js}}
+              {4 * \sum_{s \in S_{ij}}
+                            \widehat{\sigma_{is}} \widehat{\sigma_{js}}}
 
     The estimator for identity-by-descent two is given by:
 
     .. math::
 
-      \\widehat{k^{(2)}_{ij}} :=
-        \\frac{\\sum_{s \\in S_{ij}}X_{is} X_{js}}{\sum_{s \\in S_{ij}}
-          \\widehat{\\sigma^2_{is}} \\widehat{\\sigma^2_{js}}}
+      \widehat{k^{(2)}_{ij}} :=
+        \frac{\sum_{s \in S_{ij}}X_{is} X_{js}}{\sum_{s \in S_{ij}}
+          \widehat{\sigma^2_{is}} \widehat{\sigma^2_{js}}}
 
     The estimator for identity-by-descent zero is given by:
 
     .. math::
 
-      \\widehat{k^{(0)}_{ij}} :=
-        \\begin{cases}
-          \\frac{\\text{IBS}^{(0)}_{ij}}
-                {\\sum_{s \\in S_{ij}}
-                       \\widehat{\\mu_{is}}^2(1 - \\widehat{\\mu_{js}})^2
-                       + (1 - \\widehat{\\mu_{is}})^2\\widehat{\\mu_{js}}^2}
-            & \\widehat{\\phi_{ij}} > 2^{-5/2} \\\\
-          1 - 4 \\widehat{\\phi_{ij}} + k^{(2)}_{ij}
-            & \\widehat{\\phi_{ij}} \\le 2^{-5/2}
-        \\end{cases}
+      \widehat{k^{(0)}_{ij}} :=
+        \begin{cases}
+          \frac{\text{IBS}^{(0)}_{ij}}
+                {\sum_{s \in S_{ij}}
+                       \widehat{\mu_{is}}^2(1 - \widehat{\mu_{js}})^2
+                       + (1 - \widehat{\mu_{is}})^2\widehat{\mu_{js}}^2}
+            & \widehat{\phi_{ij}} > 2^{-5/2} \\
+          1 - 4 \widehat{\phi_{ij}} + k^{(2)}_{ij}
+            & \widehat{\phi_{ij}} \le 2^{-5/2}
+        \end{cases}
 
     The estimator for identity-by-descent one is given by:
 
     .. math::
 
-      \\widehat{k^{(1)}_{ij}} :=
-        1 - \\widehat{k^{(2)}_{ij}} - \\widehat{k^{(0)}_{ij}}
+      \widehat{k^{(1)}_{ij}} :=
+        1 - \widehat{k^{(2)}_{ij}} - \widehat{k^{(0)}_{ij}}
 
     Note that, even if present, phase information is ignored by this method.
 
@@ -1528,7 +1666,7 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
      - the algorithm does not provide an option to not use "overall
        standardization" (see R ``pcrelate`` documentation)
 
-    Under the PC-Relate model, kinship, :math:`\\phi_{ij}`, ranges from 0 to
+    Under the PC-Relate model, kinship, :math:`\phi_{ij}`, ranges from 0 to
     0.5, and is precisely half of the
     fraction-of-genetic-material-shared. Listed below are the statistics for
     a few pairings:
@@ -1559,10 +1697,10 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
 
      - `i` (``col_key.dtype``) -- First sample. (key field)
      - `j` (``col_key.dtype``) -- Second sample. (key field)
-     - `kin` (:py:data:`.tfloat64`) -- Kinship estimate, :math:`\\widehat{\\phi_{ij}}`.
-     - `ibd2` (:py:data:`.tfloat64`) -- IBD2 estimate, :math:`\\widehat{k^{(2)}_{ij}}`.
-     - `ibd0` (:py:data:`.tfloat64`) -- IBD0 estimate, :math:`\\widehat{k^{(0)}_{ij}}`.
-     - `ibd1` (:py:data:`.tfloat64`) -- IBD1 estimate, :math:`\\widehat{k^{(1)}_{ij}}`.
+     - `kin` (:py:data:`.tfloat64`) -- Kinship estimate, :math:`\widehat{\phi_{ij}}`.
+     - `ibd2` (:py:data:`.tfloat64`) -- IBD2 estimate, :math:`\widehat{k^{(2)}_{ij}}`.
+     - `ibd0` (:py:data:`.tfloat64`) -- IBD0 estimate, :math:`\widehat{k^{(0)}_{ij}}`.
+     - `ibd1` (:py:data:`.tfloat64`) -- IBD1 estimate, :math:`\widehat{k^{(1)}_{ij}}`.
 
     Here ``col_key`` refers to the column key of the source matrix table,
     and ``col_key.dtype`` is a struct containing the column key fields.
@@ -1570,7 +1708,7 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
     There is one row for each pair of distinct samples (columns), where `i`
     corresponds to the column of smaller column index. In particular, if the
     same column key value exists for :math:`n` columns, then the resulting
-    table will have :math:`\\binom{n-1}{2}` rows with both key fields equal to
+    table will have :math:`\binom{n-1}{2}` rows with both key fields equal to
     that column key value. This may result in unexpected behavior in downstream
     processing.
 
@@ -1640,14 +1778,14 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
 
     int_statistics = {'kin': 0, 'kin2': 1, 'kin20': 2, 'all': 3}[statistics]
 
-    ht = Table(scala_object(Env.hail().methods, 'PCRelate')
-            .apply(Env.hc()._jhc,
-                   g._jbm,
-                   scores_table._jt,
-                   min_individual_maf,
-                   block_size,
-                   min_kinship,
-                   int_statistics))
+    ht = Table._from_java(scala_object(Env.hail().methods, 'PCRelate')
+                          .apply(Env.hc()._jhc,
+                                 g._jbm,
+                                 scores_table._jt,
+                                 min_individual_maf,
+                                 block_size,
+                                 min_kinship,
+                                 int_statistics))
 
     if statistics == 'kin':
         ht = ht.drop('ibd0', 'ibd1', 'ibd2')
@@ -1688,9 +1826,8 @@ def split_multi(ds, keep_star=False, left_aligned=False):
     Example
     -------
 
-    :func:`.split_multi_hts`, which splits
-    multiallelic variants for the HTS genotype schema and updates
-    the genotype annotations by downcoding the genotype, is
+    :func:`.split_multi_hts`, which splits multiallelic variants for the HTS
+    genotype schema and updates the entry fields by downcoding the genotype, is
     implemented as:
 
     >>> sm = hl.split_multi(ds)
@@ -1706,6 +1843,18 @@ def split_multi(ds, keep_star=False, left_aligned=False):
     ...     DP=sm.DP,
     ...     PL=pl,
     ...     GQ=hl.gq_from_pl(pl)).drop('old_locus', 'old_alleles')
+
+    Warning
+    -------
+    In order to support a wide variety of data types, this function splits only
+    the variants on a :class:`.MatrixTable`, but **not the genotypes**. Use
+    :func:`.split_multi_hts` if possible, or split the genotypes yourself using
+    one of the entry modification methods: :meth:`.MatrixTable.annotate_entries`,
+    :meth:`.MatrixTable.select_entries`, :meth:`.MatrixTable.transmute_entries`.
+
+    See Also
+    --------
+    :func:`.split_multi_hts`
 
     Parameters
     ----------
@@ -1742,6 +1891,10 @@ def split_multi(ds, keep_star=False, left_aligned=False):
         if isinstance(ds, MatrixTable):
             mt = (ds.annotate_rows(**{new_id: expr})
                   .explode_rows(new_id))
+            if rekey:
+                mt = mt.key_rows_by()
+            else:
+                mt = mt.key_rows_by('locus')
             new_row_expr = mt._rvrow.annotate(locus=mt[new_id]['locus'],
                                               alleles=mt[new_id]['alleles'],
                                               a_index=mt[new_id]['a_index'],
@@ -1749,13 +1902,19 @@ def split_multi(ds, keep_star=False, left_aligned=False):
                                               old_locus=mt.locus,
                                               old_alleles=mt.alleles).drop(new_id)
 
-            return mt._select_rows('split_multi',
-                                   new_row_expr,
-                                   new_key=['locus', 'alleles'])
+            mt = mt._select_rows('split_multi', new_row_expr)
+            if rekey:
+                return mt.key_rows_by('locus', 'alleles')
+            else:
+                return MatrixTable(MatrixKeyRowsBy(mt._mir, ['locus', 'alleles'], is_sorted=True))
         else:
             assert isinstance(ds, Table)
             ht = (ds.annotate(**{new_id: expr})
                   .explode(new_id))
+            if rekey:
+                ht = ht.key_by()
+            else:
+                ht = ht.key_by('locus')
             new_row_expr = ht.row.annotate(locus=ht[new_id]['locus'],
                                            alleles=ht[new_id]['alleles'],
                                            a_index=ht[new_id]['a_index'],
@@ -1763,18 +1922,18 @@ def split_multi(ds, keep_star=False, left_aligned=False):
                                            old_locus=ht.locus,
                                            old_alleles=ht.alleles).drop(new_id)
 
-            return ht._select_scala(new_row_expr,
-                                    preserved_key=['locus'] if not rekey else [],
-                                    preserved_key_new=['locus'] if not rekey else [],
-                                    new_key=['locus', 'alleles'])
-
+            ht = ht._select('split_multi', new_row_expr)
+            if rekey:
+                return ht.key_by('locus', 'alleles')
+            else:
+                return Table(TableKeyBy(ht._tir, ['locus', 'alleles'], is_sorted=True))
 
     if left_aligned:
         def make_struct(i):
             def error_on_moved(v):
                 return (hl.case()
                         .when(v.locus == old_row.locus, new_struct(v, i))
-                        .or_error("Found non-left-aligned variant in SplitMulti"))
+                        .or_error("Found non-left-aligned variant in split_multi"))
             return hl.bind(error_on_moved,
                            hl.min_rep(old_row.locus, [old_row.alleles[0], old_row.alleles[i]]))
         return split_rows(hl.sorted(kept_alleles.map(make_struct)), False)
@@ -1812,10 +1971,11 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep'):
         GQ: int32,
         PL: array<int32>,
         PGT: call,
-        PID: str,
+        PID: str
       }
 
-    For other entry fields, use :class:`.SplitMulti`.
+    For other entry fields, write your own splitting logic using
+    :meth:`.MatrixTable.annotate_entries`.
 
     Examples
     --------
@@ -1840,7 +2000,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep'):
       A   C   0/0:13,2:15:45:0,45,99
       A   T   0/1:9,6:15:50:50,0,99
 
-    Each multiallelic `GT` field is downcoded once for each alternate allele. A
+    Each multiallelic `GT` or `PGT` field is downcoded once for each alternate allele. A
     call for an alternate allele maps to 1 in the biallelic variant
     corresponding to itself and 0 otherwise. For example, in the example above,
     0/2 maps to 0/0 and 0/1. The genotype 1/2 maps to 0/1 and 0/1.
@@ -1921,6 +2081,10 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep'):
        splits into two variants: 1:100:A:T with ``a_index = 1`` and 1:100:A:C
        with ``a_index = 2``.
 
+    See Also
+    --------
+    :func:`.split_multi`
+
     Parameters
     ----------
     ds : :class:`.MatrixTable` or :class:`.Table`
@@ -1955,7 +2119,29 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep'):
 
     if isinstance(ds, Table):
         return split.annotate(**update_rows_expression).drop('old_locus', 'old_alleles')
-    entry_fields = set(ds.entry)
+
+    split = split.annotate_rows(**update_rows_expression)
+    entry_fields = ds.entry
+
+    expected_field_types = {
+        'GT': hl.tcall,
+        'AD': hl.tarray(hl.tint),
+        'DP': hl.tint,
+        'GQ': hl.tint,
+        'PL': hl.tarray(hl.tint),
+        'PGT': hl.tcall,
+        'PID': hl.tstr
+    }
+
+    bad_fields = []
+    for field in entry_fields:
+        if field in expected_field_types and entry_fields[field].dtype != expected_field_types[field]:
+            bad_fields.append((field, entry_fields[field].dtype, expected_field_types[field]))
+
+    if bad_fields:
+        msg = '\n  '.join([f"'{x[0]}'\tfound: {x[1]}\texpected: {x[2]}" for x in bad_fields])
+        raise TypeError("'split_multi_hts': Found invalid types for the following fields:\n  " + msg)
+
     update_entries_expression = {}
     if 'GT' in entry_fields:
         update_entries_expression['GT'] = hl.downcode(split.GT, split.a_index)
@@ -1983,14 +2169,12 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep'):
         update_entries_expression['PGT'] = hl.downcode(split.PGT, split.a_index)
     if 'PID' in entry_fields:
         update_entries_expression['PID'] = split.PID
-    return split._annotate_all(
-        row_exprs=update_rows_expression,
-        entry_exprs=update_entries_expression).drop('old_locus', 'old_alleles')
+    return split.annotate_entries(**update_entries_expression).drop('old_locus', 'old_alleles')
 
 
 @typecheck(call_expr=expr_call)
 def genetic_relatedness_matrix(call_expr) -> BlockMatrix:
-    """Compute the genetic relatedness matrix (GRM).
+    r"""Compute the genetic relatedness matrix (GRM).
 
     Examples
     --------
@@ -2002,7 +2186,7 @@ def genetic_relatedness_matrix(call_expr) -> BlockMatrix:
     The genetic relationship matrix (GRM) :math:`G` encodes genetic correlation
     between each pair of samples. It is defined by :math:`G = MM^T` where
     :math:`M` is a standardized version of the genotype matrix, computed as
-    follows. Let :math:`C` be the :math:`n \\times m` matrix of raw genotypes
+    follows. Let :math:`C` be the :math:`n \times m` matrix of raw genotypes
     in the variant dataset, with rows indexed by :math:`n` samples and columns
     indexed by :math:`m` bialellic autosomal variants; :math:`C_{ij}` is the
     number of alternate alleles of variant :math:`j` carried by sample
@@ -2013,7 +2197,7 @@ def genetic_relatedness_matrix(call_expr) -> BlockMatrix:
 
     .. math::
 
-        M_{ij} = \\frac{C_{ij}-2p_j}{\sqrt{2p_j(1-p_j)m}},
+        M_{ij} = \frac{C_{ij}-2p_j}{\sqrt{2p_j(1-p_j)m}},
 
     with :math:`M_{ij} = 0` for :math:`C_{ij}` missing (i.e. mean genotype
     imputation). This scaling normalizes genotype variances to a common value
@@ -2029,7 +2213,7 @@ def genetic_relatedness_matrix(call_expr) -> BlockMatrix:
 
     .. math::
 
-        G_{ik} = \\frac{1}{m} \\sum_{j=1}^m \\frac{(C_{ij}-2p_j)(C_{kj}-2p_j)}{2 p_j (1-p_j)}
+        G_{ik} = \frac{1}{m} \sum_{j=1}^m \frac{(C_{ij}-2p_j)(C_{kj}-2p_j)}{2 p_j (1-p_j)}
 
     This method drops variants with :math:`p_j = 0` or math:`p_j = 1` before
     computing kinship.
@@ -2065,7 +2249,7 @@ def genetic_relatedness_matrix(call_expr) -> BlockMatrix:
 
 @typecheck(call_expr=expr_call)
 def realized_relationship_matrix(call_expr) -> BlockMatrix:
-    """Computes the realized relationship matrix (RRM).
+    r"""Computes the realized relationship matrix (RRM).
 
     Examples
     --------
@@ -2075,7 +2259,7 @@ def realized_relationship_matrix(call_expr) -> BlockMatrix:
     Notes
     -----
     The realized relationship matrix (RRM) is defined as follows. Consider the
-    :math:`n \\times m` matrix :math:`C` of raw genotypes, with rows indexed by
+    :math:`n \times m` matrix :math:`C` of raw genotypes, with rows indexed by
     :math:`n` samples and columns indexed by the :math:`m` bialellic autosomal
     variants; :math:`C_{ij}` is the number of alternate alleles of variant
     :math:`j` carried by sample :math:`i`, which can be 0, 1, 2, or missing. For
@@ -2086,13 +2270,13 @@ def realized_relationship_matrix(call_expr) -> BlockMatrix:
     .. math::
 
         M_{ij} =
-          \\frac{C_{ij}-2p_j}
-                {\sqrt{\\frac{m}{n} \\sum_{k=1}^n (C_{ij}-2p_j)^2}},
+          \frac{C_{ij}-2p_j}
+                {\sqrt{\frac{m}{n} \sum_{k=1}^n (C_{ij}-2p_j)^2}},
 
     with :math:`M_{ij} = 0` for :math:`C_{ij}` missing (i.e. mean genotype
     imputation). This scaling normalizes each variant column to have empirical
     variance :math:`1/m`, which gives each sample row approximately unit total
-    variance (assuming linkage equilibrium) and yields the :math:`n \\times n`
+    variance (assuming linkage equilibrium) and yields the :math:`n \times n`
     sample correlation or realized relationship matrix (RRM) :math:`K` as simply
 
     .. math::
@@ -2983,8 +3167,8 @@ def _local_ld_prune(mt, call_field, r2=0.2, bp_window_size=1000000, memory_per_c
 
     info(f'ld_prune: running local pruning stage with max queue size of {max_queue_size} variants')
 
-    sites_only_table = Table(Env.hail().methods.LocalLDPrune.apply(
-        mt._jvds, call_field, float(r2), bp_window_size, max_queue_size))
+    sites_only_table = Table._from_java(Env.hail().methods.LocalLDPrune.apply(
+        mt._jmt, call_field, float(r2), bp_window_size, max_queue_size))
 
     return sites_only_table
 
@@ -3097,9 +3281,8 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
     mt = mt.distinct_by_row()
     locally_pruned_table_path = new_temp_file()
     (_local_ld_prune(require_biallelic(mt, 'ld_prune'), field, r2, bp_window_size, memory_per_core)
-        .add_index()
         .write(locally_pruned_table_path, overwrite=True))
-    locally_pruned_table = hl.read_table(locally_pruned_table_path)
+    locally_pruned_table = hl.read_table(locally_pruned_table_path).add_index()
 
     locally_pruned_ds_path = new_temp_file()
     mt = mt.annotate_rows(info=locally_pruned_table[mt.row_key])
@@ -3158,7 +3341,7 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
         variants_to_remove = hl.maximal_independent_set(entries.i, entries.j, keep=False)
 
     return locally_pruned_table.filter(
-        hl.is_defined(variants_to_remove[locally_pruned_table.idx]), keep=False).select()
+        hl.is_defined(variants_to_remove[locally_pruned_table.idx]), keep=False).select().persist()
 
 
 def _warn_if_no_intercept(caller, covariates):

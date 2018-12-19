@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.utils._
 
 object Children {
-  private def none: IndexedSeq[BaseIR] = Array.empty[BaseIR]
+  private val none: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
   def apply(x: IR): IndexedSeq[BaseIR] = x match {
     case I32(x) => none
@@ -13,7 +13,7 @@ object Children {
     case Str(x) => none
     case True() => none
     case False() => none
-    case Literal(_, _, _) => none
+    case Literal(_, _) => none
     case Void() => none
     case Cast(v, typ) =>
       Array(v)
@@ -64,6 +64,12 @@ object Children {
       Array(a, zero, body)
     case ArrayFor(a, valueName, body) =>
       Array(a, body)
+    case AggFilter(cond, aggIR) =>
+      Array(cond, aggIR)
+    case AggExplode(array, _, aggBody) =>
+      Array(array, aggBody)
+    case AggGroupBy(key, aggIR) =>
+      Array(key, aggIR)
     case MakeStruct(fields) =>
       fields.map(_._2).toFastIndexedSeq
     case SelectFields(old, fields) =>
@@ -76,10 +82,10 @@ object Children {
       i +: args
     case Begin(xs) =>
       xs
-    case ApplyAggOp(a, constructorArgs, initOpArgs, aggSig) =>
-      (a +: constructorArgs) ++ initOpArgs.getOrElse(FastIndexedSeq())
-    case ApplyScanOp(a, constructorArgs, initOpArgs, aggSig) =>
-      (a +: constructorArgs) ++ initOpArgs.getOrElse(FastIndexedSeq())
+    case ApplyAggOp(constructorArgs, initOpArgs, seqOpArgs, aggSig) =>
+      constructorArgs ++ initOpArgs.getOrElse(FastIndexedSeq()) ++ seqOpArgs
+    case ApplyScanOp(constructorArgs, initOpArgs, seqOpArgs, aggSig) =>
+      constructorArgs ++ initOpArgs.getOrElse(FastIndexedSeq()) ++ seqOpArgs
     case GetField(o, name) =>
       Array(o)
     case MakeTuple(types) =>
@@ -93,7 +99,7 @@ object Children {
     case In(i, typ) =>
       none
     case Die(message, typ) =>
-      none
+      Array(message)
     case ApplyIR(_, args, _) =>
       args.toFastIndexedSeq
     case Apply(_, args) =>
@@ -108,6 +114,7 @@ object Children {
     case MatrixWrite(child, _) => IndexedSeq(child)
     // from TableIR
     case TableCount(child) => IndexedSeq(child)
+    case TableGetGlobals(child) => IndexedSeq(child)
     case TableAggregate(child, query) => IndexedSeq(child, query)
     case MatrixAggregate(child, query) => IndexedSeq(child, query)
     case TableWrite(child, _, _, _, _) => IndexedSeq(child)

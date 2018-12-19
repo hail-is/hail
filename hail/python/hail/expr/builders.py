@@ -1,6 +1,6 @@
 from hail.typecheck import typecheck_method
 from hail.expr.expressions import unify_types, unify_types_limited, expr_any, \
-    expr_bool, ExpressionException, construct_expr
+    expr_bool, ExpressionException, construct_expr, expr_str
 from hail import ir
 
 
@@ -35,7 +35,7 @@ class SwitchBuilder(ConditionalBuilder):
     ...           .when('loss of function', 3)
     ...           .when('LOF', 3)
     ...           .or_missing())
-    >>> expr.value
+    >>> hl.eval(expr)
     3
 
     Notes
@@ -184,7 +184,7 @@ class CaseBuilder(ConditionalBuilder):
     ...           .when(x.length() == 11, 2)
     ...           .when(x == 'secret phrase', 3)
     ...           .default(0))
-    >>> expr.value
+    >>> hl.eval(expr)
     2
 
     Notes
@@ -285,7 +285,7 @@ class CaseBuilder(ConditionalBuilder):
         from hail.expr.functions import null
         return self._finish(null(self._ret_type))
 
-    @typecheck_method(message=str)
+    @typecheck_method(message=expr_str)
     def or_error(self, message):
         """Finish the case statement by throwing an error with the given message.
 
@@ -296,7 +296,7 @@ class CaseBuilder(ConditionalBuilder):
 
         Parameters
         ----------
-        message : :obj:`str`
+        message : :class:`.Expression` of type :data:`tstr`
 
         Returns
         -------
@@ -304,5 +304,5 @@ class CaseBuilder(ConditionalBuilder):
         """
         if len(self._cases) == 0:
             raise ExpressionException("'or_error' cannot be called without at least one 'when' call")
-        error_expr = construct_expr(ir.Die(message, self._ret_type), self._ret_type)
+        error_expr = construct_expr(ir.Die(message._ir, self._ret_type), self._ret_type)
         return self._finish(error_expr)

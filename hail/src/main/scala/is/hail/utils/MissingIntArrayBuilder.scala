@@ -2,6 +2,8 @@ package is.hail.utils
 
 import is.hail.expr.types._
 import is.hail.annotations._
+import is.hail.expr.types.virtual.{TArray, TInt32}
+
 import scala.collection.mutable
 
 class MissingIntArrayBuilder extends Serializable {

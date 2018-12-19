@@ -1,45 +1,39 @@
 package is.hail.methods
 
-import is.hail.TestUtils._
-import is.hail.annotations.Annotation
-import is.hail.check.Gen
+import is.hail.SparkSuite
 import is.hail.check.Prop._
 import is.hail.check.Properties
 import is.hail.expr._
-import is.hail.expr.types._
+import is.hail.expr.types.virtual.{TFloat64, TInt32, Type}
+import is.hail.expr.ir.IRParser
 import is.hail.utils.StringEscapeUtils._
-import is.hail.utils._
-import is.hail.variant._
-import is.hail.{SparkSuite, TestUtils}
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
-import org.scalatest.Matchers._
 import org.testng.annotations.Test
 
 class ExprSuite extends SparkSuite {
 
   @Test def testTypePretty() {
     // for arbType
-    import is.hail.expr.types.Type._
 
     val sb = new StringBuilder
     check(forAll { (t: Type) =>
       sb.clear()
       t.pretty(sb, 0, compact = true)
       val res = sb.result()
-      val parsed = Parser.parseType(res)
+      val parsed = IRParser.parseType(res)
       t == parsed
     })
     check(forAll { (t: Type) =>
       sb.clear()
       t.pretty(sb, 0, compact = false)
       val res = sb.result()
-      val parsed = Parser.parseType(res)
+      val parsed = IRParser.parseType(res)
       t == parsed
     })
     check(forAll { (t: Type) =>
       val s = t.parsableString()
-      val parsed = Parser.parseType(s)
+      val parsed = IRParser.parseType(s)
       t == parsed
     })
   }

@@ -7,6 +7,7 @@ import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir.functions.{IRFunctionRegistry, RegistryFunctions}
 import is.hail.expr.types._
+import is.hail.expr.types.virtual._
 import is.hail.variant.Call2
 import org.testng.annotations.Test
 
@@ -64,7 +65,7 @@ class FunctionSuite extends SparkSuite {
     val f = toF[Int, Long](ir)
     val off = f(region, 5, false)
     val expected = (5 * (5 + 1)) / 2
-    val actual = region.loadInt(TStruct("x"-> TInt32()).loadField(region, off, 0))
+    val actual = region.loadInt(TStruct("x"-> TInt32()).physicalType.loadField(region, off, 0))
     assert(actual == expected)
   }
 
@@ -98,17 +99,6 @@ class FunctionSuite extends SparkSuite {
     val f = toF[Int](ir)
     val actual = f(region)
     assert(actual == 2)
-  }
-
-  @Test
-  def testUnifySize() {
-    val ir = lookup("size", TArray(TInt32()))(In(0, TArray(TInt32())))
-    val f = toF[Long, Int](ir)
-    val rvb = new RegionValueBuilder(region)
-    rvb.start(TArray(TInt32()))
-    rvb.addAnnotation(TArray(TInt32()), IndexedSeq(0, 1, 2, 3))
-    val actual = f(region, rvb.end(), false)
-    assert(actual == 4)
   }
 
   @Test

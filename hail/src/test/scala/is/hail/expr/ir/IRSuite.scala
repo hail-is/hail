@@ -1,21 +1,23 @@
 package is.hail.expr.ir
 
 import is.hail.SparkSuite
-import is.hail.expr.types._
 import is.hail.TestUtils._
 import is.hail.annotations.BroadcastRow
 import is.hail.asm4s.Code
-import is.hail.expr.{IRParserEnvironment, Parser}
+import is.hail.expr.ir
 import is.hail.expr.ir.IRSuite.TestFunctions
-import is.hail.expr.ir.functions.{IRFunctionRegistry, RegistryFunctions, SeededIRFunction}
-import is.hail.io.vcf.LoadVCF
+import is.hail.expr.ir.functions.{IRFunctionRegistry, RegistryFunctions, SeededIRFunction, SetFunctions}
+import is.hail.expr.types.TableType
+import is.hail.expr.types.virtual._
+import is.hail.rvd.RVD
 import is.hail.table.{Ascending, Descending, SortField, Table}
 import is.hail.utils._
 import is.hail.variant.MatrixTable
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
 
-object IRSuite { outer =>
+object IRSuite {
+  outer =>
   var globalCounter: Int = 0
 
   def incr(): Unit = {
@@ -62,6 +64,7 @@ object IRSuite { outer =>
       }
     }
   }
+
 }
 
 class IRSuite extends SparkSuite {
@@ -129,6 +132,139 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(IsNA(I32(5)), false)
   }
 
+  val i32na = NA(TInt32())
+  val i64na = NA(TInt64())
+  val f32na = NA(TFloat32())
+  val f64na = NA(TFloat64())
+  val bna = NA(TBoolean())
+
+  @Test def testApplyUnaryPrimOpNegate() {
+    assertEvalsTo(ApplyUnaryPrimOp(Negate(), I32(5)), -5)
+    assertEvalsTo(ApplyUnaryPrimOp(Negate(), i32na), null)
+    assertEvalsTo(ApplyUnaryPrimOp(Negate(), I64(5)), -5L)
+    assertEvalsTo(ApplyUnaryPrimOp(Negate(), i64na), null)
+    assertEvalsTo(ApplyUnaryPrimOp(Negate(), F32(5)), -5F)
+    assertEvalsTo(ApplyUnaryPrimOp(Negate(), f32na), null)
+    assertEvalsTo(ApplyUnaryPrimOp(Negate(), F64(5)), -5D)
+    assertEvalsTo(ApplyUnaryPrimOp(Negate(), f64na), null)
+  }
+
+  @Test def testApplyUnaryPrimOpBang() {
+    assertEvalsTo(ApplyUnaryPrimOp(Bang(), False()), true)
+    assertEvalsTo(ApplyUnaryPrimOp(Bang(), True()), false)
+    assertEvalsTo(ApplyUnaryPrimOp(Bang(), bna), null)
+  }
+
+  @Test def testApplyBinaryPrimOpAdd() {
+    assertEvalsTo(ApplyBinaryPrimOp(Add(), I32(5), I32(3)), 8)
+    assertEvalsTo(ApplyBinaryPrimOp(Add(), I32(5), i32na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(Add(), i32na, I32(3)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(Add(), i32na, i32na), null)
+
+    assertEvalsTo(ApplyBinaryPrimOp(Add(), I64(5), I64(3)), 8L)
+    assertEvalsTo(ApplyBinaryPrimOp(Add(), I64(5), i64na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(Add(), i64na, I64(3)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(Add(), i64na, i64na), null)
+
+    assertEvalsTo(ApplyBinaryPrimOp(Add(), F32(5), F32(3)), 8F)
+    assertEvalsTo(ApplyBinaryPrimOp(Add(), F32(5), f32na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(Add(), f32na, F32(3)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(Add(), f32na, f32na), null)
+
+    assertEvalsTo(ApplyBinaryPrimOp(Add(), F64(5), F64(3)), 8D)
+    assertEvalsTo(ApplyBinaryPrimOp(Add(), F64(5), f64na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(Add(), f64na, F64(3)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(Add(), f64na, f64na), null)
+  }
+
+  @Test def testApplyBinaryPrimOpSubtract() {
+    assertEvalsTo(ApplyBinaryPrimOp(Subtract(), I32(5), I32(3)), 2)
+    assertEvalsTo(ApplyBinaryPrimOp(Subtract(), I32(5), i32na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(Subtract(), i32na, I32(3)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(Subtract(), i32na, i32na), null)
+
+    assertEvalsTo(ApplyBinaryPrimOp(Subtract(), I64(5), I64(3)), 2L)
+    assertEvalsTo(ApplyBinaryPrimOp(Subtract(), I64(5), i64na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(Subtract(), i64na, I64(3)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(Subtract(), i64na, i64na), null)
+
+    assertEvalsTo(ApplyBinaryPrimOp(Subtract(), F32(5), F32(3)), 2F)
+    assertEvalsTo(ApplyBinaryPrimOp(Subtract(), F32(5), f32na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(Subtract(), f32na, F32(3)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(Subtract(), f32na, f32na), null)
+
+    assertEvalsTo(ApplyBinaryPrimOp(Subtract(), F64(5), F64(3)), 2D)
+    assertEvalsTo(ApplyBinaryPrimOp(Subtract(), F64(5), f64na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(Subtract(), f64na, F64(3)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(Subtract(), f64na, f64na), null)
+  }
+
+  @Test def testApplyBinaryPrimOpMultiply() {
+    assertEvalsTo(ApplyBinaryPrimOp(Multiply(), I32(5), I32(3)), 15)
+    assertEvalsTo(ApplyBinaryPrimOp(Multiply(), I32(5), i32na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(Multiply(), i32na, I32(3)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(Multiply(), i32na, i32na), null)
+
+    assertEvalsTo(ApplyBinaryPrimOp(Multiply(), I64(5), I64(3)), 15L)
+    assertEvalsTo(ApplyBinaryPrimOp(Multiply(), I64(5), i64na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(Multiply(), i64na, I64(3)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(Multiply(), i64na, i64na), null)
+
+    assertEvalsTo(ApplyBinaryPrimOp(Multiply(), F32(5), F32(3)), 15F)
+    assertEvalsTo(ApplyBinaryPrimOp(Multiply(), F32(5), f32na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(Multiply(), f32na, F32(3)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(Multiply(), f32na, f32na), null)
+
+    assertEvalsTo(ApplyBinaryPrimOp(Multiply(), F64(5), F64(3)), 15D)
+    assertEvalsTo(ApplyBinaryPrimOp(Multiply(), F64(5), f64na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(Multiply(), f64na, F64(3)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(Multiply(), f64na, f64na), null)
+  }
+
+  @Test def testApplyBinaryPrimOpFloatingPointDivide() {
+    assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), I32(5), I32(2)), 2.5F)
+    assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), I32(5), i32na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), i32na, I32(2)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), i32na, i32na), null)
+
+    assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), I64(5), I64(2)), 2.5F)
+    assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), I64(5), i64na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), i64na, I64(2)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), i64na, i64na), null)
+
+    assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), F32(5), F32(2)), 2.5F)
+    assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), F32(5), f32na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), f32na, F32(2)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), f32na, f32na), null)
+
+    assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), F64(5), F64(2)), 2.5D)
+    assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), F64(5), f64na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), f64na, F64(2)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), f64na, f64na), null)
+  }
+
+  @Test def testApplyBinaryPrimOpRoundToNegInfDivide() {
+    assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), I32(5), I32(2)), 2)
+    assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), I32(5), i32na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), i32na, I32(2)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), i32na, i32na), null)
+
+    assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), I64(5), I64(2)), 2L)
+    assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), I64(5), i64na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), i64na, I64(2)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), i64na, i64na), null)
+
+    assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), F32(5), F32(2)), 2F)
+    assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), F32(5), f32na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), f32na, F32(2)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), f32na, f32na), null)
+
+    assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), F64(5), F64(2)), 2D)
+    assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), F64(5), f64na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), f64na, F64(2)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), f64na, f64na), null)
+  }
+
   @Test def testIf() {
     assertEvalsTo(If(True(), I32(5), I32(7)), 5)
     assertEvalsTo(If(False(), I32(5), I32(7)), 7)
@@ -140,7 +276,7 @@ class IRSuite extends SparkSuite {
     val t = TStruct(true, "foo" -> TStruct("bar" -> TArray(TInt32Required, required = true)))
     val value = Row(Row(FastIndexedSeq(1, 2, 3)))
     assertEvalsTo(
-      If(
+      If.unify(
         In(0, TBoolean()),
         In(1, t),
         MakeStruct(Seq("foo" -> MakeStruct(Seq("bar" -> ArrayRange(I32(0), I32(1), I32(1))))))),
@@ -167,11 +303,33 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(GetField(MakeStruct((0 until 20000).map(i => s"foo$i" -> I32(1))), "foo1"), 1)
   }
 
+  @Test def testMakeArrayWithDifferentRequiredness(): Unit = {
+    val t = TArray(TStruct("a" -> TInt32Required, "b" -> TArray(TInt32Optional, required = true)))
+    val value = Row(2, FastIndexedSeq(1))
+    assertEvalsTo(
+      MakeArray.unify(
+        Seq(NA(t.elementType.deepOptional()), In(0, t.elementType))
+      ),
+      FastIndexedSeq((value, t.elementType)),
+      FastIndexedSeq(null, value)
+    )
+  }
+
   @Test def testMakeTuple() {
     assertEvalsTo(MakeTuple(FastSeq()), Row())
     assertEvalsTo(MakeTuple(FastSeq(NA(TInt32()), 4, 0.5)), Row(null, 4, 0.5))
     //making sure wide structs get emitted without failure
     assertEvalsTo(GetTupleElement(MakeTuple((0 until 20000).map(I32)), 1), 1)
+  }
+
+  @Test def testGetTupleElement() {
+    val t = MakeTuple(FastIndexedSeq(I32(5), Str("abc"), NA(TInt32())))
+    val na = NA(TTuple(TInt32(), TString()))
+
+    assertEvalsTo(GetTupleElement(t, 0), 5)
+    assertEvalsTo(GetTupleElement(t, 1), "abc")
+    assertEvalsTo(GetTupleElement(t, 2), null)
+    assertEvalsTo(GetTupleElement(na, 0), null)
   }
 
   @Test def testArrayRef() {
@@ -211,6 +369,20 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(ToArray(In(0, t)),
       FastIndexedSeq((Set(-7, 2, null), t)),
       FastIndexedSeq(-7, 2, null))
+  }
+
+  @Test def testToDict() {
+    assertEvalsTo(ToDict(NA(TArray(TTuple(FastIndexedSeq(TInt32(), TString()))))), null)
+
+    val a = MakeArray(FastIndexedSeq(
+      MakeTuple(FastIndexedSeq(I32(5), Str("a"))),
+      MakeTuple(FastIndexedSeq(I32(5), Str("a"))), // duplicate key-value pair
+      MakeTuple(FastIndexedSeq(NA(TInt32()), Str("b"))),
+      MakeTuple(FastIndexedSeq(I32(3), NA(TString()))),
+      NA(TTuple(FastIndexedSeq(TInt32(), TString()))) // missing value
+    ), TArray(TTuple(FastIndexedSeq(TInt32(), TString()))))
+
+    assertEvalsTo(ToDict(a), Map(5 -> "a", (null, "b"), 3 -> null))
   }
 
   @Test def testToArrayFromDict() {
@@ -267,6 +439,66 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(invoke("contains", In(0, t), I32(3)),
       FastIndexedSeq((Map(1 -> "a", 2 -> null), t)),
       false)
+  }
+
+  @Test def testLowerBoundOnOrderedCollectionArray() {
+    val na = NA(TArray(TInt32()))
+    assertEvalsTo(LowerBoundOnOrderedCollection(na, I32(0), onKey = false), null)
+
+    val awoutna = MakeArray(FastIndexedSeq(I32(0), I32(2), I32(4)), TArray(TInt32()))
+    assertEvalsTo(LowerBoundOnOrderedCollection(awoutna, I32(-1), onKey = false), 0)
+    assertEvalsTo(LowerBoundOnOrderedCollection(awoutna, I32(0), onKey = false), 0)
+    assertEvalsTo(LowerBoundOnOrderedCollection(awoutna, I32(1), onKey = false), 1)
+    assertEvalsTo(LowerBoundOnOrderedCollection(awoutna, I32(2), onKey = false), 1)
+    assertEvalsTo(LowerBoundOnOrderedCollection(awoutna, I32(3), onKey = false), 2)
+    assertEvalsTo(LowerBoundOnOrderedCollection(awoutna, I32(4), onKey = false), 2)
+    assertEvalsTo(LowerBoundOnOrderedCollection(awoutna, I32(5), onKey = false), 3)
+    assertEvalsTo(LowerBoundOnOrderedCollection(awoutna, NA(TInt32()), onKey = false), 3)
+
+    val awna = MakeArray(FastIndexedSeq(I32(0), I32(2), I32(4), NA(TInt32())), TArray(TInt32()))
+    assertEvalsTo(LowerBoundOnOrderedCollection(awna, NA(TInt32()), onKey = false), 3)
+    assertEvalsTo(LowerBoundOnOrderedCollection(awna, I32(5), onKey = false), 3)
+
+    val awdups = MakeArray(FastIndexedSeq(I32(0), I32(0), I32(2), I32(4), I32(4), NA(TInt32())), TArray(TInt32()))
+    assertEvalsTo(LowerBoundOnOrderedCollection(awdups, I32(0), onKey = false), 0)
+    assertEvalsTo(LowerBoundOnOrderedCollection(awdups, I32(4), onKey = false), 3)
+  }
+
+  @Test def testLowerBoundOnOrderedCollectionSet() {
+    val na = NA(TSet(TInt32()))
+    assertEvalsTo(LowerBoundOnOrderedCollection(na, I32(0), onKey = false), null)
+
+    val swoutna = ToSet(MakeArray(FastIndexedSeq(I32(0), I32(2), I32(4), I32(4)), TArray(TInt32())))
+    assertEvalsTo(LowerBoundOnOrderedCollection(swoutna, I32(-1), onKey = false), 0)
+    assertEvalsTo(LowerBoundOnOrderedCollection(swoutna, I32(0), onKey = false), 0)
+    assertEvalsTo(LowerBoundOnOrderedCollection(swoutna, I32(1), onKey = false), 1)
+    assertEvalsTo(LowerBoundOnOrderedCollection(swoutna, I32(2), onKey = false), 1)
+    assertEvalsTo(LowerBoundOnOrderedCollection(swoutna, I32(3), onKey = false), 2)
+    assertEvalsTo(LowerBoundOnOrderedCollection(swoutna, I32(4), onKey = false), 2)
+    assertEvalsTo(LowerBoundOnOrderedCollection(swoutna, I32(5), onKey = false), 3)
+    assertEvalsTo(LowerBoundOnOrderedCollection(swoutna, NA(TInt32()), onKey = false), 3)
+
+    val swna = ToSet(MakeArray(FastIndexedSeq(I32(0), I32(2), I32(2), I32(4), NA(TInt32())), TArray(TInt32())))
+    assertEvalsTo(LowerBoundOnOrderedCollection(swna, NA(TInt32()), onKey = false), 3)
+    assertEvalsTo(LowerBoundOnOrderedCollection(swna, I32(5), onKey = false), 3)
+  }
+
+  @Test def testLowerBoundOnOrderedCollectionDict() {
+    val na = NA(TDict(TInt32(), TString()))
+    assertEvalsTo(LowerBoundOnOrderedCollection(na, I32(0), onKey = true), null)
+
+    val dwna = TestUtils.IRDict((1, 3), (3, null), (null, 5))
+    assertEvalsTo(LowerBoundOnOrderedCollection(dwna, I32(-1), onKey = true), 0)
+    assertEvalsTo(LowerBoundOnOrderedCollection(dwna, I32(1), onKey = true), 0)
+    assertEvalsTo(LowerBoundOnOrderedCollection(dwna, I32(2), onKey = true), 1)
+    assertEvalsTo(LowerBoundOnOrderedCollection(dwna, I32(3), onKey = true), 1)
+    assertEvalsTo(LowerBoundOnOrderedCollection(dwna, I32(5), onKey = true), 2)
+    assertEvalsTo(LowerBoundOnOrderedCollection(dwna, NA(TInt32()), onKey = true), 2)
+
+    val dwoutna = TestUtils.IRDict((1, 3), (3, null))
+    assertEvalsTo(LowerBoundOnOrderedCollection(dwoutna, I32(-1), onKey = true), 0)
+    assertEvalsTo(LowerBoundOnOrderedCollection(dwoutna, I32(4), onKey = true), 2)
+    assertEvalsTo(LowerBoundOnOrderedCollection(dwoutna, NA(TInt32()), onKey = true), 2)
   }
 
   @Test def testArrayMap() {
@@ -327,7 +559,7 @@ class IRSuite extends SparkSuite {
 
   @Test def testArrayFold() {
     def fold(array: IR, zero: IR, f: (IR, IR) => IR): IR =
-      ArrayFold(array, zero, "_accum", "_elt", f(Ref("_accum", coerce[TArray](array.typ).elementType), Ref("_elt", zero.typ)))
+      ArrayFold(array, zero, "_accum", "_elt", f(Ref("_accum", zero.typ), Ref("_elt", zero.typ)))
 
     assertEvalsTo(fold(ArrayRange(1, 2, 1), NA(TBoolean()), (accum, elt) => IsNA(accum)), true)
     assertEvalsTo(fold(TestUtils.IRArray(1, 2, 3), 0, (accum, elt) => accum + elt), 6)
@@ -338,7 +570,7 @@ class IRSuite extends SparkSuite {
 
   @Test def testArrayScan() {
     def scan(array: IR, zero: IR, f: (IR, IR) => IR): IR =
-      ArrayScan(array, zero, "_accum", "_elt", f(Ref("_accum", coerce[TArray](array.typ).elementType), Ref("_elt", zero.typ)))
+      ArrayScan(array, zero, "_accum", "_elt", f(Ref("_accum", zero.typ), Ref("_elt", zero.typ)))
 
     assertEvalsTo(scan(ArrayRange(1, 4, 1), NA(TBoolean()), (accum, elt) => IsNA(accum)), FastIndexedSeq(null, true, false, false))
     assertEvalsTo(scan(TestUtils.IRArray(1, 2, 3), 0, (accum, elt) => accum + elt), FastIndexedSeq(0, 1, 3, 6))
@@ -349,6 +581,7 @@ class IRSuite extends SparkSuite {
 
   @Test def testDie() {
     assertFatal(Die("mumblefoo", TFloat64()), "mble")
+    assertFatal(Die(NA(TString()), TFloat64()), "message missing")
   }
 
   @Test def testArrayRange() {
@@ -432,9 +665,36 @@ class IRSuite extends SparkSuite {
 
   }
 
+  @Test def testGetField() {
+    val s = MakeStruct(Seq("a" -> NA(TInt64()), "b" -> Str("abc")))
+    val na = NA(TStruct("a" -> TInt64(), "b" -> TString()))
+
+    assertEvalsTo(GetField(s, "a"), null)
+    assertEvalsTo(GetField(s, "b"), "abc")
+    assertEvalsTo(GetField(na, "a"), null)
+  }
+
   @Test def testTableCount() {
     assertEvalsTo(TableCount(TableRange(0, 4)), 0L)
     assertEvalsTo(TableCount(TableRange(7, 4)), 7L)
+  }
+
+  @Test def testTableGetGlobals() {
+    assertEvalsTo(TableGetGlobals(TableMapGlobals(TableRange(0, 1), Literal(TStruct("a" -> TInt32()), Row(1)))), Row(1))
+  }
+
+  @Test def testTableAggregate() {
+    val table = Table.range(hc, 3, Some(2))
+    val countSig = AggSignature(Count(), Seq(), None, Seq())
+    val count = ApplyAggOp(FastIndexedSeq.empty, None, FastIndexedSeq.empty, countSig)
+    assertEvalsTo(TableAggregate(table.tir, MakeStruct(Seq("foo" -> count))), Row(3L))
+  }
+
+  @Test def testMatrixAggregate() {
+    val matrix = MatrixTable.range(hc, 5, 5, None)
+    val countSig = AggSignature(Count(), Seq(), None, Seq())
+    val count = ApplyAggOp(FastIndexedSeq.empty, None, FastIndexedSeq.empty, countSig)
+    assertEvalsTo(MatrixAggregate(matrix.ast, MakeStruct(Seq("foo" -> count))), Row(25L))
   }
 
   @Test def testGroupByKey() {
@@ -494,7 +754,16 @@ class IRSuite extends SparkSuite {
 
     val takeBySig = AggSignature(TakeBy(), Seq(TInt32()), None, Seq(TFloat64(), TInt32()))
 
-    val keyedKeyedCollectSig = AggSignature(Keyed(Keyed(Collect())), Seq(), None, Seq(TInt32(), TString(), TBoolean()))
+    val countSig = AggSignature(Count(), Seq(), None, Seq())
+    val count = ApplyAggOp(FastIndexedSeq.empty, None, FastIndexedSeq.empty, countSig)
+
+    val table = TableRange(100, 10)
+
+    val mt = MatrixTable.range(hc, 20, 2, Some(3)).ast.asInstanceOf[MatrixRead]
+    val vcf = is.hail.TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
+      .ast.asInstanceOf[MatrixRead]
+    val bgen = is.hail.TestUtils.importBgens(hc, FastIndexedSeq("src/test/resources/example.8bits.bgen"))
+      .ast.asInstanceOf[MatrixRead]
 
     val irs = Array(
       i, I64(5), F32(3.14f), F64(3.14), str, True(), False(), Void(),
@@ -518,23 +787,25 @@ class IRSuite extends SparkSuite {
       GroupByKey(da),
       ArrayMap(a, "v", v),
       ArrayFilter(a, "v", b),
-      ArrayFlatMap(aa, "v", v),
+      ArrayFlatMap(aa, "v", a),
       ArrayFold(a, I32(0), "x", "v", v),
       ArrayScan(a, I32(0), "x", "v", v),
       ArrayFor(a, "v", Void()),
-      ApplyAggOp(I32(0), FastIndexedSeq.empty, None, collectSig),
-      ApplyAggOp(F64(-2.11), FastIndexedSeq(F64(-5.0), F64(5.0), I32(100)), None, histSig),
-      ApplyAggOp(call, FastIndexedSeq.empty, Some(FastIndexedSeq(I32(2))), callStatsSig),
-      ApplyAggOp(F64(-2.11), FastIndexedSeq(I32(10)), None, takeBySig),
-      ApplyAggOp(Str("foo"), FastIndexedSeq.empty, None, keyedKeyedCollectSig),
+      AggFilter(True(), I32(0)),
+      AggExplode(NA(TArray(TInt32())), "x", I32(0)),
+      AggGroupBy(True(), I32(0)),
+      ApplyAggOp(FastIndexedSeq.empty, None, FastIndexedSeq(I32(0)), collectSig),
+      ApplyAggOp(FastIndexedSeq(F64(-5.0), F64(5.0), I32(100)), None, FastIndexedSeq(F64(-2.11)), histSig),
+      ApplyAggOp(FastIndexedSeq.empty, Some(FastIndexedSeq(I32(2))), FastIndexedSeq(call), callStatsSig),
+      ApplyAggOp(FastIndexedSeq(I32(10)), None, FastIndexedSeq(F64(-2.11), I32(4)), takeBySig),
       InitOp(I32(0), FastIndexedSeq(I32(2)), callStatsSig),
       SeqOp(I32(0), FastIndexedSeq(i), collectSig),
       SeqOp(I32(0), FastIndexedSeq(F64(-2.11), I32(17)), takeBySig),
-      SeqOp(I32(0), FastIndexedSeq(I32(5), Str("hello"), True(), Str("foo")), keyedKeyedCollectSig),
       Begin(IndexedSeq(Void())),
       MakeStruct(Seq("x" -> i)),
       SelectFields(s, Seq("x", "z")),
       InsertFields(s, Seq("x" -> i)),
+      InsertFields(s, Seq("* x *" -> i)), // Won't parse as a simple identifier
       GetField(s, "x"),
       MakeTuple(Seq(i, b)),
       GetTupleElement(t, 1),
@@ -544,9 +815,17 @@ class IRSuite extends SparkSuite {
       Die("mumblefoo", TFloat64()),
       invoke("&&", b, c), // ApplySpecial
       invoke("toFloat64", i), // Apply
-      invoke("isDefined", s), // ApplyIR
       Uniroot("x", F64(3.14), F64(-5.0), F64(5.0)),
-      Literal(TStruct("x" -> TInt32()), Row(1), "__broadcast1")
+      Literal(TStruct("x" -> TInt32()), Row(1)),
+      TableCount(table),
+      TableGetGlobals(table),
+      TableAggregate(table, MakeStruct(Seq("foo" -> count))),
+      TableWrite(table, tmpDir.createLocalTempFile(extension = "ht")),
+      MatrixWrite(mt, MatrixNativeWriter(tmpDir.createLocalTempFile(extension = "mt"))),
+      MatrixWrite(vcf, MatrixVCFWriter(tmpDir.createLocalTempFile(extension = "vcf"))),
+      MatrixWrite(vcf, MatrixPLINKWriter(tmpDir.createLocalTempFile())),
+      MatrixWrite(bgen, MatrixGENWriter(tmpDir.createLocalTempFile())),
+      MatrixAggregate(mt, MakeStruct(Seq("foo" -> count)))
     )
     irs.map(x => Array(x))
   }
@@ -575,6 +854,7 @@ class IRSuite extends SparkSuite {
         TableJoin(read,
           TableRange(100, 10), "inner", 1),
         TableLeftJoinRightDistinct(read, TableRange(100, 10), "root"),
+        TableMultiWayZipJoin(IndexedSeq(read, read), " * data * ", "globals"),
         MatrixEntriesTable(mtRead),
         MatrixRowsTable(mtRead),
         TableRepartition(read, 10, false),
@@ -587,8 +867,7 @@ class IRSuite extends SparkSuite {
         TableMapRows(TableKeyBy(read, FastIndexedSeq()),
           MakeStruct(FastIndexedSeq(
             "a" -> GetField(Ref("row", read.typ.rowType), "f32"),
-            "b" -> F64(-2.11))),
-          None),
+            "b" -> F64(-2.11)))),
         TableMapGlobals(read,
           MakeStruct(FastIndexedSeq(
             "foo" -> NA(TArray(TInt32()))))),
@@ -597,7 +876,7 @@ class IRSuite extends SparkSuite {
           FastIndexedSeq(TableRange(100, 10), TableRange(50, 10))),
         TableExplode(read, "mset"),
         TableOrderBy(TableKeyBy(read, FastIndexedSeq()), FastIndexedSeq(SortField("m", Ascending), SortField("m", Descending))),
-        LocalizeEntries(mtRead, " # entries"),
+        CastMatrixToTable(mtRead, " # entries", " # cols"),
         TableRename(read, Map("idx" -> "idx_foo"), Map("global_f32" -> "global_foo"))
       )
       xs.map(x => Array(x))
@@ -612,15 +891,17 @@ class IRSuite extends SparkSuite {
   @DataProvider(name = "matrixIRs")
   def matrixIRs(): Array[Array[MatrixIR]] = {
     try {
+      hc.indexBgen(FastIndexedSeq("src/test/resources/example.8bits.bgen"), rg = Some("GRCh37"), contigRecoding = Map("01" -> "1"))
+
       val tableRead = Table.read(hc, "src/test/resources/backward_compatability/1.0.0/table/0.ht")
         .tir.asInstanceOf[TableRead]
       val read = MatrixTable.read(hc, "src/test/resources/backward_compatability/1.0.0/matrix_table/0.hmt")
         .ast.asInstanceOf[MatrixRead]
       val range = MatrixTable.range(hc, 3, 7, None)
         .ast.asInstanceOf[MatrixRead]
-      val vcf = hc.importVCF("src/test/resources/sample.vcf")
+      val vcf = is.hail.TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
         .ast.asInstanceOf[MatrixRead]
-      val bgen = hc.importBgens(FastIndexedSeq("src/test/resources/example.8bits.bgen"))
+      val bgen = is.hail.TestUtils.importBgens(hc, FastIndexedSeq("src/test/resources/example.8bits.bgen"))
         .ast.asInstanceOf[MatrixRead]
       val range1 = MatrixTable.range(hc, 20, 2, Some(3))
         .ast.asInstanceOf[MatrixRead]
@@ -635,10 +916,18 @@ class IRSuite extends SparkSuite {
           GetField(Ref("sa", read.typ.colType), "col_f32"),
           F32(-5.2f))))
       val newRow = MakeStruct(FastIndexedSeq(
-        "row_idx" -> GetField(Ref("va", read.typ.rowType), "row_idx"),
+        "row_idx" -> GetField(Ref("va", read.typ.rvRowType), "row_idx"),
         "new_f32" -> ApplyBinaryPrimOp(Add(),
-          GetField(Ref("va", read.typ.rowType), "row_f32"),
-          F32(-5.2f))))
+          GetField(Ref("va", read.typ.rvRowType), "row_f32"),
+          F32(-5.2f)))
+      )
+
+      val collectSig = AggSignature(Collect(), Seq(), None, Seq(TInt32()))
+      val collect = ApplyAggOp(FastIndexedSeq.empty, None, FastIndexedSeq(I32(0)), collectSig)
+
+      val newRowAnn = MakeStruct(FastIndexedSeq("count_row" -> collect))
+      val newColAnn = MakeStruct(FastIndexedSeq("count_col" -> collect))
+      val newEntryAnn = MakeStruct(FastIndexedSeq("count_entry" -> collect))
 
       val xs = Array[MatrixIR](
         read,
@@ -647,14 +936,15 @@ class IRSuite extends SparkSuite {
         MatrixFilterEntries(read, b),
         MatrixChooseCols(read, Array(0, 0, 0)),
         MatrixMapCols(read, newCol, None),
-        MatrixMapRows(read, newRow, None),
+        MatrixKeyRowsBy(read, FastIndexedSeq("row_m", "row_d"), false),
+        MatrixMapRows(read, newRow),
         MatrixMapEntries(read, MakeStruct(FastIndexedSeq(
           "global_f32" -> ApplyBinaryPrimOp(Add(),
             GetField(Ref("global", read.typ.globalType), "global_f32"),
             F32(-5.2f))))),
         MatrixCollectColsByKey(read),
-        MatrixAggregateColsByKey(read, newCol),
-        MatrixAggregateRowsByKey(read, newRow),
+        MatrixAggregateColsByKey(read, newEntryAnn, newColAnn),
+        MatrixAggregateRowsByKey(read, newEntryAnn, newRowAnn),
         range,
         vcf,
         bgen,
@@ -667,11 +957,13 @@ class IRSuite extends SparkSuite {
           None),
         MatrixExplodeRows(read, FastIndexedSeq("row_mset")),
         MatrixUnionRows(FastIndexedSeq(range1, range2)),
+        MatrixDistinctByRow(range1),
         MatrixExplodeCols(read, FastIndexedSeq("col_mset")),
-        UnlocalizeEntries(
-          LocalizeEntries(read, "all of the entries"),
-          MatrixColsTable(read),
-          "all of the entries"),
+        CastTableToMatrix(
+          CastMatrixToTable(read, " # entries", " # cols"),
+          " # entries",
+          " # cols",
+          read.typ.colKey),
         MatrixAnnotateColsTable(read, tableRead, "uid_123"),
         MatrixAnnotateRowsTable(read, tableRead, "uid_123", Some(FastIndexedSeq(I32(1))))
       )
@@ -687,49 +979,61 @@ class IRSuite extends SparkSuite {
 
   @Test(dataProvider = "valueIRs")
   def testValueIRParser(x: IR) {
+    val env = IRParserEnvironment(refMap = Map(
+      "c" -> TBoolean(),
+      "a" -> TArray(TInt32()),
+      "aa" -> TArray(TArray(TInt32())),
+      "da" -> TArray(TTuple(TInt32(), TString())),
+      "v" -> TInt32(),
+      "s" -> TStruct("x" -> TInt32(), "y" -> TInt64(), "z" -> TFloat64()),
+      "t" -> TTuple(TInt32(), TInt64(), TFloat64()),
+      "call" -> TCall(),
+      "x" -> TInt32()
+    ))
+
     val s = Pretty(x)
-    val x2 = Parser.parse_value_ir(s, IRParserEnvironment())
+    val x2 = IRParser.parse_value_ir(s, env)
     assert(x2 == x)
   }
 
   @Test(dataProvider = "tableIRs")
   def testTableIRParser(x: TableIR) {
     val s = Pretty(x)
-    val x2 = Parser.parse_table_ir(s, IRParserEnvironment())
+    val x2 = IRParser.parse_table_ir(s)
     assert(x2 == x)
   }
 
   @Test(dataProvider = "matrixIRs")
   def testMatrixIRParser(x: MatrixIR) {
     val s = Pretty(x)
-    val x2 = Parser.parse_matrix_ir(s, IRParserEnvironment())
+    val x2 = IRParser.parse_matrix_ir(s)
     assert(x2 == x)
   }
 
   @Test def testCachedIR() {
-    val cached = Literal(TSet(TInt32()), Set(1), "__unique_id")
+    val cached = Literal(TSet(TInt32()), Set(1))
     val s = s"(JavaIR __uid1)"
-    val x2 = Parser.parse_value_ir(s, IRParserEnvironment(ref_map = Map.empty, ir_map = Map("__uid1" -> cached)))
+    val x2 = IRParser.parse_value_ir(s, IRParserEnvironment(refMap = Map.empty, irMap = Map("__uid1" -> cached)))
     assert(x2 eq cached)
   }
 
   @Test def testCachedTableIR() {
     val cached = TableRange(1, 1)
     val s = s"(JavaTable __uid1)"
-    val x2 = Parser.parse_table_ir(s, IRParserEnvironment(ref_map = Map.empty, ir_map = Map("__uid1" -> cached)))
+    val x2 = IRParser.parse_table_ir(s, IRParserEnvironment(refMap = Map.empty, irMap = Map("__uid1" -> cached)))
     assert(x2 eq cached)
   }
 
   @Test def testCachedMatrixIR() {
     val cached = MatrixTable.range(hc, 3, 7, None).ast
     val s = s"(JavaMatrix __uid1)"
-    val x2 = Parser.parse_matrix_ir(s, IRParserEnvironment(ref_map = Map.empty, ir_map = Map("__uid1" -> cached)))
+    val x2 = IRParser.parse_matrix_ir(s, IRParserEnvironment(refMap = Map.empty, irMap = Map("__uid1" -> cached)))
     assert(x2 eq cached)
-
   }
 
   @Test def testEvaluations() {
     TestFunctions.registerAll()
+
     def test(x: IR, i: java.lang.Boolean, expectedEvaluations: Int) {
       val env = Env.empty[(Any, Type)]
       val args = IndexedSeq((i, TBoolean()))
@@ -750,15 +1054,21 @@ class IRSuite extends SparkSuite {
     def i = In(0, TBoolean())
 
     def st = ApplySeeded("incr_s", FastSeq(True()), 0L)
+
     def sf = ApplySeeded("incr_s", FastSeq(True()), 0L)
+
     def sm = ApplySeeded("incr_s", FastSeq(NA(TBoolean())), 0L)
 
     def mt = ApplySeeded("incr_m", FastSeq(True()), 0L)
+
     def mf = ApplySeeded("incr_m", FastSeq(True()), 0L)
+
     def mm = ApplySeeded("incr_m", FastSeq(NA(TBoolean())), 0L)
 
     def vt = ApplySeeded("incr_v", FastSeq(True()), 0L)
+
     def vf = ApplySeeded("incr_v", FastSeq(True()), 0L)
+
     def vm = ApplySeeded("incr_v", FastSeq(NA(TBoolean())), 0L)
 
     // baseline
@@ -805,5 +1115,91 @@ class IRSuite extends SparkSuite {
     test(If(i, True(), vt), false, 1)
     test(If(i, True(), vf), false, 1)
     test(If(i, True(), vm), false, 0)
+  }
+
+  @Test def testArrayContinuationDealsWithIfCorrectly() {
+    val ir = ArrayMap(
+      If(IsNA(In(0, TBoolean())),
+        NA(TArray(TInt32())),
+        In(1, TArray(TInt32()))),
+      "x", Cast(Ref("x", TInt32()), TInt64()))
+
+    val env = Env.empty[(Any, Type)]
+      .bind("flag" -> (true, TBoolean()))
+      .bind("array" -> (FastIndexedSeq(0), TArray(TInt32())))
+
+    assertEvalsTo(ir, FastIndexedSeq(true -> TBoolean(), FastIndexedSeq(0) -> TArray(TInt32())), FastIndexedSeq(0L))
+  }
+
+  @Test def setContainsSegfault(): Unit = {
+    hc // assert initialized
+    val irStr =
+      """
+        |(TableFilter
+        |  (TableMapRows
+        |    (TableKeyBy () False
+        |      (TableMapRows
+        |        (TableKeyBy () False
+        |          (TableMapRows
+        |            (TableRange 1 12)
+        |            (InsertFields
+        |              (Ref row)
+        |              (s
+        |                (Literal Set[String] "[\"foo\"]"))
+        |              (nested
+        |                (NA Struct{elt:String})))))
+        |        (InsertFields
+        |          (Ref row))))
+        |    (SelectFields (s nested)
+        |      (Ref row)))
+        |  (Let __uid_1
+        |    (If
+        |      (IsNA
+        |        (GetField s
+        |          (Ref row)))
+        |      (NA Boolean)
+        |      (Let __iruid_1
+        |        (LowerBoundOnOrderedCollection False
+        |          (GetField s
+        |            (Ref row))
+        |          (GetField elt
+        |            (GetField nested
+        |              (Ref row))))
+        |        (If
+        |          (ApplyComparisonOp EQ
+        |            (Ref __iruid_1)
+        |            (ArrayLen
+        |              (ToArray
+        |                (GetField s
+        |                  (Ref row)))))
+        |          (False)
+        |          (ApplyComparisonOp EQ
+        |            (ArrayRef
+        |              (ToArray
+        |                (GetField s
+        |                  (Ref row)))
+        |              (Ref __iruid_1))
+        |            (GetField elt
+        |              (GetField nested
+        |                (Ref row)))))))
+        |    (If
+        |      (IsNA
+        |        (Ref __uid_1))
+        |      (False)
+        |      (Ref __uid_1))))
+      """.stripMargin
+
+    Interpret(ir.IRParser.parse_table_ir(irStr), optimize = false).rvd.count()
+  }
+
+  @Test def testTableGetGlobalsSimplifyRules() {
+    val t1 = TableType(TStruct("a" -> TInt32()), IndexedSeq("a"), TStruct("g1" -> TInt32(), "g2" -> TFloat64()))
+    val t2 = TableType(TStruct("a" -> TInt32()), IndexedSeq("a"), TStruct("g3" -> TInt32(), "g4" -> TFloat64()))
+    val tab1 = TableLiteral(TableValue(t1, BroadcastRow(Row(1, 1.1), t1.globalType, sc), RVD.empty(sc, t1.canonicalRVDType)))
+    val tab2 = TableLiteral(TableValue(t2, BroadcastRow(Row(2, 2.2), t2.globalType, sc), RVD.empty(sc, t2.canonicalRVDType)))
+
+    assertEvalsTo(TableGetGlobals(TableJoin(tab1, tab2, "left")), Row(1, 1.1, 2, 2.2))
+    assertEvalsTo(TableGetGlobals(TableMapGlobals(tab1, InsertFields(Ref("global", t1.globalType), Seq("g1" -> I32(3))))), Row(3, 1.1))
+    assertEvalsTo(TableGetGlobals(TableRename(tab1, Map.empty, Map("g2" -> "g3"))), Row(1, 1.1))
   }
 }

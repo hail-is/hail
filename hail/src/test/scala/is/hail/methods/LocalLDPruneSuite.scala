@@ -6,6 +6,7 @@ import is.hail.annotations.{Annotation, Region, RegionValue, RegionValueBuilder}
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
 import is.hail.expr.types._
+import is.hail.expr.types.virtual.{TArray, TLocus, TString, TStruct}
 import is.hail.variant._
 import is.hail.utils._
 import is.hail.testUtils._
@@ -52,13 +53,13 @@ object LocalLDPruneSuite {
     MatrixType.entriesIdentifier -> TArray(Genotype.htsGenotypeType)
   )
 
-  val bitPackedVectorViewType = BitPackedVectorView.rvRowType(rvRowType.fieldByName("locus").typ,
-    rvRowType.fieldByName("alleles").typ)
+  val bitPackedVectorViewType = BitPackedVectorView.rvRowType(rvRowType.field("locus").typ,
+    rvRowType.field("alleles").typ)
 
   def makeRV(gs: Iterable[Annotation]): RegionValue = {
     val gArr = gs.toFastIndexedSeq
     val rvb = new RegionValueBuilder(Region())
-    rvb.start(rvRowType)
+    rvb.start(rvRowType.physicalType)
     rvb.startStruct()
     rvb.addAnnotation(rvRowType.types(0), Locus("1", 1))
     rvb.addAnnotation(rvRowType.types(1), IndexedSeq("A", "T"))
@@ -88,7 +89,7 @@ object LocalLDPruneSuite {
 
   def toBitPackedVectorRegionValue(rv: RegionValue, nSamples: Int): Option[RegionValue] = {
     val rvb = new RegionValueBuilder(Region())
-    val hcView = HardCallView(rvRowType)
+    val hcView = HardCallView(rvRowType.physicalType)
     hcView.setRegion(rv)
 
     rvb.start(bitPackedVectorViewType)
@@ -138,7 +139,7 @@ object LocalLDPruneSuite {
 class LocalLDPruneSuite extends SparkSuite {
   val memoryPerCoreBytes = 256 * 1024 * 1024
   val nCores = 4
-  lazy val vds = hc.importVCF("src/test/resources/sample.vcf.bgz", nPartitions = Option(10))
+  lazy val vds = TestUtils.importVCF(hc, "src/test/resources/sample.vcf.bgz", nPartitions = Option(10))
   lazy val maxQueueSize = LocalLDPruneSuite.estimateMemoryRequirements(vds.countRows(), vds.numCols, memoryPerCoreBytes)
   
   def toC2(i: Int): BoxedCall = if (i == -1) null else Call2.fromUnphasedDiploidGtIndex(i)
@@ -291,7 +292,7 @@ class LocalLDPruneSuite extends SparkSuite {
         val bv1 = LocalLDPruneSuite.toBitPackedVectorView(v1Ann, nSamples)
         val bv2 = LocalLDPruneSuite.toBitPackedVectorView(v2Ann, nSamples)
 
-        val view = HardCallView(LocalLDPruneSuite.rvRowType)
+        val view = HardCallView(LocalLDPruneSuite.rvRowType.physicalType)
 
         val rv1 = LocalLDPruneSuite.makeRV(v1Ann)
         view.setRegion(rv1)

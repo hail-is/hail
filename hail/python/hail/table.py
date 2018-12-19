@@ -7,6 +7,8 @@ from typing import *
 import hail as hl
 from hail.expr.expressions import *
 from hail.expr.types import *
+from hail.expr.table_type import *
+from hail.expr.matrix_type import *
 from hail.ir import *
 from hail.typecheck import *
 from hail.utils import wrap_to_list, storage_level, LinkedList, Struct
@@ -49,17 +51,28 @@ def desc(col):
     return Descending(col)
 
 class ExprContainer(object):
+
+    # this can only grow as big as the object dir, so no need to worry about memory leak
+    _warned_about = set()
+
     def __init__(self):
         self._fields: Dict[str, Expression] = {}
         self._fields_inverse: Dict[Expression, str] = {}
+        self._dir = set(dir(self))
         super(ExprContainer, self).__init__()
 
     def _set_field(self, key, value):
+        assert key not in self._fields_inverse, key
         self._fields[key] = value
         self._fields_inverse[value] = key
-        if key in dir(self):
-            warn(f"Name collision: field {repr(key)} already in object dict. "
-                 "This field must be referenced with indexing syntax")
+
+        # key is in __dir for methods
+        # key is in __dict__ for private class fields
+        if key in self._dir or key in self.__dict__:
+            if key not in ExprContainer._warned_about:
+                ExprContainer._warned_about.add(key)
+                warn(f"Name collision: field {repr(key)} already in object dict. "
+                     f"\n  This field must be referenced with __getitem__ syntax: obj[{repr(key)}]")
         else:
             self.__dict__[key] = value
 
@@ -207,13 +220,13 @@ class GroupedTable(ExprContainer):
             raise ValueError(
                 f'GroupedTable.aggregate: Group names and aggregration expression names overlap: {intersection}')
 
-        base, cleanup = self._parent._process_joins(*group_exprs.values(), *named_exprs.values())
+        base, _ = self._parent._process_joins(*group_exprs.values(), *named_exprs.values())
 
-        return Table(base._jt.keyByAndAggregate(
-            str(hl.struct(**named_exprs)._ir),
-            str(hl.struct(**group_exprs)._ir),
-            joption(self._npartitions),
-            self._buffer_size))
+        return Table(TableKeyByAndAggregate(base._tir,
+                                            hl.struct(**named_exprs)._ir,
+                                            hl.struct(**group_exprs)._ir,
+                                            self._npartitions,
+                                            self._buffer_size))
 
 
 class Table(ExprContainer):
@@ -304,25 +317,25 @@ class Table(ExprContainer):
     """
 
     @staticmethod
-    def _from_ir(table_ir):
-        jir = Env.hail().expr.Parser.parse_table_ir(str(table_ir))
-        return Table(Env.hail().table.Table(Env.hc()._jhc, jir))
+    def _from_java(jt):
+        return Table(JavaTable(jt.tir()))
 
-    def __init__(self, jt):
+    def __init__(self, tir):
         super(Table, self).__init__()
 
-        self._jt = jt
+        self._tir = tir
+        self._jt = Env.hail().table.Table(
+            Env.hc()._jhc, Env.hc()._backend._to_java_ir(self._tir))
+
+        self._type = self._tir.typ
 
         self._row_axis = 'row'
 
         self._global_indices = Indices(axes=set(), source=self)
         self._row_indices = Indices(axes={self._row_axis}, source=self)
 
-        self._global_type = HailType._from_java(jt.globalSignature())
-        self._row_type = HailType._from_java(jt.signature())
-
-        assert isinstance(self._global_type, tstruct)
-        assert isinstance(self._row_type, tstruct)
+        self._global_type = self._type.global_type
+        self._row_type = self._type.row_type
 
         self._globals = construct_reference('global', self._global_type, indices=self._global_indices)
         self._row = construct_reference('row', self._row_type, indices=self._row_indices)
@@ -330,42 +343,27 @@ class Table(ExprContainer):
         self._indices_from_ref = {'global': self._global_indices,
                                   'row': self._row_indices}
 
-        opt_key = from_option(jt.key())
-        if opt_key is None:
-            self._key = hail.struct()
-        else:
-            self._key = hail.struct(
-                **{k: self._row[k] for k in jiterable_to_list(opt_key)})
+        self._key = hail.struct(
+            **{k: self._row[k] for k in self._type.row_key})
 
         for k, v in itertools.chain(self._globals.items(),
                                     self._row.items()):
             self._set_field(k, v)
 
+    @property
+    def _schema(self) -> ttable:
+        return ttable(self._global_type, self._row_type, list(self._key))
 
     def __getitem__(self, item):
         if isinstance(item, str):
             return self._get_field(item)
-        elif isinstance(item, slice):
-            s = item
-            if not (s.start is None and s.stop is None and s.step is None):
-                raise ExpressionException(
-                    "Expect unbounded slice syntax ':' to indicate global table join, found unexpected attributes {}".format(
-                        ', '.join(x for x in ['start' if s.start is not None else None,
-                                              'stop' if s.stop is not None else None,
-                                              'step' if s.step is not None else None] if x is not None)
-                    )
-                )
-            warnings.warn('The ht[:] syntax is deprecated, and will be removed before 0.2 release.\n'
-                          '  Use the following instead:\n'
-                          '    ht.index_globals()\n', stacklevel=2)
-            return self.index_globals()
         else:
-            exprs = wrap_to_tuple(item)
-            if all(isinstance(e, Expression) for e in exprs):
-                return self.index(*exprs)
-        raise ValueError(f"'Table.__getitem__' (ht[...]): Usage:\n"
-                         f"  Select a field: ht['Field name']\n"
-                         f"  index shorthand: ht[key]")
+            try:
+                return self.index(*wrap_to_tuple(item))
+            except TypeError as e:
+                raise TypeError(f"Table.__getitem__: invalid index argument(s)\n"
+                                f"  Usage 1: field selection: ht['field']\n"
+                                f"  Usage 2: Left distinct join: ht[ht2.key] or ht[ht2.field1, ht2.field2]") from e
 
     @property
     def key(self) -> StructExpression:
@@ -413,62 +411,23 @@ class Table(ExprContainer):
         -------
         :obj:`int`
         """
-        return self._jt.count()
+        return Env.hc()._backend.interpret(TableCount(self._tir))
 
     def _force_count(self):
         return self._jt.forceCount()
 
     @typecheck_method(caller=str,
-                      row=expr_struct(),
-                      new_keys=oneof(exactly("default"), sequenceof(str)))
-    def _select(self, caller, row, new_keys="default"):
-        if new_keys == "default":
-            new_key = list(self.key.keys())
-            preserved_key = preserved_key_new = new_key
-        else:
-            key_struct = hl.struct(**{name: row[name] for name in new_keys})
-            preserved_key, preserved_key_new, new_key = self._preserved_key_pairs(key_struct)
-
+                      row=expr_struct())
+    def _select(self, caller, row):
         analyze(caller, row, self._row_indices)
         base, cleanup = self._process_joins(row)
-        return cleanup(base._select_scala(row, preserved_key, preserved_key_new, new_key))
-
-    @typecheck_method(row=expr_struct(),
-                      preserved_key=sequenceof(str),
-                      preserved_key_new=sequenceof(str),
-                      new_key=sequenceof(str))
-    def _select_scala(self, row, preserved_key, preserved_key_new, new_key):
-        jt = self._jt
-        if preserved_key != list(self.key):
-            jt = jt.keyBy(preserved_key)
-        jt = jt.select(str(row._ir), preserved_key_new, len(preserved_key))
-        if new_key != preserved_key_new:
-            jt = jt.keyBy(new_key)
-        return Table(jt)
-
-    @typecheck_method(key_struct=expr_struct())
-    def _preserved_key_pairs(self, key_struct):
-        def is_copy(ir, name, indices):
-            return (indices.source is self and
-                    isinstance(ir, GetField) and
-                    ir.name == name and
-                    isinstance(ir.o, TopLevelReference) and
-                    ir.o.name == 'row')
-        preserved_key_pairs =\
-            list(map(lambda pair: (pair[1]._ir.name, pair[0]),
-                     itertools.takewhile(
-                         lambda pair: is_copy(pair[1]._ir, pair[2], pair[1]._indices),
-                         zip(key_struct.keys(), key_struct.values(), self.key.keys()))))
-        (preserved_key, preserved_key_new) =\
-            (list(k) for k in zip(*preserved_key_pairs)) if preserved_key_pairs != [] else ([], [])
-        new_key = list(key_struct.keys())
-        return preserved_key, preserved_key_new, new_key
+        return cleanup(Table(TableMapRows(base._tir, row._ir)))
 
     @typecheck_method(caller=str, s=expr_struct())
     def _select_globals(self, caller, s):
         base, cleanup = self._process_joins(s)
         analyze(caller, s, self._global_indices)
-        return cleanup(Table(base._jt.selectGlobal(str(s._ir))))
+        return cleanup(Table(TableMapGlobals(base._tir, s._ir)))
 
     @classmethod
     @typecheck_method(rows=anytype,
@@ -508,14 +467,13 @@ class Table(ExprContainer):
         if not isinstance(rows.dtype.element_type, tstruct):
             raise TypeError("'parallelize' expects an array with element type 'struct', found '{}'"
                             .format(rows.dtype))
-        table = Table(Env.hail().table.Table.parallelize(str(rows._ir), joption(n_partitions)))
+        table = Table(TableParallelize(rows._ir, n_partitions))
         if key is not None:
             table = table.key_by(*key)
         return table
 
-    @typecheck_method(keys=oneof(nullable(oneof(str, Expression)), exactly([])),
-                      named_keys=expr_any
-                      )
+    @typecheck_method(keys=oneof(str, expr_any),
+                      named_keys=expr_any)
     def key_by(self, *keys, **named_keys) -> 'Table':
         """Key table by a new set of fields.
 
@@ -565,19 +523,19 @@ class Table(ExprContainer):
         :class:`.Table`
             Table with a new key.
         """
-        if len(named_keys) == 0 and (len(keys) == 0 or (len(keys) == 1 and keys[0] is None)):
-            return Table(self._jt.unkey())
+        key_fields = get_select_exprs("Table.key_by",
+                                      keys, named_keys, self._row_indices,
+                                      protect_keys=False)
 
-        if len(named_keys) == 0 and (len(keys) == 1 and isinstance(keys[0], list) and keys[0] == []):
-            key_fields = dict()
-        else:
-            key_fields = get_select_exprs("Table.key_by",
-                                          keys, named_keys, self._row_indices,
-                                          protect_keys=False)
+        new_row = self.row.annotate(**key_fields)
+        base, cleanup = self._process_joins(new_row)
 
-        return self._select("Table.key_by",
-                            self.row.annotate(**key_fields),
-                            new_keys=list(key_fields.keys()))
+        return cleanup(Table(
+            TableKeyBy(
+                TableMapRows(
+                    TableKeyBy(base._tir, []),
+                    new_row._ir),
+                list(key_fields))))
 
     def annotate_globals(self, **named_exprs):
         """Add new global fields.
@@ -702,23 +660,23 @@ class Table(ExprContainer):
         Create a single field from an expression of `C1`, `C2`, and `C3`.
 
         >>> table4.show()
-        +-------+------+-------+-------+-------+-------+-------+-------+
-        |     A | B.B0 | B.B1  | C     | D.cat | D.dog |   E.A |   E.B |
-        +-------+------+-------+-------+-------+-------+-------+-------+
-        | int32 | bool | str   | bool  | int32 | int32 | int32 | int32 |
-        +-------+------+-------+-------+-------+-------+-------+-------+
-        |    32 | true | hello | false |     5 |     7 |     5 |     7 |
-        +-------+------+-------+-------+-------+-------+-------+-------+
+        +-------+------+---------+-------+-------+-------+-------+-------+
+        |     A | B.B0 | B.B1    | C     | D.cat | D.dog |   E.A |   E.B |
+        +-------+------+---------+-------+-------+-------+-------+-------+
+        | int32 | bool | str     | bool  | int32 | int32 | int32 | int32 |
+        +-------+------+---------+-------+-------+-------+-------+-------+
+        |    32 | true | "hello" | false |     5 |     7 |     5 |     7 |
+        +-------+------+---------+-------+-------+-------+-------+-------+
 
         >>> table_result = table4.transmute(F=table4.A + 2 * table4.E.B)
         >>> table_result.show()
-        +------+-------+-------+-------+-------+-------+
-        | B.B0 | B.B1  | C     | D.cat | D.dog |     F |
-        +------+-------+-------+-------+-------+-------+
-        | bool | str   | bool  | int32 | int32 | int32 |
-        +------+-------+-------+-------+-------+-------+
-        | true | hello | false |     5 |     7 |    46 |
-        +------+-------+-------+-------+-------+-------+
+        +------+---------+-------+-------+-------+-------+
+        | B.B0 | B.B1    | C     | D.cat | D.dog |     F |
+        +------+---------+-------+-------+-------+-------+
+        | bool | str     | bool  | int32 | int32 | int32 |
+        +------+---------+-------+-------+-------+-------+
+        | true | "hello" | false |     5 |     7 |    46 |
+        +------+---------+-------+-------+-------+-------+
 
         Notes
         -----
@@ -836,7 +794,7 @@ class Table(ExprContainer):
         analyze('Table.filter', expr, self._row_indices)
         base, cleanup = self._process_joins(expr)
 
-        return cleanup(Table(base._jt.filter(str(expr._ir), keep)))
+        return cleanup(Table(TableFilter(base._tir, filter_predicate_with_keep(expr._ir, keep))))
 
     @typecheck_method(exprs=oneof(Expression, str),
                       named_exprs=anytype)
@@ -1175,8 +1133,7 @@ class Table(ExprContainer):
         base, _ = self._process_joins(expr)
         analyze('Table.aggregate', expr, self._global_indices, {self._row_axis})
 
-        result_json = base._jt.aggregateJSON(str(expr._ir))
-        return expr.dtype._from_json(result_json)
+        return Env.hc()._backend.interpret(TableAggregate(base._tir, expr._ir))
 
     @typecheck_method(output=str,
                       overwrite=bool,
@@ -1206,7 +1163,7 @@ class Table(ExprContainer):
             If ``True``, overwrite an existing file at the destination.
         """
 
-        self._jt.write(output, overwrite, stage_locally, _codec_spec)
+        Env.hc()._backend.interpret(TableWrite(self._tir, output, overwrite, stage_locally, _codec_spec))
 
     @typecheck_method(n=int, width=int, truncate=nullable(int), types=bool, handler=anyfunc)
     def show(self, n=10, width=90, truncate=None, types=True, handler=print):
@@ -1222,10 +1179,10 @@ class Table(ExprContainer):
         +-------+-------+-----+-------+-------+-------+-------+-------+
         | int32 | int32 | str | int32 | int32 | int32 | int32 | int32 |
         +-------+-------+-----+-------+-------+-------+-------+-------+
-        |     1 |    65 | M   |     5 |     4 |     2 |    50 |     5 |
-        |     2 |    72 | M   |     6 |     3 |     2 |    61 |     1 |
-        |     3 |    70 | F   |     7 |     3 |    10 |    81 |    -5 |
-        |     4 |    60 | F   |     8 |     2 |    11 |    90 |   -10 |
+        |     1 |    65 | "M" |     5 |     4 |     2 |    50 |     5 |
+        |     2 |    72 | "M" |     6 |     3 |     2 |    61 |     1 |
+        |     3 |    70 | "F" |     7 |     3 |    10 |    81 |    -5 |
+        |     4 |    60 | "F" |     8 |     2 |    11 |    90 |   -10 |
         +-------+-------+-----+-------+-------+-------+-------+-------+
 
         Parameters
@@ -1258,16 +1215,16 @@ class Table(ExprContainer):
 
         >>> table_result = table1.select(B = table2.index(table1.ID).B)
         >>> table_result.B.show()
-        +-------+--------+
-        |    ID | B      |
-        +-------+--------+
-        | int32 | str    |
-        +-------+--------+
-        |     1 | cat    |
-        |     2 | dog    |
-        |     3 | mouse  |
-        |     4 | rabbit |
-        +-------+--------+
+        +-------+----------+
+        |    ID | B        |
+        +-------+----------+
+        | int32 | str      |
+        +-------+----------+
+        |     1 | "cat"    |
+        |     2 | "dog"    |
+        |     3 | "mouse"  |
+        |     4 | "rabbit" |
+        +-------+----------+
 
         Using `key` as the sole index expression is equivalent to passing all
         key fields individually:
@@ -1279,16 +1236,16 @@ class Table(ExprContainer):
 
         >>> table_result = table1.select(B = table2.index(table1.C1 % 4).B)
         >>> table_result.show()
-        +-------+-------+
-        |    ID | B     |
-        +-------+-------+
-        | int32 | str   |
-        +-------+-------+
-        |     1 | dog   |
-        |     2 | dog   |
-        |     3 | dog   |
-        |     4 | mouse |
-        +-------+-------+
+        +-------+---------+
+        |    ID | B       |
+        +-------+---------+
+        | int32 | str     |
+        +-------+---------+
+        |     1 | "dog"   |
+        |     2 | "dog"   |
+        |     3 | "dog"   |
+        |     4 | "mouse" |
+        +-------+---------+
 
         Notes
         -----
@@ -1382,18 +1339,18 @@ class Table(ExprContainer):
             def joiner(left):
                 if not is_key:
                     original_key = list(left.key)
-                    left = Table(left.key_by()._jt.select(str(Apply('annotate',
+                    left = Table._from_java(left.key_by()._jt.mapRows(str(Apply('annotate',
                                                              left._row._ir,
-                                                             hl.struct(**dict(zip(uids, exprs)))._ir)), [], 0)
+                                                             hl.struct(**dict(zip(uids, exprs)))._ir)))
                                  ).key_by(*uids)
                     rekey_f = lambda t: t.key_by(*original_key)
                 else:
                     rekey_f = identity
 
                 if is_interval:
-                    left = Table(left._jt.intervalJoin(self._jt, uid))
+                    left = Table._from_java(left._jt.intervalJoin(self._jt, uid))
                 else:
-                    left = Table(left._jt.leftJoinRightDistinct(self._jt, uid))
+                    left = Table._from_java(left._jt.leftJoinRightDistinct(self._jt, uid))
                 return rekey_f(left)
 
             all_uids.append(uid)
@@ -1428,7 +1385,7 @@ class Table(ExprContainer):
                     key = None
                 else:
                     key = [str(k._ir) for k in exprs]
-                joiner = lambda left: MatrixTable(left._jvds.annotateRowsTableIR(right._jt, uid, key))
+                joiner = lambda left: MatrixTable._from_java(left._jmt.annotateRowsTableIR(right._jt, uid, key))
                 ast = Join(GetField(TopLevelReference('va'), uid),
                            [uid],
                            exprs,
@@ -1440,7 +1397,7 @@ class Table(ExprContainer):
                         exprs[i] is src.col_key[i] for i in range(len(exprs))]):
                     # key is already correct
                     def joiner(left):
-                        return MatrixTable(left._jvds.annotateColsTable(right._jt, uid))
+                        return MatrixTable._from_java(left._jmt.annotateColsTable(right._jt, uid))
                 else:
                     index_uid = Env.get_uid()
                     uids = [Env.get_uid() for _ in exprs]
@@ -1458,10 +1415,10 @@ class Table(ExprContainer):
                                   .join(self, 'inner')
                                   .key_by(index_uid)
                                   .drop(*uids))
-                        result = MatrixTable(left.add_col_index(index_uid)
-                                             .key_cols_by(index_uid)
-                                             ._jvds
-                                             .annotateColsTable(joined._jt, uid)).key_cols_by(*prev_key)
+                        result = MatrixTable._from_java(left.add_col_index(index_uid)
+                                                        .key_cols_by(index_uid)
+                                                        ._jmt
+                                                        .annotateColsTable(joined._jt, uid)).key_cols_by(*prev_key)
                         return result
                 ir = Join(GetField(TopLevelReference('sa'), uid),
                           all_uids,
@@ -1485,20 +1442,7 @@ class Table(ExprContainer):
         -------
         :class:`.StructExpression`
         """
-        uid = Env.get_uid()
-
-        def joiner(obj):
-            from hail.matrixtable import MatrixTable
-            if isinstance(obj, MatrixTable):
-                return MatrixTable(Env.jutils().joinGlobals(obj._jvds, self._jt, uid))
-            assert isinstance(obj, Table)
-            return Table(Env.jutils().joinGlobals(obj._jt, self._jt, uid))
-
-        ir = Join(GetField(TopLevelReference('global'), uid),
-                  [uid],
-                  [],
-                  joiner)
-        return construct_expr(ir, self.globals.dtype)
+        return construct_expr(TableGetGlobals(self._tir), self.globals.dtype)
 
     def _process_joins(self, *exprs):
         return process_joins(self, exprs)
@@ -1560,7 +1504,7 @@ class Table(ExprContainer):
         :class:`.Table`
             Persisted table.
         """
-        return Table(self._jt.persist(storage_level))
+        return Table._from_java(self._jt.persist(storage_level))
 
     def unpersist(self):
         """
@@ -1576,7 +1520,7 @@ class Table(ExprContainer):
         :class:`.Table`
             Unpersisted table.
         """
-        return Table(self._jt.unpersist())
+        return Table._from_java(self._jt.unpersist())
 
     def collect(self):
         """Collect the rows of the table into a local list.
@@ -1643,7 +1587,7 @@ class Table(ExprContainer):
         --------
 
         >>> table_result = table1.add_index()
-        >>> table_result.show()
+        >>> table_result.show()  # doctest: +NOTEST
         +-------+-------+-----+-------+-------+-------+-------+-------+-------+
         |    ID |    HT | SEX |     X |     Z |    C1 |    C2 |    C3 |   idx |
         +-------+-------+-----+-------+-------+-------+-------+-------+-------+
@@ -1719,7 +1663,7 @@ class Table(ExprContainer):
                 raise ValueError(f"'union': table {i} has a different key."
                                 f"  Expected:  {left_key}\n"
                                 f"  Table {i}: {right_key}")
-        return Table(self._jt.union([table._jt for table in tables]))
+        return Table(TableUnion([self._tir] + [table._tir for table in tables]))
 
     @typecheck_method(n=int)
     def take(self, n):
@@ -1730,10 +1674,10 @@ class Table(ExprContainer):
         Take the first three rows:
 
         >>> first3 = table1.take(3)
-        >>> print(first3)
-        [Struct(HT=65, SEX=M, X=5, C3=5, C2=50, C1=2, Z=4, ID=1),
-         Struct(HT=72, SEX=M, X=6, C3=1, C2=61, C1=2, Z=3, ID=2),
-         Struct(HT=70, SEX=F, X=7, C3=-5, C2=81, C1=10, Z=3, ID=3)]
+        >>> first3
+        [Struct(ID=1, HT=65, SEX='M', X=5, Z=4, C1=2, C2=50, C3=5),
+         Struct(ID=2, HT=72, SEX='M', X=6, Z=3, C1=2, C2=61, C3=1),
+         Struct(ID=3, HT=70, SEX='F', X=7, Z=3, C1=10, C2=81, C3=-5)]
 
         Notes
         -----
@@ -1786,7 +1730,7 @@ class Table(ExprContainer):
             Table including the first `n` rows.
         """
 
-        return Table(self._jt.head(n))
+        return Table(TableHead(self._tir, n))
 
     @typecheck_method(p=numeric,
                       seed=nullable(int))
@@ -1850,7 +1794,7 @@ class Table(ExprContainer):
             Repartitioned table.
         """
 
-        return Table(self._jt.repartition(n, shuffle))
+        return Table(TableRepartition(self._tir, n, shuffle))
 
     @typecheck_method(right=table_type,
                       how=enumeration('inner', 'outer', 'left', 'right'),
@@ -1945,7 +1889,7 @@ class Table(ExprContainer):
             info(f'Table.join: renamed the following fields on the right to avoid name conflicts:' +
                  ''.join(f'\n    {repr(k)} -> {repr(v)}' for k, v in renames.items()))
 
-        return Table(self._jt.join(right._jt, how))
+        return Table(TableJoin(self._tir, right._tir, how, len(self.key)))
 
     @typecheck_method(expr=BooleanExpression)
     def all(self, expr):
@@ -2040,7 +1984,8 @@ class Table(ExprContainer):
         stray = set(mapping.keys()) - set(seen.values())
         if stray:
             raise ValueError(f"found rename rules for fields not present in table: {list(stray)}")
-        return Table(self._jt.rename(row_map, global_map))
+
+        return Table(TableRename(self._tir, row_map, global_map))
 
     def expand_types(self):
         """Expand complex types into structs and arrays.
@@ -2072,7 +2017,7 @@ class Table(ExprContainer):
             t = self
         else:
             t = self.key_by()
-        return Table(t._jt.expandTypes())
+        return Table._from_java(t._jt.expandTypes())
 
     def flatten(self):
         """Flatten nested structs.
@@ -2138,7 +2083,7 @@ class Table(ExprContainer):
             t = self
         else:
             t = self.key_by()
-        return Table(t._jt.flatten())
+        return Table._from_java(t._jt.flatten())
 
     @typecheck_method(exprs=oneof(str, Expression, Ascending, Descending))
     def order_by(self, *exprs):
@@ -2176,34 +2121,49 @@ class Table(ExprContainer):
         :class:`.Table`
             Table sorted by the given fields.
         """
-        sort_cols = []
+        lifted_exprs = []
         for e in exprs:
+            sort_type = 'A'
+            if isinstance(e, Ascending):
+                e = e.col
+            elif isinstance(e, Descending):
+                e = e.col
+                sort_type = 'D'
+
             if isinstance(e, str):
                 expr = self[e]
-                if not expr._indices == self._row_indices:
-                    raise ValueError("Sort fields must be row-indexed, found global field '{}'".format(e))
-                sort_cols.append(asc(e)._j_obj())
-            elif isinstance(e, Expression):
-                if not e in self._fields_inverse:
-                    raise ValueError("Expect top-level field, found a complex expression")
-                if not e._indices == self._row_indices:
-                    raise ValueError("Sort fields must be row-indexed, found global field '{}'".format(e))
-                sort_cols.append(asc(self._fields_inverse[e])._j_obj())
             else:
-                assert isinstance(e, Ascending) or isinstance(e, Descending)
-                if isinstance(e.col, str):
-                    expr = self[e.col]
-                    if not expr._indices == self._row_indices:
-                        raise ValueError("Sort fields must be row-indexed, found global field '{}'".format(e))
-                    sort_cols.append(e._j_obj())
+                expr = e
+            lifted_exprs.append((expr, sort_type))
+
+        sort_fields = []
+        complex_exprs = {}
+
+        for e, sort_type in lifted_exprs:
+            if e._indices.source is not self:
+                if e._indices.source is None:
+                    raise ValueError("Sort fields must be fields of the callee Table, found scalar expression")
                 else:
-                    if not e.col in self._fields_inverse:
-                        raise ValueError("Expect top-level field, found a complex expression")
-                    if not e.col._indices == self._row_indices:
-                        raise ValueError("Sort fields must be row-indexed, found global field '{}'".format(e))
-                    e.col = self._fields_inverse[e.col]
-                    sort_cols.append(e._j_obj())
-        return Table(self._jt.orderBy(jarray(Env.hail().table.SortField, sort_cols)))
+                    raise ValueError(f"Sort fields must be fields of the callee Table,"
+                                     f" found field of {e._indices.source}")
+            elif e._indices != self._row_indices:
+                raise ValueError(f"Sort fields must be row-indexed, found global sort expression")
+            else:
+                field_name = self._fields_inverse.get(e)
+                if field_name is None:
+                    field_name = Env.get_uid()
+                    complex_exprs[field_name] = e
+                sort_fields.append((field_name, sort_type))
+
+        t = self
+        if complex_exprs:
+            t = t.annotate(**complex_exprs)
+        t = t.key_by()
+        t = Table(TableOrderBy(t._tir, sort_fields))
+        if complex_exprs:
+            t = t.drop(*complex_exprs.keys())
+        return t
+
 
     @typecheck_method(field=oneof(str, Expression),
                       name=nullable(str))
@@ -2221,49 +2181,49 @@ class Table(ExprContainer):
         `people_table` is a :class:`.Table` with three fields: `Name`, `Age` and `Children`.
 
         >>> people_table.show()
-        +----------+-------+--------------------------+
-        | Name     |   Age | Children                 |
-        +----------+-------+--------------------------+
-        | str      | int32 | array<str>               |
-        +----------+-------+--------------------------+
-        | Alice    |    34 | ["Dave","Ernie","Frank"] |
-        | Bob      |    51 | ["Gaby","Helen"]         |
-        | Caroline |    10 | []                       |
-        +----------+-------+--------------------------+
+        +------------+-------+--------------------------+
+        | Name       |   Age | Children                 |
+        +------------+-------+--------------------------+
+        | str        | int32 | array<str>               |
+        +------------+-------+--------------------------+
+        | "Alice"    |    34 | ["Dave","Ernie","Frank"] |
+        | "Bob"      |    51 | ["Gaby","Helen"]         |
+        | "Caroline" |    10 | []                       |
+        +------------+-------+--------------------------+
 
         :meth:`.Table.explode` can be used to produce a distinct row for each
         element in the `Children` field:
 
         >>> exploded = people_table.explode('Children')
         >>> exploded.show()
-        +-------+-------+----------+
-        | Name  |   Age | Children |
-        +-------+-------+----------+
-        | str   | int32 | str      |
-        +-------+-------+----------+
-        | Alice |    34 | Dave     |
-        | Alice |    34 | Ernie    |
-        | Alice |    34 | Frank    |
-        | Bob   |    51 | Gaby     |
-        | Bob   |    51 | Helen    |
-        +-------+-------+----------+
+        +---------+-------+----------+
+        | Name    |   Age | Children |
+        +---------+-------+----------+
+        | str     | int32 | str      |
+        +---------+-------+----------+
+        | "Alice" |    34 | "Dave"   |
+        | "Alice" |    34 | "Ernie"  |
+        | "Alice" |    34 | "Frank"  |
+        | "Bob"   |    51 | "Gaby"   |
+        | "Bob"   |    51 | "Helen"  |
+        +---------+-------+----------+
 
         The `name` parameter can be used to produce more appropriate field
         names:
 
         >>> exploded = people_table.explode('Children', name='Child')
         >>> exploded.show()
-        +-------+-------+-------+
-        | Name  |   Age | Child |
-        +-------+-------+-------+
-        | str   | int32 | str   |
-        +-------+-------+-------+
-        | Alice |    34 | Dave  |
-        | Alice |    34 | Ernie |
-        | Alice |    34 | Frank |
-        | Bob   |    51 | Gaby  |
-        | Bob   |    51 | Helen |
-        +-------+-------+-------+
+        +---------+-------+---------+
+        | Name    |   Age | Child   |
+        +---------+-------+---------+
+        | str     | int32 | str     |
+        +---------+-------+---------+
+        | "Alice" |    34 | "Dave"  |
+        | "Alice" |    34 | "Ernie" |
+        | "Alice" |    34 | "Frank" |
+        | "Bob"   |    51 | "Gaby"  |
+        | "Bob"   |    51 | "Helen" |
+        +---------+-------+---------+
 
         Notes
         -----
@@ -2306,7 +2266,7 @@ class Table(ExprContainer):
                 raise ValueError(f"method 'explode' cannot explode a key field")
 
         f = self._fields_inverse[field]
-        t = Table(self._jt.explode(f))
+        t = Table(TableExplode(self._tir, f))
         if name is not None:
             t = t.rename({f: name})
         return t
@@ -2356,11 +2316,11 @@ class Table(ExprContainer):
         if len(col_key) == 0:
             raise ValueError(f"'to_matrix_table': require at least one col key field")
 
-        return hl.MatrixTable(self._jt.jToMatrixTable(row_key,
-                                                      col_key,
-                                                      row_fields,
-                                                      col_fields,
-                                                      n_partitions))
+        return hl.MatrixTable._from_java(self._jt.jToMatrixTable(row_key,
+                                                                 col_key,
+                                                                 row_fields,
+                                                                 col_fields,
+                                                                 n_partitions))
 
     @property
     def globals(self) -> 'StructExpression':
@@ -2371,12 +2331,12 @@ class Table(ExprContainer):
         The data type of the globals struct:
 
         >>> table1.globals.dtype
-        dtype('struct{}')
+        dtype('struct{global_field_1: int32, global_field_2: int32}')
 
         The number of global fields:
 
         >>> len(table1.globals)
-        0
+        2
 
         Returns
         -------
@@ -2434,7 +2394,7 @@ class Table(ExprContainer):
     @staticmethod
     @typecheck(df=pyspark.sql.DataFrame,
                key=table_key_type)
-    def from_spark(df, key=None):
+    def from_spark(df, key=[]):
         """Convert PySpark SQL DataFrame to a table.
 
         Examples
@@ -2474,7 +2434,8 @@ class Table(ExprContainer):
         :class:`.Table`
             Table constructed from the Spark SQL DataFrame.
         """
-        return Table(Env.hail().table.Table.fromDF(Env.hc()._jhc, df._jdf, key))
+
+        return Table._from_java(Env.hail().table.Table.fromDF(Env.hc()._jhc, df._jdf, key))
 
     @typecheck_method(flatten=bool)
     def to_spark(self, flatten=True):
@@ -2562,27 +2523,27 @@ class Table(ExprContainer):
         ...     key='t')
 
         >>> t1.show()
-        +------+-------+-----+
-        | t    |     x | y   |
-        +------+-------+-----+
-        | str  | int32 | str |
-        +------+-------+-----+
-        | foo  |     4 | A   |
-        | bar  |     2 | B   |
-        | bar  |    -3 | C   |
-        | quam |     0 | D   |
-        +------+-------+-----+
+        +--------+-------+-----+
+        | t      |     x | y   |
+        +--------+-------+-----+
+        | str    | int32 | str |
+        +--------+-------+-----+
+        | "bar"  |     2 | "B" |
+        | "bar"  |    -3 | "C" |
+        | "foo"  |     4 | "A" |
+        | "quam" |     0 | "D" |
+        +--------+-------+-----+
 
         >>> t1.collect_by_key().show()
-        +------+------------------------------------+
-        | t    | values                             |
-        +------+------------------------------------+
-        | str  | array<struct{x: int32, y: str}>    |
-        +------+------------------------------------+
-        | bar  | [{"x":2,"y":"B"},{"x":-3,"y":"C"}] |
-        | foo  | [{"x":4,"y":"A"}]                  |
-        | quam | [{"x":0,"y":"D"}]                  |
-        +------+------------------------------------+
+        +--------+---------------------------------+
+        | t      | values                          |
+        +--------+---------------------------------+
+        | str    | array<struct{x: int32, y: str}> |
+        +--------+---------------------------------+
+        | "bar"  | [(2,"B"),(-3,"C")]              |
+        | "foo"  | [(4,"A")]                       |
+        | "quam" | [(0,"D")]                       |
+        +--------+---------------------------------+
 
         Notes
         -----
@@ -2597,7 +2558,8 @@ class Table(ExprContainer):
         -------
         :class:`.Table`
         """
-        return Table(self._jt.groupByKey(name))
+
+        return Table._from_java(self._jt.groupByKey(name))
 
     def distinct(self) -> 'Table':
         """Keep only one row for each unique key.
@@ -2614,25 +2576,25 @@ class Table(ExprContainer):
         ...     key='a')
 
         >>> t1.show()
-        +-----+-------+
-        | a   |     b |
-        +-----+-------+
-        | str | int32 |
-        +-----+-------+
-        | foo |     1 |
-        | bar |     5 |
-        | bar |     2 |
-        +-----+-------+
+        +-------+-------+
+        | a     |     b |
+        +-------+-------+
+        | str   | int32 |
+        +-------+-------+
+        | "bar" |     5 |
+        | "bar" |     2 |
+        | "foo" |     1 |
+        +-------+-------+
 
         >>> t1.distinct().show()
-        +-----+-------+
-        | a   |     b |
-        +-----+-------+
-        | str | int32 |
-        +-----+-------+
-        | bar |     5 |
-        | foo |     1 |
-        +-----+-------+
+        +-------+-------+
+        | a     |     b |
+        +-------+-------+
+        | str   | int32 |
+        +-------+-------+
+        | "bar" |     5 |
+        | "foo" |     1 |
+        +-------+-------+
 
         Notes
         -----
@@ -2642,14 +2604,35 @@ class Table(ExprContainer):
         -------
         :class:`.Table`
         """
-        return Table(self._jt.distinctByKey())
+
+        return Table(TableDistinct(self._tir))
 
     @typecheck_method(parts=sequenceof(int), keep=bool)
     def _filter_partitions(self, parts, keep=True):
-        return Table(self._jt.filterPartitions(parts, keep))
+        return Table._from_java(self._jt.filterPartitions(parts, keep))
 
-    @typecheck_method(cols=table_type, entries_field_name=str)
-    def _unlocalize_entries(self, cols, entries_field_name):
-        return hl.MatrixTable(self._jt.unlocalizeEntries(cols._jt, entries_field_name))
+    @typecheck_method(cols_field_name=str,
+                      entries_field_name=str,
+                      col_key=sequenceof(str))
+    def _unlocalize_entries(self, entries_field_name, cols_field_name, col_key):
+        return hl.MatrixTable._from_java(
+                self._jt.unlocalizeEntries(entries_field_name, cols_field_name, col_key))
+
+    @staticmethod
+    @typecheck(tables=sequenceof(table_type), data_field_name=str, global_field_name=str)
+    def _multi_way_zip_join(tables, data_field_name, global_field_name):
+        if not tables:
+            raise ValueError('multi_way_zip_join must have at least one table as an argument')
+        head = tables[0]
+        if any(head.key.dtype != t.key.dtype for t in tables):
+            raise TypeError('All input tables to multi_way_zip_join must have the same key type')
+        if any(head.row.dtype != t.row.dtype for t in tables):
+            raise TypeError('All input tables to multi_way_zip_join must have the same row type')
+        if any(head.globals.dtype != t.globals.dtype for t in tables):
+            raise TypeError('All input tables to multi_way_zip_join must have the same global type')
+        jt = Env.hail().table.Table.multiWayZipJoin([t._jt for t in tables],
+                                                    data_field_name,
+                                                    global_field_name)
+        return Table._from_java(jt)
 
 table_type.set(Table)
