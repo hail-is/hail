@@ -20,8 +20,6 @@ class PBinary(override val required: Boolean) extends PType {
 
   def _toPretty = "Binary"
 
-  override def scalaClassTag: ClassTag[Array[Byte]] = classTag[Array[Byte]]
-
   override def unsafeOrdering(): UnsafeOrdering = new UnsafeOrdering {
     def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
       val l1 = PBinary.loadLength(r1, o1)

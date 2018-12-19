@@ -8,8 +8,6 @@ import is.hail.expr.types.{BaseType, EncodedType}
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 
-import scala.reflect.ClassTag
-
 object PType {
   def genScalar(required: Boolean): Gen[PType] =
     Gen.oneOf(PBoolean(required), PInt32(required), PInt64(required), PFloat32(required),
@@ -43,21 +41,13 @@ object PType {
 
   def preGenStruct(required: Boolean, genFieldType: Gen[PType]): Gen[PStruct] = {
     for (fields <- genFields(required, genFieldType)) yield {
-      val t = PStruct(fields)
-      if (required)
-        (+t).asInstanceOf[PStruct]
-      else
-        t
+      PStruct(fields, required)
     }
   }
 
   def preGenTuple(required: Boolean, genFieldType: Gen[PType]): Gen[PTuple] = {
     for (fields <- genFields(required, genFieldType)) yield {
-      val t = PTuple(fields.map(_.typ))
-      if (required)
-        (+t).asInstanceOf[PTuple]
-      else
-        t
+      PTuple(fields.map(_.typ), required)
     }
   }
 
@@ -162,18 +152,6 @@ abstract class PType extends BaseType with Serializable {
 
   def virtualType: Type
 
-  def children: Seq[PType] = FastSeq()
-
-  def clear(): Unit = children.foreach(_.clear())
-
-  def unify(concrete: PType): Boolean = {
-    this.isOfType(concrete)
-  }
-
-  def isBound: Boolean = children.forall(_.isBound)
-
-  def subst(): PType = this.setRequired(false)
-
   def unsafeOrdering(): UnsafeOrdering = ???
 
   def isCanonical: Boolean = PType.canonical(this) == this  // will recons, may need to rewrite this method
@@ -207,17 +185,6 @@ abstract class PType extends BaseType with Serializable {
     sb.append(_toPretty)
   }
 
-  def fieldOption(fields: String*): Option[PField] = fieldOption(fields.toList)
-
-  def fieldOption(path: List[String]): Option[PField] =
-    None
-
-  def isRealizable: Boolean = children.forall(_.isRealizable)
-
-  def scalaClassTag: ClassTag[_ <: AnyRef]
-
-  def canCompare(other: PType): Boolean = this == other
-
   def codeOrdering(mb: EmitMethodBuilder): CodeOrdering = codeOrdering(mb, this)
 
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering
@@ -231,10 +198,6 @@ abstract class PType extends BaseType with Serializable {
   def fundamentalType: PType = this
 
   def required: Boolean
-
-  final def unary_+(): PType = setRequired(true)
-
-  final def unary_-(): PType = setRequired(false)
 
   final def setRequired(required: Boolean): PType = {
     this match {
@@ -281,27 +244,6 @@ abstract class PType extends BaseType with Serializable {
       case t2: PDict => t.isInstanceOf[PDict] && t.asInstanceOf[PDict].keyType.isOfType(t2.keyType) && t.asInstanceOf[PDict].valueType.isOfType(t2.valueType)
     }
   }
-
-  def deepOptional(): PType =
-    this match {
-      case t: PArray => PArray(t.elementType.deepOptional())
-      case t: PSet => PSet(t.elementType.deepOptional())
-      case t: PDict => PDict(t.keyType.deepOptional(), t.valueType.deepOptional())
-      case t: PStruct =>
-        PStruct(t.fields.map(f => PField(f.name, f.typ.deepOptional(), f.index)))
-      case t: PTuple =>
-        PTuple(t.types.map(_.deepOptional()))
-      case t =>
-        t.setRequired(false)
-    }
-
-  def structOptional(): PType =
-    this match {
-      case t: PStruct =>
-        PStruct(t.fields.map(f => PField(f.name, f.typ.deepOptional(), f.index)))
-      case t =>
-        t.setRequired(false)
-    }
 
   def subsetTo(t: Type): PType = {
     // FIXME

@@ -11,12 +11,10 @@ import is.hail.variant._
 import scala.reflect.{ClassTag, classTag}
 
 object PLocus {
-  def representation(required: Boolean = false): PStruct = {
-    val rep = PStruct(
-      "contig" -> +PString(),
-      "position" -> +PInt32())
-    rep.setRequired(required).asInstanceOf[PStruct]
-  }
+  def representation(required: Boolean = false): PStruct = PStruct(
+      required,
+      "contig" -> PString(required = true),
+      "position" -> PInt32(required = true))
 
   def schemaFromRG(rg: Option[ReferenceGenome], required: Boolean = false): PType = rg match {
     case Some(ref) => PLocus(ref)
@@ -34,8 +32,6 @@ case class PLocus(rg: RGBase, override val required: Boolean = false) extends Co
     sb.append(prettyIdentifier(rg.name))
     sb.append('>')
   }
-
-  override def scalaClassTag: ClassTag[Locus] = classTag[Locus]
 
   // FIXME: Remove when representation of contig/position is a naturally-ordered Long
   override def unsafeOrdering(): UnsafeOrdering = {
@@ -90,15 +86,6 @@ case class PLocus(rg: RGBase, override val required: Boolean = false) extends Co
 
   val representation: PStruct = PLocus.representation(required)
 
-  override def unify(concrete: PType): Boolean = concrete match {
-    case PLocus(crg, _) => rg.unify(crg)
-    case _ => false
-  }
-
-  override def clear(): Unit = rg.clear()
-
-  override def subst() = copy(rg = rg.subst())
-  
   def contig(region: Code[Region], off: Code[Long]): Code[Long] = representation.loadField(region, off, 0)
   
   def position(region: Code[Region], off: Code[Long]): Code[Int] = region.loadInt(representation.loadField(region, off, 1))

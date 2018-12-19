@@ -22,8 +22,6 @@ abstract class PContainer extends PType {
 
   def contentsAlignment: Long
 
-  override def children = FastSeq(elementType)
-
   final def loadLength(region: Region, aoff: Long): Int =
     PContainer.loadLength(region, aoff)
 

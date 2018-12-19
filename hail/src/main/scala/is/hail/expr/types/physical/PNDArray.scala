@@ -24,6 +24,4 @@ final case class PNDArray(elementType: PType, override val required: Boolean) ex
     assert(this isOfType other)
     representation.codeOrdering(mb)
   }
-
-  override def scalaClassTag: ClassTag[Row] = classTag[Row]
 }
