@@ -1263,6 +1263,9 @@ class StructExpression(Mapping, Expression):
             if isinstance(self._ir, MakeStruct):
                 expr = construct_expr(self._ir.fields[i][1], t, self._indices,
                                           self._aggregations)
+            elif isinstance(self._ir, SelectFields):
+                expr = construct_expr(GetField(self._ir.old, f), t, self._indices,
+                                      self._aggregations)
             else:
                 expr = construct_expr(GetField(self._ir, f), t, self._indices,
                                           self._aggregations)
