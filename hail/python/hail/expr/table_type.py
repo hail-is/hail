@@ -1,8 +1,16 @@
 from hail.typecheck import *
 from hail.utils.java import escape_parsable
-from hail.expr.types import tstruct
+from hail.expr.types import dtype, tstruct
+from hail.utils.java import jiterable_to_list
 
 class ttable(object):
+    @staticmethod
+    def _from_java(jtt):
+        return ttable(
+            dtype(jtt.globalType().toString()),
+            dtype(jtt.rowType().toString()),
+            jiterable_to_list(jtt.key()))
+
     @typecheck_method(global_type=tstruct, row_type=tstruct, row_key=sequenceof(str))
     def __init__(self, global_type, row_type, row_key):
         self.global_type = global_type

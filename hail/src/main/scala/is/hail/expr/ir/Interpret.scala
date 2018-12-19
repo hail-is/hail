@@ -1,7 +1,5 @@
 package is.hail.expr.ir
 
-import java.io.{PrintWriter, StringWriter}
-
 import is.hail.{HailContext, Uploader, stats}
 import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.annotations._
@@ -13,29 +11,16 @@ import is.hail.expr.types.virtual._
 import is.hail.methods._
 import is.hail.utils._
 import org.apache.spark.sql.Row
-import org.json4s.JsonAST.JNull
 import org.json4s.jackson.JsonMethods
-
-import scala.collection.JavaConverters._
 
 object Interpret {
   type Agg = (IndexedSeq[Row], TStruct)
 
-  def interpretPyIR(s: String, refMap: java.util.HashMap[String, Type], irMap: java.util.HashMap[String, BaseIR]): String = {
-    interpretPyIR(s, refMap.asScala.toMap, irMap.asScala.toMap)
-  }
-
-  def interpretPyIR(s: String, refMap: Map[String, Type] = Map.empty, irMap: Map[String, BaseIR] = Map.empty): String = {
-    val ir = IRParser.parse_value_ir(s, IRParserEnvironment(refMap, irMap))
+  def interpretJSON(ir: IR): String = {
     val t = ir.typ
     val value = Interpret[Any](ir)
-
-    val jsonValue = t match {
-      case TVoid => JNull
-      case _ => JSONAnnotationImpex.exportAnnotation(value, t)
-    }
-
-    JsonMethods.compact(jsonValue)
+    JsonMethods.compact(
+      JSONAnnotationImpex.exportAnnotation(value, t))
   }
 
   def apply(tir: TableIR): TableValue =

@@ -549,10 +549,8 @@ class MatrixTable(ExprContainer):
         super(MatrixTable, self).__init__()
 
         self._mir = mir
-        self._jmir = mir.to_java_ir()
-        self._jmt = Env.hail().variant.MatrixTable(Env.hc()._jhc, self._jmir)
-
-        jmtype = self._jmir.typ()
+        self._jmt = Env.hail().variant.MatrixTable(
+            Env.hc()._jhc, Env.hc()._backend._to_java_ir(self._mir))
 
         self._globals = None
         self._col_values = None
@@ -565,20 +563,17 @@ class MatrixTable(ExprContainer):
         self._col_indices = Indices(self, {self._col_axis})
         self._entry_indices = Indices(self, {self._row_axis, self._col_axis})
 
-        self._global_type = hl.dtype(jmtype.globalType().toString())
-        self._col_type = hl.dtype(jmtype.colType().toString())
-        self._row_type = hl.dtype(jmtype.rowType().toString())
-        self._entry_type = hl.dtype(jmtype.entryType().toString())
+        self._type = self._mir.typ
 
-        assert isinstance(self._global_type, tstruct), self._global_type
-        assert isinstance(self._col_type, tstruct), self._col_type
-        assert isinstance(self._row_type, tstruct), self._row_type
-        assert isinstance(self._entry_type, tstruct), self._entry_type
+        self._global_type = self._type.global_type
+        self._col_type = self._type.col_type
+        self._row_type = self._type.row_type
+        self._entry_type = self._type.entry_type
 
         self._globals = construct_reference('global', self._global_type,
                                             indices=self._global_indices)
         self._rvrow = construct_reference('va',
-                                          hl.dtype(jmtype.rvRowType().toString()),
+                                          self._type.row_type,
                                           indices=self._row_indices)
         self._row = hail.struct(**{k: self._rvrow[k] for k in self._row_type.keys()})
         self._col = construct_reference('sa', self._col_type,
@@ -592,10 +587,10 @@ class MatrixTable(ExprContainer):
                                   'g': self._entry_indices}
 
         self._row_key = hail.struct(
-            **{k: self._row[k] for k in jiterable_to_list(jmtype.rowKey())})
+            **{k: self._row[k] for k in self._type.row_key})
         self._partition_key = self._row_key
         self._col_key = hail.struct(
-            **{k: self._col[k] for k in jiterable_to_list(jmtype.colKey())})
+            **{k: self._col[k] for k in self._type.col_key})
 
         self._num_samples = None
 
@@ -2093,7 +2088,8 @@ class MatrixTable(ExprContainer):
             Number of rows in the matrix.
         """
 
-        return self._jmt.countRows()
+        return Env.hc()._backend.interpret(
+            TableCount(MatrixRowsTable(self._mir)))
 
     def _force_count_rows(self):
         return self._jmt.forceCountRows()
@@ -2116,7 +2112,9 @@ class MatrixTable(ExprContainer):
         :obj:`int`
             Number of columns in the matrix.
         """
-        return self._jmt.countCols()
+
+        return Env.hc()._backend.interpret(
+            TableCount(MatrixColsTable(self._mir)))
 
     def count(self) -> Tuple[int, int]:
         """Count the number of rows and columns in the matrix.
@@ -2131,8 +2129,7 @@ class MatrixTable(ExprContainer):
         :obj:`int`, :obj:`int`
             Number of rows, number of cols.
         """
-        r = self._jmt.count()
-        return r._1(), r._2()
+        return (self.count_rows(), self.count_cols())
 
     @typecheck_method(output=str,
                       overwrite=bool,

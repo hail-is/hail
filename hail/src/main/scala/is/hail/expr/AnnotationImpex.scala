@@ -101,6 +101,8 @@ object JSONAnnotationImpex {
         case _: TFloat32 => JDouble(a.asInstanceOf[Float])
         case _: TFloat64 => JDouble(a.asInstanceOf[Double])
         case _: TString => JString(a.asInstanceOf[String])
+        case TVoid =>
+          JNull
         case TArray(elementType, _) =>
           val arr = a.asInstanceOf[Seq[Any]]
           JArray(arr.map(elem => exportAnnotation(elem, elementType)).toList)

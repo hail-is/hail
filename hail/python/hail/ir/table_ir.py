@@ -94,26 +94,26 @@ class TableRead(TableIR):
         super().__init__()
         self.path = path
         self.drop_rows = drop_rows
-        self.typ = typ
+        self._typ = typ
 
     def render(self, r):
         return '(TableRead "{}" {} {})'.format(
             escape_str(self.path),
             self.drop_rows,
-            self.typ)
+            self._typ)
 
 
 class TableImport(TableIR):
     def __init__(self, paths, typ, reader_options):
         super().__init__()
         self.paths = paths
-        self.typ = typ
+        self._typ = typ
         self.reader_options = reader_options
 
     def render(self, r):
         return '(TableImport ({}) {} {})'.format(
             ' '.join([escape_str(path) for path in self.paths]),
-            self.typ._parsable_string(),
+            self._typ._parsable_string(),
             escape_str(json.dumps(self.reader_options)))
 
 
