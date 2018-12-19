@@ -315,6 +315,11 @@ class MatrixIRSuite extends SparkSuite {
     val read1 = MatrixTable.read(hc, path + "1.mt")
     assert(ranges(0).same(read0))
     assert(ranges(1).same(read1))
+
+    val pathRef = tmpDir.createLocalTempFile(extension = "mt")
+    Interpret(MatrixWrite(ranges(1).ast, MatrixNativeWriter(path)))
+    val readRef = MatrixTable.read(hc, path)
+    assert(readRef.same(read1))
   }
 
   @Test def testMatrixMultiWriteDifferentTypesFails() {
