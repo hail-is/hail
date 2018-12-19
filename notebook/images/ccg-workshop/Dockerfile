@@ -128,6 +128,8 @@ COPY python_part_1.ipynb .
 
 COPY python_part_2.ipynb .
 
+COPY scn1a.txt .
+
 COPY some_numbers.txt .
 
 COPY stooges_fixed.csv .
