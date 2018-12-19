@@ -138,7 +138,8 @@ COPY stooges.csv .
 
 RUN Rscript -e 'source("https://bioconductor.org/biocLite.R"); \
                 biocLite("Biostrings"); \
-                install.packages("dplyr")'
+                install.packages("dplyr"); \
+                require(dpylr)'
 
 USER root
 RUN apt-get update && apt-get install -y vim dos2unix
@@ -153,11 +154,11 @@ RUN mkdir genotype-harmonizer && \
 
 COPY workshop_cars.txt workshop_plants.txt ./
 
-RUN Rscript -e "install.packages('tidyverse')"
-
 USER root
-RUN apt-get update && apt-get install -y bedtools
+RUN apt-get update && apt-get install -y r-cran-curl r-cran-openssl bedtools
 USER jovyan
+
+RUN Rscript -e "install.packages('tidyverse'); require(tidyverse)"
 
 # keep this last
 USER root
