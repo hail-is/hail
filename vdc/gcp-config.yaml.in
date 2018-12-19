@@ -102,7 +102,7 @@ resources:
           diskSizeGb: 100
           diskType: pd-standard
           imageType: COS
-          labels: {preemptible: 'true'}
+          labels: {preemptible: 'false'}
           serviceAccount: vdc-sa@@project@.iam.gserviceaccount.com
           machineType: n1-standard-8
           oauthScopes: ['https://www.googleapis.com/auth/devstorage.read_only', 'https://www.googleapis.com/auth/logging.write',
