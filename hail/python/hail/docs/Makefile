@@ -53,7 +53,7 @@ check-python:
 	python3 -c "import hail"
 
 .PHONY: html
-html:
+html: check-python
 	$(SPHINXBUILD) -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html
 	@echo
 	@echo "Build finished. The HTML pages are in $(BUILDDIR)/html."
