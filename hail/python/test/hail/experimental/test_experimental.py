@@ -95,3 +95,89 @@ class Tests(unittest.TestCase):
         x = x.annotate(tp=hl.cond(x.score1 > 0, hl.rand_bool(0.7), False), score3=x.score1 + hl.rand_norm())
         ht = x.annotate(fp=hl.cond(~x.tp, hl.rand_bool(0.2), False))
         _, aucs = hl.experimental.plot_roc_curve(ht, ['score1', 'score2', 'score3'])
+
+    def test_ld_score_regression(self):
+        mt = hl.read_matrix_table(doctest_resource('univariate_ld_score_regression.chr22_sample.mt'))
+        ht_results = hl.experimental.ld_score_regression(weight_expr=mt['ld_score'],
+                                                         ld_score_expr=mt['ld_score'],
+                                                         chi_squared_exprs=mt['chi_squared'],
+                                                         n_samples_exprs=mt['n_complete_samples'],
+                                                         n_blocks=20,
+                                                         two_step_threshold=10,
+                                                         n_reference_panel_variants=1173569)
+        results = {x['phenotype']: {'mean_chi_squared': x['mean_chi_squared'],
+                                    'intercept_estimate': x['intercept']['estimate'],
+                                    'intercept_standard_error': x['intercept']['standard_error'],
+                                    'snp_heritability_estimate': x['snp_heritability']['estimate'],
+                                    'snp_heritability_standard_error': x['snp_heritability']['standard_error']}
+                   for x in ht_results.collect()}
+
+        self.assertAlmostEqual(results['50_irnt']['mean_chi_squared'], 3.531, places=3)
+        self.assertAlmostEqual(results['50_irnt']['intercept_estimate'], 0.559, places=3)
+        self.assertAlmostEqual(results['50_irnt']['intercept_standard_error'], 0.328, places=1)
+        self.assertAlmostEqual(results['50_irnt']['snp_heritability_estimate'], 0.497, places=3)
+        self.assertAlmostEqual(results['50_irnt']['snp_heritability_standard_error'], 0.148, places=1)
+
+        self.assertAlmostEqual(results['2443']['mean_chi_squared'], 1.265, places=3)
+        self.assertAlmostEqual(results['2443']['intercept_estimate'], 0.372, places=3)
+        self.assertAlmostEqual(results['2443']['intercept_standard_error'], 0.105, places=1)
+        self.assertAlmostEqual(results['2443']['snp_heritability_estimate'], 0.223, places=3)
+        self.assertAlmostEqual(results['2443']['snp_heritability_standard_error'], 0.052, places=1)
+
+        self.assertAlmostEqual(results['20160']['mean_chi_squared'], 1.521, places=3)
+        self.assertAlmostEqual(results['20160']['intercept_estimate'], 1.271, places=3)
+        self.assertAlmostEqual(results['20160']['intercept_standard_error'], 0.210, places=1)
+        self.assertAlmostEqual(results['20160']['snp_heritability_estimate'], 0.037, places=3)
+        self.assertAlmostEqual(results['20160']['snp_heritability_standard_error'], 0.052, places=1)
+
+        self.assertAlmostEqual(results['30100_irnt']['mean_chi_squared'], 5.241, places=3)
+        self.assertAlmostEqual(results['30100_irnt']['intercept_estimate'], 0.858, places=3)
+        self.assertAlmostEqual(results['30100_irnt']['intercept_standard_error'], 0.324, places=1)
+        self.assertAlmostEqual(results['30100_irnt']['snp_heritability_estimate'], 0.769, places=3)
+        self.assertAlmostEqual(results['30100_irnt']['snp_heritability_standard_error'], 0.308, places=1)
+
+
+        ht = hl.read_table(doctest_resource('univariate_ld_score_regression.chr22_sample.ht'))
+        ht_results = hl.experimental.ld_score_regression(weight_expr=ht['ld_score'],
+                                                         ld_score_expr=ht['ld_score'],
+                                                         chi_squared_exprs=[ht['50_irnt_chi_squared'],
+                                                                            ht['2443_chi_squared'],
+                                                                            ht['20160_chi_squared'],
+                                                                            ht['30100_irnt_chi_squared']],
+                                                         n_samples_exprs=[ht['50_irnt_n_complete_samples'],
+                                                                          ht['2443_n_complete_samples'],
+                                                                          ht['20160_n_complete_samples'],
+                                                                          ht['30100_irnt_n_complete_samples']],
+                                                         n_blocks=20,
+                                                         two_step_threshold=10,
+                                                         n_reference_panel_variants=1173569)
+        results = {x['phenotype']: {'mean_chi_squared': x['mean_chi_squared'],
+                                    'intercept_estimate': x['intercept']['estimate'],
+                                    'intercept_standard_error': x['intercept']['standard_error'],
+                                    'snp_heritability_estimate': x['snp_heritability']['estimate'],
+                                    'snp_heritability_standard_error': x['snp_heritability']['standard_error']}
+                   for x in ht_results.collect()}
+
+        self.assertAlmostEqual(results['y0']['mean_chi_squared'], 3.531, places=3)
+        self.assertAlmostEqual(results['y0']['intercept_estimate'], 0.559, places=3)
+        self.assertAlmostEqual(results['y0']['intercept_standard_error'], 0.328, places=1)
+        self.assertAlmostEqual(results['y0']['snp_heritability_estimate'], 0.497, places=3)
+        self.assertAlmostEqual(results['y0']['snp_heritability_standard_error'], 0.148, places=1)
+
+        self.assertAlmostEqual(results['y1']['mean_chi_squared'], 1.265, places=3)
+        self.assertAlmostEqual(results['y1']['intercept_estimate'], 0.372, places=3)
+        self.assertAlmostEqual(results['y1']['intercept_standard_error'], 0.105, places=1)
+        self.assertAlmostEqual(results['y1']['snp_heritability_estimate'], 0.223, places=3)
+        self.assertAlmostEqual(results['y1']['snp_heritability_standard_error'], 0.052, places=1)
+
+        self.assertAlmostEqual(results['y2']['mean_chi_squared'], 1.521, places=3)
+        self.assertAlmostEqual(results['y2']['intercept_estimate'], 1.271, places=3)
+        self.assertAlmostEqual(results['y2']['intercept_standard_error'], 0.210, places=1)
+        self.assertAlmostEqual(results['y2']['snp_heritability_estimate'], 0.037, places=3)
+        self.assertAlmostEqual(results['y2']['snp_heritability_standard_error'], 0.052, places=1)
+
+        self.assertAlmostEqual(results['y3']['mean_chi_squared'], 5.241, places=3)
+        self.assertAlmostEqual(results['y3']['intercept_estimate'], 0.858, places=3)
+        self.assertAlmostEqual(results['y3']['intercept_standard_error'], 0.324, places=1)
+        self.assertAlmostEqual(results['y3']['snp_heritability_estimate'], 0.769, places=3)
+        self.assertAlmostEqual(results['y3']['snp_heritability_standard_error'], 0.308, places=1)
