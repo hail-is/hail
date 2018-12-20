@@ -136,7 +136,6 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(results['30100_irnt']['snp_heritability_estimate'], 0.769, places=3)
         self.assertAlmostEqual(results['30100_irnt']['snp_heritability_standard_error'], 0.308, places=1)
 
-
         ht = hl.read_table(doctest_resource('univariate_ld_score_regression.chr22_sample.ht'))
         ht_results = hl.experimental.ld_score_regression(weight_expr=ht['ld_score'],
                                                          ld_score_expr=ht['ld_score'],

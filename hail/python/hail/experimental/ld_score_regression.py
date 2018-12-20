@@ -26,7 +26,7 @@ def ld_score_regression(weight_expr,
     """Given a set or multiple sets of genome-wide association study (GWAS) summary
     statistics, :func:`.ld_score_regression` estimates the heritability of a trait
     or set of traits and the level of confounding biases present in the underlying 
-    studies using the model:
+    studies by regressing chi-squared statistics on LD scores, leveraging the model:
 
     .. math::
 
@@ -102,13 +102,12 @@ def ld_score_regression(weight_expr,
     from either a :class:`Table` or a :class:`MatrixTable` (though they all must
     originate from the same object).
 
-    **If the ``exprs`` originate from a table**, then:
+    **If the arguments originate from a table, then:**
 
     *  The table is assumed to be keyed by fields ``locus`` of type :class:`.tlocus` and
        ``alleles``, a :py:data:`.tarray` of :py:data:`.tstr` elements.
     *  ``weight_expr``, ``ld_score_expr``, ``chi_squared_exprs``, and ``n_samples_exprs``
        are assumed to be row-indexed fields of the table. 
-    *  The ``phenotype_expr`` argument is not used.
     *  The number of expressions passed to ``n_samples_exprs`` must be equal to either one or
        the number of expressions passed to ``chi_squared_exprs``. If just one expression is
        passed to ``n_samples_exprs``, that sample size expression is assumed to apply to all
@@ -120,7 +119,7 @@ def ld_score_regression(weight_expr,
        will have generic values ``y0``, ``y1``, etc. corresponding to the ``0th``, ``1st``, etc.
        expressions passed to the ``chi_squared_exprs`` argument.
     
-    **If the ``exprs`` originate from a matrix table**, then:
+    **If the arguments originate from a matrix table, then:**
 
     *  The dimensions of the matrix table are assumed to be variants (rows)
        by phenotypes (columns).
@@ -142,8 +141,8 @@ def ld_score_regression(weight_expr,
     Chi-squared statistics can be derived from the :math:`t` or :math:`Z` statistics
     typically provided in GWAS summary statistics files.
 
-    A :math:`t`-distribution approaches a standard normal distribution for even moderate
-    sample sizes (:math:`n > ~30`), such as those found in almost all GWAS. 
+    A :math:`t`-distribution approaches a standard normal distribution for moderate
+    sample sizes (:math:`n > 30`), such as those found in most GWAS. 
 
     Further, if a random variable :math:`Z` follows a standard normal distribution, 
     then :math:`Z^2` follows a :math:`\\chi_{df=1}^2` distribution. 
