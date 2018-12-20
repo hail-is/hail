@@ -2049,4 +2049,4 @@ def export_elasticsearch(t, host, port, index, index_type, block_size, config=No
     .. warning::
         :func:`.export_elasticsearch` is EXPERIMENTAL.
     """
-    Env.hail().io.ElasticsearchConnector.export(t._jt, host, port, index, index_type, block_size, config, verbose)
+    Env.hail().io.ElasticsearchConnector.export(t.expand_types()._jt, host, port, index, index_type, block_size, config, verbose)

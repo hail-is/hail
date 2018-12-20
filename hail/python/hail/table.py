@@ -2072,12 +2072,29 @@ class Table(ExprContainer):
         :class:`.Table`
             Expanded table.
         """
+        def _expand(e):
+            if isinstance(e, CollectionExpression) or isinstance(e, DictExpression):
+                return hl.map(lambda x: _expand(x), hl.array(e))
+            elif isinstance(e, StructExpression):
+                return hl.struct(**{k: _expand(v) for (k, v) in e.items()})
+            elif isinstance(e, IntervalExpression):
+                return hl.struct(start = e.start,
+                                 end = e.end,
+                                 includesStart = e.includes_start,
+                                 includesEnd = e.includes_end)
+            elif isinstance(e, LocusExpression):
+                return hl.struct(contig = e.contig,
+                                 position = e.position)
+            elif isinstance(e, CallExpression):
+                return hl.struct(alleles=hl.map(lambda i: e[i], hl.range(e.ploidy)),
+                                 phased=e.phased)
+            else:
+                return e
 
-        if len(self.key) == 0:
-            t = self
-        else:
-            t = self.key_by()
-        return Table._from_java(t._jt.expandTypes())
+        t = self.key_by()
+        t = t.select(**_expand(t.row))
+        t = t.select_globals(**_expand(t.globals))
+        return t
 
     def flatten(self):
         """Flatten nested structs.
