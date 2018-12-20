@@ -5,7 +5,9 @@ from hail.expr.types import dtype
 from hail.expr.table_type import *
 from hail.expr.matrix_type import *
 from hail.ir.renderer import Renderer
+from hail.table import Table
 
+import pyspark
 
 class Backend(object):
     @abc.abstractmethod
@@ -43,6 +45,20 @@ class SparkBackend(Backend):
         jir = self._to_java_ir(mir)
         return tmatrix._from_java(jir.typ())
 
+    def from_spark(self, df, key):
+        return Table._from_java(Env.hail().table.Table.fromDF(Env.hc()._jhc, df._jdf, key))
+
+    def to_spark(self, t, flatten):
+        t = t.expand_types()
+        if flatten:
+            t = t.flatten()
+        return pyspark.sql.DataFrame(t._jt.toDF(Env.hc()._jsql_context), Env.sql_context())
+
+    def to_pandas(self, flatten):
+        return self.to_spark(flatten).toPandas()
+
+    def from_pandas(df, key):
+        return Table.from_spark(Env.sql_context().createDataFrame(df), key)
 
 class ServiceBackend(Backend):
     def __init__(self, host, port=80, scheme='http'):
