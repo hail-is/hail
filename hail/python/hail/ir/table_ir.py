@@ -229,7 +229,7 @@ class RepartitionStrategy:
     NAIVE_COALESCE = 2
 
 class TableRepartition(TableIR):
-    def __init__(self, child, n, shuffle):
+    def __init__(self, child, n, strategy):
         super().__init__()
         self.child = child
         self.n = n

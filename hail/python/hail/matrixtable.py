@@ -2355,7 +2355,8 @@ class MatrixTable(ExprContainer):
 
             if is_row_key:
                 def joiner(left):
-                    return MatrixTable._from_java(left._jmt.annotateRowsVDS(right._jmt, uid))
+                    return MatrixTable(MatrixAnnotateRowsTable(
+                        left._mir, right.rows()._tir, uid, None))
                 schema = tstruct(**{f: t for f, t in self.row.dtype.items() if f not in self.row_key})
                 ir = Join(GetField(TopLevelReference('va'), uid),
                           uids_to_delete,

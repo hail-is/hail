@@ -5,7 +5,7 @@ import is.hail.annotations._
 import is.hail.check.Prop._
 import is.hail.check.Parameters
 import is.hail.expr.ir
-import is.hail.expr.ir.{Interpret, MatrixRepartition, TableRead, TableRepartition}
+import is.hail.expr.ir.{Interpret, MatrixRepartition, RepartitionStrategy, TableRead, TableRepartition}
 import is.hail.linalg.BlockMatrix
 import is.hail.table.Table
 import is.hail.utils._
@@ -86,9 +86,9 @@ class VSMSuite extends SparkSuite {
 
   @Test def testFilesWithRequiredGlobals() {
     val ht = Table.read(hc, "src/test/resources/required_globals.ht").tir
-    Interpret(TableRepartition(ht, 10, true)).rvd.count()
+    Interpret(TableRepartition(ht, 10, RepartitionStrategy.SHUFFLE)).rvd.count()
 
     val mt = MatrixTable.read(hc, "src/test/resources/required_globals.mt").ast
-    Interpret(MatrixRepartition(mt, 10, true)).rvd.count()
+    Interpret(MatrixRepartition(mt, 10, RepartitionStrategy.SHUFFLE)).rvd.count()
   }
 }

@@ -405,7 +405,7 @@ class PruneSuite extends SparkSuite {
 
   @Test def testMatrixRepartitionMemo() {
     checkMemo(
-      MatrixRepartition(mat, 10, true),
+      MatrixRepartition(mat, 10, RepartitionStrategy.SHUFFLE),
       subsetMatrixTable(mat.typ, "va.r2", "global.g1"),
       Array(subsetMatrixTable(mat.typ, "va.r2", "global.g1"),
         subsetMatrixTable(mat.typ, "va.r2", "global.g1"))
