@@ -2077,6 +2077,8 @@ class Table(ExprContainer):
                 return hl.map(lambda x: _expand(x), hl.array(e))
             elif isinstance(e, StructExpression):
                 return hl.struct(**{k: _expand(v) for (k, v) in e.items()})
+            elif isinstance(e, TupleExpression):
+                return hl.struct(**{f'_{i}': x for (i, x) in enumerate(e)})
             elif isinstance(e, IntervalExpression):
                 return hl.struct(start = e.start,
                                  end = e.end,
