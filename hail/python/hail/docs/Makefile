@@ -52,7 +52,7 @@ check-python:
 	@echo "Ensuring that Hail can be imported..."
 	python3 -c "import hail"
 
-.PHONY: html check-python
+.PHONY: html
 html:
 	$(SPHINXBUILD) -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html
 	@echo
