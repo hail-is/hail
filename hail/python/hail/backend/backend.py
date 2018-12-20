@@ -9,7 +9,7 @@ from hail.ir.renderer import Renderer
 
 class Backend(object):
     @abc.abstractmethod
-    def interpret(self, ir):
+    def execute(self, ir):
         return
 
     @abc.abstractmethod
@@ -30,7 +30,7 @@ class SparkBackend(Backend):
             ir._jir = ir.parse(code, ir_map=r.jirs)
         return ir._jir
 
-    def interpret(self, ir):
+    def execute(self, ir):
         return ir.typ._from_json(
             Env.hail().expr.ir.Interpret.interpretJSON(
                 self._to_java_ir(ir)))
@@ -50,7 +50,7 @@ class ServiceBackend(Backend):
         self.host = host
         self.port = port
 
-    def interpret(self, ir):
+    def execute(self, ir):
         r = Renderer(stop_at_jir=True)
         code = r(ir)
         assert len(r.jirs) == 0

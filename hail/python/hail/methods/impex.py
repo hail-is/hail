@@ -160,7 +160,7 @@ def export_gen(dataset, output, precision=4, gp=None, id1=None, id2=None,
                                   entry_exprs=entry_exprs)
 
     writer = MatrixGENWriter(output, precision)
-    Env.hc()._backend.interpret(MatrixWrite(dataset._mir, writer))
+    Env.backend().execute(MatrixWrite(dataset._mir, writer))
 
 
 @typecheck(dataset=MatrixTable,
@@ -301,7 +301,7 @@ def export_plink(dataset, output, call=None, fam_id=None, ind_id=None, pat_id=No
         raise TypeError("\n".join(errors))
 
     writer = MatrixPLINKWriter(output)
-    Env.hc()._backend.interpret(MatrixWrite(dataset._mir, writer))
+    Env.backend().execute(MatrixWrite(dataset._mir, writer))
 
 
 @typecheck(dataset=MatrixTable,
@@ -418,7 +418,7 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
                              append_to_header,
                              Env.hail().utils.ExportType.getExportType(parallel),
                              metadata)
-    Env.hc()._backend.interpret(MatrixWrite(dataset._mir, writer))
+    Env.backend().execute(MatrixWrite(dataset._mir, writer))
 
 
 @typecheck(path=str,

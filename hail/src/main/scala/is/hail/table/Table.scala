@@ -439,17 +439,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
       signature = keySignature ++ TStruct(name -> TArray(valueSignature)))
   }
 
-  def jToMatrixTable(rowKeys: java.util.ArrayList[String],
-    colKeys: java.util.ArrayList[String],
-    rowFields: java.util.ArrayList[String],
-    colFields: java.util.ArrayList[String],
-    nPartitions: java.lang.Integer): MatrixTable = {
-
-    toMatrixTable(rowKeys.asScala.toArray, colKeys.asScala.toArray,
-      rowFields.asScala.toArray, colFields.asScala.toArray,
-      Option(nPartitions).map(_.asInstanceOf[Int])
-    )
-  }
 
   def toMatrixTable(
     rowKeys: Array[String],

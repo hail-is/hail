@@ -730,6 +730,13 @@ object IRParser {
         val child = table_ir(env)(it)
         val query = ir_value_expr(env.update(child.typ.refMap))(it)
         TableAggregate(child, query)
+      case "TableExport" =>
+        val child = table_ir(env)(it)
+        val path = string_literal(it)
+        val typesFile = opt(it, string_literal).orNull
+        val header = boolean_literal(it)
+        val exportType = int32_literal(it)
+        TableExport(child, path, typesFile, header, exportType)
       case "TableWrite" =>
         val path = string_literal(it)
         val overwrite = boolean_literal(it)

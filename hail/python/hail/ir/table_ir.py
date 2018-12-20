@@ -25,6 +25,15 @@ class TableJoin(TableIR):
         return '(TableJoin {} {} {} {})'.format(
             escape_id(self.join_type), self.join_key, r(self.left), r(self.right))
 
+class TableLeftJoinRightDistinct(TableIR):
+    def __init__(self, left, right, root):
+        self.left = left
+        self.right = right
+        self.root = root
+
+    def render(self, r):
+        return '(TableLeftJoinRightDistinct {} {} {})'.format(
+            escape_id(self.root), r(self.left), r(self.right))
 
 class TableUnion(TableIR):
     def __init__(self, children):

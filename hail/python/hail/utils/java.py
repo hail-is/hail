@@ -62,6 +62,10 @@ class Env:
         return Env._hc
 
     @staticmethod
+    def backend():
+        return Env.hc()._backend
+
+    @staticmethod
     def sql_context():
         return Env.hc()._sql_context
 
