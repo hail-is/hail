@@ -486,30 +486,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
       rvd = newRVD.changeType(newRowType.physicalType),
       signature = newRowType)
   }
-
-  def flatten(): Table = {
-    require(typ.key.isEmpty)
-
-    def deepFlatten(t: TStruct, x: ir.IR): IndexedSeq[IndexedSeq[(String, ir.IR)]] = {
-      t.fields.map { f =>
-        f.typ match {
-          case t: TStruct =>
-            deepFlatten(t, ir.GetField(x, f.name))
-              .flatten
-              .map { case (n2, x2) =>
-                f.name + "." + n2 -> x2
-              }
-          case _ =>
-            IndexedSeq(f.name -> ir.GetField(x, f.name))
-        }
-      }
-    }
-
-    val newFields = deepFlatten(signature, ir.Ref("row", tir.typ.rowType))
-
-    new Table(hc, ir.TableMapRows(tir, ir.MakeStruct(newFields.flatten)))
-  }
-
+  
   // expandTypes must be called before toDF
   def toDF(sqlContext: SQLContext): DataFrame = {
     val localSignature = signature.physicalType
