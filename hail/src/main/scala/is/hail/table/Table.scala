@@ -686,44 +686,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
     ))
   }
 
-  def intervalJoin(other: Table, fieldName: String): Table = {
-    assert(other.keySignature.size == 1 && other.keySignature.types(0).isInstanceOf[TInterval])
-    val intervalType = other.keySignature.types(0).asInstanceOf[TInterval]
-    assert(keySignature.size == 1 && keySignature.types(0) == intervalType.pointType)
-
-    val typToInsert: Type = other.valueSignature
-    val (newRowPType, ins) = signature.physicalType.unsafeStructInsert(typToInsert.physicalType, List(fieldName))
-    val newRowType = newRowPType.virtualType
-
-    val rightRVDType = other.rvd.typ
-    val leftRVDType = rvd.typ
-
-    val zipper = { (ctx: RVDContext, it: Iterator[RegionValue], intervals: Iterator[RegionValue]) =>
-      val rvb = new RegionValueBuilder()
-      val rv2 = RegionValue()
-      OrderedRVIterator(leftRVDType, it, ctx).leftIntervalJoinDistinct(
-        OrderedRVIterator(rightRVDType, intervals, ctx)
-      )
-        .map { case Muple(rv, i) =>
-          rvb.set(rv.region)
-          rvb.start(newRowType.physicalType)
-          ins(
-            rv.region,
-            rv.offset,
-            rvb,
-            () => if (i == null) rvb.setMissing() else rvb.selectRegionValue(rightRVDType.rowType, rightRVDType.valueFieldIdx, i))
-          rv2.set(rv.region, rvb.end())
-
-          rv2
-        }
-    }
-
-    val newRVDType = RVDType(newRowType.physicalType, key)
-    val newRVD = rvd.intervalAlignAndZipPartitions(newRVDType, other.rvd)(zipper)
-
-    copy2(rvd = newRVD, signature = newRowType)
-  }
-
   def filterPartitions(parts: java.util.ArrayList[Int], keep: Boolean): Table =
     filterPartitions(parts.asScala.toArray, keep)
 

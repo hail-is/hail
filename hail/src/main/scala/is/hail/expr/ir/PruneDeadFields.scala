@@ -272,6 +272,25 @@ object PruneDeadFields {
             // don't memoize right if we are going to elide it during rebuild
             memoizeTableIR(left, requestedType, memo)
         }
+      case TableIntervalJoin(left, right, root) =>
+        val fieldDep = requestedType.rowType.fieldOption(root).map(_.typ.asInstanceOf[TStruct])
+        fieldDep match {
+          case Some(struct) =>
+            val rightDep = right.typ.copy(rowType = unify(
+              right.typ.rowType,
+              FastIndexedSeq[TStruct](right.typ.rowType.filterSet(right.typ.key.toSet, true)._1) ++
+                FastIndexedSeq(struct): _*),
+              globalType = minimal(right.typ.globalType))
+            memoizeTableIR(right, rightDep, memo)
+            val leftDep = unify(
+              left.typ,
+              requestedType.copy(rowType =
+                requestedType.rowType.filterSet(Set(root), include = false)._1))
+            memoizeTableIR(left, leftDep, memo)
+          case None =>
+            // don't memoize right if we are going to elide it during rebuild
+            memoizeTableIR(left, requestedType, memo)
+        }
       case TableMultiWayZipJoin(children, fieldName, globalName) =>
         val gType = requestedType.globalType.fieldOption(globalName)
           .map(_.typ.asInstanceOf[TArray].elementType)
@@ -834,6 +853,11 @@ object PruneDeadFields {
       case TableLeftJoinRightDistinct(left, right, root) =>
         if (dep.rowType.hasField(root))
           TableLeftJoinRightDistinct(rebuild(left, memo), rebuild(right, memo), root)
+        else
+          rebuild(left, memo)
+      case TableIntervalJoin(left, right, root) =>
+        if (dep.rowType.hasField(root))
+          TableIntervalJoin(rebuild(left, memo), rebuild(right, memo), root)
         else
           rebuild(left, memo)
       case TableMultiWayZipJoin(children, fieldName, globalName) =>

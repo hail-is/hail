@@ -501,6 +501,48 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
   }
 }
 
+case class TableIntervalJoin(left: TableIR, right: TableIR, root: String) extends TableIR {
+  def children: IndexedSeq[BaseIR] = Array(left, right)
+
+  val (newRowPType, ins) = left.typ.rowType.physicalType.unsafeStructInsert(right.typ.valueType.physicalType, List(root))
+  val typ: TableType = left.typ.copy(rowType = newRowPType.virtualType)
+
+  override def copy(newChildren: IndexedSeq[BaseIR]): TableIR =
+    TableIntervalJoin(newChildren(0).asInstanceOf[TableIR], newChildren(1).asInstanceOf[TableIR], root)
+
+  override def partitionCounts: Option[IndexedSeq[Long]] = left.partitionCounts
+
+  protected[ir] override def execute(hc: HailContext): TableValue = {
+    val leftValue = left.execute(hc)
+    val rightValue = right.execute(hc)
+
+    val leftRVDType = leftValue.rvd.typ
+    val rightRVDType = rightValue.rvd.typ
+
+    val zipper = { (ctx: RVDContext, it: Iterator[RegionValue], intervals: Iterator[RegionValue]) =>
+      val rvb = new RegionValueBuilder()
+      val rv2 = RegionValue()
+      OrderedRVIterator(leftRVDType, it, ctx).leftIntervalJoinDistinct(
+        OrderedRVIterator(rightRVDType, intervals, ctx))
+        .map { case Muple(rv, i) =>
+          rvb.set(rv.region)
+          rvb.start(newRowPType)
+          ins(
+            rv.region,
+            rv.offset,
+            rvb,
+            () => if (i == null) rvb.setMissing() else rvb.selectRegionValue(rightRVDType.rowType, rightRVDType.valueFieldIdx, i))
+          rv2.set(rv.region, rvb.end())
+
+          rv2
+        }
+    }
+
+    val newRVD = leftValue.rvd.intervalAlignAndZipPartitions(RVDType(newRowPType, typ.key), rightValue.rvd)(zipper)
+    TableValue(typ, leftValue.globals, newRVD)
+  }
+}
+
 case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String, globalName: String) extends TableIR {
   require(children.length > 0, "there must be at least one table as an argument")
 

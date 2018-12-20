@@ -35,6 +35,16 @@ class TableLeftJoinRightDistinct(TableIR):
         return '(TableLeftJoinRightDistinct {} {} {})'.format(
             escape_id(self.root), r(self.left), r(self.right))
 
+class TableIntervalJoin(TableIR):
+    def __init__(self, left, right, root):
+        self.left = left
+        self.right = right
+        self.root = root
+
+    def render(self, r):
+        return '(TableIntervalJoin {} {} {})'.format(
+            escape_id(self.root), r(self.left), r(self.right))
+
 class TableUnion(TableIR):
     def __init__(self, children):
         super().__init__()
