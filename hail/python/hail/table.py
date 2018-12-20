@@ -2565,7 +2565,9 @@ class Table(ExprContainer):
         :class:`.Table`
         """
 
-        return Table._from_java(self._jt.groupByKey(name))
+        return Table(TableAggregateByKey(
+            self._tir,
+            hl.agg.collect(self.row_value)._ir))
 
     def distinct(self) -> 'Table':
         """Keep only one row for each unique key.
