@@ -17,6 +17,8 @@ object IRBuilder {
 
   implicit def intToProxy(i: Int): IRProxy = I32(i)
 
+  implicit def booleanToProxy(b: Boolean): IRProxy = if (b) True() else False()
+
   implicit def ref(s: Symbol): IRProxy = (env: E) =>
     Ref(s.name, env.lookup(s.name))
 
@@ -33,6 +35,9 @@ object IRBuilder {
   def irRange(start: IRProxy, end: IRProxy, step: IRProxy = 1): IRProxy = (env: E) =>
     ArrayRange(start(env), end(env), step(env))
 
+  def irArrayLen(a: IRProxy): IRProxy = (env: E) => ArrayLen(a(env))
+
+
   def irIf(cond: IRProxy)(cnsq: IRProxy)(altr: IRProxy): IRProxy = (env: E) =>
     If(cond(env), cnsq(env), altr(env))
 
@@ -48,6 +53,8 @@ object IRBuilder {
     def env: E = typ.rowEnv
 
     def typ: TableType = tir.typ
+
+    def getGlobals: IR = TableGetGlobals(tir)
 
     def mapGlobals(newGlobals: IRProxy): TableIR =
       TableMapGlobals(tir, newGlobals(globalEnv))
@@ -120,9 +127,13 @@ object IRBuilder {
       ArrayMap(ir(env), f.s.name, f.body(env.bind(f.s.name -> eltType)))
     }
 
+    def sort(ascending: IRProxy, onKey: Boolean = false): IRProxy = (env: E) => ArraySort(ir(env), ascending(env), onKey)
+
     def groupByKey: IRProxy = (env: E) => GroupByKey(ir(env))
 
     def toArray: IRProxy = (env: E) => ToArray(ir(env))
+
+    def parallelize(nPartitions: Option[Int] = None): TableIR = TableParallelize(ir(Env.empty), nPartitions)
 
     private[ir] def apply(env: E): IR = ir(env)
   }

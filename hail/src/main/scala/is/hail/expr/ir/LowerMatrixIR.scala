@@ -1,8 +1,8 @@
 package is.hail.expr.ir
 
 import is.hail.expr.types._
-import is.hail.expr.types.virtual.TArray
-import is.hail.utils.FastSeq
+import is.hail.expr.types.virtual.{TArray, TInt32}
+import is.hail.utils._
 
 object LowerMatrixIR {
   val entriesFieldName = MatrixType.entriesIdentifier
@@ -32,7 +32,8 @@ object LowerMatrixIR {
 
   private[this] def lower(tir: TableIR): TableIR = {
     val lowered = tableRules.applyOrElse(tir, (tir: TableIR) => lowerChildren(tir).asInstanceOf[TableIR])
-    assert(lowered.typ == tir.typ)
+    if(lowered.typ != tir.typ)
+      fatal(s"lowering changed type:\n  before: ${tir.typ}\n  after: ${lowered.typ}")
     lowered
   }
 
@@ -196,5 +197,27 @@ object LowerMatrixIR {
       lower(child)
         .mapGlobals('global.dropFields(colsField))
         .mapRows('row.dropFields(entriesField))
+
+    case MatrixColsTable(child) =>
+      val colKey = child.typ.colKey
+      let(__cols_and_globals = lower(child).getGlobals) {
+        val sortedCols = if (colKey.isEmpty)
+          '__cols_and_globals (colsField)
+        else
+          irRange(0, irArrayLen('__cols_and_globals (colsField)), 1)
+            .map {
+              'i ~> let(__cols_element = '__cols_and_globals (colsField)('i)) {
+                makeStruct(
+                  // key struct
+                  '_1 -> '__cols_element.selectFields(colKey: _*),
+                  '_2 -> '__cols_element)
+              }
+            }
+            .sort(true, onKey = true)
+            .map {
+              'elt ~> 'elt ('_2)
+            }
+        makeStruct('rows -> sortedCols, 'global -> '__cols_and_globals.dropFields(colsField))
+      }.parallelize(None).keyBy(child.typ.colKey)
   }
 }
