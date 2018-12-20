@@ -507,6 +507,8 @@ case class TableIntervalJoin(left: TableIR, right: TableIR, root: String) extend
   val (newRowPType, ins) = left.typ.rowType.physicalType.unsafeStructInsert(right.typ.valueType.physicalType, List(root))
   val typ: TableType = left.typ.copy(rowType = newRowPType.virtualType)
 
+  override def rvdType: RVDType = RVDType(newRowPType, typ.key)
+  
   override def copy(newChildren: IndexedSeq[BaseIR]): TableIR =
     TableIntervalJoin(newChildren(0).asInstanceOf[TableIR], newChildren(1).asInstanceOf[TableIR], root)
 
