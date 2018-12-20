@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.expr.types._
 import is.hail.expr.types.virtual.{TArray, TInt32}
-import is.hail.utils.FastSeq
+import is.hail.utils._
 
 object LowerMatrixIR {
   val entriesFieldName = MatrixType.entriesIdentifier
@@ -32,7 +32,8 @@ object LowerMatrixIR {
 
   private[this] def lower(tir: TableIR): TableIR = {
     val lowered = tableRules.applyOrElse(tir, (tir: TableIR) => lowerChildren(tir).asInstanceOf[TableIR])
-    assert(lowered.typ == tir.typ)
+    if(lowered.typ == tir.typ)
+      fatal(s"lowering changed type:\n  before: ${tir.typ}\n  after: ${lowered.typ}")
     lowered
   }
 
@@ -214,7 +215,7 @@ object LowerMatrixIR {
             }
             .sort(true, onKey = true)
             .map {
-              'elt ~> 'elt ('_1)
+              'elt ~> 'elt ('_2)
             }
         makeStruct('rows -> sortedCols, 'global -> '__cols_and_globals.dropFields(colsField))
       }.parallelize(None).keyBy(child.typ.colKey)
