@@ -1352,7 +1352,7 @@ class Table(ExprContainer):
                     rekey_f = identity
 
                 if is_interval:
-                    left = Table._from_java(left._jt.intervalJoin(self._jt, uid))
+                    left = Table(TableIntervalJoin(left._tir, self._tir, uid))
                 else:
                     left = Table(TableLeftJoinRightDistinct(left._tir, self._tir, uid))
                 return rekey_f(left)

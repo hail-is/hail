@@ -232,6 +232,19 @@ class PruneSuite extends SparkSuite {
     )
   }
 
+  @Test def testTableIntervalJoinMemo() {
+    val tk1 = TableKeyBy(tab, Array("1"))
+    val tk2 = TableKeyBy(tab, Array("3"))
+    val tj = TableIntervalJoin(tk1, tk2, "foo")
+    checkMemo(tj,
+      subsetTable(tj.typ, "row.1", "row.4", "row.foo"),
+      Array(
+        subsetTable(tk1.typ, "row.1", "row.4"),
+        subsetTable(tk2.typ)
+      )
+    )
+  }
+
   @Test def testTableMultiWayZipJoinMemo() {
     val tk1 = TableKeyBy(tab, Array("1"))
     val ts = Array(tk1, tk1, tk1)
@@ -635,6 +648,17 @@ class PruneSuite extends SparkSuite {
     val tk1 = TableKeyBy(tab, Array("1"))
     val tk2 = TableKeyBy(tab, Array("3"))
     val tj = TableLeftJoinRightDistinct(tk1, tk2, "foo")
+
+    checkRebuild(tj, subsetTable(tj.typ, "row.1", "row.4"),
+      (_: BaseIR, r: BaseIR) => {
+        r.isInstanceOf[TableKeyBy] // no dependence on row.foo elides the join
+      })
+  }
+
+  @Test def testTableIntervalJoinRebuild() {
+    val tk1 = TableKeyBy(tab, Array("1"))
+    val tk2 = TableKeyBy(tab, Array("3"))
+    val tj = TableIntervalJoin(tk1, tk2, "foo")
 
     checkRebuild(tj, subsetTable(tj.typ, "row.1", "row.4"),
       (_: BaseIR, r: BaseIR) => {
