@@ -819,6 +819,7 @@ class IRSuite extends SparkSuite {
       Literal(TStruct("x" -> TInt32()), Row(1)),
       TableCount(table),
       TableGetGlobals(table),
+      TableCollect(table),
       TableAggregate(table, MakeStruct(Seq("foo" -> count))),
       TableWrite(table, tmpDir.createLocalTempFile(extension = "ht")),
       MatrixWrite(mt, MatrixNativeWriter(tmpDir.createLocalTempFile(extension = "mt"))),
