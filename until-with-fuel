@@ -19,7 +19,7 @@ MAX_TRIES=${MAX_TRIES:-$1}
 shift
 
 : $((tries = 0))
-until "$@ >/dev/null 2>&1"
+until "$@" >/dev/null 2>&1
 do
     : $((tries = tries + 1)) && [ $tries -lt ${MAX_TRIES} ]
     sleep ${DELAY}

@@ -114,7 +114,7 @@ class Job:
         self.batch_id = batch_id
         self.attributes = attributes
         self.callback = callback
-        self.children = set([])
+        self.child_ids = set([])
         self.parents = parents
         self.incomplete_parents = set(self.parents)
         self._pod_name = None
@@ -127,7 +127,7 @@ class Job:
             if parent not in job_id_job:
                 abort(400, f'invalid parent: no job with id {parent}')
         for parent in self.parents:
-            job_id_job[parent].children.add(self.id)
+            job_id_job[parent].child_ids.add(self.id)
 
         if batch_id:
             batch = batch_id_batch[batch_id]
@@ -164,7 +164,7 @@ class Job:
             self.notify_children(new_state)
 
     def notify_children(self, new_state):
-        for child_id in self.children:
+        for child_id in self.child_ids:
             child = job_id_job.get(child_id)
             if child:
                 child.parent_new_state(new_state, self.id, self.exit_code)
@@ -179,7 +179,7 @@ class Job:
                 log.info(f'all parents successfully complete for {self.id}')
                 self._create_pod()
         elif new_state == 'Cancelled' or (new_state == 'Complete' and maybe_exit_code != 0):
-            log.info(f'parents cancelled or failed: {new_state} {maybe_exit_code} {parent_id}')
+            log.info(f'parents deleted, cancelled, or failed: {new_state} {maybe_exit_code} {parent_id}')
             self.incomplete_parents.discard(parent_id)
             self.cancel()
 
@@ -195,8 +195,8 @@ class Job:
         if self.batch_id:
             batch = batch_id_batch[self.batch_id]
             batch.remove(self)
-        self.notify_children('Cancelled')
         self._delete_pod()
+        self.set_state('Cancelled')
 
     def is_complete(self):
         return self._state == 'Complete' or self._state == 'Cancelled'
