@@ -32,7 +32,7 @@ object LowerMatrixIR {
 
   private[this] def lower(tir: TableIR): TableIR = {
     val lowered = tableRules.applyOrElse(tir, (tir: TableIR) => lowerChildren(tir).asInstanceOf[TableIR])
-    if(lowered.typ == tir.typ)
+    if(lowered.typ != tir.typ)
       fatal(s"lowering changed type:\n  before: ${tir.typ}\n  after: ${lowered.typ}")
     lowered
   }
