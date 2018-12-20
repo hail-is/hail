@@ -8,6 +8,13 @@ cluster:
 minikube start
 ```
 
+Set some environment variables so that docker images are placed in the
+`minikube` cluster's docker registry:
+
+```
+eval $(minikube docker-env)
+```
+
 If you get a weird minikube error, try
 
 ```
@@ -19,18 +26,37 @@ minikube start
 
 When you want to return to using a google k8s cluster, you can run this:
 
-```
-gcloud container clusters get-credentials CLUSTER_NAME
+```sh
+# Login with a Google account that is linked to a Google Cloud project that manages the cluster of interest
+gcloud auth login
+
+gcloud projects list
+# Shows
+#PROJECT_ID             NAME             PROJECT_NUMBER
+#my-awesome-project     xxxx             xxxx
+
+gcloud config set project my-awesome-project
+gcloud container clusters list
+
+#NAME             LOCATION       MASTER_VERSION  MASTER_IP        MACHINE_TYPE   NODE_VERSION    NUM_NODES  STATUS
+#awesome-cluster  us-central1-a  xxxx            xxxx               xxxx         xxxx            N          RUNNING
+
+# Here zone is called LOCATION
+# Lets set kubectl to use awesome-cluster
+gcloud container clusters get-credentials awesome-cluster --zone us-central1-a
 ```
 
-Set some environment variables so that docker images are placed in the
-`minikube` cluster's docker registry:
+To check what cluster `kubectl` is currently configured to use
 
-```
-eval $(minikube docker-env)
+```sh
+kubectl config view
+
+# Shows
+#...
+# current-context: gke_my-awesome-project_us-central1-a_awesome-cluster
 ```
 
-Build the batch and test image
+### Build the batch and test image
 
 ```
 make build-batch build-test
@@ -99,7 +125,7 @@ Kubernetes [Python client](https://github.com/kubernetes-client/python/blob/mast
 To get kubectl credentials for a GKE cluster:
 
 ```
-$ gcloud container clusters get-credentials <cluster>
+$ gcloud container clusters get-credentials <cluster> [--zone <zone/LOCATION> or --region <region>]
 ```
 
 To authorize docker to push to GCR:
