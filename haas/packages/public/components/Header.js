@@ -122,18 +122,16 @@ class Header extends Component {
 
           <span style={{ marginLeft: 'auto' }}>
             {this.props.auth.state.user ? (
-              <Fragment>
-                <span
-                  aria-owns={open ? 'menu-appbar' : null}
-                  aria-haspopup="true"
-                  onClick={this.handleMenu}
-                  color="inherit"
-                  style={{ marginTop: -5 }}
-                  className="link-button"
-                >
-                  <i className="material-icons">account_circle</i>
-                </span>
-              </Fragment>
+              <span
+                aria-owns={open ? 'menu-appbar' : null}
+                aria-haspopup="true"
+                onClick={this.handleMenu}
+                color="inherit"
+                style={{ marginTop: -5 }}
+                className="link-button"
+              >
+                <i className="material-icons">account_circle</i>
+              </span>
             ) : (
               <LoginLink onLogin={onLogin} />
             )}
