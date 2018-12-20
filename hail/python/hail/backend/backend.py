@@ -54,8 +54,8 @@ class SparkBackend(Backend):
             t = t.flatten()
         return pyspark.sql.DataFrame(t._jt.toDF(Env.hc()._jsql_context), Env.sql_context())
 
-    def to_pandas(self, flatten):
-        return self.to_spark(flatten).toPandas()
+    def to_pandas(self, t, flatten):
+        return self.to_spark(t, flatten).toPandas()
 
     def from_pandas(self, df, key):
         return Table.from_spark(Env.sql_context().createDataFrame(df), key)

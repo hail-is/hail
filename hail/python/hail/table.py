@@ -2457,7 +2457,7 @@ class Table(ExprContainer):
         :class:`.pyspark.sql.DataFrame`
 
         """
-        return Env.spark_backend('to_spark').to_spark(flatten)
+        return Env.spark_backend('to_spark').to_spark(self, flatten)
 
     @typecheck_method(flatten=bool)
     def to_pandas(self, flatten=True):
@@ -2477,7 +2477,7 @@ class Table(ExprContainer):
         :class:`.pandas.DataFrame`
 
         """
-        return Env.spark_backend('to_pandas').to_pandas(flatten)
+        return Env.spark_backend('to_pandas').to_pandas(self, flatten)
 
     @staticmethod
     @typecheck(df=pandas.DataFrame,
