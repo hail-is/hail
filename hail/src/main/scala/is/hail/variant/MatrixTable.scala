@@ -1,7 +1,5 @@
 package is.hail.variant
 
-import java.io.InputStream
-
 import is.hail.annotations._
 import is.hail.check.Gen
 import is.hail.expr.ir._
@@ -9,8 +7,6 @@ import is.hail.expr.types._
 import is.hail.expr.types.physical.{PArray, PStruct}
 import is.hail.expr.types.virtual._
 import is.hail.expr.{ir, _}
-import is.hail.io.gen.ExportGen
-import is.hail.io.plink.ExportPlink
 import is.hail.linalg._
 import is.hail.methods._
 import is.hail.rvd._
@@ -1082,13 +1078,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     if (foundError)
       fatal("found one or more type check errors")
-  }
-
-  def globalsTable(): Table = {
-    Table(hc,
-      sparkContext.parallelize[Row](Array(globals.value)),
-      globalType,
-      FastIndexedSeq())
   }
 
   def rowsTable(): Table = new Table(hc, MatrixRowsTable(ast))

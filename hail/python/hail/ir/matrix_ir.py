@@ -164,14 +164,14 @@ class MatrixExplodeRows(MatrixIR):
             r(self.child))
 
 class MatrixRepartition(MatrixIR):
-    def __init__(self, child, n, shuffle):
+    def __init__(self, child, n, strategy):
         super().__init__()
         self.child = child
         self.n = n
-        self.shuffle = shuffle
+        self.strategy = strategy
 
     def render(self, r):
-        return f'(MatrixRepartition {r(self.child)} {self.n} {self.shuffle})'
+        return f'(MatrixRepartition {r(self.child)} {self.n} {self.strategy})'
 
 
 class MatrixUnionRows(MatrixIR):

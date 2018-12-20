@@ -2176,7 +2176,8 @@ class MatrixTable(ExprContainer):
         :class:`.Table`
             Table with the globals from the matrix, with a single row.
         """
-        return Table._from_java(self._jmt.globalsTable())
+        return Table.parallelize(
+            [hl.eval(self.globals)], self._global_type)
 
     def rows(self) -> Table:
         """Returns a table with all row fields in the matrix.
@@ -2510,7 +2511,8 @@ class MatrixTable(ExprContainer):
 
     @typecheck_method(entries_field_name=str, cols_field_name=str)
     def _localize_entries(self, entries_field_name, cols_field_name):
-        return Table._from_java(self._jmt.localizeEntries(entries_field_name, cols_field_name))
+        return Table(CastMatrixToTable(
+            self._mir, entries_field_name, cols_field_name))
 
     @typecheck_method(row_exprs=dictof(str, expr_any),
                       col_exprs=dictof(str, expr_any),
@@ -2709,7 +2711,7 @@ class MatrixTable(ExprContainer):
     @typecheck_method(n_partitions=int,
                       shuffle=bool)
     def repartition(self, n_partitions: int, shuffle: bool = True) -> 'MatrixTable':
-        """Increase or decrease the number of partitions.
+        """Change the number of partitions.
 
         Examples
         --------
@@ -2734,17 +2736,15 @@ class MatrixTable(ExprContainer):
         can allow one to take advantage of more cores. Partitions are a core
         concept of distributed computation in Spark, see `their documentation
         <http://spark.apache.org/docs/latest/programming-guide.html#resilient-distributed-datasets-rdds>`__
-        for details. With ``shuffle=True``, Hail does a full shuffle of the data
-        and creates equal sized partitions. With ``shuffle=False``, Hail
-        combines existing partitions to avoid a full shuffle. These algorithms
-        correspond to the `repartition` and `coalesce` commands in Spark,
-        respectively. In particular, when ``shuffle=False``, ``n_partitions``
-        cannot exceed current number of partitions.
+        for details. 
 
-        Note
-        ----
-        If `shuffle` is ``False``, the number of partitions may only be
-        reduced, not increased.
+        When ``shuffle=True``, Hail does a full shuffle of the data
+        and creates equal sized partitions.  When ``shuffle=False``,
+        Hail combines existing partitions to avoid a full
+        shuffle. These algorithms correspond to the `repartition` and
+        `coalesce` commands in Spark, respectively. In particular,
+        when ``shuffle=False``, ``n_partitions`` cannot exceed current
+        number of partitions.
 
         Parameters
         ----------
@@ -2758,7 +2758,10 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
             Repartitioned dataset.
         """
-        return MatrixTable(MatrixRepartition(self._mir, n_partitions, shuffle))
+
+        return MatrixTable(MatrixRepartition(
+            self._mir, n_partitions,
+            RepartitionStrategy.SHUFFLE if shuffle else RepartitionStrategy.COALESCE))
 
     @typecheck_method(max_partitions=int)
     def naive_coalesce(self, max_partitions: int) -> 'MatrixTable':
@@ -2789,7 +2792,9 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
             Matrix table with at most `max_partitions` partitions.
         """
-        return MatrixTable._from_java(self._jmt.naiveCoalesce(max_partitions))
+        
+        return MatrixTable(MatrixRepartition(
+            self._mir, max_partitions, RepartitionStrategy.NAIVE_COALESCE))
 
     def cache(self) -> 'MatrixTable':
         """Persist the dataset in memory.
@@ -3164,9 +3169,11 @@ class MatrixTable(ExprContainer):
         -------
         :class:`.MatrixTable`
         """
-        hail.methods.misc.require_key(table, 'from_rows_table')
-        jmt = scala_object(Env.hail().variant, 'MatrixTable').fromRowsTable(table._jt)
-        return MatrixTable._from_java(jmt)
+        col_values_uid = Env.get_uid()
+        entries_uid = Env.get_uid()
+        return (table.annotate_globals(**{col_values_uid: hl.empty_array(hl.tstruct())})
+                .annotate(**{entries_uid: hl.empty_array(hl.tstruct())})
+                ._unlocalize_entries(entries_uid, col_values_uid, []))
 
     @typecheck_method(p=numeric,
                       seed=nullable(int))
@@ -3259,7 +3266,7 @@ class MatrixTable(ExprContainer):
         -------
         :class:`.MatrixTable`
         """
-        return MatrixTable._from_java(self._jmt.distinctByRow())
+        return MatrixTable(MatrixDistinctByRow(self._mir))
 
     def distinct_by_col(self):
         """Remove columns with a duplicate row key.

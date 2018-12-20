@@ -1772,28 +1772,47 @@ class Table(ExprContainer):
     @typecheck_method(n=int,
                       shuffle=bool)
     def repartition(self, n, shuffle=True):
-        """Change the number of distributed partitions.
+        """Change the number of partitions.
 
         Examples
         --------
-        Repartition to 10 partitions:
 
-        >>> table_result = table1.repartition(10)
+        Repartition to 500 partitions:
 
-        Warning
-        -------
-        When `shuffle` is ``False``, `repartition` can only decrease the number
-        of partitions and simply combines adjacent partitions to achieve the
-        desired number. It does not attempt to rebalance and so can produce a
-        heavily unbalanced dataset. An unbalanced dataset can be inefficient to
-        operate on because the work is not evenly distributed across partitions.
+        >>> table_result = table1.repartition(500)
+
+        Notes
+        -----
+
+        Check the current number of partitions with :meth:`.n_partitions`.
+
+        The data in a dataset is divided into chunks called partitions, which
+        may be stored together or across a network, so that each partition may
+        be read and processed in parallel by available cores. When a table with
+        :math:`M` rows is first imported, each of the :math:`k` partitions will
+        contain about :math:`M/k` of the rows. Since each partition has some
+        computational overhead, decreasing the number of partitions can improve
+        performance after significant filtering. Since it's recommended to have
+        at least 2 - 4 partitions per core, increasing the number of partitions
+        can allow one to take advantage of more cores. Partitions are a core
+        concept of distributed computation in Spark, see `their documentation
+        <http://spark.apache.org/docs/latest/programming-guide.html#resilient-distributed-datasets-rdds>`__
+        for details.
+
+        When ``shuffle=True``, Hail does a full shuffle of the data
+        and creates equal sized partitions.  When ``shuffle=False``,
+        Hail combines existing partitions to avoid a full shuffle.
+        These algorithms correspond to the `repartition` and
+        `coalesce` commands in Spark, respectively. In particular,
+        when ``shuffle=False``, ``n_partitions`` cannot exceed current
+        number of partitions.
 
         Parameters
         ----------
         n : int
             Desired number of partitions.
         shuffle : bool
-            If ``True``, shuffle data. Otherwise, naively coalesce.
+            If ``True``, use full shuffle to repartition.
 
         Returns
         -------
@@ -1801,7 +1820,42 @@ class Table(ExprContainer):
             Repartitioned table.
         """
 
-        return Table(TableRepartition(self._tir, n, shuffle))
+        return Table(TableRepartition(
+            self._tir, n,
+            self._mir, n_partitions, RepartitionStrategy.NAIVE_COALESCE))
+
+    @typecheck_method(max_partitions=int)
+    def naive_coalesce(self, max_partitions: int) -> 'MatrixTable':
+        """Naively decrease the number of partitions.
+
+        Example
+        -------
+        Naively repartition to 10 partitions:
+
+        >>> table_result = table1.naive_coalesce(10)
+
+        Warning
+        -------
+        :meth:`.naive_coalesce` simply combines adjacent partitions to achieve
+        the desired number. It does not attempt to rebalance, unlike
+        :meth:`.repartition`, so it can produce a heavily unbalanced dataset. An
+        unbalanced dataset can be inefficient to operate on because the work is
+        not evenly distributed across partitions.
+
+        Parameters
+        ----------
+        max_partitions : int
+            Desired number of partitions. If the current number of partitions is
+            less than or equal to `max_partitions`, do nothing.
+
+        Returns
+        -------
+        :class:`.Table`
+            Table with at most `max_partitions` partitions.
+        """
+
+        return Table(TableRepartition(
+            self._tir, max_partitions, RepartitionStrategy.NAIVE_COALESCE))
 
     @typecheck_method(right=table_type,
                       how=enumeration('inner', 'outer', 'left', 'right'),

@@ -205,7 +205,7 @@ object Pretty {
               prettyStringLiteral(uid)
             case MatrixExplodeRows(_, path) => prettyIdentifiers(path)
             case MatrixExplodeCols(_, path) => prettyIdentifiers(path)
-            case MatrixRepartition(_, n, shuffle) => n.toString + " " + prettyBooleanLiteral(shuffle)
+            case MatrixRepartition(_, n, strategy) => s"$n $strategy"
             case MatrixChooseCols(_, oldIndices) => prettyInts(oldIndices)
             case MatrixMapCols(_, _, newKey) => prettyStringsOpt(newKey)
             case MatrixKeyRowsBy(_, keys, isSorted) =>
@@ -260,7 +260,7 @@ object Pretty {
               prettyIdentifiers(keys) + " " +
                 prettyBooleanLiteral(isSorted)
             case TableRange(n, nPartitions) => s"$n $nPartitions"
-            case TableRepartition(_, n, shuffle) => n.toString + " " + prettyBooleanLiteral(shuffle)
+            case TableRepartition(_, n, strategy) => s"$n $strategy"
             case TableHead(_, n) => n.toString
             case TableJoin(_, _, joinType, joinKey) => s"$joinType $joinKey"
             case TableLeftJoinRightDistinct(_, _, root) => prettyIdentifier(root)

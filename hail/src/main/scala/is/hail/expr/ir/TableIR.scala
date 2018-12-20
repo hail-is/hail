@@ -347,11 +347,17 @@ case class TableHead(child: TableIR, n: Long) extends TableIR {
   }
 }
 
-case class TableRepartition(child: TableIR, n: Int, shuffle: Boolean) extends TableIR {
+object RepartitionStrategy {
+  val SHUFFLE: Int = 0
+  val COALESCE: Int = 1
+  val NAIVE_COALESCE: Int = 2
+}
+
+case class TableRepartition(child: TableIR, n: Int, strategy: Int) extends TableIR {
   def typ: TableType = child.typ
 
   override lazy val rvdType: RVDType = {
-    if (shuffle)
+    if (strategy == RepartitionStrategy.SHUFFLE)
       typ.canonicalRVDType
     else
       child.rvdType
@@ -361,12 +367,18 @@ case class TableRepartition(child: TableIR, n: Int, shuffle: Boolean) extends Ta
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableRepartition = {
     val IndexedSeq(newChild: TableIR) = newChildren
-    TableRepartition(newChild, n, shuffle)
+    TableRepartition(newChild, n, strategy)
   }
 
   protected[ir] override def execute(hc: HailContext): TableValue = {
     val prev = child.execute(hc)
-    prev.copy(rvd = prev.rvd.coalesce(n, shuffle))
+    val rvd = strategy match {
+      case RepartitionStrategy.SHUFFLE => prev.rvd.coalesce(n, shuffle = true)
+      case RepartitionStrategy.COALESCE => prev.rvd.coalesce(n, shuffle = false)
+      case RepartitionStrategy.NAIVE_COALESCE => prev.rvd.naiveCoalesce(n)
+    }
+
+    prev.copy(rvd = rvd)
   }
 }
 
