@@ -190,7 +190,7 @@ def eval_typed(expression):
     analyze('eval_typed', expression, Indices(expression._indices.source))
 
     if expression._indices.source is None:
-        return (Env.hc()._backend.interpret(expression._ir), expression.dtype)
+        return (Env.backend().execute(expression._ir), expression.dtype)
     else:
         return expression.collect()[0], expression.dtype
 

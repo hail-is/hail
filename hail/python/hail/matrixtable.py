@@ -1688,7 +1688,7 @@ class MatrixTable(ExprContainer):
         base, _ = self._process_joins(expr)
         analyze('MatrixTable.aggregate_rows', expr, self._global_indices, {self._row_axis})
         subst_query = subst(expr._ir, {}, {'va': Ref('row')})
-        return Env.hc()._backend.interpret(TableAggregate(MatrixRowsTable(base._mir), subst_query))
+        return Env.backend().execute(TableAggregate(MatrixRowsTable(base._mir), subst_query))
 
     @typecheck_method(expr=expr_any)
     def aggregate_cols(self, expr) -> Any:
@@ -1733,7 +1733,7 @@ class MatrixTable(ExprContainer):
         base, _ = self._process_joins(expr)
         analyze('MatrixTable.aggregate_cols', expr, self._global_indices, {self._col_axis})
         subst_query = subst(expr._ir, {}, {'sa': Ref('row')})
-        return Env.hc()._backend.interpret(TableAggregate(MatrixColsTable(base._mir), subst_query))
+        return Env.backend().execute(TableAggregate(MatrixColsTable(base._mir), subst_query))
 
     @typecheck_method(expr=expr_any)
     def aggregate_entries(self, expr) -> Any:
@@ -1773,7 +1773,7 @@ class MatrixTable(ExprContainer):
 
         base, _ = self._process_joins(expr)
         analyze('MatrixTable.aggregate_entries', expr, self._global_indices, {self._row_axis, self._col_axis})
-        return Env.hc()._backend.interpret(MatrixAggregate(base._mir, expr._ir))
+        return Env.backend().execute(MatrixAggregate(base._mir, expr._ir))
 
     @typecheck_method(field_expr=oneof(str, Expression))
     def explode_rows(self, field_expr) -> 'MatrixTable':
@@ -2088,7 +2088,7 @@ class MatrixTable(ExprContainer):
             Number of rows in the matrix.
         """
 
-        return Env.hc()._backend.interpret(
+        return Env.backend().execute(
             TableCount(MatrixRowsTable(self._mir)))
 
     def _force_count_rows(self):
@@ -2113,7 +2113,7 @@ class MatrixTable(ExprContainer):
             Number of columns in the matrix.
         """
 
-        return Env.hc()._backend.interpret(
+        return Env.backend().execute(
             TableCount(MatrixColsTable(self._mir)))
 
     def count(self) -> Tuple[int, int]:
@@ -2160,7 +2160,7 @@ class MatrixTable(ExprContainer):
         """
 
         writer = MatrixNativeWriter(output, overwrite, stage_locally, _codec_spec)
-        Env.hc()._backend.interpret(MatrixWrite(self._mir, writer))
+        Env.backend().execute(MatrixWrite(self._mir, writer))
 
     def globals_table(self) -> Table:
         """Returns a table with a single row with the globals of the matrix table.

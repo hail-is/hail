@@ -12,10 +12,6 @@ class Backend(object):
     def execute(self, ir):
         return
 
-    # FIXME delete
-    def interpret(self, ir):
-        return self.execute(ir)
-
     @abc.abstractmethod
     def table_read_type(self, table_read_ir):
         return

@@ -411,7 +411,7 @@ class Table(ExprContainer):
         -------
         :obj:`int`
         """
-        return Env.hc()._backend.interpret(TableCount(self._tir))
+        return Env.backend().execute(TableCount(self._tir))
 
     def _force_count(self):
         return self._jt.forceCount()
@@ -995,7 +995,6 @@ class Table(ExprContainer):
         """
 
         Env.backend().execute(
-            # FIXME write getExportType in Python
             TableExport(self._tir, output, types_file, header, Env.hail().utils.ExportType.getExportType(parallel)))
 
     def group_by(self, *exprs, **named_exprs) -> 'GroupedTable':
@@ -1135,7 +1134,7 @@ class Table(ExprContainer):
         base, _ = self._process_joins(expr)
         analyze('Table.aggregate', expr, self._global_indices, {self._row_axis})
 
-        return Env.hc()._backend.interpret(TableAggregate(base._tir, expr._ir))
+        return Env.backend().execute(TableAggregate(base._tir, expr._ir))
 
     @typecheck_method(output=str,
                       overwrite=bool,
@@ -1165,7 +1164,7 @@ class Table(ExprContainer):
             If ``True``, overwrite an existing file at the destination.
         """
 
-        Env.hc()._backend.interpret(TableWrite(self._tir, output, overwrite, stage_locally, _codec_spec))
+        Env.backend().execute(TableWrite(self._tir, output, overwrite, stage_locally, _codec_spec))
 
     @typecheck_method(n=int, width=int, truncate=nullable(int), types=bool, handler=anyfunc)
     def show(self, n=10, width=90, truncate=None, types=True, handler=print):
