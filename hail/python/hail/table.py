@@ -1821,8 +1821,7 @@ class Table(ExprContainer):
         """
 
         return Table(TableRepartition(
-            self._tir, n,
-            self._mir, n_partitions, RepartitionStrategy.NAIVE_COALESCE))
+            self._tir, n, RepartitionStrategy.NAIVE_COALESCE))
 
     @typecheck_method(max_partitions=int)
     def naive_coalesce(self, max_partitions: int) -> 'MatrixTable':
