@@ -3,7 +3,7 @@ package is.hail.expr.types.physical
 import is.hail.annotations._
 import is.hail.asm4s.Code
 import is.hail.expr.ir.EmitMethodBuilder
-import is.hail.expr.types.virtual.{Field, TStruct}
+import is.hail.expr.types.virtual.{Field, TStruct, Type}
 import is.hail.utils._
 
 import scala.collection.JavaConverters._
@@ -226,11 +226,13 @@ final case class PStruct(fields: IndexedSeq[PField], override val required: Bool
     }
   }
 
-  def selectFields(names: Set[String], keep: Boolean = true): PStruct =
-    PStruct(
-      fields
-        .filter(f => if (keep) names.contains(f.name) else !names.contains(f.name))
-        .map(f => f.name -> f.typ): _*)
+  def selectFields(names: Seq[String]): PStruct = {
+    PStruct(required,
+      names.map(f => f -> field(f).typ): _*)
+  }
+
+  def dropFields(names: Set[String]): PStruct =
+    selectFields(fieldNames.filter(!names.contains(_)))
 
   def typeAfterSelect(keep: IndexedSeq[Int]): PStruct =
     PStruct(keep.map(i => fieldNames(i) -> types(i)): _*)
@@ -249,4 +251,24 @@ final case class PStruct(fields: IndexedSeq[PField], override val required: Bool
     val f = field(fieldName)
     loadField(region, fieldOffset(offset, f.index), f.index)
   }
+
+  def insertFields(fieldsToInsert: TraversableOnce[(String, PType)]): PStruct = {
+    val ab = new ArrayBuilder[PField](fields.length)
+    var i = 0
+    while (i < fields.length) {
+      ab += fields(i)
+      i += 1
+    }
+    val it = fieldsToInsert.toIterator
+    while (it.hasNext) {
+      val (name, typ) = it.next
+      if (fieldIdx.contains(name)) {
+        val j = fieldIdx(name)
+        ab(j) = PField(name, typ, j)
+      } else
+        ab += PField(name, typ, ab.length)
+    }
+    PStruct(ab.result(), required)
+  }
+
 }

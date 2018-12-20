@@ -19,9 +19,9 @@ class MatrixTypeSerializer extends CustomSerializer[MatrixType](format => (
 object MatrixType {
   val entriesIdentifier = "the entries! [877f12a8827e18f61222c6c8c5fb04a8]"
 
-  def getRowType(rvRowType: PStruct): PStruct = rvRowType.selectFields(Set(entriesIdentifier), keep = false)
+  def getRowType(rvRowType: PStruct): PStruct = rvRowType.dropFields(Set(entriesIdentifier))
   def getEntryArrayType(rvRowType: PStruct): PArray = rvRowType.field(entriesIdentifier).typ.asInstanceOf[PArray]
-  def getSplitEntriesType(rvRowType: PStruct): PStruct = rvRowType.selectFields(Set(entriesIdentifier), keep = true)
+  def getSplitEntriesType(rvRowType: PStruct): PStruct = rvRowType.selectFields(Array(entriesIdentifier))
   def getEntryType(rvRowType: PStruct): PStruct = getEntryArrayType(rvRowType).elementType.asInstanceOf[PStruct]
   def getEntriesIndex(rvRowType: PStruct): Int = rvRowType.fieldIdx(entriesIdentifier)
 

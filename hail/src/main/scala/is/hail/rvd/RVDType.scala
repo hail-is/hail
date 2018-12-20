@@ -22,7 +22,7 @@ final case class RVDType(rowType: PStruct, key: IndexedSeq[String] = FastIndexed
   val keySet: Set[String] = key.toSet
 
   val kType: PStruct = rowType.typeAfterSelect(key.map(rowType.fieldIdx))
-  val valueType: PStruct = rowType.selectFields(keySet, keep = false)
+  val valueType: PStruct = rowType.dropFields(keySet)
 
   val kFieldIdx: Array[Int] = key.map(n => rowType.fieldIdx(n)).toArray
   val valueFieldIdx: Array[Int] = (0 until rowType.size)
