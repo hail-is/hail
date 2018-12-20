@@ -223,16 +223,20 @@ class TableDistinct(TableIR):
     def render(self, r):
         return f'(TableDistinct {r(self.child)})'
 
+class RepartitionStrategy:
+    SHUFFLE = 0
+    COALESCE = 1
+    NAIVE_COALESCE = 2
 
 class TableRepartition(TableIR):
-    def __init__(self, child, n, shuffle):
+    def __init__(self, child, n, strategy):
         super().__init__()
         self.child = child
         self.n = n
-        self.shuffle = shuffle
+        self.strategy = strategy
 
     def render(self, r):
-        return f'(TableRepartition {self.n} {self.shuffle} {r(self.child)})'
+        return f'(TableRepartition {self.n} {self.strategy} {r(self.child)})'
 
 
 class CastMatrixToTable(TableIR):

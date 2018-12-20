@@ -1,7 +1,5 @@
 package is.hail.variant
 
-import java.io.InputStream
-
 import is.hail.annotations._
 import is.hail.check.Gen
 import is.hail.expr.ir._
@@ -9,8 +7,6 @@ import is.hail.expr.types._
 import is.hail.expr.types.physical.{PArray, PStruct}
 import is.hail.expr.types.virtual._
 import is.hail.expr.{ir, _}
-import is.hail.io.gen.ExportGen
-import is.hail.io.plink.ExportPlink
 import is.hail.linalg._
 import is.hail.methods._
 import is.hail.rvd._
@@ -449,88 +445,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     new MatrixTable(hc, MatrixAnnotateColsTable(ast, kt.tir, root))
   }
 
-  def rvdLeftJoinDistinctAndInsert(right: RVD, root: String, product: Boolean): MatrixTable = {
-    assert(!rowKey.contains(root))
-
-    val valueType = if (product)
-      PArray(right.typ.valueType, required = true)
-    else
-      right.typ.valueType
-
-    val rightRVD = if (product)
-      right.groupByKey(" !!! values !!! ")
-    else
-      right
-
-    val (newRVPType, ins) = rvRowType.physicalType.unsafeStructInsert(valueType, List(root))
-    val newRVType = newRVPType.virtualType
-
-    val rightRowType = rightRVD.rowType
-    val leftRowType = rvRowType
-
-    val rightValueIndices = rightRVD.typ.valueFieldIdx
-    assert(!product || rightValueIndices.length == 1)
-
-    val joiner = { (ctx: RVDContext, it: Iterator[JoinedRegionValue]) =>
-      val rvb = ctx.rvb
-      val rv = RegionValue()
-
-      it.map { jrv =>
-        val lrv = jrv.rvLeft
-        rvb.start(newRVType.physicalType)
-        ins(lrv.region, lrv.offset, rvb,
-          () => {
-            if (product) {
-              if (jrv.rvRight == null) {
-                rvb.startArray(0)
-                rvb.endArray()
-              } else
-                rvb.addField(rightRowType.physicalType, jrv.rvRight, rightValueIndices(0))
-            } else {
-              if (jrv.rvRight == null)
-                rvb.setMissing()
-              else {
-                rvb.startStruct()
-                var i = 0
-                while (i < rightValueIndices.length) {
-                  rvb.addField(rightRowType.physicalType, jrv.rvRight, rightValueIndices(i))
-                  i += 1
-                }
-                rvb.endStruct()
-              }
-            }
-          })
-        rv.set(ctx.region, rvb.end())
-        rv
-      }
-    }
-
-    val newMatrixType = matrixType.copy(rvRowType = newRVType)
-    val joinedRVD = this.rvd.orderedJoinDistinct(
-      right,
-      right.typ.key.length,
-      "left",
-      joiner,
-      newMatrixType.canonicalRVDType
-    )
-
-    copyMT(matrixType = newMatrixType, rvd = joinedRVD)
-  }
-
-  def annotateRowsTableIR(table: Table, uid: String, irs: java.util.ArrayList[String]): MatrixTable = {
-    val parseEnv = IRParserEnvironment(matrixType.refMap)
-    val key = Option(irs).map { irs =>
-      irs.asScala
-        .toFastIndexedSeq
-        .map(IRParser.parse_value_ir(_, parseEnv))
-    }
-    new MatrixTable(hc, MatrixAnnotateRowsTable(ast, table.tir, uid, key))
-  }
-
   def nPartitions: Int = rvd.getNumPartitions
-
-  def annotateRowsVDS(right: MatrixTable, root: String): MatrixTable =
-    rvdLeftJoinDistinctAndInsert(right.value.rowsRVD(), root, product = false)
 
   def count(): (Long, Long) = (countRows(), countCols())
 
@@ -1082,13 +997,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     if (foundError)
       fatal("found one or more type check errors")
-  }
-
-  def globalsTable(): Table = {
-    Table(hc,
-      sparkContext.parallelize[Row](Array(globals.value)),
-      globalType,
-      FastIndexedSeq())
   }
 
   def rowsTable(): Table = new Table(hc, MatrixRowsTable(ast))

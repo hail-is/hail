@@ -857,7 +857,7 @@ class IRSuite extends SparkSuite {
         TableMultiWayZipJoin(IndexedSeq(read, read), " * data * ", "globals"),
         MatrixEntriesTable(mtRead),
         MatrixRowsTable(mtRead),
-        TableRepartition(read, 10, false),
+        TableRepartition(read, 10, RepartitionStrategy.COALESCE),
         TableHead(read, 10),
         TableParallelize(
           MakeStruct(FastSeq(

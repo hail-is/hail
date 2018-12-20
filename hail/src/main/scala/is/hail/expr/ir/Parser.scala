@@ -820,9 +820,9 @@ object IRParser {
         TableKeyByAndAggregate(child, expr, newKey, nPartitions, bufferSize)
       case "TableRepartition" =>
         val n = int32_literal(it)
-        val shuffle = boolean_literal(it)
+        val strategy = int32_literal(it)
         val child = table_ir(env)(it)
-        TableRepartition(child, n, shuffle)
+        TableRepartition(child, n, strategy)
       case "TableHead" =>
         val n = int64_literal(it)
         val child = table_ir(env)(it)
@@ -997,8 +997,8 @@ object IRParser {
       case "MatrixRepartition" =>
         val child = matrix_ir(env)(it)
         val n = int32_literal(it)
-        val shuffle = boolean_literal(it)
-        MatrixRepartition(child, n, shuffle)
+        val strategy = int32_literal(it)
+        MatrixRepartition(child, n, strategy)
       case "MatrixUnionRows" =>
         val children = matrix_ir_children(env)(it)
         MatrixUnionRows(children)
