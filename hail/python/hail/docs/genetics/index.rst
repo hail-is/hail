@@ -5,8 +5,6 @@ genetics
 .. toctree::
     :maxdepth: 2
 
-.. currentmodule:: hail.genetics
-
 .. rubric:: Classes
 
 .. autosummary::
@@ -14,8 +12,8 @@ genetics
     :toctree: ./
     :template: class.rst
 
-    Call
-    Locus
-    Pedigree
-    ReferenceGenome
-    Trio
+    hail.Call
+    hail.Locus
+    hail.Pedigree
+    hail.ReferenceGenome
+    hail.Trio

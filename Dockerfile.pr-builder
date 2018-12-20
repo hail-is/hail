@@ -65,7 +65,7 @@ RUN wget -O spark-2.2.0-bin-hadoop2.7.tgz https://archive.apache.org/dist/spark/
 ENV SPARK_HOME /spark/
 
 WORKDIR /plink
-RUN wget -O plink_linux_x86_64.zip http://www.cog-genomics.org/static/bin/plink/plink_linux_x86_64.zip && \
+RUN wget -O plink_linux_x86_64.zip https://storage.googleapis.com/hail-common/plink_linux_x86_64_20181202.zip && \
     unzip plink_linux_x86_64.zip && \
     rm -rf plink_linux_x86_64.zip && \
     ln -s /plink/plink /bin/plink
