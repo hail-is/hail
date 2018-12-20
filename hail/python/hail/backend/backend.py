@@ -57,7 +57,7 @@ class SparkBackend(Backend):
     def to_pandas(self, flatten):
         return self.to_spark(flatten).toPandas()
 
-    def from_pandas(df, key):
+    def from_pandas(self, df, key):
         return Table.from_spark(Env.sql_context().createDataFrame(df), key)
 
 class ServiceBackend(Backend):
