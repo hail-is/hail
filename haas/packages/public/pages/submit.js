@@ -1,6 +1,10 @@
 import fetch from 'isomorphic-unfetch';
 import Upload from 'components/Upload';
 import Auth from 'lib/Auth';
+import getConfig from 'next/config';
+
+const { publicRuntimeConfig } = getConfig();
+const CI_ROOT_URL = publicRuntimeConfig.CI.ROOT_URL;
 
 const species = ['Human', 'Mouse', 'Rhesus', 'Rat'];
 const genomes = {
@@ -111,7 +115,7 @@ class Submit extends React.Component {
 
   componentDidMount = async () => {
     try {
-      const val = fetch('http://localhost:8000/api/ci', {
+      const val = fetch(CI_ROOT_URL, {
         headers: {
           Authorization: `Bearer ${Auth.getAccessToken()}`
         }

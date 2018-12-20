@@ -17,6 +17,10 @@ const Overview = ({ data }) => {
 
   const { user_data, unassigned, urgent_issues } = data;
 
+  if (!user_data) {
+    return <div>No data found</div>;
+  }
+
   return (
     <div id="scorecard" className="grid-container">
       {urgent_issues.length > 0 && (

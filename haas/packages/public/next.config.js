@@ -19,7 +19,7 @@ module.exports = withTypescript(
         webpack(config, options) {
           if (options.isServer) {
             config.plugins.push(new ForkTsCheckerWebpackPlugin());
-          } else {
+          } else if (config.optimization.splitChunks.cacheGroups.commons) {
             config.optimization.splitChunks.cacheGroups.commons.minChunks = 2;
             console.info(config.optimization.splitChunks.cacheGroups);
           }
@@ -45,17 +45,17 @@ const publicRuntimeConfig = {
   // Will be available on both server and client
   staticFolder: '/static',
   API_UPLOAD_URL:
-    process.env.API_UPLOAD_URL || 'http://localhost:8000/api/jobs/upload',
+    process.env.API_UPLOAD_URL || 'https://api.localhost/jobs/upload',
   API_DOWNLOAD_URL:
-    process.env.API_DOWNLOAD_URL || 'http://localhost:8000/api/jobs/download',
+    process.env.API_DOWNLOAD_URL || 'https://api.localhost/jobs/download',
   GRAPHQL: {
-    ENDPOINT: process.env.GRAPHQL_ENDPOINT || 'http://localhost:8000/graphql'
+    ENDPOINT: process.env.GRAPHQL_ENDPOINT || 'https://api.localhost/graphql'
   },
   AUTH0: {
     DOMAIN: process.env.AUTH0_DOMAIN || 'hail.auth0.com',
     AUDIENCE: process.env.AUTH0_AUDIENCE,
     REDIRECT_URI:
-      process.env.AUTH0_REDIRECT_URI || 'http://localhost:3000/auth0callback',
+      process.env.AUTH0_REDIRECT_URI || 'https://localhost/auth0callback',
     CLIENT_ID: process.env.AUTH0_CLIENT_ID,
     RESPONSE_TYPE: process.env.AUTH0_RESPONSE_TYPE || 'token id_token',
     SCOPE: 'openid profile' //process.env.AUTH0_SCOPE ||
@@ -64,9 +64,12 @@ const publicRuntimeConfig = {
     ACCESS_TOKEN_UNSAFE: process.env.GITHUB_ACCESS_TOKEN
   },
   SCORECARD: {
-    URL: process.env.SCORECARD_URL || 'http://localhost:5000/json',
+    URL: process.env.SCORECARD_URL || 'https://scorecard.localhost/json',
     USER_URL:
-      process.env.SCORECARD_USER_URL || 'http://localhost:5000/json/users'
+      process.env.SCORECARD_USER_URL || 'https://scorecard.localhost/json/users'
+  },
+  CI: {
+    ROOT_URL: process.env.CI_ROOT_URL || 'https://api.localhost/ci'
   }
 };
 

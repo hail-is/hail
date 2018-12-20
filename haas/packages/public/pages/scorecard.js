@@ -43,6 +43,10 @@ class Scorecard extends Component {
   }
 
   render() {
+    if (!this.props.userData) {
+      return <div>No data</div>;
+    }
+
     if (!this.props.user) {
       return <Overview data={this.props.userData} />;
     }

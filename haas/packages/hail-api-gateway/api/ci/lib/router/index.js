@@ -6,7 +6,7 @@ module.exports = userInstance => {
 
   const route1 = {
     method: 'GET',
-    path: '/api/ci',
+    path: '/ci',
     handlers: [
       uM.verifyToken,
       uM.getAuth0ProviderAccessToken,
