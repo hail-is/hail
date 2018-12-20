@@ -574,7 +574,7 @@ class PruneSuite extends SparkSuite {
     checkMemo(
       TableCollect(tab),
       TStruct("rows" -> TArray(TStruct("3" -> TString())), "global" -> TStruct("g2" -> TInt32())),
-      Array(subsetTable(tab.typ, "row.3", "global.g1")))
+      Array(subsetTable(tab.typ, "row.3", "global.g2")))
   }
 
   @Test def testTableAggregateMemo() {
