@@ -209,7 +209,7 @@ object LowerMatrixIR {
               'i ~> let(__cols_element = '__cols_and_globals (colsField)('i)) {
                 makeStruct(
                   // key struct
-                  '_1 -> makeStruct(colKey.map(k => Symbol(k) -> '__cols_element (Symbol(k))): _*),
+                  '_1 -> '__cols_element.selectFields(colKey: _*),
                   '_2 -> '__cols_element)
               }
             }
