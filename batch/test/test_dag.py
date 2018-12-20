@@ -191,7 +191,7 @@ def test_one_of_two_parents_already_cancelled(client):
 def test_parent_deleted(client):
     batch = client.create_batch()
     head = batch.create_job('alpine:3.8', command=['echo', 'head'])
-    left = batch.create_job('alpine:3.8', command=['echo', 'left'], parents=[head.id])
+    left = batch.create_job('alpine:3.8', command=['sleep', '60'], parents=[head.id])
     right = batch.create_job('alpine:3.8', command=['echo', 'right'], parents=[head.id])
     tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parents=[left.id, right.id])
     left.delete()
