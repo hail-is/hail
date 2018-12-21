@@ -108,7 +108,7 @@ the k8s pod). Now you can load the conda environment for testing and run the
 tests against this deployment:
 
 ```
-conda env create -f environment.yaml
+conda env create -f environment.yml
 conda activate hail-batch
 make test-local
 ```
