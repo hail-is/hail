@@ -143,7 +143,7 @@ def root():
         return render_template('index.html',
                                form_action_url=external_url_for('new'),
                                images=list(WORKER_IMAGES),
-                               default='ccg-workshop')
+                               default='hail')
     svc_name = session['svc_name']
     jupyter_token = session['jupyter_token']
     log.info('redirecting to ' + external_url_for(f'instance/{svc_name}/?token={jupyter_token}'))
