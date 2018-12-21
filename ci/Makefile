@@ -3,33 +3,21 @@
 .PHONY: run-service deploy
 
 PROJECT := $(shell gcloud config get-value project)
-
-# Grabs details of first instance matching HAIL_CI_INSTANCE
-DETAILS := $(shell gcloud compute instances list --format='table(NAME,STATUS,tags.list(),EXTERNAL_IP,ZONE)' | tail -n +2 | grep "$(HAIL_CI_INSTANCE)" --color=never | grep RUNNING | head -n 1 | tr -s ' ' '\n' )
-INSTANCE := $(word 1, $(DETAILS))
-EXTERNAL_IP := $(word 4, $(DETAILS))
-ZONE := $(word 5, $(DETAILS))
-
 HAIL_CI_LOCAL_BATCH_PORT ?= 8888
 
-# Must not be indented for conditions to work
-check-vars:
-ifeq ($(strip $(HAIL_CI_INSTANCE)),)
-		$(error HAIL_CI_INSTANCE variable not set or empty (HAIL_CI_INSTANCE='tag_name or instance_name'))
+ifndef HAIL_CI_INSTANCE
+$(error HAIL_CI_INSTANCE is not set)
 endif
 
-ifeq ($(strip $(INSTANCE)),)
-		$(error Couldn't find an instance name matching $(HAIL_CI_INSTANCE))
-endif
+DETAILS := $(shell gcloud compute instances list --format='table(EXTERNAL_IP,ZONE)' --filter="status=running AND name=${HAIL_CI_INSTANCE}" | tail -n +2 | tr -s ' ' '\n' )
 
-ifeq ($(strip $(EXTERNAL_IP)),)
-		$(error Couldn't find an external ip for $(HAIL_CI_INSTANCE))
+ifeq ($(words $(DETAILS)),2)
+EXTERNAL_IP := $(word 1, $(DETAILS))
+ZONE := $(word 2, $(DETAILS))
+else
+EXTERNAL_IP = $(error "instance look up failed for HAIL_CI_INSTANCE=$(HAIL_CI_INSTANCE). Found: '$(DETAILS)'")
+ZONE = $(EXTERNAL_IP)
 endif
-
-ifeq ($(strip $(ZONE)),)
-		$(error Couldn't find a zone for $(HAIL_CI_INSTANCE))
-endif
-	@echo "\n\nUsing gcloud instance name: $(INSTANCE), external ip: $(EXTERNAL_IP), zone: $(ZONE)\n\n"
 
 setup-conda-env:
 	conda env create --name hail-ci -f environment.yml
@@ -55,7 +43,7 @@ restart-proxy:
 	-kill -9 $(shell cat proxy.pid)
 	-rm -rf proxy.pid
 
-	$(shell gcloud compute ssh $(INSTANCE) --project $(PROJECT) --zone $(ZONE) \
+	$(shell gcloud compute ssh $(HAIL_CI_INSTANCE) --project $(PROJECT) --zone $(ZONE) \
 	  --ssh-flag="-R 0.0.0.0:$(HAIL_CI_REMOTE_PORT):127.0.0.1:5000" \
 	  --ssh-flag='-N' \
 	  --ssh-flag='-T' \
@@ -76,8 +64,7 @@ restart-batch-proxy:
 	kubectl port-forward $(BATCH_POD) 8888:5000 > batch-proxy.log 2>batch-proxy.err & echo $$! > batch-proxy.pid
 
 run-local: HAIL_CI_REMOTE_PORT = 3000
-# SELF_HOSTNAME and BATCH_SERVER_URL assignment run in shell context
-# and therefore cannot have a space (else it's a 2 operand command)
+
 run-local: restart-all-proxies
 	SELF_HOSTNAME=http://$(EXTERNAL_IP):$(HAIL_CI_REMOTE_PORT) \
 	BATCH_SERVER_URL=http://127.0.0.1:$(HAIL_CI_LOCAL_BATCH_PORT) \

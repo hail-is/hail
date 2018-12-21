@@ -26,10 +26,7 @@ command sets up a proxy to the batch server from your local port `8888`. If a
 proxy was previously created by this command, it kills it.
 
 We'll need to know which Google Cloud Compute instance to use,
-by passing the `HAIL_CI_INSTANCE` with an instance name, or one of an instance's tags
-
-If the `HAIL_CI_INSTANCE` value isn't unique to one instance, the first
-matching instance will be used
+by passing the `HAIL_CI_INSTANCE` with an instance name
 
 ```
 HAIL_CI_INSTANCE='dk-test' make restart-batch-proxy
