@@ -99,13 +99,13 @@ kubeconfig entry generated for vdc.
 
 ---
 
-### Build Batch and test image
+## Build Batch and test image
 
 Edit `deployment.yaml.in` so that the container named `batch` has `imagePullPolicy: Never`.
 
 - Ensures that k8s looks for images in the local image cache (which you updated when you ran `make build build-test`), instead of the Google Container Registry.
 
-Create 2 Docker images: Batch and an image for testing Batch
+Create 2 Docker images: `batch` and an image for testing `batch`
 
 ```
 make build build-test
@@ -121,7 +121,7 @@ kubectl create clusterrolebinding \
   --serviceaccount=default:default
 ```
 
-Create a batch service:
+Create a `batch` service:
 
 ```
 kubectl create -f deployment.yaml.in
@@ -133,7 +133,7 @@ If you ever need to shutdown the service, execute:
 kubectl delete -f deployment.yaml.in
 ```
 
-Look for the newly created batch pod:
+Look for the newly created `batch` pod:
 
 ```
 kubectl get pods
@@ -158,7 +158,7 @@ make test-local
 
 ---
 
-### Kubernetes and Docker primer
+## Kubernetes and Docker primer
 
 [Python client api](https://github.com/kubernetes-client/python/blob/master/kubernetes/README.md)
 
@@ -259,7 +259,7 @@ docker inspect <container-id> | grep IPAddress
 
 ---
 
-### Testing docker images
+## Testing docker images
 
 The following will set some environment variables so that future invocations of
 `docker build` will make images available to the minikube cluster. This allows
