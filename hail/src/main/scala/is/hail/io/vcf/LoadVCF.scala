@@ -1214,7 +1214,7 @@ case class VCFsReader(
         entryType = genotypeSignature)
 
       val partitions = {
-        val r = new TabixReader(file)
+        val r = new TabixReader(file, hConf)
         localRangeBounds.zipWithIndex.map { case (b, i) =>
           if (!(b.includesStart && b.includesEnd))
             fatal("range bounds must be inclusive")
