@@ -1,4 +1,4 @@
-.PHONY: check-vars run restart-proxy restart-batch-proxy restart-all-proxies
+.PHONY: run restart-proxy restart-batch-proxy restart-all-proxies
 .PHONY: setup-conda-env build-hail-ci push-hail-ci test-locally
 .PHONY: run-service deploy
 
@@ -9,7 +9,7 @@ ifndef HAIL_CI_INSTANCE
 $(error HAIL_CI_INSTANCE is not set)
 endif
 
-DETAILS := $(shell gcloud compute instances list --format='table(EXTERNAL_IP,ZONE)' --filter="status=running AND name=${HAIL_CI_INSTANCE}" | tail -n +2 | tr -s ' ' '\n' )
+DETAILS := $(shell gcloud compute instances list --format='table(EXTERNAL_IP,ZONE)' --filter="status=running AND name=$(HAIL_CI_INSTANCE)" | tail -n +2 | tr -s ' ' '\n' )
 
 ifeq ($(words $(DETAILS)),2)
 EXTERNAL_IP := $(word 1, $(DETAILS))
@@ -37,7 +37,6 @@ push-hail-ci: build-hail-ci
 
 restart-all-proxies: restart-proxy restart-batch-proxy
 
-restart-proxy: check-vars
 restart-proxy:
 	-kill $(shell cat proxy.pid)
 	-kill -9 $(shell cat proxy.pid)
@@ -50,7 +49,6 @@ restart-proxy:
 	  --ssh-flag='-v' \
 	  --dry-run) > proxy.log 2>proxy.err & echo $$! > proxy.pid
 
-restart-batch-proxy: check-vars
 restart-batch-proxy:
 	-kill $(shell cat batch-proxy.pid)
 	-kill -9 $(shell cat batch-proxy.pid)
