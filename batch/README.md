@@ -24,25 +24,28 @@ brew cask reinstall minikube # or equivalent on your OS
 minikube start
 ```
 
-When you want to return to using a google k8s cluster, you can run this:
+To use a remote Google Cloud k8s cluster instead:
 
+1. Login with a Google account that is linked to a Google Cloud project that manages the cluster of interest
 ```sh
-# Login with a Google account that is linked to a Google Cloud project that manages the cluster of interest
 gcloud auth login
+```
 
+2. Set the active project 
+```sh
 gcloud projects list
-# Shows
-#PROJECT_ID             NAME             PROJECT_NUMBER
-#my-awesome-project     xxxx             xxxx
+PROJECT_ID             NAME             PROJECT_NUMBER
+my-awesome-project     xxxx             xxxx
 
 gcloud config set project my-awesome-project
+```
+
+3. Update your `kubeconfig` file to point `kubectl` to the desired cluster
+```sh
 gcloud container clusters list
+NAME             LOCATION       MASTER_VERSION  MASTER_IP        MACHINE_TYPE   NODE_VERSION    NUM_NODES  STATUS
+awesome-cluster  us-central1-a  xxxx            xxxx               xxxx         xxxx            N          RUNNING
 
-#NAME             LOCATION       MASTER_VERSION  MASTER_IP        MACHINE_TYPE   NODE_VERSION    NUM_NODES  STATUS
-#awesome-cluster  us-central1-a  xxxx            xxxx               xxxx         xxxx            N          RUNNING
-
-# Here zone is called LOCATION
-# Lets set kubectl to use awesome-cluster
 gcloud container clusters get-credentials awesome-cluster --zone us-central1-a
 ```
 
@@ -51,9 +54,7 @@ To check what cluster `kubectl` is currently configured to use
 ```sh
 kubectl config view
 
-# Shows
-#...
-# current-context: gke_my-awesome-project_us-central1-a_awesome-cluster
+... current-context: gke_my-awesome-project_us-central1-a_awesome-cluster
 ```
 
 ### Build the batch and test image
