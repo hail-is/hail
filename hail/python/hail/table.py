@@ -1312,7 +1312,7 @@ class Table(ExprContainer):
         handler : Callable[[str], Any]
             Handler function for data string.
         """
-        handler(self._show_str(n, width, truncate, types))
+        handler(self._show(n, width, truncate, types))
 
     def index(self, *exprs):
         """Expose the row values as if looked up in a dictionary, indexing
