@@ -1263,6 +1263,9 @@ class StructExpression(Mapping, Expression):
             if isinstance(self._ir, MakeStruct):
                 expr = construct_expr(self._ir.fields[i][1], t, self._indices,
                                           self._aggregations)
+            elif isinstance(self._ir, SelectFields):
+                expr = construct_expr(GetField(self._ir.old, f), t, self._indices,
+                                      self._aggregations)
             else:
                 expr = construct_expr(GetField(self._ir, f), t, self._indices,
                                           self._aggregations)
@@ -2982,12 +2985,10 @@ def construct_expr(ir: IR,
         raise NotImplementedError(type)
 
 
-@typecheck(name=str, type=HailType, indices=Indices, prefix=nullable(str))
-def construct_reference(name, type, indices, prefix=None):
-    if prefix is not None:
-        ir = GetField(TopLevelReference(prefix), name)
-    else:
-        ir = TopLevelReference(name)
+@typecheck(name=str, type=HailType, indices=Indices)
+def construct_reference(name, type, indices):
+    assert isinstance(type, hl.tstruct)
+    ir = SelectFields(TopLevelReference(name), list(type))
     return construct_expr(ir, type, indices)
 
 @typecheck(name=str, type=HailType, indices=Indices, aggregations=LinkedList)
