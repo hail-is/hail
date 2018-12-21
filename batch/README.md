@@ -60,13 +60,13 @@ kubectl config view
 ### Build the batch and test image
 
 ```
-make build-batch build-test
+make build build-test
 ```
 
 edit the `deployment.yaml` so that the container named `batch` has
 `imagePullPolicy: Never`. This ensures that k8s does not go look for the image
 in the Google Container Registry and instead uses the local image cache (which
-you just updated when you ran `make build-batch build-test`).
+you just updated when you ran `make build build-test`).
 
 Give way too many privileges to the default service account so that `batch` can
 start new pods:
@@ -212,7 +212,7 @@ you to test images without pushing them to a remote container registry.
 
 ```
 eval $(minikube docker-env)
-make build-batch build-test
+make build build-test
 ```
 
 NB: you must also set the `imagePullPolicy` of any `container` you `kubectl
