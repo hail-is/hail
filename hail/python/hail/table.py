@@ -1168,7 +1168,7 @@ class Table(ExprContainer):
 
         Env.backend().execute(TableWrite(self._tir, output, overwrite, stage_locally, _codec_spec))
 
-    def _show_str(t, n, width, truncate, types):
+    def _show(self, n, width, truncate, types):
         width = max(width, 8)
 
         if truncate:
@@ -1206,6 +1206,7 @@ class Table(ExprContainer):
         def hl_format(v):
             return hl.bind(lambda s: hl_trunc(s), hl_repr(v))
 
+        t = self
         t = t.flatten()
         fields = [trunc(f) for f in t.row]
         n_fields = len(fields)
