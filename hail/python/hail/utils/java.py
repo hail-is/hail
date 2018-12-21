@@ -1,3 +1,4 @@
+import json
 import socketserver
 import socket
 import sys
@@ -144,6 +145,8 @@ def jiterable_to_list(it):
     else:
         return None
 
+def dump_json(obj):
+    return f'"{escape_str(json.dumps(obj))}"'
 
 def escape_str(s):
     return Env.jutils().escapePyString(s)

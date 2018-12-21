@@ -4,6 +4,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.expr.ir
+import is.hail.expr.ir.functions.RelationalFunctions
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PArray, PInt32, PStruct}
 import is.hail.expr.types.virtual._
@@ -79,7 +80,7 @@ object MatrixIR {
 abstract sealed class MatrixIR extends BaseIR {
   def typ: MatrixType
 
-  def rvdType: RVDType = ???
+  def rvdType: RVDType = typ.canonicalRVDType
 
   def partitionCounts: Option[IndexedSeq[Long]] = None
 
@@ -2294,5 +2295,25 @@ case class CastTableToMatrix(
       BroadcastIndexedSeq(colValues, TArray(typ.colType), hc.sc),
       newRVD
     )
+  }
+}
+
+case class MatrixToMatrixApply(child: MatrixIR, config: String) extends MatrixIR {
+  def children: IndexedSeq[BaseIR] = Array(child)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): MatrixIR = {
+    val IndexedSeq(newChild: MatrixIR) = newChildren
+    MatrixToMatrixApply(newChild, config)
+  }
+
+  private val function = RelationalFunctions.lookupMatrixToMatrix(config)
+
+  override val (typ, rvdType) = function.typeInfo(child.typ, child.rvdType)
+
+  override def partitionCounts: Option[IndexedSeq[Long]] =
+    if (function.preservesPartitionCounts) child.partitionCounts else None
+
+  protected[ir] override def execute(hc: HailContext): MatrixValue = {
+    function.execute(child.execute(hc))
   }
 }

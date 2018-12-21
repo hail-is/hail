@@ -685,19 +685,4 @@ class Table(val hc: HailContext, val tir: TableIR) {
       TableValue(TableType(signature, key, globalSignature), globals, rvd)
     ))
   }
-
-  def filterPartitions(parts: java.util.ArrayList[Int], keep: Boolean): Table =
-    filterPartitions(parts.asScala.toArray, keep)
-
-  def filterPartitions(parts: Array[Int], keep: Boolean = true): Table = {
-    copy2(rvd =
-      rvd.subsetPartitions(
-        if (keep)
-          parts
-        else {
-          val partSet = parts.toSet
-          (0 until rvd.getNumPartitions).filter(i => !partSet.contains(i)).toArray
-        })
-    )
-  }
 }

@@ -3139,7 +3139,7 @@ class MatrixTable(ExprContainer):
 
     @typecheck_method(parts=sequenceof(int), keep=bool)
     def _filter_partitions(self, parts, keep=True):
-        return MatrixTable._from_java(self._jmt.filterPartitions(parts, keep))
+        return MatrixTable(MatrixToMatrixApply(self._mir, {'name': 'MatrixFilterPartitions', 'parts': parts, 'keep': keep}))
 
     @classmethod
     @typecheck_method(table=Table)

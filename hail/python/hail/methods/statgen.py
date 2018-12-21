@@ -400,12 +400,12 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=()) -> 
     if is_chained:
         y_field_names = [[f'__y_{i}_{j}' for j in range(len(y[i]))] for i in range(len(y))]
         y_dict = dict(zip(itertools.chain.from_iterable(y_field_names), itertools.chain.from_iterable(y)))
-        func = Env.hail().methods.LinearRegression.chain
+        func = 'LinearRegressionRowsChained'
 
     else:
         y_field_names = list(f'__y_{i}' for i in range(len(y)))
         y_dict = dict(zip(y_field_names, y))
-        func = Env.hail().methods.LinearRegression.single_group
+        func = 'LinearRegressionRowsSingle'
 
     cov_field_names = list(f'__cov{i}' for i in range(len(covariates)))
 
@@ -418,21 +418,21 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=()) -> 
                         col_key=[],
                         entry_exprs={x_field_name: x})
 
-    jt = func(
-        mt._jmt,
-        y_field_names,
-        x_field_name,
-        cov_field_names,
-        block_size,
-        [x for x in row_fields if x not in mt.row_key])
-
-    ht_result = Table._from_java(jt)
+    config = {
+        'name': func,
+        'yFields': y_field_names,
+        'xField': x_field_name,
+        'covFields': cov_field_names,
+        'rowBlockSize': block_size,
+        'passThrough': [x for x in row_fields if x not in mt.row_key]
+    }
+    ht_result = Table(MatrixToTableApply(mt._mir, config))
 
     if not y_is_list:
         fields = ['y_transpose_x', 'beta', 'standard_error', 't_stat', 'p_value']
         ht_result = ht_result.annotate(**{f: ht_result[f][0] for f in fields})
 
-    return ht_result
+    return ht_result.persist()
 
 
 @typecheck(test=enumeration('wald', 'lrt', 'score', 'firth'),

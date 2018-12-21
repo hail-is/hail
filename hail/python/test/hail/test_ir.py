@@ -165,6 +165,8 @@ class TableIRTests(unittest.TestCase):
             ir.CastMatrixToTable(matrix_read, '__entries', '__cols'),
             ir.TableRename(table_read, {'idx': 'idx_foo'}, {'global_f32': 'global_foo'}),
             ir.TableMultiWayZipJoin([table_read, table_read], '__data', '__globals'),
+            ir.MatrixToTableApply(matrix_read, {'name': 'LinearRegressionRowsSingle', 'yFields': ['col_m'], 'xField': 'entry_m', 'covFields': [], 'rowBlockSize': 10, 'passThrough': []}),
+            ir.TableToTableApply(table_read, {'name': 'TableFilterPartitions', 'parts': [0], 'keep': True})
         ]
 
         return table_irs
@@ -217,6 +219,7 @@ class TableIRTests(unittest.TestCase):
             ir.MatrixExplodeCols(matrix_read, ['col_aset']),
             ir.MatrixAnnotateRowsTable(matrix_read, table_read, '__foo', None),
             ir.MatrixAnnotateColsTable(matrix_read, table_read, '__foo'),
+            ir.MatrixToMatrixApply(matrix_read, {'name': 'MatrixFilterPartitions', 'parts': [0], 'keep': True})
         ]
 
         for x in matrix_irs:
