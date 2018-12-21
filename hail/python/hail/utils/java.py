@@ -65,6 +65,13 @@ class Env:
     def backend():
         return Env.hc()._backend
 
+    def spark_backend(op):
+        b = Env.backend()
+        if isinstance(b, hail.backend.SparkBackend):
+            return b
+        else:
+            raise NotImplementedError(f"{b.__class__.__name__} doesn't support {op}, only SparkBackend")
+
     @staticmethod
     def sql_context():
         return Env.hc()._sql_context

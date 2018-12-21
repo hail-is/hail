@@ -2493,8 +2493,7 @@ class Table(ExprContainer):
         :class:`.Table`
             Table constructed from the Spark SQL DataFrame.
         """
-
-        return Table._from_java(Env.hail().table.Table.fromDF(Env.hc()._jhc, df._jdf, key))
+        return Env.spark_backend('from_spark').from_spark(df, key)
 
     @typecheck_method(flatten=bool)
     def to_spark(self, flatten=True):
@@ -2513,10 +2512,7 @@ class Table(ExprContainer):
         :class:`.pyspark.sql.DataFrame`
 
         """
-        t = self.expand_types()
-        if flatten:
-            t = t.flatten()
-        return pyspark.sql.DataFrame(t._jt.toDF(Env.hc()._jsql_context), Env.sql_context())
+        return Env.spark_backend('to_spark').to_spark(self, flatten)
 
     @typecheck_method(flatten=bool)
     def to_pandas(self, flatten=True):
@@ -2536,7 +2532,7 @@ class Table(ExprContainer):
         :class:`.pandas.DataFrame`
 
         """
-        return self.to_spark(flatten).toPandas()
+        return Env.spark_backend('to_pandas').to_pandas(self, flatten)
 
     @staticmethod
     @typecheck(df=pandas.DataFrame,
@@ -2560,7 +2556,7 @@ class Table(ExprContainer):
         -------
         :class:`.Table`
         """
-        return Table.from_spark(Env.sql_context().createDataFrame(df), key)
+        return Env.spark_backend('from_pandas').from_pandas(df, key)
 
     @typecheck_method(other=table_type, tolerance=nullable(numeric), absolute=bool)
     def _same(self, other, tolerance=1e-6, absolute=False):
