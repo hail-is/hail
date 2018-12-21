@@ -1,6 +1,6 @@
 import itertools
 from typing import *
-from collections import OrderedDict
+from collections import OrderedDict, Counter
 import warnings
 
 import hail
@@ -3351,12 +3351,14 @@ class MatrixTable(ExprContainer):
 
         """
         if not (len(self.col_key) == 1 and self.col_key[0].dtype == hl.tstr):
-            raise ValueError('column key must be a single field of type str')
+            raise ValueError("column key must be a single field of type str")
 
         col_key_field = list(self.col_key)[0]
         col_keys = [k[col_key_field] for k in self.col_key.collect()]
-        if len(col_keys) != len(set(col_keys)):
-            raise ValueError('column keys must be unique')
+        
+        duplicates = [k for k, count in Counter(col_keys).items() if count > 1]
+        if duplicates:
+            raise ValueError(f"column keys must be unique, found duplicates: {', '.join(duplicates)}")
         
         entries_uid = Env.get_uid()
         cols_uid = Env.get_uid()
