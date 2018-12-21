@@ -62,7 +62,6 @@ restart-batch-proxy:
 	kubectl port-forward $(BATCH_POD) 8888:5000 > batch-proxy.log 2>batch-proxy.err & echo $$! > batch-proxy.pid
 
 run-local: HAIL_CI_REMOTE_PORT = 3000
-
 run-local: restart-all-proxies
 	SELF_HOSTNAME=http://$(EXTERNAL_IP):$(HAIL_CI_REMOTE_PORT) \
 	BATCH_SERVER_URL=http://127.0.0.1:$(HAIL_CI_LOCAL_BATCH_PORT) \
