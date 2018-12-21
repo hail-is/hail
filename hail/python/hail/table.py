@@ -1184,12 +1184,19 @@ class Table(ExprContainer):
 
         def hl_repr(v):
             if v.dtype == hl.tfloat32 or v.dtype == hl.tfloat64:
-                return hl.format('%.2e', v)
+                s = hl.format('%.2e', v)
+            elif isinstance(v.dtype, hl.tarray):
+                s = "[" + hl.delimit(hl.map(hl_repr, v), ",") + "]"
+            elif isinstance(v.dtype, hl.tset):
+                s = "{" + hl.delimit(hl.map(hl_repr, hl.array(v)), ",") + "}"
+            elif isinstance(v.dtype, hl.tdict):
+                s = "{" + hl.delimit(hl.map(lambda x: x[0] + ": " + hl_repr(x[1]), hl.array(v)), ",") + "}"
             elif v.dtype == hl.tstr:
                 # FIXME doesn't quote
-                return hl.format('"%s"', v)
+                s = hl.format('"%s"', v)
             else:
-                return hl.str(v)
+                s = hl.str(v)
+            return hl.cond(hl.is_defined(v), s, "NA")
 
         def hl_trunc(s):
             return hl.cond(hl.len(s) > truncate,
@@ -1197,8 +1204,7 @@ class Table(ExprContainer):
                            s)
 
         def hl_format(v):
-            return hl.bind(lambda s: hl_trunc(s),
-                           hl.cond(hl.is_defined(v), hl_repr(v), "NA"))
+            return hl.bind(lambda s: hl_trunc(s), hl_repr(v))
 
         t = t.flatten()
         fields = [trunc(f) for f in t.row]
