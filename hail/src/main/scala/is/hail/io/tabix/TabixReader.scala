@@ -95,7 +95,7 @@ object TabixReader {
 
 }
 
-class TabixReader(val filePath: String, private val idxFilePath: Option[String] = None) {
+class TabixReader(val filePath: String, private val hConf: hd.conf.Configuration, private val idxFilePath: Option[String] = None) {
   import TabixReader._
 
   val indexPath: String = idxFilePath match {
@@ -107,8 +107,6 @@ class TabixReader(val filePath: String, private val idxFilePath: Option[String] 
         fatal(s"unknown file extension for tabix index: ${s}")
     }
   }
-
-  private val hConf = HailContext.get.hadoopConf
 
   val index: Tabix = hConf.readFile(indexPath) { is =>
     var buf = new Array[Byte](4)
