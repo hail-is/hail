@@ -72,7 +72,8 @@ case class PartitionEmitTriplet(ctx: PartitionContext, setup: Code, producer: Pr
     val os = tub.variable("os", "long")
     val nRows = tub.variable("n_rows", "long", "0")
 
-    val part = new FunctionBuilder(tub, "process_partition", Array(ctx.globalsInput, ctx.rddInput, os), "long")
+    val st = tub.variable("st", "NativeStatus *")
+    val part = new FunctionBuilder(tub, "process_partition", Array(st, ctx.globalsInput, ctx.rddInput, os), "long")
     val prod = producer
       .addArgs(s"&${ ctx.cxxCtx }",
         s"std::make_shared<OutputStream>(${ ctx.up }, reinterpret_cast<ObjectArray *>($os)->at(0))")
@@ -81,19 +82,23 @@ case class PartitionEmitTriplet(ctx: PartitionContext, setup: Code, producer: Pr
     val enc = tub.variable("enc", "auto", s"$prod.end()")
 
     part +=
-      s"""
-         |${ ctx.setup }
-         |$setup
-         |${ prod.define }
-         |${ nRows.define }
-         |while ($prod.advance()) {
-         |  $prod.consume();
-         |  ++$nRows;
+      s"""try {
+         |  ${ ctx.setup }
+         |  $setup
+         |  ${ prod.define }
+         |  ${ nRows.define }
+         |  while ($prod.advance()) {
+         |    $prod.consume();
+         |    ++$nRows;
+         |  }
+         |  ${ enc.define }
+         |  $enc->encode_byte(0);
+         |  $enc->flush();
+         |  return $nRows;
+         |} catch (const FatalError& e) {
+         |  NATIVE_ERROR($st, 1006, e.what());
+         |  return -1;
          |}
-         |${ enc.define }
-         |$enc->encode_byte(0);
-         |$enc->flush();
-         |return $nRows;
        """.stripMargin
     part.end()
   }
@@ -257,8 +262,8 @@ class TableEmitter(tub: TranslationUnitBuilder) {
             "const char *" -> "row"),
           "bool")
         val substEnv = ir.Env.empty[ir.IR]
-          .bind("globals", ir.In(1, child.typ.globalType))
-          .bind("row", ir.In(2, child.typ.rowType))
+          .bind("globals", ir.In(0, child.typ.globalType))
+          .bind("row", ir.In(1, child.typ.rowType))
         val et = Emit(filterF, 1, ir.Subst(cond, substEnv))
         filterF +=
           s"""
@@ -322,14 +327,14 @@ class TableEmitter(tub: TranslationUnitBuilder) {
             "const char *" -> "row",
             "int" -> "i"), "const char *")
         val substEnv = ir.Env.empty[ir.IR]
-          .bind("row", ir.In(1, child.typ.rowType))
-          .bind("i", ir.In(2, TInt32()))
+          .bind("row", ir.In(0, child.typ.rowType))
+          .bind("i", ir.In(1, TInt32()))
         val et = Emit(explodeF, 1, ir.Subst(x.insertIR, substEnv))
         explodeF +=
           s"""
              |${ et.setup }
              |if (${ et.m }) {
-             |  ${ explodeF.nativeError("\"exploded row can't be missing!\"") }
+             |  ${ explodeF.nativeError("exploded row can't be missing!") }
              |} else {
              |  return ${ et.v };
              |}
