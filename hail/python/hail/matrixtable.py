@@ -3350,6 +3350,33 @@ class MatrixTable(ExprContainer):
         :class:`.Table`
 
         """
-        return Table._from_java(self._jmt.makeTable(separator))
+        if not (len(self.col_key) == 1 and self.col_key[0].dtype == hl.tstr):
+            raise ValueError('column key must be a single field of type str')
+
+        col_key_field = list(self.col_key)[0]
+        col_keys = [k[col_key_field] for k in self.col_key.collect()]
+        if len(col_keys) != len(set(col_keys)):
+            raise ValueError('column keys must be unique')
+        
+        entries_uid = Env.get_uid()
+        cols_uid = Env.get_uid()
+        
+        t = self
+        t = t._localize_entries(entries_uid, cols_uid)
+
+        def fmt(f, col_key):
+            if f:
+                return col_key + '.' + f
+            else:
+                return col_key
+
+        t = t.select(**{
+            fmt(f, col_keys[i]): t[entries_uid][i][j]
+            for i in range(len(col_keys))
+            for j, f in enumerate(self.entry)
+        })
+        t = t.drop(cols_uid)
+
+        return t
 
 matrix_table_type.set(MatrixTable)
