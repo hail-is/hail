@@ -431,15 +431,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
     new Table(hc, ir.TableDistinct(tir))
   }
 
-  def groupByKey(name: String): Table = {
-    require(key.nonEmpty)
-    val sorted = keyBy(key.toArray)
-    sorted.copy2(
-      rvd = sorted.rvd.groupByKey(name),
-      signature = keySignature ++ TStruct(name -> TArray(valueSignature)))
-  }
-
-
   def toMatrixTable(
     rowKeys: Array[String],
     colKeys: Array[String],
