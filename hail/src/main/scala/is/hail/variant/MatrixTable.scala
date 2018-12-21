@@ -459,21 +459,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def distinctByRow(): MatrixTable =
     copyAST(ast = MatrixDistinctByRow(ast))
-
-  def distinctByCol(): MatrixTable = {
-    val colKeys = dropRows().colKeys
-    val m = new mutable.HashSet[Any]()
-    val ab = new ArrayBuilder[Int]
-    colKeys.zipWithIndex
-      .foreach { case (ck, i) =>
-          if (!m.contains(ck)) {
-            ab += i
-            m.add(ck)
-          }
-      }
-    chooseCols(ab.result())
-  }
-
+  
   def dropCols(): MatrixTable =
     copyAST(ast = MatrixFilterCols(ast, ir.False()))
 
