@@ -1,7 +1,10 @@
 import time
 import random
+import yaml
 
-from . import api
+import cerberus
+
+from . import api, schemas
 
 
 class Job:
@@ -211,3 +214,28 @@ class BatchClient:
     def create_batch(self, attributes=None, callback=None):
         batch = self.api.create_batch(self.url, attributes, callback)
         return Batch(self, batch['id'])
+
+    job_yaml_schema = {
+        'spec': schemas.pod_spec,
+        'type': {'type': 'string', 'allowed': ['execute']},
+        'name': {'type': 'string'},
+        'dependsOn': {'type': 'list', 'schema': {'type': 'string'}},
+    }
+    job_yaml_validator = cerberus.Validator(job_yaml_schema)
+
+    def create_batch_from_file(self, file):
+        job_ids = {}
+        batch = self.create_batch()
+        for doc in yaml.load(file):
+            if not BatchClient.job_yaml_validator.validate(doc):
+                raise BatchClient.job_yaml_validator.errors
+            spec = doc['spec']
+            type = doc['type']
+            name = doc['name']
+            dependsOn = doc.get('dependsOn', [])
+            if type == 'execute':
+                job = batch.create_job(
+                    parents=[job_ids[x] for x in dependsOn],
+                    **spec)
+                job_ids[name] = job.id
+        return batch

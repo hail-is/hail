@@ -1,0 +1,27 @@
+- type: execute
+  name: head
+  spec:
+    image: alpine:3.8
+    command: ["echo", "head"]
+- type: execute
+  name: left
+  spec:
+    image: alpine:3.8
+    command: ["echo", "head"]
+  dependsOn:
+    - head
+- type: execute
+  name: right
+  spec:
+    image: alpine:3.8
+    command: ["echo", "head"]
+  dependsOn:
+    - head
+- type: execute
+  name: tail
+  spec:
+    image: alpine:3.8
+    command: ["echo", "head"]
+  dependsOn:
+    - left
+    - right

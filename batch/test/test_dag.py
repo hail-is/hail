@@ -1,4 +1,5 @@
 import os
+import pkg_resources
 import pytest
 import re
 import requests
@@ -254,3 +255,14 @@ def test_callback(client):
         if server:
             server.shutdown()
             server.join()
+
+
+def test_from_file(client):
+        fname = pkg_resources.resource_filename(
+            __name__,
+            'diamond_dag.yml')
+        with open(fname) as f:
+            batch = client.create_batch_from_file(f)
+
+        status = batch.wait()
+        assert status['jobs']['Complete'] == 4
