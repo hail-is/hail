@@ -1168,6 +1168,109 @@ class Table(ExprContainer):
 
         Env.backend().execute(TableWrite(self._tir, output, overwrite, stage_locally, _codec_spec))
 
+    def _show_str(t, n, width, truncate, types):
+        width = max(width, 8)
+
+        if truncate:
+            truncate = min(max(truncate, 4), width - 4)
+        else:
+            truncate = width - 4
+
+        def trunc(s):
+            if len(s) > truncate:
+                return s[:truncate - 3] + "..."
+            else:
+                return s
+
+        def hl_repr(v):
+            if v.dtype == hl.tfloat32 or v.dtype == hl.tfloat64:
+                return hl.format('%.2e', v)
+            elif v.dtype == hl.tstr:
+                # FIXME doesn't quote
+                return hl.format('"%s"', v)
+            else:
+                return hl.str(v)
+
+        def hl_trunc(s):
+            return hl.cond(hl.len(s) > truncate,
+                           s[:truncate - 3] + "...",
+                           s)
+
+        def hl_format(v):
+            return hl.bind(lambda s: hl_trunc(s),
+                           hl.cond(hl.is_defined(v), hl_repr(v), "NA"))
+
+        t = t.flatten()
+        fields = [trunc(f) for f in t.row]
+        n_fields = len(fields)
+
+        types = [trunc(str(t.row[f].dtype)) for f in fields]
+        right_align = [hl.expr.types.is_numeric(t.row[f].dtype) for f in fields]
+
+        t = t.select(**{k: hl_format(v) for (k, v) in t.row.items()})
+        rows = t.take(n + 1)
+
+        has_more = len(rows) > n
+        rows = rows[:n]
+
+        rows = [[row[f] for f in fields] for row in rows]
+
+        column_width = [max(len(fields[i]), len(types[i]), max([len(row[i]) for row in rows]))
+                        for i in range(n_fields)]
+
+        column_blocks = []
+        start = 0
+        i = 1
+        w = column_width[0] + 4
+        while i < len(fields):
+            w = w + column_width[i] + 3
+            if w > width:
+                column_blocks.append((start, i))
+                start = i
+                w = column_width[i] + 4
+            i = i + 1
+        assert i == n_fields
+        column_blocks.append((start, i))
+
+        def format_hline(widths):
+            return '+-' + '-+-'.join(['-' * w for w in widths]) + '-+\n'
+
+        def pad(v, w, ra):
+            e =  w - len(v)
+            if ra:
+                return ' ' * e + v
+            else:
+                return v + ' ' * e
+
+        def format_line(values, widths, right_align):
+            values = map(pad, values, widths, right_align)
+            return '| ' + ' | '.join(values) + ' |\n'
+
+        s = ''
+        first = True
+        for (start, end) in column_blocks:
+            if first:
+                first = False
+            else:
+                s += '\n'
+
+            block_column_width = column_width[start:end]
+            block_right_align = right_align[start:end]
+            hline = format_hline(block_column_width)
+
+            s += hline
+            s += format_line(fields[start:end], block_column_width, block_right_align)
+            s += hline
+            if types:
+                s += format_line(types[start:end], block_column_width, block_right_align)
+                s += hline
+            for row in rows:
+                row = row[start:end]
+                s += format_line(row, block_column_width, block_right_align)
+            s += hline
+
+        return s
+
     @typecheck_method(n=int, width=int, truncate=nullable(int), types=bool, handler=anyfunc)
     def show(self, n=10, width=90, truncate=None, types=True, handler=print):
         """Print the first few rows of the table to the console.
@@ -1202,10 +1305,7 @@ class Table(ExprContainer):
         handler : Callable[[str], Any]
             Handler function for data string.
         """
-        handler(self._show(n,width, truncate, types))
-
-    def _show(self, n=10, width=90, truncate=None, types=True):
-        return self._jt.showString(n, joption(truncate), types, width)
+        handler(self._show_str(n, width, truncate, types))
 
     def index(self, *exprs):
         """Expose the row values as if looked up in a dictionary, indexing
@@ -1553,7 +1653,7 @@ class Table(ExprContainer):
         :obj:`list` of :class:`.Struct`
             List of rows.
         """
-        return Env.hc()._backend.execute(GetField(TableCollect(self._tir), 'rows'))
+        return Env.backend().execute(GetField(TableCollect(self._tir), 'rows'))
 
     def describe(self, handler=print):
         """Print information about the fields in the table."""
