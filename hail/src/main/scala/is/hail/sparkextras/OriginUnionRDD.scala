@@ -8,11 +8,9 @@ import scala.reflect.ClassTag
 
 private[hail] case class OriginUnionPartition[T: ClassTag](
   val index: Int,
-  @transient private val rdd: RDD[T],
   val originIdx: Int,
-  @transient private val originPartIdx: Int
+  val originPart: Partition
 ) extends Partition {
-  val originPart = rdd.partitions(originPartIdx)
 }
 
 class OriginUnionRDD[T: ClassTag](
@@ -23,7 +21,7 @@ class OriginUnionRDD[T: ClassTag](
     val arr = new Array[Partition](rdds.map(_.partitions.length).sum)
     var i = 0
     for ((rdd, rddIdx) <- rdds.zipWithIndex; part <- rdd.partitions) {
-      arr(i) = OriginUnionPartition(i, rdd, rddIdx, part.index)
+      arr(i) = OriginUnionPartition(i, rddIdx, part)
       i += 1
     }
     arr
