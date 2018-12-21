@@ -2567,7 +2567,7 @@ class Table(ExprContainer):
 
         return Table(TableAggregateByKey(
             self._tir,
-            hl.agg.collect(self.row_value)._ir))
+            hl.struct(**{name: hl.agg.collect(self.row_value)})._ir))
 
     def distinct(self) -> 'Table':
         """Keep only one row for each unique key.
