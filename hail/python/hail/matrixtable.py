@@ -3276,7 +3276,18 @@ class MatrixTable(ExprContainer):
         -------
         :class:`.MatrixTable`
         """
-        return MatrixTable._from_java(self._jmt.distinctByCol())
+        index_uid = Env.get_uid()
+
+        col_key_fields = list(self.col_key)
+        t = self.key_cols_by().cols()
+
+        t = t.add_index(index_uid)
+        unique_cols = t.aggregate(
+            hl.agg.group_by(
+                hl.struct(**{f: t[f] for f in col_key_fields}), hl.agg.take(t[index_uid], 1)))
+        unique_cols = sorted([v[0] for _, v in unique_cols.items()])
+
+        return self.choose_cols(unique_cols)
 
     @typecheck_method(separator=str)
     def make_table(self, separator='.') -> Table:
