@@ -62,10 +62,12 @@ class Batch:
     def __init__(self, client, id):
         self.client = client
         self.id = id
+        self.n_jobs_created = 0
 
     def create_job(self, image, command=None, args=None, env=None, ports=None,
                    resources=None, tolerations=None, volumes=None, security_context=None,
                    service_account_name=None, attributes=None, callback=None, parent_ids=None):
+        self.n_jobs += 1
         if parent_ids is None:
             parent_ids = []
         return self.client._create_job(
@@ -80,6 +82,8 @@ class Batch:
         while True:
             status = self.status()
             if status['jobs']['Created'] == 0:
+                assert status['jobs']['Complete'] + status['jobs']['Cancelled'] == self.n_jobs, \
+                    f"{status['jobs']['Complete']} + {status['jobs']['Cancelled']} == {self.n_jobs}"
                 return status
             j = random.randrange(2 ** i)
             time.sleep(0.100 * j)
@@ -208,6 +212,6 @@ class BatchClient:
             image, command, args, env, ports, resources, tolerations, volumes, security_context,
             service_account_name, attributes, None, callback, parent_ids)
 
-    def create_batch(self, attributes=None):
-        batch = self.api.create_batch(self.url, attributes)
+    def create_batch(self, attributes=None, callback=None):
+        batch = self.api.create_batch(self.url, attributes, callback)
         return Batch(self, batch['id'])
