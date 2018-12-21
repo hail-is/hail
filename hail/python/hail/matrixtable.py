@@ -1,6 +1,6 @@
 import itertools
 from typing import *
-from collections import OrderedDict
+from collections import OrderedDict, Counter
 import warnings
 
 import hail
@@ -3361,6 +3361,35 @@ class MatrixTable(ExprContainer):
         :class:`.Table`
 
         """
-        return Table._from_java(self._jmt.makeTable(separator))
+        if not (len(self.col_key) == 1 and self.col_key[0].dtype == hl.tstr):
+            raise ValueError("column key must be a single field of type str")
+
+        col_key_field = list(self.col_key)[0]
+        col_keys = [k[col_key_field] for k in self.col_key.collect()]
+        
+        duplicates = [k for k, count in Counter(col_keys).items() if count > 1]
+        if duplicates:
+            raise ValueError(f"column keys must be unique, found duplicates: {', '.join(duplicates)}")
+        
+        entries_uid = Env.get_uid()
+        cols_uid = Env.get_uid()
+        
+        t = self
+        t = t._localize_entries(entries_uid, cols_uid)
+
+        def fmt(f, col_key):
+            if f:
+                return col_key + '.' + f
+            else:
+                return col_key
+
+        t = t.select(**{
+            fmt(f, col_keys[i]): t[entries_uid][i][j]
+            for i in range(len(col_keys))
+            for j, f in enumerate(self.entry)
+        })
+        t = t.drop(cols_uid)
+
+        return t
 
 matrix_table_type.set(MatrixTable)
