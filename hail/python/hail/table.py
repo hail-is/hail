@@ -1193,6 +1193,8 @@ class Table(ExprContainer):
                 s = "{" + hl.delimit(hl.map(lambda x: x[0] + ":" + hl_repr(x[1]), hl.array(v)), ",") + "}"
             elif v.dtype == hl.tstr:
                 s = hl.str('"') + hl.expr.functions._escape_string(v) + '"'
+            elif isinstance(v.dtype, (hl.tstruct, hl.tarray)):
+                s = "(" + hl.delimit([hl_repr(v[i]) for i in range(len(v))], ",") + ")"
             else:
                 s = hl.str(v)
             return hl.cond(hl.is_defined(v), s, "NA")

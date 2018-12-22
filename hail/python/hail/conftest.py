@@ -76,7 +76,8 @@ def init(doctest_namespace):
     doctest_namespace['table4'] = table4
 
     people_table = hl.import_table('data/explode_example.tsv', delimiter='\\s+',
-                                   types={'Age': hl.tint32, 'Children': hl.tarray(hl.tstr)})
+                                   types={'Age': hl.tint32, 'Children': hl.tarray(hl.tstr)},
+                                   key_by='Name')
     doctest_namespace['people_table'] = people_table
 
     # TDT
