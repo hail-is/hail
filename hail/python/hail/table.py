@@ -1192,8 +1192,7 @@ class Table(ExprContainer):
             elif isinstance(v.dtype, hl.tdict):
                 s = "{" + hl.delimit(hl.map(lambda x: x[0] + ":" + hl_repr(x[1]), hl.array(v)), ",") + "}"
             elif v.dtype == hl.tstr:
-                # FIXME doesn't quote
-                s = hl.format('"%s"', v)
+                s = hl.str('"') + hl.expr.functions._escape_string(v) + '"'
             else:
                 s = hl.str(v)
             return hl.cond(hl.is_defined(v), s, "NA")
