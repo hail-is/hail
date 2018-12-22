@@ -44,6 +44,7 @@ class LogisticRegressionTest extends SparkSuite {
     covFields.add("Cov1")
     covFields.add("Cov2")
     val res = LogisticRegression(newMatrix, "wald", "Pheno1", "dosage", covFields, passFields)
+    assert(res.count() > 0, "expecting more than zero results")
     assert(res.typ.rowType.fieldNames.contains("p_value"),"expecting result table to have p_value")
     assert(res.typ.rowType.fieldNames.contains("beta"), "expecting result table to have beta")
   }
@@ -58,17 +59,21 @@ class LogisticRegressionTest extends SparkSuite {
     val mt3 = mt2.annotateColsTable(covs,"c").cache()
     val oldCol = Ref("sa", mt3.colType)
     val newCol = InsertFields(oldCol, Seq("Pheno1" -> GetField(GetField(oldCol, "p"), "Pheno1").toD,
+      "Pheno2" -> GetField(GetField(oldCol, "p"), "Pheno2").toD,
       "Cov1" -> GetField(GetField(oldCol, "c"), "Cov1").toD,
       "Cov2" -> GetField(GetField(oldCol, "c"), "Cov2").toD))
     val newMatrixIR = MatrixMapCols(mt3.ast, newCol, None)
     val newMatrix = mt3.copyAST(newMatrixIR)
     //val mt3 = mt2.annotateColsTable(covs, "1")
     var covFields = new util.ArrayList[String]()
+    var pheFields = new util.ArrayList[String]()
     var passFields = new util.ArrayList[String]()
     covFields.add("Cov1")
     covFields.add("Cov2")
-    val res = LogisticRegression(newMatrix, "wald", "Pheno1", "dosage", covFields, passFields)
-    assert(res.typ.rowType.fieldNames.contains("p_value"),"expecting result table to have p_value")
-    assert(res.typ.rowType.fieldNames.contains("beta"), "expecting result table to have beta")
+    pheFields.add("Pheno1")
+    pheFields.add("Pheno2")
+    val res = LogisticRegression(newMatrix, "wald", pheFields, "dosage", covFields, passFields)
+    assert(res.count() > 0, "expecting more than zero results")
+    assert(res.typ.rowType.fieldNames.contains("logistic_regression"),"expecting result table to have p_value")
   }
 }
