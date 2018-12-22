@@ -923,10 +923,6 @@ object PruneDeadFields {
       case MatrixFilterEntries(child, pred) =>
         val child2 = rebuild(child, memo)
         MatrixFilterEntries(child2, rebuild(pred, child2.typ, memo))
-      case MatrixUnionCols(left, right) =>
-        val left2 = rebuild(left, memo)
-        val right2 = rebuild(right, memo)
-        MatrixUnionCols(left2, right2)
       case MatrixMapEntries(child, newEntries) =>
         val child2 = rebuild(child, memo)
         MatrixMapEntries(child2, rebuild(newEntries, child2.typ, memo))

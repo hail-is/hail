@@ -3105,21 +3105,25 @@ class MatrixTable(ExprContainer):
             Dataset with columns from both datasets.
         """
         if self._entry_type != other._entry_type:
-            raise ValueError('entry types differ\n'
-                             f'  left: {self._entry_type}\n'
-                             f'  right: {other.entry_type}')
+            raise ValueError('\n'.join(
+                "entry types differ",
+                f"  left: {self._entry_type}",
+                f"  right: {other.entry_type}"))
         if self._col_type != other._col_type:
-            raise ValueError('column types differ\n'
-                             f'  left: {self._col_type}\n'
-                             f'  right: {other.col_type}')
+            raise ValueError("\n".join(
+                "column types differ",
+                f"  left: {self._col_type}",
+                f"  right: {other.col_type}"))
         if list(self.col_key.values()) != list(other.col_key.values()):
-            raise ValueError('column key types differ\n'
-                             f'  left: {', '.join(self.col_key.values()}\n'
-                             f'  right: {', '.join(other.col_key.values()}')
+            raise ValueError("\n".join(
+                "column key types differ",
+                f"  left: {', '.join(self.col_key.values())}",
+                f"  right: {', '.join(other.col_key.values())}"))
         if list(self.row_key.values()) != list(other.row_key.values()):
-            raise ValueError('row key types differ\n'
-                             f'  left: {', '.join(self.row_key.values()}\n'
-                             f'  right: {', '.join(other.row_key.values()}')
+            raise ValueError("\n".join(
+                "row key types differ",
+                f"  left: {', '.join(self.row_key.values())}",
+                f"  right: {', '.join(other.row_key.values())}"))
         
         return MatrixTable(MatrixUnionCols(self._mir, other._mir))
 
