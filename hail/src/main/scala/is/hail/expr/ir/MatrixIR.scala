@@ -1078,8 +1078,21 @@ case class MatrixAggregateColsByKey(child: MatrixIR, entryExpr: IR, colExpr: IR)
   }
 }
 
-case class MatrixMapEntries(child: MatrixIR, newEntries: IR) extends MatrixIR {
+case class MatrixUnionCols(left: MatrixIR, right: MatrixIR) extends MatrixIR {
+  def children: IndexedSeq[BaseIR] = Array(left, right)
 
+  def copy(newChildren: IndexedSeq[BaseIR]): MatrixUnionCols = {
+    assert(newChildren.length == 2)
+    MatrixUnionCols(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[MatrixIR])
+  }
+
+  val typ: MatrixType = left.typ
+
+  override def columnCount: Option[Int] =
+    left.columnCount.flatMap(leftCount => right.columnCount.map(rightCount => leftCount + rightCount))
+}
+
+case class MatrixMapEntries(child: MatrixIR, newEntries: IR) extends MatrixIR {
   def children: IndexedSeq[BaseIR] = Array(child, newEntries)
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixMapEntries = {

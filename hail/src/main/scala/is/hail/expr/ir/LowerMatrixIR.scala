@@ -147,6 +147,28 @@ object LowerMatrixIR {
           }
         }))
 
+    case MatrixUnionCols(left, right) =>
+      val rightEntries = genUID()
+      val rightCols = genUID()
+      TableJoin(
+        lower(left),
+        lower(right)
+          .mapRows('row
+            .insertFields(Symbol(rightEntries) -> 'row(entriesField))
+            .selectFields(right.typ.rowKey :+ rightEntries: _*))
+          .mapGlobals('global
+            .insertFields(Symbol(rightCols) -> 'global(colsField))
+            .selectFields(rightCols)),
+        "inner")
+        .mapRows('row
+          .insertFields(entriesField ->
+            makeArray('row(entriesField), 'row(Symbol(rightEntries))).flatMap('a ~> 'a))
+          .dropFields(Symbol(rightEntries)))
+        .mapGlobals('global
+          .insertFields(colsField ->
+            makeArray('global(colsField), 'global(Symbol(rightCols))).flatMap('a ~> 'a))
+          .dropFields(Symbol(rightCols)))
+
     case MatrixMapEntries(child, newEntries) =>
       lower(child).mapRows('row.insertFields(entriesField ->
         irRange(0, 'global(colsField).len).map { 'i ~>
@@ -176,7 +198,7 @@ object LowerMatrixIR {
         .mapRows('row.insertFields(entriesField ->
           'global('newColIdx).map { 'kv ~>
             makeStruct(child.typ.entryType.fieldNames.map { s =>
-              (Symbol(s), 'kv('value).map { 'i ~> 'row(entriesField)('i)(Symbol(s))})}: _*)
+              (Symbol(s), 'kv('value).map { 'i ~> 'row(entriesField)('i)(Symbol(s)) }) }: _*)
           }))
         .mapGlobals('global
           .insertFields(colsField ->
