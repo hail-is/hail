@@ -629,6 +629,14 @@ class MatrixTable(ExprContainer):
             raise invalid_usage
 
     @property
+    def _col_key_types(self):
+        return [v.dtype for _, v in self.col_key.items()]
+
+    @property
+    def _row_key_types(self):
+        return [v.dtype for _, v in self.row_key.items()]
+
+    @property
     def col_key(self):
         """Column key struct.
 
@@ -3114,16 +3122,16 @@ class MatrixTable(ExprContainer):
                 "column types differ",
                 f"  left: {self._col_type}",
                 f"  right: {other.col_type}"))
-        if list(self.col_key.values()) != list(other.col_key.values()):
+        if list(self._col_key_types) != list(other._col_key_types):
             raise ValueError("\n".join(
                 "column key types differ",
-                f"  left: {', '.join(self.col_key.values())}",
-                f"  right: {', '.join(other.col_key.values())}"))
-        if list(self.row_key.values()) != list(other.row_key.values()):
+                f"  left: {', '.join(self._col_key_types)}",
+                f"  right: {', '.join(other._col_key_types)}"))
+        if list(self._row_key_types) != list(other._row_key_types):
             raise ValueError("\n".join(
                 "row key types differ",
-                f"  left: {', '.join(self.row_key.values())}",
-                f"  right: {', '.join(other.row_key.values())}"))
+                f"  left: {', '.join(self._row_key_types)}",
+                f"  right: {', '.join(other._row_key_types)}"))
         
         return MatrixTable(MatrixUnionCols(self._mir, other._mir))
 
