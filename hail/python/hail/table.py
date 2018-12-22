@@ -2249,7 +2249,8 @@ class Table(ExprContainer):
                 return [(k, v) for (f, e) in s.items() for (k, v) in _flatten(prefix + '.' + f, e)]
             else:
                 return [(prefix, s)]
-        t = self.key_by()
+        # unkey but preserve order
+        t = self.order_by(*self.key)
         t = t.select(**{k: v for (f, e) in t.row.items() for (k, v) in _flatten(f, e)})
         return t
 
