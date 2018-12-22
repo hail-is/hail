@@ -31,7 +31,7 @@ case class LinearRegressionRowsSingle(
       ("t_stat", TArray(TFloat64())),
       ("p_value", TArray(TFloat64())))
     val tt = TableType(
-      childType.rowKeyStruct ++ schema ++ passThroughType,
+      childType.rowKeyStruct ++ passThroughType ++ schema,
       childType.rowKey,
       TStruct())
 
@@ -188,7 +188,7 @@ case class LinearRegressionRowsChained(
       ("t_stat", TArray(TArray(TFloat64()))),
       ("p_value", TArray(TArray(TFloat64()))))
     val tt = TableType(
-      childType.rowKeyStruct ++ chainedSchema ++ passThroughType,
+      childType.rowKeyStruct ++ passThroughType ++ chainedSchema,
       childType.rowKey,
       TStruct())
 
