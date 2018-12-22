@@ -402,6 +402,8 @@ object PruneDeadFields {
           globalType = requestedType.globalType.rename(globalMapRev),
           key = requestedType.key.map(k => rowMapRev.getOrElse(k, k)))
         memoizeTableIR(child, childDep, memo)
+      case TableToTableApply(child, _) => memoizeTableIR(child, child.typ, memo)
+      case MatrixToTableApply(child, _) => memoizeMatrixIR(child, child.typ, memo)
     }
   }
 
@@ -604,6 +606,7 @@ object PruneDeadFields {
           rowType = requestedType.rvRowType.rename(m)
         )
         memoizeTableIR(child, childDep, memo)
+      case MatrixToMatrixApply(child, _) => memoizeMatrixIR(child, child.typ, memo)
     }
   }
 

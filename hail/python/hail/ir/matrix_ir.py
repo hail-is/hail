@@ -1,6 +1,6 @@
 import json
 from hail.ir.base_ir import *
-from hail.utils.java import escape_str, escape_id, parsable_strings
+from hail.utils.java import escape_str, escape_id, parsable_strings, dump_json
 
 class MatrixAggregateRowsByKey(MatrixIR):
     def __init__(self, child, entry_expr, row_expr):
@@ -246,6 +246,16 @@ class MatrixAnnotateColsTable(MatrixIR):
 
     def render(self, r):
         return f'(MatrixAnnotateColsTable "{self.root}" {r(self.child)} {r(self.table)})'
+
+
+class MatrixToMatrixApply(MatrixIR):
+    def __init__(self, child, config):
+        self.child = child
+        self.config = config
+
+    def render(self, r):
+        return f'(MatrixToMatrixApply {dump_json(self.config)} {r(self.child)})'
+
 
 class JavaMatrix(MatrixIR):
     def __init__(self, jir):

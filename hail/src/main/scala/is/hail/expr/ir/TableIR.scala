@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.annotations.aggregators.RegionValueAggregator
+import is.hail.expr.ir.functions.RelationalFunctions
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PInt32, PStruct}
 import is.hail.expr.types.virtual._
@@ -34,7 +35,7 @@ object TableIR {
 abstract sealed class TableIR extends BaseIR {
   def typ: TableType
 
-  def rvdType: RVDType = ???
+  def rvdType: RVDType = typ.canonicalRVDType
 
   def partitionCounts: Option[IndexedSeq[Long]] = None
 
@@ -1390,5 +1391,45 @@ case class TableRename(child: TableIR, rowMap: Map[String, String], globalMap: M
     val prev = child.execute(hc)
 
     TableValue(typ, prev.globals, prev.rvd.cast(typ.rowType.physicalType))
+  }
+}
+
+case class MatrixToTableApply(child: MatrixIR, config: String) extends TableIR {
+  def children: IndexedSeq[BaseIR] = Array(child)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): TableIR = {
+    val IndexedSeq(newChild: MatrixIR) = newChildren
+    MatrixToTableApply(newChild, config)
+  }
+
+  private val function = RelationalFunctions.lookupMatrixToTable(config)
+
+  override val (typ, rvdType) = function.typeInfo(child.typ, child.rvdType)
+
+  override def partitionCounts: Option[IndexedSeq[Long]] =
+    if (function.preservesPartitionCounts) child.partitionCounts else None
+
+  protected[ir] override def execute(hc: HailContext): TableValue = {
+    function.execute(child.execute(hc))
+  }
+}
+
+case class TableToTableApply(child: TableIR, config: String) extends TableIR {
+  def children: IndexedSeq[BaseIR] = Array(child)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): TableIR = {
+    val IndexedSeq(newChild: TableIR) = newChildren
+    TableToTableApply(newChild, config)
+  }
+
+  private val function = RelationalFunctions.lookupTableToTable(config)
+
+  override val (typ, rvdType) = function.typeInfo(child.typ, child.rvdType)
+
+  override def partitionCounts: Option[IndexedSeq[Long]] =
+    if (function.preservesPartitionCounts) child.partitionCounts else None
+
+  protected[ir] override def execute(hc: HailContext): TableValue = {
+    function.execute(child.execute(hc))
   }
 }

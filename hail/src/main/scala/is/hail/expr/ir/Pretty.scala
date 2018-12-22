@@ -279,6 +279,9 @@ object Pretty {
             case CastTableToMatrix(_, entriesFieldName, colsFieldName, colKey) =>
               s"${ prettyIdentifier(entriesFieldName) } ${ prettyIdentifier(colsFieldName) } " +
                 prettyIdentifiers(colKey)
+            case MatrixToMatrixApply(_, config) => prettyStringLiteral(config)
+            case MatrixToTableApply(_, config) => prettyStringLiteral(config)
+            case TableToTableApply(_, config) => prettyStringLiteral(config)
             case TableRename(_, rowMap, globalMap) =>
               val rowKV = rowMap.toArray
               val globalKV = globalMap.toArray

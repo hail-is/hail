@@ -887,6 +887,14 @@ object IRParser {
         val colsField = string_literal(it)
         val child = matrix_ir(env)(it)
         CastMatrixToTable(child, entriesField, colsField)
+      case "MatrixToTableApply" =>
+        val config = string_literal(it)
+        val child = matrix_ir(env)(it)
+        MatrixToTableApply(child, config)
+      case "TableToTableApply" =>
+        val config = string_literal(it)
+        val child = table_ir(env)(it)
+        TableToTableApply(child, config)
       case "TableRename" =>
         val rowK = string_literals(it)
         val rowV = string_literals(it)
@@ -1019,6 +1027,10 @@ object IRParser {
         val colKey = identifiers(it)
         val child = table_ir(env)(it)
         CastTableToMatrix(child, entriesField, colsField, colKey)
+      case "MatrixToMatrixApply" =>
+        val config = string_literal(it)
+        val child = matrix_ir(env)(it)
+        MatrixToMatrixApply(child, config)
       case "JavaMatrix" =>
         val name = identifier(it)
         env.irMap(name).asInstanceOf[MatrixIR]

@@ -1,7 +1,7 @@
 import json
 
 from hail.ir.base_ir import *
-from hail.utils.java import escape_str, escape_id, parsable_strings
+from hail.utils.java import escape_str, escape_id, parsable_strings, dump_json
 
 
 class MatrixRowsTable(TableIR):
@@ -291,6 +291,24 @@ class TableMultiWayZipJoin(TableIR):
                f'"{escape_str(self.data_name)}" '\
                f'"{escape_str(self.global_name)}" '\
                f'{" ".join([r(child) for child in self.childs])})'
+
+
+class TableToTableApply(TableIR):
+    def __init__(self, child, config):
+        self.child = child
+        self.config = config
+
+    def render(self, r):
+        return f'(TableToTableApply {dump_json(self.config)} {r(self.child)})'
+
+
+class MatrixToTableApply(TableIR):
+    def __init__(self, child, config):
+        self.child = child
+        self.config = config
+
+    def render(self, r):
+        return f'(MatrixToTableApply {dump_json(self.config)} {r(self.child)})'
 
 
 class JavaTable(TableIR):

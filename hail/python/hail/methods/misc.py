@@ -394,4 +394,4 @@ def window_by_locus(mt: MatrixTable, bp_window_size: int) -> MatrixTable:
     :class:`.MatrixTable`
     """
     require_first_key_field_locus(mt, 'window_by_locus')
-    return MatrixTable._from_java(mt._jmt.windowVariants(bp_window_size))
+    return MatrixTable(hl.ir.MatrixToMatrixApply(mt._mir, {'name': 'WindowByLocus', 'basePairs': bp_window_size}))
