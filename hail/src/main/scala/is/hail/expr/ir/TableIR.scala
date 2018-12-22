@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.annotations.aggregators.RegionValueAggregator
-import is.hail.expr.ir.functions.RelationalFunctions
+import is.hail.expr.ir.functions.{MatrixToTableFunction, RelationalFunctions, TableToTableFunction}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PInt32, PStruct}
 import is.hail.expr.types.virtual._
@@ -1394,15 +1394,13 @@ case class TableRename(child: TableIR, rowMap: Map[String, String], globalMap: M
   }
 }
 
-case class MatrixToTableApply(child: MatrixIR, config: String) extends TableIR {
+case class MatrixToTableApply(child: MatrixIR, function: MatrixToTableFunction) extends TableIR {
   def children: IndexedSeq[BaseIR] = Array(child)
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableIR = {
     val IndexedSeq(newChild: MatrixIR) = newChildren
-    MatrixToTableApply(newChild, config)
+    MatrixToTableApply(newChild, function)
   }
-
-  private val function = RelationalFunctions.lookupMatrixToTable(config)
 
   override val (typ, rvdType) = function.typeInfo(child.typ, child.rvdType)
 
@@ -1414,15 +1412,13 @@ case class MatrixToTableApply(child: MatrixIR, config: String) extends TableIR {
   }
 }
 
-case class TableToTableApply(child: TableIR, config: String) extends TableIR {
+case class TableToTableApply(child: TableIR, function: TableToTableFunction) extends TableIR {
   def children: IndexedSeq[BaseIR] = Array(child)
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableIR = {
     val IndexedSeq(newChild: TableIR) = newChildren
-    TableToTableApply(newChild, config)
+    TableToTableApply(newChild, function)
   }
-
-  private val function = RelationalFunctions.lookupTableToTable(config)
 
   override val (typ, rvdType) = function.typeInfo(child.typ, child.rvdType)
 

@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.HailContext
+import is.hail.expr.ir.functions.RelationalFunctions
 import is.hail.expr.{JSONAnnotationImpex, ParserUtils}
 import is.hail.expr.types.{MatrixType, TableType}
 import is.hail.expr.types.virtual._
@@ -11,6 +12,7 @@ import is.hail.table.{Ascending, Descending, SortField}
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
+import javax.management.relation.Relation
 import org.json4s.jackson.{JsonMethods, Serialization}
 
 import scala.util.parsing.combinator.JavaTokenParsers
@@ -890,11 +892,11 @@ object IRParser {
       case "MatrixToTableApply" =>
         val config = string_literal(it)
         val child = matrix_ir(env)(it)
-        MatrixToTableApply(child, config)
+        MatrixToTableApply(child, RelationalFunctions.lookupMatrixToTable(config))
       case "TableToTableApply" =>
         val config = string_literal(it)
         val child = table_ir(env)(it)
-        TableToTableApply(child, config)
+        TableToTableApply(child, RelationalFunctions.lookupTableToTable(config))
       case "TableRename" =>
         val rowK = string_literals(it)
         val rowV = string_literals(it)
@@ -1030,7 +1032,7 @@ object IRParser {
       case "MatrixToMatrixApply" =>
         val config = string_literal(it)
         val child = matrix_ir(env)(it)
-        MatrixToMatrixApply(child, config)
+        MatrixToMatrixApply(child, RelationalFunctions.lookupMatrixToMatrix(config))
       case "JavaMatrix" =>
         val name = identifier(it)
         env.irMap(name).asInstanceOf[MatrixIR]
