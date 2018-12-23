@@ -45,7 +45,7 @@ To verify installation, open iPython or a Jupyter notebook and run:
 .. code-block:: python
 
     >>> import hail as hl
-    >>> mt = hl.balding_nichols_model(3, 50, 100)
+    >>> mt = hl.balding_nichols_model(n_populations=3, n_samples=50, n_variants=100)
     >>> mt.count()
 
 You're now all set to run the
@@ -124,7 +124,7 @@ When using ``ipython``, you can import hail and start interacting directly:
 .. code-block:: python
 
     >>> import hail as hl
-    >>> mt = hl.balding_nichols_model(3, 50, 100)
+    >>> mt = hl.balding_nichols_model(n_populations=3, n_samples=50, n_variants=100)
     >>> mt.count()
 
 You can also interact with hail via a ``pyspark`` session, but you will need to
@@ -151,7 +151,7 @@ After this initialization step, you can interact as you would in ``ipython``
 
 .. code-block:: python
 
-    >>> mt = hl.balding_nichols_model(3, 50, 100)
+    >>> mt = hl.balding_nichols_model(n_populations=3, n_samples=50, n_variants=100)
     >>> mt.count()
 
 It is also possible to run Hail non-interactively, by passing a Python script to
