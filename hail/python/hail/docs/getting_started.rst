@@ -207,9 +207,7 @@ Common Installation Issues
 BLAS and LAPACK
 ~~~~~~~~~~~~~~~
 
-Hail uses BLAS and LAPACK optimized linear algebra libraries. These should load automatically on recent versions of Mac OS X and Google Dataproc. On Linux, these must be explicitly installed; on Ubuntu 14.04, run:
-
-.. code-block:: sh
+Hail uses BLAS and LAPACK optimized linear algebra libraries. These should load automatically on recent versions of Mac OS X and Google Dataproc. On Linux, these must be explicitly installed; on Ubuntu 14.04, run::
 
     apt-get install libatlas-base-dev
 
