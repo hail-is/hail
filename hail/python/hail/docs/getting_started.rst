@@ -46,7 +46,7 @@ To verify installation, open iPython or a Jupyter notebook and run:
 
     >>> import hail as hl
     >>> mt = hl.balding_nichols_model(n_populations=3, n_samples=50, n_variants=100)
-    >>> mt.count()
+    >>> mt._force_count()
 
 You're now all set to run the
 `tutorials <https://hail.is/docs/devel/tutorials-landing.html>`__ locally!
@@ -125,7 +125,7 @@ When using ``ipython``, you can import hail and start interacting directly:
 
     >>> import hail as hl
     >>> mt = hl.balding_nichols_model(n_populations=3, n_samples=50, n_variants=100)
-    >>> mt.count()
+    >>> mt._force_count()
 
 You can also interact with hail via a ``pyspark`` session, but you will need to
 pass the configuration from ``PYSPARK_SUBMIT_ARGS`` directly as well as adding
@@ -152,7 +152,7 @@ After this initialization step, you can interact as you would in ``ipython``
 .. code-block:: python
 
     >>> mt = hl.balding_nichols_model(n_populations=3, n_samples=50, n_variants=100)
-    >>> mt.count()
+    >>> mt._force_count()
 
 It is also possible to run Hail non-interactively, by passing a Python script to
 ``spark-submit``. Again, you will need to explicitly pass several configuration
