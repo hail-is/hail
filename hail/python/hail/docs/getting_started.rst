@@ -61,15 +61,20 @@ The version of the Py4J ZIP file in the hail alias must match the version in ``$
 Running on a Spark cluster
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Hail can run on any Spark 2.2 cluster. For example,
-`Google <https://cloud.google.com/dataproc/>`_ and `Amazon
-<https://aws.amazon.com/emr/details/spark/>`_ offer optimized Spark performance
-and exceptional scalability to thousands of cores without the overhead
-of installing and managing an on-premesis cluster.
+Hail can run on any Spark 2.2 cluster. For example, Google and Amazon offer
+optimized Spark performance and exceptional scalability to thousands of cores
+without the overhead of installing and managing an on-premesis cluster.
 
-On Google Cloud Dataproc, we provide pre-built JARs and a Python package
+On `Google Cloud Dataproc <https://cloud.google.com/dataproc/>`_,
+we provide pre-built JARs and a Python package
 `cloudtools <https://github.com/Nealelab/cloudtools>`_
-to simplify running Hail, whether through an interactive Jupyter notebook or by submitting Python scripts.
+to simplify running Hail, whether through an interactive Jupyter notebook or by
+submitting Python scripts.
+
+On `Amazon EMR <https://aws.amazon.com/emr/details/spark/>`_, we recommend using the Hail
+`cloudformation <https://github.com/hms-dbmi/hail-on-AWS-spot-instances>`_ tool
+developed by Carlos De Niz in the
+`Avillach Lab <https://avillach-lab.hms.harvard.edu/>`_ at Harvard Medical School.
 
 For Cloudera-specific instructions, see :ref:`running-on-a-cloudera-cluster`.
 
