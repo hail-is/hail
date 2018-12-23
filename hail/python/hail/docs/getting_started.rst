@@ -28,7 +28,7 @@ Installing Hail on Mac OS X or GNU/Linux with pip
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 If you have Mac OS X, this is the recommended installation method for running
-hail locally (i.e. not on a cluster).
+Hail locally (i.e. not on a cluster).
 
 Create a `conda enviroment
 <https://conda.io/docs/user-guide/concepts.html#conda-environments>`__ named
@@ -40,17 +40,25 @@ Create a `conda enviroment
     conda activate hail
     pip install hail
 
+To verify installation, open iPython or a Jupyter notebook and run:
+
+.. code-block:: python
+
+    >>> import hail as hl
+    >>> mt = hl.balding_nichols_model(3, 50, 100)
+    >>> mt.count()
+
+You're now all set to run the
+`tutorials <https://hail.is/docs/devel/tutorials-landing.html>`__ locally!
 
 Building your own Jar
 ~~~~~~~~~~~~~~~~~~~~~
 
 To use Hail with other Hail versions of Spark 2, you'll need to build your own JAR instead of using a pre-compiled
 distribution. To build against a different version, such as Spark 2.3.0, run the following command inside the directory
-where Hail is located:
+where Hail is located::
 
-    .. code-block:: text
-
-      ./gradlew -Dspark.version=2.3.0 shadowJar
+    ./gradlew -Dspark.version=2.3.0 shadowJar
 
 The Spark version in this command should match whichever version of Spark you would like to build against.
 
@@ -65,7 +73,7 @@ Hail can run on any Spark 2.2 cluster. For example, Google and Amazon offer
 optimized Spark performance and exceptional scalability to thousands of cores
 without the overhead of installing and managing an on-premesis cluster.
 
-On `Google Cloud Dataproc <https://cloud.google.com/dataproc/>`_,
+On `Google Dataproc <https://cloud.google.com/dataproc/>`_,
 we provide pre-built JARs and a Python package
 `cloudtools <https://github.com/Nealelab/cloudtools>`_
 to simplify running Hail, whether through an interactive Jupyter notebook or by
@@ -111,11 +119,13 @@ can run Hail backed by the cluster can be started with the following command::
 
     ipython
 
-When using ``ipython``, you can import hail and start interacting directly
+When using ``ipython``, you can import hail and start interacting directly:
+
+.. code-block:: python
 
     >>> import hail as hl
-    >>> mt = hl.balding_nichols_model(3, 100, 100)
-    >>> mt.aggregate_entries(hl.agg.mean(mt.GT.n_alt_alleles()))
+    >>> mt = hl.balding_nichols_model(3, 50, 100)
+    >>> mt.count()
 
 You can also interact with hail via a ``pyspark`` session, but you will need to
 pass the configuration from ``PYSPARK_SUBMIT_ARGS`` directly as well as adding
@@ -132,6 +142,8 @@ Moreover, unlike in ``ipython``, ``pyspark`` provides a Spark Context via the
 global variable ``sc``. For Hail to interact properly with the Spark cluster,
 you must tell hail about this special Spark Context
 
+.. code-block:: python
+
     >>> import hail as hl
     >>> hl.init(sc) # doctest: +SKIP
 
@@ -139,14 +151,12 @@ After this initialization step, you can interact as you would in ``ipython``
 
 .. code-block:: python
 
-    >>> mt = hl.balding_nichols_model(3, 100, 100)
-    >>> mt.aggregate_entries(hl.agg.mean(mt.GT.n_alt_alleles()))
+    >>> mt = hl.balding_nichols_model(3, 50, 100)
+    >>> mt.count()
 
 It is also possible to run Hail non-interactively, by passing a Python script to
 ``spark-submit``. Again, you will need to explicitly pass several configuration
-parameters to ``spark-submit``
-
-.. code-block:: sh
+parameters to ``spark-submit``::
 
     spark-submit \
       --jars "$HAIL_HOME/build/libs/hail-all-spark.jar" \
@@ -158,7 +168,6 @@ parameters to ``spark-submit``
       your-hail-python-script-here.py
 
 .. _running-on-a-cloudera-cluster:
-
 
 Running on a Cloudera cluster
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -198,13 +207,13 @@ Common Installation Issues
 BLAS and LAPACK
 ~~~~~~~~~~~~~~~
 
-Hail uses BLAS and LAPACK optimized linear algebra libraries. These should load automatically on recent versions of Mac OS X and Google Dataproc. On Linux, these must be explicitly installed; on Ubuntu 14.04, run
+Hail uses BLAS and LAPACK optimized linear algebra libraries. These should load automatically on recent versions of Mac OS X and Google Dataproc. On Linux, these must be explicitly installed; on Ubuntu 14.04, run:
 
-.. code-block:: text
+.. code-block:: sh
 
     apt-get install libatlas-base-dev
 
-If natives are not found, ``hail.log`` will contain the warnings
+If natives are not found, ``hail.log`` will contain these warnings:
 
 .. code-block:: text
 
