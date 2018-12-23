@@ -656,7 +656,7 @@ class Tests(unittest.TestCase):
                 rect_path_bytes = new_local_temp_dir()
                 rect_uri_bytes = local_path_uri(rect_path_bytes)
 
-                BlockMatrix.export_rectangles(bm_uri, rect_uri_bytes, rects, write_bytes=True)
+                BlockMatrix.export_rectangles(bm_uri, rect_uri_bytes, rects, binary=True)
 
                 for (i, r) in enumerate(rects):
                     file = rect_path_bytes + '/rect-' + str(i) + '_' + '-'.join(map(str, r))

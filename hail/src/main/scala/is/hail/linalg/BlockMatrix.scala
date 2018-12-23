@@ -152,7 +152,7 @@ object BlockMatrix {
     flattenedRectangles: Array[Long],
     delimiter: String,
     nPartitions: Int,
-    writeBytes: Boolean): Unit = {
+    binary: Boolean): Unit = {
     require(flattenedRectangles.length % 4 == 0)
 
     checkWriteSuccess(hc, input)
@@ -172,12 +172,32 @@ object BlockMatrix {
       val sb = new StringBuilder(blockSize << 2)
       val paddedIndex = StringUtils.leftPad(index.toString, dRect, "0")
       val outputFile = output + "/rect-" + paddedIndex + "_" + r.mkString("-")
-      val uos = sHadoopBc.value.value.unsafeWriter(outputFile)
-      val os = if (writeBytes)
-          new DoubleOutputBuffer(uos, RichArray.defaultBufSize)
-        else
-          new OutputStreamWriter(uos)
+      
+      val uos = sHadoopBc.value.value.unsafeWriter(outputFile) // FIXME
       try {
+        val writeData: (Array[Double], Int, Boolean) => Unit =
+          if (binary) {
+            val os = new DoubleOutputBuffer(uos, RichArray.defaultBufSize)
+            (data: Array[Double], n: Int, _) =>
+              os.writeDoubles(data, 0, n)
+          } else {
+            val os = new OutputStreamWriter(uos)
+            (data: Array[Double], n: Int, endLine: Boolean) =>
+              sb.clear()
+              var k = 0
+              while (k < n - 1) {
+                sb.append(data(k))
+                sb.append(delimiter)
+                k += 1
+              }
+              sb.append(data(n - 1))
+              if (endLine)
+                sb.append("\n")
+              else
+                sb.append(delimiter)
+              os.write(sb.result())
+          }
+
         val startRow = r(0)
         val stopRow = r(1)
         val startCol = r(2)
@@ -251,27 +271,11 @@ object BlockMatrix {
                     stopColOffset
 
                 val n = stopColOffsetInBlock - startColOffsetInBlock
-
                 inPerBlockCol(blockCol - startBlockCol).readDoubles(data, 0, n)
+                val endLine = blockCol + 1 == stopBlockCol
                 
-                if (writeBytes) {
-                  os.asInstanceOf[DoubleOutputBuffer].writeDoubles(data, 0, n)
-                } else {
-                  sb.clear()
-                  var k = 0
-                  while (k < n - 1) {
-                    sb.append(data(k))
-                    sb.append(delimiter)
-                    k += 1
-                  }
-                  sb.append(data(n - 1))
-                  if (blockCol < stopBlockCol - 1)
-                    sb.append(delimiter)
-                  else
-                    sb.append("\n")
-
-                  os.asInstanceOf[OutputStreamWriter].write(sb.result())
-                }
+                writeData(data, n, endLine)
+                
                 blockCol += 1
               }
               i += 1
