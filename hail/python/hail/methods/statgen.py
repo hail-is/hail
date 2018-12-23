@@ -436,7 +436,7 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=()) -> 
 
 
 @typecheck(test=enumeration('wald', 'lrt', 'score', 'firth'),
-           y=expr_float64,
+           y=oneof(expr_float64, sequenceof(expr_float64), sequenceof(sequenceof(expr_float64))),
            x=expr_float64,
            covariates=sequenceof(expr_float64),
            pass_through=sequenceof(oneof(str, Expression)))
@@ -652,31 +652,35 @@ def logistic_regression_rows(test, y, x, covariates, pass_through=()) -> hail.Ta
     mt = matrix_table_source('logistic_regresion_rows/x', x)
     check_entry_indexed('logistic_regresion_rows/x', x)
 
-    analyze('logistic_regresion_rows/y', y, mt._col_indices)
+    y_is_list = isinstance(y, list)
+    if y_is_list and len(y) == 0:
+        raise ValueError(f"'logistic_regression_rows': found no values for 'y'")
 
-    all_exprs = [y]
     for e in covariates:
-        all_exprs.append(e)
-        analyze('logistic_regression/covariates', e, mt._col_indices)
+        analyze('logistic_regression_rows/covariates', e, mt._col_indices)
 
-    _warn_if_no_intercept('logistic_regresion_rows', covariates)
+    _warn_if_no_intercept('logistic_regression_rows', covariates)
 
     x_field_name = Env.get_uid()
-    y_field_name = '__y'
+    y_field = list(f'__y_{i}' for i in range(len(y))) if y_is_list else "__y"
+
+    y_dict = dict(zip(y_field, y)) if y_is_list else {y_field: y}
+    func = Env.hail().methods.LogisticRegression
+
     cov_field_names = list(f'__cov{i}' for i in range(len(covariates)))
     row_fields = _get_regression_row_fields(mt, pass_through, 'logistic_regression_rows')
 
-# FIXME: selecting an existing entry field should be emitted as a SelectFields
-    mt = mt._select_all(col_exprs=dict(**{y_field_name: y},
+    # FIXME: selecting an existing entry field should be emitted as a SelectFields
+    mt = mt._select_all(col_exprs=dict(**y_dict,
                                        **dict(zip(cov_field_names, covariates))),
                         row_exprs=row_fields,
                         col_key=[],
                         entry_exprs={x_field_name: x})
 
-    jt = Env.hail().methods.LogisticRegression.apply(
+    jt = func.apply(
         mt._jmt,
         test,
-        y_field_name,
+        y_field,
         x_field_name,
         cov_field_names,
         [x for x in row_fields if x not in mt.row_key])
