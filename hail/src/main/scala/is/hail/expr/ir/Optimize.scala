@@ -9,6 +9,7 @@ object Optimize {
 
     var ir = ir0
     ir = FoldConstants(ir, canGenerateLiterals = canGenerateLiterals)
+    ir = MinimizeLets(ir)
     ir = Simplify(ir)
     ir = PruneDeadFields(ir)
 
