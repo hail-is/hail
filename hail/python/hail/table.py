@@ -1277,6 +1277,10 @@ class Table(ExprContainer):
                 s += format_line(row, block_column_width, block_right_align)
             s += hline
 
+        if has_more:
+            n_rows = len(rows)
+            s += f"showing top { n_rows } { 'row' if n_rows == 1 else 'rows' }\n"
+
         return s
 
     @typecheck_method(n=int, width=int, truncate=nullable(int), types=bool, handler=anyfunc)
