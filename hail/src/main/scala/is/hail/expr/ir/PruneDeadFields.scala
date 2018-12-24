@@ -419,6 +419,12 @@ object PruneDeadFields {
       case MatrixFilterEntries(child, pred) =>
         val irDep = memoizeAndGetDep(pred, pred.typ, child.typ, memo)
         memoizeMatrixIR(child, unify(child.typ, requestedType, irDep), memo)
+      case MatrixUnionCols(left, right) =>
+        memoizeMatrixIR(left, requestedType, memo)
+        memoizeMatrixIR(right,
+          requestedType.copy(globalType = TStruct.empty(),
+            rvRowType = requestedType.rvRowType.filterSet((requestedType.rowKey :+ MatrixType.entriesIdentifier).toSet)._1),
+          memo)
       case MatrixMapEntries(child, newEntries) =>
         val irDep = memoizeAndGetDep(newEntries, requestedType.entryType, child.typ, memo)
         val depMod = requestedType.copy(rvRowType = TStruct(requestedType.rvRowType.required, requestedType.rvRowType.fields.map { f =>

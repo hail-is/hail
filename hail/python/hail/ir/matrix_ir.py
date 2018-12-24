@@ -55,6 +55,14 @@ class MatrixMapCols(MatrixIR):
             '(' + ' '.join(f'"{escape_str(f)}"' for f in self.new_key) + ')' if self.new_key is not None else 'None',
             r(self.child), r(self.new_col))
 
+class MatrixUnionCols(MatrixIR):
+    def __init__(self, left, right):
+        self.left = left
+        self.right = right
+
+    def render(self, r):
+        return f'(MatrixUnionCols {r(self.left)} {r(self.right)})'
+
 class MatrixMapEntries(MatrixIR):
     def __init__(self, child, new_entry):
         super().__init__()

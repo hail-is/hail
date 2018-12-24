@@ -41,6 +41,8 @@ object IRBuilder {
   def irIf(cond: IRProxy)(cnsq: IRProxy)(altr: IRProxy): IRProxy = (env: E) =>
     If(cond(env), cnsq(env), altr(env))
 
+  def makeArray(first: IRProxy, rest: IRProxy*): IRProxy = arrayToProxy(first +: rest)
+
   def makeStruct(fields: (Symbol, IRProxy)*): IRProxy = (env: E) =>
     MakeStruct(fields.map { case (s, ir) => (s.name, ir(env)) })
 
@@ -124,7 +126,13 @@ object IRBuilder {
     def map(f: LambdaProxy): IRProxy = (env: E) => {
       val array = ir(env)
       val eltType = array.typ.asInstanceOf[TArray].elementType
-      ArrayMap(ir(env), f.s.name, f.body(env.bind(f.s.name -> eltType)))
+      ArrayMap(array, f.s.name, f.body(env.bind(f.s.name -> eltType)))
+    }
+
+    def flatMap(f: LambdaProxy): IRProxy = (env: E) => {
+      val array = ir(env)
+      val eltType = array.typ.asInstanceOf[TArray].elementType
+      ArrayFlatMap(array, f.s.name, f.body(env.bind(f.s.name -> eltType)))
     }
 
     def sort(ascending: IRProxy, onKey: Boolean = false): IRProxy = (env: E) => ArraySort(ir(env), ascending(env), onKey)

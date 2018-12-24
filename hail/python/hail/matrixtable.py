@@ -629,6 +629,14 @@ class MatrixTable(ExprContainer):
             raise invalid_usage
 
     @property
+    def _col_key_types(self):
+        return [v.dtype for _, v in self.col_key.items()]
+
+    @property
+    def _row_key_types(self):
+        return [v.dtype for _, v in self.row_key.items()]
+
+    @property
     def col_key(self):
         """Column key struct.
 
@@ -3104,7 +3112,28 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
             Dataset with columns from both datasets.
         """
-        return MatrixTable._from_java(self._jmt.unionCols(other._jmt))
+        if self._entry_type != other._entry_type:
+            raise ValueError('\n'.join(
+                "entry types differ",
+                f"  left: {self._entry_type}",
+                f"  right: {other.entry_type}"))
+        if self._col_type != other._col_type:
+            raise ValueError("\n".join(
+                "column types differ",
+                f"  left: {self._col_type}",
+                f"  right: {other.col_type}"))
+        if list(self._col_key_types) != list(other._col_key_types):
+            raise ValueError("\n".join(
+                "column key types differ",
+                f"  left: {', '.join(self._col_key_types)}",
+                f"  right: {', '.join(other._col_key_types)}"))
+        if list(self._row_key_types) != list(other._row_key_types):
+            raise ValueError("\n".join(
+                "row key types differ",
+                f"  left: {', '.join(self._row_key_types)}",
+                f"  right: {', '.join(other._row_key_types)}"))
+        
+        return MatrixTable(MatrixUnionCols(self._mir, other._mir))
 
     @typecheck_method(n=int)
     def head(self, n: int) -> 'MatrixTable':
