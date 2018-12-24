@@ -163,7 +163,8 @@ object LowerMatrixIR {
         .mapRows('row
           .insertFields(entriesField ->
             makeArray('row(entriesField), 'row(Symbol(rightEntries))).flatMap('a ~> 'a))
-          .dropFields(Symbol(rightEntries)))
+          // TableJoin puts keys first; drop rightEntries, but also restore left row field order
+          .selectFields(left.typ.rvRowType.fieldNames: _*))
         .mapGlobals('global
           .insertFields(colsField ->
             makeArray('global(colsField), 'global(Symbol(rightCols))).flatMap('a ~> 'a))
