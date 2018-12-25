@@ -558,6 +558,64 @@ case class TableIntervalJoin(left: TableIR, right: TableIR, root: String) extend
   }
 }
 
+case class TableZipUnchecked(left: TableIR, right: TableIR) extends TableIR {
+  require((left.typ.rowType.fieldNames ++ right.typ.rowType.fieldNames).areDistinct())
+  require(right.typ.key.isEmpty)
+
+  val typ: TableType = left.typ.copy(rowType = left.typ.rowType ++ right.typ.rowType)
+
+  private val inserter = InsertFields(
+    Ref("left", left.typ.rowType),
+    right.typ.rowType.fieldNames.map(f => f -> GetField(Ref("right", right.typ.rowType), f)))
+
+  override val rvdType: RVDType = RVDType(inserter.pType, left.rvdType.key)
+
+  override def partitionCounts: Option[IndexedSeq[Long]] = left.partitionCounts
+
+  def children: IndexedSeq[BaseIR] = Array(left, right)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): TableIR = {
+    val IndexedSeq(newLeft: TableIR, newRight: TableIR) = newChildren
+    TableZipUnchecked(newLeft, newRight)
+  }
+
+  override def execute(hc: HailContext): TableValue = {
+    val tv1 = left.execute(hc)
+    val tv2 = right.execute(hc)
+
+    val (t2, makeF) = ir.Compile[Long, Long, Long](
+      "left", tv1.rvd.typ.rowType,
+      "right", tv2.rvd.typ.rowType,
+      inserter)
+
+    assert(t2.virtualType == typ.rowType)
+    assert(t2 == rvdType.rowType)
+
+    val rvd = tv1.rvd.zipPartitionsWithIndex(rvdType, tv2.rvd) { (i, ctx, it1, it2) =>
+      val f = makeF(i)
+      val region = ctx.region
+      val rv3 = RegionValue(region)
+      new Iterator[RegionValue] {
+        def hasNext = {
+          val hn1 = it1.hasNext
+          val hn2 = it2.hasNext
+          assert(hn1 == hn2)
+          hn1
+        }
+
+        def next(): RegionValue = {
+          val rv1 = it1.next()
+          val rv2 = it2.next()
+          val off = f(region, rv1.offset, false, rv2.offset, false)
+          rv3.set(region, off)
+          rv3
+        }
+      }
+    }
+    TableValue(typ, tv1.globals, rvd)
+  }
+}
+
 case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String, globalName: String) extends TableIR {
   require(children.length > 0, "there must be at least one table as an argument")
 

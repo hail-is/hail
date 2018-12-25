@@ -9,12 +9,14 @@ object Optimize {
       log.info("optimize: before:\n" + Pretty(ir0, elideLiterals = true))
 
     var ir = ir0
-    ir = FoldConstants(ir, canGenerateLiterals = canGenerateLiterals)
-    ir = AnonymizeBindings(ir)
-    ir = MaximizeLets(ir)
-    ir = Simplify(ir)
-    ir = MinimizeLets(ir)
-    ir = PruneDeadFields(ir)
+    Range(0, 3).foreach { _ =>
+      ir = FoldConstants(ir, canGenerateLiterals = canGenerateLiterals)
+      ir = AnonymizeBindings(ir)
+      ir = MaximizeLets(ir)
+      ir = Simplify(ir)
+      ir = MinimizeLets(ir)
+      ir = PruneDeadFields(ir)
+    }
 
     if (ir.typ != ir0.typ)
       fatal(s"optimization changed type!\n  before: ${ ir0.typ }\n  after:  ${ ir.typ }" +

@@ -40,7 +40,7 @@ object LowerMatrixIR {
   private[this] def lower(mir: MatrixIR): TableIR = {
     val lowered = matrixRules.applyOrElse(mir, (mir: MatrixIR) =>
       CastMatrixToTable(lowerChildren(mir).asInstanceOf[MatrixIR], entriesFieldName, colsFieldName))
-    assert(lowered.typ == loweredType(mir.typ), lowered.typ + "\n" + loweredType(mir.typ))
+    assert(lowered.typ == loweredType(mir.typ), s"\n  ${lowered.typ}\n  ${loweredType(mir.typ)}")
     lowered
   }
 
@@ -187,6 +187,10 @@ object LowerMatrixIR {
             })
           .dropFields('newColIdx)
         )
+
+    case mr: MatrixRead =>
+      println(s"I'm here: ${mr}")
+      mr.reader.lower(mr).getOrElse(throw new MatchError(mr))
   }
 
   private[this] def tableRules: PartialFunction[TableIR, TableIR] = {

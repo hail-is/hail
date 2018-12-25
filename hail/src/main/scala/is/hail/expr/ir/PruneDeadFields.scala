@@ -291,6 +291,21 @@ object PruneDeadFields {
             // don't memoize right if we are going to elide it during rebuild
             memoizeTableIR(left, requestedType, memo)
         }
+      case TableZipUnchecked(left, right) =>
+        val leftFieldSet = left.typ.rowType.fieldNames.toSet
+        val rightFieldSet = right.typ.rowType.fieldNames.toSet
+        // no dependence on right
+        if (requestedType.rowType.fieldNames.forall(f => !rightFieldSet.contains(f)))
+          memoizeTableIR(left, requestedType, memo)
+        else {
+          val leftRType = requestedType.copy(rowType = requestedType.rowType.filter(f => leftFieldSet.contains(f.name))._1)
+          val rightRType = TableType(
+            requestedType.rowType.filter(f => rightFieldSet.contains(f.name))._1,
+            FastIndexedSeq(),
+            TStruct())
+          memoizeTableIR(left, leftRType, memo)
+          memoizeTableIR(right, rightRType, memo)
+        }
       case TableMultiWayZipJoin(children, fieldName, globalName) =>
         val gType = requestedType.globalType.fieldOption(globalName)
           .map(_.typ.asInstanceOf[TArray].elementType)
@@ -878,6 +893,11 @@ object PruneDeadFields {
         val rebuilt = children.map { c => rebuild(c, memo) }
         val upcasted = rebuilt.map { t => upcastTable(t, memo.lookup(children(0)).asInstanceOf[TableType]) }
         TableMultiWayZipJoin(upcasted, fieldName, globalName)
+      case TableZipUnchecked(left, right) =>
+        if (!memo.contains(right))
+          rebuild(left, memo)
+        else
+          TableZipUnchecked(rebuild(left, memo), rebuild(right, memo))
       case TableAggregateByKey(child, expr) =>
         val child2 = rebuild(child, memo)
         TableAggregateByKey(child2, rebuild(expr, child2.typ, memo))
