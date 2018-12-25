@@ -87,6 +87,16 @@ class Header extends Component {
               Submit
             </a>
           </Link>
+          <Link href="/batch" passHref prefetch>
+            <a
+              aria-label="Batch"
+              className={classNames('link-button', {
+                'is-active': pathname === '/batch'
+              })}
+            >
+              Batch
+            </a>
+          </Link>
           <Link href="/scorecard" passHref prefetch>
             <a
               aria-label="Scorecard"

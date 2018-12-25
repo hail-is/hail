@@ -3,7 +3,7 @@ const withSass = require('@zeit/next-sass');
 const withTypescript = require('@zeit/next-typescript');
 const withPurgeCss = require('next-purgecss');
 const ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin');
-// const withOffline = require('next-offline');
+const MonacoWebpackPlugin = require('monaco-editor-webpack-plugin');
 
 require('dotenv').config('.env');
 
@@ -17,15 +17,23 @@ module.exports = withTypescript(
           fontFace: true
         },
         webpack(config, options) {
+          config.resolve.modules.push('./');
+
           if (options.isServer) {
             config.plugins.push(new ForkTsCheckerWebpackPlugin());
-          } else if (config.optimization.splitChunks.cacheGroups.commons) {
-            config.optimization.splitChunks.cacheGroups.commons.minChunks = 2;
-            console.info(config.optimization.splitChunks.cacheGroups);
-          }
+          } else {
+            // browser only
+            config.plugins.push(
+              new MonacoWebpackPlugin({
+                languages: ['python']
+              })
+            );
 
-          // console.info(config.plugins);
-          config.resolve.modules.push('./');
+            if (config.optimization.splitChunks.cacheGroups.commons) {
+              config.optimization.splitChunks.cacheGroups.commons.minChunks = 2;
+              console.info(config.optimization.splitChunks.cacheGroups);
+            }
+          }
 
           return config;
         }

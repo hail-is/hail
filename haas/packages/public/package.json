@@ -4,11 +4,12 @@
   "author": "Alex Kotlar <akotlar@bu.edu>",
   "license": "Apache 2.0",
   "scripts": {
-    "dev": "node server.js",
+    "dev": "NODE_TLS_REJECT_UNAUTHORIZED=0 node server.js",
     "build": "next build",
     "export": "NODE_ENV=production next export",
+    "prod": "SSL=true NODE_ENV=production node server.js",
     "prod-test": "NODE_ENV=production node server.js",
-    "prod": "SSL=true NODE_ENV=production node server.js"
+    "prod-test-https": "NODE_TLS_REJECT_UNAUTHORIZED=0 SSL=true NODE_ENV=production node server.js"
   },
   "dependencies": {
     "@nx-js/observer-util": "^4.2.0",
@@ -26,6 +27,7 @@
     "react": "^16.6.3",
     "react-dom": "^16.6.3",
     "react-easy-state": "^6.0.4",
+    "react-monaco-editor": "^0.22.0",
     "typeface-raleway": "^0.0.54"
   },
   "devDependencies": {
@@ -49,6 +51,7 @@
     "babel-preset-env": "^1.7.0",
     "eslint": "^5.10.0",
     "fork-ts-checker-webpack-plugin": "^0.5.2",
+    "monaco-editor-webpack-plugin": "^1.7.0",
     "next-purgecss": "^3.0.0",
     "node-sass": "^4.11.0",
     "postcss-preset-env": "^6.5.0",
