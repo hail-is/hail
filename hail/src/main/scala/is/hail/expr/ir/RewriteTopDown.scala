@@ -6,7 +6,7 @@ object RewriteTopDown {
       rule.lift(ast) match {
         case Some(newAST) if newAST != ast =>
           rewrite(newAST)
-        case None =>
+        case _ =>
           val newChildren = ast.children.map(rewrite)
           if ((ast.children, newChildren).zipped.forall(_ eq _))
             ast

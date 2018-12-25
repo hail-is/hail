@@ -37,6 +37,11 @@ class MinimizeLetsSuite extends TestNGSuite {
     ).map(ir => Array[IR](Let("x", In(0, TInt32()), ir)))
   }
 
+  @Test def assertDataProvidersWork() {
+    nonMinimizingOps()
+    minimizingOps()
+  }
+
   @Test(dataProvider = "nonMinimizingOps")
   def testNonMinimizingOps(ir: IR): Unit = {
     val after = MinimizeLets(ir)

@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.expr.ir.functions.AnonymizeBindings
 import is.hail.utils._
 
 object Optimize {
@@ -9,8 +10,10 @@ object Optimize {
 
     var ir = ir0
     ir = FoldConstants(ir, canGenerateLiterals = canGenerateLiterals)
-    ir = MinimizeLets(ir)
+    ir = AnonymizeBindings(ir)
+    ir = MaximizeLets(ir)
     ir = Simplify(ir)
+    ir = MinimizeLets(ir)
     ir = PruneDeadFields(ir)
 
     if (ir.typ != ir0.typ)
