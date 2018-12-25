@@ -6,7 +6,7 @@ import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.expr.ir
 import is.hail.expr.ir.functions.{MatrixToMatrixFunction, RelationalFunctions}
 import is.hail.expr.types._
-import is.hail.expr.types.physical.{PArray, PInt32, PStruct}
+import is.hail.expr.types.physical.{PArray, PInt32, PStruct, PType}
 import is.hail.expr.types.virtual._
 import is.hail.io.bgen.MatrixBGENReader
 import is.hail.io.gen.MatrixGENReader
@@ -144,6 +144,8 @@ abstract class MatrixReader {
   def fullRVDType: RVDType
 
   def requestType(requestedType: MatrixType): MatrixType = requestedType
+
+  def lower(mr: MatrixRead): Option[TableIR] = None
 }
 
 case class MatrixNativeReader(path: String) extends MatrixReader {
@@ -164,6 +166,69 @@ case class MatrixNativeReader(path: String) extends MatrixReader {
   def partitionCounts: Option[IndexedSeq[Long]] = Some(spec.partitionCounts)
 
   def fullType: MatrixType = spec.matrix_type
+
+  override def lower(mr: MatrixRead): Option[TableIR] = {
+    val rowsPath = path + "/rows"
+    val entriesPath = path + "/entries"
+    val colsPath = path + "/cols"
+
+    val hc = HailContext.get
+
+    var tr: TableIR = TableRead(rowsPath,
+      RelationalSpec.read(hc, rowsPath).asInstanceOf[AbstractTableSpec],
+      TableType(
+        mr.typ.rowType,
+        mr.typ.rowKey,
+        TStruct()
+      ),
+      mr.dropRows
+    )
+
+    val globals = spec.globalsComponent.readLocal(hc, path, PType.canonical(mr.typ.globalType).asInstanceOf[PStruct])(0)
+
+    tr = TableMapGlobals(tr, Literal(mr.typ.globalType, globals))
+
+    if (mr.dropCols) {
+      tr = TableMapGlobals(
+        tr,
+        InsertFields(
+          Ref("global", tr.typ.globalType),
+          FastSeq(LowerMatrixIR.colsFieldName -> MakeArray(FastSeq(), TArray(mr.typ.colType)))))
+      tr = TableMapRows(
+        tr,
+        InsertFields(
+          Ref("row", tr.typ.rowType),
+        FastSeq(LowerMatrixIR.entriesFieldName -> MakeArray(FastSeq(), TArray(mr.typ.entryType)))))
+    } else {
+      val colsTable = TableRead(colsPath,
+        RelationalSpec.read(hc, colsPath).asInstanceOf[AbstractTableSpec],
+        TableType(
+          mr.typ.colType,
+          FastIndexedSeq(),
+          TStruct()
+        ),
+        dropRows = false
+      )
+      tr = TableMapGlobals(tr, InsertFields(
+        Ref("global", tr.typ.globalType),
+        FastSeq(LowerMatrixIR.colsFieldName -> GetField(TableCollect(colsTable), "rows"))
+      ))
+
+      val entries: TableIR = TableRead(entriesPath,
+        RelationalSpec.read(hc, entriesPath).asInstanceOf[AbstractTableSpec],
+        TableType(
+          TStruct(LowerMatrixIR.entriesFieldName -> TArray(mr.typ.entryType)),
+          FastIndexedSeq(),
+          TStruct()
+        ),
+        mr.dropRows
+      )
+
+      tr = TableZipUnchecked(tr, entries)
+    }
+
+    Some(tr)
+  }
 
   def apply(mr: MatrixRead): MatrixValue = {
     val hc = HailContext.get
@@ -383,6 +448,10 @@ case class MatrixRead(
       Some(0)
     else
       reader.columnCount
+  }
+
+  final def lower: Option[TableIR] = {
+    reader.lower(this)
   }
 }
 

@@ -915,6 +915,10 @@ object IRParser {
         val left = table_ir(env)(it)
         val right = table_ir(env)(it)
         TableIntervalJoin(left, right, root)
+      case "TableZipUnchecked" =>
+        val left = table_ir(env)(it)
+        val right = table_ir(env)(it)
+        TableZipUnchecked(left, right)
       case "TableMultiWayZipJoin" =>
         val dataName = string_literal(it)
         val globalsName = string_literal(it)
