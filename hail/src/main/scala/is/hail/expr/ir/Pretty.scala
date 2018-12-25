@@ -205,7 +205,7 @@ object Pretty {
               prettyStringLiteral(uid)
             case MatrixExplodeRows(_, path) => prettyIdentifiers(path)
             case MatrixExplodeCols(_, path) => prettyIdentifiers(path)
-            case MatrixRepartition(_, n, shuffle) => n.toString + " " + prettyBooleanLiteral(shuffle)
+            case MatrixRepartition(_, n, strategy) => s"$n $strategy"
             case MatrixChooseCols(_, oldIndices) => prettyInts(oldIndices)
             case MatrixMapCols(_, _, newKey) => prettyStringsOpt(newKey)
             case MatrixKeyRowsBy(_, keys, isSorted) =>
@@ -260,10 +260,11 @@ object Pretty {
               prettyIdentifiers(keys) + " " +
                 prettyBooleanLiteral(isSorted)
             case TableRange(n, nPartitions) => s"$n $nPartitions"
-            case TableRepartition(_, n, shuffle) => n.toString + " " + prettyBooleanLiteral(shuffle)
+            case TableRepartition(_, n, strategy) => s"$n $strategy"
             case TableHead(_, n) => n.toString
             case TableJoin(_, _, joinType, joinKey) => s"$joinType $joinKey"
             case TableLeftJoinRightDistinct(_, _, root) => prettyIdentifier(root)
+            case TableIntervalJoin(_, _, root) => prettyIdentifier(root)
             case TableMultiWayZipJoin(_, dataName, globalName) =>
               s"${ prettyStringLiteral(dataName) } ${ prettyStringLiteral(globalName) }"
             case TableKeyByAndAggregate(_, _, _, nPartitions, bufferSize) =>
@@ -278,6 +279,9 @@ object Pretty {
             case CastTableToMatrix(_, entriesFieldName, colsFieldName, colKey) =>
               s"${ prettyIdentifier(entriesFieldName) } ${ prettyIdentifier(colsFieldName) } " +
                 prettyIdentifiers(colKey)
+            case MatrixToMatrixApply(_, config) => prettyStringLiteral(config)
+            case MatrixToTableApply(_, config) => prettyStringLiteral(config)
+            case TableToTableApply(_, config) => prettyStringLiteral(config)
             case TableRename(_, rowMap, globalMap) =>
               val rowKV = rowMap.toArray
               val globalKV = globalMap.toArray

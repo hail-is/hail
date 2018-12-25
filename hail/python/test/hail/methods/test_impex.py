@@ -1042,7 +1042,7 @@ class GENTests(unittest.TestCase):
         in1 = (hl.import_gen(out1 + '.gen', sample_file=out1 + '.sample', min_partitions=3)
                .add_col_index()
                .add_row_index())
-        self.assertTrue(in1.aggregate_entries(hl.agg.fraction(in1.GP == [0.0, 1.0, 0.0])) == 1.0)
+        self.assertTrue(in1.aggregate_entries(hl.agg.fraction((hl.is_missing(in1.GP) | (in1.GP == [0.0, 1.0, 0.0])) == 1.0)))
         self.assertTrue(in1.aggregate_rows(hl.agg.fraction((in1.varid == hl.str(in1.row_idx)) &
                                                            (in1.rsid == hl.str(in1.row_idx)))) == 1.0)
         self.assertTrue(in1.aggregate_cols(hl.agg.fraction((in1.s == hl.str(in1.col_idx)))))

@@ -116,9 +116,19 @@ RUN wget -O WEScourse.ISB101.2018.tar.gz https://www.dropbox.com/s/fwqy9vze5p7w7
     tar -xf WEScourse.ISB101.2018.tar.gz && \
     rm -rf WEScourse.ISB101.2018.tar.gz
 
+RUN wget -O awk.tar https://www.dropbox.com/s/80d3km03yhnhlh1/awk.tar?dl=1 && \
+    tar -xf awk.tar && \
+    rm -rf awk.tar
+
 COPY ccg_workshop_2018_python3.ipynb .
 
+COPY Basic_R.ipynb .
+
+COPY python_part_1.ipynb .
+
 COPY python_part_2.ipynb .
+
+COPY scn1a.txt .
 
 COPY some_numbers.txt .
 
@@ -142,3 +152,19 @@ RUN mkdir genotype-harmonizer && \
      find . -name '*.sh' | xargs dos2unix)
 
 COPY workshop_cars.txt workshop_plants.txt ./
+
+USER root
+RUN apt-get update && apt-get install -y r-cran-curl r-cran-openssl bedtools
+USER jovyan
+
+RUN Rscript -e "install.packages('tidyverse')"
+
+RUN (cd WEScourse/tools/gatk3 && \
+     wget https://www.dropbox.com/s/2z70te3b1x8wcpa/GenomeAnalysisTK.1.8.jar)
+
+COPY runAnalysis.1.8.sh WEScourse/
+
+# keep this last
+USER root
+RUN chown jovyan:users -R /home/jovyan
+USER jovyan

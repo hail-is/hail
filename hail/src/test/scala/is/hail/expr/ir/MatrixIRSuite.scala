@@ -259,18 +259,18 @@ class MatrixIRSuite extends SparkSuite {
     val range = MatrixTable.range(hc, 11, 3, Some(10)).ast
 
     val params = Array(
-      1 -> true,
-      1 -> false,
-      5 -> true,
-      5 -> false,
-      10 -> true,
-      10 -> false
+      1 -> RepartitionStrategy.SHUFFLE,
+      1 -> RepartitionStrategy.COALESCE,
+      5 -> RepartitionStrategy.SHUFFLE,
+      5 -> RepartitionStrategy.NAIVE_COALESCE,
+      10 -> RepartitionStrategy.SHUFFLE,
+      10 -> RepartitionStrategy.COALESCE
     )
-    params.foreach { case (n, shuffle) =>
-      val rvd = Interpret(MatrixRepartition(range, n, shuffle), optimize = false).rvd
-      assert(rvd.getNumPartitions == n, n -> shuffle)
+    params.foreach { case (n, strat) =>
+      val rvd = Interpret(MatrixRepartition(range, n, strat), optimize = false).rvd
+      assert(rvd.getNumPartitions == n, n -> strat)
       val values = rvd.collect(CodecSpec.default).map(r => r.getAs[Int](0))
-      assert(values.isSorted && values.length == 11, n -> shuffle)
+      assert(values.isSorted && values.length == 11, n -> strat)
     }
   }
 

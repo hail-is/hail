@@ -6,7 +6,7 @@ import is.hail.expr.ir.{MatrixRead, MatrixReader, MatrixValue, PruneDeadFields}
 import is.hail.expr.types._
 import is.hail.expr.types.virtual._
 import is.hail.io.vcf.LoadVCF
-import is.hail.rvd.{RVD, RVDContext}
+import is.hail.rvd.{RVD, RVDContext, RVDType}
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
@@ -189,6 +189,8 @@ case class MatrixPLINKReader(
       "cm_position" -> TFloat64()),
     rowKey = Array("locus", "alleles"),
     entryType = TStruct("GT" -> TCall()))
+
+  val fullRVDType: RVDType = fullType.canonicalRVDType
 
   def apply(mr: MatrixRead): MatrixValue = {
     val requestedType = mr.typ

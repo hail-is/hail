@@ -47,8 +47,13 @@ help:
 clean:
 	rm -rf $(BUILDDIR)
 
+.PHONY: check-python
+check-python:
+	@echo "Ensuring that Hail can be imported..."
+	python3 -c "import hail"
+
 .PHONY: html
-html:
+html: check-python
 	$(SPHINXBUILD) -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html
 	@echo
 	@echo "Build finished. The HTML pages are in $(BUILDDIR)/html."

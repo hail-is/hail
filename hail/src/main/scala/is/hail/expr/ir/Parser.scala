@@ -726,10 +726,20 @@ object IRParser {
       case "TableGetGlobals" =>
         val child = table_ir(env)(it)
         TableGetGlobals(child)
+      case "TableCollect" =>
+        val child = table_ir(env)(it)
+        TableCollect(child)
       case "TableAggregate" =>
         val child = table_ir(env)(it)
         val query = ir_value_expr(env.update(child.typ.refMap))(it)
         TableAggregate(child, query)
+      case "TableExport" =>
+        val child = table_ir(env)(it)
+        val path = string_literal(it)
+        val typesFile = opt(it, string_literal).orNull
+        val header = boolean_literal(it)
+        val exportType = int32_literal(it)
+        TableExport(child, path, typesFile, header, exportType)
       case "TableWrite" =>
         val path = string_literal(it)
         val overwrite = boolean_literal(it)
@@ -813,9 +823,9 @@ object IRParser {
         TableKeyByAndAggregate(child, expr, newKey, nPartitions, bufferSize)
       case "TableRepartition" =>
         val n = int32_literal(it)
-        val shuffle = boolean_literal(it)
+        val strategy = int32_literal(it)
         val child = table_ir(env)(it)
-        TableRepartition(child, n, shuffle)
+        TableRepartition(child, n, strategy)
       case "TableHead" =>
         val n = int64_literal(it)
         val child = table_ir(env)(it)
@@ -831,6 +841,11 @@ object IRParser {
         val left = table_ir(env)(it)
         val right = table_ir(env)(it)
         TableLeftJoinRightDistinct(left, right, root)
+      case "TableIntervalJoin" =>
+        val root = identifier(it)
+        val left = table_ir(env)(it)
+        val right = table_ir(env)(it)
+        TableIntervalJoin(left, right, root)
       case "TableMultiWayZipJoin" =>
         val dataName = string_literal(it)
         val globalsName = string_literal(it)
@@ -838,8 +853,8 @@ object IRParser {
         TableMultiWayZipJoin(children, dataName, globalsName)
       case "TableParallelize" =>
         val nPartitions = opt(it, int32_literal)
-        val rows = ir_value_expr(env)(it)
-        TableParallelize(rows, nPartitions)
+        val rowsAndGlobal = ir_value_expr(env)(it)
+        TableParallelize(rowsAndGlobal, nPartitions)
       case "TableMapRows" =>
         val child = table_ir(env)(it)
         val newRow = ir_value_expr(env.withRefMap(child.typ.refMap))(it)
@@ -872,6 +887,14 @@ object IRParser {
         val colsField = string_literal(it)
         val child = matrix_ir(env)(it)
         CastMatrixToTable(child, entriesField, colsField)
+      case "MatrixToTableApply" =>
+        val config = string_literal(it)
+        val child = matrix_ir(env)(it)
+        MatrixToTableApply(child, config)
+      case "TableToTableApply" =>
+        val config = string_literal(it)
+        val child = table_ir(env)(it)
+        TableToTableApply(child, config)
       case "TableRename" =>
         val rowK = string_literals(it)
         val rowV = string_literals(it)
@@ -927,6 +950,10 @@ object IRParser {
         val child = matrix_ir(env)(it)
         val newEntry = ir_value_expr(env.withRefMap(child.typ.refMap))(it)
         MatrixMapEntries(child, newEntry)
+      case "MatrixUnionCols" =>
+        val left = matrix_ir(env)(it)
+        val right = matrix_ir(env)(it)
+        MatrixUnionCols(left, right)
       case "MatrixMapGlobals" =>
         val child = matrix_ir(env)(it)
         val newGlobals = ir_value_expr(env.withRefMap(child.typ.refMap))(it)
@@ -990,8 +1017,8 @@ object IRParser {
       case "MatrixRepartition" =>
         val child = matrix_ir(env)(it)
         val n = int32_literal(it)
-        val shuffle = boolean_literal(it)
-        MatrixRepartition(child, n, shuffle)
+        val strategy = int32_literal(it)
+        MatrixRepartition(child, n, strategy)
       case "MatrixUnionRows" =>
         val children = matrix_ir_children(env)(it)
         MatrixUnionRows(children)
@@ -1004,6 +1031,10 @@ object IRParser {
         val colKey = identifiers(it)
         val child = table_ir(env)(it)
         CastTableToMatrix(child, entriesField, colsField, colKey)
+      case "MatrixToMatrixApply" =>
+        val config = string_literal(it)
+        val child = matrix_ir(env)(it)
+        MatrixToMatrixApply(child, config)
       case "JavaMatrix" =>
         val name = identifier(it)
         env.irMap(name).asInstanceOf[MatrixIR]

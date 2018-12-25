@@ -704,7 +704,7 @@ class RVD(
     val valueStruct = right.typ.valueType
     val rightRowType = right.typ.rowType
     val liftField = lift.map { name => rightRowType.field(name) }
-    val valueType = liftField.map(-_.typ).getOrElse(valueStruct)
+    val valueType = liftField.map(f => f.typ.setRequired(false)).getOrElse(valueStruct)
 
     val removeLeft = dropLeft.map(_.toSet).getOrElse(Set.empty)
     val keepIndices = rowType.fields.filter(f => !removeLeft.contains(f.name)).map(_.index).toArray

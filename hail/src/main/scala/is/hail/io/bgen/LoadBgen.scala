@@ -4,11 +4,12 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.ir.{IRParser, IRParserEnvironment, MatrixRead, MatrixReader, MatrixValue, Pretty}
 import is.hail.expr.types._
+import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual._
 import is.hail.io._
 import is.hail.io.index.IndexReader
 import is.hail.io.vcf.LoadVCF
-import is.hail.rvd.{RVD, RVDPartitioner}
+import is.hail.rvd.{RVD, RVDPartitioner, RVDType}
 import is.hail.sparkextras.RepartitionedOrderedRDD2
 import is.hail.table.Table
 import is.hail.utils._
@@ -397,6 +398,8 @@ case class MatrixBGENReader(
   private val referenceGenome = LoadBgen.getReferenceGenome(fileMetadata)
 
   val fullType: MatrixType = MatrixBGENReader.getMatrixType(referenceGenome)
+
+  val fullRVDType: RVDType = RVDType(fullType.rvRowType.physicalType, fullType.rowKey)
 
   val (indexKeyType, indexAnnotationType) = LoadBgen.getIndexTypes(fileMetadata)
 

@@ -34,6 +34,10 @@ abstract class AbstractTableSpec extends RelationalSpec {
   def references_rel_path: String
   def table_type: TableType
   def rowsComponent: RVDComponentSpec = getComponent[RVDComponentSpec]("rows")
+  def rvdType(path: String): RVDType = {
+    val rows = AbstractRVDSpec.read(HailContext.get, path + "/" + rowsComponent.rel_path)
+    RVDType(rows.encodedType, rows.key)
+  }
 }
 
 case class TableSpec(
@@ -58,11 +62,6 @@ object Table {
 
   def read(hc: HailContext, path: String): Table =
     new Table(hc, TableIR.read(hc, path, dropRows = false, None))
-
-  def parallelize(ir: String, nPartitions: Option[Int]): Table = {
-    val rowsIR = IRParser.parse_value_ir(ir)
-    new Table(HailContext.get, TableParallelize(rowsIR, nPartitions))
-  }
 
   def importFam(hc: HailContext, path: String, isQuantPheno: Boolean = false,
     delimiter: String = "\\t",
@@ -432,26 +431,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
     new Table(hc, ir.TableDistinct(tir))
   }
 
-  def groupByKey(name: String): Table = {
-    require(key.nonEmpty)
-    val sorted = keyBy(key.toArray)
-    sorted.copy2(
-      rvd = sorted.rvd.groupByKey(name),
-      signature = keySignature ++ TStruct(name -> TArray(valueSignature)))
-  }
-
-  def jToMatrixTable(rowKeys: java.util.ArrayList[String],
-    colKeys: java.util.ArrayList[String],
-    rowFields: java.util.ArrayList[String],
-    colFields: java.util.ArrayList[String],
-    nPartitions: java.lang.Integer): MatrixTable = {
-
-    toMatrixTable(rowKeys.asScala.toArray, colKeys.asScala.toArray,
-      rowFields.asScala.toArray, colFields.asScala.toArray,
-      Option(nPartitions).map(_.asInstanceOf[Int])
-    )
-  }
-
   def toMatrixTable(
     rowKeys: Array[String],
     colKeys: Array[String],
@@ -498,30 +477,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
       rvd = newRVD.changeType(newRowType.physicalType),
       signature = newRowType)
   }
-
-  def flatten(): Table = {
-    require(typ.key.isEmpty)
-
-    def deepFlatten(t: TStruct, x: ir.IR): IndexedSeq[IndexedSeq[(String, ir.IR)]] = {
-      t.fields.map { f =>
-        f.typ match {
-          case t: TStruct =>
-            deepFlatten(t, ir.GetField(x, f.name))
-              .flatten
-              .map { case (n2, x2) =>
-                f.name + "." + n2 -> x2
-              }
-          case _ =>
-            IndexedSeq(f.name -> ir.GetField(x, f.name))
-        }
-      }
-    }
-
-    val newFields = deepFlatten(signature, ir.Ref("row", tir.typ.rowType))
-
-    new Table(hc, ir.TableMapRows(tir, ir.MakeStruct(newFields.flatten)))
-  }
-
+  
   // expandTypes must be called before toDF
   def toDF(sqlContext: SQLContext): DataFrame = {
     val localSignature = signature.physicalType
@@ -719,58 +675,5 @@ class Table(val hc: HailContext, val tir: TableIR) {
     new Table(hc, TableLiteral(
       TableValue(TableType(signature, key, globalSignature), globals, rvd)
     ))
-  }
-
-  def intervalJoin(other: Table, fieldName: String): Table = {
-    assert(other.keySignature.size == 1 && other.keySignature.types(0).isInstanceOf[TInterval])
-    val intervalType = other.keySignature.types(0).asInstanceOf[TInterval]
-    assert(keySignature.size == 1 && keySignature.types(0) == intervalType.pointType)
-
-    val typToInsert: Type = other.valueSignature
-    val (newRowPType, ins) = signature.physicalType.unsafeStructInsert(typToInsert.physicalType, List(fieldName))
-    val newRowType = newRowPType.virtualType
-
-    val rightRVDType = other.rvd.typ
-    val leftRVDType = rvd.typ
-
-    val zipper = { (ctx: RVDContext, it: Iterator[RegionValue], intervals: Iterator[RegionValue]) =>
-      val rvb = new RegionValueBuilder()
-      val rv2 = RegionValue()
-      OrderedRVIterator(leftRVDType, it, ctx).leftIntervalJoinDistinct(
-        OrderedRVIterator(rightRVDType, intervals, ctx)
-      )
-        .map { case Muple(rv, i) =>
-          rvb.set(rv.region)
-          rvb.start(newRowType.physicalType)
-          ins(
-            rv.region,
-            rv.offset,
-            rvb,
-            () => if (i == null) rvb.setMissing() else rvb.selectRegionValue(rightRVDType.rowType, rightRVDType.valueFieldIdx, i))
-          rv2.set(rv.region, rvb.end())
-
-          rv2
-        }
-    }
-
-    val newRVDType = RVDType(newRowType.physicalType, key)
-    val newRVD = rvd.intervalAlignAndZipPartitions(newRVDType, other.rvd)(zipper)
-
-    copy2(rvd = newRVD, signature = newRowType)
-  }
-
-  def filterPartitions(parts: java.util.ArrayList[Int], keep: Boolean): Table =
-    filterPartitions(parts.asScala.toArray, keep)
-
-  def filterPartitions(parts: Array[Int], keep: Boolean = true): Table = {
-    copy2(rvd =
-      rvd.subsetPartitions(
-        if (keep)
-          parts
-        else {
-          val partSet = parts.toSet
-          (0 until rvd.getNumPartitions).filter(i => !partSet.contains(i)).toArray
-        })
-    )
   }
 }

@@ -5,8 +5,34 @@
   </head>
   <body>
     <h1>CI.</h1>
+    <h2>Deploys</h2>
+    <table>
+      <thead>
+        <tr>
+          <th align="left">Target</th>
+          <th align="left">Latest Deployed SHA</th>
+          <th align="left">Current Deploy Job</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for target in targets.values() %}
+        <tr>
+          <td>{{ target['ref'].short_str() }}</td>
+          {% if target['deployed_sha'] is not none %}
+          <td><a href="https://github.com/{{target['ref'].repo.qname}}/commit/{{ target['deployed_sha'] }}">
+              {{ target['deployed_sha'][0:12] }}</a></td>
+          {% else %}
+          <td>Unknown</td>
+          {% endif %}
+          <td><a href="job-log/{{ target['job'].id }}">
+              {{ target['job'].id }}</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <h2>PRs</h2>
     {% for target, prs in prs_by_target %}
-    <h2>{{ target.short_str() }}</h2>
+    <h3>{{ target.short_str() }}</h3>
     <table>
       <thead>
         <tr>

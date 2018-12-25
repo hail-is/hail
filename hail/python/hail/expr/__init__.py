@@ -1,4 +1,6 @@
 from .types import *
+from .table_type import *
+from .matrix_type import *
 from .expressions import eval, eval_typed
 from .functions import *
 __all__ = ['HailType',
@@ -20,6 +22,8 @@ __all__ = ['HailType',
            'tlocus',
            'tcall',
            'tvoid',
+           'ttable',
+           'tmatrix',
            'hts_entry_schema',
            'eval',
            'eval_typed',

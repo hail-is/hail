@@ -21,8 +21,6 @@ class PCall(override val required: Boolean) extends ComplexPType {
   }
   val representation: PType = PCall.representation(required)
 
-  override def scalaClassTag: ClassTag[java.lang.Integer] = classTag[java.lang.Integer]
-
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
     assert(other isOfType this)
     PInt32().codeOrdering(mb)

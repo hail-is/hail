@@ -4,6 +4,7 @@ import is.hail.annotations._
 import is.hail.expr.ir.IRParser
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PInterval, PStruct, PType}
+import is.hail.expr.types.virtual.TStruct
 import is.hail.utils._
 import org.apache.commons.lang3.builder.HashCodeBuilder
 import org.json4s.CustomSerializer
@@ -21,7 +22,7 @@ final case class RVDType(rowType: PStruct, key: IndexedSeq[String] = FastIndexed
   val keySet: Set[String] = key.toSet
 
   val kType: PStruct = rowType.typeAfterSelect(key.map(rowType.fieldIdx))
-  val valueType: PStruct = rowType.selectFields(keySet, keep = false)
+  val valueType: PStruct = rowType.dropFields(keySet)
 
   val kFieldIdx: Array[Int] = key.map(n => rowType.fieldIdx(n)).toArray
   val valueFieldIdx: Array[Int] = (0 until rowType.size)
@@ -33,6 +34,13 @@ final case class RVDType(rowType: PStruct, key: IndexedSeq[String] = FastIndexed
     RVDType.selectUnsafeOrdering(rowType, kFieldIdx, rowType, kFieldIdx)
   val kRowOrd: UnsafeOrdering =
     RVDType.selectUnsafeOrdering(kType, Array.range(0, kType.size), rowType, kFieldIdx)
+
+  def subsetTo(requestedType: TStruct): RVDType = {
+    RVDType(
+      rowType.subsetTo(requestedType).asInstanceOf[PStruct],
+      key.takeWhile(requestedType.hasField)
+    )
+  }
 
   def kComp(other: RVDType): UnsafeOrdering =
     RVDType.selectUnsafeOrdering(

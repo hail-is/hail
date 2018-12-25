@@ -13,7 +13,7 @@ import scala.reflect.{ClassTag, _}
 case object PFloat32Optional extends PFloat32(false)
 case object PFloat32Required extends PFloat32(true)
 
-class PFloat32(override val required: Boolean) extends PNumeric {
+class PFloat32(override val required: Boolean) extends PType {
   lazy val virtualType: TFloat32 = TFloat32(required)
 
   def _toPretty = "Float32"
@@ -21,8 +21,6 @@ class PFloat32(override val required: Boolean) extends PNumeric {
   override def pyString(sb: StringBuilder): Unit = {
     sb.append("float32")
   }
-
-  override def scalaClassTag: ClassTag[java.lang.Float] = classTag[java.lang.Float]
 
   override def unsafeOrdering(): UnsafeOrdering = new UnsafeOrdering {
     def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {

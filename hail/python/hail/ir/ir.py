@@ -148,38 +148,46 @@ class Cast(IR):
     def __init__(self, v, typ):
         super().__init__(v)
         self.v = v
-        self.typ = typ
+        self._typ = typ
+
+    @property
+    def typ(self):
+        return self._typ
 
     @typecheck_method(v=IR)
     def copy(self, v):
         new_instance = self.__class__
-        return new_instance(v, self.typ)
+        return new_instance(v, self._typ)
 
     def render(self, r):
-        return '(Cast {} {})'.format(self.typ._parsable_string(), r(self.v))
+        return '(Cast {} {})'.format(self._typ._parsable_string(), r(self.v))
 
     def __eq__(self, other):
         return isinstance(other, Cast) and \
         other.v == self.v and \
-        other.typ == self.typ
+        other._typ == self._typ
 
 
 class NA(IR):
     @typecheck_method(typ=hail_type)
     def __init__(self, typ):
         super().__init__()
-        self.typ = typ
+        self._typ = typ
+
+    @property
+    def typ(self):
+        return self._typ
 
     def copy(self):
         new_instance = self.__class__
-        return new_instance(self.typ)
+        return new_instance(self._typ)
 
     def render(self, r):
-        return '(NA {})'.format(self.typ._parsable_string())
+        return '(NA {})'.format(self._typ._parsable_string())
 
     def __eq__(self, other):
         return isinstance(other, NA) and \
-               other.typ == self.typ
+               other._typ == self._typ
 
 
 class IsNA(IR):
@@ -354,25 +362,25 @@ class ApplyComparisonOp(IR):
 
 
 class MakeArray(IR):
-    @typecheck_method(args=sequenceof(IR), typ=nullable(hail_type))
-    def __init__(self, args, typ):
+    @typecheck_method(args=sequenceof(IR), element_type=nullable(hail_type))
+    def __init__(self, args, element_type):
         super().__init__(*args)
         self.args = args
-        self.typ = typ
+        self._element_type = element_type
 
     def copy(self, *args):
         new_instance = self.__class__
-        return new_instance(list(args), self.typ)
+        return new_instance(list(args), self._element_type)
 
     def render(self, r):
         return '(MakeArray {} {})'.format(
-            self.typ._parsable_string() if self.typ is not None else 'None',
+            self._element_type._parsable_string() if self._element_type is not None else 'None',
             ' '.join([r(x) for x in self.args]))
 
     def __eq__(self, other):
         return isinstance(other, MakeArray) and \
                other.args == self.args and \
-               other.typ == self.typ
+               other._element_type == self._element_type
 
 
 class ArrayRef(IR):
@@ -1056,19 +1064,23 @@ class In(IR):
     def __init__(self, i, typ):
         super().__init__()
         self.i = i
-        self.typ = typ
+        self._typ = typ
+
+    @property
+    def typ(self):
+        return self._typ
 
     def copy(self):
         new_instance = self.__class__
-        return new_instance(self.i, self.typ)
+        return new_instance(self.i, self._typ)
 
     def render(self, r):
-        return '(In {} {})'.format(self.typ._parsable_string(), self.i)
+        return '(In {} {})'.format(self._typ._parsable_string(), self.i)
 
     def __eq__(self, other):
         return isinstance(other, In) and \
                other.i == self.i and \
-               other.typ == self.typ
+               other._typ == self._typ
 
 
 class Die(IR):
@@ -1076,19 +1088,23 @@ class Die(IR):
     def __init__(self, message, typ):
         super().__init__()
         self.message = message
-        self.typ = typ
+        self._typ = typ
+
+    @property
+    def typ(self):
+        return self._typ
 
     def copy(self):
         new_instance = self.__class__
-        return new_instance(self.message, self.typ)
+        return new_instance(self.message, self._typ)
 
     def render(self, r):
-        return '(Die {} {})'.format(self.typ._parsable_string(), r(self.message))
+        return '(Die {} {})'.format(self._typ._parsable_string(), r(self.message))
 
     def __eq__(self, other):
         return isinstance(other, Die) and \
                other.message == self.message and \
-               other.typ == self.typ
+               other._typ == self._typ
 
 
 class Apply(IR):
@@ -1202,6 +1218,26 @@ class TableGetGlobals(IR):
         return isinstance(other, TableGetGlobals) and \
                other.child == self.child
 
+
+class TableCollect(IR):
+    @typecheck_method(child=TableIR)
+    def __init__(self, child):
+        super().__init__(child)
+        self.child = child
+
+    @typecheck_method(child=TableIR)
+    def copy(self, child):
+        new_instance = self.__class__
+        return new_instance(child)
+
+    def render(self, r):
+        return '(TableCollect {})'.format(r(self.child))
+
+    def __eq__(self, other):
+        return isinstance(other, TableCollect) and \
+               other.child == self.child
+
+
 class TableAggregate(IR):
     @typecheck_method(child=TableIR, query=IR)
     def __init__(self, child, query):
@@ -1275,9 +1311,9 @@ class TableWrite(IR):
 class TableExport(IR):
     @typecheck_method(child=TableIR,
                       path=str,
-                      types_file=str,
+                      types_file=nullable(str),
                       header=bool,
-                      export_type=hail_type)
+                      export_type=int)
     def __init__(self, child, path, types_file, header, export_type):
         super().__init__(child)
         self.child = child
@@ -1292,12 +1328,12 @@ class TableExport(IR):
         return new_instance(child, self.path, self.types_file, self.header, self.export_type)
 
     def render(self, r):
-        return '(TableExport "{}" "{}" "{}" {} {})'.format(
+        return '(TableExport {} "{}" "{}" {} {})'.format(
+            r(self.child),
             escape_str(self.path),
-            escape_str(self.types_file),
-            escape_str(self.header),
-            self.export_type,
-            r(self.child))
+            escape_str(self.types_file) if self.types_file else 'None',
+            self.header,
+            self.export_type)
 
     def __eq__(self, other):
         return isinstance(other, TableExport) and \

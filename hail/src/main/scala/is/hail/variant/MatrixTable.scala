@@ -1,7 +1,5 @@
 package is.hail.variant
 
-import java.io.InputStream
-
 import is.hail.annotations._
 import is.hail.check.Gen
 import is.hail.expr.ir._
@@ -9,8 +7,6 @@ import is.hail.expr.types._
 import is.hail.expr.types.physical.{PArray, PStruct}
 import is.hail.expr.types.virtual._
 import is.hail.expr.{ir, _}
-import is.hail.io.gen.ExportGen
-import is.hail.io.plink.ExportPlink
 import is.hail.linalg._
 import is.hail.methods._
 import is.hail.rvd._
@@ -89,6 +85,8 @@ abstract class RelationalSpec {
       Serialization.write(this, out)(RelationalSpec.formats)
     }
   }
+
+  def rvdType(path: String): RVDType
 }
 
 case class RVDComponentSpec(rel_path: String) extends ComponentSpec {
@@ -123,6 +121,12 @@ abstract class AbstractMatrixTableSpec extends RelationalSpec {
   def rowsComponent: RVDComponentSpec = getComponent[RVDComponentSpec]("rows")
 
   def entriesComponent: RVDComponentSpec = getComponent[RVDComponentSpec]("entries")
+
+  def rvdType(path: String): RVDType = {
+    val rows = AbstractRVDSpec.read(HailContext.get, path + "/" + rowsComponent.rel_path)
+    val entries = AbstractRVDSpec.read(HailContext.get, path + "/" + entriesComponent.rel_path)
+    RVDType(rows.encodedType.appendKey(MatrixType.entriesIdentifier, entries.encodedType), rows.key)
+  }
 }
 
 case class MatrixTableSpec(
@@ -441,88 +445,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     new MatrixTable(hc, MatrixAnnotateColsTable(ast, kt.tir, root))
   }
 
-  def rvdLeftJoinDistinctAndInsert(right: RVD, root: String, product: Boolean): MatrixTable = {
-    assert(!rowKey.contains(root))
-
-    val valueType = if (product)
-      PArray(right.typ.valueType, required = true)
-    else
-      right.typ.valueType
-
-    val rightRVD = if (product)
-      right.groupByKey(" !!! values !!! ")
-    else
-      right
-
-    val (newRVPType, ins) = rvRowType.physicalType.unsafeStructInsert(valueType, List(root))
-    val newRVType = newRVPType.virtualType
-
-    val rightRowType = rightRVD.rowType
-    val leftRowType = rvRowType
-
-    val rightValueIndices = rightRVD.typ.valueFieldIdx
-    assert(!product || rightValueIndices.length == 1)
-
-    val joiner = { (ctx: RVDContext, it: Iterator[JoinedRegionValue]) =>
-      val rvb = ctx.rvb
-      val rv = RegionValue()
-
-      it.map { jrv =>
-        val lrv = jrv.rvLeft
-        rvb.start(newRVType.physicalType)
-        ins(lrv.region, lrv.offset, rvb,
-          () => {
-            if (product) {
-              if (jrv.rvRight == null) {
-                rvb.startArray(0)
-                rvb.endArray()
-              } else
-                rvb.addField(rightRowType.physicalType, jrv.rvRight, rightValueIndices(0))
-            } else {
-              if (jrv.rvRight == null)
-                rvb.setMissing()
-              else {
-                rvb.startStruct()
-                var i = 0
-                while (i < rightValueIndices.length) {
-                  rvb.addField(rightRowType.physicalType, jrv.rvRight, rightValueIndices(i))
-                  i += 1
-                }
-                rvb.endStruct()
-              }
-            }
-          })
-        rv.set(ctx.region, rvb.end())
-        rv
-      }
-    }
-
-    val newMatrixType = matrixType.copy(rvRowType = newRVType)
-    val joinedRVD = this.rvd.orderedJoinDistinct(
-      right,
-      right.typ.key.length,
-      "left",
-      joiner,
-      newMatrixType.canonicalRVDType
-    )
-
-    copyMT(matrixType = newMatrixType, rvd = joinedRVD)
-  }
-
-  def annotateRowsTableIR(table: Table, uid: String, irs: java.util.ArrayList[String]): MatrixTable = {
-    val parseEnv = IRParserEnvironment(matrixType.refMap)
-    val key = Option(irs).map { irs =>
-      irs.asScala
-        .toFastIndexedSeq
-        .map(IRParser.parse_value_ir(_, parseEnv))
-    }
-    new MatrixTable(hc, MatrixAnnotateRowsTable(ast, table.tir, uid, key))
-  }
-
   def nPartitions: Int = rvd.getNumPartitions
-
-  def annotateRowsVDS(right: MatrixTable, root: String): MatrixTable =
-    rvdLeftJoinDistinctAndInsert(right.value.rowsRVD(), root, product = false)
 
   def count(): (Long, Long) = (countRows(), countCols())
 
@@ -536,21 +459,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def distinctByRow(): MatrixTable =
     copyAST(ast = MatrixDistinctByRow(ast))
-
-  def distinctByCol(): MatrixTable = {
-    val colKeys = dropRows().colKeys
-    val m = new mutable.HashSet[Any]()
-    val ab = new ArrayBuilder[Int]
-    colKeys.zipWithIndex
-      .foreach { case (ck, i) =>
-          if (!m.contains(ck)) {
-            ab += i
-            m.add(ck)
-          }
-      }
-    chooseCols(ab.result())
-  }
-
+  
   def dropCols(): MatrixTable =
     copyAST(ast = MatrixFilterCols(ast, ir.False()))
 
@@ -583,178 +492,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val newValue = value.insertEntries(makePartitionContext, newColType, newColKey,
       newColValues, newGlobalType, newGlobals)(newEntryType, inserter)
     copyAST(MatrixLiteral(newValue))
-  }
-
-  /**
-    *
-    * @param right right-hand dataset with which to join
-    */
-  def unionCols(right: MatrixTable): MatrixTable = {
-    if (entryType != right.entryType) {
-      fatal(
-        s"""union_cols: cannot combine datasets with different entry schema
-           |  left entry schema: @1
-           |  right entry schema: @2""".stripMargin,
-        entryType.toString,
-        right.entryType.toString)
-    }
-
-    if (!colKeyTypes.sameElements(right.colKeyTypes)) {
-      fatal(
-        s"""union_cols: cannot combine datasets with different column key schema
-           |  left column schema: [${ colKeyTypes.map(_.toString).mkString(", ") }]
-           |  right column schema: [${ right.colKeyTypes.map(_.toString).mkString(", ") }]""".stripMargin)
-    }
-
-    if (colType != right.colType) {
-      fatal(
-        s"""union_cols: cannot combine datasets with different column schema
-           |  left column schema: @1
-           |  right column schema: @2""".stripMargin,
-        colType.toString,
-        right.colType.toString)
-    }
-
-    if (!rowKeyTypes.sameElements(right.rowKeyTypes)) {
-      fatal(
-        s"""union_cols: cannot combine datasets with different row key schema
-           |  left row key schema: @1
-           |  right row key schema: @2""".stripMargin,
-        rowKeyTypes.map(_.toString).mkString(", "),
-        right.rowKeyTypes.map(_.toString).mkString(", "))
-    }
-
-
-    val newMatrixType = matrixType.copyParts() // move entries to the end
-    val newRVRowType = newMatrixType.rvRowType
-    val leftRVRowType = rvRowType.physicalType
-    val rightRVRowType = right.rvRowType.physicalType
-    val localLeftSamples = numCols
-    val localRightSamples = right.numCols
-    val leftEntriesIndex = entriesIndex
-    val rightEntriesIndex = right.entriesIndex
-    val localEntriesType = matrixType.entryArrayType.physicalType
-    assert(right.matrixType.entryArrayType == matrixType.entryArrayType)
-
-    val joiner = { (ctx: RVDContext, it: Iterator[JoinedRegionValue]) =>
-      val rvb = ctx.rvb
-      val rv2 = RegionValue()
-
-      it.map { jrv =>
-        val lrv = jrv.rvLeft
-        val rrv = jrv.rvRight
-
-        rvb.start(newRVRowType.physicalType)
-        rvb.startStruct()
-        var i = 0
-        while (i < leftRVRowType.size) {
-          if (i != leftEntriesIndex)
-            rvb.addField(leftRVRowType, lrv, i)
-          i += 1
-        }
-        rvb.startArray(localLeftSamples + localRightSamples)
-
-        val leftEntriesOffset = leftRVRowType.loadField(lrv.region, lrv.offset, leftEntriesIndex)
-        val leftEntriesLength = localEntriesType.loadLength(lrv.region, leftEntriesOffset)
-        assert(leftEntriesLength == localLeftSamples)
-
-        val rightEntriesOffset = rightRVRowType.loadField(rrv.region, rrv.offset, rightEntriesIndex)
-        val rightEntriesLength = localEntriesType.loadLength(rrv.region, rightEntriesOffset)
-        assert(rightEntriesLength == localRightSamples)
-
-        i = 0
-        while (i < localLeftSamples) {
-          rvb.addElement(localEntriesType, lrv.region, leftEntriesOffset, i)
-          i += 1
-        }
-
-        i = 0
-        while (i < localRightSamples) {
-          rvb.addElement(localEntriesType, rrv.region, rightEntriesOffset, i)
-          i += 1
-        }
-
-        rvb.endArray()
-        rvb.endStruct()
-        rv2.set(ctx.region, rvb.end())
-        rv2
-      }
-    }
-
-    copyMT(matrixType = newMatrixType,
-      colValues = colValues.copy(value = colValues.value ++ right.colValues.value),
-      rvd = rvd.orderedJoinDistinct(right.rvd, "inner", joiner, newMatrixType.canonicalRVDType))
-  }
-
-  def makeTable(separator: String = "."): Table = {
-    matrixType.requireColKeyString()
-    requireUniqueSamples("make_table")
-
-    val sampleIds = stringSampleIds
-
-    val ttyp = TableType(
-      TStruct(
-        matrixType.rowType.fields.map { f => f.name -> f.typ } ++
-          sampleIds.flatMap { s =>
-            matrixType.entryType.fields.map { f =>
-              val newName = if (f.name == "") s else s + separator + f.name
-              newName -> f.typ
-            }
-          }: _*),
-      matrixType.rowKey,
-      matrixType.globalType)
-
-    val localNSamples = numCols
-    val localRVRowType = rvRowType.physicalType
-    val localEntriesIndex = entriesIndex
-    val localEntriesType = matrixType.entryArrayType.physicalType
-    val localEntryType = matrixType.entryType.physicalType
-
-    val newRVD = rvd.mapPartitions(ttyp.canonicalRVDType) { it =>
-      val rvb = new RegionValueBuilder()
-      val rv2 = RegionValue()
-      val fullRow = new UnsafeRow(localRVRowType)
-
-      it.map { rv =>
-        fullRow.set(rv)
-
-        val region = rv.region
-
-        rvb.set(region)
-        rvb.start(ttyp.rowType.physicalType)
-        rvb.startStruct()
-
-        var i = 0
-        while (i < localRVRowType.size) {
-          if (i != localEntriesIndex)
-            rvb.addField(localRVRowType, rv, i)
-          i += 1
-        }
-
-        assert(localRVRowType.isFieldDefined(rv, localEntriesIndex))
-        val entriesAOff = localRVRowType.loadField(rv, localEntriesIndex)
-
-        i = 0
-        while (i < localNSamples) {
-          if (localEntriesType.isElementDefined(region, entriesAOff, i))
-            rvb.addAllFields(localEntryType, region, localEntriesType.loadElement(region, entriesAOff, i))
-          else {
-            var j = 0
-            while (j < localEntryType.size) {
-              rvb.setMissing()
-              j += 1
-            }
-          }
-
-          i += 1
-        }
-        rvb.endStruct()
-
-        rv2.set(region, rvb.end())
-        rv2
-      }
-    }
-    new Table(hc, TableLiteral(TableValue(ttyp, globals, newRVD)))
   }
 
   def aggregateRowsJSON(expr: String): String = {
@@ -1076,13 +813,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       fatal("found one or more type check errors")
   }
 
-  def globalsTable(): Table = {
-    Table(hc,
-      sparkContext.parallelize[Row](Array(globals.value)),
-      globalType,
-      FastIndexedSeq())
-  }
-
   def rowsTable(): Table = new Table(hc, MatrixRowsTable(ast))
 
   def entriesTable(): Table = new Table(hc, MatrixEntriesTable(ast))
@@ -1321,164 +1051,5 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     info(s"Wrote all $blockCount blocks of $nRows x $localNCols matrix with block size $blockSize.")
 
     hadoop.writeTextFile(dirname + "/_SUCCESS")(out => ())
-  }
-
-  def filterPartitions(parts: java.util.ArrayList[Int], keep: Boolean): MatrixTable =
-    filterPartitions(parts.asScala.toArray, keep)
-
-  def filterPartitions(parts: Array[Int], keep: Boolean = true): MatrixTable = {
-    copy2(rvd =
-      rvd.subsetPartitions(
-        if (keep)
-          parts
-        else {
-          val partSet = parts.toSet
-          (0 until rvd.getNumPartitions).filter(i => !partSet.contains(i)).toArray
-        })
-    )
-  }
-
-  def windowVariants(basePairs: Int): MatrixTable = {
-    val newType = matrixType.copyParts(
-      rowType = matrixType.rowType ++ TStruct("prev_rows" -> TArray(matrixType.rowType)),
-      entryType = matrixType.entryType ++ TStruct("prev_entries" -> TArray(matrixType.entryType))
-    )
-
-    val oldBounds = rvd.partitioner.rangeBounds
-    val adjBounds = oldBounds.map { interval =>
-      val startLocus = interval.start.asInstanceOf[Row].getAs[Locus](0)
-      val newStartLocus = startLocus.copy(position = startLocus.position - basePairs)
-      interval.copy(start = Row(newStartLocus))
-    }
-
-    val localRVRowType = rvRowType.physicalType
-    val locusIndex = localRVRowType.fieldIdx("locus")
-    val keyOrdering = matrixType.rowKeyStruct.ordering
-    val localKeyFieldIdx = matrixType.canonicalRVDType.kFieldIdx
-    val entriesIndex = localRVRowType.fieldIdx(MatrixType.entriesIdentifier)
-    val nonEntryIndices = (0 until localRVRowType.size).filter(_ != entriesIndex).toArray
-    val entryArrayType = matrixType.entryArrayType.physicalType
-    val entryType = matrixType.entryType.physicalType
-    val rg = referenceGenome
-
-    val rangeBoundsBc = sparkContext.broadcast(oldBounds)
-
-    val nCols = numCols
-
-    val newRDD = RepartitionedOrderedRDD2(rvd, adjBounds).cmapPartitionsWithIndex { (i, context, it) =>
-      val bit = it.buffered
-
-      val rb = new mutable.ArrayStack[Region]()
-
-      def fetchRegion(): Region = {
-        if (rb.isEmpty)
-          context.freshRegion
-        else
-          rb.pop()
-      }
-      def recycleRegion(r: Region): Unit = {
-        r.clear()
-        rb.push(r)
-      }
-
-      val deque = new java.util.ArrayDeque[(Locus, RegionValue)]()
-
-      val region = context.region
-      val rv2 = RegionValue()
-      val rvb = new RegionValueBuilder()
-
-      def pushRow(locus: Locus, row: RegionValue) {
-        val cpRegion = fetchRegion()
-        rvb.set(cpRegion)
-        rvb.clear()
-        rvb.start(localRVRowType)
-        rvb.startStruct()
-        rvb.addAllFields(localRVRowType, row)
-        rvb.endStruct()
-        deque.push(locus -> RegionValue(cpRegion, rvb.end()))
-      }
-
-      def getLocus(row: RegionValue): Locus =
-        UnsafeRow.readLocus(row.region, localRVRowType.loadField(row, locusIndex), rg)
-
-      val unsafeRow = new UnsafeRow(localRVRowType)
-      val keyView = new KeyedRow(unsafeRow, localKeyFieldIdx)
-      while (bit.hasNext && { unsafeRow.set(bit.head); rangeBoundsBc.value(i).isAbovePosition(keyOrdering, keyView) }) {
-        val rv = bit.next()
-        pushRow(getLocus(rv), rv)
-      }
-
-      bit.map { rv =>
-        val locus = UnsafeRow.readLocus(rv.region, localRVRowType.loadField(rv, locusIndex), rg)
-
-        def discard(x: (Locus, RegionValue)): Boolean = x != null && (x._1.position < locus.position - basePairs
-          || x._1.contig != locus.contig)
-
-        while (discard(deque.peekLast()))
-          recycleRegion(deque.removeLast()._2.region)
-
-        val rvs = deque.iterator().asScala.map(_._2).toArray
-
-        rvb.set(region)
-        rvb.clear()
-        rvb.start(newType.rvRowType.physicalType)
-        rvb.startStruct()
-        rvb.addFields(localRVRowType, rv, nonEntryIndices)
-
-        // prev_rows
-        rvb.startArray(rvs.length)
-        var j = 0
-        while (j < rvs.length) {
-          val rvj = rvs(j)
-          rvb.startStruct()
-          rvb.addFields(localRVRowType, rvj, nonEntryIndices)
-          rvb.endStruct()
-          j += 1
-        }
-        rvb.endArray()
-
-        rvb.startArray(nCols)
-
-        val entriesOffset = localRVRowType.loadField(rv, entriesIndex)
-        val prevEntriesOffsets = rvs.map(localRVRowType.loadField(_, entriesIndex))
-
-        j = 0
-        while (j < nCols) {
-          rvb.startStruct()
-          if (entryArrayType.isElementDefined(rv.region, entriesOffset, j))
-            rvb.addAllFields(entryType, rv.region, entryArrayType.loadElement(rv.region, entriesOffset, j))
-          else
-            rvb.skipFields(entryType.size)
-
-          // prev_entries
-          rvb.startArray(rvs.length)
-          var k = 0
-          while (k < rvs.length) {
-            rvb.startStruct()
-            if (entryArrayType.isElementDefined(rvs(k).region, prevEntriesOffsets(k), j))
-              rvb.addAllFields(entryType, rvs(k).region, entryArrayType.loadElement(rvs(k).region, prevEntriesOffsets(k), j))
-            else
-              rvb.skipFields(entryType.size)
-            rvb.endStruct()
-            k += 1
-          }
-          rvb.endArray()
-          rvb.endStruct()
-
-          j += 1
-        }
-        rvb.endArray()
-        rvb.endStruct()
-
-        rv2.set(region, rvb.end())
-
-        pushRow(locus, rv)
-        rv2
-      }
-    }
-
-    copyMT(
-      rvd = RVD(newType.canonicalRVDType, rvd.partitioner, newRDD),
-      matrixType = newType)
   }
 }

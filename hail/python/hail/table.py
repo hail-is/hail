@@ -7,6 +7,8 @@ from typing import *
 import hail as hl
 from hail.expr.expressions import *
 from hail.expr.types import *
+from hail.expr.table_type import *
+from hail.expr.matrix_type import *
 from hail.ir import *
 from hail.typecheck import *
 from hail.utils import wrap_to_list, storage_level, LinkedList, Struct
@@ -322,21 +324,18 @@ class Table(ExprContainer):
         super(Table, self).__init__()
 
         self._tir = tir
-        self._jtir = tir.to_java_ir()
-        self._jt = Env.hail().table.Table(Env.hc()._jhc, self._jtir)
+        self._jt = Env.hail().table.Table(
+            Env.hc()._jhc, Env.hc()._backend._to_java_ir(self._tir))
 
-        jttype = self._jtir.typ()
+        self._type = self._tir.typ
 
         self._row_axis = 'row'
 
         self._global_indices = Indices(axes=set(), source=self)
         self._row_indices = Indices(axes={self._row_axis}, source=self)
 
-        self._global_type = hl.dtype(jttype.globalType().toString())
-        self._row_type = hl.dtype(jttype.rowType().toString())
-
-        assert isinstance(self._global_type, tstruct)
-        assert isinstance(self._row_type, tstruct)
+        self._global_type = self._type.global_type
+        self._row_type = self._type.row_type
 
         self._globals = construct_reference('global', self._global_type, indices=self._global_indices)
         self._row = construct_reference('row', self._row_type, indices=self._row_indices)
@@ -345,12 +344,15 @@ class Table(ExprContainer):
                                   'row': self._row_indices}
 
         self._key = hail.struct(
-            **{k: self._row[k] for k in jiterable_to_list(jttype.key())})
+            **{k: self._row[k] for k in self._type.row_key})
 
         for k, v in itertools.chain(self._globals.items(),
                                     self._row.items()):
             self._set_field(k, v)
 
+    @property
+    def _schema(self) -> ttable:
+        return ttable(self._global_type, self._row_type, list(self._key))
 
     def __getitem__(self, item):
         if isinstance(item, str):
@@ -409,7 +411,7 @@ class Table(ExprContainer):
         -------
         :obj:`int`
         """
-        return Env.hc()._backend.interpret(TableCount(self._tir))
+        return Env.backend().execute(TableCount(self._tir))
 
     def _force_count(self):
         return self._jt.forceCount()
@@ -465,7 +467,9 @@ class Table(ExprContainer):
         if not isinstance(rows.dtype.element_type, tstruct):
             raise TypeError("'parallelize' expects an array with element type 'struct', found '{}'"
                             .format(rows.dtype))
-        table = Table(TableParallelize(rows._ir, n_partitions))
+        table = Table(TableParallelize(MakeStruct([
+            ('rows', rows._ir),
+            ('global', MakeStruct([]))]), n_partitions))
         if key is not None:
             table = table.key_by(*key)
         return table
@@ -992,7 +996,8 @@ class Table(ExprContainer):
             the export will be slower.
         """
 
-        self._jt.export(output, types_file, header, Env.hail().utils.ExportType.getExportType(parallel))
+        Env.backend().execute(
+            TableExport(self._tir, output, types_file, header, Env.hail().utils.ExportType.getExportType(parallel)))
 
     def group_by(self, *exprs, **named_exprs) -> 'GroupedTable':
         """Group by a new key for use with :meth:`.GroupedTable.aggregate`.
@@ -1131,7 +1136,7 @@ class Table(ExprContainer):
         base, _ = self._process_joins(expr)
         analyze('Table.aggregate', expr, self._global_indices, {self._row_axis})
 
-        return Env.hc()._backend.interpret(TableAggregate(base._tir, expr._ir))
+        return Env.backend().execute(TableAggregate(base._tir, expr._ir))
 
     @typecheck_method(output=str,
                       overwrite=bool,
@@ -1161,7 +1166,7 @@ class Table(ExprContainer):
             If ``True``, overwrite an existing file at the destination.
         """
 
-        Env.hc()._backend.interpret(TableWrite(self._tir, output, overwrite, stage_locally, _codec_spec))
+        Env.backend().execute(TableWrite(self._tir, output, overwrite, stage_locally, _codec_spec))
 
     @typecheck_method(n=int, width=int, truncate=nullable(int), types=bool, handler=anyfunc)
     def show(self, n=10, width=90, truncate=None, types=True, handler=print):
@@ -1337,18 +1342,19 @@ class Table(ExprContainer):
             def joiner(left):
                 if not is_key:
                     original_key = list(left.key)
-                    left = Table._from_java(left.key_by()._jt.mapRows(str(Apply('annotate',
-                                                             left._row._ir,
-                                                             hl.struct(**dict(zip(uids, exprs)))._ir)))
-                                 ).key_by(*uids)
+                    left = Table(TableMapRows(left.key_by()._tir,
+                                              Apply('annotate',
+                                                    left._row._ir,
+                                                    hl.struct(**dict(zip(uids, exprs)))._ir))
+                           ).key_by(*uids)
                     rekey_f = lambda t: t.key_by(*original_key)
                 else:
                     rekey_f = identity
 
                 if is_interval:
-                    left = Table._from_java(left._jt.intervalJoin(self._jt, uid))
+                    left = Table(TableIntervalJoin(left._tir, self._tir, uid))
                 else:
-                    left = Table._from_java(left._jt.leftJoinRightDistinct(self._jt, uid))
+                    left = Table(TableLeftJoinRightDistinct(left._tir, self._tir, uid))
                 return rekey_f(left)
 
             all_uids.append(uid)
@@ -1383,7 +1389,8 @@ class Table(ExprContainer):
                     key = None
                 else:
                     key = [str(k._ir) for k in exprs]
-                joiner = lambda left: MatrixTable._from_java(left._jmt.annotateRowsTableIR(right._jt, uid, key))
+                joiner = lambda left: MatrixTable(MatrixAnnotateRowsTable(
+                    left._mir, right._tir, uid, key))
                 ast = Join(GetField(TopLevelReference('va'), uid),
                            [uid],
                            exprs,
@@ -1395,7 +1402,7 @@ class Table(ExprContainer):
                         exprs[i] is src.col_key[i] for i in range(len(exprs))]):
                     # key is already correct
                     def joiner(left):
-                        return MatrixTable._from_java(left._jmt.annotateColsTable(right._jt, uid))
+                        return MatrixTable(MatrixAnnotateColsTable(left._mir, right._tir, uid))
                 else:
                     index_uid = Env.get_uid()
                     uids = [Env.get_uid() for _ in exprs]
@@ -1413,10 +1420,12 @@ class Table(ExprContainer):
                                   .join(self, 'inner')
                                   .key_by(index_uid)
                                   .drop(*uids))
-                        result = MatrixTable._from_java(left.add_col_index(index_uid)
-                                                        .key_cols_by(index_uid)
-                                                        ._jmt
-                                                        .annotateColsTable(joined._jt, uid)).key_cols_by(*prev_key)
+                        result = MatrixTable(MatrixAnnotateColsTable(
+                            (left.add_col_index(index_uid)
+                             .key_cols_by(index_uid)
+                             ._mir),
+                            joined._tir,
+                            uid)).key_cols_by(*prev_key)
                         return result
                 ir = Join(GetField(TopLevelReference('sa'), uid),
                           all_uids,
@@ -1544,7 +1553,7 @@ class Table(ExprContainer):
         :obj:`list` of :class:`.Struct`
             List of rows.
         """
-        return hl.tarray(self.row.dtype)._from_json(self._jt.collectJSON())
+        return Env.hc()._backend.execute(GetField(TableCollect(self._tir), 'rows'))
 
     def describe(self, handler=print):
         """Print information about the fields in the table."""
@@ -1763,28 +1772,47 @@ class Table(ExprContainer):
     @typecheck_method(n=int,
                       shuffle=bool)
     def repartition(self, n, shuffle=True):
-        """Change the number of distributed partitions.
+        """Change the number of partitions.
 
         Examples
         --------
-        Repartition to 10 partitions:
 
-        >>> table_result = table1.repartition(10)
+        Repartition to 500 partitions:
 
-        Warning
-        -------
-        When `shuffle` is ``False``, `repartition` can only decrease the number
-        of partitions and simply combines adjacent partitions to achieve the
-        desired number. It does not attempt to rebalance and so can produce a
-        heavily unbalanced dataset. An unbalanced dataset can be inefficient to
-        operate on because the work is not evenly distributed across partitions.
+        >>> table_result = table1.repartition(500)
+
+        Notes
+        -----
+
+        Check the current number of partitions with :meth:`.n_partitions`.
+
+        The data in a dataset is divided into chunks called partitions, which
+        may be stored together or across a network, so that each partition may
+        be read and processed in parallel by available cores. When a table with
+        :math:`M` rows is first imported, each of the :math:`k` partitions will
+        contain about :math:`M/k` of the rows. Since each partition has some
+        computational overhead, decreasing the number of partitions can improve
+        performance after significant filtering. Since it's recommended to have
+        at least 2 - 4 partitions per core, increasing the number of partitions
+        can allow one to take advantage of more cores. Partitions are a core
+        concept of distributed computation in Spark, see `their documentation
+        <http://spark.apache.org/docs/latest/programming-guide.html#resilient-distributed-datasets-rdds>`__
+        for details.
+
+        When ``shuffle=True``, Hail does a full shuffle of the data
+        and creates equal sized partitions.  When ``shuffle=False``,
+        Hail combines existing partitions to avoid a full shuffle.
+        These algorithms correspond to the `repartition` and
+        `coalesce` commands in Spark, respectively. In particular,
+        when ``shuffle=False``, ``n_partitions`` cannot exceed current
+        number of partitions.
 
         Parameters
         ----------
         n : int
             Desired number of partitions.
         shuffle : bool
-            If ``True``, shuffle data. Otherwise, naively coalesce.
+            If ``True``, use full shuffle to repartition.
 
         Returns
         -------
@@ -1792,7 +1820,41 @@ class Table(ExprContainer):
             Repartitioned table.
         """
 
-        return Table(TableRepartition(self._tir, n, shuffle))
+        return Table(TableRepartition(
+            self._tir, n, RepartitionStrategy.NAIVE_COALESCE))
+
+    @typecheck_method(max_partitions=int)
+    def naive_coalesce(self, max_partitions: int) -> 'MatrixTable':
+        """Naively decrease the number of partitions.
+
+        Example
+        -------
+        Naively repartition to 10 partitions:
+
+        >>> table_result = table1.naive_coalesce(10)
+
+        Warning
+        -------
+        :meth:`.naive_coalesce` simply combines adjacent partitions to achieve
+        the desired number. It does not attempt to rebalance, unlike
+        :meth:`.repartition`, so it can produce a heavily unbalanced dataset. An
+        unbalanced dataset can be inefficient to operate on because the work is
+        not evenly distributed across partitions.
+
+        Parameters
+        ----------
+        max_partitions : int
+            Desired number of partitions. If the current number of partitions is
+            less than or equal to `max_partitions`, do nothing.
+
+        Returns
+        -------
+        :class:`.Table`
+            Table with at most `max_partitions` partitions.
+        """
+
+        return Table(TableRepartition(
+            self._tir, max_partitions, RepartitionStrategy.NAIVE_COALESCE))
 
     @typecheck_method(right=table_type,
                       how=enumeration('inner', 'outer', 'left', 'right'),
@@ -2076,12 +2138,14 @@ class Table(ExprContainer):
         :class:`.Table`
             Table with a flat schema (no struct fields).
         """
-
-        if len(self.key) == 0:
-            t = self
-        else:
-            t = self.key_by()
-        return Table._from_java(t._jt.flatten())
+        def _flatten(prefix, s):
+            if isinstance(s, StructExpression):
+                return [(k, v) for (f, e) in s.items() for (k, v) in _flatten(prefix + '.' + f, e)]
+            else:
+                return [(prefix, s)]
+        t = self.key_by()
+        t = t.select(**{k: v for (f, e) in t.row.items() for (k, v) in _flatten(f, e)})
+        return t
 
     @typecheck_method(exprs=oneof(str, Expression, Ascending, Descending))
     def order_by(self, *exprs):
@@ -2314,11 +2378,8 @@ class Table(ExprContainer):
         if len(col_key) == 0:
             raise ValueError(f"'to_matrix_table': require at least one col key field")
 
-        return hl.MatrixTable._from_java(self._jt.jToMatrixTable(row_key,
-                                                                 col_key,
-                                                                 row_fields,
-                                                                 col_fields,
-                                                                 n_partitions))
+        return hl.MatrixTable(TableToMatrixTable(
+            self._tir, row_key, col_key, row_fields, col_fields, n_partitions))
 
     @property
     def globals(self) -> 'StructExpression':
@@ -2432,8 +2493,7 @@ class Table(ExprContainer):
         :class:`.Table`
             Table constructed from the Spark SQL DataFrame.
         """
-
-        return Table._from_java(Env.hail().table.Table.fromDF(Env.hc()._jhc, df._jdf, key))
+        return Env.spark_backend('from_spark').from_spark(df, key)
 
     @typecheck_method(flatten=bool)
     def to_spark(self, flatten=True):
@@ -2452,10 +2512,7 @@ class Table(ExprContainer):
         :class:`.pyspark.sql.DataFrame`
 
         """
-        t = self.expand_types()
-        if flatten:
-            t = t.flatten()
-        return pyspark.sql.DataFrame(t._jt.toDF(Env.hc()._jsql_context), Env.sql_context())
+        return Env.spark_backend('to_spark').to_spark(self, flatten)
 
     @typecheck_method(flatten=bool)
     def to_pandas(self, flatten=True):
@@ -2475,7 +2532,7 @@ class Table(ExprContainer):
         :class:`.pandas.DataFrame`
 
         """
-        return self.to_spark(flatten).toPandas()
+        return Env.spark_backend('to_pandas').to_pandas(self, flatten)
 
     @staticmethod
     @typecheck(df=pandas.DataFrame,
@@ -2499,7 +2556,7 @@ class Table(ExprContainer):
         -------
         :class:`.Table`
         """
-        return Table.from_spark(Env.sql_context().createDataFrame(df), key)
+        return Env.spark_backend('from_pandas').from_pandas(df, key)
 
     @typecheck_method(other=table_type, tolerance=nullable(numeric), absolute=bool)
     def _same(self, other, tolerance=1e-6, absolute=False):
@@ -2557,7 +2614,9 @@ class Table(ExprContainer):
         :class:`.Table`
         """
 
-        return Table._from_java(self._jt.groupByKey(name))
+        return Table(TableAggregateByKey(
+            self._tir,
+            hl.struct(**{name: hl.agg.collect(self.row_value)})._ir))
 
     def distinct(self) -> 'Table':
         """Keep only one row for each unique key.
@@ -2607,14 +2666,14 @@ class Table(ExprContainer):
 
     @typecheck_method(parts=sequenceof(int), keep=bool)
     def _filter_partitions(self, parts, keep=True):
-        return Table._from_java(self._jt.filterPartitions(parts, keep))
+        return Table(TableToTableApply(self._tir, {'name': 'TableFilterPartitions', 'parts': parts, 'keep': keep}))
 
     @typecheck_method(cols_field_name=str,
                       entries_field_name=str,
                       col_key=sequenceof(str))
     def _unlocalize_entries(self, entries_field_name, cols_field_name, col_key):
-        return hl.MatrixTable._from_java(
-                self._jt.unlocalizeEntries(entries_field_name, cols_field_name, col_key))
+        return hl.MatrixTable(CastTableToMatrix(
+            self._tir, entries_field_name, cols_field_name, col_key))
 
     @staticmethod
     @typecheck(tables=sequenceof(table_type), data_field_name=str, global_field_name=str)
@@ -2628,9 +2687,7 @@ class Table(ExprContainer):
             raise TypeError('All input tables to multi_way_zip_join must have the same row type')
         if any(head.globals.dtype != t.globals.dtype for t in tables):
             raise TypeError('All input tables to multi_way_zip_join must have the same global type')
-        jt = Env.hail().table.Table.multiWayZipJoin([t._jt for t in tables],
-                                                    data_field_name,
-                                                    global_field_name)
-        return Table._from_java(jt)
+        return Table(TableMultiWayZipJoin(
+            [t._tir for t in tables], data_field_name, global_field_name))
 
 table_type.set(Table)

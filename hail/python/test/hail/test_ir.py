@@ -81,6 +81,7 @@ class ValueIRTests(unittest.TestCase):
             ir.Literal(hl.tarray(hl.tint32), [1, 2, None]),
             ir.TableCount(table),
             ir.TableGetGlobals(table),
+            ir.TableCollect(table),
             ir.TableAggregate(table, ir.MakeStruct([('foo', ir.ApplyAggOp('Collect', [], None, [ir.I32(0)]))])),
             ir.TableWrite(table, new_temp_file(), False, True, "fake_codec_spec$$"),
             ir.MatrixAggregate(matrix_read, ir.MakeStruct([('foo', ir.ApplyAggOp('Collect', [], None, [ir.I32(0)]))])),
@@ -141,7 +142,9 @@ class TableIRTests(unittest.TestCase):
                 ir.TableRange(100, 10), 'inner', 1),
             ir.MatrixEntriesTable(matrix_read),
             ir.MatrixRowsTable(matrix_read),
-            ir.TableParallelize(ir.Literal(hl.tarray(hl.tstruct(a=hl.tint32)), [{'a':None}, {'a':5}, {'a':-3}]), None),
+            ir.TableParallelize(ir.MakeStruct([
+                ('rows', ir.Literal(hl.tarray(hl.tstruct(a=hl.tint32)), [{'a':None}, {'a':5}, {'a':-3}])),
+                ('global', ir.MakeStruct([]))]), None),
             ir.TableMapRows(
                 ir.TableKeyBy(table_read, []),
                 ir.MakeStruct([
@@ -152,7 +155,7 @@ class TableIRTests(unittest.TestCase):
                 ir.MakeStruct([
                     ('foo', ir.NA(hl.tarray(hl.tint32)))])),
             ir.TableRange(100, 10),
-            ir.TableRepartition(table_read, 10, False),
+            ir.TableRepartition(table_read, 10, ir.RepartitionStrategy.COALESCE),
             ir.TableUnion(
                 [ir.TableRange(100, 10), ir.TableRange(50, 10)]),
             ir.TableExplode(table_read, 'mset'),
@@ -162,6 +165,8 @@ class TableIRTests(unittest.TestCase):
             ir.CastMatrixToTable(matrix_read, '__entries', '__cols'),
             ir.TableRename(table_read, {'idx': 'idx_foo'}, {'global_f32': 'global_foo'}),
             ir.TableMultiWayZipJoin([table_read, table_read], '__data', '__globals'),
+            ir.MatrixToTableApply(matrix_read, {'name': 'LinearRegressionRowsSingle', 'yFields': ['col_m'], 'xField': 'entry_m', 'covFields': [], 'rowBlockSize': 10, 'passThrough': []}),
+            ir.TableToTableApply(table_read, {'name': 'TableFilterPartitions', 'parts': [0], 'keep': True})
         ]
 
         return table_irs
@@ -184,7 +189,7 @@ class TableIRTests(unittest.TestCase):
         matrix_range = ir.MatrixRead(ir.MatrixRangeReader(1, 1, 10))
 
         matrix_irs = [
-            ir.MatrixRepartition(matrix_range, 100, True),
+            ir.MatrixRepartition(matrix_range, 100, ir.RepartitionStrategy.SHUFFLE),
             ir.MatrixUnionRows(matrix_range, matrix_range),
             ir.MatrixDistinctByRow(matrix_range),
             ir.CastTableToMatrix(
@@ -214,6 +219,7 @@ class TableIRTests(unittest.TestCase):
             ir.MatrixExplodeCols(matrix_read, ['col_aset']),
             ir.MatrixAnnotateRowsTable(matrix_read, table_read, '__foo', None),
             ir.MatrixAnnotateColsTable(matrix_read, table_read, '__foo'),
+            ir.MatrixToMatrixApply(matrix_read, {'name': 'MatrixFilterPartitions', 'parts': [0], 'keep': True})
         ]
 
         for x in matrix_irs:

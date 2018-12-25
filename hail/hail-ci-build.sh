@@ -241,11 +241,9 @@ test_gcp() {
          --zip gs://hail-ci-0-1/temp/$SOURCE_SHA/$TARGET_SHA/hail.zip \
          --vep
 
-    time cluster submit ${CLUSTER_NAME} \
-         cluster-sanity-check.py
-
-    time cluster submit ${CLUSTER_NAME} \
-         cluster-vep-check.py
+    for script in python/cluster-tests/**.py; do
+        time cluster submit ${CLUSTER_NAME} $script
+    done
 
     time cluster stop ${CLUSTER_NAME} --async
     touch ${GCP_SUCCESS}

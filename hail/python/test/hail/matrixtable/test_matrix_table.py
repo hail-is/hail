@@ -931,3 +931,17 @@ class Tests(unittest.TestCase):
             tinterval2.index(mt2.row_key).collect()
         with self.assertRaises(hl.expr.ExpressionException):
             tinterval2.index(mt2.idx, mt2.idx2).collect()
+
+    def test_refs_with_process_joins(self):
+        mt = hl.utils.range_matrix_table(10, 10)
+        mt = mt.annotate_entries(
+            a_literal=hl.literal(['a']),
+            a_col_join=hl.is_defined(mt.cols()[mt.col_key]),
+            a_row_join=hl.is_defined(mt.rows()[mt.row_key]),
+            an_entry_join=hl.is_defined(mt[mt.row_key, mt.col_key]),
+            the_global_failure=hl.cond(True, mt.globals, hl.null(mt.globals.dtype)),
+            the_row_failure=hl.cond(True, mt.row, hl.null(mt.row.dtype)),
+            the_col_failure=hl.cond(True, mt.col, hl.null(mt.col.dtype)),
+            the_entry_failure=hl.cond(True, mt.entry, hl.null(mt.entry.dtype)),
+        )
+        mt.count()

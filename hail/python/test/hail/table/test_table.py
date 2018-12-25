@@ -821,6 +821,13 @@ class Tests(unittest.TestCase):
         assert ht['sample'].dtype == hl.tint32
         assert ht['_row'].dtype == hl.tint32
 
+    def test_refs_with_process_joins(self):
+        ht = hl.utils.range_table(10).annotate(foo=5)
+        ht.annotate(a_join=ht[ht.key],
+                    a_literal=hl.literal(['a']),
+                    the_row_failure=hl.cond(True, ht.row, hl.null(ht.row.dtype)),
+                    the_global_failure=hl.cond(True, ht.globals, hl.null(ht.globals.dtype))).count()
+
 def test_large_number_of_fields(tmpdir):
     ht = hl.utils.range_table(100)
     ht = ht.annotate(**{

@@ -819,6 +819,7 @@ class IRSuite extends SparkSuite {
       Literal(TStruct("x" -> TInt32()), Row(1)),
       TableCount(table),
       TableGetGlobals(table),
+      TableCollect(table),
       TableAggregate(table, MakeStruct(Seq("foo" -> count))),
       TableWrite(table, tmpDir.createLocalTempFile(extension = "ht")),
       MatrixWrite(mt, MatrixNativeWriter(tmpDir.createLocalTempFile(extension = "mt"))),
@@ -857,13 +858,15 @@ class IRSuite extends SparkSuite {
         TableMultiWayZipJoin(IndexedSeq(read, read), " * data * ", "globals"),
         MatrixEntriesTable(mtRead),
         MatrixRowsTable(mtRead),
-        TableRepartition(read, 10, false),
+        TableRepartition(read, 10, RepartitionStrategy.COALESCE),
         TableHead(read, 10),
         TableParallelize(
-          MakeArray(FastSeq(
+          MakeStruct(FastSeq(
+            "rows" -> MakeArray(FastSeq(
             MakeStruct(FastSeq("a" -> NA(TInt32()))),
             MakeStruct(FastSeq("a" -> I32(1)))
-          ), TArray(TStruct("a" -> TInt32()))), None),
+          ), TArray(TStruct("a" -> TInt32()))),
+            "global" -> MakeStruct(FastSeq()))), None),
         TableMapRows(TableKeyBy(read, FastIndexedSeq()),
           MakeStruct(FastIndexedSeq(
             "a" -> GetField(Ref("row", read.typ.rowType), "f32"),

@@ -13,8 +13,6 @@ import scala.reflect.{ClassTag, classTag}
 case class PInterval(pointType: PType, override val required: Boolean = false) extends ComplexPType {
   lazy val virtualType: TInterval = TInterval(pointType.virtualType, required)
 
-  override def children = FastSeq(pointType)
-
   def _toPretty = s"""Interval[$pointType]"""
 
   override def pyString(sb: StringBuilder): Unit = {
@@ -27,8 +25,6 @@ case class PInterval(pointType: PType, override val required: Boolean = false) e
     pointType.pretty(sb, indent, compact)
     sb.append("]")
   }
-
-  override def scalaClassTag: ClassTag[Interval] = classTag[Interval]
 
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
     assert(other isOfType this)
@@ -64,21 +60,12 @@ case class PInterval(pointType: PType, override val required: Boolean = false) e
       }
     }
 
-  val representation: PStruct = {
-    val rep = PStruct(
+  val representation: PStruct = PStruct(
+      required,
       "start" -> pointType,
       "end" -> pointType,
       "includesStart" -> PBooleanRequired,
       "includesEnd" -> PBooleanRequired)
-    rep.setRequired(required).asInstanceOf[PStruct]
-  }
-
-  override def unify(concrete: PType): Boolean = concrete match {
-    case PInterval(cpointType, _) => pointType.unify(cpointType)
-    case _ => false
-  }
-
-  override def subst() = PInterval(pointType.subst())
 
   def startOffset(off: Code[Long]): Code[Long] = representation.fieldOffset(off, 0)
 

@@ -1,3 +1,4 @@
+import json
 import socketserver
 import socket
 import sys
@@ -60,6 +61,17 @@ class Env:
             init()
             assert Env._hc is not None
         return Env._hc
+
+    @staticmethod
+    def backend():
+        return Env.hc()._backend
+
+    def spark_backend(op):
+        b = Env.backend()
+        if isinstance(b, hail.backend.SparkBackend):
+            return b
+        else:
+            raise NotImplementedError(f"{b.__class__.__name__} doesn't support {op}, only SparkBackend")
 
     @staticmethod
     def sql_context():
@@ -140,6 +152,8 @@ def jiterable_to_list(it):
     else:
         return None
 
+def dump_json(obj):
+    return f'"{escape_str(json.dumps(obj))}"'
 
 def escape_str(s):
     return Env.jutils().escapePyString(s)

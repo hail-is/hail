@@ -13,7 +13,7 @@ class StagedBaseStructBuilder(fb: FunctionBuilder, pStruct: PBaseStruct, off: Ex
 
   def setMissing(idx: Int): Code = {
     if (pStruct.fieldRequired(idx))
-      fb.nativeError(1010, "\"Required field cannot be missing.\"")
+      fb.nativeError("Required field cannot be missing.")
     else
       s"set_bit($off, ${ pStruct.missingIdx(idx) });"
   }
@@ -32,7 +32,7 @@ class StagedBaseStructBuilder(fb: FunctionBuilder, pStruct: PBaseStruct, off: Ex
 }
 
 class StagedBaseStructTripletBuilder(fb: FunctionBuilder, pStruct: PBaseStruct) {
-  private[this] val s = fb.variable("s", "char *", s"${ fb.getArg(1) }->allocate(${ pStruct.alignment }, ${ pStruct.byteSize })")
+  private[this] val s = fb.variable("s", "char *", s"${ fb.getArg(0) }->allocate(${ pStruct.alignment }, ${ pStruct.byteSize })")
   private[this] val ssb = new StagedBaseStructBuilder(fb, pStruct, s.ref)
   private[this] val ab = new ArrayBuilder[Code]
   ab += s.define

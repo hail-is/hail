@@ -1,12 +1,14 @@
 import itertools
 from typing import *
-from collections import OrderedDict
+from collections import OrderedDict, Counter
 import warnings
 
 import hail
 import hail as hl
 from hail.expr.expressions import *
 from hail.expr.types import *
+from hail.expr.table_type import *
+from hail.expr.matrix_type import *
 from hail.ir import *
 from hail.table import Table, ExprContainer
 from hail.typecheck import *
@@ -547,10 +549,8 @@ class MatrixTable(ExprContainer):
         super(MatrixTable, self).__init__()
 
         self._mir = mir
-        self._jmir = mir.to_java_ir()
-        self._jmt = Env.hail().variant.MatrixTable(Env.hc()._jhc, self._jmir)
-
-        jmtype = self._jmir.typ()
+        self._jmt = Env.hail().variant.MatrixTable(
+            Env.hc()._jhc, Env.hc()._backend._to_java_ir(self._mir))
 
         self._globals = None
         self._col_values = None
@@ -563,20 +563,17 @@ class MatrixTable(ExprContainer):
         self._col_indices = Indices(self, {self._col_axis})
         self._entry_indices = Indices(self, {self._row_axis, self._col_axis})
 
-        self._global_type = hl.dtype(jmtype.globalType().toString())
-        self._col_type = hl.dtype(jmtype.colType().toString())
-        self._row_type = hl.dtype(jmtype.rowType().toString())
-        self._entry_type = hl.dtype(jmtype.entryType().toString())
+        self._type = self._mir.typ
 
-        assert isinstance(self._global_type, tstruct), self._global_type
-        assert isinstance(self._col_type, tstruct), self._col_type
-        assert isinstance(self._row_type, tstruct), self._row_type
-        assert isinstance(self._entry_type, tstruct), self._entry_type
+        self._global_type = self._type.global_type
+        self._col_type = self._type.col_type
+        self._row_type = self._type.row_type
+        self._entry_type = self._type.entry_type
 
         self._globals = construct_reference('global', self._global_type,
                                             indices=self._global_indices)
         self._rvrow = construct_reference('va',
-                                          hl.dtype(jmtype.rvRowType().toString()),
+                                          self._type.row_type,
                                           indices=self._row_indices)
         self._row = hail.struct(**{k: self._rvrow[k] for k in self._row_type.keys()})
         self._col = construct_reference('sa', self._col_type,
@@ -590,10 +587,10 @@ class MatrixTable(ExprContainer):
                                   'g': self._entry_indices}
 
         self._row_key = hail.struct(
-            **{k: self._row[k] for k in jiterable_to_list(jmtype.rowKey())})
+            **{k: self._row[k] for k in self._type.row_key})
         self._partition_key = self._row_key
         self._col_key = hail.struct(
-            **{k: self._col[k] for k in jiterable_to_list(jmtype.colKey())})
+            **{k: self._col[k] for k in self._type.col_key})
 
         self._num_samples = None
 
@@ -602,6 +599,14 @@ class MatrixTable(ExprContainer):
                                     self._col.items(),
                                     self._entry.items()):
             self._set_field(k, v)
+
+    @property
+    def _schema(self) -> tmatrix:
+        return tmatrix(
+            self._global_type,
+            self._col_type, list(self._col_key),
+            self._row_type, list(self._row_key),
+            self._entry_type)
 
     def __getitem__(self, item):
         invalid_usage = TypeError(f"MatrixTable.__getitem__: invalid index argument(s)\n"
@@ -622,6 +627,14 @@ class MatrixTable(ExprContainer):
                 raise invalid_usage from e
         else:
             raise invalid_usage
+
+    @property
+    def _col_key_types(self):
+        return [v.dtype for _, v in self.col_key.items()]
+
+    @property
+    def _row_key_types(self):
+        return [v.dtype for _, v in self.row_key.items()]
 
     @property
     def col_key(self):
@@ -1683,7 +1696,7 @@ class MatrixTable(ExprContainer):
         base, _ = self._process_joins(expr)
         analyze('MatrixTable.aggregate_rows', expr, self._global_indices, {self._row_axis})
         subst_query = subst(expr._ir, {}, {'va': Ref('row')})
-        return Env.hc()._backend.interpret(TableAggregate(MatrixRowsTable(base._mir), subst_query))
+        return Env.backend().execute(TableAggregate(MatrixRowsTable(base._mir), subst_query))
 
     @typecheck_method(expr=expr_any)
     def aggregate_cols(self, expr) -> Any:
@@ -1728,7 +1741,7 @@ class MatrixTable(ExprContainer):
         base, _ = self._process_joins(expr)
         analyze('MatrixTable.aggregate_cols', expr, self._global_indices, {self._col_axis})
         subst_query = subst(expr._ir, {}, {'sa': Ref('row')})
-        return Env.hc()._backend.interpret(TableAggregate(MatrixColsTable(base._mir), subst_query))
+        return Env.backend().execute(TableAggregate(MatrixColsTable(base._mir), subst_query))
 
     @typecheck_method(expr=expr_any)
     def aggregate_entries(self, expr) -> Any:
@@ -1768,7 +1781,7 @@ class MatrixTable(ExprContainer):
 
         base, _ = self._process_joins(expr)
         analyze('MatrixTable.aggregate_entries', expr, self._global_indices, {self._row_axis, self._col_axis})
-        return Env.hc()._backend.interpret(MatrixAggregate(base._mir, expr._ir))
+        return Env.backend().execute(MatrixAggregate(base._mir, expr._ir))
 
     @typecheck_method(field_expr=oneof(str, Expression))
     def explode_rows(self, field_expr) -> 'MatrixTable':
@@ -2083,7 +2096,8 @@ class MatrixTable(ExprContainer):
             Number of rows in the matrix.
         """
 
-        return self._jmt.countRows()
+        return Env.backend().execute(
+            TableCount(MatrixRowsTable(self._mir)))
 
     def _force_count_rows(self):
         return self._jmt.forceCountRows()
@@ -2106,7 +2120,9 @@ class MatrixTable(ExprContainer):
         :obj:`int`
             Number of columns in the matrix.
         """
-        return self._jmt.countCols()
+
+        return Env.backend().execute(
+            TableCount(MatrixColsTable(self._mir)))
 
     def count(self) -> Tuple[int, int]:
         """Count the number of rows and columns in the matrix.
@@ -2121,8 +2137,7 @@ class MatrixTable(ExprContainer):
         :obj:`int`, :obj:`int`
             Number of rows, number of cols.
         """
-        r = self._jmt.count()
-        return r._1(), r._2()
+        return (self.count_rows(), self.count_cols())
 
     @typecheck_method(output=str,
                       overwrite=bool,
@@ -2153,7 +2168,7 @@ class MatrixTable(ExprContainer):
         """
 
         writer = MatrixNativeWriter(output, overwrite, stage_locally, _codec_spec)
-        Env.hc()._backend.interpret(MatrixWrite(self._mir, writer))
+        Env.backend().execute(MatrixWrite(self._mir, writer))
 
     def globals_table(self) -> Table:
         """Returns a table with a single row with the globals of the matrix table.
@@ -2169,7 +2184,8 @@ class MatrixTable(ExprContainer):
         :class:`.Table`
             Table with the globals from the matrix, with a single row.
         """
-        return Table._from_java(self._jmt.globalsTable())
+        return Table.parallelize(
+            [hl.eval(self.globals)], self._global_type)
 
     def rows(self) -> Table:
         """Returns a table with all row fields in the matrix.
@@ -2347,7 +2363,8 @@ class MatrixTable(ExprContainer):
 
             if is_row_key:
                 def joiner(left):
-                    return MatrixTable._from_java(left._jmt.annotateRowsVDS(right._jmt, uid))
+                    return MatrixTable(MatrixAnnotateRowsTable(
+                        left._mir, right.rows()._tir, uid, None))
                 schema = tstruct(**{f: t for f, t in self.row.dtype.items() if f not in self.row_key})
                 ir = Join(GetField(TopLevelReference('va'), uid),
                           uids_to_delete,
@@ -2503,7 +2520,8 @@ class MatrixTable(ExprContainer):
 
     @typecheck_method(entries_field_name=str, cols_field_name=str)
     def _localize_entries(self, entries_field_name, cols_field_name):
-        return Table._from_java(self._jmt.localizeEntries(entries_field_name, cols_field_name))
+        return Table(CastMatrixToTable(
+            self._mir, entries_field_name, cols_field_name))
 
     @typecheck_method(row_exprs=dictof(str, expr_any),
                       col_exprs=dictof(str, expr_any),
@@ -2519,6 +2537,13 @@ class MatrixTable(ExprContainer):
                                          col_exprs.values(),
                                          entry_exprs.values(),
                                          global_exprs.values()))
+
+        for field_name in list(itertools.chain(row_exprs.keys(),
+                                               col_exprs.keys(),
+                                               entry_exprs.keys(),
+                                               global_exprs.keys())):
+            if field_name in self._fields:
+                raise RuntimeError(f'field {repr(field_name)} already in matrix table, cannot use _annotate_all')
 
         base, cleanup = self._process_joins(*all_exprs)
         mir = base._mir
@@ -2552,35 +2577,34 @@ class MatrixTable(ExprContainer):
                     entry_exprs={},
                     global_exprs={},
                     ) -> 'MatrixTable':
-        all_exprs = list(itertools.chain(row_exprs.values(),
-                                         col_exprs.values(),
-                                         entry_exprs.values(),
-                                         global_exprs.values()))
 
-        base, cleanup = self._process_joins(*all_exprs)
-        mir = base._mir
+        all_names = list(itertools.chain(row_exprs.keys(),
+                                         col_exprs.keys(),
+                                         entry_exprs.keys(),
+                                         global_exprs.keys()))
+        uids = {k: Env.get_uid() for k in all_names}
 
+        mt = self._annotate_all({uids[k]: v for k, v in row_exprs.items()},
+                                {uids[k]: v for k, v in col_exprs.items()},
+                                {uids[k]: v for k, v in entry_exprs.items()},
+                                {uids[k]: v for k, v in global_exprs.items()})
+
+        keep = set()
         if row_key is not None:
-            mir = MatrixKeyRowsBy(mir, [])
-        row_struct = hl.struct(**row_exprs)
-        analyze("MatrixTable.select_rows", row_struct, self._row_indices)
-        mir = MatrixMapRows(mir, row_struct._ir)
-        if row_key is not None:
-            mir = MatrixKeyRowsBy(mir, row_key)
+            old_key = list(mt.row_key)
+            mt = mt.key_rows_by(*(uids[k] for k in row_key)).drop(*old_key)
+        else:
+            keep = keep.union(set(mt.row_key))
 
-        col_struct = hl.struct(**col_exprs)
-        analyze("MatrixTable.select_cols", col_struct, self._col_indices)
-        mir = MatrixMapCols(mir, col_struct._ir, col_key)
+        if col_key is not None:
+            old_key = list(mt.col_key)
+            mt = mt.key_cols_by(*(uids[k] for k in col_key)).drop(*old_key)
+        else:
+            keep = keep.union(set(mt.col_key))
 
-        entry_struct = hl.struct(**entry_exprs)
-        analyze("MatrixTable.select_entries", entry_struct, self._entry_indices)
-        mir = MatrixMapEntries(mir, entry_struct._ir)
-
-        globals_struct = hl.struct(**global_exprs)
-        analyze("MatrixTable.select_globals", globals_struct, self._global_indices)
-        mir = MatrixMapGlobals(mir, globals_struct._ir)
-
-        return cleanup(MatrixTable(mir))
+        keep = keep.union(uids.values())
+        return (mt.drop(*(f for f in mt._fields if f not in keep)) \
+                .rename({uid: original for original, uid in uids.items()}))
 
     def _process_joins(self, *exprs):
         return process_joins(self, exprs)
@@ -2696,7 +2720,7 @@ class MatrixTable(ExprContainer):
     @typecheck_method(n_partitions=int,
                       shuffle=bool)
     def repartition(self, n_partitions: int, shuffle: bool = True) -> 'MatrixTable':
-        """Increase or decrease the number of partitions.
+        """Change the number of partitions.
 
         Examples
         --------
@@ -2721,17 +2745,15 @@ class MatrixTable(ExprContainer):
         can allow one to take advantage of more cores. Partitions are a core
         concept of distributed computation in Spark, see `their documentation
         <http://spark.apache.org/docs/latest/programming-guide.html#resilient-distributed-datasets-rdds>`__
-        for details. With ``shuffle=True``, Hail does a full shuffle of the data
-        and creates equal sized partitions. With ``shuffle=False``, Hail
-        combines existing partitions to avoid a full shuffle. These algorithms
-        correspond to the `repartition` and `coalesce` commands in Spark,
-        respectively. In particular, when ``shuffle=False``, ``n_partitions``
-        cannot exceed current number of partitions.
+        for details. 
 
-        Note
-        ----
-        If `shuffle` is ``False``, the number of partitions may only be
-        reduced, not increased.
+        When ``shuffle=True``, Hail does a full shuffle of the data
+        and creates equal sized partitions.  When ``shuffle=False``,
+        Hail combines existing partitions to avoid a full
+        shuffle. These algorithms correspond to the `repartition` and
+        `coalesce` commands in Spark, respectively. In particular,
+        when ``shuffle=False``, ``n_partitions`` cannot exceed current
+        number of partitions.
 
         Parameters
         ----------
@@ -2745,7 +2767,10 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
             Repartitioned dataset.
         """
-        return MatrixTable(MatrixRepartition(self._mir, n_partitions, shuffle))
+
+        return MatrixTable(MatrixRepartition(
+            self._mir, n_partitions,
+            RepartitionStrategy.SHUFFLE if shuffle else RepartitionStrategy.COALESCE))
 
     @typecheck_method(max_partitions=int)
     def naive_coalesce(self, max_partitions: int) -> 'MatrixTable':
@@ -2776,7 +2801,9 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
             Matrix table with at most `max_partitions` partitions.
         """
-        return MatrixTable._from_java(self._jmt.naiveCoalesce(max_partitions))
+        
+        return MatrixTable(MatrixRepartition(
+            self._mir, max_partitions, RepartitionStrategy.NAIVE_COALESCE))
 
     def cache(self) -> 'MatrixTable':
         """Persist the dataset in memory.
@@ -3085,7 +3112,28 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
             Dataset with columns from both datasets.
         """
-        return MatrixTable._from_java(self._jmt.unionCols(other._jmt))
+        if self._entry_type != other._entry_type:
+            raise ValueError('\n'.join(
+                "entry types differ",
+                f"  left: {self._entry_type}",
+                f"  right: {other.entry_type}"))
+        if self._col_type != other._col_type:
+            raise ValueError("\n".join(
+                "column types differ",
+                f"  left: {self._col_type}",
+                f"  right: {other.col_type}"))
+        if list(self._col_key_types) != list(other._col_key_types):
+            raise ValueError("\n".join(
+                "column key types differ",
+                f"  left: {', '.join(self._col_key_types)}",
+                f"  right: {', '.join(other._col_key_types)}"))
+        if list(self._row_key_types) != list(other._row_key_types):
+            raise ValueError("\n".join(
+                "row key types differ",
+                f"  left: {', '.join(self._row_key_types)}",
+                f"  right: {', '.join(other._row_key_types)}"))
+        
+        return MatrixTable(MatrixUnionCols(self._mir, other._mir))
 
     @typecheck_method(n=int)
     def head(self, n: int) -> 'MatrixTable':
@@ -3120,7 +3168,7 @@ class MatrixTable(ExprContainer):
 
     @typecheck_method(parts=sequenceof(int), keep=bool)
     def _filter_partitions(self, parts, keep=True):
-        return MatrixTable._from_java(self._jmt.filterPartitions(parts, keep))
+        return MatrixTable(MatrixToMatrixApply(self._mir, {'name': 'MatrixFilterPartitions', 'parts': parts, 'keep': keep}))
 
     @classmethod
     @typecheck_method(table=Table)
@@ -3151,9 +3199,11 @@ class MatrixTable(ExprContainer):
         -------
         :class:`.MatrixTable`
         """
-        hail.methods.misc.require_key(table, 'from_rows_table')
-        jmt = scala_object(Env.hail().variant, 'MatrixTable').fromRowsTable(table._jt)
-        return MatrixTable._from_java(jmt)
+        col_values_uid = Env.get_uid()
+        entries_uid = Env.get_uid()
+        return (table.annotate_globals(**{col_values_uid: hl.empty_array(hl.tstruct())})
+                .annotate(**{entries_uid: hl.empty_array(hl.tstruct())})
+                ._unlocalize_entries(entries_uid, col_values_uid, []))
 
     @typecheck_method(p=numeric,
                       seed=nullable(int))
@@ -3246,7 +3296,7 @@ class MatrixTable(ExprContainer):
         -------
         :class:`.MatrixTable`
         """
-        return MatrixTable._from_java(self._jmt.distinctByRow())
+        return MatrixTable(MatrixDistinctByRow(self._mir))
 
     def distinct_by_col(self):
         """Remove columns with a duplicate row key.
@@ -3255,7 +3305,18 @@ class MatrixTable(ExprContainer):
         -------
         :class:`.MatrixTable`
         """
-        return MatrixTable._from_java(self._jmt.distinctByCol())
+        index_uid = Env.get_uid()
+
+        col_key_fields = list(self.col_key)
+        t = self.key_cols_by().cols()
+
+        t = t.add_index(index_uid)
+        unique_cols = t.aggregate(
+            hl.agg.group_by(
+                hl.struct(**{f: t[f] for f in col_key_fields}), hl.agg.take(t[index_uid], 1)))
+        unique_cols = sorted([v[0] for _, v in unique_cols.items()])
+
+        return self.choose_cols(unique_cols)
 
     @typecheck_method(separator=str)
     def make_table(self, separator='.') -> Table:
@@ -3329,6 +3390,35 @@ class MatrixTable(ExprContainer):
         :class:`.Table`
 
         """
-        return Table._from_java(self._jmt.makeTable(separator))
+        if not (len(self.col_key) == 1 and self.col_key[0].dtype == hl.tstr):
+            raise ValueError("column key must be a single field of type str")
+
+        col_key_field = list(self.col_key)[0]
+        col_keys = [k[col_key_field] for k in self.col_key.collect()]
+        
+        duplicates = [k for k, count in Counter(col_keys).items() if count > 1]
+        if duplicates:
+            raise ValueError(f"column keys must be unique, found duplicates: {', '.join(duplicates)}")
+        
+        entries_uid = Env.get_uid()
+        cols_uid = Env.get_uid()
+        
+        t = self
+        t = t._localize_entries(entries_uid, cols_uid)
+
+        def fmt(f, col_key):
+            if f:
+                return col_key + '.' + f
+            else:
+                return col_key
+
+        t = t.select(**{
+            fmt(f, col_keys[i]): t[entries_uid][i][j]
+            for i in range(len(col_keys))
+            for j, f in enumerate(self.entry)
+        })
+        t = t.drop(cols_uid)
+
+        return t
 
 matrix_table_type.set(MatrixTable)

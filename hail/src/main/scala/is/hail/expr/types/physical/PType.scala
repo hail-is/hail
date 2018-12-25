@@ -3,16 +3,10 @@ package is.hail.expr.types.physical
 import is.hail.annotations._
 import is.hail.check.{Arbitrary, Gen}
 import is.hail.expr.ir.EmitMethodBuilder
-import is.hail.expr.types.BaseType
-import is.hail.expr.types.virtual.Type
-import is.hail.expr.{JSONAnnotationImpex, Parser, SparkAnnotationImpex}
-import is.hail.utils
+import is.hail.expr.types.virtual._
+import is.hail.expr.types.{BaseType, EncodedType}
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
-import org.apache.spark.sql.types.DataType
-import org.json4s.JValue
-
-import scala.reflect.ClassTag
 
 object PType {
   def genScalar(required: Boolean): Gen[PType] =
@@ -47,21 +41,13 @@ object PType {
 
   def preGenStruct(required: Boolean, genFieldType: Gen[PType]): Gen[PStruct] = {
     for (fields <- genFields(required, genFieldType)) yield {
-      val t = PStruct(fields)
-      if (required)
-        (+t).asInstanceOf[PStruct]
-      else
-        t
+      PStruct(fields, required)
     }
   }
 
   def preGenTuple(required: Boolean, genFieldType: Gen[PType]): Gen[PTuple] = {
     for (fields <- genFields(required, genFieldType)) yield {
-      val t = PTuple(fields.map(_.typ))
-      if (required)
-        (+t).asInstanceOf[PTuple]
-      else
-        t
+      PTuple(fields.map(_.typ), required)
     }
   }
 
@@ -114,6 +100,53 @@ object PType {
   val genInsertable: Gen[PStruct] = genInsertableStruct
 
   implicit def arbType = Arbitrary(genArb)
+
+  def canonical(t: Type): PType = {
+    t match {
+      case t: TInt32 => PInt32(t.required)
+      case t: TInt64 => PInt64(t.required)
+      case t: TFloat32 => PFloat32(t.required)
+      case t: TFloat64 => PFloat64(t.required)
+      case t: TBoolean => PBoolean(t.required)
+      case t: TBinary => PBinary(t.required)
+      case t: TString => PString(t.required)
+      case t: TCall => PCall(t.required)
+      case t: TLocus => PLocus(t.rg, t.required)
+      case t: TInterval => PInterval(canonical(t.pointType), t.required)
+      case t: TArray => PArray(canonical(t.elementType), t.required)
+      case t: TSet => PSet(canonical(t.elementType), t.required)
+      case t: TDict => PDict(canonical(t.keyType), canonical(t.valueType), t.required)
+      case t: TTuple => PTuple(t.types.map(canonical), t.required)
+      case t: TStruct => PStruct(t.fields.map(f => PField(f.name, canonical(f.typ), f.index)), t.required)
+      case t: TNDArray => PNDArray(canonical(t.elementType), t.required)
+      case TVoid => PVoid
+    }
+  }
+
+  // currently identity
+  def canonical(t: PType): PType = {
+    t match {
+      case t: PInt32 => PInt32(t.required)
+      case t: PInt64 => PInt64(t.required)
+      case t: PFloat32 => PFloat32(t.required)
+      case t: PFloat64 => PFloat64(t.required)
+      case t: PBoolean => PBoolean(t.required)
+      case t: PBinary => PBinary(t.required)
+      case t: PString => PString(t.required)
+      case t: PCall => PCall(t.required)
+      case t: PLocus => PLocus(t.rg, t.required)
+      case t: PInterval => PInterval(canonical(t.pointType), t.required)
+      case t: PArray => PArray(canonical(t.elementType), t.required)
+      case t: PSet => PSet(canonical(t.elementType), t.required)
+      case t: PTuple => PTuple(t.types.map(canonical), t.required)
+      case t: PStruct => PStruct(t.fields.map(f => PField(f.name, canonical(f.typ), f.index)), t.required)
+      case t: PNDArray => PNDArray(canonical(t.elementType), t.required)
+      case t: PDict => PDict(canonical(t.keyType), canonical(t.valueType), t.required)
+      case PVoid => PVoid
+    }
+  }
+
+  def canonical(t: EncodedType): PType = canonical(t.virtualType)
 }
 
 abstract class PType extends BaseType with Serializable {
@@ -121,19 +154,9 @@ abstract class PType extends BaseType with Serializable {
 
   def virtualType: Type
 
-  def children: Seq[PType] = FastSeq()
-
-  def clear(): Unit = children.foreach(_.clear())
-
-  def unify(concrete: PType): Boolean = {
-    this.isOfType(concrete)
-  }
-
-  def isBound: Boolean = children.forall(_.isBound)
-
-  def subst(): PType = this.setRequired(false)
-
   def unsafeOrdering(): UnsafeOrdering = ???
+
+  def isCanonical: Boolean = PType.canonical(this) == this  // will recons, may need to rewrite this method
 
   def unsafeOrdering(rightType: PType): UnsafeOrdering = {
     require(this.isOfType(rightType))
@@ -164,17 +187,6 @@ abstract class PType extends BaseType with Serializable {
     sb.append(_toPretty)
   }
 
-  def fieldOption(fields: String*): Option[PField] = fieldOption(fields.toList)
-
-  def fieldOption(path: List[String]): Option[PField] =
-    None
-
-  def isRealizable: Boolean = children.forall(_.isRealizable)
-
-  def scalaClassTag: ClassTag[_ <: AnyRef]
-
-  def canCompare(other: PType): Boolean = this == other
-
   def codeOrdering(mb: EmitMethodBuilder): CodeOrdering = codeOrdering(mb, this)
 
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering
@@ -189,28 +201,27 @@ abstract class PType extends BaseType with Serializable {
 
   def required: Boolean
 
-  final def unary_+(): PType = setRequired(true)
-
-  final def unary_-(): PType = setRequired(false)
-
   final def setRequired(required: Boolean): PType = {
-    this match {
-      case PBinary(_) => PBinary(required)
-      case PBoolean(_) => PBoolean(required)
-      case PInt32(_) => PInt32(required)
-      case PInt64(_) => PInt64(required)
-      case PFloat32(_) => PFloat32(required)
-      case PFloat64(_) => PFloat64(required)
-      case PString(_) => PString(required)
-      case PCall(_) => PCall(required)
-      case t: PArray => t.copy(required = required)
-      case t: PSet => t.copy(required = required)
-      case t: PDict => t.copy(required = required)
-      case t: PLocus => t.copy(required = required)
-      case t: PInterval => t.copy(required = required)
-      case t: PStruct => t.copy(required = required)
-      case t: PTuple => t.copy(required = required)
-    }
+    if (required == this.required)
+      this
+    else
+      this match {
+        case PBinary(_) => PBinary(required)
+        case PBoolean(_) => PBoolean(required)
+        case PInt32(_) => PInt32(required)
+        case PInt64(_) => PInt64(required)
+        case PFloat32(_) => PFloat32(required)
+        case PFloat64(_) => PFloat64(required)
+        case PString(_) => PString(required)
+        case PCall(_) => PCall(required)
+        case t: PArray => t.copy(required = required)
+        case t: PSet => t.copy(required = required)
+        case t: PDict => t.copy(required = required)
+        case t: PLocus => t.copy(required = required)
+        case t: PInterval => t.copy(required = required)
+        case t: PStruct => t.copy(required = required)
+        case t: PTuple => t.copy(required = required)
+      }
   }
 
   final def isOfType(t: PType): Boolean = {
@@ -239,24 +250,8 @@ abstract class PType extends BaseType with Serializable {
     }
   }
 
-  def deepOptional(): PType =
-    this match {
-      case t: PArray => PArray(t.elementType.deepOptional())
-      case t: PSet => PSet(t.elementType.deepOptional())
-      case t: PDict => PDict(t.keyType.deepOptional(), t.valueType.deepOptional())
-      case t: PStruct =>
-        PStruct(t.fields.map(f => PField(f.name, f.typ.deepOptional(), f.index)))
-      case t: PTuple =>
-        PTuple(t.types.map(_.deepOptional()))
-      case t =>
-        t.setRequired(false)
-    }
-
-  def structOptional(): PType =
-    this match {
-      case t: PStruct =>
-        PStruct(t.fields.map(f => PField(f.name, f.typ.deepOptional(), f.index)))
-      case t =>
-        t.setRequired(false)
-    }
+  def subsetTo(t: Type): PType = {
+    // FIXME
+    t.physicalType
+  }
 }

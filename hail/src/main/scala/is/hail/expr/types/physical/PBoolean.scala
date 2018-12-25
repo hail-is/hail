@@ -19,8 +19,6 @@ class PBoolean(override val required: Boolean) extends PType {
     sb.append("bool")
   }
 
-  override def scalaClassTag: ClassTag[java.lang.Boolean] = classTag[java.lang.Boolean]
-
   override def unsafeOrdering(): UnsafeOrdering = new UnsafeOrdering {
     def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
       java.lang.Boolean.compare(r1.loadBoolean(o1), r2.loadBoolean(o2))

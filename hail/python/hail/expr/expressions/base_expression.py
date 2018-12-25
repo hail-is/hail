@@ -445,10 +445,6 @@ class Expression(object):
     def _bin_op_reverse(self, name, other, ret_type):
         return to_expr(other)._bin_op(name, self, ret_type)
 
-    def _field(self, name, ret_type):
-        return expressions.construct_expr(GetField(self._ir, name),
-                                          ret_type, self._indices, self._aggregations)
-
     def _method(self, name, ret_type, *args):
         args = tuple(to_expr(arg) for arg in args)
         indices, aggregations = unify_all(self, *args)
