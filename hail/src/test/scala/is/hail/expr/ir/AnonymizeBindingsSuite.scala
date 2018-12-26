@@ -16,8 +16,8 @@ class AnonymizeBindingsSuite extends TestNGSuite {
         Ref("x", TInt32())
       )
     )
-    val Let(name1, _, Let(name2, _, Ref(name3, _))) = ir
+    val Let(name1, _, Let(name2, _, Ref(name3, _))) = AnonymizeBindings(ir)
     assert(name1 != name2)
-    assert(name2 != name3)
+    assert(name2 == name3)
   }
 }

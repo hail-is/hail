@@ -4,7 +4,6 @@ import scala.collection.mutable
 
 object MaximizeLets {
   def apply(ir: BaseIR): BaseIR = {
-    BREAK COMPILATION
     val m = mutable.HashSet.empty[(String, String)]
 
     RewriteBottomUp(ir, {
@@ -31,6 +30,8 @@ object MaximizeLets {
             case _: AggFilter => None
             case _: AggExplode => None
             case _: AggGroupBy => None
+            case _: TableAggregate => None
+            case _: MatrixAggregate => None
             case _ => Some(x)
           }
           case _ => None

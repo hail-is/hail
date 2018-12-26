@@ -1,5 +1,9 @@
 package is.hail.expr.ir
 
+import is.hail.utils.HailException
+
+import scala.collection.mutable
+
 object MinimizeLets {
 
   def memoize(ir: BaseIR, binding: String, memo: Memo[Boolean]): Boolean = {
@@ -46,6 +50,8 @@ object MinimizeLets {
 
 
   def apply(ir: BaseIR, copy: Boolean = true): BaseIR = {
+    var i = 0
+    val m = mutable.HashSet.empty[(String, String)]
     RewriteTopDown.rewriteTopDown(if (copy) ir.deepCopy() else ir, {
       case let@Let(binding, value, letBody) =>
         val memo = Memo.empty[Boolean]
@@ -69,6 +75,14 @@ object MinimizeLets {
           letBody
         else letBody match {
           case x@Ref(`binding`, _) => value
+          case x@Let(binding2, value2, letBody2) =>
+            val pair = (binding, binding2)
+            if (m.contains(pair))
+              let
+            else {
+              m += pair
+              Let(binding2, value2, Let(binding, value, letBody2))
+            }
           case ArrayMap(a, name, body) =>
             if (memo.lookup(body))
               let
@@ -99,9 +113,16 @@ object MinimizeLets {
               let
             else
               baseCase(x)
+          case _: ApplyAggOp => let
+          case _: ApplyScanOp => let
+          case _: AggFilter => let
+          case _: AggExplode => let
+          case _: AggGroupBy => let
+          case _: TableAggregate => let
+          case _: MatrixAggregate => let
           case x => baseCase(x)
         }
-      case ir => ir
+      case other => other
     })
   }
 }
