@@ -4,7 +4,7 @@
   "author": "Alex Kotlar <akotlar@bu.edu>",
   "license": "Apache 2.0",
   "scripts": {
-    "dev": "NODE_TLS_REJECT_UNAUTHORIZED=0 node server.js",
+    "dev": "NODE_TLS_REJECT_UNAUTHORIZED=0 SSL=true node server.js",
     "build": "next build",
     "export": "NODE_ENV=production next export",
     "prod": "SSL=true NODE_ENV=production node server.js",
@@ -23,17 +23,19 @@
     "isomorphic-unfetch": "^3.0.0",
     "js-cookies": "^1.0.4",
     "jwt-decode": "^2.2.0",
+    "monaco-editor": "^0.15.6",
     "next": "^7.0.2-canary.49",
-    "react": "^16.6.3",
-    "react-dom": "^16.6.3",
+    "react": "^16.7.0",
+    "react-dom": "^16.7.0",
     "react-easy-state": "^6.0.4",
-    "react-monaco-editor": "^0.22.0",
     "typeface-raleway": "^0.0.54"
   },
   "devDependencies": {
     "@babel/core": "^7.0.0-0",
     "@babel/plugin-proposal-class-properties": "7.1.0",
     "@babel/plugin-proposal-decorators": "7.1.0",
+    "@babel/plugin-transform-react-constant-elements": "^7.2.0",
+    "@babel/plugin-transform-react-inline-elements": "^7.2.0",
     "@babel/preset-typescript": "^7.1.0",
     "@types/auth0-js": "^8.11.7",
     "@types/express": "^4.16.0",
@@ -56,6 +58,7 @@
     "node-sass": "^4.11.0",
     "postcss-preset-env": "^6.5.0",
     "tslint": "^5.12.0",
-    "typescript": "^3.2.1"
+    "typescript": "^3.2.1",
+    "webpack": "^4.28.2"
   }
 }

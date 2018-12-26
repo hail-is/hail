@@ -1,17 +1,37 @@
 {
   "presets": [
-    [
-      "env",
-      {
-        "modules": false,
-        "debug": false,
-        "useBuiltIns": true,
-        "targets": {
-          "browsers": ["last 2 Chrome versions"]
-        }
-      }
-    ],
+    // To override next/babel handling
+    // [
+    //   "env",
+    //   {
+    //     "modules": false,
+    //     "debug": false,
+    //     "useBuiltIns": true,
+    //     "targets": {
+    //       "browsers": ["last 2 Chrome versions"]
+    //     }
+    //   }
+    // ],
     "next/babel",
     "@zeit/next-typescript/babel"
-  ]
+  ],
+  "plugins": [
+    // Performance optimizations
+    // https://medium.com/doctolib/improve-react-performance-with-babel-16f1becfaa25
+    "@babel/plugin-transform-react-constant-elements",
+    "@babel/plugin-transform-react-inline-elements"
+  ],
+  "env": {
+    "production": {
+      "plugins": [
+        [
+          // Performance optimization
+          "transform-react-remove-prop-types",
+          {
+            "removeImport": true
+          }
+        ]
+      ]
+    }
+  }
 }

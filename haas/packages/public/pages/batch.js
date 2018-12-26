@@ -1,7 +1,7 @@
-import { PureComponent } from 'react';
+import { PureComponent, Fragment } from 'react';
 import dynamic from 'next/dynamic';
 
-const MonacoEditor = dynamic(() => import('react-monaco-editor'), {
+const MonacoEditor = dynamic(() => import('components/Editor'), {
   ssr: false
 });
 
@@ -9,7 +9,7 @@ class App extends PureComponent {
   constructor(props) {
     super(props);
     this.state = {
-      code: '// type your code...'
+      code: ''
     };
   }
   editorDidMount = (editor, monaco) => {
@@ -18,23 +18,31 @@ class App extends PureComponent {
   };
   onChange = (newValue, e) => {
     console.log('onChange', newValue, e);
+    this.setState({
+      code: newValue
+    });
   };
   render() {
     const code = this.state.code;
-    const options = {
-      selectOnLineNumbers: true
-    };
 
     return (
-      <MonacoEditor
-        width="800"
-        height="800"
-        language="python"
-        value={code}
-        options={options}
-        onChange={this.onChange}
-        editorDidMount={this.editorDidMount}
-      />
+      <span
+        style={{
+          display: 'flex',
+          flexDirection: 'row'
+        }}
+      >
+        <MonacoEditor
+          width="67vw"
+          height="90vh"
+          language="python"
+          theme="vs-dark"
+          value={code}
+          onChange={this.onChange}
+          editorDidMount={this.editorDidMount}
+        />
+        <div style={{ width: '33vw', padding: 15 }}>{this.state.code}</div>
+      </span>
     );
 
     // return <div>Loading</div>;

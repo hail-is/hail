@@ -1,7 +1,7 @@
 const withCSS = require('@zeit/next-css');
 const withSass = require('@zeit/next-sass');
 const withTypescript = require('@zeit/next-typescript');
-const withPurgeCss = require('next-purgecss');
+// const withPurgeCss = require('next-purgecss');
 const ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin');
 const MonacoWebpackPlugin = require('monaco-editor-webpack-plugin');
 
@@ -9,36 +9,36 @@ require('dotenv').config('.env');
 
 module.exports = withTypescript(
   withSass(
-    withCSS(
-      withPurgeCss({
-        purgeCss: {
-          //for animate.css bundle reduction
-          keyframes: true,
-          fontFace: true
-        },
-        webpack(config, options) {
-          config.resolve.modules.push('./');
+    withCSS({
+      webpack(config, options) {
+        config.resolve.modules.push('./');
 
-          if (options.isServer) {
-            config.plugins.push(new ForkTsCheckerWebpackPlugin());
-          } else {
-            // browser only
-            config.plugins.push(
-              new MonacoWebpackPlugin({
-                languages: ['python']
-              })
-            );
+        if (options.isServer) {
+          config.plugins.push(new ForkTsCheckerWebpackPlugin());
+        } else {
+          // browser only
+          config.plugins.push(
+            new MonacoWebpackPlugin({
+              output: 'static/',
+              languages: [
+                'javascript',
+                'typescript',
+                'python',
+                'r',
+                'perl',
+                'shell'
+              ]
+            })
+          );
 
-            if (config.optimization.splitChunks.cacheGroups.commons) {
-              config.optimization.splitChunks.cacheGroups.commons.minChunks = 2;
-              console.info(config.optimization.splitChunks.cacheGroups);
-            }
+          if (config.optimization.splitChunks.cacheGroups.commons) {
+            config.optimization.splitChunks.cacheGroups.commons.minChunks = 2;
           }
-
-          return config;
         }
-      })
-    )
+
+        return config;
+      }
+    })
   )
 );
 
