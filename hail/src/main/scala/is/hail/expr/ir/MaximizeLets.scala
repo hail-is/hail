@@ -4,7 +4,7 @@ import scala.collection.mutable
 
 object MaximizeLets {
   def apply(ir: BaseIR): BaseIR = {
-
+    BREAK COMPILATION
     val m = mutable.HashSet.empty[(String, String)]
 
     RewriteBottomUp(ir, {
