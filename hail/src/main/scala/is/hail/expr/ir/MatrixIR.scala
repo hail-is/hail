@@ -145,7 +145,8 @@ abstract class MatrixReader {
 
   def requestType(requestedType: MatrixType): MatrixType = requestedType
 
-  def lower(mr: MatrixRead): Option[TableIR] = None
+  def canLower: Boolean = false
+  def lower(mr: MatrixRead): TableIR = null
 }
 
 case class MatrixNativeReader(path: String) extends MatrixReader {
@@ -167,7 +168,9 @@ case class MatrixNativeReader(path: String) extends MatrixReader {
 
   def fullType: MatrixType = spec.matrix_type
 
-  override def lower(mr: MatrixRead): Option[TableIR] = {
+  override def canLower: Boolean = true
+
+  override def lower(mr: MatrixRead): TableIR = {
     val rowsPath = path + "/rows"
     val entriesPath = path + "/entries"
     val colsPath = path + "/cols"
@@ -227,7 +230,7 @@ case class MatrixNativeReader(path: String) extends MatrixReader {
       tr = TableZipUnchecked(tr, entries)
     }
 
-    Some(tr)
+    tr
   }
 
   def apply(mr: MatrixRead): MatrixValue = {
@@ -450,9 +453,9 @@ case class MatrixRead(
       reader.columnCount
   }
 
-  final def lower: Option[TableIR] = {
-    reader.lower(this)
-  }
+  final def canLower: Boolean = reader.canLower
+
+  final def lower: TableIR = reader.lower(this)
 }
 
 case class MatrixFilterCols(child: MatrixIR, pred: IR) extends MatrixIR {
