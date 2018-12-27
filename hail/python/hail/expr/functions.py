@@ -3934,7 +3934,7 @@ def get_sequence(contig, position, before=0, after=0, reference_genome='default'
 
     Return the reference allele for ``'GRCh37'`` at the locus ``'1:45323'``:
 
-    >>> hl.eval(hl.get_sequence('1', 45323, 'GRCh37')) # doctest: +SKIP
+    >>> hl.eval(hl.get_sequence('1', 45323, reference_genome='GRCh37')) # doctest: +SKIP
     "T"
 
     Notes
