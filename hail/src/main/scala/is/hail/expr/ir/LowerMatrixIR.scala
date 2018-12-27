@@ -188,9 +188,7 @@ object LowerMatrixIR {
           .dropFields('newColIdx)
         )
 
-    case mr: MatrixRead =>
-      println(s"I'm here: ${mr}")
-      mr.reader.lower(mr).getOrElse(throw new MatchError(mr))
+    case mr: MatrixRead if mr.reader.canLower => mr.reader.lower(mr)
   }
 
   private[this] def tableRules: PartialFunction[TableIR, TableIR] = {
