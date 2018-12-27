@@ -8,16 +8,17 @@ object MaximizeLets {
 
     RewriteBottomUp(ir, {
       case ir: IR =>
-        val letChildren: IndexedSeq[Let] = ir.children.flatMap {
-          case x@Let(letName, letValue, letBody) => ir match {
+        val children = ir.children
+        val letIndices: Array[Int] = children.zipWithIndex.flatMap {
+          case (x@Let(letName, letValue, letBody), idx) => ir match {
             case Let(parentName, _, _) =>
               assert(letName != parentName)
               val pair = letName -> parentName
-              if (m.contains(pair))
+              if (m.contains(pair) || Mentions(letValue, parentName))
                 None
               else {
                 m += pair
-                Some(x)
+                Some(idx)
               }
             case ArrayMap(_, name, _) if Mentions(letValue, name) => None
             case ArrayFilter(_, name, body) if Mentions(letValue, name) => None
@@ -32,21 +33,30 @@ object MaximizeLets {
             case _: AggGroupBy => None
             case _: TableAggregate => None
             case _: MatrixAggregate => None
-            case _ => Some(x)
+            case _ => Some(idx)
           }
           case _ => None
-        }
-        if (letChildren.isEmpty)
+        }.toArray
+        if (letIndices.isEmpty)
           None
         else {
-          val replaced = ir.copy(ir.children.map {
-            case Let(_, _, body) => body
-            case child => child
+          val letIndicesSet = letIndices.toSet
+          val replaced = ir.copy(ir.children.zipWithIndex.map {
+            case (x@Let(varName, _, body), idx) =>
+              if (letIndices.contains(idx))
+                body
+              else
+                x
+            case (child, idx) =>
+            assert(!letIndices.contains(idx))
+            child
           })
-          Some(letChildren.foldLeft(replaced) {
+          Some(letIndices.map(children).foldLeft(replaced) {
+            case (Let(name, value, body), let: Let) if value == let.value =>
             // elide duplicated bindings
-            case (Let(name, value, body), let) if value == let.value => Let(name, value, Subst(body, Env(let.name -> Ref(name, value.typ))))
-            case (replacedIR, let) => Let(let.name, let.value, replacedIR)
+              Let(name, value, Subst(body, Env(let.name -> Ref(name, value.typ))))
+            case (replacedIR, let: Let) =>
+              Let(let.name, let.value, replacedIR)
           })
         }
       case _ => None
