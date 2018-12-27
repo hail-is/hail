@@ -71,10 +71,8 @@ object MinimizeLets {
             let
         }
 
-        if (!mentions) {
-          info(s"eliminating ${binding}]\n  ${letBody}\n  ${Mentions(letBody, binding)}")
+        if (!mentions)
           letBody
-        }
         else letBody match {
           case x@Ref(`binding`, _) => value
           case x@Let(binding2, value2, letBody2) =>
