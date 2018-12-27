@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.utils.HailException
+import is.hail.utils._
 
 import scala.collection.mutable
 
@@ -71,8 +71,10 @@ object MinimizeLets {
             let
         }
 
-        if (!mentions)
+        if (!mentions) {
+          info(s"eliminating ${binding}]\n  ${letBody}\n  ${Mentions(letBody, binding)}")
           letBody
+        }
         else letBody match {
           case x@Ref(`binding`, _) => value
           case x@Let(binding2, value2, letBody2) =>
