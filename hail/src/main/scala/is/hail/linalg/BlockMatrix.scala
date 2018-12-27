@@ -173,126 +173,127 @@ object BlockMatrix {
       val paddedIndex = StringUtils.leftPad(index.toString, dRect, "0")
       val outputFile = output + "/rect-" + paddedIndex + "_" + r.mkString("-")
       
-      val uos = sHadoopBc.value.value.unsafeWriter(outputFile) // FIXME
-      try {
-        val writeData: (Array[Double], Int, Boolean) => Unit =
-          if (binary) {
-            val os = new DoubleOutputBuffer(uos, RichArray.defaultBufSize)
-            (data: Array[Double], n: Int, _) =>
-              os.writeDoubles(data, 0, n)
-          } else {
-            val os = new OutputStreamWriter(uos)
-            (data: Array[Double], n: Int, endLine: Boolean) =>
-              sb.clear()
-              var k = 0
-              while (k < n - 1) {
-                sb.append(data(k))
-                sb.append(delimiter)
-                k += 1
-              }
-              sb.append(data(n - 1))
-              if (endLine)
-                sb.append("\n")
-              else
-                sb.append(delimiter)
-              os.write(sb.result())
-          }
+      sHadoopBc.value.value.writeFile(outputFile) { uos =>
+        using(
+          if (binary)
+            new DoubleOutputBuffer(uos, RichArray.defaultBufSize)
+          else
+            new OutputStreamWriter(uos)
+        ) { os =>
+          val writeData: (Array[Double], Int, Boolean) => Unit =
+            if (binary) {
+              (data: Array[Double], n: Int, _) =>
+                os.asInstanceOf[DoubleOutputBuffer].writeDoubles(data, 0, n)
+            } else {
+              (data: Array[Double], n: Int, endLine: Boolean) =>
+                sb.clear()
+                var k = 0
+                while (k < n - 1) {
+                  sb.append(data(k))
+                  sb.append(delimiter)
+                  k += 1
+                }
+                sb.append(data(n - 1))
+                if (endLine)
+                  sb.append("\n")
+                else
+                  sb.append(delimiter)
+                os.asInstanceOf[OutputStreamWriter].write(sb.result())
+            }
 
-        val startRow = r(0)
-        val stopRow = r(1)
-        val startCol = r(2)
-        val stopCol = r(3)
+          val startRow = r(0)
+          val stopRow = r(1)
+          val startCol = r(2)
+          val stopCol = r(3)
 
-        val nonEmpty = startRow < stopRow && startCol < stopCol
+          val nonEmpty = startRow < stopRow && startCol < stopCol
 
-        if (nonEmpty) {
-          val startRowOffset = gp.indexBlockOffset(startRow)
+          if (nonEmpty) {
+            val startRowOffset = gp.indexBlockOffset(startRow)
 
-          val startBlockCol = gp.indexBlockIndex(startCol)
-          val startColOffset = gp.indexBlockOffset(startCol)
+            val startBlockCol = gp.indexBlockIndex(startCol)
+            val startColOffset = gp.indexBlockOffset(startCol)
 
-          val stopBlockCol = gp.indexBlockIndex(stopCol - 1) + 1
-          val stopColOffset = gp.indexBlockOffset(stopCol - 1) + 1
+            val stopBlockCol = gp.indexBlockIndex(stopCol - 1) + 1
+            val stopColOffset = gp.indexBlockOffset(stopCol - 1) + 1
 
-          val startColByteOffset = startColOffset << 3
-          val stopColByteDeficit = (gp.blockColNCols(stopBlockCol - 1) - stopColOffset) << 3
+            val startColByteOffset = startColOffset << 3
+            val stopColByteDeficit = (gp.blockColNCols(stopBlockCol - 1) - stopColOffset) << 3
 
-          val inPerBlockCol = new Array[InputBuffer](stopBlockCol - startBlockCol)
-          try {
-            var i = startRow
-            while (i < stopRow) {
-              if (i == startRow || gp.indexBlockOffset(i) == 0) {
-                val blockRow = gp.indexBlockIndex(i)
-                val nRowsInBlock = gp.blockRowNRows(blockRow)
+            val inPerBlockCol = new Array[InputBuffer](stopBlockCol - startBlockCol)
+            try {
+              var i = startRow
+              while (i < stopRow) {
+                if (i == startRow || gp.indexBlockOffset(i) == 0) {
+                  val blockRow = gp.indexBlockIndex(i)
+                  val nRowsInBlock = gp.blockRowNRows(blockRow)
+
+                  var blockCol = startBlockCol
+                  while (blockCol < stopBlockCol) {
+                    val pi = gp.coordinatesPart(blockRow, blockCol)
+                    if (pi < 0)
+                      fatal(s"block ($blockRow, $blockCol) missing for rectangle $index " +
+                        s"with bounds ${ r.mkString("[", ", ", "]") }")
+
+                    val is = sHadoopBc.value.value.unsafeReader(input + "/parts/" + partFiles(pi))
+                    val in = BlockMatrix.bufferSpec.buildInputBuffer(is)
+
+                    val nColsInBlock = gp.blockColNCols(blockCol)
+
+                    assert(in.readInt() == nRowsInBlock)
+                    assert(in.readInt() == nColsInBlock)
+                    val isTranspose = in.readBoolean()
+                    if (!isTranspose)
+                      fatal("BlockMatrix must be stored row major on disk in order to export rectangular regions.")
+
+                    if (i == startRow) {
+                      val skip = startRowOffset * (nColsInBlock << 3)
+                      in.skipBytes(skip)
+                    }
+
+                    inPerBlockCol(blockCol - startBlockCol) = in
+
+                    blockCol += 1
+                  }
+                }
+
+                inPerBlockCol.head.skipBytes(startColByteOffset)
 
                 var blockCol = startBlockCol
                 while (blockCol < stopBlockCol) {
-                  val pi = gp.coordinatesPart(blockRow, blockCol)
-                  if (pi < 0)
-                    fatal(s"block ($blockRow, $blockCol) missing for rectangle $index " +
-                      s"with bounds ${ r.mkString("[", ", ", "]") }")
+                  val startColOffsetInBlock =
+                    if (blockCol > startBlockCol)
+                      0
+                    else
+                      startColOffset
 
-                  val is = sHadoopBc.value.value.unsafeReader(input + "/parts/" + partFiles(pi))
-                  val in = BlockMatrix.bufferSpec.buildInputBuffer(is)
+                  val stopColOffsetInBlock =
+                    if (blockCol < stopBlockCol - 1)
+                      blockSize
+                    else
+                      stopColOffset
 
-                  val nColsInBlock = gp.blockColNCols(blockCol)
+                  val n = stopColOffsetInBlock - startColOffsetInBlock
+                  inPerBlockCol(blockCol - startBlockCol).readDoubles(data, 0, n)
+                  val endLine = blockCol + 1 == stopBlockCol
 
-                  assert(in.readInt() == nRowsInBlock)
-                  assert(in.readInt() == nColsInBlock)
-                  val isTranspose = in.readBoolean()
-                  if (!isTranspose)
-                    fatal("BlockMatrix must be stored row major on disk in order to export rectangular regions.")
-
-                  if (i == startRow) {
-                    val skip = startRowOffset * (nColsInBlock << 3)
-                    in.skipBytes(skip)
-                  }
-
-                  inPerBlockCol(blockCol - startBlockCol) = in
+                  writeData(data, n, endLine)
 
                   blockCol += 1
                 }
+                i += 1
+
+                inPerBlockCol.last.skipBytes(stopColByteDeficit)
+
+                if (i % blockSize == 0 && i < stopRow)
+                  inPerBlockCol.foreach(_.close())
               }
-
-              inPerBlockCol.head.skipBytes(startColByteOffset)
-
-              var blockCol = startBlockCol
-              while (blockCol < stopBlockCol) {
-                val startColOffsetInBlock =
-                  if (blockCol > startBlockCol)
-                    0
-                  else
-                    startColOffset
-
-                val stopColOffsetInBlock =
-                  if (blockCol < stopBlockCol - 1)
-                    blockSize
-                  else
-                    stopColOffset
-
-                val n = stopColOffsetInBlock - startColOffsetInBlock
-                inPerBlockCol(blockCol - startBlockCol).readDoubles(data, 0, n)
-                val endLine = blockCol + 1 == stopBlockCol
-                
-                writeData(data, n, endLine)
-                
-                blockCol += 1
-              }
-              i += 1
-
-              inPerBlockCol.last.skipBytes(stopColByteDeficit)
-
-              if (i % blockSize == 0 && i < stopRow)
-                inPerBlockCol.foreach(_.close())
+            } finally {
+              inPerBlockCol.foreach(in => if (in != null) in.close())
             }
-          } finally {
-            inPerBlockCol.foreach(in => if (in != null) in.close())
           }
         }
-      } finally {
-        os.close()
       }
-      
       1
     }
 

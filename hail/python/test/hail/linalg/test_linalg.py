@@ -622,7 +622,7 @@ class Tests(unittest.TestCase):
                       [13., 14.,  0.,  0.]]))
 
         self._assert_eq(bm.sparsify_rectangles([]), np.zeros(shape=(4, 4)))
-                        
+
     def test_export_rectangles(self):
         nd = np.arange(0, 80, dtype=float).reshape(8, 10)
 
