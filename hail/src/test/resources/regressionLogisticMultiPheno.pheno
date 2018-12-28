@@ -2,11 +2,11 @@ Sample	Pheno1	Pheno2
 sample_001	0	0
 sample_002	0	0
 sample_003	1	1
-sample_004	NA	2
+sample_004	NA	1
 sample_005	1	1
 sample_006	1	1
 sample_007	1	1
-sample_008	NA	2
+sample_008	NA	1
 sample_009	0	0
 sample_010	0	0
 sample_011	1	1
