@@ -178,6 +178,12 @@ object Copy {
       case TableExport(_, path, typesFile, header, exportType) =>
         val IndexedSeq(child: TableIR) = newChildren
         TableExport(child, path, typesFile, header, exportType)
+      case TableToValueApply(child, function) =>
+        val IndexedSeq(newChild: TableIR) = newChildren
+        TableToValueApply(newChild, function)
+      case MatrixToValueApply(child, function) =>
+        val IndexedSeq(newChild: MatrixIR) = newChildren
+        MatrixToValueApply(newChild, function)
     }
   }
 }

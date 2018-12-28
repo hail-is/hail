@@ -814,6 +814,11 @@ object PruneDeadFields {
           rStruct.fieldOption("global").map(_.typ.asInstanceOf[TStruct]).getOrElse(TStruct())),
           memo)
         Env.empty[(Type, Type)]
+      case TableToValueApply(child, _) =>
+        memoizeTableIR(child, child.typ, memo)
+        Env.empty[(Type, Type)]
+      case MatrixToValueApply(child, __) => memoizeMatrixIR(child, child.typ, memo)
+        Env.empty[(Type, Type)]
       case TableAggregate(child, query) =>
         val queryDep = memoizeAndGetDep(query, query.typ, child.typ, memo)
         memoizeTableIR(child, queryDep, memo)

@@ -82,6 +82,8 @@ class ValueIRTests(unittest.TestCase):
             ir.TableCount(table),
             ir.TableGetGlobals(table),
             ir.TableCollect(table),
+            ir.TableToValueApply(table, {'name': 'ForceCountTable'}),
+            ir.MatrixToValueApply(matrix_read, {'name': 'ForceCountMatrixTable'}),
             ir.TableAggregate(table, ir.MakeStruct([('foo', ir.ApplyAggOp('Collect', [], None, [ir.I32(0)]))])),
             ir.TableWrite(table, new_temp_file(), False, True, "fake_codec_spec$$"),
             ir.MatrixAggregate(matrix_read, ir.MakeStruct([('foo', ir.ApplyAggOp('Collect', [], None, [ir.I32(0)]))])),

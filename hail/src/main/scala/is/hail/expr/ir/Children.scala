@@ -121,5 +121,7 @@ object Children {
     case MatrixAggregate(child, query) => IndexedSeq(child, query)
     case TableWrite(child, _, _, _, _) => IndexedSeq(child)
     case TableExport(child, _, _, _, _) => IndexedSeq(child)
+    case TableToValueApply(child, _) => IndexedSeq(child)
+    case MatrixToValueApply(child, _) => IndexedSeq(child)
   }
 }

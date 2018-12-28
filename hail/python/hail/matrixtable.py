@@ -2100,11 +2100,10 @@ class MatrixTable(ExprContainer):
             TableCount(MatrixRowsTable(self._mir)))
 
     def _force_count_rows(self):
-        return self._jmt.forceCountRows()
+        return Env.backend().execute(TableToValueApply(self._tir, {'name': 'ForceCountMatrixTable'}))
 
     def _force_count_cols(self):
-        return self._jmt.forceCountCols()
-
+        return self.cols()._force_count()
     def count_cols(self) -> int:
         """Count the number of columns in the matrix.
 

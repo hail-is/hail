@@ -272,6 +272,9 @@ final case class MatrixMultiWrite(
   require(children.forall(_.typ == t))
 }
 
+final case class TableToValueApply(child: TableIR, function: TableToValueFunction) extends IR
+final case class MatrixToValueApply(child: MatrixIR, function: MatrixToValueFunction) extends IR
+
 class PrimitiveIR(val self: IR) extends AnyVal {
   def +(other: IR): IR = ApplyBinaryPrimOp(Add(), self, other)
   def -(other: IR): IR = ApplyBinaryPrimOp(Subtract(), self, other)

@@ -1,9 +1,8 @@
-import json
 import copy
 
+import hail
 from hail.expr.types import hail_type
-from hail.typecheck import *
-from hail.utils.java import escape_str, escape_id
+from hail.utils.java import escape_str, escape_id, dump_json
 from .base_ir import *
 from .matrix_writer import MatrixWriter, MatrixNativeMultiWriter
 
@@ -666,7 +665,7 @@ class ArrayFold(IR):
 
     def render(self, r):
         return '(ArrayFold {} {} {} {} {})'.format(
-            escape_id(self.accum_name), escape_id(self.value_name), 
+            escape_id(self.accum_name), escape_id(self.value_name),
             r(self.a), r(self.zero), r(self.body))
 
     @property
@@ -1386,6 +1385,36 @@ class MatrixMultiWrite(IR):
         return isinstance(other, MatrixMultiWrite) and \
                other.children == self.children and \
                other.writer == self.writer
+
+
+class TableToValueApply(IR):
+    def __init__(self, child, config):
+        super().__init__(child)
+        self.child = child
+        self.config = config
+
+    @typecheck_method(child=TableIR)
+    def copy(self, child):
+        new_instance = self.__class__
+        return new_instance(child, self.config)
+
+    def render(self, r):
+        return f'(TableToValueApply {dump_json(self.config)} {r(self.child)})'
+
+
+class MatrixToValueApply(IR):
+    def __init__(self, child, config):
+        super().__init__(child)
+        self.child = child
+        self.config = config
+
+    @typecheck_method(child=MatrixIR)
+    def copy(self, child):
+        new_instance = self.__class__
+        return new_instance(child, self.config)
+
+    def render(self, r):
+        return f'(MatrixToValueApply {dump_json(self.config)} {r(self.child)})'
 
 
 class Literal(IR):

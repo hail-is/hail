@@ -735,6 +735,14 @@ object IRParser {
         val child = table_ir(env)(it)
         val query = ir_value_expr(env.update(child.typ.refMap))(it)
         TableAggregate(child, query)
+      case "TableToValueApply" =>
+        val config = string_literal(it)
+        val child = table_ir(env)(it)
+        TableToValueApply(child, RelationalFunctions.lookupTableToValue(config))
+      case "MatrixToValueApply" =>
+        val config = string_literal(it)
+        val child = matrix_ir(env)(it)
+        MatrixToValueApply(child, RelationalFunctions.lookupMatrixToValue(config))
       case "TableExport" =>
         val child = table_ir(env)(it)
         val path = string_literal(it)

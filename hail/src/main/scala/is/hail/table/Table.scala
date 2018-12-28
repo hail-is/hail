@@ -245,8 +245,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
   def count(): Long = ir.Interpret[Long](ir.TableCount(tir))
 
-  def forceCount(): Long = rvd.count()
-
   def nColumns: Int = fields.length
 
   def nKeys: Int = key.length
