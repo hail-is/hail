@@ -21,6 +21,7 @@ module.exports = withTypescript(
             new MonacoWebpackPlugin({
               output: 'static/',
               languages: [
+                'json',
                 'javascript',
                 'typescript',
                 'python',

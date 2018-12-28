@@ -23,6 +23,11 @@ export type ChangeHandler = (
   event: monaco.editor.IModelContentChangedEvent
 ) => void;
 
+// export type SaveHandler = (
+//   value: string,
+//   event: monaco.editor.IModelContentChangedEvent
+// ) => void;
+
 export interface Props {
   width: string | number;
   height: string | number;
@@ -33,7 +38,9 @@ export interface Props {
   options: object;
   editorDidMount: EditorDidMount;
   editorWillMount: EditorWillMount;
-  onChange: ChangeHandler;
+  onChange?: ChangeHandler;
+  onDrop: any;
+  // onSave:
 }
 
 class MonacoEditor extends PureComponent<Props> {
@@ -47,7 +54,7 @@ class MonacoEditor extends PureComponent<Props> {
     options: {},
     editorDidMount: () => {},
     editorWillMount: () => {},
-    onChange: () => {}
+    onDrop: () => {}
   };
 
   private _currentValue: string;
@@ -102,6 +109,7 @@ class MonacoEditor extends PureComponent<Props> {
       }
     }
     if (prevProps.language !== this.props.language) {
+      console.info('changing language to', this.props.language);
       monaco.editor.setModelLanguage(
         this.editor.getModel(),
         this.props.language
@@ -148,7 +156,7 @@ class MonacoEditor extends PureComponent<Props> {
       this._currentValue = value;
 
       // Only invoking when user input changed
-      if (!this._preventTriggerChangeEvent) {
+      if (!this._preventTriggerChangeEvent && this.props.onChange) {
         this.props.onChange(value, event);
       }
     });
@@ -164,6 +172,27 @@ class MonacoEditor extends PureComponent<Props> {
     this._containerElement = component;
   };
 
+  onDragOver = (e: React.DragEvent) => e.preventDefault();
+
+  // For some reason, can only activate this if onDragOver runs e.preventDefault
+  // https://medium.freecodecamp.org/reactjs-implement-drag-and-drop-feature-without-using-external-libraries-ad8994429f1a
+  onDrop = (e: React.DragEvent) => {
+    console.info('stff', e.dataTransfer.getData('text'));
+    const target = this.editor.getTargetAtClientPoint(e.pageX, e.pageY);
+    console.info('target', target);
+    const pos = target.position;
+    const range = target.range;
+
+    const op: monaco.editor.IIdentifiedSingleEditOperation = {
+      range,
+      text: e.dataTransfer.getData('text'),
+      forceMoveMarkers: true
+    };
+
+    this.editor.executeEdits('stuff', [op]);
+    this.editor.getAction('editor.action.formatDocument').run();
+  };
+
   render() {
     const style = {
       width: this.props.width,
@@ -172,6 +201,8 @@ class MonacoEditor extends PureComponent<Props> {
 
     return (
       <div
+        onDragOver={this.onDragOver}
+        onDrop={this.onDrop}
         ref={this.assignRef}
         style={style}
         className="react-monaco-editor-container"
