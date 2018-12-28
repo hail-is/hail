@@ -12,12 +12,12 @@ version = 'build_{}'.format(args.v)
 reference_genome = args.b
 
 if reference_genome == 'GRCh37':
-    mt = hl.import_vcf('gs://hail-datasets/raw-data/dbSNP/{n}.{v}.{rg}.vcf.bgz'.format(n=name, v=version, rg=reference_genome),
+    mt = hl.import_vcf('gs://hail-datasets-extracted-data/dbSNP/{n}.{v}.{rg}.vcf.bgz'.format(n=name, v=version, rg=reference_genome),
                        reference_genome=reference_genome)
 else:
     contigs = {str(i): 'chr' + str(i) for i in range(1, 23)}
     contigs.update({'X': 'chrX', 'Y': 'chrY', 'MT': 'chrM'})
-    mt = hl.import_vcf('gs://hail-datasets/raw-data/dbSNP/{n}.{v}.{rg}.vcf.bgz'.format(n=name, v=version, rg=reference_genome),
+    mt = hl.import_vcf('gs://hail-datasets-extracted-data/dbSNP/{n}.{v}.{rg}.vcf.bgz'.format(n=name, v=version, rg=reference_genome),
                        reference_genome=reference_genome,
                        contig_recoding=contigs)
 
@@ -29,11 +29,11 @@ ht = mt_split.rows()
 
 n_rows = ht.count()
 n_partitions = ht.n_partitions()
-ht = ht.annotate_globals(name=name,
-                         version=version,
-                         reference_genome=reference_genome,
-                         n_rows=n_rows,
-                         n_partitions=n_partitions)
+ht = ht.annotate_globals(metadata=hl.struct(name=name,
+                                            version=version,
+                                            reference_genome=reference_genome,
+                                            n_rows=n_rows,
+                                            n_partitions=n_partitions))
 
 ht.describe()
-ht.write('gs://hail-datasets/hail-data/{n}.{v}.{rg}.ht'.format(n=name, v=version, rg=reference_genome), overwrite=True)
+ht.write('gs://hail-datasets/{n}.{v}.{rg}.ht'.format(n=name, v=version, rg=reference_genome), overwrite=True)

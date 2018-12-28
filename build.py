@@ -3,6 +3,7 @@ import sys
 import json
 import hail as hl
 from io import StringIO
+from pprint import pprint
 
 def table_bars(*widths):
     return ' '.join(['=' * w for w in widths])
@@ -46,21 +47,23 @@ class HailDataset(object):
                 self.name = self.metadata['name']
                 self.version = self.metadata['version']
                 self.reference_genome = self.metadata['reference_genome']
-                self.n_rows = self.metadata['n_rows'] if 'n_rows' in self.metadata else None
-                self.n_cols = self.metadata['n_cols'] if 'n_cols' in self.metadata else None
-                self.n_partitions = self.metadata['n_partitions'] if 'n_partitions' in self.metadata else none
             except LookupError:
                 self.is_valid = False
             else:
+                self.n_rows = self.metadata['n_rows'] if 'n_rows' in self.metadata else None
+                self.n_cols = self.metadata['n_cols'] if 'n_cols' in self.metadata else None
+                self.n_partitions = self.metadata['n_partitions'] if 'n_partitions' in self.metadata else None
                 self.is_valid = True
         else:
             self.is_valid = False
+
 
 def fetch_datasets(paths):
     datasets = []
     for path in paths:
         dataset = HailDataset(path)
         if dataset.is_valid:
+            print(path)
             datasets.append({
                 'path': dataset.path,
                 'name': dataset.name,
@@ -112,11 +115,11 @@ if __name__ == '__main__':
                     '',
                     'This page describes genetic datasets that are hosted in a public repository',
                     'on Google Cloud Platform and are available for use through Hail\'s',
-                    ':meth:`.load_dataset` function.',
+                    ':func:`.load_dataset` function.',
                     '',
                     'To load a dataset from this repository into a Hail pipeline, provide the name,',
                     'version, and reference genome build of the dataset you would like to use as',
-                    'strings to the :meth:`.load_dataset` function. The available dataset names,',
+                    'strings to the :func:`.load_dataset` function. The available dataset names,',
                     'versions, and reference genome builds are listed in the table below.',
                     '',
                     table_bars(col0_width, col1_width, col2_width),
@@ -137,7 +140,7 @@ if __name__ == '__main__':
     for name in dataset_names:
         versions = sorted(list(set([d['version'] for d in datasets if d['name']==name])))
         reference_genomes = sorted(list(set([d['reference_genome'] for d in datasets if d['name']==name])))
-        dataset_type = [d['type'] for d in datasets if d['name']==name][0]
+        dataset_type = [':class:`' + d['type'] + '`' for d in datasets if d['name']==name][0]
         schema = [(d['schema'], d['version'], d['reference_genome']) for d in datasets if d['name']==name][0]
         with hl.hadoop_open(bucket + 'docs/datasets/{}.rst'.format(name), 'w') as f:
             f.write('\n'.join([

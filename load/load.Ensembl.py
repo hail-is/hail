@@ -13,7 +13,7 @@ reference_genome = args.b
 
 if args.d == 'dna':
     name = 'Ensembl_reference_genome_sequence'
-    ht = hl.import_table('gs://hail-datasets/raw-data/Ensembl/{n}.{v}.{rg}.tsv.bgz'.format(n=name, v=version, rg=reference_genome),
+    ht = hl.import_table('gs://hail-datasets-extracted-data/Ensembl/{n}.{v}.{rg}.tsv.bgz'.format(n=name, v=version, rg=reference_genome),
                          types={'position': hl.tint})
     if reference_genome == 'GRCh38':
         ht = ht.annotate(chromosome='chr' + ht['chromosome'].replace('MT', 'M'))
@@ -23,7 +23,7 @@ if args.d == 'dna':
 
 if args.d == 'lcr':
     name = 'Ensembl_low_complexity_regions'
-    ht = hl.import_table('gs://hail-datasets/raw-data/Ensembl/{n}.{v}.{rg}.tsv.bgz'.format(n=name, v=version, rg=reference_genome),
+    ht = hl.import_table('gs://hail-datasets-extracted-data/Ensembl/{n}.{v}.{rg}.tsv.bgz'.format(n=name, v=version, rg=reference_genome),
                          types={'start': hl.tint, 'end': hl.tint})
     if reference_genome == 'GRCh38':
         ht = ht.annotate(chromosome='chr' + ht['chromosome'].replace('MT', 'M'))
@@ -39,7 +39,7 @@ if args.d in set(['cdna', 'cds', 'ncrna']):
         name = 'Ensembl_CDS_regions'
     else:
         name = 'Ensembl_ncRNA_regions'
-    ht = hl.import_table('gs://hail-datasets/raw-data/Ensembl/Ensembl_{0}_regions.{1}.{2}.tsv.bgz'.format(args.d, version, reference_genome),
+    ht = hl.import_table('gs://hail-datasets-extracted-data/Ensembl/Ensembl_{0}_regions.{1}.{2}.tsv.bgz'.format(args.d, version, reference_genome),
                          types={'start': hl.tint, 'end': hl.tint})
     ht = ht.filter(hl.set([str(i) for i in range(1, 23)] + ['X', 'Y', 'MT']).contains(ht['chromosome']))
     if reference_genome == 'GRCh38':
@@ -51,7 +51,7 @@ if args.d in set(['cdna', 'cds', 'ncrna']):
 
 if args.d == 'pep':
     name = 'Ensembl_peptide_sequences'
-    ht = hl.import_table('gs://hail-datasets/raw-data/Ensembl/{n}.{v}.{rg}.tsv.bgz'.format(n=name, v=version, rg=reference_genome),
+    ht = hl.import_table('gs://hail-datasets-extracted-data/Ensembl/{n}.{v}.{rg}.tsv.bgz'.format(n=name, v=version, rg=reference_genome),
                          types={'start': hl.tint, 'end': hl.tint})
     ht = ht.filter(hl.set([str(i) for i in range(1, 23)] + ['X', 'Y', 'MT']).contains(ht['chromosome']))
     if reference_genome == 'GRCh38':
@@ -64,10 +64,10 @@ if args.d == 'pep':
 n_rows = ht.count()
 n_partitions = ht.n_partitions()
 
-ht = ht.annotate_globals(name=name,
-                         version=version,
-                         reference_genome=reference_genome,
-                         n_rows=n_rows,
-                         n_partitions=n_partitions)
+ht = ht.annotate_globals(metadata=hl.struct(name=name,
+                                            version=version,
+                                            reference_genome=reference_genome,
+                                            n_rows=n_rows,
+                                            n_partitions=n_partitions))
 ht.describe()
-ht.write('gs://hail-datasets/hail-data/{n}.{v}.{rg}.ht'.format(n=name, v=version, rg=reference_genome), overwrite=True)
+ht.write('gs://hail-datasets/{n}.{v}.{rg}.ht'.format(n=name, v=version, rg=reference_genome), overwrite=True)
