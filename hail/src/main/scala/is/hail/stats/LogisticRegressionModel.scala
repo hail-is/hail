@@ -291,7 +291,9 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) ex
       try {
         deltaB := fisher \ score
 
-        if (max(abs(deltaB)) < tol) {
+        if (deltaB(0).isNaN) {
+          exploded = true
+        } else if (max(abs(deltaB)) < tol) {
           converged = true
         } else {
           iter += 1
