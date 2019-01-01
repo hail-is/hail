@@ -456,11 +456,21 @@ def logistic_regression_rows(test, y, x, covariates, pass_through=()) -> hail.Ta
     ...     x=dataset.GT.n_alt_alleles(),
     ...     covariates=[1, dataset.pheno.age, dataset.pheno.is_female])
 
+    Run the logistic regression Wald test per variant using a list of binary (0/1)
+    phenotypes, intercept and two covariates stored in column-indexed
+    fields:
+
+    >>> result_ht = hl.logistic_regression_rows(
+    ...     test='wald',
+    ...     y=[dataset.pheno1, dataset.pheno2], #where pheno1 and pheno2 values are 0, 1, or missing
+    ...     x=dataset.GT.n_alt_alleles(),
+    ...     covariates=[1, dataset.age, dataset.is_female])
+
     Warning
     -------
     :func:`.logistic_regression_rows` considers the same set of
     columns (i.e., samples, points) for every row, namely those columns for
-    which **all** covariates are defined. For each row, missing values of
+    which **all** response variables and covariates are defined. For each row, missing values of
     `x` are mean-imputed over these columns. As in the example, the
     intercept covariate ``1`` must be included **explicitly** if desired.
 
@@ -630,8 +640,8 @@ def logistic_regression_rows(test, y, x, covariates, pass_through=()) -> hail.Ta
     ----------
     test : {'wald', 'lrt', 'score', 'firth'}
         Statistical test.
-    y : :class:`.Float64Expression`
-        Column-indexed response expression.
+    y : :class:`.Float64Expression` or :obj:`list` of :class:`.Float64Expression`
+        One or more column-indexed response expressions.
         All non-missing values must evaluate to 0 or 1.
         Note that a :class:`.BooleanExpression` will be implicitly converted to
         a :class:`.Float64Expression` with this property.
