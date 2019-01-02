@@ -225,6 +225,9 @@ case class TableKeyBy(child: TableIR, keys: IndexedSeq[String], isSorted: Boolea
 
   val typ: TableType = child.typ.copy(key = keys)
 
+  private lazy val (rvdType_, f) = child.rvdType.enforceKey(keys, isSorted)
+  override def rvdType: RVDType = rvdType_
+
   def copy(newChildren: IndexedSeq[BaseIR]): TableKeyBy = {
     assert(newChildren.length == 1)
     TableKeyBy(newChildren(0).asInstanceOf[TableIR], keys, isSorted)
@@ -232,10 +235,7 @@ case class TableKeyBy(child: TableIR, keys: IndexedSeq[String], isSorted: Boolea
 
   protected[ir] override def execute(hc: HailContext): TableValue = {
     val tv = child.execute(hc)
-    val nPreservedFields = keys.zip(tv.rvd.typ.key).takeWhile { case (l, r) => l == r }.length
-    assert(!isSorted || nPreservedFields > 0 || keys.isEmpty)
-
-    tv.copy(typ = typ, rvd = tv.rvd.enforceKey(keys, isSorted))
+    tv.copy(typ = typ, rvd = f(tv.rvd))
   }
 }
 
