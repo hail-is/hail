@@ -5,7 +5,7 @@ import is.hail.annotations._
 import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.expr.ir.functions.RelationalFunctions
 import is.hail.expr.types._
-import is.hail.expr.types.physical.{PInt32, PStruct}
+import is.hail.expr.types.physical.{PInt32, PStruct, PType}
 import is.hail.expr.types.virtual._
 import is.hail.expr.{TableAnnotationImpex, ir}
 import is.hail.rvd._
@@ -426,10 +426,13 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
     .intersect(rightRVDType.valueType.fieldNames.toSet)
     .isEmpty)
 
+  // FIXME should use IR
   private val newRowType = leftRVDType.kType ++ leftRVDType.valueType ++ rightRVDType.valueType
   private val newGlobalType = left.typ.globalType ++ right.typ.globalType
 
   private val newKey = left.typ.key ++ right.typ.key.drop(joinKey)
+
+  override lazy val rvdType: RVDType = RVDType(newRowType, newKey)
 
   val typ: TableType = TableType(newRowType.virtualType, newKey, newGlobalType)
 
@@ -581,6 +584,9 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
     globalType = newGlobalType
   )
 
+  override lazy val rvdType: RVDType = RVDType(PType.canonical(newRowType).asInstanceOf[PStruct], typ.key)
+
+
   def copy(newChildren: IndexedSeq[BaseIR]): TableMultiWayZipJoin =
     TableMultiWayZipJoin(newChildren.asInstanceOf[IndexedSeq[TableIR]], fieldName, globalName)
 
@@ -593,7 +599,7 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
     val keyIdx = rvdType.kFieldIdx
     val valIdx = rvdType.valueFieldIdx
     val localRVDType = rvdType
-    val localNewRowType = newRowType.physicalType
+    val localNewRowType = localRVDType.rowType
     val localDataLength = children.length
     val rvMerger = { it: Iterator[ArrayBuilder[(RegionValue, Int)]] =>
       val rvb = new RegionValueBuilder()
@@ -628,9 +634,8 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
     val childRanges = childRVDs.flatMap(_.partitioner.rangeBounds)
     val newPartitioner = RVDPartitioner.generate(childRVDs.head.typ.kType.virtualType, childRanges)
     val repartitionedRVDs = childRVDs.map(_.repartition(newPartitioner))
-    val newRVDType = RVDType(localNewRowType, localRVDType.key)
     val rvd = RVD(
-      typ = newRVDType,
+      typ = rvdType,
       partitioner = newPartitioner,
       crdd = ContextRDD.czipNPartitions(repartitionedRVDs.map(_.crdd)) { (ctx, its) =>
         val orvIters = its.map(it => OrderedRVIterator(localRVDType, it, ctx))
@@ -926,10 +931,13 @@ case class TableUnion(children: IndexedSeq[TableIR]) extends TableIR {
 
   val typ: TableType = children(0).typ
 
+  private lazy val (rvdType_, f) = RVDType.union(children.map(_.rvdType), typ.key.length)
+
+  override def rvdType: RVDType = rvdType_
+
   protected[ir] override def execute(hc: HailContext): TableValue = {
     val tvs = children.map(_.execute(hc))
-    tvs(0).copy(
-      rvd = RVD.union(tvs.map(_.rvd), tvs(0).typ.key.length))
+    tvs(0).copy(rvd = f(tvs.map(_.rvd)))
   }
 }
 

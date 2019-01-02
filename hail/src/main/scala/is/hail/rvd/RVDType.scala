@@ -5,6 +5,7 @@ import is.hail.expr.ir.IRParser
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PInterval, PStruct, PType}
 import is.hail.expr.types.virtual.TStruct
+import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import org.apache.commons.lang3.builder.HashCodeBuilder
 import org.json4s.CustomSerializer
@@ -158,6 +159,23 @@ final case class RVDType(rowType: PStruct, key: IndexedSeq[String])
 }
 
 object RVDType {
+  def union(rvdTypes: Seq[RVDType], joinKey: Int): (RVDType, Seq[RVD] => RVD) = rvdTypes match {
+    case Seq(x) => (x, _.head)
+    case first +: rest =>
+      val sameTypes = rest.forall(_ == first)
+      // FIXME need to unify requiredness or use union types. For now we assert
+      assert(sameTypes)
+      val newRowPType = first.rowType
+      (RVDType(newRowPType, first.key.take(joinKey)),
+        { rvds =>
+          if (joinKey == 0) {
+            val sc = rvds.head.sparkContext
+            RVD.unkeyed(newRowPType, ContextRDD.union(sc, rvds.map(_.crdd)))
+          } else
+            rvds.reduce(_.orderedMerge(_, joinKey))
+        })
+  }
+
   def selectUnsafeOrdering(t1: PStruct, fields1: Array[Int],
     t2: PStruct, fields2: Array[Int], missingEqual: Boolean=true): UnsafeOrdering = {
     require(fields1.length == fields2.length)

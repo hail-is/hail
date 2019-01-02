@@ -1280,17 +1280,4 @@ object RVD {
         }
       })
   }
-
-  def union(rvds: Seq[RVD], joinKey: Int): RVD = rvds match {
-    case Seq(x) => x
-    case first +: _ =>
-      if (joinKey == 0) {
-        val sc = first.sparkContext
-        RVD.unkeyed(first.rowPType, ContextRDD.union(sc, rvds.map(_.crdd)))
-      } else
-        rvds.reduce(_.orderedMerge(_, joinKey))
-  }
-
-  def union(rvds: Seq[RVD]): RVD =
-    union(rvds, rvds.head.typ.key.length)
 }
