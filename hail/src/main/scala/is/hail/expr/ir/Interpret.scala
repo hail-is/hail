@@ -236,6 +236,7 @@ object Interpret {
             case GT(t, _) => t.ordering.gt(lValue, rValue)
             case LTEQ(t, _) => t.ordering.lteq(lValue, rValue)
             case GTEQ(t, _) => t.ordering.gteq(lValue, rValue)
+            case Compare(t, _) => t.ordering.compare(lValue, rValue)
           }
 
       case MakeArray(elements, _) => elements.map(interpret(_, env, args, agg)).toFastIndexedSeq

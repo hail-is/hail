@@ -312,6 +312,8 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
           case ir.NEQ(_, _) => "neq"
           case ir.EQWithNA(_, _) => "eq"
           case ir.NEQWithNA(_, _) => "neq"
+          case ir.Compare(_, _) => "compare"
+
         }
 
         if (op.strict) {

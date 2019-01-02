@@ -70,7 +70,7 @@ object TypeCheck {
         check(r)
         assert(-op.t1.fundamentalType == -l.typ.fundamentalType)
         assert(-op.t2.fundamentalType == -r.typ.fundamentalType)
-        assert(x.typ == TBoolean())
+        assert(if (op.isInstanceOf[Compare]) x.typ == TInt32() else x.typ == TBoolean())
       case x@MakeArray(args, typ) =>
         assert(typ != null)
         args.map(_.typ).zipWithIndex.foreach { case (x, i) => assert(x == typ.elementType,

@@ -218,7 +218,7 @@ public:
 		return 1;
 	} else {
 	    if (rm)
-		return 1;
+		return -1;
 	    else
 		return Ord::compare(l, r);
 	}
@@ -360,7 +360,7 @@ class ArrayOrd {
 		rx = AR::load_element(r, i);
 	    
 	    int c = ElemOrd::compare(lm, lx, rm, rx);
-	    if (!c)
+	    if (c)
 	      return c;
 	}
 	

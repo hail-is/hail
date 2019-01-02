@@ -123,7 +123,7 @@ object ArrayFunctions extends RegistryFunctions {
 
     registerIR("product", TArray(tnum("T")))(product)
 
-    def makeMinMaxOp(op: Type => ComparisonOp): IR => IR = {
+    def makeMinMaxOp(op: Type => ComparisonOp[Boolean]): IR => IR = {
       { a =>
         val t = -coerce[TArray](a.typ).elementType
         val accum = genUID()
@@ -168,7 +168,7 @@ object ArrayFunctions extends RegistryFunctions {
                 div(ref(midIdx) + ref(midIdx + 1), Cast(2, t)))))))
     }
     
-    def argF(a: IR, op: (Type) => ComparisonOp): IR = {
+    def argF(a: IR, op: (Type) => ComparisonOp[Boolean]): IR = {
       val t = -coerce[TArray](a.typ).elementType
       val tAccum = TStruct("m" -> t, "midx" -> TInt32())
       val accum = genUID()
@@ -202,7 +202,7 @@ object ArrayFunctions extends RegistryFunctions {
 
     registerIR("argmax", TArray(tv("T")))(argF(_, GT(_)))
 
-    def uniqueIndex(a: IR, op: (Type) => ComparisonOp): IR = {
+    def uniqueIndex(a: IR, op: (Type) => ComparisonOp[Boolean]): IR = {
       val t = -coerce[TArray](a.typ).elementType
       val tAccum = TStruct("m" -> t, "midx" -> TInt32(), "count" -> TInt32())
       val accum = genUID()
