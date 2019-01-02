@@ -41,11 +41,6 @@ class Task(object):
         if item in self._resources:
             return self._resources[item]
 
-    def __call__(self, **kwargs):
-        for name, value in kwargs:
-            self.__setattr__(name, value)
-        return self
-
     def command(self, command):
         # parse command and extract identifiers
         ast = jinja2.Environment().parse(command)
