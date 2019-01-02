@@ -398,6 +398,7 @@ class OrderingSuite extends TestNGSuite {
     assertEvalSame(ApplyComparisonOp(LTEQ(t, t), In(0, t), In(1, t)), args)
     assertEvalSame(ApplyComparisonOp(GT(t, t), In(0, t), In(1, t)), args)
     assertEvalSame(ApplyComparisonOp(GTEQ(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(Compare(t, t), In(0, t), In(1, t)), args)
   }
 
   @Test(dataProvider = "arrayDoubleOrderingData")
@@ -417,6 +418,7 @@ class OrderingSuite extends TestNGSuite {
     assertEvalSame(ApplyComparisonOp(LTEQ(t, t), In(0, t), In(1, t)), args)
     assertEvalSame(ApplyComparisonOp(GT(t, t), In(0, t), In(1, t)), args)
     assertEvalSame(ApplyComparisonOp(GTEQ(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(Compare(t, t), In(0, t), In(1, t)), args)
   }
 
   @DataProvider(name = "rowDoubleOrderingData")
@@ -448,5 +450,6 @@ class OrderingSuite extends TestNGSuite {
     assertEvalSame(ApplyComparisonOp(LTEQ(t, t), In(0, t), In(1, t)), args)
     assertEvalSame(ApplyComparisonOp(GT(t, t), In(0, t), In(1, t)), args)
     assertEvalSame(ApplyComparisonOp(GTEQ(t, t), In(0, t), In(1, t)), args)
+    assertEvalSame(ApplyComparisonOp(Compare(t, t), In(0, t), In(1, t)), args)
   }
 }

@@ -100,7 +100,7 @@ final case class Ref(name: String, var typ: Type) extends IR
 
 final case class ApplyBinaryPrimOp(op: BinaryOp, l: IR, r: IR) extends InferIR
 final case class ApplyUnaryPrimOp(op: UnaryOp, x: IR) extends InferIR
-final case class ApplyComparisonOp(op: ComparisonOp, l: IR, r: IR) extends InferIR
+final case class ApplyComparisonOp(op: ComparisonOp[_], l: IR, r: IR) extends InferIR
 
 object MakeArray {
   def unify(args: Seq[IR], typ: TArray = null): MakeArray = {

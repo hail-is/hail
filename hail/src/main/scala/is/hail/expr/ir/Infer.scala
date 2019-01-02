@@ -22,7 +22,10 @@ object Infer {
         PType.canonical(UnaryOp.getReturnType(op, v.typ)).setRequired(v.pType.required)
       case ApplyComparisonOp(op, l, r) =>
         assert(l.typ isOfType r.typ, s"${l.typ.parsableString()} vs ${r.typ.parsableString()}")
-        PBoolean(l.pType.required && r.pType.required)
+        op match {
+          case _: Compare => PInt32(l.pType.required && r.pType.required)
+          case _ => PBoolean(l.pType.required && r.pType.required)
+        }
       case ArrayRef(a, i) =>
         assert(i.typ.isOfType(TInt32()))
         coerce[PArray](a.pType).elementType.setRequired(a.pType.required && i.pType.required)
