@@ -11,7 +11,8 @@ from flask_cors import CORS
 
 from .batch_helper import try_to_cancel_job, job_ordering
 from .ci_logging import log
-from .constants import BUILD_JOB_TYPE, GCS_BUCKET, DEPLOY_JOB_TYPE
+from .constants import BUILD_JOB_TYPE, GCS_BUCKET, GCS_BUCKET_PREFIX, \
+    DEPLOY_JOB_TYPE
 from .environment import \
     batch_client, \
     WATCHED_TARGETS, \
@@ -334,22 +335,22 @@ def job_log(id):
 
 def receive_ci_job(source, target, job):
     upload_public_gs_file_from_string(GCS_BUCKET,
-                                      f'ci/{source.sha}/{target.sha}/job.log',
+                                      f'{GCS_BUCKET_PREFIX}ci/{source.sha}/{target.sha}/job.log',
                                       job.cached_status()['log'])
     upload_public_gs_file_from_filename(
         GCS_BUCKET,
-        f'ci/{source.sha}/{target.sha}/index.html',
+        f'{GCS_BUCKET_PREFIX}ci/{source.sha}/{target.sha}/index.html',
         'index.html')
     prs.ci_build_finished(source, target, job)
 
 
 def receive_deploy_job(target, job):
     upload_public_gs_file_from_string(GCS_BUCKET,
-                                      f'deploy/{target.sha}/job.log',
+                                      f'{GCS_BUCKET_PREFIX}deploy/{target.sha}/job.log',
                                       job.cached_status()['log'])
     upload_public_gs_file_from_filename(
         GCS_BUCKET,
-        f'deploy/{target.sha}/index.html',
+        f'{GCS_BUCKET_PREFIX}deploy/{target.sha}/index.html',
         'deploy-index.html')
     prs.deploy_build_finished(target, job)
 

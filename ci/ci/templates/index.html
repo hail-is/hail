@@ -54,7 +54,11 @@
             {{ pr.title }}
           </td>
           <td align="left">
+            {% if pr.build.job is defined %}
+            <a href="job-log/{{ pr.build.job.id }}">{{ pr.build }}</a>
+            {% else %}
             {{ pr.build }}
+            {% endif %}
           </td>
           <td align="left">
             {{ pr.review }}

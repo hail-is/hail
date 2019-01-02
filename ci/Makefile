@@ -31,13 +31,14 @@ restart-proxy:
 	$(shell gcloud compute \
 	  --project "$(PROJECT)" \
 	  ssh \
-	  --zone "us-central1-a" \
+	  --zone "us-east1-b" \
 	  "dk-test" \
 	  --ssh-flag="-R 0.0.0.0:${HAIL_CI_REMOTE_PORT}:127.0.0.1:5000" \
 	  --ssh-flag='-N' \
 	  --ssh-flag='-T' \
 	  --ssh-flag='-v' \
 	  --dry-run) > proxy.log 2>proxy.err & echo $$! > proxy.pid
+	sleep 2 && kill -0 $$(cat proxy.pid)
 
 restart-batch-proxy:
 	-kill $(shell cat batch-proxy.pid)
@@ -50,6 +51,7 @@ restart-batch-proxy:
                          | sed 's:pods/::' \
                          | head -n 1))
 	kubectl port-forward ${BATCH_POD} 8888:5000 > batch-proxy.log 2>batch-proxy.err & echo $$! > batch-proxy.pid
+	sleep 2 && kill -0 $$(cat batch-proxy.pid)
 
 
 
