@@ -4,9 +4,33 @@ import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.utils._
 
-object Infer {
-  def apply(ir: InferIR): PType = {
+object InferPType {
+  def apply(ir: IR): PType = {
     ir match {
+      case I32(_) => PInt32()
+      case I64(_) => PInt64()
+      case F32(_) => PFloat32()
+      case F64(_) => PFloat64()
+      case Str(_) => PString()
+      case Literal(t, _) => PType.canonical(t)
+      case True() | False() => PBoolean()
+      case Void() => PVoid
+      case Cast(_, t) => PType.canonical(t)
+      case NA(t) => PType.canonical(t)
+      case IsNA(_) => PBoolean()
+      case Ref(_, t) => PType.canonical(t) // FIXME fill in with supplied physical type
+      case In(_, t) => PType.canonical(t) // FIXME fill in with supplied physical type
+      case MakeArray(_, t) => PType.canonical(t)
+      case _: ArrayLen => PInt32()
+      case _: ArrayRange => PArray(PInt32())
+      case _: LowerBoundOnOrderedCollection => PInt32()
+      case _: ArrayFor => PVoid
+      case _: InitOp => PVoid
+      case _: SeqOp => PVoid
+      case _: Begin => PVoid
+      case _: StringLength => PInt32()
+      case _: StringSlice => PString()
+      case Die(_, t) => PType.canonical(t)
       case If(cond, cnsq, altr) =>
         assert(cond.typ.isOfType(TBoolean()))
         assert(cnsq.typ.isOfType(altr.typ))
@@ -26,11 +50,12 @@ object Infer {
           case _: Compare => PInt32(l.pType.required && r.pType.required)
           case _ => PBoolean(l.pType.required && r.pType.required)
         }
+      case a: ApplyIR => a.explicitNode.pType
+      case a: AbstractApplyNode[_] => PType.canonical(a.typ)
+      case _: Uniroot => PFloat64()
       case ArrayRef(a, i) =>
-        assert(i.typ.isOfType(TInt32()))
         coerce[PArray](a.pType).elementType.setRequired(a.pType.required && i.pType.required)
       case ArraySort(a, ascending, _) =>
-        assert(ascending.typ.isOfType(TBoolean()))
         val et = coerce[PArray](a.pType).elementType
         PArray(et, a.pType.required)
       case ToSet(a) =>
@@ -54,10 +79,8 @@ object Infer {
       case ArrayFlatMap(a, name, body) =>
         PArray(coerce[PContainer](body.pType).elementType, a.pType.required)
       case ArrayFold(a, zero, accumName, valueName, body) =>
-        assert(body.pType == zero.pType)
         zero.pType
       case ArrayScan(a, zero, accumName, valueName, body) =>
-        assert(body.pType == zero.pType)
         PArray(zero.pType)
       case AggFilter(_, aggIR) =>
         aggIR.pType
@@ -83,7 +106,6 @@ object Infer {
         tbs.insertFields(fields.map(f => (f._1, f._2.pType)))
       case GetField(o, name) =>
         val t = coerce[PStruct](o.pType)
-        assert(t.index(name).nonEmpty, s"$name not in $t")
         val fd = t.field(name).typ
         fd.setRequired(t.required && fd.required)
       case MakeTuple(values) =>
@@ -91,13 +113,16 @@ object Infer {
         PTuple(values.map(_.pType).toFastIndexedSeq, required = false)
       case GetTupleElement(o, idx) =>
         val t = coerce[PTuple](o.pType)
-        assert(idx >= 0 && idx < t.size)
         val fd = t.types(idx)
         fd.setRequired(t.required && fd.required)
+      case TableCount(_) => PInt64()
       case TableAggregate(child, query) =>
         query.pType
       case MatrixAggregate(child, query) =>
         query.pType
+      case _: TableWrite => PVoid
+      case _: MatrixWrite => PVoid
+      case _: TableExport => PVoid
       case TableGetGlobals(child) => PType.canonical(child.typ.globalType)
       case TableCollect(child) => PStruct("rows" -> PArray(PType.canonical(child.typ.rowType)), "global" -> PType.canonical(child.typ.globalType))
     }
