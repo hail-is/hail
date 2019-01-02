@@ -72,7 +72,7 @@ object TypeCheck {
         assert(-op.t2.fundamentalType == -r.typ.fundamentalType)
         op match {
           case _: Compare => assert(x.typ.isInstanceOf[TInt32])
-          case _ => assert(x.typ.isInstanceOf[TBinary])
+          case _ => assert(x.typ.isInstanceOf[TBoolean])
         }
       case x@MakeArray(args, typ) =>
         assert(typ != null)

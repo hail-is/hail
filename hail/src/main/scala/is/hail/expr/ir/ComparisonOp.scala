@@ -69,5 +69,8 @@ case class NEQWithNA(t1: Type, t2: Type) extends ComparisonOp[Boolean] {
   override val strict: Boolean = false
 }
 object NEQWithNA { def apply(typ: Type): NEQWithNA = NEQWithNA(typ, typ) }
-case class Compare(t1: Type, t2: Type) extends ComparisonOp[Int] { val op: CodeOrdering.Op = CodeOrdering.compare }
+case class Compare(t1: Type, t2: Type) extends ComparisonOp[Int] {
+  override val strict: Boolean = false
+  val op: CodeOrdering.Op = CodeOrdering.compare
+}
 object Compare { def apply(typ: Type): Compare = Compare(typ, typ) }
