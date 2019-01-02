@@ -45,6 +45,9 @@ run-docker: build
 	docker run -e BATCH_USE_KUBE_CONFIG=1 -i -v $(HOME)/.kube:/root/.kube -p 5000:5000 -t batch
 
 run: build/conda-env
+	. ../loadconda && conda activate hail-batch && python -c 'import batch.server; batch.server.serve('$(BATCH_PORT)')'
+
+run-local: run
 	. ../loadconda && conda activate hail-batch && BATCH_USE_KUBE_CONFIG=1 python -c 'import batch.server; batch.server.serve('$(BATCH_PORT)')'
 
 test: push-test
