@@ -2300,6 +2300,7 @@ class MatrixTable(ExprContainer):
         >>> dataset_result = dataset.annotate_rows(qual = dataset2.index_rows(dataset.locus, dataset.alleles).qual)
 
         Or equivalently:
+        
         >>> dataset_result = dataset.annotate_rows(qual = dataset2.index_rows(dataset.row_key).qual)
 
         Parameters
@@ -2383,6 +2384,7 @@ class MatrixTable(ExprContainer):
         >>> dataset_result = dataset.annotate_cols(pheno = dataset2.index_cols(dataset.s).pheno)
 
         Or equivalently:
+        
         >>> dataset_result = dataset.annotate_cols(pheno = dataset2.index_cols(dataset.col_key).pheno)
 
         Parameters
@@ -2413,6 +2415,7 @@ class MatrixTable(ExprContainer):
         >>> dataset_result = dataset.annotate_entries(GQ2 = dataset2.index_entries(dataset.row_key, dataset.col_key).GQ)
 
         Or equivalently:
+        
         >>> dataset_result = dataset.annotate_entries(GQ2 = dataset2[dataset.row_key, dataset.col_key].GQ)
 
         Parameters
