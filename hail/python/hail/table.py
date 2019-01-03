@@ -2370,7 +2370,7 @@ class Table(ExprContainer):
         element in the `Children` field:
 
         >>> exploded = people_table.explode('Children')
-        >>> exploded.show()
+        >>> exploded.show() # doctest: +SKIP
         +---------+-------+----------+
         | Name    |   Age | Children |
         +---------+-------+----------+

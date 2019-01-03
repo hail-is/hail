@@ -263,7 +263,7 @@ One use case of explode is to duplicate rows:
     >>> mt_new.count_rows()
     692
 
-    >>> mt_new.replicate_num.show()
+    >>> mt_new.replicate_num.show() # doctest: +SKIP
     +---------------+------------+---------------+
     | locus         | alleles    | replicate_num |
     +---------------+------------+---------------+

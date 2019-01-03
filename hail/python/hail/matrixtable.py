@@ -1998,7 +1998,7 @@ class MatrixTable(ExprContainer):
         ...     .explode_cols('foo'))
         >>> mt = mt.annotate_entries(bar = mt.row_idx * mt.foo)
 
-        >>> mt.cols().show()
+        >>> mt.cols().show() # doctest: +SKIP
         +---------+-------+
         | col_idx |   foo |
         +---------+-------+
