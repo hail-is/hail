@@ -86,3 +86,48 @@ def assert_time(f, max_duration):
     assert (start - end) < max_duration
     print(f'took {end - start:.3f}')
     return x
+
+def create_all_values():
+    return hl.struct(
+        f32=hl.float32(3.14),
+        i64=hl.int64(-9),
+        m=hl.null(hl.tfloat64),
+        astruct=hl.struct(a=hl.null(hl.tint32), b=5.5),
+        mstruct=hl.null(hl.tstruct(x=hl.tint32, y=hl.tstr)),
+        aset=hl.set(['foo', 'bar', 'baz']),
+        mset=hl.null(hl.tset(hl.tfloat64)),
+        d=hl.dict({hl.array(['a', 'b']): 0.5, hl.array(['x', hl.null(hl.tstr), 'z']): 0.3}),
+        md=hl.null(hl.tdict(hl.tint32, hl.tstr)),
+        h38=hl.locus('chr22', 33878978, 'GRCh38'),
+        ml=hl.null(hl.tlocus('GRCh37')),
+        i=hl.interval(
+            hl.locus('1', 999),
+            hl.locus('1', 1001)),
+        c=hl.call(0, 1),
+        mc=hl.null(hl.tcall),
+        t=hl.tuple([hl.call(1, 2, phased=True), 'foo', hl.null(hl.tstr)]),
+        mt=hl.null(hl.ttuple(hl.tlocus('GRCh37'), hl.tbool))
+    )
+
+def prefix_struct(s, prefix):
+    return hl.struct(**{prefix + k: s[k] for k in s})
+
+def create_all_values_table():
+    all_values = create_all_values()
+    return (hl.utils.range_table(5, n_partitions=3)
+            .annotate_globals(**prefix_struct(all_values, 'global_'))
+            .annotate(**all_values)
+            .cache())
+    
+
+def create_all_values_matrix_table():
+    all_values = create_all_values()
+    return (hl.utils.range_matrix_table(3, 2, n_partitions=2)
+            .annotate_globals(**prefix_struct(all_values, 'global_'))
+            .annotate_rows(**prefix_struct(all_values, 'row_'))
+            .annotate_cols(**prefix_struct(all_values, 'col_'))
+            .annotate_entries(**prefix_struct(all_values, 'entry_'))
+            .cache())
+
+def create_all_values_datasets():
+    return (create_all_values_table(), create_all_values_matrix_table())

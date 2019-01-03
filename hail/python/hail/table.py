@@ -2091,6 +2091,7 @@ class Table(ExprContainer):
                 return hl.struct(alleles=hl.map(lambda i: e[i], hl.range(e.ploidy)),
                                  phased=e.phased)
             else:
+                assert isinstance(e, (NumericExpression, BooleanExpression, StringExpression))
                 return e
 
         t = self.key_by()
