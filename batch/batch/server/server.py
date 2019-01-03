@@ -109,24 +109,21 @@ class Job:
         assert self._state == 'Cancelled'
         return None
 
-    def __init__(self, pod_spec, batch_id, attributes, callback, parents):
+    def __init__(self, pod_spec, batch_id, attributes, callback, parent_ids):
         self.id = next_id()
         self.batch_id = batch_id
         self.attributes = attributes
         self.callback = callback
         self.child_ids = set([])
-        self.parents = parents
-        self.incomplete_parents = set(self.parents)
+        self.parent_ids = parent_ids
+        self.incomplete_parent_ids = set(self.parent_ids)
         self._pod_name = None
         self.exit_code = None
         self._state = 'Created'
 
         job_id_job[self.id] = self
 
-        for parent in self.parents:
-            if parent not in job_id_job:
-                abort(400, f'invalid parent: no job with id {parent}')
-        for parent in self.parents:
+        for parent in self.parent_ids:
             job_id_job[parent].child_ids.add(self.id)
 
         if batch_id:
@@ -144,13 +141,13 @@ class Job:
 
         log.info('created job {}'.format(self.id))
 
-        if not self.parents:
+        if not self.parent_ids:
             self._create_pod()
         else:
             self.refresh_parents_and_maybe_create()
 
     def refresh_parents_and_maybe_create(self):
-        for parent in self.parents:
+        for parent in self.parent_ids:
             parent_job = job_id_job[parent]
             self.parent_new_state(parent_job._state, parent, parent_job.exit_code)
 
@@ -174,13 +171,13 @@ class Job:
     def parent_new_state(self, new_state, parent_id, maybe_exit_code):
         if new_state == 'Complete' and maybe_exit_code == 0:
             log.info(f'parent {parent_id} successfully complete for {self.id}')
-            self.incomplete_parents.discard(parent_id)
-            if not self.incomplete_parents:
+            self.incomplete_parent_ids.discard(parent_id)
+            if not self.incomplete_parent_ids:
                 log.info(f'all parents successfully complete for {self.id}')
                 self._create_pod()
         elif new_state == 'Cancelled' or (new_state == 'Complete' and maybe_exit_code != 0):
             log.info(f'parents deleted, cancelled, or failed: {new_state} {maybe_exit_code} {parent_id}')
-            self.incomplete_parents.discard(parent_id)
+            self.incomplete_parent_ids.discard(parent_id)
             self.cancel()
 
     def cancel(self):
@@ -270,7 +267,7 @@ def create_job():
             'schema': {}
         },
         'batch_id': {'type': 'integer'},
-        'parents': {'type': 'list', 'schema': {'type': 'integer'}},
+        'parent_ids': {'type': 'list', 'schema': {'type': 'integer'}},
         'attributes': {
             'type': 'dict',
             'keyschema': {'type': 'string'},
@@ -290,12 +287,17 @@ def create_job():
         if batch_id not in batch_id_batch:
             abort(404, 'valid request: batch_id {} not found'.format(batch_id))
 
+    parent_ids = parameters.get('parent_ids', [])
+    for parent_id in parent_ids:
+        if parent_id not in job_id_job:
+            abort(400, f'invalid parent_id: no job with id {parent_id}')
+
     job = Job(
         pod_spec,
         batch_id,
         parameters.get('attributes'),
         parameters.get('callback'),
-        parameters.get('parents'))
+        parent_ids)
     return jsonify(job.to_json())
 
 
