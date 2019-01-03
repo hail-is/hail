@@ -12,12 +12,8 @@ kubectl expose pod $POD_NAME --name $SERVICE_NAME \
 cleanup() {
     set +e
     trap "" INT TERM
-    if [ -n $batch_pid ]
-    then
-        batch_pgid=$(ps -o pgid= $batch_pid | grep --only-matching '[0-9]*')
-        kill -- -$batch_pgid
-        kill -9 -$batch_pid
-    fi
+    kill $batch_pid
+    kill -9 $batch_pid
     kubectl delete service $SERVICE_NAME
 }
 trap cleanup EXIT
@@ -35,7 +31,10 @@ export SELF_HOSTNAME=https://ci.hail.is/$SERVICE_NAME
 export BATCH_SERVER_URL=http://127.0.0.1:5001
 
 pushd ../batch
-BATCH_PORT=5001 make run & batch_pid=$!
+. ../loadconda
+conda activate hail-batch
+BATCH_PORT=5001 python -c 'import batch.server; batch.server.serve('$(BATCH_PORT)')' & batch_pid=$!
+conda deactivate
 popd
 
 ../until-with-fuel 30 curl -fL 127.0.0.1:5001/jobs
