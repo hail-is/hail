@@ -434,6 +434,7 @@ def refresh_k8s_state():
 
 def run_forever(target, *args, **kwargs):
     expected_retry_interval_ms = 15 * 1000
+
     while True:
         start = time.time()
         run_once(target, *args, **kwargs)
@@ -461,9 +462,12 @@ def flask_event_loop():
 
 
 def kube_event_loop():
+    # May not be thread-safe; opens http connection, so use local version
+    v1_ = kube.client.CoreV1Api()
+
     watch = kube.watch.Watch()
     stream = watch.stream(
-        v1.list_namespaced_pod,
+        v1_.list_namespaced_pod,
         POD_NAMESPACE,
         label_selector=f'app=batch-job,hail.is/batch-instance={instance_id}')
     for event in stream:
