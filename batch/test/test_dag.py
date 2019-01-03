@@ -220,4 +220,4 @@ def test_parent_deleted(client):
         status = node.status()
         assert status['state'] == 'Complete'
         assert status['exit_code'] == 0
-    assert tail.status()['state'] in 'Cancelled'
+    assert tail.status()['state'] == 'Cancelled'
