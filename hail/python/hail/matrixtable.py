@@ -1998,7 +1998,7 @@ class MatrixTable(ExprContainer):
         ...     .explode_cols('foo'))
         >>> mt = mt.annotate_entries(bar = mt.row_idx * mt.foo)
 
-        >>> mt.cols().show() # doctest: +SKIP
+        >>> mt.cols().show() # doctest: +NOTEST
         +---------+-------+
         | col_idx |   foo |
         +---------+-------+
@@ -2012,7 +2012,7 @@ class MatrixTable(ExprContainer):
         |       2 |     6 |
         +---------+-------+
 
-        >>> mt.entries().show() # doctest: +SKIP
+        >>> mt.entries().show() # doctest: +NOTEST
         +---------+---------+-------+-------+
         | row_idx | col_idx |   foo |   bar |
         +---------+---------+-------+-------+
@@ -2043,7 +2043,7 @@ class MatrixTable(ExprContainer):
         |       2 | [4,5,6]      |
         +---------+--------------+
 
-        >>> mt.entries().show() # doctest: +SKIP
+        >>> mt.entries().show() # doctest: +NOTEST
         +---------+---------+--------------+--------------+
         | row_idx | col_idx | foo          | bar          |
         +---------+---------+--------------+--------------+
