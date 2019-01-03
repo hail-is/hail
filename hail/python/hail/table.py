@@ -2441,7 +2441,7 @@ class Table(ExprContainer):
                 raise ValueError(f"method 'explode' cannot explode a key field")
 
         f = self._fields_inverse[field]
-        t = Table(TableExplode(self._tir, f))
+        t = Table(TableExplode(self._tir, [f]))
         if name is not None:
             t = t.rename({f: name})
         return t

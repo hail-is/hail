@@ -2034,15 +2034,6 @@ case class MatrixExplodeRows(child: MatrixIR, path: IndexedSeq[String]) extends 
 
   private val rvRowType = child.typ.rvRowType
 
-  val length: IR = {
-    val lenUID = genUID()
-    Let(lenUID,
-      ArrayLen(ToArray(
-        path.foldLeft[IR](Ref("va", rvRowType))((struct, field) =>
-          GetField(struct, field)))),
-      If(IsNA(Ref(lenUID, TInt32())), 0, Ref(lenUID, TInt32())))
-  }
-
   val idx = Ref(genUID(), TInt32())
   val newRVRow: InsertFields = {
     val refs = path.init.scanLeft(Ref("va", rvRowType))((struct, name) =>
@@ -2059,42 +2050,6 @@ case class MatrixExplodeRows(child: MatrixIR, path: IndexedSeq[String]) extends 
   }
 
   val typ: MatrixType = child.typ.copy(rvRowType = newRVRow.typ)
-
-  override lazy val rvdType: RVDType = RVDType(newRVRow.pType, child.rvdType.key.takeWhile(_ !=  path.head))
-
-  protected[ir] override def execute(hc: HailContext): MatrixValue = {
-    val prev = child.execute(hc)
-    val (_, l) = Compile[Long, Int]("va", rvRowType.physicalType, length)
-    val (t, f) = Compile[Long, Int, Long](
-      "va", rvRowType.physicalType,
-      idx.name, PInt32(),
-      newRVRow)
-    assert(t.virtualType == typ.rvRowType)
-
-    MatrixValue(typ,
-      prev.globals,
-      prev.colValues,
-      prev.rvd.boundary.mapPartitionsWithIndex(typ.canonicalRVDType, { (i, ctx, it) =>
-        val region2 = ctx.region
-        val rv2 = RegionValue(region2)
-        val lenF = l(i)
-        val rowF = f(i)
-        it.flatMap { rv =>
-          val len = lenF(rv.region, rv.offset, false)
-          new Iterator[RegionValue] {
-            private[this] var i = 0
-
-            def hasNext(): Boolean = i < len
-
-            def next(): RegionValue = {
-              rv2.setOffset(rowF(rv2.region, rv.offset, false, i, false))
-              i += 1
-              rv2
-            }
-          }
-        }
-      }))
-  }
 }
 
 case class MatrixRepartition(child: MatrixIR, n: Int, strategy: Int) extends MatrixIR {

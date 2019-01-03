@@ -881,9 +881,9 @@ object IRParser {
           else
             SortField(i.substring(1), Descending)))
       case "TableExplode" =>
-        val field = identifier(it)
+        val path = string_literals(it)
         val child = table_ir(env)(it)
-        TableExplode(child, field)
+        TableExplode(child, path)
       case "CastMatrixToTable" =>
         val entriesField = string_literal(it)
         val colsField = string_literal(it)

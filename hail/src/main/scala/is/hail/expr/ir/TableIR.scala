@@ -844,73 +844,82 @@ case class TableMapGlobals(child: TableIR, newGlobals: IR) extends TableIR {
   }
 }
 
-case class TableExplode(child: TableIR, fieldName: String) extends TableIR {
-  assert(!child.typ.key.contains(fieldName))
+case class TableExplode(child: TableIR, path: IndexedSeq[String]) extends TableIR {
+  assert(path.nonEmpty)
+  assert(!child.typ.key.contains(path.head))
 
   def children: IndexedSeq[BaseIR] = Array(child)
 
-  private val fieldIdx = child.typ.rowType.fieldIdx(fieldName)
-  private val fieldType = child.typ.rowType.types(fieldIdx)
-  private val rowType = child.typ.rowType.updateKey(fieldName, fieldIdx, fieldType.asInstanceOf[TContainer].elementType)
-
-  val typ: TableType = child.typ.copy(rowType = rowType)
-
   private val childRowType = child.typ.rowType
 
-  private val field = fieldType match {
-    case TArray(_, _) =>
-      GetField(Ref("row", childRowType), fieldName)
-    case TSet(_, _) =>
-      ToArray(GetField(Ref("row", childRowType), fieldName))
-    case _ =>
-      fatal(s"expected field to explode to be an array or set, found ${ fieldType }")
+  private val length: IR = {
+    val lenUID = genUID()
+    Let(lenUID,
+      ArrayLen(ToArray(
+        path.foldLeft[IR](Ref("row", childRowType))((struct, field) =>
+          GetField(struct, field)))),
+      If(IsNA(Ref(lenUID, TInt32())), 0, Ref(lenUID, TInt32())))
   }
 
-  private val insertIR = ir.InsertFields(Ref("row", childRowType),
-    Array(fieldName -> ir.ArrayRef(
-      field,
-      ir.Ref("i", TInt32()))))
+  val idx = Ref(genUID(), TInt32())
+  val newRow: InsertFields = {
+    val refs = path.init.scanLeft(Ref("row", childRowType))((struct, name) =>
+      Ref(genUID(), coerce[TStruct](struct.typ).field(name).typ))
+
+    path.zip(refs).zipWithIndex.foldRight[IR](idx) {
+      case (((field, ref), i), arg) =>
+        InsertFields(ref, FastIndexedSeq(field ->
+          (if (i == refs.length - 1)
+            ArrayRef(ToArray(GetField(ref, field)), arg)
+          else
+            Let(refs(i + 1).name, GetField(ref, field), arg))))
+    }.asInstanceOf[InsertFields]
+  }
+
+  val typ: TableType = child.typ.copy(rowType = newRow.typ)
 
   override lazy val rvdType: RVDType = RVDType(
-    insertIR.pType,
-    child.rvdType.key.takeWhile(_ != fieldName)
+    newRow.pType,
+    child.rvdType.key.takeWhile(_ != path.head)
   )
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableExplode = {
     assert(newChildren.length == 1)
-    TableExplode(newChildren(0).asInstanceOf[TableIR], fieldName)
+    TableExplode(newChildren(0).asInstanceOf[TableIR], path)
   }
 
   protected[ir] override def execute(hc: HailContext): TableValue = {
     val prev = child.execute(hc)
 
-    val (_, lengthF) = ir.Compile[Long, Int]("row", childRowType.physicalType,
-      ir.If(IsNA(field), ir.I32(0), ir.ArrayLen(field)))
+    val (_, l) = Compile[Long, Int]("row", prev.rvd.rowPType, length)
+    val (t, f) = Compile[Long, Int, Long](
+      "row", prev.rvd.rowPType,
+      idx.name, PInt32(),
+      newRow)
+    assert(t.virtualType == typ.rowType)
 
-    val (resultType, explodeF) = ir.Compile[Long, Int, Long]("row", childRowType.physicalType,
-      "i", PInt32(), insertIR)
+    TableValue(typ,
+      prev.globals,
+      prev.rvd.boundary.mapPartitionsWithIndex(rvdType, { (i, ctx, it) =>
+        val region2 = ctx.region
+        val rv2 = RegionValue(region2)
+        val lenF = l(i)
+        val rowF = f(i)
+        it.flatMap { rv =>
+          val len = lenF(rv.region, rv.offset, false)
+          new Iterator[RegionValue] {
+            private[this] var i = 0
 
-    val itF: (Int, RVDContext, Iterator[RegionValue]) => Iterator[RegionValue] = { (i, ctx, it) =>
-      val rv2 = RegionValue()
-      val lenF = lengthF(i)
-      val rowF = explodeF(i)
-      it.flatMap { rv =>
-        val n = lenF(rv.region, rv.offset, false)
-        Iterator.range(0, n)
-          .map { i =>
-            val off = rowF(ctx.region, rv.offset, false, i, false)
-            rv2.set(ctx.region, off)
-            rv2
+            def hasNext(): Boolean = i < len
+
+            def next(): RegionValue = {
+              rv2.setOffset(rowF(rv2.region, rv.offset, false, i, false))
+              i += 1
+              rv2
+            }
           }
-      }
-    }
-
-    val adjKey = prev.rvd.truncateKey(prev.rvd.typ.key.takeWhile(_ != fieldName))
-    val newRVD = adjKey.boundary.mapPartitionsWithIndex(
-      adjKey.typ.copy(rowType = rowType.physicalType),
-      itF)
-
-    TableValue(typ, prev.globals, newRVD)
+        }
+      }))
   }
 }
 
