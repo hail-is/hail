@@ -1,73 +1,80 @@
 import abc
-import random, string
 import os
-
-def get_sha(k):
-    return ''.join(random.choices(string.ascii_letters + string.digits, k=k))
+from .resource import Resource, ResourceGroup
+from .utils import get_sha
 
 
 class Backend(object):
     @abc.abstractmethod
+    def tmp_dir(self):
+        return
+
+    @abc.abstractmethod
     def run(self, pipeline):
         return
 
     @abc.abstractmethod
-    def cp_cmd_template(self):
+    def cp(self, src, dest):
         return
 
     @abc.abstractmethod
-    def mv_cmd_template(self):
+    def mv(self, src, dest):
         return
 
 
 class LocalBackend(Backend):
-    def __init__(self, tmp_dir='/tmp/'):
+    def __init__(self, tmp_dir='/tmp/', delete_on_exit=True):
         self._tmp_dir = tmp_dir
+        self._delete_on_exit = delete_on_exit
 
     def run(self, pipeline):
+        from .pipeline import Pipeline
+
         script = ['#! /usr/bash',
                   'set -ex',
+                  '\n',
+                  '# define tmp directory',
+                  f"{Pipeline._tmp_dir_varname}={self.tmp_dir()}",
                   '\n']
 
         def define_resource(r):
-            assert resource._value is not None
-            if isinstance(r._value, list):
-                init = "{}=({})".format(r._uid,
-                                        " ".join([str(x._value) for x in r._value]))
-            else:
-                init = f"{r._uid}={r._value}"
-            return init
+            if isinstance(r, str):
+                r = pipeline._resource_map[r]
 
-        def reference_resource(r):
-            if isinstance(r._value, list):
-                return f"${{{r._uid}[*]}}"
+            if isinstance(r, Resource):
+                assert r._value is not None
+                init = f"{r._uid}={r._value}"
             else:
-                return f"${r._uid}"
+                assert isinstance(r, ResourceGroup)
+                init = f"{r._uid}={r._root}"
+            return init
 
         for task in pipeline._tasks:
             script.append(f"# {task._uid} {task._label if task._label else ''}")
-            for _, resource in task._resources.items():
-                script.append(define_resource(resource))
-            script += task._render_command(reference_resource) + ["\n"]
+            script += [define_resource(r) for _, r in task._resources.items()]
+            script += task._command + ["\n"]
 
-        # replace with subprocess.call()
-        print("\n".join(script))
+        if self._delete_on_exit:
+            script += ['# remove tmp directory',
+                       f'rm -r ${{{Pipeline._tmp_dir_varname}}}']
 
-    def temp_file(self, prefix=None, suffix=None):
+        print("\n".join(script)) # FIXME: replace with subprocess.call()
+
+    def tmp_dir(self):
         def _get_random_name():
-            file = self._tmp_dir + '{}{}{}'.format(prefix if prefix else '',
-                                                   get_sha(6),
-                                                   suffix if suffix else '')
-            if os.path.exists(file):
+            directory = self._tmp_dir + '/pipeline.{}/'.format(get_sha(8))
+
+            if os.path.isdir(directory):
                 _get_random_name()
             else:
-                return file
+                os.mkdir(directory)
+                return directory
 
         return _get_random_name()
 
-    def cp_cmd_template(self):
-        return "cp {{src}} {{dest}}"
+    def cp(self, src, dest): # FIXME: symbolic links? support gsutil?
+        return f"cp {src} {dest}"
 
-    def mv_cmd_template(self):
-        return "mv {{src}} {{dest}}"
+    def mv(self, src, dest):
+        return f"mv {src} {dest}"
 

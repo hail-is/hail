@@ -1,4 +1,7 @@
-from .task import Task
 from .pipeline import Pipeline
-from .resource import Resource
-from .backend import Backend, LocalBackend
+from .backend import LocalBackend
+from .resource import resource_group_builder
+
+__all__ = ['Pipeline',
+           'LocalBackend',
+           'resource_group_builder']
