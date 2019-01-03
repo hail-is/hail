@@ -30,8 +30,6 @@ class ServerTest(unittest.TestCase):
         except Exception:
             self.fail("Couldn't handle timeout exceptions")
 
-        print("OK")
-
 
 if __name__ == "__main__":
     unittest.main()
