@@ -1921,7 +1921,7 @@ case class TableToMatrixTable(
     val rowKeyIndices = rowKey.map(rowEntryStruct.fieldIdx)
     val rowKeyF: Row => Row = r => Row.fromSeq(rowKeyIndices.map(r.get))
 
-    val rowEntryRVD = prev.rvd.mapPartitions(RVDType(rowEntryStructPtype)) { it =>
+    val rowEntryRVD = prev.rvd.mapPartitions(RVDType(rowEntryStructPtype, FastIndexedSeq())) { it =>
       val ur = new UnsafeRow(localRowPType)
       val rvb = new RegionValueBuilder()
       val rv2 = RegionValue()
