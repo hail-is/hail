@@ -118,7 +118,6 @@ def create_all_values_table():
             .annotate_globals(**prefix_struct(all_values, 'global_'))
             .annotate(**all_values)
             .cache())
-    
 
 def create_all_values_matrix_table():
     all_values = create_all_values()
