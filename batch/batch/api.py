@@ -14,10 +14,10 @@ class API():
         """
         self.timeout = timeout
 
-    def create_job(self, url, spec, attributes, batch_id, callback, parents):
+    def create_job(self, url, spec, attributes, batch_id, callback, parent_ids):
         doc = {
             'spec': spec,
-            'parents': parents
+            'parent_ids': parent_ids
         }
         if attributes:
             doc['attributes'] = attributes
@@ -81,8 +81,8 @@ class API():
 DEFAULT_API = API()
 
 
-def create_job(url, spec, attributes, batch_id, callback, parents):
-    return DEFAULT_API.create_job(url, spec, attributes, batch_id, callback, parents)
+def create_job(url, spec, attributes, batch_id, callback, parent_ids):
+    return DEFAULT_API.create_job(url, spec, attributes, batch_id, callback, parent_ids)
 
 
 def list_jobs(url):
