@@ -213,7 +213,12 @@ def ld_score_regression(weight_expr,
                                  :math:`h_g^2` is estimated. If not supplied,
                                  assumed to be the number of variants in the LD
                                  score regression.
-    """
+
+    Returns
+    -------
+    :class:`.Table`
+        Table keyed by ``phenotype`` with intercept and heritability estimates
+        for each phenotype passed to the function."""
 
     chi_squared_exprs = wrap_to_list(chi_squared_exprs)
     n_samples_exprs = wrap_to_list(n_samples_exprs)
@@ -452,8 +457,9 @@ def ld_score_regression(weight_expr,
                        mt['__step1_block_betas_bias_corrected'])) -
                        hl.sum(
                 hl.map(lambda x: x[i],
-                       (((mt['__step1_block_betas_bias_corrected'])**2 /
-                        n_blocks) / (n_blocks - 1)/n_blocks)))),
+                       mt['__step1_block_betas_bias_corrected']))**2 /
+                       n_blocks) /
+            (n_blocks - 1) / n_blocks,
             hl.range(0, __p)))
 
     # step 2 iteratively reweighted least squares
