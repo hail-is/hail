@@ -1828,9 +1828,10 @@ class BlockMatrix(object):
                path_out=str,
                rectangles=sequenceof(sequenceof(int)),
                delimiter=str,
-               n_partitions=nullable(int))
-    def export_rectangles(path_in, path_out, rectangles, delimiter='\t', n_partitions=None):
-        """Export rectangular regions from a stored block matrix to delimited text files.
+               n_partitions=nullable(int),
+               binary=bool)
+    def export_rectangles(path_in, path_out, rectangles, delimiter='\t', n_partitions=None, binary=False):
+        """Export rectangular regions from a stored block matrix to delimited text or binary files.
 
         Examples
         --------
@@ -1889,11 +1890,7 @@ class BlockMatrix(object):
         Notes
         -----
         This method exports rectangular regions of a stored block matrix
-        to delimited text files, in parallel by region.
-
-        The block matrix can be sparse so long as all blocks overlapping
-        the rectangles are present, i.e. this method does not currently
-        support implicit zeros.
+        to delimited text or binary files, in parallel by region.
 
         Each rectangle is encoded as a list of length four of
         the form ``[row_start, row_stop, col_start, col_stop]``,
@@ -1907,6 +1904,19 @@ class BlockMatrix(object):
 
         Each file name encodes the index of the rectangle in `rectangles`
         and the bounds as formatted in the example.
+
+        The block matrix can be sparse provided all blocks overlapping
+        the rectangles are present, i.e. this method does not currently
+        support implicit zeros.
+
+        If `binary` is true, each element is exported as 8 bytes, in row
+        major order with no delimiting, new lines, or shape information. Such
+        files can instantiate, for example, NumPy ndarrays using
+        `fromfile <https://docs.scipy.org/doc/numpy/reference/generated/numpy.fromfile.html>`__
+        and
+        `reshape <https://docs.scipy.org/doc/numpy/reference/generated/numpy.reshape.html>`__.
+        Note however that these binary files are not platform independent; in
+        particular, no byte-order or data-type information is saved.
 
         The number of rectangles must be less than :math:`2^{29}`.
 
@@ -1924,6 +1934,8 @@ class BlockMatrix(object):
         n_partitions: :obj:`int`, optional
             Maximum parallelism of export.
             Defaults to (and cannot exceed) the number of rectangles.
+        binary: :obj:`bool`
+            If true, export elements as raw bytes in row major order.
         """
         n_rectangles = len(rectangles)
         if n_rectangles == 0:
@@ -1954,7 +1966,7 @@ class BlockMatrix(object):
         flattened_rectangles = jarray(Env.jvm().long, list(itertools.chain(*rectangles)))
 
         return Env.hail().linalg.BlockMatrix.exportRectangles(
-            Env.hc()._jhc, path_in, path_out, flattened_rectangles, delimiter, n_partitions)
+            Env.hc()._jhc, path_in, path_out, flattened_rectangles, delimiter, n_partitions, binary)
 
     @typecheck_method(compute_uv=bool,
                       complexity_bound=int)

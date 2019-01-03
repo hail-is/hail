@@ -70,7 +70,10 @@ object TypeCheck {
         check(r)
         assert(-op.t1.fundamentalType == -l.typ.fundamentalType)
         assert(-op.t2.fundamentalType == -r.typ.fundamentalType)
-        assert(x.typ == TBoolean())
+        op match {
+          case _: Compare => assert(x.typ.isInstanceOf[TInt32])
+          case _ => assert(x.typ.isInstanceOf[TBoolean])
+        }
       case x@MakeArray(args, typ) =>
         assert(typ != null)
         args.map(_.typ).zipWithIndex.foreach { case (x, i) => assert(x == typ.elementType,
@@ -268,6 +271,7 @@ object TypeCheck {
       case TableExport(_, _, _, _, _) =>
       case TableCount(_) =>
       case TableGetGlobals(_) =>
+      case TableCollect(_) =>
     }
   }
 }

@@ -75,14 +75,16 @@ class PruneSuite extends SparkSuite {
   lazy val tab = TableLiteral(new Table(hc,
     TableParallelize(
       Literal(
-        TArray(TStruct("1" -> TString(),
-          "2" -> TArray(TStruct("2A" -> TInt32())),
-          "3" -> TString(),
-          "4" -> TStruct("A" -> TInt32(), "B" -> TArray(TStruct("i" -> TString()))),
-          "5" -> TString())),
-        FastIndexedSeq(Row("hi", FastIndexedSeq(Row(1)), "bye", Row(2, FastIndexedSeq(Row("bar"))), "foo"))),
+        TStruct(
+          "rows" -> TArray(TStruct("1" -> TString(),
+            "2" -> TArray(TStruct("2A" -> TInt32())),
+            "3" -> TString(),
+            "4" -> TStruct("A" -> TInt32(), "B" -> TArray(TStruct("i" -> TString()))),
+            "5" -> TString())),
+          "global" -> TStruct("g1" -> TInt32(), "g2" -> TInt32())),
+        Row(FastIndexedSeq(Row("hi", FastIndexedSeq(Row(1)), "bye", Row(2, FastIndexedSeq(Row("bar"))), "foo")), Row(5, 10))),
       None)
-  ).annotateGlobal(5, TInt32(), "g1").annotateGlobal(10, TInt32(), "g2").value)
+  ).value)
 
   lazy val tr = TableRead("", TableSpec(0, "", "", tab.typ, Map.empty), tab.typ, false)
 
@@ -221,6 +223,19 @@ class PruneSuite extends SparkSuite {
     val tk1 = TableKeyBy(tab, Array("1"))
     val tk2 = TableKeyBy(tab, Array("3"))
     val tj = TableLeftJoinRightDistinct(tk1, tk2, "foo")
+    checkMemo(tj,
+      subsetTable(tj.typ, "row.1", "row.4", "row.foo"),
+      Array(
+        subsetTable(tk1.typ, "row.1", "row.4"),
+        subsetTable(tk2.typ)
+      )
+    )
+  }
+
+  @Test def testTableIntervalJoinMemo() {
+    val tk1 = TableKeyBy(tab, Array("1"))
+    val tk2 = TableKeyBy(tab, Array("3"))
+    val tj = TableIntervalJoin(tk1, tk2, "foo")
     checkMemo(tj,
       subsetTable(tj.typ, "row.1", "row.4", "row.foo"),
       Array(
@@ -403,7 +418,7 @@ class PruneSuite extends SparkSuite {
 
   @Test def testMatrixRepartitionMemo() {
     checkMemo(
-      MatrixRepartition(mat, 10, true),
+      MatrixRepartition(mat, 10, RepartitionStrategy.SHUFFLE),
       subsetMatrixTable(mat.typ, "va.r2", "global.g1"),
       Array(subsetMatrixTable(mat.typ, "va.r2", "global.g1"),
         subsetMatrixTable(mat.typ, "va.r2", "global.g1"))
@@ -568,6 +583,13 @@ class PruneSuite extends SparkSuite {
     checkMemo(TableGetGlobals(tab), TStruct("g1" -> TInt32()), Array(subsetTable(tab.typ, "global.g1")))
   }
 
+  @Test def testTableCollectMemo() {
+    checkMemo(
+      TableCollect(tab),
+      TStruct("rows" -> TArray(TStruct("3" -> TString())), "global" -> TStruct("g2" -> TInt32())),
+      Array(subsetTable(tab.typ, "row.3", "global.g2")))
+  }
+
   @Test def testTableAggregateMemo() {
     checkMemo(TableAggregate(tab, tableRefBoolean(tab.typ, "global.g1")),
       TBoolean(),
@@ -626,6 +648,17 @@ class PruneSuite extends SparkSuite {
     val tk1 = TableKeyBy(tab, Array("1"))
     val tk2 = TableKeyBy(tab, Array("3"))
     val tj = TableLeftJoinRightDistinct(tk1, tk2, "foo")
+
+    checkRebuild(tj, subsetTable(tj.typ, "row.1", "row.4"),
+      (_: BaseIR, r: BaseIR) => {
+        r.isInstanceOf[TableKeyBy] // no dependence on row.foo elides the join
+      })
+  }
+
+  @Test def testTableIntervalJoinRebuild() {
+    val tk1 = TableKeyBy(tab, Array("1"))
+    val tk2 = TableKeyBy(tab, Array("3"))
+    val tj = TableIntervalJoin(tk1, tk2, "foo")
 
     checkRebuild(tj, subsetTable(tj.typ, "row.1", "row.4"),
       (_: BaseIR, r: BaseIR) => {
@@ -871,6 +904,19 @@ class PruneSuite extends SparkSuite {
       (_: BaseIR, r: BaseIR) => {
         val ir = r.asInstanceOf[TableAggregate]
         ir.child.typ == subsetTable(tr.typ, "row.2")
+      })
+  }
+
+  @Test def testTableCollectRebuild() {
+    val tc = TableCollect(tab)
+    checkRebuild(tc, TStruct("global" -> TStruct("g1" -> TInt32())),
+      (_: BaseIR, r: BaseIR) => {
+        r.asInstanceOf[MakeStruct].fields.head._2.isInstanceOf[TableGetGlobals]
+      })
+
+    checkRebuild(tc, TStruct(),
+      (_: BaseIR, r: BaseIR) => {
+        r == MakeStruct(Seq())
       })
   }
 

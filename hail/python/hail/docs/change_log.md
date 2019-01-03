@@ -1,5 +1,17 @@
 # Change Log
 
+## 0.2.7
+
+Released 2019-01-03
+
+### New features
+
+ - (hail#5046)(experimental) Added option to BlockMatrix.export_rectangles to export as NumPy-compatible binary.
+
+### Performance improvements
+
+ - (hail#5050) Short-circuit iteration in `logistic_regression_rows` and `poisson_regression_rows` if NaNs appear.
+
 ## 0.2.6
 
 Released 2018-12-17

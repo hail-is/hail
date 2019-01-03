@@ -1,7 +1,7 @@
 import json
 
 from hail.ir.base_ir import *
-from hail.utils.java import escape_str, escape_id, parsable_strings
+from hail.utils.java import escape_str, escape_id, parsable_strings, dump_json
 
 
 class MatrixRowsTable(TableIR):
@@ -25,6 +25,25 @@ class TableJoin(TableIR):
         return '(TableJoin {} {} {} {})'.format(
             escape_id(self.join_type), self.join_key, r(self.left), r(self.right))
 
+class TableLeftJoinRightDistinct(TableIR):
+    def __init__(self, left, right, root):
+        self.left = left
+        self.right = right
+        self.root = root
+
+    def render(self, r):
+        return '(TableLeftJoinRightDistinct {} {} {})'.format(
+            escape_id(self.root), r(self.left), r(self.right))
+
+class TableIntervalJoin(TableIR):
+    def __init__(self, left, right, root):
+        self.left = left
+        self.right = right
+        self.root = root
+
+    def render(self, r):
+        return '(TableIntervalJoin {} {} {})'.format(
+            escape_id(self.root), r(self.left), r(self.right))
 
 class TableUnion(TableIR):
     def __init__(self, children):
@@ -173,15 +192,15 @@ class MatrixColsTable(TableIR):
 
 
 class TableParallelize(TableIR):
-    def __init__(self, rows, n_partitions):
+    def __init__(self, rows_and_global, n_partitions):
         super().__init__()
-        self.rows = rows
+        self.rows_and_global = rows_and_global
         self.n_partitions = n_partitions
 
     def render(self, r):
         return '(TableParallelize {} {})'.format(
             self.n_partitions,
-            r(self.rows))
+            r(self.rows_and_global))
 
 
 class TableHead(TableIR):
@@ -214,16 +233,20 @@ class TableDistinct(TableIR):
     def render(self, r):
         return f'(TableDistinct {r(self.child)})'
 
+class RepartitionStrategy:
+    SHUFFLE = 0
+    COALESCE = 1
+    NAIVE_COALESCE = 2
 
 class TableRepartition(TableIR):
-    def __init__(self, child, n, shuffle):
+    def __init__(self, child, n, strategy):
         super().__init__()
         self.child = child
         self.n = n
-        self.shuffle = shuffle
+        self.strategy = strategy
 
     def render(self, r):
-        return f'(TableRepartition {self.n} {self.shuffle} {r(self.child)})'
+        return f'(TableRepartition {self.n} {self.strategy} {r(self.child)})'
 
 
 class CastMatrixToTable(TableIR):
@@ -268,6 +291,24 @@ class TableMultiWayZipJoin(TableIR):
                f'"{escape_str(self.data_name)}" '\
                f'"{escape_str(self.global_name)}" '\
                f'{" ".join([r(child) for child in self.childs])})'
+
+
+class TableToTableApply(TableIR):
+    def __init__(self, child, config):
+        self.child = child
+        self.config = config
+
+    def render(self, r):
+        return f'(TableToTableApply {dump_json(self.config)} {r(self.child)})'
+
+
+class MatrixToTableApply(TableIR):
+    def __init__(self, child, config):
+        self.child = child
+        self.config = config
+
+    def render(self, r):
+        return f'(MatrixToTableApply {dump_json(self.config)} {r(self.child)})'
 
 
 class JavaTable(TableIR):

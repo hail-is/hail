@@ -1,10 +1,9 @@
 package is.hail.table
 
-import is.hail.compatibility
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.{ir, _}
-import is.hail.expr.ir.{CastTableToMatrix, IR, LiftLiterals, TableAggregateByKey, TableExplode, TableFilter, TableIR, TableJoin, TableKeyBy, TableKeyByAndAggregate, TableLiteral, TableMapGlobals, TableMapRows, TableOrderBy, TableParallelize, TableRange, TableToMatrixTable, TableUnion, TableValue, _}
+import is.hail.expr.ir._
 import is.hail.expr.types._
 import is.hail.expr.types.virtual._
 import is.hail.io.plink.{FamFileConfig, LoadPlink}
@@ -12,7 +11,6 @@ import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.variant._
-import org.apache.commons.lang3.StringUtils
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
@@ -62,11 +60,6 @@ object Table {
 
   def read(hc: HailContext, path: String): Table =
     new Table(hc, TableIR.read(hc, path, dropRows = false, None))
-
-  def parallelize(ir: String, nPartitions: Option[Int]): Table = {
-    val rowsIR = IRParser.parse_value_ir(ir)
-    new Table(HailContext.get, TableParallelize(rowsIR, nPartitions))
-  }
 
   def importFam(hc: HailContext, path: String, isQuantPheno: Boolean = false,
     delimiter: String = "\\t",
@@ -436,26 +429,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
     new Table(hc, ir.TableDistinct(tir))
   }
 
-  def groupByKey(name: String): Table = {
-    require(key.nonEmpty)
-    val sorted = keyBy(key.toArray)
-    sorted.copy2(
-      rvd = sorted.rvd.groupByKey(name),
-      signature = keySignature ++ TStruct(name -> TArray(valueSignature)))
-  }
-
-  def jToMatrixTable(rowKeys: java.util.ArrayList[String],
-    colKeys: java.util.ArrayList[String],
-    rowFields: java.util.ArrayList[String],
-    colFields: java.util.ArrayList[String],
-    nPartitions: java.lang.Integer): MatrixTable = {
-
-    toMatrixTable(rowKeys.asScala.toArray, colKeys.asScala.toArray,
-      rowFields.asScala.toArray, colFields.asScala.toArray,
-      Option(nPartitions).map(_.asInstanceOf[Int])
-    )
-  }
-
   def toMatrixTable(
     rowKeys: Array[String],
     colKeys: Array[String],
@@ -502,30 +475,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
       rvd = newRVD.changeType(newRowType.physicalType),
       signature = newRowType)
   }
-
-  def flatten(): Table = {
-    require(typ.key.isEmpty)
-
-    def deepFlatten(t: TStruct, x: ir.IR): IndexedSeq[IndexedSeq[(String, ir.IR)]] = {
-      t.fields.map { f =>
-        f.typ match {
-          case t: TStruct =>
-            deepFlatten(t, ir.GetField(x, f.name))
-              .flatten
-              .map { case (n2, x2) =>
-                f.name + "." + n2 -> x2
-              }
-          case _ =>
-            IndexedSeq(f.name -> ir.GetField(x, f.name))
-        }
-      }
-    }
-
-    val newFields = deepFlatten(signature, ir.Ref("row", tir.typ.rowType))
-
-    new Table(hc, ir.TableMapRows(tir, ir.MakeStruct(newFields.flatten)))
-  }
-
+  
   // expandTypes must be called before toDF
   def toDF(sqlContext: SQLContext): DataFrame = {
     val localSignature = signature.physicalType
@@ -569,152 +519,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
   def unpersist(): Table = copy2(rvd = rvd.unpersist())
 
-  def show(n: Int = 10, truncate: Option[Int] = None, printTypes: Boolean = true, maxWidth: Int = 100): Unit = {
-    println(showString(n, truncate, printTypes, maxWidth))
-  }
-
-  def showString(n: Int = 10, truncate: Option[Int] = None, printTypes: Boolean = true, maxWidth: Int = 100): String = {
-    /**
-      * Parts of this method are lifted from:
-      *   org.apache.spark.sql.Dataset.showString
-      * Spark version 2.0.2
-      */
-
-    truncate.foreach { tr => require(tr > 3, s"truncation length too small: $tr") }
-    require(maxWidth >= 10, s"max width too small: $maxWidth")
-
-    val (data, hasMoreData) = if (n < 0)
-      collect() -> false
-    else {
-      val takeResult = head(n + 1).collect()
-      val hasMoreData = takeResult.length > n
-      takeResult.take(n) -> hasMoreData
-    }
-
-    def convertType(t: Type, name: String, ab: ArrayBuilder[(String, String, Boolean)]) {
-      t match {
-        case s: TStruct => s.fields.foreach { f =>
-          convertType(f.typ, if (name == null) f.name else name + "." + f.name, ab)
-        }
-        case _ =>
-          ab += (name, t.toString, t.isInstanceOf[TNumeric])
-      }
-    }
-
-    val headerBuilder = new ArrayBuilder[(String, String, Boolean)]()
-    convertType(signature, null, headerBuilder)
-    val (names, types, rightAlign) = headerBuilder.result().unzip3
-
-    val sb = new StringBuilder()
-    val config = ShowStrConfig()
-    def convertValue(t: Type, v: Annotation, ab: ArrayBuilder[String]) {
-      t match {
-        case s: TStruct =>
-          val r = v.asInstanceOf[Row]
-          s.fields.foreach(f => convertValue(f.typ, if (r == null) null else r.get(f.index), ab))
-        case _ =>
-          ab += t.showStr(v, config, sb)
-      }
-    }
-
-    val valueBuilder = new ArrayBuilder[String]()
-    val dataStrings = data.map { r =>
-      valueBuilder.clear()
-      convertValue(signature, r, valueBuilder)
-      valueBuilder.result()
-    }
-
-    val fixedWidth = 4 // "| " + " |"
-    val delimWidth = 3 // " | "
-
-    val tr = truncate.getOrElse(maxWidth - 4)
-
-    val allStrings = (Iterator(names, types) ++ dataStrings.iterator).map { arr =>
-      arr.map { str => if (str.length > tr) str.substring(0, tr - 3) + "..." else str }
-    }.toArray
-
-    val nCols = names.length
-    val colWidths = Array.fill(nCols)(0)
-
-    // Compute the width of each column
-    for (i <- allStrings.indices)
-      for (j <- 0 until nCols)
-        colWidths(j) = math.max(colWidths(j), allStrings(i)(j).length)
-
-    val normedStrings = allStrings.map { line =>
-      line.zipWithIndex.map { case (cell, i) =>
-        if (rightAlign(i))
-          StringUtils.leftPad(cell, colWidths(i))
-        else
-          StringUtils.rightPad(cell, colWidths(i))
-      }
-    }
-
-    sb.clear()
-
-    // writes cols [startIndex, endIndex)
-    def writeCols(startIndex: Int, endIndex: Int) {
-
-      val toWrite = (startIndex until endIndex).toArray
-
-      val sep = toWrite.map(i => "-" * colWidths(i)).addString(new StringBuilder, "+-", "-+-", "-+\n").result()
-      // add separator line
-      sb.append(sep)
-
-      // add column names
-      toWrite.map(normedStrings(0)(_)).addString(sb, "| ", " | ", " |\n")
-
-      // add separator line
-      sb.append(sep)
-
-      if (printTypes) {
-        // add types
-        toWrite.map(normedStrings(1)(_)).addString(sb, "| ", " | ", " |\n")
-
-        // add separator line
-        sb.append(sep)
-      }
-
-      // data
-      normedStrings.drop(2).foreach {
-        toWrite.map(_).addString(sb, "| ", " | ", " |\n")
-      }
-
-      // add separator line
-      sb.append(sep)
-    }
-
-    if (nCols == 0)
-      writeCols(0, 0)
-
-    var colIdx = 0
-    var first = true
-
-    while (colIdx < nCols) {
-      val startIdx = colIdx
-      var colWidth = fixedWidth
-
-      // consume at least one column, and take until the next column would put the width over maxWidth
-      do {
-        colWidth += 3 + colWidths(colIdx)
-        colIdx += 1
-      } while (colIdx < nCols && colWidth + delimWidth + colWidths(colIdx) <= maxWidth)
-
-      if (!first) {
-        sb.append('\n')
-      }
-
-      writeCols(startIdx, colIdx)
-
-      first = false
-    }
-
-    if (hasMoreData)
-      sb.append(s"showing top $n ${ plural(n, "row") }\n")
-
-    sb.result()
-  }
-
   def copy2(rvd: RVD = rvd,
     signature: TStruct = signature,
     key: IndexedSeq[String] = key,
@@ -723,58 +527,5 @@ class Table(val hc: HailContext, val tir: TableIR) {
     new Table(hc, TableLiteral(
       TableValue(TableType(signature, key, globalSignature), globals, rvd)
     ))
-  }
-
-  def intervalJoin(other: Table, fieldName: String): Table = {
-    assert(other.keySignature.size == 1 && other.keySignature.types(0).isInstanceOf[TInterval])
-    val intervalType = other.keySignature.types(0).asInstanceOf[TInterval]
-    assert(keySignature.size == 1 && keySignature.types(0) == intervalType.pointType)
-
-    val typToInsert: Type = other.valueSignature
-    val (newRowPType, ins) = signature.physicalType.unsafeStructInsert(typToInsert.physicalType, List(fieldName))
-    val newRowType = newRowPType.virtualType
-
-    val rightRVDType = other.rvd.typ
-    val leftRVDType = rvd.typ
-
-    val zipper = { (ctx: RVDContext, it: Iterator[RegionValue], intervals: Iterator[RegionValue]) =>
-      val rvb = new RegionValueBuilder()
-      val rv2 = RegionValue()
-      OrderedRVIterator(leftRVDType, it, ctx).leftIntervalJoinDistinct(
-        OrderedRVIterator(rightRVDType, intervals, ctx)
-      )
-        .map { case Muple(rv, i) =>
-          rvb.set(rv.region)
-          rvb.start(newRowType.physicalType)
-          ins(
-            rv.region,
-            rv.offset,
-            rvb,
-            () => if (i == null) rvb.setMissing() else rvb.selectRegionValue(rightRVDType.rowType, rightRVDType.valueFieldIdx, i))
-          rv2.set(rv.region, rvb.end())
-
-          rv2
-        }
-    }
-
-    val newRVDType = RVDType(newRowType.physicalType, key)
-    val newRVD = rvd.intervalAlignAndZipPartitions(newRVDType, other.rvd)(zipper)
-
-    copy2(rvd = newRVD, signature = newRowType)
-  }
-
-  def filterPartitions(parts: java.util.ArrayList[Int], keep: Boolean): Table =
-    filterPartitions(parts.asScala.toArray, keep)
-
-  def filterPartitions(parts: Array[Int], keep: Boolean = true): Table = {
-    copy2(rvd =
-      rvd.subsetPartitions(
-        if (keep)
-          parts
-        else {
-          val partSet = parts.toSet
-          (0 until rvd.getNumPartitions).filter(i => !partSet.contains(i)).toArray
-        })
-    )
   }
 }

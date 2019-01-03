@@ -291,7 +291,9 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) ex
       try {
         deltaB := fisher \ score
 
-        if (max(abs(deltaB)) < tol) {
+        if (deltaB(0).isNaN) {
+          exploded = true
+        } else if (max(abs(deltaB)) < tol) {
           converged = true
         } else {
           iter += 1
@@ -329,7 +331,9 @@ class LogisticRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) ex
         val h = QR.q(*, ::).map(r => r dot r)
         val deltaB = TriSolve(QR.r(0 until m0, 0 until m0), QR.q(::, 0 until m0).t * (((y - mu) + (h *:* (0.5 - mu))) /:/ sqrtW))
 
-        if (max(abs(deltaB)) < tol && iter > 1) {
+        if (deltaB(0).isNaN) {
+          exploded = true
+        } else if (max(abs(deltaB)) < tol && iter > 1) {
           converged = true
           logLkhd = sum(breeze.numerics.log((y *:* mu) + ((1d - y) *:* (1d - mu)))) + sum(log(abs(diag(QR.r))))
         } else {

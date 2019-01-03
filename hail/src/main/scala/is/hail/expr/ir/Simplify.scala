@@ -221,6 +221,7 @@ object Simplify {
 
     case GetTupleElement(MakeTuple(xs), idx) => xs(idx)
 
+    case TableCount(child) if child.partitionCounts.isDefined => I64(child.partitionCounts.get.sum)
     case TableCount(TableMapGlobals(child, _)) => TableCount(child)
     case TableCount(TableMapRows(child, _)) => TableCount(child)
     case TableCount(TableRepartition(child, _, _)) => TableCount(child)
@@ -229,8 +230,9 @@ object Simplify {
     case TableCount(TableKeyBy(child, _, _)) => TableCount(child)
     case TableCount(TableOrderBy(child, _)) => TableCount(child)
     case TableCount(TableLeftJoinRightDistinct(child, _, _)) => TableCount(child)
+    case TableCount(TableIntervalJoin(child, _, _)) => TableCount(child)
     case TableCount(TableRange(n, _)) => I64(n)
-    case TableCount(TableParallelize(rows, _)) => Cast(ArrayLen(rows), TInt64())
+    case TableCount(TableParallelize(rowsAndGlobal, _)) => Cast(ArrayLen(GetField(rowsAndGlobal, "rows")), TInt64())
     case TableCount(TableRename(child, _, _)) => TableCount(child)
     case TableCount(TableAggregateByKey(child, _)) => TableCount(TableDistinct(child))
 
@@ -266,6 +268,9 @@ object Simplify {
         }))
       }
 
+    case TableCollect(TableParallelize(x, _)) => x
+    case ArrayLen(GetField(TableCollect(child), "rows")) => TableCount(child)
+
     case ApplyIR("annotate", Seq(s, MakeStruct(fields)), _) =>
       InsertFields(s, fields)
 
@@ -292,6 +297,9 @@ object Simplify {
     case TableFilter(TableFilter(t, p1), p2) =>
       TableFilter(t,
         ApplySpecial("&&", Array(p1, p2)))
+
+    case TableOrderBy(child, sortFields) if sortFields.isEmpty =>
+      child
 
     case TableFilter(TableOrderBy(child, sortFields), pred) if canRepartition =>
       TableOrderBy(TableFilter(child, pred), sortFields)
@@ -428,6 +436,8 @@ object Simplify {
 
     case TableAggregateByKey(TableKeyBy(child, keys, _), expr) if canRepartition =>
       TableKeyByAndAggregate(child, expr, MakeStruct(keys.map(k => k -> GetField(Ref("row", child.typ.rowType), k))))
+
+    case TableParallelize(TableCollect(child), _) if isDeterministicallyRepartitionable(child) => child
   }
 
   private[this] def matrixRules(canRepartition: Boolean): PartialFunction[MatrixIR, MatrixIR] = {

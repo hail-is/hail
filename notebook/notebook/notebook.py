@@ -143,7 +143,7 @@ def root():
         return render_template('index.html',
                                form_action_url=external_url_for('new'),
                                images=list(WORKER_IMAGES),
-                               default='ccg-workshop')
+                               default='hail')
     svc_name = session['svc_name']
     jupyter_token = session['jupyter_token']
     log.info('redirecting to ' + external_url_for(f'instance/{svc_name}/?token={jupyter_token}'))
@@ -185,10 +185,7 @@ def auth(requested_svc_name):
     return '', 403
 
 
-@app.route('/workers')
-def workers():
-    if not session.get('admin'):
-        return redirect(external_url_for('admin-login'))
+def get_all_workers():
     workers = k8s.list_namespaced_pod(
         namespace='default',
         watch=False,
@@ -200,7 +197,7 @@ def workers():
         svcs = k8s.list_namespaced_service(
             namespace='default',
             watch=False,
-            label_selector='uuid='+uuid,
+            label_selector='uuid=' + uuid,
             _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS).items
         assert len(svcs) <= 1
         if len(svcs) == 1:
@@ -208,6 +205,14 @@ def workers():
         else:
             log.info(f'assuming pod {w.metadata.name} is getting deleted '
                      f'because it has no service')
+    return workers_and_svcs
+
+
+@app.route('/workers')
+def workers():
+    if not session.get('admin'):
+        return redirect(external_url_for('admin-login'))
+    workers_and_svcs = get_all_workers()
     return render_template('workers.html',
                            workers=workers_and_svcs,
                            workers_url=external_url_for('workers'),
@@ -219,6 +224,16 @@ def workers_delete(pod_name, svc_name):
     if not session.get('admin'):
         return redirect(external_url_for('admin-login'))
     delete_worker_pod(pod_name, svc_name)
+    return redirect(external_url_for('workers'))
+
+
+@app.route('/workers/delete-all-workers', methods=['POST'])
+def delete_all_workers():
+    if not session.get('admin'):
+        return redirect(external_url_for('admin-login'))
+    workers_and_svcs = get_all_workers()
+    for pod_name, svc_name in workers_and_svcs:
+        delete_worker_pod(pod_name, svc_name)
     return redirect(external_url_for('workers'))
 
 

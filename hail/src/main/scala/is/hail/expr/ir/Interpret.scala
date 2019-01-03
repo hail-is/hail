@@ -8,6 +8,7 @@ import is.hail.expr.{JSONAnnotationImpex, TypedAggregator}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PTuple
 import is.hail.expr.types.virtual._
+import is.hail.io.CodecSpec
 import is.hail.methods._
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -235,6 +236,7 @@ object Interpret {
             case GT(t, _) => t.ordering.gt(lValue, rValue)
             case LTEQ(t, _) => t.ordering.lteq(lValue, rValue)
             case GTEQ(t, _) => t.ordering.gteq(lValue, rValue)
+            case Compare(t, _) => t.ordering.compare(lValue, rValue)
           }
 
       case MakeArray(elements, _) => elements.map(interpret(_, env, args, agg)).toFastIndexedSeq
@@ -710,6 +712,9 @@ object Interpret {
           .getOrElse(child.execute(HailContext.get).rvd.count())
       case TableGetGlobals(child) =>
         child.execute(HailContext.get).globals.value
+      case TableCollect(child) =>
+        val tv = child.execute(HailContext.get)
+        Row(tv.rvd.collect(CodecSpec.default).toFastIndexedSeq, tv.globals.value)
       case MatrixWrite(child, writer) =>
         val mv = child.execute(HailContext.get)
         writer(mv)

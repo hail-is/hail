@@ -4,6 +4,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.expr.ir
+import is.hail.expr.ir.functions.{MatrixToMatrixFunction, RelationalFunctions}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PArray, PInt32, PStruct}
 import is.hail.expr.types.virtual._
@@ -79,7 +80,7 @@ object MatrixIR {
 abstract sealed class MatrixIR extends BaseIR {
   def typ: MatrixType
 
-  def rvdType: RVDType = ???
+  def rvdType: RVDType = typ.canonicalRVDType
 
   def partitionCounts: Option[IndexedSeq[Long]] = None
 
@@ -1078,8 +1079,21 @@ case class MatrixAggregateColsByKey(child: MatrixIR, entryExpr: IR, colExpr: IR)
   }
 }
 
-case class MatrixMapEntries(child: MatrixIR, newEntries: IR) extends MatrixIR {
+case class MatrixUnionCols(left: MatrixIR, right: MatrixIR) extends MatrixIR {
+  def children: IndexedSeq[BaseIR] = Array(left, right)
 
+  def copy(newChildren: IndexedSeq[BaseIR]): MatrixUnionCols = {
+    assert(newChildren.length == 2)
+    MatrixUnionCols(newChildren(0).asInstanceOf[MatrixIR], newChildren(1).asInstanceOf[MatrixIR])
+  }
+
+  val typ: MatrixType = left.typ
+
+  override def columnCount: Option[Int] =
+    left.columnCount.flatMap(leftCount => right.columnCount.map(rightCount => leftCount + rightCount))
+}
+
+case class MatrixMapEntries(child: MatrixIR, newEntries: IR) extends MatrixIR {
   def children: IndexedSeq[BaseIR] = Array(child, newEntries)
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixMapEntries = {
@@ -1706,7 +1720,10 @@ case class MatrixAnnotateRowsTable(
 
   val typ: MatrixType = child.typ.copy(rvRowType = child.typ.rvRowType ++ TStruct(root -> table.typ.valueType))
 
-  override lazy val rvdType: RVDType = child.rvdType
+  override lazy val rvdType: RVDType = child.rvdType.copy(
+    rowType = child.rvdType.rowType.appendKey(
+      root,
+      table.rvdType.rowType.dropFields(table.typ.key.toSet)))
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixAnnotateRowsTable = {
     val (child: MatrixIR) +: (table: TableIR) +: newKey = newChildren
@@ -1904,7 +1921,7 @@ case class TableToMatrixTable(
     val rowKeyIndices = rowKey.map(rowEntryStruct.fieldIdx)
     val rowKeyF: Row => Row = r => Row.fromSeq(rowKeyIndices.map(r.get))
 
-    val rowEntryRVD = prev.rvd.mapPartitions(RVDType(rowEntryStructPtype)) { it =>
+    val rowEntryRVD = prev.rvd.mapPartitions(RVDType(rowEntryStructPtype, FastIndexedSeq())) { it =>
       val ur = new UnsafeRow(localRowPType)
       val rvb = new RegionValueBuilder()
       val rv2 = RegionValue()
@@ -2080,14 +2097,14 @@ case class MatrixExplodeRows(child: MatrixIR, path: IndexedSeq[String]) extends 
   }
 }
 
-case class MatrixRepartition(child: MatrixIR, n: Int, shuffle: Boolean) extends MatrixIR {
+case class MatrixRepartition(child: MatrixIR, n: Int, strategy: Int) extends MatrixIR {
   val typ: MatrixType = child.typ
 
   def children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixRepartition = {
     val IndexedSeq(newChild: MatrixIR) = newChildren
-    MatrixRepartition(newChild, n, shuffle)
+    MatrixRepartition(newChild, n, strategy)
   }
 
   override def columnCount: Option[Int] = child.columnCount
@@ -2291,5 +2308,23 @@ case class CastTableToMatrix(
       BroadcastIndexedSeq(colValues, TArray(typ.colType), hc.sc),
       newRVD
     )
+  }
+}
+
+case class MatrixToMatrixApply(child: MatrixIR, function: MatrixToMatrixFunction) extends MatrixIR {
+  def children: IndexedSeq[BaseIR] = Array(child)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): MatrixIR = {
+    val IndexedSeq(newChild: MatrixIR) = newChildren
+    MatrixToMatrixApply(newChild, function)
+  }
+
+  override val (typ, rvdType) = function.typeInfo(child.typ, child.rvdType)
+
+  override def partitionCounts: Option[IndexedSeq[Long]] =
+    if (function.preservesPartitionCounts) child.partitionCounts else None
+
+  protected[ir] override def execute(hc: HailContext): MatrixValue = {
+    function.execute(child.execute(hc))
   }
 }

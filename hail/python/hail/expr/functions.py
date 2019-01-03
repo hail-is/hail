@@ -3934,7 +3934,7 @@ def get_sequence(contig, position, before=0, after=0, reference_genome='default'
 
     Return the reference allele for ``'GRCh37'`` at the locus ``'1:45323'``:
 
-    >>> hl.eval(hl.get_sequence('1', 45323, 'GRCh37')) # doctest: +SKIP
+    >>> hl.eval(hl.get_sequence('1', 45323, reference_genome='GRCh37')) # doctest: +SKIP
     "T"
 
     Notes
@@ -4356,3 +4356,7 @@ def approx_equal(x, y, tolerance=1e-6, absolute=False, nan_same=False):
     """
 
     return _func("approxEqual", hl.tbool, x, y, tolerance, absolute, nan_same)
+
+@typecheck(s=expr_str)
+def _escape_string(s):
+    return _func("escapeString", hl.tstr, s)

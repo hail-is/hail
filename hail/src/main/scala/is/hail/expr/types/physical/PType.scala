@@ -119,6 +119,7 @@ object PType {
       case t: TTuple => PTuple(t.types.map(canonical), t.required)
       case t: TStruct => PStruct(t.fields.map(f => PField(f.name, canonical(f.typ), f.index)), t.required)
       case t: TNDArray => PNDArray(canonical(t.elementType), t.required)
+      case TVoid => PVoid
     }
   }
 
@@ -141,6 +142,7 @@ object PType {
       case t: PStruct => PStruct(t.fields.map(f => PField(f.name, canonical(f.typ), f.index)), t.required)
       case t: PNDArray => PNDArray(canonical(t.elementType), t.required)
       case t: PDict => PDict(canonical(t.keyType), canonical(t.valueType), t.required)
+      case PVoid => PVoid
     }
   }
 
@@ -200,23 +202,26 @@ abstract class PType extends BaseType with Serializable {
   def required: Boolean
 
   final def setRequired(required: Boolean): PType = {
-    this match {
-      case PBinary(_) => PBinary(required)
-      case PBoolean(_) => PBoolean(required)
-      case PInt32(_) => PInt32(required)
-      case PInt64(_) => PInt64(required)
-      case PFloat32(_) => PFloat32(required)
-      case PFloat64(_) => PFloat64(required)
-      case PString(_) => PString(required)
-      case PCall(_) => PCall(required)
-      case t: PArray => t.copy(required = required)
-      case t: PSet => t.copy(required = required)
-      case t: PDict => t.copy(required = required)
-      case t: PLocus => t.copy(required = required)
-      case t: PInterval => t.copy(required = required)
-      case t: PStruct => t.copy(required = required)
-      case t: PTuple => t.copy(required = required)
-    }
+    if (required == this.required)
+      this
+    else
+      this match {
+        case PBinary(_) => PBinary(required)
+        case PBoolean(_) => PBoolean(required)
+        case PInt32(_) => PInt32(required)
+        case PInt64(_) => PInt64(required)
+        case PFloat32(_) => PFloat32(required)
+        case PFloat64(_) => PFloat64(required)
+        case PString(_) => PString(required)
+        case PCall(_) => PCall(required)
+        case t: PArray => t.copy(required = required)
+        case t: PSet => t.copy(required = required)
+        case t: PDict => t.copy(required = required)
+        case t: PLocus => t.copy(required = required)
+        case t: PInterval => t.copy(required = required)
+        case t: PStruct => t.copy(required = required)
+        case t: PTuple => t.copy(required = required)
+      }
   }
 
   final def isOfType(t: PType): Boolean = {

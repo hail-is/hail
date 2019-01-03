@@ -57,13 +57,4 @@ final case class TArray(elementType: Type, override val required: Boolean = fals
     ExtendedOrdering.iterableOrdering(elementType.ordering)
 
   override def scalaClassTag: ClassTag[IndexedSeq[AnyRef]] = classTag[IndexedSeq[AnyRef]]
-
-  override def _showStr(a: Annotation, cfg: ShowStrConfig, sb: StringBuilder): Unit = {
-    val array = a.asInstanceOf[IndexedSeq[Any]]
-    sb.append('[')
-    array.foreachBetween({ elt => elementType._showStrNA(elt, cfg, sb) }) {
-      sb.append(',')
-    }
-    sb.append(']')
-  }
 }

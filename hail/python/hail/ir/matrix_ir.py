@@ -1,6 +1,6 @@
 import json
 from hail.ir.base_ir import *
-from hail.utils.java import escape_str, escape_id, parsable_strings
+from hail.utils.java import escape_str, escape_id, parsable_strings, dump_json
 
 class MatrixAggregateRowsByKey(MatrixIR):
     def __init__(self, child, entry_expr, row_expr):
@@ -54,6 +54,14 @@ class MatrixMapCols(MatrixIR):
         return '(MatrixMapCols {} {} {})'.format(
             '(' + ' '.join(f'"{escape_str(f)}"' for f in self.new_key) + ')' if self.new_key is not None else 'None',
             r(self.child), r(self.new_col))
+
+class MatrixUnionCols(MatrixIR):
+    def __init__(self, left, right):
+        self.left = left
+        self.right = right
+
+    def render(self, r):
+        return f'(MatrixUnionCols {r(self.left)} {r(self.right)})'
 
 class MatrixMapEntries(MatrixIR):
     def __init__(self, child, new_entry):
@@ -164,14 +172,14 @@ class MatrixExplodeRows(MatrixIR):
             r(self.child))
 
 class MatrixRepartition(MatrixIR):
-    def __init__(self, child, n, shuffle):
+    def __init__(self, child, n, strategy):
         super().__init__()
         self.child = child
         self.n = n
-        self.shuffle = shuffle
+        self.strategy = strategy
 
     def render(self, r):
-        return f'(MatrixRepartition {r(self.child)} {self.n} {self.shuffle})'
+        return f'(MatrixRepartition {r(self.child)} {self.n} {self.strategy})'
 
 
 class MatrixUnionRows(MatrixIR):
@@ -246,6 +254,16 @@ class MatrixAnnotateColsTable(MatrixIR):
 
     def render(self, r):
         return f'(MatrixAnnotateColsTable "{self.root}" {r(self.child)} {r(self.table)})'
+
+
+class MatrixToMatrixApply(MatrixIR):
+    def __init__(self, child, config):
+        self.child = child
+        self.config = config
+
+    def render(self, r):
+        return f'(MatrixToMatrixApply {dump_json(self.config)} {r(self.child)})'
+
 
 class JavaMatrix(MatrixIR):
     def __init__(self, jir):

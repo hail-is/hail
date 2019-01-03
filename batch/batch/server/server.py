@@ -242,7 +242,7 @@ def create_job():
     }
     validator = cerberus.Validator(schema)
     if not validator.validate(parameters):
-        abort(404, 'invalid request: {}'.format(validator.errors))
+        abort(400, 'invalid request: {}'.format(validator.errors))
 
     pod_spec = v1.api_client._ApiClient__deserialize(
         parameters['spec'], kube.client.V1PodSpec)
@@ -345,7 +345,7 @@ def create_batch():
     }
     validator = cerberus.Validator(schema)
     if not validator.validate(parameters):
-        abort(404, 'invalid request: {}'.format(validator.errors))
+        abort(400, 'invalid request: {}'.format(validator.errors))
 
     batch = Batch(parameters.get('attributes'))
     return jsonify(batch.to_json())

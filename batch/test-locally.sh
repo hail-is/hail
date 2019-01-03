@@ -2,7 +2,8 @@
 
 set -ex
 
-. activate hail-batch
+. ../loadconda
+conda activate hail-batch
 
 cleanup() {
     set +e

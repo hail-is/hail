@@ -1,7 +1,8 @@
 #!/bin/bash
 set -ex
 
-. activate hail-ci
+. ../loadconda
+conda activate hail-ci
 
 pip install -U ../batch
 
@@ -60,7 +61,6 @@ git push origin master:master
 popd
 
 # start CI system
-source activate hail-ci
 python run_ci.py --debug & echo $! > ci.pid
 
 sleep 10

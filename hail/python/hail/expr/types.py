@@ -866,6 +866,7 @@ class tstruct(HailType, Mapping):
                 len(self._fields) <= len(other._fields) and
                 all(x == y for x, y in zip(self._field_types.values(), other._field_types.values())))
 
+
 class ttuple(HailType):
     """Hail type for tuples.
 

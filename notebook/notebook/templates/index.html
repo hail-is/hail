@@ -8,14 +8,14 @@
   <body>
     <div class="center">
       <h1>Hail Notebooks</h1>
-      <form action="{{ form_action_url }}", method="post">
+      <form action="{{ form_action_url }}" method="post">
         <p>
           <label for="password">Class Key:</label>
-          <input type="text" name="password" />
+          <input type="text" name="password" id="password" />
         </p>
         <p>
           <label for="image">Image:</label>
-          <select name="image">
+          <select name="image" id="image">
             {% for image in images %}
             <option value="{{ image }}"{{'selected' if image == default else ''}}>{{ image }}</option>
             {% endfor %}

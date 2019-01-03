@@ -115,6 +115,7 @@ object Children {
     // from TableIR
     case TableCount(child) => IndexedSeq(child)
     case TableGetGlobals(child) => IndexedSeq(child)
+    case TableCollect(child) => IndexedSeq(child)
     case TableAggregate(child, query) => IndexedSeq(child, query)
     case MatrixAggregate(child, query) => IndexedSeq(child, query)
     case TableWrite(child, _, _, _, _) => IndexedSeq(child)

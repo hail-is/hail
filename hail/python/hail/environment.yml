@@ -2,7 +2,7 @@ name: hail
 dependencies:
 - python=3.6
 - numpy=1.14.0
-- pandas=0.22.0
+- pandas=0.23.0
 - matplotlib=2.2.3
 - seaborn=0.8.1
 - bokeh=0.12.13

@@ -38,9 +38,13 @@ def build_state_from_json(d):
     if t == 'Merged':
         return Merged(d['target_sha'])
     elif t == 'Mergeable':
-        return Mergeable(d['target_sha'])
+        return Mergeable(d['target_sha'],
+                         batch_client.get_job(d['job_id']))
     elif t == 'Failure':
-        return Failure(d['exit_code'], d['image'], d['target_sha'])
+        return Failure(d['exit_code'],
+                       batch_client.get_job(d['job_id']),
+                       d['image'],
+                       d['target_sha'])
     elif t == 'NoMergeSHA':
         return NoMergeSHA(d['exit_code'], d['target_sha'])
     elif t == 'Building':
@@ -83,8 +87,9 @@ class Merged(object):
 
 
 class Mergeable(object):
-    def __init__(self, target_sha):
+    def __init__(self, target_sha, job):
         self.target_sha = target_sha
+        self.job = job
 
     def transition(self, other):
         if not isinstance(other, Merged):
@@ -99,7 +104,8 @@ class Mergeable(object):
     def to_json(self):
         return {
             'type': 'Mergeable',
-            'target_sha': self.target_sha
+            'target_sha': self.target_sha,
+            'job_id': self.job.id,
         }
 
     def gh_state(self):
@@ -107,15 +113,17 @@ class Mergeable(object):
 
     def __eq__(self, other):
         return (isinstance(other, Mergeable) and
-                self.target_sha == other.target_sha)
+                self.target_sha == other.target_sha and
+                self.job.id == other.job.id)
 
     def __ne__(self, other):
         return not self == other
 
 
 class Failure(object):
-    def __init__(self, exit_code, image, target_sha):
+    def __init__(self, exit_code, job, image, target_sha):
         self.exit_code = exit_code
+        self.job = job
         self.image = image
         self.target_sha = target_sha
 
@@ -126,12 +134,13 @@ class Failure(object):
         return other
 
     def __str__(self):
-        return f'failing build {self.exit_code}'
+        return f'failing build {self.exit_code}, job id {self.job.id}'
 
     def to_json(self):
         return {
             'type': 'Failure',
             'exit_code': self.exit_code,
+            'job_id': self.job_id,
             'image': self.image,
             'target_sha': self.target_sha
         }
@@ -142,6 +151,7 @@ class Failure(object):
     def __eq__(self, other):
         return (isinstance(other, Failure) and
                 self.exit_code == other.exit_code and
+                self.job.id == other.job.id and
                 self.image == other.image and
                 self.target_sha == other.target_sha)
 
@@ -189,11 +199,11 @@ class Building(object):
         self.image = image
         self.target_sha = target_sha
 
-    def success(self, merged_sha):
-        return Mergeable(merged_sha, self.target_sha)
+    def success(self, merged_sha, job):
+        return Mergeable(merged_sha, self.target_sha, job)
 
-    def failure(self, exit_code):
-        return Failure(exit_code, self.image, self.target_sha)
+    def failure(self, exit_code, job):
+        return Failure(exit_code, job, self.image, self.target_sha)
 
     def no_merge_sha(self, exit_code):
         return NoMergeSHA(exit_code, self.target_sha)

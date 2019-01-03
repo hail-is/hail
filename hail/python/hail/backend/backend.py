@@ -5,11 +5,13 @@ from hail.expr.types import dtype
 from hail.expr.table_type import *
 from hail.expr.matrix_type import *
 from hail.ir.renderer import Renderer
+from hail.table import Table
 
+import pyspark
 
 class Backend(object):
     @abc.abstractmethod
-    def interpret(self, ir):
+    def execute(self, ir):
         return
 
     @abc.abstractmethod
@@ -30,7 +32,7 @@ class SparkBackend(Backend):
             ir._jir = ir.parse(code, ir_map=r.jirs)
         return ir._jir
 
-    def interpret(self, ir):
+    def execute(self, ir):
         return ir.typ._from_json(
             Env.hail().expr.ir.Interpret.interpretJSON(
                 self._to_java_ir(ir)))
@@ -43,6 +45,20 @@ class SparkBackend(Backend):
         jir = self._to_java_ir(mir)
         return tmatrix._from_java(jir.typ())
 
+    def from_spark(self, df, key):
+        return Table._from_java(Env.hail().table.Table.fromDF(Env.hc()._jhc, df._jdf, key))
+
+    def to_spark(self, t, flatten):
+        t = t.expand_types()
+        if flatten:
+            t = t.flatten()
+        return pyspark.sql.DataFrame(t._jt.toDF(Env.hc()._jsql_context), Env.sql_context())
+
+    def to_pandas(self, t, flatten):
+        return self.to_spark(t, flatten).toPandas()
+
+    def from_pandas(self, df, key):
+        return Table.from_spark(Env.sql_context().createDataFrame(df), key)
 
 class ServiceBackend(Backend):
     def __init__(self, host, port=80, scheme='http'):
@@ -50,7 +66,7 @@ class ServiceBackend(Backend):
         self.host = host
         self.port = port
 
-    def interpret(self, ir):
+    def execute(self, ir):
         r = Renderer(stop_at_jir=True)
         code = r(ir)
         assert len(r.jirs) == 0

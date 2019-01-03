@@ -17,8 +17,8 @@ class TabixSuite extends SparkSuite {
   val vcfGzFile = vcfFile + ".gz"
   val vcfGzTbiFile = vcfGzFile + ".tbi"
 
-  lazy val reader = new TabixReader(vcfGzFile)
   lazy val bcConf = hc.sc.broadcast(new SerializableHadoopConfiguration(hc.hadoopConf))
+  lazy val reader = new TabixReader(vcfGzFile, hc.hadoopConf)
 
   @BeforeTest def initialize() {
     hc // reference to initialize
@@ -96,7 +96,7 @@ class TabixSuite extends SparkSuite {
     val vcfFile = "src/test/resources/sample.vcf.bgz"
     val chr = "20"
     val htsjdkrdr = new HtsjdkTabixReader(vcfFile)
-    val hailrdr = new TabixReader(vcfFile)
+    val hailrdr = new TabixReader(vcfFile, hc.hadoopConf)
     val tid = hailrdr.chr2tid(chr)
 
     for ((start, end) <-
