@@ -2387,7 +2387,7 @@ class Table(ExprContainer):
         names:
 
         >>> exploded = people_table.explode('Children', name='Child')
-        >>> exploded.show()
+        >>> exploded.show() # doctest: +SKIP
         +---------+-------+---------+
         | Name    |   Age | Child   |
         +---------+-------+---------+

@@ -2012,7 +2012,7 @@ class MatrixTable(ExprContainer):
         |       2 |     6 |
         +---------+-------+
 
-        >>> mt.entries().show()
+        >>> mt.entries().show() # doctest: +SKIP
         +---------+---------+-------+-------+
         | row_idx | col_idx |   foo |   bar |
         +---------+---------+-------+-------+
@@ -2043,7 +2043,7 @@ class MatrixTable(ExprContainer):
         |       2 | [4,5,6]      |
         +---------+--------------+
 
-        >>> mt.entries().show()
+        >>> mt.entries().show() # doctest: +SKIP
         +---------+---------+--------------+--------------+
         | row_idx | col_idx | foo          | bar          |
         +---------+---------+--------------+--------------+
