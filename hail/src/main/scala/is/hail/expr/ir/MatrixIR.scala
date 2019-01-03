@@ -4,7 +4,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.expr.ir
-import is.hail.expr.ir.functions.RelationalFunctions
+import is.hail.expr.ir.functions.{MatrixToMatrixFunction, RelationalFunctions}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PArray, PInt32, PStruct}
 import is.hail.expr.types.virtual._
@@ -2311,15 +2311,13 @@ case class CastTableToMatrix(
   }
 }
 
-case class MatrixToMatrixApply(child: MatrixIR, config: String) extends MatrixIR {
+case class MatrixToMatrixApply(child: MatrixIR, function: MatrixToMatrixFunction) extends MatrixIR {
   def children: IndexedSeq[BaseIR] = Array(child)
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixIR = {
     val IndexedSeq(newChild: MatrixIR) = newChildren
-    MatrixToMatrixApply(newChild, config)
+    MatrixToMatrixApply(newChild, function)
   }
-
-  private val function = RelationalFunctions.lookupMatrixToMatrix(config)
 
   override val (typ, rvdType) = function.typeInfo(child.typ, child.rvdType)
 

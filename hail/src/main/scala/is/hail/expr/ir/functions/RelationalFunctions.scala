@@ -34,7 +34,7 @@ abstract class TableToTableFunction {
 }
 
 object RelationalFunctions {
-  private implicit val formats = RelationalSpec.formats + ShortTypeHints(List(
+  implicit val formats = RelationalSpec.formats + ShortTypeHints(List(
     classOf[LinearRegressionRowsSingle],
     classOf[LinearRegressionRowsChained],
     classOf[WindowByLocus],

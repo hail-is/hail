@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.expr.JSONAnnotationImpex
+import is.hail.expr.ir.functions.RelationalFunctions
 import is.hail.table.Ascending
 import is.hail.utils._
 import org.json4s.jackson.{JsonMethods, Serialization}
@@ -279,9 +280,9 @@ object Pretty {
             case CastTableToMatrix(_, entriesFieldName, colsFieldName, colKey) =>
               s"${ prettyIdentifier(entriesFieldName) } ${ prettyIdentifier(colsFieldName) } " +
                 prettyIdentifiers(colKey)
-            case MatrixToMatrixApply(_, config) => prettyStringLiteral(config)
-            case MatrixToTableApply(_, config) => prettyStringLiteral(config)
-            case TableToTableApply(_, config) => prettyStringLiteral(config)
+            case MatrixToMatrixApply(_, config) => prettyStringLiteral(Serialization.write(config)(RelationalFunctions.formats))
+            case MatrixToTableApply(_, config) => prettyStringLiteral(Serialization.write(config)(RelationalFunctions.formats))
+            case TableToTableApply(_, config) => prettyStringLiteral(Serialization.write(config)(RelationalFunctions.formats))
             case TableRename(_, rowMap, globalMap) =>
               val rowKV = rowMap.toArray
               val globalKV = globalMap.toArray
