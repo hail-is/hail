@@ -4356,3 +4356,7 @@ def approx_equal(x, y, tolerance=1e-6, absolute=False, nan_same=False):
     """
 
     return _func("approxEqual", hl.tbool, x, y, tolerance, absolute, nan_same)
+
+@typecheck(s=expr_str)
+def _escape_string(s):
+    return _func("escapeString", hl.tstr, s)

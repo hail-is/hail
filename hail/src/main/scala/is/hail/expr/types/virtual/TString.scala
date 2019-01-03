@@ -30,12 +30,6 @@ class TString(override val required: Boolean) extends Type {
     ExtendedOrdering.extendToNull(implicitly[Ordering[String]])
 
   override def fundamentalType: Type = TBinary(required)
-
-  override def _showStr(a: Annotation, cfg: ShowStrConfig, sb: StringBuilder): Unit = {
-    sb.append('"')
-    sb.append(StringEscapeUtils.escapeString(a.asInstanceOf[String]))
-    sb.append('"')
-  }
 }
 
 object TString {

@@ -45,6 +45,8 @@ object StringFunctions extends RegistryFunctions {
 
   def setMkString(s: Set[String], sep: String): String = s.mkString(sep)
 
+  def escapeString(s: String): String = StringEscapeUtils.escapeString(s)
+
   def registerAll(): Unit = {
     val thisClass = getClass
 
@@ -172,5 +174,7 @@ object StringFunctions extends RegistryFunctions {
           e1.m || e2.m || m,
           m.mux(ir.defaultValue(TInt32()), v))
     }
+
+    registerWrappedScalaFunction("escapeString", TString(), TString())(thisClass, "escapeString")
   }
 }

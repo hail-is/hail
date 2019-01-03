@@ -210,11 +210,11 @@ case class TableImport(paths: Array[String], typ: TableType, readerOpts: TableRe
   * Let n be the longest common prefix of 'keys' and the old key, i.e. the
   * number of key fields that are not being changed.
   * - If 'isSorted', then 'child' must already be sorted by 'keys', and n must
-  *   not be zero. Thus, if 'isSorted', TableKeyBy will not shuffle or scan.
-  *   The new partitioner will be the old one with partition bounds truncated
-  *   to length n.
+  * not be zero. Thus, if 'isSorted', TableKeyBy will not shuffle or scan.
+  * The new partitioner will be the old one with partition bounds truncated
+  * to length n.
   * - If n = 'keys.length', i.e. we are simply shortening the key, do nothing
-  *   but change the table type to the new key. 'isSorted' is ignored.
+  * but change the table type to the new key. 'isSorted' is ignored.
   * - Otherwise, if 'isSorted' is false and n < 'keys.length', then shuffle.
   */
 case class TableKeyBy(child: TableIR, keys: IndexedSeq[String], isSorted: Boolean = false) extends TableIR {
@@ -328,6 +328,7 @@ case class TableFilter(child: TableIR, pred: IR) extends TableIR {
 
 case class TableHead(child: TableIR, n: Long) extends TableIR {
   require(n >= 0, fatal(s"TableHead: n must be non-negative! Found '$n'."))
+
   def typ: TableType = child.typ
 
   override lazy val rvdType: RVDType = child.rvdType
@@ -399,10 +400,10 @@ object TableJoin {
   * and 'right' has multiple rows with the corresponding join key
   * [k_1, ..., k_j] but distinct full keys, then the resulting table will have
   * out-of-order keys. To avoid this, ensure one of the following:
-  *   * j == m
-  *   * 'left' has distinct keys
-  *   * 'right' has distinct join keys (length j prefix), or at least no
-  *     distinct keys with the same join key.
+  * * j == m
+  * * 'left' has distinct keys
+  * * 'right' has distinct join keys (length j prefix), or at least no
+  * distinct keys with the same join key.
   */
 case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: Int)
   extends TableIR {
@@ -606,7 +607,7 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
         rvb.startStruct()
         rvb.addFields(rowType, rv, keyIdx) // Add the key
         rvb.startMissingArray(localDataLength) // add the values
-        var i = 0
+      var i = 0
         while (i < rvs.length) {
           val (rv, j) = rvs(i)
           rvb.setArrayIndex(j)
@@ -701,20 +702,18 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
       "global", gType.physicalType,
       "global", gType.physicalType,
       "row", tv.typ.rowType.physicalType,
-      CompileWithAggregators.liftScan(newRow), "SCANR",
-      { (nAggs: Int, initOp: IR) =>
+      CompileWithAggregators.liftScan(newRow), "SCANR", { (nAggs: Int, initOp: IR) =>
         scanInitNeedsGlobals |= Mentions(initOp, "global")
         initOp
-      },
-      { (nAggs: Int, seqOp: IR) =>
+      }, { (nAggs: Int, seqOp: IR) =>
         scanSeqNeedsGlobals |= Mentions(seqOp, "global")
         seqOp
       })
 
     val (rTyp, f) = ir.Compile[Long, Long, Long, Long](
       "SCANR", scanResultType,
-      "global", child.typ.globalType.physicalType ,
-      "row", child.typ.rowType.physicalType ,
+      "global", child.typ.globalType.physicalType,
+      "row", child.typ.rowType.physicalType,
       postScanIR)
     assert(rTyp.virtualType == typ.rowType)
 
@@ -902,7 +901,7 @@ case class TableExplode(child: TableIR, fieldName: String) extends TableIR {
             val off = rowF(ctx.region, rv.offset, false, i, false)
             rv2.set(ctx.region, off)
             rv2
-        }
+          }
       }
     }
 
@@ -1306,6 +1305,14 @@ case class TableOrderBy(child: TableIR, sortFields: IndexedSeq[SortField]) exten
   protected[ir] override def execute(hc: HailContext): TableValue = {
     val prev = child.execute(hc)
 
+    val physicalKey = prev.rvd.typ.key
+    if (sortFields.length <= physicalKey.length &&
+      sortFields.zip(physicalKey).forall { case (sf, k) =>
+        sf.sortOrder == Ascending && sf.field == k
+      })
+    // already sorted
+      return prev
+
     val rowType = child.typ.rowType
     val sortColIndexOrd = sortFields.map { case SortField(n, so) =>
       val i = rowType.fieldIdx(n)
@@ -1365,6 +1372,7 @@ case class TableRename(child: TableIR, rowMap: Map[String, String], globalMap: M
   require(globalMap.keys.forall(child.typ.globalType.hasField))
 
   def rowF(old: String): String = rowMap.getOrElse(old, old)
+
   def globalF(old: String): String = globalMap.getOrElse(old, old)
 
   def typ: TableType = child.typ.copy(

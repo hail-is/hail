@@ -298,6 +298,9 @@ object Simplify {
       TableFilter(t,
         ApplySpecial("&&", Array(p1, p2)))
 
+    case TableOrderBy(child, sortFields) if sortFields.isEmpty =>
+      child
+
     case TableFilter(TableOrderBy(child, sortFields), pred) if canRepartition =>
       TableOrderBy(TableFilter(child, pred), sortFields)
 
