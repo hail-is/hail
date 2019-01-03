@@ -14,7 +14,7 @@ def client():
 def test_simple(client):
     batch = client.create_batch()
     head = batch.create_job('alpine:3.8', command=['echo', 'head'])
-    tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parents=[head.id])
+    tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parent_ids=[head.id])
     status = batch.wait()
     assert status['jobs']['Complete'] == 2
     head_status = head.status()
@@ -28,7 +28,7 @@ def test_simple(client):
 def test_missing_parent_is_400(client):
     try:
         batch = client.create_batch()
-        batch.create_job('alpine:3.8', command=['echo', 'head'], parents=[100000])
+        batch.create_job('alpine:3.8', command=['echo', 'head'], parent_ids=[100000])
     except requests.exceptions.HTTPError as err:
         assert err.response.status_code == 400
         assert re.search('.*invalid parent: no job with id.*', err.response.text)
@@ -42,7 +42,7 @@ def test_already_deleted_parent_is_400(client):
         head = batch.create_job('alpine:3.8', command=['echo', 'head'])
         head_id = head.id
         head.delete()
-        tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parents=[head_id])
+        tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parent_ids=[head_id])
     except requests.exceptions.HTTPError as err:
         assert err.response.status_code == 400
         assert re.search('.*invalid parent: no job with id.*', err.response.text)
@@ -53,9 +53,9 @@ def test_already_deleted_parent_is_400(client):
 def test_dag(client):
     batch = client.create_batch()
     head = batch.create_job('alpine:3.8', command=['echo', 'head'])
-    left = batch.create_job('alpine:3.8', command=['echo', 'left'], parents=[head.id])
-    right = batch.create_job('alpine:3.8', command=['echo', 'right'], parents=[head.id])
-    tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parents=[left.id, right.id])
+    left = batch.create_job('alpine:3.8', command=['echo', 'left'], parent_ids=[head.id])
+    right = batch.create_job('alpine:3.8', command=['echo', 'right'], parent_ids=[head.id])
+    tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parent_ids=[left.id, right.id])
     status = batch.wait()
     assert status['jobs']['Complete'] == 4
     for node in [head, left, right, tail]:
@@ -67,12 +67,12 @@ def test_dag(client):
 def test_cancel_tail(client):
     batch = client.create_batch()
     head = batch.create_job('alpine:3.8', command=['echo', 'head'])
-    left = batch.create_job('alpine:3.8', command=['echo', 'left'], parents=[head.id])
-    right = batch.create_job('alpine:3.8', command=['echo', 'right'], parents=[head.id])
+    left = batch.create_job('alpine:3.8', command=['echo', 'left'], parent_ids=[head.id])
+    right = batch.create_job('alpine:3.8', command=['echo', 'right'], parent_ids=[head.id])
     tail = batch.create_job(
         'alpine:3.8',
         command=['/bin/bash', '-c', 'while true; do sleep 86000; done'],
-        parents=[left.id, right.id])
+        parent_ids=[left.id, right.id])
     tail.cancel()
     status = batch.wait()
     assert status['jobs']['Complete'] == 3
@@ -89,10 +89,10 @@ def test_cancel_left_before_tail(client):
     left = batch.create_job(
         'alpine:3.8',
         command=['/bin/bash', '-c', 'while true; do sleep 86000; done'],
-        parents=[head.id])
+        parent_ids=[head.id])
     left.cancel()
-    right = batch.create_job('alpine:3.8', command=['echo', 'right'], parents=[head.id])
-    tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parents=[left.id, right.id])
+    right = batch.create_job('alpine:3.8', command=['echo', 'right'], parent_ids=[head.id])
+    tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parent_ids=[left.id, right.id])
     status = batch.wait()
     assert status['jobs']['Complete'] == 2
     for node in [head, right]:
@@ -109,9 +109,9 @@ def test_cancel_left_after_tail(client):
     left = batch.create_job(
         'alpine:3.8',
         command=['/bin/sh', '-c', 'while true; do sleep 86000; done'],
-        parents=[head.id])
-    right = batch.create_job('alpine:3.8', command=['echo', 'right'], parents=[head.id])
-    tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parents=[left.id, right.id])
+        parent_ids=[head.id])
+    right = batch.create_job('alpine:3.8', command=['echo', 'right'], parent_ids=[head.id])
+    tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parent_ids=[left.id, right.id])
     left.cancel()
     status = batch.wait()
     assert status['jobs']['Complete'] == 2
@@ -129,9 +129,9 @@ def test_delete(client):
     left = batch.create_job(
         'alpine:3.8',
         command=['/bin/sh', '-c', 'while true; do sleep 86000; done'],
-        parents=[head.id])
-    right = batch.create_job('alpine:3.8', command=['echo', 'right'], parents=[head.id])
-    tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parents=[left.id, right.id])
+        parent_ids=[head.id])
+    right = batch.create_job('alpine:3.8', command=['echo', 'right'], parent_ids=[head.id])
+    tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parent_ids=[left.id, right.id])
     tail.delete()
     status = batch.wait()
     assert status['jobs']['Complete'] >= 3
@@ -141,13 +141,13 @@ def test_delete(client):
         assert status['exit_code'] == 0
 
 
-def test_one_of_two_parents_cancelled(client):
+def test_one_of_two_parent_ids_cancelled(client):
     batch = client.create_batch()
     left = batch.create_job(
         'alpine:3.8',
         command=['/bin/sh', '-c', 'while true; do sleep 86000; done'])
     right = batch.create_job('alpine:3.8', command=['echo', 'right'])
-    tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parents=[left.id, right.id])
+    tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parent_ids=[left.id, right.id])
     left.cancel()
     status = batch.wait()
     assert status['jobs']['Complete'] == 1
@@ -163,7 +163,7 @@ def test_parent_already_done(client):
     batch = client.create_batch()
     head = batch.create_job('alpine:3.8', command=['echo', 'head'])
     head.wait()
-    tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parents=[head.id])
+    tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parent_ids=[head.id])
     status = batch.wait()
     assert status['jobs']['Complete'] == 2
     for node in [head, tail]:
@@ -172,12 +172,12 @@ def test_parent_already_done(client):
         assert status['exit_code'] == 0
 
 
-def test_one_of_two_parents_already_done(client):
+def test_one_of_two_parent_ids_already_done(client):
     batch = client.create_batch()
     left = batch.create_job('alpine:3.8', command=['echo', 'left'])
     left.wait()
     right = batch.create_job('alpine:3.8', command=['echo', 'right'])
-    tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parents=[left.id, right.id])
+    tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parent_ids=[left.id, right.id])
     status = batch.wait()
     assert status['jobs']['Complete'] == 3
     for node in [left, right, tail]:
@@ -186,14 +186,14 @@ def test_one_of_two_parents_already_done(client):
         assert status['exit_code'] == 0
 
 
-def test_one_of_two_parents_already_cancelled(client):
+def test_one_of_two_parent_ids_already_cancelled(client):
     batch = client.create_batch()
     left = batch.create_job(
         'alpine:3.8',
         command=['/bin/sh', '-c', 'while true; do sleep 86000; done'])
     left.cancel()
     right = batch.create_job('alpine:3.8', command=['echo', 'right'])
-    tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parents=[left.id, right.id])
+    tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parent_ids=[left.id, right.id])
     status = batch.wait()
     assert status['jobs']['Complete'] == 1
     assert status['jobs']['Cancelled'] == 2
@@ -210,9 +210,9 @@ def test_parent_deleted(client):
     left = batch.create_job(
         'alpine:3.8',
         command=['/bin/sh', '-c', 'while true; do sleep 86000; done'],
-        parents=[head.id])
-    right = batch.create_job('alpine:3.8', command=['echo', 'right'], parents=[head.id])
-    tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parents=[left.id, right.id])
+        parent_ids=[head.id])
+    right = batch.create_job('alpine:3.8', command=['echo', 'right'], parent_ids=[head.id])
+    tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parent_ids=[left.id, right.id])
     left.delete()
     status = batch.wait()
     assert status['jobs']['Complete'] == 2
