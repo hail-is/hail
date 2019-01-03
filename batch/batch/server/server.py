@@ -127,7 +127,7 @@ class Job:
                                                   'app': 'batch-job',
                                                   'hail.is/batch-instance': instance_id,
                                                   'uuid': uuid.uuid4().hex
-                                              }),
+            }),
             spec=pod_spec)
 
         self._pod_name = None
@@ -433,25 +433,27 @@ def refresh_k8s_state():
 
 
 def run_forever(target, *args, **kwargs):
-    # target should be a function
-    target_name = target.__name__
-
     expected_retry_interval_ms = 15 * 1000
     while True:
         start = time.time()
-        try:
-            log.info(f'run_forever: run target {target_name}')
-            target(*args, **kwargs)
-            log.info(f'run_forever: target {target_name} returned')
-        except Exception:  # pylint: disable=W0703
-            log.error(f'run_forever: target {target_name} threw exception', exc_info=sys.exc_info())
+        run_once(target, *args, **kwargs)
         end = time.time()
 
         run_time_ms = int((end - start) * 1000 + 0.5)
+
         sleep_duration_ms = random.randrange(expected_retry_interval_ms * 2) - run_time_ms
         if sleep_duration_ms > 0:
-            log.debug(f'run_forever: {target_name}: sleep {sleep_duration_ms}ms')
+            log.debug(f'run_forever: {target.__name__}: sleep {sleep_duration_ms}ms')
             time.sleep(sleep_duration_ms / 1000.0)
+
+
+def run_once(target, *args, **kwargs):
+    try:
+        log.info(f'run_forever: {target.__name__}')
+        target(*args, **kwargs)
+        log.info(f'run_forever: {target.__name__} returned')
+    except Exception:  # pylint: disable=W0703
+        log.error(f'run_forever: {target.__name__} caught_exception: ', exc_info=sys.exc_info())
 
 
 def flask_event_loop():
