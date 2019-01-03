@@ -1,3 +1,7 @@
+#!/bin/sh
+
+set -ex
+
 uname -a
 mkdir -p artifacts/foo/bar
 cat <<EOF > artifacts/index.html
