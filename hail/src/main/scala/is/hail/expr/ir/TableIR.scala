@@ -1305,11 +1305,9 @@ case class TableOrderBy(child: TableIR, sortFields: IndexedSeq[SortField]) exten
   protected[ir] override def execute(hc: HailContext): TableValue = {
     val prev = child.execute(hc)
 
-    if (sortFields.isEmpty)
-      return prev
-
-    if (sortFields.length <= prev.typ.key.length &&
-      sortFields.zip(prev.typ.key).forall { case (sf, k) =>
+    val physicalKey = prev.rvd.typ.key
+    if (sortFields.length <= physicalKey.length &&
+      sortFields.zip(physicalKey).forall { case (sf, k) =>
         sf.sortOrder == Ascending && sf.field == k
       })
     // already sorted
