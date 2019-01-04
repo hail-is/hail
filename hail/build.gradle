@@ -154,6 +154,11 @@ task deploy(type: Exec, dependsOn: ['generateBuildInfo', 'shadowJar']) {
     outputs.upToDateWhen { false }
 }
 
+task pipInstall(type: Exec, dependsOn: ['generateBuildInfo', 'shadowJar']) {
+    commandLine 'bash', 'python/pipinstall.sh'
+    outputs.upToDateWhen { false }
+}
+
 compileScala {
     dependsOn generateBuildInfo
 

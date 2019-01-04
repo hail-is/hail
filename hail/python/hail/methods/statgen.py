@@ -3332,14 +3332,6 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
     entries = r2_bm.sparsify_row_intervals(range(stops.size), stops, blocks_only=True).entries()
     entries = entries.filter((entries.entry >= r2) & (entries.i < entries.j))
 
-    locally_pruned_info = locally_pruned_table.key_by('idx').select('locus', 'mean')
-
-    entries = entries.select(info_i=locally_pruned_info[entries.i],
-                             info_j=locally_pruned_info[entries.j])
-
-    entries = entries.filter((entries.info_i.locus.contig == entries.info_j.locus.contig)
-                             & (entries.info_j.locus.position - entries.info_i.locus.position <= bp_window_size))
-
     entries_path = new_temp_file()
     entries.write(entries_path, overwrite=True)
     entries = hl.read_table(entries_path)
@@ -3349,11 +3341,17 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
          f'\n    finding maximal independent set...')
 
     if keep_higher_maf:
-        entries = entries.key_by(
+        x = locally_pruned_table.key_by()
+        means = x.select(idx = x.idx, mean = x.mean).collect()
+        means.sort(key=lambda x: x.idx)
+        means = [x.mean for x in means]
+        entries = entries.annotate(imean = hl.literal(means)[hl.int32(entries.i)],
+                                   jmean = hl.literal(means)[hl.int32(entries.j)])
+        entries = entries.annotate(
             i=hl.struct(idx=entries.i,
-                        twice_maf=hl.min(entries.info_i.mean, 2.0 - entries.info_i.mean)),
+                        twice_maf=hl.min(entries.imean, 2.0 - entries.jmean)),
             j=hl.struct(idx=entries.j,
-                        twice_maf=hl.min(entries.info_j.mean, 2.0 - entries.info_j.mean)))
+                        twice_maf=hl.min(entries.imean, 2.0 - entries.jmean)))
 
         def tie_breaker(l, r):
             return hl.sign(r.twice_maf - l.twice_maf)
