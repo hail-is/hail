@@ -762,10 +762,10 @@ class BlockMatrixSuite extends SparkSuite {
       .filterBlocks(Array(0, 1, 6))
       .entriesTable(hc)
       .collect()
+      .sortBy(r => (r.get(0).asInstanceOf[Long], r.get(1).asInstanceOf[Long]))
       .map(r => r.get(2).asInstanceOf[Double])
 
-    assert(expected sameElements Array[Double](0, 5, 20, 25, 1, 6, 21, 26, 2, 7, 3, 8),
-      expected.mkString("[",",","]"))
+    assert(expected sameElements Array[Double](0, 5, 20, 25, 1, 6, 21, 26, 2, 7, 3, 8))
   }
 
   @Test

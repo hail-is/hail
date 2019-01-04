@@ -137,9 +137,7 @@ def maximal_independent_set(i, j, keep=True, tie_breaker=None) -> Table:
         t, _ = source._process_joins(i, j)
         tie_breaker_str = None
 
-    nodes = (t.select(node=[i, j])
-             .explode('node')
-             .select())
+    nodes = t.select(node=[i, j]).key_by().explode('node')
 
     edges = t.select(__i=i, __j=j).key_by().select('__i', '__j')
     nodes_in_set = Env.hail().utils.Graph.maximalIndependentSet(edges._jt.collect(), node_t._parsable_string(), joption(tie_breaker_str))

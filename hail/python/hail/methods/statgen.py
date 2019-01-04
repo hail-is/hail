@@ -3342,12 +3342,17 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
             return hl.sign(r.twice_maf - l.twice_maf)
 
         variants_to_remove = hl.maximal_independent_set(entries.i, entries.j, keep=False, tie_breaker=tie_breaker)
-        variants_to_remove = variants_to_remove.key_by(variants_to_remove.node.idx)
     else:
         variants_to_remove = hl.maximal_independent_set(entries.i, entries.j, keep=False)
 
+    variants_to_remove = variants_to_remove.collect()
+    variants_to_remove.sort(key=lambda x: x.node.idx)
+    variants_to_remove = {x.node.idx for x in variants_to_remove}
+    variants_to_remove = hl.literal(variants_to_remove, dtype=hl.tset(hl.tint64))
     return locally_pruned_table.filter(
-        hl.is_defined(variants_to_remove[locally_pruned_table.idx]), keep=False).select().persist()
+        hl.is_defined(variants_to_remove.contains(locally_pruned_table.idx)),
+        keep=False
+    ).select().persist()
 
 
 def _warn_if_no_intercept(caller, covariates):
