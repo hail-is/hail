@@ -223,11 +223,6 @@ def ld_score_regression(weight_expr,
     chi_squared_exprs = wrap_to_list(chi_squared_exprs)
     n_samples_exprs = wrap_to_list(n_samples_exprs)
 
-    if not n_reference_panel_variants:
-        M = mt.count_rows()
-    else:
-        M = n_reference_panel_variants
-
     assert ((len(chi_squared_exprs) == len(n_samples_exprs)) or
             (len(n_samples_exprs) == 1))
     __p = 2  # number of covariates, including intercept
@@ -333,6 +328,11 @@ def ld_score_regression(weight_expr,
     ds_tmp_file = new_temp_file()
     ds.write(ds_tmp_file, overwrite=True)
     mt = hl.read_matrix_table(ds_tmp_file)
+
+    if not n_reference_panel_variants:
+        M = mt.count_rows()
+    else:
+        M = n_reference_panel_variants
 
     # block variants for each phenotype
     n_phenotypes = mt.count_cols()
