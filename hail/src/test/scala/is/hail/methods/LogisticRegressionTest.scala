@@ -76,6 +76,6 @@ class LogisticRegressionTest extends SparkSuite {
     pheFields.add("Pheno2")
     val res = LogisticRegression(newMatrix, "wald", pheFields, "dosage", covFields, passFields)
     assert(res.count() > 0, "expecting more than zero results")
-    assert(res.typ.rowType.fieldNames.contains("logistic_regression"),"expecting result table to have p_value")
+    assert(res.typ.rowType.fieldNames.contains("logistic_regression"),"expecting result table to have logistic regression field")
   }
 }
