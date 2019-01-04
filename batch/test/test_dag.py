@@ -16,8 +16,7 @@ def client():
 def test_simple(client):
     batch = client.create_batch()
     head = batch.create_job('alpine:3.8', command=['echo', 'head'])
-    tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parent_id=[head.id])
-    assert batch.n_jobs_created == 2
+    tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parent_ids=[head.id])
     status = batch.wait()
     assert status['jobs']['Complete'] == 2
     head_status = head.status()
@@ -46,7 +45,6 @@ def test_already_deleted_parent_is_400(client):
         head_id = head.id
         head.delete()
         tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parent_ids=[head_id])
-        assert batch.n_jobs_created == 2
     except requests.exceptions.HTTPError as err:
         assert err.response.status_code == 400
         assert re.search('.*invalid parent_id: no job with id.*', err.response.text)
@@ -245,7 +243,6 @@ def test_callback(client):
         left = batch.create_job('alpine:3.8', command=['echo', 'left'], parent_ids=[head.id])
         right = batch.create_job('alpine:3.8', command=['echo', 'right'], parent_ids=[head.id])
         tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parent_ids=[left.id, right.id])
-        assert batch.n_jobs_created == 4
         batch.wait()
         assert len(output) == 4
         assert all([job_result['state'] == 'Complete' and job_result['exit_code'] == 0
