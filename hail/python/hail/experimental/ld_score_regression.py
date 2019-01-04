@@ -63,23 +63,23 @@ def ld_score_regression(weight_expr,
     ...     weight_expr=mt_gwas['ld_score'],
     ...     ld_score_expr=mt_gwas['ld_score'],
     ...     chi_squared_exprs=mt_gwas['chi_squared'],
-    ...     n_samples_exprs=mt_gwas['n_complete_samples'])
+    ...     n_samples_exprs=mt_gwas['n'])
 
     >>> ht_gwas = hl.read_table('data/ld_score_regression.sumstats.ht')
     >>> ht_results = hl.experimental.ld_score_regression(
     ...     weight_expr=ht_gwas['ld_score'],
     ...     ld_score_expr=ht_gwas['ld_score'],
-    ...     chi_squared_exprs=ht_gwas['50_irnt_chi_squared'],
-    ...     n_samples_exprs=ht_gwas['50_irnt_n_complete_samples'])
+    ...     chi_squared_exprs=ht_gwas['chi_squared_50_irnt'],
+    ...     n_samples_exprs=ht_gwas['n_50_irnt'])
 
     >>> ht_gwas = hl.read_table('data/ld_score_regression.sumstats.ht')
     >>> ht_results = hl.experimental.ld_score_regression(
     ...     weight_expr=ht_gwas['ld_score'],
     ...     ld_score_expr=ht_gwas['ld_score'],
-    ...     chi_squared_exprs=[ht_gwas['50_irnt_chi_squared'],
-    ...                        ht_gwas['20160_chi_squared']],
-    ...     n_samples_exprs=[ht_gwas['50_irnt_n_complete_samples'],
-    ...                      ht_gwas['20160_n_complete_samples']])
+    ...     chi_squared_exprs=[ht_gwas['chi_squared_50_irnt'],
+    ...                        ht_gwas['chi_squared_20160']],
+    ...     n_samples_exprs=[ht_gwas['n_50_irnt'],
+    ...                      ht_gwas['n_20160']])
 
 
     This function returns a :class:`Table` with one row per set of summary
