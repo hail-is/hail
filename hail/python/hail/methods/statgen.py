@@ -3350,7 +3350,7 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
     variants_to_remove = {x.node.idx for x in variants_to_remove}
     variants_to_remove = hl.literal(variants_to_remove, dtype=hl.tset(hl.tint64))
     return locally_pruned_table.filter(
-        hl.is_defined(variants_to_remove.contains(locally_pruned_table.idx)),
+        variants_to_remove.contains(locally_pruned_table.idx),
         keep=False
     ).select().persist()
 
