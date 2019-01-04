@@ -1,9 +1,9 @@
 #!/bin/bash
+# do not execute this file, use the Makefile
 
 set -ex
 
-. ../loadconda
-conda activate hail-batch
+PYTEST_ARGS=${PYTEST_ARGS:- -v --failed-first}
 
 cleanup() {
     set +e
@@ -23,4 +23,4 @@ do
     sleep 1
 done
 
-POD_IP='127.0.0.1' BATCH_URL='http://127.0.0.1:5000' python -m unittest -v test/test_batch.py
+POD_IP='127.0.0.1' BATCH_URL='http://127.0.0.1:5000' python -m pytest ${PYTEST_ARGS} test

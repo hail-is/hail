@@ -221,6 +221,8 @@ object Simplify {
 
     case GetTupleElement(MakeTuple(xs), idx) => xs(idx)
 
+    case TableCount(MatrixColsTable(child)) if child.columnCount.isDefined => I64(child.columnCount.get)
+
     case TableCount(child) if child.partitionCounts.isDefined => I64(child.partitionCounts.get.sum)
     case TableCount(TableMapGlobals(child, _)) => TableCount(child)
     case TableCount(TableMapRows(child, _)) => TableCount(child)
@@ -423,7 +425,7 @@ object Simplify {
                 aggSig))),
             MakeStruct(Seq()), // aggregate to one row
             Some(1), 10),
-          "row")
+          FastIndexedSeq("row"))
       TableMapRows(te, GetField(Ref("row", te.typ.rowType), "row"))
 
     case TableKeyByAndAggregate(child, MakeStruct(Seq()), k@MakeStruct(keyFields), _, _) if canRepartition =>

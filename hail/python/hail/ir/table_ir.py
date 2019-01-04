@@ -75,13 +75,13 @@ class TableMapGlobals(TableIR):
 
 
 class TableExplode(TableIR):
-    def __init__(self, child, field):
+    def __init__(self, child, path):
         super().__init__()
         self.child = child
-        self.field = field
+        self.path = path
 
     def render(self, r):
-        return '(TableExplode {} {})'.format(escape_id(self.field), r(self.child))
+        return '(TableExplode {} {})'.format(parsable_strings(self.path), r(self.child))
 
 
 class TableKeyBy(TableIR):
