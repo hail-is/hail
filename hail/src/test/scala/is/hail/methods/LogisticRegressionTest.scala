@@ -25,6 +25,7 @@ import is.hail.table.Table
 class LogisticRegressionTest extends SparkSuite {
 
   @Test def testLogisticRegressionSinglePhenotype() {
+    hc.indexBgen(FastIndexedSeq("src/test/resources/example.8bits.bgen"), rg = Some("GRCh37"), contigRecoding = Map("01" -> "1"))
     val mt: MatrixTable = TestUtils.importBgens(hc, FastIndexedSeq("src/test/resources/example.8bits.bgen"),
       includeDosage = true)//TestUtils.importVCF(hc, "src/test/resources/regressionLogistic.vcf")
     val covs = hc.importTable("src/test/resources/regressionLogisticMultiPheno.cov", impute = true).keyBy(Array("Sample"))
@@ -50,6 +51,7 @@ class LogisticRegressionTest extends SparkSuite {
   }
 
   @Test def testLogisticRegressionMultiPhenotype() {
+    hc.indexBgen(FastIndexedSeq("src/test/resources/example.8bits.bgen"), rg = Some("GRCh37"), contigRecoding = Map("01" -> "1"))
     val mt: MatrixTable = TestUtils.importBgens(hc, FastIndexedSeq("src/test/resources/example.8bits.bgen"),
       includeDosage = true)//TestUtils.importVCF(hc, "src/test/resources/regressionLogistic.vcf")
     val covs = hc.importTable("src/test/resources/regressionLogisticMultiPheno.cov", impute = true).keyBy(Array("Sample"))

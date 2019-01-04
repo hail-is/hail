@@ -462,7 +462,7 @@ def logistic_regression_rows(test, y, x, covariates, pass_through=()) -> hail.Ta
 
     >>> result_ht = hl.logistic_regression_rows(
     ...     test='wald',
-    ...     y=[dataset.pheno1, dataset.pheno2], #where pheno1 and pheno2 values are 0, 1, or missing
+    ...     y=[dataset.pheno1, dataset.pheno2],  # where pheno1 and pheno2 values are 0, 1, or missing
     ...     x=dataset.GT.n_alt_alleles(),
     ...     covariates=[1, dataset.age, dataset.is_female])
 
