@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.expr.types._
-import is.hail.expr.types.virtual.{TArray, TInt32}
+import is.hail.expr.types.virtual.{TArray, TInt32, TInterval}
 import is.hail.utils._
 
 object LowerMatrixIR {
@@ -117,6 +117,13 @@ object LowerMatrixIR {
           .insertFields(colsField ->
             'global('newColIdx).map('i ~> 'global(colsField)('i)))
           .dropFields('newColIdx))
+
+    case MatrixAnnotateRowsTable(child, table, root) =>
+      val kt = table.typ.keyType
+      if (kt.size == 1 && kt.types(0).isInstanceOf[TInterval] && !child.typ.rowKeyStruct.types(0).isInstanceOf[TInterval])
+        TableIntervalJoin(lower(child), lower(table), root)
+      else
+        TableLeftJoinRightDistinct(lower(child), lower(table), root)
 
     case MatrixChooseCols(child, oldIndices) =>
       lower(child)

@@ -402,21 +402,14 @@ class CastTableToMatrix(MatrixIR):
 
 
 class MatrixAnnotateRowsTable(MatrixIR):
-    def __init__(self, child, table, root, key):
+    def __init__(self, child, table, root):
         super().__init__()
         self.child = child
         self.table = table
         self.root = root
-        self.key = key
 
     def render(self, r):
-        if self.key is None:
-            key_bool = False
-            key_strs = ''
-        else:
-            key_bool = True
-            key_strs = ' '.join(str(x) for x in self.key)
-        return f'(MatrixAnnotateRowsTable "{self.root}" {key_bool} {r(self.child)} {r(self.table)} {key_strs})'
+        return f'(MatrixAnnotateRowsTable "{self.root}" {r(self.child)} {r(self.table)})'
 
     def _compute_type(self):
         child_typ = self.child.typ

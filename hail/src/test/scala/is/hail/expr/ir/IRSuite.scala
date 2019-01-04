@@ -1055,7 +1055,7 @@ class IRSuite extends SparkSuite {
           " # cols",
           read.typ.colKey),
         MatrixAnnotateColsTable(read, tableRead, "uid_123"),
-        MatrixAnnotateRowsTable(read, tableRead, "uid_123", Some(FastIndexedSeq(I32(1))))
+        MatrixAnnotateRowsTable(read, tableRead, "uid_123")
       )
 
       xs.map(x => Array(x))

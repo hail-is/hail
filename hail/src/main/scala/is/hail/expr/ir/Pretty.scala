@@ -206,9 +206,8 @@ object Pretty {
               prettyStrings(rowFields) + " " +
               prettyStrings(colFields) + " " +
               prettyIntOpt(nPartitions)
-            case MatrixAnnotateRowsTable(_, _, uid, key) =>
-              prettyStringLiteral(uid) + " " +
-              prettyBooleanLiteral(key.isDefined)
+            case MatrixAnnotateRowsTable(_, _, uid) =>
+              prettyStringLiteral(uid) + " "
             case MatrixAnnotateColsTable(_, _, uid) =>
               prettyStringLiteral(uid)
             case MatrixExplodeRows(_, path) => prettyIdentifiers(path)

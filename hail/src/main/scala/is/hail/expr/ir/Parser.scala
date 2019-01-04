@@ -1023,12 +1023,9 @@ object IRParser {
         TableToMatrixTable(child, rowKey, colKey, rowFields, colFields, nPartitions)
       case "MatrixAnnotateRowsTable" =>
         val root = string_literal(it)
-        val hasKey = boolean_literal(it)
         val child = matrix_ir(env)(it)
         val table = table_ir(env)(it)
-        val key = ir_value_children(env.withRefMap(child.typ.refMap))(it)
-        val keyIRs = if (hasKey) Some(key.toFastIndexedSeq) else None
-        MatrixAnnotateRowsTable(child, table, root, keyIRs)
+        MatrixAnnotateRowsTable(child, table, root)
       case "MatrixAnnotateColsTable" =>
         val root = string_literal(it)
         val child = matrix_ir(env)(it)
