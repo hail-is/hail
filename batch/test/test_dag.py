@@ -31,7 +31,7 @@ def test_missing_parent_is_400(client):
         batch.create_job('alpine:3.8', command=['echo', 'head'], parent_ids=[100000])
     except requests.exceptions.HTTPError as err:
         assert err.response.status_code == 400
-        assert re.search('.*invalid parent: no job with id.*', err.response.text)
+        assert re.search('.*invalid parent_id: no job with id.*', err.response.text)
         return
     assert False
 
@@ -45,7 +45,7 @@ def test_already_deleted_parent_is_400(client):
         tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parent_ids=[head_id])
     except requests.exceptions.HTTPError as err:
         assert err.response.status_code == 400
-        assert re.search('.*invalid parent: no job with id.*', err.response.text)
+        assert re.search('.*invalid parent_id: no job with id.*', err.response.text)
         return
     assert False
 
