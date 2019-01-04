@@ -165,6 +165,10 @@ on_exit() {
 <td>${DOCS_STATUS}</td>
 <td><a href='www/index.html'>Generated website</a></td>
 </tr>
+<tr>
+<td>${DOCS_STATUS}</td>
+<td><a href='www/docs/0.2/index.html'>Generated docs</a></td>
+</tr>
 </tbody>
 </table>
 <h3>Cloud test</h3>
