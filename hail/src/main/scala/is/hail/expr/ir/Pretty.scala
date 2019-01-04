@@ -270,7 +270,7 @@ object Pretty {
               s"${ prettyStringLiteral(dataName) } ${ prettyStringLiteral(globalName) }"
             case TableKeyByAndAggregate(_, _, _, nPartitions, bufferSize) =>
               prettyIntOpt(nPartitions) + " " + bufferSize.toString
-            case TableExplode(_, field) => field
+            case TableExplode(_, path) => prettyStrings(path)
             case TableParallelize(_, nPartitions) =>
                 prettyIntOpt(nPartitions)
             case TableOrderBy(_, sortFields) => prettyIdentifiers(sortFields.map(sf =>

@@ -210,6 +210,8 @@ object LowerMatrixIR {
             })
           .dropFields('newColIdx)
         )
+
+    case MatrixExplodeRows(child, path) => TableExplode(lower(child), path)
   }
 
   private[this] def tableRules: PartialFunction[TableIR, TableIR] = {

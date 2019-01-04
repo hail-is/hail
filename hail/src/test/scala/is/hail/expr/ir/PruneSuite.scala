@@ -255,7 +255,7 @@ class PruneSuite extends SparkSuite {
   }
 
   @Test def testTableExplodeMemo() {
-    val te = TableExplode(tab, "2")
+    val te = TableExplode(tab, Array("2"))
     checkMemo(te, subsetTable(te.typ), Array(subsetTable(tab.typ, "row.2")))
   }
 

@@ -158,7 +158,7 @@ class TableIRTests(unittest.TestCase):
             ir.TableRepartition(table_read, 10, ir.RepartitionStrategy.COALESCE),
             ir.TableUnion(
                 [ir.TableRange(100, 10), ir.TableRange(50, 10)]),
-            ir.TableExplode(table_read, 'mset'),
+            ir.TableExplode(table_read, ['mset']),
             ir.TableHead(table_read, 10),
             ir.TableOrderBy(ir.TableKeyBy(table_read, []), [('m', 'A'), ('m', 'D')]),
             ir.TableDistinct(table_read),

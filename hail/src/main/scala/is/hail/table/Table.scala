@@ -484,7 +484,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
       signature.schema.asInstanceOf[StructType])
   }
 
-  def explode(column: String): Table = new Table(hc, TableExplode(tir, column))
+  def explode(column: String): Table = new Table(hc, TableExplode(tir, Array(column)))
 
   def explode(columnNames: Array[String]): Table = {
     columnNames.foldLeft(this)((kt, name) => kt.explode(name))

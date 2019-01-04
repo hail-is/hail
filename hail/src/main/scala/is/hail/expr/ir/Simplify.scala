@@ -425,7 +425,7 @@ object Simplify {
                 aggSig))),
             MakeStruct(Seq()), // aggregate to one row
             Some(1), 10),
-          "row")
+          FastIndexedSeq("row"))
       TableMapRows(te, GetField(Ref("row", te.typ.rowType), "row"))
 
     case TableKeyByAndAggregate(child, MakeStruct(Seq()), k@MakeStruct(keyFields), _, _) if canRepartition =>
