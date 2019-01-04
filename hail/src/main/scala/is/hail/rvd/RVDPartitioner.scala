@@ -1,7 +1,7 @@
 package is.hail.rvd
 
 import is.hail.annotations.ExtendedOrdering
-import is.hail.expr.types._
+import is.hail.expr.ir.Sym
 import is.hail.expr.types.virtual.{TArray, TInterval, TStruct}
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -27,7 +27,7 @@ class RVDPartitioner(
   ) = this(kType, rangeBounds.toArray, kType.size)
 
   def this(
-    partitionKey: Array[String],
+    partitionKey: IndexedSeq[Sym],
     kType: TStruct,
     rangeBounds: IndexedSeq[Interval]
   ) = this(kType, rangeBounds.toArray, math.max(partitionKey.length - 1, 0))
@@ -176,7 +176,7 @@ class RVDPartitioner(
     new RVDPartitioner(kType, ab.result())
   }
 
-  def rename(nameMap: Map[String, String]): RVDPartitioner = new RVDPartitioner(
+  def rename(nameMap: Map[Sym, Sym]): RVDPartitioner = new RVDPartitioner(
     kType.rename(nameMap),
     rangeBounds,
     allowedOverlap
@@ -292,7 +292,7 @@ object RVDPartitioner {
     generate(kType.fieldNames, kType, intervals)
 
   def generate(
-    partitionKey: IndexedSeq[String],
+    partitionKey: IndexedSeq[Sym],
     kType: TStruct,
     intervals: IndexedSeq[Interval]
   ): RVDPartitioner = {

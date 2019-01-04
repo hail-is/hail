@@ -3,6 +3,7 @@ package is.hail.methods
 import java.util
 
 import is.hail.annotations._
+import is.hail.expr.ir.{I, Sym, IRParser}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PArray, PInt64Required, PStruct}
 import is.hail.expr.types.virtual._
@@ -274,7 +275,10 @@ object LocalLDPrune {
     })
   }
 
-  def apply(mt: MatrixTable, callField: String = "GT", r2Threshold: Double = 0.2, windowSize: Int = 1000000, maxQueueSize: Int): Table = {
+  def apply(mt: MatrixTable, callField: String, r2Threshold: Double, windowSize: Int, maxQueueSize: Int): Table =
+    apply(mt, IRParser.parseSymbol(callField), r2Threshold, windowSize, maxQueueSize)
+
+  def apply(mt: MatrixTable, callField: Sym = I("GT"), r2Threshold: Double = 0.2, windowSize: Int = 1000000, maxQueueSize: Int): Table = {
     if (maxQueueSize < 1)
       fatal(s"Maximum queue size must be positive. Found `$maxQueueSize'.")
 

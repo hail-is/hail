@@ -1,7 +1,7 @@
 import json
 
 from hail.ir.base_ir import *
-from hail.utils.java import escape_str, escape_id, parsable_strings, dump_json
+from hail.utils.java import escape_str, escape_id, parsable_ids, dump_json
 
 
 class MatrixRowsTable(TableIR):
@@ -169,7 +169,7 @@ class TableKeyByAndAggregate(TableIR):
                                                                 self.buffer_size,
                                                                 r(self.child),
                                                                 r(self.expr),
-                                                                self.new_key)
+                                                                r(self.new_key))
 
 
 class TableAggregateByKey(TableIR):
@@ -221,7 +221,7 @@ class TableOrderBy(TableIR):
 
     def render(self, r):
         return '(TableOrderBy ({}) {})'.format(
-            ' '.join(['{}{}'.format(order, escape_id(f)) for (f, order) in self.sort_fields]),
+            ' '.join(['{} {}'.format(order, escape_id(f)) for (f, order) in self.sort_fields]),
             r(self.child))
 
 
@@ -258,8 +258,8 @@ class CastMatrixToTable(TableIR):
 
     def render(self, r):
         return f'(CastMatrixToTable ' \
-               f'"{escape_str(self.entries_field_name)}" ' \
-               f'"{escape_str(self.cols_field_name)}" ' \
+               f'{escape_id(self.entries_field_name)} ' \
+               f'{escape_id(self.cols_field_name)} ' \
                f'{r(self.child)})'
 
 
@@ -272,10 +272,10 @@ class TableRename(TableIR):
 
     def render(self, r):
         return f'(TableRename ' \
-               f'{parsable_strings(self.row_map.keys())} ' \
-               f'{parsable_strings(self.row_map.values())} ' \
-               f'{parsable_strings(self.global_map.keys())} ' \
-               f'{parsable_strings(self.global_map.values())} ' \
+               f'{parsable_ids(self.row_map.keys())} ' \
+               f'{parsable_ids(self.row_map.values())} ' \
+               f'{parsable_ids(self.global_map.keys())} ' \
+               f'{parsable_ids(self.global_map.values())} ' \
                f'{r(self.child)})'
 
 
@@ -288,8 +288,8 @@ class TableMultiWayZipJoin(TableIR):
 
     def render(self, r):
         return f'(TableMultiWayZipJoin '\
-               f'"{escape_str(self.data_name)}" '\
-               f'"{escape_str(self.global_name)}" '\
+               f'{escape_id(self.data_name)} '\
+               f'{escape_id(self.global_name)} '\
                f'{" ".join([r(child) for child in self.childs])})'
 
 

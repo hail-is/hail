@@ -5,7 +5,7 @@ import java.util.Properties
 
 import is.hail.annotations._
 import is.hail.expr.Parser
-import is.hail.expr.ir.{IRParser, MatrixRead}
+import is.hail.expr.ir._
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual._
@@ -451,9 +451,9 @@ class HailContext private(val sc: SparkContext,
     MatrixTable.fromLegacy(this,
       MatrixType.fromParts(
         globalType = TStruct.empty(),
-        colKey = Array("s"),
+        colKey = FastIndexedSeq("s"),
         colType = TStruct("s" -> TString()),
-        rowKey = Array("locus", "alleles"),
+        rowKey = FastIndexedSeq("locus", "alleles"),
         rowType = signature,
         entryType = TStruct("GT" -> TCall(),
           "GP" -> TArray(TFloat64()))),
@@ -475,15 +475,17 @@ class HailContext private(val sc: SparkContext,
     skipBlankLines: Boolean,
     forceBGZ: Boolean
   ): Table = importTables(inputs.asScala,
-    Option(keyNames).map(_.asScala.toFastIndexedSeq),
-    if (nPartitions == null) None else Some(nPartitions), types.asScala.toMap.mapValues(IRParser.parseType), comment.asScala.toArray,
+    Option(keyNames).map(_.asScala.map(IRParser.parseSymbol).toFastIndexedSeq),
+    if (nPartitions == null) None else Some(nPartitions), types.asScala.map { case (k, t) =>
+      (IRParser.parseSymbol(k), IRParser.parseType(t))
+    }.toMap, comment.asScala.toArray,
     separator, missing, noHeader, impute, quote, skipBlankLines, forceBGZ)
 
   def importTable(input: String,
-    keyNames: Option[IndexedSeq[String]] = None,
+    keyNames: Option[IndexedSeq[Sym]] = None,
     nPartitions: Option[Int] = None,
-    types: Map[String, Type] = Map.empty[String, Type],
-    comment: Array[String] = Array.empty[String],
+    types: Map[Sym, Type] = Map.empty,
+    comment: Array[String] = Array.empty,
     separator: String = "\t",
     missing: String = "NA",
     noHeader: Boolean = false,
@@ -495,10 +497,10 @@ class HailContext private(val sc: SparkContext,
     separator, missing, noHeader, impute, quote, skipBlankLines, forceBGZ)
 
   def importTables(inputs: Seq[String],
-    keyNames: Option[IndexedSeq[String]] = None,
+    keyNames: Option[IndexedSeq[Sym]] = None,
     nPartitions: Option[Int] = None,
-    types: Map[String, Type] = Map.empty[String, Type],
-    comment: Array[String] = Array.empty[String],
+    types: Map[Sym, Type] = Map.empty,
+    comment: Array[String] = Array.empty,
     separator: String = "\t",
     missing: String = "NA",
     noHeader: Boolean = false,
@@ -604,12 +606,14 @@ class HailContext private(val sc: SparkContext,
     noHeader: Boolean,
     forceBGZ: Boolean,
     sep: String = "\t"): MatrixTable =
-    importMatrices(files.asScala, rowFields.asScala.toMap.mapValues(IRParser.parseType), keyNames.asScala.toArray,
+    importMatrices(files.asScala, rowFields.asScala.map { case (k, v) =>
+      (IRParser.parseSymbol(k), IRParser.parseType(v))
+    }.toMap, keyNames.asScala.map(IRParser.parseSymbol).toArray,
       IRParser.parseType(cellType), missingVal, minPartitions, noHeader, forceBGZ, sep)
 
   def importMatrices(files: Seq[String],
-    rowFields: Map[String, Type],
-    keyNames: Array[String],
+    rowFields: Map[Sym, Type],
+    keyNames: Array[Sym],
     cellType: Type,
     missingVal: String = "NA",
     nPartitions: Option[Int],

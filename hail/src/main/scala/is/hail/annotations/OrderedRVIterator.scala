@@ -1,6 +1,7 @@
 package is.hail.annotations
 
-import is.hail.rvd.{RVDType, RVDContext}
+import is.hail.expr.ir.Sym
+import is.hail.rvd.{RVDContext, RVDType}
 import is.hail.utils._
 
 import scala.collection.generic.Growable
@@ -142,7 +143,7 @@ case class OrderedRVIterator(
   }
 
   def localKeySort(
-    newKey: IndexedSeq[String]
+    newKey: IndexedSeq[Sym]
   ): Iterator[RegionValue] = {
     require(newKey startsWith t.key)
     require(newKey.forall(t.rowType.fieldNames.contains))

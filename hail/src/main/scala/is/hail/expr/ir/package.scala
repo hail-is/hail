@@ -23,6 +23,25 @@ package object ir {
 
   def genSym(base: String): Sym = Sym.gen(base)
 
+  implicit def stringToSym(s: String): Sym = Identifier(s)
+
+  implicit def iseqStringToISeqSym(a: IndexedSeq[String]): IndexedSeq[Sym] = a.map(stringToSym)
+
+  implicit def iseqSym[K](a: IndexedSeq[(String, K)]): IndexedSeq[(Sym, K)] = a.map { case (k, v) => (stringToSym(k), v) }
+
+  implicit def seqSym[K](a: Seq[(String, K)]): Seq[(Sym, K)] = a.map { case (k, v) => (stringToSym(k), v) }
+
+  implicit def mapSym[K](m: Map[String, K]): Map[Sym, K] = m.map { case (k, v) => (stringToSym(k), v) }
+
+  def NamedIRSeq(args: (Any, IR)*): Seq[(Sym, IR)] = args.map { case (k, v) => (toSym(k), v) }
+
+  def SymTypeMap(args: (Any, Type)*): Map[Sym, Type] = args.map { case (k, v) => (toSym(k), v) }.toMap
+
+  def toSym(s: Any): Sym = s match {
+    case s: Sym => s
+    case s: String => Identifier(s)
+  }
+
   def typeToTypeInfo(t: PType): TypeInfo[_] = typeToTypeInfo(t.virtualType)
 
   def typeToTypeInfo(t: Type): TypeInfo[_] = t.fundamentalType match {
@@ -53,7 +72,7 @@ package object ir {
   // Build consistent expression for a filter-condition with keep polarity,
   // using Let to manage missing-ness.
   def filterPredicateWithKeep(irPred: ir.IR, keep: Boolean): ir.IR = {
-    val pred = genUID()
+    val pred = genSym("pred")
     ir.Let(pred,
       if (keep) irPred else ir.ApplyUnaryPrimOp(ir.Bang(), irPred),
       ir.If(ir.IsNA(ir.Ref(pred, TBoolean())),

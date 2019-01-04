@@ -57,8 +57,8 @@ class RandomFunctionsSuite extends SparkSuite {
 
   def mapped2(n: Int, npart: Int) = TableMapRows(
     TableRange(n, npart),
-    InsertFields(Ref("row", TableRange(1, 1).typ.rowType),
-      FastSeq(
+    InsertFields(Ref(RowSym, TableRange(1, 1).typ.rowType),
+      ISeq[(String, IR)](
         "pi" -> partitionIdx,
         "counter" -> counter)))
 
@@ -71,7 +71,7 @@ class RandomFunctionsSuite extends SparkSuite {
 
     val joined = TableJoin(
       mapped2(10, 4),
-      TableRename(mapped2(10, 3), Map("pi" -> "pi2", "counter" -> "counter2"), Map.empty),
+      TableRename(mapped2(10, 3), Map(I("pi") -> I("pi2"), I("counter") -> I("counter2")), Map.empty),
       "left")
 
     val expected = asArray(mapped2(10, 4)).zip(asArray(mapped2(10, 3)))
@@ -124,11 +124,11 @@ class RandomFunctionsSuite extends SparkSuite {
       TableHead(
         TableMapRows(
           TableRange(10, 3),
-          Ref("row", TableRange(1, 1).typ.rowType)),
+          Ref(RowSym, TableRange(1, 1).typ.rowType)),
         5L),
       InsertFields(
-        Ref("row", TableRange(1, 1).typ.rowType),
-        FastSeq(
+        Ref(RowSym, TableRange(1, 1).typ.rowType),
+        NamedIRSeq(
           "pi" -> partitionIdx,
           "counter" -> counter)))
 

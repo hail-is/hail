@@ -33,9 +33,8 @@ class SparkBackend(Backend):
         return ir._jir
 
     def execute(self, ir):
-        return ir.typ._from_json(
-            Env.hail().expr.ir.Interpret.interpretJSON(
-                self._to_java_ir(ir)))
+        return ir.typ._from_json(Env.hail().expr.ir.Interpret.interpretJSON(
+            self._to_java_ir(ir)))
 
     def table_read_type(self, tir):
         jir = self._to_java_ir(tir)

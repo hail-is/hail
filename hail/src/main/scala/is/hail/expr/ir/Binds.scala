@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 object Binds {
-  def apply(x: IR, v: String, i: Int): Boolean = {
+  def apply(x: IR, v: Sym, i: Int): Boolean = {
     x match {
       case Let(n, _, _) =>
         v == n && i == 1

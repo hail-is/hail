@@ -114,27 +114,31 @@ object IRLexer extends JavaTokenParsers {
       """[+-]?\d+(\.\d+)?[eE][+-]?\d+""".r ^^ { _.toDouble } |
       """[+-]?\d*\.\d+""".r ^^ { _.toDouble }
 
-  def parse(code: String): Array[Token] = {
-    parseAll(lexer, code) match {
+  def parse[T](code: String, p: Parser[T]): T = {
+    parseAll(p, code) match {
       case Success(result, _) => result
       case NoSuccess(msg, next) => ParserUtils.error(next.pos, msg)
     }
   }
+
+  def parse(code: String): Array[Token] = parse(code, lexer)
+
+  def parseIdentifier(s: String): String = parse(s, identifier)
 }
 
 case class IRParserEnvironment(
-  refMap: Map[String, Type] = Map.empty,
-  irMap: Map[String, BaseIR] = Map.empty
+  refMap: Map[Sym, Type] = Map.empty,
+  irMap: Map[Sym, BaseIR] = Map.empty
 ) {
-  def update(newRefMap: Map[String, Type] = Map.empty, newIRMap: Map[String, BaseIR] = Map.empty): IRParserEnvironment =
+  def update(newRefMap: Map[Sym, Type] = Map.empty, newIRMap: Map[Sym, BaseIR] = Map.empty): IRParserEnvironment =
     copy(refMap = refMap ++ newRefMap, irMap = irMap ++ newIRMap)
 
-  def withRefMap(newRefMap: Map[String, Type]): IRParserEnvironment = {
+  def withRefMap(newRefMap: Map[Sym, Type]): IRParserEnvironment = {
     assert(refMap.isEmpty)
     copy(refMap = newRefMap)
   }
 
-  def +(t: (String, Type)): IRParserEnvironment = copy(refMap = refMap + t, irMap)
+  def +(t: (Sym, Type)): IRParserEnvironment = copy(refMap = refMap + t, irMap)
 }
 
 object IRParser {
@@ -160,6 +164,34 @@ object IRParser {
     }
   }
 
+  def symbol(it: TokenIterator): Sym = {
+    consumeToken(it) match {
+      case x: IdentifierToken =>
+        // compat
+        if (x.value == "the entries! [877f12a8827e18f61222c6c8c5fb04a8]")
+          EntriesSym
+        else
+          I(x.value)
+      case x: PunctuationToken if x.value == ":" =>
+        identifier(it) match {
+          case "global" => GlobalSym
+          case "row" => RowSym
+          case "rows" => RowsSym
+          case "col" => ColSym
+          case "cols" => ColsSym
+          case "entry" => EntrySym
+          case "entries" => EntriesSym
+          case "global-and-cols" => GlobalAndColsSym
+          case "AGGR" => AGGRSym
+          case "SCANR" => SCANRSym
+          case base: String =>
+            punctuation(it, "-")
+            val count = int32_literal(it)
+            Generated(base, count)
+        }
+    }
+  }
+
   def identifier(it: TokenIterator, expectedId: String): String = {
     consumeToken(it) match {
       case x: IdentifierToken if x.value == expectedId => x.value
@@ -170,6 +202,31 @@ object IRParser {
   def identifiers(it: TokenIterator): Array[String] = {
     punctuation(it, "(")
     val ids = repUntil(it, identifier, PunctuationToken(")"))
+    punctuation(it, ")")
+    ids
+  }
+
+  def sort_field(it: TokenIterator): SortField = {
+    val order = consumeToken(it) match {
+      case x: IdentifierToken if x.value == "A" || x.value == "D" =>
+        if (x.value == "A") Ascending else Descending
+      case x: Token =>
+        error(x, s"Sort order must be A or D, found ${ x.getName } '${ x.value }.")
+
+    }
+    SortField(symbol(it), order)
+  }
+
+  def sort_fields(it: TokenIterator): Array[SortField] = {
+    punctuation(it, "(")
+    val sortFields = repUntil(it, sort_field, PunctuationToken(")"))
+    punctuation(it, ")")
+    sortFields
+  }
+
+  def symbols(it: TokenIterator): Array[Sym] = {
+    punctuation(it, "(")
+    val ids = repUntil(it, symbol, PunctuationToken(")"))
     punctuation(it, ")")
     ids
   }
@@ -294,8 +351,8 @@ object IRParser {
     (name, desc)
   }
 
-  def type_field(it: TokenIterator): (String, Type) = {
-    val name = identifier(it)
+  def type_field(it: TokenIterator): (Sym, Type) = {
+    val name = symbol(it)
     punctuation(it, ":")
     val typ = type_expr(it)
     while (it.hasNext && it.head == PunctuationToken("@")) {
@@ -371,20 +428,20 @@ object IRParser {
     typ
   }
 
-  def keys(it: TokenIterator): Array[String] = {
+  def keys(it: TokenIterator): Array[Sym] = {
     punctuation(it, "[")
-    val keys = repsepUntil(it, identifier, PunctuationToken(","), PunctuationToken("]"))
+    val keys = repsepUntil(it, symbol, PunctuationToken(","), PunctuationToken("]"))
     punctuation(it, "]")
     keys
   }
 
-  def trailing_keys(it: TokenIterator): Array[String] = {
+  def trailing_keys(it: TokenIterator): Array[Sym] = {
     it.head match {
       case x: PunctuationToken if x.value == "]" =>
-        Array.empty[String]
+        Array.empty[Sym]
       case x: PunctuationToken if x.value == "," =>
         punctuation(it, ",")
-        repsepUntil(it, identifier, PunctuationToken(","), PunctuationToken("]"))
+        repsepUntil(it, symbol, PunctuationToken(","), PunctuationToken("]"))
     }
   }
 
@@ -417,7 +474,7 @@ object IRParser {
 
     identifier(it, "key")
     punctuation(it, ":")
-    val key = opt(it, keys).getOrElse(Array.empty[String])
+    val key = opt(it, keys).getOrElse(Array.empty[Sym])
     punctuation(it, ",")
 
     identifier(it, "row")
@@ -488,12 +545,12 @@ object IRParser {
     (typ, v)
   }
 
-  def named_value_irs(env: IRParserEnvironment)(it: TokenIterator): Array[(String, IR)] =
+  def named_value_irs(env: IRParserEnvironment)(it: TokenIterator): Array[(Sym, IR)] =
     repUntil(it, named_value_ir(env), PunctuationToken(")"))
 
-  def named_value_ir(env: IRParserEnvironment)(it: TokenIterator): (String, IR) = {
+  def named_value_ir(env: IRParserEnvironment)(it: TokenIterator): (Sym, IR) = {
     punctuation(it, "(")
-    val name = identifier(it)
+    val name = symbol(it)
     val value = ir_value_expr(env)(it)
     punctuation(it, ")")
     (name, value)
@@ -541,12 +598,12 @@ object IRParser {
         val altr = ir_value_expr(env)(it)
         If(cond, consq, altr)
       case "Let" =>
-        val name = identifier(it)
+        val name = symbol(it)
         val value = ir_value_expr(env)(it)
         val body = ir_value_expr(env + (name -> value.typ))(it)
         Let(name, value, body)
       case "Ref" =>
-        val id = identifier(it)
+        val id = symbol(it)
         Ref(id, env.refMap(id))
       case "ApplyBinaryPrimOp" =>
         val op = BinaryOp.fromString(identifier(it))
@@ -594,38 +651,38 @@ object IRParser {
         val col = ir_value_expr(env)(it)
         GroupByKey(col)
       case "ArrayMap" =>
-        val name = identifier(it)
+        val name = symbol(it)
         val a = ir_value_expr(env)(it)
         val body = ir_value_expr(env + (name -> coerce[TArray](a.typ).elementType))(it)
         ArrayMap(a, name, body)
       case "ArrayFilter" =>
-        val name = identifier(it)
+        val name = symbol(it)
         val a = ir_value_expr(env)(it)
         val body = ir_value_expr(env + (name -> coerce[TArray](a.typ).elementType))(it)
         ArrayFilter(a, name, body)
       case "ArrayFlatMap" =>
-        val name = identifier(it)
+        val name = symbol(it)
         val a = ir_value_expr(env)(it)
         val body = ir_value_expr(env + (name -> coerce[TArray](a.typ).elementType))(it)
         ArrayFlatMap(a, name, body)
       case "ArrayFold" =>
-        val accumName = identifier(it)
-        val valueName = identifier(it)
+        val accumName = symbol(it)
+        val valueName = symbol(it)
         val a = ir_value_expr(env)(it)
         val zero = ir_value_expr(env)(it)
         val eltType = coerce[TArray](a.typ).elementType
         val body = ir_value_expr(env.update(Map(accumName -> zero.typ, valueName -> eltType)))(it)
         ArrayFold(a, zero, accumName, valueName, body)
       case "ArrayScan" =>
-        val accumName = identifier(it)
-        val valueName = identifier(it)
+        val accumName = symbol(it)
+        val valueName = symbol(it)
         val a = ir_value_expr(env)(it)
         val zero = ir_value_expr(env)(it)
         val eltType = coerce[TArray](a.typ).elementType
         val body = ir_value_expr(env.update(Map(accumName -> zero.typ, valueName -> eltType)))(it)
         ArrayScan(a, zero, accumName, valueName, body)
       case "ArrayFor" =>
-        val name = identifier(it)
+        val name = symbol(it)
         val a = ir_value_expr(env)(it)
         val body = ir_value_expr(env + (name, coerce[TArray](a.typ).elementType))(it)
         ArrayFor(a, name, body)
@@ -634,7 +691,7 @@ object IRParser {
         val aggIR = ir_value_expr(env)(it)
         AggFilter(cond, aggIR)
       case "AggExplode" =>
-        val name = identifier(it)
+        val name = symbol(it)
         val a = ir_value_expr(env)(it)
         val aggBody = ir_value_expr(env + (name -> coerce[TArray](a.typ).elementType))(it)
         AggExplode(a, name, aggBody)
@@ -673,7 +730,7 @@ object IRParser {
         val fields = named_value_irs(env)(it)
         MakeStruct(fields)
       case "SelectFields" =>
-        val fields = identifiers(it)
+        val fields = symbols(it)
         val old = ir_value_expr(env)(it)
         SelectFields(old, fields)
       case "InsertFields" =>
@@ -681,7 +738,7 @@ object IRParser {
         val fields = named_value_irs(env)(it)
         InsertFields(old, fields)
       case "GetField" =>
-        val name = identifier(it)
+        val name = symbol(it)
         val s = ir_value_expr(env)(it)
         GetField(s, name)
       case "MakeTuple" =>
@@ -717,7 +774,7 @@ object IRParser {
         val args = ir_value_children(env)(it)
         invoke(function, args: _*)
       case "Uniroot" =>
-        val name = identifier(it)
+        val name = symbol(it)
         val function = ir_value_expr(env + (name -> TFloat64()))(it)
         val min = ir_value_expr(env)(it)
         val max = ir_value_expr(env)(it)
@@ -760,7 +817,7 @@ object IRParser {
         val child = matrix_ir(env)(it)
         MatrixWrite(child, writer)
       case "JavaIR" =>
-        val name = identifier(it)
+        val name = symbol(it)
         env.irMap(name).asInstanceOf[IR]
     }
   }
@@ -786,7 +843,7 @@ object IRParser {
     // FIXME TableImport
     identifier(it) match {
       case "TableKeyBy" =>
-        val keys = identifiers(it)
+        val keys = symbols(it)
         val isSorted = boolean_literal(it)
         val child = table_ir(env)(it)
         TableKeyBy(child, keys, isSorted)
@@ -839,18 +896,18 @@ object IRParser {
         val right = table_ir(env)(it)
         TableJoin(left, right, joinType, joinKey)
       case "TableLeftJoinRightDistinct" =>
-        val root = identifier(it)
+        val root = symbol(it)
         val left = table_ir(env)(it)
         val right = table_ir(env)(it)
         TableLeftJoinRightDistinct(left, right, root)
       case "TableIntervalJoin" =>
-        val root = identifier(it)
+        val root = symbol(it)
         val left = table_ir(env)(it)
         val right = table_ir(env)(it)
         TableIntervalJoin(left, right, root)
       case "TableMultiWayZipJoin" =>
-        val dataName = string_literal(it)
-        val globalsName = string_literal(it)
+        val dataName = symbol(it)
+        val globalsName = symbol(it)
         val children = table_ir_children(env)(it)
         TableMultiWayZipJoin(children, dataName, globalsName)
       case "TableParallelize" =>
@@ -873,20 +930,16 @@ object IRParser {
         val children = table_ir_children(env)(it)
         TableUnion(children)
       case "TableOrderBy" =>
-        val ids = identifiers(it)
+        val sortFields = sort_fields(it)
         val child = table_ir(env)(it)
-        TableOrderBy(child, ids.map(i =>
-          if (i.charAt(0) == 'A')
-            SortField(i.substring(1), Ascending)
-          else
-            SortField(i.substring(1), Descending)))
+        TableOrderBy(child, sortFields)
       case "TableExplode" =>
-        val path = string_literals(it)
+        val path = symbols(it)
         val child = table_ir(env)(it)
         TableExplode(child, path)
       case "CastMatrixToTable" =>
-        val entriesField = string_literal(it)
-        val colsField = string_literal(it)
+        val entriesField = symbol(it)
+        val colsField = symbol(it)
         val child = matrix_ir(env)(it)
         CastMatrixToTable(child, entriesField, colsField)
       case "MatrixToTableApply" =>
@@ -898,14 +951,14 @@ object IRParser {
         val child = table_ir(env)(it)
         TableToTableApply(child, RelationalFunctions.lookupTableToTable(config))
       case "TableRename" =>
-        val rowK = string_literals(it)
-        val rowV = string_literals(it)
-        val globalK = string_literals(it)
-        val globalV = string_literals(it)
+        val rowK = symbols(it)
+        val rowV = symbols(it)
+        val globalK = symbols(it)
+        val globalV = symbols(it)
         val child = table_ir(env)(it)
         TableRename(child, rowK.zip(rowV).toMap, globalK.zip(globalV).toMap)
       case "JavaTable" =>
-        val name = identifier(it)
+        val name = symbol(it)
         env.irMap(name).asInstanceOf[TableIR]
     }
   }
@@ -935,12 +988,12 @@ object IRParser {
         val pred = ir_value_expr(env.withRefMap(child.typ.refMap))(it)
         MatrixFilterEntries(child, pred)
       case "MatrixMapCols" =>
-        val newKey = opt(it, string_literals)
+        val newKey = opt(it, symbols)
         val child = matrix_ir(env)(it)
         val newCol = ir_value_expr(env.withRefMap(child.typ.refMap))(it)
         MatrixMapCols(child, newCol, newKey.map(_.toFastIndexedSeq))
       case "MatrixKeyRowsBy" =>
-        val key = identifiers(it)
+        val key = symbols(it)
         val isSorted = boolean_literal(it)
         val child = matrix_ir(env)(it)
         MatrixKeyRowsBy(child, key, isSorted)
@@ -981,15 +1034,15 @@ object IRParser {
         val reader = Serialization.read[MatrixReader](readerStr)
         MatrixRead(requestedType.getOrElse(reader.fullType), dropCols, dropRows, reader)
       case "TableToMatrixTable" =>
-        val rowKey = string_literals(it)
-        val colKey = string_literals(it)
-        val rowFields = string_literals(it)
-        val colFields = string_literals(it)
+        val rowKey = symbols(it)
+        val colKey = symbols(it)
+        val rowFields = symbols(it)
+        val colFields = symbols(it)
         val nPartitions = opt(it, int32_literal)
         val child = table_ir(env)(it)
         TableToMatrixTable(child, rowKey, colKey, rowFields, colFields, nPartitions)
       case "MatrixAnnotateRowsTable" =>
-        val root = string_literal(it)
+        val root = symbol(it)
         val hasKey = boolean_literal(it)
         val child = matrix_ir(env)(it)
         val table = table_ir(env)(it)
@@ -997,16 +1050,16 @@ object IRParser {
         val keyIRs = if (hasKey) Some(key.toFastIndexedSeq) else None
         MatrixAnnotateRowsTable(child, table, root, keyIRs)
       case "MatrixAnnotateColsTable" =>
-        val root = string_literal(it)
+        val root = symbol(it)
         val child = matrix_ir(env)(it)
         val table = table_ir(env)(it)
         MatrixAnnotateColsTable(child, table, root)
       case "MatrixExplodeRows" =>
-        val path = identifiers(it)
+        val path = symbols(it)
         val child = matrix_ir(env)(it)
         MatrixExplodeRows(child, path)
       case "MatrixExplodeCols" =>
-        val path = identifiers(it)
+        val path = symbols(it)
         val child = matrix_ir(env)(it)
         MatrixExplodeCols(child, path)
       case "MatrixChooseCols" =>
@@ -1028,9 +1081,9 @@ object IRParser {
         val child = matrix_ir(env)(it)
         MatrixDistinctByRow(child)
       case "CastTableToMatrix" =>
-        val entriesField = identifier(it)
-        val colsField = identifier(it)
-        val colKey = identifiers(it)
+        val entriesField = symbol(it)
+        val colsField = symbol(it)
+        val colKey = symbols(it)
         val child = table_ir(env)(it)
         CastTableToMatrix(child, entriesField, colsField, colKey)
       case "MatrixToMatrixApply" =>
@@ -1038,7 +1091,7 @@ object IRParser {
         val child = matrix_ir(env)(it)
         MatrixToMatrixApply(child, RelationalFunctions.lookupMatrixToMatrix(config))
       case "JavaMatrix" =>
-        val name = identifier(it)
+        val name = symbol(it)
         env.irMap(name).asInstanceOf[MatrixIR]
     }
   }
@@ -1050,18 +1103,32 @@ object IRParser {
 
   def parse_value_ir(s: String): IR = parse_value_ir(s, IRParserEnvironment())
   def parse_value_ir(s: String, refMap: java.util.HashMap[String, String], irMap: java.util.HashMap[String, BaseIR]): IR =
-    parse_value_ir(s, IRParserEnvironment(refMap.asScala.toMap.mapValues(parseType), irMap.asScala.toMap))
+    parse_value_ir(s, IRParserEnvironment(refMap.asScala.map { case (k, v) =>
+      (parseSymbol(k), parseType(v))
+    }.toMap, irMap.asScala.map { case (k, v) =>
+      (parseSymbol(k), v)
+    }.toMap))
   def parse_value_ir(s: String, env: IRParserEnvironment): IR = parse(s, ir_value_expr(env))
 
   def parse_table_ir(s: String): TableIR = parse_table_ir(s, IRParserEnvironment())
   def parse_table_ir(s: String, refMap: java.util.HashMap[String, String], irMap: java.util.HashMap[String, BaseIR]): TableIR =
-    parse_table_ir(s, IRParserEnvironment(refMap.asScala.toMap.mapValues(parseType), irMap.asScala.toMap))
+    parse_table_ir(s, IRParserEnvironment(refMap.asScala.map { case (k, v) =>
+      (parseSymbol(k), parseType(v))
+    }.toMap, irMap.asScala.map { case (k, v) =>
+      (parseSymbol(k), v)
+    }.toMap))
   def parse_table_ir(s: String, env: IRParserEnvironment): TableIR = parse(s, table_ir(env))
 
   def parse_matrix_ir(s: String): MatrixIR = parse_matrix_ir(s, IRParserEnvironment())
   def parse_matrix_ir(s: String, refMap: java.util.HashMap[String, String], irMap: java.util.HashMap[String, BaseIR]): MatrixIR =
-    parse_matrix_ir(s, IRParserEnvironment(refMap.asScala.toMap.mapValues(parseType), irMap.asScala.toMap))
+    parse_matrix_ir(s, IRParserEnvironment(refMap.asScala.map { case (k, v) =>
+      (parseSymbol(k), parseType(v))
+    }.toMap, irMap.asScala.map { case (k, v) =>
+      (parseSymbol(k), v)
+    }.toMap))
   def parse_matrix_ir(s: String, env: IRParserEnvironment): MatrixIR = parse(s, matrix_ir(env))
+
+  def parseSymbol(s: String): Sym = parse(s, symbol)
 
   def parseType(code: String): Type = parse(code, type_expr)
 

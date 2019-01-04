@@ -1,3 +1,4 @@
+import hail
 from hail.typecheck import *
 from hail.utils.java import escape_parsable
 from hail.expr.types import dtype, tstruct
@@ -9,9 +10,9 @@ class tmatrix(object):
         return tmatrix(
             dtype(jtt.globalType().toString()),
             dtype(jtt.colType().toString()),
-            jiterable_to_list(jtt.colKey()),
+            [hail.ir.Symbol.from_jsymbol(k) for k in jiterable_to_list(jtt.colKey())],
             dtype(jtt.rowType().toString()),
-            jiterable_to_list(jtt.rowKey()),
+            [hail.ir.Symbol.from_jsymbol(k) for k in jiterable_to_list(jtt.rowKey())],
             dtype(jtt.entryType().toString()))
 
     @typecheck_method(global_type=tstruct,

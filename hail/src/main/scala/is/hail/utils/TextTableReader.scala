@@ -4,7 +4,7 @@ import java.util.regex.Pattern
 
 import is.hail.HailContext
 import is.hail.expr._
-import is.hail.expr.ir.TableImport
+import is.hail.expr.ir.{Sym, TableImport}
 import is.hail.expr.types._
 import is.hail.expr.types.virtual._
 import is.hail.table.Table
@@ -194,8 +194,8 @@ object TextTableReader {
   }
 
   def read(hc: HailContext)(files: Array[String],
-    types: Map[String, Type] = Map.empty[String, Type],
-    comment: Array[String] = Array.empty[String],
+    types: Map[Sym, Type] = Map.empty,
+    comment: Array[String] = Array.empty,
     separator: String = "\t",
     missing: String = "NA",
     noHeader: Boolean = false,

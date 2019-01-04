@@ -125,7 +125,7 @@ abstract class AbstractMatrixTableSpec extends RelationalSpec {
   def rvdType(path: String): RVDType = {
     val rows = AbstractRVDSpec.read(HailContext.get, path + "/" + rowsComponent.rel_path)
     val entries = AbstractRVDSpec.read(HailContext.get, path + "/" + entriesComponent.rel_path)
-    RVDType(rows.encodedType.appendKey(MatrixType.entriesIdentifier, entries.encodedType), rows.key)
+    RVDType(rows.encodedType.appendKey(EntriesSym, entries.encodedType), rows.key)
   }
 }
 
@@ -200,7 +200,7 @@ object MatrixTable {
   def fromRowsTable(kt: Table): MatrixTable = {
     val matrixType = MatrixType.fromParts(
       kt.globalSignature,
-      Array.empty[String],
+      Array.empty[Sym],
       TStruct.empty(),
       kt.key,
       kt.signature,
@@ -284,11 +284,11 @@ case class VSMSubgen(
             (finalVASig, vaIns, rowPartitionKey, vSig.fieldNames)
           case _ =>
             val (finalVASig, vaIns) = vaSig.structInsert(vSig, List("v"))
-            (finalVASig, vaIns, Array("v"), Array("v"))
+            (finalVASig, vaIns, ISeq("v"), ISeq[Sym]("v"))
         }
 
       MatrixTable.fromLegacy(hc,
-        MatrixType.fromParts(globalSig, Array("s"), finalSASig, rowKey, finalVASig, tSig),
+        MatrixType.fromParts(globalSig, ISeq("s"), finalSASig, rowKey, finalVASig, tSig),
         global,
         sampleIds.zip(saValues).map { case (id, sa) => sIns(sa, id) },
         hc.sc.parallelize(rows.map { case (v, (va, gs)) =>
@@ -383,10 +383,10 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   val globalType: TStruct = matrixType.globalType
 
   val rvRowType: TStruct = matrixType.rvRowType
-  val rowKey: IndexedSeq[String] = matrixType.rowKey
+  val rowKey: IndexedSeq[Sym] = matrixType.rowKey
   val entriesIndex: Int = matrixType.entriesIdx
 
-  val colKey: IndexedSeq[String] = matrixType.colKey
+  val colKey: IndexedSeq[Sym] = matrixType.colKey
 
   def colKeyTypes: Array[Type] = colKey
     .map(s => matrixType.colType.types(matrixType.colType.fieldIdx(s)))
@@ -436,12 +436,12 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         s"\n  @1", dups.sortBy(-_._2).map { case (id, count) => s"""($count) "$id"""" }.truncatable("\n  "))
   }
 
-  def annotateGlobal(a: Annotation, t: Type, name: String): MatrixTable = {
+  def annotateGlobal(a: Annotation, t: Type, name: Sym): MatrixTable = {
     new MatrixTable(hc, MatrixMapGlobals(ast,
-      ir.InsertFields(ir.Ref("global", ast.typ.globalType), FastSeq(name -> ir.Literal.coerce(t, a)))))
+      ir.InsertFields(ir.Ref(GlobalSym, ast.typ.globalType), FastSeq(name -> ir.Literal.coerce(t, a)))))
   }
 
-  def annotateColsTable(kt: Table, root: String): MatrixTable = {
+  def annotateColsTable(kt: Table, root: Sym): MatrixTable = {
     new MatrixTable(hc, MatrixAnnotateColsTable(ast, kt.tir, root))
   }
 
@@ -465,7 +465,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def dropRows(): MatrixTable = copyAST(MatrixFilterRows(ast, ir.False()))
 
-  def localizeEntries(entriesFieldName: String, colsFieldName: String): Table =
+  def localizeEntries(entriesFieldName: Sym, colsFieldName: Sym): Table =
     new Table(hc, CastMatrixToTable(ast, entriesFieldName, colsFieldName))
 
   def filterCols(p: (Annotation, Int) => Boolean): MatrixTable = {
@@ -484,7 +484,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   }
 
   def insertEntries[PC](makePartitionContext: () => PC, newColType: TStruct = colType,
-    newColKey: IndexedSeq[String] = colKey,
+    newColKey: IndexedSeq[Sym] = colKey,
     newColValues: BroadcastIndexedSeq = colValues,
     newGlobalType: TStruct = globalType,
     newGlobals: BroadcastRow = globals)(newEntryType: PStruct,
@@ -520,7 +520,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   def aggregateCols(expr: String): (Annotation, Type) = {
     val qir = IRParser.parse_value_ir(expr, IRParserEnvironment(matrixType.refMap))
     val ct = colsTable()
-    val aggEnv = new ir.Env[ir.IR].bind("sa" -> ir.Ref("row", ct.typ.rowType))
+    val aggEnv = new ir.Env[ir.IR].bind(ColSym -> ir.Ref(RowSym, ct.typ.rowType))
     val sqir = ir.Subst(qir.unwrap, ir.Env.empty, aggEnv)
     ct.aggregate(sqir)
   }
@@ -528,7 +528,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   def aggregateRows(expr: String): (Annotation, Type) = {
     val qir = IRParser.parse_value_ir(expr, IRParserEnvironment(matrixType.refMap))
     val rt = rowsTable()
-    val aggEnv = new ir.Env[ir.IR].bind("va" -> ir.Ref("row", rt.typ.rowType))
+    val aggEnv = new ir.Env[ir.IR].bind(ColSym -> ir.Ref(RowSym, rt.typ.rowType))
     val sqir = ir.Subst(qir.unwrap, ir.Env.empty, aggEnv)
     rt.aggregate(sqir)
   }
@@ -545,20 +545,35 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     oldToNewCols: java.util.HashMap[String, String],
     oldToNewEntries: java.util.HashMap[String, String],
     oldToNewGlobals: java.util.HashMap[String, String]): MatrixTable = {
+    renameFields(
+      oldToNewRows.asScala.map { case (k, v) =>
+        (IRParser.parseSymbol(k), IRParser.parseSymbol(v))
+      }.toMap,
+      oldToNewCols.asScala.map { case (k, v) =>
+        (IRParser.parseSymbol(k), IRParser.parseSymbol(v))
+      }.toMap,
+      oldToNewEntries.asScala.map { case (k, v) =>
+        (IRParser.parseSymbol(k), IRParser.parseSymbol(v))
+      }.toMap,
+      oldToNewGlobals.asScala.map { case (k, v) =>
+        (IRParser.parseSymbol(k), IRParser.parseSymbol(v))
+      }.toMap)
+  }
 
-    val fieldMapRows = oldToNewRows.asScala
+  def renameFields(fieldMapRows: Map[Sym, Sym],
+    fieldMapCols: Map[Sym, Sym],
+    fieldMapEntries: Map[Sym, Sym],
+    fieldMapGlobals: Map[Sym, Sym]): MatrixTable = {
+
     assert(fieldMapRows.keys.forall(k => matrixType.rowType.fieldNames.contains(k)),
       s"[${ fieldMapRows.keys.mkString(", ") }], expected [${ matrixType.rowType.fieldNames.mkString(", ") }]")
 
-    val fieldMapCols = oldToNewCols.asScala
     assert(fieldMapCols.keys.forall(k => matrixType.colType.fieldNames.contains(k)),
       s"[${ fieldMapCols.keys.mkString(", ") }], expected [${ matrixType.colType.fieldNames.mkString(", ") }]")
 
-    val fieldMapEntries = oldToNewEntries.asScala
     assert(fieldMapEntries.keys.forall(k => matrixType.entryType.fieldNames.contains(k)),
       s"[${ fieldMapEntries.keys.mkString(", ") }], expected [${ matrixType.entryType.fieldNames.mkString(", ") }]")
 
-    val fieldMapGlobals = oldToNewGlobals.asScala
     assert(fieldMapGlobals.keys.forall(k => matrixType.globalType.fieldNames.contains(k)),
       s"[${ fieldMapGlobals.keys.mkString(", ") }], expected [${ matrixType.globalType.fieldNames.mkString(", ") }]")
 
@@ -577,7 +592,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       val newKey = rowKey.map { f => fieldMapRows.getOrElse(f, f) }
       val newRVRowType = TStruct(rvRowType.required, rvRowType.fields.map { f =>
         f.name match {
-          case x@MatrixType.entriesIdentifier => (x, TArray(newEntryType, f.typ.required))
+          case x@EntriesSym => (x, TArray(newEntryType, f.typ.required))
           case x => (fieldMapRows.getOrElse(x, x), f.typ)
         }
       }: _*)
@@ -735,11 +750,11 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def copy2(rvd: RVD = rvd,
     colValues: BroadcastIndexedSeq = colValues,
-    colKey: IndexedSeq[String] = colKey,
+    colKey: IndexedSeq[Sym] = colKey,
     globals: BroadcastRow = globals,
     colType: TStruct = colType,
     rvRowType: TStruct = rvRowType,
-    rowKey: IndexedSeq[String] = rowKey,
+    rowKey: IndexedSeq[Sym] = rowKey,
     globalType: TStruct = globalType,
     entryType: TStruct = entryType): MatrixTable = {
     val newMatrixType = matrixType.copy(
@@ -839,10 +854,10 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     new MatrixTable(hc,
       MatrixMapEntries(ast,
         ir.If(
-          ir.IsNA(ir.Ref("g", entryType)),
+          ir.IsNA(ir.Ref(EntrySym, entryType)),
           ir.MakeStruct(
             entryType.fields.map(f => f.name -> (ir.NA(f.typ): ir.IR))),
-          ir.Ref("g", entryType))))
+          ir.Ref(EntrySym, entryType))))
   }
 
   def filterEntries(filterExpr: String, keep: Boolean = true): MatrixTable = {
@@ -930,7 +945,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     insertEntries(noOp,
       newColType = newColType,
-      newColKey = Array("id"),
+      newColKey = ISeq("id"),
       newColValues = colValues.copy(value = newColValues, t = TArray(newColType)))(newEntryType.physicalType, { case (_, rv, rvb) =>
       val entriesOffset = fullRowType.loadField(rv, localEntriesIndex)
 
@@ -964,7 +979,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     })
   }
 
-  def toRowMatrix(entryField: String): RowMatrix = {
+  def toRowMatrix(entryField: Sym): RowMatrix = {
     val partCounts = partitionCounts()
     val partStarts = partCounts.scanLeft(0L)(_ + _) // FIXME: use partitionStarts once partitionCounts is durable
     assert(partStarts.length == rvd.getNumPartitions + 1)
@@ -1010,8 +1025,15 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   }
 
   def writeBlockMatrix(dirname: String,
-    overwrite: Boolean = false,
+    overwrite: Boolean,
     entryField: String,
+    blockSize: Int) {
+    writeBlockMatrix(dirname, overwrite, IRParser.parseSymbol(entryField))
+  }
+
+  def writeBlockMatrix(dirname: String,
+    overwrite: Boolean = false,
+    entryField: Sym,
     blockSize: Int = BlockMatrix.defaultBlockSize): Unit = {
     val partStarts = partitionStarts()
     assert(partStarts.length == rvd.getNumPartitions + 1)

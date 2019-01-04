@@ -278,7 +278,7 @@ object TestUtils {
 
     val argsType = TTuple(inputTypesB.result(): _*)
     val resultType = TTuple(x.typ)
-    val argsVar = genUID()
+    val argsVar = genSym("args")
 
     val (_, substEnv) = env.m.foldLeft((args.length, Env.empty[IR])) { case ((i, env), (name, (v, t))) =>
       (i + 1, env.bind(name, GetTupleElement(Ref(argsVar, argsType), i)))
@@ -295,7 +295,7 @@ object TestUtils {
 
     agg match {
       case Some((aggElements, aggType)) =>
-        val aggVar = genUID()
+        val aggVar = genSym("agg")
         val substAggEnv = aggType.fields.foldLeft(Env.empty[IR]) { case (env, f) =>
             env.bind(f.name, GetField(Ref(aggVar, aggType), f.name))
         }
@@ -303,12 +303,12 @@ object TestUtils {
           argsVar, argsType.physicalType,
           argsVar, argsType.physicalType,
           aggVar, aggType.physicalType,
-          MakeTuple(FastSeq(rewrite(Subst(x, substEnv, substAggEnv)))), "AGGR",
+          MakeTuple(FastSeq(rewrite(Subst(x, substEnv, substAggEnv)))), AGGRSym,
           (i, x) => x,
           (i, x) => x)
 
         val (resultType2, f) = Compile[Long, Long, Long](
-          "AGGR", aggResultType,
+          AGGRSym, aggResultType,
           argsVar, argsType.physicalType,
           postAggIR)
         assert(resultType2.virtualType == resultType)
@@ -517,7 +517,7 @@ object TestUtils {
     headerFile: Option[String] = None,
     nPartitions: Option[Int] = None,
     dropSamples: Boolean = false,
-    callFields: Set[String] = Set.empty[String],
+    callFields: Set[Sym] = Set.empty[Sym],
     rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
     contigRecoding: Option[Map[String, String]] = None,
     arrayElementsRequired: Boolean = true,

@@ -47,7 +47,7 @@ object UtilFunctions extends RegistryFunctions {
         case s2: MakeStruct => InsertFields(s, s2.fields)
         case s2 =>
           val s2typ = coerce[TStruct](s2.typ)
-          val s2id = genUID()
+          val s2id = genSym("s2")
           Let(s2id, s2, InsertFields(s, s2typ.fieldNames.map { n => n -> GetField(Ref(s2id, s2typ), n) }))
       }
     }

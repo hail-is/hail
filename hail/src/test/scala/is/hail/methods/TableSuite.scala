@@ -2,6 +2,7 @@ package is.hail.methods
 
 import is.hail.{SparkSuite, TestUtils}
 import is.hail.expr._
+import is.hail.expr.ir.{GlobalSym, I, RowsSym}
 import is.hail.expr.types.{virtual, _}
 import is.hail.expr.types.virtual._
 import is.hail.rvd.RVD
@@ -48,14 +49,14 @@ class TableSuite extends SparkSuite {
   @Test def testImportExport() {
     val inputFile = "src/test/resources/sampleAnnotations.tsv"
     val outputFile = tmpDir.createTempFile("ktImpExp", "tsv")
-    val kt = hc.importTable(inputFile).keyBy(Array("Sample", "Status"))
+    val kt = hc.importTable(inputFile).keyBy(ISeq("Sample", "Status"))
     kt.export(outputFile)
 
     val importedData = sc.hadoopConfiguration.readLines(inputFile)(_.map(_.value).toFastIndexedSeq)
     val exportedData = sc.hadoopConfiguration.readLines(outputFile)(_.map(_.value).toFastIndexedSeq)
 
     intercept[AssertionError] {
-      hc.importTable(inputFile).keyBy(Array("Sample", "Status", "BadKeyName"))
+      hc.importTable(inputFile).keyBy(ISeq("Sample", "Status", "BadKeyName"))
     }
 
     assert(importedData == exportedData)
@@ -80,33 +81,33 @@ class TableSuite extends SparkSuite {
   @Test def testKeyBy() {
     val kt = sampleKT1
     val count = kt.count()
-    val kt2 = kt.keyBy(Array("Sample", "field1"))
+    val kt2 = kt.keyBy(ISeq("Sample", "field1"))
     assert(kt2.count() == count)
-    assert(kt2.keyBy(Array("Sample")).count() == count)
-    assert(kt.keyBy(Array("field1")).count() == count)
-    assert(kt.unkey().keyBy(Array("Sample")).count() == count)
+    assert(kt2.keyBy(ISeq("Sample")).count() == count)
+    assert(kt.keyBy(ISeq("field1")).count() == count)
+    assert(kt.unkey().keyBy(ISeq("Sample")).count() == count)
   }
 
   @Test def testTableToMatrixTableWithDuplicateKeys(): Unit = {
     val table = new Table(hc, ir.TableParallelize(ir.Literal.coerce(TStruct(
-      "rows" -> TArray(TStruct("locus" -> TString(), "pval" -> TFloat32Required, "phenotype" -> TString())),
-      "global" -> TStruct()), Row(FastIndexedSeq(
+      RowsSym -> TArray(TStruct("locus" -> TString(), "pval" -> TFloat32Required, "phenotype" -> TString())),
+      GlobalSym -> TStruct()), Row(FastIndexedSeq(
       Row("1:100", 0.5.toFloat, "trait1"),
       Row("1:100", 0.6.toFloat, "trait1")), Row())), None))
 
     TestUtils.interceptSpark("duplicate \\(row key, col key\\) pairs are not supported")(
-      table.toMatrixTable(Array("locus"), Array("phenotype"), Array(),
-        Array()).count())
+      table.toMatrixTable(ISeq("locus"), ISeq("phenotype"), ISeq(),
+        ISeq()).count())
   }
 
   @Test def testToMatrixTable() {
     val vds = TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
     val gkt = vds.entriesTable()
 
-    val reVDS = gkt.toMatrixTable(Array("locus", "alleles"),
-      Array("s"),
-      vds.rowType.fieldNames.filter(x => x != "locus" && x != "alleles"),
-      vds.colType.fieldNames.filter(_ != "s"))
+    val reVDS = gkt.toMatrixTable(ISeq("locus", "alleles"),
+      ISeq("s"),
+      vds.rowType.fieldNames.filter(x => x != I("locus") && x != I("alleles")),
+      vds.colType.fieldNames.filter(_ != I("s")))
 
     val sampleOrder = vds.colKeys.toArray
 
@@ -136,11 +137,11 @@ class TableSuite extends SparkSuite {
       key = IndexedSeq("Sample"))
     ktResult3.typeCheck()
 
-    assert(ktResult2.same(kt2.explode(Array("field1"))))
-    assert(ktResult3.same(kt3.explode(Array("field1", "field2", "field1"))))
+    assert(ktResult2.same(kt2.explode(ISeq("field1"))))
+    assert(ktResult3.same(kt3.explode(ISeq("field1", "field2", "field1"))))
 
     val outputFile = tmpDir.createTempFile("explode", "tsv")
-    kt2.explode(Array("field1")).export(outputFile)
+    kt2.explode(ISeq("field1")).export(outputFile)
   }
 
   @Test def testSame() {

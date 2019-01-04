@@ -9,7 +9,7 @@ from hail.expr.type_parsing import type_grammar, type_node_visitor
 from hail.genetics.reference_genome import reference_genome_type
 from hail.typecheck import *
 from hail.utils import Struct, Interval
-from hail.utils.java import scala_object, jset, Env, escape_parsable
+from hail.utils.java import scala_object, jset, Env, escape_parsable, escape_id
 
 __all__ = [
     'dtype',
@@ -856,10 +856,10 @@ class tstruct(HailType, Mapping):
             ','.join('{}:{}'.format(escape_parsable(f), t._parsable_string()) for f, t in self.items()))
 
     def _convert_from_json(self, x):
-        return Struct(**{f: t._convert_from_json_na(x.get(f)) for f, t in self.items()})
+        return Struct(**{f: t._convert_from_json_na(x.get(escape_id(f))) for f, t in self.items()})
 
     def _convert_to_json(self, x):
-        return {f: t._convert_to_json_na(x[f]) for f, t in self.items()}
+        return {escape_id(f): t._convert_to_json_na(x[f]) for f, t in self.items()}
 
     def _is_prefix_of(self, other):
         return (isinstance(other, tstruct) and

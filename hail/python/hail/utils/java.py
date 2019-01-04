@@ -158,10 +158,6 @@ def dump_json(obj):
 def escape_str(s):
     return Env.jutils().escapePyString(s)
 
-def parsable_strings(strs):
-    strs = ' '.join(f'"{escape_str(s)}"' for s in strs)
-    return f"({strs})"
-
 
 _parsable_str = re.compile(r'[\w_]+')
 
@@ -176,9 +172,20 @@ def escape_parsable(s):
 def unescape_parsable(s):
     return bytes(s.replace('\\`', '`'), 'utf-8').decode('unicode_escape')
 
+def _escape_id(s):
+    return Env.jutils().escapeIdentifier(s)
+
+def _unescape_id(s):
+    return Env.jutils().unescapeIdentifier(s)
 
 def escape_id(s):
-    return Env.jutils().escapeIdentifier(s)
+    if isinstance(s, str):
+        return _escape_id(s)
+    else:
+        return str(s)
+
+def parsable_ids(ids):
+    return '(' + ' '.join(escape_str(id) for id in ids) + ')'
 
 def jarray_to_list(a):
     return list(a) if a else None

@@ -1,7 +1,7 @@
 package is.hail.expr.types
 
 import is.hail.annotations.Annotation
-import is.hail.expr.ir.{Env, IRParser}
+import is.hail.expr.ir.{ColSym, EntriesSym, EntrySym, Env, GlobalSym, IRParser, Identifier, RowSym, Sym}
 import is.hail.expr.types.physical.{PArray, PStruct}
 import is.hail.expr.types.virtual._
 import is.hail.rvd.RVDType
@@ -17,31 +17,29 @@ class MatrixTypeSerializer extends CustomSerializer[MatrixType](format => (
   { case mt: MatrixType => JString(mt.toString) }))
 
 object MatrixType {
-  val entriesIdentifier = "the entries! [877f12a8827e18f61222c6c8c5fb04a8]"
-
-  def getRowType(rvRowType: PStruct): PStruct = rvRowType.dropFields(Set(entriesIdentifier))
-  def getEntryArrayType(rvRowType: PStruct): PArray = rvRowType.field(entriesIdentifier).typ.asInstanceOf[PArray]
-  def getSplitEntriesType(rvRowType: PStruct): PStruct = rvRowType.selectFields(Array(entriesIdentifier))
+  def getRowType(rvRowType: PStruct): PStruct = rvRowType.dropFields(Set(EntriesSym))
+  def getEntryArrayType(rvRowType: PStruct): PArray = rvRowType.field(EntriesSym).typ.asInstanceOf[PArray]
+  def getSplitEntriesType(rvRowType: PStruct): PStruct = rvRowType.selectFields(Array(EntriesSym))
   def getEntryType(rvRowType: PStruct): PStruct = getEntryArrayType(rvRowType).elementType.asInstanceOf[PStruct]
-  def getEntriesIndex(rvRowType: PStruct): Int = rvRowType.fieldIdx(entriesIdentifier)
+  def getEntriesIndex(rvRowType: PStruct): Int = rvRowType.fieldIdx(EntriesSym)
 
   def fromParts(
     globalType: TStruct,
-    colKey: IndexedSeq[String],
+    colKey: IndexedSeq[Sym],
     colType: TStruct,
-    rowKey: IndexedSeq[String],
+    rowKey: IndexedSeq[Sym],
     rowType: TStruct,
     entryType: TStruct
   ): MatrixType = {
-    MatrixType(globalType, colKey, colType, rowKey, rowType ++ TStruct(entriesIdentifier -> TArray(entryType)))
+    MatrixType(globalType, colKey, colType, rowKey, rowType ++ TStruct(EntriesSym -> TArray(entryType)))
   }
 }
 
 case class MatrixType(
   globalType: TStruct,
-  colKey: IndexedSeq[String],
+  colKey: IndexedSeq[Sym],
   colType: TStruct,
-  rowKey: IndexedSeq[String],
+  rowKey: IndexedSeq[Sym],
   rvRowType: TStruct
 ) extends BaseType {
   assert({
@@ -49,13 +47,13 @@ case class MatrixType(
     colKey.forall(colFields.contains)
   }, s"$colKey: $colType")
 
-  val entriesIdx: Int = rvRowType.fieldIdx(MatrixType.entriesIdentifier)
+  val entriesIdx: Int = rvRowType.fieldIdx(EntriesSym)
   val rowType: TStruct = TStruct(rvRowType.fields.filter(_.index != entriesIdx).map(f => (f.name, f.typ)): _*)
   val entryArrayType: TArray = rvRowType.types(entriesIdx).asInstanceOf[TArray]
   val entryType: TStruct = entryArrayType.elementType.asInstanceOf[TStruct]
 
   val entriesRVType: TStruct = TStruct(
-    MatrixType.entriesIdentifier -> TArray(entryType))
+    EntriesSym -> TArray(entryType))
 
   assert({
     val rowFields = rowType.fieldNames.toSet
@@ -67,14 +65,14 @@ case class MatrixType(
   val rowKeyFieldIdx: Array[Int] = rowKey.toArray.map(rowType.fieldIdx)
   val (rowValueStruct, _) = rowType.filterSet(rowKey.toSet, include = false)
   def extractRowValue: Annotation => Annotation = rowType.filterSet(rowKey.toSet, include = false)._2
-  val rowValueFieldIdx: Array[Int] = rowValueStruct.fieldNames.map(rowType.fieldIdx)
+  val rowValueFieldIdx: IndexedSeq[Int] = rowValueStruct.fieldNames.map(rowType.fieldIdx)
 
   val (colKeyStruct, _) = colType.select(colKey)
   def extractColKey: Row => Row = colType.select(colKey)._2
   val colKeyFieldIdx: Array[Int] = colKey.toArray.map(colType.fieldIdx)
   val (colValueStruct, _) = colType.filterSet(colKey.toSet, include = false)
   def extractColValue: Annotation => Annotation = colType.filterSet(colKey.toSet, include = false)._2
-  val colValueFieldIdx: Array[Int] = colValueStruct.fieldNames.map(colType.fieldIdx)
+  val colValueFieldIdx: IndexedSeq[Int] = colValueStruct.fieldNames.map(colType.fieldIdx)
 
   val colsTableType: TableType =
     TableType(colType, colKey, globalType)
@@ -89,11 +87,11 @@ case class MatrixType(
 
   def canonicalRVDType: RVDType = RVDType(rvRowType.physicalType, rowKey)
 
-  def refMap: Map[String, Type] = Map(
-    "global" -> globalType,
-    "va" -> rvRowType,
-    "sa" -> colType,
-    "g" -> entryType)
+  def refMap: Map[Sym, Type] = Map(
+    GlobalSym -> globalType,
+    RowSym -> rvRowType,
+    ColSym -> colType,
+    EntrySym -> entryType)
 
   def pretty(sb: StringBuilder, indent0: Int = 0, compact: Boolean = false) {
     var indent = indent0
@@ -117,7 +115,7 @@ case class MatrixType(
     newline()
 
     sb.append(s"col_key:$space[")
-    colKey.foreachBetween(k => sb.append(prettyIdentifier(k)))(sb.append(s",$space"))
+    colKey.foreachBetween(k => sb.append(k))(sb.append(s",$space"))
     sb += ']'
     sb += ','
     newline()
@@ -128,7 +126,7 @@ case class MatrixType(
     newline()
 
     sb.append(s"row_key:$space[[")
-    rowKey.foreachBetween(k => sb.append(prettyIdentifier(k)))(sb.append(s",$space"))
+    rowKey.foreachBetween(k => sb.append(k))(sb.append(s",$space"))
     sb ++= "]]"
     sb += ','
     newline()
@@ -148,9 +146,9 @@ case class MatrixType(
 
   def copyParts(
     globalType: TStruct = globalType,
-    colKey: IndexedSeq[String] = colKey,
+    colKey: IndexedSeq[Sym] = colKey,
     colType: TStruct = colType,
-    rowKey: IndexedSeq[String] = rowKey,
+    rowKey: IndexedSeq[Sym] = rowKey,
     rowType: TStruct = rowType,
     entryType: TStruct = entryType
   ): MatrixType = {
@@ -158,26 +156,26 @@ case class MatrixType(
   }
 
   def globalEnv: Env[Type] = Env.empty[Type]
-    .bind("global" -> globalType)
+    .bind(GlobalSym -> globalType)
 
   def rowEnv: Env[Type] = Env.empty[Type]
-    .bind("global" -> globalType)
-    .bind("va" -> rvRowType)
+    .bind(GlobalSym -> globalType)
+    .bind(RowSym -> rvRowType)
 
   def colEnv: Env[Type] = Env.empty[Type]
-    .bind("global" -> globalType)
-    .bind("sa" -> colType)
+    .bind(GlobalSym -> globalType)
+    .bind(ColSym -> colType)
 
   def entryEnv: Env[Type] = Env.empty[Type]
-    .bind("global" -> globalType)
-    .bind("sa" -> colType)
-    .bind("va" -> rvRowType)
-    .bind("g" -> entryType)
+    .bind(GlobalSym -> globalType)
+    .bind(ColSym -> colType)
+    .bind(RowSym -> rvRowType)
+    .bind(EntrySym -> entryType)
 
   def requireRowKeyVariant() {
     val rowKeyTypes = rowKeyStruct.types
     rowKey.zip(rowKeyTypes) match {
-      case IndexedSeq(("locus", TLocus(_, _)), ("alleles", TArray(TString(_), _))) =>
+      case IndexedSeq((Identifier("locus"), TLocus(_, _)), (Identifier("alleles"), TArray(TString(_), _))) =>
     }
   }
 

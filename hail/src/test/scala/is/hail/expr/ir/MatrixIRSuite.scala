@@ -25,9 +25,9 @@ class MatrixIRSuite extends SparkSuite {
 
   @Test def testScanCountBehavesLikeIndexOnRows() {
     val mt = rangeMatrix
-    val oldRow = Ref("va", mt.typ.rvRowType)
+    val oldRow = Ref(RowSym, mt.typ.rvRowType)
 
-    val newRow = InsertFields(oldRow, Seq("idx" -> IRScanCount))
+    val newRow = InsertFields(oldRow, NamedIRSeq("idx" -> IRScanCount))
 
     val newMatrix = MatrixMapRows(mt, newRow)
     val rows = getRows(newMatrix)
@@ -36,9 +36,9 @@ class MatrixIRSuite extends SparkSuite {
 
   @Test def testScanCollectBehavesLikeRangeOnRows() {
     val mt = rangeMatrix
-    val oldRow = Ref("va", mt.typ.rvRowType)
+    val oldRow = Ref(RowSym, mt.typ.rvRowType)
 
-    val newRow = InsertFields(oldRow, Seq("range" -> IRScanCollect(GetField(oldRow, "row_idx"))))
+    val newRow = InsertFields(oldRow, NamedIRSeq("range" -> IRScanCollect(GetField(oldRow, "row_idx"))))
 
     val newMatrix = MatrixMapRows(mt, newRow)
     val rows = getRows(newMatrix)
@@ -47,9 +47,9 @@ class MatrixIRSuite extends SparkSuite {
 
   @Test def testScanCollectBehavesLikeRangeWithAggregationOnRows() {
     val mt = rangeMatrix
-    val oldRow = Ref("va", mt.typ.rvRowType)
+    val oldRow = Ref(RowSym, mt.typ.rvRowType)
 
-    val newRow = InsertFields(oldRow, Seq("n" -> IRAggCount, "range" -> IRScanCollect(GetField(oldRow, "row_idx").toL)))
+    val newRow = InsertFields(oldRow, NamedIRSeq("n" -> IRAggCount, "range" -> IRScanCollect(GetField(oldRow, "row_idx").toL)))
 
     val newMatrix = MatrixMapRows(mt, newRow)
     val rows = getRows(newMatrix)
@@ -58,9 +58,9 @@ class MatrixIRSuite extends SparkSuite {
 
   @Test def testScanCountBehavesLikeIndexOnCols() {
     val mt = rangeMatrix
-    val oldCol = Ref("sa", mt.typ.colType)
+    val oldCol = Ref(ColSym, mt.typ.colType)
 
-    val newCol = InsertFields(oldCol, Seq("idx" -> IRScanCount))
+    val newCol = InsertFields(oldCol, NamedIRSeq("idx" -> IRScanCount))
 
     val newMatrix = MatrixMapCols(mt, newCol, None)
     val cols = getCols(newMatrix)
@@ -69,9 +69,9 @@ class MatrixIRSuite extends SparkSuite {
 
   @Test def testScanCollectBehavesLikeRangeOnCols() {
     val mt = rangeMatrix
-    val oldCol = Ref("sa", mt.typ.colType)
+    val oldCol = Ref(ColSym, mt.typ.colType)
 
-    val newCol = InsertFields(oldCol, Seq("range" -> IRScanCollect(GetField(oldCol, "col_idx"))))
+    val newCol = InsertFields(oldCol, NamedIRSeq("range" -> IRScanCollect(GetField(oldCol, "col_idx"))))
 
     val newMatrix = MatrixMapCols(mt, newCol, None)
     val cols = getCols(newMatrix)
@@ -80,9 +80,9 @@ class MatrixIRSuite extends SparkSuite {
 
   @Test def testScanCollectBehavesLikeRangeWithAggregationOnCols() {
     val mt = rangeMatrix
-    val oldCol = Ref("sa", mt.typ.colType)
+    val oldCol = Ref(ColSym, mt.typ.colType)
 
-    val newCol = InsertFields(oldCol, Seq("n" -> IRAggCount, "range" -> IRScanCollect(GetField(oldCol, "col_idx").toL)))
+    val newCol = InsertFields(oldCol, NamedIRSeq("n" -> IRAggCount, "range" -> IRScanCollect(GetField(oldCol, "col_idx").toL)))
 
     val newMatrix = MatrixMapCols(mt, newCol, None)
     val cols = getCols(newMatrix)
@@ -92,13 +92,13 @@ class MatrixIRSuite extends SparkSuite {
   def rangeRowMatrix(start: Int, end: Int): MatrixIR = {
     val i = end - start
     val baseRange = MatrixTable.range(hc, i, 5, Some(math.min(4, i))).ast
-    val row = Ref("va", baseRange.typ.rvRowType)
+    val row = Ref(RowSym, baseRange.typ.rvRowType)
     MatrixKeyRowsBy(
       MatrixMapRows(
         MatrixKeyRowsBy(baseRange, FastIndexedSeq()),
         InsertFields(
           row,
-          FastIndexedSeq("row_idx" -> (GetField(row, "row_idx") + start)))),
+          NamedIRSeq("row_idx" -> (GetField(row, "row_idx") + start)))),
       FastIndexedSeq("row_idx"))
   }
 
@@ -142,9 +142,9 @@ class MatrixIRSuite extends SparkSuite {
     val range = MatrixTable.range(hc, 5, 2, None).ast
 
     val field = path.init.foldRight(path.last -> toIRArray(collection))(_ -> IRStruct(_))
-    val annotated = MatrixMapRows(range, InsertFields(Ref("va", range.typ.rvRowType), FastIndexedSeq(field)))
+    val annotated = MatrixMapRows(range, InsertFields(Ref(RowSym, range.typ.rvRowType), NamedIRSeq(field)))
 
-    val q = annotated.typ.rowType.query(path: _*)
+    val q = annotated.typ.rowType.query(path.map(I(_)): _*)
     val exploded = getRows(MatrixExplodeRows(annotated, path.toIndexedSeq)).map(q(_).asInstanceOf[Integer])
 
     val expected = if (collection == null) Array[Integer]() else Array.fill(5)(collection).flatten
@@ -178,7 +178,7 @@ class MatrixIRSuite extends SparkSuite {
     )
     val rowTab = makeLocalizedTable(rdata, cdata)
 
-    val mir = CastTableToMatrix(rowTab.tir, "__entries", "__cols", Array("col_idx"))
+    val mir = CastTableToMatrix(rowTab.tir, "__entries", "__cols", ISeq("col_idx"))
     // cols are same
     val mtCols = Interpret(MatrixColsTable(mir)).rdd.collect()
     assert(mtCols sameElements cdata)
@@ -207,7 +207,7 @@ class MatrixIRSuite extends SparkSuite {
     )
     val rowTab = makeLocalizedTable(rdata, cdata)
 
-    val mir = CastTableToMatrix(rowTab.tir, "__entries", "__cols", Array("col_idx"))
+    val mir = CastTableToMatrix(rowTab.tir, "__entries", "__cols", ISeq("col_idx"))
 
     // All rows must have the same number of elements in the entry field as colTab has rows
     interceptSpark("incorrect entry array length") {
@@ -216,7 +216,7 @@ class MatrixIRSuite extends SparkSuite {
 
     // The entry field must be an array
     interceptFatal("") {
-      CastTableToMatrix(rowTab.tir, "animal", "__cols", Array("col_idx"))
+      CastTableToMatrix(rowTab.tir, "animal", "__cols", ISeq("col_idx"))
     }
 
     val rdata2 = Array(
@@ -225,7 +225,7 @@ class MatrixIRSuite extends SparkSuite {
       Row(3, "dog", IndexedSeq(Row("c", -1.0), Row("z", 30.0)))
     )
     val rowTab2 = makeLocalizedTable(rdata2, cdata)
-    val mir2 = CastTableToMatrix(rowTab2.tir, "__entries", "__cols", Array("col_idx"))
+    val mir2 = CastTableToMatrix(rowTab2.tir, "__entries", "__cols", ISeq("col_idx"))
 
     interceptSpark("missing") { Interpret(mir2).rvd.count() }
   }
@@ -245,12 +245,12 @@ class MatrixIRSuite extends SparkSuite {
 
   @Test def testMatrixAggregateColsByKeyWithEntriesPosition() {
     val range = MatrixTable.range(hc, 3, 3, Some(1)).ast
-    val withEntries = MatrixMapEntries(range, MakeStruct(FastIndexedSeq("x" -> 2)))
+    val withEntries = MatrixMapEntries(range, MakeStruct(NamedIRSeq("x" -> I32(2))))
     val m = MatrixAggregateColsByKey(
       MatrixMapRows(withEntries,
-        InsertFields(Ref("va", withEntries.typ.rvRowType), FastIndexedSeq("a" -> 1))),
-      MakeStruct(FastIndexedSeq("foo" -> IRAggCount)),
-      MakeStruct(FastIndexedSeq("bar" -> IRAggCount))
+        InsertFields(Ref(RowSym, withEntries.typ.rvRowType), NamedIRSeq("a" -> I32(1)))),
+      MakeStruct(NamedIRSeq("foo" -> IRAggCount)),
+      MakeStruct(NamedIRSeq("bar" -> IRAggCount))
     )
     assert(Interpret(m).rowsRVD().count() == 3)
   }
@@ -291,8 +291,8 @@ class MatrixIRSuite extends SparkSuite {
   @Test def testMatrixPLINKWrite() {
     val plinkPath = "src/test/resources/skip_invalid_loci"
     val plink = is.hail.TestUtils.importPlink(hc, plinkPath + ".bed", plinkPath + ".bim", plinkPath + ".fam", skipInvalidLoci = true)
-    val plinkIR = MatrixMapRows(plink.ast, InsertFields(Ref("va", plink.rvRowType),
-      FastIndexedSeq("varid" -> GetField(Ref("va", plink.rvRowType), "rsid"))))
+    val plinkIR = MatrixMapRows(plink.ast, InsertFields(Ref(RowSym, plink.rvRowType),
+      NamedIRSeq("varid" -> GetField(Ref(RowSym, plink.rvRowType), "rsid"))))
     val path = tmpDir.createLocalTempFile()
     Interpret(MatrixWrite(plinkIR, MatrixPLINKWriter(path)))
   }
@@ -300,8 +300,8 @@ class MatrixIRSuite extends SparkSuite {
   @Test def testMatrixGENWrite() {
     val gen = hc.importGen("src/test/resources/example.gen", "src/test/resources/example.sample",
       contigRecoding = Some(Map("01" -> "1")))
-    val genIR = MatrixMapCols(gen.ast, SelectFields(InsertFields(Ref("sa", gen.colType),
-      FastIndexedSeq("id1" -> Str(""), "id2" -> Str(""), "missing" -> F64(0.0))), FastIndexedSeq("id1", "id2", "missing")),
+    val genIR = MatrixMapCols(gen.ast, SelectFields(InsertFields(Ref(ColSym, gen.colType),
+      NamedIRSeq("id1" -> Str(""), "id2" -> Str(""), "missing" -> F64(0.0))), FastIndexedSeq("id1", "id2", "missing")),
       Some(FastIndexedSeq("id1")))
     val path = tmpDir.createLocalTempFile()
     Interpret(MatrixWrite(genIR, MatrixGENWriter(path)))

@@ -3,7 +3,7 @@ package is.hail.stats
 import breeze.linalg._
 import is.hail.annotations.RegionValue
 import is.hail.expr._
-import is.hail.expr.ir.MatrixValue
+import is.hail.expr.ir.{MatrixValue, Sym}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PArray, PStruct}
 import is.hail.expr.types.virtual.TFloat64
@@ -56,7 +56,7 @@ object RegressionUtils {
   }
 
   // IndexedSeq indexed by column, Array by field
-  def getColumnVariables(mv: MatrixValue, names: Array[String]): IndexedSeq[Array[Option[Double]]] = {
+  def getColumnVariables(mv: MatrixValue, names: Array[Sym]): IndexedSeq[Array[Option[Double]]] = {
     val colType = mv.typ.colType
     assert(names.forall(name => mv.typ.colType.field(name).typ.isOfType(TFloat64())))
     val fieldIndices = names.map { name =>
@@ -74,8 +74,8 @@ object RegressionUtils {
 
   def getPhenoCovCompleteSamples(
     vsm: MatrixTable,
-    yField: String,
-    covFields: Array[String]): (DenseVector[Double], DenseMatrix[Double], Array[Int]) = {
+    yField: Sym,
+    covFields: Array[Sym]): (DenseVector[Double], DenseMatrix[Double], Array[Int]) = {
 
     val (y, covs, completeSamples) = getPhenosCovCompleteSamples(vsm, Array(yField), covFields)
 
@@ -84,13 +84,13 @@ object RegressionUtils {
 
   def getPhenosCovCompleteSamples(
     vsm: MatrixTable,
-    yFields: Array[String],
-    covFields: Array[String]): (DenseMatrix[Double], DenseMatrix[Double], Array[Int]) = getPhenosCovCompleteSamples(vsm.value, yFields, covFields)
+    yFields: Array[Sym],
+    covFields: Array[Sym]): (DenseMatrix[Double], DenseMatrix[Double], Array[Int]) = getPhenosCovCompleteSamples(vsm.value, yFields, covFields)
 
   def getPhenosCovCompleteSamples(
     mv: MatrixValue,
-    yFields: Array[String],
-    covFields: Array[String]): (DenseMatrix[Double], DenseMatrix[Double], Array[Int]) = {
+    yFields: Array[Sym],
+    covFields: Array[Sym]): (DenseMatrix[Double], DenseMatrix[Double], Array[Int]) = {
 
     val nPhenos = yFields.length
     val nCovs = covFields.length

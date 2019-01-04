@@ -341,10 +341,10 @@ object MatrixBGENReader {
 
     MatrixType.fromParts(
       globalType = TStruct.empty(),
-      colKey = Array("s"),
+      colKey = ISeq("s"),
       colType = TStruct("s" -> TString()),
       rowType = TStruct(typedRowFields: _*),
-      rowKey = Array("locus", "alleles"),
+      rowKey = ISeq("locus", "alleles"),
       entryType = TStruct(typedEntryFields: _*))
   }
 }

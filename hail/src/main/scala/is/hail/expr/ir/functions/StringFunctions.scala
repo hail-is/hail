@@ -52,7 +52,7 @@ object StringFunctions extends RegistryFunctions {
 
     registerIR("[]", TString(), TInt32()) { (s, idx) =>
       // rather than do a bunch of bounds checking here, check the length of the StringSlice result - way easier
-      val sName = ir.genUID()
+      val sName = ir.genSym("s")
       val sResult = ir.Ref(sName, TString())
       ir.Let(
         sName,

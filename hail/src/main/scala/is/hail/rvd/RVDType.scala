@@ -1,12 +1,10 @@
 package is.hail.rvd
 
 import is.hail.annotations._
-import is.hail.expr.ir.IRParser
-import is.hail.expr.types._
+import is.hail.expr.ir.{IRParser, Sym}
 import is.hail.expr.types.physical.{PInterval, PStruct, PType}
 import is.hail.expr.types.virtual.TStruct
 import is.hail.utils._
-import org.apache.commons.lang3.builder.HashCodeBuilder
 import org.json4s.CustomSerializer
 import org.json4s.JsonAST.{JArray, JObject, JString, JValue}
 
@@ -16,10 +14,10 @@ class RVDTypeSerializer extends CustomSerializer[RVDType](format => ( {
   case rvdType: RVDType => JString(rvdType.toString)
 }))
 
-final case class RVDType(rowType: PStruct, key: IndexedSeq[String])
+final case class RVDType(rowType: PStruct, key: IndexedSeq[Sym])
   extends Serializable {
 
-  val keySet: Set[String] = key.toSet
+  val keySet: Set[Sym] = key.toSet
 
   val kType: PStruct = rowType.typeAfterSelect(key.map(rowType.fieldIdx))
   val valueType: PStruct = rowType.dropFields(keySet)
@@ -114,7 +112,7 @@ final case class RVDType(rowType: PStruct, key: IndexedSeq[String])
       kRowOrd.compare(wrv.value, rv)
   }
 
-  def insert(typeToInsert: PType, path: List[String]): (RVDType, UnsafeInserter) = {
+  def insert(typeToInsert: PType, path: List[Sym]): (RVDType, UnsafeInserter) = {
     assert(path.nonEmpty)
     assert(!key.contains(path.head))
 
@@ -125,15 +123,15 @@ final case class RVDType(rowType: PStruct, key: IndexedSeq[String])
 
   def toJSON: JValue =
     JObject(List(
-      "partitionKey" -> JArray(key.map(JString).toList),
-      "key" -> JArray(key.map(JString).toList),
+      "partitionKey" -> JArray(key.map(k => JString(k.toString)).toList),
+      "key" -> JArray(key.map(k => JString(k.toString)).toList),
       "rowType" -> JString(rowType.parsableString())))
 
   override def toString: String = {
     val sb = new StringBuilder()
     sb.append("RVDType{key:[[")
     if (key.nonEmpty) {
-      key.foreachBetween(k => sb.append(prettyIdentifier(k)))(sb += ',')
+      key.foreachBetween(k => sb.append(k))(sb += ',')
     }
     sb.append("]],row:")
     sb.append(rowType.parsableString())
@@ -142,7 +140,7 @@ final case class RVDType(rowType: PStruct, key: IndexedSeq[String])
   }
 
   // Return an OrderedRVD whose key equals or at least starts with 'newKey'.
-  def enforceKey(newKey: IndexedSeq[String], isSorted: Boolean = false): (RVDType, RVD => RVD) = {
+  def enforceKey(newKey: IndexedSeq[Sym], isSorted: Boolean = false): (RVDType, RVD => RVD) = {
     require(newKey.forall(rowType.hasField))
     val nPreservedFields = key.zip(newKey).takeWhile { case (l, r) => l == r }.length
     require(!isSorted || nPreservedFields > 0 || newKey.isEmpty)

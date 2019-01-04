@@ -5,17 +5,13 @@ import is.hail.expr.types.virtual.{TArray, TInt32}
 import is.hail.utils._
 
 object LowerMatrixIR {
-  val entriesFieldName = MatrixType.entriesIdentifier
-  val colsFieldName = "__cols"
-  val colsField = Symbol(colsFieldName)
-  val entriesField = Symbol(entriesFieldName)
 
   def apply(ir: IR): IR = lower(ir)
   def apply(tir: TableIR): TableIR = lower(tir)
   def apply(mir: MatrixIR): MatrixIR =
     CastTableToMatrix(lower(mir),
-      entriesFieldName,
-      colsFieldName,
+      EntriesSym,
+      ColsSym,
       mir.typ.colKey)
 
   private[this] def lower(bir: BaseIR): BaseIR = bir match {
@@ -39,7 +35,7 @@ object LowerMatrixIR {
 
   private[this] def lower(mir: MatrixIR): TableIR = {
     val lowered = matrixRules.applyOrElse(mir, (mir: MatrixIR) =>
-      CastMatrixToTable(lowerChildren(mir).asInstanceOf[MatrixIR], entriesFieldName, colsFieldName))
+      CastMatrixToTable(lowerChildren(mir).asInstanceOf[MatrixIR], EntriesSym, ColsSym))
     assert(lowered.typ == loweredType(mir.typ), lowered.typ + "\n" + loweredType(mir.typ))
     lowered
   }
@@ -55,8 +51,8 @@ object LowerMatrixIR {
         case (mir: MatrixIR, loweredChild: TableIR) =>
           CastTableToMatrix(
             loweredChild,
-            entriesFieldName,
-            colsFieldName,
+            EntriesSym,
+            ColsSym,
             mir.typ.colKey)
         case (_, loweredChild) =>
           loweredChild
@@ -66,117 +62,124 @@ object LowerMatrixIR {
   }
 
   def colVals(tir: TableIR): IR =
-    GetField(Ref("global", tir.typ.globalType), colsFieldName)
+    GetField(Ref(GlobalSym, tir.typ.globalType), ColsSym)
 
   def globals(tir: TableIR): IR =
     SelectFields(
-      Ref("global", tir.typ.globalType),
-      tir.typ.globalType.fieldNames.diff(FastSeq(colsFieldName)))
+      Ref(GlobalSym, tir.typ.globalType),
+      tir.typ.globalType.fieldNames.diff(FastSeq(ColsSym)))
 
   def nCols(tir: TableIR): IR = ArrayLen(colVals(tir))
 
   def entries(tir: TableIR): IR =
-    GetField(Ref("row", tir.typ.rowType), entriesFieldName)
+    GetField(Ref(RowSym, tir.typ.rowType), EntriesSym)
 
   def loweredType(
     typ: MatrixType,
-    entriesFieldName: String = entriesFieldName,
-    colsFieldName: String = colsFieldName
+    entries: Sym = EntriesSym,
+    cols: Sym = ColsSym
   ): TableType = TableType(
-    rowType = typ.rvRowType.rename(Map(MatrixType.entriesIdentifier -> entriesFieldName)),
+    rowType = typ.rvRowType.rename(Map(EntriesSym -> entries)),
     key = typ.rowKey,
-    globalType = typ.globalType.appendKey(colsFieldName, TArray(typ.colType)))
+    globalType = typ.globalType.appendKey(cols, TArray(typ.colType)))
 
   import is.hail.expr.ir.IRBuilder._
 
   private[this] def matrixRules: PartialFunction[MatrixIR, TableIR] = {
     case CastTableToMatrix(child, entries, cols, colKey) =>
-      TableRename(lower(child), Map(entries -> entriesFieldName), Map(cols -> colsFieldName))
+      TableRename(lower(child), Map(entries -> EntriesSym), Map(cols -> ColsSym))
 
     case MatrixKeyRowsBy(child, keys, isSorted) =>
       lower(child).keyBy(keys, isSorted)
 
     case MatrixFilterRows(child, pred) =>
       lower(child)
-        .rename(Map(entriesFieldName -> MatrixType.entriesIdentifier))
-        .filter(let (va = 'row,
-                     global = 'global.dropFields(colsField))
+        .rename(Map(EntriesSym -> EntriesSym))
+        .filter(let (RowSym ~> RowSym,
+                     GlobalSym ~> GlobalSym.dropFields(ColsSym))
                 in pred)
-        .rename(Map(MatrixType.entriesIdentifier -> entriesFieldName))
+        .rename(Map(EntriesSym -> EntriesSym))
 
     case MatrixFilterCols(child, pred) =>
+      val newColIdx = genSym("newColIdx")
+      val i = genSym("i")
       lower(child)
-        .mapGlobals('global.insertFields('newColIdx ->
-          irRange(0, 'global(colsField).len)
-            .filter('i ~>
-              (let (sa = 'global(colsField)('i),
-                    global = 'global.dropFields(colsField))
+        .mapGlobals(GlobalSym.insertFields(newColIdx ->
+          irRange(0, GlobalSym(ColsSym).len)
+            .filter(i ~>
+              (let (ColSym ~> GlobalSym(ColsSym)(i),
+                    GlobalSym ~> GlobalSym.dropFields(ColsSym))
                 in pred))))
-        .mapRows('row.insertFields(entriesField -> 'global('newColIdx).map('i ~> 'row(entriesField)('i))))
-        .mapGlobals('global
-          .insertFields(colsField ->
-            'global('newColIdx).map('i ~> 'global(colsField)('i)))
-          .dropFields('newColIdx))
+        .mapRows(RowSym.insertFields(EntriesSym -> GlobalSym(newColIdx).map(i ~> RowSym(EntriesSym)(i))))
+        .mapGlobals(GlobalSym
+          .insertFields(ColsSym ->
+            GlobalSym(newColIdx).map(i ~> GlobalSym(ColsSym)(i)))
+          .dropFields(newColIdx))
 
     case MatrixChooseCols(child, oldIndices) =>
+      val newColIdx = genSym("newColIdx")
+      val i = genSym("i")
       lower(child)
-        .mapGlobals('global.insertFields('newColIdx -> oldIndices.map(I32)))
-        .mapRows('row.insertFields(entriesField -> 'global('newColIdx).map('i ~> 'row(entriesField)('i))))
-        .mapGlobals('global
-          .insertFields(colsField -> 'global('newColIdx).map('i ~> 'global(colsField)('i)))
-          .dropFields('newColIdx))
+        .mapGlobals(GlobalSym.insertFields(newColIdx -> oldIndices.map(I32)))
+        .mapRows(RowSym.insertFields(EntriesSym -> GlobalSym(newColIdx).map(i ~> RowSym(EntriesSym)(i))))
+        .mapGlobals(GlobalSym
+          .insertFields(ColsSym -> GlobalSym(newColIdx).map(i ~> GlobalSym(ColsSym)(i)))
+          .dropFields(newColIdx))
 
     case MatrixMapGlobals(child, newGlobals) =>
       lower(child)
         .mapGlobals(
-          let (global = 'global.dropFields(colsField)) { newGlobals }
-          .insertFields(colsField -> 'global(colsField)))
+          let (GlobalSym ~> GlobalSym.dropFields(ColsSym)) { newGlobals }
+          .insertFields(ColsSym -> GlobalSym(ColsSym)))
 
     case MatrixFilterEntries(child, pred) =>
-      lower(child).mapRows('row.insertFields(entriesField ->
-        irRange(0, 'global(colsField).len).map { 'i ~>
-          let (g = 'row(entriesField)('i)) {
-            irIf (let (sa = 'global (colsField)('i),
-                       va = 'row,
-                       global = 'global.dropFields(colsField))
+      val i = genSym("i")
+      lower(child).mapRows(RowSym.insertFields(EntriesSym ->
+        irRange(0, GlobalSym(ColsSym).len).map { i ~>
+          let (EntrySym ~> RowSym(EntriesSym)(i)) {
+            irIf (let (ColSym ~> GlobalSym (ColsSym)(i),
+                       RowSym ~> RowSym,
+                       GlobalSym ~> GlobalSym.dropFields(ColsSym))
                    in !irToProxy(pred)) {
               NA(child.typ.entryType)
             } {
-              'g
+              EntrySym
             }
           }
         }))
 
     case MatrixUnionCols(left, right) =>
-      val rightEntries = genUID()
-      val rightCols = genUID()
+      val a = genSym("a")
+      val rightEntries = genSym("rightEntries")
+      val rightCols = genSym("rightCols")
       TableJoin(
         lower(left),
         lower(right)
-          .mapRows('row
-            .insertFields(Symbol(rightEntries) -> 'row(entriesField))
+          .mapRows(RowSym
+            .insertFields(rightEntries -> RowSym(EntriesSym))
             .selectFields(right.typ.rowKey :+ rightEntries: _*))
-          .mapGlobals('global
-            .insertFields(Symbol(rightCols) -> 'global(colsField))
+          .mapGlobals(GlobalSym
+            .insertFields(rightCols -> GlobalSym(ColsSym))
             .selectFields(rightCols)),
         "inner")
-        .mapRows('row
-          .insertFields(entriesField ->
-            makeArray('row(entriesField), 'row(Symbol(rightEntries))).flatMap('a ~> 'a))
+        .mapRows(RowSym
+          .insertFields(EntriesSym ->
+            makeArray(RowSym(EntriesSym), RowSym(rightEntries)).flatMap(a ~> a))
           // TableJoin puts keys first; drop rightEntries, but also restore left row field order
           .selectFields(left.typ.rvRowType.fieldNames: _*))
-        .mapGlobals('global
-          .insertFields(colsField ->
-            makeArray('global(colsField), 'global(Symbol(rightCols))).flatMap('a ~> 'a))
-          .dropFields(Symbol(rightCols)))
+        .mapGlobals(GlobalSym
+          .insertFields(ColsSym ->
+            makeArray(GlobalSym(ColsSym), GlobalSym(rightCols)).flatMap(a ~> a))
+          .dropFields(rightCols))
 
     case MatrixMapEntries(child, newEntries) =>
-      lower(child).mapRows('row.insertFields(entriesField ->
-        irRange(0, 'global(colsField).len).map { 'i ~>
-          let (g = 'row(entriesField)('i),
-               sa = 'global(colsField)('i),
-               va = 'row,
-               global = 'global.dropFields(colsField)) {
+      val i = genSym("i")
+      lower(child).mapRows(RowSym.insertFields(EntriesSym ->
+        irRange(0, GlobalSym(ColsSym).len).map { i ~>
+          let (EntrySym ~> RowSym(EntriesSym)(i),
+               ColSym ~> GlobalSym(ColsSym)(i),
+               RowSym ~> RowSym,
+               GlobalSym ~> GlobalSym.dropFields(ColsSym)) {
             newEntries
           }
         }))
@@ -190,25 +193,28 @@ object LowerMatrixIR {
     case MatrixDistinctByRow(child) => TableDistinct(lower(child))
 
     case MatrixCollectColsByKey(child) =>
+      val newColIdx = genSym("newColIdx")
+      val i = genSym("i")
+      val kv = genSym("kv")
       lower(child)
-        .mapGlobals('global.insertFields('newColIdx ->
-          irRange(0, 'global(colsField).len).map { 'i ~>
-            makeTuple('global(colsField)('i).selectFields(child.typ.colKey: _*),
-                      'i)
+        .mapGlobals(GlobalSym.insertFields(newColIdx ->
+          irRange(0, GlobalSym(ColsSym).len).map { i ~>
+            makeTuple(GlobalSym(ColsSym)(i).selectFields(child.typ.colKey: _*),
+                      i)
           }.groupByKey.toArray))
-        .mapRows('row.insertFields(entriesField ->
-          'global('newColIdx).map { 'kv ~>
+        .mapRows(RowSym.insertFields(EntriesSym ->
+          GlobalSym(newColIdx).map { kv ~>
             makeStruct(child.typ.entryType.fieldNames.map { s =>
-              (Symbol(s), 'kv('value).map { 'i ~> 'row(entriesField)('i)(Symbol(s)) }) }: _*)
+              (s, kv(I("value")).map { i ~> RowSym(EntriesSym)(i)(s) }) }: _*)
           }))
-        .mapGlobals('global
-          .insertFields(colsField ->
-            'global('newColIdx).map { 'kv ~>
-              'kv('key).insertFields(
+        .mapGlobals(GlobalSym
+          .insertFields(ColsSym ->
+            GlobalSym(newColIdx).map { kv ~>
+              kv(I("key")).insertFields(
                 child.typ.colValueStruct.fieldNames.map { s =>
-                  (Symbol(s), 'kv('value).map('i ~> 'global(colsField)('i)(Symbol(s))))}: _*)
+                  (s, kv(I("value")).map(i ~> GlobalSym(ColsSym)(i)(s)))}: _*)
             })
-          .dropFields('newColIdx)
+          .dropFields(newColIdx)
         )
 
     case MatrixExplodeRows(child, path) => TableExplode(lower(child), path)
@@ -216,33 +222,36 @@ object LowerMatrixIR {
 
   private[this] def tableRules: PartialFunction[TableIR, TableIR] = {
     case CastMatrixToTable(child, entries, cols) =>
-      TableRename(lower(child), Map(entriesFieldName -> entries), Map(colsFieldName -> cols))
+      TableRename(lower(child), Map(EntriesSym -> entries), Map(ColsSym -> cols))
 
     case MatrixRowsTable(child) =>
       lower(child)
-        .mapGlobals('global.dropFields(colsField))
-        .mapRows('row.dropFields(entriesField))
+        .mapGlobals(GlobalSym.dropFields(ColsSym))
+        .mapRows(RowSym.dropFields(EntriesSym))
 
     case MatrixColsTable(child) =>
+      val i = genSym("i")
+      val colElem = genSym("colElem")
+      val elt = genSym("elt")
       val colKey = child.typ.colKey
-      let(__cols_and_globals = lower(child).getGlobals) {
+      let(GlobalAndColsSym ~> lower(child).getGlobals) {
         val sortedCols = if (colKey.isEmpty)
-          '__cols_and_globals (colsField)
+          GlobalAndColsSym(ColsSym)
         else
-          irRange(0, irArrayLen('__cols_and_globals (colsField)), 1)
+          irRange(0, irArrayLen(GlobalAndColsSym(ColsSym)), 1)
             .map {
-              'i ~> let(__cols_element = '__cols_and_globals (colsField)('i)) {
+              i ~> let(colElem ~> GlobalAndColsSym(ColsSym)(i)) {
                 makeStruct(
                   // key struct
-                  '_1 -> '__cols_element.selectFields(colKey: _*),
-                  '_2 -> '__cols_element)
+                  Identifier("_1") -> colElem.selectFields(colKey: _*),
+                  Identifier("_2") -> colElem)
               }
             }
             .sort(true, onKey = true)
             .map {
-              'elt ~> 'elt ('_2)
+              elt ~> elt (Identifier("_2"))
             }
-        makeStruct('rows -> sortedCols, 'global -> '__cols_and_globals.dropFields(colsField))
+        makeStruct(RowsSym -> sortedCols, GlobalSym -> GlobalAndColsSym.dropFields(ColsSym))
       }.parallelize(None).keyBy(child.typ.colKey)
   }
 }

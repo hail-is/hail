@@ -1,7 +1,7 @@
 package is.hail.utils
 
 import is.hail.annotations.{Region, RegionValueBuilder, SafeRow}
-import is.hail.expr.ir.{Compile, MakeTuple, IRParserEnvironment, IRParser}
+import is.hail.expr.ir.{Compile, I, IRParser, IRParserEnvironment, MakeTuple}
 import is.hail.expr.types.physical.PBaseStruct
 import is.hail.expr.types.virtual.{TInt64, TTuple, Type}
 import org.apache.spark.sql.Row
@@ -46,7 +46,7 @@ object Graph {
       warn(s"over 400,000 edges are in the graph; maximal_independent_set may run out of memory")
 
     val wrappedNodeType = TTuple(nodeType)
-    val refMap = Map("l" -> wrappedNodeType, "r" -> wrappedNodeType)
+    val refMap = Map(I("l") -> wrappedNodeType, I("r") -> wrappedNodeType)
 
     val tieBreakerF = tieBreaker.map { e =>
       val ir = IRParser.parse_value_ir(e, IRParserEnvironment(refMap))

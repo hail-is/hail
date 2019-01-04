@@ -2,7 +2,7 @@ package is.hail.io.plink
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr.ir.{MatrixRead, MatrixReader, MatrixValue, PruneDeadFields}
+import is.hail.expr.ir.{I, MatrixRead, MatrixReader, MatrixValue, PruneDeadFields}
 import is.hail.expr.types._
 import is.hail.expr.types.virtual._
 import is.hail.io.vcf.LoadVCF
@@ -140,7 +140,7 @@ case class MatrixPLINKReader(
 
   val (sampleInfo, signature) = LoadPlink.parseFam(fam, ffConfig, hc.hadoopConf)
 
-  val nameMap = Map("id" -> "s")
+  val nameMap = Map(I("id") -> I("s"))
   val saSignature = signature.copy(fields = signature.fields.map(f => f.copy(name = nameMap.getOrElse(f.name, f.name))))
 
   val nSamples = sampleInfo.length
@@ -180,14 +180,14 @@ case class MatrixPLINKReader(
 
   val fullType: MatrixType = MatrixType.fromParts(
     globalType = TStruct.empty(),
-    colKey = Array("s"),
+    colKey = ISeq("s"),
     colType = saSignature,
     rowType = TStruct(
       "locus" -> TLocus.schemaFromRG(referenceGenome),
       "alleles" -> TArray(TString()),
       "rsid" -> TString(),
       "cm_position" -> TFloat64()),
-    rowKey = Array("locus", "alleles"),
+    rowKey = ISeq("locus", "alleles"),
     entryType = TStruct("GT" -> TCall()))
 
   val fullRVDType: RVDType = fullType.canonicalRVDType

@@ -2,7 +2,7 @@ package is.hail.methods
 
 import breeze.linalg._
 import is.hail.annotations._
-import is.hail.expr.ir.{TableLiteral, TableValue}
+import is.hail.expr.ir.{IRParser, Sym, TableLiteral, TableValue}
 import is.hail.expr.types.virtual.{TArray, TFloat64, TStruct}
 import is.hail.expr.types.TableType
 import is.hail.stats._
@@ -19,10 +19,20 @@ object LogisticRegression {
     test: String,
     yField: String,
     xField: String,
-    _covFields: java.util.ArrayList[String],
-    _passThrough: java.util.ArrayList[String]): Table = {
-    val covFields = _covFields.asScala.toArray
-    val passThrough = _passThrough.asScala.toArray
+    covFields: java.util.ArrayList[String],
+    passThrough: java.util.ArrayList[String]): Table =
+    LogisticRegression(vsm, test,
+      IRParser.parseSymbol(yField),
+      IRParser.parseSymbol(xField),
+      covFields.asScala.map(IRParser.parseSymbol).toArray,
+      passThrough.asScala.map(IRParser.parseSymbol).toArray)
+
+  def apply(vsm: MatrixTable,
+    test: String,
+    yField: Sym,
+    xField: Sym,
+    covFields: Array[Sym],
+    passThrough: Array[Sym]): Table = {
     val logRegTest = LogisticRegressionTest.tests(test)
 
     val (y, cov, completeColIdx) = RegressionUtils.getPhenoCovCompleteSamples(vsm, yField, covFields)

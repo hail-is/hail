@@ -143,12 +143,12 @@ class TableIRTests(unittest.TestCase):
             ir.MatrixEntriesTable(matrix_read),
             ir.MatrixRowsTable(matrix_read),
             ir.TableParallelize(ir.MakeStruct([
-                ('rows', ir.Literal(hl.tarray(hl.tstruct(a=hl.tint32)), [{'a':None}, {'a':5}, {'a':-3}])),
-                ('global', ir.MakeStruct([]))]), None),
+                (ir.rows_sym, ir.Literal(hl.tarray(hl.tstruct(a=hl.tint32)), [{'a':None}, {'a':5}, {'a':-3}])),
+                (ir.global_sym, ir.MakeStruct([]))]), None),
             ir.TableMapRows(
                 ir.TableKeyBy(table_read, []),
                 ir.MakeStruct([
-                    ('a', ir.GetField(ir.Ref('row'), 'f32')),
+                    ('a', ir.GetField(ir.Ref(ir.row_sym), 'f32')),
                     ('b', ir.F64(-2.11))])),
             ir.TableMapGlobals(
                 table_read,
@@ -255,7 +255,7 @@ class ValueTests(unittest.TestCase):
             map_globals_ir = ir.TableMapGlobals(
                 ir.TableRange(1, 1),
                 ir.InsertFields(
-                    ir.Ref("global"),
+                    ir.Ref(ir.global_sym),
                     [("foo", row_v)]))
             new_globals = hl.eval(hl.Table(map_globals_ir).globals)
             self.assertEquals(new_globals, hl.Struct(foo=v))

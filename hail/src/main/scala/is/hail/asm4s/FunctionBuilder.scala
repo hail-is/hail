@@ -3,6 +3,8 @@ package is.hail.asm4s
 import java.io._
 import java.util
 
+import is.hail.expr.ir.Sym
+
 import scala.collection.JavaConverters._
 import scala.collection.generic.Growable
 import scala.collection.mutable
@@ -95,9 +97,13 @@ class MethodBuilder(val fb: FunctionBuilder[_], val mname: String, val parameter
 
   def newField[T: TypeInfo](name: String = null): ClassFieldRef[T] = fb.newField[T](name)
 
+  def newField[T: TypeInfo](name: Sym): ClassFieldRef[T] = fb.newField[T](name.toString)
+
   def newLazyField[T: TypeInfo](setup: Code[T]): LazyFieldRef[T] = newLazyField("")(setup)
 
   def newLazyField[T: TypeInfo](name: String)(setup: Code[T]): LazyFieldRef[T] = fb.newLazyField(name)(setup)
+
+  def newLazyField[T: TypeInfo](name: Sym)(setup: Code[T]): LazyFieldRef[T] = fb.newLazyField(name.toString)(setup)
 
   def getArg[T](i: Int)(implicit tti: TypeInfo[T]): LocalRef[T] = {
     assert(i >= 0)

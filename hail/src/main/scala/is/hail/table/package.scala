@@ -1,7 +1,9 @@
 package is.hail
 
-package object table {
-  def asc(field: String): SortField = SortField(field, Ascending)
+import is.hail.expr.ir.Sym
 
-  def desc(field: String): SortField = SortField(field, Descending)
+package object table {
+  def asc(field: Sym): SortField = SortField(field, Ascending)
+
+  def desc(field: Sym): SortField = SortField(field, Descending)
 }

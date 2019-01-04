@@ -26,7 +26,7 @@ case object Ascending extends SortOrder
 
 case object Descending extends SortOrder
 
-case class SortField(field: String, sortOrder: SortOrder)
+case class SortField(field: Sym, sortOrder: SortOrder)
 
 abstract class AbstractTableSpec extends RelationalSpec {
   def references_rel_path: String
@@ -50,10 +50,10 @@ object Table {
     new Table(hc, TableRange(n, nPartitions.getOrElse(hc.sc.defaultParallelism)))
 
   def fromDF(hc: HailContext, df: DataFrame, key: java.util.ArrayList[String]): Table = {
-    fromDF(hc, df, key.asScala.toArray.toFastIndexedSeq)
+    fromDF(hc, df, key.asScala.map(IRParser.parseSymbol).toArray)
   }
 
-  def fromDF(hc: HailContext, df: DataFrame, key: IndexedSeq[String] = FastIndexedSeq()): Table = {
+  def fromDF(hc: HailContext, df: DataFrame, key: IndexedSeq[Sym] = FastIndexedSeq()): Table = {
     val signature = SparkAnnotationImpex.importType(df.schema).asInstanceOf[TStruct]
     Table(hc, df.rdd, signature, key)
   }
@@ -91,14 +91,14 @@ object Table {
     hc: HailContext,
     rdd: RDD[Row],
     signature: TStruct,
-    key: IndexedSeq[String]
+    key: IndexedSeq[Sym]
   ): Table = apply(hc, rdd, signature, key, TStruct.empty(), Annotation.empty, isSorted = false)
 
   def apply(
     hc: HailContext,
     rdd: RDD[Row],
     signature: TStruct,
-    key: IndexedSeq[String],
+    key: IndexedSeq[Sym],
     isSorted: Boolean
   ): Table = apply(hc, rdd, signature, key, TStruct.empty(), Annotation.empty, isSorted)
 
@@ -106,7 +106,7 @@ object Table {
     hc: HailContext,
     rdd: RDD[Row],
     signature: TStruct,
-    key: IndexedSeq[String],
+    key: IndexedSeq[Sym],
     globalSignature: TStruct,
     globals: Annotation
   ): Table = apply(
@@ -122,7 +122,7 @@ object Table {
     hc: HailContext,
     rdd: RDD[Row],
     signature: TStruct,
-    key: IndexedSeq[String],
+    key: IndexedSeq[Sym],
     globalSignature: TStruct,
     globals: Annotation,
     isSorted: Boolean
@@ -139,7 +139,7 @@ object Table {
     hc: HailContext,
     crdd: ContextRDD[RVDContext, Row],
     signature: TStruct,
-    key: IndexedSeq[String],
+    key: IndexedSeq[Sym],
     isSorted: Boolean
   ): Table = apply(hc, crdd, signature, key, TStruct.empty(), Annotation.empty, isSorted)
 
@@ -147,7 +147,7 @@ object Table {
     hc: HailContext,
     crdd: ContextRDD[RVDContext, Row],
     signature: TStruct,
-    key: IndexedSeq[String],
+    key: IndexedSeq[Sym],
     globalSignature: TStruct,
     globals: Annotation,
     isSorted: Boolean
@@ -181,7 +181,7 @@ object Table {
     return true
   }
 
-    def multiWayZipJoin(tables: java.util.ArrayList[Table], fieldName: String, globalName: String): Table = {
+    def multiWayZipJoin(tables: java.util.ArrayList[Table], fieldName: Sym, globalName: Sym): Table = {
       val tabs = tables.asScala.toFastIndexedSeq
       new Table(
         tabs.head.hc,
@@ -197,7 +197,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
     hc: HailContext,
     crdd: ContextRDD[RVDContext, RegionValue],
     signature: TStruct,
-    key: IndexedSeq[String] = FastIndexedSeq(),
+    key: IndexedSeq[Sym] = FastIndexedSeq(),
     globalSignature: TStruct = TStruct.empty(),
     globals: Row = Row.empty
   ) = this(hc,
@@ -234,7 +234,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
       !key.contains(f.name)
     ).map(_.index).toArray
 
-  def fieldNames: Array[String] = fields.map(_.name)
+  def fieldNames: Array[Sym] = fields.map(_.name)
 
   def partitionCounts(): IndexedSeq[Long] = {
     tir.partitionCounts match {
@@ -303,8 +303,8 @@ class Table(val hc: HailContext, val tir: TableIR) {
     } else if (key != other.key) {
       info(
         s"""different keys:
-            | left: ${ key.map(_.mkString(", ")) }
-            | right: ${ other.key.map(_.mkString(", "))}
+            | left: ${ key.mkString(", ") }
+            | right: ${ other.key.mkString(", ") }
             |""".stripMargin)
       false
     } else if (globalSignatureOpt != other.globalSignature.deepOptional()) {
@@ -381,13 +381,13 @@ class Table(val hc: HailContext, val tir: TableIR) {
     (ir.Interpret(t, ir.Env.empty, FastIndexedSeq(), None), t.typ)
   }
 
-  def annotateGlobal(a: Annotation, t: Type, name: String): Table = {
+  def annotateGlobal(a: Annotation, t: Type, name: Sym): Table = {
     new Table(hc, TableMapGlobals(tir,
-      ir.InsertFields(ir.Ref("global", tir.typ.globalType), FastSeq(name -> ir.Literal.coerce(t, a)))))
+      ir.InsertFields(ir.Ref(GlobalSym, tir.typ.globalType), FastSeq(name -> ir.Literal.coerce(t, a)))))
   }
 
   def annotateGlobal(a: Annotation, t: String, name: String): Table =
-    annotateGlobal(a, IRParser.parseType(t), name)
+    annotateGlobal(a, IRParser.parseType(t), IRParser.parseSymbol(name))
 
   def selectGlobal(expr: String): Table = {
     val ir = IRParser.parse_value_ir(expr, IRParserEnvironment(typ.refMap))
@@ -397,17 +397,17 @@ class Table(val hc: HailContext, val tir: TableIR) {
   def head(n: Long): Table = new Table(hc, TableHead(tir, n))
 
   def keyBy(keys: java.util.ArrayList[String]): Table =
-    keyBy(keys.asScala.toFastIndexedSeq)
+    keyBy(keys.asScala.map(IRParser.parseSymbol).toFastIndexedSeq)
 
   def keyBy(keys: java.util.ArrayList[String], isSorted: Boolean): Table =
-    keyBy(keys.asScala.toFastIndexedSeq, isSorted)
+    keyBy(keys.asScala.map(IRParser.parseSymbol).toFastIndexedSeq, isSorted)
 
-  def keyBy(keys: IndexedSeq[String], isSorted: Boolean = false): Table =
+  def keyBy(keys: IndexedSeq[Sym], isSorted: Boolean = false): Table =
     new Table(hc, TableKeyBy(tir, keys, isSorted))
 
-  def keyBy(maybeKeys: Option[IndexedSeq[String]]): Table = keyBy(maybeKeys, false)
+  def keyBy(maybeKeys: Option[IndexedSeq[Sym]]): Table = keyBy(maybeKeys, false)
 
-  def keyBy(maybeKeys: Option[IndexedSeq[String]], isSorted: Boolean): Table =
+  def keyBy(maybeKeys: Option[IndexedSeq[Sym]], isSorted: Boolean): Table =
     keyBy(maybeKeys.getOrElse(FastIndexedSeq()), isSorted)
 
   def unkey(): Table = keyBy(FastIndexedSeq())
@@ -418,7 +418,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
   def mapRows(newRow: IR): Table =
     new Table(hc, TableMapRows(tir, newRow))
 
-  def leftJoinRightDistinct(other: Table, root: String): Table =
+  def leftJoinRightDistinct(other: Table, root: Sym): Table =
     new Table(hc, TableLeftJoinRightDistinct(tir, other.tir, root))
 
   def export(path: String, typesFile: String = null, header: Boolean = true, exportType: Int = ExportType.CONCATENATED) {
@@ -430,10 +430,10 @@ class Table(val hc: HailContext, val tir: TableIR) {
   }
 
   def toMatrixTable(
-    rowKeys: Array[String],
-    colKeys: Array[String],
-    rowFields: Array[String],
-    colFields: Array[String],
+    rowKeys: IndexedSeq[Sym],
+    colKeys: IndexedSeq[Sym],
+    rowFields: IndexedSeq[Sym],
+    colFields: IndexedSeq[Sym],
     nPartitions: Option[Int] = None
   ): MatrixTable = {
     new MatrixTable(hc, TableToMatrixTable(tir, rowKeys, colKeys, rowFields, colFields, nPartitions))
@@ -445,7 +445,10 @@ class Table(val hc: HailContext, val tir: TableIR) {
     colKey: java.util.ArrayList[String]
   ): MatrixTable =
     new MatrixTable(hc,
-      CastTableToMatrix(tir, entriesFieldName, colsFieldName, colKey.asScala.toFastIndexedSeq))
+      CastTableToMatrix(tir,
+        IRParser.parseSymbol(entriesFieldName),
+        IRParser.parseSymbol(colsFieldName),
+        colKey.asScala.map(IRParser.parseSymbol).toFastIndexedSeq))
 
   def aggregateByKey(expr: String): Table = {
     val x = IRParser.parse_value_ir(expr, IRParserEnvironment(typ.refMap))
@@ -484,13 +487,13 @@ class Table(val hc: HailContext, val tir: TableIR) {
       signature.schema.asInstanceOf[StructType])
   }
 
-  def explode(column: String): Table = new Table(hc, TableExplode(tir, Array(column)))
+  def explode(column: Sym): Table = new Table(hc, TableExplode(tir, ISeq(column)))
 
-  def explode(columnNames: Array[String]): Table = {
+  def explode(columnNames: IndexedSeq[Sym]): Table = {
     columnNames.foldLeft(this)((kt, name) => kt.explode(name))
   }
 
-  def explode(columnNames: java.util.ArrayList[String]): Table = explode(columnNames.asScala.toArray)
+  def explode(columnNames: java.util.ArrayList[String]): Table = explode(columnNames.asScala.map(IRParser.parseSymbol).toArray)
 
   def collect(): Array[Row] = rdd.collect()
 
@@ -521,7 +524,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
   def copy2(rvd: RVD = rvd,
     signature: TStruct = signature,
-    key: IndexedSeq[String] = key,
+    key: IndexedSeq[Sym] = key,
     globalSignature: TStruct = globalSignature,
     globals: BroadcastRow = globals): Table = {
     new Table(hc, TableLiteral(

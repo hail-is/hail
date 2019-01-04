@@ -4,6 +4,7 @@ import java.io.InputStream
 import is.hail.HailContext
 import is.hail.annotations.BroadcastRow
 import is.hail.expr.ir
+import is.hail.expr.ir.RowSym
 import is.hail.expr.types._
 import is.hail.io.CodecSpec
 import is.hail.rvd.AbstractRVDSpec
@@ -112,7 +113,7 @@ class TableEmitter(tub: TranslationUnitBuilder) { outer =>
            """.stripMargin
 
         val mapF = tub.buildFunction("map_row", Array("ScalaRegion*" -> "region", "const char *" -> "row"), "char *")
-        val substEnv = ir.Env.empty[ir.IR].bind("row", ir.In(0, child.typ.rowType))
+        val substEnv = ir.Env.empty[ir.IR].bind(RowSym, ir.In(0, child.typ.rowType))
         val et = Emit(mapF, 1, ir.Subst(newRow, substEnv))
         mapF +=
           s"""
@@ -177,7 +178,7 @@ class TableEmitter(tub: TranslationUnitBuilder) { outer =>
            """.stripMargin
 
         val filterF = tub.buildFunction("keep_row", Array("ScalaRegion*" -> "region", "const char *" -> "row"), "bool")
-        val substEnv = ir.Env.empty[ir.IR].bind("row", ir.In(0, child.typ.rowType))
+        val substEnv = ir.Env.empty[ir.IR].bind(RowSym, ir.In(0, child.typ.rowType))
         val et = Emit(filterF, 1, ir.Subst(cond, substEnv))
         filterF +=
           s"""

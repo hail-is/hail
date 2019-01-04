@@ -1,6 +1,6 @@
 import json
 from hail.ir.base_ir import *
-from hail.utils.java import escape_str, escape_id, parsable_strings, dump_json
+from hail.utils.java import escape_id, parsable_ids, dump_json
 
 class MatrixAggregateRowsByKey(MatrixIR):
     def __init__(self, child, entry_expr, row_expr):
@@ -52,7 +52,7 @@ class MatrixMapCols(MatrixIR):
 
     def render(self, r):
         return '(MatrixMapCols {} {} {})'.format(
-            '(' + ' '.join(f'"{escape_str(f)}"' for f in self.new_key) + ')' if self.new_key is not None else 'None',
+            '(' + ' '.join(f'{escape_id(f)}' for f in self.new_key) + ')' if self.new_key is not None else 'None',
             r(self.child), r(self.new_col))
 
 class MatrixUnionCols(MatrixIR):
@@ -152,10 +152,10 @@ class TableToMatrixTable(MatrixIR):
 
     def render(self, r):
         return f'(TableToMatrixTable ' \
-               f'{parsable_strings(self.row_key)} ' \
-               f'{parsable_strings(self.col_key)} ' \
-               f'{parsable_strings(self.row_fields)} ' \
-               f'{parsable_strings(self.col_fields)} ' \
+               f'{parsable_ids(self.row_key)} ' \
+               f'{parsable_ids(self.col_key)} ' \
+               f'{parsable_ids(self.row_fields)} ' \
+               f'{parsable_ids(self.col_fields)} ' \
                f'{"None" if self.n_partitions is None else str(self.n_partitions)} ' \
                f'{r(self.child)})'
 
@@ -222,8 +222,8 @@ class CastTableToMatrix(MatrixIR):
 
     def render(self, r):
         return '(CastTableToMatrix {} {} ({}) {})'.format(
-           escape_str(self.entries_field_name),
-           escape_str(self.cols_field_name),
+           escape_id(self.entries_field_name),
+           escape_id(self.cols_field_name),
            ' '.join([escape_id(id) for id in self.col_key]),
            r(self.child))
 
@@ -243,7 +243,7 @@ class MatrixAnnotateRowsTable(MatrixIR):
         else:
             key_bool = True
             key_strs = ' '.join(str(x) for x in self.key)
-        return f'(MatrixAnnotateRowsTable "{self.root}" {key_bool} {r(self.child)} {r(self.table)} {key_strs})'
+        return f'(MatrixAnnotateRowsTable {escape_id(self.root)} {key_bool} {r(self.child)} {r(self.table)} {key_strs})'
 
 class MatrixAnnotateColsTable(MatrixIR):
     def __init__(self, child, table, root):
@@ -253,7 +253,7 @@ class MatrixAnnotateColsTable(MatrixIR):
         self.root = root
 
     def render(self, r):
-        return f'(MatrixAnnotateColsTable "{self.root}" {r(self.child)} {r(self.table)})'
+        return f'(MatrixAnnotateColsTable {escape_id(self.root)} {r(self.child)} {r(self.table)})'
 
 
 class MatrixToMatrixApply(MatrixIR):

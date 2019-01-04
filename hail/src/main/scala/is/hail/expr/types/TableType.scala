@@ -11,25 +11,25 @@ class TableTypeSerializer extends CustomSerializer[TableType](format => (
   { case JString(s) => IRParser.parseTableType(s) },
   { case tt: TableType => JString(tt.toString) }))
 
-case class TableType(rowType: TStruct, key: IndexedSeq[String], globalType: TStruct) extends BaseType {
+case class TableType(rowType: TStruct, key: IndexedSeq[Sym], globalType: TStruct) extends BaseType {
   val canonicalRVDType = RVDType(rowType.physicalType, key)
 
   def env: Env[Type] = {
     Env.empty[Type]
-      .bind(("global", globalType))
-      .bind(("row", rowType))
+      .bind((GlobalSym, globalType))
+      .bind((RowSym, rowType))
   }
 
   def globalEnv: Env[Type] = Env.empty[Type]
-    .bind("global" -> globalType)
+    .bind(GlobalSym -> globalType)
 
   def rowEnv: Env[Type] = Env.empty[Type]
-    .bind("global" -> globalType)
-    .bind("row" -> rowType)
+    .bind(GlobalSym -> globalType)
+    .bind(RowSym -> rowType)
 
-  def refMap: Map[String, Type] = Map(
-    "global" -> globalType,
-    "row" -> rowType)
+  def refMap: Map[Sym, Type] = Map(
+    GlobalSym -> globalType,
+    RowSym -> rowType)
 
   def keyType: TStruct = canonicalRVDType.kType.virtualType
   val keyFieldIdx: Array[Int] = canonicalRVDType.kFieldIdx
@@ -58,7 +58,7 @@ case class TableType(rowType: TStruct, key: IndexedSeq[String], globalType: TStr
     newline()
 
     sb.append(s"key:$space[")
-    key.foreachBetween(k => sb.append(prettyIdentifier(k)))(sb.append(s",$space"))
+    key.foreachBetween(k => sb.append(k))(sb.append(s",$space"))
     sb += ']'
     sb += ','
     newline()

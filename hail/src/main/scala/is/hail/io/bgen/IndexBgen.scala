@@ -62,7 +62,7 @@ object IndexBgen {
       annotationType
     )
 
-    val typ = RVDType(settings.typ.physicalType, Array("file_idx", "locus", "alleles"))
+    val typ = RVDType(settings.typ.physicalType, FastIndexedSeq("file_idx", "locus", "alleles"))
 
     val sHadoopConfBc = hc.sc.broadcast(new SerializableHadoopConfiguration(hConf))
 
@@ -83,15 +83,15 @@ object IndexBgen {
     val allelesIdx = rowType.fieldIdx("alleles")
     val offsetIdx = rowType.fieldIdx("offset")
     val fileIdxIdx = rowType.fieldIdx("file_idx")
-    val (keyType, _) = rowType.virtualType.select(Array("file_idx", "locus", "alleles"))
-    val (indexKeyType, _) = keyType.select(Array("locus", "alleles"))
+    val (keyType, _) = rowType.virtualType.select(FastIndexedSeq("file_idx", "locus", "alleles"))
+    val (indexKeyType, _) = keyType.select(FastIndexedSeq("locus", "alleles"))
 
     val attributes = Map("reference_genome" -> rg.orNull,
       "contig_recoding" -> recoding,
       "skip_invalid_loci" -> skipInvalidLoci)
 
     val rangeBounds = files.zipWithIndex.map { case (_, i) => Interval(Row(i), Row(i), includesStart = true, includesEnd = true) }
-    val partitioner = new RVDPartitioner(Array("file_idx"), keyType.asInstanceOf[TStruct], rangeBounds)
+    val partitioner = new RVDPartitioner(ISeq("file_idx"), keyType.asInstanceOf[TStruct], rangeBounds)
     val crvd = BgenRDD(hc.sc, partitions, settings, null)
 
     RVD.unkeyed(rowType, crvd)

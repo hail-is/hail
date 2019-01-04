@@ -6,6 +6,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.PruneDeadFields.isSupertype
+import is.hail.expr.ir.{Identifier, Sym}
 import is.hail.expr.types.{virtual, _}
 import is.hail.expr.types.physical.{PInt64, PStruct}
 import is.hail.expr.types.virtual.{TArray, TInterval, TStruct}
@@ -82,7 +83,7 @@ class RVD(
   def encodedRDD(codec: CodecSpec): RDD[Array[Byte]] =
     stabilize(codec)
 
-  def keyedEncodedRDD(codec: CodecSpec, key: IndexedSeq[String] = typ.key): RDD[(Any, Array[Byte])] = {
+  def keyedEncodedRDD(codec: CodecSpec, key: IndexedSeq[Sym] = typ.key): RDD[(Any, Array[Byte])] = {
     val enc = codec.buildEncoder(rowPType)
     val kFieldIdx = typ.copy(key = key).kFieldIdx
 
@@ -97,13 +98,13 @@ class RVD(
   }
 
   // Key and partitioner manipulation
-  def changeKey(newKey: IndexedSeq[String]): RVD =
+  def changeKey(newKey: IndexedSeq[Sym]): RVD =
     changeKey(newKey, newKey.length)
 
-  def changeKey(newKey: IndexedSeq[String], partitionKey: Int): RVD =
+  def changeKey(newKey: IndexedSeq[Sym], partitionKey: Int): RVD =
     RVD.coerce(typ.copy(key = newKey), partitionKey, this.crdd)
 
-  def extendKeyPreservesPartitioning(newKey: IndexedSeq[String]): RVD = {
+  def extendKeyPreservesPartitioning(newKey: IndexedSeq[Sym]): RVD = {
     require(newKey startsWith typ.key)
     require(newKey.forall(typ.rowType.fieldNames.contains))
     val rvdType = typ.copy(key = newKey)
@@ -116,7 +117,7 @@ class RVD(
     }
   }
 
-  def truncateKey(newKey: IndexedSeq[String]): RVD = {
+  def truncateKey(newKey: IndexedSeq[Sym]): RVD = {
     require(typ.key startsWith newKey)
     copy(
       typ = typ.copy(key = newKey),
@@ -229,7 +230,7 @@ class RVD(
 
   // Key-wise operations
 
-  def groupByKey(valuesField: String = "values"): RVD = {
+  def groupByKey(valuesField: Sym = Identifier("values")): RVD = {
     val newTyp = RVDType(
       (typ.kType.virtualType ++ TStruct(valuesField -> TArray(typ.valueType.virtualType))).physicalType,
       typ.key)
@@ -289,7 +290,7 @@ class RVD(
       )
   }
 
-  def localSort(newKey: IndexedSeq[String]): RVD = {
+  def localSort(newKey: IndexedSeq[Sym]): RVD = {
     require(newKey startsWith typ.key)
     require(newKey.forall(typ.rowType.fieldNames.contains))
     require(partitioner.satisfiesAllowedOverlap(typ.key.length - 1))
@@ -381,7 +382,7 @@ class RVD(
       crdd.cmapPartitionsWithIndex(f))
   }
 
-  def zipWithIndex(name: String, partitionCounts: Option[IndexedSeq[Long]] = None): RVD = {
+  def zipWithIndex(name: Sym, partitionCounts: Option[IndexedSeq[Long]] = None): RVD = {
     assert(!typ.key.contains(name))
 
     val (newRowPType, ins) = rowPType.unsafeStructInsert(PInt64(), List(name))
@@ -678,9 +679,9 @@ class RVD(
 
   def orderedLeftJoinDistinctAndInsert(
     right: RVD,
-    root: String,
-    lift: Option[String] = None,
-    dropLeft: Option[Array[String]] = None
+    root: Sym,
+    lift: Option[Sym] = None,
+    dropLeft: Option[Array[Sym]] = None
   ): RVD = {
     assert(!typ.key.contains(root))
 

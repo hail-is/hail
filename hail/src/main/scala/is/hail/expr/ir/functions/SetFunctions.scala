@@ -8,7 +8,7 @@ import is.hail.utils.FastSeq
 
 object SetFunctions extends RegistryFunctions {
   def contains(set: IR, elem: IR) = {
-    val i = Ref(genUID(), TInt32())
+    val i = Ref(genSym("i"), TInt32())
 
     If(IsNA(set),
       NA(TBoolean()),
@@ -32,7 +32,7 @@ object SetFunctions extends RegistryFunctions {
 
     registerIR("remove", TSet(tv("T")), tv("T")) { (s, v) =>
       val t = v.typ
-      val x = genUID()
+      val x = genSym("x")
       ToSet(
         ArrayFilter(
           ToArray(s),
@@ -42,7 +42,7 @@ object SetFunctions extends RegistryFunctions {
 
     registerIR("add", TSet(tv("T")), tv("T")) { (s, v) =>
       val t = v.typ
-      val x = genUID()
+      val x = genSym("x")
       ToSet(
         ArrayFlatMap(
           MakeArray(FastSeq(ToArray(s), MakeArray(FastSeq(v), TArray(t))), TArray(TArray(t))),
@@ -52,7 +52,7 @@ object SetFunctions extends RegistryFunctions {
 
     registerIR("union", TSet(tv("T")), TSet(tv("T"))) { (s1, s2) =>
       val t = -s1.typ.asInstanceOf[TSet].elementType
-      val x = genUID()
+      val x = genSym("x")
       ToSet(
         ArrayFlatMap(
           MakeArray(FastSeq(ToArray(s1), ToArray(s2)), TArray(TArray(t))),
@@ -62,7 +62,7 @@ object SetFunctions extends RegistryFunctions {
 
     registerIR("intersection", TSet(tv("T")), TSet(tv("T"))) { (s1, s2) =>
       val t = -s1.typ.asInstanceOf[TSet].elementType
-      val x = genUID()
+      val x = genSym("x")
       ToSet(
         ArrayFilter(ToArray(s1), x,
           contains(s2, Ref(x, t))))
@@ -70,7 +70,7 @@ object SetFunctions extends RegistryFunctions {
 
     registerIR("difference", TSet(tv("T")), TSet(tv("T"))) { (s1, s2) =>
       val t = -s1.typ.asInstanceOf[TSet].elementType
-      val x = genUID()
+      val x = genSym("x")
       ToSet(
         ArrayFilter(ToArray(s1), x,
           ApplyUnaryPrimOp(Bang(), contains(s2, Ref(x, t)))))
@@ -78,8 +78,8 @@ object SetFunctions extends RegistryFunctions {
 
     registerIR("isSubset", TSet(tv("T")), TSet(tv("T"))) { (s, w) =>
       val t = -s.typ.asInstanceOf[TSet].elementType
-      val a = genUID()
-      val x = genUID()
+      val a = genSym("a")
+      val x = genSym("x")
       ArrayFold(ToArray(s), True(), a, x,
         // FIXME short circuit
         ApplySpecial("&&",
@@ -96,9 +96,9 @@ object SetFunctions extends RegistryFunctions {
 
     registerIR("min", TSet(tnum("T"))) { s =>
       val t = s.typ.asInstanceOf[TSet].elementType
-      val a = genUID()
-      val size = genUID()
-      val last = genUID()
+      val a = genSym("a")
+      val size = genSym("size")
+      val last = genSym("last")
 
       Let(a, ToArray(s),
         Let(size, ArrayLen(Ref(a, TArray(t))),
@@ -111,9 +111,9 @@ object SetFunctions extends RegistryFunctions {
 
     registerIR("max", TSet(tnum("T"))) { s =>
       val t = s.typ.asInstanceOf[TSet].elementType
-      val a = genUID()
-      val size = genUID()
-      val last = genUID()
+      val a = genSym("a")
+      val size = genSym("size")
+      val last = genSym("last")
 
       Let(a, ToArray(s),
         Let(size, ArrayLen(Ref(a, TArray(t))),
@@ -126,8 +126,8 @@ object SetFunctions extends RegistryFunctions {
 
     registerIR("median", TSet(tnum("T"))) { s =>
       val t = -s.typ.asInstanceOf[TSet].elementType
-      val a = Ref(genUID(), TArray(t))
-      val size = Ref(genUID(), TInt32())
+      val a = Ref(genSym("a"), TArray(t))
+      val size = Ref(genSym("size"), TInt32())
       val lastIdx = size - 1
       val midIdx = lastIdx.floorDiv(2)
       def ref(i: IR) = ArrayRef(a, i)

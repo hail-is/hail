@@ -19,10 +19,10 @@ object IRBuilder {
 
   implicit def booleanToProxy(b: Boolean): IRProxy = if (b) True() else False()
 
-  implicit def ref(s: Symbol): IRProxy = (env: E) =>
-    Ref(s.name, env.lookup(s.name))
+  def ref(s: Sym): IRProxy = (env: E) =>
+    Ref(s, env.lookup(s))
 
-  implicit def symbolToSymbolProxy(s: Symbol): SymbolProxy = new SymbolProxy(s)
+  implicit def symToSymProxy(s: Sym): SymProxy = new SymProxy(s)
 
   implicit def arrayToProxy(seq: Seq[IRProxy]): IRProxy = (env: E) => {
     val irs = seq.map(_(env))
@@ -43,8 +43,8 @@ object IRBuilder {
 
   def makeArray(first: IRProxy, rest: IRProxy*): IRProxy = arrayToProxy(first +: rest)
 
-  def makeStruct(fields: (Symbol, IRProxy)*): IRProxy = (env: E) =>
-    MakeStruct(fields.map { case (s, ir) => (s.name, ir(env)) })
+  def makeStruct(fields: (Sym, IRProxy)*): IRProxy = (env: E) =>
+    MakeStruct(fields.map { case (s, ir) => (s, ir(env)) })
 
   def makeTuple(values: IRProxy*): IRProxy = (env: E) =>
     MakeTuple(values.map(_(env)))
@@ -64,37 +64,37 @@ object IRBuilder {
     def mapRows(newRow: IRProxy): TableIR =
       TableMapRows(tir, newRow(env))
 
-    def keyBy(keys: IndexedSeq[String], isSorted: Boolean = false): TableIR =
+    def keyBy(keys: IndexedSeq[Sym], isSorted: Boolean = false): TableIR =
       TableKeyBy(tir, keys, isSorted)
 
-    def rename(rowMap: Map[String, String], globalMap: Map[String, String] = Map.empty): TableIR =
+    def rename(rowMap: Map[Sym, Sym], globalMap: Map[Sym, Sym] = Map.empty): TableIR =
       TableRename(tir, rowMap, globalMap)
 
-    def renameGlobals(globalMap: Map[String, String]): TableIR =
+    def renameGlobals(globalMap: Map[Sym, Sym]): TableIR =
       rename(Map.empty, globalMap)
 
     def filter(ir: IRProxy): TableIR =
       TableFilter(tir, ir(env))
   }
 
-  class IRProxy(val ir: E => IR) extends AnyVal with Dynamic {
-    def apply(idx: IRProxy): IRProxy = (env: E) =>
-      ArrayRef(ir(env), idx(env))
+  class IRProxy(val ir: E => IR) extends Dynamic {
+    def apply(idx: Any): IRProxy = (env: E) => idx match {
+      case idx: IRProxy =>
+        ArrayRef(ir(env), idx(env))
+      case lookup: Sym =>
+        val eval = ir(env)
+        eval.typ match {
+          case _: TStruct =>
+            GetField(eval, lookup)
+          case _: TArray =>
+            ArrayRef(ir(env), ref(lookup)(env))
+        }
+    }
 
     def selectDynamic(field: String): IRProxy = (env: E) =>
-      GetField(ir(env), field)
+      GetField(ir(env), Identifier(field))
 
     def unary_! = new IRProxy((env: E) => ApplyUnaryPrimOp(Bang(), ir(env)))
-
-    def apply(lookup: Symbol): IRProxy = (env: E) => {
-      val eval = ir(env)
-      eval.typ match {
-        case _: TStruct =>
-          GetField(eval, lookup.name)
-        case _: TArray =>
-          ArrayRef(ir(env), ref(lookup)(env))
-      }
-    }
 
     def typecheck(t: Type): IRProxy = (env: E) => {
       val eval = ir(env)
@@ -103,16 +103,16 @@ object IRBuilder {
       eval
     }
 
-    def insertFields(fields: (Symbol, IRProxy)*): IRProxy = (env: E) =>
-      InsertFields(ir(env), fields.map { case (s, fir) => (s.name, fir(env)) })
+    def insertFields(fields: (Sym, IRProxy)*): IRProxy = (env: E) =>
+      InsertFields(ir(env), fields.map { case (s, fir) => (s, fir(env)) })
 
-    def selectFields(fields: String*): IRProxy = (env: E) =>
+    def selectFields(fields: Sym*): IRProxy = (env: E) =>
       SelectFields(ir(env), fields)
 
-    def dropFields(fields: Symbol*): IRProxy = (env: E) => {
+    def dropFields(fields: Sym*): IRProxy = (env: E) => {
       val struct = ir(env)
       val typ = struct.typ.asInstanceOf[TStruct]
-      SelectFields(struct, typ.fieldNames.diff(fields.map(_.name)))
+      SelectFields(struct, typ.fieldNames.diff(fields))
     }
 
     def len: IRProxy = (env: E) => ArrayLen(ir(env))
@@ -120,19 +120,19 @@ object IRBuilder {
     def filter(pred: LambdaProxy): IRProxy = (env: E) => {
       val array = ir(env)
       val eltType = array.typ.asInstanceOf[TArray].elementType
-      ArrayFilter(array, pred.s.name, pred.body(env.bind(pred.s.name -> eltType)))
+      ArrayFilter(array, pred.s, pred.body(env.bind(pred.s -> eltType)))
     }
 
     def map(f: LambdaProxy): IRProxy = (env: E) => {
       val array = ir(env)
       val eltType = array.typ.asInstanceOf[TArray].elementType
-      ArrayMap(array, f.s.name, f.body(env.bind(f.s.name -> eltType)))
+      ArrayMap(array, f.s, f.body(env.bind(f.s-> eltType)))
     }
 
     def flatMap(f: LambdaProxy): IRProxy = (env: E) => {
       val array = ir(env)
       val eltType = array.typ.asInstanceOf[TArray].elementType
-      ArrayFlatMap(array, f.s.name, f.body(env.bind(f.s.name -> eltType)))
+      ArrayFlatMap(array, f.s, f.body(env.bind(f.s-> eltType)))
     }
 
     def sort(ascending: IRProxy, onKey: Boolean = false): IRProxy = (env: E) => ArraySort(ir(env), ascending(env), onKey)
@@ -146,19 +146,19 @@ object IRBuilder {
     private[ir] def apply(env: E): IR = ir(env)
   }
 
-  class LambdaProxy(val s: Symbol, val body: IRProxy)
+  class LambdaProxy(val s: Sym, val body: IRProxy)
 
-  class SymbolProxy(val s: Symbol) extends AnyVal {
+  class SymProxy(val s: Sym) extends IRProxy(ref(s).ir) {
     def ~> (body: IRProxy): LambdaProxy = new LambdaProxy(s, body)
   }
 
-  case class BindingProxy(s: Symbol, value: IRProxy)
+  case class BindingProxy(s: Sym, value: IRProxy)
 
   object LetProxy {
     def bind(bindings: Seq[BindingProxy], body: IRProxy, env: E): IR =
       bindings match {
         case BindingProxy(sym, binding) +: rest =>
-          val name = sym.name
+          val name = sym
           val value = binding(env)
           Let(name, value, bind(rest, body, env.bind(name -> value.typ)))
         case Seq() =>
@@ -166,10 +166,9 @@ object IRBuilder {
       }
   }
 
-  object let extends Dynamic {
-    def applyDynamicNamed(method: String)(args: (String, IRProxy)*): LetProxy = {
-      assert(method == "apply")
-      new LetProxy(args.map { case (s, b) => BindingProxy(Symbol(s), b) })
+  object let {
+    def apply(args: LambdaProxy*): LetProxy = {
+      new LetProxy(args.map(arg => BindingProxy(arg.s, arg.body)))
     }
   }
 

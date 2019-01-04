@@ -2,7 +2,7 @@ package is.hail.expr.types.physical
 
 import is.hail.annotations._
 import is.hail.check.{Arbitrary, Gen}
-import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.ir.{EmitMethodBuilder, Sym}
 import is.hail.expr.types.virtual._
 import is.hail.expr.types.{BaseType, EncodedType}
 import is.hail.utils._
@@ -30,7 +30,7 @@ object PType {
 
   def genFields(required: Boolean, genFieldType: Gen[PType]): Gen[Array[PField]] = {
     Gen.buildableOf[Array](
-      Gen.zip(Gen.identifier, genFieldType))
+      Gen.zip(Gen.symbol, genFieldType))
       .filter(fields => fields.map(_._1).areDistinct())
       .map(fields => fields
         .iterator
@@ -163,7 +163,7 @@ abstract class PType extends BaseType with Serializable {
     unsafeOrdering()
   }
 
-  def unsafeInsert(typeToInsert: PType, path: List[String]): (PType, UnsafeInserter) =
+  def unsafeInsert(typeToInsert: PType, path: List[Sym]): (PType, UnsafeInserter) =
     PStruct.empty().unsafeInsert(typeToInsert, path)
 
   def insert(signature: PType, fields: String*): (PType, Inserter) = insert(signature, fields.toList)

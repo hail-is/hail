@@ -729,16 +729,16 @@ object Interpret {
       case TableAggregate(child, query) =>
         val localGlobalSignature = child.typ.globalType
         val (rvAggs, initOps, seqOps, aggResultType, postAggIR) = CompileWithAggregators[Long, Long, Long](
-          "global", child.typ.globalType.physicalType,
-          "global", child.typ.globalType.physicalType,
-          "row", child.typ.rowType.physicalType,
-          MakeTuple(Array(query)), "AGGR",
+          GlobalSym, child.typ.globalType.physicalType,
+          GlobalSym, child.typ.globalType.physicalType,
+          RowSym, child.typ.rowType.physicalType,
+          MakeTuple(Array(query)), AGGRSym,
           (nAggs: Int, initOpIR: IR) => initOpIR,
           (nAggs: Int, seqOpIR: IR) => seqOpIR)
 
         val (t, f) = Compile[Long, Long, Long](
-          "AGGR", aggResultType,
-          "global", child.typ.globalType.physicalType,
+          AGGRSym, aggResultType,
+          GlobalSym, child.typ.globalType.physicalType,
           postAggIR)
 
         val value = child.execute(HailContext.get)
@@ -800,27 +800,27 @@ object Interpret {
         val value = child.execute(HailContext.get)
         val colArrayType = TArray(child.typ.colType)
         val (rvAggs, initOps, seqOps, aggResultType, postAggIR) = CompileWithAggregators[Long, Long, Long, Long](
-          "global", child.typ.globalType.physicalType,
-          "global", child.typ.globalType.physicalType,
-          "sa", colArrayType.physicalType,
-          "va", child.typ.rvRowType.physicalType,
-          MakeTuple(Array(query)), "AGGR",
+          GlobalSym, child.typ.globalType.physicalType,
+          GlobalSym, child.typ.globalType.physicalType,
+          ColsSym, colArrayType.physicalType,
+          RowSym, child.typ.rvRowType.physicalType,
+          MakeTuple(Array(query)), AGGRSym,
           (nAggs: Int, initOpIR: IR) => initOpIR,
           (nAggs: Int, seqOpIR: IR) =>
             ArrayFor(
               ArrayRange(I32(0), I32(value.nCols), I32(1)),
               "idx",
               Let(
-                "sa",
-                ArrayRef(Ref("sa", colArrayType), Ref("idx", TInt32Optional)),
+                ColSym,
+                ArrayRef(Ref(ColsSym, colArrayType), Ref("idx", TInt32Optional)),
                 Let(
-                  "g",
-                  ArrayRef(GetField(Ref("va", child.typ.rvRowType), MatrixType.entriesIdentifier), Ref("idx", TInt32Optional)),
+                  EntrySym,
+                  ArrayRef(GetField(Ref(RowSym, child.typ.rvRowType), EntriesSym), Ref("idx", TInt32Optional)),
                   seqOpIR))))
 
         val (t, f) = Compile[Long, Long, Long](
-          "AGGR", aggResultType,
-          "global", child.typ.globalType.physicalType,
+          AGGRSym, aggResultType,
+          GlobalSym, child.typ.globalType.physicalType,
           postAggIR)
 
         val globalsBc = value.globals.broadcast

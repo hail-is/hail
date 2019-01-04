@@ -11,7 +11,7 @@ import scala.collection.mutable
 object LiftLiterals {
   lazy val emptyRow: BroadcastRow = BroadcastRow.empty(HailContext.get.sc)
 
-  def getLiterals(irs: IR*): Map[String, IR] = {
+  def getLiterals(irs: IR*): Map[Sym, IR] = {
     val included = mutable.Set.empty[IR]
 
     def visit(ir: IR): Unit = {
@@ -33,61 +33,61 @@ object LiftLiterals {
     }
 
     irs.foreach(visit)
-    included.toArray.map { l => genUID() -> l }.toMap
+    included.toArray.map { l => genSym("literal") -> l }.toMap
   }
 
-  def addLiterals(tir: TableIR, literals: Map[String, IR]): TableIR = {
+  def addLiterals(tir: TableIR, literals: Map[Sym, IR]): TableIR = {
     if (literals.isEmpty)
       tir
     else
       TableMapGlobals(tir,
         InsertFields(
-          Ref("global", tir.typ.globalType),
+          Ref(GlobalSym, tir.typ.globalType),
           literals.toFastIndexedSeq))
   }
 
-  def addLiterals(mir: MatrixIR, literals: Map[String, IR]): MatrixIR = {
+  def addLiterals(mir: MatrixIR, literals: Map[Sym, IR]): MatrixIR = {
     if (literals.isEmpty)
       mir
     else
       MatrixMapGlobals(mir,
         InsertFields(
-          Ref("global", mir.typ.globalType),
+          Ref(GlobalSym, mir.typ.globalType),
           literals.toFastIndexedSeq))
   }
 
-  def removeLiterals(tir: TableIR, literals: Map[String, IR]): TableIR = {
+  def removeLiterals(tir: TableIR, literals: Map[Sym, IR]): TableIR = {
     if (literals.isEmpty)
       tir
     else {
       val literalFields = literals.keySet
       TableMapGlobals(tir,
         SelectFields(
-          Ref("global", tir.typ.globalType),
+          Ref(GlobalSym, tir.typ.globalType),
           tir.typ.globalType.fieldNames.filter(f => !literalFields.contains(f))))
     }
   }
 
-  def removeLiterals(mir: MatrixIR, literals: Map[String, IR]): MatrixIR = {
+  def removeLiterals(mir: MatrixIR, literals: Map[Sym, IR]): MatrixIR = {
     if (literals.isEmpty)
       mir
     else {
       val literalFields = literals.keySet
       MatrixMapGlobals(mir,
         SelectFields(
-          Ref("global", mir.typ.globalType),
+          Ref(GlobalSym, mir.typ.globalType),
           mir.typ.globalType.fieldNames.filter(f => !literalFields.contains(f))))
     }
   }
 
-  def rewriteIR(ir: IR, newGlobalType: Type, literals: Map[String, IR]): IR = {
+  def rewriteIR(ir: IR, newGlobalType: Type, literals: Map[Sym, IR]): IR = {
     val revMap = literals.map { case (id, literal) => (literal, id) }
 
     def rewrite(ir: IR): IR = {
       ir match {
-        case Ref("global", t) => SelectFields(Ref("global", newGlobalType), t.asInstanceOf[TStruct].fieldNames)
+        case Ref(GlobalSym, t) => SelectFields(Ref(GlobalSym, newGlobalType), t.asInstanceOf[TStruct].fieldNames)
         case _ => revMap.get(ir)
-          .map(f => GetField(Ref("global", newGlobalType), f))
+          .map(f => GetField(Ref(GlobalSym, newGlobalType), f))
           .getOrElse(MapIR(rewrite)(ir))
       }
     }

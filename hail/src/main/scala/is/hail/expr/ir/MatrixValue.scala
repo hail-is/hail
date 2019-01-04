@@ -295,20 +295,20 @@ case class MatrixValue(
     }
 
     def insertEntries[PC](makePartitionContext: () => PC, newColType: TStruct = typ.colType,
-      newColKey: IndexedSeq[String] = typ.colKey,
+      newColKey: IndexedSeq[Sym] = typ.colKey,
       newColValues: BroadcastIndexedSeq = colValues,
       newGlobalType: TStruct = typ.globalType,
       newGlobals: BroadcastRow = globals)(newEntryType: PStruct,
       inserter: (PC, RegionValue, RegionValueBuilder) => Unit): MatrixValue = {
       insertIntoRow(makePartitionContext, newColType, newColKey, newColValues, newGlobalType, newGlobals)(
-        PArray(newEntryType), MatrixType.entriesIdentifier, inserter)
+        PArray(newEntryType), EntriesSym, inserter)
     }
 
     def insertIntoRow[PC](makePartitionContext: () => PC, newColType: TStruct = typ.colType,
-      newColKey: IndexedSeq[String] = typ.colKey,
+      newColKey: IndexedSeq[Sym] = typ.colKey,
       newColValues: BroadcastIndexedSeq = colValues,
       newGlobalType: TStruct = typ.globalType,
-      newGlobals: BroadcastRow = globals)(typeToInsert: PType, path: String,
+      newGlobals: BroadcastRow = globals)(typeToInsert: PType, path: Sym,
       inserter: (PC, RegionValue, RegionValueBuilder) => Unit): MatrixValue = {
       assert(!typ.rowKey.contains(path))
 

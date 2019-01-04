@@ -6,6 +6,7 @@ from hail.typecheck import *
 from hail.utils.java import escape_str, escape_id
 from .base_ir import *
 from .matrix_writer import MatrixWriter
+from .symbol import Symbol
 
 
 class I32(IR):
@@ -232,7 +233,7 @@ class If(IR):
                other.altr == self.altr
 
 class Let(IR):
-    @typecheck_method(name=str, value=IR, body=IR)
+    @typecheck_method(name=oneof(str, Symbol), value=IR, body=IR)
     def __init__(self, name, value, body):
         super().__init__(value, body)
         self.name = name
@@ -259,7 +260,7 @@ class Let(IR):
 
 
 class Ref(IR):
-    @typecheck_method(name=str)
+    @typecheck_method(name=oneof(str, Symbol))
     def __init__(self, name):
         super().__init__()
         self.name = name
@@ -277,7 +278,7 @@ class Ref(IR):
 
 
 class TopLevelReference(Ref):
-    @typecheck_method(name=str)
+    @typecheck_method(name=oneof(str, Symbol))
     def __init__(self, name):
         super().__init__(name)
 
@@ -569,7 +570,7 @@ class GroupByKey(IR):
 
 
 class ArrayMap(IR):
-    @typecheck_method(a=IR, name=str, body=IR)
+    @typecheck_method(a=IR, name=oneof(str, Symbol), body=IR)
     def __init__(self, a, name, body):
         super().__init__(a, body)
         self.a = a
@@ -596,7 +597,7 @@ class ArrayMap(IR):
 
 
 class ArrayFilter(IR):
-    @typecheck_method(a=IR, name=str, body=IR)
+    @typecheck_method(a=IR, name=oneof(str, Symbol), body=IR)
     def __init__(self, a, name, body):
         super().__init__(a, body)
         self.a = a
@@ -623,7 +624,7 @@ class ArrayFilter(IR):
 
 
 class ArrayFlatMap(IR):
-    @typecheck_method(a=IR, name=str, body=IR)
+    @typecheck_method(a=IR, name=oneof(str, Symbol), body=IR)
     def __init__(self, a, name, body):
         super().__init__(a, body)
         self.a = a
@@ -650,7 +651,7 @@ class ArrayFlatMap(IR):
 
 
 class ArrayFold(IR):
-    @typecheck_method(a=IR, zero=IR, accum_name=str, value_name=str, body=IR)
+    @typecheck_method(a=IR, zero=IR, accum_name=oneof(str, Symbol), value_name=oneof(str, Symbol), body=IR)
     def __init__(self, a, zero, accum_name, value_name, body):
         super().__init__(a, zero, body)
         self.a = a
@@ -683,7 +684,7 @@ class ArrayFold(IR):
 
 
 class ArrayScan(IR):
-    @typecheck_method(a=IR, zero=IR, accum_name=str, value_name=str, body=IR)
+    @typecheck_method(a=IR, zero=IR, accum_name=oneof(str, Symbol), value_name=oneof(str, Symbol), body=IR)
     def __init__(self, a, zero, accum_name, value_name, body):
         super().__init__(a, zero, body)
         self.a = a
@@ -716,7 +717,7 @@ class ArrayScan(IR):
 
 
 class ArrayFor(IR):
-    @typecheck_method(a=IR, value_name=str, body=IR)
+    @typecheck_method(a=IR, value_name=oneof(str, Symbol), body=IR)
     def __init__(self, a, value_name, body):
         super().__init__(a, body)
         self.a = a
@@ -764,7 +765,7 @@ class AggFilter(IR):
 
 
 class AggExplode(IR):
-    @typecheck_method(array=IR, name=str, agg_body=IR)
+    @typecheck_method(array=IR, name=oneof(str, Symbol), agg_body=IR)
     def __init__(self, array, name, agg_body):
         super().__init__(array, agg_body)
         self.name = name
@@ -891,7 +892,7 @@ class Begin(IR):
 
 
 class MakeStruct(IR):
-    @typecheck_method(fields=sequenceof(sized_tupleof(str, IR)))
+    @typecheck_method(fields=sequenceof(sized_tupleof(oneof(str, Symbol), IR)))
     def __init__(self, fields):
         super().__init__(*[ir for (n, ir) in fields])
         self.fields = fields
@@ -954,7 +955,7 @@ class InsertFields(IR):
 
 
 class GetField(IR):
-    @typecheck_method(o=IR, name=str)
+    @typecheck_method(o=IR, name=oneof(str, Symbol))
     def __init__(self, o, name):
         super().__init__(o)
         self.o = o
@@ -1152,7 +1153,7 @@ class ApplySeeded(IR):
 
 
 class Uniroot(IR):
-    @typecheck_method(argname=str, function=IR, min=IR, max=IR)
+    @typecheck_method(argname=oneof(str, Symbol), function=IR, min=IR, max=IR)
     def __init__(self, argname, function, min, max):
         super().__init__(function, min, max)
         self.argname = argname

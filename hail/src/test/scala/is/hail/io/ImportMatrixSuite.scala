@@ -5,6 +5,7 @@ import is.hail.annotations._
 import is.hail.check.Gen
 import is.hail.check.Prop.forAll
 import is.hail.expr._
+import is.hail.expr.ir.Sym
 import is.hail.expr.types._
 import is.hail.expr.types.virtual._
 import is.hail.rvd.RVD
@@ -38,7 +39,7 @@ class ImportMatrixSuite extends SparkSuite {
 
   def reKeyCols(vsm: MatrixTable): MatrixTable = {
     val rowMap = new java.util.HashMap[String, String](vsm.rowType.size)
-    vsm.rowType.fields.foreach { f => rowMap.put(f.name, s"f${ f.index }") }
+    vsm.rowType.fields.foreach { f => rowMap.put(f.name.toString, s"f${ f.index }") }
 
     val renamed = vsm.renameFields(rowMap,
       new java.util.HashMap[String, String](),
@@ -59,7 +60,7 @@ class ImportMatrixSuite extends SparkSuite {
       new java.util.HashMap[String, String]())
   }
 
-  def getVAFieldsAndTypes(vsm: MatrixTable): (Array[String], Array[Type]) = {
+  def getVAFieldsAndTypes(vsm: MatrixTable): (IndexedSeq[Sym], Array[Type]) = {
     (vsm.rowType.fieldNames, vsm.rowType.types)
   }
 
@@ -81,7 +82,7 @@ class ImportMatrixSuite extends SparkSuite {
   @Test def testHeadersNotIdentical() {
     val files = hc.hadoopConf.globAll(List("src/test/resources/sampleheader*.txt"))
     val e = intercept[SparkException] {
-      val vsm = LoadMatrix(hc, files, Map("f0" -> TString()), Array("f0"))
+      val vsm = LoadMatrix(hc, files, Map[String, Type]("f0" -> TString()), ISeq("f0"))
     }
     assert(e.getMessage.contains("invalid header"))
   }
@@ -89,7 +90,7 @@ class ImportMatrixSuite extends SparkSuite {
   @Test def testMissingVals() {
     val files = hc.hadoopConf.globAll(List("src/test/resources/samplesmissing.txt"))
     val e = intercept[SparkException] {
-      val vsm = LoadMatrix(hc, files, Map("f0" -> TString()), Array("f0"))
+      val vsm = LoadMatrix(hc, files, Map[String, Type]("f0" -> TString()), ISeq("f0"))
       vsm.rvd.count()
     }
     assert(e.getMessage.contains("Incorrect number"))

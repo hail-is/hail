@@ -1,6 +1,6 @@
 package is.hail.expr.ir.functions
 
-import is.hail.expr.ir.{MatrixValue, TableValue}
+import is.hail.expr.ir.{MatrixValue, TableValue, SymSerializer}
 import is.hail.expr.types.{MatrixType, TableType}
 import is.hail.methods._
 import is.hail.rvd.RVDType
@@ -40,7 +40,8 @@ object RelationalFunctions {
     classOf[WindowByLocus],
     classOf[TableFilterPartitions],
     classOf[MatrixFilterPartitions]
-  ))
+  )) +
+    new SymSerializer
 
   def extractTo[T : Manifest](config: String): T = {
     Serialization.read[T](config)

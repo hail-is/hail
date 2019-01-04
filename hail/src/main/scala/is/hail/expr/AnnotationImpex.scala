@@ -1,6 +1,7 @@
 package is.hail.expr
 
 import is.hail.annotations.Annotation
+import is.hail.expr.ir.{IRParser, Identifier}
 import is.hail.expr.ir.functions.UtilFunctions
 import is.hail.expr.types._
 import is.hail.expr.types.virtual._
@@ -52,7 +53,7 @@ object SparkAnnotationImpex {
       else
         StructType(tbs.fields
           .map(f =>
-            StructField(escapeColumnName(f.name), f.typ.schema, nullable = !f.typ.required)))
+            StructField(escapeColumnName(f.name.toString), f.typ.schema, nullable = !f.typ.required)))
   }
 }
 
@@ -121,7 +122,7 @@ object JSONAnnotationImpex {
         case TStruct(fields, _) =>
           val row = a.asInstanceOf[Row]
           JObject(List.tabulate(row.size) { i =>
-            (fields(i).name, exportAnnotation(row.get(i), fields(i).typ))
+            (fields(i).name.toString, exportAnnotation(row.get(i), fields(i).typ))
           })
         case TTuple(types, _) =>
           val row = a.asInstanceOf[Row]
@@ -193,7 +194,7 @@ object JSONAnnotationImpex {
           val a = Array.fill[Any](annotationSize)(null)
 
           for ((name, jv2) <- jfields) {
-            t.selfField(name) match {
+            t.selfField(IRParser.parseSymbol(name)) match {
               case Some(f) =>
                 a(f.index) = importAnnotation(jv2, f.typ, parent + "." + name, padNulls)
 

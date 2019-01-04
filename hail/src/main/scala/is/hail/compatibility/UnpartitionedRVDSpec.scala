@@ -1,5 +1,6 @@
 package is.hail.compatibility
 
+import is.hail.expr.ir.Sym
 import is.hail.{HailContext, cxx}
 import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual.TStruct
@@ -15,7 +16,7 @@ case class UnpartitionedRVDSpec(
 ) extends AbstractRVDSpec {
   def partitioner: RVDPartitioner = RVDPartitioner.unkeyed(partFiles.length)
 
-  def key: IndexedSeq[String] = FastIndexedSeq()
+  def key: IndexedSeq[Sym] = FastIndexedSeq()
 
   def encodedType: PStruct = rowType.physicalType
 

@@ -3,7 +3,7 @@ package is.hail.rvd
 import is.hail.annotations.UnsafeIndexedSeq
 import is.hail.expr.types._
 import is.hail.expr.types.virtual.{TInt32, TStruct}
-import is.hail.utils.Interval
+import is.hail.utils.{ISeq, Interval}
 import org.apache.spark.sql.Row
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
@@ -102,7 +102,7 @@ class RVDPartitionerSuite extends TestNGSuite {
         Interval(Row(11, 0, 2), Row(11, 0, 15), false, true),
         Interval(Row(11, 0, 15), Row(11, 0, 20), true, false))
 
-    val p3 = RVDPartitioner.generate(Array("A", "B", "C"), kType, intervals)
+    val p3 = RVDPartitioner.generate(ISeq("A", "B", "C"), kType, intervals)
     assert(p3.satisfiesAllowedOverlap(2))
     assert(p3.rangeBounds sameElements
       Array(
@@ -113,7 +113,7 @@ class RVDPartitionerSuite extends TestNGSuite {
         Interval(Row(11, 0, 15), Row(11, 0, 20), false, false))
     )
 
-    val p2 = RVDPartitioner.generate(Array("A", "B"), kType, intervals)
+    val p2 = RVDPartitioner.generate(ISeq("A", "B"), kType, intervals)
     assert(p2.satisfiesAllowedOverlap(1))
     assert(p2.rangeBounds sameElements
       Array(
@@ -123,7 +123,7 @@ class RVDPartitionerSuite extends TestNGSuite {
         Interval(Row(11, 0, 2), Row(11, 0, 20), false, false))
     )
 
-    val p1 = RVDPartitioner.generate(Array("A"), kType, intervals)
+    val p1 = RVDPartitioner.generate(ISeq("A"), kType, intervals)
     assert(p1.satisfiesAllowedOverlap(0))
     assert(p1.rangeBounds sameElements
       Array(

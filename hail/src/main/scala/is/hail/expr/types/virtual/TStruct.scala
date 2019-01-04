@@ -1,7 +1,7 @@
 package is.hail.expr.types.virtual
 
 import is.hail.annotations.{Annotation, AnnotationPathException, _}
-import is.hail.expr.ir.{Env, IRParser}
+import is.hail.expr.ir.{Env, IRParser, Sym, toSym}
 import is.hail.expr.types.physical.{PField, PStruct}
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -20,24 +20,25 @@ object TStruct {
 
   def empty(required: Boolean = false): TStruct = if (required) requiredEmpty else optionalEmpty
 
-  def apply(required: Boolean, args: (String, Type)*): TStruct =
+  def apply(required: Boolean, args: (Any, Type)*): TStruct =
     TStruct(args
       .iterator
       .zipWithIndex
-      .map { case ((n, t), i) => Field(n, t, i) }
+      .map { case ((n, t), i) => Field(toSym(n), t, i) }
       .toArray,
       required)
 
-  def apply(args: (String, Type)*): TStruct =
+  def apply(args: (Any, Type)*): TStruct =
     apply(false, args: _*)
 
-  def apply(names: java.util.ArrayList[String], types: java.util.ArrayList[Type], required: Boolean): TStruct = {
-    val sNames = names.asScala.toArray
-    val sTypes = types.asScala.toArray
-    if (sNames.length != sTypes.length)
-      fatal(s"number of names does not match number of types: found ${ sNames.length } names and ${ sTypes.length } types")
+  def apply(names: java.util.ArrayList[String], types: java.util.ArrayList[Type], required: Boolean): TStruct =
+    apply(names.asScala.map(IRParser.parseSymbol).toArray, types.asScala.toArray, required)
 
-    TStruct(required, sNames.zip(sTypes): _*)
+  def apply(names: Array[Sym], types: Array[Type], required: Boolean): TStruct = {
+    if (names.length != types.length)
+      fatal(s"number of names does not match number of types: found ${ names.length } names and ${ types.length } types")
+
+    TStruct(required, names.zip(types): _*)
   }
 }
 
@@ -50,15 +51,15 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
 
   val fieldRequired: Array[Boolean] = types.map(_.required)
 
-  val fieldIdx: collection.Map[String, Int] =
+  val fieldIdx: collection.Map[Sym, Int] =
     toMapFast(fields)(_.name, _.index)
 
-  val fieldNames: Array[String] = fields.map(_.name).toArray
+  val fieldNames: IndexedSeq[Sym] = fields.map(_.name)
 
   if (!fieldNames.areDistinct()) {
     val duplicates = fieldNames.duplicates()
     fatal(s"cannot create struct with duplicate ${plural(duplicates.size, "field")}: " +
-      s"${fieldNames.map(prettyIdentifier).mkString(", ")}", fieldNames.duplicates())
+      s"${fieldNames.mkString(", ")}", fieldNames.duplicates())
   }
 
   val size: Int = fields.length
@@ -91,19 +92,19 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
 
   override def subst() = TStruct(fields.map(f => f.copy(typ = f.typ.subst().asInstanceOf[Type])))
 
-  def index(str: String): Option[Int] = fieldIdx.get(str)
+  def index(str: Sym): Option[Int] = fieldIdx.get(str)
 
-  def selfField(name: String): Option[Field] = fieldIdx.get(name).map(i => fields(i))
+  def selfField(name: Sym): Option[Field] = fieldIdx.get(name).map(i => fields(i))
 
-  def hasField(name: String): Boolean = fieldIdx.contains(name)
+  def hasField(name: Sym): Boolean = fieldIdx.contains(name)
 
-  def field(name: String): Field = fields(fieldIdx(name))
+  def field(name: Sym): Field = fields(fieldIdx(name))
 
-  def fieldType(name: String): Type = types(fieldIdx(name))
+  def fieldType(name: Sym): Type = types(fieldIdx(name))
 
   def toTTuple: TTuple = new TTuple(types, required)
 
-  override def fieldOption(path: List[String]): Option[Field] =
+  override def fieldOption(path: List[Sym]): Option[Field] =
     if (path.isEmpty)
       None
     else {
@@ -114,7 +115,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
         f.flatMap(_.typ.fieldOption(path.tail))
     }
 
-  override def queryTyped(p: List[String]): (Type, Querier) = {
+  override def queryTyped(p: List[Sym]): (Type, Querier) = {
     if (p.isEmpty)
       (this, identity[Annotation])
     else {
@@ -132,7 +133,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     }
   }
 
-  override def insert(signature: Type, p: List[String]): (Type, Inserter) = {
+  override def insert(signature: Type, p: List[Sym]): (Type, Inserter) = {
     if (p.isEmpty)
       (signature, (a, toIns) => toIns)
     else {
@@ -165,15 +166,15 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     }
   }
 
-  def structInsert(signature: Type, p: List[String]): (TStruct, Inserter) = {
+  def structInsert(signature: Type, p: List[Sym]): (TStruct, Inserter) = {
     require(p.nonEmpty || signature.isInstanceOf[TStruct], s"tried to remap top-level struct to non-struct $signature")
     val (t, f) = insert(signature, p)
     (t.asInstanceOf[TStruct], f)
   }
 
-  def updateKey(key: String, sig: Type): TStruct = updateKey(key, fieldIdx(key), sig)
+  def updateKey(key: Sym, sig: Type): TStruct = updateKey(key, fieldIdx(key), sig)
 
-  def updateKey(key: String, i: Int, sig: Type): TStruct = {
+  def updateKey(key: Sym, i: Int, sig: Type): TStruct = {
     assert(fieldIdx.contains(key))
 
     val newFields = Array.fill[Field](fields.length)(null)
@@ -183,9 +184,9 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     TStruct(newFields, required)
   }
 
-  def deleteKey(key: String): TStruct = deleteKey(key, fieldIdx(key))
+  def deleteKey(key: Sym): TStruct = deleteKey(key, fieldIdx(key))
 
-  def deleteKey(key: String, index: Int): TStruct = {
+  def deleteKey(key: Sym, index: Int): TStruct = {
     assert(fieldIdx.contains(key))
     if (fields.length == 1)
       TStruct.empty()
@@ -199,7 +200,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     }
   }
 
-  def appendKey(key: String, sig: Type): TStruct = {
+  def appendKey(key: Sym, sig: Type): TStruct = {
     assert(!fieldIdx.contains(key))
     val newFields = Array.fill[Field](fields.length + 1)(null)
     for (i <- fields.indices)
@@ -209,7 +210,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
   }
 
   def annotate(other: TStruct): (TStruct, Merger) = {
-    val newFieldsBuilder = new ArrayBuilder[(String, Type)]()
+    val newFieldsBuilder = new ArrayBuilder[(Sym, Type)]()
     val fieldIdxBuilder = new ArrayBuilder[Int]()
     // In fieldIdxBuilder, positive integers are field indices from the left.
     // Negative integers are the complement of field indices from the right.
@@ -261,7 +262,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     newStruct -> annotator
   }
 
-  def insertFields(fieldsToInsert: TraversableOnce[(String, Type)]): TStruct = {
+  def insertFields(fieldsToInsert: TraversableOnce[(Sym, Type)]): TStruct = {
     val ab = new ArrayBuilder[Field](fields.length)
     var i = 0
     while (i < fields.length) {
@@ -280,8 +281,8 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     TStruct(ab.result(), required)
   }
 
-  def rename(m: Map[String, String]): TStruct = {
-    val newFieldsBuilder = new ArrayBuilder[(String, Type)]()
+  def rename(m: Map[Sym, Sym]): TStruct = {
+    val newFieldsBuilder = new ArrayBuilder[(Sym, Type)]()
     fields.foreach { fd =>
       val n = fd.name
       newFieldsBuilder += (m.getOrElse(n, n), fd.typ)
@@ -289,14 +290,14 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     TStruct(newFieldsBuilder.result(): _*)
   }
 
-  def filterSet(set: Set[String], include: Boolean = true): (TStruct, Deleter) = {
-    val notFound = set.filter(name => selfField(name).isEmpty).map(prettyIdentifier)
+  def filterSet(set: Set[Sym], include: Boolean = true): (TStruct, Deleter) = {
+    val notFound = set.filter(name => selfField(name).isEmpty).map(_.toString)
     if (notFound.nonEmpty)
       fatal(
         s"""invalid struct filter operation: ${
           plural(notFound.size, s"field ${ notFound.head }", s"fields [ ${ notFound.mkString(", ") } ]")
         } not found
-           |  Existing struct fields: [ ${ fields.map(f => prettyIdentifier(f.name)).mkString(", ") } ]""".stripMargin)
+           |  Existing struct fields: [ ${ fields.map(f => f.name).mkString(", ") } ]""".stripMargin)
 
     val fn = (f: Field) =>
       if (include)
@@ -352,7 +353,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
   override def pyString(sb: StringBuilder): Unit = {
     sb.append("struct{")
     fields.foreachBetween({ field =>
-      sb.append(prettyIdentifier(field.name))
+      sb.append(field.name)
       sb.append(": ")
       field.typ.pyString(sb)
     }) { sb.append(", ")}
@@ -378,7 +379,7 @@ final case class TStruct(fields: IndexedSeq[Field], override val required: Boole
     }
   }
 
-  def select(keep: IndexedSeq[String]): (TStruct, (Row) => Row) = {
+  def select(keep: IndexedSeq[Sym]): (TStruct, (Row) => Row) = {
     val t = TStruct(keep.map { n =>
       n -> field(n).typ
     }: _*)

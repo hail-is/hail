@@ -1,9 +1,9 @@
 package is.hail.expr.ir
 
 object Env {
-  type K = String
+  type K = Sym
   def empty[V]: Env[V] = new Env()
-  def apply[V](bindings: (String, V)*): Env[V] = empty[V].bind(bindings: _*)
+  def apply[V](bindings: (Sym, V)*): Env[V] = empty[V].bind(bindings: _*)
 }
 
 class Env[V] private (val m: Map[Env.K,V]) {
@@ -11,43 +11,43 @@ class Env[V] private (val m: Map[Env.K,V]) {
     this(Map())
   }
 
-  def lookup(name: String): V =
+  def lookup(name: Sym): V =
     m.get(name)
       .getOrElse(throw new RuntimeException(s"Cannot find $name in $m"))
 
-  def lookupOption(name: String): Option[V] = m.get(name)
+  def lookupOption(name: Sym): Option[V] = m.get(name)
 
-  def delete(name: String): Env[V] = new Env(m - name)
+  def delete(name: Sym): Env[V] = new Env(m - name)
 
   def lookup(r: Ref): V =
     lookup(r.name)
 
-  def bind(name: String, v: V): Env[V] =
+  def bind(name: Sym, v: V): Env[V] =
     new Env(m + (name -> v))
 
-  def bind(bindings: (String, V)*): Env[V] =
-    new Env(m ++ bindings)
+  def bind(bindings: (Any, V)*): Env[V] =
+    new Env(m ++ bindings.map { case (k, v) => (toSym(k), v) })
 
-  def freshName(prefix: String): String = {
+  def freshName(prefix: String): Sym = {
     var i = 0
-    var name = prefix
+    var name = Identifier(prefix)
     while (m.keySet.contains(name)) {
-      name = prefix + i
+      name = Identifier(prefix + i)
       i += 1
     }
     name
   }
 
-  def freshNames(prefixes: String*): Array[String] =
+  def freshNames(prefixes: String*): Array[Sym] =
     (prefixes map freshName).toArray
 
-  def bindFresh(prefix: String, v: V): (String, Env[V]) = {
+  def bindFresh(prefix: String, v: V): (Sym, Env[V]) = {
     val name = freshName(prefix)
     (name, new Env(m + (name -> v)))
   }
 
-  def bindFresh(bindings: (String, V)*): (Array[String], Env[V]) = {
-    val names = new Array[String](bindings.length)
+  def bindFresh(bindings: (String, V)*): (Array[Sym], Env[V]) = {
+    val names = new Array[Sym](bindings.length)
     var i = 0
     var e = this
     while (i < bindings.length) {

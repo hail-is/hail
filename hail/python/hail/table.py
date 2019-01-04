@@ -337,11 +337,11 @@ class Table(ExprContainer):
         self._global_type = self._type.global_type
         self._row_type = self._type.row_type
 
-        self._globals = construct_reference('global', self._global_type, indices=self._global_indices)
-        self._row = construct_reference('row', self._row_type, indices=self._row_indices)
+        self._globals = construct_reference(global_sym, self._global_type, indices=self._global_indices)
+        self._row = construct_reference(row_sym, self._row_type, indices=self._row_indices)
 
-        self._indices_from_ref = {'global': self._global_indices,
-                                  'row': self._row_indices}
+        self._indices_from_ref = {global_sym: self._global_indices,
+                                  row_sym: self._row_indices}
 
         self._key = hail.struct(
             **{k: self._row[k] for k in self._type.row_key})
@@ -468,8 +468,8 @@ class Table(ExprContainer):
             raise TypeError("'parallelize' expects an array with element type 'struct', found '{}'"
                             .format(rows.dtype))
         table = Table(TableParallelize(MakeStruct([
-            ('rows', rows._ir),
-            ('global', MakeStruct([]))]), n_partitions))
+            (rows_sym, rows._ir),
+            (global_sym, MakeStruct([]))]), n_partitions))
         if key is not None:
             table = table.key_by(*key)
         return table
@@ -1470,7 +1470,7 @@ class Table(ExprContainer):
                 return rekey_f(left)
 
             all_uids.append(uid)
-            ir = Join(GetField(TopLevelReference('row'), uid),
+            ir = Join(GetField(TopLevelReference(row_sym), uid),
                       all_uids,
                       exprs,
                       joiner)
@@ -1503,7 +1503,7 @@ class Table(ExprContainer):
                     key = [str(k._ir) for k in exprs]
                 joiner = lambda left: MatrixTable(MatrixAnnotateRowsTable(
                     left._mir, right._tir, uid, key))
-                ast = Join(GetField(TopLevelReference('va'), uid),
+                ast = Join(GetField(TopLevelReference(row_sym), uid),
                            [uid],
                            exprs,
                            joiner)
@@ -1539,7 +1539,7 @@ class Table(ExprContainer):
                             joined._tir,
                             uid)).key_cols_by(*prev_key)
                         return result
-                ir = Join(GetField(TopLevelReference('sa'), uid),
+                ir = Join(GetField(TopLevelReference(col_sym), uid),
                           all_uids,
                           exprs,
                           joiner)
@@ -1665,7 +1665,7 @@ class Table(ExprContainer):
         :obj:`list` of :class:`.Struct`
             List of rows.
         """
-        return Env.backend().execute(GetField(TableCollect(self._tir), 'rows'))
+        return Env.backend().execute(GetField(TableCollect(self._tir), rows_sym))
 
     def describe(self, handler=print):
         """Print information about the fields in the table."""

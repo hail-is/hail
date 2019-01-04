@@ -5,6 +5,7 @@ import is.hail.annotations._
 import is.hail.expr.types.virtual.{TLocus, TStruct}
 import is.hail.table.Table
 import is.hail.testUtils._
+import is.hail.utils.ISeq
 import is.hail.variant.{Locus, MatrixTable, ReferenceGenome}
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
@@ -41,11 +42,11 @@ class JoinSuite extends SparkSuite {
       Locus("1", 15))
 
     val vType = TLocus(ReferenceGenome.GRCh37)
-    val leftKt = Table(hc, sc.parallelize(leftVariants.map(Row(_))), TStruct("v" -> vType)).keyBy(Array("v"))
+    val leftKt = Table(hc, sc.parallelize(leftVariants.map(Row(_))), TStruct("v" -> vType)).keyBy(ISeq("v"))
     leftKt.typeCheck()
     val left = MatrixTable.fromRowsTable(leftKt)
 
-    val rightKt = Table(hc, sc.parallelize(rightVariants.map(Row(_))), TStruct("v" -> vType)).keyBy(Array("v"))
+    val rightKt = Table(hc, sc.parallelize(rightVariants.map(Row(_))), TStruct("v" -> vType)).keyBy(ISeq("v"))
     rightKt.typeCheck()
     val right = MatrixTable.fromRowsTable(rightKt)
 

@@ -2,18 +2,20 @@ package is.hail.methods
 
 import is.hail.utils._
 import is.hail.variant._
-import is.hail.expr.types._
 import is.hail.nativecode.NativeCode
 import is.hail.table.Table
 import is.hail.stats.{LogisticRegressionModel, RegressionUtils, eigSymD}
 import is.hail.annotations.{Annotation, UnsafeRow}
 import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV, _}
-import breeze.numerics._
+import breeze.numerics.{sigmoid, sqrt}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import com.sun.jna.Native
 import com.sun.jna.ptr.IntByReference
+import is.hail.expr.ir.{I, IRParser, Sym}
 import is.hail.expr.types.virtual.{TFloat64, TInt32, TStruct, Type}
+
+import scala.collection.JavaConverters._
 
 /*
 Skat implements the burden test described in:
@@ -56,13 +58,31 @@ case class SkatTuple(q: Double, a: BDV[Double], b: BDV[Double])
 
 object Skat {
   val hardMaxEntriesForSmallN = 64e6 // 8000 x 8000 => 512MB of doubles
-  
+
   def apply(vsm: MatrixTable,
     keyField: String,
     weightField: String,
     yField: String,
     xField: String,
     covFields: Array[String],
+    logistic: Boolean,
+    maxSize: Int,
+    accuracy: Double,
+    iterations: Int): Table =
+    Skat(vsm,
+      IRParser.parseSymbol(keyField),
+      IRParser.parseSymbol(weightField),
+      IRParser.parseSymbol(yField),
+      IRParser.parseSymbol(xField),
+      covFields.map(IRParser.parseSymbol),
+      logistic, maxSize, accuracy, iterations)
+
+  def apply(vsm: MatrixTable,
+    keyField: Sym,
+    weightField: Sym,
+    yField: Sym,
+    xField: Sym,
+    covFields: Array[Sym],
     logistic: Boolean,
     maxSize: Int,
     accuracy: Double,
@@ -197,21 +217,21 @@ object Skat {
     val skatRdd = if (logistic) logisticSkat() else linearSkat()
     
     val skatSignature = TStruct(
-      ("id", keyType),
-      ("size", TInt32()),
-      ("q_stat", TFloat64()),
-      ("p_value", TFloat64()),
-      ("fault", TInt32()))
+      (I("id"), keyType),
+      (I("size"), TInt32()),
+      (I("q_stat"), TFloat64()),
+      (I("p_value"), TFloat64()),
+      (I("fault"), TInt32()))
 
-    Table(vsm.hc, skatRdd, skatSignature, FastIndexedSeq("id"))
+    Table(vsm.hc, skatRdd, skatSignature, FastIndexedSeq(I("id")))
   }
 
   def computeKeyGsWeightRdd(vsm: MatrixTable,
-    xField: String,
+    xField: Sym,
     completeColIdx: Array[Int],
-    keyField: String,
+    keyField: Sym,
     // returns ((key, [(gs_v, weight_v)]), keyType)
-    weightField: String): (RDD[(Annotation, Iterable[(BDV[Double], Double)])], Type) = {
+    weightField: Sym): (RDD[(Annotation, Iterable[(BDV[Double], Double)])], Type) = {
 
     val fullRowType = vsm.rvRowType.physicalType
     val keyStructField = fullRowType.field(keyField)

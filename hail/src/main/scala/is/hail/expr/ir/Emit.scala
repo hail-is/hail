@@ -1025,9 +1025,9 @@ private class Emit(
   }
 
   private def getAsDependentFunction[A1: TypeInfo, R: TypeInfo](
-    ir: IR, argname: String, env: Emit.E, fb: EmitFunctionBuilder[_], errorMsg: String
+    ir: IR, argname: Sym, env: Emit.E, fb: EmitFunctionBuilder[_], errorMsg: String
   ): DependentFunction[AsmFunction3[Region, A1, Boolean, R]] = {
-    var ids = Set[String]()
+    var ids = Set[Sym]()
 
     def getReferenced: IR => IR = {
       case Ref(id, typ) if id == argname =>
@@ -1042,7 +1042,7 @@ private class Emit(
 
     val newIR = getReferenced(ir)
     val newEnv = ids.foldLeft(
-      Env.empty[(TypeInfo[_], Code[Boolean], Code[_])]) { (e: Emit.E, id: String) =>
+      Env.empty[(TypeInfo[_], Code[Boolean], Code[_])]) { (e: Emit.E, id: Sym) =>
       val (ti, m, v) = env.lookup(id)
       val newM = f.addField[Boolean](m)
       val newV = f.addField(v)(ti.asInstanceOf[TypeInfo[Any]])

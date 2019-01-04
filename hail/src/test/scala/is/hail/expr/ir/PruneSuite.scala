@@ -76,12 +76,12 @@ class PruneSuite extends SparkSuite {
     TableParallelize(
       Literal(
         TStruct(
-          "rows" -> TArray(TStruct("1" -> TString(),
+          RowsSym -> TArray(TStruct("1" -> TString(),
             "2" -> TArray(TStruct("2A" -> TInt32())),
             "3" -> TString(),
             "4" -> TStruct("A" -> TInt32(), "B" -> TArray(TStruct("i" -> TString()))),
             "5" -> TString())),
-          "global" -> TStruct("g1" -> TInt32(), "g2" -> TInt32())),
+          GlobalSym -> TStruct("g1" -> TInt32(), "g2" -> TInt32())),
         Row(FastIndexedSeq(Row("hi", FastIndexedSeq(Row(1)), "bye", Row(2, FastIndexedSeq(Row("bar"))), "foo")), Row(5, 10))),
       None)
   ).value)
@@ -117,8 +117,8 @@ class PruneSuite extends SparkSuite {
     fields.foreach { f =>
       val split = f.split("\\.")
       var ir: IR = split(0) match {
-        case "row" => Ref("row", tt.rowType)
-        case "global" => Ref("global", tt.globalType)
+        case "row" => Ref(RowSym, tt.rowType)
+        case "global" => Ref(GlobalSym, tt.globalType)
       }
 
       split.tail.foreach { field =>
@@ -130,7 +130,7 @@ class PruneSuite extends SparkSuite {
   }
 
   def tableRefStruct(tt: TableType, fields: String*): IR = {
-    MakeStruct(FastIndexedSeq("foo" -> tableRefBoolean(tt, fields: _*)))
+    MakeStruct(NamedIRSeq("foo" -> tableRefBoolean(tt, fields: _*)))
   }
 
   def matrixRefBoolean(mt: MatrixType, fields: String*): IR = {
@@ -138,10 +138,10 @@ class PruneSuite extends SparkSuite {
     fields.foreach { f =>
       val split = f.split("\\.")
       var ir: IR = split(0) match {
-        case "va" => Ref("va", mt.rvRowType)
-        case "sa" => Ref("sa", mt.colType)
-        case "g" => Ref("g", mt.entryType)
-        case "global" => Ref("global", mt.globalType)
+        case "va" => Ref(RowSym, mt.rvRowType)
+        case "sa" => Ref(ColSym, mt.colType)
+        case "g" => Ref(EntrySym, mt.entryType)
+        case "global" => Ref(GlobalSym, mt.globalType)
       }
 
       split.tail.foreach { field =>
@@ -153,7 +153,7 @@ class PruneSuite extends SparkSuite {
   }
 
   def matrixRefStruct(mt: MatrixType, fields: String*): IR = {
-    MakeStruct(FastIndexedSeq("foo" -> matrixRefBoolean(mt, fields: _*)))
+    MakeStruct(NamedIRSeq("foo" -> matrixRefBoolean(mt, fields: _*)))
   }
 
   def subsetTable(tt: TableType, fields: String*): TableType = {
@@ -165,7 +165,7 @@ class PruneSuite extends SparkSuite {
         case "row" => tt.rowType -> rowFields
         case "global" => tt.globalType -> globalFields
       }
-      ab += PruneDeadFields.subsetType(head, split, 1).asInstanceOf[TStruct]
+      ab += PruneDeadFields.subsetType(head, split.toISeq, 1).asInstanceOf[TStruct]
     }
     val min = PruneDeadFields.minimal(tt)
     tt.copy(
@@ -187,7 +187,7 @@ class PruneSuite extends SparkSuite {
         case "g" => mt.entryType -> entryFields
         case "global" => mt.globalType -> globalFields
       }
-      ab += PruneDeadFields.subsetType(head, split, 1).asInstanceOf[TStruct]
+      ab += PruneDeadFields.subsetType(head, split.toISeq, 1).asInstanceOf[TStruct]
     }
     val min = PruneDeadFields.minimal(mt)
     mt.copyParts(
@@ -201,14 +201,14 @@ class PruneSuite extends SparkSuite {
   def mangle(t: TableIR): TableIR = {
     TableRename(
       t,
-      t.typ.rowType.fieldNames.map(x => x -> (x + "_")).toMap,
-      t.typ.globalType.fieldNames.map(x => x -> (x + "_")).toMap
+      t.typ.rowType.fieldNames.map(x => x -> I(x.asInstanceOf[Identifier].name + "_")).toMap,
+      t.typ.globalType.fieldNames.map(x => x -> I(x.asInstanceOf[Identifier].name + "_")).toMap
     )
   }
 
   @Test def testTableJoinMemo() {
-    val tk1 = TableKeyBy(tab, Array("1"))
-    val tk2 = mangle(TableKeyBy(tab, Array("3")))
+    val tk1 = TableKeyBy(tab, ISeq("1"))
+    val tk2 = mangle(TableKeyBy(tab, ISeq("3")))
     val tj = TableJoin(tk1, tk2, "inner", 1)
     checkMemo(tj,
       subsetTable(tj.typ, "row.1", "row.4", "row.1_"),
@@ -220,8 +220,8 @@ class PruneSuite extends SparkSuite {
   }
 
   @Test def testTableLeftJoinRightDistinctMemo() {
-    val tk1 = TableKeyBy(tab, Array("1"))
-    val tk2 = TableKeyBy(tab, Array("3"))
+    val tk1 = TableKeyBy(tab, ISeq("1"))
+    val tk2 = TableKeyBy(tab, ISeq("3"))
     val tj = TableLeftJoinRightDistinct(tk1, tk2, "foo")
     checkMemo(tj,
       subsetTable(tj.typ, "row.1", "row.4", "row.foo"),
@@ -233,8 +233,8 @@ class PruneSuite extends SparkSuite {
   }
 
   @Test def testTableIntervalJoinMemo() {
-    val tk1 = TableKeyBy(tab, Array("1"))
-    val tk2 = TableKeyBy(tab, Array("3"))
+    val tk1 = TableKeyBy(tab, ISeq("1"))
+    val tk2 = TableKeyBy(tab, ISeq("3"))
     val tj = TableIntervalJoin(tk1, tk2, "foo")
     checkMemo(tj,
       subsetTable(tj.typ, "row.1", "row.4", "row.foo"),
@@ -246,7 +246,7 @@ class PruneSuite extends SparkSuite {
   }
 
   @Test def testTableMultiWayZipJoinMemo() {
-    val tk1 = TableKeyBy(tab, Array("1"))
+    val tk1 = TableKeyBy(tab, ISeq("1"))
     val ts = Array(tk1, tk1, tk1)
     val tmwzj = TableMultiWayZipJoin(ts, "data", "gbls")
     checkMemo(tmwzj, subsetTable(tmwzj.typ, "row.data.2", "global.gbls.g1"), ts.map { t =>
@@ -269,7 +269,7 @@ class PruneSuite extends SparkSuite {
   }
 
   @Test def testTableKeyByMemo() {
-    val tk = TableKeyBy(tab, Array("1"))
+    val tk = TableKeyBy(tab, ISeq("1"))
     checkMemo(tk, subsetTable(tk.typ, "row.2"), Array(subsetTable(tab.typ, "row.1", "row.2")))
   }
 
@@ -307,7 +307,7 @@ class PruneSuite extends SparkSuite {
   @Test def testTableKeyByAndAggregateMemo() {
     val tka = TableKeyByAndAggregate(tab,
       tableRefStruct(tab.typ, "row.2"),
-      MakeStruct(FastSeq("bar" -> tableRefBoolean(tab.typ, "row.3"))),
+      MakeStruct(NamedIRSeq("bar" -> tableRefBoolean(tab.typ, "row.3"))),
       None,
       1)
 
@@ -385,7 +385,7 @@ class PruneSuite extends SparkSuite {
       Array(subsetMatrixTable(mat.typ, "va.r3"), subsetTable(tl.typ, "row.r3")))
 
     val mart2 = MatrixAnnotateRowsTable(mat, tl, "foo",
-      Some(FastIndexedSeq(GetField(GetField(Ref("va", mat.typ.rvRowType), "r2"), "x"))))
+      Some(FastIndexedSeq(GetField(GetField(Ref(RowSym, mat.typ.rvRowType), "r2"), "x"))))
     checkMemo(mart2, subsetMatrixTable(mart2.typ,"va.foo.r3", "va.r3"),
       Array(subsetMatrixTable(mat.typ, "va.r3", "va.r2.x"), subsetTable(tl.typ, "row.r3"), null))
   }
@@ -547,14 +547,14 @@ class PruneSuite extends SparkSuite {
   }
 
   @Test def testMakeStructMemo() {
-    checkMemo(MakeStruct(Seq("a" -> ref, "b" -> I32(10))),
+    checkMemo(MakeStruct(NamedIRSeq("a" -> ref, "b" -> I32(10))),
       TStruct("a" -> justA), Array(justA, null))
-    checkMemo(MakeStruct(Seq("a" -> ref, "b" -> I32(10))),
+    checkMemo(MakeStruct(NamedIRSeq("a" -> ref, "b" -> I32(10))),
       TStruct(), Array(null, null))
   }
 
   @Test def testInsertFieldsMemo() {
-    checkMemo(InsertFields(ref, Seq("d" -> ref)),
+    checkMemo(InsertFields(ref, NamedIRSeq("d" -> ref)),
       justA ++ TStruct("d" -> justB),
       Array(justA, justB))
   }
@@ -586,7 +586,7 @@ class PruneSuite extends SparkSuite {
   @Test def testTableCollectMemo() {
     checkMemo(
       TableCollect(tab),
-      TStruct("rows" -> TArray(TStruct("3" -> TString())), "global" -> TStruct("g2" -> TInt32())),
+      TStruct(RowsSym -> TArray(TStruct("3" -> TString())), GlobalSym -> TStruct("g2" -> TInt32())),
       Array(subsetTable(tab.typ, "row.3", "global.g2")))
   }
 
@@ -645,8 +645,8 @@ class PruneSuite extends SparkSuite {
   }
 
   @Test def testTableLeftJoinRightDistinctRebuild() {
-    val tk1 = TableKeyBy(tab, Array("1"))
-    val tk2 = TableKeyBy(tab, Array("3"))
+    val tk1 = TableKeyBy(tab, ISeq("1"))
+    val tk2 = TableKeyBy(tab, ISeq("3"))
     val tj = TableLeftJoinRightDistinct(tk1, tk2, "foo")
 
     checkRebuild(tj, subsetTable(tj.typ, "row.1", "row.4"),
@@ -656,8 +656,8 @@ class PruneSuite extends SparkSuite {
   }
 
   @Test def testTableIntervalJoinRebuild() {
-    val tk1 = TableKeyBy(tab, Array("1"))
-    val tk2 = TableKeyBy(tab, Array("3"))
+    val tk1 = TableKeyBy(tab, ISeq("1"))
+    val tk2 = TableKeyBy(tab, ISeq("3"))
     val tj = TableIntervalJoin(tk1, tk2, "foo")
 
     checkRebuild(tj, subsetTable(tj.typ, "row.1", "row.4"),
@@ -668,7 +668,7 @@ class PruneSuite extends SparkSuite {
 
   @Test def testTableUnionRebuildUnifiesRowTypes() {
     val mapExpr = InsertFields(Ref("row", tr.typ.rowType),
-      FastIndexedSeq("foo" -> tableRefBoolean(tr.typ, "row.3", "global.g1")))
+      NamedIRSeq("foo" -> tableRefBoolean(tr.typ, "row.3", "global.g1")))
     val tfilter = TableFilter(
       TableMapRows(tr, mapExpr),
       tableRefBoolean(tr.typ, "row.2"))
@@ -685,7 +685,7 @@ class PruneSuite extends SparkSuite {
   }
 
   @Test def testTableMultiWayZipJoinRebuildUnifiesRowTypes() {
-    val t1 = TableKeyBy(tab, Array("1"))
+    val t1 = TableKeyBy(tab, ISeq("1"))
     val t2 = TableFilter(t1, tableRefBoolean(t1.typ, "row.2"))
     val t3 = TableFilter(t1, tableRefBoolean(t1.typ, "row.3"))
     val ts = Array(t1, t2, t3)
@@ -820,7 +820,7 @@ class PruneSuite extends SparkSuite {
     "c" -> TString()
   )
 
-  def subsetTS(fields: String*): TStruct = ts.filterSet(fields.toSet)._1
+  def subsetTS(fields: Sym*): TStruct = ts.filterSet(fields.toSet)._1
 
   @Test def testNARebuild() {
     checkRebuild(NA(ts), subsetTS("b"),
@@ -872,19 +872,19 @@ class PruneSuite extends SparkSuite {
   }
 
   @Test def testMakeStructRebuild() {
-    checkRebuild(MakeStruct(Seq("a" -> NA(TInt32()), "b" -> NA(TInt64()), "c" -> NA(TString()))), subsetTS("b"),
+    checkRebuild(MakeStruct(NamedIRSeq("a" -> NA(TInt32()), "b" -> NA(TInt64()), "c" -> NA(TString()))), subsetTS("b"),
       (_: BaseIR, r: BaseIR) => {
-        r == MakeStruct(Seq("b" -> NA(TInt64())))
+        r == MakeStruct(NamedIRSeq("b" -> NA(TInt64())))
       })
   }
 
   @Test def testInsertFieldsRebuild() {
-    checkRebuild(InsertFields(NA(TStruct("a" -> TInt32())), Seq("b" -> NA(TInt64()), "c" -> NA(TString()))),
+    checkRebuild(InsertFields(NA(TStruct("a" -> TInt32())), NamedIRSeq("b" -> NA(TInt64()), "c" -> NA(TString()))),
       subsetTS("b"),
       (_: BaseIR, r: BaseIR) => {
         val ir = r.asInstanceOf[InsertFields]
         ir.fields == Seq(
-          "b" -> NA(TInt64())
+          I("b") -> NA(TInt64())
         )
       })
   }
@@ -894,7 +894,7 @@ class PruneSuite extends SparkSuite {
       subsetTS("b"),
       (_: BaseIR, r: BaseIR) => {
         val ir = r.asInstanceOf[SelectFields]
-        ir.fields == Seq("b")
+        ir.fields == Seq(I("b"))
       })
   }
 
@@ -909,7 +909,7 @@ class PruneSuite extends SparkSuite {
 
   @Test def testTableCollectRebuild() {
     val tc = TableCollect(tab)
-    checkRebuild(tc, TStruct("global" -> TStruct("g1" -> TInt32())),
+    checkRebuild(tc, TStruct(GlobalSym -> TStruct("g1" -> TInt32())),
       (_: BaseIR, r: BaseIR) => {
         r.asInstanceOf[MakeStruct].fields.head._2.isInstanceOf[TableGetGlobals]
       })

@@ -2,6 +2,7 @@ package is.hail.io.vcf
 
 import htsjdk.variant.variantcontext.VariantContext
 import is.hail.annotations._
+import is.hail.expr.ir.Sym
 import is.hail.expr.types._
 import is.hail.expr.types.virtual._
 import is.hail.utils._
@@ -18,7 +19,7 @@ class BufferedLineIterator(bit: BufferedIterator[String]) extends htsjdk.tribble
   }
 }
 
-class HtsjdkRecordReader(val callFields: Set[String]) extends Serializable {
+class HtsjdkRecordReader(val callFields: Set[Sym]) extends Serializable {
 
   import HtsjdkRecordReader._
 
@@ -29,7 +30,7 @@ class HtsjdkRecordReader(val callFields: Set[String]) extends Serializable {
     hasQual: Boolean,
     hasFilters: Boolean,
     infoType: TStruct,
-    infoFlagFieldNames: Set[String]) {
+    infoFlagFieldNames: Set[Sym]) {
     // locus, alleles added via VCFLine
 
     // rsid
@@ -66,7 +67,7 @@ class HtsjdkRecordReader(val callFields: Set[String]) extends Serializable {
     if (infoType != null) {
       rvb.startStruct()
       infoType.fields.foreach { f =>
-        val a = vc.getAttribute(f.name)
+        val a = vc.getAttribute(f.name.toString)
         addAttribute(rvb, a, f.typ, -1, isFlag = infoFlagFieldNames.contains(f.name))
       }
       rvb.endStruct()

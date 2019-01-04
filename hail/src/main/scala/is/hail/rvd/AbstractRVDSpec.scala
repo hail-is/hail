@@ -5,6 +5,7 @@ import is.hail.annotations._
 import is.hail.compatibility.UnpartitionedRVDSpec
 import is.hail.cxx
 import is.hail.expr.JSONAnnotationImpex
+import is.hail.expr.ir.Sym
 import is.hail.expr.types.virtual._
 import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual.{TStruct, TStructSerializer}
@@ -92,7 +93,7 @@ object AbstractRVDSpec {
 
 object OrderedRVDSpec {
   def apply(rowType: PStruct,
-    key: IndexedSeq[String],
+    key: IndexedSeq[Sym],
     codecSpec: CodecSpec,
     partFiles: Array[String],
     partitioner: RVDPartitioner): AbstractRVDSpec = {
@@ -113,7 +114,7 @@ case class OrderedRVDSpec(
   partFiles: Array[String],
   jRangeBounds: JValue
 ) extends AbstractRVDSpec {
-  def key: IndexedSeq[String] = rvdType.key
+  def key: IndexedSeq[Sym] = rvdType.key
 
   override def encodedType: PStruct = rvdType.rowType
 
@@ -139,7 +140,7 @@ abstract class AbstractRVDSpec {
   // FIXME introduce EType
   def encodedType: PStruct
 
-  def key: IndexedSeq[String]
+  def key: IndexedSeq[Sym]
 
   def partFiles: Array[String]
 

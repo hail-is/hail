@@ -570,21 +570,21 @@ class MatrixTable(ExprContainer):
         self._row_type = self._type.row_type
         self._entry_type = self._type.entry_type
 
-        self._globals = construct_reference('global', self._global_type,
+        self._globals = construct_reference(global_sym, self._global_type,
                                             indices=self._global_indices)
-        self._rvrow = construct_reference('va',
+        self._rvrow = construct_reference(row_sym,
                                           self._type.row_type,
                                           indices=self._row_indices)
         self._row = hail.struct(**{k: self._rvrow[k] for k in self._row_type.keys()})
-        self._col = construct_reference('sa', self._col_type,
+        self._col = construct_reference(col_sym, self._col_type,
                                         indices=self._col_indices)
-        self._entry = construct_reference('g', self._entry_type,
+        self._entry = construct_reference(entry_sym, self._entry_type,
                                           indices=self._entry_indices)
 
-        self._indices_from_ref = {'global': self._global_indices,
-                                  'va': self._row_indices,
-                                  'sa': self._col_indices,
-                                  'g': self._entry_indices}
+        self._indices_from_ref = {global_sym: self._global_indices,
+                                  row_sym: self._row_indices,
+                                  col_sym: self._col_indices,
+                                  entry_sym: self._entry_indices}
 
         self._row_key = hail.struct(
             **{k: self._row[k] for k in self._type.row_key})
@@ -1695,7 +1695,7 @@ class MatrixTable(ExprContainer):
         """
         base, _ = self._process_joins(expr)
         analyze('MatrixTable.aggregate_rows', expr, self._global_indices, {self._row_axis})
-        subst_query = subst(expr._ir, {}, {'va': Ref('row')})
+        subst_query = subst(expr._ir, {}, {row_sym: Ref(row_sym)})
         return Env.backend().execute(TableAggregate(MatrixRowsTable(base._mir), subst_query))
 
     @typecheck_method(expr=expr_any)
@@ -1740,7 +1740,7 @@ class MatrixTable(ExprContainer):
         """
         base, _ = self._process_joins(expr)
         analyze('MatrixTable.aggregate_cols', expr, self._global_indices, {self._col_axis})
-        subst_query = subst(expr._ir, {}, {'sa': Ref('row')})
+        subst_query = subst(expr._ir, {}, {col_sym: Ref(row_sym)})
         return Env.backend().execute(TableAggregate(MatrixColsTable(base._mir), subst_query))
 
     @typecheck_method(expr=expr_any)
@@ -2367,7 +2367,7 @@ class MatrixTable(ExprContainer):
                     return MatrixTable(MatrixAnnotateRowsTable(
                         left._mir, right.rows()._tir, uid, None))
                 schema = tstruct(**{f: t for f, t in self.row.dtype.items() if f not in self.row_key})
-                ir = Join(GetField(TopLevelReference('va'), uid),
+                ir = Join(GetField(TopLevelReference(row_sym), uid),
                           uids_to_delete,
                           exprs,
                           joiner)
@@ -2515,7 +2515,7 @@ class MatrixTable(ExprContainer):
                                           col_exprs = {col_uid: src_cols_indexed.index(*col_exprs)[col_uid]})
                 return left.annotate_entries(**{uid: left[row_uid][left[col_uid]]})
 
-            ir = Join(GetField(TopLevelReference('g'), uid),
+            ir = Join(GetField(TopLevelReference(entry_sym), uid),
                       uids,
                       [*row_exprs, *col_exprs],
                       joiner)

@@ -353,7 +353,7 @@ object IBD {
     }
   }
 
-  private[methods] def generateComputeMaf(vds: MatrixTable, fieldName: String): (RegionValue) => Double = {
+  private[methods] def generateComputeMaf(vds: MatrixTable, fieldName: Sym): (RegionValue) => Double = {
     val rvRowType = vds.rvRowType
     val rvRowPType = rvRowType.physicalType
     val field = rvRowType.field(fieldName)

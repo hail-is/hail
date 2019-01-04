@@ -2,6 +2,7 @@ package is.hail.methods
 
 import breeze.linalg.{*, DenseMatrix, DenseVector}
 import is.hail.annotations._
+import is.hail.expr.ir.{Sym, IRParser}
 import is.hail.expr.types._
 import is.hail.expr.types.virtual.{TArray, TFloat64, TStruct}
 import is.hail.rvd.RVDContext
@@ -56,8 +57,11 @@ object PCA {
     new Table(hc, scoresRDD, rowType, vsm.colKey)
   }
 
+  def apply(vsm: MatrixTable, entryField: String, k: Int, computeLoadings: Boolean): (IndexedSeq[Double], DenseMatrix[Double], Option[Table]) =
+    apply(vsm, IRParser.parseSymbol(entryField), k, computeLoadings)
+
   // returns (eigenvalues, sample scores, optional variant loadings)
-  def apply(vsm: MatrixTable, entryField: String, k: Int, computeLoadings: Boolean): (IndexedSeq[Double], DenseMatrix[Double], Option[Table]) = {
+  def apply(vsm: MatrixTable, entryField: Sym, k: Int, computeLoadings: Boolean): (IndexedSeq[Double], DenseMatrix[Double], Option[Table]) = {
     if (k < 1)
       fatal(s"""requested invalid number of components: $k
                |  Expect componenents >= 1""".stripMargin)

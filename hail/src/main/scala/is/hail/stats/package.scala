@@ -404,9 +404,9 @@ package object stats {
 
     MatrixTable.fromLegacy(hc, MatrixType.fromParts(
       globalType = TStruct.empty(),
-      colKey = Array("s"),
+      colKey = ISeq("s"),
       colType = TStruct("s" -> TString()),
-      rowKey = Array("locus", "alleles"),
+      rowKey = ISeq("locus", "alleles"),
       rowType = TStruct("locus" -> TLocus(ReferenceGenome.defaultReference),
         "alleles" -> TArray(TString())),
       entryType = Genotype.htsGenotypeType),
@@ -438,9 +438,9 @@ package object stats {
 
     MatrixTable.fromLegacy(hc, MatrixType.fromParts(
       globalType = TStruct.empty(),
-      colKey = Array("s"),
+      colKey = ISeq("s"),
       colType = TStruct("s" -> TString()),
-      rowKey = Array("locus", "alleles"),
+      rowKey = ISeq("locus", "alleles"),
       rowType = TStruct("locus" -> TLocus(ReferenceGenome.defaultReference),
         "alleles" -> TArray(TString())),
       entryType = TStruct(

@@ -14,7 +14,7 @@ class SimplifySuite extends SparkSuite {
     val range = TableKeyBy(TableRange(10, 3), FastIndexedSeq())
     val simplifiableIR =
       If(True(),
-        GetField(Ref("row", range.typ.rowType), "idx").ceq(0),
+        GetField(Ref(RowSym, range.typ.rowType), "idx").ceq(0),
         False())
     val checksRepartitioningIR =
       TableFilter(

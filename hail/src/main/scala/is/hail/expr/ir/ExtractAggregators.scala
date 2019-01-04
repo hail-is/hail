@@ -16,7 +16,7 @@ object ExtractAggregators {
   private case class IRAgg(i: Int, rvAgg: RegionValueAggregator, rt: Type)
   private case class AggOps(initOp: Option[IR], seqOp: IR)
 
-  def apply(ir: IR, resultName: String = "AGGR"): ExtractedAggregators = {
+  def apply(ir: IR, resultName: Sym = AGGRSym): ExtractedAggregators = {
     val ab = new ArrayBuilder[IRAgg]()
     val ab2 = new ArrayBuilder[AggOps]()
     val ref = Ref(resultName, null)

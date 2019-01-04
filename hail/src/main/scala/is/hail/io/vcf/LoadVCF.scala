@@ -5,7 +5,7 @@ import htsjdk.variant.vcf._
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.JSONAnnotationImpex
-import is.hail.expr.ir.{MatrixLiteral, MatrixRead, MatrixReader, MatrixValue, PruneDeadFields}
+import is.hail.expr.ir.{I, IRParser, MatrixLiteral, MatrixRead, MatrixReader, MatrixValue, PruneDeadFields, Sym}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual._
@@ -32,7 +32,7 @@ import scala.io.Source
 import scala.language.implicitConversions
 
 case class VCFHeaderInfo(sampleIds: Array[String], infoSignature: TStruct, vaSignature: TStruct, genotypeSignature: TStruct,
-  filtersAttrs: VCFAttributes, infoAttrs: VCFAttributes, formatAttrs: VCFAttributes, infoFlagFields: Set[String])
+  filtersAttrs: VCFAttributes, infoAttrs: VCFAttributes, formatAttrs: VCFAttributes, infoFlagFields: Set[Sym])
 
 class VCFParseError(val msg: String, val pos: Int) extends RuntimeException(msg)
 
@@ -534,7 +534,7 @@ object FormatParser {
     new FormatParser(
       gType,
       formatFields.map(f => gType.fieldIdx.getOrElse(f, -1)), // -1 means field has been pruned
-      gType.fields.filter(f => !formatFieldsSet.contains(f.name)).map(_.index).toArray)
+      gType.fields.filter(f => !formatFieldsSet.contains(f.name.toString)).map(_.index).toArray)
   }
 }
 
@@ -610,12 +610,12 @@ class FormatParser(
   }
 }
 
-class ParseLineContext(typ: MatrixType, val infoFlagFieldNames: Set[String], headerLines: BufferedLineIterator) {
+class ParseLineContext(typ: MatrixType, val infoFlagFieldNames: Set[Sym], headerLines: BufferedLineIterator) {
   val gType: TStruct = typ.entryType
-  val infoSignature = typ.rowType.fieldOption("info").map(_.typ.asInstanceOf[TStruct]).orNull
-  val hasRSID = typ.rowType.hasField("rsid")
-  val hasQual = typ.rowType.hasField("qual")
-  val hasFilters = typ.rowType.hasField("filters")
+  val infoSignature = typ.rowType.fieldOption(I("info")).map(_.typ.asInstanceOf[TStruct]).orNull
+  val hasRSID = typ.rowType.hasField(I("rsid"))
+  val hasQual = typ.rowType.hasField(I("qual"))
+  val hasFilters = typ.rowType.hasField(I("filters"))
   val formatSignature = typ.entryType
   val hasEntryFields = formatSignature.size > 0
 
@@ -684,9 +684,9 @@ object LoadVCF {
     case VCFHeaderLineType.String => "String"
   }
 
-  def headerField(line: VCFCompoundHeaderLine, i: Int, callFields: Set[String], arrayElementsRequired: Boolean = false): (Field, (String, Map[String, String]), Boolean) = {
+  def headerField(line: VCFCompoundHeaderLine, i: Int, callFields: Set[Sym], arrayElementsRequired: Boolean = false): (Field, (String, Map[String, String]), Boolean) = {
     val id = line.getID
-    val isCall = id == "GT" || callFields.contains(id)
+    val isCall = id == "GT" || callFields.contains(I(id))
 
     val baseType = (line.getType, isCall) match {
       case (VCFHeaderLineType.Integer, false) => TInt32()
@@ -707,15 +707,15 @@ object LoadVCF {
     if (line.isFixedCount &&
       (line.getCount == 1 ||
         (isFlag && line.getCount == 0)))
-      (Field(id, baseType, i), (id, attrs), isFlag)
+      (Field(I(id), baseType, i), (id, attrs), isFlag)
     else if (baseType.isInstanceOf[TCall])
       fatal("fields in 'call_fields' must have 'Number' equal to 1.")
     else
-      (Field(id, TArray(baseType.setRequired(arrayElementsRequired)), i), (id, attrs), isFlag)
+      (Field(I(id), TArray(baseType.setRequired(arrayElementsRequired)), i), (id, attrs), isFlag)
   }
 
   def headerSignature[T <: VCFCompoundHeaderLine](lines: java.util.Collection[T],
-    callFields: Set[String] = Set.empty[String], arrayElementsRequired: Boolean = false): (TStruct, VCFAttributes, Set[String]) = {
+    callFields: Set[Sym] = Set.empty, arrayElementsRequired: Boolean = false): (TStruct, VCFAttributes, Set[Sym]) = {
     val (fields, attrs, flags) = lines
       .zipWithIndex
       .map { case (line, i) => headerField(line, i, callFields, arrayElementsRequired) }
@@ -960,7 +960,7 @@ class PartitionedVCFRDD(
 
 case class MatrixVCFReader(
   files: Seq[String],
-  callFields: Set[String],
+  callFields: Set[Sym],
   headerFile: Option[String],
   minPartitions: Option[Int],
   rg: Option[String],
@@ -1048,9 +1048,9 @@ case class MatrixVCFReader(
   val fullType: MatrixType = MatrixType.fromParts(
     TStruct.empty(),
     colType = TStruct("s" -> TString()),
-    colKey = Array("s"),
+    colKey = ISeq("s"),
     rowType = kType ++ vaSignature,
-    rowKey = Array("locus", "alleles"),
+    rowKey = ISeq("locus", "alleles"),
     entryType = genotypeSignature)
 
   val partitioner = if (partitionsJSON != null) {
@@ -1063,7 +1063,7 @@ case class MatrixVCFReader(
     val rangeBounds = JSONAnnotationImpex.importAnnotation(jv, pkType)
 
     new RVDPartitioner(
-      Array("locus"),
+      ISeq("locus"),
       fullType.rowKeyStruct,
       rangeBounds.asInstanceOf[IndexedSeq[Interval]])
   } else
@@ -1136,7 +1136,7 @@ object ImportVCFs {
   ): Array[MatrixTable] = {
     val reader = VCFsReader(
       files.asScala.toArray,
-      callFields.asScala.toSet,
+      callFields.asScala.map(cf => IRParser.parseSymbol(cf)).toSet,
       Option(rg),
       Option(contigRecoding).map(_.asScala.toMap).getOrElse(Map.empty[String, String]),
       arrayElementsRequired,
@@ -1152,13 +1152,13 @@ object ImportVCFs {
 case class VCFInfo(
   headerLines: Array[String],
   sampleIDs: Array[String],
-  infoFlagFieldNames: Set[String],
+  infoFlagFieldNames: Set[Sym],
   typ: MatrixType,
   partitions: Array[Partition])
 
 case class VCFsReader(
   files: Array[String],
-  callFields: Set[String],
+  callFields: Set[Sym],
   rg: Option[String],
   contigRecoding: Map[String, String],
   arrayElementsRequired: Boolean,
@@ -1183,7 +1183,7 @@ case class VCFsReader(
     val rangeBounds = JSONAnnotationImpex.importAnnotation(jv, pkType)
 
     new RVDPartitioner(
-      Array("locus"),
+      ISeq("locus"),
       rowKeyType,
       rangeBounds.asInstanceOf[IndexedSeq[Interval]])
   }
@@ -1208,9 +1208,9 @@ case class VCFsReader(
       val typ = MatrixType.fromParts(
         TStruct.empty(),
         colType = TStruct("s" -> TString()),
-        colKey = Array("s"),
+        colKey = ISeq("s"),
         rowType = kType ++ vaSignature,
-        rowKey = Array("locus"), // "alleles"
+        rowKey = ISeq("locus"), // "alleles"
         entryType = genotypeSignature)
 
       val partitions = {

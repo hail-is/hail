@@ -67,7 +67,7 @@ class TextTableSuite extends SparkSuite {
       "Gene" -> TString()))
 
     val schema2 = TextTableReader.read(hc)(Array("src/test/resources/variantAnnotations.tsv"),
-      types = Map("Chromosome" -> TString()), impute = true).signature
+      types = Map[String, Type]("Chromosome" -> TString()), impute = true).signature
     assert(schema2 == TStruct(
       "Chromosome" -> TString(),
       "Position" -> TInt32(),

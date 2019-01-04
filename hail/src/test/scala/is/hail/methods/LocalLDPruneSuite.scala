@@ -5,6 +5,7 @@ import is.hail.{SparkSuite, TestUtils}
 import is.hail.annotations.{Annotation, Region, RegionValue, RegionValueBuilder}
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
+import is.hail.expr.ir.EntriesSym
 import is.hail.expr.types._
 import is.hail.expr.types.virtual.{TArray, TLocus, TString, TStruct}
 import is.hail.variant._
@@ -50,7 +51,7 @@ object LocalLDPruneSuite {
   val rvRowType = TStruct(
     "locus" -> ReferenceGenome.GRCh37.locusType,
     "alleles" -> TArray(TString()),
-    MatrixType.entriesIdentifier -> TArray(Genotype.htsGenotypeType)
+    EntriesSym -> TArray(Genotype.htsGenotypeType)
   )
 
   val bitPackedVectorViewType = BitPackedVectorView.rvRowType(rvRowType.field("locus").typ,

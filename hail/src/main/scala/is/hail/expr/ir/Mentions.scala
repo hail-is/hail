@@ -1,11 +1,11 @@
 package is.hail.expr.ir
 
 object Mentions {
-  def apply(x: IR, v: String): Boolean = CountMentions(x, v) > 0
+  def apply(x: IR, v: Sym): Boolean = CountMentions(x, v) > 0
 }
 
 object CountMentions {
-  def apply(x: IR, v: String): Int = {
+  def apply(x: IR, v: Sym): Int = {
     x match {
       case Ref(n, _) =>
         if (v == n)

@@ -83,4 +83,6 @@ class RichIterable[T](val i: Iterable[T]) extends Serializable {
       case _ => i.toArray[T]
     }
   }
+
+  def toISeq(implicit tct: ClassTag[T]): IndexedSeq[T] = toFastIndexedSeq
 }

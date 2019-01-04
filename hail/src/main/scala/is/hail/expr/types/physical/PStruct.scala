@@ -2,7 +2,7 @@ package is.hail.expr.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s.Code
-import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.ir.{EmitMethodBuilder, IRParser, Sym, toSym}
 import is.hail.expr.types.virtual.{Field, TStruct, Type}
 import is.hail.utils._
 
@@ -14,19 +14,19 @@ object PStruct {
 
   def empty(required: Boolean = false): PStruct = if (required) requiredEmpty else optionalEmpty
 
-  def apply(required: Boolean, args: (String, PType)*): PStruct =
+  def apply(required: Boolean, args: (Any, PType)*): PStruct =
     PStruct(args
       .iterator
       .zipWithIndex
-      .map { case ((n, t), i) => PField(n, t, i) }
+      .map { case ((n, t), i) => PField(toSym(n), t, i) }
       .toArray,
       required)
 
-  def apply(args: (String, PType)*): PStruct =
+  def apply(args: (Any, PType)*): PStruct =
     apply(false, args: _*)
 
   def apply(names: java.util.ArrayList[String], types: java.util.ArrayList[PType], required: Boolean): PStruct = {
-    val sNames = names.asScala.toArray
+    val sNames = names.asScala.map(IRParser.parseSymbol).toArray
     val sTypes = types.asScala.toArray
     if (sNames.length != sTypes.length)
       fatal(s"number of names does not match number of types: found ${ sNames.length } names and ${ sTypes.length } types")
@@ -44,15 +44,15 @@ final case class PStruct(fields: IndexedSeq[PField], override val required: Bool
 
   val fieldRequired: Array[Boolean] = types.map(_.required)
 
-  val fieldIdx: Map[String, Int] =
+  val fieldIdx: Map[Sym, Int] =
     fields.map(f => (f.name, f.index)).toMap
 
-  val fieldNames: Array[String] = fields.map(_.name).toArray
+  val fieldNames: Array[Sym] = fields.map(_.name).toArray
 
   if (!fieldNames.areDistinct()) {
     val duplicates = fieldNames.duplicates()
     fatal(s"cannot create struct with duplicate ${plural(duplicates.size, "field")}: " +
-      s"${fieldNames.map(prettyIdentifier).mkString(", ")}", fieldNames.duplicates())
+      s"${fieldNames.mkString(", ")}", fieldNames.duplicates())
   }
 
   val size: Int = fields.length
@@ -72,23 +72,23 @@ final case class PStruct(fields: IndexedSeq[PField], override val required: Bool
     CodeOrdering.rowOrdering(this, other.asInstanceOf[PStruct], mb)
   }
 
-  def fieldByName(name: String): PField = fields(fieldIdx(name))
+  def fieldByName(name: Sym): PField = fields(fieldIdx(name))
 
-  def index(str: String): Option[Int] = fieldIdx.get(str)
+  def index(str: Sym): Option[Int] = fieldIdx.get(str)
 
-  def selfField(name: String): Option[PField] = fieldIdx.get(name).map(i => fields(i))
+  def selfField(name: Sym): Option[PField] = fieldIdx.get(name).map(i => fields(i))
 
-  def hasField(name: String): Boolean = fieldIdx.contains(name)
+  def hasField(name: Sym): Boolean = fieldIdx.contains(name)
 
-  def field(name: String): PField = fields(fieldIdx(name))
+  def field(name: Sym): PField = fields(fieldIdx(name))
 
-  def unsafeStructInsert(typeToInsert: PType, path: List[String]): (PStruct, UnsafeInserter) = {
+  def unsafeStructInsert(typeToInsert: PType, path: List[Sym]): (PStruct, UnsafeInserter) = {
     assert(typeToInsert.isInstanceOf[PStruct] || path.nonEmpty)
     val (t, i) = unsafeInsert(typeToInsert, path)
     (t.asInstanceOf[PStruct], i)
   }
 
-  override def unsafeInsert(typeToInsert: PType, path: List[String]): (PType, UnsafeInserter) = {
+  override def unsafeInsert(typeToInsert: PType, path: List[Sym]): (PType, UnsafeInserter) = {
     if (path.isEmpty) {
       (typeToInsert, (region, offset, rvb, inserter) => inserter())
     } else {
@@ -144,7 +144,7 @@ final case class PStruct(fields: IndexedSeq[PField], override val required: Bool
     }
   }
 
-  def updateKey(key: String, i: Int, sig: PType): PStruct = {
+  def updateKey(key: Sym, i: Int, sig: PType): PStruct = {
     assert(fieldIdx.contains(key))
 
     val newFields = Array.fill[PField](fields.length)(null)
@@ -154,7 +154,7 @@ final case class PStruct(fields: IndexedSeq[PField], override val required: Bool
     PStruct(newFields, required)
   }
 
-  def deleteField(key: String): PStruct = {
+  def deleteField(key: Sym): PStruct = {
     assert(fieldIdx.contains(key))
     val index = fieldIdx(key)
     if (fields.length == 1)
@@ -169,7 +169,7 @@ final case class PStruct(fields: IndexedSeq[PField], override val required: Bool
     }
   }
 
-  def appendKey(key: String, sig: PType): PStruct = {
+  def appendKey(key: Sym, sig: PType): PStruct = {
     assert(!fieldIdx.contains(key))
     val newFields = Array.fill[PField](fields.length + 1)(null)
     for (i <- fields.indices)
@@ -179,8 +179,8 @@ final case class PStruct(fields: IndexedSeq[PField], override val required: Bool
   }
 
 
-  def rename(m: Map[String, String]): PStruct = {
-    val newFieldsBuilder = new ArrayBuilder[(String, PType)]()
+  def rename(m: Map[Sym, Sym]): PStruct = {
+    val newFieldsBuilder = new ArrayBuilder[(Sym, PType)]()
     fields.foreach { fd =>
       val n = fd.name
       newFieldsBuilder += (m.getOrElse(n, n), fd.typ)
@@ -200,7 +200,7 @@ final case class PStruct(fields: IndexedSeq[PField], override val required: Bool
   override def pyString(sb: StringBuilder): Unit = {
     sb.append("struct{")
     fields.foreachBetween({ field =>
-      sb.append(prettyIdentifier(field.name))
+      sb.append(field.name)
       sb.append(": ")
       field.typ.pyString(sb)
     }) { sb.append(", ")}
@@ -226,12 +226,12 @@ final case class PStruct(fields: IndexedSeq[PField], override val required: Bool
     }
   }
 
-  def selectFields(names: Seq[String]): PStruct = {
+  def selectFields(names: Seq[Sym]): PStruct = {
     PStruct(required,
       names.map(f => f -> field(f).typ): _*)
   }
 
-  def dropFields(names: Set[String]): PStruct =
+  def dropFields(names: Set[Sym]): PStruct =
     selectFields(fieldNames.filter(!names.contains(_)))
 
   def typeAfterSelect(keep: IndexedSeq[Int]): PStruct =
@@ -247,12 +247,12 @@ final case class PStruct(fields: IndexedSeq[PField], override val required: Bool
     }
   }
 
-  def loadField(region: Code[Region], offset: Code[Long], fieldName: String): Code[Long] = {
+  def loadField(region: Code[Region], offset: Code[Long], fieldName: Sym): Code[Long] = {
     val f = field(fieldName)
     loadField(region, fieldOffset(offset, f.index), f.index)
   }
 
-  def insertFields(fieldsToInsert: TraversableOnce[(String, PType)]): PStruct = {
+  def insertFields(fieldsToInsert: TraversableOnce[(Sym, PType)]): PStruct = {
     val ab = new ArrayBuilder[PField](fields.length)
     var i = 0
     while (i < fields.length) {

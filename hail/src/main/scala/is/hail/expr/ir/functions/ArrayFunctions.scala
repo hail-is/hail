@@ -11,33 +11,33 @@ import is.hail.utils._
 object ArrayFunctions extends RegistryFunctions {
   def mean(a: IR): IR = {
     val t = -coerce[TArray](a.typ).elementType
-    val tAccum = TStruct("sum" -> TFloat64(), "n" -> TInt32())
-    val accum = genUID()
-    val v = genUID()
-    val result = genUID()
+    val tAccum = TStruct(I("sum") -> TFloat64(), I("n") -> TInt32())
+    val accum = genSym("accum")
+    val v = genSym("v")
+    val result = genSym("result")
 
     def updateAccum(sum: IR, n: IR): IR =
-      MakeStruct(FastSeq("sum" -> sum, "n" -> n))
+      MakeStruct(FastSeq(I("sum") -> sum, I("n") -> n))
 
     Let(
       result,
       ArrayFold(
         a,
-        MakeStruct(FastSeq("sum" -> F64(0), "n" -> I32(0))),
+        MakeStruct(FastSeq(I("sum") -> F64(0), I("n") -> I32(0))),
         accum,
         v,
         updateAccum(
-          ApplyBinaryPrimOp(Add(), GetField(Ref(accum, tAccum), "sum"), Cast(Ref(v, t), TFloat64())),
-          ApplyBinaryPrimOp(Add(), GetField(Ref(accum, tAccum), "n"), I32(1)))),
+          ApplyBinaryPrimOp(Add(), GetField(Ref(accum, tAccum), I("sum")), Cast(Ref(v, t), TFloat64())),
+          ApplyBinaryPrimOp(Add(), GetField(Ref(accum, tAccum), I("n")), I32(1)))),
       ApplyBinaryPrimOp(FloatingPointDivide(),
-        GetField(Ref(result, tAccum), "sum"),
-        Cast(GetField(Ref(result, tAccum), "n"), TFloat64())))
+        GetField(Ref(result, tAccum), I("sum")),
+        Cast(GetField(Ref(result, tAccum), I("n")), TFloat64())))
   }
 
   def isEmpty(a: IR): IR = ApplyComparisonOp(EQ(TInt32()), ArrayLen(a), I32(0))
 
   def extend(a1: IR, a2: IR): IR = {
-    val uid = genUID()
+    val uid = genSym("t")
     val typ = a1.typ
     If(IsNA(a1), NA(typ),
       If(IsNA(a2), NA(typ),
@@ -51,16 +51,16 @@ object ArrayFunctions extends RegistryFunctions {
 
   def sum(a: IR): IR = {
     val t = -coerce[TArray](a.typ).elementType
-    val sum = genUID()
-    val v = genUID()
+    val sum = genSym("sum")
+    val v = genSym("v")
     val zero = Cast(I64(0), t)
     ArrayFold(a, zero, sum, v, ApplyBinaryPrimOp(Add(), Ref(sum, t), Ref(v, t)))
   }
 
   def product(a: IR): IR = {
     val t = -coerce[TArray](a.typ).elementType
-    val product = genUID()
-    val v = genUID()
+    val product = genSym("product")
+    val v = genSym("v")
     val one = Cast(I64(1), t)
     ArrayFold(a, one, product, v, ApplyBinaryPrimOp(Multiply(), Ref(product, t), Ref(v, t)))
   }
@@ -92,21 +92,21 @@ object ArrayFunctions extends RegistryFunctions {
 
     for ((stringOp, irOp) <- arrayOps) {
       registerIR(stringOp, TArray(tnum("T")), tv("T")) { (a, c) =>
-        val i = genUID()
+        val i = genSym("i")
         ArrayMap(a, i, irOp(Ref(i, c.typ), c))
       }
 
       registerIR(stringOp, tnum("T"), TArray(tv("T"))) { (c, a) =>
-        val i = genUID()
+        val i = genSym("i")
         ArrayMap(a, i, irOp(c, Ref(i, c.typ)))
       }
 
       registerIR(stringOp, TArray(tnum("T")), TArray(tv("T"))) { (array1, array2) =>
-        val a1id = genUID()
+        val a1id = genSym("a1")
         val a1 = Ref(a1id, array1.typ)
-        val a2id = genUID()
+        val a2id = genSym("a2")
         val a2 = Ref(a2id, array2.typ)
-        val iid = genUID()
+        val iid = genSym("i")
         val i = Ref(iid, TInt32())
         val body =
           ArrayMap(ArrayRange(I32(0), ArrayLen(a1), I32(1)), iid,
@@ -126,10 +126,10 @@ object ArrayFunctions extends RegistryFunctions {
     def makeMinMaxOp(op: Type => ComparisonOp[Boolean]): IR => IR = {
       { a =>
         val t = -coerce[TArray](a.typ).elementType
-        val accum = genUID()
-        val value = genUID()
+        val accum = genSym("accum")
+        val value = genSym("value")
 
-        val aUID = genUID()
+        val aUID = genSym("a")
         val aRef = Ref(aUID, a.typ)
         val zVal = If(ApplyComparisonOp(EQ(TInt32()), ArrayLen(aRef), I32(0)), NA(t), ArrayRef(a, I32(0)))
 
@@ -148,9 +148,9 @@ object ArrayFunctions extends RegistryFunctions {
 
     registerIR("median", TArray(tnum("T"))) { array =>
       val t = -array.typ.asInstanceOf[TArray].elementType
-      val v = Ref(genUID(), t)
-      val a = Ref(genUID(), TArray(t))
-      val size = Ref(genUID(), TInt32())
+      val v = Ref(genSym("v"), t)
+      val a = Ref(genSym("a"), TArray(t))
+      val size = Ref(genSym("size"), TInt32())
       val lastIdx = size - 1
       val midIdx = lastIdx.floorDiv(2)
       def ref(i: IR) = ArrayRef(a, i)
@@ -170,18 +170,18 @@ object ArrayFunctions extends RegistryFunctions {
     
     def argF(a: IR, op: (Type) => ComparisonOp[Boolean]): IR = {
       val t = -coerce[TArray](a.typ).elementType
-      val tAccum = TStruct("m" -> t, "midx" -> TInt32())
-      val accum = genUID()
-      val value = genUID()
-      val m = genUID()
-      val idx = genUID()
+      val tAccum = TStruct(I("m") -> t, I("midx") -> TInt32())
+      val accum = genSym("accum")
+      val value = genSym("value")
+      val m = genSym("m")
+      val idx = genSym("idx")
 
       def updateAccum(min: IR, midx: IR): IR =
-        MakeStruct(FastSeq("m" -> min, "midx" -> midx))
+        MakeStruct(FastSeq(I("m") -> min, I("midx") -> midx))
 
       val body =
         Let(value, ArrayRef(a, Ref(idx, TInt32())),
-          Let(m, GetField(Ref(accum, tAccum), "m"),
+          Let(m, GetField(Ref(accum, tAccum), I("m")),
             If(IsNA(Ref(value, t)),
               Ref(accum, tAccum),
               If(IsNA(Ref(m, t)),
@@ -195,7 +195,7 @@ object ArrayFunctions extends RegistryFunctions {
         accum,
         idx,
         body
-      ), "midx")
+      ), I("midx"))
     }
 
     registerIR("argmin", TArray(tv("T")))(argF(_, LT(_)))
@@ -204,19 +204,19 @@ object ArrayFunctions extends RegistryFunctions {
 
     def uniqueIndex(a: IR, op: (Type) => ComparisonOp[Boolean]): IR = {
       val t = -coerce[TArray](a.typ).elementType
-      val tAccum = TStruct("m" -> t, "midx" -> TInt32(), "count" -> TInt32())
-      val accum = genUID()
-      val value = genUID()
-      val m = genUID()
-      val idx = genUID()
-      val result = genUID()
+      val tAccum = TStruct(I("m") -> t, I("midx") -> TInt32(), I("count") -> TInt32())
+      val accum = genSym("accum")
+      val value = genSym("value")
+      val m = genSym("m")
+      val idx = genSym("idx")
+      val result = genSym("result")
 
       def updateAccum(m: IR, midx: IR, count: IR): IR =
-        MakeStruct(FastSeq("m" -> m, "midx" -> midx, "count" -> count))
+        MakeStruct(FastSeq(I("m") -> m, I("midx") -> midx, I("count") -> count))
 
       val body =
         Let(value, ArrayRef(a, Ref(idx, TInt32())),
-          Let(m, GetField(Ref(accum, tAccum), "m"),
+          Let(m, GetField(Ref(accum, tAccum), I("m")),
             If(IsNA(Ref(value, t)),
               Ref(accum, tAccum),
               If(IsNA(Ref(m, t)),
@@ -227,7 +227,7 @@ object ArrayFunctions extends RegistryFunctions {
                     updateAccum(
                       Ref(value, t),
                       Ref(idx, TInt32()),
-                      ApplyBinaryPrimOp(Add(), GetField(Ref(accum, tAccum), "count"), I32(1))),
+                      ApplyBinaryPrimOp(Add(), GetField(Ref(accum, tAccum), I("count")), I32(1))),
                     Ref(accum, tAccum)))))))
 
       Let(result, ArrayFold(
@@ -236,8 +236,8 @@ object ArrayFunctions extends RegistryFunctions {
         accum,
         idx,
         body
-      ), If(ApplyComparisonOp(EQ(TInt32()), GetField(Ref(result, tAccum), "count"), I32(1)),
-        GetField(Ref(result, tAccum), "midx"),
+      ), If(ApplyComparisonOp(EQ(TInt32()), GetField(Ref(result, tAccum), I("count")), I32(1)),
+        GetField(Ref(result, tAccum), I("midx")),
         NA(TInt32())))
     }
 
@@ -256,7 +256,7 @@ object ArrayFunctions extends RegistryFunctions {
     registerIR("[:]", TArray(tv("T"))) { (a) => a }
 
     registerIR("[*:]", TArray(tv("T")), TInt32()) { (a, i) =>
-      val idx = genUID()
+      val idx = genSym("i")
       ArrayMap(
         ArrayRange(
           If(ApplyComparisonOp(LT(TInt32()), i, I32(0)),
@@ -271,7 +271,7 @@ object ArrayFunctions extends RegistryFunctions {
     }
 
     registerIR("[:*]", TArray(tv("T")), TInt32()) { (a, i) =>
-      val idx = genUID()
+      val idx = genSym("i")
       If(IsNA(a), a,
         ArrayMap(
           ArrayRange(
@@ -285,7 +285,7 @@ object ArrayFunctions extends RegistryFunctions {
     }
 
     registerIR("[*:*]", TArray(tv("T")), TInt32(), TInt32()) { (a, i, j) =>
-      val idx = genUID()
+      val idx = genSym("i")
       ArrayMap(
         ArrayRange(
           If(ApplyComparisonOp(LT(TInt32()), i, I32(0)),
@@ -302,7 +302,7 @@ object ArrayFunctions extends RegistryFunctions {
     }
 
     registerIR("flatten", TArray(tv("T"))) { a =>
-      val elt = Ref(genUID(), coerce[TArray](a.typ).elementType)
+      val elt = Ref(genSym("x"), coerce[TArray](a.typ).elementType)
       ArrayFlatMap(a, elt.name, elt)
     }
 

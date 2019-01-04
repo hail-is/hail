@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.utils.{FastIndexedSeq, FastSeq}
+import is.hail.utils.{FastIndexedSeq, FastSeq, ISeq}
 import is.hail.TestUtils._
 import is.hail.expr.types.virtual._
 import org.apache.spark.sql.Row
@@ -23,11 +23,11 @@ class InterpretSuite {
   private val t = True()
   private val f = False()
 
-  private val arr = MakeArray(List(I32(1), I32(5), I32(2), NA(TInt32())), TArray(TInt32()))
+  private val arr = MakeArray(ISeq(I32(1), I32(5), I32(2), NA(TInt32())), TArray(TInt32()))
 
-  private val struct = MakeStruct(List("a" -> i32, "b" -> f32, "c" -> ArrayRange(I32(0), I32(5), I32(1))))
+  private val struct = MakeStruct(NamedIRSeq("a" -> i32, "b" -> f32, "c" -> ArrayRange(I32(0), I32(5), I32(1))))
 
-  private val tuple = MakeTuple(List(i32, f32, ArrayRange(I32(0), I32(5), I32(1))))
+  private val tuple = MakeTuple(ISeq(i32, f32, ArrayRange(I32(0), I32(5), I32(1))))
 
   @Test def testUnaryPrimOp() {
     assertEvalSame(t)
@@ -256,7 +256,7 @@ class InterpretSuite {
   }
 
   @Test def testInsertFields() {
-    assertEvalSame(InsertFields(struct, List("a" -> f64, "bar" -> i32)))
+    assertEvalSame(InsertFields(struct, NamedIRSeq("a" -> f64, "bar" -> i32)))
   }
 
   @Test def testGetField() {

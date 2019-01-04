@@ -6,6 +6,7 @@ import is.hail.utils.roundWithConstantSum
 import is.hail.utils.UInt
 import is.hail.utils.roundWithConstantSum
 import is.hail.check.Arbitrary.arbitrary
+import is.hail.expr.ir.{Identifier, Sym}
 import org.apache.commons.math3.random._
 
 import scala.collection.generic.CanBuildFrom
@@ -424,6 +425,9 @@ object Gen {
 
   def identifier: Gen[String] =
     identifierGen(identifierLeadingChars, identifierChars)
+
+  def symbol: Gen[Sym] =
+    identifier.map(Identifier)
 
   def plinkSafeIdentifier: Gen[String] =
     identifierGen(plinkSafeStartOfIdentifierChars, plinkSafeChars)

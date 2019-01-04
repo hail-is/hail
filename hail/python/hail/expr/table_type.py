@@ -1,3 +1,4 @@
+import hail
 from hail.typecheck import *
 from hail.utils.java import escape_parsable
 from hail.expr.types import dtype, tstruct
@@ -9,7 +10,7 @@ class ttable(object):
         return ttable(
             dtype(jtt.globalType().toString()),
             dtype(jtt.rowType().toString()),
-            jiterable_to_list(jtt.key()))
+            [hail.ir.Symbol.from_jsymbol(k) for k in jiterable_to_list(jtt.key())])
 
     @typecheck_method(global_type=tstruct, row_type=tstruct, row_key=sequenceof(str))
     def __init__(self, global_type, row_type, row_key):

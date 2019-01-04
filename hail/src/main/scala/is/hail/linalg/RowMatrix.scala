@@ -2,6 +2,7 @@ package is.hail.linalg
 
 import breeze.linalg.DenseMatrix
 import is.hail.HailContext
+import is.hail.expr.ir.Sym
 import is.hail.expr.types.virtual.{TInt64, TStruct}
 import is.hail.io.InputBuffer
 import is.hail.rvd.RVDPartitioner
@@ -70,7 +71,7 @@ class RowMatrix(val hc: HailContext,
   def partitionStarts(): Array[Long] = partitionCounts().scanLeft(0L)(_ + _)
 
   def partitioner(
-    partitionKey: Array[String] = Array("idx"),
+    partitionKey: IndexedSeq[Sym] = ISeq("idx"),
     kType: TStruct = TStruct("idx" -> TInt64())): RVDPartitioner = {
     
     val partStarts = partitionStarts()

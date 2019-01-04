@@ -9,6 +9,7 @@ import is.hail.table.Table
 import is.hail.utils._
 import is.hail.variant.{Call, HardCallView, MatrixTable}
 import is.hail.HailContext
+import is.hail.expr.ir.Sym
 import is.hail.expr.types.virtual._
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.mllib.linalg.Vectors
@@ -43,7 +44,7 @@ object PCRelate {
       ("ibd1", TFloat64()),
       ("ibd2", TFloat64()))
 
-  private val keys: IndexedSeq[String] = Array("i", "j")
+  private val keys: IndexedSeq[Sym] = ISeq("i", "j")
 
   def apply(
     hc: HailContext,
@@ -80,12 +81,12 @@ object PCRelate {
     val result = new PCRelate(maf, blockSize, statistics, defaultStorageLevel)(hc, blockedG, pcs)
 
     val irFields = Array(
-      "i" -> "(Apply `[]` (GetField sample_ids (Ref global)) (GetField i (Ref row)))",
-      "j" -> "(Apply `[]` (GetField sample_ids (Ref global)) (GetField j (Ref row)))",
-      "kin" -> "(GetField kin (Ref row))",
-      "ibd0" -> "(GetField ibd0 (Ref row))",
-      "ibd1" -> "(GetField ibd1 (Ref row))",
-      "ibd2" -> "(GetField ibd2 (Ref row))"
+      "i" -> "(Apply `[]` (GetField sample_ids (Ref :global)) (GetField i (Ref :row)))",
+      "j" -> "(Apply `[]` (GetField sample_ids (Ref :global)) (GetField j (Ref :row)))",
+      "kin" -> "(GetField kin (Ref :row))",
+      "ibd0" -> "(GetField ibd0 (Ref :row))",
+      "ibd1" -> "(GetField ibd1 (Ref :row))",
+      "ibd2" -> "(GetField ibd2 (Ref :row))"
     ).map { case (name, expr) => s"($name $expr)" }
     val irExpr = s"(MakeStruct ${irFields.mkString(" ")})"
 

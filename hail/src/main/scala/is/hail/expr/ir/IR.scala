@@ -94,8 +94,8 @@ object If {
 
 final case class If(cond: IR, cnsq: IR, altr: IR) extends IR
 
-final case class Let(name: String, value: IR, body: IR) extends IR
-final case class Ref(name: String, var _typ: Type) extends IR
+final case class Let(name: Sym, value: IR, body: IR) extends IR
+final case class Ref(name: Sym, var _typ: Type) extends IR
 
 final case class ApplyBinaryPrimOp(op: BinaryOp, l: IR, r: IR) extends IR
 final case class ApplyUnaryPrimOp(op: UnaryOp, x: IR) extends IR
@@ -140,25 +140,25 @@ final case class LowerBoundOnOrderedCollection(orderedCollection: IR, elem: IR, 
 
 final case class GroupByKey(collection: IR) extends IR
 
-final case class ArrayMap(a: IR, name: String, body: IR) extends IR {
+final case class ArrayMap(a: IR, name: Sym, body: IR) extends IR {
   override def typ: TArray = coerce[TArray](super.typ)
   def elementTyp: Type = typ.elementType
 }
-final case class ArrayFilter(a: IR, name: String, cond: IR) extends IR {
+final case class ArrayFilter(a: IR, name: Sym, cond: IR) extends IR {
   override def typ: TArray = super.typ.asInstanceOf[TArray]
 }
-final case class ArrayFlatMap(a: IR, name: String, body: IR) extends IR {
+final case class ArrayFlatMap(a: IR, name: Sym, body: IR) extends IR {
   override def typ: TArray = coerce[TArray](super.typ)
 }
-final case class ArrayFold(a: IR, zero: IR, accumName: String, valueName: String, body: IR) extends IR
+final case class ArrayFold(a: IR, zero: IR, accumName: Sym, valueName: Sym, body: IR) extends IR
 
-final case class ArrayScan(a: IR, zero: IR, accumName: String, valueName: String, body: IR) extends IR
+final case class ArrayScan(a: IR, zero: IR, accumName: Sym, valueName: Sym, body: IR) extends IR
 
-final case class ArrayFor(a: IR, valueName: String, body: IR) extends IR
+final case class ArrayFor(a: IR, valueName: Sym, body: IR) extends IR
 
 final case class AggFilter(cond: IR, aggIR: IR) extends IR
 
-final case class AggExplode(array: IR, name: String, aggBody: IR) extends IR
+final case class AggExplode(array: IR, name: Sym, aggBody: IR) extends IR
 
 final case class AggGroupBy(key: IR, aggIR: IR) extends IR
 
@@ -193,15 +193,17 @@ final case class ApplyScanOp(constructorArgs: IndexedSeq[IR], initOpArgs: Option
 final case class InitOp(i: IR, args: IndexedSeq[IR], aggSig: AggSignature) extends IR
 final case class SeqOp(i: IR, args: IndexedSeq[IR], aggSig: AggSignature) extends IR
 final case class Begin(xs: IndexedSeq[IR]) extends IR
-final case class MakeStruct(fields: Seq[(String, IR)]) extends IR
-final case class SelectFields(old: IR, fields: Seq[String]) extends IR
-final case class InsertFields(old: IR, fields: Seq[(String, IR)]) extends IR {
+
+final case class MakeStruct(fields: Seq[(Sym, IR)]) extends IR
+final case class SelectFields(old: IR, fields: Seq[Sym]) extends IR
+
+final case class InsertFields(old: IR, fields: Seq[(Sym, IR)]) extends IR {
   override def typ: TStruct = coerce[TStruct](super.typ)
 
   override def pType: PStruct = coerce[PStruct](super.pType)
 }
 
-final case class GetField(o: IR, name: String) extends IR
+final case class GetField(o: IR, name: Sym) extends IR
 
 final case class MakeTuple(types: Seq[IR]) extends IR
 final case class GetTupleElement(o: IR, idx: Int) extends IR
@@ -220,7 +222,7 @@ final case class Die(message: IR, _typ: Type) extends IR
 
 final case class ApplyIR(function: String, args: Seq[IR], conversion: Seq[IR] => IR) extends IR {
   lazy val explicitNode: IR = {
-    val refs = args.map(a => Ref(genUID(), a.typ)).toArray
+    val refs = args.map(a => Ref(genSym("arg"), a.typ)).toArray
     var body = conversion(refs)
 
     // foldRight because arg1 should be at the top so it is evaluated first
@@ -241,7 +243,7 @@ final case class ApplySeeded(function: String, args: Seq[IR], seed: Long) extend
 
 final case class ApplySpecial(function: String, args: Seq[IR]) extends AbstractApplyNode[IRFunctionWithMissingness]
 
-final case class Uniroot(argname: String, function: IR, min: IR, max: IR) extends IR
+final case class Uniroot(argname: Sym, function: IR, min: IR, max: IR) extends IR
 
 final case class TableCount(child: TableIR) extends IR
 final case class TableAggregate(child: TableIR, query: IR) extends IR

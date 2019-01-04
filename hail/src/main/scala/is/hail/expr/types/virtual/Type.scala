@@ -2,6 +2,7 @@ package is.hail.expr.types.virtual
 
 import is.hail.annotations._
 import is.hail.check.{Arbitrary, Gen}
+import is.hail.expr.ir.Sym
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PType
 import is.hail.expr.{JSONAnnotationImpex, SparkAnnotationImpex}
@@ -35,7 +36,7 @@ object Type {
 
   def genFields(required: Boolean, genFieldType: Gen[Type]): Gen[Array[Field]] = {
     Gen.buildableOf[Array](
-      Gen.zip(Gen.identifier, genFieldType))
+      Gen.zip(Gen.symbol, genFieldType))
       .filter(fields => fields.map(_._1).areDistinct())
       .map(fields => fields
         .iterator
@@ -142,25 +143,25 @@ abstract class Type extends BaseType with Serializable {
 
   def subst(): Type = this.setRequired(false)
 
-  def insert(signature: Type, fields: String*): (Type, Inserter) = insert(signature, fields.toList)
+  def insert(signature: Type, fields: Sym*): (Type, Inserter) = insert(signature, fields.toList)
 
-  def insert(signature: Type, path: List[String]): (Type, Inserter) = {
+  def insert(signature: Type, path: List[Sym]): (Type, Inserter) = {
     if (path.nonEmpty)
       TStruct.empty().insert(signature, path)
     else
       (signature, (a, toIns) => toIns)
   }
 
-  def query(fields: String*): Querier = query(fields.toList)
+  def query(fields: Sym*): Querier = query(fields.toList)
 
-  def query(path: List[String]): Querier = {
+  def query(path: List[Sym]): Querier = {
     val (t, q) = queryTyped(path)
     q
   }
 
-  def queryTyped(fields: String*): (Type, Querier) = queryTyped(fields.toList)
+  def queryTyped(fields: Sym*): (Type, Querier) = queryTyped(fields.toList)
 
-  def queryTyped(path: List[String]): (Type, Querier) = {
+  def queryTyped(path: List[Sym]): (Type, Querier) = {
     if (path.nonEmpty)
       throw new AnnotationPathException(s"invalid path ${ path.mkString(".") } from type ${ this }")
     else
@@ -179,9 +180,9 @@ abstract class Type extends BaseType with Serializable {
     sb.append(_toPretty)
   }
 
-  def fieldOption(fields: String*): Option[Field] = fieldOption(fields.toList)
+  def fieldOption(fields: Sym*): Option[Field] = fieldOption(fields.toList)
 
-  def fieldOption(path: List[String]): Option[Field] =
+  def fieldOption(path: List[Sym]): Option[Field] =
     None
 
   def schema: DataType = SparkAnnotationImpex.exportType(this)

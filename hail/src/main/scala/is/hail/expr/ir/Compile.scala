@@ -12,7 +12,7 @@ import scala.reflect.{ClassTag, classTag}
 object Compile {
 
   def apply[F >: Null : TypeInfo, R: TypeInfo : ClassTag](
-    args: Seq[(String, PType, ClassTag[_])],
+    args: Seq[(Sym, PType, ClassTag[_])],
     body: IR,
     nSpecialArgs: Int
   ): (PType, Int => F) = {
@@ -33,7 +33,7 @@ object Compile {
   }
 
   private def apply[F >: Null : TypeInfo, R: TypeInfo : ClassTag](
-    args: Seq[(String, PType, ClassTag[_])],
+    args: Seq[(Sym, PType, ClassTag[_])],
     argTypeInfo: Array[MaybeGenericTypeInfo[_]],
     body: IR,
     nSpecialArgs: Int
@@ -55,11 +55,11 @@ object Compile {
   }
 
   def apply[R: TypeInfo : ClassTag](body: IR): (PType, Int => AsmFunction1[Region, R]) = {
-    apply[AsmFunction1[Region, R], R](FastSeq[(String, PType, ClassTag[_])](), body, 1)
+    apply[AsmFunction1[Region, R], R](FastSeq[(Sym, PType, ClassTag[_])](), body, 1)
   }
 
   def apply[T0: ClassTag, R: TypeInfo : ClassTag](
-    name0: String,
+    name0: Sym,
     typ0: PType,
     body: IR): (PType, Int => AsmFunction3[Region, T0, Boolean, R]) = {
 
@@ -67,9 +67,9 @@ object Compile {
   }
 
   def apply[T0: ClassTag, T1: ClassTag, R: TypeInfo : ClassTag](
-    name0: String,
+    name0: Sym,
     typ0: PType,
-    name1: String,
+    name1: Sym,
     typ1: PType,
     body: IR): (PType, Int => AsmFunction5[Region, T0, Boolean, T1, Boolean, R]) = {
 
@@ -81,11 +81,11 @@ object Compile {
   T1: TypeInfo : ClassTag,
   T2: TypeInfo : ClassTag,
   R: TypeInfo : ClassTag
-  ](name0: String,
+  ](name0: Sym,
     typ0: PType,
-    name1: String,
+    name1: Sym,
     typ1: PType,
-    name2: String,
+    name2: Sym,
     typ2: PType,
     body: IR
   ): (PType, Int => AsmFunction7[Region, T0, Boolean, T1, Boolean, T2, Boolean, R]) = {
@@ -102,10 +102,10 @@ object Compile {
   T2: TypeInfo : ClassTag,
   T3: TypeInfo : ClassTag,
   R: TypeInfo : ClassTag
-  ](name0: String, typ0: PType,
-    name1: String, typ1: PType,
-    name2: String, typ2: PType,
-    name3: String, typ3: PType,
+  ](name0: Sym, typ0: PType,
+    name1: Sym, typ1: PType,
+    name2: Sym, typ2: PType,
+    name3: Sym, typ3: PType,
     body: IR
   ): (PType, Int => AsmFunction9[Region, T0, Boolean, T1, Boolean, T2, Boolean, T3, Boolean, R]) = {
     apply[AsmFunction9[Region, T0, Boolean, T1, Boolean, T2, Boolean, T3, Boolean, R], R](FastSeq(
@@ -124,12 +124,12 @@ object Compile {
   T4: ClassTag,
   T5: ClassTag,
   R: TypeInfo : ClassTag
-  ](name0: String, typ0: PType,
-    name1: String, typ1: PType,
-    name2: String, typ2: PType,
-    name3: String, typ3: PType,
-    name4: String, typ4: PType,
-    name5: String, typ5: PType,
+  ](name0: Sym, typ0: PType,
+    name1: Sym, typ1: PType,
+    name2: Sym, typ2: PType,
+    name3: Sym, typ3: PType,
+    name4: Sym, typ4: PType,
+    name5: Sym, typ5: PType,
     body: IR
   ): (PType, Int => AsmFunction13[Region, T0, Boolean, T1, Boolean, T2, Boolean, T3, Boolean, T4, Boolean, T5, Boolean, R]) = {
 
@@ -184,9 +184,9 @@ object CompileWithAggregators {
   def compileAggIRs[
   FAggInit >: Null : TypeInfo,
   FAggSeq >: Null : TypeInfo
-  ](initScopeArgs: Seq[(String, PType, ClassTag[_])],
-    aggScopeArgs: Seq[(String, PType, ClassTag[_])],
-    body: IR, aggResultName: String
+  ](initScopeArgs: Seq[(Sym, PType, ClassTag[_])],
+    aggScopeArgs: Seq[(Sym, PType, ClassTag[_])],
+    body: IR, aggResultName: Sym
   ): (Array[RegionValueAggregator], (IR, Compiler[FAggInit]), (IR, Compiler[FAggSeq]), PType, IR) = {
     assert((initScopeArgs ++ aggScopeArgs).forall { case (_, t, ct) => TypeToIRIntermediateClassTag(t.virtualType) == ct })
 
@@ -204,9 +204,9 @@ object CompileWithAggregators {
   def apply[
   F0 >: Null : TypeInfo,
   F1 >: Null : TypeInfo
-  ](initScopeArgs: Seq[(String, PType, ClassTag[_])],
-    aggScopeArgs: Seq[(String, PType, ClassTag[_])],
-    body: IR, aggResultName: String,
+  ](initScopeArgs: Seq[(Sym, PType, ClassTag[_])],
+    aggScopeArgs: Seq[(Sym, PType, ClassTag[_])],
+    body: IR, aggResultName: Sym,
     transformInitOp: (Int, IR) => IR,
     transformSeqOp: (Int, IR) => IR
   ): (Array[RegionValueAggregator], Int => F0, Int => F1, PType, IR) = {
@@ -230,10 +230,10 @@ object CompileWithAggregators {
   T0: ClassTag,
   S0: ClassTag,
   S1: ClassTag
-  ](name0: String, typ0: PType,
-    aggName0: String, aggTyp0: PType,
-    aggName1: String, aggTyp1: PType,
-    body: IR, aggResultName: String,
+  ](name0: Sym, typ0: PType,
+    aggName0: Sym, aggTyp0: PType,
+    aggName1: Sym, aggTyp1: PType,
+    body: IR, aggResultName: Sym,
     transformInitOp: (Int, IR) => IR,
     transformSeqOp: (Int, IR) => IR
   ): (Array[RegionValueAggregator],
@@ -256,12 +256,12 @@ object CompileWithAggregators {
   S0: ClassTag,
   S1: ClassTag,
   S2: ClassTag
-  ](name0: String, typ0: PType,
-    name1: String, typ1: PType,
-    aggName0: String, aggType0: PType,
-    aggName1: String, aggType1: PType,
-    aggName2: String, aggType2: PType,
-    body: IR, aggResultName: String,
+  ](name0: Sym, typ0: PType,
+    name1: Sym, typ1: PType,
+    aggName0: Sym, aggType0: PType,
+    aggName1: Sym, aggType1: PType,
+    aggName2: Sym, aggType2: PType,
+    body: IR, aggResultName: Sym,
     transformInitOp: (Int, IR) => IR,
     transformSeqOp: (Int, IR) => IR
   ): (Array[RegionValueAggregator],
@@ -286,11 +286,11 @@ object CompileWithAggregators {
     S0: ClassTag,
     S1: ClassTag,
     S2: ClassTag
-  ](name0: String, typ0: PType,
-    aggName0: String, aggTyp0: PType,
-    aggName1: String, aggTyp1: PType,
-    aggName2: String, aggTyp2: PType,
-    body: IR, aggResultName: String,
+  ](name0: Sym, typ0: PType,
+    aggName0: Sym, aggTyp0: PType,
+    aggName1: Sym, aggTyp1: PType,
+    aggName2: Sym, aggTyp2: PType,
+    body: IR, aggResultName: Sym,
     transformInitOp: (Int, IR) => IR,
     transformSeqOp: (Int, IR) => IR
   ): (Array[RegionValueAggregator],
@@ -315,13 +315,13 @@ object CompileWithAggregators {
   S1: ClassTag,
   S2: ClassTag,
   S3: ClassTag
-  ](name0: String, typ0: PType,
-    name1: String, typ1: PType,
-    aggName0: String, aggType0: PType,
-    aggName1: String, aggType1: PType,
-    aggName2: String, aggType2: PType,
-    aggName3: String, aggType3: PType,
-    body: IR, aggResultName: String,
+  ](name0: Sym, typ0: PType,
+    name1: Sym, typ1: PType,
+    aggName0: Sym, aggType0: PType,
+    aggName1: Sym, aggType1: PType,
+    aggName2: Sym, aggType2: PType,
+    aggName3: Sym, aggType3: PType,
+    body: IR, aggResultName: Sym,
     transformInitOp: (Int, IR) => IR,
     transformSeqOp: (Int, IR) => IR
   ): (Array[RegionValueAggregator],
