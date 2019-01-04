@@ -292,6 +292,12 @@ def create_job():
         if parent_id not in job_id_job:
             abort(400, f'invalid parent_id: no job with id {parent_id}')
 
+    if len(pod_spec.containers) != 1:
+        abort(400, f'only one container allowed in pod_spec {pod_spec}')
+
+    if pod_spec.containers[0].name != 'default':
+        abort(400, f'container name must be "default" was {pod_spec.containres[0].name}')
+
     job = Job(
         pod_spec,
         batch_id,
