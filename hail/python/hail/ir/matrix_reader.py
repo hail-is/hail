@@ -114,7 +114,7 @@ class MatrixVCFReader(MatrixReader):
         return isinstance(other, MatrixVCFReader) and \
                other.path == self.path and \
                other.call_fields == self.call_fields and \
-               other.dossage_fields == self.dosage_fields and \
+               other.dosage_fields == self.dosage_fields and \
                other.header_file == self.header_file and \
                other.min_partitions == self.min_partitions and \
                other.reference_genome == self.reference_genome and \
