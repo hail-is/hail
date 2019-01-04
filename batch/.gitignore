@@ -4,5 +4,7 @@
 /test-batch-pod.yaml
 /batch-image
 /batch-test-image
+flycheck_*.py
+*_flymake.py
 *.pyc
 **/__pycache__
