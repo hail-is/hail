@@ -67,7 +67,7 @@ class Batch:
     def create_job(self, image, command=None, args=None, env=None, ports=None,
                    resources=None, tolerations=None, volumes=None, security_context=None,
                    service_account_name=None, attributes=None, callback=None, parent_ids=None):
-        self.n_jobs += 1
+        self.n_jobs_created += 1
         if parent_ids is None:
             parent_ids = []
         return self.client._create_job(
@@ -82,8 +82,8 @@ class Batch:
         while True:
             status = self.status()
             if status['jobs']['Created'] == 0:
-                assert status['jobs']['Complete'] + status['jobs']['Cancelled'] == self.n_jobs, \
-                    f"{status['jobs']['Complete']} + {status['jobs']['Cancelled']} == {self.n_jobs}"
+                assert status['jobs']['Complete'] + status['jobs']['Cancelled'] == self.n_jobs_created, \
+                    f"{status['jobs']['Complete']} + {status['jobs']['Cancelled']} == {self.n_jobs_created}"
                 return status
             j = random.randrange(2 ** i)
             time.sleep(0.100 * j)
