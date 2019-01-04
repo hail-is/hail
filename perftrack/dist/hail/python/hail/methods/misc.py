@@ -7,9 +7,7 @@ from hail.matrixtable import MatrixTable
 from hail.table import Table
 from hail.typecheck import *
 from hail.utils import Interval, Struct
-from hail.utils.misc import plural
-from hail.utils.java import Env, joption, info
-from hail.ir import *
+from hail.utils.java import Env, joption
 
 
 @typecheck(i=Expression,
@@ -139,11 +137,13 @@ def maximal_independent_set(i, j, keep=True, tie_breaker=None) -> Table:
 
     nodes = (t.select(node=[i, j])
              .explode('node')
+             .key_by('node')
              .select())
 
-    edges = t.select(__i=i, __j=j).key_by().select('__i', '__j')
-    nodes_in_set = Env.hail().utils.Graph.maximalIndependentSet(edges._jt.collect(), node_t._parsable_string(), joption(tie_breaker_str))
-    nt = Table._from_java(nodes._jt.annotateGlobal(nodes_in_set, hl.tset(node_t)._parsable_string(), 'nodes_in_set'))
+    edges = t.key_by().select('i', 'j')
+    nodes_in_set = Env.hail().utils.Graph.maximalIndependentSet(edges._jt.collect(), node_t._jtype, joption(tie_breaker_str))
+
+    nt = Table(nodes._jt.annotateGlobal(nodes_in_set, hl.tset(node_t)._jtype, 'nodes_in_set'))
     nt = (nt
           .filter(nt.nodes_in_set.contains(nt.node), keep)
           .drop('nodes_in_set'))
@@ -215,9 +215,8 @@ def require_biallelic(dataset, method) -> MatrixTable:
     require_row_key_variant(dataset, method)
     return dataset._select_rows(method,
                                 hl.case()
-                                .when(dataset.alleles.length() == 2, dataset.row)
-                                .or_error(f"'{method}' expects biallelic variants ('alleles' field of length 2), found " +
-                                        hl.str(dataset.locus) + ", " + hl.str(dataset.alleles)))
+                                .when(dataset.alleles.length() == 2, dataset._rvrow)
+                                .or_error(f"'{method}' expects biallelic variants ('alleles' field has length 2)"))
 
 
 @typecheck(dataset=MatrixTable, name=str)
@@ -255,32 +254,7 @@ def rename_duplicates(dataset, name='unique_id') -> MatrixTable:
     :class:`.MatrixTable`
     """
 
-    require_col_key_str(dataset, 'rename_duplicates')
-    ids = dataset.col_key[0].collect()
-    uniques = set()
-    mapping = []
-    new_ids = []
-
-    fmt = lambda s, i: '{}_{}'.format(s, i)
-    for s in ids:
-        s_ = s
-        i = 0
-        while s_ in uniques:
-            i += 1
-            s_ = fmt(s, i)
-
-        if s_ != s:
-            mapping.append((s, s_))
-        uniques.add(s_)
-        new_ids.append(s_)
-
-    if mapping:
-        info(f'Renamed {len(mapping)} duplicate {plural("sample ID", len(mapping))}. Mangled IDs as follows:' +
-             ''.join(f'\n  "{pre}" => "{post}"' for pre, post in mapping))
-    else:
-        info('No duplicate sample IDs found.')
-    uid = Env.get_uid()
-    return dataset.annotate_cols(**{name: hl.literal(new_ids)[hl.int(hl.scan.count())]})
+    return MatrixTable(dataset._jvds.renameDuplicates(name))
 
 
 @typecheck(ds=oneof(Table, MatrixTable),
@@ -347,7 +321,6 @@ def filter_intervals(ds, intervals, keep=True) -> Union[Table, MatrixTable]:
 
     if point_type == k_type[0]:
         needs_wrapper = True
-        point_type = hl.tstruct(foo=point_type)
     elif isinstance(point_type, tstruct) and is_struct_prefix(point_type, k_type):
         needs_wrapper = False
     else:
@@ -364,26 +337,13 @@ def filter_intervals(ds, intervals, keep=True) -> Union[Table, MatrixTable]:
         else:
             return interval
 
-    intervals_type = intervals.dtype
-    intervals = hl.eval(intervals)
-    intervals = hl.tarray(hl.tinterval(point_type))._convert_to_json([wrap_input(i) for i in intervals])
-
+    intervals = [wrap_input(x)._jrep for x in hl.eval(intervals)]
     if isinstance(ds, MatrixTable):
-        config = {
-            'name': 'MatrixFilterIntervals',
-            'keyType': point_type._parsable_string(),
-            'intervals': intervals,
-            'keep': keep
-        }
-        return MatrixTable(MatrixToMatrixApply(ds._mir, config))
+        jmt = Env.hail().methods.MatrixFilterIntervals.apply(ds._jvds, intervals, keep)
+        return MatrixTable(jmt)
     else:
-        config = {
-            'name': 'TableFilterIntervals',
-            'keyType': point_type._parsable_string(),
-            'intervals': intervals,
-            'keep': keep
-        }
-        return Table(TableToTableApply(ds._tir, config))
+        jt = Env.hail().methods.TableFilterIntervals.apply(ds._jt, intervals, keep)
+        return Table(jt)
 
 
 @typecheck(mt=MatrixTable, bp_window_size=int)
@@ -434,4 +394,4 @@ def window_by_locus(mt: MatrixTable, bp_window_size: int) -> MatrixTable:
     :class:`.MatrixTable`
     """
     require_first_key_field_locus(mt, 'window_by_locus')
-    return MatrixTable(hl.ir.MatrixToMatrixApply(mt._mir, {'name': 'WindowByLocus', 'basePairs': bp_window_size}))
+    return MatrixTable(mt._jvds.windowVariants(bp_window_size))
