@@ -235,7 +235,7 @@ class BatchClient:
             dependsOn = doc.get('dependsOn', [])
             if type == 'execute':
                 job = batch.create_job(
-                    parents=[job_ids[x] for x in dependsOn],
+                    parent_ids=[job_ids[x] for x in dependsOn],
                     **spec)
                 job_ids[name] = job.id
         return batch
