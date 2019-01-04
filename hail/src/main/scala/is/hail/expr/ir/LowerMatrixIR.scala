@@ -40,7 +40,8 @@ object LowerMatrixIR {
   private[this] def lower(mir: MatrixIR): TableIR = {
     val lowered = matrixRules.applyOrElse(mir, (mir: MatrixIR) =>
       CastMatrixToTable(lowerChildren(mir).asInstanceOf[MatrixIR], entriesFieldName, colsFieldName))
-    assert(lowered.typ == loweredType(mir.typ), lowered.typ + "\n" + loweredType(mir.typ) + "\n" + Pretty(mir) + "\n" + Pretty(lowered))
+    assert(lowered.typ == loweredType(mir.typ), s"\n  ACTUAL: ${ lowered.typ }\n  EXPECT: ${ loweredType(mir.typ) }" +
+      s"\n  BEFORE: ${ Pretty(mir) }\n  AFTER: ${ Pretty(lowered) }")
     lowered
   }
 
@@ -212,6 +213,39 @@ object LowerMatrixIR {
       TableUnion(MatrixUnionRows.unify(children).map(lower))
 
     case MatrixDistinctByRow(child) => TableDistinct(lower(child))
+
+    case MatrixExplodeCols(child, path) =>
+      val loweredChild = lower(child)
+      val lengths = Symbol(genUID())
+      val colIdx = Symbol(genUID())
+      val nestedIdx = Symbol(genUID())
+      val colElementUID1 = Symbol(genUID())
+
+
+      val nestedRefs = path.init.scanLeft('global(colsField)(colIdx): IRProxy)((irp, name) => irp(Symbol(name)))
+      val postExplodeSelector = path.zip(nestedRefs).zipWithIndex.foldRight[IRProxy](nestedIdx) {
+        case (((field, ref), i), arg) =>
+          ref.insertFields(Symbol(field) ->
+            (if (i == nestedRefs.length - 1)
+              ref(Symbol(field)).toArray(arg)
+            else
+              arg))
+      }
+
+      val arrayIR = path.foldLeft[IRProxy](colElementUID1) { case (irp, fieldName) => irp(Symbol(fieldName)) }
+      loweredChild
+        .mapGlobals('global.insertFields(lengths -> 'global(colsField).map( { colElementUID1 ~> arrayIR.len.orElse(0)})))
+        .mapGlobals('global.insertFields(colsField ->
+          irRange(0, 'global(colsField).len, 1)
+            .flatMap( { colIdx ~>
+                irRange(0, 'global(lengths)(colIdx), 1)
+                .map( { nestedIdx ~> postExplodeSelector })
+              })))
+        .mapRows('row.insertFields(entriesField ->
+          irRange(0, 'row(entriesField).len, 1)
+            .flatMap(colIdx ~>
+              irRange(0, 'global(lengths)(colIdx), 1).map(Symbol(genUID()) ~> 'row(entriesField)(colIdx)))))
+        .mapGlobals('global.dropFields(lengths))
 
     case MatrixCollectColsByKey(child) =>
       lower(child)
