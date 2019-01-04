@@ -757,9 +757,15 @@ class BlockMatrixSuite extends SparkSuite {
     val data = (0 until 50).map(_.toDouble).toArray
     val lm = new BDM[Double](5, 10, data)
     val bm = toBM(lm, blockSize = 2)
-    
-    assert(bm.filterBlocks(Array(0, 1, 6)).entriesTable(hc).collect().map(r => r.get(2).asInstanceOf[Double]) sameElements
-      Array(0, 5, 20, 25, 1, 6, 21, 26, 2, 7, 3, 8).map(_.toDouble))
+
+    val expected = bm
+      .filterBlocks(Array(0, 1, 6))
+      .entriesTable(hc)
+      .collect()
+      .map(r => r.get(2).asInstanceOf[Double])
+
+    assert(expected sameElements Array[Double](0, 5, 20, 25, 1, 6, 21, 26, 2, 7, 3, 8),
+      expected.mkString("[",",","]"))
   }
 
   @Test
