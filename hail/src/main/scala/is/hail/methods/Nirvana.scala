@@ -5,7 +5,7 @@ import java.util.Properties
 
 import is.hail.annotations._
 import is.hail.expr.JSONAnnotationImpex
-import is.hail.expr.ir.{TableLiteral, TableValue}
+import is.hail.expr.ir.{I, TableLiteral, TableValue}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PType
 import is.hail.expr.types.virtual._
@@ -358,7 +358,7 @@ object Nirvana {
   }
 
   def annotate(ht: Table, config: String, blockSize: Int): Table = {
-    assert(ht.key.contains(FastIndexedSeq("locus", "alleles")))
+    assert(ht.key == ISeq(I("locus"), I("alleles")))
     assert(ht.typ.rowType.size == 2)
 
     val properties = try {

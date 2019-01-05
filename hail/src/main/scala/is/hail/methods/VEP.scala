@@ -3,7 +3,7 @@ package is.hail.methods
 import com.fasterxml.jackson.core.JsonParseException
 import is.hail.annotations._
 import is.hail.expr._
-import is.hail.expr.ir.{TableLiteral, TableValue}
+import is.hail.expr.ir.{I, TableLiteral, TableValue}
 import is.hail.expr.types._
 import is.hail.expr.types.virtual._
 import is.hail.rvd.{RVD, RVDContext}
@@ -87,7 +87,7 @@ object VEP {
   }
 
   def annotate(ht: Table, config: String, csq: Boolean, blockSize: Int): Table = {
-    assert(ht.key == FastIndexedSeq("locus", "alleles"))
+    assert(ht.key == ISeq(I("locus"), I("alleles")))
     assert(ht.typ.rowType.size == 2)
 
     val conf = readConfiguration(ht.hc.hadoopConf, config)
@@ -224,7 +224,7 @@ object VEP {
         (Row(), TStruct())
 
     new Table(ht.hc, TableLiteral(TableValue(
-      TableType(vepRowType.virtualType, FastIndexedSeq("locus", "alleles"), globalType),
+      TableType(vepRowType.virtualType, ISeq("locus", "alleles"), globalType),
       BroadcastRow(globalValue, globalType, ht.hc.sc),
       vepRVD)))
   }
