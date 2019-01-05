@@ -2088,7 +2088,7 @@ class Table(ExprContainer):
                 return hl.struct(contig = e.contig,
                                  position = e.position)
             elif isinstance(e, CallExpression):
-                return hl.struct(alleles=hl.map(lambda i: e[i], hl.range(e.ploidy)),
+                return hl.struct(alleles=hl.map(lambda i: e[i], hl.range(0, e.ploidy)),
                                  phased=e.phased)
             else:
                 assert isinstance(e, (NumericExpression, BooleanExpression, StringExpression))
