@@ -81,7 +81,7 @@ class TableExplode(TableIR):
         self.path = path
 
     def render(self, r):
-        return '(TableExplode {} {})'.format(parsable_strings(self.path), r(self.child))
+        return '(TableExplode {} {})'.format(parsable_ids(self.path), r(self.child))
 
 
 class TableKeyBy(TableIR):

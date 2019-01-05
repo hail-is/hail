@@ -2036,6 +2036,15 @@ case class MatrixExplodeRows(child: MatrixIR, path: IndexedSeq[Sym]) extends Mat
 
   private val rvRowType = child.typ.rvRowType
 
+  val length: IR = {
+    val len = genSym("len")
+    Let(len,
+      ArrayLen(ToArray(
+        path.foldLeft[IR](Ref(RowSym, rvRowType))((struct, field) =>
+          GetField(struct, field)))),
+      If(IsNA(Ref(len, TInt32())), 0, Ref(len, TInt32())))
+  }
+
   val idx = Ref(genSym("idx"), TInt32())
   val newRVRow: InsertFields = {
     val refs = path.init.scanLeft(Ref(RowSym, rvRowType))((struct, name) =>

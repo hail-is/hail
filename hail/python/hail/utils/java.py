@@ -185,7 +185,7 @@ def escape_id(s):
         return str(s)
 
 def parsable_ids(ids):
-    return '(' + ' '.join(escape_str(id) for id in ids) + ')'
+    return '(' + ' '.join(escape_id(id) for id in ids) + ')'
 
 def jarray_to_list(a):
     return list(a) if a else None

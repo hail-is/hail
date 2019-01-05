@@ -878,7 +878,7 @@ class IRSuite extends SparkSuite {
         TableRange(100, 10),
         TableUnion(
           FastIndexedSeq(TableRange(100, 10), TableRange(50, 10))),
-        TableExplode(read, Array("mset")),
+        TableExplode(read, ISeq("mset")),
         TableOrderBy(TableKeyBy(read, FastIndexedSeq()), FastIndexedSeq(SortField("m", Ascending), SortField("m", Descending))),
         CastMatrixToTable(mtRead, " # entries", " # cols"),
         TableRename(read, Map(I("idx") -> I("idx_foo")), Map(I("global_f32") -> I("global_foo")))
