@@ -261,7 +261,7 @@ task testPython(type: Exec, dependsOn: shadowJar) {
             parallelism,
             '--dist=loadscope',
             '--noconftest',
-            '--color=yes',
+            '--color=no',
             '-r a',
             '--html=build/reports/pytest.html',
             '--self-contained-html',

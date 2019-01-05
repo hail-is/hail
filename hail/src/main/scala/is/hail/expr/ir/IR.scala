@@ -156,6 +156,8 @@ final case class ArrayScan(a: IR, zero: IR, accumName: String, valueName: String
 
 final case class ArrayFor(a: IR, valueName: String, body: IR) extends IR
 
+final case class ArrayAgg(a: IR, name: String, query: IR) extends IR
+
 final case class AggFilter(cond: IR, aggIR: IR) extends IR
 
 final case class AggExplode(array: IR, name: String, aggBody: IR) extends IR

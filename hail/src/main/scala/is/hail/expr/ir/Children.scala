@@ -64,6 +64,8 @@ object Children {
       Array(a, zero, body)
     case ArrayFor(a, valueName, body) =>
       Array(a, body)
+    case ArrayAgg(a, name, query) =>
+      Array(a, query)
     case AggFilter(cond, aggIR) =>
       Array(cond, aggIR)
     case AggExplode(array, _, aggBody) =>

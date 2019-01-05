@@ -24,6 +24,8 @@ object Subst {
         ArrayScan(subst(a), subst(zero), accumName, valueName, subst(body, env.delete(accumName).delete(valueName)))
       case ArrayFor(a, valueName, body) =>
         ArrayFor(subst(a), valueName, subst(body, env.delete(valueName)))
+      case ArrayAgg(a, name, query) =>
+        ArrayAgg(subst(a), name, subst(query, env, env.delete(name)))
       case AggFilter(cond, aggIR) =>
         AggFilter(subst(cond, aggEnv), subst(aggIR, aggEnv))
       case AggExplode(array, name, aggBody) =>
