@@ -3329,11 +3329,7 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
                         twice_maf=hl.min(entries.info_j.mean, 2.0 - entries.info_j.mean)))
 
         def tie_breaker(l, r):
-            return hl.cond(l.twice_maf > r.twice_maf,
-                           -1,
-                           hl.cond(l.twice_maf < r.twice_maf,
-                                   1,
-                                   0))
+            return hl.sign(r.twice_maf - l.twice_maf)
 
         variants_to_remove = hl.maximal_independent_set(entries.i, entries.j, keep=False, tie_breaker=tie_breaker)
         variants_to_remove = variants_to_remove.key_by(variants_to_remove.node.idx)
