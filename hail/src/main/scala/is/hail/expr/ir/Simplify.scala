@@ -410,7 +410,6 @@ object Simplify {
     case TableHead(TableOrderBy(child, sortFields), n)
       if sortFields.forall(_.sortOrder == Ascending) && n < 256 && canRepartition =>
       // n < 256 is arbitrary for memory concerns
-      val uid = genUID()
       val row = Ref(RowSym, child.typ.rowType)
       val keyStruct = MakeStruct(sortFields.map(f => f.field -> GetField(row, f.field)))
       val aggSig = AggSignature(TakeBy(), FastSeq(TInt32()), None, FastSeq(row.typ, keyStruct.typ))

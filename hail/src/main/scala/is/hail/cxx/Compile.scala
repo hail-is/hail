@@ -3,6 +3,7 @@ package is.hail.cxx
 import java.io.PrintWriter
 
 import is.hail.expr.ir
+import is.hail.expr.ir.Sym
 import is.hail.expr.types.physical._
 import is.hail.nativecode.{NativeLongFuncL2, NativeModule, NativeStatus}
 
@@ -10,7 +11,7 @@ import scala.reflect.classTag
 
 object Compile {
   def apply(
-    arg0: String, arg0Type: PType,
+    arg0: Sym, arg0Type: PType,
     body: ir.IR, optimize: Boolean): NativeLongFuncL2 = {
     assert(ir.TypeToIRIntermediateClassTag(arg0Type.virtualType) == classTag[Long])
     assert(arg0Type.isInstanceOf[PBaseStruct])

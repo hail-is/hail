@@ -278,7 +278,7 @@ object LocalLDPrune {
   def apply(mt: MatrixTable, callField: String, r2Threshold: Double, windowSize: Int, maxQueueSize: Int): Table =
     apply(mt, IRParser.parseSymbol(callField), r2Threshold, windowSize, maxQueueSize)
 
-  def apply(mt: MatrixTable, callField: Sym = I("GT"), r2Threshold: Double = 0.2, windowSize: Int = 1000000, maxQueueSize: Int): Table = {
+  def apply(mt: MatrixTable, callField: Sym = "GT", r2Threshold: Double = 0.2, windowSize: Int = 1000000, maxQueueSize: Int): Table = {
     if (maxQueueSize < 1)
       fatal(s"Maximum queue size must be positive. Found `$maxQueueSize'.")
 

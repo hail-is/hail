@@ -612,10 +612,10 @@ class FormatParser(
 
 class ParseLineContext(typ: MatrixType, val infoFlagFieldNames: Set[Sym], headerLines: BufferedLineIterator) {
   val gType: TStruct = typ.entryType
-  val infoSignature = typ.rowType.fieldOption(I("info")).map(_.typ.asInstanceOf[TStruct]).orNull
-  val hasRSID = typ.rowType.hasField(I("rsid"))
-  val hasQual = typ.rowType.hasField(I("qual"))
-  val hasFilters = typ.rowType.hasField(I("filters"))
+  val infoSignature = typ.rowType.fieldOption("info").map(_.typ.asInstanceOf[TStruct]).orNull
+  val hasRSID = typ.rowType.hasField("rsid")
+  val hasQual = typ.rowType.hasField("qual")
+  val hasFilters = typ.rowType.hasField("filters")
   val formatSignature = typ.entryType
   val hasEntryFields = formatSignature.size > 0
 

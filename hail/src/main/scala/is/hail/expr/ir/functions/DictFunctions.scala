@@ -73,12 +73,12 @@ object DictFunctions extends RegistryFunctions {
     registerIR("dict", TArray(TTuple(tv("key"), tv("value"))))(ToDict)
 
     registerIR("keys", tdict) { d =>
-      val elt = Ref(genUID(), -types.coerce[TContainer](d.typ).elementType)
+      val elt = Ref(genSym("elt"), -types.coerce[TContainer](d.typ).elementType)
       ArrayMap(ToArray(d), elt.name, GetField(elt, "key"))
     }
 
     registerIR("values", tdict) { d =>
-      val elt = Ref(genUID(), -types.coerce[TContainer](d.typ).elementType)
+      val elt = Ref(genSym("elt"), -types.coerce[TContainer](d.typ).elementType)
       ArrayMap(ToArray(d), elt.name, GetField(elt, "value"))
     }
   }

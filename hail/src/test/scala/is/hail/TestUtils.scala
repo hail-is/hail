@@ -216,7 +216,7 @@ object TestUtils {
 
     val argsType = TTuple(inputTypesB.result(): _*)
     val resultType = TTuple(x.typ)
-    val argsVar = genUID()
+    val argsVar = genSym("args")
 
     val (_, substEnv) = env.m.foldLeft((args.length, Env.empty[IR])) { case ((i, env), (name, (v, t))) =>
       (i + 1, env.bind(name, GetTupleElement(In(0, argsType), i)))

@@ -217,13 +217,13 @@ object Skat {
     val skatRdd = if (logistic) logisticSkat() else linearSkat()
     
     val skatSignature = TStruct(
-      (I("id"), keyType),
-      (I("size"), TInt32()),
-      (I("q_stat"), TFloat64()),
-      (I("p_value"), TFloat64()),
-      (I("fault"), TInt32()))
+      ("id", keyType),
+      ("size", TInt32()),
+      ("q_stat", TFloat64()),
+      ("p_value", TFloat64()),
+      ("fault", TInt32()))
 
-    Table(vsm.hc, skatRdd, skatSignature, FastIndexedSeq(I("id")))
+    Table(vsm.hc, skatRdd, skatSignature, ISeq("id"))
   }
 
   def computeKeyGsWeightRdd(vsm: MatrixTable,

@@ -272,7 +272,7 @@ object LoadMatrix {
     files: Array[String],
     rowFields: Map[Sym, Type],
     keyFields: IndexedSeq[Sym],
-    cellType: TStruct = TStruct(I("x") -> TInt64()),
+    cellType: TStruct = TStruct("x" -> TInt64()),
     missingValue: String = "NA",
     nPartitions: Option[Int] = None,
     noHeader: Boolean = false,

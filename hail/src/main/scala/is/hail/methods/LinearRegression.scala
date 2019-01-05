@@ -23,13 +23,13 @@ case class LinearRegressionRowsSingle(
   override def typeInfo(childType: MatrixType, childRVDType: RVDType): (TableType, RVDType) = {
     val passThroughType = TStruct(passThrough.map(f => f -> childType.rowType.field(f).typ): _*)
     val schema = TStruct(
-      (I("n"), TInt32()),
-      (I("sum_x"), TFloat64()),
-      (I("y_transpose_x"), TArray(TFloat64())),
-      (I("beta"), TArray(TFloat64())),
-      (I("standard_error"), TArray(TFloat64())),
-      (I("t_stat"), TArray(TFloat64())),
-      (I("p_value"), TArray(TFloat64())))
+      ("n", TInt32()),
+      ("sum_x", TFloat64()),
+      ("y_transpose_x", TArray(TFloat64())),
+      ("beta", TArray(TFloat64())),
+      ("standard_error", TArray(TFloat64())),
+      ("t_stat", TArray(TFloat64())),
+      ("p_value", TArray(TFloat64())))
     val tt = TableType(
       childType.rowKeyStruct ++ passThroughType ++ schema,
       childType.rowKey,
@@ -180,13 +180,13 @@ case class LinearRegressionRowsChained(
   override def typeInfo(childType: MatrixType, childRVDType: RVDType): (TableType, RVDType) = {
     val passThroughType = TStruct(passThrough.map(f => f -> childType.rowType.field(f).typ): _*)
     val chainedSchema = TStruct(
-      (I("n"), TArray(TInt32())),
-      (I("sum_x"), TArray(TFloat64())),
-      (I("y_transpose_x"), TArray(TArray(TFloat64()))),
-      (I("beta"), TArray(TArray(TFloat64()))),
-      (I("standard_error"), TArray(TArray(TFloat64()))),
-      (I("t_stat"), TArray(TArray(TFloat64()))),
-      (I("p_value"), TArray(TArray(TFloat64()))))
+      ("n", TArray(TInt32())),
+      ("sum_x", TArray(TFloat64())),
+      ("y_transpose_x", TArray(TArray(TFloat64()))),
+      ("beta", TArray(TArray(TFloat64()))),
+      ("standard_error", TArray(TArray(TFloat64()))),
+      ("t_stat", TArray(TArray(TFloat64()))),
+      ("p_value", TArray(TArray(TFloat64()))))
     val tt = TableType(
       childType.rowKeyStruct ++ passThroughType ++ chainedSchema,
       childType.rowKey,

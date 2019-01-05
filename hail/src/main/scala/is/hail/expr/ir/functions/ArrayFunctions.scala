@@ -11,27 +11,27 @@ import is.hail.utils._
 object ArrayFunctions extends RegistryFunctions {
   def mean(a: IR): IR = {
     val t = -coerce[TArray](a.typ).elementType
-    val tAccum = TStruct(I("sum") -> TFloat64(), I("n") -> TInt32())
+    val tAccum = TStruct("sum" -> TFloat64(), "n" -> TInt32())
     val accum = genSym("accum")
     val v = genSym("v")
     val result = genSym("result")
 
     def updateAccum(sum: IR, n: IR): IR =
-      MakeStruct(FastSeq(I("sum") -> sum, I("n") -> n))
+      MakeStruct(NamedIRSeq("sum" -> sum, "n" -> n))
 
     Let(
       result,
       ArrayFold(
         a,
-        MakeStruct(FastSeq(I("sum") -> F64(0), I("n") -> I32(0))),
+        MakeStruct(NamedIRSeq("sum" -> F64(0), "n" -> I32(0))),
         accum,
         v,
         updateAccum(
-          ApplyBinaryPrimOp(Add(), GetField(Ref(accum, tAccum), I("sum")), Cast(Ref(v, t), TFloat64())),
-          ApplyBinaryPrimOp(Add(), GetField(Ref(accum, tAccum), I("n")), I32(1)))),
+          ApplyBinaryPrimOp(Add(), GetField(Ref(accum, tAccum), "sum"), Cast(Ref(v, t), TFloat64())),
+          ApplyBinaryPrimOp(Add(), GetField(Ref(accum, tAccum), "n"), I32(1)))),
       ApplyBinaryPrimOp(FloatingPointDivide(),
-        GetField(Ref(result, tAccum), I("sum")),
-        Cast(GetField(Ref(result, tAccum), I("n")), TFloat64())))
+        GetField(Ref(result, tAccum), "sum"),
+        Cast(GetField(Ref(result, tAccum), "n"), TFloat64())))
   }
 
   def isEmpty(a: IR): IR = ApplyComparisonOp(EQ(TInt32()), ArrayLen(a), I32(0))
@@ -170,18 +170,18 @@ object ArrayFunctions extends RegistryFunctions {
     
     def argF(a: IR, op: (Type) => ComparisonOp[Boolean]): IR = {
       val t = -coerce[TArray](a.typ).elementType
-      val tAccum = TStruct(I("m") -> t, I("midx") -> TInt32())
+      val tAccum = TStruct("m" -> t, "midx" -> TInt32())
       val accum = genSym("accum")
       val value = genSym("value")
       val m = genSym("m")
       val idx = genSym("idx")
 
       def updateAccum(min: IR, midx: IR): IR =
-        MakeStruct(FastSeq(I("m") -> min, I("midx") -> midx))
+        MakeStruct(NamedIRSeq("m" -> min, "midx" -> midx))
 
       val body =
         Let(value, ArrayRef(a, Ref(idx, TInt32())),
-          Let(m, GetField(Ref(accum, tAccum), I("m")),
+          Let(m, GetField(Ref(accum, tAccum), "m"),
             If(IsNA(Ref(value, t)),
               Ref(accum, tAccum),
               If(IsNA(Ref(m, t)),
@@ -195,7 +195,7 @@ object ArrayFunctions extends RegistryFunctions {
         accum,
         idx,
         body
-      ), I("midx"))
+      ), "midx")
     }
 
     registerIR("argmin", TArray(tv("T")))(argF(_, LT(_)))
@@ -204,7 +204,7 @@ object ArrayFunctions extends RegistryFunctions {
 
     def uniqueIndex(a: IR, op: (Type) => ComparisonOp[Boolean]): IR = {
       val t = -coerce[TArray](a.typ).elementType
-      val tAccum = TStruct(I("m") -> t, I("midx") -> TInt32(), I("count") -> TInt32())
+      val tAccum = TStruct("m" -> t, "midx" -> TInt32(), "count" -> TInt32())
       val accum = genSym("accum")
       val value = genSym("value")
       val m = genSym("m")
@@ -212,11 +212,11 @@ object ArrayFunctions extends RegistryFunctions {
       val result = genSym("result")
 
       def updateAccum(m: IR, midx: IR, count: IR): IR =
-        MakeStruct(FastSeq(I("m") -> m, I("midx") -> midx, I("count") -> count))
+        MakeStruct(NamedIRSeq("m" -> m, "midx" -> midx, "count" -> count))
 
       val body =
         Let(value, ArrayRef(a, Ref(idx, TInt32())),
-          Let(m, GetField(Ref(accum, tAccum), I("m")),
+          Let(m, GetField(Ref(accum, tAccum), "m"),
             If(IsNA(Ref(value, t)),
               Ref(accum, tAccum),
               If(IsNA(Ref(m, t)),
@@ -227,7 +227,7 @@ object ArrayFunctions extends RegistryFunctions {
                     updateAccum(
                       Ref(value, t),
                       Ref(idx, TInt32()),
-                      ApplyBinaryPrimOp(Add(), GetField(Ref(accum, tAccum), I("count")), I32(1))),
+                      ApplyBinaryPrimOp(Add(), GetField(Ref(accum, tAccum), "count"), I32(1))),
                     Ref(accum, tAccum)))))))
 
       Let(result, ArrayFold(
@@ -236,8 +236,8 @@ object ArrayFunctions extends RegistryFunctions {
         accum,
         idx,
         body
-      ), If(ApplyComparisonOp(EQ(TInt32()), GetField(Ref(result, tAccum), I("count")), I32(1)),
-        GetField(Ref(result, tAccum), I("midx")),
+      ), If(ApplyComparisonOp(EQ(TInt32()), GetField(Ref(result, tAccum), "count"), I32(1)),
+        GetField(Ref(result, tAccum), "midx"),
         NA(TInt32())))
     }
 

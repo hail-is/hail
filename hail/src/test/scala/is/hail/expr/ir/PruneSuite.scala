@@ -124,7 +124,7 @@ class PruneSuite extends SparkSuite {
       split.tail.foreach { field =>
         ir = GetField(ir, field)
       }
-      let = Let(genUID(), ir, let)
+      let = Let(genSym("t"), ir, let)
     }
     let
   }
@@ -147,7 +147,7 @@ class PruneSuite extends SparkSuite {
       split.tail.foreach { field =>
         ir = GetField(ir, field)
       }
-      let = Let(genUID(), ir, let)
+      let = Let(genSym("t"), ir, let)
     }
     let
   }

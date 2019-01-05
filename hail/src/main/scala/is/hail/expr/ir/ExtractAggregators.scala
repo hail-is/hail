@@ -68,7 +68,7 @@ object ExtractAggregators {
 
         val newRVAggBuilder = new ArrayBuilder[IRAgg]()
         val newBuilder = new ArrayBuilder[AggOps]()
-        val newRef = Ref(genUID(), null)
+        val newRef = Ref(genSym("pair"), null)
         val transformed = this.extract(aggIR, newRVAggBuilder, newBuilder, GetField(newRef, "value"))
 
         val nestedAggs = newRVAggBuilder.result()
