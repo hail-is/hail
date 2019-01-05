@@ -160,7 +160,7 @@ object LogisticRegression {
     val sc = vsm.sparkContext
     val completeColIdxBc = sc.broadcast(completeColIdx)
 
-    val yVecsBc = sc.broadcast(yVecs) //TODO placeholder
+    val yVecsBc = sc.broadcast(yVecs)
     val XBc = sc.broadcast(new DenseMatrix[Double](n, k + 1, cov.toArray ++ Array.ofDim[Double](n)))
     val nullFitBc = sc.broadcast(nullFits)
     val logRegTestBc = sc.broadcast(logRegTest)
@@ -203,7 +203,6 @@ object LogisticRegression {
         rvb.addFields(fullRowType, rv, copiedFieldIndices)
         rvb.startArray(_yVecs.cols)
         logregAnnotations.foreach(stats => {
-          //rvb.addFields(_resultSchema.physicalType,rv,) //TODO How to add strcut here?
           rvb.startStruct()
           stats.addToRVB(rvb)
           rvb.endStruct()
