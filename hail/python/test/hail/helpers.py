@@ -1,7 +1,7 @@
 import os
 from timeit import default_timer as timer
 
-import hail
+import hail as hl
 
 _initialized = False
 
@@ -9,7 +9,7 @@ _initialized = False
 def startTestHailContext():
     global _initialized
     if not _initialized:
-        hail.init(master='local[2]', min_block_size=0, quiet=True)
+        hl.init(master='local[2]', min_block_size=0, quiet=True)
         _initialized = True
 
 
@@ -58,7 +58,7 @@ def schema_eq(x, y):
 
 
 def convert_struct_to_dict(x):
-    if isinstance(x, hail.Struct):
+    if isinstance(x, hl.Struct):
         return {k: convert_struct_to_dict(v) for k, v in x._fields.items()}
     elif isinstance(x, list):
         return [convert_struct_to_dict(elt) for elt in x]
@@ -76,7 +76,7 @@ _dataset = None
 def get_dataset():
     global _dataset
     if _dataset is None:
-        _dataset = hail.split_multi_hts(hail.import_vcf(resource('sample.vcf'))).cache()
+        _dataset = hl.split_multi_hts(hl.import_vcf(resource('sample.vcf'))).cache()
     return _dataset
 
 def assert_time(f, max_duration):
