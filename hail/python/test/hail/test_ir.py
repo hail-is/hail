@@ -177,7 +177,7 @@ class TableIRTests(unittest.TestCase):
 
     def test_matrix_ir_parses(self):
         hl.index_bgen(resource('example.8bits.bgen'),
-                      reference_genome=hail.get_reference('GRCh37'),
+                      reference_genome=hl.get_reference('GRCh37'),
                       contig_recoding={'01': '1'})
 
         collect = ir.MakeStruct([('x', ir.ApplyAggOp('Collect', [], None, [ir.I32(0)]))])

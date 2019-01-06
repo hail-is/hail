@@ -802,6 +802,10 @@ class Tests(unittest.TestCase):
         t2 = t2.annotate(x=hl.struct(contig='1', position=t2.idx+1))
         self.assertTrue(t1._same(t2))
 
+    def test_expand_types_on_all_types(self):
+        t = create_all_values_table()
+        t.expand_types()
+
     def test_join_mangling(self):
         t1 = hl.utils.range_table(10).annotate_globals(glob1=5).annotate(row1=5)
         j = t1.join(t1, 'inner')
