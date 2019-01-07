@@ -37,10 +37,6 @@ object TestRegisterFunctions extends RegistryFunctions {
 
 class FunctionSuite extends SparkSuite {
 
-  @Test def dump(): Unit = {
-    IRFunctionRegistry.dumpFunctions()
-  }
-
   val region = Region()
 
   TestRegisterFunctions.registerAll()
