@@ -174,6 +174,8 @@ object Simplify {
       val (_, x) = fields.find { case (n, _) => n == name }.get
       x
 
+    case MakeStruct(Seq((name1, GetField(x, name2)))) if name1 == name2 && x.typ.asInstanceOf[TStruct].size == 1 && isDefinitelyDefined(x) => x
+
     case GetField(InsertFields(old, fields), name) =>
       fields.find { case (n, _) => n == name } match {
         case Some((_, x)) => x
