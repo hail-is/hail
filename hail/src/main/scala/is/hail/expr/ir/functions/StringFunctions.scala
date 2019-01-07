@@ -50,7 +50,7 @@ object StringFunctions extends RegistryFunctions {
   def registerAll(): Unit = {
     val thisClass = getClass
 
-    registerIR("[]", TString(), TInt32()) { (s, idx) =>
+    registerIR("[]", TString(), TInt32(), TString()) { (s, idx) =>
       // rather than do a bunch of bounds checking here, check the length of the StringSlice result - way easier
       val sName = ir.genUID()
       val sResult = ir.Ref(sName, TString())
@@ -70,10 +70,10 @@ object StringFunctions extends RegistryFunctions {
         )
       )
     }
-    registerIR("[:]", TString())(x => x)
-    registerIR("[*:]", TString(), TInt32()) { (s, start) => ir.StringSlice(s, start, StringLength(s)) }
-    registerIR("[:*]", TString(), TInt32()) { (s, end) => ir.StringSlice(s, ir.I32(0), end) }
-    registerIR("[*:*]", TString(), TInt32(), TInt32()) { (s, start, end) => ir.StringSlice(s, start, end) }
+    registerIR("[:]", TString(), TString())(x => x)
+    registerIR("[*:]", TString(), TInt32(), TString()) { (s, start) => ir.StringSlice(s, start, StringLength(s)) }
+    registerIR("[:*]", TString(), TInt32(), TString()) { (s, end) => ir.StringSlice(s, ir.I32(0), end) }
+    registerIR("[*:*]", TString(), TInt32(), TInt32(), TString()) { (s, start, end) => ir.StringSlice(s, start, end) }
 
     registerCode("str", tv("T"), TString()) { (mb, a) =>
       val typ = tv("T").subst()
