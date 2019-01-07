@@ -1374,12 +1374,15 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
     val partFiles = partFilesByOrigin.map(_.result())
     val partCounts = partitionCountsByOrigin.map(_.result())
 
-    var i = 0
-    while (i < rdd.rdds.length) {
+    sc.parallelize(
+      partFiles.zip(partitioners).zip(partCounts.map(_.length)).zipWithIndex,
+      partitioners.length
+    ).foreach { tup =>
+      val (((partFiles, partitioner), partLen), i) = tup
+      val hConf = sHConfBc.value.value
       val s = StringUtils.leftPad(i.toString, fileDigits, '0')
       val basePath = path + s + ".mt"
-      writeSplitSpecs(hConf, basePath, codecSpec, t.key, rowsRVType, entriesRVType, partFiles(i), partitioners(i), partCounts(i).length)
-      i += 1
+      writeSplitSpecs(hConf, basePath, codecSpec, t.key, rowsRVType, entriesRVType, partFiles, partitioner, partLen)
     }
     partCounts
   }
