@@ -2100,7 +2100,7 @@ class MatrixTable(ExprContainer):
             TableCount(MatrixRowsTable(self._mir)))
 
     def _force_count_rows(self):
-        return Env.backend().execute(TableToValueApply(self._mir, {'name': 'ForceCountMatrixTable'}))
+        return Env.backend().execute(MatrixToValueApply(self._mir, {'name': 'ForceCountMatrixTable'}))
 
     def _force_count_cols(self):
         return self.cols()._force_count()

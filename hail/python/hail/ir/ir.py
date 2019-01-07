@@ -1401,6 +1401,9 @@ class TableToValueApply(IR):
     def render(self, r):
         return f'(TableToValueApply {dump_json(self.config)} {r(self.child)})'
 
+    def __eq__(self, other):
+        return isinstance(other, TableToValueApply) and other.child == self.child and other.config == self.config
+
 
 class MatrixToValueApply(IR):
     def __init__(self, child, config):
@@ -1415,6 +1418,9 @@ class MatrixToValueApply(IR):
 
     def render(self, r):
         return f'(MatrixToValueApply {dump_json(self.config)} {r(self.child)})'
+
+    def __eq__(self, other):
+        return isinstance(other, MatrixToValueApply) and other.child == self.child and other.config == self.config
 
 
 class Literal(IR):
