@@ -21,6 +21,8 @@ architecture, primitives, classes, and libraries.
     Tables <table.rst>
     MatrixTables <matrix_table.rst>
 
+..
+
     --------------
     Linear Algebra
     --------------
