@@ -257,6 +257,7 @@ object TypeCheck {
         assert(min.typ.isInstanceOf[TFloat64])
         assert(max.typ.isInstanceOf[TFloat64])
       case MatrixWrite(_, _) =>
+      case MatrixMultiWrite(_, _) => // do nothing
       case x@TableAggregate(child, query) =>
         check(query,
           env = child.typ.globalEnv,

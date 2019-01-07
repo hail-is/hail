@@ -127,6 +127,7 @@ object InferType {
         query.typ
       case _: TableWrite => TVoid
       case _: MatrixWrite => TVoid
+      case _: MatrixMultiWrite => TVoid
       case _: TableExport => TVoid
       case TableGetGlobals(child) => child.typ.globalType
       case TableCollect(child) => TStruct("rows" -> TArray(child.typ.rowType), "global" -> child.typ.globalType)

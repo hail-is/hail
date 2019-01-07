@@ -154,6 +154,8 @@ object Copy {
       case MatrixWrite(_, writer) =>
         val IndexedSeq(child: MatrixIR) = newChildren
         MatrixWrite(child, writer)
+      case MatrixMultiWrite(_, writer) =>
+        MatrixMultiWrite(newChildren.map(_.asInstanceOf[MatrixIR]), writer)
       // from TableIR
       case TableCount(_) =>
         val IndexedSeq(child: TableIR) = newChildren

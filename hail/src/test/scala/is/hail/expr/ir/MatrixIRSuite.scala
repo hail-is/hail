@@ -42,7 +42,7 @@ class MatrixIRSuite extends SparkSuite {
 
     val newMatrix = MatrixMapRows(mt, newRow)
     val rows = getRows(newMatrix)
-    assert(rows.forall { case Row(row_idx: Int, range: IndexedSeq[Int]) => range sameElements Array.range(0, row_idx) })
+    assert(rows.forall { case Row(row_idx: Int, range: IndexedSeq[_]) => range sameElements Array.range(0, row_idx) })
   }
 
   @Test def testScanCollectBehavesLikeRangeWithAggregationOnRows() {
@@ -53,7 +53,7 @@ class MatrixIRSuite extends SparkSuite {
 
     val newMatrix = MatrixMapRows(mt, newRow)
     val rows = getRows(newMatrix)
-    assert(rows.forall { case Row(row_idx: Int, n: Long, range: IndexedSeq[Int]) => (n == 20) && (range sameElements Array.range(0, row_idx)) })
+    assert(rows.forall { case Row(row_idx: Int, n: Long, range: IndexedSeq[_]) => (n == 20) && (range sameElements Array.range(0, row_idx)) })
   }
 
   @Test def testScanCountBehavesLikeIndexOnCols() {
@@ -75,7 +75,7 @@ class MatrixIRSuite extends SparkSuite {
 
     val newMatrix = MatrixMapCols(mt, newCol, None)
     val cols = getCols(newMatrix)
-    assert(cols.forall { case Row(col_idx: Int, range: IndexedSeq[Int]) => range sameElements Array.range(0, col_idx) })
+    assert(cols.forall { case Row(col_idx: Int, range: IndexedSeq[_]) => range sameElements Array.range(0, col_idx) })
   }
 
   @Test def testScanCollectBehavesLikeRangeWithAggregationOnCols() {
@@ -86,7 +86,7 @@ class MatrixIRSuite extends SparkSuite {
 
     val newMatrix = MatrixMapCols(mt, newCol, None)
     val cols = getCols(newMatrix)
-    assert(cols.forall { case Row(col_idx: Int, n: Long, range: IndexedSeq[Int]) => (n == 20) && (range sameElements Array.range(0, col_idx)) })
+    assert(cols.forall { case Row(col_idx: Int, n: Long, range: IndexedSeq[_]) => (n == 20) && (range sameElements Array.range(0, col_idx)) })
   }
 
   def rangeRowMatrix(start: Int, end: Int): MatrixIR = {
@@ -305,5 +305,29 @@ class MatrixIRSuite extends SparkSuite {
       Some(FastIndexedSeq("id1")))
     val path = tmpDir.createLocalTempFile()
     Interpret(MatrixWrite(genIR, MatrixGENWriter(path)))
+  }
+
+  @Test def testMatrixMultiWrite() {
+    val ranges = IndexedSeq(MatrixTable.range(hc, 15, 3, Some(10)), MatrixTable.range(hc, 8, 27, Some(1)))
+    val path = tmpDir.createLocalTempFile()
+    Interpret(MatrixMultiWrite(ranges.map(_.ast), MatrixNativeMultiWriter(path)))
+    val read0 = MatrixTable.read(hc, path + "0.mt")
+    val read1 = MatrixTable.read(hc, path + "1.mt")
+    assert(ranges(0).same(read0))
+    assert(ranges(1).same(read1))
+
+    val pathRef = tmpDir.createLocalTempFile(extension = "mt")
+    Interpret(MatrixWrite(ranges(1).ast, MatrixNativeWriter(path)))
+    val readRef = MatrixTable.read(hc, path)
+    assert(readRef.same(read1))
+  }
+
+  @Test def testMatrixMultiWriteDifferentTypesFails() {
+    val vcf = is.hail.TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
+    val range = MatrixTable.range(hc, 10, 2, None)
+    val path = tmpDir.createLocalTempFile()
+    intercept[java.lang.IllegalArgumentException] {
+      val ir = MatrixMultiWrite(IndexedSeq(vcf.ast, range.ast), MatrixNativeMultiWriter(path))
+    }
   }
 }

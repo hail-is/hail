@@ -260,10 +260,17 @@ final case class TableExport(
   header: Boolean = true,
   exportType: Int = ExportType.CONCATENATED) extends IR
 
-final case class MatrixWrite(child: MatrixIR, writer: MatrixWriter) extends IR
-
 final case class TableGetGlobals(child: TableIR) extends IR
 final case class TableCollect(child: TableIR) extends IR
+
+final case class MatrixWrite(child: MatrixIR, writer: MatrixWriter) extends IR
+
+final case class MatrixMultiWrite(
+  override val children: IndexedSeq[MatrixIR],
+  writer: MatrixNativeMultiWriter) extends IR {
+  private val t = children.head.typ
+  require(children.forall(_.typ == t))
+}
 
 class PrimitiveIR(val self: IR) extends AnyVal {
   def +(other: IR): IR = ApplyBinaryPrimOp(Add(), self, other)
