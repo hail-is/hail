@@ -47,7 +47,7 @@ class ValueIRTests(unittest.TestCase):
             ir.ArrayRef(a, i),
             ir.ArrayLen(a),
             ir.ArrayRange(ir.I32(0), ir.I32(5), ir.I32(1)),
-            ir.ArraySort(a, b, False),
+            ir.ArraySort(a, 'l', 'r', ir.ApplyComparisonOp("LT", ir.Ref('l'), ir.Ref('r'))),
             ir.ToSet(a),
             ir.ToDict(da),
             ir.ToArray(a),

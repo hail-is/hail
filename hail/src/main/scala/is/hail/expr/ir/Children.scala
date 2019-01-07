@@ -42,10 +42,10 @@ object Children {
       Array(a)
     case ArrayRange(start, stop, step) =>
       Array(start, stop, step)
-    case ArraySort(a, ascending, _) =>
-      Array(a, ascending)
     case MakeNDArray(data, shape, row_major) =>
       Array(data, shape, row_major)
+    case ArraySort(a, _, _, compare) =>
+      Array(a, compare)
     case ToSet(a) =>
       Array(a)
     case ToDict(a) =>

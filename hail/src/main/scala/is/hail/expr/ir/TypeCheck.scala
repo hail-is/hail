@@ -112,12 +112,11 @@ object TypeCheck {
         check(idxs)
         assert(nd.typ.isInstanceOf[TNDArray])
         assert(idxs.typ.isOfType(TArray(TInt64())))
-      case x@ArraySort(a, ascending, onKey) =>
+      case x@ArraySort(a, l, r, compare) =>
         check(a)
-        check(ascending)
-        assert(a.typ.isInstanceOf[TArray])
-        assert(!onKey || coerce[TArray](a.typ).elementType.isInstanceOf[TBaseStruct])
-        assert(ascending.typ.isOfType(TBoolean()))
+        val tarray = coerce[TArray](a.typ)
+        check(compare, env = env.bind(l, -tarray.elementType).bind(r, -tarray.elementType))
+        assert(compare.typ.isOfType(TBoolean()))
       case x@ToSet(a) =>
         check(a)
         assert(a.typ.isInstanceOf[TArray])

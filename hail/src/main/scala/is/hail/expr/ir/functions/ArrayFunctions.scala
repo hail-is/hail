@@ -67,12 +67,6 @@ object ArrayFunctions extends RegistryFunctions {
   def registerAll() {
     registerIR("isEmpty", TArray(tv("T")), TBoolean())(isEmpty)
 
-    registerIR("sort", TArray(tv("T")), TBoolean(), TArray(tv("T")))(ArraySort(_, _, false))
-
-    registerIR("sort", TArray(tv("T")), TArray(tv("T"))) { a =>
-      ArraySort(a, True(), false)
-    }
-
     registerIR("extend", TArray(tv("T")), TArray(tv("T")), TArray(tv("T")))(extend)
 
     registerIR("append", TArray(tv("T")), tv("T"), TArray(tv("T"))) { (a, c) =>
@@ -158,7 +152,7 @@ object ArrayFunctions extends RegistryFunctions {
       def ref(i: IR) = ArrayRef(a, i)
       def div(a: IR, b: IR): IR = ApplyBinaryPrimOp(BinaryOp.defaultDivideOp(t), a, b)
 
-      Let(a.name, ArraySort(ArrayFilter(array, v.name, !IsNA(v)), True()),
+      Let(a.name, ArraySort(ArrayFilter(array, v.name, !IsNA(v))),
         If(IsNA(a),
           NA(t),
           Let(size.name,

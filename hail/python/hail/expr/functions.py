@@ -3599,6 +3599,20 @@ def delimit(collection, delimiter=',') -> StringExpression:
 
 
 @typecheck(collection=expr_array(),
+           less_than=nullable(func_spec(2, expr_bool)))
+def _sort_by(collection, less_than):
+    l = Env.get_uid()
+    r = Env.get_uid()
+    left = construct_expr(Ref(l), collection.dtype.element_type, collection._indices, collection._aggregations)
+    right = construct_expr(Ref(r), collection.dtype.element_type, collection._indices, collection._aggregations)
+    return construct_expr(
+        ArraySort(collection._ir, l, r, less_than(left, right)._ir),
+        collection.dtype,
+        collection._indices,
+        collection._aggregations)
+
+
+@typecheck(collection=expr_array(),
            key=nullable(func_spec(1, expr_any)),
            reverse=expr_bool)
 def sorted(collection,
@@ -3638,16 +3652,31 @@ def sorted(collection,
     :class:`.ArrayExpression`
         Sorted array.
     """
-    ascending = ~reverse
+
+    rev = Env.get_uid()
+
+    def comp(l, r):
+        return If(IsNA(l),
+                  FalseIR(),
+                  If(IsNA(r),
+                     TrueIR(),
+                     If(Ref(rev),
+                        ApplyComparisonOp("GT", ApplyComparisonOp("Compare", l, r), I32(0)),
+                        ApplyComparisonOp("GT", ApplyComparisonOp("Compare", r, l), I32(0)))))
 
     if key is None:
-        return collection._method("sort", collection.dtype, ascending)
+        sorted = _sort_by(collection, lambda l, r: construct_expr(comp(l._ir, r._ir), tbool, collection._indices, collection._aggregations))
     else:
         with_key = collection.map(lambda elt: hl.tuple([key(elt), elt]))
-        ir = ArraySort(with_key._ir, ascending._ir, on_key=True)
-
-        indices, aggregations = unify_all(with_key, ascending)
-        return construct_expr(ir, with_key.dtype, indices, aggregations).map(lambda elt: elt[1])
+        sorted = _sort_by(
+            with_key,
+            lambda l, r: construct_expr(
+                comp(GetTupleElement(l._ir, 0), GetTupleElement(r._ir, 0)),
+                tbool,
+                with_key._indices,
+                with_key._aggregations)).map(lambda elt: elt[1])
+    indices, aggregations = unify_exprs(sorted, reverse)
+    return construct_expr(Let(rev, reverse._ir, sorted._ir), sorted.dtype, indices, aggregations)
 
 
 @typecheck(array=expr_array(expr_numeric), unique=bool)

@@ -605,26 +605,31 @@ class NDArrayRef(IR):
 
 
 class ArraySort(IR):
-    @typecheck_method(a=IR, ascending=IR, on_key=bool)
-    def __init__(self, a, ascending, on_key):
-        super().__init__(a, ascending)
+    @typecheck_method(a=IR, l_name=str, r_name=str, compare=IR)
+    def __init__(self, a, l_name, r_name, compare):
+        super().__init__(a, compare)
         self.a = a
-        self.ascending = ascending
-        self.on_key = on_key
+        self.l_name = l_name
+        self.r_name = r_name
+        self.compare = compare
 
-    @typecheck_method(a=IR, ascending=IR)
-    def copy(self, a, ascending):
+    @typecheck_method(a=IR, compare=IR)
+    def copy(self, a, compare):
         new_instance = self.__class__
-        return new_instance(a, ascending, self.on_key)
+        return new_instance(a, self.l_name, self.r_name, compare)
 
     def render(self, r):
-        return '(ArraySort {} {} {})'.format(self.on_key, r(self.a), r(self.ascending))
+        return '(ArraySort {} {} {} {})'.format(self.l_name, self.r_name, r(self.a), r(self.compare))
+
+    @property
+    def bound_variables(self):
+        return {self.l_name, self.r_name} | super().bound_variables
 
     def __eq__(self, other):
         return isinstance(other, ArraySort) and \
                other.a == self.a and \
-               other.ascending == self.ascending and \
-               other.on_key == self.on_key
+               other.compare == self.compare and \
+               other.l_name == self.l_name and other.r_name == self.r_name
 
     def _compute_type(self, env, agg_env):
         self.a._compute_type(env, agg_env)

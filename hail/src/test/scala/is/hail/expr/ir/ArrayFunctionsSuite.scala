@@ -89,21 +89,6 @@ class ArrayFunctionsSuite extends TestNGSuite {
   )
 
   @Test(dataProvider = "sort")
-  def sort(a: Seq[Integer], asc: Seq[Integer], desc: Seq[Integer]) {
-    assertEvalsTo(invoke("sort", toIRArray(a)), asc)
-  }
-
-  @Test(dataProvider = "sort")
-  def sortAsc(a: Seq[Integer], asc: Seq[Integer], desc: Seq[Integer]) {
-    assertEvalsTo(invoke("sort", toIRArray(a), True()), asc)
-  }
-
-  @Test(dataProvider = "sort")
-  def sortDesc(a: Seq[Integer], asc: Seq[Integer], desc: Seq[Integer]) {
-    assertEvalsTo(invoke("sort", toIRArray(a), False()), desc)
-  }
-
-  @Test(dataProvider = "sort")
   def min(a: Seq[Integer], asc: Seq[Integer], desc: Seq[Integer]) {
     assertEvalsTo(invoke("min", toIRArray(a)),
       Option(asc).filter(!_.contains(null)).flatMap(_.headOption).orNull)

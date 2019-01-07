@@ -461,10 +461,10 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testArraySort() {
-    assertEvalsTo(ArraySort(NA(TArray(TInt32())), True()), null)
+    assertEvalsTo(ArraySort(NA(TArray(TInt32()))), null)
 
     val a = MakeArray(FastIndexedSeq(I32(-7), I32(2), NA(TInt32()), I32(2)), TArray(TInt32()))
-    assertEvalsTo(ArraySort(a, True()),
+    assertEvalsTo(ArraySort(a),
       FastIndexedSeq(-7, 2, 2, null))
     assertEvalsTo(ArraySort(a, False()),
       FastIndexedSeq(2, 2, -7, null))
