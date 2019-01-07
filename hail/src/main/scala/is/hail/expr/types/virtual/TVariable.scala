@@ -13,7 +13,7 @@ object TVariable {
     "int32" -> ((t: Type) => t.isInstanceOf[TInt32]),
     "int64" -> ((t: Type) => t.isInstanceOf[TInt64]),
     "float32" -> ((t: Type) => t.isInstanceOf[TFloat32]),
-    "float64" -> ((t: Type) => t.isInstanceOf[TInt32]),
+    "float64" -> ((t: Type) => t.isInstanceOf[TFloat64]),
     "locus" -> ((t: Type) => t.isInstanceOf[TLocus]),
     "struct" -> ((t: Type) => t.isInstanceOf[TStruct]),
     "tuple" -> ((t: Type) => t.isInstanceOf[TTuple]))

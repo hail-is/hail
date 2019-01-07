@@ -100,15 +100,19 @@ object IRFunctionRegistry {
 
     irRegistry.foreach { case (name, fns) =>
         fns.foreach { case (argTypes, retType, f) =>
-          println(s"""register("${ StringEscapeUtils.escapeString(name) }", (${ argTypes.map(dtype).mkString(",") }), ${ dtype(retType) })""")
+          println(s"""register_function("${ StringEscapeUtils.escapeString(name) }", (${ argTypes.map(dtype).mkString(",") }), ${ dtype(retType) })""")
         }
     }
 
     codeRegistry.foreach { case (name, fns) =>
         fns.foreach { f =>
-          println(s"""register("${ StringEscapeUtils.escapeString(name) }", (${ f.argTypes.map(dtype).mkString(",") }), ${ dtype(f.returnType) })""")
+          println(s"""${
+            if (f.isInstanceOf[SeededIRFunction])
+              "register_seeded_function"
+            else
+              "register_function"
+          }("${ StringEscapeUtils.escapeString(name) }", (${ f.argTypes.map(dtype).mkString(",") }), ${ dtype(f.returnType) })""")
         }
-
     }
   }
 }
