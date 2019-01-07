@@ -11,8 +11,8 @@ import numpy as np
 
 @typecheck(weight_expr=expr_float64,
            ld_score_expr=expr_numeric,
-           chi_squared_exprs=oneof(expr_float64,
-                                   sequenceof(expr_float64)),
+           chi_sq_exprs=oneof(expr_float64,
+                              sequenceof(expr_float64)),
            n_samples_exprs=oneof(expr_numeric,
                                  sequenceof(expr_numeric)),
            n_blocks=int,
@@ -20,12 +20,15 @@ import numpy as np
            n_reference_panel_variants=nullable(int))
 def ld_score_regression(weight_expr,
                         ld_score_expr,
-                        chi_squared_exprs,
+                        chi_sq_exprs,
                         n_samples_exprs,
                         n_blocks=200,
                         two_step_threshold=30,
                         n_reference_panel_variants=None) -> Table:
-    """Given a set or multiple sets of genome-wide association study (GWAS)
+    """Estimate SNP-heritability and level of confounding biases from
+    GWAS summary statistics.
+
+    Given a set or multiple sets of genome-wide association study (GWAS)
     summary statistics, :func:`.ld_score_regression` estimates the heritability
     of a trait or set of traits and the level of confounding biases present in
     the underlying studies by regressing chi-squared statistics on LD scores,
@@ -33,22 +36,22 @@ def ld_score_regression(weight_expr,
 
     .. math::
 
-        E[\\chi_j^2] = 1 + Na + \\frac{Nh_g^2}{M}l_j
+        \\mathrm{E}[\\chi_j^2] = 1 + Na + \\frac{Nh_g^2}{M}l_j
 
-    *  :math:`E[\\chi_j^2]` is the expected chi-squared statistic resulting
-       from a test of association between variant :math:`j` and a trait.
+    *  :math:`\\mathrm{E}[\\chi_j^2]` is the expected chi-squared statistic
+       for variant :math:`j` resulting from a test of association between
+       variant :math:`j` and a trait.
     *  :math:`l_j = \\sum_{k} r_{jk}^2` is the LD score of variant
        :math:`j`, calculated as the sum of squared correlation coefficients
-       between variant `j` and variants in a set :math:`k` in a window around
-       variant :math:`j`. See :func:`ld_score` for further details.
-    *  :math:`a` is a measure of the contribution of confounding biases, such
-       as sample relatedness and uncontrolled population structure, to the
+       between variant :math:`j` and nearby variants. See :func:`ld_score`
+       for further details.
+    *  :math:`a` captures the contribution of confounding biases, such as
+       cryptic relatedness and uncontrolled population structure, to the
        association test statistic.
     *  :math:`h_g^2` is the SNP-heritability, or the proportion of variation
        in the trait explained by the effects of variants included in the
        regression model above.
-    *  :math:`M` is the number of variants over which :math:`h_g^2` is being
-       estimated.
+    *  :math:`M` is the number of variants used to estimate :math:`h_g^2`.
     *  :math:`N` is the number of samples in the underlying association study.
 
     For more details on the method implemented in this function, see:
@@ -58,124 +61,113 @@ def ld_score_regression(weight_expr,
     Examples
     --------
 
+    Run the method on a matrix table of summary statistics, where the rows
+    are variants and the columns are different phenotypes:
+
     >>> mt_gwas = hl.read_matrix_table('data/ld_score_regression.sumstats.mt')
     >>> ht_results = hl.experimental.ld_score_regression(
     ...     weight_expr=mt_gwas['ld_score'],
     ...     ld_score_expr=mt_gwas['ld_score'],
-    ...     chi_squared_exprs=mt_gwas['chi_squared'],
+    ...     chi_sq_exprs=mt_gwas['chi_squared'],
     ...     n_samples_exprs=mt_gwas['n'])
 
-    >>> ht_gwas = hl.read_table('data/ld_score_regression.sumstats.ht')
-    >>> ht_results = hl.experimental.ld_score_regression(
-    ...     weight_expr=ht_gwas['ld_score'],
-    ...     ld_score_expr=ht_gwas['ld_score'],
-    ...     chi_squared_exprs=ht_gwas['chi_squared_50_irnt'],
-    ...     n_samples_exprs=ht_gwas['n_50_irnt'])
+
+    Run the method on a table with summary statistics for a single
+    phenotype:
 
     >>> ht_gwas = hl.read_table('data/ld_score_regression.sumstats.ht')
     >>> ht_results = hl.experimental.ld_score_regression(
     ...     weight_expr=ht_gwas['ld_score'],
     ...     ld_score_expr=ht_gwas['ld_score'],
-    ...     chi_squared_exprs=[ht_gwas['chi_squared_50_irnt'],
+    ...     chi_sq_exprs=ht_gwas['chi_squared_50_irnt'],
+    ...     n_samples_exprs=ht_gwas['n_50_irnt'])
+
+    Run the method on a table with summary statistics for multiple
+    phenotypes:
+
+    >>> ht_gwas = hl.read_table('data/ld_score_regression.sumstats.ht')
+    >>> ht_results = hl.experimental.ld_score_regression(
+    ...     weight_expr=ht_gwas['ld_score'],
+    ...     ld_score_expr=ht_gwas['ld_score'],
+    ...     chi_sq_exprs=[ht_gwas['chi_squared_50_irnt'],
     ...                        ht_gwas['chi_squared_20160']],
     ...     n_samples_exprs=[ht_gwas['n_50_irnt'],
     ...                      ht_gwas['n_20160']])
 
-
-    This function returns a :class:`Table` with one row per set of summary
-    statistics passed to the ``chi_squared_exprs`` argument. The following
-    row-indexed fields are included in the table:
-
-    *  **phenotype** (:py:data:`.tstr`) -- The name of the phenotype. The
-       returned table is keyed by this field. See the notes below for
-       details on the possible values of this field.
-    *  **mean_chi_squared** (:py:data:`.tfloat64`) -- The mean chi-squared
-       test statistic for the given phenotype.
-    *  **intercept** (`Struct`) -- Contains fields:
-
-       -  **estimate** (:py:data:`.tfloat64`) -- A point estimate of the
-          intercept :math:`1 + Na` in the LD score regression model.
-       -  **standard_error**  (:py:data:`.tfloat64`) -- An estimated
-          standard error of the intercept point estimate.
-
-    *  **snp_heritability** (`Struct`) -- Contains fields:
-
-       -  **estimate** (:py:data:`.tfloat64`) -- A point estimate of the
-          SNP-heritability :math:`h_g^2`.
-       -  **standard_error** (:py:data:`.tfloat64`) -- An estimated
-          standard error of the :math:`h_g^2` point estimate.
-
     Notes
     -----
     The ``exprs`` provided as arguments to :func:`.ld_score_regression`
-    can originate from either a :class:`Table` or a :class:`MatrixTable`
-    (though they all must originate from the same object).
+    must all be from the same object, either a :class:`Table` or a
+    :class:`MatrixTable`.
 
-    **If the arguments originate from a table, then:**
+    **If the arguments originate from a table:**
 
-    *  The table is assumed to be keyed by fields ``locus`` of type
+    *  The table must be keyed by fields ``locus`` of type
        :class:`.tlocus` and ``alleles``, a :py:data:`.tarray` of
        :py:data:`.tstr` elements.
-    *  ``weight_expr``, ``ld_score_expr``, ``chi_squared_exprs``, and
-       ``n_samples_exprs`` are assumed to be row-indexed fields of the
-       table.
+    *  ``weight_expr``, ``ld_score_expr``, ``chi_sq_exprs``, and
+       ``n_samples_exprs`` are must be row-indexed fields.
     *  The number of expressions passed to ``n_samples_exprs`` must be
-       equal to either one or the number of expressions passed to
-       ``chi_squared_exprs``. If just one expression is passed to
+       equal to one or the number of expressions passed to
+       ``chi_sq_exprs``. If just one expression is passed to
        ``n_samples_exprs``, that sample size expression is assumed to
-       apply to all sets of statistics passed to ``chi_squared_exprs``.
-       Otherwise, the first expression passed to ``n_samples_exprs``
-       will correspond to the first expression passed to
-       ``chi_squared_exprs``, the second expression passed to
-       ``n_samples_exprs`` will correspond to the second expression passed
-       to ``chi_squared_exprs``, etc.
+       apply to all sets of statistics passed to ``chi_sq_exprs``.
+       Otherwise, the expressions passed to ``chi_sq_exprs`` and
+       ``n_samples_exprs`` are matched by index.
     *  The ``phenotype`` field that keys the table returned by
-       :func:`.ld_score_regression` will have generic values ``y0``, ``y1``,
-       etc. corresponding to the ``0th``, ``1st``, etc. expressions passed
-       to the ``chi_squared_exprs`` argument.
+       :func:`.ld_score_regression` will have generic :obj:`int` values
+       ``0``, ``1``, etc. corresponding to the ``0th``, ``1st``, etc.
+       expressions passed to the ``chi_sq_exprs`` argument.
 
-    **If the arguments originate from a matrix table, then:**
+    **If the arguments originate from a matrix table:**
 
-    *  The dimensions of the matrix table are assumed to be variants
+    *  The dimensions of the matrix table must be variants
        (rows) by phenotypes (columns).
-    *  The rows of the matrix table are assumed to be keyed by fields
+    *  The rows of the matrix table must be keyed by fields
        ``locus`` of type :class:`.tlocus` and ``alleles``,
        a :py:data:`.tarray` of :py:data:`.tstr` elements.
-    *  The columns of the matrix table are assumed to be keyed by a field
+    *  The columns of the matrix table must be keyed by a field
        of type :py:data:`.tstr` that uniquely identifies phenotypes
        represented in the matrix table. The column key must be a single
        expression; compound keys are not accepted.
-    *  ``weight_expr``, and ``ld_score_expr`` are assumed to be row-indexed
+    *  ``weight_expr`` and ``ld_score_expr`` must be row-indexed
        fields.
-    *  ``chi_squared_exprs`` is assumed to be a single entry-indexed field
+    *  ``chi_sq_exprs`` must be a single entry-indexed field
        (not a list of fields).
-    *  ``n_samples_exprs`` is assumed to be a single entry-indexed field
+    *  ``n_samples_exprs`` must be a single entry-indexed field
        (not a list of fields).
     *  The ``phenotype`` field that keys the table returned by
        :func:`.ld_score_regression` will have values corresponding to the
        column keys of the input matrix table.
 
-    Note
-    ----
-    Chi-squared statistics can be derived from the :math:`t` or :math:`Z`
-    statistics typically provided in GWAS summary statistics files.
+    This function returns a :class:`Table` with one row per set of summary
+    statistics passed to the ``chi_sq_exprs`` argument. The following
+    row-indexed fields are included in the table:
 
-    A :math:`t`-distribution approaches a standard normal distribution for
-    moderate sample sizes (:math:`n > 30`), such as those found in most GWAS.
+    *  **phenotype** (:py:data:`.tstr`) -- The name of the phenotype. The
+       returned table is keyed by this field. See the notes below for
+       details on the possible values of this field.
+    *  **mean_chi_sq** (:py:data:`.tfloat64`) -- The mean chi-squared
+       test statistic for the given phenotype.
+    *  **intercept** (`Struct`) -- Contains fields:
 
-    Further, if a random variable :math:`Z` follows a standard normal
-    distribution, then :math:`Z^2` follows a :math:`\\chi_{df=1}^2`
-    distribution.
+       -  **estimate** (:py:data:`.tfloat64`) -- A point estimate of the
+          intercept :math:`1 + Na`.
+       -  **standard_error**  (:py:data:`.tfloat64`) -- An estimate of
+          the standard error of this point estimate.
 
-    In short, chi-squared statistics can generally be calculated from GWAS
-    summary statistics as :math:`X^2 = t^2` or :math:`X^2 = Z^2`, given
-    :math:`t` or :math:`Z` test statistics.
+    *  **snp_heritability** (`Struct`) -- Contains fields:
+
+       -  **estimate** (:py:data:`.tfloat64`) -- A point estimate of the
+          SNP-heritability :math:`h_g^2`.
+       -  **standard_error** (:py:data:`.tfloat64`) -- An estimate of
+          the standard error of this point estimate.
 
     Warning
     -------
     :func:`.ld_score_regression` considers only the rows for which both row
     fields ``weight_expr`` and ``ld_score_expr`` are defined. Rows with missing
-    values in either of these fields are removed prior to fitting the LD score
+    values in either field are removed prior to fitting the LD score
     regression model.
 
     Parameters
@@ -186,33 +178,28 @@ def ld_score_regression(weight_expr,
     ld_score_expr : :class:`.Float64Expression`
                     Row-indexed expression for the LD scores used as covariates
                     in the model.
-    chi_squared_exprs : :class:`.Float64Expression` or :obj:`list` of
+    chi_sq_exprs : :class:`.Float64Expression` or :obj:`list` of
                         :class:`.Float64Expression`
-                        One or more row-indexed (if originating from a table)
-                        or entry-indexed (if originating from a matrix table)
-                        expressions for chi-squared statistics resulting from
-                        genome-wide association studies.
+                        One or more row-indexed (if table) or entry-indexed
+                        (if matrix table) expressions for chi-squared
+                        statistics resulting from genome-wide association
+                        studies.
     n_samples_exprs: :class:`.NumericExpression` or :obj:`list` of
                      :class:`.NumericExpression`
-                     One or more row-indexed (if originating from a table) or
-                     entry-indexed (if originating from a matrix table)
-                     expressions indicating the number of samples used in the
-                     studies that generated the test statistics supplied to the
-                     ``chi_squared_exprs`` argument.
+                     One or more row-indexed (if table) or entry-indexed
+                     (if matrix table) expressions indicating the number of
+                     samples used in the studies that generated the test
+                     statistics supplied to ``chi_sq_exprs``.
     n_blocks : :obj:`int`
                The number of blocks used in the jackknife approach to
                estimating standard errors.
     two_step_threshold : :obj:`int`
-                         In the two-step procedure used to fit the LD score
-                         regression model, variants with chi-squared statistics
-                         greater than ``two_step_threshold`` are excluded in
-                         the estimation of the model intercept that occurs in
-                         the first step.
+                         Variants with chi-squared statistics greater than this
+                         value are excluded in the first step of the two-step
+                         procedure used to fit the model.
     n_reference_panel_variants : :obj:`int`, optional
-                                 Number of variants over which SNP-heritability
-                                 :math:`h_g^2` is estimated. If not supplied,
-                                 assumed to be the number of variants in the LD
-                                 score regression.
+                                 Number of variants used to estimate the
+                                 SNP-heritability :math:`h_g^2`.
 
     Returns
     -------
@@ -220,14 +207,14 @@ def ld_score_regression(weight_expr,
         Table keyed by ``phenotype`` with intercept and heritability estimates
         for each phenotype passed to the function."""
 
-    chi_squared_exprs = wrap_to_list(chi_squared_exprs)
+    chi_sq_exprs = wrap_to_list(chi_sq_exprs)
     n_samples_exprs = wrap_to_list(n_samples_exprs)
 
-    assert ((len(chi_squared_exprs) == len(n_samples_exprs)) or
+    assert ((len(chi_sq_exprs) == len(n_samples_exprs)) or
             (len(n_samples_exprs) == 1))
     __p = 2  # number of covariates, including intercept
 
-    ds = chi_squared_exprs[0]._indices.source
+    ds = chi_sq_exprs[0]._indices.source
 
     analyze('ld_score_regression/weight_expr',
             weight_expr,
@@ -238,13 +225,13 @@ def ld_score_regression(weight_expr,
 
     # format input dataset
     if isinstance(ds, MatrixTable):
-        assert len(chi_squared_exprs) == 1
+        assert len(chi_sq_exprs) == 1
         assert len(n_samples_exprs) == 1
         col_key = list(ds.col_key)
         assert len(col_key) == 1
 
         analyze('ld_score_regression/chi_squared_expr',
-                chi_squared_exprs[0],
+                chi_sq_exprs[0],
                 ds._entry_indices)
         analyze('ld_score_regression/n_samples_expr',
                 n_samples_exprs[0],
@@ -261,7 +248,7 @@ def ld_score_regression(weight_expr,
                             row_key=['__locus', '__alleles'],
                             col_exprs={'__y_name': ds[col_key[0]]},
                             col_key=['__y_name'],
-                            entry_exprs={'__y': chi_squared_exprs[0],
+                            entry_exprs={'__y': chi_sq_exprs[0],
                                          '__n': n_samples_exprs[0]})
         ds = ds.annotate_entries(**{'__w': ds['__w_initial']})
 
@@ -272,20 +259,20 @@ def ld_score_regression(weight_expr,
 
     else:
         assert isinstance(ds, Table)
-        for y in chi_squared_exprs:
+        for y in chi_sq_exprs:
             analyze('ld_score_regression/chi_squared_expr', y, ds._row_indices)
         for n in n_samples_exprs:
             analyze('ld_score_regression/n_samples_expr', n, ds._row_indices)
 
-        ys = ['__y{:}'.format(i) for i, _ in enumerate(chi_squared_exprs)]
-        ws = ['__w{:}'.format(i) for i, _ in enumerate(chi_squared_exprs)]
+        ys = ['__y{:}'.format(i) for i, _ in enumerate(chi_sq_exprs)]
+        ws = ['__w{:}'.format(i) for i, _ in enumerate(chi_sq_exprs)]
         ns = ['__n{:}'.format(i) for i, _ in enumerate(n_samples_exprs)]
 
         ds = ds.select(**dict(**{'__locus': ds['locus'],
                                  '__alleles': ds['alleles'],
                                  '__w_initial': weight_expr,
                                  '__x': ld_score_expr},
-                              **{y: chi_squared_exprs[i]
+                              **{y: chi_sq_exprs[i]
                                  for i, y in enumerate(ys)},
                               **{w: weight_expr for w in ws},
                               **{n: n_samples_exprs[i]
@@ -301,7 +288,7 @@ def ld_score_regression(weight_expr,
                                                         1.0),
                             '__x': ds['__x'],
                             '__x_floor': hl.max(ds['__x'], 1.0),
-                            '__y_name': y.strip('_'),
+                            '__y_name': i,
                             '__y': ds[ys[i]],
                             '__w': ds[ws[i]],
                             '__n': hl.int(ds[ns[i]])})
@@ -540,7 +527,7 @@ def ld_score_regression(weight_expr,
     # convert coefficient to heritability estimate
     mt = mt.annotate_cols(
         phenotype=mt['__y_name'],
-        mean_chi_squared=hl.agg.mean(mt['__y']),
+        mean_chi_sq=hl.agg.mean(mt['__y']),
         intercept=hl.struct(
             estimate=mt['__final_betas'][0],
             standard_error=hl.sqrt(mt['__final_jackknife_variance'][0])),
@@ -552,7 +539,7 @@ def ld_score_regression(weight_expr,
     # format and return results
     ht = mt.cols()
     ht = ht.key_by(ht['phenotype'])
-    ht = ht.select(ht['mean_chi_squared'],
+    ht = ht.select(ht['mean_chi_sq'],
                    ht['intercept'],
                    ht['snp_heritability'])
 

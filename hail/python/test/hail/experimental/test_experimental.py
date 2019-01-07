@@ -158,7 +158,7 @@ class Tests(unittest.TestCase):
         ht_results = hl.experimental.ld_score_regression(
             weight_expr=mt['ld_score'],
             ld_score_expr=mt['ld_score'],
-            chi_squared_exprs=mt['chi_squared'],
+            chi_sq_exprs=mt['chi_squared'],
             n_samples_exprs=mt['n'],
             n_blocks=20,
             two_step_threshold=5,
@@ -166,7 +166,7 @@ class Tests(unittest.TestCase):
 
         results = {
             x['phenotype']: {
-                'mean_chi_squared': x['mean_chi_squared'],
+                'mean_chi_sq': x['mean_chi_sq'],
                 'intercept_estimate': x['intercept']['estimate'],
                 'intercept_standard_error': x['intercept']['standard_error'],
                 'snp_heritability_estimate': x['snp_heritability']['estimate'],
@@ -175,7 +175,7 @@ class Tests(unittest.TestCase):
             for x in ht_results.collect()}
 
         self.assertAlmostEqual(
-            results['50_irnt']['mean_chi_squared'],
+            results['50_irnt']['mean_chi_sq'],
             3.4386, places=4)
         self.assertAlmostEqual(
             results['50_irnt']['intercept_estimate'],
@@ -191,7 +191,7 @@ class Tests(unittest.TestCase):
             0.1067, places=4)
 
         self.assertAlmostEqual(
-            results['20160']['mean_chi_squared'],
+            results['20160']['mean_chi_sq'],
             1.5209, places=4)
         self.assertAlmostEqual(
             results['20160']['intercept_estimate'],
@@ -215,7 +215,7 @@ class Tests(unittest.TestCase):
         ht_results = hl.experimental.ld_score_regression(
             weight_expr=ht['ld_score'],
             ld_score_expr=ht['ld_score'],
-            chi_squared_exprs=[ht['chi_squared_50_irnt'],
+            chi_sq_exprs=[ht['chi_squared_50_irnt'],
                                ht['chi_squared_20160']],
             n_samples_exprs=[ht['n_50_irnt'],
                              ht['n_20160']],
@@ -225,7 +225,7 @@ class Tests(unittest.TestCase):
 
         results = {
             x['phenotype']: {
-                'mean_chi_squared': x['mean_chi_squared'],
+                'mean_chi_sq': x['mean_chi_sq'],
                 'intercept_estimate': x['intercept']['estimate'],
                 'intercept_standard_error': x['intercept']['standard_error'],
                 'snp_heritability_estimate': x['snp_heritability']['estimate'],
@@ -234,33 +234,33 @@ class Tests(unittest.TestCase):
             for x in ht_results.collect()}
 
         self.assertAlmostEqual(
-            results['y0']['mean_chi_squared'],
+            results[0]['mean_chi_sq'],
             3.4386, places=4)
         self.assertAlmostEqual(
-            results['y0']['intercept_estimate'],
+            results[0]['intercept_estimate'],
             0.7727, places=4)
         self.assertAlmostEqual(
-            results['y0']['intercept_standard_error'],
+            results[0]['intercept_standard_error'],
             0.2461, places=4)
         self.assertAlmostEqual(
-            results['y0']['snp_heritability_estimate'],
+            results[0]['snp_heritability_estimate'],
             0.3845, places=4)
         self.assertAlmostEqual(
-            results['y0']['snp_heritability_standard_error'],
+            results[0]['snp_heritability_standard_error'],
             0.1067, places=4)
 
         self.assertAlmostEqual(
-            results['y1']['mean_chi_squared'],
+            results[1]['mean_chi_sq'],
             1.5209, places=4)
         self.assertAlmostEqual(
-            results['y1']['intercept_estimate'],
+            results[1]['intercept_estimate'],
             1.2109, places=4)
         self.assertAlmostEqual(
-            results['y1']['intercept_standard_error'],
+            results[1]['intercept_standard_error'],
             0.2238, places=4)
         self.assertAlmostEqual(
-            results['y1']['snp_heritability_estimate'],
+            results[1]['snp_heritability_estimate'],
             0.0486, places=4)
         self.assertAlmostEqual(
-            results['y1']['snp_heritability_standard_error'],
+            results[1]['snp_heritability_standard_error'],
             0.0416, places=4)
