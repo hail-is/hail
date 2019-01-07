@@ -1,4 +1,4 @@
-# Hail
+# Hail 2
 
 [![Zulip](https://img.shields.io/badge/zulip-join_chat-brightgreen.svg)](https://hail.zulipchat.com?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
 
