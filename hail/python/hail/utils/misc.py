@@ -93,7 +93,7 @@ def range_table(n, n_partitions=None) -> 'hail.Table':
     if n_partitions is not None:
         check_positive_and_in_range('range_table', 'n_partitions', n_partitions)
 
-    return hail.Table._from_java(Env.hail().table.Table.range(Env.hc()._jhc, n, joption(n_partitions)))
+    return hail.Table(hail.ir.TableRange(n, n_partitions))
 
 def check_positive_and_in_range(caller, name, value):
     if value <= 0:

@@ -1063,7 +1063,7 @@ def downsample(x, y, label=None, n_divisions=500) -> ArrayExpression:
         label = hl.null(hl.tarray(hl.tstr))
     elif isinstance(label, StringExpression):
         label = hl.array([label])
-    return _agg_func('downsample', [x, y, label], tarray(ttuple(tfloat64, tfloat64, tarray(tstr))),
+    return _agg_func('Downsample', [x, y, label], tarray(ttuple(tfloat64, tfloat64, tarray(tstr))),
                      constructor_args=[n_divisions])
 
 
@@ -1331,7 +1331,7 @@ def corr(x, y) -> Float64Expression:
     -------
     :class:`.Float64Expression`
     """
-    return _agg_func('corr', [x, y], tfloat64)
+    return _agg_func('PearsonCorrelation', [x, y], tfloat64)
 
 @typecheck(group=expr_any,
            agg_expr=agg_expr(expr_any))

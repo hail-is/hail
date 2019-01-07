@@ -319,14 +319,20 @@ class Table(ExprContainer):
     @staticmethod
     def _from_java(jt):
         return Table(JavaTable(jt.tir()))
+    
+    @property
+    def _jt(self):
+        if self._jt_cache is None:
+            self._jt_cache = Env.hail().table.Table(
+                Env.hc()._jhc, Env.hc()._backend._to_java_ir(self._tir))
+        return self._jt_cache
 
     def __init__(self, tir):
         super(Table, self).__init__()
 
+        self._jt_cache = None
+        
         self._tir = tir
-        self._jt = Env.hail().table.Table(
-            Env.hc()._jhc, Env.hc()._backend._to_java_ir(self._tir))
-
         self._type = self._tir.typ
 
         self._row_axis = 'row'

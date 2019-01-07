@@ -14,12 +14,6 @@ class TableTypeSerializer extends CustomSerializer[TableType](format => (
 case class TableType(rowType: TStruct, key: IndexedSeq[String], globalType: TStruct) extends BaseType {
   val canonicalRVDType = RVDType(rowType.physicalType, key)
 
-  def env: Env[Type] = {
-    Env.empty[Type]
-      .bind(("global", globalType))
-      .bind(("row", rowType))
-  }
-
   def globalEnv: Env[Type] = Env.empty[Type]
     .bind("global" -> globalType)
 

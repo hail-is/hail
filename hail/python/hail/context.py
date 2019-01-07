@@ -112,8 +112,6 @@ class HailContext(object):
                    f"  JAR:    {jar_version}\n"
                    f"  Python: {version}")
 
-
-
         if not quiet:
             sys.stderr.write('Running on Apache Spark version {}\n'.format(self.sc.version))
             if self._jsc.uiWebUrl().isDefined():
@@ -138,6 +136,7 @@ class HailContext(object):
 
         install_exception_handler()
         Env.set_seed(global_seed)
+
 
     @property
     def default_reference(self):
@@ -300,10 +299,9 @@ def get_reference(name) -> 'hail.ReferenceGenome':
     if name == 'default':
         return default_reference()
     else:
-        return hail.ReferenceGenome._references.get(
-            name,
-            hail.ReferenceGenome._from_java(Env.hail().variant.ReferenceGenome.getReference(name))
-        )
+        if name in hail.ReferenceGenome._references:
+            return hail.ReferenceGenome._references[name]
+        return hail.ReferenceGenome._from_java(Env.hail().variant.ReferenceGenome.getReference(name))
 
 
 @typecheck(seed=int)
