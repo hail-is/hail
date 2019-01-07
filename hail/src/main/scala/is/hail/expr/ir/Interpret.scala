@@ -392,6 +392,23 @@ object Interpret {
           }
         }
 
+      case ArrayLeftJoinDistinct(left, right, l, r, compare, join) =>
+        val lValue = interpret(left, env, args, agg).asInstanceOf[IndexedSeq[Any]]
+        val rValue = interpret(right, env, args, agg).asInstanceOf[IndexedSeq[Any]].toIterator
+
+        var relt: Any = if (rValue.hasNext) rValue.next() else null
+
+        lValue.map { lelt =>
+          while (rValue.hasNext && interpret(compare, env.bind(l -> lelt, r -> relt), args, agg).asInstanceOf[Int] > 0) {
+            relt = rValue.next()
+          }
+          if (interpret(compare, env.bind(l -> lelt, r -> relt), args, agg).asInstanceOf[Int] == 0) {
+            interpret(join, env.bind(l -> lelt, r -> relt), args, agg)
+          } else {
+            interpret(join, env.bind(l -> lelt, r -> null), args, agg)
+          }
+        }
+
       case ArrayFor(a, valueName, body) =>
         val aValue = interpret(a, env, args, agg)
         if (aValue != null) {

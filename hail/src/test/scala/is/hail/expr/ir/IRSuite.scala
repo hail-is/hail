@@ -580,6 +580,39 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(scan(TestUtils.IRArray(1, null, 3), 0, (accum, elt) => accum + elt), FastIndexedSeq(0, 1, null, null))
   }
 
+  @Test def testLeftJoinRightDistinct() {
+    def join(left: IR, right: IR, keys: IndexedSeq[String]): IR = {
+      val compF = { (l: IR, r: IR) =>
+        ApplyComparisonOp(Compare(coerce[TStruct](l.typ).select(keys)._1), SelectFields(l, keys), SelectFields(r, keys))
+      }
+      val joinF = { (l: IR, r: IR) =>
+        Let("_right", r, InsertFields(l, coerce[TStruct](r.typ).fields.filter(f => !keys.contains(f.name)).map { f =>
+          f.name -> GetField(Ref("_right", r.typ), f.name)
+        }))
+      }
+      ArrayLeftJoinDistinct(left, right, "_l", "_r",
+        compF(Ref("_l", coerce[TArray](left.typ).elementType), Ref("_r", coerce[TArray](right.typ).elementType)),
+        joinF(Ref("_l", coerce[TArray](left.typ).elementType), Ref("_r", coerce[TArray](right.typ).elementType)))
+    }
+
+    def joinRows(left: IndexedSeq[Int], right: IndexedSeq[Int]): IR = {
+      join(
+        MakeArray.unify(left.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("b" -> I32(idx), "x" -> Str("x"), "idx" -> I32(n))) }),
+        MakeArray.unify(right.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("idx" -> I32(n), "x" -> Str("x"), "a" -> I32(idx))) }),
+        FastIndexedSeq("idx", "x"))
+    }
+
+    assertEvalsTo(joinRows(Array(0, 1, 2), Array(1)), FastIndexedSeq(
+      Row(0, "x", 0, null),
+      Row(1, "x", 1, 0),
+      Row(2, "x", 2, null)))
+
+    assertEvalsTo(joinRows(Array(0, 1, 2), Array(-1, 0, 0, 1, 1, 2, 2, 3)), FastIndexedSeq(
+      Row(0, "x", 0, 1),
+      Row(1, "x", 1, 3),
+      Row(2, "x", 2, 5)))
+  }
+
   @Test def testDie() {
     assertFatal(Die("mumblefoo", TFloat64()), "mble")
     assertFatal(Die(NA(TString()), TFloat64()), "message missing")
@@ -804,6 +837,7 @@ class IRSuite extends SparkSuite {
       ArrayFlatMap(aa, "v", a),
       ArrayFold(a, I32(0), "x", "v", v),
       ArrayScan(a, I32(0), "x", "v", v),
+      ArrayLeftJoinDistinct(ArrayRange(0, 2, 1), ArrayRange(0, 3, 1), "l", "r", I32(0), I32(1)),
       ArrayFor(a, "v", Void()),
       ArrayAgg(a, "x", ApplyAggOp(FastIndexedSeq.empty, None, FastIndexedSeq(Ref("x", TInt32())), sumSig)),
       AggFilter(True(), I32(0)),

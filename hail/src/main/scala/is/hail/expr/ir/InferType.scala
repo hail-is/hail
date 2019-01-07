@@ -89,6 +89,8 @@ object InferType {
         TArray(zero.typ)
       case ArrayAgg(_, _, query) =>
         query.typ
+      case ArrayLeftJoinDistinct(left, right, l, r, compare, join) =>
+        TArray(join.typ)
       case AggFilter(_, aggIR) =>
         aggIR.typ
       case AggExplode(array, name, aggBody) =>

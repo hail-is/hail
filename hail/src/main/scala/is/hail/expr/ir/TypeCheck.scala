@@ -151,6 +151,15 @@ object TypeCheck {
         check(body, env = env.bind(accumName -> zero.typ, valueName -> -tarray.elementType))
         assert(body.typ == zero.typ)
         assert(x.typ == TArray(zero.typ))
+      case x@ArrayLeftJoinDistinct(left, right, l, r, compare, join) =>
+        check(left)
+        check(right)
+        val ltyp = coerce[TArray](left.typ)
+        val rtyp = coerce[TArray](right.typ)
+        check(compare, env = env.bind(l -> -ltyp.elementType, r -> -rtyp.elementType))
+        check(join, env = env.bind(l -> -ltyp.elementType, r -> -rtyp.elementType))
+        assert(compare.typ.isOfType(TInt32()))
+        assert(x.typ == TArray(join.typ))
       case x@ArrayFor(a, valueName, body) =>
         check(a)
         val tarray = coerce[TArray](a.typ)

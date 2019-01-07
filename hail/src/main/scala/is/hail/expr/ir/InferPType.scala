@@ -84,6 +84,8 @@ object InferPType {
         PArray(zero.pType)
       case ArrayAgg(_, _, query) =>
         query.pType
+      case ArrayLeftJoinDistinct(left, right, l, r, compare, join) =>
+        PArray(join.pType)
       case AggFilter(_, aggIR) =>
         aggIR.pType
       case AggExplode(array, name, aggBody) =>
