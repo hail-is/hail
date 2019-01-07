@@ -273,6 +273,8 @@ object TypeCheck {
       case TableCount(_) =>
       case TableGetGlobals(_) =>
       case TableCollect(_) =>
+      case TableToValueApply(_, _) =>
+      case MatrixToValueApply(_, _) =>
     }
   }
 }
