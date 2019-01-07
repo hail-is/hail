@@ -20,7 +20,7 @@ object LocusFunctions extends RegistryFunctions {
   }
 
   def registerLocusCode(methodName: String): Unit = {
-    registerCode(methodName, tv("T", _.isInstanceOf[TLocus]), TBoolean()) {
+    registerCode(methodName, tv("T", "locus"), TBoolean()) {
       case (mb: EmitMethodBuilder, locus: Code[Long]) =>
         val locusObject = getLocus(mb, locus, "T")
         val tlocus = types.coerce[TLocus](tv("T").t)
@@ -32,14 +32,14 @@ object LocusFunctions extends RegistryFunctions {
   }
 
   def registerAll() {
-    registerCode("contig", tv("T", _.isInstanceOf[TLocus]), TString()) {
+    registerCode("contig", tv("T", "locus"), TString()) {
       case (mb, locus: Code[Long]) =>
         val region = getRegion(mb)
         val tlocus = types.coerce[TLocus](tv("T").t).physicalType
         tlocus.contig(region, locus)
     }
 
-    registerCode("position", tv("T", _.isInstanceOf[TLocus]), TInt32()) {
+    registerCode("position", tv("T", "locus"), TInt32()) {
       case (mb, locus: Code[Long]) =>
         val region = getRegion(mb)
         val tlocus = types.coerce[TLocus](tv("T").t).physicalType
@@ -54,7 +54,7 @@ object LocusFunctions extends RegistryFunctions {
     registerLocusCode("inXNonPar")
     registerLocusCode("inYPar")
 
-    registerCode("min_rep", tv("T", _.isInstanceOf[TLocus]), TArray(TString()), TStruct("locus" -> tv("T"), "alleles" -> TArray(TString()))) { (mb, lOff, aOff) =>
+    registerCode("min_rep", tv("T", "locus"), TArray(TString()), TStruct("locus" -> tv("T"), "alleles" -> TArray(TString()))) { (mb, lOff, aOff) =>
       val returnTuple = mb.newLocal[(Locus, IndexedSeq[String])]
       val locus = getLocus(mb, lOff, "T")
       val alleles = Code.checkcast[IndexedSeq[String]](wrapArg(mb, TArray(TString()))(aOff).asInstanceOf[Code[AnyRef]])

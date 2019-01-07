@@ -1,7 +1,6 @@
 package is.hail.expr.ir.functions
 
 import is.hail.annotations._
-import is.hail.asm4s
 import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.expr.types._
@@ -10,15 +9,14 @@ import is.hail.asm4s.coerce
 import is.hail.experimental.ExperimentalFunctions
 import is.hail.expr.types.physical.{PString, PType}
 import is.hail.expr.types.virtual._
-import is.hail.variant.Call
 
 import scala.collection.mutable
 import scala.reflect._
 
 object IRFunctionRegistry {
 
-  val irRegistry: mutable.MultiMap[String, (Seq[Type], Seq[IR] => IR)] =
-    new mutable.HashMap[String, mutable.Set[(Seq[Type], Seq[IR] => IR)]] with mutable.MultiMap[String, (Seq[Type], Seq[IR] => IR)]
+  val irRegistry: mutable.MultiMap[String, (Seq[Type], Type, Seq[IR] => IR)] =
+    new mutable.HashMap[String, mutable.Set[(Seq[Type], Type, Seq[IR] => IR)]] with mutable.MultiMap[String, (Seq[Type], Type, Seq[IR] => IR)]
 
   val codeRegistry: mutable.MultiMap[String, IRFunction] =
     new mutable.HashMap[String, mutable.Set[IRFunction]] with mutable.MultiMap[String, IRFunction]
@@ -26,8 +24,8 @@ object IRFunctionRegistry {
   def addIRFunction(f: IRFunction): Unit =
     codeRegistry.addBinding(f.name, f)
 
-  def addIR(name: String, types: Seq[Type], f: Seq[IR] => IR): Unit =
-    irRegistry.addBinding(name, (types, f))
+  def addIR(name: String, argTypes: Seq[Type], retType: Type, f: Seq[IR] => IR): Unit =
+    irRegistry.addBinding(name, (argTypes, retType, f))
 
   def removeIRFunction(name: String, args: Seq[Type]): Unit = {
     val functions = codeRegistry(name)
@@ -51,16 +49,16 @@ object IRFunctionRegistry {
     lookupInRegistry(codeRegistry, name, args, (f: IRFunction, ts: Seq[Type]) => f.unify(ts))
 
   def lookupConversion(name: String, args: Seq[Type]): Option[Seq[IR] => IR] = {
-    type Conversion = (Seq[Type], Seq[IR] => IR)
+    type Conversion = (Seq[Type], Type, Seq[IR] => IR)
     val findIR: (Conversion, Seq[Type]) => Boolean = {
-      case ((ts, _), t2s) =>
+      case ((ts, _, _), t2s) =>
         ts.length == args.length && {
           ts.foreach(_.clear())
           (ts, t2s).zipped.forall(_.unify(_))
         }
     }
     val validIR: Option[Seq[IR] => IR] = lookupInRegistry[Conversion](irRegistry, name, args, findIR).map {
-      case (_, conversion) => args => ApplyIR(name, args, conversion)
+      case (_, _, conversion) => args => ApplyIR(name, args, conversion)
     }
 
     val validMethods = lookupFunction(name, args).map { f => { irArgs: Seq[IR] =>
@@ -96,6 +94,27 @@ object IRFunctionRegistry {
     UtilFunctions,
     ExperimentalFunctions
   ).foreach(_.registerAll())
+
+  def dumpFunctions(): Unit = {
+    def dtype(t: Type): String = s"""dtype("${ StringEscapeUtils.escapeString(t.toString) }\")"""
+
+    irRegistry.foreach { case (name, fns) =>
+        fns.foreach { case (argTypes, retType, f) =>
+          println(s"""register_function("${ StringEscapeUtils.escapeString(name) }", (${ argTypes.map(dtype).mkString(",") }), ${ dtype(retType) })""")
+        }
+    }
+
+    codeRegistry.foreach { case (name, fns) =>
+        fns.foreach { f =>
+          println(s"""${
+            if (f.isInstanceOf[SeededIRFunction])
+              "register_seeded_function"
+            else
+              "register_function"
+          }("${ StringEscapeUtils.escapeString(name) }", (${ f.argTypes.map(dtype).mkString(",") }), ${ dtype(f.returnType) })""")
+        }
+    }
+  }
 }
 
 abstract class RegistryFunctions {
@@ -104,16 +123,14 @@ abstract class RegistryFunctions {
 
   private val boxes = mutable.Map[String, Box[Type]]()
 
-  private def tvBoxes(name: String) = boxes.getOrElseUpdate(name, Box[Type](matchCond = {(t1, t2) => -t1 == -t2}))
-
   def tv(name: String): TVariable =
-    TVariable(name, b = tvBoxes(name))
+    TVariable(name)
 
-  def tv(name: String, cond: Type => Boolean): TVariable =
-    TVariable(name, cond, tvBoxes(name))
+  def tv(name: String, cond: String): TVariable =
+    TVariable(name, cond)
 
   def tnum(name: String): TVariable =
-    tv(name, _.isInstanceOf[TNumeric])
+    tv(name, "numeric")
 
   def getRegion(mb: EmitMethodBuilder): Code[Region] = mb.getArg[Region](1)
 
@@ -282,8 +299,8 @@ abstract class RegistryFunctions {
   def registerJavaStaticFunction(mname: String, types: Type*)(cls: Class[_], method: String): Unit =
     registerJavaStaticFunction(mname, types.init.toArray, types.last)(cls, method)
 
-  def registerIR(mname: String, argTypes: Array[Type])(f: Seq[IR] => IR) {
-    IRFunctionRegistry.addIR(mname, argTypes, f)
+  def registerIR(mname: String, argTypes: Array[Type], retType: Type)(f: Seq[IR] => IR) {
+    IRFunctionRegistry.addIR(mname, argTypes, retType, f)
   }
 
   def registerCode(mname: String, rt: Type)(impl: EmitMethodBuilder => Code[_]): Unit =
@@ -333,20 +350,20 @@ abstract class RegistryFunctions {
   def registerCodeWithMissingness(mname: String, mt1: Type, mt2: Type, mt3: Type, mt4: Type, rt: Type)(impl: (EmitMethodBuilder, EmitTriplet, EmitTriplet, EmitTriplet, EmitTriplet) => EmitTriplet): Unit =
     registerCodeWithMissingness(mname, Array(mt1, mt2, mt3, mt4), rt) { case (mb, Array(a1, a2, a3, a4)) => impl(mb, a1, a2, a3, a4) }
 
-  def registerIR(mname: String)(f: () => IR): Unit =
-    registerIR(mname, Array[Type]()) { case Seq() => f() }
+  def registerIR(mname: String, retType: Type)(f: () => IR): Unit =
+    registerIR(mname, Array[Type](), retType) { case Seq() => f() }
 
-  def registerIR(mname: String, mt1: Type)(f: IR => IR): Unit =
-    registerIR(mname, Array(mt1)) { case Seq(a1) => f(a1) }
+  def registerIR(mname: String, mt1: Type, retType: Type)(f: IR => IR): Unit =
+    registerIR(mname, Array(mt1), retType) { case Seq(a1) => f(a1) }
 
-  def registerIR(mname: String, mt1: Type, mt2: Type)(f: (IR, IR) => IR): Unit =
-    registerIR(mname, Array(mt1, mt2)) { case Seq(a1, a2) => f(a1, a2) }
+  def registerIR(mname: String, mt1: Type, mt2: Type, retType: Type)(f: (IR, IR) => IR): Unit =
+    registerIR(mname, Array(mt1, mt2), retType) { case Seq(a1, a2) => f(a1, a2) }
 
-  def registerIR(mname: String, mt1: Type, mt2: Type, mt3: Type)(f: (IR, IR, IR) => IR): Unit =
-    registerIR(mname, Array(mt1, mt2, mt3)) { case Seq(a1, a2, a3) => f(a1, a2, a3) }
+  def registerIR(mname: String, mt1: Type, mt2: Type, mt3: Type, retType: Type)(f: (IR, IR, IR) => IR): Unit =
+    registerIR(mname, Array(mt1, mt2, mt3), retType) { case Seq(a1, a2, a3) => f(a1, a2, a3) }
 
-  def registerIR(mname: String, mt1: Type, mt2: Type, mt3: Type, mt4: Type)(f: (IR, IR, IR, IR) => IR): Unit =
-    registerIR(mname, Array(mt1, mt2, mt3, mt4)) { case Seq(a1, a2, a3, a4) => f(a1, a2, a3, a4) }
+  def registerIR(mname: String, mt1: Type, mt2: Type, mt3: Type, mt4: Type, retType: Type)(f: (IR, IR, IR, IR) => IR): Unit =
+    registerIR(mname, Array(mt1, mt2, mt3, mt4), retType) { case Seq(a1, a2, a3, a4) => f(a1, a2, a3, a4) }
 
   def registerSeeded(mname: String, aTypes: Array[Type], rType: Type)(impl: (EmitMethodBuilder, Long, Array[Code[_]]) => Code[_]) {
     IRFunctionRegistry.addIRFunction(new SeededIRFunction {

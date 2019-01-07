@@ -1455,10 +1455,8 @@ class Table(ExprContainer):
                 if not is_key:
                     original_key = list(left.key)
                     left = Table(TableMapRows(left.key_by()._tir,
-                                              Apply('annotate',
-                                                    left._row._ir,
-                                                    hl.struct(**dict(zip(uids, exprs)))._ir))
-                           ).key_by(*uids)
+                                              InsertFields(left._row._ir,
+                                                           list(zip(uids, [e._ir for e in exprs]))))).key_by(*uids)
                     rekey_f = lambda t: t.key_by(*original_key)
                 else:
                     rekey_f = identity

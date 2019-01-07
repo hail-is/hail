@@ -96,7 +96,7 @@ object Simplify {
     * 'ir' can not otherwise change the contents of the result of 'ir'.
     */
   private[this] def isDeterministicallyRepartitionable(ir: BaseIR): Boolean =
-    ir.children.forall{
+    ir.children.forall {
       case child: IR => !Exists(child, _.isInstanceOf[ApplySeeded])
       case _ => true
     }
@@ -244,7 +244,16 @@ object Simplify {
     case TableGetGlobals(TableFilter(child, _)) => TableGetGlobals(child)
     case TableGetGlobals(TableHead(child, _)) => TableGetGlobals(child)
     case TableGetGlobals(TableRepartition(child, _, _)) => TableGetGlobals(child)
-    case TableGetGlobals(TableJoin(child1, child2, _, _)) => invoke("annotate", TableGetGlobals(child1), TableGetGlobals(child2))
+    case TableGetGlobals(TableJoin(child1, child2, _, _)) =>
+      val g1 = TableGetGlobals(child1)
+      val g2 = TableGetGlobals(child2)
+      val g1s = genUID()
+      val g2s = genUID()
+      Let(g1s, g1,
+        Let(g2s, g2,
+          MakeStruct(
+            g1.typ.asInstanceOf[TStruct].fields.map(f => f.name -> (GetField(Ref(g1s, g1.typ), f.name): IR)) ++
+              g2.typ.asInstanceOf[TStruct].fields.map(f => f.name -> (GetField(Ref(g2s, g2.typ), f.name): IR)))))
     case TableGetGlobals(x@TableMultiWayZipJoin(children, _, globalName)) =>
       MakeStruct(FastSeq(globalName -> MakeArray(children.map(TableGetGlobals), TArray(x.typ.globalType))))
     case TableGetGlobals(TableLeftJoinRightDistinct(child, _, _)) => TableGetGlobals(child)

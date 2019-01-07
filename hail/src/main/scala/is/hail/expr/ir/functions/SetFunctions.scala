@@ -1,9 +1,7 @@
 package is.hail.expr.ir.functions
 
 import is.hail.expr.ir._
-import is.hail.expr.types.{virtual, _}
-import is.hail.expr.types
-import is.hail.expr.types.virtual.{TArray, TBoolean, TInt32, TSet}
+import is.hail.expr.types.virtual._
 import is.hail.utils.FastSeq
 
 object SetFunctions extends RegistryFunctions {
@@ -20,17 +18,17 @@ object SetFunctions extends RegistryFunctions {
   }
 
   def registerAll() {
-    registerIR("toSet", TArray(tv("T"))) { a =>
+    registerIR("toSet", TArray(tv("T")), TSet(tv("T"))) { a =>
       ToSet(a)
     }
 
-    registerIR("isEmpty", TSet(tv("T"))) { s =>
+    registerIR("isEmpty", TSet(tv("T")), TBoolean()) { s =>
       ArrayFunctions.isEmpty(ToArray(s))
     }
 
-    registerIR("contains", TSet(tv("T")), tv("T"))(contains)
+    registerIR("contains", TSet(tv("T")), tv("T"), TBoolean())(contains)
 
-    registerIR("remove", TSet(tv("T")), tv("T")) { (s, v) =>
+    registerIR("remove", TSet(tv("T")), tv("T"), TSet(tv("T"))) { (s, v) =>
       val t = v.typ
       val x = genUID()
       ToSet(
@@ -40,7 +38,7 @@ object SetFunctions extends RegistryFunctions {
           ApplyComparisonOp(NEQWithNA(t), Ref(x, t), v)))
     }
 
-    registerIR("add", TSet(tv("T")), tv("T")) { (s, v) =>
+    registerIR("add", TSet(tv("T")), tv("T"), TSet(tv("T"))) { (s, v) =>
       val t = v.typ
       val x = genUID()
       ToSet(
@@ -50,7 +48,7 @@ object SetFunctions extends RegistryFunctions {
           Ref(x, TArray(t))))
     }
 
-    registerIR("union", TSet(tv("T")), TSet(tv("T"))) { (s1, s2) =>
+    registerIR("union", TSet(tv("T")), TSet(tv("T")), TSet(tv("T"))) { (s1, s2) =>
       val t = -s1.typ.asInstanceOf[TSet].elementType
       val x = genUID()
       ToSet(
@@ -60,7 +58,7 @@ object SetFunctions extends RegistryFunctions {
           Ref(x, TArray(t))))
     }
 
-    registerIR("intersection", TSet(tv("T")), TSet(tv("T"))) { (s1, s2) =>
+    registerIR("intersection", TSet(tv("T")), TSet(tv("T")), TSet(tv("T"))) { (s1, s2) =>
       val t = -s1.typ.asInstanceOf[TSet].elementType
       val x = genUID()
       ToSet(
@@ -68,7 +66,7 @@ object SetFunctions extends RegistryFunctions {
           contains(s2, Ref(x, t))))
     }
 
-    registerIR("difference", TSet(tv("T")), TSet(tv("T"))) { (s1, s2) =>
+    registerIR("difference", TSet(tv("T")), TSet(tv("T")), TSet(tv("T"))) { (s1, s2) =>
       val t = -s1.typ.asInstanceOf[TSet].elementType
       val x = genUID()
       ToSet(
@@ -76,7 +74,7 @@ object SetFunctions extends RegistryFunctions {
           ApplyUnaryPrimOp(Bang(), contains(s2, Ref(x, t)))))
     }
 
-    registerIR("isSubset", TSet(tv("T")), TSet(tv("T"))) { (s, w) =>
+    registerIR("isSubset", TSet(tv("T")), TSet(tv("T")), TBoolean()) { (s, w) =>
       val t = -s.typ.asInstanceOf[TSet].elementType
       val a = genUID()
       val x = genUID()
@@ -86,15 +84,15 @@ object SetFunctions extends RegistryFunctions {
           FastSeq(Ref(a, TBoolean()), contains(w, Ref(x, t)))))
     }
 
-    registerIR("sum", TSet(tnum("T"))) { s =>
+    registerIR("sum", TSet(tnum("T")), tv("T")) { s =>
       ArrayFunctions.sum(ToArray(s))
     }
 
-    registerIR("product", TSet(tnum("T"))) { s =>
+    registerIR("product", TSet(tnum("T")), tv("T")) { s =>
       ArrayFunctions.product(ToArray(s))
     }
 
-    registerIR("min", TSet(tnum("T"))) { s =>
+    registerIR("min", TSet(tnum("T")), tv("T")) { s =>
       val t = s.typ.asInstanceOf[TSet].elementType
       val a = genUID()
       val size = genUID()
@@ -109,7 +107,7 @@ object SetFunctions extends RegistryFunctions {
               ArrayRef(Ref(a, TArray(t)), I32(0))))))
     }
 
-    registerIR("max", TSet(tnum("T"))) { s =>
+    registerIR("max", TSet(tnum("T")), tv("T")) { s =>
       val t = s.typ.asInstanceOf[TSet].elementType
       val a = genUID()
       val size = genUID()
@@ -122,9 +120,9 @@ object SetFunctions extends RegistryFunctions {
             ArrayRef(Ref(a, TArray(t)), ApplyBinaryPrimOp(Subtract(), Ref(size, TInt32()), I32(1))))))
     }
 
-    registerIR("mean", TSet(tnum("T"))) { s => ArrayFunctions.mean(ToArray(s)) }
+    registerIR("mean", TSet(tnum("T")), TFloat64()) { s => ArrayFunctions.mean(ToArray(s)) }
 
-    registerIR("median", TSet(tnum("T"))) { s =>
+    registerIR("median", TSet(tnum("T")), tv("T")) { s =>
       val t = -s.typ.asInstanceOf[TSet].elementType
       val a = Ref(genUID(), TArray(t))
       val size = Ref(genUID(), TInt32())
