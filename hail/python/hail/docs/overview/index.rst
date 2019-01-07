@@ -21,25 +21,23 @@ architecture, primitives, classes, and libraries.
     Tables <table.rst>
     MatrixTables <matrix_table.rst>
 
-..
+--------------
+Linear Algebra
+--------------
+This section coming soon!
 
-    --------------
-    Linear Algebra
-    --------------
-    This section coming soon!
+--------
+Genetics
+--------
+This section coming soon!
 
-    --------
-    Genetics
-    --------
-    This section coming soon!
+-------------
+Common errors
+-------------
+This section coming soon!
 
-    -------------
-    Common errors
-    -------------
-    This section coming soon!
-
-    --------------------------
-    Performance Considerations
-    --------------------------
-    This section coming soon!
+--------------------------
+Performance Considerations
+--------------------------
+This section coming soon!
 
