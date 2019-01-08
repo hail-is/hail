@@ -6,6 +6,7 @@ import is.hail.expr._
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual._
+import is.hail.methods.{ForceCountMatrixTable, ForceCountTable}
 import is.hail.rvd.{RVD, RVDType}
 import is.hail.table._
 import is.hail.utils._
@@ -588,6 +589,22 @@ class PruneSuite extends SparkSuite {
       TableCollect(tab),
       TStruct("rows" -> TArray(TStruct("3" -> TString())), "global" -> TStruct("g2" -> TInt32())),
       Array(subsetTable(tab.typ, "row.3", "global.g2")))
+  }
+
+  @Test def testTableToValueApplyMemo() {
+    checkMemo(
+      TableToValueApply(tab, ForceCountTable()),
+      TInt64(),
+      Array(tab.typ)
+    )
+  }
+
+  @Test def testMatrixToValueApplyMemo() {
+    checkMemo(
+      MatrixToValueApply(mat, ForceCountMatrixTable()),
+      TInt64(),
+      Array(mat.typ)
+    )
   }
 
   @Test def testTableAggregateMemo() {

@@ -730,6 +730,10 @@ object Interpret {
         val hc = HailContext.get
         val tableValue = child.execute(hc)
         tableValue.export(path, typesFile, header, exportType)
+      case TableToValueApply(child, function) =>
+        function.execute(child.execute(HailContext.get))
+      case MatrixToValueApply(child, function) =>
+        function.execute(child.execute(HailContext.get))
       case TableAggregate(child, query) =>
         val localGlobalSignature = child.typ.globalType
         val (rvAggs, initOps, seqOps, aggResultType, postAggIR) = CompileWithAggregators[Long, Long, Long](

@@ -22,6 +22,8 @@ object LiftLiterals {
         case tgg: TableGetGlobals => true
         case tgg: TableCollect => true
         case tc: TableCount => true
+        case _: TableToValueApply => true
+        case _: MatrixToValueApply => true
         case _ => false
       }
       if (rewrite && !included.contains(ir))

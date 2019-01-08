@@ -453,10 +453,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def countCols(): Long = ast.columnCount.map(_.toLong).getOrElse(Interpret[Long](TableCount(MatrixColsTable(ast))))
 
-  def forceCountRows(): Long = rvd.count()
-
-  def forceCountCols(): Long = colValues.value.length
-
   def distinctByRow(): MatrixTable =
     copyAST(ast = MatrixDistinctByRow(ast))
   

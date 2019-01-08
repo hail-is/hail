@@ -414,7 +414,7 @@ class Table(ExprContainer):
         return Env.backend().execute(TableCount(self._tir))
 
     def _force_count(self):
-        return self._jt.forceCount()
+        return Env.backend().execute(TableToValueApply(self._tir, {'name': 'ForceCountTable'}))
 
     @typecheck_method(caller=str,
                       row=expr_struct())
