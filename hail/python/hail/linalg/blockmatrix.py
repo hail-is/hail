@@ -1554,7 +1554,7 @@ class BlockMatrix(object):
         else:
             raise ValueError(f'axis must be None, 0, or 1: found {axis}')
 
-    def entries(self):
+    def entries(self, keyed=True):
         """Returns a table with the indices and value of each block matrix entry.
 
         Examples
@@ -1595,7 +1595,10 @@ class BlockMatrix(object):
         :class:`.Table`
             Table with a row for each entry.
         """
-        return Table._from_java(self._jbm.entriesTable(Env.hc()._jhc))
+        t = Table._from_java(self._jbm.entriesTable(Env.hc()._jhc))
+        if keyed:
+            t = t.key_by('i', 'j')
+        return t
 
     @staticmethod
     @typecheck(path_in=str,
