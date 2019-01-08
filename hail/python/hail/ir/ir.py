@@ -714,6 +714,41 @@ class ArrayScan(IR):
                other.body == self.body
 
 
+class ArrayLeftJoinDistinct(IR):
+    @typecheck_method(left=IR, right=IR, l_name=str, r_name=str, compare=IR, join=IR)
+    def __init__(self, left, right, l_name, r_name, compare, join):
+        super().__init__(left, right, compare, join)
+        self.left = left
+        self.right = right
+        self.l_name = l_name
+        self.r_name = r_name
+        self.compare = compare
+        self.join = join
+
+    @typecheck_method(left=IR, right=IR, compare=IR, join=IR)
+    def copy(self, left, right, compare, join):
+        new_instance = self.__class__
+        return new_instance(left, right, self.l_name, self.r_name, compare, join)
+
+    def render(self, r):
+        return '(ArrayLeftJoinDistinct {} {} {} {} {} {})'.format(
+            escape_id(self.l_name), escape_id(self.r_name),
+            r(self.left), r(self.right), r(self.compare), r(self.join))
+
+    @property
+    def bound_variables(self):
+        return {self.l_name, self.r_name} | super().bound_variables
+
+    def __eq__(self, other):
+        return isinstance(other, ArrayLeftJoinDistinct) and \
+               other.left == self.left and \
+               other.right == self.right and \
+               other.l_name == self.l_name and \
+               other.r_name == self.r_name and \
+               other.compare == self.compare and \
+               other.join == self.join
+
+
 class ArrayFor(IR):
     @typecheck_method(a=IR, value_name=str, body=IR)
     def __init__(self, a, value_name, body):
