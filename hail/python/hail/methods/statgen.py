@@ -3323,7 +3323,7 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
 
     _, stops = hl.linalg.utils.locus_windows(locally_pruned_table.locus, bp_window_size)
 
-    entries = r2_bm.sparsify_row_intervals(range(stops.size), stops, blocks_only=True).entries()
+    entries = r2_bm.sparsify_row_intervals(range(stops.size), stops, blocks_only=True).entries(keyed=False)
     entries = entries.filter((entries.entry >= r2) & (entries.i < entries.j))
 
     if keep_higher_maf:
@@ -3345,10 +3345,9 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
     else:
         variants_to_remove = hl.maximal_independent_set(entries.i, entries.j, keep=False)
 
-    variants_to_remove = variants_to_remove.collect()
-    variants_to_remove.sort(key=lambda x: x.node.idx)
-    variants_to_remove = {x.node.idx for x in variants_to_remove}
-    variants_to_remove = hl.literal(variants_to_remove, dtype=hl.tset(hl.tint64))
+    locally_pruned_table = locally_pruned_table.annotate_globals(
+        variants_to_remove = variants_to_remove.aggregate(
+            hl.agg.collect_as_set(variants_to_remove.node.idx), _localize=False))
     return locally_pruned_table.filter(
         variants_to_remove.contains(locally_pruned_table.idx),
         keep=False
