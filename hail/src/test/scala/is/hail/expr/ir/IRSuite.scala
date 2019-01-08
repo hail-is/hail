@@ -597,8 +597,8 @@ class IRSuite extends SparkSuite {
 
     def joinRows(left: IndexedSeq[Int], right: IndexedSeq[Int]): IR = {
       join(
-        MakeArray.unify(left.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("b" -> I32(idx), "x" -> Str("x"), "idx" -> I32(n))) }),
-        MakeArray.unify(right.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("idx" -> I32(n), "x" -> Str("x"), "a" -> I32(idx))) }),
+        MakeArray.unify(left.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("idx" -> I32(n), "x" -> Str("x"), "a" -> I32(idx))) }),
+        MakeArray.unify(right.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("b" -> I32(idx), "x" -> Str("x"), "idx" -> I32(n))) }),
         FastIndexedSeq("idx", "x"))
     }
 
@@ -611,6 +611,12 @@ class IRSuite extends SparkSuite {
       Row(0, "x", 0, 1),
       Row(1, "x", 1, 3),
       Row(2, "x", 2, 5)))
+
+    assertEvalsTo(joinRows(Array(0, 1, 1, 2), Array(-1, 0, 0, 1, 1, 2, 2, 3)), FastIndexedSeq(
+      Row(0, "x", 0, 1),
+      Row(1, "x", 1, 3),
+      Row(1, "x", 2, 3),
+      Row(2, "x", 3, 5)))
   }
 
   @Test def testDie() {
