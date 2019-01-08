@@ -1743,7 +1743,7 @@ def get_vcf_metadata(path):
            min_partitions=nullable(int),
            drop_samples=bool,
            call_fields=oneof(str, sequenceof(str)),
-           dosage_fields=oneof(str, sequenceof(str)),
+           entry_float_type=enumeration(tfloat32, tfloat64),
            reference_genome=nullable(reference_genome_type),
            contig_recoding=nullable(dictof(str, str)),
            array_elements_required=bool,
@@ -1757,7 +1757,7 @@ def import_vcf(path,
                min_partitions=None,
                drop_samples=False,
                call_fields=['PGT'],
-               dosage_fields=[],
+               entry_float_type=tfloat64,
                reference_genome='default',
                contig_recoding=None,
                array_elements_required=True,
@@ -1863,8 +1863,10 @@ def import_vcf(path,
     call_fields : :obj:`list` of :obj:`str`
         List of FORMAT fields to load as :py:data:`.tcall`. "GT" is
         loaded as a call automatically.
-    dosage_fields : :obj:`list` of :obj:`str`
-        List of FORMAT fields to load as :py:data:`.tfloat32` dosages.
+    entry_float_type: :class:`.HailType`, optional
+        Type of floating point entries in matrix table. Must be one of:
+        :py:data:`.tfloat32` or :py:data:`.tfloat64`. Default:
+        :py:data:`.tfloat64`.
     reference_genome: :obj:`str` or :class:`.ReferenceGenome`, optional
         Reference genome to use.
     contig_recoding: :obj:`dict` of (:obj:`str`, :obj:`str`)
@@ -1886,7 +1888,7 @@ def import_vcf(path,
     :class:`.MatrixTable`
     """
 
-    reader = MatrixVCFReader(path, call_fields, dosage_fields, header_file, min_partitions,
+    reader = MatrixVCFReader(path, call_fields, entry_float_type, header_file, min_partitions,
                              reference_genome, contig_recoding, array_elements_required,
                              skip_invalid_loci, force_bgz, force, _partitions)
     return MatrixTable(MatrixRead(reader, drop_cols=drop_samples))
@@ -1896,7 +1898,7 @@ def import_vcf(path,
            force=bool,
            force_bgz=bool,
            call_fields=oneof(str, sequenceof(str)),
-           dosage_fields=oneof(str, sequenceof(str)),
+           entry_float_type=enumeration(tfloat32, tfloat64),
            reference_genome=nullable(reference_genome_type),
            contig_recoding=nullable(dictof(str, str)),
            array_elements_required=bool,
@@ -1906,7 +1908,7 @@ def import_vcfs(path,
                 force=False,
                 force_bgz=False,
                 call_fields=[],
-                dosage_fields=[],
+                entry_float_type=tfloat64,
                 reference_genome='default',
                 contig_recoding=None,
                 array_elements_required=True,
@@ -1957,7 +1959,7 @@ def import_vcfs(path,
     jmts = _cached_importvcfs.pyApply(
         wrap_to_list(path),
         wrap_to_list(call_fields),
-        wrap_to_list(dosage_fields),
+        entry_float_type._parsable_string(),
         rg,
         contig_recoding,
         array_elements_required,

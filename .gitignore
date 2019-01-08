@@ -84,22 +84,6 @@ target/
 metastore_db/
 derby.log
 
-# Sphinx documentation
-python/hail/docs/_build/*
-
-# Unit test / coverage reports
-.hypothesis/
-.nox/
-.pytest_cache/
-.tox/
-htmlcov/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-
 # Virtual environments
 .env
 .venv
@@ -108,12 +92,3 @@ venv/
 ENV/
 env.bak/
 venv.bak/
-
-# Miscellaneous
-src/main/c/libsimdpp-2*
-src/main/c/headers
-src/main/c/lib
-src/main/resources/build-info.properties
-src/test/resources/example.v11.bgen.idx
-src/test/resources/example.8bits.bgen.idx
-src/test/resources/random.bgen.idx
