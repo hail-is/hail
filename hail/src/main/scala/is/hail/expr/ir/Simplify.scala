@@ -475,6 +475,7 @@ object Simplify {
       assert(child.typ == x.typ)
       child
 
+
     case MatrixMapGlobals(child, Ref("global", _)) => child
 
     // flatten unions
