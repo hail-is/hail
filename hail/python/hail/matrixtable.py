@@ -1655,8 +1655,8 @@ class MatrixTable(ExprContainer):
         return self._select_entries(caller,
                                     self.entry.annotate(**named_exprs).drop(*fields_referenced))
 
-    @typecheck_method(expr=expr_any)
-    def aggregate_rows(self, expr) -> Any:
+    @typecheck_method(expr=expr_any, _localize=bool)
+    def aggregate_rows(self, expr, _localize=True) -> Any:
         """Aggregate over rows to a local value.
 
         Examples
@@ -1696,10 +1696,15 @@ class MatrixTable(ExprContainer):
         base, _ = self._process_joins(expr)
         analyze('MatrixTable.aggregate_rows', expr, self._global_indices, {self._row_axis})
         subst_query = subst(expr._ir, {}, {'va': Ref('row')})
-        return Env.backend().execute(TableAggregate(MatrixRowsTable(base._mir), subst_query))
 
-    @typecheck_method(expr=expr_any)
-    def aggregate_cols(self, expr) -> Any:
+        agg_ir = TableAggregate(MatrixRowsTable(base._mir), subst_query)
+        if _localize:
+            return Env.backend().execute(agg_ir)
+        else:
+            return construct_expr(agg_ir, expr.dtype)
+
+    @typecheck_method(expr=expr_any, _localize=bool)
+    def aggregate_cols(self, expr, _localize=True) -> Any:
         """Aggregate over columns to a local value.
 
         Examples
@@ -1741,10 +1746,15 @@ class MatrixTable(ExprContainer):
         base, _ = self._process_joins(expr)
         analyze('MatrixTable.aggregate_cols', expr, self._global_indices, {self._col_axis})
         subst_query = subst(expr._ir, {}, {'sa': Ref('row')})
-        return Env.backend().execute(TableAggregate(MatrixColsTable(base._mir), subst_query))
 
-    @typecheck_method(expr=expr_any)
-    def aggregate_entries(self, expr) -> Any:
+        agg_ir = TableAggregate(MatrixColsTable(base._mir), subst_query)
+        if _localize:
+            return Env.backend().execute(agg_ir)
+        else:
+            return construct_expr(agg_ir, expr.dtype)
+
+    @typecheck_method(expr=expr_any, _localize=bool)
+    def aggregate_entries(self, expr, _localize=True) -> Any:
         """Aggregate over entries to a local value.
 
         Examples
@@ -1781,6 +1791,12 @@ class MatrixTable(ExprContainer):
 
         base, _ = self._process_joins(expr)
         analyze('MatrixTable.aggregate_entries', expr, self._global_indices, {self._row_axis, self._col_axis})
+        agg_ir = MatrixAggregate(base._mir, expr._ir)
+        if _localize:
+            return Env.backend().execute(agg_ir)
+        else:
+            return construct_expr(agg_ir, expr.dtype)
+
         return Env.backend().execute(MatrixAggregate(base._mir, expr._ir))
 
     @typecheck_method(field_expr=oneof(str, Expression))

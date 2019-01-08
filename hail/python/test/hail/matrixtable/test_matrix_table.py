@@ -945,3 +945,12 @@ class Tests(unittest.TestCase):
             the_entry_failure=hl.cond(True, mt.entry, hl.null(mt.entry.dtype)),
         )
         mt.count()
+
+    def test_aggregate_localize_false(self):
+        dim1, dim2 = 10, 10
+        mt = hl.utils.range_matrix_table(dim1, dim2)
+        mt = mt.annotate_entries(x = mt.aggregate_rows(hl.agg.max(mt.row_idx), _localize=False)
+                                     + mt.aggregate_cols(hl.agg.max(mt.col_idx), _localize=False)
+                                     + mt.aggregate_entries(hl.agg.max(mt.row_idx * mt.col_idx), _localize=False)
+                                 )
+        assert mt.x.take(1)[0] == (dim1 - 1) + (dim2 - 1) + (dim1 -1) * (dim2 - 1)

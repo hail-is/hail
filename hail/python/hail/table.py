@@ -1107,7 +1107,8 @@ class Table(ExprContainer):
 
         return GroupedTable(self, groups)
 
-    def aggregate(self, expr):
+    @typecheck_method(expr=expr_any, _localize=bool)
+    def aggregate(self, expr, _localize=True):
         """Aggregate over rows into a local value.
 
         Examples
@@ -1136,7 +1137,12 @@ class Table(ExprContainer):
         base, _ = self._process_joins(expr)
         analyze('Table.aggregate', expr, self._global_indices, {self._row_axis})
 
-        return Env.backend().execute(TableAggregate(base._tir, expr._ir))
+        agg_ir = TableAggregate(base._tir, expr._ir)
+
+        if _localize:
+            return Env.backend().execute(agg_ir)
+        else:
+            return construct_expr(agg_ir, expr.dtype)
 
     @typecheck_method(output=str,
                       overwrite=bool,
