@@ -15,6 +15,7 @@ type_grammar = Grammar(
     str = "tstr" / "str"
     locus = ("tlocus" / "locus") _ "<" identifier ">"
     array = ("tarray" / "array") _ "<" type ">"
+    ndarray = ("tndarray" / "ndarray") _ "<" type ">"
     set = ("tset" / "set") _ "<" type ">"
     dict = ("tdict" / "dict") _ "<" type "," type ">"
     struct = ("tstruct" / "struct") _ "{" (fields / _) "}"
@@ -68,6 +69,10 @@ class TypeConstructor(NodeVisitor):
     def visit_array(self, node, visited_children):
         tarray, _, angle_bracket, t, angle_bracket = visited_children
         return hl.tarray(t)
+
+    def visit_ndarray(self, node, visited_children):
+        tndarray, _, angle_bracket, t, angle_bracket = visited_children
+        return hl.tndarray(t)
 
     def visit_set(self, node, visited_children):
         tset, _, angle_bracket, t, angle_bracket = visited_children

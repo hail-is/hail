@@ -22,6 +22,8 @@ class Tests(unittest.TestCase):
             tinterval(tint32),
             tdict(tstr, tint32),
             tarray(tstr),
+            tndarray(tstr),
+            tndarray(tfloat64),
             tset(tint64),
             tlocus('GRCh37'),
             tlocus('GRCh38'),

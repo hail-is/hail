@@ -29,6 +29,7 @@ __all__ = [
     'tstr',
     'tbool',
     'tarray',
+    'tndarray',
     'tset',
     'tdict',
     'tstruct',
@@ -463,6 +464,80 @@ class _tbool(HailType):
 
     def _parsable_string(self):
         return "Boolean"
+
+
+class tndarray(HailType):
+    """Hail type for n-dimensional arrays.
+
+    In Python, these are represented as NumPy :obj:`ndarray`.
+
+    Notes
+    -----
+
+    NDArrays contain elements of only one type, which is parameterized by
+    `element_type`.
+
+    .. include:: ../_templates/experimental.rst
+
+    Parameters
+    ----------
+    element_type : :class:`.HailType`
+        Element type of array.
+
+    See Also
+    --------
+    :class:`.NDArrayExpression`, :func:`.ndarray`
+    """
+
+    @typecheck_method(element_type=hail_type)
+    def __init__(self, element_type):
+        self._element_type = element_type
+        super(tndarray, self).__init__()
+
+    @property
+    def element_type(self):
+        """NDArray element type.
+
+        Returns
+        -------
+        :class:`.HailType`
+            Element type.
+        """
+        return self._element_type
+
+    def _convert_to_py(self, annotation):
+        raise NotImplementedError
+
+    def _convert_to_j(self, annotation):
+        raise NotImplementedError
+
+    def _traverse(self, obj, f):
+        if f(self, obj):
+            for elt in obj:
+                self.element_type._traverse(elt, f)
+
+    def _typecheck_one_level(self, annotation):
+        raise NotImplementedError
+
+    def __str__(self):
+        return "ndarray<{}>".format(self.element_type)
+
+    def _eq(self, other):
+        return isinstance(other, tndarray) and self.element_type == other.element_type
+
+    def _pretty(self, l, indent, increment):
+        l.append('ndarray<')
+        self.element_type._pretty(l, indent, increment)
+        l.append('>')
+
+    def _parsable_string(self):
+        return "NDArray[" + self.element_type._parsable_string() + "]"
+
+    def _convert_from_json(self, x):
+        raise NotImplementedError
+
+    def _convert_to_json(self, x):
+        raise NotImplementedError
 
 
 class tarray(HailType):

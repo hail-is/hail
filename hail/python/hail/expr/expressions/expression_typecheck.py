@@ -19,6 +19,7 @@ __all__ = [
     'expr_locus',
     'expr_interval',
     'expr_array',
+    'expr_ndarray',
     'expr_set',
     'expr_dict',
     'expr_tuple',
@@ -253,6 +254,25 @@ class ArrayCoercer(ExprCoercer):
         return hl.map(lambda x_: self.ec.coerce(x_), x)
 
 
+class NDArrayCoercer(ExprCoercer):
+    def __init__(self, t: HailType):
+        super(NDArrayCoercer, self).__init__()
+        self.t = t
+
+    @property
+    def str_t(self):
+        return f'ndarray<{self.t}>'
+
+    def _requires_conversion(self, t: HailType) -> bool:
+        return False
+
+    def can_coerce(self, t: HailType) -> bool:
+        return isinstance(t, tndarray) and self.t == t.element_type
+
+    def _coerce(self, x: Expression):
+        raise NotImplementedError
+
+
 class SetCoercer(ExprCoercer):
 
     def __init__(self, ec: ExprCoercer = AnyCoercer()):
@@ -408,6 +428,7 @@ expr_bool = BoolCoercer()
 expr_locus = LocusCoercer
 expr_interval = IntervalCoercer
 expr_array = ArrayCoercer
+expr_ndarray = NDArrayCoercer
 expr_set = SetCoercer
 expr_dict = DictCoercer
 expr_tuple = TupleCoercer
@@ -434,6 +455,8 @@ def coercer_from_dtype(t: HailType) -> ExprCoercer:
         return expr_interval(coercer_from_dtype(t.point_type))
     elif isinstance(t, tarray):
         return expr_array(coercer_from_dtype(t.element_type))
+    elif isinstance(t, tndarray):
+        return expr_ndarray(t.element_type)
     elif isinstance(t, tset):
         return expr_set(coercer_from_dtype(t.element_type))
     elif isinstance(t, tdict):
