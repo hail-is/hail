@@ -14,18 +14,26 @@ You'll need:
 
   - Hail will work with other bug fix versions of Spark 2.2.x, but it *will not* work with Spark 1.x.x, 2.0.x, or 2.1.x.
 
-- `Anaconda for Python 3 <https://www.continuum.io/downloads>`_
+- `Anaconda for Python 3 <https://www.anaconda.com/download>`_
 
 Building a Hail JAR
 ~~~~~~~~~~~~~~~~~~~
 
-The only additional tool necessary to build Hail from source is a C++ compiler. On a Debian-based OS like Ubuntu, a C++ compiler can be installed with apt-get::
+To build Hail from source, you will need a C++ compiler and lz4. On a Debian-based OS like Ubuntu, a C++ compiler can be installed with apt-get::
 
     sudo apt-get install g++
 
 On Mac OS X, a C++ compiler is provided by the Apple Xcode::
 
     xcode-select --install
+
+To install lz4 on a Debian-based OS, run::
+    
+    sudo apt-get install liblz4-dev
+
+On Mac OS X, ensure you have Homebrew and run::
+    
+    brew install lz4
 
 The Hail source code is hosted `on GitHub <https://github.com/hail-is/hail>`_::
 
@@ -37,12 +45,35 @@ one version of Spark::
 
     ./gradlew -Dspark.version=2.2.0 shadowJar
 
-Finally, some environment variables must be set so that Hail can find Spark, Spark can find Hail, and Python can find Hail. Add these lines to your ``.bashrc`` or equivalent setting ``SPARK_HOME`` to the root directory of a Spark installation and ``HAIL_HOME`` to the root of the Hail repository::
+
+Environment Variables and Conda Environments
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+You will need to set some environment variables so that Hail can find Spark, Spark can find Hail, and Python can find Hail. Add these lines to your ``.bashrc`` or equivalent, setting ``SPARK_HOME`` to the root directory of a Spark installation and ``HAIL_HOME`` to the root of the Hail repository::
 
     export SPARK_HOME=/path/to/spark
     export HAIL_HOME=/path/to/hail/hail
     export PYTHONPATH="$PYTHONPATH:$HAIL_HOME/python:$SPARK_HOME/python:`echo $SPARK_HOME/python/lib/py4j*-src.zip`"
     export SPARK_CLASSPATH=$HAIL_HOME/build/libs/hail-all-spark.jar
+    export PYSPARK_SUBMIT_ARGS="--conf spark.driver.extraClassPath=$SPARK_CLASSPATH --conf spark.executor.extraClassPath=$SPARK_CLASSPATH --driver-memory 8G pyspark-shell"
+
+
+Hail uses `conda environments <https://conda.io/docs/using/envs.html>`_ to
+manage some of hail's python dependencies. First, create a conda
+environment for hail:
+
+.. code-block:: bash
+
+    conda env create -f ./python/hail/dev-environment.yml
+
+Activate the environment
+
+.. code-block:: bash
+
+    source activate hail
+
+Now the shell prompt should include the name of the environment, in this case
+"hail".
 
 Now you can import hail from a python interpreter::
 
@@ -71,38 +102,11 @@ Now you can import hail from a python interpreter::
     >>>
 
 
-Building the Docs
-~~~~~~~~~~~~~~~~~
-
-Hail uses `conda environments <https://conda.io/docs/using/envs.html>`_ to
-manage the doc build process's python dependencies. First, create a conda
-environment for hail:
-
-.. code-block:: bash
-
-    conda env create haildoc -f ./python/hail/dev-environment.yml
-
-Activate the environment
-
-.. code-block:: bash
-
-    source activate haildoc
-
-Now the shell prompt should include the name of the environment, in this case
-"haildoc". Within the environment, run the ``makeDocs`` gradle task in the
-environment:
-
-.. code-block:: bash
-
-    ./gradlew makeDocs
-
-The generated docs are located at ``./build/www/hail/index.html``.
-
 When you are finished developing hail, disable the environment
 
 .. code-block:: bash
 
-    source deactivate haildoc
+    source deactivate hail
 
 The ``dev-environment.yml`` file may change without warning; therefore, after
 pulling new changes from a remote repository, we always recommend updating the
@@ -110,7 +114,19 @@ conda environment
 
 .. code-block:: bash
 
-    conda env update haildoc -f ./python/hail/dev-environment.yml
+    conda env update hail -f ./python/hail/dev-environment.yml
+
+
+Building the Docs
+~~~~~~~~~~~~~~~~~
+
+Within the "hail" environment, run the ``makeDocs`` gradle task:
+
+.. code-block:: bash
+
+    ./gradlew makeDocs
+
+The generated docs are located at ``./build/www/docs/0.2/index.html``.
 
 
 Running the tests
