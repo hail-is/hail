@@ -15,7 +15,6 @@ case class SparkCollect(
 case class SparkShuffle(
   child: SparkStage)
 
-// FIXME How to refer to result of shuffle stage?  IR to refer to external RDD
 case class SparkStage(
   globals: List[Binding],
   rvdType: RVDType,
