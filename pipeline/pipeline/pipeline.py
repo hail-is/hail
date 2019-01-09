@@ -1,7 +1,7 @@
 import re
 
-from .task import Task, default_task_settings
 from .backend import LocalBackend
+from .task import Task
 from .resource import Resource, ResourceGroup
 from .utils import get_sha
 
@@ -17,16 +17,15 @@ class Pipeline(object):
         cls._counter += 1
         return uid
 
-    def __init__(self, backend=None, task_settings=None):
+    def __init__(self, backend=None):
         self._tasks = []
         self._resource_map = {}
         self._allocated_files = set()
-        self._task_settings = task_settings if task_settings else default_task_settings
         self._backend = backend if backend else LocalBackend()
         self._uid = Pipeline._get_uid()
 
     def new_task(self):
-        t = Task(pipeline=self, settings=self._task_settings)
+        t = Task(pipeline=self)
         self._tasks.append(t)
         return t
 
@@ -48,30 +47,36 @@ class Pipeline(object):
         self._resource_map[r._uid] = r
         return r
 
-    def _new_resource_group(self, source, rgb):
+    def _new_resource_group(self, source, mappings):
+        assert isinstance(mappings, dict)
         root = self._tmp_file()
-        d = rgb._f(root)
-        assert isinstance(d, dict)
-        d = {name: self._new_resource(source=source, value=file) for name, file in d.items()}
-        new_resource_map = {resource._uid:resource for _, resource in d.items()}
+        d = {}
+        new_resource_map = {}
+        for name, code in mappings.items():
+            if not isinstance(code, str):
+                raise ValueError(f"value for name '{name}' is not a string. Found '{type(code)}' instead.")
+            r = self._new_resource(source=source, value=eval(f'f"""{code}"""'))
+            d[name] = r
+            new_resource_map[r._uid] = r
+
         self._resource_map.update(new_resource_map)
         rg = ResourceGroup(root, **d)
         self._resource_map.update({rg._uid: rg})
         return rg
 
-    def _write_input(self, source, dest=None):
+    def _read_input(self, source, dest=None):
         dest = dest if dest else self._tmp_file()
         cp_task = (self.new_task()
-                   .label('write_input')
+                   .label('read_input')
                    .command(self._backend.cp(source, dest)))
         return self._new_resource(source=cp_task, value=dest)
 
-    def write_input(self, source):
-        return str(self._write_input(source))
+    def read_input(self, source):
+        return str(self._read_input(source))
 
-    def write_input_group(self, **kwargs):
+    def read_input_group(self, **kwargs):
         root = self._tmp_file()
-        added_resources = {name:self._write_input(file, root + '.' + name) for name, file in kwargs.items()}
+        added_resources = {name:self._read_input(file, root + '.' + name) for name, file in kwargs.items()}
         rg = ResourceGroup(root, **added_resources)
         self._resource_map.update({rg._uid: rg})
         return rg
@@ -87,9 +92,9 @@ class Pipeline(object):
                    .command(self._backend.cp(resource, dest)))
 
     def select_tasks(self, pattern):
-        return [task for task in self._tasks if re.match(task._label, pattern) is not None]
+        return [task for task in self._tasks if task._label is not None and re.match(pattern, task._label) is not None]
 
-    def run(self):
+    def run(self, dry_run=False, verbose=True, delete_on_exit=True):
         dependencies = {task:task._dependencies for task in self._tasks}
         ordered_tasks = []
         niter = 0
@@ -109,7 +114,7 @@ class Pipeline(object):
                 raise ValueError("cycle detected in dependency graph")
 
         self._tasks = ordered_tasks
-        self._backend.run(self)
+        self._backend.run(self, dry_run, verbose, False, delete_on_exit) # FIXME: expose bg option when implemented!
 
     def __str__(self):
         return self._uid

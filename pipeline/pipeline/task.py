@@ -1,5 +1,5 @@
 import re
-from .resource import Resource, ResourceGroup, ResourceGroupBuilder
+from .resource import Resource, ResourceGroup
 
 class TaskSettings(object):
     def __init__(self, cpu=None, memory=None, docker=None, env=None):
@@ -7,9 +7,6 @@ class TaskSettings(object):
         self.memory = memory
         self.docker = docker
         self.env = env
-
-
-default_task_settings = TaskSettings(cpu=1, memory=1, docker=None, env=None)
 
 
 class Task(object):
@@ -23,10 +20,8 @@ class Task(object):
         cls._counter += 1
         return uid
 
-    def __init__(self, pipeline, label=None, settings=None):
-        self._settings = settings if settings else default_task_settings
-        assert isinstance(self._settings, TaskSettings)
-
+    def __init__(self, pipeline, label=None):
+        self._settings = TaskSettings(cpu=None, memory=None, docker=None, env=None)
         self._pipeline = pipeline
         self._label = label
         self._command = []
@@ -52,12 +47,12 @@ class Task(object):
     def __getattr__(self, item):
         return self._get_resource(item)
 
-    def declare_resource_group(self, **kwargs):
-        for name, rgb in kwargs.items():
+    def declare_resource_group(self, **mappings):
+        for name, d in mappings.items():
             assert name not in self._namespace
-            if not isinstance(rgb, ResourceGroupBuilder):
-                raise ValueError(f"value for name '{name}' is not a ResourceGroupBuilder. Found '{type(rgb)}' instead.")
-            self._namespace[name] = self._pipeline._new_resource_group(self, rgb)
+            if not isinstance(d, dict):
+                raise ValueError(f"value for name '{name}' is not a dict. Found '{type(d)}' instead.")
+            self._namespace[name] = self._pipeline._new_resource_group(self, d)
         return self
 
     def command(self, command):
@@ -108,10 +103,6 @@ class Task(object):
 
     def docker(self, docker):
         self._settings.docker = docker
-        return self
-
-    def env(self, env):
-        self._settings.env = env
         return self
 
     def __str__(self):

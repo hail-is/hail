@@ -43,7 +43,8 @@ class ResourceGroup(object):
 
     def _get_resource(self, item):
         if item not in self._namespace:
-            raise KeyError(f"'{item}' not found in the resource group. Hint: you must declare each attribute when constructing the resource group.")
+            raise KeyError(f"'{item}' not found in the resource group. " \
+                            "Hint: you must declare each attribute when constructing the resource group.")
         r = self._namespace[item]
         return r._uid
 
@@ -63,17 +64,3 @@ class ResourceGroup(object):
 
     def __str__(self):
         return self._uid
-
-
-class ResourceGroupBuilder(object):
-    def __init__(self, **mappings):
-        def f(root):
-            output = {}
-            for name, code in mappings.items():
-                output[name] = eval(f'f"""{code}"""')
-            return output
-        self._f = f
-
-
-def resource_group_builder(**mappings):
-    return ResourceGroupBuilder(**mappings)
