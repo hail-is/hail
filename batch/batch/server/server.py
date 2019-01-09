@@ -530,7 +530,7 @@ def polling_event_loop(port):
         time.sleep(REFRESH_INTERVAL_IN_SECONDS)
 
 
-def serve(port):
+def serve(port=5000):
     kube_thread = threading.Thread(target=run_forever, args=(kube_event_loop, port))
     kube_thread.start()
 
