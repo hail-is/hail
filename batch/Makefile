@@ -6,6 +6,7 @@
 PROJECT = $(shell gcloud config get-value project)
 PY_FILES = $(shell find batch -iname \*.py -not -exec git check-ignore -q {} \; -print)
 PY_CHECKERS = build/flake8 build/pylint
+BATCH_PORT ?= 5000
 
 clean:
 	-rm -r build
@@ -44,7 +45,10 @@ run-docker: build
 	docker run -e BATCH_USE_KUBE_CONFIG=1 -i -v $(HOME)/.kube:/root/.kube -p 5000:5000 -t batch
 
 run: build/conda-env
-	. ../loadconda && conda activate hail-batch && BATCH_USE_KUBE_CONFIG=1 python -c 'import batch.server; batch.server.serve()'
+	. ../loadconda && conda activate hail-batch && python -c 'import batch.server; batch.server.serve('$(BATCH_PORT)')'
+
+run-local: run
+	. ../loadconda && conda activate hail-batch && BATCH_USE_KUBE_CONFIG=1 python -c 'import batch.server; batch.server.serve('$(BATCH_PORT)')'
 
 test: push-test
 	sed -e "s,@image@,$$(cat batch-test-image)," \
