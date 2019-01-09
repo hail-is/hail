@@ -1175,7 +1175,7 @@ case class VCFsReader(
   referenceGenome.foreach(_.validateContigRemap(contigRecoding))
 
   private val locusType = TLocus.schemaFromRG(referenceGenome)
-  private val rowKeyType = TStruct("locus" -> locusType)
+  private val rowKeyType = TStruct("locus" -> locusType, "alleles" -> TArray(TString()))
 
   val partitioner: RVDPartitioner = {
     val pkType = TArray(TInterval(TStruct("locus" -> locusType)))
@@ -1210,7 +1210,7 @@ case class VCFsReader(
         colType = TStruct("s" -> TString()),
         colKey = Array("s"),
         rowType = kType ++ vaSignature,
-        rowKey = Array("locus"), // "alleles"
+        rowKey = Array("locus", "alleles"),
         entryType = genotypeSignature)
 
       val partitions = {
