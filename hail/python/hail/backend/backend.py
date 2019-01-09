@@ -60,6 +60,23 @@ class SparkBackend(Backend):
     def from_pandas(self, df, key):
         return Table.from_spark(Env.sql_context().createDataFrame(df), key)
 
+class LocalBackend(Backend):
+    def __init__(self):
+        pass
+
+    def _to_java_ir(self, ir):
+        if not hasattr(ir, '_jir'):
+            r = Renderer(stop_at_jir=True)
+            code = r(ir)
+            # FIXME parse should be static
+            ir._jir = ir.parse(code, ir_map=r.jirs)
+        return ir._jir
+
+    def execute(self, ir):
+        return ir.typ._from_json(
+            Env.hail().expr.ir.LocalBackend.executeJSON(
+                self._to_java_ir(ir)))
+
 class ServiceBackend(Backend):
     def __init__(self, host, port=80, scheme='http'):
         self.scheme = scheme

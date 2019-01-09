@@ -400,6 +400,7 @@ object Interpret {
           }
         }
         ()
+
       case Begin(xs) =>
         xs.foreach(x => Interpret(x))
       case x@SeqOp(i, seqOpArgs, aggSig) =>

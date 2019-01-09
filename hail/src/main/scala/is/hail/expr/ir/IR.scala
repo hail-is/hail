@@ -246,6 +246,7 @@ final case class Uniroot(argname: String, function: IR, min: IR, max: IR) extend
 final case class TableCount(child: TableIR) extends IR
 final case class TableAggregate(child: TableIR, query: IR) extends IR
 final case class MatrixAggregate(child: MatrixIR, query: IR) extends IR
+
 final case class TableWrite(
   child: TableIR,
   path: String,
