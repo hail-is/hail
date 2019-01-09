@@ -212,7 +212,7 @@ def ld_score_regression(weight_expr,
 
     assert ((len(chi_sq_exprs) == len(n_samples_exprs)) or
             (len(n_samples_exprs) == 1))
-    __p = 2  # number of covariates, including intercept
+    __k = 2  # number of covariates, including intercept
 
     ds = chi_sq_exprs[0]._indices.source
 
@@ -225,10 +225,17 @@ def ld_score_regression(weight_expr,
 
     # format input dataset
     if isinstance(ds, MatrixTable):
-        assert len(chi_sq_exprs) == 1
-        assert len(n_samples_exprs) == 1
+        if len(chi_sq_exprs) != 1:
+            raise ValueError("""Only one chi_sq_expr allowed if originating
+                from a matrix table.""")
+        if len(n_samples_exprs) != 1:
+            raise ValueError("""Only one n_samples_expr allowed if
+                originating from a matrix table.""")
+
         col_key = list(ds.col_key)
-        assert len(col_key) == 1
+        if len(col_key) != 1:
+            raise ValueError("""Matrix table must be keyed by a single
+                phenotype field.""")
 
         analyze('ld_score_regression/chi_squared_expr',
                 chi_sq_exprs[0],
@@ -280,7 +287,7 @@ def ld_score_regression(weight_expr,
         ds = ds.key_by(ds['__locus'], ds['__alleles'])
 
         table_tmp_file = new_temp_file()
-        ds.write(table_tmp_file, overwrite=True)
+        ds.write(table_tmp_file)
         ds = hl.read_table(table_tmp_file)
 
         hts = [ds.select(**{'__w_initial': ds['__w_initial'],
@@ -304,7 +311,7 @@ def ld_score_regression(weight_expr,
                for ht in hts]
 
         ds = mts[0]
-        for i in range(1, len(mts)):
+        for i in range(1, len(ys)):
             ds = ds.union_cols(mts[i])
 
         ds = ds.filter_rows(hl.is_defined(ds['__locus']) &
@@ -313,7 +320,7 @@ def ld_score_regression(weight_expr,
                             hl.is_defined(ds['__x']))
 
     ds_tmp_file = new_temp_file()
-    ds.write(ds_tmp_file, overwrite=True)
+    ds.write(ds_tmp_file)
     mt = hl.read_matrix_table(ds_tmp_file)
 
     if not n_reference_panel_variants:
@@ -365,7 +372,7 @@ def ld_score_regression(weight_expr,
         hl.agg.filter(mt['__in_step1'], hl.agg.collect(mt['__step2_idx']))))
 
     mt_tmp_file = new_temp_file()
-    mt.write(mt_tmp_file, overwrite=True)
+    mt.write(mt_tmp_file)
     mt = hl.read_matrix_table(mt_tmp_file)
 
     step1_dict = {x['__col_idx']: x['__m_step1'] for x in mt.cols().collect()}
@@ -397,7 +404,7 @@ def ld_score_regression(weight_expr,
 
     # initial coefficient estimates
     mt = mt.annotate_cols(__initial_betas=[
-        1.0, (hl.agg.mean(mt['__y']) - 1.0)/hl.agg.mean(mt['__x'])])
+        1.0, (hl.agg.mean(mt['__y']) - 1.0) / hl.agg.mean(mt['__x'])])
     mt = mt.annotate_cols(__step1_betas=mt['__initial_betas'],
                           __step2_betas=mt['__initial_betas'])
 
@@ -415,10 +422,10 @@ def ld_score_regression(weight_expr,
                           x=[1.0, mt['__x']],
                           weight=mt['__w']).beta))
         mt = mt.annotate_cols(__step1_h2=hl.max(hl.min(
-            mt['__step1_betas'][1] * M/hl.agg.mean(mt['__n']), 1.0), 0.0))
+            mt['__step1_betas'][1] * M / hl.agg.mean(mt['__n']), 1.0), 0.0))
         mt = mt.annotate_cols(__step1_betas=[
             mt['__step1_betas'][0],
-            mt['__step1_h2'] * hl.agg.mean(mt['__n'])/M])
+            mt['__step1_h2'] * hl.agg.mean(mt['__n']) / M])
 
     # step 1 block jackknife
     mt = mt.annotate_cols(__step1_block_betas=[
@@ -437,7 +444,7 @@ def ld_score_regression(weight_expr,
             lambda i: hl.mean(
                 hl.map(lambda x: x[i],
                        mt['__step1_block_betas_bias_corrected'])),
-            hl.range(0, __p)),
+            hl.range(0, __k)),
         __step1_jackknife_variance=hl.map(
             lambda i: (hl.sum(
                 hl.map(lambda x: x[i]**2,
@@ -447,7 +454,7 @@ def ld_score_regression(weight_expr,
                        mt['__step1_block_betas_bias_corrected']))**2 /
                        n_blocks) /
             (n_blocks - 1) / n_blocks,
-            hl.range(0, __p)))
+            hl.range(0, __k)))
 
     # step 2 iteratively reweighted least squares
     for i in range(3):
@@ -542,5 +549,9 @@ def ld_score_regression(weight_expr,
     ht = ht.select(ht['mean_chi_sq'],
                    ht['intercept'],
                    ht['snp_heritability'])
+
+    ht_tmp_file = new_temp_file()
+    ht.write(ht_tmp_file)
+    ht = hl.read_table(ht_tmp_file)
 
     return ht
