@@ -1,6 +1,5 @@
 package is.hail.expr.ir
 
-import is.hail.annotations._
 import is.hail.annotations.aggregators._
 import is.hail.asm4s._
 import is.hail.expr.types.physical.PTuple
@@ -8,33 +7,43 @@ import is.hail.expr.types.virtual._
 import is.hail.utils._
 
 import scala.language.{existentials, postfixOps}
+import scala.reflect.ClassTag
 
-case class ExtractedAggregators(postAggIR: IR, resultType: PTuple, init: IR, perElt: IR, rvAggs: Array[RegionValueAggregator])
+case class StagedExtractedAggregators(postAggIR: IR, resultType: PTuple, init: IR, perElt: IR, rvAggs: Code[Array[RegionValueAggregator]])
 
-object ExtractAggregators {
+object StagedExtractAggregators {
 
-  private case class IRAgg(i: Int, rvAgg: RegionValueAggregator, rt: Type)
+  private case class IRAgg(i: Int, rvAgg: Code[RegionValueAggregator], rt: Type)
+
   private case class AggOps(initOp: Option[IR], seqOp: IR)
 
-  def apply(ir: IR, resultName: String = "AGGR"): ExtractedAggregators = {
+  def newArray[T](fb: EmitFunctionBuilder[_], a: Array[Code[T]])(implicit tct: ClassTag[T], tti: TypeInfo[T]): Code[Array[T]] = {
+    val sa = fb.newField[Array[T]]("a")
+    Code(
+      sa := Code.newArray[T](const(a.length)),
+      Code(a.zipWithIndex.map { case (ai, i) => sa.load().update(const(i), ai) }: _*),
+      sa.load())
+  }
+
+  def apply(fb: EmitFunctionBuilder[_], ir: IR, resultName: String = "AGGR"): StagedExtractedAggregators = {
     val ab = new ArrayBuilder[IRAgg]()
     val ab2 = new ArrayBuilder[AggOps]()
     val ref = Ref(resultName, null)
-    val postAgg = extract(ir, ab, ab2, ref)
+    val postAgg = extract(fb, ir, ab, ab2, ref)
     val aggs = ab.result()
     val rt = TTuple(aggs.map(_.rt): _*)
     ref._typ = rt
     val ops = ab2.result()
-    ExtractedAggregators(
+    StagedExtractedAggregators(
       postAgg,
       rt.physicalType,
       Begin(ops.flatMap(_.initOp)),
       Begin(ops.map(_.seqOp)),
-      aggs.map(_.rvAgg))
+      newArray(fb, aggs.map(_.rvAgg)))
   }
 
-  private def extract(ir: IR, ab: ArrayBuilder[IRAgg], ab2: ArrayBuilder[AggOps], result: IR): IR = {
-    def extract(node: IR): IR = this.extract(node, ab, ab2, result)
+  private def extract(fb: EmitFunctionBuilder[_], ir: IR, ab: ArrayBuilder[IRAgg], ab2: ArrayBuilder[AggOps], result: IR): IR = {
+    def extract(node: IR): IR = this.extract(fb, node, ab, ab2, result)
 
     ir match {
       case Ref(name, typ) =>
@@ -42,14 +51,14 @@ object ExtractAggregators {
         ir
       case x: ApplyAggOp =>
         val i = ab.length
-        ab += IRAgg(i, newAggregator(x), x.typ)
+        ab += IRAgg(i, newAggregator(fb, x), x.typ)
         ab2 += AggOps(
           x.initOpArgs.map(InitOp(i, _, x.aggSig)),
           SeqOp(i, x.seqOpArgs, x.aggSig))
         GetTupleElement(result, i)
       case AggFilter(cond, aggIR) =>
         val newBuilder = new ArrayBuilder[AggOps]()
-        val transformed = this.extract(aggIR, ab, newBuilder, result)
+        val transformed = this.extract(fb, aggIR, ab, newBuilder, result)
         val (initOp, seqOp) = newBuilder.result().map { case AggOps(x, y) => (x, y) }.unzip
         val io = if (initOp.flatten.isEmpty) None else Some(Begin(initOp.flatten.toFastIndexedSeq))
         ab2 += AggOps(io,
@@ -57,7 +66,7 @@ object ExtractAggregators {
         transformed
       case AggExplode(array, name, aggBody) =>
         val newBuilder = new ArrayBuilder[AggOps]()
-        val transformed = this.extract(aggBody, ab, newBuilder, result)
+        val transformed = this.extract(fb, aggBody, ab, newBuilder, result)
         val (initOp, seqOp) = newBuilder.result().map { case AggOps(x, y) => (x, y) }.unzip
         val io = if (initOp.flatten.isEmpty) None else Some(Begin(initOp.flatten.toFastIndexedSeq))
         ab2 += AggOps(
@@ -69,10 +78,10 @@ object ExtractAggregators {
         val newRVAggBuilder = new ArrayBuilder[IRAgg]()
         val newBuilder = new ArrayBuilder[AggOps]()
         val newRef = Ref(genUID(), null)
-        val transformed = this.extract(aggIR, newRVAggBuilder, newBuilder, GetField(newRef, "value"))
+        val transformed = this.extract(fb, aggIR, newRVAggBuilder, newBuilder, GetField(newRef, "value"))
 
         val nestedAggs = newRVAggBuilder.result()
-        val agg = KeyedRegionValueAggregator(nestedAggs.map(_.rvAgg), key.typ)
+        val agg = Code.newInstance[KeyedRegionValueAggregator, Array[RegionValueAggregator], Type](newArray(fb, nestedAggs.map(_.rvAgg)), fb.getType(key.typ))
         val aggSig = AggSignature(Group(), Seq(), Some(Seq(TVoid)), Seq(key.typ, TVoid))
         val rt = TDict(key.typ, TTuple(nestedAggs.map(_.rt): _*))
         newRef._typ = -rt.elementType
@@ -85,14 +94,12 @@ object ExtractAggregators {
           SeqOp(I32(i), FastIndexedSeq(key, Begin(seqOp)), aggSig))
 
         ToDict(ArrayMap(ToArray(GetTupleElement(result, i)), newRef.name, MakeTuple(FastSeq(GetField(newRef, "key"), transformed))))
-      case x: ArrayAgg => x
       case _ => MapIR(extract)(ir)
     }
   }
 
-  private def newAggregator(ir: ApplyAggOp): RegionValueAggregator = ir match {
+  private def newAggregator(fb: EmitFunctionBuilder[_], ir: ApplyAggOp): Code[RegionValueAggregator] = ir match {
     case x@ApplyAggOp(constructorArgs, _, _, aggSig) =>
-      val fb = EmitFunctionBuilder[Region, RegionValueAggregator]
       var codeConstructorArgs = constructorArgs.map(Emit.toCode(_, fb, 1))
 
       aggSig match {
@@ -115,10 +122,10 @@ object ExtractAggregators {
         case _ =>
       }
 
-        fb.emit(Code(
-          Code(codeConstructorArgs.map(_.setup): _*),
-          AggOp.get(aggSig).asInstanceOf[CodeAggregator[_]]
-            .stagedNew(codeConstructorArgs.map(_.v).toArray, codeConstructorArgs.map(_.m).toArray)))
-        Region.scoped(fb.resultWithIndex()(0)(_))
+      Code(
+        Code(codeConstructorArgs.map(_.setup): _*),
+        AggOp.get(aggSig).asInstanceOf[CodeAggregator[_]]
+          .stagedNew(codeConstructorArgs.map(_.v).toArray, codeConstructorArgs.map(_.m).toArray))
+        .asInstanceOf[Code[RegionValueAggregator]]
   }
 }

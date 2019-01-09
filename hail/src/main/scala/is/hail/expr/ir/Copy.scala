@@ -83,6 +83,9 @@ object Copy {
       case ArrayFor(_, valueName, _) =>
         val IndexedSeq(a: IR, body: IR) = newChildren
         ArrayFor(a, valueName, body)
+      case ArrayAgg(_, name, _) =>
+        val IndexedSeq(a: IR, query: IR) = newChildren
+        ArrayAgg(a, name, query)
       case AggFilter(_, _) =>
         val IndexedSeq(cond: IR, aggIR: IR) = newChildren
         AggFilter(cond, aggIR)

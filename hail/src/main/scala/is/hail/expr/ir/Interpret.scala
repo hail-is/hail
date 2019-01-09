@@ -401,6 +401,14 @@ object Interpret {
         }
         ()
 
+      case ArrayAgg(a, name, body) =>
+        assert(agg.isEmpty)
+        val aggElementType = TStruct(name -> a.typ.asInstanceOf[TArray].elementType)
+        val aValue = interpret(a, env, args, agg)
+          .asInstanceOf[IndexedSeq[Any]]
+          .map(Row(_))
+        interpret(body, env, args, Some(aValue -> aggElementType))
+
       case Begin(xs) =>
         xs.foreach(x => Interpret(x))
       case x@SeqOp(i, seqOpArgs, aggSig) =>
@@ -497,7 +505,7 @@ object Interpret {
             assert(seqOpArgTypes == FastIndexedSeq(TBoolean()))
             new FractionAggregator(a => a)
           case Sum() =>
-            val IndexedSeq(aggType) = seqOpArgTypes
+            val Seq(aggType) = seqOpArgTypes
             aggType match {
               case TInt64(_) => new SumAggregator[Long]()
               case TFloat64(_) => new SumAggregator[Double]()
@@ -505,13 +513,13 @@ object Interpret {
               case TArray(TFloat64(_), _) => new SumArrayAggregator[Double]()
             }
           case Product() =>
-            val IndexedSeq(aggType) = seqOpArgTypes
+            val Seq(aggType) = seqOpArgTypes
             aggType match {
               case TInt64(_) => new ProductAggregator[Long]()
               case TFloat64(_) => new ProductAggregator[Double]()
             }
           case Min() =>
-            val IndexedSeq(aggType) = seqOpArgTypes
+            val Seq(aggType) = seqOpArgTypes
             aggType match {
               case TInt32(_) => new MinAggregator[Int, java.lang.Integer]()
               case TInt64(_) => new MinAggregator[Long, java.lang.Long]()
@@ -519,7 +527,7 @@ object Interpret {
               case TFloat64(_) => new MinAggregator[Double, java.lang.Double]()
             }
           case Max() =>
-            val IndexedSeq(aggType) = seqOpArgTypes
+            val Seq(aggType) = seqOpArgTypes
             aggType match {
               case TInt32(_) => new MaxAggregator[Int, java.lang.Integer]()
               case TInt64(_) => new MaxAggregator[Long, java.lang.Long]()
@@ -527,13 +535,13 @@ object Interpret {
               case TFloat64(_) => new MaxAggregator[Double, java.lang.Double]()
             }
           case Take() =>
-            val IndexedSeq(n) = constructorArgs
-            val IndexedSeq(aggType) = seqOpArgTypes
+            val Seq(n) = constructorArgs
+            val Seq(aggType) = seqOpArgTypes
             val nValue = interpret(n, Env.empty[Any], null, null).asInstanceOf[Int]
             new TakeAggregator(aggType, nValue)
           case TakeBy() =>
-            val IndexedSeq(n) = constructorArgs
-            val IndexedSeq(aggType, _) = seqOpArgTypes
+            val Seq(n) = constructorArgs
+            val Seq(aggType, _) = seqOpArgTypes
             val nValue = interpret(n, Env.empty[Any], null, null).asInstanceOf[Int]
             val ordering = seqOpArgs.last
             val ord = ordering.typ.ordering.toOrdering
@@ -746,8 +754,8 @@ object Interpret {
           (nAggs: Int, seqOpIR: IR) => seqOpIR)
 
         val (t, f) = Compile[Long, Long, Long](
-          "AGGR", aggResultType,
           "global", child.typ.globalType.physicalType,
+          "AGGR", aggResultType,
           postAggIR)
 
         val value = child.execute(HailContext.get)
@@ -799,7 +807,7 @@ object Interpret {
           rvb.addAnnotation(localGlobalSignature, globalsBc.value)
           val globalsOffset = rvb.end()
 
-          val resultOffset = f(0)(region, aggResultsOffset, false, globalsOffset, false)
+          val resultOffset = f(0)(region, globalsOffset, false, aggResultsOffset, false)
 
           SafeRow(coerce[PTuple](t), region, resultOffset)
             .get(0)

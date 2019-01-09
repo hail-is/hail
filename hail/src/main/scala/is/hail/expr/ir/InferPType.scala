@@ -82,6 +82,8 @@ object InferPType {
         zero.pType
       case ArrayScan(a, zero, accumName, valueName, body) =>
         PArray(zero.pType)
+      case ArrayAgg(_, _, query) =>
+        query.pType
       case AggFilter(_, aggIR) =>
         aggIR.pType
       case AggExplode(array, name, aggBody) =>

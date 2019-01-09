@@ -629,6 +629,11 @@ object IRParser {
         val a = ir_value_expr(env)(it)
         val body = ir_value_expr(env + (name, coerce[TArray](a.typ).elementType))(it)
         ArrayFor(a, name, body)
+      case "ArrayAgg" =>
+        val name = identifier(it)
+        val a = ir_value_expr(env)(it)
+        val query = ir_value_expr(env + (name, coerce[TArray](a.typ).elementType))(it)
+        ArrayAgg(a, name, query)
       case "AggFilter" =>
         val cond = ir_value_expr(env)(it)
         val aggIR = ir_value_expr(env)(it)

@@ -593,6 +593,16 @@ class IRSuite extends SparkSuite {
     assertFatal(ArrayRange(I32(0), I32(5), I32(0)), "step size")
   }
 
+  @Test def testArrayAgg() {
+    val sumSig = AggSignature(Sum(), Seq(), None, Seq(TInt64()))
+    assertEvalsTo(
+      ArrayAgg(
+        ArrayMap(ArrayRange(I32(0), I32(4), I32(1)), "x", Cast(Ref("x", TInt32()), TInt64())),
+        "x",
+        ApplyAggOp(FastIndexedSeq.empty, None, FastIndexedSeq(Ref("x", TInt64())), sumSig)),
+      6L)
+  }
+
   @Test def testInsertFields() {
     val s = TStruct("a" -> TInt64(), "b" -> TString())
     val emptyStruct = MakeStruct(Seq("a" -> NA(TInt64()), "b" -> NA(TString())))
@@ -750,6 +760,8 @@ class IRSuite extends SparkSuite {
 
     val collectSig = AggSignature(Collect(), Seq(), None, Seq(TInt32()))
 
+    val sumSig = AggSignature(Sum(), Seq(), None, Seq(TInt32()))
+
     val callStatsSig = AggSignature(CallStats(), Seq(), Some(Seq(TInt32())), Seq(TCall()))
 
     val histSig = AggSignature(Histogram(), Seq(TFloat64(), TFloat64(), TInt32()), None, Seq(TFloat64()))
@@ -793,6 +805,7 @@ class IRSuite extends SparkSuite {
       ArrayFold(a, I32(0), "x", "v", v),
       ArrayScan(a, I32(0), "x", "v", v),
       ArrayFor(a, "v", Void()),
+      ArrayAgg(a, "x", ApplyAggOp(FastIndexedSeq.empty, None, FastIndexedSeq(Ref("x", TInt32())), sumSig)),
       AggFilter(True(), I32(0)),
       AggExplode(NA(TArray(TInt32())), "x", I32(0)),
       AggGroupBy(True(), I32(0)),

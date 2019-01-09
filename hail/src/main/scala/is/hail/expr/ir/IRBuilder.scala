@@ -135,6 +135,12 @@ object IRBuilder {
       ArrayFlatMap(array, f.s.name, f.body(env.bind(f.s.name -> eltType)))
     }
 
+    def arrayAgg(f: LambdaProxy): IRProxy = (env: E) => {
+      val array = ir(env)
+      val eltType = array.typ.asInstanceOf[TArray].elementType
+      ArrayAgg(array, f.s.name, f.body(env.bind(f.s.name -> eltType)))
+    }
+
     def sort(ascending: IRProxy, onKey: Boolean = false): IRProxy = (env: E) => ArraySort(ir(env), ascending(env), onKey)
 
     def groupByKey: IRProxy = (env: E) => GroupByKey(ir(env))
@@ -180,4 +186,16 @@ object IRBuilder {
       LetProxy.bind(bindings, body, env)
     }
   }
+
+  object MapIRProxy {
+    def apply(f: (IRProxy) => IRProxy)(x: IRProxy): IRProxy = (e: E) => {
+        MapIR(x => f(x)(e))(x(e))
+      }
+  }
+
+  def subst(x: IRProxy, env: Env[IRProxy], aggEnv: Env[IRProxy] = Env.empty): IRProxy = (e: E) => {
+    Subst(x(e), env.mapValues(_(e)), aggEnv.mapValues(_(e)))
+  }
+
+  def lift(f: (IR) => IRProxy)(x: IRProxy): IRProxy = (e: E) => f(x(e))(e)
 }

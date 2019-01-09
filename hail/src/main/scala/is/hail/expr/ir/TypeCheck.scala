@@ -156,6 +156,11 @@ object TypeCheck {
         val tarray = coerce[TArray](a.typ)
         check(body, env = env.bind(valueName -> -tarray.elementType))
         assert(body.typ == TVoid)
+      case x@ArrayAgg(a, name, query) =>
+        check(a)
+        val tarray = coerce[TArray](a.typ)
+        assert(aggEnv.isEmpty)
+        check(query, env, Some(env.bind(name, tarray.elementType)))
       case x@AggFilter(cond, aggIR) =>
         check(cond, env = aggEnv.get)
         check(aggIR)

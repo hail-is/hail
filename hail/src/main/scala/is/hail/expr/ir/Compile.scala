@@ -50,6 +50,7 @@ object Compile {
 
     ir = Subst(ir, env)
     assert(TypeToIRIntermediateClassTag(ir.typ) == classTag[R])
+
     Emit(ir, fb, nSpecialArgs)
     (ir.pType, fb.resultWithIndex())
   }

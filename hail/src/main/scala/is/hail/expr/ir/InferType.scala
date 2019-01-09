@@ -87,6 +87,8 @@ object InferType {
       case ArrayScan(a, zero, accumName, valueName, body) =>
         assert(body.typ == zero.typ)
         TArray(zero.typ)
+      case ArrayAgg(_, _, query) =>
+        query.typ
       case AggFilter(_, aggIR) =>
         aggIR.typ
       case AggExplode(array, name, aggBody) =>
