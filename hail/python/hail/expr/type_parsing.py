@@ -4,7 +4,7 @@ from hail.utils.java import unescape_parsable
 
 type_grammar = Grammar(
     r"""
-    type = _ (array / set / dict / struct / tuple / interval / int64 / int32 / float32 / float64 / bool / str / call / str / locus / void) _
+    type = _ (array / ndarray / set / dict / struct / tuple / interval / int64 / int32 / float32 / float64 / bool / str / call / str / locus / void) _
     void = "void" / "tvoid"
     int64 = "int64" / "tint64"
     int32 = "int32" / "tint32" / "int" / "tint"
