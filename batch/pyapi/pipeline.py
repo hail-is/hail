@@ -10,7 +10,6 @@ class Pipeline(object):
     _counter = 0
     _uid_prefix = "__PIPELINE__"
     _regex_pattern = r"(?P<PIPELINE>{}\d+)".format(_uid_prefix)
-    _tmp_dir_varname = "__TMP_DIR__"
 
     @classmethod
     def _get_uid(cls):
@@ -33,10 +32,9 @@ class Pipeline(object):
 
     def _tmp_file(self, prefix=None, suffix=None):
         def _get_random_file():
-            file = '${{{}}}/{}{}{}'.format(Pipeline._tmp_dir_varname,
-                                           prefix if prefix else '',
-                                           get_sha(8),
-                                           suffix if suffix else '')
+            file = '{}{}{}'.format(prefix if prefix else '',
+                                   get_sha(8),
+                                   suffix if suffix else '')
             if file not in self._allocated_files:
                 self._allocated_files.add(file)
                 return file

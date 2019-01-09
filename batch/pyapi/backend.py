@@ -28,13 +28,13 @@ class LocalBackend(Backend):
         self._delete_on_exit = delete_on_exit
 
     def run(self, pipeline):
-        from .pipeline import Pipeline
+        wd = self.tmp_dir()
 
         script = ['#! /usr/bash',
                   'set -ex',
                   '\n',
-                  '# define tmp directory',
-                  f"{Pipeline._tmp_dir_varname}={self.tmp_dir()}",
+                  '# change cd to tmp directory',
+                  f"cd {wd}",
                   '\n']
 
         def define_resource(r):
@@ -56,7 +56,7 @@ class LocalBackend(Backend):
 
         if self._delete_on_exit:
             script += ['# remove tmp directory',
-                       f'rm -r ${{{Pipeline._tmp_dir_varname}}}']
+                       f'rm -r {wd}']
 
         print("\n".join(script)) # FIXME: replace with subprocess.call()
 
