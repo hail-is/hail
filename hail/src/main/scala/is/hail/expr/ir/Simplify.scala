@@ -174,7 +174,7 @@ object Simplify {
       val (_, x) = fields.find { case (n, _) => n == name }.get
       x
 
-    case GetField(InsertFields(old, fields), name) =>
+    case GetField(InsertFields(old, fields, _), name) =>
       fields.find { case (n, _) => n == name } match {
         case Some((_, x)) => x
         case None => GetField(old, name)
@@ -182,23 +182,33 @@ object Simplify {
 
     case GetField(SelectFields(old, fields), name) => GetField(old, name)
 
-    case InsertFields(InsertFields(base, fields1), fields2) =>
-      val fields1Set = fields1.map(_._1).toSet
+    case InsertFields(InsertFields(base, fields1, fieldOrder1), fields2, fieldOrder2) =>
+        val fields2Set = fields2.map(_._1).toSet
+        val newFields = fields1.filter { case (name, _) => !fields2Set.contains(name) } ++ fields2
+      (fieldOrder1, fieldOrder2) match {
+        case (Some(fo1), None) =>
+          val fields1Set = fo1.toSet
+          val fieldOrder = fo1 ++ fields2.map(_._1).filter(!fields1Set.contains(_))
+          InsertFields(base, newFields, Some(fieldOrder))
+        case _ =>
+          InsertFields(base, newFields, fieldOrder2)
+      }
+
+    case InsertFields(MakeStruct(fields1), fields2, fieldOrder) =>
+      val fields1Map = fields1.toMap
       val fields2Map = fields2.toMap
 
-      val finalFields = fields1.map { case (name, fieldIR) => name -> fields2Map.getOrElse(name, fieldIR) } ++
-        fields2.filter { case (name, _) => !fields1Set.contains(name) }
-      InsertFields(base, finalFields)
+      fieldOrder match {
+        case Some(fo) =>
+          MakeStruct(fo.map(f => f -> fields2Map.getOrElse(f, fields1Map(f))))
+        case None =>
+          val finalFields = fields1.map { case (name, fieldIR) => name -> fields2Map.getOrElse(name, fieldIR) } ++
+            fields2.filter { case (name, _) => !fields1Map.contains(name) }
+          MakeStruct(finalFields)
+      }
 
-    case InsertFields(MakeStruct(fields1), fields2) =>
-      val fields1Set = fields1.map(_._1).toSet
-      val fields2Map = fields2.toMap
 
-      val finalFields = fields1.map { case (name, fieldIR) => name -> fields2Map.getOrElse(name, fieldIR) } ++
-        fields2.filter { case (name, _) => !fields1Set.contains(name) }
-      MakeStruct(finalFields)
-
-    case InsertFields(struct, Seq()) => struct
+    case InsertFields(struct, Seq(), _) => struct
 
     case SelectFields(old, fields) if coerce[TStruct](old.typ).fieldNames sameElements fields =>
       old
@@ -210,12 +220,12 @@ object Simplify {
       val makeStructFields = fields.toMap
       MakeStruct(fieldNames.map(f => f -> makeStructFields(f)))
 
-    case x@SelectFields(InsertFields(struct, insertFields), selectFields) =>
+    case x@SelectFields(InsertFields(struct, insertFields, _), selectFields) =>
       val selectSet = selectFields.toSet
       val insertFields2 = insertFields.filter { case (fName, _) => selectSet.contains(fName) }
       val structSet = struct.typ.asInstanceOf[TStruct].fieldNames.toSet
       val selectFields2 = selectFields.filter(structSet.contains)
-      val x2 = InsertFields(SelectFields(struct, selectFields2), insertFields2)
+      val x2 = InsertFields(SelectFields(struct, selectFields2), insertFields2, Some(selectFields.toFastIndexedSeq))
       assert(x2.typ == x.typ)
       x2
 

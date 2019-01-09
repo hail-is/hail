@@ -206,19 +206,19 @@ object TypeCheck {
           val oldfields = coerce[TStruct](old.typ).fieldNames.toSet
           fields.forall { id => oldfields.contains(id) }
         }
-      case x@InsertFields(old, fields) =>
+      case x@InsertFields(old, fields, fieldOrder) =>
+        fieldOrder.foreach { fds =>
+          val newFieldSet = fields.map(_._1).toSet
+          val oldFieldNames = old.typ.asInstanceOf[TStruct].fieldNames
+          val oldFieldNameSet = oldFieldNames.toSet
+          assert(oldFieldNames
+            .filter(f => !newFieldSet.contains(f))
+            .sameElements(fds.filter(f => !newFieldSet.contains(f))))
+          assert(fds.areDistinct())
+          assert(fds.toSet.forall(f => newFieldSet.contains(f) || oldFieldNameSet.contains(f)))
+        }
         check(old)
         fields.foreach { case (name, a) => check(a) }
-        assert(x.typ == fields.foldLeft(old.typ) { case (t, (name, a)) =>
-          t match {
-            case t2: TStruct =>
-              t2.selfField(name) match {
-                case Some(f2) => t2.updateKey(name, f2.index, a.typ)
-                case None => t2.appendKey(name, a.typ)
-              }
-            case _ => TStruct(name -> a.typ)
-          }
-        }.asInstanceOf[TStruct])
       case x@GetField(o, name) =>
         check(o)
         val t = coerce[TStruct](o.typ)

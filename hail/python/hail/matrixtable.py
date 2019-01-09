@@ -2567,16 +2567,16 @@ class MatrixTable(ExprContainer):
         mir = base._mir
 
         if row_exprs:
-            row_struct = InsertFields(base.row._ir, [(n, e._ir) for (n, e) in row_exprs.items()])
+            row_struct = InsertFields(base.row._ir, [(n, e._ir) for (n, e) in row_exprs.items()], None)
             mir = MatrixMapRows(mir, row_struct)
         if col_exprs:
-            col_struct = InsertFields(base.col._ir, [(n, e._ir) for (n, e) in col_exprs.items()])
+            col_struct = InsertFields(base.col._ir, [(n, e._ir) for (n, e) in col_exprs.items()], None)
             mir = MatrixMapCols(mir, col_struct, None)
         if entry_exprs:
-            entry_struct = InsertFields(base.entry._ir, [(n, e._ir) for (n, e) in entry_exprs.items()])
+            entry_struct = InsertFields(base.entry._ir, [(n, e._ir) for (n, e) in entry_exprs.items()], None)
             mir = MatrixMapEntries(mir, entry_struct)
         if global_exprs:
-            globals_struct = InsertFields(base.globals._ir, [(n, e._ir) for (n, e) in global_exprs.items()])
+            globals_struct = InsertFields(base.globals._ir, [(n, e._ir) for (n, e) in global_exprs.items()], None)
             mir = MatrixMapGlobals(mir, globals_struct)
 
         return cleanup(MatrixTable(mir))
@@ -2979,7 +2979,7 @@ class MatrixTable(ExprContainer):
         new_key = list(key_struct.keys())
         keys = Env.get_uid()
         fields = [(n, GetField(Ref(keys), n)) for (n, t) in key_struct.dtype.items()]
-        row_ir = Let(keys, key_struct._ir, InsertFields(self.row._ir, fields))
+        row_ir = Let(keys, key_struct._ir, InsertFields(self.row._ir, fields, None))
         return MatrixTable(
             MatrixKeyRowsBy(
                 MatrixMapRows(
@@ -3000,7 +3000,7 @@ class MatrixTable(ExprContainer):
         new_key = list(key_struct.keys())
         keys = Env.get_uid()
         fields = [(n, GetField(Ref(keys), n)) for (n, t) in key_struct.dtype.items()]
-        col_ir = Let(keys, key_struct._ir, InsertFields(self.col._ir, fields))
+        col_ir = Let(keys, key_struct._ir, InsertFields(self.col._ir, fields, None))
         return MatrixTable(MatrixMapCols(self._mir, col_ir, new_key))
 
     @typecheck_method(caller=str, s=expr_struct())

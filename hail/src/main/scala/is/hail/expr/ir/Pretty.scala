@@ -116,9 +116,12 @@ object Pretty {
           pretty(i, depth + 2)
           sb += '\n'
           prettySeq(args, depth + 2)
-        case InsertFields(old, fields) =>
+        case InsertFields(old, fields, fieldOrder) =>
           sb += '\n'
           pretty(old, depth + 2)
+          sb.append('\n')
+          sb.append(" " * (depth + 2))
+          sb.append(prettyStringsOpt(fieldOrder))
           if (fields.nonEmpty) {
             sb += '\n'
             fields.foreachBetween { case (n, a) =>

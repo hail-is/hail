@@ -2,7 +2,7 @@ import copy
 
 import hail
 from hail.expr.types import hail_type
-from hail.utils.java import escape_str, escape_id, dump_json
+from hail.utils.java import escape_str, escape_id, dump_json, parsable_strings
 from .base_ir import *
 from .matrix_writer import MatrixWriter, MatrixNativeMultiWriter
 
@@ -930,26 +930,29 @@ class SelectFields(IR):
 
 
 class InsertFields(IR):
-    @typecheck_method(old=IR, fields=sequenceof(sized_tupleof(str, IR)))
-    def __init__(self, old, fields):
+    @typecheck_method(old=IR, fields=sequenceof(sized_tupleof(str, IR)), field_order=nullable(sequenceof(str)))
+    def __init__(self, old, fields, field_order):
         super().__init__(old, *[ir for (f, ir) in fields])
         self.old = old
         self.fields = fields
+        self.field_order = field_order
 
     def copy(self, *args):
         new_instance = self.__class__
         assert len(args) == len(self.fields) + 1
-        return new_instance(args[0], [(n, ir) for (n, _), ir in zip(self.fields, args[1:])])
+        return new_instance(args[0], [(n, ir) for (n, _), ir in zip(self.fields, args[1:])], self.field_order)
 
     def render(self, r):
-        return '(InsertFields {} {})'.format(
+        return '(InsertFields {} {} {})'.format(
             self.old,
+            'None' if self.field_order is None else parsable_strings(self.field_order),
             ' '.join(['({} {})'.format(escape_id(f), r(x)) for (f, x) in self.fields]))
 
     def __eq__(self, other):
         return isinstance(other, InsertFields) and \
                other.old == self.old and \
-               other.fields == self.fields
+               other.fields == self.fields and \
+               other.field_order == self.field_order
 
 
 class GetField(IR):

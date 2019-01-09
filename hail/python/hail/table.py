@@ -1462,7 +1462,8 @@ class Table(ExprContainer):
                     original_key = list(left.key)
                     left = Table(TableMapRows(left.key_by()._tir,
                                               InsertFields(left._row._ir,
-                                                           list(zip(uids, [e._ir for e in exprs]))))).key_by(*uids)
+                                                           list(zip(uids, [e._ir for e in exprs])),
+                                                           None))).key_by(*uids)
                     rekey_f = lambda t: t.key_by(*original_key)
                 else:
                     rekey_f = identity

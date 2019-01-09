@@ -98,9 +98,9 @@ object Copy {
       case SelectFields(_, fields) =>
         val IndexedSeq(old: IR) = newChildren
         SelectFields(old, fields)
-      case InsertFields(_, fields) =>
+      case InsertFields(_, fields, fieldOrder) =>
         assert(newChildren.length == fields.length + 1)
-        InsertFields(newChildren.head.asInstanceOf[IR], fields.zip(newChildren.tail).map { case ((n, _), a) => (n, a.asInstanceOf[IR]) })
+        InsertFields(newChildren.head.asInstanceOf[IR], fields.zip(newChildren.tail).map { case ((n, _), a) => (n, a.asInstanceOf[IR]) }, fieldOrder)
       case GetField(_, name) =>
         val IndexedSeq(o: IR) = newChildren
         GetField(o, name)

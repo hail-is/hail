@@ -594,16 +594,23 @@ object Interpret {
           null
         else
           Row.fromSeq(fields.map(id => oldRow.get(oldt.fieldIdx(id))))
-      case InsertFields(old, fields) =>
+      case x@InsertFields(old, fields, fieldOrder) =>
         var struct = interpret(old, env, args, agg)
-        var t = old.typ
         if (struct != null)
-          fields.foreach { case (name, body) =>
-            val (newT, ins) = t.insert(body.typ, name)
-            t = newT.asInstanceOf[TStruct]
-            struct = ins(struct, interpret(body, env, args, agg))
+          fieldOrder match {
+            case Some(fds) =>
+              val newValues = fields.toMap.mapValues(interpret(_, env, args, agg))
+              val oldIndices = old.typ.asInstanceOf[TStruct].fields.map(f => f.name -> f.index).toMap
+              Row.fromSeq(fds.map(name => newValues.getOrElse(name, struct.asInstanceOf[Row].get(oldIndices(name)))))
+            case None =>
+              var t = old.typ
+              fields.foreach { case (name, body) =>
+                val (newT, ins) = t.insert(body.typ, name)
+                t = newT.asInstanceOf[TStruct]
+                struct = ins(struct, interpret(body, env, args, agg))
+              }
+              struct
           }
-        struct
       case GetField(o, name) =>
         val oValue = interpret(o, env, args, agg)
         if (oValue == null)

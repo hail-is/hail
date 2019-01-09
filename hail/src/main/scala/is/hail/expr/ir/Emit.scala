@@ -804,7 +804,7 @@ private class Emit(
             srvb.offset))
 
 
-      case x@InsertFields(old, fields) =>
+      case x@InsertFields(old, fields, fieldOrder) =>
         if (fields.isEmpty)
           emit(old)
         else

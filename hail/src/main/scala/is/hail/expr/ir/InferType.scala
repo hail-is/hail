@@ -104,9 +104,10 @@ object InferType {
       case SelectFields(old, fields) =>
         val tbs = coerce[TStruct](old.typ)
         tbs.select(fields.toFastIndexedSeq)._1
-      case InsertFields(old, fields) =>
+      case InsertFields(old, fields, fieldOrder) =>
         val tbs = coerce[TStruct](old.typ)
-        tbs.insertFields(fields.map(f => (f._1, f._2.typ)))
+        val s = tbs.insertFields(fields.map(f => (f._1, f._2.typ)))
+        fieldOrder.map(fds => TStruct(fds.map(f => f -> s.fieldType(f)): _*)).getOrElse(s)
       case GetField(o, name) =>
         val t = coerce[TStruct](o.typ)
         if (t.index(name).isEmpty)
