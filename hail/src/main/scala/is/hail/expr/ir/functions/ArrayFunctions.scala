@@ -200,9 +200,9 @@ object ArrayFunctions extends RegistryFunctions {
       ), "midx")
     }
 
-    registerIR("argmin", TArray(tv("T")), tv("T"))(argF(_, LT(_)))
+    registerIR("argmin", TArray(tv("T")), TInt32())(argF(_, LT(_)))
 
-    registerIR("argmax", TArray(tv("T")), tv("T"))(argF(_, GT(_)))
+    registerIR("argmax", TArray(tv("T")), TInt32())(argF(_, GT(_)))
 
     def uniqueIndex(a: IR, op: (Type) => ComparisonOp[Boolean]): IR = {
       val t = -coerce[TArray](a.typ).elementType
