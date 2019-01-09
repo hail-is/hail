@@ -1763,6 +1763,11 @@ class TableToValueApply(IR):
     def __eq__(self, other):
         return isinstance(other, TableToValueApply) and other.child == self.child and other.config == self.config
 
+    def _compute_type(self, env, agg_env):
+        name = self.config['name']
+        assert name == 'ForceCountTable'
+        self._type = tint64
+
 
 class MatrixToValueApply(IR):
     def __init__(self, child, config):
@@ -1780,6 +1785,11 @@ class MatrixToValueApply(IR):
 
     def __eq__(self, other):
         return isinstance(other, MatrixToValueApply) and other.child == self.child and other.config == self.config
+
+    def _compute_type(self, env, agg_env):
+        name = self.config['name']
+        assert name == 'ForceCountMatrixTable'
+        self._type = tint64
 
 
 class Literal(IR):
