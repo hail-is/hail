@@ -757,6 +757,17 @@ class Tests(unittest.TestCase):
             t.row.dtype,
             hl.tstruct(**{'row_idx': hl.tint32, '0': hl.tint32, '1': hl.tint32}))
 
+    def test_make_table_sep(self):
+        mt = hl.utils.range_matrix_table(3, 2)
+        mt = mt.select_entries(x=mt.row_idx * mt.col_idx)
+        mt = mt.key_cols_by(col_idx=hl.str(mt.col_idx))
+
+        t = mt.make_table()
+        assert(list(t.row) == ['row_idx'], ['0.x'], ['1.x'])
+
+        t = mt.make_table(separator='__')
+        assert(list(t.row) == ['row_idx'], ['0__x'], ['1__x'])
+
     def test_transmute(self):
         mt = (
             hl.utils.range_matrix_table(1, 1)

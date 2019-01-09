@@ -3426,7 +3426,7 @@ class MatrixTable(ExprContainer):
 
         def fmt(f, col_key):
             if f:
-                return col_key + '.' + f
+                return col_key + separator + f
             else:
                 return col_key
 
