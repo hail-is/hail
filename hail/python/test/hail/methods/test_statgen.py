@@ -17,7 +17,6 @@ tearDownModule = stopTestHailContext
 
 
 class Tests(unittest.TestCase):
-    @unittest.skipIf(not shutil.which('plink'), 'plink not available')
     def test_ibd(self):
         dataset = get_dataset()
 
@@ -71,7 +70,6 @@ class Tests(unittest.TestCase):
         hl.identity_by_descent(dataset, dataset['dummy_maf'], min=0.0, max=1.0)
         hl.identity_by_descent(dataset, hl.float32(dataset['dummy_maf']), min=0.0, max=1.0)
 
-    @unittest.skipIf(not shutil.which('plink'), 'plink not available')
     def test_impute_sex_same_as_plink(self):
         ds = hl.import_vcf(resource('x-chromosome.vcf'))
 
@@ -1154,8 +1152,6 @@ class Tests(unittest.TestCase):
                                 ibd1=plink_kin.k1,
                                 ibd2=plink_kin.k2).key_by('i', 'j')
 
-    @pytest.mark.skip(reason="GENESIS not installed.")
-    @unittest.skipIf(not shutil.which('Rscript'), 'Rscript not available')
     def test_pc_relate_on_balding_nichols_against_R_pc_relate(self):
         mt = hl.balding_nichols_model(3, 100, 1000)
         mt = mt.key_cols_by(sample_idx=hl.str(mt.sample_idx))

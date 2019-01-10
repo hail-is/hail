@@ -977,7 +977,7 @@ class PartitionedVCFRDD(
 case class MatrixVCFReader(
   files: Seq[String],
   callFields: Set[String],
-  entryFloatType: Option[String],
+  entryFloatType: String,
   headerFile: Option[String],
   minPartitions: Option[Int],
   rg: Option[String],
@@ -1155,7 +1155,7 @@ object ImportVCFs {
     val reader = VCFsReader(
       files.asScala.toArray,
       callFields.asScala.toSet,
-      Option(entryFloatType),
+      entryFloatType,
       Option(rg),
       Option(contigRecoding).map(_.asScala.toMap).getOrElse(Map.empty[String, String]),
       arrayElementsRequired,
@@ -1178,7 +1178,7 @@ case class VCFInfo(
 case class VCFsReader(
   files: Array[String],
   callFields: Set[String],
-  entryFloatType: Option[String],
+  entryFloatType: String,
   rg: Option[String],
   contigRecoding: Map[String, String],
   arrayElementsRequired: Boolean,

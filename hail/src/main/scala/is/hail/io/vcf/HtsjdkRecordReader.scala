@@ -19,17 +19,19 @@ class BufferedLineIterator(bit: BufferedIterator[String]) extends htsjdk.tribble
   }
 }
 
-class HtsjdkRecordReader(val callFields: Set[String], val entryFloatTypeName: Option[String]) extends Serializable {
+class HtsjdkRecordReader(
+    val callFields: Set[String],
+    val entryFloatTypeName: String = TFloat64()._toPretty) extends Serializable {
 
   import HtsjdkRecordReader._
 
-  val entryFloatType: TNumeric = entryFloatTypeName match {
-    case Some(name) => IRParser.parseType(name) match {
-      case t32: TFloat32 => t32
-      case t64: TFloat64 => t64
-      case _ => fatal(s"""invalid floating point type: expected Float32 or Float64, got ${name}""")
-    }
-    case _ => TFloat64()
+  val entryFloatType: TNumeric = IRParser.parseType(entryFloatTypeName) match {
+    case t32: TFloat32 => t32
+    case t64: TFloat64 => t64
+    case _ => fatal(
+        s"""invalid floating point type:
+           |  expected ${TFloat32()._toPretty} or ${TFloat64()._toPretty}, got ${entryFloatTypeName}"""
+    )
   }
 
   def readVariantInfo(

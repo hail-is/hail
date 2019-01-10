@@ -1743,11 +1743,11 @@ def get_vcf_metadata(path):
            min_partitions=nullable(int),
            drop_samples=bool,
            call_fields=oneof(str, sequenceof(str)),
-           entry_float_type=enumeration(tfloat32, tfloat64),
            reference_genome=nullable(reference_genome_type),
            contig_recoding=nullable(dictof(str, str)),
            array_elements_required=bool,
            skip_invalid_loci=bool,
+           entry_float_type=enumeration(tfloat32, tfloat64),
            # json
            _partitions=nullable(str))
 def import_vcf(path,
@@ -1757,11 +1757,11 @@ def import_vcf(path,
                min_partitions=None,
                drop_samples=False,
                call_fields=['PGT'],
-               entry_float_type=tfloat64,
                reference_genome='default',
                contig_recoding=None,
                array_elements_required=True,
                skip_invalid_loci=False,
+               entry_float_type=tfloat64,
                _partitions=None) -> MatrixTable:
     """Import VCF file(s) as a :class:`.MatrixTable`.
 
@@ -1863,10 +1863,6 @@ def import_vcf(path,
     call_fields : :obj:`list` of :obj:`str`
         List of FORMAT fields to load as :py:data:`.tcall`. "GT" is
         loaded as a call automatically.
-    entry_float_type: :class:`.HailType`, optional
-        Type of floating point entries in matrix table. Must be one of:
-        :py:data:`.tfloat32` or :py:data:`.tfloat64`. Default:
-        :py:data:`.tfloat64`.
     reference_genome: :obj:`str` or :class:`.ReferenceGenome`, optional
         Reference genome to use.
     contig_recoding: :obj:`dict` of (:obj:`str`, :obj:`str`)
@@ -1882,6 +1878,10 @@ def import_vcf(path,
         element.
     skip_invalid_loci : :obj:`bool`
         If ``True``, skip loci that are not consistent with `reference_genome`.
+    entry_float_type: :class:`.HailType`
+        Type of floating point entries in matrix table. Must be one of:
+        :py:data:`.tfloat32` or :py:data:`.tfloat64`. Default:
+        :py:data:`.tfloat64`.
 
     Returns
     -------

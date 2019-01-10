@@ -414,7 +414,6 @@ class PLINKTests(unittest.TestCase):
                             resource('skip_invalid_loci.fam'))
              ._force_count_rows())
 
-    @unittest.skipIf(not shutil.which('plink'), 'plink not available')
     def test_export_plink(self):
         vcf_file = resource('sample.vcf')
         mt = hl.split_multi_hts(hl.import_vcf(vcf_file, min_partitions=10))
