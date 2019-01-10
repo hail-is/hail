@@ -1,4 +1,5 @@
 from .ldscore import ld_score
+from .ld_score_regression import ld_score_regression
 from .filtering_allele_frequency import filtering_allele_frequency
 from .haplotype_freq_em import haplotype_freq_em
 from .plots import hail_metadata, plot_roc_curve
@@ -8,6 +9,7 @@ from .import_gtf import import_gtf
 from .write_multiple import write_matrix_tables
 
 __all__ = ['ld_score',
+           'ld_score_regression',
            'filtering_allele_frequency',
            'hail_metadata',
            'phase_trio_matrix_by_transmission',
