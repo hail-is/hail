@@ -85,15 +85,15 @@ object LiftLiterals {
   def rewriteIR(ir: IR, newGlobalType: Type, literals: Map[String, IR]): IR = {
     val revMap = literals.map { case (id, literal) => (literal, id) }
 
-    def rewrite(ir: IR): IR = {
+    def rewrite(ir: IR, binds: Boolean): IR = {
       ir match {
-        case Ref("global", t) => SelectFields(Ref("global", newGlobalType), t.asInstanceOf[TStruct].fieldNames)
+        case Ref("global", t) if !binds => SelectFields(Ref("global", newGlobalType), t.asInstanceOf[TStruct].fieldNames)
         case _ => revMap.get(ir)
           .map(f => GetField(Ref("global", newGlobalType), f))
-          .getOrElse(MapIR(rewrite)(ir))
+          .getOrElse(MapIR(rewrite(_, binds || Binds(ir, "global", 1)))(ir))
       }
     }
-    rewrite(ir)
+    rewrite(ir, binds = false)
   }
 
   def apply(ir: BaseIR): BaseIR = {
