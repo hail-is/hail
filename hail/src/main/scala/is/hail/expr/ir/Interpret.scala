@@ -611,6 +611,8 @@ object Interpret {
               }
               struct
           }
+        else
+          null
       case GetField(o, name) =>
         val oValue = interpret(o, env, args, agg)
         if (oValue == null)
