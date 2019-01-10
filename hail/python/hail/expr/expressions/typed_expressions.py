@@ -1334,6 +1334,20 @@ class StructExpression(Mapping[str, Expression], Expression):
     def __nonzero__(self):
         return Expression.__nonzero__(self)
 
+    def _annotate_ordered(self, insertions_dict, field_order):
+        def get_type(field):
+            e = insertions_dict.get(field)
+            if e is None:
+                e = self._fields[field]
+            return e.dtype
+
+        new_type = hl.tstruct(**{f: get_type(f) for f in field_order})
+        indices, aggregations = unify_all(self, *insertions_dict.values())
+        return construct_expr(InsertFields(self._ir, [(field, expr._ir) for field, expr in insertions_dict.items()], field_order),
+                              new_type,
+                              indices,
+                              aggregations)
+
     @typecheck_method(named_exprs=expr_any)
     def annotate(self, **named_exprs):
         """Add new fields or recompute existing fields.
