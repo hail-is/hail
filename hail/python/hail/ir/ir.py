@@ -1202,6 +1202,8 @@ class InsertFields(IR):
         for f, x in self.fields:
             x._compute_type(env, agg_env)
         self._type = self.old.typ._insert_fields(**{f: x.typ for f, x in self.fields})
+        if self.field_order:
+            self._type = tstruct(**{f: self._type[f] for f in self.field_order})
 
 
 class GetField(IR):
