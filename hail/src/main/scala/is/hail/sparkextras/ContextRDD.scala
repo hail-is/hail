@@ -198,9 +198,23 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
       using(mkc()) { c =>
         serialize(it.flatMap(_(c)).aggregate(zeroValue)(seqOp(c, _, _), combOp)) } }
     var result = zero
-    val localCombiner = { (_: Int, v: V) =>
-      result = combOp(result, deserialize(v)) }
+    val n = rdd.getNumPartitions
+    val present = new BitVector(n)
+    val values = new Array[U](n)
+    var k = 0
+    val localCombiner = { (i: Int, v: V) =>
+      values(i) = deserialize(v)
+      present.set(i)
+      if (k == i) {
+        while (k < n && present(k)) {
+          result = combOp(result, values(k))
+          values(k) = uninitialized[U]
+          k += 1
+        }
+      }
+    }
     sparkContext.runJob(rdd, aggregatePartition, localCombiner)
+    assert(k == n)
     result
   }
 

@@ -61,17 +61,15 @@ object Table {
   def read(hc: HailContext, path: String): Table =
     new Table(hc, TableIR.read(hc, path, dropRows = false, None))
 
-  def importFam(hc: HailContext, path: String, isQuantPheno: Boolean = false,
+  def importFamJSON(path: String, isQuantPheno: Boolean = false,
     delimiter: String = "\\t",
-    missingValue: String = "NA"): Table = {
-
+    missingValue: String = "NA"): String = {
     val ffConfig = FamFileConfig(isQuantPheno, delimiter, missingValue)
-
-    val (data, typ) = LoadPlink.parseFam(path, ffConfig, hc.hadoopConf)
-
-    val rdd = hc.sc.parallelize(data)
-
-    Table(hc, rdd, typ, IndexedSeq("id"))
+    val (data, typ) = LoadPlink.parseFam(path, ffConfig, HailContext.get.hadoopConf)
+    val jv = JSONAnnotationImpex.exportAnnotation(
+      Row(typ.toString, data),
+      TStruct("type" -> TString(), "data" -> TArray(typ)))
+    JsonMethods.compact(jv)
   }
 
   def apply(

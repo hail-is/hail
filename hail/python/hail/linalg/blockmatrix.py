@@ -669,7 +669,7 @@ class BlockMatrix(object):
         if (not (mean_impute or center or normalize)) and (entry_expr in mt._fields_inverse):
             #  FIXME: remove once select_entries on a field is free
             field = mt._fields_inverse[entry_expr]
-            mt._jmt.writeBlockMatrix(path, overwrite, field, block_size)
+            mt._write_block_matrix(path, overwrite, field, block_size)
         else:
             n_cols = mt.count_cols()
             mt = mt.select_entries(__x=entry_expr)
@@ -702,7 +702,7 @@ class BlockMatrix(object):
                         expr = hl.or_else(expr, mt['__mean'])
 
             field = Env.get_uid()
-            mt.select_entries(**{field: expr}).select_cols()._jmt.writeBlockMatrix(path, overwrite, field, block_size)
+            mt.select_entries(**{field: expr})._write_block_matrix(path, overwrite, field, block_size)
 
     @staticmethod
     def _check_indices(indices, size):
@@ -832,7 +832,7 @@ class BlockMatrix(object):
                       radius=int,
                       include_diagonal=bool)
     def _filtered_entries_table(self, table, radius, include_diagonal):
-        return Table._from_java(self._jbm.filteredEntriesTable(table._jt, radius, include_diagonal))
+        return Table._from_java(self._jbm.filteredEntriesTable(table._jt, radius, include_diagonal), '_filtered_entries_table')
 
     @typecheck_method(lower=int, upper=int, blocks_only=bool)
     def sparsify_band(self, lower=0, upper=0, blocks_only=False):
@@ -1581,7 +1581,7 @@ class BlockMatrix(object):
         :class:`.Table`
             Table with a row for each entry.
         """
-        return Table._from_java(self._jbm.entriesTable(Env.hc()._jhc))
+        return Table._from_java(self._jbm.entriesTable(Env.hc()._jhc), 'BlockMatrix.entries')
 
     @staticmethod
     @typecheck(path_in=str,

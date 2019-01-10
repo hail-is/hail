@@ -199,6 +199,7 @@ class VCFTests(unittest.TestCase):
         metadata_imported = hl.get_vcf_metadata('/tmp/sample.vcf')
         self.assertDictEqual(vcf_metadata, metadata_imported)
 
+    @skip_unless_spark_backend()
     def test_import_vcfs(self):
         path = resource('sample.vcf.bgz')
         parts = [
@@ -235,6 +236,7 @@ class VCFTests(unittest.TestCase):
         self.assertEqual(hl.filter_intervals(vcf2, interval_b).n_partitions(), 2)
         self.assertEqual(hl.filter_intervals(vcf2, interval_c).n_partitions(), 3)
 
+    @skip_unless_spark_backend()
     def test_import_vcfs_subset(self):
         path = resource('sample.vcf.bgz')
         parts = [
@@ -251,6 +253,7 @@ class VCFTests(unittest.TestCase):
         self.assertTrue(vcf2._same(filter1))
         self.assertEqual(len(parts), vcf2.n_partitions())
 
+    @skip_unless_spark_backend()
     def test_import_multiple_vcfs(self):
         _paths = ['gvcfs/HG00096.g.vcf.gz', 'gvcfs/HG00268.g.vcf.gz']
         paths = [resource(p) for p in _paths]
@@ -280,6 +283,7 @@ class VCFTests(unittest.TestCase):
         pos268 = set(filt268.locus.position.collect())
         self.assertFalse(pos096 & pos268)
 
+    @skip_unless_spark_backend()
     def test_combiner_works(self):
         from hail.experimental.vcf_combiner import transform_one, combine_gvcfs
         _paths = ['gvcfs/HG00096.g.vcf.gz', 'gvcfs/HG00268.g.vcf.gz']
@@ -611,7 +615,7 @@ class BGENTests(unittest.TestCase):
                               entry_fields=[],
                               sample_file=resource('example.sample'))
         self.assertEqual(bgen.entry.dtype, hl.tstruct())
-        bgen._jmt.typecheck()
+        bgen._force_count_rows()
 
     def test_import_bgen_no_reference(self):
         hl.index_bgen(resource('example.8bits.bgen'),

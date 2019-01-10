@@ -542,7 +542,8 @@ class MatrixTable(ExprContainer):
     """
 
     @staticmethod
-    def _from_java(jmt):
+    def _from_java(jmt, op):
+        Env.spark_backend(op) # verify on Spark backend
         return MatrixTable(JavaMatrix(jmt.ast()))
 
     @property
@@ -2740,7 +2741,7 @@ class MatrixTable(ExprContainer):
         int
             Number of partitions.
         """
-        return self._jmt.nPartitions()
+        return Env.backend().execute(MatrixToValueApply(self._mir, {'name': 'NPartitionsMatrixTable'}))
 
     @typecheck_method(n_partitions=int,
                       shuffle=bool)
@@ -2888,7 +2889,7 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
             Persisted dataset.
         """
-        return MatrixTable._from_java(self._jmt.persist(storage_level))
+        return Env.backend().persist_matrix_table(self, storage_level)
 
     def unpersist(self) -> 'MatrixTable':
         """
@@ -2904,7 +2905,7 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
             Unpersisted dataset.
         """
-        return MatrixTable._from_java(self._jmt.unpersist())
+        return Env.backend().unpersist_matrix_table(self)
 
     @typecheck_method(name=str)
     def add_row_index(self, name: str = 'row_idx') -> 'MatrixTable':
@@ -2966,7 +2967,10 @@ class MatrixTable(ExprContainer):
                       tolerance=numeric,
                       absolute=bool)
     def _same(self, other, tolerance=1e-6, absolute=False):
-        return self._jmt.same(other._jmt, tolerance, absolute)
+        entries_name = Env.get_uid()
+        cols_name = Env.get_uid()
+        return self._localize_entries(entries_name, cols_name)._same(
+            other._localize_entries(entries_name, cols_name), tolerance, absolute)
 
     @typecheck_method(caller=str, s=expr_struct())
     def _select_entries(self, caller, s) -> 'MatrixTable':
@@ -3312,7 +3316,7 @@ class MatrixTable(ExprContainer):
             elif self[k]._indices == self._global_indices:
                 global_map[k] = v
 
-        return MatrixTable._from_java(self._jmt.renameFields(row_map, col_map, entry_map, global_map))
+        return MatrixTable(MatrixRename(self._mir, global_map, col_map, row_map, entry_map))
 
     def distinct_by_row(self):
         """Remove rows with a duplicate row key.
@@ -3445,5 +3449,17 @@ class MatrixTable(ExprContainer):
         t = t.drop(cols_uid)
 
         return t
+
+    def _write_block_matrix(self, path, overwrite, entry_field, block_size):
+        mt = self
+        mt = mt.select_entries(entry_field).select_cols().select_globals()
+        Env.backend().execute(MatrixToValueApply(
+            mt._mir,
+            {'name': 'MatrixWriteBlockMatrix',
+             'path': path,
+             'overwrite': overwrite,
+             'entryField': entry_field,
+             'blockSize': block_size}))
+
 
 matrix_table_type.set(MatrixTable)

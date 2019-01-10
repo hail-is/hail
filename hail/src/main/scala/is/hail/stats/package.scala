@@ -407,7 +407,7 @@ package object stats {
       colKey = Array("s"),
       colType = TStruct("s" -> TString()),
       rowKey = Array("locus", "alleles"),
-      rowType = TStruct("locus" -> TLocus(ReferenceGenome.defaultReference),
+      rowType = TStruct("locus" -> TLocus(ReferenceGenome.GRCh37),
         "alleles" -> TArray(TString())),
       entryType = Genotype.htsGenotypeType),
       Annotation.empty, sampleIds.map(Annotation(_)), rdd)
@@ -441,7 +441,7 @@ package object stats {
       colKey = Array("s"),
       colType = TStruct("s" -> TString()),
       rowKey = Array("locus", "alleles"),
-      rowType = TStruct("locus" -> TLocus(ReferenceGenome.defaultReference),
+      rowType = TStruct("locus" -> TLocus(ReferenceGenome.GRCh37),
         "alleles" -> TArray(TString())),
       entryType = TStruct(
         "GP" -> TArray(TFloat64()))),

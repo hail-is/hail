@@ -488,6 +488,7 @@ class Tests(unittest.TestCase):
         kt_small = kt.sample(0.01)
         self.assertTrue(kt_small.count() < kt.count())
 
+    @skip_unless_spark_backend()
     def test_from_spark_works(self):
         sql_context = Env.sql_context()
         df = sql_context.createDataFrame([pyspark.sql.Row(x=5, y='foo')])
@@ -497,6 +498,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(rows[0].x, 5)
         self.assertEqual(rows[0].y, 'foo')
 
+    @skip_unless_spark_backend()
     def test_from_pandas_works(self):
         d = {'a': [1, 2], 'b': ['foo', 'bar']}
         df = pd.DataFrame(data=d)
@@ -836,6 +838,35 @@ class Tests(unittest.TestCase):
         ht = hl.utils.range_table(10)
         ht = ht.annotate(y = ht.idx + ht.aggregate(hl.agg.max(ht.idx), _localize=False))
         assert ht.y.collect() == [x + 9 for x in range(10)]
+
+    def test_same_different_type(self):
+        t1 = hl.utils.range_table(1)
+
+        t2 = t1.annotate_globals(x = 7)
+        assert not t1._same(t2)
+        
+        t3 = t1.annotate(x = 7)
+        assert not t1._same(t3)
+
+        t4 = t1.key_by()
+        assert not t1._same(t4)
+
+    def test_same_different_global(self):
+        t1 = (hl.utils.range_table(1)
+              .annotate_globals(x = 7))
+        t2 = t1.annotate_globals(x = 8)
+        assert not t1._same(t2)
+
+    def test_same_different_rows(self):
+        t1 = (hl.utils.range_table(2)
+              .annotate(x = 7))
+        
+        t2 = t1.annotate(x = 8)
+        assert not t1._same(t2)
+
+        t3 = t1.filter(t1.idx == 0)
+        assert not t1._same(t3)
+        
 
 def test_large_number_of_fields(tmpdir):
     ht = hl.utils.range_table(100)

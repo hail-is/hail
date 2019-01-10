@@ -5,7 +5,7 @@ import java.util.Properties
 
 import is.hail.annotations._
 import is.hail.expr.Parser
-import is.hail.expr.ir.{IRParser, MatrixRead}
+import is.hail.expr.ir.{IRParser, MatrixRead, TextTableReader}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual._
@@ -47,6 +47,10 @@ object HailContext {
   def get: HailContext = contextLock.synchronized {
     theContext
   }
+
+  def sc: SparkContext = get.sc
+
+  def hadoopConf: hadoop.conf.Configuration = get.hadoopConf
 
   def checkSparkCompatibility(jarVersion: String, sparkVersion: String): Unit = {
     def majorMinor(version: String): String = version.split("\\.", 3).take(2).mkString(".")
@@ -336,6 +340,25 @@ object HailContext {
         dec.close()
       }
     }
+
+  private[this] val codecsKey = "io.compression.codecs"
+  private[this] val hadoopGzipCodec = "org.apache.hadoop.io.compress.GzipCodec"
+  private[this] val hailGzipAsBGZipCodec = "is.hail.io.compress.BGzipCodecGZ"
+
+  def maybeGZipAsBGZip[T](force: Boolean)(body: => T): T = {
+    val hadoopConf = HailContext.get.hadoopConf
+    if (!force)
+      body
+    else {
+      val defaultCodecs = hadoopConf.get(codecsKey)
+      hadoopConf.set(codecsKey, defaultCodecs.replaceAllLiterally(hadoopGzipCodec, hailGzipAsBGZipCodec))
+      try {
+        body
+      } finally {
+        hadoopConf.set(codecsKey, defaultCodecs)
+      }
+    }
+  }
 }
 
 class HailContext private(val sc: SparkContext,
@@ -376,6 +399,14 @@ class HailContext private(val sc: SparkContext,
     indexBgen(FastSeq(file), indexFileMap, rg, contigRecoding, skipInvalidLoci)
   }
 
+  def indexBgen(files: java.util.ArrayList[String],
+    indexFileMap: java.util.HashMap[String, String],
+    rg: Option[String],
+    contigRecoding: java.util.HashMap[String, String],
+    skipInvalidLoci: Boolean) {
+    indexBgen(files.asScala, indexFileMap.asScala.toMap, rg, contigRecoding.asScala.toMap, skipInvalidLoci)
+  }
+
   def indexBgen(files: Seq[String],
     indexFileMap: Map[String, String] = null,
     rg: Option[String] = None,
@@ -383,83 +414,6 @@ class HailContext private(val sc: SparkContext,
     skipInvalidLoci: Boolean = false) {
     IndexBgen(this, files.toArray, indexFileMap, rg, contigRecoding, skipInvalidLoci)
     info(s"Number of BGEN files indexed: ${ files.length }")
-  }
-
-  def importGen(file: String,
-    sampleFile: String,
-    chromosome: Option[String] = None,
-    nPartitions: Option[Int] = None,
-    tolerance: Double = 0.2,
-    rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
-    contigRecoding: Option[Map[String, String]] = None,
-    skipInvalidLoci: Boolean = false): MatrixTable = {
-    importGens(List(file), sampleFile, chromosome, nPartitions, tolerance, rg, contigRecoding, skipInvalidLoci)
-  }
-
-  def importGens(files: Seq[String],
-    sampleFile: String,
-    chromosome: Option[String] = None,
-    nPartitions: Option[Int] = None,
-    tolerance: Double = 0.2,
-    rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
-    contigRecoding: Option[Map[String, String]] = None,
-    skipInvalidLoci: Boolean = false): MatrixTable = {
-    val inputs = hadoopConf.globAll(files)
-
-    inputs.foreach { input =>
-      if (!hadoopConf.stripCodec(input).endsWith(".gen"))
-        fatal(s"gen inputs must end in .gen[.bgz], found $input")
-    }
-
-    if (inputs.isEmpty)
-      fatal(s"arguments refer to no files: ${ files.mkString(",") }")
-
-    rg.foreach(ref => contigRecoding.foreach(ref.validateContigRemap))
-
-    val samples = LoadBgen.readSampleFile(sc.hadoopConfiguration, sampleFile)
-    val nSamples = samples.length
-
-    //FIXME: can't specify multiple chromosomes
-    val results = inputs.map(f => LoadGen(f, sampleFile, sc, rg, nPartitions,
-      tolerance, chromosome, contigRecoding.getOrElse(Map.empty[String, String]), skipInvalidLoci))
-
-    val unequalSamples = results.filter(_.nSamples != nSamples).map(x => (x.file, x.nSamples))
-    if (unequalSamples.length > 0)
-      fatal(
-        s"""The following GEN files did not contain the expected number of samples $nSamples:
-           |  ${ unequalSamples.map(x => s"""(${ x._2 } ${ x._1 }""").mkString("\n  ") }""".stripMargin)
-
-    val noVariants = results.filter(_.nVariants == 0).map(_.file)
-    if (noVariants.length > 0)
-      fatal(
-        s"""The following GEN files did not contain at least 1 variant:
-           |  ${ noVariants.mkString("\n  ") })""".stripMargin)
-
-    val nVariants = results.map(_.nVariants).sum
-
-    info(s"Number of GEN files parsed: ${ results.length }")
-    info(s"Number of variants in all GEN files: $nVariants")
-    info(s"Number of samples in GEN files: $nSamples")
-
-    val signature = TStruct(
-      "locus" -> TLocus.schemaFromRG(rg),
-      "alleles" -> TArray(TString()),
-      "rsid" -> TString(), "varid" -> TString())
-
-    val rdd = sc.union(results.map(_.rdd))
-
-    MatrixTable.fromLegacy(this,
-      MatrixType.fromParts(
-        globalType = TStruct.empty(),
-        colKey = Array("s"),
-        colType = TStruct("s" -> TString()),
-        rowKey = Array("locus", "alleles"),
-        rowType = signature,
-        entryType = TStruct("GT" -> TCall(),
-          "GP" -> TArray(TFloat64()))),
-      Annotation.empty,
-      samples.map(Annotation(_)),
-      rdd)
   }
 
   def importTable(inputs: java.util.ArrayList[String],
@@ -512,7 +466,7 @@ class HailContext private(val sc: SparkContext,
     if (files.isEmpty)
       fatal(s"Arguments referred to no files: '${ inputs.mkString(",") }'")
 
-    maybeGZipAsBGZip(forceBGZ) {
+    HailContext.maybeGZipAsBGZip(forceBGZ) {
       TextTableReader.read(this)(files, types, comment, separator, missing,
         noHeader, impute, nPartitions.getOrElse(sc.defaultMinPartitions), quote,
         skipBlankLines).keyBy(keyNames)
@@ -577,24 +531,6 @@ class HailContext private(val sc: SparkContext,
     LoadVCF.parseHeaderMetadata(this, reader, file)
   }
 
-  private[this] val codecsKey = "io.compression.codecs"
-  private[this] val hadoopGzipCodec = "org.apache.hadoop.io.compress.GzipCodec"
-  private[this] val hailGzipAsBGZipCodec = "is.hail.io.compress.BGzipCodecGZ"
-
-  def maybeGZipAsBGZip[T](force: Boolean)(body: => T): T = {
-    if (!force)
-      body
-    else {
-      val defaultCodecs = hadoopConf.get(codecsKey)
-      hadoopConf.set(codecsKey, defaultCodecs.replaceAllLiterally(hadoopGzipCodec, hailGzipAsBGZipCodec))
-      try {
-        body
-      } finally {
-        hadoopConf.set(codecsKey, defaultCodecs)
-      }
-    }
-  }
-
   def importMatrix(files: java.util.ArrayList[String],
     rowFields: java.util.HashMap[String, String],
     keyNames: java.util.ArrayList[String],
@@ -620,7 +556,7 @@ class HailContext private(val sc: SparkContext,
 
     val inputs = hadoopConf.globAll(files)
 
-    maybeGZipAsBGZip(forceBGZ) {
+    HailContext.maybeGZipAsBGZip(forceBGZ) {
       LoadMatrix(this, inputs, rowFields, keyNames, cellType = TStruct("x" -> cellType), missingVal, nPartitions, noHeader, sep(0))
     }
   }

@@ -271,12 +271,6 @@ class _tint32(HailType):
     def _convert_to_py(self, annotation):
         return annotation
 
-    def _convert_to_j(self, annotation):
-        if annotation is not None:
-            return Env.jutils().makeInt(annotation)
-        else:
-            return None
-
     def _typecheck_one_level(self, annotation):
         if annotation is not None:
             if not isinstance(annotation, int):
@@ -326,9 +320,6 @@ class _tint64(HailType):
     def _convert_to_py(self, annotation):
         return annotation
 
-    def _convert_to_j(self, annotation):
-        raise NotImplementedError('int64 conversion from Python to JVM')
-
     def _typecheck_one_level(self, annotation):
         if annotation is not None:
             if not isinstance(annotation, int):
@@ -376,15 +367,6 @@ class _tfloat32(HailType):
     def _convert_to_py(self, annotation):
         return annotation
 
-    def _convert_to_j(self, annotation):
-        # if annotation:
-        #     return Env.jutils().makeFloat(annotation)
-        # else:
-        #     return annotation
-
-        # FIXME: This function is unsupported until py4j-0.10.4: https://github.com/bartdag/py4j/issues/255
-        raise NotImplementedError('float32 is currently unsupported in certain operations, use float64 instead')
-
     def _typecheck_one_level(self, annotation):
         if annotation is not None and not isinstance(annotation, (float, int)):
             raise TypeError("type 'float32' expected Python 'float', but found type '%s'" % type(annotation))
@@ -429,12 +411,6 @@ class _tfloat64(HailType):
     def _convert_to_py(self, annotation):
         return annotation
 
-    def _convert_to_j(self, annotation):
-        if annotation is not None:
-            return Env.jutils().makeDouble(annotation)
-        else:
-            return None
-
     def _typecheck_one_level(self, annotation):
         if annotation is not None and not isinstance(annotation, (float, int)):
             raise TypeError("type 'float64' expected Python 'float', but found type '%s'" % type(annotation))
@@ -478,9 +454,6 @@ class _tstr(HailType):
     def _convert_to_py(self, annotation):
         return annotation
 
-    def _convert_to_j(self, annotation):
-        return annotation
-
     def _typecheck_one_level(self, annotation):
         if annotation and not isinstance(annotation, str):
             raise TypeError("type 'str' expected Python 'str', but found type '%s'" % type(annotation))
@@ -514,9 +487,6 @@ class _tbool(HailType):
         super(_tbool, self).__init__()
 
     def _convert_to_py(self, annotation):
-        return annotation
-
-    def _convert_to_j(self, annotation):
         return annotation
 
     def _typecheck_one_level(self, annotation):
@@ -582,9 +552,6 @@ class tndarray(HailType):
         return self._element_type
 
     def _convert_to_py(self, annotation):
-        raise NotImplementedError
-
-    def _convert_to_j(self, annotation):
         raise NotImplementedError
 
     def _traverse(self, obj, f):
@@ -657,14 +624,6 @@ class tarray(HailType):
         if annotation is not None:
             lst = Env.jutils().iterableToArrayList(annotation)
             return [self.element_type._convert_to_py(x) for x in lst]
-        else:
-            return None
-
-    def _convert_to_j(self, annotation):
-        if annotation is not None:
-            return Env.jutils().arrayListToISeq(
-                [self.element_type._convert_to_j(elt) for elt in annotation]
-            )
         else:
             return None
 
@@ -752,14 +711,6 @@ class tset(HailType):
         if annotation is not None:
             lst = Env.jutils().iterableToArrayList(annotation)
             return set([self.element_type._convert_to_py(x) for x in lst])
-        else:
-            return None
-
-    def _convert_to_j(self, annotation):
-        if annotation is not None:
-            return jset(
-                [self.element_type._convert_to_j(elt) for elt in annotation]
-            )
         else:
             return None
 
@@ -870,14 +821,6 @@ class tdict(HailType):
         else:
             return None
 
-    def _convert_to_j(self, annotation):
-        if annotation is not None:
-            return Env.jutils().javaMapToMap(
-                {self.key_type._convert_to_j(k): self.value_type._convert_to_j(v) for k, v in annotation.items()}
-            )
-        else:
-            return None
-
     def _traverse(self, obj, f):
         if f(self, obj):
             for k, v in obj.items():
@@ -968,14 +911,6 @@ class tstruct(HailType, Mapping):
             for i, (f, t) in enumerate(self.items()):
                 d[f] = t._convert_to_py(annotation.get(i))
             return Struct(**d)
-        else:
-            return None
-
-    def _convert_to_j(self, annotation):
-        if annotation is not None:
-            return scala_object(Env.hail().annotations, 'Annotation').fromSeq(
-                Env.jutils().arrayListToISeq(
-                    [t._convert_to_j(annotation.get(f)) for f, t in self.items()]))
         else:
             return None
 
@@ -1143,14 +1078,6 @@ class ttuple(HailType):
         else:
             return None
 
-    def _convert_to_j(self, annotation):
-        if annotation is not None:
-            return Env.jutils().arrayListToISeq(
-                [self.types[i]._convert_to_j(elt) for i, elt in enumerate(annotation)]
-            )
-        else:
-            return None
-
     def _traverse(self, obj, f):
         if f(self, obj):
             for t, elt in zip(self.types, obj):
@@ -1228,13 +1155,6 @@ class _tcall(HailType):
         else:
             return None
 
-    @typecheck_method(annotation=nullable(genetics.Call))
-    def _convert_to_j(self, annotation):
-        if annotation is not None:
-            return annotation._call
-        else:
-            return None
-
     def _typecheck_one_level(self, annotation):
         if annotation is not None and not isinstance(annotation, genetics.Call):
             raise TypeError("type 'call' expected Python hail.genetics.Call, but found %s'" %
@@ -1289,12 +1209,6 @@ class tlocus(HailType):
     def _convert_to_py(self, annotation):
         if annotation is not None:
             return genetics.Locus._from_java(annotation, self._rg)
-        else:
-            return None
-
-    def _convert_to_j(self, annotation):
-        if annotation is not None:
-            return annotation._jrep
         else:
             return None
 
@@ -1386,12 +1300,6 @@ class tinterval(HailType):
         else:
             return None
 
-    def _convert_to_j(self, annotation):
-        if annotation is not None:
-            return annotation._jrep
-        else:
-            return None
-
     def _traverse(self, obj, f):
         if f(self, obj):
             self.point_type._traverse(obj.start, f)
@@ -1402,9 +1310,6 @@ class tinterval(HailType):
             if not isinstance(annotation, Interval):
                 raise TypeError("type '{}' expected Python hail.utils.Interval, but found {}"
                                 .format(self, type(annotation)))
-            if annotation.point_type != self.point_type:
-                raise TypeError("type '{}' encountered Interval with point type {}"
-                                .format(self, repr(annotation.point_type)))
 
     def __str__(self):
         return "interval<{}>".format(str(self.point_type))

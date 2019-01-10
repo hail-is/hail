@@ -22,6 +22,7 @@ class Tests(unittest.TestCase):
         col_filter = col_lengths > 0
         return np.copy(a[:, np.squeeze(col_filter)] / col_lengths[col_filter])
 
+    @skip_unless_spark_backend()
     def test_linear_mixed_model_fastlmm(self):
         # FastLMM Test data is from all.bed, all.bim, all.fam, cov.txt, pheno_10_causals.txt:
         #   https://github.com/MicrosoftGenomics/FaST-LMM/tree/master/tests/datasets/synth
@@ -176,6 +177,7 @@ class Tests(unittest.TestCase):
         assert np.isclose(model.h_sq, h2_fastlmm)
         assert np.isclose(model.h_sq_standard_error, h2_std_error)
 
+    @skip_unless_spark_backend()
     def test_linear_mixed_model_math(self):
         gamma = 2.0  # testing at fixed value of gamma
         n, f, m = 4, 2, 3
@@ -314,6 +316,7 @@ class Tests(unittest.TestCase):
         assert model0._same(model)
         assert np.allclose(p0, p.to_numpy())
 
+    @skip_unless_spark_backend()
     def test_linear_mixed_regression_full_rank(self):
         x_table = hl.import_table(resource('fastlmmCov.txt'), no_header=True, impute=True).key_by('f1')
         y_table = hl.import_table(resource('fastlmmPheno.txt'), no_header=True, impute=True, delimiter=' ').key_by('f1')
@@ -343,6 +346,7 @@ class Tests(unittest.TestCase):
         assert np.allclose(ht.beta.collect(), beta_fastlmm)
         assert np.allclose(ht.p_value.collect(), pval_hail)
 
+    @skip_unless_spark_backend()
     def test_linear_mixed_regression_low_rank(self):
         x_table = hl.import_table(resource('fastlmmCov.txt'), no_header=True, impute=True).key_by('f1')
         y_table = hl.import_table(resource('fastlmmPheno.txt'), no_header=True, impute=True, delimiter=' ').key_by('f1')
@@ -372,6 +376,7 @@ class Tests(unittest.TestCase):
         assert np.allclose(ht.beta.collect(), beta_hail)
         assert np.allclose(ht.p_value.collect(), pval_hail)
 
+    @skip_unless_spark_backend()
     def test_linear_mixed_regression_pass_through(self):
         x_table = hl.import_table(resource('fastlmmCov.txt'), no_header=True, impute=True).key_by('f1')
         y_table = hl.import_table(resource('fastlmmPheno.txt'), no_header=True, impute=True, delimiter=' ').key_by('f1')

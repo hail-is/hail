@@ -246,6 +246,10 @@ object LoadBgen {
   def getFileHeaders(hConf: Configuration, files: Seq[String]): Array[BgenHeader] =
     files.map(LoadBgen.readState(hConf, _)).toArray
 
+  def getReferenceGenome(files: java.util.ArrayList[String], indexFileMap: java.util.HashMap[String, String]): Option[ReferenceGenome] = {
+    getReferenceGenome(HailContext.hadoopConf, files.asScala.toArray, indexFileMap.asScala.toMap)
+  }
+
   def getReferenceGenome(hConf: Configuration, files: Array[String], indexFileMap: Map[String, String]): Option[ReferenceGenome] = {
     val allFiles = getAllFilePaths(hConf, files)
     val indexFiles = getIndexFiles(hConf, allFiles, indexFileMap)
@@ -255,9 +259,6 @@ object LoadBgen {
     }
     getReferenceGenome(rgs)
   }
-
-  def getReferenceGenome(hConf: Configuration, files: java.util.ArrayList[String], indexFileMap: Map[String, String]): String =
-    getReferenceGenome(hConf, files.asScala.toArray, indexFileMap).map(_.name).orNull
 
   def getReferenceGenome(fileMetadata: Array[BgenFileMetadata]): Option[ReferenceGenome] =
     getReferenceGenome(fileMetadata.map(_.referenceGenome))

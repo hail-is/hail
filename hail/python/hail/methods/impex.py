@@ -740,10 +740,10 @@ def import_fam(path, quant_pheno=False, delimiter=r'\\s+', missing='NA') -> Tabl
     -------
     :class:`.Table`
     """
-
-    jkt = Env.hail().table.Table.importFam(Env.hc()._jhc, path,
-                                           quant_pheno, delimiter, missing)
-    return Table._from_java(jkt)
+    type_and_data = json.loads(Env.hail().table.Table.importFamJSON(path, quant_pheno, delimiter, missing))
+    typ = hl.dtype(type_and_data['type'])
+    return hl.Table.parallelize(
+        hl.tarray(typ)._convert_from_json_na(type_and_data['data']), typ, key=['id'])
 
 
 @typecheck(regex=str,
@@ -953,16 +953,15 @@ def import_bgen(path,
 
     if index_file_map is None:
         index_file_map = {}
-    java_index_file_map = tdict(tstr, tstr)._convert_to_j(index_file_map)
 
     entry_set = set(entry_fields)
     row_set = set(_row_fields)
 
-    # have to get reference genome from the index files!
-    reference_genome = Env.hail().io.bgen.LoadBgen.getReferenceGenome(Env.hc()._jhc.hadoopConf(), wrap_to_list(path), java_index_file_map)
-    lt = tlocus(reference_genome) if reference_genome else tstruct(contig=tstr, position=tint32)
-
     if variants is not None:
+        mt_type = Env.backend().matrix_type(
+            MatrixRead(MatrixBGENReader(path, sample_file, index_file_map, n_partitions, block_size, None)))
+        lt = mt_type.row_type['locus']
+
         expected_vtype = tstruct(locus=lt, alleles=tarray(tstr))
 
         if isinstance(variants, StructExpression) or isinstance(variants, LocusExpression):
@@ -1118,16 +1117,12 @@ def import_gen(path,
     -------
     :class:`.MatrixTable`
     """
-
-    rg = reference_genome._jrep if reference_genome else None
-
-    if contig_recoding:
-        contig_recoding = tdict(tstr, tstr)._convert_to_j(contig_recoding)
-
-    jmt = Env.hc()._jhc.importGens(jindexed_seq_args(path), sample_file, joption(chromosome), joption(min_partitions),
-                                   tolerance, joption(rg), joption(contig_recoding),
-                                   skip_invalid_loci)
-    return MatrixTable._from_java(jmt)
+    path = wrap_to_list(path)
+    rg = reference_genome.name if reference_genome else None
+    if contig_recoding is None:
+        contig_recoding = {}
+    return MatrixTable(MatrixRead(MatrixGENReader(
+        path, sample_file, chromosome, min_partitions, tolerance, rg, contig_recoding, skip_invalid_loci)))
 
 
 @typecheck(paths=oneof(str, sequenceof(str)),
@@ -1320,13 +1315,16 @@ def import_table(paths,
     :class:`.Table`
     """
     paths = wrap_to_list(paths)
-    jtypes = {k: v._parsable_string() for k, v in types.items()}
     comment = wrap_to_list(comment)
 
-    jt = Env.hc()._jhc.importTable(paths, key, min_partitions, jtypes, comment,
-                                   delimiter, missing, no_header, impute, quote,
-                                   skip_blank_lines, force_bgz)
-    return Table._from_java(jt)
+    tr = TextTableReader(paths, min_partitions, types, comment,
+                         delimiter, missing, no_header, impute, quote,
+                         skip_blank_lines, force_bgz)
+    t = Table(TableRead(tr))
+    if key:
+        key = wrap_to_list(key)
+        t = t.key_by(*key)
+    return t
 
 
 @typecheck(paths=oneof(str, sequenceof(str)),
@@ -1507,7 +1505,7 @@ def import_matrix_table(paths,
 
     jmt = Env.hc()._jhc.importMatrix(paths, jrow_fields, row_key, entry_type._parsable_string(), missing, joption(min_partitions),
                                      no_header, force_bgz, sep)
-    return MatrixTable._from_java(jmt)
+    return MatrixTable._from_java(jmt, 'import_matrix_table')
 
 
 @typecheck(bed=str,
@@ -1967,7 +1965,7 @@ def import_vcfs(path,
         force_bgz,
         force,
         partitions)
-    return [MatrixTable._from_java(jmt) for jmt in jmts]
+    return [MatrixTable._from_java(jmt, 'import_vcfs') for jmt in jmts]
 
 @typecheck(path=oneof(str, sequenceof(str)),
            index_file_map=nullable(dictof(str, str)),
@@ -2019,14 +2017,11 @@ def index_bgen(path,
 
     """
     rg = reference_genome.name if reference_genome else None
-
-    if contig_recoding:
-        contig_recoding = tdict(tstr, tstr)._convert_to_j(contig_recoding)
-
-    if index_file_map:
-        index_file_map = tdict(tstr, tstr)._convert_to_j(index_file_map)
-
-    Env.hc()._jhc.indexBgen(jindexed_seq_args(path), index_file_map, joption(rg), contig_recoding, skip_invalid_loci)
+    if index_file_map is None:
+        index_file_map = {}
+    if contig_recoding is None:
+        contig_recoding = {}
+    Env.hc()._jhc.indexBgen(wrap_to_list(path), index_file_map, joption(rg), contig_recoding, skip_invalid_loci)
 
 
 @typecheck(path=str)
@@ -2042,7 +2037,8 @@ def read_table(path) -> Table:
     -------
     :class:`.Table`
     """
-    return Table(TableRead(path, False, None))
+    tr = TableNativeReader(path)
+    return Table(TableRead(tr, False))
 
 @typecheck(t=Table,
            host=str,

@@ -5,13 +5,25 @@ import is.hail.annotations.{BroadcastRow, RegionValue, RegionValueBuilder, Unsaf
 import is.hail.expr.TableAnnotationImpex
 import is.hail.expr.types.TableType
 import is.hail.io.{CodecSpec, exportTypes}
-import is.hail.rvd.{AbstractRVDSpec, RVD}
-import is.hail.table.{AbstractTableSpec, TableSpec}
+import is.hail.rvd.{AbstractRVDSpec, RVD, RVDContext}
+import is.hail.sparkextras.ContextRDD
+import is.hail.table.{Table, TableSpec}
 import is.hail.utils._
 import is.hail.variant.{FileFormat, PartitionCountsComponentSpec, RVDComponentSpec, ReferenceGenome}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.json4s.jackson.JsonMethods
+
+object TableValue {
+  def apply(typ: TableType, globals: BroadcastRow, rdd: RDD[Row]): TableValue = {
+    Interpret(
+      TableKeyBy(TableLiteral(TableValue(typ.copy(key = FastIndexedSeq()), globals,
+        RVD.unkeyed(typ.rowType.physicalType,
+          ContextRDD.weaken[RVDContext](rdd)
+            .cmapPartitions((ctx, it) => it.toRegionValueIterator(ctx.region, typ.rowType.physicalType))))),
+        typ.key), optimize = true)
+  }
+}
 
 case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
   require(typ.rowType == rvd.rowType)
@@ -120,5 +132,11 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
         sb.result()
       }
     }.writeTable(path, hc.tmpDir, Some(fields.map(_.name).mkString("\t")).filter(_ => header), exportType = exportType)
+  }
+
+  def typeCheck(): Unit = {
+    assert(typ.globalType.typeCheck(globals.value))
+    val localRowType = typ.rowType
+    assert(rvd.toRows.forall(r => localRowType.typeCheck(r)))
   }
 }

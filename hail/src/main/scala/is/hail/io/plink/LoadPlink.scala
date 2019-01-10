@@ -286,9 +286,17 @@ case class MatrixPLINKReader(
         info(s"Filtered out $nFiltered ${ plural(nFiltered, "variant") } that are inconsistent with reference genome '${ referenceGenome.get.name }'.")
     }
 
+    val colValues: IndexedSeq[Row] =
+      if (mr.dropCols) 
+        Array.empty[Row] 
+      else {
+        val colFieldIndices = requestedType.colType.fieldNames.map(fullType.colType.fieldIdx)
+        sampleInfo.map(r => Row.fromSeq(colFieldIndices.map(r.get)))
+      }
+
     MatrixValue(requestedType,
       BroadcastRow(Row.empty, requestedType.globalType, sc),
-      BroadcastIndexedSeq(if (mr.dropCols) Array.empty[Annotation] else sampleInfo, TArray(requestedType.colType), sc),
+      BroadcastIndexedSeq(colValues, TArray(requestedType.colType), sc),
       rvd
     )
   }

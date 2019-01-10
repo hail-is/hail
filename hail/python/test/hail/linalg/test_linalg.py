@@ -675,6 +675,7 @@ class Tests(unittest.TestCase):
             BlockMatrix.export_rectangles(bm_uri, rect_uri, [[5, 6, 5, 6]])
             self.assertEquals(e.msg, 'block (1, 1) missing for rectangle 0 with bounds [5, 6, 5, 6]')
 
+    @skip_unless_spark_backend()
     def test_block_matrix_entries(self):
         n_rows, n_cols = 5, 3
         rows = [{'i': i, 'j': j, 'entry': float(i + j)} for i in range(n_rows) for j in range(n_cols)]

@@ -42,7 +42,12 @@ def impute_type(x):
     elif isinstance(x, Locus):
         return tlocus(x.reference_genome)
     elif isinstance(x, Interval):
-        return tinterval(x.point_type)
+        ts = {impute_type(x.start), impute_type(x.end)}
+        unified_type = unify_types_limited(*ts)
+        if not unified_type:
+            raise ExpressionException("Hail does not support heterogeneous intervals: "
+                                      "found interval start/end types {} ".format(ts))
+        return tinterval(unified_type)
     elif isinstance(x, Call):
         return tcall
     elif isinstance(x, Struct):
@@ -106,7 +111,7 @@ def to_expr(e, dtype=None) -> 'Expression':
 
 def _to_expr(e, dtype):
     if e is None:
-        return hl.null(dtype)
+        return None
     elif isinstance(e, Expression):
         if e.dtype != dtype:
             assert is_numeric(dtype), 'expected {}, got {}'.format(dtype, e.dtype)
@@ -140,7 +145,6 @@ def _to_expr(e, dtype):
             fields = {name: expr for name, expr in zip(dtype.keys(), exprs)}
             from .typed_expressions import StructExpression
             return StructExpression._from_fields(fields)
-
     elif isinstance(dtype, tarray):
         elements = []
         found_expr = False

@@ -331,6 +331,7 @@ object BlockMatrix {
 // must be top-level for Jackson to serialize correctly
 case class BlockMatrixMetadata(blockSize: Int, nRows: Long, nCols: Long, maybeFiltered: Option[Array[Int]], partFiles: Array[String])
 
+
 class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   val blockSize: Int,
   val nRows: Long,

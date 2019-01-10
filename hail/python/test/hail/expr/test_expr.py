@@ -2372,3 +2372,40 @@ class Tests(unittest.TestCase):
         assert hl.eval(hl.reversed(s)) == 'cba'
         assert hl.eval(hl.reversed(es)) == ''
         assert hl.eval(hl.reversed(ns)) is None
+
+    def test_values_similar_equal(self):
+        from hail.expr.functions import _values_similar
+        
+        l = create_all_values()
+        r = create_all_values()
+        assert hl.eval(_values_similar(l, r))
+
+    def test_values_similar_not_equal(self):
+        from hail.expr.functions import _values_similar
+        
+        assert not hl.eval(_values_similar(hl.int32(0), hl.int32(1)))
+        assert not hl.eval(_values_similar(hl.int32(0), hl.null(hl.tint32)))
+        
+        assert not hl.eval(_values_similar(hl.int64(0), hl.int64(1)))
+        assert not hl.eval(_values_similar(hl.float32(0), hl.float32(1)))
+        assert not hl.eval(_values_similar(hl.float64(0), hl.float64(1)))
+        
+        assert not hl.eval(_values_similar(hl.float64(1.0), hl.float64(1.0 + 1e-4)))
+        assert hl.eval(_values_similar(hl.float64(1.0), hl.float64(1.0 + 1e-8)))
+        
+        assert hl.eval(_values_similar(hl.float64(float('nan')),
+                                       hl.float64(float('nan'))))
+        
+        assert not hl.eval(_values_similar(hl.array([0, 1, 2]), hl.array([0, 1])))
+        assert not hl.eval(_values_similar(hl.array([0, 1, 2]), hl.array([0, 1, 1])))
+        
+        assert not hl.eval(_values_similar(hl.set([0, 1, 2]), hl.set([0, 1, 3])))
+
+        assert not hl.eval(_values_similar(hl.dict([('x', 0)]), hl.dict([('x', 1)])))
+        assert not hl.eval(_values_similar(hl.dict([('x', 0)]), hl.dict([('y', 0)])))
+        
+        assert not hl.eval(_values_similar(hl.struct(x=0), hl.struct(x=1)))
+        assert not hl.eval(_values_similar(hl.tuple([0]), hl.tuple([1])))
+        
+        assert not hl.eval(_values_similar(hl.interval(0, 1), hl.interval(0, 2)))
+        assert not hl.eval(_values_similar(hl.interval(0, 1), hl.interval(0, 1, includes_end=True)))

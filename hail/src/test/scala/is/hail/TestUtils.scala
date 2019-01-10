@@ -518,7 +518,7 @@ object TestUtils {
     nPartitions: Option[Int] = None,
     dropSamples: Boolean = false,
     callFields: Set[String] = Set.empty[String],
-    rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
+    rg: Option[ReferenceGenome] = Some(ReferenceGenome.GRCh37),
     contigRecoding: Option[Map[String, String]] = None,
     arrayElementsRequired: Boolean = true,
     skipInvalidLoci: Boolean = false,
@@ -596,7 +596,7 @@ object TestUtils {
     missing: String = "NA",
     quantPheno: Boolean = false,
     a2Reference: Boolean = true,
-    rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
+    rg: Option[ReferenceGenome] = Some(ReferenceGenome.GRCh37),
     contigRecoding: Option[Map[String, String]] = None,
     skipInvalidLoci: Boolean = false): MatrixTable = {
 

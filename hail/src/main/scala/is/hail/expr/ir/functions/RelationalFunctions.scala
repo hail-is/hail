@@ -54,8 +54,20 @@ object RelationalFunctions {
     classOf[TableFilterPartitions],
     classOf[MatrixFilterPartitions],
     classOf[ForceCountTable],
-    classOf[ForceCountMatrixTable]
-  ))
+    classOf[ForceCountMatrixTable],
+    classOf[NPartitionsTable],
+    classOf[NPartitionsMatrixTable],
+    classOf[LogisticRegression],
+    classOf[PoissonRegression],
+    classOf[Skat],
+    classOf[TableFilterIntervals],
+    classOf[MatrixFilterIntervals],
+    classOf[MatrixWriteBlockMatrix],
+    classOf[PCA],
+    classOf[LocalLDPrune]
+  )) +
+    new MatrixFilterItervalsSerializer +
+    new TableFilterItervalsSerializer
 
   def extractTo[T : Manifest](config: String): T = {
     Serialization.read[T](config)

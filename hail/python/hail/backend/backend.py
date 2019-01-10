@@ -6,6 +6,7 @@ from hail.expr.table_type import *
 from hail.expr.matrix_type import *
 from hail.ir.renderer import Renderer
 from hail.table import Table
+from hail.matrixtable import MatrixTable
 
 import requests
 
@@ -27,6 +28,53 @@ class Backend(object):
     @abc.abstractmethod
     def matrix_type(self, mir):
         return
+
+    def persist_table(self, ht, storage_level):
+        return ht
+
+    def unpersist_table(self, ht):
+        return ht
+
+    def persist_matrix_table(self, mt, storage_level):
+        return mt
+
+    def unpersist_matrix_table(self, mt, storage_level):
+        return mt
+
+    def is_spark_backend(self):
+        return False
+
+    @abc.abstractmethod
+    def add_reference(self, config):
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def from_fasta_file(self, name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par):
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def remove_reference(self, name):
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def get_reference(self, name):
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def add_sequence(self, name, fasta_file, index_file):
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def remove_sequence(self, name):
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def add_liftover(self, name, chain_file, dest_reference_genome):
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def remove_liftover(self, name, dest_reference_genome):
+        raise NotImplementedError
 
 
 class SparkBackend(Backend):
@@ -55,8 +103,20 @@ class SparkBackend(Backend):
         jir = self._to_java_ir(mir)
         return tmatrix._from_java(jir.typ())
 
+    def persist_table(self, ht, storage_level):
+        return Table._from_java(ht._jt.persist(storage_level), 'Table.persist')
+
+    def unpersist_table(self, ht):
+        return Table._from_java(ht._jt.unpersist(), 'Table.unpersist')
+
+    def persist_matrix_table(self, mt, storage_level):
+        return MatrixTable._from_java(mt._jmt.persist(storage_level), 'MatrixTable.persist')
+
+    def unpersist_matrix_table(self, mt, storage_level):
+        return MatrixTable._from_java(mt._jmt.unpersist(), 'MatrixTable.unpersist')
+
     def from_spark(self, df, key):
-        return Table._from_java(Env.hail().table.Table.fromDF(Env.hc()._jhc, df._jdf, key))
+        return Table._from_java(Env.hail().table.Table.fromDF(Env.hc()._jhc, df._jdf, key), 'Table.from_spark')
 
     def to_spark(self, t, flatten):
         t = t.expand_types()
@@ -69,6 +129,36 @@ class SparkBackend(Backend):
 
     def from_pandas(self, df, key):
         return Table.from_spark(Env.sql_context().createDataFrame(df), key)
+
+    def is_spark_backend(self):
+        return True
+
+    def add_reference(self, config):
+        Env.hail().variant.ReferenceGenome.fromJSON(json.dumps(config))
+
+    def from_fasta_file(self, name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par):
+        Env.hail().variant.ReferenceGenome.fromFASTAFile(
+            Env.hc()._jhc,
+            name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par)
+
+    def remove_reference(self, name):
+        Env.hail().variant.ReferenceGenome.removeReference(name)
+
+    def get_reference(self, name):
+        return json.loads(Env.hail().variant.ReferenceGenome.getReference(name).toJSONString())
+
+    def add_sequence(self, name, fasta_file, index_file):
+        Env.hail().variant.ReferenceGenome.addSequence(name, fasta_file, index_file)
+
+    def remove_sequence(self, name):
+        Env.hail().variant.ReferenceGenome.removeSequence(name)
+
+    def add_liftover(self, name, chain_file, dest_reference_genome):
+        Env.hail().variant.ReferenceGenome.referenceAddLiftover(name, chain_file, dest_reference_genome)
+
+    def remove_liftover(self, name, dest_reference_genome):
+        Env.hail().variant.ReferenceGenome.referenceRemoveLiftover(name, dest_reference_genome)
+
 
 class LocalBackend(Backend):
     def __init__(self):
@@ -100,6 +190,10 @@ class ServiceBackend(Backend):
     def execute(self, ir):
         code = self._render(ir)
         resp = requests.post(f'{self.url}/execute', json=code)
+        if resp.status_code == 400:
+            resp_json = resp.json()
+            raise FatalError(resp_json['message'])
+        
         resp.raise_for_status()
         
         resp_json = resp.json()
@@ -112,6 +206,10 @@ class ServiceBackend(Backend):
     def _request_type(self, ir, kind):
         code = self._render(ir)
         resp = requests.post(f'{self.url}/type/{kind}', json=code)
+        if resp.status_code == 400:
+            resp_json = resp.json()
+            raise FatalError(resp_json['message'])
+
         resp.raise_for_status()
         
         return resp.json()
@@ -127,3 +225,70 @@ class ServiceBackend(Backend):
     def matrix_type(self, mir):
         resp = self._request_type(mir, 'matrix')
         return tmatrix._from_json(resp)
+
+    def add_reference(self, config):
+        resp = requests.post(f'{self.url}/references/create', json=config)
+        if resp.status_code == 400:
+            resp_json = resp.json()
+            raise FatalError(resp_json['message'])
+        resp.raise_for_status()
+
+    def from_fasta_file(self, name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par):
+        resp = requests.post(f'{self.url}/references/create/fasta', json={
+            'name': name,
+            'fasta_file': fasta_file,
+            'index_file': index_file,
+            'x_contigs': x_contigs,
+            'y_contigs': y_contigs,
+            'mt_contigs': mt_contigs,
+            'par': par
+        })
+        if resp.status_code == 400:
+            resp_json = resp.json()
+            raise FatalError(resp_json['message'])
+        resp.raise_for_status()
+
+    def remove_reference(self, name):
+        resp = requests.delete(f'{self.url}/references/delete', json={'name': name})
+        if resp.status_code == 400:
+            resp_json = resp.json()
+            raise FatalError(resp_json['message'])
+        resp.raise_for_status()
+
+    def get_reference(self, name):
+        resp = requests.get(f'{self.url}/references/get', json={'name': name})
+        if resp.status_code == 400:
+            resp_json = resp.json()
+            raise FatalError(resp_json['message'])
+        resp.raise_for_status()
+        return resp.json()
+
+    def add_sequence(self, name, fasta_file, index_file):
+        resp = requests.post(f'{self.url}/references/sequence/set', json={'name': name, 'fasta_file': fasta_file, 'index_file': index_file})
+        if resp.status_code == 400:
+            resp_json = resp.json()
+            raise FatalError(resp_json['message'])
+        resp.raise_for_status()
+
+    def remove_sequence(self, name):
+        resp = requests.delete(f'{self.url}/references/sequence/delete', json={'name': name})
+        if resp.status_code == 400:
+            resp_json = resp.json()
+            raise FatalError(resp_json['message'])
+        resp.raise_for_status()
+
+    def add_liftover(self, name, chain_file, dest_reference_genome):
+        resp = requests.post(f'{self.url}/references/liftover/add',
+                             json={'name': name, 'chain_file': chain_file, 'dest_reference_genome': dest_reference_genome})
+        if resp.status_code == 400:
+            resp_json = resp.json()
+            raise FatalError(resp_json['message'])
+        resp.raise_for_status()
+
+    def remove_liftover(self, name, dest_reference_genome):
+        resp = requests.delete(f'{self.url}/references/liftover/remove',
+                               json={'name': name, 'dest_reference_genome': dest_reference_genome})
+        if resp.status_code == 400:
+            resp_json = resp.json()
+            raise FatalError(resp_json['message'])
+        resp.raise_for_status()

@@ -1,68 +1,39 @@
 package is.hail.methods
 
 import breeze.linalg.{*, DenseMatrix, DenseVector}
+import is.hail.HailContext
 import is.hail.annotations._
+import is.hail.expr.ir.{MatrixValue, TableValue}
+import is.hail.expr.ir.functions.MatrixToTableFunction
 import is.hail.expr.types._
-import is.hail.expr.types.virtual.{TArray, TFloat64, TStruct}
-import is.hail.rvd.RVDContext
+import is.hail.expr.types.virtual._
+import is.hail.rvd.{RVD, RVDContext, RVDType}
 import is.hail.sparkextras.ContextRDD
-import is.hail.table.Table
 import is.hail.utils._
-import is.hail.variant.MatrixTable
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
 import org.apache.spark.sql.Row
 
-object PCA {
-  def scoresTable(vsm: MatrixTable, scores: DenseMatrix[Double]): Table = {
-    assert(vsm.numCols == scores.rows)
-    val k = scores.cols
-    val hc = vsm.hc
-    val sc = hc.sc
-
-    val rowType = TStruct(vsm.colKey.zip(vsm.colKeyTypes): _*) ++ TStruct("scores" -> TArray(TFloat64()))
-    val rowTypeBc = sc.broadcast(rowType)
-
-    val scoresBc = sc.broadcast(scores)
-    val localSSignature = vsm.colKeyTypes
-
-    val scoresRDD = ContextRDD.weaken[RVDContext](sc.parallelize(vsm.colKeys.zipWithIndex)).cmapPartitions { (ctx, it) =>
-      val region = ctx.region
-      val rv = RegionValue(region)
-      val rvb = new RegionValueBuilder(region)
-      val localRowType = rowTypeBc.value
-
-      it.map { case (s, i) =>
-        rvb.start(localRowType.physicalType)
-        rvb.startStruct()
-        var j = 0
-        val keys = s.asInstanceOf[Row]
-        while (j < localSSignature.length) {
-          rvb.addAnnotation(localSSignature(j), keys.get(j))
-          j += 1
-        }
-        rvb.startArray(k)
-        j = 0
-        while (j < k) {
-          rvb.addDouble(scoresBc.value(i, j))
-          j += 1
-        }
-        rvb.endArray()
-        rvb.endStruct()
-        rv.setOffset(rvb.end())
-        rv
-      }
-    }
-    new Table(hc, scoresRDD, rowType, vsm.colKey)
+case class PCA(entryField: String, k: Int, computeLoadings: Boolean) extends MatrixToTableFunction {
+  def typeInfo(childType: MatrixType, childRVDType: RVDType): (TableType, RVDType) = {
+    val typ = TableType(
+      childType.rowKeyStruct ++ TStruct("loadings" -> TArray(TFloat64())),
+      childType.rowKey,
+      TStruct("eigenvalues" -> TArray(TFloat64()), "scores" -> TArray(TArray(TFloat64()))))
+    (typ, typ.canonicalRVDType)
   }
 
-  // returns (eigenvalues, sample scores, optional variant loadings)
-  def apply(vsm: MatrixTable, entryField: String, k: Int, computeLoadings: Boolean): (IndexedSeq[Double], DenseMatrix[Double], Option[Table]) = {
+  def preservesPartitionCounts: Boolean = false
+
+  def execute(mv: MatrixValue): TableValue = {
+    val hc = HailContext.get
+    val sc = hc.sc
+
     if (k < 1)
       fatal(s"""requested invalid number of components: $k
                |  Expect componenents >= 1""".stripMargin)
 
-    val rowMatrix = vsm.toRowMatrix(entryField)
+    val rowMatrix = mv.toRowMatrix(entryField)
     val indexedRows = rowMatrix.rows.map { case (i, a) => IndexedRow(i, Vectors.dense(a)) }
       .cache()
     val irm = new IndexedRowMatrix(indexedRows, rowMatrix.nRows, rowMatrix.nCols)
@@ -76,31 +47,27 @@ object PCA {
           s"but user requested ${ k } principal components.")
 
     def collectRowKeys(): Array[Annotation] = {
-      val fullRowType = vsm.rvRowType.physicalType
-      val localRKF = vsm.rowKeysF
-      val localKeyStruct = vsm.rowKeyStruct
-      
-      vsm.rvd.mapPartitions { it =>
-        val ur = new UnsafeRow(fullRowType)
-        it.map { rv =>
-          ur.set(rv)
-          Annotation.copy(localKeyStruct, localRKF(ur))
-        }
-      }.collect()
+      val fullRowType = mv.typ.rvRowType.physicalType
+      val rowKeyIdx = mv.typ.rowKeyFieldIdx
+      val localKeyStruct = mv.typ.rowKeyStruct
+
+      mv.rvd.toRows.map[Any] { r =>
+        Row.fromSeq(rowKeyIdx.map(r.get))
+      }
+        .collect()
     }
 
-    val optionLoadings = if (computeLoadings) {
-      val rowType = TStruct(vsm.rowKey.zip(vsm.rowKeyTypes): _*) ++ TStruct("loadings" -> TArray(TFloat64()))
-      val rowPTypeBc = vsm.sparkContext.broadcast(rowType.physicalType)
-      val rowKeysBc = vsm.sparkContext.broadcast(collectRowKeys())
-      val localRowKeySignature = vsm.rowKeyTypes
+    val rowType = TStruct(mv.typ.rowKey.zip(mv.typ.rowKeyStruct.types): _*) ++ TStruct("loadings" -> TArray(TFloat64()))
+    val rowKeysBc = sc.broadcast(collectRowKeys())
+    val localRowKeySignature = mv.typ.rowKeyStruct.types
 
-      val rdd = ContextRDD.weaken[RVDContext](svd.U.rows).cmapPartitions { (ctx, it) =>
+    val crdd: ContextRDD[RVDContext, RegionValue] = if (computeLoadings) {
+      ContextRDD.weaken[RVDContext](svd.U.rows).cmapPartitions { (ctx, it) =>
         val region = ctx.region
         val rv = RegionValue(region)
         val rvb = new RegionValueBuilder(region)
         it.map { ir =>
-          rvb.start(rowPTypeBc.value)
+          rvb.start(rowType.physicalType)
           rvb.startStruct()
 
           val rowKeys = rowKeysBc.value(ir.index.toInt).asInstanceOf[Row]
@@ -122,10 +89,12 @@ object PCA {
           rv
         }
       }
-      Some(new Table(vsm.hc, rdd, rowType, vsm.rowKey))
-    } else {
-      None
-    }
+    } else
+      ContextRDD.empty(sc)
+    val rvd = RVD.coerce(RVDType(rowType.physicalType, mv.typ.rowKey), crdd)
+
+    val (t1, f1) = mv.typ.globalType.insert(TArray(TFloat64()), "eigenvalues")
+    val (newGlobalType, f2) = t1.insert(TArray(TArray(TFloat64())), "scores")
 
     val data =
       if (!svd.V.isTransposed)
@@ -138,7 +107,15 @@ object PCA {
 
     val eigenvalues = svd.s.toArray.map(math.pow(_, 2))
     val scaledEigenvectors = V(*, ::) *:* S
-    
-    (eigenvalues, scaledEigenvectors, optionLoadings)
+
+    val scores = (0 until mv.nCols).iterator.map { i =>
+      (0 until k).iterator.map { j => scaledEigenvectors(i, j) }.toFastIndexedSeq
+    }.toFastIndexedSeq
+
+    val g1 = f1(mv.globals.value, eigenvalues.toFastIndexedSeq)
+    val newGlobal = f2(g1, scores)
+
+    new TableValue(TableType(rowType, mv.typ.rowKey, newGlobalType.asInstanceOf[TStruct]),
+      BroadcastRow(newGlobal.asInstanceOf[Row], newGlobalType.asInstanceOf[TStruct], sc), rvd)
   }
 }

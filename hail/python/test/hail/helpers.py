@@ -1,5 +1,7 @@
 import os
 from timeit import default_timer as timer
+import unittest
+from decorator import decorator
 
 import hail as hl
 
@@ -134,3 +136,13 @@ def create_all_values_matrix_table():
 
 def create_all_values_datasets():
     return (create_all_values_table(), create_all_values_matrix_table())
+
+def skip_unless_spark_backend():
+    @decorator
+    def wrapper(func, *args, **kwargs):
+        if hl.utils.java.Env.backend().is_spark_backend():
+            return func(*args, **kwargs)
+        else:
+            raise unittest.SkipTest('requires Spark')
+
+    return wrapper

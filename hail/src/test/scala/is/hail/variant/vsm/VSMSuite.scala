@@ -1,15 +1,9 @@
 package is.hail.variant.vsm
 
-import breeze.linalg.DenseMatrix
-import is.hail.annotations._
-import is.hail.check.Prop._
 import is.hail.check.Parameters
-import is.hail.expr.ir
-import is.hail.expr.ir.{Interpret, MatrixRepartition, RepartitionStrategy, TableRead, TableRepartition}
-import is.hail.linalg.BlockMatrix
+import is.hail.expr.ir.{Interpret, MatrixRepartition, RepartitionStrategy, TableRepartition}
 import is.hail.table.Table
 import is.hail.utils._
-import is.hail.testUtils._
 import is.hail.variant._
 import is.hail.{SparkSuite, TestUtils}
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics

@@ -72,6 +72,35 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
     }.extendKeyPreservesPartitioning(joinedType.key)
   }
 
+  // 'joinedType.key' must be the join key, followed by the remaining left key,
+  // followed by the (possibly renamed) remaining right key. 'joiner' must copy
+  // these 'joinedType.key' fields from the corresponding fields in the
+  // JoinedRegionValue.
+  def orderedZipJoin(
+    right: KeyedRVD,
+    joiner: (RVDContext, Iterator[JoinedRegionValue]) => Iterator[RegionValue],
+    joinedType: RVDType
+  ): RVD = {
+    checkJoinCompatability(right)
+
+    val ranges = this.rvd.partitioner.coarsenedRangeBounds(key) ++
+      right.rvd.partitioner.coarsenedRangeBounds(key)
+    val newPartitioner = RVDPartitioner.generate(virtType.key, kType, ranges)
+
+    val repartitionedLeft = this.rvd.repartition(newPartitioner)
+    val repartitionedRight = right.rvd.repartition(newPartitioner)
+
+    val leftType = this.virtType
+    val rightType = right.virtType
+    RVD(joinedType, newPartitioner,
+      repartitionedLeft.crddBoundary.czipPartitions(repartitionedRight.crddBoundary) { (ctx, leftIt, rightIt) =>
+        joiner(ctx,
+          OrderedRVIterator(leftType, leftIt, ctx)
+            .zipJoin(OrderedRVIterator(rightType, rightIt, ctx)))
+      })
+  }
+
+
   def orderedJoinDistinct(
     right: KeyedRVD,
     joinType: String,
