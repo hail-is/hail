@@ -23,7 +23,9 @@ class AggregableChecker(TypeChecker):
 
     def check(self, x, caller, param):
         x = self.coercer.check(x, caller, param)
-        assert(len(x._ir.search(lambda node: isinstance(node, BaseApplyAggOp))) != 0)
+        if len(x._ir.search(lambda node: isinstance(node, BaseApplyAggOp))) == 0:
+            raise ExpressionException(f"{caller} must be placed outside of an aggregation. See "
+                                      "https://discuss.hail.is/t/breaking-change-redesign-of-aggregator-interface/701")
         return x
 
 
