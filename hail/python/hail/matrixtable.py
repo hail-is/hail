@@ -134,13 +134,15 @@ class GroupedMatrixTable(ExprContainer):
         if self._col_keys is not None:
             raise NotImplementedError("GroupedMatrixTable is already grouped by cols; cannot also group by rows.")
 
-        row_key, computed_key = get_key_by_exprs('group_rows_by',
+        caller = 'group_rows_by'
+        row_key, computed_key = get_key_by_exprs(caller,
                                                  exprs,
                                                  named_exprs,
                                                  self._parent._row_indices,
                                                  override_protected_indices={self._parent._global_indices,
                                                                              self._parent._col_indices})
 
+        self._check_bindings(caller, computed_key, self._parent._row_indices)
         return self._copy(row_keys=row_key, computed_row_key=computed_key)
 
     @typecheck_method(exprs=oneof(str, Expression),
@@ -177,26 +179,39 @@ class GroupedMatrixTable(ExprContainer):
         if self._col_keys is not None:
             raise NotImplementedError("GroupedMatrixTable is already grouped by cols.")
 
-        col_key, computed_key = get_key_by_exprs('group_cols_by',
+        caller = 'group_cols_by'
+        col_key, computed_key = get_key_by_exprs(caller,
                                                  exprs,
                                                  named_exprs,
                                                  self._parent._col_indices,
                                                  override_protected_indices={self._parent._global_indices,
                                                                              self._parent._row_indices})
 
+        self._check_bindings(caller, computed_key, self._parent._col_indices)
         return self._copy(col_keys=col_key, computed_col_key=computed_key)
 
-    def _bindings(self) -> Set[str]:
+    def _check_bindings(self, caller, new_bindings, indices):
         empty = []
         def iter_option(o):
             return o if o is not None else empty
 
-        return set(itertools.chain(
+        if indices == self._parent._row_indices:
+            fixed_fields = [*self._parent.globals, *self._parent.col]
+        else:
+            assert indices == self._parent._col_indices
+            fixed_fields = [*self._parent.globals, *self._parent.row]
+
+        bound_fields = set(itertools.chain(
             iter_option(self._row_keys),
             iter_option(self._col_keys),
             iter_option(self._col_fields),
             iter_option(self._row_fields),
-            iter_option(self._entry_fields)))
+            iter_option(self._entry_fields),
+            fixed_fields))
+
+        for k in new_bindings:
+            if k in bound_fields:
+                raise ExpressionException(f"{caller!r} cannot assign duplicate field {k!r}")
 
     def partition_hint(self, n: int) -> 'GroupedMatrixTable':
         """Set the target number of partitions for aggregation.
@@ -270,14 +285,11 @@ class GroupedMatrixTable(ExprContainer):
             raise NotImplementedError("GroupedMatrixTable is already grouped by rows. Cannot aggregate over cols.")
         assert self._col_keys is not None
 
-        bindings = self._bindings()
-
         base = self._col_fields if self._col_fields is not None else hl.struct()
         for k, e in named_exprs.items():
-            if k in bindings:
-                raise ExpressionException(f"GroupedMatrixTable.aggregate_cols cannot assign duplicate field {k!r}")
             analyze('GroupedMatrixTable.aggregate_cols', e, self._parent._global_indices, {self._parent._col_axis})
 
+        self._check_bindings('aggregate_cols', named_exprs, self._parent._col_indices)
         return self._copy(col_fields = base.annotate(**named_exprs))
 
     @typecheck_method(named_exprs=expr_any)
@@ -314,14 +326,11 @@ class GroupedMatrixTable(ExprContainer):
             raise NotImplementedError("GroupedMatrixTable is already grouped by cols. Cannot aggregate over rows.")
         assert self._row_keys is not None
 
-        bindings = self._bindings()
-
         base = self._row_fields if self._row_fields is not None else hl.struct()
         for k, e in named_exprs.items():
-            if k in bindings:
-                raise ExpressionException(f"GroupedMatrixTable.aggregate_rows cannot assign duplicate field {k!r}")
             analyze('GroupedMatrixTable.aggregate_rows', e, self._parent._global_indices, {self._parent._row_axis})
 
+        self._check_bindings('aggregate_rows', named_exprs, self._parent._row_indices)
         return self._copy(row_fields = base.annotate(**named_exprs))
 
     @typecheck_method(named_exprs=expr_any)
@@ -351,14 +360,13 @@ class GroupedMatrixTable(ExprContainer):
         :class:`.GroupedMatrixTable`
         """
         assert self._row_keys is not None or self._col_keys is not None
-        bindings = self._bindings()
 
         base = self._entry_fields if self._entry_fields is not None else hl.struct()
         for k, e in named_exprs.items():
-            if k in bindings:
-                raise ExpressionException(f"GroupedMatrixTable.aggregate_entries cannot assign duplicate field {k!r}")
             analyze('GroupedMatrixTable.aggregate_entries', e, self._fixed_indices(), {self._parent._row_axis, self._parent._col_axis})
 
+        self._check_bindings('aggregate_entries', named_exprs,
+                             self._parent._col_indices if self._col_keys is not None else self._parent._row_indices)
         return self._copy(entry_fields = base.annotate(**named_exprs))
 
     def result(self) -> 'MatrixTable':

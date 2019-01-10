@@ -225,6 +225,7 @@ object TypeCheck {
           val newFieldSet = fields.map(_._1).toSet
           val oldFieldNames = old.typ.asInstanceOf[TStruct].fieldNames
           val oldFieldNameSet = oldFieldNames.toSet
+          assert(fds.length == x.typ.size)
           assert(oldFieldNames
             .filter(f => !newFieldSet.contains(f))
             .sameElements(fds.filter(f => !newFieldSet.contains(f))))
