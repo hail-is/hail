@@ -380,6 +380,10 @@ class Tests(unittest.TestCase):
             t.aggregate(agg.filter(t.idx > 7, agg.sum(t.idx) / t.idx))
         with self.assertRaises(hl.expr.ExpressionException):
             t.aggregate(agg.group_by(t.idx % 3, agg.sum(t.idx) / t.idx))
+        with self.assertRaises(hl.expr.ExpressionException):
+            t.aggregate(agg.filter(t.idx > 1, t.idx))
+        with self.assertRaises(hl.expr.ExpressionException):
+            t.aggregate(agg.explode(lambda elt: elt, [t.idx, t.idx + 1]))
 
         tests = [(agg.filter(t.idx > 7,
                              agg.explode(lambda x: agg.collect(hl.int64(x + 1)),
