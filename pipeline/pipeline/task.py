@@ -77,7 +77,7 @@ class Task(object):
                 r_uid = match_obj.group()
                 r = self._pipeline._resource_map.get(r_uid)
                 if r is None:
-                    raise KeyError(f"undefined resource '{r_uid}' in command '{command}'.")
+                    raise KeyError(f"undefined resource '{r_uid}' in command '{command}'. Hint: resources must be from the same pipeline as the current task.")
                 add_dependencies(r)
                 self._resources[r._uid] = r
                 return f"${{{r_uid}}}"
