@@ -541,7 +541,6 @@ class PruneSuite extends SparkSuite {
   }
 
   @Test def testArrayLeftJoinDistinct() {
-    TStruct("a" -> TInt32(), "b" -> TInt32(), "c" -> TInt32())
     val l = Ref("l", ref.typ)
     val r = Ref("r", ref.typ)
     checkMemo(ArrayLeftJoinDistinct(arr, arr, "l", "r",

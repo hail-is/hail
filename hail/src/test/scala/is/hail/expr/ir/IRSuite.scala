@@ -597,30 +597,30 @@ class IRSuite extends SparkSuite {
 
     def joinRows(left: IndexedSeq[Integer], right: IndexedSeq[Integer]): IR = {
       join(
-        MakeArray.unify(left.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("k1" -> (if (n == null) NA(TInt32()) else I32(n)), "k2" -> Str("x"), "a" -> I32(idx))) }),
-        MakeArray.unify(right.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("b" -> I32(idx), "k2" -> Str("x"), "k1" -> (if (n == null) NA(TInt32()) else I32(n)))) }),
+        MakeArray.unify(left.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("k1" -> (if (n == null) NA(TInt32()) else I32(n)), "k2" -> Str("x"), "a" -> I64(idx))) }),
+        MakeArray.unify(right.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("b" -> I32(idx), "k2" -> Str("x"), "k1" -> (if (n == null) NA(TInt32()) else I32(n)), "c" -> Str("foo"))) }),
         FastIndexedSeq("k1", "k2"))
     }
 
-    assertEvalsTo(joinRows(Array[Integer](0, null), Array[Integer](1)), FastIndexedSeq(
-      Row(0, "x", 0, null),
-      Row(null, "x", 1, null)))
+    assertEvalsTo(joinRows(Array[Integer](0, null), Array[Integer](1, null)), FastIndexedSeq(
+      Row(0, "x", 0L, null, null),
+      Row(null, "x", 1L, 1, "foo")))
 
     assertEvalsTo(joinRows(Array[Integer](0, 1, 2), Array[Integer](1)), FastIndexedSeq(
-      Row(0, "x", 0, null),
-      Row(1, "x", 1, 0),
-      Row(2, "x", 2, null)))
+      Row(0, "x", 0L, null, null),
+      Row(1, "x", 1L, 0, "foo"),
+      Row(2, "x", 2L, null, null)))
 
     assertEvalsTo(joinRows(Array[Integer](0, 1, 2), Array[Integer](-1, 0, 0, 1, 1, 2, 2, 3)), FastIndexedSeq(
-      Row(0, "x", 0, 1),
-      Row(1, "x", 1, 3),
-      Row(2, "x", 2, 5)))
+      Row(0, "x", 0L, 1, "foo"),
+      Row(1, "x", 1L, 3, "foo"),
+      Row(2, "x", 2L, 5, "foo")))
 
     assertEvalsTo(joinRows(Array[Integer](0, 1, 1, 2), Array[Integer](-1, 0, 0, 1, 1, 2, 2, 3)), FastIndexedSeq(
-      Row(0, "x", 0, 1),
-      Row(1, "x", 1, 3),
-      Row(1, "x", 2, 3),
-      Row(2, "x", 3, 5)))
+      Row(0, "x", 0L, 1, "foo"),
+      Row(1, "x", 1L, 3, "foo"),
+      Row(1, "x", 2L, 3, "foo"),
+      Row(2, "x", 3L, 5, "foo")))
   }
 
   @Test def testDie() {
