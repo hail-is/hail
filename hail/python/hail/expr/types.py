@@ -469,6 +469,8 @@ class _tbool(HailType):
 class tndarray(HailType):
     """Hail type for n-dimensional arrays.
 
+    .. include:: _templates/experimental.rst
+
     In Python, these are represented as NumPy :obj:`ndarray`.
 
     Notes
@@ -476,8 +478,6 @@ class tndarray(HailType):
 
     NDArrays contain elements of only one type, which is parameterized by
     `element_type`.
-
-    .. include:: ../_templates/experimental.rst
 
     Parameters
     ----------
