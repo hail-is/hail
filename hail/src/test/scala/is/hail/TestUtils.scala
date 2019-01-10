@@ -529,10 +529,12 @@ object TestUtils {
         true
       } else false
     } // Needed for tests
+    val entryFloatType = TFloat64()._toPretty
 
     val reader = MatrixVCFReader(
       Array(file),
       callFields,
+      entryFloatType,
       headerFile,
       nPartitions,
       rg.map(_.name),
