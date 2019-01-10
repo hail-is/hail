@@ -94,7 +94,7 @@ def combine_gvcfs(mts):
         alts = alleles.map(
             lambda a: hl.switch(hl.allele_type(a.ref, a.alt))
                         .when('SNP', a.alt + ref[hl.len(a.alt):])
-                        .when('Insertion', ref + a.alt[hl.len(a.ref):])
+                        .when('Insertion', a.alt + ref[hl.len(a.ref):])
                         .when('Deletion', a.alt + ref[hl.len(a.ref):])
                         .default(a.alt)
         )
