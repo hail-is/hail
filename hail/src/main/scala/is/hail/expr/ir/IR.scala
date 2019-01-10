@@ -197,7 +197,12 @@ final case class SeqOp(i: IR, args: IndexedSeq[IR], aggSig: AggSignature) extend
 final case class Begin(xs: IndexedSeq[IR]) extends IR
 final case class MakeStruct(fields: Seq[(String, IR)]) extends IR
 final case class SelectFields(old: IR, fields: Seq[String]) extends IR
-final case class InsertFields(old: IR, fields: Seq[(String, IR)]) extends IR {
+
+object InsertFields {
+  def apply(old: IR, fields: Seq[(String, IR)]): InsertFields = InsertFields(old, fields, None)
+}
+final case class InsertFields(old: IR, fields: Seq[(String, IR)], fieldOrder: Option[IndexedSeq[String]]) extends IR {
+
   override def typ: TStruct = coerce[TStruct](super.typ)
 
   override def pType: PStruct = coerce[PStruct](super.pType)

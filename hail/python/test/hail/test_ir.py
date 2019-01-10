@@ -67,7 +67,7 @@ class ValueIRTests(unittest.TestCase):
             ir.Begin([ir.Void()]),
             ir.MakeStruct([('x', i)]),
             ir.SelectFields(s, ['x', 'z']),
-            ir.InsertFields(s, [('x', i)]),
+            ir.InsertFields(s, [('x', i)], None),
             ir.GetField(s, 'x'),
             ir.MakeTuple([i, b]),
             ir.GetTupleElement(t, 1),
@@ -259,6 +259,7 @@ class ValueTests(unittest.TestCase):
                 ir.TableRange(1, 1),
                 ir.InsertFields(
                     ir.Ref("global"),
-                    [("foo", row_v)]))
+                    [("foo", row_v)],
+                    None))
             new_globals = hl.eval(hl.Table(map_globals_ir).globals)
             self.assertEquals(new_globals, hl.Struct(foo=v))

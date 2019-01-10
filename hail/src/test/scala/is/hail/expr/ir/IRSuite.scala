@@ -1165,12 +1165,13 @@ class IRSuite extends SparkSuite {
         |            (TableRange 1 12)
         |            (InsertFields
         |              (Ref row)
+        |              None
         |              (s
         |                (Literal Set[String] "[\"foo\"]"))
         |              (nested
         |                (NA Struct{elt:String})))))
         |        (InsertFields
-        |          (Ref row))))
+        |          (Ref row) None)))
         |    (SelectFields (s nested)
         |      (Ref row)))
         |  (Let __uid_1

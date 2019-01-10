@@ -688,8 +688,9 @@ object IRParser {
         SelectFields(old, fields)
       case "InsertFields" =>
         val old = ir_value_expr(env)(it)
+        val fieldOrder = opt(it, string_literals)
         val fields = named_value_irs(env)(it)
-        InsertFields(old, fields)
+        InsertFields(old, fields, fieldOrder.map(_.toFastIndexedSeq))
       case "GetField" =>
         val name = identifier(it)
         val s = ir_value_expr(env)(it)

@@ -103,9 +103,10 @@ object InferPType {
       case SelectFields(old, fields) =>
         val tbs = coerce[PStruct](old.pType)
         tbs.selectFields(fields)
-      case InsertFields(old, fields) =>
-        val tbs = coerce[PStruct](old.pType)
-        tbs.insertFields(fields.map(f => (f._1, f._2.pType)))
+      case InsertFields(old, fields, fieldOrder) =>
+        val tbs = coerce[TStruct](old.typ)
+        val s = tbs.insertFields(fields.map(f => (f._1, f._2.typ)))
+        fieldOrder.map(fds => TStruct(fds.map(f => f -> s.fieldType(f)): _*)).getOrElse(s).physicalType
       case GetField(o, name) =>
         val t = coerce[PStruct](o.pType)
         val fd = t.field(name).typ

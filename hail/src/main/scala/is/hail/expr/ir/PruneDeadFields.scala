@@ -757,7 +757,7 @@ object PruneDeadFields {
           // ignore unreachable fields, these are eliminated on the upwards pass
           sType.fieldOption(fname).map(f => memoizeValueIR(fir, f.typ, memo))
         })
-      case InsertFields(old, fields) =>
+      case InsertFields(old, fields, _) =>
         val sType = requestedType.asInstanceOf[TStruct]
         val insFieldNames = fields.map(_._1).toSet
         val rightDep = sType.filter(f => insFieldNames.contains(f.name))._1
@@ -1067,10 +1067,12 @@ object PruneDeadFields {
             None
           }
         })
-      case InsertFields(old, fields) =>
+      case InsertFields(old, fields, fieldOrder) =>
         val depStruct = requestedType.asInstanceOf[TStruct]
         val depFields = depStruct.fieldNames.toSet
-        InsertFields(rebuild(old, in, memo),
+        val rebuiltChild = rebuild(old, in, memo)
+        val preservedChildFields = rebuiltChild.typ.asInstanceOf[TStruct].fieldNames.toSet
+        InsertFields(rebuiltChild,
           fields.flatMap { case (f, fir) =>
             if (depFields.contains(f))
               Some(f -> rebuild(fir, in, memo))
@@ -1078,7 +1080,7 @@ object PruneDeadFields {
               log.info(s"Prune: InsertFields: eliminating field '$f'")
               None
             }
-          })
+          }, fieldOrder.map(fds => fds.filter(f => depFields.contains(f) || preservedChildFields.contains(f))))
       case SelectFields(old, fields) =>
         val depStruct = requestedType.asInstanceOf[TStruct]
         val old2 = rebuild(old, in, memo)

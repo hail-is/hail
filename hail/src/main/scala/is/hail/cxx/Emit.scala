@@ -434,7 +434,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
              |})
              |""".stripMargin)
 
-      case ir.InsertFields(old, fields) =>
+      case ir.InsertFields(old, fields, fieldOrder) =>
         val pStruct = pType.asInstanceOf[PStruct]
         val oldPStruct = old.pType.asInstanceOf[PStruct]
         val oldt = emit(old)
