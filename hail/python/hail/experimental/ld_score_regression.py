@@ -25,7 +25,7 @@ def ld_score_regression(weight_expr,
                         n_blocks=200,
                         two_step_threshold=30,
                         n_reference_panel_variants=None) -> Table:
-    """Estimate SNP-heritability and level of confounding biases from
+    r"""Estimate SNP-heritability and level of confounding biases from
     GWAS summary statistics.
 
     Given a set or multiple sets of genome-wide association study (GWAS)
@@ -36,12 +36,12 @@ def ld_score_regression(weight_expr,
 
     .. math::
 
-        \\mathrm{E}[\\chi_j^2] = 1 + Na + \\frac{Nh_g^2}{M}l_j
+        \mathrm{E}[\chi_j^2] = 1 + Na + \frac{Nh_g^2}{M}l_j
 
-    *  :math:`\\mathrm{E}[\\chi_j^2]` is the expected chi-squared statistic
+    *  :math:`\mathrm{E}[\chi_j^2]` is the expected chi-squared statistic
        for variant :math:`j` resulting from a test of association between
        variant :math:`j` and a trait.
-    *  :math:`l_j = \\sum_{k} r_{jk}^2` is the LD score of variant
+    *  :math:`l_j = \sum_{k} r_{jk}^2` is the LD score of variant
        :math:`j`, calculated as the sum of squared correlation coefficients
        between variant :math:`j` and nearby variants. See :func:`ld_score`
        for further details.
@@ -397,10 +397,14 @@ def ld_score_regression(weight_expr,
         __step2_separators=hl.literal(step2_separators)[mt['__col_idx']])
 
     mt = mt.annotate_entries(
-        __step1_block=hl.sum(hl.map(lambda x: mt['__step1_idx'] >= x,
-                             mt['__step1_separators'])) - 1,
         __step2_block=hl.sum(hl.map(lambda x: mt['__step2_idx'] >= x,
-                             mt['__step2_separators'])) - 1)
+                                    mt['__step1_separators']))
+    )
+    mt = mt.annotate_entries(
+        __step1_block=hl.sum(hl.map(lambda x: mt['__step1_idx'] >= x,
+                                    mt['__step1_separators'])) - 1,
+        __step2_block=hl.sum(hl.map(lambda x: mt['__step2_idx'] >= x,
+                                    mt['__step2_separators'])) - 1)
 
     # initial coefficient estimates
     mt = mt.annotate_cols(__initial_betas=[
