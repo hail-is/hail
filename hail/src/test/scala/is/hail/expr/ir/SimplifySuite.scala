@@ -10,6 +10,16 @@ import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
 class SimplifySuite extends SparkSuite {
+  @Test def testTableMultiWayZipJoinGlobalsRewrite() {
+    hc
+    val tmwzj = TableGetGlobals(TableMultiWayZipJoin(
+      Array(TableRange(10, 10),
+        TableRange(10, 10),
+        TableRange(10, 10)),
+      "rowField",
+      "globalField"))
+    assertEvalsTo(tmwzj, Row(FastIndexedSeq(Row(), Row(), Row())))
+  }
 
   @Test def testRepartitionableMapUpdatesForUpstreamOptimizations() {
     hc
