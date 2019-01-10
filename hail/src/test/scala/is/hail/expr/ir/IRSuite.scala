@@ -595,24 +595,28 @@ class IRSuite extends SparkSuite {
         joinF(Ref("_l", coerce[TArray](left.typ).elementType), Ref("_r", coerce[TArray](right.typ).elementType)))
     }
 
-    def joinRows(left: IndexedSeq[Int], right: IndexedSeq[Int]): IR = {
+    def joinRows(left: IndexedSeq[Integer], right: IndexedSeq[Integer]): IR = {
       join(
-        MakeArray.unify(left.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("idx" -> I32(n), "x" -> Str("x"), "a" -> I32(idx))) }),
-        MakeArray.unify(right.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("b" -> I32(idx), "x" -> Str("x"), "idx" -> I32(n))) }),
-        FastIndexedSeq("idx", "x"))
+        MakeArray.unify(left.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("k1" -> (if (n == null) NA(TInt32()) else I32(n)), "k2" -> Str("x"), "a" -> I32(idx))) }),
+        MakeArray.unify(right.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("b" -> I32(idx), "k2" -> Str("x"), "k1" -> (if (n == null) NA(TInt32()) else I32(n)))) }),
+        FastIndexedSeq("k1", "k2"))
     }
 
-    assertEvalsTo(joinRows(Array(0, 1, 2), Array(1)), FastIndexedSeq(
+    assertEvalsTo(joinRows(Array[Integer](0, null), Array[Integer](1)), FastIndexedSeq(
+      Row(0, "x", 0, null),
+      Row(null, "x", 1, null)))
+
+    assertEvalsTo(joinRows(Array[Integer](0, 1, 2), Array[Integer](1)), FastIndexedSeq(
       Row(0, "x", 0, null),
       Row(1, "x", 1, 0),
       Row(2, "x", 2, null)))
 
-    assertEvalsTo(joinRows(Array(0, 1, 2), Array(-1, 0, 0, 1, 1, 2, 2, 3)), FastIndexedSeq(
+    assertEvalsTo(joinRows(Array[Integer](0, 1, 2), Array[Integer](-1, 0, 0, 1, 1, 2, 2, 3)), FastIndexedSeq(
       Row(0, "x", 0, 1),
       Row(1, "x", 1, 3),
       Row(2, "x", 2, 5)))
 
-    assertEvalsTo(joinRows(Array(0, 1, 1, 2), Array(-1, 0, 0, 1, 1, 2, 2, 3)), FastIndexedSeq(
+    assertEvalsTo(joinRows(Array[Integer](0, 1, 1, 2), Array[Integer](-1, 0, 0, 1, 1, 2, 2, 3)), FastIndexedSeq(
       Row(0, "x", 0, 1),
       Row(1, "x", 1, 3),
       Row(1, "x", 2, 3),

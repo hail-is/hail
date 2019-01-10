@@ -1317,7 +1317,7 @@ private class Emit(
 
         val fenv = env.bind(
           l -> (typeToTypeInfo(lelt), lm.load(), lv.load()),
-          r -> (typeToTypeInfo(lelt), rm.load() || rtyp.isElementMissing(region, rv, ri), rtyp.loadElement(region, rv, ri)))
+          r -> (typeToTypeInfo(relt), rm.load() || rtyp.isElementMissing(region, rv, ri), rtyp.loadElement(region, rv, ri)))
 
         val compKeyF = mb.fb.newMethod(typeInfo[Region], typeInfo[Int])
         val et = new Emit(compKeyF, 1).emit(compKey, fenv)
@@ -1343,7 +1343,8 @@ private class Emit(
             rarray.setup,
             ri := 0,
             rm := rarray.m,
-            rm.mux(Code._empty,
+            rm.mux(
+              rlen := 0,
               Code(
                 rv := rarray.value[Long],
                 rlen := rtyp.loadLength(region, rv))))

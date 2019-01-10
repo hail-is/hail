@@ -540,6 +540,16 @@ class PruneSuite extends SparkSuite {
       Array(TArray(justA), null, null))
   }
 
+  @Test def testArrayLeftJoinDistinct() {
+    TStruct("a" -> TInt32(), "b" -> TInt32(), "c" -> TInt32())
+    val l = Ref("l", ref.typ)
+    val r = Ref("r", ref.typ)
+    checkMemo(ArrayLeftJoinDistinct(arr, arr, "l", "r",
+      ApplyComparisonOp(LT(TInt32()), GetField(l, "a"), GetField(r, "a")),
+      MakeStruct(FastIndexedSeq("a" -> GetField(l, "a"), "b" -> GetField(l, "b"), "c" -> GetField(l, "c"), "d" -> GetField(r, "b"), "e" -> GetField(r, "c")))),
+      TArray(justA),
+      Array(TArray(justA), TArray(justA), null, justA))
+  }
 
   @Test def testArrayForMemo() {
     checkMemo(ArrayFor(arr, "foo", Begin(FastIndexedSeq(GetField(Ref("foo", ref.typ), "a")))),
