@@ -1,7 +1,10 @@
 package is.hail.backend.spark
 
+import is.hail.HailContext
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir._
+import is.hail.expr.types.virtual._
+import is.hail.utils._
 import org.json4s.jackson.JsonMethods
 
 object SparkBackend {
@@ -23,16 +26,11 @@ object SparkBackend {
     ir = LowerMatrixIR(ir)
     ir = Optimize(ir, noisy = true, canGenerateLiterals = false)
 
-    println("LocalBackend.execute to lower", Pretty(ir))
+    println("SparkBackend.execute to lower", Pretty(ir))
 
-    ir = LowerTableIR.lower(ir)
+    val SparkCollect(stages, value) = LowerTableIR.lower(ir)
+    val bindings = stages.mapValues(stage => (stage.execute(HailContext.get.sc).collect().toFastIndexedSeq, TArray(stage.body.typ)))
 
-    println("LocalBackend.execute lowered", Pretty(ir))
-
-    ir = Optimize(ir, noisy = true, canGenerateLiterals = false)
-
-    println("LocalBackend.execute", Pretty(ir))
-
-    Interpret[Any](ir)
+    Interpret[Any](value, Env[(Any, Type)](bindings.toSeq: _*), FastIndexedSeq(), None)
   }
 }
