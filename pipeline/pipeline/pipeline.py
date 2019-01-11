@@ -6,7 +6,7 @@ from .resource import Resource, ResourceGroup
 from .utils import get_sha
 
 
-class Pipeline(object):
+class Pipeline:
     _counter = 0
     _uid_prefix = "__PIPELINE__"
     _regex_pattern = r"(?P<PIPELINE>{}\d+)".format(_uid_prefix)
@@ -38,7 +38,7 @@ class Pipeline(object):
                 self._allocated_files.add(file)
                 return file
             else:
-                _get_random_file()
+                return _get_random_file()
 
         return _get_random_file()
 
@@ -55,7 +55,7 @@ class Pipeline(object):
         for name, code in mappings.items():
             if not isinstance(code, str):
                 raise ValueError(f"value for name '{name}' is not a string. Found '{type(code)}' instead.")
-            r = self._new_resource(source=source, value=eval(f'f"""{code}"""'))
+            r = self._new_resource(source=source, value=eval(f'f"""{code}"""'))  # pylint: disable=W0123
             d[name] = r
             new_resource_map[r._uid] = r
 
@@ -68,7 +68,7 @@ class Pipeline(object):
         dest = dest if dest else self._tmp_file()
         cp_task = (self.new_task()
                    .label('read_input')
-                   .command(self._backend.cp(source, dest)))
+                   .command(self._backend.copy(source, dest)))
         return self._new_resource(source=cp_task, value=dest)
 
     def read_input(self, source):
@@ -76,7 +76,7 @@ class Pipeline(object):
 
     def read_input_group(self, **kwargs):
         root = self._tmp_file()
-        added_resources = {name:self._read_input(file, root + '.' + name) for name, file in kwargs.items()}
+        added_resources = {name: self._read_input(file, root + '.' + name) for name, file in kwargs.items()}
         rg = ResourceGroup(root, **added_resources)
         self._resource_map.update({rg._uid: rg})
         return rg
@@ -87,20 +87,20 @@ class Pipeline(object):
         else:
             assert isinstance(resource, Resource)
             assert resource._uid in self._resource_map
-        cp_task = (self.new_task()
-                   .label('write_output')
-                   .command(self._backend.cp(resource, dest)))
+        (self.new_task()
+         .label('write_output')
+         .command(self._backend.copy(resource, dest)))
 
     def select_tasks(self, pattern):
         return [task for task in self._tasks if task._label is not None and re.match(pattern, task._label) is not None]
 
-    def run(self, dry_run=False, verbose=True, delete_on_exit=True):
-        dependencies = {task:task._dependencies for task in self._tasks}
+    def run(self, dry_run=False, verbose=False, delete_on_exit=True):
+        dependencies = {task: task._dependencies for task in self._tasks}
         ordered_tasks = []
         niter = 0
         while dependencies:
             for task, deps in dependencies.items():
-                if len(deps) == 0:
+                if not deps:
                     ordered_tasks.append(task)
                     niter = 0
             for task, _ in dependencies.items():
@@ -114,7 +114,7 @@ class Pipeline(object):
                 raise ValueError("cycle detected in dependency graph")
 
         self._tasks = ordered_tasks
-        self._backend.run(self, dry_run, verbose, False, delete_on_exit) # FIXME: expose bg option when implemented!
+        self._backend.run(self, dry_run, verbose, False, delete_on_exit)  # FIXME: expose bg option when implemented!
 
     def __str__(self):
         return self._uid

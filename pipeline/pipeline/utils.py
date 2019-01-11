@@ -1,4 +1,6 @@
-import random, string, shlex
+import random
+import string
+import shlex
 
 
 def get_sha(k):

@@ -6,7 +6,7 @@ from .resource import Resource, ResourceGroup
 from .utils import get_sha, escape_string
 
 
-class Backend(object):
+class Backend:
     @abc.abstractmethod
     def tmp_dir(self):
         return
@@ -16,7 +16,7 @@ class Backend(object):
         return
 
     @abc.abstractmethod
-    def cp(self, src, dest):
+    def copy(self, src, dest):
         return
 
 
@@ -50,15 +50,15 @@ class LocalBackend(Backend):
             script.append(f"# {task._uid} {task._label if task._label else ''}")
 
             resource_defs = [define_resource(r) for _, r in task._resources.items()]
-            if task._settings.docker:
+            if task._docker:
                 defs = '; '.join(resource_defs) + '; ' if resource_defs else ''
                 cmd = "&& ".join(task._command)
-                image = task._settings.docker
+                image = task._docker
                 script += [f"docker run "
-                            f"-v {tmpdir}:{tmpdir} "
-                            f"-w {tmpdir} "
-                            f"{image} /bin/bash "
-                            f"-c {escape_string(defs + cmd)}",
+                           f"-v {tmpdir}:{tmpdir} "
+                           f"-w {tmpdir} "
+                           f"{image} /bin/bash "
+                           f"-c {escape_string(defs + cmd)}",
                            '\n']
             else:
                 script += resource_defs
@@ -70,7 +70,7 @@ class LocalBackend(Backend):
             print(script)
         else:
             try:
-                sp.check_output(script, shell=True) # FIXME: implement non-blocking (bg = True)
+                sp.check_output(script, shell=True)  # FIXME: implement non-blocking (bg = True)
             except sp.CalledProcessError as e:
                 print(e.output)
                 raise e
@@ -83,13 +83,12 @@ class LocalBackend(Backend):
             directory = self._tmp_dir + '/pipeline.{}/'.format(get_sha(8))
 
             if os.path.isdir(directory):
-                _get_random_name()
+                return _get_random_name()
             else:
                 os.makedirs(directory, exist_ok=True)
                 return directory
 
         return _get_random_name()
 
-    def cp(self, src, dest): # FIXME: symbolic links? support gsutil?
+    def copy(self, src, dest):  # FIXME: symbolic links? support gsutil?
         return f"cp {src} {dest}"
-

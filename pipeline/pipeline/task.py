@@ -1,15 +1,9 @@
 import re
+
 from .resource import Resource, ResourceGroup
 
-class TaskSettings(object):
-    def __init__(self, cpu=None, memory=None, docker=None, env=None):
-        self.cpu = cpu
-        self.memory = memory
-        self.docker = docker
-        self.env = env
 
-
-class Task(object):
+class Task:
     _counter = 0
     _uid_prefix = "__TASK__"
     _regex_pattern = r"(?P<TASK>{}\d+)".format(_uid_prefix)
@@ -21,9 +15,11 @@ class Task(object):
         return uid
 
     def __init__(self, pipeline, label=None):
-        self._settings = TaskSettings(cpu=None, memory=None, docker=None, env=None)
         self._pipeline = pipeline
         self._label = label
+        self._cpu = None
+        self._memory = None
+        self._docker = None
         self._command = []
         self._namespace = {}
         self._resources = {}
@@ -55,12 +51,17 @@ class Task(object):
             self._namespace[name] = self._pipeline._new_resource_group(self, d)
         return self
 
+    def depends_on(self, *tasks):
+        for t in tasks:
+            self._dependencies.add(t)
+
     def command(self, command):
         from .pipeline import Pipeline
 
         def add_dependencies(r):
             if isinstance(r, ResourceGroup):
-                [add_dependencies(resource) for _, resource in r._namespace.items()]
+                for _, resource in r._namespace.items():
+                    add_dependencies(resource)
             else:
                 assert isinstance(r, Resource)
                 if r._source is not None and r._source != self:
@@ -77,15 +78,16 @@ class Task(object):
                 r_uid = match_obj.group()
                 r = self._pipeline._resource_map.get(r_uid)
                 if r is None:
-                    raise KeyError(f"undefined resource '{r_uid}' in command '{command}'. Hint: resources must be from the same pipeline as the current task.")
+                    raise KeyError(f"undefined resource '{r_uid}' in command '{command}'. "
+                                   f"Hint: resources must be from the same pipeline as the current task.")
                 add_dependencies(r)
                 self._resources[r._uid] = r
                 return f"${{{r_uid}}}"
 
-        subst_command = re.sub(f"({Resource._regex_pattern})|({ResourceGroup._regex_pattern})" \
-                                f"|({Task._regex_pattern})|({Pipeline._regex_pattern})",
-                                handler,
-                                command)
+        subst_command = re.sub(f"({Resource._regex_pattern})|({ResourceGroup._regex_pattern})"
+                               f"|({Task._regex_pattern})|({Pipeline._regex_pattern})",
+                               handler,
+                               command)
         self._command.append(subst_command)
         return self
 
@@ -94,15 +96,15 @@ class Task(object):
         return self
 
     def memory(self, memory):
-        self._settings.memory = memory
+        self._memory = memory
         return self
 
     def cpu(self, cpu):
-        self._settings.cpu = cpu
+        self._cpu = cpu
         return self
 
     def docker(self, docker):
-        self._settings.docker = docker
+        self._docker = docker
         return self
 
     def __str__(self):

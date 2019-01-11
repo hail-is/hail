@@ -1,4 +1,4 @@
-class Resource(object):
+class Resource:
     _counter = 0
     _uid_prefix = "__RESOURCE__"
     _regex_pattern = r"(?P<RESOURCE>{}\d+)".format(_uid_prefix)
@@ -21,7 +21,7 @@ class Resource(object):
         return self._uid
 
 
-class ResourceGroup(object):
+class ResourceGroup:
     _counter = 0
     _uid_prefix = "__RESOURCE_GROUP__"
     _regex_pattern = r"(?P<RESOURCE_GROUP>{}\d+)".format(_uid_prefix)
@@ -43,8 +43,8 @@ class ResourceGroup(object):
 
     def _get_resource(self, item):
         if item not in self._namespace:
-            raise KeyError(f"'{item}' not found in the resource group. " \
-                            "Hint: you must declare each attribute when constructing the resource group.")
+            raise KeyError(f"'{item}' not found in the resource group. "
+                           f"Hint: you must declare each attribute when constructing the resource group.")
         r = self._namespace[item]
         return r._uid
 
