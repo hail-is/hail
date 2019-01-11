@@ -1,56 +1,15 @@
-import threading
-import time
 import os
 import unittest
 import batch
+from flask import Flask, Response, request
 import requests
-from werkzeug.serving import make_server
-from flask import Flask, request, jsonify, url_for, Response
 
-class ServerThread(threading.Thread):
-    def __init__(self, app, host='127.0.0.1', port=5000):
-        super().__init__()
+from .serverthread import ServerThread
 
-        @app.route('/ping', methods=['GET'])
-        def ping():
-            return Response(status=200)
-
-        self.host = host
-        self.port = port
-        self.app = app
-        self.server = make_server(self.host, self.port, app)
-        self.context = app.app_context()
-        self.context.push()
-
-    def ping(self):
-        ping_url = 'http://{}:{}/ping'.format(self.host, self.port)
-
-        up = False
-        while not up:
-            try:
-                requests.get(ping_url)
-                up = True
-            except requests.exceptions.ConnectionError:
-                time.sleep(0.01)
-
-    def start(self):
-        super().start()
-        self.ping()
-
-    def run(self):
-        self.server.serve_forever()
-
-    def shutdown(self):
-        self.server.shutdown()
 
 class Test(unittest.TestCase):
     def setUp(self):
-        self.batch = batch.client.BatchClient(
-            url = os.environ.get('BATCH_URL'))
-
-        self.ip = os.environ.get('POD_IP')
-        if not self.ip:
-            self.ip = '127.0.0.1'
+        self.batch = batch.client.BatchClient(url=os.environ.get('BATCH_URL'))
 
     def test_job(self):
         j = self.batch.create_job('alpine', ['echo', 'test'])
@@ -69,9 +28,7 @@ class Test(unittest.TestCase):
             'name': 'test_attributes',
             'foo': 'bar'
         }
-        j = self.batch.create_job(
-            'alpine', ['true'],
-            attributes = a)
+        j = self.batch.create_job('alpine', ['true'], attributes=a)
         status = j.status()
         assert(status['attributes'] == a)
 
@@ -178,14 +135,15 @@ class Test(unittest.TestCase):
             d['status'] = request.get_json()
             return Response(status=200)
 
-        port = 5869
-        server = ServerThread(app, host=self.ip, port=port)
+        server = ServerThread(app)
         try:
             server.start()
 
-            j = self.batch.create_job('alpine', ['echo', 'test'],
-                                      attributes={'foo': 'bar'},
-                                      callback='http://{}:{}/test'.format(self.ip, port))
+            j = self.batch.create_job(
+                'alpine',
+                ['echo', 'test'],
+                attributes={'foo': 'bar'},
+                callback=server.url_for('/test'))
             j.wait()
 
             status = d['status']

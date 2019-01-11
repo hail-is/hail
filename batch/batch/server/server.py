@@ -236,6 +236,9 @@ class Job:
 
             threading.Thread(target=handler, args=(self.id, self.callback, self.to_json())).start()
 
+        if self.batch_id:
+            batch_id_batch[self.batch_id].mark_job_complete(self)
+
     def to_json(self):
         result = {
             'id': self.id,
@@ -357,8 +360,9 @@ def cancel_job(job_id):
 
 
 class Batch:
-    def __init__(self, attributes):
+    def __init__(self, attributes, callback):
         self.attributes = attributes
+        self.callback = callback
         self.id = next_id()
         batch_id_batch[self.id] = self
         self.jobs = set([])
@@ -371,6 +375,22 @@ class Batch:
 
     def remove(self, job):
         self.jobs.remove(job)
+
+    def mark_job_complete(self, job):
+        assert job in self.jobs
+        if self.callback:
+            def handler(id, job_id, callback, json):
+                try:
+                    requests.post(callback, json=json, timeout=120)
+                except requests.exceptions.RequestException as exc:
+                    log.warning(
+                        f'callback for batch {id}, job {job_id} failed due to an error, I will not retry. '
+                        f'Error: {exc}')
+
+            threading.Thread(
+                target=handler,
+                args=(self.id, job.id, self.callback, job.to_json())
+            ).start()
 
     def to_json(self):
         state_count = Counter([j._state for j in self.jobs])
@@ -394,13 +414,14 @@ def create_batch():
             'type': 'dict',
             'keyschema': {'type': 'string'},
             'valueschema': {'type': 'string'}
-        }
+        },
+        'callback': {'type': 'string'}
     }
     validator = cerberus.Validator(schema)
     if not validator.validate(parameters):
         abort(400, 'invalid request: {}'.format(validator.errors))
 
-    batch = Batch(parameters.get('attributes'))
+    batch = Batch(parameters.get('attributes'), parameters.get('callback'))
     return jsonify(batch.to_json())
 
 

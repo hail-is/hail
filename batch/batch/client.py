@@ -208,6 +208,6 @@ class BatchClient:
             image, command, args, env, ports, resources, tolerations, volumes, security_context,
             service_account_name, attributes, None, callback, parent_ids)
 
-    def create_batch(self, attributes=None):
-        batch = self.api.create_batch(self.url, attributes)
+    def create_batch(self, attributes=None, callback=None):
+        batch = self.api.create_batch(self.url, attributes, callback)
         return Batch(self, batch['id'])

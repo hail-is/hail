@@ -5,6 +5,7 @@ import requests
 
 from batch.client import BatchClient
 
+from .serverthread import ServerThread
 
 @pytest.fixture
 def client():
@@ -221,3 +222,35 @@ def test_parent_deleted(client):
         assert status['state'] == 'Complete'
         assert status['exit_code'] == 0
     assert tail.status()['state'] == 'Cancelled'
+
+
+def test_callback(client):
+    from flask import Flask, request
+    app = Flask('test-client')
+    output = []
+
+    @app.route('/test', methods=['POST'])
+    def test():
+        output.append(request.get_json())
+        return 200
+
+    try:
+        server = ServerThread(app)
+        server.start()
+        batch = client.create_batch(callback=server.url_for('/test'))
+        head = batch.create_job('alpine:3.8', command=['echo', 'head'])
+        left = batch.create_job('alpine:3.8', command=['echo', 'left'], parent_ids=[head.id])
+        right = batch.create_job('alpine:3.8', command=['echo', 'right'], parent_ids=[head.id])
+        tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parent_ids=[left.id, right.id])
+        batch.wait()
+        assert len(output) == 4
+        assert all([job_result['state'] == 'Complete' and job_result['exit_code'] == 0
+                    for job_result in output])
+        assert output[0]['id'] == head.id
+        middle_ids = (output[1]['id'], output[2]['id'])
+        assert middle_ids in ((left.id, right.id), (right.id, left.id))
+        assert output[3]['id'] == tail.id
+    finally:
+        if server:
+            server.shutdown()
+            server.join()
