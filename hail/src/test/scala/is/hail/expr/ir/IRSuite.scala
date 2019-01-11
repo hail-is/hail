@@ -653,6 +653,31 @@ class IRSuite extends SparkSuite {
       InsertFields(NA(TStruct("a" -> +TInt32())), Seq("foo" -> I32(5))),
       null
     )
+
+    assertEvalsTo(
+      InsertFields(
+        In(0, s),
+        Seq("c" -> F64(3.2), "d" -> F64(5.5), "e" -> F64(6.6)),
+        Some(FastIndexedSeq("c", "d", "e", "a", "b"))),
+      FastIndexedSeq(Row(null, "abc") -> s),
+      Row(3.2, 5.5, 6.6, null, "abc"))
+
+    assertEvalsTo(
+      InsertFields(
+        In(0, s),
+        Seq("c" -> F64(3.2), "d" -> F64(5.5), "e" -> F64(6.6)),
+        Some(FastIndexedSeq("a", "b", "c", "d", "e"))),
+      FastIndexedSeq(Row(null, "abc") -> s),
+      Row(null, "abc", 3.2, 5.5, 6.6))
+
+    assertEvalsTo(
+      InsertFields(
+        In(0, s),
+        Seq("c" -> F64(3.2), "d" -> F64(5.5), "e" -> F64(6.6)),
+        Some(FastIndexedSeq("c", "a", "d", "b", "e"))),
+      FastIndexedSeq(Row(null, "abc") -> s),
+      Row(3.2, null, 5.5, "abc", 6.6))
+
   }
 
   @Test def testSelectFields() {
