@@ -62,6 +62,8 @@ object Children {
       Array(a, zero, body)
     case ArrayScan(a, zero, accumName, valueName, body) =>
       Array(a, zero, body)
+    case ArrayLeftJoinDistinct(left, right, l, r, compare, join) =>
+      Array(left, right, compare, join)
     case ArrayFor(a, valueName, body) =>
       Array(a, body)
     case ArrayAgg(a, name, query) =>

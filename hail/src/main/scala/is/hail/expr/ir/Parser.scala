@@ -629,6 +629,14 @@ object IRParser {
         val eltType = coerce[TArray](a.typ).elementType
         val body = ir_value_expr(env.update(Map(accumName -> zero.typ, valueName -> eltType)))(it)
         ArrayScan(a, zero, accumName, valueName, body)
+      case "ArrayLeftJoinDistinct" =>
+        val l = identifier(it)
+        val r = identifier(it)
+        val left = ir_value_expr(env)(it)
+        val right = ir_value_expr(env)(it)
+        val comp = ir_value_expr(env.update(Map(l -> coerce[TArray](left.typ).elementType, r -> coerce[TArray](right.typ).elementType)))(it)
+        val join = ir_value_expr(env.update(Map(l -> coerce[TArray](left.typ).elementType, r -> coerce[TArray](right.typ).elementType)))(it)
+        ArrayLeftJoinDistinct(left, right, l, r, comp, join)
       case "ArrayFor" =>
         val name = identifier(it)
         val a = ir_value_expr(env)(it)

@@ -452,7 +452,7 @@ object TestUtils {
       agg.map(_._2.toEnv))
 
     val t = x.typ
-    assert(t.typeCheck(expected))
+    assert(t.typeCheck(expected), t)
 
     val i = Interpret[Any](x, env, args, agg)
     assert(t.typeCheck(i))

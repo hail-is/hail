@@ -580,6 +580,49 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(scan(TestUtils.IRArray(1, null, 3), 0, (accum, elt) => accum + elt), FastIndexedSeq(0, 1, null, null))
   }
 
+  @Test def testLeftJoinRightDistinct() {
+    def join(left: IR, right: IR, keys: IndexedSeq[String]): IR = {
+      val compF = { (l: IR, r: IR) =>
+        ApplyComparisonOp(Compare(coerce[TStruct](l.typ).select(keys)._1), SelectFields(l, keys), SelectFields(r, keys))
+      }
+      val joinF = { (l: IR, r: IR) =>
+        Let("_right", r, InsertFields(l, coerce[TStruct](r.typ).fields.filter(f => !keys.contains(f.name)).map { f =>
+          f.name -> GetField(Ref("_right", r.typ), f.name)
+        }))
+      }
+      ArrayLeftJoinDistinct(left, right, "_l", "_r",
+        compF(Ref("_l", coerce[TArray](left.typ).elementType), Ref("_r", coerce[TArray](right.typ).elementType)),
+        joinF(Ref("_l", coerce[TArray](left.typ).elementType), Ref("_r", coerce[TArray](right.typ).elementType)))
+    }
+
+    def joinRows(left: IndexedSeq[Integer], right: IndexedSeq[Integer]): IR = {
+      join(
+        MakeArray.unify(left.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("k1" -> (if (n == null) NA(TInt32()) else I32(n)), "k2" -> Str("x"), "a" -> I64(idx))) }),
+        MakeArray.unify(right.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("b" -> I32(idx), "k2" -> Str("x"), "k1" -> (if (n == null) NA(TInt32()) else I32(n)), "c" -> Str("foo"))) }),
+        FastIndexedSeq("k1", "k2"))
+    }
+
+    assertEvalsTo(joinRows(Array[Integer](0, null), Array[Integer](1, null)), FastIndexedSeq(
+      Row(0, "x", 0L, null, null),
+      Row(null, "x", 1L, 1, "foo")))
+
+    assertEvalsTo(joinRows(Array[Integer](0, 1, 2), Array[Integer](1)), FastIndexedSeq(
+      Row(0, "x", 0L, null, null),
+      Row(1, "x", 1L, 0, "foo"),
+      Row(2, "x", 2L, null, null)))
+
+    assertEvalsTo(joinRows(Array[Integer](0, 1, 2), Array[Integer](-1, 0, 0, 1, 1, 2, 2, 3)), FastIndexedSeq(
+      Row(0, "x", 0L, 1, "foo"),
+      Row(1, "x", 1L, 3, "foo"),
+      Row(2, "x", 2L, 5, "foo")))
+
+    assertEvalsTo(joinRows(Array[Integer](0, 1, 1, 2), Array[Integer](-1, 0, 0, 1, 1, 2, 2, 3)), FastIndexedSeq(
+      Row(0, "x", 0L, 1, "foo"),
+      Row(1, "x", 1L, 3, "foo"),
+      Row(1, "x", 2L, 3, "foo"),
+      Row(2, "x", 3L, 5, "foo")))
+  }
+
   @Test def testDie() {
     assertFatal(Die("mumblefoo", TFloat64()), "mble")
     assertFatal(Die(NA(TString()), TFloat64()), "message missing")
@@ -804,6 +847,7 @@ class IRSuite extends SparkSuite {
       ArrayFlatMap(aa, "v", a),
       ArrayFold(a, I32(0), "x", "v", v),
       ArrayScan(a, I32(0), "x", "v", v),
+      ArrayLeftJoinDistinct(ArrayRange(0, 2, 1), ArrayRange(0, 3, 1), "l", "r", I32(0), I32(1)),
       ArrayFor(a, "v", Void()),
       ArrayAgg(a, "x", ApplyAggOp(FastIndexedSeq.empty, None, FastIndexedSeq(Ref("x", TInt32())), sumSig)),
       AggFilter(True(), I32(0)),

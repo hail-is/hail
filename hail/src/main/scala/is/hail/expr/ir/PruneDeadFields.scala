@@ -732,6 +732,26 @@ object PruneDeadFields {
           bodyEnv.delete(accumName).delete(valueName),
           memoizeValueIR(a, aType.copy(elementType = valueType), memo)
         )
+      case ArrayLeftJoinDistinct(left, right, l, r, compare, join) =>
+        val lType = left.typ.asInstanceOf[TArray]
+        val rType = right.typ.asInstanceOf[TArray]
+
+        val compEnv = memoizeValueIR(compare, compare.typ, memo)
+        val joinEnv = memoizeValueIR(join, requestedType.asInstanceOf[TArray].elementType, memo)
+
+        val lRequested = unify(lType.elementType,
+          compEnv.lookupOption(l).map(_._2).getOrElse(minimal(-lType.elementType)),
+          joinEnv.lookupOption(l).map(_._2).getOrElse(minimal(-lType.elementType)))
+        val rRequested = unify(rType.elementType,
+          compEnv.lookupOption(r).map(_._2).getOrElse(minimal(-rType.elementType)),
+          joinEnv.lookupOption(r).map(_._2).getOrElse(minimal(-rType.elementType)))
+
+        unifyEnvs(
+          compEnv.delete(l).delete(r),
+          joinEnv.delete(l).delete(r),
+          memoizeValueIR(left, lType.copy(elementType = lRequested), memo),
+          memoizeValueIR(right, rType.copy(elementType = rRequested), memo))
+
       case ArrayFor(a, valueName, body) =>
         assert(requestedType == TVoid)
         val aType = a.typ.asInstanceOf[TArray]
@@ -1051,6 +1071,17 @@ object PruneDeadFields {
           valueName,
           rebuild(body, in.bind(accumName -> z2.typ, valueName -> -a2.typ.asInstanceOf[TArray].elementType), memo)
         )
+      case ArrayLeftJoinDistinct(left, right, l, r, compare, join) =>
+        val left2 = rebuild(left, in, memo)
+        val right2 = rebuild(right, in, memo)
+
+        val ltyp = left2.typ.asInstanceOf[TArray]
+        val rtyp = right2.typ.asInstanceOf[TArray]
+        ArrayLeftJoinDistinct(
+          left2, right2, l, r,
+          rebuild(compare, in.bind(l -> -ltyp.elementType, r -> -rtyp.elementType), memo),
+          rebuild(join, in.bind(l -> -ltyp.elementType, r -> -rtyp.elementType), memo))
+
       case ArrayFor(a, valueName, body) =>
         val a2 = rebuild(a, in, memo)
         val body2 = rebuild(body, in.bind(valueName -> -a2.typ.asInstanceOf[TArray].elementType), memo)

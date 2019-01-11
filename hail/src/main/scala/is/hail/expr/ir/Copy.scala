@@ -80,6 +80,9 @@ object Copy {
       case ArrayScan(_, _, accumName, valueName, _) =>
         val IndexedSeq(a: IR, zero: IR, body: IR) = newChildren
         ArrayScan(a, zero, accumName, valueName, body)
+      case ArrayLeftJoinDistinct(_, _, l, r, _, _) =>
+        val IndexedSeq(left: IR, right: IR, compare: IR, join: IR) = newChildren
+        ArrayLeftJoinDistinct(left, right, l, r, compare, join)
       case ArrayFor(_, valueName, _) =>
         val IndexedSeq(a: IR, body: IR) = newChildren
         ArrayFor(a, valueName, body)

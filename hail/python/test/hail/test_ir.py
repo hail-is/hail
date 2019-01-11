@@ -55,6 +55,7 @@ class ValueIRTests(unittest.TestCase):
             ir.ArrayFlatMap(aa, 'v', v),
             ir.ArrayFold(a, ir.I32(0), 'x', 'v', v),
             ir.ArrayScan(a, ir.I32(0), 'x', 'v', v),
+            ir.ArrayLeftJoinDistinct(a, a, 'l', 'r', ir.I32(0), ir.I32(1)),
             ir.ArrayFor(a, 'v', ir.Void()),
             ir.AggFilter(ir.TrueIR(), ir.I32(0)),
             ir.AggExplode(ir.ArrayRange(ir.I32(0), ir.I32(2), ir.I32(1)), 'x', ir.I32(0)),
