@@ -7,7 +7,6 @@ from batch.client import BatchClient
 
 from .serverthread import ServerThread
 
-
 @pytest.fixture
 def client():
     return BatchClient(url=os.environ.get('BATCH_URL'))
@@ -224,7 +223,7 @@ def test_parent_deleted(client):
         assert status['exit_code'] == 0
     assert tail.status()['state'] == 'Cancelled'
 
-
+    
 def test_callback(client):
     from flask import Flask, request
     app = Flask('test-client')

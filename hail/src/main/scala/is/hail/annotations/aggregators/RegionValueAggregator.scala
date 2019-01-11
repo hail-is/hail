@@ -7,7 +7,7 @@ trait RegionValueAggregator extends Serializable {
 
   def combOp(agg2: RegionValueAggregator): Unit
 
-  def result(rvb: RegionValueBuilder)
+  def result(rvb: RegionValueBuilder): Unit
 
   def newInstance(): RegionValueAggregator
 

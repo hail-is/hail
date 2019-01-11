@@ -5,7 +5,6 @@ import is.hail.asm4s
 import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.expr.types
-import is.hail.expr.types._
 import is.hail.expr.types.physical.{PBaseStruct, PString, PStruct}
 import is.hail.expr.types.virtual._
 import is.hail.utils._
@@ -255,7 +254,7 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
         unwrapReturn(mb, TString())(rgCode(mb).invoke[String, Int, Int, Int, String]("getSequence", scontig, pos, before, after))
     }
 
-    registerIR(rg.wrapFunctionName("getReferenceSequence"), TString(), TInt32(), TInt32(), TInt32()) {
+    registerIR(rg.wrapFunctionName("getReferenceSequence"), TString(), TInt32(), TInt32(), TInt32(), TString()) {
       (contig, pos, before, after) =>
         val getRef = IRFunctionRegistry.lookupConversion(
           rg.wrapFunctionName("getReferenceSequenceFromValidLocus"),

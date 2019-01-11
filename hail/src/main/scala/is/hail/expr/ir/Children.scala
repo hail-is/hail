@@ -64,6 +64,8 @@ object Children {
       Array(a, zero, body)
     case ArrayFor(a, valueName, body) =>
       Array(a, body)
+    case ArrayAgg(a, name, query) =>
+      Array(a, query)
     case AggFilter(cond, aggIR) =>
       Array(cond, aggIR)
     case AggExplode(array, _, aggBody) =>
@@ -74,7 +76,7 @@ object Children {
       fields.map(_._2).toFastIndexedSeq
     case SelectFields(old, fields) =>
       Array(old)
-    case InsertFields(old, fields) =>
+    case InsertFields(old, fields, _) =>
       (old +: fields.map(_._2)).toFastIndexedSeq
     case InitOp(i, args, aggSig) =>
       i +: args
@@ -112,6 +114,7 @@ object Children {
       FastIndexedSeq(fn, min, max)
     // from MatrixIR
     case MatrixWrite(child, _) => IndexedSeq(child)
+    case MatrixMultiWrite(children, _) => children
     // from TableIR
     case TableCount(child) => IndexedSeq(child)
     case TableGetGlobals(child) => IndexedSeq(child)
@@ -120,5 +123,7 @@ object Children {
     case MatrixAggregate(child, query) => IndexedSeq(child, query)
     case TableWrite(child, _, _, _, _) => IndexedSeq(child)
     case TableExport(child, _, _, _, _) => IndexedSeq(child)
+    case TableToValueApply(child, _) => IndexedSeq(child)
+    case MatrixToValueApply(child, _) => IndexedSeq(child)
   }
 }

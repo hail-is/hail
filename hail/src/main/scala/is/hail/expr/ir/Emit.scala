@@ -16,6 +16,8 @@ object Emit {
 
   type F = (Code[Boolean], Code[_]) => Code[Unit]
 
+  type RVAS = Option[Code[Array[RegionValueAggregator]]]
+
   private[ir] def toCode(ir: IR, fb: EmitFunctionBuilder[_], nSpecialArguments: Int): EmitTriplet = {
     emit(ir, fb, Env.empty, nSpecialArguments)
   }
@@ -137,14 +139,14 @@ private class Emit(
     }
   }
 
-  private def wrapToMethod(irs: Seq[IR], env: E)(useValues: (EmitMethodBuilder, PType, EmitTriplet) => Code[Unit]): Code[Unit] = {
+  private def wrapToMethod(irs: Seq[IR], env: E, rvas: Emit.RVAS)(useValues: (EmitMethodBuilder, PType, EmitTriplet) => Code[Unit]): Code[Unit] = {
     val opSize: Int = 20
     val items = irs.map { ir =>
       new EstimableEmitter[EmitMethodBuilderLike] {
         def estimatedSize: Int = ir.size * opSize
 
         def emit(mbLike: EmitMethodBuilderLike): Code[Unit] =
-          useValues(mbLike.mb, ir.pType, mbLike.emit.emit(ir, env))
+          useValues(mbLike.mb, ir.pType, mbLike.emit.emit(ir, env, rvas))
       }
     }
 
@@ -161,8 +163,8 @@ private class Emit(
     *  2. evaluate precompute *on all static code-paths* leading to missingness or value
     *  3. guard the the evaluation of value by missingness
     *
-    *  Triplets returning values cannot have side-effects.  For void triplets, precompute
-    *  contains the side effect, missingness is false, and value is {@code Code._empty}.
+    * Triplets returning values cannot have side-effects.  For void triplets, precompute
+    * contains the side effect, missingness is false, and value is {@code Code._empty}.
     *
     * JVM gotcha:
     * a variable must be initialized on all static code-paths prior to its use (ergo defaultValue)
@@ -191,17 +193,22 @@ private class Emit(
     *
     **/
   private def emit(ir: IR, env: E): EmitTriplet = {
+    emit(ir, env,
+      // FIXME hasAggreagtors
+      if (nSpecialArguments == 2)
+        Some(mb.fb.getArg[Array[RegionValueAggregator]](2))
+      else
+        None)
+  }
 
-    def emit(ir: IR, env: E = env): EmitTriplet =
-      this.emit(ir, env)
+  private def emit(ir: IR, env: E, rvas: Emit.RVAS): EmitTriplet = {
 
-    def emitArrayIterator(ir: IR, env: E = env) = this.emitArrayIterator(ir, env)
+    def emit(ir: IR, env: E = env, rvas: Emit.RVAS = rvas): EmitTriplet =
+      this.emit(ir, env, rvas)
+
+    def emitArrayIterator(ir: IR, env: E = env, rvas: Emit.RVAS = rvas) = this.emitArrayIterator(ir, env, rvas)
 
     val region = mb.getArg[Region](1).load()
-    lazy val aggregator = {
-      assert(nSpecialArguments >= 2)
-      mb.getArg[Array[RegionValueAggregator]](2)
-    }
 
     ir match {
       case I32(x) =>
@@ -326,7 +333,7 @@ private class Emit(
             v.m.mux(srvb.setMissing(), addElement(v.v)),
             srvb.advance())
         }
-        present(Code(srvb.start(args.size, init = true), wrapToMethod(args, env)(addElts), srvb.offset))
+        present(Code(srvb.start(args.size, init = true), wrapToMethod(args, env, rvas)(addElts), srvb.offset))
       case x@ArrayRef(a, i) =>
         val typ = x.typ
         val ti = typeToTypeInfo(typ)
@@ -625,23 +632,74 @@ private class Emit(
           const(false),
           Code._empty)
 
+      case ArrayAgg(a, name, query) =>
+        val StagedExtractedAggregators(postAggIR, resultType, init, perElt, makeRVAggs) = StagedExtractAggregators(mb.fb, query)
+
+        val rvas = mb.newField[Array[RegionValueAggregator]]("rvas")
+
+        val codeInit = emit(init, rvas = Some(rvas))
+
+        val tarray = coerce[TArray](a.typ)
+        val eti = typeToTypeInfo(tarray.elementType)
+        val xmv = mb.newField[Boolean]()
+        val xvv = coerce[Any](mb.newField(name)(eti))
+        val perEltEnv = env.bind(
+          name -> (eti, xmv.load(), xvv.load()))
+        val codePerElt = emit(perElt, env = perEltEnv, rvas = Some(rvas))
+
+        val aBase = emitArrayIterator(a)
+        val cont = { (m: Code[Boolean], v: Code[_]) =>
+          Code(
+            xmv := m,
+            xvv := xmv.mux(defaultValue(tarray.elementType), v),
+            codePerElt.setup)
+        }
+
+        val processAElts = aBase.arrayEmitter(cont)
+        val ma = processAElts.m.getOrElse(const(false))
+
+        val aggr = mb.newField[Long]("AGGR")
+
+        val rvb = mb.newField[RegionValueBuilder]("rvb")
+        val i = mb.newField[Int]("i")
+
+        val postEnv = env.bind("AGGR" -> (typeInfo[Long], const(false), aggr.load()))
+        val codePost = emit(postAggIR, env = postEnv)
+
+        EmitTriplet(
+          Code(
+            rvas := makeRVAggs,
+            codeInit.setup,
+            Code(
+              processAElts.setup,
+              ma.mux(
+                Code._empty,
+                Code(aBase.calcLength, processAElts.addElements))),
+            Code(
+              rvb := Code.newInstance[RegionValueBuilder, Region](region),
+              rvb.load().start(mb.fb.getPType(resultType)),
+              rvb.load().startTuple(const(true)),
+              i := const(0),
+              Code.whileLoop(i < rvas.load().length(),
+                rvas.load()(i).result(rvb),
+                i := i + const(1)),
+              rvb.load().endTuple(),
+              aggr := rvb.load().end()),
+            codePost.setup),
+          codePost.m,
+          codePost.v)
+
       case InitOp(i, args, aggSig) =>
         val codeI = emit(i)
         aggSig.op match {
           case Group() =>
-            val newMB = mb.fb.newMethod(mb.parameterTypeInfo, typeInfo[Unit])
-            newMB.emit(new Emit(newMB, 2).emit(args(0), env).setup)
-            val mbArgs = newMB.parameterTypeInfo.zipWithIndex.map { case (ti, idx) =>
-              if (idx == 1)
-                Code.checkcast[KeyedRegionValueAggregator](aggregator(codeI.value[Int])).invoke[Array[RegionValueAggregator]]("rvAggs")
-              else
-                newMB.getArg(idx + 1)(ti).load()
-            }
+            val newRVAs = Code.checkcast[KeyedRegionValueAggregator]((rvas.get)(codeI.value[Int])).invoke[Array[RegionValueAggregator]]("rvAggs")
+            val init = emit(args(0), rvas = Some(newRVAs))
             EmitTriplet(Code(
               codeI.setup,
               codeI.m.mux(
                 Code._empty,
-                coerce[Unit](newMB.invoke(mbArgs: _*)))),
+                init.setup)),
               const(false),
               Code._empty)
 
@@ -672,7 +730,7 @@ private class Emit(
                   Code._empty,
                   agg.initOp(
                     mb,
-                    aggregator(coerce[Int](codeI.v)),
+                    (rvas.get)(coerce[Int](codeI.v)),
                     argsv.map(_.load()),
                     argsm.map(_.load())))),
               const(false),
@@ -684,8 +742,6 @@ private class Emit(
         val codeI = emit(i)
         aggSig.op match {
           case Group() =>
-            val newMB = mb.fb.newMethod(mb.parameterTypeInfo, typeInfo[Unit])
-            newMB.emit(new Emit(newMB, 2).emit(args(1), env).setup)
             val key = emit(args(0))
             val wrappedKey = Code(
               key.setup,
@@ -701,20 +757,18 @@ private class Emit(
                     Code.invokeScalaObject[PType, Region, Long, AnyRef](
                       SafeRow.getClass, "read",
                       mb.getPType(t.physicalType), region, key.value[Long])
-                }
-              )
-            )
-            val mbArgs = newMB.parameterTypeInfo.zipWithIndex.map { case (ti, idx) =>
-              if (idx == 1)
-                Code.checkcast[KeyedRegionValueAggregator](aggregator(codeI.value[Int])).invoke[Any, Array[RegionValueAggregator]]("getAggs", wrappedKey)
-              else
-                newMB.getArg(idx + 1)(ti).load()
-            }
+                }))
+	    val groupRVAs = mb.newField[Array[RegionValueAggregator]]("groupRVAs")
+	    
+            val seq = emit(args(1), rvas = Some(groupRVAs.load()))
+	    
             EmitTriplet(Code(
               codeI.setup,
               codeI.m.mux(
                 Code._empty,
-                coerce[Unit](newMB.invoke(mbArgs: _*)))),
+                Code(
+		  groupRVAs := Code.checkcast[KeyedRegionValueAggregator]((rvas.get)(codeI.value[Int])).invoke[Any, Array[RegionValueAggregator]]("getAggs", wrappedKey),
+		  seq.setup))),
               const(false),
               Code._empty)
 
@@ -745,7 +799,7 @@ private class Emit(
                   agg.seqOp(
                     mb,
                     region,
-                    aggregator(coerce[Int](codeI.v)),
+                    (rvas.get)(coerce[Int](codeI.v)),
                     argsv.map(_.load()),
                     argsm.map(_.load())))),
               const(false),
@@ -754,7 +808,7 @@ private class Emit(
 
       case Begin(xs) =>
         EmitTriplet(
-          wrapToMethod(xs, env) { case (_, t, code) =>
+          wrapToMethod(xs, env, rvas) { case (_, t, code) =>
             code.setup
           },
           const(false),
@@ -768,7 +822,7 @@ private class Emit(
             v.m.mux(srvb.setMissing(), srvb.addIRIntermediate(t)(v.v)),
             srvb.advance())
         }
-        present(Code(srvb.start(init = true), wrapToMethod(fields.map(_._2), env)(addFields), srvb.offset))
+        present(Code(srvb.start(init = true), wrapToMethod(fields.map(_._2), env, rvas)(addFields), srvb.offset))
 
       case x@SelectFields(oldStruct, fields) =>
         val old = emit(oldStruct)
@@ -804,7 +858,7 @@ private class Emit(
             srvb.offset))
 
 
-      case x@InsertFields(old, fields) =>
+      case x@InsertFields(old, fields, fieldOrder) =>
         if (fields.isEmpty)
           emit(old)
         else
@@ -880,7 +934,7 @@ private class Emit(
             v.m.mux(srvb.setMissing(), srvb.addIRIntermediate(t)(v.v)),
             srvb.advance())
         }
-        present(Code(srvb.start(init = true), wrapToMethod(fields, env)(addFields), srvb.offset))
+        present(Code(srvb.start(init = true), wrapToMethod(fields, env, rvas)(addFields), srvb.offset))
 
       case GetTupleElement(o, idx) =>
         val t = coerce[PTuple](o.pType)
@@ -962,7 +1016,7 @@ private class Emit(
           }
 
           EmitTriplet(
-            wrapToMethod(FastSeq(ir.explicitNode), env)(addFields),
+            wrapToMethod(FastSeq(ir.explicitNode), env, rvas)(addFields),
             mfield, vfield)
         }
 
@@ -1059,11 +1113,11 @@ private class Emit(
     f
   }
 
-  private def emitArrayIterator(ir: IR, env: E): ArrayIteratorTriplet = {
+  private def emitArrayIterator(ir: IR, env: E, rvas: Emit.RVAS): ArrayIteratorTriplet = {
 
-    def emit(ir: IR, env: E = env) = this.emit(ir, env)
+    def emit(ir: IR, env: E = env) = this.emit(ir, env, rvas)
 
-    def emitArrayIterator(ir: IR, env: E = env) = this.emitArrayIterator(ir, env)
+    def emitArrayIterator(ir: IR, env: E = env) = this.emitArrayIterator(ir, env, rvas)
 
     val region = mb.getArg[Region](1).load()
 

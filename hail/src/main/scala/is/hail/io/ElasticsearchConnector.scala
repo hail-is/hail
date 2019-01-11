@@ -43,7 +43,6 @@ object ElasticsearchConnector {
       println(s"Config ${ mergedConfig }")
 
     val df = t
-      .expandTypes()
       .toDF(HailContext.get.sqlContext)
       .saveToEs(s"${ index }/${ indexType }", mergedConfig)
   }

@@ -19,3 +19,4 @@ dependencies:
     - ipykernel==5.1.0
     - pytest-xdist==1.23.2
     - decorator==4.3.0
+    - pyspark==2.2

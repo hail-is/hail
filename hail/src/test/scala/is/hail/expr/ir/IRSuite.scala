@@ -9,6 +9,7 @@ import is.hail.expr.ir.IRSuite.TestFunctions
 import is.hail.expr.ir.functions.{IRFunctionRegistry, RegistryFunctions, SeededIRFunction, SetFunctions}
 import is.hail.expr.types.TableType
 import is.hail.expr.types.virtual._
+import is.hail.methods.{ForceCountMatrixTable, ForceCountTable}
 import is.hail.rvd.RVD
 import is.hail.table.{Ascending, Descending, SortField, Table}
 import is.hail.utils._
@@ -592,6 +593,16 @@ class IRSuite extends SparkSuite {
     assertFatal(ArrayRange(I32(0), I32(5), I32(0)), "step size")
   }
 
+  @Test def testArrayAgg() {
+    val sumSig = AggSignature(Sum(), Seq(), None, Seq(TInt64()))
+    assertEvalsTo(
+      ArrayAgg(
+        ArrayMap(ArrayRange(I32(0), I32(4), I32(1)), "x", Cast(Ref("x", TInt32()), TInt64())),
+        "x",
+        ApplyAggOp(FastIndexedSeq.empty, None, FastIndexedSeq(Ref("x", TInt64())), sumSig)),
+      6L)
+  }
+
   @Test def testInsertFields() {
     val s = TStruct("a" -> TInt64(), "b" -> TString())
     val emptyStruct = MakeStruct(Seq("a" -> NA(TInt64()), "b" -> NA(TString())))
@@ -749,6 +760,8 @@ class IRSuite extends SparkSuite {
 
     val collectSig = AggSignature(Collect(), Seq(), None, Seq(TInt32()))
 
+    val sumSig = AggSignature(Sum(), Seq(), None, Seq(TInt32()))
+
     val callStatsSig = AggSignature(CallStats(), Seq(), Some(Seq(TInt32())), Seq(TCall()))
 
     val histSig = AggSignature(Histogram(), Seq(TFloat64(), TFloat64(), TInt32()), None, Seq(TFloat64()))
@@ -792,6 +805,7 @@ class IRSuite extends SparkSuite {
       ArrayFold(a, I32(0), "x", "v", v),
       ArrayScan(a, I32(0), "x", "v", v),
       ArrayFor(a, "v", Void()),
+      ArrayAgg(a, "x", ApplyAggOp(FastIndexedSeq.empty, None, FastIndexedSeq(Ref("x", TInt32())), sumSig)),
       AggFilter(True(), I32(0)),
       AggExplode(NA(TArray(TInt32())), "x", I32(0)),
       AggGroupBy(True(), I32(0)),
@@ -822,11 +836,14 @@ class IRSuite extends SparkSuite {
       TableGetGlobals(table),
       TableCollect(table),
       TableAggregate(table, MakeStruct(Seq("foo" -> count))),
+      TableToValueApply(table, ForceCountTable()),
+      MatrixToValueApply(mt, ForceCountMatrixTable()),
       TableWrite(table, tmpDir.createLocalTempFile(extension = "ht")),
       MatrixWrite(mt, MatrixNativeWriter(tmpDir.createLocalTempFile(extension = "mt"))),
       MatrixWrite(vcf, MatrixVCFWriter(tmpDir.createLocalTempFile(extension = "vcf"))),
       MatrixWrite(vcf, MatrixPLINKWriter(tmpDir.createLocalTempFile())),
       MatrixWrite(bgen, MatrixGENWriter(tmpDir.createLocalTempFile())),
+      MatrixMultiWrite(Array(mt, mt), MatrixNativeMultiWriter(tmpDir.createLocalTempFile())),
       MatrixAggregate(mt, MakeStruct(Seq("foo" -> count)))
     )
     irs.map(x => Array(x))
@@ -878,7 +895,7 @@ class IRSuite extends SparkSuite {
         TableRange(100, 10),
         TableUnion(
           FastIndexedSeq(TableRange(100, 10), TableRange(50, 10))),
-        TableExplode(read, "mset"),
+        TableExplode(read, Array("mset")),
         TableOrderBy(TableKeyBy(read, FastIndexedSeq()), FastIndexedSeq(SortField("m", Ascending), SortField("m", Descending))),
         CastMatrixToTable(mtRead, " # entries", " # cols"),
         TableRename(read, Map("idx" -> "idx_foo"), Map("global_f32" -> "global_foo"))
@@ -1148,12 +1165,13 @@ class IRSuite extends SparkSuite {
         |            (TableRange 1 12)
         |            (InsertFields
         |              (Ref row)
+        |              None
         |              (s
         |                (Literal Set[String] "[\"foo\"]"))
         |              (nested
         |                (NA Struct{elt:String})))))
         |        (InsertFields
-        |          (Ref row))))
+        |          (Ref row) None)))
         |    (SelectFields (s nested)
         |      (Ref row)))
         |  (Let __uid_1

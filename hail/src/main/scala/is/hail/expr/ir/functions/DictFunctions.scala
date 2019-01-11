@@ -38,24 +38,24 @@ object DictFunctions extends RegistryFunctions {
   val tdict = TDict(tv("key"), tv("value"))
 
   def registerAll() {
-    registerIR("isEmpty", tdict) { d =>
+    registerIR("isEmpty", tdict, TBoolean()) { d =>
       ArrayFunctions.isEmpty(ToArray(d))
     }
 
-    registerIR("contains", tdict, tv("key"))(contains)
+    registerIR("contains", tdict, tv("key"), TBoolean())(contains)
 
-    registerIR("get", tdict, tv("key"), tv("value"))(get)
-    registerIR("get", tdict, tv("key")) { (d, k) =>
+    registerIR("get", tdict, tv("key"), tv("value"), tv("value"))(get)
+    registerIR("get", tdict, tv("key"), tv("tvalue")) { (d, k) =>
       get(d, k, NA(-types.coerce[TDict](d.typ).valueType))
     }
 
-    registerIR("[]", tdict, tv("key")) { (d, k) =>
+    registerIR("[]", tdict, tv("key"), tv("value")) { (d, k) =>
       val vtype = types.coerce[TBaseStruct](types.coerce[TContainer](d.typ).elementType).types(1)
       val errormsg = "Key not found in dictionary."
       get(d, k, Die(errormsg, vtype))
     }
 
-    registerIR("dictToArray", tdict) { d =>
+    registerIR("dictToArray", tdict, TArray(TStruct("key" -> tv("key"), "value" -> tv("value")))) { d =>
       val elt = Ref(genUID(), -types.coerce[TContainer](d.typ).elementType)
       ArrayMap(
         ToArray(d),
@@ -63,21 +63,21 @@ object DictFunctions extends RegistryFunctions {
         MakeTuple(Seq(GetField(elt, "key"), GetField(elt, "value"))))
     }
 
-    registerIR("keySet", tdict) { d =>
+    registerIR("keySet", tdict, TSet(tv("key"))) { d =>
       val pairs = Ref(genUID(), -types.coerce[TContainer](d.typ).elementType)
       ToSet(ArrayMap(ToArray(d), pairs.name, GetField(pairs, "key")))
     }
 
-    registerIR("dict", TSet(TTuple(tv("key"), tv("value"))))(s => ToDict(ToArray(s)))
+    registerIR("dict", TSet(TTuple(tv("key"), tv("value"))), tdict)(s => ToDict(ToArray(s)))
 
-    registerIR("dict", TArray(TTuple(tv("key"), tv("value"))))(ToDict)
+    registerIR("dict", TArray(TTuple(tv("key"), tv("value"))), tdict)(ToDict)
 
-    registerIR("keys", tdict) { d =>
+    registerIR("keys", tdict, TArray(tv("key"))) { d =>
       val elt = Ref(genUID(), -types.coerce[TContainer](d.typ).elementType)
       ArrayMap(ToArray(d), elt.name, GetField(elt, "key"))
     }
 
-    registerIR("values", tdict) { d =>
+    registerIR("values", tdict, TArray(tv("value"))) { d =>
       val elt = Ref(genUID(), -types.coerce[TContainer](d.typ).elementType)
       ArrayMap(ToArray(d), elt.name, GetField(elt, "value"))
     }

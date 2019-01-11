@@ -83,6 +83,9 @@ object Copy {
       case ArrayFor(_, valueName, _) =>
         val IndexedSeq(a: IR, body: IR) = newChildren
         ArrayFor(a, valueName, body)
+      case ArrayAgg(_, name, _) =>
+        val IndexedSeq(a: IR, query: IR) = newChildren
+        ArrayAgg(a, name, query)
       case AggFilter(_, _) =>
         val IndexedSeq(cond: IR, aggIR: IR) = newChildren
         AggFilter(cond, aggIR)
@@ -98,9 +101,9 @@ object Copy {
       case SelectFields(_, fields) =>
         val IndexedSeq(old: IR) = newChildren
         SelectFields(old, fields)
-      case InsertFields(_, fields) =>
+      case InsertFields(_, fields, fieldOrder) =>
         assert(newChildren.length == fields.length + 1)
-        InsertFields(newChildren.head.asInstanceOf[IR], fields.zip(newChildren.tail).map { case ((n, _), a) => (n, a.asInstanceOf[IR]) })
+        InsertFields(newChildren.head.asInstanceOf[IR], fields.zip(newChildren.tail).map { case ((n, _), a) => (n, a.asInstanceOf[IR]) }, fieldOrder)
       case GetField(_, name) =>
         val IndexedSeq(o: IR) = newChildren
         GetField(o, name)
@@ -154,6 +157,8 @@ object Copy {
       case MatrixWrite(_, writer) =>
         val IndexedSeq(child: MatrixIR) = newChildren
         MatrixWrite(child, writer)
+      case MatrixMultiWrite(_, writer) =>
+        MatrixMultiWrite(newChildren.map(_.asInstanceOf[MatrixIR]), writer)
       // from TableIR
       case TableCount(_) =>
         val IndexedSeq(child: TableIR) = newChildren
@@ -176,6 +181,12 @@ object Copy {
       case TableExport(_, path, typesFile, header, exportType) =>
         val IndexedSeq(child: TableIR) = newChildren
         TableExport(child, path, typesFile, header, exportType)
+      case TableToValueApply(child, function) =>
+        val IndexedSeq(newChild: TableIR) = newChildren
+        TableToValueApply(newChild, function)
+      case MatrixToValueApply(child, function) =>
+        val IndexedSeq(newChild: MatrixIR) = newChildren
+        MatrixToValueApply(newChild, function)
     }
   }
 }

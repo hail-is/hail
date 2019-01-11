@@ -414,7 +414,7 @@ class Table(ExprContainer):
         return Env.backend().execute(TableCount(self._tir))
 
     def _force_count(self):
-        return self._jt.forceCount()
+        return Env.backend().execute(TableToValueApply(self._tir, {'name': 'ForceCountTable'}))
 
     @typecheck_method(caller=str,
                       row=expr_struct())
@@ -1107,7 +1107,8 @@ class Table(ExprContainer):
 
         return GroupedTable(self, groups)
 
-    def aggregate(self, expr):
+    @typecheck_method(expr=expr_any, _localize=bool)
+    def aggregate(self, expr, _localize=True):
         """Aggregate over rows into a local value.
 
         Examples
@@ -1136,7 +1137,12 @@ class Table(ExprContainer):
         base, _ = self._process_joins(expr)
         analyze('Table.aggregate', expr, self._global_indices, {self._row_axis})
 
-        return Env.backend().execute(TableAggregate(base._tir, expr._ir))
+        agg_ir = TableAggregate(base._tir, expr._ir)
+
+        if _localize:
+            return Env.backend().execute(agg_ir)
+        else:
+            return construct_expr(agg_ir, expr.dtype)
 
     @typecheck_method(output=str,
                       overwrite=bool,
@@ -1455,10 +1461,9 @@ class Table(ExprContainer):
                 if not is_key:
                     original_key = list(left.key)
                     left = Table(TableMapRows(left.key_by()._tir,
-                                              Apply('annotate',
-                                                    left._row._ir,
-                                                    hl.struct(**dict(zip(uids, exprs)))._ir))
-                           ).key_by(*uids)
+                                              InsertFields(left._row._ir,
+                                                           list(zip(uids, [e._ir for e in exprs])),
+                                                           None))).key_by(*uids)
                     rekey_f = lambda t: t.key_by(*original_key)
                 else:
                     rekey_f = identity
@@ -2184,12 +2189,32 @@ class Table(ExprContainer):
         :class:`.Table`
             Expanded table.
         """
+        def _expand(e):
+            if isinstance(e, CollectionExpression) or isinstance(e, DictExpression):
+                return hl.map(lambda x: _expand(x), hl.array(e))
+            elif isinstance(e, StructExpression):
+                return hl.struct(**{k: _expand(v) for (k, v) in e.items()})
+            elif isinstance(e, TupleExpression):
+                return hl.struct(**{f'_{i}': x for (i, x) in enumerate(e)})
+            elif isinstance(e, IntervalExpression):
+                return hl.struct(start = e.start,
+                                 end = e.end,
+                                 includesStart = e.includes_start,
+                                 includesEnd = e.includes_end)
+            elif isinstance(e, LocusExpression):
+                return hl.struct(contig = e.contig,
+                                 position = e.position)
+            elif isinstance(e, CallExpression):
+                return hl.struct(alleles=hl.map(lambda i: e[i], hl.range(0, e.ploidy)),
+                                 phased=e.phased)
+            else:
+                assert isinstance(e, (NumericExpression, BooleanExpression, StringExpression))
+                return e
 
-        if len(self.key) == 0:
-            t = self
-        else:
-            t = self.key_by()
-        return Table._from_java(t._jt.expandTypes())
+        t = self.key_by()
+        t = t.select(**_expand(t.row))
+        t = t.select_globals(**_expand(t.globals))
+        return t
 
     def flatten(self):
         """Flatten nested structs.
@@ -2441,7 +2466,7 @@ class Table(ExprContainer):
                 raise ValueError(f"method 'explode' cannot explode a key field")
 
         f = self._fields_inverse[field]
-        t = Table(TableExplode(self._tir, f))
+        t = Table(TableExplode(self._tir, [f]))
         if name is not None:
             t = t.rename({f: name})
         return t

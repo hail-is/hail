@@ -85,6 +85,7 @@ object ExtractAggregators {
           SeqOp(I32(i), FastIndexedSeq(key, Begin(seqOp)), aggSig))
 
         ToDict(ArrayMap(ToArray(GetTupleElement(result, i)), newRef.name, MakeTuple(FastSeq(GetField(newRef, "key"), transformed))))
+      case x: ArrayAgg => x
       case _ => MapIR(extract)(ir)
     }
   }

@@ -156,6 +156,8 @@ final case class ArrayScan(a: IR, zero: IR, accumName: String, valueName: String
 
 final case class ArrayFor(a: IR, valueName: String, body: IR) extends IR
 
+final case class ArrayAgg(a: IR, name: String, query: IR) extends IR
+
 final case class AggFilter(cond: IR, aggIR: IR) extends IR
 
 final case class AggExplode(array: IR, name: String, aggBody: IR) extends IR
@@ -195,7 +197,12 @@ final case class SeqOp(i: IR, args: IndexedSeq[IR], aggSig: AggSignature) extend
 final case class Begin(xs: IndexedSeq[IR]) extends IR
 final case class MakeStruct(fields: Seq[(String, IR)]) extends IR
 final case class SelectFields(old: IR, fields: Seq[String]) extends IR
-final case class InsertFields(old: IR, fields: Seq[(String, IR)]) extends IR {
+
+object InsertFields {
+  def apply(old: IR, fields: Seq[(String, IR)]): InsertFields = InsertFields(old, fields, None)
+}
+final case class InsertFields(old: IR, fields: Seq[(String, IR)], fieldOrder: Option[IndexedSeq[String]]) extends IR {
+
   override def typ: TStruct = coerce[TStruct](super.typ)
 
   override def pType: PStruct = coerce[PStruct](super.pType)
@@ -246,6 +253,7 @@ final case class Uniroot(argname: String, function: IR, min: IR, max: IR) extend
 final case class TableCount(child: TableIR) extends IR
 final case class TableAggregate(child: TableIR, query: IR) extends IR
 final case class MatrixAggregate(child: MatrixIR, query: IR) extends IR
+
 final case class TableWrite(
   child: TableIR,
   path: String,
@@ -260,10 +268,20 @@ final case class TableExport(
   header: Boolean = true,
   exportType: Int = ExportType.CONCATENATED) extends IR
 
-final case class MatrixWrite(child: MatrixIR, writer: MatrixWriter) extends IR
-
 final case class TableGetGlobals(child: TableIR) extends IR
 final case class TableCollect(child: TableIR) extends IR
+
+final case class MatrixWrite(child: MatrixIR, writer: MatrixWriter) extends IR
+
+final case class MatrixMultiWrite(
+  override val children: IndexedSeq[MatrixIR],
+  writer: MatrixNativeMultiWriter) extends IR {
+  private val t = children.head.typ
+  require(children.forall(_.typ == t))
+}
+
+final case class TableToValueApply(child: TableIR, function: TableToValueFunction) extends IR
+final case class MatrixToValueApply(child: MatrixIR, function: MatrixToValueFunction) extends IR
 
 class PrimitiveIR(val self: IR) extends AnyVal {
   def +(other: IR): IR = ApplyBinaryPrimOp(Add(), self, other)

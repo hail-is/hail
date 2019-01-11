@@ -3,6 +3,7 @@
 import hail as hl
 from hail.matrixtable import MatrixTable
 from hail.expr import ArrayExpression, StructExpression
+from hail.ir.matrix_ir import MatrixKeyRowsBy
 
 
 def transform_one(mt: MatrixTable) -> MatrixTable:
@@ -18,17 +19,7 @@ def transform_one(mt: MatrixTable) -> MatrixTable:
         MQRankSum=mt.info['MQRankSum'],
         ReadPosRankSum=mt.info['ReadPosRankSum'],
     )
-    # This collects all fields with median combiners into arrays so we can calculate medians
-    # when needed
     mt = mt.annotate_rows(
-        # now minrep'ed (ref, alt) allele pairs
-        alleles=hl.bind(lambda ref: mt.alleles[1:].map(lambda alt:
-                                                       # minrep <NON_REF>
-                                                       hl.struct(ref=hl.cond(alt == "<NON_REF>",
-                                                                             ref[0:1],
-                                                                             ref),
-                                                                 alt=alt)),
-                        mt.alleles[0]),
         info=mt.info.annotate(
             SB=hl.agg.array_sum(mt.entry.SB)
         ).select(
@@ -97,15 +88,19 @@ def combine_gvcfs(mts):
     def localize(mt):
         return mt._localize_entries('__entries', '__cols')
 
-    cols = None
-    for mt in mts:
-        if cols is None:
-            cols = mt.key_cols_by().cols()
-        else:
-            cols = cols.union(mt.key_cols_by().cols())
+    mts = [hl.MatrixTable(MatrixKeyRowsBy(mt._mir, ['locus'], is_sorted=True)) for mt in mts]
+    mts = [mt.annotate_rows(
+        alleles=hl.bind(lambda ref: mt.alleles[1:].map(lambda alt: hl.struct(ref=ref, alt=alt)),
+                        mt.alleles[0])) for mt in mts]
     ts = hl.Table._multi_way_zip_join([localize(mt) for mt in mts], 'data', 'g')
     combined = combine(ts)
-    return combined._unlocalize_entries('__entries', '__cols', ['s'])
+    combined = combined.annotate(alleles=combined.alleles[:1].map(lambda d: d.ref)
+                                                 .extend(combined.alleles.map(lambda d: d.alt)))
+    return hl.MatrixTable(
+        MatrixKeyRowsBy(
+            combined._unlocalize_entries('__entries', '__cols', ['s'])._mir,
+            ['locus', 'alleles'],
+            is_sorted=True))
 
 # NOTE: these are just @chrisvittal's notes on how gVCF fields are combined
 #       some of it is copied from GenomicsDB's wiki.

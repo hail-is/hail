@@ -40,6 +40,7 @@ a :class:`.tstruct` with each option:
     tstr
     tbool
     tarray
+    tndarray
     tset
     tdict
     ttuple
@@ -59,6 +60,7 @@ a :class:`.tstruct` with each option:
 .. autodata:: hail.expr.types.tstr
 .. autodata:: hail.expr.types.tbool
 .. autoclass:: tarray
+.. autoclass:: tndarray
 .. autoclass:: tset
 .. autoclass:: tdict
 .. autoclass:: tstruct

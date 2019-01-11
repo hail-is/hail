@@ -436,7 +436,7 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=()) -> 
 
 
 @typecheck(test=enumeration('wald', 'lrt', 'score', 'firth'),
-           y=expr_float64,
+           y=oneof(expr_float64, sequenceof(expr_float64), sequenceof(sequenceof(expr_float64))),
            x=expr_float64,
            covariates=sequenceof(expr_float64),
            pass_through=sequenceof(oneof(str, Expression)))
@@ -456,11 +456,21 @@ def logistic_regression_rows(test, y, x, covariates, pass_through=()) -> hail.Ta
     ...     x=dataset.GT.n_alt_alleles(),
     ...     covariates=[1, dataset.pheno.age, dataset.pheno.is_female])
 
+    Run the logistic regression Wald test per variant using a list of binary (0/1)
+    phenotypes, intercept and two covariates stored in column-indexed
+    fields:
+
+    >>> result_ht = hl.logistic_regression_rows(
+    ...     test='wald',
+    ...     y=[dataset.pheno.is_case, dataset.pheno.is_case],  # where pheno values are 0, 1, or missing
+    ...     x=dataset.GT.n_alt_alleles(),
+    ...     covariates=[1, dataset.pheno.age, dataset.pheno.is_female])
+
     Warning
     -------
     :func:`.logistic_regression_rows` considers the same set of
     columns (i.e., samples, points) for every row, namely those columns for
-    which **all** covariates are defined. For each row, missing values of
+    which **all** response variables and covariates are defined. For each row, missing values of
     `x` are mean-imputed over these columns. As in the example, the
     intercept covariate ``1`` must be included **explicitly** if desired.
 
@@ -630,8 +640,8 @@ def logistic_regression_rows(test, y, x, covariates, pass_through=()) -> hail.Ta
     ----------
     test : {'wald', 'lrt', 'score', 'firth'}
         Statistical test.
-    y : :class:`.Float64Expression`
-        Column-indexed response expression.
+    y : :class:`.Float64Expression` or :obj:`list` of :class:`.Float64Expression`
+        One or more column-indexed response expressions.
         All non-missing values must evaluate to 0 or 1.
         Note that a :class:`.BooleanExpression` will be implicitly converted to
         a :class:`.Float64Expression` with this property.
@@ -652,31 +662,35 @@ def logistic_regression_rows(test, y, x, covariates, pass_through=()) -> hail.Ta
     mt = matrix_table_source('logistic_regresion_rows/x', x)
     check_entry_indexed('logistic_regresion_rows/x', x)
 
-    analyze('logistic_regresion_rows/y', y, mt._col_indices)
+    y_is_list = isinstance(y, list)
+    if y_is_list and len(y) == 0:
+        raise ValueError(f"'logistic_regression_rows': found no values for 'y'")
 
-    all_exprs = [y]
     for e in covariates:
-        all_exprs.append(e)
-        analyze('logistic_regression/covariates', e, mt._col_indices)
+        analyze('logistic_regression_rows/covariates', e, mt._col_indices)
 
-    _warn_if_no_intercept('logistic_regresion_rows', covariates)
+    _warn_if_no_intercept('logistic_regression_rows', covariates)
 
     x_field_name = Env.get_uid()
-    y_field_name = '__y'
+    y_field = list(f'__y_{i}' for i in range(len(y))) if y_is_list else "__y"
+
+    y_dict = dict(zip(y_field, y)) if y_is_list else {y_field: y}
+    func = Env.hail().methods.LogisticRegression
+
     cov_field_names = list(f'__cov{i}' for i in range(len(covariates)))
     row_fields = _get_regression_row_fields(mt, pass_through, 'logistic_regression_rows')
 
-# FIXME: selecting an existing entry field should be emitted as a SelectFields
-    mt = mt._select_all(col_exprs=dict(**{y_field_name: y},
+    # FIXME: selecting an existing entry field should be emitted as a SelectFields
+    mt = mt._select_all(col_exprs=dict(**y_dict,
                                        **dict(zip(cov_field_names, covariates))),
                         row_exprs=row_fields,
                         col_key=[],
                         entry_exprs={x_field_name: x})
 
-    jt = Env.hail().methods.LogisticRegression.apply(
+    jt = func.apply(
         mt._jmt,
         test,
-        y_field_name,
+        y_field,
         x_field_name,
         cov_field_names,
         [x for x in row_fields if x not in mt.row_key])
@@ -3329,11 +3343,7 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
                         twice_maf=hl.min(entries.info_j.mean, 2.0 - entries.info_j.mean)))
 
         def tie_breaker(l, r):
-            return hl.cond(l.twice_maf > r.twice_maf,
-                           -1,
-                           hl.cond(l.twice_maf < r.twice_maf,
-                                   1,
-                                   0))
+            return hl.sign(r.twice_maf - l.twice_maf)
 
         variants_to_remove = hl.maximal_independent_set(entries.i, entries.j, keep=False, tie_breaker=tie_breaker)
         variants_to_remove = variants_to_remove.key_by(variants_to_remove.node.idx)

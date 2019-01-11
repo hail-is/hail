@@ -1,0 +1,14 @@
+Sample	Cov1	Cov2
+sample_001	0.0	0.0
+sample_002	0.0	-1.0
+sample_003	2.0	3.0
+sample_004	1.0	5.0
+sample_005	0.0	0.0
+sample_006	-2.0	0.0
+sample_007	-2.0	-4.0
+sample_008	4.0	3.0
+sample_009	0.0	0.0
+sample_010	1.0	0.0
+sample_011	2.0	-2.0
+sample_012	3.0	-1.0
+sample_013	4.0	-4.0

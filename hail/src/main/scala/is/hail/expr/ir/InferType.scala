@@ -87,6 +87,8 @@ object InferType {
       case ArrayScan(a, zero, accumName, valueName, body) =>
         assert(body.typ == zero.typ)
         TArray(zero.typ)
+      case ArrayAgg(_, _, query) =>
+        query.typ
       case AggFilter(_, aggIR) =>
         aggIR.typ
       case AggExplode(array, name, aggBody) =>
@@ -104,9 +106,10 @@ object InferType {
       case SelectFields(old, fields) =>
         val tbs = coerce[TStruct](old.typ)
         tbs.select(fields.toFastIndexedSeq)._1
-      case InsertFields(old, fields) =>
+      case InsertFields(old, fields, fieldOrder) =>
         val tbs = coerce[TStruct](old.typ)
-        tbs.insertFields(fields.map(f => (f._1, f._2.typ)))
+        val s = tbs.insertFields(fields.map(f => (f._1, f._2.typ)))
+        fieldOrder.map(fds => TStruct(fds.map(f => f -> s.fieldType(f)): _*)).getOrElse(s)
       case GetField(o, name) =>
         val t = coerce[TStruct](o.typ)
         if (t.index(name).isEmpty)
@@ -127,9 +130,12 @@ object InferType {
         query.typ
       case _: TableWrite => TVoid
       case _: MatrixWrite => TVoid
+      case _: MatrixMultiWrite => TVoid
       case _: TableExport => TVoid
       case TableGetGlobals(child) => child.typ.globalType
       case TableCollect(child) => TStruct("rows" -> TArray(child.typ.rowType), "global" -> child.typ.globalType)
+      case TableToValueApply(child, function) => function.typ(child.typ)
+      case MatrixToValueApply(child, function) => function.typ(child.typ)
     }
   }
 }

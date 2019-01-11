@@ -509,6 +509,76 @@ class Tests(unittest.TestCase):
         self.assertTrue(is_constant(results[9]))
         self.assertTrue(is_constant(results[10]))
 
+    def test_logistic_regression_wald_test_apply_multi_pheno(self):
+        covariates = hl.import_table(resource('regressionLogistic.cov'),
+                                     key='Sample',
+                                     types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat})
+        pheno = hl.import_table(resource('regressionLogisticBoolean.pheno'),
+                                key='Sample',
+                                missing='0',
+                                types={'isCase': hl.tbool})
+        mt = hl.import_vcf(resource('regressionLogistic.vcf'))
+        ht = hl.logistic_regression_rows('wald',
+                                         y=[pheno[mt.s].isCase],
+                                         x=mt.GT.n_alt_alleles(),
+                                         covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
+
+        results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
+
+        self.assertEqual(len(results[1].logistic_regression),1)
+        self.assertAlmostEqual(results[1].logistic_regression[0].beta, -0.81226793796, places=6)
+        self.assertAlmostEqual(results[1].logistic_regression[0].standard_error, 2.1085483421, places=6)
+        self.assertAlmostEqual(results[1].logistic_regression[0].z_stat, -0.3852261396, places=6)
+        self.assertAlmostEqual(results[1].logistic_regression[0].p_value, 0.7000698784, places=6)
+
+        self.assertEqual(len(results[2].logistic_regression),1)
+        self.assertAlmostEqual(results[2].logistic_regression[0].beta, -0.43659460858, places=6)
+        self.assertAlmostEqual(results[2].logistic_regression[0].standard_error, 1.0296902941, places=6)
+        self.assertAlmostEqual(results[2].logistic_regression[0].z_stat, -0.4240057531, places=6)
+        self.assertAlmostEqual(results[2].logistic_regression[0].p_value, 0.6715616176, places=6)
+
+        def is_constant(r):
+            return (not r.logistic_regression[0].fit.converged) or np.isnan(r.logistic_regression[0].p_value) or abs(r.logistic_regression[0].p_value - 1) < 1e-4
+
+        self.assertEqual(len(results[3].logistic_regression),1)
+        self.assertFalse(results[3].logistic_regression[0].fit.converged)  # separable
+        self.assertTrue(is_constant(results[6]))
+        self.assertTrue(is_constant(results[7]))
+        self.assertTrue(is_constant(results[8]))
+        self.assertTrue(is_constant(results[9]))
+        self.assertTrue(is_constant(results[10]))
+
+    def test_logistic_regression_wald_test_multi_pheno_bgen_dosage(self):
+        covariates = hl.import_table(resource('regressionLogisticMultiPheno.cov'),
+                                     key='Sample',
+                                     types={'Cov1': hl.tfloat, 'Cov2': hl.tfloat}).cache()
+        pheno = hl.import_table(resource('regressionLogisticMultiPheno.pheno'),
+                                key='Sample',
+                                missing='NA',
+                                types={'Pheno1': hl.tint32, 'Pheno2': hl.tint32}).cache()
+        mt = hl.import_bgen(resource('example.8bits.bgen'),
+                                           entry_fields=['dosage']).cache()
+
+        ht_single_pheno = hl.logistic_regression_rows('wald',
+                                      y=pheno[mt.s].Pheno1,
+                                      x=mt.dosage,
+                                      covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
+
+        ht_multi_pheno = hl.logistic_regression_rows('wald',
+                                         y=[pheno[mt.s].Pheno1, pheno[mt.s].Pheno2],
+                                         x=mt.dosage,
+                                         covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
+
+        single_results = dict(hl.tuple([ht_single_pheno.locus.position, ht_single_pheno.row]).collect())
+        multi_results = dict(hl.tuple([ht_multi_pheno.locus.position, ht_multi_pheno.row]).collect())
+        self.assertEqual(len(multi_results[1001].logistic_regression),2)
+        self.assertAlmostEqual(multi_results[1001].logistic_regression[0].beta, single_results[1001].beta, places=6)
+        self.assertAlmostEqual(multi_results[1001].logistic_regression[0].standard_error,single_results[1001].standard_error, places=6)
+        self.assertAlmostEqual(multi_results[1001].logistic_regression[0].z_stat, single_results[1001].z_stat, places=6)
+        self.assertAlmostEqual(multi_results[1001].logistic_regression[0].p_value,single_results[1001].p_value, places=6)
+        #TODO test handling of missingness
+
+
     def test_logistic_regression_wald_test_pl(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',

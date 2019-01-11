@@ -343,6 +343,11 @@ object IRParser {
         val elementType = type_expr(it)
         punctuation(it, "]")
         TArray(elementType, req)
+      case "NDArray" =>
+        punctuation(it, "[")
+        val elementType = type_expr(it)
+        punctuation(it, "]")
+        TNDArray(elementType, req)
       case "Set" =>
         punctuation(it, "[")
         val elementType = type_expr(it)
@@ -629,6 +634,11 @@ object IRParser {
         val a = ir_value_expr(env)(it)
         val body = ir_value_expr(env + (name, coerce[TArray](a.typ).elementType))(it)
         ArrayFor(a, name, body)
+      case "ArrayAgg" =>
+        val name = identifier(it)
+        val a = ir_value_expr(env)(it)
+        val query = ir_value_expr(env + (name, coerce[TArray](a.typ).elementType))(it)
+        ArrayAgg(a, name, query)
       case "AggFilter" =>
         val cond = ir_value_expr(env)(it)
         val aggIR = ir_value_expr(env)(it)
@@ -678,8 +688,9 @@ object IRParser {
         SelectFields(old, fields)
       case "InsertFields" =>
         val old = ir_value_expr(env)(it)
+        val fieldOrder = opt(it, string_literals)
         val fields = named_value_irs(env)(it)
-        InsertFields(old, fields)
+        InsertFields(old, fields, fieldOrder.map(_.toFastIndexedSeq))
       case "GetField" =>
         val name = identifier(it)
         val s = ir_value_expr(env)(it)
@@ -735,6 +746,14 @@ object IRParser {
         val child = table_ir(env)(it)
         val query = ir_value_expr(env.update(child.typ.refMap))(it)
         TableAggregate(child, query)
+      case "TableToValueApply" =>
+        val config = string_literal(it)
+        val child = table_ir(env)(it)
+        TableToValueApply(child, RelationalFunctions.lookupTableToValue(config))
+      case "MatrixToValueApply" =>
+        val config = string_literal(it)
+        val child = matrix_ir(env)(it)
+        MatrixToValueApply(child, RelationalFunctions.lookupMatrixToValue(config))
       case "TableExport" =>
         val child = table_ir(env)(it)
         val path = string_literal(it)
@@ -759,6 +778,12 @@ object IRParser {
         val writer = Serialization.read[MatrixWriter](writerStr)
         val child = matrix_ir(env)(it)
         MatrixWrite(child, writer)
+      case "MatrixMultiWrite" =>
+        val writerStr = string_literal(it)
+        implicit val formats = MatrixNativeMultiWriter.formats
+        val writer = Serialization.read[MatrixNativeMultiWriter](writerStr)
+        val children = matrix_ir_children(env)(it)
+        MatrixMultiWrite(children, writer)
       case "JavaIR" =>
         val name = identifier(it)
         env.irMap(name).asInstanceOf[IR]
@@ -881,9 +906,9 @@ object IRParser {
           else
             SortField(i.substring(1), Descending)))
       case "TableExplode" =>
-        val field = identifier(it)
+        val path = string_literals(it)
         val child = table_ir(env)(it)
-        TableExplode(child, field)
+        TableExplode(child, path)
       case "CastMatrixToTable" =>
         val entriesField = string_literal(it)
         val colsField = string_literal(it)

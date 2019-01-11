@@ -46,6 +46,7 @@ users = [
     'patrick-schultz',
     'chrisvittal',
     'akotlar',
+    'daniel-goldstein',
 ]
 
 default_repo = 'hail'
