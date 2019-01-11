@@ -223,7 +223,7 @@ def test_parent_deleted(client):
         assert status['exit_code'] == 0
     assert tail.status()['state'] == 'Cancelled'
 
-    
+
 def test_callback(client):
     from flask import Flask, request
     app = Flask('test-client')
