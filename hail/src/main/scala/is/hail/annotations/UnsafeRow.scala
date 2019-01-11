@@ -71,6 +71,8 @@ object UnsafeRow {
       case _: PFloat64 => region.loadDouble(offset)
       case t: PArray =>
         readArray(t, region, offset)
+      case t: PNDArray =>
+        NDArray.fromRow(readBaseStruct(t.representation.asInstanceOf[PStruct], region, offset))
       case t: PSet =>
         readArray(t, region, offset).toSet
       case _: PString => readString(region, offset)

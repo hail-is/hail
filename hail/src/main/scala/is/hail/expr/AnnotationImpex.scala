@@ -106,6 +106,8 @@ object JSONAnnotationImpex {
         case TArray(elementType, _) =>
           val arr = a.asInstanceOf[Seq[Any]]
           JArray(arr.map(elem => exportAnnotation(elem, elementType)).toList)
+        case TNDArray(elementType, _) =>
+          a.asInstanceOf[NDArray].toJSON(elementType.toJSON)
         case TSet(elementType, _) =>
           val arr = a.asInstanceOf[Set[Any]]
           JArray(arr.map(elem => exportAnnotation(elem, elementType)).toList)
@@ -183,6 +185,9 @@ object JSONAnnotationImpex {
           null
         }.toMap
 
+      case (a, t: TNDArray) =>
+        NDArray.fromRow(importAnnotation(a, t.representation, parent, padNulls).asInstanceOf[Row])
+      
       case (JObject(jfields), t: TStruct) =>
         if (t.size == 0)
           Annotation.empty
