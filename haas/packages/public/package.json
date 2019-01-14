@@ -23,12 +23,10 @@
     "isomorphic-unfetch": "^3.0.0",
     "js-cookies": "^1.0.4",
     "jwt-decode": "^2.2.0",
-    "monaco-editor": "^0.15.6",
     "next": "^7.0.2-canary.49",
     "react": "^16.7.0",
     "react-dom": "^16.7.0",
-    "react-easy-state": "^6.0.4",
-    "typeface-raleway": "^0.0.54"
+    "react-easy-state": "^6.0.4"
   },
   "devDependencies": {
     "@babel/core": "^7.2.2",
@@ -54,7 +52,6 @@
     "eslint": "^5.12.0",
     "file-loader": "^3.0.1",
     "fork-ts-checker-webpack-plugin": "^0.5.2",
-    "monaco-editor-webpack-plugin": "^1.7.0",
     "next-purgecss": "^3.0.0",
     "node-sass": "^4.11.0",
     "postcss-preset-env": "^6.5.0",

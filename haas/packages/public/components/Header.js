@@ -77,26 +77,17 @@ class Header extends Component {
               H
             </a>
           </Link>
-          <Link href="/submit" passHref prefetch>
+          <Link href="/notebook" passHref prefetch>
             <a
-              aria-label="Suubmit"
+              aria-label="Notebook Service"
               className={classNames('link-button', {
-                'is-active': pathname === '/submit'
+                'is-active': pathname === '/notebook'
               })}
             >
-              Submit
+              Notebook
             </a>
           </Link>
-          <Link href="/batch" passHref prefetch>
-            <a
-              aria-label="Batch"
-              className={classNames('link-button', {
-                'is-active': pathname === '/batch'
-              })}
-            >
-              Batch
-            </a>
-          </Link>
+
           <Link href="/scorecard" passHref prefetch>
             <a
               aria-label="Scorecard"
@@ -105,17 +96,6 @@ class Header extends Component {
               })}
             >
               Scorecard
-            </a>
-          </Link>
-
-          <Link href="/jobs" passHref prefetch>
-            <a
-              aria-label="Jobs"
-              className={classNames('link-button', {
-                'is-active': pathname === '/jobs'
-              })}
-            >
-              Jobs
             </a>
           </Link>
 
