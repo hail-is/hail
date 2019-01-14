@@ -884,14 +884,15 @@ private class Emit(
                         addFields(mbLike.mb, vir.pType, mbLike.emit.emit(vir, env))
                     }
                   case None =>
+                    val oldField = oldtype.field(f.name)
                     new EstimableEmitter[EmitMethodBuilderLike] {
                       def estimatedSize: Int = 20
 
                       def emit(mbLike: EmitMethodBuilderLike): Code[Unit] =
                         Code(
-                          oldtype.isFieldMissing(region, xo, f.index).mux(
+                          oldtype.isFieldMissing(region, xo, oldField.index).mux(
                             srvb.setMissing(),
-                            srvb.addIRIntermediate(f.typ)(region.loadIRIntermediate(f.typ)(oldtype.fieldOffset(xo, f.index)))
+                            srvb.addIRIntermediate(f.typ)(region.loadIRIntermediate(oldField.typ)(oldtype.fieldOffset(xo, oldField.index)))
                           ),
                           srvb.advance())
                     }
