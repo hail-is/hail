@@ -235,9 +235,52 @@ class BlockMatrix(object):
 
     - Natural logarithm, :meth:`log`.
     """
-    def __init__(self, jbm, bmir):
+    def __init__(self, jbm, bmir=None):
         self._jbm = jbm
         self._bmir = bmir
+
+    """
+    There are two types of method implementations right now:
+    1. A method that is NOT integrated into the IR and requires a concrete _jbm to operate on
+    2. A method that is integrated into the IR, in which case _jbm should be None and _bmir is the current IR
+    
+    Methods are in the process of being converted from 1 to 2
+    
+    Cases for running methods:
+        1. Running IR function with an IR - should run under IR implementation with no changes
+        2. Running an IR function with a jbm and no IR - should transform the jbm to an IR 
+        (maybe write to file and create BlockMatrixRead?)
+        3. Running non-IR function with IR - should force the existing IR to retrieve a jbm and go from there
+        4. Running non-IR function with a jbm and no IR - should run normally with no changes
+    
+    INVARIANT:
+        The _jbm and _bmir should NEVER be non-None at the same time. A concrete jbm should reflect the current
+        state of the block matrix so there should be no IR. A concrete bmir reflects work left to be done to
+        obtain a jbm, therefore there should be no current jbm.
+    
+    The synchronize_jbm_and_bmir method is a temporary hack to ensure compatibility between the IR methods and
+    non-IR methods
+    """
+    @typecheck_method(ir_method=bool)
+    def synchronize_jbm_and_bmir(self, ir_method):
+        if self._bmir is None and self._jbm is None:
+            raise RuntimeError('jbm and bmir are both None')
+
+        if self._bmir is not None and self._jbm is not None:
+            raise RuntimeError('jbm and bmir are both not-None')
+
+        if ir_method and self._bmir is None:
+            temp_path = new_local_temp_file()
+            self._jbm.write(temp_path, False, False, False)
+
+            self._bmir = BlockMatrixRead(temp_path)
+            self._jbm = None
+        elif (not ir_method) and self._jbm is None:
+            temp_path = new_local_temp_file()
+            self.write(temp_path)
+
+            self._jbm = Env.hail().linalg.BlockMatrix.read(Env.hc()._jhc, temp_path)
+            self._bmir = None
 
     @classmethod
     @typecheck_method(path=str)
@@ -253,7 +296,6 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        # return cls(Env.hail().linalg.BlockMatrix.read(Env.hc()._jhc, path), None)
         return cls(None, BlockMatrixRead(path))
 
     @classmethod
@@ -524,6 +566,8 @@ class BlockMatrix(object):
         -------
         :obj:`int`
         """
+        self.synchronize_jbm_and_bmir(False)
+
         return self._jbm.nRows()
 
     @property
@@ -534,6 +578,8 @@ class BlockMatrix(object):
         -------
         :obj:`int`
         """
+        self.synchronize_jbm_and_bmir(False)
+
         return self._jbm.nCols()
 
     @property
@@ -545,6 +591,8 @@ class BlockMatrix(object):
         (:obj:`int`, :obj:`int`)
            Number of rows and number of columns.
         """
+        self.synchronize_jbm_and_bmir(False)
+
         return self.n_rows, self.n_cols
 
     @property
@@ -555,14 +603,20 @@ class BlockMatrix(object):
         -------
         :obj:`int`
         """
+        self.synchronize_jbm_and_bmir(False)
+
         return self._jbm.blockSize()
 
     @property
     def _jdata(self):
+        self.synchronize_jbm_and_bmir(False)
+
         return self._jbm.toBreezeMatrix().data()
 
     @property
     def _as_scalar(self):
+        self.synchronize_jbm_and_bmir(False)
+
         assert self.n_rows == 1 and self.n_cols == 1
         return self._jbm.toBreezeMatrix().apply(0, 0)
 
@@ -587,8 +641,8 @@ class BlockMatrix(object):
             If ``True``, major output will be written to temporary local storage
             before being copied to ``output``.
         """
-        # Env.backend().execute(BlockMatrixWrite(self._bmir, path, force_row_major, stage_locally))
-        # self._jbm.write(path, overwrite, force_row_major, stage_locally)
+        self.synchronize_jbm_and_bmir(True)
+
         Env.backend().execute(BlockMatrixWrite(self._bmir, path, overwrite, force_row_major, stage_locally))
 
     @staticmethod
@@ -734,6 +788,8 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
+        self.synchronize_jbm_and_bmir(False)
+
         BlockMatrix._check_indices(rows_to_keep, self.n_rows)
         return BlockMatrix(self._jbm.filterRows(jarray(Env.jvm().long, rows_to_keep)))
 
@@ -750,6 +806,8 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
+        self.synchronize_jbm_and_bmir(False)
+
         BlockMatrix._check_indices(cols_to_keep, self.n_cols)
         return BlockMatrix(self._jbm.filterCols(jarray(Env.jvm().long, cols_to_keep)))
 
@@ -775,6 +833,8 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
+        self.synchronize_jbm_and_bmir(False)
+
         BlockMatrix._check_indices(rows_to_keep, self.n_rows)
         BlockMatrix._check_indices(cols_to_keep, self.n_cols)
         return BlockMatrix(self._jbm.filter(jarray(Env.jvm().long, rows_to_keep),
@@ -812,6 +872,8 @@ class BlockMatrix(object):
 
     @typecheck_method(indices=tupleof(oneof(int, slice)))
     def __getitem__(self, indices):
+        self.synchronize_jbm_and_bmir(False)
+
         if len(indices) != 2:
             raise ValueError(f'tuple of indices or slices must have length two, found {len(indices)}')
 
@@ -838,6 +900,8 @@ class BlockMatrix(object):
                       radius=int,
                       include_diagonal=bool)
     def _filtered_entries_table(self, table, radius, include_diagonal):
+        self.synchronize_jbm_and_bmir(False)
+
         return Table._from_java(self._jbm.filteredEntriesTable(table._jt, radius, include_diagonal))
 
     @typecheck_method(lower=int, upper=int, blocks_only=bool)
@@ -910,6 +974,8 @@ class BlockMatrix(object):
         :class:`.BlockMatrix`
             Sparse block matrix.
         """
+        self.synchronize_jbm_and_bmir(False)
+
         if lower > upper:
             raise ValueError(f'sparsify_band: lower={lower} is greater than upper={upper}')
 
@@ -969,6 +1035,8 @@ class BlockMatrix(object):
         :class:`.BlockMatrix`
             Sparse block matrix.
         """
+        self.synchronize_jbm_and_bmir(False)
+
         if lower:
             lower_band = 1 - self.n_rows
             upper_band = 0
@@ -1047,6 +1115,8 @@ class BlockMatrix(object):
         :class:`.BlockMatrix`
             Sparse block matrix.
         """
+        self.synchronize_jbm_and_bmir(False)
+
         if isinstance(starts, np.ndarray):
             if not (starts.dtype == np.int32 or starts.dtype == np.int64):
                 raise ValueError("sparsify_row_intervals: starts ndarray must have dtype 'int32' or 'int64'")
@@ -1115,6 +1185,8 @@ class BlockMatrix(object):
         --------
         :meth:`.to_numpy`
         """
+        self.synchronize_jbm_and_bmir(False)
+
         n_entries = self.n_rows * self.n_cols
         if n_entries >= 2 << 31:
             raise ValueError(f'number of entries must be less than 2^31, found {n_entries}')
@@ -1142,6 +1214,8 @@ class BlockMatrix(object):
         -------
         :class:`numpy.ndarray`
         """
+        self.synchronize_jbm_and_bmir(False)
+
         path = new_local_temp_file()
         uri = local_path_uri(path)
         self.tofile(uri)
@@ -1160,6 +1234,8 @@ class BlockMatrix(object):
         -------
         :obj:`bool`
         """
+        self.synchronize_jbm_and_bmir(False)
+
         return self._jbm.gp().maybeBlocks().isDefined()
 
     @property
@@ -1170,6 +1246,8 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
+        self.synchronize_jbm_and_bmir(False)
+
         return BlockMatrix(self._jbm.transpose())
 
     def densify(self):
@@ -1179,6 +1257,8 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
+        self.synchronize_jbm_and_bmir(False)
+
         return BlockMatrix(self._jbm.densify())
 
     def cache(self):
@@ -1193,6 +1273,8 @@ class BlockMatrix(object):
         :class:`.BlockMatrix`
             Cached block matrix.
         """
+        self.synchronize_jbm_and_bmir(False)
+
         return self.persist('MEMORY_ONLY')
 
     @typecheck_method(storage_level=storage_level)
@@ -1225,6 +1307,8 @@ class BlockMatrix(object):
         :class:`.BlockMatrix`
             Persisted block matrix.
         """
+        self.synchronize_jbm_and_bmir(False)
+
         return BlockMatrix(self._jbm.persist(storage_level))
 
     def unpersist(self):
@@ -1240,6 +1324,8 @@ class BlockMatrix(object):
         :class:`.BlockMatrix`
             Unpersisted block matrix.
         """
+        self.synchronize_jbm_and_bmir(False)
+
         return BlockMatrix(self._jbm.unpersist())
 
     def __pos__(self):
@@ -1252,11 +1338,14 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
+        self.synchronize_jbm_and_bmir(False)
 
         op = getattr(self._jbm, "unary_$minus")
         return BlockMatrix(op())
 
     def _promote(self, b, op, reverse=False):
+        self.synchronize_jbm_and_bmir(False)
+
         a = self
         form_a, form_b = Form.compatible(a.shape, _shape(b), op)
 
@@ -1304,6 +1393,8 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
+        self.synchronize_jbm_and_bmir(False)
+
         new_a, new_b, form_b, _ = self._promote(b, 'addition')
 
         if isinstance(new_b, float):
@@ -1330,6 +1421,8 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
+        self.synchronize_jbm_and_bmir(False)
+
         new_a, new_b, form_b, reverse = self._promote(b, 'subtraction')
 
         if isinstance(new_b, float):
@@ -1366,6 +1459,8 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
+        self.synchronize_jbm_and_bmir(False)
+
         new_a, new_b, form_b, _ = self._promote(b, 'element-wise multiplication')
 
         if isinstance(new_b, float):
@@ -1392,6 +1487,8 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
+        self.synchronize_jbm_and_bmir(False)
+
         new_a, new_b, form_b, reverse = self._promote(b, 'element-wise division')
 
         if isinstance(new_b, float):
@@ -1418,18 +1515,26 @@ class BlockMatrix(object):
 
     @typecheck_method(b=numeric)
     def __radd__(self, b):
+        self.synchronize_jbm_and_bmir(False)
+
         return self + b
 
     @typecheck_method(b=numeric)
     def __rsub__(self, b):
+        self.synchronize_jbm_and_bmir(False)
+
         return BlockMatrix(self._jbm.reverseScalarSub(float(b)))
 
     @typecheck_method(b=numeric)
     def __rmul__(self, b):
+        self.synchronize_jbm_and_bmir(False)
+
         return self * b
 
     @typecheck_method(b=numeric)
     def __rtruediv__(self, b):
+        self.synchronize_jbm_and_bmir(False)
+
         return BlockMatrix(self._jbm.reverseScalarDiv(float(b)))
 
     @typecheck_method(b=oneof(np.ndarray, block_matrix_type))
@@ -1444,6 +1549,8 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
+        self.synchronize_jbm_and_bmir(False)
+
         if isinstance(b, np.ndarray):
             return self @ BlockMatrix.from_numpy(b, self.block_size)
         else:
@@ -1464,6 +1571,8 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
+        self.synchronize_jbm_and_bmir(False)
+
         return BlockMatrix(self._jbm.pow(float(x)))
 
     def sqrt(self):
@@ -1473,6 +1582,8 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
+        self.synchronize_jbm_and_bmir(False)
+
         return BlockMatrix(self._jbm.sqrt())
 
     def abs(self):
@@ -1482,6 +1593,8 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
+        self.synchronize_jbm_and_bmir(False)
+
         return BlockMatrix(self._jbm.abs())
 
     def log(self):
@@ -1491,6 +1604,8 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
+        self.synchronize_jbm_and_bmir(False)
+
         return BlockMatrix(self._jbm.log())
 
     def diagonal(self):
@@ -1500,6 +1615,8 @@ class BlockMatrix(object):
         -------
         :class:`numpy.ndarray`
         """
+        self.synchronize_jbm_and_bmir(False)
+
         return _ndarray_from_jarray(self._jbm.diagonal())
 
     @typecheck_method(axis=nullable(int))
@@ -1537,12 +1654,14 @@ class BlockMatrix(object):
             If ``0``, returns a block matrix with a single row.
             If ``1``, returns a block matrix with a single column.
         """
+        self.synchronize_jbm_and_bmir(False)
+
         if axis is None:
             return self._jbm.sum()
         elif axis == 0:
-            return BlockMatrix(self._jbm.rowSum())
+            return BlockMatrix(self._jbm.rowSum(), None)
         elif axis == 1:
-            return BlockMatrix(self._jbm.colSum())
+            return BlockMatrix(self._jbm.colSum(), None)
         else:
             raise ValueError(f'axis must be None, 0, or 1: found {axis}')
 
@@ -1587,6 +1706,8 @@ class BlockMatrix(object):
         :class:`.Table`
             Table with a row for each entry.
         """
+        self.synchronize_jbm_and_bmir(False)
+
         return Table._from_java(self._jbm.entriesTable(Env.hc()._jhc))
 
     @staticmethod
@@ -1813,6 +1934,8 @@ class BlockMatrix(object):
         :class:`.BlockMatrix`
             Sparse block matrix.
         """
+        self.synchronize_jbm_and_bmir(False)
+
         n_rectangles = len(rectangles)
         if n_rectangles >= (1 << 29):
             raise ValueError(f'number of rectangles must be less than 2^29, found {n_rectangles}')
@@ -2108,6 +2231,8 @@ class BlockMatrix(object):
             :math:`\sqrt[3]{nmr}` exceeds `complexity_bound`.
             Only returned if `compute_uv` is True.
         """
+        self.synchronize_jbm_and_bmir(False)
+
         n, m = self.shape
 
         if n * m * min(n, m) <= complexity_bound ** 3:
