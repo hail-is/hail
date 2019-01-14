@@ -834,13 +834,29 @@ case class TableMapGlobals(child: TableIR, newGlobals: IR) extends TableIR {
   protected[ir] override def execute(hc: HailContext): TableValue = {
     val tv = child.execute(hc)
 
-    val newGlobalVals = Interpret[Row](
-      newGlobals,
-      Env[(Any, Type)]("global" -> (tv.globals.value, child.typ.globalType)),
-      FastIndexedSeq(),
-      None)
+    val uid = genUID()
+    val (evalIR, value, valueType) = EvaluateNonCompilable(newGlobals, uid)
 
-    tv.copy(typ = typ, globals = BroadcastRow(newGlobalVals, typ.globalType, hc.sc))
+    val globalsPType = tv.globals.t.physicalType
+    val nonCompilablePType = valueType.physicalType
+
+    val newGlobalValue = Region.scoped { r =>
+      val rvb = new RegionValueBuilder(r)
+      rvb.start(globalsPType)
+      rvb.addAnnotation(tv.globals.t, tv.globals.value)
+      val global = rvb.end()
+
+      rvb.start(nonCompilablePType)
+      rvb.addAnnotation(valueType, value)
+      val valueOffset = rvb.end()
+
+      val (resultType, f) = Compile[Long, Long, Long]("global", tv.globals.t.physicalType, uid, nonCompilablePType, evalIR)
+
+      val newGlobalOffset = f(0)(r, global, false, valueOffset, false)
+      SafeRow.read(resultType, r, newGlobalOffset).asInstanceOf[Row]
+    }
+
+    tv.copy(typ = typ, globals = BroadcastRow(newGlobalValue, typ.globalType, hc.sc))
   }
 }
 

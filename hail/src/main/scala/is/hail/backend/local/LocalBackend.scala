@@ -19,7 +19,7 @@ object LocalBackend {
 
     ir = ir.unwrap
     ir = Optimize(ir, noisy = true, canGenerateLiterals = true)
-    ir = LiftLiterals(ir).asInstanceOf[IR]
+    ir = LiftNonCompilable(ir).asInstanceOf[IR]
     ir = LowerMatrixIR(ir)
     ir = Optimize(ir, noisy = true, canGenerateLiterals = false)
 

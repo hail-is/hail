@@ -33,7 +33,7 @@ object Interpret {
     else
       tir
 
-    val lowered = LowerMatrixIR(LiftLiterals(tiropt).asInstanceOf[TableIR])
+    val lowered = LowerMatrixIR(LiftNonCompilable(tiropt).asInstanceOf[TableIR])
     val lowopt = if (optimize)
       Optimize(lowered, noisy = true, canGenerateLiterals = false)
     else
@@ -51,7 +51,7 @@ object Interpret {
     else
       mir
 
-    val lowered = LowerMatrixIR(LiftLiterals(miropt).asInstanceOf[MatrixIR])
+    val lowered = LowerMatrixIR(LiftNonCompilable(miropt).asInstanceOf[MatrixIR])
     val lowopt = if (optimize)
       Optimize(lowered, noisy = true, canGenerateLiterals = false)
     else
@@ -86,7 +86,7 @@ object Interpret {
     }
 
     if (optimize) optimizeIR(true)
-    ir = LiftLiterals(ir).asInstanceOf[IR]
+    ir = LiftNonCompilable(ir).asInstanceOf[IR]
     ir = LowerMatrixIR(ir)
     if (optimize) optimizeIR(false)
 
