@@ -1,9 +1,10 @@
 package is.hail.backend.spark
 
 import is.hail.HailContext
+import is.hail.annotations.{Region, SafeRow}
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir._
-import is.hail.expr.types.virtual._
+import is.hail.expr.types.physical.PTuple
 import is.hail.utils._
 import org.apache.spark.SparkContext
 import org.json4s.jackson.JsonMethods
@@ -31,11 +32,10 @@ object SparkBackend {
 
     println("SparkBackend.execute to lower", Pretty(ir))
 
-    val SparkCollect(stages, value) = LowerTableIR.lower(ir)
-    val bindings = stages.mapValues { stage =>
-      (stage.execute(sc).collect().toFastIndexedSeq, TArray(stage.body.typ))
+    val pipeline = LowerTableIR.lower(ir)
+    Region.scoped { region =>
+      val (t, off) = pipeline.execute(sc, region)
+      SafeRow(t, region, off).get(0)
     }
-
-    Interpret[Any](value, Env[(Any, Type)](bindings.toSeq: _*), FastIndexedSeq(), None)
   }
 }
