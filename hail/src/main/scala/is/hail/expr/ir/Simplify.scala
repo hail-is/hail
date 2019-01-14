@@ -19,6 +19,7 @@ object Simplify {
       case ir: IR => simplifyValue(ir)
       case tir: TableIR => simplifyTable(allowRepartitioning)(tir)
       case mir: MatrixIR => simplifyMatrix(allowRepartitioning)(mir)
+      case bmir: BlockMatrixIR => bmir
     }
 
   private[this] def visitNode[T <: BaseIR](

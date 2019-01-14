@@ -67,6 +67,7 @@ object PruneDeadFields {
         case tir: TableIR =>
           memoizeTableIR(tir, tir.typ, memo)
           rebuild(tir, memo)
+        case bmir: BlockMatrixIR => bmir //TODO Investigate
         case vir: IR =>
           memoizeValueIR(vir, vir.typ, memo)
           rebuild(vir, Env.empty[Type], memo)
@@ -868,6 +869,8 @@ object PruneDeadFields {
           case tir: TableIR =>
             memoizeTableIR(tir, tir.typ, memo)
             None
+          case bmir: BlockMatrixIR => //TODO Investigate
+            None
           case ir: IR =>
             Some(memoizeValueIR(ir, ir.typ, memo))
         }
@@ -1166,6 +1169,7 @@ object PruneDeadFields {
           case valueIR: IR => rebuild(valueIR, in, memo)
           case mir: MatrixIR => rebuild(mir, memo)
           case tir: TableIR => rebuild(tir, memo)
+          case bmir: BlockMatrixIR => bmir //TODO investigate this
         })
     }
   }

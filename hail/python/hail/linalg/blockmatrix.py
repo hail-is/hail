@@ -5,6 +5,8 @@ from enum import IntEnum
 
 import hail as hl
 import hail.expr.aggregators as agg
+from hail.ir import BlockMatrixWrite
+from hail.ir.blockmatrix_ir import BlockMatrixRead
 from hail.utils import new_temp_file, new_local_temp_file, local_path_uri, storage_level
 from hail.utils.java import Env, jarray, joption
 from hail.typecheck import *
@@ -233,8 +235,9 @@ class BlockMatrix(object):
 
     - Natural logarithm, :meth:`log`.
     """
-    def __init__(self, jbm):
+    def __init__(self, jbm, bmir):
         self._jbm = jbm
+        self._bmir = bmir
 
     @classmethod
     @typecheck_method(path=str)
@@ -250,7 +253,8 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return cls(Env.hail().linalg.BlockMatrix.read(Env.hc()._jhc, path))
+        # return cls(Env.hail().linalg.BlockMatrix.read(Env.hc()._jhc, path), None)
+        return cls(None, BlockMatrixRead(path))
 
     @classmethod
     @typecheck_method(uri=str,
@@ -583,7 +587,9 @@ class BlockMatrix(object):
             If ``True``, major output will be written to temporary local storage
             before being copied to ``output``.
         """
-        self._jbm.write(path, overwrite, force_row_major, stage_locally)
+        # Env.backend().execute(BlockMatrixWrite(self._bmir, path, force_row_major, stage_locally))
+        # self._jbm.write(path, overwrite, force_row_major, stage_locally)
+        Env.backend().execute(BlockMatrixWrite(self._bmir, path, overwrite, force_row_major, stage_locally))
 
     @staticmethod
     @typecheck(entry_expr=expr_float64,
@@ -677,7 +683,7 @@ class BlockMatrix(object):
                                 __sum=agg.sum(mt['__x']),
                                 __sum_sq=agg.sum(mt['__x'] * mt['__x']))
             mt = mt.select_rows(__mean=mt['__sum'] / mt['__count'],
-                                __centered_length=hl.sqrt(mt['__sum_sq'] - 
+                                __centered_length=hl.sqrt(mt['__sum_sq'] -
                                                           (mt['__sum'] ** 2) / mt['__count']),
                                 __length=hl.sqrt(mt['__sum_sq'] +
                                                  (n_cols - mt['__count']) *
@@ -1280,7 +1286,7 @@ class BlockMatrix(object):
                 assert isinstance(b, np.ndarray)
                 b = BlockMatrix.from_numpy(b, a.block_size)
 
-        assert (isinstance(a, BlockMatrix) and 
+        assert (isinstance(a, BlockMatrix) and
                 (isinstance(b, BlockMatrix) or isinstance(b, float) or b.getClass().isArray()) and
                 (not (isinstance(b, BlockMatrix) and reverse)))
 

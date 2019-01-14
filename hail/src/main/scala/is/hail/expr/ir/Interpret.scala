@@ -783,6 +783,10 @@ object Interpret {
         val hc = HailContext.get
         val tableValue = child.execute(hc)
         tableValue.export(path, typesFile, header, exportType)
+      case BlockMatrixWrite(child, path, overwrite, forceRowMajor, stageLocally) =>
+        val hc = HailContext.get
+        val blockMatrix = child.execute(hc)
+        blockMatrix.write(path, overwrite, forceRowMajor, stageLocally)
       case TableToValueApply(child, function) =>
         function.execute(child.execute(HailContext.get))
       case MatrixToValueApply(child, function) =>

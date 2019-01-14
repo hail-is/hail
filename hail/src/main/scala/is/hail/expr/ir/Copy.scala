@@ -190,6 +190,9 @@ object Copy {
       case MatrixToValueApply(child, function) =>
         val IndexedSeq(newChild: MatrixIR) = newChildren
         MatrixToValueApply(newChild, function)
+      case BlockMatrixWrite(_, path, overwrite, forceRowMajor, stageLocally) =>
+        val IndexedSeq(newChild: BlockMatrixIR) = newChildren
+        BlockMatrixWrite(newChild, path, overwrite, forceRowMajor, stageLocally)
     }
   }
 }

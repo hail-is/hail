@@ -290,6 +290,7 @@ object TypeCheck {
       case TableCollect(_) =>
       case TableToValueApply(_, _) =>
       case MatrixToValueApply(_, _) =>
+      case BlockMatrixWrite(_, _, _, _, _) =>
     }
   }
 }

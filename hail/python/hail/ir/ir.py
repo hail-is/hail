@@ -1782,6 +1782,37 @@ class MatrixMultiWrite(IR):
                other.writer == self.writer
 
 
+class BlockMatrixWrite(IR):
+    @typecheck_method(child=BlockMatrixIR, path=str, overwrite=bool, force_row_major=bool, stage_locally=bool)
+    def __init__(self, child, path, overwrite, force_row_major, stage_locally):
+        super().__init__()
+        self.child = child
+        self.path = path
+        self.overwrite = overwrite
+        self.force_row_major = force_row_major
+        self.stage_locally = stage_locally
+
+    def copy(self, child):
+        new_instance = self.__class__
+        return new_instance(child, self.path, self.overwrite, self.force_row_major, self.stage_locally)
+
+    def render(self, r):
+        return '(BlockMatrixWrite {} "{}" {} {} {})'.format(
+            r(self.child),
+            escape_str(self.path),
+            self.overwrite,
+            self.force_row_major,
+            self.stage_locally)
+
+    def __eq__(self, other):
+        return isinstance(other, BlockMatrixWrite) and \
+               other.child == self.child and \
+               other.path == self.path and \
+               other.overwrite == self.overwrite and \
+               other.force_row_major == self.force_row_major and \
+               other.stage_locally == self.stage_locally
+
+
 class TableToValueApply(IR):
     def __init__(self, child, config):
         super().__init__(child)

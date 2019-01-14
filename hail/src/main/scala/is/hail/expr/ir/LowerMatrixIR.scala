@@ -22,6 +22,7 @@ object LowerMatrixIR {
     case ir: IR => lower(ir)
     case tir: TableIR => lower(tir)
     case mir: MatrixIR => lower(mir)
+    case bmir: BlockMatrixIR => bmir
   }
 
   private[this] def lower(ir: IR): IR = {
