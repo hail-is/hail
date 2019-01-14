@@ -1,7 +1,7 @@
 from hail import ir
 
 class Renderer(object):
-    def __init__(self, stop_at_jir):
+    def __init__(self, stop_at_jir=False):
         self.stop_at_jir = stop_at_jir
         self.count = 0
         self.jirs = {}

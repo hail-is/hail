@@ -100,6 +100,9 @@ class ReferenceGenome(object):
         super(ReferenceGenome, self).__init__()
         ReferenceGenome._references[name] = self
 
+        hl.ir.register_reference_genome_functions(name)
+
+
     def __str__(self):
         return self._jrep.toString()
 
@@ -463,6 +466,8 @@ class ReferenceGenome(object):
 
         self._jrep.addLiftover(Env.hc()._jhc, chain_file, dest_reference_genome.name)
 
+        hl.ir.register_liftover_functions(self.name, dest_reference_genome.name)
+
     def _init_from_java(self, jrep):
         self._jrep = jrep
 
@@ -480,6 +485,9 @@ class ReferenceGenome(object):
         gr._par_tuple = None
         super(ReferenceGenome, gr).__init__()
         ReferenceGenome._references[gr.name] = gr
+
+        hl.ir.register_reference_genome_functions(gr.name)
+
         return gr
 
     def _check_locus(self, l_jrep):

@@ -11,6 +11,13 @@ class ttable(object):
             dtype(jtt.rowType().toString()),
             jiterable_to_list(jtt.key()))
 
+    @staticmethod
+    def _from_json(json):
+        return ttable(
+            dtype(json['global']),
+            dtype(json['row']),
+            json['row_key'])
+
     @typecheck_method(global_type=tstruct, row_type=tstruct, row_key=sequenceof(str))
     def __init__(self, global_type, row_type, row_key):
         self.global_type = global_type
@@ -59,6 +66,26 @@ class ttable(object):
         l.append('}')
         
         return ''.join(l)
+
+    @property
+    def key_type(self):
+        return self.row_type._select_fields(self.row_key)
+
+    @property
+    def value_type(self):
+        return self.row_type._drop_fields(set(self.row_key))
+
+    def _rename(self, global_map, row_map):
+        return ttable(self.global_type._rename(global_map),
+                      self.row_type._rename(row_map),
+                      [row_map.get(k, k) for k in self.row_key])
+
+    def row_env(self):
+        return {'global': self.global_type,
+                'row': self.row_type}
+
+    def global_env(self):
+        return {'global': self.global_type}
 
 
 import pprint

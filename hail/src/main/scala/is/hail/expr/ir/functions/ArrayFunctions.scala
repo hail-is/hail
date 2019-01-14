@@ -79,28 +79,31 @@ object ArrayFunctions extends RegistryFunctions {
       extend(a, MakeArray(Seq(c), TArray(c.typ)))
     }
 
-    val arrayOps: Array[(String, (IR, IR) => IR)] =
+    val arrayOps: Array[(String, Type, Type, (IR, IR) => IR)] =
       Array(
-        ("*", ApplyBinaryPrimOp(Multiply(), _, _)),
-        ("/", ApplyBinaryPrimOp(FloatingPointDivide(), _, _)),
-        ("//", ApplyBinaryPrimOp(RoundToNegInfDivide(), _, _)),
-        ("+", ApplyBinaryPrimOp(Add(), _, _)),
-        ("-", ApplyBinaryPrimOp(Subtract(), _, _)),
-        ("**", { (ir1: IR, ir2: IR) => Apply("**", Seq(ir1, ir2)) }),
-        ("%", { (ir1: IR, ir2: IR) => Apply("%", Seq(ir1, ir2)) }))
+        ("*", tnum("T"), tv("T"), ApplyBinaryPrimOp(Multiply(), _, _)),
+        ("/", TInt32(), TFloat32(), ApplyBinaryPrimOp(FloatingPointDivide(), _, _)),
+        ("/", TInt64(), TFloat32(), ApplyBinaryPrimOp(FloatingPointDivide(), _, _)),
+        ("/", TFloat32(), TFloat32(), ApplyBinaryPrimOp(FloatingPointDivide(), _, _)),
+        ("/", TFloat64(), TFloat64(), ApplyBinaryPrimOp(FloatingPointDivide(), _, _)),
+        ("//", tnum("T"), tv("T"), ApplyBinaryPrimOp(RoundToNegInfDivide(), _, _)),
+        ("+", tnum("T"), tv("T"), ApplyBinaryPrimOp(Add(), _, _)),
+        ("-", tnum("T"), tv("T"), ApplyBinaryPrimOp(Subtract(), _, _)),
+        ("**", tnum("T"), TFloat64(), (ir1: IR, ir2: IR) => Apply("**", Seq(ir1, ir2))),
+        ("%", tnum("T"), tv("T"), (ir1: IR, ir2: IR) => Apply("%", Seq(ir1, ir2))))
 
-    for ((stringOp, irOp) <- arrayOps) {
-      registerIR(stringOp, TArray(tnum("T")), tv("T"), TArray(tv("T"))) { (a, c) =>
+    for ((stringOp, argType, retType, irOp) <- arrayOps) {
+      registerIR(stringOp, TArray(argType), argType, TArray(retType)) { (a, c) =>
         val i = genUID()
         ArrayMap(a, i, irOp(Ref(i, c.typ), c))
       }
 
-      registerIR(stringOp, tnum("T"), TArray(tv("T")), TArray(tv("T"))) { (c, a) =>
+      registerIR(stringOp, argType, TArray(argType), TArray(retType)) { (c, a) =>
         val i = genUID()
         ArrayMap(a, i, irOp(c, Ref(i, c.typ)))
       }
 
-      registerIR(stringOp, TArray(tnum("T")), TArray(tv("T")), TArray(tv("T"))) { (array1, array2) =>
+      registerIR(stringOp, TArray(argType), TArray(argType), TArray(retType)) { (array1, array2) =>
         val a1id = genUID()
         val a1 = Ref(a1id, array1.typ)
         val a2id = genUID()
@@ -197,9 +200,9 @@ object ArrayFunctions extends RegistryFunctions {
       ), "midx")
     }
 
-    registerIR("argmin", TArray(tv("T")), tv("T"))(argF(_, LT(_)))
+    registerIR("argmin", TArray(tv("T")), TInt32())(argF(_, LT(_)))
 
-    registerIR("argmax", TArray(tv("T")), tv("T"))(argF(_, GT(_)))
+    registerIR("argmax", TArray(tv("T")), TInt32())(argF(_, GT(_)))
 
     def uniqueIndex(a: IR, op: (Type) => ComparisonOp[Boolean]): IR = {
       val t = -coerce[TArray](a.typ).elementType

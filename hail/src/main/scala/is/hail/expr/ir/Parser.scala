@@ -130,7 +130,7 @@ case class IRParserEnvironment(
     copy(refMap = refMap ++ newRefMap, irMap = irMap ++ newIRMap)
 
   def withRefMap(newRefMap: Map[String, Type]): IRParserEnvironment = {
-    assert(refMap.isEmpty)
+    assert(refMap.isEmpty || newRefMap.isEmpty)
     copy(refMap = newRefMap)
   }
 
@@ -742,16 +742,16 @@ object IRParser {
         val max = ir_value_expr(env)(it)
         Uniroot(name, function, min, max)
       case "TableCount" =>
-        val child = table_ir(env)(it)
+        val child = table_ir(env.withRefMap(Map.empty))(it)
         TableCount(child)
       case "TableGetGlobals" =>
-        val child = table_ir(env)(it)
+        val child = table_ir(env.withRefMap(Map.empty))(it)
         TableGetGlobals(child)
       case "TableCollect" =>
-        val child = table_ir(env)(it)
+        val child = table_ir(env.withRefMap(Map.empty))(it)
         TableCollect(child)
       case "TableAggregate" =>
-        val child = table_ir(env)(it)
+        val child = table_ir(env.withRefMap(Map.empty))(it)
         val query = ir_value_expr(env.update(child.typ.refMap))(it)
         TableAggregate(child, query)
       case "TableToValueApply" =>
@@ -763,7 +763,7 @@ object IRParser {
         val child = matrix_ir(env)(it)
         MatrixToValueApply(child, RelationalFunctions.lookupMatrixToValue(config))
       case "TableExport" =>
-        val child = table_ir(env)(it)
+        val child = table_ir(env.withRefMap(Map.empty))(it)
         val path = string_literal(it)
         val typesFile = opt(it, string_literal).orNull
         val header = boolean_literal(it)
@@ -774,17 +774,17 @@ object IRParser {
         val overwrite = boolean_literal(it)
         val shuffleLocally = boolean_literal(it)
         val codecSpecJsonStr = opt(it, string_literal)
-        val child = table_ir(env)(it)
+        val child = table_ir(env.withRefMap(Map.empty))(it)
         TableWrite(child, path, overwrite, shuffleLocally, codecSpecJsonStr.orNull)
       case "MatrixAggregate" =>
-        val child = matrix_ir(env)(it)
+        val child = matrix_ir(env.withRefMap(Map.empty))(it)
         val query = ir_value_expr(env.update(child.typ.refMap))(it)
         MatrixAggregate(child, query)
       case "MatrixWrite" =>
         val writerStr = string_literal(it)
         implicit val formats = MatrixWriter.formats
         val writer = Serialization.read[MatrixWriter](writerStr)
-        val child = matrix_ir(env)(it)
+        val child = matrix_ir(env.withRefMap(Map.empty))(it)
         MatrixWrite(child, writer)
       case "MatrixMultiWrite" =>
         val writerStr = string_literal(it)
@@ -900,8 +900,8 @@ object IRParser {
         TableMapGlobals(child, newRow)
       case "TableRange" =>
         val n = int32_literal(it)
-        val nPartitions = int32_literal(it)
-        TableRange(n, nPartitions)
+        val nPartitions = opt(it, int32_literal)
+        TableRange(n, nPartitions.getOrElse(HailContext.get.sc.defaultParallelism))
       case "TableUnion" =>
         val children = table_ir_children(env)(it)
         TableUnion(children)

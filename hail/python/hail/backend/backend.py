@@ -7,6 +7,8 @@ from hail.expr.matrix_type import *
 from hail.ir.renderer import Renderer
 from hail.table import Table
 
+import requests
+
 import pyspark
 
 class Backend(object):
@@ -15,11 +17,15 @@ class Backend(object):
         return
 
     @abc.abstractmethod
-    def table_read_type(self, table_read_ir):
+    def value_type(self, ir):
         return
 
     @abc.abstractmethod
-    def matrix_read_type(self, matrix_read_ir):
+    def table_type(self, tir):
+        return
+
+    @abc.abstractmethod
+    def matrix_type(self, mir):
         return
 
 
@@ -37,11 +43,15 @@ class SparkBackend(Backend):
             Env.hail().expr.ir.Interpret.interpretJSON(
                 self._to_java_ir(ir)))
 
-    def table_read_type(self, tir):
+    def value_type(self, ir):
+        jir = self._to_java_ir(ir)
+        return dtype(jir.typ().toString())
+
+    def table_type(self, tir):
         jir = self._to_java_ir(tir)
         return ttable._from_java(jir.typ())
 
-    def matrix_read_type(self, mir):
+    def matrix_type(self, mir):
         jir = self._to_java_ir(mir)
         return tmatrix._from_java(jir.typ())
 
@@ -78,17 +88,18 @@ class LocalBackend(Backend):
                 self._to_java_ir(ir)))
 
 class ServiceBackend(Backend):
-    def __init__(self, host, port=80, scheme='http'):
-        self.scheme = scheme
-        self.host = host
-        self.port = port
+    def __init__(self, url):
+        self.url = url
 
-    def execute(self, ir):
-        r = Renderer(stop_at_jir=True)
+    def _render(self, ir):
+        r = Renderer()
         code = r(ir)
         assert len(r.jirs) == 0
-        
-        resp = requests.post(f'http://hail-apiserver:5000/execute', json=code)
+        return code
+
+    def execute(self, ir):
+        code = self._render(ir)
+        resp = requests.post(f'{self.url}/execute', json=code)
         resp.raise_for_status()
         
         resp_json = resp.json()
@@ -97,3 +108,22 @@ class ServiceBackend(Backend):
         result = resp_json['value']
         
         return typ._from_json(result)
+
+    def _request_type(self, ir, kind):
+        code = self._render(ir)
+        resp = requests.post(f'{self.url}/type/{kind}', json=code)
+        resp.raise_for_status()
+        
+        return resp.json()
+
+    def value_type(self, ir):
+        resp = self._request_type(ir, 'value')
+        return dtype(resp)
+
+    def table_type(self, tir):
+        resp = self._request_type(tir, 'table')
+        return ttable._from_json(resp)
+
+    def matrix_type(self, mir):
+        resp = self._request_type(mir, 'matrix')
+        return tmatrix._from_json(resp)

@@ -2042,7 +2042,7 @@ def read_table(path) -> Table:
     -------
     :class:`.Table`
     """
-    return Table._from_java(Env.hc()._jhc.readTable(path))
+    return Table(TableRead(path, False, None))
 
 @typecheck(t=Table,
            host=str,
