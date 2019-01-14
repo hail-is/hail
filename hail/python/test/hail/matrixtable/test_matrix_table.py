@@ -270,7 +270,7 @@ class Tests(unittest.TestCase):
 
     def test_weird_names(self):
         ds = self.get_vds()
-        exprs = {'a': 5, '   a    ': 5, r'\%!^!@#&#&$%#$%': [5]}
+        exprs = {'a': 5, '   a    ': 5, r'\%!^!@#&#&$%#$%': [5], '$': 5, 'ß': 5}
 
         ds.annotate_globals(**exprs)
         ds.select_globals(**exprs)

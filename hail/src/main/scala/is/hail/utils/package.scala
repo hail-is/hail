@@ -215,7 +215,7 @@ package object utils extends Logging
     .filter(s => !s.isEmpty)
 
   def prettyIdentifier(str: String): String = {
-    if (str.matches("""\p{javaJavaIdentifierStart}\p{javaJavaIdentifierPart}*"""))
+    if (str.matches("""[_a-zA-Z]\w*"""))
       str
     else
       s"`${ StringEscapeUtils.escapeString(str, backticked = true) }`"
