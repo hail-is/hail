@@ -156,7 +156,14 @@ task deploy(type: Exec, dependsOn: ['generateBuildInfo', 'shadowJar']) {
 compileScala {
     dependsOn generateBuildInfo
 
-    scalaCompileOptions.additionalParameters = ["-feature"] // , "-Xfatal-warnings"]
+    // , "-Xfatal-warnings"
+    scalaCompileOptions.additionalParameters = ["-feature"]
+    scalaCompileOptions.forkOptions.with {
+        jvmArgs = ["-Xms512M",
+                   "-Xmx4096M",
+                   "-Xss2M",
+                   "-XX:MaxMetaspaceSize=1024M"]
+    }
 }
 
 dependencies {

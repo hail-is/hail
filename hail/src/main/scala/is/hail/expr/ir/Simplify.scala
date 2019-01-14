@@ -411,7 +411,7 @@ object Simplify {
     case MatrixColsTable(MatrixAggregateRowsByKey(child, _, _)) => MatrixColsTable(child)
     case MatrixColsTable(MatrixKeyRowsBy(child, _, _)) => MatrixColsTable(child)
 
-    case TableMapGlobals(TableMapGlobals(child, ng2), ng1) => TableMapGlobals(child, Let("global", ng1, ng2))
+    case TableMapGlobals(TableMapGlobals(child, ng1), ng2) => TableMapGlobals(child, Let("global", ng1, ng2))
 
     case TableHead(TableMapRows(child, newRow), n) =>
       TableMapRows(TableHead(child, n), newRow)
@@ -505,6 +505,6 @@ object Simplify {
 
     case MatrixFilterEntries(MatrixFilterEntries(child, pred1), pred2) => MatrixFilterEntries(child, ApplySpecial("&&", FastSeq(pred1, pred2)))
 
-    case MatrixMapGlobals(MatrixMapGlobals(child, ng2), ng1) => MatrixMapGlobals(child, Let("global", ng1, ng2))
+    case MatrixMapGlobals(MatrixMapGlobals(child, ng1), ng2) => MatrixMapGlobals(child, Let("global", ng1, ng2))
   }
 }
