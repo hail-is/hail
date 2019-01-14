@@ -1747,6 +1747,7 @@ def get_vcf_metadata(path):
            contig_recoding=nullable(dictof(str, str)),
            array_elements_required=bool,
            skip_invalid_loci=bool,
+           entry_float_type=enumeration(tfloat32, tfloat64),
            # json
            _partitions=nullable(str))
 def import_vcf(path,
@@ -1760,6 +1761,7 @@ def import_vcf(path,
                contig_recoding=None,
                array_elements_required=True,
                skip_invalid_loci=False,
+               entry_float_type=tfloat64,
                _partitions=None) -> MatrixTable:
     """Import VCF file(s) as a :class:`.MatrixTable`.
 
@@ -1876,13 +1878,17 @@ def import_vcf(path,
         element.
     skip_invalid_loci : :obj:`bool`
         If ``True``, skip loci that are not consistent with `reference_genome`.
+    entry_float_type: :class:`.HailType`
+        Type of floating point entries in matrix table. Must be one of:
+        :py:data:`.tfloat32` or :py:data:`.tfloat64`. Default:
+        :py:data:`.tfloat64`.
 
     Returns
     -------
     :class:`.MatrixTable`
     """
 
-    reader = MatrixVCFReader(path, call_fields, header_file, min_partitions,
+    reader = MatrixVCFReader(path, call_fields, entry_float_type, header_file, min_partitions,
                              reference_genome, contig_recoding, array_elements_required,
                              skip_invalid_loci, force_bgz, force, _partitions)
     return MatrixTable(MatrixRead(reader, drop_cols=drop_samples))
@@ -1892,6 +1898,7 @@ def import_vcf(path,
            force=bool,
            force_bgz=bool,
            call_fields=oneof(str, sequenceof(str)),
+           entry_float_type=enumeration(tfloat32, tfloat64),
            reference_genome=nullable(reference_genome_type),
            contig_recoding=nullable(dictof(str, str)),
            array_elements_required=bool,
@@ -1901,6 +1908,7 @@ def import_vcfs(path,
                 force=False,
                 force_bgz=False,
                 call_fields=[],
+                entry_float_type=tfloat64,
                 reference_genome='default',
                 contig_recoding=None,
                 array_elements_required=True,
@@ -1951,6 +1959,7 @@ def import_vcfs(path,
     jmts = _cached_importvcfs.pyApply(
         wrap_to_list(path),
         wrap_to_list(call_fields),
+        entry_float_type._parsable_string(),
         rg,
         contig_recoding,
         array_elements_required,

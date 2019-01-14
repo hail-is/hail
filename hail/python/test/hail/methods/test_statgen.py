@@ -1,7 +1,10 @@
+import os
 import unittest
 from subprocess import DEVNULL, call as syscall
-import numpy as np
+
 import pytest
+import numpy as np
+import shutil
 
 import hail as hl
 import hail.expr.aggregators as agg
@@ -378,6 +381,20 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(results[3].t_stat, 1.5872510, places=6)
         self.assertAlmostEqual(results[3].p_value, 0.2533675, places=6)
         self.assertTrue(np.isnan(results[6].standard_error))
+
+    def test_linear_regression_equivalence_between_ds_and_gt(self):
+        """Test that linear regressions on data converted from dosage to genotype returns the same results"""
+        ds_mt = hl.import_vcf(resource('small-ds.vcf'))
+        gt_mt = hl.import_vcf(resource('small-gt.vcf'))
+        pheno_t = hl.read_table(resource('small-pheno.t'))
+        ds_mt = ds_mt.annotate_cols(**pheno_t[ds_mt.s])
+        gt_mt = gt_mt.annotate_cols(**pheno_t[gt_mt.s])
+        ds_results_mt = hl.linear_regression_rows(y=ds_mt.phenotype, x=ds_mt.DS, covariates=[1.0])
+        gt_results_mt = hl.linear_regression_rows(y=gt_mt.phenotype, x=gt_mt.GT.n_alt_alleles(), covariates=[1.0])
+        ds_results_t = ds_results_mt.select(ds_p_value=ds_results_mt.p_value)
+        gt_results_t = gt_results_mt.select(gt_p_value=gt_results_mt.p_value)
+        results_t = ds_results_t.annotate(**gt_results_t[ds_results_t.locus, ds_results_t.alleles])
+        self.assertTrue(all(hl.approx_equal(results_t.ds_p_value, results_t.gt_p_value, nan_same=True).collect()))
 
     def test_linear_regression_with_import_fam_boolean(self):
         covariates = hl.import_table(resource('regressionLinear.cov'),
@@ -1418,7 +1435,7 @@ class Tests(unittest.TestCase):
             # test af distribution
             def variance(expr):
                 return hl.bind(lambda mean: hl.mean(hl.map(lambda elt: (elt - mean) ** 2, expr)), hl.mean(expr))
-            delta_mean = 0.2 # consider alternatives to 0.2
+            delta_mean = 0.2  # consider alternatives to 0.2
             delta_var = 0.1
             per_row = hl.bind(lambda mean, var, ancestral:
                               (ancestral > mean - delta_mean) &
@@ -1504,7 +1521,7 @@ class Tests(unittest.TestCase):
         ped = hl.Pedigree.read(resource('denovo.fam'))
         r = hl.de_novo(mt, ped, mt.info.ESP)
         r = r.select(
-            prior = r.prior,
+            prior=r.prior,
             kid_id=r.proband.s,
             dad_id=r.father.s,
             mom_id=r.mother.s,

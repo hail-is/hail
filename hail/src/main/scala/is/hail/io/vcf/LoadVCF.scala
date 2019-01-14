@@ -368,6 +368,20 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
       rvb.addString(parseFormatString())
   }
 
+  def parseFormatFloat(): Float = {
+    val s = parseFormatString()
+    s.toFloat
+  }
+
+  def parseAddFormatFloat(rvb: RegionValueBuilder) {
+    if (formatFieldMissing()) {
+      rvb.setMissing()
+      pos += 1
+    } else {
+      rvb.addFloat(parseFormatFloat())
+    }
+  }
+
   def parseFormatDouble(): Double = {
     val s = parseFormatString()
     s.toDouble
@@ -555,6 +569,8 @@ class FormatParser(
           l.parseAddCall(rvb)
         case TInt32(_) =>
           l.parseAddFormatInt(rvb)
+        case TFloat32(_) =>
+          l.parseAddFormatFloat(rvb)
         case TFloat64(_) =>
           l.parseAddFormatDouble(rvb)
         case TString(_) =>
@@ -684,13 +700,13 @@ object LoadVCF {
     case VCFHeaderLineType.String => "String"
   }
 
-  def headerField(line: VCFCompoundHeaderLine, i: Int, callFields: Set[String], arrayElementsRequired: Boolean = false): (Field, (String, Map[String, String]), Boolean) = {
+  def headerField(line: VCFCompoundHeaderLine, i: Int, reader: HtsjdkRecordReader, arrayElementsRequired: Boolean = false): (Field, (String, Map[String, String]), Boolean) = {
     val id = line.getID
-    val isCall = id == "GT" || callFields.contains(id)
+    val isCall = id == "GT" || reader.callFields.contains(id)
 
     val baseType = (line.getType, isCall) match {
       case (VCFHeaderLineType.Integer, false) => TInt32()
-      case (VCFHeaderLineType.Float, false) => TFloat64()
+      case (VCFHeaderLineType.Float, false) => reader.entryFloatType
       case (VCFHeaderLineType.String, true) => TCall()
       case (VCFHeaderLineType.String, false) => TString()
       case (VCFHeaderLineType.Character, false) => TString()
@@ -715,10 +731,10 @@ object LoadVCF {
   }
 
   def headerSignature[T <: VCFCompoundHeaderLine](lines: java.util.Collection[T],
-    callFields: Set[String] = Set.empty[String], arrayElementsRequired: Boolean = false): (TStruct, VCFAttributes, Set[String]) = {
+    reader: HtsjdkRecordReader, arrayElementsRequired: Boolean = false): (TStruct, VCFAttributes, Set[String]) = {
     val (fields, attrs, flags) = lines
       .zipWithIndex
-      .map { case (line, i) => headerField(line, i, callFields, arrayElementsRequired) }
+      .map { case (line, i) => headerField(line, i, reader, arrayElementsRequired) }
       .unzip3
 
     val flagFieldNames = fields.zip(flags)
@@ -743,10 +759,10 @@ object LoadVCF {
       .toMap
 
     val infoHeader = header.getInfoHeaderLines
-    val (infoSignature, infoAttrs, infoFlagFields) = headerSignature(infoHeader)
+    val (infoSignature, infoAttrs, infoFlagFields) = headerSignature(infoHeader, reader)
 
     val formatHeader = header.getFormatHeaderLines
-    val (gSignature, formatAttrs, _) = headerSignature(formatHeader, reader.callFields, arrayElementsRequired = arrayElementsRequired)
+    val (gSignature, formatAttrs, _) = headerSignature(formatHeader, reader, arrayElementsRequired = arrayElementsRequired)
 
     val vaSignature = TStruct(Array(
       Field("rsid", TString(), 0),
@@ -961,6 +977,7 @@ class PartitionedVCFRDD(
 case class MatrixVCFReader(
   files: Seq[String],
   callFields: Set[String],
+  entryFloatType: String,
   headerFile: Option[String],
   minPartitions: Option[Int],
   rg: Option[String],
@@ -980,7 +997,7 @@ case class MatrixVCFReader(
 
   private val inputs = LoadVCF.globAllVCFs(hConf.globAll(files), hConf, gzAsBGZ || forceGZ)
 
-  private val reader = new HtsjdkRecordReader(callFields)
+  private val reader = new HtsjdkRecordReader(callFields, entryFloatType)
 
   private val headerLines1 = getHeaderLines(hConf, headerFile.getOrElse(inputs.head))
   private val header1 = parseHeader(reader, headerLines1, arrayElementsRequired = arrayElementsRequired)
@@ -1091,7 +1108,7 @@ case class MatrixVCFReader(
       skipInvalidLoci))
 
   def apply(mr: MatrixRead): MatrixValue = {
-    val reader = new HtsjdkRecordReader(callFields)
+    val reader = new HtsjdkRecordReader(callFields, entryFloatType)
     val headerLinesBc = sc.broadcast(headerLines1)
 
     val requestedType = mr.typ
@@ -1126,6 +1143,7 @@ object ImportVCFs {
   def pyApply(
     files: java.util.ArrayList[String],
     callFields: java.util.ArrayList[String],
+    entryFloatType: String,
     rg: String,
     contigRecoding: java.util.Map[String, String],
     arrayElementsRequired: Boolean,
@@ -1137,6 +1155,7 @@ object ImportVCFs {
     val reader = VCFsReader(
       files.asScala.toArray,
       callFields.asScala.toSet,
+      entryFloatType,
       Option(rg),
       Option(contigRecoding).map(_.asScala.toMap).getOrElse(Map.empty[String, String]),
       arrayElementsRequired,
@@ -1159,6 +1178,7 @@ case class VCFInfo(
 case class VCFsReader(
   files: Array[String],
   callFields: Set[String],
+  entryFloatType: String,
   rg: Option[String],
   contigRecoding: Map[String, String],
   arrayElementsRequired: Boolean,
@@ -1192,7 +1212,7 @@ case class VCFsReader(
     val confBc = sc.broadcast(new SerializableHadoopConfiguration(hConf))
 
     val localLocusType = locusType
-    val localReader = new HtsjdkRecordReader(callFields)
+    val localReader = new HtsjdkRecordReader(callFields, entryFloatType)
     val localFiles = files
     val localArrayElementsRequired = arrayElementsRequired
     val localRangeBounds = partitioner.rangeBounds
@@ -1271,7 +1291,7 @@ case class VCFsReader(
   }
 
   def read(): Array[MatrixTable] = {
-    val reader = new HtsjdkRecordReader(callFields)
+    val reader = new HtsjdkRecordReader(callFields, entryFloatType)
     files.zipWithIndex.map { case (file, i) =>
       readFile(reader, file, i)
     }
