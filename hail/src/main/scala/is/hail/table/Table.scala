@@ -245,8 +245,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
   def count(): Long = ir.Interpret[Long](ir.TableCount(tir))
 
-  def forceCount(): Long = rvd.count()
-
   def nColumns: Int = fields.length
 
   def nKeys: Int = key.length
@@ -450,30 +448,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
   def aggregateByKey(expr: String): Table = {
     val x = IRParser.parse_value_ir(expr, IRParserEnvironment(typ.refMap))
     new Table(hc, TableAggregateByKey(tir, x))
-  }
-
-  def expandTypes(): Table = {
-    require(typ.key.isEmpty)
-
-    def deepExpand(t: Type): Type = {
-      t match {
-        case t: TContainer =>
-          // set, dict => array
-          TArray(deepExpand(t.elementType), t.required)
-        case t: ComplexType =>
-          deepExpand(t.representation).setRequired(t.required)
-        case t: TBaseStruct =>
-          // tuple => struct
-          TStruct(t.required, t.fields.map { f => (f.name, deepExpand(f.typ)) }: _*)
-        case _ => t
-      }
-    }
-
-    val newRowType = deepExpand(signature).asInstanceOf[TStruct]
-    val newRVD = rvd.truncateKey(IndexedSeq())
-    copy2(
-      rvd = newRVD.changeType(newRowType.physicalType),
-      signature = newRowType)
   }
   
   // expandTypes must be called before toDF

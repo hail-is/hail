@@ -1655,8 +1655,8 @@ class MatrixTable(ExprContainer):
         return self._select_entries(caller,
                                     self.entry.annotate(**named_exprs).drop(*fields_referenced))
 
-    @typecheck_method(expr=expr_any)
-    def aggregate_rows(self, expr) -> Any:
+    @typecheck_method(expr=expr_any, _localize=bool)
+    def aggregate_rows(self, expr, _localize=True) -> Any:
         """Aggregate over rows to a local value.
 
         Examples
@@ -1696,10 +1696,15 @@ class MatrixTable(ExprContainer):
         base, _ = self._process_joins(expr)
         analyze('MatrixTable.aggregate_rows', expr, self._global_indices, {self._row_axis})
         subst_query = subst(expr._ir, {}, {'va': Ref('row')})
-        return Env.backend().execute(TableAggregate(MatrixRowsTable(base._mir), subst_query))
 
-    @typecheck_method(expr=expr_any)
-    def aggregate_cols(self, expr) -> Any:
+        agg_ir = TableAggregate(MatrixRowsTable(base._mir), subst_query)
+        if _localize:
+            return Env.backend().execute(agg_ir)
+        else:
+            return construct_expr(agg_ir, expr.dtype)
+
+    @typecheck_method(expr=expr_any, _localize=bool)
+    def aggregate_cols(self, expr, _localize=True) -> Any:
         """Aggregate over columns to a local value.
 
         Examples
@@ -1741,10 +1746,15 @@ class MatrixTable(ExprContainer):
         base, _ = self._process_joins(expr)
         analyze('MatrixTable.aggregate_cols', expr, self._global_indices, {self._col_axis})
         subst_query = subst(expr._ir, {}, {'sa': Ref('row')})
-        return Env.backend().execute(TableAggregate(MatrixColsTable(base._mir), subst_query))
 
-    @typecheck_method(expr=expr_any)
-    def aggregate_entries(self, expr) -> Any:
+        agg_ir = TableAggregate(MatrixColsTable(base._mir), subst_query)
+        if _localize:
+            return Env.backend().execute(agg_ir)
+        else:
+            return construct_expr(agg_ir, expr.dtype)
+
+    @typecheck_method(expr=expr_any, _localize=bool)
+    def aggregate_entries(self, expr, _localize=True) -> Any:
         """Aggregate over entries to a local value.
 
         Examples
@@ -1781,6 +1791,12 @@ class MatrixTable(ExprContainer):
 
         base, _ = self._process_joins(expr)
         analyze('MatrixTable.aggregate_entries', expr, self._global_indices, {self._row_axis, self._col_axis})
+        agg_ir = MatrixAggregate(base._mir, expr._ir)
+        if _localize:
+            return Env.backend().execute(agg_ir)
+        else:
+            return construct_expr(agg_ir, expr.dtype)
+
         return Env.backend().execute(MatrixAggregate(base._mir, expr._ir))
 
     @typecheck_method(field_expr=oneof(str, Expression))
@@ -2100,11 +2116,10 @@ class MatrixTable(ExprContainer):
             TableCount(MatrixRowsTable(self._mir)))
 
     def _force_count_rows(self):
-        return self._jmt.forceCountRows()
+        return Env.backend().execute(MatrixToValueApply(self._mir, {'name': 'ForceCountMatrixTable'}))
 
     def _force_count_cols(self):
-        return self._jmt.forceCountCols()
-
+        return self.cols()._force_count()
     def count_cols(self) -> int:
         """Count the number of columns in the matrix.
 
@@ -2552,16 +2567,16 @@ class MatrixTable(ExprContainer):
         mir = base._mir
 
         if row_exprs:
-            row_struct = InsertFields(base.row._ir, [(n, e._ir) for (n, e) in row_exprs.items()])
+            row_struct = InsertFields(base.row._ir, [(n, e._ir) for (n, e) in row_exprs.items()], None)
             mir = MatrixMapRows(mir, row_struct)
         if col_exprs:
-            col_struct = InsertFields(base.col._ir, [(n, e._ir) for (n, e) in col_exprs.items()])
+            col_struct = InsertFields(base.col._ir, [(n, e._ir) for (n, e) in col_exprs.items()], None)
             mir = MatrixMapCols(mir, col_struct, None)
         if entry_exprs:
-            entry_struct = InsertFields(base.entry._ir, [(n, e._ir) for (n, e) in entry_exprs.items()])
+            entry_struct = InsertFields(base.entry._ir, [(n, e._ir) for (n, e) in entry_exprs.items()], None)
             mir = MatrixMapEntries(mir, entry_struct)
         if global_exprs:
-            globals_struct = InsertFields(base.globals._ir, [(n, e._ir) for (n, e) in global_exprs.items()])
+            globals_struct = InsertFields(base.globals._ir, [(n, e._ir) for (n, e) in global_exprs.items()], None)
             mir = MatrixMapGlobals(mir, globals_struct)
 
         return cleanup(MatrixTable(mir))
@@ -2964,7 +2979,7 @@ class MatrixTable(ExprContainer):
         new_key = list(key_struct.keys())
         keys = Env.get_uid()
         fields = [(n, GetField(Ref(keys), n)) for (n, t) in key_struct.dtype.items()]
-        row_ir = Let(keys, key_struct._ir, InsertFields(self.row._ir, fields))
+        row_ir = Let(keys, key_struct._ir, InsertFields(self.row._ir, fields, None))
         return MatrixTable(
             MatrixKeyRowsBy(
                 MatrixMapRows(
@@ -2985,7 +3000,7 @@ class MatrixTable(ExprContainer):
         new_key = list(key_struct.keys())
         keys = Env.get_uid()
         fields = [(n, GetField(Ref(keys), n)) for (n, t) in key_struct.dtype.items()]
-        col_ir = Let(keys, key_struct._ir, InsertFields(self.col._ir, fields))
+        col_ir = Let(keys, key_struct._ir, InsertFields(self.col._ir, fields, None))
         return MatrixTable(MatrixMapCols(self._mir, col_ir, new_key))
 
     @typecheck_method(caller=str, s=expr_struct())
@@ -3411,7 +3426,7 @@ class MatrixTable(ExprContainer):
 
         def fmt(f, col_key):
             if f:
-                return col_key + '.' + f
+                return col_key + separator + f
             else:
                 return col_key
 

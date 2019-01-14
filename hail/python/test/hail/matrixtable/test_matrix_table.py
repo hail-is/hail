@@ -757,6 +757,17 @@ class Tests(unittest.TestCase):
             t.row.dtype,
             hl.tstruct(**{'row_idx': hl.tint32, '0': hl.tint32, '1': hl.tint32}))
 
+    def test_make_table_sep(self):
+        mt = hl.utils.range_matrix_table(3, 2)
+        mt = mt.select_entries(x=mt.row_idx * mt.col_idx)
+        mt = mt.key_cols_by(col_idx=hl.str(mt.col_idx))
+
+        t = mt.make_table()
+        assert(list(t.row) == ['row_idx'], ['0.x'], ['1.x'])
+
+        t = mt.make_table(separator='__')
+        assert(list(t.row) == ['row_idx'], ['0__x'], ['1__x'])
+
     def test_transmute(self):
         mt = (
             hl.utils.range_matrix_table(1, 1)
@@ -945,3 +956,72 @@ class Tests(unittest.TestCase):
             the_entry_failure=hl.cond(True, mt.entry, hl.null(mt.entry.dtype)),
         )
         mt.count()
+
+    def test_aggregate_localize_false(self):
+        dim1, dim2 = 10, 10
+        mt = hl.utils.range_matrix_table(dim1, dim2)
+        mt = mt.annotate_entries(x = mt.aggregate_rows(hl.agg.max(mt.row_idx), _localize=False)
+                                     + mt.aggregate_cols(hl.agg.max(mt.col_idx), _localize=False)
+                                     + mt.aggregate_entries(hl.agg.max(mt.row_idx * mt.col_idx), _localize=False)
+                                 )
+        assert mt.x.take(1)[0] == (dim1 - 1) + (dim2 - 1) + (dim1 -1) * (dim2 - 1)
+
+    def test_agg_cols_filter(self):
+        t = hl.utils.range_matrix_table(1, 10)
+        tests = [(agg.filter(t.col_idx > 7,
+                             agg.collect(t.col_idx + 1).append(0)),
+                  [9, 10, 0]),
+                 (agg.filter(t.col_idx > 7,
+                             agg.explode(lambda elt: agg.collect(elt + 1).append(0),
+                                         [t.col_idx, t.col_idx + 1])),
+                  [9, 10, 10, 11, 0]),
+                 (agg.filter(t.col_idx > 7,
+                             agg.group_by(t.col_idx % 3,
+                                          hl.array(agg.collect_as_set(t.col_idx + 1)).append(0))),
+                  {0: [10, 0], 2: [9, 0]})
+                 ]
+        for aggregation, expected in tests:
+            self.assertEqual(t.select_rows(result = aggregation).result.collect()[0], expected)
+
+    def test_agg_cols_explode(self):
+        t = hl.utils.range_matrix_table(1, 10)
+
+        tests = [(agg.explode(lambda elt: agg.collect(elt + 1).append(0),
+                              hl.cond(t.col_idx > 7, [t.col_idx, t.col_idx + 1], hl.empty_array(hl.tint32))),
+                  [9, 10, 10, 11, 0]),
+                 (agg.explode(lambda elt: agg.explode(lambda elt2: agg.collect(elt2 + 1).append(0),
+                                                      [elt, elt + 1]),
+                              hl.cond(t.col_idx > 7, [t.col_idx, t.col_idx + 1], hl.empty_array(hl.tint32))),
+                  [9, 10, 10, 11, 10, 11, 11, 12, 0]),
+                 (agg.explode(lambda elt: agg.filter(elt > 8,
+                                                     agg.collect(elt + 1).append(0)),
+                              hl.cond(t.col_idx > 7, [t.col_idx, t.col_idx + 1], hl.empty_array(hl.tint32))),
+                  [10, 10, 11, 0]),
+                 (agg.explode(lambda elt: agg.group_by(elt % 3,
+                                                       agg.collect(elt + 1).append(0)),
+                                           hl.cond(t.col_idx > 7,
+                                                   [t.col_idx, t.col_idx + 1],
+                                                   hl.empty_array(hl.tint32))),
+                  {0: [10, 10, 0], 1: [11, 0], 2:[9, 0]})
+                 ]
+        for aggregation, expected in tests:
+            self.assertEqual(t.select_rows(result = aggregation).result.collect()[0], expected)
+
+    def test_agg_cols_group_by(self):
+        t = hl.utils.range_matrix_table(1, 10)
+        tests = [(agg.group_by(t.col_idx % 2,
+                               hl.array(agg.collect_as_set(t.col_idx + 1)).append(0)),
+                  {0: [1, 3, 5, 7, 9, 0], 1: [2, 4, 6, 8, 10, 0]}),
+                 (agg.group_by(t.col_idx % 3,
+                               agg.filter(t.col_idx > 7,
+                                          hl.array(agg.collect_as_set(t.col_idx + 1)).append(0))),
+                  {0: [10, 0], 1: [0], 2: [9, 0]}),
+                 (agg.group_by(t.col_idx % 3,
+                               agg.explode(lambda elt: agg.collect(elt + 1).append(0),
+                                           hl.cond(t.col_idx > 7,
+                                                   [t.col_idx, t.col_idx + 1],
+                                                   hl.empty_array(hl.tint32)))),
+                  {0: [10, 11, 0], 1: [0], 2:[9, 10, 0]}),
+                 ]
+        for aggregation, expected in tests:
+            self.assertEqual(t.select_rows(result = aggregation).result.collect()[0], expected)

@@ -711,9 +711,9 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
       })
 
     val (rTyp, f) = ir.Compile[Long, Long, Long, Long](
-      "SCANR", scanResultType,
       "global", child.typ.globalType.physicalType,
       "row", child.typ.rowType.physicalType,
+      "SCANR", scanResultType,
       postScanIR)
     assert(rTyp.virtualType == typ.rowType)
 
@@ -785,7 +785,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
           rvb.endTuple()
           val scanOffset = rvb.end()
 
-          rv2.set(rv.region, newRow(rv.region, scanOffset, false, globals, false, rv.offset, false))
+          rv2.set(rv.region, newRow(rv.region, globals, false, rv.offset, false, scanOffset, false))
           scanSeqOpF(rv.region, partitionAggs, globals, false, rv.offset, false)
           rv2
         }
@@ -804,7 +804,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         val rv2 = RegionValue()
         val newRow = f(i)
         it.map { rv =>
-          rv2.set(rv.region, newRow(rv.region, 0, true, globals, false, rv.offset, false))
+          rv2.set(rv.region, newRow(rv.region, globals, false, rv.offset, false, 0, false))
           rv2
         }
       }
@@ -1185,8 +1185,8 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
       (nAggs, sequenceIR) => sequenceIR)
 
     val (rTyp, makeAnnotate) = ir.Compile[Long, Long, Long](
-      "AGGR", aggResultType,
       "global", child.typ.globalType.physicalType,
+      "AGGR", aggResultType,
       postAggIR)
 
     val nAggs = rvAggs.length
@@ -1279,8 +1279,8 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
             }
 
             val newValueOff = annotate(consumerRegion,
-              aggResultOff, false,
-              partGlobalsOff, false)
+	      partGlobalsOff, false,
+              aggResultOff, false)
 
             rvb.addAllFields(newValueType.physicalType, consumerRegion, newValueOff)
 

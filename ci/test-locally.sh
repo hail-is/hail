@@ -15,7 +15,7 @@ TOKEN=$(cat github-tokens/user1)
 set -x
 
 cleanup() {
-    set - INT TERM
+    set "" INT TERM
     set +e
     kill $(cat ci.pid)
     rm -rf ci.pid
@@ -70,4 +70,4 @@ set +x
 ./setup-endpoints.sh hail-ci-test/${REPO_NAME} ${TOKEN} ${SELF_HOSTNAME}
 set -x
 
-PYTHONPATH=${PWD}:${PYTHONPATH} pytest -vv test/test-ci.py
+PYTHONPATH=${PWD}:${PYTHONPATH} pytest -vv --failed-first --maxfail=1 test/test-ci.py

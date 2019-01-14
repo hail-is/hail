@@ -1,11 +1,10 @@
-import json
 import copy
 
+import hail
 from hail.expr.types import hail_type
-from hail.typecheck import *
-from hail.utils.java import escape_str, escape_id
+from hail.utils.java import escape_str, escape_id, dump_json, parsable_strings
 from .base_ir import *
-from .matrix_writer import MatrixWriter
+from .matrix_writer import MatrixWriter, MatrixNativeMultiWriter
 
 
 class I32(IR):
@@ -666,7 +665,7 @@ class ArrayFold(IR):
 
     def render(self, r):
         return '(ArrayFold {} {} {} {} {})'.format(
-            escape_id(self.accum_name), escape_id(self.value_name), 
+            escape_id(self.accum_name), escape_id(self.value_name),
             r(self.a), r(self.zero), r(self.body))
 
     @property
@@ -713,6 +712,41 @@ class ArrayScan(IR):
                other.accum_name == self.accum_name and \
                other.value_name == self.value_name and \
                other.body == self.body
+
+
+class ArrayLeftJoinDistinct(IR):
+    @typecheck_method(left=IR, right=IR, l_name=str, r_name=str, compare=IR, join=IR)
+    def __init__(self, left, right, l_name, r_name, compare, join):
+        super().__init__(left, right, compare, join)
+        self.left = left
+        self.right = right
+        self.l_name = l_name
+        self.r_name = r_name
+        self.compare = compare
+        self.join = join
+
+    @typecheck_method(left=IR, right=IR, compare=IR, join=IR)
+    def copy(self, left, right, compare, join):
+        new_instance = self.__class__
+        return new_instance(left, right, self.l_name, self.r_name, compare, join)
+
+    def render(self, r):
+        return '(ArrayLeftJoinDistinct {} {} {} {} {} {})'.format(
+            escape_id(self.l_name), escape_id(self.r_name),
+            r(self.left), r(self.right), r(self.compare), r(self.join))
+
+    @property
+    def bound_variables(self):
+        return {self.l_name, self.r_name} | super().bound_variables
+
+    def __eq__(self, other):
+        return isinstance(other, ArrayLeftJoinDistinct) and \
+               other.left == self.left and \
+               other.right == self.right and \
+               other.l_name == self.l_name and \
+               other.r_name == self.r_name and \
+               other.compare == self.compare and \
+               other.join == self.join
 
 
 class ArrayFor(IR):
@@ -931,26 +965,29 @@ class SelectFields(IR):
 
 
 class InsertFields(IR):
-    @typecheck_method(old=IR, fields=sequenceof(sized_tupleof(str, IR)))
-    def __init__(self, old, fields):
+    @typecheck_method(old=IR, fields=sequenceof(sized_tupleof(str, IR)), field_order=nullable(sequenceof(str)))
+    def __init__(self, old, fields, field_order):
         super().__init__(old, *[ir for (f, ir) in fields])
         self.old = old
         self.fields = fields
+        self.field_order = field_order
 
     def copy(self, *args):
         new_instance = self.__class__
         assert len(args) == len(self.fields) + 1
-        return new_instance(args[0], [(n, ir) for (n, _), ir in zip(self.fields, args[1:])])
+        return new_instance(args[0], [(n, ir) for (n, _), ir in zip(self.fields, args[1:])], self.field_order)
 
     def render(self, r):
-        return '(InsertFields {} {})'.format(
+        return '(InsertFields {} {} {})'.format(
             self.old,
+            'None' if self.field_order is None else parsable_strings(self.field_order),
             ' '.join(['({} {})'.format(escape_id(f), r(x)) for (f, x) in self.fields]))
 
     def __eq__(self, other):
         return isinstance(other, InsertFields) and \
                other.old == self.old and \
-               other.fields == self.fields
+               other.fields == self.fields and \
+               other.field_order == self.field_order
 
 
 class GetField(IR):
@@ -1365,6 +1402,63 @@ class MatrixWrite(IR):
         return isinstance(other, MatrixWrite) and \
                other.child == self.child and \
                other.matrix_writer == self.matrix_writer
+
+
+class MatrixMultiWrite(IR):
+    @typecheck_method(children=sequenceof(MatrixIR), writer=MatrixNativeMultiWriter)
+    def __init__(self, children, writer):
+        super().__init__(*children)
+        self.writer = writer
+
+    def copy(self, *children):
+        new_instance = self.__class__
+        return new_instance(list(children), self.writer)
+
+    def render(self, r):
+        return '(MatrixMultiWrite "{}" {})'.format(
+            r(self.writer),
+            ' '.join(map(r, self.children)))
+
+    def __eq__(self, other):
+        return isinstance(other, MatrixMultiWrite) and \
+               other.children == self.children and \
+               other.writer == self.writer
+
+
+class TableToValueApply(IR):
+    def __init__(self, child, config):
+        super().__init__(child)
+        self.child = child
+        self.config = config
+
+    @typecheck_method(child=TableIR)
+    def copy(self, child):
+        new_instance = self.__class__
+        return new_instance(child, self.config)
+
+    def render(self, r):
+        return f'(TableToValueApply {dump_json(self.config)} {r(self.child)})'
+
+    def __eq__(self, other):
+        return isinstance(other, TableToValueApply) and other.child == self.child and other.config == self.config
+
+
+class MatrixToValueApply(IR):
+    def __init__(self, child, config):
+        super().__init__(child)
+        self.child = child
+        self.config = config
+
+    @typecheck_method(child=MatrixIR)
+    def copy(self, child):
+        new_instance = self.__class__
+        return new_instance(child, self.config)
+
+    def render(self, r):
+        return f'(MatrixToValueApply {dump_json(self.config)} {r(self.child)})'
+
+    def __eq__(self, other):
+        return isinstance(other, MatrixToValueApply) and other.child == self.child and other.config == self.config
 
 
 class Literal(IR):

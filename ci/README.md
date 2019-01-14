@@ -53,7 +53,7 @@ Webhooks can be configured in the Settings tab of a repo on GitHub.
 Now you can start a local version of the hail-ci server:
 
 ```
-HAIL_CI_REMOTE_PORT=3001 make run
+HAIL_CI_REMOTE_PORT=3001 make run-local
 ```
 
 And if you want to cleanly restart fresh:

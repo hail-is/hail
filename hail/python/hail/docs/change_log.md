@@ -12,6 +12,8 @@ Released 2019-01-03
 
  - (hail#5050) Short-circuit iteration in `logistic_regression_rows` and `poisson_regression_rows` if NaNs appear.
 
+-----
+
 ## 0.2.6
 
 Released 2018-12-17

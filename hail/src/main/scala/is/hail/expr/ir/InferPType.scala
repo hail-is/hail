@@ -82,6 +82,10 @@ object InferPType {
         zero.pType
       case ArrayScan(a, zero, accumName, valueName, body) =>
         PArray(zero.pType)
+      case ArrayAgg(_, _, query) =>
+        query.pType
+      case ArrayLeftJoinDistinct(left, right, l, r, compare, join) =>
+        PArray(join.pType)
       case AggFilter(_, aggIR) =>
         aggIR.pType
       case AggExplode(array, name, aggBody) =>
@@ -101,9 +105,10 @@ object InferPType {
       case SelectFields(old, fields) =>
         val tbs = coerce[PStruct](old.pType)
         tbs.selectFields(fields)
-      case InsertFields(old, fields) =>
-        val tbs = coerce[PStruct](old.pType)
-        tbs.insertFields(fields.map(f => (f._1, f._2.pType)))
+      case InsertFields(old, fields, fieldOrder) =>
+        val tbs = coerce[TStruct](old.typ)
+        val s = tbs.insertFields(fields.map(f => (f._1, f._2.typ)))
+        fieldOrder.map(fds => TStruct(fds.map(f => f -> s.fieldType(f)): _*)).getOrElse(s).physicalType
       case GetField(o, name) =>
         val t = coerce[PStruct](o.pType)
         val fd = t.field(name).typ
@@ -122,9 +127,12 @@ object InferPType {
         query.pType
       case _: TableWrite => PVoid
       case _: MatrixWrite => PVoid
+      case _: MatrixMultiWrite => PVoid
       case _: TableExport => PVoid
       case TableGetGlobals(child) => PType.canonical(child.typ.globalType)
       case TableCollect(child) => PStruct("rows" -> PArray(PType.canonical(child.typ.rowType)), "global" -> PType.canonical(child.typ.globalType))
+      case TableToValueApply(child, function) => PType.canonical(function.typ(child.typ))
+      case MatrixToValueApply(child, function) => PType.canonical(function.typ(child.typ))
     }
   }
 }
