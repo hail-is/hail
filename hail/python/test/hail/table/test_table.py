@@ -467,7 +467,7 @@ class Tests(unittest.TestCase):
 
     def test_weird_names(self):
         df = hl.utils.range_table(10)
-        exprs = {'a': 5, '   a    ': 5, r'\%!^!@#&#&$%#$%': [5]}
+        exprs = {'a': 5, '   a    ': 5, r'\%!^!@#&#&$%#$%': [5], '$': 5, 'ß': 5}
 
         df.annotate_globals(**exprs)
         df.select_globals(**exprs)
