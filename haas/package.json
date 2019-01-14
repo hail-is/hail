@@ -1,6 +1,11 @@
 {
   "name": "root",
   "private": true,
+  "scripts": {
+    "bootstrap": "lerna exec npm install",
+    "publish": "lerna publish --force-publish",
+    "test": "lerna run test"
+  },
   "devDependencies": {
     "lerna": "^3.5.1"
   },

@@ -2,7 +2,7 @@
 // but as a PurceComponent + Typescript, and allows us to self-manage
 // TODO: understand why import * as monaco works, but not import monaco...
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
-import { PureComponent } from 'react';
+import { Component } from 'react';
 
 interface MonacoEditor {
   editor: monaco.editor.IStandaloneCodeEditor;
@@ -39,11 +39,9 @@ export interface Props {
   editorDidMount: EditorDidMount;
   editorWillMount: EditorWillMount;
   onChange?: ChangeHandler;
-  onDrop: any;
-  // onSave:
 }
 
-class MonacoEditor extends PureComponent<Props> {
+class MonacoEditor extends Component<Props> {
   static defaultProps = {
     width: '100%',
     height: '100%',
@@ -180,7 +178,7 @@ class MonacoEditor extends PureComponent<Props> {
     console.info('stff', e.dataTransfer.getData('text'));
     const target = this.editor.getTargetAtClientPoint(e.pageX, e.pageY);
     console.info('target', target);
-    const pos = target.position;
+    // const pos = target.position;
     const range = target.range;
 
     const op: monaco.editor.IIdentifiedSingleEditOperation = {

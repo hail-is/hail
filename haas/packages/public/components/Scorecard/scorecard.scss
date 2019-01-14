@@ -42,9 +42,9 @@
     color: red;
   }
   .grid-container {
-    display: inline-grid;
-    justify-content: space-evenly;
-    grid-template-columns: auto;
+    display: grid;
+    justify-content: 1fr 100px;
+    grid-template-columns: 50px 1fr;
   }
   .grid-item {
     padding: 10px 5px 10px 5px;

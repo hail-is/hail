@@ -1,18 +1,17 @@
 import { PureComponent } from 'react';
 import dynamic from 'next/dynamic';
 import Prism from '../lib/prism';
-// import 'styles/prism.css';
 import 'styles/batch.scss';
 
-const MonacoEditor = dynamic(import('../components/Editor') as any, {
+const MonacoEditor = dynamic(() => import('../components/Editor'), {
   ssr: false
 });
 
 const whitespaceOnly = /^\s+$/g;
 
-interface SelectElem extends React.FormEvent {
-  currentTarget: HTMLSelectElement;
-}
+// interface SelectElem extends React.FormEvent {
+//   currentTarget: HTMLSelectElement;
+// }
 
 declare type State = {
   code: string;
@@ -63,12 +62,12 @@ class App extends PureComponent {
     document.removeEventListener('keydown', this.onSaveCommand, false);
   };
 
-  editorDidMount = (editor, monaco) => {
+  editorDidMount = editor => {
     console.log('editorDidMount', editor);
     editor.focus();
   };
 
-  onChange = (newValue, e) => {
+  onChange = newValue => {
     if (!newValue.match(whitespaceOnly)) {
       this.setState({
         code: newValue
@@ -81,7 +80,7 @@ class App extends PureComponent {
     e.dataTransfer.setData('text', code);
   };
 
-  onLanguageSelect = (e: SelectElem) => {
+  onLanguageSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
     this.setState({
       // Current target, to get val of bound-to element
       language: e.currentTarget.value
@@ -111,14 +110,7 @@ class App extends PureComponent {
               maxWidth: '100%'
             }}
           >
-            <select style={{ marginBottom: '15px' }}>
-              <option value="alpine">Alpine</option>>
-            </select>
-
-            <select
-              style={{ marginBottom: '15px', marginLeft: '15px' }}
-              onChange={this.onLanguageSelect}
-            >
+            <select onChange={this.onLanguageSelect} defaultValue="json">
               <option value="python">Python</option>
               <option value="json">JSON</option>
               <option value="typescript">Typescript</option>
@@ -133,9 +125,7 @@ class App extends PureComponent {
             theme="vs-dark"
             value={this.state.code}
             onChange={this.onChange}
-            onSave={this.onSaveCommand}
             editorDidMount={this.editorDidMount}
-            onDrop={console.log('dropped')}
           />
         </span>
         <div style={{ width: '33vw', marginLeft: 15 }} id="batch">

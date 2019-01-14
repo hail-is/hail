@@ -257,10 +257,8 @@ input {
   box-sizing: border-box;
   flex-direction: column;
   justify-content: center;
-  justify-items: center;
   min-height: calc(100vh - 44px * 2);
-  align-items: center;
-  justify-self: center;
+  align-items: start;
   padding: 10px;
 }
 
@@ -331,13 +329,4 @@ h5 {
 
 h6 {
   font-size: 16px;
-}
-
-.hero {
-  min-height: 170px;
-  height: calc(100vh - 53px * 2); // text-align: center;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
 }

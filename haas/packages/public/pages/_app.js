@@ -1,5 +1,3 @@
-// TODO: remove unneeded dependencies
-// TODO: improve documentation, comments
 import Auth from 'lib/Auth';
 import Header from 'components/Header';
 
@@ -25,7 +23,7 @@ class Hail extends App {
       pageProps = await Component.getInitialProps(ctx);
     }
 
-    // Initialize isn't idempotent; it
+    // Initialize isn't idempotent
     if (ctx.req) {
       Auth.initialize(ctx.req);
     }
@@ -57,20 +55,12 @@ class Hail extends App {
   // ES7-style arrow class method; to provide object-referencing "this"
   handleLogin = () => {
     Auth.login();
-    // this.props.apolloClient.resetStore();
-    // Or can do
-    // const apollo = initApollo();
-    // apollo.resetStore();
 
     Router.push('/');
   };
 
   handleLogout = () => {
     Auth.logout();
-    // this.props.apolloClient.clearStore();
-    // Or can do:
-    // const apollo = initApollo();
-    // apollo.clearStore();
 
     // May want to check if router on / page
     Router.push('/');
