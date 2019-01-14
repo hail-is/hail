@@ -239,6 +239,11 @@ class BlockMatrix(object):
         self._jbm = jbm
         self._bmir = bmir
 
+        # Fields that are only relevant in the IR implementation
+        # and are only available through the IR
+        if bmir is not None:
+            self._typ = bmir.typ
+
     """
     There are two types of method implementations right now:
     1. A method that is NOT integrated into the IR and requires a concrete _jbm to operate on

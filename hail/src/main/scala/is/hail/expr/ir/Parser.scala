@@ -1121,6 +1121,9 @@ object IRParser {
       case "BlockMatrixRead" =>
         val path = string_literal(it)
         BlockMatrixRead(path)
+      case "JavaBlockMatrix" =>
+        val name = identifier(it)
+        env.irMap(name).asInstanceOf[BlockMatrixIR]
     }
   }
 

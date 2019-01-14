@@ -11,7 +11,10 @@ abstract sealed class BlockMatrixIR extends BaseIR {
 }
 
 case class BlockMatrixRead(path: String) extends BlockMatrixIR {
-  override def typ: BaseType = BlockMatrixType()
+  override def typ: BaseType = {
+    val metadata = BlockMatrix.readMetadata(HailContext.get, path)
+    BlockMatrixType(metadata.nRows, metadata.nCols, metadata.blockSize)
+  }
 
   override def children: IndexedSeq[BaseIR] = Array.empty[BlockMatrixIR]
 
