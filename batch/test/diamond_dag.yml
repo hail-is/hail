@@ -7,21 +7,21 @@
   name: left
   spec:
     image: alpine:3.8
-    command: ["echo", "head"]
+    command: ["echo", "left"]
   dependsOn:
     - head
 - type: execute
   name: right
   spec:
     image: alpine:3.8
-    command: ["echo", "head"]
+    command: ["echo", "right"]
   dependsOn:
     - head
 - type: execute
   name: tail
   spec:
     image: alpine:3.8
-    command: ["echo", "head"]
+    command: ["echo", "tail"]
   dependsOn:
     - left
     - right

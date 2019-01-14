@@ -224,7 +224,13 @@ class BatchClient:
     job_yaml_validator = cerberus.Validator(job_yaml_schema)
 
     def create_batch_from_file(self, file):
-        job_ids = {}
+        job_id_by_name = {}
+        def job_id_by_name_or_error(id, self_id):
+            job = job_id_by_name.get(id)
+            if job:
+                return job
+            raise ValueError(
+                '"{self_id}" must appear in the file after its dependency "{id}"')
         batch = self.create_batch()
         for doc in yaml.load(file):
             if not BatchClient.job_yaml_validator.validate(doc):
@@ -235,7 +241,7 @@ class BatchClient:
             dependsOn = doc.get('dependsOn', [])
             if type == 'execute':
                 job = batch.create_job(
-                    parent_ids=[job_ids[x] for x in dependsOn],
+                    parent_ids=[job_id_by_name_or_error(x, name) for x in dependsOn],
                     **spec)
-                job_ids[name] = job.id
+                job_id_by_name[name] = job.id
         return batch
