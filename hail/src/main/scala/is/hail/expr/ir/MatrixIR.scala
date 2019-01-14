@@ -1541,54 +1541,6 @@ case class MatrixAnnotateRowsTable(
     val IndexedSeq(child: MatrixIR, table: TableIR) = newChildren
     MatrixAnnotateRowsTable(child, table, root)
   }
-//
-//  protected[ir] override def execute(hc: HailContext): MatrixValue = {
-//    val prev = child.execute(hc)
-//    val tv = table.execute(hc)
-//
-//      // annotateRowsIntervals
-//    if (table.typ.keyType.size == 1 && table.typ.keyType.types(0) == TInterval(child.typ.rowKeyStruct.types(0))) {
-//      val (newRVPType, ins) =
-//      prev.rvd.rowPType.unsafeStructInsert (table.typ.valueType.physicalType, List (root) )
-//
-//      val rightRVDType = tv.rvd.typ
-//      val leftRVDType = child.typ.canonicalRVDType
-//
-//      val zipper = {
-//      (ctx: RVDContext, it: Iterator[RegionValue], intervals: Iterator[RegionValue] ) =>
-//      val rvb = new RegionValueBuilder ()
-//      val rv2 = RegionValue ()
-//      OrderedRVIterator (leftRVDType, it, ctx).leftIntervalJoinDistinct (
-//      OrderedRVIterator (rightRVDType, intervals, ctx)
-//      )
-//      .map {
-//      case Muple (rv, i) =>
-//      rvb.set (rv.region)
-//      rvb.start (newRVPType)
-//      ins (
-//      rv.region,
-//      rv.offset,
-//      rvb,
-//      () => if (i == null) rvb.setMissing () else rvb.selectRegionValue (rightRVDType.rowType, rightRVDType.valueFieldIdx, i) )
-//      rv2.set (rv.region, rvb.end () )
-//
-//      rv2
-//      }
-//      }
-//
-//      val newMatrixType = child.typ.copy (rvRowType = newRVPType.virtualType)
-//      val newRVD = prev.rvd.intervalAlignAndZipPartitions (RVDType (newRVPType, newMatrixType.rowKey), tv.rvd) (zipper)
-//      prev.copy (typ = typ, rvd = newRVD)
-//
-//    } else {
-//      // annotateRowsTable using non-key MT fields
-//      case None =>
-//        assert(child.typ.rowKeyStruct.types.zip(table.typ.keyType.types).forall { case (l, r) => l.isOfType(r) })
-//        val newRVD = prev.rvd.orderedLeftJoinDistinctAndInsert(
-//          tv.rvd, root)
-//        prev.copy(typ = typ, rvd = newRVD)
-//    }
-//  }
 }
 
 case class TableToMatrixTable(
