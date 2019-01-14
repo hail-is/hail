@@ -29,12 +29,11 @@ This is the list of things you need to do to add a new IR node.
 
  - Add a rule to Typecheck
 
- - It must define typ, or extend InferIR and define its type inference
-   rule in Infer
+ - It must define its type inference rule in InferType/InferPType
 
  - Support it in Children and Copy
 
- - Implement it in Interpet
+ - Implement it in Interpret
 
  - Implement it in Emit (the compiler)
 

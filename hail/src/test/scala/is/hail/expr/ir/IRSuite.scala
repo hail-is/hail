@@ -9,6 +9,7 @@ import is.hail.expr.ir.IRSuite.TestFunctions
 import is.hail.expr.ir.functions.{IRFunctionRegistry, RegistryFunctions, SeededIRFunction, SetFunctions}
 import is.hail.expr.types.TableType
 import is.hail.expr.types.virtual._
+import is.hail.methods.{ForceCountMatrixTable, ForceCountTable}
 import is.hail.rvd.RVD
 import is.hail.table.{Ascending, Descending, SortField, Table}
 import is.hail.utils._
@@ -579,6 +580,49 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(scan(TestUtils.IRArray(1, null, 3), 0, (accum, elt) => accum + elt), FastIndexedSeq(0, 1, null, null))
   }
 
+  @Test def testLeftJoinRightDistinct() {
+    def join(left: IR, right: IR, keys: IndexedSeq[String]): IR = {
+      val compF = { (l: IR, r: IR) =>
+        ApplyComparisonOp(Compare(coerce[TStruct](l.typ).select(keys)._1), SelectFields(l, keys), SelectFields(r, keys))
+      }
+      val joinF = { (l: IR, r: IR) =>
+        Let("_right", r, InsertFields(l, coerce[TStruct](r.typ).fields.filter(f => !keys.contains(f.name)).map { f =>
+          f.name -> GetField(Ref("_right", r.typ), f.name)
+        }))
+      }
+      ArrayLeftJoinDistinct(left, right, "_l", "_r",
+        compF(Ref("_l", coerce[TArray](left.typ).elementType), Ref("_r", coerce[TArray](right.typ).elementType)),
+        joinF(Ref("_l", coerce[TArray](left.typ).elementType), Ref("_r", coerce[TArray](right.typ).elementType)))
+    }
+
+    def joinRows(left: IndexedSeq[Integer], right: IndexedSeq[Integer]): IR = {
+      join(
+        MakeArray.unify(left.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("k1" -> (if (n == null) NA(TInt32()) else I32(n)), "k2" -> Str("x"), "a" -> I64(idx))) }),
+        MakeArray.unify(right.zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("b" -> I32(idx), "k2" -> Str("x"), "k1" -> (if (n == null) NA(TInt32()) else I32(n)), "c" -> Str("foo"))) }),
+        FastIndexedSeq("k1", "k2"))
+    }
+
+    assertEvalsTo(joinRows(Array[Integer](0, null), Array[Integer](1, null)), FastIndexedSeq(
+      Row(0, "x", 0L, null, null),
+      Row(null, "x", 1L, 1, "foo")))
+
+    assertEvalsTo(joinRows(Array[Integer](0, 1, 2), Array[Integer](1)), FastIndexedSeq(
+      Row(0, "x", 0L, null, null),
+      Row(1, "x", 1L, 0, "foo"),
+      Row(2, "x", 2L, null, null)))
+
+    assertEvalsTo(joinRows(Array[Integer](0, 1, 2), Array[Integer](-1, 0, 0, 1, 1, 2, 2, 3)), FastIndexedSeq(
+      Row(0, "x", 0L, 1, "foo"),
+      Row(1, "x", 1L, 3, "foo"),
+      Row(2, "x", 2L, 5, "foo")))
+
+    assertEvalsTo(joinRows(Array[Integer](0, 1, 1, 2), Array[Integer](-1, 0, 0, 1, 1, 2, 2, 3)), FastIndexedSeq(
+      Row(0, "x", 0L, 1, "foo"),
+      Row(1, "x", 1L, 3, "foo"),
+      Row(1, "x", 2L, 3, "foo"),
+      Row(2, "x", 3L, 5, "foo")))
+  }
+
   @Test def testDie() {
     assertFatal(Die("mumblefoo", TFloat64()), "mble")
     assertFatal(Die(NA(TString()), TFloat64()), "message missing")
@@ -590,6 +634,16 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(ArrayRange(NA(TInt32()), I32(5), I32(1)), null)
 
     assertFatal(ArrayRange(I32(0), I32(5), I32(0)), "step size")
+  }
+
+  @Test def testArrayAgg() {
+    val sumSig = AggSignature(Sum(), Seq(), None, Seq(TInt64()))
+    assertEvalsTo(
+      ArrayAgg(
+        ArrayMap(ArrayRange(I32(0), I32(4), I32(1)), "x", Cast(Ref("x", TInt32()), TInt64())),
+        "x",
+        ApplyAggOp(FastIndexedSeq.empty, None, FastIndexedSeq(Ref("x", TInt64())), sumSig)),
+      6L)
   }
 
   @Test def testInsertFields() {
@@ -642,6 +696,31 @@ class IRSuite extends SparkSuite {
       InsertFields(NA(TStruct("a" -> +TInt32())), Seq("foo" -> I32(5))),
       null
     )
+
+    assertEvalsTo(
+      InsertFields(
+        In(0, s),
+        Seq("c" -> F64(3.2), "d" -> F64(5.5), "e" -> F64(6.6)),
+        Some(FastIndexedSeq("c", "d", "e", "a", "b"))),
+      FastIndexedSeq(Row(null, "abc") -> s),
+      Row(3.2, 5.5, 6.6, null, "abc"))
+
+    assertEvalsTo(
+      InsertFields(
+        In(0, s),
+        Seq("c" -> F64(3.2), "d" -> F64(5.5), "e" -> F64(6.6)),
+        Some(FastIndexedSeq("a", "b", "c", "d", "e"))),
+      FastIndexedSeq(Row(null, "abc") -> s),
+      Row(null, "abc", 3.2, 5.5, 6.6))
+
+    assertEvalsTo(
+      InsertFields(
+        In(0, s),
+        Seq("c" -> F64(3.2), "d" -> F64(5.5), "e" -> F64(6.6)),
+        Some(FastIndexedSeq("c", "a", "d", "b", "e"))),
+      FastIndexedSeq(Row(null, "abc") -> s),
+      Row(3.2, null, 5.5, "abc", 6.6))
+
   }
 
   @Test def testSelectFields() {
@@ -728,6 +807,7 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(ApplyComparisonOp(NEQ(t1, t2), In(0, t1), In(1, t2)), IndexedSeq(a -> t1, a -> t2), false)
     assertEvalsTo(ApplyComparisonOp(EQWithNA(t1, t2), In(0, t1), In(1, t2)), IndexedSeq(a -> t1, a -> t2), true)
     assertEvalsTo(ApplyComparisonOp(NEQWithNA(t1, t2), In(0, t1), In(1, t2)), IndexedSeq(a -> t1, a -> t2), false)
+    assertEvalsTo(ApplyComparisonOp(Compare(t1, t2), In(0, t1), In(1, t2)), IndexedSeq(a -> t1, a -> t2), 0)
   }
 
   @DataProvider(name = "valueIRs")
@@ -747,6 +827,8 @@ class IRSuite extends SparkSuite {
     val call = Ref("call", TCall())
 
     val collectSig = AggSignature(Collect(), Seq(), None, Seq(TInt32()))
+
+    val sumSig = AggSignature(Sum(), Seq(), None, Seq(TInt32()))
 
     val callStatsSig = AggSignature(CallStats(), Seq(), Some(Seq(TInt32())), Seq(TCall()))
 
@@ -790,7 +872,9 @@ class IRSuite extends SparkSuite {
       ArrayFlatMap(aa, "v", a),
       ArrayFold(a, I32(0), "x", "v", v),
       ArrayScan(a, I32(0), "x", "v", v),
+      ArrayLeftJoinDistinct(ArrayRange(0, 2, 1), ArrayRange(0, 3, 1), "l", "r", I32(0), I32(1)),
       ArrayFor(a, "v", Void()),
+      ArrayAgg(a, "x", ApplyAggOp(FastIndexedSeq.empty, None, FastIndexedSeq(Ref("x", TInt32())), sumSig)),
       AggFilter(True(), I32(0)),
       AggExplode(NA(TArray(TInt32())), "x", I32(0)),
       AggGroupBy(True(), I32(0)),
@@ -821,11 +905,14 @@ class IRSuite extends SparkSuite {
       TableGetGlobals(table),
       TableCollect(table),
       TableAggregate(table, MakeStruct(Seq("foo" -> count))),
+      TableToValueApply(table, ForceCountTable()),
+      MatrixToValueApply(mt, ForceCountMatrixTable()),
       TableWrite(table, tmpDir.createLocalTempFile(extension = "ht")),
       MatrixWrite(mt, MatrixNativeWriter(tmpDir.createLocalTempFile(extension = "mt"))),
       MatrixWrite(vcf, MatrixVCFWriter(tmpDir.createLocalTempFile(extension = "vcf"))),
       MatrixWrite(vcf, MatrixPLINKWriter(tmpDir.createLocalTempFile())),
       MatrixWrite(bgen, MatrixGENWriter(tmpDir.createLocalTempFile())),
+      MatrixMultiWrite(Array(mt, mt), MatrixNativeMultiWriter(tmpDir.createLocalTempFile())),
       MatrixAggregate(mt, MakeStruct(Seq("foo" -> count)))
     )
     irs.map(x => Array(x))
@@ -877,7 +964,7 @@ class IRSuite extends SparkSuite {
         TableRange(100, 10),
         TableUnion(
           FastIndexedSeq(TableRange(100, 10), TableRange(50, 10))),
-        TableExplode(read, "mset"),
+        TableExplode(read, Array("mset")),
         TableOrderBy(TableKeyBy(read, FastIndexedSeq()), FastIndexedSeq(SortField("m", Ascending), SortField("m", Descending))),
         CastMatrixToTable(mtRead, " # entries", " # cols"),
         TableRename(read, Map("idx" -> "idx_foo"), Map("global_f32" -> "global_foo"))
@@ -1147,12 +1234,13 @@ class IRSuite extends SparkSuite {
         |            (TableRange 1 12)
         |            (InsertFields
         |              (Ref row)
+        |              None
         |              (s
         |                (Literal Set[String] "[\"foo\"]"))
         |              (nested
         |                (NA Struct{elt:String})))))
         |        (InsertFields
-        |          (Ref row))))
+        |          (Ref row) None)))
         |    (SelectFields (s nested)
         |      (Ref row)))
         |  (Let __uid_1

@@ -9,7 +9,8 @@ from .build_state import \
     Failure, Mergeable, Unknown, NoImage, Building, Buildable, Merged, \
     build_state_from_json
 from .ci_logging import log
-from .constants import BUILD_JOB_TYPE, VERSION, GCS_BUCKET, SHA_LENGTH
+from .constants import BUILD_JOB_TYPE, VERSION, GCS_BUCKET, SHA_LENGTH, \
+    GCS_BUCKET_PREFIX
 from .environment import PR_BUILD_SCRIPT, SELF_HOSTNAME, batch_client, CONTEXT
 from .git_state import FQSHA, FQRef
 from .github import latest_sha_for_ref
@@ -297,7 +298,7 @@ class PR(object):
         }
         if isinstance(build, Failure) or isinstance(build, Mergeable):
             json['target_url'] = \
-                f'https://storage.googleapis.com/{GCS_BUCKET}/ci/{self.source.sha}/{self.target.sha}/index.html'
+                f'https://storage.googleapis.com/{GCS_BUCKET}/{GCS_BUCKET_PREFIX}ci/{self.source.sha}/{self.target.sha}/index.html'
         try:
             post_repo(
                 self.target.ref.repo.qname,
@@ -422,7 +423,6 @@ class PR(object):
         elif state == 'Cancelled':
             log.error(
                 f'a job for me was cancelled {short_str_build_job(job)} {self.short_str()}')
-            job.delete()
             return self._new_build(try_new_build(self.source, self.target))
         else:
             assert state == 'Created', f'{state} {job.id} {job.attributes} {self.short_str()}'
@@ -434,7 +434,7 @@ class PR(object):
                 return self._new_build(Building(job, image, target.sha))
             else:
                 log.info(f'found deploy job {job.id} for wrong target {target}, should be {self.target}')
-                job.delete()
+                job.cancel()
                 return self
 
     def refresh_from_missing_job(self):
@@ -464,12 +464,13 @@ class PR(object):
             x = self
         elif exit_code == 0:
             log.info(f'job finished success {short_str_build_job(job)} {self.short_str()}')
-            x = self._new_build(Mergeable(self.target.sha))
+            x = self._new_build(Mergeable(self.target.sha, job))
         else:
             log.info(f'job finished failure {short_str_build_job(job)} {self.short_str()}')
             x = self._new_build(
                 Failure(exit_code,
+                        job,
                         job.attributes['image'],
                         self.target.sha))
-        job.delete()
+        job.cancel()
         return x

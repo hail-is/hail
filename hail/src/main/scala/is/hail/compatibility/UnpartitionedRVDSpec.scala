@@ -20,6 +20,6 @@ case class UnpartitionedRVDSpec(
   def encodedType: PStruct = rowType.physicalType
 
   def cxxEmitRead(hc: HailContext, path: String, requestedType: TStruct, tub: cxx.TranslationUnitBuilder): cxx.RVDEmitTriplet = {
-    cxx.RVDEmitTriplet.read(path, encodedType, codecSpec, partFiles, RVDType(requestedType.physicalType), null, tub)
+    cxx.RVDEmitTriplet.read(path, encodedType, codecSpec, partFiles, RVDType(requestedType.physicalType, FastIndexedSeq()), null, tub)
   }
 }

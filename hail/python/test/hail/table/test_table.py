@@ -467,7 +467,7 @@ class Tests(unittest.TestCase):
 
     def test_weird_names(self):
         df = hl.utils.range_table(10)
-        exprs = {'a': 5, '   a    ': 5, r'\%!^!@#&#&$%#$%': [5]}
+        exprs = {'a': 5, '   a    ': 5, r'\%!^!@#&#&$%#$%': [5], '$': 5, 'ß': 5}
 
         df.annotate_globals(**exprs)
         df.select_globals(**exprs)
@@ -802,6 +802,10 @@ class Tests(unittest.TestCase):
         t2 = t2.annotate(x=hl.struct(contig='1', position=t2.idx+1))
         self.assertTrue(t1._same(t2))
 
+    def test_expand_types_on_all_types(self):
+        t = create_all_values_table()
+        t.expand_types()
+
     def test_join_mangling(self):
         t1 = hl.utils.range_table(10).annotate_globals(glob1=5).annotate(row1=5)
         j = t1.join(t1, 'inner')
@@ -827,6 +831,11 @@ class Tests(unittest.TestCase):
                     a_literal=hl.literal(['a']),
                     the_row_failure=hl.cond(True, ht.row, hl.null(ht.row.dtype)),
                     the_global_failure=hl.cond(True, ht.globals, hl.null(ht.globals.dtype))).count()
+
+    def test_aggregate_localize_false(self):
+        ht = hl.utils.range_table(10)
+        ht = ht.annotate(y = ht.idx + ht.aggregate(hl.agg.max(ht.idx), _localize=False))
+        assert ht.y.collect() == [x + 9 for x in range(10)]
 
 def test_large_number_of_fields(tmpdir):
     ht = hl.utils.range_table(100)

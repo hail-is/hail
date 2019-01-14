@@ -97,23 +97,6 @@ class RVD(
   }
 
   // Key and partitioner manipulation
-
-  // Return an OrderedRVD whose key equals or at least starts with 'newKey'.
-  def enforceKey(newKey: IndexedSeq[String], isSorted: Boolean = false): RVD = {
-    require(newKey.forall(typ.rowType.hasField))
-    val nPreservedFields = typ.key.zip(newKey).takeWhile { case (l, r) => l == r }.length
-    require(!isSorted || nPreservedFields > 0 || newKey.isEmpty)
-
-    if (nPreservedFields == newKey.length) {
-      this
-    } else if (isSorted) {
-      truncateKey(newKey.take(nPreservedFields))
-        .extendKeyPreservesPartitioning(newKey)
-    } else {
-      changeKey(newKey)
-    }
-  }
-
   def changeKey(newKey: IndexedSeq[String]): RVD =
     changeKey(newKey, newKey.length)
 
@@ -1013,7 +996,7 @@ object RVD {
 
   def unkeyed(rowType: PStruct, crdd: ContextRDD[RVDContext, RegionValue]): RVD =
     new RVD(
-      RVDType(rowType),
+      RVDType(rowType, FastIndexedSeq()),
       RVDPartitioner.unkeyed(crdd.getNumPartitions),
       crdd)
 
@@ -1310,4 +1293,19 @@ object RVD {
 
   def union(rvds: Seq[RVD]): RVD =
     union(rvds, rvds.head.typ.key.length)
+
+  def writeRowsSplitFiles(
+    rvds: IndexedSeq[RVD],
+    path: String,
+    codecSpec: CodecSpec,
+    stageLocally: Boolean
+  ): Array[Array[Long]] = {
+    val first = rvds.head
+    require(rvds.forall(_.typ == first.typ))
+    val crdd = new ContextRDD(
+        new OriginUnionRDD(first.crdd.rdd.sparkContext, rvds.map(_.crdd.rdd)),
+        first.crdd.mkc
+      )
+    crdd.writeRowsSplitFiles(path, first.typ, codecSpec, rvds.map(_.partitioner), stageLocally)
+  }
 }

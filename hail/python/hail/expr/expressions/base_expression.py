@@ -682,7 +682,7 @@ class Expression(object):
         """
         handler(self._show(n, width, truncate, types))
 
-    def _show(self, n=10, width=90, truncate=None, types=True):
+    def _show(self, n, width, truncate, types):
         name = '<expr>'
         source = self._indices.source
         if isinstance(source, hl.Table):

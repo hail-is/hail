@@ -4,7 +4,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.expr.ir
-import is.hail.expr.ir.functions.RelationalFunctions
+import is.hail.expr.ir.functions.{MatrixToMatrixFunction, RelationalFunctions}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PArray, PInt32, PStruct}
 import is.hail.expr.types.virtual._
@@ -1154,193 +1154,6 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
   override def columnCount: Option[Int] = child.columnCount
-
-  protected[ir] override def execute(hc: HailContext): MatrixValue = {
-    val prev = child.execute(hc)
-    assert(prev.typ == child.typ)
-
-    val (minColType, minColValues, rewriteIR) = PruneDeadFields.pruneColValues(prev, newRVRow)
-
-    val localGlobalsType = prev.typ.globalType
-    val localColsType = TArray(minColType)
-    val localNCols = prev.nCols
-    val colValuesBc = minColValues.broadcast
-    val globalsBc = prev.globals.broadcast
-
-    val vaType = prev.rvd.rowPType
-
-    var scanInitNeedsGlobals = false
-    var scanSeqNeedsGlobals = false
-    var rowIterationNeedsGlobals = false
-    var rowIterationNeedsCols = false
-
-    val (entryAggs, initOps, seqOps, aggResultType, postAggIR) = ir.CompileWithAggregators[Long, Long, Long, Long, Long](
-      "global", prev.typ.globalType.physicalType,
-      "va", vaType,
-      "global", prev.typ.globalType.physicalType,
-      "colValues", localColsType.physicalType,
-      "va", vaType,
-      rewriteIR, "AGGR",
-      { (nAggs: Int, initOpIR: IR) =>
-        rowIterationNeedsGlobals |= Mentions(initOpIR, "global")
-        initOpIR
-      },
-      { (nAggs: Int, seqOpIR: IR) =>
-        rowIterationNeedsGlobals |= Mentions(seqOpIR, "global")
-        val seqOpNeedsCols = Mentions(seqOpIR, "sa")
-        rowIterationNeedsCols |= seqOpNeedsCols
-
-        var singleSeqOp = ir.Let("g", ir.ArrayRef(
-          ir.GetField(ir.Ref("va", vaType.virtualType), MatrixType.entriesIdentifier),
-          ir.Ref("i", TInt32())),
-          seqOpIR)
-
-        if (seqOpNeedsCols)
-          singleSeqOp = ir.Let("sa",
-            ir.ArrayRef(ir.Ref("colValues", localColsType), ir.Ref("i", TInt32())),
-            singleSeqOp)
-
-        ir.ArrayFor(
-          ir.ArrayRange(ir.I32(0), ir.I32(localNCols), ir.I32(1)),
-          "i",
-          singleSeqOp)
-      })
-
-    val (scanAggs, scanInitOps, scanSeqOps, scanResultType, postScanIR) = ir.CompileWithAggregators[Long, Long, Long](
-      "global", prev.typ.globalType.physicalType,
-      "global", prev.typ.globalType.physicalType,
-      "va", vaType,
-      CompileWithAggregators.liftScan(postAggIR), "SCANR",
-      { (nAggs: Int, initOp: IR) =>
-        scanInitNeedsGlobals |= Mentions(initOp, "global")
-        initOp
-      },
-      { (nAggs: Int, seqOp: IR) =>
-        scanSeqNeedsGlobals |= Mentions(seqOp, "global")
-        rowIterationNeedsGlobals |= Mentions(seqOp, "global")
-        seqOp
-      })
-
-    rowIterationNeedsGlobals |= Mentions(postScanIR, "global")
-
-    val (rTyp, returnF) = ir.Compile[Long, Long, Long, Long, Long](
-      "AGGR", aggResultType,
-      "SCANR", scanResultType,
-      "global", prev.typ.globalType.physicalType,
-      "va", vaType,
-      postScanIR)
-    assert(rTyp.virtualType == typ.rvRowType, s"$rTyp, ${ typ.rvRowType }")
-
-    Region.scoped { region =>
-      val globals = if (scanInitNeedsGlobals) {
-        val rvb = new RegionValueBuilder()
-        rvb.set(region)
-        rvb.start(localGlobalsType.physicalType)
-        rvb.addAnnotation(localGlobalsType, globalsBc.value)
-        rvb.end()
-      } else 0L
-
-      scanInitOps(0)(region, scanAggs, globals, false)
-    }
-
-    val scanAggsPerPartition =
-      if (scanAggs.nonEmpty) {
-        prev.rvd.collectPerPartition { (i, ctx, it) =>
-          val globals = if (scanSeqNeedsGlobals) {
-            val rvb = new RegionValueBuilder()
-            val partRegion = ctx.freshRegion
-            rvb.set(partRegion)
-            rvb.start(localGlobalsType.physicalType)
-            rvb.addAnnotation(localGlobalsType, globalsBc.value)
-            rvb.end()
-          } else 0L
-
-          val scanSeqOpF = scanSeqOps(i)
-
-          it.foreach { rv =>
-            scanSeqOpF(rv.region, scanAggs, globals, false, rv.offset, false)
-            ctx.region.clear()
-          }
-          scanAggs
-        }.scanLeft(scanAggs) { (a1, a2) =>
-          (a1, a2).zipped.map { (agg1, agg2) =>
-            val newAgg = agg1.copy()
-            newAgg.combOp(agg2)
-            newAgg
-          }
-        }
-      } else Array.fill(prev.rvd.getNumPartitions)(Array.empty[RegionValueAggregator])
-
-    val mapPartitionF = { (i: Int, ctx: RVDContext, it: Iterator[RegionValue]) =>
-      val partitionAggs = scanAggsPerPartition(i)
-      val rvb = new RegionValueBuilder()
-      val newRV = RegionValue()
-      val partRegion = ctx.freshRegion
-
-      rvb.set(partRegion)
-      val globals = if (rowIterationNeedsGlobals) {
-        rvb.start(localGlobalsType.physicalType)
-        rvb.addAnnotation(localGlobalsType, globalsBc.value)
-        rvb.end()
-      } else 0L
-
-      val cols = if (rowIterationNeedsCols) {
-        rvb.start(localColsType.physicalType)
-        rvb.addAnnotation(localColsType, colValuesBc.value)
-        rvb.end()
-      } else 0L
-
-      val initOpF = initOps(i)
-      val seqOpF = seqOps(i)
-      val scanSeqOpF = scanSeqOps(i)
-      val rowF = returnF(i)
-
-      it.map { rv =>
-        rvb.set(rv.region)
-
-        val scanOff = if (scanAggs.nonEmpty) {
-          rvb.start(scanResultType)
-          rvb.startTuple()
-          var j = 0
-          while (j < partitionAggs.length) {
-            partitionAggs(j).result(rvb)
-            j += 1
-          }
-          rvb.endTuple()
-          rvb.end()
-        } else 0L
-
-        val aggOff = if (entryAggs.nonEmpty) {
-          var j = 0
-          while (j < entryAggs.length) {
-            entryAggs(j).clear()
-            j += 1
-          }
-
-          initOpF(rv.region, entryAggs, globals, false, rv.offset, false)
-          seqOpF(rv.region, entryAggs, globals, false, cols, false, rv.offset, false)
-
-          rvb.start(aggResultType)
-          rvb.startTuple()
-          j = 0
-          while (j < entryAggs.length) {
-            entryAggs(j).result(rvb)
-            j += 1
-          }
-          rvb.endTuple()
-          rvb.end()
-        } else 0L
-
-        newRV.set(rv.region, rowF(rv.region, aggOff, false, scanOff, false, globals, false, rv.offset, false))
-        scanSeqOpF(rv.region, partitionAggs, globals, false, rv.offset, false)
-        newRV
-      }
-    }
-
-    prev.copy(
-      typ = typ,
-      rvd = prev.rvd.mapPartitionsWithIndex(prev.rvd.typ.copy(rowType = rTyp.asInstanceOf[PStruct]), mapPartitionF))
-  }
 }
 
 case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[String]]) extends MatrixIR {
@@ -1921,7 +1734,7 @@ case class TableToMatrixTable(
     val rowKeyIndices = rowKey.map(rowEntryStruct.fieldIdx)
     val rowKeyF: Row => Row = r => Row.fromSeq(rowKeyIndices.map(r.get))
 
-    val rowEntryRVD = prev.rvd.mapPartitions(RVDType(rowEntryStructPtype)) { it =>
+    val rowEntryRVD = prev.rvd.mapPartitions(RVDType(rowEntryStructPtype, FastIndexedSeq())) { it =>
       val ur = new UnsafeRow(localRowPType)
       val rvb = new RegionValueBuilder()
       val rv2 = RegionValue()
@@ -2034,15 +1847,6 @@ case class MatrixExplodeRows(child: MatrixIR, path: IndexedSeq[String]) extends 
 
   private val rvRowType = child.typ.rvRowType
 
-  val length: IR = {
-    val lenUID = genUID()
-    Let(lenUID,
-      ArrayLen(ToArray(
-        path.foldLeft[IR](Ref("va", rvRowType))((struct, field) =>
-          GetField(struct, field)))),
-      If(IsNA(Ref(lenUID, TInt32())), 0, Ref(lenUID, TInt32())))
-  }
-
   val idx = Ref(genUID(), TInt32())
   val newRVRow: InsertFields = {
     val refs = path.init.scanLeft(Ref("va", rvRowType))((struct, name) =>
@@ -2059,42 +1863,6 @@ case class MatrixExplodeRows(child: MatrixIR, path: IndexedSeq[String]) extends 
   }
 
   val typ: MatrixType = child.typ.copy(rvRowType = newRVRow.typ)
-
-  override lazy val rvdType: RVDType = RVDType(newRVRow.pType, child.rvdType.key.takeWhile(_ !=  path.head))
-
-  protected[ir] override def execute(hc: HailContext): MatrixValue = {
-    val prev = child.execute(hc)
-    val (_, l) = Compile[Long, Int]("va", rvRowType.physicalType, length)
-    val (t, f) = Compile[Long, Int, Long](
-      "va", rvRowType.physicalType,
-      idx.name, PInt32(),
-      newRVRow)
-    assert(t.virtualType == typ.rvRowType)
-
-    MatrixValue(typ,
-      prev.globals,
-      prev.colValues,
-      prev.rvd.boundary.mapPartitionsWithIndex(typ.canonicalRVDType, { (i, ctx, it) =>
-        val region2 = ctx.region
-        val rv2 = RegionValue(region2)
-        val lenF = l(i)
-        val rowF = f(i)
-        it.flatMap { rv =>
-          val len = lenF(rv.region, rv.offset, false)
-          new Iterator[RegionValue] {
-            private[this] var i = 0
-
-            def hasNext(): Boolean = i < len
-
-            def next(): RegionValue = {
-              rv2.setOffset(rowF(rv2.region, rv.offset, false, i, false))
-              i += 1
-              rv2
-            }
-          }
-        }
-      }))
-  }
 }
 
 case class MatrixRepartition(child: MatrixIR, n: Int, strategy: Int) extends MatrixIR {
@@ -2311,15 +2079,13 @@ case class CastTableToMatrix(
   }
 }
 
-case class MatrixToMatrixApply(child: MatrixIR, config: String) extends MatrixIR {
+case class MatrixToMatrixApply(child: MatrixIR, function: MatrixToMatrixFunction) extends MatrixIR {
   def children: IndexedSeq[BaseIR] = Array(child)
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixIR = {
     val IndexedSeq(newChild: MatrixIR) = newChildren
-    MatrixToMatrixApply(newChild, config)
+    MatrixToMatrixApply(newChild, function)
   }
-
-  private val function = RelationalFunctions.lookupMatrixToMatrix(config)
 
   override val (typ, rvdType) = function.typeInfo(child.typ, child.rvdType)
 

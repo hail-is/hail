@@ -639,7 +639,7 @@ def hardy_weinberg_test(n_hom_ref, n_het, n_hom_var) -> StructExpression:
     This method performs a two-sided exact test with mid-p-value correction of
     `Hardy-Weinberg equilibrium <https://en.wikipedia.org/wiki/Hardy%E2%80%93Weinberg_principle>`__
     via an efficient implementation of the
-    `Levene-Haldane distribution <https://hail.is/docs/devel/LeveneHaldane.pdf>`__,
+    `Levene-Haldane distribution <https://hail.is/docs/0.2/LeveneHaldane.pdf>`__,
     which models the number of heterozygous individuals under equilibrium.
 
     The mean of this distribution is ``(n_hom_ref * n_hom_var) / (2n - 1)`` where
@@ -3934,7 +3934,7 @@ def get_sequence(contig, position, before=0, after=0, reference_genome='default'
 
     Return the reference allele for ``'GRCh37'`` at the locus ``'1:45323'``:
 
-    >>> hl.eval(hl.get_sequence('1', 45323, 'GRCh37')) # doctest: +SKIP
+    >>> hl.eval(hl.get_sequence('1', 45323, reference_genome='GRCh37')) # doctest: +SKIP
     "T"
 
     Notes
@@ -4356,3 +4356,7 @@ def approx_equal(x, y, tolerance=1e-6, absolute=False, nan_same=False):
     """
 
     return _func("approxEqual", hl.tbool, x, y, tolerance, absolute, nan_same)
+
+@typecheck(s=expr_str)
+def _escape_string(s):
+    return _func("escapeString", hl.tstr, s)

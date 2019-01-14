@@ -11,7 +11,7 @@ Here are two examples of projects powered by Hail:
 
 For genomics applications, Hail can:
 
- - flexibly [import and export](https://hail.is/docs/devel/methods/impex.html) to a variety of data and annotation formats, including [VCF](https://samtools.github.io/hts-specs/VCFv4.2.pdf), [BGEN](http://www.well.ox.ac.uk/~gav/bgen_format/bgen_format_v1.2.html) and [PLINK](https://www.cog-genomics.org/plink2/formats)
+ - flexibly [import and export](https://hail.is/docs/0.2/methods/impex.html) to a variety of data and annotation formats, including [VCF](https://samtools.github.io/hts-specs/VCFv4.2.pdf), [BGEN](http://www.well.ox.ac.uk/~gav/bgen_format/bgen_format_v1.2.html) and [PLINK](https://www.cog-genomics.org/plink2/formats)
  - generate variant annotations like call rate, Hardy-Weinberg equilibrium p-value, and population-specific allele count; and import annotations in parallel through [annotation datasets](https://hail.is/docs/stable/datasets.html), [VEP](https://useast.ensembl.org/info/docs/tools/vep/index.html), and [Nirvana](https://github.com/Illumina/Nirvana/wiki)
  - generate sample annotations like mean depth, imputed sex, and TiTv ratio
  - generate new annotations from existing ones as well as genotypes, and use these to filter samples, variants, and genotypes
@@ -29,10 +29,10 @@ To learn more, you can view our talks at [Spark Summit East 2017](https://spark-
 
 To get started using Hail:
 
-- install Hail 0.2 using the instructions in [Installation](https://hail.is/docs/devel/getting_started.html)
-- follow the [Tutorials](https://hail.is/docs/devel/tutorials-landing.html) for examples of how to use Hail
-- read the [Hailpedia](https://hail.is/docs/devel/overview.html) for a broad introduction to Hail
-- check out the [Python API](https://hail.is/docs/devel/api.html) for detailed information on the programming interface
+- install Hail 0.2 using the instructions in [Installation](https://hail.is/docs/0.2/getting_started.html)
+- follow the [Tutorials](https://hail.is/docs/0.2/tutorials-landing.html) for examples of how to use Hail
+- read the [Hail Overview](https://hail.is/docs/0.2/overview.html) for a broad introduction to Hail
+- check out the [Python API](https://hail.is/docs/0.2/api.html) for detailed information on the programming interface
 
 ### User Support
 
@@ -48,7 +48,7 @@ Hail uses a continuous deployment approach to software development, which means 
 
 Hail is committed to open-source development. Our [Github repo](https://github.com/hail-is/hail) is publicly visible. If you'd like to contribute to the development of methods or infrastructure, please: 
 
-- see the [For Software Developers](https://hail.is/docs/devel/getting_started_developing.html) section of the installation guide for info on compiling Hail
+- see the [For Software Developers](https://hail.is/docs/0.2/getting_started_developing.html) section of the installation guide for info on compiling Hail
 - chat with us about development in our [Zulip chatroom](https://hail.zulipchat.com)
 - visit the [Development Forum](http://dev.hail.is) for longer-form discussions
 <!--- - read [this post]() (coming soon!) for tips on submitting a successful Pull Request to our repository --->

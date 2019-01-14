@@ -11,6 +11,7 @@ object Optimize {
     ir = FoldConstants(ir, canGenerateLiterals = canGenerateLiterals)
     ir = Simplify(ir)
     ir = PruneDeadFields(ir)
+    ir = Simplify(ir)
 
     if (ir.typ != ir0.typ)
       fatal(s"optimization changed type!\n  before: ${ ir0.typ }\n  after:  ${ ir.typ }" +

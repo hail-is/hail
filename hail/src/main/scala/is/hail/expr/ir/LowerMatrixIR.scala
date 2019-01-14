@@ -40,7 +40,7 @@ object LowerMatrixIR {
   private[this] def lower(mir: MatrixIR): TableIR = {
     val lowered = matrixRules.applyOrElse(mir, (mir: MatrixIR) =>
       CastMatrixToTable(lowerChildren(mir).asInstanceOf[MatrixIR], entriesFieldName, colsFieldName))
-    assert(lowered.typ == loweredType(mir.typ), lowered.typ + "\n" + loweredType(mir.typ))
+    assert(lowered.typ == loweredType(mir.typ), lowered.typ + "\n" + loweredType(mir.typ) + "\n" + Pretty(mir) + "\n" + Pretty(lowered))
     lowered
   }
 
@@ -132,6 +132,23 @@ object LowerMatrixIR {
           let (global = 'global.dropFields(colsField)) { newGlobals }
           .insertFields(colsField -> 'global(colsField)))
 
+    case MatrixMapRows(child, newRow) =>
+      def lowerApplyAggOp(x: IRProxy): IRProxy = lift {
+        case x@(_: ApplyAggOp | _: AggFilter | _: AggExplode | _: AggGroupBy) =>
+	  val env = Env("sa" -> 'global (colsField)('i),
+	    "g" -> 'row (entriesField)('i))
+          irRange(0, 'global (colsField).len)
+            .arrayAgg('i ~>
+	      subst(x, env, env))
+        case _ =>
+          MapIRProxy(lowerApplyAggOp)(x)
+      }(x)
+
+      lower(child)
+        .mapRows(
+          subst(lowerApplyAggOp(newRow), Env("va" -> 'row))
+	    .insertFields(entriesField -> 'row(entriesField)))
+
     case MatrixFilterEntries(child, pred) =>
       lower(child).mapRows('row.insertFields(entriesField ->
         irRange(0, 'global(colsField).len).map { 'i ~>
@@ -210,6 +227,8 @@ object LowerMatrixIR {
             })
           .dropFields('newColIdx)
         )
+
+    case MatrixExplodeRows(child, path) => TableExplode(lower(child), path)
   }
 
   private[this] def tableRules: PartialFunction[TableIR, TableIR] = {

@@ -1368,7 +1368,7 @@ class StructExpression(Mapping, Expression):
         result_type = tstruct(**new_types)
         indices, aggregations = unify_all(self, *[x for (f, x) in named_exprs.items()])
 
-        return construct_expr(InsertFields(self._ir, list(map(lambda x: (x[0], x[1]._ir), named_exprs.items()))),
+        return construct_expr(InsertFields(self._ir, list(map(lambda x: (x[0], x[1]._ir), named_exprs.items())), None),
                               result_type, indices, aggregations)
 
     @typecheck_method(fields=str, named_exprs=expr_any)

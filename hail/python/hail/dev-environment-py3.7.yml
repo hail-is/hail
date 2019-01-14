@@ -1,7 +1,7 @@
 name: hail-py3.7
 dependencies:
 - python=3.7
-- Sphinx=1.8.2
+- Sphinx=1.8.3
 - sphinxcontrib=1.0
 - conda-forge::nbsphinx=0.3.5
 - conda-forge::sphinx_rtd_theme=0.4.2
@@ -19,3 +19,4 @@ dependencies:
     - ipykernel==5.1.0
     - pytest-xdist==1.23.2
     - decorator==4.3.0
+    - pyspark==2.2.2

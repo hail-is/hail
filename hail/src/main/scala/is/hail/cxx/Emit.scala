@@ -312,6 +312,8 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
           case ir.NEQ(_, _) => "neq"
           case ir.EQWithNA(_, _) => "eq"
           case ir.NEQWithNA(_, _) => "neq"
+          case ir.Compare(_, _) => "compare"
+
         }
 
         if (op.strict) {
@@ -432,7 +434,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
              |})
              |""".stripMargin)
 
-      case ir.InsertFields(old, fields) =>
+      case ir.InsertFields(old, fields, fieldOrder) =>
         val pStruct = pType.asInstanceOf[PStruct]
         val oldPStruct = old.pType.asInstanceOf[PStruct]
         val oldt = emit(old)

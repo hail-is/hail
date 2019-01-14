@@ -414,7 +414,7 @@ class Table(ExprContainer):
         return Env.backend().execute(TableCount(self._tir))
 
     def _force_count(self):
-        return self._jt.forceCount()
+        return Env.backend().execute(TableToValueApply(self._tir, {'name': 'ForceCountTable'}))
 
     @typecheck_method(caller=str,
                       row=expr_struct())
@@ -1107,7 +1107,8 @@ class Table(ExprContainer):
 
         return GroupedTable(self, groups)
 
-    def aggregate(self, expr):
+    @typecheck_method(expr=expr_any, _localize=bool)
+    def aggregate(self, expr, _localize=True):
         """Aggregate over rows into a local value.
 
         Examples
@@ -1136,7 +1137,12 @@ class Table(ExprContainer):
         base, _ = self._process_joins(expr)
         analyze('Table.aggregate', expr, self._global_indices, {self._row_axis})
 
-        return Env.backend().execute(TableAggregate(base._tir, expr._ir))
+        agg_ir = TableAggregate(base._tir, expr._ir)
+
+        if _localize:
+            return Env.backend().execute(agg_ir)
+        else:
+            return construct_expr(agg_ir, expr.dtype)
 
     @typecheck_method(output=str,
                       overwrite=bool,
@@ -1167,6 +1173,121 @@ class Table(ExprContainer):
         """
 
         Env.backend().execute(TableWrite(self._tir, output, overwrite, stage_locally, _codec_spec))
+
+    def _show(self, n, width, truncate, types):
+        width = max(width, 8)
+
+        if truncate:
+            truncate = min(max(truncate, 4), width - 4)
+        else:
+            truncate = width - 4
+
+        def trunc(s):
+            if len(s) > truncate:
+                return s[:truncate - 3] + "..."
+            else:
+                return s
+
+        def hl_repr(v):
+            if v.dtype == hl.tfloat32 or v.dtype == hl.tfloat64:
+                s = hl.format('%.2e', v)
+            elif isinstance(v.dtype, hl.tarray):
+                s = "[" + hl.delimit(hl.map(hl_repr, v), ",") + "]"
+            elif isinstance(v.dtype, hl.tset):
+                s = "{" + hl.delimit(hl.map(hl_repr, hl.array(v)), ",") + "}"
+            elif isinstance(v.dtype, hl.tdict):
+                s = "{" + hl.delimit(hl.map(lambda x: x[0] + ":" + hl_repr(x[1]), hl.array(v)), ",") + "}"
+            elif v.dtype == hl.tstr:
+                s = hl.str('"') + hl.expr.functions._escape_string(v) + '"'
+            elif isinstance(v.dtype, (hl.tstruct, hl.tarray)):
+                s = "(" + hl.delimit([hl_repr(v[i]) for i in range(len(v))], ",") + ")"
+            else:
+                s = hl.str(v)
+            return hl.cond(hl.is_defined(v), s, "NA")
+
+        def hl_trunc(s):
+            return hl.cond(hl.len(s) > truncate,
+                           s[:truncate - 3] + "...",
+                           s)
+
+        def hl_format(v):
+            return hl.bind(lambda s: hl_trunc(s), hl_repr(v))
+
+        t = self
+        t = t.flatten()
+        fields = [trunc(f) for f in t.row]
+        n_fields = len(fields)
+
+        types = [trunc(str(t.row[f].dtype)) for f in fields]
+        right_align = [hl.expr.types.is_numeric(t.row[f].dtype) for f in fields]
+
+        t = t.select(**{k: hl_format(v) for (k, v) in t.row.items()})
+        rows = t.take(n + 1)
+
+        has_more = len(rows) > n
+        rows = rows[:n]
+
+        rows = [[row[f] for f in fields] for row in rows]
+
+        column_width = [max(len(fields[i]), len(types[i]), max([len(row[i]) for row in rows]))
+                        for i in range(n_fields)]
+
+        column_blocks = []
+        start = 0
+        i = 1
+        w = column_width[0] + 4
+        while i < len(fields):
+            w = w + column_width[i] + 3
+            if w > width:
+                column_blocks.append((start, i))
+                start = i
+                w = column_width[i] + 4
+            i = i + 1
+        assert i == n_fields
+        column_blocks.append((start, i))
+
+        def format_hline(widths):
+            return '+-' + '-+-'.join(['-' * w for w in widths]) + '-+\n'
+
+        def pad(v, w, ra):
+            e =  w - len(v)
+            if ra:
+                return ' ' * e + v
+            else:
+                return v + ' ' * e
+
+        def format_line(values, widths, right_align):
+            values = map(pad, values, widths, right_align)
+            return '| ' + ' | '.join(values) + ' |\n'
+
+        s = ''
+        first = True
+        for (start, end) in column_blocks:
+            if first:
+                first = False
+            else:
+                s += '\n'
+
+            block_column_width = column_width[start:end]
+            block_right_align = right_align[start:end]
+            hline = format_hline(block_column_width)
+
+            s += hline
+            s += format_line(fields[start:end], block_column_width, block_right_align)
+            s += hline
+            if types:
+                s += format_line(types[start:end], block_column_width, block_right_align)
+                s += hline
+            for row in rows:
+                row = row[start:end]
+                s += format_line(row, block_column_width, block_right_align)
+            s += hline
+
+        if has_more:
+            n_rows = len(rows)
+            s += f"showing top { n_rows } { 'row' if n_rows == 1 else 'rows' }\n"
+
+        return s
 
     @typecheck_method(n=int, width=int, truncate=nullable(int), types=bool, handler=anyfunc)
     def show(self, n=10, width=90, truncate=None, types=True, handler=print):
@@ -1202,10 +1323,7 @@ class Table(ExprContainer):
         handler : Callable[[str], Any]
             Handler function for data string.
         """
-        handler(self._show(n,width, truncate, types))
-
-    def _show(self, n=10, width=90, truncate=None, types=True):
-        return self._jt.showString(n, joption(truncate), types, width)
+        handler(self._show(n, width, truncate, types))
 
     def index(self, *exprs):
         """Expose the row values as if looked up in a dictionary, indexing
@@ -1343,10 +1461,9 @@ class Table(ExprContainer):
                 if not is_key:
                     original_key = list(left.key)
                     left = Table(TableMapRows(left.key_by()._tir,
-                                              Apply('annotate',
-                                                    left._row._ir,
-                                                    hl.struct(**dict(zip(uids, exprs)))._ir))
-                           ).key_by(*uids)
+                                              InsertFields(left._row._ir,
+                                                           list(zip(uids, [e._ir for e in exprs])),
+                                                           None))).key_by(*uids)
                     rekey_f = lambda t: t.key_by(*original_key)
                 else:
                     rekey_f = identity
@@ -1553,7 +1670,7 @@ class Table(ExprContainer):
         :obj:`list` of :class:`.Struct`
             List of rows.
         """
-        return Env.hc()._backend.execute(GetField(TableCollect(self._tir), 'rows'))
+        return Env.backend().execute(GetField(TableCollect(self._tir), 'rows'))
 
     def describe(self, handler=print):
         """Print information about the fields in the table."""
@@ -2072,12 +2189,32 @@ class Table(ExprContainer):
         :class:`.Table`
             Expanded table.
         """
+        def _expand(e):
+            if isinstance(e, CollectionExpression) or isinstance(e, DictExpression):
+                return hl.map(lambda x: _expand(x), hl.array(e))
+            elif isinstance(e, StructExpression):
+                return hl.struct(**{k: _expand(v) for (k, v) in e.items()})
+            elif isinstance(e, TupleExpression):
+                return hl.struct(**{f'_{i}': x for (i, x) in enumerate(e)})
+            elif isinstance(e, IntervalExpression):
+                return hl.struct(start = e.start,
+                                 end = e.end,
+                                 includesStart = e.includes_start,
+                                 includesEnd = e.includes_end)
+            elif isinstance(e, LocusExpression):
+                return hl.struct(contig = e.contig,
+                                 position = e.position)
+            elif isinstance(e, CallExpression):
+                return hl.struct(alleles=hl.map(lambda i: e[i], hl.range(0, e.ploidy)),
+                                 phased=e.phased)
+            else:
+                assert isinstance(e, (NumericExpression, BooleanExpression, StringExpression))
+                return e
 
-        if len(self.key) == 0:
-            t = self
-        else:
-            t = self.key_by()
-        return Table._from_java(t._jt.expandTypes())
+        t = self.key_by()
+        t = t.select(**_expand(t.row))
+        t = t.select_globals(**_expand(t.globals))
+        return t
 
     def flatten(self):
         """Flatten nested structs.
@@ -2143,7 +2280,8 @@ class Table(ExprContainer):
                 return [(k, v) for (f, e) in s.items() for (k, v) in _flatten(prefix + '.' + f, e)]
             else:
                 return [(prefix, s)]
-        t = self.key_by()
+        # unkey but preserve order
+        t = self.order_by(*self.key)
         t = t.select(**{k: v for (f, e) in t.row.items() for (k, v) in _flatten(f, e)})
         return t
 
@@ -2257,7 +2395,7 @@ class Table(ExprContainer):
         element in the `Children` field:
 
         >>> exploded = people_table.explode('Children')
-        >>> exploded.show()
+        >>> exploded.show() # doctest: +NOTEST
         +---------+-------+----------+
         | Name    |   Age | Children |
         +---------+-------+----------+
@@ -2274,7 +2412,7 @@ class Table(ExprContainer):
         names:
 
         >>> exploded = people_table.explode('Children', name='Child')
-        >>> exploded.show()
+        >>> exploded.show() # doctest: +NOTEST
         +---------+-------+---------+
         | Name    |   Age | Child   |
         +---------+-------+---------+
@@ -2328,7 +2466,7 @@ class Table(ExprContainer):
                 raise ValueError(f"method 'explode' cannot explode a key field")
 
         f = self._fields_inverse[field]
-        t = Table(TableExplode(self._tir, f))
+        t = Table(TableExplode(self._tir, [f]))
         if name is not None:
             t = t.rename({f: name})
         return t
@@ -2619,7 +2757,7 @@ class Table(ExprContainer):
             hl.struct(**{name: hl.agg.collect(self.row_value)})._ir))
 
     def distinct(self) -> 'Table':
-        """Keep only one row for each unique key.
+        """Deduplicate keys, keeping only one row for each unique key.
 
         .. include:: _templates/req_keyed_table.rst
 

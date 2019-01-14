@@ -18,7 +18,7 @@ package object experimental {
   }
 
   def calcFilterAlleleFreq(ac: Int, an: Int, ci: Double = .95, lower: Double = 1e-10, upper: Double = 2, tol: Double = 1e-7, precision: Double = 1e-6): Double = {
-    if (ac <= 0 || an == 0)
+    if (ac <= 1 || an == 0) // FAF should not be calculated on singletons
       0.0
     else {
       var f = (af: Double) => ac.toDouble - 1 - qpois(ci, an.toDouble * af)
