@@ -4,6 +4,7 @@ import breeze.linalg._
 import is.hail.SparkSuite
 import is.hail.utils._
 import org.testng.annotations.Test
+import org.testng.SkipException
 
 import scala.language.postfixOps
 import scala.sys.process._
@@ -140,6 +141,9 @@ class LogisticRegressionModelSuite extends SparkSuite {
   }
 
   @Test def covariatesVsInterceptOnlyR() {
+    if (sys.env.contains("HAIL_TEST_SKIP_R")) {
+      throw new SkipException("Skipping tests requiring Rscript")
+    }
 
     val tol = 1E-5
 
