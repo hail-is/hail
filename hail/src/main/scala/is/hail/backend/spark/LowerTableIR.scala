@@ -202,6 +202,8 @@ object LowerTableIR {
       SparkPipeline(sparkCollects.flatMap(_.stages).toMap, ir.copy(sparkCollects.map(_.body)))
   }
 
+  // table globals should be stored in the first element of `globals` in SparkStage;
+  // globals in SparkStage should have unique identifiers.
   def lower(tir: TableIR): SparkStage = tir match {
     case TableRange(n, nPartitions) =>
       val nPartitionsAdj = math.max(math.min(n, nPartitions), 1)
