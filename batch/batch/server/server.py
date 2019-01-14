@@ -251,6 +251,8 @@ class Job:
             result['log'] = pod_log
         if self.attributes:
             result['attributes'] = self.attributes
+        if self.parent_ids:
+            result['parent_ids'] = self.parent_ids
         return result
 
 
