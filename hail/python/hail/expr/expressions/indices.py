@@ -9,14 +9,10 @@ class Indices(object):
     def __init__(self, source=None, axes=set()):
         self.source = source
         self.axes = axes
-        self._initialized_key = False
+        self._cached_key = None
 
     def __hash__(self):
-        h = 37
-        h = h * 31 + hash(self.source)
-        for a in self.axes:
-            h = h * 31 + hash(a)
-        return h
+        return 37 + hash((self.source, *self.axes))
 
     def __eq__(self, other):
         return isinstance(other, Indices) and self.source is other.source and self.axes == other.axes
@@ -42,11 +38,10 @@ class Indices(object):
 
     @property
     def protected_key(self) -> List[str]:
-        if self._initialized_key:
+        if self._cached_key is None:
+            self._cached_key = self._get_key()
             return self._cached_key
         else:
-            self._cached_key = self._get_key()
-            self._initialized_key = True
             return self._cached_key
 
     def _get_key(self):

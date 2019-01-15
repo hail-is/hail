@@ -362,10 +362,9 @@ def get_select_exprs(caller, exprs, named_exprs, indices, base_struct):
     named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
     select_fields = indices.protected_key[:]
     protected_key = set(select_fields)
-    insertions = []
+    insertions = {}
 
     final_fields = select_fields[:]
-    contains_nested_field = False
 
     def is_top_level_field(e):
         return e in indices.source._fields_inverse
@@ -385,20 +384,19 @@ def get_select_exprs(caller, exprs, named_exprs, indices, base_struct):
         if is_top_level_field(e):
             select_fields.append(name)
         else:
-            contains_nested_field = True
-            insertions.append((name, e))
+            insertions[name] = e
     for k, e in named_exprs.items():
         check_keys(caller, k, protected_key)
-        insertions.append((k, e))
         final_fields.append(k)
+        insertions[k] = e
 
     check_collisions(caller, final_fields, indices)
 
-    if not contains_nested_field:
+    if final_fields != select_fields + list(insertions):
         # don't clog the IR with redundant field names
-        s = base_struct.select(*select_fields).annotate(**dict(insertions))
+        s = base_struct.select(*select_fields).annotate(**insertions)
     else:
-        s = base_struct.select(*select_fields)._annotate_ordered(dict(insertions), final_fields)
+        s = base_struct.select(*select_fields)._annotate_ordered(insertions, final_fields)
 
     assert list(s) == final_fields
     return s
