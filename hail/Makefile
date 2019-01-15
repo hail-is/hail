@@ -65,7 +65,7 @@ PY_FILES := $(shell find python/src/hail -type f -not $(IGNORED_FILE_PATTERN))
 PY_TEST_FILES := $(shell find python/tests -type f -not $(IGNORED_FILE_PATTERN))
 PYTHON_PACKAGE_JAR_LOCATION := python/src/hail/hail-all-spark.jar
 
-build/pip-prepare: build/libs/hail-all-spark.jar $(PY_FILES) env/SPARK_VERSION
+build/pip-prepare: build/libs/hail-all-spark.jar $(PY_FILES) env/SPARK_VERSION ../README.md
 	cp $< $(PYTHON_PACKAGE_JAR_LOCATION)
 	cp ../README.md python/
 	printf $(SPARK_VERSION) > python/spark_version
