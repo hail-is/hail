@@ -4,6 +4,9 @@ object Subst {
   def apply(e: IR): IR = apply(e, Env.empty, Env.empty)
   def apply(e: IR, env: Env[IR]): IR = apply(e, env, Env.empty)
   def apply(e: IR, env: Env[IR], aggEnv: Env[IR]): IR = {
+    if (env.m.isEmpty && aggEnv.m.isEmpty)
+      return e
+
     def subst(e: IR, env: Env[IR] = env, aggEnv: Env[IR] = aggEnv): IR = apply(e, env, aggEnv)
 
     e match {
