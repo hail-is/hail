@@ -59,7 +59,9 @@ object RelationalFunctions {
     classOf[MatrixWriteBlockMatrix],
     classOf[TableFilterIntervals],
     classOf[MatrixFilterIntervals]
-  ))
+  )) +
+    new MatrixFilterItervalsSerializer +
+    new TableFilterItervalsSerializer
 
   def extractTo[T : Manifest](config: String): T = {
     Serialization.read[T](config)
