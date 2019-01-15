@@ -1,5 +1,7 @@
 package is.hail.expr.ir
 
+import java.io.{ObjectInputStream, ObjectOutputStream}
+
 import is.hail.expr.types.BaseType
 
 abstract class BaseIR {
@@ -18,4 +20,8 @@ abstract class BaseIR {
     else
       copy(newChildren)
   }
+
+  private final def writeObject(out: ObjectOutputStream): Unit = throw new UnsupportedOperationException(this.toString)
+
+  private final def readObject(in: ObjectInputStream): Unit = throw new UnsupportedOperationException(this.toString)
 }
