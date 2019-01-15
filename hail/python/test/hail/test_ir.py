@@ -221,7 +221,7 @@ class TableIRTests(unittest.TestCase):
             ir.MatrixCollectColsByKey(matrix_read),
             ir.MatrixExplodeRows(matrix_read, ['row_aset']),
             ir.MatrixExplodeCols(matrix_read, ['col_aset']),
-            ir.MatrixAnnotateRowsTable(matrix_read, table_read, '__foo', None),
+            ir.MatrixAnnotateRowsTable(matrix_read, table_read, '__foo'),
             ir.MatrixAnnotateColsTable(matrix_read, table_read, '__foo'),
             ir.MatrixToMatrixApply(matrix_read, {'name': 'MatrixFilterPartitions', 'parts': [0], 'keep': True})
         ]

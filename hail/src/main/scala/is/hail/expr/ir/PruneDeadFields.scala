@@ -526,7 +526,7 @@ object PruneDeadFields {
           rowType = unify(child.typ.rowType, rowDep),
           globalType = requestedType.globalType)
         memoizeTableIR(child, requestedChildType, memo)
-      case MatrixAnnotateRowsTable(child, table, root, key) =>
+      case MatrixAnnotateRowsTable(child, table, root) =>
         val fieldDep = requestedType.rvRowType.fieldOption(root).map(_.typ.asInstanceOf[TStruct])
         fieldDep match {
           case Some(struct) =>
@@ -536,16 +536,10 @@ object PruneDeadFields {
                 FastIndexedSeq(struct): _*),
               globalType = minimal(table.typ.globalType))
             memoizeTableIR(table, tableDep, memo)
-            val keyDep = unify(child.typ,
-              key.map(_.map(ir => memoizeAndGetDep(ir, ir.typ, child.typ, memo)))
-                .getOrElse(FastIndexedSeq.empty[MatrixType]): _*)
-            val matDep = unify(
-              child.typ,
-              keyDep,
-              requestedType.copy(rvRowType =
-                unify(child.typ.rvRowType,
-                  minimal(child.typ).rvRowType,
-                  requestedType.rvRowType.filterSet(Set(root), include = false)._1)))
+            val matDep = requestedType.copy(rvRowType =
+              unify(child.typ.rvRowType,
+                minimal(child.typ).rvRowType,
+                requestedType.rvRowType.filterSet(Set(root), include = false)._1))
             memoizeMatrixIR(child, matDep, memo)
           case None =>
             // don't depend on key IR dependencies if we are going to elide the node anyway
@@ -989,15 +983,14 @@ object PruneDeadFields {
             upcastCols = false,
             upcastGlobals = false)
         } )
-      case MatrixAnnotateRowsTable(child, table, root, key) =>
+      case MatrixAnnotateRowsTable(child, table, root) =>
         // if the field is not used, this node can be elided entirely
         if (!requestedType.rvRowType.hasField(root))
           rebuild(child, memo)
         else {
           val child2 = rebuild(child, memo)
           val table2 = rebuild(table, memo)
-          val key2 = key.map(_.map(ir => rebuild(ir, child2.typ, memo)))
-          MatrixAnnotateRowsTable(child2, table2, root, key2)
+          MatrixAnnotateRowsTable(child2, table2, root)
         }
       case MatrixAnnotateColsTable(child, table, uid) =>
         // if the field is not used, this node can be elided entirely

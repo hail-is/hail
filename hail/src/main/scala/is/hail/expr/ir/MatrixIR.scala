@@ -1522,12 +1522,11 @@ case class MatrixAnnotateColsTable(
 case class MatrixAnnotateRowsTable(
   child: MatrixIR,
   table: TableIR,
-  root: String,
-  key: Option[IndexedSeq[IR]]) extends MatrixIR {
+  root: String) extends MatrixIR {
 
-  def children: IndexedSeq[BaseIR] = FastIndexedSeq(child, table) ++ key.getOrElse(FastIndexedSeq.empty[IR])
+  def children: IndexedSeq[BaseIR] = FastIndexedSeq(child, table)
 
-  override def columnCount: Option[Call] = child.columnCount
+  override def columnCount: Option[Int] = child.columnCount
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
@@ -1539,113 +1538,8 @@ case class MatrixAnnotateRowsTable(
       table.rvdType.rowType.dropFields(table.typ.key.toSet)))
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixAnnotateRowsTable = {
-    val (child: MatrixIR) +: (table: TableIR) +: newKey = newChildren
-    MatrixAnnotateRowsTable(
-      child, table,
-      root,
-      key.map { keyIRs =>
-        assert(newKey.length == keyIRs.length)
-        newKey.map(_.asInstanceOf[IR])
-      }
-    )
-  }
-
-  protected[ir] override def execute(hc: HailContext): MatrixValue = {
-    val prev = child.execute(hc)
-    val tv = table.execute(hc)
-    key match {
-      // annotateRowsIntervals
-      case None if table.typ.keyType.size == 1
-        && table.typ.keyType.types(0) == TInterval(child.typ.rowKeyStruct.types(0)) =>
-        val (newRVPType, ins) =
-          prev.rvd.rowPType.unsafeStructInsert(table.typ.valueType.physicalType, List(root))
-
-        val rightRVDType = tv.rvd.typ
-        val leftRVDType = child.typ.canonicalRVDType
-
-        val zipper = { (ctx: RVDContext, it: Iterator[RegionValue], intervals: Iterator[RegionValue]) =>
-          val rvb = new RegionValueBuilder()
-          val rv2 = RegionValue()
-          OrderedRVIterator(leftRVDType, it, ctx).leftIntervalJoinDistinct(
-            OrderedRVIterator(rightRVDType, intervals, ctx)
-          )
-            .map { case Muple(rv, i) =>
-              rvb.set(rv.region)
-              rvb.start(newRVPType)
-              ins(
-                rv.region,
-                rv.offset,
-                rvb,
-                () => if (i == null) rvb.setMissing() else rvb.selectRegionValue(rightRVDType.rowType, rightRVDType.valueFieldIdx, i))
-              rv2.set(rv.region, rvb.end())
-
-              rv2
-            }
-        }
-
-        val newMatrixType = child.typ.copy(rvRowType = newRVPType.virtualType)
-        val newRVD = prev.rvd.intervalAlignAndZipPartitions(RVDType(newRVPType, newMatrixType.rowKey), tv.rvd)(zipper)
-        prev.copy(typ = typ, rvd = newRVD)
-
-      // annotateRowsTable using non-key MT fields
-      case Some(newKeys) =>
-        // FIXME: here be monsters
-
-        // used to zipWithIndex in multiple places
-        val partitionCounts = child.getOrComputePartitionCounts()
-
-        val prevRowKeys = child.typ.rowKey.toArray
-        val newKeyUIDs = Array.fill(newKeys.length)(ir.genUID())
-        val indexUID = ir.genUID()
-
-        // has matrix row key and foreign join key
-        val mrt = Interpret(
-          MatrixRowsTable(
-            MatrixMapRows(
-              child,
-              MakeStruct(
-                prevRowKeys.zip(
-                  prevRowKeys.map(rk => GetField(Ref("va", child.typ.rvRowType), rk))
-                ) ++ newKeyUIDs.zip(newKeys)))))
-        val indexedRVD1 = mrt.rvd
-          .zipWithIndex(indexUID, Some(partitionCounts))
-        val tl1 = TableLiteral(mrt.copy(typ = mrt.typ.copy(rowType = indexedRVD1.rowType), rvd = indexedRVD1))
-
-        // ordered by foreign key, filtered to remove null keys
-        val sortedTL = Interpret(
-          TableKeyBy(
-            TableFilter(tl1,
-              ApplyUnaryPrimOp(
-                Bang(),
-                newKeyUIDs
-                  .map(k => IsNA(GetField(Ref("row", mrt.typ.rowType), k)))
-                  .reduce[IR] { case (l, r) => ApplySpecial("||", FastIndexedSeq(l, r)) })),
-            newKeyUIDs))
-
-        val left = sortedTL.rvd
-        val right = tv.rvd
-        val joined = left.orderedLeftJoinDistinctAndInsert(right, root)
-
-        // At this point 'joined' is sorted by the foreign key, so need to resort by row key
-        // first, change the partitioner to include the index field in the key so the shuffled result is sorted by index
-        val extendedKey = prev.rvd.typ.key ++ Array(indexUID)
-        val rpJoined = joined.repartition(
-          prev.rvd.partitioner.extendKey(joined.typ.copy(key = extendedKey).kType.virtualType),
-          shuffle = true)
-
-        // the lift and dropLeft flags are used to optimize some of the struct manipulation operations
-        val newRVD = prev.rvd.zipWithIndex(indexUID, Some(partitionCounts))
-          .extendKeyPreservesPartitioning(prev.rvd.typ.key ++ Array(indexUID))
-          .orderedLeftJoinDistinctAndInsert(rpJoined, root, lift = Some(root), dropLeft = Some(Array(indexUID)))
-        MatrixValue(typ, prev.globals, prev.colValues, newRVD)
-
-      // annotateRowsTable using key
-      case None =>
-        assert(child.typ.rowKeyStruct.types.zip(table.typ.keyType.types).forall { case (l, r) => l.isOfType(r) })
-        val newRVD = prev.rvd.orderedLeftJoinDistinctAndInsert(
-          tv.rvd, root)
-        prev.copy(typ = typ, rvd = newRVD)
-    }
+    val IndexedSeq(child: MatrixIR, table: TableIR) = newChildren
+    MatrixAnnotateRowsTable(child, table, root)
   }
 }
 

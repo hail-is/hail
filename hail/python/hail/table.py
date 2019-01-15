@@ -1508,12 +1508,38 @@ class Table(ExprContainer):
                                               f"  Table key:         {', '.join(str(t) for t in self.key.dtype.values())}\n"
                                               f"  Index Expressions: {', '.join(str(e.dtype) for e in exprs)}")
 
-                if is_subset_row_key or is_interval:
-                    key = None
+                if not (is_subset_row_key or is_interval):
+                    # foreign-key join
+                    foreign_key_annotates = {Env.get_uid(): e for e in exprs}
+
+                    # contains original key and join key
+                    join_table = src.select_rows(**foreign_key_annotates).rows()
+
+                    join_table = join_table.key_by(*foreign_key_annotates)
+
+                    value_uid = Env.get_uid()
+                    join_table = join_table.annotate(**{value_uid: right.index(join_table.key)})
+
+                    #  FIXME: TableZipUnchecked would make this faster
+                    join_table = join_table.group_by(*src.row_key).aggregate(**{uid:
+                        hl.dict(hl.agg.collect(hl.tuple([hl.tuple([join_table[f] for f in foreign_key_annotates]),
+                                                         join_table[value_uid]])))})
+
+                    def joiner(left: MatrixTable):
+                        return MatrixTable(
+                            MatrixMapRows(
+                                MatrixAnnotateRowsTable(left._mir, join_table._tir, uid),
+                                InsertFields(
+                                    Ref('va'),
+                                    [(uid, Apply('get',
+                                                 GetField(GetField(Ref('va'), uid), uid),
+                                                 MakeTuple([e._ir for e in exprs])))],
+                                    None
+                                ))
+                            )
                 else:
-                    key = [str(k._ir) for k in exprs]
-                joiner = lambda left: MatrixTable(MatrixAnnotateRowsTable(
-                    left._mir, right._tir, uid, key))
+                    joiner = lambda left: MatrixTable(MatrixAnnotateRowsTable(
+                        left._mir, right._tir, uid))
                 ast = Join(GetField(TopLevelReference('va'), uid),
                            [uid],
                            exprs,
