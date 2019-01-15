@@ -74,11 +74,8 @@ case class SparkStage(
     }
     rvb2.endStruct()
 
-    val baos = new ByteArrayOutputStream()
-    val gEncoder = codecSpec.buildEncoder(gType.physicalType)(baos)
-    gEncoder.writeRegionValue(region, rvb2.end())
-    gEncoder.flush()
-    val globsBC = baos.toByteArray
+    val gEncoder = codecSpec.buildEncoder(gType.physicalType)
+    val globsBC = RegionValue.toBytes(gEncoder, region, rvb2.end()
     val gDecoder = codecSpec.buildDecoder(gType.physicalType, gType.physicalType)
 
     val env = Env[IR](("context", In(1, contextType)) +: globals.map(b => b.name -> GetField(In(0, gType), b.name)): _*)
@@ -128,7 +125,7 @@ case class SparkStage(
 
     val localContextType = contextType
 
-    val enc = codecSpec.buildEncoder(resultType)
+    val resultEncoder = codecSpec.buildEncoder(resultType)
 
     val values = sc.parallelize(context, context.length).mapPartitions { ctxIt =>
       val ctx = ctxIt.next()
@@ -141,8 +138,7 @@ case class SparkStage(
       Region.scoped { region =>
         val rvb = new RegionValueBuilder(region)
 
-        val bais = new ByteArrayInputStream(globsBC)
-        val globalsOff = gDecoder(bais).readRegionValue(region)
+        val globalsOff = RegionValue.fromBytes(gDecoder, region, globsBC)
 
         rvb.start(localContextType.physicalType)
         rvb.addAnnotation(localContextType, ctx)
@@ -152,20 +148,15 @@ case class SparkStage(
         if (st.fail)
           fatal(st.toString())
 
-        val baos = new ByteArrayOutputStream()
-        val resultEnc = enc(baos)
-        resultEnc.writeRegionValue(region, result)
-        resultEnc.flush()
-        Iterator.single(baos.toByteArray)
+        val encoded = RegionValue.toBytes(resultEncoder, region, result)
+        Iterator.single(encoded)
       }
     }.collect()
 
     rvb.startArray(values.length)
-
     val dec = codecSpec.buildDecoder(resultType, resultType)
     values.foreach { v =>
-      val bais = new ByteArrayInputStream(v)
-      val off = dec(bais).readRegionValue(region)
+      val off = RegionValue.fromBytes(dec, region, v)
       if (resultType.isFieldDefined(region, off, 0))
         rvb.addRegionValue(resultType.types(0), region, resultType.loadField(region, off, 0))
       else
