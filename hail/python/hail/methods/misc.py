@@ -9,6 +9,7 @@ from hail.typecheck import *
 from hail.utils import Interval, Struct
 from hail.utils.misc import plural
 from hail.utils.java import Env, joption, info
+from hail.ir import *
 
 
 @typecheck(i=Expression,
@@ -347,6 +348,7 @@ def filter_intervals(ds, intervals, keep=True) -> Union[Table, MatrixTable]:
 
     if point_type == k_type[0]:
         needs_wrapper = True
+        point_type = hl.tstruct(foo=point_type)
     elif isinstance(point_type, tstruct) and is_struct_prefix(point_type, k_type):
         needs_wrapper = False
     else:
@@ -363,13 +365,26 @@ def filter_intervals(ds, intervals, keep=True) -> Union[Table, MatrixTable]:
         else:
             return interval
 
-    intervals = [wrap_input(x)._jrep for x in hl.eval(intervals)]
+    intervals_type = intervals.dtype
+    intervals = hl.eval(intervals)
+    intervals = hl.tarray(hl.tinterval(point_type))._convert_to_json([wrap_input(i) for i in intervals])
+
     if isinstance(ds, MatrixTable):
-        jmt = Env.hail().methods.MatrixFilterIntervals.apply(ds._jmt, intervals, keep)
-        return MatrixTable._from_java(jmt)
+        config = {
+            'name': 'MatrixFilterIntervals',
+            'keyType': point_type._parsable_string(),
+            'intervals': intervals,
+            'keep': keep
+        }
+        return MatrixTable(MatrixToMatrixApply(ds._mir, config))
     else:
-        jt = Env.hail().methods.TableFilterIntervals.apply(ds._jt, intervals, keep)
-        return Table._from_java(jt)
+        config = {
+            'name': 'TableFilterIntervals',
+            'keyType': point_type._parsable_string(),
+            'intervals': intervals,
+            'keep': keep
+        }
+        return Table(TableToTableApply(ds._tir, config))
 
 
 @typecheck(mt=MatrixTable, bp_window_size=int)
