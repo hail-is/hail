@@ -7,7 +7,8 @@ from hail.matrixtable import MatrixTable
 from hail.table import Table
 from hail.typecheck import *
 from hail.utils import Interval, Struct
-from hail.utils.java import Env, joption
+from hail.utils.misc import plural
+from hail.utils.java import Env, joption, info
 
 
 @typecheck(i=Expression,
@@ -254,7 +255,32 @@ def rename_duplicates(dataset, name='unique_id') -> MatrixTable:
     :class:`.MatrixTable`
     """
 
-    return MatrixTable._from_java(dataset._jmt.renameDuplicates(name))
+    require_col_key_str(dataset, 'rename_duplicates')
+    ids = dataset.col_key[0].collect()
+    uniques = set()
+    mapping = []
+    new_ids = []
+
+    fmt = lambda s, i: '{}_{}'.format(s, i)
+    for s in ids:
+        s_ = s
+        i = 0
+        while s_ in uniques:
+            i += 1
+            s_ = fmt(s, i)
+
+        if s_ != s:
+            mapping.append((s, s_))
+        uniques.add(s_)
+        new_ids.append(s_)
+
+    if mapping:
+        info(f'Renamed {len(mapping)} duplicate {plural("sample ID", len(mapping))}. Mangled IDs as follows:' +
+             ''.join(f'\n  "{pre}" => "{post}"' for pre, post in mapping))
+    else:
+        info('No duplicate sample IDs found.')
+    uid = Env.get_uid()
+    return dataset.annotate_cols(**{name: hl.literal(new_ids)[hl.int(hl.scan.count())]})
 
 
 @typecheck(ds=oneof(Table, MatrixTable),
