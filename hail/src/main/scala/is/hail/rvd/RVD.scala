@@ -754,6 +754,14 @@ class RVD(
   ): RVD =
     keyBy(joinKey).orderedJoin(right.keyBy(joinKey), joinType, joiner, joinedType)
 
+  def orderedZipJoin(
+    right: RVD,
+    joinKey: Int,
+    joiner: (RVDContext, Iterator[JoinedRegionValue]) => Iterator[RegionValue],
+    joinedType: RVDType
+  ): RVD =
+    keyBy(joinKey).orderedZipJoin(right.keyBy(joinKey), joiner, joinedType)
+
   def orderedJoinDistinct(
     right: RVD,
     joinType: String,

@@ -372,6 +372,11 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
   require(left.typ.globalType.fieldNames.toSet
     .intersect(right.typ.globalType.fieldNames.toSet)
     .isEmpty)
+  require(joinType == "inner" ||
+    joinType == "left" ||
+    joinType == "right" ||
+    joinType == "outer" ||
+    joinType == "zip")
 
   val children: IndexedSeq[BaseIR] = Array(left, right)
 
@@ -459,14 +464,24 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
       newGlobalType,
       leftTV.rvd.sparkContext)
 
-    val leftRVD = leftTV.rvd
-    val rightRVD = rightTV.rvd
-    val joinedRVD = leftRVD.orderedJoin(
-      rightRVD,
-      joinKey,
-      joinType,
-      rvMerger,
-      RVDType(newRowType, newKey))
+    val joinedRVD = if (joinType == "zip") {
+      val leftRVD = leftTV.rvd
+      val rightRVD = rightTV.rvd
+      leftRVD.orderedZipJoin(
+        rightRVD,
+        joinKey,
+        rvMerger,
+        RVDType(newRowType, newKey))
+    } else {
+      val leftRVD = leftTV.rvd
+      val rightRVD = rightTV.rvd
+      leftRVD.orderedJoin(
+        rightRVD,
+        joinKey,
+        joinType,
+        rvMerger,
+        RVDType(newRowType, newKey))
+    }
 
     TableValue(typ, newGlobals, joinedRVD)
   }

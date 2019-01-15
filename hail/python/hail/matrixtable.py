@@ -2963,7 +2963,10 @@ class MatrixTable(ExprContainer):
                       tolerance=numeric,
                       absolute=bool)
     def _same(self, other, tolerance=1e-6, absolute=False):
-        return self._jmt.same(other._jmt, tolerance, absolute)
+        entries_name = Env.get_uid()
+        cols_name = Env.get_uid()
+        return self._localize_entries(entries_name, cols_name)._same(
+            other._localize_entries(entries_name, cols_name), tolerance, absolute)
 
     @typecheck_method(caller=str, s=expr_struct())
     def _select_entries(self, caller, s) -> 'MatrixTable':

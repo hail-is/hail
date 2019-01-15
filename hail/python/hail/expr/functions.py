@@ -4360,3 +4360,9 @@ def approx_equal(x, y, tolerance=1e-6, absolute=False, nan_same=False):
 @typecheck(s=expr_str)
 def _escape_string(s):
     return _func("escapeString", hl.tstr, s)
+
+@typecheck(l=expr_any, r=expr_any, tolerance=expr_float64, absolute=expr_bool)
+def _values_similar(l, r, tolerance=1e-6, absolute=False):
+    assert l.dtype == r.dtype
+    return ((is_missing(l) & is_missing(r))
+            | ((is_defined(l) & is_defined(r)) & _func("valuesSimilar", hl.tbool, l, r, tolerance, absolute)))

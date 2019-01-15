@@ -2104,6 +2104,10 @@ class Table(ExprContainer):
 
         return Table(TableJoin(self._tir, right._tir, how, len(self.key)))
 
+    def _zip_join(self, right):
+        assert self.key.dtype == right.key.dtype
+        return Table(TableJoin(self._tir, right._tir, 'zip', len(self.key)))
+
     @typecheck_method(expr=BooleanExpression)
     def all(self, expr):
         """Evaluate whether a boolean expression is true for all rows.
@@ -2734,7 +2738,41 @@ class Table(ExprContainer):
 
     @typecheck_method(other=table_type, tolerance=nullable(numeric), absolute=bool)
     def _same(self, other, tolerance=1e-6, absolute=False):
-        return self._jt.same(other._jt, tolerance, absolute)
+        from hail.expr.functions import _values_similar
+
+        if self._type != other._type:
+            print(f'Table._same: types differ: {self._type}, {other._type}')
+            return False
+
+        left_global_value = Env.get_uid()
+        left_value = Env.get_uid()
+        l = self
+        l = l.select_globals(**{left_global_value: l.globals})
+        l = l.select(**{left_value: l._value})
+
+        right_global_value = Env.get_uid()
+        right_value = Env.get_uid()
+        r = other
+        r = r.select_globals(**{right_global_value: r.globals})
+        r = r.select(**{right_value: r._value})
+        
+        t = l._zip_join(r)
+
+        if not hl.eval(_values_similar(t[left_global_value], t[right_global_value], tolerance, absolute)):
+            g = hl.eval(t.globals)
+            print(f'Table._same: globals differ: {g[left_global_value]}, {g[right_global_value]}')
+            return False
+        
+        if not t.all(_values_similar(t[left_value], t[right_value], tolerance, absolute)):
+            print('Table._same: rows differ:')
+            t = t.filter(~ _values_similar(t[left_value], t[right_value], tolerance, absolute))
+            bad_rows = t.take(10)
+            for r in bad_rows:
+                print(f'  {r[left_value]}, {r[right_value]}')
+            return False
+        
+        return True
+
 
     def collect_by_key(self, name: str= 'values') -> 'Table':
         """Collect values for each unique key into an array.
