@@ -26,7 +26,7 @@ object SparkBackend {
     ir = ir.unwrap
     if (optimize)
       ir = Optimize(ir, noisy = true, canGenerateLiterals = true)
-    ir = LiftLiterals(ir).asInstanceOf[IR]
+    ir = LiftNonCompilable(ir).asInstanceOf[IR]
     ir = LowerMatrixIR(ir)
     if (optimize)
       ir = Optimize(ir, noisy = true, canGenerateLiterals = false)
