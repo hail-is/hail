@@ -89,8 +89,7 @@ def combine_gvcfs(mts):
         return mt._localize_entries('__entries', '__cols')
 
     def fix_alleles(alleles):
-        s = hl.set(alleles.map(lambda d: d.ref))
-        ref = s.fold(lambda s, t: hl.cond(hl.len(s) > hl.len(t), s, t), '')
+        ref = alleles.map(lambda d: d.ref).fold(lambda s, t: hl.cond(hl.len(s) > hl.len(t), s, t), '')
         alts = alleles.map(
             lambda a: hl.switch(hl.allele_type(a.ref, a.alt))
                         .when('SNP', a.alt + ref[hl.len(a.alt):])
