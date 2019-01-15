@@ -1,4 +1,17 @@
 # $(1) is an environment variable name
+#
+# Example:
+#
+#    VERSION ?= 30
+#    $(eval $(call ENV_VAR,VERSION))
+#
+#    build: env/VERSION
+#    build:
+#      ...
+#
+# If VERSION is set on the command line: `VERSION=31 make` and make was
+# previously called with VERSION set to a different value, then `build` will be
+# marked out-of-date.
 
 define ENV_VAR
 ifneq ($$($(1)),$$(shell cat env/$(1)))

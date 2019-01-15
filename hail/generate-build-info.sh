@@ -22,5 +22,4 @@ echo_build_properties() {
 
 mkdir -p src/main/resources/
 
-echo_build_properties $SPARK_VERSION $HAIL_PIP_VERSION \
-                      > "src/main/resources/build-info.properties"
+echo_build_properties > "src/main/resources/build-info.properties"
