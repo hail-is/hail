@@ -16,7 +16,7 @@ if (
 }
 // TODO: base on process.ENV
 const generator = xoauth2.createXOAuth2Generator({
-  user: 'seqadm1@gmail.com',
+  user: process.env.googleMailerUser, // ex: user@gmail.com
   clientId: process.env.googleMailerClientId,
   clientSecret: process.env.googleMailerClientSecret,
   refreshToken: process.env.refreshToken

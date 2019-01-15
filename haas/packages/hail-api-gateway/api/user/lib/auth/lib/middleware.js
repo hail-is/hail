@@ -3,19 +3,11 @@
 // due to custom Error extensions
 const jwtMiddleware = require.main.require('./common/auth/polka-jwt');
 const fetch = require('isomorphic-unfetch');
-const { promisify } = require('util');
 const jwksRsa = require('jwks-rsa');
 
 const InvalidTokenError = require.main.require(
   './common/auth/errors/InvalidTokenError'
 );
-
-const redisClient = require('redis').createClient({
-  // parser: 'hiredis'
-});
-
-const getAsync = promisify(redisClient.get).bind(redisClient);
-const setAsync = promisify(redisClient.set).bind(redisClient);
 
 const tokenUrl = process.env.AUTH0_MANAGEMENT_API_TOKEN_URL;
 const managementUrl = process.env.AUTH0_MANAGEMENT_API_URL;
@@ -32,6 +24,12 @@ const options = {
     audience: process.env.AUTH0_MANAGEMENT_API_AUDIENCE
   })
 };
+
+// Were using Redis, but requires another dependency.
+// Simply store each user's access token
+// Users are prefixed by the social provider, so we may have
+// per-provider access tokens for one user
+const cache = {};
 
 const findProviderObject = (userManagementResponse, userID) => {
   // [providerName, id]
@@ -67,11 +65,9 @@ auth0oauthTokenPromise
         const userID = `${idObject.provider}|${idObject.user_id}`;
         const accessToken = idObject.access_token;
 
-        getAsync(userID).then(val => {
-          if (!val) {
-            setAsync(userID, accessToken);
-          }
-        });
+        // TODO: Decide whether we want something like Redis
+        // TODO: Invalidation
+        cache[userID] = accessToken;
       });
     });
   });
@@ -112,9 +108,7 @@ class AuthMiddleware {
 
     this.verifyToken = jwtMiddleware(commonOpts);
 
-    this.getAuth0ProviderAccessToken = this.getAuth0ProviderAccessToken.bind(
-      this
-    );
+    this.getProviderAccessToken = this.getProviderAccessToken.bind(this);
   }
 
   // like verify token, but will check if the user submitted a valid refresh token
@@ -124,7 +118,7 @@ class AuthMiddleware {
     return (req, res, next) => this.verifyTokenPermissiveFn(req, res, next);
   }
 
-  async getAuth0ProviderAccessToken(req, _, next) {
+  async getProviderAccessToken(req, _, next) {
     try {
       const accessToken = await this.extractAccessToken(req.user);
       req.accessToken = accessToken;
@@ -146,8 +140,8 @@ class AuthMiddleware {
     // NOTE: This requires userID to change by auth0provide
     // typically auth0, at least social, connections
     // are in the form provider|id
-    let accessToken = await getAsync(userID);
-
+    let accessToken = cache[userID];
+    console.info('found access token in cache', userID, accessToken);
     if (accessToken) {
       return accessToken;
     }
@@ -166,7 +160,8 @@ class AuthMiddleware {
 
     accessToken = githubData.access_token;
 
-    setAsync(userID, accessToken);
+    cache[userID] = accessToken;
+
     return accessToken;
   }
 }

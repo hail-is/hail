@@ -9,7 +9,8 @@
     "export": "NODE_ENV=production next export",
     "prod": "SSL=true NODE_ENV=production node server.js",
     "prod-test": "NODE_ENV=production node server.js",
-    "prod-test-https": "NODE_TLS_REJECT_UNAUTHORIZED=0 SSL=true NODE_ENV=production node server.js"
+    "prod-test-https": "NODE_TLS_REJECT_UNAUTHORIZED=0 SSL=true NODE_ENV=production node server.js",
+    "start": "next build && NODE_TLS_REJECT_UNAUTHORIZED=0 SSL=true NODE_ENV=production pm2 start server.js --name Web --watch"
   },
   "dependencies": {
     "@nx-js/observer-util": "^4.2.0",
@@ -23,7 +24,7 @@
     "isomorphic-unfetch": "^3.0.0",
     "js-cookies": "^1.0.4",
     "jwt-decode": "^2.2.0",
-    "next": "^7.0.2-canary.49",
+    "next": "^7.0.2-canary.50",
     "react": "^16.7.0",
     "react-dom": "^16.7.0",
     "react-easy-state": "^6.0.4"

@@ -3,11 +3,14 @@
   "private": true,
   "scripts": {
     "bootstrap": "lerna exec npm install",
+    "start": "lerna exec npm start",
     "publish": "lerna publish --force-publish",
     "test": "lerna run test"
   },
   "devDependencies": {
     "lerna": "^3.5.1"
   },
-  "dependencies": {}
+  "dependencies": {
+    "pm2": "^3.2.8"
+  }
 }

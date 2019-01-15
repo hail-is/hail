@@ -1,7 +1,5 @@
-// Copied form expres-jwt, with modifications to work with polka's
-// requirements for errors
+// Modified from express-jwt, adapted for Polka
 const jwt = require('jsonwebtoken');
-// var UnauthorizedError = require('./errors/UnauthorizedError');
 const async = require('async');
 const { set } = require('lodash');
 
@@ -70,7 +68,6 @@ module.exports = options => {
   }
 
   return (req, res, next) => {
-    console.info('called');
     const token = tokenFn(req);
 
     if (!token) {

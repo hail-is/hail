@@ -5,8 +5,9 @@ require('dotenv').config('./.env');
 const polka = require('polka');
 const fs = require('fs-extra'); // adds functions like mkdirp (mkdir -p)
 const http = require('http');
-const { ApolloServer } = require('apollo-server-express');
-const { mergeSchemas, makeExecutableSchema } = require('graphql-tools');
+// TODO: If no desire for GraphQL expressed, remove
+// const { ApolloServer } = require('apollo-server-express');
+// const { mergeSchemas, makeExecutableSchema } = require('graphql-tools');
 
 // local lib modules
 const config = require('./common/config');
@@ -17,8 +18,7 @@ const { PORT = 8000 } = process.env;
 
 const CI = require('./api/ci');
 const userFactory = require('./api/user');
-const { jobSchema, jobResolver } = require('./api/jobs');
-const github = require('./api/github');
+// const github = require('./api/github');
 
 const user = userFactory(config);
 
@@ -65,41 +65,44 @@ routes.forEach(route => {
   }
 });
 
+// Example w/ graphQL
+// TODO: If we decide no graphql endpoints needed, remove
 (async () => {
-  const githubSchema = await github(user);
+  // Await remote schema
+  //   const githubSchema = await github(user);
 
-  const schema = mergeSchemas({
-    schemas: [
-      makeExecutableSchema({ typeDefs: jobSchema, resolvers: jobResolver }),
-      githubSchema
-    ]
-  });
+  //   const schema = mergeSchemas({
+  //     schemas: [
+  //       makeExecutableSchema({ typeDefs: jobSchema, resolvers: jobResolver }),
+  //       githubSchema
+  //     ]
+  //   });
 
-  const apolloServer = new ApolloServer({
-    // typeDefs: jobSchema,
-    // resolvers: jobResolver,
-    schema,
-    // resolvers,
-    context: ({ req }) => {
-      // Look at the request to run custom user logic
-      return { user: req.user };
-    },
-    engine: {
-      apiKey: process.env.APOLLO_ENGINE_API_KEY
-    },
-    playground: {
-      endpoint: '/graphql'
-      // subscriptionEndpoint?: string
-    },
-    cacheControl: {
-      defaultMaxAge: 5,
-      stripFormattedExtensions: false,
-      calculateCacheControlHeaders: false
-    }
-  });
+  //   const apolloServer = new ApolloServer({
+  //     // typeDefs: jobSchema,
+  //     // resolvers: jobResolver,
+  //     schema,
+  //     // resolvers,
+  //     context: ({ req }) => {
+  //       // Look at the request to run custom user logic
+  //       return { user: req.user };
+  //     },
+  //     engine: {
+  //       apiKey: process.env.APOLLO_ENGINE_API_KEY
+  //     },
+  //     playground: {
+  //       endpoint: '/graphql'
+  //       // subscriptionEndpoint?: string
+  //     },
+  //     cacheControl: {
+  //       defaultMaxAge: 5,
+  //       stripFormattedExtensions: false,
+  //       calculateCacheControlHeaders: false
+  //     }
+  //   });
 
-  app.use('/graphql', user.middleware.verifyToken);
-  apolloServer.applyMiddleware({ app }, '/graphql');
+  //   app.use('/graphql', user.middleware.verifyToken);
+  //   apolloServer.applyMiddleware({ app }, '/graphql');
 
   app.listen(PORT, err => {
     if (err) throw err;
