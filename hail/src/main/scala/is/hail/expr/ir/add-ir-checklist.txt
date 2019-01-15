@@ -3,10 +3,10 @@ This is the list of things you need to do to add a new IR node.
 * All nodes
 
  - Add the node in Scala as a case class extending IR / TableIR /
-   MatrixIR. Use scala collections so that case class equality works
+   MatrixIR / BlockMatrixIR. Use scala collections so that case class equality works
    as expected (no java arrays).
 
- - Add the node in ir.py / table_ir.py / matrix_ir.py
+ - Add the node in ir.py / table_ir.py / matrix_ir.py / blockmatrix_ir.py
 
  - Extend Pretty in Scala to print the IR.  Add `render` in Python.
    Add the IR to the IR parser.
@@ -15,7 +15,7 @@ This is the list of things you need to do to add a new IR node.
 
  - Add an IR generator to the pretty/parser test suite in IRSuite.
 
- - Add a test case to IRSuite, TableIRSuite, or MatrixIRSuite to test
+ - Add a test case to IRSuite, TableIRSuite, MatrixIRSuite, or BlockMatrixIRSuite to test
    the node’s behavior.
 
  - Check all cases involving missingness.
@@ -50,3 +50,8 @@ This is the list of things you need to do to add a new IR node.
  - Define copy, partitionCounts, typ, and execute
 
  - add to LiftLiterals if necessary
+
+* BlockMatrixIR
+
+ - Define copy, typ and execute
+
