@@ -8,25 +8,14 @@ import org.apache.spark.sql.Row
 
 import scala.collection.mutable
 
-object LiftLiterals {
+object LiftNonCompilable {
   lazy val emptyRow: BroadcastRow = BroadcastRow.empty(HailContext.get.sc)
 
-  def getLiterals(irs: IR*): Map[String, IR] = {
+  def extractNonCompilable(irs: IR*): Map[String, IR] = {
     val included = mutable.Set.empty[IR]
 
     def visit(ir: IR): Unit = {
-      val rewrite = ir match {
-        case _: Literal => true
-        case ta: TableAggregate => true
-        case ma: MatrixAggregate => true
-        case tgg: TableGetGlobals => true
-        case tgg: TableCollect => true
-        case tc: TableCount => true
-        case _: TableToValueApply => true
-        case _: MatrixToValueApply => true
-        case _ => false
-      }
-      if (rewrite && !included.contains(ir))
+      if (!Compilable(ir) && !included.contains(ir))
         included += ir
       ir.children.foreach {
         case ir: IR => visit(ir)
@@ -99,43 +88,43 @@ object LiftLiterals {
   def apply(ir: BaseIR): BaseIR = {
     MapIR.mapBaseIR(ir, {
       case MatrixMapRows(child, newRow) =>
-        val literals = getLiterals(newRow)
+        val literals = extractNonCompilable(newRow)
         val rewriteChild = addLiterals(child, literals)
         removeLiterals(
           MatrixMapRows(rewriteChild, rewriteIR(newRow, rewriteChild.typ.globalType, literals)),
           literals)
       case MatrixMapEntries(child, newEntries) =>
-        val literals = getLiterals(newEntries)
+        val literals = extractNonCompilable(newEntries)
         val rewriteChild = addLiterals(child, literals)
         removeLiterals(
           MatrixMapEntries(rewriteChild, rewriteIR(newEntries, rewriteChild.typ.globalType, literals)),
           literals)
       case MatrixMapCols(child, newRow, newKey) =>
-        val literals = getLiterals(newRow)
+        val literals = extractNonCompilable(newRow)
         val rewriteChild = addLiterals(child, literals)
         removeLiterals(
           MatrixMapCols(rewriteChild, rewriteIR(newRow, rewriteChild.typ.globalType, literals), newKey),
           literals)
       case MatrixFilterRows(child, pred) =>
-        val literals = getLiterals(pred)
+        val literals = extractNonCompilable(pred)
         val rewriteChild = addLiterals(child, literals)
         removeLiterals(
           MatrixFilterRows(rewriteChild, rewriteIR(pred, rewriteChild.typ.globalType, literals)),
           literals)
       case MatrixFilterCols(child, pred) =>
-        val literals = getLiterals(pred)
+        val literals = extractNonCompilable(pred)
         val rewriteChild = addLiterals(child, literals)
         removeLiterals(
           MatrixFilterCols(rewriteChild, rewriteIR(pred, rewriteChild.typ.globalType, literals)),
           literals)
       case MatrixFilterEntries(child, pred) =>
-        val literals = getLiterals(pred)
+        val literals = extractNonCompilable(pred)
         val rewriteChild = addLiterals(child, literals)
         removeLiterals(
           MatrixFilterEntries(rewriteChild, rewriteIR(pred, rewriteChild.typ.globalType, literals)),
           literals)
       case MatrixAggregateRowsByKey(child, entryAggIR, rowAggIR) =>
-        val literals = getLiterals(entryAggIR, rowAggIR)
+        val literals = extractNonCompilable(entryAggIR, rowAggIR)
         val rewriteChild = addLiterals(child, literals)
         removeLiterals(
           MatrixAggregateRowsByKey(rewriteChild,
@@ -143,7 +132,7 @@ object LiftLiterals {
             rewriteIR(rowAggIR, rewriteChild.typ.globalType, literals)),
           literals)
       case MatrixAggregateColsByKey(child, entryAggIR, colAggIR) =>
-        val literals = getLiterals(entryAggIR, colAggIR)
+        val literals = extractNonCompilable(entryAggIR, colAggIR)
         val rewriteChild = addLiterals(child, literals)
         removeLiterals(
           MatrixAggregateColsByKey(rewriteChild,
@@ -151,36 +140,36 @@ object LiftLiterals {
             rewriteIR(colAggIR, rewriteChild.typ.globalType, literals)),
           literals)
       case TableFilter(child, pred) =>
-        val literals = getLiterals(pred)
+        val literals = extractNonCompilable(pred)
         val rewriteChild = addLiterals(child, literals)
         removeLiterals(
           TableFilter(rewriteChild, rewriteIR(pred, rewriteChild.typ.globalType, literals)),
           literals)
       case TableMapRows(child, newRow) =>
-        val literals = getLiterals(newRow)
+        val literals = extractNonCompilable(newRow)
         val rewriteChild = addLiterals(child, literals)
         removeLiterals(
           TableMapRows(rewriteChild, rewriteIR(newRow, rewriteChild.typ.globalType, literals)),
           literals)
       case TableKeyByAndAggregate(child, expr, newKey, nPartitions, bufferSize) =>
-        val literals = getLiterals(expr, newKey)
+        val literals = extractNonCompilable(expr, newKey)
         val rewriteChild = addLiterals(child, literals)
         removeLiterals(
           TableKeyByAndAggregate(rewriteChild, rewriteIR(expr, rewriteChild.typ.globalType, literals),
             rewriteIR(newKey, rewriteChild.typ.globalType, literals), nPartitions, bufferSize),
           literals)
       case TableAggregateByKey(child, expr) =>
-        val literals = getLiterals(expr)
+        val literals = extractNonCompilable(expr)
         val rewriteChild = addLiterals(child, literals)
         removeLiterals(
           TableAggregateByKey(rewriteChild, rewriteIR(expr, rewriteChild.typ.globalType, literals)),
           literals)
       case TableAggregate(child, expr) =>
-        val literals = getLiterals(expr)
+        val literals = extractNonCompilable(expr)
         val rewriteChild = addLiterals(child, literals)
         TableAggregate(rewriteChild, rewriteIR(expr, rewriteChild.typ.globalType, literals))
       case MatrixAggregate(child, expr) =>
-        val literals = getLiterals(expr)
+        val literals = extractNonCompilable(expr)
         val rewriteChild = addLiterals(child, literals)
         MatrixAggregate(rewriteChild, rewriteIR(expr, rewriteChild.typ.globalType, literals))
       case ir => ir
