@@ -1,14 +1,17 @@
 package is.hail.io.gen
 
+import is.hail.HailContext
 import is.hail.annotations._
+import is.hail.expr.ir.{MatrixRead, MatrixReader, MatrixValue}
+import is.hail.expr.types.MatrixType
+import is.hail.expr.types.virtual._
 import is.hail.io.bgen.LoadBgen
 import is.hail.io.vcf.LoadVCF
+import is.hail.rvd.RVDType
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.SparkContext
-
-import scala.collection.mutable
 
 case class GenResult(file: String, nSamples: Int, nVariants: Int, rdd: RDD[(Annotation, Iterable[Annotation])])
 
@@ -93,5 +96,86 @@ object LoadGen {
 
       Some(annotations, gsb.result().toIterable)
     }
+  }
+}
+
+case class MatrixGENReader(
+  files: Array[String],
+  sampleFile: String,
+  chromosome: Option[String],
+  nPartitions: Option[Int],
+  tolerance: Double,
+  rg: Option[String],
+  contigRecoding: Map[String, String],
+  skipInvalidLoci: Boolean) extends MatrixReader {
+
+  println(files.toFastIndexedSeq)
+
+  files.foreach { input =>
+    if (!HailContext.get.hadoopConf.stripCodec(input).endsWith(".gen"))
+      fatal(s"gen inputs must end in .gen[.bgz], found $input")
+  }
+
+  if (files.isEmpty)
+    fatal(s"arguments refer to no files: ${ files.mkString(",") }")
+
+  private val referenceGenome = rg.map(ReferenceGenome.getReference)
+
+  referenceGenome.foreach(ref => ref.validateContigRemap(contigRecoding))
+
+  private val samples = LoadBgen.readSampleFile(HailContext.get.hadoopConf, sampleFile)
+  private val nSamples = samples.length
+
+  // FIXME: can't specify multiple chromosomes
+  private val results = files.map(f => LoadGen(f, sampleFile, HailContext.get.sc, referenceGenome, nPartitions,
+    tolerance, chromosome, contigRecoding, skipInvalidLoci))
+
+  private val unequalSamples = results.filter(_.nSamples != nSamples).map(x => (x.file, x.nSamples))
+  if (unequalSamples.nonEmpty)
+    fatal(
+      s"""The following GEN files did not contain the expected number of samples $nSamples:
+         |  ${ unequalSamples.map(x => s"""(${ x._2 } ${ x._1 }""").mkString("\n  ") }""".stripMargin)
+
+  private val noVariants = results.filter(_.nVariants == 0).map(_.file)
+  if (noVariants.nonEmpty)
+    fatal(
+      s"""The following GEN files did not contain at least 1 variant:
+         |  ${ noVariants.mkString("\n  ") })""".stripMargin)
+
+  private val nVariants = results.map(_.nVariants).sum
+
+  info(s"Number of GEN files parsed: ${ results.length }")
+  info(s"Number of variants in all GEN files: $nVariants")
+  info(s"Number of samples in GEN files: $nSamples")
+
+  def columnCount: Option[Int] = Some(nSamples)
+
+  def partitionCounts: Option[IndexedSeq[Long]] = None
+
+  override def requestType(requestedType: MatrixType): MatrixType = fullType
+
+  def fullType: MatrixType = MatrixType.fromParts(
+    globalType = TStruct.empty(),
+    colKey = Array("s"),
+    colType = TStruct("s" -> TString()),
+    rowKey = Array("locus", "alleles"),
+    rowType = TStruct(
+      "locus" -> TLocus.schemaFromRG(referenceGenome),
+      "alleles" -> TArray(TString()),
+      "rsid" -> TString(), "varid" -> TString()),
+    entryType = TStruct("GT" -> TCall(),
+      "GP" -> TArray(TFloat64())))
+
+  def fullRVDType: RVDType = fullType.canonicalRVDType
+
+  def apply(mr: MatrixRead): MatrixValue = {
+    assert(mr.typ == fullType)
+    val rdd =
+      if (mr.dropRows)
+        HailContext.get.sc.emptyRDD[(Annotation, Iterable[Annotation])]
+      else
+        HailContext.get.sc.union(results.map(_.rdd))
+    MatrixTable.fromLegacy(HailContext.get, fullType, Annotation.empty, samples.map(Annotation(_)), rdd)
+      .value
   }
 }
