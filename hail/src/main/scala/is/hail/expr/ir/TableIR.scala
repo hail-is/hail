@@ -14,6 +14,7 @@ import is.hail.table.{AbstractTableSpec, Ascending, SortField}
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.sql.Row
+import org.json4s.{Formats, ShortTypeHints}
 
 import scala.reflect.ClassTag
 
