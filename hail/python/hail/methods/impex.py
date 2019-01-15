@@ -1320,13 +1320,16 @@ def import_table(paths,
     :class:`.Table`
     """
     paths = wrap_to_list(paths)
-    jtypes = {k: v._parsable_string() for k, v in types.items()}
     comment = wrap_to_list(comment)
 
-    jt = Env.hc()._jhc.importTable(paths, key, min_partitions, jtypes, comment,
-                                   delimiter, missing, no_header, impute, quote,
-                                   skip_blank_lines, force_bgz)
-    return Table._from_java(jt)
+    tr = TextTableReader(paths, min_partitions, types, comment,
+                         delimiter, missing, no_header, impute, quote,
+                         skip_blank_lines, force_bgz)
+    t = Table(TableRead(tr))
+    if key:
+        key = wrap_to_list(key)
+        t = t.key_by(*key)
+    return t
 
 
 @typecheck(paths=oneof(str, sequenceof(str)),
@@ -2042,7 +2045,8 @@ def read_table(path) -> Table:
     -------
     :class:`.Table`
     """
-    return Table(TableRead(path, False, None))
+    tr = TableNativeReader(path)
+    return Table(TableRead(tr, False))
 
 @typecheck(t=Table,
            host=str,

@@ -1089,7 +1089,7 @@ case class MatrixVCFReader(
   val fullRVDType: RVDType = RVDType(fullType.rvRowType.physicalType, fullType.rowKey)
 
   private lazy val lines = {
-    hc.maybeGZipAsBGZip(gzAsBGZ) {
+    HailContext.maybeGZipAsBGZip(gzAsBGZ) {
       ContextRDD.textFilesLines[RVDContext](sc, inputs, minPartitions)
     }
   }
