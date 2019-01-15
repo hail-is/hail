@@ -444,6 +444,18 @@ class TableToTableApply(TableIR):
         self._type = self.child.typ
 
 
+def regression_test_type(test):
+    glm_fit_schema = dtype('struct{n_iterations:int32,converged:bool,exploded:bool}')
+    if test == 'wald':
+        return dtype(f'struct{{beta:float64,standard_error:float64,z_stat:float64,p_value:float64,fit:{glm_fit_schema}}}')
+    elif test == 'lrt':
+        return dtype(f'struct{{beta:float64,chi_sq_stat:float64,p_value:float64,fit:{glm_fit_schema}}}')
+    elif test == 'score':
+        return dtype('struct{chi_sq_stat:float64,p_value:float64}')
+    else:
+        assert test == 'firth', test
+        return dtype(f'struct{{beta:float64,chi_sq_stat:float64,p_value:float64,fit:{glm_fit_schema}}}')
+
 class MatrixToTableApply(TableIR):
     def __init__(self, child, config):
         super().__init__()
