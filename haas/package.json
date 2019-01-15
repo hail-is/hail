@@ -11,7 +11,5 @@
   "devDependencies": {
     "lerna": "^3.5.1"
   },
-  "dependencies": {
-    "pm2": "^3.2.8"
-  }
+  "dependencies": {}
 }

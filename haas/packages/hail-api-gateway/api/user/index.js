@@ -10,7 +10,7 @@ module.exports = function userFactory(config = {}) {
     routesRootName: 'user'
   };
 
-  uF.middleware = new Auth.AuthMiddleware(uF.Model, uF.tokenManager);
+  uF.middleware = new Auth.AuthMiddleware();
 
   return uF;
 };

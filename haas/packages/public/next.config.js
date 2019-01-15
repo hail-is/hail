@@ -55,18 +55,11 @@ module.exports = withTypescript(
 
 const serverRuntimeConfig = {
   // Will only be available on the server side
-  GITHUB: {
-    ACCESS_TOKEN: process.env.GITHUB_ACCESS_TOKEN
-  }
 };
 
 const publicRuntimeConfig = {
   // Will be available on both server and client
   staticFolder: '/static',
-  API_UPLOAD_URL:
-    process.env.API_UPLOAD_URL || 'https://api.localhost/jobs/upload',
-  API_DOWNLOAD_URL:
-    process.env.API_DOWNLOAD_URL || 'https://api.localhost/jobs/download',
   GRAPHQL: {
     ENDPOINT: process.env.GRAPHQL_ENDPOINT || 'https://api.localhost/graphql'
   },
@@ -79,16 +72,10 @@ const publicRuntimeConfig = {
     RESPONSE_TYPE: process.env.AUTH0_RESPONSE_TYPE || 'token id_token',
     SCOPE: 'openid profile' //process.env.AUTH0_SCOPE ||
   },
-  GITHUB: {
-    ACCESS_TOKEN_UNSAFE: process.env.GITHUB_ACCESS_TOKEN
-  },
   SCORECARD: {
     URL: process.env.SCORECARD_URL || 'https://scorecard.localhost/json',
     USER_URL:
       process.env.SCORECARD_USER_URL || 'https://scorecard.localhost/json/users'
-  },
-  CI: {
-    ROOT_URL: process.env.CI_ROOT_URL || 'https://api.localhost/ci'
   },
   NOTEBOOK: {
     URL: process.env.CI_ROOT_URL || 'https://api.localhost/notebook'

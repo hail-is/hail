@@ -39,7 +39,5 @@
     "winston": "2.4.4",
     "x-xss-protection": "^1.1.0"
   },
-  "devDependencies": {
-    "pm2": "^3.2.8"
-  }
+  "devDependencies": {}
 }

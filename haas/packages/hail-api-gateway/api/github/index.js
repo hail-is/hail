@@ -14,7 +14,7 @@ const http = new HttpLink({ uri: 'https://api.github.com/graphql', fetch });
 // TODO: If not using async/await, doesn't work (promise only)
 // not sure why, follow up
 const tokenForScheamIntrospection =
-  process.env.GITHUB_PERSONAL_TOKEN_PUBLIC_ONY;
+  process.env.GITHUB_PERSONAL_TOKEN_PUBLIC_ONLY;
 
 module.exports = async user => {
   const { middleware } = user;

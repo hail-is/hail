@@ -9,8 +9,12 @@ const InvalidTokenError = require.main.require(
   './common/auth/errors/InvalidTokenError'
 );
 
+// TODO: Think about benefits/tradeoffs of having central config file
 const tokenUrl = process.env.AUTH0_MANAGEMENT_API_TOKEN_URL;
 const managementUrl = process.env.AUTH0_MANAGEMENT_API_URL;
+const jwksUri = process.env.AUTH0_WEB_KEY_SET_URL;
+const audience = process.env.AUTH0_AUDIENCE;
+const issuer = process.env.AUTH0_DOMAIN;
 
 const options = {
   method: 'POST',
@@ -80,7 +84,7 @@ class AuthMiddleware {
       cache: true,
       rateLimit: true,
       jwksRequestsPerMinute: 5,
-      jwksUri: process.env.AUTH0_WEB_KEY_SET_URL
+      jwksUri
     });
 
     // sub is what auth0 uses
@@ -94,8 +98,8 @@ class AuthMiddleware {
       // This isn't exactly right, the access token will contain very little
       // user-specific code, just the sub and thes scope array
       requestProperty: 'user',
-      audience: process.env.AUTH0_AUDIENCE,
-      issuer: process.env.AUTH0_DOMAIN,
+      audience,
+      issuer,
       algorithms: ['RS256'],
       credentialsRequired: true
     };
@@ -141,7 +145,7 @@ class AuthMiddleware {
     // typically auth0, at least social, connections
     // are in the form provider|id
     let accessToken = cache[userID];
-    console.info('found access token in cache', userID, accessToken);
+
     if (accessToken) {
       return accessToken;
     }
