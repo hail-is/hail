@@ -10,7 +10,7 @@
     "prod": "SSL=true NODE_ENV=production node server.js",
     "prod-test": "NODE_ENV=production node server.js",
     "prod-test-https": "NODE_TLS_REJECT_UNAUTHORIZED=0 SSL=true NODE_ENV=production node server.js",
-    "start": "next build && NODE_TLS_REJECT_UNAUTHORIZED=0 SSL=true NODE_ENV=production pm2 start server.js --name Web --watch"
+    "start": "NODE_TLS_REJECT_UNAUTHORIZED=0 SSL=true NODE_ENV=production node server.js"
   },
   "dependencies": {
     "@nx-js/observer-util": "^4.2.0",
@@ -55,6 +55,7 @@
     "fork-ts-checker-webpack-plugin": "^0.5.2",
     "next-purgecss": "^3.0.0",
     "node-sass": "^4.11.0",
+    "pm2": "^3.2.8",
     "postcss-preset-env": "^6.5.0",
     "tslint": "^5.12.1",
     "typescript": "^3.2.1",

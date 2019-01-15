@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "dev": "nodemon index.js",
-    "start": "pm2 start index.js --name Auth --watch"
+    "build": "echo 'noop'",
+    "start": "node index.js"
   },
   "keywords": [],
   "author": "",
@@ -38,5 +39,7 @@
     "winston": "2.4.4",
     "x-xss-protection": "^1.1.0"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "pm2": "^3.2.8"
+  }
 }
