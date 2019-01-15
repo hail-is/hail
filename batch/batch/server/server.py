@@ -14,6 +14,8 @@ import requests
 from .globals import max_id, pod_name_job, job_id_job, _log_path, _read_file, batch_id_batch
 from .globals import next_id
 
+from .. import schemas
+
 if not os.path.exists('logs'):
     os.mkdir('logs')
 else:
@@ -265,12 +267,7 @@ def create_job():
 
     schema = {
         # will be validated when creating pod
-        'spec': {
-            'type': 'dict',
-            'required': True,
-            'allow_unknown': True,
-            'schema': {}
-        },
+        'spec': schemas.pod_spec,
         'batch_id': {'type': 'integer'},
         'parent_ids': {'type': 'list', 'schema': {'type': 'integer'}},
         'attributes': {
