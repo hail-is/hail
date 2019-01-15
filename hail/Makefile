@@ -47,7 +47,7 @@ compile-scala: src/main/resources/build-info.properties native-lib env/GRADLE_AR
 JVM_FILES := $(shell find src \( -name '*.java' -o -name '*.scala' \))
 JVM_RESOURCE_FILES := $(shell find src/main/resources src/test/resources)
 
-build/libs/hail-all-spark.jar: src/main/resources/build-info.properties
+build/libs/hail-all-spark.jar: native-lib src/main/resources/build-info.properties
 build/libs/hail-all-spark.jar: build.gradle settings.gradle $(JVM_FILES)
 build/libs/hail-all-spark.jar: $(JVM_RESOURCE_FILES) env/GRADLE_ARGS
 	$(info changed files: $?)
