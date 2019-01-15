@@ -740,10 +740,10 @@ def import_fam(path, quant_pheno=False, delimiter=r'\\s+', missing='NA') -> Tabl
     -------
     :class:`.Table`
     """
-
-    jkt = Env.hail().table.Table.importFam(Env.hc()._jhc, path,
-                                           quant_pheno, delimiter, missing)
-    return Table._from_java(jkt)
+    type_and_data = json.loads(Env.hail().table.Table.importFamJSON(path, quant_pheno, delimiter, missing))
+    typ = hl.dtype(type_and_data['type'])
+    return hl.Table.parallelize(
+        hl.tarray(typ)._convert_from_json_na(type_and_data['data']), typ, key=['id'])
 
 
 @typecheck(regex=str,
