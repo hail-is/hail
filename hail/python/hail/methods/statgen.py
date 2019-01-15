@@ -102,7 +102,8 @@ def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None) -> 
                                                          joption('__maf' if maf is not None else None),
                                                          bounded,
                                                          joption(min),
-                                                         joption(max)))
+                                                         joption(max)),
+                            'identity_by_descent')
 
 
 @typecheck(call=expr_call,
@@ -665,6 +666,7 @@ def logistic_regression_rows(test, y, x, covariates, pass_through=()) -> hail.Ta
     y_is_list = isinstance(y, list)
     if y_is_list and len(y) == 0:
         raise ValueError(f"'logistic_regression_rows': found no values for 'y'")
+    y = wrap_to_list(y)
 
     for e in covariates:
         analyze('logistic_regression_rows/covariates', e, mt._col_indices)
@@ -672,12 +674,11 @@ def logistic_regression_rows(test, y, x, covariates, pass_through=()) -> hail.Ta
     _warn_if_no_intercept('logistic_regression_rows', covariates)
 
     x_field_name = Env.get_uid()
-    y_field = list(f'__y_{i}' for i in range(len(y))) if y_is_list else "__y"
+    y_field = [f'__y_{i}' for i in range(len(y))]
 
-    y_dict = dict(zip(y_field, y)) if y_is_list else {y_field: y}
-    func = Env.hail().methods.LogisticRegression
+    y_dict = dict(zip(y_field, y))
 
-    cov_field_names = list(f'__cov{i}' for i in range(len(covariates)))
+    cov_field_names = [f'__cov{i}' for i in range(len(covariates))]
     row_fields = _get_regression_row_fields(mt, pass_through, 'logistic_regression_rows')
 
     # FIXME: selecting an existing entry field should be emitted as a SelectFields
@@ -687,15 +688,21 @@ def logistic_regression_rows(test, y, x, covariates, pass_through=()) -> hail.Ta
                         col_key=[],
                         entry_exprs={x_field_name: x})
 
-    jt = func.apply(
-        mt._jmt,
-        test,
-        y_field,
-        x_field_name,
-        cov_field_names,
-        [x for x in row_fields if x not in mt.row_key])
-    return Table._from_java(jt)
+    config = {
+        'name': 'LogisticRegression',
+        'test': test,
+        'yFields': y_field,
+        'xField': x_field_name,
+        'covFields': cov_field_names,
+        'passThrough': [x for x in row_fields if x not in mt.row_key]
+    }
 
+    result = Table(MatrixToTableApply(mt._mir, config))
+
+    if not y_is_list:
+        result = result.transmute(**result.logistic_regression[0])
+
+    return result
 
 @typecheck(test=enumeration('wald', 'lrt', 'score'),
            y=expr_float64,
