@@ -395,6 +395,10 @@ class Table(ExprContainer):
         """
         return self._key
 
+    @property
+    def _value(self):
+        return self.row.drop(*self.key)
+
     def n_partitions(self):
         """Returns the number of partitions in the table.
 
