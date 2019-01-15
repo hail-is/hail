@@ -1533,7 +1533,8 @@ class Table(ExprContainer):
                                     Ref('va'),
                                     [(uid, Apply('get',
                                                  GetField(GetField(Ref('va'), uid), uid),
-                                                 MakeTuple([e._ir for e in exprs])))]
+                                                 MakeTuple([e._ir for e in exprs])))],
+                                    None
                                 ))
                             )
                 else:

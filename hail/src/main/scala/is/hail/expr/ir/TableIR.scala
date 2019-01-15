@@ -535,6 +535,9 @@ case class TableIntervalJoin(left: TableIR, right: TableIR, root: String) extend
     val leftRVDType = leftValue.rvd.typ
     val rightRVDType = rightValue.rvd.typ
 
+    val localNewRowPType = newRowPType
+    val localIns = ins
+
     val zipper = { (ctx: RVDContext, it: Iterator[RegionValue], intervals: Iterator[RegionValue]) =>
       val rvb = new RegionValueBuilder()
       val rv2 = RegionValue()
@@ -542,8 +545,8 @@ case class TableIntervalJoin(left: TableIR, right: TableIR, root: String) extend
         OrderedRVIterator(rightRVDType, intervals, ctx))
         .map { case Muple(rv, i) =>
           rvb.set(rv.region)
-          rvb.start(newRowPType)
-          ins(
+          rvb.start(localNewRowPType)
+          localIns(
             rv.region,
             rv.offset,
             rvb,
