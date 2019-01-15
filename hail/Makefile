@@ -88,7 +88,7 @@ build/pip-install: python/setup.py python/MANIFEST.in python/setup.cfg build/pip
 test-python: build/test-python
 
 build/test-python: build/pip-install build/dev-conda $(PY_TEST_FILES)
-# re: PY_IGNORE_IMPORTMISMATCH, https://github.com/pytest-dev/py/pull/199
+# re: PY_IGNORE_IMPORTMISMATCH, https://github.com/pytest-dev/pytest/issues/2042#issuecomment-429289164
 	. ../loadconda && conda activate hail && PY_IGNORE_IMPORTMISMATCH=1 pytest -v \
 	  -n $(PARALLELISM) \
 	  --dist=loadscope \
