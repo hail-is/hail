@@ -106,7 +106,7 @@ def to_expr(e, dtype=None) -> 'Expression':
 
 def _to_expr(e, dtype):
     if e is None:
-        return hl.null(dtype)
+        return None
     elif isinstance(e, Expression):
         if e.dtype != dtype:
             assert is_numeric(dtype), 'expected {}, got {}'.format(dtype, e.dtype)
