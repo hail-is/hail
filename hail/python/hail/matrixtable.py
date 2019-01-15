@@ -3312,7 +3312,7 @@ class MatrixTable(ExprContainer):
             elif self[k]._indices == self._global_indices:
                 global_map[k] = v
 
-        return MatrixTable._from_java(self._jmt.renameFields(row_map, col_map, entry_map, global_map))
+        return MatrixTable(MatrixRename(self._mir, global_map, col_map, row_map, entry_map))
 
     def distinct_by_row(self):
         """Remove rows with a duplicate row key.

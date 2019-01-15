@@ -114,6 +114,14 @@ class tmatrix(object):
     def row_value_type(self):
         return self.row_type._drop_fields(set(self.row_key))
 
+    def _rename(self, global_map, col_map, row_map, entry_map):
+        return tmatrix(self.global_type._rename(global_map),
+                       self.col_type._rename(col_map),
+                       [col_map.get(k, k) for k in self.col_key],
+                       self.row_type._rename(row_map),
+                       [row_map.get(k, k) for k in self.row_key],
+                       self.entry_type._rename(entry_map))
+
     def global_env(self):
         return {'global': self.global_type}
 

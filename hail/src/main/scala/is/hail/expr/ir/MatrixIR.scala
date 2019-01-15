@@ -1990,3 +1990,36 @@ case class MatrixToMatrixApply(child: MatrixIR, function: MatrixToMatrixFunction
     function.execute(child.execute(hc))
   }
 }
+
+case class MatrixRename(child: MatrixIR,
+  globalMap: Map[String, String], colMap: Map[String, String], rowMap: Map[String, String], entryMap: Map[String, String]) extends MatrixIR {
+  require(globalMap.keys.forall(child.typ.globalType.hasField))
+  require(colMap.keys.forall(child.typ.colType.hasField))
+  require(rowMap.keys.forall(child.typ.rowType.hasField))
+  require(entryMap.keys.forall(child.typ.entryType.hasField))
+
+  def typ: MatrixType = MatrixType.fromParts(
+    globalType = child.typ.globalType.rename(globalMap),
+    colKey = child.typ.colKey.map(k => colMap.getOrElse(k, k)),
+    colType = child.typ.colType.rename(colMap),
+    rowKey = child.typ.rowKey.map(k => rowMap.getOrElse(k, k)),
+    rowType = child.typ.rowType.rename(rowMap),
+    entryType = child.typ.entryType.rename(entryMap))
+
+  def children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
+
+  override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
+
+  override def columnCount: Option[Int] = child.columnCount
+
+  def copy(newChildren: IndexedSeq[BaseIR]): MatrixRename = {
+    val IndexedSeq(newChild: MatrixIR) = newChildren
+    MatrixRename(newChild, globalMap, colMap, rowMap, entryMap)
+  }
+
+  protected[ir] override def execute(hc: HailContext): MatrixValue = {
+    val prev = child.execute(hc)
+
+    MatrixValue(typ, prev.globals, prev.colValues, prev.rvd.cast(rvdType.rowType))
+  }
+}

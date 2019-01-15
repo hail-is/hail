@@ -1067,6 +1067,17 @@ object IRParser {
         val config = string_literal(it)
         val child = matrix_ir(env)(it)
         MatrixToMatrixApply(child, RelationalFunctions.lookupMatrixToMatrix(config))
+      case "MatrixRename" =>
+        val globalK = string_literals(it)
+        val globalV = string_literals(it)
+        val colK = string_literals(it)
+        val colV = string_literals(it)
+        val rowK = string_literals(it)
+        val rowV = string_literals(it)
+        val entryK = string_literals(it)
+        val entryV = string_literals(it)
+        val child = matrix_ir(env)(it)
+        MatrixRename(child, globalK.zip(globalV).toMap, colK.zip(colV).toMap, rowK.zip(rowV).toMap, entryK.zip(entryV).toMap)
       case "JavaMatrix" =>
         val name = identifier(it)
         env.irMap(name).asInstanceOf[MatrixIR]
