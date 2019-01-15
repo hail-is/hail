@@ -228,11 +228,10 @@ object PruneDeadFields {
   def memoizeTableIR(tir: TableIR, requestedType: TableType, memo: Memo[BaseType]) {
     memo.bind(tir, requestedType)
     tir match {
-      case TableRead(_, _, _, _) =>
+      case TableRead(_, _, _) =>
       case TableLiteral(_) =>
       case TableParallelize(rowsAndGlobal, _) =>
         memoizeValueIR(rowsAndGlobal, TStruct("rows" -> TArray(requestedType.rowType), "global" -> requestedType.globalType), memo)
-      case TableImport(paths, typ, readerOpts) =>
       case TableRange(_, _) =>
       case TableRepartition(child, _, _) => memoizeTableIR(child, requestedType, memo)
       case TableHead(child, _) => memoizeTableIR(child, requestedType, memo)
