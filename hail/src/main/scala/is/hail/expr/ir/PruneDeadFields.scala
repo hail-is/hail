@@ -869,7 +869,7 @@ object PruneDeadFields {
           case tir: TableIR =>
             memoizeTableIR(tir, tir.typ, memo)
             None
-          case bmir: BlockMatrixIR => //TODO Investigate
+          case bmir: BlockMatrixIR => //TODO Currently no BlockMatrixIRs would have dead fields
             None
           case ir: IR =>
             Some(memoizeValueIR(ir, ir.typ, memo))

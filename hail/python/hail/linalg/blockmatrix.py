@@ -6,7 +6,7 @@ from enum import IntEnum
 import hail as hl
 import hail.expr.aggregators as agg
 from hail.ir import BlockMatrixWrite
-from hail.ir.blockmatrix_ir import BlockMatrixRead
+from hail.ir.blockmatrix_ir import BlockMatrixRead, BlockMatrixAdd
 from hail.utils import new_temp_file, new_local_temp_file, local_path_uri, storage_level
 from hail.utils.java import Env, jarray, joption
 from hail.typecheck import *
@@ -537,7 +537,7 @@ class BlockMatrix(object):
         :obj:`int`
         """
 
-        return self._jbm.nRows()
+        return self._bmir.typ.n_rows
 
     @property
     def n_cols(self):
@@ -548,7 +548,7 @@ class BlockMatrix(object):
         :obj:`int`
         """
 
-        return self._jbm.nCols()
+        return self._bmir.typ.n_cols
 
     @property
     def shape(self):
@@ -1344,7 +1344,7 @@ class BlockMatrix(object):
         if isinstance(new_b, float):
             return BlockMatrix(new_a._jbm.scalarAdd(new_b))
         elif isinstance(new_b, BlockMatrix):
-            return BlockMatrix(new_a._jbm.add(new_b._jbm))
+            return BlockMatrix(None, BlockMatrixAdd(new_a._bmir, new_b._bmir))
         else:
             assert new_b.getClass().isArray()
             if form_b == Form.COLUMN:
