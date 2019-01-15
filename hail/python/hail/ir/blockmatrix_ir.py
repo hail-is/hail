@@ -2,6 +2,8 @@ from hail.ir import BlockMatrixIR
 from hail.utils.java import escape_str
 from hail.typecheck import typecheck_method
 
+from hail.utils.java import Env
+
 
 class BlockMatrixRead(BlockMatrixIR):
     @typecheck_method(path=str)
@@ -22,3 +24,12 @@ class BlockMatrixAdd(BlockMatrixIR):
 
     def render(self, r):
         return f'(BlockMatrixAdd {r(self._left)} {r(self._right)})'
+
+
+class JavaBlockMatrix(BlockMatrixIR):
+    def __init__(self, jbm):
+        super().__init__()
+        self._jbm = jbm
+
+    def render(self, r):
+        return f'(JavaBlockMatrix {r.add_jir(Env.hail().expr.ir.BlockMatrixLiteral(self._jbm))})'

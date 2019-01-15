@@ -5,8 +5,8 @@ from enum import IntEnum
 
 import hail as hl
 import hail.expr.aggregators as agg
-from hail.ir import BlockMatrixWrite
-from hail.ir.blockmatrix_ir import BlockMatrixRead, BlockMatrixAdd
+from hail.ir import BlockMatrixWrite, BlockMatrixIR
+from hail.ir.blockmatrix_ir import BlockMatrixRead, BlockMatrixAdd, JavaBlockMatrix
 from hail.utils import new_temp_file, new_local_temp_file, local_path_uri, storage_level
 from hail.utils.java import Env, jarray, joption
 from hail.typecheck import *
@@ -235,22 +235,21 @@ class BlockMatrix(object):
 
     - Natural logarithm, :meth:`log`.
     """
-    def __init__(self, jbm, bmir=None):
-        if bmir is None:
-            self._jbm = jbm
-
-            # Sync the IR with the current java block matrix
-            temp_path = new_local_temp_file()
-            self._jbm.write(temp_path, False, False, False)
-            self._bmir = BlockMatrixRead(temp_path)
+    def __init__(self, bm):
+        if isinstance(bm, BlockMatrixIR):
+            self._bmir = bm
+            self._cached_jbm = None
         else:
-            self._bmir = bmir
+            self._bmir = JavaBlockMatrix(bm)
+            self._cached_jbm = bm
 
-            # Sync the java block matrix by forcing the current IR
-            # jbm used by methods that have not yet been converted to use the IR
-            temp_path = new_local_temp_file()
-            Env.backend().execute(BlockMatrixWrite(self._bmir, temp_path, False, False, False))
-            self._jbm = Env.hail().linalg.BlockMatrix.read(Env.hc()._jhc, temp_path)
+    @property
+    def _jbm(self):
+        if self._cached_jbm is not None:
+            return self._cached_jbm
+        else:
+            self._cached_jbm = Env.hc()._backend._to_java_ir(self._bmir).execute(Env.hc()._jhc)
+            return self._cached_jbm
 
     @classmethod
     @typecheck_method(path=str)
@@ -266,7 +265,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return cls(None, BlockMatrixRead(path))
+        return cls(BlockMatrixRead(path))
 
     @classmethod
     @typecheck_method(uri=str,
@@ -1344,7 +1343,7 @@ class BlockMatrix(object):
         if isinstance(new_b, float):
             return BlockMatrix(new_a._jbm.scalarAdd(new_b))
         elif isinstance(new_b, BlockMatrix):
-            return BlockMatrix(None, BlockMatrixAdd(new_a._bmir, new_b._bmir))
+            return BlockMatrix(BlockMatrixAdd(new_a._bmir, new_b._bmir))
         else:
             assert new_b.getClass().isArray()
             if form_b == Form.COLUMN:
@@ -1589,9 +1588,9 @@ class BlockMatrix(object):
         if axis is None:
             return self._jbm.sum()
         elif axis == 0:
-            return BlockMatrix(self._jbm.rowSum(), None)
+            return BlockMatrix(self._jbm.rowSum())
         elif axis == 1:
-            return BlockMatrix(self._jbm.colSum(), None)
+            return BlockMatrix(self._jbm.colSum())
         else:
             raise ValueError(f'axis must be None, 0, or 1: found {axis}')
 

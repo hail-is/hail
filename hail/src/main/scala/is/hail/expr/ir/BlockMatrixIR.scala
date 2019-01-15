@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.HailContext
-import is.hail.expr.types.{BaseType, BlockMatrixType}
+import is.hail.expr.types.BlockMatrixType
 import is.hail.linalg.BlockMatrix
 import is.hail.utils.fatal
 
@@ -30,10 +30,23 @@ case class BlockMatrixRead(path: String) extends BlockMatrixIR {
   }
 }
 
+class BlockMatrixLiteral(value: BlockMatrix) extends BlockMatrixIR {
+  override def typ: BlockMatrixType = {
+    BlockMatrixType(value.nRows, value.nCols, value.blockSize)
+  }
+
+  override def children: IndexedSeq[BaseIR] = Array.empty[BlockMatrixIR]
+
+  override def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
+    assert(newChildren.isEmpty)
+    new BlockMatrixLiteral(value)
+  }
+
+  override protected[ir] def execute(hc: HailContext): BlockMatrix = value
+}
+
 case class BlockMatrixAdd(left: BlockMatrixIR, right: BlockMatrixIR) extends BlockMatrixIR {
 
-  //ASSUMPTION: both matrices are the same dimensions
-  //TODO Check about block size, currently taken from left in BlockMatrix.add
   override def typ: BlockMatrixType = left.typ
 
   override def children: IndexedSeq[BaseIR] = Array(left, right)
