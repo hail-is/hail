@@ -141,6 +141,8 @@ abstract class MatrixReader {
   def fullType: MatrixType
 
   def fullRVDType: RVDType
+
+  def requestType(requestedType: MatrixType): MatrixType = requestedType
 }
 
 case class MatrixNativeReader(path: String) extends MatrixReader {
