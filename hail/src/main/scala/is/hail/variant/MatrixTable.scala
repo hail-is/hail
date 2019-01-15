@@ -478,18 +478,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       fatal(s"n must be non-negative! Found `$n'.")
     copy2(rvd = rvd.head(n, None))
   }
-
-  def insertEntries[PC](makePartitionContext: () => PC, newColType: TStruct = colType,
-    newColKey: IndexedSeq[String] = colKey,
-    newColValues: BroadcastIndexedSeq = colValues,
-    newGlobalType: TStruct = globalType,
-    newGlobals: BroadcastRow = globals)(newEntryType: PStruct,
-    inserter: (PC, RegionValue, RegionValueBuilder) => Unit): MatrixTable = {
-    val newValue = value.insertEntries(makePartitionContext, newColType, newColKey,
-      newColValues, newGlobalType, newGlobals)(newEntryType, inserter)
-    copyAST(MatrixLiteral(newValue))
-  }
-
+  
   def aggregateRowsJSON(expr: String): String = {
     val (a, t) = aggregateRows(expr)
     val jv = JSONAnnotationImpex.exportAnnotation(a, t)
