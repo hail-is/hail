@@ -102,8 +102,7 @@ def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None) -> 
                                                          joption('__maf' if maf is not None else None),
                                                          bounded,
                                                          joption(min),
-                                                         joption(max)),
-                            'identity_by_descent')
+                                                         joption(max)))
 
 
 @typecheck(call=expr_call,
