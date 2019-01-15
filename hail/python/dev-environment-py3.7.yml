@@ -13,6 +13,7 @@ dependencies:
 - jupyter=1.0.0
 - pip=18.0
 - pytest=3.9.2
+- py>=1.7.0 # https://github.com/pytest-dev/pytest/issues/2042#issuecomment-429289164
 - pytest-html=1.19
 - pip:
     - parsimonious==0.8.1

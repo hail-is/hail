@@ -1,11 +1,11 @@
 python/**/*.pyc
 python/README.md
 python/dist
-python/hail.egg-info
-python/hail/hail_pip_version
-python/hail/hail_version
-python/hail/docs/_build/*
-python/hail/hail-all-spark.jar
+python/src/hail.egg-info
+python/src/hail/hail_pip_version
+python/src/hail/hail_version
+python/src/hail/docs/_build/*
+python/src/hail/hail-all-spark.jar
 src/main/c/.cxx.vsn
 src/main/c/headers
 src/main/c/lib

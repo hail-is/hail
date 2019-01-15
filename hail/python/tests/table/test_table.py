@@ -8,7 +8,7 @@ import hail.expr.aggregators as agg
 from hail.utils import new_temp_file
 from hail.utils.java import Env
 from ..helpers import *
-from test.hail.matrixtable.test_file_formats import create_all_values_datasets
+from ..matrixtable.test_file_formats import create_all_values_datasets
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext

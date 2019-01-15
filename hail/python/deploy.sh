@@ -4,31 +4,18 @@ set -ex
 
 cd $(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 
-cleanup() {
-    trap "" INT TERM
-    rm hail/hail-all-spark.jar
-    rm README.md
-    rm -rf build/lib
-}
-trap cleanup EXIT
-trap "exit 24" INT TERM
-
-python3=${HAIL_PYTHON3:-python3}
-
 published=$(
     pip --no-cache-dir search hail \
      | grep '^hail ' \
      | sed 's/hail (//' \
      | sed 's/).*//')
-current=$(cat hail/hail_pip_version)
+current=$(cat src/hail/hail_pip_version)
 
 if [[ "${published}" != "${current}" ]]
 then
     echo deploying ${current}, was ${published}
-    cp ../build/libs/hail-all-spark.jar hail/
-    cp ../../README.md .
-    rm -f dist/*
-    $python3 setup.py sdist bdist_wheel
+	  rm -rf python/dist
+    python setup.py sdist bdist_wheel
     if [[ -e /secrets/pypi-username && -e /secrets/pypi-password ]]
     then
         set +x

@@ -22,7 +22,6 @@ def stopTestHailContext():
 
 
 _test_dir = None
-_doctest_dir = None
 
 
 def resource(filename):
@@ -41,18 +40,8 @@ def resource(filename):
 
 
 def doctest_resource(filename):
-    global _doctest_dir
-    if _doctest_dir is None:
-        path = '.'
-        i = 0
-        while not os.path.exists(os.path.join(path, 'build.gradle')):
-            path = os.path.join(path, '..')
-            i += 1
-            if i > 100:
-                raise EnvironmentError("Hail tests must be run from inside the Hail git repository")
-        _doctest_dir = os.path.join(path, 'python', 'hail', 'docs', 'data')
-
-    return os.path.join(_doctest_dir, filename)
+    import pkg_resources
+    return pkg_resources.resource_filename('hail', 'docs/data/'+filename)
 
 
 def schema_eq(x, y):

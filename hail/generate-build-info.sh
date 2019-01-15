@@ -2,9 +2,9 @@
 
 set -e
 
-REVISION=$(git rev-parse HEAD)
+REVISION=$3
 DATE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-DATE=$(git rev-parse --abbrev-ref HEAD)
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
 URL=$(git config --get remote.origin.url)
 SPARK_VERSION=$1
 HAIL_PIP_VERSION=$2
@@ -22,6 +22,5 @@ echo_build_properties() {
 
 mkdir -p src/main/resources/
 
-echo_build_properties $1 $2 > "src/main/resources/build-info.properties"
-printf ${HAIL_PIP_VERSION} > python/hail/hail_pip_version
-printf ${HAIL_PIP_VERSION}-${REVISION:0:12} > python/hail/hail_version
+echo_build_properties $SPARK_VERSION $HAIL_PIP_VERSION \
+                      > "src/main/resources/build-info.properties"
