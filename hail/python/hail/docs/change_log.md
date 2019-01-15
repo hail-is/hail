@@ -1,5 +1,27 @@
 # Change Log
 
+## 0.2.8
+
+Released 2018-01-15
+
+### New features
+
+ - (hail#5072) Added multi-phenotype option to `hl.logistic_regression_rows`
+ - (hail#5077) Added support for importing VCF floating-point FORMAT fields as `float32` as well as `float64`. 
+
+### Performance
+
+ - (hail#5068) Improved optimization of `MatrixTable.count_cols`.
+ - (hail#5131) Fixed performance bug related to `hl.literal` on large values with missingness
+
+### Bug fixes
+
+ - (hail#5088) Fixed name separator in `MatrixTable.make_table`.
+ - (hail#5104) Fixed optimizer bug related to experimental functionality.
+ - (hail#5122) Fixed error constructing `Table` or `MatrixTable` objects with fields with certain character patterns like `$`.
+
+-----
+
 ## 0.2.7
 
 Released 2019-01-03
