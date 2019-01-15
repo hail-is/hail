@@ -392,7 +392,7 @@ def get_select_exprs(caller, exprs, named_exprs, indices, base_struct):
 
     check_collisions(caller, final_fields, indices)
 
-    if final_fields != select_fields + list(insertions):
+    if final_fields == select_fields + list(insertions):
         # don't clog the IR with redundant field names
         s = base_struct.select(*select_fields).annotate(**insertions)
     else:
