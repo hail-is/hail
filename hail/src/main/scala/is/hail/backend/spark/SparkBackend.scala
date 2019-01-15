@@ -2,6 +2,7 @@ package is.hail.backend.spark
 
 import is.hail.HailContext
 import is.hail.annotations.{Region, SafeRow}
+import is.hail.cxx.CXXUnsupportedOperation
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir._
 import is.hail.expr.types.physical.PTuple
@@ -32,10 +33,15 @@ object SparkBackend {
 
     println("SparkBackend.execute to lower", Pretty(ir))
 
-    val pipeline = LowerTableIR.lower(ir)
-    Region.scoped { region =>
-      val (t, off) = pipeline.execute(sc, region)
-      SafeRow(t, region, off).get(0)
+    try {
+      val pipeline = LowerTableIR.lower(ir)
+      Region.scoped { region =>
+        val (t, off) = pipeline.execute(sc, region)
+        SafeRow(t, region, off).get(0)
+      }
+    } catch {
+      case e: CXXUnsupportedOperation =>
+        Interpret(ir)
     }
   }
 }

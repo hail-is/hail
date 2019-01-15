@@ -195,7 +195,7 @@ object LowerTableIR {
       SparkPipeline(Map(rows.name -> lowered), ArrayFlatMap(rows, elt, Ref(elt, lowered.body.typ)))
 
     case node if node.children.exists( _.isInstanceOf[TableIR] ) =>
-      throw new Exception("IR nodes with TableIR children must be defined explicitly")
+      throw new cxx.CXXUnsupportedOperation("IR nodes with TableIR children must be defined explicitly")
 
     case _ =>
       val sparkCollects = ir.children.map { case c: IR => lower(c) }
@@ -252,5 +252,8 @@ object LowerTableIR {
       val global = loweredChild.globals.head
       val env: Env[IR] = Env("row" -> row, "global" -> Ref(global.name, global.value.typ))
       loweredChild.copy(body = ArrayMap(loweredChild.body, row.name, Subst(newRow, env)))
+
+    case node =>
+      throw new cxx.CXXUnsupportedOperation("undefined")
   }
 }
