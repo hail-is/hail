@@ -2533,6 +2533,10 @@ class MatrixTable(ExprContainer):
         return Table(CastMatrixToTable(
             self._mir, entries_field_name, cols_field_name))
 
+    def _unfilter_entries(self):
+        entry_ir = hl.cond(hl.is_defined(self.entry), self.entry, hl.struct(**self.entry))._ir
+        return MatrixTable(MatrixMapEntries(self._mir, entry_ir))
+
     @typecheck_method(row_exprs=dictof(str, expr_any),
                       col_exprs=dictof(str, expr_any),
                       entry_exprs=dictof(str, expr_any),
