@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.expr.types.virtual.{TArray, TInt32, TInt64, TStruct}
+import is.hail.expr.types.virtual._
 import is.hail.table.Ascending
 import is.hail.utils._
 
@@ -117,6 +117,10 @@ object Simplify {
     // propagate NA
     case x: IR if isStrict(x) && Children(x).exists(_.isInstanceOf[NA]) =>
       NA(x.typ)
+
+    // replace Literal nodes with NA, I32, I64, F32, F64, True, False where possible
+    case Literal(t, null) => NA(t)
+    case Literal(t, value) if CanEmit(t) && !t.isInstanceOf[TString] => Literal.coerce(t, value)
 
     case x@If(NA(_), _, _) => NA(x.typ)
 
