@@ -22,7 +22,6 @@ export const setCookie = (
 };
 
 export const removeCookie = (key: string) => {
-  console.info('remove cookie', key);
   jsCookie.remove(key, {
     path: '/'
   });

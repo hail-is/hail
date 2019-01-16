@@ -2,11 +2,11 @@
 // based on Material UI
 import { Component } from 'react';
 import Router from 'next/router';
-import { view } from 'react-easy-state';
-import Auth from '../lib/Auth';
+import Auth from 'lib/Auth';
 
 class Callback extends Component {
   componentDidMount() {
+    console.info('calling callback');
     Auth.handleAuthenticationAsync(err => {
       // TODO: notify in modal if error
       if (err) {
@@ -22,4 +22,4 @@ class Callback extends Component {
   }
 }
 
-export default view(Callback);
+export default Callback;

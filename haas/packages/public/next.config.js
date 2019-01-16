@@ -66,8 +66,7 @@ const publicRuntimeConfig = {
   AUTH0: {
     DOMAIN: process.env.AUTH0_DOMAIN || 'hail.auth0.com',
     AUDIENCE: process.env.AUTH0_AUDIENCE,
-    REDIRECT_URI:
-      process.env.AUTH0_REDIRECT_URI || 'https://localhost/auth0callback',
+    REDIRECT_URI: process.env.AUTH0_REDIRECT_URI,
     CLIENT_ID: process.env.AUTH0_CLIENT_ID,
     RESPONSE_TYPE: process.env.AUTH0_RESPONSE_TYPE || 'token id_token',
     SCOPE: 'openid profile' //process.env.AUTH0_SCOPE ||

@@ -1,7 +1,8 @@
-AUTH0_DOMAIN='my_domain.auth0.com'
-AUTH0_REDIRECT_URI='http://localhost:3000/auth0callback'
-AUTH0_CLIENT_ID='my_client_id'
-AUTH0_RESPONSE_TYPE='token id_token'
-AUTH0_SCOPE='openid'
-UPLOAD_API_URL='http://localhost:8000/api/jobs/upload'
-GRAPHQL_ENDPOINT='http://localhost:8000/graphql'
+AUTH0_CLIENT_ID=some_client
+AUTH0_DOMAIN=some_domain
+AUTH0_SCOPE=opened profile repo read:users read:user_idp_tokens
+AUTH0_AUDIENCE=hail
+AUTH0_REDIRECT_URI=https://localhost/auth0callback
+SCORECARD_URL=https://scorecard.localhost/json
+SCORECARD_USER_URL=https://scorecard.localhost/json/users
+GRAPHQL_URL=https://localhost/api/graphql

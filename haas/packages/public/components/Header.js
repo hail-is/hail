@@ -2,67 +2,34 @@
 // To make anything ssr-only, just replace <Link> with <a>
 // and ofcourse remove the inner <a>
 
-import { Component, Fragment } from 'react';
+import { PureComponent, Fragment } from 'react';
 import PropTypes from 'prop-types';
 
 import Link from 'next/link';
 import Router, { withRouter } from 'next/router';
-
+import LoginLink from 'components/Login/Link';
 // import MenuItem from '@material-ui/core/MenuItem';
 // import Menu from '@material-ui/core/Menu';
 
 import classNames from 'classnames';
-import { view } from 'react-easy-state';
 
-const LoginLink = (props, context) => {
-  return (
-    <React.Fragment>
-      <a
-        color="default"
-        label="Log In"
-        className="link-button"
-        onClick={props.onLogin}
-      >
-        Login
-      </a>
-    </React.Fragment>
-  );
-};
+import 'components/Header/header.scss';
 
-class Header extends Component {
-  constructor(props) {
-    super(props);
-
-    this.state = {
-      anchorEl: null,
-      openLogoutSnackbar: false
-    };
-  }
-
-  // ES7-style arrow class method; to provide object-referencing "this"
-  handleChange = event => {
-    this.setState({ auth: event.target.checked });
+class Header extends PureComponent {
+  state = {
+    menuOpen: false
   };
 
-  handleMenu = event => {
-    this.setState({ anchorEl: event.currentTarget });
-  };
-
-  handleClose = () => {
-    this.setState({ anchorEl: null });
+  handleLogout = () => {
+    this.props.auth.logout();
+    this.setState({ menuOpen: false });
+    Router.replace('/');
   };
 
   // Render does not get (props, state) passed to it
   render() {
-    const { classes, children, className, onLogin, onLogout } = this.props;
     const { pathname } = this.props.router;
 
-    const { anchorEl } = this.state;
-    const open = Boolean(anchorEl);
-
-    // const { palette } = this.props.pageContext.theme;
-
-    // const isDark = palette.type === 'dark';
     const isDark = 'false';
     return (
       <span id="Header">
@@ -110,20 +77,29 @@ class Header extends Component {
             </a>
           </Link>
 
-          <span style={{ marginLeft: 'auto' }}>
+          <span
+            style={{ marginLeft: 'auto', outline: 'none' }}
+            onBlur={() => this.setState({ menuOpen: false })}
+            tabIndex="0"
+          >
             {this.props.auth.state.user ? (
               <span
-                aria-owns={open ? 'menu-appbar' : null}
+                aria-label="User panel"
                 aria-haspopup="true"
-                onClick={this.handleMenu}
+                onClick={() => this.setState({ menuOpen: true })}
                 color="inherit"
                 style={{ marginTop: -5 }}
                 className="link-button"
               >
                 <i className="material-icons">account_circle</i>
+                {this.state.menuOpen && (
+                  <div id="header-user-menu" onClick={this.handleLogout}>
+                    Log out
+                  </div>
+                )}
               </span>
             ) : (
-              <LoginLink onLogin={onLogin} />
+              <LoginLink onLogin={this.props.auth.login} />
             )}
           </span>
         </div>
@@ -133,4 +109,4 @@ class Header extends Component {
 }
 
 export { LoginLink };
-export default withRouter(view(Header));
+export default withRouter(Header);

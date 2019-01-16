@@ -10,6 +10,7 @@ import Router from 'next/router';
 // At least 1 css file, even empty, must be included in _app.js
 // unfortunately, or css-loader will cause issues with Link
 import 'styles/main.scss';
+import 'animate.css';
 
 class Hail extends App {
   // Data returned from getInitialProps is serialized when server rendering,
@@ -24,8 +25,9 @@ class Hail extends App {
     }
 
     // Initialize isn't idempotent
+    // NextJS may trigger this twice after hard refresh
     if (ctx.req) {
-      Auth.initialize(ctx.req);
+      Auth.initializeState(ctx.req);
     }
 
     // We could also pass auth state through context
@@ -40,13 +42,19 @@ class Hail extends App {
     };
   }
 
+  // This constructor runs before all child constructors
+  // And so is a good place to configure singletons
   constructor(props, context) {
     super(...arguments);
+
+    if (typeof window !== 'undefined') {
+      Auth.initializeClient();
+    }
 
     if (props.authState) {
       Auth.hydrate(props.authState);
     } else {
-      Auth.initialize();
+      Auth.initializeState();
     }
 
     this.state = { darkTheme: props.darkTheme };
@@ -78,6 +86,7 @@ class Hail extends App {
     }
   };
 
+  // Runs last, after all child components componentDIdMont
   componentDidMount = () => {
     Router.events.on('routeChangeComplete', this.handleRouteChange);
   };
@@ -120,11 +129,7 @@ class Hail extends App {
         <div
           className={`theme-site ${this.state.darkTheme ? 'theme-dark' : ''}`}
         >
-          <Header
-            onLogin={this.handleLogin}
-            onLogout={this.handleLogout}
-            auth={Auth}
-          />
+          <Header auth={Auth} />
           <div id="_app">
             <Component
               pageContext={this.pageContext}

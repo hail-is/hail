@@ -1,0 +1,17 @@
+@import 'styles/variables.scss';
+.theme-site {
+  button {
+    &.mdc-button {
+      background: none;
+      padding: 14px;
+      font-size: 14px;
+      border-radius: 3px;
+      color: #428bca;
+      border: 1px solid #428bca;
+      &:hover {
+        color: $black;
+        border-color: $black;
+      }
+    }
+  }
+}

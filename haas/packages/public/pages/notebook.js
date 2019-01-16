@@ -3,13 +3,13 @@ import fetch from 'isomorphic-unfetch';
 import getConfig from 'next/config';
 import Overview from '../components/Scorecard/Overview';
 import User from '../components/Scorecard/User';
-
+import superagemtn from 'superagent';
 const { publicRuntimeConfig } = getConfig();
 
 const { URL } = publicRuntimeConfig.NOTEBOOK;
 
 // TODO: Finish
-import 'components/Notebook/notebook.scss';
+import 'styles/buttons/buttons.scss';
 
 class Notebook extends PureComponent {
   // Anything you want run on the server

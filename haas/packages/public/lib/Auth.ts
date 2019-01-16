@@ -6,7 +6,20 @@ import { getCookie, setCookie, removeCookie } from '../lib/cookie';
 import auth0 from 'auth0-js';
 import jwtDecode from 'jwt-decode';
 
-import { store } from 'react-easy-state';
+// Re-enable if we want to watch Auth state
+// import { store } from 'react-easy-state';
+
+// getConfig reads from next.config.js
+const { publicRuntimeConfig } = getConfig();
+
+const {
+  DOMAIN,
+  CLIENT_ID,
+  RESPONSE_TYPE,
+  AUDIENCE,
+  SCOPE,
+  REDIRECT_URI // we will set this dynamically at initialization if not provided
+} = publicRuntimeConfig.AUTH0;
 
 declare type authResult = {
   expiresIn: number;
@@ -46,6 +59,7 @@ declare type state = {
 
 declare type Auth = {
   state: state;
+  auth0instance: auth0.WebAuth;
   handleAuthenticationAsync(cb: authCallback): void;
   getSetUserProfileAsync(cb: authProfileCallback): void;
   getAccessToken(req?: any): string | null;
@@ -53,7 +67,8 @@ declare type Auth = {
   getUserID(): string | null;
   login(): void;
   logout(reason?: string): void;
-  initialize(req?: any | undefined): void;
+  initializeState(req?: any): void;
+  initializeClient(): void;
   isAuthenticated(): boolean;
   wasAuthenticated(): boolean;
   logoutIfExpired(): void;
@@ -67,29 +82,39 @@ const keys = {
   exp: 'expires_at'
 };
 
-// getConfig reads from next.config.js
-const { publicRuntimeConfig } = getConfig();
-
-const auth0instance = new auth0.WebAuth({
-  domain: publicRuntimeConfig.AUTH0.DOMAIN,
-  clientID: publicRuntimeConfig.AUTH0.CLIENT_ID,
-  redirectUri: publicRuntimeConfig.AUTH0.REDIRECT_URI,
-  responseType: publicRuntimeConfig.AUTH0.RESPONSE_TYPE,
-  audience: publicRuntimeConfig.AUTH0.AUDIENCE,
-  scope: publicRuntimeConfig.AUTH0.SCOPE
-});
-
-console.info('audience ', publicRuntimeConfig.AUTH0.AUDIENCE);
 const Auth = {} as Auth;
 
-Auth.state = store({
+Auth.initializeClient = () => {
+  let computedUri;
+  if (!REDIRECT_URI) {
+    const parts = window.location.href.split('/');
+    computedUri = `${parts[0]}//${parts[2]}/auth0callback`;
+  } else {
+    computedUri = REDIRECT_URI;
+  }
+
+  Auth.auth0instance = new auth0.WebAuth({
+    domain: DOMAIN,
+    clientID: CLIENT_ID,
+    redirectUri: computedUri,
+    responseType: RESPONSE_TYPE,
+    audience: AUDIENCE,
+    scope: SCOPE
+  });
+};
+
+Auth.initializeState = req => {
+  setStateOrLogout(req);
+};
+
+Auth.state = {
   exp: null,
   idToken: null,
   accessToken: null,
   user: null,
   userProfile: null,
   loggedOutReason: null
-});
+};
 
 let renewTimeout: NodeJS.Timeout;
 
@@ -97,7 +122,6 @@ const clearState = () => {
   removeCookie(keys.accessToken);
   removeCookie(keys.idToken);
   removeCookie(keys.exp);
-
   Auth.state.exp = null;
   Auth.state.idToken = null;
   Auth.state.accessToken = null;
@@ -158,8 +182,6 @@ Auth.getSetUserProfileAsync = cb => {
       return;
     }
 
-    console.info('GOT', profile);
-
     if (profile) {
       Auth.state.userProfile = profile;
     }
@@ -177,11 +199,11 @@ Auth.getIdToken = req => {
 };
 
 Auth.login = () => {
-  auth0instance.authorize();
+  Auth.auth0instance.authorize();
 };
 
 Auth.handleAuthenticationAsync = (cb: authCallback) => {
-  auth0instance.parseHash((err, authResult: any) => {
+  Auth.auth0instance.parseHash((err, authResult: any) => {
     if (authResult && authResult.accessToken && authResult.idToken) {
       setSession(authResult);
     } else if (err) {
@@ -190,10 +212,6 @@ Auth.handleAuthenticationAsync = (cb: authCallback) => {
 
     cb(err, Auth.state);
   });
-};
-
-Auth.initialize = req => {
-  setStateOrLogout(req);
 };
 
 Auth.logoutIfExpired = () => {
@@ -237,6 +255,7 @@ function setStateOrLogout(req?: any): Error | void {
       loggedOutReason: null,
       userProfile: null
     };
+
     setRenewal(Auth.state.exp);
   } catch (err) {
     console.error('error setting state', err);
@@ -282,7 +301,7 @@ function setRenewal(exp) {
   const renewTime = exp > cTime ? Math.floor((exp - cTime) / 2) : 0;
 
   renewTimeout = setTimeout(() => {
-    auth0instance.checkSession({}, (err, result) => {
+    Auth.auth0instance.checkSession({}, (err, result) => {
       if (err) {
         console.error(err);
         return;
