@@ -331,6 +331,41 @@ def bind(f: Callable, *exprs):
     return construct_expr(res_ir, lambda_result.dtype, indices, aggregations)
 
 
+def let(**exprs):
+    """Bind a temporary variable and use it in a function.
+
+    This is :func:`.bind` with flipped argument order.
+
+    Examples
+    --------
+
+    >>> hl.eval(hl.let(1, lambda x: x + 1))
+    2
+
+    :func:`.let` also can take multiple arguments:
+
+    >>> hl.eval(hl.let(x, x, lambda x, y: x / y))
+    1.0
+
+    Parameters
+    ----------
+    exprs : variable-length args of :class:`.Expression`
+        Expressions to bind.
+    f : function ( (args) -> :class:`.Expression`)
+        Function of `exprs`.
+
+    Returns
+    -------
+    :class:`.Expression`
+        Result of evaluating `f` with `exprs` as arguments.
+    """
+
+    f = exprs[-1]
+    args = [expr_any.check(arg) for arg in exprs[:-1]]
+
+    return hl.bind(f, *args)
+
+
 @typecheck(c1=expr_int32, c2=expr_int32, c3=expr_int32, c4=expr_int32)
 def chi_squared_test(c1, c2, c3, c4) -> StructExpression:
     """Performs chi-squared test of independence on a 2x2 contingency table.
