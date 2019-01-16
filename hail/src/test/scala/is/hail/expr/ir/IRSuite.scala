@@ -321,9 +321,9 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(ApplyBinaryPrimOp(BitXOr(), i32na, i32na), null)
 
     assertEvalsTo(ApplyBinaryPrimOp(BitXOr(), I64(5), I64(2)), 5L ^ 2L)
-    assertEvalsTo(ApplyBinaryPrimOp(BitOr(), I64(-5), I64(2)), -5L ^ 2L)
-    assertEvalsTo(ApplyBinaryPrimOp(BitOr(), I64(5), I64(-2)), 5L ^ -2L)
-    assertEvalsTo(ApplyBinaryPrimOp(BitOr(), I64(-5), I64(-2)), -5L ^ -2L)
+    assertEvalsTo(ApplyBinaryPrimOp(BitXOr(), I64(-5), I64(2)), -5L ^ 2L)
+    assertEvalsTo(ApplyBinaryPrimOp(BitXOr(), I64(5), I64(-2)), 5L ^ -2L)
+    assertEvalsTo(ApplyBinaryPrimOp(BitXOr(), I64(-5), I64(-2)), -5L ^ -2L)
     assertEvalsTo(ApplyBinaryPrimOp(BitXOr(), I64(5), i64na), null)
     assertEvalsTo(ApplyBinaryPrimOp(BitXOr(), i64na, I64(2)), null)
     assertEvalsTo(ApplyBinaryPrimOp(BitXOr(), i64na, i64na), null)
