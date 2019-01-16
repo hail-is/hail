@@ -11,10 +11,11 @@ object BinaryOp {
     case (FloatingPointDivide(), _: TInt64, _: TInt64) => TFloat32()
     case (FloatingPointDivide(), _: TFloat32, _: TFloat32) => TFloat32()
     case (FloatingPointDivide(), _: TFloat64, _: TFloat64) => TFloat64()
-    case (Add() | Subtract() | Multiply() | RoundToNegInfDivide(), _: TInt32, _: TInt32) => TInt32()
-    case (Add() | Subtract() | Multiply() | RoundToNegInfDivide(), _: TInt64, _: TInt64) => TInt64()
+    case (Add() | Subtract() | Multiply() | RoundToNegInfDivide() | BitAnd() | BitOr() | BitXOr(), _: TInt32, _: TInt32) => TInt32()
+    case (Add() | Subtract() | Multiply() | RoundToNegInfDivide() | BitAnd() | BitOr() | BitXOr(), _: TInt64, _: TInt64) => TInt64()
     case (Add() | Subtract() | Multiply() | RoundToNegInfDivide(), _: TFloat32, _: TFloat32) => TFloat32()
     case (Add() | Subtract() | Multiply() | RoundToNegInfDivide(), _: TFloat64, _: TFloat64) => TFloat64()
+    case (LeftShift() | RightShift(), t@(_: TInt32 | _: TInt64), _: TInt32) => t
   }
 
   def defaultDivideOp(t: Type): BinaryOp = t match {
@@ -42,10 +43,23 @@ object BinaryOp {
           case Multiply() => ll * rr
           case FloatingPointDivide() => ll.toF / rr.toF
           case RoundToNegInfDivide() => Code.invokeStatic[Math, Int, Int, Int]("floorDiv", ll, rr)
+          case BitAnd() => ll & rr
+          case BitOr() => ll | rr
+          case BitXOr() => ll ^ rr
+          case LeftShift() => ll << rr
+          case RightShift() => ll >> rr
           case _ => incompatible(lt, rt, op)
+        }
+      case (_: TInt64, _: TInt32) =>
+        val ll = coerce[Long](l)
+        val rr = coerce[Int](r)
+        op match {
+          case LeftShift() => ll << rr
+          case RightShift() => ll >> rr
         }
       case (_: TInt64, _: TInt64) =>
         val ll = coerce[Long](l)
+
         val rr = coerce[Long](r)
         op match {
           case Add() => ll + rr
@@ -53,6 +67,9 @@ object BinaryOp {
           case Multiply() => ll * rr
           case FloatingPointDivide() => ll.toF / rr.toF
           case RoundToNegInfDivide() => Code.invokeStatic[Math, Long, Long, Long]("floorDiv", ll, rr)
+          case BitAnd() => ll & rr
+          case BitOr() => ll | rr
+          case BitXOr() => ll ^ rr
           case _ => incompatible(lt, rt, op)
         }
       case (_: TFloat32, _: TFloat32) =>
@@ -93,6 +110,10 @@ object BinaryOp {
     case "*" | "Multiply" => Multiply()
     case "/" | "FloatingPointDivide"  => FloatingPointDivide()
     case "//" | "RoundToNegInfDivide" => RoundToNegInfDivide()
+    case "|" | "BitOr" => BitOr()
+    case "&" | "BitAnd" => BitAnd()
+    case "<<" | "LeftShift" => LeftShift()
+    case ">>" | "RightShift" => RightShift()
   }
 }
 
@@ -107,3 +128,13 @@ case class Multiply() extends BinaryOp {}
 case class FloatingPointDivide() extends BinaryOp {}
 
 case class RoundToNegInfDivide() extends BinaryOp {}
+
+case class BitAnd() extends BinaryOp
+
+case class BitOr() extends BinaryOp
+
+case class BitXOr() extends BinaryOp
+
+case class LeftShift() extends BinaryOp
+
+case class RightShift() extends BinaryOp

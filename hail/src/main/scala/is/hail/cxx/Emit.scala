@@ -258,7 +258,6 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
         env.lookup(name)
 
       case ir.ApplyBinaryPrimOp(op, l, r) =>
-        assert(l.typ == r.typ)
 
         val lt = emit(l)
         val rt = emit(r)
@@ -283,6 +282,11 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
               case _: TFloat32 => s"floorf(${ lt.v } / ${ rt.v })"
               case _: TFloat64 => s"floor(${ lt.v } / ${ rt.v })"
             }
+          case ir.BitAnd() => s"${ lt.v } & ${ rt.v }"
+          case ir.BitOr() => s"${ lt.v } | ${ rt.v }"
+          case ir.BitXOr() => s"${ lt.v } ^ ${ rt.v }"
+          case ir.LeftShift() => s"${ lt.v } << ${ rt.v }"
+          case ir.RightShift() => s"${ lt.v } >> ${ rt.v }"
         }
 
         triplet(Code(lt.setup, rt.setup), s"${ lt.m } || ${ rt.m }", v)
@@ -293,6 +297,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
         val v = op match {
           case ir.Bang() => s"! ${ t.v }"
           case ir.Negate() => s"- ${ t.v }"
+          case ir.BitFlip() => s"~ ${ t.v }"
         }
 
         triplet(t.setup, t.m, v)

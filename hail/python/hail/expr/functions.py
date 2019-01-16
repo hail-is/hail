@@ -4357,6 +4357,214 @@ def approx_equal(x, y, tolerance=1e-6, absolute=False, nan_same=False):
 
     return _func("approxEqual", hl.tbool, x, y, tolerance, absolute, nan_same)
 
+
+def _bit_op(x, y, op, unify_type=True):
+    if unify_type:
+        if x.dtype == hl.tint32 and y.dtype == hl.tint32:
+            t = hl.tint32
+        else:
+            t = hl.tint64
+        coercer = coercer_from_dtype(t)
+        x = coercer.coerce(x)
+        y = coercer.coerce(y)
+    else:
+        t = x.dtype
+
+    indices, aggregations = unify_all(x, y)
+    return construct_expr(ApplyBinaryOp(op, x._ir, y._ir), t, indices, aggregations)
+
+
+@typecheck(x=expr_oneof(expr_int32, expr_int64), y=expr_oneof(expr_int32, expr_int64))
+def bit_and(x, y):
+    """Bitwise and `x` and `y`.
+
+    Examples
+    --------
+    >>> hl.eval(hl.bit_and(5, 3))
+    1
+
+    Notes
+    -----
+    See `the Python wiki <https://wiki.python.org/moin/BitwiseOperators>`__
+    for more information about bit operators.
+
+
+    Parameters
+    ----------
+    x : :class:`.Int32Expression` or :class:`.Int64Expression`
+    y : :class:`.Int32Expression` or :class:`.Int64Expression`
+
+    Returns
+    -------
+    :class:`.Int32Expression` or :class:`.Int64Expression`
+    """
+    return _bit_op(x, y, '&')
+
+
+@typecheck(x=expr_oneof(expr_int32, expr_int64), y=expr_oneof(expr_int32, expr_int64))
+def bit_or(x, y):
+    """Bitwise or `x` and `y`.
+
+    Examples
+    --------
+    >>> hl.eval(hl.bit_or(5, 3))
+    7
+
+    Notes
+    -----
+    See `the Python wiki <https://wiki.python.org/moin/BitwiseOperators>`__
+    for more information about bit operators.
+
+
+    Parameters
+    ----------
+    x : :class:`.Int32Expression` or :class:`.Int64Expression`
+    y : :class:`.Int32Expression` or :class:`.Int64Expression`
+
+    Returns
+    -------
+    :class:`.Int32Expression` or :class:`.Int64Expression`
+    """
+    return _bit_op(x, y, '|')
+
+
+@typecheck(x=expr_oneof(expr_int32, expr_int64), y=expr_oneof(expr_int32, expr_int64))
+def bit_xor(x, y):
+    """Bitwise exclusive-or `x` and `y`.
+
+    Examples
+    --------
+    >>> hl.eval(hl.bit_xor(5, 3))
+    6
+
+    Notes
+    -----
+    See `the Python wiki <https://wiki.python.org/moin/BitwiseOperators>`__
+    for more information about bit operators.
+
+
+    Parameters
+    ----------
+    x : :class:`.Int32Expression` or :class:`.Int64Expression`
+    y : :class:`.Int32Expression` or :class:`.Int64Expression`
+
+    Returns
+    -------
+    :class:`.Int32Expression` or :class:`.Int64Expression`
+    """
+    return _bit_op(x, y, '^')
+
+
+@typecheck(x=expr_oneof(expr_int32, expr_int64), y=expr_oneof(expr_int32, expr_int64))
+def bit_xor(x, y):
+    """Bitwise exclusive-or `x` and `y`.
+
+    Examples
+    --------
+    >>> hl.eval(hl.bit_xor(5, 3))
+    6
+
+    Notes
+    -----
+    See `the Python wiki <https://wiki.python.org/moin/BitwiseOperators>`__
+    for more information about bit operators.
+
+
+    Parameters
+    ----------
+    x : :class:`.Int32Expression` or :class:`.Int64Expression`
+    y : :class:`.Int32Expression` or :class:`.Int64Expression`
+
+    Returns
+    -------
+    :class:`.Int32Expression` or :class:`.Int64Expression`
+    """
+    return _bit_op(x, y, '^')
+
+
+@typecheck(x=expr_oneof(expr_int32, expr_int64), y=expr_int32)
+def bit_lshift(x, y):
+    """Bitwise left-shift `x` by `y`.
+
+    Examples
+    --------
+    >>> hl.eval(hl.bit_lshift(5, 3))
+    40
+
+    >>> hl.evla(hl.bit_lshift(1, 8))
+    256
+
+    Notes
+    -----
+    See `the Python wiki <https://wiki.python.org/moin/BitwiseOperators>`__
+    for more information about bit operators.
+
+
+    Parameters
+    ----------
+    x : :class:`.Int32Expression` or :class:`.Int64Expression`
+    y : :class:`.Int32Expression` or :class:`.Int64Expression`
+
+    Returns
+    -------
+    :class:`.Int32Expression` or :class:`.Int64Expression`
+    """
+    return _bit_op(x, y, '<<', unify_type=False)
+
+
+@typecheck(x=expr_oneof(expr_int32, expr_int64), y=expr_int32)
+def bit_rshift(x, y):
+    """Bitwise right-shift `x` by `y`.
+
+    Examples
+    --------
+    >>> hl.eval(hl.bit_rshift(256, 3))
+    32
+
+    Notes
+    -----
+    See `the Python wiki <https://wiki.python.org/moin/BitwiseOperators>`__
+    for more information about bit operators.
+
+
+    Parameters
+    ----------
+    x : :class:`.Int32Expression` or :class:`.Int64Expression`
+    y : :class:`.Int32Expression` or :class:`.Int64Expression`
+
+    Returns
+    -------
+    :class:`.Int32Expression` or :class:`.Int64Expression`
+    """
+    return _bit_op(x, y, '>>', unify_type=False)
+
+
+@typecheck(x=expr_oneof(expr_int32, expr_int64))
+def bit_flip(x):
+    """Bitwise invert `x`.
+
+    Examples
+    --------
+    >>> hl.eval(hl.bit_flip(0))
+    -1
+
+    Notes
+    -----
+    See `the Python wiki <https://wiki.python.org/moin/BitwiseOperators>`__
+    for more information about bit operators.
+
+
+    Parameters
+    ----------
+    x : :class:`.Int32Expression` or :class:`.Int64Expression`
+
+    Returns
+    -------
+    :class:`.Int32Expression` or :class:`.Int64Expression`
+    """
+    return construct_expr(ApplyUnaryOp('~', x._ir), x.dtype, x._indices, x._aggregations)
+
+
 @typecheck(s=expr_str)
 def _escape_string(s):
     return _func("escapeString", hl.tstr, s)

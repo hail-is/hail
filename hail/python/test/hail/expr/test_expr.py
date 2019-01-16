@@ -2372,3 +2372,22 @@ class Tests(unittest.TestCase):
         assert hl.eval(hl.reversed(s)) == 'cba'
         assert hl.eval(hl.reversed(es)) == ''
         assert hl.eval(hl.reversed(ns)) is None
+
+    def test_bit_ops_types(self):
+        assert hl.bit_and(1, 1).dtype == hl.tint32
+        assert hl.bit_and(hl.int64(1), 1).dtype == hl.tint64
+
+        assert hl.bit_or(1, 1).dtype == hl.tint32
+        assert hl.bit_or(hl.int64(1), 1).dtype == hl.tint64
+
+        assert hl.bit_xor(1, 1).dtype == hl.tint32
+        assert hl.bit_xor(hl.int64(1), 1).dtype == hl.tint64
+
+        assert hl.bit_lshift(1, 1).dtype == hl.tint32
+        assert hl.bit_lshift(hl.int64(1), 1).dtype == hl.tint64
+
+        assert hl.bit_rshift(1, 1).dtype == hl.tint32
+        assert hl.bit_rshift(hl.int64(1), 1).dtype == hl.tint64
+
+        assert hl.bit_flip(1).dtype == hl.tint32
+        assert hl.bit_flip(hl.int64(1)).dtype == hl.tint64

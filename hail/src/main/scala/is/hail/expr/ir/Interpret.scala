@@ -166,6 +166,18 @@ object Interpret {
                 case Multiply() => ll * rr
                 case FloatingPointDivide() => ll.toFloat / rr.toFloat
                 case RoundToNegInfDivide() => java.lang.Math.floorDiv(ll, rr)
+                case BitAnd() => ll & rr
+                case BitOr() => ll | rr
+                case BitXOr() => ll ^ rr
+                case LeftShift() => ll << rr
+                case RightShift() => ll >> rr
+              }
+            case (_: TInt64, _: TInt32) =>
+              val ll = lValue.asInstanceOf[Long]
+              val rr = rValue.asInstanceOf[Int]
+              op match {
+                case LeftShift() => ll << rr
+                case RightShift() => ll >> rr
               }
             case (_: TInt64, _: TInt64) =>
               val ll = lValue.asInstanceOf[Long]
@@ -176,6 +188,11 @@ object Interpret {
                 case Multiply() => ll * rr
                 case FloatingPointDivide() => ll.toFloat / rr.toFloat
                 case RoundToNegInfDivide() => java.lang.Math.floorDiv(ll, rr)
+                case BitAnd() => ll & rr
+                case BitOr() => ll | rr
+                case BitXOr() => ll ^ rr
+                case LeftShift() => ll << rr
+                case RightShift() => ll >> rr
               }
             case (_: TFloat32, _: TFloat32) =>
               val ll = lValue.asInstanceOf[Float]
@@ -199,26 +216,25 @@ object Interpret {
               }
           }
       case ApplyUnaryPrimOp(op, x) =>
-        op match {
+        val xValue = interpret(x, env, args, agg)
+        if (xValue == null)
+          null
+        else op match {
           case Bang() =>
             assert(x.typ.isOfType(TBoolean()))
-            val xValue = interpret(x, env, args, agg)
-            if (xValue == null)
-              null
-            else
-              !xValue.asInstanceOf[Boolean]
+            !xValue.asInstanceOf[Boolean]
           case Negate() =>
             assert(x.typ.isInstanceOf[TNumeric])
-            val xValue = interpret(x, env, args, agg)
-            if (xValue == null)
-              null
-            else {
-              x.typ match {
-                case TInt32(_) => -xValue.asInstanceOf[Int]
-                case TInt64(_) => -xValue.asInstanceOf[Long]
-                case TFloat32(_) => -xValue.asInstanceOf[Float]
-                case TFloat64(_) => -xValue.asInstanceOf[Double]
-              }
+            x.typ match {
+              case TInt32(_) => -xValue.asInstanceOf[Int]
+              case TInt64(_) => -xValue.asInstanceOf[Long]
+              case TFloat32(_) => -xValue.asInstanceOf[Float]
+              case TFloat64(_) => -xValue.asInstanceOf[Double]
+            }
+          case BitFlip() =>
+            x.typ match {
+              case _: TInt32 => ~xValue.asInstanceOf[Int]
+              case _: TInt64 => ~xValue.asInstanceOf[Long]
             }
         }
       case ApplyComparisonOp(op, l, r) =>

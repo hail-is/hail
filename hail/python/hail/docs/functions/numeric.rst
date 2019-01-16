@@ -8,6 +8,12 @@ Numeric functions
 
     abs
     approx_equal
+    bit_and
+    bit_or
+    bit_xor
+    bit_lshift
+    bit_rshift
+    bit_flip
     exp
     is_nan
     is_finite
@@ -44,6 +50,12 @@ Numeric functions
 
 .. autofunction:: abs
 .. autofunction:: approx_equal
+.. autofunction:: bit_and
+.. autofunction:: bit_or
+.. autofunction:: bit_xor
+.. autofunction:: bit_lshift
+.. autofunction:: bit_rshift
+.. autofunction:: bit_flip
 .. autofunction:: exp
 .. autofunction:: is_nan
 .. autofunction:: is_finite
