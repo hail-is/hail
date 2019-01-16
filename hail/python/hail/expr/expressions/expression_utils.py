@@ -190,6 +190,10 @@ def eval_typed(expression):
     analyze('eval_typed', expression, Indices(expression._indices.source))
 
     if expression._indices.source is None:
+        ir_type = expression._ir.typ
+        expression_type = expression.dtype
+        if ir_type != expression.dtype:
+            raise ExpressionException(f'Expression type and IR type differed: \n{ir_type}\n vs \n{expression_type}')
         return (Env.backend().execute(expression._ir), expression.dtype)
     else:
         return expression.collect()[0], expression.dtype

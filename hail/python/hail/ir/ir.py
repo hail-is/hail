@@ -692,7 +692,7 @@ class GroupByKey(IR):
     def _compute_type(self, env, agg_env):
         self.collection._compute_type(env, agg_env)
         self._type = tdict(self.collection.typ.element_type.types[0],
-                           self.collection.typ.element_type.types[1])
+                           tarray(self.collection.typ.element_type.types[1]))
 
 class ArrayMap(IR):
     @typecheck_method(a=IR, name=str, body=IR)
