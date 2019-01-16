@@ -805,7 +805,7 @@ object IRParser {
         val overwrite = boolean_literal(it)
         val forceRowMajor = boolean_literal(it)
         val stageLocally = boolean_literal(it)
-        val child = block_matrix_ir(env)(it)
+        val child = blockmatrix_ir(env)(it)
         BlockMatrixWrite(child, path, overwrite, forceRowMajor, stageLocally)
       case "JavaIR" =>
         val name = identifier(it)
@@ -1109,21 +1109,21 @@ object IRParser {
     }
   }
 
-  def block_matrix_ir(env: IRParserEnvironment)(it: TokenIterator): BlockMatrixIR = {
+  def blockmatrix_ir(env: IRParserEnvironment)(it: TokenIterator): BlockMatrixIR = {
     punctuation(it, "(")
-    val ir = block_matrix_ir1(env)(it)
+    val ir = blockmatrix_ir1(env)(it)
     punctuation(it, ")")
     ir
   }
 
-  def block_matrix_ir1(env: IRParserEnvironment)(it: TokenIterator): BlockMatrixIR = {
+  def blockmatrix_ir1(env: IRParserEnvironment)(it: TokenIterator): BlockMatrixIR = {
     identifier(it) match {
       case "BlockMatrixRead" =>
         val path = string_literal(it)
         BlockMatrixRead(path)
       case "BlockMatrixAdd" =>
-        val left = block_matrix_ir(env)(it)
-        val right = block_matrix_ir(env)(it)
+        val left = blockmatrix_ir(env)(it)
+        val right = blockmatrix_ir(env)(it)
         BlockMatrixAdd(left, right)
       case "JavaBlockMatrix" =>
         val name = identifier(it)
@@ -1155,7 +1155,7 @@ object IRParser {
   def parse_blockmatrix_ir(s: String, refMap: java.util.HashMap[String, String], irMap: java.util.HashMap[String, BaseIR])
   : BlockMatrixIR =
     parse_blockmatrix_ir(s, IRParserEnvironment(refMap.asScala.toMap.mapValues(parseType), irMap.asScala.toMap))
-  def parse_blockmatrix_ir(s: String, env: IRParserEnvironment): BlockMatrixIR = parse(s, block_matrix_ir(env))
+  def parse_blockmatrix_ir(s: String, env: IRParserEnvironment): BlockMatrixIR = parse(s, blockmatrix_ir(env))
 
   def parseType(code: String): Type = parse(code, type_expr)
 

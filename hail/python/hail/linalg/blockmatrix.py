@@ -535,7 +535,6 @@ class BlockMatrix(object):
         -------
         :obj:`int`
         """
-
         return self._bmir.typ.n_rows
 
     @property
@@ -546,7 +545,6 @@ class BlockMatrix(object):
         -------
         :obj:`int`
         """
-
         return self._bmir.typ.n_cols
 
     @property
@@ -558,7 +556,6 @@ class BlockMatrix(object):
         (:obj:`int`, :obj:`int`)
            Number of rows and number of columns.
         """
-
         return self.n_rows, self.n_cols
 
     @property
@@ -569,17 +566,14 @@ class BlockMatrix(object):
         -------
         :obj:`int`
         """
-
         return self._jbm.blockSize()
 
     @property
     def _jdata(self):
-
         return self._jbm.toBreezeMatrix().data()
 
     @property
     def _as_scalar(self):
-
         assert self.n_rows == 1 and self.n_cols == 1
         return self._jbm.toBreezeMatrix().apply(0, 0)
 
@@ -604,7 +598,6 @@ class BlockMatrix(object):
             If ``True``, major output will be written to temporary local storage
             before being copied to ``output``.
         """
-
         Env.backend().execute(BlockMatrixWrite(self._bmir, path, overwrite, force_row_major, stage_locally))
 
     @staticmethod
@@ -750,7 +743,6 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-
         BlockMatrix._check_indices(rows_to_keep, self.n_rows)
         return BlockMatrix(self._jbm.filterRows(jarray(Env.jvm().long, rows_to_keep)))
 
@@ -767,7 +759,6 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-
         BlockMatrix._check_indices(cols_to_keep, self.n_cols)
         return BlockMatrix(self._jbm.filterCols(jarray(Env.jvm().long, cols_to_keep)))
 
@@ -793,7 +784,6 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-
         BlockMatrix._check_indices(rows_to_keep, self.n_rows)
         BlockMatrix._check_indices(cols_to_keep, self.n_cols)
         return BlockMatrix(self._jbm.filter(jarray(Env.jvm().long, rows_to_keep),
@@ -831,7 +821,6 @@ class BlockMatrix(object):
 
     @typecheck_method(indices=tupleof(oneof(int, slice)))
     def __getitem__(self, indices):
-
         if len(indices) != 2:
             raise ValueError(f'tuple of indices or slices must have length two, found {len(indices)}')
 
@@ -858,7 +847,6 @@ class BlockMatrix(object):
                       radius=int,
                       include_diagonal=bool)
     def _filtered_entries_table(self, table, radius, include_diagonal):
-
         return Table._from_java(self._jbm.filteredEntriesTable(table._jt, radius, include_diagonal))
 
     @typecheck_method(lower=int, upper=int, blocks_only=bool)
@@ -931,7 +919,6 @@ class BlockMatrix(object):
         :class:`.BlockMatrix`
             Sparse block matrix.
         """
-
         if lower > upper:
             raise ValueError(f'sparsify_band: lower={lower} is greater than upper={upper}')
 
@@ -991,7 +978,6 @@ class BlockMatrix(object):
         :class:`.BlockMatrix`
             Sparse block matrix.
         """
-
         if lower:
             lower_band = 1 - self.n_rows
             upper_band = 0
@@ -1070,7 +1056,6 @@ class BlockMatrix(object):
         :class:`.BlockMatrix`
             Sparse block matrix.
         """
-
         if isinstance(starts, np.ndarray):
             if not (starts.dtype == np.int32 or starts.dtype == np.int64):
                 raise ValueError("sparsify_row_intervals: starts ndarray must have dtype 'int32' or 'int64'")
@@ -1139,7 +1124,6 @@ class BlockMatrix(object):
         --------
         :meth:`.to_numpy`
         """
-
         n_entries = self.n_rows * self.n_cols
         if n_entries >= 2 << 31:
             raise ValueError(f'number of entries must be less than 2^31, found {n_entries}')
@@ -1167,7 +1151,6 @@ class BlockMatrix(object):
         -------
         :class:`numpy.ndarray`
         """
-
         path = new_local_temp_file()
         uri = local_path_uri(path)
         self.tofile(uri)
@@ -1186,7 +1169,6 @@ class BlockMatrix(object):
         -------
         :obj:`bool`
         """
-
         return self._jbm.gp().maybeBlocks().isDefined()
 
     @property
@@ -1197,7 +1179,6 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-
         return BlockMatrix(self._jbm.transpose())
 
     def densify(self):
@@ -1207,7 +1188,6 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-
         return BlockMatrix(self._jbm.densify())
 
     def cache(self):
@@ -1222,7 +1202,6 @@ class BlockMatrix(object):
         :class:`.BlockMatrix`
             Cached block matrix.
         """
-
         return self.persist('MEMORY_ONLY')
 
     @typecheck_method(storage_level=storage_level)
@@ -1255,7 +1234,6 @@ class BlockMatrix(object):
         :class:`.BlockMatrix`
             Persisted block matrix.
         """
-
         return BlockMatrix(self._jbm.persist(storage_level))
 
     def unpersist(self):
@@ -1271,7 +1249,6 @@ class BlockMatrix(object):
         :class:`.BlockMatrix`
             Unpersisted block matrix.
         """
-
         return BlockMatrix(self._jbm.unpersist())
 
     def __pos__(self):
@@ -1284,12 +1261,10 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-
         op = getattr(self._jbm, "unary_$minus")
         return BlockMatrix(op())
 
     def _promote(self, b, op, reverse=False):
-
         a = self
         form_a, form_b = Form.compatible(a.shape, _shape(b), op)
 
@@ -1337,7 +1312,6 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-
         new_a, new_b, form_b, _ = self._promote(b, 'addition')
 
         if isinstance(new_b, float):
@@ -1364,7 +1338,6 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-
         new_a, new_b, form_b, reverse = self._promote(b, 'subtraction')
 
         if isinstance(new_b, float):
@@ -1401,7 +1374,6 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-
         new_a, new_b, form_b, _ = self._promote(b, 'element-wise multiplication')
 
         if isinstance(new_b, float):
@@ -1428,7 +1400,6 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-
         new_a, new_b, form_b, reverse = self._promote(b, 'element-wise division')
 
         if isinstance(new_b, float):
@@ -1455,22 +1426,18 @@ class BlockMatrix(object):
 
     @typecheck_method(b=numeric)
     def __radd__(self, b):
-
         return self + b
 
     @typecheck_method(b=numeric)
     def __rsub__(self, b):
-
         return BlockMatrix(self._jbm.reverseScalarSub(float(b)))
 
     @typecheck_method(b=numeric)
     def __rmul__(self, b):
-
         return self * b
 
     @typecheck_method(b=numeric)
     def __rtruediv__(self, b):
-
         return BlockMatrix(self._jbm.reverseScalarDiv(float(b)))
 
     @typecheck_method(b=oneof(np.ndarray, block_matrix_type))
@@ -1485,7 +1452,6 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-
         if isinstance(b, np.ndarray):
             return self @ BlockMatrix.from_numpy(b, self.block_size)
         else:
@@ -1506,7 +1472,6 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-
         return BlockMatrix(self._jbm.pow(float(x)))
 
     def sqrt(self):
@@ -1516,7 +1481,6 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-
         return BlockMatrix(self._jbm.sqrt())
 
     def abs(self):
@@ -1526,7 +1490,6 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-
         return BlockMatrix(self._jbm.abs())
 
     def log(self):
@@ -1536,7 +1499,6 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-
         return BlockMatrix(self._jbm.log())
 
     def diagonal(self):
@@ -1546,7 +1508,6 @@ class BlockMatrix(object):
         -------
         :class:`numpy.ndarray`
         """
-
         return _ndarray_from_jarray(self._jbm.diagonal())
 
     @typecheck_method(axis=nullable(int))
@@ -1584,7 +1545,6 @@ class BlockMatrix(object):
             If ``0``, returns a block matrix with a single row.
             If ``1``, returns a block matrix with a single column.
         """
-
         if axis is None:
             return self._jbm.sum()
         elif axis == 0:
@@ -1635,7 +1595,6 @@ class BlockMatrix(object):
         :class:`.Table`
             Table with a row for each entry.
         """
-
         return Table._from_java(self._jbm.entriesTable(Env.hc()._jhc))
 
     @staticmethod
@@ -1862,7 +1821,6 @@ class BlockMatrix(object):
         :class:`.BlockMatrix`
             Sparse block matrix.
         """
-
         n_rectangles = len(rectangles)
         if n_rectangles >= (1 << 29):
             raise ValueError(f'number of rectangles must be less than 2^29, found {n_rectangles}')
@@ -2158,7 +2116,6 @@ class BlockMatrix(object):
             :math:`\sqrt[3]{nmr}` exceeds `complexity_bound`.
             Only returned if `compute_uv` is True.
         """
-
         n, m = self.shape
 
         if n * m * min(n, m) <= complexity_bound ** 3:
