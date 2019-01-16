@@ -4,6 +4,7 @@ import is.hail.{SparkSuite, TestUtils}
 import is.hail.annotations.Annotation
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
+import is.hail.expr.ir.TextTableReader
 import is.hail.expr.types._
 import is.hail.expr.types.virtual.{TFloat64, TInt32, TString}
 import is.hail.io.vcf.ExportVCF
