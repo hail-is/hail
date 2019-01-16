@@ -592,19 +592,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     new MatrixTable(hc, newMatrixType, globals, colValues, newRVD)
   }
 
-  def renameDuplicates(id: String): MatrixTable = {
-    matrixType.requireColKeyString()
-    val (newIds, duplicates) = mangle(stringSampleIds.toArray)
-    if (duplicates.nonEmpty)
-      info(s"Renamed ${ duplicates.length } duplicate ${ plural(duplicates.length, "sample ID") }. " +
-        s"Mangled IDs as follows:\n  @1", duplicates.map { case (pre, post) => s""""$pre" => "$post"""" }.truncatable("\n  "))
-    else
-      info(s"No duplicate sample IDs found.")
-    val (newSchema, ins) = colType.structInsert(TString(), List(id))
-    val newAnnotations = colValues.value.zipWithIndex.map { case (sa, i) => ins(sa, newIds(i)) }.toArray
-    copy2(colType = newSchema, colValues = colValues.copy(value = newAnnotations, t = TArray(newSchema)))
-  }
-
   def same(that: MatrixTable, tolerance: Double = utils.defaultTolerance, absolute: Boolean = false): Boolean = {
     var metadataSame = true
     if (rowType.deepOptional() != that.rowType.deepOptional()) {
