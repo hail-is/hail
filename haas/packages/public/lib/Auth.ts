@@ -206,8 +206,7 @@ Auth.login = state => {
     });
   } else {
     Auth.auth0instance.authorize({
-      prompt: 'login',
-      state: 'blah'
+      prompt: 'login'
     });
   }
 };
