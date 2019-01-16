@@ -376,6 +376,14 @@ class HailContext private(val sc: SparkContext,
     indexBgen(FastSeq(file), indexFileMap, rg, contigRecoding, skipInvalidLoci)
   }
 
+  def indexBgen(files: java.util.ArrayList[String],
+    indexFileMap: java.util.HashMap[String, String],
+    rg: Option[String],
+    contigRecoding: java.util.HashMap[String, String],
+    skipInvalidLoci: Boolean) {
+    indexBgen(files.asScala, indexFileMap.asScala.toMap, rg, contigRecoding.asScala.toMap, skipInvalidLoci)
+  }
+
   def indexBgen(files: Seq[String],
     indexFileMap: Map[String, String] = null,
     rg: Option[String] = None,

@@ -2019,14 +2019,11 @@ def index_bgen(path,
 
     """
     rg = reference_genome.name if reference_genome else None
-
-    if contig_recoding:
-        contig_recoding = tdict(tstr, tstr)._convert_to_j(contig_recoding)
-
-    if index_file_map:
-        index_file_map = tdict(tstr, tstr)._convert_to_j(index_file_map)
-
-    Env.hc()._jhc.indexBgen(jindexed_seq_args(path), index_file_map, joption(rg), contig_recoding, skip_invalid_loci)
+    if index_file_map is None:
+        index_file_map = {}
+    if contig_recoding is None:
+        contig_recoding = {}
+    Env.hc()._jhc.indexBgen(wrap_to_list(path), index_file_map, joption(rg), contig_recoding, skip_invalid_loci)
 
 
 @typecheck(path=str)
