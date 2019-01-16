@@ -1220,6 +1220,7 @@ class Table(ExprContainer):
             return hl.bind(lambda s: hl_trunc(s), hl_repr(v))
 
         t = self
+        t = t.head(n + 1)
         t = t.flatten()
         fields = [trunc(f) for f in t.row]
         n_fields = len(fields)
@@ -1228,7 +1229,7 @@ class Table(ExprContainer):
         right_align = [hl.expr.types.is_numeric(t.row[f].dtype) for f in fields]
 
         t = t.select(**{k: hl_format(v) for (k, v) in t.row.items()})
-        rows = t.take(n + 1)
+        rows = t.collect()
 
         has_more = len(rows) > n
         rows = rows[:n]
