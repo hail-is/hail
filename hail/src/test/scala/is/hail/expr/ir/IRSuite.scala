@@ -339,7 +339,7 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(ApplyBinaryPrimOp(LeftShift(), i32na, i32na), null)
 
     assertEvalsTo(ApplyBinaryPrimOp(LeftShift(), I64(5), I32(2)), 5L << 2)
-    assertEvalsTo(ApplyBinaryPrimOp(LeftShift(), I64(-5), I64(2)), -5L<< 2)
+    assertEvalsTo(ApplyBinaryPrimOp(LeftShift(), I64(-5), I64(2)), -5L << 2)
     assertEvalsTo(ApplyBinaryPrimOp(LeftShift(), I64(5), I64(-2)), 5L << -2)
     assertEvalsTo(ApplyBinaryPrimOp(LeftShift(), I64(-5), I64(-2)), -5L << -2)
     assertEvalsTo(ApplyBinaryPrimOp(LeftShift(), I64(5), i32na), null)
@@ -357,7 +357,7 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(ApplyBinaryPrimOp(RightShift(), i32na, i32na), null)
 
     assertEvalsTo(ApplyBinaryPrimOp(RightShift(), I64(0xffff5), I32(2)), 0xffff5L >> 2)
-    assertEvalsTo(ApplyBinaryPrimOp(RightShift(), I64(-5), I64(2)), -5L>> 2)
+    assertEvalsTo(ApplyBinaryPrimOp(RightShift(), I64(-5), I64(2)), -5L >> 2)
     assertEvalsTo(ApplyBinaryPrimOp(RightShift(), I64(5), I64(-2)), 5L >> -2)
     assertEvalsTo(ApplyBinaryPrimOp(RightShift(), I64(-5), I64(-2)), -5L >> -2)
     assertEvalsTo(ApplyBinaryPrimOp(RightShift(), I64(5), i32na), null)
@@ -375,7 +375,7 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(ApplyBinaryPrimOp(LogicalRightShift(), i32na, i32na), null)
 
     assertEvalsTo(ApplyBinaryPrimOp(LogicalRightShift(), I64(0xffff5), I32(2)), 0xffff5L >>> 2)
-    assertEvalsTo(ApplyBinaryPrimOp(LogicalRightShift(), I64(-5), I64(2)), -5L>>> 2)
+    assertEvalsTo(ApplyBinaryPrimOp(LogicalRightShift(), I64(-5), I64(2)), -5L >>> 2)
     assertEvalsTo(ApplyBinaryPrimOp(LogicalRightShift(), I64(5), I64(-2)), 5L >>> -2)
     assertEvalsTo(ApplyBinaryPrimOp(LogicalRightShift(), I64(-5), I64(-2)), -5L >>> -2)
     assertEvalsTo(ApplyBinaryPrimOp(LogicalRightShift(), I64(5), i32na), null)
