@@ -276,6 +276,8 @@ task testPython(type: Exec, dependsOn: shadowJar) {
             '--noconftest',
             '--color=no',
             '-r a',
+            '--maxfail=1',
+            '-k', 'test_maximal_independent_set',
             '--html=build/reports/pytest.html',
             '--self-contained-html',
             'python/test'
