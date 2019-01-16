@@ -339,12 +339,12 @@ def rbind(*exprs):
     Examples
     --------
 
-    >>> hl.eval(hl.let(1, lambda x: x + 1))
+    >>> hl.eval(hl.rbind(1, lambda x: x + 1))
     2
 
     :func:`.let` also can take multiple arguments:
 
-    >>> hl.eval(hl.let(x, x, lambda x, y: x / y))
+    >>> hl.eval(hl.rbind(x, x, lambda x, y: x / y))
     1.0
 
     Parameters
