@@ -368,14 +368,6 @@ class HailContext private(val sc: SparkContext,
   def getTemporaryFile(nChar: Int = 10, prefix: Option[String] = None, suffix: Option[String] = None): String =
     sc.hadoopConfiguration.getTemporaryFile(tmpDir, nChar, prefix, suffix)
 
-  def indexBgen(file: String,
-    indexFileMap: Map[String, String],
-    rg: Option[String],
-    contigRecoding: Map[String, String],
-    skipInvalidLoci: Boolean) {
-    indexBgen(FastSeq(file), indexFileMap, rg, contigRecoding, skipInvalidLoci)
-  }
-
   def indexBgen(files: java.util.ArrayList[String],
     indexFileMap: java.util.HashMap[String, String],
     rg: Option[String],
