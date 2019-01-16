@@ -191,6 +191,9 @@ object LowerTableIR {
     case node if node.children.exists( _.isInstanceOf[TableIR] ) =>
       throw new cxx.CXXUnsupportedOperation("IR nodes with TableIR children must be defined explicitly")
 
+    case node if node.children.exists( _.isInstanceOf[MatrixIR] ) =>
+      throw new cxx.CXXUnsupportedOperation("MatrixIR nodes must be lowered to TableIR nodes separately.")
+
     case _ =>
       val pipelines = ir.children.map { case c: IR => lower(c) }
       SparkPipeline(pipelines.flatMap(_.stages).toMap, ir.copy(pipelines.map(_.body)))
