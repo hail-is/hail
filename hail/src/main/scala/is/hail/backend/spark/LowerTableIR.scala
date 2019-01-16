@@ -37,6 +37,8 @@ case class SparkPipeline(stages: Map[String, SparkStage], body: IR) {
 
     val ref = Ref(genUID(), inputType)
     val node = MakeTuple(FastSeq(Subst(body, Env[IR](fields.map { case (name, _) => name -> GetField(ref, name) }.toFastSeq : _*))))
+    println(stages)
+    println(node)
     val f = cxx.Compile(ref.name, inputType.physicalType, node, optimize = true)
     val st = new NativeStatus()
     val off = f(st, region.get(), rvb.end())
@@ -192,8 +194,9 @@ object LowerTableIR {
       throw new cxx.CXXUnsupportedOperation("IR nodes with TableIR children must be defined explicitly")
 
     case _ =>
-      val sparkCollects = ir.children.map { case c: IR => lower(c) }
-      SparkPipeline(sparkCollects.flatMap(_.stages).toMap, ir.copy(sparkCollects.map(_.body)))
+      val pipelines = ir.children.map { case c: IR => lower(c) }
+      print(pipelines)
+      SparkPipeline(pipelines.flatMap(_.stages).toMap, ir.copy(pipelines.map(_.body)))
   }
 
   // table globals should be stored in the first element of `globals` in SparkStage;

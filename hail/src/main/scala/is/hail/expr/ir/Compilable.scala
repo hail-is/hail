@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 object Compilable {
-  def selfCompilable(ir: IR): Boolean = {
+  def apply(ir: IR): Boolean = {
     ir match {
       case _: TableCount => false
       case _: TableGetGlobals => false
@@ -18,8 +18,4 @@ object Compilable {
       case _ => true
     }
   }
-  def apply(ir: IR): Boolean = !Exists(ir, {
-    case n: IR => !selfCompilable(n)
-    case _ => true
-  })
 }

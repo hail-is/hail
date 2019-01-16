@@ -468,7 +468,7 @@ object TestUtils {
     assert(t.typeCheck(i2))
     assert(t.valuesSimilar(i2, expected), s"($i2, $expected)")
 
-    if (Compilable(x)) {
+    if (!Exists(x, node => !node.isInstanceOf[IR] || !Compilable(node.asInstanceOf[IR]))) {
       val c = eval(x, env, args, agg)
       assert(t.typeCheck(c))
       assert(t.valuesSimilar(c, expected), s"($c, $expected)")
