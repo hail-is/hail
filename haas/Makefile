@@ -1,4 +1,4 @@
-.PHONY: build push deploy transform
+.PHONY: all build push deploy transform
 
 PROJECT = $(shell gcloud config get-value project)
 WEB_LOCAL=hail-web
@@ -15,8 +15,8 @@ build:
 		-kubectl delete secret $(API_SECRETS)
 		kubectl create secret generic $(WEB_SECRETS) --from-env-file=./packages/public/.env
 		kubectl create secret generic $(API_SECRETS) --from-env-file=./packages/hail-api-gateway/.env
-		docker build -t $(WEB_LOCAL) ./packages/public/ --no-cache=true
-		docker build -t $(API_LOCAL) ./packages/hail-api-gateway/ --no-cache=true
+		docker build -t $(WEB_LOCAL) ./packages/public/ --no-cache
+		docker build -t $(API_LOCAL) ./packages/hail-api-gateway/ --no-cache
 
 push:
 	docker tag $(WEB_LOCAL) $(WEB_TAG)
@@ -31,5 +31,7 @@ transform:
 	| sed -e "s,@web_secrets@,${WEB_SECRETS}," \
 	| sed -e "s,@api_secrets@,${API_SECRETS}," > deployment.yaml
 
-deploy: build push transform
+deploy:
 	kubectl -n default apply -f deployment.yaml
+
+all: build push transform deploy

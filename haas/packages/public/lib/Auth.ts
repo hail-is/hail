@@ -57,6 +57,10 @@ declare type state = {
   loggedOutReason: string | null;
 };
 
+declare type loginState = {
+  token: string;
+};
+
 declare type Auth = {
   state: state;
   auth0instance: auth0.WebAuth;
@@ -65,7 +69,7 @@ declare type Auth = {
   getAccessToken(req?: any): string | null;
   getIdToken(req?: any): string | null;
   getUserID(): string | null;
-  login(): void;
+  login(state?: loginState): void;
   logout(reason?: string): void;
   initializeState(req?: any): void;
   initializeClient(): void;
@@ -81,6 +85,8 @@ const keys = {
   user: 'user',
   exp: 'expires_at'
 };
+
+const defaultOpts: auth0.AuthorizeOptions = { prompt: 'login' };
 
 const Auth = {} as Auth;
 
@@ -198,8 +204,15 @@ Auth.getIdToken = req => {
   return getCookie(keys.idToken, req);
 };
 
-Auth.login = () => {
-  Auth.auth0instance.authorize();
+Auth.login = state => {
+  if (state) {
+    const opts: auth0.AuthorizeOptions = Object.assign({}, defaultOpts, {
+      state
+    });
+    Auth.auth0instance.authorize(opts);
+  } else {
+    Auth.auth0instance.authorize(defaultOpts);
+  }
 };
 
 Auth.handleAuthenticationAsync = (cb: authCallback) => {
