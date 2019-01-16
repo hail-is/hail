@@ -15,8 +15,8 @@ build:
 		-kubectl delete secret $(API_SECRETS)
 		kubectl create secret generic $(WEB_SECRETS) --from-env-file=./packages/public/.env
 		kubectl create secret generic $(API_SECRETS) --from-env-file=./packages/hail-api-gateway/.env
-		docker build -t $(WEB_LOCAL) ./packages/public/
-		docker build -t $(API_LOCAL) ./packages/hail-api-gateway/
+		docker build -t $(WEB_LOCAL) ./packages/public/ --no-cache=true
+		docker build -t $(API_LOCAL) ./packages/hail-api-gateway/ --no-cache=true
 
 push:
 	docker tag $(WEB_LOCAL) $(WEB_TAG)

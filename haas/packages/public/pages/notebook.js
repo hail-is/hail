@@ -1,9 +1,6 @@
 import { PureComponent } from 'react';
 import fetch from 'isomorphic-unfetch';
 import getConfig from 'next/config';
-import Overview from '../components/Scorecard/Overview';
-import User from '../components/Scorecard/User';
-import superagemtn from 'superagent';
 const { publicRuntimeConfig } = getConfig();
 
 const { URL } = publicRuntimeConfig.NOTEBOOK;
@@ -13,21 +10,22 @@ import 'styles/buttons/buttons.scss';
 
 class Notebook extends PureComponent {
   // Anything you want run on the server
-  static async getInitialProps(props) {
-    let notebooks;
-    try {
-      notebooks = await fetch(URL).then(res => res.json());
-    } catch (err) {
-      console.error(err);
-    }
+  // We currently have nothing to fetch, so don't slow down ssr
+  // static async getInitialProps(props) {
+  //   let notebooks;
+  //   try {
+  //     notebooks = await fetch(URL).then(res => res.json());
+  //   } catch (err) {
+  //     console.error(err);
+  //   }
 
-    const r = {};
-    if (notebooks) {
-      r.notebooks = notebooks;
-    }
+  //   const r = {};
+  //   if (notebooks) {
+  //     r.notebooks = notebooks;
+  //   }
 
-    return r;
-  }
+  //   return r;
+  // }
 
   render() {
     if (!this.props.notebooks) {
