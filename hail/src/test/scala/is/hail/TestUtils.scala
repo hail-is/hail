@@ -550,43 +550,6 @@ object TestUtils {
     new MatrixTable(hc, MatrixRead(reader.fullType, dropSamples, false, reader))
   }
 
-  def importBgens(hc: HailContext,
-    files: Seq[String],
-    sampleFile: Option[String] = None,
-    includeGT: Boolean = true,
-    includeGP: Boolean = true,
-    includeDosage: Boolean = false,
-    includeVarid: Boolean = true,
-    includeRsid: Boolean = true,
-    nPartitions: Option[Int] = None,
-    blockSizeInMB: Option[Int] = None,
-    indexFileMap: Map[String, String] = null,
-    includedVariants: Option[Table] = None
-  ): MatrixTable = {
-    val referenceGenome = LoadBgen.getReferenceGenome(hc.hadoopConf, files.toArray, indexFileMap)
-
-    val requestedType: MatrixType = MatrixBGENReader.getMatrixType(
-      referenceGenome,
-      includeRsid,
-      includeVarid,
-      includeOffset = false,
-      includeFileIdx = false,
-      includeGT,
-      includeGP,
-      includeDosage
-    )
-
-    val reader = MatrixBGENReader(
-      files, sampleFile, Option(indexFileMap).getOrElse(Map.empty[String, String]), nPartitions,
-      if (nPartitions.isEmpty && blockSizeInMB.isEmpty)
-        Some(128)
-      else
-        blockSizeInMB,
-      includedVariants)
-
-    new MatrixTable(hc, MatrixRead(requestedType, dropCols = false, dropRows = false, reader))
-  }
-
   def importPlink(hc: HailContext,
     bed: String,
     bim: String,
