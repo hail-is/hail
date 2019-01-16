@@ -1,15 +1,9 @@
-// An example header
-// To make anything ssr-only, just replace <Link> with <a>
-// and ofcourse remove the inner <a>
-
 import { PureComponent, Fragment } from 'react';
 import PropTypes from 'prop-types';
 
 import Link from 'next/link';
 import Router, { withRouter } from 'next/router';
 import LoginLink from 'components/Login/Link';
-// import MenuItem from '@material-ui/core/MenuItem';
-// import Menu from '@material-ui/core/Menu';
 
 import classNames from 'classnames';
 
@@ -99,7 +93,7 @@ class Header extends PureComponent {
                 )}
               </span>
             ) : (
-              <LoginLink onLogin={this.props.auth.login} />
+              <LoginLink />
             )}
           </span>
         </div>

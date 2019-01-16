@@ -206,12 +206,13 @@ Auth.getIdToken = req => {
 
 Auth.login = state => {
   if (state) {
-    const opts: auth0.AuthorizeOptions = Object.assign({}, defaultOpts, {
-      state
-    });
-    Auth.auth0instance.authorize(opts);
+    Auth.auth0instance.authorize(
+      Object.assign({}, defaultOpts, {
+        state
+      })
+    );
   } else {
-    Auth.auth0instance.authorize(defaultOpts);
+    Auth.auth0instance.authorize({ prompt: 'login' });
   }
 };
 
