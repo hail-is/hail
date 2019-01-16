@@ -247,7 +247,7 @@ class BlockMatrixIRTests(unittest.TestCase):
 
     def test_parses(self):
         for x in self.block_matrix_irs():
-            Env.hail().expr.ir.IRParser.parse_block_matrix_ir(str(x))
+            Env.hail().expr.ir.IRParser.parse_blockmatrix_ir(str(x))
 
 
 class ValueTests(unittest.TestCase):
