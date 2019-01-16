@@ -2,7 +2,7 @@ package is.hail.utils
 
 import is.hail.SparkSuite
 import is.hail.check._
-import is.hail.expr.ir.{Interpret, Pretty, TableImport}
+import is.hail.expr.ir.{Interpret, Pretty, TableImport, TextTableReader}
 import is.hail.expr.types._
 import is.hail.expr.types.virtual._
 import is.hail.table.Table
