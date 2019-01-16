@@ -801,11 +801,11 @@ object IRParser {
         val children = matrix_ir_children(env)(it)
         MatrixMultiWrite(children, writer)
       case "BlockMatrixWrite" =>
-        val child = block_matrix_ir(env)(it)
         val path = string_literal(it)
         val overwrite = boolean_literal(it)
         val forceRowMajor = boolean_literal(it)
         val stageLocally = boolean_literal(it)
+        val child = block_matrix_ir(env)(it)
         BlockMatrixWrite(child, path, overwrite, forceRowMajor, stageLocally)
       case "JavaIR" =>
         val name = identifier(it)

@@ -957,7 +957,7 @@ class IRSuite extends SparkSuite {
     val bgenReader = MatrixBGENReader(FastIndexedSeq("src/test/resources/example.8bits.bgen"), None, Map.empty[String, String], None, None, None)
     val bgen = MatrixRead(bgenReader.fullType, false, false, bgenReader)
 
-    val blockMatrix = new BlockMatrixLiteral(BlockMatrix.fill(hc, 10, 10, 5))
+    val blockMatrix = BlockMatrixRead("fake_file_path")
 
     val irs = Array(
       i, I64(5), F32(3.14f), F64(3.14), str, True(), False(), Void(),

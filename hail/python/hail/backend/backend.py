@@ -4,6 +4,7 @@ from hail.utils.java import *
 from hail.expr.types import dtype
 from hail.expr.table_type import *
 from hail.expr.matrix_type import *
+from hail.expr.blockmatrix_type import *
 from hail.ir.renderer import Renderer
 from hail.table import Table
 from hail.matrixtable import MatrixTable
@@ -79,6 +80,10 @@ class SparkBackend(Backend):
 
     def unpersist_matrix_table(self, mt, storage_level):
         return MatrixTable._from_java(mt._jmt.unpersist())
+    
+    def blockmatrix_type(self, bmir):
+        jir = self._to_java_ir(bmir)
+        return tblockmatrix._from_java(jir.typ())
 
     def from_spark(self, df, key):
         return Table._from_java(Env.hail().table.Table.fromDF(Env.hc()._jhc, df._jdf, key))

@@ -1,8 +1,5 @@
 import abc
 from .renderer import Renderer
-from hail.expr.matrix_type import *
-from hail.expr.table_type import *
-from hail.expr.blockmatrix_type import *
 from hail.utils.java import Env
 
 
@@ -120,10 +117,16 @@ class BlockMatrixIR(BaseIR):
     def __init__(self):
         super().__init__()
 
+    @abc.abstractmethod
+    def _compute_type(self):
+        raise NotImplementedError(self)
+
     @property
     def typ(self):
-        jbmir = Env.hc()._backend._to_java_ir(self)
-        return tblockmatrix._from_java(jbmir.typ())
+        if self._type is None:
+            self._compute_type()
+            assert self._type is not None, self
+        return self._type
 
     def parse(self, code, ref_map={}, ir_map={}):
         return Env.hail().expr.ir.IRParser.parse_block_matrix_ir(code, ref_map, ir_map)
