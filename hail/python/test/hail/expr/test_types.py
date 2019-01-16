@@ -82,5 +82,3 @@ class Tests(unittest.TestCase):
             c = coercer_from_dtype(t)
             self.assertTrue(c.can_coerce(t))
             self.assertFalse(c.requires_conversion(t))
-
-
