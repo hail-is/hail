@@ -21,8 +21,6 @@ object SparkBackend {
   def executeOrError(sc: SparkContext, ir0: IR, optimize: Boolean = true): Any = {
     var ir = ir0
 
-    println("SparkBackend.execute got", Pretty(ir))
-
     ir = ir.unwrap
     if (optimize)
       ir = Optimize(ir, noisy = true, canGenerateLiterals = true)
@@ -30,8 +28,6 @@ object SparkBackend {
     ir = LowerMatrixIR(ir)
     if (optimize)
       ir = Optimize(ir, noisy = true, canGenerateLiterals = false)
-
-    println("SparkBackend.execute to lower", Pretty(ir))
 
     val pipeline = LowerTableIR.lower(ir)
     Region.scoped { region =>

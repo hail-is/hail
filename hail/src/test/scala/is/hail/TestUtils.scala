@@ -203,9 +203,15 @@ object TestUtils {
       throw new CXXUnsupportedOperation
 
     if (env.m.isEmpty && args.isEmpty) {
-      SparkBackend.executeOrError(HailContext.get.sc, x, optimize = false)
+      val foo = try {
+        SparkBackend.executeOrError(HailContext.get.sc, x, optimize = false)
+      } catch {
+        case e: CXXUnsupportedOperation =>
+          println(e)
+          throw e
+      }
+      foo
     } else {
-
       val inputTypesB = new ArrayBuilder[Type]()
       val inputsB = new ArrayBuilder[Any]()
 

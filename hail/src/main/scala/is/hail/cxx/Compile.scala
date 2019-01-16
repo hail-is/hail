@@ -31,7 +31,7 @@ object Compile {
       Array("Region *" -> "region", "const char *" -> "v"),
       "char *")
 
-    val v = Emit(fb, 1, body)
+    val v = Emit(fb, 1, ir.Subst(body, ir.Env(arg0 -> ir.In(0, arg0Type.virtualType))))
 
     fb +=
       s"""

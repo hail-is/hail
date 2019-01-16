@@ -15,7 +15,7 @@ import is.hail.table.{Ascending, Descending, SortField, Table}
 import is.hail.utils._
 import is.hail.variant.MatrixTable
 import org.apache.spark.sql.Row
-import org.testng.annotations.{DataProvider, Test}
+import org.testng.annotations.{BeforeClass, DataProvider, Test}
 
 object IRSuite {
   outer =>
@@ -69,6 +69,10 @@ object IRSuite {
 }
 
 class IRSuite extends SparkSuite {
+  @BeforeClass def initializeHC() {
+    assert(hc != null)
+  }
+
   @Test def testI32() {
     assertEvalsTo(I32(5), 5)
   }

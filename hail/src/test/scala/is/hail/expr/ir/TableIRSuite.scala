@@ -33,7 +33,11 @@ class TableIRSuite extends SparkSuite {
   }
 
   @Test def testRangeCount() {
-    val node = ApplyBinaryPrimOp(Add(), TableCount(TableRange(10, 2)), TableCount(TableRange(15, 5)))
+    val node1 = TableCount(TableRange(10, 2))
+    val node2 = TableCount(TableRange(15, 5))
+    val node = ApplyBinaryPrimOp(Add(), node1, node2)
+    assertEvalsTo(node1, 10L)
+    assertEvalsTo(node2, 15L)
     assertEvalsTo(node, 25L)
   }
 
@@ -41,6 +45,7 @@ class TableIRSuite extends SparkSuite {
     val t = TableRange(10, 2)
     val row = Ref("row", t.typ.rowType)
     val node = TableCollect(TableMapRows(t, InsertFields(row, FastIndexedSeq("x" -> GetField(row, "idx")))))
+    assertEvalsTo(TableCollect(t), Row(Array.tabulate(10)(Row(_)).toFastIndexedSeq, Row()))
     assertEvalsTo(node, Row(Array.tabulate(10)(i => Row(i, i)).toFastIndexedSeq, Row()))
   }
 
@@ -66,7 +71,6 @@ class TableIRSuite extends SparkSuite {
 
   @Test def testFilter() {
     val kt = getKT
-
     assertEvalsTo(TableCount(TableFilter(kt.tir,
       GetField(Ref("row", kt.typ.rowType), "field1").ceq(3))), 1L)
   }

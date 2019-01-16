@@ -37,8 +37,6 @@ case class SparkPipeline(stages: Map[String, SparkStage], body: IR) {
 
     val ref = Ref(genUID(), inputType)
     val node = MakeTuple(FastSeq(Subst(body, Env[IR](fields.map { case (name, _) => name -> GetField(ref, name) }.toFastSeq : _*))))
-    println(stages)
-    println(node)
     val f = cxx.Compile(ref.name, inputType.physicalType, node, optimize = true)
     val st = new NativeStatus()
     val off = f(st, region.get(), rvb.end())
@@ -176,8 +174,8 @@ object LowerTableIR {
 
     case TableCount(tableIR) =>
       val stage = lower(tableIR)
-      val counts = Ref(genUID(), TArray(TInt32()))
-      SparkPipeline(Map(counts.name -> stage.copy(body = ArrayLen(stage.body))), invoke("sum", counts))
+      val counts = Ref(genUID(), TArray(TInt64()))
+      SparkPipeline(Map(counts.name -> stage.copy(body = Cast(ArrayLen(stage.body), TInt64()))), invoke("sum", counts))
 
     case TableGetGlobals(child) =>
       lower(child).globals.head.value
@@ -195,7 +193,6 @@ object LowerTableIR {
 
     case _ =>
       val pipelines = ir.children.map { case c: IR => lower(c) }
-      print(pipelines)
       SparkPipeline(pipelines.flatMap(_.stages).toMap, ir.copy(pipelines.map(_.body)))
   }
 
