@@ -36,9 +36,11 @@ case class SparkPipeline(stages: Map[String, SparkStage], body: IR) {
     rvb.endStruct()
 
     val ref = Ref(genUID(), inputType)
-    val node = Subst(body, Env[IR](fields.map { case (name, _) => name -> GetField(ref, name) }.toFastSeq : _*))
-    val (typ, f) = Compile[Long, Long](ref.name, inputType.physicalType, MakeTuple(FastSeq(node)))
-    (typ.asInstanceOf[PTuple], f(0)(region, rvb.end(), false))
+    val node = MakeTuple(FastSeq(Subst(body, Env[IR](fields.map { case (name, _) => name -> GetField(ref, name) }.toFastSeq : _*))))
+    val f = cxx.Compile(ref.name, inputType.physicalType, node, optimize = true)
+    val st = new NativeStatus()
+    val off = f(st, region.get(), rvb.end())
+    (node.pType.asInstanceOf[PTuple], off)
   }
 }
 
@@ -75,7 +77,7 @@ case class SparkStage(
     rvb2.endStruct()
 
     val gEncoder = codecSpec.buildEncoder(gType.physicalType)
-    val globsBC = RegionValue.toBytes(gEncoder, region, rvb2.end()
+    val globsBC = RegionValue.toBytes(gEncoder, region, rvb2.end())
     val gDecoder = codecSpec.buildDecoder(gType.physicalType, gType.physicalType)
 
     val env = Env[IR](("context", In(1, contextType)) +: globals.map(b => b.name -> GetField(In(0, gType), b.name)): _*)
@@ -180,10 +182,11 @@ object LowerTableIR {
 
     case TableCollect(child) =>
       val lowered = lower(child)
+      val globals = lowered.globals.head
       val rows = Ref(genUID(), TArray(lowered.body.typ))
       assert(lowered.body.typ.isInstanceOf[TContainer])
       val elt = genUID()
-      SparkPipeline(Map(rows.name -> lowered), ArrayFlatMap(rows, elt, Ref(elt, lowered.body.typ)))
+      SparkPipeline(Map((rows.name, lowered) +: globals.value.stages.toSeq: _*), MakeStruct(FastIndexedSeq("rows" -> ArrayFlatMap(rows, elt, Ref(elt, lowered.body.typ)), "global" -> lowered.globals.head.value.body)))
 
     case node if node.children.exists( _.isInstanceOf[TableIR] ) =>
       throw new cxx.CXXUnsupportedOperation("IR nodes with TableIR children must be defined explicitly")

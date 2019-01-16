@@ -5,6 +5,7 @@ import java.nio.file.{Files, Paths}
 
 import breeze.linalg.{DenseMatrix, Matrix, Vector}
 import is.hail.annotations.{Region, RegionValueBuilder, SafeRow}
+import is.hail.backend.spark.SparkBackend
 import is.hail.cxx.CXXUnsupportedOperation
 import is.hail.expr.ir._
 import is.hail.expr.types.MatrixType
@@ -201,59 +202,64 @@ object TestUtils {
     if (agg.isDefined)
       throw new CXXUnsupportedOperation
 
-    val inputTypesB = new ArrayBuilder[Type]()
-    val inputsB = new ArrayBuilder[Any]()
+    if (env.m.isEmpty && args.isEmpty) {
+      SparkBackend.executeOrError(HailContext.get.sc, x, optimize = false)
+    } else {
 
-    args.foreach { case (v, t) =>
-      inputsB += v
-      inputTypesB += t
-    }
+      val inputTypesB = new ArrayBuilder[Type]()
+      val inputsB = new ArrayBuilder[Any]()
 
-    env.m.foreach { case (name, (v, t)) =>
-      inputsB += v
-      inputTypesB += t
-    }
-
-    val argsType = TTuple(inputTypesB.result(): _*)
-    val resultType = TTuple(x.typ)
-    val argsVar = genUID()
-
-    val (_, substEnv) = env.m.foldLeft((args.length, Env.empty[IR])) { case ((i, env), (name, (v, t))) =>
-      (i + 1, env.bind(name, GetTupleElement(In(0, argsType), i)))
-    }
-
-    def rewrite(x: IR): IR = {
-      x match {
-        case In(i, t) =>
-          GetTupleElement(In(0, argsType), i)
-        case _ =>
-          MapIR(rewrite)(x)
+      args.foreach { case (v, t) =>
+        inputsB += v
+        inputTypesB += t
       }
-    }
 
-    val rewritten = Subst(rewrite(x), substEnv)
-    val f = cxx.Compile(
-      argsVar, argsType.physicalType,
-      MakeTuple(FastSeq(rewritten)), false)
-
-    Region.scoped { region =>
-      val rvb = new RegionValueBuilder(region)
-      rvb.start(argsType.physicalType)
-      rvb.startTuple()
-      var i = 0
-      while (i < inputsB.length) {
-        rvb.addAnnotation(inputTypesB(i), inputsB(i))
-        i += 1
+      env.m.foreach { case (name, (v, t)) =>
+        inputsB += v
+        inputTypesB += t
       }
-      rvb.endTuple()
-      val argsOff = rvb.end()
 
-      using(new NativeStatus) { st =>
-        val st = new NativeStatus()
-        val resultOff = f(st, region.get(), argsOff)
-        assert(st.ok, st.toString())
+      val argsType = TTuple(inputTypesB.result(): _*)
+      val resultType = TTuple(x.typ)
+      val argsVar = genUID()
 
-        SafeRow(resultType.asInstanceOf[TBaseStruct].physicalType, region, resultOff).get(0)
+      val (_, substEnv) = env.m.foldLeft((args.length, Env.empty[IR])) { case ((i, env), (name, (v, t))) =>
+        (i + 1, env.bind(name, GetTupleElement(In(0, argsType), i)))
+      }
+
+      def rewrite(x: IR): IR = {
+        x match {
+          case In(i, t) =>
+            GetTupleElement(In(0, argsType), i)
+          case _ =>
+            MapIR(rewrite)(x)
+        }
+      }
+
+      val rewritten = Subst(rewrite(x), substEnv)
+      val f = cxx.Compile(
+        argsVar, argsType.physicalType,
+        MakeTuple(FastSeq(rewritten)), false)
+
+      Region.scoped { region =>
+        val rvb = new RegionValueBuilder(region)
+        rvb.start(argsType.physicalType)
+        rvb.startTuple()
+        var i = 0
+        while (i < inputsB.length) {
+          rvb.addAnnotation(inputTypesB(i), inputsB(i))
+          i += 1
+        }
+        rvb.endTuple()
+        val argsOff = rvb.end()
+
+        using(new NativeStatus) { st =>
+          val st = new NativeStatus()
+          val resultOff = f(st, region.get(), argsOff)
+          assert(st.ok, st.toString())
+
+          SafeRow(resultType.asInstanceOf[TBaseStruct].physicalType, region, resultOff).get(0)
+        }
       }
     }
   }

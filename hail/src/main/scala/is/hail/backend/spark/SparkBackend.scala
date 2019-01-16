@@ -18,7 +18,7 @@ object SparkBackend {
       JSONAnnotationImpex.exportAnnotation(value, t))
   }
 
-  def execute(sc: SparkContext, ir0: IR, optimize: Boolean = true): Any = {
+  def executeOrError(sc: SparkContext, ir0: IR, optimize: Boolean = true): Any = {
     var ir = ir0
 
     println("SparkBackend.execute got", Pretty(ir))
@@ -33,15 +33,19 @@ object SparkBackend {
 
     println("SparkBackend.execute to lower", Pretty(ir))
 
+    val pipeline = LowerTableIR.lower(ir)
+    Region.scoped { region =>
+      val (t, off) = pipeline.execute(sc, region)
+      SafeRow(t, region, off).get(0)
+    }
+  }
+
+  def execute(sc: SparkContext, ir: IR, optimize: Boolean = true): Any = {
     try {
-      val pipeline = LowerTableIR.lower(ir)
-      Region.scoped { region =>
-        val (t, off) = pipeline.execute(sc, region)
-        SafeRow(t, region, off).get(0)
-      }
+      executeOrError(sc, ir, optimize)
     } catch {
       case e: CXXUnsupportedOperation =>
-        Interpret(ir)
+        Interpret(ir, optimize = optimize)
     }
   }
 }
