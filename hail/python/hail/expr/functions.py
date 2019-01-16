@@ -331,7 +331,7 @@ def bind(f: Callable, *exprs):
     return construct_expr(res_ir, lambda_result.dtype, indices, aggregations)
 
 
-def let(**exprs):
+def let(*exprs):
     """Bind a temporary variable and use it in a function.
 
     This is :func:`.bind` with flipped argument order.
