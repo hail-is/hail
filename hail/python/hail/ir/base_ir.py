@@ -129,4 +129,4 @@ class BlockMatrixIR(BaseIR):
         return self._type
 
     def parse(self, code, ref_map={}, ir_map={}):
-        return Env.hail().expr.ir.IRParser.parse_block_matrix_ir(code, ref_map, ir_map)
+        return Env.hail().expr.ir.IRParser.parse_blockmatrix_ir(code, ref_map, ir_map)

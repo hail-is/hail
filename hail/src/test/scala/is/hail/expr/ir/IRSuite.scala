@@ -1229,7 +1229,7 @@ class IRSuite extends SparkSuite {
   @Test(dataProvider = "blockMatrixIRs")
   def testBlockMatrixIRParser(x: BlockMatrixIR) {
     val s = Pretty(x)
-    val x2 = IRParser.parse_block_matrix_ir(s)
+    val x2 = IRParser.parse_blockmatrix_ir(s)
     assert(x2 == x)
   }
 
@@ -1257,7 +1257,7 @@ class IRSuite extends SparkSuite {
   @Test def testCachedBlockMatrixIR() {
     val cached = new BlockMatrixLiteral(BlockMatrix.fill(hc, 3, 7, 1))
     val s = s"(JavaBlockMatrix __uid1)"
-    val x2 = IRParser.parse_block_matrix_ir(s, IRParserEnvironment(refMap = Map.empty, irMap = Map("__uid1" -> cached)))
+    val x2 = IRParser.parse_blockmatrix_ir(s, IRParserEnvironment(refMap = Map.empty, irMap = Map("__uid1" -> cached)))
     assert(x2 eq cached)
   }
 

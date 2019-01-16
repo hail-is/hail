@@ -1151,11 +1151,11 @@ object IRParser {
     parse_matrix_ir(s, IRParserEnvironment(refMap.asScala.toMap.mapValues(parseType), irMap.asScala.toMap))
   def parse_matrix_ir(s: String, env: IRParserEnvironment): MatrixIR = parse(s, matrix_ir(env))
 
-  def parse_block_matrix_ir(s: String): BlockMatrixIR = parse_block_matrix_ir(s, IRParserEnvironment())
-  def parse_block_matrix_ir(s: String, refMap: java.util.HashMap[String, String], irMap: java.util.HashMap[String, BaseIR])
+  def parse_blockmatrix_ir(s: String): BlockMatrixIR = parse_blockmatrix_ir(s, IRParserEnvironment())
+  def parse_blockmatrix_ir(s: String, refMap: java.util.HashMap[String, String], irMap: java.util.HashMap[String, BaseIR])
   : BlockMatrixIR =
-    parse_block_matrix_ir(s, IRParserEnvironment(refMap.asScala.toMap.mapValues(parseType), irMap.asScala.toMap))
-  def parse_block_matrix_ir(s: String, env: IRParserEnvironment): BlockMatrixIR = parse(s, block_matrix_ir(env))
+    parse_blockmatrix_ir(s, IRParserEnvironment(refMap.asScala.toMap.mapValues(parseType), irMap.asScala.toMap))
+  def parse_blockmatrix_ir(s: String, env: IRParserEnvironment): BlockMatrixIR = parse(s, block_matrix_ir(env))
 
   def parseType(code: String): Type = parse(code, type_expr)
 
