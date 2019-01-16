@@ -2389,5 +2389,5 @@ class Tests(unittest.TestCase):
         assert hl.bit_rshift(1, 1).dtype == hl.tint32
         assert hl.bit_rshift(hl.int64(1), 1).dtype == hl.tint64
 
-        assert hl.bit_flip(1).dtype == hl.tint32
-        assert hl.bit_flip(hl.int64(1)).dtype == hl.tint64
+        assert hl.bit_not(1).dtype == hl.tint32
+        assert hl.bit_not(hl.int64(1)).dtype == hl.tint64

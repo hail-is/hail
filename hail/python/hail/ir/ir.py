@@ -379,7 +379,6 @@ class ApplyBinaryOp(IR):
     def _compute_type(self, env, agg_env):
         self.l._compute_type(env, agg_env)
         self.r._compute_type(env, agg_env)
-        assert self.l.typ == self.r.typ
         if self.op == '/':
             if self.l.typ == tfloat64:
                 self._type = tfloat64

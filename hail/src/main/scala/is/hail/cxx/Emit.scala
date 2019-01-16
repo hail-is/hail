@@ -287,6 +287,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
           case ir.BitXOr() => s"${ lt.v } ^ ${ rt.v }"
           case ir.LeftShift() => s"${ lt.v } << ${ rt.v }"
           case ir.RightShift() => s"${ lt.v } >> ${ rt.v }"
+          case ir.LogicalRightShift() => s"${ lt.v } >>> ${ rt.v }"
         }
 
         triplet(Code(lt.setup, rt.setup), s"${ lt.m } || ${ rt.m }", v)
@@ -297,7 +298,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
         val v = op match {
           case ir.Bang() => s"! ${ t.v }"
           case ir.Negate() => s"- ${ t.v }"
-          case ir.BitFlip() => s"~ ${ t.v }"
+          case ir.BitNot() => s"~ ${ t.v }"
         }
 
         triplet(t.setup, t.m, v)

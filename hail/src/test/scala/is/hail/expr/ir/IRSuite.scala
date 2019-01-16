@@ -157,11 +157,12 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testApplyUnaryPrimOpBitFlip() {
-    assertEvalsTo(ApplyUnaryPrimOp(BitFlip(), I32(0xdeadbeef)), ~0xdeadbeef)
-    assertEvalsTo(ApplyUnaryPrimOp(BitFlip(), i32na), null)
-    assertEvalsTo(ApplyUnaryPrimOp(BitFlip(), I64(0xdeadbeef12345678L)), ~0xdeadbeef12345678L)
-    assertEvalsTo(ApplyUnaryPrimOp(BitFlip(), i64na), null)
-
+    assertEvalsTo(ApplyUnaryPrimOp(BitNot(), I32(0xdeadbeef)), ~0xdeadbeef)
+    assertEvalsTo(ApplyUnaryPrimOp(BitNot(), I32(-0xdeadbeef)), ~(-0xdeadbeef))
+    assertEvalsTo(ApplyUnaryPrimOp(BitNot(), i32na), null)
+    assertEvalsTo(ApplyUnaryPrimOp(BitNot(), I64(0xdeadbeef12345678L)), ~0xdeadbeef12345678L)
+    assertEvalsTo(ApplyUnaryPrimOp(BitNot(), I64(-0xdeadbeef12345678L)), ~(-0xdeadbeef12345678L))
+    assertEvalsTo(ApplyUnaryPrimOp(BitNot(), i64na), null)
   }
 
   @Test def testApplyBinaryPrimOpAdd() {
@@ -276,11 +277,17 @@ class IRSuite extends SparkSuite {
 
   @Test def testApplyBinaryPrimOpBitAnd(): Unit = {
     assertEvalsTo(ApplyBinaryPrimOp(BitAnd(), I32(5), I32(2)), 5 & 2)
+    assertEvalsTo(ApplyBinaryPrimOp(BitAnd(), I32(-5), I32(2)), -5 & 2)
+    assertEvalsTo(ApplyBinaryPrimOp(BitAnd(), I32(5), I32(-2)), 5 & -2)
+    assertEvalsTo(ApplyBinaryPrimOp(BitAnd(), I32(-5), I32(-2)), -5 & -2)
     assertEvalsTo(ApplyBinaryPrimOp(BitAnd(), I32(5), i32na), null)
     assertEvalsTo(ApplyBinaryPrimOp(BitAnd(), i32na, I32(2)), null)
     assertEvalsTo(ApplyBinaryPrimOp(BitAnd(), i32na, i32na), null)
 
     assertEvalsTo(ApplyBinaryPrimOp(BitAnd(), I64(5), I64(2)), 5L & 2L)
+    assertEvalsTo(ApplyBinaryPrimOp(BitAnd(), I64(-5), I64(2)), -5L & 2L)
+    assertEvalsTo(ApplyBinaryPrimOp(BitAnd(), I64(5), I64(-2)), 5L & -2L)
+    assertEvalsTo(ApplyBinaryPrimOp(BitAnd(), I64(-5), I64(-2)), -5L & -2L)
     assertEvalsTo(ApplyBinaryPrimOp(BitAnd(), I64(5), i64na), null)
     assertEvalsTo(ApplyBinaryPrimOp(BitAnd(), i64na, I64(2)), null)
     assertEvalsTo(ApplyBinaryPrimOp(BitAnd(), i64na, i64na), null)
@@ -288,11 +295,17 @@ class IRSuite extends SparkSuite {
 
   @Test def testApplyBinaryPrimOpBitOr(): Unit = {
     assertEvalsTo(ApplyBinaryPrimOp(BitOr(), I32(5), I32(2)), 5 | 2)
+    assertEvalsTo(ApplyBinaryPrimOp(BitOr(), I32(-5), I32(2)), -5 | 2)
+    assertEvalsTo(ApplyBinaryPrimOp(BitOr(), I32(5), I32(-2)), 5 | -2)
+    assertEvalsTo(ApplyBinaryPrimOp(BitOr(), I32(-5), I32(-2)), -5 | -2)
     assertEvalsTo(ApplyBinaryPrimOp(BitOr(), I32(5), i32na), null)
     assertEvalsTo(ApplyBinaryPrimOp(BitOr(), i32na, I32(2)), null)
     assertEvalsTo(ApplyBinaryPrimOp(BitOr(), i32na, i32na), null)
 
     assertEvalsTo(ApplyBinaryPrimOp(BitOr(), I64(5), I64(2)), 5L | 2L)
+    assertEvalsTo(ApplyBinaryPrimOp(BitOr(), I64(-5), I64(2)), -5L | 2L)
+    assertEvalsTo(ApplyBinaryPrimOp(BitOr(), I64(5), I64(-2)), 5L | -2L)
+    assertEvalsTo(ApplyBinaryPrimOp(BitOr(), I64(-5), I64(-2)), -5L | -2L)
     assertEvalsTo(ApplyBinaryPrimOp(BitOr(), I64(5), i64na), null)
     assertEvalsTo(ApplyBinaryPrimOp(BitOr(), i64na, I64(2)), null)
     assertEvalsTo(ApplyBinaryPrimOp(BitOr(), i64na, i64na), null)
@@ -300,11 +313,17 @@ class IRSuite extends SparkSuite {
 
   @Test def testApplyBinaryPrimOpBitXOr(): Unit = {
     assertEvalsTo(ApplyBinaryPrimOp(BitXOr(), I32(5), I32(2)), 5 ^ 2)
+    assertEvalsTo(ApplyBinaryPrimOp(BitXOr(), I32(-5), I32(2)), -5 ^ 2)
+    assertEvalsTo(ApplyBinaryPrimOp(BitXOr(), I32(5), I32(-2)), 5 ^ -2)
+    assertEvalsTo(ApplyBinaryPrimOp(BitXOr(), I32(-5), I32(-2)), -5 ^ -2)
     assertEvalsTo(ApplyBinaryPrimOp(BitXOr(), I32(5), i32na), null)
     assertEvalsTo(ApplyBinaryPrimOp(BitXOr(), i32na, I32(2)), null)
     assertEvalsTo(ApplyBinaryPrimOp(BitXOr(), i32na, i32na), null)
 
     assertEvalsTo(ApplyBinaryPrimOp(BitXOr(), I64(5), I64(2)), 5L ^ 2L)
+    assertEvalsTo(ApplyBinaryPrimOp(BitOr(), I64(-5), I64(2)), -5L ^ 2L)
+    assertEvalsTo(ApplyBinaryPrimOp(BitOr(), I64(5), I64(-2)), 5L ^ -2L)
+    assertEvalsTo(ApplyBinaryPrimOp(BitOr(), I64(-5), I64(-2)), -5L ^ -2L)
     assertEvalsTo(ApplyBinaryPrimOp(BitXOr(), I64(5), i64na), null)
     assertEvalsTo(ApplyBinaryPrimOp(BitXOr(), i64na, I64(2)), null)
     assertEvalsTo(ApplyBinaryPrimOp(BitXOr(), i64na, i64na), null)
@@ -312,11 +331,17 @@ class IRSuite extends SparkSuite {
 
   @Test def testApplyBinaryPrimOpLeftShift(): Unit = {
     assertEvalsTo(ApplyBinaryPrimOp(LeftShift(), I32(5), I32(2)), 5 << 2)
+    assertEvalsTo(ApplyBinaryPrimOp(LeftShift(), I32(-5), I32(2)), -5 << 2)
+    assertEvalsTo(ApplyBinaryPrimOp(LeftShift(), I32(5), I32(-2)), 5 << -2)
+    assertEvalsTo(ApplyBinaryPrimOp(LeftShift(), I32(-5), I32(-2)), -5 << -2)
     assertEvalsTo(ApplyBinaryPrimOp(LeftShift(), I32(5), i32na), null)
     assertEvalsTo(ApplyBinaryPrimOp(LeftShift(), i32na, I32(2)), null)
     assertEvalsTo(ApplyBinaryPrimOp(LeftShift(), i32na, i32na), null)
 
     assertEvalsTo(ApplyBinaryPrimOp(LeftShift(), I64(5), I32(2)), 5L << 2)
+    assertEvalsTo(ApplyBinaryPrimOp(LeftShift(), I64(-5), I64(2)), -5L<< 2)
+    assertEvalsTo(ApplyBinaryPrimOp(LeftShift(), I64(5), I64(-2)), 5L << -2)
+    assertEvalsTo(ApplyBinaryPrimOp(LeftShift(), I64(-5), I64(-2)), -5L << -2)
     assertEvalsTo(ApplyBinaryPrimOp(LeftShift(), I64(5), i32na), null)
     assertEvalsTo(ApplyBinaryPrimOp(LeftShift(), i64na, I32(2)), null)
     assertEvalsTo(ApplyBinaryPrimOp(LeftShift(), i64na, i32na), null)
@@ -324,14 +349,38 @@ class IRSuite extends SparkSuite {
 
   @Test def testApplyBinaryPrimOpRightShift(): Unit = {
     assertEvalsTo(ApplyBinaryPrimOp(RightShift(), I32(0xff5), I32(2)), 0xff5 >> 2)
+    assertEvalsTo(ApplyBinaryPrimOp(RightShift(), I32(-5), I32(2)), -5 >> 2)
+    assertEvalsTo(ApplyBinaryPrimOp(RightShift(), I32(5), I32(-2)), 5 >> -2)
+    assertEvalsTo(ApplyBinaryPrimOp(RightShift(), I32(-5), I32(-2)), -5 >> -2)
     assertEvalsTo(ApplyBinaryPrimOp(RightShift(), I32(5), i32na), null)
     assertEvalsTo(ApplyBinaryPrimOp(RightShift(), i32na, I32(2)), null)
     assertEvalsTo(ApplyBinaryPrimOp(RightShift(), i32na, i32na), null)
 
     assertEvalsTo(ApplyBinaryPrimOp(RightShift(), I64(0xffff5), I32(2)), 0xffff5L >> 2)
+    assertEvalsTo(ApplyBinaryPrimOp(RightShift(), I64(-5), I64(2)), -5L>> 2)
+    assertEvalsTo(ApplyBinaryPrimOp(RightShift(), I64(5), I64(-2)), 5L >> -2)
+    assertEvalsTo(ApplyBinaryPrimOp(RightShift(), I64(-5), I64(-2)), -5L >> -2)
     assertEvalsTo(ApplyBinaryPrimOp(RightShift(), I64(5), i32na), null)
     assertEvalsTo(ApplyBinaryPrimOp(RightShift(), i64na, I32(2)), null)
     assertEvalsTo(ApplyBinaryPrimOp(RightShift(), i64na, i32na), null)
+  }
+
+  @Test def testApplyBinaryPrimOpLogicalRightShift(): Unit = {
+    assertEvalsTo(ApplyBinaryPrimOp(LogicalRightShift(), I32(0xff5), I32(2)), 0xff5 >>> 2)
+    assertEvalsTo(ApplyBinaryPrimOp(LogicalRightShift(), I32(-5), I32(2)), -5 >>> 2)
+    assertEvalsTo(ApplyBinaryPrimOp(LogicalRightShift(), I32(5), I32(-2)), 5 >>> -2)
+    assertEvalsTo(ApplyBinaryPrimOp(LogicalRightShift(), I32(-5), I32(-2)), -5 >>> -2)
+    assertEvalsTo(ApplyBinaryPrimOp(LogicalRightShift(), I32(5), i32na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(LogicalRightShift(), i32na, I32(2)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(LogicalRightShift(), i32na, i32na), null)
+
+    assertEvalsTo(ApplyBinaryPrimOp(LogicalRightShift(), I64(0xffff5), I32(2)), 0xffff5L >>> 2)
+    assertEvalsTo(ApplyBinaryPrimOp(LogicalRightShift(), I64(-5), I64(2)), -5L>>> 2)
+    assertEvalsTo(ApplyBinaryPrimOp(LogicalRightShift(), I64(5), I64(-2)), 5L >>> -2)
+    assertEvalsTo(ApplyBinaryPrimOp(LogicalRightShift(), I64(-5), I64(-2)), -5L >>> -2)
+    assertEvalsTo(ApplyBinaryPrimOp(LogicalRightShift(), I64(5), i32na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(LogicalRightShift(), i64na, I32(2)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(LogicalRightShift(), i64na, i32na), null)
   }
 
   @Test def testIf() {

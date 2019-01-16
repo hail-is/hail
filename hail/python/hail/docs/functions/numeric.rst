@@ -13,7 +13,7 @@ Numeric functions
     bit_xor
     bit_lshift
     bit_rshift
-    bit_flip
+    bit_not
     exp
     is_nan
     is_finite
@@ -55,7 +55,7 @@ Numeric functions
 .. autofunction:: bit_xor
 .. autofunction:: bit_lshift
 .. autofunction:: bit_rshift
-.. autofunction:: bit_flip
+.. autofunction:: bit_not
 .. autofunction:: exp
 .. autofunction:: is_nan
 .. autofunction:: is_finite

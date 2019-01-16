@@ -4455,33 +4455,6 @@ def bit_xor(x, y):
     return _bit_op(x, y, '^')
 
 
-@typecheck(x=expr_oneof(expr_int32, expr_int64), y=expr_oneof(expr_int32, expr_int64))
-def bit_xor(x, y):
-    """Bitwise exclusive-or `x` and `y`.
-
-    Examples
-    --------
-    >>> hl.eval(hl.bit_xor(5, 3))
-    6
-
-    Notes
-    -----
-    See `the Python wiki <https://wiki.python.org/moin/BitwiseOperators>`__
-    for more information about bit operators.
-
-
-    Parameters
-    ----------
-    x : :class:`.Int32Expression` or :class:`.Int64Expression`
-    y : :class:`.Int32Expression` or :class:`.Int64Expression`
-
-    Returns
-    -------
-    :class:`.Int32Expression` or :class:`.Int64Expression`
-    """
-    return _bit_op(x, y, '^')
-
-
 @typecheck(x=expr_oneof(expr_int32, expr_int64), y=expr_int32)
 def bit_lshift(x, y):
     """Bitwise left-shift `x` by `y`.
@@ -4494,11 +4467,25 @@ def bit_lshift(x, y):
     >>> hl.eval(hl.bit_lshift(1, 8))
     256
 
+    Unlike Python, Hail integers are fixed-size (32 or 64 bits),
+    and bits extended beyond will be ignored:
+
+    >>> hl.eval(hl.bit_lshift(1, 31))
+    -2147483648
+
+    >>> hl.eval(hl.bit_lshift(1, 32))
+    1
+
+    >>> hl.eval(hl.bit_lshift(hl.int64(1), 32))
+    4294967296
+
+    >>> hl.eval(hl.bit_lshift(hl.int64(1), 64))
+    1
+
     Notes
     -----
     See `the Python wiki <https://wiki.python.org/moin/BitwiseOperators>`__
     for more information about bit operators.
-
 
     Parameters
     ----------
@@ -4512,8 +4499,8 @@ def bit_lshift(x, y):
     return _bit_op(x, y, '<<', unify_type=False)
 
 
-@typecheck(x=expr_oneof(expr_int32, expr_int64), y=expr_int32)
-def bit_rshift(x, y):
+@typecheck(x=expr_oneof(expr_int32, expr_int64), y=expr_int32, logical=builtins.bool)
+def bit_rshift(x, y, logical=False):
     """Bitwise right-shift `x` by `y`.
 
     Examples
@@ -4521,31 +4508,48 @@ def bit_rshift(x, y):
     >>> hl.eval(hl.bit_rshift(256, 3))
     32
 
+    With ``logical=False`` (default), the sign is preserved:
+
+    >>> hl.eval(hl.bit_rshift(-1, 1))
+    -1
+
+    With ``logical=True``, the sign bit is treated as any other:
+
+    >>> hl.eval(hl.bit_rshift(-1, 1, logical=True))
+    2147483647
+
     Notes
     -----
+    If `logical` is ``False``, then the shift is a sign-preserving right shift.
+    If `logical` is ``True``, then the shift is logical, with the sign bit
+    treated as any other bit.
+
     See `the Python wiki <https://wiki.python.org/moin/BitwiseOperators>`__
     for more information about bit operators.
-
 
     Parameters
     ----------
     x : :class:`.Int32Expression` or :class:`.Int64Expression`
     y : :class:`.Int32Expression` or :class:`.Int64Expression`
+    logical : :obj:`bool`
 
     Returns
     -------
     :class:`.Int32Expression` or :class:`.Int64Expression`
     """
-    return _bit_op(x, y, '>>', unify_type=False)
+    if logical:
+        return _bit_op(x, y, '>>>', unify_type=False)
+    else:
+        return _bit_op(x, y, '>>', unify_type=False)
 
 
 @typecheck(x=expr_oneof(expr_int32, expr_int64))
-def bit_flip(x):
+def bit_not(x):
     """Bitwise invert `x`.
 
     Examples
     --------
-    >>> hl.eval(hl.bit_flip(0))
+    >>> hl.eval(hl.bit_not(0))
     -1
 
     Notes

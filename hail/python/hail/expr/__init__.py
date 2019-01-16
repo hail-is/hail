@@ -160,5 +160,5 @@ __all__ = ['HailType',
            'bit_xor',
            'bit_lshift',
            'bit_rshift',
-           'bit_flip',
+           'bit_not',
            ]

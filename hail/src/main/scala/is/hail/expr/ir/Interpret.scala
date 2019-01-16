@@ -171,6 +171,7 @@ object Interpret {
                 case BitXOr() => ll ^ rr
                 case LeftShift() => ll << rr
                 case RightShift() => ll >> rr
+                case LogicalRightShift() => ll >>> rr
               }
             case (_: TInt64, _: TInt32) =>
               val ll = lValue.asInstanceOf[Long]
@@ -178,6 +179,7 @@ object Interpret {
               op match {
                 case LeftShift() => ll << rr
                 case RightShift() => ll >> rr
+                case LogicalRightShift() => ll >>> rr
               }
             case (_: TInt64, _: TInt64) =>
               val ll = lValue.asInstanceOf[Long]
@@ -231,7 +233,7 @@ object Interpret {
               case TFloat32(_) => -xValue.asInstanceOf[Float]
               case TFloat64(_) => -xValue.asInstanceOf[Double]
             }
-          case BitFlip() =>
+          case BitNot() =>
             x.typ match {
               case _: TInt32 => ~xValue.asInstanceOf[Int]
               case _: TInt64 => ~xValue.asInstanceOf[Long]

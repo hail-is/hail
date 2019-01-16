@@ -15,7 +15,7 @@ object BinaryOp {
     case (Add() | Subtract() | Multiply() | RoundToNegInfDivide() | BitAnd() | BitOr() | BitXOr(), _: TInt64, _: TInt64) => TInt64()
     case (Add() | Subtract() | Multiply() | RoundToNegInfDivide(), _: TFloat32, _: TFloat32) => TFloat32()
     case (Add() | Subtract() | Multiply() | RoundToNegInfDivide(), _: TFloat64, _: TFloat64) => TFloat64()
-    case (LeftShift() | RightShift(), t@(_: TInt32 | _: TInt64), _: TInt32) => t
+    case (LeftShift() | RightShift() | LogicalRightShift(), t@(_: TInt32 | _: TInt64), _: TInt32) => t
   }
 
   def defaultDivideOp(t: Type): BinaryOp = t match {
@@ -48,6 +48,7 @@ object BinaryOp {
           case BitXOr() => ll ^ rr
           case LeftShift() => ll << rr
           case RightShift() => ll >> rr
+          case LogicalRightShift() => ll >>> rr
           case _ => incompatible(lt, rt, op)
         }
       case (_: TInt64, _: TInt32) =>
@@ -56,10 +57,10 @@ object BinaryOp {
         op match {
           case LeftShift() => ll << rr
           case RightShift() => ll >> rr
+          case LogicalRightShift() => ll >>> rr
         }
       case (_: TInt64, _: TInt64) =>
         val ll = coerce[Long](l)
-
         val rr = coerce[Long](r)
         op match {
           case Add() => ll + rr
@@ -112,8 +113,10 @@ object BinaryOp {
     case "//" | "RoundToNegInfDivide" => RoundToNegInfDivide()
     case "|" | "BitOr" => BitOr()
     case "&" | "BitAnd" => BitAnd()
+    case "^" | "BitXOr" => BitXOr()
     case "<<" | "LeftShift" => LeftShift()
     case ">>" | "RightShift" => RightShift()
+    case ">>>" | "LogicalRightShift" => LogicalRightShift()
   }
 }
 
@@ -138,3 +141,5 @@ case class BitXOr() extends BinaryOp
 case class LeftShift() extends BinaryOp
 
 case class RightShift() extends BinaryOp
+
+case class LogicalRightShift() extends BinaryOp
