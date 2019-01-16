@@ -93,7 +93,16 @@ class Header extends PureComponent {
                 )}
               </span>
             ) : (
-              <LoginLink />
+              <Link href="/login" passHref>
+                <a
+                  aria-label="Login"
+                  className={classNames('link-button', {
+                    'is-active': pathname === '/login'
+                  })}
+                >
+                  Login
+                </a>
+              </Link>
             )}
           </span>
         </div>

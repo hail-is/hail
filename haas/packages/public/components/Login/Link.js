@@ -1,9 +1,14 @@
 import Auth from 'lib/Auth';
 
-const loginFn = () => Auth.login();
+const loginAction = () => Auth.login();
 
 const Link = () => (
-  <a color="default" label="Log In" className="link-button" onClick={loginFn}>
+  <a
+    color="default"
+    label="Log In"
+    className="link-button"
+    onClick={loginAction}
+  >
     Login
   </a>
 );

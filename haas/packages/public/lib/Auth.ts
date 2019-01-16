@@ -57,10 +57,6 @@ declare type state = {
   loggedOutReason: string | null;
 };
 
-declare type loginState = {
-  token: string;
-};
-
 declare type Auth = {
   state: state;
   auth0instance: auth0.WebAuth;
@@ -69,7 +65,7 @@ declare type Auth = {
   getAccessToken(req?: any): string | null;
   getIdToken(req?: any): string | null;
   getUserID(): string | null;
-  login(state?: loginState): void;
+  login(state?: string): void;
   logout(reason?: string): void;
   initializeState(req?: any): void;
   initializeClient(): void;
@@ -85,8 +81,6 @@ const keys = {
   user: 'user',
   exp: 'expires_at'
 };
-
-const defaultOpts: auth0.AuthorizeOptions = { prompt: 'login' };
 
 const Auth = {} as Auth;
 
@@ -206,13 +200,15 @@ Auth.getIdToken = req => {
 
 Auth.login = state => {
   if (state) {
-    Auth.auth0instance.authorize(
-      Object.assign({}, defaultOpts, {
-        state
-      })
-    );
+    Auth.auth0instance.authorize({
+      prompt: 'login',
+      state
+    });
   } else {
-    Auth.auth0instance.authorize({ prompt: 'login' });
+    Auth.auth0instance.authorize({
+      prompt: 'login',
+      state: 'blah'
+    });
   }
 };
 
@@ -220,8 +216,6 @@ Auth.handleAuthenticationAsync = (cb: authCallback) => {
   Auth.auth0instance.parseHash((err, authResult: any) => {
     if (authResult && authResult.accessToken && authResult.idToken) {
       setSession(authResult);
-    } else if (err) {
-      console.log(err);
     }
 
     cb(err, Auth.state);
