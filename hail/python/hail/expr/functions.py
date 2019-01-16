@@ -4491,7 +4491,7 @@ def bit_lshift(x, y):
     >>> hl.eval(hl.bit_lshift(5, 3))
     40
 
-    >>> hl.evla(hl.bit_lshift(1, 8))
+    >>> hl.eval(hl.bit_lshift(1, 8))
     256
 
     Notes
