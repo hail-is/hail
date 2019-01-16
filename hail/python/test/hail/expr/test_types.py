@@ -82,3 +82,11 @@ class Tests(unittest.TestCase):
             c = coercer_from_dtype(t)
             self.assertTrue(c.can_coerce(t))
             self.assertFalse(c.requires_conversion(t))
+
+    def test_issue_5147(self):
+        csqs = hl.array([1, 0, 2])
+        s = hl.array([hl.struct(x=hl.int32(0))])
+        f = csqs.find(lambda c: s.map(lambda elt: elt.x).contains(c)),
+        t = hl.utils.range_table(10, 2)
+        t = t.annotate(f=f)
+        t.show()
