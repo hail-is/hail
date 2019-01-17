@@ -6,6 +6,7 @@ import is.hail.expr.types.physical.{PArray, PStruct, PType}
 import is.hail.expr.types.virtual._
 import is.hail.expr.types.{MatrixType, TableType}
 import is.hail.io.CodecSpec
+import is.hail.linalg.RowMatrix
 import is.hail.rvd.{AbstractRVDSpec, RVD, RVDType, _}
 import is.hail.sparkextras.ContextRDD
 import is.hail.table.TableSpec
@@ -351,7 +352,60 @@ case class MatrixValue(
           }
         })
     }
+
+  def toRowMatrix(entryField: String): RowMatrix = {
+    // FIXME
+    val partCounts: Array[Long] = rvd.countPerPartition()
+    val partStarts = partCounts.scanLeft(0L)(_ + _)
+    assert(partStarts.length == rvd.getNumPartitions + 1)
+    val partStartsBc = sparkContext.broadcast(partStarts)
+
+    val rvRowType = typ.rvRowType.physicalType
+    val entryArrayType = typ.entryArrayType.physicalType
+    val entryType = typ.entryType.physicalType
+    val fieldType = entryType.field(entryField).typ
+
+    assert(fieldType.virtualType.isOfType(TFloat64()))
+
+    val entryArrayIdx = typ.entriesIdx
+    val fieldIdx = entryType.fieldIdx(entryField)
+    val numColsLocal = nCols
+
+    val rows = rvd.mapPartitionsWithIndex { (pi, it) =>
+      var i = partStartsBc.value(pi)
+      it.map { rv =>
+        val region = rv.region
+        val data = new Array[Double](numColsLocal)
+        val entryArrayOffset = rvRowType.loadField(rv, entryArrayIdx)
+        var j = 0
+        while (j < numColsLocal) {
+          if (entryArrayType.isElementDefined(region, entryArrayOffset, j)) {
+            val entryOffset = entryArrayType.loadElement(region, entryArrayOffset, j)
+            if (entryType.isFieldDefined(region, entryOffset, fieldIdx)) {
+              val fieldOffset = entryType.loadField(region, entryOffset, fieldIdx)
+              data(j) = region.loadDouble(fieldOffset)
+            } else
+              fatal(s"Cannot create RowMatrix: missing value at row $i and col $j")
+          } else
+            fatal(s"Cannot create RowMatrix: missing entry at row $i and col $j")
+          j += 1
+        }
+        val row = (i, data)
+        i += 1
+        row
+      }
+    }
+
+    new RowMatrix(HailContext.get, rows, nCols, Some(partStarts.last), Some(partCounts))
   }
+
+  def typeCheck(): Unit = {
+    assert(typ.globalType.typeCheck(globals.value))
+    assert(TArray(typ.colType).typeCheck(colValues.value))
+    val localRVRowType = typ.rvRowType
+    assert(rvd.toRows.forall(r => localRVRowType.typeCheck(r)))
+  }
+}
 
 object MatrixValue {
   def writeMultiple(
