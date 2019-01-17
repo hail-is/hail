@@ -15,7 +15,8 @@ from hail.ir import *
 @typecheck(i=Expression,
            j=Expression,
            keep=bool,
-           tie_breaker=nullable(func_spec(2, expr_numeric)))
+           tie_breaker=nullable(func_spec(2, expr_numeric)),
+           keyed=bool)
 def maximal_independent_set(i, j, keep=True, tie_breaker=None, keyed=True) -> Table:
     """Return a table containing the vertices in a near
     `maximal independent set <https://en.wikipedia.org/wiki/Maximal_independent_set>`_
@@ -150,7 +151,12 @@ def maximal_independent_set(i, j, keep=True, tie_breaker=None, keyed=True) -> Ta
     nodes = nodes.key_by()
     nodes = nodes.select('node')
     nodes = nodes.explode('node')
-    nodes = nodes.filter(hl.literal(mis_nodes).contains(nodes.node), keep)
+    # avoid serializing `mis_nodes` from java to python and back to java
+    nodes = Table._from_java(
+        nodes._jt.annotateGlobal(
+            mis_nodes, hl.tset(node_t)._parsable_string(), 'mis_nodes'))
+    nodes = nodes.filter(nodes.mis_nodes.contains(nodes.node), keep)
+    nodes = nodes.select_globals()
     if keyed:
         return nodes.key_by('node')
     return nodes
