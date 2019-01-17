@@ -68,16 +68,16 @@ class SparkBackend(Backend):
         return tmatrix._from_java(jir.typ())
 
     def persist_table(self, ht, storage_level):
-        return Table._from_java(ht._jt.persist(storage_level), 'Table.persist')
+        return Table._from_java(ht._jt.persist(storage_level))
 
     def unpersist_table(self, ht):
-        return Table._from_java(ht._jt.unpersist(), 'Table.unpersist')
+        return Table._from_java(ht._jt.unpersist())
 
     def persist_matrix_table(self, mt, storage_level):
-        return MatrixTable._from_java(mt._jmt.persist(storage_level), 'MatrixTable.persist')
+        return MatrixTable._from_java(mt._jmt.persist(storage_level))
 
     def unpersist_matrix_table(self, mt, storage_level):
-        return MatrixTable._from_java(mt._jmt.unpersist(), 'MatrixTable.unpersist')
+        return MatrixTable._from_java(mt._jmt.unpersist())
 
     def from_spark(self, df, key):
         return Table._from_java(Env.hail().table.Table.fromDF(Env.hc()._jhc, df._jdf, key))
