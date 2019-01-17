@@ -117,6 +117,12 @@ object IRBuilder {
 
     def len: IRProxy = (env: E) => ArrayLen(ir(env))
 
+    def orElse(alt: IRProxy): IRProxy = { env: E =>
+      val uid = genUID()
+      val eir = ir(env)
+      Let(uid, eir, If(IsNA(Ref(uid, eir.typ)), alt(env), Ref(uid, eir.typ)))
+    }
+
     def filter(pred: LambdaProxy): IRProxy = (env: E) => {
       val array = ir(env)
       val eltType = array.typ.asInstanceOf[TArray].elementType
