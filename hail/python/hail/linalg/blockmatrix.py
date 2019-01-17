@@ -248,7 +248,7 @@ class BlockMatrix(object):
         if self._cached_jbm is not None:
             return self._cached_jbm
         else:
-            self._cached_jbm =g Env.hc()._backend._to_java_ir(self._bmir).execute(Env.hc()._jhc)
+            self._cached_jbm = Env.hc()._backend._to_java_ir(self._bmir).execute(Env.hc()._jhc)
             return self._cached_jbm
 
     @classmethod
