@@ -1802,7 +1802,7 @@ class TableToValueApply(IR):
 
     def _compute_type(self, env, agg_env):
         name = self.config['name']
-        assert name == 'ForceCountMatrixTable', name
+        assert name == 'ForceCountTable', name
         self._type = tint64
 
 
