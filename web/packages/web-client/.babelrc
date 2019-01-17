@@ -1,0 +1,17 @@
+{
+  "presets": ["next/babel", "@zeit/next-typescript/babel"],
+  // https://github.com/zeit/next.js/blob/master/examples/with-absolute-imports/.babelrc
+  "plugins": [
+    [
+      "module-resolver",
+      {
+        "root": ["./"],
+        "alias": {
+          "components": "./components",
+          "libs": "./libs",
+          "pages": "./pages"
+        }
+      }
+    ]
+  ]
+}

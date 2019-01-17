@@ -4,14 +4,9 @@
   "description": "Hail Web Client (Isomorphic JS)",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "check": "gts check",
-    "clean": "gts clean",
-    "compile": "tsc -p .",
-    "fix": "gts fix",
-    "prepare": "npm run compile",
-    "pretest": "npm run compile",
-    "posttest": "npm run check"
+    "dev": "next",
+    "build": "next build",
+    "start": "NODE_ENV=production SSL=true next start"
   },
   "repository": {
     "type": "git",
@@ -28,12 +23,24 @@
   },
   "homepage": "https://github.com/hail-is/hail#readme",
   "dependencies": {
+    "@zeit/next-typescript": "^1.1.1",
+    "auth0-js": "^9.9.0",
     "next": "^7.0.2-canary.50",
     "react": "^16.7.0",
     "react-dom": "^16.7.0"
   },
   "devDependencies": {
-    "gts": "^0.9.0",
-    "typescript": "~3.1.0"
+    "@types/next": "^7.0.6",
+    "@types/react": "^16.7.20",
+    "@types/react-dom": "^16.0.11",
+    "@zeit/next-css": "^1.0.1",
+    "@zeit/next-sass": "^1.0.1",
+    "babel-plugin-module-resolver": "^3.1.2",
+    "fork-ts-checker-webpack-plugin": "^0.5.2",
+    "next-purgecss": "^3.0.0",
+    "node-sass": "^4.11.0",
+    "prettier": "^1.15.3",
+    "tslint": "^5.12.1",
+    "typescript": "^3.1.6"
   }
 }
