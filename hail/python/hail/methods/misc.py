@@ -6,7 +6,7 @@ from hail.expr.types import *
 from hail.matrixtable import MatrixTable
 from hail.table import Table
 from hail.typecheck import *
-from hail.utils import Interval, Struct
+from hail.utils import Interval, Struct, new_temp_file
 from hail.utils.misc import plural
 from hail.utils.java import Env, joption, info
 from hail.ir import *
@@ -140,6 +140,10 @@ def maximal_independent_set(i, j, keep=True, tie_breaker=None, keyed=True) -> Ta
     else:
         t, _ = source._process_joins(i, j)
         tie_breaker_str = None
+
+    t_path = new_temp_file()
+    t.write(t_path)
+    t = hl.read_table(t_path)
 
     edges = t.select(__i=i, __j=j).key_by().select('__i', '__j')
     mis_nodes = Env.hail().utils.Graph.maximalIndependentSet(
