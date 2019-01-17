@@ -2888,7 +2888,7 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
             Persisted dataset.
         """
-        return MatrixTable._from_java(self._jmt.persist(storage_level))
+        return Env.backend().persist_matrix_table(self, storage_level)
 
     def unpersist(self) -> 'MatrixTable':
         """
@@ -2904,7 +2904,7 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
             Unpersisted dataset.
         """
-        return MatrixTable._from_java(self._jmt.unpersist())
+        return Env.backend().unpersist_matrix_table(self)
 
     @typecheck_method(name=str)
     def add_row_index(self, name: str = 'row_idx') -> 'MatrixTable':
@@ -3312,7 +3312,7 @@ class MatrixTable(ExprContainer):
             elif self[k]._indices == self._global_indices:
                 global_map[k] = v
 
-        return MatrixTable._from_java(self._jmt.renameFields(row_map, col_map, entry_map, global_map))
+        return MatrixTable(MatrixRename(self._mir, global_map, col_map, row_map, entry_map))
 
     def distinct_by_row(self):
         """Remove rows with a duplicate row key.
