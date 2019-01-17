@@ -3335,9 +3335,9 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
     else:
         fields = ['locus']
 
-    info = locally_pruned_table.key_by().select('idx', *fields).collect()
-    info.sort(key=lambda x: x.idx)
-    info = hl.literal(info)
+    info = locally_pruned_table.aggregate(
+        hl.agg.collect(locally_pruned_table.row.select('idx', *fields)), _localize=False)
+    info = hl.sorted(info, key=lambda x: x.idx)
 
     entries = entries.filter(
         (info[entries.i].locus.contig == info[entries.j].locus.contig) &
