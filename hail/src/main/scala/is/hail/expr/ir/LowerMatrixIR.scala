@@ -154,7 +154,7 @@ object LowerMatrixIR {
 
       lower(child)
         .mapRows(
-          subst(lowerApplyAggOp(newRow), Env("va" -> 'row))
+          subst(lowerApplyAggOp(newRow), Env("va" -> 'row, "global" -> 'global))
 	    .insertFields(entriesField -> 'row(entriesField)))
 
     case MatrixFilterEntries(child, pred) =>

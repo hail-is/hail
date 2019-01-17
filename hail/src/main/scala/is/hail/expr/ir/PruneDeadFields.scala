@@ -840,6 +840,13 @@ object PruneDeadFields {
         val queryDep = memoizeAndGetDep(query, query.typ, child.typ, memo)
         memoizeMatrixIR(child, queryDep, memo)
         Env.empty[(Type, Type)]
+      case ArrayAgg(a, name, query) =>
+        val elemType = a.typ.asInstanceOf[TArray].elementType
+        val queryEnv = memoizeValueIR(query, requestedType, memo)
+        val requestedElemType = queryEnv.lookupOption(name).map(_._2).getOrElse(minimal(elemType))
+        val aEnv = memoizeValueIR(a, TArray(requestedElemType), memo)
+        val env = unifyEnvs(queryEnv.delete(name), aEnv)
+        env
       case _: IR =>
         val envs = ir.children.flatMap {
           case mir: MatrixIR =>
@@ -1126,6 +1133,13 @@ object PruneDeadFields {
             MakeStruct(FastSeq())
         else
           TableCollect(rebuild(child, memo))
+      case ArrayAgg(a, name, query) =>
+        val a2 = rebuild(a, in, memo)
+        ArrayAgg(
+          a2,
+          name,
+          rebuild(query, in.bind(name, a2.typ.asInstanceOf[TArray].elementType), memo)
+        )
       case _ =>
         ir.copy(ir.children.map {
           case valueIR: IR => rebuild(valueIR, in, memo)
