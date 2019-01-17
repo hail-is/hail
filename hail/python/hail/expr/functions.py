@@ -4358,17 +4358,31 @@ def approx_equal(x, y, tolerance=1e-6, absolute=False, nan_same=False):
     return _func("approxEqual", hl.tbool, x, y, tolerance, absolute, nan_same)
 
 
-def _bit_op(x, y, op, unify_type=True):
-    if unify_type:
-        if x.dtype == hl.tint32 and y.dtype == hl.tint32:
-            t = hl.tint32
-        else:
-            t = hl.tint64
-        coercer = coercer_from_dtype(t)
-        x = coercer.coerce(x)
-        y = coercer.coerce(y)
+def _shift_op(x, y, op):
+    assert op in ('<<', '>>', '>>>')
+    t = x.dtype
+    if t == hl.tint64:
+        word_size = 64
+        zero = hl.int64(0)
     else:
-        t = x.dtype
+        word_size = 32
+        zero = hl.int32(0)
+
+    indices, aggregations = unify_all(x, y)
+    return hl.bind(lambda x, y: (
+        hl.case()
+            .when(y >= word_size, hl.sign(x) if op == '>>' else zero)
+            .when(y > 0, construct_expr(ApplyBinaryOp(op, x._ir, y._ir), t, indices, aggregations))
+            .or_error('cannot shift by a negative value: ' + hl.str(x) + f" {op} " + hl.str(y))), x, y)
+
+def _bit_op(x, y, op):
+    if x.dtype == hl.tint32 and y.dtype == hl.tint32:
+        t = hl.tint32
+    else:
+        t = hl.tint64
+    coercer = coercer_from_dtype(t)
+    x = coercer.coerce(x)
+    y = coercer.coerce(y)
 
     indices, aggregations = unify_all(x, y)
     return construct_expr(ApplyBinaryOp(op, x._ir, y._ir), t, indices, aggregations)
@@ -4496,7 +4510,7 @@ def bit_lshift(x, y):
     -------
     :class:`.Int32Expression` or :class:`.Int64Expression`
     """
-    return _bit_op(x, y, '<<', unify_type=False)
+    return _shift_op(x, y, '<<')
 
 
 @typecheck(x=expr_oneof(expr_int32, expr_int64), y=expr_int32, logical=builtins.bool)
@@ -4538,9 +4552,9 @@ def bit_rshift(x, y, logical=False):
     :class:`.Int32Expression` or :class:`.Int64Expression`
     """
     if logical:
-        return _bit_op(x, y, '>>>', unify_type=False)
+        return _shift_op(x, y, '>>>')
     else:
-        return _bit_op(x, y, '>>', unify_type=False)
+        return _shift_op(x, y, '>>')
 
 
 @typecheck(x=expr_oneof(expr_int32, expr_int64))

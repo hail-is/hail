@@ -287,7 +287,12 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
           case ir.BitXOr() => s"${ lt.v } ^ ${ rt.v }"
           case ir.LeftShift() => s"${ lt.v } << ${ rt.v }"
           case ir.RightShift() => s"${ lt.v } >> ${ rt.v }"
-          case ir.LogicalRightShift() => s"${ lt.v } >>> ${ rt.v }"
+          case ir.LogicalRightShift() =>
+            l.typ match {
+              case _: TInt32 => s"(int)((unsigned int)${ lt.v } >> ${ rt.v })"
+              case _: TInt64 => s"(long)((unsigned long)${ lt.v } >> ${ rt.v })"
+            }
+
         }
 
         triplet(Code(lt.setup, rt.setup), s"${ lt.m } || ${ rt.m }", v)

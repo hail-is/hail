@@ -1,4 +1,5 @@
 import math
+import pytest
 import random
 from scipy.stats import pearsonr
 import unittest
@@ -2391,3 +2392,35 @@ class Tests(unittest.TestCase):
 
         assert hl.bit_not(1).dtype == hl.tint32
         assert hl.bit_not(hl.int64(1)).dtype == hl.tint64
+
+    def test_bit_shift_edge_cases(self):
+        assert hl.eval(hl.bit_lshift(hl.int(1), 32)) == 0
+        assert hl.eval(hl.bit_rshift(hl.int(1), 32)) == 1
+        assert hl.eval(hl.bit_rshift(hl.int(1), 32), logical=True) == 0
+        assert hl.eval(hl.bit_rshift(hl.int(-1), 32)) == -1
+        assert hl.eval(hl.bit_rshift(hl.int(-1), 32), logical=True) == 0
+
+        assert hl.eval(hl.bit_lshift(hl.int64(1), 64)) == 0
+        assert hl.eval(hl.bit_rshift(hl.int64(1), 64)) == 1
+        assert hl.eval(hl.bit_rshift(hl.int64(1), 64, logical=True)) == 0
+        assert hl.eval(hl.bit_rshift(hl.int64(-1), 64)) == -1
+        assert hl.eval(hl.bit_rshift(hl.int64(-11), 64, logical=True)) == 0
+
+    def test_bit_shift_errors(self):
+        with pytest.raises(hl.utils.FatalError):
+                hl.eval(hl.bit_lshift(1, -1))
+
+        with pytest.raises(hl.utils.FatalError):
+            hl.eval(hl.bit_rshift(1, -1))
+
+        with pytest.raises(hl.utils.FatalError):
+            hl.eval(hl.bit_rshift(1, -1, logical=True))
+
+        with pytest.raises(hl.utils.FatalError):
+            hl.eval(hl.bit_lshift(hl.int64(1), -1))
+
+        with pytest.raises(hl.utils.FatalError):
+            hl.eval(hl.bit_rshift(hl.int64(1), -1))
+
+        with pytest.raises(hl.utils.FatalError):
+            hl.eval(hl.bit_rshift(hl.int64(1), -1, logical=True))
