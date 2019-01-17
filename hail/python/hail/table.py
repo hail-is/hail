@@ -1661,7 +1661,7 @@ class Table(ExprContainer):
         :class:`.Table`
             Persisted table.
         """
-        return Table._from_java(self._jt.persist(storage_level))
+        return Env.backend().persist_table(self, storage_level)
 
     def unpersist(self):
         """
@@ -1677,7 +1677,7 @@ class Table(ExprContainer):
         :class:`.Table`
             Unpersisted table.
         """
-        return Table._from_java(self._jt.unpersist())
+        return Env.backend().unpersist_table(self)
 
     def collect(self):
         """Collect the rows of the table into a local list.

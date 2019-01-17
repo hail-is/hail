@@ -2888,7 +2888,7 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
             Persisted dataset.
         """
-        return MatrixTable._from_java(self._jmt.persist(storage_level))
+        return Env.backend().persist_matrix_table(self, storage_level)
 
     def unpersist(self) -> 'MatrixTable':
         """
@@ -2904,7 +2904,7 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
             Unpersisted dataset.
         """
-        return MatrixTable._from_java(self._jmt.unpersist())
+        return Env.backend().unpersist_matrix_table(self)
 
     @typecheck_method(name=str)
     def add_row_index(self, name: str = 'row_idx') -> 'MatrixTable':
