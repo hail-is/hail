@@ -141,20 +141,18 @@ def maximal_independent_set(i, j, keep=True, tie_breaker=None, keyed=True) -> Ta
         t, _ = source._process_joins(i, j)
         tie_breaker_str = None
 
-    t_path = new_temp_file()
-    t.write(t_path)
-    t = hl.read_table(t_path)
-
     edges = t.select(__i=i, __j=j).key_by().select('__i', '__j')
+    edges_path = new_temp_file()
+    edges.write(edges_path)
+    edges = hl.read_table(edges_path)
+
     mis_nodes = Env.hail().utils.Graph.maximalIndependentSet(
         edges._jt.collect(),
         node_t._parsable_string(),
         joption(tie_breaker_str))
 
-    nodes = t.select(node=[i, j])
-    nodes = nodes.key_by()
-    nodes = nodes.select('node')
-    nodes = nodes.explode('node')
+    nodes = edges.select(node = [edges.__i, edges.__j])
+    nodes = nodes.explode(nodes.node)
     # avoid serializing `mis_nodes` from java to python and back to java
     nodes = Table._from_java(
         nodes._jt.annotateGlobal(
