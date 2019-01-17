@@ -6,9 +6,9 @@ import is.hail.utils.FastSeq
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.{DataProvider, Test}
 
-class MaximizeLetsSuite extends TestNGSuite {
-  @DataProvider(name = "nonMaximizingOps")
-  def nonMaximizingOps(): Array[Array[IR]] = {
+class LiftLetsSuite extends TestNGSuite {
+  @DataProvider(name = "nonLiftingOps")
+  def nonLiftingOps(): Array[Array[IR]] = {
     val a = ArrayRange(I32(0), I32(10), I32(1))
     val x = Ref("x", TInt32())
     val y = Ref("y", TInt32())
@@ -26,8 +26,8 @@ class MaximizeLetsSuite extends TestNGSuite {
     ).map(ir => Array[IR](ir))
   }
 
-  @DataProvider(name = "maximizingOps")
-  def maximizingOps(): Array[Array[IR]] = {
+  @DataProvider(name = "liftingOps")
+  def liftingOps(): Array[Array[IR]] = {
     val x = Ref("x", TInt32())
     val l = Let("x", I32(1), ApplyBinaryPrimOp(Add(), x, x))
     Array(
@@ -39,20 +39,20 @@ class MaximizeLetsSuite extends TestNGSuite {
   }
 
   @Test def assertDataProvidersWork(): Unit = {
-    nonMaximizingOps()
-    maximizingOps()
+    nonLiftingOps()
+    liftingOps()
   }
 
-  @Test(dataProvider = "nonMaximizingOps")
-  def testNonMaximizingOps(ir: IR): Unit = {
-    val after = MaximizeLets(ir)
+  @Test(dataProvider = "nonLiftingOps")
+  def testNonLiftingOps(ir: IR): Unit = {
+    val after = LiftLets(ir)
     assert(!after.isInstanceOf[Let])
     TypeCheck(ir)
   }
 
-  @Test(dataProvider = "maximizingOps")
-  def testMaximizingOps(ir: IR): Unit = {
-    val after = MaximizeLets(ir)
+  @Test(dataProvider = "liftingOps")
+  def testLiftingOps(ir: IR): Unit = {
+    val after = LiftLets(ir)
     assert(after.isInstanceOf[Let])
     TypeCheck(ir)
   }
@@ -68,7 +68,7 @@ class MaximizeLetsSuite extends TestNGSuite {
       )
     )
 
-    assert(MaximizeLets(ir) == ir)
+    assert(LiftLets(ir) == ir)
   }
 
   @Test def testEquivalentLets(): Unit = {
@@ -82,6 +82,6 @@ class MaximizeLetsSuite extends TestNGSuite {
       )
     )
 
-    assert(MaximizeLets(ir) == Let("x1", I32(1), ApplyUnaryPrimOp(Negate(), Ref("x1", TInt32()))))
+    assert(LiftLets(ir) == Let("x1", I32(1), ApplyUnaryPrimOp(Negate(), Ref("x1", TInt32()))))
   }
 }

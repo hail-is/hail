@@ -11,9 +11,9 @@ object Optimize {
     var ir = ir0
     ir = FoldConstants(ir, canGenerateLiterals = canGenerateLiterals)
     ir = AnonymizeBindings(ir)
-    ir = MaximizeLets(ir)
+    ir = LiftLets(ir)
     ir = Simplify(ir)
-    ir = MinimizeLets(ir)
+    ir = ForwardLets(ir)
     ir = PruneDeadFields(ir)
     ir = Simplify(ir)
 

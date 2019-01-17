@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import scala.collection.mutable
 
-object MaximizeLets {
+object LiftLets {
   def apply(ir: BaseIR): BaseIR = {
     val m = mutable.HashSet.empty[(String, String)]
 
