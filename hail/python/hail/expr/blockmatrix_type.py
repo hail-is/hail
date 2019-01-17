@@ -1,10 +1,18 @@
 from hail.typecheck import typecheck_method
+from hail.expr.types import dtype
 
 
 class tblockmatrix(object):
     @staticmethod
     def _from_java(jtbm):
         return tblockmatrix(jtbm.nRows(), jtbm.nCols(), jtbm.blockSize())
+
+    @staticmethod
+    def _from_json(json):
+        return tblockmatrix(
+            dtype(json['nRows']),
+            dtype(json['nCols']),
+            dtype(json['blockSize']))
 
     @typecheck_method(n_rows=int, n_cols=int, block_size=int)
     def __init__(self, n_rows, n_cols, block_size):
@@ -25,7 +33,7 @@ class tblockmatrix(object):
         return f'tblockmatrix(n_rows={self.n_rows!r}, n_cols={self.n_cols!r}, block_size={self.block_size!r})'
 
     def __str__(self):
-        return f'blockmatrix {{n_rows={self.n_rows}, n_cols={self.n_cols}, block_size={self.block_size}}}'
+        return f'blockmatrix {{n_rows: {self.n_rows}, n_cols: {self.n_cols}, block_size: {self.block_size}}}'
 
     def pretty(self, indent=0, increment=4):
         l = []

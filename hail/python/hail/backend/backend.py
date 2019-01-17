@@ -157,3 +157,7 @@ class ServiceBackend(Backend):
     def matrix_type(self, mir):
         resp = self._request_type(mir, 'matrix')
         return tmatrix._from_json(resp)
+
+    def blockmatrix_type(self, bmir):
+        resp = self._request_type(bmir, 'blockmatrix')
+        return tblockmatrix._from_json(resp)
