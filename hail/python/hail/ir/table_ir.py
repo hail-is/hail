@@ -444,6 +444,18 @@ class TableToTableApply(TableIR):
         self._type = self.child.typ
 
 
+def regression_test_type(test):
+    glm_fit_schema = dtype('struct{n_iterations:int32,converged:bool,exploded:bool}')
+    if test == 'wald':
+        return dtype(f'struct{{beta:float64,standard_error:float64,z_stat:float64,p_value:float64,fit:{glm_fit_schema}}}')
+    elif test == 'lrt':
+        return dtype(f'struct{{beta:float64,chi_sq_stat:float64,p_value:float64,fit:{glm_fit_schema}}}')
+    elif test == 'score':
+        return dtype('struct{chi_sq_stat:float64,p_value:float64}')
+    else:
+        assert test == 'firth', test
+        return dtype(f'struct{{beta:float64,chi_sq_stat:float64,p_value:float64,fit:{glm_fit_schema}}}')
+
 class MatrixToTableApply(TableIR):
     def __init__(self, child, config):
         super().__init__()
@@ -465,14 +477,23 @@ class MatrixToTableApply(TableIR):
                  ._insert_fields(**{f: child_typ.row_type[f] for f in pass_through})
                  ._concat(chained_schema)),
                 child_typ.row_key)
-        else:
-            assert name == 'LinearRegressionRowsSingle', name
+        elif name == 'LinearRegressionRowsSingle':
             chained_schema = hl.dtype('struct{n:int32,sum_x:float64,y_transpose_x:array<float64>,beta:array<float64>,standard_error:array<float64>,t_stat:array<float64>,p_value:array<float64>}')
             self._type = hl.ttable(
                 child_typ.global_type,
                 (child_typ.row_key_type
                  ._insert_fields(**{f: child_typ.row_type[f] for f in pass_through})
                  ._concat(chained_schema)),
+                child_typ.row_key)
+        else:
+            assert name == 'LogisticRegression', name
+            pass_through = self.config['passThrough']
+            logreg_type = hl.tstruct(logistic_regression=hl.tarray(regression_test_type(self.config['test'])))
+            self._type = hl.ttable(
+                child_typ.global_type,
+                (child_typ.row_key_type
+                 ._insert_fields(**{f: child_typ.row_type[f] for f in pass_through})
+                 ._concat(logreg_type)),
                 child_typ.row_key)
 
 
