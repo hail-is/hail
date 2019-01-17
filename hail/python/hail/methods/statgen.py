@@ -3333,7 +3333,6 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
 
     entries = entries.filter((entries.info_i.locus.contig == entries.info_j.locus.contig)
                              & (entries.info_j.locus.position - entries.info_i.locus.position <= bp_window_size))
-
     # means = locally_pruned_table.key_by().select('idx', 'mean', 'locus').collect()
     # means.sort(key=lambda x: x.idx)
     # means = [(x.mean, x.locus) for x in means]
@@ -3343,14 +3342,16 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
     # (means[hl.int32(entries.i)][1].position - means[hl.int32(entries.j)][1].position <= bp_window_size))
 
     if keep_higher_maf:
-        # entries = entries.annotate(imean = means[hl.int32(entries.i)][0],
-        #                            jmean = means[hl.int32(entries.j)][0])
-        entries.describe()
+        means = locally_pruned_table.key_by().select('idx', 'mean', 'locus').collect()
+        means = [x.mean for x in means]
+        means = hl.literal(means)
+        entries = entries.annotate(imean = means[hl.int32(entries.i)],
+                                   jmean = means[hl.int32(entries.j)])
         entries = entries.annotate(
             i=hl.struct(idx=entries.i,
-                        twice_maf=hl.min(entries.info_i.mean, 2.0 - entries.info_i.mean)),
+                        twice_maf=hl.min(entries.imean, 2.0 - entries.imean)),
             j=hl.struct(idx=entries.j,
-                        twice_maf=hl.min(entries.info_j.mean, 2.0 - entries.info_j.mean)))
+                        twice_maf=hl.min(entries.jmean, 2.0 - entries.jmean)))
 
         def tie_breaker(l, r):
             return hl.sign(r.twice_maf - l.twice_maf)
