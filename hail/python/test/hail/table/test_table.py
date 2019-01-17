@@ -861,7 +861,7 @@ class Tests(unittest.TestCase):
         t = hl.utils.range_table(1)
         t1 = t.annotate(x = 1.0)
         t2 = t.annotate(x = 1.0 + 1e-7)
-        self.assertTrue(11._same(t2))
+        self.assertTrue(t1._same(t2))
 
     def test_same_different_type(self):
         t1 = hl.utils.range_table(1)
