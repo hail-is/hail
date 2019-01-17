@@ -62,7 +62,8 @@ object RelationalFunctions {
     classOf[PoissonRegression],
     classOf[Skat],
     classOf[LocalLDPrune],
-    classOf[MatrixExportEntriesByCol]
+    classOf[MatrixExportEntriesByCol],
+    classOf[PCA]
   )) +
     new MatrixFilterItervalsSerializer +
     new TableFilterItervalsSerializer
