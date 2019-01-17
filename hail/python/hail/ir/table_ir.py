@@ -500,8 +500,7 @@ class MatrixToTableApply(TableIR):
                  ._insert_fields(**{f: child_typ.row_type[f] for f in pass_through})
                  ._concat(poisreg_type)),
                 child_typ.row_key)
-        else:
-            assert  name == 'Skat', name
+        else name == 'Skat':
             key_field = self.config['keyField']
             key_type = child_typ.row_type[key_field]
             skat_type = hl.dtype(f'struct{{id:{key_type},size:int32,q_stat:float64,p_value:float64,fault:int32}}')
@@ -509,6 +508,12 @@ class MatrixToTableApply(TableIR):
                 hl.tstruct(),
                 skat_type,
                 ['id'])
+        else:
+            assert name == 'LocalLDPrune', name
+            self._type = hl.ttable(
+                hl.tstruct(),
+                child_typ.row_key_type._insert_fields(mean=hl.tfloat64, centered_length_rec=hl.tfloat64),
+                list(child_typ.row_key))
 
 
 class JavaTable(TableIR):
