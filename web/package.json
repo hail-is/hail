@@ -1,0 +1,20 @@
+{
+  "name": "hail-web",
+  "version": "0.2.0",
+  "description": "Hail Web (Isomorphic JS + Data Endpoints)",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/hail-is/hail.git"
+  },
+  "keywords": [
+    "web",
+    "hail"
+  ],
+  "author": "Hail Team",
+  "license": "MIT",
+  "private": true,
+  "devDependencies": {
+    "lerna": "^3.10.5"
+  }
+}
