@@ -1,22 +1,20 @@
 {
-  "extends": "./node_modules/gts/tsconfig-google.json",
   "compilerOptions": {
     "allowJs": true,
     "allowSyntheticDefaultImports": true,
     "jsx": "preserve",
     "lib": ["dom", "es2017"],
-    "target": "es2018",
+    "target": "esnext",
     "module": "esnext",
     "moduleResolution": "node",
     "noEmit": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "preserveConstEnums": true,
+    "preserveConstEnums": false,
     "removeComments": false,
-
     "allowUnreachableCode": false,
     "allowUnusedLabels": false,
-    "declaration": true,
+    "declaration": false,
     "forceConsistentCasingInFileNames": true,
     "noEmitOnError": true,
     "noFallthroughCasesInSwitch": true,
@@ -24,7 +22,8 @@
     "pretty": true,
     "sourceMap": true,
     "strict": true,
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "experimentalDecorators": true
   },
   "exclude": ["node_modules", "**/*.spec.ts"]
 }

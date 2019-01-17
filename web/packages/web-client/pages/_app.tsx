@@ -1,9 +1,17 @@
 import React from 'react';
 import App, { Container } from 'next/app';
 import { isClientSide } from '../libs/utils';
+import Header from '../components/Header';
+// import cookies from '../libs/cookies';
 
+import 'styles/main.scss';
+import 'animate.css';
 // TODO: properly handle nextjs, react props types here
 export default class MyApp extends App {
+  state = {
+    isDark: false
+  };
+
   static async getInitialProps({
     Component,
     ctx
@@ -33,7 +41,12 @@ export default class MyApp extends App {
 
     return (
       <Container>
-        <Component {...pageProps} />
+        <span id="theme-site" className={this.state.isDark ? 'dark' : ''}>
+          <Header />
+          <span id="main">
+            <Component {...pageProps} />
+          </span>
+        </span>
       </Container>
     );
   }

@@ -9,7 +9,8 @@
         "alias": {
           "components": "./components",
           "libs": "./libs",
-          "pages": "./pages"
+          "pages": "./pages",
+          "styles": "./styles"
         }
       }
     ]

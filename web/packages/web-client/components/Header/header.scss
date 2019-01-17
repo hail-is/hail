@@ -1,0 +1,14 @@
+@import '../../styles/variables/colors.scss';
+#theme-site {
+  #header {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    width: 100%;
+    padding-top: 14px;
+    .link-button {
+      padding: 0 14px 14px 14px;
+    }
+  }
+  &.dark {}
+}
