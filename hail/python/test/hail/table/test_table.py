@@ -858,9 +858,10 @@ class Tests(unittest.TestCase):
         self.assertTrue(t1._same(t1))
 
     def test_same_within_tolerance(self):
-        s1 = t1.annotate(x = 1.0)
-        s2 = t1.annotate(x = 1.0 + 1e-7)
-        self.assertTrue(s1._same(s2))
+        t = hl.utils.range_table(1)
+        t1 = t.annotate(x = 1.0)
+        t2 = t.annotate(x = 1.0 + 1e-7)
+        self.assertTrue(11._same(t2))
 
     def test_same_different_type(self):
         t1 = hl.utils.range_table(1)
