@@ -6,6 +6,7 @@ from hail.expr.table_type import *
 from hail.expr.matrix_type import *
 from hail.ir.renderer import Renderer
 from hail.table import Table
+from hail.matrixtable import MatrixTable
 
 import requests
 
