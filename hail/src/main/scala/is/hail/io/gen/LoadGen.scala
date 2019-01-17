@@ -109,8 +109,6 @@ case class MatrixGENReader(
   contigRecoding: Map[String, String],
   skipInvalidLoci: Boolean) extends MatrixReader {
 
-  println(files.toFastIndexedSeq)
-
   files.foreach { input =>
     if (!HailContext.get.hadoopConf.stripCodec(input).endsWith(".gen"))
       fatal(s"gen inputs must end in .gen[.bgz], found $input")
@@ -139,7 +137,7 @@ case class MatrixGENReader(
   private val noVariants = results.filter(_.nVariants == 0).map(_.file)
   if (noVariants.nonEmpty)
     fatal(
-      s"""The following GEN files did not contain at least 1 variant:
+      s"""The following GEN files contain no variants:
          |  ${ noVariants.mkString("\n  ") })""".stripMargin)
 
   private val nVariants = results.map(_.nVariants).sum
