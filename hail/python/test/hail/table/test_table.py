@@ -837,6 +837,22 @@ class Tests(unittest.TestCase):
         ht = ht.annotate(y = ht.idx + ht.aggregate(hl.agg.max(ht.idx), _localize=False))
         assert ht.y.collect() == [x + 9 for x in range(10)]
 
+    def test_collect_localize_false(self):
+        ht = hl.utils.range_table(10)
+        assert hl.eval(ht.collect(_localize=False)) == ht.collect()
+
+    def test_take_localize_false(self):
+        ht = hl.utils.range_table(10)
+        assert hl.eval(ht.take(3, _localize=False)) == ht.take(3)
+
+    def test_expr_collect_localize_false(self):
+        ht = hl.utils.range_table(10)
+        assert hl.eval(ht.idx.collect(_localize=False)) == ht.idx.collect()
+
+    def test_expr_take_localize_false(self):
+        ht = hl.utils.range_table(10)
+        assert hl.eval(ht.idx.take(3, _localize=False)) == ht.idx.take(3)
+
 def test_large_number_of_fields(tmpdir):
     ht = hl.utils.range_table(100)
     ht = ht.annotate(**{

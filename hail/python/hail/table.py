@@ -1679,7 +1679,8 @@ class Table(ExprContainer):
         """
         return Env.backend().unpersist_table(self)
 
-    def collect(self):
+    @typecheck_method(_localize=bool)
+    def collect(self, _localize=True):
         """Collect the rows of the table into a local list.
 
         Examples
@@ -1703,7 +1704,12 @@ class Table(ExprContainer):
         :obj:`list` of :class:`.Struct`
             List of rows.
         """
-        return Env.backend().execute(GetField(TableCollect(self._tir), 'rows'))
+        ir = GetField(TableCollect(self._tir), 'rows')
+        e = construct_expr(ir, hl.tarray(self.row.dtype))
+        if _localize:
+            return Env.backend().execute(e._ir)
+        else:
+            return e
 
     def describe(self, handler=print):
         """Print information about the fields in the table."""
@@ -1822,8 +1828,8 @@ class Table(ExprContainer):
                                 f"  Table {i}: {right_key}")
         return Table(TableUnion([self._tir] + [table._tir for table in tables]))
 
-    @typecheck_method(n=int)
-    def take(self, n):
+    @typecheck_method(n=int, _localize=bool)
+    def take(self, n, _localize=True):
         """Collect the first `n` rows of the table into a local list.
 
         Examples
@@ -1856,7 +1862,7 @@ class Table(ExprContainer):
             List of row structs.
         """
 
-        return self.head(n).collect()
+        return self.head(n).collect(_localize)
 
     @typecheck_method(n=int)
     def head(self, n):
