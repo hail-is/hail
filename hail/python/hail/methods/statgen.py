@@ -492,7 +492,7 @@ def logistic_regression_rows(test, y, x, covariates, pass_through=()) -> hail.Ta
 
     .. math::
 
-        \mathrm{Prob}(\mathrm{is_case}) =
+        \mathrm{Prob}(\mathrm{is\_case}) =
             \mathrm{sigmoid}(\beta_0 + \beta_1 \, \mathrm{gt}
                             + \beta_2 \, \mathrm{age}
                             + \beta_3 \, \mathrm{is\_female} + \varepsilon),
