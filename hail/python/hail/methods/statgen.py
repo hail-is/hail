@@ -1490,23 +1490,20 @@ def pca(entry_expr, k=10, compute_loadings=False) -> Tuple[List[float], Table, T
         field = Env.get_uid()
         mt = mt.select_entries(**{field: entry_expr})
     mt = mt.select_cols().select_rows().select_globals()
-    
-    t = Table(MatrixToTableApply(mt._mir, {
+
+    t = (Table(MatrixToTableApply(mt._mir, {
         'name': 'PCA',
         'entryField': field,
         'k': k,
         'computeLoadings': compute_loadings
     }))
+         .cache())
 
-    g = hl.eval(t.index_globals())
-
-    col_keys = mt.col_key.collect()
-    scores = [k.annotate(scores=s) for k, s in zip(col_keys, g.scores)]
-    scores = hl.Table.parallelize(scores, mt.col_key.dtype._insert_field('scores', dtype('array<float64>')), key=list(mt.col_key))
-    
+    g = t.index_globals()
+    scores = hl.Table.parallelize(g.scores, key=list(mt.col_key))
     if not compute_loadings:
         t = None
-    return g.eigenvalues, scores, t
+    return hl.eval(g.eigenvalues), scores, t
 
 
 @typecheck(call_expr=expr_call,

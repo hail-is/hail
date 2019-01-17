@@ -19,7 +19,7 @@ case class PCA(entryField: String, k: Int, computeLoadings: Boolean) extends Mat
     val typ = TableType(
       childType.rowKeyStruct ++ TStruct("loadings" -> TArray(TFloat64())),
       childType.rowKey,
-      TStruct("eigenvalues" -> TArray(TFloat64()), "scores" -> TArray(TArray(TFloat64()))))
+      TStruct("eigenvalues" -> TArray(TFloat64()), "scores" -> TArray(childType.colKeyStruct ++ TStruct("scores" -> TArray(TFloat64())))))
     (typ, typ.canonicalRVDType)
   }
 
@@ -94,7 +94,8 @@ case class PCA(entryField: String, k: Int, computeLoadings: Boolean) extends Mat
     val rvd = RVD.coerce(RVDType(rowType.physicalType, mv.typ.rowKey), crdd)
 
     val (t1, f1) = mv.typ.globalType.insert(TArray(TFloat64()), "eigenvalues")
-    val (newGlobalType, f2) = t1.insert(TArray(TArray(TFloat64())), "scores")
+    val (globalScoreType, f3) = mv.typ.colKeyStruct.insert(TArray(TFloat64()), "scores")
+    val (newGlobalType, f2) = t1.insert(TArray(globalScoreType), "scores")
 
     val data =
       if (!svd.V.isTransposed)
@@ -113,9 +114,12 @@ case class PCA(entryField: String, k: Int, computeLoadings: Boolean) extends Mat
     }.toFastIndexedSeq
 
     val g1 = f1(mv.globals.value, eigenvalues.toFastIndexedSeq)
-    val newGlobal = f2(g1, scores)
-
-    new TableValue(TableType(rowType, mv.typ.rowKey, newGlobalType.asInstanceOf[TStruct]),
+    val globalScores = mv.colValues.value.zipWithIndex.map { case (cv, i) =>
+      f3(mv.typ.extractColKey(cv.asInstanceOf[Row]), scores(i))
+    }
+    val newGlobal = f2(g1, globalScores)
+    
+    TableValue(TableType(rowType, mv.typ.rowKey, newGlobalType.asInstanceOf[TStruct]),
       BroadcastRow(newGlobal.asInstanceOf[Row], newGlobalType.asInstanceOf[TStruct], sc), rvd)
   }
 }
