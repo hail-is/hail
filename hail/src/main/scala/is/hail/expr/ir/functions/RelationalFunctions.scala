@@ -58,7 +58,9 @@ object RelationalFunctions {
     classOf[LogisticRegression],
     classOf[MatrixWriteBlockMatrix],
     classOf[TableFilterIntervals],
-    classOf[MatrixFilterIntervals]
+    classOf[MatrixFilterIntervals],
+    classOf[PoissonRegression],
+    classOf[Skat]
   )) +
     new MatrixFilterItervalsSerializer +
     new TableFilterItervalsSerializer

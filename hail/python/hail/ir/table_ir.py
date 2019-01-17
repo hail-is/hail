@@ -481,8 +481,7 @@ class MatrixToTableApply(TableIR):
                  ._insert_fields(**{f: child_typ.row_type[f] for f in pass_through})
                  ._concat(chained_schema)),
                 child_typ.row_key)
-        else:
-            assert name == 'LogisticRegression', name
+        elif name == 'LogisticRegression':
             pass_through = self.config['passThrough']
             logreg_type = hl.tstruct(logistic_regression=hl.tarray(regression_test_type(self.config['test'])))
             self._type = hl.ttable(
@@ -491,6 +490,24 @@ class MatrixToTableApply(TableIR):
                  ._insert_fields(**{f: child_typ.row_type[f] for f in pass_through})
                  ._concat(logreg_type)),
                 child_typ.row_key)
+        elif name == 'PoissonRegression':
+            pass_through = self.config['passThrough']
+            poisreg_type = regression_test_type(self.config['test'])
+            self._type = hl.ttable(
+                child_typ.global_type,
+                (child_typ.row_key_type
+                 ._insert_fields(**{f: child_typ.row_type[f] for f in pass_through})
+                 ._concat(poisreg_type)),
+                child_typ.row_key)
+        else:
+            assert  name == 'Skat', name
+            key_field = self.config['keyField']
+            key_type = child_typ.row_type[key_field]
+            skat_type = hl.dtype(f'struct{{id:{key_type},size:int32,q_stat:float64,p_value:float64,fault:int32}}')
+            self._type = hl.ttable(
+                hl.tstruct(),
+                skat_type,
+                ['id'])
 
 
 class JavaTable(TableIR):
