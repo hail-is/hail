@@ -5,7 +5,7 @@ import java.util.Properties
 
 import is.hail.annotations._
 import is.hail.expr.Parser
-import is.hail.expr.ir.{IRParser, MatrixRead}
+import is.hail.expr.ir.{IRParser, MatrixRead, TextTableReader}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual._
@@ -336,6 +336,25 @@ object HailContext {
         dec.close()
       }
     }
+
+  private[this] val codecsKey = "io.compression.codecs"
+  private[this] val hadoopGzipCodec = "org.apache.hadoop.io.compress.GzipCodec"
+  private[this] val hailGzipAsBGZipCodec = "is.hail.io.compress.BGzipCodecGZ"
+
+  def maybeGZipAsBGZip[T](force: Boolean)(body: => T): T = {
+    val hadoopConf = HailContext.get.hadoopConf
+    if (!force)
+      body
+    else {
+      val defaultCodecs = hadoopConf.get(codecsKey)
+      hadoopConf.set(codecsKey, defaultCodecs.replaceAllLiterally(hadoopGzipCodec, hailGzipAsBGZipCodec))
+      try {
+        body
+      } finally {
+        hadoopConf.set(codecsKey, defaultCodecs)
+      }
+    }
+  }
 }
 
 class HailContext private(val sc: SparkContext,
@@ -512,7 +531,7 @@ class HailContext private(val sc: SparkContext,
     if (files.isEmpty)
       fatal(s"Arguments referred to no files: '${ inputs.mkString(",") }'")
 
-    maybeGZipAsBGZip(forceBGZ) {
+    HailContext.maybeGZipAsBGZip(forceBGZ) {
       TextTableReader.read(this)(files, types, comment, separator, missing,
         noHeader, impute, nPartitions.getOrElse(sc.defaultMinPartitions), quote,
         skipBlankLines).keyBy(keyNames)
@@ -577,24 +596,6 @@ class HailContext private(val sc: SparkContext,
     LoadVCF.parseHeaderMetadata(this, reader, file)
   }
 
-  private[this] val codecsKey = "io.compression.codecs"
-  private[this] val hadoopGzipCodec = "org.apache.hadoop.io.compress.GzipCodec"
-  private[this] val hailGzipAsBGZipCodec = "is.hail.io.compress.BGzipCodecGZ"
-
-  def maybeGZipAsBGZip[T](force: Boolean)(body: => T): T = {
-    if (!force)
-      body
-    else {
-      val defaultCodecs = hadoopConf.get(codecsKey)
-      hadoopConf.set(codecsKey, defaultCodecs.replaceAllLiterally(hadoopGzipCodec, hailGzipAsBGZipCodec))
-      try {
-        body
-      } finally {
-        hadoopConf.set(codecsKey, defaultCodecs)
-      }
-    }
-  }
-
   def importMatrix(files: java.util.ArrayList[String],
     rowFields: java.util.HashMap[String, String],
     keyNames: java.util.ArrayList[String],
@@ -620,7 +621,7 @@ class HailContext private(val sc: SparkContext,
 
     val inputs = hadoopConf.globAll(files)
 
-    maybeGZipAsBGZip(forceBGZ) {
+    HailContext.maybeGZipAsBGZip(forceBGZ) {
       LoadMatrix(this, inputs, rowFields, keyNames, cellType = TStruct("x" -> cellType), missingVal, nPartitions, noHeader, sep(0))
     }
   }

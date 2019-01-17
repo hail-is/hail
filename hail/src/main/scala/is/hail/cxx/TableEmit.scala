@@ -4,6 +4,7 @@ import java.io.InputStream
 import is.hail.HailContext
 import is.hail.annotations.BroadcastRow
 import is.hail.expr.ir
+import is.hail.expr.ir.{TableNativeReader, TableReader}
 import is.hail.expr.types._
 import is.hail.io.CodecSpec
 import is.hail.rvd.AbstractRVDSpec
@@ -75,13 +76,13 @@ class TableEmitter(tub: TranslationUnitBuilder) { outer =>
 
     val typ = x.typ
     x match {
-      case ir.TableRead(path, spec, _, dropRows) =>
+      case ir.TableRead(_, dropRows, tr@TableNativeReader(path)) =>
         val hc = HailContext.get
-        val globals = spec.globalsComponent.readLocal(hc, path, typ.globalType.physicalType)(0)
+        val globals = tr.spec.globalsComponent.readLocal(hc, path, typ.globalType.physicalType)(0)
         val rvd = if (dropRows)
           RVDEmitTriplet.empty[InputStream](tub, typ.canonicalRVDType)
         else {
-          val rvd = spec.rowsComponent.cxxEmitRead(hc, path, typ.rowType, tub)
+          val rvd = tr.spec.rowsComponent.cxxEmitRead(hc, path, typ.rowType, tub)
 //          if (rvd.typ.key startsWith typ.key)
 //            rvd
 //          else {

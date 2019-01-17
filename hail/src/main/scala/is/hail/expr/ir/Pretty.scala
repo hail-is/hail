@@ -133,21 +133,6 @@ object Pretty {
               sb += ')'
             }(sb += '\n')
           }
-        case TableImport(paths, _, conf) =>
-          sb += '\n'
-          sb.append(" " * (depth + 2))
-          sb.append("(paths\n")
-          paths.foreachBetween { p =>
-            sb.append(" " * (depth + 4))
-            sb.append(prettyStringLiteral(p))
-          }(sb += '\n')
-          sb += ')'
-          sb += '\n'
-          sb.append(" " * (depth + 2))
-          sb.append("(useCols ")
-          conf.useColIndices.foreachBetween(i => sb.append(i))(sb.append(','))
-          sb += ')'
-          sb += ')'
         case _ =>
           val header = ir match {
             case I32(x) => x.toString
@@ -218,28 +203,10 @@ object Pretty {
             case MatrixKeyRowsBy(_, keys, isSorted) =>
               prettyIdentifiers(keys) + " " +
                 prettyBooleanLiteral(isSorted)
-            case TableImport(paths, _, _) =>
-              if (paths.length == 1)
-                paths.head
-              else {
-                sb += '\n'
-                sb.append(" " * (depth + 2))
-                sb.append("(paths\n")
-                paths.foreachBetween { p =>
-                  sb.append(" " * (depth + 4))
-                  sb.append(prettyStringLiteral(p))
-                }(sb += '\n')
-                sb += ')'
-
-                ""
-              }
-            case TableRead(path, spec, typ, dropRows) =>
-              prettyStringLiteral(path) + " " +
+            case TableRead(typ, dropRows, tr) =>
+              (if (typ == tr.fullType) "None" else typ.parsableString()) + " " +
                 prettyBooleanLiteral(dropRows) + " " +
-                (if (typ == spec.table_type)
-                  "None"
-                else
-                  typ.parsableString())
+                '"' + StringEscapeUtils.escapeString(Serialization.write(tr)(TableReader.formats)) + '"'
             case TableWrite(_, path, overwrite, stageLocally, codecSpecJSONStr) =>
               prettyStringLiteral(path) + " " +
                 prettyBooleanLiteral(overwrite) + " " +

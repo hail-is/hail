@@ -14,6 +14,7 @@ import is.hail.table.{AbstractTableSpec, Ascending, SortField}
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.sql.Row
+import org.json4s.{Formats, ShortTypeHints}
 
 import scala.reflect.ClassTag
 
@@ -23,12 +24,8 @@ object TableIR {
     if (!hc.hadoopConf.exists(path + "/_SUCCESS"))
       fatal(s"write failed: file not found: $successFile")
 
-    val spec = (RelationalSpec.read(hc, path): @unchecked) match {
-      case ts: AbstractTableSpec => ts
-      case _: AbstractMatrixTableSpec => fatal(s"file is a MatrixTable, not a Table: '$path'")
-    }
-
-    TableRead(path, spec, requestedType.getOrElse(spec.table_type), dropRows = false)
+    val tr = TableNativeReader(path)
+    TableRead(requestedType.getOrElse(tr.fullType), dropRows = false, tr)
   }
 }
 
@@ -58,36 +55,69 @@ case class TableLiteral(value: TableValue) extends TableIR {
   protected[ir] override def execute(hc: HailContext): TableValue = value
 }
 
-case class TableRead(path: String, spec: AbstractTableSpec, typ: TableType, dropRows: Boolean) extends TableIR {
-  assert(PruneDeadFields.isSupertype(typ, spec.table_type),
-    s"\n  original:  ${ spec.table_type }\n  requested: $typ")
+object TableReader {
+  implicit val formats: Formats = RelationalSpec.formats + ShortTypeHints(
+    List(classOf[TableNativeReader],
+      classOf[TextTableReader]))
+}
 
-  override lazy val rvdType: RVDType = spec.rvdType(path).subsetTo(typ.rowType)
+abstract class TableReader {
+  def apply(tr: TableRead): TableValue
 
-  override def partitionCounts: Option[IndexedSeq[Long]] = Some(spec.partitionCounts)
+  def partitionCounts: Option[IndexedSeq[Long]]
+
+  def fullType: TableType
+
+  def fullRVDType: RVDType
+}
+
+case class TableNativeReader(path: String) extends TableReader {
+  val spec: AbstractTableSpec = (RelationalSpec.read(HailContext.get, path): @unchecked) match {
+    case ts: AbstractTableSpec => ts
+    case _: AbstractMatrixTableSpec => fatal(s"file is a MatrixTable, not a Table: '$path'")
+  }
+
+  def partitionCounts: Option[IndexedSeq[Long]] = Some(spec.partitionCounts)
+
+  def fullType: TableType = spec.table_type
+
+  def fullRVDType: RVDType = fullType.canonicalRVDType
+
+  def apply(tr: TableRead): TableValue = {
+    val hc = HailContext.get
+
+    val globals = spec.globalsComponent.readLocal(hc, path, tr.typ.globalType.physicalType)(0)
+    val rvd = if (tr.dropRows)
+      RVD.empty(hc.sc, tr.typ.canonicalRVDType)
+    else {
+      val rvd = spec.rowsComponent.read(hc, path, tr.typ.rowType.physicalType)
+      if (rvd.typ.key startsWith tr.typ.key)
+        rvd
+      else {
+        log.info("Sorting a table after read. Rewrite the table to prevent this in the future.")
+        rvd.changeKey(tr.typ.key)
+      }
+    }
+    TableValue(tr.typ, BroadcastRow(globals, tr.typ.globalType, hc.sc), rvd)
+  }
+}
+
+case class TableRead(typ: TableType, dropRows: Boolean, tr: TableReader) extends TableIR {
+  assert(PruneDeadFields.isSupertype(typ, tr.fullType),
+    s"\n  original:  ${ tr.fullType }\n  requested: $typ")
+
+  override lazy val rvdType: RVDType = tr.fullRVDType.subsetTo(typ.rowType)
+
+  override def partitionCounts: Option[IndexedSeq[Long]] = tr.partitionCounts
 
   val children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableRead = {
     assert(newChildren.isEmpty)
-    TableRead(path, spec, typ, dropRows)
+    TableRead(typ, dropRows, tr)
   }
 
-  protected[ir] override def execute(hc: HailContext): TableValue = {
-    val globals = spec.globalsComponent.readLocal(hc, path, typ.globalType.physicalType)(0)
-    val rvd = if (dropRows)
-      RVD.empty(hc.sc, typ.canonicalRVDType)
-    else {
-      val rvd = spec.rowsComponent.read(hc, path, typ.rowType.physicalType)
-      if (rvd.typ.key startsWith typ.key)
-        rvd
-      else {
-        log.info("Sorting a table after read. Rewrite the table to prevent this in the future.")
-        rvd.changeKey(typ.key)
-      }
-    }
-    TableValue(typ, BroadcastRow(globals, typ.globalType, hc.sc), rvd)
-  }
+  protected[ir] override def execute(hc: HailContext): TableValue = tr.apply(this)
 }
 
 case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) extends TableIR {
@@ -128,79 +158,6 @@ case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) 
     val rvd = ContextRDD.parallelize[RVDContext](hc.sc, rows, nPartitions)
       .cmapPartitions((ctx, it) => it.toRegionValueIterator(ctx.region, rowTyp))
     TableValue(typ, BroadcastRow(globals, typ.globalType, hc.sc), RVD.unkeyed(rowTyp, rvd))
-  }
-}
-
-case class TableImport(paths: Array[String], typ: TableType, readerOpts: TableReaderOptions) extends TableIR {
-  assert(typ.key.isEmpty)
-  assert(typ.globalType.size == 0)
-  assert(typ.rowType.size == readerOpts.useColIndices.length)
-
-  val children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
-
-  override lazy val rvdType: RVDType = RVDType(typ.rowType.physicalType, FastIndexedSeq()) // FIXME: Canonical() when that arrives
-
-  def copy(newChildren: IndexedSeq[BaseIR]): TableImport = {
-    assert(newChildren.isEmpty)
-    TableImport(paths, typ, readerOpts)
-  }
-
-  protected[ir] override def execute(hc: HailContext): TableValue = {
-    val rowTyp = typ.rowType
-    val nFieldOrig = readerOpts.originalType.size
-    val rowFields = rowTyp.fields
-
-    val useColIndices = readerOpts.useColIndices
-
-
-    val crdd = ContextRDD.textFilesLines[RVDContext](hc.sc, paths, readerOpts.nPartitions)
-      .filter { line =>
-        !readerOpts.isComment(line.value) &&
-          (readerOpts.noHeader || readerOpts.header != line.value) &&
-          !(readerOpts.skipBlankLines && line.value.isEmpty)
-      }.cmapPartitions { (ctx, it) =>
-      val region = ctx.region
-      val rvb = ctx.rvb
-      val rv = RegionValue(region)
-
-      val ab = new ArrayBuilder[String]
-      val sb = new StringBuilder
-      it.map {
-        _.map { line =>
-          val sp = TextTableReader.splitLine(line, readerOpts.separator, readerOpts.quote, ab, sb)
-          if (sp.length != nFieldOrig)
-            fatal(s"expected $nFieldOrig fields, but found ${ sp.length } fields")
-
-          rvb.set(region)
-          rvb.start(rowTyp.physicalType)
-          rvb.startStruct()
-
-          var i = 0
-          while (i < useColIndices.length) {
-            val f = rowFields(i)
-            val name = f.name
-            val typ = f.typ
-            val field = sp(useColIndices(i))
-            try {
-              if (field == readerOpts.missing)
-                rvb.setMissing()
-              else
-                rvb.addAnnotation(typ, TableAnnotationImpex.importAnnotation(field, typ))
-            } catch {
-              case e: Exception =>
-                fatal(s"""${ e.getClass.getName }: could not convert "$field" to $typ in column "$name" """, e)
-            }
-            i += 1
-          }
-
-          rvb.endStruct()
-          rv.setOffset(rvb.end())
-          rv
-        }.value
-      }
-    }
-
-    TableValue(typ, BroadcastRow(Row.empty, typ.globalType, hc.sc), RVD.unkeyed(rowTyp.physicalType, crdd))
   }
 }
 

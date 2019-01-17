@@ -172,17 +172,13 @@ class TableMapRows(TableIR):
             self.child.typ.row_key)
 
 class TableRead(TableIR):
-    def __init__(self, path, drop_rows, typ):
+    def __init__(self, reader, drop_rows = False):
         super().__init__()
-        self.path = path
+        self.reader = reader
         self.drop_rows = drop_rows
-        self._typ = typ
 
     def render(self, r):
-        return '(TableRead "{}" {} {})'.format(
-            escape_str(self.path),
-            self.drop_rows,
-            self._typ)
+        return f'(TableRead None {self.drop_rows} "{r(self.reader)}")'
 
     def _compute_type(self):
         self._type = Env.backend().table_type(self)

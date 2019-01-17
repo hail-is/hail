@@ -87,7 +87,12 @@ class PruneSuite extends SparkSuite {
       None)
   ).value)
 
-  lazy val tr = TableRead("", TableSpec(0, "", "", tab.typ, Map.empty), tab.typ, false)
+  lazy val tr = TableRead(tab.typ, false, new TableReader {
+    def apply(tr: TableRead): TableValue = ???
+    def partitionCounts: Option[IndexedSeq[Long]] = ???
+    def fullType: TableType = tab.typ
+    def fullRVDType: RVDType = ???
+  })
 
   val mType = MatrixType.fromParts(
     TStruct("g1" -> TInt32(), "g2" -> TFloat64()),
@@ -621,19 +626,6 @@ class PruneSuite extends SparkSuite {
     checkMemo(MatrixAggregate(mat, matrixRefBoolean(mat.typ, "global.g1")),
       TBoolean(),
       Array(subsetMatrixTable(mat.typ, "global.g1"), null))
-  }
-
-  @Test def testTableImportRebuild() {
-    val tt = TableType(
-      TStruct("a" -> TInt32(), "b" -> TFloat64()),
-      FastIndexedSeq(),
-      TStruct())
-    val opts = TableReaderOptions(1, Array(), Array(), "", "", true, "", 'a', true, Array(0, 1), originalType = tt.rowType)
-    checkRebuild(TableImport(Array(""), tt, opts),
-      tt.copy(rowType = TStruct("a" -> TInt32())),
-      (_: TableImport, rebuilt: TableImport) =>
-        rebuilt.typ == tt.copy(rowType = TStruct("a" -> TInt32())) &&
-          rebuilt.readerOpts.useColIndices.sameElements(Array(0)))
   }
 
   @Test def testTableFilterRebuild() {

@@ -121,7 +121,7 @@ class TableIRTests(unittest.TestCase):
     def table_irs(self):
         b = ir.TrueIR()
         table_read = ir.TableRead(
-            resource('backward_compatability/1.0.0/table/0.ht'), False, None)
+            ir.TableNativeReader(resource('backward_compatability/1.0.0/table/0.ht')), False)
         table_read_row_type = hl.dtype('struct{idx: int32, f32: float32, i64: int64, m: float64, astruct: struct{a: int32, b: float64}, mstruct: struct{x: int32, y: str}, aset: set<str>, mset: set<float64>, d: dict<array<str>, float64>, md: dict<int32, str>, h38: locus<GRCh38>, ml: locus<GRCh37>, i: interval<locus<GRCh37>>, c: call, mc: call, t: tuple(call, str, str), mt: tuple(locus<GRCh37>, bool)}')
 
         matrix_read = ir.MatrixRead(
@@ -188,7 +188,8 @@ class TableIRTests(unittest.TestCase):
 
         matrix_read = ir.MatrixRead(
             ir.MatrixNativeReader(resource('backward_compatability/1.0.0/matrix_table/0.hmt')), False, False)
-        table_read = ir.TableRead(resource('backward_compatability/1.0.0/table/0.ht'), False, None)
+        table_read = ir.TableRead(
+            ir.TableNativeReader(resource('backward_compatability/1.0.0/table/0.ht')), False)
 
         matrix_range = ir.MatrixRead(ir.MatrixRangeReader(1, 1, 10))
 
