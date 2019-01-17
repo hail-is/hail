@@ -61,8 +61,7 @@ def trio_matrix(dataset, pedigree, complete_trios=False) -> MatrixTable:
     :class:`.MatrixTable`
     """
     mt = dataset
-    if not (len(mt.col_key) == 1 and mt.col_key[0].dtype == hl.tstr):
-        raise ValueError(f'trio_matrix requires column key of type [str], found: {",".join(list(mt.colkey))}')
+    require_col_key_str(mt, "trio_matrix")
     
     k = mt.col_key.dtype.fields[0]
     samples = mt[k].collect()
