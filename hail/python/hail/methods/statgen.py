@@ -3339,16 +3339,18 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
         hl.agg.collect(locally_pruned_table.row.select('idx', *fields)), _localize=False)
     info = hl.sorted(info, key=lambda x: x.idx)
 
+    entries = entries.annotate_globals(info = info)
+
     entries = entries.filter(
-        (info[entries.i].locus.contig == info[entries.j].locus.contig) &
-        (info[entries.j].locus.position - info[entries.i].locus.position <= bp_window_size))
+        (entries.info[entries.i].locus.contig == entries.info[entries.j].locus.contig) &
+        (entries.info[entries.j].locus.position - entries.info[entries.i].locus.position <= bp_window_size))
 
     if keep_higher_maf:
         entries = entries.annotate(
             i=hl.struct(idx=entries.i,
-                        twice_maf=hl.min(info[entries.i].mean, 2.0 - info[entries.i].mean)),
+                        twice_maf=hl.min(entries.info[entries.i].mean, 2.0 - entries.info[entries.i].mean)),
             j=hl.struct(idx=entries.j,
-                        twice_maf=hl.min(info[entries.j].mean, 2.0 - info[entries.j].mean)))
+                        twice_maf=hl.min(entries.info[entries.j].mean, 2.0 - entries.info[entries.j].mean)))
 
         def tie_breaker(l, r):
             return hl.sign(r.twice_maf - l.twice_maf)
