@@ -1,6 +1,7 @@
 import React from 'react';
 import App, { Container } from 'next/app';
 import Header from '../components/Header';
+import auth from '../libs/auth';
 // import cookies from '../libs/cookies';
 
 import 'styles/main.scss';
@@ -32,6 +33,7 @@ export default class MyApp extends App {
 
     if (typeof window !== 'undefined') {
       // Auth initialization logic
+      auth.initialize();
     }
   }
 

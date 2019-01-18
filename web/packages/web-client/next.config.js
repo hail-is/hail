@@ -16,8 +16,9 @@ const nextConfig = {
   webpack: (config, options) => {
     if (options.isServer) {
       config.plugins.push(new ForkTsCheckerWebpackPlugin());
+    } else {
+      config.optimization.splitChunks.cacheGroups.commons.minChunks = 2;
     }
-
     return config;
   }
 };

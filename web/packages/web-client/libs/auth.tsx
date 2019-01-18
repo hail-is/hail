@@ -14,7 +14,7 @@ declare type Auth = {
   state: state;
   auth0?: auth0.WebAuth;
   initialize: () => void;
-  login: () => void;
+  login: (state: string) => void;
   logout: () => void;
   setState: () => void;
   getState: () => void;
@@ -62,7 +62,12 @@ Auth.initialize = () => {
   });
 };
 
-Auth.login = () => {};
+Auth.login = state => {
+  Auth.auth0.authorize({
+    state: this.state,
+    prompt: 'login'
+  });
+};
 
 Auth.setState = () => {};
 

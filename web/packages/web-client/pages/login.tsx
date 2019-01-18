@@ -13,7 +13,7 @@ class Login extends PureComponent {
   };
 
   onSubmit = () => {
-    auth.login(this.password);
+    auth.login(this.state.password);
   };
 
   render() {
