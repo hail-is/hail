@@ -28,6 +28,7 @@
     "auth0-js": "^9.9.0",
     "dotenv": "^6.2.0",
     "js-cookie": "^2.2.0",
+    "jwt-decode": "^2.2.0",
     "next": "^7.0.2-canary.50",
     "react": "^16.7.0",
     "react-dom": "^16.7.0"
@@ -36,6 +37,7 @@
     "@babel/plugin-proposal-decorators": "^7.2.3",
     "@types/auth0-js": "^8.11.8",
     "@types/js-cookie": "^2.2.0",
+    "@types/jwt-decode": "^2.2.1",
     "@types/next": "^7.0.6",
     "@types/next-server": "^7.0.2",
     "@types/react": "^16.7.20",

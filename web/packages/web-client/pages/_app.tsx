@@ -6,7 +6,7 @@ import auth from '../libs/auth';
 
 import 'styles/main.scss';
 import 'animate.css';
-// TODO: properly handle nextjs, react props types here
+// TODO: think about using React context to pass down auth state instead of prop
 export default class MyApp extends App {
   state = {
     isDark: false
@@ -25,9 +25,9 @@ export default class MyApp extends App {
       pageProps = await Component.getInitialProps(ctx);
     }
 
-    if (typeof window === 'undefined') {
-      console.info('stuff', ctx.req.headers.cookie);
-    }
+    // if (typeof window === 'undefined') {
+    //   console.info('stuff', ctx.req.headers.cookie);
+    // }
 
     return { pageProps };
   }
@@ -35,25 +35,23 @@ export default class MyApp extends App {
   constructor(props: any) {
     super(props);
 
+    // TOOD: For any components that need to fetch during server phase
+    // we will need to extract the accessToken
     if (typeof window !== 'undefined') {
-      // Auth initialization logic
       auth.initialize();
-
-      if (props.authState) {
-        auth.hydrate(props.hydrateState);
-      }
+      auth.getState();
     }
   }
 
   render() {
     const { Component, pageProps } = this.props;
-
+    console.info('auth state', auth.state);
     return (
       <Container>
         <span id="theme-site" className={this.state.isDark ? 'dark' : ''}>
-          <Header />
+          <Header authState={auth.state} />
           <span id="main">
-            <Component {...pageProps} />
+            <Component {...pageProps} authState={auth.state} />
           </span>
         </span>
       </Container>

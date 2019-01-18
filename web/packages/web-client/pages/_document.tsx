@@ -14,6 +14,10 @@ export default class MyDocument extends Document {
             href="https://fonts.googleapis.com/css?family=Open+Sans"
             rel="stylesheet"
           />
+          <link
+            href="https://fonts.googleapis.com/icon?family=Material+Icons"
+            rel="stylesheet"
+          />
         </Head>
         <body style={{ margin: 0 }}>
           <Main />

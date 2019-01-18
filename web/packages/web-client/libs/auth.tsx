@@ -4,31 +4,44 @@
 // TOOD: Think about safety of using leeway to fudge jwt expiration by N seconds
 import auth0 from 'auth0-js';
 import getConfig from 'next/config';
-import cookies from '../libs/cookies';
+import cookies from 'js-cookie';
+import jwtDecode from 'jwt-decode';
 
 declare type user = {
   sub: string;
 };
 
+// We store all primary states in cookies
+// State derived from the idToken, user, is not stored,
+// This may change if we start issuing requests for user profile data
+// that is not in idToken
+// exp is also stored in a token, to enable a single function setState
+// that takes either an auth0 response, or a constructed response from cookeis
+// TODO: decide on this: exp is derived from accessToken's claim
 declare type state = {
   idToken: string | null;
   accessToken: string | null;
   user: user | null;
   exp: number | null;
+  loggedOut: boolean;
 };
 
+// TODO: add interface, expose only login, logout, initialize
+// TODO: Maybe convert to singleton class
 declare type Auth = {
   state: state;
   auth0?: auth0.WebAuth;
-  hydrate: (state: state) => void;
-  handleCallback: () => void;
+  isAuthenticated: () => boolean;
   initialize: () => void;
   login: (state?: string) => void;
   logout: () => void;
   setState: (result: object) => void;
-  getState: () => void;
-  clearState: () => void;
+  getState: (cookies?: string) => void;
+  clearState: (initState?: Partial<state>) => void;
   setStateAndCookie: (result: object) => void;
+  checkSession: (
+    cb: (err: auth0.Auth0Error | null, authResult: any) => void
+  ) => void;
 };
 
 const {
@@ -46,49 +59,87 @@ Auth.state = {
   idToken: null,
   accessToken: null,
   user: null,
-  exp: null
+  exp: null,
+  loggedOut: false
 };
 
+Auth.isAuthenticated = () => {
+  return !!Auth.state.user;
+};
+
+const setCookies = (state: state) => {
+  const opt = {
+    expires: new Date(state.exp as number),
+    path: '/'
+  };
+
+  // TODO: this isn't wholly needed, exp is derived from the accessToken;
+  cookies.set('idToken', state.idToken as string, opt);
+  cookies.set('accessToken', state.accessToken as string, opt);
+  cookies.set('exp', `${state.exp}`, opt);
+};
+
+const removeCookies = () => {
+  cookies.remove('idToken', { path: '/' });
+  cookies.remove('accessToken', { path: '/' });
+  cookies.remove('exp', { path: '/' });
+};
 // Change the reference, so state can be passed by reference and
 // shallow watched
-Auth.clearState = () => {
-  Auth.state = {
+Auth.clearState = initState => {
+  const base = {
     idToken: null,
     accessToken: null,
     user: null,
-    exp: null
+    exp: null,
+    loggedOut: false
   };
+
+  if (initState) {
+    Object.assign(base, initState);
+  }
+
+  Auth.state = base;
+
+  removeCookies();
+};
+
+Auth.checkSession = (cb = () => {}) => {
+  if (!Auth.auth0) {
+    throw new Error('Auth library is not initialized in checkSession');
+  }
+
+  Auth.auth0.checkSession({}, (err, authResult) => {
+    if (err) {
+      cb(err, authResult);
+
+      return;
+    }
+
+    Auth.setStateAndCookie(authResult);
+
+    cb(err, authResult);
+  });
 };
 
 let timeout: NodeJS.Timeout;
 const pollForSession = () => {
   if (timeout) {
-    clearTimeout(timeout);
+    clearInterval(timeout);
   }
 
-  timeout = setTimeout(() => {
-    // This boilerplate is required by typescript for union types including null
-    // however, there may be a more elegant way to handle this
-    if (!Auth.auth0) {
-      console.error('Auth library is not initialized in pollFromSession');
-      return;
-    }
-
-    Auth.auth0.checkSession({}, (err, authResult) => {
+  timeout = setInterval(() => {
+    Auth.checkSession((err, _) => {
       if (err) {
-        console.error(err);
-        return;
+        Auth.logout();
       }
-
-      Auth.setStateAndCookie(authResult);
     });
   }, Math.floor((Auth.state.exp as number) / 2));
 };
 
 Auth.initialize = () => {
   if (typeof window === 'undefined') {
-    console.error('Auth.initialize should be called from client side only');
-    return;
+    throw new Error('Auth.initialize should be called from client side only');
   }
 
   // split uses a greedy pattern, removing contiguous sequences of /
@@ -115,45 +166,38 @@ Auth.login = state => {
 
   return new Promise((resolve, reject) => {
     if (!Auth.auth0) {
-      console.error('Auth library is not initialized');
-      return;
+      throw new Error('Auth library is not initialized');
     }
 
     Auth.auth0.popup.authorize(opts, (err, result) => {
       if (err) {
         return reject(err);
-      } else {
-        Auth.setStateAndCookie(result);
-        return resolve(true);
       }
+
+      Auth.setStateAndCookie(result);
+      return resolve(true);
     });
   });
 };
 
-Auth.hydrate = state => {
-  console.log('state', state);
+// TODO: Decide on either triggering an event through pre-registered
+// callback list, relying on the reference changing to trigger shallow watch in React
+// on relying on observables, such as nxjs (which adds 2kb to bundle)
+Auth.logout = () => {
+  console.info('Logging out');
+  Auth.clearState({ loggedOut: true });
 };
 
 Auth.setStateAndCookie = (result: any) => {
   Auth.setState(result);
 
-  cookies.set('idToken', Auth.state.idToken as string, {
-    expires: new Date(Auth.state.exp as number)
-  });
-
-  cookies.set('accessToken', Auth.state.accessToken as string, {
-    expires: new Date(Auth.state.exp as number)
-  });
+  setCookies(Auth.state);
 
   pollForSession();
 };
 
 Auth.setState = (result: any) => {
-  console.info('result', result);
-
   Auth.state.exp = result.expiresIn * 1000 + new Date().getTime();
-
-  console.info('state timeout', Auth.state.exp);
 
   Auth.state.accessToken = result.accessToken;
   Auth.state.idToken = result.idToken;
@@ -163,6 +207,39 @@ Auth.setState = (result: any) => {
   };
 };
 
-Auth.getState = () => {};
+// TODO: decide whether we want to validate here, or defer until checkSession
+Auth.getState = () => {
+  if (!Auth.auth0) {
+    throw new Error('Auth library not initialized in getState');
+  }
+
+  const result: any = {};
+  result.idToken = cookies.get('idToken');
+
+  if (!result.idToken) {
+    return;
+  }
+
+  result.accessToken = cookies.get('accessToken');
+  result.exp = cookies.get('exp');
+
+  result.idTokenPayload = jwtDecode(result.idToken);
+
+  // Set immediate state, to give any components that need this state
+  // the ability to optimistically render that state
+  Auth.setState(result);
+
+  // Validate that state, to reduce the likelihood that API calls will fail
+  // without user expectation
+  Auth.checkSession(err => {
+    if (err) {
+      Auth.logout();
+      console.error(err);
+      return;
+    }
+
+    pollForSession();
+  });
+};
 
 export default Auth;
