@@ -853,6 +853,45 @@ class Tests(unittest.TestCase):
         ht = hl.utils.range_table(10)
         assert hl.eval(ht.idx.take(3, _localize=False)) == ht.idx.take(3)
 
+    def test_same_equal(self):
+        t1 = hl.utils.range_table(1)
+        self.assertTrue(t1._same(t1))
+
+    def test_same_within_tolerance(self):
+        t = hl.utils.range_table(1)
+        t1 = t.annotate(x = 1.0)
+        t2 = t.annotate(x = 1.0 + 1e-7)
+        self.assertTrue(t1._same(t2))
+
+    def test_same_different_type(self):
+        t1 = hl.utils.range_table(1)
+
+        t2 = t1.annotate_globals(x = 7)
+        self.assertFalse(t1._same(t2))
+        
+        t3 = t1.annotate(x = 7)
+        self.assertFalse(t1._same(t3))
+
+        t4 = t1.key_by()
+        self.assertFalse(t1._same(t4))
+
+    def test_same_different_global(self):
+        t1 = (hl.utils.range_table(1)
+              .annotate_globals(x = 7))
+        t2 = t1.annotate_globals(x = 8)
+        self.assertFalse(t1._same(t2))
+
+    def test_same_different_rows(self):
+        t1 = (hl.utils.range_table(2)
+              .annotate(x = 7))
+        
+        t2 = t1.annotate(x = 8)
+        self.assertFalse(t1._same(t2))
+
+        t3 = t1.filter(t1.idx == 0)
+        self.assertFalse(t1._same(t3))
+        
+
 def test_large_number_of_fields(tmpdir):
     ht = hl.utils.range_table(100)
     ht = ht.annotate(**{

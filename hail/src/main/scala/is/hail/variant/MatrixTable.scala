@@ -656,8 +656,10 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     val localRKF = rowKeysF
     val localColKeys = colKeys
 
+    val (_, jcrdd) = this.rvd.orderedZipJoin(that.rvd)
+
     metadataSame &&
-      this.rvd.orderedZipJoin(that.rvd).mapPartitions { it =>
+      jcrdd.mapPartitions { it =>
         val fullRow1 = new UnsafeRow(leftRVType.physicalType)
         val fullRow2 = new UnsafeRow(rightRVType.physicalType)
 

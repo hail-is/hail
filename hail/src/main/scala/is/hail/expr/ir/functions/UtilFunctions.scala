@@ -38,6 +38,14 @@ object UtilFunctions extends RegistryFunctions {
   def registerAll() {
     val thisClass = getClass
 
+    registerCode("valuesSimilar", tv("T"), tv("U"), TFloat64(), TBoolean(), TBoolean()) { case (mb, l, r, tolerance, absolute) =>
+      val t = tv("T").subst()
+      val u = tv("U").subst()
+      val lb = boxArg(mb, t)(l)
+      val rb = boxArg(mb, u)(r)
+      mb.getType(t).invoke[Any, Any, Double, Boolean, Boolean]("valuesSimilar", lb, rb, tolerance, absolute)
+    }
+
     registerCode("triangle", TInt32(), TInt32()) { (_, n: Code[Int]) => (n * (n + 1)) / 2 }
 
     registerCode("toInt32", TBoolean(), TInt32()) { (_, x: Code[Boolean]) => x.toI }
