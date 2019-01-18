@@ -1,5 +1,6 @@
 import { PureComponent } from 'react';
 import auth from '../libs/auth';
+import Router from 'next/router';
 // import cookie from '../libs/cookies';
 
 declare type state = {
@@ -11,28 +12,17 @@ declare type state = {
 class Login extends PureComponent {
   state: state = {};
 
-  static async getInitialProps(ctx: any) {
-    if (ctx.req) {
-      // Server side
-      console.info('server', typeof window, ctx);
-    } else {
-      console.info('client', ctx);
-    }
-  }
-
   constructor(props: any) {
     super(props);
-
-    // props.
   }
 
   onLoginButtonClick = async () => {
     try {
-      const results = await auth.login(this.state.password);
-      console.info('success!', results);
-      this.setState({ loggedIn: true });
+      await auth.login(this.state.password);
+
+      Router.replace('/');
     } catch (e) {
-      console.info(e);
+      console.error(e);
       this.setState({ failed: true });
     }
   };
@@ -49,9 +39,7 @@ class Login extends PureComponent {
   };
 
   render() {
-    if (this.state.loggedIn) {
-      return <div>Success!</div>;
-    } else if (this.state.failed) {
+    if (this.state.failed) {
       return <div>Unauthorized!</div>;
     }
 
