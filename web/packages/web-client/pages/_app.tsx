@@ -32,6 +32,14 @@ export default class MyApp extends App {
     return { pageProps };
   }
 
+  onDarkToggle = () => {
+    this.setState((prevState: any) => {
+      return {
+        isDark: !prevState.isDark
+      };
+    });
+  };
+
   constructor(props: any) {
     super(props);
 
@@ -52,6 +60,16 @@ export default class MyApp extends App {
           <Header authState={auth.state} />
           <span id="main">
             <Component {...pageProps} authState={auth.state} />
+          </span>
+
+          <span id="footer" style={{ padding: 7, display: 'flex' }}>
+            <i
+              className="material-icons"
+              style={{ cursor: 'pointer' }}
+              onClick={this.onDarkToggle}
+            >
+              wb_sunny
+            </i>
           </span>
         </span>
       </Container>

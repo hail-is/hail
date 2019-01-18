@@ -8,14 +8,18 @@
   flex-direction: column;
   font-family: 'Open Sans', Helvetica, Arial, sans-serif;
   a {
-    color: $dark-gray;
+    color: #1a0dab;
     text-decoration: none;
     &.active {
       font-weight: $weight-heavy;
     }
   }
-  .dark {
+  &.dark {
     background-color: $black;
+    color: $white;
+    a {
+      color: $white;
+    }
   }
   #main {
     display: flex;
@@ -23,6 +27,6 @@
     justify-content: center;
     align-content: center;
     align-items: center;
-    height: calc(100vh - 54px);
+    height: calc(100vh - 44px * 2);
   }
 }
