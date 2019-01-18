@@ -319,8 +319,7 @@ object Simplify {
       TableFilter(t,
         ApplySpecial("&&", Array(p1, p2)))
 
-    case TableOrderBy(child, sortFields) if sortFields.isEmpty =>
-      child
+    case TableOrderBy(TableKeyBy(child, _, _), sortFields) => TableOrderBy(child, sortFields)
 
     case TableFilter(TableOrderBy(child, sortFields), pred) if canRepartition =>
       TableOrderBy(TableFilter(child, pred), sortFields)
@@ -429,7 +428,9 @@ object Simplify {
       TableMapGlobals(TableHead(child, n), newGlobals)
 
     case TableHead(TableOrderBy(child, sortFields), n)
-      if sortFields.forall(_.sortOrder == Ascending) && n < 256 && canRepartition =>
+      if sortFields.forall(_.sortOrder == Ascending)
+        && child.typ.key != sortFields.map(_.field)
+        && n < 256 && canRepartition =>
       // n < 256 is arbitrary for memory concerns
       val uid = genUID()
       val row = Ref("row", child.typ.rowType)

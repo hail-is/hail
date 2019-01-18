@@ -1289,7 +1289,6 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
 case class TableOrderBy(child: TableIR, sortFields: IndexedSeq[SortField]) extends TableIR {
   // TableOrderBy expects an unkeyed child, so that we can better optimize by
   // pushing these two steps around as needed
-  require(child.typ.key.isEmpty)
 
   val children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
 
