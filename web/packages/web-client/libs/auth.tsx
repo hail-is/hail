@@ -42,6 +42,7 @@ declare type Auth = {
   checkSession: (
     cb: (err: auth0.Auth0Error | null, authResult: any) => void
   ) => void;
+  getStateSSR: (cookie: string) => void;
 };
 
 const {
@@ -207,6 +208,68 @@ Auth.setState = (result: any) => {
   };
 };
 
+Auth.getStateSSR = cookie => {
+  let idTokenIdx = -1;
+  let accessTokenIdx = -1;
+  let expIdx = -1;
+
+  let idToken = '';
+  let accessToken = '';
+  let exp = '';
+  const parts = cookie.split('; ');
+
+  for (let i = parts.length; i--; ) {
+    if (idTokenIdx > -1 && accessTokenIdx > -1 && expIdx > -1) {
+      break;
+    }
+
+    if (idTokenIdx == -1) {
+      idTokenIdx = parts[i].indexOf('idToken=');
+
+      if (idTokenIdx !== -1) {
+        idToken = parts[i].substr(idTokenIdx + 8);
+        continue;
+      }
+    }
+
+    if (accessTokenIdx == -1) {
+      accessTokenIdx = parts[i].indexOf('accessToken=');
+
+      if (accessTokenIdx !== -1) {
+        accessToken = parts[i].substr(accessTokenIdx + 12);
+        continue;
+      }
+    }
+
+    if (expIdx == -1) {
+      expIdx = parts[i].indexOf('exp=');
+
+      if (expIdx !== -1) {
+        exp = parts[i].substr(expIdx + 4);
+        continue;
+      }
+    }
+  }
+
+  if (idToken === '') {
+    return;
+  }
+
+  try {
+    const idTokenPayload = jwtDecode(idToken);
+
+    Auth.setState({
+      idToken,
+      accessToken,
+      exp,
+      idTokenPayload
+    });
+  } catch (e) {
+    console.error(e);
+    return;
+  }
+};
+
 // TODO: decide whether we want to validate here, or defer until checkSession
 Auth.getState = () => {
   if (!Auth.auth0) {
@@ -223,23 +286,27 @@ Auth.getState = () => {
   result.accessToken = cookies.get('accessToken');
   result.exp = cookies.get('exp');
 
-  result.idTokenPayload = jwtDecode(result.idToken);
+  try {
+    result.idTokenPayload = jwtDecode(result.idToken);
 
-  // Set immediate state, to give any components that need this state
-  // the ability to optimistically render that state
-  Auth.setState(result);
+    // Set immediate state, to give any components that need this state
+    // the ability to optimistically render that state
+    Auth.setState(result);
 
-  // Validate that state, to reduce the likelihood that API calls will fail
-  // without user expectation
-  Auth.checkSession(err => {
-    if (err) {
-      Auth.logout();
-      console.error(err);
-      return;
-    }
+    // Validate that state, to reduce the likelihood that API calls will fail
+    // without user expectation
+    Auth.checkSession(err => {
+      if (err) {
+        Auth.logout();
+        console.error(err);
+        return;
+      }
 
-    pollForSession();
-  });
+      pollForSession();
+    });
+  } catch (e) {
+    console.error(e);
+  }
 };
 
 export default Auth;

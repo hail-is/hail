@@ -25,9 +25,9 @@ export default class MyApp extends App {
       pageProps = await Component.getInitialProps(ctx);
     }
 
-    // if (typeof window === 'undefined') {
-    //   console.info('stuff', ctx.req.headers.cookie);
-    // }
+    if (typeof window === 'undefined') {
+      auth.getStateSSR(ctx.req.headers.cookie);
+    }
 
     return { pageProps };
   }
@@ -45,7 +45,7 @@ export default class MyApp extends App {
 
   render() {
     const { Component, pageProps } = this.props;
-    console.info('auth state', auth.state);
+
     return (
       <Container>
         <span id="theme-site" className={this.state.isDark ? 'dark' : ''}>
