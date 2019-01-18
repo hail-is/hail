@@ -535,7 +535,7 @@ class BlockMatrix(object):
         -------
         :obj:`int`
         """
-        return self._bmir.typ.n_rows
+        return self._bmir.typ.shape[0]
 
     @property
     def n_cols(self):
@@ -545,7 +545,7 @@ class BlockMatrix(object):
         -------
         :obj:`int`
         """
-        return self._bmir.typ.n_cols
+        return self._bmir.typ.shape[1]
 
     @property
     def shape(self):

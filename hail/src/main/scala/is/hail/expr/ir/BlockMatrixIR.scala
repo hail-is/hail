@@ -15,7 +15,7 @@ abstract sealed class BlockMatrixIR extends BaseIR {
 case class BlockMatrixRead(path: String) extends BlockMatrixIR {
   override def typ: BlockMatrixType = {
     val metadata = BlockMatrix.readMetadata(HailContext.get, path)
-    BlockMatrixType(metadata.nRows, metadata.nCols, metadata.blockSize)
+    BlockMatrixType(IndexedSeq(metadata.nRows, metadata.nCols), metadata.blockSize, IndexedSeq(true, true))
   }
 
   override def children: IndexedSeq[BaseIR] = Array.empty[BlockMatrixIR]
@@ -32,7 +32,7 @@ case class BlockMatrixRead(path: String) extends BlockMatrixIR {
 
 class BlockMatrixLiteral(value: BlockMatrix) extends BlockMatrixIR {
   override def typ: BlockMatrixType = {
-    BlockMatrixType(value.nRows, value.nCols, value.blockSize)
+    BlockMatrixType(IndexedSeq(value.nRows, value.nCols), value.blockSize, IndexedSeq(true, true))
   }
 
   override def children: IndexedSeq[BaseIR] = Array.empty[BlockMatrixIR]

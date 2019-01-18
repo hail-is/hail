@@ -1,39 +1,39 @@
-from hail.typecheck import typecheck_method
-from hail.expr.types import dtype
+from hail.typecheck import *
+from hail.utils.java import jiterable_to_list
 
 
 class tblockmatrix(object):
     @staticmethod
     def _from_java(jtbm):
-        return tblockmatrix(jtbm.nRows(), jtbm.nCols(), jtbm.blockSize())
+        return tblockmatrix(
+            jiterable_to_list(jtbm.shape()),
+            jtbm.blockSize(),
+            jiterable_to_list(jtbm.dimsPartitioned()))
 
     @staticmethod
     def _from_json(json):
-        return tblockmatrix(
-            dtype(json['nRows']),
-            dtype(json['nCols']),
-            dtype(json['blockSize']))
+        return tblockmatrix(json['shape'], json['blockSize'], json['dimsPartitioned'])
 
-    @typecheck_method(n_rows=int, n_cols=int, block_size=int)
-    def __init__(self, n_rows, n_cols, block_size):
-        self.n_rows = n_rows
-        self.n_cols = n_cols
-        self.block_size = block_size
+    @typecheck_method(shape=sequenceof(int), block_size=int, dims_partitioned=sequenceof(bool))
+    def __init__(self, shape, block_size, dims_partitioned):
+        self.shape = shape
+        self.block_size = block_size,
+        self.dims_partitioned = dims_partitioned
 
     def __eq__(self, other):
         return isinstance(other, tblockmatrix) and \
-               self.n_rows == other.n_rows and \
-               self.n_cols == other.n_cols and \
-               self.block_size == other.block_size
+               self.shape == other.shape and \
+               self.block_size == other.block_size and \
+               self.dims_partitioned == other.dims_partitioned
 
     def __hash__(self):
         return 43 + hash(str(self))
 
     def __repr__(self):
-        return f'tblockmatrix(n_rows={self.n_rows!r}, n_cols={self.n_cols!r}, block_size={self.block_size!r})'
+        return f'tblockmatrix(shape={self.shape!r}, block_size={self.block_size!r}, dims_partitioned={self.dims_partitioned!r})'
 
     def __str__(self):
-        return f'blockmatrix {{n_rows: {self.n_rows}, n_cols: {self.n_cols}, block_size: {self.block_size}}}'
+        return f'blockmatrix {{shape: {self.shape}, block_size: {self.block_size}, dims_partitioned: {self.dims_partitioned}}}'
 
     def pretty(self, indent=0, increment=4):
         l = []
@@ -42,19 +42,15 @@ class tblockmatrix(object):
         indent += increment
 
         l.append(' ' * indent)
-        l.append('n_rows: ')
-        self.n_rows._pretty(l, indent, increment)
-        l.append(',\n')
-
-        l.append(' ' * indent)
-        l.append('n_cols: ')
-        self.n_cols._pretty(l, indent, increment)
-        l.append(',\n')
+        l.append(f'shape: [{self.shape}],\n')
 
         l.append(' ' * indent)
         l.append('block_size: ')
         self.block_size._pretty(l, indent, increment)
         l.append(',\n')
+
+        l.append(' ' * indent)
+        l.append(f'dims_partitioned: [{self.dims_partitioned}],\n')
 
         indent -= increment
         l.append(' ' * indent)

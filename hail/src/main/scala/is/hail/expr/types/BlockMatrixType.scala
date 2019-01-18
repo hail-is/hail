@@ -1,6 +1,8 @@
 package is.hail.expr.types
 
-case class BlockMatrixType(nRows: Long, nCols: Long, blockSize: Int) extends BaseType {
+import is.hail.utils._
+
+case class BlockMatrixType(shape: IndexedSeq[Long], blockSize: Int, dimsPartitioned: IndexedSeq[Boolean]) extends BaseType {
 
   override def pretty(sb: StringBuilder, indent0: Int, compact: Boolean): Unit = {
     var indent = indent0
@@ -18,18 +20,20 @@ case class BlockMatrixType(nRows: Long, nCols: Long, blockSize: Int) extends Bas
     indent += 4
     newline()
 
-    sb.append(s"nRows:$space")
-    sb.append(nRows)
+    sb.append(s"shape:$space[")
+    shape.foreachBetween(dimSize => sb.append(dimSize))(sb.append(s",$space"))
+    sb += ']'
     sb += ','
     newline()
 
-    sb.append(s"nCols:$space")
-    sb.append(nCols)
-    sb += ','
-    newline()
-
-    sb.append(s"blockSize:$space")
+    sb.append(s"blockSize:$space[")
     sb.append(blockSize)
+    sb += ','
+    newline()
+
+    sb.append(s"dimsPartitioned:$space[")
+    dimsPartitioned.foreachBetween(dim => sb.append(dim))(sb.append(s",$space"))
+    sb += ']'
 
     indent -= 4
     newline()
