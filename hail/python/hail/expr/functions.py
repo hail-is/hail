@@ -4488,13 +4488,13 @@ def bit_lshift(x, y):
     -2147483648
 
     >>> hl.eval(hl.bit_lshift(1, 32))
-    1
+    0
 
     >>> hl.eval(hl.bit_lshift(hl.int64(1), 32))
     4294967296
 
     >>> hl.eval(hl.bit_lshift(hl.int64(1), 64))
-    1
+    0
 
     Notes
     -----
