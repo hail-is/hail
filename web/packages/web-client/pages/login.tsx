@@ -26,15 +26,7 @@ class Login extends PureComponent {
     // props.
   }
 
-  onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    this.setState({
-      password: e.target.value
-    });
-  };
-
-  onSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
+  onLoginButtonClick = async () => {
     try {
       const results = await auth.login(this.state.password);
       console.info('success!', results);
@@ -43,6 +35,17 @@ class Login extends PureComponent {
       console.info(e);
       this.setState({ failed: true });
     }
+  };
+
+  onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    this.setState({
+      password: e.target.value
+    });
+  };
+
+  onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    this.onLoginButtonClick();
   };
 
   render() {
@@ -56,7 +59,9 @@ class Login extends PureComponent {
       <span id="login">
         <h3>Login</h3>
         <span className="card">
-          <button className="outlined-button">Login</button>
+          <button className="outlined-button" onClick={this.onLoginButtonClick}>
+            Login
+          </button>
         </span>
         <span className="card">
           <form onSubmit={this.onSubmit}>

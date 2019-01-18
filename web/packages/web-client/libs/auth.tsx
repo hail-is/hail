@@ -55,7 +55,7 @@ Auth.initialize = () => {
   const parts = window.location.href.split('/');
 
   const redirectUri = `${parts[0]}//${parts[2]}/${CALLBACK_SUFFIX}`;
-  console.info('redirect', redirectUri);
+
   Auth.auth0 = new auth0.WebAuth({
     domain: DOMAIN,
     clientID: CLIENT_ID,
@@ -67,13 +67,13 @@ Auth.initialize = () => {
 };
 
 Auth.login = state => {
-  const opts: any = {};
+  const opts: any = { prompt: 'login' };
 
   if (state) {
     opts.state = state;
   }
 
-  const promise = new Promise((resolve, reject) => {
+  return new Promise((resolve, reject) => {
     if (!Auth.auth0) {
       console.error('Auth library is not initialized');
       return;
@@ -87,8 +87,6 @@ Auth.login = state => {
       }
     });
   });
-
-  return promise;
 };
 
 Auth.setState = () => {};
