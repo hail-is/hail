@@ -79,7 +79,7 @@ def test_cancel_tail(client):
     right = batch.create_job('alpine:3.8', command=['echo', 'right'], parent_ids=[head.id])
     tail = batch.create_job(
         'alpine:3.8',
-        command=['/bin/bash', '-c', 'while true; do sleep 86000; done'],
+        command=['/bin/sh', '-c', 'while true; do sleep 86000; done'],
         parent_ids=[left.id, right.id])
     tail.cancel()
     status = batch.wait()
@@ -96,7 +96,7 @@ def test_cancel_left_before_tail(client):
     head = batch.create_job('alpine:3.8', command=['echo', 'head'])
     left = batch.create_job(
         'alpine:3.8',
-        command=['/bin/bash', '-c', 'while true; do sleep 86000; done'],
+        command=['/bin/sh', '-c', 'while true; do sleep 86000; done'],
         parent_ids=[head.id])
     left.cancel()
     right = batch.create_job('alpine:3.8', command=['echo', 'right'], parent_ids=[head.id])
