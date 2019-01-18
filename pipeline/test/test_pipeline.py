@@ -2,7 +2,7 @@ import unittest
 import os
 import subprocess as sp
 
-from pipeline import Pipeline
+from pipeline import Pipeline, BatchBackend
 
 
 class LocalTests(unittest.TestCase):
@@ -16,7 +16,6 @@ class LocalTests(unittest.TestCase):
         with open(file, 'w') as f:
             f.write(msg)
             f.close()
-
 
     def rm(self, *files):
         for file in files:
@@ -159,7 +158,6 @@ class LocalTests(unittest.TestCase):
         self.assertEqual(self.read(output_file), '2\n1\n0')
         self.rm(output_file)
 
-
     # FIXME: Run docker inside docker
     # def test_single_task_docker(self):
     #     output_file = '/tmp/test_single_task_docker.txt'
@@ -174,3 +172,60 @@ class LocalTests(unittest.TestCase):
     #
     #     self.assertEqual(self.read(output_file), msg)
     #     self.rm(output_file)
+
+
+class BatchTests(unittest.TestCase):
+    def pipeline(self):
+        url = os.environ.get('BATCH_URL')
+        if url is None:
+            raise Exception("BATCH_URL not defined in the environment.")
+        return Pipeline(backend=BatchBackend(url))
+
+    def test_single_task_no_io(self):
+        p = self.pipeline()
+        t = p.new_task()
+        t.command('echo hello')
+        p.run()
+
+    def test_single_task_input(self):
+        p = self.pipeline()
+        input = p.read_input('gs://hail-pipeline-test/data/hello.txt')
+        t = p.new_task()
+        t.command(f'cat {input}')
+        p.run()
+
+    def test_single_task_input_resource_group(self):
+        p = self.pipeline()
+        input = p.read_input_group(foo='gs://hail-pipeline-test/data/hello.txt')
+        t = p.new_task()
+        t.command(f'cat {input.foo}')
+        p.run()
+
+    def test_single_task_output(self):
+        p = self.pipeline()
+        t = p.new_task()
+        t.command(f'echo hello > {t.ofile}')
+        p.run()
+
+    def test_single_task_write_output(self):
+        p = self.pipeline()
+        t = p.new_task()
+        t.command(f'echo hello > {t.ofile}')
+        p.write_output(t.ofile, 'gs://hail-pipeline-test/output/test_single_task_output.txt')
+        p.run()
+
+    def test_single_task_resource_group(self):
+        p = self.pipeline()
+        t = p.new_task()
+        t.declare_resource_group(output={'foo': '{root}.foo'})
+        t.command(f'echo "hello" > {t.output.foo}')
+        p.run()
+
+    def test_single_task_write_resource_group(self):
+        p = self.pipeline()
+        t = p.new_task()
+        t.declare_resource_group(output={'foo': '{root}.foo'})
+        t.command(f'echo "hello" > {t.output.foo}')
+        p.write_output(t.output, 'gs://hail-pipeline-test/output/test_single_task_write_resource_group')
+        p.write_output(t.output.foo, 'gs://hail-pipeline-test/output/test_single_task_write_resource_group_file.txt')
+        p.run()
