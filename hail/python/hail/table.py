@@ -1436,9 +1436,6 @@ class Table(ExprContainer):
                   and isinstance(exprs[0], StructExpression)
                   and types_compatible(self.key.values(), exprs[0].values())):
                 return self.index(*exprs[0].values())
-            elif len(exprs) != len(self.key):
-                raise ExpressionException(f'Key mismatch: table has {len(self.key)} key fields, '
-                                          f'found {len(exprs)} index expressions.')
             else:
                 raise ExpressionException(f"Key type mismatch: cannot index table with given expressions:\n"
                                           f"  Table key:         {', '.join(str(t) for t in self.key.dtype.values())}\n"
