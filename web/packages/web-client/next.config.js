@@ -4,7 +4,10 @@ const withPurgeCss = require('next-purgecss');
 const withCss = require('@zeit/next-css');
 const withSass = require('@zeit/next-sass');
 const withPlugins = require('next-compose-plugins');
+const dotenv = require('dotenv');
 
+// exposes .env variables
+dotenv.config();
 // If above plugins need to be run only during server-build phase
 // const {PHASE_DEVELOPMENT_SERVER} = require('next/constants')
 
@@ -44,7 +47,10 @@ module.exports = withPlugins(
 
 module.exports.publicRuntimeConfig = {
   AUTH0: {
-    scope: '',
-    domain: ''
+    DOMAIN: process.env.AUTH0_DOMAIN,
+    SCOPE: process.env.AUTH0_SCOPE,
+    REDIRECT_URI: process.env.AUTH0_REDIRECT_URI,
+    RESPONSE_TYPE: process.env.AUTH0_RESPONSE_TYPE,
+    CLIENT_ID: process.env.AUTH0_CLIENT_ID
   }
 };

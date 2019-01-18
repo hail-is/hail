@@ -1,9 +1,12 @@
 #theme-site {
-  .link-button {
-    padding: 14px;
-  }
-  .icon-button {
-    padding: 14px;
+  button {
+    outline: none;
+    /* border: none; */
+    /* display: inline-block; */
+    /* width: 20px; */
+    border: 1px solid #333;
+    padding: 10px;
+    border-radius: 3px;
   }
   &.dark {}
 }

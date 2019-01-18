@@ -1,6 +1,5 @@
 import React from 'react';
 import App, { Container } from 'next/app';
-import { isClientSide } from '../libs/utils';
 import Header from '../components/Header';
 // import cookies from '../libs/cookies';
 
@@ -31,7 +30,7 @@ export default class MyApp extends App {
   constructor(props: any) {
     super(props);
 
-    if (isClientSide()) {
+    if (typeof window !== 'undefined') {
       // Auth initialization logic
     }
   }
