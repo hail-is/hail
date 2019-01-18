@@ -8,7 +8,7 @@
   flex-direction: column;
   font-family: 'Open Sans', Helvetica, Arial, sans-serif;
   a {
-    color: #1a0dab;
+    color: $dark-gray;
     text-decoration: none;
     &.active {
       font-weight: $weight-heavy;

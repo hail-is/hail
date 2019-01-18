@@ -209,6 +209,11 @@ Auth.setState = (result: any) => {
 };
 
 Auth.getStateSSR = cookie => {
+  // Strangely cookie === '' doesn't work with non-optional argument
+  if (!cookie) {
+    return;
+  }
+
   let idTokenIdx = -1;
   let accessTokenIdx = -1;
   let expIdx = -1;
