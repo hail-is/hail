@@ -2363,9 +2363,6 @@ class MatrixTable(ExprContainer):
                   and isinstance(exprs[0], StructExpression)
                   and types_match(self.row_key.values(), exprs[0].values())):
                 return self.index_rows(*exprs[0].values())
-            elif len(exprs) != len(self.row_key):
-                raise ExpressionException(f'Key mismatch: matrix table has {len(self.row_key)} row key fields, '
-                                          f'found {len(exprs)} index expressions')
             else:
                 raise ExpressionException(
                     f"Key type mismatch: cannot index matrix table with given expressions:\n"
@@ -2489,9 +2486,9 @@ class MatrixTable(ExprContainer):
                                           f'found {len(row_exprs)} index expressions')
             else:
                 raise ExpressionException(
-                    f"Cannot index table with given expressions\n"
-                    f"  MatrixTable row key: {', '.join(str(t) for t in self.row_key.dtype.values())}\n"
-                    f"  Index expressions:   {', '.join(str(e.dtype) for e in row_exprs)}")
+                    f"Key type mismatch: Cannot index matrix table with given expressions\n"
+                    f"  MatrixTable row key:   {', '.join(str(t) for t in self.row_key.dtype.values())}\n"
+                    f"  Row index expressions: {', '.join(str(e.dtype) for e in row_exprs)}")
 
         if not types_match(self.col_key.values(), col_exprs):
             if (len(col_exprs) == 1
@@ -2508,8 +2505,8 @@ class MatrixTable(ExprContainer):
             else:
                 raise ExpressionException(
                     f"Key type mismatch: cannot index matrix table with given expressions:\n"
-                    f"  MatrixTable col key: {', '.join(str(t) for t in self.col_key.dtype.values())}\n"
-                    f"  Index expressions:   {', '.join(str(e.dtype) for e in col_exprs)}")
+                    f"  MatrixTable col key:   {', '.join(str(t) for t in self.col_key.dtype.values())}\n"
+                    f"  Col index expressions: {', '.join(str(e.dtype) for e in col_exprs)}")
 
         indices, aggregations = unify_all(*(row_exprs + col_exprs))
         src = indices.source
