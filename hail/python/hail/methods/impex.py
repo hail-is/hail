@@ -1118,16 +1118,12 @@ def import_gen(path,
     -------
     :class:`.MatrixTable`
     """
-
-    rg = reference_genome._jrep if reference_genome else None
-
-    if contig_recoding:
-        contig_recoding = tdict(tstr, tstr)._convert_to_j(contig_recoding)
-
-    jmt = Env.hc()._jhc.importGens(jindexed_seq_args(path), sample_file, joption(chromosome), joption(min_partitions),
-                                   tolerance, joption(rg), joption(contig_recoding),
-                                   skip_invalid_loci)
-    return MatrixTable._from_java(jmt)
+    path = wrap_to_list(path)
+    rg = reference_genome.name if reference_genome else None
+    if contig_recoding is None:
+        contig_recoding = {}
+    return MatrixTable(MatrixRead(MatrixGENReader(
+        path, sample_file, chromosome, min_partitions, tolerance, rg, contig_recoding, skip_invalid_loci)))
 
 
 @typecheck(paths=oneof(str, sequenceof(str)),

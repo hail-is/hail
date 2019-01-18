@@ -9,6 +9,7 @@ import is.hail.expr.types._
 import is.hail.expr.types.physical.{PArray, PInt32, PStruct}
 import is.hail.expr.types.virtual._
 import is.hail.io.bgen.MatrixBGENReader
+import is.hail.io.gen.MatrixGENReader
 import is.hail.io.plink.MatrixPLINKReader
 import is.hail.io.vcf.MatrixVCFReader
 import is.hail.rvd._
@@ -127,7 +128,7 @@ case class MatrixLiteral(value: MatrixValue) extends MatrixIR {
 object MatrixReader {
   implicit val formats: Formats = RelationalSpec.formats + ShortTypeHints(
     List(classOf[MatrixNativeReader], classOf[MatrixRangeReader], classOf[MatrixVCFReader],
-      classOf[MatrixBGENReader], classOf[MatrixPLINKReader]))
+      classOf[MatrixBGENReader], classOf[MatrixPLINKReader], classOf[MatrixGENReader]))
 }
 
 abstract class MatrixReader {
@@ -140,6 +141,8 @@ abstract class MatrixReader {
   def fullType: MatrixType
 
   def fullRVDType: RVDType
+
+  def requestType(requestedType: MatrixType): MatrixType = requestedType
 }
 
 case class MatrixNativeReader(path: String) extends MatrixReader {
