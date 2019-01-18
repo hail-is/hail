@@ -1802,7 +1802,7 @@ class TableToValueApply(IR):
 
     def _compute_type(self, env, agg_env):
         name = self.config['name']
-        assert name == 'ForceCountTable'
+        assert name == 'ForceCountTable', name
         self._type = tint64
 
 
@@ -1825,8 +1825,11 @@ class MatrixToValueApply(IR):
 
     def _compute_type(self, env, agg_env):
         name = self.config['name']
-        assert name == 'ForceCountMatrixTable'
-        self._type = tint64
+        if name == 'ForceCountMatrixTable':
+            self._type = tint64
+        else:
+            assert name == 'MatrixWriteBlockMatrix', name
+            self._type = tvoid
 
 
 class Literal(IR):

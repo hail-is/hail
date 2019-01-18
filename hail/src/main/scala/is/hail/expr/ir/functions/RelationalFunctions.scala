@@ -55,7 +55,8 @@ object RelationalFunctions {
     classOf[MatrixFilterPartitions],
     classOf[ForceCountTable],
     classOf[ForceCountMatrixTable],
-    classOf[LogisticRegression]
+    classOf[LogisticRegression],
+    classOf[MatrixWriteBlockMatrix]
   ))
 
   def extractTo[T : Manifest](config: String): T = {

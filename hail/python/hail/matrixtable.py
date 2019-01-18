@@ -3443,4 +3443,16 @@ class MatrixTable(ExprContainer):
 
         return t
 
+    def _write_block_matrix(self, path, overwrite, entry_field, block_size):
+        mt = self
+        mt = mt.select_entries(entry_field).select_cols().select_globals()
+        Env.backend().execute(MatrixToValueApply(
+            mt._mir,
+            {'name': 'MatrixWriteBlockMatrix',
+             'path': path,
+             'overwrite': overwrite,
+             'entryField': entry_field,
+             'blockSize': block_size}))
+
+
 matrix_table_type.set(MatrixTable)

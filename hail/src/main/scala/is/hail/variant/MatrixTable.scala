@@ -991,48 +991,4 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
     new RowMatrix(hc, rows, numCols, Some(partStarts.last), Some(partCounts))
   }
-
-  def writeBlockMatrix(dirname: String,
-    overwrite: Boolean = false,
-    entryField: String,
-    blockSize: Int = BlockMatrix.defaultBlockSize): Unit = {
-    val partStarts = partitionStarts()
-    assert(partStarts.length == rvd.getNumPartitions + 1)
-
-    val nRows = partStarts.last
-    val localNCols = numCols
-
-    val hadoop = sparkContext.hadoopConfiguration
-
-    if (overwrite)
-      hadoop.delete(dirname, recursive = true)
-    else if (hadoop.exists(dirname))
-      fatal(s"file already exists: $dirname")
-
-    hadoop.mkDir(dirname)
-
-    // write blocks
-    hadoop.mkDir(dirname + "/parts")
-    val gp = GridPartitioner(blockSize, nRows, localNCols)
-    val blockPartFiles =
-      new WriteBlocksRDD(dirname, rvd, sparkContext, partStarts, entryField, gp)
-        .collect()
-
-    val blockCount = blockPartFiles.length
-    val partFiles = new Array[String](blockCount)
-    blockPartFiles.foreach { case (i, f) => partFiles(i) = f }
-
-    // write metadata
-    hadoop.writeDataFile(dirname + BlockMatrix.metadataRelativePath) { os =>
-      implicit val formats = defaultJSONFormats
-      jackson.Serialization.write(
-        BlockMatrixMetadata(blockSize, nRows, localNCols, gp.maybeBlocks, partFiles),
-        os)
-    }
-
-    assert(blockCount == gp.numPartitions)
-    info(s"Wrote all $blockCount blocks of $nRows x $localNCols matrix with block size $blockSize.")
-
-    hadoop.writeTextFile(dirname + "/_SUCCESS")(out => ())
-  }
 }
