@@ -25,6 +25,10 @@ export default class MyApp extends App {
       pageProps = await Component.getInitialProps(ctx);
     }
 
+    if (typeof window === 'undefined') {
+      console.info('stuff', ctx.req.headers.cookie);
+    }
+
     return { pageProps };
   }
 
@@ -34,6 +38,10 @@ export default class MyApp extends App {
     if (typeof window !== 'undefined') {
       // Auth initialization logic
       auth.initialize();
+
+      if (props.authState) {
+        auth.hydrate(props.hydrateState);
+      }
     }
   }
 
