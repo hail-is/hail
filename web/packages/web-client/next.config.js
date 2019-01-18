@@ -1,26 +1,38 @@
+require('dotenv').config();
+
 const withTypescript = require('@zeit/next-typescript');
 const ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin');
 const withPurgeCss = require('next-purgecss');
 const withCss = require('@zeit/next-css');
 const withSass = require('@zeit/next-sass');
 const withPlugins = require('next-compose-plugins');
-const dotenv = require('dotenv');
 
-// exposes .env variables
-dotenv.config();
-// If above plugins need to be run only during server-build phase
-// const {PHASE_DEVELOPMENT_SERVER} = require('next/constants')
+const publicRuntimeConfig = {
+  AUTH0: {
+    DOMAIN: process.env.AUTH0_DOMAIN,
+    SCOPE: process.env.AUTH0_SCOPE,
+    CALLBACK_SUFFIX: process.env.AUTH0_CALLBACK_SUFFIX,
+    RESPONSE_TYPE: process.env.AUTH0_RESPONSE_TYPE,
+    CLIENT_ID: process.env.AUTH0_CLIENT_ID
+  }
+};
 
 const nextConfig = {
   distDir: 'build',
   webpack: (config, options) => {
     if (options.isServer) {
       config.plugins.push(new ForkTsCheckerWebpackPlugin());
-    } else {
+    } else if (!options.dev) {
+      // Only in a production environment, in the client-side webpack phase
+      // does next configure splitChuunks
+      // In practice this happens during "next build", and we don't care about
+      // optimizing chunk settings during dev
       config.optimization.splitChunks.cacheGroups.commons.minChunks = 2;
     }
+
     return config;
-  }
+  },
+  publicRuntimeConfig
 };
 
 module.exports = withPlugins(
@@ -45,13 +57,3 @@ module.exports = withPlugins(
   ],
   nextConfig
 );
-
-module.exports.publicRuntimeConfig = {
-  AUTH0: {
-    DOMAIN: process.env.AUTH0_DOMAIN,
-    SCOPE: process.env.AUTH0_SCOPE,
-    REDIRECT_URI: process.env.AUTH0_REDIRECT_URI,
-    RESPONSE_TYPE: process.env.AUTH0_RESPONSE_TYPE,
-    CLIENT_ID: process.env.AUTH0_CLIENT_ID
-  }
-};

@@ -6,7 +6,9 @@ class Callback extends PureComponent {
     loginFailed: false
   };
 
-  componentDidMount() {}
+  componentDidMount() {
+    auth.handleCallback();
+  }
 
   render() {
     return this.state.loginFailed ? (
@@ -16,3 +18,5 @@ class Callback extends PureComponent {
     );
   }
 }
+
+export default Callback;
