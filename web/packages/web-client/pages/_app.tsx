@@ -21,12 +21,12 @@ export default class MyApp extends App {
   }) {
     let pageProps = {};
 
-    if (Component.getInitialProps) {
-      pageProps = await Component.getInitialProps(ctx);
-    }
-
     if (typeof window === 'undefined') {
       auth.getStateSSR(ctx.req.headers.cookie);
+    }
+
+    if (Component.getInitialProps) {
+      pageProps = await Component.getInitialProps(ctx);
     }
 
     return { pageProps };

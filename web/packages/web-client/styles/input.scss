@@ -1,0 +1,12 @@
+#theme-site {
+  input {
+    cursor: pointer;
+    padding: 10px;
+    border: 1px solid $dark-gray;
+    border-radius: 3px;
+  }
+  input:focus {
+    outline: none;
+    border-color: $black;
+  }
+}

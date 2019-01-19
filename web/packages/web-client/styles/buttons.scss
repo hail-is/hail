@@ -1,12 +1,18 @@
+@import './variables/colors.scss';
 #theme-site {
   button {
     outline: none;
     /* border: none; */
     /* display: inline-block; */
     /* width: 20px; */
-    border: 1px solid #333;
+    border: 1px solid $dark-gray;
     padding: 10px;
     border-radius: 3px;
+    cursor: pointer;
   }
-  &.dark {}
+  &.dark {
+    button {
+      border: 1px solid $white;
+    }
+  }
 }

@@ -1,5 +1,5 @@
 import React from 'react';
-import '../components/Index/index.scss';
+import '../styles/pages/index.scss';
 
 const index = () => (
   <span id="index">

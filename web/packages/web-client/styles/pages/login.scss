@@ -1,0 +1,21 @@
+@import '../variables/colors.scss';
+#theme-site {
+  #login {
+    flex-direction: column;
+    display: flex;
+    width: 33vw;
+    justify-content: center;
+    align-content: center;
+    h3 {
+      margin-bottom: 14px;
+    }
+    #login-choices {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      input[type='password'] {
+        width: 20vw;
+      }
+    }
+  }
+}

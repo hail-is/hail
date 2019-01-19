@@ -49,6 +49,13 @@ class Header extends PureComponent<HeaderProps> {
             <b>/</b>
           </a>
         </Link>
+        <Link href="/notebook" prefetch>
+          <a
+            className={`${bStyle} ${pathname === '/notebook' ? 'active' : ''}`}
+          >
+            Notebook
+          </a>
+        </Link>
         <Link href="/scorecard" prefetch>
           <a
             className={`${bStyle} ${pathname === '/scorecard' ? 'active' : ''}`}
