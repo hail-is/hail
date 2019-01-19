@@ -154,5 +154,11 @@ __all__ = ['HailType',
            'uniroot',
            'format',
            'approx_equal',
-           'reversed'
+           'reversed',
+           'bit_and',
+           'bit_or',
+           'bit_xor',
+           'bit_lshift',
+           'bit_rshift',
+           'bit_not',
            ]

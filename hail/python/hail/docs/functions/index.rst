@@ -89,6 +89,12 @@ These functions are exposed at the top level of the module, e.g. ``hl.case``.
 
     abs
     approx_equal
+    bit_and
+    bit_or
+    bit_xor
+    bit_lshift
+    bit_rshift
+    bit_not
     exp
     is_nan
     is_finite
