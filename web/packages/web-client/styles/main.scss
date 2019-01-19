@@ -18,30 +18,15 @@ html {
   display: flex;
   flex-direction: column;
   font-family: 'Open Sans', Helvetica, Arial, sans-serif;
-  a {
-    color: $dark-gray;
-    text-decoration: none;
-    letter-spacing: 0.05px;
-    &.active {
-      font-weight: $weight-heavy;
-      letter-spacing: 0px;
-    }
-    &::after {
-      display: block;
-      content: attr(title);
-      font-weight: bold;
-      height: 0;
-      overflow: hidden;
-      visibility: hidden;
-    }
-  }
-  &.dark {
-    background-color: $black;
-    color: $white;
-    a {
-      color: $white;
-      background-color: $black;
-    }
+  -webkit-font-smoothing: antialiased;
+  -moz-font-smmothing: grayscale;
+  height: normal;
+  line-height: normal;
+  input::placeholder {
+    -webkit-font-smoothing: antialiased;
+    -moz-font-smmothing: grayscale;
+    height: inherit;
+    line-height: inherit;
   }
   #main {
     display: flex;
@@ -49,6 +34,18 @@ html {
     justify-content: center;
     align-content: center;
     align-items: center;
-    height: calc(100vh - 48px * 2);
+    height: calc(100vh - 50px * 2);
+  }
+  #footer {
+    /* padding: 7px; */
+    height: 50px;
+    display: flex;
+    padding: 0 14px;
+    align-content: center;
+    align-items: center;
+  }
+  &.dark {
+    background-color: $black;
+    color: $white;
   }
 }

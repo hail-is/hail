@@ -1,16 +1,24 @@
 import App, { Container } from 'next/app';
 import Header from '../components/Header';
 import auth from '../libs/auth';
+import Router from 'next/router';
+
 // import cookies from '../libs/cookies';
 
-import 'normalize.css';
 import 'styles/main.scss';
 import 'animate.css';
+import 'normalize.css';
+
+// let authInitialized = false;
 // TODO: think about using React context to pass down auth state instead of prop
 export default class MyApp extends App {
   state = {
     isDark: false
   };
+
+  // This runs:
+  // 1) SSR Mode: One time
+  // 2) Client mode: After constructor (on client-side route transitions)
 
   static async getInitialProps({
     Component,
@@ -23,6 +31,20 @@ export default class MyApp extends App {
 
     if (typeof window === 'undefined') {
       auth.getStateSSR(ctx.req.headers.cookie);
+    }
+
+    if (
+      ctx.pathname !== '/login' &&
+      ctx.pathname !== '/scorecard' &&
+      !auth.isAuthenticated()
+    ) {
+      if (ctx.res) {
+        ctx.res.writeHead(303, { Location: '/login?redirect=true' });
+        ctx.res.end();
+        return { pageProps: null };
+      }
+      Router.replace('/login?redirect=true');
+      return { pageProps: null };
     }
 
     if (Component.getInitialProps) {
@@ -48,6 +70,7 @@ export default class MyApp extends App {
     if (typeof window !== 'undefined') {
       auth.initialize();
       auth.getState();
+      console.info('ran constrcutor');
     }
   }
 
@@ -62,7 +85,7 @@ export default class MyApp extends App {
             <Component {...pageProps} authState={auth.state} />
           </span>
 
-          <span id="footer" style={{ padding: 7, display: 'flex' }}>
+          <span id="footer">
             <i
               className="material-icons"
               style={{ cursor: 'pointer' }}

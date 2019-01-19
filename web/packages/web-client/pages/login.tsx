@@ -10,7 +10,11 @@ declare type state = {
   failed?: boolean;
 };
 
-class Login extends PureComponent {
+interface LoginProps {
+  redirected: boolean;
+}
+
+class Login extends PureComponent<LoginProps> {
   state: state = {};
 
   constructor(props: any) {
@@ -43,7 +47,6 @@ class Login extends PureComponent {
     if (this.state.failed) {
       return <div>Unauthorized!</div>;
     }
-
     return (
       <span id="login">
         <h3>Login</h3>

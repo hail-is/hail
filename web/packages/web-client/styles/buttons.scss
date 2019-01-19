@@ -1,17 +1,35 @@
 @import './variables/colors.scss';
 #theme-site {
+  a {
+    color: $black;
+    text-decoration: none;
+    &.active,
+    &:hover {
+      color: $devil-gray;
+    }
+  }
   button {
     outline: none;
     /* border: none; */
     /* display: inline-block; */
     /* width: 20px; */
-    border: 1px solid $dark-gray;
+    border: 1px solid $black;
     background-color: $white;
     padding: 10px;
     border-radius: 3px;
     cursor: pointer;
+    color: $black;
+    &:hover,
+    &:focus {
+      border-color: $devil-gray;
+      color: $devil-gray;
+    }
   }
   &.dark {
+    a {
+      color: $white;
+      background-color: $black;
+    }
     button {
       border: 1px solid $white;
       background: $black;

@@ -70,11 +70,7 @@ class Header extends PureComponent<HeaderProps> {
               style={{ outline: 'none' }}
               onBlur={this.onProfileLeave}
             >
-              <a
-                className="icon-button"
-                style={{ padding: 14 }}
-                onClick={this.onProfileHover}
-              >
+              <a className="icon-button" onClick={this.onProfileHover}>
                 <i className="material-icons">face</i>
               </a>
               <span>

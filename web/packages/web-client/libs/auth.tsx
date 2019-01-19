@@ -64,10 +64,6 @@ Auth.state = {
   loggedOut: false
 };
 
-Auth.isAuthenticated = () => {
-  return !!Auth.state.user;
-};
-
 const setCookies = (state: state) => {
   const opt = {
     expires: new Date(state.exp as number),
@@ -103,6 +99,10 @@ Auth.clearState = initState => {
   Auth.state = base;
 
   removeCookies();
+};
+
+Auth.isAuthenticated = () => {
+  return !!Auth.state.user;
 };
 
 Auth.checkSession = (cb = () => {}) => {
@@ -141,6 +141,11 @@ const pollForSession = () => {
 Auth.initialize = () => {
   if (typeof window === 'undefined') {
     throw new Error('Auth.initialize should be called from client side only');
+  }
+
+  if (Auth.auth0) {
+    console.warn('Auth.initialize should only be called once');
+    return;
   }
 
   // split uses a greedy pattern, removing contiguous sequences of /
