@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-deployment
+  labels:
+    app: web
+spec:
+  selector:
+    matchLabels:
+      app: web
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      serviceAccountName: hail-web
+      containers:
+        - name: web
+          image: @web_client_image@
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - secretRef: 
+                name: @web_client_secret@
+          command: ["npm", "run", "start"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+  labels:
+    app: web
+spec:
+  ports:
+    - port: 80
+      protocol: TCP
+      targetPort: 3000
+  selector:
+    app: web

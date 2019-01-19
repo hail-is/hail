@@ -1,4 +1,3 @@
-import React from 'react';
 import App, { Container } from 'next/app';
 import Header from '../components/Header';
 import auth from '../libs/auth';
