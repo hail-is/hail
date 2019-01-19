@@ -11,6 +11,8 @@ interface Props {
 }
 
 // TODO: think about triggering this in _app.js
+// or simply set an expiration, and then upon mount check if expiration
+// is too stale
 // An example of how we can cache events that can be slightly stale
 // at some memory cost
 // With the benefit that if refresh is smaller than the

@@ -303,15 +303,17 @@ Auth.getState = () => {
 
     // Validate that state, to reduce the likelihood that API calls will fail
     // without user expectation
-    Auth.checkSession(err => {
-      if (err) {
-        Auth.logout();
-        console.error(err);
-        return;
-      }
+    setTimeout(() => {
+      Auth.checkSession(err => {
+        if (err) {
+          Auth.logout();
+          console.error(err);
+          return;
+        }
 
-      pollForSession();
-    });
+        pollForSession();
+      });
+    }, 500);
   } catch (e) {
     console.error(e);
   }
