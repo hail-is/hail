@@ -15,13 +15,17 @@ const bearerPrefixLen = bearerPrefix.length;
 const getAuthToken = req => {
   // This is set from an "Authorization" header
   if (req.headers.authorization) {
-    console.info('header auth', req.headers.authorization);
-
     if (req.headers.authorization.substr(0, bearerPrefixLen) !== bearerPrefix) {
-      throw new Error('WTF');
+      return null;
     }
 
-    return req.headers.authorization.substr(bearerPrefixLen);
+    const token = req.headers.authorization.substr(bearerPrefixLen);
+
+    if (token.trim() === '') {
+      return null;
+    }
+
+    return token;
   }
 
   return null;
@@ -30,6 +34,11 @@ const getAuthToken = req => {
 polka()
   .get('/notebook', (req, res) => {
     const token = getAuthToken(req);
+
+    if (token === null) {
+      res.writeHead(401);
+      res.end();
+    }
   })
   .listen(PORT, err => {
     if (err) {
