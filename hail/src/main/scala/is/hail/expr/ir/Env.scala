@@ -62,4 +62,6 @@ class Env[V] private (val m: Map[Env.K,V]) {
 
   def mapValues[U](f: (V) => U): Env[U] =
     new Env(m.mapValues(f))
+
+  override def toString: String = m.map { case (k,v) => s"$k -> $v" }.mkString("(", ",", ")")
 }

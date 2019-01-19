@@ -478,18 +478,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
       fatal(s"n must be non-negative! Found `$n'.")
     copy2(rvd = rvd.head(n, None))
   }
-
-  def insertEntries[PC](makePartitionContext: () => PC, newColType: TStruct = colType,
-    newColKey: IndexedSeq[String] = colKey,
-    newColValues: BroadcastIndexedSeq = colValues,
-    newGlobalType: TStruct = globalType,
-    newGlobals: BroadcastRow = globals)(newEntryType: PStruct,
-    inserter: (PC, RegionValue, RegionValueBuilder) => Unit): MatrixTable = {
-    val newValue = value.insertEntries(makePartitionContext, newColType, newColKey,
-      newColValues, newGlobalType, newGlobals)(newEntryType, inserter)
-    copyAST(MatrixLiteral(newValue))
-  }
-
+  
   def aggregateRowsJSON(expr: String): String = {
     val (a, t) = aggregateRows(expr)
     val jv = JSONAnnotationImpex.exportAnnotation(a, t)
@@ -837,116 +826,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def write(path: String, overwrite: Boolean = false, stageLocally: Boolean = false, codecSpecJSONStr: String = null) {
     ir.Interpret(ir.MatrixWrite(ast, MatrixNativeWriter(path, overwrite, stageLocally, codecSpecJSONStr)))
-  }
-
-  def trioMatrix(pedigree: Pedigree, completeTrios: Boolean): MatrixTable = {
-    colKeyTypes match {
-      case Array(_: TString) =>
-      case _ =>
-        fatal(s"trio_matrix requires column keys of type 'String', found [${
-          colKeyTypes.map(x => s"'$x'").mkString(", ")
-        }]")
-    }
-    requireUniqueSamples("trio_matrix")
-
-    val filteredPedigree = pedigree.filterTo(stringSampleIds.toSet)
-    val trios = if (completeTrios) filteredPedigree.completeTrios else filteredPedigree.trios
-    val nTrios = trios.length
-
-    val sampleIndices = stringSampleIds.zipWithIndex.toMap
-
-    val kidIndices = Array.fill[Int](nTrios)(-1)
-    val dadIndices = Array.fill[Int](nTrios)(-1)
-    val momIndices = Array.fill[Int](nTrios)(-1)
-
-    val newColType = TStruct(
-      "id" -> TString(),
-      "proband" -> colType,
-      "father" -> colType,
-      "mother" -> colType,
-      "is_female" -> TBooleanOptional,
-      "fam_id" -> TStringOptional
-    )
-
-    val newColValues = new Array[Annotation](nTrios)
-
-    var i = 0
-    while (i < nTrios) {
-      val t = trios(i)
-      val kidIndex = sampleIndices(t.kid)
-      kidIndices(i) = kidIndex
-      val kidAnnotation = colValues.value(kidIndex)
-
-      var dadAnnotation: Annotation = null
-      t.dad.foreach { dad =>
-        val index = sampleIndices(dad)
-        dadIndices(i) = index
-        dadAnnotation = colValues.value(index)
-      }
-
-      var momAnnotation: Annotation = null
-      t.mom.foreach { mom =>
-        val index = sampleIndices(mom)
-        momIndices(i) = index
-        momAnnotation = colValues.value(index)
-      }
-
-      val isFemale: java.lang.Boolean = (t.sex: @unchecked) match {
-        case Some(Sex.Female) => true
-        case Some(Sex.Male) => false
-        case None => null
-      }
-
-      val famID = t.fam.orNull
-
-      newColValues(i) = Row(t.kid, kidAnnotation, dadAnnotation, momAnnotation, isFemale, famID)
-      i += 1
-    }
-
-    val newEntryType = TStruct(
-      "proband_entry" -> entryType,
-      "father_entry" -> entryType,
-      "mother_entry" -> entryType
-    )
-
-    val fullRowType = rvRowType.physicalType
-    val localEntriesIndex = entriesIndex
-    val localEntriesType = matrixType.entryArrayType.physicalType
-
-    insertEntries(noOp,
-      newColType = newColType,
-      newColKey = Array("id"),
-      newColValues = colValues.copy(value = newColValues, t = TArray(newColType)))(newEntryType.physicalType, { case (_, rv, rvb) =>
-      val entriesOffset = fullRowType.loadField(rv, localEntriesIndex)
-
-      rvb.startArray(nTrios)
-      var i = 0
-      while (i < nTrios) {
-        rvb.startStruct()
-
-        // append kid element
-        rvb.addElement(localEntriesType, rv.region, entriesOffset, kidIndices(i))
-
-        // append dad element if the dad is defined
-        val dadIndex = dadIndices(i)
-        if (dadIndex >= 0)
-          rvb.addElement(localEntriesType, rv.region, entriesOffset, dadIndex)
-        else
-          rvb.setMissing()
-
-        // append mom element if the mom is defined
-        val momIndex = momIndices(i)
-        if (momIndex >= 0)
-          rvb.addElement(localEntriesType, rv.region, entriesOffset, momIndex)
-        else
-          rvb.setMissing()
-
-        rvb.endStruct()
-
-        i += 1
-      }
-      rvb.endArray()
-    })
   }
 
   def toRowMatrix(entryField: String): RowMatrix = {
