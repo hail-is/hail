@@ -1,7 +1,9 @@
 package is.hail.expr.types.virtual
 
-import is.hail.annotations.ExtendedOrdering
+import is.hail.annotations.{Annotation, ExtendedOrdering}
+import is.hail.check.Gen
 import is.hail.expr.types.physical.PNDArray
+import is.hail.utils.NDArray
 import org.apache.spark.sql.Row
 
 import scala.reflect.{ClassTag, classTag}
@@ -22,6 +24,10 @@ final case class TNDArray(elementType: Type, override val required: Boolean = fa
     elementType.pyString(sb)
     sb.append('>')
   }
+  
+//  override def genNonmissingValue: Gen[Annotation] =
+//    Gen.zip(Gen.b Gen.choose()
+//    Gen.buildableOf[NDArray](elementType.genValue).map(x => ..., x: NDArray)
   
   def _toPretty = s"NDArray[$elementType]"
 

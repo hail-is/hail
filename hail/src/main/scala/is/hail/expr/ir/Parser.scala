@@ -587,6 +587,13 @@ object IRParser {
         val a = ir_value_expr(env)(it)
         val ascending = ir_value_expr(env)(it)
         ArraySort(a, ascending, onKey)
+      case "MakeArray" =>
+        val flags = ir_value_expr(env)(it)
+        val shape = ir_value_expr(env)(it)
+        val offset = ir_value_expr(env)(it)
+        val strides = ir_value_expr(env)(it)
+        val data = ir_value_expr(env)(it)
+        MakeNDArray(flags, shape, offset, strides, data)
       case "ToSet" => ToSet(ir_value_expr(env)(it))
       case "ToDict" => ToDict(ir_value_expr(env)(it))
       case "ToArray" => ToArray(ir_value_expr(env)(it))

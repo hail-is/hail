@@ -7,18 +7,18 @@ object NDArray {
   def fromRow(x: Row): NDArray =
     new NDArray(
       x.getLong(0),
-      x.getAs[Array[Int]](1),
+      x.getAs[IndexedSeq[Int]](1),
       x.getLong(2),
-      x.getAs[Array[Int]](3),
-      x.getAs[Array[Any]](4))
+      x.getAs[IndexedSeq[Int]](3),
+      x.getAs[IndexedSeq[Any]](4))
 }
 
-class NDArray(
-  val flags:Long, 
-  val shape: Array[Int], 
-  val offset: Long, 
-  val strides: Array[Int], 
-  val data: Array[Any]) extends Serializable {
+case class NDArray(
+  flags:Long, 
+  shape: IndexedSeq[Int], 
+  offset: Long, 
+  strides: IndexedSeq[Int], 
+  data: IndexedSeq[Any]) extends Serializable {
   
   def toRow = Row(flags, shape, offset, strides, data)
 

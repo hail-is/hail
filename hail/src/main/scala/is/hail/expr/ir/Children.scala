@@ -42,6 +42,8 @@ object Children {
       Array(start, stop, step)
     case ArraySort(a, ascending, _) =>
       Array(a, ascending)
+    case MakeNDArray(flags, shape, offset, strides, data) =>
+      Array(flags, shape, offset, strides, data)
     case ToSet(a) =>
       Array(a)
     case ToDict(a) =>
