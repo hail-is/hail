@@ -1397,8 +1397,8 @@ case class TableRename(child: TableIR, rowMap: Map[String, String], globalMap: M
 
   protected[ir] override def execute(hc: HailContext): TableValue = {
     val prev = child.execute(hc)
-
-    TableValue(typ, prev.globals, prev.rvd.cast(typ.rowType.physicalType))
+    
+    TableValue(typ, prev.globals.copy(t = typ.globalType), prev.rvd.cast(typ.rowType.physicalType))
   }
 }
 
