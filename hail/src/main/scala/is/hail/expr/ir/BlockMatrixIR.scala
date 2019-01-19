@@ -60,3 +60,43 @@ case class BlockMatrixAdd(left: BlockMatrixIR, right: BlockMatrixIR) extends Blo
     left.execute(hc).add(right.execute(hc))
   }
 }
+
+case class BlockMatrixElementWiseBinaryOp(
+  left: BlockMatrixIR,
+  right: BlockMatrixIR,
+  applyBinOp: ApplyBinaryPrimOp) extends BlockMatrixIR {
+  override def typ: BlockMatrixType = left.typ
+
+  override def children: IndexedSeq[BaseIR] = Array(left, right)
+
+  override def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
+    assert(newChildren.length == 2)
+    BlockMatrixElementWiseBinaryOp(
+      newChildren(0).asInstanceOf[BlockMatrixIR],
+      newChildren(1).asInstanceOf[BlockMatrixIR],
+      applyBinOp)
+  }
+
+  override protected[ir] def execute(hc: HailContext): BlockMatrix = {
+    val leftMatrix = left.execute(hc)
+    val rightMatrix = right.execute(hc)
+
+    (applyBinOp.l, applyBinOp.r, applyBinOp.op) match {
+      case (Ref(_, _), Ref(_, _), Add()) => leftMatrix.add(rightMatrix)
+      case (Ref(_, _), Ref(_, _), Multiply()) => leftMatrix.mul(rightMatrix)
+      case (Ref("left", _), Ref("right", _), Subtract()) => leftMatrix.sub(rightMatrix)
+      case (Ref("right", _), Ref("left", _), Subtract()) => rightMatrix.sub(leftMatrix)
+      case (Ref("left", _), Ref("right", _), FloatingPointDivide()) => leftMatrix.div(rightMatrix)
+      case (Ref("right", _), Ref("left", _), FloatingPointDivide()) => rightMatrix.div(leftMatrix)
+      case _ => fatal(s"Binary operation not supported on two blockmatrices: ${Pretty(applyBinOp)}")
+    }
+  }
+}
+
+case class BlockMatrixUnaryOp(bm: BlockMatrixIR, applyUnaryOp: ApplyUnaryPrimOp) extends BlockMatrixIR {
+  override def typ: BlockMatrixType = ???
+
+  override def children: IndexedSeq[BaseIR] = ???
+
+  override def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = ???
+}
