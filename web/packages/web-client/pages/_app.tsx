@@ -34,6 +34,7 @@ export default class MyApp extends App {
     }
 
     if (
+      ctx.pathname !== '/' &&
       ctx.pathname !== '/login' &&
       ctx.pathname !== '/scorecard' &&
       !auth.isAuthenticated()
