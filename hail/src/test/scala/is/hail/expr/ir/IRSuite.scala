@@ -7,7 +7,7 @@ import is.hail.asm4s.Code
 import is.hail.expr.ir
 import is.hail.expr.ir.IRSuite.TestFunctions
 import is.hail.expr.ir.functions.{IRFunctionRegistry, RegistryFunctions, SeededIRFunction, SetFunctions}
-import is.hail.expr.types.TableType
+import is.hail.expr.types.{BlockMatrixType, TableType}
 import is.hail.expr.types.virtual._
 import is.hail.io.bgen.MatrixBGENReader
 import is.hail.linalg.BlockMatrix
@@ -1187,10 +1187,18 @@ class IRSuite extends SparkSuite {
 
   @DataProvider(name = "blockMatrixIRs")
   def blockMatrixIRs(): Array[Array[BlockMatrixIR]] = {
-    val read = BlockMatrixRead(tmpDir.createLocalTempFile())
-    val add = BlockMatrixAdd(read, read)
+    def createElemWiseOp(bm: BlockMatrixIR, op: BinaryOp, value: IR): BlockMatrixIR = {
+      BlockMatrixAndValueElementWiseBinaryOp(bm, ApplyBinaryPrimOp(op, Ref("element", TFloat64(true)), value))
+    }
 
-    val blockMatrixIRs = Array[BlockMatrixIR](read, add)
+    val read = BlockMatrixRead(tmpDir.createLocalTempFile())
+//    val add = BlockMatrixAdd(read, read)
+    val add = createElemWiseOp(read, Add(), F64(5))
+    val sub = createElemWiseOp(read, Subtract(), F64(5))
+    val mul = createElemWiseOp(read, Multiply(), F64(5))
+    val div = createElemWiseOp(read, FloatingPointDivide(), F64(5))
+
+    val blockMatrixIRs = Array[BlockMatrixIR](read, add, sub, mul, div)
 
     blockMatrixIRs.map(ir => Array(ir))
   }
@@ -1230,8 +1238,12 @@ class IRSuite extends SparkSuite {
 
   @Test(dataProvider = "blockMatrixIRs")
   def testBlockMatrixIRParser(x: BlockMatrixIR) {
+    val env = IRParserEnvironment(refMap = Map(
+      "element" -> TFloat64()
+    ))
+
     val s = Pretty(x)
-    val x2 = IRParser.parse_blockmatrix_ir(s)
+    val x2 = IRParser.parse_blockmatrix_ir(s, env)
     assert(x2 == x)
   }
 

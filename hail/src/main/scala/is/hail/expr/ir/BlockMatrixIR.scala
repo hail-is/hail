@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.HailContext
 import is.hail.expr.types.BlockMatrixType
+import is.hail.expr.types.virtual.TFloat64
 import is.hail.linalg.BlockMatrix
 import is.hail.utils.fatal
 
@@ -67,36 +68,66 @@ case class BlockMatrixElementWiseBinaryOp(
   applyBinOp: ApplyBinaryPrimOp) extends BlockMatrixIR {
   override def typ: BlockMatrixType = left.typ
 
-  override def children: IndexedSeq[BaseIR] = Array(left, right)
+  override def children: IndexedSeq[BaseIR] = Array(left, right, applyBinOp)
 
   override def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
-    assert(newChildren.length == 2)
+    assert(newChildren.length == 3)
     BlockMatrixElementWiseBinaryOp(
       newChildren(0).asInstanceOf[BlockMatrixIR],
       newChildren(1).asInstanceOf[BlockMatrixIR],
-      applyBinOp)
+      newChildren(2).asInstanceOf[ApplyBinaryPrimOp])
   }
 
   override protected[ir] def execute(hc: HailContext): BlockMatrix = {
-    val leftMatrix = left.execute(hc)
-    val rightMatrix = right.execute(hc)
+    val leftValue = left.execute(hc)
+    val rightValue = right.execute(hc)
 
     (applyBinOp.l, applyBinOp.r, applyBinOp.op) match {
-      case (Ref(_, _), Ref(_, _), Add()) => leftMatrix.add(rightMatrix)
-      case (Ref(_, _), Ref(_, _), Multiply()) => leftMatrix.mul(rightMatrix)
-      case (Ref("left", _), Ref("right", _), Subtract()) => leftMatrix.sub(rightMatrix)
-      case (Ref("right", _), Ref("left", _), Subtract()) => rightMatrix.sub(leftMatrix)
-      case (Ref("left", _), Ref("right", _), FloatingPointDivide()) => leftMatrix.div(rightMatrix)
-      case (Ref("right", _), Ref("left", _), FloatingPointDivide()) => rightMatrix.div(leftMatrix)
+      case (Ref(_, _), Ref(_, _), Add()) => leftValue.add(rightValue)
+      case (Ref(_, _), Ref(_, _), Multiply()) => leftValue.mul(rightValue)
+      case (Ref("left", _), Ref("right", _), Subtract()) => leftValue.sub(rightValue)
+      case (Ref("right", _), Ref("left", _), Subtract()) => rightValue.sub(leftValue)
+      case (Ref("left", _), Ref("right", _), FloatingPointDivide()) => leftValue.div(rightValue)
+      case (Ref("right", _), Ref("left", _), FloatingPointDivide()) => rightValue.div(leftValue)
       case _ => fatal(s"Binary operation not supported on two blockmatrices: ${Pretty(applyBinOp)}")
     }
   }
 }
 
-case class BlockMatrixUnaryOp(bm: BlockMatrixIR, applyUnaryOp: ApplyUnaryPrimOp) extends BlockMatrixIR {
-  override def typ: BlockMatrixType = ???
+case class BlockMatrixAndValueElementWiseBinaryOp(
+  child: BlockMatrixIR,
+  applyBinOp: ApplyBinaryPrimOp) extends BlockMatrixIR {
 
-  override def children: IndexedSeq[BaseIR] = ???
+  override def typ: BlockMatrixType = {
+    (applyBinOp.l, applyBinOp.r) match {
+      // No reshaping when broadcasting a scalar
+      case (Ref(_, _), F64(_)) | (F64(_), Ref(_, _)) => child.typ
+      // Add cases for local tensor when type exists
+      case _ => fatal(s"Incompatible type for broadcasting operation: ${Pretty(applyBinOp)}")
+    }
+  }
 
-  override def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = ???
+  override def children: IndexedSeq[BaseIR] = Array(child, applyBinOp)
+
+  override def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
+    assert(newChildren.length == 2)
+    BlockMatrixAndValueElementWiseBinaryOp(
+      newChildren(0).asInstanceOf[BlockMatrixIR],
+      newChildren(1).asInstanceOf[ApplyBinaryPrimOp])
+  }
+
+  override protected[ir] def execute(hc: HailContext): BlockMatrix = {
+    val bmValue = child.execute(hc)
+
+    (applyBinOp.l, applyBinOp.r, applyBinOp.op) match {
+      case (Ref(_, _), F64(x), Add()) => bmValue.scalarAdd(x)
+      case (F64(x), Ref(_, _), Add()) => bmValue.scalarAdd(x)
+      case (Ref(_, _), F64(x), Multiply()) => bmValue.scalarMul(x)
+      case (F64(x), Ref(_, _), Multiply()) => bmValue.scalarMul(x)
+      case (Ref(_, _), F64(x), Subtract()) => bmValue.scalarSub(x)
+      case (F64(x), Ref(_, _), Subtract()) => bmValue.reverseScalarSub(x)
+      case (Ref(_, _), F64(x), FloatingPointDivide()) => bmValue.scalarDiv(x)
+      case (F64(x), Ref(_, _), FloatingPointDivide()) => bmValue.reverseScalarDiv(x)
+    }
+  }
 }

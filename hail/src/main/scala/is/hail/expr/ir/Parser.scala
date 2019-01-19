@@ -1125,6 +1125,15 @@ object IRParser {
         val left = blockmatrix_ir(env)(it)
         val right = blockmatrix_ir(env)(it)
         BlockMatrixAdd(left, right)
+      case "BlockMatrixElementWiseBinaryOp" =>
+        val left = blockmatrix_ir(env)(it)
+        val right = blockmatrix_ir(env)(it)
+        val applyBinOp = ir_value_expr(env)(it)
+        BlockMatrixElementWiseBinaryOp(left, right, applyBinOp.asInstanceOf[ApplyBinaryPrimOp])
+      case "BlockMatrixAndValueElementWiseBinaryOp" =>
+        val child = blockmatrix_ir(env)(it)
+        val applyBinOp = ir_value_expr(env)(it)
+        BlockMatrixAndValueElementWiseBinaryOp(child, applyBinOp.asInstanceOf[ApplyBinaryPrimOp])
       case "JavaBlockMatrix" =>
         val name = identifier(it)
         env.irMap(name).asInstanceOf[BlockMatrixIR]
