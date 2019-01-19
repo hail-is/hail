@@ -2396,9 +2396,9 @@ class Tests(unittest.TestCase):
     def test_bit_shift_edge_cases(self):
         assert hl.eval(hl.bit_lshift(hl.int(1), 32)) == 0
         assert hl.eval(hl.bit_rshift(hl.int(1), 32)) == 1
-        assert hl.eval(hl.bit_rshift(hl.int(1), 32), logical=True) == 0
+        assert hl.eval(hl.bit_rshift(hl.int(1), 32, logical=True)) == 0
         assert hl.eval(hl.bit_rshift(hl.int(-1), 32)) == -1
-        assert hl.eval(hl.bit_rshift(hl.int(-1), 32), logical=True) == 0
+        assert hl.eval(hl.bit_rshift(hl.int(-1), 32, logical=True)) == 0
 
         assert hl.eval(hl.bit_lshift(hl.int64(1), 64)) == 0
         assert hl.eval(hl.bit_rshift(hl.int64(1), 64)) == 1
