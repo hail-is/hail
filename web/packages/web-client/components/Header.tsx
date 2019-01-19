@@ -67,8 +67,8 @@ class Header extends PureComponent<HeaderProps> {
           {authState.user ? (
             <span
               tabIndex={0}
-              onBlur={this.onProfileLeave}
               style={{ outline: 'none' }}
+              onBlur={this.onProfileLeave}
             >
               <a
                 className="icon-button"
@@ -79,26 +79,8 @@ class Header extends PureComponent<HeaderProps> {
               </a>
               <span>
                 {this.state.showProfileControls && (
-                  <span
-                    style={{
-                      boxShadow:
-                        '0px 1px 3px 0px rgba(0,0,0,0.2), 0px 1px 1px 0px rgba(0,0,0,0.14), 0px 2px 1px -1px rgba(0,0,0,0.12)',
-                      height: 60,
-                      display: 'flex',
-                      justifyContent: 'center',
-                      alignItems: 'center',
-                      position: 'absolute',
-                      top: 10,
-                      right: 10,
-                      background: 'white'
-                    }}
-                  >
-                    <a
-                      style={{ padding: 14, cursor: 'pointer' }}
-                      onClick={this.logout}
-                    >
-                      Logout
-                    </a>
+                  <span id="profile-menu">
+                    <a onClick={this.logout}>Logout</a>
                   </span>
                 )}
               </span>

@@ -1,6 +1,6 @@
+@import './variables/colors.scss';
 #theme-site {
   input {
-    cursor: pointer;
     padding: 10px;
     border: 1px solid $dark-gray;
     border-radius: 3px;
@@ -8,5 +8,15 @@
   input:focus {
     outline: none;
     border-color: $black;
+  }
+  &.dark {
+    input {
+      border-color: $white;
+      background: $black;
+    }
+    input,
+    input::placeholder {
+      color: $white;
+    }
   }
 }
