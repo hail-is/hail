@@ -30,6 +30,7 @@
     "js-cookie": "^2.2.0",
     "jwt-decode": "^2.2.0",
     "next": "^7.0.2-canary.50",
+    "normalize.css": "^8.0.1",
     "react": "^16.7.0",
     "react-dom": "^16.7.0"
   },

@@ -2,6 +2,16 @@
 @import './buttons.scss';
 @import './typography.scss';
 @import './input.scss';
+html {
+  box-sizing: border-box;
+}
+
+*,
+*:before,
+*:after {
+  box-sizing: inherit;
+}
+
 #theme-site {
   background-color: $white;
   height: 100%;
@@ -11,8 +21,18 @@
   a {
     color: $dark-gray;
     text-decoration: none;
+    letter-spacing: 0.05px;
     &.active {
       font-weight: $weight-heavy;
+      letter-spacing: 0px;
+    }
+    &::after {
+      display: block;
+      content: attr(title);
+      font-weight: bold;
+      height: 0;
+      overflow: hidden;
+      visibility: hidden;
     }
   }
   &.dark {
@@ -29,6 +49,6 @@
     justify-content: center;
     align-content: center;
     align-items: center;
-    height: calc(100vh - 44px * 2);
+    height: calc(100vh - 48px * 2);
   }
 }

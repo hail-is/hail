@@ -3,6 +3,7 @@ import Header from '../components/Header';
 import auth from '../libs/auth';
 // import cookies from '../libs/cookies';
 
+import 'normalize.css';
 import 'styles/main.scss';
 import 'animate.css';
 // TODO: think about using React context to pass down auth state instead of prop
