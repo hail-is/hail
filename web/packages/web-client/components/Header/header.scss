@@ -16,6 +16,9 @@
       &:first-child {
         margin-left: 0px;
       }
+      &:last-child {
+        margin-right: 0px;
+      }
       &:focus,
       &:hover {
         border-color: $devil-gray;
@@ -30,9 +33,7 @@
       }
     }
     #profile-menu {
-      box-shadow: 0px 1px 3px 0px rgba(0, 0, 0, 0.15),
-        0px 1px 1px 0px rgba(0, 0, 0, 0.15),
-        0px 2px 1px -1px rgba(0, 0, 0, 0.15);
+      box-shadow: 0px 1px 3px 0px rgba(0, 0, 0, 0.15), 0px 1px 1px 0px rgba(0, 0, 0, 0.15), 0px 2px 1px -1px rgba(0, 0, 0, 0.15);
       display: flex;
       justify-content: center;
       align-items: center;
