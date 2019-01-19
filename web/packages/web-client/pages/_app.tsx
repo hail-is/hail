@@ -9,6 +9,12 @@ import 'styles/main.scss';
 import 'animate.css';
 import 'normalize.css';
 
+// TODO: set some kind of protected property on routes, instead of
+// blacklisting here
+const protectedRoute: any = {
+  '/notebook': true
+};
+
 // let authInitialized = false;
 // TODO: think about using React context to pass down auth state instead of prop
 export default class MyApp extends App {
@@ -33,12 +39,9 @@ export default class MyApp extends App {
       auth.getStateSSR(ctx.req.headers.cookie);
     }
 
-    if (
-      ctx.pathname !== '/' &&
-      ctx.pathname !== '/login' &&
-      ctx.pathname !== '/scorecard' &&
-      !auth.isAuthenticated()
-    ) {
+    // ctx.pathname will not include get variables in the query
+    // will include the full directory path /path/to/resource
+    if (!auth.isAuthenticated() && protectedRoute[ctx.pathname] === true) {
       if (ctx.res) {
         ctx.res.writeHead(303, { Location: '/login?redirect=true' });
         ctx.res.end();

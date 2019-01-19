@@ -101,9 +101,7 @@ Auth.clearState = initState => {
   removeCookies();
 };
 
-Auth.isAuthenticated = () => {
-  return !!Auth.state.user;
-};
+Auth.isAuthenticated = () => !!Auth.state.user;
 
 Auth.checkSession = (cb = () => {}) => {
   if (!Auth.auth0) {
