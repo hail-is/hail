@@ -3,8 +3,8 @@
     "allowJs": true,
     "allowSyntheticDefaultImports": true,
     "jsx": "preserve",
-    "lib": ["dom", "es2017"],
-    "target": "esnext",
+    "lib": ["dom", "es2017", "es2018"],
+    "target": "es2018",
     "module": "esnext",
     "moduleResolution": "node",
     "noEmit": true,
@@ -23,7 +23,8 @@
     "sourceMap": true,
     "strict": true,
     "esModuleInterop": true,
-    "experimentalDecorators": true
+    "experimentalDecorators": true,
+    "typeRoots": ["./node_modules/@types/", "./src/@types/"]
   },
   "exclude": ["node_modules", "**/*.spec.ts"]
 }

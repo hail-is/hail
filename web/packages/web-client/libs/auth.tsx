@@ -53,6 +53,8 @@ declare type cookies = {
   expires: string;
 };
 
+declare type cb = (state: stateType) => void;
+
 // TODO: add interface, expose only login, logout, initialize
 // TODO: Maybe convert to singleton class
 interface AuthInterface {
@@ -66,16 +68,13 @@ let _auth0: auth0.WebAuth;
 
 let _sessionPoll: NodeJS.Timeout;
 
+let _checkSessionPromise: Promise<any>;
+
 const Auth: AuthInterface = {
   get state() {
     return _state;
   }
 };
-
-declare type cb = (state: stateType) => void;
-// declare type listener = {
-//   cb: cb;
-// }
 
 // splice is slow, and iterating over objects 50x slower than over arrays
 // so maintain 2 lists, one with callbacks that may be undefined
@@ -157,18 +156,19 @@ export function isAuthenticated() {
 }
 
 export function logout() {
-  console.info('Logging out');
   if (_sessionPoll) {
     clearInterval(_sessionPoll);
   }
 
-  _clearState({ loggedOut: true });
+  _checkSessionPromise.finally(() => {
+    _clearState({ loggedOut: true });
 
-  // TODO: decide if we need to keep this; causes page refresh
-  // fine for logout, but if we decide to keep it, no need to _clearState
-  // can just clear _removeCookies
-  _auth0.logout({
-    returnTo: _getBaseUrl()
+    // TODO: decide if we need to keep this; causes page refresh
+    // fine for logout, but if we decide to keep it, no need to _clearState
+    // can just clear _removeCookies
+    _auth0.logout({
+      returnTo: _getBaseUrl()
+    });
   });
 }
 
@@ -274,20 +274,16 @@ function _initState() {
         return;
       }
 
-      _checkSession(err => {
-        if (err) {
+      _checkSession()
+        .then(() => {
+          if (!_state.loggedOut) {
+            _pollForSession();
+          }
+        })
+        .catch((err: any) => {
           console.error(err);
           logout();
-
-          return;
-        }
-
-        if (_state.loggedOut) {
-          return;
-        }
-
-        _pollForSession();
-      });
+        });
     }, 500);
   } catch (e) {
     console.error(e);
@@ -358,37 +354,33 @@ function _clearState(initState?: Partial<stateType>) {
 // cookie's expiration
 // It also seems we may get a strange DOM diff issue when this happens
 // not dangerous, just irksome
-function _checkSession(
-  cb: ((
-    err: auth0.Auth0Error | Error | null,
-    authResult: any
-  ) => void) = () => {}
-) {
+function _checkSession() {
   if (!_auth0) {
     throw new Error('Auth library is not initialized in checkSession');
   }
 
-  if (_state.loggedOut) {
-    cb(null, null);
-    return;
-  }
-
-  _auth0.checkSession({}, (err, authResult) => {
-    if (err) {
-      cb(err, null);
-
-      return;
-    }
-
+  // TODO: could implement synchronous promise resolution check
+  _checkSessionPromise = new Promise((resolve, reject) => {
     if (_state.loggedOut) {
-      cb(null, null);
-      return;
+      return resolve();
     }
 
-    _loginFromAuth0(authResult as auth0payload);
+    _auth0.checkSession({}, (err, authResult) => {
+      if (err) {
+        return reject(err);
+      }
 
-    cb(err, authResult);
+      if (_state.loggedOut) {
+        return resolve();
+      }
+
+      _loginFromAuth0(authResult as auth0payload);
+
+      resolve(authResult);
+    });
   });
+
+  return _checkSessionPromise;
 }
 
 function _pollForSession() {
@@ -414,11 +406,9 @@ function _pollForSession() {
       return;
     }
 
-    _checkSession((err, _) => {
-      if (err) {
-        console.error(err);
-        logout();
-      }
+    _checkSession().catch((err: any) => {
+      console.error(err);
+      logout();
     });
   }, Math.floor(exp / 2));
 }
