@@ -12,7 +12,7 @@ class Notebook extends PureComponent {
   static getInitialProps() {
     fetch(URL, {
       headers: {
-        Authorization: `Bearer ${auth.state.accessToken}`
+        Authorization: `Bearer ${auth.accessToken}`
       }
     })
       .then(d => d.json())

@@ -51,10 +51,11 @@ declare type cookies = {
   expires: string;
 };
 
-declare type cb = (state: stateType) => void;
-
 interface AuthInterface {
-  readonly state: stateType;
+  readonly user?: user;
+  readonly idToken?: string;
+  readonly accessToken?: string;
+  readonly loggedOut: boolean;
 }
 
 // https://basarat.gitbooks.io/typescript/docs/tips/lazyObjectLiteralInitialization.html
@@ -67,10 +68,21 @@ let _sessionPoll: NodeJS.Timeout;
 let _checkSessionPromise: Promise<any>;
 
 const Auth: AuthInterface = {
-  get state() {
-    return _state;
+  get user() {
+    return _state.user;
+  },
+  get loggedOut() {
+    return _state.loggedOut;
+  },
+  get idToken() {
+    return _state.idToken;
+  },
+  get accessToken() {
+    return _state.accessToken;
   }
 };
+
+declare type cb = (state: AuthInterface) => void;
 
 // splice is slow, and iterating over objects 50x slower than over arrays
 // so maintain 2 lists, one with callbacks that may be undefined
@@ -400,16 +412,17 @@ function _updateState(state: stateType) {
   // const oldState = Object.assign({}, _state);
   _state = state;
 
-  _triggerUpdates(_state);
+  _triggerUpdates();
 }
 
-function _triggerUpdates(state: stateType) {
+function _triggerUpdates() {
   listeners.forEach((cb?: cb) => {
     if (cb) {
-      cb(state);
+      cb(Auth);
     }
   });
 }
+
 var baseUrl: string;
 function _getBaseUrl() {
   if (baseUrl) {
