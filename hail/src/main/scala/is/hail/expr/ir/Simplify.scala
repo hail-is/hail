@@ -428,8 +428,7 @@ object Simplify {
       TableMapGlobals(TableHead(child, n), newGlobals)
 
     case TableHead(TableOrderBy(child, sortFields), n)
-      if sortFields.forall(_.sortOrder == Ascending)
-        && child.typ.key != sortFields.map(_.field)
+      if !TableOrderBy.isAlreadyOrdered(sortFields, child.rvdType.key)
         && n < 256 && canRepartition =>
       // n < 256 is arbitrary for memory concerns
       val uid = genUID()
