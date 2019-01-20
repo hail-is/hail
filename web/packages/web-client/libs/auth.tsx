@@ -155,21 +155,17 @@ export function isAuthenticated() {
   return !!_state.user;
 }
 
-export function logout() {
-  if (_sessionPoll) {
-    clearInterval(_sessionPoll);
+export async function logout() {
+  // Set logout to true immediately, to prevent any future _checkSessions from modifying state
+  _clearState({ loggedOut: true });
+
+  try {
+    if (_checkSessionPromise) {
+      await _checkSessionPromise;
+    }
+  } finally {
+    _auth0.logout({ returnTo: _getBaseUrl() });
   }
-
-  _checkSessionPromise.finally(() => {
-    _clearState({ loggedOut: true });
-
-    // TODO: decide if we need to keep this; causes page refresh
-    // fine for logout, but if we decide to keep it, no need to _clearState
-    // can just clear _removeCookies
-    _auth0.logout({
-      returnTo: _getBaseUrl()
-    });
-  });
 }
 
 export function initStateSSR(cookie: string) {
@@ -406,10 +402,16 @@ function _pollForSession() {
       return;
     }
 
-    _checkSession().catch((err: any) => {
-      console.error(err);
-      logout();
-    });
+    _checkSession()
+      .then(() => {
+        if (_state.loggedOut) {
+          clearInterval(_sessionPoll);
+        }
+      })
+      .catch((err: any) => {
+        console.error(err);
+        logout();
+      });
   }, Math.floor(exp / 2));
 }
 
