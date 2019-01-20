@@ -1218,7 +1218,7 @@ class DictExpression(Expression):
         return self._method("values", tarray(self.dtype.value_type))
 
 
-class StructExpression(Mapping, Expression):
+class StructExpression(Mapping[str, Expression], Expression):
     """Expression of type :class:`.tstruct`.
 
     >>> struct = hl.struct(a=5, b='Foo')
