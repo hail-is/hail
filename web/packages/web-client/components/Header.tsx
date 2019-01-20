@@ -1,18 +1,21 @@
 import { PureComponent } from 'react';
 import Link from 'next/link';
-import auth from '../libs/auth';
+import {
+  logout,
+  addListener,
+  removeListener,
+  isAuthenticated
+} from '../libs/auth';
 import './Header/header.scss';
 import Router, { withRouter } from 'next/router';
 
 const bStyle = 'link-button';
 
-export interface HeaderProps {
-  authState: any;
-}
-
-class Header extends PureComponent<HeaderProps> {
+let listenerID: number;
+class Header extends PureComponent {
   state: any = {
-    showProfileControls: false
+    showProfileControls: false,
+    isLoggedIn: false
   };
 
   onProfileHover = () => {
@@ -27,10 +30,31 @@ class Header extends PureComponent<HeaderProps> {
     });
   };
 
+  constructor(props: any) {
+    super(props);
+
+    this.state.isLoggedIn = isAuthenticated();
+  }
+
+  componentDidMount() {
+    listenerID = addListener(state => {
+      if (this.state.isLoggedIn !== !!state.user) {
+        console.info('changed');
+        this.setState({ isLoggedIn: !!state.user });
+      }
+    });
+  }
+
+  componentWillUnmount() {
+    removeListener(listenerID);
+  }
+
   logout = () => {
-    auth.logout();
+    logout();
     this.setState({
-      showProfileControls: false
+      showProfileControls: false,
+      // sanity check, and slightly faster update
+      isLoggedIn: false
     });
     Router.replace('/');
   };
@@ -38,9 +62,11 @@ class Header extends PureComponent<HeaderProps> {
   render() {
     // TODO: Figure out why typing information not being read
     const {
-      authState,
       router: { pathname }
     } = this.props as any;
+    // interestingly, for initial page load, using this.state.isLoggedIn within the template
+    // actually may result in a flash of incorrect state
+    // const loggedIn = this.state.isLoggedIn;
 
     return (
       <span id="header">
@@ -64,7 +90,7 @@ class Header extends PureComponent<HeaderProps> {
           </a>
         </Link>
         <span style={{ marginLeft: 'auto' }}>
-          {authState.user ? (
+          {this.state.isLoggedIn ? (
             <span
               tabIndex={0}
               style={{ outline: 'none' }}

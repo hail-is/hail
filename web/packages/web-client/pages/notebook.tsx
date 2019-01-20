@@ -1,5 +1,5 @@
 import { PureComponent } from 'react';
-// import auth from '../libs/auth';
+import auth from '../libs/auth';
 import fetch from 'isomorphic-unfetch';
 
 const URL = 'http://localhost:8000/notebook';
@@ -12,7 +12,7 @@ class Notebook extends PureComponent {
   static getInitialProps() {
     fetch(URL, {
       headers: {
-        Authorization: 'Bearer dlfjalkdsjfla'
+        Authorization: `Bearer ${auth.state.accessToken}`
       }
     })
       .then(d => d.json())

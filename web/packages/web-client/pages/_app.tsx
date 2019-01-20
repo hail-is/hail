@@ -1,6 +1,6 @@
 import App, { Container } from 'next/app';
 import Header from '../components/Header';
-import auth from '../libs/auth';
+import { initialize, isAuthenticated, initStateSSR } from '../libs/auth';
 import Router from 'next/router';
 
 // import cookies from '../libs/cookies';
@@ -36,12 +36,12 @@ export default class MyApp extends App {
     let pageProps = {};
 
     if (typeof window === 'undefined') {
-      auth.getStateSSR(ctx.req.headers.cookie);
+      initStateSSR(ctx.req.headers.cookie);
     }
 
     // ctx.pathname will not include get variables in the query
     // will include the full directory path /path/to/resource
-    if (!auth.isAuthenticated() && protectedRoute[ctx.pathname] === true) {
+    if (!isAuthenticated() && protectedRoute[ctx.pathname] === true) {
       if (ctx.res) {
         ctx.res.writeHead(303, { Location: '/login?redirect=true' });
         ctx.res.end();
@@ -72,9 +72,7 @@ export default class MyApp extends App {
     // TOOD: For any components that need to fetch during server phase
     // we will need to extract the accessToken
     if (typeof window !== 'undefined') {
-      auth.initialize();
-      auth.getState();
-      console.info('ran constrcutor');
+      initialize();
     }
   }
 
@@ -84,9 +82,9 @@ export default class MyApp extends App {
     return (
       <Container>
         <span id="theme-site" className={this.state.isDark ? 'dark' : ''}>
-          <Header authState={auth.state} />
+          <Header />
           <span id="main">
-            <Component {...pageProps} authState={auth.state} />
+            <Component {...pageProps} />
           </span>
 
           <span id="footer">

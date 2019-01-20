@@ -41,7 +41,7 @@ class Scorecard extends PureComponent<Props, scorecardJson> {
   static async getInitialProps() {
     if (typeof window === 'undefined') {
       let ssr = {};
-      ssr = await fetch(URL).then(d => d.json());
+      // ssr = await fetch(URL).then(d => d.json());
       return { pageProps: { data: ssr } };
     }
 

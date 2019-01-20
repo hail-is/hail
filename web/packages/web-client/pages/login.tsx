@@ -1,5 +1,5 @@
 import { PureComponent } from 'react';
-import auth from '../libs/auth';
+import { login } from '../libs/auth';
 import Router from 'next/router';
 // import cookie from '../libs/cookies';
 import '../styles/pages/login.scss';
@@ -23,7 +23,7 @@ class Login extends PureComponent<LoginProps> {
 
   onLoginButtonClick = async () => {
     try {
-      await auth.login(this.state.password);
+      await login(this.state.password);
 
       Router.replace('/');
     } catch (e) {
