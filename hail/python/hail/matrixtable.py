@@ -644,7 +644,7 @@ class MatrixTable(ExprContainer):
         return [v.dtype for _, v in self.row_key.items()]
 
     @property
-    def col_key(self):
+    def col_key(self) -> 'StructExpression':
         """Column key struct.
 
         Examples
@@ -659,10 +659,11 @@ class MatrixTable(ExprContainer):
         -------
         :class:`.StructExpression`
         """
+        s = self.row_key.keys()
         return self._col_key
 
     @property
-    def row_key(self):
+    def row_key(self) -> 'StructExpression':
         """Row key struct.
 
         Examples
@@ -680,7 +681,7 @@ class MatrixTable(ExprContainer):
         return self._row_key
 
     @property
-    def globals(self):
+    def globals(self) -> 'StructExpression':
         """Returns a struct expression including all global fields.
 
         Returns
@@ -690,7 +691,7 @@ class MatrixTable(ExprContainer):
         return self._globals
 
     @property
-    def row(self):
+    def row(self) -> 'StructExpression':
         """Returns a struct expression of all row-indexed fields, including keys.
 
         Examples
@@ -708,7 +709,7 @@ class MatrixTable(ExprContainer):
         return self._row
 
     @property
-    def row_value(self):
+    def row_value(self) -> 'StructExpression':
         """Returns a struct expression including all non-key row-indexed fields.
 
         Examples
@@ -726,7 +727,7 @@ class MatrixTable(ExprContainer):
         return self._row.drop(*self.row_key)
 
     @property
-    def col(self):
+    def col(self) -> 'StructExpression':
         """Returns a struct expression of all column-indexed fields, including keys.
 
         Examples
@@ -744,7 +745,7 @@ class MatrixTable(ExprContainer):
         return self._col
 
     @property
-    def col_value(self):
+    def col_value(self) -> 'StructExpression':
         """Returns a struct expression including all non-key column-indexed fields.
 
         Examples
@@ -762,7 +763,7 @@ class MatrixTable(ExprContainer):
         return self._col.drop(*self.col_key)
 
     @property
-    def entry(self):
+    def entry(self) -> 'StructExpression':
         """Returns a struct expression including all row-and-column-indexed fields.
 
         Examples
@@ -1631,7 +1632,7 @@ class MatrixTable(ExprContainer):
         return self._select_cols(caller,
                                  self.col.annotate(**named_exprs).drop(*fields_referenced))
 
-    def transmute_entries(self, **named_exprs):
+    def transmute_entries(self, **named_exprs) -> 'MatrixTable':
         """Similar to :meth:`.MatrixTable.annotate_entries`, but drops referenced fields.
 
         Notes
@@ -2313,7 +2314,7 @@ class MatrixTable(ExprContainer):
         """
         return construct_expr(TableGetGlobals(MatrixRowsTable(self._mir)), self.globals.dtype)
 
-    def index_rows(self, *exprs):
+    def index_rows(self, *exprs) -> 'StructExpression':
         """Expose the row values as if looked up in a dictionary, indexing
         with `exprs`.
 
@@ -2394,7 +2395,7 @@ class MatrixTable(ExprContainer):
             else:
                 return self.rows().index(*exprs)
 
-    def index_cols(self, *exprs):
+    def index_cols(self, *exprs) -> 'StructExpression':
         """Expose the column values as if looked up in a dictionary, indexing
         with `exprs`.
 
@@ -2541,7 +2542,7 @@ class MatrixTable(ExprContainer):
             return construct_expr(ir, self.entry.dtype, indices, aggregations)
 
     @typecheck_method(entries_field_name=str, cols_field_name=str)
-    def _localize_entries(self, entries_field_name, cols_field_name):
+    def _localize_entries(self, entries_field_name, cols_field_name) -> 'Table':
         return Table(CastMatrixToTable(
             self._mir, entries_field_name, cols_field_name))
 
@@ -2628,7 +2629,7 @@ class MatrixTable(ExprContainer):
         return (mt.drop(*(f for f in mt._fields if f not in keep)) \
                 .rename({uid: original for original, uid in uids.items()}))
 
-    def _process_joins(self, *exprs):
+    def _process_joins(self, *exprs) -> 'MatrixTable':
         return process_joins(self, exprs)
 
     def describe(self, handler=print):
@@ -2962,7 +2963,7 @@ class MatrixTable(ExprContainer):
     @typecheck_method(other=matrix_table_type,
                       tolerance=numeric,
                       absolute=bool)
-    def _same(self, other, tolerance=1e-6, absolute=False):
+    def _same(self, other, tolerance=1e-6, absolute=False) -> bool:
         entries_name = Env.get_uid()
         cols_name = Env.get_uid()
         return self._localize_entries(entries_name, cols_name)._same(
@@ -2976,7 +2977,7 @@ class MatrixTable(ExprContainer):
 
     @typecheck_method(caller=str,
                       row=expr_struct())
-    def _select_rows(self, caller, row):
+    def _select_rows(self, caller, row) -> 'MatrixTable':
         analyze(caller, row, self._row_indices, {self._col_axis})
         base, cleanup = self._process_joins(row)
         return cleanup(MatrixTable(MatrixMapRows(base._mir, row._ir)))
@@ -2997,13 +2998,13 @@ class MatrixTable(ExprContainer):
     @typecheck_method(caller=str,
                       col=expr_struct(),
                       new_key=nullable(sequenceof(str)))
-    def _select_cols(self, caller, col, new_key=None):
+    def _select_cols(self, caller, col, new_key=None) -> 'MatrixTable':
         analyze(caller, col, self._col_indices, {self._row_axis})
         base, cleanup = self._process_joins(col)
         return cleanup(MatrixTable(MatrixMapCols(base._mir, col._ir, new_key)))
 
     @typecheck_method(key_struct=expr_struct())
-    def _select_cols_processed(self, key_struct):
+    def _select_cols_processed(self, key_struct) -> 'MatrixTable':
         new_key = list(key_struct.keys())
         keys = Env.get_uid()
         fields = [(n, GetField(Ref(keys), n)) for (n, t) in key_struct.dtype.items()]
@@ -3192,7 +3193,7 @@ class MatrixTable(ExprContainer):
         return MatrixTable._from_java(self._jmt.head(n))
 
     @typecheck_method(parts=sequenceof(int), keep=bool)
-    def _filter_partitions(self, parts, keep=True):
+    def _filter_partitions(self, parts, keep=True) -> 'MatrixTable':
         return MatrixTable(MatrixToMatrixApply(self._mir, {'name': 'MatrixFilterPartitions', 'parts': parts, 'keep': keep}))
 
     @classmethod
@@ -3314,7 +3315,7 @@ class MatrixTable(ExprContainer):
 
         return MatrixTable._from_java(self._jmt.renameFields(row_map, col_map, entry_map, global_map))
 
-    def distinct_by_row(self):
+    def distinct_by_row(self) -> 'MatrixTable':
         """Remove rows with a duplicate row key.
 
         Returns
@@ -3323,7 +3324,7 @@ class MatrixTable(ExprContainer):
         """
         return MatrixTable(MatrixDistinctByRow(self._mir))
 
-    def distinct_by_col(self):
+    def distinct_by_col(self) -> 'MatrixTable':
         """Remove columns with a duplicate row key.
 
         Returns

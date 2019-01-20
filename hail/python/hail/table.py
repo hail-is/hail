@@ -177,7 +177,7 @@ class GroupedTable(ExprContainer):
         return self
 
     @typecheck_method(named_exprs=expr_any)
-    def aggregate(self, **named_exprs):
+    def aggregate(self, **named_exprs) -> 'Table':
         """Aggregate by group, used after :meth:`.Table.group_by`.
 
         Examples
@@ -396,7 +396,7 @@ class Table(ExprContainer):
         return self._key
 
     @property
-    def _value(self):
+    def _value(self) -> 'StructExpression':
         return self.row.drop(*self.key)
 
     def n_partitions(self):
@@ -428,13 +428,13 @@ class Table(ExprContainer):
 
     @typecheck_method(caller=str,
                       row=expr_struct())
-    def _select(self, caller, row):
+    def _select(self, caller, row) -> 'Table':
         analyze(caller, row, self._row_indices)
         base, cleanup = self._process_joins(row)
         return cleanup(Table(TableMapRows(base._tir, row._ir)))
 
     @typecheck_method(caller=str, s=expr_struct())
-    def _select_globals(self, caller, s):
+    def _select_globals(self, caller, s) -> 'Table':
         base, cleanup = self._process_joins(s)
         analyze(caller, s, self._global_indices)
         return cleanup(Table(TableMapGlobals(base._tir, s._ir)))
@@ -444,7 +444,7 @@ class Table(ExprContainer):
                       schema=nullable(hail_type),
                       key=table_key_type,
                       n_partitions=nullable(int))
-    def parallelize(cls, rows, schema=None, key=None, n_partitions=None):
+    def parallelize(cls, rows, schema=None, key=None, n_partitions=None) -> 'Table':
         """Parallelize a local array of structs into a distributed table.
 
         Examples
@@ -549,7 +549,7 @@ class Table(ExprContainer):
                     new_row._ir),
                 list(key_fields))))
 
-    def annotate_globals(self, **named_exprs):
+    def annotate_globals(self, **named_exprs) -> 'Table':
         """Add new global fields.
 
         Examples
@@ -578,7 +578,7 @@ class Table(ExprContainer):
             check_collisions(self._fields, k, self._global_indices)
         return self._select_globals('Table.annotate_globals', self.globals.annotate(**named_exprs))
 
-    def select_globals(self, *exprs, **named_exprs):
+    def select_globals(self, *exprs, **named_exprs) -> 'Table':
         """Select existing global fields or create new fields by name, dropping the rest.
 
         Examples
@@ -631,7 +631,7 @@ class Table(ExprContainer):
         check_field_uniqueness(assignments.keys())
         return self._select_globals('Table.select_globals', hl.struct(**assignments))
 
-    def transmute_globals(self, **named_exprs):
+    def transmute_globals(self, **named_exprs) -> 'Table':
         """Similar to :meth:`.Table.annotate_globals`, but drops referenced fields.
 
         Notes
@@ -663,7 +663,7 @@ class Table(ExprContainer):
                                     self.globals.annotate(**named_exprs).drop(*fields_referenced))
 
 
-    def transmute(self, **named_exprs):
+    def transmute(self, **named_exprs) -> 'Table':
         """Add new fields and drop fields referenced.
 
         Examples
@@ -729,7 +729,7 @@ class Table(ExprContainer):
 
         return self._select(caller, self.row.annotate(**e).drop(*fields_referenced))
 
-    def annotate(self, **named_exprs):
+    def annotate(self, **named_exprs) -> 'Table':
         """Add new fields.
 
         Examples
@@ -760,7 +760,7 @@ class Table(ExprContainer):
 
     @typecheck_method(expr=expr_bool,
                       keep=bool)
-    def filter(self, expr, keep=True):
+    def filter(self, expr, keep=True) -> 'Table':
         """Filter rows.
 
         Examples
@@ -902,7 +902,7 @@ class Table(ExprContainer):
         return self._select('Table.select', row)
 
     @typecheck_method(exprs=oneof(str, Expression))
-    def drop(self, *exprs):
+    def drop(self, *exprs) -> 'Table':
         """Drop fields from the table.
 
         Examples
@@ -1336,7 +1336,7 @@ class Table(ExprContainer):
         """
         handler(self._show(n, width, truncate, types))
 
-    def index(self, *exprs):
+    def index(self, *exprs) -> 'StructExpression':
         """Expose the row values as if looked up in a dictionary, indexing
         with `exprs`.
 
@@ -1588,7 +1588,7 @@ class Table(ExprContainer):
         else:
             raise TypeError("Cannot join with expressions derived from '{}'".format(src.__class__))
 
-    def index_globals(self):
+    def index_globals(self) -> 'StructExpression':
         """Return this table's global variables for use in another
         expression context.
 
@@ -1602,10 +1602,10 @@ class Table(ExprContainer):
         """
         return construct_expr(TableGetGlobals(self._tir), self.globals.dtype)
 
-    def _process_joins(self, *exprs):
+    def _process_joins(self, *exprs) -> 'Table':
         return process_joins(self, exprs)
 
-    def cache(self):
+    def cache(self) -> 'Table':
         """Persist this table in memory.
 
         Examples
@@ -1627,7 +1627,7 @@ class Table(ExprContainer):
         return self.persist('MEMORY_ONLY')
 
     @typecheck_method(storage_level=storage_level)
-    def persist(self, storage_level='MEMORY_AND_DISK'):
+    def persist(self, storage_level='MEMORY_AND_DISK') -> 'Table':
         """Persist this table in memory or on disk.
 
         Examples
@@ -1664,7 +1664,7 @@ class Table(ExprContainer):
         """
         return Env.backend().persist_table(self, storage_level)
 
-    def unpersist(self):
+    def unpersist(self) -> 'Table':
         """
         Unpersists this table from memory/disk.
 
@@ -1744,7 +1744,7 @@ class Table(ExprContainer):
         handler(s)
 
     @typecheck_method(name=str)
-    def add_index(self, name='idx'):
+    def add_index(self, name='idx') -> 'Table':
         """Add the integer index of each row as a new row field.
 
         Examples
@@ -1790,7 +1790,7 @@ class Table(ExprContainer):
         return self.annotate(**{name: hl.scan.count()})
 
     @typecheck_method(tables=table_type)
-    def union(self, *tables):
+    def union(self, *tables) -> 'Table':
         """Union the rows of multiple tables.
 
         Examples
@@ -1866,7 +1866,7 @@ class Table(ExprContainer):
         return self.head(n).collect(_localize)
 
     @typecheck_method(n=int)
-    def head(self, n):
+    def head(self, n) -> 'Table':
         """Subset table to first `n` rows.
 
         Examples
@@ -1898,7 +1898,7 @@ class Table(ExprContainer):
 
     @typecheck_method(p=numeric,
                       seed=nullable(int))
-    def sample(self, p, seed=None):
+    def sample(self, p, seed=None) -> 'Table':
         """Downsample the table by keeping each row with probability ``p``.
 
         Examples
@@ -1928,7 +1928,7 @@ class Table(ExprContainer):
 
     @typecheck_method(n=int,
                       shuffle=bool)
-    def repartition(self, n, shuffle=True):
+    def repartition(self, n, shuffle=True) -> 'Table':
         """Change the number of partitions.
 
         Examples
@@ -1981,7 +1981,7 @@ class Table(ExprContainer):
             self._tir, n, RepartitionStrategy.SHUFFLE if shuffle else RepartitionStrategy.COALESCE))
 
     @typecheck_method(max_partitions=int)
-    def naive_coalesce(self, max_partitions: int) -> 'MatrixTable':
+    def naive_coalesce(self, max_partitions: int) -> 'Table':
         """Naively decrease the number of partitions.
 
         Example
@@ -2159,7 +2159,7 @@ class Table(ExprContainer):
         return self.aggregate(hail.agg.any(expr))
 
     @typecheck_method(mapping=dictof(str, str))
-    def rename(self, mapping):
+    def rename(self, mapping) -> 'Table':
         """Rename fields of the table.
 
         Examples
@@ -2208,7 +2208,7 @@ class Table(ExprContainer):
 
         return Table(TableRename(self._tir, row_map, global_map))
 
-    def expand_types(self):
+    def expand_types(self) -> 'Table':
         """Expand complex types into structs and arrays.
 
         Examples
@@ -2260,7 +2260,7 @@ class Table(ExprContainer):
         t = t.select_globals(**_expand(t.globals))
         return t
 
-    def flatten(self):
+    def flatten(self) -> 'Table':
         """Flatten nested structs.
 
         Examples
@@ -2330,7 +2330,7 @@ class Table(ExprContainer):
         return t
 
     @typecheck_method(exprs=oneof(str, Expression, Ascending, Descending))
-    def order_by(self, *exprs):
+    def order_by(self, *exprs) -> 'Table':
         """Sort by the specified fields. Unkeys the table, if keyed.
 
         Examples
@@ -2411,7 +2411,7 @@ class Table(ExprContainer):
 
     @typecheck_method(field=oneof(str, Expression),
                       name=nullable(str))
-    def explode(self, field, name=None):
+    def explode(self, field, name=None) -> 'Table':
         """Explode rows along a top-level field of the table.
 
         Each row is copied for each element of `field`.
@@ -2520,7 +2520,7 @@ class Table(ExprContainer):
                       row_fields=sequenceof(str),
                       col_fields=sequenceof(str),
                       n_partitions=nullable(int))
-    def to_matrix_table(self, row_key, col_key, row_fields=[], col_fields=[], n_partitions=None):
+    def to_matrix_table(self, row_key, col_key, row_fields=[], col_fields=[], n_partitions=None) -> 'hl.MatrixTable':
         """Construct a matrix table from a table in coordinate representation.
 
         Notes
@@ -2635,7 +2635,7 @@ class Table(ExprContainer):
     @staticmethod
     @typecheck(df=pyspark.sql.DataFrame,
                key=table_key_type)
-    def from_spark(df, key=[]):
+    def from_spark(df, key=[]) -> 'Table':
         """Convert PySpark SQL DataFrame to a table.
 
         Examples
@@ -2719,7 +2719,7 @@ class Table(ExprContainer):
     @staticmethod
     @typecheck(df=pandas.DataFrame,
                key=oneof(str, sequenceof(str)))
-    def from_pandas(df, key=[]):
+    def from_pandas(df, key=[]) -> 'Table':
         """Create table from Pandas DataFrame
 
         Examples
@@ -2881,19 +2881,19 @@ class Table(ExprContainer):
         return Table(TableDistinct(self._tir))
 
     @typecheck_method(parts=sequenceof(int), keep=bool)
-    def _filter_partitions(self, parts, keep=True):
+    def _filter_partitions(self, parts, keep=True) -> 'Table':
         return Table(TableToTableApply(self._tir, {'name': 'TableFilterPartitions', 'parts': parts, 'keep': keep}))
 
     @typecheck_method(cols_field_name=str,
                       entries_field_name=str,
                       col_key=sequenceof(str))
-    def _unlocalize_entries(self, entries_field_name, cols_field_name, col_key):
+    def _unlocalize_entries(self, entries_field_name, cols_field_name, col_key) -> 'hl.MatrixTable':
         return hl.MatrixTable(CastTableToMatrix(
             self._tir, entries_field_name, cols_field_name, col_key))
 
     @staticmethod
     @typecheck(tables=sequenceof(table_type), data_field_name=str, global_field_name=str)
-    def _multi_way_zip_join(tables, data_field_name, global_field_name):
+    def _multi_way_zip_join(tables, data_field_name, global_field_name) -> 'Table':
         if not tables:
             raise ValueError('multi_way_zip_join must have at least one table as an argument')
         head = tables[0]
