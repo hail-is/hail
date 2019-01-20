@@ -12,6 +12,7 @@ import jwtDecode from 'jwt-decode';
 
 const {
   DOMAIN,
+  AUDIENCE,
   CLIENT_ID,
   RESPONSE_TYPE,
   SCOPE,
@@ -124,8 +125,10 @@ export function initialize() {
 
   const redirectUri = `${_getBaseUrl()}${CALLBACK_SUFFIX}`;
 
+  console.info('AUDIENCE', AUDIENCE);
   _auth0 = new auth0.WebAuth({
     domain: DOMAIN,
+    audience: AUDIENCE,
     clientID: CLIENT_ID,
     redirectUri: redirectUri,
     responseType: RESPONSE_TYPE || 'token id_token',

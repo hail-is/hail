@@ -1,7 +1,10 @@
 import { PureComponent } from 'react';
 import fetch from 'isomorphic-unfetch';
+import getConfig from 'next/config';
 
-const URL = 'https://scorecard.hail.is/json';
+const DOMAIN = getConfig().publicRuntimeConfig.SCORECARD.DOMAIN;
+const jsonURL = `${DOMAIN}/json`;
+
 declare type scorecardJson = {
   data: object;
 };
@@ -26,7 +29,7 @@ const startPolling = (ms: number = 1 * 60 * 1000) => {
   }
 
   timeout = setInterval(() => {
-    fetch(URL)
+    fetch(jsonURL)
       .then(d => d.json())
       .then(data => {
         cache = data;
@@ -39,9 +42,15 @@ class Scorecard extends PureComponent<Props, scorecardJson> {
   // to be re-fetched during the client rendering phase
   // The data is automatically available under this.props.pageProps
   static async getInitialProps() {
-    if (typeof window === 'undefined') {
-      let ssr = {};
-      // ssr = await fetch(URL).then(d => d.json());
+    if (typeof window === 'undefined' || !cache) {
+      const ssr = await fetch(jsonURL).then(d => d.json());
+
+      // TODO: could use page loading indicator here instead of synchronously waiting
+      if (typeof window !== 'undefined') {
+        cache = ssr;
+        startPolling();
+      }
+
       return { pageProps: { data: ssr } };
     }
 
@@ -51,21 +60,9 @@ class Scorecard extends PureComponent<Props, scorecardJson> {
   constructor(props: any) {
     super(props);
 
-    // Initial page load (from refresh/ssr phase)
-    // will have pageProps; so lets re-use these
-    // After that, lets use our cached/polled version
-    if (this.props.pageProps !== null) {
-      this.state = { data: this.props.pageProps.data };
-
-      // We will set the initial cache state, and then poll to update that this.state
-      // Every time this page is visited after initial load, cache will be used
-      if (typeof window !== 'undefined') {
-        cache = this.props.pageProps.data;
-        startPolling();
-      }
-    } else {
-      this.state = { data: cache };
-    }
+    this.state = {
+      data: (this.props.pageProps && this.props.pageProps.data) || cache
+    };
   }
 
   render() {

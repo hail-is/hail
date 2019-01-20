@@ -1,8 +1,9 @@
 import { PureComponent } from 'react';
 import auth from '../libs/auth';
 import fetch from 'isomorphic-unfetch';
+import getConfig from 'next/config';
 
-const URL = 'http://localhost:8000/notebook';
+const DOMAIN = getConfig().publicRuntimeConfig.NOTEBOOK.DOMAIN;
 
 class Notebook extends PureComponent {
   state = {
@@ -10,7 +11,7 @@ class Notebook extends PureComponent {
   };
 
   static getInitialProps() {
-    fetch(URL, {
+    fetch(DOMAIN, {
       headers: {
         Authorization: `Bearer ${auth.accessToken}`
       }

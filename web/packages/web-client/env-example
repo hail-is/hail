@@ -1,5 +1,9 @@
 AUTH0_DOMAIN=hail.auth0.com
+AUTHO_AUDIENCE=hail
 AUTH0_SCOPE=openid
 AUTH0_RESPONSE_TYPE=token id_token
 AUTH0_CLIENT_ID=TD78k23CcdM4pMWoYZwYwKJbQPBj06jY
 AUTH0_CALLBACK_SUFFIX=static/auth0-redirect.html
+
+SCORECARD_DOMAIN=https://scorecard.hail.is
+NOTEBOOK_DOMAIN=http://localhost:8000/notebook

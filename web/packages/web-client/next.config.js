@@ -13,7 +13,14 @@ const publicRuntimeConfig = {
     SCOPE: process.env.AUTH0_SCOPE,
     CALLBACK_SUFFIX: process.env.AUTH0_CALLBACK_SUFFIX,
     RESPONSE_TYPE: process.env.AUTH0_RESPONSE_TYPE,
-    CLIENT_ID: process.env.AUTH0_CLIENT_ID
+    CLIENT_ID: process.env.AUTH0_CLIENT_ID,
+    AUDIENCE: process.env.AUTH0_AUDIENCE
+  },
+  SCORECARD: {
+    DOMAIN: process.env.SCORECARD_DOMAIN
+  },
+  NOTEBOOK: {
+    DOMAIN: process.env.NOTEBOOK_DOMAIN
   }
 };
 
