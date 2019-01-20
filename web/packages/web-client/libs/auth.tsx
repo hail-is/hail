@@ -2,13 +2,13 @@
 // Manages auth0 calls, fetching access  tokens, and  decoding id tokens
 
 // TOOD: Think about safety of using leeway to fudge jwt expiration by N seconds
-// TOOD: reorganize so that function hoisting doesn't catch us.
-// TODO: Fix logout / checkSession race condition by awaiting checkSession promise
+// TODO: Write tests, simplify race condition handling
+// TODO: exp is derived from accessToken's claim, decide if needs keeping
+// TODO: File issue with auth0js library regarding rapid refresh, fix
 import auth0 from 'auth0-js';
 import getConfig from 'next/config';
 import cookies, { CookieAttributes } from 'js-cookie';
 import jwtDecode from 'jwt-decode';
-// import deepEqual from 'fast-deep-equal';
 
 const {
   DOMAIN,
@@ -24,8 +24,6 @@ const {
 // that is not in idToken
 // exp is also stored in a token, to enable a single function setState
 // that takes either an auth0 response, or a constructed response from cookeis
-// TODO: decide on this: exp is derived from accessToken's claim
-// TODO: use optionals rather than | null;
 declare type user = {
   sub: string;
 };
@@ -55,8 +53,6 @@ declare type cookies = {
 
 declare type cb = (state: stateType) => void;
 
-// TODO: add interface, expose only login, logout, initialize
-// TODO: Maybe convert to singleton class
 interface AuthInterface {
   readonly state: stateType;
 }
@@ -286,11 +282,6 @@ function _initState() {
   }
 }
 
-// TODO: Decide on either triggering an event through pre-registered
-// callback list, relying on the reference changing to trigger shallow watch in React
-// on relying on observables, such as nxjs (which adds 2kb to bundle)
-// If payloads haven't changed, only modify .expires property,
-// to prevent triggering shallow react checks
 function _loginFromAuth0(r: auth0payload) {
   const expires = `${r.expiresIn * 1000 + Date.now()}`;
 
@@ -300,14 +291,6 @@ function _loginFromAuth0(r: auth0payload) {
   };
 
   cookies.set('expires', expires, opt);
-
-  // This is fragile, and _loginFormAuth0 should be called very infrequently
-  // hours apart after initial login
-  // if (r.accessToken === _state.accessToken && r.idToken === _state.idToken) {
-  //   _updateState(Object.assign({}, _state, { expires: expires }));
-  //   return;
-  // }
-
   cookies.set('idToken', r.idToken as string, opt);
   cookies.set('accessToken', r.accessToken as string, opt);
 
@@ -345,17 +328,14 @@ function _clearState(initState?: Partial<stateType>) {
   _updateState(base);
 }
 
-// TODO: This can cause a subtle issue: checkSession sets a cookie briefly
-// this cookie may not be cleared if user logs out within the window of this
-// cookie's expiration
-// It also seems we may get a strange DOM diff issue when this happens
-// not dangerous, just irksome
+// This can cause a subtle issue: checkSession sets a cookie briefly
+// this cookie may not be cleared if user refreshes browser before cookie cleared
+// causing accumulation of garbage
 function _checkSession() {
   if (!_auth0) {
     throw new Error('Auth library is not initialized in checkSession');
   }
 
-  // TODO: could implement synchronous promise resolution check
   _checkSessionPromise = new Promise((resolve, reject) => {
     if (_state.loggedOut) {
       return resolve();
