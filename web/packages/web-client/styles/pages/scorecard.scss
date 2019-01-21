@@ -1,0 +1,41 @@
+@import '../variables/colors.scss';
+#theme-site {
+  #scorecard {
+    display: flex;
+    width: 100%;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: flex-start;
+    align-content: flex-start;
+    .issues-section {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      &:nth-child(2) {
+        margin-top: 14px;
+      }
+    }
+    tr {
+      display: table-row;
+      outline: none;
+      font-size: 14px;
+      height: 30px;
+      a {
+        &:not(:last-child) {
+          &:after {
+            content: ', ';
+          }
+        }
+      }
+    }
+    th {
+      color: $black;
+      font-size: 12px;
+      text-align: left;
+      display: table-cell;
+      text-align: left;
+      border-bottom: 1px solid $light-gray;
+      vertical-align: inherit;
+    }
+  }
+}

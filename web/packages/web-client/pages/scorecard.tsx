@@ -5,6 +5,7 @@ import getConfig from 'next/config';
 const DOMAIN = getConfig().publicRuntimeConfig.SCORECARD.DOMAIN;
 const jsonURL = `${DOMAIN}/json`;
 
+import '../styles/pages/scorecard.scss';
 // TODO: This kind of thing is maybe better represented using GraphQL
 // buys use schema introspection and validation
 // Typescript gives us only compile-time guarantees on the client
@@ -33,9 +34,9 @@ declare type scorecardJson = {
   data: {
     user_data: {
       [name: string]: {
-        CHANGES_REQUESTED: [pr];
-        ISSUES: [issue];
-        NEEDS_REVIEW: [pr];
+        CHANGES_REQUESTED: [pr?];
+        ISSUES: [issue?];
+        NEEDS_REVIEW: [pr?];
       };
     };
     unassigned: [pr];
@@ -112,9 +113,18 @@ class Scorecard extends PureComponent<Props, scorecardJson> {
 
     const { user_data, unassigned, urgent_issues } = this.state.data;
 
+    if (unassigned && unassigned.length) {
+      user_data['UNASSIGNED'] = {
+        NEEDS_REVIEW: unassigned,
+        CHANGES_REQUESTED: [],
+        ISSUES: []
+      };
+    }
+
     return (
       <span id="scorecard">
-        <div>
+        <div className="issues-section">
+          <h4>Nominal</h4>
           <table>
             <thead>
               <tr>
@@ -153,17 +163,9 @@ class Scorecard extends PureComponent<Props, scorecardJson> {
               ))}
             </tbody>
           </table>
-          <p>
-            Unassigned:
-            {unassigned.map((pr, i) => (
-              <a key={i} href={pr.html_url}>
-                {pr.id}
-              </a>
-            ))}
-          </p>
         </div>
         {urgent_issues && (
-          <div id="urgent-issues">
+          <div className="issues-section">
             <h4>Urgent</h4>
             {
               <table>
