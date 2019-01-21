@@ -464,8 +464,8 @@ class MatrixToTableApply(TableIR):
     def _compute_type(self):
         name = self.config['name']
         child_typ = self.child.typ
-        pass_through = self.config['passThrough']
         if name == 'LinearRegressionRowsChained':
+            pass_through = self.config['passThrough']
             chained_schema = hl.dtype('struct{n:array<int32>,sum_x:array<float64>,y_transpose_x:array<array<float64>>,beta:array<array<float64>>,standard_error:array<array<float64>>,t_stat:array<array<float64>>,p_value:array<array<float64>>}')
             self._type = hl.ttable(
                 child_typ.global_type,
@@ -474,6 +474,7 @@ class MatrixToTableApply(TableIR):
                  ._concat(chained_schema)),
                 child_typ.row_key)
         elif name == 'LinearRegressionRowsSingle':
+            pass_through = self.config['passThrough']
             chained_schema = hl.dtype('struct{n:int32,sum_x:float64,y_transpose_x:array<float64>,beta:array<float64>,standard_error:array<float64>,t_stat:array<float64>,p_value:array<float64>}')
             self._type = hl.ttable(
                 child_typ.global_type,
