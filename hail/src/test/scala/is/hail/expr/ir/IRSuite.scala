@@ -918,6 +918,8 @@ class IRSuite extends SparkSuite {
 
   @DataProvider(name = "valueIRs")
   def valueIRs(): Array[Array[IR]] = {
+    hc.indexBgen(FastIndexedSeq("src/test/resources/example.8bits.bgen"), rg = Some("GRCh37"), contigRecoding = Map("01" -> "1"))
+
     val b = True()
     val c = Ref("c", TBoolean())
     val i = I32(5)
