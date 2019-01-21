@@ -233,7 +233,7 @@ class Scorecard extends PureComponent<Props, scorecardJson & user> {
         )}
         <div className="issues-section">
           {' '}
-          <h5>Random User</h5>
+          <h5>Rolodex</h5>
           <div id="random-user">
             <img
               src={`https://github.com/${this.state.user}.png?size=50`}

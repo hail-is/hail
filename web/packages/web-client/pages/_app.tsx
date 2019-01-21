@@ -7,7 +7,7 @@ import Router from 'next/router';
 
 import 'styles/main.scss';
 import 'animate.css';
-import 'normalize.css';
+// import 'normalize.css';
 
 // TODO: set some kind of protected property on routes, instead of
 // blacklisting here

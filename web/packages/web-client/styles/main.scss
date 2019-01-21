@@ -4,6 +4,13 @@
 @import './input.scss';
 html {
   box-sizing: border-box;
+  font-size: 16px;
+}
+
+button,
+input {
+  margin: 0px;
+  font-size: .875rem
 }
 
 *,
@@ -13,6 +20,7 @@ html {
 }
 
 #theme-site {
+  font-size: 0.875rem;
   background-color: $white;
   height: 100%;
   display: flex;
@@ -20,20 +28,13 @@ html {
   font-family: 'Open Sans', Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-font-smmothing: grayscale;
-  height: normal;
-  line-height: normal;
   input::placeholder {
     -webkit-font-smoothing: antialiased;
     -moz-font-smmothing: grayscale;
-    height: inherit;
-    line-height: inherit;
   }
   #main {
     display: flex;
     flex-direction: column;
-    justify-content: center;
-    align-content: center;
-    align-items: center;
     padding: 14px;
     min-height: calc(100vh - 50px * 2);
   }
