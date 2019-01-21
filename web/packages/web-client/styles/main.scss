@@ -35,7 +35,7 @@ html {
     align-content: center;
     align-items: center;
     padding: 14px;
-    height: calc(100vh - 50px * 2);
+    min-height: calc(100vh - 50px * 2);
   }
   #footer {
     /* padding: 7px; */

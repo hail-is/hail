@@ -2,7 +2,14 @@ import { PureComponent } from 'react';
 import fetch from 'isomorphic-unfetch';
 import getConfig from 'next/config';
 
-const DOMAIN = getConfig().publicRuntimeConfig.SCORECARD.DOMAIN;
+const config = getConfig().publicRuntimeConfig.SCORECARD;
+const DOMAIN: string = config.DOMAIN;
+const USERS: string[] = config.USERS;
+
+if (!(USERS && DOMAIN)) {
+  throw new Error('Scorecard USERS and DOMAIN env variables required found');
+}
+
 const jsonURL = `${DOMAIN}/json`;
 
 import '../styles/pages/scorecard.scss';
@@ -50,8 +57,12 @@ declare type scorecardJson = {
   };
 };
 
+declare type user = {
+  user: string;
+};
+
 interface Props {
-  pageProps: scorecardJson;
+  pageProps: scorecardJson & user;
 }
 
 // TODO: think about triggering this in _app.js
@@ -78,11 +89,18 @@ const startPolling = (ms: number = 1 * 60 * 1000) => {
   }, ms);
 };
 
-class Scorecard extends PureComponent<Props, scorecardJson> {
+class Scorecard extends PureComponent<Props, scorecardJson & user> {
   // Data that is fetched during the server rendering phase does not need
   // to be re-fetched during the client rendering phase
   // The data is automatically available under this.props.pageProps
+  static refreshUser() {
+    const seed = Math.floor(Math.random() * USERS.length);
+    return USERS[seed];
+  }
+
   static async getInitialProps() {
+    const user = Scorecard.refreshUser();
+
     if (typeof window === 'undefined' || !cache) {
       const ssr = await fetch(jsonURL).then(d => d.json());
 
@@ -92,19 +110,27 @@ class Scorecard extends PureComponent<Props, scorecardJson> {
         startPolling();
       }
 
-      return { pageProps: { data: ssr } };
+      return { pageProps: { data: ssr, user } };
     }
 
-    return { pageProps: null };
+    return { pageProps: { user } };
   }
 
   constructor(props: any) {
     super(props);
 
+    // Initialize state to props becaues we may mutate the state (say polling)
+    // but props are supposed to be read-only
     this.state = {
-      data: (this.props.pageProps && this.props.pageProps.data) || cache
+      data: this.props.pageProps.data || cache,
+      user: this.props.pageProps.user
     };
   }
+
+  handleRefreshUser = () => {
+    console.info('clicked');
+    this.setState({ user: Scorecard.refreshUser() });
+  };
 
   render() {
     if (!this.state.data) {
@@ -124,7 +150,7 @@ class Scorecard extends PureComponent<Props, scorecardJson> {
     return (
       <span id="scorecard">
         <div className="issues-section">
-          <h4>Nominal</h4>
+          <h5>Nominal</h5>
           <table>
             <thead>
               <tr>
@@ -137,7 +163,11 @@ class Scorecard extends PureComponent<Props, scorecardJson> {
             <tbody>
               {Object.keys(user_data).map((name, idx) => (
                 <tr key={idx}>
-                  <td>{name}</td>
+                  <td>
+                    <a target="_blank" href={`/scorecard/users/${name}`}>
+                      {name}
+                    </a>
+                  </td>
                   <td>
                     {user_data[name].NEEDS_REVIEW.map((pr, i) => (
                       <a target="_blank" key={i} href={pr.html_url}>
@@ -166,13 +196,14 @@ class Scorecard extends PureComponent<Props, scorecardJson> {
         </div>
         {urgent_issues && (
           <div className="issues-section">
-            <h4>Urgent</h4>
+            <h5>Urgent</h5>
             {
               <table>
                 <thead>
                   <tr>
                     <th>Who</th>
                     <th>When</th>
+
                     <th>What</th>
                   </tr>
                 </thead>
@@ -200,6 +231,18 @@ class Scorecard extends PureComponent<Props, scorecardJson> {
             }
           </div>
         )}
+        <div className="issues-section">
+          {' '}
+          <h5>Random User</h5>
+          <div id="random-user">
+            <img
+              src={`https://github.com/${this.state.user}.png?size=50`}
+              width="50"
+              onClick={this.handleRefreshUser}
+            />
+            <span>{this.state.user}</span>
+          </div>
+        </div>
       </span>
     );
   }
