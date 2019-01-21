@@ -490,7 +490,8 @@ class MatrixToTableApply(TableIR):
                 child_typ.global_type,
                 (child_typ.row_key_type
                  ._insert_fields(**{f: child_typ.row_type[f] for f in pass_through})
-                 ._concat(logreg_type)))
+                 ._concat(logreg_type)),
+                child_typ.row_key)
         else:
             assert name == 'PCA', name
             self._type = hl.ttable(
