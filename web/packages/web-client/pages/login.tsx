@@ -54,7 +54,7 @@ class Login extends PureComponent<LoginProps> {
           <button className="outlined-button" onClick={this.onLoginButtonClick}>
             Login
           </button>
-          <span>or</span>
+          <span id="separator">or</span>
           <form onSubmit={this.onSubmit}>
             <input
               type="password"

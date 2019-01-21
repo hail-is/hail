@@ -3,18 +3,27 @@
   #login {
     flex-direction: column;
     display: flex;
-    width: 33vw;
+    min-width: 33vw;
     justify-content: center;
     align-content: center;
     h3 {
       margin-bottom: 14px;
     }
     #login-choices {
-      display: flex;
+      display: flex; // TODO: Figure out better way to align the h3 with its children
+      margin-left: 3px;
       justify-content: space-between;
       align-items: center;
-      input[type='password'] {
-        width: 20vw;
+      form {
+        display: flex;
+        flex-grow: 1;
+        input[type='password'] {
+          width: 100%;
+          max-width: 300px;
+        }
+      }
+      #separator {
+        margin: 0 14px;
       }
     }
   }
