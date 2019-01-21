@@ -5,12 +5,11 @@ const jwksRsa = require('jwks-rsa');
 const jwt = require('jsonwebtoken');
 
 const { AUTH0_DOMAIN, AUTH0_AUDIENCE } = process.env;
+const AUTH0_ISSUER = `https://${AUTH0_DOMAIN}/`;
 
-// const issuer = `https://${AUTH0_DOMAIN}/`;
-// const a
-// Authentication middleware. When used, the
-// Access Token must exist and be verified against
-// the Auth0 JSON Web Key Set
+// Grabs public key, caches it, from Auth0's servers
+// asymeetric signature used to ensure that not only the jwt was unmodified
+// since signed, but that the issuer was Auth0 (since they hold the private key)
 const jwksFn = jwksRsa({
   cache: true,
   rateLimit: true,
@@ -32,14 +31,22 @@ function getSecretKey(header, cb) {
   });
 }
 
-const verifyToken = token => {
-  return new Promise((resolve, reject) => {
+// Verifies signature, as well as the issuer and audience, to guarantee
+// that the token was truly for our resource server
+const verifyToken = token =>
+  new Promise((resolve, reject) => {
     jwt.verify(
       token,
       getSecretKey,
-      { algorithms: ['RS256'] },
+      {
+        issuer: AUTH0_ISSUER,
+        audience: AUTH0_AUDIENCE,
+        clockTolerance: 2, // seconds to deal with clock skew
+        algorithms: ['RS256']
+      },
       (err, dToken) => {
         if (err) {
+          console.error(err);
           return reject(err);
         }
 
@@ -47,7 +54,6 @@ const verifyToken = token => {
       }
     );
   });
-};
 
 const PORT = 8000;
 // Polka is *mostly* express compatible, but let's not use unnecessary libraries
@@ -121,7 +127,6 @@ const corsMiddleware = (req, res, next) => {
 polka()
   .use(corsMiddleware)
   .get('/notebook', attachTokenMiddleware, (req, res) => {
-    // Kotlar: If we're here the user is authenticated
     console.info('token', req.user);
     res.end();
   })
