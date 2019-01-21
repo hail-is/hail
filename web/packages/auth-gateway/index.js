@@ -128,6 +128,7 @@ polka()
   .use(corsMiddleware)
   .get('/notebook', attachTokenMiddleware, (req, res) => {
     console.info('token', req.user);
+    res.write(JSON.stringify({}));
     res.end();
   })
   .listen(PORT, err => {

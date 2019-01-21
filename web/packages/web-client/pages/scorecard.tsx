@@ -5,8 +5,48 @@ import getConfig from 'next/config';
 const DOMAIN = getConfig().publicRuntimeConfig.SCORECARD.DOMAIN;
 const jsonURL = `${DOMAIN}/json`;
 
+// TODO: This kind of thing is maybe better represented using GraphQL
+// buys use schema introspection and validation
+// Typescript gives us only compile-time guarantees on the client
+declare type pr = {
+  assignees: Array<string>;
+  html_url: string;
+  id: string;
+  repo: string;
+  state: string;
+  status: string;
+  title: string;
+  user: string;
+};
+
+declare type issue = {
+  assignees: [string];
+  created_at: string;
+  html_url: string;
+  id: string;
+  repo: string;
+  title: string;
+  urgent: boolean;
+};
+
 declare type scorecardJson = {
-  data: object;
+  data: {
+    user_data: {
+      [name: string]: {
+        CHANGES_REQUESTED: [pr];
+        ISSUES: [issue];
+        NEEDS_REVIEW: [pr];
+      };
+    };
+    unassigned: [pr];
+    urgent_issues: [
+      {
+        AGE: string;
+        ISSUE: issue;
+        USER: string;
+      }
+    ];
+  };
 };
 
 interface Props {
@@ -70,21 +110,91 @@ class Scorecard extends PureComponent<Props, scorecardJson> {
       return <div>No data</div>;
     }
 
-    return <div>Have data</div>;
-    // <span id="scorecard">
-    //   <table>
-    //     <thead>
-    //       <tr>User</tr>
-    //       <tr>Review</tr>
-    //       <tr>Change</tr>
-    //       <tr>Issues</tr>
-    //     </thead>
-    //     <tbody>
-    //       <trow>
-    //       <th>User</th>
-    //     </tbody>
-    //   </table>
-    // </span>
+    const { user_data, unassigned, urgent_issues } = this.state.data;
+
+    return (
+      <span id="scorecard">
+        <div>
+          <table>
+            <thead>
+              <tr>
+                <th>User</th>
+                <th>Review</th>
+                <th>Change</th>
+                <th>Issues</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Object.keys(user_data).map((name, idx) => (
+                <tr key={idx}>
+                  <td>{name}</td>
+                  <td>
+                    {user_data[name].NEEDS_REVIEW.map((pr, i) => (
+                      <a key={i} href={pr.html_url}>
+                        {pr.id}
+                      </a>
+                    ))}
+                  </td>
+                  <td>
+                    {user_data[name].CHANGES_REQUESTED.map((pr, i) => (
+                      <a key={i} href={pr.html_url}>
+                        {pr.id}
+                      </a>
+                    ))}
+                  </td>
+                  <td>
+                    {user_data[name].ISSUES.map((pr, i) => (
+                      <a key={i} href={pr.html_url}>
+                        {pr.id}
+                      </a>
+                    ))}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p>
+            Unassigned:
+            {unassigned.map((pr, i) => (
+              <a key={i} href={pr.html_url}>
+                {pr.id}
+              </a>
+            ))}
+          </p>
+        </div>
+        {urgent_issues && (
+          <div id="urgent-issues">
+            <h4>Urgent</h4>
+            {
+              <table>
+                <thead>
+                  <tr>
+                    <th>Who</th>
+                    <th>When</th>
+                    <th>What</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {urgent_issues.map((issue, idx) => (
+                    <tr key={idx}>
+                      <td>
+                        <a href={`/scorecard/users/${issue.USER}`}>
+                          {issue.USER}
+                        </a>
+                      </td>
+                      <td>{issue.AGE}</td>
+                      <td>
+                        <a href={issue.ISSUE.html_url}>{issue.ISSUE.title}</a>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            }
+          </div>
+        )}
+      </span>
+    );
   }
 }
 
