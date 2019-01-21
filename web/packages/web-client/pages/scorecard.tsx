@@ -196,7 +196,7 @@ class Scorecard extends PureComponent<Props, scorecardJson & user> {
         </div>
         {urgent_issues && (
           <div className="issues-section">
-            <h5>Urgent</h5>
+            <h5>Urgent !</h5>
             {
               <table>
                 <thead>
