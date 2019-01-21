@@ -10,7 +10,7 @@ import '../styles/pages/scorecard.scss';
 // buys use schema introspection and validation
 // Typescript gives us only compile-time guarantees on the client
 declare type pr = {
-  assignees: Array<string>;
+  assignees: string[];
   html_url: string;
   id: string;
   repo: string;
@@ -21,7 +21,7 @@ declare type pr = {
 };
 
 declare type issue = {
-  assignees: [string];
+  assignees: string[];
   created_at: string;
   html_url: string;
   id: string;
@@ -34,12 +34,12 @@ declare type scorecardJson = {
   data: {
     user_data: {
       [name: string]: {
-        CHANGES_REQUESTED: [pr?];
-        ISSUES: [issue?];
-        NEEDS_REVIEW: [pr?];
+        CHANGES_REQUESTED: pr[];
+        ISSUES: issue[];
+        NEEDS_REVIEW: pr[];
       };
     };
-    unassigned: [pr];
+    unassigned: pr[];
     urgent_issues: [
       {
         AGE: string;
@@ -114,7 +114,7 @@ class Scorecard extends PureComponent<Props, scorecardJson> {
     const { user_data, unassigned, urgent_issues } = this.state.data;
 
     if (unassigned && unassigned.length) {
-      user_data['UNASSIGNED'] = {
+      user_data['*UNASSIGNED*'] = {
         NEEDS_REVIEW: unassigned,
         CHANGES_REQUESTED: [],
         ISSUES: []
@@ -140,21 +140,21 @@ class Scorecard extends PureComponent<Props, scorecardJson> {
                   <td>{name}</td>
                   <td>
                     {user_data[name].NEEDS_REVIEW.map((pr, i) => (
-                      <a key={i} href={pr.html_url}>
+                      <a target="_blank" key={i} href={pr.html_url}>
                         {pr.id}
                       </a>
                     ))}
                   </td>
                   <td>
                     {user_data[name].CHANGES_REQUESTED.map((pr, i) => (
-                      <a key={i} href={pr.html_url}>
+                      <a target="_blank" key={i} href={pr.html_url}>
                         {pr.id}
                       </a>
                     ))}
                   </td>
                   <td>
                     {user_data[name].ISSUES.map((pr, i) => (
-                      <a key={i} href={pr.html_url}>
+                      <a target="_blank" key={i} href={pr.html_url}>
                         {pr.id}
                       </a>
                     ))}
@@ -180,13 +180,18 @@ class Scorecard extends PureComponent<Props, scorecardJson> {
                   {urgent_issues.map((issue, idx) => (
                     <tr key={idx}>
                       <td>
-                        <a href={`/scorecard/users/${issue.USER}`}>
+                        <a
+                          target="_blank"
+                          href={`/scorecard/users/${issue.USER}`}
+                        >
                           {issue.USER}
                         </a>
                       </td>
                       <td>{issue.AGE}</td>
                       <td>
-                        <a href={issue.ISSUE.html_url}>{issue.ISSUE.title}</a>
+                        <a target="_blank" href={issue.ISSUE.html_url}>
+                          {issue.ISSUE.title}
+                        </a>
                       </td>
                     </tr>
                   ))}
