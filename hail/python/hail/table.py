@@ -1240,7 +1240,7 @@ class Table(ExprContainer):
 
         rows = [[row[f] for f in fields] for row in rows]
 
-        column_width = [max(len(fields[i]), len(types[i]), max([len(row[i]) for row in rows]))
+        column_width = [max(len(fields[i]), len(types[i]), max([0] + [len(row[i]) for row in rows]))
                         for i in range(n_fields)]
 
         column_blocks = []
