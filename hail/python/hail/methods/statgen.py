@@ -766,14 +766,16 @@ def poisson_regression_rows(test, y, x, covariates, pass_through=()) -> Table:
                         col_key=[],
                         entry_exprs={x_field_name: x})
 
-    jt = Env.hail().methods.PoissonRegression.apply(
-        mt._jmt,
-        test,
-        y_field_name,
-        x_field_name,
-        cov_field_names,
-        [x for x in row_fields if x not in mt.row_key])
-    return Table._from_java(jt)
+    config = {
+        'name': 'PoissonRegression',
+        'test': test,
+        'yField': y_field_name,
+        'xField': x_field_name,
+        'covFields': cov_field_names,
+        'passThrough': [x for x in row_fields if x not in mt.row_key]
+    }
+    
+    return Table(MatrixToTableApply(mt._mir, config))
 
 
 @typecheck(y=expr_float64,
@@ -1296,19 +1298,20 @@ def skat(key_expr, weight_expr, y, x, covariates, logistic=False,
                                      key_field_name: key_expr},
                           entry_exprs=entry_expr)
 
-    jt = Env.hail().methods.Skat.apply(
-        mt._jmt,
-        key_field_name,
-        weight_field_name,
-        y_field_name,
-        x_field_name,
-        jarray(Env.jvm().java.lang.String, cov_field_names),
-        logistic,
-        max_size,
-        accuracy,
-        iterations)
+    config = {
+        'name': 'Skat',
+        'keyField': key_field_name,
+        'weightField': weight_field_name,
+        'xField': x_field_name,
+        'yField': y_field_name,
+        'covFields': cov_field_names,
+        'logistic': logistic,
+        'maxSize': max_size,
+        'accuracy': accuracy,
+        'iterations': iterations
+    }
 
-    return Table._from_java(jt)
+    return Table(MatrixToTableApply(mt._mir, config))
 
 
 @typecheck(call_expr=expr_call,

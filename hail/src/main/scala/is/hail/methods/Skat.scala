@@ -1,19 +1,20 @@
 package is.hail.methods
 
 import is.hail.utils._
-import is.hail.variant._
 import is.hail.expr.types._
 import is.hail.nativecode.NativeCode
-import is.hail.table.Table
 import is.hail.stats.{LogisticRegressionModel, RegressionUtils, eigSymD}
-import is.hail.annotations.{Annotation, UnsafeRow}
+import is.hail.annotations.{Annotation, BroadcastRow, UnsafeRow}
 import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV, _}
 import breeze.numerics._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import com.sun.jna.Native
 import com.sun.jna.ptr.IntByReference
+import is.hail.expr.ir.{MatrixValue, TableValue}
+import is.hail.expr.ir.functions.MatrixToTableFunction
 import is.hail.expr.types.virtual.{TFloat64, TInt32, TStruct, Type}
+import is.hail.rvd.RVDType
 
 /*
 Skat implements the burden test described in:
@@ -55,18 +56,97 @@ the eigenvalues of the latter, and the p-value with the Davies algorithm.
 case class SkatTuple(q: Double, a: BDV[Double], b: BDV[Double])
 
 object Skat {
+  def computeGramianSmallN(st: Array[SkatTuple]): (Double, BDM[Double]) = {
+    require(st.nonEmpty)
+    val st0 = st(0)
+
+    // Holds for all st(i) by construction of linearTuple and logisticTuple, checking st(0) defensively
+    require(st0.a.offset == 0 && st0.a.stride == 1 && st0.b.offset == 0 && st0.b.stride == 1)
+
+    val m = st.length
+    val n = st0.a.size
+    val k = st0.b.size
+
+    val AData = new Array[Double](m * n)
+    var i = 0
+    while (i < m) {
+      System.arraycopy(st(i).a.data, 0, AData, i * n, n)
+      i += 1
+    }
+
+    val BData = new Array[Double](k * m)
+    var q = 0.0
+    i = 0
+    while (i < m) {
+      q += st(i).q
+      System.arraycopy(st(i).b.data, 0, BData, i * k, k)
+      i += 1
+    }
+
+    val A = new BDM[Double](n, m, AData)
+    val B = new BDM[Double](k, m, BData)
+
+    (q, A.t * A - B.t * B)
+  }
+
+  def computeGramianLargeN(st: Array[SkatTuple]): (Double, BDM[Double]) = {
+    require(st.nonEmpty)
+
+    val m = st.length
+    val data = Array.ofDim[Double](m * m)
+    var q = 0.0
+
+    var i = 0
+    while (i < m) {
+      q += st(i).q
+      val ai = st(i).a
+      val bi = st(i).b
+      data(i * (m + 1)) = (ai dot ai) - (bi dot bi)
+      var j = 0
+      while (j < i) {
+        val temp = (ai dot st(j).a) - (bi dot st(j).b)
+        data(i * m + j) = temp
+        data(j * m + i) = temp
+        j += 1
+      }
+      i += 1
+    }
+
+    (q, new BDM[Double](m, m, data))
+  }
+
+  def computeGramian(st: Array[SkatTuple], useSmallN: Boolean): (Double, BDM[Double]) =
+    if (useSmallN) computeGramianSmallN(st) else computeGramianLargeN(st)
+}
+
+case class Skat(
+  keyField: String,
+  weightField: String,
+  yField: String,
+  xField: String,
+  covFields: Array[String],
+  logistic: Boolean,
+  maxSize: Int,
+  accuracy: Double,
+  iterations: Int) extends MatrixToTableFunction {
+
   val hardMaxEntriesForSmallN = 64e6 // 8000 x 8000 => 512MB of doubles
-  
-  def apply(vsm: MatrixTable,
-    keyField: String,
-    weightField: String,
-    yField: String,
-    xField: String,
-    covFields: Array[String],
-    logistic: Boolean,
-    maxSize: Int,
-    accuracy: Double,
-    iterations: Int): Table = {
+
+  def typeInfo(childType: MatrixType, childRVDType: RVDType): (TableType, RVDType) = {
+    val keyType = childType.rowType.fieldType(keyField)
+    val skatSchema = TStruct(
+      ("id", keyType),
+      ("size", TInt32()),
+      ("q_stat", TFloat64()),
+      ("p_value", TFloat64()),
+      ("fault", TInt32()))
+    val tableType = TableType(skatSchema, FastIndexedSeq("id"), TStruct())
+    (tableType, tableType.canonicalRVDType)
+  }
+
+  def preservesPartitionCounts: Boolean = false
+
+  def execute(mv: MatrixValue): TableValue = {
 
     if (maxSize <= 0 || maxSize > 46340)
       fatal(s"Maximum group size must be in [1, 46340], got $maxSize")
@@ -78,7 +158,7 @@ object Skat {
     if (iterations <= 0)
       fatal(s"iterations must be positive, default is 10000, got $iterations")
 
-    val (y, cov, completeColIdx) = RegressionUtils.getPhenoCovCompleteSamples(vsm, yField, covFields)
+    val (y, cov, completeColIdx) = RegressionUtils.getPhenoCovCompleteSamples(mv, yField, covFields)
 
     val n = y.size
     val k = cov.cols
@@ -94,7 +174,7 @@ object Skat {
     }
 
     val (keyGsWeightRdd, keyType) =
-      computeKeyGsWeightRdd(vsm, xField, completeColIdx, keyField, weightField)
+      computeKeyGsWeightRdd(mv, xField, completeColIdx, keyField, weightField)
 
     val sc = keyGsWeightRdd.sparkContext
 
@@ -127,7 +207,7 @@ object Skat {
           val size = vsArray.length
           if (size <= maxSize) {
             val skatTuples = vsArray.map((linearTuple _).tupled)
-            val (q, gramian) = computeGramian(skatTuples, size.toLong * n <= maxEntriesForSmallN)
+            val (q, gramian) = Skat.computeGramian(skatTuples, size.toLong * n <= maxEntriesForSmallN)
             
             // using q / sigmaSq since Z.t * Z = gramian / sigmaSq
             val (pval, fault) = computePval(q / sigmaSq, gramian, accuracy, iterations)
@@ -183,7 +263,7 @@ object Skat {
         val size = vsArray.length
         if (size <= maxSize) {
           val skatTuples = vs.map((logisticTuple _).tupled).toArray
-          val (q, gramian) = computeGramian(skatTuples, size.toLong * n <= maxEntriesForSmallN)
+          val (q, gramian) = Skat.computeGramian(skatTuples, size.toLong * n <= maxEntriesForSmallN)
           val (pval, fault) = computePval(q, gramian, accuracy, iterations)
   
           // returning qstat = q / 2 to agree with skat R table convention
@@ -195,25 +275,20 @@ object Skat {
     }
     
     val skatRdd = if (logistic) logisticSkat() else linearSkat()
-    
-    val skatSignature = TStruct(
-      ("id", keyType),
-      ("size", TInt32()),
-      ("q_stat", TFloat64()),
-      ("p_value", TFloat64()),
-      ("fault", TInt32()))
 
-    Table(vsm.hc, skatRdd, skatSignature, FastIndexedSeq("id"))
+    val (tableType, _) = typeInfo(mv.typ, mv.rvd.typ)
+
+    TableValue(tableType, BroadcastRow.empty(sc), skatRdd)
   }
 
-  def computeKeyGsWeightRdd(vsm: MatrixTable,
+  def computeKeyGsWeightRdd(mv: MatrixValue,
     xField: String,
     completeColIdx: Array[Int],
     keyField: String,
     // returns ((key, [(gs_v, weight_v)]), keyType)
     weightField: String): (RDD[(Annotation, Iterable[(BDV[Double], Double)])], Type) = {
 
-    val fullRowType = vsm.rvRowType.physicalType
+    val fullRowType = mv.typ.rvRowType.physicalType
     val keyStructField = fullRowType.field(keyField)
     val keyIndex = keyStructField.index
     val keyType = keyStructField.typ
@@ -222,21 +297,21 @@ object Skat {
     val weightIndex = weightStructField.index
     assert(weightStructField.typ.virtualType.isOfType(TFloat64()))
 
-    val sc = vsm.sparkContext
+    val sc = mv.sparkContext
 
-    val entryArrayType = vsm.matrixType.entryArrayType.physicalType
-    val entryType = vsm.entryType.physicalType
+    val entryArrayType = mv.typ.entryArrayType.physicalType
+    val entryType = mv.typ.entryType.physicalType
     val fieldType = entryType.field(xField).typ
 
     assert(fieldType.virtualType.isOfType(TFloat64()))
 
-    val entryArrayIdx = vsm.entriesIndex
+    val entryArrayIdx = mv.typ.entriesIdx
     val fieldIdx = entryType.fieldIdx(xField)    
 
     val n = completeColIdx.length
     val completeColIdxBc = sc.broadcast(completeColIdx)
 
-    (vsm.rvd.boundary.mapPartitions { it => it.flatMap { rv =>
+    (mv.rvd.boundary.mapPartitions { it => it.flatMap { rv =>
       val keyIsDefined = fullRowType.isFieldDefined(rv, keyIndex)
       val weightIsDefined = fullRowType.isFieldDefined(rv, weightIndex)
 
@@ -254,70 +329,7 @@ object Skat {
     }
     }.groupByKey(), keyType.virtualType)
   }
- 
-  
-  def computeGramian(st: Array[SkatTuple], useSmallN: Boolean): (Double, BDM[Double]) =
-    if (useSmallN) computeGramianSmallN(st) else computeGramianLargeN(st)
 
-  def computeGramianSmallN(st: Array[SkatTuple]): (Double, BDM[Double]) = {
-    require(st.nonEmpty)
-    val st0 = st(0)
-    
-    // Holds for all st(i) by construction of linearTuple and logisticTuple, checking st(0) defensively
-    require(st0.a.offset == 0 && st0.a.stride == 1 && st0.b.offset == 0 && st0.b.stride == 1)
-
-    val m = st.length
-    val n = st0.a.size
-    val k = st0.b.size
-    
-    val AData = new Array[Double](m * n)
-    var i = 0
-    while (i < m) {
-      System.arraycopy(st(i).a.data, 0, AData, i * n, n)
-      i += 1
-    }
-    
-    val BData = new Array[Double](k * m)
-    var q = 0.0
-    i = 0
-    while (i < m) {
-      q += st(i).q
-      System.arraycopy(st(i).b.data, 0, BData, i * k, k)
-      i += 1
-    }
-
-    val A = new BDM[Double](n, m, AData)
-    val B = new BDM[Double](k, m, BData)
-    
-    (q, A.t * A - B.t * B)
-  }
-
-  def computeGramianLargeN(st: Array[SkatTuple]): (Double, BDM[Double]) = {
-    require(st.nonEmpty)
-    
-    val m = st.length
-    val data = Array.ofDim[Double](m * m)
-    var q = 0.0
-
-    var i = 0
-    while (i < m) {
-      q += st(i).q
-      val ai = st(i).a
-      val bi = st(i).b
-      data(i * (m + 1)) = (ai dot ai) - (bi dot bi)
-      var j = 0
-      while (j < i) {
-        val temp = (ai dot st(j).a) - (bi dot st(j).b)
-        data(i * m + j) = temp
-        data(j * m + i) = temp
-        j += 1
-      }
-      i += 1
-    }
-    
-    (q, new BDM[Double](m, m, data))
-  }
-  
   /** Davies Algorithm original C code
   *   Citation:
   *     Davies, Robert B. "The distribution of a linear combination of
