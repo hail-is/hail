@@ -83,25 +83,23 @@ case class BlockMatrixElementWiseBinaryOp(
     val rightValue = right.execute(hc)
 
     (applyBinOp.l, applyBinOp.r, applyBinOp.op) match {
-      case (Ref(_, _), Ref(_, _), Add()) => leftValue.add(rightValue)
-      case (Ref(_, _), Ref(_, _), Multiply()) => leftValue.mul(rightValue)
-      case (Ref("left", _), Ref("right", _), Subtract()) => leftValue.sub(rightValue)
-      case (Ref("right", _), Ref("left", _), Subtract()) => rightValue.sub(leftValue)
-      case (Ref("left", _), Ref("right", _), FloatingPointDivide()) => leftValue.div(rightValue)
-      case (Ref("right", _), Ref("left", _), FloatingPointDivide()) => rightValue.div(leftValue)
+      case (Ref(_, _: TFloat64), Ref(_, _: TFloat64), Add()) => leftValue.add(rightValue)
+      case (Ref(_, _: TFloat64), Ref(_, _: TFloat64), Multiply()) => leftValue.mul(rightValue)
+      case (Ref(_, _: TFloat64), Ref(_, _: TFloat64), Subtract()) => leftValue.sub(rightValue)
+      case (Ref(_, _: TFloat64), Ref(_, _: TFloat64), FloatingPointDivide()) => leftValue.div(rightValue)
       case _ => fatal(s"Binary operation not supported on two blockmatrices: ${Pretty(applyBinOp)}")
     }
   }
 }
 
-case class BlockMatrixAndValueElementWiseBinaryOp(
+case class BlockMatrixBroadcastValue(
   child: BlockMatrixIR,
   applyBinOp: ApplyBinaryPrimOp) extends BlockMatrixIR {
 
   override def typ: BlockMatrixType = {
     (applyBinOp.l, applyBinOp.r) match {
       // No reshaping when broadcasting a scalar
-      case (Ref(_, _), F64(_)) | (F64(_), Ref(_, _)) => child.typ
+      case (Ref(_, _: TFloat64), F64(_)) | (F64(_), Ref(_, _: TFloat64)) => child.typ
       // Add cases for local tensor when type exists
       case _ => fatal(s"Incompatible type for broadcasting operation: ${Pretty(applyBinOp)}")
     }
@@ -111,7 +109,7 @@ case class BlockMatrixAndValueElementWiseBinaryOp(
 
   override def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
     assert(newChildren.length == 2)
-    BlockMatrixAndValueElementWiseBinaryOp(
+    BlockMatrixBroadcastValue(
       newChildren(0).asInstanceOf[BlockMatrixIR],
       newChildren(1).asInstanceOf[ApplyBinaryPrimOp])
   }
@@ -120,14 +118,14 @@ case class BlockMatrixAndValueElementWiseBinaryOp(
     val bmValue = child.execute(hc)
 
     (applyBinOp.l, applyBinOp.r, applyBinOp.op) match {
-      case (Ref(_, _), F64(x), Add()) => bmValue.scalarAdd(x)
-      case (F64(x), Ref(_, _), Add()) => bmValue.scalarAdd(x)
-      case (Ref(_, _), F64(x), Multiply()) => bmValue.scalarMul(x)
-      case (F64(x), Ref(_, _), Multiply()) => bmValue.scalarMul(x)
-      case (Ref(_, _), F64(x), Subtract()) => bmValue.scalarSub(x)
-      case (F64(x), Ref(_, _), Subtract()) => bmValue.reverseScalarSub(x)
-      case (Ref(_, _), F64(x), FloatingPointDivide()) => bmValue.scalarDiv(x)
-      case (F64(x), Ref(_, _), FloatingPointDivide()) => bmValue.reverseScalarDiv(x)
+      case (Ref(_, _: TFloat64), F64(x), Add()) => bmValue.scalarAdd(x)
+      case (F64(x), Ref(_, _: TFloat64), Add()) => bmValue.scalarAdd(x)
+      case (Ref(_, _: TFloat64), F64(x), Multiply()) => bmValue.scalarMul(x)
+      case (F64(x), Ref(_, _: TFloat64), Multiply()) => bmValue.scalarMul(x)
+      case (Ref(_, _: TFloat64), F64(x), Subtract()) => bmValue.scalarSub(x)
+      case (F64(x), Ref(_, _: TFloat64), Subtract()) => bmValue.reverseScalarSub(x)
+      case (Ref(_, _: TFloat64), F64(x), FloatingPointDivide()) => bmValue.scalarDiv(x)
+      case (F64(x), Ref(_, _: TFloat64), FloatingPointDivide()) => bmValue.reverseScalarDiv(x)
     }
   }
 }

@@ -1128,12 +1128,13 @@ object IRParser {
       case "BlockMatrixElementWiseBinaryOp" =>
         val left = blockmatrix_ir(env)(it)
         val right = blockmatrix_ir(env)(it)
-        val applyBinOp = ir_value_expr(env)(it)
+        // Can replace TFloat64 with whatever the element type of the block matrix type is
+        val applyBinOp = ir_value_expr(env + ("element" -> TFloat64()))(it)
         BlockMatrixElementWiseBinaryOp(left, right, applyBinOp.asInstanceOf[ApplyBinaryPrimOp])
-      case "BlockMatrixAndValueElementWiseBinaryOp" =>
+      case "BlockMatrixBroadcastValue" =>
         val child = blockmatrix_ir(env)(it)
-        val applyBinOp = ir_value_expr(env)(it)
-        BlockMatrixAndValueElementWiseBinaryOp(child, applyBinOp.asInstanceOf[ApplyBinaryPrimOp])
+        val applyBinOp = ir_value_expr(env + ("element" -> TFloat64()))(it)
+        BlockMatrixBroadcastValue(child, applyBinOp.asInstanceOf[ApplyBinaryPrimOp])
       case "JavaBlockMatrix" =>
         val name = identifier(it)
         env.irMap(name).asInstanceOf[BlockMatrixIR]

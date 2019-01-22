@@ -5,8 +5,8 @@ from enum import IntEnum
 
 import hail as hl
 import hail.expr.aggregators as agg
-from hail.ir import BlockMatrixWrite
-from hail.ir.blockmatrix_ir import BlockMatrixRead, BlockMatrixAdd, JavaBlockMatrix
+from hail.ir import BlockMatrixWrite, BlockMatrixElementWiseBinaryOp, ApplyBinaryOp, Ref, F64, BlockMatrixBroadcastValue
+from hail.ir.blockmatrix_ir import BlockMatrixRead, JavaBlockMatrix
 from hail.utils import new_temp_file, new_local_temp_file, local_path_uri, storage_level
 from hail.utils.java import Env, jarray, joption
 from hail.typecheck import *
@@ -1303,6 +1303,78 @@ class BlockMatrix(object):
 
         return a, b, form_b, reverse
 
+    @typecheck_method(op=str, right=oneof(numeric, np.ndarray, block_matrix_type))
+    def _apply_element_wise_op_on_right(self, op, right):
+        """
+        Ok so the test is failing because it's trying to broadcast with a 1x1 BlockMatrix on the left
+        and a 1x2 BlockMatrix on the right. Because the Form class classifies 1x1 BlockMatrices as scalars
+        and rips them out, then it reverses the order. This means the backend is incapable of BlockMatrix x BlockMatrix
+        broadcasting where the "smaller" one is on the right. This clearly can't stay because in higher dimensions,
+        both BlockMatrices could be broadcasted. The front is fine, it is simply the backend that needs to be able to
+        support this broadcasting. Question is, should I go ahead and implement this? Seems like that's something key
+        we will ultimately need to have.
+        """
+
+        if isinstance(right, BlockMatrix):
+            return BlockMatrix(BlockMatrixElementWiseBinaryOp(self._bmir, right._bmir,
+                                                              ApplyBinaryOp(op, Ref('element'), Ref('element'))))
+        elif _is_scalar(right):
+            return BlockMatrix(BlockMatrixBroadcastValue(self._bmir,
+                                                         ApplyBinaryOp(op, Ref('element'), F64(right))))
+        else:
+            # This can get swept away once NDArrays are built into the Hail types
+            # Until then, we need to analyze everything and call into Java
+            right_2d = _jarray_from_ndarray(_ndarray_as_2d(right))
+            if right_2d.shape[0] == 1:  # Row vector
+                if op == '+':
+                    return BlockMatrix._from_java(self._jbm.rowVectorAdd(right_2d))
+                elif op == '*':
+                    return BlockMatrix._from_java(self._jbm.rowVectorMul(right_2d))
+                elif op == '-':
+                    return BlockMatrix._from_java(self._jbm.rowVectorSub(right_2d))
+                elif op == '/':
+                    return BlockMatrix._from_java(self._jbm.rowVectorDiv(right_2d))
+            elif right_2d.shape[1] == 1:  # Column vector
+                if op == '+':
+                    return BlockMatrix._from_java(self._jbm.colVectorAdd(right_2d))
+                elif op == '*':
+                    return BlockMatrix._from_java(self._jbm.colVectorMul(right_2d))
+                elif op == '-':
+                    return BlockMatrix._from_java(self._jbm.colVectorSub(right_2d))
+                elif op == '/':
+                    return BlockMatrix._from_java(self._jbm.colVectorDiv(right_2d))
+            else:
+                raise ValueError(f'incompatible shape for broadcasting: {right_2d.shape}')
+
+    @typecheck_method(op=str, left=oneof(numeric, np.ndarray))
+    def _apply_element_wise_op_on_left(self, op, left):
+        if _is_scalar(left):
+            return BlockMatrix(BlockMatrixBroadcastValue(self._bmir, ApplyBinaryOp(op, F64(left), Ref('element'))))
+        else:
+            # This can get swept away once NDArrays are built into the Hail types
+            # Until then, we need to analyze everything and call into Java
+            left_2d = _jarray_from_ndarray(_ndarray_as_2d(left))
+            if left_2d.shape[0] == 1:  # Row vector
+                if op == '+':
+                    return BlockMatrix._from_java(self._jbm.rowVectorAdd(left_2d))
+                elif op == '*':
+                    return BlockMatrix._from_java(self._jbm.rowVectorMul(left_2d))
+                elif op == '-':
+                    return BlockMatrix._from_java(self._jbm.reverseRowVectorSub(left_2d))
+                elif op == '/':
+                    return BlockMatrix._from_java(self._jbm.reverseRowVectorDiv(left_2d))
+            elif left_2d.shape[1] == 1:  # Column vector
+                if op == '+':
+                    return BlockMatrix._from_java(self._jbm.colVectorAdd(left_2d))
+                elif op == '*':
+                    return BlockMatrix._from_java(self._jbm.colVectorMul(left_2d))
+                elif op == '-':
+                    return BlockMatrix._from_java(self._jbm.reverseColVectorSub(left_2d))
+                elif op == '/':
+                    return BlockMatrix._from_java(self._jbm.reverseColVectorDiv(left_2d))
+            else:
+                raise ValueError(f'incompatible shape for broadcasting: {left_2d.shape}')
+
     @typecheck_method(b=oneof(numeric, np.ndarray, block_matrix_type))
     def __add__(self, b):
         """Addition: a + b.
@@ -1315,19 +1387,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        new_a, new_b, form_b, _ = self._promote(b, 'addition')
-
-        if isinstance(new_b, float):
-            return BlockMatrix._from_java(new_a._jbm.scalarAdd(new_b))
-        elif isinstance(new_b, BlockMatrix):
-            return BlockMatrix(BlockMatrixAdd(new_a._bmir, new_b._bmir))
-        else:
-            assert new_b.getClass().isArray()
-            if form_b == Form.COLUMN:
-                return BlockMatrix._from_java(new_a._jbm.colVectorAdd(new_b))
-            else:
-                assert form_b == Form.ROW
-                return BlockMatrix._from_java(new_a._jbm.rowVectorAdd(new_b))
+        return self._apply_element_wise_op_on_right('+', b)
 
     @typecheck_method(b=oneof(numeric, np.ndarray, block_matrix_type))
     def __sub__(self, b):
@@ -1341,29 +1401,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        new_a, new_b, form_b, reverse = self._promote(b, 'subtraction')
-
-        if isinstance(new_b, float):
-            if reverse:
-                return BlockMatrix._from_java(new_a._jbm.reverseScalarSub(new_b))
-            else:
-                return BlockMatrix._from_java(new_a._jbm.scalarSub(new_b))
-        elif isinstance(new_b, BlockMatrix):
-            assert not reverse
-            return BlockMatrix._from_java(new_a._jbm.sub(new_b._jbm))
-        else:
-            assert new_b.getClass().isArray()
-            if form_b == Form.COLUMN:
-                if reverse:
-                    return BlockMatrix._from_java(new_a._jbm.reverseColVectorSub(new_b))
-                else:
-                    return BlockMatrix._from_java(new_a._jbm.colVectorSub(new_b))
-            else:
-                assert form_b == Form.ROW
-                if reverse:
-                    return BlockMatrix._from_java(new_a._jbm.reverseRowVectorSub(new_b))
-                else:
-                    return BlockMatrix._from_java(new_a._jbm.rowVectorSub(new_b))
+        return self._apply_element_wise_op_on_right('-', b)
 
     @typecheck_method(b=oneof(numeric, np.ndarray, block_matrix_type))
     def __mul__(self, b):
@@ -1377,19 +1415,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        new_a, new_b, form_b, _ = self._promote(b, 'element-wise multiplication')
-
-        if isinstance(new_b, float):
-            return BlockMatrix._from_java(new_a._jbm.scalarMul(new_b))
-        elif isinstance(new_b, BlockMatrix):
-            return BlockMatrix._from_java(new_a._jbm.mul(new_b._jbm))
-        else:
-            assert new_b.getClass().isArray()
-            if form_b == Form.COLUMN:
-                return BlockMatrix._from_java(new_a._jbm.colVectorMul(new_b))
-            else:
-                assert form_b == Form.ROW
-                return BlockMatrix._from_java(new_a._jbm.rowVectorMul(new_b))
+        return self._apply_element_wise_op_on_right('*', b)
 
     @typecheck_method(b=oneof(numeric, np.ndarray, block_matrix_type))
     def __truediv__(self, b):
@@ -1403,45 +1429,23 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        new_a, new_b, form_b, reverse = self._promote(b, 'element-wise division')
-
-        if isinstance(new_b, float):
-            if reverse:
-                return BlockMatrix._from_java(new_a._jbm.reverseScalarDiv(new_b))
-            else:
-                return BlockMatrix._from_java(new_a._jbm.scalarDiv(new_b))
-        elif isinstance(new_b, BlockMatrix):
-            assert not reverse
-            return BlockMatrix._from_java(new_a._jbm.div(new_b._jbm))
-        else:
-            assert new_b.getClass().isArray()
-            if form_b == Form.COLUMN:
-                if reverse:
-                    return BlockMatrix._from_java(new_a._jbm.reverseColVectorDiv(new_b))
-                else:
-                    return BlockMatrix._from_java(new_a._jbm.colVectorDiv(new_b))
-            else:
-                assert form_b == Form.ROW
-                if reverse:
-                    return BlockMatrix._from_java(new_a._jbm.reverseRowVectorDiv(new_b))
-                else:
-                    return BlockMatrix._from_java(new_a._jbm.rowVectorDiv(new_b))
+        return self._apply_element_wise_op_on_right('/', b)
 
     @typecheck_method(b=numeric)
     def __radd__(self, b):
-        return self + b
+        return self._apply_element_wise_op_on_left('+', b)
 
     @typecheck_method(b=numeric)
     def __rsub__(self, b):
-        return BlockMatrix._from_java(self._jbm.reverseScalarSub(float(b)))
+        return self._apply_element_wise_op_on_left('-', b)
 
     @typecheck_method(b=numeric)
     def __rmul__(self, b):
-        return self * b
+        return self._apply_element_wise_op_on_left('*', b)
 
     @typecheck_method(b=numeric)
     def __rtruediv__(self, b):
-        return BlockMatrix._from_java(self._jbm.reverseScalarDiv(float(b)))
+        return self._apply_element_wise_op_on_left('/', b)
 
     @typecheck_method(b=oneof(np.ndarray, block_matrix_type))
     def __matmul__(self, b):
@@ -2167,6 +2171,10 @@ class BlockMatrix(object):
 
 
 block_matrix_type.set(BlockMatrix)
+
+
+def _is_scalar(x):
+    return isinstance(x, float) or isinstance(x, int)
 
 
 def _shape(b):

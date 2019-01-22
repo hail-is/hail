@@ -7,7 +7,7 @@ import is.hail.asm4s.Code
 import is.hail.expr.ir
 import is.hail.expr.ir.IRSuite.TestFunctions
 import is.hail.expr.ir.functions.{IRFunctionRegistry, RegistryFunctions, SeededIRFunction, SetFunctions}
-import is.hail.expr.types.{BlockMatrixType, TableType}
+import is.hail.expr.types.TableType
 import is.hail.expr.types.virtual._
 import is.hail.io.bgen.MatrixBGENReader
 import is.hail.linalg.BlockMatrix
@@ -1187,20 +1187,36 @@ class IRSuite extends SparkSuite {
 
   @DataProvider(name = "blockMatrixIRs")
   def blockMatrixIRs(): Array[Array[BlockMatrixIR]] = {
-    def createElemWiseOp(bm: BlockMatrixIR, op: BinaryOp, value: IR): BlockMatrixIR = {
-      BlockMatrixAndValueElementWiseBinaryOp(bm, ApplyBinaryPrimOp(op, Ref("element", TFloat64(true)), value))
-    }
-
     val read = BlockMatrixRead(tmpDir.createLocalTempFile())
-//    val add = BlockMatrixAdd(read, read)
-    val add = createElemWiseOp(read, Add(), F64(5))
-    val sub = createElemWiseOp(read, Subtract(), F64(5))
-    val mul = createElemWiseOp(read, Multiply(), F64(5))
-    val div = createElemWiseOp(read, FloatingPointDivide(), F64(5))
 
-    val blockMatrixIRs = Array[BlockMatrixIR](read, add, sub, mul, div)
+    val blockMatrixIRs = Array[BlockMatrixIR](read)
 
     blockMatrixIRs.map(ir => Array(ir))
+  }
+
+  @Test def testBlockMatrixAlgebra() {
+    def element = Ref("element", TFloat64(true))
+    def createElemWiseOp(bm: BlockMatrixIR, op: BinaryOp, value: IR): BlockMatrixIR = {
+      BlockMatrixBroadcastValue(bm, ApplyBinaryPrimOp(op, element, value))
+    }
+
+    val ones = BlockMatrix.fill(hc, 5, 5, 1)
+    val twos = BlockMatrix.fill(hc, 5, 5, 2)
+    val threes = BlockMatrix.fill(hc, 5, 5, 3)
+    val fours = BlockMatrix.fill(hc, 5, 5, 4)
+
+    val onesAddTwo = createElemWiseOp(new BlockMatrixLiteral(ones), Add(), F64(2))
+    val threesSubTwo = createElemWiseOp(new BlockMatrixLiteral(threes), Subtract(), F64(2))
+    val twosMulTwo = createElemWiseOp(new BlockMatrixLiteral(twos), Multiply(), F64(2))
+    val foursDivTwo = createElemWiseOp(new BlockMatrixLiteral(fours), FloatingPointDivide(), F64(2))
+
+    //TODO Create BlockMatrix evalsTo or modify the existing method to be more accepting
+    //TODO Actually what purpose is this serving in the IRSuite?
+    // It does show that it is parsing correctly but does more than that as well
+    assert(onesAddTwo.execute(hc).toBreezeMatrix() == threes.toBreezeMatrix())
+    assert(threesSubTwo.execute(hc).toBreezeMatrix() == ones.toBreezeMatrix())
+    assert(twosMulTwo.execute(hc).toBreezeMatrix() == fours.toBreezeMatrix())
+    assert(foursDivTwo.execute(hc).toBreezeMatrix() == twos.toBreezeMatrix())
   }
 
   @Test(dataProvider = "valueIRs")
