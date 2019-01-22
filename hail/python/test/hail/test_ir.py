@@ -238,12 +238,17 @@ class TableIRTests(unittest.TestCase):
 
 
 class BlockMatrixIRTests(unittest.TestCase):
+    def make_element_wise_op_ir(self, bm1, bm2, op):
+        return ir.BlockMatrixElementWiseBinaryOp(bm1, bm2, ir.ApplyBinaryOp(op, ir.Ref("element"), ir.Ref("element")))
 
     def block_matrix_irs(self):
-        read = ir.BlockMatrixRead('fake_file_path')
-        add = ir.BlockMatrixAdd(read, read)
+        read = ir.BlockMatrixRead(resource('blockmatrix_example/0'))
+        add = self.make_element_wise_op_ir(read, read, "+")
+        sub = self.make_element_wise_op_ir(read, read, "-")
+        mul = self.make_element_wise_op_ir(read, read, "*")
+        div = self.make_element_wise_op_ir(read, read, "/")
 
-        return [read, add]
+        return [read, add, sub, mul, div]
 
     def test_parses(self):
         for x in self.block_matrix_irs():
