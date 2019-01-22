@@ -214,13 +214,29 @@ def refresh_deploy_jobs(jobs):
                 try_to_cancel_job(job)
     prs.refresh_from_deploy_jobs(latest_jobs)
 
+
+@app.route('/force_retest_flat', methods=['POST'])
+def force_retest_flat():
+    d = request.json
+    source = FQRef(Repo(d['source_repo_owner'], d['source_repo_name']), d['source_branch_name'])
+    target = FQRef(Repo(d['target_repo_owner'], d['target_repo_name']), d['target_branch_name'])
+    return _force_retest(source, target)
+
+
 @app.route('/force_retest', methods=['POST'])
 def force_retest():
     d = request.json
     source = FQRef.from_json(d['source'])
     target = FQRef.from_json(d['target'])
-    prs.build(source, target)
-    return '', 200
+    return _force_retest(source, target)
+
+
+def _force_retest(source, target):
+    try:
+        prs.build(source, target)
+        return '', 200
+    except ValueError as e:
+        return str(e), 400
 
 
 @app.route('/force_redeploy', methods=['POST'])
