@@ -16,7 +16,11 @@ abstract sealed class BlockMatrixIR extends BaseIR {
 case class BlockMatrixRead(path: String) extends BlockMatrixIR {
   override def typ: BlockMatrixType = {
     val metadata = BlockMatrix.readMetadata(HailContext.get, path)
-    BlockMatrixType(IndexedSeq(metadata.nRows, metadata.nCols), metadata.blockSize, IndexedSeq(true, true))
+    BlockMatrixType(
+      TFloat64(),
+      IndexedSeq(metadata.nRows, metadata.nCols),
+      metadata.blockSize,
+      IndexedSeq(true, true))
   }
 
   override def children: IndexedSeq[BaseIR] = Array.empty[BlockMatrixIR]
@@ -33,7 +37,11 @@ case class BlockMatrixRead(path: String) extends BlockMatrixIR {
 
 class BlockMatrixLiteral(value: BlockMatrix) extends BlockMatrixIR {
   override def typ: BlockMatrixType = {
-    BlockMatrixType(IndexedSeq(value.nRows, value.nCols), value.blockSize, IndexedSeq(true, true))
+    BlockMatrixType(
+      TFloat64(),
+      IndexedSeq(value.nRows, value.nCols),
+      value.blockSize,
+      IndexedSeq(true, true))
   }
 
   override def children: IndexedSeq[BaseIR] = Array.empty[BlockMatrixIR]
@@ -101,7 +109,7 @@ case class BlockMatrixBroadcastValue(
       // No reshaping when broadcasting a scalar
       case (Ref(_, _: TFloat64), F64(_)) | (F64(_), Ref(_, _: TFloat64)) => child.typ
       // Add cases for local tensor when type exists
-      case _ => fatal(s"Incompatible type for broadcasting operation: ${Pretty(applyBinOp)}")
+      case _ => fatal(s"Unsupported type for broadcasting operation: ${Pretty(applyBinOp)}")
     }
   }
 

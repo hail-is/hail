@@ -1254,12 +1254,8 @@ class IRSuite extends SparkSuite {
 
   @Test(dataProvider = "blockMatrixIRs")
   def testBlockMatrixIRParser(x: BlockMatrixIR) {
-    val env = IRParserEnvironment(refMap = Map(
-      "element" -> TFloat64()
-    ))
-
     val s = Pretty(x)
-    val x2 = IRParser.parse_blockmatrix_ir(s, env)
+    val x2 = IRParser.parse_blockmatrix_ir(s)
     assert(x2 == x)
   }
 
