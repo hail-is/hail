@@ -128,7 +128,6 @@ class Scorecard extends PureComponent<Props, scorecardJson & user> {
   }
 
   handleRefreshUser = () => {
-    console.info('clicked');
     this.setState({ user: Scorecard.refreshUser() });
   };
 
@@ -232,7 +231,6 @@ class Scorecard extends PureComponent<Props, scorecardJson & user> {
           </div>
         )}
         <div className="issues-section">
-          {' '}
           <h5>Rolodex</h5>
           <div id="random-user">
             <img

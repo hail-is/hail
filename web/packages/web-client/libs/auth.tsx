@@ -5,6 +5,7 @@
 // TODO: Write tests, simplify race condition handling
 // TODO: exp is derived from accessToken's claim, decide if needs keeping
 // TODO: File issue with auth0js library regarding rapid refresh, fix
+// TODO: Enable SSL / secure on cookies
 import auth0 from 'auth0-js';
 import getConfig from 'next/config';
 import cookies, { CookieAttributes } from 'js-cookie';
@@ -125,7 +126,6 @@ export function initialize() {
 
   const redirectUri = `${_getBaseUrl()}${CALLBACK_SUFFIX}`;
 
-  console.info('AUDIENCE', AUDIENCE);
   _auth0 = new auth0.WebAuth({
     domain: DOMAIN,
     audience: AUDIENCE,
@@ -140,7 +140,9 @@ export function initialize() {
 }
 
 export function login(state?: string) {
-  const opts: any = { prompt: 'login' };
+  // If we find logout's don't work properly due to the cookie issue
+  // add back prompt: 'login',
+  const opts: any = { prompt: 'login', connection: 'google-oauth2' };
 
   if (state) {
     opts.state = state;

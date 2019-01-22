@@ -1,4 +1,4 @@
-import { PureComponent } from 'react';
+import { PureComponent, Fragment } from 'react';
 import { login } from '../libs/auth';
 import Router from 'next/router';
 // import cookie from '../libs/cookies';
@@ -44,25 +44,31 @@ class Login extends PureComponent<LoginProps> {
   };
 
   render() {
-    if (this.state.failed) {
-      return <div>Unauthorized!</div>;
-    }
     return (
       <span id="login">
-        <h3>Login</h3>
-        <span id="login-choices">
-          <button className="outlined-button" onClick={this.onLoginButtonClick}>
-            Login
-          </button>
-          <span id="separator">or</span>
-          <form onSubmit={this.onSubmit}>
-            <input
-              type="password"
-              onChange={this.onChange}
-              placeholder="Enter the workshop password"
-            />
-          </form>
-        </span>
+        {this.state.failed ? (
+          <div>Unauthorized!</div>
+        ) : (
+          <Fragment>
+            <h3>Login</h3>
+            <span id="login-choices">
+              <button
+                className="outlined-button"
+                onClick={this.onLoginButtonClick}
+              >
+                Login
+              </button>
+              <span id="separator">or</span>
+              <form onSubmit={this.onSubmit}>
+                <input
+                  type="password"
+                  onChange={this.onChange}
+                  placeholder="Enter the workshop password"
+                />
+              </form>
+            </span>
+          </Fragment>
+        )}
       </span>
     );
   }
