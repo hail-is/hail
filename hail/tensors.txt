@@ -1,0 +1,112 @@
+# Notation
+
+N = Natural Numbers
+ZPB = the positive integers with a bottom element (for describing
+      non-distributed dimensions), i.e. ℤ⁺ ∪ {⊥}
+||x|| = the length / size of x, I'll use it on sets and vectors
+v u = concatenate v and u, if v and u are both vectors or lists
+
+# Types
+
+t ∈ HailType := tint32 | tint64 | tarray(t)
+r ∈ BigTensorType := (dimensions: [N], blocks: [], type: HailType)
+
+# Terms
+
+
+e ∈ HailTerm := 0 | 1 | ... | 0.0 | 0.1 | 1.0 | ...
+              | [e, ...] | ...
+op ∈ ScalarOp := + | - | *
+u,v ∈ BigTensorTerm := lit([e, ...], d: [N], b: [ZPB])
+       | u @ v | u op v
+       | bc(u, d, b)
+       | select(u, e_i) | map(f, u)
+       | contract(u, v, i, j) | contract(u, v, i, j, +, *)
+
+# Type Rules
+
+e_i : t
+d : [N]
+b : [ZPB]
+||d|| = ||b||
+Π_i dim_i = ||e||
+-------------
+lit([e_i], d, b) : (d, b, t)
+
+
+u : r   v : r
+-------------
+  u op v : r
+
+
+⊥ ~= ⊥
+⊥ ~= x
+x ~= ⊥
+x ~= x
+
+
+The above is the compatible relationship for block sizes. It just says we can
+match a distributed block with a non-distributed one (by distributing the
+non-distributed one with block size given by the distributed one).
+
+
+u : (d, b, t)
+d' : [N]
+b' : [N]
+(∃k. (∀i>k. d_i = d'_i and b_i = b'_i) and
+     (∃m∈N. ∀i≤k. d'_i/d_i = m and b_i ~= b'_i))
+--------------------------------------------
+       bc(u, d', b') : (d', b', t)
+
+
+u : (d, b, t)
+e : P(P(N))              P means power set
+0 < i < ||d||
+∀i. max(e_i) ≤ d_i
+----------------------------------
+select(u, {e_i}) : ((||e_i||)_i, b, t)
+
+
+f : t → t'   u : (d, b, t)
+--------------------------
+  map(f, u) : (d, b, t)
+
+
+u : (d', b', t)
+v : (d'', b'', t)
+contract(u, v, ||d'||-1, 0): (d, b, t)
+-------------------------------------------
+u @ v : (d, b, t)
+
+
+contract(u, v, i, j, "sum for type t", "multiply for type t") : (d, b, t)
+-------------------------------------------------------------------------
+contract(u, v, i, j) : (d, b, t)
+
+
+In the above rule I'm cheating a bit with my meta-syntax, I'm basically saying
+that if `hl.agg.sum(l * r)` type-checks for l and r of type t, then we can
+contract two matrices using that aggregation. Said another way, it's the default
+contraction. In python, this will manifest as:
+
+```
+def contract(m1, m2, i, j, aggregation=None):
+    if aggregation is None:
+        aggregation = hl.agg.sum(m1.entry * m2.entry)
+```
+
+Don't panic! The compiler will look for `contract(l, r, 1, 0, hl.agg.sum(l *
+r))` and emit a distributed multiply with a local BLAS multiply.
+
+
+u : (d, b, t)
+v : (d', b', t)
+i,j : N
+i < ||d||
+j < ||d'||
+d_i = d'_j
+b_i = b'_j
++ : [t] → t
+* : t × t → t
+----------------------------------------------
+contract(u, v, i, j, +, *) : (d_k d'_l, b_k b'_l, t)    where k ≠ i and l ≠ j
