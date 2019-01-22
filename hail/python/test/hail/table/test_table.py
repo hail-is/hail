@@ -191,6 +191,12 @@ class Tests(unittest.TestCase):
         r = kt.aggregate(agg.filter(kt.idx % 2 != 0, agg.sum(kt.idx + 2)) + kt.g1)
         self.assertEqual(r, 40)
 
+    def test_group_by_field_lifetimes(self):
+        ht = hl.utils.range_table(3)
+        ht2 = (ht.group_by(idx='100')
+               .aggregate(x=hl.agg.collect_as_set(ht.idx + 5)))
+        assert (ht2.all(ht2.x == hl.set({5, 6, 7})))
+
     def test_group_aggregate_by_key(self):
         ht = hl.utils.range_table(100, n_partitions=10)
 

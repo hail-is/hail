@@ -112,9 +112,9 @@ class GroupedTable(ExprContainer):
     and :meth:`.GroupedTable.aggregate`.
     """
 
-    def __init__(self, parent: 'Table', groups):
+    def __init__(self, parent: 'Table', key_expr):
         super(GroupedTable, self).__init__()
-        self._groups = groups
+        self._key_expr = key_expr
         self._parent = parent
         self._npartitions = None
         self._buffer_size = 50
@@ -208,23 +208,19 @@ class GroupedTable(ExprContainer):
         :class:`.Table`
             Aggregated table.
         """
-        if self._groups is None:
-            raise ValueError('GroupedTable cannot be aggregated if no groupings are specified.')
-
-        group_exprs = dict(self._groups)
-
         for name, expr in named_exprs.items():
             analyze(f'GroupedTable.aggregate: ({repr(name)})', expr, self._parent._global_indices, {self._parent._row_axis})
-        if not named_exprs.keys().isdisjoint(group_exprs.keys()):
-            intersection = set(named_exprs.keys()) & set(group_exprs.keys())
+        if not named_exprs.keys().isdisjoint(set(self._key_expr)):
+            intersection = set(named_exprs.keys()) & set(self._key_expr)
             raise ValueError(
                 f'GroupedTable.aggregate: Group names and aggregration expression names overlap: {intersection}')
 
-        base, _ = self._parent._process_joins(*group_exprs.values(), *named_exprs.values())
+        base, _ = self._parent._process_joins(self._key_expr, *named_exprs.values())
 
+        key_struct = self._key_expr
         return Table(TableKeyByAndAggregate(base._tir,
                                             hl.struct(**named_exprs)._ir,
-                                            hl.struct(**group_exprs)._ir,
+                                            key_struct._ir,
                                             self._npartitions,
                                             self._buffer_size))
 
@@ -535,20 +531,22 @@ class Table(ExprContainer):
         :class:`.Table`
             Table with a new key.
         """
-        key_fields = get_select_exprs("Table.key_by",
-                                      keys, named_keys, self._row_indices,
-                                      protect_keys=False)
+        key_fields, computed_keys = get_key_by_exprs("Table.key_by", keys, named_keys, self._row_indices)
 
-        new_row = self.row.annotate(**key_fields)
-        base, cleanup = self._process_joins(new_row)
+        if not computed_keys:
+            return Table(TableKeyBy(self._tir, key_fields))
+        else:
+            new_row = self.row.annotate(**computed_keys)
+            base, cleanup = self._process_joins(new_row)
 
-        return cleanup(Table(
-            TableKeyBy(
-                TableMapRows(
-                    TableKeyBy(base._tir, []),
-                    new_row._ir),
-                list(key_fields))))
+            return cleanup(Table(
+                TableKeyBy(
+                    TableMapRows(
+                        TableKeyBy(base._tir, []),
+                        new_row._ir),
+                    list(key_fields))))
 
+    @typecheck_method(named_exprs=expr_any)
     def annotate_globals(self, **named_exprs) -> 'Table':
         """Add new global fields.
 
@@ -573,9 +571,8 @@ class Table(ExprContainer):
         :class:`.Table`
             Table with new global field(s).
         """
-        named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
-        for k, v in named_exprs.items():
-            check_collisions(self._fields, k, self._global_indices)
+        caller = 'Table.annotate_globals'
+        check_annotate_exprs(caller, named_exprs, self._global_indices)
         return self._select_globals('Table.annotate_globals', self.globals.annotate(**named_exprs))
 
     def select_globals(self, *exprs, **named_exprs) -> 'Table':
@@ -614,23 +611,16 @@ class Table(ExprContainer):
         :class:`.Table`
             Table with specified global fields.
         """
-        exprs = [self[e] if not isinstance(e, Expression) else e for e in exprs]
-        named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
-        assignments = OrderedDict()
+        caller = 'Table.select_globals'
+        new_globals = get_select_exprs(caller,
+                               exprs,
+                               named_exprs,
+                               self._global_indices,
+                               self._globals)
 
-        for e in exprs:
-            if not e._ir.is_nested_field:
-                raise ExpressionException("method 'select_globals' expects keyword arguments for complex expressions")
-            assert isinstance(e._ir, GetField)
-            assignments[e._ir.name] = e
+        return self._select_globals(caller, new_globals)
 
-        for k, e in named_exprs.items():
-            check_collisions(self._fields, k, self._global_indices)
-            assignments[k] = e
-
-        check_field_uniqueness(assignments.keys())
-        return self._select_globals('Table.select_globals', hl.struct(**assignments))
-
+    @typecheck_method(named_exprs=expr_any)
     def transmute_globals(self, **named_exprs) -> 'Table':
         """Similar to :meth:`.Table.annotate_globals`, but drops referenced fields.
 
@@ -656,13 +646,14 @@ class Table(ExprContainer):
         :class:`.Table`
         """
         caller = 'Table.transmute_globals'
-        e = get_annotate_exprs(caller, named_exprs, self._global_indices)
-        fields_referenced = extract_refs_by_indices(e.values(), self._global_indices) - set(e.keys())
+        check_annotate_exprs(caller, named_exprs, self._global_indices)
+        fields_referenced = extract_refs_by_indices(named_exprs.values(), self._global_indices) - set(named_exprs.keys())
 
         return self._select_globals(caller,
                                     self.globals.annotate(**named_exprs).drop(*fields_referenced))
 
 
+    @typecheck_method(named_exprs=expr_any)
     def transmute(self, **named_exprs) -> 'Table':
         """Add new fields and drop fields referenced.
 
@@ -723,12 +714,13 @@ class Table(ExprContainer):
             Table with transmuted fields.
         """
         caller = "Table.transmute"
-        e = get_annotate_exprs(caller, named_exprs, self._row_indices)
-        fields_referenced = extract_refs_by_indices(e.values(), self._row_indices) - set(e.keys())
+        check_annotate_exprs(caller, named_exprs, self._row_indices)
+        fields_referenced = extract_refs_by_indices(named_exprs.values(), self._row_indices) - set(named_exprs.keys())
         fields_referenced -= set(self.key)
 
-        return self._select(caller, self.row.annotate(**e).drop(*fields_referenced))
+        return self._select(caller, self.row.annotate(**named_exprs).drop(*fields_referenced))
 
+    @typecheck_method(named_exprs=expr_any)
     def annotate(self, **named_exprs) -> 'Table':
         """Add new fields.
 
@@ -755,8 +747,8 @@ class Table(ExprContainer):
             Table with new fields.
         """
         caller = "Table.annotate"
-        e = get_annotate_exprs(caller, named_exprs, self._row_indices)
-        return self._select(caller, self.row.annotate(**e))
+        check_annotate_exprs(caller, named_exprs, self._row_indices)
+        return self._select(caller, self.row.annotate(**named_exprs))
 
     @typecheck_method(expr=expr_bool,
                       keep=bool)
@@ -894,10 +886,11 @@ class Table(ExprContainer):
         :class:`.Table`
             Table with specified fields.
         """
-        row_exprs = get_select_exprs('Table.select',
-                                     exprs, named_exprs, self._row_indices,
-                                     protect_keys=True)
-        row = self.key.annotate(**row_exprs)
+        row = get_select_exprs('Table.select',
+                                     exprs,
+                                     named_exprs,
+                                     self._row_indices,
+                                     self._row)
 
         return self._select('Table.select', row)
 
@@ -956,14 +949,14 @@ class Table(ExprContainer):
         table = self
         if any(self._fields[field]._indices == self._global_indices for field in fields_to_drop):
             # need to drop globals
-            new_global_fields = [f for f in table.globals if
-                                 f not in fields_to_drop]
-            table = table.select_globals(*new_global_fields)
+            table = table._select_globals('drop',
+                                          self._globals.drop(*[f for f in table.globals if f in fields_to_drop]))
 
         if any(self._fields[field]._indices == self._row_indices for field in fields_to_drop):
             # need to drop row fields
+            protected_key = set(self._row_indices.protected_key)
             for f in fields_to_drop:
-                check_keys(f, self._row_indices)
+                check_keys('drop', f, protected_key)
             row_fields = set(table.row)
             to_drop = [f for f in fields_to_drop if f in row_fields]
             table = table._select('drop', table.row.drop(*to_drop))
@@ -1099,23 +1092,12 @@ class Table(ExprContainer):
         :class:`.GroupedTable`
             Grouped table; use :meth:`.GroupedTable.aggregate` to complete the aggregation.
         """
-        groups = []
-        for e in exprs:
-            if isinstance(e, str):
-                e = self[e]
-            else:
-                e = to_expr(e)
-            analyze('Table.group_by', e, self._row_indices)
-            if not e._ir.is_nested_field:
-                raise ExpressionException("method 'group_by' expects keyword arguments for complex expressions")
-            key = e._ir.name
-            groups.append((key, e))
-        for k, e in named_exprs.items():
-            e = to_expr(e)
-            analyze('Table.group_by', e, self._row_indices)
-            groups.append((k, e))
-
-        return GroupedTable(self, groups)
+        key, computed_key = get_key_by_exprs('Table.group_by',
+                                    exprs,
+                                    named_exprs,
+                                    self._row_indices,
+                                    override_protected_indices={self._global_indices})
+        return GroupedTable(self, self.row.annotate(**computed_key).select(*key))
 
     @typecheck_method(expr=expr_any, _localize=bool)
     def aggregate(self, expr, _localize=True):

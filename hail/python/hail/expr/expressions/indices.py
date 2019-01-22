@@ -1,12 +1,18 @@
 from hail.typecheck import *
 import hail as hl
 
+from typing import List
+
 
 class Indices(object):
     @typecheck_method(source=anytype, axes=setof(str))
     def __init__(self, source=None, axes=set()):
         self.source = source
         self.axes = axes
+        self._cached_key = None
+
+    def __hash__(self):
+        return 37 + hash((self.source, *self.axes))
 
     def __eq__(self, other):
         return isinstance(other, Indices) and self.source is other.source and self.axes == other.axes
@@ -31,24 +37,29 @@ class Indices(object):
         return Indices(src, axes)
 
     @property
-    def key(self):
+    def protected_key(self) -> List[str]:
+        if self._cached_key is None:
+            self._cached_key = self._get_key()
+            return self._cached_key
+        else:
+            return self._cached_key
+
+    def _get_key(self):
         if self.source is None:
-            return None
+            return []
         elif isinstance(self.source, hl.Table):
             if self == self.source._row_indices:
-                return self.source.key
+                return list(self.source.key)
             else:
-                return None
+                return []
         else:
             assert isinstance(self.source, hl.MatrixTable)
             if self == self.source._row_indices:
-                return self.source.row_key
+                return list(self.source.row_key)
             elif self == self.source._col_indices:
-                return self.source.col_key
-            elif self == self.source._entry_indices:
-                return hl.struct(**self.source.row_key, **self.source.col_key)
+                return list(self.source.col_key)
             else:
-                return None
+                return []
 
     def __str__(self):
         return 'Indices(axes={}, source={})'.format(self.axes, self.source)
