@@ -402,8 +402,6 @@ def get_select_exprs(caller, exprs, named_exprs, indices, base_struct):
     return s
 
 def check_annotate_exprs(caller, named_exprs, indices):
-    from hail.expr.expressions import to_expr
-    named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
     protected_key = set(indices.protected_key)
     for k in named_exprs:
         check_keys(caller, k, protected_key)
