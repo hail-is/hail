@@ -40,6 +40,7 @@ case class SparkPipeline(stages: Map[String, SparkStage], body: IR) {
     val f = cxx.Compile(ref.name, inputType.physicalType, node, optimize = true)
     val st = new NativeStatus()
     val off = f(st, region.get(), rvb.end())
+    assert(st.ok, st.toString())
     (node.pType.asInstanceOf[PTuple], off)
   }
 }
