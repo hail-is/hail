@@ -1240,8 +1240,8 @@ class Table(ExprContainer):
 
         rows = [[row[f] for f in fields] for row in rows]
 
-        column_width = [max(len(fields[i]), len(types[i]), max([len(row[i]) for row in rows]))
-                        for i in range(n_fields)]
+        max_value_width = lambda i: max(itertools.chain([0], (len(row[i]) for row in rows)))
+        column_width = [max(len(fields[i]), len(types[i]), max_value_width(i)) for i in range(n_fields)]
 
         column_blocks = []
         start = 0
