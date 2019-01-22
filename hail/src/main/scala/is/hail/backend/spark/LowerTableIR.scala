@@ -175,7 +175,9 @@ object LowerTableIR {
     case TableCount(tableIR) =>
       val stage = lower(tableIR)
       val counts = Ref(genUID(), TArray(TInt64()))
-      SparkPipeline(Map(counts.name -> stage.copy(body = Cast(ArrayLen(stage.body), TInt64()))), invoke("sum", counts))
+      SparkPipeline(
+        Map(counts.name -> stage.copy(body = Cast(ArrayLen(stage.body), TInt64()))),
+        invoke("sum", counts))
 
     case TableGetGlobals(child) =>
       lower(child).globals.head.value
@@ -186,7 +188,11 @@ object LowerTableIR {
       val rows = Ref(genUID(), TArray(lowered.body.typ))
       assert(lowered.body.typ.isInstanceOf[TContainer])
       val elt = genUID()
-      SparkPipeline(Map((rows.name, lowered) +: globals.value.stages.toSeq: _*), MakeStruct(FastIndexedSeq("rows" -> ArrayFlatMap(rows, elt, Ref(elt, lowered.body.typ)), "global" -> lowered.globals.head.value.body)))
+      SparkPipeline(
+        Map((rows.name, lowered) +: globals.value.stages.toSeq: _*),
+        MakeStruct(FastIndexedSeq(
+          "rows" -> ArrayFlatMap(rows, elt, Ref(elt, lowered.body.typ)),
+          "global" -> lowered.globals.head.value.body)))
 
     case node if node.children.exists( _.isInstanceOf[TableIR] ) =>
       throw new cxx.CXXUnsupportedOperation("IR nodes with TableIR children must be defined explicitly")

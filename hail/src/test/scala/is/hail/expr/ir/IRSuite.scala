@@ -69,9 +69,7 @@ object IRSuite {
 }
 
 class IRSuite extends SparkSuite {
-  @BeforeClass def initializeHC() {
-    assert(hc != null)
-  }
+  @BeforeClass def ensureHCDefined() { initializeHailContext() }
 
   @Test def testI32() {
     assertEvalsTo(I32(5), 5)

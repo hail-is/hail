@@ -28,9 +28,7 @@ class TableIRSuite extends SparkSuite {
 
   def rangeKT: TableIR = Table.range(hc, 20, Some(4)).unkey().tir
 
-  @BeforeClass def initializeHailContext() {
-    assert(hc != null)
-  }
+  @BeforeClass def ensureHCDefined() { initializeHailContext() }
 
   @Test def testRangeCount() {
     val node1 = TableCount(TableRange(10, 2))
