@@ -608,6 +608,19 @@ object PruneDeadFields {
         )
         memoizeTableIR(child, childDep, memo)
       case MatrixToMatrixApply(child, _) => memoizeMatrixIR(child, child.typ, memo)
+      case MatrixRename(child, globalMap, colMap, rowMap, entryMap) =>
+        val globalMapRev = globalMap.map { case (k, v) => (v, k) }
+        val colMapRev = colMap.map { case (k, v) => (v, k) }
+        val rowMapRev = rowMap.map { case (k, v) => (v, k) }
+        val entryMapRev = entryMap.map { case (k, v) => (v, k) }
+        val childDep = MatrixType.fromParts(
+          globalType = requestedType.globalType.rename(globalMapRev),
+          colType = requestedType.colType.rename(colMapRev),
+          colKey = requestedType.colKey.map(k => colMapRev.getOrElse(k, k)),
+          rowType = requestedType.rowType.rename(rowMapRev),
+          rowKey = requestedType.rowKey.map(k => rowMapRev.getOrElse(k, k)),
+          entryType = requestedType.entryType.rename(entryMapRev))
+        memoizeMatrixIR(child, childDep, memo)
     }
   }
 
@@ -1002,6 +1015,14 @@ object PruneDeadFields {
           val table2 = rebuild(table, memo)
           MatrixAnnotateColsTable(child2, table2, uid)
         }
+      case MatrixRename(child, globalMap, colMap, rowMap, entryMap) =>
+        val child2 = rebuild(child, memo)
+        MatrixRename(
+          child2,
+          globalMap.filterKeys(child2.typ.globalType.hasField),
+          colMap.filterKeys(child2.typ.colType.hasField),
+          rowMap.filterKeys(child2.typ.rowType.hasField),
+          entryMap.filterKeys(child2.typ.entryType.hasField))
       case _ => mir.copy(mir.children.map {
         // IR should be a match error - all nodes with child value IRs should have a rule
         case childT: TableIR => rebuild(childT, memo)

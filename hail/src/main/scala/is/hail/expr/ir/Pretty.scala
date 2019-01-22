@@ -263,6 +263,16 @@ object Pretty {
               val globalKV = globalMap.toArray
               s"${ prettyStrings(rowKV.map(_._1)) } ${ prettyStrings(rowKV.map(_._2)) } " +
                 s"${ prettyStrings(globalKV.map(_._1)) } ${ prettyStrings(globalKV.map(_._2)) }"
+            case MatrixRename(_, globalMap, colMap, rowMap, entryMap) =>
+              val globalKV = globalMap.toArray
+              val colKV = colMap.toArray
+              val rowKV = rowMap.toArray
+              val entryKV = entryMap.toArray
+              s"${ prettyStrings(globalKV.map(_._1)) } ${ prettyStrings(globalKV.map(_._2)) } " +
+                s"${ prettyStrings(colKV.map(_._1)) } ${ prettyStrings(colKV.map(_._2)) } " +
+                s"${ prettyStrings(rowKV.map(_._1)) } ${ prettyStrings(rowKV.map(_._2)) } " +
+                s"${ prettyStrings(entryKV.map(_._1)) } ${ prettyStrings(entryKV.map(_._2)) }"
+
             case _ => ""
           }
 
