@@ -20,7 +20,7 @@ const send = (res, html) => {
 
 const pagesToCache = {
   '/': isDev ? 0 : -1, // forever
-  '/scorecard': isDev ? 0 : 3 * 60 * 60 * 1000 // 3 min,
+  '/scorecard': isDev ? 0 : 3 * 60 * 1000 // 3 min,
 };
 
 const render = (cacheTime = 5 * 60 * 1000, req, res, pagePath, query) => {
