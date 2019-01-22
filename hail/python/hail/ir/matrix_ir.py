@@ -454,7 +454,8 @@ class MatrixToMatrixApply(MatrixIR):
     def _compute_type(self):
         name = self.config['name']
         child_typ = self.child.typ
-        if name == 'MatrixFilterPartitions':
+        if (name == 'MatrixFilterPartitions'
+            or name == 'MatrixFilterIntervals'):
             self._type = child_typ
         else:
             assert name == 'WindowByLocus', name
