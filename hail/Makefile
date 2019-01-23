@@ -135,8 +135,15 @@ gradle-test: env/GRADLE_ARGS
 gradle-test-cpp-codegen: env/GRADLE_ARGS
 	./gradlew $(GRADLE_ARGS) testCppCodegen
 
+.PHONY: test-pip-install
+test-pip-install:
+	PIP_VERSION_SUFFIX=$(shell python next_unused_dev_pypi_version.py hail) $(MAKE) pip-install
+	mkdir -p build
+	touch build/test-pip-install
+
 .PHONY: test
 test: test-python gradle-test gradle-test-cpp-codegen build/test-native-lib
+test: test-pip-install
 
 src/main/resources/build-info.properties: env/SPARK_VERSION env/HAIL_PIP_VERSION env/GIT_SHA
 	bash generate-build-info.sh $(SPARK_VERSION) $(HAIL_PIP_VERSION) $(GIT_SHA)
