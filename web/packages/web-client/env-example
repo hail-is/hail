@@ -1,6 +1,6 @@
 AUTH0_DOMAIN=hail.auth0.com
 AUTHO_AUDIENCE=hail
-AUTH0_SCOPE=openid
+AUTH0_SCOPE=openid profile
 AUTH0_RESPONSE_TYPE=token id_token
 AUTH0_CLIENT_ID=TD78k23CcdM4pMWoYZwYwKJbQPBj06jY
 # If using popup auth0 mode, use this: AUTH0_CALLBACK_SUFFIX=static/auth0-redirect.html

@@ -17,21 +17,31 @@ import jwtDecode from 'jwt-decode';
 // that is not in idToken
 // exp is also stored in a token, to enable a single function setState
 // that takes either an auth0 response, or a constructed response from cookeis
-declare type user = {
+export interface UserInterface {
   sub: string;
-};
+  family_name: string;
+  given_name: string;
+  name: string;
+  nickname: string;
+  picture: string;
+}
+
+export interface AuthInterface {
+  readonly user?: UserInterface;
+  readonly idToken?: string;
+  readonly accessToken?: string;
+  readonly loggedOut: boolean;
+}
 
 declare type auth0payload = {
   idToken: string;
   accessToken: string;
   expiresIn: number;
-  idTokenPayload: {
-    sub: string;
-  };
+  idTokenPayload: UserInterface;
 };
 
 declare type stateType = {
-  user?: user;
+  user?: UserInterface;
   idToken?: string;
   accessToken?: string;
   expires?: string;
@@ -45,13 +55,6 @@ declare type cookies = {
 };
 
 declare type cb = (state: AuthInterface) => void;
-
-interface AuthInterface {
-  readonly user?: user;
-  readonly idToken?: string;
-  readonly accessToken?: string;
-  readonly loggedOut: boolean;
-}
 
 const {
   DOMAIN,
@@ -269,9 +272,9 @@ export function initStateSSR(cookie: string) {
     return;
   }
 
-  let user: user | undefined;
+  let user: UserInterface | undefined;
   try {
-    user = jwtDecode(idToken) as user;
+    user = jwtDecode(idToken) as UserInterface;
   } catch (e) {
     console.error(e);
   }
@@ -305,7 +308,7 @@ function _initState() {
     // the ability to optimistically render that state
     _updateState({
       idToken: idToken,
-      user: jwtDecode(idToken) as user,
+      user: jwtDecode(idToken) as UserInterface,
       accessToken: cookies.get('accessToken'),
       expires: cookies.get('expires'),
       loggedOut: false

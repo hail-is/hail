@@ -1,6 +1,6 @@
-import { PureComponent, Fragment } from 'react';
+import { Component, Fragment } from 'react';
 import Link from 'next/link';
-import {
+import auth, {
   logout,
   addListener,
   removeListener,
@@ -12,9 +12,14 @@ import { withRouter } from 'next/router';
 const bStyle = 'link-button';
 
 let listenerID: number;
-class Header extends PureComponent {
-  state: any = {
-    showProfileControls: false,
+
+declare type headerState = {
+  // showProfileControls: boolean,
+  isLoggedIn: boolean;
+};
+class Header extends Component {
+  state: headerState = {
+    // showProfileControls: false,
     isLoggedIn: false
   };
 
@@ -38,6 +43,14 @@ class Header extends PureComponent {
     super(props);
 
     this.state.isLoggedIn = isAuthenticated();
+  }
+
+  shouldComponentUpdate(_: any, nextState: Partial<headerState>) {
+    if (this.state.isLoggedIn !== nextState.isLoggedIn) {
+      return true;
+    }
+
+    return false;
   }
 
   componentDidMount() {
@@ -88,7 +101,7 @@ class Header extends PureComponent {
           <Fragment>
             <Link href="/user" prefetch>
               <a className={`${bStyle}`} href="/">
-                Profile
+                <b>{auth.user!.given_name}</b>
               </a>
             </Link>
             <button className={`${bStyle}`} onClick={this.onLogout}>

@@ -1,0 +1,27 @@
+{
+  "remote.onstartup": true,
+  "workbench.activityBar.visible": true,
+  "workbench.editor.enablePreview": false,
+  "editor.minimap.enabled": false,
+  "editor.renderWhitespace": "all",
+  "editor.renderControlCharacters": true,
+  "window.zoomLevel": 0,
+  "html.format.wrapAttributes": "force",
+  "git.autofetch": true,
+  "editor.rulers": [80, 120],
+  // use prettier instead
+  "eslint.autoFixOnSave": false,
+  // prettier
+  "editor.formatOnSave": true,
+  "editor.hover.sticky": true,
+  "editor.hover.delay": 150,
+  "editor.tabCompletion": "on",
+  "editor.tabSize": 2,
+  "javascript.updateImportsOnFileMove.enabled": "always",
+  "explorer.confirmDelete": false,
+  "breadcrumbs.enabled": true,
+  "typescript.disableAutomaticTypeAcquisition": true,
+  "workbench.colorTheme": "Default Dark+",
+  "extensions.ignoreRecommendations": false,
+  "editor.wordWrapColumn": 100
+}

@@ -24,7 +24,7 @@
     "strict": true,
     "esModuleInterop": true,
     "experimentalDecorators": true,
-    "typeRoots": ["./node_modules/@types/", "./src/@types/"]
+    "typeRoots": ["./node_modules/@types/", "./@types/"]
   },
   "exclude": ["node_modules", "**/*.spec.ts"]
 }
