@@ -953,16 +953,15 @@ def import_bgen(path,
 
     if index_file_map is None:
         index_file_map = {}
-    java_index_file_map = tdict(tstr, tstr)._convert_to_j(index_file_map)
 
     entry_set = set(entry_fields)
     row_set = set(_row_fields)
 
-    # have to get reference genome from the index files!
-    reference_genome = Env.hail().io.bgen.LoadBgen.getReferenceGenome(Env.hc()._jhc.hadoopConf(), wrap_to_list(path), java_index_file_map)
-    lt = tlocus(reference_genome) if reference_genome else tstruct(contig=tstr, position=tint32)
-
     if variants is not None:
+        mt_type = Env.backend().matrix_type(
+            MatrixRead(MatrixBGENReader(path, sample_file, index_file_map, n_partitions, block_size, None)))
+        lt = mt_type.row_type['locus']
+
         expected_vtype = tstruct(locus=lt, alleles=tarray(tstr))
 
         if isinstance(variants, StructExpression) or isinstance(variants, LocusExpression):

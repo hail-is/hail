@@ -9,6 +9,7 @@ import is.hail.expr.ir.IRSuite.TestFunctions
 import is.hail.expr.ir.functions.{IRFunctionRegistry, RegistryFunctions, SeededIRFunction, SetFunctions}
 import is.hail.expr.types.TableType
 import is.hail.expr.types.virtual._
+import is.hail.io.bgen.MatrixBGENReader
 import is.hail.methods.{ForceCountMatrixTable, ForceCountTable}
 import is.hail.rvd.RVD
 import is.hail.table.{Ascending, Descending, SortField, Table}
@@ -917,6 +918,8 @@ class IRSuite extends SparkSuite {
 
   @DataProvider(name = "valueIRs")
   def valueIRs(): Array[Array[IR]] = {
+    hc.indexBgen(FastIndexedSeq("src/test/resources/example.8bits.bgen"), rg = Some("GRCh37"), contigRecoding = Map("01" -> "1"))
+
     val b = True()
     val c = Ref("c", TBoolean())
     val i = I32(5)
@@ -949,8 +952,9 @@ class IRSuite extends SparkSuite {
     val mt = MatrixTable.range(hc, 20, 2, Some(3)).ast.asInstanceOf[MatrixRead]
     val vcf = is.hail.TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
       .ast.asInstanceOf[MatrixRead]
-    val bgen = is.hail.TestUtils.importBgens(hc, FastIndexedSeq("src/test/resources/example.8bits.bgen"))
-      .ast.asInstanceOf[MatrixRead]
+
+    val bgenReader = MatrixBGENReader(FastIndexedSeq("src/test/resources/example.8bits.bgen"), None, Map.empty[String, String], None, None, None)
+    val bgen = MatrixRead(bgenReader.fullType, false, false, bgenReader)
 
     val irs = Array(
       i, I64(5), F32(3.14f), F64(3.14), str, True(), False(), Void(),
@@ -1096,8 +1100,10 @@ class IRSuite extends SparkSuite {
         .ast.asInstanceOf[MatrixRead]
       val vcf = is.hail.TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
         .ast.asInstanceOf[MatrixRead]
-      val bgen = is.hail.TestUtils.importBgens(hc, FastIndexedSeq("src/test/resources/example.8bits.bgen"))
-        .ast.asInstanceOf[MatrixRead]
+      
+      val bgenReader = MatrixBGENReader(FastIndexedSeq("src/test/resources/example.8bits.bgen"), None, Map.empty[String, String], None, None, None)
+      val bgen = MatrixRead(bgenReader.fullType, false, false, bgenReader)
+
       val range1 = MatrixTable.range(hc, 20, 2, Some(3))
         .ast.asInstanceOf[MatrixRead]
       val range2 = MatrixTable.range(hc, 20, 2, Some(4))
