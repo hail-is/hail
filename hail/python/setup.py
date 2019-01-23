@@ -8,6 +8,9 @@ with open('hail/hail_pip_version') as f:
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
+with open("spark_version", "r") as fh:
+    spark_version = fh.read()
+
 setup(
     name="hail",
     version=hail_pip_version,
@@ -31,7 +34,7 @@ setup(
         'matplotlib<3',
         'seaborn<0.9',
         'bokeh<0.14',
-        'pyspark>=2.2,<2.3',
+        'pyspark~='+spark_version,
         'parsimonious<0.9',
         'ipykernel<5',
         'decorator<5',

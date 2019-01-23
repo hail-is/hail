@@ -259,14 +259,12 @@ test_gcp() {
 }
 
 test_pip_package() {
-    make jar
-    cp build/libs/hail-all-spark.jar python/hail/hail-all-spark.jar
-    cp ../README.md python/
     CONDA_ENV_NAME=$(LC_CTYPE=C LC_ALL=C tr -dc 'a-z0-9' < /dev/urandom | head -c 8)
     conda create -n $CONDA_ENV_NAME python=3.7
     conda activate $CONDA_ENV_NAME
-    pip install ./python
+    make pip-install
     time env -u SPARK_HOME python -c 'import hail as hl; hl.init(); hl.balding_nichols_model(3,100,100)._force_count_rows()'
+    conda deactivate
     # FIXME: also test on Mac OS X
     touch ${PIP_PACKAGE_SUCCESS}
 }

@@ -22,6 +22,9 @@ $(eval $(call ENV_VAR,GRADLE_ARGS))
 $(eval $(call ENV_VAR,GIT_SHA))
 
 IGNORED_FILE_PATTERN := \( -name '*~' \)
+JVM_FILES := $(shell find src/main/java src/main/scala src/main/resources \( -not $(IGNORED_FILE_PATTERN) \))
+IGNORED_PY_FILE_PATTERN = \( $(IGNORED_FILE_PATTERN) -o -name '*.pyc' \)
+PY_FILES := $(shell find python/hail -type f -not $(IGNORED_PY_FILE_PATTERN))
 
 build/dev-conda: python/dev-environment.yml
 	conda env update -f $< || conda env create -f $<
@@ -52,8 +55,6 @@ build/prebuilt-native-lib: $(shell find src/main/c -type f -not $(IGNORED_FILE_P
 .PHONY: prebuilt-native-lib
 prebuilt-native-lib: build/prebuilt-native-lib
 
-JVM_FILES := $(shell find src/main/java src/main/scala src/main/resources \( -not $(IGNORED_FILE_PATTERN) \))
-
 build/compile-scala: src/main/resources/build-info.properties env/GRADLE_ARGS
 	./gradlew $(GRADLE_ARGS) compileScala
 	mkdir -p build
@@ -65,28 +66,11 @@ build/libs/hail-all-spark.jar: env/GRADLE_ARGS
 	$(info changed files: $?)
 	./gradlew $(GRADLE_ARGS) shadowJar
 
-.PHONY: compile-scala
-compile-scala: build/compile-scala
-
-.PHONY: jar
-jar: build/libs/hail-all-spark.jar
-
+build/distributions/hail-python.zip: $(PYTHON_GENERATED_FILES)
 build/distributions/hail-python.zip: $(shell find python -type f) env/GRADLE_ARGS
 	./gradlew $(GRADLE_ARGS) archiveZip
 
-.PHONY: zip
-zip: build/distributions/hail-python.zip
-
-IGNORED_PY_FILE_PATTERN = \( $(IGNORED_FILE_PATTERN) -o -name '*.pyc' \)
-PY_FILES := $(shell find python/hail -type f -not $(IGNORED_PY_FILE_PATTERN))
-
-python/hail/hail-all-spark.jar: build/libs/hail-all-spark.jar
-	cp $< $@
-
-build/pip-prepare: build/libs/hail-all-spark.jar $(PY_FILES) env/SPARK_VERSION
-build/pip-prepare: python/README.md python/hail/hail_pip_version
-build/pip-prepare: python/hail/hail_version python/hail/hail-all-spark.jar
-	printf $(SPARK_VERSION) > python/spark_version
+build/pip-prepare: $(PY_FILES) python/README.md $(PYTHON_GENERATED_FILES)
 	mkdir -p build
 	touch build/pip-prepare
 
@@ -94,16 +78,17 @@ build/pip-prepare: python/hail/hail_version python/hail/hail-all-spark.jar
 pip-deploy: build/pip-prepare build/dev-conda
 	. ../loadconda && conda activate hail && ./python/deploy.sh
 
-.PHONY: pip-install
-pip-install: build/pip-install
-
-build/pip-install: python/setup.py python/setup.cfg build/pip-prepare build/dev-conda
+build/pip-install-in-dev-conda: python/setup.py python/setup.cfg build/pip-prepare build/dev-conda
 	. ../loadconda && conda activate hail && pip install -U ./python
 	mkdir -p build
-	touch build/pip-install
+	touch build/pip-install-in-dev-conda
+
+.PHONY: pip-install
+pip-install: python/setup.py python/setup.cfg build/pip-prepare build/dev-conda
+	pip install -U ./python
 
 .PHONY: test-python
-test-python: build/pip-install build/dev-conda
+test-python: build/pip-install-in-dev-conda build/dev-conda
 # re: PY_IGNORE_IMPORTMISMATCH, https://github.com/pytest-dev/pytest/issues/2042#issuecomment-429289164
 	. ../loadconda && conda activate hail && PY_IGNORE_IMPORTMISMATCH=1 pytest -v \
 	  -n $(PARALLELISM) \
@@ -118,18 +103,6 @@ test-python: build/pip-install build/dev-conda
 	  --ignore=python/hail/docs/conf.py \
 	  --ignore=python/hail/docs/doctest_write_data.py \
 	  python/test python/hail $(PYTEST_ARGS)
-
-.PHONY: benchmark
-benchmark: build/pip-install build/dev-conda
-	. ../loadconda && conda activate hail && cd python && python -m benchmark
-
-.PHONY: gradle-tests
-gradle-test: env/GRADLE_ARGS
-	./gradlew $(GRADLE_ARGS) test
-
-.PHONY: gradle-tests
-gradle-test-cpp-codegen: env/GRADLE_ARGS
-	./gradlew $(GRADLE_ARGS) testCppCodegen
 
 build/credentials.json:
 	mkdir -p build
@@ -151,21 +124,53 @@ test-pip-deploy: build/twine-credentials/pypi-username build/twine-credentials/p
 	mkdir -p build
 	touch build/test-pip-deploy
 
-.PHONY: test
-test: test-python gradle-test gradle-test-cpp-codegen build/test-native-lib
-test: test-pip-install
-
 src/main/resources/build-info.properties: env/SPARK_VERSION env/HAIL_PIP_VERSION env/GIT_SHA
 	bash generate-build-info.sh $(SPARK_VERSION) $(HAIL_PIP_VERSION) $(GIT_SHA)
 
+PYTHON_GENERATED_FILES += python/hail/hail-all-spark.jar
+python/hail/hail-all-spark.jar: build/libs/hail-all-spark.jar
+	cp $< $@
+
+PYTHON_GENERATED_FILES += python/hail/hail_pip_version
 python/hail/hail_pip_version: env/HAIL_PIP_VERSION
 	printf $(HAIL_PIP_VERSION) > $@
 
+PYTHON_GENERATED_FILES += python/hail/hail_version
 python/hail/hail_version: env/HAIL_PIP_VERSION env/GIT_SHA
 	printf $(HAIL_PIP_VERSION)-$(shell printf "$(GIT_SHA)" | head -c 12) > $@
 
+PYTHON_GENERATED_FILES += python/spark_version
+python/spark_version: env/SPARK_VERSION
+	printf $(SPARK_VERSION) > python/spark_version
+
+PYTHON_GENERATED_FILES += python/README.md
 python/README.md: ../README.md
 	cp $< python/
+
+.PHONY: compile-scala
+compile-scala: build/compile-scala
+
+.PHONY: jar
+jar: build/libs/hail-all-spark.jar
+
+.PHONY: zip
+zip: build/distributions/hail-python.zip
+
+.PHONY: benchmark
+benchmark: build/pip-install-in-dev-conda build/dev-conda
+	. ../loadconda && conda activate hail && cd python && python -m benchmark
+
+.PHONY: gradle-tests
+gradle-test: env/GRADLE_ARGS
+	./gradlew $(GRADLE_ARGS) test
+
+.PHONY: gradle-tests
+gradle-test-cpp-codegen: env/GRADLE_ARGS
+	./gradlew $(GRADLE_ARGS) testCppCodegen
+
+.PHONY: test
+test: test-python gradle-test gradle-test-cpp-codegen build/test-native-lib
+test: test-pip-deploy
 
 .PHONY: docs
 docs: SPHINXOPTS = -tchecktutorial
