@@ -50,11 +50,12 @@ case class SparkShuffle(child: SparkStage)
 case class SparkBinding(name: String, value: SparkPipeline)
 
 case class SparkStage(
-  globals: List[SparkBinding],
+  globals: List[SparkBinding], // globals.head is the globals of the current table; globals.tail can be any other global information that might be needed.
   rvdType: RVDType,
   partitioner: RVDPartitioner,
   rdds: Map[String, RDD[RegionValue]],
-  contextType: Type, context: Array[Any],
+  contextType: Type,
+  context: Array[Any],
   body: IR) {
 
   def codecSpec: CodecSpec = CodecSpec.defaultUncompressed
@@ -70,10 +71,7 @@ case class SparkStage(
     rvb2.startStruct()
     globals.foreach { case SparkBinding(_, value) =>
       val (typ, off) = value.execute(sc, region)
-      if (typ.isFieldDefined(region, off, 0))
-        rvb2.addRegionValue(typ.types(0), region, typ.loadField(region, off, 0))
-      else
-        rvb2.setMissing()
+      rvb2.addField(typ, region, off, 0)
     }
     rvb2.endStruct()
 
@@ -159,11 +157,7 @@ case class SparkStage(
     rvb.startArray(values.length)
     val dec = codecSpec.buildDecoder(resultType, resultType)
     values.foreach { v =>
-      val off = RegionValue.fromBytes(dec, region, v)
-      if (resultType.isFieldDefined(region, off, 0))
-        rvb.addRegionValue(resultType.types(0), region, resultType.loadField(region, off, 0))
-      else
-        rvb.setMissing()
+      rvb.addField(resultType, region, RegionValue.fromBytes(dec, region, v), 0)
     }
     rvb.endArray()
   }
@@ -196,10 +190,10 @@ object LowerTableIR {
           "global" -> lowered.globals.head.value.body)))
 
     case node if node.children.exists( _.isInstanceOf[TableIR] ) =>
-      throw new cxx.CXXUnsupportedOperation("IR nodes with TableIR children must be defined explicitly")
+      throw new cxx.CXXUnsupportedOperation(s"IR nodes with TableIR children must be defined explicitly: \n${ Pretty(node) }")
 
     case node if node.children.exists( _.isInstanceOf[MatrixIR] ) =>
-      throw new cxx.CXXUnsupportedOperation("MatrixIR nodes must be lowered to TableIR nodes separately.")
+      throw new cxx.CXXUnsupportedOperation(s"MatrixIR nodes must be lowered to TableIR nodes separately: \n${ Pretty(node) }")
 
     case _ =>
       val pipelines = ir.children.map { case c: IR => lower(c) }
@@ -258,6 +252,6 @@ object LowerTableIR {
       loweredChild.copy(body = ArrayMap(loweredChild.body, row.name, Subst(newRow, env)))
 
     case node =>
-      throw new cxx.CXXUnsupportedOperation("undefined")
+      throw new cxx.CXXUnsupportedOperation(s"undefined: \n${ Pretty(node) }")
   }
 }
