@@ -329,7 +329,7 @@ object PruneDeadFields {
       case TableOrderBy(child, sortFields) =>
         memoizeTableIR(child, child.typ.copy(
           rowType = unify(child.typ.rowType,
-            child.typ.rowType.filterSet(sortFields.map(_.field).toSet)._1,
+            child.typ.rowType.filterSet((sortFields.map(_.field) ++ child.typ.key).toSet)._1,
             requestedType.rowType),
           globalType = requestedType.globalType), memo)
       case TableDistinct(child) =>

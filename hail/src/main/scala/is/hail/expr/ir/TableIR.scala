@@ -1286,10 +1286,18 @@ case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
   }
 }
 
+object TableOrderBy {
+  def isAlreadyOrdered(sortFields: IndexedSeq[SortField], prevKey: IndexedSeq[String]): Boolean = {
+    sortFields.length <= prevKey.length &&
+      sortFields.zip(prevKey).forall { case (sf, k) =>
+        sf.sortOrder == Ascending && sf.field == k
+      }
+  }
+}
+
 case class TableOrderBy(child: TableIR, sortFields: IndexedSeq[SortField]) extends TableIR {
   // TableOrderBy expects an unkeyed child, so that we can better optimize by
   // pushing these two steps around as needed
-  require(child.typ.key.isEmpty)
 
   val children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
 
@@ -1306,11 +1314,7 @@ case class TableOrderBy(child: TableIR, sortFields: IndexedSeq[SortField]) exten
     val prev = child.execute(hc)
 
     val physicalKey = prev.rvd.typ.key
-    if (sortFields.length <= physicalKey.length &&
-      sortFields.zip(physicalKey).forall { case (sf, k) =>
-        sf.sortOrder == Ascending && sf.field == k
-      })
-    // already sorted
+    if (TableOrderBy.isAlreadyOrdered(sortFields, physicalKey))
       return prev
 
     val rowType = child.typ.rowType

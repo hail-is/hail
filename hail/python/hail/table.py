@@ -1206,7 +1206,6 @@ class Table(ExprContainer):
             return hl.bind(lambda s: hl_trunc(s), hl_repr(v))
 
         t = self
-        t = t.head(n + 1)
         t = t.flatten()
         fields = [trunc(f) for f in t.row]
         n_fields = len(fields)
@@ -1215,7 +1214,7 @@ class Table(ExprContainer):
         right_align = [hl.expr.types.is_numeric(t.row[f].dtype) for f in fields]
 
         t = t.select(**{k: hl_format(v) for (k, v) in t.row.items()})
-        rows = t.collect()
+        rows = t.take(n + 1)
 
         has_more = len(rows) > n
         rows = rows[:n]
@@ -2384,7 +2383,6 @@ class Table(ExprContainer):
         t = self
         if complex_exprs:
             t = t.annotate(**complex_exprs)
-        t = t.key_by()
         t = Table(TableOrderBy(t._tir, sort_fields))
         if complex_exprs:
             t = t.drop(*complex_exprs.keys())
