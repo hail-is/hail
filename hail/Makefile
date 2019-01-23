@@ -40,40 +40,47 @@ test-native-lib:
 prebuilt-native-lib:
 	cd src/main/c && $(MAKE) prebuilt
 
-.PHONY: compile-scala
-compile-scala: src/main/resources/build-info.properties native-lib env/GRADLE_ARGS
-	./gradlew $(GRADLE_ARGS) compileScala
+IGNORED_FILE_PATTERN := \( -name '*~' \)
+JVM_FILES := $(shell find src/main/java src/main/scala src/main/resources \( -not $(IGNORED_FILE_PATTERN) \))
 
-JVM_FILES := $(shell find src \( -name '*.java' -o -name '*.scala' \))
-JVM_RESOURCE_FILES := $(shell find src/main/resources src/test/resources)
+build/compile-scala: src/main/resources/build-info.properties native-lib env/GRADLE_ARGS
+	./gradlew $(GRADLE_ARGS) compileScala
+	mkdir -p build
+	touch build/compile-scala
 
 build/libs/hail-all-spark.jar: native-lib src/main/resources/build-info.properties
 build/libs/hail-all-spark.jar: build.gradle settings.gradle $(JVM_FILES)
-build/libs/hail-all-spark.jar: $(JVM_RESOURCE_FILES) env/GRADLE_ARGS
+build/libs/hail-all-spark.jar: env/GRADLE_ARGS
 	$(info changed files: $?)
 	./gradlew $(GRADLE_ARGS) shadowJar
+
+.PHONY: compile-scala
+compile-scala: build/compile-scala
 
 .PHONY: jar
 jar: build/libs/hail-all-spark.jar
 
-.PHONY: zip
-zip: python/src/hail/hail_pip_version python/src/hail/hail_version env/GRADLE_ARGS
+build/distributions/hail-python.zip: $(shell find python -type f) env/GRADLE_ARGS
 	./gradlew $(GRADLE_ARGS) archiveZip
 
-IGNORED_FILE_PATTERN = \( -name '*~'  -o -name '*.pyc' \)
-PY_FILES := $(shell find python/src/hail -type f -not $(IGNORED_FILE_PATTERN))
-PY_TEST_FILES := $(shell find python/tests -type f -not $(IGNORED_FILE_PATTERN))
+.PHONY: zip
+zip: build/distributions/hail-python.zip
+
+IGNORED_PY_FILE_PATTERN = \( $(IGNORED_FILE_PATTERN) -o -name '*.pyc' \)
+PY_FILES := $(shell find python/src/hail -type f -not $(IGNORED_PY_FILE_PATTERN))
+PY_TEST_FILES := $(shell find python/tests -type f -not $(IGNORED_PY_FILE_PATTERN))
 PYTHON_PACKAGE_JAR_LOCATION := python/src/hail/hail-all-spark.jar
 
-build/pip-prepare: build/libs/hail-all-spark.jar $(PY_FILES) env/SPARK_VERSION ../README.md
-	cp $< $(PYTHON_PACKAGE_JAR_LOCATION)
-	cp ../README.md python/
+build/pip-prepare: build/libs/hail-all-spark.jar $(PY_FILES) env/SPARK_VERSION
+build/pip-prepare: python/README.md python/src/hail/hail_pip_version
+build/pip-prepare: python/src/hail/hail_version
+	cp build/libs/hail-all-spark.jar $(PYTHON_PACKAGE_JAR_LOCATION)
 	printf $(SPARK_VERSION) > python/spark_version
 	mkdir -p build
 	touch build/pip-prepare
 
 .PHONY: pip-deploy
-pip-deploy: build/pip-prepare python/src/hail/hail_pip_version python/src/hail/hail_version build/dev-conda
+pip-deploy: build/pip-prepare build/dev-conda
 	. ../loadconda && conda activate hail && ./python/deploy.sh
 
 .PHONY: pip-install
@@ -128,6 +135,9 @@ python/src/hail/hail_pip_version: env/HAIL_PIP_VERSION
 
 python/src/hail/hail_version: env/HAIL_PIP_VERSION env/GIT_SHORT_SHA
 	printf $(HAIL_PIP_VERSION)-$(GIT_SHORT_SHA) > $@
+
+python/README.md: ../README.md
+	cp $< python/
 
 .PHONY: docs
 docs: SPHINXOPTS = -tchecktutorial
