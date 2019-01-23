@@ -29,7 +29,7 @@ e_i : t
 d : [N]
 b : [ZPB]
 ||d|| = ||b||
-Π_i dim_i = ||e||
+product over i of dim_i = ||e||
 -------------
 lit([e_i], d, b) : (d, b, t)
 
@@ -115,4 +115,4 @@ b_i = b'_j
 + : [t] → t
 * : t × t → t
 ----------------------------------------------
-contract(u, v, i, j, +, *) : (d_k d'_l, b_k b'_l, t)    where k ≠ i and l ≠ j
+contract(u, v, i, j, +, *) : (d_k d'_l, b_k b'_l, t)    where k != i and l != j
