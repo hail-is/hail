@@ -106,7 +106,7 @@ def maximal_independent_set(i, j, keep=True, tie_breaker=None, keyed=True) -> Ta
         If ``True``, key the resulting table by the `node` field, this requires
         a sort.
 
-    returns
+    Returns
     -------
     :class:`.Table`
         Table with the set of independent vertices. The table schema is one row
