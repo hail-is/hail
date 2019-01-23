@@ -58,7 +58,7 @@ To use Hail with other Hail versions of Spark 2, you'll need to build your own J
 distribution. To build against a different version, such as Spark 2.3.0, run the following command inside the directory
 where Hail is located::
 
-    ./gradlew -Dspark.version=2.3.0 shadowJar
+    SPARK_VERSION=2.3.0 make jar
 
 The Spark version in this command should match whichever version of Spark you would like to build against.
 
@@ -92,7 +92,7 @@ Hail should be built on the master node of the Spark cluster with the following
 command, replacing ``2.2.0`` with the version of Spark available on your
 cluster::
 
-    ./gradlew -Dspark.version=2.2.0 shadowJar archiveZip
+    SPARK_VERSION=2.2.0 make jar zip
 
 Python and IPython need a few environment variables to correctly find Spark and
 the Hail jar. We recommend you set these environment variables in the relevant
@@ -185,7 +185,7 @@ the same as above, except:
    version of Spark. The following example builds a Hail JAR for Cloudera's
    2.2.0 version of Spark::
 
-    ./gradlew shadowJar -Dspark.version=2.2.0.cloudera
+    SPARK_VERSION=2.2.0.cloudera make jar
 
  - On a Cloudera cluster, ``SPARK_HOME`` should be set as:
    ``SPARK_HOME=/opt/cloudera/parcels/SPARK2/lib/spark2``,
@@ -219,4 +219,3 @@ If natives are not found, ``hail.log`` will contain these warnings:
     Failed to load implementation from: com.github.fommil.netlib.NativeSystemBLAS
 
 See `netlib-java <http://github.com/fommil/netlib-java>`_ for more information.
-

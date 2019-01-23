@@ -10,121 +10,52 @@ Requirements
 You'll need:
 
 - `Java 8 JDK <http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html>`_
-- `Spark 2.2.0 <https://www.apache.org/dyn/closer.lua/spark/spark-2.2.0/spark-2.2.0-bin-hadoop2.7.tgz>`_
-
-  - Hail will work with other bug fix versions of Spark 2.2.x, but it *will not* work with Spark 1.x.x, 2.0.x, or 2.1.x.
-
-- `Anaconda for Python 3 <https://www.anaconda.com/download>`_
+- Python 3.6 or later, we recommend `Anaconda's Python 3 <https://www.anaconda.com/download/>`_
 
 Building a Hail JAR
 ~~~~~~~~~~~~~~~~~~~
 
-To build Hail from source, you will need a C++ compiler and lz4. On a Debian-based OS like Ubuntu, a C++ compiler can be installed with apt-get::
+To build Hail from source, you will need a C++ compiler and lz4. From the root
+of the Hail repository, install a C++ compiler and lz4, as well as other
+essential hail environment things::
 
-    sudo apt-get install g++
+    ./env-setup.sh
 
-On Mac OS X, a C++ compiler is provided by the Apple Xcode::
+Build a Hail jar compatible with Spark 2.2.0:
 
-    xcode-select --install
-
-To install lz4 on a Debian-based OS, run::
-    
-    sudo apt-get install liblz4-dev
-
-On Mac OS X, ensure you have Homebrew and run::
-    
-    brew install lz4
-
-The Hail source code is hosted `on GitHub <https://github.com/hail-is/hail>`_::
-
-    git clone https://github.com/hail-is/hail.git
-    cd hail/hail
-
-A Hail JAR can be built using Gradle. Note that every Hail JAR is specific to
-one version of Spark::
-
-    ./gradlew -Dspark.version=2.2.0 shadowJar
+    SPARK_VERSION=2.2.0 make jar
 
 
-Environment Variables and Conda Environments
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-You will need to set some environment variables so that Hail can find Spark, Spark can find Hail, and Python can find Hail. Add these lines to your ``.bashrc`` or equivalent, setting ``SPARK_HOME`` to the root directory of a Spark installation and ``HAIL_HOME`` to the root of the Hail repository::
-
-    export SPARK_HOME=/path/to/spark
-    export HAIL_HOME=/path/to/hail/hail
-    export PYTHONPATH="$PYTHONPATH:$HAIL_HOME/python:$SPARK_HOME/python:`echo $SPARK_HOME/python/lib/py4j*-src.zip`"
-    export SPARK_CLASSPATH=$HAIL_HOME/build/libs/hail-all-spark.jar
-    export PYSPARK_SUBMIT_ARGS="--conf spark.driver.extraClassPath=$SPARK_CLASSPATH --conf spark.executor.extraClassPath=$SPARK_CLASSPATH --driver-memory 8G pyspark-shell"
-
+Conda Environments
+~~~~~~~~~~~~~~~~~~
 
 Hail uses `conda environments <https://conda.io/docs/using/envs.html>`_ to
-manage some of hail's python dependencies. First, create a conda
-environment for hail:
-
-.. code-block:: bash
-
-    conda env create -f ./python/hail/dev-environment.yml
-
-Activate the environment
-
-.. code-block:: bash
-
-    source activate hail
-
-Now the shell prompt should include the name of the environment, in this case
-"hail".
-
-Now you can import hail from a python interpreter::
-
-    $ python
-    Python 3.6.5 |Anaconda, Inc.| (default, Mar 29 2018, 13:14:23)
-    [GCC 4.2.1 Compatible Clang 4.0.1 (tags/RELEASE_401/final)] on darwin
-    Type "help", "copyright", "credits" or "license" for more information.
-
-    >>> import hail as hl
-
-    >>> hl.init() # doctest: +SKIP
-    Using Spark's default log4j profile: org/apache/spark/log4j-defaults.properties
-    Setting default log level to "WARN".
-    To adjust logging level use sc.setLogLevel(newLevel). For SparkR, use setLogLevel(newLevel).
-    Running on Apache Spark version 2.2.0
-    SparkUI available at http://10.1.6.36:4041
-    Welcome to
-         __  __     <>__
-        / /_/ /__  __/ /
-       / __  / _ `/ / /
-      /_/ /_/\_,_/_/_/   version devel-9f866ba
-    NOTE: This is a beta version. Interfaces may change
-      during the beta period. We also recommend pulling
-      the latest changes weekly.
-
-    >>>
+manage python dependencies. You should not need to directly manipulate them. The
+Makefile handles creating, updating, activating, and deactivating them.
 
 
-When you are finished developing hail, disable the environment
+Installing Hail Locally
+~~~~~~~~~~~~~~~~~~~~~~~
 
-.. code-block:: bash
+Install the currently checked out version of hail (you may want to do this from
+within a conda environment or virtualenv)::
 
-    source deactivate hail
+    make pip-install
 
-The ``dev-environment.yml`` file may change without warning; therefore, after
-pulling new changes from a remote repository, we always recommend updating the
-conda environment
+Spark Configuration
+~~~~~~~~~~~~~~~~~~~
 
-.. code-block:: bash
+You may find it helpful to increase the memory available to Spark::
 
-    conda env update hail -f ./python/hail/dev-environment.yml
+    export PYSPARK_SUBMIT_ARGS="--driver-memory 8G pyspark-shell"
 
 
 Building the Docs
 ~~~~~~~~~~~~~~~~~
 
-Within the "hail" environment, run the ``makeDocs`` gradle task:
-
 .. code-block:: bash
 
-    ./gradlew makeDocs
+    make docs
 
 The generated docs are located at ``./build/www/docs/0.2/index.html``.
 
@@ -155,7 +86,7 @@ To execute all Hail tests, run:
 
 .. code-block:: bash
 
-    ./gradlew -Dspark.version=${SPARK_VERSION} -Dspark.home=${SPARK_HOME} test
+    make test
 
 Contributing
 ~~~~~~~~~~~~

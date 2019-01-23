@@ -21,10 +21,11 @@ case "$PLATFORM" in
             bash $tmpfile
         }
         install-gcloud() {
-            brew cask install gcloud
+            brew cask install google-cloud-sdk
         }
-        install-jq() {
-            brew install jq
+        install-other-deps() {
+            gcc --version || xcode-select --install
+            brew bundle install --file=Brewfile
         }
         ;;
     linux*)
@@ -41,9 +42,8 @@ case "$PLATFORM" in
             echo "installing gcloud on $PLATFORM is unsupported, please manually install: https://cloud.google.com/sdk/install"
             exit 1
         }
-        install-jq() {
-            echo "installing jq on $PLATFORM is unsupported, please manually install: https://stedolan.github.io/jq/"
-            exit 1
+        install-other-deps() {
+            sudo apt-get install liblz4-dev jq g++
         }
         ;;
     *)
@@ -54,7 +54,7 @@ esac
 docker version || install-docker
 ${CONDA_BINARY} -V || install-conda
 gcloud -v || install-gcloud
-jq --help || install-jq
+install-other-deps
 
 gcloud auth login
 

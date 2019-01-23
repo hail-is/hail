@@ -170,7 +170,6 @@ gradle-test-cpp-codegen: env/GRADLE_ARGS
 
 .PHONY: test
 test: test-python gradle-test gradle-test-cpp-codegen build/test-native-lib
-test: test-pip-deploy
 
 .PHONY: docs
 docs: SPHINXOPTS = -tchecktutorial
