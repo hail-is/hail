@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { memo } from 'react';
 
-const index = () => (
+const index = memo(() => (
   <span className="centered">
     <h3 className={'animated fadeInUp faster'}>
       <a href="https://hail.is/" target="_blank">
@@ -9,6 +9,6 @@ const index = () => (
     </h3>
     {/* <span className={'animated fadeInUp faster'}>All the things</span> */}
   </span>
-);
+));
 
 export default index;
