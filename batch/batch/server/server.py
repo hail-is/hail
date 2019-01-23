@@ -76,8 +76,13 @@ class Job:
             _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
         self._pod_name = pod.metadata.name
         pod_name_job[self._pod_name] = self
-
-        log.info('created pod name: {} for job {}'.format(self._pod_name, self.id))
+        if self._state == 'Cancelled':
+            self._delete_pod()
+            log.info(f'job was cancelled while waiting on pod creation, but has'
+                     'now been deleted, pod name was: {self._pod_name} for job '
+                     f'{self.id}')
+            return
+        log.info(f'created pod name: {self._pod_name} for job {self.id}')
 
     def _delete_pod(self):
         if self._pod_name:
