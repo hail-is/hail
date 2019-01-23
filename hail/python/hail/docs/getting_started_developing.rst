@@ -19,10 +19,13 @@ To build Hail from source, you will need a C++ compiler and lz4. From the root
 of the Hail repository, install a C++ compiler and lz4, as well as other
 essential hail environment things::
 
+    git clone git@github.com:hail-is/hail.git
+    cd hail
     ./env-setup.sh
 
 Build a Hail jar compatible with Spark 2.2.0::
 
+    cd hail
     SPARK_VERSION=2.2.0 make jar
 
 
