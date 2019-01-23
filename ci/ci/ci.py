@@ -6,7 +6,7 @@ import requests
 import threading
 import time
 from batch.client import Job
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, redirect
 from flask_cors import CORS
 
 from .batch_helper import try_to_cancel_job, job_ordering
@@ -217,10 +217,16 @@ def refresh_deploy_jobs(jobs):
 
 @app.route('/force_retest_flat', methods=['POST'])
 def force_retest_flat():
-    d = request.json
+    d = request.form
     source = FQRef(Repo(d['source_repo_owner'], d['source_repo_name']), d['source_branch_name'])
     target = FQRef(Repo(d['target_repo_owner'], d['target_repo_name']), d['target_branch_name'])
-    return _force_retest(source, target)
+    log.info(f'Request from force_retest_flat to retest PR from {source} to {target}')
+    try:
+        prs.build(source, target)
+    except ValueError as e:
+        log.error(f'Could not retest PR from {source} to {target}:\n  {e}')
+        pass
+    return redirect('/ui')
 
 
 @app.route('/force_retest', methods=['POST'])
@@ -228,14 +234,12 @@ def force_retest():
     d = request.json
     source = FQRef.from_json(d['source'])
     target = FQRef.from_json(d['target'])
-    return _force_retest(source, target)
-
-
-def _force_retest(source, target):
+    log.info(f'Request from force_retest to retest PR from {source} to {target}')
     try:
         prs.build(source, target)
         return '', 200
     except ValueError as e:
+        log.error(f'Could not retest PR from {source} to {target}:\n  {e}')
         return str(e), 400
 
 
