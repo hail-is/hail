@@ -280,8 +280,7 @@ object LocalLDPrune {
     callField: String = "GT", r2Threshold: Double = 0.2, windowSize: Int = 1000000, maxQueueSize: Int
   ): Table = {
     val pruner = LocalLDPrune(callField, r2Threshold, windowSize, maxQueueSize)
-    val mv = mt.value
-    new Table(HailContext.get, TableLiteral(pruner.execute(mv)))
+    new Table(HailContext.get, TableLiteral(pruner.execute(mt.value)))
   }
 }
 
