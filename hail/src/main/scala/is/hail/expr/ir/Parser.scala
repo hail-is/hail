@@ -800,6 +800,13 @@ object IRParser {
         }
         val children = matrix_ir_children(env)(it)
         MatrixMultiWrite(children, writer)
+      case "BlockMatrixWrite" =>
+        val path = string_literal(it)
+        val overwrite = boolean_literal(it)
+        val forceRowMajor = boolean_literal(it)
+        val stageLocally = boolean_literal(it)
+        val child = blockmatrix_ir(env)(it)
+        BlockMatrixWrite(child, path, overwrite, forceRowMajor, stageLocally)
       case "JavaIR" =>
         val name = identifier(it)
         env.irMap(name).asInstanceOf[IR]
@@ -1102,6 +1109,28 @@ object IRParser {
     }
   }
 
+  def blockmatrix_ir(env: IRParserEnvironment)(it: TokenIterator): BlockMatrixIR = {
+    punctuation(it, "(")
+    val ir = blockmatrix_ir1(env)(it)
+    punctuation(it, ")")
+    ir
+  }
+
+  def blockmatrix_ir1(env: IRParserEnvironment)(it: TokenIterator): BlockMatrixIR = {
+    identifier(it) match {
+      case "BlockMatrixRead" =>
+        val path = string_literal(it)
+        BlockMatrixRead(path)
+      case "BlockMatrixAdd" =>
+        val left = blockmatrix_ir(env)(it)
+        val right = blockmatrix_ir(env)(it)
+        BlockMatrixAdd(left, right)
+      case "JavaBlockMatrix" =>
+        val name = identifier(it)
+        env.irMap(name).asInstanceOf[BlockMatrixIR]
+    }
+  }
+
   def parse[T](s: String, f: (TokenIterator) => T): T = {
     val it = IRLexer.parse(s).toIterator.buffered
     f(it)
@@ -1121,6 +1150,12 @@ object IRParser {
   def parse_matrix_ir(s: String, refMap: java.util.HashMap[String, String], irMap: java.util.HashMap[String, BaseIR]): MatrixIR =
     parse_matrix_ir(s, IRParserEnvironment(refMap.asScala.toMap.mapValues(parseType), irMap.asScala.toMap))
   def parse_matrix_ir(s: String, env: IRParserEnvironment): MatrixIR = parse(s, matrix_ir(env))
+
+  def parse_blockmatrix_ir(s: String): BlockMatrixIR = parse_blockmatrix_ir(s, IRParserEnvironment())
+  def parse_blockmatrix_ir(s: String, refMap: java.util.HashMap[String, String], irMap: java.util.HashMap[String, BaseIR])
+  : BlockMatrixIR =
+    parse_blockmatrix_ir(s, IRParserEnvironment(refMap.asScala.toMap.mapValues(parseType), irMap.asScala.toMap))
+  def parse_blockmatrix_ir(s: String, env: IRParserEnvironment): BlockMatrixIR = parse(s, blockmatrix_ir(env))
 
   def parseType(code: String): Type = parse(code, type_expr)
 

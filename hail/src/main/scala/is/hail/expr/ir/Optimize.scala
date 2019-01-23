@@ -33,6 +33,8 @@ object Optimize {
 
   def apply(ir: MatrixIR): MatrixIR = apply(ir, true, true)
 
+  def apply(ir: BlockMatrixIR): BlockMatrixIR = ir //Currently no BlockMatrixIR that can be optimized
+
   def apply(ir: IR, noisy: Boolean, canGenerateLiterals: Boolean): IR =
     optimize(ir, noisy, canGenerateLiterals).asInstanceOf[IR]
 

@@ -10,6 +10,7 @@ import is.hail.expr.ir.functions.{IRFunctionRegistry, RegistryFunctions, SeededI
 import is.hail.expr.types.TableType
 import is.hail.expr.types.virtual._
 import is.hail.io.bgen.MatrixBGENReader
+import is.hail.linalg.BlockMatrix
 import is.hail.methods.{ForceCountMatrixTable, ForceCountTable}
 import is.hail.rvd.RVD
 import is.hail.table.{Ascending, Descending, SortField, Table}
@@ -956,6 +957,8 @@ class IRSuite extends SparkSuite {
     val bgenReader = MatrixBGENReader(FastIndexedSeq("src/test/resources/example.8bits.bgen"), None, Map.empty[String, String], None, None, None)
     val bgen = MatrixRead(bgenReader.fullType, false, false, bgenReader)
 
+    val blockMatrix = BlockMatrixRead(tmpDir.createLocalTempFile())
+
     val irs = Array(
       i, I64(5), F32(3.14f), F64(3.14), str, True(), False(), Void(),
       Cast(i, TFloat64()),
@@ -1022,7 +1025,8 @@ class IRSuite extends SparkSuite {
       MatrixWrite(vcf, MatrixPLINKWriter(tmpDir.createLocalTempFile())),
       MatrixWrite(bgen, MatrixGENWriter(tmpDir.createLocalTempFile())),
       MatrixMultiWrite(Array(mt, mt), MatrixNativeMultiWriter(tmpDir.createLocalTempFile())),
-      MatrixAggregate(mt, MakeStruct(Seq("foo" -> count)))
+      MatrixAggregate(mt, MakeStruct(Seq("foo" -> count))),
+      BlockMatrixWrite(blockMatrix, tmpDir.createLocalTempFile(), false, false, false)
     )
     irs.map(x => Array(x))
   }
@@ -1179,6 +1183,16 @@ class IRSuite extends SparkSuite {
     }
   }
 
+  @DataProvider(name = "blockMatrixIRs")
+  def blockMatrixIRs(): Array[Array[BlockMatrixIR]] = {
+    val read = BlockMatrixRead(tmpDir.createLocalTempFile())
+    val add = BlockMatrixAdd(read, read)
+
+    val blockMatrixIRs = Array[BlockMatrixIR](read, add)
+
+    blockMatrixIRs.map(ir => Array(ir))
+  }
+
   @Test(dataProvider = "valueIRs")
   def testValueIRParser(x: IR) {
     val env = IRParserEnvironment(refMap = Map(
@@ -1212,6 +1226,13 @@ class IRSuite extends SparkSuite {
     assert(x2 == x)
   }
 
+  @Test(dataProvider = "blockMatrixIRs")
+  def testBlockMatrixIRParser(x: BlockMatrixIR) {
+    val s = Pretty(x)
+    val x2 = IRParser.parse_blockmatrix_ir(s)
+    assert(x2 == x)
+  }
+
   @Test def testCachedIR() {
     val cached = Literal(TSet(TInt32()), Set(1))
     val s = s"(JavaIR __uid1)"
@@ -1230,6 +1251,13 @@ class IRSuite extends SparkSuite {
     val cached = MatrixTable.range(hc, 3, 7, None).ast
     val s = s"(JavaMatrix __uid1)"
     val x2 = IRParser.parse_matrix_ir(s, IRParserEnvironment(refMap = Map.empty, irMap = Map("__uid1" -> cached)))
+    assert(x2 eq cached)
+  }
+
+  @Test def testCachedBlockMatrixIR() {
+    val cached = new BlockMatrixLiteral(BlockMatrix.fill(hc, 3, 7, 1))
+    val s = s"(JavaBlockMatrix __uid1)"
+    val x2 = IRParser.parse_blockmatrix_ir(s, IRParserEnvironment(refMap = Map.empty, irMap = Map("__uid1" -> cached)))
     assert(x2 eq cached)
   }
 
