@@ -50,7 +50,7 @@ class Interval(object):
         else:
             bounds = f'{self._start}-{self._end}'
         open = '[' if self._includes_start else '('
-        close = '[' if self._includes_end else '('
+        close = ']' if self._includes_end else ')'
         return f'{open}{bounds}{close}'
 
     def __repr__(self):
