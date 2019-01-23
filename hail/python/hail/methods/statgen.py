@@ -3191,10 +3191,13 @@ def _local_ld_prune(mt, call_field, r2=0.2, bp_window_size=1000000, memory_per_c
 
     info(f'ld_prune: running local pruning stage with max queue size of {max_queue_size} variants')
 
-    sites_only_table = Table._from_java(Env.hail().methods.LocalLDPrune.apply(
-        mt._jmt, call_field, float(r2), bp_window_size, max_queue_size))
-
-    return sites_only_table
+    return Table(MatrixToTableApply(mt._mir, {
+        'name': 'LocalLDPrune',
+        'callField': call_field,
+        'r2Threshold': float(r2),
+        'windowSize': bp_window_size,
+        'maxQueueSize': max_queue_size
+    }))
 
 
 @typecheck(call_expr=expr_call,
