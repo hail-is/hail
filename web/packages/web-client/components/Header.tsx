@@ -1,4 +1,4 @@
-import { PureComponent } from 'react';
+import { PureComponent, Fragment } from 'react';
 import Link from 'next/link';
 import {
   logout,
@@ -7,7 +7,7 @@ import {
   isAuthenticated
 } from '../libs/auth';
 import './Header/header.scss';
-import Router, { withRouter } from 'next/router';
+import { withRouter } from 'next/router';
 
 const bStyle = 'link-button';
 
@@ -30,6 +30,10 @@ class Header extends PureComponent {
     });
   };
 
+  onLogout() {
+    logout();
+  }
+
   constructor(props: any) {
     super(props);
 
@@ -48,16 +52,6 @@ class Header extends PureComponent {
   componentWillUnmount() {
     removeListener(listenerID);
   }
-
-  logout = () => {
-    logout();
-    this.setState({
-      showProfileControls: false,
-      // sanity check, and slightly faster update
-      isLoggedIn: false
-    });
-    Router.replace('/');
-  };
 
   render() {
     // TODO: Figure out why typing information not being read
@@ -89,34 +83,45 @@ class Header extends PureComponent {
             Scorecard
           </a>
         </Link>
-        <span style={{ marginLeft: 'auto' }}>
-          {this.state.isLoggedIn ? (
-            <span
-              tabIndex={0}
-              style={{ outline: 'none' }}
-              onBlur={this.onProfileLeave}
-            >
-              <a className="icon-button" onClick={this.onProfileHover}>
-                <i className="material-icons">face</i>
-              </a>
-              <span>
-                {this.state.showProfileControls && (
-                  <span id="profile-menu">
-                    <a onClick={this.logout}>Logout</a>
-                  </span>
-                )}
-              </span>
-            </span>
-          ) : (
-            <Link href="/login" prefetch>
-              <a
-                className={`${bStyle} ${pathname === '/login' ? 'active' : ''}`}
-              >
-                Login
+        <span id="profile-divider" />
+        {this.state.isLoggedIn ? (
+          <Fragment>
+            <Link href="/user" prefetch>
+              <a className={`${bStyle}`} href="/">
+                Profile
               </a>
             </Link>
-          )}
-        </span>
+            <button className={`${bStyle}`} onClick={this.onLogout}>
+              Log out
+            </button>
+            {/* TODO: Add back in for narrow views
+              // <span id="narrow-view" style={{ marginLeft: 'auto' }}>
+              //   <span
+              //     tabIndex={0}
+              //     style={{ outline: 'none' }}
+              //     onBlur={this.onProfileLeave}
+              //   >
+              //     <a className="icon-button" onClick={this.onProfileHover}>
+              //       <i className="material-icons">face</i>
+              //     </a>
+              //     <span>
+              //       {this.state.showProfileControls && (
+              //         <span id="profile-menu">
+              //           <a onClick={this.logout}>Logout</a>
+              //         </span>
+              //       )}
+              //     </span>
+              //   </span>
+              // </span>
+            */}
+          </Fragment>
+        ) : (
+          <Link href="/login" prefetch>
+            <a className={`${bStyle} ${pathname === '/login' ? 'active' : ''}`}>
+              Login
+            </a>
+          </Link>
+        )}
       </span>
     );
   }

@@ -3,8 +3,6 @@ import auth from '../libs/auth';
 import fetch from 'isomorphic-unfetch';
 import getConfig from 'next/config';
 
-import '../styles/pages/notebook.scss';
-
 const DOMAIN = getConfig().publicRuntimeConfig.NOTEBOOK.DOMAIN;
 
 class Notebook extends PureComponent {
@@ -30,7 +28,7 @@ class Notebook extends PureComponent {
 
   render() {
     return (
-      <div id="notebook">
+      <div id="notebook" className="centered">
         <button>Create</button>
       </div>
     );

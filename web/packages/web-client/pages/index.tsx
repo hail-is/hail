@@ -1,8 +1,7 @@
 import React from 'react';
-import '../styles/pages/index.scss';
 
 const index = () => (
-  <span id="index">
+  <span className="centered">
     <h3 className={'animated fadeInUp faster'}>
       <a href="https://hail.is/" target="_blank">
         Hail

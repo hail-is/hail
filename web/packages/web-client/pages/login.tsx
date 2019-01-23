@@ -42,7 +42,7 @@ class Login extends PureComponent<LoginProps> {
 
   render() {
     return (
-      <span id="login">
+      <span id="login" className="centered">
         {this.state.failed ? (
           <div>Unauthorized!</div>
         ) : (

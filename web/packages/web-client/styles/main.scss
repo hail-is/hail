@@ -10,7 +10,7 @@ html {
 button,
 input {
   margin: 0px;
-  font-size: .875rem
+  font-size: 0.875rem;
 }
 
 *,
@@ -37,6 +37,9 @@ input {
     flex-direction: column;
     padding: 14px;
     min-height: calc(100vh - 50px * 2);
+    .centered {
+      margin: auto;
+    }
   }
   #footer {
     /* padding: 7px; */
