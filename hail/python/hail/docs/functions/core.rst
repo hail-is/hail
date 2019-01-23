@@ -10,6 +10,7 @@ Core language functions
     switch
     case
     bind
+    rbind
     null
     str
     is_missing
@@ -26,6 +27,7 @@ Core language functions
 .. autofunction:: switch
 .. autofunction:: case
 .. autofunction:: bind
+.. autofunction:: rbind
 .. autofunction:: null
 .. autofunction:: str
 .. autofunction:: is_missing
