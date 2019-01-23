@@ -9,7 +9,7 @@ v u = concatenate v and u, if v and u are both vectors or lists
 # Types
 
 t ∈ HailType := tint32 | tint64 | tarray(t)
-r ∈ BigTensorType := (dimensions: [N], blocks: [], type: HailType)
+r ∈ BigTensorType := (dimensions: [N], blocks: [ZPB], type: HailType)
 
 # Terms
 
