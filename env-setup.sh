@@ -23,6 +23,9 @@ case "$PLATFORM" in
         install-gcloud() {
             brew cask install gcloud
         }
+        install-jq() {
+            brew install jq
+        }
         ;;
     linux*)
         install-docker() {
@@ -38,6 +41,10 @@ case "$PLATFORM" in
             echo "installing gcloud on $PLATFORM is unsupported, please manually install: https://cloud.google.com/sdk/install"
             exit 1
         }
+        install-jq() {
+            echo "installing jq on $PLATFORM is unsupported, please manually install: https://stedolan.github.io/jq/"
+            exit 1
+        }
         ;;
     *)
         echo "unsupported platform $PLATFORM if you think this is the wrong platform, explicitly set $HAIL_PLATFORM"
@@ -47,6 +54,7 @@ esac
 docker version || install-docker
 ${CONDA_BINARY} -V || install-conda
 gcloud -v || install-gcloud
+jq --help || install-jq
 
 gcloud auth login
 
