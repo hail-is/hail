@@ -38,10 +38,7 @@ case class SparkPipeline(stages: Map[String, SparkStage], body: IR) {
     val ref = Ref(genUID(), inputType)
     val node = MakeTuple(FastSeq(Subst(body, Env[IR](fields.map { case (name, _) => name -> GetField(ref, name) }.toFastSeq : _*))))
     val f = cxx.Compile(ref.name, inputType.physicalType, node, optimize = true)
-    val st = new NativeStatus()
-    val off = f(st, region.get(), rvb.end())
-    assert(st.ok, st.toString())
-    (node.pType.asInstanceOf[PTuple], off)
+    (node.pType.asInstanceOf[PTuple], f(region.get(), rvb.end()))
   }
 }
 
@@ -117,9 +114,7 @@ case class SparkStage(
        """.stripMargin
     wrapper.end()
     val mod = tub.end().build("-O2")
-    val st = new NativeStatus()
-    mod.findOrBuild(st)
-    assert(st.ok, st.toString())
+    mod.findOrBuild()
 
     val key = mod.getKey
     val bin = mod.getBinary
@@ -130,11 +125,10 @@ case class SparkStage(
 
     val values = sc.parallelize(context, context.length).mapPartitions { ctxIt =>
       val ctx = ctxIt.next()
-      val st = new NativeStatus()
+      assert(!ctxIt.hasNext)
 
       val mod = new NativeModule(key, bin)
-      val f = mod.findLongFuncL3(st, "process_partition_wrapper")
-      assert(st.ok, st.toString())
+      val f = mod.findLongFuncL3("process_partition_wrapper")
 
       Region.scoped { region =>
         val rvb = new RegionValueBuilder(region)
@@ -145,9 +139,7 @@ case class SparkStage(
         rvb.addAnnotation(localContextType, ctx)
         val contextOff = rvb.end()
 
-        val result = f(st, region.get(), globalsOff, contextOff)
-        if (st.fail)
-          fatal(st.toString())
+        val result = f(region.get(), globalsOff, contextOff)
 
         val encoded = RegionValue.toBytes(resultEncoder, region, result)
         Iterator.single(encoded)
