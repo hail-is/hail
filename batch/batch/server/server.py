@@ -175,6 +175,7 @@ class Job:
             log.info(f'parent {parent_id} successfully complete for {self.id}')
             self.incomplete_parent_ids.discard(parent_id)
             if not self.incomplete_parent_ids:
+                assert self._state in ('Cancelled', 'Created'), f'bad state: {self._state}'
                 if self._state != 'Cancelled':
                     log.info(f'all parents successfully complete for {self.id},'
                              f' creating pod')
