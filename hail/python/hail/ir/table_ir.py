@@ -500,7 +500,7 @@ class MatrixToTableApply(TableIR):
                  ._insert_fields(**{f: child_typ.row_type[f] for f in pass_through})
                  ._concat(poisreg_type)),
                 child_typ.row_key)
-        else name == 'Skat':
+        elif name == 'Skat':
             key_field = self.config['keyField']
             key_type = child_typ.row_type[key_field]
             skat_type = hl.dtype(f'struct{{id:{key_type},size:int32,q_stat:float64,p_value:float64,fault:int32}}')
