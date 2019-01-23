@@ -59,6 +59,12 @@ b' : [N]
        bc(u, d', b') : (d', b', t)
 
 
+I intend this to be the numpy right-align rule. First, find some suffix that
+matches dimension sizes and block sizes. Second, there must be some whole number
+multiplier that we can broadcast by for the remaining prefix of dimensions.
+
+
+
 u : (d, b, t)
 e : P(P(N))              P means power set
 0 < i < ||d||
