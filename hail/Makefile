@@ -135,11 +135,11 @@ gradle-test: env/GRADLE_ARGS
 gradle-test-cpp-codegen: env/GRADLE_ARGS
 	./gradlew $(GRADLE_ARGS) testCppCodegen
 
-.PHONY: test-pip-install
-test-pip-install:
-	PIP_VERSION_SUFFIX=$(shell python next_unused_dev_pypi_version.py hail) $(MAKE) pip-install
+.PHONY: test-pip-deploy
+test-pip-deploy:
+	PIP_VERSION_SUFFIX=$(shell python next_unused_dev_pypi_version.py hail) $(MAKE) pip-deploy
 	mkdir -p build
-	touch build/test-pip-install
+	touch build/test-pip-deploy
 
 .PHONY: test
 test: test-python gradle-test gradle-test-cpp-codegen build/test-native-lib
