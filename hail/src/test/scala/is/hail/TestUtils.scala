@@ -257,13 +257,8 @@ object TestUtils {
         rvb.endTuple()
         val argsOff = rvb.end()
 
-        using(new NativeStatus) { st =>
-          val st = new NativeStatus()
-          val resultOff = f(st, region.get(), argsOff)
-          assert(st.ok, st.toString())
-
-          SafeRow(resultType.asInstanceOf[TBaseStruct].physicalType, region, resultOff).get(0)
-        }
+        val resultOff = f(region.get(), argsOff)
+        SafeRow(resultType.asInstanceOf[TBaseStruct].physicalType, region, resultOff).get(0)
       }
     }
   }
