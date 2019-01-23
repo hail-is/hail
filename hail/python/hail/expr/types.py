@@ -1209,7 +1209,7 @@ class tlocus(HailType):
 
     def _convert_to_py(self, annotation):
         if annotation is not None:
-            return genetics.Locus._from_java(annotation, self._rg)
+            return genetics.Locus(annotation.contig(), annotation.position(), self._rg)
         else:
             return None
 
