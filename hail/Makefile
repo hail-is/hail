@@ -135,9 +135,23 @@ gradle-test: env/GRADLE_ARGS
 gradle-test-cpp-codegen: env/GRADLE_ARGS
 	./gradlew $(GRADLE_ARGS) testCppCodegen
 
+build/credentials.json:
+	mkdir -p build
+	scp gold.broadinstitute.org:/psych/genetics_data/working/cseed/hail-internal/credentials.json $@
+
+build/twine-credentials/pypi-username: build/credentials.json
+	mkdir -p build/twine-credentials
+	jq -r '.pypi.username' $< > $@
+
+build/twine-credentials/pypi-password: build/credentials.json
+	mkdir -p build/twine-credentials
+	jq -r '.pypi.password' $< > $@
+
 .PHONY: test-pip-deploy
-test-pip-deploy:
-	PIP_VERSION_SUFFIX=$(shell python next_unused_dev_pypi_version.py hail) $(MAKE) pip-deploy
+test-pip-deploy: build/twine-credentials/pypi-username build/twine-credentials/pypi-password
+	PIP_VERSION_SUFFIX=".dev$(shell curl -sSL https://pypi.python.org/pypi/hail/json | python next_unused_dev_pypi_version.py)" \
+	  HAIL_TWINE_CREDS_FOLDER=build/twine-credentials \
+	  $(MAKE) pip-deploy
 	mkdir -p build
 	touch build/test-pip-deploy
 
