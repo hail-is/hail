@@ -2,10 +2,8 @@ from typing import *
 
 from hail.expr import expressions
 from hail.expr.types import *
-from hail.genetics import Locus, Call
 from hail.ir import *
 from hail.typecheck import linked_list
-from hail.utils import Interval, Struct
 from hail.utils.java import *
 from hail.utils.linkedlist import LinkedList
 from .indices import *
@@ -24,6 +22,9 @@ class ExpressionWarning(Warning):
 
 
 def impute_type(x):
+    from hail.genetics import Locus, Call
+    from hail.utils import Interval, Struct
+    
     if isinstance(x, Expression):
         return x.dtype
     elif isinstance(x, bool):

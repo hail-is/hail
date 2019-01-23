@@ -50,7 +50,6 @@ class Locus(object):
         l._contig = jrep.contig()
         l._position = jrep.position()
         l._rg = reference_genome
-        reference_genome._check_locus(jrep)
         super(Locus, l).__init__()
         return l
 
