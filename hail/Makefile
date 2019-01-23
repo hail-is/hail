@@ -79,7 +79,6 @@ zip: build/distributions/hail-python.zip
 
 IGNORED_PY_FILE_PATTERN = \( $(IGNORED_FILE_PATTERN) -o -name '*.pyc' \)
 PY_FILES := $(shell find python/hail -type f -not $(IGNORED_PY_FILE_PATTERN))
-PY_TEST_FILES := $(shell find python/tests -type f -not $(IGNORED_PY_FILE_PATTERN))
 
 python/hail/hail-all-spark.jar: build/libs/hail-all-spark.jar
 	cp $< $@
@@ -98,7 +97,7 @@ pip-deploy: build/pip-prepare build/dev-conda
 .PHONY: pip-install
 pip-install: build/pip-install
 
-build/pip-install: python/setup.py python/MANIFEST.in python/setup.cfg build/pip-prepare build/dev-conda
+build/pip-install: python/setup.py python/setup.cfg build/pip-prepare build/dev-conda
 	. ../loadconda && conda activate hail && pip install -U ./python
 	mkdir -p build
 	touch build/pip-install
