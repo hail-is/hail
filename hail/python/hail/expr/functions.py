@@ -344,8 +344,8 @@ def rbind(*exprs):
 
     :func:`.let` also can take multiple arguments:
 
-    >>> hl.eval(hl.rbind(x, x, lambda x, y: x / y))
-    1.0
+    >>> hl.eval(hl.rbind(4.0, 2.0, lambda x, y: x / y))
+    2.0
 
     Parameters
     ----------
@@ -361,7 +361,7 @@ def rbind(*exprs):
     """
 
     f = exprs[-1]
-    args = [expr_any.check(arg) for arg in exprs[:-1]]
+    args = [expr_any.check(arg, 'rbind', f'argument {index}') for index, arg in enumerate(exprs[:-1])]
 
     return hl.bind(f, *args)
 
