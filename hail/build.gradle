@@ -32,21 +32,10 @@ buildScan {
     licenseAgree = 'yes'
 }
 
-// Hail has three notions of version:
-//  - hail short version: MAJOR.MINOR
-//  - hail pip version: MAJOR.MINOR.PATCH
-//  - hail version: MAJOR.MINOR.PATCH-GIT_SHA, calculated by generateBuildInfo
-String MAJOR = 0
-String MINOR = 2
-String PATCH = 10
-String hailShortVersion = MAJOR.toString() + "." + MINOR.toString()
-// By default pip hides versions ending in ".devN". Use these for testing.
-String hailPipVersion = hailShortVersion + "." + PATCH + System.getProperty("hail.pip-version-suffix", "")
 String[] deployedSparkVersions = new File("deployed-spark-versions.txt").readLines()
 
 String sparkVersion = System.getProperty("spark.version", "2.2.0")
 String breezeVersion = System.getProperty("breeze.version")
-String py4jVersion = System.getProperty("py4j.version")
 
 if (!(sparkVersion ==~ /^2\..*/))
     ant.fail('Hail does not support Spark version ' + sparkVersion + '. Hail team recommends version 2.2.0.')
@@ -55,47 +44,25 @@ String scalaVersion = '2.11.8'
 String scalaMajorVersion = '2.11'
 
 if (sparkVersion == '2.2.0') {
-    if (py4jVersion == null)
-      py4jVersion = '0.10.4'
     if (breezeVersion == null)
       breezeVersion = '0.13.1'
+} else if (sparkVersion == '2.2.1'
+           || sparkVersion == '2.2.2'
+           || sparkVersion == '2.2.3'
+           || sparkVersion == '2.3.0'
+           || sparkVersion == '2.3.1'
+           || sparkVersion == '2.3.2'
+           || sparkVersion == '2.4.0') {
+    if (breezeVersion == null)
+      breezeVersion = '0.13.2'
 } else {
-  if (breezeVersion == null || py4jVersion == null)
-    ant.fail('Unknown Spark version ' + sparkVersion + '. Set breeze.version and py4j.version properties for Spark ' + sparkVersion + '.')
+  if (breezeVersion == null)
+    ant.fail('Unknown Spark version ' + sparkVersion + '. Set breeze.version properties for Spark ' + sparkVersion + '.')
 }
-
-String sparkHome = System.getProperty("spark.home", System.env.SPARK_HOME)
 
 sourceSets.main.scala.srcDir "src/main/java"
 sourceSets.main.java.srcDirs = []
 sourceSets.test.runtimeClasspath += files("prebuilt/lib")
-
-task nativeLib(type: Exec) {
-    workingDir 'src/main/c'
-    executable 'make'
-    outputs.upToDateWhen { false }
-}
-
-task nativeLibTest(type: Exec) {
-    workingDir 'src/main/c'
-    args('test')
-    executable 'make'
-    outputs.upToDateWhen { false }
-}
-
-task nativeLibClean(type: Exec) {
-    workingDir 'src/main/c'
-    args('clean')
-    executable 'make'
-    outputs.upToDateWhen { false }
-}
-
-task nativeLibPrebuilt(type: Exec) {
-    workingDir 'src/main/c'
-    args('prebuilt')
-    executable 'make'
-    outputs.upToDateWhen { false }
-}
 
 sourceSets {
     main {
@@ -104,8 +71,6 @@ sourceSets {
         }
     }
 }
-compileScala.dependsOn(nativeLib)
-clean.dependsOn(nativeLibClean)
 
 task testCppCodegen(type: Test) {
     useTestNG {}
@@ -146,24 +111,7 @@ compileJava {
     options.compilerArgs << "-Xlint:all" << "-Werror"
 }
 
-task generateBuildInfo(type: Exec) {
-    commandLine 'bash', 'generate-build-info.sh', sparkVersion, hailPipVersion
-    outputs.upToDateWhen { false }
-}
-
-task deploy(type: Exec, dependsOn: ['generateBuildInfo', 'shadowJar']) {
-    commandLine 'bash', 'python/deploy.sh'
-    outputs.upToDateWhen { false }
-}
-
-task pipInstall(type: Exec, dependsOn: ['generateBuildInfo', 'shadowJar']) {
-    commandLine 'bash', 'python/pipinstall.sh'
-    outputs.upToDateWhen { false }
-}
-
 compileScala {
-    dependsOn generateBuildInfo
-
     // , "-Xfatal-warnings"
     scalaCompileOptions.additionalParameters = ["-feature"]
     scalaCompileOptions.forkOptions.with {
@@ -268,39 +216,6 @@ test {
 }
 
 test.dependsOn(checkSettings)
-
-task testPython(type: Exec, dependsOn: shadowJar) {
-    commandLine 'pytest',
-            '-v',
-            '-n',
-            parallelism,
-            '--dist=loadscope',
-            '--noconftest',
-            '--color=no',
-            '-r a',
-            '--html=build/reports/pytest.html',
-            '--self-contained-html',
-            'python/test'
-    environment SPARK_HOME: sparkHome
-    environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
-    environment PYSPARK_SUBMIT_ARGS: '--conf spark.driver.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar --conf spark.executor.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar pyspark-shell'
-    environment PYSPARK_PYTHON: 'python3'
-}
-
-task doctest(type: Exec, dependsOn: shadowJar) {
-    commandLine 'sh', 'python/hail/docs/doctest.sh', '-n', parallelism
-    environment SPARK_HOME: sparkHome
-    environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
-    environment PYSPARK_SUBMIT_ARGS: '--conf spark.driver.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar --conf spark.executor.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar pyspark-shell'
-    environment PYSPARK_PYTHON: 'python3'
-}
-
-task benchmark(type: Exec, dependsOn: shadowJar) {
-    commandLine 'python', '-m', 'benchmark'
-    environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
-}
-
-task testAll(dependsOn: ['testPython', 'test', 'doctest', 'testCppCodegen'])
 
 tasks.withType(ShadowJar) {
     manifest {
@@ -453,34 +368,11 @@ task testJar(type: Jar) {
     from sourceSets.test.output
 }
 
-task archiveZip(type: Zip, dependsOn: generateBuildInfo) {
+task archiveZip(type: Zip) {
     from fileTree('python')
     classifier = 'python'
 }
 
 task wrapper(type: Wrapper) {
     gradleVersion = '2.14.1'
-}
-
-task cleanDocs(type: Exec) {
-    commandLine 'rm', '-rf', 'build/www/', 'build/tmp/python', 'build/tmp/docs'
-}
-
-task makeDocs(type: Exec, dependsOn: ['shadowJar', 'generateBuildInfo']) {
-    commandLine 'bash', 'python/hail/docs/makeDocs.sh'
-    environment SPARK_HOME: sparkHome
-    environment PYSPARK_SUBMIT_ARGS: '--master local[4] --conf spark.driver.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar --conf spark.executor.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar pyspark-shell'
-    environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
-    environment HAIL_SHORT_VERSION: hailShortVersion
-    environment SPHINXOPTS: '-tchecktutorial'
-}
-
-task makeDocsNoTest(type: Exec, dependsOn: ['generateBuildInfo']) {
-    commandLine 'bash', 'python/hail/docs/makeDocs.sh'
-    environment SPARK_HOME: sparkHome
-    // makeDocsNoTest does not try to run the notebook contents
-    // so we do not need the PySpark args.
-    environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
-    environment HAIL_SHORT_VERSION: hailShortVersion
-    environment SPHINXOPTS: ''
 }

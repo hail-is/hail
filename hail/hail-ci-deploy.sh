@@ -13,11 +13,7 @@ gcloud auth activate-service-account \
 source activate hail
 
 # build jar, zip, and distribution
-GRADLE_OPTS=-Xmx2048m ./gradlew \
-           shadowJar \
-           archiveZip \
-           makeDocs \
-           --gradle-user-home /gradle-cache
+GRADLE_OPTS=-Xmx2048m GRADLE_ARGS='--gradle-user-home /gradle-cache' make jar zip docs
 
 # update jar, zip, and distribution
 GS_JAR=gs://hail-common/builds/${BRANCH}/jars/hail-${BRANCH}-${SHA}-Spark-${SPARK_VERSION}.jar
