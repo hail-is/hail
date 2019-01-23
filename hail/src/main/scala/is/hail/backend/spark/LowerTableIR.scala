@@ -47,13 +47,16 @@ case class SparkShuffle(child: SparkStage)
 case class SparkBinding(name: String, value: SparkPipeline)
 
 case class SparkStage(
-  globals: List[SparkBinding], // globals.head is the globals of the current table; globals.tail can be any other global information that might be needed.
+  globals: SparkBinding,
+  otherBroadcastVals: List[SparkBinding],
   rvdType: RVDType,
   partitioner: RVDPartitioner,
   rdds: Map[String, RDD[RegionValue]],
   contextType: Type,
   context: Array[Any],
   body: IR) {
+
+  val broadcastVals: List[SparkBinding] = globals +: otherBroadcastVals
 
   def codecSpec: CodecSpec = CodecSpec.defaultUncompressed
 
@@ -62,11 +65,11 @@ case class SparkStage(
 
     val region = rvb.region
 
-    val gType = TStruct(globals.map { b => b.name -> b.value.typ }: _*)
+    val gType = TStruct(broadcastVals.map { b => b.name -> b.value.typ }: _*)
     val rvb2 = new RegionValueBuilder(region)
     rvb2.start(gType.physicalType)
     rvb2.startStruct()
-    globals.foreach { case SparkBinding(_, value) =>
+    broadcastVals.foreach { case SparkBinding(_, value) =>
       val (typ, off) = value.execute(sc, region)
       rvb2.addField(typ, region, off, 0)
     }
@@ -76,7 +79,7 @@ case class SparkStage(
     val globsBC = RegionValue.toBytes(gEncoder, region, rvb2.end())
     val gDecoder = codecSpec.buildDecoder(gType.physicalType, gType.physicalType)
 
-    val env = Env[IR](("context", In(1, contextType)) +: globals.map(b => b.name -> GetField(In(0, gType), b.name)): _*)
+    val env = Env[IR](("context", In(1, contextType)) +: broadcastVals.map(b => b.name -> GetField(In(0, gType), b.name)): _*)
     val resultIR = MakeTuple(FastSeq(Subst(body, env)))
     val resultType = TTuple(body.typ).physicalType
 
@@ -167,11 +170,11 @@ object LowerTableIR {
         invoke("sum", counts))
 
     case TableGetGlobals(child) =>
-      lower(child).globals.head.value
+      lower(child).globals.value
 
     case TableCollect(child) =>
       val lowered = lower(child)
-      val globals = lowered.globals.head
+      val globals = lowered.globals
       val rows = Ref(genUID(), TArray(lowered.body.typ))
       assert(lowered.body.typ.isInstanceOf[TContainer])
       val elt = genUID()
@@ -179,7 +182,7 @@ object LowerTableIR {
         Map((rows.name, lowered) +: globals.value.stages.toSeq: _*),
         MakeStruct(FastIndexedSeq(
           "rows" -> ArrayFlatMap(rows, elt, Ref(elt, lowered.body.typ)),
-          "global" -> lowered.globals.head.value.body)))
+          "global" -> lowered.globals.value.body)))
 
     case node if node.children.exists( _.isInstanceOf[TableIR] ) =>
       throw new cxx.CXXUnsupportedOperation(s"IR nodes with TableIR children must be defined explicitly: \n${ Pretty(node) }")
@@ -209,7 +212,8 @@ object LowerTableIR {
       val i = Ref(genUID(), TInt32())
 
       SparkStage(
-        List(SparkBinding(genUID(), SparkPipeline.local(MakeStruct(Seq())))),
+        SparkBinding(genUID(), SparkPipeline.local(MakeStruct(Seq()))),
+        List(),
         rvdType,
         new RVDPartitioner(Array("idx"), tir.typ.rowType,
           Array.tabulate(nPartitionsAdj) { i =>
@@ -231,15 +235,15 @@ object LowerTableIR {
 
     case TableMapGlobals(child, newGlobals) =>
       val loweredChild = lower(child)
-      val oldGlobals = loweredChild.globals.head.value
+      val oldGlobals = loweredChild.globals.value
       var loweredGlobals = lower(Let("global", oldGlobals.body, newGlobals))
       loweredGlobals = loweredGlobals.copy(stages = loweredGlobals.stages ++ oldGlobals.stages)
-      loweredChild.copy(globals = SparkBinding(genUID(), loweredGlobals) +: loweredChild.globals.tail)
+      loweredChild.copy(globals = SparkBinding(genUID(), loweredGlobals))
 
     case TableMapRows(child, newRow) =>
       val loweredChild = lower(child)
       val row = Ref(genUID(), child.typ.rowType)
-      val global = loweredChild.globals.head
+      val global = loweredChild.globals
       val env: Env[IR] = Env("row" -> row, "global" -> Ref(global.name, global.value.typ))
       loweredChild.copy(body = ArrayMap(loweredChild.body, row.name, Subst(newRow, env)))
 
