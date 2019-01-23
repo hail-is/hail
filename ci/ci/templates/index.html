@@ -64,7 +64,7 @@
             {{ pr.review }}
           </td>
           <td align="left">
-            <form action="https://ci.hail.is/force_retest_flat">
+            <form action="https://ci.hail.is/force_retest_flat" method="POST">
               <input name="source_branch_name" type="hidden" value="{{ pr.source.ref.name }}">
               <input name="source_repo_name" type="hidden" value="{{ pr.source.ref.repo.name }}">
               <input name="source_repo_owner" type="hidden" value="{{ pr.source.ref.repo.owner }}">
