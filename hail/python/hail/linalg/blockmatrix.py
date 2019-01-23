@@ -688,7 +688,7 @@ class BlockMatrix(object):
                 mt._write_block_matrix(path, overwrite, field, block_size)
             else:
                 field = Env.get_uid()
-	        mt.select_entries(**{field: expr})._write_block_matrix(path, overwrite, field, block_size)
+                mt.select_entries(**{field: entry_expr})._write_block_matrix(path, overwrite, field, block_size)
         else:
             n_cols = mt.count_cols()
             mt = mt.select_entries(__x=entry_expr)
@@ -721,7 +721,7 @@ class BlockMatrix(object):
                         expr = hl.or_else(expr, mt['__mean'])
 
             field = Env.get_uid()
-	    mt.select_entries(**{field: expr})._write_block_matrix(path, overwrite, field, block_size)
+            mt.select_entries(**{field: expr})._write_block_matrix(path, overwrite, field, block_size)
 
     @staticmethod
     def _check_indices(indices, size):
