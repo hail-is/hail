@@ -245,12 +245,12 @@ class Tests(unittest.TestCase):
     def test_bind_placement(self):
         self.assertEqual(hl.eval(5 / hl.bind(lambda x: x, 5)), 1.0)
 
-    def test_let_multiple(self):
-        self.assertEqual(hl.eval(hl.let(2, 3, lambda x, y: x * y)), 6)
-        self.assertEqual(hl.eval(hl.let(3, lambda y: y * 2)), 6)
+    def test_rbind_multiple(self):
+        self.assertEqual(hl.eval(hl.rbind(2, 3, lambda x, y: x * y)), 6)
+        self.assertEqual(hl.eval(hl.rbind(3, lambda y: y * 2)), 6)
 
-    def test_let_placement(self):
-        self.assertEqual(hl.eval(5 / hl.let(5, lambda x: x)), 1.0)
+    def test_rbind_placement(self):
+        self.assertEqual(hl.eval(5 / hl.rbind(5, lambda x: x)), 1.0)
 
     def test_matches(self):
         self.assertEqual(hl.eval('\d+'), '\d+')
