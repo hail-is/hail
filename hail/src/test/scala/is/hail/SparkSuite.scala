@@ -27,6 +27,8 @@ class SparkSuite extends TestNGSuite {
 
   lazy val sc: SparkContext = hc.sc
 
+  def initializeHailContext(): Unit = { assert(hc != null) }
+
   lazy val sqlContext: SQLContext = hc.sqlContext
 
   lazy val hadoopConf: hadoop.conf.Configuration = hc.hadoopConf

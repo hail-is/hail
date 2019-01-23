@@ -538,7 +538,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
              |""".stripMargin,
           accm.toString, accv.toString)
 
-      case _: ir.ArrayFilter | _: ir.ArrayRange | _: ir.ArrayMap =>
+      case _: ir.ArrayFilter | _: ir.ArrayRange | _: ir.ArrayMap | _: ir.ArrayFlatMap =>
         val containerPType = x.pType.asInstanceOf[PContainer]
 
         val ae = emitArray(x, env)
@@ -761,6 +761,36 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
                  |    $vv = $v2;
                  |  ${ bodyt.setup }
                  |  ${ f(bodyt.m, bodyt.v) }
+                 |}
+                 |""".stripMargin
+            }
+          }
+        }
+
+      case ir.ArrayFlatMap(a, name, body) =>
+        val aElementPType = a.pType.asInstanceOf[PContainer].elementType
+        val ae = emitArray(a, env)
+
+        val vm = fb.variable("m", "bool")
+        val vv = fb.variable("v", typeToCXXType(aElementPType))
+        val bodyt = outer.emitArray(body,
+          env.bind(name, EmitTriplet(aElementPType, "", vm.toString, vv.toString)))
+
+        new ArrayEmitter(ae.setup, ae.m, ae.setupLen, None) {
+          def emit(f: (Code, Code) => Code): Code = {
+            ae.emit { (m2: Code, v2: Code) =>
+              s"""
+                 |{
+                 |  ${ vm.define }
+                 |  ${ vv.define }
+                 |  $vm = $m2;
+                 |  if (!$vm)
+                 |    $vv = $v2;
+                 |  ${ bodyt.setup }
+                 |  if (!${ bodyt.m }) {
+                 |    ${ bodyt.setupLen }
+                 |    ${ bodyt.emit(f) }
+                 |  }
                  |}
                  |""".stripMargin
             }
