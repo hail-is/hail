@@ -21,7 +21,7 @@ essential hail environment things::
 
     ./env-setup.sh
 
-Build a Hail jar compatible with Spark 2.2.0:
+Build a Hail jar compatible with Spark 2.2.0::
 
     SPARK_VERSION=2.2.0 make jar
 
