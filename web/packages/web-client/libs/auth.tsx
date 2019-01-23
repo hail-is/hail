@@ -11,15 +11,6 @@ import getConfig from 'next/config';
 import cookies, { CookieAttributes } from 'js-cookie';
 import jwtDecode from 'jwt-decode';
 
-const {
-  DOMAIN,
-  AUDIENCE,
-  CLIENT_ID,
-  RESPONSE_TYPE,
-  SCOPE,
-  CALLBACK_SUFFIX
-} = getConfig().publicRuntimeConfig.AUTH0;
-
 // We store all primary states in cookies
 // State derived from the idToken, user, is not stored,
 // This may change if we start issuing requests for user profile data
@@ -53,6 +44,8 @@ declare type cookies = {
   expires: string;
 };
 
+declare type cb = (state: AuthInterface) => void;
+
 interface AuthInterface {
   readonly user?: user;
   readonly idToken?: string;
@@ -60,14 +53,17 @@ interface AuthInterface {
   readonly loggedOut: boolean;
 }
 
+const {
+  DOMAIN,
+  AUDIENCE,
+  CLIENT_ID,
+  RESPONSE_TYPE,
+  SCOPE,
+  CALLBACK_SUFFIX
+} = getConfig().publicRuntimeConfig.AUTH0;
+
 // https://basarat.gitbooks.io/typescript/docs/tips/lazyObjectLiteralInitialization.html
 let _state: stateType = { loggedOut: false };
-
-let _auth0: auth0.WebAuth;
-
-let _sessionPoll: NodeJS.Timeout;
-
-let _checkSessionPromise: Promise<any>;
 
 const Auth: AuthInterface = {
   get user() {
@@ -84,7 +80,11 @@ const Auth: AuthInterface = {
   }
 };
 
-declare type cb = (state: AuthInterface) => void;
+let _auth0: auth0.WebAuth;
+
+let _sessionPoll: NodeJS.Timeout;
+
+let _checkSessionPromise: Promise<any>;
 
 // splice is slow, and iterating over objects 50x slower than over arrays
 // so maintain 2 lists, one with callbacks that may be undefined
@@ -139,28 +139,63 @@ export function initialize() {
   _initState();
 }
 
+// TODO: Re-enable if we wish to switch back to popup mode
+// or delete if we're settled on its depracation
+// export function login(state?: string) {
+//   // If we find logout's don't work properly due to the cookie issue
+//   // add back prompt: 'login',
+// Stangely popup.authorize type signature does not specify type for options
+//   const opts: any = { prompt: 'login', connection: 'google-oauth2' };
+
+//   if (state) {
+//     opts.state = state;
+//   }
+
+//   return new Promise((resolve, reject) => {
+//     if (!_auth0) {
+//       throw new Error('Auth library is not initialized');
+//     }
+
+//     _auth0.popup.authorize(opts, (err, result) => {
+//       if (err) {
+//         return reject(err);
+//       }
+
+//       _loginFromAuth0(result as auth0payload);
+//       return resolve(true);
+//     });
+//   });
+// }
+
 export function login(state?: string) {
   // If we find logout's don't work properly due to the cookie issue
   // add back prompt: 'login',
-  const opts: any = { prompt: 'login', connection: 'google-oauth2' };
+  const opts: auth0.AuthorizeOptions = {
+    prompt: 'login',
+    connection: 'google-oauth2'
+  };
 
   if (state) {
     opts.state = state;
   }
 
-  return new Promise((resolve, reject) => {
-    if (!_auth0) {
-      throw new Error('Auth library is not initialized');
+  _auth0.authorize(opts);
+}
+
+// TODO: investigate failure modes;
+// Auth0 documentaiton specifies checks for accessToken and idToken
+// but there should be no way to have a 200 without these (since they
+// are the only point of authorization)
+export function authenticationCallback(
+  cb: (err: auth0.Auth0ParseHashError | null, res?: stateType) => void
+) {
+  _auth0.parseHash((err, authResult) => {
+    if (err) {
+      return cb(err);
     }
 
-    _auth0.popup.authorize(opts, (err, result) => {
-      if (err) {
-        return reject(err);
-      }
-
-      _loginFromAuth0(result as auth0payload);
-      return resolve(true);
-    });
+    _loginFromAuth0(authResult as auth0payload);
+    cb(null, _state);
   });
 }
 
