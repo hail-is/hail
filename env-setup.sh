@@ -61,9 +61,9 @@ gcloud auth login
 PROJECT_NAME=$(gcloud config get-value project)
 if [[ "$PROJECT_NAME" == "(unset)" ]]
 then
-    echo "no project configured, will set config to the default project: broad-ctsa"
-    gcloud config set project broad-ctsa
-    PROJECT_NAME="broad-ctsa"
+    echo "no project configured, will set config to the default project: hail-vdc"
+    gcloud config set project hail-vdc
+    PROJECT_NAME="hail-vdc"
 fi
 
 if [[ "$(gcloud config get-value compute/region)" == "(unset)" ]]
