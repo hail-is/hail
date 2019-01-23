@@ -1,6 +1,5 @@
 import { PureComponent, Fragment } from 'react';
 import { login } from '../libs/auth';
-import Router from 'next/router';
 // import cookie from '../libs/cookies';
 import '../styles/pages/login.scss';
 
@@ -24,8 +23,6 @@ class Login extends PureComponent<LoginProps> {
   onLoginButtonClick = async () => {
     try {
       await login(this.state.password);
-
-      Router.replace('/');
     } catch (e) {
       console.error(e);
       this.setState({ failed: true });
