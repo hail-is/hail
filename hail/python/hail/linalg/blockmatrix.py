@@ -681,10 +681,14 @@ class BlockMatrix(object):
         check_entry_indexed('BlockMatrix.write_from_entry_expr', entry_expr)
         mt = matrix_table_source('BlockMatrix.write_from_entry_expr', entry_expr)
 
-        if (not (mean_impute or center or normalize)) and (entry_expr in mt._fields_inverse):
-            #  FIXME: remove once select_entries on a field is free
-            field = mt._fields_inverse[entry_expr]
-            mt._write_block_matrix(path, overwrite, field, block_size)
+        if not (mean_impute or center or normalize):
+            if entry_expr in mt._fields_inverse:
+                #  FIXME: remove once select_entries on a field is free
+                field = mt._fields_inverse[entry_expr]
+                mt._write_block_matrix(path, overwrite, field, block_size)
+            else:
+                field = Env.get_uid()
+	        mt.select_entries(**{field: expr})._write_block_matrix(path, overwrite, field, block_size)
         else:
             n_cols = mt.count_cols()
             mt = mt.select_entries(__x=entry_expr)
@@ -716,7 +720,8 @@ class BlockMatrix(object):
                     if mean_impute:
                         expr = hl.or_else(expr, mt['__mean'])
 
-            mt._write_block_matrix(path, overwrite, '__x', block_size)
+            field = Env.get_uid()
+	    mt.select_entries(**{field: expr})._write_block_matrix(path, overwrite, field, block_size)
 
     @staticmethod
     def _check_indices(indices, size):
