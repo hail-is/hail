@@ -1316,12 +1316,16 @@ class BlockMatrix(object):
         """
 
         if isinstance(right, BlockMatrix):
+            _verify_can_broadcast(self.shape, right.shape)
+
             return BlockMatrix(BlockMatrixElementWiseBinaryOp(self._bmir, right._bmir,
                                                               ApplyBinaryOp(op, Ref('element'), Ref('element'))))
         elif _is_scalar(right):
             return BlockMatrix(BlockMatrixBroadcastValue(self._bmir,
                                                          ApplyBinaryOp(op, Ref('element'), F64(right))))
         else:
+            _verify_can_broadcast(self.shape, right.shape)
+
             # This can get swept away once NDArrays are built into the Hail types
             # Until then, we need to analyze everything and call into Java
             right_2d = _jarray_from_ndarray(_ndarray_as_2d(right))
@@ -1351,6 +1355,8 @@ class BlockMatrix(object):
         if _is_scalar(left):
             return BlockMatrix(BlockMatrixBroadcastValue(self._bmir, ApplyBinaryOp(op, F64(left), Ref('element'))))
         else:
+            _verify_can_broadcast(self.shape, left.shape)
+
             # This can get swept away once NDArrays are built into the Hail types
             # Until then, we need to analyze everything and call into Java
             left_2d = _jarray_from_ndarray(_ndarray_as_2d(left))
@@ -2175,6 +2181,20 @@ block_matrix_type.set(BlockMatrix)
 
 def _is_scalar(x):
     return isinstance(x, float) or isinstance(x, int)
+
+
+def _verify_can_broadcast(shape1, shape2):
+    idx = 1
+    while idx < min(len(shape1), len(shape2)):
+        shape_1_idx = len(shape1) - idx
+        shape_2_idx = len(shape2) - idx
+
+        dim_length1 = shape1[shape_1_idx]
+        dim_length2 = shape2[shape_2_idx]
+        if not (dim_length1 == dim_length2 or dim_length1 == 1 or dim_length2 == 1):
+            raise ValueError(f'Incompatible shapes for broadcasting: {shape1} and {shape2}')
+
+        idx += 1
 
 
 def _shape(b):

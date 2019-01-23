@@ -1194,31 +1194,6 @@ class IRSuite extends SparkSuite {
     blockMatrixIRs.map(ir => Array(ir))
   }
 
-  @Test def testBlockMatrixAlgebra() {
-    def element = Ref("element", TFloat64(true))
-    def createElemWiseOp(bm: BlockMatrixIR, op: BinaryOp, value: IR): BlockMatrixIR = {
-      BlockMatrixBroadcastValue(bm, ApplyBinaryPrimOp(op, element, value))
-    }
-
-    val ones = BlockMatrix.fill(hc, 5, 5, 1)
-    val twos = BlockMatrix.fill(hc, 5, 5, 2)
-    val threes = BlockMatrix.fill(hc, 5, 5, 3)
-    val fours = BlockMatrix.fill(hc, 5, 5, 4)
-
-    val onesAddTwo = createElemWiseOp(new BlockMatrixLiteral(ones), Add(), F64(2))
-    val threesSubTwo = createElemWiseOp(new BlockMatrixLiteral(threes), Subtract(), F64(2))
-    val twosMulTwo = createElemWiseOp(new BlockMatrixLiteral(twos), Multiply(), F64(2))
-    val foursDivTwo = createElemWiseOp(new BlockMatrixLiteral(fours), FloatingPointDivide(), F64(2))
-
-    //TODO Create BlockMatrix evalsTo or modify the existing method to be more accepting
-    //TODO Actually what purpose is this serving in the IRSuite?
-    // It does show that it is parsing correctly but does more than that as well
-    assert(onesAddTwo.execute(hc).toBreezeMatrix() == threes.toBreezeMatrix())
-    assert(threesSubTwo.execute(hc).toBreezeMatrix() == ones.toBreezeMatrix())
-    assert(twosMulTwo.execute(hc).toBreezeMatrix() == fours.toBreezeMatrix())
-    assert(foursDivTwo.execute(hc).toBreezeMatrix() == twos.toBreezeMatrix())
-  }
-
   @Test(dataProvider = "valueIRs")
   def testValueIRParser(x: IR) {
     val env = IRParserEnvironment(refMap = Map(

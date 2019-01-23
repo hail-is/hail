@@ -6,6 +6,35 @@ import is.hail.expr.types.virtual.TFloat64
 import is.hail.linalg.BlockMatrix
 import is.hail.utils.fatal
 
+object BlockMatrixIR {
+  def resizeAfterBroadcast(leftDims: IndexedSeq[Long], rightDims: IndexedSeq[Long]): IndexedSeq[Long] = {
+    val resultDims = Array[Long]()
+
+    var i = 1
+    while (i < Math.min(leftDims.length, rightDims.length)) {
+      val leftIdx = leftDims.length - i - 1
+      val rightIdx = rightDims.length - i - 1
+
+      val leftDimLength = leftDims(leftIdx)
+      val rightDimLength = rightDims(rightIdx)
+      assert(leftDimLength == rightDimLength || leftDimLength == 1 || rightDimLength == 1)
+
+      resultDims :+ Math.max(leftDimLength, rightDimLength)
+      i += 1
+    }
+
+    // When the smaller dimensional object is exhausted,
+    // the remaining dimensions are taken from the other object
+    if (i < leftDims.length) {
+      resultDims ++ leftDims.slice(0, i)
+    } else if (i < rightDims.length) {
+      resultDims ++ rightDims.slice(0, i)
+    }
+
+    resultDims
+  }
+}
+
 abstract sealed class BlockMatrixIR extends BaseIR {
   def typ: BlockMatrixType
 
@@ -74,7 +103,13 @@ case class BlockMatrixElementWiseBinaryOp(
   left: BlockMatrixIR,
   right: BlockMatrixIR,
   applyBinOp: ApplyBinaryPrimOp) extends BlockMatrixIR {
-  override def typ: BlockMatrixType = left.typ
+  override def typ: BlockMatrixType = {
+    BlockMatrixType(
+      left.typ.elementType,
+      BlockMatrixIR.resizeAfterBroadcast(left.typ.shape, right.typ.shape),
+      left.typ.blockSize,
+      left.typ.dimsPartitioned)
+  }
 
   override def children: IndexedSeq[BaseIR] = Array(left, right, applyBinOp)
 
