@@ -15,40 +15,51 @@ PATCH ?= 8
 HAIL_PIP_VERSION := $(MAJOR).$(MINOR).$(PATCH)$(PIP_VERSION_SUFFIX)
 GRADLE_ARGS := $(GRADLE_ARGS) -Dspark.version=$(SPARK_VERSION)
 GIT_SHA := $(shell git rev-parse HEAD)
-GIT_SHORT_SHA := $(shell printf "$(GIT_SHA)" | head -c 12)
 
 $(eval $(call ENV_VAR,SPARK_VERSION))
 $(eval $(call ENV_VAR,HAIL_PIP_VERSION))
 $(eval $(call ENV_VAR,GRADLE_ARGS))
 $(eval $(call ENV_VAR,GIT_SHA))
-$(eval $(call ENV_VAR,GIT_SHORT_SHA))
+
+IGNORED_FILE_PATTERN := \( -name '*~' \)
 
 build/dev-conda: python/dev-environment.yml
 	conda env update -f $< || conda env create -f $<
 	mkdir -p build
 	touch build/dev-conda
 
-.PHONY: native-lib
-native-lib:
+build/native-lib: $(shell find src/main/c -type f -not $(IGNORED_FILE_PATTERN))
 	cd src/main/c && $(MAKE)
+	mkdir -p build
+	touch build/native-lib
+
+.PHONY: native-lib
+native-lib: build/native-lib
+
+build/test-native-lib: $(shell find src/main/c -type f -not $(IGNORED_FILE_PATTERN))
+	cd src/main/c && $(MAKE) test
+	mkdir -p build/test-native-lib
+	touch build/test-native-lib
 
 .PHONY: test-native-lib
-test-native-lib:
-	cd src/main/c && $(MAKE) test
+test-native-lib: build/test-native-lib
+
+build/prebuilt-native-lib: $(shell find src/main/c -type f -not $(IGNORED_FILE_PATTERN))
+	cd src/main/c && $(MAKE) prebuilt
+	mkdir -p build/prebuilt-native-lib
+	touch build/prebuilt-native-lib
 
 .PHONY: prebuilt-native-lib
-prebuilt-native-lib:
-	cd src/main/c && $(MAKE) prebuilt
+prebuilt-native-lib: build/prebuilt-native-lib
 
-IGNORED_FILE_PATTERN := \( -name '*~' \)
 JVM_FILES := $(shell find src/main/java src/main/scala src/main/resources \( -not $(IGNORED_FILE_PATTERN) \))
 
-build/compile-scala: src/main/resources/build-info.properties native-lib env/GRADLE_ARGS
+build/compile-scala: src/main/resources/build-info.properties env/GRADLE_ARGS
 	./gradlew $(GRADLE_ARGS) compileScala
 	mkdir -p build
 	touch build/compile-scala
 
-build/libs/hail-all-spark.jar: native-lib src/main/resources/build-info.properties
+build/libs/hail-all-spark.jar: src/main/resources/build-info.properties
 build/libs/hail-all-spark.jar: build.gradle settings.gradle $(JVM_FILES)
 build/libs/hail-all-spark.jar: env/GRADLE_ARGS
 	$(info changed files: $?)
@@ -125,7 +136,7 @@ gradle-test-cpp-codegen: env/GRADLE_ARGS
 	./gradlew $(GRADLE_ARGS) testCppCodegen
 
 .PHONY: test
-test: test-python gradle-test gradle-test-cpp-codegen test-native-lib
+test: test-python gradle-test gradle-test-cpp-codegen build/test-native-lib
 
 src/main/resources/build-info.properties: env/SPARK_VERSION env/HAIL_PIP_VERSION env/GIT_SHA
 	bash generate-build-info.sh $(SPARK_VERSION) $(HAIL_PIP_VERSION) $(GIT_SHA)
@@ -133,8 +144,8 @@ src/main/resources/build-info.properties: env/SPARK_VERSION env/HAIL_PIP_VERSION
 python/src/hail/hail_pip_version: env/HAIL_PIP_VERSION
 	printf $(HAIL_PIP_VERSION) > $@
 
-python/src/hail/hail_version: env/HAIL_PIP_VERSION env/GIT_SHORT_SHA
-	printf $(HAIL_PIP_VERSION)-$(GIT_SHORT_SHA) > $@
+python/src/hail/hail_version: env/HAIL_PIP_VERSION env/GIT_SHA
+	printf $(HAIL_PIP_VERSION)-$(shell printf "$(GIT_SHA)" | head -c 12) > $@
 
 python/README.md: ../README.md
 	cp $< python/
