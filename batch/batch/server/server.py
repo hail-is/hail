@@ -175,8 +175,13 @@ class Job:
             log.info(f'parent {parent_id} successfully complete for {self.id}')
             self.incomplete_parent_ids.discard(parent_id)
             if not self.incomplete_parent_ids:
-                log.info(f'all parents successfully complete for {self.id}')
-                self._create_pod()
+                if self._state != 'Cancelled':
+                    log.info(f'all parents successfully complete for {self.id},'
+                             f' creating pod')
+                    self._create_pod()
+                else:
+                    log.info(f'all parents successfully complete for {self.id},'
+                             f' but it is already cancelled')
         elif new_state == 'Cancelled' or (new_state == 'Complete' and maybe_exit_code != 0):
             log.info(f'parents deleted, cancelled, or failed: {new_state} {maybe_exit_code} {parent_id}')
             self.incomplete_parent_ids.discard(parent_id)
