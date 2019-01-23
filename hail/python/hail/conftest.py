@@ -31,7 +31,7 @@ def init(doctest_namespace):
     print("setting up doctest...")
 
     olddir = os.getcwd()
-    os.chdir("docs/")
+    os.chdir("python/hail/docs/")
 
     doctest_namespace['hl'] = hl
     doctest_namespace['agg'] = agg

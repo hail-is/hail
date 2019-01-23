@@ -80,12 +80,13 @@ zip: build/distributions/hail-python.zip
 IGNORED_PY_FILE_PATTERN = \( $(IGNORED_FILE_PATTERN) -o -name '*.pyc' \)
 PY_FILES := $(shell find python/hail -type f -not $(IGNORED_PY_FILE_PATTERN))
 PY_TEST_FILES := $(shell find python/tests -type f -not $(IGNORED_PY_FILE_PATTERN))
-PYTHON_PACKAGE_JAR_LOCATION := python/hail/hail-all-spark.jar
+
+python/hail/hail-all-spark.jar: build/libs/hail-all-spark.jar
+	cp $< $@
 
 build/pip-prepare: build/libs/hail-all-spark.jar $(PY_FILES) env/SPARK_VERSION
 build/pip-prepare: python/README.md python/hail/hail_pip_version
-build/pip-prepare: python/hail/hail_version
-	cp build/libs/hail-all-spark.jar $(PYTHON_PACKAGE_JAR_LOCATION)
+build/pip-prepare: python/hail/hail_version python/hail/hail-all-spark.jar
 	printf $(SPARK_VERSION) > python/spark_version
 	mkdir -p build
 	touch build/pip-prepare
@@ -103,9 +104,7 @@ build/pip-install: python/setup.py python/MANIFEST.in python/setup.cfg build/pip
 	touch build/pip-install
 
 .PHONY: test-python
-test-python: build/test-python
-
-build/test-python: build/pip-install build/dev-conda $(PY_TEST_FILES)
+test-python: build/pip-install build/dev-conda
 # re: PY_IGNORE_IMPORTMISMATCH, https://github.com/pytest-dev/pytest/issues/2042#issuecomment-429289164
 	. ../loadconda && conda activate hail && PY_IGNORE_IMPORTMISMATCH=1 pytest -v \
 	  -n $(PARALLELISM) \
@@ -119,9 +118,7 @@ build/test-python: build/pip-install build/dev-conda $(PY_TEST_FILES)
 	  --doctest-glob='*.rst' \
 	  --ignore=python/hail/docs/conf.py \
 	  --ignore=python/hail/docs/doctest_write_data.py \
-	  python/tests python/src $(PYTEST_ARGS)
-	mkdir -p build
-	touch build/test-python
+	  python/test python/hail $(PYTEST_ARGS)
 
 .PHONY: benchmark
 benchmark: build/pip-install build/dev-conda
@@ -188,7 +185,7 @@ clean-docs:
 clean: clean-docs clean-env
 	./gradlew $(GRADLE_ARGS) clean
 	cd src/main/c && %(MAKE) clean
-	rm -rf $(PYTHON_PACKAGE_JAR_LOCATION)
+	rm -rf python/hail/hail-all-spark.jar
 
 test-apiserver: jar
 	./test-apiserver.sh
