@@ -21,7 +21,7 @@ $(eval $(call ENV_VAR,HAIL_PIP_VERSION))
 $(eval $(call ENV_VAR,GRADLE_ARGS))
 $(eval $(call ENV_VAR,GIT_SHA))
 
-IGNORED_FILE_PATTERN := \( -name '*~' \)
+IGNORED_FILE_PATTERN := \( -name '*~' -o -name '*.log' \)
 JVM_FILES := $(shell find src/main/java src/main/scala src/main/resources \( -not $(IGNORED_FILE_PATTERN) \))
 IGNORED_PY_FILE_PATTERN = \( $(IGNORED_FILE_PATTERN) -o -name '*.pyc' \)
 PY_FILES := $(shell find python/hail -type f -not $(IGNORED_PY_FILE_PATTERN))
