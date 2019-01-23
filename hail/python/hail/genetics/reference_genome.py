@@ -201,7 +201,8 @@ class ReferenceGenome(object):
 
         from hail.utils.interval import Interval
         if self._par is None:
-            self._par = [Interval._from_java(jrep, hl.tlocus(self)) for jrep in self._jrep.par()]
+            t = hl.tinterval(hl.tlocus(self))
+            self._par = [t._convert_to_py(jrep) for jrep in self._jrep.par()]
         return self._par
 
     @typecheck_method(contig=str)
@@ -490,10 +491,5 @@ class ReferenceGenome(object):
 
         return gr
 
-    def _check_locus(self, l_jrep):
-        self._jrep.checkLocus(l_jrep)
-
-    def _check_interval(self, interval_jrep):
-        self._jrep.checkInterval(interval_jrep)
 
 rg_type.set(ReferenceGenome)
