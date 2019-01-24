@@ -13,7 +13,7 @@ import requests
 
 import pyspark
 
-class Backend(object):
+class Backend(abc.ABC):
     @abc.abstractmethod
     def execute(self, ir):
         return
@@ -44,35 +44,35 @@ class Backend(object):
 
     @abc.abstractmethod
     def add_reference(self, config):
-        raise NotImplementedError
+        pass
 
     @abc.abstractmethod
     def from_fasta_file(self, name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par):
-        raise NotImplementedError
+        pass
 
     @abc.abstractmethod
     def remove_reference(self, name):
-        raise NotImplementedError
+        pass
 
     @abc.abstractmethod
     def get_reference(self, name):
-        raise NotImplementedError
+        pass
 
     @abc.abstractmethod
     def add_sequence(self, name, fasta_file, index_file):
-        raise NotImplementedError
+        pass
 
     @abc.abstractmethod
     def remove_sequence(self, name):
-        raise NotImplementedError
+        pass
 
     @abc.abstractmethod
     def add_liftover(self, name, chain_file, dest_reference_genome):
-        raise NotImplementedError
+        pass
 
     @abc.abstractmethod
     def remove_liftover(self, name, dest_reference_genome):
-        raise NotImplementedError
+        pass
 
 class SparkBackend(Backend):
     def _to_java_ir(self, ir):
