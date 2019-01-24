@@ -339,7 +339,7 @@ object VSMSubgen {
     saSigGen = Type.genInsertable,
     vSigGen = Gen.const(
       TStruct(
-        "locus" -> TLocus(ReferenceGenome.defaultReference),
+        "locus" -> TLocus(ReferenceGenome.GRCh37),
         "alleles" -> TArray(TString()))),
     rowPartitionKeyGen = (t: Type) => Gen.const(Array("locus")),
     vaSigGen = Type.genInsertable,
@@ -351,7 +351,7 @@ object VSMSubgen {
     saGen = (t: Type) => t.genValue,
     vaGen = (t: Type) => t.genValue,
     globalGen = (t: Type) => t.genValue,
-    vGen = (t: Type) => VariantSubgen.random(ReferenceGenome.defaultReference).genLocusAlleles,
+    vGen = (t: Type) => VariantSubgen.random(ReferenceGenome.GRCh37).genLocusAlleles,
     tGen = (t: Type, v: Annotation) => Genotype.genGenericCallAndProbabilitiesGenotype(
       v.asInstanceOf[Row]
         .getAs[IndexedSeq[String]](1)
