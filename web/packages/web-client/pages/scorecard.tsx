@@ -1,6 +1,8 @@
 import { PureComponent } from 'react';
 import fetch from 'isomorphic-unfetch';
 import getConfig from 'next/config';
+import Link from 'next/link';
+import { PR, Issue } from './scorecard/scorecard';
 
 const config = getConfig().publicRuntimeConfig.SCORECARD;
 const DOMAIN: string = config.DOMAIN;
@@ -16,44 +18,25 @@ import '../styles/pages/scorecard.scss';
 // TODO: This kind of thing is maybe better represented using GraphQL
 // buys use schema introspection and validation
 // Typescript gives us only compile-time guarantees on the client
-declare type pr = {
-  assignees: string[];
-  html_url: string;
-  id: string;
-  repo: string;
-  state: string;
-  status: string;
-  title: string;
-  user: string;
-};
-
-declare type issue = {
-  assignees: string[];
-  created_at: string;
-  html_url: string;
-  id: string;
-  repo: string;
-  title: string;
-  urgent: boolean;
-};
 
 declare type scorecardJson = {
   data: {
     user_data: {
       [name: string]: {
-        CHANGES_REQUESTED: pr[];
-        ISSUES: issue[];
-        NEEDS_REVIEW: pr[];
+        CHANGES_REQUESTED: PR[];
+        ISSUES: Issue[];
+        NEEDS_REVIEW: PR[];
       };
     };
-    unassigned: pr[];
+    unassigned: PR[];
     urgent_issues: [
       {
         AGE: string;
-        ISSUE: issue;
+        ISSUE: Issue;
         USER: string;
       }
     ];
+    updated: string;
   };
 };
 
@@ -163,9 +146,9 @@ class Scorecard extends PureComponent<Props, scorecardJson & user> {
               {Object.keys(user_data).map((name, idx) => (
                 <tr key={idx}>
                   <td>
-                    <a target="_blank" href={`/scorecard/users/${name}`}>
-                      {name}
-                    </a>
+                    <Link href={`/scorecard/user?name=${name}`}>
+                      <a>{name}</a>
+                    </Link>
                   </td>
                   <td>
                     {user_data[name].NEEDS_REVIEW.map((pr, i) => (
@@ -210,12 +193,9 @@ class Scorecard extends PureComponent<Props, scorecardJson & user> {
                   {urgent_issues.map((issue, idx) => (
                     <tr key={idx}>
                       <td>
-                        <a
-                          target="_blank"
-                          href={`/scorecard/users/${issue.USER}`}
-                        >
-                          {issue.USER}
-                        </a>
+                        <Link href={`/scorecard/user?name=${issue.USER}`}>
+                          <a>{issue.USER}</a>
+                        </Link>
                       </td>
                       <td>{issue.AGE}</td>
                       <td>
