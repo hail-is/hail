@@ -125,6 +125,9 @@ class Test(unittest.TestCase):
         self.assertTrue(n_cancelled <= 1)
         self.assertTrue(n_cancelled + n_complete == 3)
 
+        n_failed = sum([ec > 0 for _, ec in bstatus['exit_codes'].items() if ec is not None])
+        self.assertTrue(n_failed == 1)
+
     def test_callback(self):
         app = Flask('test-client')
 
