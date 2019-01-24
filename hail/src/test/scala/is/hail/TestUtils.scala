@@ -391,6 +391,8 @@ object TestUtils {
     assert(t.typeCheck(expected), t)
 
     val i = Interpret[Any](x, env, args, agg)
+    println(i)
+    println(t)
     assert(t.typeCheck(i))
     assert(t.valuesSimilar(i, expected), s"($i, $expected)")
 

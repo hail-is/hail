@@ -700,6 +700,21 @@ private class Emit(
               const(false),
               Code._empty)
 
+          case AggElements() =>
+            // InitOps are executed as part of the AggElementsLengthCheck AggOp
+            EmitTriplet(Code._empty, const(false), Code._empty)
+
+          case AggElementsLengthCheck() =>
+            val newRVAs = Code.checkcast[ArrayElementsAggregator]((rvas.get)(codeI.value[Int])).invoke[Array[RegionValueAggregator]]("rvAggs")
+            val init = emit(args(0), rvas = Some(newRVAs))
+            EmitTriplet(Code(
+              codeI.setup,
+              codeI.m.mux[Unit](
+                Code._empty,
+                init.setup)),
+              const(false),
+              Code._empty)
+
           case _ =>
             val nArgs = args.length
             val argsm = Array.fill[ClassFieldRef[Boolean]](nArgs)(mb.newField[Boolean]())
@@ -734,7 +749,6 @@ private class Emit(
               Code._empty)
         }
 
-
       case x@SeqOp(i, args, aggSig) =>
         val codeI = emit(i)
         aggSig.op match {
@@ -755,18 +769,48 @@ private class Emit(
                       SafeRow.getClass, "read",
                       mb.getPType(t.physicalType), region, key.value[Long])
                 }))
-	    val groupRVAs = mb.newField[Array[RegionValueAggregator]]("groupRVAs")
-	    
+            val groupRVAs = mb.newField[Array[RegionValueAggregator]]("groupRVAs")
+
             val seq = emit(args(1), rvas = Some(groupRVAs.load()))
-	    
+
             EmitTriplet(Code(
               codeI.setup,
               codeI.m.mux(
                 Code._empty,
                 Code(
-		  groupRVAs := Code.checkcast[KeyedRegionValueAggregator]((rvas.get)(codeI.value[Int])).invoke[Any, Array[RegionValueAggregator]]("getAggs", wrappedKey),
-		  seq.setup))),
+                  groupRVAs := Code.checkcast[KeyedRegionValueAggregator]((rvas.get)(codeI.value[Int])).invoke[Any, Array[RegionValueAggregator]]("getAggs", wrappedKey),
+                  seq.setup))),
               const(false),
+              Code._empty)
+
+          case AggElementsLengthCheck() =>
+            val len = emit(args(0))
+            EmitTriplet(Code(
+              codeI.setup,
+              codeI.m.mux(
+                Code._empty,
+                Code(
+                  len.setup,
+                  len.m.mux(
+                    Code._empty,
+                    Code.checkcast[ArrayElementsAggregator]((rvas.get) (codeI.value[Int]))
+                      .invoke[Int, Unit]("checkSizeOrBroadcast", coerce[Int](len.v)))))),
+              const(false),
+              Code._empty)
+
+          case AggElements() =>
+            val idx = emit(args(0))
+
+              // idx never missing, don't need to check
+            val seqOp = emit(args(1), rvas = Some(Code.checkcast[ArrayElementsAggregator]((rvas.get).apply(codeI.value[Int]))
+              .invoke[Array[Array[RegionValueAggregator]]]("a")
+              .apply(coerce[Int](idx.v))))
+
+            EmitTriplet(Code(
+              idx.setup,
+              seqOp.setup,
+              coerce[Unit](seqOp.v)
+            ),const(false),
               Code._empty)
 
           case _ =>
@@ -796,7 +840,7 @@ private class Emit(
                   agg.seqOp(
                     mb,
                     region,
-                    (rvas.get)(coerce[Int](codeI.v)),
+                    (rvas.get) (coerce[Int](codeI.v)),
                     argsv.map(_.load()),
                     argsm.map(_.load())))),
               const(false),
@@ -1352,7 +1396,7 @@ private class Emit(
           EmitArrayTriplet(Code(setup, aet.setup), aet.m, aet.addElements)
         }
 
-        ArrayIteratorTriplet(larray.calcLength, larray.length, ae)  
+        ArrayIteratorTriplet(larray.calcLength, larray.length, ae)
 
       case _ =>
         val t: PArray = coerce[PArray](ir.pType)

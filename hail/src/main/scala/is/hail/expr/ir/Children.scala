@@ -74,6 +74,7 @@ object Children {
       Array(array, aggBody)
     case AggGroupBy(key, aggIR) =>
       Array(key, aggIR)
+    case AggArrayPerElement(a, name, aggBody) => Array(a, aggBody)
     case MakeStruct(fields) =>
       fields.map(_._2).toFastIndexedSeq
     case SelectFields(old, fields) =>

@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.annotations._
+import is.hail.annotations.{aggregators, _}
 import is.hail.annotations.aggregators._
 import is.hail.asm4s._
 import is.hail.expr.types.physical.PTuple
@@ -85,6 +85,47 @@ object ExtractAggregators {
           SeqOp(I32(i), FastIndexedSeq(key, Begin(seqOp)), aggSig))
 
         ToDict(ArrayMap(ToArray(GetTupleElement(result, i)), newRef.name, MakeTuple(FastSeq(GetField(newRef, "key"), transformed))))
+
+      case AggArrayPerElement(a, name, aggBody) =>
+
+        val newRVAggBuilder = new ArrayBuilder[IRAgg]()
+        val newBuilder = new ArrayBuilder[AggOps]()
+        val newRef = Ref(genUID(), null)
+        val transformed = this.extract(aggBody, newRVAggBuilder, newBuilder, newRef)
+
+        val nestedAggs = newRVAggBuilder.result()
+        val agg = aggregators.ArrayElementsAggregator(nestedAggs.map(_.rvAgg))
+        val rt = TArray(TTuple(nestedAggs.map(_.rt): _*))
+        newRef._typ = -rt.elementType
+
+        val aggSigCheck = AggSignature(AggElementsLengthCheck(), Seq(), Some(Seq(TVoid)), Seq(TInt32(), TVoid))
+        val aggSig = AggSignature(AggElements(), Seq(), Some(Seq()), Seq(TInt32(), TVoid))
+
+        val aUID = genUID()
+        val iUID = genUID()
+
+        val (initOp, seqOp) = newBuilder.result().map { case AggOps(x, y) => (x, y) }.unzip
+        val i = ab.length
+        ab += IRAgg(i, agg, rt)
+        ab2 += AggOps(
+          Some(InitOp(i, FastIndexedSeq(Begin(initOp.flatten.toFastIndexedSeq)), aggSigCheck)),
+          Begin(FastIndexedSeq(
+            Let(
+              aUID,
+              a,
+              Begin(FastIndexedSeq(
+                SeqOp(I32(i), FastIndexedSeq(ArrayLen(Ref(aUID, a.typ))), AggSignature(AggElementsLengthCheck(), Seq(), None, FastIndexedSeq(TInt32()))),
+                ArrayFor(
+                  ArrayRange(I32(0), ArrayLen(Ref(aUID, a.typ)), I32(1)),
+                  iUID,
+                  Let(
+                    name,
+                    ArrayRef(Ref(aUID, a.typ), Ref(iUID, TInt32())),
+                    SeqOp(
+                      I32(i),
+                      FastIndexedSeq(Ref(iUID, TInt32()), Begin(seqOp.toFastIndexedSeq)),
+                      aggSig)))))))))
+        ArrayMap(GetTupleElement(result, i), newRef.name, transformed)
       case x: ArrayAgg => x
       case _ => MapIR(extract)(ir)
     }

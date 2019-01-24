@@ -166,6 +166,7 @@ object Pretty {
             case ArrayFor(_, valueName, _) => prettyIdentifier(valueName)
             case ArrayAgg(a, name, query) => prettyIdentifier(name)
             case AggExplode(_, name, _) => prettyIdentifier(name)
+            case AggArrayPerElement(_, name, _) => prettyIdentifier(name)
             case ArraySort(_, _, onKey) => prettyBooleanLiteral(onKey)
             case ApplyIR(function, _, _) => prettyIdentifier(function)
             case Apply(function, _) => prettyIdentifier(function)

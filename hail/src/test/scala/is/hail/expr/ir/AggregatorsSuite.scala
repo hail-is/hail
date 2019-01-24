@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.SparkSuite
 import is.hail.expr._
 import is.hail.expr.types._
 import is.hail.utils._
@@ -11,9 +12,11 @@ import org.testng.annotations.Test
 import is.hail.utils.{FastIndexedSeq, FastSeq}
 import is.hail.variant.Call2
 import org.apache.commons.math3.stat.correlation.PearsonsCorrelation
+import is.hail.utils._
+import is.hail.expr.ir.IRBuilder._
 import org.apache.spark.sql.Row
 
-class AggregatorsSuite {
+class AggregatorsSuite extends SparkSuite {
   def runAggregator(op: AggOp, aggType: TStruct, agg: IndexedSeq[Row], expected: Any, constrArgs: IndexedSeq[IR],
     initOpArgs: Option[IndexedSeq[IR]], seqOpArgs: IndexedSeq[IR]) {
 
@@ -986,6 +989,27 @@ class AggregatorsSuite {
           aggSig)),
       (agg, aggType),
       15L)
+  }
+
+  @Test def testArrayElementsAggregator(): Unit = {
+    def getAgg(n: Int, m: Int): IR = {
+      hc
+      val ht = TableRange(10, 3)
+        .mapRows('row.insertFields('aRange -> irRange(0, m, 1)))
+
+      TableAggregate(
+        ht,
+        AggArrayPerElement(GetField(Ref("row", ht.typ.rowType), "aRange"), "elt",
+          ApplyAggOp(
+            IndexedSeq(),
+            None,
+            IndexedSeq(Cast(Ref("elt", TInt32()), TInt64())),
+            AggSignature(Sum(), FastIndexedSeq(), None, FastIndexedSeq(TInt64())))
+        )
+      )
+    }
+
+    assertEvalsTo(getAgg(10, 10), IndexedSeq.range(0, 10).map(_ * 10L))
   }
 
 }

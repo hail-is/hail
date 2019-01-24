@@ -326,6 +326,21 @@ class Tests(unittest.TestCase):
         for aggregation, expected in tests:
             self.assertEqual(t.aggregate(aggregation), expected)
 
+    def test_agg_array_agg_sum(self):
+        t = hl.utils.range_table(10, 11)
+        t = t.annotate(a = hl.range(t.idx, t.idx + 10))
+        assert t.aggregate(hl.agg.array_agg(t.a, lambda x: hl.agg.sum(x))) == [45 + 10 * x for x in range(10)]
+
+    def test_agg_array_agg_sum_vs_sum(self):
+        ht = hl.utils.range_table(25).annotate(x = hl.range(0, 10).map(lambda _: hl.rand_bool(0.5)))
+        assert ht.aggregate(hl.agg.array_agg(ht.x, lambda x: hl.agg.sum(x)) == hl.agg.array_sum(ht.x))
+
+    def test_agg_array_agg_errors(self):
+        ht = hl.utils.range_table(10)
+        ht = ht.annotate(a = hl.range(0, ht.idx))
+        with pytest.raises(hl.utils.FatalError):
+            ht.aggregate(hl.agg.array_agg(ht.a, lambda x: hl.agg.sum(x)))
+
     def test_agg_explode(self):
         t = hl.utils.range_table(10)
 

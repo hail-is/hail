@@ -89,6 +89,9 @@ object IRBuilder {
         .map(Symbol(uid) ~> makeTuple(Symbol(uid).selectFields(keyFields: _*), Symbol(uid).selectFields(valueFields: _*)))
         .toDict
     }
+
+    def aggregate(ir: IRProxy): IRProxy =
+      TableAggregate(tir, ir(env))
   }
 
   class IRProxy(val ir: E => IR) extends AnyVal with Dynamic {
