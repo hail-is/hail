@@ -406,6 +406,7 @@ class Batch:
                 'Complete': state_count.get('Complete', 0),
                 'Cancelled': state_count.get('Cancelled', 0)
             },
+            'exit_codes': {j.id: j.exit_code for j in self.jobs},
             'attributes': self.attributes
         }
 
