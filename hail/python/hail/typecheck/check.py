@@ -126,7 +126,7 @@ class DictChecker(TypeChecker):
         super(DictChecker, self).__init__()
 
     def check(self, x, caller, param):
-        if not isinstance(x, dict):
+        if not isinstance(x, collections.MutableMapping):
             raise TypecheckFailure
         x_ = {}
         kc = self.kc
@@ -138,7 +138,7 @@ class DictChecker(TypeChecker):
         return x_
 
     def expects(self):
-        return 'dict[%s, %s]' % (self.kc.expects(), self.vc.expects())
+        return 'MutableMapping[%s, %s]' % (self.kc.expects(), self.vc.expects())
 
     def coerce(self, x):
         kc = self.kc
