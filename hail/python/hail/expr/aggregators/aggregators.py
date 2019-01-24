@@ -1431,7 +1431,7 @@ def array_agg(array, f):
 
     Aggregate to compute the fraction ``True`` per element:
 
-    >>> ht.aggregate(hl.agg.array_agg(ht.arr, lambda element: hl.agg.fraction(element)))  # DOCTEST: +NOTEST
+    >>> ht.aggregate(hl.agg.array_agg(ht.arr, lambda element: hl.agg.fraction(element)))  # doctest: +NOTEST
     [0.54, 0.55, 0.46, 0.52, 0.48]
 
     Notes
