@@ -10,7 +10,6 @@ class UserProfile extends Component {
 
   constructor(props: any) {
     super(props);
-    console.info(auth.user);
   }
 
   shouldComponentUpdate(_: any, state: any) {
