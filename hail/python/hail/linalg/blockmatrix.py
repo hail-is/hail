@@ -685,7 +685,7 @@ class BlockMatrix(object):
             if entry_expr in mt._fields_inverse:
                 #  FIXME: remove once select_entries on a field is free
                 field = mt._fields_inverse[entry_expr]
-                mt._write_block_matrix(path, overwrite, field, block_size)
+                mt.select_entries(field)._write_block_matrix(path, overwrite, field, block_size)
             else:
                 field = Env.get_uid()
                 mt.select_entries(**{field: entry_expr})._write_block_matrix(path, overwrite, field, block_size)
