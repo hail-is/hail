@@ -681,10 +681,13 @@ class BlockMatrix(object):
         check_entry_indexed('BlockMatrix.write_from_entry_expr', entry_expr)
         mt = matrix_table_source('BlockMatrix.write_from_entry_expr', entry_expr)
 
-        if (not (mean_impute or center or normalize)) and (entry_expr in mt._fields_inverse):
-            #  FIXME: remove once select_entries on a field is free
-            field = mt._fields_inverse[entry_expr]
-            mt._write_block_matrix(path, overwrite, field, block_size)
+        if not (mean_impute or center or normalize):
+            if entry_expr in mt._fields_inverse:
+                field = mt._fields_inverse[entry_expr]
+                mt.select_entries(field)._write_block_matrix(path, overwrite, field, block_size)
+            else:
+                field = Env.get_uid()
+                mt.select_entries(**{field: entry_expr})._write_block_matrix(path, overwrite, field, block_size)
         else:
             n_cols = mt.count_cols()
             mt = mt.select_entries(__x=entry_expr)
@@ -1554,7 +1557,7 @@ class BlockMatrix(object):
         else:
             raise ValueError(f'axis must be None, 0, or 1: found {axis}')
 
-    def entries(self):
+    def entries(self, keyed=True):
         """Returns a table with the indices and value of each block matrix entry.
 
         Examples
@@ -1595,7 +1598,10 @@ class BlockMatrix(object):
         :class:`.Table`
             Table with a row for each entry.
         """
-        return Table._from_java(self._jbm.entriesTable(Env.hc()._jhc))
+        t = Table._from_java(self._jbm.entriesTable(Env.hc()._jhc))
+        if keyed:
+            t = t.key_by('i', 'j')
+        return t
 
     @staticmethod
     @typecheck(path_in=str,

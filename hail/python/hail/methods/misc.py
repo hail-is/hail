@@ -6,7 +6,7 @@ from hail.expr.types import *
 from hail.matrixtable import MatrixTable
 from hail.table import Table
 from hail.typecheck import *
-from hail.utils import Interval, Struct
+from hail.utils import Interval, Struct, new_temp_file
 from hail.utils.misc import plural
 from hail.utils.java import Env, joption, info
 from hail.ir import *
@@ -15,8 +15,9 @@ from hail.ir import *
 @typecheck(i=Expression,
            j=Expression,
            keep=bool,
-           tie_breaker=nullable(func_spec(2, expr_numeric)))
-def maximal_independent_set(i, j, keep=True, tie_breaker=None) -> Table:
+           tie_breaker=nullable(func_spec(2, expr_numeric)),
+           keyed=bool)
+def maximal_independent_set(i, j, keep=True, tie_breaker=None, keyed=True) -> Table:
     """Return a table containing the vertices in a near
     `maximal independent set <https://en.wikipedia.org/wiki/Maximal_independent_set>`_
     of an undirected graph whose edges are given by a two-column table.
@@ -101,6 +102,9 @@ def maximal_independent_set(i, j, keep=True, tie_breaker=None) -> Table:
         If ``True``, return vertices in set. If ``False``, return vertices removed.
     tie_breaker : function
         Function used to order nodes with equal degree.
+    keyed : :obj:`bool`
+        If ``True``, key the resulting table by the `node` field, this requires
+        a sort.
 
     Returns
     -------
@@ -137,19 +141,27 @@ def maximal_independent_set(i, j, keep=True, tie_breaker=None) -> Table:
         t, _ = source._process_joins(i, j)
         tie_breaker_str = None
 
-    nodes = (t.select(node=[i, j])
-             .explode('node')
-             .key_by('node')
-             .select())
-
     edges = t.select(__i=i, __j=j).key_by().select('__i', '__j')
-    nodes_in_set = Env.hail().utils.Graph.maximalIndependentSet(edges._jt.collect(), node_t._parsable_string(), joption(tie_breaker_str))
-    nt = Table._from_java(nodes._jt.annotateGlobal(nodes_in_set, hl.tset(node_t)._parsable_string(), 'nodes_in_set'))
-    nt = (nt
-          .filter(nt.nodes_in_set.contains(nt.node), keep)
-          .drop('nodes_in_set'))
+    edges_path = new_temp_file()
+    edges.write(edges_path)
+    edges = hl.read_table(edges_path)
 
-    return nt
+    mis_nodes = Env.hail().utils.Graph.maximalIndependentSet(
+        edges._jt.collect(),
+        node_t._parsable_string(),
+        joption(tie_breaker_str))
+
+    nodes = edges.select(node = [edges.__i, edges.__j])
+    nodes = nodes.explode(nodes.node)
+    # avoid serializing `mis_nodes` from java to python and back to java
+    nodes = Table._from_java(
+        nodes._jt.annotateGlobal(
+            mis_nodes, hl.tset(node_t)._parsable_string(), 'mis_nodes'))
+    nodes = nodes.filter(nodes.mis_nodes.contains(nodes.node), keep)
+    nodes = nodes.select_globals()
+    if keyed:
+        return nodes.key_by('node')
+    return nodes
 
 
 def require_col_key_str(dataset: MatrixTable, method: str):
@@ -216,7 +228,7 @@ def require_biallelic(dataset, method) -> MatrixTable:
     require_row_key_variant(dataset, method)
     return dataset._select_rows(method,
                                 hl.case()
-                                .when(dataset.alleles.length() == 2, dataset.row)
+                                .when(dataset.alleles.length() == 2, dataset._rvrow)
                                 .or_error(f"'{method}' expects biallelic variants ('alleles' field of length 2), found " +
                                         hl.str(dataset.locus) + ", " + hl.str(dataset.alleles)))
 

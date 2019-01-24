@@ -11,8 +11,8 @@ import is.hail.expr.types.physical.{PArray, PInt64Required, PStruct}
 import is.hail.expr.types.virtual._
 import is.hail.rvd.{RVD, RVDType}
 import is.hail.table.Table
-import is.hail.variant._
 import is.hail.utils._
+import is.hail.variant._
 
 object BitPackedVectorView {
   val bpvElementSize: Long = PInt64Required.byteSize
@@ -365,8 +365,7 @@ case class LocalLDPrune(
       }
     })
 
-    TableValue(tableType, BroadcastRow.empty(mv.sparkContext),
-      RVD.coerce(tableRVDType, sitesOnly.crdd))
+    TableValue(tableType, BroadcastRow.empty(mv.sparkContext), sitesOnly)
   }
 }
 
