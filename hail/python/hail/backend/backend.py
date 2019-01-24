@@ -74,6 +74,11 @@ class Backend(abc.ABC):
     def remove_liftover(self, name, dest_reference_genome):
         pass
 
+    @abc.abstractmethod
+    def parse_vcf_metadata(self, path):
+        pass
+
+
 class SparkBackend(Backend):
     def _to_java_ir(self, ir):
         if not hasattr(ir, '_jir'):
@@ -156,6 +161,10 @@ class SparkBackend(Backend):
 
     def remove_liftover(self, name, dest_reference_genome):
         Env.hail().variant.ReferenceGenome.referenceRemoveLiftover(name, dest_reference_genome)
+
+    def parse_vcf_metadata(self, path):
+        return Env.hc()._jhc.pyParseVCFMetadata(path)
+
 
 class LocalBackend(Backend):
     def __init__(self):
@@ -285,3 +294,12 @@ class ServiceBackend(Backend):
             resp_json = resp.json()
             raise FatalError(resp_json['message'])
         resp.raise_for_status()
+
+    def parse_vcf_metadata(self, path):
+        resp = requests.post(f'{self.url}/parse-vcf-metadata',
+                             json={'path': path})
+        if resp.status_code == 400:
+            resp_json = resp.json()
+            raise FatalError(resp_json['message'])
+        resp.raise_for_status()
+        return resp.json()

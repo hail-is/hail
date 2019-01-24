@@ -267,9 +267,6 @@ class _tint32(HailType):
     def __init__(self):
         super(_tint32, self).__init__()
 
-    def _convert_to_py(self, annotation):
-        return annotation
-
     def _typecheck_one_level(self, annotation):
         if annotation is not None:
             if not isinstance(annotation, int):
@@ -316,9 +313,6 @@ class _tint64(HailType):
     def __init__(self):
         super(_tint64, self).__init__()
 
-    def _convert_to_py(self, annotation):
-        return annotation
-
     def _typecheck_one_level(self, annotation):
         if annotation is not None:
             if not isinstance(annotation, int):
@@ -363,9 +357,6 @@ class _tfloat32(HailType):
     def __init__(self):
         super(_tfloat32, self).__init__()
 
-    def _convert_to_py(self, annotation):
-        return annotation
-
     def _typecheck_one_level(self, annotation):
         if annotation is not None and not isinstance(annotation, (float, int)):
             raise TypeError("type 'float32' expected Python 'float', but found type '%s'" % type(annotation))
@@ -407,9 +398,6 @@ class _tfloat64(HailType):
     def __init__(self):
         super(_tfloat64, self).__init__()
 
-    def _convert_to_py(self, annotation):
-        return annotation
-
     def _typecheck_one_level(self, annotation):
         if annotation is not None and not isinstance(annotation, (float, int)):
             raise TypeError("type 'float64' expected Python 'float', but found type '%s'" % type(annotation))
@@ -450,9 +438,6 @@ class _tstr(HailType):
     def __init__(self):
         super(_tstr, self).__init__()
 
-    def _convert_to_py(self, annotation):
-        return annotation
-
     def _typecheck_one_level(self, annotation):
         if annotation and not isinstance(annotation, str):
             raise TypeError("type 'str' expected Python 'str', but found type '%s'" % type(annotation))
@@ -484,9 +469,6 @@ class _tbool(HailType):
 
     def __init__(self):
         super(_tbool, self).__init__()
-
-    def _convert_to_py(self, annotation):
-        return annotation
 
     def _typecheck_one_level(self, annotation):
         if annotation is not None and not isinstance(annotation, bool):
@@ -549,9 +531,6 @@ class tndarray(HailType):
             Element type.
         """
         return self._element_type
-
-    def _convert_to_py(self, annotation):
-        raise NotImplementedError
 
     def _traverse(self, obj, f):
         if f(self, obj):
@@ -618,13 +597,6 @@ class tarray(HailType):
             Element type.
         """
         return self._element_type
-
-    def _convert_to_py(self, annotation):
-        if annotation is not None:
-            lst = Env.jutils().iterableToArrayList(annotation)
-            return [self.element_type._convert_to_py(x) for x in lst]
-        else:
-            return None
 
     def _traverse(self, obj, f):
         if f(self, obj):
@@ -705,13 +677,6 @@ class tset(HailType):
             Element type.
         """
         return self._element_type
-
-    def _convert_to_py(self, annotation):
-        if annotation is not None:
-            lst = Env.jutils().iterableToArrayList(annotation)
-            return set([self.element_type._convert_to_py(x) for x in lst])
-        else:
-            return None
 
     def _traverse(self, obj, f):
         if f(self, obj):
@@ -810,16 +775,6 @@ class tdict(HailType):
     def element_type(self):
         return tstruct(key = self._key_type, value = self._value_type)
 
-    def _convert_to_py(self, annotation):
-        if annotation is not None:
-            lst = Env.jutils().iterableToArrayList(annotation)
-            d = dict()
-            for x in lst:
-                d[self.key_type._convert_to_py(x._1())] = self.value_type._convert_to_py(x._2())
-            return d
-        else:
-            return None
-
     def _traverse(self, obj, f):
         if f(self, obj):
             for k, v in obj.items():
@@ -903,16 +858,6 @@ class tstruct(HailType, Mapping):
             Struct fields.
         """
         return self._fields
-
-    def _convert_to_py(self, annotation):
-        from hail.utils import Struct
-        if annotation is not None:
-            d = dict()
-            for i, (f, t) in enumerate(self.items()):
-                d[f] = t._convert_to_py(annotation.get(i))
-            return Struct(**d)
-        else:
-            return None
 
     def _traverse(self, obj, f):
         if f(self, obj):
@@ -1073,12 +1018,6 @@ class ttuple(HailType):
         """
         return self._types
 
-    def _convert_to_py(self, annotation):
-        if annotation is not None:
-            return tuple(*(t._convert_to_py(annotation.get(i)) for i, t in enumerate(self.types)))
-        else:
-            return None
-
     def _traverse(self, obj, f):
         if f(self, obj):
             for t, elt in zip(self.types, obj):
@@ -1149,13 +1088,6 @@ class _tcall(HailType):
     def __init__(self):
         super(_tcall, self).__init__()
 
-    @typecheck_method(annotation=nullable(int))
-    def _convert_to_py(self, annotation):
-        if annotation is not None:
-            return genetics.Call._from_java(annotation)
-        else:
-            return None
-
     def _typecheck_one_level(self, annotation):
         if annotation is not None and not isinstance(annotation, genetics.Call):
             raise TypeError("type 'call' expected Python hail.genetics.Call, but found %s'" %
@@ -1206,12 +1138,6 @@ class tlocus(HailType):
     def __init__(self, reference_genome='default'):
         self._rg = reference_genome
         super(tlocus, self).__init__()
-
-    def _convert_to_py(self, annotation):
-        if annotation is not None:
-            return genetics.Locus(annotation.contig(), annotation.position(), self._rg)
-        else:
-            return None
 
     def _typecheck_one_level(self, annotation):
         if annotation is not None:
@@ -1294,17 +1220,6 @@ class tinterval(HailType):
             Interval point type.
         """
         return self._point_type
-
-    def _convert_to_py(self, annotation):
-        from hail.utils import Interval
-        if annotation is not None:
-            return Interval(self._point_type._convert_to_py(annotation.start()),
-                            self._point_type._convert_to_py(annotation.end()),
-                            annotation.includesStart(),
-                            annotation.includesEnd(),
-                            self._point_type)
-        else:
-            return None
 
     def _traverse(self, obj, f):
         if f(self, obj):
