@@ -21,37 +21,24 @@ class Locus(object):
         if isinstance(contig, int):
             contig = str(contig)
 
-        self._rg = reference_genome
-
-        jrep = scala_object(Env.hail().variant, 'Locus').apply(contig, position, self._rg._jrep)
-        self._init_from_java(jrep)
         self._contig = contig
         self._position = position
+        self._rg = reference_genome
 
     def __str__(self):
-        return self._jrep.toString()
+        return f'{self._contig}:{self._position}'
 
     def __repr__(self):
         return 'Locus(contig=%s, position=%s, reference_genome=%s)' % (self.contig, self.position, self._rg)
 
     def __eq__(self, other):
-        return isinstance(other, Locus) and self._jrep.equals(other._jrep) and self._rg._jrep == other._rg._jrep
+        return (isinstance(other, Locus)
+                and self._contig == other._contig
+                and self._position == other._position
+                and self._rg == other._rg)
 
     def __hash__(self):
-        return self._jrep.hashCode()
-
-    def _init_from_java(self, jrep):
-        self._jrep = jrep
-
-    @classmethod
-    def _from_java(cls, jrep, reference_genome):
-        l = Locus.__new__(cls)
-        l._init_from_java(jrep)
-        l._contig = jrep.contig()
-        l._position = jrep.position()
-        l._rg = reference_genome
-        super(Locus, l).__init__()
-        return l
+        return hash(self._contig) ^ hash(self._position) ^ hash(self._rg)
 
     @classmethod
     @typecheck_method(string=str,
@@ -70,8 +57,12 @@ class Locus(object):
 
         :rtype: :class:`.Locus`
         """
-
-        return Locus._from_java(scala_object(Env.hail().variant, 'Locus').parse(string, reference_genome._jrep), reference_genome)
+        contig, pos = string.split(':')
+        if pos.lower() == 'end':
+            pos = reference_genome.contig_length(contig)
+        else:
+            pos = int(pos)
+        return Locus(contig, pos, reference_genome)
 
     @property
     def contig(self):
