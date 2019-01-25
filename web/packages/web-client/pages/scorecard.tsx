@@ -106,7 +106,7 @@ class Scorecard extends PureComponent<Props, State> {
     // Initialize state to props becaues we may mutate the state (say polling)
     // but props are supposed to be read-only
     this.state = {
-      data: this.props.pageProps.data,
+      data: this.props.pageProps.data || cache,
       user: this.props.pageProps.user
     };
   }
