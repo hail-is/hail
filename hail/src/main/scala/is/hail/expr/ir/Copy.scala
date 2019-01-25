@@ -26,6 +26,11 @@ object Copy {
         val IndexedSeq(value: IR, body: IR) = newChildren
         Let(name, value, body)
       case Ref(name, t) => Ref(name, t)
+      case Loop(args, _) =>
+        require(newChildren.tail.length == args.length)
+        Loop(args.map(_._1).zip(newChildren.tail.map(_.asInstanceOf[IR])), newChildren.head.asInstanceOf[IR])
+      case Recur(_, t) =>
+        Recur(newChildren.map(_.asInstanceOf[IR]), t)
       case ApplyBinaryPrimOp(op, _, _) =>
         val IndexedSeq(l: IR, r: IR) = newChildren
         ApplyBinaryPrimOp(op, l, r)

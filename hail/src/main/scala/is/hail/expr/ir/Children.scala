@@ -26,6 +26,10 @@ object Children {
       Array(value, body)
     case Ref(name, typ) =>
       none
+    case Loop(args, body) =>
+      (body +: args.map(_._2)).toFastIndexedSeq
+    case Recur(args, _) =>
+      args.toFastIndexedSeq
     case ApplyBinaryPrimOp(op, l, r) =>
       Array(l, r)
     case ApplyUnaryPrimOp(op, x) =>

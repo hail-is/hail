@@ -20,6 +20,7 @@ object InferPType {
       case IsNA(_) => PBoolean()
       case Ref(_, t) => PType.canonical(t) // FIXME fill in with supplied physical type
       case In(_, t) => PType.canonical(t) // FIXME fill in with supplied physical type
+      case Recur(_, t) => PType.canonical(t) // FIXME fill in with supplied physical type
       case MakeArray(_, t) => PType.canonical(t)
       case MakeNDArray(data, _, _) => PNDArray(data.pType.asInstanceOf[PArray].elementType)
       case _: ArrayLen => PInt32()
@@ -40,6 +41,8 @@ object InferPType {
         else
           cnsq.pType
       case Let(name, value, body) =>
+        body.pType
+      case Loop(_, body) =>
         body.pType
       case ApplyBinaryPrimOp(op, l, r) =>
         PType.canonical(BinaryOp.getReturnType(op, l.typ, r.typ)).setRequired(l.pType.required && r.pType.required)

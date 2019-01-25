@@ -29,6 +29,19 @@ class InterpretSuite {
 
   private val tuple = MakeTuple(List(i32, f32, ArrayRange(I32(0), I32(5), I32(1))))
 
+  @Test def testLoopREMOVEWHENDONE() {
+    val bdy = If(
+      ApplyComparisonOp(EQ(TInt32()), Ref("n", TInt32()), I32(0)),
+      Ref("acc", TInt32()),
+      Recur(Seq(
+        ApplyBinaryPrimOp(Add(), Ref("n", TInt32()), I32(-1)),
+        ApplyBinaryPrimOp(Add(), Ref("acc", TInt32()), Ref("n", TInt32()))), TInt32()))
+    val tst = Loop(Seq("n" -> I32(10), "acc" -> I32(0)), bdy)
+    val v = Interpret[Any](tst, false)
+    assert(v == 55)
+    val vOpt = Interpret[Any](tst, true)
+  }
+
   @Test def testUnaryPrimOp() {
     assertEvalSame(t)
     assertEvalSame(f)

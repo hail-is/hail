@@ -969,6 +969,7 @@ class IRSuite extends SparkSuite {
       If(b, i, j),
       Let("v", i, v),
       Ref("x", TInt32()),
+      Loop(Seq("x" -> i), If(b, i, Recur(Seq(j), TInt32()))),
       ApplyBinaryPrimOp(Add(), i, j),
       ApplyUnaryPrimOp(Negate(), i),
       ApplyComparisonOp(EQ(TInt32()), i, j),

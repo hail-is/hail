@@ -40,6 +40,7 @@ class ValueIRTests(unittest.TestCase):
             ir.If(b, i, j),
             ir.Let('v', i, v),
             ir.Ref('x'),
+            ir.Loop([('x', i)], ir.If(b, i, ir.Recur([j], hl.tint32))),
             ir.ApplyBinaryOp('+', i, j),
             ir.ApplyUnaryOp('-', i),
             ir.ApplyComparisonOp('EQ', i, j),
@@ -289,4 +290,4 @@ class ValueTests(unittest.TestCase):
                     [("foo", row_v)],
                     None))
             new_globals = hl.eval(hl.Table(map_globals_ir).globals)
-            self.assertEquals(new_globals, hl.Struct(foo=v))
+            self.assertEqual(new_globals, hl.Struct(foo=v))

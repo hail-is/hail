@@ -97,6 +97,23 @@ final case class If(cond: IR, cnsq: IR, altr: IR) extends IR
 final case class Let(name: String, value: IR, body: IR) extends IR
 final case class Ref(name: String, var _typ: Type) extends IR
 
+final case class Loop(params: Seq[(String, IR)], body: IR) extends IR
+final case class Recur(args: Seq[IR], var _typ: Type) extends IR
+object Recur {
+  def updateTypes(ir: IR, typ: Type) {
+    ir match {
+      case If(_, cnsq, altr) =>
+        updateTypes(cnsq, typ)
+        updateTypes(altr, typ)
+      case Let(_, _, body) => updateTypes(body, typ)
+      case x: Recur =>
+        if (x._typ == null)
+          x._typ = typ
+      case _ => {} // do nothing
+    }
+  }
+}
+
 final case class ApplyBinaryPrimOp(op: BinaryOp, l: IR, r: IR) extends IR
 final case class ApplyUnaryPrimOp(op: UnaryOp, x: IR) extends IR
 final case class ApplyComparisonOp(op: ComparisonOp[_], l: IR, r: IR) extends IR

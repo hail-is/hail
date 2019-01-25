@@ -15,6 +15,10 @@ object Subst {
       case Let(name, v, body) =>
         val newv = subst(v)
         Let(name, newv, subst(body, env.delete(name).bind(name, Ref(name, newv.typ))))
+      case Loop(args, body) =>
+        val newArgs = args.map { case (nm, ir) => nm -> subst(ir) }
+        val newBody = subst(body, env.delete(args.map(_._1): _*).bind(args.map{ t => t._1 -> Ref(t._1, t._2.typ) }: _*))
+        Loop(newArgs, newBody)
       case ArrayMap(a, name, body) =>
         ArrayMap(subst(a), name, subst(body, env.delete(name)))
       case ArrayFilter(a, name, cond) =>

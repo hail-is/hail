@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.expr.types.RecurType
 import is.hail.expr.types.virtual._
 import is.hail.utils._
 
@@ -41,6 +42,12 @@ object InferType {
           cnsq.typ
       case Let(name, value, body) =>
         body.typ
+      case Loop(_, body) =>
+        val t = loopType(body)
+        if (t == null)
+          fatal("endless recursion")
+        t
+      case Recur(_, t) => t
       case ApplyBinaryPrimOp(op, l, r) =>
         BinaryOp.getReturnType(op, l.typ, r.typ).setRequired(l.typ.required && r.typ.required)
       case ApplyUnaryPrimOp(op, v) =>
@@ -150,5 +157,23 @@ object InferType {
       case TableToValueApply(child, function) => function.typ(child.typ)
       case MatrixToValueApply(child, function) => function.typ(child.typ)
     }
+  }
+
+  def loopType(ir: IR): Type = {
+    ir match {
+      case If(_, cnsq, altr) =>
+        val t1 = loopType(cnsq)
+        val t2 = loopType(altr)
+        if (t1 == null && t2 == null)
+          fatal("endless recursion")
+        else if (t1 == null)
+          Recur.updateTypes(cnsq, t2)
+        else if (t2 == null)
+          Recur.updateTypes(altr, t1)
+      case Let(_, _, body) =>
+        loopType(body)
+      case _ => {} // do nothing
+    }
+    ir.typ
   }
 }

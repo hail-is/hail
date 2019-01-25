@@ -277,7 +277,7 @@ class If(IR):
         self.altr._compute_type(env, agg_env)
         assert(self.cnsq.typ == self.altr.typ)
         self._type = self.cnsq.typ
-    
+
 
 class Let(IR):
     @typecheck_method(name=str, value=IR, body=IR)
@@ -354,6 +354,60 @@ class TopLevelReference(Ref):
         self._type = env[self.name]
 
 
+class Loop(IR):
+    @typecheck_method(args=sequenceof(sized_tupleof(str, IR)), body=IR)
+    def __init__(self, args, body):
+        super().__init__(body, *[ir for (_, ir) in args])
+        self.body = body
+        self.args = args
+
+    @typecheck_method(body=IR, args=IR)
+    def copy(self, body, *args):
+        assert(len(args) == len(self.args))
+        new_instance = self.__class__
+        return new_instance([(nm, ir) for ((nm, _), ir) in zip(self.args, args)], body)
+
+    def render(self, r):
+        return '(Loop ({}) {})'.format(
+            ' '.join(['({} {})'.format(escape_id(s), r(ir)) for s, ir in self.args]),
+            r(self.body))
+
+    def __eq__(self, other):
+        return isinstance(other, Loop) and \
+            other.body == self.body and \
+            other.args == self.args
+
+    def _compute_type(self, env, agg_env):
+        self.body._compute_type(env, agg_env)
+        self._type = self.body.typ
+
+
+class Recur(IR):
+    @typecheck_method(args=sequenceof(IR), typ=hail_type)
+    def __init__(self, args, typ):
+        super().__init__(*args)
+        self.args = args
+        self._typ = typ
+
+    @typecheck_method(args=IR)
+    def copy(self, *args):
+        assert(len(args) == len(self.args))
+        new_instance = self.__class__
+        return new_instance(list(args))
+
+    def render(self, r):
+        return '(Recur {})'.format(' '.join([r(arg) for arg in self.args]))
+
+    @property
+    def typ(self):
+        return self._typ
+
+    def _compute_type(self, env, agg_env):
+        for arg in self.args:
+            self._compute_type(env, agg_env)
+        self._type = self._typ
+
+
 class ApplyBinaryOp(IR):
     @typecheck_method(op=str, l=IR, r=IR)
     def __init__(self, op, l, r):
@@ -386,7 +440,7 @@ class ApplyBinaryOp(IR):
                 self._type = tfloat32
         else:
             self._type = self.l.typ
-                
+
 
 class ApplyUnaryOp(IR):
     @typecheck_method(op=str, x=IR)
@@ -887,7 +941,7 @@ class ArrayFold(IR):
             agg_env)
         self._type = self.zero.typ
 
-        
+
 class ArrayScan(IR):
     @typecheck_method(a=IR, zero=IR, accum_name=str, value_name=str, body=IR)
     def __init__(self, a, zero, accum_name, value_name, body):
@@ -1145,8 +1199,6 @@ def lookup_aggregator_return_type(name, ctor_args, init_args, seq_args):
                 and all(p.unify(a) for p, a in zip(seq_params, seq_args))):
                 return ret_type.subst()
     raise KeyError(f'aggregator {name}({ ",".join([str(t) for t in seq_args]) }) not found')
-            
-            
 
 
 class BaseApplyAggOp(IR):

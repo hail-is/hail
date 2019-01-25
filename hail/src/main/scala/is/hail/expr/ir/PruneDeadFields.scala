@@ -684,6 +684,10 @@ object PruneDeadFields {
         )
       case Ref(name, t) =>
         Env.empty[(Type, Type)].bind(name, t -> requestedType)
+      case Loop(args, body) =>
+        val bodyEnv = memoizeValueIR(body, requestedType, memo)
+        val argsTypes = args.map { case (nm, a) => a -> bodyEnv.lookupOption(nm).map(_._2).getOrElse(minimal(a.typ)) }
+        unifyEnvsSeq(argsTypes.map { case (a, atyp) => memoizeValueIR(a, atyp, memo) } :+ bodyEnv.delete(args.map(_._1): _*))
       case MakeArray(args, _) =>
         val eltType = requestedType.asInstanceOf[TArray].elementType
         unifyEnvsSeq(args.map(a => memoizeValueIR(a, eltType, memo)))
@@ -1066,6 +1070,11 @@ object PruneDeadFields {
           value2,
           rebuild(body, in.bind(name, value2.typ), memo)
         )
+      case Loop(args, body) =>
+        val args2 = args.map { case (nm, a) => nm -> rebuild(a, in, memo) }
+        Loop(
+          args2,
+          rebuild(body, in.bind(args2.map { case (nm, a) => nm -> a.typ }: _*), memo))
       case Ref(name, t) =>
         Ref(name, in.lookupOption(name).getOrElse(t))
       case MakeArray(args, t) =>

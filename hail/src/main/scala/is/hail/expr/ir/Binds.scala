@@ -5,6 +5,8 @@ object Binds {
     x match {
       case Let(n, _, _) =>
         v == n && i == 1
+      case Loop(names, _) =>
+        names.map(_._1).contains(v) && i == names.length
       case ArrayMap(_, n, _) =>
         v == n && i == 1
       case ArrayFlatMap(_, n, _) =>

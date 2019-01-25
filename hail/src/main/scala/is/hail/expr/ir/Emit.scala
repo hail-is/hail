@@ -4,6 +4,7 @@ import is.hail.annotations._
 import is.hail.annotations.aggregators._
 import is.hail.asm4s._
 import is.hail.expr.ir.functions.{MathFunctions, StringFunctions}
+import is.hail.expr.types.RecurType
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.utils._
@@ -283,9 +284,18 @@ private class Emit(
         EmitTriplet(codeV.setup, const(false), codeV.m)
 
       case If(cond, cnsq, altr) =>
-        assert(cnsq.typ == altr.typ)
+        try {
+          val cnsqTyp = cnsq.typ
+          try {
+            assert(cnsqTyp == altr.typ)
+          } catch { // altr.typ is Recur cnsq.typ is not, OK
+            case _: RecurType => {}
+          }
+        } catch { // cnsq.typ is Recur, need to check altr.typ is not
+          case _: RecurType => altr.typ
+        }
 
-        if (cnsq.typ == TVoid) {
+        if (ir.typ == TVoid) {
           val codeCond = emit(cond)
           val codeCnsq = emit(cnsq)
           val codeAltr = emit(altr)

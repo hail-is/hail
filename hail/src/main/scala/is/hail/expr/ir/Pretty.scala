@@ -62,6 +62,22 @@ object Pretty {
       sb.append(prettyClass(ir) )
 
       ir match {
+        case Loop(args, body) =>
+          sb += '('
+          if (args.nonEmpty) {
+            sb += '\n'
+            args.foreachBetween { case (n, a) =>
+              sb.append(" " * (depth + 2))
+              sb += '('
+              sb.append(prettyIdentifier(n))
+              sb += '\n'
+              pretty(a, depth + 4)
+              sb += ')'
+            }(sb += '\n')
+          }
+          sb += ')'
+          sb += '\n'
+          pretty(body, depth + 2)
         case MakeStruct(fields) =>
           if (fields.nonEmpty) {
             sb += '\n'

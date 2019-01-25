@@ -11,15 +11,15 @@ object TypeCheck {
 
   def apply(ir: IR, env: Env[Type], aggEnv: Option[Env[Type]]): Unit = {
     try {
-      _apply(ir, env, aggEnv)
+      _apply(ir, env, aggEnv, false)
     } catch {
       case e: Throwable => fatal(s"Error while typechecking IR:\n${ Pretty(ir) }", e)
     }
   }
 
-  private def _apply(ir: IR, env: Env[Type], aggEnv: Option[Env[Type]]) {
-    def check(ir: IR, env: Env[Type] = env, aggEnv: Option[Env[Type]] = aggEnv) {
-      _apply(ir, env, aggEnv)
+  private def _apply(ir: IR, env: Env[Type], aggEnv: Option[Env[Type]], tr: Boolean) {
+    def check(ir: IR, env: Env[Type] = env, aggEnv: Option[Env[Type]] = aggEnv, tr: Boolean = false) {
+      _apply(ir, env, aggEnv, tr)
     }
 
     ir match {
@@ -45,19 +45,27 @@ object TypeCheck {
 
       case x@If(cond, cnsq, altr) =>
         check(cond)
-        check(cnsq)
-        check(altr)
+        check(cnsq, tr = tr)
+        check(altr, tr = tr)
         assert(cond.typ.isOfType(TBoolean()))
         assert(cnsq.typ == altr.typ, s"Type mismatch:\n  cnsq: ${ cnsq.typ.parsableString() }\n  altr: ${ altr.typ.parsableString() }\n  $x")
         assert(x.typ == cnsq.typ)
 
       case x@Let(name, value, body) =>
         check(value)
-        check(body, env = env.bind(name, value.typ))
+        check(body, env = env.bind(name, value.typ), tr = tr)
         assert(x.typ == body.typ)
       case x@Ref(name, _) =>
         val expected = env.lookup(x)
         assert(x.typ == expected, s"type mismatch:\n  name: $name\n  actual: ${ x.typ.parsableString() }\n  expect: ${ expected.parsableString() }")
+      case x@Loop(args, body) =>
+        args.foreach { t => check(t._2) }
+        check(body, env = env.bind(args.map { case (nm, ir) => (nm, ir.typ) }: _*), tr = true)
+        assert(x.typ == body.typ)
+      case Recur(args, _) =>
+        if (!tr)
+          fatal("loops must be tail recursive")
+        args.foreach(check(_))
       case x@ApplyBinaryPrimOp(op, l, r) =>
         check(l)
         check(r)

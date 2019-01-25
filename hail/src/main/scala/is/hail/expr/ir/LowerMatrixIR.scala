@@ -27,7 +27,11 @@ object LowerMatrixIR {
 
   private[this] def lower(ir: IR): IR = {
     val lowered = lowerChildren(ir).asInstanceOf[IR]
-    assert(lowered.typ == ir.typ)
+    try {
+      assert(lowered.typ == ir.typ)
+    } catch {
+      case _: RecurType => {} // lowering recursion is always ok
+    }
     lowered
   }
 

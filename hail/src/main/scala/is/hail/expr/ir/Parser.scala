@@ -135,6 +135,8 @@ case class IRParserEnvironment(
   }
 
   def +(t: (String, Type)): IRParserEnvironment = copy(refMap = refMap + t, irMap)
+
+  def ++(t: Traversable[(String, Type)]) = copy(refMap = refMap ++ t, irMap)
 }
 
 object IRParser {
@@ -493,6 +495,13 @@ object IRParser {
     (typ, v)
   }
 
+  def named_value_ir_exprs(env: IRParserEnvironment)(it: TokenIterator): Array[(String, IR)] = {
+    punctuation(it, "(")
+    val namedIrs = named_value_irs(env)(it)
+    punctuation(it, ")")
+    namedIrs
+  }
+
   def named_value_irs(env: IRParserEnvironment)(it: TokenIterator): Array[(String, IR)] =
     repUntil(it, named_value_ir(env), PunctuationToken(")"))
 
@@ -553,6 +562,14 @@ object IRParser {
       case "Ref" =>
         val id = identifier(it)
         Ref(id, env.refMap(id))
+      case "Loop" =>
+        val args = named_value_ir_exprs(env)(it)
+        val body = ir_value_expr(env ++ args.map { case (nm, a) => nm -> a.typ })(it)
+        InferType.loopType(body) // infer and update the type of the recur nodes
+        Loop(args, body)
+      case "Recur" =>
+        val args = ir_value_children(env)(it)
+        Recur(args, null) // this null is a placeholder value, that will be inferred after the whole loop is parsed
       case "ApplyBinaryPrimOp" =>
         val op = BinaryOp.fromString(identifier(it))
         val l = ir_value_expr(env)(it)

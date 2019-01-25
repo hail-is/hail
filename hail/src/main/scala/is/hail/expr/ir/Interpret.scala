@@ -138,7 +138,11 @@ object Interpret {
       case NA(_) => null
       case IsNA(value) => interpret(value, env, args, agg) == null
       case If(cond, cnsq, altr) =>
-        assert(cnsq.typ == altr.typ)
+        try {
+          assert(cnsq.typ == altr.typ)
+        } catch {
+          case _: RecurType => {}
+        }
         val condValue = interpret(cond, env, args, agg)
         if (condValue == null)
           null
@@ -150,6 +154,19 @@ object Interpret {
         val valueValue = interpret(value, env, args, agg)
         interpret(body, env.bind(name, valueValue), args, agg)
       case Ref(name, _) => env.lookup(name)
+      case Loop(loopArgs, body) =>
+        val names = loopArgs.map(_._1)
+        var valueValues = loopArgs.map { t => interpret(t._2, env, args, agg) }
+        while (true) {
+          try {
+            return interpret(body, env.bind(names.zip(valueValues): _*), args, agg)
+          } catch {
+            case e: RecurInterpretException => valueValues = e.args
+          }
+        }
+      case Recur(recurArgs, _) =>
+        val recurValues = recurArgs.map(interpret(_, env, args, agg))
+        throw new RecurInterpretException(recurValues)
       case ApplyBinaryPrimOp(op, l, r) =>
         val lValue = interpret(l, env, args, agg)
         val rValue = interpret(r, env, args, agg)
@@ -951,3 +968,5 @@ object Interpret {
     }
   }
 }
+
+private class RecurInterpretException(val args: Seq[Any]) extends Exception
