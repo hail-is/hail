@@ -175,4 +175,15 @@ def reference_remove_liftover():
             'message': e.args[0]
         }), 400
 
+@app.route('/parse-vcf-metadata', methods=['POST'])
+def parse_vcf_metadata():
+    try:
+        data = flask.request.json
+        metadata = Env.hc()._jhc.pyParseVCFMetadata(data['path'])
+        return metadata
+    except FatalError as e:
+        return flask.jsonify({
+            'message': e.args[0]
+        }), 400
+
 app.run(threaded=False, host='0.0.0.0')
