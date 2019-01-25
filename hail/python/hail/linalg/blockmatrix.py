@@ -5,7 +5,8 @@ from enum import IntEnum
 
 import hail as hl
 import hail.expr.aggregators as agg
-from hail.ir import BlockMatrixWrite, BlockMatrixElementWiseBinaryOp, ApplyBinaryOp, Ref, F64, BlockMatrixBroadcastValue
+from hail.ir import BlockMatrixWrite, BlockMatrixElementWiseBinaryOp, ApplyBinaryOp, Ref, F64, \
+    BlockMatrixBroadcastValue, Literal, MakeStruct
 from hail.ir.blockmatrix_ir import BlockMatrixRead, JavaBlockMatrix
 from hail.utils import new_temp_file, new_local_temp_file, local_path_uri, storage_level
 from hail.utils.java import Env, jarray, joption
@@ -1314,7 +1315,6 @@ class BlockMatrix(object):
         support this broadcasting. Question is, should I go ahead and implement this? Seems like that's something key
         we will ultimately need to have.
         """
-
         if isinstance(right, BlockMatrix):
             _verify_can_broadcast(self.shape, right.shape)
 
@@ -1325,30 +1325,10 @@ class BlockMatrix(object):
                                                          ApplyBinaryOp(op, Ref('element'), F64(right))))
         else:
             _verify_can_broadcast(self.shape, right.shape)
-
-            # This can get swept away once NDArrays are built into the Hail types
-            # Until then, we need to analyze everything and call into Java
             right_2d = _jarray_from_ndarray(_ndarray_as_2d(right))
-            if right_2d.shape[0] == 1:  # Row vector
-                if op == '+':
-                    return BlockMatrix._from_java(self._jbm.rowVectorAdd(right_2d))
-                elif op == '*':
-                    return BlockMatrix._from_java(self._jbm.rowVectorMul(right_2d))
-                elif op == '-':
-                    return BlockMatrix._from_java(self._jbm.rowVectorSub(right_2d))
-                elif op == '/':
-                    return BlockMatrix._from_java(self._jbm.rowVectorDiv(right_2d))
-            elif right_2d.shape[1] == 1:  # Column vector
-                if op == '+':
-                    return BlockMatrix._from_java(self._jbm.colVectorAdd(right_2d))
-                elif op == '*':
-                    return BlockMatrix._from_java(self._jbm.colVectorMul(right_2d))
-                elif op == '-':
-                    return BlockMatrix._from_java(self._jbm.colVectorSub(right_2d))
-                elif op == '/':
-                    return BlockMatrix._from_java(self._jbm.colVectorDiv(right_2d))
-            else:
-                raise ValueError(f'incompatible shape for broadcasting: {right_2d.shape}')
+
+            return BlockMatrix(
+                BlockMatrixBroadcastValue(self._bmir, ApplyBinaryOp(op, Ref('element'), _wrap_in_struct(right_2d))))
 
     @typecheck_method(op=str, left=oneof(numeric, np.ndarray))
     def _apply_element_wise_op_on_left(self, op, left):
@@ -1360,26 +1340,9 @@ class BlockMatrix(object):
             # This can get swept away once NDArrays are built into the Hail types
             # Until then, we need to analyze everything and call into Java
             left_2d = _jarray_from_ndarray(_ndarray_as_2d(left))
-            if left_2d.shape[0] == 1:  # Row vector
-                if op == '+':
-                    return BlockMatrix._from_java(self._jbm.rowVectorAdd(left_2d))
-                elif op == '*':
-                    return BlockMatrix._from_java(self._jbm.rowVectorMul(left_2d))
-                elif op == '-':
-                    return BlockMatrix._from_java(self._jbm.reverseRowVectorSub(left_2d))
-                elif op == '/':
-                    return BlockMatrix._from_java(self._jbm.reverseRowVectorDiv(left_2d))
-            elif left_2d.shape[1] == 1:  # Column vector
-                if op == '+':
-                    return BlockMatrix._from_java(self._jbm.colVectorAdd(left_2d))
-                elif op == '*':
-                    return BlockMatrix._from_java(self._jbm.colVectorMul(left_2d))
-                elif op == '-':
-                    return BlockMatrix._from_java(self._jbm.reverseColVectorSub(left_2d))
-                elif op == '/':
-                    return BlockMatrix._from_java(self._jbm.reverseColVectorDiv(left_2d))
-            else:
-                raise ValueError(f'incompatible shape for broadcasting: {left_2d.shape}')
+
+            return BlockMatrix(
+                BlockMatrixBroadcastValue(self._bmir, ApplyBinaryOp(op, _wrap_in_struct(left_2d), Ref('element'))))
 
     @typecheck_method(b=oneof(numeric, np.ndarray, block_matrix_type))
     def __add__(self, b):
@@ -2195,6 +2158,12 @@ def _verify_can_broadcast(shape1, shape2):
             raise ValueError(f'Incompatible shapes for broadcasting: {shape1} and {shape2}')
 
         idx += 1
+
+
+def _wrap_in_struct(vector):
+    return MakeStruct([
+        ("shape", Literal(hl.tarray(hl.tint64), vector.shape)),
+        ("data", Literal(hl.tarray(hl.tfloat64), vector))])
 
 
 def _shape(b):

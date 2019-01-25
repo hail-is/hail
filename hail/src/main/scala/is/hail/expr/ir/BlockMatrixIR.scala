@@ -7,6 +7,22 @@ import is.hail.linalg.BlockMatrix
 import is.hail.utils.fatal
 
 object BlockMatrixIR {
+
+  def resizeAfterMap(childShape: IndexedSeq[Long], left: IR, right: IR): IndexedSeq[Long] = {
+    (left, right) match {
+      // No reshaping when broadcasting a scalar
+      case (Ref(_, _), F64(_)) | (F64(_), Ref(_, _)) => childShape
+      // Reshaping when broadcasting a row or column vector
+      case (MakeStruct(fields), Ref(_, _: TFloat64)) =>
+        val (_, shape) = fields.head
+        BlockMatrixIR.resizeAfterBroadcast(childShape, shape.asInstanceOf[IndexedSeq[Long]])
+      case (Ref(_, _: TFloat64), MakeStruct(fields)) =>
+        val (_, shape) = fields.head
+        BlockMatrixIR.resizeAfterBroadcast(childShape, shape.asInstanceOf[IndexedSeq[Long]])
+      case _ => fatal(s"Unsupported types for broadcasting operation: ${Pretty(left)}, ${Pretty(right)}")
+    }
+  }
+
   def resizeAfterBroadcast(leftDims: IndexedSeq[Long], rightDims: IndexedSeq[Long]): IndexedSeq[Long] = {
     val resultDims = Array[Long]()
 
@@ -126,10 +142,14 @@ case class BlockMatrixElementWiseBinaryOp(
     val rightValue = right.execute(hc)
 
     (applyBinOp.l, applyBinOp.r, applyBinOp.op) match {
-      case (Ref(_, _: TFloat64), Ref(_, _: TFloat64), Add()) => leftValue.add(rightValue)
-      case (Ref(_, _: TFloat64), Ref(_, _: TFloat64), Multiply()) => leftValue.mul(rightValue)
-      case (Ref(_, _: TFloat64), Ref(_, _: TFloat64), Subtract()) => leftValue.sub(rightValue)
-      case (Ref(_, _: TFloat64), Ref(_, _: TFloat64), FloatingPointDivide()) => leftValue.div(rightValue)
+      case (Ref(_, _: TFloat64), Ref(_, _: TFloat64), Add()) =>
+        leftValue.add(rightValue)
+      case (Ref(_, _: TFloat64), Ref(_, _: TFloat64), Multiply()) =>
+        leftValue.mul(rightValue)
+      case (Ref(_, _: TFloat64), Ref(_, _: TFloat64), Subtract()) =>
+        leftValue.sub(rightValue)
+      case (Ref(_, _: TFloat64), Ref(_, _: TFloat64), FloatingPointDivide()) =>
+        leftValue.div(rightValue)
       case _ => fatal(s"Binary operation not supported on two blockmatrices: ${Pretty(applyBinOp)}")
     }
   }
@@ -140,12 +160,10 @@ case class BlockMatrixBroadcastValue(
   applyBinOp: ApplyBinaryPrimOp) extends BlockMatrixIR {
 
   override def typ: BlockMatrixType = {
-    (applyBinOp.l, applyBinOp.r) match {
-      // No reshaping when broadcasting a scalar
-      case (Ref(_, _: TFloat64), F64(_)) | (F64(_), Ref(_, _: TFloat64)) => child.typ
-      // Add cases for local tensor when type exists
-      case _ => fatal(s"Unsupported type for broadcasting operation: ${Pretty(applyBinOp)}")
-    }
+    BlockMatrixType(child.typ.elementType,
+      BlockMatrixIR.resizeAfterMap(child.typ.shape, applyBinOp.l, applyBinOp.r),
+      child.typ.blockSize,
+      child.typ.dimsPartitioned)
   }
 
   override def children: IndexedSeq[BaseIR] = Array(child, applyBinOp)
@@ -161,6 +179,7 @@ case class BlockMatrixBroadcastValue(
     val bmValue = child.execute(hc)
 
     (applyBinOp.l, applyBinOp.r, applyBinOp.op) match {
+      //Broadcasting by scalars
       case (Ref(_, _: TFloat64), F64(x), Add()) => bmValue.scalarAdd(x)
       case (F64(x), Ref(_, _: TFloat64), Add()) => bmValue.scalarAdd(x)
       case (Ref(_, _: TFloat64), F64(x), Multiply()) => bmValue.scalarMul(x)
@@ -169,6 +188,44 @@ case class BlockMatrixBroadcastValue(
       case (F64(x), Ref(_, _: TFloat64), Subtract()) => bmValue.reverseScalarSub(x)
       case (Ref(_, _: TFloat64), F64(x), FloatingPointDivide()) => bmValue.scalarDiv(x)
       case (F64(x), Ref(_, _: TFloat64), FloatingPointDivide()) => bmValue.reverseScalarDiv(x)
+      //Broadcasting by vectors on the right
+      case (Ref(_, _: TFloat64), MakeStruct(fields), op@_) =>
+        val (_, shapeLiteral) = fields.head
+        val (_, dataLiteral) = fields(1)
+        val shape = shapeLiteral.asInstanceOf[Literal].value.asInstanceOf[Array[Long]]
+        val vector = dataLiteral.asInstanceOf[Literal].value.asInstanceOf[Array[Double]]
+        (op, shape) match {
+            //Row vector
+          case (Add(), Array(1, _)) => bmValue.rowVectorAdd(vector)
+          case (Multiply(), Array(1, _)) => bmValue.rowVectorMul(vector)
+          case (Subtract(), Array(1, _)) => bmValue.rowVectorSub(vector)
+          case (FloatingPointDivide(), Array(1, _)) => bmValue.rowVectorDiv(vector)
+            // Col vector
+          case (Add(), Array(_, 1)) => bmValue.colVectorAdd(vector)
+          case (Multiply(), Array(_, 1)) => bmValue.colVectorMul(vector)
+          case (Subtract(), Array(_, 1)) => bmValue.colVectorSub(vector)
+          case (FloatingPointDivide(), Array(_, 1)) => bmValue.colVectorDiv(vector)
+        }
+      //Broadcasting by vectors on the left
+      case (MakeStruct(fields), Ref(_, _: TFloat64), op@_) =>
+        val (_, shapeLiteral) = fields.head
+        val (_, dataLiteral) = fields(1)
+        val shape = shapeLiteral.asInstanceOf[Literal].value.asInstanceOf[Array[Long]]
+        val vector = dataLiteral.asInstanceOf[Literal].value.asInstanceOf[Array[Double]]
+        (op, shape) match {
+            // Row vector
+          case (Add(), Array(1, _)) => bmValue.rowVectorAdd(vector)
+          case (Multiply(), Array(1, _)) => bmValue.rowVectorMul(vector)
+          case (Subtract(), Array(1, _)) => bmValue.reverseRowVectorSub(vector)
+          case (FloatingPointDivide(), Array(1, _)) => bmValue.reverseRowVectorDiv(vector)
+            // Col vector
+          case (Add(), Array(_, 1)) => bmValue.colVectorAdd(vector)
+          case (Multiply(), Array(_, 1)) => bmValue.colVectorMul(vector)
+          case (Subtract(), Array(_, 1)) => bmValue.reverseColVectorSub(vector)
+          case (FloatingPointDivide(), Array(_, 1)) => bmValue.reverseColVectorDiv(vector)
+        }
     }
+
+
   }
 }
