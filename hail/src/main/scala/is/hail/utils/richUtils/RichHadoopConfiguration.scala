@@ -133,11 +133,11 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
     files
   }
 
-  def copy(src: String, dst: String) {
+  def copy(src: String, dst: String, deleteSource: Boolean = false) {
     hadoop.fs.FileUtil.copy(
       fileSystem(src), new hadoop.fs.Path(src),
       fileSystem(dst), new hadoop.fs.Path(dst),
-      false, hConf)
+      deleteSource, hConf)
   }
 
   def copyMerge(

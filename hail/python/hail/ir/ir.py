@@ -1861,6 +1861,8 @@ class MatrixToValueApply(IR):
         name = self.config['name']
         if name == 'ForceCountMatrixTable':
             self._type = tint64
+        elif name == 'MatrixExportColsParallel':
+            self._type = tvoid
         else:
             assert name == 'MatrixWriteBlockMatrix', name
             self._type = tvoid
