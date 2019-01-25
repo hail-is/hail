@@ -40,6 +40,9 @@
           }
         }
       }
+      td {
+        padding-right: $margin;
+      }
     }
     th {
       color: $black;
@@ -49,6 +52,7 @@
       text-align: left;
       border-bottom: 1px solid $light-gray;
       vertical-align: inherit;
+      padding-right: $margin;
     }
     #random-user {
       display: flex;
