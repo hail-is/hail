@@ -137,7 +137,7 @@ object LowerMatrixIR {
 
     case MatrixAnnotateColsTable(child, table, root) =>
       val col = Symbol(genUID())
-      val colKey = makeStruct(child.typ.colKey.map(k => Symbol(k) -> col(k)): _*)
+      val colKey = makeStruct(child.typ.colKey.map(k => Symbol(k) -> col(Symbol(k))): _*)
       lower(child)
         .mapGlobals(let(__dictfield = lower(table)
           .distinct()
