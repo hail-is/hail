@@ -290,6 +290,7 @@ export function initStateSSR(cookie: string) {
 }
 
 // TODO: we could allow a person whose session has expired to still
+// TOOD: Handle safari cross-site tracking issues
 // attempt login implicitly using _checkSession
 function _initState() {
   if (!_auth0) {
@@ -329,6 +330,8 @@ function _initState() {
         })
         .catch((err: any) => {
           console.error(err);
+
+          // If we logout here safari breaks unless users remove cross-site trackign
           logout();
         });
     }, 500);

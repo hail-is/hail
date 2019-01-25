@@ -20,32 +20,33 @@ import '../styles/pages/scorecard.scss';
 // Typescript gives us only compile-time guarantees on the client
 
 declare type scorecardJson = {
-  data: {
-    user_data: {
-      [name: string]: {
-        CHANGES_REQUESTED: PR[];
-        ISSUES: Issue[];
-        NEEDS_REVIEW: PR[];
-      };
+  user_data: {
+    [name: string]: {
+      CHANGES_REQUESTED: PR[];
+      ISSUES: Issue[];
+      NEEDS_REVIEW: PR[];
     };
-    unassigned: PR[];
-    urgent_issues: [
-      {
-        AGE: string;
-        ISSUE: Issue;
-        USER: string;
-      }
-    ];
-    updated: string;
   };
+  unassigned: PR[];
+  urgent_issues: [
+    {
+      AGE: string;
+      ISSUE: Issue;
+      USER: string;
+    }
+  ];
+  updated: string;
 };
 
-declare type user = {
-  user: string;
-};
+declare type user = string;
+
+interface State {
+  data: scorecardJson;
+  user: user;
+}
 
 interface Props {
-  pageProps: scorecardJson & user;
+  pageProps: State;
 }
 
 // TODO: think about triggering this in _app.js
@@ -55,7 +56,7 @@ interface Props {
 // at some memory cost
 // With the benefit that if refresh is smaller than the
 // time between page clicks, non-stale state will be served in << 16ms on click
-let cache: object;
+let cache: scorecardJson;
 
 let timeout: NodeJS.Timeout;
 const startPolling = (ms: number = 1 * 60 * 1000) => {
@@ -72,7 +73,7 @@ const startPolling = (ms: number = 1 * 60 * 1000) => {
   }, ms);
 };
 
-class Scorecard extends PureComponent<Props, scorecardJson & user> {
+class Scorecard extends PureComponent<Props, State> {
   // Data that is fetched during the server rendering phase does not need
   // to be re-fetched during the client rendering phase
   // The data is automatically available under this.props.pageProps
@@ -85,7 +86,7 @@ class Scorecard extends PureComponent<Props, scorecardJson & user> {
     const user = Scorecard.refreshUser();
 
     if (typeof window === 'undefined' || !cache) {
-      const ssr = await fetch(jsonURL).then(d => d.json());
+      const ssr: scorecardJson = await fetch(jsonURL).then(d => d.json());
 
       // TODO: could use page loading indicator here instead of synchronously waiting
       if (typeof window !== 'undefined') {
@@ -99,13 +100,13 @@ class Scorecard extends PureComponent<Props, scorecardJson & user> {
     return { pageProps: { user } };
   }
 
-  constructor(props: any) {
+  constructor(props: Props) {
     super(props);
 
     // Initialize state to props becaues we may mutate the state (say polling)
     // but props are supposed to be read-only
     this.state = {
-      data: this.props.pageProps.data || cache,
+      data: this.props.pageProps.data,
       user: this.props.pageProps.user
     };
   }
@@ -119,10 +120,10 @@ class Scorecard extends PureComponent<Props, scorecardJson & user> {
       return <div>No data</div>;
     }
 
-    const { user_data, unassigned, urgent_issues } = this.state.data;
+    const { user_data, unassigned, urgent_issues, updated } = this.state.data;
 
     if (unassigned && unassigned.length) {
-      user_data['*UNASSIGNED*'] = {
+      user_data['UNASSIGNED'] = {
         NEEDS_REVIEW: unassigned,
         CHANGES_REQUESTED: [],
         ISSUES: []
@@ -184,9 +185,9 @@ class Scorecard extends PureComponent<Props, scorecardJson & user> {
                 <thead>
                   <tr>
                     <th>Who</th>
-                    <th>When</th>
-
                     <th>What</th>
+
+                    <th>When</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -197,12 +198,13 @@ class Scorecard extends PureComponent<Props, scorecardJson & user> {
                           <a>{issue.USER}</a>
                         </Link>
                       </td>
-                      <td>{issue.AGE}</td>
+
                       <td>
                         <a target="_blank" href={issue.ISSUE.html_url}>
                           {issue.ISSUE.title}
                         </a>
                       </td>
+                      <td className="emph">{issue.AGE}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -221,6 +223,7 @@ class Scorecard extends PureComponent<Props, scorecardJson & user> {
             <span>{this.state.user}</span>
           </div>
         </div>
+        <div className="issues-section deemph">Updated: {updated}</div>
       </span>
     );
   }

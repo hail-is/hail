@@ -1,4 +1,5 @@
 @import '../variables/colors.scss';
+@import '../variables/margins.scss';
 #theme-site {
   #scorecard {
     display: flex;
@@ -14,12 +15,19 @@
       align-items: flex-start;
       width: 100%;
       &:nth-child(n + 2) {
-        margin-top: 0.875rem;
+        margin-top: $margin * 2;
       }
       flex: 1 0 auto;
     }
+    .deemph {
+      color: $light-gray;
+    }
+    .emph {
+      color: $red;
+    }
     table {
       width: 100%;
+      margin-top: $margin;
     }
     tr {
       display: table-row;
@@ -47,12 +55,12 @@
       flex-direction: row;
       align-items: center;
       justify-content: center;
-      margin-top: 0.875rem;
+      margin-top: $margin;
       img {
         cursor: pointer;
       }
       span {
-        margin-left: 0.875rem;
+        margin-left: $margin;
       }
     }
   }

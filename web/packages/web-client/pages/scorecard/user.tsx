@@ -1,6 +1,8 @@
-import { PureComponent } from 'react';
+import { PureComponent, Fragment } from 'react';
 import { PR, Issue } from './scorecard';
 import fetch from 'isomorphic-unfetch';
+
+import '../../styles/pages/scorecard/user.scss';
 
 declare type response = {
   data: {
@@ -24,51 +26,60 @@ declare type pageProps = {
   };
 };
 
-declare type prInput = {
-  prs: PR[];
+declare type section = {
+  data: PR[] | Issue[];
+  sectionClass: 'pr' | 'issue';
   type: string;
 };
 
-declare type issueInput = {
-  issues: Issue[];
-  type: string;
+declare type prProps = {
+  data: PR[];
 };
 
-const PrSection = ({ prs, type }: prInput) => (
-  <div style={{ display: 'flex', flexDirection: 'column', marginBottom: 14 }}>
-    <h5>{type}</h5>
-    <div style={{ display: 'flex', flexDirection: 'column' }}>
-      {prs.length ? (
-        prs.map((pr: PR, idx: number) => (
-          <span style={{ flexDirection: 'row' }} key={idx}>
-            <a href={`pr.html_url`} target="_blank" style={{ marginRight: 14 }}>
-              {pr.id}
-            </a>
-            <a href={`https://github.com/users/${pr.user}`}>{pr.user}</a>
-          </span>
-        ))
-      ) : (
-        <div>None</div>
-      )}
-    </div>
-  </div>
+declare type issueProps = {
+  data: Issue[];
+};
+
+const PrSection = ({ data }: prProps) => (
+  <Fragment>
+    {data.map((pr: PR, idx: number) => (
+      <span className="data-section" key={idx}>
+        <a href={pr.html_url} target="_blank">
+          {pr.id}
+        </a>
+        <a href={`https://github.com/${pr.user}`} target="_blank">
+          {pr.user}
+        </a>
+      </span>
+    ))}
+  </Fragment>
 );
 
-const IssueSection = ({ issues, type }: issueInput) => (
-  <div style={{ display: 'flex', flexDirection: 'column', marginBottom: 14 }}>
+const IssueSection = ({ data }: issueProps) => (
+  <Fragment>
+    {data.map((issue: Issue, idx: number) => (
+      <span className="data-section" key={idx}>
+        <a href={issue.html_url} target="_blank">
+          <span>{issue.id}</span>
+          <span>{issue.title}</span>
+        </a>
+      </span>
+    ))}
+  </Fragment>
+);
+
+const Section = ({ data, sectionClass, type }: section) => (
+  <div className="section">
     <h5>{type}</h5>
-    <div style={{ display: 'flex', flexDirection: 'column' }}>
-      {issues.length ? (
-        issues.map((issue: Issue, idx: number) => (
-          <span style={{ flexDirection: 'row' }} key={idx}>
-            <a href={`pr.html_url`} target="_blank" style={{ marginRight: 14 }}>
-              {issue.id}
-            </a>
-            <span>{issue.title}</span>
-          </span>
-        ))
+    <div className="data">
+      {data.length > 0 ? (
+        sectionClass === 'pr' ? (
+          <PrSection data={data as PR[]} />
+        ) : (
+          <IssueSection data={data as Issue[]} />
+        )
       ) : (
-        <div>No issues</div>
+        <div className="deemph">None</div>
       )}
     </div>
   </div>
@@ -92,8 +103,6 @@ class User extends PureComponent<pageProps> {
 
   constructor(props: pageProps) {
     super(props);
-
-    console.info(props.pageProps);
   }
 
   render() {
@@ -104,28 +113,26 @@ class User extends PureComponent<pageProps> {
     } = this.props.pageProps;
 
     return (
-      <div id="scorecard/user">
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'row',
-            alignItems: 'center',
-            marginBottom: 14
-          }}
+      <div id="scorecard-user">
+        <a
+          id="head"
+          className="section"
+          href={`https://github.com/${name}`}
+          target="_blank"
         >
-          <img
-            src={`https://github.com/${name}.png?size=50`}
-            width="50"
-            style={{ marginRight: 14 }}
-          />
+          <img src={`https://github.com/${name}.png?size=50`} width="50" />
           <h3>{name}</h3>
-        </div>
+        </a>
         <div>
-          <PrSection prs={CHANGES_REQUESTED} type="Changes Requested" />
-          <PrSection prs={NEEDS_REVIEW} type="Needs Review" />
-          <PrSection prs={FAILING} type="Failing Tests" />
-          <IssueSection issues={ISSUES} type="Issues" />
-          <span>Updated: {updated}</span>
+          <Section
+            data={CHANGES_REQUESTED}
+            sectionClass="pr"
+            type="Changes Requested"
+          />
+          <Section data={NEEDS_REVIEW} sectionClass="pr" type="Needs Review" />
+          <Section data={FAILING} sectionClass="pr" type="Failing Tests" />
+          <Section data={ISSUES} sectionClass="issue" type="Issues" />
+          <span className="deemph">Updated: {updated}</span>
         </div>
       </div>
     );

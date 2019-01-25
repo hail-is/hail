@@ -1,0 +1,35 @@
+@import '../../variables/colors.scss';
+@import '../../variables/margins.scss';
+#theme-site {
+  #scorecard-user {
+    display: flex;
+    flex-direction: column;
+    #head {
+      display: flex;
+      align-self: center;
+      flex-direction: row;
+      align-items: center;
+      img {
+        margin-right: $margin;
+      }
+    }
+    .section {
+      margin-bottom: $margin;
+      .data {
+        display: flex;
+        flex-direction: column;
+        margin-top: $margin;
+        margin-bottom: $margin * 2;
+        .data-section {
+          a+a,
+          a span+span {
+            margin-left: $margin;
+          }
+        }
+      }
+    }
+    .deemph {
+      color: $light-gray;
+    }
+  }
+}
