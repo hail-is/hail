@@ -1,4 +1,4 @@
-FROM spark-base
+FROM hail-base
 
 COPY start-master.sh /
 

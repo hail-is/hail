@@ -1,2 +1,3 @@
 /deployment.yaml
 /spark-hail-pod.yaml
+/hail-jupyter-pod.yaml
