@@ -105,30 +105,11 @@ async function attachTokenMiddleware(req, res, next) {
   }
 }
 
-// x-requested-with for csrf, and for xmlhttp requests
-// https://stackoverflow.com/questions/17478731/whats-the-point-of-the-x-requested-with-header
-const corsMiddleware = (req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader(
-    'Access-Control-Allow-Headers',
-    'Authorization, Content-Type, Content-Length, X-Requested-With'
-  );
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, DELETE, OPTIONS');
-
-  if (req.method === 'OPTIONS') {
-    res.writeHead(200);
-    res.end();
-    return;
-  }
-
-  next();
-};
-
 polka()
-  .use(corsMiddleware)
-  .get('/notebook', attachTokenMiddleware, (req, res) => {
-    console.info('token', req.user);
-    res.write(JSON.stringify({}));
+  .get('/verify', attachTokenMiddleware, (req, res) => {
+    res.setHeader('User', req.user.sub);
+    res.setHeader('Scope', req.user.scope);
+
     res.end();
   })
   .listen(PORT, err => {

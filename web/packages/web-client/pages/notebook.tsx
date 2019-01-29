@@ -26,10 +26,25 @@ class Notebook extends PureComponent {
     console.info('Notebook mounted');
   };
 
+  handleClick = async () => {
+    const formData = new FormData();
+    formData.append('image', 'hail');
+
+    const data = await fetch(`${DOMAIN}/new`, {
+      headers: {
+        Authorization: `Bearer ${auth.accessToken}`
+      },
+      method: 'POST',
+      body: formData
+    }).then(d => d.json());
+
+    console.info('data', data);
+  };
+
   render() {
     return (
       <div id="notebook" className="centered">
-        <button>Create</button>
+        <button onClick={this.handleClick}>Create</button>
       </div>
     );
   }
