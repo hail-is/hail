@@ -1,7 +1,8 @@
 package is.hail.annotations
 
 import is.hail.expr.types._
-import is.hail.utils.Interval
+import is.hail.expr.types.virtual._
+import is.hail.utils._
 import org.apache.spark.sql.Row
 
 object Annotation {
@@ -43,10 +44,11 @@ object Annotation {
     t match {
       case t: TBaseStruct =>
         val r = a.asInstanceOf[Row]
-        Row(Array.tabulate(r.size)(i => Annotation.copy(t.types(i), r(i))): _*)
+        Row.fromSeq(Array.tabulate(r.size)(i => Annotation.copy(t.types(i), r(i))))
 
       case t: TArray =>
-        a.asInstanceOf[IndexedSeq[Annotation]].map(Annotation.copy(t.elementType, _))
+        val arr = a.asInstanceOf[IndexedSeq[Annotation]]
+        Array.tabulate(arr.length)(i => Annotation.copy(t.elementType, arr(i))).toFastIndexedSeq
 
       case t: TSet =>
         a.asInstanceOf[Set[Annotation]].map(Annotation.copy(t.elementType, _))

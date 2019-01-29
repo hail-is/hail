@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.expr.types._
+import is.hail.expr.types.virtual._
 import is.hail.utils._
 
 object TypeCheck {
@@ -47,7 +48,7 @@ object TypeCheck {
         check(cnsq)
         check(altr)
         assert(cond.typ.isOfType(TBoolean()))
-        assert(cnsq.typ == altr.typ, s"${ cnsq.typ }, ${ altr.typ }, $cond")
+        assert(cnsq.typ == altr.typ, s"Type mismatch:\n  cnsq: ${ cnsq.typ.parsableString() }\n  altr: ${ altr.typ.parsableString() }\n  $x")
         assert(x.typ == cnsq.typ)
 
       case x@Let(name, value, body) =>
@@ -69,7 +70,10 @@ object TypeCheck {
         check(r)
         assert(-op.t1.fundamentalType == -l.typ.fundamentalType)
         assert(-op.t2.fundamentalType == -r.typ.fundamentalType)
-        assert(x.typ == TBoolean())
+        op match {
+          case _: Compare => assert(x.typ.isInstanceOf[TInt32])
+          case _ => assert(x.typ.isInstanceOf[TBoolean])
+        }
       case x@MakeArray(args, typ) =>
         assert(typ != null)
         args.map(_.typ).zipWithIndex.foreach { case (x, i) => assert(x == typ.elementType,
@@ -147,11 +151,25 @@ object TypeCheck {
         check(body, env = env.bind(accumName -> zero.typ, valueName -> -tarray.elementType))
         assert(body.typ == zero.typ)
         assert(x.typ == TArray(zero.typ))
+      case x@ArrayLeftJoinDistinct(left, right, l, r, compare, join) =>
+        check(left)
+        check(right)
+        val ltyp = coerce[TArray](left.typ)
+        val rtyp = coerce[TArray](right.typ)
+        check(compare, env = env.bind(l -> -ltyp.elementType, r -> -rtyp.elementType))
+        check(join, env = env.bind(l -> -ltyp.elementType, r -> -rtyp.elementType))
+        assert(compare.typ.isOfType(TInt32()))
+        assert(x.typ == TArray(join.typ))
       case x@ArrayFor(a, valueName, body) =>
         check(a)
         val tarray = coerce[TArray](a.typ)
         check(body, env = env.bind(valueName -> -tarray.elementType))
         assert(body.typ == TVoid)
+      case x@ArrayAgg(a, name, query) =>
+        check(a)
+        val tarray = coerce[TArray](a.typ)
+        assert(aggEnv.isEmpty)
+        check(query, env, Some(env.bind(name, tarray.elementType)))
       case x@AggFilter(cond, aggIR) =>
         check(cond, env = aggEnv.get)
         check(aggIR)
@@ -181,15 +199,15 @@ object TypeCheck {
           check(x)
           assert(x.typ == TVoid)
         }
-      case x@ApplyAggOp(seqOpArgs, constructorArgs, initOpArgs, aggSig) =>
+      case x@ApplyAggOp(constructorArgs, initOpArgs, seqOpArgs, aggSig) =>
         seqOpArgs.foreach(check(_, env = aggEnv.get))
         constructorArgs.foreach(check(_))
         initOpArgs.foreach(_.foreach(check(_)))
         assert(x.typ == AggOp.getType(aggSig))
-      case x@ApplyScanOp(seqOpArgs, constructorArgs, initOpArgs, aggSig) =>
-        seqOpArgs.foreach(check(_, env = aggEnv.get))
+      case x@ApplyScanOp(constructorArgs, initOpArgs, seqOpArgs, aggSig) =>
         constructorArgs.foreach(check(_))
         initOpArgs.foreach(_.foreach(check(_)))
+        seqOpArgs.foreach(check(_, env = aggEnv.get))
         assert(x.typ == AggOp.getType(aggSig))
       case x@MakeStruct(fields) =>
         fields.foreach { case (name, a) => check(a) }
@@ -202,19 +220,20 @@ object TypeCheck {
           val oldfields = coerce[TStruct](old.typ).fieldNames.toSet
           fields.forall { id => oldfields.contains(id) }
         }
-      case x@InsertFields(old, fields) =>
+      case x@InsertFields(old, fields, fieldOrder) =>
+        fieldOrder.foreach { fds =>
+          val newFieldSet = fields.map(_._1).toSet
+          val oldFieldNames = old.typ.asInstanceOf[TStruct].fieldNames
+          val oldFieldNameSet = oldFieldNames.toSet
+          assert(fds.length == x.typ.size)
+          assert(oldFieldNames
+            .filter(f => !newFieldSet.contains(f))
+            .sameElements(fds.filter(f => !newFieldSet.contains(f))))
+          assert(fds.areDistinct())
+          assert(fds.toSet.forall(f => newFieldSet.contains(f) || oldFieldNameSet.contains(f)))
+        }
         check(old)
         fields.foreach { case (name, a) => check(a) }
-        assert(x.typ == fields.foldLeft(old.typ) { case (t, (name, a)) =>
-          t match {
-            case t2: TStruct =>
-              t2.selfField(name) match {
-                case Some(f2) => t2.updateKey(name, f2.index, a.typ)
-                case None => t2.appendKey(name, a.typ)
-              }
-            case _ => TStruct(name -> a.typ)
-          }
-        }.asInstanceOf[TStruct])
       case x@GetField(o, name) =>
         check(o)
         val t = coerce[TStruct](o.typ)
@@ -241,6 +260,8 @@ object TypeCheck {
       case In(i, typ) =>
         assert(typ != null)
       case Die(msg, typ) =>
+        check(msg)
+        assert(msg.typ isOfType TString())
       case x@ApplyIR(fn, args, conversion) =>
         check(x.explicitNode)
       case x: AbstractApplyNode[_] =>
@@ -251,6 +272,7 @@ object TypeCheck {
         assert(min.typ.isInstanceOf[TFloat64])
         assert(max.typ.isInstanceOf[TFloat64])
       case MatrixWrite(_, _) =>
+      case MatrixMultiWrite(_, _) => // do nothing
       case x@TableAggregate(child, query) =>
         check(query,
           env = child.typ.globalEnv,
@@ -264,6 +286,11 @@ object TypeCheck {
       case TableWrite(_, _, _, _, _) =>
       case TableExport(_, _, _, _, _) =>
       case TableCount(_) =>
+      case TableGetGlobals(_) =>
+      case TableCollect(_) =>
+      case TableToValueApply(_, _) =>
+      case MatrixToValueApply(_, _) =>
+      case BlockMatrixWrite(_, _, _, _, _) =>
     }
   }
 }

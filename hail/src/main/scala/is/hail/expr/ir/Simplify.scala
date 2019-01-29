@@ -1,9 +1,8 @@
 package is.hail.expr.ir
 
+import is.hail.expr.types.virtual.{TArray, TInt32, TInt64, TStruct}
+import is.hail.table.Ascending
 import is.hail.utils._
-import is.hail.expr._
-import is.hail.expr.types.{TArray, TInt32, TInt64, TStruct}
-import is.hail.table.{Ascending, SortField}
 
 object Simplify {
 
@@ -20,6 +19,7 @@ object Simplify {
       case ir: IR => simplifyValue(ir)
       case tir: TableIR => simplifyTable(allowRepartitioning)(tir)
       case mir: MatrixIR => simplifyMatrix(allowRepartitioning)(mir)
+      case bmir: BlockMatrixIR => bmir //NOTE Currently nothing to simplify for BlockMatrixIRs
     }
 
   private[this] def visitNode[T <: BaseIR](
@@ -97,7 +97,7 @@ object Simplify {
     * 'ir' can not otherwise change the contents of the result of 'ir'.
     */
   private[this] def isDeterministicallyRepartitionable(ir: BaseIR): Boolean =
-    ir.children.forall{
+    ir.children.forall {
       case child: IR => !Exists(child, _.isInstanceOf[ApplySeeded])
       case _ => true
     }
@@ -175,7 +175,7 @@ object Simplify {
       val (_, x) = fields.find { case (n, _) => n == name }.get
       x
 
-    case GetField(InsertFields(old, fields), name) =>
+    case GetField(InsertFields(old, fields, _), name) =>
       fields.find { case (n, _) => n == name } match {
         case Some((_, x)) => x
         case None => GetField(old, name)
@@ -183,23 +183,36 @@ object Simplify {
 
     case GetField(SelectFields(old, fields), name) => GetField(old, name)
 
-    case InsertFields(InsertFields(base, fields1), fields2) =>
-      val fields1Set = fields1.map(_._1).toSet
+    case InsertFields(InsertFields(base, fields1, fieldOrder1), fields2, fieldOrder2) =>
+        val fields2Set = fields2.map(_._1).toSet
+        val newFields = fields1.filter { case (name, _) => !fields2Set.contains(name) } ++ fields2
+      (fieldOrder1, fieldOrder2) match {
+        case (Some(fo1), None) =>
+          val fields1Set = fo1.toSet
+          val fieldOrder = fo1 ++ fields2.map(_._1).filter(!fields1Set.contains(_))
+          InsertFields(base, newFields, Some(fieldOrder))
+        case _ =>
+          InsertFields(base, newFields, fieldOrder2)
+      }
+
+    case InsertFields(MakeStruct(fields1), fields2, fieldOrder) =>
+      val fields1Map = fields1.toMap
       val fields2Map = fields2.toMap
 
-      val finalFields = fields1.map { case (name, fieldIR) => name -> fields2Map.getOrElse(name, fieldIR) } ++
-        fields2.filter { case (name, _) => !fields1Set.contains(name) }
-      InsertFields(base, finalFields)
+      fieldOrder match {
+        case Some(fo) =>
+          MakeStruct(fo.map(f => f -> fields2Map.getOrElse(f, fields1Map(f))))
+        case None =>
+          val finalFields = fields1.map { case (name, fieldIR) => name -> fields2Map.getOrElse(name, fieldIR) } ++
+            fields2.filter { case (name, _) => !fields1Map.contains(name) }
+          MakeStruct(finalFields)
+      }
 
-    case InsertFields(MakeStruct(fields1), fields2) =>
-      val fields1Set = fields1.map(_._1).toSet
-      val fields2Map = fields2.toMap
 
-      val finalFields = fields1.map { case (name, fieldIR) => name -> fields2Map.getOrElse(name, fieldIR) } ++
-        fields2.filter { case (name, _) => !fields1Set.contains(name) }
-      MakeStruct(finalFields)
+    case InsertFields(struct, Seq(), _) => struct
 
-    case InsertFields(struct, Seq()) => struct
+    case SelectFields(old, fields) if coerce[TStruct](old.typ).fieldNames sameElements fields =>
+      old
 
     case SelectFields(SelectFields(old, _), fields) =>
       SelectFields(old, fields)
@@ -208,47 +221,91 @@ object Simplify {
       val makeStructFields = fields.toMap
       MakeStruct(fieldNames.map(f => f -> makeStructFields(f)))
 
-    case x@SelectFields(InsertFields(struct, insertFields), selectFields) =>
+    case x@SelectFields(InsertFields(struct, insertFields, _), selectFields) =>
       val selectSet = selectFields.toSet
       val insertFields2 = insertFields.filter { case (fName, _) => selectSet.contains(fName) }
       val structSet = struct.typ.asInstanceOf[TStruct].fieldNames.toSet
       val selectFields2 = selectFields.filter(structSet.contains)
-      val x2 = InsertFields(SelectFields(struct, selectFields2), insertFields2)
+      val x2 = InsertFields(SelectFields(struct, selectFields2), insertFields2, Some(selectFields.toFastIndexedSeq))
       assert(x2.typ == x.typ)
       x2
 
     case GetTupleElement(MakeTuple(xs), idx) => xs(idx)
 
+    case TableCount(MatrixColsTable(child)) if child.columnCount.isDefined => I64(child.columnCount.get)
+
+    case TableCount(child) if child.partitionCounts.isDefined => I64(child.partitionCounts.get.sum)
     case TableCount(TableMapGlobals(child, _)) => TableCount(child)
-
     case TableCount(TableMapRows(child, _)) => TableCount(child)
-
     case TableCount(TableRepartition(child, _, _)) => TableCount(child)
-
     case TableCount(TableUnion(children)) =>
       children.map(TableCount).reduce[IR](ApplyBinaryPrimOp(Add(), _, _))
-
     case TableCount(TableKeyBy(child, _, _)) => TableCount(child)
-
     case TableCount(TableOrderBy(child, _)) => TableCount(child)
-
     case TableCount(TableLeftJoinRightDistinct(child, _, _)) => TableCount(child)
-
+    case TableCount(TableIntervalJoin(child, _, _)) => TableCount(child)
     case TableCount(TableRange(n, _)) => I64(n)
-
-    case TableCount(TableParallelize(rows, _)) => Cast(ArrayLen(rows), TInt64())
-
+    case TableCount(TableParallelize(rowsAndGlobal, _)) => Cast(ArrayLen(GetField(rowsAndGlobal, "rows")), TInt64())
     case TableCount(TableRename(child, _, _)) => TableCount(child)
-
     case TableCount(TableAggregateByKey(child, _)) => TableCount(TableDistinct(child))
+
+    // TableGetGlobals should simplify very aggressively
+    case TableGetGlobals(child) if child.typ.globalType == TStruct() => MakeStruct(FastSeq())
+    case TableGetGlobals(TableKeyBy(child, _, _)) => TableGetGlobals(child)
+    case TableGetGlobals(TableFilter(child, _)) => TableGetGlobals(child)
+    case TableGetGlobals(TableHead(child, _)) => TableGetGlobals(child)
+    case TableGetGlobals(TableRepartition(child, _, _)) => TableGetGlobals(child)
+    case TableGetGlobals(TableJoin(child1, child2, _, _)) =>
+      val g1 = TableGetGlobals(child1)
+      val g2 = TableGetGlobals(child2)
+      val g1s = genUID()
+      val g2s = genUID()
+      Let(g1s, g1,
+        Let(g2s, g2,
+          MakeStruct(
+            g1.typ.asInstanceOf[TStruct].fields.map(f => f.name -> (GetField(Ref(g1s, g1.typ), f.name): IR)) ++
+              g2.typ.asInstanceOf[TStruct].fields.map(f => f.name -> (GetField(Ref(g2s, g2.typ), f.name): IR)))))
+    case TableGetGlobals(x@TableMultiWayZipJoin(children, _, globalName)) =>
+      MakeStruct(FastSeq(globalName -> MakeArray(children.map(TableGetGlobals), TArray(children.head.typ.globalType))))
+    case TableGetGlobals(TableLeftJoinRightDistinct(child, _, _)) => TableGetGlobals(child)
+    case TableGetGlobals(TableMapRows(child, _)) => TableGetGlobals(child)
+    case TableGetGlobals(TableMapGlobals(child, newGlobals)) =>
+      val uid = genUID()
+      val ref = Ref(uid, child.typ.globalType)
+      Let(uid, TableGetGlobals(child), Subst(newGlobals, Env.empty[IR].bind("global", ref)))
+    case TableGetGlobals(TableExplode(child, _)) => TableGetGlobals(child)
+    case TableGetGlobals(TableUnion(children)) => TableGetGlobals(children.head)
+    case TableGetGlobals(TableDistinct(child)) => TableGetGlobals(child)
+    case TableGetGlobals(TableAggregateByKey(child, _)) => TableGetGlobals(child)
+    case TableGetGlobals(TableKeyByAndAggregate(child, _, _, _, _)) => TableGetGlobals(child)
+    case TableGetGlobals(TableOrderBy(child, _)) => TableGetGlobals(child)
+    case TableGetGlobals(TableRename(child, _, globalMap)) =>
+      if (globalMap.isEmpty)
+        TableGetGlobals(child)
+      else {
+        val uid = genUID()
+        val ref = Ref(uid, child.typ.globalType)
+        Let(uid, TableGetGlobals(child), MakeStruct(child.typ.globalType.fieldNames.map { f =>
+          globalMap.getOrElse(f, f) -> GetField(ref, f)
+        }))
+      }
+
+    case TableCollect(TableParallelize(x, _)) => x
+    case ArrayLen(GetField(TableCollect(child), "rows")) => TableCount(child)
 
     case ApplyIR("annotate", Seq(s, MakeStruct(fields)), _) =>
       InsertFields(s, fields)
+
+    // simplify Boolean equality
+    case ApplyComparisonOp(EQ(_, _), expr, True()) => expr
+    case ApplyComparisonOp(EQ(_, _), True(), expr) => expr
+    case ApplyComparisonOp(EQ(_, _), expr, False()) => ApplyUnaryPrimOp(Bang(), expr)
+    case ApplyComparisonOp(EQ(_, _), False(), expr) => ApplyUnaryPrimOp(Bang(), expr)
   }
 
   private[this] def tableRules(canRepartition: Boolean): PartialFunction[TableIR, TableIR] = {
 
-    case TableRename(child, m1, m2) if m1.isEmpty && m2.isEmpty => child
+    case TableRename(child, m1, m2) if m1.isTrivial && m2.isTrivial => child
 
     // TODO: Write more rules like this to bubble 'TableRename' nodes towards the root.
     case t@TableRename(TableKeyBy(child, keys, isSorted), rowMap, globalMap) =>
@@ -256,12 +313,14 @@ object Simplify {
 
     case TableFilter(t, True()) => t
 
-    case TableFilter(TableRead(path, spec, typ, _), False() | NA(_)) =>
-      TableRead(path, spec, typ, dropRows = true)
+    case TableFilter(TableRead(typ, _, tr), False() | NA(_)) =>
+      TableRead(typ, dropRows = true, tr)
 
     case TableFilter(TableFilter(t, p1), p2) =>
       TableFilter(t,
         ApplySpecial("&&", Array(p1, p2)))
+
+    case TableOrderBy(TableKeyBy(child, _, _), sortFields) => TableOrderBy(child, sortFields)
 
     case TableFilter(TableOrderBy(child, sortFields), pred) if canRepartition =>
       TableOrderBy(TableFilter(child, pred), sortFields)
@@ -312,14 +371,14 @@ object Simplify {
     case MatrixColsTable(MatrixRead(typ, dropCols, false, reader)) =>
       MatrixColsTable(MatrixRead(typ, dropCols, dropRows = true, reader))
 
-    case MatrixRowsTable(MatrixFilterRows(child, newRow))
-      if !Mentions(newRow, "g") && !Mentions(newRow, "sa") && !ContainsAgg(newRow) =>
+    case MatrixRowsTable(MatrixFilterRows(child, pred))
+      if !Mentions(pred, "g") && !Mentions(pred, "sa") && !ContainsAgg(pred) =>
       val mrt = MatrixRowsTable(child)
       TableFilter(
         mrt,
-        Subst(newRow, Env.empty[IR].bind("va" -> Ref("row", mrt.typ.rowType))))
+        Subst(pred, Env("va" -> Ref("row", mrt.typ.rowType))))
 
-    case MatrixRowsTable(MatrixMapGlobals(child, newRow)) => TableMapGlobals(MatrixRowsTable(child), newRow)
+    case MatrixRowsTable(MatrixMapGlobals(child, newGlobals)) => TableMapGlobals(MatrixRowsTable(child), newGlobals)
     case MatrixRowsTable(MatrixMapCols(child, _, _)) => MatrixRowsTable(child)
     case MatrixRowsTable(MatrixMapEntries(child, _)) => MatrixRowsTable(child)
     case MatrixRowsTable(MatrixFilterEntries(child, _)) => MatrixRowsTable(child)
@@ -335,22 +394,24 @@ object Simplify {
       val mct = MatrixColsTable(child)
       TableMapRows(
         mct,
-        Subst(newRow, Env.empty[IR].bind("sa" -> Ref("row", mct.typ.rowType))))
+        Subst(newRow, Env("sa" -> Ref("row", mct.typ.rowType))))
 
     case MatrixColsTable(MatrixFilterCols(child, pred))
       if !Mentions(pred, "g") && !Mentions(pred, "va") =>
       val mct = MatrixColsTable(child)
       TableFilter(
         mct,
-        Subst(pred, Env.empty[IR].bind("sa" -> Ref("row", mct.typ.rowType))))
+        Subst(pred, Env("sa" -> Ref("row", mct.typ.rowType))))
 
-    case MatrixColsTable(MatrixMapGlobals(child, newRow)) => TableMapGlobals(MatrixColsTable(child), newRow)
+    case MatrixColsTable(MatrixMapGlobals(child, newGlobals)) => TableMapGlobals(MatrixColsTable(child), newGlobals)
     case MatrixColsTable(MatrixMapRows(child, _)) => MatrixColsTable(child)
     case MatrixColsTable(MatrixMapEntries(child, _)) => MatrixColsTable(child)
     case MatrixColsTable(MatrixFilterEntries(child, _)) => MatrixColsTable(child)
     case MatrixColsTable(MatrixFilterRows(child, _)) => MatrixColsTable(child)
     case MatrixColsTable(MatrixAggregateRowsByKey(child, _, _)) => MatrixColsTable(child)
     case MatrixColsTable(MatrixKeyRowsBy(child, _, _)) => MatrixColsTable(child)
+
+    case TableMapGlobals(TableMapGlobals(child, ng1), ng2) => TableMapGlobals(child, Let("global", ng1, ng2))
 
     case TableHead(TableMapRows(child, newRow), n) =>
       TableMapRows(TableHead(child, n), newRow)
@@ -364,11 +425,12 @@ object Simplify {
       else
         tr
 
-    case TableHead(TableMapGlobals(child, newRow), n) =>
-      TableMapGlobals(TableHead(child, n), newRow)
+    case TableHead(TableMapGlobals(child, newGlobals), n) =>
+      TableMapGlobals(TableHead(child, n), newGlobals)
 
     case TableHead(TableOrderBy(child, sortFields), n)
-      if sortFields.forall(_.sortOrder == Ascending) && n < 256 && canRepartition =>
+      if !TableOrderBy.isAlreadyOrdered(sortFields, child.rvdType.key)
+        && n < 256 && canRepartition =>
       // n < 256 is arbitrary for memory concerns
       val uid = genUID()
       val row = Ref("row", child.typ.rowType)
@@ -379,17 +441,17 @@ object Simplify {
           TableKeyByAndAggregate(child,
             MakeStruct(Seq(
               "row" -> ApplyAggOp(
-                Array(row, keyStruct),
                 FastIndexedSeq(I32(n.toInt)),
                 None,
+                Array(row, keyStruct),
                 aggSig))),
             MakeStruct(Seq()), // aggregate to one row
             Some(1), 10),
-          "row")
+          FastIndexedSeq("row"))
       TableMapRows(te, GetField(Ref("row", te.typ.rowType), "row"))
 
     case TableKeyByAndAggregate(child, MakeStruct(Seq()), k@MakeStruct(keyFields), _, _) if canRepartition =>
-      TableDistinct(TableMapRows(child, k))
+      TableDistinct(TableKeyBy(TableMapRows(TableKeyBy(child, FastIndexedSeq()), k), k.typ.asInstanceOf[TStruct].fieldNames))
 
     case TableKeyByAndAggregate(child, expr, newKey, _, _)
       if newKey == MakeStruct(child.typ.key.map(k => k -> GetField(Ref("row", child.typ.rowType), k)))
@@ -398,6 +460,8 @@ object Simplify {
 
     case TableAggregateByKey(TableKeyBy(child, keys, _), expr) if canRepartition =>
       TableKeyByAndAggregate(child, expr, MakeStruct(keys.map(k => k -> GetField(Ref("row", child.typ.rowType), k))))
+
+    case TableParallelize(TableCollect(child), _) if isDeterministicallyRepartitionable(child) => child
   }
 
   private[this] def matrixRules(canRepartition: Boolean): PartialFunction[MatrixIR, MatrixIR] = {
@@ -441,5 +505,7 @@ object Simplify {
     case MatrixFilterCols(MatrixFilterCols(child, pred1), pred2) => MatrixFilterCols(child, ApplySpecial("&&", FastSeq(pred1, pred2)))
 
     case MatrixFilterEntries(MatrixFilterEntries(child, pred1), pred2) => MatrixFilterEntries(child, ApplySpecial("&&", FastSeq(pred1, pred2)))
+
+    case MatrixMapGlobals(MatrixMapGlobals(child, ng1), ng2) => MatrixMapGlobals(child, Let("global", ng1, ng2))
   }
 }

@@ -3,8 +3,10 @@ package is.hail.stats
 import breeze.linalg._
 import is.hail.annotations.RegionValue
 import is.hail.expr._
+import is.hail.expr.ir.MatrixValue
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PArray, PStruct}
+import is.hail.expr.types.virtual.TFloat64
 import is.hail.utils._
 import is.hail.variant.MatrixTable
 import org.apache.spark.sql.Row
@@ -54,15 +56,15 @@ object RegressionUtils {
   }
 
   // IndexedSeq indexed by column, Array by field
-  def getColumnVariables(mt: MatrixTable, names: Array[String]): IndexedSeq[Array[Option[Double]]] = {
-    val colType = mt.colType
-    assert(names.forall(name => mt.colType.field(name).typ.isOfType(TFloat64())))
+  def getColumnVariables(mv: MatrixValue, names: Array[String]): IndexedSeq[Array[Option[Double]]] = {
+    val colType = mv.typ.colType
+    assert(names.forall(name => mv.typ.colType.field(name).typ.isOfType(TFloat64())))
     val fieldIndices = names.map { name =>
-      val field = mt.colType.field(name)
+      val field = mv.typ.colType.field(name)
       assert(field.typ.isOfType(TFloat64()))
       field.index
     }
-    mt.colValues
+    mv.colValues
       .value
       .map { a =>
         val struct = a.asInstanceOf[Row]
@@ -71,17 +73,22 @@ object RegressionUtils {
   }
 
   def getPhenoCovCompleteSamples(
-    vsm: MatrixTable,
+    mv: MatrixValue,
     yField: String,
     covFields: Array[String]): (DenseVector[Double], DenseMatrix[Double], Array[Int]) = {
 
-    val (y, covs, completeSamples) = getPhenosCovCompleteSamples(vsm, Array(yField), covFields)
+    val (y, covs, completeSamples) = getPhenosCovCompleteSamples(mv, Array(yField), covFields)
 
     (DenseVector(y.data), covs, completeSamples)
   }
 
   def getPhenosCovCompleteSamples(
-    vsm: MatrixTable,
+    mv: MatrixTable,
+    yFields: Array[String],
+    covFields: Array[String]): (DenseMatrix[Double], DenseMatrix[Double], Array[Int]) = getPhenosCovCompleteSamples(mv, yFields, covFields)
+
+  def getPhenosCovCompleteSamples(
+    mv: MatrixValue,
     yFields: Array[String],
     covFields: Array[String]): (DenseMatrix[Double], DenseMatrix[Double], Array[Int]) = {
 
@@ -91,11 +98,12 @@ object RegressionUtils {
     if (nPhenos == 0)
       fatal("No phenotypes present.")
     
-    val yIS = getColumnVariables(vsm, yFields)
-    val covIS = getColumnVariables(vsm, covFields)
+    val yIS = getColumnVariables(mv, yFields)
+    val covIS = getColumnVariables(mv, covFields)
 
+    val nCols = mv.nCols
     val (yForCompleteSamples, covForCompleteSamples, completeSamples) =
-      (yIS, covIS, 0 until vsm.numCols)
+      (yIS, covIS, 0 until nCols)
         .zipped
         .filter((y, c, s) => y.forall(_.isDefined) && c.forall(_.isDefined))
 
@@ -109,8 +117,8 @@ object RegressionUtils {
     val covArray = covForCompleteSamples.flatMap(_.map(_.get)).toArray
     val cov = new DenseMatrix(rows = n, cols = nCovs, data = covArray, offset = 0, majorStride = nCovs, isTranspose = true)
 
-    if (n < vsm.numCols)
-      warn(s"${ vsm.numCols - n } of ${ vsm.numCols } samples have a missing phenotype or covariate.")
+    if (n < nCols)
+      warn(s"${ nCols - n } of $nCols samples have a missing phenotype or covariate.")
 
     (y, cov, completeSamples.toArray)
   }

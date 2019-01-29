@@ -14,6 +14,7 @@ plugins {
   id 'jacoco'
   id 'com.github.johnrengelman.shadow' version '1.2.3'
   id "de.undercouch.download" version "3.2.0"
+  id 'eclipse'
 }
 
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
@@ -31,7 +32,16 @@ buildScan {
     licenseAgree = 'yes'
 }
 
-String hailVersion = "0.2"
+// Hail has three notions of version:
+//  - hail short version: MAJOR.MINOR
+//  - hail pip version: MAJOR.MINOR.PATCH
+//  - hail version: MAJOR.MINOR.PATCH-GIT_SHA, calculated by generateBuildInfo
+String MAJOR = 0
+String MINOR = 2
+String PATCH = 8
+String hailShortVersion = MAJOR.toString() + "." + MINOR.toString()
+// By default pip hides versions ending in ".devN". Use these for testing.
+String hailPipVersion = hailShortVersion + "." + PATCH + System.getProperty("hail.pip-version-suffix", "")
 String[] deployedSparkVersions = new File("deployed-spark-versions.txt").readLines()
 
 String sparkVersion = System.getProperty("spark.version", "2.2.0")
@@ -95,13 +105,12 @@ sourceSets {
     }
 }
 compileScala.dependsOn(nativeLib)
-test.dependsOn(nativeLibTest)
-clean.dependsOn(nativeLibClean)	
+clean.dependsOn(nativeLibClean)
 
 task testCppCodegen(type: Test) {
     useTestNG {}
-    
-    
+
+
     // Enable C++ codegen for tests
     environment HAIL_ENABLE_CPP_CODEGEN: '1'
 
@@ -136,14 +145,31 @@ compileJava {
 }
 
 task generateBuildInfo(type: Exec) {
-    commandLine 'bash', 'generate-build-info.sh', sparkVersion, hailVersion
+    commandLine 'bash', 'generate-build-info.sh', sparkVersion, hailPipVersion
+    outputs.upToDateWhen { false }
+}
+
+task deploy(type: Exec, dependsOn: ['generateBuildInfo', 'shadowJar']) {
+    commandLine 'bash', 'python/deploy.sh'
+    outputs.upToDateWhen { false }
+}
+
+task pipInstall(type: Exec, dependsOn: ['generateBuildInfo', 'shadowJar']) {
+    commandLine 'bash', 'python/pipinstall.sh'
     outputs.upToDateWhen { false }
 }
 
 compileScala {
     dependsOn generateBuildInfo
 
-    scalaCompileOptions.additionalParameters = ["-feature"] // , "-Xfatal-warnings"]
+    // , "-Xfatal-warnings"
+    scalaCompileOptions.additionalParameters = ["-feature"]
+    scalaCompileOptions.forkOptions.with {
+        jvmArgs = ["-Xms512M",
+                   "-Xmx4096M",
+                   "-Xss2M",
+                   "-XX:MaxMetaspaceSize=1024M"]
+    }
 }
 
 dependencies {
@@ -159,7 +185,7 @@ dependencies {
     compile 'org.apache.spark:spark-mllib_' + scalaMajorVersion + ':' + sparkVersion
     compile 'org.lz4:lz4-java:1.4.0'
     compile 'org.scalanlp:breeze-natives_' + scalaMajorVersion + ':' + breezeVersion
-    compile 'com.github.samtools:htsjdk:2.14.2'
+    compile 'com.github.samtools:htsjdk:2.18.0'
 
     compile group: 'org.slf4j', name: 'slf4j-api', version: '1.7.25'
 
@@ -240,7 +266,6 @@ test {
 }
 
 test.dependsOn(checkSettings)
-test.dependsOn(testCppCodegen)
 
 task testPython(type: Exec, dependsOn: shadowJar) {
     commandLine 'pytest',
@@ -249,8 +274,10 @@ task testPython(type: Exec, dependsOn: shadowJar) {
             parallelism,
             '--dist=loadscope',
             '--noconftest',
-            '--color=yes',
+            '--color=no',
             '-r a',
+            '--html=build/reports/pytest.html',
+            '--self-contained-html',
             'python/test'
     environment SPARK_HOME: sparkHome
     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
@@ -266,7 +293,12 @@ task doctest(type: Exec, dependsOn: shadowJar) {
     environment PYSPARK_PYTHON: 'python3'
 }
 
-task testAll(dependsOn: ['testPython', 'test', 'doctest'])
+task benchmark(type: Exec, dependsOn: shadowJar) {
+    commandLine 'python', '-m', 'benchmark'
+    environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
+}
+
+task testAll(dependsOn: ['testPython', 'test', 'doctest', 'testCppCodegen'])
 
 tasks.withType(ShadowJar) {
     manifest {
@@ -432,54 +464,21 @@ task cleanDocs(type: Exec) {
     commandLine 'rm', '-rf', 'build/www/', 'build/tmp/python', 'build/tmp/docs'
 }
 
-task generateDistLinks(type: Exec, dependsOn: ['cleanDocs']) {
-    executable 'sh'
-    args(['generate-dist-links.sh'])
-    args(hailVersion)
-    args(deployedSparkVersions)
-}
-
-task makeDocs(type: Exec, dependsOn: ['shadowJar', 'generateDistLinks']) {
+task makeDocs(type: Exec, dependsOn: ['shadowJar', 'generateBuildInfo']) {
     commandLine 'bash', 'python/hail/docs/makeDocs.sh'
     environment SPARK_HOME: sparkHome
     environment PYSPARK_SUBMIT_ARGS: '--master local[4] --conf spark.driver.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar --conf spark.executor.extraClassPath=' + projectDir + '/build/libs/hail-all-spark.jar pyspark-shell'
     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
-    environment HAIL_VERSION: hailVersion
+    environment HAIL_SHORT_VERSION: hailShortVersion
     environment SPHINXOPTS: '-tchecktutorial'
 }
 
-task makeDocsNoTest(type: Exec, dependsOn: ['shadowJar', 'generateDistLinks']) {
+task makeDocsNoTest(type: Exec, dependsOn: ['generateBuildInfo']) {
     commandLine 'bash', 'python/hail/docs/makeDocs.sh'
     environment SPARK_HOME: sparkHome
     // makeDocsNoTest does not try to run the notebook contents
     // so we do not need the PySpark args.
     environment PYTHONPATH: '' + projectDir + '/python:' + sparkHome + '/python:' + sparkHome + '/python/lib/py4j-' + py4jVersion + '-src.zip'
-    environment HAIL_VERSION: hailVersion
+    environment HAIL_SHORT_VERSION: hailShortVersion
     environment SPHINXOPTS: ''
-}
-
-task assemblePackage(type: Copy, dependsOn: ['makeDocs' , 'shadowJar']) {
-    from('python') {
-        into 'python'
-    }
-    from('build/www/docs') {
-        into 'docs'
-    }
-    from('scripts') {
-        into 'bin'
-    }
-    from('build/libs/hail-all-spark.jar') {
-        into 'jars'
-    }
-    from('python/hail/docs/tutorials') {
-        into 'tutorials'
-        include '*.ipynb'
-    }
-    into 'build/package'
-}
-
-task createPackage(type: Zip, dependsOn: ['assemblePackage']) {
-    from 'build/package'
-    into 'hail'
-    baseName 'hail'
 }

@@ -8,7 +8,7 @@ Unlike the Python and R scientific computing stacks, Hail:
 
 - scales from laptop to large compute cluster or cloud, with the same code
 - is designed to work with datasets that do not fit in memory
-- has first-class support for multi-dimensional structured data, like genomic data as in this [tutorial](https://hail.is/docs/devel/tutorials/01-genome-wide-association-study.html)
+- has first-class support for multi-dimensional structured data, like genomic data as in this [tutorial](https://hail.is/docs/0.2/tutorials/01-genome-wide-association-study.html)
 
 Hail's methods are primarily written in Python, using primitives for distributed queries and linear algebra implemented in Scala, [Spark](https://spark.apache.org/docs/latest/index.html), and increasingly C++. We welcome the scientific community to leverage Hail to develop, share, and apply new methods at scale!
 
@@ -18,7 +18,7 @@ See the [homepage](https://hail.is) for more info on using Hail.
 
 Hail is committed to open-source development. If you'd like to contribute to the development of methods or infrastructure, please: 
 
-- see the [For Software Developers](https://hail.is/docs/devel/getting_started_developing.html) section of the installation guide for info on compiling Hail
+- see the [For Software Developers](https://hail.is/docs/0.2/getting_started_developing.html) section of the installation guide for info on compiling Hail
 - chat with us about development in our [Zulip chatroom](https://hail.zulipchat.com)
 - visit the [Development Forum](http://dev.hail.is) for longer-form discussions
 <!--- - read [this post]() (coming soon!) for tips on submitting a successful Pull Request to our repository --->

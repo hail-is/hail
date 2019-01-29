@@ -35,13 +35,13 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
 
     val newPartitioner = {
       def leftPart = this.rvd.partitioner.strictify
-      def rightPart = right.rvd.partitioner.coarsen(key).extendKey(realType.kType)
+      def rightPart = right.rvd.partitioner.coarsen(key).extendKey(realType.kType.virtualType)
       (joinType: @unchecked) match {
         case "left" => leftPart
         case "right" => rightPart
         case "inner" => leftPart.intersect(rightPart)
         case "outer" => RVDPartitioner.generate(
-          realType.kType,
+          realType.kType.virtualType,
           leftPart.rangeBounds ++ rightPart.rangeBounds)
       }
     }
@@ -55,14 +55,14 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
       }
     val lTyp = virtType
     val rTyp = right.virtType
-    val rRowPType = right.realType.rowType.physicalType
+    val rRowPType = right.realType.rowType
 
     repartitionedLeft.alignAndZipPartitions(
       joinedType.copy(key = joinedType.key.take(realType.key.length)),
       right.rvd,
       key
     ) { (ctx, leftIt, rightIt) =>
-      val sideBuffer = ctx.freshContext.region
+      val sideBuffer = ctx.freshRegion
       joiner(
         ctx,
         compute(
@@ -101,7 +101,7 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
     }
   }
 
-  def orderedZipJoin(right: KeyedRVD): ContextRDD[RVDContext, JoinedRegionValue] = {
+  def orderedZipJoin(right: KeyedRVD): (RVDPartitioner, ContextRDD[RVDContext, JoinedRegionValue]) = {
     checkJoinCompatability(right)
     val ranges = this.rvd.partitioner.coarsenedRangeBounds(key) ++
       right.rvd.partitioner.coarsenedRangeBounds(key)
@@ -112,11 +112,13 @@ class KeyedRVD(val rvd: RVD, val key: Int) {
 
     val leftType = this.virtType
     val rightType = right.virtType
-    repartitionedLeft.crddBoundary.czipPartitions(repartitionedRight.crddBoundary)
+    val jcrdd = repartitionedLeft.crddBoundary.czipPartitions(repartitionedRight.crddBoundary)
       { (ctx, leftIt, rightIt) =>
         OrderedRVIterator(leftType, leftIt, ctx)
           .zipJoin(OrderedRVIterator(rightType, rightIt, ctx))
       }
+
+    (newPartitioner, jcrdd)
   }
 
   def orderedMerge(right: KeyedRVD): RVD = {

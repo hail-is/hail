@@ -6,7 +6,7 @@ import is.hail.asm4s.FunctionBuilder
 import is.hail.check.Prop._
 import is.hail.check.Properties
 import is.hail.expr.ir.EmitFunctionBuilder
-import is.hail.expr.types.{TInterval, TLocus, TStruct}
+import is.hail.expr.types.virtual.{TLocus, TStruct}
 import is.hail.io.reference.FASTAReader
 import is.hail.table.Table
 import is.hail.utils.{HailException, Interval, SerializableHadoopConfiguration}
@@ -59,19 +59,6 @@ class ReferenceGenomeSuite extends SparkSuite {
     TestUtils.interceptFatal("The following mitochondrial contig names are absent from the reference:")(ReferenceGenome("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5), mtContigs = Set("MT")))
     TestUtils.interceptFatal("The contig name for PAR interval")(ReferenceGenome("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5), parInput = Array((Locus("X", 1), Locus("X", 5)))))
     TestUtils.interceptFatal("in both X and Y contigs.")(ReferenceGenome("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5), xContigs = Set("1"), yContigs = Set("1")))
-  }
-
-  @Test def testDefaultReference() {
-    ReferenceGenome.setDefaultReference(hc, "GRCh38")
-    assert(ReferenceGenome.defaultReference.name == "GRCh38")
-
-    ReferenceGenome.setDefaultReference(hc, "src/test/resources/fake_ref_genome.json")
-    assert(ReferenceGenome.defaultReference.name == "my_reference_genome")
-    ReferenceGenome.setDefaultReference(hc, "GRCh37")
-
-    TestUtils.interceptFatal("Cannot add reference genome. `GRCh38' already exists.")(ReferenceGenome.setDefaultReference(hc, "src/main/resources/reference/grch38.json"))
-    intercept[FileNotFoundException](ReferenceGenome.setDefaultReference(hc, "grch38.json"))
-    TestUtils.interceptFatal("is a built-in Hail reference")(ReferenceGenome.removeReference("GRCh37"))
   }
 
   @Test def testContigRemap() {
@@ -216,9 +203,9 @@ class ReferenceGenomeSuite extends SparkSuite {
 
     grch37.addLiftover(hc, liftoverFile, "GRCh38")
 
-    val fb = EmitFunctionBuilder[String, Locus, Double, Locus]
+    val fb = EmitFunctionBuilder[String, Locus, Double, (Locus, Boolean)]
     val rgfield = fb.newLazyField(grch37.codeSetup(fb))
-    fb.emit(rgfield.invoke[String, Locus, Double, Locus]("liftoverLocus", fb.getArg[String](1), fb.getArg[Locus](2), fb.getArg[Double](3)))
+    fb.emit(rgfield.invoke[String, Locus, Double, (Locus, Boolean)]("liftoverLocus", fb.getArg[String](1), fb.getArg[Locus](2), fb.getArg[Double](3)))
 
     val f = fb.resultWithIndex()(0)
     assert(f("GRCh38", Locus("20", 60001), 0.95) == grch37.liftoverLocus("GRCh38", Locus("20", 60001), 0.95))

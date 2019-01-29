@@ -2,6 +2,7 @@ package is.hail.rvd
 
 import is.hail.annotations.ExtendedOrdering
 import is.hail.expr.types._
+import is.hail.expr.types.virtual.{TArray, TInterval, TStruct}
 import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.apache.spark.{Partitioner, SparkContext}
@@ -277,7 +278,7 @@ class RVDPartitioner(
 
 object RVDPartitioner {
   def empty(typ: RVDType): RVDPartitioner = {
-    new RVDPartitioner(typ.kType, Array.empty[Interval])
+    new RVDPartitioner(typ.kType.virtualType, Array.empty[Interval])
   }
 
   def unkeyed(numPartitions: Int): RVDPartitioner = {
@@ -344,11 +345,11 @@ object RVDPartitioner {
     partitionKey: Int
   ): RVDPartitioner = {
     require(nPartitions > 0)
-    require(typ.kType.relaxedTypeCheck(min))
-    require(typ.kType.relaxedTypeCheck(max))
-    require(keys.forall(typ.kType.relaxedTypeCheck))
+    require(typ.kType.virtualType.relaxedTypeCheck(min))
+    require(typ.kType.virtualType.relaxedTypeCheck(max))
+    require(keys.forall(typ.kType.virtualType.relaxedTypeCheck))
 
-    val sortedKeys = keys.sorted(typ.kType.ordering.toOrdering)
+    val sortedKeys = keys.sorted(typ.kType.virtualType.ordering.toOrdering)
     val step = (sortedKeys.length - 1).toDouble / nPartitions
     val partitionEdges = Array.tabulate(nPartitions - 1) { i =>
       IntervalEndpoint(sortedKeys(((i + 1) * step).toInt), 1)
@@ -356,7 +357,7 @@ object RVDPartitioner {
 
     val interval = Interval(min, max, true, true)
     new RVDPartitioner(
-      typ.kType,
+      typ.kType.virtualType,
       FastIndexedSeq(interval)
     ).subdivide(partitionEdges, math.max(partitionKey - 1, 0))
   }

@@ -36,7 +36,7 @@ class RepartitionedOrderedRDD2 private (prev: RVD, newRangeBounds: IndexedSeq[In
   val oldPartitionerBc: Broadcast[RVDPartitioner] = prev.partitioner.broadcast(prevCRDD.sparkContext)
   val newRangeBoundsBc: Broadcast[IndexedSeq[Interval]] = prevCRDD.sparkContext.broadcast(newRangeBounds)
 
-  require(newRangeBounds.forall{i => typ.kType.relaxedTypeCheck(i.start) && typ.kType.relaxedTypeCheck(i.end)})
+  require(newRangeBounds.forall{i => typ.kType.virtualType.relaxedTypeCheck(i.start) && typ.kType.virtualType.relaxedTypeCheck(i.end)})
 
   def getPartitions: Array[Partition] = {
     Array.tabulate[Partition](newRangeBoundsBc.value.length) { i =>
@@ -49,9 +49,9 @@ class RepartitionedOrderedRDD2 private (prev: RVD, newRangeBounds: IndexedSeq[In
 
   override def compute(partition: Partition, context: TaskContext): Iterator[RVDContext => Iterator[RegionValue]] = {
     val ordPartition = partition.asInstanceOf[RepartitionedOrderedRDD2Partition]
-    val pord = typ.kType.ordering.intervalEndpointOrdering
+    val pord = typ.kType.virtualType.ordering.intervalEndpointOrdering
     val range = ordPartition.range
-    val ur = new UnsafeRow(typ.rowType.physicalType)
+    val ur = new UnsafeRow(typ.rowType)
     val key = new KeyedRow(ur, typ.kFieldIdx)
 
     Iterator.single { (ctx: RVDContext) =>

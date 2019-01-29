@@ -5,6 +5,7 @@ import is.hail.annotations.Annotation
 import is.hail.check.Gen
 import is.hail.check.Prop._
 import is.hail.expr.types._
+import is.hail.expr.types.virtual._
 import is.hail.io.vcf.ExportVCF
 import is.hail.utils._
 import is.hail.variant.{Locus, MatrixTable, VSMSubgen}
@@ -20,11 +21,11 @@ class ExportVCFSuite extends SparkSuite {
     val vcfFile = "src/test/resources/multipleChromosomes.vcf"
     val outFile = tmpDir.createTempFile("export", "vcf")
 
-    val vdsOrig = hc.importVCF(vcfFile, nPartitions = Some(10))
+    val vdsOrig = TestUtils.importVCF(hc, vcfFile, nPartitions = Some(10))
 
     ExportVCF(vdsOrig, outFile)
 
-    assert(vdsOrig.same(hc.importVCF(outFile, nPartitions = Some(10)),
+    assert(vdsOrig.same(TestUtils.importVCF(hc, outFile, nPartitions = Some(10)),
       tolerance = 1e-3))
   }
 
@@ -32,11 +33,11 @@ class ExportVCFSuite extends SparkSuite {
     val vcfFile = "src/test/resources/multipleChromosomes.vcf"
     val outFile = tmpDir.createTempFile("sort", "vcf.bgz")
 
-    val vdsOrig = hc.importVCF(vcfFile, nPartitions = Some(10))
+    val vdsOrig = TestUtils.importVCF(hc, vcfFile, nPartitions = Some(10))
 
     ExportVCF(vdsOrig, outFile)
 
-    val vdsNew = hc.importVCF(outFile, nPartitions = Some(10))
+    val vdsNew = TestUtils.importVCF(hc, outFile, nPartitions = Some(10))
 
     implicit val locusAllelesOrdering = vdsNew.rowKeyStruct.ordering.toOrdering
 
@@ -56,16 +57,16 @@ class ExportVCFSuite extends SparkSuite {
       hadoopConf.delete(out, recursive = true)
       hadoopConf.delete(out2, recursive = true)
       ExportVCF(vds, out)
-      val vds2 = hc.importVCF(out, nPartitions = Some(nPar1), rg = Some(vds.referenceGenome))
+      val vds2 = TestUtils.importVCF(hc, out, nPartitions = Some(nPar1), rg = Some(vds.referenceGenome))
       ExportVCF(vds, out2)
-      hc.importVCF(out2, nPartitions = Some(nPar2), rg = Some(vds.referenceGenome)).same(vds2)
+      TestUtils.importVCF(hc, out2, nPartitions = Some(nPar2), rg = Some(vds.referenceGenome)).same(vds2)
     }
 
     p.check()
   }
 
   @Test def testEmptyReadWrite() {
-    val vds = hc.importVCF("src/test/resources/sample.vcf").dropRows()
+    val vds = TestUtils.importVCF(hc, "src/test/resources/sample.vcf").dropRows()
     val out = tmpDir.createTempFile("foo", "vcf")
     val out2 = tmpDir.createTempFile("foo", "vcf.bgz")
 
@@ -74,8 +75,8 @@ class ExportVCFSuite extends SparkSuite {
 
     assert(hadoopConf.getFileSize(out) > 0)
     assert(hadoopConf.getFileSize(out2) > 0)
-    assert(hc.importVCF(out).same(vds))
-    assert(hc.importVCF(out2).same(vds))
+    assert(TestUtils.importVCF(hc, out).same(vds))
+    assert(TestUtils.importVCF(hc, out2).same(vds))
   }
 
   @Test def testVCFFormatHeader() {
@@ -84,7 +85,7 @@ class ExportVCFSuite extends SparkSuite {
 
     val metadata = hc.parseVCFMetadata(vcfFile)
 
-    ExportVCF(hc.importVCF(vcfFile), out, metadata = Some(metadata))
+    ExportVCF(TestUtils.importVCF(hc, vcfFile), out, metadata = Some(metadata))
 
     val outFormatHeader = hadoopConf.readFile(out) { in =>
       Source.fromInputStream(in)
@@ -104,7 +105,7 @@ class ExportVCFSuite extends SparkSuite {
   }
 
   @Test def testGenotypes() {
-    val vds = hc.importVCF("src/test/resources/sample.vcf")
+    val vds = TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
 
     val out = tmpDir.createLocalTempFile("foo", "vcf")
     ExportVCF(vds, out)
@@ -135,7 +136,7 @@ class ExportVCFSuite extends SparkSuite {
         .toFastIndexedSeq))
 
   @Test def testContigs() {
-    val vds = hc.importVCF("src/test/resources/sample.vcf", dropSamples = true)
+    val vds = TestUtils.importVCF(hc, "src/test/resources/sample.vcf", dropSamples = true)
 
     val out = tmpDir.createLocalTempFile("foo", "vcf")
     ExportVCF(vds, out)
@@ -149,7 +150,7 @@ class ExportVCFSuite extends SparkSuite {
   @Test def testMetadata() {
     val vcfFile = "src/test/resources/multipleChromosomes.vcf"
     val outFile = tmpDir.createTempFile("export", "vcf")
-    val vdsOrig = hc.importVCF(vcfFile, nPartitions = Some(10))
+    val vdsOrig = TestUtils.importVCF(hc, vcfFile, nPartitions = Some(10))
 
     val md = Some(Map(
       "filters" -> Map("LowQual" -> Map("Description" -> "Low quality")),

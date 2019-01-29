@@ -3,6 +3,7 @@ package is.hail.expr.types.physical
 import is.hail.annotations._
 import is.hail.asm4s.{Code, _}
 import is.hail.check.Gen
+import is.hail.cxx
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -63,8 +64,6 @@ abstract class PBaseStruct extends PType {
 
   def fieldRequired: Array[Boolean]
 
-  override def children: Seq[PType] = types
-
   def size: Int
 
   def _toPretty: String = {
@@ -84,17 +83,15 @@ abstract class PBaseStruct extends PType {
 
   def truncate(newSize: Int): PBaseStruct
 
-  override def scalaClassTag: ClassTag[Row] = classTag[Row]
+  override def unsafeOrdering(): UnsafeOrdering =
+    unsafeOrdering(this)
 
-  override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering =
-    unsafeOrdering(this, missingGreatest)
-
-  override def unsafeOrdering(rightType: PType, missingGreatest: Boolean): UnsafeOrdering = {
+  override def unsafeOrdering(rightType: PType): UnsafeOrdering = {
     require(this.isOfType(rightType))
 
     val right = rightType.asInstanceOf[PBaseStruct]
     val fieldOrderings: Array[UnsafeOrdering] =
-      types.zip(right.types).map { case (l, r) => l.unsafeOrdering(r, missingGreatest)}
+      types.zip(right.types).map { case (l, r) => l.unsafeOrdering(r)}
 
     new UnsafeOrdering {
       def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
@@ -109,10 +106,7 @@ abstract class PBaseStruct extends PType {
               return c
           } else if (leftDefined != rightDefined) {
             val c = if (leftDefined) -1 else 1
-            if (missingGreatest)
-              return c
-            else
-              return -c
+            return c
           }
           i += 1
         }
@@ -208,5 +202,14 @@ abstract class PBaseStruct extends PType {
       case _: PArray | _: PBinary => region.loadAddress(fieldOffset)
       case _ => fieldOffset
     }
+  }
+
+  def cxxIsFieldMissing(o: cxx.Code, fieldIdx: Int): cxx.Code = {
+    s"load_bit($o, ${ missingIdx(fieldIdx) })"
+  }
+
+  def cxxLoadField(o: cxx.Code, fieldIdx: Int): cxx.Code = {
+    val a = s"(((char *)$o) + (${ byteOffsets(fieldIdx) }))"
+    cxx.loadIRIntermediate(fields(fieldIdx).typ, a)
   }
 }

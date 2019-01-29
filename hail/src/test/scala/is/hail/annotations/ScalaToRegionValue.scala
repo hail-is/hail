@@ -1,6 +1,7 @@
 package is.hail.annotations
 
 import is.hail.expr.types._
+import is.hail.expr.types.virtual.Type
 
 object ScalaToRegionValue {
   def apply(region: Region, t: Type, a: Annotation): Long = {

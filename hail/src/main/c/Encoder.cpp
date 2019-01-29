@@ -13,7 +13,7 @@ OutputStream::OutputStream(UpcallEnv up, jobject joutput_stream) :
   jbuf_(nullptr),
   jbuf_size_(-1) { }
 
-void OutputStream::write(char * buf, int n) {
+void OutputStream::write(char const* buf, int n) {
   if (jbuf_size_ < n) {
     if (jbuf_ != nullptr) {
       up_.env()->DeleteGlobalRef(jbuf_);
@@ -49,7 +49,7 @@ OutputStream::~OutputStream() {
 StreamOutputBlockBuffer::StreamOutputBlockBuffer(std::shared_ptr<OutputStream> os) :
   output_stream_(os) { }
 
-void StreamOutputBlockBuffer::write_block(char * buf, int n) {
+void StreamOutputBlockBuffer::write_block(char const* buf, int n) {
   output_stream_->write(reinterpret_cast<char *>(&n), 4);
   output_stream_->write(buf, n);
 }

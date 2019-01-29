@@ -1,7 +1,7 @@
 package is.hail.annotations.aggregators
 
 import is.hail.annotations._
-import is.hail.expr.types.{TBaseStruct, Type}
+import is.hail.expr.types.virtual.{TBaseStruct, Type}
 import is.hail.utils._
 
 class RegionValueCollectBooleanAggregator extends RegionValueAggregator {

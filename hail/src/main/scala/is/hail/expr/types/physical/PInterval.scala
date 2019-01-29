@@ -4,7 +4,7 @@ import is.hail.annotations.{CodeOrdering, _}
 import is.hail.asm4s.Code
 import is.hail.check.Gen
 import is.hail.expr.ir.EmitMethodBuilder
-import is.hail.expr.types.TInterval
+import is.hail.expr.types.virtual.TInterval
 import is.hail.utils._
 
 import scala.reflect.{ClassTag, classTag}
@@ -12,8 +12,6 @@ import scala.reflect.{ClassTag, classTag}
 
 case class PInterval(pointType: PType, override val required: Boolean = false) extends ComplexPType {
   lazy val virtualType: TInterval = TInterval(pointType.virtualType, required)
-
-  override def children = FastSeq(pointType)
 
   def _toPretty = s"""Interval[$pointType]"""
 
@@ -28,17 +26,15 @@ case class PInterval(pointType: PType, override val required: Boolean = false) e
     sb.append("]")
   }
 
-  override def scalaClassTag: ClassTag[Interval] = classTag[Interval]
-
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
     assert(other isOfType this)
     CodeOrdering.intervalOrdering(this, other.asInstanceOf[PInterval], mb)
   }
 
 
-  override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering =
+  override def unsafeOrdering(): UnsafeOrdering =
     new UnsafeOrdering {
-      private val pOrd = pointType.unsafeOrdering(missingGreatest)
+      private val pOrd = pointType.unsafeOrdering()
       def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
         val sdef1 = startDefined(r1, o1)
         if (sdef1 == startDefined(r2, o2)) {
@@ -55,30 +51,21 @@ case class PInterval(pointType: PType, override val required: Boolean = false) e
                     0
                   } else if (includesE1) 1 else -1
                 } else cmp
-              } else if (edef1 == missingGreatest) -1 else 1
+              } else if (edef1) -1 else 1
             } else if (includesS1) -1 else 1
           } else cmp
         } else {
-          if (sdef1 == missingGreatest) -1 else 1
+          if (sdef1) -1 else 1
         }
       }
     }
 
-  val representation: PStruct = {
-    val rep = PStruct(
+  val representation: PStruct = PStruct(
+      required,
       "start" -> pointType,
       "end" -> pointType,
       "includesStart" -> PBooleanRequired,
       "includesEnd" -> PBooleanRequired)
-    rep.setRequired(required).asInstanceOf[PStruct]
-  }
-
-  override def unify(concrete: PType): Boolean = concrete match {
-    case PInterval(cpointType, _) => pointType.unify(cpointType)
-    case _ => false
-  }
-
-  override def subst() = PInterval(pointType.subst())
 
   def startOffset(off: Code[Long]): Code[Long] = representation.fieldOffset(off, 0)
 

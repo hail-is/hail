@@ -9,4 +9,5 @@ hail.iml
 hail*.log
 out/
 target
+.classpath
 .DS_Store

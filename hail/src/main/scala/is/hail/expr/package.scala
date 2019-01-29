@@ -1,6 +1,7 @@
 package is.hail
 
-import is.hail.expr.types.Type
+import is.hail.expr.types.virtual.Type
+
 import scala.language.implicitConversions
 
 package object expr extends HailRepFunctions {

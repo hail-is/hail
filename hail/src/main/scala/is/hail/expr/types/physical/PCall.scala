@@ -3,7 +3,7 @@ package is.hail.expr.types.physical
 import is.hail.annotations._
 import is.hail.check.Gen
 import is.hail.expr.ir.EmitMethodBuilder
-import is.hail.expr.types.TCall
+import is.hail.expr.types.virtual.TCall
 import is.hail.variant.Call
 
 import scala.reflect.{ClassTag, _}
@@ -20,8 +20,6 @@ class PCall(override val required: Boolean) extends ComplexPType {
     sb.append("call")
   }
   val representation: PType = PCall.representation(required)
-
-  override def scalaClassTag: ClassTag[java.lang.Integer] = classTag[java.lang.Integer]
 
   def codeOrdering(mb: EmitMethodBuilder, other: PType): CodeOrdering = {
     assert(other isOfType this)

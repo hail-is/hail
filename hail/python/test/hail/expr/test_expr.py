@@ -1,4 +1,5 @@
 import math
+import pytest
 import random
 from scipy.stats import pearsonr
 import unittest
@@ -101,7 +102,24 @@ class Tests(unittest.TestCase):
             x33=(kt.a == 0) & (kt.b == 5),
             x34=(kt.a == 0) | (kt.b == 5),
             x35=False,
-            x36=True
+            x36=True,
+            x37=kt.e > "helln",
+            x38=kt.e < "hellp",
+            x39=kt.e <= "hello",
+            x40=kt.e >= "hello",
+            x41="helln" > kt.e,
+            x42="hellp" < kt.e,
+            x43="hello" >= kt.e,
+            x44="hello" <= kt.e,
+            x45=kt.f > [1, 2],
+            x46=kt.f < [1, 3],
+            x47=kt.f >= [1, 2, 3],
+            x48=kt.f <= [1, 2, 3],
+            x49=kt.f < [1.0, 2.0],
+            x50=kt.f > [1.0, 3.0],
+            x51=[1.0, 2.0, 3.0] <= kt.f,
+            x52=[1.0, 2.0, 3.0] >= kt.f,
+            x53=hl.tuple([True, 1.0]) < (1.0, 0.0),
         ).take(1)[0])
 
         expected = {'a': 4, 'b': 1, 'c': 3, 'd': 5, 'e': "hello", 'f': [1, 2, 3],
@@ -115,7 +133,13 @@ class Tests(unittest.TestCase):
                     'x24': True, 'x25': False, 'x26': True,
                     'x27': False, 'x28': True, 'x29': False,
                     'x30': False, 'x31': True, 'x32': False,
-                    'x33': False, 'x34': False, 'x35': False, 'x36': True}
+                    'x33': False, 'x34': False, 'x35': False,
+                    'x36': True, 'x37': True, 'x38': True,
+                    'x39': True, 'x40': True, 'x41': False,
+                    'x42': False, 'x43': True, 'x44': True,
+                    'x45': True, 'x46': True, 'x47': True,
+                    'x48': True, 'x49': False, 'x50': False,
+                    'x51': True, 'x52': True, 'x53': False}
 
         for k, v in expected.items():
             if isinstance(v, float):
@@ -222,6 +246,13 @@ class Tests(unittest.TestCase):
     def test_bind_placement(self):
         self.assertEqual(hl.eval(5 / hl.bind(lambda x: x, 5)), 1.0)
 
+    def test_rbind_multiple(self):
+        self.assertEqual(hl.eval(hl.rbind(2, 3, lambda x, y: x * y)), 6)
+        self.assertEqual(hl.eval(hl.rbind(3, lambda y: y * 2)), 6)
+
+    def test_rbind_placement(self):
+        self.assertEqual(hl.eval(5 / hl.rbind(5, lambda x: x)), 1.0)
+
     def test_matches(self):
         self.assertEqual(hl.eval('\d+'), '\d+')
         string = hl.literal('12345')
@@ -274,13 +305,31 @@ class Tests(unittest.TestCase):
         self.assertTrue(r.assert1)
         self.assertTrue(r.assert2)
 
-    def test_new_aggregator_maps(self):
-        t = hl.utils.range_table(10)
+    def test_counter_ordering(self):
+        ht = hl.utils.range_table(10)
+        assert ht.aggregate(hl.agg.counter(10 - ht.idx).get(10, -1)) == 1
 
+    def test_agg_filter(self):
+        t = hl.utils.range_table(10)
         tests = [(agg.filter(t.idx > 7,
                              agg.collect(t.idx + 1).append(0)),
                   [9, 10, 0]),
-                 (agg.explode(lambda elt: agg.collect(elt + 1).append(0),
+                 (agg.filter(t.idx > 7,
+                             agg.explode(lambda elt: agg.collect(elt + 1).append(0),
+                                         [t.idx, t.idx + 1])),
+                  [9, 10, 10, 11, 0]),
+                 (agg.filter(t.idx > 7,
+                             agg.group_by(t.idx % 3,
+                                          hl.array(agg.collect_as_set(t.idx + 1)).append(0))),
+                  {0: [10, 0], 2: [9, 0]})
+                 ]
+        for aggregation, expected in tests:
+            self.assertEqual(t.aggregate(aggregation), expected)
+
+    def test_agg_explode(self):
+        t = hl.utils.range_table(10)
+
+        tests = [(agg.explode(lambda elt: agg.collect(elt + 1).append(0),
                               hl.cond(t.idx > 7, [t.idx, t.idx + 1], hl.empty_array(hl.tint32))),
                   [9, 10, 10, 11, 0]),
                  (agg.explode(lambda elt: agg.explode(lambda elt2: agg.collect(elt2 + 1).append(0),
@@ -291,27 +340,6 @@ class Tests(unittest.TestCase):
                                                      agg.collect(elt + 1).append(0)),
                               hl.cond(t.idx > 7, [t.idx, t.idx + 1], hl.empty_array(hl.tint32))),
                   [10, 10, 11, 0]),
-                 (agg.filter(t.idx > 7,
-                             agg.explode(lambda elt: agg.collect(elt + 1).append(0),
-                                         [t.idx, t.idx + 1])),
-                  [9, 10, 10, 11, 0]),
-                 (agg.group_by(t.idx % 2,
-                               hl.array(agg.collect_as_set(t.idx + 1)).append(0)),
-                  {0: [1, 3, 5, 7, 9, 0], 1: [2, 4, 6, 8, 10, 0]}),
-                 (agg.group_by(t.idx % 3,
-                               agg.filter(t.idx > 7,
-                                          hl.array(agg.collect_as_set(t.idx + 1)).append(0))),
-                  {0: [10, 0], 1: [0], 2: [9, 0]}),
-                 (agg.filter(t.idx > 7,
-                              agg.group_by(t.idx % 3,
-                                            hl.array(agg.collect_as_set(t.idx + 1)).append(0))),
-                  {0: [10, 0], 2: [9, 0]}),
-                 (agg.group_by(t.idx % 3,
-                               agg.explode(lambda elt: agg.collect(elt + 1).append(0),
-                                           hl.cond(t.idx > 7,
-                                                   [t.idx, t.idx + 1],
-                                                   hl.empty_array(hl.tint32)))),
-                  {0: [10, 11, 0], 1: [0], 2:[9, 10, 0]}),
                  (agg.explode(lambda elt: agg.group_by(elt % 3,
                                                        agg.collect(elt + 1).append(0)),
                                            hl.cond(t.idx > 7,
@@ -321,6 +349,31 @@ class Tests(unittest.TestCase):
                  ]
         for aggregation, expected in tests:
             self.assertEqual(t.aggregate(aggregation), expected)
+
+    def test_agg_group_by(self):
+        t = hl.utils.range_table(10)
+        tests = [(agg.group_by(t.idx % 2,
+                               hl.array(agg.collect_as_set(t.idx + 1)).append(0)),
+                  {0: [1, 3, 5, 7, 9, 0], 1: [2, 4, 6, 8, 10, 0]}),
+                 (agg.group_by(t.idx % 3,
+                               agg.filter(t.idx > 7,
+                                          hl.array(agg.collect_as_set(t.idx + 1)).append(0))),
+                  {0: [10, 0], 1: [0], 2: [9, 0]}),
+                 (agg.group_by(t.idx % 3,
+                               agg.explode(lambda elt: agg.collect(elt + 1).append(0),
+                                           hl.cond(t.idx > 7,
+                                                   [t.idx, t.idx + 1],
+                                                   hl.empty_array(hl.tint32)))),
+                  {0: [10, 11, 0], 1: [0], 2:[9, 10, 0]}),
+                 ]
+        for aggregation, expected in tests:
+            self.assertEqual(t.aggregate(aggregation), expected)
+
+    def test_agg_group_by_on_call(self):
+        t = hl.utils.range_table(10)
+        t = t.annotate(call = hl.call(0, 0), x = 1)
+        res = t.aggregate(hl.agg.group_by(t.call, hl.agg.sum(t.x)))
+        self.assertEqual(res, {hl.Call([0, 0]): 10})
 
     def test_aggregators_with_randomness(self):
         t = hl.utils.range_table(10)
@@ -335,6 +388,10 @@ class Tests(unittest.TestCase):
             t.aggregate(agg.filter(t.idx > 7, agg.sum(t.idx) / t.idx))
         with self.assertRaises(hl.expr.ExpressionException):
             t.aggregate(agg.group_by(t.idx % 3, agg.sum(t.idx) / t.idx))
+        with self.assertRaises(hl.expr.ExpressionException):
+            hl.agg.counter(agg.filter(t.idx > 1, t.idx))
+        with self.assertRaises(hl.expr.ExpressionException):
+            hl.agg.counter(agg.explode(lambda elt: elt, [t.idx, t.idx + 1]))
 
         tests = [(agg.filter(t.idx > 7,
                              agg.explode(lambda x: agg.collect(hl.int64(x + 1)),
@@ -362,6 +419,40 @@ class Tests(unittest.TestCase):
                  ]
         for aggregation, expected in tests:
             self.assertEqual(t.aggregate(aggregation), expected)
+
+    def test_aggregator_bindings(self):
+        t = hl.utils.range_table(5)
+        with self.assertRaises(hl.expr.ExpressionException):
+            t.aggregate(hl.bind(lambda i: hl.agg.sum(t.idx + i), 1))
+        with self.assertRaises(hl.expr.ExpressionException):
+            t.annotate(x=hl.bind(lambda i: hl.scan.sum(t.idx + i), 1))
+        #filter
+        with self.assertRaises(hl.expr.ExpressionException):
+            t.aggregate(hl.bind(lambda i: hl.agg.filter(i == 1, hl.agg.sum(t.idx)), 1))
+        with self.assertRaises(hl.expr.ExpressionException):
+            t.aggregate(hl.bind(lambda i: hl.agg.filter(t.idx == 1, hl.agg.sum(t.idx) + i), 1))
+        with self.assertRaises(hl.expr.ExpressionException):
+            t.annotate(x=hl.bind(lambda i: hl.scan.filter(i == 1, hl.scan.sum(t.idx)), 1))
+        with self.assertRaises(hl.expr.ExpressionException):
+            t.annotate(x=hl.bind(lambda i: hl.scan.filter(t.idx == 1, hl.scan.sum(t.idx) + i), 1))
+        #explode
+        with self.assertRaises(hl.expr.ExpressionException):
+            t.aggregate(hl.bind(lambda i: hl.agg.explode(lambda elt: hl.agg.sum(elt), [t.idx, t.idx + i]), 1))
+        with self.assertRaises(hl.expr.ExpressionException):
+            t.aggregate(hl.bind(lambda i: hl.agg.explode(lambda elt: hl.agg.sum(elt) + i, [t.idx, t.idx + 1]), 1))
+        with self.assertRaises(hl.expr.ExpressionException):
+            t.annotate(x=hl.bind(lambda i: hl.scan.explode(lambda elt: hl.scan.sum(elt), [t.idx, t.idx + i]), 1))
+        with self.assertRaises(hl.expr.ExpressionException):
+            t.annotate(x=hl.bind(lambda i: hl.scan.explode(lambda elt: hl.scan.sum(elt) + i, [t.idx, t.idx + 1]), 1))
+        #group_by
+        with self.assertRaises(hl.expr.ExpressionException):
+            t.aggregate(hl.bind(lambda i: hl.agg.group_by(t.idx % 3 + i, hl.agg.sum(t.idx)), 1))
+        with self.assertRaises(hl.expr.ExpressionException):
+            t.aggregate(hl.bind(lambda i: hl.agg.group_by(t.idx % 3, hl.agg.sum(t.idx) + i), 1))
+        with self.assertRaises(hl.expr.ExpressionException):
+            t.annotate(x=hl.bind(lambda i: hl.scan.group_by(t.idx % 3 + i, hl.scan.sum(t.idx)), 1))
+        with self.assertRaises(hl.expr.ExpressionException):
+            t.annotate(x=hl.bind(lambda i: hl.scan.group_by(t.idx % 3, hl.scan.sum(t.idx) + i), 1))
 
     def test_scan(self):
         table = hl.utils.range_table(10)
@@ -391,12 +482,86 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(r.x, 10)
 
+    def test_scan_filter(self):
+        t = hl.utils.range_table(5)
+        tests = [
+            (hl.scan.filter((t.idx % 2) == 0,
+                            hl.scan.collect(t.idx).append(t.idx)),
+             [[0], [0, 1], [0, 2], [0, 2, 3], [0, 2, 4]]),
+            (hl.scan.filter((t.idx % 2) == 0,
+                            hl.scan.explode(lambda elt: hl.scan.collect(elt).append(t.idx),
+                                            [t.idx, t.idx + 1])),
+             [[0], [0, 1, 1], [0, 1, 2], [0, 1, 2, 3, 3], [0, 1, 2, 3, 4]]),
+            (hl.scan.filter((t.idx % 2) == 0,
+                            hl.scan.group_by(t.idx % 3,
+                                             hl.scan.collect(t.idx).append(t.idx))),
+             [{}, {0: [0, 1]}, {0: [0, 2]}, {0: [0, 3], 2: [2, 3]}, {0: [0, 4], 2: [2, 4]}])
+        ]
+
+        for aggregation, expected in tests:
+            self.assertEqual(aggregation.collect(), expected)
+
+    def test_scan_explode(self):
+        t = hl.utils.range_table(5)
+        tests = [
+            (hl.scan.explode(lambda elt: hl.scan.collect(elt).append(t.idx),
+                             [t.idx, t.idx + 1]),
+             [[0], [0, 1, 1], [0, 1, 1, 2, 2], [0, 1, 1, 2, 2, 3, 3], [0, 1, 1, 2, 2, 3, 3, 4, 4]]),
+            (hl.scan.explode(lambda elt:
+                             hl.scan.explode(lambda elt2:
+                                             hl.scan.collect(elt).append(t.idx),
+                                             [elt]),
+                             [t.idx, t.idx + 1]),
+             [[0], [0, 1, 1], [0, 1, 1, 2, 2], [0, 1, 1, 2, 2, 3, 3], [0, 1, 1, 2, 2, 3, 3, 4, 4]]),
+            (hl.scan.explode(lambda elt:
+                             hl.scan.filter((elt % 2) == 0,
+                                            hl.scan.collect(elt).append(t.idx)),
+                             [t.idx, t.idx + 1]),
+             [[0], [0, 1], [0, 2, 2], [0, 2, 2, 3], [0, 2, 2, 4, 4]]),
+            (hl.scan.explode(lambda elt:
+                             hl.scan.group_by(elt % 3,
+                                             hl.scan.collect(elt).append(t.idx)),
+                             [t.idx, t.idx + 1]),
+             [{},
+              {0: [0, 1], 1: [1, 1]},
+              {0: [0, 2], 1: [1, 1, 2], 2: [2, 2]},
+              {0: [0, 3, 3], 1: [1, 1, 3], 2: [2, 2, 3]},
+              {0: [0, 3, 3, 4], 1: [1, 1, 4, 4], 2: [2, 2, 4]}]),
+        ]
+
+        for aggregation, expected in tests:
+            self.assertEqual(aggregation.collect(), expected)
+
     def test_scan_group_by(self):
         t = hl.utils.range_table(5)
-        t = t.select(group_by=hl.scan.group_by(t.idx % 2 == 0, hl.scan.count()))
-        rows = t.collect()
-        r = hl.Struct(**{n: [i[n] for i in rows] for n in t.row.keys()})
-        self.assertEqual(r.group_by, [{}, {True: 1}, {True: 1, False: 1}, {True: 2, False: 1}, {True: 2, False: 2}])
+        tests = [
+            (hl.scan.group_by(t.idx % 3,
+                            hl.scan.collect(t.idx).append(t.idx)),
+             [{},
+              {0: [0, 1]},
+              {0: [0, 2], 1: [1, 2]},
+              {0: [0, 3], 1: [1, 3], 2: [2, 3]},
+              {0: [0, 3, 4], 1: [1, 4], 2: [2, 4]}]),
+            (hl.scan.group_by(t.idx % 3,
+                              hl.scan.filter((t.idx % 2) == 0,
+                                             hl.scan.collect(t.idx).append(t.idx))),
+             [{},
+              {0: [0, 1]},
+              {0: [0, 2], 1: [2]},
+              {0: [0, 3], 1: [3], 2: [2, 3]},
+              {0: [0, 4], 1: [4], 2: [2, 4]}]),
+            (hl.scan.group_by(t.idx % 3,
+                              hl.scan.explode(lambda elt: hl.scan.collect(elt).append(t.idx),
+                                              [t.idx, t.idx + 1])),
+             [{},
+              {0: [0, 1, 1]},
+              {0: [0, 1, 2], 1: [1, 2, 2]},
+              {0: [0, 1, 3], 1: [1, 2, 3], 2: [2, 3, 3]},
+              {0: [0, 1, 3, 4, 4], 1: [1, 2, 4], 2: [2, 3, 4]}])
+        ]
+
+        for aggregation, expected in tests:
+            self.assertEqual(aggregation.collect(), expected)
 
     def test_aggregators_max_min(self):
         table = hl.utils.range_table(10)
@@ -2195,3 +2360,74 @@ class Tests(unittest.TestCase):
         hl.tuple((mt.AD, mt.PL)).show()
         hl.array([mt.AD, mt.PL]).show()
         hl.array([mt.AD, [1,2]]).show()
+
+    def test_string_unicode(self):
+        self.assertTrue(hl.eval(hl.str("李") == "李"))
+
+    def test_reversed(self):
+        a = hl.array(['a', 'b', 'c'])
+        ea = hl.empty_array(hl.tint)
+        na = hl.null(hl.tarray(hl.tbool))
+
+        assert hl.eval(hl.reversed(a)) == ['c', 'b', 'a']
+        assert hl.eval(hl.reversed(ea)) == []
+        assert hl.eval(hl.reversed(na)) is None
+
+        s = hl.str('abc')
+        es = ''
+        ns = hl.null(hl.tstr)
+
+        assert hl.eval(hl.reversed(s)) == 'cba'
+        assert hl.eval(hl.reversed(es)) == ''
+        assert hl.eval(hl.reversed(ns)) is None
+
+    def test_bit_ops_types(self):
+        assert hl.bit_and(1, 1).dtype == hl.tint32
+        assert hl.bit_and(hl.int64(1), 1).dtype == hl.tint64
+
+        assert hl.bit_or(1, 1).dtype == hl.tint32
+        assert hl.bit_or(hl.int64(1), 1).dtype == hl.tint64
+
+        assert hl.bit_xor(1, 1).dtype == hl.tint32
+        assert hl.bit_xor(hl.int64(1), 1).dtype == hl.tint64
+
+        assert hl.bit_lshift(1, 1).dtype == hl.tint32
+        assert hl.bit_lshift(hl.int64(1), 1).dtype == hl.tint64
+
+        assert hl.bit_rshift(1, 1).dtype == hl.tint32
+        assert hl.bit_rshift(hl.int64(1), 1).dtype == hl.tint64
+
+        assert hl.bit_not(1).dtype == hl.tint32
+        assert hl.bit_not(hl.int64(1)).dtype == hl.tint64
+
+    def test_bit_shift_edge_cases(self):
+        assert hl.eval(hl.bit_lshift(hl.int(1), 32)) == 0
+        assert hl.eval(hl.bit_rshift(hl.int(1), 32)) == 1
+        assert hl.eval(hl.bit_rshift(hl.int(1), 32, logical=True)) == 0
+        assert hl.eval(hl.bit_rshift(hl.int(-1), 32)) == -1
+        assert hl.eval(hl.bit_rshift(hl.int(-1), 32, logical=True)) == 0
+
+        assert hl.eval(hl.bit_lshift(hl.int64(1), 64)) == 0
+        assert hl.eval(hl.bit_rshift(hl.int64(1), 64)) == 1
+        assert hl.eval(hl.bit_rshift(hl.int64(1), 64, logical=True)) == 0
+        assert hl.eval(hl.bit_rshift(hl.int64(-1), 64)) == -1
+        assert hl.eval(hl.bit_rshift(hl.int64(-11), 64, logical=True)) == 0
+
+    def test_bit_shift_errors(self):
+        with pytest.raises(hl.utils.FatalError):
+                hl.eval(hl.bit_lshift(1, -1))
+
+        with pytest.raises(hl.utils.FatalError):
+            hl.eval(hl.bit_rshift(1, -1))
+
+        with pytest.raises(hl.utils.FatalError):
+            hl.eval(hl.bit_rshift(1, -1, logical=True))
+
+        with pytest.raises(hl.utils.FatalError):
+            hl.eval(hl.bit_lshift(hl.int64(1), -1))
+
+        with pytest.raises(hl.utils.FatalError):
+            hl.eval(hl.bit_rshift(hl.int64(1), -1))
+
+        with pytest.raises(hl.utils.FatalError):
+            hl.eval(hl.bit_rshift(hl.int64(1), -1, logical=True))

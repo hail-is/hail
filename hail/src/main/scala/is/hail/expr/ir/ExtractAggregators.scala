@@ -3,12 +3,13 @@ package is.hail.expr.ir
 import is.hail.annotations._
 import is.hail.annotations.aggregators._
 import is.hail.asm4s._
-import is.hail.expr.types._
+import is.hail.expr.types.physical.PTuple
+import is.hail.expr.types.virtual._
 import is.hail.utils._
 
 import scala.language.{existentials, postfixOps}
 
-case class ExtractedAggregators(postAggIR: IR, resultType: TTuple, init: IR, perElt: IR, rvAggs: Array[RegionValueAggregator])
+case class ExtractedAggregators(postAggIR: IR, resultType: PTuple, init: IR, perElt: IR, rvAggs: Array[RegionValueAggregator])
 
 object ExtractAggregators {
 
@@ -22,11 +23,11 @@ object ExtractAggregators {
     val postAgg = extract(ir, ab, ab2, ref)
     val aggs = ab.result()
     val rt = TTuple(aggs.map(_.rt): _*)
-    ref.typ = rt
+    ref._typ = rt
     val ops = ab2.result()
     ExtractedAggregators(
       postAgg,
-      rt,
+      rt.physicalType,
       Begin(ops.flatMap(_.initOp)),
       Begin(ops.map(_.seqOp)),
       aggs.map(_.rvAgg))
@@ -74,7 +75,7 @@ object ExtractAggregators {
         val agg = KeyedRegionValueAggregator(nestedAggs.map(_.rvAgg), key.typ)
         val aggSig = AggSignature(Group(), Seq(), Some(Seq(TVoid)), Seq(key.typ, TVoid))
         val rt = TDict(key.typ, TTuple(nestedAggs.map(_.rt): _*))
-        newRef.typ = -rt.elementType
+        newRef._typ = -rt.elementType
 
         val (initOp, seqOp) = newBuilder.result().map { case AggOps(x, y) => (x, y) }.unzip
         val i = ab.length
@@ -84,12 +85,13 @@ object ExtractAggregators {
           SeqOp(I32(i), FastIndexedSeq(key, Begin(seqOp)), aggSig))
 
         ToDict(ArrayMap(ToArray(GetTupleElement(result, i)), newRef.name, MakeTuple(FastSeq(GetField(newRef, "key"), transformed))))
+      case x: ArrayAgg => x
       case _ => MapIR(extract)(ir)
     }
   }
 
   private def newAggregator(ir: ApplyAggOp): RegionValueAggregator = ir match {
-    case x@ApplyAggOp(_, constructorArgs, _, aggSig) =>
+    case x@ApplyAggOp(constructorArgs, _, _, aggSig) =>
       val fb = EmitFunctionBuilder[Region, RegionValueAggregator]
       var codeConstructorArgs = constructorArgs.map(Emit.toCode(_, fb, 1))
 

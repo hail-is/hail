@@ -22,7 +22,7 @@ To report a bug, please open an issue: https://github.com/hail-is/hail/issues
 """
 
 from .context import init, stop, spark_context, default_reference, \
-    get_reference, set_global_seed, \
+    get_reference, set_global_seed, _set_flags, \
     _set_upload_url, set_upload_email, enable_pipeline_upload, disable_pipeline_upload, upload_log
 from .table import Table, GroupedTable, asc, desc
 from .matrixtable import MatrixTable, GroupedMatrixTable
@@ -50,6 +50,7 @@ __all__ = [
     'get_reference',
     'set_global_seed',
     '_set_upload_url',
+    '_set_flags',
     'set_upload_email',
     'enable_pipeline_upload',
     'disable_pipeline_upload',
@@ -88,6 +89,9 @@ import builtins
 
 __all__.extend([x for x in expr.__all__ if not hasattr(builtins, x)])
 del builtins
+
+ir.register_functions()
+ir.register_aggregators()
 
 __version__ = None  # set in hail.init()
 

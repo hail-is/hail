@@ -425,12 +425,18 @@ class Tests(unittest.TestCase):
         nd2[3, 5] = 4.0
         bm2 = BlockMatrix.from_numpy(nd2, block_size=2).sparsify_rectangles([[2, 4, 4, 6]])
 
-        nd3 = np.zeros(shape=(5, 7))
-        bm3 = BlockMatrix.fill(5, 7, value=0.0, block_size=2).sparsify_rectangles([])
+        bm3 = BlockMatrix.from_numpy(nd2, block_size=2).sparsify_rectangles([[2, 4, 4, 6], [0, 5, 0, 1]])
+
+        bm4 = BlockMatrix.from_numpy(nd2, block_size=2).sparsify_rectangles([[2, 4, 4, 6], [0, 1, 0, 7]])
+
+        nd5 = np.zeros(shape=(5, 7))
+        bm5 = BlockMatrix.fill(5, 7, value=0.0, block_size=2).sparsify_rectangles([])
 
         sums_agree(bm, nd)
         sums_agree(bm2, nd2)
-        sums_agree(bm3, nd3)
+        sums_agree(bm3, nd2)
+        sums_agree(bm4, nd2)
+        sums_agree(bm5, nd5)
 
     def test_slicing(self):
         nd = np.array(np.arange(0, 80, dtype=float)).reshape(8, 10)
@@ -616,7 +622,7 @@ class Tests(unittest.TestCase):
                       [13., 14.,  0.,  0.]]))
 
         self._assert_eq(bm.sparsify_rectangles([]), np.zeros(shape=(4, 4)))
-                        
+
     def test_export_rectangles(self):
         nd = np.arange(0, 80, dtype=float).reshape(8, 10)
 
@@ -631,6 +637,7 @@ class Tests(unittest.TestCase):
         for rects in [rects1, rects2, rects3]:
             for block_size in [3, 4, 10]:
                 bm_uri = new_temp_file()
+
                 rect_path = new_local_temp_dir()
                 rect_uri = local_path_uri(rect_path)
 
@@ -643,7 +650,18 @@ class Tests(unittest.TestCase):
                 for (i, r) in enumerate(rects):
                     file = rect_path + '/rect-' + str(i) + '_' + '-'.join(map(str, r))
                     expected = nd[r[0]:r[1], r[2]:r[3]]
-                    actual = np.reshape(np.loadtxt(file), (r[1] - r[0], r[3] - r[2]))
+                    actual = np.loadtxt(file, ndmin = 2)
+                    self._assert_eq(expected, actual)
+
+                rect_path_bytes = new_local_temp_dir()
+                rect_uri_bytes = local_path_uri(rect_path_bytes)
+
+                BlockMatrix.export_rectangles(bm_uri, rect_uri_bytes, rects, binary=True)
+
+                for (i, r) in enumerate(rects):
+                    file = rect_path_bytes + '/rect-' + str(i) + '_' + '-'.join(map(str, r))
+                    expected = nd[r[0]:r[1], r[2]:r[3]]
+                    actual = np.reshape(np.fromfile(file), (r[1] - r[0], r[3] - r[2]))
                     self._assert_eq(expected, actual)
 
         bm_uri = new_temp_file()

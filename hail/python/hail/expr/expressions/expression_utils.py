@@ -1,4 +1,3 @@
-from hail.utils import warn, error, java
 from .indices import *
 from ..expressions import Expression, ExpressionException, expr_any
 from typing import *
@@ -14,6 +13,8 @@ def analyze(caller: str,
             expected_indices: Indices,
             aggregation_axes: Set = set(),
             broadcast=True):
+    from hail.utils import warn, error
+
     indices = expr._indices
     source = indices.source
     axes = indices.axes
@@ -173,7 +174,7 @@ def eval_typed(expression):
 
     >>> x = 6
     >>> hl.eval_typed(hl.cond(x % 2 == 0, 'Even', 'Odd'))
-    ('Odd', tstr)
+    ('Even', dtype('str'))
 
     Parameters
     ----------
@@ -186,12 +187,16 @@ def eval_typed(expression):
         Result of evaluating `expression`, and its type.
 
     """
+    from hail.utils.java import Env
+
     analyze('eval_typed', expression, Indices(expression._indices.source))
 
     if expression._indices.source is None:
-        return (expression.dtype._from_json(
-            java.Env.hail().expr.ir.Interpret.interpretPyIR(str(expression._ir), {}, {})),
-                expression.dtype)
+        ir_type = expression._ir.typ
+        expression_type = expression.dtype
+        if ir_type != expression.dtype:
+            raise ExpressionException(f'Expression type and IR type differed: \n{ir_type}\n vs \n{expression_type}')
+        return (Env.backend().execute(expression._ir), expression.dtype)
     else:
         return expression.collect()[0], expression.dtype
 

@@ -3,7 +3,8 @@ package is.hail.io
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.types._
-import is.hail.rvd.{RVD, RVDPartitioner, RVDContext}
+import is.hail.expr.types.virtual._
+import is.hail.rvd.{RVD, RVDContext, RVDPartitioner}
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.variant._
@@ -387,10 +388,10 @@ object LoadMatrix {
       }
 
     val rvd = if (useIndex) {
-      val (partitioner, keepPartitions) = makePartitionerFromCounts(partitionCounts, matrixType.rvdType.kType)
-      RVD(matrixType.rvdType, partitioner, rdd.subsetPartitions(keepPartitions))
+      val (partitioner, keepPartitions) = makePartitionerFromCounts(partitionCounts, matrixType.canonicalRVDType.kType.virtualType)
+      RVD(matrixType.canonicalRVDType, partitioner, rdd.subsetPartitions(keepPartitions))
     } else
-      RVD.coerce(matrixType.rvdType, rdd)
+      RVD.coerce(matrixType.canonicalRVDType, rdd)
 
     new MatrixTable(hc,
       matrixType,

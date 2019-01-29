@@ -5,6 +5,7 @@ metadata:
   labels:
     app: letsencrypt
 spec:
+  serviceAccountName: letsencrypt
   containers:
   - name: letsencrypt
     image: gcr.io/@project@/letsencrypt

@@ -8,12 +8,12 @@ UNAME_P :=$(shell uname -p)
 BUILD :=build
 
 # Control optimization level and gdb-in-xterm code in NativePtr.cpp
-HAIL_ENABLE_DEBUG :=0
+HAIL_ENABLE_DEBUG := 0
 
 ifeq ($(HAIL_ENABLE_DEBUG),1)
-  HAIL_OPT_FLAGS :=-O1 -DHAIL_ENABLE_DEBUG=1
+  HAIL_OPT_FLAGS := -O1 -DHAIL_ENABLE_DEBUG=1
 else
-  HAIL_OPT_FLAGS :=-O3
+  HAIL_OPT_FLAGS := -O3
 endif
 
 # Change this setting to update the version of libsimdpp
@@ -22,21 +22,28 @@ LIBSIMDPP :=libsimdpp-2.1
 # If you want to add a new cpp file, like foo.cpp, to the library, add foo.o to
 # this list
 OBJECTS := \
-  davies.o \
-  ibs.o \
-  Encoder.o \
-  Logging.o \
-  NativeCodeSuite.o \
-  NativeLongFunc.o \
-  NativeModule.o \
-  NativePtr.o \
-  NativeStatus.o \
-  ObjectArray.o \
-  PackDecoder.o \
-  Region.o \
-  Upcalls.o
+  davies \
+  ibs \
+  Decoder \
+  Encoder \
+  Logging \
+  NativeCodeSuite \
+  NativeLongFunc \
+  NativeModule \
+  NativePtr \
+  NativeStatus \
+  ObjectArray \
+  PartitionIterators \
+  Region \
+  Upcalls \
 
-BUILD_OBJECTS := $(OBJECTS:%=$(BUILD)/%)
+BUILD_OBJECTS := $(OBJECTS:%=$(BUILD)/%.o)
+
+TEST_OBJECTS := $(foreach obj, $(OBJECTS), $(foreach file, $(wildcard $(obj)_test.cpp), $(BUILD)/$(basename $(file)).o))
+TEST_OBJECTS += $(BUILD)/unit-tests.o
+
+$(BUILD)/unit-tests.o: testutils/unit-tests.cpp
+	$(CXX) -o $@ $(CXXFLAGS) -c $<
 
 $(BUILD)/%.o: %.cpp
 	$(CXX) -o $@ $(CXXFLAGS) -c $<
@@ -62,7 +69,7 @@ endif
 # The code relies heavily on C++11's std::shared_ptr, so you need a compiler
 # that supports at least the C++11 standard.
 
-CXXSTD := -std=c++11
+CXXSTD := -std=c++14
 
 # Check for any inherited CXXFLAGS which could interfere with
 # ABI compatibility.  Such flags will cause a warning, then will be
@@ -139,13 +146,32 @@ $(BUILD)/functional-tests: ibs.cpp test.cpp
 	-mkdir -p build
 	$(CXX) $(CXXFLAGS) -DNUMBER_OF_GENOTYPES_PER_ROW=256 ibs.cpp test.cpp -o $(BUILD)/functional-tests
 
+$(BUILD)/unit-tests: all $(TEST_OBJECTS)
+	$(CXX) $(CXXFLAGS) -ldl -o $(BUILD)/unit-tests $(BUILD_OBJECTS) $(TEST_OBJECTS)
+
 prebuilt: all
 	@echo updating $(PREBUILT) ...
 	cp -p -f $(LIBBOOT) $(PREBUILT)/$(LIBBOOT)
 	cp -p -f $(LIBHAIL) $(PREBUILT)/$(LIBHAIL)
 
-test: $(BUILD)/functional-tests
+test: $(BUILD)/functional-tests $(BUILD)/unit-tests
+	./$(BUILD)/unit-tests -w NoAssertions -s -d yes -# --use-colour yes -r xml -o $(BUILD)/cxx-test.xml; \
+    	case "$$?" in \
+    		*) \
+    		mkdir -p $(BUILD)/reports; \
+    		cp testutils/style.css $(BUILD)/reports; \
+    		xsltproc -o $(BUILD)/reports/index.html testutils/test-reporter.xslt $(BUILD)/cxx-test.xml;; \
+		esac
 	./$(BUILD)/functional-tests
+
+benchmark: $(BUILD)/unit-tests
+	./$(BUILD)/unit-tests "[!benchmark]" -s -d yes -# -r xml -o $(BUILD)/cxx-benchmark.xml; \
+    	case "$$?" in \
+    		*) \
+    		mkdir -p $(BUILD)/benchmark-reports; \
+    		cp testutils/style.css $(BUILD)/benchmark-reports; \
+    		xsltproc -o $(BUILD)/benchmark-reports/index.html testutils/test-reporter.xslt $(BUILD)/cxx-benchmark.xml;; \
+    	esac
 
 clean:
 	-rm -rf $(BUILD) $(LIBSIMDPP) $(LIBBOOT) $(LIBHAIL)

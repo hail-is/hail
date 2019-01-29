@@ -17,6 +17,7 @@ RUN conda env create -n hail-ci -f environment.yml && \
 
 COPY ci/index.html ci/pr-build-script ci/pr-deploy-script ci/deploy-index.html ./
 COPY ci/ci ./ci
+COPY ci/run_ci.py ./
 RUN chown -R hail-ci:hail-ci ./
 
 USER hail-ci
@@ -25,4 +26,4 @@ RUN pip install --user /batch
 EXPOSE 5000
 VOLUME /hail-ci/oauth-token
 VOLUME /hail-ci/gcloud-token
-ENTRYPOINT ["python", "ci/ci.py"]
+ENTRYPOINT ["python", "run_ci.py"]

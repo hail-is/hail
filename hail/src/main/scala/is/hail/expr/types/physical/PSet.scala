@@ -3,7 +3,7 @@ package is.hail.expr.types.physical
 import is.hail.annotations.{UnsafeUtils, _}
 import is.hail.check.Gen
 import is.hail.expr.ir.EmitMethodBuilder
-import is.hail.expr.types.TSet
+import is.hail.expr.types.virtual.TSet
 import org.json4s.jackson.JsonMethods
 
 import scala.reflect.{ClassTag, _}
@@ -25,18 +25,6 @@ final case class PSet(elementType: PType, override val required: Boolean = false
     sb.append('>')
   }
 
-  override def canCompare(other: PType): Boolean = other match {
-    case PSet(otherType, _) => elementType.canCompare(otherType)
-    case _ => false
-  }
-
-  override def unify(concrete: PType): Boolean = concrete match {
-    case PSet(celementType, _) => elementType.unify(celementType)
-    case _ => false
-  }
-
-  override def subst() = PSet(elementType.subst())
-
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
     sb.append("Set[")
     elementType.pretty(sb, indent, compact)
@@ -47,6 +35,4 @@ final case class PSet(elementType: PType, override val required: Boolean = false
     assert(other isOfType this)
     CodeOrdering.setOrdering(this, other.asInstanceOf[PSet], mb)
   }
-
-  override def scalaClassTag: ClassTag[Set[AnyRef]] = classTag[Set[AnyRef]]
 }

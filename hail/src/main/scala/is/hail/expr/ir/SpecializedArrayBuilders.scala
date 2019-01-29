@@ -1,14 +1,14 @@
 package is.hail.expr.ir
 
 import is.hail.asm4s._
-import is.hail.expr.types.Type
 import is.hail.expr.types.physical.PType
+import is.hail.expr.types.virtual.Type
 
 import scala.reflect.ClassTag
 
 class StagedArrayBuilder(val elt: PType, mb: MethodBuilder, len: Code[Int]) {
 
-  val ti = typeToTypeInfo(elt)
+  val ti: TypeInfo[_] = typeToTypeInfo(elt)
 
   val ref: Settable[Any] = coerce[Any](ti match {
     case BooleanInfo => mb.newLazyField[BooleanArrayBuilder]("zab")(Code.newInstance[BooleanArrayBuilder, Int](len))
@@ -16,7 +16,7 @@ class StagedArrayBuilder(val elt: PType, mb: MethodBuilder, len: Code[Int]) {
     case LongInfo => mb.newLazyField[LongArrayBuilder]("jab")(Code.newInstance[LongArrayBuilder, Int](len))
     case FloatInfo => mb.newLazyField[FloatArrayBuilder]("fab")(Code.newInstance[FloatArrayBuilder, Int](len))
     case DoubleInfo => mb.newLazyField[DoubleArrayBuilder]("dab")(Code.newInstance[DoubleArrayBuilder, Int](len))
-    case ti => throw new RuntimeException(s"unsupported type found: $elt whose type info is $ti")
+    case ti => throw new RuntimeException(s"unsupported typeinfo found: $ti")
   })
 
   def add(x: Code[_]): Code[Unit] = ti match {

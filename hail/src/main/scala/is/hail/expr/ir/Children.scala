@@ -62,8 +62,12 @@ object Children {
       Array(a, zero, body)
     case ArrayScan(a, zero, accumName, valueName, body) =>
       Array(a, zero, body)
+    case ArrayLeftJoinDistinct(left, right, l, r, compare, join) =>
+      Array(left, right, compare, join)
     case ArrayFor(a, valueName, body) =>
       Array(a, body)
+    case ArrayAgg(a, name, query) =>
+      Array(a, query)
     case AggFilter(cond, aggIR) =>
       Array(cond, aggIR)
     case AggExplode(array, _, aggBody) =>
@@ -74,7 +78,7 @@ object Children {
       fields.map(_._2).toFastIndexedSeq
     case SelectFields(old, fields) =>
       Array(old)
-    case InsertFields(old, fields) =>
+    case InsertFields(old, fields, _) =>
       (old +: fields.map(_._2)).toFastIndexedSeq
     case InitOp(i, args, aggSig) =>
       i +: args
@@ -82,10 +86,10 @@ object Children {
       i +: args
     case Begin(xs) =>
       xs
-    case ApplyAggOp(seqOpArgs, constructorArgs, initOpArgs, aggSig) =>
-      (seqOpArgs ++ constructorArgs) ++ initOpArgs.getOrElse(FastIndexedSeq())
-    case ApplyScanOp(seqOpArgs, constructorArgs, initOpArgs, aggSig) =>
-      (seqOpArgs ++ constructorArgs) ++ initOpArgs.getOrElse(FastIndexedSeq())
+    case ApplyAggOp(constructorArgs, initOpArgs, seqOpArgs, aggSig) =>
+      constructorArgs ++ initOpArgs.getOrElse(FastIndexedSeq()) ++ seqOpArgs
+    case ApplyScanOp(constructorArgs, initOpArgs, seqOpArgs, aggSig) =>
+      constructorArgs ++ initOpArgs.getOrElse(FastIndexedSeq()) ++ seqOpArgs
     case GetField(o, name) =>
       Array(o)
     case MakeTuple(types) =>
@@ -99,7 +103,7 @@ object Children {
     case In(i, typ) =>
       none
     case Die(message, typ) =>
-      none
+      Array(message)
     case ApplyIR(_, args, _) =>
       args.toFastIndexedSeq
     case Apply(_, args) =>
@@ -112,11 +116,18 @@ object Children {
       FastIndexedSeq(fn, min, max)
     // from MatrixIR
     case MatrixWrite(child, _) => IndexedSeq(child)
+    case MatrixMultiWrite(children, _) => children
     // from TableIR
     case TableCount(child) => IndexedSeq(child)
+    case TableGetGlobals(child) => IndexedSeq(child)
+    case TableCollect(child) => IndexedSeq(child)
     case TableAggregate(child, query) => IndexedSeq(child, query)
     case MatrixAggregate(child, query) => IndexedSeq(child, query)
     case TableWrite(child, _, _, _, _) => IndexedSeq(child)
     case TableExport(child, _, _, _, _) => IndexedSeq(child)
+    case TableToValueApply(child, _) => IndexedSeq(child)
+    case MatrixToValueApply(child, _) => IndexedSeq(child)
+    // from BlockMatrixIR
+    case BlockMatrixWrite(child, _, _, _, _) => IndexedSeq(child)
   }
 }

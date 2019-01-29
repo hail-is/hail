@@ -69,7 +69,7 @@ class CollectionExpression(Expression):
         >>> hl.eval(a.filter(lambda x: x % 2 == 0))
         [2, 4]
 
-        >>> hl.eval(s3.filter(lambda x: ~(x[-1] == 'e')))
+        >>> hl.eval(s3.filter(lambda x: ~(x[-1] == 'e')))  # doctest: +NOTEST
         {'Bob'}
 
         Notes
@@ -89,6 +89,7 @@ class CollectionExpression(Expression):
         :class:`.CollectionExpression`
             Expression of the same type as the callee.
         """
+        # FIXME: enable doctest
 
         def unify_ret(t):
             if t != tbool:
@@ -154,7 +155,7 @@ class CollectionExpression(Expression):
         >>> hl.eval(a.flatmap(lambda x: hl.range(0, x)))
         [0, 0, 1, 0, 1, 2, 0, 1, 2, 3, 0, 1, 2, 3, 4]
 
-        >>> hl.eval(s3.flatmap(lambda x: hl.set(hl.range(0, x.length()).map(lambda i: x[i]))))
+        >>> hl.eval(s3.flatmap(lambda x: hl.set(hl.range(0, x.length()).map(lambda i: x[i]))))  # doctest: +NOTEST
         {'A', 'B', 'C', 'a', 'b', 'c', 'e', 'h', 'i', 'l', 'o', 'r'}
 
         Parameters
@@ -284,10 +285,10 @@ class CollectionExpression(Expression):
         Examples
         --------
 
-        >>> hl.eval(a.group_by(lambda x: x % 2 == 0))
+        >>> hl.eval(a.group_by(lambda x: x % 2 == 0))  # doctest: +NOTEST
         {False: [1, 3, 5], True: [2, 4]}
 
-        >>> hl.eval(s3.group_by(lambda x: x.length()))
+        >>> hl.eval(s3.group_by(lambda x: x.length()))  # doctest: +NOTEST
         {3: {'Bob'}, 5: {'Alice'}, 7: {'Charlie'}}
 
         Parameters
@@ -697,10 +698,10 @@ class ArrayNumericExpression(ArrayExpression):
         Examples
         --------
 
-        >>> hl.eval(a1 / 10)
+        >>> hl.eval(a1 / 10)  # doctest: +NOTEST
         [0.0, 0.1, 0.2, 0.3, 0.4, 0.5]
 
-        >>> hl.eval(a2 / a1)
+        >>> hl.eval(a2 / a1)  # doctest: +NOTEST
         [inf, -1.0, 0.5, -0.3333333333333333, 0.25, -0.2]
 
         Parameters
@@ -829,7 +830,7 @@ class SetExpression(CollectionExpression):
         Examples
         --------
 
-        >>> hl.eval(s1.add(10))
+        >>> hl.eval(s1.add(10))  # doctest: +NOTEST
         {1, 2, 3, 10}
 
         Parameters
@@ -1136,7 +1137,7 @@ class DictExpression(Expression):
         Examples
         --------
 
-        >>> hl.eval(d.key_set())
+        >>> hl.eval(d.key_set())  # doctest: +NOTEST
         {'Alice', 'Bob', 'Charles'}
 
         Returns
@@ -1152,7 +1153,7 @@ class DictExpression(Expression):
         Examples
         --------
 
-        >>> hl.eval(d.keys())
+        >>> hl.eval(d.keys())  # doctest: +NOTEST
         ['Bob', 'Charles', 'Alice']
 
         Returns
@@ -1169,7 +1170,7 @@ class DictExpression(Expression):
         Examples
         --------
 
-        >>> hl.eval(d.map_values(lambda x: x * 10))
+        >>> hl.eval(d.map_values(lambda x: x * 10))  # doctest: +NOTEST
         {'Alice': 430, 'Bob': 330, 'Charles': 440}
 
         Parameters
@@ -1206,7 +1207,7 @@ class DictExpression(Expression):
         Examples
         --------
 
-        >>> hl.eval(d.values())
+        >>> hl.eval(d.values())  # doctest: +NOTEST
         [33, 44, 43]
 
         Returns
@@ -1217,7 +1218,7 @@ class DictExpression(Expression):
         return self._method("values", tarray(self.dtype.value_type))
 
 
-class StructExpression(Mapping, Expression):
+class StructExpression(Mapping[str, Expression], Expression):
     """Expression of type :class:`.tstruct`.
 
     >>> struct = hl.struct(a=5, b='Foo')
@@ -1262,6 +1263,9 @@ class StructExpression(Mapping, Expression):
             if isinstance(self._ir, MakeStruct):
                 expr = construct_expr(self._ir.fields[i][1], t, self._indices,
                                           self._aggregations)
+            elif isinstance(self._ir, SelectFields):
+                expr = construct_expr(GetField(self._ir.old, f), t, self._indices,
+                                      self._aggregations)
             else:
                 expr = construct_expr(GetField(self._ir, f), t, self._indices,
                                           self._aggregations)
@@ -1330,6 +1334,20 @@ class StructExpression(Mapping, Expression):
     def __nonzero__(self):
         return Expression.__nonzero__(self)
 
+    def _annotate_ordered(self, insertions_dict, field_order):
+        def get_type(field):
+            e = insertions_dict.get(field)
+            if e is None:
+                e = self._fields[field]
+            return e.dtype
+
+        new_type = hl.tstruct(**{f: get_type(f) for f in field_order})
+        indices, aggregations = unify_all(self, *insertions_dict.values())
+        return construct_expr(InsertFields(self._ir, [(field, expr._ir) for field, expr in insertions_dict.items()], field_order),
+                              new_type,
+                              indices,
+                              aggregations)
+
     @typecheck_method(named_exprs=expr_any)
     def annotate(self, **named_exprs):
         """Add new fields or recompute existing fields.
@@ -1364,7 +1382,7 @@ class StructExpression(Mapping, Expression):
         result_type = tstruct(**new_types)
         indices, aggregations = unify_all(self, *[x for (f, x) in named_exprs.items()])
 
-        return construct_expr(InsertFields(self._ir, list(map(lambda x: (x[0], x[1]._ir), named_exprs.items()))),
+        return construct_expr(InsertFields(self._ir, list(map(lambda x: (x[0], x[1]._ir), named_exprs.items())), None),
                               result_type, indices, aggregations)
 
     @typecheck_method(fields=str, named_exprs=expr_any)
@@ -1375,7 +1393,7 @@ class StructExpression(Mapping, Expression):
         --------
 
         >>> hl.eval(struct.select('a', c=['bar', 'baz']))
-        Struct(a=5, c=[u'bar', u'baz'])
+        Struct(a=5, c=['bar', 'baz'])
 
         Notes
         -----
@@ -1479,7 +1497,7 @@ class TupleExpression(Expression, Sequence):
         """
         if not 0 <= item < len(self):
             raise IndexError("Out of bounds index. Tuple length is {}.".format(len(self)))
-        return self._index(self.dtype.types[item], item)
+        return construct_expr(ir.GetTupleElement(self._ir, item), self.dtype.types[item], self._indices)
 
     def __len__(self):
         """Returns the length of the tuple.
@@ -1681,7 +1699,7 @@ class NumericExpression(Expression):
         6
 
         >>> hl.eval(x * y)
-        9.0
+        13.5
 
         Parameters
         ----------
@@ -2228,7 +2246,7 @@ class StringExpression(Expression):
         Examples
         --------
 
-        >>> hl.eval(s.endswith('dog'))
+        >>> hl.eval(s.endswith('fox'))
         True
 
         Note
@@ -2254,13 +2272,13 @@ class StringExpression(Expression):
         --------
 
         >>> hl.eval(s.first_match_in("The quick (\\w+) fox"))
-        ["brown"]
+        ['brown']
 
         >>> hl.eval(s.first_match_in("The (\\w+) (\\w+) (\\w+)"))
-        ["quick", "brown", "fox"]
+        ['quick', 'brown', 'fox']
 
         >>> hl.eval(s.first_match_in("(\\w+) (\\w+)"))
-        None
+        ['The', 'quick']
 
         Parameters
         ----------
@@ -2288,7 +2306,7 @@ class StringExpression(Expression):
 
         Regex motifs can be used to match sequences of characters:
 
-        >>> hl.eval(string.matches(r'NA\\\\d+'))
+        >>> hl.eval(string.matches(r'NA\\d+'))
         True
 
         Notes
@@ -2764,7 +2782,7 @@ class LocusExpression(Expression):
         --------
 
         >>> hl.eval(locus.in_mito())
-        True
+        False
 
         Returns
         -------
@@ -2981,12 +2999,10 @@ def construct_expr(ir: IR,
         raise NotImplementedError(type)
 
 
-@typecheck(name=str, type=HailType, indices=Indices, prefix=nullable(str))
-def construct_reference(name, type, indices, prefix=None):
-    if prefix is not None:
-        ir = GetField(TopLevelReference(prefix), name)
-    else:
-        ir = TopLevelReference(name)
+@typecheck(name=str, type=HailType, indices=Indices)
+def construct_reference(name, type, indices):
+    assert isinstance(type, hl.tstruct)
+    ir = SelectFields(TopLevelReference(name), list(type))
     return construct_expr(ir, type, indices)
 
 @typecheck(name=str, type=HailType, indices=Indices, aggregations=LinkedList)

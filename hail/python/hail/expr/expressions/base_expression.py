@@ -2,10 +2,8 @@ from typing import *
 
 from hail.expr import expressions
 from hail.expr.types import *
-from hail.genetics import Locus, Call
 from hail.ir import *
 from hail.typecheck import linked_list
-from hail.utils import Interval, Struct
 from hail.utils.java import *
 from hail.utils.linkedlist import LinkedList
 from .indices import *
@@ -24,6 +22,9 @@ class ExpressionWarning(Warning):
 
 
 def impute_type(x):
+    from hail.genetics import Locus, Call
+    from hail.utils import Interval, Struct
+    
     if isinstance(x, Expression):
         return x.dtype
     elif isinstance(x, bool):
@@ -106,7 +107,7 @@ def to_expr(e, dtype=None) -> 'Expression':
 
 def _to_expr(e, dtype):
     if e is None:
-        return hl.null(dtype)
+        return None
     elif isinstance(e, Expression):
         if e.dtype != dtype:
             assert is_numeric(dtype), 'expected {}, got {}'.format(dtype, e.dtype)
@@ -339,16 +340,16 @@ class Expression(object):
         handler(s)
 
     def __lt__(self, other):
-        raise NotImplementedError("'<' comparison with expression of type {}".format(str(self._type)))
+        return self._compare_op("<", other)
 
     def __le__(self, other):
-        raise NotImplementedError("'<=' comparison with expression of type {}".format(str(self._type)))
+        return self._compare_op("<=", other)
 
     def __gt__(self, other):
-        raise NotImplementedError("'>' comparison with expression of type {}".format(str(self._type)))
+        return self._compare_op(">", other)
 
     def __ge__(self, other):
-        raise NotImplementedError("'>=' comparison with expression of type {}".format(str(self._type)))
+        return self._compare_op(">=", other)
 
     def __nonzero__(self):
         raise ExpressionException(
@@ -359,6 +360,15 @@ class Expression(object):
 
     def __iter__(self):
         raise ExpressionException(f"{repr(self)} object is not iterable")
+
+    def _compare_op(self, op, other):
+        other = to_expr(other)
+        left, right, success = unify_exprs(self, other)
+        if not success:
+            raise TypeError(f"Invalid '{op}' comparison, cannot compare expressions "
+                            f"of type '{self.dtype}' and '{other.dtype}'")
+        res = left._bin_op(op, right, hl.tbool)
+        return res
 
     def _is_scalar(self):
         return self._indices.source is None
@@ -435,10 +445,6 @@ class Expression(object):
 
     def _bin_op_reverse(self, name, other, ret_type):
         return to_expr(other)._bin_op(name, self, ret_type)
-
-    def _field(self, name, ret_type):
-        return expressions.construct_expr(GetField(self._ir, name),
-                                          ret_type, self._indices, self._aggregations)
 
     def _method(self, name, ret_type, *args):
         args = tuple(to_expr(arg) for arg in args)
@@ -531,12 +537,7 @@ class Expression(object):
         :class:`.BooleanExpression`
             ``True`` if the two expressions are equal.
         """
-        other = to_expr(other)
-        left, right, success = unify_exprs(self, other)
-        if not success:
-            raise TypeError(f"Invalid '==' comparison, cannot compare expressions "
-                            f"of type '{self.dtype}' and '{other.dtype}'")
-        return left._bin_op("==", right, tbool)
+        return self._compare_op("==", other)
 
     def __ne__(self, other):
         """Returns ``True`` if the two expressions are not equal.
@@ -569,12 +570,7 @@ class Expression(object):
         :class:`.BooleanExpression`
             ``True`` if the two expressions are not equal.
         """
-        other = to_expr(other)
-        left, right, success = unify_exprs(self, other)
-        if not success:
-            raise TypeError(f"Invalid '!=' comparison, cannot compare expressions "
-                            f"of type '{self.dtype}' and '{other.dtype}'")
-        return left._bin_op("!=", right, tbool)
+        return self._compare_op("!=", other)
 
     def _to_table(self, name):
         source = self._indices.source
@@ -654,10 +650,10 @@ class Expression(object):
         +-------+-----+
         | int32 | str |
         +-------+-----+
-        |     1 | M   |
-        |     2 | M   |
-        |     3 | F   |
-        |     4 | F   |
+        |     1 | "M" |
+        |     2 | "M" |
+        |     3 | "F" |
+        |     4 | "F" |
         +-------+-----+
 
         >>> hl.literal(123).show()
@@ -687,7 +683,7 @@ class Expression(object):
         """
         handler(self._show(n, width, truncate, types))
 
-    def _show(self, n=10, width=90, truncate=None, types=True):
+    def _show(self, n, width, truncate, types):
         name = '<expr>'
         source = self._indices.source
         if isinstance(source, hl.Table):
@@ -714,8 +710,8 @@ class Expression(object):
         return t._show(n, width, truncate, types)
 
 
-    @typecheck_method(n=int)
-    def take(self, n):
+    @typecheck_method(n=int, _localize=bool)
+    def take(self, n, _localize=True):
         """Collect the first `n` records of an expression.
 
         Examples
@@ -723,7 +719,7 @@ class Expression(object):
 
         Take the first three rows:
 
-        >>> first3 = table1.X.take(3)
+        >>> table1.X.take(3)
         [5, 6, 7]
 
         Warning
@@ -740,9 +736,14 @@ class Expression(object):
         :obj:`list`
         """
         uid = Env.get_uid()
-        return [r[uid] for r in self._to_table(uid).take(n)]
+        e = self._to_table(uid).take(n, _localize=False).map(lambda r: r[uid])
+        if _localize:
+            return hl.eval(e)
+        else:
+            return e
 
-    def collect(self):
+    @typecheck_method(_localize=bool)
+    def collect(self, _localize=True):
         """Collect all records of an expression into a local list.
 
         Examples
@@ -750,7 +751,7 @@ class Expression(object):
 
         Collect all the values from `C1`:
 
-        >>> first3 = table1.C1.collect()
+        >>> table1.C1.collect()
         [2, 2, 10, 11]
 
         Warning
@@ -766,17 +767,22 @@ class Expression(object):
         :obj:`list`
         """
         uid = Env.get_uid()
-        t = self._to_table(uid).key_by()
-        return [r[uid] for r in t._select("collect", hl.struct(**{uid: t[uid]})).collect()]
+        t = self._to_table(uid).key_by().select(uid)
+
+        e = t.collect(_localize=False).map(lambda r: r[uid])
+        if _localize:
+            return hl.eval(e)
+        else:
+            return e
 
     def _aggregation_method(self):
         src = self._indices.source
         assert src is not None
         assert len(self._indices.axes) > 0
         if isinstance(src, hl.MatrixTable):
-            if self._indices.axes == {'row'}:
+            if self._indices == src._row_indices:
                 return src.aggregate_rows
-            elif self._indices.axes == {'col'}:
+            elif self._indices == src._col_indices:
                 return src.aggregate_cols
             else:
                 return src.aggregate_entries

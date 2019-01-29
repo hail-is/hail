@@ -1,8 +1,9 @@
 package is.hail.expr.ir
 
-import is.hail.expr.types._
+import is.hail.expr.types.{virtual, _}
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
+import is.hail.expr.types.virtual.{TArray, TInt32}
 import is.hail.utils.FastIndexedSeq
 import org.testng.annotations.{DataProvider, Test}
 import org.scalatest.testng.TestNGSuite

@@ -7,5 +7,10 @@ setup(
     author = 'Hail Team',
     author_email = 'hail@broadinstitute.org',
     description = 'Job manager for k8s',
-    packages = find_packages()
+    packages = find_packages(),
+    install_requires=[
+        'cerberus',
+        'kubernetes',
+        'flask',
+    ],
 )

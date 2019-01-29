@@ -6,6 +6,7 @@ import is.hail.annotations.{Annotation, Region, RegionValue, RegionValueBuilder}
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
 import is.hail.expr.types._
+import is.hail.expr.types.virtual.{TArray, TLocus, TString, TStruct}
 import is.hail.variant._
 import is.hail.utils._
 import is.hail.testUtils._
@@ -72,7 +73,7 @@ object LocalLDPruneSuite {
 
   // expecting iterable of Genotype with htsjdk schema
   def toBitPackedVectorView(gs: Iterable[Annotation], nSamples: Int): Option[BitPackedVectorView] = {
-    val bpvv = new BitPackedVectorView(bitPackedVectorViewType.physicalType)
+    val bpvv = new BitPackedVectorView(bitPackedVectorViewType)
     toBitPackedVectorRegionValue(gs, nSamples) match {
       case Some(rv) =>
         bpvv.setRegion(rv)
@@ -91,7 +92,7 @@ object LocalLDPruneSuite {
     val hcView = HardCallView(rvRowType.physicalType)
     hcView.setRegion(rv)
 
-    rvb.start(bitPackedVectorViewType.physicalType)
+    rvb.start(bitPackedVectorViewType)
     rvb.startStruct()
     rvb.addAnnotation(rvRowType.types(0), Locus("1", 1))
     rvb.addAnnotation(rvRowType.types(1), IndexedSeq("A", "T"))
@@ -138,7 +139,7 @@ object LocalLDPruneSuite {
 class LocalLDPruneSuite extends SparkSuite {
   val memoryPerCoreBytes = 256 * 1024 * 1024
   val nCores = 4
-  lazy val vds = hc.importVCF("src/test/resources/sample.vcf.bgz", nPartitions = Option(10))
+  lazy val vds = TestUtils.importVCF(hc, "src/test/resources/sample.vcf.bgz", nPartitions = Option(10))
   lazy val maxQueueSize = LocalLDPruneSuite.estimateMemoryRequirements(vds.countRows(), vds.numCols, memoryPerCoreBytes)
   
   def toC2(i: Int): BoxedCall = if (i == -1) null else Call2.fromUnphasedDiploidGtIndex(i)
@@ -327,9 +328,9 @@ class LocalLDPruneSuite extends SparkSuite {
       val t = BitPackedVectorView.rvRowType(
         +TLocus(ReferenceGenome.GRCh37),
         +TArray(+TString()))
-      val bpv = new BitPackedVectorView(t.physicalType)
+      val bpv = new BitPackedVectorView(t)
       r.appendInt(0xbeef)
-      rvb.start(t.physicalType)
+      rvb.start(t)
       rvb.startStruct()
       rvb.startStruct()
       rvb.addString("X")

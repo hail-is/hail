@@ -4,6 +4,7 @@ import breeze.linalg._
 import breeze.numerics._
 import is.hail.annotations.Annotation
 import is.hail.expr.types._
+import is.hail.expr.types.virtual.{TFloat64, TStruct}
 
 
 object PoissonRegressionTest {
@@ -116,7 +117,9 @@ class PoissonRegressionModel(X: DenseMatrix[Double], y: DenseVector[Double]) ext
       try {
         deltaB := fisher \ score
 
-        if (max(abs(deltaB)) < tol) {
+        if (deltaB(0).isNaN) {
+          exploded = true
+        } else if (max(abs(deltaB)) < tol) {
           converged = true
         } else {
           iter += 1

@@ -5,6 +5,7 @@ import breeze.numerics._
 import is.hail.annotations.{Annotation, Region, RegionValueBuilder}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PArray, PFloat64, PType}
+import is.hail.expr.types.virtual._
 import net.sourceforge.jdistlib.{F, T}
 
 object LinearRegressionCombiner {

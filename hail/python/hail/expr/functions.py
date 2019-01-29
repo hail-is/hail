@@ -66,20 +66,20 @@ def literal(x: Any, dtype: Optional[Union[HailType, str]] = None):
     >>> table = hl.utils.range_table(8)
     >>> greetings = hl.literal({1: 'Good morning', 4: 'Good afternoon', 6 : 'Good evening'})
     >>> table.annotate(greeting = greetings.get(table.idx)).show()
-    +-------+----------------+
-    | index | greeting       |
-    +-------+----------------+
-    | int32 | str            |
-    +-------+----------------+
-    |     0 | NA             |
-    |     1 | Good morning   |
-    |     2 | NA             |
-    |     3 | NA             |
-    |     4 | Good afternoon |
-    |     5 | NA             |
-    |     6 | Good evening   |
-    |     7 | NA             |
-    +-------+----------------+
+    +-------+------------------+
+    |   idx | greeting         |
+    +-------+------------------+
+    | int32 | str              |
+    +-------+------------------+
+    |     0 | NA               |
+    |     1 | "Good morning"   |
+    |     2 | NA               |
+    |     3 | NA               |
+    |     4 | "Good afternoon" |
+    |     5 | NA               |
+    |     6 | "Good evening"   |
+    |     7 | NA               |
+    +-------+------------------+
 
     Notes
     -----
@@ -331,6 +331,41 @@ def bind(f: Callable, *exprs):
     return construct_expr(res_ir, lambda_result.dtype, indices, aggregations)
 
 
+def rbind(*exprs):
+    """Bind a temporary variable and use it in a function.
+
+    This is :func:`.bind` with flipped argument order.
+
+    Examples
+    --------
+
+    >>> hl.eval(hl.rbind(1, lambda x: x + 1))
+    2
+
+    :func:`.let` also can take multiple arguments:
+
+    >>> hl.eval(hl.rbind(4.0, 2.0, lambda x, y: x / y))
+    2.0
+
+    Parameters
+    ----------
+    exprs : variable-length args of :class:`.Expression`
+        Expressions to bind.
+    f : function ( (args) -> :class:`.Expression`)
+        Function of `exprs`.
+
+    Returns
+    -------
+    :class:`.Expression`
+        Result of evaluating `f` with `exprs` as arguments.
+    """
+
+    f = exprs[-1]
+    args = [expr_any.check(arg, 'rbind', f'argument {index}') for index, arg in enumerate(exprs[:-1])]
+
+    return hl.bind(f, *args)
+
+
 @typecheck(c1=expr_int32, c2=expr_int32, c3=expr_int32, c4=expr_int32)
 def chi_squared_test(c1, c2, c3, c4) -> StructExpression:
     """Performs chi-squared test of independence on a 2x2 contingency table.
@@ -424,7 +459,7 @@ def dict(collection) -> DictExpression:
     Examples
     --------
 
-    >>> hl.eval(hl.dict([('foo', 1), ('bar', 2), ('baz', 3)]))
+    >>> hl.eval(hl.dict([('foo', 1), ('bar', 2), ('baz', 3)]))  # doctest: +NOTEST
     {u'bar': 2, u'baz': 3, u'foo': 1}
 
     Notes
@@ -639,7 +674,7 @@ def hardy_weinberg_test(n_hom_ref, n_het, n_hom_var) -> StructExpression:
     This method performs a two-sided exact test with mid-p-value correction of
     `Hardy-Weinberg equilibrium <https://en.wikipedia.org/wiki/Hardy%E2%80%93Weinberg_principle>`__
     via an efficient implementation of the
-    `Levene-Haldane distribution <https://hail.is/docs/devel/LeveneHaldane.pdf>`__,
+    `Levene-Haldane distribution <https://hail.is/docs/0.2/LeveneHaldane.pdf>`__,
     which models the number of heterozygous individuals under equilibrium.
 
     The mean of this distribution is ``(n_hom_ref * n_hom_var) / (2n - 1)`` where
@@ -710,7 +745,7 @@ def locus_from_global_position(global_pos,
     Locus(contig=21, position=42584230, reference_genome=GRCh37)
 
     >>> hl.eval(hl.locus_from_global_position(2824183054, 'GRCh38'))
-    Locus(contig=22, position=1, reference_genome=GRCh38)
+    Locus(contig=chr22, position=1, reference_genome=GRCh38)
 
     Parameters
     ----------
@@ -766,7 +801,7 @@ def parse_variant(s, reference_genome: Union[str, ReferenceGenome] = 'default') 
     --------
 
     >>> hl.eval(hl.parse_variant('1:100000:A:T,C'))
-    Struct(locus=Locus('1', 100000), alleles=['A', 'T', 'C'])
+    Struct(locus=Locus(contig=1, position=100000, reference_genome=GRCh37), alleles=['A', 'T', 'C'])
 
     Notes
     -----
@@ -901,11 +936,13 @@ def interval(start,
     --------
 
     >>> hl.eval(hl.interval(5, 100))
-    Interval(start=5, end=100)
+    Interval(start=5, end=100, includes_start=True, includes_end=False)
 
     >>> hl.eval(hl.interval(hl.locus("1", 100), hl.locus("1", 1000)))
-    Interval(start=Locus(contig=1, position=100, reference_genome=GRCh37),
-             end=Locus(contig=1, position=1000, reference_genome=GRCh37))
+        Interval(start=Locus(contig=1, position=100, reference_genome=GRCh37),
+                 end=Locus(contig=1, position=1000, reference_genome=GRCh37),
+                 includes_start=True,
+                 includes_end=False)
 
     Notes
     -----
@@ -947,7 +984,9 @@ def locus_interval(contig,
 
     >>> hl.eval(hl.locus_interval("1", 100, 1000))
     Interval(start=Locus(contig=1, position=100, reference_genome=GRCh37),
-             end=Locus(contig=1, position=1000, reference_genome=GRCh37))
+             end=Locus(contig=1, position=1000, reference_genome=GRCh37),
+             includes_start=True,
+             includes_end=False)
 
     Parameters
     ----------
@@ -983,11 +1022,15 @@ def parse_locus_interval(s, reference_genome: Union[str, ReferenceGenome] = 'def
 
     >>> hl.eval(hl.parse_locus_interval('1:1000-2000'))
     Interval(start=Locus(contig=1, position=1000, reference_genome=GRCh37),
-             end=Locus(contig=1, position=2000, reference_genome=GRCh37))
+             end=Locus(contig=1, position=2000, reference_genome=GRCh37),
+             includes_start=True,
+             includes_end=False)
 
     >>> hl.eval(hl.parse_locus_interval('1:start-10M'))
-    Interval(start=Locus(contig=1, position=0, reference_genome=GRCh37),
-             end=Locus(contig=1, position=10000000, reference_genome=GRCh37))
+    Interval(start=Locus(contig=1, position=1, reference_genome=GRCh37),
+             end=Locus(contig=1, position=10000000, reference_genome=GRCh37),
+             includes_start=True,
+             includes_end=False)
 
     Notes
     -----
@@ -1051,7 +1094,7 @@ def call(*alleles, phased=False) -> CallExpression:
     --------
 
     >>> hl.eval(hl.call(1, 0))
-    Call(alleles=[1, 0], phased=False)
+    Call(alleles=[0, 1], phased=False)
 
     Parameters
     ----------
@@ -1099,7 +1142,7 @@ def parse_call(s) -> CallExpression:
     --------
 
     >>> hl.eval(hl.parse_call('0|2'))
-    Call([0, 2], phased=True)
+    Call(alleles=[0, 2], phased=True)
 
     Notes
     -----
@@ -1298,7 +1341,7 @@ def json(x) -> StringExpression:
     >>> hl.eval(hl.json([1,2,3,4,5]))
     '[1,2,3,4,5]'
 
-    >>> hl.eval(hl.json(hl.struct(a='Hello', b=0.12345, c=[1,2], d={'hi', 'bye'})))
+    >>> hl.eval(hl.json(hl.struct(a='Hello', b=0.12345, c=[1,2], d={'hi', 'bye'})))  # doctest: +NOTEST
     '{"a":"Hello","c":[1,2],"b":0.12345,"d":["bye","hi"]}'
 
     Parameters
@@ -1738,10 +1781,10 @@ def rand_bool(p, seed=None) -> BooleanExpression:
     Examples
     --------
 
-    >>> hl.eval(hl.rand_bool(0.5))
+    >>> hl.eval(hl.rand_bool(0.5))  # doctest: +NOTEST
     True
 
-    >>> hl.eval(hl.rand_bool(0.5))
+    >>> hl.eval(hl.rand_bool(0.5))  # doctest: +NOTEST
     False
 
     Parameters
@@ -1766,10 +1809,10 @@ def rand_norm(mean=0, sd=1, seed=None) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.eval(hl.rand_norm())
+    >>> hl.eval(hl.rand_norm())  # doctest: +NOTEST
     1.5388475315213386
 
-    >>> hl.eval(hl.rand_norm())
+    >>> hl.eval(hl.rand_norm())  # doctest: +NOTEST
     -0.3006188509144124
 
     Parameters
@@ -1797,10 +1840,10 @@ def rand_pois(lamb, seed=None) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.eval(hl.rand_pois(1))
+    >>> hl.eval(hl.rand_pois(1))  # doctest: +NOTEST
     2.0
 
-    >>> hl.eval(hl.rand_pois(1))
+    >>> hl.eval(hl.rand_pois(1))  # doctest: +NOTEST
     3.0
 
     Parameters
@@ -1825,10 +1868,10 @@ def rand_unif(lower, upper, seed=None) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.eval(hl.rand_unif(0, 1))
+    >>> hl.eval(hl.rand_unif(0, 1))  # doctest: +NOTEST
     0.7983073825816226
 
-    >>> hl.eval(hl.rand_unif(0, 1))
+    >>> hl.eval(hl.rand_unif(0, 1))  # doctest: +NOTEST
     0.5161799497741769
 
     Parameters
@@ -1868,10 +1911,10 @@ def rand_beta(a, b, lower=None, upper=None, seed=None) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.eval(hl.rand_beta(0, 1))
+    >>> hl.eval(hl.rand_beta(0, 1))  # doctest: +NOTEST
     0.6696807666871818
 
-    >>> hl.eval(hl.rand_beta(0, 1))
+    >>> hl.eval(hl.rand_beta(0, 1))  # doctest: +NOTEST
     0.8512985039011525
 
     Parameters
@@ -1910,10 +1953,10 @@ def rand_gamma(shape, scale, seed=None) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.eval(hl.rand_gamma(1, 1))
+    >>> hl.eval(hl.rand_gamma(1, 1))  # doctest: +NOTEST
     2.3915947710237537
 
-    >>> hl.eval(hl.rand_gamma(1, 1))
+    >>> hl.eval(hl.rand_gamma(1, 1))  # doctest: +NOTEST
     0.1339939936379711
 
     Parameters
@@ -1949,10 +1992,10 @@ def rand_cat(prob, seed=None) -> Int32Expression:
     Examples
     --------
 
-    >>> hl.eval(hl.rand_cat([0, 1.7, 2]))
+    >>> hl.eval(hl.rand_cat([0, 1.7, 2]))  # doctest: +NOTEST
     2
 
-    >>> hl.eval(hl.rand_cat([0, 1.7, 2]))
+    >>> hl.eval(hl.rand_cat([0, 1.7, 2]))  # doctest: +NOTEST
     1
 
     Parameters
@@ -1977,10 +2020,10 @@ def rand_dirichlet(a, seed=None) -> ArrayExpression:
     Examples
     --------
 
-    >>> hl.eval(hl.rand_dirichlet([1, 1, 1]))
+    >>> hl.eval(hl.rand_dirichlet([1, 1, 1]))  # doctest: +NOTEST
     [0.4630197581640282,0.18207753442497876,0.3549027074109931]
 
-    >>> hl.eval(hl.rand_dirichlet([1, 1, 1]))
+    >>> hl.eval(hl.rand_dirichlet([1, 1, 1]))  # doctest: +NOTEST
     [0.20851948405364765,0.7873859423649898,0.004094573581362475]
 
     Parameters
@@ -2034,7 +2077,7 @@ def corr(x, y) -> Float64Expression:
 
     Examples
     --------
-    >>> hl.eval(hl.corr([1, 2, 4], [2, 3, 1]))
+    >>> hl.eval(hl.corr([1, 2, 4], [2, 3, 1]))  # doctest: +NOTEST
     -0.6546536707079772
 
     Notes
@@ -2277,7 +2320,7 @@ def is_star(ref, alt) -> BooleanExpression:
     Examples
     --------
 
-    >>> hl.eval(hl.is_deletion('A', '*'))
+    >>> hl.eval(hl.is_star('A', '*'))
     True
 
     Parameters
@@ -2301,7 +2344,7 @@ def is_complex(ref, alt) -> BooleanExpression:
     Examples
     --------
 
-    >>> hl.eval(hl.is_deletion('ATT', 'GCA'))
+    >>> hl.eval(hl.is_complex('ATT', 'GCAC'))
     True
 
     Parameters
@@ -2429,7 +2472,7 @@ def entropy(s) -> Float64Expression:
     1.0
 
     >>> hl.eval(hl.entropy('accctg'))
-    1.79248
+    1.7924812503605778
 
     Notes
     -----
@@ -2462,7 +2505,7 @@ def str(x) -> StringExpression:
     --------
 
     >>> hl.eval(hl.str(hl.struct(a=5, b=7)))
-    '{"a": 5, "b": 7}'
+    '{"a":5,"b":7}'
 
     Parameters
     ----------
@@ -2487,7 +2530,13 @@ def downcode(c, i) -> CallExpression:
     Preserve the third allele and downcode all other alleles to reference.
 
     >>> hl.eval(hl.downcode(hl.call(1, 2), 2))
-    Call(alleles=[0, 2], phased=False)
+    Call(alleles=[0, 1], phased=False)
+
+    >>> hl.eval(hl.downcode(hl.call(2, 2), 2))
+    Call(alleles=[1, 1], phased=False)
+
+    >>> hl.eval(hl.downcode(hl.call(0, 1), 2))
+    Call(alleles=[0, 0], phased=False)
 
     Parameters
     ----------
@@ -2623,7 +2672,6 @@ def any(f: Callable, collection) -> BooleanExpression:
     :class:`.BooleanExpression`.
         ``True`` if `f` returns ``True`` for any element, ``False`` otherwise.
     """
-
     return collection.any(f)
 
 
@@ -2702,7 +2750,6 @@ def find(f: Callable, collection):
     :class:`.Expression`
         Expression whose type is the element type of the collection.
     """
-
     return collection.find(f)
 
 
@@ -2965,6 +3012,33 @@ def len(x) -> Int32Expression:
         return apply_expr(lambda x: ArrayLen(x), tint32, array(x))
 
 
+@typecheck(x=expr_oneof(expr_array(), expr_str))
+def reversed(x):
+    """Reverses the elements of a collection.
+
+    Examples
+    --------
+    >>> a = ['The', 'quick', 'brown', 'fox']
+    >>> hl.eval(hl.reversed(a))
+    ['fox', 'brown', 'quick', 'The']
+
+    Parameters
+    ----------
+    x : :class:`.ArrayExpression` or :class:`.StringExpression`
+        Array or string expression.
+
+    Returns
+    -------
+    :class:`.Expression`
+    """
+
+    typ = x.dtype
+    x = range(0, len(x)).map(lambda i: x[len(x) - 1 - i])
+    if typ == tstr:
+        x = hl.delimit(x, '')
+    return x
+
+
 @typecheck(exprs=expr_oneof(expr_numeric, expr_set(expr_numeric), expr_array(expr_numeric)),
            filter_missing=bool)
 def max(*exprs, filter_missing: bool = True) -> NumericExpression:
@@ -3154,7 +3228,7 @@ def mean(collection, filter_missing: bool = True) -> Float64Expression:
     >>> a = [1, 3, 5, 6, 7, 9]
 
     >>> hl.eval(hl.mean(a))
-    5.2
+    5.166666666666667
 
     Note
     ----
@@ -3352,7 +3426,7 @@ def set(collection) -> SetExpression:
     --------
 
     >>> s = hl.set(['Bob', 'Charlie', 'Alice', 'Bob', 'Bob'])
-    >>> s.show()
+    >>> hl.eval(s)  # doctest: +NOTEST
     {'Alice', 'Bob', 'Charlie'}
 
     Returns
@@ -3397,7 +3471,7 @@ def array(collection) -> ArrayExpression:
     >>> s = {'Bob', 'Charlie', 'Alice'}
 
     >>> hl.eval(hl.array(s))
-    ['Charlie', 'Alice', 'Bob']
+    ['Alice', 'Bob', 'Charlie']
 
     Parameters
     ----------
@@ -3540,7 +3614,7 @@ def sorted(collection,
     >>> hl.eval(hl.sorted(a))
     ['Alice', 'Bob', 'Charlie']
 
-    >>> hl.eval(hl.sorted(a, reverse=False))
+    >>> hl.eval(hl.sorted(a, reverse=True))
     ['Charlie', 'Bob', 'Alice']
 
     >>> hl.eval(hl.sorted(a, key=lambda x: hl.len(x)))
@@ -3673,13 +3747,13 @@ def float64(x) -> Float64Expression:
     Examples
     --------
 
-    >>> hl.eval(hl.float64('1.1'))
+    >>> hl.eval(hl.float64('1.1'))  # doctest: +NOTEST
     1.1
 
-    >>> hl.eval(hl.float64(1))
+    >>> hl.eval(hl.float64(1))  # doctest: +NOTEST
     1.0
 
-    >>> hl.eval(hl.float64(True))
+    >>> hl.eval(hl.float64(True))  # doctest: +NOTEST
     1.0
 
     Parameters
@@ -3702,13 +3776,13 @@ def float32(x) -> Float32Expression:
     Examples
     --------
 
-    >>> hl.eval(hl.float32('1.1'))
+    >>> hl.eval(hl.float32('1.1'))  # doctest: +NOTEST
     1.1
 
-    >>> hl.eval(hl.float32(1))
+    >>> hl.eval(hl.float32(1))  # doctest: +NOTEST
     1.0
 
-    >>> hl.eval(hl.float32(True))
+    >>> hl.eval(hl.float32(True))  # doctest: +NOTEST
     1.0
 
     Parameters
@@ -3895,7 +3969,7 @@ def get_sequence(contig, position, before=0, after=0, reference_genome='default'
 
     Return the reference allele for ``'GRCh37'`` at the locus ``'1:45323'``:
 
-    >>> hl.eval(hl.get_sequence('1', 45323, 'GRCh37')) # doctest: +SKIP
+    >>> hl.eval(hl.get_sequence('1', 45323, reference_genome='GRCh37')) # doctest: +SKIP
     "T"
 
     Notes
@@ -4131,8 +4205,9 @@ def min_rep(locus, alleles):
 
 @typecheck(x=oneof(expr_locus(), expr_interval(expr_locus())),
            dest_reference_genome=reference_genome_type,
-           min_match=builtins.float)
-def liftover(x, dest_reference_genome, min_match=0.95):
+           min_match=builtins.float,
+           include_strand=builtins.bool)
+def liftover(x, dest_reference_genome, min_match=0.95, include_strand=False):
     """Lift over coordinates to a different reference genome.
 
     Examples
@@ -4172,8 +4247,13 @@ def liftover(x, dest_reference_genome, min_match=0.95):
         Locus or locus interval to lift over.
     dest_reference_genome : :obj:`str` or :class:`.ReferenceGenome`
         Reference genome to convert to.
-    min_match : :class:`.Expression` of type :py:data:`.tfloat64`
+    min_match : :obj:`float`
         Minimum ratio of bases that must remap.
+    include_strand : :obj:`bool`
+        If True, output the result as a :class:`.StructExpression` with the first field `result` being
+        the locus or locus interval and the second field `is_negative_strand` is a boolean indicating
+        whether the locus or locus interval has been mapped to the negative strand of the destination
+        reference genome. Otherwise, output the converted locus or locus interval.
 
     Returns
     -------
@@ -4187,17 +4267,20 @@ def liftover(x, dest_reference_genome, min_match=0.95):
     if isinstance(x.dtype, tlocus):
         rg = x.dtype.reference_genome
         method_name = "liftoverLocus({})({})".format(rg.name, dest_reference_genome.name)
-        rtype = tlocus(dest_reference_genome)
+        rtype = tstruct(result=tlocus(dest_reference_genome), is_negative_strand=tbool)
     else:
         rg = x.dtype.point_type.reference_genome
         method_name = "liftoverLocusInterval({})({})".format(rg.name, dest_reference_genome.name)
-        rtype = tinterval(tlocus(dest_reference_genome))
+        rtype = tstruct(result=tinterval(tlocus(dest_reference_genome)), is_negative_strand=tbool)
 
     if not rg.has_liftover(dest_reference_genome.name):
         raise TypeError("""Reference genome '{}' does not have liftover to '{}'.
         Use 'add_liftover' to load a liftover chain file.""".format(rg.name, dest_reference_genome.name))
 
-    return _func(method_name, rtype, x, to_expr(min_match, tfloat))
+    expr = _func(method_name, rtype, x, to_expr(min_match, tfloat))
+    if not include_strand:
+        expr = expr.result
+    return expr
 
 
 @typecheck(f=func_spec(1, expr_float64),
@@ -4308,3 +4391,239 @@ def approx_equal(x, y, tolerance=1e-6, absolute=False, nan_same=False):
     """
 
     return _func("approxEqual", hl.tbool, x, y, tolerance, absolute, nan_same)
+
+
+def _shift_op(x, y, op):
+    assert op in ('<<', '>>', '>>>')
+    t = x.dtype
+    if t == hl.tint64:
+        word_size = 64
+        zero = hl.int64(0)
+    else:
+        word_size = 32
+        zero = hl.int32(0)
+
+    indices, aggregations = unify_all(x, y)
+    return hl.bind(lambda x, y: (
+        hl.case()
+            .when(y >= word_size, hl.sign(x) if op == '>>' else zero)
+            .when(y > 0, construct_expr(ApplyBinaryOp(op, x._ir, y._ir), t, indices, aggregations))
+            .or_error('cannot shift by a negative value: ' + hl.str(x) + f" {op} " + hl.str(y))), x, y)
+
+def _bit_op(x, y, op):
+    if x.dtype == hl.tint32 and y.dtype == hl.tint32:
+        t = hl.tint32
+    else:
+        t = hl.tint64
+    coercer = coercer_from_dtype(t)
+    x = coercer.coerce(x)
+    y = coercer.coerce(y)
+
+    indices, aggregations = unify_all(x, y)
+    return construct_expr(ApplyBinaryOp(op, x._ir, y._ir), t, indices, aggregations)
+
+
+@typecheck(x=expr_oneof(expr_int32, expr_int64), y=expr_oneof(expr_int32, expr_int64))
+def bit_and(x, y):
+    """Bitwise and `x` and `y`.
+
+    Examples
+    --------
+    >>> hl.eval(hl.bit_and(5, 3))
+    1
+
+    Notes
+    -----
+    See `the Python wiki <https://wiki.python.org/moin/BitwiseOperators>`__
+    for more information about bit operators.
+
+
+    Parameters
+    ----------
+    x : :class:`.Int32Expression` or :class:`.Int64Expression`
+    y : :class:`.Int32Expression` or :class:`.Int64Expression`
+
+    Returns
+    -------
+    :class:`.Int32Expression` or :class:`.Int64Expression`
+    """
+    return _bit_op(x, y, '&')
+
+
+@typecheck(x=expr_oneof(expr_int32, expr_int64), y=expr_oneof(expr_int32, expr_int64))
+def bit_or(x, y):
+    """Bitwise or `x` and `y`.
+
+    Examples
+    --------
+    >>> hl.eval(hl.bit_or(5, 3))
+    7
+
+    Notes
+    -----
+    See `the Python wiki <https://wiki.python.org/moin/BitwiseOperators>`__
+    for more information about bit operators.
+
+
+    Parameters
+    ----------
+    x : :class:`.Int32Expression` or :class:`.Int64Expression`
+    y : :class:`.Int32Expression` or :class:`.Int64Expression`
+
+    Returns
+    -------
+    :class:`.Int32Expression` or :class:`.Int64Expression`
+    """
+    return _bit_op(x, y, '|')
+
+
+@typecheck(x=expr_oneof(expr_int32, expr_int64), y=expr_oneof(expr_int32, expr_int64))
+def bit_xor(x, y):
+    """Bitwise exclusive-or `x` and `y`.
+
+    Examples
+    --------
+    >>> hl.eval(hl.bit_xor(5, 3))
+    6
+
+    Notes
+    -----
+    See `the Python wiki <https://wiki.python.org/moin/BitwiseOperators>`__
+    for more information about bit operators.
+
+
+    Parameters
+    ----------
+    x : :class:`.Int32Expression` or :class:`.Int64Expression`
+    y : :class:`.Int32Expression` or :class:`.Int64Expression`
+
+    Returns
+    -------
+    :class:`.Int32Expression` or :class:`.Int64Expression`
+    """
+    return _bit_op(x, y, '^')
+
+
+@typecheck(x=expr_oneof(expr_int32, expr_int64), y=expr_int32)
+def bit_lshift(x, y):
+    """Bitwise left-shift `x` by `y`.
+
+    Examples
+    --------
+    >>> hl.eval(hl.bit_lshift(5, 3))
+    40
+
+    >>> hl.eval(hl.bit_lshift(1, 8))
+    256
+
+    Unlike Python, Hail integers are fixed-size (32 or 64 bits),
+    and bits extended beyond will be ignored:
+
+    >>> hl.eval(hl.bit_lshift(1, 31))
+    -2147483648
+
+    >>> hl.eval(hl.bit_lshift(1, 32))
+    0
+
+    >>> hl.eval(hl.bit_lshift(hl.int64(1), 32))
+    4294967296
+
+    >>> hl.eval(hl.bit_lshift(hl.int64(1), 64))
+    0
+
+    Notes
+    -----
+    See `the Python wiki <https://wiki.python.org/moin/BitwiseOperators>`__
+    for more information about bit operators.
+
+    Parameters
+    ----------
+    x : :class:`.Int32Expression` or :class:`.Int64Expression`
+    y : :class:`.Int32Expression` or :class:`.Int64Expression`
+
+    Returns
+    -------
+    :class:`.Int32Expression` or :class:`.Int64Expression`
+    """
+    return _shift_op(x, y, '<<')
+
+
+@typecheck(x=expr_oneof(expr_int32, expr_int64), y=expr_int32, logical=builtins.bool)
+def bit_rshift(x, y, logical=False):
+    """Bitwise right-shift `x` by `y`.
+
+    Examples
+    --------
+    >>> hl.eval(hl.bit_rshift(256, 3))
+    32
+
+    With ``logical=False`` (default), the sign is preserved:
+
+    >>> hl.eval(hl.bit_rshift(-1, 1))
+    -1
+
+    With ``logical=True``, the sign bit is treated as any other:
+
+    >>> hl.eval(hl.bit_rshift(-1, 1, logical=True))
+    2147483647
+
+    Notes
+    -----
+    If `logical` is ``False``, then the shift is a sign-preserving right shift.
+    If `logical` is ``True``, then the shift is logical, with the sign bit
+    treated as any other bit.
+
+    See `the Python wiki <https://wiki.python.org/moin/BitwiseOperators>`__
+    for more information about bit operators.
+
+    Parameters
+    ----------
+    x : :class:`.Int32Expression` or :class:`.Int64Expression`
+    y : :class:`.Int32Expression` or :class:`.Int64Expression`
+    logical : :obj:`bool`
+
+    Returns
+    -------
+    :class:`.Int32Expression` or :class:`.Int64Expression`
+    """
+    if logical:
+        return _shift_op(x, y, '>>>')
+    else:
+        return _shift_op(x, y, '>>')
+
+
+@typecheck(x=expr_oneof(expr_int32, expr_int64))
+def bit_not(x):
+    """Bitwise invert `x`.
+
+    Examples
+    --------
+    >>> hl.eval(hl.bit_not(0))
+    -1
+
+    Notes
+    -----
+    See `the Python wiki <https://wiki.python.org/moin/BitwiseOperators>`__
+    for more information about bit operators.
+
+
+    Parameters
+    ----------
+    x : :class:`.Int32Expression` or :class:`.Int64Expression`
+
+    Returns
+    -------
+    :class:`.Int32Expression` or :class:`.Int64Expression`
+    """
+    return construct_expr(ApplyUnaryOp('~', x._ir), x.dtype, x._indices, x._aggregations)
+
+
+@typecheck(s=expr_str)
+def _escape_string(s):
+    return _func("escapeString", hl.tstr, s)
+
+@typecheck(l=expr_any, r=expr_any, tolerance=expr_float64, absolute=expr_bool)
+def _values_similar(l, r, tolerance=1e-6, absolute=False):
+    assert l.dtype == r.dtype
+    return ((is_missing(l) & is_missing(r))
+            | ((is_defined(l) & is_defined(r)) & _func("valuesSimilar", hl.tbool, l, r, tolerance, absolute)))

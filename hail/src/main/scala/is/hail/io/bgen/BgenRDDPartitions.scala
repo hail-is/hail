@@ -4,6 +4,7 @@ import is.hail.annotations.{Region, _}
 import is.hail.asm4s._
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PArray, PStruct}
+import is.hail.expr.types.virtual.{TArray, TInterval, Type}
 import is.hail.io.index.IndexReader
 import is.hail.io.{ByteArrayReader, HadoopFSDataBinaryReader}
 import is.hail.utils._
@@ -294,6 +295,14 @@ object CompileDecoder {
       settings.entries match {
         case NoEntries =>
           Code.toUnit(cbfis.invoke[Long, Long]("skipBytes", dataSize.toL))
+
+        case EntriesWithFields(_, _, _) if settings.dropCols =>
+          Code(
+            srvb.addArray(settings.matrixType.entryArrayType.physicalType, { srvb =>
+              srvb.start(0)
+            }),
+            srvb.advance(),
+            Code.toUnit(cbfis.invoke[Long, Long]("skipBytes", dataSize.toL)))
 
         case EntriesWithFields(gt, gp, dosage) if !(gt || gp || dosage) =>
           assert(settings.matrixType.entryType.physicalType.byteSize == 0)

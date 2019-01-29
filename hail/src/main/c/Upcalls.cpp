@@ -31,15 +31,15 @@ UpcallConfig::UpcallConfig() {
   InputStream_close_ = env->GetMethodID(cl1, "close", "()V");
   InputStream_read_  = env->GetMethodID(cl1, "read", "([BII)I");
   InputStream_skip_  = env->GetMethodID(cl1, "skip", "(J)J");
-  // InputBuffer method[s (minimal set)
-  auto cl2 = env->FindClass("is/hail/io/InputBuffer");
-  InputBuffer_close_ = env->GetMethodID(cl2, "close", "()V");
-  InputBuffer_readToEndOfBlock_ = env->GetMethodID(cl2, "readToEndOfBlock", "(J[BII)I");
   // InputStream methods
   auto cl3 = env->FindClass("java/io/OutputStream");
   OutputStream_close_ = env->GetMethodID(cl3, "close", "()V");
   OutputStream_flush_ = env->GetMethodID(cl3, "flush", "()V");
   OutputStream_write_ = env->GetMethodID(cl3, "write", "([BII)V");
+  // RegionValueIterator methods
+  auto cl4 = env->FindClass("is/hail/cxx/RegionValueIterator");
+  RVIterator_hasNext_ = env->GetMethodID(cl4, "hasNext", "()Z");
+  RVIterator_next_ = env->GetMethodID(cl4, "next", "()J");
 
 }
 
@@ -112,23 +112,6 @@ void UpcallEnv::error(const std::string& msg) {
   jstring msgJ = env_->NewStringUTF(msg.c_str());
   env_->CallVoidMethod(config_->upcalls_, config_->Upcalls_error_, msgJ);
   env_->DeleteLocalRef(msgJ);
-}
-
-// InputBuffer
-
-void UpcallEnv::InputBuffer_close(jobject obj) {
-  env_->CallVoidMethod(obj, config_->InputBuffer_close_);
-}
-
-int32_t UpcallEnv::InputBuffer_readToEndOfBlock(
-  jobject obj,
-  void* toAddr,
-  jbyteArray buf,
-  int32_t off,
-  int32_t n
-) {
-  return env_->CallIntMethod(obj, config_->InputBuffer_readToEndOfBlock_,
-                             (jlong)toAddr, buf, (jint)off, (jint)n);
 }
 
 } // namespace hail

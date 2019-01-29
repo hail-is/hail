@@ -1,5 +1,7 @@
 package is.hail.expr.types
 
+import is.hail.expr.types.virtual._
+
 object MapTypes {
   def apply(f: Type => Type)(typ: Type): Type = typ match {
     case TInterval(pointType, req) => TInterval(f(pointType), req)

@@ -2,7 +2,7 @@ package is.hail.rvd
 
 import is.hail.utils._
 import is.hail.annotations.{RegionValue, SafeRow, WritableRegionValue}
-import is.hail.expr.types.Type
+import is.hail.expr.types.virtual.Type
 
 case class RVDPartitionInfo(
   partitionIndex: Int,
@@ -35,7 +35,7 @@ object RVDPartitionInfo {
     producerContext: RVDContext
   ): RVDPartitionInfo = {
     using(RVDContext.default) { localctx =>
-      val kPType = typ.kType.physicalType
+      val kPType = typ.kType
       val pkOrd = typ.copy(key = typ.key.take(partitionKey)).kOrd
       val minF = WritableRegionValue(kPType, localctx.freshRegion)
       val maxF = WritableRegionValue(kPType, localctx.freshRegion)
@@ -67,11 +67,11 @@ object RVDPartitionInfo {
         if (typ.kOrd.lt(f, prevF.value)) {
           if (pkOrd.lt(f, prevF.value)) {
             if (sortedness > UNSORTED)
-              log.info(s"unsorted: ${ f.pretty(typ.kType.physicalType) }, ${ prevF.pretty }")
+              log.info(s"unsorted: ${ f.pretty(typ.kType) }, ${ prevF.pretty }")
             sortedness = UNSORTED
           } else
             if (sortedness > TSORTED)
-              log.info(s"tsorted: ${ f.pretty(typ.kType.physicalType) }, ${ prevF.pretty }")
+              log.info(s"tsorted: ${ f.pretty(typ.kType) }, ${ prevF.pretty }")
             sortedness = sortedness.min(TSORTED)
         }
 

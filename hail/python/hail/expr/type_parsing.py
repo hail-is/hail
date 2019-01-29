@@ -4,7 +4,9 @@ from hail.utils.java import unescape_parsable
 
 type_grammar = Grammar(
     r"""
-    type = _ (array / set / dict / struct / tuple / interval / int64 / int32 / float32 / float64 / bool / str / call / str / locus) _
+    type = _ (array / ndarray / set / dict / struct / tuple / interval / int64 / int32 / float32 / float64 / bool / str / call / str / locus / void / variable) _
+    variable = "?" simple_identifier (":" simple_identifier)?
+    void = "void" / "tvoid"
     int64 = "int64" / "tint64"
     int32 = "int32" / "tint32" / "int" / "tint"
     float32 = "float32" / "tfloat32"
@@ -14,6 +16,7 @@ type_grammar = Grammar(
     str = "tstr" / "str"
     locus = ("tlocus" / "locus") _ "<" identifier ">"
     array = ("tarray" / "array") _ "<" type ">"
+    ndarray = ("tndarray" / "ndarray") _ "<" type ">"
     set = ("tset" / "set") _ "<" type ">"
     dict = ("tdict" / "dict") _ "<" type "," type ">"
     struct = ("tstruct" / "struct") _ "{" (fields / _) "}"
@@ -35,6 +38,16 @@ class TypeConstructor(NodeVisitor):
     def visit_type(self, node, visited_children):
         _, [t], _ = visited_children
         return t
+
+    def visit_variable(self, node, visited_children):
+        question, name, cond_opt = visited_children
+        cond = None
+        if cond_opt:
+            colon, cond = cond_opt[0]
+        return hl.tvariable(name, cond)
+
+    def visit_void(self, node, visited_children):
+        return hl.tvoid
 
     def visit_int64(self, node, visited_children):
         return hl.tint64
@@ -64,6 +77,10 @@ class TypeConstructor(NodeVisitor):
     def visit_array(self, node, visited_children):
         tarray, _, angle_bracket, t, angle_bracket = visited_children
         return hl.tarray(t)
+
+    def visit_ndarray(self, node, visited_children):
+        tndarray, _, angle_bracket, t, angle_bracket = visited_children
+        return hl.tndarray(t)
 
     def visit_set(self, node, visited_children):
         tset, _, angle_bracket, t, angle_bracket = visited_children

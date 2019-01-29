@@ -1,4 +1,4 @@
-from constants import GCP_PROJECT, VERSION
+from .constants import GCP_PROJECT, VERSION
 from google.cloud import storage
 import os
 

@@ -5,6 +5,8 @@ from enum import IntEnum
 
 import hail as hl
 import hail.expr.aggregators as agg
+from hail.ir import BlockMatrixWrite
+from hail.ir.blockmatrix_ir import BlockMatrixRead, BlockMatrixAdd, JavaBlockMatrix
 from hail.utils import new_temp_file, new_local_temp_file, local_path_uri, storage_level
 from hail.utils.java import Env, jarray, joption
 from hail.typecheck import *
@@ -233,8 +235,21 @@ class BlockMatrix(object):
 
     - Natural logarithm, :meth:`log`.
     """
-    def __init__(self, jbm):
-        self._jbm = jbm
+    @staticmethod
+    def _from_java(jbm):
+        return BlockMatrix(JavaBlockMatrix(jbm))
+
+    def __init__(self, bmir):
+        self._bmir = bmir
+        self._cached_jbm = None
+
+    @property
+    def _jbm(self):
+        if self._cached_jbm is not None:
+            return self._cached_jbm
+        else:
+            self._cached_jbm = Env.hc()._backend._to_java_ir(self._bmir).execute(Env.hc()._jhc)
+            return self._cached_jbm
 
     @classmethod
     @typecheck_method(path=str)
@@ -250,7 +265,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return cls(Env.hail().linalg.BlockMatrix.read(Env.hc()._jhc, path))
+        return cls(BlockMatrixRead(path))
 
     @classmethod
     @typecheck_method(uri=str,
@@ -310,7 +325,7 @@ class BlockMatrix(object):
         if not block_size:
             block_size = BlockMatrix.default_block_size()
 
-        return cls(Env.hail().linalg.BlockMatrix.fromBreezeMatrix(
+        return BlockMatrix._from_java(Env.hail().linalg.BlockMatrix.fromBreezeMatrix(
             Env.hc()._jsc,
             _breeze_fromfile(uri, n_rows, n_cols),
             block_size))
@@ -457,7 +472,7 @@ class BlockMatrix(object):
         """
         if not block_size:
             block_size = BlockMatrix.default_block_size()
-        return cls(Env.hail().linalg.BlockMatrix.random(Env.hc()._jhc, n_rows, n_cols, block_size, seed, uniform))
+        return BlockMatrix._from_java(Env.hail().linalg.BlockMatrix.random(Env.hc()._jhc, n_rows, n_cols, block_size, seed, uniform))
 
     @classmethod
     @typecheck_method(n_rows=int,
@@ -490,7 +505,7 @@ class BlockMatrix(object):
         """
         if not block_size:
             block_size = BlockMatrix.default_block_size()
-        return cls(Env.hail().linalg.BlockMatrix.fill(Env.hc()._jhc, n_rows, n_cols, value, block_size))
+        return BlockMatrix._from_java(Env.hail().linalg.BlockMatrix.fill(Env.hc()._jhc, n_rows, n_cols, value, block_size))
 
     @classmethod
     @typecheck_method(n_rows=int,
@@ -505,7 +520,7 @@ class BlockMatrix(object):
                                                                      n_cols,
                                                                      jarray(Env.jvm().double, data),
                                                                      row_major)
-        return cls(Env.hail().linalg.BlockMatrix.fromBreezeMatrix(Env.hc()._jsc, bdm, block_size))
+        return BlockMatrix._from_java(Env.hail().linalg.BlockMatrix.fromBreezeMatrix(Env.hc()._jsc, bdm, block_size))
 
     @staticmethod
     def default_block_size():
@@ -520,7 +535,7 @@ class BlockMatrix(object):
         -------
         :obj:`int`
         """
-        return self._jbm.nRows()
+        return self._bmir.typ.shape[0]
 
     @property
     def n_cols(self):
@@ -530,7 +545,7 @@ class BlockMatrix(object):
         -------
         :obj:`int`
         """
-        return self._jbm.nCols()
+        return self._bmir.typ.shape[1]
 
     @property
     def shape(self):
@@ -583,7 +598,7 @@ class BlockMatrix(object):
             If ``True``, major output will be written to temporary local storage
             before being copied to ``output``.
         """
-        self._jbm.write(path, overwrite, force_row_major, stage_locally)
+        Env.backend().execute(BlockMatrixWrite(self._bmir, path, overwrite, force_row_major, stage_locally))
 
     @staticmethod
     @typecheck(entry_expr=expr_float64,
@@ -666,10 +681,13 @@ class BlockMatrix(object):
         check_entry_indexed('BlockMatrix.write_from_entry_expr', entry_expr)
         mt = matrix_table_source('BlockMatrix.write_from_entry_expr', entry_expr)
 
-        if (not (mean_impute or center or normalize)) and (entry_expr in mt._fields_inverse):
-            #  FIXME: remove once select_entries on a field is free
-            field = mt._fields_inverse[entry_expr]
-            mt._jvds.writeBlockMatrix(path, overwrite, field, block_size)
+        if not (mean_impute or center or normalize):
+            if entry_expr in mt._fields_inverse:
+                field = mt._fields_inverse[entry_expr]
+                mt.select_entries(field)._write_block_matrix(path, overwrite, field, block_size)
+            else:
+                field = Env.get_uid()
+                mt.select_entries(**{field: entry_expr})._write_block_matrix(path, overwrite, field, block_size)
         else:
             n_cols = mt.count_cols()
             mt = mt.select_entries(__x=entry_expr)
@@ -677,7 +695,7 @@ class BlockMatrix(object):
                                 __sum=agg.sum(mt['__x']),
                                 __sum_sq=agg.sum(mt['__x'] * mt['__x']))
             mt = mt.select_rows(__mean=mt['__sum'] / mt['__count'],
-                                __centered_length=hl.sqrt(mt['__sum_sq'] - 
+                                __centered_length=hl.sqrt(mt['__sum_sq'] -
                                                           (mt['__sum'] ** 2) / mt['__count']),
                                 __length=hl.sqrt(mt['__sum_sq'] +
                                                  (n_cols - mt['__count']) *
@@ -702,7 +720,7 @@ class BlockMatrix(object):
                         expr = hl.or_else(expr, mt['__mean'])
 
             field = Env.get_uid()
-            mt.select_entries(**{field: expr}).select_cols()._jvds.writeBlockMatrix(path, overwrite, field, block_size)
+            mt.select_entries(**{field: expr})._write_block_matrix(path, overwrite, field, block_size)
 
     @staticmethod
     def _check_indices(indices, size):
@@ -729,7 +747,7 @@ class BlockMatrix(object):
         :class:`.BlockMatrix`
         """
         BlockMatrix._check_indices(rows_to_keep, self.n_rows)
-        return BlockMatrix(self._jbm.filterRows(jarray(Env.jvm().long, rows_to_keep)))
+        return BlockMatrix._from_java(self._jbm.filterRows(jarray(Env.jvm().long, rows_to_keep)))
 
     @typecheck_method(cols_to_keep=sequenceof(int))
     def filter_cols(self, cols_to_keep):
@@ -745,7 +763,7 @@ class BlockMatrix(object):
         :class:`.BlockMatrix`
         """
         BlockMatrix._check_indices(cols_to_keep, self.n_cols)
-        return BlockMatrix(self._jbm.filterCols(jarray(Env.jvm().long, cols_to_keep)))
+        return BlockMatrix._from_java(self._jbm.filterCols(jarray(Env.jvm().long, cols_to_keep)))
 
     @typecheck_method(rows_to_keep=sequenceof(int),
                       cols_to_keep=sequenceof(int))
@@ -771,8 +789,8 @@ class BlockMatrix(object):
         """
         BlockMatrix._check_indices(rows_to_keep, self.n_rows)
         BlockMatrix._check_indices(cols_to_keep, self.n_cols)
-        return BlockMatrix(self._jbm.filter(jarray(Env.jvm().long, rows_to_keep),
-                                            jarray(Env.jvm().long, cols_to_keep)))
+        return BlockMatrix._from_java(self._jbm.filter(jarray(Env.jvm().long, rows_to_keep),
+                                                       jarray(Env.jvm().long, cols_to_keep)))
 
     @staticmethod
     def _pos_index(i, size, name, allow_size=False):
@@ -852,7 +870,7 @@ class BlockMatrix(object):
         Filter to a band from one below the diagonal to
         two above the diagonal and collect to NumPy:
 
-        >>> bm.sparsify_band(lower=-1, upper=2).to_numpy()
+        >>> bm.sparsify_band(lower=-1, upper=2).to_numpy()  # doctest: +NOTEST
         array([[ 1.,  2.,  3.,  0.],
                [ 5.,  6.,  7.,  8.],
                [ 0., 10., 11., 12.],
@@ -861,7 +879,7 @@ class BlockMatrix(object):
         Set all blocks fully outside the diagonal to zero
         and collect to NumPy:
 
-        >>> bm.sparsify_band(lower=0, upper=0, blocks_only=True).to_numpy()
+        >>> bm.sparsify_band(lower=0, upper=0, blocks_only=True).to_numpy()  # doctest: +NOTEST
         array([[ 1.,  2.,  0.,  0.],
                [ 5.,  6.,  0.,  0.],
                [ 0.,  0., 11., 12.],
@@ -907,7 +925,7 @@ class BlockMatrix(object):
         if lower > upper:
             raise ValueError(f'sparsify_band: lower={lower} is greater than upper={upper}')
 
-        return BlockMatrix(self._jbm.filterBand(lower, upper, blocks_only))
+        return BlockMatrix._from_java(self._jbm.filterBand(lower, upper, blocks_only))
 
     @typecheck_method(lower=bool, blocks_only=bool)
     def sparsify_triangle(self, lower=False, blocks_only=False):
@@ -926,7 +944,7 @@ class BlockMatrix(object):
 
         Filter to the upper triangle and collect to NumPy:
 
-        >>> bm.sparsify_triangle().to_numpy()
+        >>> bm.sparsify_triangle().to_numpy()  # doctest: +NOTEST
         array([[ 1.,  2.,  3.,  4.],
                [ 0.,  6.,  7.,  8.],
                [ 0.,  0., 11., 12.],
@@ -935,7 +953,7 @@ class BlockMatrix(object):
         Set all blocks fully outside the upper triangle to zero
         and collect to NumPy:
 
-        >>> bm.sparsify_triangle(blocks_only=True).to_numpy()
+        >>> bm.sparsify_triangle(blocks_only=True).to_numpy()  # doctest: +NOTEST
         array([[ 1.,  2.,  3.,  4.],
                [ 5.,  6.,  7.,  8.],
                [ 0.,  0., 11., 12.],
@@ -994,7 +1012,7 @@ class BlockMatrix(object):
 
         >>> (bm.sparsify_row_intervals(starts=[1, 0, 2, 2],
         ...                            stops= [2, 0, 3, 4])
-        ...    .to_numpy())
+        ...    .to_numpy())  # doctest: +NOTEST
         array([[ 0.,  2.,  0.,  0.],
                [ 0.,  0.,  0.,  0.],
                [ 0.,  0., 11.,  0.],
@@ -1006,7 +1024,7 @@ class BlockMatrix(object):
         >>> (bm.sparsify_row_intervals(starts=[1, 0, 2, 2],
         ...                            stops= [2, 0, 3, 4],
         ...                            blocks_only=True)
-        ...    .to_numpy())
+        ...    .to_numpy())  # doctest: +NOTEST
         array([[ 1.,  2.,  0.,  0.],
                [ 5.,  6.,  0.,  0.],
                [ 0.,  0., 11., 12.],
@@ -1063,7 +1081,7 @@ class BlockMatrix(object):
         if any([starts[i] > stops[i] for i in range(0, n_rows)]):
             raise ValueError('every start value must be less than or equal to the corresponding stop value')
 
-        return BlockMatrix(self._jbm.filterRowIntervals(
+        return BlockMatrix._from_java(self._jbm.filterRowIntervals(
             jarray(Env.jvm().long, starts),
             jarray(Env.jvm().long, stops),
             blocks_only))
@@ -1164,7 +1182,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return BlockMatrix(self._jbm.transpose())
+        return BlockMatrix._from_java(self._jbm.transpose())
 
     def densify(self):
         """Restore all dropped blocks as explicit blocks of zeros.
@@ -1173,7 +1191,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return BlockMatrix(self._jbm.densify())
+        return BlockMatrix._from_java(self._jbm.densify())
 
     def cache(self):
         """Persist this block matrix in memory.
@@ -1219,7 +1237,7 @@ class BlockMatrix(object):
         :class:`.BlockMatrix`
             Persisted block matrix.
         """
-        return BlockMatrix(self._jbm.persist(storage_level))
+        return BlockMatrix._from_java(self._jbm.persist(storage_level))
 
     def unpersist(self):
         """Unpersists this block matrix from memory/disk.
@@ -1234,7 +1252,7 @@ class BlockMatrix(object):
         :class:`.BlockMatrix`
             Unpersisted block matrix.
         """
-        return BlockMatrix(self._jbm.unpersist())
+        return BlockMatrix._from_java(self._jbm.unpersist())
 
     def __pos__(self):
         return self
@@ -1246,9 +1264,8 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-
         op = getattr(self._jbm, "unary_$minus")
-        return BlockMatrix(op())
+        return BlockMatrix._from_java(op())
 
     def _promote(self, b, op, reverse=False):
         a = self
@@ -1280,7 +1297,7 @@ class BlockMatrix(object):
                 assert isinstance(b, np.ndarray)
                 b = BlockMatrix.from_numpy(b, a.block_size)
 
-        assert (isinstance(a, BlockMatrix) and 
+        assert (isinstance(a, BlockMatrix) and
                 (isinstance(b, BlockMatrix) or isinstance(b, float) or b.getClass().isArray()) and
                 (not (isinstance(b, BlockMatrix) and reverse)))
 
@@ -1301,16 +1318,16 @@ class BlockMatrix(object):
         new_a, new_b, form_b, _ = self._promote(b, 'addition')
 
         if isinstance(new_b, float):
-            return BlockMatrix(new_a._jbm.scalarAdd(new_b))
+            return BlockMatrix._from_java(new_a._jbm.scalarAdd(new_b))
         elif isinstance(new_b, BlockMatrix):
-            return BlockMatrix(new_a._jbm.add(new_b._jbm))
+            return BlockMatrix(BlockMatrixAdd(new_a._bmir, new_b._bmir))
         else:
             assert new_b.getClass().isArray()
             if form_b == Form.COLUMN:
-                return BlockMatrix(new_a._jbm.colVectorAdd(new_b))
+                return BlockMatrix._from_java(new_a._jbm.colVectorAdd(new_b))
             else:
                 assert form_b == Form.ROW
-                return BlockMatrix(new_a._jbm.rowVectorAdd(new_b))
+                return BlockMatrix._from_java(new_a._jbm.rowVectorAdd(new_b))
 
     @typecheck_method(b=oneof(numeric, np.ndarray, block_matrix_type))
     def __sub__(self, b):
@@ -1328,25 +1345,25 @@ class BlockMatrix(object):
 
         if isinstance(new_b, float):
             if reverse:
-                return BlockMatrix(new_a._jbm.reverseScalarSub(new_b))
+                return BlockMatrix._from_java(new_a._jbm.reverseScalarSub(new_b))
             else:
-                return BlockMatrix(new_a._jbm.scalarSub(new_b))
+                return BlockMatrix._from_java(new_a._jbm.scalarSub(new_b))
         elif isinstance(new_b, BlockMatrix):
             assert not reverse
-            return BlockMatrix(new_a._jbm.sub(new_b._jbm))
+            return BlockMatrix._from_java(new_a._jbm.sub(new_b._jbm))
         else:
             assert new_b.getClass().isArray()
             if form_b == Form.COLUMN:
                 if reverse:
-                    return BlockMatrix(new_a._jbm.reverseColVectorSub(new_b))
+                    return BlockMatrix._from_java(new_a._jbm.reverseColVectorSub(new_b))
                 else:
-                    return BlockMatrix(new_a._jbm.colVectorSub(new_b))
+                    return BlockMatrix._from_java(new_a._jbm.colVectorSub(new_b))
             else:
                 assert form_b == Form.ROW
                 if reverse:
-                    return BlockMatrix(new_a._jbm.reverseRowVectorSub(new_b))
+                    return BlockMatrix._from_java(new_a._jbm.reverseRowVectorSub(new_b))
                 else:
-                    return BlockMatrix(new_a._jbm.rowVectorSub(new_b))
+                    return BlockMatrix._from_java(new_a._jbm.rowVectorSub(new_b))
 
     @typecheck_method(b=oneof(numeric, np.ndarray, block_matrix_type))
     def __mul__(self, b):
@@ -1363,16 +1380,16 @@ class BlockMatrix(object):
         new_a, new_b, form_b, _ = self._promote(b, 'element-wise multiplication')
 
         if isinstance(new_b, float):
-            return BlockMatrix(new_a._jbm.scalarMul(new_b))
+            return BlockMatrix._from_java(new_a._jbm.scalarMul(new_b))
         elif isinstance(new_b, BlockMatrix):
-            return BlockMatrix(new_a._jbm.mul(new_b._jbm))
+            return BlockMatrix._from_java(new_a._jbm.mul(new_b._jbm))
         else:
             assert new_b.getClass().isArray()
             if form_b == Form.COLUMN:
-                return BlockMatrix(new_a._jbm.colVectorMul(new_b))
+                return BlockMatrix._from_java(new_a._jbm.colVectorMul(new_b))
             else:
                 assert form_b == Form.ROW
-                return BlockMatrix(new_a._jbm.rowVectorMul(new_b))
+                return BlockMatrix._from_java(new_a._jbm.rowVectorMul(new_b))
 
     @typecheck_method(b=oneof(numeric, np.ndarray, block_matrix_type))
     def __truediv__(self, b):
@@ -1390,25 +1407,25 @@ class BlockMatrix(object):
 
         if isinstance(new_b, float):
             if reverse:
-                return BlockMatrix(new_a._jbm.reverseScalarDiv(new_b))
+                return BlockMatrix._from_java(new_a._jbm.reverseScalarDiv(new_b))
             else:
-                return BlockMatrix(new_a._jbm.scalarDiv(new_b))
+                return BlockMatrix._from_java(new_a._jbm.scalarDiv(new_b))
         elif isinstance(new_b, BlockMatrix):
             assert not reverse
-            return BlockMatrix(new_a._jbm.div(new_b._jbm))
+            return BlockMatrix._from_java(new_a._jbm.div(new_b._jbm))
         else:
             assert new_b.getClass().isArray()
             if form_b == Form.COLUMN:
                 if reverse:
-                    return BlockMatrix(new_a._jbm.reverseColVectorDiv(new_b))
+                    return BlockMatrix._from_java(new_a._jbm.reverseColVectorDiv(new_b))
                 else:
-                    return BlockMatrix(new_a._jbm.colVectorDiv(new_b))
+                    return BlockMatrix._from_java(new_a._jbm.colVectorDiv(new_b))
             else:
                 assert form_b == Form.ROW
                 if reverse:
-                    return BlockMatrix(new_a._jbm.reverseRowVectorDiv(new_b))
+                    return BlockMatrix._from_java(new_a._jbm.reverseRowVectorDiv(new_b))
                 else:
-                    return BlockMatrix(new_a._jbm.rowVectorDiv(new_b))
+                    return BlockMatrix._from_java(new_a._jbm.rowVectorDiv(new_b))
 
     @typecheck_method(b=numeric)
     def __radd__(self, b):
@@ -1416,7 +1433,7 @@ class BlockMatrix(object):
 
     @typecheck_method(b=numeric)
     def __rsub__(self, b):
-        return BlockMatrix(self._jbm.reverseScalarSub(float(b)))
+        return BlockMatrix._from_java(self._jbm.reverseScalarSub(float(b)))
 
     @typecheck_method(b=numeric)
     def __rmul__(self, b):
@@ -1424,7 +1441,7 @@ class BlockMatrix(object):
 
     @typecheck_method(b=numeric)
     def __rtruediv__(self, b):
-        return BlockMatrix(self._jbm.reverseScalarDiv(float(b)))
+        return BlockMatrix._from_java(self._jbm.reverseScalarDiv(float(b)))
 
     @typecheck_method(b=oneof(np.ndarray, block_matrix_type))
     def __matmul__(self, b):
@@ -1443,7 +1460,7 @@ class BlockMatrix(object):
         else:
             if self.n_cols != b.n_rows:
                 raise ValueError(f'incompatible shapes for matrix multiplication: {self.shape} and {b.shape}')
-            return BlockMatrix(self._jbm.dot(b._jbm))
+            return BlockMatrix._from_java(self._jbm.dot(b._jbm))
 
     @typecheck_method(x=numeric)
     def __pow__(self, x):
@@ -1458,7 +1475,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return BlockMatrix(self._jbm.pow(float(x)))
+        return BlockMatrix._from_java(self._jbm.pow(float(x)))
 
     def sqrt(self):
         """Element-wise square root.
@@ -1467,7 +1484,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return BlockMatrix(self._jbm.sqrt())
+        return BlockMatrix._from_java(self._jbm.sqrt())
 
     def abs(self):
         """Element-wise absolute value.
@@ -1476,7 +1493,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return BlockMatrix(self._jbm.abs())
+        return BlockMatrix._from_java(self._jbm.abs())
 
     def log(self):
         """Element-wise natural logarithm.
@@ -1485,7 +1502,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return BlockMatrix(self._jbm.log())
+        return BlockMatrix._from_java(self._jbm.log())
 
     def diagonal(self):
         """Extracts diagonal elements as ndarray.
@@ -1534,13 +1551,13 @@ class BlockMatrix(object):
         if axis is None:
             return self._jbm.sum()
         elif axis == 0:
-            return BlockMatrix(self._jbm.rowSum())
+            return BlockMatrix._from_java(self._jbm.rowSum())
         elif axis == 1:
-            return BlockMatrix(self._jbm.colSum())
+            return BlockMatrix._from_java(self._jbm.colSum())
         else:
             raise ValueError(f'axis must be None, 0, or 1: found {axis}')
 
-    def entries(self):
+    def entries(self, keyed=True):
         """Returns a table with the indices and value of each block matrix entry.
 
         Examples
@@ -1549,16 +1566,16 @@ class BlockMatrix(object):
         >>> block_matrix = BlockMatrix.from_numpy(np.array([[5, 7], [2, 8]]), 2)
         >>> entries_table = block_matrix.entries()
         >>> entries_table.show()
-        +-------+-------+-------------+
-        |     i |     j |       entry |
-        +-------+-------+-------------+
-        | int64 | int64 |     float64 |
-        +-------+-------+-------------+
-        |     0 |     0 | 5.00000e+00 |
-        |     0 |     1 | 7.00000e+00 |
-        |     1 |     0 | 2.00000e+00 |
-        |     1 |     1 | 8.00000e+00 |
-        +-------+-------+-------------+
+        +-------+-------+----------+
+        |     i |     j |    entry |
+        +-------+-------+----------+
+        | int64 | int64 |  float64 |
+        +-------+-------+----------+
+        |     0 |     0 | 5.00e+00 |
+        |     0 |     1 | 7.00e+00 |
+        |     1 |     0 | 2.00e+00 |
+        |     1 |     1 | 8.00e+00 |
+        +-------+-------+----------+
 
         Notes
         -----
@@ -1581,7 +1598,10 @@ class BlockMatrix(object):
         :class:`.Table`
             Table with a row for each entry.
         """
-        return Table._from_java(self._jbm.entriesTable(Env.hc()._jhc))
+        t = Table._from_java(self._jbm.entriesTable(Env.hc()._jhc))
+        if keyed:
+            t = t.key_by('i', 'j')
+        return t
 
     @staticmethod
     @typecheck(path_in=str,
@@ -1772,7 +1792,7 @@ class BlockMatrix(object):
 
         Filter to blocks covering three rectangles and collect to NumPy:
 
-        >>> bm.sparsify_rectangles([[0, 1, 0, 1], [0, 3, 0, 2], [1, 2, 0, 4]]).to_numpy()
+        >>> bm.sparsify_rectangles([[0, 1, 0, 1], [0, 3, 0, 2], [1, 2, 0, 4]]).to_numpy()  # doctest: +NOTEST
         array([[ 1.,  2.,  3.,  4.],
                [ 5.,  6.,  7.,  8.],
                [ 9., 10.,  0.,  0.],
@@ -1821,16 +1841,17 @@ class BlockMatrix(object):
                                  f'0 <= r[0] <= r[1] <= n_rows and 0 <= r[2] <= r[3] <= n_cols')
 
         flattened_rectangles = jarray(Env.jvm().long, list(itertools.chain(*rectangles)))
-        return BlockMatrix(self._jbm.filterRectangles(flattened_rectangles))
+        return BlockMatrix._from_java(self._jbm.filterRectangles(flattened_rectangles))
 
     @staticmethod
     @typecheck(path_in=str,
                path_out=str,
                rectangles=sequenceof(sequenceof(int)),
                delimiter=str,
-               n_partitions=nullable(int))
-    def export_rectangles(path_in, path_out, rectangles, delimiter='\t', n_partitions=None):
-        """Export rectangular regions from a stored block matrix to delimited text files.
+               n_partitions=nullable(int),
+               binary=bool)
+    def export_rectangles(path_in, path_out, rectangles, delimiter='\t', n_partitions=None, binary=False):
+        """Export rectangular regions from a stored block matrix to delimited text or binary files.
 
         Examples
         --------
@@ -1889,11 +1910,7 @@ class BlockMatrix(object):
         Notes
         -----
         This method exports rectangular regions of a stored block matrix
-        to delimited text files, in parallel by region.
-
-        The block matrix can be sparse so long as all blocks overlapping
-        the rectangles are present, i.e. this method does not currently
-        support implicit zeros.
+        to delimited text or binary files, in parallel by region.
 
         Each rectangle is encoded as a list of length four of
         the form ``[row_start, row_stop, col_start, col_stop]``,
@@ -1907,6 +1924,19 @@ class BlockMatrix(object):
 
         Each file name encodes the index of the rectangle in `rectangles`
         and the bounds as formatted in the example.
+
+        The block matrix can be sparse provided all blocks overlapping
+        the rectangles are present, i.e. this method does not currently
+        support implicit zeros.
+
+        If `binary` is true, each element is exported as 8 bytes, in row
+        major order with no delimiting, new lines, or shape information. Such
+        files can instantiate, for example, NumPy ndarrays using
+        `fromfile <https://docs.scipy.org/doc/numpy/reference/generated/numpy.fromfile.html>`__
+        and
+        `reshape <https://docs.scipy.org/doc/numpy/reference/generated/numpy.reshape.html>`__.
+        Note however that these binary files are not platform independent; in
+        particular, no byte-order or data-type information is saved.
 
         The number of rectangles must be less than :math:`2^{29}`.
 
@@ -1924,6 +1954,8 @@ class BlockMatrix(object):
         n_partitions: :obj:`int`, optional
             Maximum parallelism of export.
             Defaults to (and cannot exceed) the number of rectangles.
+        binary: :obj:`bool`
+            If true, export elements as raw bytes in row major order.
         """
         n_rectangles = len(rectangles)
         if n_rectangles == 0:
@@ -1954,7 +1986,7 @@ class BlockMatrix(object):
         flattened_rectangles = jarray(Env.jvm().long, list(itertools.chain(*rectangles)))
 
         return Env.hail().linalg.BlockMatrix.exportRectangles(
-            Env.hc()._jhc, path_in, path_out, flattened_rectangles, delimiter, n_partitions)
+            Env.hc()._jhc, path_in, path_out, flattened_rectangles, delimiter, n_partitions, binary)
 
     @typecheck_method(compute_uv=bool,
                       complexity_bound=int)

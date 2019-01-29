@@ -1,4 +1,7 @@
 from .types import *
+from .table_type import *
+from .matrix_type import *
+from .blockmatrix_type import *
 from .expressions import eval, eval_typed
 from .functions import *
 __all__ = ['HailType',
@@ -12,6 +15,7 @@ __all__ = ['HailType',
            'tstr',
            'tbool',
            'tarray',
+           'tndarray',
            'tset',
            'tdict',
            'tstruct',
@@ -19,6 +23,10 @@ __all__ = ['HailType',
            'tinterval',
            'tlocus',
            'tcall',
+           'tvoid',
+           'tvariable',
+           'ttable',
+           'tmatrix',
            'hts_entry_schema',
            'eval',
            'eval_typed',
@@ -28,6 +36,7 @@ __all__ = ['HailType',
            'switch',
            'case',
            'bind',
+           'rbind',
            'contingency_table_test',
            'dbeta',
            'dict',
@@ -146,5 +155,12 @@ __all__ = ['HailType',
            'min_rep',
            'uniroot',
            'format',
-           'approx_equal'
+           'approx_equal',
+           'reversed',
+           'bit_and',
+           'bit_or',
+           'bit_xor',
+           'bit_lshift',
+           'bit_rshift',
+           'bit_not',
            ]

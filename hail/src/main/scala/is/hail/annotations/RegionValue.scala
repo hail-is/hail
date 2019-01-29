@@ -2,8 +2,8 @@ package is.hail.annotations
 
 import java.io._
 
-import is.hail.expr.types.Type
 import is.hail.expr.types.physical.PType
+import is.hail.expr.types.virtual.Type
 import is.hail.utils.using
 import is.hail.io.{Decoder, Encoder}
 import sun.reflect.generics.reflectiveObjects.NotImplementedException
@@ -25,6 +25,23 @@ object RegionValue {
       using(makeDec(bais)) { dec =>
         carrierRv.setOffset(dec.readRegionValue(r))
         carrierRv
+      }
+    }
+
+  def fromBytes(
+    makeDec: InputStream => Decoder, r: Region, bytes: Array[Byte]): Long =
+    using(new ByteArrayInputStream(bytes)) { bais =>
+      using(makeDec(bais)) { dec =>
+        dec.readRegionValue(r)
+      }
+    }
+
+  def toBytes(makeEnc: OutputStream => Encoder, r: Region, off: Long): Array[Byte] =
+    using(new ByteArrayOutputStream()) { baos =>
+      using(makeEnc(baos)) { enc =>
+        enc.writeRegionValue(r, off)
+        enc.flush()
+        baos.toByteArray
       }
     }
 }

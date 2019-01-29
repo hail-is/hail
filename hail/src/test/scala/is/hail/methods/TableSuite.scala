@@ -2,7 +2,8 @@ package is.hail.methods
 
 import is.hail.{SparkSuite, TestUtils}
 import is.hail.expr._
-import is.hail.expr.types._
+import is.hail.expr.types.{virtual, _}
+import is.hail.expr.types.virtual._
 import is.hail.rvd.RVD
 import is.hail.table.Table
 import is.hail.utils._
@@ -87,10 +88,11 @@ class TableSuite extends SparkSuite {
   }
 
   @Test def testTableToMatrixTableWithDuplicateKeys(): Unit = {
-    val table = new Table(hc, ir.TableParallelize(ir.Literal.coerce(TArray(TStruct("locus" -> TString(), "pval" -> TFloat32Required,
-      "phenotype" -> TString())), FastIndexedSeq(
+    val table = new Table(hc, ir.TableParallelize(ir.Literal.coerce(TStruct(
+      "rows" -> TArray(TStruct("locus" -> TString(), "pval" -> TFloat32Required, "phenotype" -> TString())),
+      "global" -> TStruct()), Row(FastIndexedSeq(
       Row("1:100", 0.5.toFloat, "trait1"),
-      Row("1:100", 0.6.toFloat, "trait1"))), None))
+      Row("1:100", 0.6.toFloat, "trait1")), Row())), None))
 
     TestUtils.interceptSpark("duplicate \\(row key, col key\\) pairs are not supported")(
       table.toMatrixTable(Array("locus"), Array("phenotype"), Array(),
@@ -98,7 +100,7 @@ class TableSuite extends SparkSuite {
   }
 
   @Test def testToMatrixTable() {
-    val vds = hc.importVCF("src/test/resources/sample.vcf")
+    val vds = TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
     val gkt = vds.entriesTable()
 
     val reVDS = gkt.toMatrixTable(Array("locus", "alleles"),
@@ -139,33 +141,6 @@ class TableSuite extends SparkSuite {
 
     val outputFile = tmpDir.createTempFile("explode", "tsv")
     kt2.explode(Array("field1")).export(outputFile)
-  }
-
-  @Test def testKeyOrder() {
-    val kt1 = Table(hc,
-      sc.parallelize(Array(Row("foo", "bar", 3, "baz"))),
-      TStruct(
-        "f1" -> TString(),
-        "f2" -> TString(),
-        "f3" -> TInt32(),
-        "f4" -> TString()
-      ),
-      IndexedSeq("f3", "f2", "f1"))
-    kt1.typeCheck()
-
-    val kt2 = Table(hc,
-      sc.parallelize(Array(Row(3, "foo", "bar", "qux"))),
-      TStruct(
-        "f3" -> TInt32(),
-        "f1" -> TString(),
-        "f2" -> TString(),
-        "f5" -> TString()
-      ),
-      IndexedSeq("f3", "f2", "f1"))
-    kt2.typeCheck()
-
-    assert(kt1.join(kt2, "inner").count() == 1L)
-    kt1.join(kt2, "outer").typeCheck()
   }
 
   @Test def testSame() {

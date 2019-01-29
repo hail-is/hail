@@ -1,39 +1,22 @@
-from batch.client import Job
-from batch_helper import short_str_build_job
-from build_state import \
-    Failure, Mergeable, Unknown, NoImage, Building, Buildable, Merged, \
-    build_state_from_json
-from ci_logging import log
-from constants import BUILD_JOB_TYPE, VERSION, GCS_BUCKET, SHA_LENGTH
-from environment import PR_BUILD_SCRIPT, SELF_HOSTNAME, batch_client, CONTEXT
-from git_state import FQSHA, FQRef
-from github import latest_sha_for_ref
-from http_helper import get_repo, post_repo, BadStatus
-from sentinel import Sentinel
-from shell_helper import shell
-import subprocess as sp
 import json
 import os
 
+import subprocess as sp
+from batch.client import Job
 
-def review_status(reviews):
-    latest_state_by_login = {}
-    for review in reviews:
-        login = review['user']['login']
-        state = review['state']
-        # reviews is chronological, so later ones are newer statuses
-        latest_state_by_login[login] = state
-    at_least_one_approved = False
-    for login, state in latest_state_by_login.items():
-        if (state == 'CHANGES_REQUESTED'):
-            return 'changes_requested'
-        elif (state == 'APPROVED'):
-            at_least_one_approved = True
-
-    if at_least_one_approved:
-        return 'approved'
-    else:
-        return 'pending'
+from .batch_helper import short_str_build_job
+from .build_state import \
+    Failure, Mergeable, Unknown, NoImage, Building, Buildable, Merged, \
+    build_state_from_json
+from .ci_logging import log
+from .constants import BUILD_JOB_TYPE, VERSION, GCS_BUCKET, SHA_LENGTH, \
+    GCS_BUCKET_PREFIX
+from .environment import PR_BUILD_SCRIPT, SELF_HOSTNAME, batch_client, CONTEXT
+from .git_state import FQSHA, FQRef
+from .github import latest_sha_for_ref
+from .http_helper import post_repo, BadStatus
+from .sentinel import Sentinel
+from .shell_helper import shell
 
 
 def try_new_build(source, target):
@@ -306,7 +289,7 @@ class PR(object):
     def merged(self):
         return self._new_build(Merged(self.target.sha))
 
-    def notify_github(self, build):
+    def notify_github(self, build, status_sha=None):
         log.info(f'notifying github of {build} for {self.short_str()}')
         json = {
             'state': build.gh_state(),
@@ -315,11 +298,11 @@ class PR(object):
         }
         if isinstance(build, Failure) or isinstance(build, Mergeable):
             json['target_url'] = \
-                f'https://storage.googleapis.com/{GCS_BUCKET}/ci/{self.source.sha}/{self.target.sha}/index.html'
+                f'https://storage.googleapis.com/{GCS_BUCKET}/{GCS_BUCKET_PREFIX}ci/{self.source.sha}/{self.target.sha}/index.html'
         try:
             post_repo(
                 self.target.ref.repo.qname,
-                'statuses/' + self.source.sha,
+                'statuses/' + (status_sha if status_sha is not None else self.source.sha),
                 json=json,
                 status_code=201)
         except BadStatus as e:
@@ -378,7 +361,7 @@ class PR(object):
     def is_approved(self):
         return self.review == 'approved'
 
-    def is_running(self):
+    def is_building(self):
         return isinstance(self.build, Building)
 
     def is_pending_build(self):
@@ -440,7 +423,6 @@ class PR(object):
         elif state == 'Cancelled':
             log.error(
                 f'a job for me was cancelled {short_str_build_job(job)} {self.short_str()}')
-            job.delete()
             return self._new_build(try_new_build(self.source, self.target))
         else:
             assert state == 'Created', f'{state} {job.id} {job.attributes} {self.short_str()}'
@@ -452,8 +434,12 @@ class PR(object):
                 return self._new_build(Building(job, image, target.sha))
             else:
                 log.info(f'found deploy job {job.id} for wrong target {target}, should be {self.target}')
-                job.delete()
+                job.cancel()
                 return self
+
+    def refresh_from_missing_job(self):
+        assert isinstance(self.build, Building)
+        return self.build_it()
 
     def update_from_completed_batch_job(self, job):
         assert isinstance(job, Job)
@@ -478,12 +464,13 @@ class PR(object):
             x = self
         elif exit_code == 0:
             log.info(f'job finished success {short_str_build_job(job)} {self.short_str()}')
-            x = self._new_build(Mergeable(self.target.sha))
+            x = self._new_build(Mergeable(self.target.sha, job))
         else:
             log.info(f'job finished failure {short_str_build_job(job)} {self.short_str()}')
             x = self._new_build(
                 Failure(exit_code,
+                        job,
                         job.attributes['image'],
                         self.target.sha))
-        job.delete()
+        job.cancel()
         return x

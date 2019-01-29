@@ -5,13 +5,14 @@ import is.hail.asm4s._
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PArray
+import is.hail.expr.types.virtual.{TArray, TFloat64, TInt32}
 import is.hail.utils._
 import is.hail.variant.Genotype
 
 object GenotypeFunctions extends RegistryFunctions {
 
   def registerAll() {
-    registerCode("gqFromPL", TArray(tv("N", _.isInstanceOf[TInt32])), TInt32()) { (mb, pl: Code[Long]) =>
+    registerCode("gqFromPL", TArray(tv("N", "int32")), TInt32()) { (mb, pl: Code[Long]) =>
       val region = getRegion(mb)
       val tPL = PArray(tv("N").t.physicalType)
       val m = mb.newLocal[Int]("m")
@@ -40,7 +41,7 @@ object GenotypeFunctions extends RegistryFunctions {
       )
     }
 
-    registerCode("dosage", TArray(tv("N", _ isOfType TFloat64())), TFloat64()) { (mb, gpOff: Code[Long]) =>
+    registerCode("dosage", TArray(tv("N", "float64")), TFloat64()) { (mb, gpOff: Code[Long]) =>
       def getRegion(mb: EmitMethodBuilder): Code[Region] = mb.getArg[Region](1)
       val pArray = TArray(tv("N").t).physicalType
       val gp = mb.newLocal[Long]
@@ -57,7 +58,7 @@ object GenotypeFunctions extends RegistryFunctions {
 
     // FIXME: remove when SkatSuite is moved to Python
     // the pl_dosage function in Python is implemented in Python
-    registerCode("plDosage", TArray(tv("N", _ isOfType TInt32())), TFloat64()) { (mb, plOff: Code[Long]) =>
+    registerCode("plDosage", TArray(tv("N", "int32")), TFloat64()) { (mb, plOff: Code[Long]) =>
       def getRegion(mb: EmitMethodBuilder): Code[Region] = mb.getArg[Region](1)
       val pArray = TArray(tv("N").t).physicalType
       val pl = mb.newLocal[Long]

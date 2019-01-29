@@ -17,23 +17,26 @@ RUN apt-get update && \
   apt-get -y install \
     bash \
     cmake \
+    docker-ce \
     g++ \
     git \
-    libnlopt-dev \
+    libcurl4-openssl-dev \
     liblz4-dev \
+    libnlopt-dev \
+    libxml2-dev \
     openjdk-8-jdk-headless \
     pandoc \
+    python3 \
+    python3-pip \
     r-base \
-    tar \
-    unzip \
-    xsltproc \
     r-cran-ncdf4 \
     r-cran-rnetcdf \
-    libcurl4-openssl-dev \
-    libxml2-dev \
+    tar \
+    unzip \
     wget \
-    docker-ce \
-    python3 && \
+    xsltproc \
+  && \
+  pip3 install --no-cache-dir flake8 pylint && \
   rm -rf /var/lib/apt/lists/*
 
 RUN wget https://repo.anaconda.com/miniconda/Miniconda2-4.5.4-Linux-x86_64.sh -O miniconda.sh && \
@@ -62,7 +65,7 @@ RUN wget -O spark-2.2.0-bin-hadoop2.7.tgz https://archive.apache.org/dist/spark/
 ENV SPARK_HOME /spark/
 
 WORKDIR /plink
-RUN wget -O plink_linux_x86_64.zip http://www.cog-genomics.org/static/bin/plink/plink_linux_x86_64.zip && \
+RUN wget -O plink_linux_x86_64.zip https://storage.googleapis.com/hail-common/plink_linux_x86_64_20181202.zip && \
     unzip plink_linux_x86_64.zip && \
     rm -rf plink_linux_x86_64.zip && \
     ln -s /plink/plink /bin/plink
@@ -72,6 +75,8 @@ RUN wget -O qctool_v2.0.1-CentOS6.8-x86_64.tgz http://www.well.ox.ac.uk/~gav/res
     tar --strip-components=1 -xvzf qctool_v2.0.1-CentOS6.8-x86_64.tgz -C /qctool && \
     rm -rf qctool_v2.0.1-CentOS6.8-x86_64.tgz && \
     ln -s /qctool/qctool /bin/qctool
+
+RUN wget -O /usr/local/include/catch.hpp https://github.com/catchorg/Catch2/releases/download/v2.4.2/catch.hpp
 
 # creates /hail
 WORKDIR /hail

@@ -1,4 +1,4 @@
-.PHONY: deployment.yaml build push deploy clean
+.PHONY: deployment.yaml build push deploy clean test
 
 PROJECT = $(shell gcloud config get-value project)
 
@@ -11,6 +11,9 @@ deployment.yaml: deployment.yaml.in build
 
 build:
 	docker build -t site .
+
+test: build
+	docker run -p 80:80 -v $${PWD}/../hail/build/www:/var/www/html site nginx -g "daemon off;"
 
 push: build
 	docker tag site $(IMAGE)

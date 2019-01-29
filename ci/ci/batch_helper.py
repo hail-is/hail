@@ -1,14 +1,14 @@
-from constants import SHA_LENGTH
-from ci_logging import log
-from git_state import FQSHA
-import requests
 import json
+
+import requests
+
+from .ci_logging import log
+from .git_state import FQSHA
 
 
 def try_to_cancel_job(job):
     try:
         job.cancel()
-        job.delete()
     except requests.exceptions.HTTPError as e:
         log.warning(f'could not cancel job {job.id} due to {e}')
 

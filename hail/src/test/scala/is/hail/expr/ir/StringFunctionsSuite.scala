@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.expr.types._
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
+import is.hail.expr.types.virtual._
 import is.hail.utils.FastIndexedSeq
 import org.json4s.jackson.JsonMethods
 import org.testng.annotations.{DataProvider, Test}
@@ -31,6 +32,7 @@ class StringFunctionsSuite extends TestNGSuite {
     assertEvalsTo(invoke("split", NA(TString()), Str(",")), null)
     assertEvalsTo(invoke("split", Str("a,b,c"), NA(TString())), null)
 
+    assertEvalsTo(invoke("split", Str("x"), Str("x")), FastIndexedSeq("", ""))
     assertEvalsTo(invoke("split", Str("a,b,c"), Str(",")), FastIndexedSeq("a", "b", "c"))
 
     assertEvalsTo(invoke("split", NA(TString()), Str(","), I32(2)), null)
@@ -65,24 +67,27 @@ class StringFunctionsSuite extends TestNGSuite {
     // FIXME matches current FunctionRegistry, but should be a,NA,c
     assertEvalsTo(invoke("mkString", IRStringSet("a", null, "c"), Str(",")), "a,c,null")
 
-    @DataProvider(name="str")
-    def strData(): Array[Array[Any]] = Array(
-      Array(NA(TString()), TString()),
-      Array(NA(TStruct("x" -> TInt32())), TStruct("x" -> TInt32())),
-      Array(F32(3.14f), TFloat32()),
-      Array(I64(7), TInt64()),
-      Array(IRArray(1, null, 5), TArray(TInt32())),
-      Array(MakeTuple(Seq(1, NA(TInt32()), 5.7)), TTuple(TInt32(), TInt32(), TFloat64()))
-    )
+  }
 
-    @Test(dataProvider = "str")
-    def str(annotation: IR, typ: Type) {
-      assertEvalsTo(invoke("str", annotation), {val a = eval(annotation); if (a == null) null else typ.str(a) })
-    }
+  @DataProvider(name = "str")
+  def strData(): Array[Array[Any]] = Array(
+    Array(NA(TString()), TString()),
+    Array(NA(TStruct("x" -> TInt32())), TStruct("x" -> TInt32())),
+    Array(F32(3.14f), TFloat32()),
+    Array(I64(7), TInt64()),
+    Array(IRArray(1, null, 5), TArray(TInt32())),
+    Array(MakeTuple(Seq(1, NA(TInt32()), 5.7)), TTuple(TInt32(), TInt32(), TFloat64()))
+  )
 
-    @Test(dataProvider = "str")
-    def json(annotation: IR, typ: Type) {
-      assertEvalsTo(invoke("json", annotation), JsonMethods.compact(typ.toJSON(eval(annotation))))
-    }
+  @Test(dataProvider = "str")
+  def str(annotation: IR, typ: Type) {
+    assertEvalsTo(invoke("str", annotation), {
+      val a = eval(annotation); if (a == null) null else typ.str(a)
+    })
+  }
+
+  @Test(dataProvider = "str")
+  def json(annotation: IR, typ: Type) {
+    assertEvalsTo(invoke("json", annotation), JsonMethods.compact(typ.toJSON(eval(annotation))))
   }
 }

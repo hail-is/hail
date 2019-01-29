@@ -1,8 +1,0 @@
-resources:
-# address
-- name: site-address
-  type: compute.beta.address
-  properties:
-    name: site
-    region: us-central1
-    networkTier: PREMIUM

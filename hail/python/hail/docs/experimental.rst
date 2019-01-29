@@ -26,6 +26,7 @@ Genetics Methods
 .. autosummary::
 
     ld_score
+    ld_score_regression
     filtering_allele_frequency
     hail_metadata
     plot_roc_curve
@@ -33,8 +34,10 @@ Genetics Methods
     phase_trio_matrix_by_transmission
     explode_trio_matrix
     load_dataset
+    import_gtf
 
 .. autofunction:: ld_score
+.. autofunction:: ld_score_regression
 .. autofunction:: hail_metadata
 .. autofunction:: plot_roc_curve
 .. autofunction:: filtering_allele_frequency
@@ -42,3 +45,4 @@ Genetics Methods
 .. autofunction:: phase_trio_matrix_by_transmission
 .. autofunction:: explode_trio_matrix
 .. autofunction:: load_dataset
+.. autofunction:: import_gtf

@@ -3,8 +3,9 @@ package is.hail.variant.vsm
 import is.hail.SparkSuite
 import is.hail.annotations.BroadcastRow
 import is.hail.expr.ir
-import is.hail.expr.ir.{MatrixAnnotateRowsTable, TableLiteral, TableValue}
+import is.hail.expr.ir.{Interpret, MatrixAnnotateRowsTable, TableLiteral, TableValue}
 import is.hail.expr.types._
+import is.hail.expr.types.virtual.{TInt32, TStruct}
 import is.hail.rvd.RVD
 import is.hail.table.Table
 import is.hail.variant.MatrixTable
@@ -29,15 +30,19 @@ class PartitioningSuite extends SparkSuite {
   @Test def testShuffleOnEmptyRDD() {
     val typ = TableType(TStruct("tidx" -> TInt32()), IndexedSeq("tidx"), TStruct.empty())
     val t = TableLiteral(TableValue(
-      typ, BroadcastRow(Row.empty, TStruct.empty(), sc), RVD.empty(sc, typ.rvdType)))
+      typ, BroadcastRow(Row.empty, TStruct.empty(), sc), RVD.empty(sc, typ.canonicalRVDType)))
     val rangeReader = ir.MatrixRangeReader(100, 10, Some(10))
-    MatrixAnnotateRowsTable(ir.MatrixRead(rangeReader.fullType, false, false, rangeReader), t, "foo", None)
-      .execute(hc).rvd.count()
+    Interpret(
+      MatrixAnnotateRowsTable(
+        ir.MatrixRead(rangeReader.fullType, false, false, rangeReader),
+        t,
+        "foo"))
+      .rvd.count()
   }
 
   @Test def testEmptyRightRDDOrderedJoinDistinct() {
     val mt = MatrixTable.fromRowsTable(Table.range(hc, 100, nPartitions = Some(6)))
-    val rvdType = mt.matrixType.rvdType
+    val rvdType = mt.matrixType.canonicalRVDType
 
     mt.rvd.orderedJoinDistinct(RVD.empty(hc.sc, rvdType), "left", (_, it) => it.map(_._1), rvdType).count()
     mt.rvd.orderedJoinDistinct(RVD.empty(hc.sc, rvdType), "inner", (_, it) => it.map(_._1), rvdType).count()
@@ -45,7 +50,7 @@ class PartitioningSuite extends SparkSuite {
 
   @Test def testEmptyRDDOrderedJoin() {
     val mt = MatrixTable.fromRowsTable(Table.range(hc, 100, nPartitions = Some(6)))
-    val rvdType = mt.matrixType.rvdType
+    val rvdType = mt.matrixType.canonicalRVDType
 
     val nonEmptyRVD = mt.rvd
     val emptyRVD = RVD.empty(hc.sc, rvdType)

@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.asm4s._
 import is.hail.expr._
 import is.hail.expr.types._
+import is.hail.expr.types.virtual._
 import is.hail.utils._
 
 object UnaryOp {
@@ -10,6 +11,7 @@ object UnaryOp {
   private val returnType: ((UnaryOp, Type)) => Option[Type] = lift {
     case (Negate(), t@(_: TInt32 | _: TInt64 | _: TFloat32 | _: TFloat64)) => t
     case (Bang(), t: TBoolean) => t
+    case (BitNot(), t@(_: TInt32 | _: TInt64)) => t
   }
 
   def returnTypeOption(op: UnaryOp, t: Type): Option[Type] =
@@ -32,12 +34,14 @@ object UnaryOp {
       val xx = coerce[Int](x)
       op match {
         case Negate() => -xx
+        case BitNot() => ~xx
         case _ => incompatible(t, op)
       }
     case _: TInt64 =>
       val xx = coerce[Long](x)
       op match {
         case Negate() => -xx
+        case BitNot() => ~xx
         case _ => incompatible(t, op)
       }
     case _: TFloat32 =>
@@ -58,9 +62,11 @@ object UnaryOp {
   val fromString: PartialFunction[String, UnaryOp] = {
     case "-" | "Negate" => Negate()
     case "!" | "Bang" => Bang()
+    case "~" | "BitNot" => BitNot()
   }
 }
 
 sealed trait UnaryOp { }
 case class Negate() extends UnaryOp { }
 case class Bang() extends UnaryOp { }
+case class BitNot() extends UnaryOp

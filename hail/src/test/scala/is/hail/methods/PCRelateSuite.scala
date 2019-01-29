@@ -3,12 +3,9 @@ package is.hail.methods
 import breeze.linalg.{DenseMatrix => BDM}
 import is.hail.{SparkSuite, TestUtils}
 import is.hail.linalg.BlockMatrix
-import is.hail.expr.types._
-import is.hail.stats._
 import is.hail.utils._
-import is.hail.testUtils._
+import is.hail.TestUtils._
 import is.hail.variant.MatrixTable
-import is.hail.table.Table
 import org.testng.annotations.Test
 import scala.language.postfixOps
 

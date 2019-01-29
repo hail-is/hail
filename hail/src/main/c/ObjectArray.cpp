@@ -1,4 +1,5 @@
 #include "hail/ObjectArray.h"
+#include "hail/NativeMethod.h"
 #include "hail/NativeObj.h"
 #include "hail/NativePtr.h"
 #include "hail/Upcalls.h"

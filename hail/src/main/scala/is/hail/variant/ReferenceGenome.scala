@@ -19,6 +19,7 @@ import scala.language.implicitConversions
 import is.hail.expr.Parser._
 import is.hail.expr.ir.EmitFunctionBuilder
 import is.hail.expr.ir.functions.{IRFunctionRegistry, LiftoverFunctions, ReferenceGenomeFunctions}
+import is.hail.expr.types.virtual.{TInt64, TInterval, TLocus, Type}
 import is.hail.io.reference.LiftOver
 import is.hail.variant.CopyState.CopyState
 import is.hail.variant.Sex.Sex
@@ -416,12 +417,12 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     liftoverFunctions -= destRGName
   }
 
-  def liftoverLocus(destRGName: String, l: Locus, minMatch: Double): Locus = {
+  def liftoverLocus(destRGName: String, l: Locus, minMatch: Double): (Locus, Boolean) = {
     val lo = getLiftover(destRGName)
     lo.queryLocus(l, minMatch)
   }
 
-  def liftoverLocusInterval(destRGName: String, interval: Interval, minMatch: Double): Interval = {
+  def liftoverLocusInterval(destRGName: String, interval: Interval, minMatch: Double): (Interval, Boolean) = {
     val lo = getLiftover(destRGName)
     lo.queryInterval(interval, minMatch)
   }
@@ -521,8 +522,6 @@ object ReferenceGenome {
   val GRCh37: ReferenceGenome = fromResource("reference/grch37.json")
   val GRCh38: ReferenceGenome = fromResource("reference/grch38.json")
   val GRCm38: ReferenceGenome = fromResource("reference/grcm38.json")
-  var defaultReference = GRCh37
-  references += ("default" -> defaultReference)
   val hailReferences = references.keySet
 
   def addReference(rg: ReferenceGenome) {
@@ -557,19 +556,6 @@ object ReferenceGenome {
     references -= name
   }
 
-  def setDefaultReference(rg: ReferenceGenome) {
-    assert(references.contains(rg.name))
-    defaultReference = rg
-  }
-
-  def setDefaultReference(hc: HailContext, rgSource: String) {
-    defaultReference =
-      if (hasReference(rgSource))
-        getReference(rgSource)
-      else
-        fromFile(hc, rgSource)
-  }
-
   def read(is: InputStream): ReferenceGenome = {
     implicit val formats = defaultJSONFormats
     JsonMethods.parse(is).extract[JSONExtractReferenceGenome].toReferenceGenome
@@ -588,6 +574,12 @@ object ReferenceGenome {
 
   def fromFile(hc: HailContext, file: String): ReferenceGenome = {
     val rg = hc.hadoopConf.readFile(file)(read)
+    addReference(rg)
+    rg
+  }
+
+  def fromJSON(config: String): ReferenceGenome = {
+    val rg = parse(config)
     addReference(rg)
     rg
   }
@@ -623,6 +615,22 @@ object ReferenceGenome {
     val rg = ReferenceGenome(name, contigs.result(), lengths.result().toMap, xContigs, yContigs, mtContigs, parInput)
     rg.fastaReader = FASTAReader(hc, rg, fastaFile, indexFile)
     rg
+  }
+
+  def addSequence(name: String, fastaFile: String, indexFile: String): Unit = {
+    references(name).addSequence(HailContext.get, fastaFile, indexFile)
+  }
+
+  def removeSequence(name: String): Unit = {
+    references(name).removeSequence()
+  }
+
+  def referenceAddLiftover(name: String, chainFile: String, destRGName: String): Unit = {
+    references(name).addLiftover(HailContext.get, chainFile, destRGName)
+  }
+  
+  def referenceRemoveLiftover(name: String, destRGName: String): Unit = {
+    references(name).removeLiftover(destRGName)
   }
 
   def importReferences(hConf: Configuration, path: String) {

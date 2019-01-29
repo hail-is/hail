@@ -10,20 +10,21 @@ import org.apache.hadoop.mapred.FileSplit
 import scala.annotation.switch
 
 class PlinkRecord(nSamples: Int, a2Reference: Boolean) extends KeySerializedValueRecord[Int] {
-  override def getValue(rvb: RegionValueBuilder) {
+  override def getValue(rvb: RegionValueBuilder, includeGT: Boolean) {
     require(input != null, "called getValue before serialized value was set")
 
-    val c = if (a2Reference) 0 else 3
     rvb.startArray(nSamples)
     var i = 0
     while (i < nSamples) {
       rvb.startStruct() // g
-      val x = (input(i >> 2) >> ((i & 3) << 1)) & 3
-      (x: @switch @unchecked) match {
-        case 0 => rvb.addInt(if (a2Reference) Call2.fromUnphasedDiploidGtIndex(2) else Call2.fromUnphasedDiploidGtIndex(0))
-        case 1 => rvb.setMissing()
-        case 2 => rvb.addInt(Call2.fromUnphasedDiploidGtIndex(1))
-        case 3 => rvb.addInt(if (a2Reference) Call2.fromUnphasedDiploidGtIndex(0) else Call2.fromUnphasedDiploidGtIndex(2))
+      if (includeGT) {
+        val x = (input(i >> 2) >> ((i & 3) << 1)) & 3
+        (x: @switch @unchecked) match {
+          case 0 => rvb.addInt(if (a2Reference) Call2.fromUnphasedDiploidGtIndex(2) else Call2.fromUnphasedDiploidGtIndex(0))
+          case 1 => rvb.setMissing()
+          case 2 => rvb.addInt(Call2.fromUnphasedDiploidGtIndex(1))
+          case 3 => rvb.addInt(if (a2Reference) Call2.fromUnphasedDiploidGtIndex(0) else Call2.fromUnphasedDiploidGtIndex(2))
+        }
       }
       rvb.endStruct() // g
       i += 1

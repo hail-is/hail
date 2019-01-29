@@ -3,9 +3,8 @@ package is.hail.expr.ir.functions
 import is.hail.asm4s
 import is.hail.asm4s._
 import is.hail.expr.ir._
-import is.hail.expr.types._
 import is.hail.utils._
-import is.hail.expr.types.coerce
+import is.hail.expr.types.virtual._
 import org.apache.spark.sql.Row
 
 object UtilFunctions extends RegistryFunctions {
@@ -39,19 +38,15 @@ object UtilFunctions extends RegistryFunctions {
   def registerAll() {
     val thisClass = getClass
 
-    registerCode("triangle", TInt32(), TInt32()) { (_, n: Code[Int]) => (n * (n + 1)) / 2 }
-
-    registerIR("[]", tv("T", _.isInstanceOf[TTuple]), TInt32()) { (a, i) => GetTupleElement(a, i.asInstanceOf[I32].x) }
-
-    registerIR("annotate", tv("T", _.isInstanceOf[TStruct]), tv("U", _.isInstanceOf[TStruct])) { (s, s2) =>
-      s2 match {
-        case s2: MakeStruct => InsertFields(s, s2.fields)
-        case s2 =>
-          val s2typ = coerce[TStruct](s2.typ)
-          val s2id = genUID()
-          Let(s2id, s2, InsertFields(s, s2typ.fieldNames.map { n => n -> GetField(Ref(s2id, s2typ), n) }))
-      }
+    registerCode("valuesSimilar", tv("T"), tv("U"), TFloat64(), TBoolean(), TBoolean()) { case (mb, l, r, tolerance, absolute) =>
+      val t = tv("T").subst()
+      val u = tv("U").subst()
+      val lb = boxArg(mb, t)(l)
+      val rb = boxArg(mb, u)(r)
+      mb.getType(t).invoke[Any, Any, Double, Boolean, Boolean]("valuesSimilar", lb, rb, tolerance, absolute)
     }
+
+    registerCode("triangle", TInt32(), TInt32()) { (_, n: Code[Int]) => (n * (n + 1)) / 2 }
 
     registerCode("toInt32", TBoolean(), TInt32()) { (_, x: Code[Boolean]) => x.toI }
     registerCode("toInt64", TBoolean(), TInt64()) { (_, x: Code[Boolean]) => x.toI.toL }
@@ -78,10 +73,10 @@ object UtilFunctions extends RegistryFunctions {
       Code.invokeScalaObject[String, Boolean](thisClass, "parseBoolean", s)
     }
 
-    registerIR("min", tv("T"), tv("T"))(min)
-    registerIR("max", tv("T"), tv("T"))(max)
+    registerIR("min", tv("T"), tv("T"), tv("T"))(min)
+    registerIR("max", tv("T"), tv("T"), tv("T"))(max)
 
-    registerCode("format", TString(), tv("T", _.isInstanceOf[TTuple]), TString()) { (mb, format: Code[Long], args: Code[Long]) =>
+    registerCode("format", TString(), tv("T", "tuple"), TString()) { (mb, format: Code[Long], args: Code[Long]) =>
       val typ = tv("T").subst()
       getRegion(mb).appendString(Code.invokeScalaObject[String, Row, String](thisClass, "format",
         asm4s.coerce[String](wrapArg(mb, TString())(format)),

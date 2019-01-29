@@ -1,7 +1,7 @@
 package is.hail.io.bgen
 
 import is.hail.HailContext
-import is.hail.expr.types.TStruct
+import is.hail.expr.types.virtual.TStruct
 import is.hail.io.index.IndexWriter
 import is.hail.rvd.{RVD, RVDPartitioner, RVDType}
 import is.hail.utils._
@@ -56,12 +56,13 @@ object IndexBgen {
     val settings: BgenSettings = BgenSettings(
       0, // nSamples not used if there are no entries
       NoEntries,
+      dropCols = true,
       RowFields(false, false, true, true),
       referenceGenome,
       annotationType
     )
 
-    val typ = RVDType(settings.typ, Array("file_idx", "locus", "alleles"))
+    val typ = RVDType(settings.typ.physicalType, Array("file_idx", "locus", "alleles"))
 
     val sHadoopConfBc = hc.sc.broadcast(new SerializableHadoopConfiguration(hConf))
 
@@ -82,7 +83,7 @@ object IndexBgen {
     val allelesIdx = rowType.fieldIdx("alleles")
     val offsetIdx = rowType.fieldIdx("offset")
     val fileIdxIdx = rowType.fieldIdx("file_idx")
-    val (keyType, _) = rowType.select(Array("file_idx", "locus", "alleles"))
+    val (keyType, _) = rowType.virtualType.select(Array("file_idx", "locus", "alleles"))
     val (indexKeyType, _) = keyType.select(Array("locus", "alleles"))
 
     val attributes = Map("reference_genome" -> rg.orNull,

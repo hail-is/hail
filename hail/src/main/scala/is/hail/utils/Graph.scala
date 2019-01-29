@@ -1,9 +1,9 @@
 package is.hail.utils
 
 import is.hail.annotations.{Region, RegionValueBuilder, SafeRow}
-import is.hail.expr.ir.{Compile, MakeTuple}
-import is.hail.expr.types._
-import is.hail.expr.{IRParserEnvironment, Parser}
+import is.hail.expr.ir.{Compile, MakeTuple, IRParserEnvironment, IRParser}
+import is.hail.expr.types.physical.PBaseStruct
+import is.hail.expr.types.virtual.{TInt64, TTuple, Type}
 import org.apache.spark.sql.Row
 
 import scala.collection.mutable
@@ -33,6 +33,9 @@ object Graph {
     m
   }
 
+  def maximalIndependentSet(edges: Array[Row], nodeType: String, tieBreaker: Option[String]): Set[Any] =
+    maximalIndependentSet(edges, IRParser.parseType(nodeType), tieBreaker)
+
   def maximalIndependentSet(edges: Array[Row], nodeType: Type, tieBreaker: Option[String]): Set[Any] = {
     val edges2 = edges.map { r =>
       val Row(x, y) = r
@@ -46,9 +49,9 @@ object Graph {
     val refMap = Map("l" -> wrappedNodeType, "r" -> wrappedNodeType)
 
     val tieBreakerF = tieBreaker.map { e =>
-      val ir = Parser.parse_value_ir(e, IRParserEnvironment(refMap))
-      val (t, f) = Compile[Long, Long, Long]("l", wrappedNodeType, "r", wrappedNodeType, MakeTuple(FastSeq(ir)))
-      assert(t.isOfType(TTuple(TInt64())))
+      val ir = IRParser.parse_value_ir(e, IRParserEnvironment(refMap))
+      val (t, f) = Compile[Long, Long, Long]("l", wrappedNodeType.physicalType, "r", wrappedNodeType.physicalType, MakeTuple(FastSeq(ir)))
+      assert(t.virtualType.isOfType(TTuple(TInt64())))
 
       (l: Any, r: Any) => {
         Region.scoped { region =>
@@ -68,7 +71,7 @@ object Graph {
           val rOffset = rvb.end()
 
           val resultOffset = f(0)(region, lOffset, false, rOffset, false)
-          SafeRow(t.asInstanceOf[TBaseStruct].physicalType, region, resultOffset).get(0).asInstanceOf[Long]
+          SafeRow(t.asInstanceOf[PBaseStruct], region, resultOffset).get(0).asInstanceOf[Long]
         }
       }
     }

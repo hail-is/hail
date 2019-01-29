@@ -4,11 +4,23 @@ import shutil
 import hail as hl
 import hail.expr.aggregators as agg
 
+import doctest
+
+NOTEST = doctest.register_optionflag('NOTEST')
+
 
 @pytest.fixture(autouse=True)
-def always_true(monkeypatch):
+def patch_doctest_check_output(monkeypatch):
     # FIXME: remove once test output matches docs
-    monkeypatch.setattr('doctest.OutputChecker.check_output', lambda a, b, c, d: True)
+    base_check_output = doctest.OutputChecker.check_output
+
+    def patched_check_output(self, want, got, optionflags):
+        return ((not want)
+                or (want.strip() == 'None')
+                or (NOTEST & optionflags)
+                or base_check_output(self, want, got, optionflags | doctest.NORMALIZE_WHITESPACE))
+
+    monkeypatch.setattr('doctest.OutputChecker.check_output', patched_check_output)
     yield
     monkeypatch.undo()
 
@@ -64,14 +76,15 @@ def init(doctest_namespace):
     doctest_namespace['table4'] = table4
 
     people_table = hl.import_table('data/explode_example.tsv', delimiter='\\s+',
-                                   types={'Age': hl.tint32, 'Children': hl.tarray(hl.tstr)})
+                                   types={'Age': hl.tint32, 'Children': hl.tarray(hl.tstr)},
+                                   key='Name')
     doctest_namespace['people_table'] = people_table
 
     # TDT
     doctest_namespace['tdt_dataset'] = hl.import_vcf('data/tdt_tiny.vcf')
 
     ds2 = hl.variant_qc(ds)
-    doctest_namespace['ds2'] = ds2.select_rows(AF = ds2.variant_qc.AF)
+    doctest_namespace['ds2'] = ds2.select_rows(AF=ds2.variant_qc.AF)
 
     # Expressions
     doctest_namespace['names'] = hl.literal(['Alice', 'Bob', 'Charlie'])

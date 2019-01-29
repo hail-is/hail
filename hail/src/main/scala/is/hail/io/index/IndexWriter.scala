@@ -2,6 +2,7 @@ package is.hail.io.index
 
 import is.hail.annotations.{Annotation, Region, RegionValueBuilder}
 import is.hail.expr.types._
+import is.hail.expr.types.virtual.Type
 import is.hail.io.CodecSpec
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream

@@ -1,16 +1,14 @@
-from http_helper import get_repo, post_repo, patch_repo
-from environment import INSTANCE_ID
-from pr import PR
-from subprocess import call, run
-import inspect
 import json
 import os
+
 import pkg_resources
 import requests
 import subprocess
-import tempfile
 import time
-import unittest
+from subprocess import call, run
+
+from ci.http_helper import get_repo, post_repo, patch_repo
+from ci.pr import PR
 
 CI_URL = 'http://localhost:5000'
 GITHUB_URL = 'https://api.github.com/'
@@ -117,7 +115,7 @@ def test_pull_request_comment_does_not_overwrite_approval():
         'comment-after-approve-pull-request-review.json')
     reviews = json.loads(data)
 
-    from github import overall_review_state
+    from ci.github import overall_review_state
 
     review_state = overall_review_state(reviews)
 
@@ -166,7 +164,7 @@ def poll_until_finished_pr(source_ref,
                            max_polls=MAX_POLLS):
     return poll_pr(
         source_ref,
-        lambda pr: pr.is_running() or pr.is_pending_build(),
+        lambda pr: pr.is_building() or pr.is_pending_build(),
         delay_in_seconds=delay_in_seconds,
         max_polls=max_polls)
 
@@ -386,7 +384,7 @@ def test_push_while_building(tmpdir):
         # get details on first job of slow branch
         pr[SLOW_BRANCH_NAME] = poll_until_pr_exists_and(
             SLOW_BRANCH_NAME,
-            lambda x: x.is_running())
+            lambda x: x.is_building())
         assertDictHasKVs(
             pr[SLOW_BRANCH_NAME].to_json(),
             {
@@ -434,11 +432,21 @@ def test_push_while_building(tmpdir):
         call(['git', 'fetch', 'origin'])
         second_target_sha = rev_parse('origin/master')
 
-        time.sleep(10)  # allow deploy job to run
-
-        deploy_artifact = run(['gsutil', 'cat', f'gs://hail-ci-test/{second_target_sha}'], stdout=subprocess.PIPE)
-        deploy_artifact = deploy_artifact.stdout.decode('utf-8').strip()
-        assert f'commit {second_target_sha}' in deploy_artifact
+        i = 0
+        while True:
+            time.sleep(0.100 * (2 ** i))
+            deploy_artifact = run(
+                ['gsutil', 'cat', f'gs://hail-ci-test/{second_target_sha}'],
+                stdout=subprocess.PIPE)
+            if deploy_artifact.returncode == 0:
+                deploy_artifact = deploy_artifact.stdout.decode('utf-8').strip()
+                assert f'commit {second_target_sha}' in deploy_artifact
+                break
+            elif i > 14:
+                assert False, (f'tried {i} times to get deployed artifact, '
+                               f'but never found it {deploy_artifact}')
+            else:
+                i = i + 1
 
         time.sleep(5)  # allow github push notification to be sent
 

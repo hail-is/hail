@@ -1,5 +1,6 @@
 from hail.typecheck import *
 from hail.utils.java import *
+from hail.expr.types import hail_type
 import hail as hl
 
 interval_type = lazy()
@@ -26,15 +27,16 @@ class Interval(object):
     @typecheck_method(start=anytype,
                       end=anytype,
                       includes_start=bool,
-                      includes_end=bool)
-    def __init__(self, start, end, includes_start=True, includes_end=False):
-        from hail.expr.expressions import impute_type, unify_types_limited
-        start_type = impute_type(start)
-        end_type = impute_type(end)
-        point_type = unify_types_limited(start_type, end_type)
-
+                      includes_end=bool,
+                      point_type=nullable(hail_type))
+    def __init__(self, start, end, includes_start=True, includes_end=False, point_type=None):
         if point_type is None:
-            raise TypeError("'start' and 'end' have incompatible types: '{}', '{}'.".format(start_type, end_type))
+            from hail.expr.expressions import impute_type, unify_types_limited
+            start_type = impute_type(start)
+            end_type = impute_type(end)
+            point_type = unify_types_limited(start_type, end_type)
+            if point_type is None:
+                raise TypeError("'start' and 'end' have incompatible types: '{}', '{}'.".format(start_type, end_type))
 
         self._point_type = point_type
         self._start = start
@@ -42,36 +44,28 @@ class Interval(object):
         self._includes_start = includes_start
         self._includes_end = includes_end
 
-        self._jrep = scala_object(Env.hail().utils, 'Interval').apply(
-            point_type._convert_to_j(start),
-            point_type._convert_to_j(end),
-            includes_start,
-            includes_end)
-
     def __str__(self):
-        return self._jrep.toString()
+        if isinstance(self._start, Locus) and self._start.contig == self._end.contig:
+            bounds = f'{self._start}-{self._end.position}'
+        else:
+            bounds = f'{self._start}-{self._end}'
+        open = '[' if self._includes_start else '('
+        close = ']' if self._includes_end else ')'
+        return f'{open}{bounds}{close}'
 
     def __repr__(self):
         return 'Interval(start={}, end={}, includes_start={}, includes_end={})'\
             .format(repr(self.start), repr(self.end), repr(self.includes_start), repr(self._includes_end))
 
     def __eq__(self, other):
-        return isinstance(other, Interval) and self._point_type == other._point_type and self._jrep.equals(other._jrep)
+        return (isinstance(other, Interval)
+                and self._start == other._start
+                and self._end == other._end
+                and self._includes_start == other._includes_start
+                and self._includes_end == other._includes_end)
 
     def __hash__(self):
-        return self._jrep.hashCode()
-
-    @classmethod
-    def _from_java(cls, jrep, point_type):
-        interval = Interval.__new__(cls)
-        interval._jrep = jrep
-        interval._point_type = point_type
-        interval._start = None
-        interval._end = None
-        interval._includes_start = None
-        interval._includes_end = None
-        super(Interval, interval).__init__()
-        return interval
+        return hash(self._start) ^ hash(self._end) ^ hash(self._includes_start) ^ hash(self._includes_end)
 
     @property
     def start(self):
@@ -88,8 +82,6 @@ class Interval(object):
         Object with type :meth:`.point_type`
         """
 
-        if self._start is None:
-            self._start = self.point_type._convert_to_py(self._jrep.start())
         return self._start
 
     @property
@@ -107,8 +99,6 @@ class Interval(object):
         Object with type :meth:`.point_type`
         """
 
-        if self._end is None:
-            self._end = self.point_type._convert_to_py(self._jrep.end())
         return self._end
 
     @property
@@ -126,8 +116,6 @@ class Interval(object):
         :obj:`bool`
         """
 
-        if self._includes_start is None:
-            self._includes_start = self._jrep.includesStart()
         return self._includes_start
 
     @property
@@ -145,8 +133,6 @@ class Interval(object):
         :obj:`bool`
         """
 
-        if self._includes_end is None:
-            self._includes_end = self._jrep.includesEnd()
         return self._includes_end
 
     @property
@@ -157,7 +143,7 @@ class Interval(object):
         --------
 
         >>> interval2.point_type
-        tint32
+        dtype('int32')
 
         Returns
         -------
@@ -188,11 +174,7 @@ class Interval(object):
         :obj:`bool`
         """
 
-        from hail.expr.expressions import impute_type
-        value_type = impute_type(value)
-        if value_type != self.point_type:
-            raise TypeError("'value' is incompatible with the interval point type: '{}', '{}'".format(value_type, self.point_type))
-        return self._jrep.contains(self.point_type._jtype.ordering(), self.point_type._convert_to_j(value))
+        return hl.eval(hl.literal(self, hl.tinterval(self._point_type)).contains(value))
 
     @typecheck_method(interval=interval_type)
     def overlaps(self, interval):
@@ -208,8 +190,6 @@ class Interval(object):
         :obj:`bool`
         """
 
-        if self.point_type != interval.point_type:
-            raise TypeError("'interval' must have the point type '{}', but found '{}'".format(self.point_type, interval.point_type))
-        return self._jrep.overlaps(self.point_type._jtype.ordering(), interval._jrep)
+        return hl.eval(hl.literal(self, hl.tinterval(self._point_type)).overlaps(interval))
 
 interval_type.set(Interval)

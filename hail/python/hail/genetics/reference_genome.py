@@ -1,3 +1,4 @@
+import json
 from hail.typecheck import *
 from hail.utils import wrap_to_list
 from hail.utils.java import jiterable_to_list, Env, joption
@@ -63,57 +64,74 @@ class ReferenceGenome(object):
 
     _references = {}
 
+    @classmethod
+    def _from_config(cls, config, _builtin=False):
+        def par_tuple(p):
+            assert p['start']['contig'] == p['end']['contig']
+            return (p['start']['contig'], p['start']['position'], p['end']['position'])
+        contigs = config['contigs']
+        return ReferenceGenome(config['name'],
+                               [c['name'] for c in contigs],
+                               {c['name']: c['length'] for c in contigs},
+                               config['xContigs'],
+                               config['yContigs'],
+                               config['mtContigs'],
+                               [par_tuple(p) for p in config['par']],
+                               _builtin)
+
     @typecheck_method(name=str,
                       contigs=sequenceof(str),
                       lengths=dictof(str, int),
                       x_contigs=oneof(str, sequenceof(str)),
                       y_contigs=oneof(str, sequenceof(str)),
                       mt_contigs=oneof(str, sequenceof(str)),
-                      par=sequenceof(sized_tupleof(str, int, int)))
-    def __init__(self, name, contigs, lengths, x_contigs=[], y_contigs=[], mt_contigs=[], par=[]):
+                      par=sequenceof(sized_tupleof(str, int, int)),
+                      _builtin=bool)
+    def __init__(self, name, contigs, lengths, x_contigs=[], y_contigs=[], mt_contigs=[], par=[], _builtin=False):
+        super(ReferenceGenome, self).__init__()
+        
         contigs = wrap_to_list(contigs)
         x_contigs = wrap_to_list(x_contigs)
         y_contigs = wrap_to_list(y_contigs)
         mt_contigs = wrap_to_list(mt_contigs)
 
-        par_strings = ["{}:{}-{}".format(contig, start, end) for (contig, start, end) in par]
+        self._config = {
+            'name': name,
+            'contigs': [{'name': c, 'length': l} for c, l in lengths.items()],
+            'xContigs': x_contigs,
+            'yContigs': y_contigs,
+            'mtContigs': mt_contigs,
+            'par': [{'start': {'contig': c, 'position': s}, 'end': {'contig': c, 'position': e}} for (c, s, e) in par]
+        }
 
-        jrep = (Env.hail().variant.ReferenceGenome
-                .apply(name,
-                       contigs,
-                       lengths,
-                       x_contigs,
-                       y_contigs,
-                       mt_contigs,
-                       par_strings))
-
-        self._init_from_java(jrep)
-        self._name = name
         self._contigs = contigs
         self._lengths = lengths
-        self._x_contigs = x_contigs
-        self._y_contigs = y_contigs
-        self._mt_contigs = mt_contigs
-        self._par = None
         self._par_tuple = par
+        self._par = [hl.Interval(hl.Locus(c, s, self), hl.Locus(c, e, self)) for (c, s, e) in par]
 
-        super(ReferenceGenome, self).__init__()
         ReferenceGenome._references[name] = self
 
+        if not _builtin:
+            Env.backend().add_reference(self._config)
+
+        hl.ir.register_reference_genome_functions(name)
+
+        self._has_sequence = False
+        self._liftovers = set()
+
+
     def __str__(self):
-        return self._jrep.toString()
+        return self._config['name']
 
     def __repr__(self):
-        if not self._par_tuple:
-            self._par_tuple = [(x.start.contig, x.start.position, x.end.position) for x in self.par]
         return 'ReferenceGenome(name=%s, contigs=%s, lengths=%s, x_contigs=%s, y_contigs=%s, mt_contigs=%s, par=%s)' % \
                (self.name, self.contigs, self.lengths, self.x_contigs, self.y_contigs, self.mt_contigs, self._par_tuple)
 
     def __eq__(self, other):
-        return isinstance(other, ReferenceGenome) and self._jrep.equals(other._jrep)
+        return isinstance(other, ReferenceGenome) and self._config == other._config
 
     def __hash__(self):
-        return self._jrep.hashCode()
+        return hash(self.name)
 
     @property
     def name(self):
@@ -123,9 +141,7 @@ class ReferenceGenome(object):
         -------
         :obj:`str`
         """
-        if self._name is None:
-            self._name = self._jrep.name()
-        return self._name
+        return self._config['name']
 
     @property
     def contigs(self):
@@ -135,8 +151,6 @@ class ReferenceGenome(object):
         -------
         :obj:`list` of :obj:`str`
         """
-        if self._contigs is None:
-            self._contigs = [str(x) for x in self._jrep.contigs()]
         return self._contigs
 
     @property
@@ -147,8 +161,6 @@ class ReferenceGenome(object):
         -------
         :obj:`list` of :obj:`str`
         """
-        if self._lengths is None:
-            self._lengths = {str(x._1()): int(x._2()) for x in jiterable_to_list(self._jrep.lengths())}
         return self._lengths
 
     @property
@@ -159,9 +171,7 @@ class ReferenceGenome(object):
         -------
         :obj:`list` of :obj:`str`
         """
-        if self._x_contigs is None:
-            self._x_contigs = [str(x) for x in jiterable_to_list(self._jrep.xContigs())]
-        return self._x_contigs
+        return self._config['xContigs']
 
     @property
     def y_contigs(self):
@@ -171,9 +181,7 @@ class ReferenceGenome(object):
         -------
         :obj:`list` of :obj:`str`
         """
-        if self._y_contigs is None:
-            self._y_contigs = [str(x) for x in jiterable_to_list(self._jrep.yContigs())]
-        return self._y_contigs
+        return self._config['yContigs']
 
     @property
     def mt_contigs(self):
@@ -183,9 +191,7 @@ class ReferenceGenome(object):
         -------
         :obj:`list` of :obj:`str`
         """
-        if self._mt_contigs is None:
-            self._mt_contigs = [str(x) for x in jiterable_to_list(self._jrep.mtContigs())]
-        return self._mt_contigs
+        return self._config['mtContigs']
 
     @property
     def par(self):
@@ -196,9 +202,6 @@ class ReferenceGenome(object):
         :obj:`list` of :class:`.Interval`
         """
 
-        from hail.utils.interval import Interval
-        if self._par is None:
-            self._par = [Interval._from_java(jrep, hl.tlocus(self)) for jrep in self._jrep.par()]
         return self._par
 
     @typecheck_method(contig=str)
@@ -262,7 +265,8 @@ class ReferenceGenome(object):
         -------
         :class:`.ReferenceGenome`
         """
-        return ReferenceGenome._from_java(Env.hail().variant.ReferenceGenome.fromFile(Env.hc()._jhc, path))
+        with hl.hadoop_open(path) as f:
+            return ReferenceGenome._from_config(json.load(f))
 
     @typecheck_method(output=str)
     def write(self, output):
@@ -285,8 +289,8 @@ class ReferenceGenome(object):
         output : :obj:`str`
             Path of JSON file to write.
         """
-
-        self._jrep.write(Env.hc()._jhc, output)
+        with hl.utils.hadoop_open(output, 'w') as f:
+            json.dump(self._config, f)
 
     @typecheck_method(fasta_file=str,
                       index_file=str)
@@ -332,7 +336,8 @@ class ReferenceGenome(object):
         index_file : :obj:`str`
             Path to FASTA index file. Must be uncompressed.
         """
-        self._jrep.addSequence(Env.hc()._jhc, fasta_file, index_file)
+        Env.backend().add_sequence(self.name, fasta_file, index_file)
+        self._has_sequence = True
 
     def has_sequence(self):
         """True if the reference sequence has been loaded.
@@ -341,7 +346,7 @@ class ReferenceGenome(object):
         -------
         :obj:`bool`
         """
-        return self._jrep.hasSequence()
+        return self._has_sequence
 
     def remove_sequence(self):
         """Remove the reference sequence.
@@ -350,7 +355,7 @@ class ReferenceGenome(object):
         -------
         :obj:`bool`
         """
-        return self._jrep.removeSequence()
+        Env.backend().remove_sequence(self.name)
 
     @classmethod
     @typecheck_method(name=str,
@@ -385,8 +390,12 @@ class ReferenceGenome(object):
         -------
         :class:`.ReferenceGenome`
         """
-        return ReferenceGenome._from_java(Env.hail().variant.ReferenceGenome.fromFASTAFile(Env.hc()._jhc, name, fasta_file, index_file,
-                                                                                           x_contigs, y_contigs, mt_contigs, par))
+        par_strings = ["{}:{}-{}".format(contig, start, end) for (contig, start, end) in par]
+        Env.backend().from_fasta_file(name, fasta_file, index_file, x_contigs, y_contigs, mt_contigs, par_strings)
+        
+        rg = ReferenceGenome._from_config(Env.backend().get_reference(name), _builtin=True)
+        rg._has_sequence = True
+        return rg
 
     @typecheck_method(dest_reference_genome=reference_genome_type)
     def has_liftover(self, dest_reference_genome):
@@ -401,7 +410,7 @@ class ReferenceGenome(object):
         -------
         :obj:`bool`
         """
-        return self._jrep.hasLiftover(dest_reference_genome.name)
+        return dest_reference_genome.name in self._liftovers
 
     @typecheck_method(dest_reference_genome=reference_genome_type)
     def remove_liftover(self, dest_reference_genome):
@@ -410,12 +419,10 @@ class ReferenceGenome(object):
         Parameters
         ----------
         dest_reference_genome : :obj:`str` or :class:`.ReferenceGenome`
-
-        Returns
-        -------
-        :obj:`bool`
         """
-        return self._jrep.removeLiftover(dest_reference_genome.name)
+        if dest_reference_genome.name in self._liftovers:
+            self._liftovers.remove(dest_reference_genome.name)
+            Env.backend().remove_liftover(self.name, dest_reference_genome.name)
 
     @typecheck_method(chain_file=str,
                       dest_reference_genome=reference_genome_type)
@@ -461,31 +468,9 @@ class ReferenceGenome(object):
             Reference genome to convert to.
         """
 
-        self._jrep.addLiftover(Env.hc()._jhc, chain_file, dest_reference_genome.name)
+        Env.backend().add_liftover(self.name, chain_file, dest_reference_genome.name)
+        self._liftovers.add(dest_reference_genome.name)
+        hl.ir.register_liftover_functions(self.name, dest_reference_genome.name)
 
-    def _init_from_java(self, jrep):
-        self._jrep = jrep
-
-    @classmethod
-    def _from_java(cls, jrep):
-        gr = ReferenceGenome.__new__(cls)
-        gr._init_from_java(jrep)
-        gr._name = None
-        gr._contigs = None
-        gr._lengths = None
-        gr._x_contigs = None
-        gr._y_contigs = None
-        gr._mt_contigs = None
-        gr._par = None
-        gr._par_tuple = None
-        super(ReferenceGenome, gr).__init__()
-        ReferenceGenome._references[gr.name] = gr
-        return gr
-
-    def _check_locus(self, l_jrep):
-        self._jrep.checkLocus(l_jrep)
-
-    def _check_interval(self, interval_jrep):
-        self._jrep.checkInterval(interval_jrep)
 
 rg_type.set(ReferenceGenome)

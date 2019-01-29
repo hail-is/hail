@@ -1,7 +1,8 @@
 #!/bin/bash
 set -ex
 
-. activate hail-ci
+. ../loadconda
+conda activate hail-ci
 
 pip install -U ../batch
 
@@ -14,7 +15,7 @@ TOKEN=$(cat github-tokens/user1)
 set -x
 
 cleanup() {
-    set - INT TERM
+    set "" INT TERM
     set +e
     kill $(cat ci.pid)
     rm -rf ci.pid
@@ -60,8 +61,7 @@ git push origin master:master
 popd
 
 # start CI system
-source activate hail-ci
-python ci/ci.py --debug & echo $! > ci.pid
+python run_ci.py --debug & echo $! > ci.pid
 
 sleep 10
 
@@ -70,4 +70,4 @@ set +x
 ./setup-endpoints.sh hail-ci-test/${REPO_NAME} ${TOKEN} ${SELF_HOSTNAME}
 set -x
 
-PYTHONPATH=$PYTHONPATH:${PWD}/ci pytest -vv test/test-ci.py
+PYTHONPATH=${PWD}:${PYTHONPATH} pytest -vv --failed-first --maxfail=1 test/test-ci.py

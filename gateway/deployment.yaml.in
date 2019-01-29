@@ -16,6 +16,7 @@ spec:
         app: gateway
         hail.is/sha: "@sha@"
     spec:
+      serviceAccountName: gateway
       containers:
       - name: gateway
         image: @image@

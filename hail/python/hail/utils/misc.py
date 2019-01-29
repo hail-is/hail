@@ -55,7 +55,7 @@ def range_matrix_table(n_rows, n_cols, n_partitions=None) -> 'hail.MatrixTable':
     check_positive_and_in_range('range_matrix_table', 'n_cols', n_cols)
     if n_partitions is not None:
         check_positive_and_in_range('range_matrix_table', 'n_partitions', n_partitions)
-    return hail.MatrixTable(Env.hail().variant.MatrixTable.range(Env.hc()._jhc, n_rows, n_cols, joption(n_partitions)))
+    return hail.MatrixTable(hail.ir.MatrixRead(hail.ir.MatrixRangeReader(n_rows, n_cols, n_partitions)))
 
 @typecheck(n=int, n_partitions=nullable(int))
 def range_table(n, n_partitions=None) -> 'hail.Table':
@@ -93,7 +93,7 @@ def range_table(n, n_partitions=None) -> 'hail.Table':
     if n_partitions is not None:
         check_positive_and_in_range('range_table', 'n_partitions', n_partitions)
 
-    return hail.Table._from_java(Env.hail().table.Table.range(Env.hc()._jhc, n, joption(n_partitions)))
+    return hail.Table(hail.ir.TableRange(n, n_partitions))
 
 def check_positive_and_in_range(caller, name, value):
     if value <= 0:
@@ -291,58 +291,121 @@ def get_nice_field_error(obj, item):
         s.append("\n    Hint: use 'describe()' to show the names of all data fields.")
     return ''.join(s)
 
-def check_collisions(fields, name, indices):
+def check_collisions(caller, names, indices, override_protected_indices=None):
     from hail.expr.expressions import ExpressionException
-    if name in fields and not fields[name]._indices == indices:
-        msg = "name collision with field indexed by {}: {}".format(list(fields[name]._indices.axes), repr(name))
-        error('Analysis exception: {}'.format(msg))
-        raise ExpressionException(msg)
+    fields = indices.source._fields
 
-def check_field_uniqueness(fields):
-    for k, v in Counter(fields).items():
+    if override_protected_indices is not None:
+        invalid = lambda e: e._indices in override_protected_indices
+    else:
+        invalid = lambda e: e._indices != indices
+
+    # check collisions with fields on other axes
+    for name in names:
+        if name in fields and invalid(fields[name]):
+            msg = f"{caller!r}: name collision with field indexed by {list(fields[name]._indices.axes)}: {name!r}"
+            error('Analysis exception: {}'.format(msg))
+            raise ExpressionException(msg)
+
+    # check duplicate fields
+    for k, v in Counter(names).items():
         if v > 1:
             from hail.expr.expressions import ExpressionException
-            raise ExpressionException("selection would produce duplicate field '{}'".format(repr(k)))
+            raise ExpressionException(f"{caller!r}: selection would produce duplicate field {k!r}")
 
-def check_keys(name, indices):
+def get_key_by_exprs(caller, exprs, named_exprs, indices, override_protected_indices=None):
+    from hail.expr.expressions import to_expr, ExpressionException, analyze
+    exprs = [indices.source[e] if isinstance(e, str) else e for e in exprs]
+    named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
+
+    bindings = []
+
+    def is_top_level_field(e):
+        return e in indices.source._fields_inverse
+
+    existing_key_fields = []
+    final_key = []
+    for e in exprs:
+        analyze(caller, e, indices, broadcast=False)
+        if not e._ir.is_nested_field:
+            raise ExpressionException(f"{caller!r} expects keyword arguments for complex expressions\n"
+                                      f"  Correct:   ht = ht.key_by('x')\n"
+                                      f"  Correct:   ht = ht.key_by(ht.x)\n"
+                                      f"  Correct:   ht = ht.key_by(x = ht.x.replace(' ', '_'))\n"
+                                      f"  INCORRECT: ht = ht.key_by(ht.x.replace(' ', '_'))")
+
+        name = e._ir.name
+        final_key.append(name)
+
+        if not is_top_level_field(e):
+            bindings.append((name, e))
+        else:
+            existing_key_fields.append(name)
+
+    final_key.extend(named_exprs)
+    bindings.extend(named_exprs.items())
+    check_collisions(caller, final_key, indices, override_protected_indices=override_protected_indices)
+    return final_key, dict(bindings)
+
+
+def check_keys(caller, name, protected_key):
     from hail.expr.expressions import ExpressionException
-    if indices.key is None:
-        return
-    if name in set(indices.key):
-        msg = "cannot overwrite key field {} with annotate, select or drop; use key_by to modify keys.".format(repr(name))
+    if name in protected_key:
+        msg = f"{caller!r}: cannot overwrite key field {name!r} with annotate, select or drop; " \
+              f"use key_by to modify keys."
         error('Analysis exception: {}'.format(msg))
         raise ExpressionException(msg)
 
-def get_select_exprs(caller, exprs, named_exprs, indices, protect_keys=True):
+def get_select_exprs(caller, exprs, named_exprs, indices, base_struct):
     from hail.expr.expressions import to_expr, ExpressionException, analyze
-    exprs = [to_expr(e) if not isinstance(e, str) else indices.source[e] for e in exprs]
+    exprs = [indices.source[e] if isinstance(e, str) else e for e in exprs]
     named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
-    assignments = OrderedDict()
+    select_fields = indices.protected_key[:]
+    protected_key = set(select_fields)
+    insertions = {}
+
+    final_fields = select_fields[:]
+
+    def is_top_level_field(e):
+        return e in indices.source._fields_inverse
 
     for e in exprs:
         if not e._ir.is_nested_field:
-            raise ExpressionException("method '{}' expects keyword arguments for complex expressions".format(caller))
+            raise ExpressionException(f"{caller!r} expects keyword arguments for complex expressions\n"
+                                      f"  Correct:   ht = ht.select('x')\n"
+                                      f"  Correct:   ht = ht.select(ht.x)\n"
+                                      f"  Correct:   ht = ht.select(x = ht.x.replace(' ', '_'))\n"
+                                      f"  INCORRECT: ht = ht.select(ht.x.replace(' ', '_'))")
         analyze(caller, e, indices, broadcast=False)
-        if protect_keys:
-            check_keys(e._ir.name, indices)
-        assignments[e._ir.name] = e
-    for k, e in named_exprs.items():
-        if protect_keys:
-            check_keys(k, indices)
-        check_collisions(indices.source._fields, k, indices)
-        assignments[k] = e
-    check_field_uniqueness(assignments.keys())
-    return assignments
 
-def get_annotate_exprs(caller, named_exprs, indices):
-    from hail.expr.expressions import to_expr, ExpressionException
-    named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
-    for k, v in named_exprs.items():
-        check_keys(k, indices)
-        if indices.key and k in indices.key.keys():
-            raise ExpressionException("'{}' cannot overwrite key field: {}"
-                                      .format(caller, repr(k)))
-        check_collisions(indices.source._fields, k, indices)
+        name = e._ir.name
+        check_keys(caller, name, protected_key)
+        final_fields.append(name)
+        if is_top_level_field(e):
+            select_fields.append(name)
+        else:
+            insertions[name] = e
+    for k, e in named_exprs.items():
+        check_keys(caller, k, protected_key)
+        final_fields.append(k)
+        insertions[k] = e
+
+    check_collisions(caller, final_fields, indices)
+
+    if final_fields == select_fields + list(insertions):
+        # don't clog the IR with redundant field names
+        s = base_struct.select(*select_fields).annotate(**insertions)
+    else:
+        s = base_struct.select(*select_fields)._annotate_ordered(insertions, final_fields)
+
+    assert list(s) == final_fields
+    return s
+
+def check_annotate_exprs(caller, named_exprs, indices):
+    protected_key = set(indices.protected_key)
+    for k in named_exprs:
+        check_keys(caller, k, protected_key)
+    check_collisions(caller, list(named_exprs), indices)
     return named_exprs
 
 def process_joins(obj, exprs):

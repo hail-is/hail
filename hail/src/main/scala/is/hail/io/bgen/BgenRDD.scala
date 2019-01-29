@@ -4,6 +4,7 @@ import is.hail.annotations._
 import is.hail.asm4s.AsmFunction4
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PStruct
+import is.hail.expr.types.virtual.{TStruct, Type}
 import is.hail.io.HadoopFSDataBinaryReader
 import is.hail.io.index.{IndexReader, IndexReaderBuilder, LeafChild}
 import is.hail.rvd._
@@ -33,6 +34,7 @@ sealed case class RowFields (
 case class BgenSettings(
   nSamples: Int,
   entries: EntriesSetting,
+  dropCols: Boolean,
   rowFields: RowFields,
   rg: Option[ReferenceGenome],
   indexAnnotationType: Type

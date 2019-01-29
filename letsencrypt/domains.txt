@@ -1,8 +1,8 @@
 @domain@
-www.@domain@
 ci.@domain@
-upload.@domain@
-scorecard.@domain@
-notebook.@domain@
-test.@domain@
 dev1.@domain@
+notebook.@domain@
+scorecard.@domain@
+test.@domain@
+upload.@domain@
+www.@domain@

@@ -13,6 +13,122 @@ kind: ServiceAccount
 metadata:
   name: batch-svc
 ---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gateway
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: notebook
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: letsencrypt
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: default
+  name: read-letsencrypt-config
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  resourceNames: ["letsencrypt-config"]
+  verbs: ["get"]
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: default
+  name: gateway-read-letsencrypt-config
+subjects:
+- kind: ServiceAccount
+  name: gateway
+  namespace: default
+roleRef:
+  kind: Role
+  name: read-letsencrypt-config
+  apiGroup: ""
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: default
+  name: create-services
+rules:
+- apiGroups: [""]
+  resources: ["services"]
+  verbs: ["*"]
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: default
+  name: notebook-create-services
+subjects:
+- kind: ServiceAccount
+  name: notebook
+  namespace: default
+roleRef:
+  kind: Role
+  name: create-services
+  apiGroup: ""
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: default
+  name: create-services-and-pods
+rules:
+- apiGroups: [""]
+  resources: ["services"]
+  verbs: ["*"]
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["*"]
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: default
+  name: notebook-create-services-and-pods
+subjects:
+- kind: ServiceAccount
+  name: notebook
+  namespace: default
+roleRef:
+  kind: Role
+  name: create-services
+  apiGroup: ""
+---
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: default
+  name: update-letsencrypt-config
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  resourceNames: ["letsencrypt-config"]
+  verbs: ["get", "update", "patch"]
+---
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: default
+  name: letsencrypt-update-letsencrypt-config
+subjects:
+- kind: ServiceAccount
+  name: letsencrypt
+  namespace: default
+roleRef:
+  kind: Role
+  name: update-letsencrypt-config
+  apiGroup: ""
+---
 kind: Role
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
@@ -144,3 +260,14 @@ roleRef:
   kind: Role
   name: test-test
   apiGroup: "rbac.authorization.k8s.io"
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: letsencrypt-certs
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Mi

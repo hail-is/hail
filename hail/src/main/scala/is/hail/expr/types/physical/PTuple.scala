@@ -2,7 +2,7 @@ package is.hail.expr.types.physical
 
 import is.hail.annotations.{CodeOrdering, ExtendedOrdering}
 import is.hail.expr.ir.EmitMethodBuilder
-import is.hail.expr.types.TTuple
+import is.hail.expr.types.virtual.TTuple
 import is.hail.utils._
 
 final case class PTuple(_types: IndexedSeq[PType], override val required: Boolean = false) extends PBaseStruct {
@@ -32,22 +32,6 @@ final case class PTuple(_types: IndexedSeq[PType], override val required: Boolea
 
   def ++(that: PTuple): PTuple = PTuple(types ++ that.types, required = false)
 
-  override def canCompare(other: PType): Boolean = other match {
-    case t: PTuple => size == t.size && types.zip(t.types).forall { case (t1, t2) => t1.canCompare(t2) }
-    case _ => false
-  }
-
-  override def unify(concrete: PType): Boolean = concrete match {
-    case PTuple(ctypes, _) =>
-      size == ctypes.length &&
-        (types, ctypes).zipped.forall { case (t, ct) =>
-          t.unify(ct)
-        }
-    case _ => false
-  }
-
-  override def subst() = PTuple(types.map(t => t.subst()))
-
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
     sb.append("Tuple[")
     types.foreachBetween(_.pretty(sb, indent, compact))(sb += ',')
@@ -69,8 +53,7 @@ final case class PTuple(_types: IndexedSeq[PType], override val required: Boolea
       .forall { case (t, ft) => t == ft })
       this
     else {
-      val t = PTuple(fundamentalFieldTypes)
-      t.setRequired(required).asInstanceOf[PTuple]
+      PTuple(fundamentalFieldTypes, required)
     }
   }
 }

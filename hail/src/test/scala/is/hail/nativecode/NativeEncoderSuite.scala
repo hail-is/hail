@@ -5,12 +5,12 @@ import java.io.ByteArrayOutputStream
 import is.hail.SparkSuite
 import is.hail.annotations._
 import is.hail.cxx._
-import is.hail.expr.types._
+import is.hail.expr.types.virtual.{TInt32, TInterval, TSet, TStruct, _}
 import is.hail.io._
 import is.hail.io.compress.LZ4Utils
-import org.testng.annotations.Test
 import is.hail.utils._
 import org.apache.spark.sql.Row
+import org.testng.annotations.Test
 
 class NativeEncoderSuite extends SparkSuite {
 
@@ -23,23 +23,23 @@ class NativeEncoderSuite extends SparkSuite {
     tub.include("<cstdio>")
     tub.include("<memory>")
 
-    val fb = FunctionBuilder("testOutputStream", Array("NativeStatus*" -> "st", "long" -> "array"), "long")
+    val fb = tub.buildFunction("testOutputStream", Array("NativeStatus*" -> "st", "long" -> "array"), "long")
 
-    fb += s"""UpcallEnv up;
-             |auto h = reinterpret_cast<ObjectArray*>(${fb.getArg(1)});
-             |auto jos = h->at(0);
-             |
-             |char * buf = new char[10]{97, 98, 99, 100, 101, 102, 103, 104, 105, 106};
-             |
-             |auto os = std::make_shared<OutputStream>(up, jos);
-             |os->write(buf, 10);
-             |
-             |return 0;""".stripMargin
+    fb +=
+      s"""UpcallEnv up;
+         |auto h = reinterpret_cast<ObjectArray*>(${ fb.getArg(1) });
+         |auto jos = h->at(0);
+         |
+         |char * buf = new char[10]{97, 98, 99, 100, 101, 102, 103, 104, 105, 106};
+         |
+         |auto os = std::make_shared<OutputStream>(up, jos);
+         |os->write(buf, 10);
+         |
+         |return 0;""".stripMargin
 
-    val f = fb.result()
-    tub += f
+    val f = fb.end()
 
-    val mod = tub.result().build("")
+    val mod = tub.end().build("")
 
     val st = new NativeStatus()
     val testOS = mod.findLongFuncL1(st, f.name)
@@ -64,18 +64,18 @@ class NativeEncoderSuite extends SparkSuite {
     tub.include("<cstdio>")
     tub.include("<memory>")
 
-    val fb = FunctionBuilder("testOutputBuffers", Array("NativeStatus*" -> "st", "long" -> "holder"), "long")
+    val fb = tub.buildFunction("testOutputBuffers", Array("NativeStatus*" -> "st", "long" -> "holder"), "long")
 
     val bytes = Array.tabulate[Byte](100)(i => new Integer(i + 97).byteValue())
 
     fb +=
       s"""
          |UpcallEnv up;
-         |auto h = reinterpret_cast<ObjectArray*>(${fb.getArg(1)});
+         |auto h = reinterpret_cast<ObjectArray*>(${ fb.getArg(1) });
          |auto jos = h->at(0);
          |
          |auto os = std::make_shared<OutputStream>(up, jos);
-         |using LZ4Buf = LZ4OutputBlockBuffer<${LZ4Utils.maxCompressedLength(32) + 4}, StreamOutputBlockBuffer>;
+         |using LZ4Buf = LZ4OutputBlockBuffer<${ LZ4Utils.maxCompressedLength(32) + 4 }, StreamOutputBlockBuffer>;
          |using BlockBuf = BlockingOutputBuffer<32, LZ4Buf>;
          |LEB128OutputBuffer<BlockBuf> leb_buf {os};
          |
@@ -85,17 +85,16 @@ class NativeEncoderSuite extends SparkSuite {
          |leb_buf.write_long(3l);
          |leb_buf.write_float(3.3f);
          |leb_buf.write_double(3.3);
-         |leb_buf.write_bytes(new char[${bytes.length}] {${bytes.mkString(", ")}}, ${bytes.length});
+         |leb_buf.write_bytes(new char[${ bytes.length }] {${ bytes.mkString(", ") }}, ${ bytes.length });
          |leb_buf.flush();
          |leb_buf.close();
          |
          |return 0;
        """.stripMargin
 
-    val f = fb.result()
-    tub += f
+    val f = fb.end()
 
-    val mod = tub.result().build("-O1 -llz4")
+    val mod = tub.end().build("-O1 -llz4")
 
     val st = new NativeStatus()
     val testOB = mod.findLongFuncL1(st, f.name)
@@ -135,12 +134,12 @@ class NativeEncoderSuite extends SparkSuite {
       new BlockingBufferSpec(32,
         new LZ4BlockBufferSpec(32,
           new StreamBlockBufferSpec)))
-    val t = TTuple(TInterval(TStruct("x"->TSet(TInt32()))))
+    val t = TTuple(TInterval(TStruct("x" -> TSet(TInt32()))))
 
     val a = Row(Interval(Row(Set(-1478292367)), Row(Set(2084728308)), true, true))
 
     val baos = new ByteArrayOutputStream()
-    val enc = new NativePackEncoder(baos, NativeEncoder(t.physicalType, spec))
+    val enc = new NativePackEncoder(baos, PackEncoder.buildModule(t.physicalType, spec))
 
     val baos2 = new ByteArrayOutputStream()
     val enc2 = new PackEncoder(t.physicalType, spec.buildOutputBuffer(baos2))

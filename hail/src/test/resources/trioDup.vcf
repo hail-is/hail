@@ -1,0 +1,75 @@
+##fileformat=VCFv3.3
+##FILTER=GATK_STANDARD,"AB > 0.75 || DP > 360 || MQ0 > 40 || SB > -0.10,AB > 0.75 || DP > 360 || MQ0 > 40 || SB > -0.10,AB > 0.75 || DP > 360 || MQ0 > 40 || SB > -0.10"
+##FILTER=HARD_TO_VALIDATE,"MQ0 >= 4 && ((MQ0 / (1.0 * DP)) > 0.1),MQ0 >= 4 && ((MQ0 / (1.0 * DP)) > 0.1),MQ0 >= 4 && ((MQ0 / (1.0 * DP)) > 0.1)"
+##FILTER=SnpCluster,"SNPs found in clusters,SNPs found in clusters,SNPs found in clusters"
+##FILTER=match-0,"(set eq 'Intersection' || set eq 'filteredInBoth')"
+##FORMAT=DP,1,Integer,"Read Depth (only filtered reads used for calling)"
+##FORMAT=GQ,1,Integer,"Genotype Quality"
+##FORMAT=GT,1,String,"Genotype"
+##INFO=AB,1,Float,"Allele Balance for hets (ref/(ref+alt))"
+##INFO=AC,1,Integer,"Allele count in genotypes, for each ALT allele, in the same order as listed"
+##INFO=AF,1,Float,"Allele Frequency"
+##INFO=AN,1,Integer,"Total number of alleles in called genotypes"
+##INFO=DB,1,Integer,"dbSNP membership"
+##INFO=DP,1,Integer,"Total Depth"
+##INFO=Dels,1,Float,"Fraction of Reads Containing Spanning Deletions"
+##INFO=HRun,1,Integer,"Largest Contiguous Homopolymer Run of Variant Allele In Either Direction"
+##INFO=MQ,1,Float,"RMS Mapping Quality"
+##INFO=MQ0,1,Integer,"Total Mapping Quality Zero Reads"
+##INFO=QD,1,Float,"Variant Confidence/Quality by Depth"
+##INFO=SB,1,Float,"Strand Bias"
+##NA19238=../depthFilter/filtered.NA19238.chromX.SLX.maq.SRP000032.2009_07.glf
+##NA19239=../depthFilter/filtered.NA19239.chromX.SLX.maq.SRP000032.2009_11.glf
+##NA19240=../merged/NA19240.chromX.merged.glf
+##UG_assume_single_sample_reads=null
+##UG_base_model=EMPIRICAL
+##UG_genotype=false
+##UG_genotype_model=JOINT_ESTIMATE
+##UG_heterozygosity=0.0010
+##UG_include_experimental_annotations=false
+##UG_max_deletion_fraction=0.05
+##UG_max_mismatches_in_40bp_window=3
+##UG_min_base_quality_score=10
+##UG_min_confidence_threshold=50.0
+##UG_min_mapping_quality_score=10
+##UG_noSLOD=false
+##UG_output_all_callable_bases=false
+##UG_platform=SOLID
+##UG_poolSize=0
+##UG_use_reads_with_bad_mates=false
+##maxTotalDepth=1000
+##minMapQuality=30
+##minPosterior=0.9990
+##minTotalDepth=0
+##program=glfTrio
+##reference=human_b36_both.fasta
+##source=UnifiedGenotyper
+##source=VariantFiltration
+##source=VariantSelect
+##versionDate=Sun Sep 20 17:38:54 2009
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	NA19238	NA19239	NA19240	
+1	327	.	T	C	666.18	GATK_STANDARD;HARD_TO_VALIDATE	AB=0.74;AC=3;AF=0.50;AN=6;DB=0;DP=936;Dels=0.00;HRun=3;MQ=34.66;MQ0=728;QD=0.71;SB=-268.74;set=filteredInBoth	GT:DP:GQ	1/0:10:62.65	1/0:37:99.00	1/0:53:99.00
+2	327	.	T	C	666.18	GATK_STANDARD;HARD_TO_VALIDATE	AB=0.74;AC=3;AF=0.50;AN=6;DB=0;DP=936;Dels=0.00;HRun=3;MQ=34.66;MQ0=728;QD=0.71;SB=-268.74;set=filteredInBoth	GT:DP:GQ	1/0:10:62.65	1/0:37:99.00	1/0:53:99.00
+3	327	.	T	C	666.18	GATK_STANDARD;HARD_TO_VALIDATE	AB=0.74;AC=3;AF=0.50;AN=6;DB=0;DP=936;Dels=0.00;HRun=3;MQ=34.66;MQ0=728;QD=0.71;SB=-268.74;set=filteredInBoth	GT:DP:GQ	1/0:10:62.65	1/0:37:99.00	1/0:53:99.00
+4	327	.	T	C	666.18	GATK_STANDARD;HARD_TO_VALIDATE	AB=0.74;AC=3;AF=0.50;AN=6;DB=0;DP=936;Dels=0.00;HRun=3;MQ=34.66;MQ0=728;QD=0.71;SB=-268.74;set=filteredInBoth	GT:DP:GQ	1/0:10:62.65	1/0:37:99.00	1/0:53:99.00
+4	327	.	T	C	666.18	GATK_STANDARD;HARD_TO_VALIDATE	AB=0.74;AC=3;AF=0.50;AN=6;DB=0;DP=936;Dels=0.00;HRun=3;MQ=34.66;MQ0=728;QD=0.71;SB=-268.74;set=filteredInBoth	GT:DP:GQ	1/0:10:62.65	1/0:37:99.00	1/0:53:99.00
+5	327	.	T	C	666.18	GATK_STANDARD;HARD_TO_VALIDATE	AB=0.74;AC=3;AF=0.50;AN=6;DB=0;DP=936;Dels=0.00;HRun=3;MQ=34.66;MQ0=728;QD=0.71;SB=-268.74;set=filteredInBoth	GT:DP:GQ	1/0:10:62.65	1/0:37:99.00	1/0:53:99.00
+6	327	.	T	C	666.18	GATK_STANDARD;HARD_TO_VALIDATE	AB=0.74;AC=3;AF=0.50;AN=6;DB=0;DP=936;Dels=0.00;HRun=3;MQ=34.66;MQ0=728;QD=0.71;SB=-268.74;set=filteredInBoth	GT:DP:GQ	1/0:10:62.65	1/0:37:99.00	1/0:53:99.00
+7	327	.	T	C	666.18	GATK_STANDARD;HARD_TO_VALIDATE	AB=0.74;AC=3;AF=0.50;AN=6;DB=0;DP=936;Dels=0.00;HRun=3;MQ=34.66;MQ0=728;QD=0.71;SB=-268.74;set=filteredInBoth	GT:DP:GQ	1/0:10:62.65	1/0:37:99.00	1/0:53:99.00
+8	327	.	T	C	666.18	GATK_STANDARD;HARD_TO_VALIDATE	AB=0.74;AC=3;AF=0.50;AN=6;DB=0;DP=936;Dels=0.00;HRun=3;MQ=34.66;MQ0=728;QD=0.71;SB=-268.74;set=filteredInBoth	GT:DP:GQ	1/0:10:62.65	1/0:37:99.00	1/0:53:99.00
+9	327	.	T	C	666.18	GATK_STANDARD;HARD_TO_VALIDATE	AB=0.74;AC=3;AF=0.50;AN=6;DB=0;DP=936;Dels=0.00;HRun=3;MQ=34.66;MQ0=728;QD=0.71;SB=-268.74;set=filteredInBoth	GT:DP:GQ	1/0:10:62.65	1/0:37:99.00	1/0:53:99.00
+10	327	.	T	C	666.18	GATK_STANDARD;HARD_TO_VALIDATE	AB=0.74;AC=3;AF=0.50;AN=6;DB=0;DP=936;Dels=0.00;HRun=3;MQ=34.66;MQ0=728;QD=0.71;SB=-268.74;set=filteredInBoth	GT:DP:GQ	1/0:10:62.65	1/0:37:99.00	1/0:53:99.00
+11	327	.	T	C	666.18	GATK_STANDARD;HARD_TO_VALIDATE	AB=0.74;AC=3;AF=0.50;AN=6;DB=0;DP=936;Dels=0.00;HRun=3;MQ=34.66;MQ0=728;QD=0.71;SB=-268.74;set=filteredInBoth	GT:DP:GQ	1/0:10:62.65	1/0:37:99.00	1/0:53:99.00
+12	327	.	T	C	666.18	GATK_STANDARD;HARD_TO_VALIDATE	AB=0.74;AC=3;AF=0.50;AN=6;DB=0;DP=936;Dels=0.00;HRun=3;MQ=34.66;MQ0=728;QD=0.71;SB=-268.74;set=filteredInBoth	GT:DP:GQ	1/0:10:62.65	1/0:37:99.00	1/0:53:99.00
+13	327	.	T	C	666.18	GATK_STANDARD;HARD_TO_VALIDATE	AB=0.74;AC=3;AF=0.50;AN=6;DB=0;DP=936;Dels=0.00;HRun=3;MQ=34.66;MQ0=728;QD=0.71;SB=-268.74;set=filteredInBoth	GT:DP:GQ	1/0:10:62.65	1/0:37:99.00	1/0:53:99.00
+14	327	.	T	C	666.18	GATK_STANDARD;HARD_TO_VALIDATE	AB=0.74;AC=3;AF=0.50;AN=6;DB=0;DP=936;Dels=0.00;HRun=3;MQ=34.66;MQ0=728;QD=0.71;SB=-268.74;set=filteredInBoth	GT:DP:GQ	1/0:10:62.65	1/0:37:99.00	1/0:53:99.00
+15	327	.	T	C	666.18	GATK_STANDARD;HARD_TO_VALIDATE	AB=0.74;AC=3;AF=0.50;AN=6;DB=0;DP=936;Dels=0.00;HRun=3;MQ=34.66;MQ0=728;QD=0.71;SB=-268.74;set=filteredInBoth	GT:DP:GQ	1/0:10:62.65	1/0:37:99.00	1/0:53:99.00
+16	327	.	T	C	666.18	GATK_STANDARD;HARD_TO_VALIDATE	AB=0.74;AC=3;AF=0.50;AN=6;DB=0;DP=936;Dels=0.00;HRun=3;MQ=34.66;MQ0=728;QD=0.71;SB=-268.74;set=filteredInBoth	GT:DP:GQ	1/0:10:62.65	1/0:37:99.00	1/0:53:99.00
+17	327	.	T	C	666.18	GATK_STANDARD;HARD_TO_VALIDATE	AB=0.74;AC=3;AF=0.50;AN=6;DB=0;DP=936;Dels=0.00;HRun=3;MQ=34.66;MQ0=728;QD=0.71;SB=-268.74;set=filteredInBoth	GT:DP:GQ	1/0:10:62.65	1/0:37:99.00	1/0:53:99.00
+18	327	.	T	C	666.18	GATK_STANDARD;HARD_TO_VALIDATE	AB=0.74;AC=3;AF=0.50;AN=6;DB=0;DP=936;Dels=0.00;HRun=3;MQ=34.66;MQ0=728;QD=0.71;SB=-268.74;set=filteredInBoth	GT:DP:GQ	1/0:10:62.65	1/0:37:99.00	1/0:53:99.00
+19	327	.	T	C	666.18	GATK_STANDARD;HARD_TO_VALIDATE	AB=0.74;AC=3;AF=0.50;AN=6;DB=0;DP=936;Dels=0.00;HRun=3;MQ=34.66;MQ0=728;QD=0.71;SB=-268.74;set=filteredInBoth	GT:DP:GQ	1/0:10:62.65	1/0:37:99.00	1/0:53:99.00
+20	327	.	T	C	666.18	GATK_STANDARD;HARD_TO_VALIDATE	AB=0.74;AC=3;AF=0.50;AN=6;DB=0;DP=936;Dels=0.00;HRun=3;MQ=34.66;MQ0=728;QD=0.71;SB=-268.74;set=filteredInBoth	GT:DP:GQ	1/0:10:62.65	1/0:37:99.00	1/0:53:99.00
+21	327	.	T	C	666.18	GATK_STANDARD;HARD_TO_VALIDATE	AB=0.74;AC=3;AF=0.50;AN=6;DB=0;DP=936;Dels=0.00;HRun=3;MQ=34.66;MQ0=728;QD=0.71;SB=-268.74;set=filteredInBoth	GT:DP:GQ	1/0:10:62.65	1/0:37:99.00	1/0:53:99.00
+22	327	.	T	C	666.18	GATK_STANDARD;HARD_TO_VALIDATE	AB=0.74;AC=3;AF=0.50;AN=6;DB=0;DP=936;Dels=0.00;HRun=3;MQ=34.66;MQ0=728;QD=0.71;SB=-268.74;set=filteredInBoth	GT:DP:GQ	1/0:10:62.65	1/0:37:99.00	1/0:53:99.00
+X	327	.	T	C	666.18	GATK_STANDARD;HARD_TO_VALIDATE	AB=0.74;AC=3;AF=0.50;AN=6;DB=0;DP=936;Dels=0.00;HRun=3;MQ=34.66;MQ0=728;QD=0.71;SB=-268.74;set=filteredInBoth	GT:DP:GQ	1/0:10:62.65	1/0:37:99.00	1/0:53:99.00
+Y	327	.	T	C	666.18	GATK_STANDARD;HARD_TO_VALIDATE	AB=0.74;AC=3;AF=0.50;AN=6;DB=0;DP=936;Dels=0.00;HRun=3;MQ=34.66;MQ0=728;QD=0.71;SB=-268.74;set=filteredInBoth	GT:DP:GQ	1/0:10:62.65	1/0:37:99.00	1/0:53:99.00

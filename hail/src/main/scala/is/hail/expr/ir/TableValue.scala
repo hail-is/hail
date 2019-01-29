@@ -5,13 +5,25 @@ import is.hail.annotations.{BroadcastRow, RegionValue, RegionValueBuilder, Unsaf
 import is.hail.expr.TableAnnotationImpex
 import is.hail.expr.types.TableType
 import is.hail.io.{CodecSpec, exportTypes}
-import is.hail.rvd.{RVD, RVDSpec}
-import is.hail.table.TableSpec
+import is.hail.rvd.{AbstractRVDSpec, RVD, RVDContext}
+import is.hail.sparkextras.ContextRDD
+import is.hail.table.{Table, TableSpec}
 import is.hail.utils._
 import is.hail.variant.{FileFormat, PartitionCountsComponentSpec, RVDComponentSpec, ReferenceGenome}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.json4s.jackson.JsonMethods
+
+object TableValue {
+  def apply(typ: TableType, globals: BroadcastRow, rdd: RDD[Row]): TableValue = {
+    Interpret(
+      TableKeyBy(TableLiteral(TableValue(typ.copy(key = FastIndexedSeq()), globals,
+        RVD.unkeyed(typ.rowType.physicalType,
+          ContextRDD.weaken[RVDContext](rdd)
+            .cmapPartitions((ctx, it) => it.toRegionValueIterator(ctx.region, typ.rowType.physicalType))))),
+        typ.key), optimize = true)
+  }
+}
 
 case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
   require(typ.rowType == rvd.rowType)
@@ -51,7 +63,7 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
 
     val codecSpec =
       if (codecSpecJSONStr != null) {
-        implicit val formats = RVDSpec.formats
+        implicit val formats = AbstractRVDSpec.formats
         val codecSpecJSON = JsonMethods.parse(codecSpecJSONStr)
         codecSpecJSON.extract[CodecSpec]
       } else
@@ -66,7 +78,7 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
 
     val globalsPath = path + "/globals"
     hc.hadoopConf.mkDir(globalsPath)
-    RVDSpec.writeLocal(hc, globalsPath, typ.globalType, codecSpec, Array(globals.value))
+    AbstractRVDSpec.writeLocal(hc, globalsPath, typ.globalType.physicalType, codecSpec, Array(globals.value))
 
     val partitionCounts = rvd.write(path + "/rows", stageLocally, codecSpec)
 
@@ -86,6 +98,12 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
     spec.write(hc, path)
 
     hc.hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
+
+    val nRows = partitionCounts.sum
+    info(s"wrote table with $nRows ${ plural(nRows, "row") } " +
+      s"in ${ partitionCounts.length } ${ plural(partitionCounts.length, "partition") } " +
+      s"to $path")
+
   }
 
   def export(path: String, typesFile: String = null, header: Boolean = true, exportType: Int = ExportType.CONCATENATED) {

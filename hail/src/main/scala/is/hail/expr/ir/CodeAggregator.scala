@@ -5,21 +5,10 @@ import is.hail.annotations.aggregators.{KeyedRegionValueAggregator, _}
 import is.hail.asm4s._
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PType
+import is.hail.expr.types.virtual.Type
 
 import scala.reflect.ClassTag
 import scala.reflect.classTag
-
-abstract class BaseCodeAggregator[Agg <: RegionValueAggregator : ClassTag : TypeInfo] {
-  def out: Type
-
-  def initOpArgTypes: Option[Array[Class[_]]]
-
-  def seqOpArgTypes: Array[Class[_]]
-
-  def initOp(mb: EmitMethodBuilder, rva: Code[RegionValueAggregator], vs: Array[Code[_]], ms: Array[Code[Boolean]]): Code[Unit]
-
-  def seqOp(mb: EmitMethodBuilder, region: Code[Region], rva: Code[RegionValueAggregator], vs: Array[Code[_]], ms: Array[Code[Boolean]]): Code[Unit]
-}
 
 /**
   * Pair the aggregator with a staged seqOp that calls the non-generic seqOp and initOp
@@ -29,7 +18,7 @@ case class CodeAggregator[Agg <: RegionValueAggregator : ClassTag : TypeInfo](
   out: Type,
   constrArgTypes: Array[Class[_]] = Array.empty[Class[_]],
   initOpArgTypes: Option[Array[Class[_]]] = None,
-  seqOpArgTypes: Array[Class[_]] = Array.empty[Class[_]]) extends BaseCodeAggregator[Agg] {
+  seqOpArgTypes: Array[Class[_]] = Array.empty[Class[_]]) {
 
   def initOp(mb: EmitMethodBuilder, rva: Code[RegionValueAggregator], vs: Array[Code[_]], ms: Array[Code[Boolean]]): Code[Unit] = {
     assert(initOpArgTypes.isDefined && vs.length == ms.length)

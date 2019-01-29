@@ -1,7 +1,5 @@
 package is.hail.expr.ir
 
-import is.hail.expr._
-
 object RewriteTopDown {
   def rewriteTopDown(ast: BaseIR, rule: PartialFunction[BaseIR, BaseIR]): BaseIR = {
     def rewrite(ast: BaseIR): BaseIR = {

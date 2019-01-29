@@ -1,21 +1,29 @@
 package is.hail.expr.types
 
 import is.hail.annotations.Annotation
-import is.hail.expr.Parser
-import is.hail.expr.ir.Env
+import is.hail.expr.ir.{Env, IRParser}
+import is.hail.expr.types.physical.{PArray, PStruct}
+import is.hail.expr.types.virtual._
 import is.hail.rvd.RVDType
 import is.hail.utils._
+import is.hail.variant.ReferenceGenome
 import org.apache.spark.sql.Row
 import org.json4s.CustomSerializer
 import org.json4s.JsonAST.JString
 
 
 class MatrixTypeSerializer extends CustomSerializer[MatrixType](format => (
-  { case JString(s) => Parser.parseMatrixType(s) },
+  { case JString(s) => IRParser.parseMatrixType(s) },
   { case mt: MatrixType => JString(mt.toString) }))
 
 object MatrixType {
   val entriesIdentifier = "the entries! [877f12a8827e18f61222c6c8c5fb04a8]"
+
+  def getRowType(rvRowType: PStruct): PStruct = rvRowType.dropFields(Set(entriesIdentifier))
+  def getEntryArrayType(rvRowType: PStruct): PArray = rvRowType.field(entriesIdentifier).typ.asInstanceOf[PArray]
+  def getSplitEntriesType(rvRowType: PStruct): PStruct = rvRowType.selectFields(Array(entriesIdentifier))
+  def getEntryType(rvRowType: PStruct): PStruct = getEntryArrayType(rvRowType).elementType.asInstanceOf[PStruct]
+  def getEntriesIndex(rvRowType: PStruct): Int = rvRowType.fieldIdx(entriesIdentifier)
 
   def fromParts(
     globalType: TStruct,
@@ -79,9 +87,7 @@ case class MatrixType(
     TableType(resultStruct, rowKey ++ colKey, globalType)
   }
 
-  def rvdType: RVDType = RVDType(rvRowType, rowKey)
-
-  def rowRVDType: RVDType = RVDType(rowType, rowKey)
+  def canonicalRVDType: RVDType = RVDType(rvRowType.physicalType, rowKey)
 
   def refMap: Map[String, Type] = Map(
     "global" -> globalType,
@@ -167,4 +173,24 @@ case class MatrixType(
     .bind("sa" -> colType)
     .bind("va" -> rvRowType)
     .bind("g" -> entryType)
+
+  def requireRowKeyVariant() {
+    val rowKeyTypes = rowKeyStruct.types
+    rowKey.zip(rowKeyTypes) match {
+      case IndexedSeq(("locus", TLocus(_, _)), ("alleles", TArray(TString(_), _))) =>
+    }
+  }
+
+  def requireColKeyString() {
+    colKeyStruct.types match {
+      case Array(_: TString) =>
+    }
+  }
+
+  def referenceGenome: ReferenceGenome = {
+    val firstKeyField = rowKeyStruct.types(0)
+    firstKeyField match {
+      case TLocus(rg: ReferenceGenome, _) => rg
+    }
+  }
 }

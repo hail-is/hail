@@ -4,9 +4,10 @@ import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s
 import is.hail.asm4s._
 import is.hail.expr.ir
-import is.hail.expr.ir.{EmitMethodBuilder, EmitTriplet, StringLength}
+import is.hail.expr.ir.{ApplyBinaryPrimOp, EmitMethodBuilder, EmitTriplet, I32, StringLength}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PArray, PBinary, PString}
+import is.hail.expr.types.virtual._
 import is.hail.utils._
 import org.json4s.JValue
 import org.json4s.jackson.JsonMethods
@@ -36,7 +37,7 @@ object StringFunctions extends RegistryFunctions {
   def replace(str: String, pattern1: String, pattern2: String): String =
     str.replaceAll(pattern1, pattern2)
 
-  def split(s: String, p: String): IndexedSeq[String] = s.split(p)
+  def split(s: String, p: String): IndexedSeq[String] = s.split(p, -1)
 
   def splitLimited(s: String, p: String, n: Int): IndexedSeq[String] = s.split(p, n)
 
@@ -44,66 +45,35 @@ object StringFunctions extends RegistryFunctions {
 
   def setMkString(s: Set[String], sep: String): String = s.mkString(sep)
 
-  def index(s: String, i: Int): String = s.slice(i, i + 1)
+  def escapeString(s: String): String = StringEscapeUtils.escapeString(s)
 
   def registerAll(): Unit = {
     val thisClass = getClass
 
-    registerIR("[:]", TString())(x => x)
-    registerIR("[*:]", TString(), TInt32()) { (s, start) =>
-      val lenName = ir.genUID()
-      val len = ir.Ref(lenName, TInt32())
-      ir.Let(lenName, ir.StringLength(s),
+    registerIR("[]", TString(), TInt32(), TString()) { (s, idx) =>
+      // rather than do a bunch of bounds checking here, check the length of the StringSlice result - way easier
+      val sName = ir.genUID()
+      val sResult = ir.Ref(sName, TString())
+      ir.Let(
+        sName,
         ir.StringSlice(
           s,
+          idx,
           ir.If(
-            ir.ApplyComparisonOp(ir.LT(TInt32()), start, ir.I32(0)),
-            UtilFunctions.max(
-              ir.ApplyBinaryPrimOp(ir.Add(), len, start),
-              ir.I32(0)),
-            UtilFunctions.min(start, len)),
-          len))
+            ir.ApplyComparisonOp(ir.EQ(TInt32()), idx, I32(-1)),
+            ir.StringLength(s),
+            ApplyBinaryPrimOp(ir.Add(), idx, ir.I32(1)))),
+        ir.If(
+          ir.ApplyComparisonOp(ir.EQ(TInt32()), ir.StringLength(sResult), ir.I32(0)),
+          ir.Die("string index out of bounds", TString()), // FIXME: Die needs to take a string IR for a better error message
+          sResult
+        )
+      )
     }
-    registerIR("[:*]", TString(), TInt32()) { (s, end) =>
-      val lenName = ir.genUID()
-      val len = ir.Ref(lenName, TInt32())
-      ir.Let(lenName, ir.StringLength(s),
-        ir.StringSlice(
-          s,
-          ir.I32(0),
-          ir.If(
-            ir.ApplyComparisonOp(ir.LT(TInt32()), end, ir.I32(0)),
-            UtilFunctions.max(
-              ir.ApplyBinaryPrimOp(ir.Add(), len, end),
-              ir.I32(0)),
-            UtilFunctions.min(end, len))))
-    }
-    registerIR("[*:*]", TString(), TInt32(), TInt32()) { (s, start, end) =>
-      val lenName = ir.genUID()
-      val len = ir.Ref(lenName, TInt32())
-      val startName = ir.genUID()
-      val startRef = ir.Ref(startName, TInt32())
-      ir.Let(lenName, ir.StringLength(s),
-        ir.Let(
-          startName,
-          ir.If(
-            ir.ApplyComparisonOp(ir.LT(TInt32()), start, ir.I32(0)),
-            UtilFunctions.max(
-              ir.ApplyBinaryPrimOp(ir.Add(), len, start),
-              ir.I32(0)),
-            UtilFunctions.min(start, len)),
-          ir.StringSlice(
-            s,
-            startRef,
-            ir.If(
-              ir.ApplyComparisonOp(ir.LT(TInt32()), end, ir.I32(0)),
-              UtilFunctions.max(
-                ir.ApplyBinaryPrimOp(ir.Add(), len, end),
-                startRef),
-              UtilFunctions.max(
-                UtilFunctions.min(end, len),
-                startRef)))))
-    }
+    registerIR("[:]", TString(), TString())(x => x)
+    registerIR("[*:]", TString(), TInt32(), TString()) { (s, start) => ir.StringSlice(s, start, StringLength(s)) }
+    registerIR("[:*]", TString(), TInt32(), TString()) { (s, end) => ir.StringSlice(s, ir.I32(0), end) }
+    registerIR("[*:*]", TString(), TInt32(), TInt32(), TString()) { (s, start, end) => ir.StringSlice(s, start, end) }
 
     registerCode("str", tv("T"), TString()) { (mb, a) =>
       val typ = tv("T").subst()
@@ -119,8 +89,6 @@ object StringFunctions extends RegistryFunctions {
       val str = Code.invokeScalaObject[JValue, String](JsonMethods.getClass, "compact", json)
       EmitTriplet(Code._empty, false, unwrapReturn(mb, TString())(str))
     }
-
-    registerWrappedScalaFunction("[]", TString(), TInt32(), TString())(thisClass, "index")
 
     registerWrappedScalaFunction("upper", TString(), TString())(thisClass, "upper")
     registerWrappedScalaFunction("lower", TString(), TString())(thisClass, "lower")
@@ -206,5 +174,7 @@ object StringFunctions extends RegistryFunctions {
           e1.m || e2.m || m,
           m.mux(ir.defaultValue(TInt32()), v))
     }
+
+    registerWrappedScalaFunction("escapeString", TString(), TString())(thisClass, "escapeString")
   }
 }

@@ -1,29 +1,30 @@
-from batch.client import Job
-from batch_helper import try_to_cancel_job, job_ordering
-from build_state import build_state_from_gh_json
-from ci_logging import log
-from constants import BUILD_JOB_TYPE, GCS_BUCKET, DEPLOY_JOB_TYPE
-from environment import \
-    batch_client, \
-    WATCHED_TARGETS, \
-    REFRESH_INTERVAL_IN_SECONDS
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-from git_state import Repo, FQRef, FQSHA
-from github import open_pulls, overall_review_state, latest_sha_for_ref
-from google_storage import \
-    upload_public_gs_file_from_filename, \
-    upload_public_gs_file_from_string
-from http_helper import BadStatus
-from http_helper import get_repo
-from pr import review_status, GitHubPR
-from prs import PRS
-import collections
 import json
 import logging
+
+import collections
 import requests
 import threading
 import time
+from batch.client import Job
+from flask import Flask, request, jsonify, render_template, redirect
+from flask_cors import CORS
+
+from .batch_helper import try_to_cancel_job, job_ordering
+from .ci_logging import log
+from .constants import BUILD_JOB_TYPE, GCS_BUCKET, GCS_BUCKET_PREFIX, \
+    DEPLOY_JOB_TYPE
+from .environment import \
+    batch_client, \
+    WATCHED_TARGETS, \
+    REFRESH_INTERVAL_IN_SECONDS
+from .git_state import Repo, FQRef, FQSHA
+from .github import open_pulls, overall_review_state, latest_sha_for_ref
+from .google_storage import \
+    upload_public_gs_file_from_filename, \
+    upload_public_gs_file_from_string
+from .http_helper import BadStatus, get_repo
+from .pr import GitHubPR
+from .prs import PRS
 
 prs = PRS({k: v for [k, v] in WATCHED_TARGETS})
 
@@ -103,15 +104,15 @@ def github_pull_request_review():
             # FIXME: track all reviewers, then we don't need to talk to github
             prs.review(
                 gh_pr,
-                review_status(
+                overall_review_state(
                     get_reviews(gh_pr.target_ref.repo,
-                                gh_pr.number)))
+                                gh_pr.number))['state'])
     elif action == 'dismissed':
         # FIXME: track all reviewers, then we don't need to talk to github
         prs.review(
             gh_pr,
-            review_status(get_reviews(gh_pr.target_ref.repo,
-                                      gh_pr.number)))
+            overall_review_state(get_reviews(gh_pr.target_ref.repo,
+                                             gh_pr.number))['state'])
     else:
         log.info(f'ignoring pull_request_review with action {action}')
     return '', 200
@@ -180,8 +181,7 @@ def refresh_ci_build_jobs(jobs):
                     f'cancelling {job.id}, preferring {job2.id}'
                 )
                 try_to_cancel_job(job)
-    for ((source, target), job) in latest_jobs.items():
-        prs.refresh_from_ci_job(source, target, job)
+    prs.refresh_from_ci_jobs(latest_jobs)
 
 def refresh_deploy_jobs(jobs):
     jobs = [
@@ -193,7 +193,7 @@ def refresh_deploy_jobs(jobs):
     jobs = [
         (target, job)
         for (target, job) in jobs
-        if target in prs.deploy_jobs
+        if target.ref in prs.deploy_jobs
     ]
     latest_jobs = {}
     for (target, job) in jobs:
@@ -212,16 +212,35 @@ def refresh_deploy_jobs(jobs):
                     f'cancelling {job.id}, preferring {job2.id}'
                 )
                 try_to_cancel_job(job)
-    for (target, job) in latest_jobs.items():
-        prs.refresh_from_deploy_job(target, job)
+    prs.refresh_from_deploy_jobs(latest_jobs)
+
+
+@app.route('/force_retest_flat', methods=['POST'])
+def force_retest_flat():
+    d = request.form
+    source = FQRef(Repo(d['source_repo_owner'], d['source_repo_name']), d['source_branch_name'])
+    target = FQRef(Repo(d['target_repo_owner'], d['target_repo_name']), d['target_branch_name'])
+    log.info(f'Request from force_retest_flat to retest PR from {source} to {target}')
+    try:
+        prs.build(source, target)
+    except ValueError as e:
+        log.error(f'Could not retest PR from {source} to {target}:\n  {e}')
+        pass
+    return redirect('/ui')
+
 
 @app.route('/force_retest', methods=['POST'])
 def force_retest():
     d = request.json
     source = FQRef.from_json(d['source'])
     target = FQRef.from_json(d['target'])
-    prs.build(source, target)
-    return '', 200
+    log.info(f'Request from force_retest to retest PR from {source} to {target}')
+    try:
+        prs.build(source, target)
+        return '', 200
+    except ValueError as e:
+        log.error(f'Could not retest PR from {source} to {target}:\n  {e}')
+        return str(e), 400
 
 
 @app.route('/force_redeploy', methods=['POST'])
@@ -307,27 +326,51 @@ def set_deployable():
     return '', 200
 
 
+@app.route('/ui/')
+def ui_index():
+    targets = {}
+    for target_ref, deployed_sha in prs.latest_deployed.items():
+        targets[target_ref] = {
+            'ref': target_ref,
+            'deployed_sha': deployed_sha,
+            'job': prs.deploy_jobs.get(target_ref, None)
+        }
+    return render_template(
+        'index.html',
+        prs_by_target=prs.all_by_target().items(),
+        targets=targets)
+
+
+@app.route('/ui/job-log/<id>')
+def job_log(id):
+    j = batch_client.get_job(id)
+    return render_template(
+        'job-log.html',
+        id=j.id,
+        log=j.log())
+
+
 ###############################################################################
 
 
 def receive_ci_job(source, target, job):
     upload_public_gs_file_from_string(GCS_BUCKET,
-                                      f'ci/{source.sha}/{target.sha}/job.log',
+                                      f'{GCS_BUCKET_PREFIX}ci/{source.sha}/{target.sha}/job.log',
                                       job.cached_status()['log'])
     upload_public_gs_file_from_filename(
         GCS_BUCKET,
-        f'ci/{source.sha}/{target.sha}/index.html',
+        f'{GCS_BUCKET_PREFIX}ci/{source.sha}/{target.sha}/index.html',
         'index.html')
     prs.ci_build_finished(source, target, job)
 
 
 def receive_deploy_job(target, job):
     upload_public_gs_file_from_string(GCS_BUCKET,
-                                      f'deploy/{target.sha}/job.log',
+                                      f'{GCS_BUCKET_PREFIX}deploy/{target.sha}/job.log',
                                       job.cached_status()['log'])
     upload_public_gs_file_from_filename(
         GCS_BUCKET,
-        f'deploy/{target.sha}/index.html',
+        f'{GCS_BUCKET_PREFIX}deploy/{target.sha}/index.html',
         'deploy-index.html')
     prs.deploy_build_finished(target, job)
 
@@ -366,7 +409,8 @@ def fix_werkzeug_logs():
         getattr(werkzeug_logger, type)('%s %s' % (self.address_string(), message % args))
 
 
-if __name__ == '__main__':
+def run():
+    """Main entry point."""
     fix_werkzeug_logs()
     threading.Thread(target=polling_event_loop).start()
     app.run(host='0.0.0.0', threaded=False)

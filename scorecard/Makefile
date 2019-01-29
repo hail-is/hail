@@ -11,13 +11,13 @@ push: build
 	docker tag scorecard $(IMAGE)
 	docker push $(IMAGE)
 
-run-docker:
+run-docker: build
 	docker run -i -p 5000:5000 -v secrets:/secrets -t scorecard
 
 run:
 	GITHUB_TOKEN_PATH=secrets/scorecard-github-access-token.txt python scorecard/scorecard.py
 
-deploy:
+deploy: push
 	sed -e "s,@sha@,$(shell git rev-parse --short=12 HEAD)," \
 	  -e "s,@image@,$(shell cat scorecard-image)," \
 	  < deployment.yaml.in > deployment.yaml

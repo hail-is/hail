@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.expr.types._
 import is.hail.utils._
 import is.hail.TestUtils._
+import is.hail.expr.types.virtual.{TArray, TFloat64}
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
 import org.scalatest.testng.TestNGSuite
@@ -189,5 +190,12 @@ class MathFunctionsSuite extends TestNGSuite {
     val r = eval(invoke("hardy_weinberg_test", nHomRef, nHet, nHomVar)).asInstanceOf[Row]
     assert(D0_==(pValue, r.getDouble(0)))
     assert(D0_==(hetFreq, r.getDouble(1)))
+  }
+
+  @Test def modulusTest() {
+    assertFatal(invoke("%", I32(1), I32(0)), "modulo by zero")
+    assertFatal(invoke("%", I64(1), I64(0)), "modulo by zero")
+    assertFatal(invoke("%", F32(1), F32(0)), "modulo by zero")
+    assertFatal(invoke("%", F64(1), F64(0)), "modulo by zero")
   }
 }

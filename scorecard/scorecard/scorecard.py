@@ -4,6 +4,7 @@ import datetime
 import os
 import sys
 from flask import Flask, render_template, request, jsonify, abort, url_for
+from flask_cors import CORS
 from github import Github
 import random
 import threading
@@ -36,7 +37,17 @@ with open(GITHUB_TOKEN_PATH, 'r') as f:
     token = f.read().strip()
 github = Github(token)
 
-users = ['danking', 'cseed', 'tpoterba', 'jigold', 'jbloom22', 'catoverdrive', 'patrick-schultz', 'chrisvittal']
+users = [
+    'danking',
+    'tpoterba',
+    'jigold',
+    'jbloom22',
+    'catoverdrive',
+    'patrick-schultz',
+    'chrisvittal',
+    'akotlar',
+    'daniel-goldstein',
+]
 
 default_repo = 'hail'
 repos = {
@@ -45,12 +56,44 @@ repos = {
 }
 
 app = Flask('scorecard')
+CORS(app, resources={r'/json/*': {'origins': '*'}})
 
 data = None
 timsetamp = None
 
 @app.route('/')
 def index():
+    user_data, unassigned, urgent_issues, updated = get_users()
+
+    random_user = random.choice(users)
+
+    return render_template('index.html', unassigned=unassigned,
+                           user_data=user_data, urgent_issues=urgent_issues, random_user=random_user, updated=updated)
+
+@app.route('/users/<user>')
+def html_get_user(user):
+    user_data, updated = get_user(user)
+    return render_template('user.html', user=user, user_data=user_data, updated=updated)
+
+@app.route('/json')
+def json_all_users():
+    user_data, unassigned, urgent_issues, updated = get_users()
+
+    for issue in urgent_issues:
+        issue['timedelta'] = humanize.naturaltime(issue['timedelta'])
+
+    return jsonify(updated=updated, user_data=user_data, unassigned=unassigned, urgent_issues=urgent_issues)
+
+@app.route('/json/users/<user>')
+def json_user(user):
+    user_data, updated = get_user(user)
+    return jsonify(updated=updated, data=user_data)
+
+@app.route('/json/random')
+def json_random_user():
+    return jsonify(random.choice(users))
+
+def get_users():
     cur_data = data
     cur_timestamp = timestamp
 
@@ -59,6 +102,8 @@ def index():
         lambda: {'CHANGES_REQUESTED': [],
                  'NEEDS_REVIEW': [],
                  'ISSUES': []})
+
+    urgent_issues = []
 
     def add_pr(repo_name, pr):
         state = pr['state']
@@ -76,7 +121,15 @@ def index():
     def add_issue(repo_name, issue):
         for user in issue['assignees']:
             d = user_data[user]
-            d['ISSUES'].append(issue)
+            if issue['urgent']:
+                time = datetime.datetime.now() - issue['created_at']
+                urgent_issues.append({
+                    'USER': user,
+                    'ISSUE': issue,
+                    'timedelta': time,
+                    'AGE': humanize.naturaltime(time)})
+            else:
+                d['ISSUES'].append(issue)
 
     for repo_name, repo_data in cur_data.items():
         for pr in repo_data['prs']:
@@ -89,27 +142,12 @@ def index():
         for issue in repo_data['issues']:
             add_issue(repo_name, issue)
 
-    random_user = random.choice(users)
+    list.sort(urgent_issues, key=lambda issue: issue['timedelta'], reverse=True)
 
     updated = humanize.naturaltime(
         datetime.datetime.now() - datetime.timedelta(seconds = time.time() - cur_timestamp))
 
-    return render_template('index.html', unassigned=unassigned,
-                           user_data=user_data, random_user=random_user, updated=updated)
-
-@app.route('/users/<user>')
-def html_get_user(user):
-    user_data, updated = get_user(user)
-    return render_template('user.html', user=user, user_data=user_data, updated=updated)
-
-@app.route('/json/users/<user>')
-def json_user(user):
-    user_data, updated = get_user(user)
-    return jsonify(updated=updated, data=user_data)
-
-@app.route('/json/random')
-def json_random_user():
-    return jsonify(random.choice(users))
+    return (user_data, unassigned, urgent_issues, updated)
 
 def get_user(user):
     global data, timestamp
@@ -192,7 +230,9 @@ def get_issue_data(repo_name, issue):
         'id': get_id(repo_name, issue.number),
         'title': issue.title,
         'assignees': assignees,
-        'html_url': issue.html_url
+        'html_url': issue.html_url,
+        'urgent': any(label.name == 'prio:high' for label in issue.labels),
+        'created_at': issue.created_at
     }
 
 def update_data():
@@ -220,6 +260,7 @@ def update_data():
             if issue.pull_request is None:
                 issue_data = get_issue_data(repo_name, issue)
                 new_data[repo_name]['issues'].append(issue_data)
+
 
     log.info('updating_data done')
 
@@ -259,5 +300,5 @@ def run_forever(target, *args, **kwargs):
 poll_thread = threading.Thread(target=run_forever, args=(poll,), daemon=True)
 poll_thread.start()
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     app.run(host='0.0.0.0')

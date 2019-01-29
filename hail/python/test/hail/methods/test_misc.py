@@ -9,9 +9,24 @@ tearDownModule = stopTestHailContext
 
 class Tests(unittest.TestCase):
     def test_rename_duplicates(self):
-        dataset = get_dataset()  # FIXME - want to rename samples with same id
-        renamed_ids = hl.rename_duplicates(dataset).cols().select().collect()
-        self.assertTrue(len(set(renamed_ids)), len(renamed_ids))
+        mt = hl.utils.range_matrix_table(5, 5)
+
+        assert hl.rename_duplicates(
+            mt.key_cols_by(s=hl.str(mt.col_idx))
+        ).unique_id.collect() == ['0', '1', '2', '3', '4']
+
+        assert hl.rename_duplicates(
+            mt.key_cols_by(s='0')
+        ).unique_id.collect() == ['0', '0_1', '0_2', '0_3', '0_4']
+
+        assert hl.rename_duplicates(
+            mt.key_cols_by(s=hl.literal(['0', '0_1', '0', '0_2', '0'])[mt.col_idx])
+        ).unique_id.collect() == ['0', '0_1', '0_2', '0_2_1', '0_3']
+
+        assert hl.rename_duplicates(
+            mt.key_cols_by(s=hl.str(mt.col_idx)),
+            'foo'
+        )['foo'].dtype == hl.tstr
 
     def test_annotate_intervals(self):
         ds = get_dataset()
@@ -96,6 +111,14 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(mis.all(mis.node.is_case))
         self.assertTrue(set([row.id for row in mis.select(mis.node.id).collect()]) in expected_sets)
+
+    def test_maximal_independent_set_types(self):
+        ht = hl.utils.range_table(10)
+        ht = ht.annotate(i=hl.struct(a='1', b=hl.rand_norm(0, 1)),
+                         j=hl.struct(a='2', b=hl.rand_norm(0, 1)))
+        ht = ht.annotate(ii=hl.struct(id=ht.i, rank=hl.rand_norm(0, 1)),
+                         jj=hl.struct(id=ht.j, rank=hl.rand_norm(0, 1)))
+        hl.maximal_independent_set(ht.ii, ht.jj).count()
 
     def test_matrix_filter_intervals(self):
         ds = hl.import_vcf(resource('sample.vcf'), min_partitions=20)

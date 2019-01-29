@@ -1,8 +1,8 @@
 package is.hail.expr.ir
 
-import is.hail.expr.types._
 import is.hail.utils.{FastIndexedSeq, FastSeq}
 import is.hail.TestUtils._
+import is.hail.expr.types.virtual._
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
@@ -289,9 +289,7 @@ class InterpretSuite {
       TStruct("a" -> TInt32()))
     val aggSig = AggSignature(Sum(), FastSeq(), None, FastSeq(TInt64()))
     assertEvalsTo(AggFilter(ApplyComparisonOp(LT(TInt32()), Ref("a", TInt32()), I32(11)),
-      ApplyAggOp(
-        FastSeq(Cast(Ref("a", TInt32()), TInt64())),
-      FastSeq(), None, aggSig)),
+      ApplyAggOp(FastSeq(), None, FastSeq(Cast(Ref("a", TInt32()), TInt64())), aggSig)),
       agg,
       15L)
   }

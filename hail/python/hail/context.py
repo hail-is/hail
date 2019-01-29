@@ -101,9 +101,15 @@ class HailContext(object):
 
         # do this at the end in case something errors, so we don't raise the above error without a real HC
         Env._hc = self
-
-        self._default_ref = None
-        Env.hail().variant.ReferenceGenome.setDefaultReference(self._jhc, default_reference)
+        
+        ReferenceGenome._from_config(_backend.get_reference('GRCh37'), True)
+        ReferenceGenome._from_config(_backend.get_reference('GRCh38'), True)
+        ReferenceGenome._from_config(_backend.get_reference('GRCm38'), True)
+        
+        if default_reference in ReferenceGenome._references:
+            self._default_ref = ReferenceGenome._references[default_reference]
+        else:
+            self._default_ref = ReferenceGenome.read(default_reference)
 
         jar_version = self._jhc.version()
 
@@ -111,8 +117,6 @@ class HailContext(object):
             raise RuntimeError(f"Hail version mismatch between JAR and Python library\n"
                    f"  JAR:    {jar_version}\n"
                    f"  Python: {version}")
-
-
 
         if not quiet:
             sys.stderr.write('Running on Apache Spark version {}\n'.format(self.sc.version))
@@ -139,10 +143,9 @@ class HailContext(object):
         install_exception_handler()
         Env.set_seed(global_seed)
 
+
     @property
     def default_reference(self):
-        if not self._default_ref:
-            self._default_ref = ReferenceGenome._from_java(Env.hail().variant.ReferenceGenome.defaultReference())
         return self._default_ref
 
     def stop(self):
@@ -169,7 +172,7 @@ class HailContext(object):
            min_block_size=int,
            branching_factor=int,
            tmp_dir=str,
-           default_reference=enumeration('GRCh37', 'GRCh38'),
+           default_reference=enumeration('GRCh37', 'GRCh38', 'GRCm38'),
            idempotent=bool,
            global_seed=nullable(int),
            _backend=nullable(Backend))
@@ -179,6 +182,39 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
          default_reference='GRCh37', idempotent=False,
          global_seed=6348563392232659379, _backend=None):
     """Initialize Hail and Spark.
+
+    Examples
+    --------
+    Import and initialize Hail using GRCh38 as the default reference genome:
+
+    >>> import hail as hl
+    >>> hl.init(default_reference='GRCh38')  # doctest: +SKIP
+
+    Notes
+    -----
+    Hail is not only a Python library; most of Hail is written in Java/Scala
+    and runs together with Apache Spark in the Java Virtual Machine (JVM).
+    In order to use Hail, a JVM needs to run as well. The :func:`.init`
+    function is used to initialize Hail and Spark.
+
+    This function also sets global configuration parameters used for the Hail
+    session, like the default reference genome and log file location.
+
+    This function will be called automatically (with default parameters) if
+    any Hail functionality requiring the backend (most of the libary!) is used.
+    To initialize Hail explicitly with non-default arguments, be sure to do so
+    directly after importing the module, as in the above example.
+
+    Note
+    ----
+    If a :class:`pyspark.SparkContext` is already running, then Hail must be
+    initialized with it as an argument:
+
+    >>> hl.init(sc=sc)  # doctest: +SKIP
+
+    See Also
+    --------
+    :func:`.stop`
 
     Parameters
     ----------
@@ -267,10 +303,7 @@ def get_reference(name) -> 'hail.ReferenceGenome':
     if name == 'default':
         return default_reference()
     else:
-        return hail.ReferenceGenome._references.get(
-            name,
-            hail.ReferenceGenome._from_java(Env.hail().variant.ReferenceGenome.getReference(name))
-        )
+        return ReferenceGenome._references[name]
 
 
 @typecheck(seed=int)
@@ -281,21 +314,17 @@ def set_global_seed(seed):
     ----------
     seed : :obj:`int`
         Integer used to seed Hail's random number generator
-
-    Returns
-    -------
-    :class:`.ReferenceGenome`
     """
 
     Env.set_seed(seed)
 
 
 def read_version_info() -> str:
-    from ._generated_version_info import hail_version
-    return hail_version
+    # https://stackoverflow.com/questions/6028000/how-to-read-a-static-file-from-inside-a-python-package
+    return pkg_resources.resource_string(__name__, 'hail_version').decode().strip()
 
 @typecheck(url=str)
-def _set_upload_url(str):
+def _set_upload_url(url):
     Env.hc()._jhc.setUploadURL(url)
 
 @typecheck(email=nullable(str))
@@ -316,7 +345,6 @@ def set_upload_email(email):
 
     Env.hc()._jhc.setUploadEmail(email)
 
-@typecheck(email=str)
 def enable_pipeline_upload():
     """Upload all subsequent pipelines to the Hail team in order to
     help improve Hail.
@@ -352,3 +380,16 @@ def upload_log():
     """
 
     Env.hc()._jhc.uploadLog()
+
+
+def _set_flags(**flags):
+    available = set(Env.hc()._jhc.flags().available())
+    invalid = []
+    for flag, value in flags.items():
+        if flag in available:
+            Env.hc()._jhc.flags().set(flag, value)
+        else:
+            invalid.append(flag)
+    if len(invalid) != 0:
+        raise FatalError("Flags {} not valid. Valid flags: \n    {}"
+                         .format(', '.join(invalid), '\n    '.join(available)))

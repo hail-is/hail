@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.annotations.aggregators._
 import is.hail.asm4s._
 import is.hail.expr.types._
+import is.hail.expr.types.virtual._
 import is.hail.utils._
 
 import scala.reflect.ClassTag
@@ -41,15 +42,15 @@ final case class Group() extends AggOp { }
 
 object AggOp {
 
-  def get(aggSig: AggSignature): BaseCodeAggregator[T] forSome { type T <: RegionValueAggregator } =
+  def get(aggSig: AggSignature): CodeAggregator[T] forSome { type T <: RegionValueAggregator } =
     getOption(aggSig).getOrElse(incompatible(aggSig))
 
   def getType(aggSig: AggSignature): Type = getOption(aggSig).getOrElse(incompatible(aggSig)).out
 
-  def getOption(aggSig: AggSignature): Option[BaseCodeAggregator[T] forSome { type T <: RegionValueAggregator }] =
+  def getOption(aggSig: AggSignature): Option[CodeAggregator[T] forSome { type T <: RegionValueAggregator }] =
     getOption(aggSig.op, aggSig.constructorArgs, aggSig.initOpArgs, aggSig.seqOpArgs)
 
-  val getOption: ((AggOp, Seq[Type], Option[Seq[Type]], Seq[Type])) => Option[BaseCodeAggregator[T] forSome { type T <: RegionValueAggregator }] = lift {
+  val getOption: ((AggOp, Seq[Type], Option[Seq[Type]], Seq[Type])) => Option[CodeAggregator[T] forSome { type T <: RegionValueAggregator }] = lift {
     case (Fraction(), Seq(), None, Seq(_: TBoolean)) =>
       CodeAggregator[RegionValueFractionAggregator](TFloat64(), seqOpArgTypes = Array(classOf[Boolean]))
 

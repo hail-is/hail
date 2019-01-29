@@ -1,15 +1,9 @@
 package is.hail.utils
 
 import is.hail.SparkSuite
-import is.hail.check._
-import is.hail.expr.ir.{Interpret, Pretty, TableImport}
-import is.hail.expr.types._
-import is.hail.table.Table
-import is.hail.variant.{MatrixTable, ReferenceGenome$, VSMSubgen}
-import org.apache.spark.sql.Row
+import is.hail.expr.ir.TextTableReader
+import is.hail.expr.types.virtual._
 import org.testng.annotations.Test
-
-import scala.io.Source
 
 class TextTableSuite extends SparkSuite {
 

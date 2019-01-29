@@ -1,28 +1,34 @@
-import json
 import time
 import random
-import requests
-import batch.api as api
+import yaml
 
-class Job(object):
-    def __init__(self, client, id, attributes=None, _status = None):
+import cerberus
+
+from . import api, schemas
+
+
+class Job:
+    def __init__(self, client, id, attributes=None, parent_ids=None, _status=None):
+        if parent_ids is None:
+            parent_ids = []
         if attributes is None:
             attributes = {}
 
         self.client = client
         self.id = id
         self.attributes = attributes
+        self.parent_ids = parent_ids
         self._status = _status
 
     def is_complete(self):
         if self._status:
             state = self._status['state']
-            if state == 'Complete' or state == 'Cancelled':
+            if state in ('Complete', 'Cancelled'):
                 return True
         return False
 
     def cached_status(self):
-        assert self._status != None
+        assert self._status is not None
         return self._status
 
     def status(self):
@@ -32,7 +38,7 @@ class Job(object):
     def wait(self):
         i = 0
         while True:
-            self.status() # update
+            self.status()  # update
             if self.is_complete():
                 return self._status
             j = random.randrange(2 ** i)
@@ -46,7 +52,7 @@ class Job(object):
 
     def delete(self):
         self.client._delete_job(self.id)
-        
+
         self.id = None
         self.attributes = None
         self._status = None
@@ -54,16 +60,20 @@ class Job(object):
     def log(self):
         return self.client._get_job_log(self.id)
 
-class Batch(object):
+
+class Batch:
     def __init__(self, client, id):
         self.client = client
         self.id = id
 
     def create_job(self, image, command=None, args=None, env=None, ports=None,
                    resources=None, tolerations=None, volumes=None, security_context=None,
-                   service_account_name=None, attributes=None, callback=None):
-        return self.client._create_job(image, command, args, env, ports, resources, tolerations, volumes, security_context, service_account_name,
-                                       attributes, self.id, callback)
+                   service_account_name=None, attributes=None, callback=None, parent_ids=None):
+        if parent_ids is None:
+            parent_ids = []
+        return self.client._create_job(
+            image, command, args, env, ports, resources, tolerations, volumes, security_context,
+            service_account_name, attributes, self.id, callback, parent_ids)
 
     def status(self):
         return self.client._get_batch(self.id)
@@ -80,14 +90,29 @@ class Batch(object):
             if i < 9:
                 i = i + 1
 
-class BatchClient(object):
-    def __init__(self, url=None):
+
+class BatchClient:
+    def __init__(self, url=None, api=api.DEFAULT_API):
         if not url:
             url = 'http://batch.default'
         self.url = url
+        self.api = api
 
-    def _create_job(self, image, command, args, env, ports, resources, tolerations, volumes, security_context, service_account_name,
-                    attributes, batch_id, callback):
+    def _create_job(self,
+                    image,
+                    command,
+                    args,
+                    env,
+                    ports,
+                    resources,
+                    tolerations,
+                    volumes,
+                    security_context,
+                    service_account_name,
+                    attributes,
+                    batch_id,
+                    callback,
+                    parent_ids):
         if env:
             env = [{'name': k, 'value': v} for (k, v) in env.items()]
         else:
@@ -136,35 +161,35 @@ class BatchClient(object):
         if service_account_name:
             spec['serviceAccountName'] = service_account_name
 
-        j = api.create_job(self.url, spec, attributes, batch_id, callback)
-        return Job(self, j['id'], j.get('attributes'))
+        j = self.api.create_job(self.url, spec, attributes, batch_id, callback, parent_ids)
+        return Job(self, j['id'], j.get('attributes'), j.get('parent_ids', []))
 
     def _get_job(self, id):
-        return api.get_job(self.url, id)
+        return self.api.get_job(self.url, id)
 
     def _get_job_log(self, id):
-        return api.get_job_log(self.url, id)
+        return self.api.get_job_log(self.url, id)
 
     def _delete_job(self, id):
-        api.delete_job(self.url, id)
+        self.api.delete_job(self.url, id)
 
     def _cancel_job(self, id):
-        api.cancel_job(self.url, id)
+        self.api.cancel_job(self.url, id)
 
     def _get_batch(self, batch_id):
-        return api.get_batch(self.url, batch_id)
+        return self.api.get_batch(self.url, batch_id)
 
     def _refresh_k8s_state(self):
-        api.refresh_k8s_state(self.url)
+        self.api.refresh_k8s_state(self.url)
 
     def list_jobs(self):
-        jobs = api.list_jobs(self.url)
-        return [Job(self, j['id'], j.get('attributes'), j) for j in jobs]
+        jobs = self.api.list_jobs(self.url)
+        return [Job(self, j['id'], j.get('attributes'), j.get('parent_ids', []), j) for j in jobs]
 
     def get_job(self, id):
         # make sure job exists
-        j = api.get_job(self.url, id)
-        return Job(self, j['id'], j.get('attributes'), j)
+        j = self.api.get_job(self.url, id)
+        return Job(self, j['id'], j.get('attributes'), j.get('parent_ids', []), j)
 
     def create_job(self,
                    image,
@@ -178,10 +203,47 @@ class BatchClient(object):
                    security_context=None,
                    service_account_name=None,
                    attributes=None,
-                   callback=None):
-        return self._create_job(image, command, args, env, ports, resources, tolerations, volumes, security_context,
-                                service_account_name, attributes, None, callback)
+                   callback=None,
+                   parent_ids=None):
+        if parent_ids is None:
+            parent_ids = []
+        return self._create_job(
+            image, command, args, env, ports, resources, tolerations, volumes, security_context,
+            service_account_name, attributes, None, callback, parent_ids)
 
-    def create_batch(self, attributes=None):
-        b = api.create_batch(self.url, attributes)
-        return Batch(self, b['id'])
+    def create_batch(self, attributes=None, callback=None):
+        batch = self.api.create_batch(self.url, attributes, callback)
+        return Batch(self, batch['id'])
+
+    job_yaml_schema = {
+        'spec': schemas.pod_spec,
+        'type': {'type': 'string', 'allowed': ['execute']},
+        'name': {'type': 'string'},
+        'dependsOn': {'type': 'list', 'schema': {'type': 'string'}},
+    }
+    job_yaml_validator = cerberus.Validator(job_yaml_schema)
+
+    def create_batch_from_file(self, file):
+        job_id_by_name = {}
+
+        def job_id_by_name_or_error(id, self_id):
+            job = job_id_by_name.get(id)
+            if job:
+                return job
+            raise ValueError(
+                '"{self_id}" must appear in the file after its dependency "{id}"')
+
+        batch = self.create_batch()
+        for doc in yaml.load(file):
+            if not BatchClient.job_yaml_validator.validate(doc):
+                raise BatchClient.job_yaml_validator.errors
+            spec = doc['spec']
+            type = doc['type']
+            name = doc['name']
+            dependsOn = doc.get('dependsOn', [])
+            if type == 'execute':
+                job = batch.create_job(
+                    parent_ids=[job_id_by_name_or_error(x, name) for x in dependsOn],
+                    **spec)
+                job_id_by_name[name] = job.id
+        return batch

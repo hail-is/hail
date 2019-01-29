@@ -1,16 +1,18 @@
+import json
+
 from batch.client import Job
-from batch_helper import short_str_build_job
-from ci_logging import log
-from constants import VERSION, DEPLOY_JOB_TYPE
-from environment import \
+
+from .batch_helper import short_str_build_job, try_to_cancel_job
+from .ci_logging import log
+from .constants import VERSION, DEPLOY_JOB_TYPE
+from .environment import \
     PR_DEPLOY_SCRIPT, \
     batch_client, \
     SELF_HOSTNAME
-from git_state import FQRef, FQSHA, Repo
-from github import latest_sha_for_ref
-from http_helper import put_repo
-from pr import PR, GitHubPR, get_image_for_target
-import json
+from .git_state import FQRef, FQSHA, Repo
+from .github import latest_sha_for_ref
+from .http_helper import put_repo
+from .pr import PR, GitHubPR, get_image_for_target
 
 
 class PRS(object):
@@ -93,6 +95,10 @@ class PRS(object):
         pr = self._get(source.ref, target.ref)
         return pr and pr.source.sha == source.sha and pr.target.sha == target.sha
 
+    def all_by_target(self):
+        return {target: source_to_pr.values()
+                for target, source_to_pr in self.target_source_pr.items()}
+
     def live_targets(self):
         return self.target_source_pr.keys()
 
@@ -108,6 +114,14 @@ class PRS(object):
 
     def ready_to_merge(self, target):
         return [pr for pr in self.for_target(target) if pr.is_mergeable()]
+
+    def building(self):
+        return [pr
+                for target in self.live_targets()
+                for pr in self.building_for_target(target)]
+
+    def building_for_target(self, target):
+        return [pr for pr in self.for_target(target) if pr.is_building()]
 
     def update_watch_state(self, target_ref, action):
         assert isinstance(target_ref, FQRef)
@@ -143,8 +157,8 @@ class PRS(object):
 
     def build_next(self, target):
         approved = [pr for pr in self.for_target(target) if pr.is_approved()]
-        running = [x for x in approved if x.is_running()]
-        if len(running) != 0:
+        building = [x for x in approved if x.is_building()]
+        if len(building) != 0:
             to_build = []
         else:
             approved_and_need_status = [
@@ -304,11 +318,22 @@ class PRS(object):
         assert isinstance(job, Job), f'{job.id} {job.attributes}'
         expected_job = self.deploy_jobs.get(target.ref, None)
         if expected_job is None:
-            log.error(f'notified of unexpected deploy job {job.id} (I am not waiting ofr any for {target.short_str()})')
+            log.error(f'notified of unexpected deploy job {job.id} (I am not waiting for any for {target.short_str()})')
             return
         if expected_job.id != job.id:
-            log.error(f'notified of unexpected deploy job {job.id}, expected {expected_job.id} for {target.short_str()}')
-            return
+            expected_target = FQSHA.from_json(json.loads(expected_job.attributes['target']))
+            if expected_target == target:
+                try_to_cancel_job(expected_job)
+                log.info(
+                    f'proceeding with unexpected deploy job {job.id}, '
+                    f'because targets matched: {target} {expected_target}. '
+                    f'Expected {expected_job.id}.')
+            else:
+                log.error(
+                    f'proceeding with unexpected deploy job {job.id}, '
+                    f'because targets matched: {target} {expected_target}. '
+                    f'Expected {expected_job.id}.')
+                return
         assert job.cached_status()['state'] == 'Complete'
         exit_code = job.cached_status()['exit_code']
         del self.deploy_jobs[target.ref]
@@ -317,7 +342,17 @@ class PRS(object):
         else:
             log.info(f'deploy job {job.id} succeeded for {target.short_str()}')
             self.latest_deployed[target.ref] = target.sha
-        job.delete()
+        job.cancel()
+
+    def refresh_from_deploy_jobs(self, jobs):
+        lost_jobs = {target_ref for target_ref in self.deploy_jobs.keys()}
+        for (target, job) in jobs.items():
+            lost_jobs.discard(target.ref)
+            self.refresh_from_deploy_job(target, job)
+        for target_ref in lost_jobs:
+            log.info(f'{target_ref.short_str()} was not found in batch refresh '
+                     f'and will be treated like a cancelled job')
+            del self.deploy_jobs[target_ref]
 
     def refresh_from_deploy_job(self, target, job):
         assert isinstance(job, Job), job
@@ -331,15 +366,15 @@ class PRS(object):
         elif state == 'Cancelled':
             log.info(f'refreshing from cancelled deploy job {job.id} {job.attributes}')
             del self.deploy_jobs[target.ref]
-            job.delete()
+            job.cancel()
         else:
             assert state == 'Created', f'{state} {job.id} {job.attributes}'
             existing_job = self.deploy_jobs[target.ref]
             if existing_job is None:
                 self.deploy_jobs[target.ref] = job
             elif existing_job.id != job.id:
-                log.info(f'found deploy job {job.id} other than mine {existing_job.id}, deleting')
-                job.delete()
+                log.info(f'found deploy job {job.id} other than mine {existing_job.id}, canceling')
+                job.cancel()
 
     def ci_build_finished(self, source, target, job):
         assert isinstance(job, Job), job
@@ -355,6 +390,20 @@ class PRS(object):
                   pr.update_from_completed_batch_job(job))
         # eagerly heal because a finished job might mean new work to do
         self.heal_target(target.ref)
+
+    def refresh_from_ci_jobs(self, jobs):
+        lost_jobs = {(pr.source, pr.target) for pr in self.building()}
+        for ((source, target), job) in jobs.items():
+            lost_jobs.discard((source, target))
+            self.refresh_from_ci_job(source, target, job)
+        for (source, target) in lost_jobs:
+            log.info(f'{source.short_str()} {target.short_str()} were not '
+                     f'found in batch refresh, so they will be reset to '
+                     f'the buildable state')
+            pr = self._get(source.ref, target.ref)
+            self._set(source.ref,
+                      target.ref,
+                      pr.refresh_from_missing_job())
 
     def refresh_from_ci_job(self, source, target, job):
         assert isinstance(job, Job), job
@@ -392,6 +441,7 @@ class PRS(object):
         if status_code == 200:
             log.info(f'successful merge of {pr.short_str()}')
             self._set(pr.source.ref, pr.target.ref, pr.merged())
+            pr.notify_github(pr.build, status_sha=gh_response['sha'])
         else:
             assert status_code == 409, f'{status_code} {gh_response}'
             log.warning(

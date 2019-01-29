@@ -1,7 +1,7 @@
 package is.hail.annotations.aggregators
 
 import is.hail.annotations.{Annotation, Region, RegionValueBuilder, SafeRow}
-import is.hail.expr.types.Type
+import is.hail.expr.types.virtual.Type
 import is.hail.utils._
 
 import scala.collection.mutable
@@ -22,15 +22,17 @@ class RegionValueCounterAggregator(t: Type) extends RegionValueAggregator {
 
   override def result(rvb: RegionValueBuilder) {
     rvb.startArray(m.size)
-    m.foreach { case (k, v) =>
-      rvb.startStruct()
-      if (k == null)
-        rvb.setMissing()
-      else
-        rvb.addAnnotation(t, k)
-      rvb.addLong(v)
-      rvb.endStruct()
-    }
+    m.toArray
+      .sortBy(f => f._1)(t.ordering.toOrdering)
+      .foreach { case (k, v) =>
+        rvb.startStruct()
+        if (k == null)
+          rvb.setMissing()
+        else
+          rvb.addAnnotation(t, k)
+        rvb.addLong(v)
+        rvb.endStruct()
+      }
     rvb.endArray()
   }
 

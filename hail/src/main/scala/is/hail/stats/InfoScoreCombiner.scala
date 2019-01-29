@@ -3,6 +3,7 @@ package is.hail.stats
 import is.hail.annotations.{Annotation, Region, RegionValueBuilder}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PArray, PFloat64, PType}
+import is.hail.expr.types.virtual.{TFloat64, TInt32, TStruct}
 import is.hail.utils._
 
 object InfoScoreCombiner {

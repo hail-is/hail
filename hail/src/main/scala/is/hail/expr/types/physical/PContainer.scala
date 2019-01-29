@@ -2,6 +2,7 @@ package is.hail.expr.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s._
+import is.hail.cxx
 import is.hail.utils._
 
 object PContainer {
@@ -20,8 +21,6 @@ abstract class PContainer extends PType {
   override def byteSize: Long = 8
 
   def contentsAlignment: Long
-
-  override def children = FastSeq(elementType)
 
   final def loadLength(region: Region, aoff: Long): Int =
     PContainer.loadLength(region, aoff)
@@ -182,16 +181,15 @@ abstract class PContainer extends PType {
     )
   }
 
-  override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering =
-    unsafeOrdering(this, missingGreatest)
+  override def unsafeOrdering(): UnsafeOrdering =
+    unsafeOrdering(this)
 
-  override def unsafeOrdering(rightType: PType, missingGreatest: Boolean): UnsafeOrdering = {
+  override def unsafeOrdering(rightType: PType): UnsafeOrdering = {
     require(this.isOfType(rightType))
 
     val right = rightType.asInstanceOf[PContainer]
     val eltOrd = elementType.unsafeOrdering(
-      right.elementType,
-      missingGreatest)
+      right.elementType)
 
     new UnsafeOrdering {
       override def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
@@ -211,15 +209,52 @@ abstract class PContainer extends PType {
               return c
           } else if (leftDefined != rightDefined) {
             val c = if (leftDefined) -1 else 1
-            if (missingGreatest)
-              return c
-            else
-              return -c
+            return c
           }
           i += 1
         }
         Integer.compare(length1, length2)
       }
     }
+  }
+
+  def cxxImpl: String = {
+    elementType match {
+      case _: PStruct =>
+        s"ArrayAddrImpl<${ elementType.required },${ elementType.byteSize },${ elementType.alignment }>"
+      case _ =>
+        s"ArrayLoadImpl<${ cxx.typeToCXXType(elementType) },${ elementType.required },${ elementType.byteSize },${ elementType.alignment }>"
+    }
+  }
+
+  def cxxLoadLength(a: cxx.Code): cxx.Code = {
+    s"$cxxImpl::load_length($a)"
+  }
+
+  def cxxIsElementMissing(a: cxx.Code, i: cxx.Code): cxx.Code = {
+    s"$cxxImpl::is_element_missing($a, $i)"
+  }
+
+  def cxxNMissingBytes(len: cxx.Code): cxx.Code = {
+    if (elementType.required)
+      "0"
+    else
+      s"(($len + 7) >> 3)"
+  }
+
+  def cxxContentsByteSize(len: cxx.Code): cxx.Code = {
+    s"${ cxxElementsOffset(len) } + $len * ${ UnsafeUtils.arrayElementSize(elementType) }"
+  }
+
+  def cxxElementsOffset(len: cxx.Code): cxx.Code = {
+    s"$cxxImpl::elements_offset($len)"
+  }
+
+  def cxxElementAddress(a: cxx.Code, i: cxx.Code): cxx.Code = {
+    s"$cxxImpl::element_address($a, $i)"
+  }
+
+  def cxxLoadElement(a: cxx.Code, i: cxx.Code): cxx.Code = {
+    s"$cxxImpl::load_element($a, $i)"
   }
 }

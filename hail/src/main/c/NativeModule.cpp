@@ -1,3 +1,4 @@
+#include "hail/NativeMethod.h"
 #include "hail/NativeModule.h"
 #include "hail/NativeObj.h"
 #include "hail/NativePtr.h"
@@ -249,14 +250,15 @@ private:
     bool have_oflag = (strstr(options_.c_str(), "-O") != nullptr);
     fprintf(f, "  %s%s \\\n", have_oflag ? "" : "-O3", options_.c_str());
     fprintf(f, "  -DHAIL_MODULE=$(MODULE)\n");
-    fprintf(f, "LIBFLAGS := -fvisibility=default %s\n", 
+    fprintf(f, "LDFLAGS := -fvisibility=default %s\n",
       config.is_darwin_ ? "-dynamiclib -Wl,-undefined,dynamic_lookup"
                          : "-rdynamic -shared");
+    fprintf(f, "LIBS = -llz4\n");
     fprintf(f, "\n");
     // build .so from .cpp
     fprintf(f, "$(MODULE_SO): FORCE\n");
     fprintf(f, "\t$(CXX) $(CXXFLAGS) -o $(MODULE).o -c $(MODULE).cpp 2> $(MODULE).err\n");
-    fprintf(f, "\t$(CXX) $(CXXFLAGS) $(LIBFLAGS) -o $@ $(MODULE).o 2>> $(MODULE).err\n");
+    fprintf(f, "\t$(CXX) $(CXXFLAGS) $(LDFLAGS) -o $@ $(MODULE).o $(LIBS) 2>> $(MODULE).err\n");
     fprintf(f, "\n");
     fclose(f);
   }
@@ -352,6 +354,7 @@ bool NativeModule::try_load_locked() {
       dlopen_handle_ = handle;
       load_state_ = kPass;
     } else {
+      fprintf(stderr, "dlopen: %s\n", dlerror());
       // Attempts to find a func will give a bad NativeStatus
       load_state_ = kFail;
     }

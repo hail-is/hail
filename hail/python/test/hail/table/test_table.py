@@ -9,7 +9,6 @@ from hail.utils import new_temp_file
 from hail.utils.java import Env
 from ..helpers import *
 from test.hail.matrixtable.test_file_formats import create_all_values_datasets
-from timeit import default_timer as timer
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
@@ -191,6 +190,12 @@ class Tests(unittest.TestCase):
 
         r = kt.aggregate(agg.filter(kt.idx % 2 != 0, agg.sum(kt.idx + 2)) + kt.g1)
         self.assertEqual(r, 40)
+
+    def test_group_by_field_lifetimes(self):
+        ht = hl.utils.range_table(3)
+        ht2 = (ht.group_by(idx='100')
+               .aggregate(x=hl.agg.collect_as_set(ht.idx + 5)))
+        assert (ht2.all(ht2.x == hl.set({5, 6, 7})))
 
     def test_group_aggregate_by_key(self):
         ht = hl.utils.range_table(100, n_partitions=10)
@@ -374,6 +379,58 @@ class Tests(unittest.TestCase):
         mt.select_entries(a=mt2[mt.row_idx, mt.col_idx].x,
                           b=mt2[mt.row_idx, mt.col_idx].x)
 
+    def test_multi_way_zip_join(self):
+        d1 = [{"id": 0, "name": "a", "data": 0.0},
+              {"id": 1, "name": "b", "data": 3.14},
+              {"id": 2, "name": "c", "data": 2.78}]
+        d2 = [{"id": 0, "name": "d", "data": 1.1},
+              {"id": 0, "name": "x", "data": 2.2},
+              {"id": 2, "name": "v", "data": 7.89}]
+        d3 = [{"id": 1, "name": "f", "data":  9.99},
+              {"id": 2, "name": "g", "data": -1.0},
+              {"id": 3, "name": "z", "data":  0.01}]
+        s = hl.tstruct(id=hl.tint32, name=hl.tstr, data=hl.tfloat64)
+        ts = [hl.Table.parallelize(r, schema=s, key='id') for r in [d1, d2, d3]]
+        joined = hl.Table._multi_way_zip_join(ts, '__data', '__globals').drop('__globals')
+        dexpected = [{"id": 0, "__data": [{"name": "a", "data": 0.0},
+                                          {"name": "d", "data": 1.1},
+                                          None]},
+                     {"id": 0, "__data": [None,
+                                          {"name": "x", "data": 2.2},
+                                          None]},
+                     {"id": 1, "__data": [{"name": "b", "data": 3.14},
+                                          None,
+                                          {"name": "f", "data":  9.99}]},
+                     {"id": 2, "__data": [{"name": "c", "data": 2.78},
+                                          {"name": "v", "data": 7.89},
+                                          {"name": "g", "data": -1.0}]},
+                     {"id": 3, "__data": [None,
+                                          None,
+                                          {"name": "z", "data":  0.01}]}]
+        expected = hl.Table.parallelize(
+            dexpected,
+            schema=hl.tstruct(id=hl.tint32, __data=hl.tarray(hl.tstruct(name=hl.tstr, data=hl.tfloat64))),
+            key='id')
+        self.assertTrue(expected._same(joined))
+
+        expected2 = expected.transmute(data=expected['__data'])
+        joined_same_name = hl.Table._multi_way_zip_join(ts, 'data', 'globals').drop('globals')
+        self.assertTrue(expected2._same(joined_same_name))
+
+        joined_nothing = hl.Table._multi_way_zip_join(ts, 'data', 'globals').drop('data', 'globals')
+        self.assertEqual(joined_nothing._force_count(), 5)
+
+    def test_multi_way_zip_join_globals(self):
+        t1 = hl.utils.range_table(1).annotate_globals(x=hl.null(hl.tint32))
+        t2 = hl.utils.range_table(1).annotate_globals(x=5)
+        t3 = hl.utils.range_table(1).annotate_globals(x=0)
+        expected = hl.struct(__globals=hl.array([
+            hl.struct(x=hl.null(hl.tint32)),
+            hl.struct(x=5),
+            hl.struct(x=0)]))
+        joined = hl.Table._multi_way_zip_join([t1, t2, t3], '__data', '__globals')
+        self.assertEqual(hl.eval(joined.globals), hl.eval(expected))
+
     def test_index_maintains_count(self):
         t1 = hl.Table.parallelize([
             {'a': 'foo', 'b': 1},
@@ -416,7 +473,7 @@ class Tests(unittest.TestCase):
 
     def test_weird_names(self):
         df = hl.utils.range_table(10)
-        exprs = {'a': 5, '   a    ': 5, r'\%!^!@#&#&$%#$%': [5]}
+        exprs = {'a': 5, '   a    ': 5, r'\%!^!@#&#&$%#$%': [5], '$': 5, 'ß': 5}
 
         df.annotate_globals(**exprs)
         df.select_globals(**exprs)
@@ -751,6 +808,10 @@ class Tests(unittest.TestCase):
         t2 = t2.annotate(x=hl.struct(contig='1', position=t2.idx+1))
         self.assertTrue(t1._same(t2))
 
+    def test_expand_types_on_all_types(self):
+        t = create_all_values_table()
+        t.expand_types()
+
     def test_join_mangling(self):
         t1 = hl.utils.range_table(10).annotate_globals(glob1=5).annotate(row1=5)
         j = t1.join(t1, 'inner')
@@ -758,23 +819,98 @@ class Tests(unittest.TestCase):
         assert j.globals.dtype == hl.tstruct(glob1=hl.tint32, glob1_1=hl.tint32)
         j._force_count()
 
+    def test_key_by_aggregate_rewriting(self):
+        ht = hl.utils.range_table(10)
+        ht = ht.group_by(x=ht.idx % 5).aggregate(aggr = hl.agg.count())
+        assert(ht.count() == 5)
 
-def assert_time(f, max_duration):
-    start = timer()
-    x = f()
-    end = timer()
-    assert (start - end) < max_duration
-    print(start - end)
-    return x
+    def test_field_method_assignment(self):
+        ht = hl.utils.range_table(10)
+        ht = ht.annotate(sample=1)
+        ht = ht.annotate(_row=2)
+        assert ht['sample'].dtype == hl.tint32
+        assert ht['_row'].dtype == hl.tint32
 
+    def test_refs_with_process_joins(self):
+        ht = hl.utils.range_table(10).annotate(foo=5)
+        ht.annotate(a_join=ht[ht.key],
+                    a_literal=hl.literal(['a']),
+                    the_row_failure=hl.cond(True, ht.row, hl.null(ht.row.dtype)),
+                    the_global_failure=hl.cond(True, ht.globals, hl.null(ht.globals.dtype))).count()
+
+    def test_aggregate_localize_false(self):
+        ht = hl.utils.range_table(10)
+        ht = ht.annotate(y = ht.idx + ht.aggregate(hl.agg.max(ht.idx), _localize=False))
+        assert ht.y.collect() == [x + 9 for x in range(10)]
+
+    def test_collect_localize_false(self):
+        ht = hl.utils.range_table(10)
+        assert hl.eval(ht.collect(_localize=False)) == ht.collect()
+
+    def test_take_localize_false(self):
+        ht = hl.utils.range_table(10)
+        assert hl.eval(ht.take(3, _localize=False)) == ht.take(3)
+
+    def test_expr_collect_localize_false(self):
+        ht = hl.utils.range_table(10)
+        assert hl.eval(ht.idx.collect(_localize=False)) == ht.idx.collect()
+
+    def test_expr_take_localize_false(self):
+        ht = hl.utils.range_table(10)
+        assert hl.eval(ht.idx.take(3, _localize=False)) == ht.idx.take(3)
+
+    def test_empty_show(self):
+        hl.utils.range_table(1).filter(False).show()
+
+    def test_same_equal(self):
+        t1 = hl.utils.range_table(1)
+        self.assertTrue(t1._same(t1))
+
+    def test_same_within_tolerance(self):
+        t = hl.utils.range_table(1)
+        t1 = t.annotate(x = 1.0)
+        t2 = t.annotate(x = 1.0 + 1e-7)
+        self.assertTrue(t1._same(t2))
+
+    def test_same_different_type(self):
+        t1 = hl.utils.range_table(1)
+
+        t2 = t1.annotate_globals(x = 7)
+        self.assertFalse(t1._same(t2))
+        
+        t3 = t1.annotate(x = 7)
+        self.assertFalse(t1._same(t3))
+
+        t4 = t1.key_by()
+        self.assertFalse(t1._same(t4))
+
+    def test_same_different_global(self):
+        t1 = (hl.utils.range_table(1)
+              .annotate_globals(x = 7))
+        t2 = t1.annotate_globals(x = 8)
+        self.assertFalse(t1._same(t2))
+
+    def test_same_different_rows(self):
+        t1 = (hl.utils.range_table(2)
+              .annotate(x = 7))
+        
+        t2 = t1.annotate(x = 8)
+        self.assertFalse(t1._same(t2))
+
+        t3 = t1.filter(t1.idx == 0)
+        self.assertFalse(t1._same(t3))
+        
 
 def test_large_number_of_fields(tmpdir):
-    mt = hl.utils.range_table(100)
-    mt = mt.annotate(**{
+    ht = hl.utils.range_table(100)
+    ht = ht.annotate(**{
         str(k): k for k in range(1000)
     })
-    f = tmpdir.join("foo.mt")
-    assert_time(lambda: mt.count(), 5)
-    assert_time(lambda: mt.write(str(f)), 5)
-    mt = assert_time(lambda: hl.read_table(str(f)), 5)
-    assert_time(lambda: mt.count(), 5)
+    f = tmpdir.join("foo.ht")
+    assert_time(lambda: ht.count(), 5)
+    assert_time(lambda: ht.write(str(f)), 5)
+    ht = assert_time(lambda: hl.read_table(str(f)), 5)
+    assert_time(lambda: ht.count(), 5)
+
+def test_import_many_fields():
+    assert_time(lambda: hl.import_table(resource('many_cols.txt')), 5)

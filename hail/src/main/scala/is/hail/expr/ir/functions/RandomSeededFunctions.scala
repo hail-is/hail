@@ -4,6 +4,7 @@ import is.hail.annotations.StagedRegionValueBuilder
 import is.hail.asm4s.Code
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PArray, PFloat64}
+import is.hail.expr.types.virtual.{TArray, TBoolean, TFloat64, TInt32}
 import is.hail.utils._
 import net.sourceforge.jdistlib.rng.MersenneTwister
 import net.sourceforge.jdistlib.{Beta, Gamma, Poisson}

@@ -8,6 +8,7 @@ import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.{TableLiteral, TableValue}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PType
+import is.hail.expr.types.virtual._
 import is.hail.rvd.{RVD, RVDContext}
 import is.hail.sparkextras.ContextRDD
 import is.hail.table.Table
@@ -449,7 +450,7 @@ object Nirvana {
       }
       .persist(StorageLevel.MEMORY_AND_DISK)
 
-    val nirvanaRVDType = prev.typ.copy(rowType = ht.typ.rowType ++ TStruct("nirvana" -> nirvanaSignature))
+    val nirvanaRVDType = prev.typ.copy(rowType = (ht.typ.rowType ++ TStruct("nirvana" -> nirvanaSignature)).physicalType)
 
     val nirvanaRowType = nirvanaRVDType.rowType
 
@@ -462,11 +463,11 @@ object Nirvana {
         val rv = RegionValue(region)
 
         it.map { case (v, nirvana) =>
-          rvb.start(nirvanaRowType.physicalType)
+          rvb.start(nirvanaRowType)
           rvb.startStruct()
-          rvb.addAnnotation(nirvanaRowType.types(0), v.asInstanceOf[Row].get(0))
-          rvb.addAnnotation(nirvanaRowType.types(1), v.asInstanceOf[Row].get(1))
-          rvb.addAnnotation(nirvanaRowType.types(2), nirvana)
+          rvb.addAnnotation(nirvanaRowType.types(0).virtualType, v.asInstanceOf[Row].get(0))
+          rvb.addAnnotation(nirvanaRowType.types(1).virtualType, v.asInstanceOf[Row].get(1))
+          rvb.addAnnotation(nirvanaRowType.types(2).virtualType, nirvana)
           rvb.endStruct()
           rv.setOffset(rvb.end())
 
@@ -476,7 +477,7 @@ object Nirvana {
 
     new Table(ht.hc, TableLiteral(
       TableValue(
-        TableType(nirvanaRowType, FastIndexedSeq("locus", "alleles"), TStruct()),
+        TableType(nirvanaRowType.virtualType, FastIndexedSeq("locus", "alleles"), TStruct()),
         BroadcastRow(Row(), TStruct(), ht.hc.sc),
         nirvanaRVD
       )))

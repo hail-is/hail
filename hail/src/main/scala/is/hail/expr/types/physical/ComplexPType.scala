@@ -9,7 +9,7 @@ abstract class ComplexPType extends PType {
 
   override def alignment: Long = representation.alignment
 
-  override def unsafeOrdering(missingGreatest: Boolean): UnsafeOrdering = representation.unsafeOrdering(missingGreatest)
+  override def unsafeOrdering(): UnsafeOrdering = representation.unsafeOrdering()
 
   override def fundamentalType: PType = representation.fundamentalType
 }

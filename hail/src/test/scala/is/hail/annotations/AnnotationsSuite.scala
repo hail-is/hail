@@ -1,7 +1,8 @@
 package is.hail.annotations
 
-import is.hail.SparkSuite
+import is.hail.{SparkSuite, TestUtils}
 import is.hail.expr.types._
+import is.hail.expr.types.virtual._
 import is.hail.utils._
 import is.hail.testUtils._
 import org.testng.annotations.Test
@@ -20,7 +21,7 @@ class AnnotationsSuite extends SparkSuite {
           3. the strings stored in the AnnotationData classes convert correctly to the proper type
     */
 
-    val vds = hc.importVCF("src/test/resources/sample.vcf")
+    val vds = TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
 
     val vas = vds.rowType
     val variantAnnotationMap = vds.variantsAndAnnotations.collect().toMap
@@ -68,8 +69,8 @@ class AnnotationsSuite extends SparkSuite {
   }
 
   @Test def testReadWrite() {
-    val vds1 = hc.importVCF("src/test/resources/sample.vcf")
-    val vds2 = hc.importVCF("src/test/resources/sample.vcf")
+    val vds1 = TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
+    val vds2 = TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
     assert(vds1.same(vds2))
 
     val f = tmpDir.createTempFile("sample", extension = ".vds")
@@ -87,17 +88,9 @@ class AnnotationsSuite extends SparkSuite {
     assert(ord.gt(null, 7))
     assert(ord.equiv(3, 3))
     assert(ord.equiv(null, null))
-    assert(ord.max(5, 7) == 7)
-    assert(ord.max(5, null) == null)
-    assert(ord.min(5, 7) == 5)
-    assert(ord.min(5, null) == 5)
 
     assert(rord.gt(5, 7))
     assert(rord.lt(5, null))
     assert(rord.gt(null, 7))
-    assert(rord.max(5, 7) == 5)
-    assert(rord.max(5, null) == null)
-    assert(rord.min(5, 7) == 7)
-    assert(rord.min(5, null) == 5)
   }
 }

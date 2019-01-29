@@ -2,14 +2,16 @@ package is.hail.expr.ir
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr.types.{MatrixType, TArray, TStruct, TableType}
-import is.hail.expr.types._
+import is.hail.expr.types.physical.{PArray, PStruct, PType}
+import is.hail.expr.types.virtual._
+import is.hail.expr.types.{MatrixType, TableType}
 import is.hail.io.CodecSpec
-import is.hail.rvd.{RVD, RVDType, RVDSpec, _}
+import is.hail.rvd.{AbstractRVDSpec, RVD, RVDType, _}
 import is.hail.sparkextras.ContextRDD
 import is.hail.table.TableSpec
 import is.hail.utils._
 import is.hail.variant._
+import org.apache.commons.lang3.StringUtils
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.Row
 import org.json4s.jackson.JsonMethods.parse
@@ -34,6 +36,15 @@ case class MatrixValue(
       colValues.value.map(a => Row.fromSeq(queriers.map(_ (a))))
     }
 
+    def stringSampleIds: IndexedSeq[String] = {
+      val colKeyTypes = typ.colKeyStruct.types
+      assert(colKeyTypes.length == 1 && colKeyTypes(0).isInstanceOf[TString], colKeyTypes.toSeq)
+      val querier = typ.colType.query(typ.colKey(0))
+      colValues.value.map(querier(_).asInstanceOf[String])
+    }
+
+    def referenceGenome: ReferenceGenome = typ.referenceGenome
+
     def colsTableValue: TableValue = TableValue(typ.colsTableType, globals, colsRVD())
 
     def rowsTableValue: TableValue = TableValue(typ.rowsTableType, globals, rowsRVD())
@@ -44,7 +55,7 @@ case class MatrixValue(
       val hc = HailContext.get
       val hadoopConf = hc.hadoopConf
 
-      val partitionCounts = RVDSpec.writeLocal(hc, path + "/rows", typ.colType, codecSpec, colValues.value)
+      val partitionCounts = AbstractRVDSpec.writeLocal(hc, path + "/rows", typ.colType.physicalType, codecSpec, colValues.value)
 
       val colsSpec = TableSpec(
         FileFormat.version.rep,
@@ -63,9 +74,9 @@ case class MatrixValue(
       val hc = HailContext.get
       val hadoopConf = hc.hadoopConf
 
-      val partitionCounts = RVDSpec.writeLocal(hc, path + "/rows", typ.globalType, codecSpec, Array(globals.value))
+      val partitionCounts = AbstractRVDSpec.writeLocal(hc, path + "/rows", typ.globalType.physicalType, codecSpec, Array(globals.value))
 
-      RVDSpec.writeLocal(hc, path + "/globals", TStruct.empty(), codecSpec, Array[Annotation](Row()))
+      AbstractRVDSpec.writeLocal(hc, path + "/globals", TStruct.empty().physicalType, codecSpec, Array[Annotation](Row()))
 
       val globalsSpec = TableSpec(
         FileFormat.version.rep,
@@ -80,26 +91,9 @@ case class MatrixValue(
       hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
     }
 
-    def write(path: String, overwrite: Boolean = false, stageLocally: Boolean = false, codecSpecJSONStr: String = null) = {
+    private def finalizeWrite(path: String, codecSpec: CodecSpec, partitionCounts: Array[Long]) = {
       val hc = HailContext.get
       val hadoopConf = hc.hadoopConf
-
-      val codecSpec =
-        if (codecSpecJSONStr != null) {
-          implicit val formats = RVDSpec.formats
-          val codecSpecJSON = parse(codecSpecJSONStr)
-          codecSpecJSON.extract[CodecSpec]
-        } else
-          CodecSpec.default
-
-      if (overwrite)
-        hadoopConf.delete(path, recursive = true)
-      else if (hadoopConf.exists(path))
-        fatal(s"file already exists: $path")
-
-      hc.hadoopConf.mkDir(path)
-
-      val partitionCounts = rvd.writeRowsSplit(path, typ, codecSpec, stageLocally)
 
       val globalsPath = path + "/globals"
       hadoopConf.mkDir(globalsPath)
@@ -151,6 +145,37 @@ case class MatrixValue(
       spec.write(hc, path)
 
       hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
+
+      val nRows = partitionCounts.sum
+      val nCols = colValues.value.length
+      info(s"wrote matrix table with $nRows ${ plural(nRows, "row") } " +
+        s"and $nCols ${ plural(nCols, "column") } " +
+        s"in ${ partitionCounts.length } ${ plural(partitionCounts.length, "partition") } " +
+        s"to $path")
+    }
+
+    def write(path: String, overwrite: Boolean = false, stageLocally: Boolean = false, codecSpecJSONStr: String = null) = {
+      val hc = HailContext.get
+      val hadoopConf = hc.hadoopConf
+
+      val codecSpec =
+        if (codecSpecJSONStr != null) {
+          implicit val formats = AbstractRVDSpec.formats
+          val codecSpecJSON = parse(codecSpecJSONStr)
+          codecSpecJSON.extract[CodecSpec]
+        } else
+          CodecSpec.default
+
+      if (overwrite)
+        hadoopConf.delete(path, recursive = true)
+      else if (hadoopConf.exists(path))
+        fatal(s"file already exists: $path")
+
+      hc.hadoopConf.mkDir(path)
+
+      val partitionCounts = rvd.writeRowsSplit(path, codecSpec, stageLocally)
+
+      finalizeWrite(path, codecSpec, partitionCounts)
     }
 
     lazy val (sortedColValues, sortedColsToOldIdx): (BroadcastIndexedSeq, BroadcastIndexedSeq) = {
@@ -181,7 +206,7 @@ case class MatrixValue(
       val fullRowType = typ.rvRowType
       val localEntriesIndex = typ.entriesIdx
       rvd.mapPartitions(
-        RVDType(typ.rowType, typ.rowKey)
+        RVDType(typ.rowType.physicalType, typ.rowKey)
       ) { it =>
         val rv2b = new RegionValueBuilder()
         val rv2 = RegionValue()
@@ -204,12 +229,12 @@ case class MatrixValue(
 
     def colsRVD(): RVD = {
       val hc = HailContext.get
-      val signature = typ.colType
+      val colPType = typ.colType.physicalType
 
       RVD.coerce(
-        typ.colsTableType.rvdType,
+        typ.colsTableType.canonicalRVDType,
         ContextRDD.parallelize(hc.sc, sortedColValues.safeValue.asInstanceOf[IndexedSeq[Row]])
-          .cmapPartitions { (ctx, it) => it.toRegionValueIterator(ctx.region, signature) }
+          .cmapPartitions { (ctx, it) => it.toRegionValueIterator(ctx.region, colPType) }
       )
     }
 
@@ -220,14 +245,14 @@ case class MatrixValue(
       val localEntriesType = typ.entryArrayType.physicalType
       val localColType = typ.colType
       val localEntryType = typ.entryType
-      val localRVDType = typ.rvdType
+      val localRVDType = typ.canonicalRVDType
       val localNCols = nCols
 
       val localSortedColValues = sortedColValues.broadcast
       val localSortedColsToOldIdx = sortedColsToOldIdx.broadcast
 
       rvd.repartition(rvd.partitioner.strictify).boundary
-        .mapPartitions(typ.entriesTableType.rvdType.copy(key = typ.rowKey),
+        .mapPartitions(typ.entriesTableType.canonicalRVDType.copy(key = typ.rowKey),
           { (ctx, it) =>
             val rv2b = ctx.rvb
             val rv2 = RegionValue(ctx.region)
@@ -273,42 +298,41 @@ case class MatrixValue(
                   }
               }
             }
-          }).extendKeyPreservesPartitioning(typ.entriesTableType.rvdType.key)
+          }).extendKeyPreservesPartitioning(typ.entriesTableType.key)
     }
 
     def insertEntries[PC](makePartitionContext: () => PC, newColType: TStruct = typ.colType,
       newColKey: IndexedSeq[String] = typ.colKey,
       newColValues: BroadcastIndexedSeq = colValues,
       newGlobalType: TStruct = typ.globalType,
-      newGlobals: BroadcastRow = globals)(newEntryType: TStruct,
+      newGlobals: BroadcastRow = globals)(newEntryType: PStruct,
       inserter: (PC, RegionValue, RegionValueBuilder) => Unit): MatrixValue = {
       insertIntoRow(makePartitionContext, newColType, newColKey, newColValues, newGlobalType, newGlobals)(
-        TArray(newEntryType), MatrixType.entriesIdentifier, inserter)
+        PArray(newEntryType), MatrixType.entriesIdentifier, inserter)
     }
 
     def insertIntoRow[PC](makePartitionContext: () => PC, newColType: TStruct = typ.colType,
       newColKey: IndexedSeq[String] = typ.colKey,
       newColValues: BroadcastIndexedSeq = colValues,
       newGlobalType: TStruct = typ.globalType,
-      newGlobals: BroadcastRow = globals)(typeToInsert: Type, path: String,
+      newGlobals: BroadcastRow = globals)(typeToInsert: PType, path: String,
       inserter: (PC, RegionValue, RegionValueBuilder) => Unit): MatrixValue = {
       assert(!typ.rowKey.contains(path))
 
-      val fullRowType = typ.rvRowType
-      val localEntriesIndex = typ.entriesIdx
+      val fullRowType = rvd.rowPType
+      val localEntriesIndex = MatrixType.getEntriesIndex(fullRowType)
 
-      val (newRVPType, ins) = fullRowType.physicalType.unsafeStructInsert(typeToInsert.physicalType, List(path))
-      val newRVType = newRVPType.virtualType
+      val (newRVPType, ins) = fullRowType.unsafeStructInsert(typeToInsert, List(path))
 
 
-      val newMatrixType = typ.copy(rvRowType = newRVType, colType = newColType,
+      val newMatrixType = typ.copy(rvRowType = newRVPType.virtualType, colType = newColType,
         colKey = newColKey, globalType = newGlobalType)
 
       MatrixValue(
         newMatrixType,
         newGlobals,
         newColValues,
-        rvd.mapPartitions(newMatrixType.rvdType) { it =>
+        rvd.mapPartitions(newMatrixType.canonicalRVDType) { it =>
 
           val pc = makePartitionContext()
 
@@ -316,7 +340,7 @@ case class MatrixValue(
           val rvb = new RegionValueBuilder()
           it.map { rv =>
             rvb.set(rv.region)
-            rvb.start(newRVType.physicalType)
+            rvb.start(newRVPType)
 
             ins(rv.region, rv.offset, rvb,
               () => inserter(pc, rv, rvb)
@@ -328,3 +352,33 @@ case class MatrixValue(
         })
     }
   }
+
+object MatrixValue {
+  def writeMultiple(
+    mvs: IndexedSeq[MatrixValue],
+    prefix: String,
+    overwrite: Boolean,
+    stageLocally: Boolean
+  ): Unit = {
+    val first = mvs.head
+    require(mvs.forall(_.typ == first.typ))
+    val hc = HailContext.get
+    val hadoopConf = hc.hadoopConf
+    val codecSpec = CodecSpec.default
+
+    val d = digitsNeeded(mvs.length)
+    val paths = (0 until mvs.length).map { i => prefix + StringUtils.leftPad(i.toString, d, '0') + ".mt" }
+    paths.foreach { path =>
+      if (overwrite)
+        hadoopConf.delete(path, recursive = true)
+      else if (hadoopConf.exists(path))
+        fatal(s"file already exists: $path")
+      hadoopConf.mkDir(path)
+    }
+
+    val partitionCounts = RVD.writeRowsSplitFiles(mvs.map(_.rvd), prefix, codecSpec, stageLocally)
+    for ((mv, path, partCounts) <- (mvs, paths, partitionCounts).zipped) {
+      mv.finalizeWrite(path, codecSpec, partCounts)
+    }
+  }
+}

@@ -1,6 +1,6 @@
 package is.hail.utils
 
-import is.hail.expr.types.{TInt32, TTuple}
+import is.hail.expr.types.virtual.{TInt32, TTuple}
 import org.apache.spark.sql.Row
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test

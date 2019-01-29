@@ -7,6 +7,7 @@ import hail as hl
 import hail.expr.aggregators as agg
 from hail.expr.expressions import *
 from hail.expr.types import *
+from hail.ir import *
 from hail.genetics.reference_genome import reference_genome_type
 from hail.linalg import BlockMatrix
 from hail.matrixtable import MatrixTable
@@ -97,7 +98,7 @@ def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None) -> 
     else:
         dataset = dataset.select_rows()
     dataset = dataset.select_cols().select_globals().select_entries('GT')
-    return Table._from_java(Env.hail().methods.IBD.apply(require_biallelic(dataset, 'ibd')._jvds,
+    return Table._from_java(Env.hail().methods.IBD.apply(require_biallelic(dataset, 'ibd')._jmt,
                                                          joption('__maf' if maf is not None else None),
                                                          bounded,
                                                          joption(min),
@@ -235,8 +236,7 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
 
 def _get_regression_row_fields(mt, pass_through, method) -> Dict[str, str]:
 
-    # include key as base
-    row_fields = dict(mt.row_key)
+    row_fields = dict(zip(mt.row_key.keys(), mt.row_key.keys()))
     for f in pass_through:
         if isinstance(f, str):
             if f not in mt.row:
@@ -260,6 +260,8 @@ def _get_regression_row_fields(mt, pass_through, method) -> Dict[str, str]:
                 if not (name in mt.row_key and f._ir == mt[name]._ir):
                     raise ValueError(f"'{method}/pass_through': found duplicated field {repr(name)}")
             row_fields[name] = f
+    for k in mt.row_key:
+        del row_fields[k]
     return row_fields
 
 
@@ -398,12 +400,12 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=()) -> 
     if is_chained:
         y_field_names = [[f'__y_{i}_{j}' for j in range(len(y[i]))] for i in range(len(y))]
         y_dict = dict(zip(itertools.chain.from_iterable(y_field_names), itertools.chain.from_iterable(y)))
-        func = Env.hail().methods.LinearRegression.chain
+        func = 'LinearRegressionRowsChained'
 
     else:
         y_field_names = list(f'__y_{i}' for i in range(len(y)))
         y_dict = dict(zip(y_field_names, y))
-        func = Env.hail().methods.LinearRegression.single_group
+        func = 'LinearRegressionRowsSingle'
 
     cov_field_names = list(f'__cov{i}' for i in range(len(covariates)))
 
@@ -416,25 +418,25 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=()) -> 
                         col_key=[],
                         entry_exprs={x_field_name: x})
 
-    jt = func(
-        mt._jvds,
-        y_field_names,
-        x_field_name,
-        cov_field_names,
-        block_size,
-        list(row_fields)[len(mt.row_key):])
-
-    ht_result = Table._from_java(jt)
+    config = {
+        'name': func,
+        'yFields': y_field_names,
+        'xField': x_field_name,
+        'covFields': cov_field_names,
+        'rowBlockSize': block_size,
+        'passThrough': [x for x in row_fields if x not in mt.row_key]
+    }
+    ht_result = Table(MatrixToTableApply(mt._mir, config))
 
     if not y_is_list:
         fields = ['y_transpose_x', 'beta', 'standard_error', 't_stat', 'p_value']
         ht_result = ht_result.annotate(**{f: ht_result[f][0] for f in fields})
 
-    return ht_result
+    return ht_result.persist()
 
 
 @typecheck(test=enumeration('wald', 'lrt', 'score', 'firth'),
-           y=expr_float64,
+           y=oneof(expr_float64, sequenceof(expr_float64), sequenceof(sequenceof(expr_float64))),
            x=expr_float64,
            covariates=sequenceof(expr_float64),
            pass_through=sequenceof(oneof(str, Expression)))
@@ -454,11 +456,21 @@ def logistic_regression_rows(test, y, x, covariates, pass_through=()) -> hail.Ta
     ...     x=dataset.GT.n_alt_alleles(),
     ...     covariates=[1, dataset.pheno.age, dataset.pheno.is_female])
 
+    Run the logistic regression Wald test per variant using a list of binary (0/1)
+    phenotypes, intercept and two covariates stored in column-indexed
+    fields:
+
+    >>> result_ht = hl.logistic_regression_rows(
+    ...     test='wald',
+    ...     y=[dataset.pheno.is_case, dataset.pheno.is_case],  # where pheno values are 0, 1, or missing
+    ...     x=dataset.GT.n_alt_alleles(),
+    ...     covariates=[1, dataset.pheno.age, dataset.pheno.is_female])
+
     Warning
     -------
     :func:`.logistic_regression_rows` considers the same set of
     columns (i.e., samples, points) for every row, namely those columns for
-    which **all** covariates are defined. For each row, missing values of
+    which **all** response variables and covariates are defined. For each row, missing values of
     `x` are mean-imputed over these columns. As in the example, the
     intercept covariate ``1`` must be included **explicitly** if desired.
 
@@ -480,7 +492,7 @@ def logistic_regression_rows(test, y, x, covariates, pass_through=()) -> hail.Ta
 
     .. math::
 
-        \mathrm{Prob}(\mathrm{is_case}) =
+        \mathrm{Prob}(\mathrm{is\_case}) =
             \mathrm{sigmoid}(\beta_0 + \beta_1 \, \mathrm{gt}
                             + \beta_2 \, \mathrm{age}
                             + \beta_3 \, \mathrm{is\_female} + \varepsilon),
@@ -628,8 +640,8 @@ def logistic_regression_rows(test, y, x, covariates, pass_through=()) -> hail.Ta
     ----------
     test : {'wald', 'lrt', 'score', 'firth'}
         Statistical test.
-    y : :class:`.Float64Expression`
-        Column-indexed response expression.
+    y : :class:`.Float64Expression` or :obj:`list` of :class:`.Float64Expression`
+        One or more column-indexed response expressions.
         All non-missing values must evaluate to 0 or 1.
         Note that a :class:`.BooleanExpression` will be implicitly converted to
         a :class:`.Float64Expression` with this property.
@@ -650,36 +662,46 @@ def logistic_regression_rows(test, y, x, covariates, pass_through=()) -> hail.Ta
     mt = matrix_table_source('logistic_regresion_rows/x', x)
     check_entry_indexed('logistic_regresion_rows/x', x)
 
-    analyze('logistic_regresion_rows/y', y, mt._col_indices)
+    y_is_list = isinstance(y, list)
+    if y_is_list and len(y) == 0:
+        raise ValueError(f"'logistic_regression_rows': found no values for 'y'")
+    y = wrap_to_list(y)
 
-    all_exprs = [y]
     for e in covariates:
-        all_exprs.append(e)
-        analyze('logistic_regression/covariates', e, mt._col_indices)
+        analyze('logistic_regression_rows/covariates', e, mt._col_indices)
 
-    _warn_if_no_intercept('logistic_regresion_rows', covariates)
+    _warn_if_no_intercept('logistic_regression_rows', covariates)
 
     x_field_name = Env.get_uid()
-    y_field_name = '__y'
-    cov_field_names = list(f'__cov{i}' for i in range(len(covariates)))
+    y_field = [f'__y_{i}' for i in range(len(y))]
+
+    y_dict = dict(zip(y_field, y))
+
+    cov_field_names = [f'__cov{i}' for i in range(len(covariates))]
     row_fields = _get_regression_row_fields(mt, pass_through, 'logistic_regression_rows')
 
-# FIXME: selecting an existing entry field should be emitted as a SelectFields
-    mt = mt._select_all(col_exprs=dict(**{y_field_name: y},
+    # FIXME: selecting an existing entry field should be emitted as a SelectFields
+    mt = mt._select_all(col_exprs=dict(**y_dict,
                                        **dict(zip(cov_field_names, covariates))),
                         row_exprs=row_fields,
                         col_key=[],
                         entry_exprs={x_field_name: x})
 
-    jt = Env.hail().methods.LogisticRegression.apply(
-        mt._jvds,
-        test,
-        y_field_name,
-        x_field_name,
-        cov_field_names,
-        list(row_fields)[len(mt.row_key):])
-    return Table._from_java(jt)
+    config = {
+        'name': 'LogisticRegression',
+        'test': test,
+        'yFields': y_field,
+        'xField': x_field_name,
+        'covFields': cov_field_names,
+        'passThrough': [x for x in row_fields if x not in mt.row_key]
+    }
 
+    result = Table(MatrixToTableApply(mt._mir, config))
+
+    if not y_is_list:
+        result = result.transmute(**result.logistic_regression[0])
+
+    return result
 
 @typecheck(test=enumeration('wald', 'lrt', 'score'),
            y=expr_float64,
@@ -744,14 +766,16 @@ def poisson_regression_rows(test, y, x, covariates, pass_through=()) -> Table:
                         col_key=[],
                         entry_exprs={x_field_name: x})
 
-    jt = Env.hail().methods.PoissonRegression.apply(
-        mt._jvds,
-        test,
-        y_field_name,
-        x_field_name,
-        cov_field_names,
-        list(row_fields)[len(mt.row_key):])
-    return Table._from_java(jt)
+    config = {
+        'name': 'PoissonRegression',
+        'test': test,
+        'yField': y_field_name,
+        'xField': x_field_name,
+        'covFields': cov_field_names,
+        'passThrough': [x for x in row_fields if x not in mt.row_key]
+    }
+    
+    return Table(MatrixToTableApply(mt._mir, config))
 
 
 @typecheck(y=expr_float64,
@@ -1089,8 +1113,6 @@ def linear_mixed_regression_rows(entry_expr,
                                 a_t_path if model.low_rank else None,
                                 partition_size)
     row_fields = _get_regression_row_fields(mt, pass_through, 'linear_mixed_regression_rows')
-    for k in mt.row_key:
-        del row_fields[k]
 
     mt_keys = mt.select_rows(**row_fields).add_row_index('__row_idx').rows().add_index('__row_idx').key_by('__row_idx')
     return mt_keys.annotate(**ht[mt_keys['__row_idx']]).key_by(*mt.row_key).drop('__row_idx')
@@ -1276,19 +1298,20 @@ def skat(key_expr, weight_expr, y, x, covariates, logistic=False,
                                      key_field_name: key_expr},
                           entry_exprs=entry_expr)
 
-    jt = Env.hail().methods.Skat.apply(
-        mt._jvds,
-        key_field_name,
-        weight_field_name,
-        y_field_name,
-        x_field_name,
-        jarray(Env.jvm().java.lang.String, cov_field_names),
-        logistic,
-        max_size,
-        accuracy,
-        iterations)
+    config = {
+        'name': 'Skat',
+        'keyField': key_field_name,
+        'weightField': weight_field_name,
+        'xField': x_field_name,
+        'yField': y_field_name,
+        'covFields': cov_field_names,
+        'logistic': logistic,
+        'maxSize': max_size,
+        'accuracy': accuracy,
+        'iterations': iterations
+    }
 
-    return Table._from_java(jt)
+    return Table(MatrixToTableApply(mt._mir, config))
 
 
 @typecheck(call_expr=expr_call,
@@ -1364,6 +1387,7 @@ def hwe_normalized_pca(call_expr, k=10, compute_loadings=False) -> Tuple[List[fl
     mt = mt.annotate_rows(__mean_gt=mt.__AC / mt.__n_called)
     mt = mt.annotate_rows(
         __hwe_scaled_std_dev=hl.sqrt(mt.__mean_gt * (2 - mt.__mean_gt) * n_variants / 2))
+    mt = mt._unfilter_entries()
 
     normalized_gt = hl.or_else((mt.__gt - mt.__mean_gt) / mt.__hwe_scaled_std_dev, 0.0)
 
@@ -1467,8 +1491,8 @@ def pca(entry_expr, k=10, compute_loadings=False) -> Tuple[List[float], Table, T
         mt = mt.select_entries(**{field: entry_expr})
     mt = mt.select_cols().select_rows().select_globals()
 
-    r = Env.hail().methods.PCA.apply(mt._jvds, field, k, compute_loadings)
-    scores = Table._from_java(Env.hail().methods.PCA.scoresTable(mt._jvds, r._2()))
+    r = Env.hail().methods.PCA.apply(mt._jmt, field, k, compute_loadings)
+    scores = Table._from_java(Env.hail().methods.PCA.scoresTable(mt._jmt, r._2()))
     loadings = from_option(r._3())
     if loadings:
         loadings = Table._from_java(loadings)
@@ -1906,10 +1930,7 @@ def split_multi(ds, keep_star=False, left_aligned=False):
             if rekey:
                 return mt.key_rows_by('locus', 'alleles')
             else:
-                return MatrixTable(mt._jvds.keyRowsBy(
-                    ['locus', 'alleles'],
-                    True # isSorted
-                ))
+                return MatrixTable(MatrixKeyRowsBy(mt._mir, ['locus', 'alleles'], is_sorted=True))
         else:
             assert isinstance(ds, Table)
             ht = (ds.annotate(**{new_id: expr})
@@ -1929,11 +1950,7 @@ def split_multi(ds, keep_star=False, left_aligned=False):
             if rekey:
                 return ht.key_by('locus', 'alleles')
             else:
-                return Table._from_java(ht._jt.keyBy(
-                    ['locus', 'alleles'],
-                    True # isSorted
-                ))
-
+                return Table(TableKeyBy(ht._tir, ['locus', 'alleles'], is_sorted=True))
 
     if left_aligned:
         def make_struct(i):
@@ -2127,6 +2144,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep'):
     if isinstance(ds, Table):
         return split.annotate(**update_rows_expression).drop('old_locus', 'old_alleles')
 
+    split = split.annotate_rows(**update_rows_expression)
     entry_fields = ds.entry
 
     expected_field_types = {
@@ -2175,9 +2193,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep'):
         update_entries_expression['PGT'] = hl.downcode(split.PGT, split.a_index)
     if 'PID' in entry_fields:
         update_entries_expression['PID'] = split.PID
-    return split._annotate_all(
-        row_exprs=update_rows_expression,
-        entry_exprs=update_entries_expression).drop('old_locus', 'old_alleles')
+    return split.annotate_entries(**update_entries_expression).drop('old_locus', 'old_alleles')
 
 
 @typecheck(call_expr=expr_call)
@@ -3175,10 +3191,13 @@ def _local_ld_prune(mt, call_field, r2=0.2, bp_window_size=1000000, memory_per_c
 
     info(f'ld_prune: running local pruning stage with max queue size of {max_queue_size} variants')
 
-    sites_only_table = Table._from_java(Env.hail().methods.LocalLDPrune.apply(
-        mt._jvds, call_field, float(r2), bp_window_size, max_queue_size))
-
-    return sites_only_table
+    return Table(MatrixToTableApply(mt._mir, {
+        'name': 'LocalLDPrune',
+        'callField': call_field,
+        'r2Threshold': float(r2),
+        'windowSize': bp_window_size,
+        'maxQueueSize': max_queue_size
+    }))
 
 
 @typecheck(call_expr=expr_call,
@@ -3292,64 +3311,59 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
         .write(locally_pruned_table_path, overwrite=True))
     locally_pruned_table = hl.read_table(locally_pruned_table_path).add_index()
 
-    locally_pruned_ds_path = new_temp_file()
     mt = mt.annotate_rows(info=locally_pruned_table[mt.row_key])
-    (mt.filter_rows(hl.is_defined(mt.info))
-        .write(locally_pruned_ds_path, overwrite=True))
-    locally_pruned_ds = hl.read_matrix_table(locally_pruned_ds_path)
+    mt = mt.filter_rows(hl.is_defined(mt.info))
 
-    n_locally_pruned_variants = locally_pruned_ds.count_rows()
-    info(f'ld_prune: local pruning stage retained {n_locally_pruned_variants} variants')
-
-    standardized_mean_imputed_gt_expr = hl.or_else(
-        (locally_pruned_ds[field].n_alt_alleles() - locally_pruned_ds.info.mean) * locally_pruned_ds.info.centered_length_rec,
-        0.0)
-
-    std_gt_bm = BlockMatrix.from_entry_expr(standardized_mean_imputed_gt_expr, block_size=block_size)
+    std_gt_bm = BlockMatrix.from_entry_expr(
+        hl.or_else(
+            (mt[field].n_alt_alleles() - mt.info.mean) * mt.info.centered_length_rec,
+            0.0),
+        block_size=block_size)
     r2_bm = (std_gt_bm @ std_gt_bm.T) ** 2
 
     _, stops = hl.linalg.utils.locus_windows(locally_pruned_table.locus, bp_window_size)
 
-    entries = r2_bm.sparsify_row_intervals(range(stops.size), stops, blocks_only=True).entries()
+    entries = r2_bm.sparsify_row_intervals(range(stops.size), stops, blocks_only=True).entries(keyed=False)
     entries = entries.filter((entries.entry >= r2) & (entries.i < entries.j))
-
-    locally_pruned_info = locally_pruned_table.key_by('idx').select('locus', 'mean')
-
-    entries = entries.select(info_i=locally_pruned_info[entries.i],
-                             info_j=locally_pruned_info[entries.j])
-
-    entries = entries.filter((entries.info_i.locus.contig == entries.info_j.locus.contig)
-                             & (entries.info_j.locus.position - entries.info_i.locus.position <= bp_window_size))
-
-    entries_path = new_temp_file()
-    entries.write(entries_path, overwrite=True)
-    entries = hl.read_table(entries_path)
-
-    n_edges = entries.count()
-    info(f'ld_prune: correlation graph of locally-pruned variants has {n_edges} edges,'
-         f'\n    finding maximal independent set...')
+    entries = entries.select(i = hl.int32(entries.i), j = hl.int32(entries.j))
 
     if keep_higher_maf:
-        entries = entries.key_by(
+        fields = ['mean', 'locus']
+    else:
+        fields = ['locus']
+
+    info = locally_pruned_table.aggregate(
+        hl.agg.collect(locally_pruned_table.row.select('idx', *fields)), _localize=False)
+    info = hl.sorted(info, key=lambda x: x.idx)
+
+    entries = entries.annotate_globals(info = info)
+
+    entries = entries.filter(
+        (entries.info[entries.i].locus.contig == entries.info[entries.j].locus.contig) &
+        (entries.info[entries.j].locus.position - entries.info[entries.i].locus.position <= bp_window_size))
+
+    if keep_higher_maf:
+        entries = entries.annotate(
             i=hl.struct(idx=entries.i,
-                        twice_maf=hl.min(entries.info_i.mean, 2.0 - entries.info_i.mean)),
+                        twice_maf=hl.min(entries.info[entries.i].mean, 2.0 - entries.info[entries.i].mean)),
             j=hl.struct(idx=entries.j,
-                        twice_maf=hl.min(entries.info_j.mean, 2.0 - entries.info_j.mean)))
+                        twice_maf=hl.min(entries.info[entries.j].mean, 2.0 - entries.info[entries.j].mean)))
 
         def tie_breaker(l, r):
-            return hl.cond(l.twice_maf > r.twice_maf,
-                           -1,
-                           hl.cond(l.twice_maf < r.twice_maf,
-                                   1,
-                                   0))
-
-        variants_to_remove = hl.maximal_independent_set(entries.i, entries.j, keep=False, tie_breaker=tie_breaker)
-        variants_to_remove = variants_to_remove.key_by(variants_to_remove.node.idx)
+            return hl.sign(r.twice_maf - l.twice_maf)
     else:
-        variants_to_remove = hl.maximal_independent_set(entries.i, entries.j, keep=False)
+        tie_breaker = None
 
+    variants_to_remove = hl.maximal_independent_set(
+        entries.i, entries.j, keep=False, tie_breaker=tie_breaker, keyed=False)
+
+    locally_pruned_table = locally_pruned_table.annotate_globals(
+        variants_to_remove = variants_to_remove.aggregate(
+            hl.agg.collect_as_set(variants_to_remove.node.idx), _localize=False))
     return locally_pruned_table.filter(
-        hl.is_defined(variants_to_remove[locally_pruned_table.idx]), keep=False).select().persist()
+        locally_pruned_table.variants_to_remove.contains(hl.int32(locally_pruned_table.idx)),
+        keep=False
+    ).select().persist()
 
 
 def _warn_if_no_intercept(caller, covariates):
