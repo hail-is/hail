@@ -1210,7 +1210,7 @@ class Table(ExprContainer):
         fields = [trunc(f) for f in t.row]
         n_fields = len(fields)
 
-        types = [trunc(str(t.row[f].dtype)) for f in fields]
+        type_strs = [trunc(str(t.row[f].dtype)) for f in fields] if types else [''] * len(fields)
         right_align = [hl.expr.types.is_numeric(t.row[f].dtype) for f in fields]
 
         t = t.select(**{k: hl_format(v) for (k, v) in t.row.items()})
@@ -1222,7 +1222,7 @@ class Table(ExprContainer):
         rows = [[row[f] for f in fields] for row in rows]
 
         max_value_width = lambda i: max(itertools.chain([0], (len(row[i]) for row in rows)))
-        column_width = [max(len(fields[i]), len(types[i]), max_value_width(i)) for i in range(n_fields)]
+        column_width = [max(len(fields[i]), len(type_strs[i]), max_value_width(i)) for i in range(n_fields)]
 
         column_blocks = []
         start = 0
@@ -1268,7 +1268,7 @@ class Table(ExprContainer):
             s += format_line(fields[start:end], block_column_width, block_right_align)
             s += hline
             if types:
-                s += format_line(types[start:end], block_column_width, block_right_align)
+                s += format_line(type_strs[start:end], block_column_width, block_right_align)
                 s += hline
             for row in rows:
                 row = row[start:end]
