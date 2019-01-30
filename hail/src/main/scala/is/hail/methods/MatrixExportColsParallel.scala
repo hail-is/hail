@@ -21,6 +21,8 @@ case class MatrixExportColsParallel(parallelism: Int, path: String, bgzip: Boole
 
     hConf.delete(path, recursive = true) // overwrite by default
 
+    val allColValuesJSON = mv.colValues.value.map(TableAnnotationImpex.exportAnnotation(_, mv.typ.colType)).toArray
+
     info(s"exporting ${ mv.nCols } files in batches of $parallelism...")
     val nBatches = (mv.nCols + parallelism - 1) / parallelism
     val resultFiles = (0 until nBatches).flatMap { batch =>
@@ -45,7 +47,7 @@ case class MatrixExportColsParallel(parallelism: Int, path: String, bgzip: Boole
 
       val colValuesJSON = mv.sparkContext.broadcast(
         (startIdx until endIdx)
-          .map(i => TableAnnotationImpex.exportAnnotation(mv.colValues.value(i), mv.typ.colType))
+          .map(allColValuesJSON)
           .toArray)
 
       val partFolders = mv.rvd.crdd.mapPartitionsWithIndex { (i, it) =>
@@ -124,11 +126,18 @@ case class MatrixExportColsParallel(parallelism: Int, path: String, bgzip: Boole
 
     val padding = digitsNeeded(mv.nCols)
     val extension = if (bgzip) ".tsv.bgz" else ".tsv"
+
+    def finalPath(idx: Int): String = path + "/" + partFile(padding, idx) + extension
+
     resultFiles.zipWithIndex.foreach { case (filePath, i) =>
-      val finalPath = path + "/" + partFile(padding, i) + extension
-      hConf.copy(filePath, finalPath, deleteSource = true)
+      hConf.copy(filePath, finalPath(i), deleteSource = true)
     }
     hConf.delete(path + "/tmp", recursive = true)
+
+    hConf.writeTable(path + "/index.tsv", allColValuesJSON.zipWithIndex.map { case (json, i) =>
+      s"${ finalPath(i) }\t$json"
+    })
+
     info("export finished!")
   }
 }
