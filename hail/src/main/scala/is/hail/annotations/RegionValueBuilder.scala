@@ -534,9 +534,6 @@ class RegionValueBuilder(var region: Region) {
               endArray()
           }
 
-        case t: TNDArray =>
-          addRow(t.representation.asInstanceOf[TStruct], a.asInstanceOf[NDArray].toRow)
-
         case t: TBaseStruct =>
           a match {
             case ur: UnsafeRow if currentType() == ur.t =>
