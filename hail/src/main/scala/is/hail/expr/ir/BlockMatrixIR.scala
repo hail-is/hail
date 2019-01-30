@@ -45,6 +45,68 @@ object BlockMatrixIR {
         Math.max(lDimLength, rDimLength)
     }
   }
+
+  def executeAsBroadcastingValues(left: BlockMatrix, right: BlockMatrix, op: BinaryOp): BlockMatrix = {
+    val leftShape = IndexedSeq(left.nRows, left.nCols)
+    val rightShape = IndexedSeq(right.nRows, right.nCols)
+
+    (leftShape, rightShape) match {
+      // Right scalar
+      case (IndexedSeq(_, _), IndexedSeq(1, 1)) =>
+        val rightAsScalar = right.toBreezeMatrix().apply(0, 0)
+        op match {
+          case Add() => left.scalarAdd(rightAsScalar)
+          case Multiply() => left.scalarMul(rightAsScalar)
+          case Subtract() => left.scalarSub(rightAsScalar)
+          case FloatingPointDivide() => left.scalarDiv(rightAsScalar)
+        }
+      // Left scalar
+      case (IndexedSeq(1, 1), IndexedSeq(_, _)) =>
+        val leftAsScalar = left.toBreezeMatrix().apply(0, 0)
+        op match {
+          case Add() => right.scalarAdd(leftAsScalar)
+          case Multiply() => right.scalarMul(leftAsScalar)
+          case Subtract() => right.reverseScalarSub(leftAsScalar)
+          case FloatingPointDivide() => right.reverseScalarDiv(leftAsScalar)
+        }
+      //Right row vector
+      case (IndexedSeq(_, _), IndexedSeq(1, _)) =>
+        val rightAsRowVec = right.toBreezeMatrix().data
+        op match {
+          case Add() => left.rowVectorAdd(rightAsRowVec)
+          case Multiply() => left.rowVectorMul(rightAsRowVec)
+          case Subtract() => left.rowVectorSub(rightAsRowVec)
+          case FloatingPointDivide() => left.rowVectorDiv(rightAsRowVec)
+        }
+      //Right col vector
+      case (IndexedSeq(_, _), IndexedSeq(_, 1)) =>
+        val rightAsColVec = right.toBreezeMatrix().data
+        op match {
+          case Add() => left.colVectorAdd(rightAsColVec)
+          case Multiply() => left.colVectorMul(rightAsColVec)
+          case Subtract() => left.colVectorSub(rightAsColVec)
+          case FloatingPointDivide() => left.colVectorDiv(rightAsColVec)
+        }
+      //Left row vector
+      case (IndexedSeq(1, _), IndexedSeq(_, _)) =>
+        val leftAsRowVec = left.toBreezeMatrix().data
+        op match {
+          case Add() => right.rowVectorAdd(leftAsRowVec)
+          case Multiply() => right.rowVectorMul(leftAsRowVec)
+          case Subtract() => right.reverseRowVectorSub(leftAsRowVec)
+          case FloatingPointDivide() => right.reverseRowVectorDiv(leftAsRowVec)
+        }
+      //Left col vector
+      case (IndexedSeq(_, 1), IndexedSeq(_, _)) =>
+        val leftAsColVec = left.toBreezeMatrix().data
+        op match {
+          case Add() => right.colVectorAdd(leftAsColVec)
+          case Multiply() => right.colVectorMul(leftAsColVec)
+          case Subtract() => right.reverseColVectorSub(leftAsColVec)
+          case FloatingPointDivide() => right.reverseColVectorDiv(leftAsColVec)
+        }
+    }
+  }
 }
 
 abstract sealed class BlockMatrixIR extends BaseIR {
@@ -121,7 +183,9 @@ case class BlockMatrixElementWiseBinaryOp(
     // Hack to get around Tensor x Tensor broadcasting
     // not being implemented in BlockMatrix
     if (left.typ.shape != right.typ.shape) {
-      return executeAsBroadcastingValues(hc, left, right, applyBinOp.op)
+      val leftValue = left.execute(hc)
+      val rightValue = right.execute(hc)
+      return BlockMatrixIR.executeAsBroadcastingValues(leftValue, rightValue, applyBinOp.op)
     }
 
     (applyBinOp.l, applyBinOp.r, applyBinOp.op) match {
@@ -134,73 +198,6 @@ case class BlockMatrixElementWiseBinaryOp(
       case (Ref(_, _: TFloat64), Ref(_, _: TFloat64), FloatingPointDivide()) =>
         left.execute(hc).div(right.execute(hc))
       case _ => fatal(s"Binary operation not supported on two blockmatrices: ${Pretty(applyBinOp)}")
-    }
-  }
-
-  def executeAsBroadcastingValues(
-    hc: HailContext,
-    left: BlockMatrixIR,
-    right: BlockMatrixIR,
-    op: BinaryOp): BlockMatrix = {
-
-    val leftValue = left.execute(hc)
-    val rightValue = right.execute(hc)
-
-    (left.typ.shape, right.typ.shape) match {
-      // Right scalar
-      case (IndexedSeq(_, _), IndexedSeq(1, 1)) =>
-        val rightAsScalar = rightValue.toBreezeMatrix().apply(0, 0)
-        op match {
-          case Add() => leftValue.scalarAdd(rightAsScalar)
-          case Multiply() => leftValue.scalarMul(rightAsScalar)
-          case Subtract() => leftValue.scalarSub(rightAsScalar)
-          case FloatingPointDivide() => leftValue.scalarDiv(rightAsScalar)
-        }
-      // Left scalar
-      case (IndexedSeq(1, 1), IndexedSeq(_, _)) =>
-        val leftAsScalar = leftValue.toBreezeMatrix().apply(0, 0)
-        op match {
-          case Add() => rightValue.scalarAdd(leftAsScalar)
-          case Multiply() => rightValue.scalarMul(leftAsScalar)
-          case Subtract() => rightValue.reverseScalarSub(leftAsScalar)
-          case FloatingPointDivide() => rightValue.reverseScalarDiv(leftAsScalar)
-        }
-      //Right row vector
-      case (IndexedSeq(_, _), IndexedSeq(1, _)) =>
-        val rightAsRowVec = rightValue.toBreezeMatrix().data
-        op match {
-          case Add() => leftValue.rowVectorAdd(rightAsRowVec)
-          case Multiply() => leftValue.rowVectorMul(rightAsRowVec)
-          case Subtract() => leftValue.rowVectorSub(rightAsRowVec)
-          case FloatingPointDivide() => leftValue.rowVectorDiv(rightAsRowVec)
-        }
-      //Right col vector
-      case (IndexedSeq(_, _), IndexedSeq(_, 1)) =>
-        val rightAsColVec = rightValue.toBreezeMatrix().data
-        op match {
-          case Add() => leftValue.colVectorAdd(rightAsColVec)
-          case Multiply() => leftValue.colVectorMul(rightAsColVec)
-          case Subtract() => leftValue.colVectorSub(rightAsColVec)
-          case FloatingPointDivide() => leftValue.colVectorDiv(rightAsColVec)
-        }
-      //Left row vector
-      case (IndexedSeq(1, _), IndexedSeq(_, _)) =>
-        val leftAsRowVec = leftValue.toBreezeMatrix().data
-        op match {
-          case Add() => rightValue.rowVectorAdd(leftAsRowVec)
-          case Multiply() => rightValue.rowVectorMul(leftAsRowVec)
-          case Subtract() => rightValue.reverseRowVectorSub(leftAsRowVec)
-          case FloatingPointDivide() => rightValue.reverseRowVectorDiv(leftAsRowVec)
-        }
-      //Left col vector
-      case (IndexedSeq(_, 1), IndexedSeq(_, _)) =>
-        val leftAsColVec = leftValue.toBreezeMatrix().data
-        op match {
-          case Add() => rightValue.colVectorAdd(leftAsColVec)
-          case Multiply() => rightValue.colVectorMul(leftAsColVec)
-          case Subtract() => rightValue.reverseColVectorSub(leftAsColVec)
-          case FloatingPointDivide() => rightValue.reverseColVectorDiv(leftAsColVec)
-        }
     }
   }
 }
@@ -226,30 +223,30 @@ case class BlockMatrixMap(
   }
 
   override protected[ir] def execute(hc: HailContext): BlockMatrix = {
-    val bmValue = child.execute(hc)
+    val childBM = child.execute(hc)
 
     (applyBinOp.l, applyBinOp.r, applyBinOp.op) match {
       //Broadcasting by scalars
-      case (Ref(_, _: TFloat64), F64(x), Add()) => bmValue.scalarAdd(x)
-      case (F64(x), Ref(_, _: TFloat64), Add()) => bmValue.scalarAdd(x)
-      case (Ref(_, _: TFloat64), F64(x), Multiply()) => bmValue.scalarMul(x)
-      case (F64(x), Ref(_, _: TFloat64), Multiply()) => bmValue.scalarMul(x)
-      case (Ref(_, _: TFloat64), F64(x), Subtract()) => bmValue.scalarSub(x)
-      case (F64(x), Ref(_, _: TFloat64), Subtract()) => bmValue.reverseScalarSub(x)
-      case (Ref(_, _: TFloat64), F64(x), FloatingPointDivide()) => bmValue.scalarDiv(x)
-      case (F64(x), Ref(_, _: TFloat64), FloatingPointDivide()) => bmValue.reverseScalarDiv(x)
-      //Broadcasting by vectors on the right
+      case (Ref(_, _: TFloat64), F64(x), Add()) => childBM.scalarAdd(x)
+      case (F64(x), Ref(_, _: TFloat64), Add()) => childBM.scalarAdd(x)
+      case (Ref(_, _: TFloat64), F64(x), Multiply()) => childBM.scalarMul(x)
+      case (F64(x), Ref(_, _: TFloat64), Multiply()) => childBM.scalarMul(x)
+      case (Ref(_, _: TFloat64), F64(x), Subtract()) => childBM.scalarSub(x)
+      case (F64(x), Ref(_, _: TFloat64), Subtract()) => childBM.reverseScalarSub(x)
+      case (Ref(_, _: TFloat64), F64(x), FloatingPointDivide()) => childBM.scalarDiv(x)
+      case (F64(x), Ref(_, _: TFloat64), FloatingPointDivide()) => childBM.reverseScalarDiv(x)
+      //Broadcasting vector on the right
       case (Ref(_, _: TFloat64), MakeStruct(fields), op@_) =>
-        val newRight = convertToLiteral(hc, fields)
-        BlockMatrixElementWiseBinaryOp(child, newRight, ApplyBinaryPrimOp(op, applyBinOp.l, Ref("element", TFloat64()))).execute(hc)
-      //Broadcasting by vectors on the left
+        val rightBM = convertToBlockMatrix(hc, fields)
+        BlockMatrixIR.executeAsBroadcastingValues(childBM, rightBM, op)
+      //Broadcasting vector on the left
       case (MakeStruct(fields), Ref(_, _: TFloat64), op@_) =>
-        val newLeft = convertToLiteral(hc, fields)
-        BlockMatrixElementWiseBinaryOp(newLeft, child, ApplyBinaryPrimOp(op, Ref("element", TFloat64()), applyBinOp.r)).execute(hc)
+        val leftBM = convertToBlockMatrix(hc, fields)
+        BlockMatrixIR.executeAsBroadcastingValues(leftBM, childBM, op)
     }
   }
 
-  private def convertToLiteral(hc: HailContext, vectorInfo: Seq[(String, IR)]): BlockMatrixLiteral = {
+  private def convertToBlockMatrix(hc: HailContext, vectorInfo: Seq[(String, IR)]): BlockMatrix = {
     val (_, shapeLiteral) = vectorInfo.head
     val (_, dataLiteral) = vectorInfo(1)
     val shape = shapeLiteral.asInstanceOf[Literal].value.asInstanceOf[Seq[Long]]
@@ -257,9 +254,7 @@ case class BlockMatrixMap(
     val nRows = shape.head.toInt
     val nCols = shape(1).toInt
 
-    val bm = BlockMatrix.fromBreezeMatrix(hc.sc,
+    BlockMatrix.fromBreezeMatrix(hc.sc,
       new DenseMatrix[Double](nRows, nCols, vector, 0, nCols, isTranspose = true), child.typ.blockSize)
-
-    new BlockMatrixLiteral(bm)
   }
 }
