@@ -1,4 +1,4 @@
-apiVersion: apps/v1beta2
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: spark-master
@@ -31,7 +31,7 @@ spec:
           secret:
             secretName: hail-vdc-sa-key
 ---
-apiVersion: apps/v1beta2
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: spark-worker
@@ -66,7 +66,7 @@ spec:
           secret:
             secretName: hail-vdc-sa-key
 ---
-apiVersion: apps/v1beta2
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: apiserver
