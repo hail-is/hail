@@ -6,6 +6,7 @@ gateway
 hail
 image-fetcher
 letsencrypt
+pipeline
 scorecard
 site
 spark

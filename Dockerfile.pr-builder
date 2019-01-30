@@ -87,6 +87,7 @@ COPY hail/gradle gradle
 COPY hail/python/hail/dev-environment.yml python/hail/dev-environment.yml
 COPY batch/environment.yml batch/environment.yml
 COPY ci/environment.yml ci/environment.yml
+COPY pipeline/environment.yml pipeline/environment.yml
 
 RUN useradd --create-home --shell /bin/bash hail && \
     usermod -a -G docker hail && \
@@ -101,6 +102,7 @@ RUN ./gradlew downloadDependencies --gradle-user-home /gradle-cache
 RUN conda env create -f ./python/hail/dev-environment.yml && \
     conda env create -f batch/environment.yml && \
     conda env create -f ci/environment.yml && \
+    conda env create -f pipeline/environment.yml && \
     rm -rf /home/hail/.conda/pkgs/*
 
 # gcloud iam key files will be stored here
