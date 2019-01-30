@@ -242,14 +242,21 @@ class BlockMatrixIRTests(unittest.TestCase):
     def _make_element_wise_op_ir(bm1, bm2, op):
         return ir.BlockMatrixElementWiseBinaryOp(bm1, bm2, ir.ApplyBinaryOp(op, ir.Ref("element"), ir.Ref("element")))
 
+    @staticmethod
+    def _wrap_in_struct(shape, data):
+        return ir.MakeStruct([
+            ("shape", ir.Literal(hl.tarray(hl.tint64), shape)),
+            ("data", ir.Literal(hl.tarray(hl.tfloat64), data))])
+
     def block_matrix_irs(self):
         read = ir.BlockMatrixRead(resource('blockmatrix_example/0'))
-        add = self._make_element_wise_op_ir(read, read, "+")
-        sub = self._make_element_wise_op_ir(read, read, "-")
-        mul = self._make_element_wise_op_ir(read, read, "*")
-        div = self._make_element_wise_op_ir(read, read, "/")
+        elem_wise_addition = ir.BlockMatrixElementWiseBinaryOp(read, read,
+                                                               ir.ApplyBinaryOp("+", ir.Ref("element"), ir.Ref("element")))
+        broadcast_scalar = ir.BlockMatrixMap(read, ir.ApplyBinaryOp("+", ir.Ref("element"), ir.F64(2)))
+        broadcast_vector = ir.BlockMatrixMap(read, ir.ApplyBinaryOp("*", ir.Ref("element"),
+                                                                    self._wrap_in_struct([1, 2], [3, 3])))
 
-        return [read, add, sub, mul, div]
+        return [read, elem_wise_addition, broadcast_scalar, broadcast_vector]
 
     def test_parses(self):
         for x in self.block_matrix_irs():
