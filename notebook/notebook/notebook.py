@@ -4,7 +4,8 @@ A Jupyter notebook service with local-mode Hail pre-installed
 import gevent
 # must happen before anytyhing else
 from gevent import monkey; monkey.patch_all()
-from flask import Flask, session, redirect, render_template, request
+
+from flask import Flask, session, redirect, render_template, request, jsonify
 from flask_sockets import Sockets
 import flask
 import kubernetes as kube
@@ -14,6 +15,10 @@ import re
 import requests
 import time
 import uuid
+import pymysql
+from dotenv import load_dotenv
+
+load_dotenv(verbose=True)
 
 fmt = logging.Formatter(
    # NB: no space after levelname because WARNING is so long
@@ -66,6 +71,35 @@ except FileNotFoundError as e:
         "working directory must contain a file called `notebook-worker-images' "
         "containing the name of the docker image to use for worker pods.") from e
 
+CREATED_STATE = 'created'
+DELETED_STATE = 'deleted'
+
+AUTH_DOMAIN = os.environ.get("AUTH_DOMAIN")
+DB = os.environ.get("MYSQL_DB")
+IP = os.environ.get("MYSQL_IP")
+PORT = int(os.environ.get("MYSQL_PORT"))
+USER = os.environ.get("MYSQL_USER")
+PASS = os.environ.get("MYSQL_PASS")
+TABLE = 'sessions'
+mysql_conn = pymysql.connect(host=IP, port=PORT, user=USER, passwd=PASS, db=DB)
+
+cur = mysql_conn.cursor()
+
+cur.execute("""
+    CREATE TABLE IF NOT EXISTS sessions (
+        user_id VARCHAR(255),
+        pod_name VARCHAR(255),
+        svc_name VARCHAR(255),
+        token VARCHAR(255),
+        state VARCHAR(255),
+        name VARCHAR(255),
+        PRIMARY KEY (user_id, token)
+    ) ENGINE = INNODB;
+""")
+
+cur.close()
+mysql_conn.commit()
+mysql_conn.close()
 
 def start_pod(jupyter_token, image):
     pod_id = uuid.uuid4().hex
@@ -130,12 +164,114 @@ def external_url_for(path):
     url = flask.url_for('root', _scheme=protocol, _external='true')
     return url + path
 
+def forbidden():
+    return 'Forbidden', 403
 
 @app.route('/healthcheck')
 def healthcheck():
     return '', 200
 
+##### New notebook methods meant for consumption from agnostic client#####
+###### Methods that do not call the auth-gateway /verify method must not be directly public #######
+@app.route('/api', methods=['GET'])
+def new_api_get():
+    mysql_conn = pymysql.connect(
+        host=IP, port=PORT, user=USER, passwd=PASS, db=DB)
 
+    user_id = request.headers.get('User')
+
+    if not user_id:
+        return forbidden()
+
+    try:
+        sql = f"SELECT name, svc_name, token FROM {TABLE} WHERE user_id='{user_id}' AND state<>'{DELETED_STATE}'"
+
+        rows = []
+        with mysql_conn.cursor() as cur:
+            cur.execute(sql)
+            rows = cur.fetchall()
+
+        return jsonify(rows), 200
+    except Exception as e:
+        log.exception(e)
+        return '', 500
+
+
+@app.route('/api/<token>', methods=['DELETE'])
+def delete_notebook(token):
+    user_id = request.headers.get("User")
+
+    # TODO: Is it possible to have a falsy token value and get here?
+    if not user_id or not token:
+        forbidden()
+
+    sqlDel = f"UPDATE {TABLE} SET state='{DELETED_STATE}' WHERE user_id='{user_id}' AND token='{token}'"
+    sqlFetch = f"SELECT svc_name, pod_name FROM {TABLE} WHERE user_id='{user_id}' AND token='{token}'"
+
+    try:
+        mysql_conn = pymysql.connect(
+            host=IP, port=PORT, user=USER, passwd=PASS, db=DB)
+
+        with mysql_conn.cursor() as cur:
+            rows_affected = cur.execute(sqlDel)
+
+            if rows_affected != 1:
+                log.exception(
+                    f'/api/<token> : DELETE : user_id {user_id} has multiple entries for token {token}')
+
+            cur.execute(sqlFetch)
+
+            svc_name, pod_name = cur.fetchone()
+
+            print("svc_name, pod_name", svc_name, pod_name)
+            delete_worker_pod(pod_name, svc_name)
+
+        mysql_conn.commit()
+        # If deletion operation fails because record doesn't exist,
+        # don't tell the user; they could exploit this
+
+        return '', 200
+
+    except Exception as e:
+        log.exception(e)
+        return '', 500
+
+
+@app.route('/api/new', methods=['POST'])
+def new_notebook():
+    name = pymysql.escape_string(request.form.get('name', 'A notebook'))
+
+    image = pymysql.escape_string(request.form['image'])
+
+    user_id = request.headers.get('User')
+
+    if not user_id or image not in WORKER_IMAGES:
+        return forbidden()
+
+    try:
+        token = uuid.uuid4().hex  # FIXME: probably should be cryptographically secure
+        svc, pod = start_pod(token, WORKER_IMAGES[image])
+
+        svc_name = svc.metadata.name
+        pod_name = pod.metadata.name
+
+        sql = f"INSERT INTO {TABLE} (user_id,token,pod_name,svc_name,name,state) VALUES('{user_id}','{token}','{pod_name}','{svc_name}','{name}','{CREATED_STATE}')"
+
+        mysql_conn = pymysql.connect(
+            host=IP, port=PORT, user=USER, passwd=PASS, db=DB)
+
+        with mysql_conn.cursor() as cur:
+            cur.execute(sql)
+
+        mysql_conn.commit()
+
+        return jsonify([name, svc_name, token])
+
+    except Exception as e:
+        log.exception(e)
+        return '', 500
+
+##### Old notebook methods #####
 @app.route('/')
 def root():
     if 'svc_name' not in session:
