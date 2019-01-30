@@ -5,7 +5,7 @@ import itertools
 import hail as hl
 import hail.expr.aggregators as agg
 from hail.ir import BlockMatrixWrite, BlockMatrixElementWiseBinaryOp, ApplyBinaryOp, Ref, F64, \
-    BlockMatrixBroadcastValue, Literal, MakeStruct
+    BlockMatrixMap, Literal, MakeStruct
 from hail.ir.blockmatrix_ir import BlockMatrixRead, JavaBlockMatrix
 from hail.utils import new_temp_file, new_local_temp_file, local_path_uri, storage_level
 from hail.utils.java import Env, jarray, joption
@@ -1235,23 +1235,23 @@ class BlockMatrix(object):
             return BlockMatrix(BlockMatrixElementWiseBinaryOp(self._bmir, right._bmir, apply_bin_op))
         elif _is_scalar(right):
             apply_bin_op = ApplyBinaryOp(op, Ref('element'), F64(right))
-            return BlockMatrix(BlockMatrixBroadcastValue(self._bmir, apply_bin_op))
+            return BlockMatrix(BlockMatrixMap(self._bmir, apply_bin_op))
         else:
             _verify_can_broadcast(self.shape, right.shape)
 
             apply_bin_op = ApplyBinaryOp(op, Ref('element'), _wrap_in_struct(right))
-            return BlockMatrix(BlockMatrixBroadcastValue(self._bmir, apply_bin_op))
+            return BlockMatrix(BlockMatrixMap(self._bmir, apply_bin_op))
 
     @typecheck_method(op=str, left=oneof(numeric, np.ndarray))
     def _apply_element_wise_op_on_left(self, op, left):
         if _is_scalar(left):
             apply_bin_op = ApplyBinaryOp(op, F64(left), Ref('element'))
-            return BlockMatrix(BlockMatrixBroadcastValue(self._bmir, apply_bin_op))
+            return BlockMatrix(BlockMatrixMap(self._bmir, apply_bin_op))
         else:
             _verify_can_broadcast(self.shape, left.shape)
 
             apply_bin_op = ApplyBinaryOp(op, _wrap_in_struct(left), Ref('element'))
-            return BlockMatrix(BlockMatrixBroadcastValue(self._bmir, apply_bin_op))
+            return BlockMatrix(BlockMatrixMap(self._bmir, apply_bin_op))
 
     @typecheck_method(b=oneof(numeric, np.ndarray, block_matrix_type))
     def __add__(self, b):

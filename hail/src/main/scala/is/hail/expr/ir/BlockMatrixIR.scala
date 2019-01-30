@@ -206,7 +206,7 @@ case class BlockMatrixElementWiseBinaryOp(
   }
 }
 
-case class BlockMatrixBroadcastValue(
+case class BlockMatrixMap(
   child: BlockMatrixIR,
   applyBinOp: ApplyBinaryPrimOp) extends BlockMatrixIR {
 
@@ -221,7 +221,7 @@ case class BlockMatrixBroadcastValue(
 
   override def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
     assert(newChildren.length == 2)
-    BlockMatrixBroadcastValue(
+    BlockMatrixMap(
       newChildren(0).asInstanceOf[BlockMatrixIR],
       newChildren(1).asInstanceOf[ApplyBinaryPrimOp])
   }

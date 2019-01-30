@@ -20,11 +20,11 @@ class BlockMatrixIRSuite extends SparkSuite {
 
   val element = Ref("element", TFloat64())
   def mapOnRight(bm: BlockMatrixIR, op: BinaryOp, value: IR): BlockMatrixIR = {
-    BlockMatrixBroadcastValue(bm, ApplyBinaryPrimOp(op, element, value))
+    BlockMatrixMap(bm, ApplyBinaryPrimOp(op, element, value))
   }
 
   def mapOnLeft(bm: BlockMatrixIR, op: BinaryOp, value: IR): BlockMatrixIR = {
-    BlockMatrixBroadcastValue(bm, ApplyBinaryPrimOp(op, value, element))
+    BlockMatrixMap(bm, ApplyBinaryPrimOp(op, value, element))
   }
 
   def makeMatFromCol(vec: Seq[Double]): BlockMatrix = {
@@ -72,8 +72,8 @@ class BlockMatrixIRSuite extends SparkSuite {
     val colVectorShapeLiteral = Literal(TArray(TInt32()), Seq[Long](3, 1))
     val vectorLiteral = Literal(TArray(TFloat64()), Seq[Double](1, 2, 3))
 
-    val rowVector = MakeStruct(IndexedSeq(("row_vector", rowVectorShapeLiteral), ("data", vectorLiteral)))
-    val colVector = MakeStruct(IndexedSeq(("row_vector", colVectorShapeLiteral), ("data", vectorLiteral)))
+    val rowVector = MakeStruct(IndexedSeq(("shape", rowVectorShapeLiteral), ("data", vectorLiteral)))
+    val colVector = MakeStruct(IndexedSeq(("shape", colVectorShapeLiteral), ("data", vectorLiteral)))
 
     // Addition
     val actualOnesAddRowOnRight = mapOnRight(new BlockMatrixLiteral(ones), Add(), rowVector)

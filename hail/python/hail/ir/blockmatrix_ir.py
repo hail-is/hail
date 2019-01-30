@@ -35,12 +35,12 @@ class BlockMatrixElementWiseBinaryOp(BlockMatrixIR):
         right_type = self._right.typ
         left_type = self._left.typ
         self._type = tblockmatrix(left_type.element_type,
-                                  _compute_shape(left_type.shape, right_type.shape),
+                                  _compute_shape_after_broadcast(left_type.shape, right_type.shape),
                                   left_type.block_size,
                                   left_type.dims_partitioned)
 
 
-class BlockMatrixBroadcastValue(BlockMatrixIR):
+class BlockMatrixMap(BlockMatrixIR):
     @typecheck_method(child=BlockMatrixIR, apply_bin_op=ApplyBinaryOp)
     def __init__(self, child, apply_bin_op):
         super().__init__()
@@ -48,12 +48,12 @@ class BlockMatrixBroadcastValue(BlockMatrixIR):
         self._apply_bin_op = apply_bin_op
 
     def render(self, r):
-        return f'(BlockMatrixBroadcastValue {r(self._child)} {r(self._apply_bin_op)})'
+        return f'(BlockMatrixMap {r(self._child)} {r(self._apply_bin_op)})'
 
     def _compute_type(self):
         child_type = self._child.typ
         self._type = tblockmatrix(child_type.element_type,
-                                  _compute_shape(*self._get_children_shapes()),
+                                  _compute_shape_after_broadcast(*self._get_children_shapes()),
                                   child_type.block_size,
                                   child_type.dims_partitioned)
 
@@ -89,7 +89,7 @@ class JavaBlockMatrix(BlockMatrixIR):
         self._type = tblockmatrix._from_java(self._jir.typ())
 
 
-def _compute_shape(left_shape, right_shape):
+def _compute_shape_after_broadcast(left_shape, right_shape):
     left_ndim, right_ndim = len(left_shape), len(right_shape)
     new_shape = collections.deque()
     for i in range(min(left_ndim, right_ndim)):
