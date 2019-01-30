@@ -106,11 +106,24 @@ async function attachTokenMiddleware(req, res, next) {
 }
 
 polka()
-  .get('/verify', attachTokenMiddleware, (req, res) => {
-    res.setHeader('User', req.user.sub);
-    res.setHeader('Scope', req.user.scope);
+  .get('/verify', (req, res) => {
+    const token = getAuthToken(req);
 
-    res.end();
+    if (!token) {
+      unauthorized(res);
+      return;
+    }
+
+    verifyToken(token)
+      .then(user => {
+        res.setHeader('User', user.sub);
+        res.setHeader('Scope', user.scope);
+        res.end();
+      })
+      .catch(e => {
+        console.error(e);
+        unauthorized(res);
+      });
   })
   .listen(PORT, err => {
     if (err) {
@@ -119,3 +132,8 @@ polka()
 
     console.info(`Auth server running on port ${PORT}`);
   });
+
+function unauthorized(res) {
+  res.statusCode = 401;
+  res.end();
+}

@@ -17,11 +17,17 @@
     background-color: $white;
     padding: 10px;
     border-radius: 3px;
+    &:focus,
+    &:hover {
+      border-color: $devil-gray;
+    }
+  }
+  .link-button,
+  button {
     cursor: pointer;
     color: $black;
-    &:hover,
-    &:focus {
-      border-color: $devil-gray;
+    &:focus,
+    &:hover {
       color: $devil-gray;
     }
   }

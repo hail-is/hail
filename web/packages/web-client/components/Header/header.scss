@@ -22,10 +22,6 @@
       &:last-child {
         margin-right: 0px;
       }
-      &:focus,
-      &:hover {
-        border-color: $devil-gray;
-      }
     }
     .icon-button {
       cursor: pointer;
