@@ -343,6 +343,11 @@ object IRParser {
         val elementType = type_expr(it)
         punctuation(it, "]")
         TArray(elementType, req)
+      case "NDArray" =>
+        punctuation(it, "[")
+        val elementType = type_expr(it)
+        punctuation(it, "]")
+        TNDArray(elementType, req)
       case "Set" =>
         punctuation(it, "[")
         val elementType = type_expr(it)
@@ -582,7 +587,7 @@ object IRParser {
         val a = ir_value_expr(env)(it)
         val ascending = ir_value_expr(env)(it)
         ArraySort(a, ascending, onKey)
-      case "MakeArray" =>
+      case "MakeNDArray" =>
         val flags = ir_value_expr(env)(it)
         val shape = ir_value_expr(env)(it)
         val offset = ir_value_expr(env)(it)

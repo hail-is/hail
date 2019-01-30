@@ -549,24 +549,22 @@ class ArrayRange(IR):
 
 
 class MakeNDArray(IR):
-    @typecheck_method(flags=IR, shape=IR, offset=IR, strides=IR, data=IR, element_type=nullable(hail_type))
-    def __init__(self, flags, shape, offset, strides, data, element_type):
-        super().__init__(flags, shape, offset, strides, data, element_type)
+    @typecheck_method(flags=IR, shape=IR, offset=IR, strides=IR, data=IR)
+    def __init__(self, flags, shape, offset, strides, data):
+        super().__init__(flags, shape, offset, strides, data)
         self.flags = flags
         self.shape = shape
         self.offset = offset
         self.strides = strides
         self.data = data
-        self._element_type=element_type
 
-    @typecheck_method(flags=IR, shape=IR, offset=IR, strides=IR, data=IR, element_type=nullable(hail_type))
-    def copy(self, flags, shape, offset, strides, data, element_type):
+    @typecheck_method(flags=IR, shape=IR, offset=IR, strides=IR, data=IR)
+    def copy(self, flags, shape, offset, strides, data):
         new_instance = self.__class__
-        return new_instance(flags, shape, offset, strides, data, element_type)
+        return new_instance(flags, shape, offset, strides, data)
 
     def render(self, r):
-        return '(MakeNDArray {} {} {} {} {} {})'.format(
-            self._element_type._parsable_string() if self._element_type is not None else 'None',
+        return '(MakeNDArray {} {} {} {} {})'.format(
             r(self.flags),
             r(self.shape),
             r(self.offset),
@@ -579,15 +577,11 @@ class MakeNDArray(IR):
                other.shape == self.shape and \
                other.offset == self.offset and \
                other.strides == self.strides and \
-               other.data == self.data and \
-               other._element_type == self._element_type
+               other.data == self.data
 
     def _compute_type(self, env, agg_env):
         self.data._compute_type(env, agg_env)
-        if self._element_type:
-            self._type = self._element_type
-        else:
-            self._type = tndarray(self.data.typ.element_type)
+        tndarray(self.data.typ)
 
 
 class ArraySort(IR):

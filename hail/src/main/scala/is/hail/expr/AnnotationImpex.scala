@@ -182,6 +182,7 @@ object JSONAnnotationImpex {
           warn(s"Can't convert JSON value $jv to type $t at $parent.")
           null
         }.toMap
+
       case (JObject(jfields), t: TStruct) =>
         if (t.size == 0)
           Annotation.empty
