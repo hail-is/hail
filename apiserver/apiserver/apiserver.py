@@ -2,10 +2,13 @@ import hail as hl
 
 from hail.utils.java import Env, info
 
+import os
 import logging
 import flask
+import json
 
-hl.init()
+master = os.environ.get('HAIL_APISERVER_SPARK_MASTER')
+hl.init(master=master, min_block_size=0)
 
 app = flask.Flask('hail-apiserver')
 
