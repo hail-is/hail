@@ -53,7 +53,7 @@ class BlockMatrixMap(BlockMatrixIR):
     def _compute_type(self):
         child_type = self._child.typ
         self._type = tblockmatrix(child_type.element_type,
-                                  _compute_shape_after_broadcast(*self._get_children_shapes()),
+                                  _shape_after_broadcast(*self._get_children_shapes()),
                                   child_type.block_size,
                                   child_type.dims_partitioned)
 
@@ -65,13 +65,13 @@ class BlockMatrixMap(BlockMatrixIR):
             left_shape = child_matrix.typ.shape
             if isinstance(right, F64):
                 right_shape = [1, 1]
-            else:  # MakeStruct to hold vectors
+            else:
                 right_shape = right.fields[0][1].value
         else:
             right_shape = child_matrix.typ.shape
             if isinstance(left, F64):
                 left_shape = [1, 1]
-            else:  # MakeStruct to hold vectors
+            else:
                 left_shape = left.fields[0][1].value
 
         return left_shape, right_shape
@@ -89,20 +89,18 @@ class JavaBlockMatrix(BlockMatrixIR):
         self._type = tblockmatrix._from_java(self._jir.typ())
 
 
-def _compute_shape_after_broadcast(left_shape, right_shape):
+def _shape_after_broadcast(left_shape, right_shape):
+    def _calc_new_dim(l_dim_length, r_dim_length):
+        if not (l_dim_length == r_dim_length or l_dim_length == 1 or r_dim_length == 1):
+            raise ValueError(f'Incompatible shapes for broadcasting: {left_shape}, {right_shape}')
+
+        return max(l_dim_length, r_dim_length)
+
     left_ndim, right_ndim = len(left_shape), len(right_shape)
-    new_shape = collections.deque()
-    for i in range(min(left_ndim, right_ndim)):
-        left_dim_length = left_shape[-i - 1]
-        right_dim_length = right_shape[-i - 1]
-        assert left_dim_length == right_dim_length or left_dim_length == 1 or right_dim_length == 1
-
-        new_shape.extendleft([max(left_dim_length, right_dim_length)])
-
-    # Extend non-shared dimensions with whatever the higher-dimensional object has
     if left_ndim < right_ndim:
-        return right_shape[:(right_ndim - left_ndim)] + list(new_shape)
+        left_shape = [1 for _ in range(right_ndim - left_ndim)].extend(left_shape)
     elif right_ndim < left_ndim:
-        return left_shape[:(left_ndim - right_ndim)] + list(new_shape)
+        right_shape = [1 for _ in range(left_ndim - right_ndim)].extend(right_shape)
 
-    return list(new_shape)
+    assert(len(left_shape) == len(right_shape))
+    return map(_calc_new_dim, left_shape, right_shape)

@@ -17,34 +17,33 @@ object BlockMatrixIR {
       // Reshaping when broadcasting a row or column vector
       case (MakeStruct(fields), Ref(_, _: TFloat64)) =>
         val (_, shape) = fields.head
-        BlockMatrixIR.resizeAfterBroadcast(childShape, shape.asInstanceOf[IndexedSeq[Long]])
+        BlockMatrixIR.shapeAfterBroadcast(childShape, shape.asInstanceOf[IndexedSeq[Long]])
       case (Ref(_, _: TFloat64), MakeStruct(fields)) =>
         val (_, shape) = fields.head
-        BlockMatrixIR.resizeAfterBroadcast(childShape, shape.asInstanceOf[IndexedSeq[Long]])
+        BlockMatrixIR.shapeAfterBroadcast(childShape, shape.asInstanceOf[IndexedSeq[Long]])
       case _ => fatal(s"Unsupported types for broadcasting operation: ${Pretty(left)}, ${Pretty(right)}")
     }
   }
 
-  def resizeAfterBroadcast(leftShape: IndexedSeq[Long], rightShape: IndexedSeq[Long]): IndexedSeq[Long] = {
-    var resultShape = IndexedSeq[Long]()
+  def shapeAfterBroadcast(leftShape: IndexedSeq[Long], rightShape: IndexedSeq[Long]): IndexedSeq[Long] = {
+    val leftNDims = leftShape.length
+    val rightNDims = rightShape.length
 
-    for (i <- 0 until Math.min(leftShape.length, rightShape.length)) {
-      val leftDimLength = leftShape(leftShape.length - i - 1)
-      val rightDimLength = rightShape(rightShape.length - i - 1)
-      assert(leftDimLength == rightDimLength || leftDimLength == 1 || rightDimLength == 1)
-
-      resultShape = Math.max(leftDimLength, rightDimLength) +: resultShape
+    var paddedLeft: IndexedSeq[Long] = null
+    var paddedRight: IndexedSeq[Long] = null
+    if (leftNDims < rightNDims) {
+      paddedLeft = IndexedSeq.fill[Long](rightNDims - leftNDims)(1) ++ leftShape
+      paddedRight = rightShape
+    } else if (rightNDims < leftNDims) {
+      paddedRight = IndexedSeq.fill[Long](leftNDims - rightNDims)(1) ++ rightShape
+      paddedLeft = leftShape
     }
 
-    // When the smaller dimensional object is exhausted,
-    // the remaining dimensions are taken from the other object
-    if (rightShape.length < leftShape.length) {
-      resultShape = leftShape.slice(0, leftShape.length - rightShape.length) ++ resultShape
-    } else if (leftShape.length < rightShape.length) {
-      resultShape = rightShape.slice(0, rightShape.length - leftShape.length) ++ resultShape
+    (paddedLeft, paddedRight).zipped.map {
+      (lDimLength, rDimLength) =>
+        assert(lDimLength == rDimLength || lDimLength == 1 || rDimLength == 1)
+        Math.max(lDimLength, rDimLength)
     }
-
-    resultShape
   }
 }
 
@@ -103,7 +102,7 @@ case class BlockMatrixElementWiseBinaryOp(
   override def typ: BlockMatrixType = {
     BlockMatrixType(
       left.typ.elementType,
-      BlockMatrixIR.resizeAfterBroadcast(left.typ.shape, right.typ.shape),
+      BlockMatrixIR.shapeAfterBroadcast(left.typ.shape, right.typ.shape),
       left.typ.blockSize,
       left.typ.dimsPartitioned)
   }
