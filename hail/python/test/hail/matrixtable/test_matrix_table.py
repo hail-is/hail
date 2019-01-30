@@ -773,10 +773,18 @@ class Tests(unittest.TestCase):
         mt = mt.key_cols_by(col_idx=hl.str(mt.col_idx))
 
         t = mt.make_table()
-        assert(list(t.row) == ['row_idx'], ['0.x'], ['1.x'])
+        assert list(t.row) == ['row_idx', '0.x', '1.x']
 
         t = mt.make_table(separator='__')
-        assert(list(t.row) == ['row_idx'], ['0__x'], ['1__x'])
+        assert list(t.row) == ['row_idx', '0__x', '1__x']
+
+    def test_make_table_row_equivalence(self):
+        mt = hl.utils.range_matrix_table(3, 3)
+        mt = mt.annotate_rows(r1 = hl.rand_norm(), r2 = hl.rand_norm())
+        mt = mt.annotate_entries(e1 = hl.rand_norm(), e2 = hl.rand_norm())
+        mt = mt.key_cols_by(col_idx=hl.str(mt.col_idx))
+
+        assert mt.make_table().select(*mt.row_value)._same(mt.rows())
 
     def test_transmute(self):
         mt = (

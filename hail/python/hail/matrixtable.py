@@ -3408,12 +3408,12 @@ class MatrixTable(ExprContainer):
             else:
                 return col_key
 
-        t = t.select(**{
+        t = t.annotate(**{
             fmt(f, col_keys[i]): t[entries_uid][i][j]
             for i in range(len(col_keys))
             for j, f in enumerate(self.entry)
         })
-        t = t.drop(cols_uid)
+        t = t.drop(cols_uid, entries_uid)
 
         return t
 
