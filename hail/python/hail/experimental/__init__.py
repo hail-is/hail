@@ -7,7 +7,7 @@ from .phase_by_transmission import *
 from .datasets import load_dataset
 from .import_gtf import import_gtf
 from .write_multiple import write_matrix_tables
-from .export_cols_parallel import export_cols_parallel
+from .export_entries_by_col import export_entries_by_col
 
 __all__ = ['ld_score',
            'ld_score_regression',
@@ -21,4 +21,4 @@ __all__ = ['ld_score',
            'import_gtf',
            'haplotype_freq_em',
            'write_matrix_tables',
-           'export_cols_parallel']
+           'export_entries_by_col']

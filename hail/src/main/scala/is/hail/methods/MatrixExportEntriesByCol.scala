@@ -12,7 +12,7 @@ import is.hail.utils._
 import org.apache.spark.TaskContext
 import org.apache.spark.sql.Row
 
-case class MatrixExportColsParallel(parallelism: Int, path: String, bgzip: Boolean) extends MatrixToValueFunction {
+case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boolean) extends MatrixToValueFunction {
   def typ(childType: MatrixType): Type = TVoid
 
   def execute(mv: MatrixValue): Any = {
@@ -84,6 +84,7 @@ case class MatrixExportColsParallel(parallelism: Int, path: String, bgzip: Boole
             .map { rowFieldIdx =>
               TableAnnotationImpex.exportAnnotation(fullRow(rowFieldIdx), rvType.types(rowFieldIdx).virtualType)
             }.toArray
+
           fileHandles.indices.foreach { fileIdx =>
             val entryIdx = fileIdx + startIdx
             val os = fileHandles(fileIdx)

@@ -36,6 +36,7 @@ Genetics Methods
     load_dataset
     import_gtf
 
+
 .. autofunction:: ld_score
 .. autofunction:: ld_score_regression
 .. autofunction:: hail_metadata

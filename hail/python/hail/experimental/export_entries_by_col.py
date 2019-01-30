@@ -3,14 +3,14 @@ from hail.typecheck import *
 
 
 @typecheck(mt=hl.MatrixTable, path=str, batch_size=int, bgzip=bool)
-def export_cols_parallel(mt: hl.MatrixTable, path: str, batch_size: int = 256, bgzip: bool = True):
+def export_entries_by_col(mt: hl.MatrixTable, path: str, batch_size: int = 256, bgzip: bool = True):
     """Export columns of the `mt` as separate text files.
 
     Examples
     --------
     >>> range_mt = hl.utils.range_matrix_table(10, 10)
     >>> range_mt = range_mt.annotate_entries(x = hl.rand_unif(0, 1))
-    >>> hl.experimental.export_cols_parallel(range_mt, 'output/cols_files')
+    >>> hl.experimental.export_entries_by_col(range_mt, 'output/cols_files')
 
     Notes
     -----
@@ -26,6 +26,7 @@ def export_cols_parallel(mt: hl.MatrixTable, path: str, batch_size: int = 256, b
 
         $ ls -l output/cols_files
         total 80
+        -rw-r--r--  1 hail-dev  wheel  712 Jan 25 17:19 index.tsv
         -rw-r--r--  1 hail-dev  wheel  712 Jan 25 17:19 part-00.tsv.bgz
         -rw-r--r--  1 hail-dev  wheel  712 Jan 25 17:19 part-01.tsv.bgz
         -rw-r--r--  1 hail-dev  wheel  712 Jan 25 17:19 part-02.tsv.bgz
@@ -67,7 +68,7 @@ def export_cols_parallel(mt: hl.MatrixTable, path: str, batch_size: int = 256, b
     """
     hl.utils.java.Env.backend().execute(
         hl.ir.MatrixToValueApply(mt._mir,
-                                 {'name': 'MatrixExportColsParallel',
+                                 {'name': 'MatrixExportEntriesByCol',
                                   'parallelism': batch_size,
                                   'path': path,
                                   'bgzip': bgzip})
