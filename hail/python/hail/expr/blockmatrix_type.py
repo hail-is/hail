@@ -20,7 +20,7 @@ class tblockmatrix(object):
     def __init__(self, element_type, shape, block_size, dims_partitioned):
         self.element_type = element_type
         self.shape = shape
-        self.block_size = block_size,
+        self.block_size = block_size
         self.dims_partitioned = dims_partitioned
 
     def __eq__(self, other):

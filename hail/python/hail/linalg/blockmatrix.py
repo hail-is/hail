@@ -1306,18 +1306,8 @@ class BlockMatrix(object):
 
     @typecheck_method(op=str, right=oneof(numeric, np.ndarray, block_matrix_type))
     def _apply_element_wise_op_on_right(self, op, right):
-        """
-        Ok so the test is failing because it's trying to broadcast with a 1x1 BlockMatrix on the left
-        and a 1x2 BlockMatrix on the right. Because the Form class classifies 1x1 BlockMatrices as scalars
-        and rips them out, then it reverses the order. This means the backend is incapable of BlockMatrix x BlockMatrix
-        broadcasting where the "smaller" one is on the right. This clearly can't stay because in higher dimensions,
-        both BlockMatrices could be broadcasted. The front is fine, it is simply the backend that needs to be able to
-        support this broadcasting. Question is, should I go ahead and implement this? Seems like that's something key
-        we will ultimately need to have.
-        """
         if isinstance(right, BlockMatrix):
             _verify_can_broadcast(self.shape, right.shape)
-
             return BlockMatrix(BlockMatrixElementWiseBinaryOp(self._bmir, right._bmir,
                                                               ApplyBinaryOp(op, Ref('element'), Ref('element'))))
         elif _is_scalar(right):
@@ -1325,10 +1315,8 @@ class BlockMatrix(object):
                                                          ApplyBinaryOp(op, Ref('element'), F64(right))))
         else:
             _verify_can_broadcast(self.shape, right.shape)
-            right_2d = _jarray_from_ndarray(_ndarray_as_2d(right))
-
             return BlockMatrix(
-                BlockMatrixBroadcastValue(self._bmir, ApplyBinaryOp(op, Ref('element'), _wrap_in_struct(right_2d))))
+                BlockMatrixBroadcastValue(self._bmir, ApplyBinaryOp(op, Ref('element'), _wrap_in_struct(right))))
 
     @typecheck_method(op=str, left=oneof(numeric, np.ndarray))
     def _apply_element_wise_op_on_left(self, op, left):
@@ -1336,13 +1324,8 @@ class BlockMatrix(object):
             return BlockMatrix(BlockMatrixBroadcastValue(self._bmir, ApplyBinaryOp(op, F64(left), Ref('element'))))
         else:
             _verify_can_broadcast(self.shape, left.shape)
-
-            # This can get swept away once NDArrays are built into the Hail types
-            # Until then, we need to analyze everything and call into Java
-            left_2d = _jarray_from_ndarray(_ndarray_as_2d(left))
-
             return BlockMatrix(
-                BlockMatrixBroadcastValue(self._bmir, ApplyBinaryOp(op, _wrap_in_struct(left_2d), Ref('element'))))
+                BlockMatrixBroadcastValue(self._bmir, ApplyBinaryOp(op, _wrap_in_struct(left), Ref('element'))))
 
     @typecheck_method(b=oneof(numeric, np.ndarray, block_matrix_type))
     def __add__(self, b):
@@ -2160,10 +2143,11 @@ def _verify_can_broadcast(shape1, shape2):
         idx += 1
 
 
-def _wrap_in_struct(vector):
+def _wrap_in_struct(ndarray):
+    jarray = _jarray_from_ndarray(_ndarray_as_2d(ndarray))
     return MakeStruct([
-        ("shape", Literal(hl.tarray(hl.tint64), vector.shape)),
-        ("data", Literal(hl.tarray(hl.tfloat64), vector))])
+        ("shape", Literal(hl.tarray(hl.tint64), list(ndarray.shape))),
+        ("data", Literal(hl.tarray(hl.tfloat64), jarray))])
 
 
 def _shape(b):

@@ -149,7 +149,5 @@ class BlockMatrixIRSuite extends SparkSuite {
     assert(actualOnesDivColOnRight.execute(hc).toBreezeMatrix() == expectedOnesDivColRight.toBreezeMatrix())
     assert(actualOnesDivRowOnLeft.execute(hc).toBreezeMatrix() == expectedOnesDivRowLeft.toBreezeMatrix())
     assert(actualOnesDivColOnLeft.execute(hc).toBreezeMatrix() == expectedOnesDivColLeft.toBreezeMatrix())
-
-
   }
 }
