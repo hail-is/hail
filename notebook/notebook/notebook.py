@@ -3,8 +3,10 @@ A Jupyter notebook service with local-mode Hail pre-installed
 """
 import gevent
 # must happen before anytyhing else
-from gevent import monkey; monkey.patch_all()
+from gevent import monkey
+monkey.patch_all()
 
+import requests
 from flask import Flask, session, redirect, render_template, request, jsonify
 from flask_sockets import Sockets
 import flask
@@ -21,9 +23,9 @@ from dotenv import load_dotenv
 load_dotenv(verbose=True)
 
 fmt = logging.Formatter(
-   # NB: no space after levelname because WARNING is so long
-   '%(levelname)s\t| %(asctime)s \t| %(filename)s \t| %(funcName)s:%(lineno)d | '
-   '%(message)s')
+    # NB: no space after levelname because WARNING is so long
+    '%(levelname)s\t| %(asctime)s \t| %(filename)s \t| %(funcName)s:%(lineno)d | '
+    '%(message)s')
 
 fh = logging.FileHandler('notebook.log')
 fh.setLevel(logging.INFO)
@@ -48,11 +50,14 @@ k8s = kube.client.CoreV1Api()
 app = Flask(__name__)
 sockets = Sockets(app)
 
+
 def read_string(f):
     with open(f, 'r') as f:
         return f.read().strip()
 
-KUBERNETES_TIMEOUT_IN_SECONDS = float(os.environ.get('KUBERNETES_TIMEOUT_IN_SECONDS', 5.0))
+
+KUBERNETES_TIMEOUT_IN_SECONDS = float(
+    os.environ.get('KUBERNETES_TIMEOUT_IN_SECONDS', 5.0))
 app.secret_key = read_string('/notebook-secrets/secret-key')
 PASSWORD = read_string('/notebook-secrets/password')
 ADMIN_PASSWORD = read_string('/notebook-secrets/admin-password')
@@ -74,7 +79,7 @@ except FileNotFoundError as e:
 CREATED_STATE = 'created'
 DELETED_STATE = 'deleted'
 
-AUTH_DOMAIN = os.environ.get("AUTH_DOMAIN")
+AUTH_GATEWAY = os.environ.get("AUTH_GATEWAY")
 DB = os.environ.get("MYSQL_DB")
 IP = os.environ.get("MYSQL_IP")
 PORT = int(os.environ.get("MYSQL_PORT"))
@@ -100,6 +105,7 @@ cur.execute("""
 cur.close()
 mysql_conn.commit()
 mysql_conn.close()
+
 
 def start_pod(jupyter_token, image):
     pod_id = uuid.uuid4().hex
@@ -164,8 +170,10 @@ def external_url_for(path):
     url = flask.url_for('root', _scheme=protocol, _external='true')
     return url + path
 
+
 def forbidden():
     return 'Forbidden', 403
+
 
 @app.route('/healthcheck')
 def healthcheck():
@@ -173,17 +181,54 @@ def healthcheck():
 
 ##### New notebook methods meant for consumption from agnostic client#####
 ###### Methods that do not call the auth-gateway /verify method must not be directly public #######
-@app.route('/api', methods=['GET'])
-def new_api_get():
-    mysql_conn = pymysql.connect(
+@app.route('/verify/<svc_name>/', methods=['GET'])
+def validate_get(svc_name):
+    access_token = request.args.get('authorization')
+    token = request.args.get('token')
+
+    if not access_token:
+        return forbidden()
+
+    resp = requests.get(f'http://{AUTH_GATEWAY}/verify',
+                        headers={'Authorization': f'Bearer {access_token}'})
+
+    if resp.status_code != 200:
+        return forbidden()
+
+    user_id = resp.headers.get('User')
+
+    if not user_id:
+        return forbidden()
+
+    try:
+        mysql_conn = pymysql.connect(
         host=IP, port=PORT, user=USER, passwd=PASS, db=DB)
 
+        with mysql_conn.cursor() as cur:
+            cur.execute(f"SELECT svc_name FROM sessions WHERE user_id='{user_id}' AND token='{token}'")
+
+            rows = cur.fetchall()
+
+            if len(rows) != 1 or rows[0][0] != svc_name:
+                return forbidden()
+
+            return '', 200
+    except:
+        log.exception("/validate : GET : failed")
+        return '', 500
+
+
+@app.route('/api', methods=['GET'])
+def new_api_get():
     user_id = request.headers.get('User')
 
     if not user_id:
         return forbidden()
 
     try:
+        mysql_conn = pymysql.connect(
+        host=IP, port=PORT, user=USER, passwd=PASS, db=DB)
+
         sql = f"SELECT name, svc_name, token FROM {TABLE} WHERE user_id='{user_id}' AND state<>'{DELETED_STATE}'"
 
         rows = []
@@ -272,6 +317,8 @@ def new_notebook():
         return '', 500
 
 ##### Old notebook methods #####
+
+
 @app.route('/')
 def root():
     if 'svc_name' not in session:
@@ -282,7 +329,8 @@ def root():
                                default='hail')
     svc_name = session['svc_name']
     jupyter_token = session['jupyter_token']
-    log.info('redirecting to ' + external_url_for(f'instance/{svc_name}/?token={jupyter_token}'))
+    log.info('redirecting to '
+             + external_url_for(f'instance/{svc_name}/?token={jupyter_token}'))
     return redirect(external_url_for(f'instance/{svc_name}/?token={jupyter_token}'))
 
 
@@ -295,6 +343,7 @@ def new_get():
     session.clear()
     return redirect(external_url_for('/'))
 
+
 @app.route('/new', methods=['POST'])
 def new_post():
     log.info('new received')
@@ -302,16 +351,19 @@ def new_post():
     image = request.form['image']
     if password != PASSWORD or image not in WORKER_IMAGES:
         return '403 Forbidden', 403
-    jupyter_token = uuid.uuid4().hex  # FIXME: probably should be cryptographically secure
+    # FIXME: probably should be cryptographically secure
+    jupyter_token = uuid.uuid4().hex
     svc, pod = start_pod(jupyter_token, WORKER_IMAGES[image])
     session['svc_name'] = svc.metadata.name
     session['pod_name'] = pod.metadata.name
     session['jupyter_token'] = jupyter_token
     return redirect(external_url_for(f'wait'))
 
+
 @app.route('/wait', methods=['GET'])
 def wait_webpage():
     return render_template('wait.html')
+
 
 @app.route('/auth/<requested_svc_name>')
 def auth(requested_svc_name):
@@ -389,7 +441,8 @@ def delete_worker_pod(pod_name, svc_name):
             kube.client.V1DeleteOptions(),
             _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
     except kube.client.rest.ApiException as e:
-        log.info(f'service {svc_name} (for pod {pod_name}) already deleted {e}')
+        log.info(
+            f'service {svc_name} (for pod {pod_name}) already deleted {e}')
 
 
 @app.route('/admin-login', methods=['GET'])
@@ -423,7 +476,8 @@ def wait_websocket(ws):
             response = requests.head(f'https://notebook.hail.is/instance-ready/{svc_name}/',
                                      timeout=1)
             if response.status_code < 500:
-                log.info(f'HEAD on jupyter succeeded for {svc_name} {pod_name} response: {response}')
+                log.info(
+                    f'HEAD on jupyter succeeded for {svc_name} {pod_name} response: {response}')
                 # if someone responds with a 2xx, 3xx, or 4xx, the notebook
                 # server is alive and functioning properly (in particular, our
                 # HEAD request will return 405 METHOD NOT ALLOWED)
@@ -431,7 +485,8 @@ def wait_websocket(ws):
             else:
                 # somewhat unusual, means the gateway had an error before we
                 # timed out, usually means the gateway itself is broken
-                log.info(f'HEAD on jupyter failed for {svc_name} {pod_name} response: {response}')
+                log.info(
+                    f'HEAD on jupyter failed for {svc_name} {pod_name} response: {response}')
                 gevent.sleep(1)
             break
         except requests.exceptions.Timeout as e:
@@ -444,6 +499,6 @@ def wait_websocket(ws):
 if __name__ == '__main__':
     from gevent import pywsgi
     from geventwebsocket.handler import WebSocketHandler
-    server = pywsgi.WSGIServer(('', 5000), app, handler_class=WebSocketHandler, log=log)
+    server = pywsgi.WSGIServer(
+        ('', 5000), app, handler_class=WebSocketHandler, log=log)
     server.serve_forever()
-
