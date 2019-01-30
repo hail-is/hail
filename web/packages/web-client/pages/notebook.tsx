@@ -16,11 +16,12 @@ declare type props = {
 declare type state = {
   unauthorized: boolean;
   notebooks: notebook[];
-  loading: int; //-1, 0, 1: failed, not, loading
+  loading: number; //-1, 0, 1: failed, not, loading
 };
 
 class Notebook extends PureComponent<props, state> {
   state: state = {
+    loading: 0,
     unauthorized: false,
     notebooks: []
   };
@@ -51,7 +52,7 @@ class Notebook extends PureComponent<props, state> {
     formData.append('image', 'hail');
 
     try {
-      const notebook: notebook = await fetch(`${DOMAIN}/api/new`, {
+      const notebook: notebook = await fetch(`${DOMAIN}/api`, {
         headers: {
           Authorization: `Bearer ${auth.accessToken}`
         },
