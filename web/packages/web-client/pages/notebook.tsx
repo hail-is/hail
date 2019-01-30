@@ -138,7 +138,9 @@ class Notebook extends PureComponent<props, state> {
               >
                 <a
                   style={{ flexDirection: 'column', display: 'flex' }}
-                  href={`${DOMAIN}/instance/${d[1]}?token=${d[2]}`}
+                  href={`${DOMAIN}/instance/${d[1]}/?authorization=${
+                    auth.accessToken
+                  }&token=${d[2]}`}
                 >
                   <b>{d[0]}</b>
                   <span className="small">{d[1]}</span>
