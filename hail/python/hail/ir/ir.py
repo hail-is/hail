@@ -549,26 +549,29 @@ class ArrayRange(IR):
 
 
 class MakeNDArray(IR):
-    @typecheck_method(flags=IR, shape=IR, offset=IR, strides=IR, data=IR)
-    def __init__(self, flags, shape, offset, strides, data):
-        super().__init__(flags, shape, offset, strides, data)
+    @typecheck_method(flags=IR, shape=IR, offset=IR, strides=IR, data=IR, element_type=nullable(hail_type))
+    def __init__(self, flags, shape, offset, strides, data, element_type):
+        super().__init__(flags, shape, offset, strides, data, element_type)
         self.flags = flags
         self.shape = shape
         self.offset = offset
         self.strides = strides
         self.data = data
+        self._element_type=element_type
 
-    @typecheck_method(flags=IR, shape=IR, offset=IR, strides=IR, data=IR)
-    def copy(self, flags, shape, offset, strides, data):
+    @typecheck_method(flags=IR, shape=IR, offset=IR, strides=IR, data=IR, element_type=nullable(hail_type))
+    def copy(self, flags, shape, offset, strides, data, element_type):
         new_instance = self.__class__
-        return new_instance(flags, shape, offset, strides, data)
+        return new_instance(flags, shape, offset, strides, data, element_type)
 
     def render(self, r):
-        return '(MakeNDArray {} {} {} {} {})'.format(r(self.flags),
-                                                     r(self.shape),
-                                                     r(self.offset,
-                                                     r(self.strides),
-                                                     r(self.data)))
+        return '(MakeNDArray {} {} {} {} {} {})'.format(
+            self._element_type._parsable_string() if self._element_type is not None else 'None',
+            r(self.flags),
+            r(self.shape),
+            r(self.offset),
+            r(self.strides),
+            r(self.data))
 
     def __eq__(self, other):
         return isinstance(other, MakeNDArray) and \
@@ -576,7 +579,16 @@ class MakeNDArray(IR):
                other.shape == self.shape and \
                other.offset == self.offset and \
                other.strides == self.strides and \
-               other.data == self.data
+               other.data == self.data and \
+               other._element_type == self._element_type
+
+    def _compute_type(self, env, agg_env):
+        self.data._compute_type(env, agg_env)
+        if self._element_type:
+            self._type = self._element_type
+        else:
+            self._type = tndarray(self.data.typ.element_type)
+
 
 class ArraySort(IR):
     @typecheck_method(a=IR, ascending=IR, on_key=bool)
