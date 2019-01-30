@@ -237,7 +237,7 @@ def delete_notebook(token):
         return '', 500
 
 
-@app.route('/api/new', methods=['POST'])
+@app.route('/api', methods=['POST'])
 def new_notebook():
     name = pymysql.escape_string(request.form.get('name', 'A notebook'))
 
