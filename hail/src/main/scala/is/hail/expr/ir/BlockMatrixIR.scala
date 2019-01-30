@@ -47,8 +47,8 @@ object BlockMatrixIR {
   }
 
   def executeAsBroadcastingValues(left: BlockMatrix, right: BlockMatrix, op: BinaryOp): BlockMatrix = {
-    val leftShape = IndexedSeq(left.nRows, left.nCols)
-    val rightShape = IndexedSeq(right.nRows, right.nCols)
+    val leftShape = IndexedSeq[Long](left.nRows, left.nCols)
+    val rightShape = IndexedSeq[Long](right.nRows, right.nCols)
 
     (leftShape, rightShape) match {
       // Right scalar
@@ -104,6 +104,14 @@ object BlockMatrixIR {
           case Multiply() => right.colVectorMul(leftAsColVec)
           case Subtract() => right.reverseColVectorSub(leftAsColVec)
           case FloatingPointDivide() => right.reverseColVectorDiv(leftAsColVec)
+        }
+        //No broadcasting, assuming they have the same dimensions
+      case _ =>
+        op match {
+          case Add() => left.add(right)
+          case Multiply() => left.mul(right)
+          case Subtract() => left.sub(right)
+          case FloatingPointDivide() => left.div(right)
         }
     }
   }
@@ -180,25 +188,9 @@ case class BlockMatrixElementWiseBinaryOp(
   }
 
   override protected[ir] def execute(hc: HailContext): BlockMatrix = {
-    // Hack to get around Tensor x Tensor broadcasting
-    // not being implemented in BlockMatrix
-    if (left.typ.shape != right.typ.shape) {
-      val leftValue = left.execute(hc)
-      val rightValue = right.execute(hc)
-      return BlockMatrixIR.executeAsBroadcastingValues(leftValue, rightValue, applyBinOp.op)
-    }
-
-    (applyBinOp.l, applyBinOp.r, applyBinOp.op) match {
-      case (Ref(_, _: TFloat64), Ref(_, _: TFloat64), Add()) =>
-        left.execute(hc).add(right.execute(hc))
-      case (Ref(_, _: TFloat64), Ref(_, _: TFloat64), Multiply()) =>
-        left.execute(hc).mul(right.execute(hc))
-      case (Ref(_, _: TFloat64), Ref(_, _: TFloat64), Subtract()) =>
-        left.execute(hc).sub(right.execute(hc))
-      case (Ref(_, _: TFloat64), Ref(_, _: TFloat64), FloatingPointDivide()) =>
-        left.execute(hc).div(right.execute(hc))
-      case _ => fatal(s"Binary operation not supported on two blockmatrices: ${Pretty(applyBinOp)}")
-    }
+    val leftValue = left.execute(hc)
+    val rightValue = right.execute(hc)
+    BlockMatrixIR.executeAsBroadcastingValues(leftValue, rightValue, applyBinOp.op)
   }
 }
 

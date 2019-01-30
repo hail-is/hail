@@ -35,7 +35,7 @@ class BlockMatrixElementWiseBinaryOp(BlockMatrixIR):
         right_type = self._right.typ
         left_type = self._left.typ
         self._type = tblockmatrix(left_type.element_type,
-                                  _compute_shape_after_broadcast(left_type.shape, right_type.shape),
+                                  _shape_after_broadcast(left_type.shape, right_type.shape),
                                   left_type.block_size,
                                   left_type.dims_partitioned)
 
@@ -102,5 +102,4 @@ def _shape_after_broadcast(left_shape, right_shape):
     elif right_ndim < left_ndim:
         right_shape = [1 for _ in range(left_ndim - right_ndim)].extend(right_shape)
 
-    assert(len(left_shape) == len(right_shape))
-    return map(_calc_new_dim, left_shape, right_shape)
+    return list(map(_calc_new_dim, left_shape, right_shape))
