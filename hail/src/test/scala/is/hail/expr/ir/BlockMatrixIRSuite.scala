@@ -28,9 +28,7 @@ class BlockMatrixIRSuite extends SparkSuite {
   }
 
   def makeMatFromCol(vec: Seq[Double]): BlockMatrix = {
-    val rows = vec.map(entry => Array(entry, entry, entry))
-
-    toBM(rows)
+    toBM(vec.map(entry => Array(entry, entry, entry)))
   }
 
   def makeMatFromRow(vec: Seq[Double]): BlockMatrix = {
@@ -57,16 +55,6 @@ class BlockMatrixIRSuite extends SparkSuite {
     assert(actualMatrix.toBreezeMatrix() == sampleMatrix.toBreezeMatrix())
   }
 
-  @Test def testBlockMatrixAdd() {
-    def a = BlockMatrix.fill(hc, 3, 3, 1)
-    def b = BlockMatrix.fill(hc, 3, 3, 2)
-
-    def expectedAPlusB = BlockMatrix.fill(hc, 3, 3, 3)
-    val actualAPlusB = BlockMatrixAdd(new BlockMatrixLiteral(a), new BlockMatrixLiteral(b)).execute(hc)
-
-    assert(actualAPlusB.toBreezeMatrix() == expectedAPlusB.toBreezeMatrix())
-  }
-
   @Test def testBlockMatrixBroadcastValue_Scalars() {
     val onesAddTwo = mapOnRight(new BlockMatrixLiteral(ones), Add(), F64(2))
     val threesSubTwo = mapOnRight(new BlockMatrixLiteral(threes), Subtract(), F64(2))
@@ -80,9 +68,9 @@ class BlockMatrixIRSuite extends SparkSuite {
   }
 
   @Test def testBlockMatrixBroadcastValue_Vectors() {
-    val rowVectorShapeLiteral = Literal(TArray(TInt32()), Array[Long](1, 3))
-    val colVectorShapeLiteral = Literal(TArray(TInt32()), Array[Long](3, 1))
-    val vectorLiteral = Literal(TArray(TFloat64()), Array[Double](1, 2, 3))
+    val rowVectorShapeLiteral = Literal(TArray(TInt32()), Seq[Long](1, 3))
+    val colVectorShapeLiteral = Literal(TArray(TInt32()), Seq[Long](3, 1))
+    val vectorLiteral = Literal(TArray(TFloat64()), Seq[Double](1, 2, 3))
 
     val rowVector = MakeStruct(IndexedSeq(("row_vector", rowVectorShapeLiteral), ("data", vectorLiteral)))
     val colVector = MakeStruct(IndexedSeq(("row_vector", colVectorShapeLiteral), ("data", vectorLiteral)))

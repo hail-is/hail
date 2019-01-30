@@ -20,21 +20,6 @@ class BlockMatrixRead(BlockMatrixIR):
         self._type = Env.backend().blockmatrix_type(self)
 
 
-class BlockMatrixAdd(BlockMatrixIR):
-    @typecheck_method(left=BlockMatrixIR, right=BlockMatrixIR)
-    def __init__(self, left, right):
-        super().__init__()
-        self._left = left
-        self._right = right
-
-    def render(self, r):
-        return f'(BlockMatrixAdd {r(self._left)} {r(self._right)})'
-
-    def _compute_type(self):
-        self._right.typ # force
-        self._type = self._left.typ
-
-
 class BlockMatrixElementWiseBinaryOp(BlockMatrixIR):
     @typecheck_method(left=BlockMatrixIR, right=BlockMatrixIR, applyBinOp=ApplyBinaryOp)
     def __init__(self, left, right, applyBinOp):

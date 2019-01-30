@@ -1,7 +1,6 @@
 import numpy as np
 import scipy.linalg as spla
 import itertools
-from enum import IntEnum
 
 import hail as hl
 import hail.expr.aggregators as agg
@@ -15,38 +14,6 @@ from hail.table import Table
 from hail.expr.expressions import expr_float64, matrix_table_source, check_entry_indexed
 
 block_matrix_type = lazy()
-
-
-class Form(IntEnum):
-    SCALAR = 0
-    COLUMN = 1
-    ROW = 2
-    MATRIX = 3
-
-    @classmethod
-    def of(cls, shape):
-        assert len(shape) == 2
-        if shape[0] == 1 and shape[1] == 1:
-            return Form.SCALAR
-        elif shape[1] == 1:
-            return Form.COLUMN
-        elif shape[0] == 1:
-            return Form.ROW
-        else:
-            return Form.MATRIX
-
-    @staticmethod
-    def compatible(shape_a, shape_b, op):
-        form_a = Form.of(shape_a)
-        form_b = Form.of(shape_b)
-        if (form_a == Form.SCALAR or
-                form_b == Form.SCALAR or
-                form_a == form_b and shape_a == shape_b or
-                {form_a, form_b} == {Form.MATRIX, Form.COLUMN} and shape_a[0] == shape_b[0] or
-                {form_a, form_b} == {Form.MATRIX, Form.ROW} and shape_a[1] == shape_b[1]):
-            return form_a, form_b
-        else:
-            raise ValueError(f'incompatible shapes for {op}: {shape_a} and {shape_b}')
 
 
 class BlockMatrix(object):
@@ -568,15 +535,6 @@ class BlockMatrix(object):
         :obj:`int`
         """
         return self._jbm.blockSize()
-
-    @property
-    def _jdata(self):
-        return self._jbm.toBreezeMatrix().data()
-
-    @property
-    def _as_scalar(self):
-        assert self.n_rows == 1 and self.n_cols == 1
-        return self._jbm.toBreezeMatrix().apply(0, 0)
 
     @typecheck_method(path=str,
                       overwrite=bool,
@@ -1268,64 +1226,32 @@ class BlockMatrix(object):
         op = getattr(self._jbm, "unary_$minus")
         return BlockMatrix._from_java(op())
 
-    def _promote(self, b, op, reverse=False):
-        a = self
-        form_a, form_b = Form.compatible(a.shape, _shape(b), op)
-
-        if form_b > form_a:
-            if isinstance(b, np.ndarray):
-                b = BlockMatrix.from_numpy(b, a.block_size)
-            return b._promote(a, op, reverse=True)
-
-        assert form_a >= form_b
-
-        if form_b == Form.SCALAR:
-            if isinstance(b, int) or isinstance(b, float):
-                b = float(b)
-            elif isinstance(b, np.ndarray):
-                b = _ndarray_as_float64(b).item()
-            else:
-                b = b._as_scalar
-        elif form_a > form_b:
-            if isinstance(b, np.ndarray):
-                b = _jarray_from_ndarray(b)
-            else:
-                assert isinstance(b, BlockMatrix)
-                b = b._jdata
-        else:
-            assert form_a == form_b
-            if not isinstance(b, BlockMatrix):
-                assert isinstance(b, np.ndarray)
-                b = BlockMatrix.from_numpy(b, a.block_size)
-
-        assert (isinstance(a, BlockMatrix) and
-                (isinstance(b, BlockMatrix) or isinstance(b, float) or b.getClass().isArray()) and
-                (not (isinstance(b, BlockMatrix) and reverse)))
-
-        return a, b, form_b, reverse
-
     @typecheck_method(op=str, right=oneof(numeric, np.ndarray, block_matrix_type))
     def _apply_element_wise_op_on_right(self, op, right):
         if isinstance(right, BlockMatrix):
             _verify_can_broadcast(self.shape, right.shape)
-            return BlockMatrix(BlockMatrixElementWiseBinaryOp(self._bmir, right._bmir,
-                                                              ApplyBinaryOp(op, Ref('element'), Ref('element'))))
+
+            apply_bin_op = ApplyBinaryOp(op, Ref('element'), Ref('element'))
+            return BlockMatrix(BlockMatrixElementWiseBinaryOp(self._bmir, right._bmir, apply_bin_op))
         elif _is_scalar(right):
-            return BlockMatrix(BlockMatrixBroadcastValue(self._bmir,
-                                                         ApplyBinaryOp(op, Ref('element'), F64(right))))
+            apply_bin_op = ApplyBinaryOp(op, Ref('element'), F64(right))
+            return BlockMatrix(BlockMatrixBroadcastValue(self._bmir, apply_bin_op))
         else:
             _verify_can_broadcast(self.shape, right.shape)
-            return BlockMatrix(
-                BlockMatrixBroadcastValue(self._bmir, ApplyBinaryOp(op, Ref('element'), _wrap_in_struct(right))))
+
+            apply_bin_op = ApplyBinaryOp(op, Ref('element'), _wrap_in_struct(right))
+            return BlockMatrix(BlockMatrixBroadcastValue(self._bmir, apply_bin_op))
 
     @typecheck_method(op=str, left=oneof(numeric, np.ndarray))
     def _apply_element_wise_op_on_left(self, op, left):
         if _is_scalar(left):
-            return BlockMatrix(BlockMatrixBroadcastValue(self._bmir, ApplyBinaryOp(op, F64(left), Ref('element'))))
+            apply_bin_op = ApplyBinaryOp(op, F64(left), Ref('element'))
+            return BlockMatrix(BlockMatrixBroadcastValue(self._bmir, apply_bin_op))
         else:
             _verify_can_broadcast(self.shape, left.shape)
-            return BlockMatrix(
-                BlockMatrixBroadcastValue(self._bmir, ApplyBinaryOp(op, _wrap_in_struct(left), Ref('element'))))
+
+            apply_bin_op = ApplyBinaryOp(op, _wrap_in_struct(left), Ref('element'))
+            return BlockMatrix(BlockMatrixBroadcastValue(self._bmir, apply_bin_op))
 
     @typecheck_method(b=oneof(numeric, np.ndarray, block_matrix_type))
     def __add__(self, b):

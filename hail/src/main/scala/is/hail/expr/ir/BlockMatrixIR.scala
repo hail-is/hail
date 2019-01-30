@@ -96,22 +96,6 @@ class BlockMatrixLiteral(value: BlockMatrix) extends BlockMatrixIR {
   override protected[ir] def execute(hc: HailContext): BlockMatrix = value
 }
 
-case class BlockMatrixAdd(left: BlockMatrixIR, right: BlockMatrixIR) extends BlockMatrixIR {
-
-  override def typ: BlockMatrixType = left.typ
-
-  override def children: IndexedSeq[BaseIR] = Array(left, right)
-
-  override def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
-    assert(newChildren.length == 2)
-    BlockMatrixAdd(newChildren(0).asInstanceOf[BlockMatrixIR], newChildren(1).asInstanceOf[BlockMatrixIR])
-  }
-
-  override protected[ir] def execute(hc: HailContext): BlockMatrix = {
-    left.execute(hc).add(right.execute(hc))
-  }
-}
-
 case class BlockMatrixElementWiseBinaryOp(
   left: BlockMatrixIR,
   right: BlockMatrixIR,
