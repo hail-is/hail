@@ -4,7 +4,7 @@ from hail.typecheck import *
 
 @typecheck(mt=hl.MatrixTable, path=str, batch_size=int, bgzip=bool)
 def export_entries_by_col(mt: hl.MatrixTable, path: str, batch_size: int = 256, bgzip: bool = True):
-    """Export columns of the `mt` as separate text files.
+    """Export entries of the `mt` by column as separate text files.
 
     Examples
     --------
