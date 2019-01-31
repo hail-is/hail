@@ -297,8 +297,13 @@ def create_job():
 
     parent_ids = parameters.get('parent_ids', [])
     for parent_id in parent_ids:
-        if parent_id not in job_id_job:
+        parent_job = job_id_job.get(parent_id, None)
+        if parent_job is None:
             abort(400, f'invalid parent_id: no job with id {parent_id}')
+        if parent_job.batch_id != batch_id:
+            abort(400,
+                  f'invalid parent batch: {parent_id} is in batch '
+                  f'{parent_job.batch_id} but child is in {batch_id}')
 
     if len(pod_spec.containers) != 1:
         abort(400, f'only one container allowed in pod_spec {pod_spec}')
