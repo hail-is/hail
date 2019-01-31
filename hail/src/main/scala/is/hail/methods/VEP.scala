@@ -1,5 +1,7 @@
 package is.hail.methods
 
+import java.io.BufferedInputStream
+
 import com.fasterxml.jackson.core.JsonParseException
 import is.hail.annotations._
 import is.hail.expr._
@@ -11,13 +13,13 @@ import is.hail.sparkextras.ContextRDD
 import is.hail.table.Table
 import is.hail.utils._
 import is.hail.variant.{Locus, RegionValueVariant, VariantMethods}
+import org.apache.hadoop
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.json4s.jackson.JsonMethods
-import org.apache.hadoop
 
 import scala.collection.JavaConverters._
-import scala.util.{Failure, Success, Try}
+import scala.io.Source
 
 case class VEPConfiguration(
   command: Array[String],
@@ -62,6 +64,18 @@ object VEP {
     }
   }
 
+  def waitFor(proc: Process, cmd: Array[String]): Unit = {
+    val rc = proc.waitFor()
+
+    if (rc != 0) {
+      val errorLines = Source.fromInputStream(new BufferedInputStream(proc.getErrorStream)).getLines().mkString("\n")
+
+      fatal(s"VEP command '${ cmd.mkString(" ") }' failed with non-zero exit status $rc\n" +
+        "  VEP Error output:\n" +
+        Source.fromInputStream(new BufferedInputStream(proc.getErrorStream)).getLines().mkString("\n"))
+    }
+  }
+
   def getCSQHeaderDefinition(cmd: Array[String], confEnv: Map[String, String]): Option[String] = {
     val csqHeaderRegex = "ID=CSQ[^>]+Description=\"([^\"]+)".r
     val pb = new ProcessBuilder(cmd.toList.asJava)
@@ -74,9 +88,7 @@ object VEP {
       _ => ())
 
     val csqHeader = jt.flatMap(s => csqHeaderRegex.findFirstMatchIn(s).map(m => m.group(1)))
-    val rc = proc.waitFor()
-    if (rc != 0)
-      fatal(s"VEP command failed with non-zero exit status $rc")
+    waitFor(proc, cmd)
 
     if (csqHeader.hasNext)
       Some(csqHeader.next())
@@ -183,9 +195,7 @@ object VEP {
             val r = kt.toArray
               .sortBy(_._1)(rowKeyOrd.toOrdering)
 
-            val rc = proc.waitFor()
-            if (rc != 0)
-              fatal(s"vep command '${ cmd.mkString(" ") }' failed with non-zero exit status $rc")
+            waitFor(proc, cmd)
 
             r
           }
