@@ -24,3 +24,19 @@ object Binds {
     }
   }
 }
+
+object Bindings {
+  private val empty = Array[String]()
+
+  def apply(x: IR): Array[String] = x match {
+    case Let(name, _, _) => Array(name)
+    case ArrayMap(_, name, _) => Array(name)
+    case ArrayFlatMap(_, name, _) => Array(name)
+    case ArrayFilter(_, name, _) => Array(name)
+    case ArrayFold(_, _, accumName, valueName, _) => Array(accumName, valueName)
+    case ArrayScan(_, _, accumName, valueName, _) => Array(accumName, valueName)
+    case ArrayLeftJoinDistinct(_, _, l, r, _, _) => Array(l, r)
+    case AggExplode(_, n, _) => Array(n)
+    case _ => empty
+  }
+}

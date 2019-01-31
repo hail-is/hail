@@ -57,20 +57,6 @@ class LiftLetsSuite extends TestNGSuite {
     TypeCheck(ir)
   }
 
-  @Test def testNestedLets(): Unit = {
-    val ir = Let(
-      "x1",
-      I32(1),
-      Let(
-        "x2",
-        I32(2),
-        ApplyUnaryPrimOp(Negate(), Ref("x2", TInt32()))
-      )
-    )
-
-    assert(LiftLets(ir) == ir)
-  }
-
   @Test def testEquivalentLets(): Unit = {
     val ir = Let(
       "x1",

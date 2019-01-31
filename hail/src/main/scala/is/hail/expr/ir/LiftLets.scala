@@ -2,64 +2,75 @@ package is.hail.expr.ir
 
 import scala.collection.mutable
 
-object LiftLets {
-  def apply(ir: BaseIR): BaseIR = {
-    val m = mutable.HashSet.empty[(String, String)]
+case class LetBinding(name: String, value: IR, bindings: List[LetBinding])
 
-    RewriteBottomUp(ir, {
-      case ir: IR =>
-        val children = ir.children
-        val letIndices: Array[Int] = children.zipWithIndex.flatMap {
-          case (x@Let(letName, letValue, letBody), idx) => ir match {
-            case Let(parentName, _, _) =>
-              assert(letName != parentName)
-              val pair = letName -> parentName
-              if (m.contains(pair) || Mentions(letValue, parentName))
-                None
-              else {
-                m += pair
-                Some(idx)
-              }
-            case ArrayMap(_, name, _) if Mentions(letValue, name) => None
-            case ArrayFilter(_, name, body) if Mentions(letValue, name) => None
-            case ArrayFlatMap(_, name, body) if Mentions(letValue, name) => None
-            case ArrayFor(_, name, body) if Mentions(letValue, name) => None
-            case ArrayFold(_, _, name1, name2, body) if Mentions(letValue, name1) || Mentions(letValue, name2) => None
-            case ArrayScan(_, _, name1, name2, body) if Mentions(letValue, name1) || Mentions(letValue, name2) => None
-            case _: ApplyAggOp => None
-            case _: ApplyScanOp => None
-            case _: AggFilter => None
-            case _: AggExplode => None
-            case _: AggGroupBy => None
-            case _: TableAggregate => None
-            case _: MatrixAggregate => None
-            case _ => Some(idx)
-          }
-          case _ => None
-        }.toArray
-        if (letIndices.isEmpty)
-          None
-        else {
-          val letIndicesSet = letIndices.toSet
-          val replaced = ir.copy(ir.children.zipWithIndex.map {
-            case (x@Let(varName, _, body), idx) =>
-              if (letIndices.contains(idx))
-                body
-              else
-                x
-            case (child, idx) =>
-            assert(!letIndices.contains(idx))
-            child
-          })
-          Some(letIndices.map(children).foldLeft(replaced) {
-            case (Let(name, value, body), let: Let) if value == let.value =>
-            // elide duplicated bindings
-              Let(name, value, Subst(body, Env(let.name -> Ref(name, value.typ))))
-            case (replacedIR, let: Let) =>
-              Let(let.name, let.value, replacedIR)
-          })
-        }
-      case _ => None
-    })
+object LiftLets {
+
+  def breaksScope(x: BaseIR): Boolean = {
+    (x: @unchecked) match {
+      case _: TableAggregate => true
+      case _: MatrixAggregate => true
+      case _: TableCollect => true
+      case _: ApplyAggOp => true
+      case _: ApplyScanOp => true
+      case _: AggFilter => true
+      case _: AggGroupBy => true
+      case _: AggExplode => true
+      case _: IR => false
+      case _ => true
+    }
+  }
+
+  def prependBindings(x: IR, bindings: List[LetBinding]): IR = {
+    val m = mutable.Map.empty[IR, String]
+    bindings.foldLeft(x) { case (ir, binding) =>
+      // reduce equivalent lets
+      val ir1 = m.get(binding.value) match {
+        case Some(prevName) =>
+          if (prevName != binding.name)
+            Subst(ir, Env(binding.name -> Ref(prevName, binding.value.typ)))
+          else ir
+        case None =>
+          m += binding.value -> binding.name
+          Let(binding.name, binding.value, ir)
+      }
+
+      prependBindings(ir1, binding.bindings)
+    }
+  }
+
+  def apply(ir0: BaseIR): BaseIR = {
+    val (lifted, lb) = lift(ir0)
+    if (lb.nonEmpty)
+      prependBindings(lifted.asInstanceOf[IR], lb)
+    else
+      lifted
+  }
+
+  def lift(ir0: BaseIR): (BaseIR, List[LetBinding]) = {
+    (ir0: @unchecked) match {
+      case Let(name, value, body) =>
+        val (liftedBody, bodyBindings) = lift(body)
+        val (liftedValue: IR, valueBindings) = lift(value)
+        val subInclusion = bodyBindings.map(lb => lb.name == name || Mentions(lb.value, name))
+        val lb = (LetBinding(name, liftedValue, bodyBindings.zip(subInclusion).filter(_._2).map(_._1))
+          :: valueBindings
+          ::: bodyBindings.zip(subInclusion).filter { case (_, sub) => !sub }.map(_._1))
+        liftedBody -> lb
+      case ir1 if breaksScope(ir1) =>
+        ir1.copy(ir1.children.map(apply)) -> Nil
+      case ir0: IR =>
+        val bindings = Bindings(ir0)
+        val (newChildren, letBindings) = Children(ir0)
+          .zipWithIndex
+          .map { case (c, i) =>
+            val (liftedChild, lbs) = lift(c)
+            if (lbs.nonEmpty) {
+              val subInclusion = lbs.map(lb => bindings.exists(b => lb.name == b || Mentions(lb.value, b)))
+              prependBindings(liftedChild.asInstanceOf[IR], lbs.zip(subInclusion).filter(_._2).map(_._1)) -> lbs.zip(subInclusion).filter(t => !t._2).map(_._1)
+            } else liftedChild -> Nil
+          }.unzip
+        ir0.copy(newChildren) -> letBindings.fold(Nil)(_ ::: _)
+    }
   }
 }
