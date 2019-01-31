@@ -140,7 +140,7 @@ class Failure(object):
         return {
             'type': 'Failure',
             'exit_code': self.exit_code,
-            'job_id': self.job_id,
+            'job_id': self.job.id,
             'image': self.image,
             'target_sha': self.target_sha
         }
