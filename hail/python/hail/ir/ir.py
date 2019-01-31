@@ -548,6 +548,38 @@ class ArrayRange(IR):
         self._type = tarray(tint32)
 
 
+class MakeNDArray(IR):
+    @typecheck_method(data=IR, shape=IR, row_major=IR)
+    def __init__(self, data, shape, row_major):
+        super().__init__(data, shape, row_major)
+        self.data = data
+        self.shape = shape
+        self.row_major = row_major
+
+    @typecheck_method(data=IR, shape=IR, row_major=IR)
+    def copy(self, data, shape, row_major):
+        new_instance = self.__class__
+        return new_instance(data, shape, row_major)
+
+    def render(self, r):
+        return '(MakeNDArray {} {} {})'.format(
+            r(self.data),
+            r(self.shape),
+            r(self.row_major))
+
+    def __eq__(self, other):
+        return isinstance(other, MakeNDArray) and \
+               other.data == self.data and \
+               other.shape == self.shape and \
+               other.row_major == self.row_major
+
+    def _compute_type(self, env, agg_env):
+        self.data._compute_type(env, agg_env)
+        self.shape._compute_type(env, agg_env)
+        self.row_major._compute_type(env, agg_env)
+        self._type = tndarray(self.data.typ.element_type)
+
+
 class ArraySort(IR):
     @typecheck_method(a=IR, ascending=IR, on_key=bool)
     def __init__(self, a, ascending, on_key):
