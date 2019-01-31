@@ -55,6 +55,9 @@ build/prebuilt-native-lib: $(shell find src/main/c -type f -not $(IGNORED_FILE_P
 .PHONY: prebuilt-native-lib
 prebuilt-native-lib: build/prebuilt-native-lib
 
+src/main/resources/build-info.properties: env/SPARK_VERSION env/HAIL_PIP_VERSION env/GIT_SHA
+	bash generate-build-info.sh $(SPARK_VERSION) $(HAIL_PIP_VERSION) $(GIT_SHA)
+
 build/compile-scala: src/main/resources/build-info.properties env/GRADLE_ARGS
 	./gradlew $(GRADLE_ARGS) compileScala
 	mkdir -p build
@@ -65,6 +68,26 @@ build/libs/hail-all-spark.jar: build.gradle settings.gradle $(JVM_FILES)
 build/libs/hail-all-spark.jar: env/GRADLE_ARGS
 	$(info changed files: $?)
 	./gradlew $(GRADLE_ARGS) shadowJar
+
+PYTHON_GENERATED_FILES += python/hail/hail-all-spark.jar
+python/hail/hail-all-spark.jar: build/libs/hail-all-spark.jar
+	cp $< $@
+
+PYTHON_GENERATED_FILES += python/hail/hail_pip_version
+python/hail/hail_pip_version: env/HAIL_PIP_VERSION
+	printf $(HAIL_PIP_VERSION) > $@
+
+PYTHON_GENERATED_FILES += python/hail/hail_version
+python/hail/hail_version: env/HAIL_PIP_VERSION env/GIT_SHA
+	printf $(HAIL_PIP_VERSION)-$(shell printf "$(GIT_SHA)" | head -c 12) > $@
+
+PYTHON_GENERATED_FILES += python/spark_version
+python/spark_version: env/SPARK_VERSION
+	printf $(SPARK_VERSION) > python/spark_version
+
+PYTHON_GENERATED_FILES += python/README.md
+python/README.md: ../README.md
+	cp $< python/
 
 build/distributions/hail-python.zip: $(PYTHON_GENERATED_FILES)
 build/distributions/hail-python.zip: $(shell find python -type f) env/GRADLE_ARGS
@@ -123,29 +146,6 @@ test-pip-deploy: build/twine-credentials/pypi-username build/twine-credentials/p
 	  $(MAKE) pip-deploy
 	mkdir -p build
 	touch build/test-pip-deploy
-
-src/main/resources/build-info.properties: env/SPARK_VERSION env/HAIL_PIP_VERSION env/GIT_SHA
-	bash generate-build-info.sh $(SPARK_VERSION) $(HAIL_PIP_VERSION) $(GIT_SHA)
-
-PYTHON_GENERATED_FILES += python/hail/hail-all-spark.jar
-python/hail/hail-all-spark.jar: build/libs/hail-all-spark.jar
-	cp $< $@
-
-PYTHON_GENERATED_FILES += python/hail/hail_pip_version
-python/hail/hail_pip_version: env/HAIL_PIP_VERSION
-	printf $(HAIL_PIP_VERSION) > $@
-
-PYTHON_GENERATED_FILES += python/hail/hail_version
-python/hail/hail_version: env/HAIL_PIP_VERSION env/GIT_SHA
-	printf $(HAIL_PIP_VERSION)-$(shell printf "$(GIT_SHA)" | head -c 12) > $@
-
-PYTHON_GENERATED_FILES += python/spark_version
-python/spark_version: env/SPARK_VERSION
-	printf $(SPARK_VERSION) > python/spark_version
-
-PYTHON_GENERATED_FILES += python/README.md
-python/README.md: ../README.md
-	cp $< python/
 
 .PHONY: compile-scala
 compile-scala: build/compile-scala
