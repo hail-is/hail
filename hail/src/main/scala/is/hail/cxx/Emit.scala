@@ -10,16 +10,12 @@ import scala.collection.mutable
 
 object Emit {
   def apply(fb: FunctionBuilder, nSpecialArgs: Int, x: ir.IR): EmitTriplet = {
-    val emitter = new Emitter(fb, nSpecialArgs)
-    emitter.emit(x, ir.Env.empty[EmitTriplet])
+    val emitter = new Emitter(fb.getArg(0), fb, nSpecialArgs)
+    emitter.emit(new EmitRegion(fb.getArg(0), ""), x, ir.Env.empty[EmitTriplet])
   }
 }
 
 class CXXUnsupportedOperation(msg: String = null) extends Exception(msg)
-
-abstract class ArrayEmitter(val setup: Code, val m: Code, val setupLen: Code, val length: Option[Code]) {
-  def emit(f: (Code, Code) => Code): Code
-}
 
 class Orderings {
   val typeOrdering = mutable.Map.empty[(PType, PType), String]
@@ -166,18 +162,17 @@ class Orderings {
   }
 }
 
-class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
+class Emitter(parentRegion: Variable, fb: FunctionBuilder, nSpecialArgs: Int) {
   outer =>
   type E = ir.Env[EmitTriplet]
 
-  def emit(x: ir.IR, env: E): EmitTriplet = {
-    def region: Variable = fb.getArg(0)
+  def emit(region: EmitRegion, x: ir.IR, env: E): EmitTriplet = {
     def triplet(setup: Code, m: Code, v: Code): EmitTriplet =
       EmitTriplet(x.pType, setup, m, v)
 
     def present(v: Code): EmitTriplet = triplet("", "false", v)
 
-    def emit(x: ir.IR, env: E = env): EmitTriplet = this.emit(x, env)
+    def emit(x: ir.IR, env: E = env): EmitTriplet = this.emit(region, x, env)
 
     val pType = x.pType
     x match {
@@ -250,7 +245,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
         val tbody = emit(body, env.bind(name, EmitTriplet(value.pType, "", m.toString, v.toString)))
 
         triplet(
-          Code(tvalue.setup, m.define, v.define, s"if (!$m) $v = ${ tvalue.v };", tbody.setup),
+          Code(tvalue.setup, m.define, v.define, s"if (!$m) { $v = ${ tvalue.v }; }", tbody.setup),
           tbody.m,
           tbody.v)
 
@@ -409,14 +404,14 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
           pStruct.cxxLoadField(ot.v, idx))
 
       case ir.MakeTuple(fields) =>
-        val sb = new StagedBaseStructTripletBuilder(fb, pType.asInstanceOf[PBaseStruct])
+        val sb = region.structBuilder(fb, pType.asInstanceOf[PBaseStruct])
         fields.foreach { x =>
           sb.add(emit(x))
         }
         sb.triplet()
 
       case ir.MakeStruct(fields) =>
-        val sb = new StagedBaseStructTripletBuilder(fb, pType.asInstanceOf[PBaseStruct])
+        val sb = region.structBuilder(fb, pType.asInstanceOf[PBaseStruct])
         fields.foreach { case (_, x) =>
           sb.add(emit(x))
         }
@@ -428,7 +423,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
         val oldt = emit(old)
         val ov = fb.variable("old", typeToCXXType(oldPStruct), oldt.v)
 
-        val sb = new StagedBaseStructTripletBuilder(fb, pStruct)
+        val sb = region.structBuilder(fb, pStruct)
         fields.foreach { f =>
           val fieldIdx = oldPStruct.fieldIdx(f)
           sb.add(
@@ -453,7 +448,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
 
         val fieldsMap = fields.toMap
 
-        val sb = new StagedBaseStructTripletBuilder(fb, pStruct)
+        val sb = region.structBuilder(fb, pStruct)
         pStruct.fields.foreach { f =>
           fieldsMap.get(f.name) match {
             case Some(fx) =>
@@ -482,7 +477,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
 
       case ir.ArrayFold(a, zero, accumName, valueName, body) =>
         val containerPType = a.pType.asInstanceOf[PContainer]
-        val ae = emitArray(a, env)
+        val ae = emitArray(region, a, env)
         val am = fb.variable("am", "bool", ae.m)
 
         val zerot = emit(zero)
@@ -538,13 +533,13 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
              |""".stripMargin,
           accm.toString, accv.toString)
 
-      case _: ir.ArrayFilter | _: ir.ArrayRange | _: ir.ArrayMap | _: ir.ArrayFlatMap =>
+      case _: ir.ArrayFilter | _: ir.ArrayRange | _: ir.ArrayMap | _: ir.ArrayFlatMap | _: ir.MakeArray =>
         val containerPType = x.pType.asInstanceOf[PContainer]
 
-        val ae = emitArray(x, env)
+        val ae = emitArray(region, x, env)
         ae.length match {
           case Some(length) =>
-            val sab = new StagedContainerBuilder(fb, region.toString, containerPType)
+            val sab = region.arrayBuilder(fb, containerPType)
             triplet(ae.setup, ae.m,
               s"""
                  |({
@@ -569,7 +564,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
             val xs = fb.variable("xs", s"std::vector<${ typeToCXXType(containerPType.elementType) }>")
             val ms = fb.variable("ms", "std::vector<bool>")
             val i = fb.variable("i", "int")
-            val sab = new StagedContainerBuilder(fb, region.toString, containerPType)
+            val sab = region.arrayBuilder(fb, containerPType)
             triplet(ae.setup, ae.m,
               s"""
                  |({
@@ -603,26 +598,6 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
                  |""".stripMargin)
         }
 
-      case ir.MakeArray(args, _) =>
-        val sab = new StagedContainerBuilder(fb, region.toString, pType.asInstanceOf[PArray])
-        val sb = new ArrayBuilder[Code]
-
-        sb += sab.start(s"${ args.length }")
-        args.foreach { arg =>
-          val argt = emit(arg)
-          sb +=
-            s"""
-               |${ argt.setup }
-               |if (${ argt.m })
-               |  ${ sab.setMissing() }
-               |else
-               |  ${ sab.add(argt.v) }
-               |${ sab.advance() }
-               |""".stripMargin
-        }
-
-        triplet(sb.result().mkString, "false", sab.end())
-
       case x@ir.ApplyIR(_, _, _) =>
         // FIXME small only
         emit(x.explicitNode)
@@ -636,8 +611,8 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
     }
   }
 
-  def emitArray(x: ir.IR, env: E): ArrayEmitter = {
-    def emit(x: ir.IR, env: E = env): EmitTriplet = this.emit(x, env)
+  def emitArray(region: EmitRegion, x: ir.IR, env: E): ArrayEmitter = {
+    def emit(x: ir.IR, env: E = env): EmitTriplet = this.emit(region, x, env)
 
     val elemType = x.pType.asInstanceOf[PContainer].elementType
 
@@ -660,13 +635,15 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
           s = s.substring(0, 100)
         s = StringEscapeUtils.escapeString(s)
 
+        val newRegion = region.newDependentRegion(fb)
+
         new ArrayEmitter(
           s"""
              |${ startt.setup }
              |${ stopt.setup }
              |${ stept.setup }
              |""".stripMargin,
-          s"${ startt.m } || ${ stopt.m } || ${ stept.m }",
+          s"(${ startt.m } || ${ stopt.m } || ${ stept.m })",
           s"""
              |${ startv.define }
              |${ stopv.define }
@@ -685,14 +662,16 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
              |  return nullptr;
              |} else
              |  $len = ($llen < 0) ? 0 : (int)$llen;
-             |""".stripMargin, Some(len.toString)) {
+             |""".stripMargin, Some(len.toString), newRegion) {
           val i = fb.variable("i", "int", "0")
           val v = fb.variable("v", "int", startv.toString)
 
           def emit(f: (Code, Code) => Code): Code = {
             s"""
+               |${ newRegion.declareIfUsed() }
                |${ v.define }
                |for (${ i.define } $i < $len; ++$i) {
+               |  ${ newRegion.redefineIfUsed() }
                |  ${ f("false", v.toString) }
                |  $v += $stepv;
                |}
@@ -701,26 +680,28 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
         }
 
       case ir.MakeArray(args, _) =>
-        new ArrayEmitter("", "false", "", Some(args.length.toString)) {
+        val newRegion = region.newDependentRegion(fb)
+        val triplets = args.map { arg => outer.emit(newRegion, arg, env) }
+        new ArrayEmitter("", "false", "", Some(args.length.toString), newRegion) {
           def emit(f: (Code, Code) => Code): Code = {
             val sb = new ArrayBuilder[Code]
-            args.foreach { arg =>
-              val argt = outer.emit(arg, env)
+            triplets.foreach { argt =>
+              sb += newRegion.redefineIfUsed()
               sb += argt.setup
               sb += f(argt.m, argt.v)
             }
-            sb.result().mkString
+            newRegion.declareIfUsed() + sb.result().mkString
           }
         }
 
       case ir.ArrayFilter(a, name, cond) =>
-        val ae = emitArray(a, env)
+        val ae = emitArray(region, a, env)
         val vm = fb.variable("m", "bool")
         val vv = fb.variable("v", typeToCXXType(elemType))
-        val condt = outer.emit(cond,
+        val condt = outer.emit(ae.arrayRegion, cond,
           env.bind(name, EmitTriplet(elemType, "", vm.toString, vv.toString)))
 
-        new ArrayEmitter(ae.setup, ae.m, ae.setupLen, None) {
+        new ArrayEmitter(ae.setup, ae.m, ae.setupLen, None, ae.arrayRegion) {
           def emit(f: (Code, Code) => Code): Code = {
             ae.emit { (m2: Code, v2: Code) =>
               s"""
@@ -742,14 +723,14 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
 
       case ir.ArrayMap(a, name, body) =>
         val aElementPType = a.pType.asInstanceOf[PContainer].elementType
-        val ae = emitArray(a, env)
+        val ae = emitArray(region, a, env)
 
         val vm = fb.variable("m", "bool")
         val vv = fb.variable("v", typeToCXXType(aElementPType))
-        val bodyt = outer.emit(body,
+        val bodyt = outer.emit(ae.arrayRegion, body,
           env.bind(name, EmitTriplet(aElementPType, "", vm.toString, vv.toString)))
 
-        new ArrayEmitter(ae.setup, ae.m, ae.setupLen, ae.length) {
+        new ArrayEmitter(ae.setup, ae.m, ae.setupLen, ae.length, ae.arrayRegion) {
           def emit(f: (Code, Code) => Code): Code = {
             ae.emit { (m2: Code, v2: Code) =>
               s"""
@@ -769,14 +750,14 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
 
       case ir.ArrayFlatMap(a, name, body) =>
         val aElementPType = a.pType.asInstanceOf[PContainer].elementType
-        val ae = emitArray(a, env)
+        val ae = emitArray(region, a, env)
 
         val vm = fb.variable("m", "bool")
         val vv = fb.variable("v", typeToCXXType(aElementPType))
-        val bodyt = outer.emitArray(body,
+        val bodyt = outer.emitArray(ae.arrayRegion, body,
           env.bind(name, EmitTriplet(aElementPType, "", vm.toString, vv.toString)))
 
-        new ArrayEmitter(ae.setup, ae.m, ae.setupLen, None) {
+        new ArrayEmitter(ae.setup, ae.m, ae.setupLen, None, ae.arrayRegion) {
           def emit(f: (Code, Code) => Code): Code = {
             ae.emit { (m2: Code, v2: Code) =>
               s"""
@@ -803,16 +784,19 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
 
         val a = fb.variable("a", "const char *", t.v)
         val len = fb.variable("len", "int", pArray.cxxLoadLength(a.toString))
+        val newRegion = region.newDependentRegion(fb)
         new ArrayEmitter(t.setup, t.m,
           s"""
              |${ a.define }
              |${ len.define }
-             |""".stripMargin, Some(len.toString)) {
+             |""".stripMargin, Some(len.toString), newRegion) {
           val i = fb.variable("i", "int", "0")
 
           def emit(f: (Code, Code) => Code): Code = {
             s"""
+               |${ newRegion.declareIfUsed() }
                |for (${ i.define } $i < $len; ++$i) {
+               |  ${ newRegion.redefineIfUsed() }
                |  ${
               f(pArray.cxxIsElementMissing(a.toString, i.toString),
                 loadIRIntermediate(pArray.elementType, pArray.cxxElementAddress(a.toString, i.toString)))
