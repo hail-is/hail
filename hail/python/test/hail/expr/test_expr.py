@@ -329,17 +329,38 @@ class Tests(unittest.TestCase):
     def test_agg_array_agg_sum(self):
         t = hl.utils.range_table(10, 11)
         t = t.annotate(a = hl.range(t.idx, t.idx + 10))
-        assert t.aggregate(hl.agg.array_agg(t.a, lambda x: hl.agg.sum(x))) == [45 + 10 * x for x in range(10)]
+        assert t.aggregate(hl.agg.array_agg(lambda x: hl.agg.sum(x), t.a)) == [45 + 10 * x for x in range(10)]
 
     def test_agg_array_agg_sum_vs_sum(self):
         ht = hl.utils.range_table(25).annotate(x = hl.range(0, 10).map(lambda _: hl.rand_bool(0.5)))
-        assert ht.aggregate(hl.agg.array_agg(ht.x, lambda x: hl.agg.sum(x)) == hl.agg.array_sum(ht.x))
+        assert ht.aggregate(hl.agg.array_agg(lambda x: hl.agg.sum(x), ht.x) == hl.agg.array_sum(ht.x))
 
     def test_agg_array_agg_errors(self):
         ht = hl.utils.range_table(10)
         ht = ht.annotate(a = hl.range(0, ht.idx))
         with pytest.raises(hl.utils.FatalError):
-            ht.aggregate(hl.agg.array_agg(ht.a, lambda x: hl.agg.sum(x)))
+            ht.aggregate(hl.agg.array_agg(lambda x: hl.agg.sum(x), ht.a))
+
+    def test_agg_array_explode(self):
+        ht = hl.utils.range_table(10)
+        ht = ht.annotate(a = hl.range(0, ht.idx).map(lambda _: [ht.idx, 2 * ht.idx]))
+        r = ht.aggregate(hl.agg.explode(lambda x: hl.agg.array_agg(x, lambda elt: hl.agg.sum(elt)), ht.a))
+        assert r == [285, 570]
+
+    def test_agg_array_explode_rev(self):
+        ht = hl.utils.range_table(10)
+        ht = ht.annotate(a=[hl.range(0, ht.idx), hl.range(0, ht.idx // 2)])
+        r = ht.aggregate(hl.agg.array_agg(lambda x: hl.agg.explode(lambda elt: hl.agg.sum(elt), x), ht.a))
+        assert r == [120, 20]
+
+    def test_agg_array_explode_group_by(self):
+        ht = hl.utils.range_table(10)
+        ht = ht.annotate(a=[hl.range(0, ht.idx), hl.range(0, ht.idx // 2)])
+        r = ht.aggregate(
+            hl.agg.group_by(ht.idx % 2,
+                            hl.str(hl.agg.array_agg(lambda x:
+                                                    hl.agg.explode(lambda elt: hl.agg.sum(elt), x), ht.a))))
+        assert r == {0: '[50,10]', 1: '[70,10]'}
 
     def test_agg_explode(self):
         t = hl.utils.range_table(10)

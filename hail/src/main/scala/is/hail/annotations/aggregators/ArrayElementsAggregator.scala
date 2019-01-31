@@ -30,7 +30,8 @@ final case class ArrayElementsAggregator(rvAggs: Array[RegionValueAggregator]) e
 
   def copy(): ArrayElementsAggregator = {
     val rva = newInstance()
-    rva.a = a.map(_.map(_.copy()))
+    if (a != null)
+      rva.a = a.map(_.map(_.copy()))
     rva
   }
 

@@ -1049,7 +1049,11 @@ class AggArrayPerElement(IR):
         self.array._compute_type(agg_env, None)
         self.agg_ir._compute_type(env, _env_bind(agg_env, self.name, self.array.typ.element_type))
         self._type = tarray(self.agg_ir.typ)
-    
+
+    @property
+    def bound_variables(self):
+        return {self.name} | super().bound_variables
+
 
 def _register(registry, name, f):
     if name in registry:

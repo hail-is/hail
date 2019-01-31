@@ -1417,9 +1417,9 @@ def group_by(group, agg_expr) -> DictExpression:
     return _agg_func.group_by(group, agg_expr)
 
 
-@typecheck(array=expr_array(),
-           f=func_spec(1, expr_any))
-def array_agg(array, f):
+@typecheck(f=func_spec(1, expr_any),
+           array=expr_array())
+def array_agg(f, array):
     """Aggregate an array element-wise using a user-specified aggregation function.
 
     Examples
@@ -1431,7 +1431,7 @@ def array_agg(array, f):
 
     Aggregate to compute the fraction ``True`` per element:
 
-    >>> ht.aggregate(hl.agg.array_agg(ht.arr, lambda element: hl.agg.fraction(element)))  # doctest: +NOTEST
+    >>> ht.aggregate(hl.agg.array_agg(lambda element: hl.agg.fraction(element), ht.arr))  # doctest: +NOTEST
     [0.54, 0.55, 0.46, 0.52, 0.48]
 
     Notes
@@ -1446,10 +1446,10 @@ def array_agg(array, f):
 
     Parameters
     ----------
-    array : :class:`.ArrayExpression`
-        Array to aggregate.
     f :
         Aggregation function to apply to each element of the exploded array.
+    array : :class:`.ArrayExpression`
+        Array to aggregate.
 
     Returns
     -------
