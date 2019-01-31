@@ -70,7 +70,7 @@ build/distributions/hail-python.zip: $(PYTHON_GENERATED_FILES)
 build/distributions/hail-python.zip: $(shell find python -type f) env/GRADLE_ARGS
 	./gradlew $(GRADLE_ARGS) archiveZip
 
-build/pip-prepare: $(PY_FILES) python/README.md $(PYTHON_GENERATED_FILES)
+build/pip-prepare: $(PY_FILES) $(PYTHON_GENERATED_FILES)
 	mkdir -p build
 	touch build/pip-prepare
 
