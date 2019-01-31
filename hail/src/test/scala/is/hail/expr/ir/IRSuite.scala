@@ -1202,6 +1202,8 @@ class IRSuite extends SparkSuite {
       "a" -> TArray(TInt32()),
       "aa" -> TArray(TArray(TInt32())),
       "da" -> TArray(TTuple(TInt32(), TString())),
+      "nda" -> TNDArray(TFloat64()),
+      "nda" -> TNDArray(TArray(TString())),
       "v" -> TInt32(),
       "s" -> TStruct("x" -> TInt32(), "y" -> TInt64(), "z" -> TFloat64()),
       "t" -> TTuple(TInt32(), TInt64(), TFloat64()),
