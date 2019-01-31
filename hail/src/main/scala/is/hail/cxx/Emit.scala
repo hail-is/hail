@@ -169,15 +169,16 @@ class Orderings {
 class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
   outer =>
   type E = ir.Env[EmitTriplet]
+  type LoopInfo = Option[Seq[(Variable, Variable)]]
 
-  def emit(x: ir.IR, env: E): EmitTriplet = {
+  def emit(x: ir.IR, env: E, loopvars: LoopInfo = None): EmitTriplet = {
     def region: Variable = fb.getArg(0)
     def triplet(setup: Code, m: Code, v: Code): EmitTriplet =
       EmitTriplet(x.pType, setup, m, v)
 
     def present(v: Code): EmitTriplet = triplet("", "false", v)
 
-    def emit(x: ir.IR, env: E = env): EmitTriplet = this.emit(x, env)
+    def emit(x: ir.IR, env: E = env, loopvars: LoopInfo = loopvars): EmitTriplet = this.emit(x, env, loopvars)
 
     val pType = x.pType
     x match {
@@ -256,6 +257,53 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
 
       case ir.Ref(name, _) =>
         env.lookup(name)
+
+      case ir.Loop(args, body) =>
+        val l = fb.label("loop")
+        val m = fb.variable("m", "bool")
+        val v = fb.variable("v", typeToCXXType(pType))
+        val loopLocals = args.map { case (n, arg) =>
+          val code = emit(arg)
+          val m = fb.variable("m_" + n, "bool", code.m)
+          val v = fb.variable(n, typeToCXXType(arg.pType))
+          (n, arg, code, m, v)
+        }
+        val bodyenv = env.bind(loopLocals.map { case (n, arg, _, m, v) =>
+          n -> EmitTriplet(arg.pType, "", m.toString, v.toString)
+        }: _*).bind("_LOOP_CODE" -> EmitTriplet(pType, s"goto $l;", "", ""))
+        val tbody = emit(body, env = bodyenv, loopvars = Some(loopLocals.map { case (_, _, _, m, v) => (m, v) }))
+        val setupVars = Code(loopLocals.map { case (_, _, code, m, v) =>
+          Code(code.setup, m.define, v.define, s"if (!$m) $v = ${ code.v };")
+        }: _*)
+
+        triplet(
+          s"""
+             |$setupVars
+             |${ m.define }
+             |${ v.define }
+             |${ l.define }
+             |${ tbody.setup }
+             |$m = ${ tbody.m };
+             |if (!$m) {
+             |  $v = ${ tbody.v };
+             |}
+             |""".stripMargin,
+          m.toString,
+          v.toString)
+
+      case ir.Recur(args, _) =>
+        val vars = loopvars.get
+        val jump = env.lookup("_LOOP_CODE").setup
+        assert(args.length == vars.length, "mismatched number of recur arguments vs loop arguments")
+        val argsEmit = vars.zip(args).map { case ((m, v), ir) =>
+          val code = emit(ir, loopvars = None)
+          val lm = fb.variable(s"l_${m}_", m.typ, code.m)
+          val lv = fb.variable(s"l_${v}_", v.typ)
+          (Code(code.setup, lm.define, lv.define, s"if (!$lm) $lv = ${ code.v };"), lm, lv, m, v)
+        }
+        val argsCode = Code(argsEmit.map(_._1): _*)
+        val setCode = Code(argsEmit.map { case (_, lm, lv, m, v) => Code(s"$m = $lm;", s"if (!$m) $v = $lv;") }: _*)
+        triplet(Code(argsCode, setCode, jump), "true", typeDefaultValue(pType))
 
       case ir.ApplyBinaryPrimOp(op, l, r) =>
 
@@ -636,8 +684,8 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
     }
   }
 
-  def emitArray(x: ir.IR, env: E): ArrayEmitter = {
-    def emit(x: ir.IR, env: E = env): EmitTriplet = this.emit(x, env)
+  def emitArray(x: ir.IR, env: E, loopvars: LoopInfo = None): ArrayEmitter = {
+    def emit(x: ir.IR, env: E = env, loopvars: LoopInfo = loopvars): EmitTriplet = this.emit(x, env, loopvars)
 
     val elemType = x.pType.asInstanceOf[PContainer].elementType
 

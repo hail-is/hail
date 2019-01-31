@@ -382,7 +382,7 @@ private class Emit(
         val refs = looprefs.get
         val (t, _, jump) = env.lookup("_LOOP_CODE")
         assert(t == ti, s"Recur type annotation, $typ, $t doesn't match typeinfo: $ti")
-        assert(args.length == refs.length, "invalid number of recur arguments compared to loop arguments")
+        assert(args.length == refs.length, "mismatched number of recur arguments and loop arguments")
         val argsEmit = refs.zip(args).map { case ((t, mx, x), ir) =>
           val ti = typeToTypeInfo(ir.typ)
           assert(t == ti, "type mismatch between loop and recur args")
