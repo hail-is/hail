@@ -139,7 +139,8 @@ def get_deployed_sha(target_ref):
     assert isinstance(target_ref, FQRef)
     status = ci_get('/status', status_code=200)
     assert 'latest_deployed' in status
-    latest_deployed = {x[0]: x[1] for x in status['latest_deployed']}
+    latest_deployed = {
+        FQRef.from_json(x[0]): x[1] for x in status['latest_deployed']}
     return latest_deployed(target_ref)
 
 
