@@ -9,6 +9,7 @@ from subprocess import call, run
 
 from ci.http_helper import get_repo, post_repo, patch_repo
 from ci.pr import PR
+from ci.git_state import FQRef
 
 CI_URL = 'http://localhost:5000'
 GITHUB_URL = 'https://api.github.com/'
@@ -132,6 +133,24 @@ def get_pr(source_ref):
     prs = [pr for pr in all_prs if pr.source.ref.name == source_ref]
     assert len(prs) == 1, [str(x.source.ref) for x in all_prs]
     return prs[0]
+
+
+def get_deployed_sha(target_ref):
+    assert isinstance(target_ref, FQRef)
+    status = ci_get('/status', status_code=200)
+    assert 'latest_deployed' in status
+    latest_deployed = {x[0]: x[1] for x in status['latest_deployed']}
+    return latest_deployed(target_ref)
+
+
+def poll_until_deployed_sha_is(target_ref,
+                               sha,
+                               delay_in_seconds=DELAY_IN_SECONDS,
+                               max_polls=MAX_POLLS):
+    polls = 0
+    while get_deployed_sha(target_ref) != sha and polls < max_polls:
+        time.sleep(delay_in_seconds)
+        polls = polls + 1
 
 
 def poll_github_until_merged(pr_number,
@@ -549,8 +568,8 @@ def test_merges_approved_pr(tmpdir):
         call(['git', 'fetch', 'origin'])
         merged_sha = rev_parse('origin/master')
 
-        # deploy job takes some time
-        time.sleep(7)
+        poll_until_deployed_sha_is(FQRef.from_short_str(FQ_REPO+':master'),
+                                   merged_sha)
 
         deploy_artifact = run(['gsutil', 'cat', f'gs://hail-ci-test/{merged_sha}'], stdout=subprocess.PIPE, check=True)
         deploy_artifact = deploy_artifact.stdout.decode('utf-8').strip()
