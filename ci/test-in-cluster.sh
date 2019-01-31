@@ -33,7 +33,7 @@ export BATCH_SERVER_URL=http://127.0.0.1:5001
 pushd ../batch
 . ../loadconda
 conda activate hail-batch
-POD_NAMESPACE='test' python -c 'import batch.server; batch.server.serve(5001)' & batch_pid=$!
+python -c 'import batch.server; batch.server.serve(5001)' & batch_pid=$!
 conda deactivate
 popd
 
