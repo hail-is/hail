@@ -138,11 +138,7 @@ object Interpret {
       case NA(_) => null
       case IsNA(value) => interpret(value, env, args, agg) == null
       case If(cond, cnsq, altr) =>
-        try {
-          assert(cnsq.typ == altr.typ)
-        } catch {
-          case _: RecurType => {}
-        }
+        assert(cnsq.typ == altr.typ)
         val condValue = interpret(cond, env, args, agg)
         if (condValue == null)
           null

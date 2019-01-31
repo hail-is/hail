@@ -1,6 +1,5 @@
 package is.hail.expr.ir
 
-import is.hail.expr.types.RecurType
 import is.hail.expr.types.virtual._
 import is.hail.utils._
 

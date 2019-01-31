@@ -21,10 +21,3 @@ abstract class BaseType {
 
   def pyString(sb: StringBuilder) = pretty(sb, 0, compact = true)
 }
-
-// The type of a recur node is an exception. We catch them in inferring the type of If nodes in
-// order to type them properly.
-final class RecurType(
-  override val msg: String,
-  override val logMsg: Option[String] = None,
-  cause: Throwable = null) extends HailException(msg, logMsg, cause)

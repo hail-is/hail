@@ -4,10 +4,12 @@ import is.hail.annotations._
 import is.hail.annotations.aggregators._
 import is.hail.asm4s._
 import is.hail.expr.ir.functions.{MathFunctions, StringFunctions}
-import is.hail.expr.types.RecurType
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.utils._
+
+import org.objectweb.asm.Opcodes._
+import org.objectweb.asm.tree._
 
 import scala.collection.mutable
 import scala.language.{existentials, postfixOps}
@@ -18,6 +20,8 @@ object Emit {
   type F = (Code[Boolean], Code[_]) => Code[Unit]
 
   type RVAS = Option[Code[Array[RegionValueAggregator]]]
+
+  type LoopInfo = Option[Seq[(TypeInfo[_], LocalRef[Boolean], Settable[Any])]]
 
   private[ir] def toCode(ir: IR, fb: EmitFunctionBuilder[_], nSpecialArguments: Int): EmitTriplet = {
     emit(ir, fb, Env.empty, nSpecialArguments)
@@ -183,14 +187,14 @@ private class Emit(
     }
   }
 
-  private def wrapToMethod(irs: Seq[IR], env: E, rvas: Emit.RVAS)(useValues: (EmitMethodBuilder, PType, EmitTriplet) => Code[Unit]): Code[Unit] = {
+  private def wrapToMethod(irs: Seq[IR], env: E, rvas: Emit.RVAS, looprefs: Emit.LoopInfo)(useValues: (EmitMethodBuilder, PType, EmitTriplet) => Code[Unit]): Code[Unit] = {
     val opSize: Int = 20
     val items = irs.map { ir =>
       new EstimableEmitter[EmitMethodBuilderLike] {
         def estimatedSize: Int = ir.size * opSize
 
         def emit(mbLike: EmitMethodBuilderLike): Code[Unit] =
-          useValues(mbLike.mb, ir.pType, mbLike.emit.emit(ir, env, rvas))
+          useValues(mbLike.mb, ir.pType, mbLike.emit.emit(ir, env, rvas, looprefs))
       }
     }
 
@@ -242,15 +246,17 @@ private class Emit(
       if (nSpecialArguments == 2)
         Some(mb.fb.getArg[Array[RegionValueAggregator]](2))
       else
-        None)
+        None,
+      None)
   }
 
-  private def emit(ir: IR, env: E, rvas: Emit.RVAS): EmitTriplet = {
+  private def emit(ir: IR, env: E, rvas: Emit.RVAS, looprefs: Emit.LoopInfo): EmitTriplet = {
 
-    def emit(ir: IR, env: E = env, rvas: Emit.RVAS = rvas): EmitTriplet =
-      this.emit(ir, env, rvas)
+    def emit(ir: IR, env: E = env, rvas: Emit.RVAS = rvas, looprefs: Emit.LoopInfo = looprefs): EmitTriplet =
+      this.emit(ir, env, rvas, looprefs)
 
-    def emitArrayIterator(ir: IR, env: E = env, rvas: Emit.RVAS = rvas) = this.emitArrayIterator(ir, env, rvas)
+    def emitArrayIterator(ir: IR, env: E = env, rvas: Emit.RVAS = rvas, looprefs: Emit.LoopInfo = looprefs) =
+      this.emitArrayIterator(ir, env, rvas, looprefs)
 
     val region = mb.getArg[Region](1).load()
 
@@ -284,16 +290,7 @@ private class Emit(
         EmitTriplet(codeV.setup, const(false), codeV.m)
 
       case If(cond, cnsq, altr) =>
-        try {
-          val cnsqTyp = cnsq.typ
-          try {
-            assert(cnsqTyp == altr.typ)
-          } catch { // altr.typ is Recur cnsq.typ is not, OK
-            case _: RecurType => {}
-          }
-        } catch { // cnsq.typ is Recur, need to check altr.typ is not
-          case _: RecurType => altr.typ
-        }
+        assert(cnsq.typ == altr.typ)
 
         if (ir.typ == TVoid) {
           val codeCond = emit(cond)
@@ -348,6 +345,58 @@ private class Emit(
         assert(t == ti, s"$name type annotation, $typ, $t doesn't match typeinfo: $ti")
         EmitTriplet(Code._empty, m, v)
 
+      case Loop(args, body) =>
+        val typ = ir.typ
+        val ti = typeToTypeInfo(typ)
+        val loopLocals = args.map { case (n, a) =>
+          val ti = typeToTypeInfo(a.typ)
+          val mx = mb.newLocal[Boolean]()
+          val x = coerce[Any](mb.newLocal(n)(ti))
+          (n, a, emit(a), ti, mx, x)
+        }
+        val bodyenv = env.bind(loopLocals.map { case (n, _, _, ti, mx, x) => n -> (ti, mx.load(), x.load()) }: _*)
+        val label = new LabelNode
+        val lcode = Code(label)
+        val jump = Code(new JumpInsnNode(GOTO, label))
+        val setupVars = Code(loopLocals.map { case (_, a, code, _, mx, x) =>
+          Code(code.setup, mx := code.m, x := mx.mux(defaultValue(a.typ), code.v))
+        }: _*)
+        val loopVars = loopLocals.map { case (_, _, _, ti, mx, x) => (ti, mx, x) }
+        val bodyCode = emit(body, env = bodyenv.bind("_LOOP_CODE" -> (ti, null, jump)), looprefs = Some(loopVars))
+        if (typ == TVoid) {
+          EmitTriplet(
+            Code(setupVars, lcode, bodyCode.setup),
+            const(false),
+            Code._empty)
+        } else {
+          val mout = mb.newLocal[Boolean]()
+          val out = coerce[Any](mb.newLocal()(ti))
+          EmitTriplet(
+            Code(setupVars, lcode, bodyCode.setup, mout := bodyCode.m, out := mout.mux(defaultValue(typ), bodyCode.v)),
+            mout,
+            out)
+        }
+
+      case Recur(args, typ) =>
+        val ti = typeToTypeInfo(typ)
+        val refs = looprefs.get
+        val (t, _, jump) = env.lookup("_LOOP_CODE")
+        assert(t == ti, s"Recur type annotation, $typ, $t doesn't match typeinfo: $ti")
+        assert(args.length == refs.length, "invalid number of recur arguments compared to loop arguments")
+        val argsEmit = refs.zip(args).map { case ((t, mx, x), ir) =>
+          val ti = typeToTypeInfo(ir.typ)
+          assert(t == ti, "type mismatch between loop and recur args")
+          val code = emit(ir, looprefs = None)
+          val lmx = mb.newLocal[Boolean]()
+          val lx = coerce[Any](mb.newLocal()(t))
+          (Code(code.setup, lmx := code.m, lx := mx.mux(defaultValue(ir.typ), code.v)), lmx, lx, mx, x, ir.typ)
+        }
+        val argsCode = Code(argsEmit.map(_._1): _*)
+        val setCode = Code(argsEmit.map { case (_, lmx, lx, mx, x, typ) =>
+          Code(mx := lmx.load(), x := mx.mux(defaultValue(typ), lx.load()))
+        }: _*)
+        EmitTriplet(Code(argsCode, setCode, jump, Code._empty), const(false), Code._empty)
+
       case ApplyBinaryPrimOp(op, l, r) =>
         val typ = ir.typ
         val codeL = emit(l)
@@ -386,7 +435,7 @@ private class Emit(
             v.m.mux(srvb.setMissing(), addElement(v.v)),
             srvb.advance())
         }
-        present(Code(srvb.start(args.size, init = true), wrapToMethod(args, env, rvas)(addElts), srvb.offset))
+        present(Code(srvb.start(args.size, init = true), wrapToMethod(args, env, rvas, looprefs)(addElts), srvb.offset))
       case x@ArrayRef(a, i) =>
         val typ = x.typ
         val ti = typeToTypeInfo(typ)
@@ -854,7 +903,7 @@ private class Emit(
 
       case Begin(xs) =>
         EmitTriplet(
-          wrapToMethod(xs, env, rvas) { case (_, t, code) =>
+          wrapToMethod(xs, env, rvas, looprefs) { case (_, t, code) =>
             code.setup
           },
           const(false),
@@ -868,7 +917,7 @@ private class Emit(
             v.m.mux(srvb.setMissing(), srvb.addIRIntermediate(t)(v.v)),
             srvb.advance())
         }
-        present(Code(srvb.start(init = true), wrapToMethod(fields.map(_._2), env, rvas)(addFields), srvb.offset))
+        present(Code(srvb.start(init = true), wrapToMethod(fields.map(_._2), env, rvas, looprefs)(addFields), srvb.offset))
 
       case x@SelectFields(oldStruct, fields) =>
         val old = emit(oldStruct)
@@ -981,7 +1030,7 @@ private class Emit(
             v.m.mux(srvb.setMissing(), srvb.addIRIntermediate(t)(v.v)),
             srvb.advance())
         }
-        present(Code(srvb.start(init = true), wrapToMethod(fields, env, rvas)(addFields), srvb.offset))
+        present(Code(srvb.start(init = true), wrapToMethod(fields, env, rvas, looprefs)(addFields), srvb.offset))
 
       case GetTupleElement(o, idx) =>
         val t = coerce[PTuple](o.pType)
@@ -1063,7 +1112,7 @@ private class Emit(
           }
 
           EmitTriplet(
-            wrapToMethod(FastSeq(ir.explicitNode), env, rvas)(addFields),
+            wrapToMethod(FastSeq(ir.explicitNode), env, rvas, looprefs)(addFields),
             mfield, vfield)
         }
 
@@ -1160,11 +1209,11 @@ private class Emit(
     f
   }
 
-  private def emitArrayIterator(ir: IR, env: E, rvas: Emit.RVAS): ArrayIteratorTriplet = {
+  private def emitArrayIterator(ir: IR, env: E, rvas: Emit.RVAS, looprefs: Emit.LoopInfo): ArrayIteratorTriplet = {
 
-    def emit(ir: IR, env: E = env) = this.emit(ir, env, rvas)
+    def emit(ir: IR, env: E = env) = this.emit(ir, env, rvas, looprefs)
 
-    def emitArrayIterator(ir: IR, env: E = env) = this.emitArrayIterator(ir, env, rvas)
+    def emitArrayIterator(ir: IR, env: E = env) = this.emitArrayIterator(ir, env, rvas, looprefs)
 
     val region = mb.getArg[Region](1).load()
 
