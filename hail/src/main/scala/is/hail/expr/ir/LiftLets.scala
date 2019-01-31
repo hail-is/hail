@@ -45,12 +45,16 @@ object LiftLets {
       lifted
   }
 
+  def letBindingMentions(lbs: LetBinding, name: String): Boolean = {
+    lbs.name == name || Mentions(lbs.value, name) || lbs.bindings.exists(letBindingMentions(_, name))
+  }
+
   def lift(ir0: BaseIR): (BaseIR, List[LetBinding]) = {
     (ir0: @unchecked) match {
       case Let(name, value, body) =>
         val (liftedBody, bodyBindings) = lift(body)
         val (liftedValue: IR, valueBindings) = lift(value)
-        val subInclusion = bodyBindings.map(lb => lb.name == name || Mentions(lb.value, name))
+        val subInclusion = bodyBindings.map(lb => lb.name == name || letBindingMentions(lb, name))
         val lb = (LetBinding(name, liftedValue, bodyBindings.zip(subInclusion).filter(_._2).map(_._1))
           :: valueBindings
           ::: bodyBindings.zip(subInclusion).filter { case (_, sub) => !sub }.map(_._1))
@@ -64,7 +68,7 @@ object LiftLets {
           .map { case (c, i) =>
             val (liftedChild, lbs) = lift(c)
             if (lbs.nonEmpty) {
-              val subInclusion = lbs.map(lb => bindings.exists(b => lb.name == b || Mentions(lb.value, b)))
+              val subInclusion = lbs.map(lb => bindings.exists(b => lb.name == b || letBindingMentions(lb, b)))
               prependBindings(liftedChild.asInstanceOf[IR], lbs.zip(subInclusion).filter(_._2).map(_._1)) -> lbs.zip(subInclusion).filter(t => !t._2).map(_._1)
             } else liftedChild -> Nil
           }.unzip
