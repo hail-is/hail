@@ -25,17 +25,15 @@ object LiftLets {
     val m = mutable.Map.empty[IR, String]
     bindings.foldLeft(x) { case (ir, binding) =>
       // reduce equivalent lets
-      val ir1 = m.get(binding.value) match {
+      m.get(binding.value) match {
         case Some(prevName) =>
           if (prevName != binding.name)
             Subst(ir, Env(binding.name -> Ref(prevName, binding.value.typ)))
-          else ir
+          else prependBindings(ir, binding.bindings)
         case None =>
           m += binding.value -> binding.name
-          Let(binding.name, binding.value, ir)
+          Let(binding.name, binding.value, prependBindings(ir, binding.bindings))
       }
-
-      prependBindings(ir1, binding.bindings)
     }
   }
 

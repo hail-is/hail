@@ -70,4 +70,28 @@ class LiftLetsSuite extends TestNGSuite {
 
     assert(LiftLets(ir) == Let("x1", I32(1), ApplyUnaryPrimOp(Negate(), Ref("x1", TInt32()))))
   }
+
+  @Test def testNestedLets(): Unit = {
+    val ir = Let("bar", ApplyBinaryPrimOp(Add(), In(1, TInt32()), I32(1)),
+      Let("baz", ApplyBinaryPrimOp(Add(), Ref("bar", TInt32()), I32(1)),
+        ApplyBinaryPrimOp(Add(), I32(1), Ref("baz", TInt32()))))
+
+    assert(LiftLets(ir) == ir)
+  }
+
+  @Test def testLetsInsideArrayMap(): Unit = {
+    val ir = ArrayMap(
+      In(0, TArray(TInt32())),
+      "foo",
+      Let("bar", ApplyBinaryPrimOp(Add(), In(1, TInt32()), I32(1)),
+        Let("baz", ApplyBinaryPrimOp(Add(), Ref("bar", TInt32()), I32(1)),
+          ApplyBinaryPrimOp(Add(), Ref("foo", TInt32()), Ref("baz", TInt32())))))
+
+    assert(LiftLets(ir) == Let("bar", ApplyBinaryPrimOp(Add(), In(1, TInt32()), I32(1)),
+      Let("baz", ApplyBinaryPrimOp(Add(), Ref("bar", TInt32()), I32(1)),
+        ArrayMap(
+          In(0, TArray(TInt32())),
+          "foo",
+          ApplyBinaryPrimOp(Add(), Ref("foo", TInt32()), Ref("baz", TInt32()))))))
+  }
 }
