@@ -19,6 +19,8 @@ object Binds {
         (v == accumName || v == valueName) && i == 2
       case ArrayLeftJoinDistinct(_, _, l, r, _, _) =>
         (v == l || v == r) && i == 2
+      case ArrayAgg(_, name, _) =>
+        name == v && i == 1
       case AggExplode(_, n, _) =>
         v == n && i == 1
       case _ =>

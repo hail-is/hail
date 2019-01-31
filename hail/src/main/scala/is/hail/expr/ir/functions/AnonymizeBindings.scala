@@ -6,10 +6,20 @@ object AnonymizeBindings {
   // FIXME: only rewrite non-anonymous symbols when those arrive
   private val emptyEnv = Env.empty[Ref]
 
+  private def breaksScope(x: BaseIR): Boolean = {
+    (x: @unchecked) match {
+      case _: TableAggregate => true
+      case _: MatrixAggregate => true
+      case _: TableCollect => true
+      case _: IR => false
+      case _ => true
+    }
+  }
+
   private def anonymize(ir: BaseIR, env: Env[Ref]): BaseIR = {
     (ir: @unchecked) match {
       case r: Ref => env.lookupOption(r.name).getOrElse(r)
-      case x if LiftLets.breaksScope(x) => ir.copy(ir.children.map(anonymize(_, emptyEnv)))
+      case x if breaksScope(x) => ir.copy(ir.children.map(anonymize(_, emptyEnv)))
       case ir: IR =>
         val bindings = Bindings.getRefs(ir)
         if (bindings.isEmpty)

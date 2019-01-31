@@ -20,7 +20,7 @@ object LiftLets {
     }
   }
 
-  def breaksScope(x: BaseIR): Boolean = {
+  private def breaksScope(x: BaseIR): Boolean = {
     (x: @unchecked) match {
       case _: TableAggregate => true
       case _: MatrixAggregate => true
@@ -71,9 +71,6 @@ object LiftLets {
       case Let(name, value, body) =>
         val (liftedBody, bodyBindings) = lift(body)
         val (liftedValue: IR, valueBindings) = lift(value)
-        //        println(s"rewriting $name -> $body")
-        //        println(s"bodyBindings for $name:\n  ${bodyBindings}")
-        //        println(s"valueBindings:\n  ${valueBindings}")
         val subInclusion = bodyBindings.map(lb => letBindingMentions(lb, name))
         val lb = (LetBinding(
           name,
