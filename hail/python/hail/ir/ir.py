@@ -549,39 +549,35 @@ class ArrayRange(IR):
 
 
 class MakeNDArray(IR):
-    @typecheck_method(flags=IR, shape=IR, offset=IR, strides=IR, data=IR)
-    def __init__(self, flags, shape, offset, strides, data):
-        super().__init__(flags, shape, offset, strides, data)
-        self.flags = flags
-        self.shape = shape
-        self.offset = offset
-        self.strides = strides
+    @typecheck_method(data=IR, shape=IR, row_major=IR)
+    def __init__(self, data, shape, row_major):
+        super().__init__(data, shape, row_major)
         self.data = data
+        self.shape = shape
+        self.row_major = row_major
 
-    @typecheck_method(flags=IR, shape=IR, offset=IR, strides=IR, data=IR)
-    def copy(self, flags, shape, offset, strides, data):
+    @typecheck_method(data=IR, shape=IR, row_major=IR)
+    def copy(self, data, shape, row_major):
         new_instance = self.__class__
-        return new_instance(flags, shape, offset, strides, data)
+        return new_instance(data, shape, row_major)
 
     def render(self, r):
-        return '(MakeNDArray {} {} {} {} {})'.format(
-            r(self.flags),
+        return '(MakeNDArray {} {} {})'.format(
+            r(self.data),
             r(self.shape),
-            r(self.offset),
-            r(self.strides),
-            r(self.data))
+            r(self.row_major))
 
     def __eq__(self, other):
         return isinstance(other, MakeNDArray) and \
-               other.flags == self.flags and \
+               other.data == self.data and \
                other.shape == self.shape and \
-               other.offset == self.offset and \
-               other.strides == self.strides and \
-               other.data == self.data
+               other.row_major == self.row_major
 
     def _compute_type(self, env, agg_env):
         self.data._compute_type(env, agg_env)
-        tndarray(self.data.typ)
+        self.shape._compute_type(env, agg_env)
+        self.row_major._compute_type(env, agg_env)
+        self._type = tndarray(self.data.typ.element_type)
 
 
 class ArraySort(IR):

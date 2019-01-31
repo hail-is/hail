@@ -160,7 +160,7 @@ final case class ArrayAgg(a: IR, name: String, query: IR) extends IR
 
 final case class ArrayLeftJoinDistinct(left: IR, right: IR, l: String, r: String, keyF: IR, joinF: IR) extends IR
 
-final case class MakeNDArray(flags: IR, shape: IR, offset: IR, strides: IR, data: IR) extends IR
+final case class MakeNDArray(data: IR, shape: IR, row_major: IR) extends IR
 
 final case class AggFilter(cond: IR, aggIR: IR) extends IR
 

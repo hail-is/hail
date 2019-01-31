@@ -95,18 +95,15 @@ object TypeCheck {
         assert(a.typ.isOfType(TInt32()))
         assert(b.typ.isOfType(TInt32()))
         assert(c.typ.isOfType(TInt32()))
-      case x@MakeNDArray(flag, shape, offset, strides, data) =>
-        check(flag)
-        check(shape)
-        check(offset)
-        check(strides)
+      case x@MakeNDArray(data, shape, row_major) =>
         check(data)
-        assert(flag.typ.isOfType(TInt64()))
-        assert(shape.typ.isOfType(TArray(TInt64())))
-        assert(offset.typ.isOfType(TInt64()))
-        assert(strides.typ.isOfType(TArray(TInt64())))
+        check(shape)
+        check(row_major)
         assert(data.typ.isInstanceOf[TArray])
         assert(coerce[TNDArray](x.typ).elementType == coerce[TArray](data.typ).elementType)
+        assert(shape.typ.isOfType(TArray(TInt64())))
+        assert(row_major.typ.isOfType(TBoolean()))
+
       case x@ArraySort(a, ascending, onKey) =>
         check(a)
         check(ascending)
