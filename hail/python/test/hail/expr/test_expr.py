@@ -326,26 +326,52 @@ class Tests(unittest.TestCase):
         for aggregation, expected in tests:
             self.assertEqual(t.aggregate(aggregation), expected)
 
-    def test_agg_array_agg_sum(self):
-        t = hl.utils.range_table(10, 11)
-        t = t.annotate(a = hl.range(t.idx, t.idx + 10))
-        assert t.aggregate(hl.agg.array_agg(lambda x: hl.agg.sum(x), t.a)) == [45 + 10 * x for x in range(10)]
+    def test_agg_array_empty(self):
+        ht = hl.utils.range_table(1).annotate(a=[0]).filter(False)
+        assert ht.aggregate(hl.agg.array_agg(lambda x: hl.agg.sum(x), ht.a)) == None
+
+    def test_agg_array_non_trivial_post_op(self):
+        ht = hl.utils.range_table(10)
+        ht = ht.annotate(a=[ht.idx, 2 * ht.idx])
+        assert ht.aggregate(hl.agg.array_agg(
+            lambda x: hl.agg.sum(x) + hl.agg.filter(x % 3 == 0, hl.agg.sum(x)),
+            ht.a)) == [63, 126]
+
+    def test_agg_array_agg_empty_partitions(self):
+        ht = hl.utils.range_table(11, 11)
+        ht = ht.filter(ht.idx < 10)
+        ht = ht.annotate(a=hl.range(ht.idx, ht.idx + 10))
+        assert ht.aggregate(hl.agg.array_agg(lambda x: hl.agg.sum(x), ht.a)) == [45 + 10 * x for x in range(10)]
 
     def test_agg_array_agg_sum_vs_sum(self):
-        ht = hl.utils.range_table(25).annotate(x = hl.range(0, 10).map(lambda _: hl.rand_bool(0.5)))
+        ht = hl.utils.range_table(25).annotate(x=hl.range(0, 10).map(lambda _: hl.rand_bool(0.5)))
         assert ht.aggregate(hl.agg.array_agg(lambda x: hl.agg.sum(x), ht.x) == hl.agg.array_sum(ht.x))
 
     def test_agg_array_agg_errors(self):
         ht = hl.utils.range_table(10)
-        ht = ht.annotate(a = hl.range(0, ht.idx))
+        ht = ht.annotate(a=hl.range(0, ht.idx))
         with pytest.raises(hl.utils.FatalError):
             ht.aggregate(hl.agg.array_agg(lambda x: hl.agg.sum(x), ht.a))
 
     def test_agg_array_explode(self):
         ht = hl.utils.range_table(10)
-        ht = ht.annotate(a = hl.range(0, ht.idx).map(lambda _: [ht.idx, 2 * ht.idx]))
-        r = ht.aggregate(hl.agg.explode(lambda x: hl.agg.array_agg(x, lambda elt: hl.agg.sum(elt)), ht.a))
+        ht = ht.annotate(a=hl.range(0, ht.idx).map(lambda _: [ht.idx, 2 * ht.idx]))
+        r = ht.aggregate(hl.agg.explode(lambda x: hl.agg.array_agg(lambda elt: hl.agg.sum(elt), x), ht.a))
         assert r == [285, 570]
+
+        ht = hl.utils.range_table(10)
+        ht = ht.annotate(a=[hl.range(0, ht.idx), hl.range(ht.idx, 2 * ht.idx)])
+        r = ht.aggregate(hl.agg.array_agg(lambda x: hl.agg.explode(lambda elt: hl.agg.sum(elt), x), ht.a))
+        assert r == [120, 405]
+
+    def test_agg_array_filter(self):
+        ht = hl.utils.range_table(10)
+        ht = ht.annotate(a=[ht.idx])
+        r = ht.aggregate(hl.agg.filter(ht.idx == 5, hl.agg.array_agg(lambda x: hl.agg.sum(x), ht.a)))
+        assert r == [5]
+
+        r2 = ht.aggregate(hl.agg.array_agg(lambda x: hl.agg.filter(x == 5, hl.agg.sum(x)), ht.a))
+        assert r2 == [5]
 
     def test_agg_array_explode_rev(self):
         ht = hl.utils.range_table(10)
@@ -353,14 +379,26 @@ class Tests(unittest.TestCase):
         r = ht.aggregate(hl.agg.array_agg(lambda x: hl.agg.explode(lambda elt: hl.agg.sum(elt), x), ht.a))
         assert r == [120, 20]
 
-    def test_agg_array_explode_group_by(self):
+    def test_agg_array_group_by(self):
         ht = hl.utils.range_table(10)
-        ht = ht.annotate(a=[hl.range(0, ht.idx), hl.range(0, ht.idx // 2)])
+        ht = ht.annotate(a=[ht.idx, ht.idx + 1])
         r = ht.aggregate(
-            hl.agg.group_by(ht.idx % 2,
-                            hl.str(hl.agg.array_agg(lambda x:
-                                                    hl.agg.explode(lambda elt: hl.agg.sum(elt), x), ht.a))))
-        assert r == {0: '[50,10]', 1: '[70,10]'}
+            hl.agg.group_by(ht.idx % 2, hl.agg.array_agg(lambda x: hl.agg.sum(x), ht.a)))
+        assert r == {0: [20, 25], 1: [25, 30]}
+
+        r2 = ht.aggregate(
+            hl.agg.array_agg(lambda x: hl.agg.group_by(x % 2, hl.agg.sum(x)), ht.a)
+        )
+
+        assert r2 == [{0: 20, 1: 25}, {0: 30, 1: 25}]
+
+    def test_agg_array_nested(self):
+        ht = hl.utils.range_table(10)
+        ht = ht.annotate(a=[[[ht.idx]]])
+        assert ht.aggregate(hl.agg.array_agg(
+            lambda x1: hl.agg.array_agg(
+                lambda x2: hl.agg.array_agg(
+                    lambda x3: hl.agg.sum(x3), x2), x1), ht.a)) == [[[45]]]
 
     def test_agg_explode(self):
         t = hl.utils.range_table(10)
