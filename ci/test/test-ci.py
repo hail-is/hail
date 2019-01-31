@@ -141,7 +141,7 @@ def get_deployed_sha(target_ref):
     assert 'latest_deployed' in status
     latest_deployed = {
         FQRef.from_json(x[0]): x[1] for x in status['latest_deployed']}
-    return latest_deployed(target_ref)
+    return latest_deployed[target_ref]
 
 
 def poll_until_deployed_sha_is(target_ref,
