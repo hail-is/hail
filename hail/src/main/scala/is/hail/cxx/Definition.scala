@@ -33,6 +33,16 @@ class Variable(val name: String, val typ: String, init: Expression) extends Defi
     s"$typ $name = $value;"
 }
 
+object Label {
+  def apply(name: String): Label = new Label(name)
+}
+
+class Label(val name: String) extends Definition {
+  override def toString: String = name
+
+  def define: Code = s"$name:"
+}
+
 object ArrayVariable {
   def apply(prefix: String, typ: Type, len: Code): ArrayVariable =
     new ArrayVariable(prefix, typ, Expression(len))

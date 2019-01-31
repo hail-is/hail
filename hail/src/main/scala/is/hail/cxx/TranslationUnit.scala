@@ -67,6 +67,10 @@ trait ScopeBuilder {
     Variable(genSym(prefix), typ)
   }
 
+  def label(prefix: String): Label = {
+    Label(genSym(prefix))
+  }
+
   def arrayVariable(prefix: String, typ: String, len: Code): ArrayVariable = {
     ArrayVariable(genSym(prefix), typ, len)
   }
