@@ -57,15 +57,20 @@ object ForwardLets {
 
     RewriteBottomUp(ir, {
       case let@Let(binding, value, letBody) =>
-        val counter = RefCounter()
-        analyzeRefsByNestingLevel(letBody, binding, 0, counter)
+        value match {
+          case _: Ref =>
+            Some(Subst(letBody, Env(binding -> value)))
+          case _ =>
+            val counter = RefCounter()
+            analyzeRefsByNestingLevel(letBody, binding, 0, counter)
 
-        if (counter.nRef == 0)
-          Some(letBody)
-        else if (counter.nRef == 1 && counter.maxNestingLevel == 0)
-          Some(Subst(letBody, Env(binding -> value)))
-        else
-          None
+            if (counter.nRef == 0)
+              Some(letBody)
+            else if (counter.nRef == 1 && counter.maxNestingLevel == 0)
+              Some(Subst(letBody, Env(binding -> value)))
+            else
+              None
+        }
       case _ => None
     })
   }

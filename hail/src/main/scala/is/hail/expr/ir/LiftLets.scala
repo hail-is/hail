@@ -2,9 +2,23 @@ package is.hail.expr.ir
 
 import scala.collection.mutable
 
-case class LetBinding(name: String, value: IR, bindings: List[LetBinding])
+case class LetBinding(name: String, value: IR, valueBindings: List[LetBinding], bodyBindings: List[LetBinding])
 
 object LiftLets {
+
+  def renderBindings(lbs: List[LetBinding], indent: Int = 2) {
+    lbs.foreach { lb =>
+      println(" " * indent + s"* ${ lb.name } => ${ lb.value }")
+      if (lb.valueBindings.nonEmpty) {
+        println(" " * (indent + 2) + "V:")
+        renderBindings(lb.valueBindings, indent + 4)
+      }
+      if (lb.bodyBindings.nonEmpty) {
+        println(" " * (indent + 2) + "B:")
+        renderBindings(lb.bodyBindings, indent + 4)
+      }
+    }
+  }
 
   def breaksScope(x: BaseIR): Boolean = {
     (x: @unchecked) match {
@@ -23,16 +37,16 @@ object LiftLets {
 
   def prependBindings(x: IR, bindings: List[LetBinding]): IR = {
     val m = mutable.Map.empty[IR, String]
-    bindings.foldLeft(x) { case (ir, binding) =>
+    bindings.foldRight(x) { case (binding, ir) =>
       // reduce equivalent lets
       m.get(binding.value) match {
-        case Some(prevName) =>
+        case Some(prevName) if binding.valueBindings.isEmpty =>
           if (prevName != binding.name)
             Subst(ir, Env(binding.name -> Ref(prevName, binding.value.typ)))
-          else prependBindings(ir, binding.bindings)
+          else prependBindings(ir, binding.bodyBindings)
         case None =>
           m += binding.value -> binding.name
-          Let(binding.name, binding.value, prependBindings(ir, binding.bindings))
+          Let(binding.name, prependBindings(binding.value, binding.valueBindings), prependBindings(ir, binding.bodyBindings))
       }
     }
   }
@@ -45,8 +59,11 @@ object LiftLets {
       lifted
   }
 
-  def letBindingMentions(lbs: LetBinding, name: String): Boolean = {
-    lbs.name == name || Mentions(lbs.value, name) || lbs.bindings.exists(letBindingMentions(_, name))
+  def letBindingMentions(lb: LetBinding, name: String): Boolean = {
+    assert(lb.name != name)
+    Mentions(lb.value, name) ||
+      lb.valueBindings.exists(letBindingMentions(_, name)) ||
+      lb.bodyBindings.exists(letBindingMentions(_, name))
   }
 
   def lift(ir0: BaseIR): (BaseIR, List[LetBinding]) = {
@@ -54,10 +71,16 @@ object LiftLets {
       case Let(name, value, body) =>
         val (liftedBody, bodyBindings) = lift(body)
         val (liftedValue: IR, valueBindings) = lift(value)
-        val subInclusion = bodyBindings.map(lb => lb.name == name || letBindingMentions(lb, name))
-        val lb = (LetBinding(name, liftedValue, bodyBindings.zip(subInclusion).filter(_._2).map(_._1))
-          :: valueBindings
-          ::: bodyBindings.zip(subInclusion).filter { case (_, sub) => !sub }.map(_._1))
+        //        println(s"rewriting $name -> $body")
+        //        println(s"bodyBindings for $name:\n  ${bodyBindings}")
+        //        println(s"valueBindings:\n  ${valueBindings}")
+        val subInclusion = bodyBindings.map(lb => letBindingMentions(lb, name))
+        val lb = (LetBinding(
+          name,
+          liftedValue,
+          valueBindings,
+          bodyBindings.zip(subInclusion).filter(_._2).map(_._1))
+          :: bodyBindings.zip(subInclusion).filter { case (_, sub) => !sub }.map(_._1))
         liftedBody -> lb
       case ir1 if breaksScope(ir1) =>
         ir1.copy(ir1.children.map(apply)) -> Nil
@@ -68,7 +91,7 @@ object LiftLets {
           .map { case (c, i) =>
             val (liftedChild, lbs) = lift(c)
             if (lbs.nonEmpty) {
-              val subInclusion = lbs.map(lb => bindings.exists(b => lb.name == b || letBindingMentions(lb, b)))
+              val subInclusion = lbs.map(lb => bindings.exists(b => letBindingMentions(lb, b)))
               prependBindings(liftedChild.asInstanceOf[IR], lbs.zip(subInclusion).filter(_._2).map(_._1)) -> lbs.zip(subInclusion).filter(t => !t._2).map(_._1)
             } else liftedChild -> Nil
           }.unzip

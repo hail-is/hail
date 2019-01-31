@@ -118,7 +118,7 @@ object InferType {
       case GetField(o, name) =>
         val t = coerce[TStruct](o.typ)
         if (t.index(name).isEmpty)
-          throw new RuntimeException(s"$name not in $t")
+          throw new RuntimeException(s"$name not in $t\n  $o")
         val fd = t.field(name).typ
         fd.setRequired(t.required && fd.required)
       case MakeTuple(values) =>

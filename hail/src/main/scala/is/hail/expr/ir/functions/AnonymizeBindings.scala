@@ -1,37 +1,34 @@
 package is.hail.expr.ir.functions
 
 import is.hail.expr.ir._
-import is.hail.expr.types.virtual.TArray
 
 object AnonymizeBindings {
+  // FIXME: only rewrite non-anonymous symbols when those arrive
+  private val emptyEnv = Env.empty[Ref]
+
+  private def anonymize(ir: BaseIR, env: Env[Ref]): BaseIR = {
+    (ir: @unchecked) match {
+      case r: Ref => env.lookupOption(r.name).getOrElse(r)
+      case x if LiftLets.breaksScope(x) => ir.copy(ir.children.map(anonymize(_, emptyEnv)))
+      case ir: IR =>
+        val bindings = Bindings.getRefs(ir)
+        if (bindings.isEmpty)
+          ir.copy(ir.children.map(anonymize(_, env)))
+        else {
+          val newBindings = bindings.map(_ => genUID())
+          Bindings.copyBindings(ir, newBindings, ir.children.zipWithIndex.map { case (c, i) =>
+            val substEnv = bindings.zip(newBindings).foldLeft(env) { case (e, (binding, newBinding)) =>
+              if (Binds(ir, binding.name, i))
+                e.bind(binding.name, Ref(newBinding, binding.typ))
+              else e
+            }
+            anonymize(c, substEnv)
+          })
+        }
+    }
+  }
+
   def apply(ir: BaseIR): BaseIR = {
-    MapIR.mapBaseIR(ir, {
-      case x@Let(name, value, body) =>
-        val uid = genUID()
-        Let(uid, value, Subst(body, Env(name -> Ref(uid, value.typ))))
-      case ArrayMap(a, name, body) =>
-        val uid = genUID()
-        ArrayMap(a, uid, Subst(body, Env(name -> Ref(uid, a.typ.asInstanceOf[TArray].elementType))))
-      case ArrayFilter(a, name, cond) =>
-        val uid = genUID()
-        ArrayFilter(a, uid, Subst(cond, Env(name -> Ref(uid, a.typ.asInstanceOf[TArray].elementType))))
-      case ArrayFlatMap(a, name, body) =>
-        val uid = genUID()
-        ArrayFlatMap(a, uid, Subst(body, Env(name -> Ref(uid, a.typ.asInstanceOf[TArray].elementType))))
-      case ArrayFold(a, zero, accumName, valueName, body) =>
-        val uid1 = genUID()
-        val uid2 = genUID()
-        val env = Env[IR](accumName -> Ref(uid1, zero.typ), valueName -> Ref(uid2, a.typ.asInstanceOf[TArray].elementType))
-        ArrayFold(a, zero, uid1, uid2, Subst(body, env))
-      case ArrayScan(a, zero, accumName, valueName, body) =>
-        val uid1 = genUID()
-        val uid2 = genUID()
-        val env = Env[IR](accumName -> Ref(uid1, zero.typ), valueName -> Ref(uid2, a.typ.asInstanceOf[TArray].elementType))
-        ArrayScan(a, zero, uid1, uid2, Subst(body, env))
-      case ArrayFor(a, name, body) =>
-        val uid = genUID()
-        ArrayFor(a, uid, Subst(body, Env(name -> Ref(uid, a.typ.asInstanceOf[TArray].elementType))))
-      case x => x
-    })
+    anonymize(ir, Env.empty)
   }
 }
