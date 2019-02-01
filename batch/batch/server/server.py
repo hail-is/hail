@@ -390,7 +390,7 @@ class Batch:
         if ttl is None or ttl > Batch.MAX_TTL:
             ttl = Batch.MAX_TTL
         self.ttl = ttl
-        schedule(ttl, self.close)
+        schedule(self.ttl, self.close)
 
     def delete(self):
         del batch_id_batch[self.id]
