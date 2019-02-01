@@ -268,7 +268,7 @@ app = Flask('batch')
 
 
 @app.route('/jobs/create', methods=['POST'])
-def create_job():
+def create_job():  # pylint: disable=R0912
     parameters = request.json
 
     schema = {

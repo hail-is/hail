@@ -101,7 +101,7 @@ class BatchClient:
         self.url = url
         self.api = api
 
-    def _create_job(self,
+    def _create_job(self,  # pylint: disable=R0912
                     image,
                     command,
                     args,
