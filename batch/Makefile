@@ -55,7 +55,7 @@ test: push-test
 	  < test-batch-pod.yaml.in > test-batch-pod.yaml
 	kubectl create -f test-batch-pod.yaml
 
-ifneq ($(NO_CHECK),true)
+ifneq ($(PY_CHECK),false)
 test-local: $(PY_CHECKERS)
 endif
 test-local: build/conda-env
