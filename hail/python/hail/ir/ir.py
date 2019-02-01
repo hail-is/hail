@@ -395,6 +395,11 @@ class Recur(IR):
         new_instance = self.__class__
         return new_instance(list(args))
 
+    def __eq__(self, other):
+        return isinstance(other, Recur) and \
+            other.args == self.args and \
+            other._typ == self._typ
+
     def render(self, r):
         return '(Recur {})'.format(' '.join([r(arg) for arg in self.args]))
 
