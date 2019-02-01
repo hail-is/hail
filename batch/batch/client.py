@@ -75,6 +75,9 @@ class Batch:
             image, command, args, env, ports, resources, tolerations, volumes, security_context,
             service_account_name, attributes, self.id, callback, parent_ids)
 
+    def close(self):
+        self.client._close_batch(self.id)
+
     def status(self):
         return self.client._get_batch(self.id)
 
@@ -98,7 +101,7 @@ class BatchClient:
         self.url = url
         self.api = api
 
-    def _create_job(self,
+    def _create_job(self,  # pylint: disable=R0912
                     image,
                     command,
                     args,
@@ -178,6 +181,9 @@ class BatchClient:
 
     def _get_batch(self, batch_id):
         return self.api.get_batch(self.url, batch_id)
+
+    def _close_batch(self, batch_id):
+        return self.api.close_batch(self.url, batch_id)
 
     def _refresh_k8s_state(self):
         self.api.refresh_k8s_state(self.url)

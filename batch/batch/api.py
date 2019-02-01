@@ -70,6 +70,11 @@ class API():
         raise_on_failure(response)
         return response.json()
 
+    def close_batch(self, url, batch_id):
+        response = requests.post(url + '/batches/{}/close'.format(batch_id), timeout=self.timeout)
+        raise_on_failure(response)
+        return response.json()
+
     def delete_batch(self, url, batch_id):
         response = requests.delete(url + '/batches/{}'.format(batch_id), timeout=self.timeout)
         raise_on_failure(response)
@@ -113,6 +118,10 @@ def create_batch(url, attributes, callback):
 
 def get_batch(url, batch_id):
     return DEFAULT_API.get_batch(url, batch_id)
+
+
+def close_batch(url, batch_id):
+    return DEFAULT_API.close_batch(url, batch_id)
 
 
 def delete_batch(url, batch_id):

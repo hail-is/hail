@@ -268,7 +268,7 @@ app = Flask('batch')
 
 
 @app.route('/jobs/create', methods=['POST'])
-def create_job():
+def create_job():  # pylint: disable=R0912
     parameters = request.json
 
     schema = {
@@ -292,8 +292,11 @@ def create_job():
 
     batch_id = parameters.get('batch_id')
     if batch_id:
-        if batch_id not in batch_id_batch:
-            abort(404, 'valid request: batch_id {} not found'.format(batch_id))
+        batch = batch_id_batch.get(batch_id)
+        if batch is None:
+            abort(404, f'invalid request: batch_id {batch_id} not found')
+        if not batch.is_open:
+            abort(400, f'invalid request: batch_id {batch_id} is closed')
 
     parent_ids = parameters.get('parent_ids', [])
     for parent_id in parent_ids:
@@ -371,6 +374,7 @@ class Batch:
         self.id = next_id()
         batch_id_batch[self.id] = self
         self.jobs = set([])
+        self.is_open = True
 
     def delete(self):
         del batch_id_batch[self.id]
@@ -396,6 +400,9 @@ class Batch:
                 target=handler,
                 args=(self.id, job.id, self.callback, job.to_json())
             ).start()
+
+    def close(self):
+        self.is_open = False
 
     def to_json(self):
         state_count = Counter([j._state for j in self.jobs])
@@ -445,6 +452,15 @@ def delete_batch(batch_id):
     if not batch:
         abort(404)
     batch.delete()
+    return jsonify({})
+
+
+@app.route('/batches/<int:batch_id>/close', methods=['POST'])
+def close_batch(batch_id):
+    batch = batch_id_batch.get(batch_id)
+    if not batch:
+        abort(404)
+    batch.close()
     return jsonify({})
 
 
