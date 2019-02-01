@@ -1,0 +1,10 @@
+numpy<2
+pandas>0.22,<0.24
+matplotlib<3
+seaborn<0.9
+bokeh<0.14
+pyspark~=@spark_version@
+parsimonious<0.9
+ipykernel<5
+decorator<5
+requests>=2.21.0,<2.21.1

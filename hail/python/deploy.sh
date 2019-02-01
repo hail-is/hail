@@ -14,7 +14,7 @@ current=$(cat hail/hail_pip_version)
 if [[ "${published}" != "${current}" ]]
 then
     echo deploying ${current}, was ${published}
-	  rm -rf python/dist
+	  rm -rf dist
     python setup.py sdist bdist_wheel
     if [[ -e /secrets/pypi-username && -e /secrets/pypi-password ]]
     then

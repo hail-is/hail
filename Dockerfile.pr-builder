@@ -58,12 +58,6 @@ ENV PATH $PATH:/google-cloud-sdk/bin
 RUN wget -O  /usr/local/bin/kubectl https://storage.googleapis.com/kubernetes-release/release/v1.11.3/bin/linux/amd64/kubectl && \
     chmod +x /usr/local/bin/kubectl
 
-WORKDIR /spark
-RUN wget -O spark-2.2.0-bin-hadoop2.7.tgz https://archive.apache.org/dist/spark/spark-2.2.0/spark-2.2.0-bin-hadoop2.7.tgz && \
-    tar --strip-components=1 -xvzf spark-2.2.0-bin-hadoop2.7.tgz -C /spark && \
-    rm -rf spark-2.2.0-bin-hadoop2.7.tgz
-ENV SPARK_HOME /spark/
-
 WORKDIR /plink
 RUN wget -O plink_linux_x86_64.zip https://storage.googleapis.com/hail-common/plink_linux_x86_64_20181202.zip && \
     unzip plink_linux_x86_64.zip && \
@@ -84,7 +78,7 @@ RUN mkdir -p /gradle-cache
 
 COPY hail/gradlew hail/build.gradle hail/settings.gradle hail/deployed-spark-versions.txt ./
 COPY hail/gradle gradle
-COPY hail/python/hail/dev-environment.yml python/hail/dev-environment.yml
+COPY hail/python/dev-environment.yml python/dev-environment.yml
 COPY batch/environment.yml batch/environment.yml
 COPY ci/environment.yml ci/environment.yml
 COPY pipeline/environment.yml pipeline/environment.yml
@@ -99,11 +93,19 @@ USER hail
 # Some plugin we use hides its dependencies in a so-called "detached
 # configuration" so there is no way for us to ensure it gets cached.
 RUN ./gradlew downloadDependencies --gradle-user-home /gradle-cache
-RUN conda env create -f ./python/hail/dev-environment.yml && \
+RUN conda env create -f ./python/dev-environment.yml && \
     conda env create -f batch/environment.yml && \
     conda env create -f ci/environment.yml && \
     conda env create -f pipeline/environment.yml && \
     rm -rf /home/hail/.conda/pkgs/*
+
+COPY loadconda hail/Makefile hail/python/requirements.txt.in hail/env_var.mk ./
+RUN  mkdir -p python && \
+     mv requirements.txt.in python/ && \
+     make python/requirements.txt && \
+     . ./loadconda && \
+     conda activate hail && \
+     pip install -r python/requirements.txt
 
 # gcloud iam key files will be stored here
 VOLUME /secrets

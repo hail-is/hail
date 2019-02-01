@@ -81,9 +81,9 @@ PYTHON_GENERATED_FILES += python/hail/hail_version
 python/hail/hail_version: env/HAIL_PIP_VERSION env/GIT_SHA
 	printf $(HAIL_PIP_VERSION)-$(shell printf "$(GIT_SHA)" | head -c 12) > $@
 
-PYTHON_GENERATED_FILES += python/spark_version
-python/spark_version: env/SPARK_VERSION
-	printf $(SPARK_VERSION) > python/spark_version
+PYTHON_GENERATED_FILES += python/requirements.txt
+python/requirements.txt: python/requirements.txt.in env/SPARK_VERSION
+	sed -e 's:@spark_version@:$(SPARK_VERSION):' < $< > $@
 
 PYTHON_GENERATED_FILES += python/README.md
 python/README.md: ../README.md
@@ -142,7 +142,7 @@ build/twine-credentials/pypi-password: build/credentials.json
 .PHONY: test-pip-deploy
 test-pip-deploy: build/twine-credentials/pypi-username build/twine-credentials/pypi-password
 	PIP_VERSION_SUFFIX=".dev$(shell curl -sSL https://pypi.python.org/pypi/hail/json | python next_unused_dev_pypi_version.py)" \
-	  HAIL_TWINE_CREDS_FOLDER=build/twine-credentials \
+	  HAIL_TWINE_CREDS_FOLDER=$(PWD)/build/twine-credentials \
 	  $(MAKE) pip-deploy
 	mkdir -p build
 	touch build/test-pip-deploy

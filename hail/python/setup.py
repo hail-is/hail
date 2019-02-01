@@ -8,8 +8,9 @@ with open('hail/hail_pip_version') as f:
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
-with open("spark_version", "r") as fh:
-    spark_version = fh.read()
+install_requires = []
+with open('requirements.txt') as f:
+    install_requires = f.read().splitlines()
 
 setup(
     name="hail",
@@ -28,16 +29,5 @@ setup(
         "License :: OSI Approved :: MIT License",
     ],
     python_requires=">=3.6",
-    install_requires=[
-        'numpy<2',
-        'pandas>0.22,<0.24',
-        'matplotlib<3',
-        'seaborn<0.9',
-        'bokeh<0.14',
-        'pyspark~='+spark_version,
-        'parsimonious<0.9',
-        'ipykernel<5',
-        'decorator<5',
-        'requests>=2.21.0,<2.21.1',
-    ]
+    install_requires=install_requires
 )

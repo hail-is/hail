@@ -19,3 +19,5 @@ src/test/resources/random-*.bgen.idx*
 src/test/resources/random.bgen.idx*
 src/test/resources/skip_invalid_loci.bgen.idx*
 *.log
+/env
+/python/requirements.txt
