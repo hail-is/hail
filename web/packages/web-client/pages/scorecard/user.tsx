@@ -69,7 +69,7 @@ const IssueSection = ({ data }: issueProps) => (
 );
 
 const Section = ({ data, sectionClass, type }: section) => (
-  <div className="section">
+  <div className={`section ${data.length === 0 ? 'deemph' : ''}`}>
     <h5>{type}</h5>
     <div className="data">
       {data.length > 0 ? (
@@ -79,7 +79,7 @@ const Section = ({ data, sectionClass, type }: section) => (
           <IssueSection data={data as Issue[]} />
         )
       ) : (
-        <div className="deemph">None</div>
+        <div>None</div>
       )}
     </div>
   </div>

@@ -83,32 +83,17 @@ const getAuthToken = req => {
     return token;
   }
 
+  if (req.query.access_token) {
+    return req.query.access_token;
+  }
+
   return null;
 };
-
-async function attachTokenMiddleware(req, res, next) {
-  const token = getAuthToken(req);
-
-  if (!token) {
-    next();
-    return;
-  }
-
-  try {
-    req.user = await verifyToken(token);
-    next();
-  } catch (_) {
-    //TODO: Decide whether to return info to user
-    const err = new Error('Unauthorized');
-    err.code = 401;
-    next(err);
-  }
-}
 
 polka()
   .get('/verify', (req, res) => {
     const token = getAuthToken(req);
-
+    console.info('token', token);
     if (!token) {
       unauthorized(res);
       return;
