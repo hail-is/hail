@@ -638,6 +638,12 @@ class Tests(unittest.TestCase):
         for aggregation, expected in tests:
             self.assertEqual(aggregation.collect(), expected)
 
+    def test_scan_array_agg(self):
+        ht = hl.utils.range_table(5)
+        ht = ht.annotate(a=hl.range(0, 5).map(lambda x: ht.idx))
+        ht = ht.annotate(a2=hl.scan.array_agg(lambda _: hl.agg.count(), ht.a))
+        assert ht.all((ht.idx == 0) | (ht.a == ht.a2))
+
     def test_aggregators_max_min(self):
         table = hl.utils.range_table(10)
         # FIXME: add boolean when function registry is removed
