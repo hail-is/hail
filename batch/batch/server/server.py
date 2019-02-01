@@ -12,12 +12,12 @@ import kubernetes as kube
 import cerberus
 import requests
 
-s = sched.scheduler()
-
 from .globals import max_id, pod_name_job, job_id_job, _log_path, _read_file, batch_id_batch
 from .globals import next_id
 
 from .. import schemas
+
+s = sched.scheduler()
 
 if not os.path.exists('logs'):
     os.mkdir('logs')
@@ -368,6 +368,7 @@ def cancel_job(job_id):
         abort(404)
     job.cancel()
     return jsonify({})
+
 
 class Batch:
     def __init__(self, attributes, callback, ttl):
