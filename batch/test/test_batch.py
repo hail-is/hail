@@ -38,8 +38,12 @@ class Test(unittest.TestCase):
 
     def test_batch_ttl(self):
         b = self.batch.create_batch(ttl=1)
-        time.sleep(10)
-        assert not b.status()['is_open']
+        t = 4
+        while b.status()['is_open']:
+            if t > 64:
+                assert False, "took more than 128 seconds to close a batch with ttl 1"
+            time.sleep(t)
+            t = t * 2
 
     def test_attributes(self):
         a = {
