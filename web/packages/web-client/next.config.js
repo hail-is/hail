@@ -18,7 +18,9 @@ const publicRuntimeConfig = {
   },
   SCORECARD: {
     DOMAIN: process.env.SCORECARD_DOMAIN,
-    USERS: process.env.SCORECARD_USERS.split(',')
+    USERS: process.env.SCORECARD_USERS
+      ? process.env.SCORECARD_USERS.split(',')
+      : []
   },
   NOTEBOOK: {
     DOMAIN: process.env.NOTEBOOK_DOMAIN

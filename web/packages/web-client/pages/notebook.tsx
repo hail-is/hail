@@ -130,7 +130,7 @@ class Notebook extends PureComponent<props, state> {
     this.setState({ loading: 1 });
 
     const formData = new FormData();
-    formData.append('image', 'hail');
+    formData.append('image', 'hail-jupyter');
 
     try {
       const notebook: notebook = await fetch(`${DOMAIN}/api`, {
@@ -187,7 +187,7 @@ class Notebook extends PureComponent<props, state> {
 
   removeNotebook = (n: notebook) => {
     this.setState((p: state) => {
-      const notebooks = Object.assign({}, this.state.notebooks);
+      const notebooks = Object.assign({}, p.notebooks);
 
       delete notebooks[n.pod_name];
       return { notebooks, loading: 0 };

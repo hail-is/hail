@@ -1,10 +1,9 @@
 FROM mhart/alpine-node:10.15.0
 
-WORKDIR /web-client
+WORKDIR /web
 
 COPY . .
 
-RUN npm install && npm run build
+RUN npm install
 
-
-
+EXPOSE 3000
