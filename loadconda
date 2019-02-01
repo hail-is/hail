@@ -11,7 +11,7 @@ then
     try_source /opt/conda/etc/profile.d/conda.sh || \
         try_source "${HOME}/anaconda2/etc/profile.d/conda.sh" || \
         try_source "${HOME}/miniconda/etc/profile.d/conda.sh" || \
-        (if which condaf >/dev/null 2>/dev/null
+        (if which conda >/dev/null 2>/dev/null
          then
              conda_dir=$(dirname $(dirname $(which conda)))
              try_source "$conda_dir/etc/profile.d/conda.sh"
