@@ -38,7 +38,8 @@ class Pipeline:
 
         if r_uid not in self._resource_map:
             raise ValueError(f"Unknown resource '{r}' found."
-                             f"Hint: Resources cannot be referenced by a different pipeline than the one that generated the resource.")
+                             f"Hint: Resources cannot be referenced by a different pipeline"
+                             f"than the one that generated the resource.")
 
         r = self._resource_map[r_uid]
         return r

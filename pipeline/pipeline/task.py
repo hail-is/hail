@@ -22,7 +22,7 @@ class Task:
         self._docker = None
         self._command = []
 
-        self._resources = {} # dict of name to resource
+        self._resources = {}  # dict of name to resource
         self._uid = Task._new_uid()
 
         self._inputs = set()

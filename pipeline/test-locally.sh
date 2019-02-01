@@ -24,4 +24,4 @@ do
     sleep 1
 done
 
-BATCH_URL='http://127.0.0.1:5000' pytest test
+BATCH_URL='http://127.0.0.1:5000' pytest -v test

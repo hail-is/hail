@@ -36,8 +36,7 @@ class InputResourceFile(ResourceFile):
 
 
 class TaskResourceFile(ResourceFile):
-    def __init__(self, source, value):
-        super().__init__(source, value)
+    pass
 
 
 class ResourceGroup(Resource):
@@ -53,7 +52,7 @@ class ResourceGroup(Resource):
 
     def __init__(self, source, root, **values):
         self._source = source
-        self._resources = {} # dict of name to resource uid
+        self._resources = {}  # dict of name to resource uid
         self._root = root
         self._uid = ResourceGroup._new_uid()
         self._output_paths = set()

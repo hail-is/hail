@@ -108,12 +108,13 @@ class LocalBackend(Backend):
 
 
 class BatchBackend(Backend):
-    def __init__(self, url='http://localhost:5000', default_image='ubuntu'): # FIXME: change default_image to minimal bash image
+    # FIXME: change default_image to minimal bash image
+    def __init__(self, url='http://localhost:5000', default_image='ubuntu'):
         self._batch_client = batch.client.BatchClient(url)
         self._gcs_client = storage.Client()
-        self._default_image = default_image # 'google/cloud-sdk:alpine'
+        self._default_image = default_image  # 'google/cloud-sdk:alpine'
 
-    def run(self, pipeline, dry_run, verbose, bg, delete_on_exit):
+    def run(self, pipeline, dry_run, verbose, bg, delete_on_exit):  # pylint: disable-msg=R0915
         remote_tmpdir = self.tmp_dir()
         local_tmpdir = '/tmp/pipeline/'
 
@@ -129,10 +130,10 @@ class BatchBackend(Backend):
 
         volumes = [{'volume': {'name': 'pipeline-test-0-1--hail-is-service-account-key',
                                'secret': {'optional': False,
-                                          'secretName': 'pipeline-test-0-1--hail-is-service-account-key' }},
-                    'volume_mount' : {'mountPath' : '/secrets',
-                                      'name': 'pipeline-test-0-1--hail-is-service-account-key',
-                                      'readOnly': True } }]
+                                          'secretName': 'pipeline-test-0-1--hail-is-service-account-key'}},
+                    'volume_mount': {'mountPath': '/secrets',
+                                     'name': 'pipeline-test-0-1--hail-is-service-account-key',
+                                     'readOnly': True}}]
 
         activate_service_account = 'gcloud auth activate-service-account ' \
                                    'pipeline-test-0-1--hail-is@hail-vdc.iam.gserviceaccount.com ' \
@@ -153,7 +154,7 @@ class BatchBackend(Backend):
 
             def copy_task_outputs(r):
                 r = pipeline._get_resource(r)
-                assert r._source == task
+                assert r._source == task  # pylint: disable-msg=W0640
                 if isinstance(r, TaskResourceFile):
                     return [f'gsutil cp {local_tmpdir}/{get_path(r)} {remote_tmpdir}/{get_path(r)}']
                 else:
@@ -162,11 +163,13 @@ class BatchBackend(Backend):
 
             make_local_tmpdir = f'mkdir -p {local_tmpdir}'
 
-            task_inputs = [make_local_tmpdir, activate_service_account] + list(flatten([copy_task_inputs(r) for r in task._inputs]))
-            task_outputs = [activate_service_account] + list(flatten([copy_task_outputs(r) for r in task._outputs]))
+            task_inputs = [make_local_tmpdir, activate_service_account] + \
+                list(flatten([copy_task_inputs(r) for r in task._inputs]))
+            task_outputs = [activate_service_account] + \
+                list(flatten([copy_task_outputs(r) for r in task._outputs]))
             resource_defs = [define_resource(r) for r in task._inputs.union(task._outputs)]
 
-            image = 'google/cloud-sdk:alpine' # task._docker if task._docker else self._default_image
+            image = 'google/cloud-sdk:alpine'  # task._docker if task._docker else self._default_image
             defs = '; '.join(resource_defs) + '; ' if resource_defs else ''
             cmd = " && ".join(task_inputs + task._command + task_outputs)
             parent_ids = [task_to_job_mapping[t] for t in task._dependencies]
@@ -198,8 +201,8 @@ class BatchBackend(Backend):
                 return [write_pipeline_outputs(rf, dest + '.' + ext) for ext, rf in r._resources.items()]
 
         pipeline_outputs = list(flatten([write_pipeline_outputs(r, dest)
-                                     for _, r in pipeline._resource_map.items()
-                                     for dest in r._output_paths]))
+                                         for _, r in pipeline._resource_map.items()
+                                         for dest in r._output_paths]))
 
         for parent_id, write_cmd in pipeline_outputs:
             j = batch.create_job(image='google/cloud-sdk:alpine',
@@ -210,7 +213,7 @@ class BatchBackend(Backend):
             job_id_to_command[j.id] = write_cmd
             n_jobs_submitted += 1
 
-        status = batch.wait() # FIXME: add background mode
+        status = batch.wait()  # FIXME: add background mode
 
         # cleanup scratch directory
         if delete_on_exit:
@@ -233,7 +236,7 @@ class BatchBackend(Backend):
                 f"  Command:\t{job_id_to_command[jid]}\n"
                 f"  Log:\t{log}\n")
 
-        if len(failed_jobs) > 0 or status['jobs']['Complete'] != n_jobs_submitted:
+        if failed_jobs or status['jobs']['Complete'] != n_jobs_submitted:
             raise Exception(fail_msg)
 
     def tmp_dir(self):
@@ -241,13 +244,13 @@ class BatchBackend(Backend):
 
         def create_bucket(n_attempts):
             subdir_name = 'pipeline-{}'.format(get_sha(16).lower())
-            bucket = self._gcs_client.bucket(hail_scratch_bucket)  # FIXME: Want to create separate bucket per pipeline with lookup_bucket and create_bucket
+            bucket = self._gcs_client.bucket(hail_scratch_bucket)  # FIXME: Want to create separate bucket per pipeline
             f = bucket.blob(subdir_name)
             if not f.exists(self._gcs_client):
                 return f'gs://{hail_scratch_bucket}/{subdir_name}/'
             else:
                 if n_attempts > 3:
                     raise Exception("Too many attempts to create a bucket!")
-                create_bucket(n_attempts + 1)
+                return create_bucket(n_attempts + 1)
 
         return create_bucket(0)
