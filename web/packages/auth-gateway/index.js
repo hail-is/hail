@@ -93,7 +93,7 @@ const getAuthToken = req => {
 polka()
   .get('/verify', (req, res) => {
     const token = getAuthToken(req);
-    console.info('token', token);
+
     if (!token) {
       unauthorized(res);
       return;
