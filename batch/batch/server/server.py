@@ -436,7 +436,8 @@ def create_batch():
             'keyschema': {'type': 'string'},
             'valueschema': {'type': 'string'}
         },
-        'callback': {'type': 'string'}
+        'callback': {'type': 'string'},
+        'ttl': {'type': 'number'}
     }
     validator = cerberus.Validator(schema)
     if not validator.validate(parameters):
