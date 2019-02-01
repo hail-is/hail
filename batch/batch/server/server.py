@@ -380,7 +380,7 @@ class Batch:
         self.is_open = True
         if ttl is None:
             ttl = 0
-        ttl = min(30 * 60, ttl)
+        self.ttl = min(30 * 60, ttl)
         s.enter(ttl, 1, self.close)
 
     def delete(self):
