@@ -3050,7 +3050,6 @@ class MatrixTable(ExprContainer):
         else:
             error_msg = "'MatrixTable.union_rows' expects {} for all datasets to be the same. Found:    \ndataset {}: {}    \ndataset {}: {}"
             first = datasets[0]
-            col_keys = first.col_key.collect(_localize=False)
             for i, next in enumerate(datasets[1:]):
                 if first.row_key.keys() != next.row_key.keys():
                     raise ValueError(error_msg.format(
@@ -3068,9 +3067,12 @@ class MatrixTable(ExprContainer):
                     raise ValueError(error_msg.format(
                         "col key types", 0, first.col_key.dtype, i+1, next.col_key.dtype
                     ))
-                if not hl.eval(next.col_key.collect(_localize=False) == col_keys):
-                    raise ValueError("'MatrixTable.union_rows' expects all datasets to have the same columns. " +
-                                     "Datasets 0 and {} have different columns (or possibly different order).".format(i+1))
+            wrong_keys = hl.eval(hl.rbind(first.col_key.collect(_localize=False), lambda first_keys: (
+                hl.zip_with_index([mt.col_key.collect(_localize=False) for mt in datasets[1:]])
+                    .find(lambda x: ~(x[1] == first_keys))[0])))
+            if wrong_keys is not None:
+                raise ValueError("'MatrixTable.union_rows' expects all datasets to have the same columns. " +
+                                 "Datasets 0 and {} have different columns (or possibly different order).".format(wrong_keys+1))
             return MatrixTable(MatrixUnionRows(*[d._mir for d in datasets]))
 
     @typecheck_method(other=matrix_table_type)
