@@ -356,7 +356,7 @@ def get_notebooks():
     pods = k8s.list_namespaced_pod(
         namespace='default', watch=False,
         label_selector=f"user_id={UNSAFE_user_id_transform(user_id)}").items
-    print(pods)
+
     return marshall_json(pods, pod_paths), 200
 
 # TODO: decide if need to communicate issues to user; probably just alert devs
@@ -435,4 +435,5 @@ if __name__ == '__main__':
     from geventwebsocket.handler import WebSocketHandler
     server = pywsgi.WSGIServer(
         ('', 5000), app, handler_class=WebSocketHandler, log=log)
+
     server.serve_forever()
