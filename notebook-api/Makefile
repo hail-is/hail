@@ -20,7 +20,7 @@ transform:
 deploy:
 	kubectl -n default apply -f deployment.yaml
 
-run-docker:
-	docker run -e BATCH_USE_KUBE_CONFIG=1 -v ~/:/root -v /notebook-secrets:/notebook-secrets -t notebook-api -p 5000:5000 
+run-docker-local:
+	docker run -p 5000:5000 -e BATCH_USE_KUBE_CONFIG=1 -v /Users/alexkotlar:/root -v /notebook-secrets:/notebook-secrets -t notebook-api:latest
 
 all: build push transform deploy
