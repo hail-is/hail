@@ -19,6 +19,8 @@ object Binds {
         (v == l || v == r) && i == 2
       case AggExplode(_, n, _) =>
         v == n && i == 1
+      case AggArrayPerElement(_, n, _) =>
+        v == n && i == 1
       case _ =>
         false
     }

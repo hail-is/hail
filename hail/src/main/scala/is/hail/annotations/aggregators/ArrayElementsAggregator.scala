@@ -42,7 +42,8 @@ final case class ArrayElementsAggregator(rvAggs: Array[RegionValueAggregator]) e
     if (a == null)
       a = a2
     else if (a2 != null) {
-      assert(a2.length == a.length)
+      if (a2.length != a.length)
+        fatal(s"cannot apply array aggregation: size mismatch: ${ a.length }, ${ a2.length }")
       var i = 0
       while (i < a.length) {
         val aggs = a(i)
