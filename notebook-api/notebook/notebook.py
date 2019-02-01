@@ -19,7 +19,6 @@ import re
 import requests
 import time
 import uuid
-import pymysql
 from dotenv import load_dotenv
 
 load_dotenv(verbose=True)
@@ -62,10 +61,8 @@ def read_string(f):
 def UNSAFE_user_id_transform(user_id): return user_id.replace('|', '--_--')
 
 
-DOMAIN = os.environ.get("DOMAIN", "http://notebook-api")
 AUTH_GATEWAY = os.environ.get("AUTH_GATEWAY", "http://auth-gateway")
-HAIL_JUPYTER_IMAGE = os.environ.get(
-    "HAIL_JUPYTER_IMAGE", "gcr.io/hail-vdc/hail-jupyter")
+HAIL_IMAGE = os.environ.get("HAIL_IMAGE", "hail-jupyter")
 
 KUBERNETES_TIMEOUT_IN_SECONDS = float(
     os.environ.get('KUBERNETES_TIMEOUT_IN_SECONDS', 5.0))
@@ -74,10 +71,9 @@ PASSWORD = read_string('/notebook-secrets/password')
 ADMIN_PASSWORD = read_string('/notebook-secrets/admin-password')
 INSTANCE_ID = uuid.uuid4().hex
 
-log.info(f'DOMAIN: {DOMAIN}')
 # used for /verify; will likely go away once 2nd (notebook) verify step moved to nginx
 log.info(f'AUTH_GATEWAY: {AUTH_GATEWAY}')
-log.info(f'HAIL_JUPYTER_IMAGE: {HAIL_JUPYTER_IMAGE}')
+log.info(f'HAIL_IMAGE: {HAIL_IMAGE}')
 log.info(f'KUBERNETES_TIMEOUT_IN_SECONDS: {KUBERNETES_TIMEOUT_IN_SECONDS}')
 log.info(f'INSTANCE_ID: {INSTANCE_ID}')
 
@@ -406,14 +402,13 @@ def delete_notebook(svc_name):
 
 @app.route('/api', methods=['POST'])
 def new_notebook():
-    name = pymysql.escape_string(request.form.get('name', 'a_notebook'))
-
-    image = pymysql.escape_string(
-        request.form.get('image', HAIL_JUPYTER_IMAGE))
+    name = request.form.get('name', 'a_notebook')
+    image = request.form.get('image', HAIL_IMAGE)
 
     user_id = request.headers.get('User')
 
     if not user_id or image not in WORKER_IMAGES:
+        print("something not in", image, WORKER_IMAGES, image in WORKER_IMAGES)
         return forbidden()
 
     # TODO: Do we want jupyter_token to be globally unique?

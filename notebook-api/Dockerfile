@@ -9,12 +9,14 @@ RUN apk add \
   openssl-dev \
   python3 \
   python3-dev && \
-  pip3 install -U pip && \
+  pip3 install -U pip==18.1 && \
   pip3 install --no-cache-dir \
   flask \
   Flask_Sockets \
   kubernetes \
-  'urllib3<1.24'
+  'urllib3<1.24' \
+  ujson \
+  python-dotenv
 
 COPY notebook /notebook
 COPY notebook-worker-images /notebook
