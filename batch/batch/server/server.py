@@ -19,6 +19,11 @@ from .. import schemas
 
 s = sched.scheduler()
 
+
+def schedule(t, f, args=(), kwargs={}):
+    s.enter(t, 1, f, args, kwargs)
+
+
 if not os.path.exists('logs'):
     os.mkdir('logs')
 else:
@@ -383,7 +388,7 @@ class Batch:
         if ttl is None or ttl > Batch.MAX_TTL:
             ttl = Batch.MAX_TTL
         self.ttl = ttl
-        s.enter(ttl, 1, self.close)
+        schedule(ttl, self.close)
 
     def delete(self):
         del batch_id_batch[self.id]
@@ -597,7 +602,7 @@ def polling_event_loop(port):
 def scheduling_loop():
     while True:
         try:
-            s.run()
+            s.run(blocking=False)
         except Exception as exc:  # pylint: disable=W0703
             log.error(f'Could not run scheduled jobs due to: {exc}')
 
