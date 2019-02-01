@@ -20,8 +20,10 @@ from .. import schemas
 s = sched.scheduler()
 
 
-def schedule(t, f, args=(), kwargs={}):
-    s.enter(t, 1, f, args, kwargs)
+def schedule(ttl, fun, args=(), kwargs=None):
+    if kwargs is None:
+        kwargs = {}
+    s.enter(ttl, 1, fun, args, kwargs)
 
 
 if not os.path.exists('logs'):
