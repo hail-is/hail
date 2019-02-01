@@ -371,6 +371,8 @@ def cancel_job(job_id):
 
 
 class Batch:
+    MAX_TTL = 30 * 60
+
     def __init__(self, attributes, callback, ttl):
         self.attributes = attributes
         self.callback = callback
@@ -378,9 +380,9 @@ class Batch:
         batch_id_batch[self.id] = self
         self.jobs = set([])
         self.is_open = True
-        if ttl is None:
-            ttl = 0
-        self.ttl = min(30 * 60, ttl)
+        if ttl is None or ttl > Batch.MAX_TTL:
+            ttl = Batch.MAX_TTL
+        self.ttl = ttl
         s.enter(ttl, 1, self.close)
 
     def delete(self):
