@@ -296,7 +296,7 @@ def create_job():
         if batch is None:
             abort(404, f'invalid request: batch_id {batch_id} not found')
         if not batch.is_open:
-            abort(404, f'invalid request: batch_id {batch_id} is closed')
+            abort(400, f'invalid request: batch_id {batch_id} is closed')
 
     parent_ids = parameters.get('parent_ids', [])
     for parent_id in parent_ids:
