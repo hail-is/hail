@@ -31,7 +31,7 @@ class Test(unittest.TestCase):
             b.create_job('alpine', ['echo', 'test'])
         except requests.exceptions.HTTPError as err:
             assert err.response.status_code == 400
-            assert re.search('.*invalid request_id: batch_id [0-9]+ is closed', err.response.text)
+            assert re.search('.*invalid request: batch_id [0-9]+ is closed', err.response.text)
             return
         assert False
 
