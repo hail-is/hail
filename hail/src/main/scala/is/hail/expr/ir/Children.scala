@@ -42,6 +42,8 @@ object Children {
       Array(start, stop, step)
     case ArraySort(a, ascending, _) =>
       Array(a, ascending)
+    case MakeNDArray(data, shape, row_major) =>
+      Array(data, shape, row_major)
     case ToSet(a) =>
       Array(a)
     case ToDict(a) =>
@@ -127,5 +129,7 @@ object Children {
     case TableExport(child, _, _, _, _) => IndexedSeq(child)
     case TableToValueApply(child, _) => IndexedSeq(child)
     case MatrixToValueApply(child, _) => IndexedSeq(child)
+    // from BlockMatrixIR
+    case BlockMatrixWrite(child, _, _, _, _) => IndexedSeq(child)
   }
 }

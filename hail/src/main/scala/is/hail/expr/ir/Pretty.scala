@@ -133,21 +133,6 @@ object Pretty {
               sb += ')'
             }(sb += '\n')
           }
-        case TableImport(paths, _, conf) =>
-          sb += '\n'
-          sb.append(" " * (depth + 2))
-          sb.append("(paths\n")
-          paths.foreachBetween { p =>
-            sb.append(" " * (depth + 4))
-            sb.append(prettyStringLiteral(p))
-          }(sb += '\n')
-          sb += ')'
-          sb += '\n'
-          sb.append(" " * (depth + 2))
-          sb.append("(useCols ")
-          conf.useColIndices.foreachBetween(i => sb.append(i))(sb.append(','))
-          sb += ')'
-          sb += ')'
         case _ =>
           val header = ir match {
             case I32(x) => x.toString
@@ -200,6 +185,13 @@ object Pretty {
               '"' + StringEscapeUtils.escapeString(Serialization.write(writer)(MatrixWriter.formats)) + '"'
             case MatrixMultiWrite(_, writer) =>
               '"' + StringEscapeUtils.escapeString(Serialization.write(writer)(MatrixNativeMultiWriter.formats)) + '"'
+            case BlockMatrixRead(path) =>
+              prettyStringLiteral(path)
+            case BlockMatrixWrite(_, path, overwrite, forceRowMajor, stageLocally) =>
+              prettyStringLiteral(path) + " " +
+              prettyBooleanLiteral(overwrite) + " " +
+              prettyBooleanLiteral(forceRowMajor) + " " +
+              prettyBooleanLiteral(stageLocally)
             case TableToMatrixTable(_, rowKey, colKey, rowFields, colFields, nPartitions) =>
               prettyStrings(rowKey) + " " +
               prettyStrings(colKey) +  " " +
@@ -218,28 +210,10 @@ object Pretty {
             case MatrixKeyRowsBy(_, keys, isSorted) =>
               prettyIdentifiers(keys) + " " +
                 prettyBooleanLiteral(isSorted)
-            case TableImport(paths, _, _) =>
-              if (paths.length == 1)
-                paths.head
-              else {
-                sb += '\n'
-                sb.append(" " * (depth + 2))
-                sb.append("(paths\n")
-                paths.foreachBetween { p =>
-                  sb.append(" " * (depth + 4))
-                  sb.append(prettyStringLiteral(p))
-                }(sb += '\n')
-                sb += ')'
-
-                ""
-              }
-            case TableRead(path, spec, typ, dropRows) =>
-              prettyStringLiteral(path) + " " +
+            case TableRead(typ, dropRows, tr) =>
+              (if (typ == tr.fullType) "None" else typ.parsableString()) + " " +
                 prettyBooleanLiteral(dropRows) + " " +
-                (if (typ == spec.table_type)
-                  "None"
-                else
-                  typ.parsableString())
+                '"' + StringEscapeUtils.escapeString(Serialization.write(tr)(TableReader.formats)) + '"'
             case TableWrite(_, path, overwrite, stageLocally, codecSpecJSONStr) =>
               prettyStringLiteral(path) + " " +
                 prettyBooleanLiteral(overwrite) + " " +
@@ -296,6 +270,16 @@ object Pretty {
               val globalKV = globalMap.toArray
               s"${ prettyStrings(rowKV.map(_._1)) } ${ prettyStrings(rowKV.map(_._2)) } " +
                 s"${ prettyStrings(globalKV.map(_._1)) } ${ prettyStrings(globalKV.map(_._2)) }"
+            case MatrixRename(_, globalMap, colMap, rowMap, entryMap) =>
+              val globalKV = globalMap.toArray
+              val colKV = colMap.toArray
+              val rowKV = rowMap.toArray
+              val entryKV = entryMap.toArray
+              s"${ prettyStrings(globalKV.map(_._1)) } ${ prettyStrings(globalKV.map(_._2)) } " +
+                s"${ prettyStrings(colKV.map(_._1)) } ${ prettyStrings(colKV.map(_._2)) } " +
+                s"${ prettyStrings(rowKV.map(_._1)) } ${ prettyStrings(rowKV.map(_._2)) } " +
+                s"${ prettyStrings(entryKV.map(_._1)) } ${ prettyStrings(entryKV.map(_._2)) }"
+
             case _ => ""
           }
 

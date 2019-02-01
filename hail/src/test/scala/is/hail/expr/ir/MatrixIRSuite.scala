@@ -297,16 +297,6 @@ class MatrixIRSuite extends SparkSuite {
     Interpret(MatrixWrite(plinkIR, MatrixPLINKWriter(path)))
   }
 
-  @Test def testMatrixGENWrite() {
-    val gen = hc.importGen("src/test/resources/example.gen", "src/test/resources/example.sample",
-      contigRecoding = Some(Map("01" -> "1")))
-    val genIR = MatrixMapCols(gen.ast, SelectFields(InsertFields(Ref("sa", gen.colType),
-      FastIndexedSeq("id1" -> Str(""), "id2" -> Str(""), "missing" -> F64(0.0))), FastIndexedSeq("id1", "id2", "missing")),
-      Some(FastIndexedSeq("id1")))
-    val path = tmpDir.createLocalTempFile()
-    Interpret(MatrixWrite(genIR, MatrixGENWriter(path)))
-  }
-
   @Test def testMatrixMultiWrite() {
     val ranges = IndexedSeq(MatrixTable.range(hc, 15, 3, Some(10)), MatrixTable.range(hc, 8, 27, Some(1)))
     val path = tmpDir.createLocalTempFile()

@@ -454,7 +454,8 @@ class MatrixToMatrixApply(MatrixIR):
     def _compute_type(self):
         name = self.config['name']
         child_typ = self.child.typ
-        if name == 'MatrixFilterPartitions':
+        if (name == 'MatrixFilterPartitions'
+            or name == 'MatrixFilterIntervals'):
             self._type = child_typ
         else:
             assert name == 'WindowByLocus', name
@@ -465,6 +466,30 @@ class MatrixToMatrixApply(MatrixIR):
                 child_typ.row_type._insert_field('prev_rows', hl.tarray(child_typ.row_type)),
                 child_typ.row_key,
                 child_typ.entry_type._insert_field('prev_entries', hl.tarray(child_typ.entry_type)))
+
+class MatrixRename(MatrixIR):
+    def __init__(self, child, global_map, col_map, row_map, entry_map):
+        super().__init__()
+        self.child = child
+        self.global_map = global_map
+        self.col_map = col_map
+        self.row_map = row_map
+        self.entry_map = entry_map
+
+    def render(self, r):
+        return f'(MatrixRename ' \
+               f'{parsable_strings(self.global_map.keys())} ' \
+               f'{parsable_strings(self.global_map.values())} ' \
+               f'{parsable_strings(self.col_map.keys())} ' \
+               f'{parsable_strings(self.col_map.values())} ' \
+               f'{parsable_strings(self.row_map.keys())} ' \
+               f'{parsable_strings(self.row_map.values())} ' \
+               f'{parsable_strings(self.entry_map.keys())} ' \
+               f'{parsable_strings(self.entry_map.values())} ' \
+               f'{r(self.child)})'
+
+    def _compute_type(self):
+        self._type = self.child.typ._rename(self.global_map, self.col_map, self.row_map, self.entry_map)
 
 
 class JavaMatrix(MatrixIR):

@@ -50,6 +50,9 @@ object Copy {
       case ArraySort(_, _, onKey) =>
         val IndexedSeq(a: IR, ascending: IR) = newChildren
         ArraySort(a, ascending, onKey)
+      case MakeNDArray(_, _, _) =>
+        val IndexedSeq(data: IR, shape: IR, row_major: IR) = newChildren
+        MakeNDArray(data, shape, row_major)
       case ToSet(_) =>
         val IndexedSeq(a: IR) = newChildren
         ToSet(a)
@@ -190,6 +193,9 @@ object Copy {
       case MatrixToValueApply(child, function) =>
         val IndexedSeq(newChild: MatrixIR) = newChildren
         MatrixToValueApply(newChild, function)
+      case BlockMatrixWrite(_, path, overwrite, forceRowMajor, stageLocally) =>
+        val IndexedSeq(newChild: BlockMatrixIR) = newChildren
+        BlockMatrixWrite(newChild, path, overwrite, forceRowMajor, stageLocally)
     }
   }
 }

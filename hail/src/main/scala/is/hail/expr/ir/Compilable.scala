@@ -11,6 +11,7 @@ object Compilable {
       case _: TableWrite => false
       case _: TableExport  => false
       case _: MatrixWrite => false
+      case _: BlockMatrixWrite => false
       case _: TableToValueApply => false
       case _: MatrixToValueApply => false
       case _: Literal => false

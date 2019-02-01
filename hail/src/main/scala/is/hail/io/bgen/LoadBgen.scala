@@ -246,19 +246,6 @@ object LoadBgen {
   def getFileHeaders(hConf: Configuration, files: Seq[String]): Array[BgenHeader] =
     files.map(LoadBgen.readState(hConf, _)).toArray
 
-  def getReferenceGenome(hConf: Configuration, files: Array[String], indexFileMap: Map[String, String]): Option[ReferenceGenome] = {
-    val allFiles = getAllFilePaths(hConf, files)
-    val indexFiles = getIndexFiles(hConf, allFiles, indexFileMap)
-    val rgs = indexFiles.map { path =>
-      val metadata = IndexReader.readMetadata(hConf, path)
-      Option(metadata.attributes("reference_genome")).map(name => ReferenceGenome.getReference(name.asInstanceOf[String]))
-    }
-    getReferenceGenome(rgs)
-  }
-
-  def getReferenceGenome(hConf: Configuration, files: java.util.ArrayList[String], indexFileMap: Map[String, String]): String =
-    getReferenceGenome(hConf, files.asScala.toArray, indexFileMap).map(_.name).orNull
-
   def getReferenceGenome(fileMetadata: Array[BgenFileMetadata]): Option[ReferenceGenome] =
     getReferenceGenome(fileMetadata.map(_.referenceGenome))
 

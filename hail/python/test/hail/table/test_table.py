@@ -191,6 +191,12 @@ class Tests(unittest.TestCase):
         r = kt.aggregate(agg.filter(kt.idx % 2 != 0, agg.sum(kt.idx + 2)) + kt.g1)
         self.assertEqual(r, 40)
 
+    def test_group_by_field_lifetimes(self):
+        ht = hl.utils.range_table(3)
+        ht2 = (ht.group_by(idx='100')
+               .aggregate(x=hl.agg.collect_as_set(ht.idx + 5)))
+        assert (ht2.all(ht2.x == hl.set({5, 6, 7})))
+
     def test_group_aggregate_by_key(self):
         ht = hl.utils.range_table(100, n_partitions=10)
 
@@ -836,6 +842,64 @@ class Tests(unittest.TestCase):
         ht = hl.utils.range_table(10)
         ht = ht.annotate(y = ht.idx + ht.aggregate(hl.agg.max(ht.idx), _localize=False))
         assert ht.y.collect() == [x + 9 for x in range(10)]
+
+    def test_collect_localize_false(self):
+        ht = hl.utils.range_table(10)
+        assert hl.eval(ht.collect(_localize=False)) == ht.collect()
+
+    def test_take_localize_false(self):
+        ht = hl.utils.range_table(10)
+        assert hl.eval(ht.take(3, _localize=False)) == ht.take(3)
+
+    def test_expr_collect_localize_false(self):
+        ht = hl.utils.range_table(10)
+        assert hl.eval(ht.idx.collect(_localize=False)) == ht.idx.collect()
+
+    def test_expr_take_localize_false(self):
+        ht = hl.utils.range_table(10)
+        assert hl.eval(ht.idx.take(3, _localize=False)) == ht.idx.take(3)
+
+    def test_empty_show(self):
+        hl.utils.range_table(1).filter(False).show()
+
+    def test_same_equal(self):
+        t1 = hl.utils.range_table(1)
+        self.assertTrue(t1._same(t1))
+
+    def test_same_within_tolerance(self):
+        t = hl.utils.range_table(1)
+        t1 = t.annotate(x = 1.0)
+        t2 = t.annotate(x = 1.0 + 1e-7)
+        self.assertTrue(t1._same(t2))
+
+    def test_same_different_type(self):
+        t1 = hl.utils.range_table(1)
+
+        t2 = t1.annotate_globals(x = 7)
+        self.assertFalse(t1._same(t2))
+        
+        t3 = t1.annotate(x = 7)
+        self.assertFalse(t1._same(t3))
+
+        t4 = t1.key_by()
+        self.assertFalse(t1._same(t4))
+
+    def test_same_different_global(self):
+        t1 = (hl.utils.range_table(1)
+              .annotate_globals(x = 7))
+        t2 = t1.annotate_globals(x = 8)
+        self.assertFalse(t1._same(t2))
+
+    def test_same_different_rows(self):
+        t1 = (hl.utils.range_table(2)
+              .annotate(x = 7))
+        
+        t2 = t1.annotate(x = 8)
+        self.assertFalse(t1._same(t2))
+
+        t3 = t1.filter(t1.idx == 0)
+        self.assertFalse(t1._same(t3))
+        
 
 def test_large_number_of_fields(tmpdir):
     ht = hl.utils.range_table(100)

@@ -1,4 +1,5 @@
 import os
+import re
 import unittest
 import batch
 from flask import Flask, Response, request
@@ -22,6 +23,17 @@ class Test(unittest.TestCase):
         self.assertEqual(j.log(), 'test\n')
 
         self.assertTrue(j.is_complete())
+
+    def test_create_fails_for_closed_batch(self):
+        b = self.batch.create_batch()
+        b.close()
+        try:
+            b.create_job('alpine', ['echo', 'test'])
+        except requests.exceptions.HTTPError as err:
+            assert err.response.status_code == 400
+            assert re.search('.*invalid request: batch_id [0-9]+ is closed', err.response.text)
+            return
+        assert False
 
     def test_attributes(self):
         a = {
@@ -124,6 +136,9 @@ class Test(unittest.TestCase):
         n_complete = bstatus['jobs']['Complete']
         self.assertTrue(n_cancelled <= 1)
         self.assertTrue(n_cancelled + n_complete == 3)
+
+        n_failed = sum([ec > 0 for _, ec in bstatus['exit_codes'].items() if ec is not None])
+        self.assertTrue(n_failed == 1)
 
     def test_callback(self):
         app = Flask('test-client')

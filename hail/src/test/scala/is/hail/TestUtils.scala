@@ -1,20 +1,15 @@
 package is.hail
 
-import java.net.URI
-import java.nio.file.{Files, Paths}
-
 import breeze.linalg.{DenseMatrix, Matrix, Vector}
-import is.hail.annotations.{Region, RegionValueBuilder, SafeRow}
+import is.hail.annotations.{Annotation, Region, RegionValueBuilder, SafeRow}
+import is.hail.backend.spark.SparkBackend
 import is.hail.cxx.CXXUnsupportedOperation
 import is.hail.expr.ir._
 import is.hail.expr.types.MatrixType
 import is.hail.expr.types.virtual._
-import is.hail.io.bgen.{LoadBgen, MatrixBGENReader}
 import is.hail.io.plink.MatrixPLINKReader
 import is.hail.io.vcf.MatrixVCFReader
 import is.hail.nativecode.NativeStatus
-import is.hail.table.Table
-import is.hail.testUtils._
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.SparkException
@@ -75,66 +70,9 @@ object TestUtils {
     new DenseMatrix(A.rows, newCols, data)
   }
 
-  // missing is -1
-  def vdsToMatrixInt(vds: MatrixTable): DenseMatrix[Int] =
-    new DenseMatrix[Int](
-      vds.numCols,
-      vds.countRows().toInt,
-      vds.typedRDD[Locus].map(_._2._2.map { g =>
-        Genotype.call(g)
-          .map(Call.nNonRefAlleles)
-          .getOrElse(-1)
-      }).collect().flatten)
-
-  // missing is Double.NaN
-  def vdsToMatrixDouble(vds: MatrixTable): DenseMatrix[Double] =
-    new DenseMatrix[Double](
-      vds.numCols,
-      vds.countRows().toInt,
-      vds.rdd.map(_._2._2.map { g =>
-        Genotype.call(g)
-          .map(Call.nNonRefAlleles)
-          .map(_.toDouble)
-          .getOrElse(Double.NaN)
-      }).collect().flatten)
-
   def unphasedDiploidGtIndicesToBoxedCall(m: DenseMatrix[Int]): DenseMatrix[BoxedCall] = {
     m.map(g => if (g == -1) null: BoxedCall else Call2.fromUnphasedDiploidGtIndex(g): BoxedCall)
   }
-
-  def indexedSeqBoxedDoubleEquals(tol: Double)
-    (xs: IndexedSeq[java.lang.Double], ys: IndexedSeq[java.lang.Double]): Boolean =
-    (xs, ys).zipped.forall { case (x, y) =>
-      if (x == null || y == null)
-        x == null && y == null
-      else
-        D_==(x.doubleValue(), y.doubleValue(), tolerance = tol)
-    }
-
-  def keyTableBoxedDoubleToMap[T](kt: Table): Map[T, IndexedSeq[java.lang.Double]] =
-    kt.collect().map { r =>
-      val s = r.toSeq
-      s.head.asInstanceOf[T] -> s.tail.map(_.asInstanceOf[java.lang.Double]).toFastIndexedSeq
-    }.toMap
-
-  def matrixToString(A: DenseMatrix[Double], separator: String): String = {
-    val sb = new StringBuilder
-    for (i <- 0 until A.rows) {
-      for (j <- 0 until A.cols) {
-        if (j == (A.cols - 1))
-          sb.append(A(i, j))
-        else {
-          sb.append(A(i, j))
-          sb.append(separator)
-        }
-      }
-      sb += '\n'
-    }
-    sb.result()
-  }
-
-  def fileHaveSameBytes(file1: String, file2: String): Boolean =
-    Files.readAllBytes(Paths.get(URI.create(file1))) sameElements Files.readAllBytes(Paths.get(URI.create(file2)))
 
   // !useHWE: mean 0, norm exactly sqrt(n), variance 1
   // useHWE: mean 0, norm approximately sqrt(m), variance approx. m / n
@@ -193,74 +131,72 @@ object TestUtils {
       None
   }
 
-  def nativeExecute(x: IR): Any = nativeExecute(x, Env.empty, FastIndexedSeq(), None)
-
-  def nativeExecute(x: IR, agg: (IndexedSeq[Row], TStruct)): Any = nativeExecute(x, Env.empty, FastIndexedSeq(), Some(agg))
-
   def nativeExecute(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], agg: Option[(IndexedSeq[Row], TStruct)]): Any = {
     if (agg.isDefined)
       throw new CXXUnsupportedOperation
 
-    val inputTypesB = new ArrayBuilder[Type]()
-    val inputsB = new ArrayBuilder[Any]()
-
-    args.foreach { case (v, t) =>
-      inputsB += v
-      inputTypesB += t
-    }
-
-    env.m.foreach { case (name, (v, t)) =>
-      inputsB += v
-      inputTypesB += t
-    }
-
-    val argsType = TTuple(inputTypesB.result(): _*)
-    val resultType = TTuple(x.typ)
-    val argsVar = genUID()
-
-    val (_, substEnv) = env.m.foldLeft((args.length, Env.empty[IR])) { case ((i, env), (name, (v, t))) =>
-      (i + 1, env.bind(name, GetTupleElement(In(0, argsType), i)))
-    }
-
-    def rewrite(x: IR): IR = {
-      x match {
-        case In(i, t) =>
-          GetTupleElement(In(0, argsType), i)
-        case _ =>
-          MapIR(rewrite)(x)
+    if (env.m.isEmpty && args.isEmpty) {
+      try {
+        SparkBackend.executeOrError(HailContext.get.sc, x, optimize = false)
+      } catch {
+        case e: CXXUnsupportedOperation =>
+          throw e
       }
-    }
+    } else {
+      val inputTypesB = new ArrayBuilder[Type]()
+      val inputsB = new ArrayBuilder[Any]()
 
-    val rewritten = Subst(rewrite(x), substEnv)
-    val f = cxx.Compile(
-      argsVar, argsType.physicalType,
-      MakeTuple(FastSeq(rewritten)), false)
-
-    Region.scoped { region =>
-      val rvb = new RegionValueBuilder(region)
-      rvb.start(argsType.physicalType)
-      rvb.startTuple()
-      var i = 0
-      while (i < inputsB.length) {
-        rvb.addAnnotation(inputTypesB(i), inputsB(i))
-        i += 1
+      args.foreach { case (v, t) =>
+        inputsB += v
+        inputTypesB += t
       }
-      rvb.endTuple()
-      val argsOff = rvb.end()
 
-      using(new NativeStatus) { st =>
-        val st = new NativeStatus()
-        val resultOff = f(st, region.get(), argsOff)
-        assert(st.ok, st.toString())
+      env.m.foreach { case (name, (v, t)) =>
+        inputsB += v
+        inputTypesB += t
+      }
 
+      val argsType = TTuple(inputTypesB.result(): _*)
+      val resultType = TTuple(x.typ)
+      val argsVar = genUID()
+
+      val (_, substEnv) = env.m.foldLeft((args.length, Env.empty[IR])) { case ((i, env), (name, (v, t))) =>
+        (i + 1, env.bind(name, GetTupleElement(In(0, argsType), i)))
+      }
+
+      def rewrite(x: IR): IR = {
+        x match {
+          case In(i, t) =>
+            GetTupleElement(In(0, argsType), i)
+          case _ =>
+            MapIR(rewrite)(x)
+        }
+      }
+
+      val rewritten = Subst(rewrite(x), substEnv)
+      val f = cxx.Compile(
+        argsVar, argsType.physicalType,
+        MakeTuple(FastSeq(rewritten)), false)
+
+      Region.scoped { region =>
+        val rvb = new RegionValueBuilder(region)
+        rvb.start(argsType.physicalType)
+        rvb.startTuple()
+        var i = 0
+        while (i < inputsB.length) {
+          rvb.addAnnotation(inputTypesB(i), inputsB(i))
+          i += 1
+        }
+        rvb.endTuple()
+        val argsOff = rvb.end()
+
+        val resultOff = f(region.get(), argsOff)
         SafeRow(resultType.asInstanceOf[TBaseStruct].physicalType, region, resultOff).get(0)
       }
     }
   }
 
   def eval(x: IR): Any = eval(x, Env.empty, FastIndexedSeq(), None)
-
-  def eval(x: IR, agg: (IndexedSeq[Row], TStruct)): Any = eval(x, Env.empty, FastIndexedSeq(), Some(agg))
 
   def eval(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], agg: Option[(IndexedSeq[Row], TStruct)]): Any = {
     val inputTypesB = new ArrayBuilder[Type]()
@@ -462,7 +398,7 @@ object TestUtils {
     assert(t.typeCheck(i2))
     assert(t.valuesSimilar(i2, expected), s"($i2, $expected)")
 
-    if (Compilable(x)) {
+    if (Forall(x, node => node.isInstanceOf[IR] && Compilable(node.asInstanceOf[IR]))) {
       val c = eval(x, env, args, agg)
       assert(t.typeCheck(c))
       assert(t.valuesSimilar(c, expected), s"($c, $expected)")
@@ -518,7 +454,7 @@ object TestUtils {
     nPartitions: Option[Int] = None,
     dropSamples: Boolean = false,
     callFields: Set[String] = Set.empty[String],
-    rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
+    rg: Option[ReferenceGenome] = Some(ReferenceGenome.GRCh37),
     contigRecoding: Option[Map[String, String]] = None,
     arrayElementsRequired: Boolean = true,
     skipInvalidLoci: Boolean = false,
@@ -550,43 +486,6 @@ object TestUtils {
     new MatrixTable(hc, MatrixRead(reader.fullType, dropSamples, false, reader))
   }
 
-  def importBgens(hc: HailContext,
-    files: Seq[String],
-    sampleFile: Option[String] = None,
-    includeGT: Boolean = true,
-    includeGP: Boolean = true,
-    includeDosage: Boolean = false,
-    includeVarid: Boolean = true,
-    includeRsid: Boolean = true,
-    nPartitions: Option[Int] = None,
-    blockSizeInMB: Option[Int] = None,
-    indexFileMap: Map[String, String] = null,
-    includedVariants: Option[Table] = None
-  ): MatrixTable = {
-    val referenceGenome = LoadBgen.getReferenceGenome(hc.hadoopConf, files.toArray, indexFileMap)
-
-    val requestedType: MatrixType = MatrixBGENReader.getMatrixType(
-      referenceGenome,
-      includeRsid,
-      includeVarid,
-      includeOffset = false,
-      includeFileIdx = false,
-      includeGT,
-      includeGP,
-      includeDosage
-    )
-
-    val reader = MatrixBGENReader(
-      files, sampleFile, Option(indexFileMap).getOrElse(Map.empty[String, String]), nPartitions,
-      if (nPartitions.isEmpty && blockSizeInMB.isEmpty)
-        Some(128)
-      else
-        blockSizeInMB,
-      includedVariants)
-
-    new MatrixTable(hc, MatrixRead(requestedType, dropCols = false, dropRows = false, reader))
-  }
-
   def importPlink(hc: HailContext,
     bed: String,
     bim: String,
@@ -596,7 +495,7 @@ object TestUtils {
     missing: String = "NA",
     quantPheno: Boolean = false,
     a2Reference: Boolean = true,
-    rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
+    rg: Option[ReferenceGenome] = Some(ReferenceGenome.GRCh37),
     contigRecoding: Option[Map[String, String]] = None,
     skipInvalidLoci: Boolean = false): MatrixTable = {
 
@@ -606,5 +505,36 @@ object TestUtils {
       skipInvalidLoci)
 
     new MatrixTable(hc, MatrixRead(reader.fullType, dropCols = false, dropRows = false, reader))
+  }
+
+
+  def vdsFromCallMatrix(hc: HailContext)(
+    callMat: Matrix[BoxedCall],
+    samplesIdsOpt: Option[Array[String]] = None,
+    nPartitions: Int = hc.sc.defaultMinPartitions): MatrixTable = {
+
+    require(samplesIdsOpt.forall(_.length == callMat.rows))
+    require(samplesIdsOpt.forall(_.areDistinct()))
+
+    val sampleIds = samplesIdsOpt.getOrElse((0 until callMat.rows).map(_.toString).toArray)
+
+    val rdd = hc.sc.parallelize(
+      (0 until callMat.cols).map { j =>
+        (Annotation(Locus("1", j + 1), FastIndexedSeq("A", "C")),
+          (0 until callMat.rows).map { i =>
+            Genotype(callMat(i, j))
+          }: Iterable[Annotation])
+      },
+      nPartitions)
+
+    MatrixTable.fromLegacy(hc, MatrixType.fromParts(
+      globalType = TStruct.empty(),
+      colKey = Array("s"),
+      colType = TStruct("s" -> TString()),
+      rowKey = Array("locus", "alleles"),
+      rowType = TStruct("locus" -> TLocus(ReferenceGenome.GRCh37),
+        "alleles" -> TArray(TString())),
+      entryType = Genotype.htsGenotypeType),
+      Annotation.empty, sampleIds.map(Annotation(_)), rdd)
   }
 }

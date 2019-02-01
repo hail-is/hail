@@ -379,7 +379,6 @@ class ApplyBinaryOp(IR):
     def _compute_type(self, env, agg_env):
         self.l._compute_type(env, agg_env)
         self.r._compute_type(env, agg_env)
-        assert self.l.typ == self.r.typ
         if self.op == '/':
             if self.l.typ == tfloat64:
                 self._type = tfloat64
@@ -547,6 +546,38 @@ class ArrayRange(IR):
         self.stop._compute_type(env, agg_env)
         self.step._compute_type(env, agg_env)
         self._type = tarray(tint32)
+
+
+class MakeNDArray(IR):
+    @typecheck_method(data=IR, shape=IR, row_major=IR)
+    def __init__(self, data, shape, row_major):
+        super().__init__(data, shape, row_major)
+        self.data = data
+        self.shape = shape
+        self.row_major = row_major
+
+    @typecheck_method(data=IR, shape=IR, row_major=IR)
+    def copy(self, data, shape, row_major):
+        new_instance = self.__class__
+        return new_instance(data, shape, row_major)
+
+    def render(self, r):
+        return '(MakeNDArray {} {} {})'.format(
+            r(self.data),
+            r(self.shape),
+            r(self.row_major))
+
+    def __eq__(self, other):
+        return isinstance(other, MakeNDArray) and \
+               other.data == self.data and \
+               other.shape == self.shape and \
+               other.row_major == self.row_major
+
+    def _compute_type(self, env, agg_env):
+        self.data._compute_type(env, agg_env)
+        self.shape._compute_type(env, agg_env)
+        self.row_major._compute_type(env, agg_env)
+        self._type = tndarray(self.data.typ.element_type)
 
 
 class ArraySort(IR):
@@ -1783,6 +1814,41 @@ class MatrixMultiWrite(IR):
                other.writer == self.writer
 
 
+class BlockMatrixWrite(IR):
+    @typecheck_method(child=BlockMatrixIR, path=str, overwrite=bool, force_row_major=bool, stage_locally=bool)
+    def __init__(self, child, path, overwrite, force_row_major, stage_locally):
+        super().__init__(child)
+        self.child = child
+        self.path = path
+        self.overwrite = overwrite
+        self.force_row_major = force_row_major
+        self.stage_locally = stage_locally
+
+    def copy(self, child):
+        new_instance = self.__class__
+        return new_instance(child, self.path, self.overwrite, self.force_row_major, self.stage_locally)
+
+    def render(self, r):
+        return '(BlockMatrixWrite "{}" {} {} {} {})'.format(
+            escape_str(self.path),
+            self.overwrite,
+            self.force_row_major,
+            self.stage_locally,
+            r(self.child))
+
+    def __eq__(self, other):
+        return isinstance(other, BlockMatrixWrite) and \
+               other.child == self.child and \
+               other.path == self.path and \
+               other.overwrite == self.overwrite and \
+               other.force_row_major == self.force_row_major and \
+               other.stage_locally == self.stage_locally
+
+    def _compute_type(self, env, agg_env):
+        self.child._compute_type()
+        self._type = tvoid
+
+
 class TableToValueApply(IR):
     def __init__(self, child, config):
         super().__init__(child)
@@ -1802,7 +1868,7 @@ class TableToValueApply(IR):
 
     def _compute_type(self, env, agg_env):
         name = self.config['name']
-        assert name == 'ForceCountTable'
+        assert name == 'ForceCountTable', name
         self._type = tint64
 
 
@@ -1825,8 +1891,11 @@ class MatrixToValueApply(IR):
 
     def _compute_type(self, env, agg_env):
         name = self.config['name']
-        assert name == 'ForceCountMatrixTable'
-        self._type = tint64
+        if name == 'ForceCountMatrixTable':
+            self._type = tint64
+        else:
+            assert name == 'MatrixWriteBlockMatrix', name
+            self._type = tvoid
 
 
 class Literal(IR):

@@ -1,15 +1,40 @@
 # Change Log
 
+## 0.2.9
+
+Released 2019-01-30
+
+### New features
+
+ - (hail#5149) Added bitwise transformation functions: `hl.bit_{and, or, xor, not, lshift, rshift}`.
+ - (hail#5154) Added `hl.rbind` function, which is similar to `hl.bind` but expects a function as the last argument instead of the first.
+ 
+### Performance improvements
+
+ - (hail#5107) Hail's Python interface generates tighter intermediate code, which should result in moderate performance improvements in many pipelines.
+ - (hail#5172) Fix unintentional performance deoptimization related to `Table.show` introduced in 0.2.8.
+ - (hail#5078) Improve performance of `hl.ld_prune` by up to 30x.
+
+### Bug fixes
+
+ - (hail#5144) Fix crash caused by `hl.index_bgen` (since 0.2.7)
+ - (hail#5177) Fix bug causing `Table.repartition(n, shuffle=True)` to fail to increase partitioning for unkeyed tables.
+ - (hail#5173) Fix bug causing `Table.show` to throw an error when the table is empty (since 0.2.8).
+ - (hail#5210) Fix bug causing `Table.show` to always print types, regardless of `types` argument (since 0.2.8).
+ - (hail#5211) Fix bug causing `MatrixTable.make_table` to unintentionally discard non-key row fields (since 0.2.8).
+ 
+-----
+
 ## 0.2.8
 
-Released 2018-01-15
+Released 2019-01-15
 
 ### New features
 
  - (hail#5072) Added multi-phenotype option to `hl.logistic_regression_rows`
  - (hail#5077) Added support for importing VCF floating-point FORMAT fields as `float32` as well as `float64`. 
 
-### Performance
+### Performance improvements
 
  - (hail#5068) Improved optimization of `MatrixTable.count_cols`.
  - (hail#5131) Fixed performance bug related to `hl.literal` on large values with missingness

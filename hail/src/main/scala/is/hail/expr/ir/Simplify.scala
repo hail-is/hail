@@ -19,6 +19,7 @@ object Simplify {
       case ir: IR => simplifyValue(ir)
       case tir: TableIR => simplifyTable(allowRepartitioning)(tir)
       case mir: MatrixIR => simplifyMatrix(allowRepartitioning)(mir)
+      case bmir: BlockMatrixIR => bmir //NOTE Currently nothing to simplify for BlockMatrixIRs
     }
 
   private[this] def visitNode[T <: BaseIR](
@@ -312,15 +313,14 @@ object Simplify {
 
     case TableFilter(t, True()) => t
 
-    case TableFilter(TableRead(path, spec, typ, _), False() | NA(_)) =>
-      TableRead(path, spec, typ, dropRows = true)
+    case TableFilter(TableRead(typ, _, tr), False() | NA(_)) =>
+      TableRead(typ, dropRows = true, tr)
 
     case TableFilter(TableFilter(t, p1), p2) =>
       TableFilter(t,
         ApplySpecial("&&", Array(p1, p2)))
 
-    case TableOrderBy(child, sortFields) if sortFields.isEmpty =>
-      child
+    case TableOrderBy(TableKeyBy(child, _, _), sortFields) => TableOrderBy(child, sortFields)
 
     case TableFilter(TableOrderBy(child, sortFields), pred) if canRepartition =>
       TableOrderBy(TableFilter(child, pred), sortFields)
@@ -429,7 +429,8 @@ object Simplify {
       TableMapGlobals(TableHead(child, n), newGlobals)
 
     case TableHead(TableOrderBy(child, sortFields), n)
-      if sortFields.forall(_.sortOrder == Ascending) && n < 256 && canRepartition =>
+      if !TableOrderBy.isAlreadyOrdered(sortFields, child.rvdType.key)
+        && n < 256 && canRepartition =>
       // n < 256 is arbitrary for memory concerns
       val uid = genUID()
       val row = Ref("row", child.typ.rowType)

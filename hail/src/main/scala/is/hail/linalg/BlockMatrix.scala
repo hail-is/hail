@@ -1213,7 +1213,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
         }
     }
 
-    new Table(hc, entriesRDD, rvRowType, Array("i", "j"))
+    new Table(hc, entriesRDD, rvRowType, Array[String]())
   }
 }
 

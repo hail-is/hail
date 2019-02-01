@@ -1,6 +1,7 @@
 import json
 
 import hail as hl
+from hail.expr.types import dtype
 from hail.ir.base_ir import *
 from hail.utils.java import Env, escape_str, escape_id, parsable_strings, dump_json
 
@@ -172,17 +173,13 @@ class TableMapRows(TableIR):
             self.child.typ.row_key)
 
 class TableRead(TableIR):
-    def __init__(self, path, drop_rows, typ):
+    def __init__(self, reader, drop_rows = False):
         super().__init__()
-        self.path = path
+        self.reader = reader
         self.drop_rows = drop_rows
-        self._typ = typ
 
     def render(self, r):
-        return '(TableRead "{}" {} {})'.format(
-            escape_str(self.path),
-            self.drop_rows,
-            self._typ)
+        return f'(TableRead None {self.drop_rows} "{r(self.reader)}")'
 
     def _compute_type(self):
         self._type = Env.backend().table_type(self)
@@ -440,9 +437,21 @@ class TableToTableApply(TableIR):
         return f'(TableToTableApply {dump_json(self.config)} {r(self.child)})'
 
     def _compute_type(self):
-        assert self.config['name'] == 'TableFilterPartitions'
+        assert (self.config['name'] == 'TableFilterPartitions'
+                or self.config['name'] == 'TableFilterIntervals')
         self._type = self.child.typ
 
+def regression_test_type(test):
+    glm_fit_schema = dtype('struct{n_iterations:int32,converged:bool,exploded:bool}')
+    if test == 'wald':
+        return dtype(f'struct{{beta:float64,standard_error:float64,z_stat:float64,p_value:float64,fit:{glm_fit_schema}}}')
+    elif test == 'lrt':
+        return dtype(f'struct{{beta:float64,chi_sq_stat:float64,p_value:float64,fit:{glm_fit_schema}}}')
+    elif test == 'score':
+        return dtype('struct{chi_sq_stat:float64,p_value:float64}')
+    else:
+        assert test == 'firth', test
+        return dtype(f'struct{{beta:float64,chi_sq_stat:float64,p_value:float64,fit:{glm_fit_schema}}}')
 
 class MatrixToTableApply(TableIR):
     def __init__(self, child, config):
@@ -456,8 +465,8 @@ class MatrixToTableApply(TableIR):
     def _compute_type(self):
         name = self.config['name']
         child_typ = self.child.typ
-        pass_through = self.config['passThrough']
         if name == 'LinearRegressionRowsChained':
+            pass_through = self.config['passThrough']
             chained_schema = hl.dtype('struct{n:array<int32>,sum_x:array<float64>,y_transpose_x:array<array<float64>>,beta:array<array<float64>>,standard_error:array<array<float64>>,t_stat:array<array<float64>>,p_value:array<array<float64>>}')
             self._type = hl.ttable(
                 child_typ.global_type,
@@ -465,8 +474,8 @@ class MatrixToTableApply(TableIR):
                  ._insert_fields(**{f: child_typ.row_type[f] for f in pass_through})
                  ._concat(chained_schema)),
                 child_typ.row_key)
-        else:
-            assert name == 'LinearRegressionRowsSingle', name
+        elif name == 'LinearRegressionRowsSingle':
+            pass_through = self.config['passThrough']
             chained_schema = hl.dtype('struct{n:int32,sum_x:float64,y_transpose_x:array<float64>,beta:array<float64>,standard_error:array<float64>,t_stat:array<float64>,p_value:array<float64>}')
             self._type = hl.ttable(
                 child_typ.global_type,
@@ -474,6 +483,38 @@ class MatrixToTableApply(TableIR):
                  ._insert_fields(**{f: child_typ.row_type[f] for f in pass_through})
                  ._concat(chained_schema)),
                 child_typ.row_key)
+        elif name == 'LogisticRegression':
+            pass_through = self.config['passThrough']
+            logreg_type = hl.tstruct(logistic_regression=hl.tarray(regression_test_type(self.config['test'])))
+            self._type = hl.ttable(
+                child_typ.global_type,
+                (child_typ.row_key_type
+                 ._insert_fields(**{f: child_typ.row_type[f] for f in pass_through})
+                 ._concat(logreg_type)),
+                child_typ.row_key)
+        elif name == 'PoissonRegression':
+            pass_through = self.config['passThrough']
+            poisreg_type = regression_test_type(self.config['test'])
+            self._type = hl.ttable(
+                child_typ.global_type,
+                (child_typ.row_key_type
+                 ._insert_fields(**{f: child_typ.row_type[f] for f in pass_through})
+                 ._concat(poisreg_type)),
+                child_typ.row_key)
+        elif name == 'Skat':
+            key_field = self.config['keyField']
+            key_type = child_typ.row_type[key_field]
+            skat_type = hl.dtype(f'struct{{id:{key_type},size:int32,q_stat:float64,p_value:float64,fault:int32}}')
+            self._type = hl.ttable(
+                hl.tstruct(),
+                skat_type,
+                ['id'])
+        else:
+            assert name == 'LocalLDPrune', name
+            self._type = hl.ttable(
+                hl.tstruct(),
+                child_typ.row_key_type._insert_fields(mean=hl.tfloat64, centered_length_rec=hl.tfloat64),
+                list(child_typ.row_key))
 
 
 class JavaTable(TableIR):

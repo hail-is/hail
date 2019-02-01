@@ -21,6 +21,7 @@ object InferPType {
       case Ref(_, t) => PType.canonical(t) // FIXME fill in with supplied physical type
       case In(_, t) => PType.canonical(t) // FIXME fill in with supplied physical type
       case MakeArray(_, t) => PType.canonical(t)
+      case MakeNDArray(data, _, _) => PNDArray(data.pType.asInstanceOf[PArray].elementType)
       case _: ArrayLen => PInt32()
       case _: ArrayRange => PArray(PInt32())
       case _: LowerBoundOnOrderedCollection => PInt32()
@@ -128,6 +129,7 @@ object InferPType {
       case _: TableWrite => PVoid
       case _: MatrixWrite => PVoid
       case _: MatrixMultiWrite => PVoid
+      case _: BlockMatrixWrite => PVoid
       case _: TableExport => PVoid
       case TableGetGlobals(child) => PType.canonical(child.typ.globalType)
       case TableCollect(child) => PStruct("rows" -> PArray(PType.canonical(child.typ.rowType)), "global" -> PType.canonical(child.typ.globalType))

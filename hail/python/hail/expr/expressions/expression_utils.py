@@ -1,5 +1,3 @@
-from hail.utils import warn, error, java
-from hail.utils.java import Env
 from .indices import *
 from ..expressions import Expression, ExpressionException, expr_any
 from typing import *
@@ -15,6 +13,8 @@ def analyze(caller: str,
             expected_indices: Indices,
             aggregation_axes: Set = set(),
             broadcast=True):
+    from hail.utils import warn, error
+
     indices = expr._indices
     source = indices.source
     axes = indices.axes
@@ -187,6 +187,8 @@ def eval_typed(expression):
         Result of evaluating `expression`, and its type.
 
     """
+    from hail.utils.java import Env
+
     analyze('eval_typed', expression, Indices(expression._indices.source))
 
     if expression._indices.source is None:

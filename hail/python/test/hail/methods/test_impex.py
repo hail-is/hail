@@ -197,7 +197,8 @@ class VCFTests(unittest.TestCase):
         self.assertTrue(no_sample_dataset._same(no_sample_dataset_imported))
 
         metadata_imported = hl.get_vcf_metadata('/tmp/sample.vcf')
-        self.assertDictEqual(vcf_metadata, metadata_imported)
+        # are py4 JavaMaps, not dicts, so can't use assertDictEqual
+        self.assertEqual(vcf_metadata, metadata_imported)
 
     def test_import_vcfs(self):
         path = resource('sample.vcf.bgz')

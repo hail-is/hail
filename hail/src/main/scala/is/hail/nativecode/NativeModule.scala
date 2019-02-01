@@ -1,5 +1,6 @@
 package is.hail.nativecode
 
+import is.hail.utils.fatal
 import org.apache.spark.TaskContext
 
 // NativeModule refers to a single DLL.
@@ -55,6 +56,12 @@ class NativeModule() extends NativeBase() {
   
   def findOrBuild(st: NativeStatus): Unit = nativeFindOrBuild(st.get())
 
+  def findOrBuild(): Unit = {
+    val st = new NativeStatus()
+    findOrBuild(st)
+    assert(st.ok, st.toString())
+  }
+
   //
   // Methods needed for sending module to workers
   //
@@ -99,6 +106,19 @@ class NativeModule() extends NativeBase() {
     val func = new NativeLongFuncL3()
     nativeFindLongFuncL3(st.get(), func, name)
     func
+  }
+
+  def findLongFuncL3(name: String): (Long, Long, Long) => Long = {
+    val st = new NativeStatus()
+    val f = findLongFuncL3(st, name)
+    assert(st.ok, st.toString())
+    val wrapped = { (v1: Long, v2: Long, v3: Long) =>
+      val res = f(st, v1, v2, v3)
+      if (st.fail)
+        fatal(st.toString())
+      res
+    }
+    wrapped
   }
   
   def findLongFuncL4(st: NativeStatus, name: String): NativeLongFuncL4 = {

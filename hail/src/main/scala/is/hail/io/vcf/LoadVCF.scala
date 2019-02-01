@@ -426,7 +426,9 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
   }
 
   def parseArrayElement[T](ab: MissingArrayBuilder[T], eltParser: () => T) {
-    if (!arrayElementsRequired && formatArrayFieldMissing()) {
+    if (formatArrayFieldMissing()) {
+      if (arrayElementsRequired)
+        parseError(s"missing value in FORMAT array. Import with argument 'array_elements_required=False'")
       ab.addMissing()
       pos += 1
     } else {
@@ -435,7 +437,9 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
   }
 
   def parseIntArrayElement() {
-    if (!arrayElementsRequired && formatArrayFieldMissing()) {
+    if (formatArrayFieldMissing()) {
+      if (arrayElementsRequired)
+        parseError(s"missing value in FORMAT array. Import with argument 'array_elements_required=False'")
       abi.addMissing()
       pos += 1
     } else {
@@ -444,7 +448,9 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
   }
 
   def parseDoubleArrayElement() {
-    if (!arrayElementsRequired && formatArrayFieldMissing()) {
+    if (formatArrayFieldMissing()) {
+      if (arrayElementsRequired)
+        parseError(s"missing value in FORMAT array. Import with argument 'array_elements_required=False'")
       abd.addMissing()
       pos += 1
     } else {
@@ -453,7 +459,9 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
   }
 
   def parseStringArrayElement() {
-    if (!arrayElementsRequired && formatArrayFieldMissing()) {
+    if (formatArrayFieldMissing()) {
+      if (arrayElementsRequired)
+        parseError(s"missing value in FORMAT array. Import with argument 'array_elements_required=False'")
       abs.addMissing()
       pos += 1
     } else {
@@ -1089,7 +1097,7 @@ case class MatrixVCFReader(
   val fullRVDType: RVDType = RVDType(fullType.rvRowType.physicalType, fullType.rowKey)
 
   private lazy val lines = {
-    hc.maybeGZipAsBGZip(gzAsBGZ) {
+    HailContext.maybeGZipAsBGZip(gzAsBGZ) {
       ContextRDD.textFilesLines[RVDContext](sc, inputs, minPartitions)
     }
   }

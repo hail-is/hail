@@ -29,7 +29,7 @@ class TranslationUnit(preamble: String, definitions: Array[Code]) {
     val st = new NativeStatus()
     val mod = new NativeModule(options, src)
     mod.findOrBuild(st)
-    assert(st.ok, st.toString())
+    assert(st.ok, st.toString() + "\n" + source)
     mod
   }
 }

@@ -2,10 +2,8 @@ from typing import *
 
 from hail.expr import expressions
 from hail.expr.types import *
-from hail.genetics import Locus, Call
 from hail.ir import *
 from hail.typecheck import linked_list
-from hail.utils import Interval, Struct
 from hail.utils.java import *
 from hail.utils.linkedlist import LinkedList
 from .indices import *
@@ -24,6 +22,9 @@ class ExpressionWarning(Warning):
 
 
 def impute_type(x):
+    from hail.genetics import Locus, Call
+    from hail.utils import Interval, Struct
+    
     if isinstance(x, Expression):
         return x.dtype
     elif isinstance(x, bool):
@@ -709,8 +710,8 @@ class Expression(object):
         return t._show(n, width, truncate, types)
 
 
-    @typecheck_method(n=int)
-    def take(self, n):
+    @typecheck_method(n=int, _localize=bool)
+    def take(self, n, _localize=True):
         """Collect the first `n` records of an expression.
 
         Examples
@@ -735,9 +736,14 @@ class Expression(object):
         :obj:`list`
         """
         uid = Env.get_uid()
-        return [r[uid] for r in self._to_table(uid).take(n)]
+        e = self._to_table(uid).take(n, _localize=False).map(lambda r: r[uid])
+        if _localize:
+            return hl.eval(e)
+        else:
+            return e
 
-    def collect(self):
+    @typecheck_method(_localize=bool)
+    def collect(self, _localize=True):
         """Collect all records of an expression into a local list.
 
         Examples
@@ -761,8 +767,13 @@ class Expression(object):
         :obj:`list`
         """
         uid = Env.get_uid()
-        t = self._to_table(uid).key_by()
-        return [r[uid] for r in t._select("collect", hl.struct(**{uid: t[uid]})).collect()]
+        t = self._to_table(uid).key_by().select(uid)
+
+        e = t.collect(_localize=False).map(lambda r: r[uid])
+        if _localize:
+            return hl.eval(e)
+        else:
+            return e
 
     def _aggregation_method(self):
         src = self._indices.source

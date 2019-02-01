@@ -206,6 +206,16 @@ class Tests(unittest.TestCase):
         with self.assertRaises(ValueError):
             mt.explode_rows('b')
 
+    def test_group_by_field_lifetimes(self):
+        mt = hl.utils.range_matrix_table(3, 3)
+        mt2 = (mt.group_rows_by(row_idx='100')
+               .aggregate(x=hl.agg.collect_as_set(mt.row_idx + 5)))
+        assert mt2.aggregate_entries(hl.agg.all(mt2.x == hl.set({5, 6, 7})))
+
+        mt3 = (mt.group_cols_by(col_idx='100')
+               .aggregate(x=hl.agg.collect_as_set(mt.col_idx + 5)))
+        assert mt3.aggregate_entries(hl.agg.all(mt3.x == hl.set({5, 6, 7})))
+
     def test_aggregate_cols_by(self):
         mt = hl.utils.range_matrix_table(2, 4)
         mt = (mt.annotate_cols(group=mt.col_idx < 2)
@@ -763,10 +773,18 @@ class Tests(unittest.TestCase):
         mt = mt.key_cols_by(col_idx=hl.str(mt.col_idx))
 
         t = mt.make_table()
-        assert(list(t.row) == ['row_idx'], ['0.x'], ['1.x'])
+        assert list(t.row) == ['row_idx', '0.x', '1.x']
 
         t = mt.make_table(separator='__')
-        assert(list(t.row) == ['row_idx'], ['0__x'], ['1__x'])
+        assert list(t.row) == ['row_idx', '0__x', '1__x']
+
+    def test_make_table_row_equivalence(self):
+        mt = hl.utils.range_matrix_table(3, 3)
+        mt = mt.annotate_rows(r1 = hl.rand_norm(), r2 = hl.rand_norm())
+        mt = mt.annotate_entries(e1 = hl.rand_norm(), e2 = hl.rand_norm())
+        mt = mt.key_cols_by(col_idx=hl.str(mt.col_idx))
+
+        assert mt.make_table().select(*mt.row_value)._same(mt.rows())
 
     def test_transmute(self):
         mt = (

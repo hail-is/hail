@@ -146,6 +146,7 @@ def register_functions():
     register_function("position", (dtype("?T:locus"),), dtype("int32"))
     register_seeded_function("rand_unif", (dtype("float64"),dtype("float64"),), dtype("float64"))
     register_function("str", (dtype("?T"),), dtype("str"))
+    register_function("valuesSimilar", (dtype("?T"),dtype("?T"),dtype('float64'),dtype('bool'),), dtype("bool"))
     register_function("replace", (dtype("str"),dtype("str"),dtype("str"),), dtype("str"))
     register_function("exp", (dtype("float64"),), dtype("float64"))
     register_function("&&", (dtype("bool"),dtype("bool"),), dtype("bool"))

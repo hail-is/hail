@@ -160,6 +160,8 @@ final case class ArrayAgg(a: IR, name: String, query: IR) extends IR
 
 final case class ArrayLeftJoinDistinct(left: IR, right: IR, l: String, r: String, keyF: IR, joinF: IR) extends IR
 
+final case class MakeNDArray(data: IR, shape: IR, row_major: IR) extends IR
+
 final case class AggFilter(cond: IR, aggIR: IR) extends IR
 
 final case class AggExplode(array: IR, name: String, aggBody: IR) extends IR
@@ -241,7 +243,9 @@ sealed abstract class AbstractApplyNode[F <: IRFunction] extends IR {
   def function: String
   def args: Seq[IR]
   def argTypes: Seq[Type] = args.map(_.typ)
-  lazy val implementation: F = IRFunctionRegistry.lookupFunction(function, argTypes).get.asInstanceOf[F]
+  lazy val implementation: F = IRFunctionRegistry.lookupFunction(function, argTypes)
+    .getOrElse(throw new RuntimeException(s"no function match for $function: ${ argTypes.map(_.parsableString()).mkString(", ") }"))
+      .asInstanceOf[F]
 }
 
 final case class Apply(function: String, args: Seq[IR]) extends AbstractApplyNode[IRFunctionWithoutMissingness]
@@ -284,6 +288,9 @@ final case class MatrixMultiWrite(
 
 final case class TableToValueApply(child: TableIR, function: TableToValueFunction) extends IR
 final case class MatrixToValueApply(child: MatrixIR, function: MatrixToValueFunction) extends IR
+
+final case class BlockMatrixWrite(child: BlockMatrixIR, path: String,
+  overwrite: Boolean, forceRowMajor: Boolean, stageLocally: Boolean) extends IR
 
 class PrimitiveIR(val self: IR) extends AnyVal {
   def +(other: IR): IR = ApplyBinaryPrimOp(Add(), self, other)

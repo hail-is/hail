@@ -9,13 +9,15 @@ import is.hail.expr.ir.IRSuite.TestFunctions
 import is.hail.expr.ir.functions.{IRFunctionRegistry, RegistryFunctions, SeededIRFunction, SetFunctions}
 import is.hail.expr.types.TableType
 import is.hail.expr.types.virtual._
+import is.hail.io.bgen.MatrixBGENReader
+import is.hail.linalg.BlockMatrix
 import is.hail.methods.{ForceCountMatrixTable, ForceCountTable}
 import is.hail.rvd.RVD
 import is.hail.table.{Ascending, Descending, SortField, Table}
 import is.hail.utils._
 import is.hail.variant.MatrixTable
 import org.apache.spark.sql.Row
-import org.testng.annotations.{DataProvider, Test}
+import org.testng.annotations.{BeforeClass, DataProvider, Test}
 
 object IRSuite {
   outer =>
@@ -69,6 +71,8 @@ object IRSuite {
 }
 
 class IRSuite extends SparkSuite {
+  @BeforeClass def ensureHCDefined() { initializeHailContext() }
+
   @Test def testI32() {
     assertEvalsTo(I32(5), 5)
   }
@@ -154,6 +158,15 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(ApplyUnaryPrimOp(Bang(), False()), true)
     assertEvalsTo(ApplyUnaryPrimOp(Bang(), True()), false)
     assertEvalsTo(ApplyUnaryPrimOp(Bang(), bna), null)
+  }
+
+  @Test def testApplyUnaryPrimOpBitFlip() {
+    assertEvalsTo(ApplyUnaryPrimOp(BitNot(), I32(0xdeadbeef)), ~0xdeadbeef)
+    assertEvalsTo(ApplyUnaryPrimOp(BitNot(), I32(-0xdeadbeef)), ~(-0xdeadbeef))
+    assertEvalsTo(ApplyUnaryPrimOp(BitNot(), i32na), null)
+    assertEvalsTo(ApplyUnaryPrimOp(BitNot(), I64(0xdeadbeef12345678L)), ~0xdeadbeef12345678L)
+    assertEvalsTo(ApplyUnaryPrimOp(BitNot(), I64(-0xdeadbeef12345678L)), ~(-0xdeadbeef12345678L))
+    assertEvalsTo(ApplyUnaryPrimOp(BitNot(), i64na), null)
   }
 
   @Test def testApplyBinaryPrimOpAdd() {
@@ -264,6 +277,102 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), F64(5), f64na), null)
     assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), f64na, F64(2)), null)
     assertEvalsTo(ApplyBinaryPrimOp(RoundToNegInfDivide(), f64na, f64na), null)
+  }
+
+  @Test def testApplyBinaryPrimOpBitAnd(): Unit = {
+    assertEvalsTo(ApplyBinaryPrimOp(BitAnd(), I32(5), I32(2)), 5 & 2)
+    assertEvalsTo(ApplyBinaryPrimOp(BitAnd(), I32(-5), I32(2)), -5 & 2)
+    assertEvalsTo(ApplyBinaryPrimOp(BitAnd(), I32(5), I32(-2)), 5 & -2)
+    assertEvalsTo(ApplyBinaryPrimOp(BitAnd(), I32(-5), I32(-2)), -5 & -2)
+    assertEvalsTo(ApplyBinaryPrimOp(BitAnd(), I32(5), i32na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(BitAnd(), i32na, I32(2)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(BitAnd(), i32na, i32na), null)
+
+    assertEvalsTo(ApplyBinaryPrimOp(BitAnd(), I64(5), I64(2)), 5L & 2L)
+    assertEvalsTo(ApplyBinaryPrimOp(BitAnd(), I64(-5), I64(2)), -5L & 2L)
+    assertEvalsTo(ApplyBinaryPrimOp(BitAnd(), I64(5), I64(-2)), 5L & -2L)
+    assertEvalsTo(ApplyBinaryPrimOp(BitAnd(), I64(-5), I64(-2)), -5L & -2L)
+    assertEvalsTo(ApplyBinaryPrimOp(BitAnd(), I64(5), i64na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(BitAnd(), i64na, I64(2)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(BitAnd(), i64na, i64na), null)
+  }
+
+  @Test def testApplyBinaryPrimOpBitOr(): Unit = {
+    assertEvalsTo(ApplyBinaryPrimOp(BitOr(), I32(5), I32(2)), 5 | 2)
+    assertEvalsTo(ApplyBinaryPrimOp(BitOr(), I32(-5), I32(2)), -5 | 2)
+    assertEvalsTo(ApplyBinaryPrimOp(BitOr(), I32(5), I32(-2)), 5 | -2)
+    assertEvalsTo(ApplyBinaryPrimOp(BitOr(), I32(-5), I32(-2)), -5 | -2)
+    assertEvalsTo(ApplyBinaryPrimOp(BitOr(), I32(5), i32na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(BitOr(), i32na, I32(2)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(BitOr(), i32na, i32na), null)
+
+    assertEvalsTo(ApplyBinaryPrimOp(BitOr(), I64(5), I64(2)), 5L | 2L)
+    assertEvalsTo(ApplyBinaryPrimOp(BitOr(), I64(-5), I64(2)), -5L | 2L)
+    assertEvalsTo(ApplyBinaryPrimOp(BitOr(), I64(5), I64(-2)), 5L | -2L)
+    assertEvalsTo(ApplyBinaryPrimOp(BitOr(), I64(-5), I64(-2)), -5L | -2L)
+    assertEvalsTo(ApplyBinaryPrimOp(BitOr(), I64(5), i64na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(BitOr(), i64na, I64(2)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(BitOr(), i64na, i64na), null)
+  }
+
+  @Test def testApplyBinaryPrimOpBitXOr(): Unit = {
+    assertEvalsTo(ApplyBinaryPrimOp(BitXOr(), I32(5), I32(2)), 5 ^ 2)
+    assertEvalsTo(ApplyBinaryPrimOp(BitXOr(), I32(-5), I32(2)), -5 ^ 2)
+    assertEvalsTo(ApplyBinaryPrimOp(BitXOr(), I32(5), I32(-2)), 5 ^ -2)
+    assertEvalsTo(ApplyBinaryPrimOp(BitXOr(), I32(-5), I32(-2)), -5 ^ -2)
+    assertEvalsTo(ApplyBinaryPrimOp(BitXOr(), I32(5), i32na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(BitXOr(), i32na, I32(2)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(BitXOr(), i32na, i32na), null)
+
+    assertEvalsTo(ApplyBinaryPrimOp(BitXOr(), I64(5), I64(2)), 5L ^ 2L)
+    assertEvalsTo(ApplyBinaryPrimOp(BitXOr(), I64(-5), I64(2)), -5L ^ 2L)
+    assertEvalsTo(ApplyBinaryPrimOp(BitXOr(), I64(5), I64(-2)), 5L ^ -2L)
+    assertEvalsTo(ApplyBinaryPrimOp(BitXOr(), I64(-5), I64(-2)), -5L ^ -2L)
+    assertEvalsTo(ApplyBinaryPrimOp(BitXOr(), I64(5), i64na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(BitXOr(), i64na, I64(2)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(BitXOr(), i64na, i64na), null)
+  }
+
+  @Test def testApplyBinaryPrimOpLeftShift(): Unit = {
+    assertEvalsTo(ApplyBinaryPrimOp(LeftShift(), I32(5), I32(2)), 5 << 2)
+    assertEvalsTo(ApplyBinaryPrimOp(LeftShift(), I32(-5), I32(2)), -5 << 2)
+    assertEvalsTo(ApplyBinaryPrimOp(LeftShift(), I32(5), i32na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(LeftShift(), i32na, I32(2)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(LeftShift(), i32na, i32na), null)
+
+    assertEvalsTo(ApplyBinaryPrimOp(LeftShift(), I64(5), I32(2)), 5L << 2)
+    assertEvalsTo(ApplyBinaryPrimOp(LeftShift(), I64(-5), I32(2)), -5L << 2)
+    assertEvalsTo(ApplyBinaryPrimOp(LeftShift(), I64(5), i32na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(LeftShift(), i64na, I32(2)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(LeftShift(), i64na, i32na), null)
+  }
+
+  @Test def testApplyBinaryPrimOpRightShift(): Unit = {
+    assertEvalsTo(ApplyBinaryPrimOp(RightShift(), I32(0xff5), I32(2)), 0xff5 >> 2)
+    assertEvalsTo(ApplyBinaryPrimOp(RightShift(), I32(-5), I32(2)), -5 >> 2)
+    assertEvalsTo(ApplyBinaryPrimOp(RightShift(), I32(5), i32na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(RightShift(), i32na, I32(2)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(RightShift(), i32na, i32na), null)
+
+    assertEvalsTo(ApplyBinaryPrimOp(RightShift(), I64(0xffff5), I32(2)), 0xffff5L >> 2)
+    assertEvalsTo(ApplyBinaryPrimOp(RightShift(), I64(-5), I32(2)), -5L >> 2)
+    assertEvalsTo(ApplyBinaryPrimOp(RightShift(), I64(5), i32na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(RightShift(), i64na, I32(2)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(RightShift(), i64na, i32na), null)
+  }
+
+  @Test def testApplyBinaryPrimOpLogicalRightShift(): Unit = {
+    assertEvalsTo(ApplyBinaryPrimOp(LogicalRightShift(), I32(0xff5), I32(2)), 0xff5 >>> 2)
+    assertEvalsTo(ApplyBinaryPrimOp(LogicalRightShift(), I32(-5), I32(2)), -5 >>> 2)
+    assertEvalsTo(ApplyBinaryPrimOp(LogicalRightShift(), I32(5), i32na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(LogicalRightShift(), i32na, I32(2)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(LogicalRightShift(), i32na, i32na), null)
+
+    assertEvalsTo(ApplyBinaryPrimOp(LogicalRightShift(), I64(0xffff5), I32(2)), 0xffff5L >>> 2)
+    assertEvalsTo(ApplyBinaryPrimOp(LogicalRightShift(), I64(-5), I32(2)), -5L >>> 2)
+    assertEvalsTo(ApplyBinaryPrimOp(LogicalRightShift(), I64(5), i32na), null)
+    assertEvalsTo(ApplyBinaryPrimOp(LogicalRightShift(), i64na, I32(2)), null)
+    assertEvalsTo(ApplyBinaryPrimOp(LogicalRightShift(), i64na, i32na), null)
   }
 
   @Test def testIf() {
@@ -812,6 +921,8 @@ class IRSuite extends SparkSuite {
 
   @DataProvider(name = "valueIRs")
   def valueIRs(): Array[Array[IR]] = {
+    hc.indexBgen(FastIndexedSeq("src/test/resources/example.8bits.bgen"), rg = Some("GRCh37"), contigRecoding = Map("01" -> "1"))
+
     val b = True()
     val c = Ref("c", TBoolean())
     val i = I32(5)
@@ -844,8 +955,11 @@ class IRSuite extends SparkSuite {
     val mt = MatrixTable.range(hc, 20, 2, Some(3)).ast.asInstanceOf[MatrixRead]
     val vcf = is.hail.TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
       .ast.asInstanceOf[MatrixRead]
-    val bgen = is.hail.TestUtils.importBgens(hc, FastIndexedSeq("src/test/resources/example.8bits.bgen"))
-      .ast.asInstanceOf[MatrixRead]
+
+    val bgenReader = MatrixBGENReader(FastIndexedSeq("src/test/resources/example.8bits.bgen"), None, Map.empty[String, String], None, None, None)
+    val bgen = MatrixRead(bgenReader.fullType, false, false, bgenReader)
+
+    val blockMatrix = BlockMatrixRead(tmpDir.createLocalTempFile())
 
     val irs = Array(
       i, I64(5), F32(3.14f), F64(3.14), str, True(), False(), Void(),
@@ -858,6 +972,10 @@ class IRSuite extends SparkSuite {
       ApplyUnaryPrimOp(Negate(), i),
       ApplyComparisonOp(EQ(TInt32()), i, j),
       MakeArray(FastSeq(i, NA(TInt32()), I32(-3)), TArray(TInt32())),
+      MakeNDArray(
+        MakeArray(FastSeq(F64(-1.0), F64(1.0)), TArray(TFloat64())),
+        MakeArray(FastSeq(I64(1), I64(2)), TArray(TInt64())),
+        True()),
       ArrayRef(a, i),
       ArrayLen(a),
       ArrayRange(I32(0), I32(5), I32(1)),
@@ -913,7 +1031,8 @@ class IRSuite extends SparkSuite {
       MatrixWrite(vcf, MatrixPLINKWriter(tmpDir.createLocalTempFile())),
       MatrixWrite(bgen, MatrixGENWriter(tmpDir.createLocalTempFile())),
       MatrixMultiWrite(Array(mt, mt), MatrixNativeMultiWriter(tmpDir.createLocalTempFile())),
-      MatrixAggregate(mt, MakeStruct(Seq("foo" -> count)))
+      MatrixAggregate(mt, MakeStruct(Seq("foo" -> count))),
+      BlockMatrixWrite(blockMatrix, tmpDir.createLocalTempFile(), false, false, false)
     )
     irs.map(x => Array(x))
   }
@@ -991,8 +1110,10 @@ class IRSuite extends SparkSuite {
         .ast.asInstanceOf[MatrixRead]
       val vcf = is.hail.TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
         .ast.asInstanceOf[MatrixRead]
-      val bgen = is.hail.TestUtils.importBgens(hc, FastIndexedSeq("src/test/resources/example.8bits.bgen"))
-        .ast.asInstanceOf[MatrixRead]
+      
+      val bgenReader = MatrixBGENReader(FastIndexedSeq("src/test/resources/example.8bits.bgen"), None, Map.empty[String, String], None, None, None)
+      val bgen = MatrixRead(bgenReader.fullType, false, false, bgenReader)
+
       val range1 = MatrixTable.range(hc, 20, 2, Some(3))
         .ast.asInstanceOf[MatrixRead]
       val range2 = MatrixTable.range(hc, 20, 2, Some(4))
@@ -1055,7 +1176,8 @@ class IRSuite extends SparkSuite {
           " # cols",
           read.typ.colKey),
         MatrixAnnotateColsTable(read, tableRead, "uid_123"),
-        MatrixAnnotateRowsTable(read, tableRead, "uid_123")
+        MatrixAnnotateRowsTable(read, tableRead, "uid_123"),
+        MatrixRename(read, Map("global_i64" -> "foo"), Map("col_i64" -> "bar"), Map("row_i64" -> "baz"), Map("entry_i64" -> "quam"))
       )
 
       xs.map(x => Array(x))
@@ -1067,6 +1189,16 @@ class IRSuite extends SparkSuite {
     }
   }
 
+  @DataProvider(name = "blockMatrixIRs")
+  def blockMatrixIRs(): Array[Array[BlockMatrixIR]] = {
+    val read = BlockMatrixRead(tmpDir.createLocalTempFile())
+    val add = BlockMatrixAdd(read, read)
+
+    val blockMatrixIRs = Array[BlockMatrixIR](read, add)
+
+    blockMatrixIRs.map(ir => Array(ir))
+  }
+
   @Test(dataProvider = "valueIRs")
   def testValueIRParser(x: IR) {
     val env = IRParserEnvironment(refMap = Map(
@@ -1074,6 +1206,8 @@ class IRSuite extends SparkSuite {
       "a" -> TArray(TInt32()),
       "aa" -> TArray(TArray(TInt32())),
       "da" -> TArray(TTuple(TInt32(), TString())),
+      "nda" -> TNDArray(TFloat64()),
+      "nda2" -> TNDArray(TArray(TString())),
       "v" -> TInt32(),
       "s" -> TStruct("x" -> TInt32(), "y" -> TInt64(), "z" -> TFloat64()),
       "t" -> TTuple(TInt32(), TInt64(), TFloat64()),
@@ -1100,6 +1234,13 @@ class IRSuite extends SparkSuite {
     assert(x2 == x)
   }
 
+  @Test(dataProvider = "blockMatrixIRs")
+  def testBlockMatrixIRParser(x: BlockMatrixIR) {
+    val s = Pretty(x)
+    val x2 = IRParser.parse_blockmatrix_ir(s)
+    assert(x2 == x)
+  }
+
   @Test def testCachedIR() {
     val cached = Literal(TSet(TInt32()), Set(1))
     val s = s"(JavaIR __uid1)"
@@ -1118,6 +1259,13 @@ class IRSuite extends SparkSuite {
     val cached = MatrixTable.range(hc, 3, 7, None).ast
     val s = s"(JavaMatrix __uid1)"
     val x2 = IRParser.parse_matrix_ir(s, IRParserEnvironment(refMap = Map.empty, irMap = Map("__uid1" -> cached)))
+    assert(x2 eq cached)
+  }
+
+  @Test def testCachedBlockMatrixIR() {
+    val cached = new BlockMatrixLiteral(BlockMatrix.fill(hc, 3, 7, 1))
+    val s = s"(JavaBlockMatrix __uid1)"
+    val x2 = IRParser.parse_blockmatrix_ir(s, IRParserEnvironment(refMap = Map.empty, irMap = Map("__uid1" -> cached)))
     assert(x2 eq cached)
   }
 

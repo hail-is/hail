@@ -2,18 +2,20 @@ package is.hail.methods
 
 import java.util
 
+import is.hail.HailContext
 import is.hail.annotations._
+import is.hail.expr.ir.{MatrixValue, TableLiteral, TableValue}
+import is.hail.expr.ir.functions.MatrixToTableFunction
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PArray, PInt64Required, PStruct}
 import is.hail.expr.types.virtual._
-import org.apache.spark.storage.StorageLevel
 import is.hail.rvd.{RVD, RVDType}
 import is.hail.table.Table
-import is.hail.variant._
 import is.hail.utils._
+import is.hail.variant._
 
 object BitPackedVectorView {
-  val bpvElementSize = PInt64Required.byteSize
+  val bpvElementSize: Long = PInt64Required.byteSize
 
   def rvRowType(locusType: Type, allelesType: Type): PStruct = TStruct("locus" -> locusType, "alleles" -> allelesType,
     "bpv" -> TArray(TInt64Required), "nSamples" -> TInt32Required, "mean" -> TFloat64(), "centered_length_rec" -> TFloat64()).physicalType
@@ -274,23 +276,46 @@ object LocalLDPrune {
     })
   }
 
-  def apply(mt: MatrixTable, callField: String = "GT", r2Threshold: Double = 0.2, windowSize: Int = 1000000, maxQueueSize: Int): Table = {
+  def apply(mt: MatrixTable,
+    callField: String = "GT", r2Threshold: Double = 0.2, windowSize: Int = 1000000, maxQueueSize: Int
+  ): Table = {
+    val pruner = LocalLDPrune(callField, r2Threshold, windowSize, maxQueueSize)
+    new Table(HailContext.get, TableLiteral(pruner.execute(mt.value)))
+  }
+}
+
+case class LocalLDPrune(
+  callField: String, r2Threshold: Double, windowSize: Int, maxQueueSize: Int
+) extends MatrixToTableFunction {
+
+  def typeInfo(childType: MatrixType, childRVDType: RVDType): (TableType, RVDType) = {
+    val tableType = TableType(
+      rowType = childType.rowKeyStruct ++ TStruct("mean" -> TFloat64(), "centered_length_rec" -> TFloat64()),
+      key = childType.rowKey, globalType = TStruct.empty())
+    (tableType, tableType.canonicalRVDType)
+  }
+
+  def preservesPartitionCounts: Boolean = false
+
+  def execute(mv: MatrixValue): TableValue = {
     if (maxQueueSize < 1)
       fatal(s"Maximum queue size must be positive. Found `$maxQueueSize'.")
 
-    val nSamples = mt.numCols
+    val nSamples = mv.nCols
     
-    val fullRowType = mt.rvRowType
+    val fullRowType = mv.typ.rvRowType
     val fullRowPType = fullRowType.physicalType
 
-    val locusIndex = mt.rvRowType.fieldIdx("locus")
-    val allelesIndex = mt.rvRowType.fieldIdx("alleles")
+    val locusIndex = fullRowType.fieldIdx("locus")
+    val allelesIndex = fullRowType.fieldIdx("alleles")
 
-    val bpvType = BitPackedVectorView.rvRowType(mt.rvRowType.types(locusIndex), mt.rvRowType.types(allelesIndex))
+    val bpvType = BitPackedVectorView.rvRowType(fullRowType.types(locusIndex), fullRowType.types(allelesIndex))
 
-    val typ = mt.rvd.typ
+    val typ = mv.rvd.typ
 
-    val standardizedRDD = mt.rvd
+    val (tableType, tableRVDType) = typeInfo(mv.typ, mv.rvd.typ)
+
+    val standardizedRDD = mv.rvd
       .mapPartitions(typ.copy(rowType = bpvType))({ it =>
         val hcView = new HardCallView(fullRowPType, callField)
         val region = Region()
@@ -305,7 +330,7 @@ object LocalLDPrune {
           rvb.startStruct()
           rvb.addFields(fullRowPType, rv, Array(locusIndex, allelesIndex))
 
-          val keep = addBitPackedVector(rvb, hcView, nSamples)
+          val keep = LocalLDPrune.addBitPackedVector(rvb, hcView, nSamples)
 
           if (keep) {
             rvb.endStruct()
@@ -317,11 +342,7 @@ object LocalLDPrune {
         }
       })
     
-    val rvdLP = pruneLocal(standardizedRDD, r2Threshold, windowSize, Some(maxQueueSize))
-
-    val tableType = TableType(
-      rowType = mt.rowKeyStruct ++ TStruct("mean" -> TFloat64(), "centered_length_rec" -> TFloat64()),
-      key = mt.rowKey, globalType = TStruct.empty())
+    val rvdLP = LocalLDPrune.pruneLocal(standardizedRDD, r2Threshold, windowSize, Some(maxQueueSize))
 
     val fieldIndicesToAdd = Array("locus", "alleles", "mean", "centered_length_rec")
       .map(field => bpvType.fieldIdx(field))
@@ -344,7 +365,7 @@ object LocalLDPrune {
       }
     })
 
-    new Table(hc = mt.hc, crdd = sitesOnly.crdd, signature = tableType.rowType, key = tableType.key)
+    TableValue(tableType, BroadcastRow.empty(mv.sparkContext), sitesOnly)
   }
 }
 

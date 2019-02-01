@@ -29,6 +29,8 @@ class ValueIRTests(unittest.TestCase):
         matrix_read = ir.MatrixRead(ir.MatrixNativeReader(
             resource('backward_compatability/1.0.0/matrix_table/0.hmt')), False, False)
 
+        block_matrix_read = ir.BlockMatrixRead('fake_file_path')
+
         value_irs = [
             i, ir.I64(5), ir.F32(3.14), ir.F64(3.14), s, ir.TrueIR(), ir.FalseIR(), ir.Void(),
             ir.Cast(i, hl.tfloat64),
@@ -48,6 +50,9 @@ class ValueIRTests(unittest.TestCase):
             ir.ToSet(a),
             ir.ToDict(da),
             ir.ToArray(a),
+            ir.MakeNDArray(ir.MakeArray([ir.F64(-1.0), ir.F64(1.0)], hl.tarray(hl.tfloat64)),
+                           ir.MakeArray([ir.I64(1), ir.I64(2)], hl.tarray(hl.tint64)),
+                           ir.TrueIR()),
             ir.LowerBoundOnOrderedCollection(a, i, True),
             ir.GroupByKey(da),
             ir.ArrayMap(a, 'v', v),
@@ -93,6 +98,7 @@ class ValueIRTests(unittest.TestCase):
             ir.MatrixWrite(matrix_read, ir.MatrixGENWriter(new_temp_file(), 4)),
             ir.MatrixWrite(matrix_read, ir.MatrixPLINKWriter(new_temp_file())),
             ir.MatrixMultiWrite([matrix_read, matrix_read], ir.MatrixNativeMultiWriter(new_temp_file(), False, False)),
+            ir.BlockMatrixWrite(block_matrix_read, 'fake_file_path', False, False, False)
         ]
 
         return value_irs
@@ -121,7 +127,7 @@ class TableIRTests(unittest.TestCase):
     def table_irs(self):
         b = ir.TrueIR()
         table_read = ir.TableRead(
-            resource('backward_compatability/1.0.0/table/0.ht'), False, None)
+            ir.TableNativeReader(resource('backward_compatability/1.0.0/table/0.ht')), False)
         table_read_row_type = hl.dtype('struct{idx: int32, f32: float32, i64: int64, m: float64, astruct: struct{a: int32, b: float64}, mstruct: struct{x: int32, y: str}, aset: set<str>, mset: set<float64>, d: dict<array<str>, float64>, md: dict<int32, str>, h38: locus<GRCh38>, ml: locus<GRCh37>, i: interval<locus<GRCh37>>, c: call, mc: call, t: tuple(call, str, str), mt: tuple(locus<GRCh37>, bool)}')
 
         matrix_read = ir.MatrixRead(
@@ -188,7 +194,8 @@ class TableIRTests(unittest.TestCase):
 
         matrix_read = ir.MatrixRead(
             ir.MatrixNativeReader(resource('backward_compatability/1.0.0/matrix_table/0.hmt')), False, False)
-        table_read = ir.TableRead(resource('backward_compatability/1.0.0/table/0.ht'), False, None)
+        table_read = ir.TableRead(
+            ir.TableNativeReader(resource('backward_compatability/1.0.0/table/0.ht')), False)
 
         matrix_range = ir.MatrixRead(ir.MatrixRangeReader(1, 1, 10))
 
@@ -231,6 +238,19 @@ class TableIRTests(unittest.TestCase):
                 Env.hail().expr.ir.IRParser.parse_matrix_ir(str(x))
             except Exception as e:
                 raise ValueError(str(x)) from e
+
+
+class BlockMatrixIRTests(unittest.TestCase):
+
+    def block_matrix_irs(self):
+        read = ir.BlockMatrixRead('fake_file_path')
+        add = ir.BlockMatrixAdd(read, read)
+
+        return [read, add]
+
+    def test_parses(self):
+        for x in self.block_matrix_irs():
+            Env.hail().expr.ir.IRParser.parse_blockmatrix_ir(str(x))
 
 
 class ValueTests(unittest.TestCase):

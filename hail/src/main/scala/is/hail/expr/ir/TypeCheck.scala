@@ -95,6 +95,15 @@ object TypeCheck {
         assert(a.typ.isOfType(TInt32()))
         assert(b.typ.isOfType(TInt32()))
         assert(c.typ.isOfType(TInt32()))
+      case x@MakeNDArray(data, shape, row_major) =>
+        check(data)
+        check(shape)
+        check(row_major)
+        assert(data.typ.isInstanceOf[TArray])
+        assert(coerce[TNDArray](x.typ).elementType == coerce[TArray](data.typ).elementType)
+        assert(shape.typ.isOfType(TArray(TInt64())))
+        assert(row_major.typ.isOfType(TBoolean()))
+
       case x@ArraySort(a, ascending, onKey) =>
         check(a)
         check(ascending)
@@ -225,6 +234,7 @@ object TypeCheck {
           val newFieldSet = fields.map(_._1).toSet
           val oldFieldNames = old.typ.asInstanceOf[TStruct].fieldNames
           val oldFieldNameSet = oldFieldNames.toSet
+          assert(fds.length == x.typ.size)
           assert(oldFieldNames
             .filter(f => !newFieldSet.contains(f))
             .sameElements(fds.filter(f => !newFieldSet.contains(f))))
@@ -289,6 +299,7 @@ object TypeCheck {
       case TableCollect(_) =>
       case TableToValueApply(_, _) =>
       case MatrixToValueApply(_, _) =>
+      case BlockMatrixWrite(_, _, _, _, _) =>
     }
   }
 }

@@ -67,7 +67,11 @@ class HailContext(object):
         jsc = sc._jsc.sc() if sc else None
 
         if _backend is None:
-            _backend = SparkBackend()
+            apiserver_url = os.environ.get('HAIL_APISERVER_URL')
+            if apiserver_url is not None:
+                _backend = ServiceBackend(apiserver_url)
+            else:
+                _backend = SparkBackend()
         self._backend = _backend
 
         tmp_dir = get_env_or_default(tmp_dir, 'TMPDIR', '/tmp')
@@ -101,9 +105,15 @@ class HailContext(object):
 
         # do this at the end in case something errors, so we don't raise the above error without a real HC
         Env._hc = self
-
-        self._default_ref = None
-        Env.hail().variant.ReferenceGenome.setDefaultReference(self._jhc, default_reference)
+        
+        ReferenceGenome._from_config(_backend.get_reference('GRCh37'), True)
+        ReferenceGenome._from_config(_backend.get_reference('GRCh38'), True)
+        ReferenceGenome._from_config(_backend.get_reference('GRCm38'), True)
+        
+        if default_reference in ReferenceGenome._references:
+            self._default_ref = ReferenceGenome._references[default_reference]
+        else:
+            self._default_ref = ReferenceGenome.read(default_reference)
 
         jar_version = self._jhc.version()
 
@@ -140,8 +150,6 @@ class HailContext(object):
 
     @property
     def default_reference(self):
-        if not self._default_ref:
-            self._default_ref = ReferenceGenome._from_java(Env.hail().variant.ReferenceGenome.defaultReference())
         return self._default_ref
 
     def stop(self):
@@ -168,7 +176,7 @@ class HailContext(object):
            min_block_size=int,
            branching_factor=int,
            tmp_dir=str,
-           default_reference=enumeration('GRCh37', 'GRCh38'),
+           default_reference=enumeration('GRCh37', 'GRCh38', 'GRCm38'),
            idempotent=bool,
            global_seed=nullable(int),
            _backend=nullable(Backend))
@@ -299,9 +307,7 @@ def get_reference(name) -> 'hail.ReferenceGenome':
     if name == 'default':
         return default_reference()
     else:
-        if name in hail.ReferenceGenome._references:
-            return hail.ReferenceGenome._references[name]
-        return hail.ReferenceGenome._from_java(Env.hail().variant.ReferenceGenome.getReference(name))
+        return ReferenceGenome._references[name]
 
 
 @typecheck(seed=int)
@@ -312,10 +318,6 @@ def set_global_seed(seed):
     ----------
     seed : :obj:`int`
         Integer used to seed Hail's random number generator
-
-    Returns
-    -------
-    :class:`.ReferenceGenome`
     """
 
     Env.set_seed(seed)

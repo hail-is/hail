@@ -12,7 +12,7 @@ object IntervalList {
 
   val intervalRegex = """([^:]*)[:\t](\d+)[\-\t](\d+)""".r
 
-  def read(hc: HailContext, filename: String, rg: Option[ReferenceGenome] = Some(ReferenceGenome.defaultReference),
+  def read(hc: HailContext, filename: String, rg: Option[ReferenceGenome],
     skipInvalidIntervals: Boolean = false): Table = {
 
     val hasValue = hc.hadoopConf.readLines(filename) {

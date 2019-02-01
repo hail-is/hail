@@ -21,6 +21,7 @@ object InferType {
       case Ref(_, t) => t
       case In(_, t) => t
       case MakeArray(_, t) => t
+      case MakeNDArray(data, _, _) => TNDArray(data.typ.asInstanceOf[TArray].elementType)
       case _: ArrayLen => TInt32()
       case _: ArrayRange => TArray(TInt32())
       case _: LowerBoundOnOrderedCollection => TInt32()
@@ -111,7 +112,10 @@ object InferType {
       case InsertFields(old, fields, fieldOrder) =>
         val tbs = coerce[TStruct](old.typ)
         val s = tbs.insertFields(fields.map(f => (f._1, f._2.typ)))
-        fieldOrder.map(fds => TStruct(fds.map(f => f -> s.fieldType(f)): _*)).getOrElse(s)
+        fieldOrder.map { fds =>
+          assert(fds.length == s.size)
+          TStruct(fds.map(f => f -> s.fieldType(f)): _*)
+        }.getOrElse(s)
       case GetField(o, name) =>
         val t = coerce[TStruct](o.typ)
         if (t.index(name).isEmpty)
@@ -133,6 +137,7 @@ object InferType {
       case _: TableWrite => TVoid
       case _: MatrixWrite => TVoid
       case _: MatrixMultiWrite => TVoid
+      case _: BlockMatrixWrite => TVoid
       case _: TableExport => TVoid
       case TableGetGlobals(child) => child.typ.globalType
       case TableCollect(child) => TStruct("rows" -> TArray(child.typ.rowType), "global" -> child.typ.globalType)
