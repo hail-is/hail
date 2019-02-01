@@ -33,12 +33,15 @@ build/images/%/_PUSHED_LATEST_TAG: build/images/%/_BUILT
 $(IMAGE_SHORT_NAMES): %: build/images/%/_BUILT
 
 notebook-worker-images: $(PUSHED)
+	echo $^
+	echo $@
 	cat $^ > $@
 
 build: $(BUILT) notebook-worker-images
+
 ifeq ($(CI_BUILD),true)
-	-docker pull gcr.io/${PROJECT}/notebook:latest
-	docker build . -t notebook --cache-from=gcr.io/${PROJECT}/notebook:latest
+	-docker pull gcr.io/${PROJECT}/$*:latest
+	docker build . -t notebook --cache-from=gcr.io/${PROJECT}/$*:latest
 else
 	docker build . -t notebook
 endif
