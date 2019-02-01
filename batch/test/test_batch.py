@@ -38,7 +38,7 @@ class Test(unittest.TestCase):
 
     def test_batch_ttl(self):
         b = self.batch.create_batch(ttl=1)
-        t = 4
+        t = 1
         while b.status()['is_open']:
             if t > 64:
                 assert False, "took more than 128 seconds to close a batch with ttl 1"
