@@ -409,7 +409,11 @@ class Batch:
             ).start()
 
     def close(self):
-        self.is_open = False
+        if self.is_open:
+            log.info(f'closing batch {self.id}, ttl was {self.ttl}')
+            self.is_open = False
+        else:
+            log.info(f're-closing batch {self.id}, ttl was {self.ttl}')
 
     def to_json(self):
         state_count = Counter([j._state for j in self.jobs])
