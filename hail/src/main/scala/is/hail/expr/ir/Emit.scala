@@ -700,10 +700,6 @@ private class Emit(
               const(false),
               Code._empty)
 
-          case AggElements() =>
-            // InitOps are executed as part of the AggElementsLengthCheck AggOp
-            EmitTriplet(Code._empty, const(false), Code._empty)
-
           case AggElementsLengthCheck() =>
             val newRVAs = Code.checkcast[ArrayElementsAggregator]((rvas.get)(codeI.value[Int])).invoke[Array[RegionValueAggregator]]("rvAggs")
             val init = emit(args(0), rvas = Some(newRVAs))
@@ -804,12 +800,11 @@ private class Emit(
               // idx never missing, don't need to check
             val seqOp = emit(args(1), rvas = Some(Code.checkcast[ArrayElementsAggregator]((rvas.get).apply(codeI.value[Int]))
               .invoke[Array[Array[RegionValueAggregator]]]("a")
-              .apply(coerce[Int](idx.v))))
+              .apply(coerce[Int](idx.m.mux(Code._fatal("assertion failed: idx was missing"), idx.v)))))
 
             EmitTriplet(Code(
               idx.setup,
-              seqOp.setup,
-              coerce[Unit](seqOp.v)
+              seqOp.setup
             ),const(false),
               Code._empty)
 

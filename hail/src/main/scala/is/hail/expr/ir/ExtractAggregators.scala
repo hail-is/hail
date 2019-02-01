@@ -98,8 +98,8 @@ object ExtractAggregators {
         val rt = TArray(TTuple(nestedAggs.map(_.rt): _*))
         newRef._typ = -rt.elementType
 
-        val aggSigCheck = AggSignature(AggElementsLengthCheck(), Seq(), Some(Seq(TVoid)), Seq(TInt32(), TVoid))
-        val aggSig = AggSignature(AggElements(), Seq(), Some(Seq()), Seq(TInt32(), TVoid))
+        val aggSigCheck = AggSignature(AggElementsLengthCheck(), Seq(), Some(Seq(TVoid)), Seq(TInt32()))
+        val aggSig = AggSignature(AggElements(), Seq(), None, Seq(TInt32(), TVoid))
 
         val aUID = genUID()
         val iUID = genUID()
@@ -109,22 +109,21 @@ object ExtractAggregators {
         ab += IRAgg(i, agg, rt)
         ab2 += AggOps(
           Some(InitOp(i, FastIndexedSeq(Begin(initOp.flatten.toFastIndexedSeq)), aggSigCheck)),
-          Begin(FastIndexedSeq(
-            Let(
-              aUID,
-              a,
-              Begin(FastIndexedSeq(
-                SeqOp(I32(i), FastIndexedSeq(ArrayLen(Ref(aUID, a.typ))), AggSignature(AggElementsLengthCheck(), Seq(), None, FastIndexedSeq(TInt32()))),
-                ArrayFor(
-                  ArrayRange(I32(0), ArrayLen(Ref(aUID, a.typ)), I32(1)),
-                  iUID,
-                  Let(
-                    name,
-                    ArrayRef(Ref(aUID, a.typ), Ref(iUID, TInt32())),
-                    SeqOp(
-                      I32(i),
-                      FastIndexedSeq(Ref(iUID, TInt32()), Begin(seqOp.toFastIndexedSeq)),
-                      aggSig)))))))))
+          Let(
+            aUID,
+            a,
+            Begin(FastIndexedSeq(
+              SeqOp(I32(i), FastIndexedSeq(ArrayLen(Ref(aUID, a.typ))), aggSigCheck),
+              ArrayFor(
+                ArrayRange(I32(0), ArrayLen(Ref(aUID, a.typ)), I32(1)),
+                iUID,
+                Let(
+                  name,
+                  ArrayRef(Ref(aUID, a.typ), Ref(iUID, TInt32())),
+                  SeqOp(
+                    I32(i),
+                    FastIndexedSeq(Ref(iUID, TInt32()), Begin(seqOp.toFastIndexedSeq)),
+                    aggSig)))))))
         ArrayMap(GetTupleElement(result, i), newRef.name, transformed)
       case x: ArrayAgg => x
       case _ => MapIR(extract)(ir)

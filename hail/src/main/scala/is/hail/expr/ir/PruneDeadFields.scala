@@ -781,7 +781,7 @@ object PruneDeadFields {
       case AggArrayPerElement(a, name, aggBody) =>
         val aType = a.typ.asInstanceOf[TArray]
         val bodyDep = memoizeValueIR(aggBody,
-          requestedType,
+          requestedType.asInstanceOf[TArray].elementType,
           memo)
         val valueType = bodyDep.lookupOption(name).map(_._2).getOrElse(minimal(-aType.elementType))
         unifyEnvs(

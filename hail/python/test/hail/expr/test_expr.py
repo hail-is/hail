@@ -373,12 +373,6 @@ class Tests(unittest.TestCase):
         r2 = ht.aggregate(hl.agg.array_agg(lambda x: hl.agg.filter(x == 5, hl.agg.sum(x)), ht.a))
         assert r2 == [5]
 
-    def test_agg_array_explode_rev(self):
-        ht = hl.utils.range_table(10)
-        ht = ht.annotate(a=[hl.range(0, ht.idx), hl.range(0, ht.idx // 2)])
-        r = ht.aggregate(hl.agg.array_agg(lambda x: hl.agg.explode(lambda elt: hl.agg.sum(elt), x), ht.a))
-        assert r == [120, 20]
-
     def test_agg_array_group_by(self):
         ht = hl.utils.range_table(10)
         ht = ht.annotate(a=[ht.idx, ht.idx + 1])
@@ -399,6 +393,13 @@ class Tests(unittest.TestCase):
             lambda x1: hl.agg.array_agg(
                 lambda x2: hl.agg.array_agg(
                     lambda x3: hl.agg.sum(x3), x2), x1), ht.a)) == [[[45]]]
+
+
+    def test_agg_array_init_op(self):
+        ht = hl.utils.range_table(1).annotate_globals(n_alleles = ['A', 'T']).annotate(gts = [hl.call(0, 1), hl.call(1, 1)])
+        r = ht.aggregate(hl.agg.array_agg(lambda a: hl.agg.call_stats(a, ht.n_alleles), ht.gts))
+        assert r == [hl.utils.Struct(AC=[1, 1], AF=[0.5, 0.5], AN=2, homozygote_count=[0, 0]),
+                     hl.utils.Struct(AC=[0, 2], AF=[0.0, 1.0], AN=2, homozygote_count=[0, 1])]
 
     def test_agg_explode(self):
         t = hl.utils.range_table(10)
