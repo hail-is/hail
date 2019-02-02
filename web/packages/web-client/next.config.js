@@ -17,7 +17,9 @@ const publicRuntimeConfig = {
     AUDIENCE: process.env.AUTH0_AUDIENCE
   },
   SCORECARD: {
-    DOMAIN: process.env.SCORECARD_DOMAIN,
+    WEB_DOMAIN: process.env.SCORECARD_WEB_DOMAIN,
+    SERVER_DOMAIN:
+      process.env.SCORECARD_SERVER_DOMAIN || process.env.SCORECARD_WEB_DOMAIN,
     USERS: process.env.SCORECARD_USERS
       ? process.env.SCORECARD_USERS.split(',')
       : []

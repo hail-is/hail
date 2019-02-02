@@ -26,6 +26,7 @@ declare type props = {
 declare type state = {
   unauthorized: boolean;
   notebooks: notebooks;
+  alive: notebook[];
   loading: number; //-1, 0, 1: failed, not, loading
 };
 
@@ -45,6 +46,9 @@ declare type kubeWebsocketUpdate = {
   resource: notebook;
 };
 
+const getAlive = (nbs: notebooks) =>
+  Object.values(nbs).filter((d: notebook) => d.svc_status != kubeState.Deleted);
+
 // TODO: decide whether we want to show only notebooks whose svc and pod status
 // TODO: check that there are no side-effects for mutating this.state.notebooks
 // are both Running
@@ -55,7 +59,8 @@ class Notebook extends PureComponent<props, state> {
   state: state = {
     loading: 0,
     unauthorized: false,
-    notebooks: {}
+    notebooks: {},
+    alive: []
   };
 
   static async getInitialProps() {
@@ -85,11 +90,11 @@ class Notebook extends PureComponent<props, state> {
     super(props);
 
     this.state.notebooks = props.pageProps.notebooks;
+    this.state.alive = getAlive(props.pageProps.notebooks);
   }
 
   componentDidMount() {
     const name = DOMAIN.replace(/http/, 'ws'); //automatically wss if https
-
     const ws = new WebSocket(`${name}/api/ws?access_token=${auth.accessToken}`);
 
     ws.onmessage = ev => {
@@ -106,7 +111,7 @@ class Notebook extends PureComponent<props, state> {
         this.setState((p: state) => {
           const notebooks = Object.assign({}, p.notebooks);
           notebooks[updated.pod_name] = updated;
-          return { notebooks };
+          return { notebooks, alive: getAlive(notebooks) };
         });
 
         return;
@@ -121,7 +126,7 @@ class Notebook extends PureComponent<props, state> {
       this.setState((p: state) => {
         const notebooks = Object.assign({}, p.notebooks);
         delete notebooks[updated.pod_name];
-        return { notebooks };
+        return { notebooks, alive: getAlive(notebooks) };
       });
     };
   }
@@ -151,6 +156,7 @@ class Notebook extends PureComponent<props, state> {
         notebooks[notebook.pod_name] = notebook;
         return {
           notebooks,
+          alive: getAlive(notebooks),
           loading: 0
         };
       });
@@ -190,7 +196,7 @@ class Notebook extends PureComponent<props, state> {
       const notebooks = Object.assign({}, p.notebooks);
 
       delete notebooks[n.pod_name];
-      return { notebooks, loading: 0 };
+      return { notebooks, alive: getAlive(notebooks), loading: 0 };
     });
   };
 
@@ -203,7 +209,7 @@ class Notebook extends PureComponent<props, state> {
           ) : (
             <span>Loading...</span>
           )
-        ) : !Object.keys(this.state.notebooks).length ? (
+        ) : !this.state.alive.length ? (
           <button onClick={this.createNotebook}>Create</button>
         ) : (
           <div
@@ -213,55 +219,61 @@ class Notebook extends PureComponent<props, state> {
               cursor: 'pointer'
             }}
           >
-            {Object.values(this.state.notebooks).map(
-              (d: notebook) =>
-                // Kubernetes is far too noisy, this prevents us from seeing pods that
-                // are unreachable (since back-end/service is missing)
-                d.svc_status !== kubeState.Deleted && (
-                  <span
-                    key={d.pod_name}
-                    style={{
-                      flexDirection: 'row',
-                      display: 'flex',
-                      alignItems: 'center',
-                      marginBottom: '14px',
-                      justifyContent: 'space-between',
-                      minWidth: '33vw'
-                    }}
+            {this.state.alive.map((d: notebook) => (
+              // Kubernetes is far too noisy, this prevents us from seeing pods that
+              // are unreachable (since back-end/service is missing)
+              <span
+                key={d.pod_name}
+                style={{
+                  flexDirection: 'row',
+                  display: 'flex',
+                  alignItems: 'center',
+                  marginBottom: '14px',
+                  justifyContent: 'space-around',
+                  minWidth: '320px'
+                }}
+              >
+                {d.svc_status === kubeState.Running &&
+                d.pod_status === kubeState.Running ? (
+                  <i
+                    style={{ color: '#428bca', marginRight: '14px' }}
+                    className="material-icons"
                   >
-                    <a
-                      style={{ flexDirection: 'column', display: 'flex' }}
-                      href={`${DOMAIN}/instance/${d.svc_name}/?authorization=${
-                        auth.accessToken
-                      }&token=${d.token}`}
-                    >
-                      <b>{d.name}</b>
-                      <span className="small">
-                        Service Name: <b>{d.svc_name}</b>
-                      </span>
-                      <span className="small">
-                        Pod Name: <b>{d.pod_name}</b>
-                      </span>
-                      <span className="small">
-                        Service: <b>{d.svc_status}</b>
-                      </span>
-                      <span className="small">
-                        Pod: <b>{d.pod_status}</b>
-                      </span>
-                      <span className="small">
-                        Created on: {d.creation_date}
-                      </span>
-                    </a>
-                    <i
-                      className="material-icons link-button"
-                      style={{ marginLeft: '14px' }}
-                      onClick={() => this.deleteNotebook(d)}
-                    >
-                      close
-                    </i>
+                    done
+                  </i>
+                ) : (
+                  <div className="spinner" style={{ marginRight: '14px' }} />
+                )}
+                <a
+                  style={{ flexDirection: 'column', display: 'flex' }}
+                  href={`${DOMAIN}/instance/${d.svc_name}/?authorization=${
+                    auth.accessToken
+                  }&token=${d.token}`}
+                >
+                  <b>{d.name}</b>
+                  <span className="small">
+                    Service Name: <b>{d.svc_name}</b>
                   </span>
-                )
-            )}
+                  <span className="small">
+                    Pod Name: <b>{d.pod_name}</b>
+                  </span>
+                  <span className="small">
+                    Service: <b>{d.svc_status}</b>
+                  </span>
+                  <span className="small">
+                    Pod: <b>{d.pod_status}</b>
+                  </span>
+                  <span className="small">Created on: {d.creation_date}</span>
+                </a>
+                <i
+                  className="material-icons link-button"
+                  style={{ marginLeft: '56px' }}
+                  onClick={() => this.deleteNotebook(d)}
+                >
+                  close
+                </i>
+              </span>
+            ))}
           </div>
         )}
       </div>

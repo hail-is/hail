@@ -4,19 +4,22 @@ import getConfig from 'next/config';
 import Link from 'next/link';
 import { PR, Issue } from './scorecard/scorecard';
 
+import '../styles/pages/scorecard.scss';
+
 const config = getConfig().publicRuntimeConfig.SCORECARD;
-const DOMAIN: string = config.DOMAIN;
+
+// We separate these because in some environments (i.e kubernetes)
+// there may be an internal DNS we can take advantage of
+const WEB_DOMAIN: string = config.WEB_DOMAIN;
+const SERVER_DOMAIN: string = config.SERVER_DOMAIN;
 const USERS: string[] = config.USERS;
 
-if (!(USERS && DOMAIN)) {
+if (!(USERS && WEB_DOMAIN && SERVER_DOMAIN)) {
   throw new Error('Scorecard USERS and DOMAIN env variables required found');
 }
 
-const jsonURL = `${DOMAIN}/json`;
-
-import '../styles/pages/scorecard.scss';
-// TODO: This kind of thing is maybe better represented using GraphQL
-// buys use schema introspection and validation
+// TODO: This may be better represented using GraphQL
+// buys us schema introspection and validation
 // Typescript gives us only compile-time guarantees on the client
 
 declare type scorecardJson = {
@@ -65,7 +68,7 @@ const startPolling = (ms: number = 1 * 60 * 1000) => {
   }
 
   timeout = setInterval(() => {
-    fetch(jsonURL)
+    fetch(`${WEB_DOMAIN}/json`)
       .then(d => d.json())
       .then(data => {
         cache = data;
@@ -85,11 +88,17 @@ class Scorecard extends PureComponent<Props, State> {
   static async getInitialProps() {
     const user = Scorecard.refreshUser();
 
-    if (typeof window === 'undefined' || !cache) {
-      const ssr: scorecardJson = await fetch(jsonURL).then(d => d.json());
+    // TODO: have a single utility function, that checks this once at startup
+    // in each phase
+    const onServer = typeof window === 'undefined';
+
+    if (onServer || !cache) {
+      const ssr: scorecardJson = await fetch(
+        `${onServer ? SERVER_DOMAIN : WEB_DOMAIN}/json`
+      ).then(d => d.json());
 
       // TODO: could use page loading indicator here instead of synchronously waiting
-      if (typeof window !== 'undefined') {
+      if (!onServer) {
         cache = ssr;
         startPolling();
       }
