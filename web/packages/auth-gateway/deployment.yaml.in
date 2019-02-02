@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-gateway-deployment
+  labels:
+    app: auth-gateway
+spec:
+  selector:
+    matchLabels:
+      app: auth-gateway
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: auth-gateway
+    spec:
+      serviceAccountName: hail-web
+      containers:
+        - name: auth-gateway
+          image: @image@
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - secretRef: 
+                name: @secrets@
+          command: ["npx", "nodemon"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth-gateway
+  labels:
+    app: auth-gateway
+spec:
+  ports:
+    - port: 80
+      protocol: TCP
+      targetPort: 8000
+  selector:
+    app: auth-gateway
