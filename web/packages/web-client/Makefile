@@ -1,24 +1,26 @@
 .PHONY: all build push deploy transform
 
 PROJECT = $(shell gcloud config get-value project)
-WEB_LOCAL=hail-web
-WEB_TAG=gcr.io/$(PROJECT)/web:$(WEB_LOCAL)
-
-WEB_SECRETS=hail-web-secrets
+LOCAL=hail-web
+TAG=gcr.io/$(PROJECT)/web:$(LOCAL)
+SHA = $(shell git rev-parse HEAD)
+SECRETS = hail-web-secrets
 
 build:
-		-kubectl delete secret $(WEB_SECRETS)
-		kubectl create secret generic $(WEB_SECRETS) --from-env-file=.env
-		docker build -t $(WEB_LOCAL) ./ --no-cache
+		-kubectl delete secret $(SECRETS)
+		kubectl create secret generic $(SECRETS) --from-env-file=.env
+		docker build -t $(LOCAL) ./ --no-cache
 
 push:
-	docker tag $(WEB_LOCAL) $(WEB_TAG)
-	docker push $(WEB_TAG)
+	docker tag $(LOCAL) $(TAG)
+	docker push $(TAG)
+
 
 transform:
 	cat deployment.yaml.in \
-	| sed -e "s,@image@,${WEB_TAG}," \
-	| sed -e "s,@secrets@,${WEB_SECRETS}," > deployment.yaml
+	| sed -e "s,@image@,${TAG}," \
+	| sed -e "s,@secrets@,${SECRETS}," \
+	| sed -e "s,@sha@,${SHA}," > deployment.yaml
 
 deploy:
 	kubectl -n default apply -f deployment.yaml

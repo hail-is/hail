@@ -4,6 +4,7 @@ metadata:
   name: web-deployment
   labels:
     app: web
+    hail.is/sha: "@sha@"
 spec:
   selector:
     matchLabels:
@@ -13,6 +14,7 @@ spec:
     metadata:
       labels:
         app: web
+        hail.is/sha: "@sha@"
     spec:
       serviceAccountName: hail-web
       containers:
@@ -31,6 +33,7 @@ metadata:
   name: web
   labels:
     app: web
+    hail.is/sha: "@sha@"
 spec:
   ports:
     - port: 80
