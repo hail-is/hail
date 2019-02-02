@@ -3,7 +3,8 @@ A Jupyter notebook service with local-mode Hail pre-installed
 """
 import gevent
 # must happen before anytyhing else
-from gevent import monkey
+from gevent import monkey, pywsgi
+from geventwebsocket.handler import WebSocketHandler
 monkey.patch_all()
 
 import requests
@@ -45,6 +46,11 @@ if 'BATCH_USE_KUBE_CONFIG' in os.environ:
     kube.config.load_kube_config()
 else:
     kube.config.load_incluster_config()
+
+# Prevent issues with many websockets leading to many kube connections
+# TODO: tune this
+# TODO: probably remove once asynchttp used, re-use one connection, watch all pods, yield if no websockets in global for user
+kube.config.connection_pool_maxsize = 5000
 k8s = kube.client.CoreV1Api()
 
 app = Flask(__name__)
@@ -268,9 +274,6 @@ def forbidden():
 @sockets.route('/api/ws')
 def echo_socket(ws):
     user_id = ws.environ['HTTP_USER']  # and scope is ws.environ['HTTP_SCOPE']
-
-    k8s = kube.client.CoreV1Api()
-
     w = kube.watch.Watch()
 
     for event in w.stream(k8s.list_namespaced_pod, namespace='default', watch=False,
@@ -279,6 +282,8 @@ def echo_socket(ws):
         # This won't prevent socket is dead errors, presumably something related to
         # greenlet socket handling and our inability to add an on_closed callback to end watch
         if ws.closed:
+            log.info("Websocket closed")
+            w.stop()
             return
 
         try:
@@ -294,12 +299,14 @@ def echo_socket(ws):
 
                 ws.send(
                     f'{{"event": "DELETED", "resource": {marshall_json([obj], pod_paths, True)}}}')
-        except Exception as e:
-            log.error(e)
-            return
 
-    while not ws.closed:
-        gevent.sleep(10)
+        except Exception as e:
+            log.info("Issue with watcher")
+            log.error(e)
+            w.stop()
+            break
+
+    ws.close()
 
 
 @app.route('/api/verify/<svc_name>/', methods=['GET'])
@@ -415,8 +422,7 @@ def new_notebook():
 
 
 if __name__ == '__main__':
-    from gevent import pywsgi
-    from geventwebsocket.handler import WebSocketHandler
+
     server = pywsgi.WSGIServer(
         ('', 5000), app, handler_class=WebSocketHandler, log=log)
 
