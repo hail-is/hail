@@ -3067,6 +3067,12 @@ class MatrixTable(ExprContainer):
                     raise ValueError(error_msg.format(
                         "col key types", 0, first.col_key.dtype, i+1, next.col_key.dtype
                     ))
+            wrong_keys = hl.eval(hl.rbind(first.col_key.collect(_localize=False), lambda first_keys: (
+                hl.zip_with_index([mt.col_key.collect(_localize=False) for mt in datasets[1:]])
+                    .find(lambda x: ~(x[1] == first_keys))[0])))
+            if wrong_keys is not None:
+                raise ValueError("'MatrixTable.union_rows' expects all datasets to have the same columns. " +
+                                 "Datasets 0 and {} have different columns (or possibly different order).".format(wrong_keys+1))
             return MatrixTable(MatrixUnionRows(*[d._mir for d in datasets]))
 
     @typecheck_method(other=matrix_table_type)

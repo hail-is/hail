@@ -1194,6 +1194,20 @@ object PruneDeadFields {
           val uid = genUID()
           val ref = Ref(uid, -ta.elementType)
           ArrayMap(ir, uid, upcast(ref, ra.elementType))
+        case tt: TTuple =>
+          val rt = rType.asInstanceOf[TTuple]
+          val uid = genUID()
+          val ref = Ref(uid, ir.typ)
+          val mt = MakeTuple(rt.types.zipWithIndex.map { case (typ, i) =>
+              upcast(GetTupleElement(ref, i), typ)
+          })
+          Let(uid, ir, mt)
+        case td: TDict =>
+          val rd = rType.asInstanceOf[TDict]
+          ToDict(upcast(ToArray(ir), TArray(rd.elementType)))
+        case ts: TSet =>
+          val rs = rType.asInstanceOf[TSet]
+          ToSet(upcast(ToArray(ir), TSet(rs.elementType)))
         case t => ir
       }
     }

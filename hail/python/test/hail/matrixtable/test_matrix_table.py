@@ -370,6 +370,9 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(r1._same(r2))
 
+        with self.assertRaises(ValueError):
+            ds1.filter_cols(ds1.s.endswith('5')).union_rows(ds2)
+
         # test union_cols
         ds = dataset.union_cols(dataset).union_cols(dataset)
         for s, count in ds.aggregate_cols(agg.counter(ds.s)).items():
