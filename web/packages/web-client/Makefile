@@ -1,17 +1,18 @@
 .PHONY: all build push deploy transform
 
 PROJECT = $(shell gcloud config get-value project)
-LOCAL=hail-web
-TAG=gcr.io/$(PROJECT)/web:$(LOCAL)
+LOCAL = hail-web
+TAG = gcr.io/$(PROJECT)/hail-web:$(shell docker images -q --no-trunc ${LOCAL} | awk -F':' '{print $$2}')
 SHA = $(shell git rev-parse HEAD)
 SECRETS = hail-web-secrets
 
 build:
 		-kubectl delete secret $(SECRETS)
 		kubectl create secret generic $(SECRETS) --from-env-file=.env
-		docker build -t $(LOCAL) ./ --no-cache
-
+		docker rmi --force $(LOCAL)
+		docker build --no-cache -t $(LOCAL) ./
 push:
+	docker rmi --force $(TAG)
 	docker tag $(LOCAL) $(TAG)
 	docker push $(TAG)
 
