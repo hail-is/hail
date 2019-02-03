@@ -6,7 +6,7 @@ NAME:="notebook-api"
 TAG = gcr.io/$(PROJECT)/$(NAME):$(shell docker images -q --no-trunc ${NAME} | awk -F':' '{print $$2}')
 
 build:
-	docker build -t $(NAME) ./ --no-cache
+	docker build -t $(NAME) ./
 
 push:
 	docker tag $(NAME) $(TAG)

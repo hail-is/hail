@@ -122,6 +122,7 @@ def start_pod(jupyter_token, image, labels={}):
                 command=[
                     'jupyter',
                     'notebook',
+                    "--ip", "0.0.0.0", "--no-browser",
                     f'--NotebookApp.token={jupyter_token}',
                     f'--NotebookApp.base_url=/instance/{svc.metadata.name}/'
                 ],
