@@ -8,9 +8,6 @@ spec:
   containers:
   - name: hail-jupyter
     image: @hail_jupyter_image@
-    env:
-    - name: HAIL_APISERVER_URL
-      value: http://apiserver:5000
     ports:
     - containerPort: 8888
   restartPolicy: Never
