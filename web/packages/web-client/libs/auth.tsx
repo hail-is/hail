@@ -38,6 +38,12 @@ declare type auth0payload = {
   accessToken: string;
   expiresIn: number;
   idTokenPayload: UserInterface;
+
+  // This refers to the state parameter passed to auth0
+  // Used to prevent relay attacks
+  // Currently only used for workshop password
+  // TODO: add csrf protection
+  state: string;
 };
 
 declare type stateType = {
@@ -178,6 +184,8 @@ export function login(state?: string) {
     connection: 'google-oauth2'
   };
 
+  // Used for CSRF protection, and for workshop passwords
+  // TODO: add CSRF token
   if (state) {
     opts.state = state;
   }
@@ -312,6 +320,7 @@ function _initState() {
       user: jwtDecode(idToken) as UserInterface,
       accessToken: cookies.get('accessToken'),
       expires: cookies.get('expires'),
+
       loggedOut: false
     });
 
@@ -352,6 +361,11 @@ function _loginFromAuth0(r: auth0payload) {
   cookies.set('idToken', r.idToken as string, opt);
   cookies.set('accessToken', r.accessToken as string, opt);
 
+  // This is the auth0 state, if sent during the login request
+  // We currently use this for workshop passwords
+  // TODO: it's more secure to just patch workshop pass into the user's app_metadata
+  cookies.set('state', r.state);
+
   _updateState({
     accessToken: r.accessToken,
     idToken: r.idToken,
@@ -362,9 +376,12 @@ function _loginFromAuth0(r: auth0payload) {
 }
 
 function _removeCookies() {
-  cookies.remove('idToken', { path: '/' });
-  cookies.remove('accessToken', { path: '/' });
-  cookies.remove('expires', { path: '/' });
+  const cookiePath = { path: '/' };
+
+  cookies.remove('idToken', cookiePath);
+  cookies.remove('accessToken', cookiePath);
+  cookies.remove('expires', cookiePath);
+  cookies.remove('state', cookiePath);
 }
 // Change the reference, so state can be passed by reference and
 // shallow watched
@@ -394,12 +411,14 @@ function _checkSession() {
     throw new Error('Auth library is not initialized in checkSession');
   }
 
+  const state = cookies.get('state');
+
   _checkSessionPromise = new Promise((resolve, reject) => {
     if (_state.loggedOut) {
       return resolve();
     }
 
-    _auth0.checkSession({}, (err, authResult) => {
+    _auth0.checkSession({ state }, (err, authResult) => {
       if (err) {
         return reject(err);
       }
