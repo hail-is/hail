@@ -35,6 +35,9 @@ server {
 server {
     server_name scorecard.@domain@;
 
+    gzip on;
+    gzip_types  text/plain text/html application/json;
+
     location / {
         proxy_pass http://scorecard/;
     }
@@ -162,6 +165,9 @@ server {
 server {
     server_name app.@domain@;
 
+    gzip on;
+    gzip_types  text/plain text/css text/html text/javascript application/javascript application/x-javascript text/js text/xml  application/xml application/json application/rss+xml image/svg+xml font/opentype;
+
     location / {
         proxy_pass http://web/;
     }
@@ -182,6 +188,9 @@ server {
     # Support arge URI's stemming from access tokens
     client_header_buffer_size 64k;
     large_client_header_buffers 4 64k;
+
+    gzip on;
+    gzip_types  text/plain application/json;
 
     location = /auth {
         internal;
