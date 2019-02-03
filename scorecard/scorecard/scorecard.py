@@ -3,14 +3,22 @@ import collections
 import datetime
 import os
 import sys
-from flask import Flask, render_template
-from flask_cors import CORS
 from github import Github
 import random
 import threading
 import humanize
 import logging
 import ujson
+import uvloop
+from sanic import Sanic
+from sanic.response import text,json,html
+from sanic_cors import CORS
+from jinja2 import Environment, PackageLoader, select_autoescape
+
+env = Environment(loader=PackageLoader('scorecard', 'templates/'), autoescape=select_autoescape(['html', 'xml', 'tpl']), enable_async=True)
+
+users_template = env.get_template('index.html')
+one_user_templ = env.get_template('user.html')
 
 fmt = logging.Formatter(
     # NB: no space after levename because WARNING is so long
@@ -56,44 +64,50 @@ repos = {
     'cloudtools': 'Nealelab/cloudtools'
 }
 
-app = Flask('scorecard')
+app = Sanic(__name__)
 CORS(app, resources={r'/json/*': {'origins': '*'}})
 
 data = None
+users_data = None
+rendered_users_template = None
 timsetamp = None
 
 @app.route('/')
-def index():
-    user_data, unassigned, urgent_issues, updated = get_users()
+async def index(request):
+    user_data, unassigned, urgent_issues, updated = users_data
 
     random_user = random.choice(users)
 
-    return render_template('index.html', unassigned=unassigned,
+    tmpl = await users_template.render_async( unassigned=unassigned,
                            user_data=user_data, urgent_issues=urgent_issues, random_user=random_user, updated=updated)
+    return html(tmpl)
 
 @app.route('/users/<user>')
-def html_get_user(user):
+async def html_get_user(request, user):
     user_data, updated = get_user(user)
-    return render_template('user.html', user=user, user_data=user_data, updated=updated)
+
+    tmpl = await one_user_templ.render_async(user=user, user_data=user_data, updated=updated)
+    return html(tmpl)
 
 @app.route('/json')
-def json_all_users():
-    user_data, unassigned, urgent_issues, updated = get_users()
+async def json_all_users(request):
+    user_data, unassigned, urgent_issues, updated = users_data
 
     for issue in urgent_issues:
         issue['timedelta'] = humanize.naturaltime(issue['timedelta'])
 
-    return ujson.dumps({"updated": updated, "user_data": user_data, "unassigned": unassigned, "urgent_issues":urgent_issues}), 200
+    return json({"updated": updated, "user_data": user_data, "unassigned": unassigned, "urgent_issues":urgent_issues})
 
 @app.route('/json/users/<user>')
-def json_user(user):
+async def json_user(request,user):
     user_data, updated = get_user(user)
-    return ujson.dumps({"updated": updated, "user_data": user_data}), 200
+    return json({"updated": updated, "user_data": user_data})
 
 @app.route('/json/random')
-def json_random_user():
-    return random.choice(users), 200
+async def json_random_user(request):
+    return text(random.choice(users))
 
+# Lets cache this; we now call this only during update
 def get_users():
     cur_data = data
     cur_timestamp = timestamp
@@ -237,7 +251,7 @@ def get_issue_data(repo_name, issue):
     }
 
 def update_data():
-    global data, timestamp
+    global data, timestamp, users_data, users_template
 
     log.info(f'rate_limit {github.get_rate_limit()}')
     log.info('start updating_data')
@@ -269,6 +283,10 @@ def update_data():
 
     data = new_data
     timestamp = now
+
+    # Takes reference, so don't mutate data
+    # user_data, unassigned, urgent_issues, updated = users_data
+    users_data = get_users()
 
 def poll():
     while True:
@@ -302,4 +320,4 @@ poll_thread = threading.Thread(target=run_forever, args=(poll,), daemon=True)
 poll_thread.start()
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0')
+    app.run(host='0.0.0.0', port=5000)

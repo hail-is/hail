@@ -1,10 +1,12 @@
 name: scorecard
 dependencies:
 - python=3.7
-- flask
-- flask-cors
 - humanize
 - pip
 - ujson
+- jinja2
 - pip:
     - PyGithub
+    - sanic
+    - sanic-cors
+    - uvloop
