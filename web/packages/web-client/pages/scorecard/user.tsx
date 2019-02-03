@@ -5,7 +5,7 @@ import fetch from 'isomorphic-unfetch';
 import '../../styles/pages/scorecard/user.scss';
 
 declare type response = {
-  data: {
+  user_data: {
     CHANGES_REQUESTED: PR[];
     NEEDS_REVIEW: PR[];
     FAILING: any[];
@@ -94,7 +94,7 @@ class User extends PureComponent<pageProps> {
 
     return {
       pageProps: {
-        data: res.data,
+        user_data: res.user_data,
         updated: res.updated,
         name: query.name
       }
@@ -107,7 +107,7 @@ class User extends PureComponent<pageProps> {
 
   render() {
     const {
-      data: { CHANGES_REQUESTED, NEEDS_REVIEW, FAILING, ISSUES },
+      user_data: { CHANGES_REQUESTED, NEEDS_REVIEW, FAILING, ISSUES },
       updated,
       name
     } = this.props.pageProps;
