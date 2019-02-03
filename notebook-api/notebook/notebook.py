@@ -268,7 +268,7 @@ pod_paths_post = [
 
 
 def forbidden():
-    return 'Forbidden', 40
+    return 'Forbidden', 404
 
 
 @sockets.route('/api/ws')
@@ -389,7 +389,7 @@ def delete_notebook(svc_name):
         return '', 200
 
     except kube.client.rest.ApiException as e:
-        # TODO: enable this; front-end lightweight library makes it difficult to recover from trivial errors
+        # TODO: enable this; front-end lightweight fetch library makes it difficult to recover from trivial errors
         # There must be a nicer way to read http error code from kubernetes
         # return '', str(e)[1:4]
         return '', 200
