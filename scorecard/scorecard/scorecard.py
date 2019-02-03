@@ -3,13 +3,14 @@ import collections
 import datetime
 import os
 import sys
-from flask import Flask, render_template, request, jsonify, abort, url_for
+from flask import Flask, render_template
 from flask_cors import CORS
 from github import Github
 import random
 import threading
 import humanize
 import logging
+import ujson
 
 fmt = logging.Formatter(
     # NB: no space after levename because WARNING is so long
@@ -82,16 +83,16 @@ def json_all_users():
     for issue in urgent_issues:
         issue['timedelta'] = humanize.naturaltime(issue['timedelta'])
 
-    return jsonify(updated=updated, user_data=user_data, unassigned=unassigned, urgent_issues=urgent_issues)
+    return ujson.dumps({"updated": updated, "user_data": user_data, "unassigned": unassigned, "urgent_issues":urgent_issues}), 200
 
 @app.route('/json/users/<user>')
 def json_user(user):
     user_data, updated = get_user(user)
-    return jsonify(updated=updated, data=user_data)
+    return ujson.dumps({"updated": updated, "user_data": user_data}), 200
 
 @app.route('/json/random')
 def json_random_user():
-    return jsonify(random.choice(users))
+    return random.choice(users), 200
 
 def get_users():
     cur_data = data
