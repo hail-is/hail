@@ -8,6 +8,7 @@ import random
 import threading
 import humanize
 import logging
+import ujson # included by Sanic
 from sanic import Sanic
 from sanic.response import text,json,html
 from sanic_cors import CORS
@@ -67,6 +68,7 @@ CORS(app, resources={r'/json/*': {'origins': '*'}})
 
 data = None
 users_data = None
+users_json = None
 rendered_users_template = None
 timsetamp = None
 
@@ -94,7 +96,7 @@ async def json_all_users(request):
     for issue in urgent_issues:
         issue['timedelta'] = humanize.naturaltime(issue['timedelta'])
 
-    return json({"updated": updated, "user_data": user_data, "unassigned": unassigned, "urgent_issues":urgent_issues})
+    return text(users_json)
 
 @app.route('/json/users/<user>')
 async def json_user(request,user):
@@ -249,7 +251,7 @@ def get_issue_data(repo_name, issue):
     }
 
 def update_data():
-    global data, timestamp, users_data, users_template
+    global data, timestamp, users_data, users_json
 
     log.info(f'rate_limit {github.get_rate_limit()}')
     log.info('start updating_data')
@@ -285,6 +287,7 @@ def update_data():
     # Takes reference, so don't mutate data
     # user_data, unassigned, urgent_issues, updated = users_data
     users_data = get_users()
+    users_json = ujson.dumps({"user_data": users_data[0], "unassigned": users_data[1], "urgent_issues": users_data[2], "updated": users_data[3]})
 
 def poll():
     while True:
