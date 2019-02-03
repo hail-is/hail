@@ -10,7 +10,7 @@ build:
 		-kubectl delete secret $(SECRETS)
 		kubectl create secret generic $(SECRETS) --from-env-file=.env
 		docker rmi --force $(LOCAL)
-		docker build --no-cache -t $(LOCAL) ./
+		docker build -t $(LOCAL) ./
 push:
 	docker rmi --force $(TAG)
 	docker tag $(LOCAL) $(TAG)

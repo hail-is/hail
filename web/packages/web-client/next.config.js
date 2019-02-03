@@ -25,7 +25,8 @@ const publicRuntimeConfig = {
       : []
   },
   NOTEBOOK: {
-    DOMAIN: process.env.NOTEBOOK_DOMAIN
+    DOMAIN: process.env.NOTEBOOK_DOMAIN,
+    IMAGE: process.env.NOTEBOOK_IMAGE
   }
 };
 

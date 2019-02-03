@@ -3,7 +3,8 @@ import auth from '../libs/auth';
 import fetch from 'isomorphic-unfetch';
 import getConfig from 'next/config';
 
-const DOMAIN = getConfig().publicRuntimeConfig.NOTEBOOK.DOMAIN;
+const cfg = getConfig().publicRuntimeConfig.NOTEBOOK;
+const DOMAIN = cfg.DOMAIN;
 
 declare type notebook = {
   svc_name: string;
@@ -134,16 +135,12 @@ class Notebook extends PureComponent<props, state> {
   createNotebook = async () => {
     this.setState({ loading: 1 });
 
-    const formData = new FormData();
-    formData.append('image', 'hail-jupyter');
-
     try {
       const notebook: notebook = await fetch(`${DOMAIN}/api`, {
         headers: {
           Authorization: `Bearer ${auth.accessToken}`
         },
-        method: 'POST',
-        body: formData
+        method: 'POST'
       }).then(d => d.json());
 
       this.state.notebooks[notebook.pod_name] = notebook;
