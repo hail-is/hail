@@ -276,7 +276,7 @@ def echo_socket(ws):
     user_id = ws.environ['HTTP_USER']  # and scope is ws.environ['HTTP_SCOPE']
     w = kube.watch.Watch()
 
-    for event in w.stream(k8s.list_namespaced_pod, namespace='default', watch=False,
+    for event in w.stream(k8s.list_namespaced_pod, namespace='default',
                           label_selector=f"user_id={UNSAFE_user_id_transform(user_id)}"):
 
         # This won't prevent socket is dead errors, presumably something related to
@@ -345,8 +345,8 @@ def get_notebooks():
         return forbidden()
 
     pods = k8s.list_namespaced_pod(
-        namespace='default', watch=False,
-        label_selector=f"user_id={UNSAFE_user_id_transform(user_id)}").items
+        namespace='default',
+        label_selector=f"user_id={UNSAFE_user_id_transform(user_id)}", timeout_seconds=30).items
 
     return marshall_json(pods, pod_paths), 200
 
@@ -370,7 +370,7 @@ def delete_notebook(svc_name):
         del_svc(svc_name)
 
         pods = k8s.list_namespaced_pod(
-            namespace='default', watch=False, label_selector=f"uuid={svc.metadata.labels['uuid']}").items
+            namespace='default', label_selector=f"uuid={svc.metadata.labels['uuid']}", timeout_seconds=30).items
 
         if len(pods) == 0:
             log.error(
@@ -403,7 +403,6 @@ def new_notebook():
     user_id = request.headers.get('User')
 
     if not user_id or image not in WORKER_IMAGES:
-        print("something not in", image, WORKER_IMAGES, image in WORKER_IMAGES)
         return forbidden()
 
     # TODO: Do we want jupyter_token to be globally unique?
