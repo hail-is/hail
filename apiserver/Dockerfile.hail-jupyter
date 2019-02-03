@@ -1,3 +1,17 @@
 FROM hail-base
 
-CMD ["/bin/bash", "-c", "source activate hail; jupyter notebook --ip 0.0.0.0 --no-browser --allow-root"]
+RUN mkdir /home/jovian && \
+    mkdir /home/jovian/bin && \
+    groupadd jovian && \
+    useradd -g jovian jovian && \
+    chown -R jovian:jovian /home/jovian
+
+USER jovian
+WORKDIR /home/jovian
+ENV HOME /home/jovian
+ENV PATH "/home/jovian/bin:$PATH"
+ENV HAIL_APISERVER_URL "http://apiserver:5000"
+
+COPY jupyter /home/jovian/bin/jupyter
+
+CMD ["jupyter", "notebook", "--ip", "0.0.0.0", "--no-browser"]
