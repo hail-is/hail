@@ -2,19 +2,19 @@
 
 PROJECT = $(shell gcloud config get-value project)
 
-NOTEBOOK_SVC_NAME:="notebook-api"
-NOTEBOOK_IMAGE = gcr.io/$(PROJECT)/$(NOTEBOOK_SVC_NAME)
+NAME:="notebook-api"
+TAG = gcr.io/$(PROJECT)/$(NAME):$(shell docker images -q --no-trunc ${NAME} | awk -F':' '{print $$2}')
 
 build:
-	docker build -t $(NOTEBOOK_SVC_NAME) ./ --no-cache
+	docker build -t $(NAME) ./ --no-cache
 
 push:
-	docker tag $(NOTEBOOK_SVC_NAME) $(NOTEBOOK_IMAGE)
-	docker push $(NOTEBOOK_IMAGE)
+	docker tag $(NAME) $(TAG)
+	docker push $(TAG)
 
 transform:
 	cat deployment.yaml.in \
-	| sed -e "s,@image@,${NOTEBOOK_IMAGE}," \
+	| sed -e "s,@image@,${TAG}," \
 	| sed -e "s,@sha@,$(shell git rev-parse HEAD)," > deployment.yaml
 
 deploy:

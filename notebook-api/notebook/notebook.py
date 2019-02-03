@@ -311,7 +311,7 @@ def echo_socket(ws):
 
 @app.route('/api/verify/<svc_name>/', methods=['GET'])
 def verify(svc_name):
-    access_token = request.args.get('authorization')
+    access_token = request.args.get('access_token')
     token = request.args.get('token')
 
     if not access_token:
