@@ -8,8 +8,6 @@ import random
 import threading
 import humanize
 import logging
-import ujson
-import uvloop
 from sanic import Sanic
 from sanic.response import text,json,html
 from sanic_cors import CORS
