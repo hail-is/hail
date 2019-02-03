@@ -246,7 +246,7 @@ class Notebook extends PureComponent<props, state> {
                 )}
                 <a
                   style={{ flexDirection: 'column', display: 'flex' }}
-                  href={`${DOMAIN}/instance/${d.svc_name}/?authorization=${
+                  href={`${DOMAIN}/instance/${d.svc_name}/?access_token=${
                     auth.accessToken
                   }&token=${d.token}`}
                 >
