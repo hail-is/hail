@@ -1,4 +1,4 @@
-FROM nginx:latest
+FROM nginx:1.15-alpine
 
 RUN rm -f /etc/nginx/sites-enabled/default
 ADD @nginx_conf@ /etc/nginx/conf.d/hail.conf
