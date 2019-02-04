@@ -6,7 +6,7 @@ object RefEquality {
   def apply[T <: AnyRef](t: T): RefEquality[T] = new RefEquality[T](t)
 }
 
-class RefEquality[T <: AnyRef](val t: T) {
+class RefEquality[+T <: AnyRef](val t: T) {
   override def equals(obj: scala.Any): Boolean = obj match {
     case r: RefEquality[T] => t.eq(r.t)
     case _ => false
@@ -22,27 +22,34 @@ object Memo {
 }
 
 class Memo[T] private(val m: mutable.HashMap[RefEquality[BaseIR], T]) {
-  def bind(ir: BaseIR, t: T): Memo[T] = {
-    val re = RefEquality(ir)
-    if (m.contains(re))
-      throw new RuntimeException(s"IR already in memo: $ir")
-    m += re -> t
+  def bind(ir: BaseIR, t: T): Memo[T] = bind(RefEquality(ir), t)
+
+  def bind(ir: RefEquality[BaseIR], t: T): Memo[T] = {
+    if (m.contains(ir))
+      throw new RuntimeException(s"IR already in memo: ${ ir.t }")
+    m += ir -> t
     this
   }
 
   def contains(ir: BaseIR): Boolean = m.contains(RefEquality(ir))
 
-  def lookup(ir: BaseIR): T = m(RefEquality(ir))
+  def lookup(ir: BaseIR): T = lookup(RefEquality(ir))
+  def lookup(ir: RefEquality[BaseIR]): T = m(ir)
 
   def apply(ir: BaseIR): T = lookup(ir)
 
   def update(ir: BaseIR, t: => T): Unit = m.update(RefEquality(ir), t)
 
-  def get(ir: BaseIR): Option[T] = m.get(RefEquality(ir))
+  def get(ir: BaseIR): Option[T] = get(RefEquality(ir))
+  def get(ir: RefEquality[BaseIR]): Option[T] = m.get(ir)
 
   def getOrElse(ir: BaseIR, default: => T): T = m.getOrElse(RefEquality(ir), default)
 
   def getOrElseUpdate(ir: BaseIR, t: => T): T = m.getOrElseUpdate(RefEquality(ir), t)
 
+  def getOrElseUpdate(ir: RefEquality[BaseIR], t: => T): T = m.getOrElseUpdate(ir, t)
+
+  def delete(ir: BaseIR): Unit = delete(RefEquality(ir))
+  def delete(ir: RefEquality[BaseIR]): Unit = m -= ir
 }
 
