@@ -98,6 +98,7 @@ object InferType {
         aggBody.typ
       case AggGroupBy(key, aggIR) =>
         TDict(key.typ, aggIR.typ)
+      case AggArrayPerElement(a, name, aggBody) => TArray(aggBody.typ)
       case ApplyAggOp(_, _, _, aggSig) =>
         AggOp.getType(aggSig)
       case ApplyScanOp(_, _, _, aggSig) =>

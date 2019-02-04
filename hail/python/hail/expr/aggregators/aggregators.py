@@ -152,6 +152,30 @@ class AggFunc(object):
                               aggregation._indices,
                               aggregations)
 
+    def array_agg(self, array, f):
+        if len(array._ir.search(lambda n: isinstance(n, BaseApplyAggOp))) != 0:
+            raise ExpressionException("'{}.array_agg' does not support an already-aggregated expression as the argument to 'array'".format(self.correct_prefix()))
+        _check_agg_bindings(array, self._agg_bindings)
+
+        elt = array.dtype.element_type
+        var = Env.get_uid()
+        ref = construct_expr(Ref(var), elt, array._indices)
+        self._agg_bindings.add(var)
+        aggregated = f(ref)
+        _check_agg_bindings(aggregated, self._agg_bindings)
+        self._agg_bindings.remove(var)
+
+        if len(aggregated._ir.search(lambda n: isinstance(n, BaseApplyAggOp))) == 0:
+            raise ExpressionException("'{}.array_agg' must take mapping that contains aggregation expression.".format(self.correct_prefix()))
+
+        indices, _ = unify_all(array, aggregated)
+        aggregations = hl.utils.LinkedList(Aggregation)
+        if not self._as_scan:
+            aggregations = aggregations.push(Aggregation(array, aggregated))
+        return construct_expr(AggArrayPerElement(array._ir, var, aggregated._ir),
+                              tarray(aggregated.dtype),
+                              aggregated._indices,
+                              aggregations)
 
 _agg_func = AggFunc()
 
@@ -1391,6 +1415,47 @@ def group_by(group, agg_expr) -> DictExpression:
     """
 
     return _agg_func.group_by(group, agg_expr)
+
+
+@typecheck(f=func_spec(1, expr_any),
+           array=expr_array())
+def array_agg(f, array):
+    """Aggregate an array element-wise using a user-specified aggregation function.
+
+    Examples
+    --------
+    Start with a range table with an array of random boolean values:
+
+    >>> ht = hl.utils.range_table(100)
+    >>> ht = ht.annotate(arr = hl.range(0, 5).map(lambda _: hl.rand_bool(0.5)))
+
+    Aggregate to compute the fraction ``True`` per element:
+
+    >>> ht.aggregate(hl.agg.array_agg(lambda element: hl.agg.fraction(element), ht.arr))  # doctest: +NOTEST
+    [0.54, 0.55, 0.46, 0.52, 0.48]
+
+    Notes
+    -----
+    This function requires that all values of `array` have the same length. If
+    two values have different lengths, then an exception will be thrown.
+
+    The `f` argument should be a function taking one argument, an expression of
+    the element type of `array`, and returning an expression including
+    aggregation(s). The type of the aggregated expression returned by
+    :func:`array_agg` is an array of elements of the return type of `f`.
+
+    Parameters
+    ----------
+    f :
+        Aggregation function to apply to each element of the exploded array.
+    array : :class:`.ArrayExpression`
+        Array to aggregate.
+
+    Returns
+    -------
+    :class:`.ArrayExpression`
+    """
+    return _agg_func.array_agg(array, f)
 
 
 class ScanFunctions(object):

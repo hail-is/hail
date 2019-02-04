@@ -101,6 +101,9 @@ object Copy {
       case AggGroupBy(_, _) =>
         val IndexedSeq(key: IR, aggIR: IR) = newChildren
         AggGroupBy(key, aggIR)
+      case AggArrayPerElement(a, name, aggBody) =>
+        val IndexedSeq(newA: IR, newAggBody: IR) = newChildren
+        AggArrayPerElement(newA, name, newAggBody)
       case MakeStruct(fields) =>
         assert(fields.length == newChildren.length)
         MakeStruct(fields.zip(newChildren).map { case ((n, _), a) => (n, a.asInstanceOf[IR]) })

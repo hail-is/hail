@@ -193,6 +193,10 @@ object TypeCheck {
         check(key, env = aggEnv.get)
         check(aggIR)
         assert(x.typ == TDict(key.typ, aggIR.typ))
+      case x@AggArrayPerElement(a, name, aggBody) =>
+        check(a, env = aggEnv.get)
+        check(aggBody, env = env, aggEnv = aggEnv.map(_.bind(name -> -coerce[TArray](a.typ).elementType)))
+        assert(x.typ == TArray(aggBody.typ))
       case x@InitOp(i, args, aggSig) =>
         args.foreach(check(_))
         check(i)

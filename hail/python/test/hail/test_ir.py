@@ -65,6 +65,7 @@ class ValueIRTests(unittest.TestCase):
             ir.AggFilter(ir.TrueIR(), ir.I32(0)),
             ir.AggExplode(ir.ArrayRange(ir.I32(0), ir.I32(2), ir.I32(1)), 'x', ir.I32(0)),
             ir.AggGroupBy(ir.TrueIR(), ir.I32(0)),
+            ir.AggArrayPerElement(ir.ArrayRange(ir.I32(0), ir.I32(2), ir.I32(1)), 'x', ir.I32(0)),
             ir.ApplyAggOp('Collect', [], None, [ir.I32(0)]),
             ir.ApplyScanOp('Collect', [], None, [ir.I32(0)]),
             ir.ApplyAggOp('Histogram', [ir.F64(-5.0), ir.F64(5.0), ir.I32(100)], None, [ir.F64(-2.11)]),

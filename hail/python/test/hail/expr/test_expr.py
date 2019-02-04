@@ -326,6 +326,81 @@ class Tests(unittest.TestCase):
         for aggregation, expected in tests:
             self.assertEqual(t.aggregate(aggregation), expected)
 
+    def test_agg_array_empty(self):
+        ht = hl.utils.range_table(1).annotate(a=[0]).filter(False)
+        assert ht.aggregate(hl.agg.array_agg(lambda x: hl.agg.sum(x), ht.a)) == None
+
+    def test_agg_array_non_trivial_post_op(self):
+        ht = hl.utils.range_table(10)
+        ht = ht.annotate(a=[ht.idx, 2 * ht.idx])
+        assert ht.aggregate(hl.agg.array_agg(
+            lambda x: hl.agg.sum(x) + hl.agg.filter(x % 3 == 0, hl.agg.sum(x)),
+            ht.a)) == [63, 126]
+
+    def test_agg_array_agg_empty_partitions(self):
+        ht = hl.utils.range_table(11, 11)
+        ht = ht.filter(ht.idx < 10)
+        ht = ht.annotate(a=hl.range(ht.idx, ht.idx + 10))
+        assert ht.aggregate(hl.agg.array_agg(lambda x: hl.agg.sum(x), ht.a)) == [45 + 10 * x for x in range(10)]
+
+    def test_agg_array_agg_sum_vs_sum(self):
+        ht = hl.utils.range_table(25).annotate(x=hl.range(0, 10).map(lambda _: hl.rand_bool(0.5)))
+        assert ht.aggregate(hl.agg.array_agg(lambda x: hl.agg.sum(x), ht.x) == hl.agg.array_sum(ht.x))
+
+    def test_agg_array_agg_errors(self):
+        ht = hl.utils.range_table(10)
+        ht = ht.annotate(a=hl.range(0, ht.idx))
+        with pytest.raises(hl.utils.FatalError):
+            ht.aggregate(hl.agg.array_agg(lambda x: hl.agg.sum(x), ht.a))
+
+    def test_agg_array_explode(self):
+        ht = hl.utils.range_table(10)
+        ht = ht.annotate(a=hl.range(0, ht.idx).map(lambda _: [ht.idx, 2 * ht.idx]))
+        r = ht.aggregate(hl.agg.explode(lambda x: hl.agg.array_agg(lambda elt: hl.agg.sum(elt), x), ht.a))
+        assert r == [285, 570]
+
+        ht = hl.utils.range_table(10)
+        ht = ht.annotate(a=[hl.range(0, ht.idx), hl.range(ht.idx, 2 * ht.idx)])
+        r = ht.aggregate(hl.agg.array_agg(lambda x: hl.agg.explode(lambda elt: hl.agg.sum(elt), x), ht.a))
+        assert r == [120, 405]
+
+    def test_agg_array_filter(self):
+        ht = hl.utils.range_table(10)
+        ht = ht.annotate(a=[ht.idx])
+        r = ht.aggregate(hl.agg.filter(ht.idx == 5, hl.agg.array_agg(lambda x: hl.agg.sum(x), ht.a)))
+        assert r == [5]
+
+        r2 = ht.aggregate(hl.agg.array_agg(lambda x: hl.agg.filter(x == 5, hl.agg.sum(x)), ht.a))
+        assert r2 == [5]
+
+    def test_agg_array_group_by(self):
+        ht = hl.utils.range_table(10)
+        ht = ht.annotate(a=[ht.idx, ht.idx + 1])
+        r = ht.aggregate(
+            hl.agg.group_by(ht.idx % 2, hl.agg.array_agg(lambda x: hl.agg.sum(x), ht.a)))
+        assert r == {0: [20, 25], 1: [25, 30]}
+
+        r2 = ht.aggregate(
+            hl.agg.array_agg(lambda x: hl.agg.group_by(x % 2, hl.agg.sum(x)), ht.a)
+        )
+
+        assert r2 == [{0: 20, 1: 25}, {0: 30, 1: 25}]
+
+    def test_agg_array_nested(self):
+        ht = hl.utils.range_table(10)
+        ht = ht.annotate(a=[[[ht.idx]]])
+        assert ht.aggregate(hl.agg.array_agg(
+            lambda x1: hl.agg.array_agg(
+                lambda x2: hl.agg.array_agg(
+                    lambda x3: hl.agg.sum(x3), x2), x1), ht.a)) == [[[45]]]
+
+
+    def test_agg_array_init_op(self):
+        ht = hl.utils.range_table(1).annotate_globals(n_alleles = ['A', 'T']).annotate(gts = [hl.call(0, 1), hl.call(1, 1)])
+        r = ht.aggregate(hl.agg.array_agg(lambda a: hl.agg.call_stats(a, ht.n_alleles), ht.gts))
+        assert r == [hl.utils.Struct(AC=[1, 1], AF=[0.5, 0.5], AN=2, homozygote_count=[0, 0]),
+                     hl.utils.Struct(AC=[0, 2], AF=[0.0, 1.0], AN=2, homozygote_count=[0, 1])]
+
     def test_agg_explode(self):
         t = hl.utils.range_table(10)
 
@@ -562,6 +637,12 @@ class Tests(unittest.TestCase):
 
         for aggregation, expected in tests:
             self.assertEqual(aggregation.collect(), expected)
+
+    def test_scan_array_agg(self):
+        ht = hl.utils.range_table(5)
+        ht = ht.annotate(a=hl.range(0, 5).map(lambda x: ht.idx))
+        ht = ht.annotate(a2=hl.scan.array_agg(lambda _: hl.agg.count(), ht.a))
+        assert ht.all((ht.idx == 0) | (ht.a == ht.a2))
 
     def test_aggregators_max_min(self):
         table = hl.utils.range_table(10)

@@ -1055,6 +1055,38 @@ class AggGroupBy(IR):
         self.agg_ir._compute_type(env, agg_env)
         self._type = tdict(self.key.typ, self.agg_ir.typ)
 
+class AggArrayPerElement(IR):
+    @typecheck_method(array=IR, name=str, agg_ir=IR)
+    def __init__(self, array, name, agg_ir):
+        super().__init__(array, agg_ir)
+        self.array = array
+        self.name = name
+        self.agg_ir = agg_ir
+
+    @typecheck_method(array=IR, agg_ir=IR)
+    def copy(self, array, agg_ir):
+        new_instance = self.__class__
+        return new_instance(array, self.name, agg_ir)
+
+    def render(self, r):
+        return '(AggArrayPerElement {} {} {})'.format(escape_id(self.name), r(self.array), r(self.agg_ir))
+
+    def __eq__(self, other):
+        return isinstance(other, AggArrayPerElement) and \
+               other.array == self.array and \
+               other.name == self.name and \
+               other.agg_ir == self.agg_ir
+
+    def _compute_type(self, env, agg_env):
+        self.array._compute_type(agg_env, None)
+        self.agg_ir._compute_type(env, _env_bind(agg_env, self.name, self.array.typ.element_type))
+        self._type = tarray(self.agg_ir.typ)
+
+    @property
+    def bound_variables(self):
+        return {self.name} | super().bound_variables
+
+
 def _register(registry, name, f):
     if name in registry:
         registry[name].append(f)

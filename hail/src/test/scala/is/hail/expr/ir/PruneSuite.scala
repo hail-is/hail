@@ -585,6 +585,16 @@ class PruneSuite extends SparkSuite {
     checkMemo(GetTupleElement(MakeTuple(Seq(ref)), 0), justB, Array(TTuple(justB)))
   }
 
+  @Test def testAggExplodeMemo(): Unit = {
+    val t = TArray(TStruct("a" -> TInt32(), "b" -> TInt64()))
+    checkMemo(AggExplode(Ref("x", t), "foo", Ref("foo", t.elementType)), TStruct("b" -> TInt64()), Array(TArray(TStruct("b" -> TInt64())), TStruct("b" -> TInt64())))
+  }
+
+  @Test def testAggArrayPerElementMemo(): Unit = {
+    val t = TArray(TStruct("a" -> TInt32(), "b" -> TInt64()))
+    checkMemo(AggArrayPerElement(Ref("x", t), "foo", Ref("foo", t.elementType)), TArray(TStruct("b" -> TInt64())), Array(TArray(TStruct("b" -> TInt64())), TStruct("b" -> TInt64())))
+  }
+
   @Test def testTableCountMemo() {
     checkMemo(TableCount(tab), TInt64(), Array(subsetTable(tab.typ)))
   }

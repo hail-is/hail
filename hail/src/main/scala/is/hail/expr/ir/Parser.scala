@@ -665,6 +665,11 @@ object IRParser {
         val key = ir_value_expr(env)(it)
         val aggIR = ir_value_expr(env)(it)
         AggGroupBy(key, aggIR)
+      case "AggArrayPerElement" =>
+        val name = identifier(it)
+        val a = ir_value_expr(env)(it)
+        val aggBody = ir_value_expr(env + (name -> coerce[TArray](a.typ).elementType))(it)
+        AggArrayPerElement(a, name, aggBody)
       case "ApplyAggOp" =>
         val aggOp = agg_op(it)
         val ctorArgs = ir_value_exprs(env)(it)
