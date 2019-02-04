@@ -2533,6 +2533,63 @@ class MatrixTable(ExprContainer):
         return Table(CastMatrixToTable(
             self._mir, entries_field_name, cols_field_name))
 
+    @typecheck_method(entries_array_field_name=nullable(str),
+                      columns_array_field_name=nullable(str))
+    def localize_entries(self,
+                         entries_array_field_name=None,
+                         columns_array_field_name=None) -> 'Table':
+        """Represent this matrix as a table of entry-rows.
+
+        Examples
+        --------
+        Build a numpy ndarray from a small :class:`.MatrixTable`:
+
+        >>> mt = hl.utils.range_matrix_table(3,3)
+        >>> mt = mt.select_entries(x = mt.row_idx * mt.col_idx)
+        >>> mt.x.show()
+        +---------+---------+-------+
+        | row_idx | col_idx |     x |
+        +---------+---------+-------+
+        |   int32 |   int32 | int32 |
+        +---------+---------+-------+
+        |       0 |       2 |     0 |
+        |       0 |       0 |     0 |
+        |       0 |       1 |     0 |
+        |       1 |       0 |     0 |
+        |       1 |       1 |     1 |
+        |       1 |       2 |     2 |
+        |       2 |       2 |     4 |
+        |       2 |       1 |     2 |
+        |       2 |       0 |     0 |
+        +---------+---------+-------+
+        >>> t = mt.localize_entries('entry_structs', 'columns')
+        >>> t = t.select(entries = t.entry_structs.map(lambda entry: entry.x))
+        >>> np.array(t.entries.collect())
+        array([[0, 0, 0],
+               [0, 1, 2],
+               [0, 2, 4]])
+
+        Parameters
+        ----------
+        entries_array_field_name : :obj:`str`
+            The name of the table field containing the array of entry structs
+            for the given row
+        columns_array_field_name : :obj:`str`
+            The name of the global field containing the array of column structs
+
+        Returns
+        -------
+        :class:`.Table`
+        """
+        entries = entries_array_field_name or Env.get_uid()
+        cols = columns_array_field_name or Env.get_uid()
+        t = self._localize_entries(self, entries, cols)
+        if entries_array_field_name is None:
+            t = t.drop(entries)
+        if columns_array_field_name is None:
+            t = t.drop_globals(cols)
+        return t
+
     def _unfilter_entries(self):
         entry_ir = hl.cond(hl.is_defined(self.entry), self.entry, hl.struct(**self.entry))._ir
         return MatrixTable(MatrixMapEntries(self._mir, entry_ir))
