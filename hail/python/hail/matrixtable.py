@@ -3122,8 +3122,8 @@ class MatrixTable(ExprContainer):
                              f'    right: {", ".join(other.col_key.keys())}')
         if list(self.row_key.dtype.values()) != list(other.row_key.dtype.values()):
             raise ValueError(f'row key types differ:\n'
-                             f'    left: {", ".join(self.col.dtype.values())}\n'
-                             f'    right: {", ".join(other.col.dtype.values())}')
+                             f'    left: {", ".join(self.row_key.dtype.values())}\n'
+                             f'    right: {", ".join(other.row_key.dtype.values())}')
         
         return MatrixTable(MatrixUnionCols(self._mir, other._mir))
 
