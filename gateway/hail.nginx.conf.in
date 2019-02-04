@@ -172,8 +172,6 @@ server {
         proxy_pass http://web/;
     }
 
-    #listen 80;
-
     listen [::]:443 ssl;
     listen 443 ssl;
     ssl_certificate /etc/letsencrypt/fullchain.pem;
@@ -185,7 +183,7 @@ server {
 server {
     server_name notebook-api.@domain@;
 
-    # Support arge URI's stemming from access tokens
+    # Support large URI's stemming from access tokens
     client_header_buffer_size 64k;
     large_client_header_buffers 4 64k;
 
@@ -265,9 +263,6 @@ server {
     add_header 'Access-Control-Allow-Credentials' 'true';
     add_header 'Access-Control-Allow-Methods' 'GET, POST, DELETE, OPTIONS';
     add_header 'Access-Control-Allow-Headers' 'Authorization,Keep-Alive,User-Agent,Cache-Control,Content-Type';
-
-
-    #listen 80;
 
     listen [::]:443 ssl;
     listen 443 ssl;
