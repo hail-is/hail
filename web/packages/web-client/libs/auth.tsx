@@ -54,9 +54,18 @@ declare type stateType = {
   loggedOut: boolean;
 };
 
+enum cookieNames {
+  ACCESS_TOKEN = 'access_token',
+  ID_TOKEN = 'id_token',
+  EXPIRES = 'expires',
+  STATE = 'state'
+}
+
 declare type cookies = {
-  idToken: string;
-  accessToken: string;
+  id_token: string;
+  // This MUST be named access_token for oauth2 compliance
+  // if this token is to be used by any Hail services other than this one
+  access_token: string;
   expires: string;
 };
 
@@ -107,8 +116,7 @@ let listeners: any = [];
 let removed: any = [];
 
 const cookieOpts = { path: '/' };
-// Use broader scope for access token cookie, so that it may be consumed
-// by other hail services
+// Different opts because access_token is made accessible to other Hail subdomains
 const accessTokenOpts = { path: '/', domain: HAIL_DOMAIN };
 
 // TODO: Should we trigger cb with initial state?
@@ -314,7 +322,7 @@ function _initState() {
     throw new Error('Auth library not initialized in getState');
   }
 
-  const idToken = cookies.get('idToken');
+  const idToken = cookies.get(cookieNames.ID_TOKEN);
 
   if (!idToken) {
     _updateState({ loggedOut: false });
@@ -327,8 +335,8 @@ function _initState() {
     _updateState({
       idToken: idToken,
       user: jwtDecode(idToken) as UserInterface,
-      accessToken: cookies.get('accessToken'),
-      expires: cookies.get('expires'),
+      accessToken: cookies.get(cookieNames.ACCESS_TOKEN),
+      expires: cookies.get(cookieNames.EXPIRES),
 
       loggedOut: false
     });
@@ -376,14 +384,18 @@ function _loginFromAuth0(r: auth0payload) {
     accessTokenOpts
   );
 
-  cookies.set('expires', expires, tokenOpts);
-  cookies.set('idToken', r.idToken as string, tokenOpts);
-  cookies.set('accessToken', r.accessToken as string, accessTokenOpt);
+  cookies.set(cookieNames.EXPIRES, expires, tokenOpts);
+  cookies.set(cookieNames.ID_TOKEN, r.idToken as string, tokenOpts);
+  cookies.set(
+    cookieNames.ACCESS_TOKEN,
+    r.accessToken as string,
+    accessTokenOpt
+  );
 
   // This is the auth0 state, if sent during the login request
   // We currently use this for workshop passwords
   // TODO: it's more secure to just patch workshop pass into the user's app_metadata
-  cookies.set('state', r.state);
+  cookies.set(cookieNames.STATE, r.state);
 
   _updateState({
     accessToken: r.accessToken,
@@ -395,10 +407,10 @@ function _loginFromAuth0(r: auth0payload) {
 }
 
 function _removeCookies() {
-  cookies.remove('idToken', cookieOpts);
-  cookies.remove('expires', cookieOpts);
-  cookies.remove('state', cookieOpts);
-  cookies.remove('accessToken', accessTokenOpts);
+  cookies.remove(cookieNames.EXPIRES, cookieOpts);
+  cookies.remove(cookieNames.STATE, cookieOpts);
+  cookies.remove(cookieNames.ID_TOKEN, cookieOpts);
+  cookies.remove(cookieNames.ACCESS_TOKEN, accessTokenOpts);
 }
 
 // Change the reference, so state can be passed by reference and
@@ -429,7 +441,7 @@ function _checkSession() {
     throw new Error('Auth library is not initialized in checkSession');
   }
 
-  const state = cookies.get('state');
+  const state = cookies.get(cookieNames.STATE);
 
   _checkSessionPromise = new Promise((resolve, reject) => {
     if (_state.loggedOut) {
