@@ -28,9 +28,11 @@ class PrettyCode(in: String) {
         if (depth < 0) depth = 0
       }
       if (c == kNewline) {
-        numLines += 1
-        sb.append(c)
-        state = 0
+        if (state != 0) {
+          numLines += 1
+          sb.append(c)
+          state = 0
+        }
       } else if (state == 0) { // start of line
         if ((c == kSpace) || (c == kTab)) {
           // skip

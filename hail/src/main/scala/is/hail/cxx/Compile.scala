@@ -1,5 +1,7 @@
 package is.hail.cxx
 
+import java.io.FileOutputStream
+
 import is.hail.expr.ir
 import is.hail.expr.types.physical._
 import is.hail.nativecode.NativeStatus
@@ -8,6 +10,7 @@ import is.hail.utils.fatal
 import scala.reflect.classTag
 
 object Compile {
+  var i = 0
   def apply(
     arg0: String, arg0Type: PType,
     body: ir.IR, optimize: Boolean): (Long, Long) => Long = {
@@ -60,7 +63,8 @@ object Compile {
     }
 
     val tu = tub.end()
-    val mod = tu.build(if (optimize) "-ggdb -O1" else "-ggdb -O0", System.out)
+    val mod = tu.build(if (optimize) "-ggdb -O1" else "-ggdb -O0", new java.io.PrintStream(new FileOutputStream(s"/tmp/codegen$i.cpp")))
+    i += 1
 
     val st = new NativeStatus()
     mod.findOrBuild(st)

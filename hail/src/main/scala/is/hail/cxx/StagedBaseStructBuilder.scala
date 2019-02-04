@@ -31,7 +31,7 @@ class StagedBaseStructBuilder(fb: FunctionBuilder, pStruct: PBaseStruct, off: Ex
   def offset: Code = off.toString
 }
 
-class StagedBaseStructTripletBuilder(region: Variable, fb: FunctionBuilder, pStruct: PBaseStruct) {
+class StagedBaseStructTripletBuilder(region: EmitRegion, fb: FunctionBuilder, pStruct: PBaseStruct) {
   private[this] val s = fb.variable("s", "char *", s"$region->allocate(${ pStruct.alignment }, ${ pStruct.byteSize })")
   private[this] val ssb = new StagedBaseStructBuilder(fb, pStruct, s.ref)
   private[this] val ab = new ArrayBuilder[Code]
@@ -63,5 +63,5 @@ class StagedBaseStructTripletBuilder(region: Variable, fb: FunctionBuilder, pStr
     i += 1
   }
 
-  def triplet(): EmitTriplet = EmitTriplet(pStruct, body(), "false", end())
+  def triplet(): EmitTriplet = EmitTriplet(pStruct, body(), "false", end(), region)
 }
