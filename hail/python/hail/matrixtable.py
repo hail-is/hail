@@ -3114,26 +3114,22 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
             Dataset with columns from both datasets.
         """
-        if self._entry_type != other._entry_type:
-            raise ValueError('\n'.join(
-                "entry types differ",
-                f"  left: {self._entry_type}",
-                f"  right: {other.entry_type}"))
-        if self._col_type != other._col_type:
-            raise ValueError("\n".join(
-                "column types differ",
-                f"  left: {self._col_type}",
-                f"  right: {other.col_type}"))
-        if list(self._col_key_types) != list(other._col_key_types):
-            raise ValueError("\n".join(
-                "column key types differ",
-                f"  left: {', '.join(self._col_key_types)}",
-                f"  right: {', '.join(other._col_key_types)}"))
-        if list(self._row_key_types) != list(other._row_key_types):
-            raise ValueError("\n".join(
-                "row key types differ",
-                f"  left: {', '.join(self._row_key_types)}",
-                f"  right: {', '.join(other._row_key_types)}"))
+        if self.entry.dtype != other.entry.dtype:
+            raise ValueError(f'entry types differ:\n'
+                             f'    left: {self.entry.dtype}\n'
+                             f'    right: {other.entry.dtype}')
+        if self.col.dtype != other.col.dtype:
+            raise ValueError(f'column types differ:\n'
+                             f'    left: {self.col.dtype}\n'
+                             f'    right: {other.col.dtype}')
+        if self.col_key.keys() != other.col_key.keys():
+            raise ValueError(f'column key fields differ:\n'
+                             f'    left: {", ".join(self.col_key.keys())}\n'
+                             f'    right: {", ".join(other.col_key.keys())}')
+        if list(self.row_key.dtype.values()) != list(other.row_key.dtype.values()):
+            raise ValueError(f'row key types differ:\n'
+                             f'    left: {", ".join(self.row_key.dtype.values())}\n'
+                             f'    right: {", ".join(other.row_key.dtype.values())}')
         
         return MatrixTable(MatrixUnionCols(self._mir, other._mir))
 
