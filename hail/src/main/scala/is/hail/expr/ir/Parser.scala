@@ -1131,7 +1131,7 @@ object IRParser {
       case "BlockMatrixRead" =>
         val path = string_literal(it)
         BlockMatrixRead(path)
-      case "BlockMatrixElementWiseBinaryOp" =>
+      case "BlockMatrixMap2" =>
         val left = blockmatrix_ir(env)(it)
         val right = blockmatrix_ir(env)(it)
         val applyBinOp = ir_value_expr(env + ("element" -> left.typ.elementType))(it)

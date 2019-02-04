@@ -240,7 +240,7 @@ class TableIRTests(unittest.TestCase):
 class BlockMatrixIRTests(unittest.TestCase):
     @staticmethod
     def _make_element_wise_op_ir(bm1, bm2, op):
-        return ir.BlockMatrixElementWiseBinaryOp(bm1, bm2, ir.ApplyBinaryOp(op, ir.Ref("element"), ir.Ref("element")))
+        return ir.BlockMatrixMap2(bm1, bm2, ir.ApplyBinaryOp(op, ir.Ref("element"), ir.Ref("element")))
 
     def block_matrix_irs(self):
         scalar_ir = ir.F64(2)

@@ -4,7 +4,7 @@ import itertools
 
 import hail as hl
 import hail.expr.aggregators as agg
-from hail.ir import BlockMatrixWrite, BlockMatrixElementWiseBinaryOp, ApplyBinaryOp, Ref, F64, \
+from hail.ir import BlockMatrixWrite, BlockMatrixMap2, ApplyBinaryOp, Ref, F64, \
      BlockMatrixBroadcast, ValueToBlockMatrix, MakeArray, I64
 from hail.ir.blockmatrix_ir import BlockMatrixRead, JavaBlockMatrix
 from hail.utils import new_temp_file, new_local_temp_file, local_path_uri, storage_level
@@ -1237,7 +1237,7 @@ class BlockMatrix(object):
         left_bmir = _produce_ir_with_shape(left, result_shape)
         right_bmir = _produce_ir_with_shape(right, result_shape)
 
-        return BlockMatrix(BlockMatrixElementWiseBinaryOp(left_bmir, right_bmir, apply_bin_op))
+        return BlockMatrix(BlockMatrixMap2(left_bmir, right_bmir, apply_bin_op))
 
     @typecheck_method(b=oneof(numeric, np.ndarray, block_matrix_type))
     def __add__(self, b):
