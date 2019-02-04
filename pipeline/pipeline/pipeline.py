@@ -17,12 +17,13 @@ class Pipeline:
         cls._counter += 1
         return uid
 
-    def __init__(self, backend=None):
+    def __init__(self, backend=None, default_image='google/cloud-sdk:alpine'):
         self._tasks = []
         self._resource_map = {}
         self._allocated_files = set()
         self._backend = backend if backend else LocalBackend()
         self._uid = Pipeline._get_uid()
+        self._default_image = default_image
 
     def new_task(self):
         t = Task(pipeline=self)

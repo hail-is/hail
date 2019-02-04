@@ -108,11 +108,9 @@ class LocalBackend(Backend):
 
 
 class BatchBackend(Backend):
-    # FIXME: change default_image to minimal bash image
-    def __init__(self, url='http://localhost:5000', default_image='ubuntu'):
+    def __init__(self, url='http://localhost:5000'):
         self._batch_client = batch.client.BatchClient(url)
         self._gcs_client = storage.Client()
-        self._default_image = default_image  # 'google/cloud-sdk:alpine'
 
     def run(self, pipeline, dry_run, verbose, bg, delete_on_exit):  # pylint: disable-msg=R0915
         remote_tmpdir = self.tmp_dir()
@@ -169,7 +167,7 @@ class BatchBackend(Backend):
                 list(flatten([copy_task_outputs(r) for r in task._outputs]))
             resource_defs = [define_resource(r) for r in task._inputs.union(task._outputs)]
 
-            image = 'google/cloud-sdk:alpine'  # task._docker if task._docker else self._default_image
+            image = 'google/cloud-sdk:alpine'  # task._docker if task._docker else pipeline._default_image
             defs = '; '.join(resource_defs) + '; ' if resource_defs else ''
             cmd = " && ".join(task_inputs + task._command + task_outputs)
             parent_ids = [task_to_job_mapping[t] for t in task._dependencies]
