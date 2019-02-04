@@ -378,7 +378,11 @@ class Loop(IR):
             other.args == self.args
 
     def _compute_type(self, env, agg_env):
-        self.body._compute_type(env, agg_env)
+        new_env = env.copy()
+        for nm, ir in self.args:
+            ir._compute_type(env, agg_env)
+            new_env[nm] = ir._type
+        self.body._compute_type(new_env, agg_env)
         self._type = self.body.typ
 
 
@@ -409,7 +413,7 @@ class Recur(IR):
 
     def _compute_type(self, env, agg_env):
         for arg in self.args:
-            self._compute_type(env, agg_env)
+            arg._compute_type(env, agg_env)
         self._type = self._typ
 
 

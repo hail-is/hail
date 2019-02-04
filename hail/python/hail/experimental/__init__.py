@@ -1,5 +1,6 @@
 from .ldscore import ld_score
 from .ld_score_regression import ld_score_regression
+from .loop import loop
 from .filtering_allele_frequency import filtering_allele_frequency
 from .haplotype_freq_em import haplotype_freq_em
 from .plots import hail_metadata, plot_roc_curve
@@ -13,6 +14,7 @@ from .densify import densify
 __all__ = ['ld_score',
            'ld_score_regression',
            'filtering_allele_frequency',
+           'loop',
            'hail_metadata',
            'phase_trio_matrix_by_transmission',
            'phase_by_transmission',
