@@ -49,10 +49,24 @@ class LocalBackend(Backend):
         for task in pipeline._tasks:
             script.append(f"# {task._uid} {task._label if task._label else ''}")
 
+            # Make symlinks of input resource files if they don't already exist
+            def symlink_task_inputs(r):
+                r = pipeline._get_resource(r)
+                if isinstance(r, InputResourceFile):
+                    return [f'ln -sf {r._input_path} {tmpdir}/{get_path(r)}']
+                elif isinstance(r, ResourceGroup):
+                    return [symlink_task_inputs(rf) for _, rf in r._resources.items()]
+                else:
+                    assert isinstance(r, TaskResourceFile)
+                    pass
+
+            script += list(flatten([symlink_task_inputs(r) for r in task._inputs]))
+
             resource_defs = [define_resource(r) for r in task._inputs.union(task._outputs)]
+
             if task._docker:
                 defs = '; '.join(resource_defs) + '; ' if resource_defs else ''
-                cmd = "&& ".join(task._command)
+                cmd = " && ".join(task._command)
                 image = task._docker
                 script += [f"docker run "
                            f"-v {tmpdir}:{tmpdir} "
@@ -81,7 +95,7 @@ class LocalBackend(Backend):
         script += outputs
 
         script = "\n".join(script)
-
+        print(script)
         if dry_run:
             print(script)
         else:

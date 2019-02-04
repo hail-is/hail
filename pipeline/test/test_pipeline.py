@@ -73,6 +73,41 @@ class LocalTests(unittest.TestCase):
         self.assertEqual(self.read(output_file), msg)
         self.rm(output_file)
 
+    def test_single_task_w_input(self):
+        msg = 'abc'
+        input_file = '/tmp/data/example1.txt'
+        output_file = '/tmp/test_single_task_w_input.txt'
+        self.write(input_file, 'abc')
+
+        p = Pipeline()
+        input = p.read_input(input_file)
+        t = p.new_task()
+        t.command(f'cat {input} > {t.ofile}')
+        p.write_output(t.ofile, output_file)
+        p.run()
+
+        self.assertEqual(self.read(output_file), msg)
+        self.rm(input_file, output_file)
+
+    def test_single_task_w_input_group(self):
+        msg1 = 'abc'
+        msg2 = '123'
+        input_file1 = '/tmp/data/example1.txt'
+        input_file2 = '/tmp/data/example2.txt'
+        output_file = '/tmp/test_single_task_w_input_group.txt'
+        self.write(input_file1, 'abc')
+        self.write(input_file2, '123')
+
+        p = Pipeline()
+        input = p.read_input_group(in1=input_file1, in2=input_file2)
+        t = p.new_task()
+        t.command(f'cat {input.in1} {input.in2} > {t.ofile}')
+        p.write_output(t.ofile, output_file)
+        p.run()
+
+        self.assertEqual(self.read(output_file), msg1 + msg2)
+        self.rm(input_file1, input_file2, output_file)
+
     def test_single_task_bad_command(self):
         p = Pipeline()
         t = p.new_task()
@@ -159,19 +194,19 @@ class LocalTests(unittest.TestCase):
         self.rm(output_file)
 
     # FIXME: Run docker inside docker
-    # def test_single_task_docker(self):
-    #     output_file = '/tmp/test_single_task_docker.txt'
-    #     msg = 'hello world'
-    #
-    #     p = Pipeline()
-    #     t = p.new_task()
-    #     t.docker('ubuntu')
-    #     t.command(f'echo "{msg}" > {t.ofile}')
-    #     p.write_output(t.ofile, output_file)
-    #     p.run()
-    #
-    #     self.assertEqual(self.read(output_file), msg)
-    #     self.rm(output_file)
+    def test_single_task_docker(self):
+        output_file = '/tmp/test_single_task_docker.txt'
+        msg = 'hello world'
+
+        p = Pipeline()
+        t = p.new_task()
+        t.docker('ubuntu')
+        t.command(f'echo "{msg}" > {t.ofile}')
+        p.write_output(t.ofile, output_file)
+        p.run()
+
+        self.assertEqual(self.read(output_file), msg)
+        self.rm(output_file)
 
 
 class BatchTests(unittest.TestCase):

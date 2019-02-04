@@ -1,5 +1,5 @@
 .PHONY: test-local test-local-in-cluster \
-  clean build
+  clean build load-env
 
 
 PY_FILES = $(shell find pipeline -iname \*.py -not -exec git check-ignore -q {} \; -print)
@@ -19,6 +19,9 @@ build/flake8: $(PY_FILES) build/conda-env
 build/pylint: $(PY_FILES) build/conda-env
 	. ../loadconda && . activate hail-pipeline && python -m pylint --rcfile pipeline/pylintrc pipeline --score=n
 	mkdir -p build && touch $@
+
+load-env: build/conda-env
+	source activate hail-pipeline
 
 test-local: build/conda-env $(PY_CHECKERS)
 	POD_NAMESPACE='test' BATCH_USE_KUBE_CONFIG=1 ./test-locally.sh

@@ -17,7 +17,7 @@ class Pipeline:
         cls._counter += 1
         return uid
 
-    def __init__(self, backend=None, default_image='google/cloud-sdk:alpine'):
+    def __init__(self, backend=None, default_image=None):
         self._tasks = []
         self._resource_map = {}
         self._allocated_files = set()
@@ -28,6 +28,8 @@ class Pipeline:
     def new_task(self):
         t = Task(pipeline=self)
         self._tasks.append(t)
+        if self._default_image is not None:
+            t.docker(self._default_image)
         return t
 
     def _get_resource(self, r):
