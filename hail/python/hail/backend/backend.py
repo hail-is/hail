@@ -39,7 +39,7 @@ class Backend(abc.ABC):
     def persist_matrix_table(self, mt, storage_level):
         return mt
 
-    def unpersist_matrix_table(self, mt, storage_level):
+    def unpersist_matrix_table(self, mt):
         return mt
 
     @abc.abstractmethod
@@ -114,7 +114,7 @@ class SparkBackend(Backend):
     def persist_matrix_table(self, mt, storage_level):
         return MatrixTable._from_java(mt._jmt.persist(storage_level))
 
-    def unpersist_matrix_table(self, mt, storage_level):
+    def unpersist_matrix_table(self, mt):
         return MatrixTable._from_java(mt._jmt.unpersist())
     
     def blockmatrix_type(self, bmir):
