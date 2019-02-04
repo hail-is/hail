@@ -4,7 +4,7 @@
   "description": "Hail Web Client (Isomorphic JS)",
   "main": "index.js",
   "scripts": {
-    "dev": "node server.js",
+    "dev": "NOTEBOOK_DOMAIN=http://notebook-api.hail.local SCORECARD_SERVER_DOMAIN=https://scorecard.hail.is node server.js",
     "build": "next build",
     "start": "NODE_ENV=production SSL=true node server.js",
     "deploy": "next build; NODE_ENV=production SSL=true node server.js"
