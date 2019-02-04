@@ -2570,6 +2570,11 @@ class MatrixTable(ExprContainer):
                [0, 1, 2],
                [0, 2, 4]])
 
+        Warning
+        -------
+        This operation may increase the size of a partition. Use with care on
+        a dataset with long rows and large partitions.
+
         Parameters
         ----------
         entries_array_field_name : :obj:`str`
