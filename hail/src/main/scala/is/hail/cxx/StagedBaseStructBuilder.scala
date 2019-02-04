@@ -52,6 +52,8 @@ class StagedBaseStructTripletBuilder(region: EmitRegion, fb: FunctionBuilder, pS
 
   def add(t: EmitTriplet) {
     val f = pStruct.fields(i)
+    if (t.needsRegion && t.region != region)
+      ab += region.addReference(t.region)
     ab +=
       s"""
          |${ t.setup }

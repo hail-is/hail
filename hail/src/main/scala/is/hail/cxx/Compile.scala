@@ -63,7 +63,7 @@ object Compile {
     }
 
     val tu = tub.end()
-    val mod = tu.build(if (optimize) "-ggdb -O1" else "-ggdb -O0", new java.io.PrintStream(new FileOutputStream(s"/tmp/codegen$i.cpp")))
+    val mod = tu.build(if (optimize) "-ggdb -O1" else "-ggdb -O0")
     i += 1
 
     val st = new NativeStatus()

@@ -3,6 +3,8 @@ package is.hail.cxx
 import is.hail.expr.types.physical._
 import is.hail.utils.ArrayBuilder
 
+import scala.collection.mutable
+
 object EmitTriplet {
   def apply(pType: PType, setup: Code, m: Code, v: Code, region: EmitRegion): EmitTriplet =
     new EmitTriplet(pType, setup, s"($m)", s"($v)", region)
@@ -32,22 +34,16 @@ class EmitTriplet private(val pType: PType, val setup: Code, val m: Code, val v:
  * and if the generated code used to process every element of the stream uses
  * the provided region in the EmitRegion, then the code generation for the node
  * that creates the EmitRegion is responsible for initializing it and acquiring
- * a new region for every element, as well as for adding references from the base
- * region (outside the stream) to the necessary regions within the stream.
+ * a new region for every element, as well as for adding references from the
+ * base region (outside the stream) to the necessary regions within the stream.
  *
- * This would be better if:
- *  - The (stream) region wasn't added to the base region if unneeded,
- *    regardless of whether the computation used the region (e.g. computation
- *    produces an integer, but creates intermediary structs/arrays)
- *  - Instead of needing to instantiate a stream region for and then reference
- *    it in the base region, we should just have those things compute directly
- *    into the base region.
- *  - In addition to that, we can create scratch regions e.g. for filter
- *    conditions, so that values that don't appear in the final result can be
- *    released as long as they are no longer useful.
+ * There is an option in `emitArray` to use the same region throughout the
+ * deforested array code if e.g. the array needs to be instantiated, as happens
+ * when the array is not ultimately passed to an ArrayFold.
  *
- *
- * A new EmitRegion should get created at the start of every stream.
+ * The EmitTriplet also carries the region that was used to create the value
+ * that it holds; this is used for cases like InsertFields inside the body of an
+ * ArrayFold in order to unify the field regions, which could be different.
  */
 
 object EmitRegion {
@@ -63,6 +59,8 @@ class EmitRegion private (val fb: FunctionBuilder, val region: Variable, val poo
   assert(region.typ == "RegionPtr")
 
   override def toString: String = region.toString
+
+  var referenced: mutable.Set[String] = mutable.Set()
 
   private[this] var isUsed: Boolean = false
   def use(): Unit = { isUsed = true }

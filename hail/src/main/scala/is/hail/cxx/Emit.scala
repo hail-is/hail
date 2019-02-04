@@ -482,7 +482,7 @@ class Emitter(parentRegion: Variable, fb: FunctionBuilder, nSpecialArgs: Int) {
 
         val accm = fb.variable("accm", "bool")
         val accv = fb.variable("accv", typeToCXXType(zero.pType))
-        val acct = EmitTriplet(zero.pType, "", accm.toString, accv.toString, resultRegion) //FIXME
+        val acct = EmitTriplet(zero.pType, "", accm.toString, accv.toString, resultRegion)
 
         triplet(
           s"""
@@ -502,7 +502,7 @@ class Emitter(parentRegion: Variable, fb: FunctionBuilder, nSpecialArgs: Int) {
             ae.emit { case (m, v) =>
               val vm = fb.variable("vm", "bool")
               val vv = fb.variable("vv", typeToCXXType(containerPType.elementType))
-              val vt = EmitTriplet(containerPType.elementType, "", vm.toString, vv.toString, resultRegion) //FIXME
+              val vt = EmitTriplet(containerPType.elementType, "", vm.toString, vv.toString, ae.arrayRegion)
 
               val bodyt = emit(body, env.bind(accumName -> acct, valueName -> vt))
 
