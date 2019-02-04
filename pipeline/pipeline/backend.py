@@ -49,18 +49,22 @@ class LocalBackend(Backend):
         for task in pipeline._tasks:
             script.append(f"# {task._uid} {task._label if task._label else ''}")
 
-            # Make symlinks of input resource files if they don't already exist
-            def symlink_task_inputs(r):
+            # Make copies of input resource files if they don't already exist
+            def copy_task_inputs(r):
                 r = pipeline._get_resource(r)
                 if isinstance(r, InputResourceFile):
-                    return [f'ln -sf {r._input_path} {tmpdir}/{get_path(r)}']
+                    absolute_input_path = os.path.realpath(r._input_path)
+                    if task._docker:
+                        return [f'cp {absolute_input_path} {tmpdir}/{get_path(r)}']
+                    else:
+                        return [f'ln -sf {absolute_input_path} {tmpdir}/{get_path(r)}']
                 elif isinstance(r, ResourceGroup):
-                    return [symlink_task_inputs(rf) for _, rf in r._resources.items()]
+                    return [copy_task_inputs(rf) for _, rf in r._resources.items()]
                 else:
                     assert isinstance(r, TaskResourceFile)
                     pass
 
-            script += list(flatten([symlink_task_inputs(r) for r in task._inputs]))
+            script += list(flatten([copy_task_inputs(r) for r in task._inputs]))
 
             resource_defs = [define_resource(r) for r in task._inputs.union(task._outputs)]
 
