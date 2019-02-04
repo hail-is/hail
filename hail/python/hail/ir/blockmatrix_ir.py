@@ -1,10 +1,10 @@
 from hail.expr.blockmatrix_type import tblockmatrix
-from hail.ir import BlockMatrixIR, ApplyBinaryOp, Ref, F64
+from hail.expr.types import tfloat64, hail_type
+from hail.ir import BlockMatrixIR, ApplyBinaryOp, F64, MakeArray, Literal
 from hail.utils.java import escape_str
-from hail.typecheck import typecheck_method
+from hail.typecheck import typecheck_method, oneof, sequenceof
 
 from hail.utils.java import Env
-import collections
 
 
 class BlockMatrixRead(BlockMatrixIR):
@@ -32,12 +32,8 @@ class BlockMatrixElementWiseBinaryOp(BlockMatrixIR):
         return f'(BlockMatrixElementWiseBinaryOp {r(self._left)} {r(self._right)} {r(self._applyBinOp)})'
 
     def _compute_type(self):
-        right_type = self._right.typ
-        left_type = self._left.typ
-        self._type = tblockmatrix(left_type.element_type,
-                                  _shape_after_broadcast(left_type.shape, right_type.shape),
-                                  left_type.block_size,
-                                  left_type.dims_partitioned)
+        self._right.typ  # Force
+        self._type = self._left.typ
 
 
 class BlockMatrixMap(BlockMatrixIR):
@@ -51,30 +47,60 @@ class BlockMatrixMap(BlockMatrixIR):
         return f'(BlockMatrixMap {r(self._child)} {r(self._apply_bin_op)})'
 
     def _compute_type(self):
-        child_type = self._child.typ
-        self._type = tblockmatrix(child_type.element_type,
-                                  _shape_after_broadcast(*self._get_children_shapes()),
-                                  child_type.block_size,
-                                  child_type.dims_partitioned)
+        self._type = self._child.typ
 
-    def _get_children_shapes(self):
-        child_matrix = self._child
-        left, right = self._apply_bin_op.l, self._apply_bin_op.r
 
-        if isinstance(left, Ref):
-            left_shape = child_matrix.typ.shape
-            if isinstance(right, F64):
-                right_shape = [1, 1]
-            else:
-                right_shape = right.fields[0][1].value
-        else:
-            right_shape = child_matrix.typ.shape
-            if isinstance(left, F64):
-                left_shape = [1, 1]
-            else:
-                left_shape = left.fields[0][1].value
+class BlockMatrixBroadcast(BlockMatrixIR):
+    @typecheck_method(child=BlockMatrixIR, broadcast_type=str, shape=sequenceof(int))
+    def __init__(self, child, broadcast_type, shape):
+        super().__init__()
+        self._child = child
+        self._broadcast_type = broadcast_type
+        self._shape = shape
+        self._block_size = child.typ.block_size
+        self._dims_partitioned = child.typ.dims_partitioned
 
-        return left_shape, right_shape
+    def render(self, r):
+        return '(BlockMatrixBroadcast {} ({}) {} ({}) {})'\
+            .format(escape_str(self._broadcast_type),
+                    ' '.join([str(x) for x in self._shape]),
+                    self._block_size,
+                    ' '.join([str(b) for b in self._dims_partitioned]),
+                    r(self._child))
+
+    def _compute_type(self):
+        self._type = tblockmatrix(self._child.typ.element_type,
+                                  self._shape,
+                                  self._block_size,
+                                  self._dims_partitioned)
+
+
+class ValueToBlockMatrix(BlockMatrixIR):
+    @typecheck_method(child=oneof(F64, MakeArray),
+                      element_type=hail_type,
+                      shape=sequenceof(int),
+                      block_size=int,
+                      dims_partitioned=sequenceof(bool))
+    def __init__(self, child, element_type, shape, block_size, dims_partitioned):
+        super().__init__()
+        self._child = child
+        self._element_type = element_type
+        self._shape = shape
+        self._block_size = block_size
+        self._dims_partitioned = dims_partitioned
+
+    def render(self, r):
+        return '(ValueToBlockMatrix {} ({}) {} ({}) {})'.format(self._element_type._parsable_string(),
+                                                                ' '.join([str(x) for x in self._shape]),
+                                                                self._block_size,
+                                                                ' '.join([str(b) for b in self._dims_partitioned]),
+                                                                r(self._child))
+
+    def _compute_type(self):
+        self._type = tblockmatrix(self._element_type,
+                                  self._shape,
+                                  self._block_size,
+                                  self._dims_partitioned)
 
 
 class JavaBlockMatrix(BlockMatrixIR):
@@ -87,19 +113,3 @@ class JavaBlockMatrix(BlockMatrixIR):
 
     def _compute_type(self):
         self._type = tblockmatrix._from_java(self._jir.typ())
-
-
-def _shape_after_broadcast(left_shape, right_shape):
-    def _calc_new_dim(l_dim_length, r_dim_length):
-        if not (l_dim_length == r_dim_length or l_dim_length == 1 or r_dim_length == 1):
-            raise ValueError(f'Incompatible shapes for broadcasting: {left_shape}, {right_shape}')
-
-        return max(l_dim_length, r_dim_length)
-
-    left_ndim, right_ndim = len(left_shape), len(right_shape)
-    if left_ndim < right_ndim:
-        left_shape = [1 for _ in range(right_ndim - left_ndim)].extend(left_shape)
-    elif right_ndim < left_ndim:
-        right_shape = [1 for _ in range(left_ndim - right_ndim)].extend(right_shape)
-
-    return list(map(_calc_new_dim, left_shape, right_shape))

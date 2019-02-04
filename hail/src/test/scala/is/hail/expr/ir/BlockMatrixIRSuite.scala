@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import breeze.linalg.{DenseMatrix => BDM}
 import is.hail.SparkSuite
-import is.hail.expr.types.virtual.{TArray, TFloat64, TInt32}
+import is.hail.expr.types.virtual.{TArray, TFloat64}
 import is.hail.linalg.BlockMatrix
 import org.testng.annotations.Test
 
@@ -18,15 +18,6 @@ class BlockMatrixIRSuite extends SparkSuite {
     BlockMatrix.fromBreezeMatrix(sc, new BDM[Double](m, n, rows.flatten.toArray).t, blockSize)
   }
 
-  val element = Ref("element", TFloat64())
-  def mapOnRight(bm: BlockMatrixIR, op: BinaryOp, value: IR): BlockMatrixIR = {
-    BlockMatrixMap(bm, ApplyBinaryPrimOp(op, element, value))
-  }
-
-  def mapOnLeft(bm: BlockMatrixIR, op: BinaryOp, value: IR): BlockMatrixIR = {
-    BlockMatrixMap(bm, ApplyBinaryPrimOp(op, value, element))
-  }
-
   def makeMatFromCol(vec: Seq[Double]): BlockMatrix = {
     toBM(vec.map(entry => Array(entry, entry, entry)))
   }
@@ -35,9 +26,14 @@ class BlockMatrixIRSuite extends SparkSuite {
     toBM(Seq(vec.toArray, vec.toArray, vec.toArray))
   }
 
+  val element = Ref("element", TFloat64())
   def createBlockMatrixElemWiseOp(left: BlockMatrixIR, right: BlockMatrixIR,  op: BinaryOp):
-  BlockMatrixElementWiseBinaryOp = {
-    BlockMatrixElementWiseBinaryOp(left, right, ApplyBinaryPrimOp(op, element, element))
+  BlockMatrixMap2 = {
+    BlockMatrixMap2(left, right, ApplyBinaryPrimOp(op, element, element))
+  }
+
+  def assertBmEq(actual: BlockMatrix, expected: BlockMatrix) {
+    assert(actual.toBreezeMatrix() == expected.toBreezeMatrix())
   }
 
   val ones: BlockMatrix = BlockMatrix.fill(hc, 3, 3, 1)
@@ -52,90 +48,96 @@ class BlockMatrixIRSuite extends SparkSuite {
     Interpret(BlockMatrixWrite(new BlockMatrixLiteral(sampleMatrix), tempPath, false, false, false))
 
     val actualMatrix = BlockMatrixRead(tempPath).execute(hc)
-    assert(actualMatrix.toBreezeMatrix() == sampleMatrix.toBreezeMatrix())
+    assertBmEq(actualMatrix, sampleMatrix)
   }
 
-  @Test def testBlockMatrixBroadcastValue_Scalars() {
-    val onesAddTwo = mapOnRight(new BlockMatrixLiteral(ones), Add(), F64(2))
-    val threesSubTwo = mapOnRight(new BlockMatrixLiteral(threes), Subtract(), F64(2))
-    val twosMulTwo = mapOnRight(new BlockMatrixLiteral(twos), Multiply(), F64(2))
-    val foursDivTwo = mapOnRight(new BlockMatrixLiteral(fours), FloatingPointDivide(), F64(2))
+  val shape: Array[Long] = Array[Long](3, 3)
 
-    assert(onesAddTwo.execute(hc).toBreezeMatrix() == threes.toBreezeMatrix())
-    assert(threesSubTwo.execute(hc).toBreezeMatrix() == ones.toBreezeMatrix())
-    assert(twosMulTwo.execute(hc).toBreezeMatrix() == fours.toBreezeMatrix())
-    assert(foursDivTwo.execute(hc).toBreezeMatrix() == twos.toBreezeMatrix())
+  @Test def testBlockMatrixBroadcastValue_Scalars() {
+    val broadcastTwo = BlockMatrixBroadcast(
+      ValueToBlockMatrix(MakeArray(Seq[F64](F64(2)), TArray(TFloat64())), TFloat64(), Array[Long](), 0, Array[Boolean]()),
+        Broadcast2D.SCALAR, shape, 0, Array[Boolean](false, false))
+
+    val onesAddTwo = createBlockMatrixElemWiseOp(new BlockMatrixLiteral(ones), broadcastTwo, Add())
+    val threesSubTwo = createBlockMatrixElemWiseOp(new BlockMatrixLiteral(threes), broadcastTwo, Subtract())
+    val twosMulTwo = createBlockMatrixElemWiseOp(new BlockMatrixLiteral(twos), broadcastTwo, Multiply())
+    val foursDivTwo = createBlockMatrixElemWiseOp(new BlockMatrixLiteral(fours), broadcastTwo, FloatingPointDivide())
+
+    assertBmEq(onesAddTwo.execute(hc), threes)
+    assertBmEq(threesSubTwo.execute(hc), ones)
+    assertBmEq(twosMulTwo.execute(hc), fours)
+    assertBmEq(foursDivTwo.execute(hc), twos)
   }
 
   @Test def testBlockMatrixBroadcastValue_Vectors() {
-    val rowVectorShapeLiteral = Literal(TArray(TInt32()), Seq[Long](1, 3))
-    val colVectorShapeLiteral = Literal(TArray(TInt32()), Seq[Long](3, 1))
-    val vectorLiteral = Literal(TArray(TFloat64()), Seq[Double](1, 2, 3))
+    val vectorLiteral = MakeArray(Seq[F64](F64(1), F64(2), F64(3)), TArray(TFloat64()))
 
-    val rowVector = MakeStruct(IndexedSeq(("shape", rowVectorShapeLiteral), ("data", vectorLiteral)))
-    val colVector = MakeStruct(IndexedSeq(("shape", colVectorShapeLiteral), ("data", vectorLiteral)))
+    val broadcastRowVector = BlockMatrixBroadcast(ValueToBlockMatrix(vectorLiteral, TFloat64(), Array[Long](3),
+      0, Array(false)), Broadcast2D.ROW, shape, 0, Array[Boolean](false, false))
+    val broadcastColVector = BlockMatrixBroadcast(ValueToBlockMatrix(vectorLiteral, TFloat64(), Array[Long](3),
+      0, Array(false)), Broadcast2D.COL, shape, 0, Array[Boolean](false, false))
 
     // Addition
-    val actualOnesAddRowOnRight = mapOnRight(new BlockMatrixLiteral(ones), Add(), rowVector)
-    val actualOnesAddColOnRight = mapOnRight(new BlockMatrixLiteral(ones), Add(), colVector)
-    val actualOnesAddRowOnLeft = mapOnLeft(new BlockMatrixLiteral(ones), Add(), rowVector)
-    val actualOnesAddColOnLeft = mapOnLeft(new BlockMatrixLiteral(ones), Add(), colVector)
+    val actualOnesAddRowOnRight = createBlockMatrixElemWiseOp(new BlockMatrixLiteral(ones), broadcastRowVector, Add())
+    val actualOnesAddColOnRight = createBlockMatrixElemWiseOp(new BlockMatrixLiteral(ones), broadcastColVector, Add())
+    val actualOnesAddRowOnLeft  = createBlockMatrixElemWiseOp(broadcastRowVector, new BlockMatrixLiteral(ones), Add())
+    val actualOnesAddColOnLeft  = createBlockMatrixElemWiseOp(broadcastColVector, new BlockMatrixLiteral(ones), Add())
 
     val expectedOnesAddRow = makeMatFromRow(Seq(2, 3, 4))
     val expectedOnesAddCol = makeMatFromCol(Seq(2, 3, 4))
 
-    assert(actualOnesAddRowOnRight.execute(hc).toBreezeMatrix() == expectedOnesAddRow.toBreezeMatrix())
-    assert(actualOnesAddColOnRight.execute(hc).toBreezeMatrix() == expectedOnesAddCol.toBreezeMatrix())
-    assert(actualOnesAddRowOnLeft.execute(hc).toBreezeMatrix() == expectedOnesAddRow.toBreezeMatrix())
-    assert(actualOnesAddColOnLeft.execute(hc).toBreezeMatrix() == expectedOnesAddCol.toBreezeMatrix())
+    assertBmEq(actualOnesAddRowOnRight.execute(hc), expectedOnesAddRow)
+    assertBmEq(actualOnesAddColOnRight.execute(hc), expectedOnesAddCol)
+    assertBmEq(actualOnesAddRowOnLeft.execute(hc),  expectedOnesAddRow)
+    assertBmEq(actualOnesAddColOnLeft.execute(hc),  expectedOnesAddCol)
 
 
     // Multiplication
-    val actualOnesMulRowOnRight = mapOnRight(new BlockMatrixLiteral(ones), Multiply(), rowVector)
-    val actualOnesMulColOnRight = mapOnRight(new BlockMatrixLiteral(ones), Multiply(), colVector)
-    val actualOnesMulRowOnLeft  = mapOnLeft(new BlockMatrixLiteral(ones), Multiply(), rowVector)
-    val actualOnesMulColOnLeft  = mapOnLeft(new BlockMatrixLiteral(ones), Multiply(), colVector)
+    val actualOnesMulRowOnRight = createBlockMatrixElemWiseOp(new BlockMatrixLiteral(ones), broadcastRowVector, Multiply())
+    val actualOnesMulColOnRight = createBlockMatrixElemWiseOp(new BlockMatrixLiteral(ones), broadcastColVector, Multiply())
+    val actualOnesMulRowOnLeft  = createBlockMatrixElemWiseOp(broadcastRowVector, new BlockMatrixLiteral(ones), Multiply())
+    val actualOnesMulColOnLeft  = createBlockMatrixElemWiseOp(broadcastColVector, new BlockMatrixLiteral(ones), Multiply())
 
     val expectedOnesMulRow = makeMatFromRow(Seq(1, 2, 3))
     val expectedOnesMulCol = makeMatFromCol(Seq(1, 2, 3))
 
-    assert(actualOnesMulRowOnRight.execute(hc).toBreezeMatrix() == expectedOnesMulRow.toBreezeMatrix())
-    assert(actualOnesMulColOnRight.execute(hc).toBreezeMatrix() == expectedOnesMulCol.toBreezeMatrix())
-    assert(actualOnesMulRowOnLeft.execute(hc).toBreezeMatrix() == expectedOnesMulRow.toBreezeMatrix())
-    assert(actualOnesMulColOnLeft.execute(hc).toBreezeMatrix() == expectedOnesMulCol.toBreezeMatrix())
+    assertBmEq(actualOnesMulRowOnRight.execute(hc), expectedOnesMulRow)
+    assertBmEq(actualOnesMulColOnRight.execute(hc), expectedOnesMulCol)
+    assertBmEq(actualOnesMulRowOnLeft.execute(hc),  expectedOnesMulRow)
+    assertBmEq(actualOnesMulColOnLeft.execute(hc),  expectedOnesMulCol)
 
 
     // Subtraction
-    val actualOnesSubRowOnRight = mapOnRight(new BlockMatrixLiteral(ones), Subtract(), rowVector)
-    val actualOnesSubColOnRight = mapOnRight(new BlockMatrixLiteral(ones), Subtract(), colVector)
-    val actualOnesSubRowOnLeft  = mapOnLeft(new BlockMatrixLiteral(ones), Subtract(), rowVector)
-    val actualOnesSubColOnLeft  = mapOnLeft(new BlockMatrixLiteral(ones), Subtract(), colVector)
+    val actualOnesSubRowOnRight = createBlockMatrixElemWiseOp(new BlockMatrixLiteral(ones), broadcastRowVector, Subtract())
+    val actualOnesSubColOnRight = createBlockMatrixElemWiseOp(new BlockMatrixLiteral(ones), broadcastColVector, Subtract())
+    val actualOnesSubRowOnLeft  = createBlockMatrixElemWiseOp(broadcastRowVector, new BlockMatrixLiteral(ones), Subtract())
+    val actualOnesSubColOnLeft  = createBlockMatrixElemWiseOp(broadcastColVector, new BlockMatrixLiteral(ones), Subtract())
 
     val expectedOnesSubRowRight = makeMatFromRow(Seq(0, -1, -2))
     val expectedOnesSubColRight = makeMatFromCol(Seq(0, -1, -2))
     val expectedOnesSubRowLeft = makeMatFromRow(Seq(0, 1, 2))
     val expectedOnesSubColLeft = makeMatFromCol(Seq(0, 1, 2))
 
-    assert(actualOnesSubRowOnRight.execute(hc).toBreezeMatrix() == expectedOnesSubRowRight.toBreezeMatrix())
-    assert(actualOnesSubColOnRight.execute(hc).toBreezeMatrix() == expectedOnesSubColRight.toBreezeMatrix())
-    assert(actualOnesSubRowOnLeft.execute(hc).toBreezeMatrix() == expectedOnesSubRowLeft.toBreezeMatrix())
-    assert(actualOnesSubColOnLeft.execute(hc).toBreezeMatrix() == expectedOnesSubColLeft.toBreezeMatrix())
+    assertBmEq(actualOnesSubRowOnRight.execute(hc), expectedOnesSubRowRight)
+    assertBmEq(actualOnesSubColOnRight.execute(hc), expectedOnesSubColRight)
+    assertBmEq(actualOnesSubRowOnLeft.execute(hc),  expectedOnesSubRowLeft)
+    assertBmEq(actualOnesSubColOnLeft.execute(hc),  expectedOnesSubColLeft)
 
 
     // Division
-    val actualOnesDivRowOnRight = mapOnRight(new BlockMatrixLiteral(ones), FloatingPointDivide(), rowVector)
-    val actualOnesDivColOnRight = mapOnRight(new BlockMatrixLiteral(ones), FloatingPointDivide(), colVector)
-    val actualOnesDivRowOnLeft  = mapOnLeft(new BlockMatrixLiteral(ones), FloatingPointDivide(), rowVector)
-    val actualOnesDivColOnLeft  = mapOnLeft(new BlockMatrixLiteral(ones), FloatingPointDivide(), colVector)
+    val actualOnesDivRowOnRight = createBlockMatrixElemWiseOp(new BlockMatrixLiteral(ones), broadcastRowVector, FloatingPointDivide())
+    val actualOnesDivColOnRight = createBlockMatrixElemWiseOp(new BlockMatrixLiteral(ones), broadcastColVector, FloatingPointDivide())
+    val actualOnesDivRowOnLeft  = createBlockMatrixElemWiseOp(broadcastRowVector, new BlockMatrixLiteral(ones), FloatingPointDivide())
+    val actualOnesDivColOnLeft  = createBlockMatrixElemWiseOp(broadcastColVector, new BlockMatrixLiteral(ones), FloatingPointDivide())
 
     val expectedOnesDivRowRight = makeMatFromRow(Seq(1, 1.0 / 2.0, 1.0 / 3.0))
     val expectedOnesDivColRight = makeMatFromCol(Seq(1, 1.0 / 2.0, 1.0 / 3.0))
     val expectedOnesDivRowLeft = makeMatFromRow(Seq(1, 2, 3))
     val expectedOnesDivColLeft = makeMatFromCol(Seq(1, 2, 3))
 
-    assert(actualOnesDivRowOnRight.execute(hc).toBreezeMatrix() == expectedOnesDivRowRight.toBreezeMatrix())
-    assert(actualOnesDivColOnRight.execute(hc).toBreezeMatrix() == expectedOnesDivColRight.toBreezeMatrix())
-    assert(actualOnesDivRowOnLeft.execute(hc).toBreezeMatrix() == expectedOnesDivRowLeft.toBreezeMatrix())
-    assert(actualOnesDivColOnLeft.execute(hc).toBreezeMatrix() == expectedOnesDivColLeft.toBreezeMatrix())
+    assertBmEq(actualOnesDivRowOnRight.execute(hc), expectedOnesDivRowRight)
+    assertBmEq(actualOnesDivColOnRight.execute(hc), expectedOnesDivColRight)
+    assertBmEq(actualOnesDivRowOnLeft.execute(hc),  expectedOnesDivRowLeft)
+    assertBmEq(actualOnesDivColOnLeft.execute(hc),  expectedOnesDivColLeft)
   }
 }

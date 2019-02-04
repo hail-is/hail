@@ -253,6 +253,16 @@ object IRParser {
     strings
   }
 
+  def literals[T](literalIdentifier: TokenIterator => T)(it: TokenIterator)(implicit tct: ClassTag[T]): Array[T] = {
+    punctuation(it, "(")
+    val literals = repUntil(it, literalIdentifier, PunctuationToken(")"))
+    punctuation(it, ")")
+    literals
+  }
+
+  def int64_literals: TokenIterator => Array[Long] = literals(int64_literal)
+  def boolean_literals: TokenIterator => Array[Boolean] = literals(boolean_literal)
+
   def opt[T](it: TokenIterator, f: (TokenIterator) => T)(implicit tct: ClassTag[T]): Option[T] = {
     it.head match {
       case x: IdentifierToken if x.value == "None" =>
@@ -1125,11 +1135,25 @@ object IRParser {
         val left = blockmatrix_ir(env)(it)
         val right = blockmatrix_ir(env)(it)
         val applyBinOp = ir_value_expr(env + ("element" -> left.typ.elementType))(it)
-        BlockMatrixElementWiseBinaryOp(left, right, applyBinOp.asInstanceOf[ApplyBinaryPrimOp])
+        BlockMatrixMap2(left, right, applyBinOp.asInstanceOf[ApplyBinaryPrimOp])
       case "BlockMatrixMap" =>
         val child = blockmatrix_ir(env)(it)
         val applyBinOp = ir_value_expr(env + ("element" -> TFloat64()))(it)
         BlockMatrixMap(child, applyBinOp.asInstanceOf[ApplyBinaryPrimOp])
+      case "BlockMatrixBroadcast" =>
+        val broadcastType = Broadcast2D.fromString(identifier(it))
+        val shape = int64_literals(it)
+        val blockSize = int32_literal(it)
+        val dimsPartitioned = boolean_literals(it)
+        val child = blockmatrix_ir(env)(it)
+        BlockMatrixBroadcast(child, broadcastType, shape, blockSize, dimsPartitioned)
+      case "ValueToBlockMatrix" =>
+        val valueType = parseType(identifier(it))
+        val shape = int64_literals(it)
+        val blockSize = int32_literal(it)
+        val dimsPartitioned = boolean_literals(it)
+        val child = ir_value_expr(env)(it)
+        ValueToBlockMatrix(child, valueType, shape, blockSize, dimsPartitioned)
       case "JavaBlockMatrix" =>
         val name = identifier(it)
         env.irMap(name).asInstanceOf[BlockMatrixIR]
