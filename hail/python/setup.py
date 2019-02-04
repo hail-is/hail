@@ -8,7 +8,6 @@ with open('hail/hail_pip_version') as f:
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
-install_requires = []
 with open('requirements.txt') as f:
     install_requires = f.read().splitlines()
 
