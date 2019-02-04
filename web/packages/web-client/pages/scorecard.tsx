@@ -10,12 +10,14 @@ const config = getConfig().publicRuntimeConfig.SCORECARD;
 
 // We separate these because in some environments (i.e kubernetes)
 // there may be an internal DNS we can take advantage of
-const WEB_DOMAIN: string = config.WEB_DOMAIN;
-const SERVER_DOMAIN: string = config.SERVER_DOMAIN;
+const WEB_URL: string = config.WEB_URL;
+const SERVER_URL: string = config.SERVER_URL;
 const USERS: string[] = config.USERS;
 
-if (!(USERS && WEB_DOMAIN && SERVER_DOMAIN)) {
-  throw new Error('Scorecard USERS and DOMAIN env variables required found');
+if (!(USERS && WEB_URL && SERVER_URL)) {
+  throw new Error(
+    'Scorecard WEB_URL and SERVER_URL env variables required found'
+  );
 }
 
 // TODO: This may be better represented using GraphQL
@@ -68,7 +70,7 @@ const startPolling = (ms: number = 1 * 60 * 1000) => {
   }
 
   timeout = setInterval(() => {
-    fetch(`${WEB_DOMAIN}/json`)
+    fetch(`${WEB_URL}/json`)
       .then(d => d.json())
       .then(data => {
         cache = data;
@@ -94,7 +96,7 @@ class Scorecard extends PureComponent<Props, State> {
 
     if (onServer || !cache) {
       const ssr: scorecardJson = await fetch(
-        `${onServer ? SERVER_DOMAIN : WEB_DOMAIN}/json`
+        `${onServer ? SERVER_URL : WEB_URL}/json`
       ).then(d => d.json());
 
       // TODO: could use page loading indicator here instead of synchronously waiting

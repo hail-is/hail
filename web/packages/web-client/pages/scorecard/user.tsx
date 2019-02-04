@@ -1,7 +1,14 @@
 import { PureComponent, Fragment } from 'react';
 import { PR, Issue } from './scorecard';
 import fetch from 'isomorphic-unfetch';
+import getConfig from 'next/config';
 
+const config = getConfig().publicRuntimeConfig.SCORECARD;
+console.info(getConfig().publicRuntimeConfig.SCORECARD);
+// We separate these because in some environments (i.e kubernetes)
+// there may be an internal DNS we can take advantage of
+const WEB_URL: string = config.WEB_URL;
+console.info('web uuerl', WEB_URL);
 import '../../styles/pages/scorecard/user.scss';
 
 declare type response = {
@@ -88,10 +95,12 @@ const Section = ({ data, sectionClass, type }: section) => (
 // TODO: add caching
 class User extends PureComponent<pageProps> {
   static async getInitialProps({ query }: props) {
-    const res: response = await fetch(
-      `https://scorecard.hail.is/json/users/${query.name}`
-    ).then(d => d.json());
+    console.info('Fetching', `${WEB_URL}/json/users/`);
 
+    const res: response = await fetch(
+      `${WEB_URL}/json/users/${query.name}`
+    ).then(d => d.json());
+    console.info('res', res);
     return {
       pageProps: {
         user_data: res.user_data,

@@ -16,16 +16,19 @@ const publicRuntimeConfig = {
     CLIENT_ID: process.env.AUTH0_CLIENT_ID,
     AUDIENCE: process.env.AUTH0_AUDIENCE
   },
+  HAIL: {
+    DOMAIN: process.env.HAIL_DOMAIN
+  },
   SCORECARD: {
-    WEB_DOMAIN: process.env.SCORECARD_WEB_DOMAIN,
-    SERVER_DOMAIN:
-      process.env.SCORECARD_SERVER_DOMAIN || process.env.SCORECARD_WEB_DOMAIN,
+    WEB_URL: process.env.SCORECARD_WEB_URL,
+    SERVER_URL:
+      process.env.SCORECARD_SERVER_URL || process.env.SCORECARD_WEB_URL,
     USERS: process.env.SCORECARD_USERS
       ? process.env.SCORECARD_USERS.split(',')
       : []
   },
   NOTEBOOK: {
-    DOMAIN: process.env.NOTEBOOK_DOMAIN,
+    URL: process.env.NOTEBOOK_URL,
     IMAGE: process.env.NOTEBOOK_IMAGE
   }
 };

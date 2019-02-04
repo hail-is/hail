@@ -62,6 +62,8 @@ declare type cookies = {
 
 declare type cb = (state: AuthInterface) => void;
 
+const cfg = getConfig().publicRuntimeConfig;
+
 const {
   DOMAIN,
   AUDIENCE,
@@ -69,7 +71,9 @@ const {
   RESPONSE_TYPE,
   SCOPE,
   CALLBACK_SUFFIX
-} = getConfig().publicRuntimeConfig.AUTH0;
+} = cfg.AUTH0;
+
+const HAIL_DOMAIN = cfg.HAIL.DOMAIN;
 
 // https://basarat.gitbooks.io/typescript/docs/tips/lazyObjectLiteralInitialization.html
 let _state: stateType = { loggedOut: false };
@@ -101,6 +105,11 @@ let _checkSessionPromise: Promise<any>;
 // and O(2n) memory cost
 let listeners: any = [];
 let removed: any = [];
+
+const cookieOpts = { path: '/' };
+// Use broader scope for access token cookie, so that it may be consumed
+// by other hail services
+const accessTokenOpts = { path: '/', domain: HAIL_DOMAIN };
 
 // TODO: Should we trigger cb with initial state?
 export const addListener = (cb: cb) => {
@@ -351,15 +360,25 @@ function _initState() {
 
 function _loginFromAuth0(r: auth0payload) {
   const expires = `${r.expiresIn * 1000 + Date.now()}`;
+  const expInt = parseInt(expires, 10);
 
-  const opt: CookieAttributes = {
-    expires: parseInt(expires, 10),
-    path: '/'
-  };
+  const tokenOpts: CookieAttributes = Object.assign(
+    {
+      expires: expInt
+    },
+    cookieOpts
+  );
 
-  cookies.set('expires', expires, opt);
-  cookies.set('idToken', r.idToken as string, opt);
-  cookies.set('accessToken', r.accessToken as string, opt);
+  const accessTokenOpt: CookieAttributes = Object.assign(
+    {
+      expires: expInt
+    },
+    accessTokenOpts
+  );
+
+  cookies.set('expires', expires, tokenOpts);
+  cookies.set('idToken', r.idToken as string, tokenOpts);
+  cookies.set('accessToken', r.accessToken as string, accessTokenOpt);
 
   // This is the auth0 state, if sent during the login request
   // We currently use this for workshop passwords
@@ -376,13 +395,12 @@ function _loginFromAuth0(r: auth0payload) {
 }
 
 function _removeCookies() {
-  const cookiePath = { path: '/' };
-
-  cookies.remove('idToken', cookiePath);
-  cookies.remove('accessToken', cookiePath);
-  cookies.remove('expires', cookiePath);
-  cookies.remove('state', cookiePath);
+  cookies.remove('idToken', cookieOpts);
+  cookies.remove('expires', cookieOpts);
+  cookies.remove('state', cookieOpts);
+  cookies.remove('accessToken', accessTokenOpts);
 }
+
 // Change the reference, so state can be passed by reference and
 // shallow watched
 function _clearState(initState?: Partial<stateType>) {
@@ -418,7 +436,7 @@ function _checkSession() {
       return resolve();
     }
 
-    _auth0.checkSession({ state }, (err, authResult) => {
+    _auth0.checkSession({ state }, (err, authResult: auth0payload) => {
       if (err) {
         return reject(err);
       }
@@ -427,7 +445,7 @@ function _checkSession() {
         return resolve();
       }
 
-      _loginFromAuth0(authResult as auth0payload);
+      _loginFromAuth0(authResult);
 
       resolve(authResult);
     });
@@ -446,11 +464,17 @@ function _pollForSession() {
     return;
   }
 
-  const exp = parseInt(_state.expires as string, 10);
+  let expIn = Math.floor(
+    (parseInt(_state.expires as string, 10) - Date.now()) / 2
+  );
 
-  if (!exp) {
+  if (isNaN(expIn)) {
     console.error("Couldn't convert expires to number", _state.expires);
     return;
+  }
+
+  if (expIn < 0) {
+    expIn = 0;
   }
 
   _sessionPoll = setInterval(() => {
@@ -469,7 +493,7 @@ function _pollForSession() {
         console.error(err);
         logout();
       });
-  }, Math.floor(exp / 2));
+  }, expIn);
 }
 
 // expects to receive a new referece;

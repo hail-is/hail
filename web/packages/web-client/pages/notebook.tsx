@@ -4,7 +4,7 @@ import fetch from 'isomorphic-unfetch';
 import getConfig from 'next/config';
 
 const cfg = getConfig().publicRuntimeConfig.NOTEBOOK;
-const DOMAIN = cfg.DOMAIN;
+const URL = cfg.URL;
 
 declare type notebook = {
   svc_name: string;
@@ -67,7 +67,7 @@ class Notebook extends PureComponent<props, state> {
   static async getInitialProps() {
     let notebooks: notebooks = {};
     try {
-      notebooks = await fetch(`${DOMAIN}/api`, {
+      notebooks = await fetch(`${URL}/api`, {
         headers: {
           Authorization: `Bearer ${auth.accessToken}`
         }
@@ -95,7 +95,8 @@ class Notebook extends PureComponent<props, state> {
   }
 
   componentDidMount() {
-    const name = DOMAIN.replace(/http/, 'ws'); //automatically wss if https
+    console.info('access token in notebook', auth.accessToken);
+    const name = URL.replace(/http/, 'ws'); //automatically wss if https
     const ws = new WebSocket(`${name}/api/ws?access_token=${auth.accessToken}`);
 
     ws.onmessage = ev => {
@@ -136,7 +137,7 @@ class Notebook extends PureComponent<props, state> {
     this.setState({ loading: 1 });
 
     try {
-      const notebook: notebook = await fetch(`${DOMAIN}/api`, {
+      const notebook: notebook = await fetch(`${URL}/api`, {
         headers: {
           Authorization: `Bearer ${auth.accessToken}`
         },
@@ -166,7 +167,7 @@ class Notebook extends PureComponent<props, state> {
     this.setState({ loading: 1 });
 
     try {
-      const response = await fetch(`${DOMAIN}/api/${notebook.svc_name}`, {
+      const response = await fetch(`${URL}/api/${notebook.svc_name}`, {
         headers: {
           Authorization: `Bearer ${auth.accessToken}`
         },
@@ -242,9 +243,9 @@ class Notebook extends PureComponent<props, state> {
                   <div className="spinner" style={{ marginRight: '14px' }} />
                 )}
                 <a
-                  target='_blank'
+                  target="_blank"
                   style={{ flexDirection: 'column', display: 'flex' }}
-                  href={`${DOMAIN}/instance/${d.svc_name}/?access_token=${
+                  href={`${URL}/instance/${d.svc_name}/?access_token=${
                     auth.accessToken
                   }&token=${d.token}`}
                 >
