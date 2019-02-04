@@ -11,6 +11,37 @@ from hail.utils.java import Env
 # FIXME, infer loop type?
 @typecheck(f=anytype, typ=hail_type, exprs=expr_any)
 def loop(f: Callable, typ, *exprs):
+    """Expression for writing tail recursive expressions.
+
+    Example
+    -------
+
+    >>> x = hl.experimental.loop(lambda recur, acc, n: hl.cond(n > 10, acc, recur(acc + n, n + 1)), hl.tint32, 0, 0)
+    >>> hl.eval(x)
+    55
+
+    Notes
+    -----
+    The first argument to the lambda is a marker for the recursive call.
+
+    Some infinite loop detection is done, and if an infinite loop is detected, `loop` will not
+    typecheck.
+
+    Parameters
+    ----------
+    f : function ( (marker, *args) -> :class:`.Expression`
+        Function of one callable marker, denoting where the recursive call (or calls) is located,
+        and many `exprs`, the loop variables.
+    typ : :obj:`str` or :class:`.HailType`
+        Type the loop returns.
+    exprs : variable-length args of :class:`.Expression`
+        Expressions to initialize the loop values.
+
+    Returns
+    -------
+    :class:`.Expression`
+        Result of the loop with `exprs` as inital loop values.
+    """
     @typecheck(recur_exprs=expr_any)
     def make_loop(*recur_exprs):
         if len(recur_exprs) != len(exprs):
