@@ -242,6 +242,7 @@ class Notebook extends PureComponent<props, state> {
                   <div className="spinner" style={{ marginRight: '14px' }} />
                 )}
                 <a
+                  target='_blank'
                   style={{ flexDirection: 'column', display: 'flex' }}
                   href={`${DOMAIN}/instance/${d.svc_name}/?access_token=${
                     auth.accessToken
