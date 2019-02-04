@@ -242,21 +242,28 @@ class BlockMatrixIRTests(unittest.TestCase):
     def _make_element_wise_op_ir(bm1, bm2, op):
         return ir.BlockMatrixElementWiseBinaryOp(bm1, bm2, ir.ApplyBinaryOp(op, ir.Ref("element"), ir.Ref("element")))
 
-    @staticmethod
-    def _wrap_in_struct(shape, data):
-        return ir.MakeStruct([
-            ("shape", ir.Literal(hl.tarray(hl.tint64), shape)),
-            ("data", ir.Literal(hl.tarray(hl.tfloat64), data))])
-
     def block_matrix_irs(self):
-        read = ir.BlockMatrixRead(resource('blockmatrix_example/0'))
-        elem_wise_addition = ir.BlockMatrixElementWiseBinaryOp(read, read,
-                                                               ir.ApplyBinaryOp("+", ir.Ref("element"), ir.Ref("element")))
-        broadcast_scalar = ir.BlockMatrixMap(read, ir.ApplyBinaryOp("+", ir.Ref("element"), ir.F64(2)))
-        broadcast_vector = ir.BlockMatrixMap(read, ir.ApplyBinaryOp("*", ir.Ref("element"),
-                                                                    self._wrap_in_struct([1, 2], [3, 3])))
+        scalar_ir = ir.F64(2)
+        vector_ir = ir.MakeArray([ir.F64(3), ir.F64(2)], hl.tarray(hl.tfloat64))
 
-        return [read, elem_wise_addition, broadcast_scalar, broadcast_vector]
+        read = ir.BlockMatrixRead(resource('blockmatrix_example/0'))
+        add_two_bms = BlockMatrixIRTests._make_element_wise_op_ir(read, read, '+')
+
+        scalar_to_bm = ir.ValueToBlockMatrix(scalar_ir, hl.tfloat64, [], 1, [])
+        vector_to_bm = ir.ValueToBlockMatrix(vector_ir, hl.tfloat64, [2], 1, [False])
+        broadcast_scalar = ir.BlockMatrixBroadcast(scalar_to_bm, "scalar", [2, 2], 256, [False, False])
+        broadcast_col = ir.BlockMatrixBroadcast(vector_to_bm, "col", [2, 2], 256, [False, False])
+        broadcast_row = ir.BlockMatrixBroadcast(vector_to_bm, "row", [2, 2], 256, [False, False])
+
+        return [
+            read,
+            add_two_bms,
+            scalar_to_bm,
+            vector_to_bm,
+            broadcast_scalar,
+            broadcast_col,
+            broadcast_row,
+        ]
 
     def test_parses(self):
         for x in self.block_matrix_irs():

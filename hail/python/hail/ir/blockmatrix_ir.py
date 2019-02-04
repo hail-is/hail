@@ -1,6 +1,6 @@
 from hail.expr.blockmatrix_type import tblockmatrix
-from hail.expr.types import tfloat64, hail_type
-from hail.ir import BlockMatrixIR, ApplyBinaryOp, F64, MakeArray, Literal
+from hail.expr.types import hail_type
+from hail.ir import BlockMatrixIR, ApplyBinaryOp, F64, MakeArray
 from hail.utils.java import escape_str
 from hail.typecheck import typecheck_method, oneof, sequenceof
 
@@ -51,14 +51,18 @@ class BlockMatrixMap(BlockMatrixIR):
 
 
 class BlockMatrixBroadcast(BlockMatrixIR):
-    @typecheck_method(child=BlockMatrixIR, broadcast_type=str, shape=sequenceof(int))
-    def __init__(self, child, broadcast_type, shape):
+    @typecheck_method(child=BlockMatrixIR,
+                      broadcast_type=str,
+                      shape=sequenceof(int),
+                      block_size=int,
+                      dims_partitioned=sequenceof(bool))
+    def __init__(self, child, broadcast_type, shape, block_size, dims_partitioned):
         super().__init__()
         self._child = child
         self._broadcast_type = broadcast_type
         self._shape = shape
-        self._block_size = child.typ.block_size
-        self._dims_partitioned = child.typ.dims_partitioned
+        self._block_size = block_size
+        self._dims_partitioned = dims_partitioned
 
     def render(self, r):
         return '(BlockMatrixBroadcast {} ({}) {} ({}) {})'\

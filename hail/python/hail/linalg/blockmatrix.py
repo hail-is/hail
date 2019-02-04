@@ -5,7 +5,7 @@ import itertools
 import hail as hl
 import hail.expr.aggregators as agg
 from hail.ir import BlockMatrixWrite, BlockMatrixElementWiseBinaryOp, ApplyBinaryOp, Ref, F64, \
-    Literal, BlockMatrixBroadcast, ValueToBlockMatrix, MakeArray, I64
+     BlockMatrixBroadcast, ValueToBlockMatrix, MakeArray, I64
 from hail.ir.blockmatrix_ir import BlockMatrixRead, JavaBlockMatrix
 from hail.utils import new_temp_file, new_local_temp_file, local_path_uri, storage_level
 from hail.utils.java import Env, jarray, joption
@@ -2082,7 +2082,7 @@ def _shape_after_broadcast(left_shape, right_shape):
 def _produce_ir_with_shape(x, result_shape):
     if _is_scalar(x):
         scalar_to_bm = ValueToBlockMatrix(F64(x), hl.tfloat64, [], BlockMatrix.default_block_size(), [])
-        return BlockMatrixBroadcast(scalar_to_bm, "scalar", result_shape)
+        return BlockMatrixBroadcast(scalar_to_bm, "scalar", result_shape, BlockMatrix.default_block_size(), [])
     elif isinstance(x, np.ndarray):
         vec_bmir = ValueToBlockMatrix(_wrap_doubles_in_makearray(x.tolist()),
                                       hl.tfloat64,
@@ -2094,13 +2094,15 @@ def _produce_ir_with_shape(x, result_shape):
             return vec_bmir
         else:
             broadcast_type = _get_broadcast_type(list(x.shape))
-            return BlockMatrixBroadcast(vec_bmir, broadcast_type, result_shape)
+            return BlockMatrixBroadcast(vec_bmir, broadcast_type, result_shape,
+                                        BlockMatrix.default_block_size(), [False for _ in result_shape])
     else:
         if list(x.shape) == result_shape:
             return x._bmir
         else:
             broadcast_type = _get_broadcast_type(list(x.shape))
-            return BlockMatrixBroadcast(x._bmir, broadcast_type, result_shape)
+            return BlockMatrixBroadcast(x._bmir, broadcast_type, result_shape,
+                                        BlockMatrix.default_block_size(), [False for _ in result_shape])
 
 
 def _wrap_doubles_in_makearray(data):

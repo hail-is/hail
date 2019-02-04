@@ -223,7 +223,6 @@ case class BlockMatrixMap2(
   }
 }
 
-// This is now essentially only useful for unary operations
 case class BlockMatrixMap(
   child: BlockMatrixIR,
   applyBinOp: ApplyBinaryPrimOp) extends BlockMatrixIR {
