@@ -272,3 +272,27 @@ def test_from_file(client):
 
         status = batch.wait()
         assert status['jobs']['Complete'] == 4
+
+
+def test_no_parents_allowed_in_other_batches(client):
+    b1 = client.create_batch()
+    b2 = client.create_batch()
+    head = b1.create_job('alpine:3.8', command=['echo', 'head'])
+    try:
+        b2.create_job('alpine:3.8', command=['echo', 'tail'], parent_ids=[head.id])
+    except requests.exceptions.HTTPError as err:
+        assert err.response.status_code == 400
+        assert re.search('.*invalid parent batch: .*', err.response.text)
+        return
+    assert False
+
+
+def test_no_parents_allowed_without_batches(client):
+    head = client.create_job('alpine:3.8', command=['echo', 'head'])
+    try:
+        client.create_job('alpine:3.8', command=['echo', 'tail'], parent_ids=[head.id])
+    except requests.exceptions.HTTPError as err:
+        assert err.response.status_code == 400
+        assert re.search('.*invalid parent batch: .*', err.response.text)
+        return
+    assert False

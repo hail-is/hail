@@ -300,14 +300,19 @@ def create_job():  # pylint: disable=R0912
 
     parent_ids = parameters.get('parent_ids', [])
     for parent_id in parent_ids:
-        if parent_id not in job_id_job:
+        parent_job = job_id_job.get(parent_id, None)
+        if parent_job is None:
             abort(400, f'invalid parent_id: no job with id {parent_id}')
+        if parent_job.batch_id != batch_id or parent_job.batch_id is None or batch_id is None:
+            abort(400,
+                  f'invalid parent batch: {parent_id} is in batch '
+                  f'{parent_job.batch_id} but child is in {batch_id}')
 
     if len(pod_spec.containers) != 1:
         abort(400, f'only one container allowed in pod_spec {pod_spec}')
 
     if pod_spec.containers[0].name != 'default':
-        abort(400, f'container name must be "default" was {pod_spec.containres[0].name}')
+        abort(400, f'container name must be "default" was {pod_spec.containers[0].name}')
 
     job = Job(
         pod_spec,
