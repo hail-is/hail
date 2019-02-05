@@ -349,6 +349,9 @@ object Simplify {
       } yield oldName -> newName
       TableRename(child, Map(renamedPairs: _*), Map.empty)
 
+    case TableMapRows(TableMapRows(child, newRow1), newRow2) if !ContainsScan(newRow2) =>
+      TableMapRows(child, Let("row", newRow1, newRow2))
+
     case TableMapGlobals(child, Ref("global", _)) => child
 
     // flatten unions
