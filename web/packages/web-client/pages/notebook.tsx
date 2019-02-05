@@ -4,9 +4,25 @@ import fetch from 'isomorphic-unfetch';
 import getConfig from 'next/config';
 
 // TODO: If user isn't logged in, and make it to this page
+// TODO: Enumerate waitingStatus 'reason's
 // after 401, tell them they need to log in
 const cfg = getConfig().publicRuntimeConfig.NOTEBOOK;
 const URL = cfg.URL;
+
+declare type runningStatus = {
+  started_at: number;
+};
+
+declare type waitingStatus = {
+  reason: string;
+};
+
+declare type terminatedStatus = {
+  exit_code: number;
+  finished_at: number;
+  started_at: number;
+  reason: string;
+};
 
 declare type notebook = {
   svc_name: string;
@@ -16,6 +32,11 @@ declare type notebook = {
   creation_date: string;
   svc_status: string;
   pod_status: string; // The kubernetes status.phase val for pod
+  container_status: {
+    running: runningStatus | null;
+    waiting: waitingStatus | null;
+    terminated: terminatedStatus | null;
+  } | null;
 };
 
 declare type notebooks = { [pod_name: string]: notebook };
@@ -185,6 +206,22 @@ const deleteNotebook = (notebook: notebook, skipRemove: boolean) => {
   });
 };
 
+// Not used for now, until I get stable date from Kubernetes/notebook-api
+// (i.e not dependent on Date.now)
+// const getFormattedDate = (ms: number) => {
+//   const date = new Date(ms);
+//   let hours = date.getHours();
+
+//   if (hours > 12) {
+//     hours = 24 - hours;
+//   }
+
+//   const pm = hours >= 12 ? 'pm' : 'am';
+
+//   return `${date.getMonth() +
+//     1}/${date.getDate()}/${date.getFullYear()} at ${hours}:${date.getMinutes()}:${date.getSeconds()} ${pm}`;
+// };
+
 let loadingTimeout: NodeJS.Timeout | null;
 // TODO: decide whether we want to show only notebooks whose svc and pod status
 // TODO: check that there are no side-effects for mutating this.state.notebooks
@@ -322,7 +359,9 @@ class Notebook extends PureComponent<any, state> {
                 }}
               >
                 {d.svc_status === kubeState.Running &&
-                d.pod_status === kubeState.Running ? (
+                d.pod_status === kubeState.Running &&
+                d.container_status &&
+                d.container_status.running ? (
                   <i
                     style={{ color: '#428bca', marginRight: '14px' }}
                     className="material-icons"
@@ -349,6 +388,18 @@ class Notebook extends PureComponent<any, state> {
                   </span>
                   <span className="small">
                     Pod: <b>{d.pod_status}</b>
+                  </span>
+                  <span className="small">
+                    Container:{' '}
+                    {d.container_status === null ? (
+                      <b>Initializing</b>
+                    ) : d.container_status.waiting ? (
+                      <b>Waiting ({d.container_status.waiting.reason})</b>
+                    ) : d.container_status.running ? (
+                      <b>Running</b>
+                    ) : (
+                      <b>Terminated</b>
+                    )}
                   </span>
                   <span className="small">Created on: {d.creation_date}</span>
                 </a>
