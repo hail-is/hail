@@ -401,6 +401,31 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(Let("v", I32(5), NA(TInt32())), null)
   }
 
+  @Test def testLoop() {
+    val bdy = If(
+      ApplyComparisonOp(EQ(TInt32()), Ref("n", TInt32()), I32(0)),
+      Ref("acc", TInt32()),
+      Recur(Seq(
+        ApplyBinaryPrimOp(Add(), Ref("n", TInt32()), I32(-1)),
+        ApplyBinaryPrimOp(Add(), Ref("acc", TInt32()), Ref("n", TInt32()))), TInt32()))
+    val tst = Loop(Seq("n" -> I32(10), "acc" -> I32(0)), bdy)
+    assertEvalsTo(tst, 55)
+
+    interceptFatal("recursion") {
+      Loop(Seq("n" -> I32(0)), Recur(Seq(ApplyBinaryPrimOp(Add(), I32(1), Ref("n", TInt32()))), null)).typ
+    }
+
+    interceptFatal("typechecking") {
+      val ir = Loop(Seq("n" -> I32(0)), If(True(), NA(TInt32()), Recur(Seq(I64(3)), TInt32())))
+      assertEvalsTo(ir, null)
+    }
+
+    interceptFatal("typechecking") {
+      val ir = Loop(FastIndexedSeq(), If(False(), Recur(FastIndexedSeq(), null), Recur(FastIndexedSeq(), null)))
+      assertEvalsTo(ir, null)
+    }
+  }
+
   @Test def testMakeArray() {
     assertEvalsTo(MakeArray(FastSeq(I32(5), NA(TInt32()), I32(-3)), TArray(TInt32())), FastIndexedSeq(5, null, -3))
     assertEvalsTo(MakeArray(FastSeq(), TArray(TInt32())), FastIndexedSeq())
