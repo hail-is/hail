@@ -2588,7 +2588,7 @@ class MatrixTable(ExprContainer):
         if entries_array_field_name is None:
             t = t.drop(entries)
         if columns_array_field_name is None:
-            t = t.drop_globals(cols)
+            t = t.drop(cols)
         return t
 
     def _unfilter_entries(self):
