@@ -41,7 +41,7 @@ class HailContext(object):
                 raise FatalError('Hail has already been initialized, restart session '
                                  'or stop Hail to change configuration.')
 
-        if pkg_resources.resource_exists(__name__, "hail-all-spark.jar"):
+        if ('SPARK_HOME' not in os.environ) and pkg_resources.resource_exists(__name__, "hail-all-spark.jar"):
             hail_jar_path = pkg_resources.resource_filename(__name__, "hail-all-spark.jar")
             assert os.path.exists(hail_jar_path), f'{hail_jar_path} does not exist'
             sys.stderr.write(f'using hail jar at {hail_jar_path}\n')
