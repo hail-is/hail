@@ -310,13 +310,15 @@ def echo_socket(ws):
 @app.route('/api/verify/<svc_name>/', methods=['GET'])
 def verify(svc_name):
     access_token = request.cookies.get('access_token')
-    token = request.args.get('token')
-    log.info(f'JUPYTER TOKEN: {token}')
-    log.info(f'ACCESS TOKEN: {access_token}')
+    # No longer verify the juptyer token; let jupyter handle this
+    # The URI gets modified by jupyter, so get queries get lost
+    # Since the token is just a jupyter password, we can skip this
+    # and simply verify the user owns the resource (here svc_name)
+    # token = request.args.get('token')
+    # log.info(f'JUPYTER TOKEN: {token}')
+
     if not access_token:
         return '', 401
-
-    log.info(f'request going to {AUTH_GATEWAY}/verify')
 
     resp = requests.get(f'{AUTH_GATEWAY}/verify',
                         headers={'Authorization': f'Bearer {access_token}'})
@@ -325,6 +327,7 @@ def verify(svc_name):
         return '', 401
 
     user_id = resp.headers.get('User')
+
     log.info(
         f'user_id from response to {AUTH_GATEWAY}/verify: {user_id} : and after transform: {UNSAFE_user_id_transform(user_id)}')
 
@@ -336,11 +339,9 @@ def verify(svc_name):
     l = res.metadata.labels
 
     log.info(
-        f'Labels from reading {svc_name}: jupyter_token: {l["jupyter_token"]} and user_id: {l["user_id"]}')
-    log.info(
-        f"Match jupyter_token: {l['jupyter_token'] == token} . Match user_id: {l['user_id'] == UNSAFE_user_id_transform(user_id)}")
+        f"Kube has user_id: l['user_id']. Matches ours: Match user_id: {l['user_id'] == UNSAFE_user_id_transform(user_id)}")
 
-    if l['jupyter_token'] != token or l['user_id'] != UNSAFE_user_id_transform(user_id):
+    if l['user_id'] != UNSAFE_user_id_transform(user_id):
         return '', 401
 
     return '', 200
