@@ -899,7 +899,9 @@ class Tests(unittest.TestCase):
 
         t3 = t1.filter(t1.idx == 0)
         self.assertFalse(t1._same(t3))
-        
+
+    def test_show_long_field_names(self):
+        hl.utils.range_table(1).annotate(**{'a' * 256: 5}).show()
 
 def test_large_number_of_fields(tmpdir):
     ht = hl.utils.range_table(100)
