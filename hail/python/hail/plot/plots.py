@@ -126,6 +126,143 @@ def cumulative_histogram(data, range=None, bins=50, legend=None, title=None, nor
     return p
 
 
+def set_font_size(p, font_size: str = "12pt"):
+    """Set as many font sizes as possible in a bokeh figure
+
+    Parameters
+    ----------
+    p : :class:`bokeh.plotting.figure.Figure`
+        Input Figure.
+    font_size : str
+        String of font size in points (e.g. "12pt").
+
+    Returns
+    -------
+    :class:`bokeh.plotting.figure.Figure`
+    """
+    p.title.text_font_size = font_size
+    p.legend.label_text_font_size = font_size
+    p.xaxis.axis_label_text_font_size = font_size
+    p.yaxis.axis_label_text_font_size = font_size
+    p.xaxis.major_label_text_font_size = font_size
+    p.yaxis.major_label_text_font_size = font_size
+    if hasattr(p.xaxis, 'group_text_font_size'):
+        p.xaxis.group_text_font_size = font_size
+    return p
+
+
+def histogram_2d(x: NumericExpression, y: NumericExpression,
+                 x_range: Tuple[float, float] = None, y_range: Tuple[float, float] = None,
+                 bins: int = 40, x_bins: int = None, y_bins: int = None,
+                 plot_title: str = '2-D histogram', plot_width: int = 600, plot_height: int = 600,
+                 font_size: str = '7pt',
+                 colors=["#75968f", "#a5bab7", "#c9d9d3", "#e2e2e2", "#dfccce", "#ddb7b1", "#cc7878", "#933b41", "#550b1d"]):
+    """Plot a 2-D histogram of x vs y, which are NumericExpressions from a Table.
+
+    If x_range or y_range are not provided, the function will do a pass through the data to determine min and max
+    of each variable.
+
+    Parameters
+    ----------
+    x : :class:`.NumericExpression`
+        Expression for x-axis.
+    y : :class:`.NumericExpression`
+        Expression for y-axis.
+    x_range : Tuple[float]
+        Tuple of (min, max) bounds for the x-axis.
+    y_range : Tuple[float]
+        Tuple of (min, max) bounds for the y-axis.
+    bins : int
+        Number of bins in the histogram (default 40).
+    x_bins : int
+        Number of bins on x-axis, will override ``bins`` if provided.
+    y_bins : int
+        Number of bins on y-axis, will override ``bins`` if provided.
+    plot_width : int
+        Plot width (default 600px).
+    plot_height : int
+        Plot height (default 600px).
+    plot_title : str
+        Title of the plot.
+    font_size : str
+        String of font size in points (default "7pt").
+    colors : List[str]
+        List of hex colors from low to high.
+
+    Returns
+    -------
+    :class:`bokeh.plotting.figure.Figure`
+    """
+    source = x._indices.source
+    y_source = y._indices.source
+
+    if source is None or y_source is None:
+        raise ValueError("histogram_2d expects two expressions of 'Table', found scalar expression")
+    if isinstance(source, hail.MatrixTable):
+        raise ValueError("hisogram_2d requires source to be Table, not MatrixTable")
+    check_row_indexed('histogram_2d', source.x)
+    check_row_indexed('histogram_2d', source.y)
+    if source != y_source:
+        raise ValueError(f"histogram_2d expects two expressions of 'Table', found {source} and {y_source}")
+    if x_bins is None:
+        x_bins = bins
+    if y_bins is None:
+        y_bins = bins
+    if x_range is None or y_range is None:
+        warnings.warn('At least one range was not defined. Doing two passes...')
+        ranges = source.aggregate(hail.struct(x_stats=hail.agg.stats(x),
+                                              y_stats=hail.agg.stats(y)))
+        if x_range is None:
+            x_range = (ranges.x_stats.min, ranges.x_stats.max)
+        if y_range is None:
+            y_range = (ranges.y_stats.min, ranges.y_stats.max)
+    x_range = list(map(float, x_range))
+    y_range = list(map(float, y_range))
+    x_spacing = (x_range[1] - x_range[0]) / x_bins
+    y_spacing = (y_range[1] - y_range[0]) / y_bins
+
+    def frange(start, stop, step):
+        from itertools import count, takewhile
+        return takewhile(lambda x: x < stop, count(start, step))
+
+    x_levels = hail.literal(list(frange(x_range[0], x_range[1], x_spacing))[::-1])
+    y_levels = hail.literal(list(frange(y_range[0], y_range[1], y_spacing))[::-1])
+
+    data = source.group_by(
+        x=hail.str(x_levels.find(lambda w: x >= w)), y=hail.str(y_levels.find(lambda w: y >= w))
+    ).aggregate(c=hail.agg.count()).to_pandas()
+
+    mapper = LinearColorMapper(palette=colors, low=data.c.min(), high=data.c.max())
+
+    x_axis = sorted(set(data.x), key=lambda z: float(z))
+    y_axis = sorted(set(data.y), key=lambda z: float(z))
+    p = figure(title=plot_title,
+               x_range=x_axis, y_range=list(reversed(y_axis)),
+               x_axis_location="above", plot_width=plot_width, plot_height=plot_height,
+               tools="hover,save,pan,box_zoom,reset,wheel_zoom", toolbar_location='below',
+               tooltips=[('x', '@x'), ('y', '@y',), ('count', '@c')])
+
+    p.grid.grid_line_color = None
+    p.axis.axis_line_color = None
+    p.axis.major_tick_line_color = None
+    p.axis.major_label_standoff = 0
+    p.axis.major_label_text_font_size = font_size
+    import math
+    p.xaxis.major_label_orientation = math.pi / 3
+
+    p.rect(x="x", y="y", width=1, height=1,
+           source=data,
+           fill_color={'field': 'c', 'transform': mapper},
+           line_color=None)
+
+    color_bar = ColorBar(color_mapper=mapper, major_label_text_font_size=font_size,
+                         ticker=BasicTicker(desired_num_ticks=6),
+                         label_standoff=6, border_line_color=None, location=(0, 0))
+    p.add_layout(color_bar, 'right')
+    p = set_font_size(p, font_size)
+    return p
+
+
 @typecheck(x=oneof(sequenceof(numeric), expr_float64), y=oneof(sequenceof(numeric), expr_float64),
            label=oneof(nullable(str), expr_str, sequenceof(str)), title=nullable(str),
            xlabel=nullable(str), ylabel=nullable(str), size=int, legend=bool,
