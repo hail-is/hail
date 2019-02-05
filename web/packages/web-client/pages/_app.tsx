@@ -38,7 +38,9 @@ export default class MyApp extends App {
 
     let isDark = false;
     if (typeof window === 'undefined') {
-      isDark = ctx.req.headers.cookie.indexOf('is_dark') > -1;
+      isDark =
+        ctx.req.headers.cookie &&
+        ctx.req.headers.cookie.indexOf('is_dark') > -1;
       initStateSSR(ctx.req.headers.cookie);
     } else {
       isDark = !!cookies.get('is_dark');
