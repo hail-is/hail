@@ -2,6 +2,7 @@ import App, { Container } from 'next/app';
 import Header from '../components/Header';
 import { initialize, isAuthenticated, initStateSSR } from '../libs/auth';
 import Router from 'next/router';
+import cookies from 'js-cookie';
 
 // import cookies from '../libs/cookies';
 
@@ -33,10 +34,14 @@ export default class MyApp extends App {
     Component: any;
     ctx: any;
   }) {
-    let pageProps = {};
+    let pageProps: any = {};
 
+    let isDark = false;
     if (typeof window === 'undefined') {
+      isDark = ctx.req.headers.cookie.indexOf('is_dark') > -1;
       initStateSSR(ctx.req.headers.cookie);
+    } else {
+      isDark = !!cookies.get('is_dark');
     }
 
     // ctx.pathname will not include get variables in the query
@@ -55,10 +60,18 @@ export default class MyApp extends App {
       pageProps = await Component.getInitialProps(ctx);
     }
 
+    pageProps.isDark = isDark;
+
     return { pageProps };
   }
 
   onDarkToggle = () => {
+    if (!this.state.isDark) {
+      cookies.set('is_dark', '1', { path: '/' });
+    } else {
+      cookies.remove('is_dark', { path: '/' });
+    }
+
     this.setState((prevState: any) => {
       return {
         isDark: !prevState.isDark
@@ -68,6 +81,8 @@ export default class MyApp extends App {
 
   constructor(props: any) {
     super(props);
+
+    this.state.isDark = props.pageProps.isDark;
 
     // TOOD: For any components that need to fetch during server phase
     // we will need to extract the accessToken
