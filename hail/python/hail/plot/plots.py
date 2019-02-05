@@ -151,6 +151,12 @@ def set_font_size(p, font_size: str = "12pt"):
     return p
 
 
+@typecheck(x=expr_numeric, y=expr_numeric,
+           x_range=nullable(sized_tupleof(numeric, numeric)),
+           y_range=nullable(sized_tupleof(numeric, numeric)),
+           bins=int, x_bins=nullable(int), y_bins=nullable(int),
+           plot_title=nullable(str), plot_width=int, plot_height=int,
+           font_size=str, colors=sequenceof(str))
 def histogram_2d(x: NumericExpression, y: NumericExpression,
                  x_range: Tuple[float, float] = None, y_range: Tuple[float, float] = None,
                  bins: int = 40, x_bins: int = None, y_bins: int = None,
