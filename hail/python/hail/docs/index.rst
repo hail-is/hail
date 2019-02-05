@@ -14,7 +14,7 @@ Contents
     Installation <getting_started>
     Tutorials <tutorials-landing>
     Reference (Python API) <api>
-    Hailpedia <overview/index>
+    Overview <overview/index>
     Datasets <datasets>
     How-To Guides <guides>
     For Software Developers <getting_started_developing>
