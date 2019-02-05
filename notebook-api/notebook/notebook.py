@@ -232,7 +232,7 @@ def read_svc_status(svc_name):
 
 def read_containers_status(container_statuses):
     if container_statuses is None:
-        return {}
+        return None
 
     state = container_statuses[0].state
     rn = None
@@ -254,6 +254,29 @@ def read_containers_status(container_statuses):
     return {"running": rn, "terminated": tm, "waiting": wt}
 
 
+def read_conditions(conds):
+    if conds is None:
+        return None
+
+    maxDate = None
+    maxCond = None
+    for condition in conds:
+        if maxDate is None:
+            maxCond = condition
+            maxDate = condition.last_transition_time
+            continue
+
+        if condition.last_transition_time > maxDate and condition.status == "True":
+            maxCond = condition
+            maxDate = condition.last_transition_time
+
+    # 'message': 'containers with unready status: [default]',
+    #              'reason': 'ContainersNotReady',
+    #              'status': 'False',
+    #              'type': 'Ready'
+    return {"message": maxCond.message, "reason": maxCond.reason, "status": maxCond.status, "type": maxCond.type}
+
+
 common_pod_paths = [
     ['name', 'metadata.labels.name'],
     ['pod_name', 'metadata.name'],
@@ -263,7 +286,8 @@ common_pod_paths = [
         lambda x: x.strftime('%D')],
     ['token', 'metadata.labels.jupyter_token'],
     ['container_status', 'status.container_statuses',
-        lambda x: read_containers_status(x)]
+        lambda x: read_containers_status(x)],
+    ['condition', 'status.conditions', lambda x: read_conditions(x)]
 ]
 
 pod_paths = [
