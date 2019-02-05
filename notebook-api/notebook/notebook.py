@@ -311,26 +311,37 @@ def echo_socket(ws):
 def verify(svc_name):
     access_token = request.cookies.get('access_token')
     token = request.args.get('token')
-
+    log.info(f'JUPYTER TOKEN: {token}')
+    log.info(f'ACCESS TOKEN: {access_token}')
     if not access_token:
-        return forbidden()
+        return '', 401
+
+    log.info(f'request going to {AUTH_GATEWAY}/verify')
 
     resp = requests.get(f'{AUTH_GATEWAY}/verify',
                         headers={'Authorization': f'Bearer {access_token}'})
 
     if resp.status_code != 200:
-        return forbidden()
+        return '', 401
 
     user_id = resp.headers.get('User')
+    log.info(
+        f'user_id from response to {AUTH_GATEWAY}/verify: {user_id} : and after transform: {UNSAFE_user_id_transform(user_id)}')
 
     if not user_id:
-        return forbidden()
+        return '', 401
 
     res = k8s.read_namespaced_service(svc_name, 'default')
 
     l = res.metadata.labels
+
+    log.info(
+        f'Labels from reading {svc_name}: jupyter_token: {l["jupyter_token"]} and user_id: {l["user_id"]}')
+    log.info(
+        f"Match jupyter_token: {l['jupyter_token'] == token} . Match user_id: {l['user_id'] == UNSAFE_user_id_transform(user_id)}")
+
     if l['jupyter_token'] != token or l['user_id'] != UNSAFE_user_id_transform(user_id):
-        return forbidden()
+        return '', 401
 
     return '', 200
 
