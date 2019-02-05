@@ -17,8 +17,9 @@ palette = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e
 
 
 def output_notebook():
-    """Configure the output state to generate output in notebook cells
-    when show() is called.  Calls :func:`bokeh.io.output_notebook`.
+    """Configure the Bokeh output state to generate output in notebook
+    cells when :func:`show` is called.  Calls
+    :func:`bokeh.io.output_notebook`.
 
     """
     bokeh.io.output_notebook()
@@ -30,7 +31,7 @@ def show(obj):
     Parameters
     ----------
     obj
-      A Bokeh object to display.
+        A Bokeh object to display.
     """
     boken.io.show(obj)
 
