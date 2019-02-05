@@ -2377,6 +2377,10 @@ class CallExpression(Expression):
         >>> hl.eval(call.ploidy)
         2
 
+        Notes
+        -----
+        Currently only ploidy 1 and 2 are supported.
+
         Returns
         -------
         :class:`.Expression` of type :py:data:`.tint32`
@@ -2438,6 +2442,11 @@ class CallExpression(Expression):
         >>> hl.eval(call.is_non_ref())
         True
 
+        Notes
+        -----
+        In the diploid biallelic case, a ``0/0`` call will return ``False``,
+        and ``0/1`` and ``1/1`` will return ``True``.
+
         Returns
         -------
         :class:`.BooleanExpression`
@@ -2454,6 +2463,11 @@ class CallExpression(Expression):
         >>> hl.eval(call.is_het())
         True
 
+        Notes
+        -----
+        In the diploid biallelic case, a ``0/1`` call will return ``True``,
+        and ``0/0`` and ``1/1`` will return ``False``.
+
         Returns
         -------
         :class:`.BooleanExpression`
@@ -2469,6 +2483,11 @@ class CallExpression(Expression):
 
         >>> hl.eval(call.is_het_non_ref())
         False
+
+        Notes
+        -----
+        A biallelic variant may never have a het-non-ref call. Examples of
+        these calls are ``1/2`` and ``2/4``.
 
         Returns
         -------
@@ -2533,6 +2552,12 @@ class CallExpression(Expression):
 
         >>> hl.eval(call.n_alt_alleles())
         1
+
+        Notes
+        -----
+        For diploid biallelic calls, this method is equivalent to the alternate
+        allele dosage. For instance, ``0/0`` will return ``0``, ``0/1`` will
+        return ``1``, and ``1/1`` will return ``2``.
 
         Returns
         -------
