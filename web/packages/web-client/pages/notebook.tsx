@@ -37,6 +37,12 @@ declare type notebook = {
     waiting: waitingStatus | null;
     terminated: terminatedStatus | null;
   } | null;
+  condition: {
+    message: string | null;
+    reason: string | null;
+    status: string | null;
+    type: string | null;
+  } | null;
 };
 
 declare type notebooks = { [pod_name: string]: notebook };
@@ -127,7 +133,7 @@ const startListener = () => {
 
     const event = data.event;
     const updated = data.resource;
-
+    console.info('update', updated);
     const isDeleted =
       updated.svc_status === kubeState.Deleted ||
       updated.pod_status === kubeState.Deleted;
@@ -361,7 +367,10 @@ class Notebook extends PureComponent<any, state> {
                 {d.svc_status === kubeState.Running &&
                 d.pod_status === kubeState.Running &&
                 d.container_status &&
-                d.container_status.running ? (
+                d.container_status.running &&
+                d.condition &&
+                d.condition.status === 'True' &&
+                d.condition.type === 'Ready' ? (
                   <i
                     style={{ color: '#428bca', marginRight: '14px' }}
                     className="material-icons"
@@ -377,6 +386,16 @@ class Notebook extends PureComponent<any, state> {
                   href={`${URL}/instance/${d.svc_name}/?token=${d.token}`}
                 >
                   <b>{d.name}</b>
+                  <span className="small">
+                    Condition:{' '}
+                    <b>
+                      {d.condition === null
+                        ? 'Initializing'
+                        : d.condition.status !== 'True'
+                        ? 'Not '
+                        : '' + d.condition.type}
+                    </b>
+                  </span>
                   <span className="small">
                     Service Name: <b>{d.svc_name}</b>
                   </span>
@@ -394,7 +413,12 @@ class Notebook extends PureComponent<any, state> {
                     {d.container_status === null ? (
                       <b>Initializing</b>
                     ) : d.container_status.waiting ? (
-                      <b>Waiting ({d.container_status.waiting.reason})</b>
+                      <b>
+                        Waiting{' '}
+                        {d.container_status.waiting.reason
+                          ? '(' + d.container_status.waiting.reason + '_'
+                          : null}
+                      </b>
                     ) : d.container_status.running ? (
                       <b>Running</b>
                     ) : (
