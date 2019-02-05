@@ -149,7 +149,6 @@ polka()
 
     verifyToken(token)
       .then(user => {
-        console.info('good');
         res.setHeader('User', user.sub);
         res.setHeader('Scope', user.scope);
         res.end();
