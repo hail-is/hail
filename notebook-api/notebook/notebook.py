@@ -328,8 +328,8 @@ def verify(svc_name):
 
     user_id = resp.headers.get('User')
 
-    log.info(
-        f'user_id from response to {AUTH_GATEWAY}/verify: {user_id} : and after transform: {UNSAFE_user_id_transform(user_id)}')
+    # log.info(
+    #    f'user_id from response to {AUTH_GATEWAY}/verify: {user_id} : and after transform: {UNSAFE_user_id_transform(user_id)}')
 
     if not user_id:
         return '', 401
@@ -338,8 +338,8 @@ def verify(svc_name):
 
     l = res.metadata.labels
 
-    log.info(
-        f"Kube has user_id: l['user_id']. Matches ours: Match user_id: {l['user_id'] == UNSAFE_user_id_transform(user_id)}")
+    # log.info(
+    #    f"Kube has user_id: l['user_id']. Matches ours: Match user_id: {l['user_id'] == UNSAFE_user_id_transform(user_id)}")
 
     if l['user_id'] != UNSAFE_user_id_transform(user_id):
         return '', 401
