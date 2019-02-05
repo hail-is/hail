@@ -3,6 +3,8 @@ import auth from '../libs/auth';
 import fetch from 'isomorphic-unfetch';
 import getConfig from 'next/config';
 
+// TODO: If user isn't logged in, and make it to this page
+// after 401, tell them they need to log in
 const cfg = getConfig().publicRuntimeConfig.NOTEBOOK;
 const URL = cfg.URL;
 
@@ -58,7 +60,6 @@ let initialized = false;
 
 const startRequest = () => {
   if (resultsPromise) {
-    console.info('have');
     return resultsPromise;
   }
 
@@ -203,8 +204,11 @@ class Notebook extends PureComponent<any, state> {
     super(props);
 
     if (initialized === false) {
-      console.info('nope');
       this.state.loading = 1;
+
+      if (typeof window !== 'undefined') {
+        startRequest();
+      }
     } else {
       this.state.notebooks = Object.assign({}, notebooks);
       this.state.alive = alive.slice(0);
@@ -212,11 +216,13 @@ class Notebook extends PureComponent<any, state> {
   }
 
   componentDidMount() {
-    loadingTimeout = setTimeout(() => {
-      this.setState({
-        loading: 1
-      });
-    }, 250);
+    if (initialized) {
+      loadingTimeout = setTimeout(() => {
+        this.setState({
+          loading: 1
+        });
+      }, 250);
+    }
 
     startRequest().then(() => {
       if (loadingTimeout) {
