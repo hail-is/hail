@@ -1778,10 +1778,10 @@ class TableExport(IR):
         return new_instance(child, self.path, self.types_file, self.header, self.export_type)
 
     def render(self, r):
-        return '(TableExport {} "{}" "{}" {} {})'.format(
+        return '(TableExport {} "{}" {} {} {})'.format(
             r(self.child),
             escape_str(self.path),
-            escape_str(self.types_file) if self.types_file else 'None',
+            f'"{escape_str(self.types_file)}"' if self.types_file else 'None',
             self.header,
             self.export_type)
 
