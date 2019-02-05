@@ -95,15 +95,13 @@ const Section = ({ data, sectionClass, type }: section) => (
 // TODO: add caching
 class User extends PureComponent<pageProps> {
   static async getInitialProps({ query }: props) {
-    console.info('Fetching', `${WEB_URL}/json/users/`);
-
     const res: response = await fetch(
       `${WEB_URL}/json/users/${query.name}`
     ).then(d => d.json());
-    console.info('res', res);
+
     return {
       pageProps: {
-        user_data: res.data,
+        data: res.data,
         updated: res.updated,
         name: query.name
       }
@@ -116,7 +114,7 @@ class User extends PureComponent<pageProps> {
 
   render() {
     const {
-      user_data: { CHANGES_REQUESTED, NEEDS_REVIEW, FAILING, ISSUES },
+      data: { CHANGES_REQUESTED, NEEDS_REVIEW, FAILING, ISSUES },
       updated,
       name
     } = this.props.pageProps;
