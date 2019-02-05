@@ -12,7 +12,7 @@ console.info('web uuerl', WEB_URL);
 import '../../styles/pages/scorecard/user.scss';
 
 declare type response = {
-  user_data: {
+  data: {
     CHANGES_REQUESTED: PR[];
     NEEDS_REVIEW: PR[];
     FAILING: any[];
@@ -103,7 +103,7 @@ class User extends PureComponent<pageProps> {
     console.info('res', res);
     return {
       pageProps: {
-        user_data: res.user_data,
+        user_data: res.data,
         updated: res.updated,
         name: query.name
       }
