@@ -2579,13 +2579,20 @@ class MatrixTable(ExprContainer):
         ----------
         entries_array_field_name : :obj:`str`
             The name of the table field containing the array of entry structs
-            for the given row.
+            for the given row. The length of this array is equal to
+            ``mt.count_cols()``. Missing entries are represented as missing
+            structs in the array.
         columns_array_field_name : :obj:`str`
-            The name of the global field containing the array of column structs.
+            The name of the global field containing the array of column
+            structs. The length of this array is equal to ``mt.count_cols()``.
 
         Returns
         -------
         :class:`.Table`
+            A table whose fields are the row fields of this matrix table plus
+            one field named ``entries_array_field_name``. The global fields of
+            this table are the global fields of this matrix table plus one field
+            named ``columns_array_field_name``.
         """
         entries = entries_array_field_name or Env.get_uid()
         cols = columns_array_field_name or Env.get_uid()
