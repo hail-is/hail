@@ -366,8 +366,8 @@ class Notebook extends PureComponent<any, state> {
               >
                 {d.svc_status === kubeState.Running &&
                 d.pod_status === kubeState.Running &&
-                d.container_status &&
-                d.container_status.running &&
+                // d.container_status &&
+                // d.container_status.running &&
                 d.condition &&
                 d.condition.status === 'True' &&
                 d.condition.type === 'Ready' ? (
@@ -397,18 +397,19 @@ class Notebook extends PureComponent<any, state> {
                     </b>
                   </span>
                   <span className="small">
-                    Service Name: <b>{d.svc_name}</b>
+                    Pod: <b>{d.pod_status}</b>
                   </span>
+                  {/* <span className="small">
+                    Service Name: <b>{d.svc_name}</b>
+                  </span> */}
                   <span className="small">
                     Pod Name: <b>{d.pod_name}</b>
                   </span>
-                  <span className="small">
+                  {/* <span className="small">
                     Service: <b>{d.svc_status}</b>
-                  </span>
-                  <span className="small">
-                    Pod: <b>{d.pod_status}</b>
-                  </span>
-                  <span className="small">
+                  </span> */}
+
+                  {/* <span className="small">
                     Container:{' '}
                     {d.container_status === null ? (
                       <b>Initializing</b>
@@ -424,7 +425,7 @@ class Notebook extends PureComponent<any, state> {
                     ) : (
                       <b>Terminated</b>
                     )}
-                  </span>
+                  </span> */}
                   <span className="small">Created on: {d.creation_date}</span>
                 </a>
                 <i
