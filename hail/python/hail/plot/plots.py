@@ -1,6 +1,7 @@
 from math import log, isnan, log10
 
 import numpy as np
+import bokeh.io
 from bokeh.models import *
 from bokeh.plotting import figure
 from itertools import cycle
@@ -14,6 +15,24 @@ import hail
 
 palette = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
 
+
+def output_notebook():
+    """Configure the output state to generate output in notebook cells
+    when show() is called.  Calls :func:`bokeh.io.output_notebook`.
+
+    """
+    bokeh.io.output_notebook()
+
+def show(obj):
+    """Immediately display a Bokeh object or application.  Calls
+    :func:`bokeh.io.show`.
+
+    Parameters
+    ----------
+    obj
+      A Bokeh object to display.
+    """
+    boken.io.show(obj)
 
 @typecheck(data=oneof(hail.utils.struct.Struct, expr_float64), range=nullable(sized_tupleof(numeric, numeric)),
            bins=int, legend=nullable(str), title=nullable(str))
