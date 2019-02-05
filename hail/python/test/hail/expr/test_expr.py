@@ -2512,3 +2512,20 @@ class Tests(unittest.TestCase):
 
         with pytest.raises(hl.utils.FatalError):
             hl.eval(hl.bit_rshift(hl.int64(1), -1, logical=True))
+
+    def test_loops(self):
+        from hail.experimental import loop
+        fact = loop(lambda f, N, n, acc: hl.cond(n > N, acc, f(N, n + 1, acc * n)), tint64, 7, 1, 1)
+        self.check_expr(fact, 5040, tint64)
+
+        lst = random.sample(range(3000), 20)
+        fold_sum = loop(lambda f, arr, i, acc:
+                        hl.cond(i < hl.len(arr), f(arr, i + 1, arr[i] + acc), acc),
+                        tint32, lst, 0, 0)
+        self.check_expr(fold_sum, sum(lst), tint32)
+
+        with self.assertRaises(TypeError):  # Mismatched annotation and return type
+            _ = loop(lambda _, x: hl.null(tint32), tstr, 0)
+
+        with self.assertRaises(TypeError):  # Mismatched recur and loop arg types
+            _ = loop(lambda f, x: hl.cond(False, f("5"), x), tint32, 0)

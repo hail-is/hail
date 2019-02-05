@@ -46,6 +46,15 @@ def loop(f: Callable, typ, *exprs):
     def make_loop(*recur_exprs):
         if len(recur_exprs) != len(exprs):
             raise TypeError('loop and recursion must have the same number of arguments')
+        err = None
+        for i, (rexpr, expr) in enumerate(zip(recur_exprs, exprs)):
+            if rexpr.dtype != expr.dtype:
+                if err is None:
+                    err = 'Type of loop and recur arguments must match, errors:'
+                err += f'\n  at argument index {i}, loop arg type: {expr.dtype}, '
+                err += f'recur arg type: {rexpr.dtype}'
+        if err is not None:
+            raise TypeError(err)
         irs = [expr._ir for expr in recur_exprs]
         indices, aggregations = unify_all(*recur_exprs)
         return construct_expr(Recur(irs, typ), typ, indices, aggregations)
@@ -61,5 +70,6 @@ def loop(f: Callable, typ, *exprs):
     lambda_res = to_expr(f(make_loop, *args))
     indices, aggregations = unify_all(*exprs, lambda_res)
     ir = Loop(uid_irs, lambda_res._ir)
-    assert ir.typ == typ, f"requested type {typ} does not match inferred type {ir.typ}"
+    if ir.typ != typ:
+        raise TypeError(f"requested type {typ} does not match inferred type {ir.typ}")
     return construct_expr(ir, lambda_res.dtype, indices, aggregations)
