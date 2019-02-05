@@ -1134,7 +1134,7 @@ object IRParser {
       case "BlockMatrixMap2" =>
         val left = blockmatrix_ir(env)(it)
         val right = blockmatrix_ir(env)(it)
-        val applyBinOp = ir_value_expr(env + ("element" -> left.typ.elementType))(it)
+        val applyBinOp = ir_value_expr(env.update(Map("l" -> left.typ.elementType, "r" -> right.typ.elementType)))(it)
         BlockMatrixMap2(left, right, applyBinOp.asInstanceOf[ApplyBinaryPrimOp])
       case "BlockMatrixMap" =>
         val child = blockmatrix_ir(env)(it)

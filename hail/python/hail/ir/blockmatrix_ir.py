@@ -1,8 +1,8 @@
 from hail.expr.blockmatrix_type import tblockmatrix
 from hail.expr.types import hail_type
-from hail.ir import BlockMatrixIR, ApplyBinaryOp, F64, MakeArray
+from hail.ir import BlockMatrixIR, ApplyBinaryOp, IR
 from hail.utils.java import escape_str
-from hail.typecheck import typecheck_method, oneof, sequenceof
+from hail.typecheck import typecheck_method, sequenceof
 
 from hail.utils.java import Env
 
@@ -80,7 +80,7 @@ class BlockMatrixBroadcast(BlockMatrixIR):
 
 
 class ValueToBlockMatrix(BlockMatrixIR):
-    @typecheck_method(child=oneof(F64, MakeArray),
+    @typecheck_method(child=IR,
                       element_type=hail_type,
                       shape=sequenceof(int),
                       block_size=int,
@@ -101,10 +101,7 @@ class ValueToBlockMatrix(BlockMatrixIR):
                                                                 r(self._child))
 
     def _compute_type(self):
-        self._type = tblockmatrix(self._element_type,
-                                  self._shape,
-                                  self._block_size,
-                                  self._dims_partitioned)
+        self._type = tblockmatrix(self._element_type, self._shape, self._block_size, self._dims_partitioned)
 
 
 class JavaBlockMatrix(BlockMatrixIR):

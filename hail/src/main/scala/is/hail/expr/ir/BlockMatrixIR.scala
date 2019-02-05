@@ -97,24 +97,20 @@ case class BlockMatrixMap2(
       case BlockMatrixBroadcast(colVectorIR: BlockMatrixIR, Broadcast2D.COL, _, _, _) =>
         colVectorOnLeft(hc, coerceToVector(hc, colVectorIR), right, op)
       case _ =>
-        val leftAsMatrix = left.execute(hc)
-        matrixOnLeft(hc, leftAsMatrix, right, op)
+        matrixOnLeft(hc, left.execute(hc), right, op)
     }
   }
 
   private def scalarOnLeft(hc: HailContext, scalar: Double, right: BlockMatrixIR, op: BinaryOp): BlockMatrix = {
     right match {
-      case BlockMatrixBroadcast(vectorIR: BlockMatrixIR, Broadcast2D.ROW, _, _, _) =>
-        val rightRowVector = coerceToVector(hc, vectorIR)
-        val rowVectorAsBm = BlockMatrixIR.toBlockMatrix(hc, 1, rightRowVector.length, rightRowVector)
-        opWithScalar(rowVectorAsBm, scalar, op, reverse = true)
-      case BlockMatrixBroadcast(vectorIR: BlockMatrixIR, Broadcast2D.COL, _, _, _) =>
-        val rightColVector = coerceToVector(hc, vectorIR)
-        val colVectorAsBm = BlockMatrixIR.toBlockMatrix(hc, rightColVector.length, 1, rightColVector)
-        opWithScalar(colVectorAsBm, scalar, op, reverse = true)
+      case BlockMatrixBroadcast(rowVectorIR: BlockMatrixIR, Broadcast2D.ROW, _, _, _) =>
+        val rightAsBm = rowVectorIR.execute(hc)
+        opWithScalar(rightAsBm, scalar, op, reverse = true)
+      case BlockMatrixBroadcast(colVectorIR: BlockMatrixIR, Broadcast2D.COL, _, _, _) =>
+        val rightAsBm = colVectorIR.execute(hc)
+        opWithScalar(rightAsBm, scalar, op, reverse = true)
       case _ =>
-        val rightValue = right.execute(hc)
-        opWithScalar(rightValue, scalar, op, reverse = true)
+        opWithScalar(right.execute(hc), scalar, op, reverse = true)
     }
   }
 
@@ -125,8 +121,7 @@ case class BlockMatrixMap2(
         val rowVectorAsBm = BlockMatrixIR.toBlockMatrix(hc, 1, rowVector.length, rowVector)
         opWithScalar(rowVectorAsBm, rightAsScalar, op, reverse = false)
       case _ =>
-        val rightValue = right.execute(hc)
-        opWithRowVector(rightValue, rowVector, op, reverse = true)
+        opWithRowVector(right.execute(hc), rowVector, op, reverse = true)
     }
   }
 
@@ -137,8 +132,7 @@ case class BlockMatrixMap2(
         val colVectorAsBm = BlockMatrixIR.toBlockMatrix(hc, colVector.length, 1, colVector)
         opWithScalar(colVectorAsBm, rightAsScalar, op, reverse = false)
       case _ =>
-        val rightValue = right.execute(hc)
-        opWithColVector(rightValue, colVector, op, reverse = true)
+        opWithColVector(right.execute(hc), colVector, op, reverse = true)
     }
   }
 
@@ -154,8 +148,7 @@ case class BlockMatrixMap2(
         val rightAsColVec = coerceToVector(hc, vectorIR)
         opWithColVector(matrix, rightAsColVec, op, reverse = false)
       case _ =>
-        val rightValue = right.execute(hc)
-        opWithTwoBlockMatrices(matrix, rightValue, op)
+        opWithTwoBlockMatrices(matrix, right.execute(hc), op)
     }
   }
 
@@ -262,18 +255,11 @@ object Broadcast2D extends Enumeration {
 case class BlockMatrixBroadcast(
   child: BlockMatrixIR,
   broadcastType: Broadcast2D,
-  shape: Array[Long],
+  shape: IndexedSeq[Long],
   blockSize: Int,
-  dimsPartitioned: Array[Boolean]) extends BlockMatrixIR {
+  dimsPartitioned: IndexedSeq[Boolean]) extends BlockMatrixIR {
 
-  override def typ: BlockMatrixType = {
-    BlockMatrixType(
-      child.typ.elementType,
-      shape,
-      blockSize,
-      dimsPartitioned
-    )
-  }
+  override def typ: BlockMatrixType = BlockMatrixType(child.typ.elementType, shape, blockSize, dimsPartitioned)
 
   override def children: IndexedSeq[BaseIR] = Array(child)
 
@@ -290,9 +276,7 @@ case class ValueToBlockMatrix(
   blockSize: Int,
   dimsPartitioned: IndexedSeq[Boolean]) extends BlockMatrixIR {
 
-  override def typ: BlockMatrixType = {
-    BlockMatrixType(elementType, shape, blockSize, dimsPartitioned)
-  }
+  override def typ: BlockMatrixType = BlockMatrixType(elementType, shape, blockSize, dimsPartitioned)
 
   override def children: IndexedSeq[BaseIR] = Array(child)
 

@@ -5,8 +5,7 @@ import itertools
 import hail as hl
 import hail.expr.aggregators as agg
 from hail.ir import BlockMatrixWrite, BlockMatrixMap2, ApplyBinaryOp, Ref, F64, \
-     BlockMatrixBroadcast, ValueToBlockMatrix, MakeArray, I64
-from hail.ir.blockmatrix_ir import BlockMatrixRead, JavaBlockMatrix
+     BlockMatrixBroadcast, ValueToBlockMatrix, MakeArray, BlockMatrixRead, JavaBlockMatrix
 from hail.utils import new_temp_file, new_local_temp_file, local_path_uri, storage_level
 from hail.utils.java import Env, jarray, joption
 from hail.typecheck import *
@@ -1230,10 +1229,9 @@ class BlockMatrix(object):
                       left=oneof(numeric, np.ndarray, block_matrix_type),
                       right=oneof(numeric, np.ndarray, block_matrix_type))
     def _apply_map(self, op, left, right):
-        apply_bin_op = ApplyBinaryOp(op, Ref('element'), Ref('element'))
+        apply_bin_op = ApplyBinaryOp(op, Ref('l'), Ref('r'))
 
         result_shape = _shape_after_broadcast(_shape(left), _shape(right))
-
         left_bmir = _produce_ir_with_shape(left, result_shape)
         right_bmir = _produce_ir_with_shape(right, result_shape)
 
@@ -2050,13 +2048,9 @@ def _shape(x):
 
 def _shape_after_broadcast(left_shape, right_shape):
     """
-    Follows numpy's method of treating every object as having infinitely many dimensions
-    and only finitely many non-trivial dimensions (not length 1). Objects' shapes are right-aligned
-    and compared to get the resultant shape after broadcasting. Corresponding dimensions are compatible
-    if:
-        - the lengths of the dimensions are equal
-        - one of the dimensions has length one
-    the resultant length for that dimension is the max of the two input dimensions.
+    Follows numpy's strategy of broadcasting through right-align shapes and
+    compare corresponding dimensions. See:
+    https://docs.scipy.org/doc/numpy-1.15.0/user/basics.broadcasting.html#general-broadcasting-rules
     """
     def _calc_new_dim(l_dim_length, r_dim_length):
         if not (l_dim_length == r_dim_length or l_dim_length == 1 or r_dim_length == 1):
@@ -2066,35 +2060,34 @@ def _shape_after_broadcast(left_shape, right_shape):
 
     left_ndim, right_ndim = len(left_shape), len(right_shape)
     if left_ndim < right_ndim:
-        new_left_shape = [1 for _ in range(right_ndim - left_ndim)]
-        new_left_shape.extend(left_shape)
-
-        return [_calc_new_dim(l, r) for l, r in zip(new_left_shape, right_shape)]
+        left_shape_padded = _left_pad_with_ones(left_shape, right_ndim - left_ndim)
+        return [_calc_new_dim(l, r) for l, r in zip(left_shape_padded, right_shape)]
     elif right_ndim < left_ndim:
-        new_right_shape = [1 for _ in range(left_ndim - right_ndim)]
-        new_right_shape.extend(right_shape)
-
-        return [_calc_new_dim(l, r) for l, r in zip(left_shape, new_right_shape)]
+        right_shape_padded = _left_pad_with_ones(right_shape, left_ndim - right_ndim)
+        return [_calc_new_dim(l, r) for l, r in zip(left_shape, right_shape_padded)]
 
     return [_calc_new_dim(l, r) for l, r in zip(left_shape, right_shape)]
 
 
+def _left_pad_with_ones(shape, ones_to_add):
+    ones = [1 for _ in range(ones_to_add)]
+    ones.extend(shape)
+    return ones
+
+
 def _produce_ir_with_shape(x, result_shape):
     if _is_scalar(x):
-        scalar_to_bm = ValueToBlockMatrix(F64(x), hl.tfloat64, [], BlockMatrix.default_block_size(), [])
-        return BlockMatrixBroadcast(scalar_to_bm, "scalar", result_shape, BlockMatrix.default_block_size(), [])
+        scalar_bmir = ValueToBlockMatrix(F64(x), hl.tfloat64, [], BlockMatrix.default_block_size(), [])
+        return BlockMatrixBroadcast(scalar_bmir, "scalar", result_shape, BlockMatrix.default_block_size(), [])
     elif isinstance(x, np.ndarray):
-        vec_bmir = ValueToBlockMatrix(_wrap_doubles_in_makearray(x.tolist()),
-                                      hl.tfloat64,
-                                      list(x.shape),
-                                      BlockMatrix.default_block_size(),
-                                      [False for _ in result_shape])
+        ndarray_bmir = ValueToBlockMatrix(_ndarray_to_makearray(x), hl.tfloat64, list(x.shape),
+                                          BlockMatrix.default_block_size(), [False for _ in result_shape])
 
         if list(x.shape) == result_shape:
-            return vec_bmir
+            return ndarray_bmir
         else:
             broadcast_type = _get_broadcast_type(list(x.shape))
-            return BlockMatrixBroadcast(vec_bmir, broadcast_type, result_shape,
+            return BlockMatrixBroadcast(ndarray_bmir, broadcast_type, result_shape,
                                         BlockMatrix.default_block_size(), [False for _ in result_shape])
     else:
         if list(x.shape) == result_shape:
@@ -2105,10 +2098,12 @@ def _produce_ir_with_shape(x, result_shape):
                                         BlockMatrix.default_block_size(), [False for _ in result_shape])
 
 
-def _wrap_doubles_in_makearray(data):
+def _ndarray_to_makearray(ndarray):
+    data = ndarray.tolist()
+
     # Flatten in the case of 2-D arrays. Would have to be flattened
     # and reshaped anyway to construct a BlockMatrix
-    if isinstance(data[0], list):
+    if len(ndarray.shape) == 2:
         data = [x for row in data for x in row]
 
     data_as_ir = [F64(x) for x in data]
@@ -2116,7 +2111,7 @@ def _wrap_doubles_in_makearray(data):
 
 
 def _get_broadcast_type(shape):
-    if shape == [] or shape == [1, 1]:
+    if shape == [] or shape == [1] or shape == [1, 1]:
         return "scalar"
     elif shape[0] == 1:
         return "row"
