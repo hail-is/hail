@@ -289,8 +289,8 @@ def echo_socket(ws):
 
         try:
             obj = event["object"]
-            print("Event: %s %s %s" %
-                  (event['type'], event['object'].kind, event['object'].metadata.name))
+            log.info(
+                f"Event: {event['type']} {event['object']} {event['object'].metadata.name}")
 
             if event['type'] == 'MODIFIED' or event['type'] == 'ADDED':
                 ws.send(
@@ -312,7 +312,7 @@ def echo_socket(ws):
 
 @app.route('/api/verify/<svc_name>/', methods=['GET'])
 def verify(svc_name):
-    access_token = request.args.get('access_token')
+    access_token = request.cookies.get('access_token')
     token = request.args.get('token')
 
     if not access_token:
