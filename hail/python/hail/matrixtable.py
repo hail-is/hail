@@ -2538,7 +2538,7 @@ class MatrixTable(ExprContainer):
     def localize_entries(self,
                          entries_array_field_name=None,
                          columns_array_field_name=None) -> 'Table':
-        """Represent this matrix as a table of entry-rows.
+        """Convert the matrix table to a table with entries localized as an array of structs.
 
         Examples
         --------
@@ -2574,9 +2574,9 @@ class MatrixTable(ExprContainer):
         ----------
         entries_array_field_name : :obj:`str`
             The name of the table field containing the array of entry structs
-            for the given row
+            for the given row.
         columns_array_field_name : :obj:`str`
-            The name of the global field containing the array of column structs
+            The name of the global field containing the array of column structs.
 
         Returns
         -------
