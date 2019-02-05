@@ -289,15 +289,12 @@ def echo_socket(ws):
 
         try:
             obj = event["object"]
-            log.info(
-                f"Event: {event['type']} {event['object']} {event['object'].metadata.name}")
 
             if event['type'] == 'MODIFIED' or event['type'] == 'ADDED':
                 ws.send(
                     f'{{"event": "{event["type"]}", "resource": {marshall_json([obj], pod_paths, True)}}}')
 
             if event['type'] == 'DELETED':
-
                 ws.send(
                     f'{{"event": "DELETED", "resource": {marshall_json([obj], pod_paths, True)}}}')
 
