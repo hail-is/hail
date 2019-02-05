@@ -151,6 +151,8 @@ abstract class MatrixReader {
 
 case class MatrixNativeReader(path: String) extends MatrixReader {
 
+  override def apply(mr: MatrixRead): MatrixValue = throw new UnsupportedOperationException
+
   lazy val spec: AbstractMatrixTableSpec = (RelationalSpec.read(HailContext.get, path): @unchecked) match {
     case mts: AbstractMatrixTableSpec => mts
     case _: AbstractTableSpec => fatal(s"file is a Table, not a MatrixTable: '$path'")
