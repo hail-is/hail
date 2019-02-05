@@ -216,29 +216,6 @@ case class BlockMatrixMap2(
   }
 }
 
-case class BlockMatrixMap(
-  child: BlockMatrixIR,
-  applyBinOp: ApplyBinaryPrimOp) extends BlockMatrixIR {
-
-  override def typ: BlockMatrixType = child.typ
-
-  override def children: IndexedSeq[BaseIR] = Array(child, applyBinOp)
-
-  override def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
-    assert(newChildren.length == 2)
-    BlockMatrixMap(
-      newChildren(0).asInstanceOf[BlockMatrixIR],
-      newChildren(1).asInstanceOf[ApplyBinaryPrimOp])
-  }
-
-  override protected[ir] def execute(hc: HailContext): BlockMatrix = {
-    val childBM = child.execute(hc)
-
-    //TODO Implement for Unary ops
-    ???
-  }
-}
-
 object Broadcast2D extends Enumeration {
   type Broadcast2D = Value
   val SCALAR, ROW, COL = Value

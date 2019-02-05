@@ -26,10 +26,9 @@ class BlockMatrixIRSuite extends SparkSuite {
     toBM(Seq(vec.toArray, vec.toArray, vec.toArray))
   }
 
-  val element = Ref("element", TFloat64())
-  def createBlockMatrixElemWiseOp(left: BlockMatrixIR, right: BlockMatrixIR,  op: BinaryOp):
+  def makeMap2(left: BlockMatrixIR, right: BlockMatrixIR,  op: BinaryOp):
   BlockMatrixMap2 = {
-    BlockMatrixMap2(left, right, ApplyBinaryPrimOp(op, element, element))
+    BlockMatrixMap2(left, right, ApplyBinaryPrimOp(op, Ref("l", TFloat64()), Ref("l", TFloat64())))
   }
 
   def assertBmEq(actual: BlockMatrix, expected: BlockMatrix) {
@@ -58,10 +57,10 @@ class BlockMatrixIRSuite extends SparkSuite {
       ValueToBlockMatrix(MakeArray(Seq[F64](F64(2)), TArray(TFloat64())), TFloat64(), Array[Long](), 0, Array[Boolean]()),
         Broadcast2D.SCALAR, shape, 0, Array[Boolean](false, false))
 
-    val onesAddTwo = createBlockMatrixElemWiseOp(new BlockMatrixLiteral(ones), broadcastTwo, Add())
-    val threesSubTwo = createBlockMatrixElemWiseOp(new BlockMatrixLiteral(threes), broadcastTwo, Subtract())
-    val twosMulTwo = createBlockMatrixElemWiseOp(new BlockMatrixLiteral(twos), broadcastTwo, Multiply())
-    val foursDivTwo = createBlockMatrixElemWiseOp(new BlockMatrixLiteral(fours), broadcastTwo, FloatingPointDivide())
+    val onesAddTwo = makeMap2(new BlockMatrixLiteral(ones), broadcastTwo, Add())
+    val threesSubTwo = makeMap2(new BlockMatrixLiteral(threes), broadcastTwo, Subtract())
+    val twosMulTwo = makeMap2(new BlockMatrixLiteral(twos), broadcastTwo, Multiply())
+    val foursDivTwo = makeMap2(new BlockMatrixLiteral(fours), broadcastTwo, FloatingPointDivide())
 
     assertBmEq(onesAddTwo.execute(hc), threes)
     assertBmEq(threesSubTwo.execute(hc), ones)
@@ -78,10 +77,10 @@ class BlockMatrixIRSuite extends SparkSuite {
       0, Array(false)), Broadcast2D.COL, shape, 0, Array[Boolean](false, false))
 
     // Addition
-    val actualOnesAddRowOnRight = createBlockMatrixElemWiseOp(new BlockMatrixLiteral(ones), broadcastRowVector, Add())
-    val actualOnesAddColOnRight = createBlockMatrixElemWiseOp(new BlockMatrixLiteral(ones), broadcastColVector, Add())
-    val actualOnesAddRowOnLeft  = createBlockMatrixElemWiseOp(broadcastRowVector, new BlockMatrixLiteral(ones), Add())
-    val actualOnesAddColOnLeft  = createBlockMatrixElemWiseOp(broadcastColVector, new BlockMatrixLiteral(ones), Add())
+    val actualOnesAddRowOnRight = makeMap2(new BlockMatrixLiteral(ones), broadcastRowVector, Add())
+    val actualOnesAddColOnRight = makeMap2(new BlockMatrixLiteral(ones), broadcastColVector, Add())
+    val actualOnesAddRowOnLeft  = makeMap2(broadcastRowVector, new BlockMatrixLiteral(ones), Add())
+    val actualOnesAddColOnLeft  = makeMap2(broadcastColVector, new BlockMatrixLiteral(ones), Add())
 
     val expectedOnesAddRow = makeMatFromRow(Seq(2, 3, 4))
     val expectedOnesAddCol = makeMatFromCol(Seq(2, 3, 4))
@@ -93,10 +92,10 @@ class BlockMatrixIRSuite extends SparkSuite {
 
 
     // Multiplication
-    val actualOnesMulRowOnRight = createBlockMatrixElemWiseOp(new BlockMatrixLiteral(ones), broadcastRowVector, Multiply())
-    val actualOnesMulColOnRight = createBlockMatrixElemWiseOp(new BlockMatrixLiteral(ones), broadcastColVector, Multiply())
-    val actualOnesMulRowOnLeft  = createBlockMatrixElemWiseOp(broadcastRowVector, new BlockMatrixLiteral(ones), Multiply())
-    val actualOnesMulColOnLeft  = createBlockMatrixElemWiseOp(broadcastColVector, new BlockMatrixLiteral(ones), Multiply())
+    val actualOnesMulRowOnRight = makeMap2(new BlockMatrixLiteral(ones), broadcastRowVector, Multiply())
+    val actualOnesMulColOnRight = makeMap2(new BlockMatrixLiteral(ones), broadcastColVector, Multiply())
+    val actualOnesMulRowOnLeft  = makeMap2(broadcastRowVector, new BlockMatrixLiteral(ones), Multiply())
+    val actualOnesMulColOnLeft  = makeMap2(broadcastColVector, new BlockMatrixLiteral(ones), Multiply())
 
     val expectedOnesMulRow = makeMatFromRow(Seq(1, 2, 3))
     val expectedOnesMulCol = makeMatFromCol(Seq(1, 2, 3))
@@ -108,10 +107,10 @@ class BlockMatrixIRSuite extends SparkSuite {
 
 
     // Subtraction
-    val actualOnesSubRowOnRight = createBlockMatrixElemWiseOp(new BlockMatrixLiteral(ones), broadcastRowVector, Subtract())
-    val actualOnesSubColOnRight = createBlockMatrixElemWiseOp(new BlockMatrixLiteral(ones), broadcastColVector, Subtract())
-    val actualOnesSubRowOnLeft  = createBlockMatrixElemWiseOp(broadcastRowVector, new BlockMatrixLiteral(ones), Subtract())
-    val actualOnesSubColOnLeft  = createBlockMatrixElemWiseOp(broadcastColVector, new BlockMatrixLiteral(ones), Subtract())
+    val actualOnesSubRowOnRight = makeMap2(new BlockMatrixLiteral(ones), broadcastRowVector, Subtract())
+    val actualOnesSubColOnRight = makeMap2(new BlockMatrixLiteral(ones), broadcastColVector, Subtract())
+    val actualOnesSubRowOnLeft  = makeMap2(broadcastRowVector, new BlockMatrixLiteral(ones), Subtract())
+    val actualOnesSubColOnLeft  = makeMap2(broadcastColVector, new BlockMatrixLiteral(ones), Subtract())
 
     val expectedOnesSubRowRight = makeMatFromRow(Seq(0, -1, -2))
     val expectedOnesSubColRight = makeMatFromCol(Seq(0, -1, -2))
@@ -125,10 +124,10 @@ class BlockMatrixIRSuite extends SparkSuite {
 
 
     // Division
-    val actualOnesDivRowOnRight = createBlockMatrixElemWiseOp(new BlockMatrixLiteral(ones), broadcastRowVector, FloatingPointDivide())
-    val actualOnesDivColOnRight = createBlockMatrixElemWiseOp(new BlockMatrixLiteral(ones), broadcastColVector, FloatingPointDivide())
-    val actualOnesDivRowOnLeft  = createBlockMatrixElemWiseOp(broadcastRowVector, new BlockMatrixLiteral(ones), FloatingPointDivide())
-    val actualOnesDivColOnLeft  = createBlockMatrixElemWiseOp(broadcastColVector, new BlockMatrixLiteral(ones), FloatingPointDivide())
+    val actualOnesDivRowOnRight = makeMap2(new BlockMatrixLiteral(ones), broadcastRowVector, FloatingPointDivide())
+    val actualOnesDivColOnRight = makeMap2(new BlockMatrixLiteral(ones), broadcastColVector, FloatingPointDivide())
+    val actualOnesDivRowOnLeft  = makeMap2(broadcastRowVector, new BlockMatrixLiteral(ones), FloatingPointDivide())
+    val actualOnesDivColOnLeft  = makeMap2(broadcastColVector, new BlockMatrixLiteral(ones), FloatingPointDivide())
 
     val expectedOnesDivRowRight = makeMatFromRow(Seq(1, 1.0 / 2.0, 1.0 / 3.0))
     val expectedOnesDivColRight = makeMatFromCol(Seq(1, 1.0 / 2.0, 1.0 / 3.0))

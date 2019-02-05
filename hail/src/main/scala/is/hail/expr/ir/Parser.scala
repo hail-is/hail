@@ -1136,10 +1136,6 @@ object IRParser {
         val right = blockmatrix_ir(env)(it)
         val applyBinOp = ir_value_expr(env.update(Map("l" -> left.typ.elementType, "r" -> right.typ.elementType)))(it)
         BlockMatrixMap2(left, right, applyBinOp.asInstanceOf[ApplyBinaryPrimOp])
-      case "BlockMatrixMap" =>
-        val child = blockmatrix_ir(env)(it)
-        val applyBinOp = ir_value_expr(env + ("element" -> TFloat64()))(it)
-        BlockMatrixMap(child, applyBinOp.asInstanceOf[ApplyBinaryPrimOp])
       case "BlockMatrixBroadcast" =>
         val broadcastType = Broadcast2D.fromString(identifier(it))
         val shape = int64_literals(it)
