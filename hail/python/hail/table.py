@@ -1207,7 +1207,8 @@ class Table(ExprContainer):
 
         t = self
         t = t.flatten()
-        fields = [trunc(f) for f in t.row]
+        fields = list(t.row)
+        trunc_fields = [trunc(f) for f in fields]
         n_fields = len(fields)
 
         type_strs = [trunc(str(t.row[f].dtype)) for f in fields] if types else [''] * len(fields)
@@ -1222,7 +1223,7 @@ class Table(ExprContainer):
         rows = [[row[f] for f in fields] for row in rows]
 
         max_value_width = lambda i: max(itertools.chain([0], (len(row[i]) for row in rows)))
-        column_width = [max(len(fields[i]), len(type_strs[i]), max_value_width(i)) for i in range(n_fields)]
+        column_width = [max(len(trunc_fields[i]), len(type_strs[i]), max_value_width(i)) for i in range(n_fields)]
 
         column_blocks = []
         start = 0
@@ -1265,7 +1266,7 @@ class Table(ExprContainer):
             hline = format_hline(block_column_width)
 
             s += hline
-            s += format_line(fields[start:end], block_column_width, block_right_align)
+            s += format_line(trunc_fields[start:end], block_column_width, block_right_align)
             s += hline
             if types:
                 s += format_line(type_strs[start:end], block_column_width, block_right_align)
