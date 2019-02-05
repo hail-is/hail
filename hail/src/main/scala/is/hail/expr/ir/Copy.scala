@@ -187,9 +187,9 @@ object Copy {
       case TableWrite(_, path, overwrite, stageLocally, codecSpecJSONStr) =>
         val IndexedSeq(child: TableIR) = newChildren
         TableWrite(child, path, overwrite, stageLocally, codecSpecJSONStr)
-      case TableExport(_, path, typesFile, header, exportType) =>
+      case TableExport(_, path, typesFile, header, exportType, delimiter) =>
         val IndexedSeq(child: TableIR) = newChildren
-        TableExport(child, path, typesFile, header, exportType)
+        TableExport(child, path, typesFile, header, exportType, delimiter)
       case TableToValueApply(child, function) =>
         val IndexedSeq(newChild: TableIR) = newChildren
         TableToValueApply(newChild, function)

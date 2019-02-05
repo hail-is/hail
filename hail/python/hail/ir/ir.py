@@ -1763,27 +1763,30 @@ class TableExport(IR):
                       path=str,
                       types_file=nullable(str),
                       header=bool,
-                      export_type=int)
-    def __init__(self, child, path, types_file, header, export_type):
+                      export_type=int,
+                      delimiter=str)
+    def __init__(self, child, path, types_file, header, export_type, delimiter):
         super().__init__(child)
         self.child = child
         self.path = path
         self.types_file = types_file
         self.header = header
         self.export_type = export_type
+        self.delimiter = delimiter
 
     @typecheck_method(child=TableIR)
     def copy(self, child):
         new_instance = self.__class__
-        return new_instance(child, self.path, self.types_file, self.header, self.export_type)
+        return new_instance(child, self.path, self.types_file, self.header, self.export_type, self.delimiter)
 
     def render(self, r):
-        return '(TableExport {} "{}" {} {} {})'.format(
+        return '(TableExport {} "{}" {} {} {} "{}")'.format(
             r(self.child),
             escape_str(self.path),
             f'"{escape_str(self.types_file)}"' if self.types_file else 'None',
             self.header,
-            self.export_type)
+            self.export_type,
+            escape_str(self.delimiter))
 
     def __eq__(self, other):
         return isinstance(other, TableExport) and \
@@ -1791,7 +1794,8 @@ class TableExport(IR):
                other.path == self.path and \
                other.types_file == self.types_file and \
                other.header == self.header and \
-               other.export_type == self.export_type
+               other.export_type == self.export_type and \
+               other.delimiter == self.delimiter
 
     def _compute_type(self, env, agg_env):
         self.child._compute_type()

@@ -778,7 +778,8 @@ object IRParser {
         val typesFile = opt(it, string_literal).orNull
         val header = boolean_literal(it)
         val exportType = int32_literal(it)
-        TableExport(child, path, typesFile, header, exportType)
+        val delimiter = string_literal(it)
+        TableExport(child, path, typesFile, header, exportType, delimiter)
       case "TableWrite" =>
         val path = string_literal(it)
         val overwrite = boolean_literal(it)

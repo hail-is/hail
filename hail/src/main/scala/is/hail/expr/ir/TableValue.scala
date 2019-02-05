@@ -106,7 +106,7 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
 
   }
 
-  def export(path: String, typesFile: String = null, header: Boolean = true, exportType: Int = ExportType.CONCATENATED) {
+  def export(path: String, typesFile: String = null, header: Boolean = true, exportType: Int = ExportType.CONCATENATED, delimiter: String = "\t") {
     val hc = HailContext.get
     hc.hadoopConf.delete(path, recursive = true)
 
@@ -119,6 +119,7 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
     val localSignature = typ.rowType.physicalType
     val localTypes = fields.map(_.typ)
 
+    val localDelim = delimiter
     rvd.mapPartitions { it =>
       val sb = new StringBuilder()
 
@@ -127,10 +128,10 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
         sb.clear()
         localTypes.indices.foreachBetween { i =>
           sb.append(TableAnnotationImpex.exportAnnotation(ur.get(i), localTypes(i)))
-        }(sb += '\t')
+        }(sb.append(localDelim))
 
         sb.result()
       }
-    }.writeTable(path, hc.tmpDir, Some(fields.map(_.name).mkString("\t")).filter(_ => header), exportType = exportType)
+    }.writeTable(path, hc.tmpDir, Some(fields.map(_.name).mkString(localDelim)).filter(_ => header), exportType = exportType)
   }
 }
