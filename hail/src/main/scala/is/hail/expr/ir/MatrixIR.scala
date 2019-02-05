@@ -177,19 +177,15 @@ case class MatrixNativeReader(path: String) extends MatrixReader {
 
     val hc = HailContext.get
 
-    var tr: TableIR = TableRead(rowsPath,
-      RelationalSpec.read(hc, rowsPath).asInstanceOf[AbstractTableSpec],
+    var tr: TableIR = TableRead(
       TableType(
         mr.typ.rowType,
         mr.typ.rowKey,
-        TStruct()
+        mr.typ.globalType
       ),
-      mr.dropRows
+      mr.dropRows,
+      TableNativeReader(rowsPath, spec.rowsTableSpec(rowsPath))
     )
-
-    val globals = spec.globalsComponent.readLocal(hc, path, PType.canonical(mr.typ.globalType).asInstanceOf[PStruct])(0)
-
-    tr = TableMapGlobals(tr, Literal(mr.typ.globalType, globals))
 
     if (mr.dropCols) {
       tr = TableMapGlobals(
@@ -203,127 +199,35 @@ case class MatrixNativeReader(path: String) extends MatrixReader {
           Ref("row", tr.typ.rowType),
         FastSeq(LowerMatrixIR.entriesFieldName -> MakeArray(FastSeq(), TArray(mr.typ.entryType)))))
     } else {
-      val colsTable = TableRead(colsPath,
-        RelationalSpec.read(hc, colsPath).asInstanceOf[AbstractTableSpec],
+      val colsTable = TableRead(
         TableType(
           mr.typ.colType,
           FastIndexedSeq(),
           TStruct()
         ),
-        dropRows = false
+        dropRows = false,
+        TableNativeReader(colsPath, spec.colsTableSpec(colsPath))
       )
+
       tr = TableMapGlobals(tr, InsertFields(
         Ref("global", tr.typ.globalType),
         FastSeq(LowerMatrixIR.colsFieldName -> GetField(TableCollect(colsTable), "rows"))
       ))
 
-      val entries: TableIR = TableRead(entriesPath,
-        RelationalSpec.read(hc, entriesPath).asInstanceOf[AbstractTableSpec],
+      val entries: TableIR = TableRead(
         TableType(
           TStruct(LowerMatrixIR.entriesFieldName -> TArray(mr.typ.entryType)),
           FastIndexedSeq(),
           TStruct()
         ),
-        mr.dropRows
+        mr.dropRows,
+        TableNativeReader(entriesPath, spec.entriesTableSpec(entriesPath))
       )
 
       tr = TableZipUnchecked(tr, entries)
     }
 
     tr
-  }
-
-  def apply(mr: MatrixRead): MatrixValue = {
-    val hc = HailContext.get
-
-    val requestedType = mr.typ
-    assert(PruneDeadFields.isSupertype(requestedType, spec.matrix_type),
-      s"R: ${ requestedType.parsableString() }\nS: ${ spec.matrix_type.parsableString() }")
-
-    val globals = spec.globalsComponent.readLocal(hc, path, requestedType.globalType.physicalType)(0).asInstanceOf[Row]
-
-    val colAnnotations =
-      if (mr.dropCols)
-        FastIndexedSeq.empty[Annotation]
-      else
-        spec.colsComponent.readLocal(hc, path, requestedType.colType.physicalType).asInstanceOf[IndexedSeq[Annotation]]
-
-    val rvd =
-      if (mr.dropRows)
-        RVD.empty(hc.sc, requestedType.canonicalRVDType)
-      else {
-        val fullRowType = requestedType.rvRowType
-        val localEntriesIndex = requestedType.entriesIdx
-
-        val rowsRVD = spec.rowsComponent.read(hc, path, requestedType.rowType.physicalType)
-        if (mr.dropCols) {
-          val (t2, makeF) = ir.Compile[Long, Long](
-            "row", requestedType.rowType.physicalType,
-            MakeStruct(
-              fullRowType.fields.zipWithIndex.map { case (f, i) =>
-                val v: IR = if (i == localEntriesIndex)
-                  MakeArray(FastSeq.empty, TArray(requestedType.entryType))
-                else
-                  GetField(Ref("row", requestedType.rowType), f.name)
-                f.name -> v
-              }))
-          assert(t2.virtualType == fullRowType)
-
-          rowsRVD.mapPartitionsWithIndex(requestedType.canonicalRVDType) { (i, it) =>
-            val f = makeF(i)
-            val rv2 = RegionValue()
-            it.map { rv =>
-              val off = f(rv.region, rv.offset, false)
-              rv2.set(rv.region, off)
-              rv2
-            }
-          }
-        } else {
-          val entriesRVD = spec.entriesComponent.read(hc, path, requestedType.entriesRVType.physicalType)
-          val entriesRowType = entriesRVD.rowType
-
-          val (t2, makeF) = ir.Compile[Long, Long, Long](
-            "row", requestedType.rowType.physicalType,
-            "entriesRow", entriesRowType.physicalType,
-            MakeStruct(
-              fullRowType.fields.zipWithIndex.map { case (f, i) =>
-                val v: IR = if (i == localEntriesIndex)
-                  GetField(Ref("entriesRow", entriesRowType), MatrixType.entriesIdentifier)
-                else
-                  GetField(Ref("row", requestedType.rowType), f.name)
-                f.name -> v
-              }))
-          assert(t2.virtualType == fullRowType)
-
-          rowsRVD.zipPartitionsWithIndex(requestedType.canonicalRVDType, entriesRVD) { (i, ctx, it1, it2) =>
-            val f = makeF(i)
-            val region = ctx.region
-            val rv3 = RegionValue(region)
-            new Iterator[RegionValue] {
-              def hasNext = {
-                val hn1 = it1.hasNext
-                val hn2 = it2.hasNext
-                assert(hn1 == hn2)
-                hn1
-              }
-
-              def next(): RegionValue = {
-                val rv1 = it1.next()
-                val rv2 = it2.next()
-                val off = f(region, rv1.offset, false, rv2.offset, false)
-                rv3.set(region, off)
-                rv3
-              }
-            }
-          }
-        }
-      }
-
-    MatrixValue(
-      requestedType,
-      BroadcastRow(globals, requestedType.globalType, hc.sc),
-      BroadcastIndexedSeq(colAnnotations, TArray(requestedType.colType), hc.sc),
-      rvd)
   }
 }
 

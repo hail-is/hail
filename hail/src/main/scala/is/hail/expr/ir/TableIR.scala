@@ -72,11 +72,14 @@ abstract class TableReader {
   def fullRVDType: RVDType
 }
 
-case class TableNativeReader(path: String) extends TableReader {
-  lazy val spec: AbstractTableSpec = (RelationalSpec.read(HailContext.get, path): @unchecked) match {
-    case ts: AbstractTableSpec => ts
-    case _: AbstractMatrixTableSpec => fatal(s"file is a MatrixTable, not a Table: '$path'")
-  }
+case class TableNativeReader(path: String, var _spec: AbstractTableSpec = null) extends TableReader {
+  lazy val spec = if (_spec != null)
+    _spec
+  else
+    (RelationalSpec.read(HailContext.get, path): @unchecked) match {
+      case ts: AbstractTableSpec => ts
+      case _: AbstractMatrixTableSpec => fatal(s"file is a MatrixTable, not a Table: '$path'")
+    }
 
   def partitionCounts: Option[IndexedSeq[Long]] = Some(spec.partitionCounts)
 
@@ -573,7 +576,7 @@ case class TableZipUnchecked(left: TableIR, right: TableIR) extends TableIR {
       val region = ctx.region
       val rv3 = RegionValue(region)
       new Iterator[RegionValue] {
-        def hasNext = {
+        def hasNext: Boolean = {
           val hn1 = it1.hasNext
           val hn2 = it2.hasNext
           assert(hn1 == hn2)

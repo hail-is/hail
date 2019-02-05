@@ -76,7 +76,7 @@ class TableEmitter(tub: TranslationUnitBuilder) { outer =>
 
     val typ = x.typ
     x match {
-      case ir.TableRead(_, dropRows, tr@TableNativeReader(path)) =>
+      case ir.TableRead(_, dropRows, tr@TableNativeReader(path, _)) =>
         val hc = HailContext.get
         val globals = tr.spec.globalsComponent.readLocal(hc, path, typ.globalType.physicalType)(0)
         val rvd = if (dropRows)

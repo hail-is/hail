@@ -11,7 +11,7 @@ import is.hail.linalg._
 import is.hail.methods._
 import is.hail.rvd._
 import is.hail.sparkextras.{ContextRDD, RepartitionedOrderedRDD2}
-import is.hail.table.{Table, TableSpec}
+import is.hail.table.{AbstractTableSpec, Table, TableSpec}
 import is.hail.utils._
 import is.hail.{HailContext, cxx, utils}
 import org.apache.hadoop
@@ -127,6 +127,10 @@ abstract class AbstractMatrixTableSpec extends RelationalSpec {
     val entries = AbstractRVDSpec.read(HailContext.get, path + "/" + entriesComponent.rel_path)
     RVDType(rows.encodedType.appendKey(MatrixType.entriesIdentifier, entries.encodedType), rows.key)
   }
+
+  def rowsTableSpec(path: String): AbstractTableSpec = RelationalSpec.read(HailContext.get, path).asInstanceOf[AbstractTableSpec]
+  def colsTableSpec(path: String): AbstractTableSpec = RelationalSpec.read(HailContext.get, path).asInstanceOf[AbstractTableSpec]
+  def entriesTableSpec(path: String): AbstractTableSpec = RelationalSpec.read(HailContext.get, path).asInstanceOf[AbstractTableSpec]
 }
 
 case class MatrixTableSpec(
@@ -134,7 +138,14 @@ case class MatrixTableSpec(
   hail_version: String,
   references_rel_path: String,
   matrix_type: MatrixType,
-  components: Map[String, ComponentSpec]) extends AbstractMatrixTableSpec
+  components: Map[String, ComponentSpec]) extends AbstractMatrixTableSpec {
+
+  // some legacy files written as MatrixTableSpec wrote the wrong type to the entries table metadata
+  override def entriesTableSpec(path: String): AbstractTableSpec = {
+    val writtenETS = super.entriesTableSpec(path).asInstanceOf[TableSpec]
+    writtenETS.copy(table_type = TableType(matrix_type.entriesRVType, FastIndexedSeq(), matrix_type.globalType))
+  }
+}
 
 object FileFormat {
   val version: SemanticVersion = SemanticVersion(1, 0, 0)
@@ -446,7 +457,7 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
 
   def distinctByRow(): MatrixTable =
     copyAST(ast = MatrixDistinctByRow(ast))
-  
+
   def dropCols(): MatrixTable =
     copyAST(ast = MatrixFilterCols(ast, ir.False()))
 

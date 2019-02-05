@@ -866,7 +866,9 @@ object IRParser {
           val reader = try {
             Serialization.read[TableReader](readerStr)
           } catch {
-            case e: MappingException => throw e.cause
+            case e: MappingException =>
+              println(readerStr)
+              throw e.cause
           }
     TableRead(requestedType.getOrElse(reader.fullType), dropRows, reader)
       case "MatrixColsTable" =>
