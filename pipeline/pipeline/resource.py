@@ -20,6 +20,7 @@ class ResourceFile(Resource):
         self._value = value
         self._source = source
         self._uid = ResourceFile._new_uid()
+        self._resource_group = resource_group
         self._output_paths = set()
 
     def add_output_path(self, path):

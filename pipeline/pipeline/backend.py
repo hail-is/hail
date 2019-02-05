@@ -62,7 +62,7 @@ class LocalBackend(Backend):
                     return [copy_task_inputs(rf) for _, rf in r._resources.items()]
                 else:
                     assert isinstance(r, TaskResourceFile)
-                    pass
+                    return []
 
             script += list(flatten([copy_task_inputs(r) for r in task._inputs]))
 
@@ -72,9 +72,12 @@ class LocalBackend(Backend):
                 defs = '; '.join(resource_defs) + '; ' if resource_defs else ''
                 cmd = " && ".join(task._command)
                 image = task._docker
+                memory = f'-m {task._memory}' if task._memory else ''
+
                 script += [f"docker run "
                            f"-v {tmpdir}:{tmpdir} "
                            f"-w {tmpdir} "
+                           f"{memory} "
                            f"{image} /bin/bash "
                            f"-c {escape_string(defs + cmd)}",
                            '\n']

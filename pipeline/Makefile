@@ -13,11 +13,11 @@ build/conda-env: environment.yml
 	mkdir -p build && touch $@
 
 build/flake8: $(PY_FILES) build/conda-env
-	. ../loadconda && . activate hail-pipeline && python -m flake8 pipeline
+	. ../loadconda && conda activate hail-pipeline && python -m flake8 pipeline
 	mkdir -p build && touch $@
 
 build/pylint: $(PY_FILES) build/conda-env
-	. ../loadconda && . activate hail-pipeline && python -m pylint --rcfile pipeline/pylintrc pipeline --score=n
+	. ../loadconda && conda activate hail-pipeline && python -m pylint --rcfile pipeline/pylintrc pipeline --score=n
 	mkdir -p build && touch $@
 
 load-env: build/conda-env
