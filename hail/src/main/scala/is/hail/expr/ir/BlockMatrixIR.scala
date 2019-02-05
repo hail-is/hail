@@ -32,11 +32,7 @@ abstract sealed class BlockMatrixIR extends BaseIR {
 case class BlockMatrixRead(path: String) extends BlockMatrixIR {
   override def typ: BlockMatrixType = {
     val metadata = BlockMatrix.readMetadata(HailContext.get, path)
-    BlockMatrixType(
-      TFloat64(),
-      IndexedSeq(metadata.nRows, metadata.nCols),
-      metadata.blockSize,
-      IndexedSeq(true, true))
+    BlockMatrixType(TFloat64(), IndexedSeq(metadata.nRows, metadata.nCols), metadata.blockSize, IndexedSeq(true, true))
   }
 
   override def children: IndexedSeq[BaseIR] = Array.empty[BlockMatrixIR]
@@ -53,11 +49,7 @@ case class BlockMatrixRead(path: String) extends BlockMatrixIR {
 
 class BlockMatrixLiteral(value: BlockMatrix) extends BlockMatrixIR {
   override def typ: BlockMatrixType = {
-    BlockMatrixType(
-      TFloat64(),
-      IndexedSeq(value.nRows, value.nCols),
-      value.blockSize,
-      IndexedSeq(true, true))
+    BlockMatrixType(TFloat64(), IndexedSeq(value.nRows, value.nCols), value.blockSize, IndexedSeq(true, true))
   }
 
   override def children: IndexedSeq[BaseIR] = Array.empty[BlockMatrixIR]
@@ -70,10 +62,7 @@ class BlockMatrixLiteral(value: BlockMatrix) extends BlockMatrixIR {
   override protected[ir] def execute(hc: HailContext): BlockMatrix = value
 }
 
-case class BlockMatrixMap2(
-  left: BlockMatrixIR,
-  right: BlockMatrixIR,
-  applyBinOp: ApplyBinaryPrimOp) extends BlockMatrixIR {
+case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, applyBinOp: ApplyBinaryPrimOp) extends BlockMatrixIR {
 
   override def typ: BlockMatrixType = left.typ
 
