@@ -16,8 +16,10 @@
       margin: 0 $margin;
       cursor: pointer;
       display: block;
-      &:first-child {
-        margin-left: 0px;
+      &.home {
+        padding: 15px 15px 15px 15px;
+        margin-right: -5px;
+        margin-left: -15px;
       }
       &:last-child {
         margin-right: 0px;

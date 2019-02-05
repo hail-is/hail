@@ -68,13 +68,13 @@ export default class MyApp extends App {
   }
 
   onDarkToggle = () => {
-    if (!this.state.isDark) {
-      cookies.set('is_dark', '1', { path: '/' });
-    } else {
-      cookies.remove('is_dark', { path: '/' });
-    }
-
     this.setState((prevState: any) => {
+      if (!this.state.isDark) {
+        cookies.set('is_dark', '1', { path: '/' });
+      } else {
+        cookies.remove('is_dark', { path: '/' });
+      }
+
       return {
         isDark: !prevState.isDark
       };

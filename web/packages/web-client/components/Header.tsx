@@ -1,4 +1,4 @@
-import { Component, Fragment } from 'react';
+import { PureComponent, Fragment } from 'react';
 import Link from 'next/link';
 import auth, {
   logout,
@@ -17,7 +17,7 @@ declare type headerState = {
   // showProfileControls: boolean,
   isLoggedIn: boolean;
 };
-class Header extends Component {
+class Header extends PureComponent {
   state: headerState = {
     // showProfileControls: false,
     isLoggedIn: false
@@ -45,14 +45,6 @@ class Header extends Component {
     this.state.isLoggedIn = isAuthenticated();
   }
 
-  shouldComponentUpdate(_: any, nextState: Partial<headerState>) {
-    if (this.state.isLoggedIn !== nextState.isLoggedIn) {
-      return true;
-    }
-
-    return false;
-  }
-
   componentDidMount() {
     listenerID = addListener(state => {
       if (this.state.isLoggedIn !== !!state.user) {
@@ -78,7 +70,7 @@ class Header extends Component {
     return (
       <span id="header">
         <Link href="/">
-          <a className={`${bStyle} ${pathname === '/' ? 'active' : ''}`}>
+          <a className={`home ${bStyle} ${pathname === '/' ? 'active' : ''}`}>
             <b>/</b>
           </a>
         </Link>
