@@ -1269,6 +1269,14 @@ class Tests(unittest.TestCase):
         self.assertTrue(kin3.count() > 0)
         self.assertTrue(kin3.filter(kin3.kin < 0.1).count() == 0)
 
+    def test_pcrelate_issue_5263(self):
+        mt = hl.balding_nichols_model(3, 50, 100)
+        expected = hl.pc_relate(mt.GT, 0.10, k=2, statistics='all')
+        mt = mt.select_entries(GT2=mt.GT,
+                               GT=hl.call(hl.rand_bool(0.5), hl.rand_bool(0.5)))
+        actual = hl.pc_relate(mt.GT2, 0.10, k=2, statistics='all')
+        assert expected._same(actual)
+
     def test_split_multi_hts(self):
         ds1 = hl.import_vcf(resource('split_test.vcf'))
         ds1 = hl.split_multi_hts(ds1)
