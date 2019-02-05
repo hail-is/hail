@@ -33,7 +33,7 @@ def show(obj):
     obj
         A Bokeh object to display.
     """
-    boken.io.show(obj)
+    bokeh.io.show(obj)
 
 @typecheck(data=oneof(hail.utils.struct.Struct, expr_float64), range=nullable(sized_tupleof(numeric, numeric)),
            bins=int, legend=nullable(str), title=nullable(str))
