@@ -46,7 +46,7 @@ def pc_relate(mt, k):
 
     # calculate identity-by-state-0
     ibs0 = hl.inner_product(
-               g, g.T,
+               g.T, g,
                lambda l, r: hl.agg.count(hl.abs(l - r) == 1.0))
 
     temp = (mu * mu) @ ((1.0 - mu) * (1.0 - mu))
