@@ -1232,8 +1232,8 @@ class BlockMatrix(object):
         apply_bin_op = ApplyBinaryOp(op, Ref('l'), Ref('r'))
 
         result_shape = _shape_after_broadcast(_shape(left), _shape(right))
-        left_bmir = _produce_ir_with_shape(left, result_shape)
-        right_bmir = _produce_ir_with_shape(right, result_shape)
+        left_bmir = _broadcast_to_shape(_to_bmir(left), result_shape)
+        right_bmir = _broadcast_to_shape(_to_bmir(right), result_shape)
 
         return BlockMatrix(BlockMatrixMap2(left_bmir, right_bmir, apply_bin_op))
 
@@ -2075,27 +2075,25 @@ def _left_pad_with_ones(shape, ones_to_add):
     return ones
 
 
-def _produce_ir_with_shape(x, result_shape):
+def _to_bmir(x):
     if _is_scalar(x):
-        scalar_bmir = ValueToBlockMatrix(F64(x), hl.tfloat64, [], BlockMatrix.default_block_size(), [])
-        return BlockMatrixBroadcast(scalar_bmir, "scalar", result_shape, BlockMatrix.default_block_size(), [])
+        return ValueToBlockMatrix(F64(x), hl.tfloat64, [], BlockMatrix.default_block_size(), [])
     elif isinstance(x, np.ndarray):
-        ndarray_bmir = ValueToBlockMatrix(_ndarray_to_makearray(x), hl.tfloat64, list(x.shape),
-                                          BlockMatrix.default_block_size(), [False for _ in result_shape])
-
-        if list(x.shape) == result_shape:
-            return ndarray_bmir
-        else:
-            broadcast_type = _get_broadcast_type(list(x.shape))
-            return BlockMatrixBroadcast(ndarray_bmir, broadcast_type, result_shape,
-                                        BlockMatrix.default_block_size(), [False for _ in result_shape])
+        return ValueToBlockMatrix(_ndarray_to_makearray(x), hl.tfloat64, list(x.shape),
+                                  BlockMatrix.default_block_size(), [False for _ in x.shape])
     else:
-        if list(x.shape) == result_shape:
-            return x._bmir
-        else:
-            broadcast_type = _get_broadcast_type(list(x.shape))
-            return BlockMatrixBroadcast(x._bmir, broadcast_type, result_shape,
-                                        BlockMatrix.default_block_size(), [False for _ in result_shape])
+        return x._bmir
+
+
+def _broadcast_to_shape(bmir, result_shape):
+    current_shape = bmir.typ.shape
+
+    if current_shape == result_shape:
+        return bmir
+
+    broadcast_type = _get_broadcast_type(current_shape)
+    return BlockMatrixBroadcast(bmir, broadcast_type, result_shape,
+                                BlockMatrix.default_block_size(), [False for _ in result_shape])
 
 
 def _ndarray_to_makearray(ndarray):
