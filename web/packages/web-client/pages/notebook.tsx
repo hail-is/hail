@@ -133,7 +133,7 @@ const startListener = () => {
 
     const event = data.event;
     const updated = data.resource;
-    console.info('update', updated);
+
     const isDeleted =
       updated.svc_status === kubeState.Deleted ||
       updated.pod_status === kubeState.Deleted;
