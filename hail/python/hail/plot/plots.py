@@ -157,11 +157,8 @@ def set_font_size(p, font_size: str = "12pt"):
            bins=int, x_bins=nullable(int), y_bins=nullable(int),
            plot_title=nullable(str), plot_width=int, plot_height=int,
            font_size=str, colors=sequenceof(str))
-def histogram_2d(x: NumericExpression, y: NumericExpression,
-                 x_range: Tuple[float, float] = None, y_range: Tuple[float, float] = None,
-                 bins: int = 40, x_bins: int = None, y_bins: int = None,
-                 plot_title: str = '2-D histogram', plot_width: int = 600, plot_height: int = 600,
-                 font_size: str = '7pt',
+def histogram_2d(x, y, x_range=None, y_range=None, bins=40, x_bins=None, y_bins=None,
+                 plot_title='2-D histogram', plot_width=600, plot_height=600, font_size='7pt',
                  colors=["#75968f", "#a5bab7", "#c9d9d3", "#e2e2e2", "#dfccce", "#ddb7b1", "#cc7878", "#933b41", "#550b1d"]):
     """Plot a 2-D histogram of x vs y, which are NumericExpressions from a Table.
 
