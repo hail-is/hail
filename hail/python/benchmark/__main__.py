@@ -16,12 +16,16 @@ if __name__ == '__main__':
                         type=int,
                         default=3,
                         help='Number of iterations for each test.')
+    parser.add_argument("--log", "-l",
+                         type=str,
+                         help='Log file path')
 
     args = parser.parse_args()
 
     import benchmark
+    benchmark.initialize(args.cores, args.log, args.n_iter)
     if args.tests:
         for test in args.tests.split(','):
-            benchmark.run_single(test, cores=args.cores, n_iter=args.n_iter)
+            benchmark.run_single(test)
     else:
-        benchmark.run_all(cores=args.cores, n_iter=args.n_iter)
+        benchmark.run_all()
