@@ -2552,16 +2552,17 @@ class MatrixTable(ExprContainer):
         +---------+---------+-------+
         |   int32 |   int32 | int32 |
         +---------+---------+-------+
-        |       0 |       2 |     0 |
         |       0 |       0 |     0 |
         |       0 |       1 |     0 |
+        |       0 |       2 |     0 |
         |       1 |       0 |     0 |
         |       1 |       1 |     1 |
         |       1 |       2 |     2 |
-        |       2 |       2 |     4 |
-        |       2 |       1 |     2 |
         |       2 |       0 |     0 |
+        |       2 |       1 |     2 |
+        |       2 |       2 |     4 |
         +---------+---------+-------+
+
         >>> t = mt.localize_entries('entry_structs', 'columns')
         >>> t = t.select(entries = t.entry_structs.map(lambda entry: entry.x))
         >>> np.array(t.entries.collect())
