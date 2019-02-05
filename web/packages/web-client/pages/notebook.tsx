@@ -387,13 +387,13 @@ class Notebook extends PureComponent<any, state> {
                 >
                   <b>{d.name}</b>
                   <span className="small">
-                    Condition:{' '}
+                    Condition:
                     <b>
                       {d.condition === null
                         ? 'Initializing'
                         : d.condition.status !== 'True'
-                        ? 'Not '
-                        : '' + d.condition.type}
+                        ? 'Not ' + d.condition.type
+                        : d.condition.type}
                     </b>
                   </span>
                   <span className="small">
