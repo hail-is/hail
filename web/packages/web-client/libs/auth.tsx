@@ -1,11 +1,17 @@
 // A singleton that should be configured once
 // Manages auth0 calls, fetching access  tokens, and  decoding id tokens
 
-// TOOD: Think about safety of using leeway to fudge jwt expiration by N seconds
+// TODO: Think about safety of using leeway to fudge jwt expiration by N seconds
 // TODO: Write tests, simplify race condition handling
 // TODO: exp is derived from accessToken's claim, decide if needs keeping
 // TODO: File issue with auth0js library regarding rapid refresh, fix
 // TODO: Enable SSL / secure on cookies
+// TODO: Properly handle issues surround cross-origin cookies
+// TODO: Notify the user when we can't verify them, so that log-outs aren't scary
+// TODO: Figure out if CSRF protection needed, or if auth0 nonce enough against relay
+// TODO: Audit security model
+// TODO: Handle safari cross-site tracking issues
+// TODO: it's more secure to just patch workshop pass into the user's app_metadata
 import auth0 from 'auth0-js';
 import getConfig from 'next/config';
 import cookies, { CookieAttributes } from 'js-cookie';
@@ -40,9 +46,7 @@ declare type auth0payload = {
   idTokenPayload: UserInterface;
 
   // This refers to the state parameter passed to auth0
-  // Used to prevent relay attacks
   // Currently only used for workshop password
-  // TODO: add csrf protection
   state: string;
 };
 
@@ -201,8 +205,6 @@ export function login(state?: string) {
     connection: 'google-oauth2'
   };
 
-  // Used for CSRF protection, and for workshop passwords
-  // TODO: add CSRF token
   if (state) {
     opts.state = state;
   }
@@ -258,6 +260,7 @@ export function initStateSSR(cookie: string) {
   let idToken: string | undefined;
   let accessToken: string | undefined;
   let expires: string | undefined;
+
   const parts = cookie.split('; ');
 
   for (let i = parts.length; i--; ) {
@@ -269,7 +272,7 @@ export function initStateSSR(cookie: string) {
       idTokenIdx = parts[i].indexOf(`${cookieNames.ID_TOKEN}=`);
 
       if (idTokenIdx !== -1) {
-        idToken = parts[i].substr(idTokenIdx + 8);
+        idToken = parts[i].substr(idTokenIdx + cookieNames.ID_TOKEN.length + 1);
         continue;
       }
     }
@@ -278,7 +281,9 @@ export function initStateSSR(cookie: string) {
       accessTokenIdx = parts[i].indexOf(`${cookieNames.ACCESS_TOKEN}=`);
 
       if (accessTokenIdx !== -1) {
-        accessToken = parts[i].substr(accessTokenIdx + 12);
+        accessToken = parts[i].substr(
+          accessTokenIdx + cookieNames.ACCESS_TOKEN.length + 1
+        );
         continue;
       }
     }
@@ -287,7 +292,7 @@ export function initStateSSR(cookie: string) {
       expIdx = parts[i].indexOf(`${cookieNames.EXPIRES}=`);
 
       if (expIdx !== -1) {
-        expires = parts[i].substr(expIdx + 4);
+        expires = parts[i].substr(expIdx + cookieNames.ID_TOKEN.length + 1);
         continue;
       }
     }
@@ -314,9 +319,6 @@ export function initStateSSR(cookie: string) {
   });
 }
 
-// TODO: we could allow a person whose session has expired to still
-// TOOD: Handle safari cross-site tracking issues
-// attempt login implicitly using _checkSession
 function _initState() {
   if (!_auth0) {
     throw new Error('Auth library not initialized in getState');
@@ -341,76 +343,68 @@ function _initState() {
       loggedOut: false
     });
 
+    _pollForSession();
+
+    // Re-enable if we wish to check the user's session shortly after page refresh
+    // This has, currently, the unfortunate side-effect of auto-logging the user out
+
     // Validate that state, to reduce the likelihood that API calls will fail
     // without user expectation
-    setTimeout(() => {
-      if (_state.loggedOut) {
-        return;
-      }
+    // setTimeout(() => {
+    //   if (_state.loggedOut) {
+    //     return;
+    //   }
 
-      _checkSession()
-        .then(() => {
-          if (!_state.loggedOut) {
-            _pollForSession();
-          }
-        })
-        .catch((err: any) => {
-          console.error(err);
+    //   _checkSession()
+    //     .then(() => {
+    //       if (!_state.loggedOut) {
+    //         _pollForSession();
+    //       }
+    //     })
+    //     .catch((err: any) => {
+    //       console.error(err);
 
-          // If we logout here safari breaks unless users remove cross-site trackign
-          logout();
-        });
-    }, 500);
+    //       // If we logout here safari breaks unless users remove cross-site trackign
+    //       logout();
+    //     });
+    // }, 500);
   } catch (e) {
     console.error(e);
   }
 }
 
 function _loginFromAuth0(r: auth0payload) {
-  const expires = `${r.expiresIn * 1000 + Date.now()}`;
-  const expInt = parseInt(expires, 10);
+  const expMs = `${r.expiresIn * 1000 + Date.now()}`;
+  // https://github.com/js-cookie/js-cookie/wiki/Frequently-Asked-Questions#expire-cookies-in-less-than-a-day
+  const expires = new Date(expMs);
 
-  const tokenOpts: CookieAttributes = Object.assign(
-    {
-      expires: expInt
-    },
-    cookieOpts
-  );
+  // js-cookie accepts a number in ms
+  const tokenOpts: CookieAttributes = Object.assign({ expires }, cookieOpts);
 
   const accessTokenOpt: CookieAttributes = Object.assign(
-    {
-      expires: expInt
-    },
+    { expires },
     accessTokenOpts
   );
 
-  cookies.set(cookieNames.EXPIRES, expires, tokenOpts);
-  cookies.set(cookieNames.ID_TOKEN, r.idToken as string, tokenOpts);
-  cookies.set(
-    cookieNames.ACCESS_TOKEN,
-    r.accessToken as string,
-    accessTokenOpt
-  );
-
-  // This is the auth0 state, if sent during the login request
-  // We currently use this for workshop passwords
-  // TODO: it's more secure to just patch workshop pass into the user's app_metadata
-  cookies.set(cookieNames.STATE, r.state);
+  cookies.set(cookieNames.ACCESS_TOKEN, r.accessToken, accessTokenOpt);
+  cookies.set(cookieNames.ID_TOKEN, r.idToken, tokenOpts);
+  cookies.set(cookieNames.EXPIRES, expMs, tokenOpts);
+  cookies.set(cookieNames.STATE, r.state, tokenOpts);
 
   _updateState({
     accessToken: r.accessToken,
     idToken: r.idToken,
     user: Object.assign({}, r.idTokenPayload),
-    expires: expires,
+    expires: expMs,
     loggedOut: false
   });
 }
 
 function _removeCookies() {
+  cookies.remove(cookieNames.ACCESS_TOKEN, accessTokenOpts);
+  cookies.remove(cookieNames.ID_TOKEN, cookieOpts);
   cookies.remove(cookieNames.EXPIRES, cookieOpts);
   cookies.remove(cookieNames.STATE, cookieOpts);
-  cookies.remove(cookieNames.ID_TOKEN, cookieOpts);
-  cookies.remove(cookieNames.ACCESS_TOKEN, accessTokenOpts);
 }
 
 // Change the reference, so state can be passed by reference and

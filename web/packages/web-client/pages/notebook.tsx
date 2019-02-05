@@ -50,13 +50,148 @@ declare type kubeWebsocketUpdate = {
 const getAlive = (nbs: notebooks) =>
   Object.values(nbs).filter((d: notebook) => d.svc_status != kubeState.Deleted);
 
+let resultsPromise: Promise<{ notebooks: notebooks; alive: notebook[] }>;
+
+let notebooks: notebooks = {};
+let alive: notebook[] = [];
+let initialized = false;
+
+const startRequest = () => {
+  if (resultsPromise) {
+    console.info('have');
+    return resultsPromise;
+  }
+
+  resultsPromise = fetch(`${URL}/api`, {
+    headers: {
+      Authorization: `Bearer ${auth.accessToken}`
+    }
+  })
+    .then(d => d.json())
+    .then((aNotebooks: notebook[]) => {
+      const data: notebooks = {};
+
+      aNotebooks.forEach(n => {
+        data[n.pod_name] = n;
+      });
+
+      notebooks = data;
+      alive = getAlive(data);
+
+      return { notebooks, alive };
+    })
+    .finally(() => {
+      initialized = true;
+    });
+
+  return resultsPromise;
+};
+
+let isListening: boolean;
+const callbackFunctions: ((nb: notebooks, alive: notebook[]) => void)[] = [];
+
+const startListener = () => {
+  if (isListening) {
+    return;
+  }
+
+  const name = URL.replace(/http/, 'ws'); //automatically wss if https
+  const ws = new WebSocket(`${name}/api/ws`);
+
+  isListening = true;
+
+  ws.onmessage = ev => {
+    const data: kubeWebsocketUpdate = JSON.parse(ev.data);
+
+    const event = data.event;
+    const updated = data.resource;
+
+    const isDeleted =
+      updated.svc_status === kubeState.Deleted ||
+      updated.pod_status === kubeState.Deleted;
+
+    if (!(event === kubeEvent.DELETED || isDeleted)) {
+      notebooks[updated.pod_name] = updated;
+      alive = getAlive(notebooks);
+
+      // TODO: add errors
+      callbackFunctions.forEach(cb => {
+        cb(notebooks, alive);
+      });
+
+      return;
+    }
+
+    const existing = !!notebooks[updated.pod_name];
+
+    if (!existing) {
+      return;
+    }
+
+    callbackFunctions.forEach(cb => {
+      cb(notebooks, alive);
+    });
+
+    delete notebooks[updated.pod_name];
+    alive = getAlive(notebooks);
+
+    // TODO: add errors
+    callbackFunctions.forEach(cb => {
+      cb(notebooks, alive);
+    });
+  };
+};
+
+const createNotebook = async () => {
+  return fetch(`${URL}/api`, {
+    headers: {
+      Authorization: `Bearer ${auth.accessToken}`
+    },
+    method: 'POST'
+  })
+    .then(d => d.json())
+    .then((notebook: notebook) => {
+      notebooks[notebook.pod_name] = notebook;
+      alive = getAlive(notebooks);
+
+      return { notebooks, alive };
+    });
+};
+
+const removeItemFromNotebook = (notebook: notebook) => {
+  delete notebooks[notebook.pod_name];
+  alive = getAlive(notebooks);
+};
+
+const deleteNotebook = (notebook: notebook, skipRemove: boolean) => {
+  return fetch(`${URL}/api/${notebook.svc_name}`, {
+    headers: {
+      Authorization: `Bearer ${auth.accessToken}`
+    },
+    method: 'DELETE'
+  }).then(response => {
+    if (!response.ok && response.status !== 404) {
+      console.error(response);
+      throw Error(`${response.status}`);
+    }
+
+    if (!skipRemove) {
+      delete notebooks[notebook.pod_name];
+      alive = getAlive(notebooks);
+    }
+
+    return { notebooks, alive };
+  });
+};
+
+let loadingTimeout: NodeJS.Timeout | null;
 // TODO: decide whether we want to show only notebooks whose svc and pod status
 // TODO: check that there are no side-effects for mutating this.state.notebooks
 // are both Running
 // Argument against this is to give fine-grained insight into what Kube is doing
 // Because Kube is not a good queue, and will give out-of-order events
 // which may be easier for the user to understand, that for us to present always as in-order
-class Notebook extends PureComponent<props, state> {
+class Notebook extends PureComponent<any, state> {
   state: state = {
     loading: 0,
     unauthorized: false,
@@ -64,137 +199,86 @@ class Notebook extends PureComponent<props, state> {
     alive: []
   };
 
-  static async getInitialProps() {
-    let notebooks: notebooks = {};
-    try {
-      notebooks = await fetch(`${URL}/api`, {
-        headers: {
-          Authorization: `Bearer ${auth.accessToken}`
-        }
-      })
-        .then(d => d.json())
-        .then((aNotebooks: notebook[]) => {
-          const data: notebooks = {};
-
-          aNotebooks.forEach(n => {
-            data[n.pod_name] = n;
-          });
-
-          return data;
-        });
-    } finally {
-      return { pageProps: { notebooks } };
-    }
-  }
-
   constructor(props: props) {
     super(props);
 
-    this.state.notebooks = props.pageProps.notebooks;
-    this.state.alive = getAlive(props.pageProps.notebooks);
+    if (initialized === false) {
+      console.info('nope');
+      this.state.loading = 1;
+    } else {
+      this.state.notebooks = Object.assign({}, notebooks);
+      this.state.alive = alive.slice(0);
+    }
   }
 
   componentDidMount() {
-    console.info('access token in notebook', auth.accessToken);
-    const name = URL.replace(/http/, 'ws'); //automatically wss if https
-    const ws = new WebSocket(`${name}/api/ws?access_token=${auth.accessToken}`);
-
-    ws.onmessage = ev => {
-      const data: kubeWebsocketUpdate = JSON.parse(ev.data);
-
-      const event = data.event;
-      const updated = data.resource;
-
-      const isDeleted =
-        updated.svc_status === kubeState.Deleted ||
-        updated.pod_status === kubeState.Deleted;
-
-      if (!(event === kubeEvent.DELETED || isDeleted)) {
-        this.setState((p: state) => {
-          const notebooks = Object.assign({}, p.notebooks);
-          notebooks[updated.pod_name] = updated;
-          return { notebooks, alive: getAlive(notebooks) };
-        });
-
-        return;
-      }
-
-      const existing = !!this.state.notebooks[updated.pod_name];
-
-      if (!existing) {
-        return;
-      }
-
-      this.setState((p: state) => {
-        const notebooks = Object.assign({}, p.notebooks);
-        delete notebooks[updated.pod_name];
-        return { notebooks, alive: getAlive(notebooks) };
+    loadingTimeout = setTimeout(() => {
+      this.setState({
+        loading: 1
       });
-    };
+    }, 250);
+
+    startRequest().then(() => {
+      if (loadingTimeout) {
+        clearTimeout(loadingTimeout);
+        loadingTimeout = null;
+      }
+
+      this.updateState(true);
+
+      callbackFunctions.push(() => this.updateState(true));
+
+      startListener();
+    });
   }
 
-  createNotebook = async () => {
-    this.setState({ loading: 1 });
-
-    try {
-      const notebook: notebook = await fetch(`${URL}/api`, {
-        headers: {
-          Authorization: `Bearer ${auth.accessToken}`
-        },
-        method: 'POST'
-      }).then(d => d.json());
-
-      this.state.notebooks[notebook.pod_name] = notebook;
-      // prevState should not be mutated
-      // fastest shallow copy method is .slice()
-      // https://jsperf.com/new-array-vs-splice-vs-slice/31
-      this.setState((p: state) => {
-        const notebooks = Object.assign({}, p.notebooks);
-
-        notebooks[notebook.pod_name] = notebook;
-        return {
-          notebooks,
-          alive: getAlive(notebooks),
-          loading: 0
-        };
-      });
-    } catch (e) {
-      this.setState({ loading: -1 });
+  componentWillUnmount() {
+    callbackFunctions.pop();
+    if (loadingTimeout) {
+      clearTimeout(loadingTimeout);
     }
-  };
+  }
 
-  deleteNotebook = async (notebook: notebook) => {
-    this.setState({ loading: 1 });
-
-    try {
-      const response = await fetch(`${URL}/api/${notebook.svc_name}`, {
-        headers: {
-          Authorization: `Bearer ${auth.accessToken}`
-        },
-        method: 'DELETE'
+  createNotebook = () => {
+    loadingTimeout = setTimeout(() => {
+      this.setState({
+        loading: 1
       });
+    }, 33);
 
-      // TODO: This isn't catching 404 or other errors
-      if (!response.ok && response.status !== 404) {
+    createNotebook()
+      .then(() => {
+        if (loadingTimeout) {
+          clearTimeout(loadingTimeout);
+          loadingTimeout = null;
+        }
+
+        this.updateState(true);
+      })
+      .catch(() => {
         this.setState({ loading: -1 });
-      }
-
-      this.removeNotebook(notebook);
-    } catch (e) {
-      this.setState({ loading: -1 });
-    }
-
-    // It is much, much faster to build a new array with the desired element
-    // excluded, than to splice
-    // https://jsperf.com/splice-vs-filter
+      });
   };
 
-  removeNotebook = (n: notebook) => {
-    this.setState((p: state) => {
-      const notebooks = Object.assign({}, p.notebooks);
+  // It is much, much faster to build a new array with the desired element
+  // excluded, than to splice
+  // https://jsperf.com/splice-vs-filter
+  updateState = (success: boolean) => {
+    this.setState({
+      notebooks: Object.assign({}, notebooks),
+      alive: alive.slice(0),
+      loading: success ? 0 : -1
+    });
+  };
 
-      delete notebooks[n.pod_name];
-      return { notebooks, alive: getAlive(notebooks), loading: 0 };
+  deleteNotebook = (notebook: notebook) => {
+    // Do the deletion opportunisticly
+    removeItemFromNotebook(notebook);
+
+    this.updateState(true);
+
+    deleteNotebook(notebook, true).catch(() => {
+      this.setState({ loading: -1 });
     });
   };
 
@@ -205,7 +289,7 @@ class Notebook extends PureComponent<props, state> {
           this.state.loading === -1 ? (
             <span>Error</span>
           ) : (
-            <span>Loading...</span>
+            <div className="spinner" />
           )
         ) : !this.state.alive.length ? (
           <button onClick={this.createNotebook}>Create</button>
@@ -245,9 +329,7 @@ class Notebook extends PureComponent<props, state> {
                 <a
                   target="_blank"
                   style={{ flexDirection: 'column', display: 'flex' }}
-                  href={`${URL}/instance/${d.svc_name}/?access_token=${
-                    auth.accessToken
-                  }&token=${d.token}`}
+                  href={`${URL}/instance/${d.svc_name}/?token=${d.token}`}
                 >
                   <b>{d.name}</b>
                   <span className="small">

@@ -65,29 +65,77 @@ const PORT = 8000;
 
 // Also, I prefer not using middleware; call the functions needed inside the route
 const bearerPrefix = 'Bearer ';
-// naturally 1 past; so useful as end, and as the index to start reading token from
 const bearerPrefixLen = bearerPrefix.length;
+
+const cookiePrefix = 'access_token=';
+const cookieOffset = cookiePrefix.length;
+
 const getAuthToken = req => {
-  // This is set from an "Authorization" header
-  if (req.headers.authorization) {
-    if (req.headers.authorization.substr(0, bearerPrefixLen) !== bearerPrefix) {
-      return null;
+  let whereFoundCount = 0;
+
+  let bearerIdx;
+  let cookieIdx;
+
+  if (req.headers.cookie) {
+    cookieIdx = req.headers.cookie.indexOf(cookiePrefix);
+
+    if (cookieIdx > -1) {
+      whereFoundCount += 1;
     }
-
-    const token = req.headers.authorization.substr(bearerPrefixLen);
-
-    if (token.trim() === '') {
-      return null;
-    }
-
-    return token;
   }
 
   if (req.query.access_token) {
-    return req.query.access_token;
+    whereFoundCount += 1;
   }
 
-  return null;
+  if (req.headers.authorization) {
+    bearerIdx = req.headers.authorization.indexOf(bearerPrefix);
+
+    if (bearerIdx > -1) {
+      whereFoundCount += 1;
+    }
+  }
+
+  // oauth2 spec specifies token should be presented in only one location
+  if (whereFoundCount === 0) {
+    return null;
+  }
+
+  if (whereFoundCount > 1) {
+    console.warn('User specified > 1 access tokens', req.headers.origin);
+    return null;
+  }
+
+  // The method we are least likely to use; disable for now
+  // as this means access tokens are even easier to abuse
+  // if (req.query.access_token) {
+  //   return req.query.access_token;
+  // }
+
+  let token;
+
+  if (bearerIdx > -1) {
+    token = req.headers.authorization.substr(bearerPrefixLen);
+  } else if (cookieIdx > -1) {
+    token = req.headers.cookie.substr(cookieIdx + cookieOffset);
+  }
+
+  if (!token) {
+    return null;
+  }
+
+  const spaceIdx = token.indexOf(' ');
+
+  // We have a single authorization value, and it is the Bearer token
+  if (spaceIdx === -1) {
+    return token;
+  }
+
+  // When multiple authorization headers, they are delimited by a space and a ,
+  // https://stackoverflow.com/questions/29282578/multiple-http-authorization-headers
+  // Similarly, when multiple cookies present, separated by value1, cookie2=value2
+  // or likewise by semicolon
+  return token.substr(0, spaceIdx - 1);
 };
 
 polka()
@@ -101,6 +149,7 @@ polka()
 
     verifyToken(token)
       .then(user => {
+        console.info('good');
         res.setHeader('User', user.sub);
         res.setHeader('Scope', user.scope);
         res.end();
