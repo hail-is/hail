@@ -224,10 +224,34 @@ def marshall_json(resources: [], paths=[], flatten=False):
 def read_svc_status(svc_name):
     try:
         # TODO: inspect exception for non-404
-        svc = k8s.read_namespaced_service(svc_name, 'default')
+        _ = k8s.read_namespaced_service(svc_name, 'default')
         return 'Running'
     except:
         return 'Deleted'
+
+
+def read_containers_status(container_statuses):
+    if container_statuses is None:
+        return {}
+
+    state = container_statuses[0].state
+    rn = None
+    wt = None
+    tm = None
+    if state.running:
+        rn = {"started_at": state.running.started_at}
+
+    if state.waiting:
+        wt = {"reaason": state.waiting.reason}
+
+    if state.terminated:
+        tm = {"exit_code": state.terminated.exit_code, "finished_at": state.terminated.finished_at,
+              "started_at": state.terminated.started_at, "reason": state.terminated.reason}
+
+    if rn is None and wt is None and tm is None:
+        return None
+
+    return {"running": rn, "terminated": tm, "waiting": wt}
 
 
 common_pod_paths = [
@@ -237,7 +261,9 @@ common_pod_paths = [
     ['pod_status', 'status.phase'],
     ['creation_date', 'metadata.creation_timestamp',
         lambda x: x.strftime('%D')],
-    ['token', 'metadata.labels.jupyter_token']
+    ['token', 'metadata.labels.jupyter_token'],
+    ['container_status', 'status.container_statuses',
+        lambda x: read_containers_status(x)]
 ]
 
 pod_paths = [
@@ -328,18 +354,12 @@ def verify(svc_name):
 
     user_id = resp.headers.get('User')
 
-    # log.info(
-    #    f'user_id from response to {AUTH_GATEWAY}/verify: {user_id} : and after transform: {UNSAFE_user_id_transform(user_id)}')
-
     if not user_id:
         return '', 401
 
     res = k8s.read_namespaced_service(svc_name, 'default')
 
     l = res.metadata.labels
-
-    # log.info(
-    #    f"Kube has user_id: l['user_id']. Matches ours: Match user_id: {l['user_id'] == UNSAFE_user_id_transform(user_id)}")
 
     if l['user_id'] != UNSAFE_user_id_transform(user_id):
         return '', 401
