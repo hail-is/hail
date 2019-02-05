@@ -266,7 +266,7 @@ export function initStateSSR(cookie: string) {
     }
 
     if (idTokenIdx == -1) {
-      idTokenIdx = parts[i].indexOf('idToken=');
+      idTokenIdx = parts[i].indexOf(`${cookieNames.ID_TOKEN}=`);
 
       if (idTokenIdx !== -1) {
         idToken = parts[i].substr(idTokenIdx + 8);
@@ -275,7 +275,7 @@ export function initStateSSR(cookie: string) {
     }
 
     if (accessTokenIdx == -1) {
-      accessTokenIdx = parts[i].indexOf('accessToken=');
+      accessTokenIdx = parts[i].indexOf(`${cookieNames.ACCESS_TOKEN}=`);
 
       if (accessTokenIdx !== -1) {
         accessToken = parts[i].substr(accessTokenIdx + 12);
@@ -284,7 +284,7 @@ export function initStateSSR(cookie: string) {
     }
 
     if (expIdx == -1) {
-      expIdx = parts[i].indexOf('exp=');
+      expIdx = parts[i].indexOf(`${cookieNames.EXPIRES}=`);
 
       if (expIdx !== -1) {
         expires = parts[i].substr(expIdx + 4);
