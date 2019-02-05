@@ -156,7 +156,7 @@ Declaring intervals with ``hl.parse_locus_interval``
     >>> intervals = ['1:100M-200M', '16:29.1M-30.2M', 'X']
     >>> filtered_mt = hl.filter_intervals(
     ...     mt,
-    ...     [hl.parse_locus_interval(x, reference_genome='GRCh37' for x in intervals])
+    ...     [hl.parse_locus_interval(x, reference_genome='GRCh37') for x in intervals])
 
 :**dependencies**: :func:`.filter_intervals`, :func:`.parse_locus_interval`
 
