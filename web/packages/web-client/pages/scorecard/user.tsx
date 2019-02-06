@@ -4,15 +4,15 @@ import fetch from 'isomorphic-unfetch';
 import getConfig from 'next/config';
 
 const config = getConfig().publicRuntimeConfig.SCORECARD;
-console.info(getConfig().publicRuntimeConfig.SCORECARD);
+
 // We separate these because in some environments (i.e kubernetes)
 // there may be an internal DNS we can take advantage of
 const WEB_URL: string = config.WEB_URL;
-console.info('web uuerl', WEB_URL);
+
 import '../../styles/pages/scorecard/user.scss';
 
 declare type response = {
-  data: {
+  user_data: {
     CHANGES_REQUESTED: PR[];
     NEEDS_REVIEW: PR[];
     FAILING: any[];
@@ -101,7 +101,7 @@ class User extends PureComponent<pageProps> {
 
     return {
       pageProps: {
-        data: res.data,
+        user_data: res.user_data,
         updated: res.updated,
         name: query.name
       }
@@ -114,7 +114,7 @@ class User extends PureComponent<pageProps> {
 
   render() {
     const {
-      data: { CHANGES_REQUESTED, NEEDS_REVIEW, FAILING, ISSUES },
+      user_data: { CHANGES_REQUESTED, NEEDS_REVIEW, FAILING, ISSUES },
       updated,
       name
     } = this.props.pageProps;
