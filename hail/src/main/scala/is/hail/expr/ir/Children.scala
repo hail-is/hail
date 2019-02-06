@@ -70,6 +70,8 @@ object Children {
       Array(a, body)
     case ArrayAgg(a, name, query) =>
       Array(a, query)
+    case NDArrayRef(a, idxs) =>
+      Array(a, idxs)
     case AggFilter(cond, aggIR) =>
       Array(cond, aggIR)
     case AggExplode(array, _, aggBody) =>

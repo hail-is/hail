@@ -87,6 +87,10 @@ object InferPType {
         query.pType
       case ArrayLeftJoinDistinct(left, right, l, r, compare, join) =>
         PArray(join.pType)
+      case NDArrayRef(a, idxs) =>
+        coerce[PNDArray](a.typ).elementType.setRequired(a.typ.required && 
+          idxs.typ.required &&
+          coerce[PArray](idxs.typ).elementType.required)
       case AggFilter(_, aggIR) =>
         aggIR.pType
       case AggExplode(array, name, aggBody) =>
