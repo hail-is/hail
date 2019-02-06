@@ -127,31 +127,6 @@ def cumulative_histogram(data, range=None, bins=50, legend=None, title=None, nor
     return p
 
 
-def set_font_size(p, font_size: str = "12pt"):
-    """Set as many font sizes as possible in a bokeh figure
-
-    Parameters
-    ----------
-    p : :class:`bokeh.plotting.figure.Figure`
-        Input Figure.
-    font_size : str
-        String of font size in points (e.g. "12pt").
-
-    Returns
-    -------
-    :class:`bokeh.plotting.figure.Figure`
-    """
-    p.title.text_font_size = font_size
-    p.legend.label_text_font_size = font_size
-    p.xaxis.axis_label_text_font_size = font_size
-    p.yaxis.axis_label_text_font_size = font_size
-    p.xaxis.major_label_text_font_size = font_size
-    p.yaxis.major_label_text_font_size = font_size
-    if hasattr(p.xaxis, 'group_text_font_size'):
-        p.xaxis.group_text_font_size = font_size
-    return p
-
-
 @typecheck(x=expr_numeric, y=expr_numeric,
            x_range=nullable(sized_tupleof(numeric, numeric)),
            y_range=nullable(sized_tupleof(numeric, numeric)),
@@ -169,9 +144,9 @@ def histogram_2d(x, y, x_range=None, y_range=None, bins=40, x_bins=None, y_bins=
     Parameters
     ----------
     x : :class:`.NumericExpression`
-        Expression for x-axis.
+        Expression for x-axis (from a Hail table).
     y : :class:`.NumericExpression`
-        Expression for y-axis.
+        Expression for y-axis (from the same Hail table as ``x``).
     x_range : Tuple[float]
         Tuple of (min, max) bounds for the x-axis.
     y_range : Tuple[float]
@@ -189,9 +164,11 @@ def histogram_2d(x, y, x_range=None, y_range=None, bins=40, x_bins=None, y_bins=
     plot_title : str
         Title of the plot.
     font_size : str
-        String of font size in points (default "7pt").
+        String of font size in points (default '7pt").
     colors : List[str]
-        List of hex colors from low to high.
+        List of colors (hex codes, or strings as described
+        `here <https://bokeh.pydata.org/en/latest/docs/reference/colors.html>`). Effective with one of the many
+        built-in palettes available `here <https://bokeh.pydata.org/en/latest/docs/reference/palettes.html>`.
 
     Returns
     -------
@@ -203,17 +180,17 @@ def histogram_2d(x, y, x_range=None, y_range=None, bins=40, x_bins=None, y_bins=
     if source is None or y_source is None:
         raise ValueError("histogram_2d expects two expressions of 'Table', found scalar expression")
     if isinstance(source, hail.MatrixTable):
-        raise ValueError("hisogram_2d requires source to be Table, not MatrixTable")
+        raise ValueError("histogram_2d requires source to be Table, not MatrixTable")
+    if source != y_source:
+        raise ValueError(f"histogram_2d expects two expressions from the same 'Table', found {source} and {y_source}")
     check_row_indexed('histogram_2d', x)
     check_row_indexed('histogram_2d', y)
-    if source != y_source:
-        raise ValueError(f"histogram_2d expects two expressions of 'Table', found {source} and {y_source}")
     if x_bins is None:
         x_bins = bins
     if y_bins is None:
         y_bins = bins
     if x_range is None or y_range is None:
-        warnings.warn('At least one range was not defined. Doing two passes...')
+        warnings.warn('At least one range was not defined in histogram_2d. Doing two passes...')
         ranges = source.aggregate(hail.struct(x_stats=hail.agg.stats(x),
                                               y_stats=hail.agg.stats(y)))
         if x_range is None:
@@ -255,7 +232,7 @@ def histogram_2d(x, y, x_range=None, y_range=None, bins=40, x_bins=None, y_bins=
     import math
     p.xaxis.major_label_orientation = math.pi / 3
 
-    p.rect(x="x", y="y", width=1, height=1,
+    p.rect(x='x', y='y', width=1, height=1,
            source=data,
            fill_color={'field': 'c', 'transform': mapper},
            line_color=None)
@@ -264,6 +241,31 @@ def histogram_2d(x, y, x_range=None, y_range=None, bins=40, x_bins=None, y_bins=
                          ticker=BasicTicker(desired_num_ticks=6),
                          label_standoff=6, border_line_color=None, location=(0, 0))
     p.add_layout(color_bar, 'right')
+
+    def set_font_size(p, font_size: str = '12pt'):
+        """Set most of the font sizes in a bokeh figure
+
+        Parameters
+        ----------
+        p : :class:`bokeh.plotting.figure.Figure`
+            Input figure.
+        font_size : str
+            String of font size in points (e.g. '12pt').
+
+        Returns
+        -------
+        :class:`bokeh.plotting.figure.Figure`
+        """
+        p.title.text_font_size = font_size
+        p.legend.label_text_font_size = font_size
+        p.xaxis.axis_label_text_font_size = font_size
+        p.yaxis.axis_label_text_font_size = font_size
+        p.xaxis.major_label_text_font_size = font_size
+        p.yaxis.major_label_text_font_size = font_size
+        if hasattr(p.xaxis, 'group_text_font_size'):
+            p.xaxis.group_text_font_size = font_size
+        return p
+
     p = set_font_size(p, font_size)
     return p
 
