@@ -193,13 +193,6 @@ object IRParser {
     }
   }
 
-  def int32_literals(it: TokenIterator): Array[Int] = {
-    punctuation(it, "(")
-    val ints = repUntil(it, int32_literal, PunctuationToken(")"))
-    punctuation(it, ")")
-    ints
-  }
-
   def int64_literal(it: TokenIterator): Long = {
     consumeToken(it) match {
       case x: IntegerToken => x.value
@@ -246,13 +239,6 @@ object IRParser {
     }
   }
 
-  def string_literals(it: TokenIterator): Array[String] = {
-    punctuation(it, "(")
-    val strings = repUntil(it, string_literal, PunctuationToken(")"))
-    punctuation(it, ")")
-    strings
-  }
-
   def literals[T](literalIdentifier: TokenIterator => T)(it: TokenIterator)(implicit tct: ClassTag[T]): Array[T] = {
     punctuation(it, "(")
     val literals = repUntil(it, literalIdentifier, PunctuationToken(")"))
@@ -260,6 +246,8 @@ object IRParser {
     literals
   }
 
+  def string_literals: TokenIterator => Array[String] = literals(string_literal)
+  def int32_literals: TokenIterator => Array[Int] = literals(int32_literal)
   def int64_literals: TokenIterator => Array[Long] = literals(int64_literal)
   def boolean_literals: TokenIterator => Array[Boolean] = literals(boolean_literal)
 
