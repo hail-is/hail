@@ -34,6 +34,7 @@ class LocalBackend(Backend):
 
     def run(self, pipeline, dry_run, verbose, bg, delete_on_exit):
         tmpdir = self.tmp_dir()
+        cwd = os.getcwd()
 
         script = ['#!/bin/bash',
                   'set -e' + 'x' if verbose else '',
@@ -87,6 +88,10 @@ class LocalBackend(Backend):
 
         def write_pipeline_outputs(r, dest):
             r = pipeline._get_resource(r)
+            dest = os.path.abspath(dest)
+            directory = os.path.dirname(dest)
+            os.makedirs(directory, exist_ok=True)
+
             if isinstance(r, InputResourceFile):
                 return [f'cp {r._input_path} {dest}']
             elif isinstance(r, TaskResourceFile):
@@ -102,7 +107,6 @@ class LocalBackend(Backend):
         script += outputs
 
         script = "\n".join(script)
-        print(script)
         if dry_run:
             print(script)
         else:
