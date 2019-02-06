@@ -1774,7 +1774,7 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
     mt = matrix_table_source('pc_relate/call_expr', call_expr)
 
     if k and scores_expr is None:
-        _, scores, _ = hwe_normalized_pca(mt.GT, k, compute_loadings=False)
+        _, scores, _ = hwe_normalized_pca(call_expr, k, compute_loadings=False)
         scores_expr = scores[mt.col_key].scores
     elif not k and scores_expr is not None:
         analyze('pc_relate/scores_expr', scores_expr, mt._col_indices)
