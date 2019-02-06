@@ -2579,6 +2579,7 @@ class MatrixTable(ExprContainer):
         Key: ['row_idx']
         ----------------------------------------
 
+        >>> import numpy as np
         >>> np.array(t.entries.collect())
         array([[0, 0, 0],
                [0, 1, 2],
