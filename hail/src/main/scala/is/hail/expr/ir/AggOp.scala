@@ -38,6 +38,7 @@ final case class TakeBy() extends AggOp
 final case class Group() extends AggOp
 final case class AggElements() extends AggOp
 final case class AggElementsLengthCheck() extends AggOp
+final case class PrevNonnull() extends AggOp
 
 // exists === map(p).sum, needs short-circuiting aggs
 // forall === map(p).product, needs short-circuiting aggs
@@ -209,6 +210,8 @@ object AggOp {
         TFloat64(),
         seqOpArgTypes = Array(classOf[Double], classOf[Double])
       )
+
+    case (PrevNonnull(), Seq(), None, Seq(in)) => CodeAggregator[RegionValuePrevNonnullAnnotationAggregator](in, constrArgTypes = Array(classOf[Type]), seqOpArgTypes = Array(classOf[Long]))
   }
 
   private def incompatible(aggSig: AggSignature): Nothing = {
@@ -238,5 +241,6 @@ object AggOp {
     case "linreg" | "LinearRegression" => LinearRegression()
     case "corr" | "PearsonCorrelation" => PearsonCorrelation()
     case "downsample" | "Downsample" => Downsample()
+    case "prevnonnull" | "PrevNonnull" => PrevNonnull()
   }
 }
