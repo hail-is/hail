@@ -8,13 +8,14 @@ import random
 import threading
 import humanize
 import logging
-import ujson # included by Sanic
 from sanic import Sanic
-from sanic.response import text,json,html
+from sanic.response import text, json, html
 from sanic_cors import CORS
 from jinja2 import Environment, PackageLoader, select_autoescape
+import ujson
 
-env = Environment(loader=PackageLoader('scorecard', 'templates/'), autoescape=select_autoescape(['html', 'xml', 'tpl']), enable_async=True)
+env = Environment(loader=PackageLoader('scorecard', 'templates/'),
+                  autoescape=select_autoescape(['html', 'xml', 'tpl']), enable_async=True)
 
 users_template = env.get_template('index.html')
 one_user_templ = env.get_template('user.html')
@@ -66,54 +67,63 @@ repos = {
 app = Sanic(__name__)
 CORS(app, resources={r'/json/*': {'origins': '*'}})
 
-data = None
-users_data = None
-users_json = None
-rendered_users_template = None
-timsetamp = None
+fav_path = os.path.join(os.path.dirname(__file__), 'static', 'favicon.ico')
+app.static('/favicon.ico', fav_path)
+
+########### Global variables that are modified in a separate thread ############
+# Must be only read, never written in parent thread, else need to use Lock()
+# http://effbot.org/zone/thread-synchronization.htm#synchronizing-access-to-shared-resources
+data=None
+users_data=None
+users_json=None
+timsetamp=None
+################################################################################
+
 
 @app.route('/')
 async def index(request):
-    user_data, unassigned, urgent_issues, updated = users_data
+    user_data, unassigned, urgent_issues=users_data
 
-    random_user = random.choice(users)
+    # Read timestamp as quickly as possible in case timestamp gets modified
+    # by forever_poll thread
+    cur_timestamp=timestamp
+    updated=humanize.naturaltime(
+        datetime.datetime.now() - datetime.timedelta(seconds=time.time() - cur_timestamp))
 
-    tmpl = await users_template.render_async( unassigned=unassigned,
-                           user_data=user_data, urgent_issues=urgent_issues, random_user=random_user, updated=updated)
+    random_user=random.choice(users)
+
+    tmpl=await users_template.render_async(unassigned = unassigned,
+                                             user_data = user_data, urgent_issues = urgent_issues, random_user = random_user, updated = updated)
     return html(tmpl)
+
 
 @app.route('/users/<user>')
 async def html_get_user(request, user):
-    user_data, updated = get_user(user)
+    user_data, updated=get_user(user)
 
-    tmpl = await one_user_templ.render_async(user=user, user_data=user_data, updated=updated)
+    tmpl=await one_user_templ.render_async(user = user, user_data = user_data, updated = updated)
     return html(tmpl)
+
 
 @app.route('/json')
 async def json_all_users(request):
-    user_data, unassigned, urgent_issues, updated = users_data
-
-    for issue in urgent_issues:
-        issue['timedelta'] = humanize.naturaltime(issue['timedelta'])
-
     return text(users_json)
 
+
 @app.route('/json/users/<user>')
-async def json_user(request,user):
-    user_data, updated = get_user(user)
+async def json_user(request, user):
+    user_data, updated=get_user(user)
     return json({"updated": updated, "user_data": user_data})
+
 
 @app.route('/json/random')
 async def json_random_user(request):
     return text(random.choice(users))
 
-# Lets cache this; we now call this only during update
-def get_users():
-    cur_data = data
-    cur_timestamp = timestamp
 
-    unassigned = []
-    user_data = collections.defaultdict(
+def get_and_cache_users(github_data):
+    unassigned=[]
+    user_data=collections.defaultdict(
         lambda: {'CHANGES_REQUESTED': [],
                  'NEEDS_REVIEW': [],
                  'ISSUES': []})
@@ -146,7 +156,7 @@ def get_users():
             else:
                 d['ISSUES'].append(issue)
 
-    for repo_name, repo_data in cur_data.items():
+    for repo_name, repo_data in github_data.items():
         for pr in repo_data['prs']:
             if len(pr['assignees']) == 0:
                 unassigned.append(pr)
@@ -157,20 +167,22 @@ def get_users():
         for issue in repo_data['issues']:
             add_issue(repo_name, issue)
 
-    list.sort(urgent_issues, key=lambda issue: issue['timedelta'], reverse=True)
+    list.sort(urgent_issues,
+              key = lambda issue: issue['timedelta'], reverse=True)
 
-    updated = humanize.naturaltime(
-        datetime.datetime.now() - datetime.timedelta(seconds = time.time() - cur_timestamp))
+    return (user_data, unassigned, urgent_issues)
 
-    return (user_data, unassigned, urgent_issues, updated)
 
 def get_user(user):
-    global data, timestamp
+    global data
 
     cur_data = data
     cur_timestamp = timestamp
 
-    user_data = {
+    updated = humanize.naturaltime(
+        datetime.datetime.now() - datetime.timedelta(seconds=time.time() - cur_timestamp))
+
+    user_data={
         'CHANGES_REQUESTED': [],
         'NEEDS_REVIEW': [],
         'FAILING': [],
@@ -196,8 +208,6 @@ def get_user(user):
             if user in issue['assignees']:
                 user_data['ISSUES'].append(issue)
 
-    updated = humanize.naturaltime(
-        datetime.datetime.now() - datetime.timedelta(seconds=time.time() - cur_timestamp))
     return (user_data, updated)
 
 
@@ -206,6 +216,7 @@ def get_id(repo_name, number):
         return f'{number}'
     else:
         return f'{repo_name}/{number}'
+
 
 def get_pr_data(repo, repo_name, pr):
     assignees = [a.login for a in pr.assignees]
@@ -222,7 +233,8 @@ def get_pr_data(repo, repo_name, pr):
             break
         else:
             if review.state != 'COMMENTED':
-                log.warning(f'unknown review state {review.state} on review {review} in pr {pr}')
+                log.warning(
+                    f'unknown review state {review.state} on review {review} in pr {pr}')
 
     sha = pr.head.sha
     status = repo.get_commit(sha=sha).get_combined_status().state
@@ -238,6 +250,7 @@ def get_pr_data(repo, repo_name, pr):
         'status': status
     }
 
+
 def get_issue_data(repo_name, issue):
     assignees = [a.login for a in issue.assignees]
     return {
@@ -249,6 +262,7 @@ def get_issue_data(repo_name, issue):
         'urgent': any(label.name == 'prio:high' for label in issue.labels),
         'created_at': issue.created_at
     }
+
 
 def update_data():
     global data, timestamp, users_data, users_json
@@ -276,31 +290,25 @@ def update_data():
                 issue_data = get_issue_data(repo_name, issue)
                 new_data[repo_name]['issues'].append(issue_data)
 
-
     log.info('updating_data done')
 
-    now = time.time()
-
     data = new_data
-    timestamp = now
+    timestamp = time.time()
+    users_data = get_and_cache_users(new_data)
+    users_json = ujson.dumps(
+        {"user_data": users_data[0], "unassigned": users_data[1], "urgent_issues": users_data[2], "timestamp": timestamp})
 
-    # Takes reference, so don't mutate data
-    # user_data, unassigned, urgent_issues, updated = users_data
-    users_data = get_users()
-    users_json = ujson.dumps({"user_data": users_data[0], "unassigned": users_data[1], "urgent_issues": users_data[2], "updated": users_data[3]})
 
 def poll():
     while True:
         time.sleep(180)
         update_data()
 
-update_data()
 
 def run_forever(target, *args, **kwargs):
-    # target should be a function
     target_name = target.__name__
+    expected_retry_interval_ms = 15 * 1000  # 15s
 
-    expected_retry_interval_ms = 15 * 1000 # 15s
     while True:
         start = time.time()
         try:
@@ -308,17 +316,26 @@ def run_forever(target, *args, **kwargs):
             target(*args, **kwargs)
             log.info(f'target {target_name} returned')
         except:
-            log.error(f'target {target_name} threw exception', exc_info=sys.exc_info())
+            log.error(f'target {target_name} threw exception',
+                      exc_info=sys.exc_info())
         end = time.time()
 
         run_time_ms = int((end - start) * 1000 + 0.5)
+
         t = random.randrange(expected_retry_interval_ms * 2) - run_time_ms
         if t > 0:
             log.debug(f'{target_name}: sleep {t}ms')
             time.sleep(t / 1000.0)
 
-poll_thread = threading.Thread(target=run_forever, args=(poll,), daemon=True)
-poll_thread.start()
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    # Any code that is run before main gets executed twice, run here
+
+    update_data()
+
+    poll_thread = threading.Thread(
+        target=run_forever, args=(poll,), daemon=True)
+
+    poll_thread.start()
+
+    app.run(host='0.0.0.0', port=5000, debug=False)
