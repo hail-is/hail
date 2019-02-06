@@ -5,7 +5,6 @@ const ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin');
 const withPurgeCss = require('next-purgecss');
 const withCss = require('@zeit/next-css');
 const withSass = require('@zeit/next-sass');
-const withPlugins = require('next-compose-plugins');
 
 const publicRuntimeConfig = {
   AUTH0: {
@@ -35,6 +34,12 @@ const publicRuntimeConfig = {
 
 const nextConfig = {
   distDir: 'build',
+  purgeCss: {
+    keyframes: true,
+    fontFace: true
+  },
+  // Specify which files should be checked for selectors before deciding some imported css is not used:
+  purgeCssPaths: ['pages/**/*', 'components/**/*'],
   webpack: (config, options) => {
     if (options.isServer) {
       config.plugins.push(new ForkTsCheckerWebpackPlugin());
@@ -51,25 +56,4 @@ const nextConfig = {
   publicRuntimeConfig
 };
 
-module.exports = withPlugins(
-  [
-    withTypescript,
-    withSass,
-    withCss,
-    [
-      withPurgeCss,
-      {
-        // regular purgeCss options
-        // https://www.purgecss.com
-        purgeCss: {
-          keyrframes: true,
-          fontFace: true
-        },
-        // Plugin specific: Specifiy which files should be checked
-        // before deciding some imported css is not used:
-        purgeCssPaths: ['pages/**/*', 'components/**/*']
-      }
-    ]
-  ],
-  nextConfig
-);
+module.exports = withTypescript(withSass(withCss(withPurgeCss(nextConfig))));
