@@ -53,6 +53,9 @@ object Copy {
       case MakeNDArray(_, _, _) =>
         val IndexedSeq(data: IR, shape: IR, row_major: IR) = newChildren
         MakeNDArray(data, shape, row_major)
+      case NDArrayRef(_, _) =>
+        val IndexedSeq(nd: IR, idxs: IR) = newChildren
+        NDArrayRef(nd, idxs)
       case ToSet(_) =>
         val IndexedSeq(a: IR) = newChildren
         ToSet(a)

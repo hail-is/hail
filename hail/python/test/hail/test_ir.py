@@ -19,6 +19,7 @@ class ValueIRTests(unittest.TestCase):
         a = ir.Ref('a')
         aa = ir.Ref('aa')
         da = ir.Ref('da')
+        nd = ir.Ref('nd')
         v = ir.Ref('v')
         s = ir.Ref('s')
         t = ir.Ref('t')
@@ -53,6 +54,7 @@ class ValueIRTests(unittest.TestCase):
             ir.MakeNDArray(ir.MakeArray([ir.F64(-1.0), ir.F64(1.0)], hl.tarray(hl.tfloat64)),
                            ir.MakeArray([ir.I64(1), ir.I64(2)], hl.tarray(hl.tint64)),
                            ir.TrueIR()),
+            ir.NDArrayRef(nd, ir.MakeArray([ir.I64(1), ir.I64(2)], hl.tarray(hl.tint64))),
             ir.LowerBoundOnOrderedCollection(a, i, True),
             ir.GroupByKey(da),
             ir.ArrayMap(a, 'v', v),
@@ -110,6 +112,7 @@ class ValueIRTests(unittest.TestCase):
                'a': hl.tarray(hl.tint32),
                'aa': hl.tarray(hl.tarray(hl.tint32)),
                'da': hl.tarray(hl.ttuple(hl.tint32, hl.tstr)),
+               'nd': hl.tndarray(hl.tfloat64),
                'v': hl.tint32,
                's': hl.tstruct(x=hl.tint32, y=hl.tint64, z=hl.tfloat64),
                't': hl.ttuple(hl.tint32, hl.tint64, hl.tfloat64),
