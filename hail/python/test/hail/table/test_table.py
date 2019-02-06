@@ -633,6 +633,9 @@ class Tests(unittest.TestCase):
         t_read_back = hl.import_table(tmp_file, types=dict(t.row.dtype)).key_by('idx')
         self.assertTrue(t.select_globals()._same(t_read_back, tolerance=1e-4, absolute=True))
 
+    def test_order_by_parsing(self):
+        hl.utils.range_table(1).annotate(**{'a b c' : 5}).order_by('a b c')._force_count()
+
     def test_filter_partitions(self):
         ht = hl.utils.range_table(23, n_partitions=8)
         self.assertEqual(ht.n_partitions(), 8)
