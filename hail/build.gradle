@@ -140,6 +140,8 @@ task testCppCodegen(type: Test) {
     systemProperty "file.encoding", "utf-8"
 }
 
+testCppCodegen.reports.html.destination = file("$buildDir/reports/codegen-tests")
+
 compileJava {
     options.compilerArgs << "-Xlint:all" << "-Werror"
 }
