@@ -21,7 +21,8 @@ def transform_one(mt: MatrixTable) -> MatrixTable:
     )
     mt = mt.annotate_rows(
         info=mt.info.annotate(
-            SB=hl.agg.array_sum(mt.entry.SB)
+            DP=hl.agg.sum(mt.entry.DP),
+            SB=hl.agg.array_sum(mt.entry.SB),
         ).select(
             "DP",
             "MQ_DP",
@@ -120,6 +121,23 @@ def combine_gvcfs(mts):
             ['locus', 'alleles'],
             is_sorted=True))
 
+
+# FIXME Placeholder
+def densify(mt):
+    return mt
+
+
+def summarize(mt):
+    mt = densify(mt)
+    return mt.annotate_rows(info=mt.info.annotate(
+        DP=hl.agg.sum(mt.entry.DP),  # some DPs may have been missing during earlier combining operations
+        BaseQRankSum=hl.median(hl.agg.collect(mt.entry.BaseQRankSum)),
+        ClippingRankSum=hl.median(hl.agg.collect(mt.entry.ClippingRankSum)),
+        MQ=hl.median(hl.agg.collect(mt.entry.MQ)),
+        MQRankSum=hl.median(hl.agg.collect(mt.entry.MQRankSum)),
+        ReadPosRankSum=hl.median(hl.agg.collect(mt.entry.ReadPosRankSum)),
+    ))
+
 # NOTE: these are just @chrisvittal's notes on how gVCF fields are combined
 #       some of it is copied from GenomicsDB's wiki.
 # always missing items include MQ, HaplotypeScore, InbreedingCoeff
@@ -168,3 +186,46 @@ def combine_gvcfs(mts):
 # ##INFO=<ID=RAW_MQ,Number=1,Type=Float>
 # ##INFO=<ID=ReadPosRankSum,Number=1,Type=Float>
 # ##INFO=<ID=VarDP,Number=1,Type=Integer>
+#
+# As of 2/6/19, the schema returned by the combiner is as follows:
+# ----------------------------------------
+# Global fields:
+#     None
+# ----------------------------------------
+# Column fields:
+#     's': str
+# ----------------------------------------
+# Row fields:
+#     'locus': locus<GRCh38>
+#     'alleles': array<str>
+#     'rsid': str
+#     'filters': set<str>
+#     'info': struct {
+#         DP: int64,
+#         MQ_DP: int32,
+#         QUALapprox: int32,
+#         RAW_MQ: float64,
+#         VarDP: int32,
+#         SB: array<int64>
+#     }
+# ----------------------------------------
+# Entry fields:
+#     'AD': array<int32>
+#     'DP': int32
+#     'GQ': int32
+#     'GT': call
+#     'MIN_DP': int32
+#     'PGT': call
+#     'PID': str
+#     'PL': array<int32>
+#     'LA': array<int32>
+#     'END': int32
+#     'BaseQRankSum': float64
+#     'ClippingRankSum': float64
+#     'MQ': float64
+#     'MQRankSum': float64
+#     'ReadPosRankSum': float64
+# ----------------------------------------
+# Column key: ['s']
+# Row key: ['locus', 'alleles']
+# ----------------------------------------
