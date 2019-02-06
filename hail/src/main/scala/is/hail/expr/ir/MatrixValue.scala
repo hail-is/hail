@@ -354,7 +354,6 @@ case class MatrixValue(
     }
 
   def toRowMatrix(entryField: String): RowMatrix = {
-    // FIXME
     val partCounts: Array[Long] = rvd.countPerPartition()
     val partStarts = partCounts.scanLeft(0L)(_ + _)
     assert(partStarts.length == rvd.getNumPartitions + 1)
