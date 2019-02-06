@@ -92,9 +92,9 @@ object InferType {
         query.typ
       case ArrayLeftJoinDistinct(left, right, l, r, compare, join) =>
         TArray(join.typ)
-      case NDArrayRef(a, idxs) =>
+      case NDArrayRef(nd, idxs) =>
         assert(idxs.typ.isOfType(TArray(TInt64())))
-        coerce[TNDArray](a.typ).elementType.setRequired(a.typ.required && 
+        coerce[TNDArray](nd.typ).elementType.setRequired(nd.typ.required && 
           idxs.typ.required && 
           coerce[TArray](idxs.typ).elementType.required)
       case AggFilter(_, aggIR) =>

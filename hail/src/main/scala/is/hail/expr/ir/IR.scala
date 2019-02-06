@@ -162,7 +162,7 @@ final case class ArrayLeftJoinDistinct(left: IR, right: IR, l: String, r: String
 
 final case class MakeNDArray(data: IR, shape: IR, row_major: IR) extends IR
 
-final case class NDArrayRef(a: IR, idxs: IR) extends IR
+final case class NDArrayRef(nd: IR, idxs: IR) extends IR
 
 final case class AggFilter(cond: IR, aggIR: IR) extends IR
 

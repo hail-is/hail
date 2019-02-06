@@ -103,10 +103,10 @@ object TypeCheck {
         assert(coerce[TNDArray](x.typ).elementType == coerce[TArray](data.typ).elementType)
         assert(shape.typ.isOfType(TArray(TInt64())))
         assert(row_major.typ.isOfType(TBoolean()))
-      case x@NDArrayRef(a, idxs) =>
-        check(a)
+      case x@NDArrayRef(nd, idxs) =>
+        check(nd)
         check(idxs)
-        assert(a.typ.isInstanceOf[TNDArray])
+        assert(nd.typ.isInstanceOf[TNDArray])
         assert(idxs.typ.isOfType(TArray(TInt64())))
       case x@ArraySort(a, ascending, onKey) =>
         check(a)

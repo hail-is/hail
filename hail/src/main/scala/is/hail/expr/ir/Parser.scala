@@ -593,9 +593,9 @@ object IRParser {
         val row_major = ir_value_expr(env)(it)
         MakeNDArray(data, shape, row_major)
       case "NDArrayRef" =>
-        val a = ir_value_expr(env)(it)
+        val nd = ir_value_expr(env)(it)
         val idxs = ir_value_expr(env)(it)
-        NDArrayRef(a, idxs)
+        NDArrayRef(nd, idxs)
       case "ToSet" => ToSet(ir_value_expr(env)(it))
       case "ToDict" => ToDict(ir_value_expr(env)(it))
       case "ToArray" => ToArray(ir_value_expr(env)(it))

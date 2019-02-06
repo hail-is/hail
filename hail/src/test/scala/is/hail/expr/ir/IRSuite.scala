@@ -977,7 +977,7 @@ class IRSuite extends SparkSuite {
         MakeArray(FastSeq(F64(-1.0), F64(1.0)), TArray(TFloat64())),
         MakeArray(FastSeq(I64(1), I64(2)), TArray(TInt64())),
         True()),
-      NDArrayRef(nd, MakeArray(FastSeq(I64(1), I64(2)), TArray(TInt32()))),
+      NDArrayRef(nd, MakeArray(FastSeq(I64(1), I64(2)), TArray(TInt64()))),
       ArrayRef(a, i),
       ArrayLen(a),
       ArrayRange(I32(0), I32(5), I32(1)),

@@ -581,29 +581,29 @@ class MakeNDArray(IR):
 
 
 class NDArrayRef(IR):
-    @typecheck_method(a=IR, idxs=IR)
-    def __init__(self, a, idxs):
-        super().__init__(a, idxs)
-        self.a = a
+    @typecheck_method(nd=IR, idxs=IR)
+    def __init__(self, nd, idxs):
+        super().__init__(nd, idxs)
+        self.nd = nd
         self.idxs = idxs
 
-    @typecheck_method(a=IR, idxs=IR)
-    def copy(self, a, idxs):
+    @typecheck_method(nd=IR, idxs=IR)
+    def copy(self, nd, idxs):
         new_instance = self.__class__
-        return new_instance(a, idxs)
+        return new_instance(nd, idxs)
 
     def render(self, r):
-        return '(NDArrayRef {} {})'.format(r(self.a), r(self.idxs))
+        return '(NDArrayRef {} {})'.format(r(self.nd), r(self.idxs))
 
     def __eq__(self, other):
         return isinstance(other, NDArrayRef) and \
-               other.a == self.a and \
+               other.nd == self.nd and \
                other.idxs == self.idxs
 
     def _compute_type(self, env, agg_env):
-        self.a._compute_type(env, agg_env)
+        self.nd._compute_type(env, agg_env)
         self.idxs._compute_type(env, agg_env)
-        self._type = self.a.typ.element_type
+        self._type = self.nd.typ.element_type
 
 
 class ArraySort(IR):
