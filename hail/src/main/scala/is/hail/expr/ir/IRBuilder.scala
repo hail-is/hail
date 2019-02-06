@@ -131,11 +131,13 @@ object IRBuilder {
     def selectFields(fields: String*): IRProxy = (env: E) =>
       SelectFields(ir(env), fields)
 
-    def dropFields(fields: Symbol*): IRProxy = (env: E) => {
+    def dropFields(fields: String*): IRProxy = (env: E) => {
       val struct = ir(env)
       val typ = struct.typ.asInstanceOf[TStruct]
-      SelectFields(struct, typ.fieldNames.diff(fields.map(_.name)))
+      SelectFields(struct, typ.fieldNames.diff(fields))
     }
+
+    def dropFields(fields: Symbol*): IRProxy = dropFields(fields.map(_.name): _*)
 
     def len: IRProxy = (env: E) => ArrayLen(ir(env))
 
@@ -178,6 +180,16 @@ object IRBuilder {
     def toDict: IRProxy = (env: E) => ToDict(ir(env))
 
     def parallelize(nPartitions: Option[Int] = None): TableIR = TableParallelize(ir(Env.empty), nPartitions)
+
+    def arrayStructToDict(fields: IndexedSeq[String]): IRProxy = {
+      val element = Symbol(genUID())
+      ir
+        .map(element ~>
+          makeTuple(
+            element.selectFields(fields: _*),
+            element.dropFields(fields: _*)))
+        .toDict
+    }
 
     private[ir] def apply(env: E): IR = ir(env)
   }
