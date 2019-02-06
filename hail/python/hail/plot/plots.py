@@ -220,8 +220,8 @@ def histogram_2d(x, y, x_range=None, y_range=None, bins=40, x_bins=None, y_bins=
         x=hail.str(x_levels.find(lambda w: x >= w)),
         y=hail.str(y_levels.find(lambda w: y >= w))
     ).aggregate(c=hail.agg.count())
-    data = grouped_ht.filter(hail.is_defined(grouped_ht.x) & (grouped_ht.x != x_range[1]) &
-                             hail.is_defined(grouped_ht.y) & (grouped_ht.y != y_range[1])).to_pandas()
+    data = grouped_ht.filter(hail.is_defined(grouped_ht.x) & (grouped_ht.x != str(x_range[1])) &
+                             hail.is_defined(grouped_ht.y) & (grouped_ht.y != str(y_range[1]))).to_pandas()
 
     mapper = LinearColorMapper(palette=colors, low=data.c.min(), high=data.c.max())
 
