@@ -326,7 +326,7 @@ class TableOrderBy(TableIR):
 
     def render(self, r):
         return '(TableOrderBy ({}) {})'.format(
-            ' '.join(['{}{}'.format(order, escape_id(f)) for (f, order) in self.sort_fields]),
+            ' '.join([escape_id(order + f) for (f, order) in self.sort_fields]),
             r(self.child))
 
     def _compute_type(self):
