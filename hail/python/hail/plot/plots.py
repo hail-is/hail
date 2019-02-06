@@ -241,7 +241,7 @@ def histogram_2d(x, y, x_range=None, y_range=None, bins=40, x_bins=None, y_bins=
     x_axis = sorted(set(data.x), key=lambda z: float(z))
     y_axis = sorted(set(data.y), key=lambda z: float(z))
     p = figure(title=plot_title,
-               x_range=x_axis, y_range=list(reversed(y_axis)),
+               x_range=x_axis, y_range=y_axis,
                x_axis_location="above", plot_width=plot_width, plot_height=plot_height,
                tools="hover,save,pan,box_zoom,reset,wheel_zoom", toolbar_location='below',
                tooltips=[('x', '@x'), ('y', '@y',), ('count', '@c')])
