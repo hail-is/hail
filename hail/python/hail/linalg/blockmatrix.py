@@ -5,7 +5,7 @@ import itertools
 import hail as hl
 import hail.expr.aggregators as agg
 from hail.ir import BlockMatrixWrite, BlockMatrixMap2, ApplyBinaryOp, Ref, F64, \
-     BlockMatrixBroadcast, ValueToBlockMatrix, MakeArray, BlockMatrixRead, JavaBlockMatrix
+    BlockMatrixBroadcast, ValueToBlockMatrix, MakeArray, BlockMatrixRead, JavaBlockMatrix, BlockMatrixMap, ApplyUnaryOp
 from hail.utils import new_temp_file, new_local_temp_file, local_path_uri, storage_level
 from hail.utils.java import Env, jarray, joption
 from hail.typecheck import *
@@ -1239,13 +1239,16 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        op = getattr(self._jbm, "unary_$minus")
-        return BlockMatrix._from_java(op())
+        return self._apply_map("-")
+
+    @typecheck_method(op=str)
+    def _apply_map(self, op):
+        return BlockMatrix(BlockMatrixMap(self._bmir, ApplyUnaryOp(op, Ref('element'))))
 
     @typecheck_method(op=str,
                       other=oneof(numeric, np.ndarray, block_matrix_type),
                       reverse=bool)
-    def _apply_map(self, op, other, reverse=False):
+    def _apply_map2(self, op, other, reverse=False):
         apply_bin_op = ApplyBinaryOp(op, Ref('l'), Ref('r'))
 
         if not isinstance(other, BlockMatrix):
@@ -1276,7 +1279,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return self._apply_map('+', b)
+        return self._apply_map2('+', self, b)
 
     @typecheck_method(b=oneof(numeric, np.ndarray, block_matrix_type))
     def __sub__(self, b):
@@ -1290,7 +1293,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return self._apply_map('-', b)
+        return self._apply_map2('-', self, b)
 
     @typecheck_method(b=oneof(numeric, np.ndarray, block_matrix_type))
     def __mul__(self, b):
@@ -1304,7 +1307,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return self._apply_map('*', b)
+        return self._apply_map2('*', self, b)
 
     @typecheck_method(b=oneof(numeric, np.ndarray, block_matrix_type))
     def __truediv__(self, b):
@@ -1318,23 +1321,23 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return self._apply_map('/', b)
+        return self._apply_map2('/', self, b)
 
     @typecheck_method(b=numeric)
     def __radd__(self, b):
-        return self._apply_map('+', b, reverse=True)
+        return self._apply_map2('+', b, self)
 
     @typecheck_method(b=numeric)
     def __rsub__(self, b):
-        return self._apply_map('-', b, reverse=True)
+        return self._apply_map2('-', b, self)
 
     @typecheck_method(b=numeric)
     def __rmul__(self, b):
-        return self._apply_map('*', b, reverse=True)
+        return self._apply_map2('*', b, self)
 
     @typecheck_method(b=numeric)
     def __rtruediv__(self, b):
-        return self._apply_map('/', b, reverse=True)
+        return self._apply_map2('/', b, self)
 
     @typecheck_method(b=oneof(np.ndarray, block_matrix_type))
     def __matmul__(self, b):
@@ -1377,7 +1380,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return BlockMatrix._from_java(self._jbm.sqrt())
+        return self._apply_map("sqrt")
 
     def abs(self):
         """Element-wise absolute value.
@@ -1386,7 +1389,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return BlockMatrix._from_java(self._jbm.abs())
+        return self._apply_map("abs")
 
     def log(self):
         """Element-wise natural logarithm.
@@ -1395,7 +1398,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return BlockMatrix._from_java(self._jbm.log())
+        return self._apply_map("log")
 
     def diagonal(self):
         """Extracts diagonal elements as ndarray.

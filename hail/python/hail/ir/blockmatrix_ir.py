@@ -19,6 +19,20 @@ class BlockMatrixRead(BlockMatrixIR):
         self._type = Env.backend().blockmatrix_type(self)
 
 
+class BlockMatrixMap(BlockMatrixIR):
+    @typecheck_method(child=BlockMatrixIR, op=IR)
+    def __init__(self, child, op):
+        super().__init__()
+        self._child = child
+        self._op = op
+
+    def render(self, r):
+        return f'(BlockMatrixMap {r(self._child)} {r(self._op)})'
+
+    def _compute_type(self):
+        self._type = self._child.typ
+
+
 class BlockMatrixMap2(BlockMatrixIR):
     @typecheck_method(left=BlockMatrixIR, right=BlockMatrixIR, apply_bin_op=ApplyBinaryOp)
     def __init__(self, left, right, apply_bin_op):

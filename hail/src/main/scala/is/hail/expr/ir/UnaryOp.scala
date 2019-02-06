@@ -63,6 +63,9 @@ object UnaryOp {
     case "-" | "Negate" => Negate()
     case "!" | "Bang" => Bang()
     case "~" | "BitNot" => BitNot()
+    case "abs" => Abs()
+    case "log" => Log()
+    case "sqrt" => Sqrt()
   }
 }
 
@@ -70,3 +73,6 @@ sealed trait UnaryOp { }
 case class Negate() extends UnaryOp { }
 case class Bang() extends UnaryOp { }
 case class BitNot() extends UnaryOp
+case class Abs() extends UnaryOp
+case class Log() extends UnaryOp
+case class Sqrt() extends UnaryOp

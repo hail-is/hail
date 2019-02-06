@@ -75,6 +75,35 @@ class BlockMatrixLiteral(value: BlockMatrix) extends BlockMatrixIR {
   override protected[ir] def execute(hc: HailContext): BlockMatrix = value
 }
 
+case class BlockMatrixMap(child: BlockMatrixIR, op: IR) extends BlockMatrixIR {
+  override def typ: BlockMatrixType = child.typ
+
+  override def children: IndexedSeq[BaseIR] = Array(child)
+
+  override def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
+    assert(newChildren.length == 1)
+    BlockMatrixMap(newChildren(0).asInstanceOf[BlockMatrixIR], op)
+  }
+
+  override protected[ir] def execute(hc: HailContext): BlockMatrix = {
+    op match {
+      case ApplyUnaryPrimOp(unaryOp, _) => applyUnaryOp(hc, unaryOp)
+      case _ => fatal(s"Unsupported operation on BlockMatrices: ${Pretty(op)}")
+    }
+  }
+
+  private def applyUnaryOp(hc: HailContext, unaryOp: UnaryOp): BlockMatrix = {
+    val childBm = child.execute(hc)
+    unaryOp match {
+      case Negate() => childBm.unary_-()
+      case Abs() => childBm.abs()
+      case Log() => childBm.log()
+      case Sqrt() => childBm.sqrt()
+      case _ => fatal(s"Unsupported unary operation on BlockMatrices: ${Pretty(op)}")
+    }
+  }
+}
+
 case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, applyBinOp: ApplyBinaryPrimOp) extends BlockMatrixIR {
   override def typ: BlockMatrixType = left.typ
 

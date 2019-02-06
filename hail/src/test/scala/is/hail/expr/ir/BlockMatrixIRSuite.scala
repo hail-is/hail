@@ -8,6 +8,17 @@ import org.testng.annotations.Test
 
 class BlockMatrixIRSuite extends SparkSuite {
 
+  val N_ROWS = 3
+  val N_COLS = 3
+  val shape: Array[Long] = Array[Long](N_ROWS, N_COLS)
+
+  val negFours: BlockMatrix = BlockMatrix.fill(hc, N_ROWS, N_COLS,-4)
+  val zeros: BlockMatrix    = BlockMatrix.fill(hc, N_ROWS, N_COLS, 0)
+  val ones: BlockMatrix     = BlockMatrix.fill(hc, N_ROWS, N_COLS, 1)
+  val twos: BlockMatrix     = BlockMatrix.fill(hc, N_ROWS, N_COLS, 2)
+  val threes: BlockMatrix   = BlockMatrix.fill(hc, N_ROWS, N_COLS, 3)
+  val fours: BlockMatrix    = BlockMatrix.fill(hc, N_ROWS, N_COLS, 4)
+
   def toBM(rows: Seq[Array[Double]]): BlockMatrix =
     toBM(rows, BlockMatrix.defaultBlockSize)
 
@@ -35,22 +46,27 @@ class BlockMatrixIRSuite extends SparkSuite {
     assert(actual.toBreezeMatrix() == expected.toBreezeMatrix())
   }
 
-  val ones: BlockMatrix = BlockMatrix.fill(hc, 3, 3, 1)
-  val twos: BlockMatrix = BlockMatrix.fill(hc, 3, 3, 2)
-  val threes: BlockMatrix = BlockMatrix.fill(hc, 3, 3, 3)
-  val fours: BlockMatrix = BlockMatrix.fill(hc, 3, 3, 4)
 
   @Test def testBlockMatrixWriteRead() {
-    def sampleMatrix: BlockMatrix = BlockMatrix.fill(hc, 5, 5, 1)
-
     val tempPath = tmpDir.createLocalTempFile()
-    Interpret(BlockMatrixWrite(new BlockMatrixLiteral(sampleMatrix), tempPath, false, false, false))
+    Interpret(BlockMatrixWrite(new BlockMatrixLiteral(ones), tempPath, false, false, false))
 
     val actualMatrix = BlockMatrixRead(tempPath).execute(hc)
-    assertBmEq(actualMatrix, sampleMatrix)
+    assertBmEq(actualMatrix, ones)
   }
 
-  val shape: Array[Long] = Array[Long](3, 3)
+
+  @Test def testBlockMatrixMap() {
+    val sqrtFoursIR = BlockMatrixMap(new BlockMatrixLiteral(fours), ApplyUnaryPrimOp(Sqrt(), Ref("element", TFloat64())))
+    val negFoursIR = BlockMatrixMap(new BlockMatrixLiteral(fours), ApplyUnaryPrimOp(Negate(), Ref("element", TFloat64())))
+    val logOnesIR = BlockMatrixMap(new BlockMatrixLiteral(ones), ApplyUnaryPrimOp(Log(), Ref("element", TFloat64())))
+    val absNegFoursIR = BlockMatrixMap(new BlockMatrixLiteral(negFours), ApplyUnaryPrimOp(Abs(), Ref("element", TFloat64())))
+
+    assertBmEq(sqrtFoursIR.execute(hc), twos)
+    assertBmEq(negFoursIR.execute(hc), negFours)
+    assertBmEq(logOnesIR.execute(hc), zeros)
+    assertBmEq(absNegFoursIR.execute(hc), fours)
+  }
 
   @Test def testBlockMatrixBroadcastValue_Scalars() {
     val broadcastTwo = BlockMatrixBroadcast(
