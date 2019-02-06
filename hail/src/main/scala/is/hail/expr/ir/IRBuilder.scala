@@ -131,13 +131,13 @@ object IRBuilder {
     def selectFields(fields: String*): IRProxy = (env: E) =>
       SelectFields(ir(env), fields)
 
-    def dropFields(fields: String*): IRProxy = (env: E) => {
+    def dropFieldList(fields: Seq[String]): IRProxy = (env: E) => {
       val struct = ir(env)
       val typ = struct.typ.asInstanceOf[TStruct]
       SelectFields(struct, typ.fieldNames.diff(fields))
     }
 
-    def dropFields(fields: Symbol*): IRProxy = dropFields(fields.map(_.name): _*)
+    def dropFields(fields: Symbol*): IRProxy = dropFieldList(fields.map(_.name))
 
     def len: IRProxy = (env: E) => ArrayLen(ir(env))
 
@@ -187,7 +187,7 @@ object IRBuilder {
         .map(element ~>
           makeTuple(
             element.selectFields(fields: _*),
-            element.dropFields(fields: _*)))
+            element.dropFieldList(fields)))
         .toDict
     }
 
