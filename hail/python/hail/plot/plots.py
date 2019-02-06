@@ -136,10 +136,14 @@ def cumulative_histogram(data, range=None, bins=50, legend=None, title=None, nor
 def histogram_2d(x, y, x_range=None, y_range=None, bins=40, x_bins=None, y_bins=None,
                  plot_title='2-D histogram', plot_width=600, plot_height=600, font_size='7pt',
                  colors=bokeh.palettes.all_palettes['Blues'][7][::-1]):
-    """Plot a 2-D histogram of x vs y, which are NumericExpressions from a Table.
+    """Plot a 2-D histogram of ``x`` vs ``y``, which are :class:`NumericExpression`s from a :class:`Table`.
 
-    If x_range or y_range are not provided, the function will do a pass through the data to determine min and max
-    of each variable.
+    If ``x_range`` or ``y_range`` are not provided, the function will do a pass through the data to determine
+    min and max of each variable.
+
+    >>> ht = hail.utils.range_table(1000).annotate(x=hail.rand_norm(), y=hail.rand_norm())
+    >>> p_hist = hail.plot.histogram_2d(ht.x, ht.y)
+
 
     Parameters
     ----------
@@ -164,11 +168,11 @@ def histogram_2d(x, y, x_range=None, y_range=None, bins=40, x_bins=None, y_bins=
     plot_title : str
         Title of the plot.
     font_size : str
-        String of font size in points (default '7pt").
+        String of font size in points (default '7pt').
     colors : List[str]
         List of colors (hex codes, or strings as described
-        `here <https://bokeh.pydata.org/en/latest/docs/reference/colors.html>`). Effective with one of the many
-        built-in palettes available `here <https://bokeh.pydata.org/en/latest/docs/reference/palettes.html>`.
+        `here <https://bokeh.pydata.org/en/latest/docs/reference/colors.html>`__). Effective with one of the many
+        built-in palettes available `here <https://bokeh.pydata.org/en/latest/docs/reference/palettes.html>`__.
 
     Returns
     -------
