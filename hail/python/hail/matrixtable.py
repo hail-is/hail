@@ -2610,7 +2610,7 @@ class MatrixTable(ExprContainer):
         """
         entries = entries_array_field_name or Env.get_uid()
         cols = columns_array_field_name or Env.get_uid()
-        t = self._localize_entries(self, entries, cols)
+        t = self._localize_entries(entries, cols)
         if entries_array_field_name is None:
             t = t.drop(entries)
         if columns_array_field_name is None:
