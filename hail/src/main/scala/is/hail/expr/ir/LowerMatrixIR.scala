@@ -142,6 +142,7 @@ object LowerMatrixIR {
         .mapGlobals(let(__dictfield = lower(table)
           .keyBy(FastIndexedSeq())
           .collect()
+          .apply('rows)
           .arrayStructToDict(table.typ.key)) {
           'global.insertFields(colsField ->
             'global(colsField).map(col ~> col.insertFields(Symbol(root) -> '__dictfield.invoke("get", colKey))))
