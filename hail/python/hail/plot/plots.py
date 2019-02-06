@@ -197,6 +197,9 @@ def histogram_2d(x, y, x_range=None, y_range=None, bins=40, x_bins=None, y_bins=
             x_range = (ranges.x_stats.min, ranges.x_stats.max)
         if y_range is None:
             y_range = (ranges.y_stats.min, ranges.y_stats.max)
+    else:
+        warnings.warn('If x_range or y_range are specified in histogram_2d, and there are points '
+                      'outside of these ranges, they will not be plotted')
     x_range = list(map(float, x_range))
     y_range = list(map(float, y_range))
     x_spacing = (x_range[1] - x_range[0]) / x_bins
@@ -204,15 +207,17 @@ def histogram_2d(x, y, x_range=None, y_range=None, bins=40, x_bins=None, y_bins=
 
     def frange(start, stop, step):
         from itertools import count, takewhile
-        return takewhile(lambda x: x < stop, count(start, step))
+        return takewhile(lambda x: x <= stop, count(start, step))
 
     x_levels = hail.literal(list(frange(x_range[0], x_range[1], x_spacing))[::-1])
     y_levels = hail.literal(list(frange(y_range[0], y_range[1], y_spacing))[::-1])
 
     grouped_ht = source.group_by(
-        x=hail.str(x_levels.find(lambda w: x >= w)), y=hail.str(y_levels.find(lambda w: y >= w))
+        x=hail.str(x_levels.find(lambda w: x >= w)),
+        y=hail.str(y_levels.find(lambda w: y >= w))
     ).aggregate(c=hail.agg.count())
-    data = grouped_ht.filter(hail.is_defined(grouped_ht.x) & hail.is_defined(grouped_ht.y)).to_pandas()
+    data = grouped_ht.filter(hail.is_defined(grouped_ht.x) & (grouped_ht.x != x_range[1]) &
+                             hail.is_defined(grouped_ht.y) & (grouped_ht.y != y_range[1])).to_pandas()
 
     mapper = LinearColorMapper(palette=colors, low=data.c.min(), high=data.c.max())
 
