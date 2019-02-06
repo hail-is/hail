@@ -1780,13 +1780,14 @@ class TableExport(IR):
         return new_instance(child, self.path, self.types_file, self.header, self.export_type, self.delimiter)
 
     def render(self, r):
-        return '(TableExport {} "{}" {} {} {} "{}")'.format(
-            r(self.child),
+        return '(TableExport "{}" {} {} {} "{}" {})'.format(
             escape_str(self.path),
             f'"{escape_str(self.types_file)}"' if self.types_file else 'None',
             self.header,
             self.export_type,
-            escape_str(self.delimiter))
+            escape_str(self.delimiter),
+            r(self.child)
+        )
 
     def __eq__(self, other):
         return isinstance(other, TableExport) and \
