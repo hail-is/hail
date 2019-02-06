@@ -230,8 +230,7 @@ def histogram_2d(x, y, x_range=None, y_range=None, bins=40, x_bins=None, y_bins=
     p = figure(title=plot_title,
                x_range=x_axis, y_range=y_axis,
                x_axis_location="above", plot_width=plot_width, plot_height=plot_height,
-               tools="hover,save,pan,box_zoom,reset,wheel_zoom", toolbar_location='below',
-               tooltips=[('x', '@x'), ('y', '@y',), ('count', '@c')])
+               tools="hover,save,pan,box_zoom,reset,wheel_zoom", toolbar_location='below')
 
     p.grid.grid_line_color = None
     p.axis.axis_line_color = None
@@ -275,6 +274,10 @@ def histogram_2d(x, y, x_range=None, y_range=None, bins=40, x_bins=None, y_bins=
             p.xaxis.group_text_font_size = font_size
         return p
 
+    tooltips = [('x', '@x'), ('y', '@y',), ('count', '@c')]
+    p.add_tools(HoverTool(
+        tooltips=tooltips
+    ))
     p = set_font_size(p, font_size)
     return p
 
