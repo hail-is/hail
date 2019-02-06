@@ -177,22 +177,18 @@ server {
 server {
     server_name notebook-api.@domain@;
 
-    # Support large URI's stemming from access tokens
-    client_header_buffer_size 64k;
-    large_client_header_buffers 4 64k;
-
     location = /auth {
         internal;
 
         resolver kube-dns.kube-system.svc.cluster.local;
-        proxy_pass http://auth-gateway.default.svc.cluster.local/verify/$auth_request_uri;
+        proxy_pass http://auth-gateway.default.svc.cluster.local/verify/;
     }
 
     location = /auth-notebook {
         internal;
 
         resolver kube-dns.kube-system.svc.cluster.local;
-        proxy_pass http://notebook-api.default.svc.cluster.local/api/verify/$svc_name/$auth_request_uri;
+        proxy_pass http://notebook-api.default.svc.cluster.local/api/verify/$svc_name/;
     }
 
     location / {
@@ -208,7 +204,6 @@ server {
             break;
         }
 
-        set $auth_request_uri "$is_args$args";
         auth_request /auth;
         auth_request_set $auth_user $upstream_http_user;
         auth_request_set $auth_scope $upstream_http_scope;
@@ -230,8 +225,7 @@ server {
 
     location ~ /instance/([^/]+)/(.*) {
         set $svc_name $1;
-        #set $auth_request_uri "$is_args$args";
-        #auth_request /auth-notebook;
+        auth_request /auth-notebook;
 
         resolver kube-dns.kube-system.svc.cluster.local;
         proxy_pass http://$svc_name.default.svc.cluster.local$request_uri;
