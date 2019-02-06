@@ -773,12 +773,12 @@ object IRParser {
         val child = matrix_ir(env)(it)
         MatrixToValueApply(child, RelationalFunctions.lookupMatrixToValue(config))
       case "TableExport" =>
-        val child = table_ir(env.withRefMap(Map.empty))(it)
         val path = string_literal(it)
         val typesFile = opt(it, string_literal).orNull
         val header = boolean_literal(it)
         val exportType = int32_literal(it)
         val delimiter = string_literal(it)
+        val child = table_ir(env.withRefMap(Map.empty))(it)
         TableExport(child, path, typesFile, header, exportType, delimiter)
       case "TableWrite" =>
         val path = string_literal(it)
