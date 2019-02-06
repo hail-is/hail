@@ -1,6 +1,7 @@
 from math import log, isnan, log10
 
 import numpy as np
+import bokeh
 from bokeh.models import *
 from bokeh.plotting import figure
 from itertools import cycle
@@ -159,7 +160,7 @@ def set_font_size(p, font_size: str = "12pt"):
            font_size=str, colors=sequenceof(str))
 def histogram_2d(x, y, x_range=None, y_range=None, bins=40, x_bins=None, y_bins=None,
                  plot_title='2-D histogram', plot_width=600, plot_height=600, font_size='7pt',
-                 colors=["#75968f", "#a5bab7", "#c9d9d3", "#e2e2e2", "#dfccce", "#ddb7b1", "#cc7878", "#933b41", "#550b1d"]):
+                 colors=bokeh.palettes.all_palettes['Blues'][7][::-1]):
     """Plot a 2-D histogram of x vs y, which are NumericExpressions from a Table.
 
     If x_range or y_range are not provided, the function will do a pass through the data to determine min and max
