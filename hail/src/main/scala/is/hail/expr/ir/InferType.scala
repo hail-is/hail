@@ -171,6 +171,8 @@ object InferType {
           Recur.updateTypes(altr, t1)
       case Let(_, _, body) =>
         loopType(body)
+      case _: ApplyBinaryPrimOp => fatal("not tail recursive")
+      case _: ApplyComparisonOp => fatal("not tail recursive")
       case _ => {} // do nothing
     }
     ir.typ

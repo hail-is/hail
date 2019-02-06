@@ -410,6 +410,7 @@ class IRSuite extends SparkSuite {
         ApplyBinaryPrimOp(Add(), Ref("acc", TInt32()), Ref("n", TInt32()))), TInt32()))
     val tst = Loop(Seq("n" -> I32(10), "acc" -> I32(0)), bdy)
     assertEvalsTo(tst, 55)
+    assertEvalsTo(Loop(Seq("s" -> Str("a string")), Ref("s", TString())), "a string")
 
     interceptFatal("recursion") {
       Loop(Seq("n" -> I32(0)), Recur(Seq(ApplyBinaryPrimOp(Add(), I32(1), Ref("n", TInt32()))), null)).typ
@@ -423,6 +424,10 @@ class IRSuite extends SparkSuite {
     interceptFatal("typechecking") {
       val ir = Loop(FastIndexedSeq(), If(False(), Recur(FastIndexedSeq(), null), Recur(FastIndexedSeq(), null)))
       assertEvalsTo(ir, null)
+    }
+
+    interceptFatal("typechecking") {
+      assertEvalsTo(Recur(Seq(), TInt32()), null)
     }
   }
 
