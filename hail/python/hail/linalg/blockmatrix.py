@@ -1140,7 +1140,11 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return BlockMatrix._from_java(self._jbm.transpose())
+        return BlockMatrix(BlockMatrixBroadcast(self._bmir,
+                                                ["i", "j"], ["j", "i"],
+                                                [self.n_cols, self.n_rows],
+                                                self.block_size,
+                                                self._bmir.typ.dims_partitioned))
 
     def densify(self):
         """Restore all dropped blocks as explicit blocks of zeros.
@@ -2085,8 +2089,8 @@ def _broadcast_to_shape(bmir, result_shape):
     if current_shape == result_shape:
         return bmir
 
-    broadcast_kind = _broadcast_kind(current_shape)
-    return BlockMatrixBroadcast(bmir, broadcast_kind, result_shape,
+    in_index_expr, out_index_expr = _broadcast_index_expr(current_shape)
+    return BlockMatrixBroadcast(bmir, in_index_expr, out_index_expr, result_shape,
                                 bmir.typ.block_size, [True for _ in result_shape])
 
 
@@ -2102,15 +2106,15 @@ def _ndarray_to_makearray(ndarray):
     return MakeArray(data_as_ir, hl.tarray(hl.tfloat64))
 
 
-def _broadcast_kind(shape):
+def _broadcast_index_expr(shape):
     assert len(shape) <= 2
 
     if shape == [] or shape == [1] or shape == [1, 1]:
-        return "scalar"
+        return [], ["i", "j"]
     elif shape[0] == 1:
-        return "row"
+        return ["i"], ["j", "i"]
     else:
-        return "col"
+        return ["i"], ["i", "j"]
 
 
 def _ndarray_as_2d(nd):

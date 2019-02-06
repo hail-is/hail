@@ -1,6 +1,6 @@
+from hail import tarray
 from hail.expr.blockmatrix_type import tblockmatrix
-from hail.expr.types import hail_type, tarray
-from hail.ir import BlockMatrixIR, ApplyBinaryOp, IR
+from hail.ir import BlockMatrixIR, ApplyBinaryOp, IR, parsable_strings
 from hail.utils.java import escape_str
 from hail.typecheck import typecheck_method, sequenceof
 
@@ -38,21 +38,24 @@ class BlockMatrixMap2(BlockMatrixIR):
 
 class BlockMatrixBroadcast(BlockMatrixIR):
     @typecheck_method(child=BlockMatrixIR,
-                      broadcast_kind=str,
+                      in_index_expr=sequenceof(str),
+                      out_index_expr=sequenceof(str),
                       shape=sequenceof(int),
                       block_size=int,
                       dims_partitioned=sequenceof(bool))
-    def __init__(self, child, broadcast_kind, shape, block_size, dims_partitioned):
+    def __init__(self, child, in_index_expr, out_index_expr, shape, block_size, dims_partitioned):
         super().__init__()
         self.child = child
-        self.broadcast_kind = broadcast_kind
+        self.in_index_expr = in_index_expr
+        self.out_index_expr = out_index_expr
         self.shape = shape
         self.block_size = block_size
         self.dims_partitioned = dims_partitioned
 
     def render(self, r):
-        return '(BlockMatrixBroadcast {} ({}) {} ({}) {})'\
-            .format(escape_str(self.broadcast_kind),
+        return '(BlockMatrixBroadcast {} {} ({}) {} ({}) {})'\
+            .format(parsable_strings(self.in_index_expr),
+                    parsable_strings(self.out_index_expr),
                     ' '.join([str(x) for x in self.shape]),
                     self.block_size,
                     ' '.join([str(b) for b in self.dims_partitioned]),
