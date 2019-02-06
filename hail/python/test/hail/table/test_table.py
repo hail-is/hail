@@ -623,7 +623,7 @@ class Tests(unittest.TestCase):
         tmp_file = new_temp_file()
         t.export(tmp_file)
 
-        with open(tmp_file, 'r') as f_in:
+        with hl.hadoop_open(tmp_file, 'r') as f_in:
             assert f_in.read() == 'idx\tfoo\n0\t3\n'
 
     def test_export_delim(self):
@@ -631,7 +631,7 @@ class Tests(unittest.TestCase):
         tmp_file = new_temp_file()
         t.export(tmp_file, delimiter=',')
 
-        with open(tmp_file, 'r') as f_in:
+        with hl.hadoop_open(tmp_file, 'r') as f_in:
             assert f_in.read() == 'idx,foo\n0,3\n'
 
     def test_write_stage_locally(self):
