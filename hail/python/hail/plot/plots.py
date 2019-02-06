@@ -231,9 +231,10 @@ def histogram_2d(x, y, x_range=None, y_range=None, bins=40, x_bins=None, y_bins=
     x_levels = hail.literal(list(frange(x_range[0], x_range[1], x_spacing))[::-1])
     y_levels = hail.literal(list(frange(y_range[0], y_range[1], y_spacing))[::-1])
 
-    data = source.group_by(
+    grouped_ht = source.group_by(
         x=hail.str(x_levels.find(lambda w: x >= w)), y=hail.str(y_levels.find(lambda w: y >= w))
-    ).aggregate(c=hail.agg.count()).to_pandas()
+    ).aggregate(c=hail.agg.count())
+    data = grouped_ht.filter(hail.is_defined(grouped_ht.x) & hail.is_defined(grouped_ht.y)).to_pandas()
 
     mapper = LinearColorMapper(palette=colors, low=data.c.min(), high=data.c.max())
 
