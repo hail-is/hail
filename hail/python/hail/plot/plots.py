@@ -203,8 +203,8 @@ def histogram_2d(x, y, x_range=None, y_range=None, bins=40, x_bins=None, y_bins=
         raise ValueError("histogram_2d expects two expressions of 'Table', found scalar expression")
     if isinstance(source, hail.MatrixTable):
         raise ValueError("hisogram_2d requires source to be Table, not MatrixTable")
-    check_row_indexed('histogram_2d', source.x)
-    check_row_indexed('histogram_2d', source.y)
+    check_row_indexed('histogram_2d', x)
+    check_row_indexed('histogram_2d', y)
     if source != y_source:
         raise ValueError(f"histogram_2d expects two expressions of 'Table', found {source} and {y_source}")
     if x_bins is None:
