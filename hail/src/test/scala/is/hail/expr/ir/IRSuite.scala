@@ -1026,6 +1026,7 @@ class IRSuite extends SparkSuite {
       TableToValueApply(table, ForceCountTable()),
       MatrixToValueApply(mt, ForceCountMatrixTable()),
       TableWrite(table, tmpDir.createLocalTempFile(extension = "ht")),
+      TableExport(table, tmpDir.createLocalTempFile(extension = "tsv"), null, true, ExportType.CONCATENATED, ","),
       MatrixWrite(mt, MatrixNativeWriter(tmpDir.createLocalTempFile(extension = "mt"))),
       MatrixWrite(vcf, MatrixVCFWriter(tmpDir.createLocalTempFile(extension = "vcf"))),
       MatrixWrite(vcf, MatrixPLINKWriter(tmpDir.createLocalTempFile())),

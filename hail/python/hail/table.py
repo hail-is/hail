@@ -964,10 +964,11 @@ class Table(ExprContainer):
         return table
 
     @typecheck_method(output=str,
-               types_file=nullable(str),
-               header=bool,
-               parallel=nullable(enumeration('separate_header', 'header_per_shard')))
-    def export(self, output, types_file=None, header=True, parallel=None):
+                      types_file=nullable(str),
+                      header=bool,
+                      parallel=nullable(enumeration('separate_header', 'header_per_shard')),
+                      delimiter=str)
+    def export(self, output, types_file=None, header=True, parallel=None, delimiter='\t'):
         """Export to a TSV file.
 
         Examples
@@ -997,10 +998,12 @@ class Table(ExprContainer):
             the header file is output separately from the file shards. If
             'header_per_shard', each file shard has a header. If set to None
             the export will be slower.
+        delimiter : :obj:`str`
+            Field delimiter.
         """
 
         Env.backend().execute(
-            TableExport(self._tir, output, types_file, header, Env.hail().utils.ExportType.getExportType(parallel)))
+            TableExport(self._tir, output, types_file, header, Env.hail().utils.ExportType.getExportType(parallel), delimiter))
 
     def group_by(self, *exprs, **named_exprs) -> 'GroupedTable':
         """Group by a new key for use with :meth:`.GroupedTable.aggregate`.

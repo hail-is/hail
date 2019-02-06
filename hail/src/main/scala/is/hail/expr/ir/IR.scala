@@ -274,7 +274,8 @@ final case class TableExport(
   path: String,
   typesFile: String = null,
   header: Boolean = true,
-  exportType: Int = ExportType.CONCATENATED) extends IR
+  exportType: Int = ExportType.CONCATENATED,
+  delimiter: String) extends IR
 
 final case class TableGetGlobals(child: TableIR) extends IR
 final case class TableCollect(child: TableIR) extends IR

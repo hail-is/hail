@@ -618,6 +618,22 @@ class Tests(unittest.TestCase):
                                          hl.struct(idx=0, a='b'),
                                          hl.struct(idx=0, a='c')])))
 
+    def test_export(self):
+        t = hl.utils.range_table(1).annotate(foo = 3)
+        tmp_file = new_temp_file()
+        t.export(tmp_file)
+
+        with hl.hadoop_open(tmp_file, 'r') as f_in:
+            assert f_in.read() == 'idx\tfoo\n0\t3\n'
+
+    def test_export_delim(self):
+        t = hl.utils.range_table(1).annotate(foo = 3)
+        tmp_file = new_temp_file()
+        t.export(tmp_file, delimiter=',')
+
+        with hl.hadoop_open(tmp_file, 'r') as f_in:
+            assert f_in.read() == 'idx,foo\n0,3\n'
+
     def test_write_stage_locally(self):
         t = hl.utils.range_table(5)
         f = new_temp_file(suffix='ht')
