@@ -147,24 +147,29 @@ def cumulative_histogram(data, range=None, bins=50, legend=None, title=None, nor
     return p
 
 
-@typecheck(x=expr_numeric, y=expr_numeric,
-           x_range=nullable(sized_tupleof(numeric, numeric)),
-           y_range=nullable(sized_tupleof(numeric, numeric)),
-           bins=int, x_bins=nullable(int), y_bins=nullable(int),
-           plot_title=nullable(str), plot_width=int, plot_height=int,
+@typecheck(x=expr_numeric, y=expr_numeric, bins=oneof(int, sequenceof(int)),
+           range=nullable(sized_tupleof(nullable(sized_tupleof(numeric, numeric)),
+                                        nullable(sized_tupleof(numeric, numeric)))),
+           title=nullable(str), width=int, height=int,
            font_size=str, colors=sequenceof(str))
-def histogram_2d(x, y, x_range=None, y_range=None, bins=40, x_bins=None, y_bins=None,
-                 plot_title='2-D histogram', plot_width=600, plot_height=600, font_size='7pt',
+def histogram_2d(x, y, bins=40, range=None,
+                 title=None, width=600, height=600, font_size='7pt',
                  colors=bokeh.palettes.all_palettes['Blues'][7][::-1]):
-    """Plot a 2-D histogram.
+    """Plot a two-dimensional histogram.
 
     ``x`` and ``y`` must both be a :class:`NumericExpression` from the same :class:`Table`.
 
     If ``x_range`` or ``y_range`` are not provided, the function will do a pass through the data to determine
     min and max of each variable.
 
+    Examples
+    --------
+
     >>> ht = hail.utils.range_table(1000).annotate(x=hail.rand_norm(), y=hail.rand_norm())
     >>> p_hist = hail.plot.histogram_2d(ht.x, ht.y)
+
+    >>> ht = hail.utils.range_table(1000).annotate(x=hail.rand_norm(), y=hail.rand_norm())
+    >>> p_hist = hail.plot.histogram_2d(ht.x, ht.y, bins=10, range=[[0, 1], None])
 
     Parameters
     ----------
@@ -172,27 +177,27 @@ def histogram_2d(x, y, x_range=None, y_range=None, bins=40, x_bins=None, y_bins=
         Expression for x-axis (from a Hail table).
     y : :class:`.NumericExpression`
         Expression for y-axis (from the same Hail table as ``x``).
-    x_range : Tuple[float]
-        Tuple of (min, max) bounds for the x-axis.
-    y_range : Tuple[float]
-        Tuple of (min, max) bounds for the y-axis.
-    bins : int
-        Number of bins in the histogram (default 40).
-    x_bins : int
-        Number of bins on x-axis, will override ``bins`` if provided.
-    y_bins : int
-        Number of bins on y-axis, will override ``bins`` if provided.
-    plot_width : int
+    bins : int or [int, int]
+        The bin specification:
+        -   If int, the number of bins for the two dimensions (nx = ny = bins).
+        -   If [int, int], the number of bins in each dimension (nx, ny = bins).
+        The default value is 40.
+    range : None or [[float, float], [float, float]]
+        The leftmost and rightmost edges of the bins along each dimension:
+        [[xmin, xmax], [ymin, ymax]]. All values outside of this range will be considered outliers
+        and not tallied in the histogram. If this value is None, or either of the inner lists is None,
+        the range will be computed from the data.
+    width : int
         Plot width (default 600px).
-    plot_height : int
+    height : int
         Plot height (default 600px).
-    plot_title : str
+    title : str
         Title of the plot.
     font_size : str
         String of font size in points (default '7pt').
     colors : List[str]
         List of colors (hex codes, or strings as described
-        `here <https://bokeh.pydata.org/en/latest/docs/reference/colors.html>`__). Effective with one of the many
+        `here <https://bokeh.pydata.org/en/latest/docs/reference/colors.html>`__). Compatible with one of the many
         built-in palettes available `here <https://bokeh.pydata.org/en/latest/docs/reference/palettes.html>`__.
 
     Returns
@@ -210,10 +215,14 @@ def histogram_2d(x, y, x_range=None, y_range=None, bins=40, x_bins=None, y_bins=
         raise ValueError(f"histogram_2d expects two expressions from the same 'Table', found {source} and {y_source}")
     check_row_indexed('histogram_2d', x)
     check_row_indexed('histogram_2d', y)
-    if x_bins is None:
-        x_bins = bins
-    if y_bins is None:
-        y_bins = bins
+    if isinstance(bins, int):
+        x_bins = y_bins = bins
+    else:
+        x_bins, y_bins = bins
+    if range is None:
+        x_range = y_range = None
+    else:
+        x_range, y_range = range
     if x_range is None or y_range is None:
         warnings.warn('At least one range was not defined in histogram_2d. Doing two passes...')
         ranges = source.aggregate(hail.struct(x_stats=hail.agg.stats(x),
@@ -248,9 +257,9 @@ def histogram_2d(x, y, x_range=None, y_range=None, bins=40, x_bins=None, y_bins=
 
     x_axis = sorted(set(data.x), key=lambda z: float(z))
     y_axis = sorted(set(data.y), key=lambda z: float(z))
-    p = figure(title=plot_title,
+    p = figure(title=title,
                x_range=x_axis, y_range=y_axis,
-               x_axis_location="above", plot_width=plot_width, plot_height=plot_height,
+               x_axis_location="above", plot_width=width, plot_height=height,
                tools="hover,save,pan,box_zoom,reset,wheel_zoom", toolbar_location='below')
 
     p.grid.grid_line_color = None
