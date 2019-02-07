@@ -158,7 +158,7 @@ def histogram_2d(x, y, x_range=None, y_range=None, bins=40, x_bins=None, y_bins=
                  colors=bokeh.palettes.all_palettes['Blues'][7][::-1]):
     """Plot a 2-D histogram.
 
-    ``x`` and ``y`` must be :class:`NumericExpression`s from the same :class:`Table`.
+    ``x`` and ``y`` must both be a :class:`NumericExpression` from the same :class:`Table`.
 
     If ``x_range`` or ``y_range`` are not provided, the function will do a pass through the data to determine
     min and max of each variable.
