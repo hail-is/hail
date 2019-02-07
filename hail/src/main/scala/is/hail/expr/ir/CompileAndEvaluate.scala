@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.annotations.{Region, RegionValueBuilder, SafeRow}
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.types.physical.{PBaseStruct, PType}
-import is.hail.expr.types.virtual.{TStruct, TTuple, Type}
+import is.hail.expr.types.virtual.{TStruct, TTuple, TVoid, Type}
 import is.hail.utils.{FastIndexedSeq, FastSeq}
 import org.apache.spark.sql.Row
 import org.json4s.jackson.JsonMethods
@@ -31,6 +31,10 @@ object CompileAndEvaluate {
     ir = LiftNonCompilable(ir).asInstanceOf[IR]
     ir = LowerMatrixIR(ir)
     if (optimize) optimizeIR(true)
+
+    // void is not really supported by IR utilities
+    if (ir.typ == TVoid)
+      return Interpret(ir, env, args, None, optimize = false)
 
     val (evalIR, ncValue, ncType, ncVar) = InterpretNonCompilable(ir0)
     ir = evalIR
