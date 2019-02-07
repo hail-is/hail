@@ -35,13 +35,14 @@ export default class MyApp extends App {
     ctx: any;
   }) {
     let pageProps: any = {};
-
     let isDark = false;
+
     if (typeof window === 'undefined') {
+      initStateSSR(ctx.req.headers.cookie);
+
       isDark =
         ctx.req.headers.cookie &&
         ctx.req.headers.cookie.indexOf('is_dark') > -1;
-      initStateSSR(ctx.req.headers.cookie);
     } else {
       isDark = !!cookies.get('is_dark');
     }
@@ -52,47 +53,44 @@ export default class MyApp extends App {
       if (ctx.res) {
         ctx.res.writeHead(303, { Location: '/login?redirect=true' });
         ctx.res.end();
-        return { pageProps: null };
+        return { pageProps, isDark };
       }
+
       Router.replace('/login?redirect=true');
-      return { pageProps: null };
+      return { pageProps, isDark };
     }
 
     if (Component.getInitialProps) {
       pageProps = await Component.getInitialProps(ctx);
     }
 
-    pageProps.isDark = isDark;
-
-    return { pageProps };
+    return { pageProps, isDark };
   }
 
   onDarkToggle = () => {
     this.setState((prevState: any) => {
-      if (!this.state.isDark) {
+      if (!prevState.isDark) {
         cookies.set('is_dark', '1', { path: '/' });
-      } else {
-        cookies.remove('is_dark', { path: '/' });
+
+        return { isDark: true };
       }
 
-      return {
-        isDark: !prevState.isDark
-      };
+      cookies.remove('is_dark', { path: '/' });
+      return { isDark: false };
     });
   };
 
   constructor(props: any) {
     super(props);
 
-    this.state.isDark = props.pageProps.isDark;
+    this.state.isDark = props.isDark;
 
-    // TOOD: For any components that need to fetch during server phase
-    // we will need to extract the accessToken
     if (typeof window !== 'undefined') {
       initialize();
     }
   }
 
+  onComponentDidMount() {}
   render() {
     const { Component, pageProps } = this.props;
 

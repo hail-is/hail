@@ -42,8 +42,8 @@
     "jwt-decode": "^2.2.0",
     "next": "^8.0.0-canary.18",
     "normalize.css": "^8.0.1",
-    "react": "^16.7.0",
-    "react-dom": "^16.7.0"
+    "react": "^16.8.1",
+    "react-dom": "^16.8.1"
   },
   "devDependencies": {
     "@babel/plugin-proposal-decorators": "^7.2.3",
@@ -52,7 +52,7 @@
     "@types/jwt-decode": "^2.2.1",
     "@types/next": "^7.0.6",
     "@types/next-server": "^7.0.2",
-    "@types/react": "^16.7.20",
+    "@types/react": "^16.8.2",
     "@types/react-dom": "^16.0.11",
     "@types/url-parse": "^1.4.2",
     "@zeit/next-css": "^1.0.1",
@@ -66,7 +66,7 @@
     "node-sass": "^4.11.0",
     "prettier": "^1.15.3",
     "tslint": "^5.12.1",
-    "typescript": "^3.1.6",
+    "typescript": "^3.3.3",
     "url-loader": "^1.1.2"
   }
 }
