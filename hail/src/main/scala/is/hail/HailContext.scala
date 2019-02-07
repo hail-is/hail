@@ -404,23 +404,6 @@ class HailContext private(val sc: SparkContext,
     info(s"Number of BGEN files indexed: ${ files.length }")
   }
 
-  def importTable(inputs: java.util.ArrayList[String],
-    keyNames: java.util.ArrayList[String],
-    nPartitions: java.lang.Integer,
-    types: java.util.HashMap[String, String],
-    comment: java.util.ArrayList[String],
-    separator: String,
-    missing: String,
-    noHeader: Boolean,
-    impute: Boolean,
-    quote: java.lang.Character,
-    skipBlankLines: Boolean,
-    forceBGZ: Boolean
-  ): Table = importTables(inputs.asScala,
-    Option(keyNames).map(_.asScala.toFastIndexedSeq),
-    if (nPartitions == null) None else Some(nPartitions), types.asScala.toMap.mapValues(IRParser.parseType), comment.asScala.toArray,
-    separator, missing, noHeader, impute, quote, skipBlankLines, forceBGZ)
-
   def importTable(input: String,
     keyNames: Option[IndexedSeq[String]] = None,
     nPartitions: Option[Int] = None,
@@ -467,11 +450,6 @@ class HailContext private(val sc: SparkContext,
 
   def readVDS(file: String, dropSamples: Boolean = false, dropVariants: Boolean = false): MatrixTable =
     read(file, dropSamples, dropVariants)
-
-  def readGDS(file: String, dropSamples: Boolean = false, dropVariants: Boolean = false): MatrixTable =
-    read(file, dropSamples, dropVariants)
-
-  def readTable(path: String): Table = Table.read(this, path)
 
   def readPartitions[T: ClassTag](
     path: String,

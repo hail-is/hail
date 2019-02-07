@@ -436,17 +436,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         s"\n  @1", dups.sortBy(-_._2).map { case (id, count) => s"""($count) "$id"""" }.truncatable("\n  "))
   }
 
-  def annotateGlobal(a: Annotation, t: Type, name: String): MatrixTable = {
-    new MatrixTable(hc, MatrixMapGlobals(ast,
-      ir.InsertFields(ir.Ref("global", ast.typ.globalType), FastSeq(name -> ir.Literal.coerce(t, a)))))
-  }
-
-  def annotateColsTable(kt: Table, root: String): MatrixTable = {
-    new MatrixTable(hc, MatrixAnnotateColsTable(ast, kt.tir, root))
-  }
-
-  def nPartitions: Int = rvd.getNumPartitions
-
   def count(): (Long, Long) = (countRows(), countCols())
 
   def countRows(): Long = Interpret(TableCount(MatrixRowsTable(ast)))
@@ -460,9 +449,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     copyAST(ast = MatrixFilterCols(ast, ir.False()))
 
   def dropRows(): MatrixTable = copyAST(MatrixFilterRows(ast, ir.False()))
-
-  def localizeEntries(entriesFieldName: String, colsFieldName: String): Table =
-    new Table(hc, CastMatrixToTable(ast, entriesFieldName, colsFieldName))
 
   def filterCols(p: (Annotation, Int) => Boolean): MatrixTable = {
     val (newType, filterF) = MatrixIR.filterCols(matrixType)
@@ -479,75 +465,9 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     copy2(rvd = rvd.head(n, None))
   }
   
-  def aggregateRowsJSON(expr: String): String = {
-    val (a, t) = aggregateRows(expr)
-    val jv = JSONAnnotationImpex.exportAnnotation(a, t)
-    JsonMethods.compact(jv)
-  }
-
-  def aggregateColsJSON(expr: String): String = {
-    val (a, t) = aggregateCols(expr)
-    val jv = JSONAnnotationImpex.exportAnnotation(a, t)
-    JsonMethods.compact(jv)
-  }
-
-  def aggregateEntriesJSON(expr: String): String = {
-    val (a, t) = aggregateEntries(expr)
-    val jv = JSONAnnotationImpex.exportAnnotation(a, t)
-    JsonMethods.compact(jv)
-  }
-
-  def aggregateEntries(expr: String): (Annotation, Type) = {
-    val qir = IRParser.parse_value_ir(expr, IRParserEnvironment(matrixType.refMap))
-    (Interpret(MatrixAggregate(ast, qir)), qir.typ)
-  }
-
-  def aggregateCols(expr: String): (Annotation, Type) = {
-    val qir = IRParser.parse_value_ir(expr, IRParserEnvironment(matrixType.refMap))
-    val ct = colsTable()
-    val aggEnv = new ir.Env[ir.IR].bind("sa" -> ir.Ref("row", ct.typ.rowType))
-    val sqir = ir.Subst(qir.unwrap, ir.Env.empty, aggEnv)
-    ct.aggregate(sqir)
-  }
-
-  def aggregateRows(expr: String): (Annotation, Type) = {
-    val qir = IRParser.parse_value_ir(expr, IRParserEnvironment(matrixType.refMap))
-    val rt = rowsTable()
-    val aggEnv = new ir.Env[ir.IR].bind("va" -> ir.Ref("row", rt.typ.rowType))
-    val sqir = ir.Subst(qir.unwrap, ir.Env.empty, aggEnv)
-    rt.aggregate(sqir)
-  }
-
-  def chooseCols(oldIndices: java.util.ArrayList[Int]): MatrixTable =
-    chooseCols(oldIndices.asScala.toArray)
-
   def chooseCols(oldIndices: Array[Int]): MatrixTable = {
     require(oldIndices.forall { x => x >= 0 && x < numCols })
     copyAST(ast = MatrixChooseCols(ast, oldIndices))
-  }
-
-  def renameFields(oldToNewRows: java.util.HashMap[String, String],
-    oldToNewCols: java.util.HashMap[String, String],
-    oldToNewEntries: java.util.HashMap[String, String],
-    oldToNewGlobals: java.util.HashMap[String, String]): MatrixTable = {
-
-    val fieldMapRows = oldToNewRows.asScala.toMap
-    assert(fieldMapRows.keys.forall(k => matrixType.rowType.fieldNames.contains(k)),
-      s"[${ fieldMapRows.keys.mkString(", ") }], expected [${ matrixType.rowType.fieldNames.mkString(", ") }]")
-
-    val fieldMapCols = oldToNewCols.asScala.toMap
-    assert(fieldMapCols.keys.forall(k => matrixType.colType.fieldNames.contains(k)),
-      s"[${ fieldMapCols.keys.mkString(", ") }], expected [${ matrixType.colType.fieldNames.mkString(", ") }]")
-
-    val fieldMapEntries = oldToNewEntries.asScala.toMap
-    assert(fieldMapEntries.keys.forall(k => matrixType.entryType.fieldNames.contains(k)),
-      s"[${ fieldMapEntries.keys.mkString(", ") }], expected [${ matrixType.entryType.fieldNames.mkString(", ") }]")
-
-    val fieldMapGlobals = oldToNewGlobals.asScala.toMap
-    assert(fieldMapGlobals.keys.forall(k => matrixType.globalType.fieldNames.contains(k)),
-      s"[${ fieldMapGlobals.keys.mkString(", ") }], expected [${ matrixType.globalType.fieldNames.mkString(", ") }]")
-
-    new MatrixTable(hc, MatrixRename(ast, fieldMapGlobals, fieldMapCols, fieldMapRows, fieldMapEntries))
   }
 
   def same(that: MatrixTable, tolerance: Double = utils.defaultTolerance, absolute: Boolean = false): Boolean = {
