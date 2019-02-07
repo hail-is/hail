@@ -62,7 +62,6 @@ class BlockMatrixLiteral(value: BlockMatrix) extends BlockMatrixIR {
 }
 
 case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, applyBinOp: ApplyBinaryPrimOp) extends BlockMatrixIR {
-
   override def typ: BlockMatrixType = left.typ
 
   override def children: IndexedSeq[BaseIR] = Array(left, right, applyBinOp)
@@ -234,22 +233,26 @@ case class BlockMatrixBroadcast(
         BlockMatrix.fill(hc, nRows, nCols, scalar, blockSize)
       case IndexedSeq(i) =>
         outIndexExpr match {
-          case IndexedSeq(_, `i`) =>
-            val rowVector: Array[Double] = childBm.toBreezeMatrix().data
-            var data = Array[Double]()
-            (0 to nRows).foreach(_ => data = data ++ rowVector)
-            BlockMatrixIR.toBlockMatrix(hc, nRows, nCols, data, blockSize)
-          case IndexedSeq(`i`, _) =>
-            val colVector = childBm.toBreezeMatrix().data
-            var data = Array[Double]()
-            (0 to nRows).foreach(idx => (0 to nCols).foreach(_ => data = data :+ colVector(idx)))
-            BlockMatrixIR.toBlockMatrix(hc, nRows, nCols, data, blockSize)
+          case IndexedSeq(_, `i`) => broadcastRowVector(hc, childBm.toBreezeMatrix().data, nRows, nCols)
+          case IndexedSeq(`i`, _) => broadcastColVector(hc, childBm.toBreezeMatrix().data, nRows, nCols)
         }
       case IndexedSeq(i, j) =>
         outIndexExpr match {
           case IndexedSeq(`j`, `i`) => childBm.transpose()
         }
     }
+  }
+
+  private def broadcastRowVector(hc: HailContext, vec: Array[Double], nRows: Int, nCols: Int): BlockMatrix = {
+    var data = Array[Double]()
+    (0 to nRows).foreach(_ => data = data ++ vec)
+    BlockMatrixIR.toBlockMatrix(hc, nRows, nCols, data, blockSize)
+  }
+
+  private def broadcastColVector(hc: HailContext, vec: Array[Double], nRows: Int, nCols: Int): BlockMatrix = {
+    var data = Array[Double]()
+    (0 to nRows).foreach(idx => (0 to nCols).foreach(_ => data = data :+ vec(idx)))
+    BlockMatrixIR.toBlockMatrix(hc, nRows, nCols, data, blockSize)
   }
 }
 
