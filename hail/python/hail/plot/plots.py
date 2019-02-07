@@ -152,7 +152,7 @@ def cumulative_histogram(data, range=None, bins=50, legend=None, title=None, nor
                                         nullable(sized_tupleof(numeric, numeric)))),
            title=nullable(str), width=int, height=int,
            font_size=str, colors=sequenceof(str))
-def histogram_2d(x, y, bins=40, range=None,
+def histogram2d(x, y, bins=40, range=None,
                  title=None, width=600, height=600, font_size='7pt',
                  colors=bokeh.palettes.all_palettes['Blues'][7][::-1]):
     """Plot a two-dimensional histogram.
@@ -166,10 +166,10 @@ def histogram_2d(x, y, bins=40, range=None,
     --------
 
     >>> ht = hail.utils.range_table(1000).annotate(x=hail.rand_norm(), y=hail.rand_norm())
-    >>> p_hist = hail.plot.histogram_2d(ht.x, ht.y)
+    >>> p_hist = hail.plot.histogram2d(ht.x, ht.y)
 
     >>> ht = hail.utils.range_table(1000).annotate(x=hail.rand_norm(), y=hail.rand_norm())
-    >>> p_hist = hail.plot.histogram_2d(ht.x, ht.y, bins=10, range=[[0, 1], None])
+    >>> p_hist = hail.plot.histogram2d(ht.x, ht.y, bins=10, range=[[0, 1], None])
 
     Parameters
     ----------
