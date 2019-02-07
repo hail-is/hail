@@ -203,11 +203,11 @@ class TableIRTests(unittest.TestCase):
             ir.TableNativeReader(resource('backward_compatability/1.0.0/table/0.ht')), False)
 
         matrix_range = ir.MatrixRead(ir.MatrixRangeReader(1, 1, 10))
-
         matrix_irs = [
             ir.MatrixRepartition(matrix_range, 100, ir.RepartitionStrategy.SHUFFLE),
             ir.MatrixUnionRows(matrix_range, matrix_range),
             ir.MatrixDistinctByRow(matrix_range),
+            ir.MatrixRowsHead(matrix_read, 5),
             ir.CastTableToMatrix(
                 ir.CastMatrixToTable(matrix_read, '__entries', '__cols'),
                 '__entries',
@@ -237,6 +237,7 @@ class TableIRTests(unittest.TestCase):
             ir.MatrixAnnotateColsTable(matrix_read, table_read, '__foo'),
             ir.MatrixToMatrixApply(matrix_read, {'name': 'MatrixFilterPartitions', 'parts': [0], 'keep': True})
         ]
+
 
         for x in matrix_irs:
             try:

@@ -3161,8 +3161,9 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
             Matrix including the first `n` rows.
         """
-
-        return MatrixTable._from_java(self._jmt.head(n))
+        if n < 0:
+            raise ValueError(f"MatrixTable.head: expect 'n' to be non-negative, found '{n}'")
+        return MatrixTable(MatrixRowsHead(self._mir, n))
 
     @typecheck_method(parts=sequenceof(int), keep=bool)
     def _filter_partitions(self, parts, keep=True) -> 'MatrixTable':

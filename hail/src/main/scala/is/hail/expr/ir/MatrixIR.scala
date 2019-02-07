@@ -1799,6 +1799,20 @@ case class MatrixDistinctByRow(child: MatrixIR) extends MatrixIR {
   override def columnCount: Option[Int] = child.columnCount
 }
 
+case class MatrixRowsHead(child: MatrixIR, n: Long) extends MatrixIR {
+  require(n >= 0)
+  val typ: MatrixType = child.typ
+
+  override def children: IndexedSeq[BaseIR] = Array(child)
+
+  override def copy(newChildren: IndexedSeq[BaseIR]): MatrixRowsHead = {
+    val IndexedSeq(newChild: MatrixIR) = newChildren
+    MatrixRowsHead(newChild, n)
+  }
+
+  override def columnCount: Option[Int] = child.columnCount
+}
+
 case class MatrixExplodeCols(child: MatrixIR, path: IndexedSeq[String]) extends MatrixIR {
 
   def children: IndexedSeq[BaseIR] = FastIndexedSeq(child)

@@ -1097,6 +1097,10 @@ object IRParser {
       case "MatrixDistinctByRow" =>
         val child = matrix_ir(env)(it)
         MatrixDistinctByRow(child)
+      case "MatrixRowsHead" =>
+        val n = int64_literal(it)
+        val child = matrix_ir(env)(it)
+        MatrixRowsHead(child, n)
       case "CastTableToMatrix" =>
         val entriesField = identifier(it)
         val colsField = identifier(it)
