@@ -239,7 +239,7 @@ class BatchBackend(Backend):
             job_id_to_command[j.id] = write_cmd
             n_jobs_submitted += 1
             if verbose:
-                print(f"Submitted Job {j.id} with command: {defs + cmd}")
+                print(f"Submitted Job {j.id} with command: {write_cmd}")
 
         status = batch.wait()  # FIXME: add background mode
 
