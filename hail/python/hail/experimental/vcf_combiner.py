@@ -158,6 +158,9 @@ def summarize(mt):
             VarDP=mt.info.VarDP,
         )))
 
+def finalize(mt):
+    return mt.drop('BaseQRankSum', 'ClippingRankSum', 'MQ', 'MQRankSum', 'ReadPosRankSum')
+
 # NOTE: these are just @chrisvittal's notes on how gVCF fields are combined
 #       some of it is copied from GenomicsDB's wiki.
 # always missing items include MQ, HaplotypeScore, InbreedingCoeff
