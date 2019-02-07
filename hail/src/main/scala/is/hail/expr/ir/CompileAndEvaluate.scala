@@ -36,7 +36,7 @@ object CompileAndEvaluate {
     if (ir.typ == TVoid)
       return Interpret(ir, env, args, None, optimize = false)
 
-    val (evalIR, ncValue, ncType, ncVar) = InterpretNonCompilable(ir0)
+    val (evalIR, ncValue, ncType, ncVar) = InterpretNonCompilable(ir)
     ir = evalIR
 
     val argsInVar = genUID()
