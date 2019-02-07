@@ -192,10 +192,11 @@ class BatchBackend(Backend):
                 list(flatten([copy_task_outputs(r) for r in task._outputs]))
             resource_defs = [define_resource(r) for r in task._inputs.union(task._outputs)]
 
-            image = 'google/cloud-sdk:alpine'  # task._docker if task._docker else pipeline._default_image
+            image = task._docker if task._docker else pipeline._default_image # this image must include gsutil!
             defs = '; '.join(resource_defs) + '; ' if resource_defs else ''
-            cmd = " && ".join(task_inputs + task._command + task_outputs)
-            parent_ids = [task_to_job_mapping[t] for t in task._dependencies]
+            task_command = [cmd.strip() for cmd in task._command]
+            cmd = " && ".join(task_inputs + task_command + task_outputs)
+            parent_ids = [task_to_job_mapping[t].id for t in task._dependencies]
             attributes = {'task_uid': task._uid}
             if task._label:
                 attributes['label'] = task._label
@@ -210,6 +211,7 @@ class BatchBackend(Backend):
 
             task_to_job_mapping[task] = j
             job_id_to_command[j.id] = defs + cmd
+            print(f"Submitted Job {j.id} with command: {defs + cmd}")
 
         def write_pipeline_outputs(r, dest):
             r = pipeline._get_resource(r)
@@ -235,6 +237,7 @@ class BatchBackend(Backend):
                                  volumes=volumes)
             job_id_to_command[j.id] = write_cmd
             n_jobs_submitted += 1
+            print(f"Submitted Job {j.id} with command: {defs + cmd}")
 
         status = batch.wait()  # FIXME: add background mode
 
@@ -246,7 +249,7 @@ class BatchBackend(Backend):
                                               volumes=volumes,
                                               attributes={'label': 'remove_tmpdir'})
 
-        failed_jobs = [(jid, ec) for jid, ec in status['exit_codes'].items() if ec > 0]
+        failed_jobs = [(int(jid), ec) for jid, ec in status['exit_codes'].items() if ec is not None and ec > 0]
 
         fail_msg = ''
         for jid, ec in failed_jobs:
