@@ -1491,12 +1491,19 @@ def pca(entry_expr, k=10, compute_loadings=False) -> Tuple[List[float], Table, T
         mt = mt.select_entries(**{field: entry_expr})
     mt = mt.select_cols().select_rows().select_globals()
 
-    r = Env.hail().methods.PCA.apply(mt._jmt, field, k, compute_loadings)
-    scores = Table._from_java(Env.hail().methods.PCA.scoresTable(mt._jmt, r._2()))
-    loadings = from_option(r._3())
-    if loadings:
-        loadings = Table._from_java(loadings)
-    return jiterable_to_list(r._1()), scores, loadings
+    t = (Table(MatrixToTableApply(mt._mir, {
+        'name': 'PCA',
+        'entryField': field,
+        'k': k,
+        'computeLoadings': compute_loadings
+    }))
+         .cache())
+
+    g = t.index_globals()
+    scores = hl.Table.parallelize(g.scores, key=list(mt.col_key))
+    if not compute_loadings:
+        t = None
+    return hl.eval(g.eigenvalues), scores, t
 
 
 @typecheck(call_expr=expr_call,
