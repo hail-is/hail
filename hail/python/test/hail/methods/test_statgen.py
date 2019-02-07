@@ -1407,17 +1407,20 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(glob.bn.fst), [.02, .06])
 
     def test_balding_nichols_model_same_results(self):
-        hl.set_global_seed(1)
-        ds1 = hl.balding_nichols_model(2, 20, 25, 3,
-                                       pop_dist=[1.0, 2.0],
-                                       fst=[.02, .06],
-                                       af_dist=hl.rand_beta(a=0.01, b=2.0, lower=0.05, upper=0.95))
-        hl.set_global_seed(1)
-        ds2 = hl.balding_nichols_model(2, 20, 25, 3,
-                                       pop_dist=[1.0, 2.0],
-                                       fst=[.02, .06],
-                                       af_dist=hl.rand_beta(a=0.01, b=2.0, lower=0.05, upper=0.95))
-        self.assertTrue(ds1._same(ds2))
+        for mixture in [True, False]:
+            hl.set_global_seed(1)
+            ds1 = hl.balding_nichols_model(2, 20, 25, 3,
+                                           pop_dist=[1.0, 2.0],
+                                           fst=[.02, .06],
+                                           af_dist=hl.rand_beta(a=0.01, b=2.0, lower=0.05, upper=0.95),
+                                           mixture=mixture)
+            hl.set_global_seed(1)
+            ds2 = hl.balding_nichols_model(2, 20, 25, 3,
+                                           pop_dist=[1.0, 2.0],
+                                           fst=[.02, .06],
+                                           af_dist=hl.rand_beta(a=0.01, b=2.0, lower=0.05, upper=0.95),
+                                           mixture=mixture)
+            self.assertTrue(ds1._same(ds2))
 
     def test_balding_nichols_model_af_ranges(self):
         def test_af_range(rand_func, min, max, seed):
