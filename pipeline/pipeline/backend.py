@@ -211,7 +211,8 @@ class BatchBackend(Backend):
 
             task_to_job_mapping[task] = j
             job_id_to_command[j.id] = defs + cmd
-            print(f"Submitted Job {j.id} with command: {defs + cmd}")
+            if verbose:
+                print(f"Submitted Job {j.id} with command: {defs + cmd}")
 
         def write_pipeline_outputs(r, dest):
             r = pipeline._get_resource(r)
@@ -237,7 +238,8 @@ class BatchBackend(Backend):
                                  volumes=volumes)
             job_id_to_command[j.id] = write_cmd
             n_jobs_submitted += 1
-            print(f"Submitted Job {j.id} with command: {defs + cmd}")
+            if verbose:
+                print(f"Submitted Job {j.id} with command: {defs + cmd}")
 
         status = batch.wait()  # FIXME: add background mode
 
@@ -264,6 +266,8 @@ class BatchBackend(Backend):
 
         if failed_jobs or status['jobs']['Complete'] != n_jobs_submitted:
             raise Exception(fail_msg)
+        else:
+            print("Pipeline completed successfully!")
 
     def tmp_dir(self):
         hail_scratch_bucket = 'hail-pipeline-scratch'
