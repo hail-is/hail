@@ -304,6 +304,7 @@ def get_reference(name) -> 'hail.ReferenceGenome':
     -------
     :class:`.ReferenceGenome`
     """
+    Env.hc()
     if name == 'default':
         return default_reference()
     else:

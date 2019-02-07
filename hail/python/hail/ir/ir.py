@@ -580,6 +580,32 @@ class MakeNDArray(IR):
         self._type = tndarray(self.data.typ.element_type)
 
 
+class NDArrayRef(IR):
+    @typecheck_method(nd=IR, idxs=IR)
+    def __init__(self, nd, idxs):
+        super().__init__(nd, idxs)
+        self.nd = nd
+        self.idxs = idxs
+
+    @typecheck_method(nd=IR, idxs=IR)
+    def copy(self, nd, idxs):
+        new_instance = self.__class__
+        return new_instance(nd, idxs)
+
+    def render(self, r):
+        return '(NDArrayRef {} {})'.format(r(self.nd), r(self.idxs))
+
+    def __eq__(self, other):
+        return isinstance(other, NDArrayRef) and \
+               other.nd == self.nd and \
+               other.idxs == self.idxs
+
+    def _compute_type(self, env, agg_env):
+        self.nd._compute_type(env, agg_env)
+        self.idxs._compute_type(env, agg_env)
+        self._type = self.nd.typ.element_type
+
+
 class ArraySort(IR):
     @typecheck_method(a=IR, ascending=IR, on_key=bool)
     def __init__(self, a, ascending, on_key):
@@ -1763,27 +1789,31 @@ class TableExport(IR):
                       path=str,
                       types_file=nullable(str),
                       header=bool,
-                      export_type=int)
-    def __init__(self, child, path, types_file, header, export_type):
+                      export_type=int,
+                      delimiter=str)
+    def __init__(self, child, path, types_file, header, export_type, delimiter):
         super().__init__(child)
         self.child = child
         self.path = path
         self.types_file = types_file
         self.header = header
         self.export_type = export_type
+        self.delimiter = delimiter
 
     @typecheck_method(child=TableIR)
     def copy(self, child):
         new_instance = self.__class__
-        return new_instance(child, self.path, self.types_file, self.header, self.export_type)
+        return new_instance(child, self.path, self.types_file, self.header, self.export_type, self.delimiter)
 
     def render(self, r):
-        return '(TableExport {} "{}" "{}" {} {})'.format(
-            r(self.child),
+        return '(TableExport "{}" {} {} {} "{}" {})'.format(
             escape_str(self.path),
-            escape_str(self.types_file) if self.types_file else 'None',
+            f'"{escape_str(self.types_file)}"' if self.types_file else 'None',
             self.header,
-            self.export_type)
+            self.export_type,
+            escape_str(self.delimiter),
+            r(self.child)
+        )
 
     def __eq__(self, other):
         return isinstance(other, TableExport) and \
@@ -1791,7 +1821,8 @@ class TableExport(IR):
                other.path == self.path and \
                other.types_file == self.types_file and \
                other.header == self.header and \
-               other.export_type == self.export_type
+               other.export_type == self.export_type and \
+               other.delimiter == self.delimiter
 
     def _compute_type(self, env, agg_env):
         self.child._compute_type()
@@ -1925,6 +1956,8 @@ class MatrixToValueApply(IR):
         name = self.config['name']
         if name == 'ForceCountMatrixTable':
             self._type = tint64
+        elif name == 'MatrixExportEntriesByCol':
+            self._type = tvoid
         else:
             assert name == 'MatrixWriteBlockMatrix', name
             self._type = tvoid

@@ -931,6 +931,7 @@ class IRSuite extends SparkSuite {
     val a = Ref("a", TArray(TInt32()))
     val aa = Ref("aa", TArray(TArray(TInt32())))
     val da = Ref("da", TArray(TTuple(TInt32(), TString())))
+    val nd = Ref("nd", TNDArray(TFloat64()))
     val v = Ref("v", TInt32())
     val s = Ref("s", TStruct("x" -> TInt32(), "y" -> TInt64(), "z" -> TFloat64()))
     val t = Ref("t", TTuple(TInt32(), TInt64(), TFloat64()))
@@ -976,6 +977,7 @@ class IRSuite extends SparkSuite {
         MakeArray(FastSeq(F64(-1.0), F64(1.0)), TArray(TFloat64())),
         MakeArray(FastSeq(I64(1), I64(2)), TArray(TInt64())),
         True()),
+      NDArrayRef(nd, MakeArray(FastSeq(I64(1), I64(2)), TArray(TInt64()))),
       ArrayRef(a, i),
       ArrayLen(a),
       ArrayRange(I32(0), I32(5), I32(1)),
@@ -1026,6 +1028,7 @@ class IRSuite extends SparkSuite {
       TableToValueApply(table, ForceCountTable()),
       MatrixToValueApply(mt, ForceCountMatrixTable()),
       TableWrite(table, tmpDir.createLocalTempFile(extension = "ht")),
+      TableExport(table, tmpDir.createLocalTempFile(extension = "tsv"), null, true, ExportType.CONCATENATED, ","),
       MatrixWrite(mt, MatrixNativeWriter(tmpDir.createLocalTempFile(extension = "mt"))),
       MatrixWrite(vcf, MatrixVCFWriter(tmpDir.createLocalTempFile(extension = "vcf"))),
       MatrixWrite(vcf, MatrixPLINKWriter(tmpDir.createLocalTempFile())),
@@ -1206,8 +1209,8 @@ class IRSuite extends SparkSuite {
       "a" -> TArray(TInt32()),
       "aa" -> TArray(TArray(TInt32())),
       "da" -> TArray(TTuple(TInt32(), TString())),
-      "nda" -> TNDArray(TFloat64()),
-      "nda2" -> TNDArray(TArray(TString())),
+      "nd" -> TNDArray(TFloat64()),
+      "nd2" -> TNDArray(TArray(TString())),
       "v" -> TInt32(),
       "s" -> TStruct("x" -> TInt32(), "y" -> TInt64(), "z" -> TFloat64()),
       "t" -> TTuple(TInt32(), TInt64(), TFloat64()),

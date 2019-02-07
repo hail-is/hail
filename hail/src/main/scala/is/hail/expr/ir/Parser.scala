@@ -592,6 +592,10 @@ object IRParser {
         val shape = ir_value_expr(env)(it)
         val row_major = ir_value_expr(env)(it)
         MakeNDArray(data, shape, row_major)
+      case "NDArrayRef" =>
+        val nd = ir_value_expr(env)(it)
+        val idxs = ir_value_expr(env)(it)
+        NDArrayRef(nd, idxs)
       case "ToSet" => ToSet(ir_value_expr(env)(it))
       case "ToDict" => ToDict(ir_value_expr(env)(it))
       case "ToArray" => ToArray(ir_value_expr(env)(it))
@@ -773,12 +777,13 @@ object IRParser {
         val child = matrix_ir(env)(it)
         MatrixToValueApply(child, RelationalFunctions.lookupMatrixToValue(config))
       case "TableExport" =>
-        val child = table_ir(env.withRefMap(Map.empty))(it)
         val path = string_literal(it)
         val typesFile = opt(it, string_literal).orNull
         val header = boolean_literal(it)
         val exportType = int32_literal(it)
-        TableExport(child, path, typesFile, header, exportType)
+        val delimiter = string_literal(it)
+        val child = table_ir(env.withRefMap(Map.empty))(it)
+        TableExport(child, path, typesFile, header, exportType, delimiter)
       case "TableWrite" =>
         val path = string_literal(it)
         val overwrite = boolean_literal(it)

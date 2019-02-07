@@ -223,21 +223,12 @@ object Pretty {
                   "None"
                 else
                   prettyStringLiteral(codecSpecJSONStr))
-            case TableExport(_, path, typesFile, header, exportType) =>
-              val args = Array(
-                Some(StringEscapeUtils.escapeString(path)),
-                Option(typesFile).map(StringEscapeUtils.escapeString(_)),
-                if (header) Some("header") else None,
-                Some(exportType)
-              ).flatten
-
-              sb += '\n'
-              args.foreachBetween { a =>
-                sb.append(" " * (depth + 2))
-                sb.append(a)
-              }(sb += '\n')
-
-              ""
+            case TableExport(_, path, typesFile, header, exportType, delimiter) =>
+              prettyStringLiteral(path) + " " +
+                (if (typesFile == null) "None" else prettyStringLiteral(typesFile)) + " " +
+                prettyBooleanLiteral(header) + " " +
+                exportType.toString + " " +
+                prettyStringLiteral(delimiter)
             case TableKeyBy(_, keys, isSorted) =>
               prettyIdentifiers(keys) + " " +
                 prettyBooleanLiteral(isSorted)

@@ -73,8 +73,8 @@ on_exit() {
     cp ${PIP_PACKAGE_LOG} ${ARTIFACTS}
     cp -R build/www ${ARTIFACTS}/www
     cp -R src/main/c/build/reports ${ARTIFACTS}/cxx-report
-    cp -R build/reports/scala-tests ${ARTIFACTS}/test-report
-    cp -R build/reports/tests ${ARTIFACTS}/codegen-test-report
+    cp -R build/reports/tests ${ARTIFACTS}/test-report
+    cp -R build/reports/codegen-tests ${ARTIFACTS}/codegen-test-report
     cp -R build/reports/pytest.html ${ARTIFACTS}/hail-python-test.html
 
     COMP_STATUS=$(get_status "${COMP_SUCCESS}")
@@ -210,16 +210,8 @@ touch ${COMP_SUCCESS}
 test_project() {
     ./gradlew nativeLibTest > ${CXX_TEST_LOG} 2>&1
     touch ${CXX_TEST_SUCCESS}
-
-    # move Scala test log even if tests fail
-    set +e
     ./gradlew test > ${SCALA_TEST_LOG} 2>&1
-    SCALA_TEST_RC=$?
-    mv build/reports/tests build/reports/scala-tests
-    set -e
-    [ ${SCALA_TEST_RC} == 0 ]
     touch ${SCALA_TEST_SUCCESS}
-
     ./gradlew testCppCodegen > ${CXX_CODEGEN_TEST_LOG} 2>&1
     touch ${CXX_CODEGEN_TEST_SUCCESS}
     ./gradlew testPython > ${PYTHON_TEST_LOG} 2>&1

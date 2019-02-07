@@ -2632,13 +2632,13 @@ class MatrixTable(ExprContainer):
         if len(self.globals) == 0:
             global_fields = '\n    None'
         else:
-            global_fields = ''.join("\n    '{name}': {type} ".format(
+            global_fields = ''.join("\n    '{name}': {type}".format(
                 name=f, type=format_type(t)) for f, t in self.globals.dtype.items())
 
         if len(self.row) == 0:
             row_fields = '\n    None'
         else:
-            row_fields = ''.join("\n    '{name}': {type} ".format(
+            row_fields = ''.join("\n    '{name}': {type}".format(
                 name=f, type=format_type(t)) for f, t in self.row.dtype.items())
 
         row_key = '[' + ', '.join("'{name}'".format(name=f) for f in self.row_key) + ']' \
@@ -2647,7 +2647,7 @@ class MatrixTable(ExprContainer):
         if len(self.col) == 0:
             col_fields = '\n    None'
         else:
-            col_fields = ''.join("\n    '{name}': {type} ".format(
+            col_fields = ''.join("\n    '{name}': {type}".format(
                 name=f, type=format_type(t)) for f, t in self.col.dtype.items())
 
         col_key = '[' + ', '.join("'{name}'".format(name=f) for f in self.col_key) + ']' \
@@ -2656,7 +2656,7 @@ class MatrixTable(ExprContainer):
         if len(self.entry) == 0:
             entry_fields = '\n    None'
         else:
-            entry_fields = ''.join("\n    '{name}': {type} ".format(
+            entry_fields = ''.join("\n    '{name}': {type}".format(
                 name=f, type=format_type(t)) for f, t in self.entry.dtype.items())
 
         s = '----------------------------------------\n' \

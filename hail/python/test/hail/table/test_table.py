@@ -618,6 +618,22 @@ class Tests(unittest.TestCase):
                                          hl.struct(idx=0, a='b'),
                                          hl.struct(idx=0, a='c')])))
 
+    def test_export(self):
+        t = hl.utils.range_table(1).annotate(foo = 3)
+        tmp_file = new_temp_file()
+        t.export(tmp_file)
+
+        with hl.hadoop_open(tmp_file, 'r') as f_in:
+            assert f_in.read() == 'idx\tfoo\n0\t3\n'
+
+    def test_export_delim(self):
+        t = hl.utils.range_table(1).annotate(foo = 3)
+        tmp_file = new_temp_file()
+        t.export(tmp_file, delimiter=',')
+
+        with hl.hadoop_open(tmp_file, 'r') as f_in:
+            assert f_in.read() == 'idx,foo\n0,3\n'
+
     def test_write_stage_locally(self):
         t = hl.utils.range_table(5)
         f = new_temp_file(suffix='ht')
@@ -632,6 +648,9 @@ class Tests(unittest.TestCase):
         t.export(tmp_file)
         t_read_back = hl.import_table(tmp_file, types=dict(t.row.dtype)).key_by('idx')
         self.assertTrue(t.select_globals()._same(t_read_back, tolerance=1e-4, absolute=True))
+
+    def test_order_by_parsing(self):
+        hl.utils.range_table(1).annotate(**{'a b c' : 5}).order_by('a b c')._force_count()
 
     def test_filter_partitions(self):
         ht = hl.utils.range_table(23, n_partitions=8)
@@ -899,7 +918,9 @@ class Tests(unittest.TestCase):
 
         t3 = t1.filter(t1.idx == 0)
         self.assertFalse(t1._same(t3))
-        
+
+    def test_show_long_field_names(self):
+        hl.utils.range_table(1).annotate(**{'a' * 256: 5}).show()
 
 def test_large_number_of_fields(tmpdir):
     ht = hl.utils.range_table(100)

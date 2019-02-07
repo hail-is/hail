@@ -162,6 +162,8 @@ final case class ArrayLeftJoinDistinct(left: IR, right: IR, l: String, r: String
 
 final case class MakeNDArray(data: IR, shape: IR, row_major: IR) extends IR
 
+final case class NDArrayRef(nd: IR, idxs: IR) extends IR
+
 final case class AggFilter(cond: IR, aggIR: IR) extends IR
 
 final case class AggExplode(array: IR, name: String, aggBody: IR) extends IR
@@ -274,7 +276,8 @@ final case class TableExport(
   path: String,
   typesFile: String = null,
   header: Boolean = true,
-  exportType: Int = ExportType.CONCATENATED) extends IR
+  exportType: Int = ExportType.CONCATENATED,
+  delimiter: String) extends IR
 
 final case class TableGetGlobals(child: TableIR) extends IR
 final case class TableCollect(child: TableIR) extends IR

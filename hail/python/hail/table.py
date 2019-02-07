@@ -964,10 +964,11 @@ class Table(ExprContainer):
         return table
 
     @typecheck_method(output=str,
-               types_file=nullable(str),
-               header=bool,
-               parallel=nullable(enumeration('separate_header', 'header_per_shard')))
-    def export(self, output, types_file=None, header=True, parallel=None):
+                      types_file=nullable(str),
+                      header=bool,
+                      parallel=nullable(enumeration('separate_header', 'header_per_shard')),
+                      delimiter=str)
+    def export(self, output, types_file=None, header=True, parallel=None, delimiter='\t'):
         """Export to a TSV file.
 
         Examples
@@ -997,10 +998,12 @@ class Table(ExprContainer):
             the header file is output separately from the file shards. If
             'header_per_shard', each file shard has a header. If set to None
             the export will be slower.
+        delimiter : :obj:`str`
+            Field delimiter.
         """
 
         Env.backend().execute(
-            TableExport(self._tir, output, types_file, header, Env.hail().utils.ExportType.getExportType(parallel)))
+            TableExport(self._tir, output, types_file, header, Env.hail().utils.ExportType.getExportType(parallel), delimiter))
 
     def group_by(self, *exprs, **named_exprs) -> 'GroupedTable':
         """Group by a new key for use with :meth:`.GroupedTable.aggregate`.
@@ -1207,7 +1210,8 @@ class Table(ExprContainer):
 
         t = self
         t = t.flatten()
-        fields = [trunc(f) for f in t.row]
+        fields = list(t.row)
+        trunc_fields = [trunc(f) for f in fields]
         n_fields = len(fields)
 
         type_strs = [trunc(str(t.row[f].dtype)) for f in fields] if types else [''] * len(fields)
@@ -1222,7 +1226,7 @@ class Table(ExprContainer):
         rows = [[row[f] for f in fields] for row in rows]
 
         max_value_width = lambda i: max(itertools.chain([0], (len(row[i]) for row in rows)))
-        column_width = [max(len(fields[i]), len(type_strs[i]), max_value_width(i)) for i in range(n_fields)]
+        column_width = [max(len(trunc_fields[i]), len(type_strs[i]), max_value_width(i)) for i in range(n_fields)]
 
         column_blocks = []
         start = 0
@@ -1265,7 +1269,7 @@ class Table(ExprContainer):
             hline = format_hline(block_column_width)
 
             s += hline
-            s += format_line(fields[start:end], block_column_width, block_right_align)
+            s += format_line(trunc_fields[start:end], block_column_width, block_right_align)
             s += hline
             if types:
                 s += format_line(type_strs[start:end], block_column_width, block_right_align)

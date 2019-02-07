@@ -35,6 +35,8 @@ Genetics Methods
     explode_trio_matrix
     load_dataset
     import_gtf
+    export_entries_by_col
+
 
 .. autofunction:: ld_score
 .. autofunction:: ld_score_regression
@@ -46,3 +48,4 @@ Genetics Methods
 .. autofunction:: explode_trio_matrix
 .. autofunction:: load_dataset
 .. autofunction:: import_gtf
+.. autofunction:: export_entries_by_col

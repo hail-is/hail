@@ -53,6 +53,9 @@ object Copy {
       case MakeNDArray(_, _, _) =>
         val IndexedSeq(data: IR, shape: IR, row_major: IR) = newChildren
         MakeNDArray(data, shape, row_major)
+      case NDArrayRef(_, _) =>
+        val IndexedSeq(nd: IR, idxs: IR) = newChildren
+        NDArrayRef(nd, idxs)
       case ToSet(_) =>
         val IndexedSeq(a: IR) = newChildren
         ToSet(a)
@@ -187,9 +190,9 @@ object Copy {
       case TableWrite(_, path, overwrite, stageLocally, codecSpecJSONStr) =>
         val IndexedSeq(child: TableIR) = newChildren
         TableWrite(child, path, overwrite, stageLocally, codecSpecJSONStr)
-      case TableExport(_, path, typesFile, header, exportType) =>
+      case TableExport(_, path, typesFile, header, exportType, delimiter) =>
         val IndexedSeq(child: TableIR) = newChildren
-        TableExport(child, path, typesFile, header, exportType)
+        TableExport(child, path, typesFile, header, exportType, delimiter)
       case TableToValueApply(child, function) =>
         val IndexedSeq(newChild: TableIR) = newChildren
         TableToValueApply(newChild, function)

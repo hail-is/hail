@@ -103,7 +103,11 @@ object TypeCheck {
         assert(coerce[TNDArray](x.typ).elementType == coerce[TArray](data.typ).elementType)
         assert(shape.typ.isOfType(TArray(TInt64())))
         assert(row_major.typ.isOfType(TBoolean()))
-
+      case x@NDArrayRef(nd, idxs) =>
+        check(nd)
+        check(idxs)
+        assert(nd.typ.isInstanceOf[TNDArray])
+        assert(idxs.typ.isOfType(TArray(TInt64())))
       case x@ArraySort(a, ascending, onKey) =>
         check(a)
         check(ascending)
@@ -297,7 +301,7 @@ object TypeCheck {
           aggEnv = Some(child.typ.entryEnv))
         assert(x.typ == query.typ)
       case TableWrite(_, _, _, _, _) =>
-      case TableExport(_, _, _, _, _) =>
+      case TableExport(_, _, _, _, _, _) =>
       case TableCount(_) =>
       case TableGetGlobals(_) =>
       case TableCollect(_) =>

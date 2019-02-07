@@ -1259,7 +1259,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(kin1._same(kin_s1, tolerance=1e-4))
         self.assertTrue(kin2._same(kin_s2, tolerance=1e-4))
         self.assertTrue(kin3._same(kin_s3, tolerance=1e-4))
-        self.assertTrue(kin4._same(kin_s4, tolerance=1e-4))
+        self.assertTrue(kin4._same(kin_s4, tolerance=1e-2))
 
         self.assertTrue(kin1.count() == 50 * 49 / 2)
 
@@ -1268,6 +1268,14 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(kin3.count() > 0)
         self.assertTrue(kin3.filter(kin3.kin < 0.1).count() == 0)
+
+    def test_pcrelate_issue_5263(self):
+        mt = hl.balding_nichols_model(3, 50, 100)
+        expected = hl.pc_relate(mt.GT, 0.10, k=2, statistics='all')
+        mt = mt.select_entries(GT2=mt.GT,
+                               GT=hl.call(hl.rand_bool(0.5), hl.rand_bool(0.5)))
+        actual = hl.pc_relate(mt.GT2, 0.10, k=2, statistics='all')
+        assert expected._same(actual, tolerance=1e-4)
 
     def test_split_multi_hts(self):
         ds1 = hl.import_vcf(resource('split_test.vcf'))
