@@ -2060,19 +2060,11 @@ def _shape_after_broadcast(left_shape, right_shape):
 
     left_ndim, right_ndim = len(left_shape), len(right_shape)
     if left_ndim < right_ndim:
-        left_shape_padded = _left_pad_with_ones(left_shape, right_ndim - left_ndim)
-        return [_calc_new_dim(l, r) for l, r in zip(left_shape_padded, right_shape)]
+        left_shape = [1 for _ in range(right_ndim - left_ndim)] + left_shape
     elif right_ndim < left_ndim:
-        right_shape_padded = _left_pad_with_ones(right_shape, left_ndim - right_ndim)
-        return [_calc_new_dim(l, r) for l, r in zip(left_shape, right_shape_padded)]
+        right_shape = [1 for _ in range(left_ndim - right_ndim)] + right_shape
 
     return [_calc_new_dim(l, r) for l, r in zip(left_shape, right_shape)]
-
-
-def _left_pad_with_ones(shape, ones_to_add):
-    ones = [1 for _ in range(ones_to_add)]
-    ones.extend(shape)
-    return ones
 
 
 def _to_bmir(x):
