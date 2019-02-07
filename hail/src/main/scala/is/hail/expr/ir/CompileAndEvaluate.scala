@@ -15,13 +15,9 @@ object CompileAndEvaluate {
     JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(value, t))
   }
 
-  def apply[T](ir: IR): T = apply(ir, Env.empty[(Any, Type)], FastIndexedSeq()).asInstanceOf[T]
-
-  def apply[T](ir: IR, optimize: Boolean): T = apply(ir, Env.empty[(Any, Type)], FastIndexedSeq(), optimize).asInstanceOf[T]
-
   def apply[T](ir0: IR,
-    env: Env[(Any, Type)],
-    args: IndexedSeq[(Any, Type)],
+    env: Env[(Any, Type)] = Env(),
+    args: IndexedSeq[(Any, Type)] = FastIndexedSeq(),
     optimize: Boolean = true
   ): T = {
     var ir = ir0
