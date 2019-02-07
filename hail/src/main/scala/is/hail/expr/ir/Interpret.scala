@@ -17,13 +17,6 @@ import org.json4s.jackson.JsonMethods
 object Interpret {
   type Agg = (IndexedSeq[Row], TStruct)
 
-  def interpretJSON(ir: IR): String = {
-    val t = ir.typ
-    val value = Interpret[Any](ir)
-    JsonMethods.compact(
-      JSONAnnotationImpex.exportAnnotation(value, t))
-  }
-
   def apply(tir: TableIR): TableValue =
     apply(tir, optimize = true)
 
@@ -442,7 +435,7 @@ object Interpret {
         interpret(body, env, args, Some(aValue -> aggElementType))
 
       case Begin(xs) =>
-        xs.foreach(x => Interpret(x))
+        xs.foreach(x => interpret(x))
       case x@SeqOp(i, seqOpArgs, aggSig) =>
         assert(i == I32(0))
         aggSig.op match {
