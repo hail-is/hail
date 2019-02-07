@@ -905,7 +905,7 @@ case class TableMapGlobals(child: TableIR, newGlobals: IR) extends TableIR {
   protected[ir] override def execute(hc: HailContext): TableValue = {
     val tv = child.execute(hc)
 
-    val newGlobalValue = CompileAndEvaluate(newGlobals,
+    val newGlobalValue = CompileAndEvaluate[Row](newGlobals,
       Env("global" -> (tv.globals.value, tv.globals.t)),
       FastIndexedSeq(),
       optimize = false)
