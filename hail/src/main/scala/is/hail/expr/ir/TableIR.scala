@@ -642,10 +642,11 @@ case class TableLeftJoinRightDistinct(left: TableIR, right: TableIR, root: Strin
     val leftValue = left.execute(hc)
     val rightValue = right.execute(hc)
 
+    val joinKey = math.min(left.typ.key.length, right.typ.key.length)
     leftValue.copy(
       typ = typ,
       rvd = leftValue.rvd
-        .orderedLeftJoinDistinctAndInsert(rightValue.rvd, root))
+        .orderedLeftJoinDistinctAndInsert(rightValue.rvd.truncateKey(joinKey), root))
   }
 }
 
