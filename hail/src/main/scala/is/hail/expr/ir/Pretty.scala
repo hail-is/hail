@@ -199,6 +199,7 @@ object Pretty {
               prettyStrings(rowFields) + " " +
               prettyStrings(colFields) + " " +
               prettyIntOpt(nPartitions)
+            case MatrixRowsHead(_, n) => n.toString
             case MatrixAnnotateRowsTable(_, _, uid) =>
               prettyStringLiteral(uid) + " "
             case MatrixAnnotateColsTable(_, _, uid) =>

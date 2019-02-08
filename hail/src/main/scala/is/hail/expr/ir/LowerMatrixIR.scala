@@ -226,6 +226,8 @@ object LowerMatrixIR {
 
     case MatrixDistinctByRow(child) => TableDistinct(lower(child))
 
+    case MatrixRowsHead(child, n) => TableHead(lower(child), n)
+
     case MatrixExplodeCols(child, path) =>
       val loweredChild = lower(child)
       val lengths = Symbol(genUID())

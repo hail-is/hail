@@ -1172,6 +1172,7 @@ class IRSuite extends SparkSuite {
         MatrixExplodeRows(read, FastIndexedSeq("row_mset")),
         MatrixUnionRows(FastIndexedSeq(range1, range2)),
         MatrixDistinctByRow(range1),
+        MatrixRowsHead(range1, 3),
         MatrixExplodeCols(read, FastIndexedSeq("col_mset")),
         CastTableToMatrix(
           CastMatrixToTable(read, " # entries", " # cols"),
