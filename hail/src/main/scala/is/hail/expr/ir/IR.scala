@@ -102,27 +102,27 @@ final case class ApplyUnaryPrimOp(op: UnaryOp, x: IR) extends IR
 final case class ApplyComparisonOp(op: ComparisonOp[_], l: IR, r: IR) extends IR
 
 object MakeArray {
-  def unify(args: Seq[IR], typ: TArray = null): MakeArray = {
-    assert(typ != null || args.nonEmpty)
-    var t = typ
+  def unify(args: Seq[IR], elementType: Type = null): MakeArray = {
+    assert(elementType != null || args.nonEmpty)
+    var t = elementType
     if (t == null) {
       t = if (args.tail.forall(_.typ == args.head.typ)) {
-        TArray(args.head.typ)
-      } else TArray(args.head.typ.deepOptional())
+        args.head.typ
+      } else args.head.typ.deepOptional()
     }
-    assert(t.elementType.deepOptional() == t.elementType ||
-      args.forall(a => a.typ == t.elementType),
+    assert(t.deepOptional() == t ||
+      args.forall(a => a.typ == t),
       s"${ t.parsableString() }: ${ args.map(a => "\n    " + a.typ.parsableString()).mkString } ")
 
     MakeArray(args.map { arg =>
-      if (arg.typ == t.elementType)
+      if (arg.typ == t)
         arg
       else {
-        val upcast = PruneDeadFields.upcast(arg, t.elementType)
-        assert(upcast.typ == t.elementType)
+        val upcast = PruneDeadFields.upcast(arg, t)
+        assert(upcast.typ == t)
         upcast
       }
-    }, t)
+    }, TArray(t))
   }
 }
 

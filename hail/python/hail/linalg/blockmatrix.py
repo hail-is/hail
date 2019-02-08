@@ -2099,7 +2099,7 @@ def _ndarray_to_makearray(ndarray):
         data = [x for row in data for x in row]
 
     data_as_ir = [F64(x) for x in data]
-    return MakeArray(data_as_ir, hl.tarray(hl.tfloat64))
+    return MakeArray(data_as_ir, hl.tfloat64)
 
 
 def _broadcast_kind(shape):

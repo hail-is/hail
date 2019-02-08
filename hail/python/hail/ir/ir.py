@@ -466,7 +466,7 @@ class MakeArray(IR):
         for a in self.args:
             a._compute_type(env, agg_env)
         if self._element_type:
-            self._type = self._element_type
+            self._type = tarray(self._element_type)
         else:
             self._type = tarray(self.args[0].typ)
 

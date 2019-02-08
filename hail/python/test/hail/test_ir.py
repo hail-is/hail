@@ -43,7 +43,7 @@ class ValueIRTests(unittest.TestCase):
             ir.ApplyBinaryOp('+', i, j),
             ir.ApplyUnaryOp('-', i),
             ir.ApplyComparisonOp('EQ', i, j),
-            ir.MakeArray([i, ir.NA(hl.tint32), ir.I32(-3)], hl.tarray(hl.tint32)),
+            ir.MakeArray([i, ir.NA(hl.tint32), ir.I32(-3)], hl.tint32),
             ir.ArrayRef(a, i),
             ir.ArrayLen(a),
             ir.ArrayRange(ir.I32(0), ir.I32(5), ir.I32(1)),
@@ -253,7 +253,7 @@ class BlockMatrixIRTests(unittest.TestCase):
 
     def block_matrix_irs(self):
         scalar_ir = ir.F64(2)
-        vector_ir = ir.MakeArray([ir.F64(3), ir.F64(2)], hl.tarray(hl.tfloat64))
+        vector_ir = ir.MakeArray([ir.F64(3), ir.F64(2)], hl.tfloat64)
 
         read = ir.BlockMatrixRead(resource('blockmatrix_example/0'))
         add_two_bms = BlockMatrixIRTests._make_element_wise_op_ir(read, read, '+')
