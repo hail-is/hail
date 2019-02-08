@@ -3,6 +3,8 @@ import auth from '../libs/auth';
 import fetch from 'isomorphic-unfetch';
 import getConfig from 'next/config';
 
+import '../styles/pages/notebook.scss';
+
 const isServer = typeof window === 'undefined';
 
 // TODO: If user isn't logged in, and make it to this page
@@ -355,17 +357,7 @@ class Notebook extends PureComponent<any, state> {
             {this.state.alive.map((d: notebook) => (
               // Kubernetes is far too noisy, this prevents us from seeing pods that
               // are unreachable (since back-end/service is missing)
-              <span
-                key={d.pod_name}
-                style={{
-                  flexDirection: 'row',
-                  display: 'flex',
-                  alignItems: 'center',
-                  marginBottom: '14px',
-                  justifyContent: 'space-around',
-                  minWidth: '320px'
-                }}
-              >
+              <span key={d.pod_name} className={'animated fadeIn fastest nb'}>
                 {d.svc_status === kubeState.Running &&
                 d.pod_status === kubeState.Running &&
                 // d.container_status &&

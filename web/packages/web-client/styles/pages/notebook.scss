@@ -1,3 +1,13 @@
+@import '../variables/margins.scss';
 #theme-site {
-  #notebook {}
+  #notebook {
+    .nb {
+      flex-direction: row;
+      display: flex;
+      align-items: center;
+      margin-bottom: $margin;
+      justify-content: space-around;
+      min-width: 320px;
+    }
+  }
 }

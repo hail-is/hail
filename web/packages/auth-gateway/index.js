@@ -151,6 +151,7 @@ polka()
       .then(user => {
         res.setHeader('User', user.sub);
         res.setHeader('Scope', user.scope);
+
         res.end();
       })
       .catch(e => {

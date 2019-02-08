@@ -118,6 +118,9 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
     color: $white;
   }
   table {
-    border-collapse: collapse
+    border-collapse: collapse;
+  }
+  .animated.fastest {
+    animation-duration: 250ms;
   }
 }
