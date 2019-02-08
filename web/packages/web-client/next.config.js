@@ -5,6 +5,7 @@ const ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin');
 const withPurgeCss = require('next-purgecss');
 const withCss = require('@zeit/next-css');
 const withSass = require('@zeit/next-sass');
+const withSize = require('next-size');
 
 const publicRuntimeConfig = {
   AUTH0: {
@@ -56,4 +57,6 @@ const nextConfig = {
   publicRuntimeConfig
 };
 
-module.exports = withTypescript(withSass(withCss(withPurgeCss(nextConfig))));
+module.exports = withSize(
+  withTypescript(withSass(withCss(withPurgeCss(nextConfig))))
+);

@@ -2,6 +2,7 @@ import { PureComponent } from 'react';
 import auth from '../libs/auth';
 import fetch from 'isomorphic-unfetch';
 import getConfig from 'next/config';
+import { isServer } from '../libs/utils';
 
 // TODO: If user isn't logged in, and make it to this page
 // TODO: Enumerate waitingStatus 'reason's
@@ -249,7 +250,7 @@ class Notebook extends PureComponent<any, state> {
     if (initialized === false) {
       this.state.loading = 1;
 
-      if (typeof window !== 'undefined') {
+      if (!isServer) {
         startRequest();
       }
     } else {

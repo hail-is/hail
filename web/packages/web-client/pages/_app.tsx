@@ -2,19 +2,22 @@ import App, { Container } from 'next/app';
 import Header from '../components/Header';
 import { initialize, isAuthenticated, initStateSSR } from '../libs/auth';
 import Router from 'next/router';
-import cookies from 'js-cookie';
-
-// import cookies from '../libs/cookies';
+import jscookies from 'js-cookie';
+import { isServer } from '../libs/utils';
 
 import 'styles/main.scss';
 import 'animate.css';
-// import 'normalize.css';
 
 // TODO: set some kind of protected property on routes, instead of
 // blacklisting here
 const protectedRoute: any = {
   '/notebook': true
 };
+
+let NodeCookies: any;
+if (isServer) {
+  NodeCookies = require('cookies');
+}
 
 // let authInitialized = false;
 // TODO: think about using React context to pass down auth state instead of prop
@@ -37,26 +40,33 @@ export default class MyApp extends App {
     let pageProps: any = {};
     let isDark = false;
 
-    if (typeof window === 'undefined') {
+    if (isServer) {
       initStateSSR(ctx.req.headers.cookie);
 
       isDark =
         ctx.req.headers.cookie &&
-        ctx.req.headers.cookie.indexOf('is_dark') > -1;
+        ctx.req.headers.cookie.indexOf('is_dark=1') > -1;
     } else {
-      isDark = !!cookies.get('is_dark');
+      isDark = !!jscookies.get('is_dark');
     }
 
     // ctx.pathname will not include get variables in the query
     // will include the full directory path /path/to/resource
     if (!isAuthenticated() && protectedRoute[ctx.pathname] === true) {
+      // ctx only exists only on server
       if (ctx.res) {
+        const cookies = new NodeCookies(ctx.req, ctx.res);
+        cookies.set('referrer', ctx.pathname);
+
         ctx.res.writeHead(303, { Location: '/login?redirect=true' });
         ctx.res.end();
+
         return { pageProps, isDark };
       }
 
-      Router.replace('/login?redirect=true');
+      jscookies.set('referrer', ctx.pathname);
+      Router.replace(`/login?redirect=true`);
+
       return { pageProps, isDark };
     }
 
@@ -70,12 +80,12 @@ export default class MyApp extends App {
   onDarkToggle = () => {
     this.setState((prevState: any) => {
       if (!prevState.isDark) {
-        cookies.set('is_dark', '1', { path: '/' });
+        jscookies.set('is_dark', '1', { path: '/' });
 
         return { isDark: true };
       }
 
-      cookies.remove('is_dark', { path: '/' });
+      jscookies.remove('is_dark', { path: '/' });
       return { isDark: false };
     });
   };

@@ -3,6 +3,7 @@ import fetch from 'isomorphic-unfetch';
 import getConfig from 'next/config';
 import Link from 'next/link';
 import { PR, Issue } from './scorecard/scorecard';
+import { isServer } from '../libs/utils';
 
 import '../styles/pages/scorecard.scss';
 
@@ -92,15 +93,14 @@ class Scorecard extends PureComponent<Props, State> {
 
     // TODO: have a single utility function, that checks this once at startup
     // in each phase
-    const onServer = typeof window === 'undefined';
 
-    if (onServer || !cache) {
+    if (isServer || !cache) {
       const ssr: scorecardJson = await fetch(
-        `${onServer ? SERVER_URL : WEB_URL}/json`
+        `${isServer ? SERVER_URL : WEB_URL}/json`
       ).then(d => d.json());
 
       // TODO: could use page loading indicator here instead of synchronously waiting
-      if (!onServer) {
+      if (!isServer) {
         cache = ssr;
         startPolling();
       }

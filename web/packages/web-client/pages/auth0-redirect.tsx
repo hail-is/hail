@@ -1,6 +1,8 @@
 import { PureComponent } from 'react';
 import { authenticationCallback } from '../libs/auth';
 import Router from 'next/router';
+import jscookies from 'js-cookie';
+import { isServer } from '../libs/utils';
 
 class Redirect extends PureComponent {
   state = {
@@ -10,7 +12,7 @@ class Redirect extends PureComponent {
   constructor(props: any) {
     super(props);
 
-    if (typeof window !== 'undefined') {
+    if (!isServer) {
       authenticationCallback(err => {
         if (err) {
           console.error(err);
@@ -18,7 +20,13 @@ class Redirect extends PureComponent {
           return;
         }
 
-        Router.replace('/');
+        const referrer = jscookies.get('referrer');
+
+        if (referrer) {
+          jscookies.remove('referrer');
+        }
+
+        Router.replace(referrer || '/');
       });
     }
   }

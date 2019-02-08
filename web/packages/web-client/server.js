@@ -10,42 +10,7 @@ const handle = app.getRequestHandler();
 
 const favicon = fs.readFileSync('./static/favicon.ico');
 
-// const cache = {};
-
-// const send = (res, html) => {
-//   res.writeHeader(200, 'text/html');
-//   res.write(html);
-//   res.end();
-// };
-
-// const pagesToCache = {
-//   //Breaks dark mode: '/': isDev ? 0 : -1, // forever
-//   // '/scorecard': isDev ? 0 : 3 * 60 * 1000, // 3 min
-//   // '/scorecard/user': isDev ? 0 : 3 * 60 * 1000
-// };
-
-// const render = (cacheTime = 5 * 60 * 1000, req, res, pagePath, query) => {
-//   if (
-//     !!cache[req.url] &&
-//     (cache[req.url].expires === -1 || cache[req.url].expires >= Date.now())
-//   ) {
-//     send(res, cache[req.url].html);
-//     return;
-//   }
-
-//   app
-//     .renderToHTML(req, res, pagePath, query)
-//     .then(html => {
-//       cache[req.url] = {
-//         html,
-//         expires: cacheTime === -1 ? cacheTime : cacheTime + Date.now()
-//       };
-
-//       send(res, html);
-//     })
-//     .catch(err => console.error(err));
-// };
-
+const port = process.env.PORT || 3000;
 app.prepare().then(() => {
   createServer((req, res) => {
     // true indicates parse the get query
@@ -55,24 +20,14 @@ app.prepare().then(() => {
       res.writeHeader(200, 'image/png');
       res.write(favicon);
       res.end();
-    }
-    // else if (pagesToCache[parsedUrl.pathname]) {
-    //   render(
-    //     pagesToCache[parsedUrl.pathname],
-    //     req,
-    //     res,
-    //     parsedUrl.pathname,
-    //     parsedUrl.query
-    //   );
-    // }
-    else {
+    } else {
       handle(req, res, parsedUrl);
     }
-  }).listen(process.env.PORT || 3000, err => {
+  }).listen(port, err => {
     if (err) {
       throw err;
     }
 
-    console.info('Running on port 3000');
+    console.info(`Running on port ${port}`);
   });
 });
