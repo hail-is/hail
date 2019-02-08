@@ -294,12 +294,13 @@ def histogram2d(x, y, bins=40, range=None,
         -------
         :class:`bokeh.plotting.figure.Figure`
         """
-        p.title.text_font_size = font_size
         p.legend.label_text_font_size = font_size
         p.xaxis.axis_label_text_font_size = font_size
         p.yaxis.axis_label_text_font_size = font_size
         p.xaxis.major_label_text_font_size = font_size
         p.yaxis.major_label_text_font_size = font_size
+        if hasattr(p.title, 'text_font_size'):
+            p.title.text_font_size = font_size
         if hasattr(p.xaxis, 'group_text_font_size'):
             p.xaxis.group_text_font_size = font_size
         return p
