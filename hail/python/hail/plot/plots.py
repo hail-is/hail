@@ -169,7 +169,7 @@ def histogram2d(x, y, bins=40, range=None,
     >>> p_hist = hail.plot.histogram2d(ht.x, ht.y)
 
     >>> ht = hail.utils.range_table(1000).annotate(x=hail.rand_norm(), y=hail.rand_norm())
-    >>> p_hist = hail.plot.histogram2d(ht.x, ht.y, bins=10, range=[[0, 1], None])
+    >>> p_hist = hail.plot.histogram2d(ht.x, ht.y, bins=10, range=((0, 1), None))
 
     Parameters
     ----------
@@ -182,9 +182,9 @@ def histogram2d(x, y, bins=40, range=None,
         -   If int, the number of bins for the two dimensions (nx = ny = bins).
         -   If [int, int], the number of bins in each dimension (nx, ny = bins).
         The default value is 40.
-    range : None or [[float, float], [float, float]]
+    range : None or ((float, float), (float, float))
         The leftmost and rightmost edges of the bins along each dimension:
-        [[xmin, xmax], [ymin, ymax]]. All values outside of this range will be considered outliers
+        ((xmin, xmax), (ymin, ymax)). All values outside of this range will be considered outliers
         and not tallied in the histogram. If this value is None, or either of the inner lists is None,
         the range will be computed from the data.
     width : int
