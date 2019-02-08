@@ -68,7 +68,8 @@ class SequenceChecker(TypeChecker):
         super(SequenceChecker, self).__init__()
 
     def check(self, x, caller, param):
-        if not isinstance(x, collections.Sequence):
+        # reject str because of errors due to sequenceof(strlike) permitting str
+        if not isinstance(x, collections.Sequence) or isinstance(x, str):
             raise TypecheckFailure
         x_ = []
         tc = self.ec
