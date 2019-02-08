@@ -31,7 +31,7 @@ def transform_one(mt: MatrixTable) -> MatrixTable:
             "VarDP",
             "SB",
         ))
-    mt = mt.drop('SB', 'qual')
+    mt = mt.drop('SB', 'qual', 'filters')
 
     return mt
 
@@ -50,7 +50,6 @@ def combine(ts):
     tmp = ts.annotate(
         alleles=merge_alleles(ts.data.map(lambda d: d.alleles)),
         rsid=hl.find(hl.is_defined, ts.data.map(lambda d: d.rsid)),
-        filters=hl.set(hl.flatten(ts.data.map(lambda d: hl.array(d.filters)))),
         info=hl.struct(
             DP=hl.sum(ts.data.map(lambda d: d.info.DP)),
             MQ_DP=hl.sum(ts.data.map(lambda d: d.info.MQ_DP)),
@@ -129,13 +128,19 @@ def densify(mt):
 
 def summarize(mt):
     mt = densify(mt)
-    return mt.annotate_rows(info=mt.info.annotate(
-        DP=hl.agg.sum(mt.entry.DP),  # some DPs may have been missing during earlier combining operations
+    return mt.annotate_rows(info=hl.struct(
+        # here, we alphabetize the INFO fields by GATK convention
         BaseQRankSum=hl.median(hl.agg.collect(mt.entry.BaseQRankSum)),
         ClippingRankSum=hl.median(hl.agg.collect(mt.entry.ClippingRankSum)),
+        DP=hl.agg.sum(mt.entry.DP),  # some DPs may have been missing during earlier combining operations
         MQ=hl.median(hl.agg.collect(mt.entry.MQ)),
+        MQ_DP=mt.info.MQ_DP,
         MQRankSum=hl.median(hl.agg.collect(mt.entry.MQRankSum)),
+        QUALapprox=mt.info.QUALapprox,
+        RAW_MQ=mt.info.RAW_MQ,
         ReadPosRankSum=hl.median(hl.agg.collect(mt.entry.ReadPosRankSum)),
+        SB=mt.info.SB,
+        VarDP=mt.info.VarDP,
     ))
 
 # NOTE: these are just @chrisvittal's notes on how gVCF fields are combined
@@ -187,7 +192,7 @@ def summarize(mt):
 # ##INFO=<ID=ReadPosRankSum,Number=1,Type=Float>
 # ##INFO=<ID=VarDP,Number=1,Type=Integer>
 #
-# As of 2/6/19, the schema returned by the combiner is as follows:
+# As of 2/8/19, the schema returned by the combiner is as follows:
 # ----------------------------------------
 # Global fields:
 #     None
@@ -199,7 +204,6 @@ def summarize(mt):
 #     'locus': locus<GRCh38>
 #     'alleles': array<str>
 #     'rsid': str
-#     'filters': set<str>
 #     'info': struct {
 #         DP: int64,
 #         MQ_DP: int32,
