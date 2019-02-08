@@ -1226,16 +1226,24 @@ class BlockMatrix(object):
         return BlockMatrix._from_java(op())
 
     @typecheck_method(op=str,
-                      left=oneof(numeric, np.ndarray, block_matrix_type),
-                      right=oneof(numeric, np.ndarray, block_matrix_type))
-    def _apply_map(self, op, left, right):
+                      other=oneof(numeric, np.ndarray, block_matrix_type),
+                      reverse=bool)
+    def _apply_map(self, op, other, reverse=False):
         apply_bin_op = ApplyBinaryOp(op, Ref('l'), Ref('r'))
 
-        result_shape = _shape_after_broadcast(_shape(left), _shape(right))
-        left_bmir = _broadcast_to_shape(_to_bmir(left), result_shape)
-        right_bmir = _broadcast_to_shape(_to_bmir(right), result_shape)
+        self_bmir = self._bmir
+        other_bmir = other._bmir if isinstance(other, BlockMatrix) else _to_bmir(other, self.block_size)
 
-        return BlockMatrix(BlockMatrixMap2(left_bmir, right_bmir, apply_bin_op))
+        result_shape = _shape_after_broadcast(self.shape, other_bmir.typ.shape)
+        self_bmir = _broadcast_to_shape(self_bmir, result_shape)
+        other_bmir = _broadcast_to_shape(other_bmir, result_shape)
+
+        if reverse:
+            left, right = other_bmir, self_bmir
+        else:
+            left, right = self_bmir, other_bmir
+
+        return BlockMatrix(BlockMatrixMap2(left, right, apply_bin_op))
 
     @typecheck_method(b=oneof(numeric, np.ndarray, block_matrix_type))
     def __add__(self, b):
@@ -1249,7 +1257,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return self._apply_map('+', self, b)
+        return self._apply_map('+', b)
 
     @typecheck_method(b=oneof(numeric, np.ndarray, block_matrix_type))
     def __sub__(self, b):
@@ -1263,7 +1271,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return self._apply_map('-', self, b)
+        return self._apply_map('-', b)
 
     @typecheck_method(b=oneof(numeric, np.ndarray, block_matrix_type))
     def __mul__(self, b):
@@ -1277,7 +1285,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return self._apply_map('*', self, b)
+        return self._apply_map('*', b)
 
     @typecheck_method(b=oneof(numeric, np.ndarray, block_matrix_type))
     def __truediv__(self, b):
@@ -1291,23 +1299,23 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return self._apply_map('/', self, b)
+        return self._apply_map('/', b)
 
     @typecheck_method(b=numeric)
     def __radd__(self, b):
-        return self._apply_map('+', b, self)
+        return self._apply_map('+', b, reverse=True)
 
     @typecheck_method(b=numeric)
     def __rsub__(self, b):
-        return self._apply_map('-', b, self)
+        return self._apply_map('-', b, reverse=True)
 
     @typecheck_method(b=numeric)
     def __rmul__(self, b):
-        return self._apply_map('*', b, self)
+        return self._apply_map('*', b, reverse=True)
 
     @typecheck_method(b=numeric)
     def __rtruediv__(self, b):
-        return self._apply_map('/', b, self)
+        return self._apply_map('/', b, reverse=True)
 
     @typecheck_method(b=oneof(np.ndarray, block_matrix_type))
     def __matmul__(self, b):
@@ -2039,53 +2047,48 @@ def _is_scalar(x):
     return isinstance(x, float) or isinstance(x, int)
 
 
-def _shape(x):
-    if _is_scalar(x):
-        return []
-
-    return x.shape
-
-
-def _shape_after_broadcast(left_shape, right_shape):
+def _shape_after_broadcast(left, right):
     """
     Follows numpy's strategy of broadcasting through right-align shapes and
     compare corresponding dimensions. See:
     https://docs.scipy.org/doc/numpy-1.15.0/user/basics.broadcasting.html#general-broadcasting-rules
     """
-    def _calc_new_dim(l_dim_length, r_dim_length):
-        if not (l_dim_length == r_dim_length or l_dim_length == 1 or r_dim_length == 1):
-            raise ValueError(f'Incompatible shapes for broadcasting: {left_shape}, {right_shape}')
+    def join_dim(l_size, r_size):
+        if not (l_size == r_size or l_size == 1 or r_size == 1):
+            raise ValueError(f'Incompatible shapes for broadcasting: {left}, {right}')
 
-        return max(l_dim_length, r_dim_length)
+        return max(l_size, r_size)
 
-    left_ndim, right_ndim = len(left_shape), len(right_shape)
-    if left_ndim < right_ndim:
-        left_shape = [1 for _ in range(right_ndim - left_ndim)] + left_shape
-    elif right_ndim < left_ndim:
-        right_shape = [1 for _ in range(left_ndim - right_ndim)] + right_shape
+    def pad(arr, n):
+        return [1 for _ in range(n)] + arr
 
-    return [_calc_new_dim(l, r) for l, r in zip(left_shape, right_shape)]
+    diff_len = len(left) - len(right)
+    if diff_len < 0:
+        left = pad(left, -diff_len)
+    elif diff_len > 0:
+        right = pad(right, diff_len)
+
+    return [join_dim(l, r) for l, r in zip(left, right)]
 
 
-def _to_bmir(x):
+# Can easily be transformed to hl.tensor()
+@typecheck(x=oneof(numeric, np.ndarray), block_size=int)
+def _to_bmir(x, block_size):
     if _is_scalar(x):
-        return ValueToBlockMatrix(F64(x), hl.tfloat64, [], BlockMatrix.default_block_size(), [])
-    elif isinstance(x, np.ndarray):
-        return ValueToBlockMatrix(_ndarray_to_makearray(x), hl.tfloat64, list(x.shape),
-                                  BlockMatrix.default_block_size(), [False for _ in x.shape])
+        return ValueToBlockMatrix(F64(x), [], block_size, [])
     else:
-        return x._bmir
+        return ValueToBlockMatrix(_ndarray_to_makearray(x), list(x.shape),
+                                  block_size, [True for _ in x.shape])
 
 
 def _broadcast_to_shape(bmir, result_shape):
     current_shape = bmir.typ.shape
-
     if current_shape == result_shape:
         return bmir
 
-    broadcast_type = _get_broadcast_type(current_shape)
-    return BlockMatrixBroadcast(bmir, broadcast_type, result_shape,
-                                BlockMatrix.default_block_size(), [False for _ in result_shape])
+    broadcast_kind = _broadcast_kind(current_shape)
+    return BlockMatrixBroadcast(bmir, broadcast_kind, result_shape,
+                                bmir.typ.block_size, [True for _ in result_shape])
 
 
 def _ndarray_to_makearray(ndarray):
@@ -2100,7 +2103,9 @@ def _ndarray_to_makearray(ndarray):
     return MakeArray(data_as_ir, hl.tarray(hl.tfloat64))
 
 
-def _get_broadcast_type(shape):
+def _broadcast_kind(shape):
+    assert len(shape) <= 2
+
     if shape == [] or shape == [1] or shape == [1, 1]:
         return "scalar"
     elif shape[0] == 1:

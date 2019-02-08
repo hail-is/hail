@@ -1125,19 +1125,18 @@ object IRParser {
         val applyBinOp = ir_value_expr(env.update(Map("l" -> left.typ.elementType, "r" -> right.typ.elementType)))(it)
         BlockMatrixMap2(left, right, applyBinOp.asInstanceOf[ApplyBinaryPrimOp])
       case "BlockMatrixBroadcast" =>
-        val broadcastType = Broadcast2D.fromString(identifier(it))
+        val broadcastKind = Broadcast2D.fromString(identifier(it))
         val shape = int64_literals(it)
         val blockSize = int32_literal(it)
         val dimsPartitioned = boolean_literals(it)
         val child = blockmatrix_ir(env)(it)
-        BlockMatrixBroadcast(child, broadcastType, shape, blockSize, dimsPartitioned)
+        BlockMatrixBroadcast(child, broadcastKind, shape, blockSize, dimsPartitioned)
       case "ValueToBlockMatrix" =>
-        val valueType = parseType(identifier(it))
         val shape = int64_literals(it)
         val blockSize = int32_literal(it)
         val dimsPartitioned = boolean_literals(it)
         val child = ir_value_expr(env)(it)
-        ValueToBlockMatrix(child, valueType, shape, blockSize, dimsPartitioned)
+        ValueToBlockMatrix(child, shape, blockSize, dimsPartitioned)
       case "JavaBlockMatrix" =>
         val name = identifier(it)
         env.irMap(name).asInstanceOf[BlockMatrixIR]

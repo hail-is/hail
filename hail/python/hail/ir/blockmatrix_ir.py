@@ -1,5 +1,5 @@
 from hail.expr.blockmatrix_type import tblockmatrix
-from hail.expr.types import hail_type
+from hail.expr.types import hail_type, tarray
 from hail.ir import BlockMatrixIR, ApplyBinaryOp, IR
 from hail.utils.java import escape_str
 from hail.typecheck import typecheck_method, sequenceof
@@ -11,10 +11,10 @@ class BlockMatrixRead(BlockMatrixIR):
     @typecheck_method(path=str)
     def __init__(self, path):
         super().__init__()
-        self._path = path
+        self.path = path
 
     def render(self, r):
-        return f'(BlockMatrixRead "{escape_str(self._path)}")'
+        return f'(BlockMatrixRead "{escape_str(self.path)}")'
 
     def _compute_type(self):
         self._type = Env.backend().blockmatrix_type(self)
@@ -24,79 +24,82 @@ class BlockMatrixMap2(BlockMatrixIR):
     @typecheck_method(left=BlockMatrixIR, right=BlockMatrixIR, apply_bin_op=ApplyBinaryOp)
     def __init__(self, left, right, apply_bin_op):
         super().__init__()
-        self._left = left
-        self._right = right
-        self._apply_bin_op = apply_bin_op
+        self.left = left
+        self.right = right
+        self.apply_bin_op = apply_bin_op
 
     def render(self, r):
-        return f'(BlockMatrixMap2 {r(self._left)} {r(self._right)} {r(self._apply_bin_op)})'
+        return f'(BlockMatrixMap2 {r(self.left)} {r(self.right)} {r(self.apply_bin_op)})'
 
     def _compute_type(self):
-        self._right.typ  # Force
-        self._type = self._left.typ
+        self.right.typ  # Force
+        self._type = self.left.typ
 
 
 class BlockMatrixBroadcast(BlockMatrixIR):
     @typecheck_method(child=BlockMatrixIR,
-                      broadcast_type=str,
+                      broadcast_kind=str,
                       shape=sequenceof(int),
                       block_size=int,
                       dims_partitioned=sequenceof(bool))
-    def __init__(self, child, broadcast_type, shape, block_size, dims_partitioned):
+    def __init__(self, child, broadcast_kind, shape, block_size, dims_partitioned):
         super().__init__()
-        self._child = child
-        self._broadcast_type = broadcast_type
-        self._shape = shape
-        self._block_size = block_size
-        self._dims_partitioned = dims_partitioned
+        self.child = child
+        self.broadcast_kind = broadcast_kind
+        self.shape = shape
+        self.block_size = block_size
+        self.dims_partitioned = dims_partitioned
 
     def render(self, r):
         return '(BlockMatrixBroadcast {} ({}) {} ({}) {})'\
-            .format(escape_str(self._broadcast_type),
-                    ' '.join([str(x) for x in self._shape]),
-                    self._block_size,
-                    ' '.join([str(b) for b in self._dims_partitioned]),
-                    r(self._child))
+            .format(escape_str(self.broadcast_kind),
+                    ' '.join([str(x) for x in self.shape]),
+                    self.block_size,
+                    ' '.join([str(b) for b in self.dims_partitioned]),
+                    r(self.child))
 
     def _compute_type(self):
-        self._type = tblockmatrix(self._child.typ.element_type,
-                                  self._shape,
-                                  self._block_size,
-                                  self._dims_partitioned)
+        self._type = tblockmatrix(self.child.typ.element_type,
+                                  self.shape,
+                                  self.block_size,
+                                  self.dims_partitioned)
 
 
 class ValueToBlockMatrix(BlockMatrixIR):
     @typecheck_method(child=IR,
-                      element_type=hail_type,
                       shape=sequenceof(int),
                       block_size=int,
                       dims_partitioned=sequenceof(bool))
-    def __init__(self, child, element_type, shape, block_size, dims_partitioned):
+    def __init__(self, child, shape, block_size, dims_partitioned):
         super().__init__()
-        self._child = child
-        self._element_type = element_type
-        self._shape = shape
-        self._block_size = block_size
-        self._dims_partitioned = dims_partitioned
+        self.child = child
+        self.shape = shape
+        self.block_size = block_size
+        self.dims_partitioned = dims_partitioned
 
     def render(self, r):
-        return '(ValueToBlockMatrix {} ({}) {} ({}) {})'.format(self._element_type._parsable_string(),
-                                                                ' '.join([str(x) for x in self._shape]),
-                                                                self._block_size,
-                                                                ' '.join([str(b) for b in self._dims_partitioned]),
-                                                                r(self._child))
+        return '(ValueToBlockMatrix ({}) {} ({}) {})'.format(' '.join([str(x) for x in self.shape]),
+                                                             self.block_size,
+                                                             ' '.join([str(b) for b in self.dims_partitioned]),
+                                                             r(self.child))
 
     def _compute_type(self):
-        self._type = tblockmatrix(self._element_type, self._shape, self._block_size, self._dims_partitioned)
+        child_type = self.child.typ
+        if isinstance(child_type, tarray):
+            element_type = child_type._element_type
+        else:
+            element_type = child_type
+
+        self._type = tblockmatrix(element_type, self.shape, self.block_size, self.dims_partitioned)
 
 
 class JavaBlockMatrix(BlockMatrixIR):
     def __init__(self, jbm):
         super().__init__()
-        self._jir = Env.hail().expr.ir.BlockMatrixLiteral(jbm)
+        self.jir = Env.hail().expr.ir.BlockMatrixLiteral(jbm)
 
     def render(self, r):
-        return f'(JavaBlockMatrix {r.add_jir(self._jir)})'
+        return f'(JavaBlockMatrix {r.add_jir(self.jir)})'
 
     def _compute_type(self):
-        self._type = tblockmatrix._from_java(self._jir.typ())
+        self._type = tblockmatrix._from_java(self.jir.typ())

@@ -199,8 +199,7 @@ object Pretty {
               prettyLongs(shape) + " " +
               blockSize.toString + " " +
               prettyLiterals(dimsPartitioned)
-            case ValueToBlockMatrix(_, elementType, shape, blockSize, dimsPartitioned) =>
-              prettyClass(elementType) + " " +
+            case ValueToBlockMatrix(_, shape, blockSize, dimsPartitioned) =>
               prettyLongs(shape) + " " +
               blockSize.toString + " " +
               prettyLiterals(dimsPartitioned)

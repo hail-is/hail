@@ -2,12 +2,11 @@ package is.hail.expr.ir
 
 import is.hail.HailContext
 import is.hail.expr.types.BlockMatrixType
-import is.hail.expr.types.virtual.TFloat64
+import is.hail.expr.types.virtual.{TArray, TFloat64, Type}
 import is.hail.linalg.BlockMatrix
 import is.hail.utils.fatal
 import breeze.linalg.DenseMatrix
 import is.hail.expr.ir.Broadcast2D.Broadcast2D
-import is.hail.expr.types.virtual.Type
 
 object BlockMatrixIR {
   def toBlockMatrix(
@@ -92,12 +91,9 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, applyBinOp
 
   private def scalarOnLeft(hc: HailContext, scalar: Double, right: BlockMatrixIR, op: BinaryOp): BlockMatrix = {
     right match {
-      case BlockMatrixBroadcast(rowVectorIR: BlockMatrixIR, Broadcast2D.ROW, _, _, _) =>
-        val rightAsBm = rowVectorIR.execute(hc)
-        opWithScalar(rightAsBm, scalar, op, reverse = true)
-      case BlockMatrixBroadcast(colVectorIR: BlockMatrixIR, Broadcast2D.COL, _, _, _) =>
-        val rightAsBm = colVectorIR.execute(hc)
-        opWithScalar(rightAsBm, scalar, op, reverse = true)
+      case BlockMatrixBroadcast(vectorIR: BlockMatrixIR, Broadcast2D.ROW | Broadcast2D.COL, _, _, _) =>
+        val vectorAsBm = vectorIR.execute(hc)
+        opWithScalar(vectorAsBm, scalar, op, reverse = true)
       case _ =>
         opWithScalar(right.execute(hc), scalar, op, reverse = true)
     }
@@ -143,7 +139,7 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, applyBinOp
 
   private def coerceToScalar(hc: HailContext, ir: BlockMatrixIR): Double = {
     ir match {
-      case ValueToBlockMatrix(child, _, _, _, _) =>
+      case ValueToBlockMatrix(child, _, _, _) =>
         Interpret[Any](child) match {
           case scalar: Double => scalar
           case oneElementArray: IndexedSeq[Double] => oneElementArray.head
@@ -154,7 +150,7 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, applyBinOp
 
   private def coerceToVector(hc: HailContext, ir: BlockMatrixIR): Array[Double] = {
     ir match {
-      case ValueToBlockMatrix(child, _, _, _, _) =>
+      case ValueToBlockMatrix(child, _, _, _) =>
         Interpret[Any](child) match {
           case vector: IndexedSeq[Double] => vector.toArray
         }
@@ -220,7 +216,7 @@ object Broadcast2D extends Enumeration {
 
 case class BlockMatrixBroadcast(
   child: BlockMatrixIR,
-  broadcastType: Broadcast2D,
+  broadcastKind: Broadcast2D,
   shape: IndexedSeq[Long],
   blockSize: Int,
   dimsPartitioned: IndexedSeq[Boolean]) extends BlockMatrixIR {
@@ -231,27 +227,35 @@ case class BlockMatrixBroadcast(
 
   override def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
     assert(newChildren.length == 1)
-    BlockMatrixBroadcast(newChildren(0).asInstanceOf[BlockMatrixIR], broadcastType, shape, blockSize, dimsPartitioned)
+    BlockMatrixBroadcast(newChildren(0).asInstanceOf[BlockMatrixIR], broadcastKind, shape, blockSize, dimsPartitioned)
   }
 }
 
 case class ValueToBlockMatrix(
   child: IR,
-  elementType: Type,
   shape: IndexedSeq[Long],
   blockSize: Int,
   dimsPartitioned: IndexedSeq[Boolean]) extends BlockMatrixIR {
 
-  override def typ: BlockMatrixType = BlockMatrixType(elementType, shape, blockSize, dimsPartitioned)
+  override def typ: BlockMatrixType = BlockMatrixType(elementType(child.typ), shape, blockSize, dimsPartitioned)
+
+  private def elementType(childType: Type): Type = {
+    childType match {
+      case array: TArray => array.elementType
+      case _ => childType
+    }
+  }
 
   override def children: IndexedSeq[BaseIR] = Array(child)
 
   override def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
     assert(newChildren.length == 1)
-    ValueToBlockMatrix(newChildren(0).asInstanceOf[IR], elementType, shape, blockSize, dimsPartitioned)
+    ValueToBlockMatrix(newChildren(0).asInstanceOf[IR], shape, blockSize, dimsPartitioned)
   }
 
   override protected[ir] def execute(hc: HailContext): BlockMatrix = {
+    assert(shape.length == 2)
+
     Interpret[Any](child) match {
       case data: IndexedSeq[Double] =>
         BlockMatrixIR.toBlockMatrix(hc, shape(0).toInt, shape(1).toInt, data.toArray, blockSize)
