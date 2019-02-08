@@ -142,7 +142,6 @@ class Job:
             spec=pod_spec)
 
         log.info('created job {}'.format(self.id))
-        print('pod_spec', pod_spec.containers[0].command)
         add_event({'message': f'created job {self.id}', 'command': ' '.join(pod_spec.containers[0].command)})
 
         if not self.parent_ids:
@@ -222,7 +221,7 @@ class Job:
             POD_NAMESPACE,
             _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
 
-        add_event({'message': f'job {self.id} exited', 'log': pod_log})
+        add_event({'message': f'job {self.id} exited', 'log': pod_log[:64000]})
 
         fname = _log_path(self.id)
         with open(fname, 'w') as f:
@@ -541,7 +540,6 @@ def refresh_k8s_state():
 @app.route('/recent', methods=['GET'])
 def recent():
     recent_events = get_recent_events()
-    print(recent_events)
     return render_template('recent.html', recent=list(reversed(recent_events)))
 
 

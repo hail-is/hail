@@ -1,4 +1,5 @@
 import datetime
+import collections
 
 pod_name_job = {}
 job_id_job = {}
@@ -28,7 +29,7 @@ def next_id():
     return _counter
 
 
-_recent_events = []
+_recent_events = collections.deque(maxlen=50)
 
 
 def get_recent_events():
@@ -36,9 +37,7 @@ def get_recent_events():
 
 
 def add_event(event):
-    event['time'] = str(datetime.datetime.now())
-
     global _recent_events
 
-    _recent_events = _recent_events[:100]
+    event['time'] = str(datetime.datetime.now())
     _recent_events.append(event)
