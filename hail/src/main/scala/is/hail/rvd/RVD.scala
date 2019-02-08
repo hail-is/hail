@@ -116,11 +116,19 @@ class RVD(
     }
   }
 
+  def truncateKey(n: Int): RVD = {
+    require(n <= typ.key.length)
+    truncateKey(typ.key.take(n))
+  }
+
   def truncateKey(newKey: IndexedSeq[String]): RVD = {
     require(typ.key startsWith newKey)
-    copy(
-      typ = typ.copy(key = newKey),
-      partitioner = partitioner.coarsen(newKey.length))
+    if (typ.key == newKey)
+      this
+    else
+      copy(
+        typ = typ.copy(key = newKey),
+        partitioner = partitioner.coarsen(newKey.length))
   }
 
   // WARNING: will drop any data with keys falling outside 'partitioner'.
