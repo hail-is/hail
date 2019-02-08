@@ -77,8 +77,8 @@ class Tests(unittest.TestCase):
         mt1 = hl.utils.range_matrix_table(10, 10)
 
         # empty partitions at front
-        mt2 = hl.utils.range_matrix_table(10, 10, 10)
-        mt2 = mt2.filter_rows(mt2.row_idx > 4)
+        mt2 = hl.utils.range_matrix_table(20, 10, 20)
+        mt2 = mt2.filter_rows(mt2.row_idx > 9)
         mts = [mt1, mt2]
 
         for mt in mts:
