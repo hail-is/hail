@@ -2,7 +2,8 @@ import { PureComponent } from 'react';
 import auth from '../libs/auth';
 import fetch from 'isomorphic-unfetch';
 import getConfig from 'next/config';
-import { isServer } from '../libs/utils';
+
+const isServer = typeof window === 'undefined';
 
 // TODO: If user isn't logged in, and make it to this page
 // TODO: Enumerate waitingStatus 'reason's

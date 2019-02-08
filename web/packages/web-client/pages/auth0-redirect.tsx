@@ -2,7 +2,8 @@ import { PureComponent } from 'react';
 import { authenticationCallback } from '../libs/auth';
 import Router from 'next/router';
 import jscookies from 'js-cookie';
-import { isServer } from '../libs/utils';
+
+const isServer = typeof window === 'undefined';
 
 class Redirect extends PureComponent {
   state = {

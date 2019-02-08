@@ -3,9 +3,10 @@ import fetch from 'isomorphic-unfetch';
 import getConfig from 'next/config';
 import Link from 'next/link';
 import { PR, Issue } from './scorecard/scorecard';
-import { isServer } from '../libs/utils';
 
 import '../styles/pages/scorecard.scss';
+
+const isServer = typeof window === 'undefined';
 
 const config = getConfig().publicRuntimeConfig.SCORECARD;
 

@@ -3,7 +3,6 @@ import Header from '../components/Header';
 import { initialize, isAuthenticated, initStateSSR } from '../libs/auth';
 import Router from 'next/router';
 import jscookies from 'js-cookie';
-import { isServer } from '../libs/utils';
 
 import 'styles/main.scss';
 import 'animate.css';
@@ -13,6 +12,8 @@ import 'animate.css';
 const protectedRoute: any = {
   '/notebook': true
 };
+
+const isServer = typeof window === 'undefined';
 
 let NodeCookies: any;
 if (isServer) {
@@ -95,7 +96,7 @@ export default class MyApp extends App {
 
     this.state.isDark = props.isDark;
 
-    if (typeof window !== 'undefined') {
+    if (!isServer) {
       initialize();
     }
   }
@@ -115,7 +116,7 @@ export default class MyApp extends App {
           <span id="footer">
             <i
               className="material-icons"
-              style={{ cursor: 'pointer' }}
+              style={{ cursor: 'pointer', fontSize: '1rem' }}
               onClick={this.onDarkToggle}
             >
               wb_sunny
