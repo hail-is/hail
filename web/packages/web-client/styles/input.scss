@@ -2,12 +2,13 @@
 #theme-site {
   input {
     padding: 10px;
-    border: 1px solid $dark-gray;
+    border: 1px solid $black;
     border-radius: 3px;
+    appearance: none;
   }
   input:focus {
     outline: none;
-    border-color: $black;
+    border-color: $dark-gray;
   }
   &.dark {
     input {

@@ -11,6 +11,7 @@ import {
   startListener
 } from '../components/Notebook/datastore';
 
+// TODO: think about order of initialization of auth module
 // TODO: set some kind of protected property on routes, instead of
 // blacklisting here
 const protectedRoute: any = {
@@ -24,28 +25,44 @@ if (isServer) {
   NodeCookies = require('cookies');
 }
 
+declare type props = {
+  Component: any;
+  ctx: any;
+};
 // let authInitialized = false;
 // TODO: think about using React context to pass down auth state instead of prop
-export default class MyApp extends App {
+export default class MyApp extends App<props> {
   state = {
     isDark: false
   };
+
+  // Constructor runs before getInitialProps
+  constructor(props: any) {
+    super(props);
+
+    if (!isServer) {
+      // This must happen first, so that child components that use auth
+      // in constructor may do so
+      initialize();
+
+      if (isAuthenticated() && !Notebook.initialized) {
+        startRequest().then(() => startListener());
+      }
+    }
+
+    this.state.isDark = props.isDark;
+  }
 
   // This runs:
   // 1) SSR Mode: One time
   // 2) Client mode: After constructor (on client-side route transitions)
 
-  static async getInitialProps({
-    Component,
-    ctx
-  }: {
-    Component: any;
-    ctx: any;
-  }) {
+  static async getInitialProps({ Component, ctx }: props) {
     let pageProps: any = {};
     let isDark = false;
 
     if (isServer) {
+      // Run here because we have no access to ctx in constructor
       initStateSSR(ctx.req.headers.cookie);
 
       isDark =
@@ -93,21 +110,6 @@ export default class MyApp extends App {
     });
   };
 
-  constructor(props: any) {
-    super(props);
-
-    if (!isServer) {
-      initialize();
-
-      if (isAuthenticated() && !Notebook.initialized) {
-        startRequest().then(() => startListener());
-      }
-    }
-
-    this.state.isDark = props.isDark;
-  }
-
-  onComponentDidMount() {}
   render() {
     const { Component, pageProps } = this.props;
 

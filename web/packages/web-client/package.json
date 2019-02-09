@@ -30,6 +30,9 @@
     "not dead",
     "last 2 versions"
   ],
+  "browser": {
+    "cookies": false
+  },
   "homepage": "https://github.com/hail-is/hail#readme",
   "dependencies": {
     "@zeit/next-typescript": "^1.1.1",
