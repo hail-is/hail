@@ -502,9 +502,8 @@ function _pollForSession() {
   }, expIn);
 }
 
-// expects to receive a new referece;
+// expects state to be a new referece compared to _state
 function _updateState(state: stateType) {
-  // const oldState = Object.assign({}, _state);
   _state = state;
 
   _triggerUpdates();

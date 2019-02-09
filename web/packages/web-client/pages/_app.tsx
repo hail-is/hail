@@ -3,9 +3,13 @@ import Header from '../components/Header';
 import { initialize, isAuthenticated, initStateSSR } from '../libs/auth';
 import Router from 'next/router';
 import jscookies from 'js-cookie';
-
 import 'styles/main.scss';
 import 'animate.css';
+import {
+  Notebook,
+  startRequest,
+  startListener
+} from '../components/Notebook/datastore';
 
 // TODO: set some kind of protected property on routes, instead of
 // blacklisting here
@@ -51,8 +55,6 @@ export default class MyApp extends App {
       isDark = !!jscookies.get('is_dark');
     }
 
-    // ctx.pathname will not include get variables in the query
-    // will include the full directory path /path/to/resource
     if (!isAuthenticated() && protectedRoute[ctx.pathname] === true) {
       // ctx only exists only on server
       if (ctx.res) {
@@ -94,11 +96,15 @@ export default class MyApp extends App {
   constructor(props: any) {
     super(props);
 
-    this.state.isDark = props.isDark;
-
     if (!isServer) {
       initialize();
+
+      if (isAuthenticated() && !Notebook.initialized) {
+        startRequest().then(() => startListener());
+      }
     }
+
+    this.state.isDark = props.isDark;
   }
 
   onComponentDidMount() {}
