@@ -2,6 +2,7 @@ import { PureComponent } from 'react';
 
 import {
   Notebook,
+  URL,
   startRequest,
   callbackFunctions,
   startListener,

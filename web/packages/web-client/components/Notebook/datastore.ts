@@ -61,7 +61,7 @@ export enum kubeState {
 // TODO: Enumerate waitingStatus 'reason's
 // after 401, tell them they need to log in
 const cfg = getConfig().publicRuntimeConfig.NOTEBOOK;
-const URL = cfg.URL;
+export const URL: string = cfg.URL;
 
 const getAlive = (nbs: notebooksType) =>
   Object.values(nbs).filter(
