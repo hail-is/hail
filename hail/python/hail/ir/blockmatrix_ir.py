@@ -1,6 +1,5 @@
-from hail import tarray
 from hail.expr.blockmatrix_type import tblockmatrix
-from hail.ir import BlockMatrixIR, ApplyBinaryOp, IR, parsable_strings
+from hail.ir import BlockMatrixIR, ApplyBinaryOp, IR, parsable_strings, tarray
 from hail.utils.java import escape_str
 from hail.typecheck import typecheck_method, sequenceof
 
