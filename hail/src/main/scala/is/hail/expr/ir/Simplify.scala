@@ -134,8 +134,10 @@ object Simplify {
     case IsNA(x) if isDefinitelyDefined(x) => False()
 
     case Let(n1, v, Ref(n2, _)) if n1 == n2 => v
+    case AggLet(n1, v, Ref(n2, _)) if n1 == n2 => v
 
     case Let(n, _, b) if !Mentions(b, n) => b
+    case AggLet(n, _, b) if !Mentions(b, n) => b
 
     case x@If(True(), cnsq, _) if x.typ == cnsq.typ => cnsq
 

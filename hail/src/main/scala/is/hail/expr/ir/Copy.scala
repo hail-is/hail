@@ -25,6 +25,9 @@ object Copy {
       case Let(name, _, _) =>
         val IndexedSeq(value: IR, body: IR) = newChildren
         Let(name, value, body)
+      case AggLet(name, _, _) =>
+        val IndexedSeq(value: IR, body: IR) = newChildren
+        AggLet(name, value, body)
       case Ref(name, t) => Ref(name, t)
       case ApplyBinaryPrimOp(op, _, _) =>
         val IndexedSeq(l: IR, r: IR) = newChildren

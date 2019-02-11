@@ -5,6 +5,8 @@ object Binds {
     x match {
       case Let(n, _, _) =>
         v == n && i == 1
+      case AggLet(n, _, _) =>
+        v == n && i == 1
       case ArrayMap(_, n, _) =>
         v == n && i == 1
       case ArrayFlatMap(_, n, _) =>
@@ -21,6 +23,8 @@ object Binds {
         v == n && i == 1
       case AggArrayPerElement(_, n, _) =>
         v == n && i == 1
+      case ArrayAgg(_, name, _) =>
+        v == name && i == 2
       case _ =>
         false
     }

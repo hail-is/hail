@@ -41,6 +41,8 @@ object InferType {
           cnsq.typ
       case Let(name, value, body) =>
         body.typ
+      case AggLet(name, value, body) =>
+        body.typ
       case ApplyBinaryPrimOp(op, l, r) =>
         BinaryOp.getReturnType(op, l.typ, r.typ).setRequired(l.typ.required && r.typ.required)
       case ApplyUnaryPrimOp(op, v) =>

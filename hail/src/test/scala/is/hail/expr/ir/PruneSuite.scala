@@ -496,6 +496,11 @@ class PruneSuite extends SparkSuite {
     checkMemo(Let("foo", ref, True()), TBoolean(), Array(empty, null))
   }
 
+  @Test def testAggLetMemo() {
+    checkMemo(AggLet("foo", ref, Ref("foo", ref.typ)), justA, Array(justA, null))
+    checkMemo(AggLet("foo", ref, True()), TBoolean(), Array(empty, null))
+  }
+
   @Test def testMakeArrayMemo() {
     checkMemo(arr, TArray(justB), Array(justB, justB))
   }
@@ -863,6 +868,14 @@ class PruneSuite extends SparkSuite {
 
   @Test def testLetRebuild() {
     checkRebuild(Let("x", NA(ts), Ref("x", ts)), subsetTS("b"),
+      (_: BaseIR, r: BaseIR) => {
+        val ir = r.asInstanceOf[Let]
+        ir.value.typ == subsetTS("b")
+      })
+  }
+
+  @Test def testAggLetRebuild() {
+    checkRebuild(AggLet("x", NA(ts), Ref("x", ts)), subsetTS("b"),
       (_: BaseIR, r: BaseIR) => {
         val ir = r.asInstanceOf[Let]
         ir.value.typ == subsetTS("b")

@@ -680,6 +680,13 @@ object PruneDeadFields {
           bodyEnv.delete(name),
           memoizeValueIR(value, valueType, memo)
         )
+      case AggLet(name, value, body) =>
+        val bodyEnv = memoizeValueIR(body, requestedType, memo)
+        val valueType = bodyEnv.lookupOption(name).map(_._2).getOrElse(minimal(value.typ))
+        unifyEnvs(
+          bodyEnv.delete(name),
+          memoizeValueIR(value, valueType, memo)
+        )
       case Ref(name, t) =>
         Env.empty[(Type, Type)].bind(name, t -> requestedType)
       case MakeArray(args, _) =>
@@ -1060,6 +1067,13 @@ object PruneDeadFields {
       case Let(name, value, body) =>
         val value2 = rebuild(value, in, memo)
         Let(
+          name,
+          value2,
+          rebuild(body, in.bind(name, value2.typ), memo)
+        )
+      case AggLet(name, value, body) =>
+        val value2 = rebuild(value, in, memo)
+        AggLet(
           name,
           value2,
           rebuild(body, in.bind(name, value2.typ), memo)
