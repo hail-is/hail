@@ -1,6 +1,7 @@
 batch
 ci
 cloudtools
+etc
 notebook
 gateway
 hail
