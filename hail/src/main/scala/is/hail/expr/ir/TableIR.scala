@@ -72,7 +72,7 @@ abstract class TableReader {
 }
 
 case class TableNativeReader(path: String) extends TableReader {
-  val spec: AbstractTableSpec = (RelationalSpec.read(HailContext.get, path): @unchecked) match {
+  lazy val spec: AbstractTableSpec = (RelationalSpec.read(HailContext.get, path): @unchecked) match {
     case ts: AbstractTableSpec => ts
     case _: AbstractMatrixTableSpec => fatal(s"file is a MatrixTable, not a Table: '$path'")
   }
