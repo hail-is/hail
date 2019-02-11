@@ -877,7 +877,7 @@ class PruneSuite extends SparkSuite {
   @Test def testAggLetRebuild() {
     checkRebuild(AggLet("x", NA(ts), Ref("x", ts)), subsetTS("b"),
       (_: BaseIR, r: BaseIR) => {
-        val ir = r.asInstanceOf[Let]
+        val ir = r.asInstanceOf[AggLet]
         ir.value.typ == subsetTS("b")
       })
   }
