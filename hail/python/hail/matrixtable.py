@@ -2585,21 +2585,20 @@ class MatrixTable(ExprContainer):
                [0, 1, 2],
                [0, 2, 4]])
 
-        Warning
-        -------
-        This operation may increase the size of a partition. Use with care on
-        a dataset with long rows and large partitions.
+        Notes
+        -----
+        Both of the added fields are arrays of length equal to
+        ``mt.count_cols()``. Missing entries are represented as missing structs
+        in the entries array.
 
         Parameters
         ----------
         entries_array_field_name : :obj:`str`
             The name of the table field containing the array of entry structs
-            for the given row. The length of this array is equal to
-            ``mt.count_cols()``. Missing entries are represented as missing
-            structs in the array.
+            for the given row.
         columns_array_field_name : :obj:`str`
             The name of the global field containing the array of column
-            structs. The length of this array is equal to ``mt.count_cols()``.
+            structs.
 
         Returns
         -------
