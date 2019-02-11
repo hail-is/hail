@@ -704,6 +704,7 @@ case class MatrixAggregateColsByKey(child: MatrixIR, entryExpr: IR, colExpr: IR)
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
   protected[ir] override def execute(hc: HailContext): MatrixValue = {
+    throw new UnsupportedOperationException
     val mv = child.execute(hc)
 
     // local things for serialization

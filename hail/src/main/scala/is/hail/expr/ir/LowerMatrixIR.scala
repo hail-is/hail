@@ -312,6 +312,43 @@ object LowerMatrixIR {
     case MatrixExplodeRows(child, path) => TableExplode(lower(child), path)
 
     case mr: MatrixRead => mr.lower()
+
+    case MatrixAggregateColsByKey(child, entryExpr, colExpr) =>
+      val colKey = child.typ.colKey
+
+      lower(child)
+        .mapGlobals('global.insertFields('__key_map ->
+          let(__cols_field = 'global (colsField)) {
+            irRange(0, '__cols_field.len)
+              .map('idx ~> let(__cols_field_element = '__cols_field ('idx)) {
+                makeStruct('key -> '__cols_field_element.selectFields(colKey: _*), 'value -> 'idx)
+              })
+              .groupByKey
+              .toArray
+          }))
+        .mapRows('row.insertFields(entriesField ->
+          let(__entries = 'row (entriesField), __key_map = 'global ('__key_map)) {
+            irRange(0, '__key_map.len)
+              .map('idx ~> '__key_map ('idx)
+                .apply('value)
+                .arrayAgg('__element_idx ~>
+                  aggLet(va = 'row, g = '__entries ('__element_idx), sa = 'global (colsField)('__element_idx)) {
+                    entryExpr
+                  }))
+          }))
+        .mapGlobals(
+          'global.insertFields(colsField ->
+            let(__key_map = 'global ('__key_map)) {
+              irRange(0, '__key_map.len)
+                .map('idx ~>
+                  concatStructs(
+                    '__key_map ('idx)('key),
+                    '__key_map ('idx)('value)
+                      .arrayAgg('sa ~> colExpr)
+                  )
+                )
+            }
+          ).dropFields('__key_map))
   }
 
   private[this] def tableRules: PartialFunction[TableIR, TableIR] = {
