@@ -151,7 +151,7 @@ class SparkBackend(Backend):
         return json.loads(Env.hail().variant.ReferenceGenome.getReference(name).toJSONString())
 
     def add_sequence(self, name, fasta_file, index_file):
-        Env.hail().variant.ReferenceGenome.addSequence(name, fasta_file, index_file)
+        scala_object(Env.hail().variant, 'ReferenceGenome').addSequence(name, fasta_file, index_file)
 
     def remove_sequence(self, name):
         Env.hail().variant.ReferenceGenome.removeSequence(name)
