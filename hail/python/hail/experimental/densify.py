@@ -1,5 +1,4 @@
 import hail as hl
-from hail.methods.misc import require_row_key_variant
 
 from hail import MatrixTable
 
