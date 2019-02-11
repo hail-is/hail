@@ -2533,6 +2533,92 @@ class MatrixTable(ExprContainer):
         return Table(CastMatrixToTable(
             self._mir, entries_field_name, cols_field_name))
 
+    @typecheck_method(entries_array_field_name=nullable(str),
+                      columns_array_field_name=nullable(str))
+    def localize_entries(self,
+                         entries_array_field_name=None,
+                         columns_array_field_name=None) -> 'Table':
+        """Convert the matrix table to a table with entries localized as an array of structs.
+
+        Examples
+        --------
+        Build a numpy ndarray from a small :class:`.MatrixTable`:
+
+        >>> mt = hl.utils.range_matrix_table(3,3)
+        >>> mt = mt.select_entries(x = mt.row_idx * mt.col_idx)
+        >>> mt.x.show()
+        +---------+---------+-------+
+        | row_idx | col_idx |     x |
+        +---------+---------+-------+
+        |   int32 |   int32 | int32 |
+        +---------+---------+-------+
+        |       0 |       0 |     0 |
+        |       0 |       1 |     0 |
+        |       0 |       2 |     0 |
+        |       1 |       0 |     0 |
+        |       1 |       1 |     1 |
+        |       1 |       2 |     2 |
+        |       2 |       0 |     0 |
+        |       2 |       1 |     2 |
+        |       2 |       2 |     4 |
+        +---------+---------+-------+
+
+        >>> t = mt.localize_entries('entry_structs', 'columns')
+        >>> t.describe()
+        ----------------------------------------
+        Global fields:
+            'columns': array<struct {
+                col_idx: int32
+            }> 
+        ----------------------------------------
+        Row fields:
+            'row_idx': int32 
+            'entry_structs': array<struct {
+                x: int32
+            }> 
+        ----------------------------------------
+        Key: ['row_idx']
+        ----------------------------------------
+
+        >>> t = t.select(entries = t.entry_structs.map(lambda entry: entry.x))
+        >>> import numpy as np
+        >>> np.array(t.entries.collect())
+        array([[0, 0, 0],
+               [0, 1, 2],
+               [0, 2, 4]])
+
+        Notes
+        -----
+        Both of the added fields are arrays of length equal to
+        ``mt.count_cols()``. Missing entries are represented as missing structs
+        in the entries array.
+
+        Parameters
+        ----------
+        entries_array_field_name : :obj:`str`
+            The name of the table field containing the array of entry structs
+            for the given row.
+        columns_array_field_name : :obj:`str`
+            The name of the global field containing the array of column
+            structs.
+
+        Returns
+        -------
+        :class:`.Table`
+            A table whose fields are the row fields of this matrix table plus
+            one field named ``entries_array_field_name``. The global fields of
+            this table are the global fields of this matrix table plus one field
+            named ``columns_array_field_name``.
+        """
+        entries = entries_array_field_name or Env.get_uid()
+        cols = columns_array_field_name or Env.get_uid()
+        t = self._localize_entries(entries, cols)
+        if entries_array_field_name is None:
+            t = t.drop(entries)
+        if columns_array_field_name is None:
+            t = t.drop(cols)
+        return t
+
     def _unfilter_entries(self):
         entry_ir = hl.cond(hl.is_defined(self.entry), self.entry, hl.struct(**self.entry))._ir
         return MatrixTable(MatrixMapEntries(self._mir, entry_ir))
