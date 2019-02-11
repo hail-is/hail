@@ -287,6 +287,8 @@ object Pretty {
                 s"${ prettyStrings(colKV.map(_._1)) } ${ prettyStrings(colKV.map(_._2)) } " +
                 s"${ prettyStrings(rowKV.map(_._1)) } ${ prettyStrings(rowKV.map(_._2)) } " +
                 s"${ prettyStrings(entryKV.map(_._1)) } ${ prettyStrings(entryKV.map(_._2)) }"
+            case ReadPartition(path, spec, encodedType, rowType) =>
+              s"${ prettyStringLiteral(spec.toString) } ${ encodedType.parsableString() } ${ rowType.parsableString() }"
 
             case _ => ""
           }

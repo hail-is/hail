@@ -946,6 +946,8 @@ object Interpret {
           SafeRow(coerce[PTuple](t), region, resultOffset)
             .get(0)
         }
+      case x: ReadPartition =>
+        fatal(s"cannot interpret ${ Pretty(x) }")
     }
   }
 }
