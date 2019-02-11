@@ -26,14 +26,14 @@ class ApproximateQuantiles {
     for (auto x : buffers[index]) {
       std::cout << x << " ";
     }
-    std::cout << "]" << std::endl;
+    std::cout << "] " << ends[index] << std::endl;
     std::sort(std::begin(buffers[index]),
               std::begin(buffers[index]) + ends[index]);
     std::cout << "sorted buffer = [";
     for (auto x : buffers[index]) {
       std::cout << x << " ";
     }
-    std::cout << "]" << std::endl;
+    std::cout << "] " << ends[index] << std::endl;
   }
 
   void compact(int current) {
@@ -49,8 +49,8 @@ class ApproximateQuantiles {
          i += 2) {
       buffers[next][next_end + i/2] = buffers[current][i];
     }
-    ends[current] = 0;
     ends[next] = next_end + ends[current] / 2;
+    ends[current] = 0;
   }
 public:
   ApproximateQuantiles() {}
@@ -60,25 +60,33 @@ public:
     check_compact(0);
   }
   void finalize() {
+    std::cout << "finalize" << std::endl;
     for (int i = 0; i < buffers.size() - 1; ++i) {
       compact(i);
     }
-    sort_buffer(buffers.size());
+    sort_buffer(buffers.size() - 1);
   }
   void write() {
-    for (auto &buffer : buffers) {
+    for (int i = 0; i < buffers.size() - 1; ++i) {
+      auto &buffer = buffers[i];
       std::cout << "buffer = [";
       for (auto x : buffer) {
         std::cout << x << " ";
       }
-      std::cout << "]" << std::endl;
+      std::cout << "] "  << ends[i] << std::endl;
     }
   }
   int rank(int element) {
     auto summary = buffers.back();
+    std::cout << "summary = [";
+    for (auto x : summary) {
+      std::cout << x << " ";
+    }
+    std::cout << "] "  << ends[buffers.size()-1] << std::endl;
     auto lower_bound = std::lower_bound(begin(summary),
                                        begin(summary) + ends.back(),
                                        element);
-    return lower_bound - std::begin(summary);
+    int buffer_weight = (1 << (buffers.size() - 1));
+    return (lower_bound - std::begin(summary)) * buffer_weight;
   }
 };

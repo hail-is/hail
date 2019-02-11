@@ -1,4 +1,3 @@
-#define CATCH_CONFIG_MAIN
 #include "catch.hpp"
 #include "hail/ApproximateQuantiles.h"
 #include <vector>
@@ -12,7 +11,7 @@ TEST_CASE("quantiles of small vector are correct") {
   ApproximateQuantiles<4> aq{};
   std::vector<int> values{0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20};
 
-  SECTION("regions can be requested from pool") {
+  SECTION("no segfaults") {
     for (auto x : values) {
       aq.accept(x);
     }
