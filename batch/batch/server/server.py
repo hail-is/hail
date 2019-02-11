@@ -2,6 +2,7 @@ import sys
 import os
 import time
 import random
+import sched
 import uuid
 from collections import Counter
 import logging
@@ -15,6 +16,15 @@ from .globals import max_id, pod_name_job, job_id_job, _log_path, _read_file, ba
 from .globals import next_id, get_recent_events, add_event
 
 from .. import schemas
+
+s = sched.scheduler()
+
+
+def schedule(ttl, fun, args=(), kwargs=None):
+    if kwargs is None:
+        kwargs = {}
+    s.enter(ttl, 1, fun, args, kwargs)
+
 
 if not os.path.exists('logs'):
     os.mkdir('logs')
@@ -377,13 +387,19 @@ def cancel_job(job_id):
 
 
 class Batch:
-    def __init__(self, attributes, callback):
+    MAX_TTL = 30 * 60
+
+    def __init__(self, attributes, callback, ttl):
         self.attributes = attributes
         self.callback = callback
         self.id = next_id()
         batch_id_batch[self.id] = self
         self.jobs = set([])
         self.is_open = True
+        if ttl is None or ttl > Batch.MAX_TTL:
+            ttl = Batch.MAX_TTL
+        self.ttl = ttl
+        schedule(self.ttl, self.close)
 
     def delete(self):
         del batch_id_batch[self.id]
@@ -411,7 +427,11 @@ class Batch:
             ).start()
 
     def close(self):
-        self.is_open = False
+        if self.is_open:
+            log.info(f'closing batch {self.id}, ttl was {self.ttl}')
+            self.is_open = False
+        else:
+            log.info(f're-closing batch {self.id}, ttl was {self.ttl}')
 
     def to_json(self):
         state_count = Counter([j._state for j in self.jobs])
@@ -423,7 +443,8 @@ class Batch:
                 'Cancelled': state_count.get('Cancelled', 0)
             },
             'exit_codes': {j.id: j.exit_code for j in self.jobs},
-            'attributes': self.attributes
+            'attributes': self.attributes,
+            'is_open': self.is_open
         }
 
 
@@ -437,13 +458,14 @@ def create_batch():
             'keyschema': {'type': 'string'},
             'valueschema': {'type': 'string'}
         },
-        'callback': {'type': 'string'}
+        'callback': {'type': 'string'},
+        'ttl': {'type': 'number'}
     }
     validator = cerberus.Validator(schema)
     if not validator.validate(parameters):
         abort(400, 'invalid request: {}'.format(validator.errors))
 
-    batch = Batch(parameters.get('attributes'), parameters.get('callback'))
+    batch = Batch(parameters.get('attributes'), parameters.get('callback'), parameters.get('ttl'))
     return jsonify(batch.to_json())
 
 
@@ -594,12 +616,23 @@ def polling_event_loop(port):
         time.sleep(REFRESH_INTERVAL_IN_SECONDS)
 
 
+def scheduling_loop():
+    while True:
+        try:
+            s.run(blocking=False)
+        except Exception as exc:  # pylint: disable=W0703
+            log.error(f'Could not run scheduled jobs due to: {exc}')
+
+
 def serve(port=5000):
     kube_thread = threading.Thread(target=run_forever, args=(kube_event_loop, port))
     kube_thread.start()
 
     polling_thread = threading.Thread(target=run_forever, args=(polling_event_loop, port))
     polling_thread.start()
+
+    scheduling_thread = threading.Thread(target=run_forever, args=(scheduling_loop,))
+    scheduling_thread.start()
 
     # debug/reloader must run in main thread
     # see: https://stackoverflow.com/questions/31264826/start-a-flask-application-in-separate-thread

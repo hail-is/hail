@@ -55,12 +55,14 @@ class API():
         raise_on_failure(response)
         return response.json()
 
-    def create_batch(self, url, attributes, callback):
+    def create_batch(self, url, attributes, callback, ttl):
         doc = {}
         if attributes:
             doc['attributes'] = attributes
         if callback:
             doc['callback'] = callback
+        if ttl:
+            doc['ttl'] = ttl
         response = requests.post(url + '/batches/create', json=doc, timeout=self.timeout)
         raise_on_failure(response)
         return response.json()
@@ -112,8 +114,8 @@ def cancel_job(url, job_id):
     return DEFAULT_API.cancel_job(url, job_id)
 
 
-def create_batch(url, attributes, callback):
-    return DEFAULT_API.create_batch(url, attributes, callback)
+def create_batch(url, attributes, callback, ttl):
+    return DEFAULT_API.create_batch(url, attributes, callback, ttl)
 
 
 def get_batch(url, batch_id):

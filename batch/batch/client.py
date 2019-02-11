@@ -217,8 +217,8 @@ class BatchClient:
             image, command, args, env, ports, resources, tolerations, volumes, security_context,
             service_account_name, attributes, None, callback, parent_ids)
 
-    def create_batch(self, attributes=None, callback=None):
-        batch = self.api.create_batch(self.url, attributes, callback)
+    def create_batch(self, attributes=None, callback=None, ttl=None):
+        batch = self.api.create_batch(self.url, attributes, callback, ttl)
         return Batch(self, batch['id'])
 
     job_yaml_schema = {
