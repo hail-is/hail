@@ -34,7 +34,15 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
   private def open(filename: String, checkCodec: Boolean = true): InputStream = {
     val fs = fileSystem(filename)
     val hPath = new hadoop.fs.Path(filename)
-    val is = fs.open(hPath)
+    val is = try {
+      fs.open(hPath)
+    } catch {
+      case e: FileNotFoundException =>
+        if (isDir(filename))
+          throw new FileNotFoundException(s"'$filename' is a directory (or native Table/MatrixTable)")
+        else
+          throw e
+    }
     if (checkCodec) {
       val codecFactory = new CompressionCodecFactory(hConf)
       val codec = codecFactory.getCodec(hPath)
