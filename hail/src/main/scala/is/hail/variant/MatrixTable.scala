@@ -436,6 +436,8 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
         s"\n  @1", dups.sortBy(-_._2).map { case (id, count) => s"""($count) "$id"""" }.truncatable("\n  "))
   }
 
+  def nPartitions: Int = rvd.getNumPartitions
+
   def count(): (Long, Long) = (countRows(), countCols())
 
   def countRows(): Long = Interpret(TableCount(MatrixRowsTable(ast)))

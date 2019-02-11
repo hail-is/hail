@@ -208,6 +208,8 @@ class Table(val hc: HailContext, val tir: TableIR) {
 
   def fieldNames: Array[String] = fields.map(_.name)
 
+  def nPartitions: Int = rvd.getNumPartitions
+
   def count(): Long = ir.Interpret[Long](ir.TableCount(tir))
 
   def valueSignature: TStruct = {
