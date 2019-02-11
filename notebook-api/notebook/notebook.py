@@ -9,7 +9,7 @@ monkey.patch_all()
 
 import requests
 import ujson
-from flask import Flask, request
+from flask import Flask, request, Response
 from flask_sockets import Sockets
 import flask
 import kubernetes as kube
@@ -302,7 +302,6 @@ pod_paths_post = [
     ['svc_status', 'metadata.labels.svc_name', lambda _: 'Running'],
 ]
 
-
 ########################## WS and HTTP Routes ##################################
 
 
@@ -316,7 +315,6 @@ pod_paths_post = [
 # no need to go to public web to hit http endpoint
 # and real insight into pod status
 # Weakness is currently not checking whether svc is accessible; easily can add
-
 
 def forbidden():
     return 'Forbidden', 404
@@ -381,14 +379,17 @@ def verify(svc_name):
     if not user_id:
         return '', 401
 
-    res = k8s.read_namespaced_service(svc_name, 'default')
+    k_res = k8s.read_namespaced_service(svc_name, 'default')
 
-    l = res.metadata.labels
+    l = k_res.metadata.labels
 
     if l['user_id'] != UNSAFE_user_id_transform(user_id):
         return '', 401
 
-    return '', 200
+    resp = Response('')
+    resp.headers['IP'] = k_res.spec.cluster_ip
+
+    return resp
 
 
 @app.route('/api', methods=['GET'])
