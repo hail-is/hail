@@ -2564,7 +2564,6 @@ class MatrixTable(ExprContainer):
         +---------+---------+-------+
 
         >>> t = mt.localize_entries('entry_structs', 'columns')
-        >>> t = t.select(entries = t.entry_structs.map(lambda entry: entry.x))
         >>> t.describe()
         ----------------------------------------
         Global fields:
@@ -2574,11 +2573,14 @@ class MatrixTable(ExprContainer):
         ----------------------------------------
         Row fields:
             'row_idx': int32 
-            'entries': array<int32> 
+            'entry_structs': array<struct {
+                x: int32
+            }> 
         ----------------------------------------
         Key: ['row_idx']
         ----------------------------------------
 
+        >>> t = t.select(entries = t.entry_structs.map(lambda entry: entry.x))
         >>> import numpy as np
         >>> np.array(t.entries.collect())
         array([[0, 0, 0],
