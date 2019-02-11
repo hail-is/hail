@@ -2,6 +2,11 @@ import { PureComponent } from 'react';
 import { authenticationCallback } from '../libs/auth';
 import Router from 'next/router';
 import jscookies from 'js-cookie';
+import {
+  Notebook,
+  startRequest,
+  startListener
+} from '../components/Notebook/datastore';
 
 const isServer = typeof window === 'undefined';
 
@@ -25,6 +30,10 @@ class Redirect extends PureComponent {
 
         if (referrer) {
           jscookies.remove('referrer');
+        }
+
+        if (!Notebook.initialized) {
+          startRequest().then(() => startListener());
         }
 
         Router.replace(referrer || '/');
