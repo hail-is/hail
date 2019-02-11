@@ -28,7 +28,8 @@ case class TextTableReaderOptions(
   nPartitionsOpt: Option[Int],
   quoteStr: String,
   skipBlankLines: Boolean,
-  forceBGZ: Boolean) {
+  forceBGZ: Boolean,
+  filterAndReplace: TextInputFilterAndReplace) {
   val typeMap: Map[String, Type] = typeMapStr.mapValues(s => IRParser.parseType(s)).map(identity)
 
   private val commentStartsWith: Array[String] = comment.filter(_.length == 1)
@@ -217,7 +218,7 @@ object TextTableReader {
   def readMetadata1(options: TextTableReaderOptions): TextTableReaderMetadata = {
     val hc = HailContext.get
 
-    val TextTableReaderOptions(files, _, comment, separator, missing, noHeader, impute, _, _, skipBlankLines, forceBGZ) = options
+    val TextTableReaderOptions(files, _, comment, separator, missing, noHeader, impute, _, _, skipBlankLines, forceBGZ, filterAndReplace) = options
     val types = options.typeMap
     val quote = options.quote
     val nPartitions: Int = options.nPartitions
@@ -225,7 +226,7 @@ object TextTableReader {
     require(files.nonEmpty)
 
     val firstFile = files.head
-    val header = hc.hadoopConf.readLines(firstFile) { lines =>
+    val header = hc.hadoopConf.readLines(firstFile, filterAndReplace) { lines =>
       val filt = lines.filter(line => !options.isComment(line.value) && !(skipBlankLines && line.value.isEmpty))
 
       if (filt.isEmpty)
@@ -312,11 +313,12 @@ object TextTableReader {
     nPartitions: Int = hc.sc.defaultMinPartitions,
     quote: java.lang.Character = null,
     skipBlankLines: Boolean = false,
-    forceBGZ: Boolean = false): Table = {
+    forceBGZ: Boolean = false,
+    filterAndReplace: TextInputFilterAndReplace = TextInputFilterAndReplace()): Table = {
     val options = TextTableReaderOptions(
       files, types.mapValues(t => t._toPretty).map(identity), comment, separator,
       missing, noHeader, impute, Some(nPartitions),
-      if (quote != null) quote.toString else null, skipBlankLines, forceBGZ)
+      if (quote != null) quote.toString else null, skipBlankLines, forceBGZ, filterAndReplace)
     val tr = TextTableReader(options)
     new Table(hc, TableRead(tr.fullType, dropRows = false, tr))
   }
@@ -345,7 +347,7 @@ case class TextTableReader(options: TextTableReaderOptions) extends TableReader 
 
     val useColIndices = rowTyp.fields.map(f => fullType.rowType.fieldIdx(f.name))
 
-    val crdd = ContextRDD.textFilesLines[RVDContext](hc.sc, options.files, options.nPartitions)
+    val crdd = ContextRDD.textFilesLines[RVDContext](hc.sc, options.files, options.nPartitions, options.filterAndReplace)
       .filter { line =>
         !options.isComment(line.value) &&
           (options.noHeader || metadata.header != line.value) &&

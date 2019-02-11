@@ -7,6 +7,8 @@ from ..utils import wrap_to_list
 from ..utils.java import escape_str
 from ..genetics.reference_genome import reference_genome_type
 
+from .utils import make_filter_and_replace
+
 
 class MatrixReader(object):
     @abc.abstractmethod
@@ -68,6 +70,8 @@ class MatrixVCFReader(MatrixReader):
                       skip_invalid_loci=bool,
                       force_bgz=bool,
                       force_gz=bool,
+                      filter=nullable(str),
+                      find_replace=nullable(sized_tupleof(str, str)),
                       _partitions_json=nullable(str))
     def __init__(self,
                  path,
@@ -81,6 +85,8 @@ class MatrixVCFReader(MatrixReader):
                  skip_invalid_loci,
                  force_bgz,
                  force_gz,
+                 filter,
+                 find_replace,
                  _partitions_json):
         self.path = wrap_to_list(path)
         self.header_file = header_file
@@ -93,6 +99,8 @@ class MatrixVCFReader(MatrixReader):
         self.skip_invalid_loci = skip_invalid_loci
         self.force_gz = force_gz
         self.force_bgz = force_bgz
+        self.filter = filter
+        self.find_replace = find_replace
         self._partitions_json = _partitions_json
 
     def render(self, r):
@@ -108,6 +116,7 @@ class MatrixVCFReader(MatrixReader):
                   'skipInvalidLoci': self.skip_invalid_loci,
                   'gzAsBGZ': self.force_bgz,
                   'forceGZ': self.force_gz,
+                  'filterAndReplace': make_filter_and_replace(self.filter, self.find_replace),
                   'partitionsJSON': self._partitions_json}
         return escape_str(json.dumps(reader))
 
@@ -124,6 +133,8 @@ class MatrixVCFReader(MatrixReader):
                other.skip_invalid_loci == self.skip_invalid_loci and \
                other.force_bgz == self.force_bgz and \
                other.force_gz == self.force_gz and \
+               other.filter == self.filter and \
+               other.find_replace == self.find_replace and \
                other._partitions_json == self._partitions_json
 
 

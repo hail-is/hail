@@ -58,7 +58,8 @@ case class TableLiteral(value: TableValue) extends TableIR {
 object TableReader {
   implicit val formats: Formats = RelationalSpec.formats + ShortTypeHints(
     List(classOf[TableNativeReader],
-      classOf[TextTableReader]))
+      classOf[TextTableReader],
+      classOf[TextInputFilterAndReplace]))
 }
 
 abstract class TableReader {

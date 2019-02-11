@@ -931,6 +931,16 @@ class Tests(unittest.TestCase):
     def test_show_long_field_names(self):
         hl.utils.range_table(1).annotate(**{'a' * 256: 5}).show()
 
+    def test_import_filter_replace(self):
+        def assert_filter_equals(filter, find_replace, to):
+            assert hl.import_table(resource('filter_replace.txt'),
+                                   filter=filter,
+                                   find_replace=find_replace)['HEADER1'].collect() == to
+
+        assert_filter_equals('Foo', None, ['(Baz),(Qux)('])
+        assert_filter_equals(None, (r',', ''), ['(Foo(Bar))', '(Baz)(Qux)('])
+        assert_filter_equals(None, (r'\((\w+)\)', '$1'), ['(Foo,Bar)', 'Baz,Qux('])
+
 def test_large_number_of_fields(tmpdir):
     ht = hl.utils.range_table(100)
     ht = ht.annotate(**{
