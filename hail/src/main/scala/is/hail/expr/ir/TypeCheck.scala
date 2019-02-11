@@ -316,6 +316,9 @@ object TypeCheck {
         assert(ctxs.typ.isInstanceOf[TArray])
         check(globals)
         check(body, env = env.bind(cname, coerce[TArray](ctxs.typ).elementType).bind(gname, globals.typ))
+      case x@ReadPartition(path, spec, rowType) =>
+        check(path.typ == TString())
+        assert(x.typ == TArray(rowType))
     }
   }
 }

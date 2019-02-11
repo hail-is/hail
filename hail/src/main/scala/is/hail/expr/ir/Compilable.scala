@@ -16,6 +16,7 @@ object Compilable {
       case _: MatrixToValueApply => false
       case _: Literal => false
       case _: CollectDistributedArray => false
+      case _: ReadPartition => false
 
       case _ => true
     }

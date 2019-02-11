@@ -10,6 +10,7 @@ import is.hail.expr.ir.IRSuite.TestFunctions
 import is.hail.expr.ir.functions.{IRFunctionRegistry, RegistryFunctions, SeededIRFunction}
 import is.hail.expr.types.TableType
 import is.hail.expr.types.virtual._
+import is.hail.io.CodecSpec
 import is.hail.io.bgen.MatrixBGENReader
 import is.hail.linalg.BlockMatrix
 import is.hail.methods.{ForceCountMatrixTable, ForceCountTable}
@@ -1042,7 +1043,8 @@ class IRSuite extends SparkSuite {
       MatrixMultiWrite(Array(mt, mt), MatrixNativeMultiWriter(tmpDir.createLocalTempFile())),
       MatrixAggregate(mt, MakeStruct(Seq("foo" -> count))),
       BlockMatrixWrite(blockMatrix, tmpDir.createLocalTempFile(), false, false, false),
-      CollectDistributedArray(ArrayRange(0, 3, 1), 1, "x", "y", Ref("x", TInt32()))
+      CollectDistributedArray(ArrayRange(0, 3, 1), 1, "x", "y", Ref("x", TInt32())),
+      ReadPartition(Str("foo"), CodecSpec.default, TStruct("foo"->TInt32()))
     )
     irs.map(x => Array(x))
   }

@@ -208,6 +208,9 @@ object Copy {
       case CollectDistributedArray(_, _, cname, gname, _) =>
         val IndexedSeq(ctxs: IR, globals: IR, newBody: IR) = newChildren
         CollectDistributedArray(ctxs, globals, cname, gname, newBody)
+      case ReadPartition(path, spec, rowType) =>
+        val IndexedSeq(newPath: IR) = newChildren
+        ReadPartition(newPath, spec, rowType)
     }
   }
 }

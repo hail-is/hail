@@ -137,5 +137,6 @@ object Children {
     // from BlockMatrixIR
     case BlockMatrixWrite(child, _, _, _, _) => IndexedSeq(child)
     case CollectDistributedArray(ctxs, globals, _, _, body) => IndexedSeq(ctxs, globals, body)
+    case ReadPartition(path, _, _) => IndexedSeq(path)
   }
 }
