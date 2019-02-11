@@ -17,7 +17,7 @@ object Subst {
         Let(name, newv, subst(body, env.bind(name, Ref(name, newv.typ))))
       case AggLet(name, v, body) =>
         val newv = subst(v)
-        Let(name, newv, subst(body, aggEnv = aggEnv.bind(name, Ref(name, newv.typ))))
+        AggLet(name, newv, subst(body, aggEnv = aggEnv.bind(name, Ref(name, newv.typ))))
       case ArrayMap(a, name, body) =>
         ArrayMap(subst(a), name, subst(body, env.delete(name)))
       case ArrayFilter(a, name, cond) =>
