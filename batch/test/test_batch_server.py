@@ -1,4 +1,4 @@
-import batch.server
+from batch.server.server import run_once
 import requests
 import urllib3
 from urllib3 import HTTPConnectionPool
@@ -16,7 +16,7 @@ class ServerTest(unittest.TestCase):
             raise urllib3.exceptions.ReadTimeoutError(HTTPConnectionPool(
                 host='127.0.0.1', port=5000), 'url://stuff', err)
 
-        def standard_timeout():
+        def standard_timeout(err):
             raise requests.exceptions.ReadTimeout(err)
 
         def socket_timeout(err):
@@ -24,9 +24,9 @@ class ServerTest(unittest.TestCase):
         print("RUNNING")
 
         try:
-            batch.server.run_once(urllib3_timeout, "urllib3 timeout")
-            batch.server.run_once(standard_timeout, "standard timeouut")
-            batch.server.run_once(socket_timeout, "socket timeout")
+            run_once(urllib3_timeout, "urllib3 timeout")
+            run_once(standard_timeout, "standard timeouut")
+            run_once(socket_timeout, "socket timeout")
         except Exception:
             self.fail("Couldn't handle timeout exceptions")
 
