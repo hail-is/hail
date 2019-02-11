@@ -2,7 +2,7 @@ import { PureComponent } from 'react';
 import fetch from 'isomorphic-unfetch';
 import getConfig from 'next/config';
 import Link from 'next/link';
-import { PR, Issue } from './scorecard/scorecard';
+import { PR, Issue } from '../components/Scorecard/scorecard';
 
 import '../styles/pages/scorecard.scss';
 
@@ -48,12 +48,14 @@ declare type scorecardJson = {
 declare type user = string;
 
 interface State {
-  data: scorecardJson;
-  user: user;
+  data?: scorecardJson;
+  user?: user;
+  loading: boolean;
 }
 
 interface Props {
-  pageProps: State;
+  data?: scorecardJson;
+  user?: user;
 }
 
 // TODO: think about triggering this in _app.js
@@ -65,71 +67,124 @@ interface Props {
 // time between page clicks, non-stale state will be served in << 16ms on click
 let cache: scorecardJson;
 
-let timeout: NodeJS.Timeout;
-const startPolling = (ms: number = 1 * 60 * 1000) => {
-  if (timeout) {
-    clearTimeout(timeout);
+let pollingTimeout: NodeJS.Timeout;
+
+let dataPromise: Promise<scorecardJson> | null;
+
+let initialized = false;
+
+const getData = () => {
+  if (dataPromise) {
+    return dataPromise;
   }
 
-  timeout = setInterval(() => {
-    fetch(`${WEB_URL}/json`)
-      .then(d => d.json())
-      .then(data => {
-        cache = data;
-      });
+  dataPromise = fetch(`${isServer ? SERVER_URL : WEB_URL}/json`)
+    .then(d => d.json())
+    .then((data: scorecardJson) => {
+      cache = data;
+
+      return cache;
+    })
+    .finally(() => {
+      initialized = true;
+    });
+
+  return dataPromise;
+};
+
+const startPolling = (ms: number = 1 * 60 * 1000) => {
+  if (pollingTimeout) {
+    clearTimeout(pollingTimeout);
+  }
+
+  pollingTimeout = setInterval(() => {
+    dataPromise = null;
+
+    getData();
   }, ms);
 };
 
-class Scorecard extends PureComponent<Props, State> {
-  // Data that is fetched during the server rendering phase does not need
-  // to be re-fetched during the client rendering phase
-  // The data is automatically available under this.props.pageProps
-  static refreshUser() {
-    const seed = Math.floor(Math.random() * USERS.length);
-    return USERS[seed];
-  }
+const refreshUser = () => {
+  const seed = Math.floor(Math.random() * USERS.length);
+  return USERS[seed];
+};
+
+class Scorecard extends PureComponent {
+  state: State = {
+    loading: false
+  };
 
   static async getInitialProps() {
-    const user = Scorecard.refreshUser();
-
     // TODO: have a single utility function, that checks this once at startup
     // in each phase
 
-    if (isServer || !cache) {
-      const ssr: scorecardJson = await fetch(
-        `${isServer ? SERVER_URL : WEB_URL}/json`
-      ).then(d => d.json());
+    if (isServer) {
+      const ssr: scorecardJson = await fetch(`${SERVER_URL}/json`).then(d =>
+        d.json()
+      );
 
-      // TODO: could use page loading indicator here instead of synchronously waiting
-      if (!isServer) {
-        cache = ssr;
-        startPolling();
-      }
-
-      return { pageProps: { data: ssr, user } };
+      // user needed to make server rendering phase match
+      return { data: ssr, user: refreshUser() };
     }
 
-    return { pageProps: { user } };
+    return null;
   }
 
   constructor(props: Props) {
     super(props);
 
-    // Initialize state to props becaues we may mutate the state (say polling)
-    // but props are supposed to be read-only
-    this.state = {
-      data: this.props.pageProps.data || cache,
-      user: this.props.pageProps.user
-    };
+    if (props.user) {
+      this.state.user = props.user;
+    } else {
+      this.state.user = refreshUser();
+    }
+
+    if (initialized) {
+      this.state.data = cache;
+      return;
+    }
+
+    // console.info('props', props);
+
+    if (props.data) {
+      initialized = true;
+
+      cache = props.data;
+      this.state.data = props.data;
+
+      return;
+    }
+
+    // We are in the client phase here after starting on a diff page
+    this.state.loading = true;
+
+    getData()
+      .then(data => {
+        this.setState(() => ({
+          data,
+          loading: false
+        }));
+
+        startPolling();
+      })
+      .catch(() => {
+        this.setState(() => ({
+          loading: false
+        }));
+      });
   }
 
   handleRefreshUser = () => {
-    this.setState({ user: Scorecard.refreshUser() });
+    this.setState({ user: refreshUser() });
   };
 
   render() {
+    if (this.state.loading) {
+      return <div className="spinner centered" />;
+    }
+
     if (!this.state.data) {
-      return <div>No data</div>;
+      return <div className="centered">No data</div>;
     }
 
     const { user_data, unassigned, urgent_issues, updated } = this.state.data;
