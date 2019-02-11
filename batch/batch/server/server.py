@@ -280,6 +280,7 @@ class Job:
 
 app = Flask('batch')
 
+log.info(f'app.root_path = {app.root_path}')
 
 @app.route('/jobs/create', methods=['POST'])
 def create_job():  # pylint: disable=R0912
