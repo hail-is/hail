@@ -54,13 +54,8 @@ class BlockMatrixIRSuite extends SparkSuite {
 
   @Test def testBlockMatrixBroadcastValue_Scalars() {
     val broadcastTwo = BlockMatrixBroadcast(
-<<<<<<< HEAD
       ValueToBlockMatrix(MakeArray(Seq[F64](F64(2)), TArray(TFloat64())), Array[Long](), 0, Array[Boolean]()),
-        Broadcast2D.SCALAR, shape, 0, Array[Boolean](false, false))
-=======
-      ValueToBlockMatrix(MakeArray(Seq[F64](F64(2)), TArray(TFloat64())), TFloat64(), Array[Long](), 0, Array[Boolean]()),
         IndexedSeq(), IndexedSeq("i", "j"), shape, 0, Array[Boolean](false, false))
->>>>>>> implement simple index expr for broadcast and transpose
 
     val onesAddTwo = makeMap2(new BlockMatrixLiteral(ones), broadcastTwo, Add())
     val threesSubTwo = makeMap2(new BlockMatrixLiteral(threes), broadcastTwo, Subtract())

@@ -227,17 +227,14 @@ case class BlockMatrixBroadcast(
     val nRows = shape(0).toInt
     val nCols = shape(1).toInt
 
-    inIndexExpr match {
-      case IndexedSeq() =>
-        val scalar = childBm.toBreezeMatrix().apply(0,0)
-        BlockMatrix.fill(hc, nRows, nCols, scalar, blockSize)
-      case IndexedSeq(i) =>
-        outIndexExpr match {
-          case IndexedSeq(_, `i`) => broadcastRowVector(hc, childBm.toBreezeMatrix().data, nRows, nCols)
-          case IndexedSeq(`i`, _) => broadcastColVector(hc, childBm.toBreezeMatrix().data, nRows, nCols)
-        }
+    outIndexExpr match {
       case IndexedSeq(i, j) =>
-        outIndexExpr match {
+        inIndexExpr match {
+          case IndexedSeq() =>
+            val scalar = childBm.toBreezeMatrix().apply(0,0)
+            BlockMatrix.fill(hc, nRows, nCols, scalar, blockSize)
+          case IndexedSeq(`i`) => broadcastColVector(hc, childBm.toBreezeMatrix().data, nRows, nCols)
+          case IndexedSeq(`j`) => broadcastRowVector(hc, childBm.toBreezeMatrix().data, nRows, nCols)
           case IndexedSeq(`j`, `i`) => childBm.transpose()
         }
     }
