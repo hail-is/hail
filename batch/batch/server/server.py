@@ -6,13 +6,13 @@ import uuid
 from collections import Counter
 import logging
 import threading
-from flask import Flask, request, jsonify, abort
+from flask import Flask, request, jsonify, abort, render_template
 import kubernetes as kube
 import cerberus
 import requests
 
 from .globals import max_id, pod_name_job, job_id_job, _log_path, _read_file, batch_id_batch
-from .globals import next_id
+from .globals import next_id, get_recent_events, add_event
 
 from .. import schemas
 
@@ -142,6 +142,7 @@ class Job:
             spec=pod_spec)
 
         log.info('created job {}'.format(self.id))
+        add_event({'message': f'created job {self.id}', 'command': ' '.join(pod_spec.containers[0].command)})
 
         if not self.parent_ids:
             self._create_pod()
@@ -219,6 +220,9 @@ class Job:
             pod.metadata.name,
             POD_NAMESPACE,
             _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+
+        add_event({'message': f'job {self.id} exited', 'log': pod_log[:64000]})
+
         fname = _log_path(self.id)
         with open(fname, 'w') as f:
             f.write(pod_log)
@@ -531,6 +535,12 @@ def refresh_k8s_state():
     log.info('k8s state refresh complete')
 
     return '', 204
+
+
+@app.route('/recent', methods=['GET'])
+def recent():
+    recent_events = get_recent_events()
+    return render_template('recent.html', recent=list(reversed(recent_events)))
 
 
 def run_forever(target, *args, **kwargs):
