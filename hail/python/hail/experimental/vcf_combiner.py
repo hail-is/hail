@@ -149,8 +149,8 @@ def summarize(mt):
             ClippingRankSum=hl.median(hl.agg.collect(mt.entry.ClippingRankSum)),
             DP=hl.agg.sum(mt.entry.DP),  # some DPs may have been missing during earlier combining operations
             MQ=hl.median(hl.agg.collect(mt.entry.MQ)),
-            MQ_DP=mt.info.MQ_DP,
             MQRankSum=hl.median(hl.agg.collect(mt.entry.MQRankSum)),
+            MQ_DP=mt.info.MQ_DP,
             QUALapprox=mt.info.QUALapprox,
             RAW_MQ=mt.info.RAW_MQ,
             ReadPosRankSum=hl.median(hl.agg.collect(mt.entry.ReadPosRankSum)),
