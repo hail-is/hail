@@ -1,7 +1,5 @@
 import hail as hl
 
-from hail import MatrixTable
-
 def densify(sparse_mt):
     """Convert sparse MatrixTable to a dense one.
 
