@@ -740,10 +740,10 @@ def import_fam(path, quant_pheno=False, delimiter=r'\\s+', missing='NA') -> Tabl
     -------
     :class:`.Table`
     """
-
-    jkt = Env.hail().table.Table.importFam(Env.hc()._jhc, path,
-                                           quant_pheno, delimiter, missing)
-    return Table._from_java(jkt)
+    type_and_data = json.loads(Env.hail().table.Table.importFamJSON(path, quant_pheno, delimiter, missing))
+    typ = hl.dtype(type_and_data['type'])
+    return hl.Table.parallelize(
+        hl.tarray(typ)._convert_from_json_na(type_and_data['data']), typ, key=['id'])
 
 
 @typecheck(regex=str,
@@ -953,16 +953,15 @@ def import_bgen(path,
 
     if index_file_map is None:
         index_file_map = {}
-    java_index_file_map = tdict(tstr, tstr)._convert_to_j(index_file_map)
 
     entry_set = set(entry_fields)
     row_set = set(_row_fields)
 
-    # have to get reference genome from the index files!
-    reference_genome = Env.hail().io.bgen.LoadBgen.getReferenceGenome(Env.hc()._jhc.hadoopConf(), wrap_to_list(path), java_index_file_map)
-    lt = tlocus(reference_genome) if reference_genome else tstruct(contig=tstr, position=tint32)
-
     if variants is not None:
+        mt_type = Env.backend().matrix_type(
+            MatrixRead(MatrixBGENReader(path, sample_file, index_file_map, n_partitions, block_size, None)))
+        lt = mt_type.row_type['locus']
+
         expected_vtype = tstruct(locus=lt, alleles=tarray(tstr))
 
         if isinstance(variants, StructExpression) or isinstance(variants, LocusExpression):
@@ -1118,16 +1117,12 @@ def import_gen(path,
     -------
     :class:`.MatrixTable`
     """
-
-    rg = reference_genome._jrep if reference_genome else None
-
-    if contig_recoding:
-        contig_recoding = tdict(tstr, tstr)._convert_to_j(contig_recoding)
-
-    jmt = Env.hc()._jhc.importGens(jindexed_seq_args(path), sample_file, joption(chromosome), joption(min_partitions),
-                                   tolerance, joption(rg), joption(contig_recoding),
-                                   skip_invalid_loci)
-    return MatrixTable._from_java(jmt)
+    path = wrap_to_list(path)
+    rg = reference_genome.name if reference_genome else None
+    if contig_recoding is None:
+        contig_recoding = {}
+    return MatrixTable(MatrixRead(MatrixGENReader(
+        path, sample_file, chromosome, min_partitions, tolerance, rg, contig_recoding, skip_invalid_loci)))
 
 
 @typecheck(paths=oneof(str, sequenceof(str)),
@@ -1320,13 +1315,16 @@ def import_table(paths,
     :class:`.Table`
     """
     paths = wrap_to_list(paths)
-    jtypes = {k: v._parsable_string() for k, v in types.items()}
     comment = wrap_to_list(comment)
 
-    jt = Env.hc()._jhc.importTable(paths, key, min_partitions, jtypes, comment,
-                                   delimiter, missing, no_header, impute, quote,
-                                   skip_blank_lines, force_bgz)
-    return Table._from_java(jt)
+    tr = TextTableReader(paths, min_partitions, types, comment,
+                         delimiter, missing, no_header, impute, quote,
+                         skip_blank_lines, force_bgz)
+    t = Table(TableRead(tr))
+    if key:
+        key = wrap_to_list(key)
+        t = t.key_by(*key)
+    return t
 
 
 @typecheck(paths=oneof(str, sequenceof(str)),
@@ -1732,8 +1730,8 @@ def get_vcf_metadata(path):
     -------
     :obj:`dict` of :obj:`str` to (:obj:`dict` of :obj:`str` to (:obj:`dict` of :obj:`str` to :obj:`str`))
     """
-    typ = tdict(tstr, tdict(tstr, tdict(tstr, tstr)))
-    return typ._convert_to_py(Env.hc()._jhc.parseVCFMetadata(path))
+    
+    return Env.backend().parse_vcf_metadata(path)
 
 
 @typecheck(path=oneof(str, sequenceof(str)),
@@ -1747,6 +1745,7 @@ def get_vcf_metadata(path):
            contig_recoding=nullable(dictof(str, str)),
            array_elements_required=bool,
            skip_invalid_loci=bool,
+           entry_float_type=enumeration(tfloat32, tfloat64),
            # json
            _partitions=nullable(str))
 def import_vcf(path,
@@ -1760,6 +1759,7 @@ def import_vcf(path,
                contig_recoding=None,
                array_elements_required=True,
                skip_invalid_loci=False,
+               entry_float_type=tfloat64,
                _partitions=None) -> MatrixTable:
     """Import VCF file(s) as a :class:`.MatrixTable`.
 
@@ -1876,13 +1876,17 @@ def import_vcf(path,
         element.
     skip_invalid_loci : :obj:`bool`
         If ``True``, skip loci that are not consistent with `reference_genome`.
+    entry_float_type: :class:`.HailType`
+        Type of floating point entries in matrix table. Must be one of:
+        :py:data:`.tfloat32` or :py:data:`.tfloat64`. Default:
+        :py:data:`.tfloat64`.
 
     Returns
     -------
     :class:`.MatrixTable`
     """
 
-    reader = MatrixVCFReader(path, call_fields, header_file, min_partitions,
+    reader = MatrixVCFReader(path, call_fields, entry_float_type, header_file, min_partitions,
                              reference_genome, contig_recoding, array_elements_required,
                              skip_invalid_loci, force_bgz, force, _partitions)
     return MatrixTable(MatrixRead(reader, drop_cols=drop_samples))
@@ -1892,6 +1896,7 @@ def import_vcf(path,
            force=bool,
            force_bgz=bool,
            call_fields=oneof(str, sequenceof(str)),
+           entry_float_type=enumeration(tfloat32, tfloat64),
            reference_genome=nullable(reference_genome_type),
            contig_recoding=nullable(dictof(str, str)),
            array_elements_required=bool,
@@ -1901,6 +1906,7 @@ def import_vcfs(path,
                 force=False,
                 force_bgz=False,
                 call_fields=[],
+                entry_float_type=tfloat64,
                 reference_genome='default',
                 contig_recoding=None,
                 array_elements_required=True,
@@ -1951,6 +1957,7 @@ def import_vcfs(path,
     jmts = _cached_importvcfs.pyApply(
         wrap_to_list(path),
         wrap_to_list(call_fields),
+        entry_float_type._parsable_string(),
         rg,
         contig_recoding,
         array_elements_required,
@@ -2010,14 +2017,11 @@ def index_bgen(path,
 
     """
     rg = reference_genome.name if reference_genome else None
-
-    if contig_recoding:
-        contig_recoding = tdict(tstr, tstr)._convert_to_j(contig_recoding)
-
-    if index_file_map:
-        index_file_map = tdict(tstr, tstr)._convert_to_j(index_file_map)
-
-    Env.hc()._jhc.indexBgen(jindexed_seq_args(path), index_file_map, joption(rg), contig_recoding, skip_invalid_loci)
+    if index_file_map is None:
+        index_file_map = {}
+    if contig_recoding is None:
+        contig_recoding = {}
+    Env.hc()._jhc.indexBgen(wrap_to_list(path), index_file_map, joption(rg), contig_recoding, skip_invalid_loci)
 
 
 @typecheck(path=str)
@@ -2033,7 +2037,8 @@ def read_table(path) -> Table:
     -------
     :class:`.Table`
     """
-    return Table._from_java(Env.hc()._jhc.readTable(path))
+    tr = TableNativeReader(path)
+    return Table(TableRead(tr, False))
 
 @typecheck(t=Table,
            host=str,
@@ -2049,4 +2054,4 @@ def export_elasticsearch(t, host, port, index, index_type, block_size, config=No
     .. warning::
         :func:`.export_elasticsearch` is EXPERIMENTAL.
     """
-    Env.hail().io.ElasticsearchConnector.export(t._jt, host, port, index, index_type, block_size, config, verbose)
+    Env.hail().io.ElasticsearchConnector.export(t.expand_types()._jt, host, port, index, index_type, block_size, config, verbose)

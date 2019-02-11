@@ -1,10 +1,9 @@
 package is.hail.table
 
-import is.hail.compatibility
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.{ir, _}
-import is.hail.expr.ir.{CastTableToMatrix, IR, LiftLiterals, TableAggregateByKey, TableExplode, TableFilter, TableIR, TableJoin, TableKeyBy, TableKeyByAndAggregate, TableLiteral, TableMapGlobals, TableMapRows, TableOrderBy, TableParallelize, TableRange, TableToMatrixTable, TableUnion, TableValue, _}
+import is.hail.expr.ir._
 import is.hail.expr.types._
 import is.hail.expr.types.virtual._
 import is.hail.io.plink.{FamFileConfig, LoadPlink}
@@ -12,7 +11,6 @@ import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.variant._
-import org.apache.commons.lang3.StringUtils
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row, SQLContext}
@@ -63,17 +61,15 @@ object Table {
   def read(hc: HailContext, path: String): Table =
     new Table(hc, TableIR.read(hc, path, dropRows = false, None))
 
-  def importFam(hc: HailContext, path: String, isQuantPheno: Boolean = false,
+  def importFamJSON(path: String, isQuantPheno: Boolean = false,
     delimiter: String = "\\t",
-    missingValue: String = "NA"): Table = {
-
+    missingValue: String = "NA"): String = {
     val ffConfig = FamFileConfig(isQuantPheno, delimiter, missingValue)
-
-    val (data, typ) = LoadPlink.parseFam(path, ffConfig, hc.hadoopConf)
-
-    val rdd = hc.sc.parallelize(data)
-
-    Table(hc, rdd, typ, IndexedSeq("id"))
+    val (data, typ) = LoadPlink.parseFam(path, ffConfig, HailContext.get.hadoopConf)
+    val jv = JSONAnnotationImpex.exportAnnotation(
+      Row(typ.toString, data),
+      TStruct("type" -> TString(), "data" -> TArray(typ)))
+    JsonMethods.compact(jv)
   }
 
   def apply(
@@ -246,8 +242,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
   }
 
   def count(): Long = ir.Interpret[Long](ir.TableCount(tir))
-
-  def forceCount(): Long = rvd.count()
 
   def nColumns: Int = fields.length
 
@@ -453,30 +447,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
     val x = IRParser.parse_value_ir(expr, IRParserEnvironment(typ.refMap))
     new Table(hc, TableAggregateByKey(tir, x))
   }
-
-  def expandTypes(): Table = {
-    require(typ.key.isEmpty)
-
-    def deepExpand(t: Type): Type = {
-      t match {
-        case t: TContainer =>
-          // set, dict => array
-          TArray(deepExpand(t.elementType), t.required)
-        case t: ComplexType =>
-          deepExpand(t.representation).setRequired(t.required)
-        case t: TBaseStruct =>
-          // tuple => struct
-          TStruct(t.required, t.fields.map { f => (f.name, deepExpand(f.typ)) }: _*)
-        case _ => t
-      }
-    }
-
-    val newRowType = deepExpand(signature).asInstanceOf[TStruct]
-    val newRVD = rvd.truncateKey(IndexedSeq())
-    copy2(
-      rvd = newRVD.changeType(newRowType.physicalType),
-      signature = newRowType)
-  }
   
   // expandTypes must be called before toDF
   def toDF(sqlContext: SQLContext): DataFrame = {
@@ -486,7 +456,7 @@ class Table(val hc: HailContext, val tir: TableIR) {
       signature.schema.asInstanceOf[StructType])
   }
 
-  def explode(column: String): Table = new Table(hc, TableExplode(tir, column))
+  def explode(column: String): Table = new Table(hc, TableExplode(tir, Array(column)))
 
   def explode(columnNames: Array[String]): Table = {
     columnNames.foldLeft(this)((kt, name) => kt.explode(name))
@@ -520,152 +490,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
   }
 
   def unpersist(): Table = copy2(rvd = rvd.unpersist())
-
-  def show(n: Int = 10, truncate: Option[Int] = None, printTypes: Boolean = true, maxWidth: Int = 100): Unit = {
-    println(showString(n, truncate, printTypes, maxWidth))
-  }
-
-  def showString(n: Int = 10, truncate: Option[Int] = None, printTypes: Boolean = true, maxWidth: Int = 100): String = {
-    /**
-      * Parts of this method are lifted from:
-      *   org.apache.spark.sql.Dataset.showString
-      * Spark version 2.0.2
-      */
-
-    truncate.foreach { tr => require(tr > 3, s"truncation length too small: $tr") }
-    require(maxWidth >= 10, s"max width too small: $maxWidth")
-
-    val (data, hasMoreData) = if (n < 0)
-      collect() -> false
-    else {
-      val takeResult = head(n + 1).collect()
-      val hasMoreData = takeResult.length > n
-      takeResult.take(n) -> hasMoreData
-    }
-
-    def convertType(t: Type, name: String, ab: ArrayBuilder[(String, String, Boolean)]) {
-      t match {
-        case s: TStruct => s.fields.foreach { f =>
-          convertType(f.typ, if (name == null) f.name else name + "." + f.name, ab)
-        }
-        case _ =>
-          ab += (name, t.toString, t.isInstanceOf[TNumeric])
-      }
-    }
-
-    val headerBuilder = new ArrayBuilder[(String, String, Boolean)]()
-    convertType(signature, null, headerBuilder)
-    val (names, types, rightAlign) = headerBuilder.result().unzip3
-
-    val sb = new StringBuilder()
-    val config = ShowStrConfig()
-    def convertValue(t: Type, v: Annotation, ab: ArrayBuilder[String]) {
-      t match {
-        case s: TStruct =>
-          val r = v.asInstanceOf[Row]
-          s.fields.foreach(f => convertValue(f.typ, if (r == null) null else r.get(f.index), ab))
-        case _ =>
-          ab += t.showStr(v, config, sb)
-      }
-    }
-
-    val valueBuilder = new ArrayBuilder[String]()
-    val dataStrings = data.map { r =>
-      valueBuilder.clear()
-      convertValue(signature, r, valueBuilder)
-      valueBuilder.result()
-    }
-
-    val fixedWidth = 4 // "| " + " |"
-    val delimWidth = 3 // " | "
-
-    val tr = truncate.getOrElse(maxWidth - 4)
-
-    val allStrings = (Iterator(names, types) ++ dataStrings.iterator).map { arr =>
-      arr.map { str => if (str.length > tr) str.substring(0, tr - 3) + "..." else str }
-    }.toArray
-
-    val nCols = names.length
-    val colWidths = Array.fill(nCols)(0)
-
-    // Compute the width of each column
-    for (i <- allStrings.indices)
-      for (j <- 0 until nCols)
-        colWidths(j) = math.max(colWidths(j), allStrings(i)(j).length)
-
-    val normedStrings = allStrings.map { line =>
-      line.zipWithIndex.map { case (cell, i) =>
-        if (rightAlign(i))
-          StringUtils.leftPad(cell, colWidths(i))
-        else
-          StringUtils.rightPad(cell, colWidths(i))
-      }
-    }
-
-    sb.clear()
-
-    // writes cols [startIndex, endIndex)
-    def writeCols(startIndex: Int, endIndex: Int) {
-
-      val toWrite = (startIndex until endIndex).toArray
-
-      val sep = toWrite.map(i => "-" * colWidths(i)).addString(new StringBuilder, "+-", "-+-", "-+\n").result()
-      // add separator line
-      sb.append(sep)
-
-      // add column names
-      toWrite.map(normedStrings(0)(_)).addString(sb, "| ", " | ", " |\n")
-
-      // add separator line
-      sb.append(sep)
-
-      if (printTypes) {
-        // add types
-        toWrite.map(normedStrings(1)(_)).addString(sb, "| ", " | ", " |\n")
-
-        // add separator line
-        sb.append(sep)
-      }
-
-      // data
-      normedStrings.drop(2).foreach {
-        toWrite.map(_).addString(sb, "| ", " | ", " |\n")
-      }
-
-      // add separator line
-      sb.append(sep)
-    }
-
-    if (nCols == 0)
-      writeCols(0, 0)
-
-    var colIdx = 0
-    var first = true
-
-    while (colIdx < nCols) {
-      val startIdx = colIdx
-      var colWidth = fixedWidth
-
-      // consume at least one column, and take until the next column would put the width over maxWidth
-      do {
-        colWidth += 3 + colWidths(colIdx)
-        colIdx += 1
-      } while (colIdx < nCols && colWidth + delimWidth + colWidths(colIdx) <= maxWidth)
-
-      if (!first) {
-        sb.append('\n')
-      }
-
-      writeCols(startIdx, colIdx)
-
-      first = false
-    }
-
-    if (hasMoreData)
-      sb.append(s"showing top $n ${ plural(n, "row") }\n")
-
-    sb.result()
-  }
 
   def copy2(rvd: RVD = rvd,
     signature: TStruct = signature,

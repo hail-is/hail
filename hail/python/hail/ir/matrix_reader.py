@@ -1,6 +1,7 @@
 import abc
 import json
 
+from ..expr.types import tfloat32, tfloat64
 from ..typecheck import *
 from ..utils import wrap_to_list
 from ..utils.java import escape_str
@@ -58,6 +59,7 @@ class MatrixRangeReader(MatrixReader):
 class MatrixVCFReader(MatrixReader):
     @typecheck_method(path=oneof(str, sequenceof(str)),
                       call_fields=oneof(str, sequenceof(str)),
+                      entry_float_type=enumeration(tfloat32, tfloat64),
                       header_file=nullable(str),
                       min_partitions=nullable(int),
                       reference_genome=nullable(reference_genome_type),
@@ -70,6 +72,7 @@ class MatrixVCFReader(MatrixReader):
     def __init__(self,
                  path,
                  call_fields,
+                 entry_float_type,
                  header_file,
                  min_partitions,
                  reference_genome,
@@ -83,6 +86,7 @@ class MatrixVCFReader(MatrixReader):
         self.header_file = header_file
         self.min_partitions = min_partitions
         self.call_fields = wrap_to_list(call_fields)
+        self.entry_float_type = entry_float_type._parsable_string()
         self.reference_genome = reference_genome
         self.contig_recoding = contig_recoding
         self.array_elements_required = array_elements_required
@@ -95,6 +99,7 @@ class MatrixVCFReader(MatrixReader):
         reader = {'name': 'MatrixVCFReader',
                   'files': self.path,
                   'callFields': self.call_fields,
+                  'entryFloatType': self.entry_float_type,
                   'headerFile': self.header_file,
                   'minPartitions': self.min_partitions,
                   'rg': self.reference_genome.name if self.reference_genome else None,
@@ -110,6 +115,7 @@ class MatrixVCFReader(MatrixReader):
         return isinstance(other, MatrixVCFReader) and \
                other.path == self.path and \
                other.call_fields == self.call_fields and \
+               other.entry_float_type == self.entry_float_type and \
                other.header_file == self.header_file and \
                other.min_partitions == self.min_partitions and \
                other.reference_genome == self.reference_genome and \
@@ -207,3 +213,28 @@ class MatrixPLINKReader(MatrixReader):
                other.reference_genome == self.reference_genome and \
                other.contig_recoding == self.contig_recoding and \
                other.skip_invalid_loci == self.skip_invalid_loci
+
+class MatrixGENReader(MatrixReader):
+    @typecheck_method(files=sequenceof(str), sample_file=str, chromosome=nullable(str),
+                      min_partitions=nullable(int), tolerance=float, rg=nullable(str),
+                      contig_recoding=dictof(str, str), skip_invalid_loci=bool)
+    def __init__(self, files, sample_file, chromosome, min_partitions, tolerance,
+                 rg, contig_recoding, skip_invalid_loci):
+        self.config = {
+            'name': 'MatrixGENReader',
+            'files': files,
+            'sampleFile': sample_file,
+            'chromosome': chromosome,
+            'nPartitions': min_partitions,
+            'tolerance': tolerance,
+            'rg': rg,
+            'contigRecoding': contig_recoding if contig_recoding else {},
+            'skipInvalidLoci': skip_invalid_loci
+        }
+
+    def render(self, r):
+        return escape_str(json.dumps(self.config))
+
+    def __eq__(self, other):
+        return isinstance(other, MatrixGENReader) and \
+            self.config == other.config

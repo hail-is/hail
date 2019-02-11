@@ -11,6 +11,7 @@ object Optimize {
     ir = FoldConstants(ir, canGenerateLiterals = canGenerateLiterals)
     ir = Simplify(ir)
     ir = PruneDeadFields(ir)
+    ir = Simplify(ir)
 
     if (ir.typ != ir0.typ)
       fatal(s"optimization changed type!\n  before: ${ ir0.typ }\n  after:  ${ ir.typ }" +
@@ -31,6 +32,8 @@ object Optimize {
    optimize(ir, noisy, canGenerateLiterals).asInstanceOf[MatrixIR]
 
   def apply(ir: MatrixIR): MatrixIR = apply(ir, true, true)
+
+  def apply(ir: BlockMatrixIR): BlockMatrixIR = ir //Currently no BlockMatrixIR that can be optimized
 
   def apply(ir: IR, noisy: Boolean, canGenerateLiterals: Boolean): IR =
     optimize(ir, noisy, canGenerateLiterals).asInstanceOf[IR]

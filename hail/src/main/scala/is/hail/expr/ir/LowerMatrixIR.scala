@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.expr.types._
-import is.hail.expr.types.virtual.{TArray, TInt32}
+import is.hail.expr.types.virtual.{TArray, TInt32, TInterval}
 import is.hail.utils._
 
 object LowerMatrixIR {
@@ -22,6 +22,7 @@ object LowerMatrixIR {
     case ir: IR => lower(ir)
     case tir: TableIR => lower(tir)
     case mir: MatrixIR => lower(mir)
+    case bmir: BlockMatrixIR => bmir
   }
 
   private[this] def lower(ir: IR): IR = {
@@ -40,7 +41,8 @@ object LowerMatrixIR {
   private[this] def lower(mir: MatrixIR): TableIR = {
     val lowered = matrixRules.applyOrElse(mir, (mir: MatrixIR) =>
       CastMatrixToTable(lowerChildren(mir).asInstanceOf[MatrixIR], entriesFieldName, colsFieldName))
-    assert(lowered.typ == loweredType(mir.typ), lowered.typ + "\n" + loweredType(mir.typ))
+    assert(lowered.typ == loweredType(mir.typ), s"\n  ACTUAL: ${ lowered.typ }\n  EXPECT: ${ loweredType(mir.typ) }" +
+      s"\n  BEFORE: ${ Pretty(mir) }\n  AFTER: ${ Pretty(lowered) }")
     lowered
   }
 
@@ -118,6 +120,13 @@ object LowerMatrixIR {
             'global('newColIdx).map('i ~> 'global(colsField)('i)))
           .dropFields('newColIdx))
 
+    case MatrixAnnotateRowsTable(child, table, root) =>
+      val kt = table.typ.keyType
+      if (kt.size == 1 && kt.types(0).isInstanceOf[TInterval] && !child.typ.rowKeyStruct.types(0).isInstanceOf[TInterval])
+        TableIntervalJoin(lower(child), lower(table), root)
+      else
+        TableLeftJoinRightDistinct(lower(child), lower(table), root)
+
     case MatrixChooseCols(child, oldIndices) =>
       lower(child)
         .mapGlobals('global.insertFields('newColIdx -> oldIndices.map(I32)))
@@ -126,11 +135,39 @@ object LowerMatrixIR {
           .insertFields(colsField -> 'global('newColIdx).map('i ~> 'global(colsField)('i)))
           .dropFields('newColIdx))
 
+    case MatrixAnnotateColsTable(child, table, root) =>
+      val col = Symbol(genUID())
+      val colKey = makeStruct(table.typ.key.zip(child.typ.colKey).map { case (tk, mck) => Symbol(tk) -> col(Symbol(mck))}: _*)
+      lower(child)
+        .mapGlobals(let(__dictfield = lower(table)
+          .distinct()
+          .collectAsDict()) {
+          'global.insertFields(colsField ->
+            'global(colsField).map(col ~> col.insertFields(Symbol(root) -> '__dictfield.invoke("get", colKey))))
+        })
+
     case MatrixMapGlobals(child, newGlobals) =>
       lower(child)
         .mapGlobals(
           let (global = 'global.dropFields(colsField)) { newGlobals }
           .insertFields(colsField -> 'global(colsField)))
+
+    case MatrixMapRows(child, newRow) =>
+      def lowerApplyAggOp(x: IRProxy): IRProxy = lift {
+        case x@(_: ApplyAggOp | _: AggFilter | _: AggExplode | _: AggGroupBy) =>
+	  val env = Env("sa" -> 'global (colsField)('i),
+	    "g" -> 'row (entriesField)('i))
+          irRange(0, 'global (colsField).len)
+            .arrayAgg('i ~>
+	      subst(x, env, env))
+        case _ =>
+          MapIRProxy(lowerApplyAggOp)(x)
+      }(x)
+
+      lower(child)
+        .mapRows(
+          subst(lowerApplyAggOp(newRow), Env("va" -> 'row, "global" -> 'global))
+	    .insertFields(entriesField -> 'row(entriesField)))
 
     case MatrixFilterEntries(child, pred) =>
       lower(child).mapRows('row.insertFields(entriesField ->
@@ -189,6 +226,39 @@ object LowerMatrixIR {
 
     case MatrixDistinctByRow(child) => TableDistinct(lower(child))
 
+    case MatrixExplodeCols(child, path) =>
+      val loweredChild = lower(child)
+      val lengths = Symbol(genUID())
+      val colIdx = Symbol(genUID())
+      val nestedIdx = Symbol(genUID())
+      val colElementUID1 = Symbol(genUID())
+
+
+      val nestedRefs = path.init.scanLeft('global(colsField)(colIdx): IRProxy)((irp, name) => irp(Symbol(name)))
+      val postExplodeSelector = path.zip(nestedRefs).zipWithIndex.foldRight[IRProxy](nestedIdx) {
+        case (((field, ref), i), arg) =>
+          ref.insertFields(Symbol(field) ->
+            (if (i == nestedRefs.length - 1)
+              ref(Symbol(field)).toArray(arg)
+            else
+              arg))
+      }
+
+      val arrayIR = path.foldLeft[IRProxy](colElementUID1) { case (irp, fieldName) => irp(Symbol(fieldName)) }
+      loweredChild
+        .mapGlobals('global.insertFields(lengths -> 'global(colsField).map( { colElementUID1 ~> arrayIR.len.orElse(0)})))
+        .mapGlobals('global.insertFields(colsField ->
+          irRange(0, 'global(colsField).len, 1)
+            .flatMap( { colIdx ~>
+                irRange(0, 'global(lengths)(colIdx), 1)
+                .map( { nestedIdx ~> postExplodeSelector })
+              })))
+        .mapRows('row.insertFields(entriesField ->
+          irRange(0, 'row(entriesField).len, 1)
+            .flatMap(colIdx ~>
+              irRange(0, 'global(lengths)(colIdx), 1).map(Symbol(genUID()) ~> 'row(entriesField)(colIdx)))))
+        .mapGlobals('global.dropFields(lengths))
+
     case MatrixCollectColsByKey(child) =>
       lower(child)
         .mapGlobals('global.insertFields('newColIdx ->
@@ -210,6 +280,8 @@ object LowerMatrixIR {
             })
           .dropFields('newColIdx)
         )
+
+    case MatrixExplodeRows(child, path) => TableExplode(lower(child), path)
   }
 
   private[this] def tableRules: PartialFunction[TableIR, TableIR] = {

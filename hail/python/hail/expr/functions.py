@@ -331,6 +331,41 @@ def bind(f: Callable, *exprs):
     return construct_expr(res_ir, lambda_result.dtype, indices, aggregations)
 
 
+def rbind(*exprs):
+    """Bind a temporary variable and use it in a function.
+
+    This is :func:`.bind` with flipped argument order.
+
+    Examples
+    --------
+
+    >>> hl.eval(hl.rbind(1, lambda x: x + 1))
+    2
+
+    :func:`.let` also can take multiple arguments:
+
+    >>> hl.eval(hl.rbind(4.0, 2.0, lambda x, y: x / y))
+    2.0
+
+    Parameters
+    ----------
+    exprs : variable-length args of :class:`.Expression`
+        Expressions to bind.
+    f : function ( (args) -> :class:`.Expression`)
+        Function of `exprs`.
+
+    Returns
+    -------
+    :class:`.Expression`
+        Result of evaluating `f` with `exprs` as arguments.
+    """
+
+    f = exprs[-1]
+    args = [expr_any.check(arg, 'rbind', f'argument {index}') for index, arg in enumerate(exprs[:-1])]
+
+    return hl.bind(f, *args)
+
+
 @typecheck(c1=expr_int32, c2=expr_int32, c3=expr_int32, c4=expr_int32)
 def chi_squared_test(c1, c2, c3, c4) -> StructExpression:
     """Performs chi-squared test of independence on a 2x2 contingency table.
@@ -639,7 +674,7 @@ def hardy_weinberg_test(n_hom_ref, n_het, n_hom_var) -> StructExpression:
     This method performs a two-sided exact test with mid-p-value correction of
     `Hardy-Weinberg equilibrium <https://en.wikipedia.org/wiki/Hardy%E2%80%93Weinberg_principle>`__
     via an efficient implementation of the
-    `Levene-Haldane distribution <https://hail.is/docs/devel/LeveneHaldane.pdf>`__,
+    `Levene-Haldane distribution <https://hail.is/docs/0.2/LeveneHaldane.pdf>`__,
     which models the number of heterozygous individuals under equilibrium.
 
     The mean of this distribution is ``(n_hom_ref * n_hom_var) / (2n - 1)`` where
@@ -4356,3 +4391,239 @@ def approx_equal(x, y, tolerance=1e-6, absolute=False, nan_same=False):
     """
 
     return _func("approxEqual", hl.tbool, x, y, tolerance, absolute, nan_same)
+
+
+def _shift_op(x, y, op):
+    assert op in ('<<', '>>', '>>>')
+    t = x.dtype
+    if t == hl.tint64:
+        word_size = 64
+        zero = hl.int64(0)
+    else:
+        word_size = 32
+        zero = hl.int32(0)
+
+    indices, aggregations = unify_all(x, y)
+    return hl.bind(lambda x, y: (
+        hl.case()
+            .when(y >= word_size, hl.sign(x) if op == '>>' else zero)
+            .when(y > 0, construct_expr(ApplyBinaryOp(op, x._ir, y._ir), t, indices, aggregations))
+            .or_error('cannot shift by a negative value: ' + hl.str(x) + f" {op} " + hl.str(y))), x, y)
+
+def _bit_op(x, y, op):
+    if x.dtype == hl.tint32 and y.dtype == hl.tint32:
+        t = hl.tint32
+    else:
+        t = hl.tint64
+    coercer = coercer_from_dtype(t)
+    x = coercer.coerce(x)
+    y = coercer.coerce(y)
+
+    indices, aggregations = unify_all(x, y)
+    return construct_expr(ApplyBinaryOp(op, x._ir, y._ir), t, indices, aggregations)
+
+
+@typecheck(x=expr_oneof(expr_int32, expr_int64), y=expr_oneof(expr_int32, expr_int64))
+def bit_and(x, y):
+    """Bitwise and `x` and `y`.
+
+    Examples
+    --------
+    >>> hl.eval(hl.bit_and(5, 3))
+    1
+
+    Notes
+    -----
+    See `the Python wiki <https://wiki.python.org/moin/BitwiseOperators>`__
+    for more information about bit operators.
+
+
+    Parameters
+    ----------
+    x : :class:`.Int32Expression` or :class:`.Int64Expression`
+    y : :class:`.Int32Expression` or :class:`.Int64Expression`
+
+    Returns
+    -------
+    :class:`.Int32Expression` or :class:`.Int64Expression`
+    """
+    return _bit_op(x, y, '&')
+
+
+@typecheck(x=expr_oneof(expr_int32, expr_int64), y=expr_oneof(expr_int32, expr_int64))
+def bit_or(x, y):
+    """Bitwise or `x` and `y`.
+
+    Examples
+    --------
+    >>> hl.eval(hl.bit_or(5, 3))
+    7
+
+    Notes
+    -----
+    See `the Python wiki <https://wiki.python.org/moin/BitwiseOperators>`__
+    for more information about bit operators.
+
+
+    Parameters
+    ----------
+    x : :class:`.Int32Expression` or :class:`.Int64Expression`
+    y : :class:`.Int32Expression` or :class:`.Int64Expression`
+
+    Returns
+    -------
+    :class:`.Int32Expression` or :class:`.Int64Expression`
+    """
+    return _bit_op(x, y, '|')
+
+
+@typecheck(x=expr_oneof(expr_int32, expr_int64), y=expr_oneof(expr_int32, expr_int64))
+def bit_xor(x, y):
+    """Bitwise exclusive-or `x` and `y`.
+
+    Examples
+    --------
+    >>> hl.eval(hl.bit_xor(5, 3))
+    6
+
+    Notes
+    -----
+    See `the Python wiki <https://wiki.python.org/moin/BitwiseOperators>`__
+    for more information about bit operators.
+
+
+    Parameters
+    ----------
+    x : :class:`.Int32Expression` or :class:`.Int64Expression`
+    y : :class:`.Int32Expression` or :class:`.Int64Expression`
+
+    Returns
+    -------
+    :class:`.Int32Expression` or :class:`.Int64Expression`
+    """
+    return _bit_op(x, y, '^')
+
+
+@typecheck(x=expr_oneof(expr_int32, expr_int64), y=expr_int32)
+def bit_lshift(x, y):
+    """Bitwise left-shift `x` by `y`.
+
+    Examples
+    --------
+    >>> hl.eval(hl.bit_lshift(5, 3))
+    40
+
+    >>> hl.eval(hl.bit_lshift(1, 8))
+    256
+
+    Unlike Python, Hail integers are fixed-size (32 or 64 bits),
+    and bits extended beyond will be ignored:
+
+    >>> hl.eval(hl.bit_lshift(1, 31))
+    -2147483648
+
+    >>> hl.eval(hl.bit_lshift(1, 32))
+    0
+
+    >>> hl.eval(hl.bit_lshift(hl.int64(1), 32))
+    4294967296
+
+    >>> hl.eval(hl.bit_lshift(hl.int64(1), 64))
+    0
+
+    Notes
+    -----
+    See `the Python wiki <https://wiki.python.org/moin/BitwiseOperators>`__
+    for more information about bit operators.
+
+    Parameters
+    ----------
+    x : :class:`.Int32Expression` or :class:`.Int64Expression`
+    y : :class:`.Int32Expression` or :class:`.Int64Expression`
+
+    Returns
+    -------
+    :class:`.Int32Expression` or :class:`.Int64Expression`
+    """
+    return _shift_op(x, y, '<<')
+
+
+@typecheck(x=expr_oneof(expr_int32, expr_int64), y=expr_int32, logical=builtins.bool)
+def bit_rshift(x, y, logical=False):
+    """Bitwise right-shift `x` by `y`.
+
+    Examples
+    --------
+    >>> hl.eval(hl.bit_rshift(256, 3))
+    32
+
+    With ``logical=False`` (default), the sign is preserved:
+
+    >>> hl.eval(hl.bit_rshift(-1, 1))
+    -1
+
+    With ``logical=True``, the sign bit is treated as any other:
+
+    >>> hl.eval(hl.bit_rshift(-1, 1, logical=True))
+    2147483647
+
+    Notes
+    -----
+    If `logical` is ``False``, then the shift is a sign-preserving right shift.
+    If `logical` is ``True``, then the shift is logical, with the sign bit
+    treated as any other bit.
+
+    See `the Python wiki <https://wiki.python.org/moin/BitwiseOperators>`__
+    for more information about bit operators.
+
+    Parameters
+    ----------
+    x : :class:`.Int32Expression` or :class:`.Int64Expression`
+    y : :class:`.Int32Expression` or :class:`.Int64Expression`
+    logical : :obj:`bool`
+
+    Returns
+    -------
+    :class:`.Int32Expression` or :class:`.Int64Expression`
+    """
+    if logical:
+        return _shift_op(x, y, '>>>')
+    else:
+        return _shift_op(x, y, '>>')
+
+
+@typecheck(x=expr_oneof(expr_int32, expr_int64))
+def bit_not(x):
+    """Bitwise invert `x`.
+
+    Examples
+    --------
+    >>> hl.eval(hl.bit_not(0))
+    -1
+
+    Notes
+    -----
+    See `the Python wiki <https://wiki.python.org/moin/BitwiseOperators>`__
+    for more information about bit operators.
+
+
+    Parameters
+    ----------
+    x : :class:`.Int32Expression` or :class:`.Int64Expression`
+
+    Returns
+    -------
+    :class:`.Int32Expression` or :class:`.Int64Expression`
+    """
+    return construct_expr(ApplyUnaryOp('~', x._ir), x.dtype, x._indices, x._aggregations)
+
+
+@typecheck(s=expr_str)
+def _escape_string(s):
+    return _func("escapeString", hl.tstr, s)
+
+@typecheck(l=expr_any, r=expr_any, tolerance=expr_float64, absolute=expr_bool)
+def _values_similar(l, r, tolerance=1e-6, absolute=False):
+    assert l.dtype == r.dtype
+    return ((is_missing(l) & is_missing(r))
+            | ((is_defined(l) & is_defined(r)) & _func("valuesSimilar", hl.tbool, l, r, tolerance, absolute)))

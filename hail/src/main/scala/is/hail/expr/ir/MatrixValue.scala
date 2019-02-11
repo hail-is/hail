@@ -11,6 +11,7 @@ import is.hail.sparkextras.ContextRDD
 import is.hail.table.TableSpec
 import is.hail.utils._
 import is.hail.variant._
+import org.apache.commons.lang3.StringUtils
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.Row
 import org.json4s.jackson.JsonMethods.parse
@@ -90,26 +91,9 @@ case class MatrixValue(
       hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
     }
 
-    def write(path: String, overwrite: Boolean = false, stageLocally: Boolean = false, codecSpecJSONStr: String = null) = {
+    private def finalizeWrite(path: String, codecSpec: CodecSpec, partitionCounts: Array[Long]) = {
       val hc = HailContext.get
       val hadoopConf = hc.hadoopConf
-
-      val codecSpec =
-        if (codecSpecJSONStr != null) {
-          implicit val formats = AbstractRVDSpec.formats
-          val codecSpecJSON = parse(codecSpecJSONStr)
-          codecSpecJSON.extract[CodecSpec]
-        } else
-          CodecSpec.default
-
-      if (overwrite)
-        hadoopConf.delete(path, recursive = true)
-      else if (hadoopConf.exists(path))
-        fatal(s"file already exists: $path")
-
-      hc.hadoopConf.mkDir(path)
-
-      val partitionCounts = rvd.writeRowsSplit(path, codecSpec, stageLocally)
 
       val globalsPath = path + "/globals"
       hadoopConf.mkDir(globalsPath)
@@ -168,7 +152,30 @@ case class MatrixValue(
         s"and $nCols ${ plural(nCols, "column") } " +
         s"in ${ partitionCounts.length } ${ plural(partitionCounts.length, "partition") } " +
         s"to $path")
+    }
 
+    def write(path: String, overwrite: Boolean = false, stageLocally: Boolean = false, codecSpecJSONStr: String = null) = {
+      val hc = HailContext.get
+      val hadoopConf = hc.hadoopConf
+
+      val codecSpec =
+        if (codecSpecJSONStr != null) {
+          implicit val formats = AbstractRVDSpec.formats
+          val codecSpecJSON = parse(codecSpecJSONStr)
+          codecSpecJSON.extract[CodecSpec]
+        } else
+          CodecSpec.default
+
+      if (overwrite)
+        hadoopConf.delete(path, recursive = true)
+      else if (hadoopConf.exists(path))
+        fatal(s"file already exists: $path")
+
+      hc.hadoopConf.mkDir(path)
+
+      val partitionCounts = rvd.writeRowsSplit(path, codecSpec, stageLocally)
+
+      finalizeWrite(path, codecSpec, partitionCounts)
     }
 
     lazy val (sortedColValues, sortedColsToOldIdx): (BroadcastIndexedSeq, BroadcastIndexedSeq) = {
@@ -345,3 +352,33 @@ case class MatrixValue(
         })
     }
   }
+
+object MatrixValue {
+  def writeMultiple(
+    mvs: IndexedSeq[MatrixValue],
+    prefix: String,
+    overwrite: Boolean,
+    stageLocally: Boolean
+  ): Unit = {
+    val first = mvs.head
+    require(mvs.forall(_.typ == first.typ))
+    val hc = HailContext.get
+    val hadoopConf = hc.hadoopConf
+    val codecSpec = CodecSpec.default
+
+    val d = digitsNeeded(mvs.length)
+    val paths = (0 until mvs.length).map { i => prefix + StringUtils.leftPad(i.toString, d, '0') + ".mt" }
+    paths.foreach { path =>
+      if (overwrite)
+        hadoopConf.delete(path, recursive = true)
+      else if (hadoopConf.exists(path))
+        fatal(s"file already exists: $path")
+      hadoopConf.mkDir(path)
+    }
+
+    val partitionCounts = RVD.writeRowsSplitFiles(mvs.map(_.rvd), prefix, codecSpec, stageLocally)
+    for ((mv, path, partCounts) <- (mvs, paths, partitionCounts).zipped) {
+      mv.finalizeWrite(path, codecSpec, partCounts)
+    }
+  }
+}

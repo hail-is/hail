@@ -165,6 +165,10 @@ on_exit() {
 <td>${DOCS_STATUS}</td>
 <td><a href='www/index.html'>Generated website</a></td>
 </tr>
+<tr>
+<td>${DOCS_STATUS}</td>
+<td><a href='www/docs/0.2/index.html'>Generated docs</a></td>
+</tr>
 </tbody>
 </table>
 <h3>Cloud test</h3>
@@ -206,9 +210,16 @@ touch ${COMP_SUCCESS}
 test_project() {
     ./gradlew nativeLibTest > ${CXX_TEST_LOG} 2>&1
     touch ${CXX_TEST_SUCCESS}
+
+    # move Scala test log even if tests fail
+    set +e
     ./gradlew test > ${SCALA_TEST_LOG} 2>&1
-    touch ${SCALA_TEST_SUCCESS}
+    SCALA_TEST_RC=$?
     mv build/reports/tests build/reports/scala-tests
+    set -e
+    [ ${SCALA_TEST_RC} == 0 ]
+    touch ${SCALA_TEST_SUCCESS}
+
     ./gradlew testCppCodegen > ${CXX_CODEGEN_TEST_LOG} 2>&1
     touch ${CXX_CODEGEN_TEST_SUCCESS}
     ./gradlew testPython > ${PYTHON_TEST_LOG} 2>&1

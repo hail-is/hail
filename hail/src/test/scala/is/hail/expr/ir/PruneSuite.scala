@@ -6,6 +6,7 @@ import is.hail.expr._
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual._
+import is.hail.methods.{ForceCountMatrixTable, ForceCountTable}
 import is.hail.rvd.{RVD, RVDType}
 import is.hail.table._
 import is.hail.utils._
@@ -86,7 +87,12 @@ class PruneSuite extends SparkSuite {
       None)
   ).value)
 
-  lazy val tr = TableRead("", TableSpec(0, "", "", tab.typ, Map.empty), tab.typ, false)
+  lazy val tr = TableRead(tab.typ, false, new TableReader {
+    def apply(tr: TableRead): TableValue = ???
+    def partitionCounts: Option[IndexedSeq[Long]] = ???
+    def fullType: TableType = tab.typ
+    def fullRVDType: RVDType = ???
+  })
 
   val mType = MatrixType.fromParts(
     TStruct("g1" -> TInt32(), "g2" -> TFloat64()),
@@ -255,7 +261,7 @@ class PruneSuite extends SparkSuite {
   }
 
   @Test def testTableExplodeMemo() {
-    val te = TableExplode(tab, "2")
+    val te = TableExplode(tab, Array("2"))
     checkMemo(te, subsetTable(te.typ), Array(subsetTable(tab.typ, "row.2")))
   }
 
@@ -380,14 +386,9 @@ class PruneSuite extends SparkSuite {
 
   @Test def testMatrixAnnotateRowsTableMemo() {
     val tl = TableLiteral(Interpret(MatrixRowsTable(mat)))
-    val mart = MatrixAnnotateRowsTable(mat, tl, "foo", None)
+    val mart = MatrixAnnotateRowsTable(mat, tl, "foo")
     checkMemo(mart, subsetMatrixTable(mart.typ,"va.foo.r3", "va.r3"),
       Array(subsetMatrixTable(mat.typ, "va.r3"), subsetTable(tl.typ, "row.r3")))
-
-    val mart2 = MatrixAnnotateRowsTable(mat, tl, "foo",
-      Some(FastIndexedSeq(GetField(GetField(Ref("va", mat.typ.rvRowType), "r2"), "x"))))
-    checkMemo(mart2, subsetMatrixTable(mart2.typ,"va.foo.r3", "va.r3"),
-      Array(subsetMatrixTable(mat.typ, "va.r3", "va.r2.x"), subsetTable(tl.typ, "row.r3"), null))
   }
 
   @Test def testCollectColsByKeyMemo() {
@@ -539,6 +540,15 @@ class PruneSuite extends SparkSuite {
       Array(TArray(justA), null, null))
   }
 
+  @Test def testArrayLeftJoinDistinct() {
+    val l = Ref("l", ref.typ)
+    val r = Ref("r", ref.typ)
+    checkMemo(ArrayLeftJoinDistinct(arr, arr, "l", "r",
+      ApplyComparisonOp(LT(TInt32()), GetField(l, "a"), GetField(r, "a")),
+      MakeStruct(FastIndexedSeq("a" -> GetField(l, "a"), "b" -> GetField(l, "b"), "c" -> GetField(l, "c"), "d" -> GetField(r, "b"), "e" -> GetField(r, "c")))),
+      TArray(justA),
+      Array(TArray(justA), TArray(justA), null, justA))
+  }
 
   @Test def testArrayForMemo() {
     checkMemo(ArrayFor(arr, "foo", Begin(FastIndexedSeq(GetField(Ref("foo", ref.typ), "a")))),
@@ -590,6 +600,22 @@ class PruneSuite extends SparkSuite {
       Array(subsetTable(tab.typ, "row.3", "global.g2")))
   }
 
+  @Test def testTableToValueApplyMemo() {
+    checkMemo(
+      TableToValueApply(tab, ForceCountTable()),
+      TInt64(),
+      Array(tab.typ)
+    )
+  }
+
+  @Test def testMatrixToValueApplyMemo() {
+    checkMemo(
+      MatrixToValueApply(mat, ForceCountMatrixTable()),
+      TInt64(),
+      Array(mat.typ)
+    )
+  }
+
   @Test def testTableAggregateMemo() {
     checkMemo(TableAggregate(tab, tableRefBoolean(tab.typ, "global.g1")),
       TBoolean(),
@@ -600,19 +626,6 @@ class PruneSuite extends SparkSuite {
     checkMemo(MatrixAggregate(mat, matrixRefBoolean(mat.typ, "global.g1")),
       TBoolean(),
       Array(subsetMatrixTable(mat.typ, "global.g1"), null))
-  }
-
-  @Test def testTableImportRebuild() {
-    val tt = TableType(
-      TStruct("a" -> TInt32(), "b" -> TFloat64()),
-      FastIndexedSeq(),
-      TStruct())
-    val opts = TableReaderOptions(1, Array(), Array(), "", "", true, "", 'a', true, Array(0, 1), originalType = tt.rowType)
-    checkRebuild(TableImport(Array(""), tt, opts),
-      tt.copy(rowType = TStruct("a" -> TInt32())),
-      (_: TableImport, rebuilt: TableImport) =>
-        rebuilt.typ == tt.copy(rowType = TStruct("a" -> TInt32())) &&
-          rebuilt.readerOpts.useColIndices.sameElements(Array(0)))
   }
 
   @Test def testTableFilterRebuild() {
@@ -792,7 +805,7 @@ class PruneSuite extends SparkSuite {
 
   @Test def testMatrixAnnotateRowsTableRebuild() {
     val tl = TableLiteral(Interpret(MatrixRowsTable(mat)))
-    val mart = MatrixAnnotateRowsTable(mat, tl, "foo", None)
+    val mart = MatrixAnnotateRowsTable(mat, tl, "foo")
     checkRebuild(mart, subsetMatrixTable(mart.typ),
       (_: BaseIR, r: BaseIR) => {
         r.isInstanceOf[MatrixLiteral]

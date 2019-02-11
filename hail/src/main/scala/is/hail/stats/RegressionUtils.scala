@@ -73,19 +73,19 @@ object RegressionUtils {
   }
 
   def getPhenoCovCompleteSamples(
-    vsm: MatrixTable,
+    mv: MatrixValue,
     yField: String,
     covFields: Array[String]): (DenseVector[Double], DenseMatrix[Double], Array[Int]) = {
 
-    val (y, covs, completeSamples) = getPhenosCovCompleteSamples(vsm, Array(yField), covFields)
+    val (y, covs, completeSamples) = getPhenosCovCompleteSamples(mv, Array(yField), covFields)
 
     (DenseVector(y.data), covs, completeSamples)
   }
 
   def getPhenosCovCompleteSamples(
-    vsm: MatrixTable,
+    mv: MatrixTable,
     yFields: Array[String],
-    covFields: Array[String]): (DenseMatrix[Double], DenseMatrix[Double], Array[Int]) = getPhenosCovCompleteSamples(vsm.value, yFields, covFields)
+    covFields: Array[String]): (DenseMatrix[Double], DenseMatrix[Double], Array[Int]) = getPhenosCovCompleteSamples(mv, yFields, covFields)
 
   def getPhenosCovCompleteSamples(
     mv: MatrixValue,

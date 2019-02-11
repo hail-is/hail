@@ -33,7 +33,7 @@ object Interpret {
     else
       tir
 
-    val lowered = LowerMatrixIR(LiftLiterals(tiropt).asInstanceOf[TableIR])
+    val lowered = LowerMatrixIR(LiftNonCompilable(tiropt).asInstanceOf[TableIR])
     val lowopt = if (optimize)
       Optimize(lowered, noisy = true, canGenerateLiterals = false)
     else
@@ -51,7 +51,7 @@ object Interpret {
     else
       mir
 
-    val lowered = LowerMatrixIR(LiftLiterals(miropt).asInstanceOf[MatrixIR])
+    val lowered = LowerMatrixIR(LiftNonCompilable(miropt).asInstanceOf[MatrixIR])
     val lowopt = if (optimize)
       Optimize(lowered, noisy = true, canGenerateLiterals = false)
     else
@@ -86,7 +86,7 @@ object Interpret {
     }
 
     if (optimize) optimizeIR(true)
-    ir = LiftLiterals(ir).asInstanceOf[IR]
+    ir = LiftNonCompilable(ir).asInstanceOf[IR]
     ir = LowerMatrixIR(ir)
     if (optimize) optimizeIR(false)
 
@@ -166,6 +166,20 @@ object Interpret {
                 case Multiply() => ll * rr
                 case FloatingPointDivide() => ll.toFloat / rr.toFloat
                 case RoundToNegInfDivide() => java.lang.Math.floorDiv(ll, rr)
+                case BitAnd() => ll & rr
+                case BitOr() => ll | rr
+                case BitXOr() => ll ^ rr
+                case LeftShift() => ll << rr
+                case RightShift() => ll >> rr
+                case LogicalRightShift() => ll >>> rr
+              }
+            case (_: TInt64, _: TInt32) =>
+              val ll = lValue.asInstanceOf[Long]
+              val rr = rValue.asInstanceOf[Int]
+              op match {
+                case LeftShift() => ll << rr
+                case RightShift() => ll >> rr
+                case LogicalRightShift() => ll >>> rr
               }
             case (_: TInt64, _: TInt64) =>
               val ll = lValue.asInstanceOf[Long]
@@ -176,6 +190,11 @@ object Interpret {
                 case Multiply() => ll * rr
                 case FloatingPointDivide() => ll.toFloat / rr.toFloat
                 case RoundToNegInfDivide() => java.lang.Math.floorDiv(ll, rr)
+                case BitAnd() => ll & rr
+                case BitOr() => ll | rr
+                case BitXOr() => ll ^ rr
+                case LeftShift() => ll << rr
+                case RightShift() => ll >> rr
               }
             case (_: TFloat32, _: TFloat32) =>
               val ll = lValue.asInstanceOf[Float]
@@ -199,26 +218,25 @@ object Interpret {
               }
           }
       case ApplyUnaryPrimOp(op, x) =>
-        op match {
+        val xValue = interpret(x, env, args, agg)
+        if (xValue == null)
+          null
+        else op match {
           case Bang() =>
             assert(x.typ.isOfType(TBoolean()))
-            val xValue = interpret(x, env, args, agg)
-            if (xValue == null)
-              null
-            else
-              !xValue.asInstanceOf[Boolean]
+            !xValue.asInstanceOf[Boolean]
           case Negate() =>
             assert(x.typ.isInstanceOf[TNumeric])
-            val xValue = interpret(x, env, args, agg)
-            if (xValue == null)
-              null
-            else {
-              x.typ match {
-                case TInt32(_) => -xValue.asInstanceOf[Int]
-                case TInt64(_) => -xValue.asInstanceOf[Long]
-                case TFloat32(_) => -xValue.asInstanceOf[Float]
-                case TFloat64(_) => -xValue.asInstanceOf[Double]
-              }
+            x.typ match {
+              case TInt32(_) => -xValue.asInstanceOf[Int]
+              case TInt64(_) => -xValue.asInstanceOf[Long]
+              case TFloat32(_) => -xValue.asInstanceOf[Float]
+              case TFloat64(_) => -xValue.asInstanceOf[Double]
+            }
+          case BitNot() =>
+            x.typ match {
+              case _: TInt32 => ~xValue.asInstanceOf[Int]
+              case _: TInt64 => ~xValue.asInstanceOf[Long]
             }
         }
       case ApplyComparisonOp(op, l, r) =>
@@ -392,6 +410,23 @@ object Interpret {
           }
         }
 
+      case ArrayLeftJoinDistinct(left, right, l, r, compare, join) =>
+        val lValue = interpret(left, env, args, agg).asInstanceOf[IndexedSeq[Any]]
+        val rValue = interpret(right, env, args, agg).asInstanceOf[IndexedSeq[Any]].toIterator
+
+        var relt: Any = if (rValue.hasNext) rValue.next() else null
+
+        lValue.map { lelt =>
+          while (rValue.hasNext && interpret(compare, env.bind(l -> lelt, r -> relt), args, agg).asInstanceOf[Int] > 0) {
+            relt = rValue.next()
+          }
+          if (interpret(compare, env.bind(l -> lelt, r -> relt), args, agg).asInstanceOf[Int] == 0) {
+            interpret(join, env.bind(l -> lelt, r -> relt), args, agg)
+          } else {
+            interpret(join, env.bind(l -> lelt, r -> null), args, agg)
+          }
+        }
+
       case ArrayFor(a, valueName, body) =>
         val aValue = interpret(a, env, args, agg)
         if (aValue != null) {
@@ -400,6 +435,15 @@ object Interpret {
           }
         }
         ()
+
+      case ArrayAgg(a, name, body) =>
+        assert(agg.isEmpty)
+        val aggElementType = TStruct(name -> a.typ.asInstanceOf[TArray].elementType)
+        val aValue = interpret(a, env, args, agg)
+          .asInstanceOf[IndexedSeq[Any]]
+          .map(Row(_))
+        interpret(body, env, args, Some(aValue -> aggElementType))
+
       case Begin(xs) =>
         xs.foreach(x => Interpret(x))
       case x@SeqOp(i, seqOpArgs, aggSig) =>
@@ -496,7 +540,7 @@ object Interpret {
             assert(seqOpArgTypes == FastIndexedSeq(TBoolean()))
             new FractionAggregator(a => a)
           case Sum() =>
-            val IndexedSeq(aggType) = seqOpArgTypes
+            val Seq(aggType) = seqOpArgTypes
             aggType match {
               case TInt64(_) => new SumAggregator[Long]()
               case TFloat64(_) => new SumAggregator[Double]()
@@ -504,13 +548,13 @@ object Interpret {
               case TArray(TFloat64(_), _) => new SumArrayAggregator[Double]()
             }
           case Product() =>
-            val IndexedSeq(aggType) = seqOpArgTypes
+            val Seq(aggType) = seqOpArgTypes
             aggType match {
               case TInt64(_) => new ProductAggregator[Long]()
               case TFloat64(_) => new ProductAggregator[Double]()
             }
           case Min() =>
-            val IndexedSeq(aggType) = seqOpArgTypes
+            val Seq(aggType) = seqOpArgTypes
             aggType match {
               case TInt32(_) => new MinAggregator[Int, java.lang.Integer]()
               case TInt64(_) => new MinAggregator[Long, java.lang.Long]()
@@ -518,7 +562,7 @@ object Interpret {
               case TFloat64(_) => new MinAggregator[Double, java.lang.Double]()
             }
           case Max() =>
-            val IndexedSeq(aggType) = seqOpArgTypes
+            val Seq(aggType) = seqOpArgTypes
             aggType match {
               case TInt32(_) => new MaxAggregator[Int, java.lang.Integer]()
               case TInt64(_) => new MaxAggregator[Long, java.lang.Long]()
@@ -526,13 +570,13 @@ object Interpret {
               case TFloat64(_) => new MaxAggregator[Double, java.lang.Double]()
             }
           case Take() =>
-            val IndexedSeq(n) = constructorArgs
-            val IndexedSeq(aggType) = seqOpArgTypes
+            val Seq(n) = constructorArgs
+            val Seq(aggType) = seqOpArgTypes
             val nValue = interpret(n, Env.empty[Any], null, null).asInstanceOf[Int]
             new TakeAggregator(aggType, nValue)
           case TakeBy() =>
-            val IndexedSeq(n) = constructorArgs
-            val IndexedSeq(aggType, _) = seqOpArgTypes
+            val Seq(n) = constructorArgs
+            val Seq(aggType, _) = seqOpArgTypes
             val nValue = interpret(n, Env.empty[Any], null, null).asInstanceOf[Int]
             val ordering = seqOpArgs.last
             val ord = ordering.typ.ordering.toOrdering
@@ -594,16 +638,25 @@ object Interpret {
           null
         else
           Row.fromSeq(fields.map(id => oldRow.get(oldt.fieldIdx(id))))
-      case InsertFields(old, fields) =>
+      case x@InsertFields(old, fields, fieldOrder) =>
         var struct = interpret(old, env, args, agg)
-        var t = old.typ
         if (struct != null)
-          fields.foreach { case (name, body) =>
-            val (newT, ins) = t.insert(body.typ, name)
-            t = newT.asInstanceOf[TStruct]
-            struct = ins(struct, interpret(body, env, args, agg))
+          fieldOrder match {
+            case Some(fds) =>
+              val newValues = fields.toMap.mapValues(interpret(_, env, args, agg))
+              val oldIndices = old.typ.asInstanceOf[TStruct].fields.map(f => f.name -> f.index).toMap
+              Row.fromSeq(fds.map(name => newValues.getOrElse(name, struct.asInstanceOf[Row].get(oldIndices(name)))))
+            case None =>
+              var t = old.typ
+              fields.foreach { case (name, body) =>
+                val (newT, ins) = t.insert(body.typ, name)
+                t = newT.asInstanceOf[TStruct]
+                struct = ins(struct, interpret(body, env, args, agg))
+              }
+              struct
           }
-        struct
+        else
+          null
       case GetField(o, name) =>
         val oValue = interpret(o, env, args, agg)
         if (oValue == null)
@@ -718,6 +771,10 @@ object Interpret {
       case MatrixWrite(child, writer) =>
         val mv = child.execute(HailContext.get)
         writer(mv)
+      case MatrixMultiWrite(children, writer) =>
+        val hc = HailContext.get
+        val mvs = children.map(_.execute(hc))
+        writer(mvs)
       case TableWrite(child, path, overwrite, stageLocally, codecSpecJSONStr) =>
         val hc = HailContext.get
         val tableValue = child.execute(hc)
@@ -726,6 +783,14 @@ object Interpret {
         val hc = HailContext.get
         val tableValue = child.execute(hc)
         tableValue.export(path, typesFile, header, exportType)
+      case BlockMatrixWrite(child, path, overwrite, forceRowMajor, stageLocally) =>
+        val hc = HailContext.get
+        val blockMatrix = child.execute(hc)
+        blockMatrix.write(path, overwrite, forceRowMajor, stageLocally)
+      case TableToValueApply(child, function) =>
+        function.execute(child.execute(HailContext.get))
+      case MatrixToValueApply(child, function) =>
+        function.execute(child.execute(HailContext.get))
       case TableAggregate(child, query) =>
         val localGlobalSignature = child.typ.globalType
         val (rvAggs, initOps, seqOps, aggResultType, postAggIR) = CompileWithAggregators[Long, Long, Long](
@@ -737,8 +802,8 @@ object Interpret {
           (nAggs: Int, seqOpIR: IR) => seqOpIR)
 
         val (t, f) = Compile[Long, Long, Long](
-          "AGGR", aggResultType,
           "global", child.typ.globalType.physicalType,
+          "AGGR", aggResultType,
           postAggIR)
 
         val value = child.execute(HailContext.get)
@@ -790,7 +855,7 @@ object Interpret {
           rvb.addAnnotation(localGlobalSignature, globalsBc.value)
           val globalsOffset = rvb.end()
 
-          val resultOffset = f(0)(region, aggResultsOffset, false, globalsOffset, false)
+          val resultOffset = f(0)(region, globalsOffset, false, aggResultsOffset, false)
 
           SafeRow(coerce[PTuple](t), region, resultOffset)
             .get(0)

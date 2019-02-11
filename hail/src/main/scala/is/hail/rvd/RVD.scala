@@ -97,23 +97,6 @@ class RVD(
   }
 
   // Key and partitioner manipulation
-
-  // Return an OrderedRVD whose key equals or at least starts with 'newKey'.
-  def enforceKey(newKey: IndexedSeq[String], isSorted: Boolean = false): RVD = {
-    require(newKey.forall(typ.rowType.hasField))
-    val nPreservedFields = typ.key.zip(newKey).takeWhile { case (l, r) => l == r }.length
-    require(!isSorted || nPreservedFields > 0 || newKey.isEmpty)
-
-    if (nPreservedFields == newKey.length) {
-      this
-    } else if (isSorted) {
-      truncateKey(newKey.take(nPreservedFields))
-        .extendKeyPreservesPartitioning(newKey)
-    } else {
-      changeKey(newKey)
-    }
-  }
-
   def changeKey(newKey: IndexedSeq[String]): RVD =
     changeKey(newKey, newKey.length)
 
@@ -158,7 +141,7 @@ class RVD(
       val partBc = newPartitioner.broadcast(crdd.sparkContext)
       val codec = RVD.wireCodec
 
-      val filtered: RVD = if (filter) filterWithContext[(UnsafeRow, KeyedRow)]( { case (_, _) =>
+      val filtered: RVD = if (filter) filterWithContext[(UnsafeRow, KeyedRow)]({ case (_, _) =>
         val ur = new UnsafeRow(localRowPType, null, 0)
         val key = new KeyedRow(ur, newType.kFieldIdx)
         (ur, key)
@@ -203,13 +186,16 @@ class RVD(
 
     val newPartitioner = if (shuffle) {
       val shuffled = stably(_.coalesce(maxPartitions, shuffle = true))
-      val keyInfo = RVD.getKeyInfo(typ, typ.key.length, RVD.getKeys(typ, shuffled))
-      if (keyInfo.isEmpty)
-        return RVD.empty(sparkContext, typ)
-      RVD.calculateKeyRanges(
-        typ, keyInfo, shuffled.getNumPartitions, typ.key.length)
+      if (typ.key.isEmpty)
+        return RVD.unkeyed(typ.rowType, shuffled)
+      else {
+        val keyInfo = RVD.getKeyInfo(typ, typ.key.length, RVD.getKeys(typ, shuffled))
+        if (keyInfo.isEmpty)
+          return RVD.empty(sparkContext, typ)
+        RVD.calculateKeyRanges(
+          typ, keyInfo, shuffled.getNumPartitions, typ.key.length)
+      }
     } else {
-
       val partSize = countPerPartition()
       log.info(s"partSize = ${ partSize.toSeq }")
 
@@ -235,11 +221,11 @@ class RVD(
       newPartEnd = newPartEnd.zipWithIndex.filter { case (end, i) => i == 0 || newPartEnd(i) != newPartEnd(i - 1) }
         .map(_._1)
 
-      if (newPartEnd.length < maxPartitions)
-        warn(s"coalesced to ${ newPartEnd.length } ${ plural(newPartEnd.length, "partition") }, less than requested $maxPartitions")
-
       partitioner.coalesceRangeBounds(newPartEnd)
     }
+    if (newPartitioner.numPartitions< maxPartitions)
+      warn(s"coalesced to ${ newPartitioner.numPartitions} " +
+        s"${ plural(newPartitioner.numPartitions, "partition") }, less than requested $maxPartitions")
 
     repartition(newPartitioner, shuffle)
   }
@@ -370,7 +356,7 @@ class RVD(
 
   def mapPartitionsWithIndex[T: ClassTag](
     f: (Int, Iterator[RegionValue]) => Iterator[T]
-  ): RDD[T] =  crdd.mapPartitionsWithIndex(f).clearingRun
+  ): RDD[T] = crdd.mapPartitionsWithIndex(f).clearingRun
 
   def mapPartitionsWithIndex[T: ClassTag](
     f: (Int, RVDContext, Iterator[RegionValue]) => Iterator[T]
@@ -417,7 +403,7 @@ class RVD(
         rv2.set(rvb.region, rvb.end())
         rv2
       }
-    }, preservesPartitioning=true)
+    }, preservesPartitioning = true)
 
     RVD(
       typ.copy(rowType = newRowType),
@@ -638,7 +624,7 @@ class RVD(
     }
   }
 
-  def collectPerPartition[T : ClassTag](f: (Int, RVDContext, Iterator[RegionValue]) => T): Array[T] =
+  def collectPerPartition[T: ClassTag](f: (Int, RVDContext, Iterator[RegionValue]) => T): Array[T] =
     crdd.cmapPartitionsWithIndex { (i, ctx, it) =>
       Iterator.single(f(i, ctx, it))
     }.collect()
@@ -788,11 +774,21 @@ class RVD(
   ): RVD =
     keyBy(joinKey).orderedJoinDistinct(right.keyBy(joinKey), joinType, joiner, joinedType)
 
-  def orderedZipJoin(right: RVD): ContextRDD[RVDContext, JoinedRegionValue] =
+  def orderedZipJoin(right: RVD): (RVDPartitioner, ContextRDD[RVDContext, JoinedRegionValue]) =
     orderedZipJoin(right, typ.key.length)
 
-  def orderedZipJoin(right: RVD, joinKey: Int): ContextRDD[RVDContext, JoinedRegionValue] =
+  def orderedZipJoin(right: RVD, joinKey: Int): (RVDPartitioner, ContextRDD[RVDContext, JoinedRegionValue]) =
     keyBy(joinKey).orderedZipJoin(right.keyBy(joinKey))
+
+  def orderedZipJoin(
+    right: RVD,
+    joinKey: Int,
+    joiner: (RVDContext, Iterator[JoinedRegionValue]) => Iterator[RegionValue],
+    joinedType: RVDType
+  ): RVD = {
+    val (joinedPartitioner, jcrdd) = orderedZipJoin(right, joinKey)
+    RVD(joinedType, joinedPartitioner, jcrdd.cmapPartitions(joiner))
+  }
 
   def orderedMerge(right: RVD): RVD =
     orderedMerge(right, typ.key.length)
@@ -1013,7 +1009,7 @@ object RVD {
 
   def unkeyed(rowType: PStruct, crdd: ContextRDD[RVDContext, RegionValue]): RVD =
     new RVD(
-      RVDType(rowType),
+      RVDType(rowType, FastIndexedSeq()),
       RVDPartitioner.unkeyed(crdd.getNumPartitions),
       crdd)
 
@@ -1104,7 +1100,7 @@ object RVD {
     partitionKey: Int,
     // keys: RDD[RegionValue[fullType.kType]]
     keys: ContextRDD[RVDContext, RegionValue]
-   ): RVDCoercer = {
+  ): RVDCoercer = {
     type CRDD = ContextRDD[RVDContext, RegionValue]
     val sc = keys.sparkContext
 
@@ -1129,6 +1125,7 @@ object RVD {
 
     val bounds = keyInfo.map(_.interval).toFastIndexedSeq
     val pkBounds = bounds.map(_.coarsen(partitionKey))
+
     def orderPartitions = { crdd: CRDD =>
       val pids = keyInfo.map(_.partitionIndex)
       if (pids.isSorted && crdd.getNumPartitions == pids.length) {
@@ -1142,10 +1139,11 @@ object RVD {
         crdd.reorderPartitions(pids)
       }
     }
+
     val intraPartitionSortedness = keyInfo.map(_.sortedness).min
 
     if (intraPartitionSortedness == RVDPartitionInfo.KSORTED
-        && RVDPartitioner.isValid(fullType.kType.virtualType, bounds)) {
+      && RVDPartitioner.isValid(fullType.kType.virtualType, bounds)) {
 
       info("Coerced sorted dataset")
 
@@ -1162,7 +1160,7 @@ object RVD {
       }
 
     } else if (intraPartitionSortedness >= RVDPartitionInfo.TSORTED
-        && RVDPartitioner.isValid(fullType.kType.virtualType.truncate(partitionKey), pkBounds)) {
+      && RVDPartitioner.isValid(fullType.kType.virtualType.truncate(partitionKey), pkBounds)) {
 
       info("Coerced almost-sorted dataset")
 
@@ -1182,7 +1180,7 @@ object RVD {
             typ.copy(key = typ.key.take(partitionKey)),
             unfixedPartitioner,
             orderPartitions(crdd)
-          ) .repartition(newPartitioner, shuffle = false)
+          ).repartition(newPartitioner, shuffle = false)
             .localSort(typ.key)
         }
       }
@@ -1310,4 +1308,19 @@ object RVD {
 
   def union(rvds: Seq[RVD]): RVD =
     union(rvds, rvds.head.typ.key.length)
+
+  def writeRowsSplitFiles(
+    rvds: IndexedSeq[RVD],
+    path: String,
+    codecSpec: CodecSpec,
+    stageLocally: Boolean
+  ): Array[Array[Long]] = {
+    val first = rvds.head
+    require(rvds.forall(_.typ == first.typ))
+    val crdd = new ContextRDD(
+      new OriginUnionRDD(first.crdd.rdd.sparkContext, rvds.map(_.crdd.rdd)),
+      first.crdd.mkc
+    )
+    crdd.writeRowsSplitFiles(path, first.typ, codecSpec, rvds.map(_.partitioner), stageLocally)
+  }
 }

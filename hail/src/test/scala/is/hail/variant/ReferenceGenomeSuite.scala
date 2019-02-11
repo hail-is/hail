@@ -61,19 +61,6 @@ class ReferenceGenomeSuite extends SparkSuite {
     TestUtils.interceptFatal("in both X and Y contigs.")(ReferenceGenome("test", Array("1", "2", "3"), Map("1" -> 5, "2" -> 5, "3" -> 5), xContigs = Set("1"), yContigs = Set("1")))
   }
 
-  @Test def testDefaultReference() {
-    ReferenceGenome.setDefaultReference(hc, "GRCh38")
-    assert(ReferenceGenome.defaultReference.name == "GRCh38")
-
-    ReferenceGenome.setDefaultReference(hc, "src/test/resources/fake_ref_genome.json")
-    assert(ReferenceGenome.defaultReference.name == "my_reference_genome")
-    ReferenceGenome.setDefaultReference(hc, "GRCh37")
-
-    TestUtils.interceptFatal("Cannot add reference genome. `GRCh38' already exists.")(ReferenceGenome.setDefaultReference(hc, "src/main/resources/reference/grch38.json"))
-    intercept[FileNotFoundException](ReferenceGenome.setDefaultReference(hc, "grch38.json"))
-    TestUtils.interceptFatal("is a built-in Hail reference")(ReferenceGenome.removeReference("GRCh37"))
-  }
-
   @Test def testContigRemap() {
     val mapping = Map("23" -> "foo")
     TestUtils.interceptFatal("have remapped contigs in reference genome")(ReferenceGenome.GRCh37.validateContigRemap(mapping))

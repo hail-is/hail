@@ -1,13 +1,12 @@
 import abc
 from .renderer import Renderer
-from hail.expr.matrix_type import *
-from hail.expr.table_type import *
 from hail.utils.java import Env
 
 
 class BaseIR(object):
     def __init__(self):
         super().__init__()
+        self._type = None
 
     def __str__(self):
         r = Renderer(stop_at_jir = False)
@@ -63,8 +62,14 @@ class IR(BaseIR):
 
     @property
     def typ(self):
-        jir = Env.hc()._backend._to_java_ir(self)
-        return dtype(jir.typ().toString())
+        if self._type is None:
+            self._compute_type({}, None)
+            assert self._type is not None, self
+        return self._type
+
+    @abc.abstractmethod
+    def _compute_type(self, env, agg_env):
+        raise NotImplementedError(self)
 
     def parse(self, code, ref_map={}, ir_map={}):
         return Env.hail().expr.ir.IRParser.parse_value_ir(code, ref_map, ir_map)
@@ -74,10 +79,16 @@ class TableIR(BaseIR):
     def __init__(self):
         super().__init__()
 
+    @abc.abstractmethod
+    def _compute_type(self):
+        raise NotImplementedError(self)
+
     @property
     def typ(self):
-        jtir = Env.hc()._backend._to_java_ir(self)
-        return ttable._from_java(jtir.typ())
+        if self._type is None:
+            self._compute_type()
+            assert self._type is not None, self
+        return self._type
 
     def parse(self, code, ref_map={}, ir_map={}):
         return Env.hail().expr.ir.IRParser.parse_table_ir(code, ref_map, ir_map)
@@ -87,10 +98,35 @@ class MatrixIR(BaseIR):
     def __init__(self):
         super().__init__()
 
+    @abc.abstractmethod
+    def _compute_type(self):
+        raise NotImplementedError(self)
+
     @property
     def typ(self):
-        jmir = Env.hc()._backend._to_java_ir(self)
-        return tmatrix._from_java(jmir.typ())
+        if self._type is None:
+            self._compute_type()
+            assert self._type is not None, self
+        return self._type
 
     def parse(self, code, ref_map={}, ir_map={}):
         return Env.hail().expr.ir.IRParser.parse_matrix_ir(code, ref_map, ir_map)
+
+
+class BlockMatrixIR(BaseIR):
+    def __init__(self):
+        super().__init__()
+
+    @abc.abstractmethod
+    def _compute_type(self):
+        raise NotImplementedError(self)
+
+    @property
+    def typ(self):
+        if self._type is None:
+            self._compute_type()
+            assert self._type is not None, self
+        return self._type
+
+    def parse(self, code, ref_map={}, ir_map={}):
+        return Env.hail().expr.ir.IRParser.parse_blockmatrix_ir(code, ref_map, ir_map)

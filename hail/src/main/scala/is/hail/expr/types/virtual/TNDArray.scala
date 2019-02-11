@@ -17,6 +17,12 @@ final case class TNDArray(elementType: Type, override val required: Boolean = fa
 
   lazy val physicalType: PNDArray = PNDArray(elementType.physicalType, required)
 
+  override def pyString(sb: StringBuilder): Unit = {
+    sb.append("ndarray<")
+    elementType.pyString(sb)
+    sb.append('>')
+  }
+  
   def _toPretty = s"NDArray[$elementType]"
 
   override def scalaClassTag: ClassTag[Row] = classTag[Row]

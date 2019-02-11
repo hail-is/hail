@@ -26,6 +26,7 @@ Genetics Methods
 .. autosummary::
 
     ld_score
+    ld_score_regression
     filtering_allele_frequency
     hail_metadata
     plot_roc_curve
@@ -36,6 +37,7 @@ Genetics Methods
     import_gtf
 
 .. autofunction:: ld_score
+.. autofunction:: ld_score_regression
 .. autofunction:: hail_metadata
 .. autofunction:: plot_roc_curve
 .. autofunction:: filtering_allele_frequency

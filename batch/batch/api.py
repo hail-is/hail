@@ -14,8 +14,11 @@ class API():
         """
         self.timeout = timeout
 
-    def create_job(self, url, spec, attributes, batch_id, callback):
-        doc = {'spec': spec}
+    def create_job(self, url, spec, attributes, batch_id, callback, parent_ids):
+        doc = {
+            'spec': spec,
+            'parent_ids': parent_ids
+        }
         if attributes:
             doc['attributes'] = attributes
         if batch_id:
@@ -52,10 +55,12 @@ class API():
         raise_on_failure(response)
         return response.json()
 
-    def create_batch(self, url, attributes):
+    def create_batch(self, url, attributes, callback):
         doc = {}
         if attributes:
             doc['attributes'] = attributes
+        if callback:
+            doc['callback'] = callback
         response = requests.post(url + '/batches/create', json=doc, timeout=self.timeout)
         raise_on_failure(response)
         return response.json()
@@ -78,8 +83,8 @@ class API():
 DEFAULT_API = API()
 
 
-def create_job(url, spec, attributes, batch_id, callback):
-    return DEFAULT_API.create_job(url, spec, attributes, batch_id, callback)
+def create_job(url, spec, attributes, batch_id, callback, parent_ids):
+    return DEFAULT_API.create_job(url, spec, attributes, batch_id, callback, parent_ids)
 
 
 def list_jobs(url):
@@ -102,8 +107,8 @@ def cancel_job(url, job_id):
     return DEFAULT_API.cancel_job(url, job_id)
 
 
-def create_batch(url, attributes):
-    return DEFAULT_API.create_batch(url, attributes)
+def create_batch(url, attributes, callback):
+    return DEFAULT_API.create_batch(url, attributes, callback)
 
 
 def get_batch(url, batch_id):

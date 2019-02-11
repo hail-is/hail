@@ -14,6 +14,8 @@ import requests
 from .globals import max_id, pod_name_job, job_id_job, _log_path, _read_file, batch_id_batch
 from .globals import next_id
 
+from .. import schemas
+
 if not os.path.exists('logs'):
     os.mkdir('logs')
 else:
@@ -109,17 +111,26 @@ class Job:
         assert self._state == 'Cancelled'
         return None
 
-    def __init__(self, pod_spec, batch_id, attributes, callback):
+    def __init__(self, pod_spec, batch_id, attributes, callback, parent_ids):
         self.id = next_id()
-        job_id_job[self.id] = self
-
         self.batch_id = batch_id
-        if batch_id:
-            batch = batch_id_batch[batch_id]
-            batch.jobs.append(self)
-
         self.attributes = attributes
         self.callback = callback
+        self.child_ids = set([])
+        self.parent_ids = parent_ids
+        self.incomplete_parent_ids = set(self.parent_ids)
+        self._pod_name = None
+        self.exit_code = None
+        self._state = 'Created'
+
+        job_id_job[self.id] = self
+
+        for parent in self.parent_ids:
+            job_id_job[parent].child_ids.add(self.id)
+
+        if batch_id:
+            batch = batch_id_batch[batch_id]
+            batch.jobs.add(self)
 
         self.pod_template = kube.client.V1Pod(
             metadata=kube.client.V1ObjectMeta(generate_name='job-{}-'.format(self.id),
@@ -130,13 +141,17 @@ class Job:
             }),
             spec=pod_spec)
 
-        self._pod_name = None
-        self.exit_code = None
-
-        self._state = 'Created'
         log.info('created job {}'.format(self.id))
 
-        self._create_pod()
+        if not self.parent_ids:
+            self._create_pod()
+        else:
+            self.refresh_parents_and_maybe_create()
+
+    def refresh_parents_and_maybe_create(self):
+        for parent in self.parent_ids:
+            parent_job = job_id_job[parent]
+            self.parent_new_state(parent_job._state, parent, parent_job.exit_code)
 
     def set_state(self, new_state):
         if self._state != new_state:
@@ -145,6 +160,33 @@ class Job:
                 self._state,
                 new_state))
             self._state = new_state
+            self.notify_children(new_state)
+
+    def notify_children(self, new_state):
+        for child_id in self.child_ids:
+            child = job_id_job.get(child_id)
+            if child:
+                child.parent_new_state(new_state, self.id, self.exit_code)
+            else:
+                log.info(f'missing child: {child_id}')
+
+    def parent_new_state(self, new_state, parent_id, maybe_exit_code):
+        if new_state == 'Complete' and maybe_exit_code == 0:
+            log.info(f'parent {parent_id} successfully complete for {self.id}')
+            self.incomplete_parent_ids.discard(parent_id)
+            if not self.incomplete_parent_ids:
+                assert self._state in ('Cancelled', 'Created'), f'bad state: {self._state}'
+                if self._state != 'Cancelled':
+                    log.info(f'all parents successfully complete for {self.id},'
+                             f' creating pod')
+                    self._create_pod()
+                else:
+                    log.info(f'all parents successfully complete for {self.id},'
+                             f' but it is already cancelled')
+        elif new_state == 'Cancelled' or (new_state == 'Complete' and maybe_exit_code != 0):
+            log.info(f'parents deleted, cancelled, or failed: {new_state} {maybe_exit_code} {parent_id}')
+            self.incomplete_parent_ids.discard(parent_id)
+            self.cancel()
 
     def cancel(self):
         if self.is_complete():
@@ -158,8 +200,8 @@ class Job:
         if self.batch_id:
             batch = batch_id_batch[self.batch_id]
             batch.remove(self)
-
         self._delete_pod()
+        self.set_state('Cancelled')
 
     def is_complete(self):
         return self._state == 'Complete' or self._state == 'Cancelled'
@@ -202,6 +244,9 @@ class Job:
 
             threading.Thread(target=handler, args=(self.id, self.callback, self.to_json())).start()
 
+        if self.batch_id:
+            batch_id_batch[self.batch_id].mark_job_complete(self)
+
     def to_json(self):
         result = {
             'id': self.id,
@@ -214,6 +259,8 @@ class Job:
             result['log'] = pod_log
         if self.attributes:
             result['attributes'] = self.attributes
+        if self.parent_ids:
+            result['parent_ids'] = self.parent_ids
         return result
 
 
@@ -226,13 +273,9 @@ def create_job():
 
     schema = {
         # will be validated when creating pod
-        'spec': {
-            'type': 'dict',
-            'required': True,
-            'allow_unknown': True,
-            'schema': {}
-        },
+        'spec': schemas.pod_spec,
         'batch_id': {'type': 'integer'},
+        'parent_ids': {'type': 'list', 'schema': {'type': 'integer'}},
         'attributes': {
             'type': 'dict',
             'keyschema': {'type': 'string'},
@@ -252,8 +295,23 @@ def create_job():
         if batch_id not in batch_id_batch:
             abort(404, 'valid request: batch_id {} not found'.format(batch_id))
 
+    parent_ids = parameters.get('parent_ids', [])
+    for parent_id in parent_ids:
+        if parent_id not in job_id_job:
+            abort(400, f'invalid parent_id: no job with id {parent_id}')
+
+    if len(pod_spec.containers) != 1:
+        abort(400, f'only one container allowed in pod_spec {pod_spec}')
+
+    if pod_spec.containers[0].name != 'default':
+        abort(400, f'container name must be "default" was {pod_spec.containres[0].name}')
+
     job = Job(
-        pod_spec, batch_id, parameters.get('attributes'), parameters.get('callback'))
+        pod_spec,
+        batch_id,
+        parameters.get('attributes'),
+        parameters.get('callback'),
+        parent_ids)
     return jsonify(job.to_json())
 
 
@@ -307,17 +365,37 @@ def cancel_job(job_id):
 
 
 class Batch:
-    def __init__(self, attributes):
+    def __init__(self, attributes, callback):
         self.attributes = attributes
+        self.callback = callback
         self.id = next_id()
         batch_id_batch[self.id] = self
-        self.jobs = []
+        self.jobs = set([])
 
     def delete(self):
         del batch_id_batch[self.id]
         for j in self.jobs:
             assert j.batch_id == self.id
             j.batch_id = None
+
+    def remove(self, job):
+        self.jobs.remove(job)
+
+    def mark_job_complete(self, job):
+        assert job in self.jobs
+        if self.callback:
+            def handler(id, job_id, callback, json):
+                try:
+                    requests.post(callback, json=json, timeout=120)
+                except requests.exceptions.RequestException as exc:
+                    log.warning(
+                        f'callback for batch {id}, job {job_id} failed due to an error, I will not retry. '
+                        f'Error: {exc}')
+
+            threading.Thread(
+                target=handler,
+                args=(self.id, job.id, self.callback, job.to_json())
+            ).start()
 
     def to_json(self):
         state_count = Counter([j._state for j in self.jobs])
@@ -328,6 +406,7 @@ class Batch:
                 'Complete': state_count.get('Complete', 0),
                 'Cancelled': state_count.get('Cancelled', 0)
             },
+            'exit_codes': {j.id: j.exit_code for j in self.jobs},
             'attributes': self.attributes
         }
 
@@ -341,13 +420,14 @@ def create_batch():
             'type': 'dict',
             'keyschema': {'type': 'string'},
             'valueschema': {'type': 'string'}
-        }
+        },
+        'callback': {'type': 'string'}
     }
     validator = cerberus.Validator(schema)
     if not validator.validate(parameters):
         abort(400, 'invalid request: {}'.format(validator.errors))
 
-    batch = Batch(parameters.get('attributes'))
+    batch = Batch(parameters.get('attributes'), parameters.get('callback'))
     return jsonify(batch.to_json())
 
 
@@ -457,11 +537,11 @@ def run_once(target, *args, **kwargs):
         log.error(f'run_forever: {target.__name__} caught_exception: ', exc_info=sys.exc_info())
 
 
-def flask_event_loop():
-    app.run(threaded=False, host='0.0.0.0')
+def flask_event_loop(port):
+    app.run(threaded=False, host='0.0.0.0', port=port)
 
 
-def kube_event_loop():
+def kube_event_loop(port):
     # May not be thread-safe; opens http connection, so use local version
     v1_ = kube.client.CoreV1Api()
 
@@ -473,14 +553,14 @@ def kube_event_loop():
     for event in stream:
         pod = event['object']
         name = pod.metadata.name
-        requests.post('http://127.0.0.1:5000/pod_changed', json={'pod_name': name}, timeout=120)
+        requests.post(f'http://127.0.0.1:{port}/pod_changed', json={'pod_name': name}, timeout=120)
 
 
-def polling_event_loop():
+def polling_event_loop(port):
     time.sleep(1)
     while True:
         try:
-            response = requests.post('http://127.0.0.1:5000/refresh_k8s_state', timeout=120)
+            response = requests.post(f'http://127.0.0.1:{port}/refresh_k8s_state', timeout=120)
             response.raise_for_status()
         except requests.HTTPError as exc:
             log.error(f'Could not poll due to exception: {exc}, text: {exc.response.text}')
@@ -489,17 +569,17 @@ def polling_event_loop():
         time.sleep(REFRESH_INTERVAL_IN_SECONDS)
 
 
-def serve():
-    kube_thread = threading.Thread(target=run_forever, args=(kube_event_loop,))
+def serve(port=5000):
+    kube_thread = threading.Thread(target=run_forever, args=(kube_event_loop, port))
     kube_thread.start()
 
-    polling_thread = threading.Thread(target=run_forever, args=(polling_event_loop,))
+    polling_thread = threading.Thread(target=run_forever, args=(polling_event_loop, port))
     polling_thread.start()
 
     # debug/reloader must run in main thread
     # see: https://stackoverflow.com/questions/31264826/start-a-flask-application-in-separate-thread
     # flask_thread = threading.Thread(target=flask_event_loop)
     # flask_thread.start()
-    run_forever(flask_event_loop)
+    run_forever(flask_event_loop, port)
 
     kube_thread.join()

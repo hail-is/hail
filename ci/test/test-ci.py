@@ -432,11 +432,21 @@ def test_push_while_building(tmpdir):
         call(['git', 'fetch', 'origin'])
         second_target_sha = rev_parse('origin/master')
 
-        time.sleep(10)  # allow deploy job to run
-
-        deploy_artifact = run(['gsutil', 'cat', f'gs://hail-ci-test/{second_target_sha}'], stdout=subprocess.PIPE)
-        deploy_artifact = deploy_artifact.stdout.decode('utf-8').strip()
-        assert f'commit {second_target_sha}' in deploy_artifact
+        i = 0
+        while True:
+            time.sleep(0.100 * (2 ** i))
+            deploy_artifact = run(
+                ['gsutil', 'cat', f'gs://hail-ci-test/{second_target_sha}'],
+                stdout=subprocess.PIPE)
+            if deploy_artifact.returncode == 0:
+                deploy_artifact = deploy_artifact.stdout.decode('utf-8').strip()
+                assert f'commit {second_target_sha}' in deploy_artifact
+                break
+            elif i > 14:
+                assert False, (f'tried {i} times to get deployed artifact, '
+                               f'but never found it {deploy_artifact}')
+            else:
+                i = i + 1
 
         time.sleep(5)  # allow github push notification to be sent
 

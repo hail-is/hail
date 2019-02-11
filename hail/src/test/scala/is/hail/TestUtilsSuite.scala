@@ -51,7 +51,7 @@ class TestUtilsSuite extends SparkSuite {
     var i = 0
     for (testClass <- getClasses("is.hail")) {
       if (!Modifier.isAbstract(testClass.getModifiers)) {
-        for (method <- testClass.getMethods()) {
+        for (method <- testClass.getMethods) {
           if (method.isAnnotationPresent(classOf[DataProvider])) {
             method.invoke(testClass.newInstance())
             i += 1

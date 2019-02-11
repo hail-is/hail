@@ -1,17 +1,16 @@
 package is.hail.cxx
 
-import java.io.PrintWriter
-
 import is.hail.expr.ir
 import is.hail.expr.types.physical._
-import is.hail.nativecode.{NativeLongFuncL2, NativeModule, NativeStatus}
+import is.hail.nativecode.NativeStatus
+import is.hail.utils.fatal
 
 import scala.reflect.classTag
 
 object Compile {
   def apply(
     arg0: String, arg0Type: PType,
-    body: ir.IR, optimize: Boolean): NativeLongFuncL2 = {
+    body: ir.IR, optimize: Boolean): (Long, Long) => Long = {
     assert(ir.TypeToIRIntermediateClassTag(arg0Type.virtualType) == classTag[Long])
     assert(arg0Type.isInstanceOf[PBaseStruct])
     val returnType = body.pType
@@ -31,7 +30,7 @@ object Compile {
       Array("Region *" -> "region", "const char *" -> "v"),
       "char *")
 
-    val v = Emit(fb, 1, body)
+    val v = Emit(fb, 1, ir.Subst(body, ir.Env(arg0 -> ir.In(0, arg0Type.virtualType))))
 
     fb +=
       s"""
@@ -71,6 +70,12 @@ object Compile {
     mod.close()
     st.close()
 
-    nativef
+    { (v1: Long, v2: Long) =>
+      val st2 = new NativeStatus()
+      val res = nativef(st2, v1, v2)
+      if (st2.fail)
+        fatal(st2.toString())
+      res
+    }
   }
 }

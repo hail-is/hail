@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.expr.JSONAnnotationImpex
+import is.hail.expr.ir.functions.RelationalFunctions
 import is.hail.table.Ascending
 import is.hail.utils._
 import org.json4s.jackson.{JsonMethods, Serialization}
@@ -115,9 +116,12 @@ object Pretty {
           pretty(i, depth + 2)
           sb += '\n'
           prettySeq(args, depth + 2)
-        case InsertFields(old, fields) =>
+        case InsertFields(old, fields, fieldOrder) =>
           sb += '\n'
           pretty(old, depth + 2)
+          sb.append('\n')
+          sb.append(" " * (depth + 2))
+          sb.append(prettyStringsOpt(fieldOrder))
           if (fields.nonEmpty) {
             sb += '\n'
             fields.foreachBetween { case (n, a) =>
@@ -129,21 +133,6 @@ object Pretty {
               sb += ')'
             }(sb += '\n')
           }
-        case TableImport(paths, _, conf) =>
-          sb += '\n'
-          sb.append(" " * (depth + 2))
-          sb.append("(paths\n")
-          paths.foreachBetween { p =>
-            sb.append(" " * (depth + 4))
-            sb.append(prettyStringLiteral(p))
-          }(sb += '\n')
-          sb += ')'
-          sb += '\n'
-          sb.append(" " * (depth + 2))
-          sb.append("(useCols ")
-          conf.useColIndices.foreachBetween(i => sb.append(i))(sb.append(','))
-          sb += ')'
-          sb += ')'
         case _ =>
           val header = ir match {
             case I32(x) => x.toString
@@ -173,7 +162,9 @@ object Pretty {
             case ArrayFlatMap(_, name, _) => prettyIdentifier(name)
             case ArrayFold(_, _, accumName, valueName, _) => prettyIdentifier(accumName) + " " + prettyIdentifier(valueName)
             case ArrayScan(_, _, accumName, valueName, _) => prettyIdentifier(accumName) + " " + prettyIdentifier(valueName)
+            case ArrayLeftJoinDistinct(_, _, l, r, _, _) => prettyIdentifier(l) + " " + prettyIdentifier(r)
             case ArrayFor(_, valueName, _) => prettyIdentifier(valueName)
+            case ArrayAgg(a, name, query) => prettyIdentifier(name)
             case AggExplode(_, name, _) => prettyIdentifier(name)
             case ArraySort(_, _, onKey) => prettyBooleanLiteral(onKey)
             case ApplyIR(function, _, _) => prettyIdentifier(function)
@@ -192,15 +183,23 @@ object Pretty {
               '"' + StringEscapeUtils.escapeString(Serialization.write(reader)(MatrixReader.formats)) + '"'
             case MatrixWrite(_, writer) =>
               '"' + StringEscapeUtils.escapeString(Serialization.write(writer)(MatrixWriter.formats)) + '"'
+            case MatrixMultiWrite(_, writer) =>
+              '"' + StringEscapeUtils.escapeString(Serialization.write(writer)(MatrixNativeMultiWriter.formats)) + '"'
+            case BlockMatrixRead(path) =>
+              prettyStringLiteral(path)
+            case BlockMatrixWrite(_, path, overwrite, forceRowMajor, stageLocally) =>
+              prettyStringLiteral(path) + " " +
+              prettyBooleanLiteral(overwrite) + " " +
+              prettyBooleanLiteral(forceRowMajor) + " " +
+              prettyBooleanLiteral(stageLocally)
             case TableToMatrixTable(_, rowKey, colKey, rowFields, colFields, nPartitions) =>
               prettyStrings(rowKey) + " " +
               prettyStrings(colKey) +  " " +
               prettyStrings(rowFields) + " " +
               prettyStrings(colFields) + " " +
               prettyIntOpt(nPartitions)
-            case MatrixAnnotateRowsTable(_, _, uid, key) =>
-              prettyStringLiteral(uid) + " " +
-              prettyBooleanLiteral(key.isDefined)
+            case MatrixAnnotateRowsTable(_, _, uid) =>
+              prettyStringLiteral(uid) + " "
             case MatrixAnnotateColsTable(_, _, uid) =>
               prettyStringLiteral(uid)
             case MatrixExplodeRows(_, path) => prettyIdentifiers(path)
@@ -211,28 +210,10 @@ object Pretty {
             case MatrixKeyRowsBy(_, keys, isSorted) =>
               prettyIdentifiers(keys) + " " +
                 prettyBooleanLiteral(isSorted)
-            case TableImport(paths, _, _) =>
-              if (paths.length == 1)
-                paths.head
-              else {
-                sb += '\n'
-                sb.append(" " * (depth + 2))
-                sb.append("(paths\n")
-                paths.foreachBetween { p =>
-                  sb.append(" " * (depth + 4))
-                  sb.append(prettyStringLiteral(p))
-                }(sb += '\n')
-                sb += ')'
-
-                ""
-              }
-            case TableRead(path, spec, typ, dropRows) =>
-              prettyStringLiteral(path) + " " +
+            case TableRead(typ, dropRows, tr) =>
+              (if (typ == tr.fullType) "None" else typ.parsableString()) + " " +
                 prettyBooleanLiteral(dropRows) + " " +
-                (if (typ == spec.table_type)
-                  "None"
-                else
-                  typ.parsableString())
+                '"' + StringEscapeUtils.escapeString(Serialization.write(tr)(TableReader.formats)) + '"'
             case TableWrite(_, path, overwrite, stageLocally, codecSpecJSONStr) =>
               prettyStringLiteral(path) + " " +
                 prettyBooleanLiteral(overwrite) + " " +
@@ -269,7 +250,7 @@ object Pretty {
               s"${ prettyStringLiteral(dataName) } ${ prettyStringLiteral(globalName) }"
             case TableKeyByAndAggregate(_, _, _, nPartitions, bufferSize) =>
               prettyIntOpt(nPartitions) + " " + bufferSize.toString
-            case TableExplode(_, field) => field
+            case TableExplode(_, path) => prettyStrings(path)
             case TableParallelize(_, nPartitions) =>
                 prettyIntOpt(nPartitions)
             case TableOrderBy(_, sortFields) => prettyIdentifiers(sortFields.map(sf =>
@@ -279,14 +260,26 @@ object Pretty {
             case CastTableToMatrix(_, entriesFieldName, colsFieldName, colKey) =>
               s"${ prettyIdentifier(entriesFieldName) } ${ prettyIdentifier(colsFieldName) } " +
                 prettyIdentifiers(colKey)
-            case MatrixToMatrixApply(_, config) => prettyStringLiteral(config)
-            case MatrixToTableApply(_, config) => prettyStringLiteral(config)
-            case TableToTableApply(_, config) => prettyStringLiteral(config)
+            case MatrixToMatrixApply(_, function) => prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats))
+            case MatrixToTableApply(_, function) => prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats))
+            case TableToTableApply(_, function) => prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats))
+            case TableToValueApply(_, function) => prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats))
+            case MatrixToValueApply(_, function) => prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats))
             case TableRename(_, rowMap, globalMap) =>
               val rowKV = rowMap.toArray
               val globalKV = globalMap.toArray
               s"${ prettyStrings(rowKV.map(_._1)) } ${ prettyStrings(rowKV.map(_._2)) } " +
                 s"${ prettyStrings(globalKV.map(_._1)) } ${ prettyStrings(globalKV.map(_._2)) }"
+            case MatrixRename(_, globalMap, colMap, rowMap, entryMap) =>
+              val globalKV = globalMap.toArray
+              val colKV = colMap.toArray
+              val rowKV = rowMap.toArray
+              val entryKV = entryMap.toArray
+              s"${ prettyStrings(globalKV.map(_._1)) } ${ prettyStrings(globalKV.map(_._2)) } " +
+                s"${ prettyStrings(colKV.map(_._1)) } ${ prettyStrings(colKV.map(_._2)) } " +
+                s"${ prettyStrings(rowKV.map(_._1)) } ${ prettyStrings(rowKV.map(_._2)) } " +
+                s"${ prettyStrings(entryKV.map(_._1)) } ${ prettyStrings(entryKV.map(_._2)) }"
+
             case _ => ""
           }
 

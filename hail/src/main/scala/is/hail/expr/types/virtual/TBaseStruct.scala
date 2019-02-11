@@ -106,13 +106,4 @@ abstract class TBaseStruct extends Type {
   override def scalaClassTag: ClassTag[Row] = classTag[Row]
 
   def missingIdx: Array[Int]
-
-  override def _showStr(a: Annotation, cfg: ShowStrConfig, sb: StringBuilder): Unit = {
-    val r = a.asInstanceOf[Row]
-    sb.append('(')
-    types.zipWithIndex.foreachBetween({ case (t, i) => t._showStrNA(r.get(i), cfg, sb) }) {
-      sb.append(',')
-    }
-    sb.append(')')
-  }
 }

@@ -23,7 +23,9 @@ class AggregableChecker(TypeChecker):
 
     def check(self, x, caller, param):
         x = self.coercer.check(x, caller, param)
-        assert(len(x._ir.search(lambda node: isinstance(node, BaseApplyAggOp))) != 0)
+        if len(x._ir.search(lambda node: isinstance(node, BaseApplyAggOp))) == 0:
+            raise ExpressionException(f"{caller} must be placed outside of an aggregation. See "
+                                      "https://discuss.hail.is/t/breaking-change-redesign-of-aggregator-interface/701")
         return x
 
 
@@ -1063,7 +1065,7 @@ def downsample(x, y, label=None, n_divisions=500) -> ArrayExpression:
         label = hl.null(hl.tarray(hl.tstr))
     elif isinstance(label, StringExpression):
         label = hl.array([label])
-    return _agg_func('downsample', [x, y, label], tarray(ttuple(tfloat64, tfloat64, tarray(tstr))),
+    return _agg_func('Downsample', [x, y, label], tarray(ttuple(tfloat64, tfloat64, tarray(tstr))),
                      constructor_args=[n_divisions])
 
 
@@ -1331,7 +1333,7 @@ def corr(x, y) -> Float64Expression:
     -------
     :class:`.Float64Expression`
     """
-    return _agg_func('corr', [x, y], tfloat64)
+    return _agg_func('PearsonCorrelation', [x, y], tfloat64)
 
 @typecheck(group=expr_any,
            agg_expr=agg_expr(expr_any))

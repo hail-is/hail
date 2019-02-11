@@ -100,3 +100,26 @@ class MatrixPLINKWriter(MatrixWriter):
     def __eq__(self, other):
         return isinstance(other, MatrixPLINKWriter) and \
                other.path == self.path
+
+
+class MatrixNativeMultiWriter(object):
+    @typecheck_method(prefix=str,
+                      overwrite=bool,
+                      stage_locally=bool)
+    def __init__(self, prefix, overwrite, stage_locally):
+        self.prefix = prefix
+        self.overwrite = overwrite
+        self.stage_locally = stage_locally
+
+    def render(self, r):
+        writer = {'name': 'MatrixNativeMultiWriter',
+                  'prefix': self.prefix,
+                  'overwrite': self.overwrite,
+                  'stageLocally': self.stage_locally}
+        return escape_str(json.dumps(writer))
+
+    def __eq__(self, other):
+        return isinstance(other, MatrixNativeMultiWriter) and \
+               other.prefix == self.prefix and \
+               other.overwrite == self.overwrite and \
+               other.stage_locally == self.stage_locally

@@ -2,31 +2,36 @@ package is.hail.methods
 
 import breeze.linalg._
 import is.hail.annotations._
-import is.hail.expr.ir.{TableLiteral, TableValue}
+import is.hail.expr.ir.functions.MatrixToTableFunction
+import is.hail.expr.ir.{MatrixValue, TableValue}
 import is.hail.expr.types.virtual.{TFloat64, TStruct}
-import is.hail.expr.types.TableType
+import is.hail.expr.types.{MatrixType, TableType}
+import is.hail.rvd.RVDType
 import is.hail.stats._
-import is.hail.table.Table
 import is.hail.utils._
-import is.hail.variant._
 import org.apache.spark.storage.StorageLevel
 
-import scala.collection.JavaConverters._
+case class PoissonRegression(
+  test: String,
+  yField: String,
+  xField: String,
+  covFields: Array[String],
+  passThrough: Array[String]) extends MatrixToTableFunction {
 
-object PoissonRegression {
-
-  def apply(vsm: MatrixTable,
-    test: String,
-    yField: String,
-    xField: String,
-    _covFields: java.util.ArrayList[String],
-    _passThrough: java.util.ArrayList[String]): Table = {
-    val covFields = _covFields.asScala.toArray
-    val passThrough = _passThrough.asScala.toArray
-
+  def typeInfo(childType: MatrixType, childRVDType: RVDType): (TableType, RVDType) = {
     val poisRegTest = PoissonRegressionTest.tests(test)
+    val passThroughType = TStruct(passThrough.map(f => f -> childType.rowType.field(f).typ): _*)
+    val tableType = TableType(childType.rowKeyStruct ++ passThroughType ++ poisRegTest.schema, childType.rowKey, TStruct())
+    (tableType, tableType.canonicalRVDType)
+  }
 
-    val (y, cov, completeColIdx) = RegressionUtils.getPhenoCovCompleteSamples(vsm, yField, covFields)
+  def preservesPartitionCounts: Boolean = true
+
+  def execute(mv: MatrixValue): TableValue = {
+    val poisRegTest = PoissonRegressionTest.tests(test)
+    val (tableType, newRVDType) = typeInfo(mv.typ, mv.rvd.typ)
+
+    val (y, cov, completeColIdx) = RegressionUtils.getPhenoCovCompleteSamples(mv, yField, covFields)
 
     if (!y.forall(yi => math.floor(yi) == yi && yi >= 0))
       fatal(s"For poisson regression, y must be numeric with all values non-negative integers")
@@ -53,7 +58,7 @@ object PoissonRegression {
         else
           "Newton iteration failed to converge"))
 
-    val sc = vsm.sparkContext
+    val sc = mv.sparkContext
     val completeColIdxBc = sc.broadcast(completeColIdx)
 
     val yBc = sc.broadcast(y)
@@ -61,22 +66,19 @@ object PoissonRegression {
     val nullFitBc = sc.broadcast(nullFit)
     val poisRegTestBc = sc.broadcast(poisRegTest)
 
-    val fullRowType = vsm.rvRowType.physicalType
-    val entryArrayType = vsm.matrixType.entryArrayType.physicalType
-    val entryType = vsm.entryType.physicalType
+    val fullRowType = mv.typ.rvRowType.physicalType
+    val entryArrayType = mv.typ.entryArrayType.physicalType
+    val entryType = mv.typ.entryType.physicalType
     val fieldType = entryType.field(xField).typ
 
     assert(fieldType.virtualType.isOfType(TFloat64()))
 
-    val entryArrayIdx = vsm.entriesIndex
+    val entryArrayIdx = mv.typ.entriesIdx
     val fieldIdx = entryType.fieldIdx(xField)
 
-    val passThroughType = TStruct(passThrough.map(f => f -> vsm.rowType.field(f).typ): _*)
-    val tableType = TableType(vsm.rowKeyStruct ++ passThroughType ++ poisRegTest.schema, vsm.rowKey, TStruct())
-    val newRVDType = tableType.canonicalRVDType
-    val copiedFieldIndices = (vsm.rowKey ++ passThrough).map(vsm.rvRowType.fieldIdx(_)).toArray
+    val copiedFieldIndices = (mv.typ.rowKey ++ passThrough).map(mv.typ.rvRowType.fieldIdx(_)).toArray
 
-    val newRVD = vsm.rvd.mapPartitions(newRVDType) { it =>
+    val newRVD = mv.rvd.mapPartitions(newRVDType) { it =>
       val rvb = new RegionValueBuilder()
       val rv2 = RegionValue()
 
@@ -100,6 +102,7 @@ object PoissonRegression {
         rv2
       }
     }.persist(StorageLevel.MEMORY_AND_DISK)
-    new Table(vsm.hc, TableLiteral(TableValue(tableType, BroadcastRow.empty(sc), newRVD)))
+
+    TableValue(tableType, BroadcastRow.empty(sc), newRVD)
   }
 }

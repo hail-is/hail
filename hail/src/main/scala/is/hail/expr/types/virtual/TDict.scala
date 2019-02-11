@@ -71,18 +71,4 @@ final case class TDict(keyType: Type, valueType: Type, override val required: Bo
 
   val ordering: ExtendedOrdering =
     ExtendedOrdering.mapOrdering(elementType.ordering)
-
-
-  override def _showStr(a: Annotation, cfg: ShowStrConfig, sb: StringBuilder): Unit = {
-    val dict = a.asInstanceOf[Map[Any, Any]]
-    sb.append('{')
-    dict.foreachBetween({ case (k, v) =>
-      keyType._showStrNA(k, cfg, sb)
-      sb.append(':')
-      valueType._showStrNA(v, cfg, sb)
-    }) {
-      sb.append(',')
-    }
-    sb.append('}')
-  }
 }

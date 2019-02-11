@@ -14,6 +14,16 @@ class tmatrix(object):
             jiterable_to_list(jtt.rowKey()),
             dtype(jtt.entryType().toString()))
 
+    @staticmethod
+    def _from_json(json):
+        return tmatrix(
+            dtype(json['global']),
+            dtype(json['col']),
+            json['col_key'],
+            dtype(json['row']),
+            json['row_key'],
+            dtype(json['entry']))
+
     @typecheck_method(global_type=tstruct,
                       col_type=tstruct, col_key=sequenceof(str),
                       row_type=tstruct, row_key=sequenceof(str),
@@ -87,6 +97,47 @@ class tmatrix(object):
         l.append('}')
         
         return ''.join(l)
+ 
+    @property
+    def col_key_type(self):
+        return self.col_type._select_fields(self.col_key)
+
+    @property
+    def col_value_type(self):
+        return self.col_type._drop_fields(set(self.col_key))
+    
+    @property
+    def row_key_type(self):
+        return self.row_type._select_fields(self.row_key)
+
+    @property
+    def row_value_type(self):
+        return self.row_type._drop_fields(set(self.row_key))
+
+    def _rename(self, global_map, col_map, row_map, entry_map):
+        return tmatrix(self.global_type._rename(global_map),
+                       self.col_type._rename(col_map),
+                       [col_map.get(k, k) for k in self.col_key],
+                       self.row_type._rename(row_map),
+                       [row_map.get(k, k) for k in self.row_key],
+                       self.entry_type._rename(entry_map))
+
+    def global_env(self):
+        return {'global': self.global_type}
+
+    def row_env(self):
+        return {'global': self.global_type,
+                'va': self.row_type}
+
+    def col_env(self):
+        return {'global': self.global_type,
+                'sa': self.col_type}
+
+    def entry_env(self):
+        return {'global': self.global_type,
+                'va': self.row_type,
+                'sa': self.col_type,
+                'g': self.entry_type}
 
 
 import pprint

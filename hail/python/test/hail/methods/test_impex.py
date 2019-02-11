@@ -1,9 +1,12 @@
 import json
+import os
+import unittest
+
+import shutil
+
 import hail as hl
 from ..helpers import *
 from hail.utils import new_temp_file, FatalError, run_command, uri_path
-import unittest
-import os
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
@@ -160,6 +163,27 @@ class VCFTests(unittest.TestCase):
         mt = hl.import_vcf(resource('test_set_field_missing.vcf'))
         mt.aggregate_entries(hl.agg.sum(mt.DP))
 
+    def test_import_vcf_dosages_as_doubles_or_floats(self):
+        mt = hl.import_vcf(resource('small-ds.vcf'))
+        self.assertEqual(hl.expr.expressions.typed_expressions.Float64Expression, type(mt.entry.DS))
+        mt32 = hl.import_vcf(resource('small-ds.vcf'),  entry_float_type=hl.tfloat32)
+        self.assertEqual(hl.expr.expressions.typed_expressions.Float32Expression, type(mt32.entry.DS))
+        mt_result = mt.annotate_entries(DS32=mt32.index_entries(mt.row_key, mt.col_key).DS)
+        compare = mt_result.annotate_entries(
+            test=(hl.coalesce(hl.approx_equal(mt_result.DS, mt_result.DS32, nan_same=True), True))
+        )
+        self.assertTrue(all(compare.test.collect()))
+
+    def test_import_vcf_invalid_float_type(self):
+        with self.assertRaises(TypeError):
+            mt = hl.import_vcf(resource('small-ds.vcf'), entry_float_type=hl.tstr)
+        with self.assertRaises(TypeError):
+            mt = hl.import_vcf(resource('small-ds.vcf'), entry_float_type=hl.tint)
+        with self.assertRaises(TypeError):
+            mt = hl.import_vcf(resource('small-ds.vcf'), entry_float_type=hl.tint32)
+        with self.assertRaises(TypeError):
+            mt = hl.import_vcf(resource('small-ds.vcf'), entry_float_type=hl.tint64)
+
     def test_export_vcf(self):
         dataset = hl.import_vcf(resource('sample.vcf.bgz'))
         vcf_metadata = hl.get_vcf_metadata(resource('sample.vcf.bgz'))
@@ -173,7 +197,8 @@ class VCFTests(unittest.TestCase):
         self.assertTrue(no_sample_dataset._same(no_sample_dataset_imported))
 
         metadata_imported = hl.get_vcf_metadata('/tmp/sample.vcf')
-        self.assertDictEqual(vcf_metadata, metadata_imported)
+        # are py4 JavaMaps, not dicts, so can't use assertDictEqual
+        self.assertEqual(vcf_metadata, metadata_imported)
 
     def test_import_vcfs(self):
         path = resource('sample.vcf.bgz')
@@ -192,7 +217,7 @@ class VCFTests(unittest.TestCase):
                      'includeEnd': True},
                 ]
         parts_str = json.dumps(parts)
-        vcf1 = hl.import_vcf(path).key_rows_by('locus')  # import_vcfs keys by 'locus'
+        vcf1 = hl.import_vcf(path)
         vcf2 = hl.import_vcfs([path], parts_str)[0]
         self.assertEqual(len(parts), vcf2.n_partitions())
         self.assertTrue(vcf1._same(vcf2))
@@ -220,7 +245,7 @@ class VCFTests(unittest.TestCase):
                      'includeEnd': True},
                 ]
         parts_str = json.dumps(parts)
-        vcf1 = hl.import_vcf(path).key_rows_by('locus')  # import_vcfs keys by 'locus'
+        vcf1 = hl.import_vcf(path)
         vcf2 = hl.import_vcfs([path], parts_str)[0]
         interval = [hl.parse_locus_interval('[20:13509136-16493533]')]
         filter1 = hl.filter_intervals(vcf1, interval)
@@ -390,6 +415,7 @@ class PLINKTests(unittest.TestCase):
                             resource('skip_invalid_loci.fam'))
              ._force_count_rows())
 
+    @unittest.skipIf('HAIL_TEST_SKIP_PLINK' in os.environ, 'Skipping tests requiring plink')
     def test_export_plink(self):
         vcf_file = resource('sample.vcf')
         mt = hl.split_multi_hts(hl.import_vcf(vcf_file, min_partitions=10))

@@ -4,14 +4,16 @@ import is.hail.{SparkSuite, TestUtils}
 import is.hail.annotations.Annotation
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
+import is.hail.expr.ir.TextTableReader
 import is.hail.expr.types._
 import is.hail.expr.types.virtual.{TFloat64, TInt32, TString}
 import is.hail.io.vcf.ExportVCF
 import is.hail.utils.AbsoluteFuzzyComparable._
-import is.hail.utils.{AbsoluteFuzzyComparable, TextTableReader, _}
+import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
+import org.testng.SkipException
 
 import scala.language._
 import scala.sys.process._
@@ -102,6 +104,9 @@ class IBDSuite extends SparkSuite {
   val tolerance = 5e-5
 
   @Test def ibdPlinkSameOnRealVCF() {
+    if (sys.env.contains("HAIL_TEST_SKIP_PLINK")) {
+      throw new SkipException("Skipping tests requiring plink")
+    }
     val vds = TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
 
     val us = IBD.toRDD(IBD(vds)).collect().toMap

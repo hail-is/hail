@@ -178,7 +178,10 @@ def unescape_parsable(s):
 
 
 def escape_id(s):
-    return Env.jutils().escapeIdentifier(s)
+    if re.fullmatch(r'[_a-zA-Z]\w*', s):
+        return s
+    else:
+        return Env.jutils().escapeIdentifier(s)
 
 def jarray_to_list(a):
     return list(a) if a else None

@@ -6,7 +6,8 @@ from hail.matrixtable import MatrixTable
 from hail.expr import expr_call, expr_float64
 from hail.table import Table
 from hail.typecheck import *
-from .misc import require_biallelic
+from hail.utils.java import Env
+from .misc import require_biallelic, require_col_key_str
 
 
 @typecheck(dataset=MatrixTable,
@@ -59,7 +60,54 @@ def trio_matrix(dataset, pedigree, complete_trios=False) -> MatrixTable:
     -------
     :class:`.MatrixTable`
     """
-    return MatrixTable._from_java(dataset._jmt.trioMatrix(pedigree._jrep, complete_trios))
+    mt = dataset
+    require_col_key_str(mt, "trio_matrix")
+    
+    k = mt.col_key.dtype.fields[0]
+    samples = mt[k].collect()
+
+    pedigree = pedigree.filter_to(samples)
+    trios = pedigree.complete_trios() if complete_trios else pedigree.trios()
+    n_trios = len(trios)
+
+    sample_idx = {}
+    for i, s in enumerate(samples):
+        sample_idx[s] = i
+
+    trios = [hl.Struct(
+        id=sample_idx[t.s],
+        pat_id=sample_idx[t.pat_id],
+        mat_id=sample_idx[t.mat_id],
+        is_female=t.is_female,
+        fam_id=t.fam_id) for t in trios]
+    trios_type = hl.dtype('array<struct{id:int,pat_id:int,mat_id:int,is_female:bool,fam_id:str}>')
+
+    trios_sym = Env.get_uid()
+    entries_sym = Env.get_uid()
+    cols_sym = Env.get_uid()
+
+    mt = mt.annotate_globals(**{trios_sym: hl.literal(trios, trios_type)})
+    mt = mt._localize_entries(entries_sym, cols_sym)
+    mt = mt.annotate_globals(**{
+        cols_sym: hl.map(lambda i:
+                         hl.bind(lambda t: hl.struct(id=mt[cols_sym][t.id][k],
+                                                     proband=mt[cols_sym][t.id],
+                                                     father=mt[cols_sym][t.pat_id],
+                                                     mother=mt[cols_sym][t.mat_id],
+                                                     is_female=t.is_female,
+                                                     fam_id=t.fam_id),
+                                 mt[trios_sym][i]),
+                         hl.range(0, n_trios))})
+    mt = mt.annotate(**{
+        entries_sym: hl.map(lambda i:
+                            hl.bind(lambda t: hl.struct(proband_entry=mt[entries_sym][t.id],
+                                                        father_entry=mt[entries_sym][t.pat_id],
+                                                        mother_entry=mt[entries_sym][t.mat_id]),
+                                    mt[trios_sym][i]),
+                            hl.range(0, n_trios))})
+    mt = mt.drop(trios_sym)
+
+    return mt._unlocalize_entries(entries_sym, cols_sym, ['id'])
 
 @typecheck(call=expr_call,
            pedigree=Pedigree)

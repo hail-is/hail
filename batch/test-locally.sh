@@ -1,8 +1,9 @@
 #!/bin/bash
+# do not execute this file, use the Makefile
 
 set -ex
 
-. activate hail-batch
+PYTEST_ARGS=${PYTEST_ARGS:- -v --failed-first}
 
 cleanup() {
     set +e
@@ -12,15 +13,9 @@ cleanup() {
 trap cleanup EXIT
 trap "exit 24" INT TERM
 
-python -c 'import batch.server; batch.server.serve()' &
+python -c 'import batch.server; batch.server.serve(5000)' &
 server_pid=$!
 
-: $((tries = 0))
-until curl -fL 127.0.0.1:5000/jobs >/dev/null 2>&1
-do
-    : $((tries = tries + 1)) && [ $tries -lt 30 ]
-    sleep 1
-done
+../until-with-fuel 30 curl -fL 127.0.0.1:5000/jobs
 
-POD_IP='127.0.0.1' BATCH_URL='http://127.0.0.1:5000' python -m unittest -v test/test_batch.py
-BATCH_USE_KUBE_CONFIG=1 python -m unittest -v test/test_batch_server.py
+POD_IP='127.0.0.1' BATCH_URL='http://127.0.0.1:5000' python -m pytest ${PYTEST_ARGS} test

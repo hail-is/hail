@@ -3,7 +3,8 @@ package is.hail.utils.richUtils
 import java.io.InputStream
 
 import breeze.linalg.DenseMatrix
-import is.hail.annotations.{JoinedRegionValue, Region, RegionValue}
+import is.hail.annotations.aggregators.RegionValueAggregator
+import is.hail.annotations.{JoinedRegionValue, Region, RegionValue, RegionValueBuilder}
 import is.hail.asm4s.Code
 import is.hail.io.RichContextRDDRegionValue
 import is.hail.rvd.RVDContext
@@ -112,6 +113,10 @@ trait Implicits {
     new RichJoinedRegionValue(jrv)
 
   implicit def toRichCodeRegion(r: Code[Region]): RichCodeRegion = new RichCodeRegion(r)
+
+  implicit def toRichCodeRegionValueBuilder(rvb: Code[RegionValueBuilder]): RichCodeRegionValueBuilder = new RichCodeRegionValueBuilder(rvb)
+
+  implicit def toRichCodeRegionValueAggregator(rva: Code[RegionValueAggregator]): RichCodeRegionValueAggregator = new RichCodeRegionValueAggregator(rva)
 
   implicit def toRichPartialKleisliOptionFunction[A, B](x: PartialFunction[A, Option[B]]): RichPartialKleisliOptionFunction[A, B] = new RichPartialKleisliOptionFunction(x)
 

@@ -75,11 +75,30 @@ object IRBuilder {
 
     def filter(ir: IRProxy): TableIR =
       TableFilter(tir, ir(env))
+
+    def distinct(): TableIR = TableDistinct(tir)
+
+    def collect(): IRProxy = TableCollect(tir)
+
+    def collectAsDict(): IRProxy = {
+      val uid = genUID()
+      val keyFields = tir.typ.key
+      val valueFields = tir.typ.valueType.fieldNames
+      collect()
+        .apply('rows)
+        .map(Symbol(uid) ~> makeTuple(Symbol(uid).selectFields(keyFields: _*), Symbol(uid).selectFields(valueFields: _*)))
+        .toDict
+    }
   }
 
   class IRProxy(val ir: E => IR) extends AnyVal with Dynamic {
     def apply(idx: IRProxy): IRProxy = (env: E) =>
       ArrayRef(ir(env), idx(env))
+
+    def invoke(name: String, args: IRProxy*): IRProxy = { env: E =>
+      val irArgs = Array(ir(env)) ++ args.map(_(env))
+      is.hail.expr.ir.invoke(name, irArgs: _*)
+    }
 
     def selectDynamic(field: String): IRProxy = (env: E) =>
       GetField(ir(env), field)
@@ -117,6 +136,12 @@ object IRBuilder {
 
     def len: IRProxy = (env: E) => ArrayLen(ir(env))
 
+    def orElse(alt: IRProxy): IRProxy = { env: E =>
+      val uid = genUID()
+      val eir = ir(env)
+      Let(uid, eir, If(IsNA(Ref(uid, eir.typ)), alt(env), Ref(uid, eir.typ)))
+    }
+
     def filter(pred: LambdaProxy): IRProxy = (env: E) => {
       val array = ir(env)
       val eltType = array.typ.asInstanceOf[TArray].elementType
@@ -135,11 +160,19 @@ object IRBuilder {
       ArrayFlatMap(array, f.s.name, f.body(env.bind(f.s.name -> eltType)))
     }
 
+    def arrayAgg(f: LambdaProxy): IRProxy = (env: E) => {
+      val array = ir(env)
+      val eltType = array.typ.asInstanceOf[TArray].elementType
+      ArrayAgg(array, f.s.name, f.body(env.bind(f.s.name -> eltType)))
+    }
+
     def sort(ascending: IRProxy, onKey: Boolean = false): IRProxy = (env: E) => ArraySort(ir(env), ascending(env), onKey)
 
     def groupByKey: IRProxy = (env: E) => GroupByKey(ir(env))
 
     def toArray: IRProxy = (env: E) => ToArray(ir(env))
+
+    def toDict: IRProxy = (env: E) => ToDict(ir(env))
 
     def parallelize(nPartitions: Option[Int] = None): TableIR = TableParallelize(ir(Env.empty), nPartitions)
 
@@ -180,4 +213,16 @@ object IRBuilder {
       LetProxy.bind(bindings, body, env)
     }
   }
+
+  object MapIRProxy {
+    def apply(f: (IRProxy) => IRProxy)(x: IRProxy): IRProxy = (e: E) => {
+        MapIR(x => f(x)(e))(x(e))
+      }
+  }
+
+  def subst(x: IRProxy, env: Env[IRProxy], aggEnv: Env[IRProxy] = Env.empty): IRProxy = (e: E) => {
+    Subst(x(e), env.mapValues(_(e)), aggEnv.mapValues(_(e)))
+  }
+
+  def lift(f: (IR) => IRProxy)(x: IRProxy): IRProxy = (e: E) => f(x(e))(e)
 }

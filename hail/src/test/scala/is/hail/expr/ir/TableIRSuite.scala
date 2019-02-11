@@ -11,7 +11,7 @@ import is.hail.utils._
 import is.hail.TestUtils._
 import is.hail.io.CodecSpec
 import org.apache.spark.sql.Row
-import org.testng.annotations.{DataProvider, Test}
+import org.testng.annotations.{BeforeClass, DataProvider, Test}
 import is.hail.TestUtils._
 
 class TableIRSuite extends SparkSuite {
@@ -28,11 +28,49 @@ class TableIRSuite extends SparkSuite {
 
   def rangeKT: TableIR = Table.range(hc, 20, Some(4)).unkey().tir
 
+  @BeforeClass def ensureHCDefined() { initializeHailContext() }
+
+  @Test def testRangeCount() {
+    val node1 = TableCount(TableRange(10, 2))
+    val node2 = TableCount(TableRange(15, 5))
+    val node = ApplyBinaryPrimOp(Add(), node1, node2)
+    assertEvalsTo(node1, 10L)
+    assertEvalsTo(node2, 15L)
+    assertEvalsTo(node, 25L)
+  }
+
+  @Test def testRangeCollect() {
+    val t = TableRange(10, 2)
+    val row = Ref("row", t.typ.rowType)
+    val node = TableCollect(TableMapRows(t, InsertFields(row, FastIndexedSeq("x" -> GetField(row, "idx")))))
+    assertEvalsTo(TableCollect(t), Row(Array.tabulate(10)(Row(_)).toFastIndexedSeq, Row()))
+    assertEvalsTo(node, Row(Array.tabulate(10)(i => Row(i, i)).toFastIndexedSeq, Row()))
+  }
+
+  @Test def testGetGlobals() {
+    val t = TableRange(10, 2)
+    val newGlobals = InsertFields(Ref("global", t.typ.globalType), FastSeq("x" -> TableCollect(t)))
+    val node = TableGetGlobals(TableMapGlobals(t, newGlobals))
+    assertEvalsTo(node, Row(Row(Array.tabulate(10)(i => Row(i)).toFastIndexedSeq, Row())))
+  }
+
+  @Test def testCollectGlobals() {
+    val t = TableRange(10, 2)
+    val newGlobals = InsertFields(Ref("global", t.typ.globalType), FastSeq("x" -> TableCollect(t)))
+    val node =TableMapRows(
+      TableMapGlobals(t, newGlobals),
+      InsertFields(Ref("row", t.typ.rowType), FastSeq("x" -> GetField(Ref("global", newGlobals.typ), "x"))))
+
+    val collectedT = Row(Array.tabulate(10)(i => Row(i)).toFastIndexedSeq, Row())
+    val expected = Array.tabulate(10)(i => Row(i, collectedT)).toFastIndexedSeq
+
+    assertEvalsTo(TableCollect(node), Row(expected, Row(collectedT)))
+  }
+
   @Test def testFilter() {
     val kt = getKT
-    val kt2 = new Table(hc, TableFilter(kt.tir,
-      GetField(Ref("row", kt.typ.rowType), "field1").ceq(3)))
-    assert(kt2.count() == 1)
+    assertEvalsTo(TableCount(TableFilter(kt.tir,
+      GetField(Ref("row", kt.typ.rowType), "field1").ceq(3))), 1L)
   }
 
   @Test def testScanCountBehavesLikeIndex() {
@@ -41,8 +79,8 @@ class TableIRSuite extends SparkSuite {
 
     val newRow = InsertFields(oldRow, Seq("idx2" -> IRScanCount))
     val newTable = TableMapRows(t, newRow)
-    val rows = Interpret[IndexedSeq[Row]](TableAggregate(newTable, IRAggCollect(Ref("row", newRow.typ))), optimize = false)
-    assert(rows.forall { case Row(row_idx, idx) => row_idx == idx})
+    val expected = Array.tabulate(20)(i => Row(i, i.toLong)).toFastIndexedSeq
+    assertEvalsTo(ArraySort(TableAggregate(newTable, IRAggCollect(Ref("row", newRow.typ))), True()), expected)
   }
 
   @Test def testScanCollectBehavesLikeRange() {
@@ -51,8 +89,9 @@ class TableIRSuite extends SparkSuite {
 
     val newRow = InsertFields(oldRow, Seq("range" -> IRScanCollect(GetField(oldRow, "idx"))))
     val newTable = TableMapRows(t, newRow)
-    val rows = Interpret[IndexedSeq[Row]](TableAggregate(newTable, IRAggCollect(Ref("row", newRow.typ))), optimize = false)
-    assert(rows.forall { case Row(row_idx: Int, range: IndexedSeq[_]) => range sameElements Array.range(0, row_idx)})
+
+    val expected = Array.tabulate(20)(i => Row(i, Array.range(0, i).toFastIndexedSeq)).toFastIndexedSeq
+    assertEvalsTo(ArraySort(TableAggregate(newTable, IRAggCollect(Ref("row", newRow.typ))), True()), expected)
   }
 
   val rowType = TStruct(("A", TInt32()), ("B", TInt32()), ("C", TInt32()))
@@ -240,7 +279,7 @@ class TableIRSuite extends SparkSuite {
         .repartition(if (!rightProject.contains(1)) rightPart else rightPart.coarsen(1)))
 
     val (_, joinProjectF) = joinedType.filter(f => !leftProject.contains(f.index) && !rightProject.contains(f.index - 2))
-    val joined = Interpret(
+    val joined = TableCollect(
       TableJoin(
         partitionedLeft.tir,
         TableRename(
@@ -251,8 +290,7 @@ class TableIRSuite extends SparkSuite {
             .toMap,
           Map.empty),
         joinType, 1))
-      .rdd.collect()
-    assert(joined sameElements expected.filter(pred).map(joinProjectF))
+      assertEvalsTo(joined, Row(expected.filter(pred).map(joinProjectF).toFastIndexedSeq, Row()))
   }
 
   @Test def testTableKeyBy() {
@@ -261,22 +299,23 @@ class TableIRSuite extends SparkSuite {
     val signature = TStruct(("field1", TString()), ("field2", TInt32()))
     val keyNames = IndexedSeq("field1", "field2")
     val kt = Table(hc, rdd, signature, keyNames)
-    val distinct = Interpret(TableDistinct(TableLiteral(
+    val distinctCount = TableCount(TableDistinct(TableLiteral(
       kt.value.copy(typ = kt.typ.copy(key = IndexedSeq("field1")))
-    ))).rdd.collect()
-    assert(distinct.length == 2)
+    )))
+    assertEvalsTo(distinctCount, 2L)
   }
 
   @Test def testTableParallelize() {
-    val r = Row(FastIndexedSeq(Row(1), Row(2)), Row("the global"))
-    val l = Literal(
-      TStruct("rows" -> TArray(TStruct("foo" -> TInt32())), "global" -> TStruct("bar" -> TString())),
-      r
-    )
+    val t = TStruct("rows" -> TArray(TStruct("a" -> TInt32(), "b" -> TString())), "global" -> TStruct("x" -> TString()))
+    val value = Row(IndexedSeq(Row(0, "row1"), Row(1, "row2")), Row("glob"))
 
-    val tv = TableParallelize(l, None).execute(hc)
-    assert(tv.rvd.collect(CodecSpec.default).toFastIndexedSeq == r.get(0))
-    assert(tv.globals.value == r.get(1))
+    assertEvalsTo(
+      TableCollect(
+        TableParallelize(
+          Literal(
+            t,
+            value
+          ))), value)
   }
 
   @Test def testShuffleAndJoinDoesntMemoryLeak() {
@@ -376,19 +415,5 @@ class TableIRSuite extends SparkSuite {
     ))))
 
     assert(testTable.globals.safeValue == texp.globals.safeValue)
-  }
-
-  @Test def testTableParallelizeCollectIdentity() {
-    hc // ensure initialized
-    val t = TStruct("rows" -> TArray(TStruct("a" -> TInt32(), "b" -> TString())), "global" -> TStruct("x" -> TString()))
-    val value = Row(IndexedSeq(Row(0, "row1"), Row(1, "row2")), Row("glob"))
-
-    assertEvalsTo(
-      TableCollect(
-        TableParallelize(
-          Literal(
-            t,
-            value
-          ))), value)
   }
 }
