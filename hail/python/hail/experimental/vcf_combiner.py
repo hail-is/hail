@@ -3,7 +3,9 @@
 import hail as hl
 from hail.matrixtable import MatrixTable
 from hail.expr import ArrayExpression, StructExpression
+from hail.expr.expressions import expr_call, expr_array, expr_int32
 from hail.ir.matrix_ir import MatrixKeyRowsBy
+from hail.typecheck import typecheck
 
 
 def transform_one(mt: MatrixTable) -> MatrixTable:
@@ -126,22 +128,35 @@ def densify(mt):
     return mt
 
 
+@typecheck(lgt=expr_call, la=expr_array(expr_int32))
+def lgt_to_gt(lgt, la):
+    """A method for transforming Local GT and Local Alleles into the true GT"""
+    one = hl.cond(lgt[0] == 0, 0, la[lgt[0] - 1] + 1)
+    two = hl.cond(lgt[1] == 0, 0, la[lgt[1] - 1] + 1)
+    return hl.call(one, two)
+
+
 def summarize(mt):
     mt = densify(mt)
-    return mt.annotate_rows(info=hl.struct(
-        # here, we alphabetize the INFO fields by GATK convention
-        BaseQRankSum=hl.median(hl.agg.collect(mt.entry.BaseQRankSum)),
-        ClippingRankSum=hl.median(hl.agg.collect(mt.entry.ClippingRankSum)),
-        DP=hl.agg.sum(mt.entry.DP),  # some DPs may have been missing during earlier combining operations
-        MQ=hl.median(hl.agg.collect(mt.entry.MQ)),
-        MQ_DP=mt.info.MQ_DP,
-        MQRankSum=hl.median(hl.agg.collect(mt.entry.MQRankSum)),
-        QUALapprox=mt.info.QUALapprox,
-        RAW_MQ=mt.info.RAW_MQ,
-        ReadPosRankSum=hl.median(hl.agg.collect(mt.entry.ReadPosRankSum)),
-        SB=mt.info.SB,
-        VarDP=mt.info.VarDP,
-    ))
+    return mt.annotate_rows(info=hl.rbind(
+        hl.agg.call_stats(lgt_to_gt(mt.GT, mt.LA), mt.alleles),
+        lambda gs: hl.struct(
+            # here, we alphabetize the INFO fields by GATK convention
+            AC=gs.AC,
+            AF=gs.AF,
+            AN=gs.AN,
+            BaseQRankSum=hl.median(hl.agg.collect(mt.entry.BaseQRankSum)),
+            ClippingRankSum=hl.median(hl.agg.collect(mt.entry.ClippingRankSum)),
+            DP=hl.agg.sum(mt.entry.DP),  # some DPs may have been missing during earlier combining operations
+            MQ=hl.median(hl.agg.collect(mt.entry.MQ)),
+            MQ_DP=mt.info.MQ_DP,
+            MQRankSum=hl.median(hl.agg.collect(mt.entry.MQRankSum)),
+            QUALapprox=mt.info.QUALapprox,
+            RAW_MQ=mt.info.RAW_MQ,
+            ReadPosRankSum=hl.median(hl.agg.collect(mt.entry.ReadPosRankSum)),
+            SB=mt.info.SB,
+            VarDP=mt.info.VarDP,
+        )))
 
 # NOTE: these are just @chrisvittal's notes on how gVCF fields are combined
 #       some of it is copied from GenomicsDB's wiki.
