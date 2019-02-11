@@ -2071,7 +2071,7 @@ class Table(ExprContainer):
         renames = {}
 
         for field in right._fields:
-            if field in seen:
+            if field in seen and field not in right.key:
                 i = 1
                 while i < 100:
                     mod = _mangle(field, i)
