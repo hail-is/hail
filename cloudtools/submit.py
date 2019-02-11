@@ -27,7 +27,7 @@ def main(args):
         files = args.files
     pyfiles = []
     if args.pyfiles:
-        pyfiles.extend(args.files.split(','))
+        pyfiles.extend(args.pyfiles.split(','))
     if standard_scripts:
         pyfiles.extend(standard_scripts)
     if pyfiles:
