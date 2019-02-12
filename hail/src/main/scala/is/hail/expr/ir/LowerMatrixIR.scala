@@ -140,8 +140,10 @@ object LowerMatrixIR {
       val colKey = makeStruct(table.typ.key.zip(child.typ.colKey).map { case (tk, mck) => Symbol(tk) -> col(Symbol(mck))}: _*)
       lower(child)
         .mapGlobals(let(__dictfield = lower(table)
-          .distinct()
-          .collectAsDict()) {
+          .keyBy(FastIndexedSeq())
+          .collect()
+          .apply('rows)
+          .arrayStructToDict(table.typ.key)) {
           'global.insertFields(colsField ->
             'global(colsField).map(col ~> col.insertFields(Symbol(root) -> '__dictfield.invoke("get", colKey))))
         })
