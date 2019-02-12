@@ -2500,12 +2500,11 @@ class Table(ExprContainer):
             if k is field:
                 raise ValueError(f"method 'explode' cannot explode a key field")
 
-        f = self._fields_inverse[field]
         t = Table(TableExplode(self._tir, root))
         if name is not None:
             if len(root) > 0:
                 raise ValueError(f"'Table.explode' does not support the 'name' argument when exploding nested fields")
-            t = t.rename({f: name})
+            t = t.rename({root[0]: name})
         return t
 
     @typecheck_method(row_key=sequenceof(str),
