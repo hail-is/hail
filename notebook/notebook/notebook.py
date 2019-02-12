@@ -19,9 +19,28 @@ import re
 import requests
 import time
 import uuid
-from dotenv import load_dotenv
 
-load_dotenv(verbose=True)
+try:
+    with open('notebook-worker-images', 'r') as f:
+        def get_name(line):
+            return re.search("/([^/:]+):", line).group(1)
+        WORKER_IMAGES = {get_name(line): line.strip() for line in f}
+except FileNotFoundError as e:
+    raise ValueError(
+        "working directory must contain a file called `notebook-worker-images' "
+        "containing the name of the docker image to use for worker pods.") from e
+
+if 'BATCH_USE_KUBE_CONFIG' in os.environ:
+    kube.config.load_kube_config()
+else:
+    kube.config.load_incluster_config()
+
+AUTH_GATEWAY = os.environ.get("AUTH_GATEWAY", "http://auth-gateway")
+DEFAULT_HAIL_IMAGE = os.environ.get("DEFAULT_HAIL_IMAGE", list(WORKER_IMAGES.keys())[0])
+
+KUBERNETES_TIMEOUT_IN_SECONDS = float(
+    os.environ.get('KUBERNETES_TIMEOUT_IN_SECONDS', 5.0))
+INSTANCE_ID = uuid.uuid4().hex
 
 fmt = logging.Formatter(
     # NB: no space after levelname because WARNING is so long
@@ -42,10 +61,10 @@ logging.basicConfig(
     handlers=[fh, ch],
     level=logging.INFO)
 
-if 'BATCH_USE_KUBE_CONFIG' in os.environ:
-    kube.config.load_kube_config()
-else:
-    kube.config.load_incluster_config()
+log.info(f'AUTH_GATEWAY: {AUTH_GATEWAY}')
+log.info(f'DEFAULT_HAIL_IMAGE: {DEFAULT_HAIL_IMAGE}')
+log.info(f'KUBERNETES_TIMEOUT_IN_SECONDS: {KUBERNETES_TIMEOUT_IN_SECONDS}')
+log.info(f'INSTANCE_ID: {INSTANCE_ID}')
 
 # Prevent issues with many websockets leading to many kube connections
 # TODO: tune this
@@ -56,41 +75,10 @@ k8s = kube.client.CoreV1Api()
 app = Flask(__name__)
 sockets = Sockets(app)
 
-
-def read_string(f):
-    with open(f, 'r') as f:
-        return f.read().strip()
-
-
-AUTH_GATEWAY = os.environ.get("AUTH_GATEWAY", "http://auth-gateway")
-HAIL_IMAGE = os.environ.get("HAIL_IMAGE", "hail-jupyter")
-
-KUBERNETES_TIMEOUT_IN_SECONDS = float(
-    os.environ.get('KUBERNETES_TIMEOUT_IN_SECONDS', 5.0))
-INSTANCE_ID = uuid.uuid4().hex
-
-# used for /verify; will likely go away once 2nd (notebook) verify step moved to nginx
-log.info(f'AUTH_GATEWAY: {AUTH_GATEWAY}')
-log.info(f'HAIL_IMAGE: {HAIL_IMAGE}')
-log.info(f'KUBERNETES_TIMEOUT_IN_SECONDS: {KUBERNETES_TIMEOUT_IN_SECONDS}')
-log.info(f'INSTANCE_ID: {INSTANCE_ID}')
-
-try:
-    with open('notebook-worker-images', 'r') as f:
-        def get_name(line):
-            return re.search("/([^/:]+):", line).group(1)
-        WORKER_IMAGES = {get_name(line): line.strip() for line in f}
-except FileNotFoundError as e:
-    raise ValueError(
-        "working directory must contain a file called `notebook-worker-images' "
-        "containing the name of the docker image to use for worker pods.") from e
-
-
-#################### Kube resource maangement #########################
-
-
 # A basic transformation to make user_ids safe for Kube
-# TODO: use hash
+# FIXME: use hash
+
+
 def UNSAFE_user_id_transform(user_id): return user_id.replace('|', '--_--')
 
 
@@ -171,7 +159,7 @@ def del_svc(svc_name):
         _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
 
 
-###################### General resource marshalling functions ###################
+# General resource marshalling functions #
 
 
 def get_path(data, path: str):
@@ -189,14 +177,9 @@ def get_path(data, path: str):
         path = path[idx + 1:]
 
 
-# Given a kubernetes object, and some collection of field paths, walk path tree and fetch values
-# @param resources<List> : kubernetes v1 object
-# @param paths<List<List[3]>> : fields and transformations: [key, path_in_kube_object, lambda_for_found_val]
-
-
 def marshall_json(resources: [], paths=[], flatten=False):
     if len(resources) == 0 or len(paths) == 0:
-        if flatten == True:
+        if flatten:
             return "{}"
 
         return "[]"
@@ -212,13 +195,13 @@ def marshall_json(resources: [], paths=[], flatten=False):
 
         resp.append(data)
 
-    if flatten == True and len(resources) == 1:
+    if flatten and len(resources) == 1:
         return ujson.dumps(resp[0])
 
     return ujson.dumps(resp)
 
 
-#################### Pod resource marshalling path functions ###################
+# Pod resource marshalling path functions #
 
 
 def read_svc_status(svc_name):
@@ -226,11 +209,19 @@ def read_svc_status(svc_name):
         # TODO: inspect exception for non-404
         _ = k8s.read_namespaced_service(svc_name, 'default')
         return 'Running'
-    except:
+    except Exception:
         return 'Deleted'
 
 
 def read_containers_status(container_statuses):
+    """
+        Summarize the container status based on its most recent state
+
+        Parameters
+        ----------
+        container_statuses : list[V1ContainerStatus]
+            https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1ContainerStatus.md
+    """
     if container_statuses is None:
         return None
 
@@ -242,7 +233,7 @@ def read_containers_status(container_statuses):
         rn = {"started_at": state.running.started_at}
 
     if state.waiting:
-        wt = {"reaason": state.waiting.reason}
+        wt = {"reason": state.waiting.reason}
 
     if state.terminated:
         tm = {"exit_code": state.terminated.exit_code, "finished_at": state.terminated.finished_at,
@@ -255,6 +246,15 @@ def read_containers_status(container_statuses):
 
 
 def read_conditions(conds):
+    """
+        Return the most recent status=="True" V1PodCondition or None
+
+        Parameters
+        ----------
+        conds : list[V1PodCondition]
+            https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1PodCondition.md
+
+    """
     if conds is None:
         return None
 
@@ -270,11 +270,11 @@ def read_conditions(conds):
             maxCond = condition
             maxDate = condition.last_transition_time
 
-    # 'message': 'containers with unready status: [default]',
-    #              'reason': 'ContainersNotReady',
-    #              'status': 'False',
-    #              'type': 'Ready'
-    return {"message": maxCond.message, "reason": maxCond.reason, "status": maxCond.status, "type": maxCond.type}
+    return {
+        "message": maxCond.message,
+        "reason": maxCond.reason,
+        "status": maxCond.status,
+        "type": maxCond.type}
 
 
 common_pod_paths = [
@@ -295,32 +295,23 @@ pod_paths = [
     ['svc_status', 'metadata.labels.svc_name', lambda x: read_svc_status(x)],
 ]
 
-# TODO: This may not work in all cases; we may need to pass the svc object
-# and check it; it doesn't seem to have useful status information
 pod_paths_post = [
     *common_pod_paths,
     ['svc_status', 'metadata.labels.svc_name', lambda _: 'Running'],
 ]
 
-########################## WS and HTTP Routes ##################################
 
+# Routes #
 
-# TODO: learn how to properly handle webscocket close in gevent + wsgi
-# or just move to aiohttp and stop dealing with greenlets and websockets with
-# no bound events (though there may be a way in gevent's websocket package + wsgi)
-# simply checkingfo ws.close isn't enough
-# https://github.com/heroku-python/flask-sockets/issues/60
-# A reactive approach to websockets. Primary benefit is 1 connection per user
-# rather than 1 connection per pod
-# no need to go to public web to hit http endpoint
-# and real insight into pod status
-# Weakness is currently not checking whether svc is accessible; easily can add
 
 def forbidden():
     return 'Forbidden', 404
 
 
-@sockets.route('/api/ws')
+# TODO: learn how to properly handle webscocket close in gevent + wsgi
+# Simply checking ws.close isn't enough
+# https://github.com/heroku-python/flask-sockets/issues/60
+@sockets.route('/jupyter/ws')
 def echo_socket(ws):
     user_id = ws.environ['HTTP_USER']  # and scope is ws.environ['HTTP_SCOPE']
     w = kube.watch.Watch()
@@ -328,8 +319,6 @@ def echo_socket(ws):
     for event in w.stream(k8s.list_namespaced_pod, namespace='default',
                           label_selector=f"user_id={UNSAFE_user_id_transform(user_id)}"):
 
-        # This won't prevent socket is dead errors, presumably something related to
-        # greenlet socket handling and our inability to add an on_closed callback to end watch
         if ws.closed:
             log.info("Websocket closed")
             w.stop()
@@ -355,7 +344,7 @@ def echo_socket(ws):
     ws.close()
 
 
-@app.route('/api/verify/<svc_name>/', methods=['GET'])
+@app.route('/jupyter/verify/<svc_name>/', methods=['GET'])
 def verify(svc_name):
     access_token = request.cookies.get('access_token')
     # No longer verify the juptyer token; let jupyter handle this
@@ -392,7 +381,7 @@ def verify(svc_name):
     return resp
 
 
-@app.route('/api', methods=['GET'])
+@app.route('/jupyter', methods=['GET'])
 def get_notebooks():
     user_id = request.headers.get('User')
 
@@ -408,7 +397,7 @@ def get_notebooks():
 # TODO: decide if need to communicate issues to user; probably just alert devs
 
 
-@app.route('/api/<svc_name>', methods=['DELETE'])
+@app.route('/jupyter/<svc_name>', methods=['DELETE'])
 def delete_notebook(svc_name):
     # TODO: Is it possible to have a falsy token value and get here?
     if not request.headers.get("User") or not svc_name:
@@ -443,26 +432,25 @@ def delete_notebook(svc_name):
 
         return '', 200
 
-    except kube.client.rest.ApiException as e:
-        # TODO: enable this; front-end lightweight fetch library makes it difficult to recover from trivial errors
-        # There must be a nicer way to read http error code from kubernetes
+    except kube.client.rest.ApiException:
+        # TODO: Return non-200 errors, not done now because web app
+        # needs to be updated to catch and handle 404 as a non-fatal response
         # return '', str(e)[1:4]
         return '', 200
 
 
-@app.route('/api', methods=['POST'])
+@app.route('/jupyter', methods=['POST'])
 def new_notebook():
     name = request.form.get('name', 'a_notebook')
-    image = request.form.get('image', HAIL_IMAGE)
+    image = request.form.get('image', DEFAULT_HAIL_IMAGE)
 
     user_id = request.headers.get('User')
 
     if not user_id or image not in WORKER_IMAGES:
         return forbidden()
 
-    # TODO: Do we want jupyter_token to be globally unique?
-    # Token doesn't need to be crypto secure, just unique (since we authorize user)
-    # However, encryption or even detection of modification via hash may further reduce attack space
+    # Token does not need to be cryptographically secure
+    # Is trusted, and authorization is handled in /verify
     jupyter_token = uuid.uuid4().hex
     _, pod = start_pod(
         jupyter_token, WORKER_IMAGES[image],
