@@ -34,7 +34,6 @@ class LocalBackend(Backend):
 
     def run(self, pipeline, dry_run, verbose, bg, delete_on_exit):
         tmpdir = self.tmp_dir()
-        cwd = os.getcwd()
 
         script = ['#!/bin/bash',
                   'set -e' + 'x' if verbose else '',
@@ -192,7 +191,7 @@ class BatchBackend(Backend):
                 list(flatten([copy_task_outputs(r) for r in task._outputs]))
             resource_defs = [define_resource(r) for r in task._inputs.union(task._outputs)]
 
-            image = task._docker if task._docker else pipeline._default_image # this image must include gsutil!
+            image = task._docker if task._docker else pipeline._default_image  # this image must include gsutil!
             defs = '; '.join(resource_defs) + '; ' if resource_defs else ''
             task_command = [cmd.strip() for cmd in task._command]
             cmd = " && ".join(task_inputs + task_command + task_outputs)
