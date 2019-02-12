@@ -768,12 +768,12 @@ class Table(ExprContainer):
 
         Notes
         -----
-
-        The expression `expr` will be evaluated for every row of the table. If `keep`
-        is ``True``, then rows where `expr` evaluates to ``False`` will be removed (the
-        filter keeps the rows where the predicate evaluates to ``True``). If `keep` is
-        ``False``, then rows where `expr` evaluates to ``True`` will be removed (the
-        filter keeps the rows where the predicate evaluates to ``False``).
+        The expression `expr` will be evaluated for every row of the table. If
+        `keep` is ``True``, then rows where `expr` evaluates to ``True`` will be
+        kept (the filter removes the rows where the predicate evaluates to
+        ``False``). If `keep` is ``False``, then rows where `expr` evaluates to
+        ``True`` will be removed (the filter keeps the rows where the predicate
+        evaluates to ``False``).
 
         Warning
         -------
