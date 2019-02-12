@@ -167,15 +167,15 @@ object ExportVCF {
     }
   }
   
-  def emitGenotype(sb: StringBuilder, formatFieldOrder: Array[Int], tg: PStruct, m: Region, offset: Long, missingnessArray: Array[Boolean]) {
+  def emitGenotype(sb: StringBuilder, formatFieldOrder: Array[Int], tg: PStruct, m: Region, offset: Long, fieldDefined: Array[Boolean]) {
     var i = 0
     while (i < formatFieldOrder.length) {
-      missingnessArray(i) = tg.isFieldDefined(m, offset, formatFieldOrder(i))
+      fieldDefined(i) = tg.isFieldDefined(m, offset, formatFieldOrder(i))
       i += 1
     }
 
     var end = i
-    while (end > 0 && !missingnessArray(end - 1))
+    while (end > 0 && !fieldDefined(end - 1))
       end -= 1
 
     if (end == 0)
@@ -186,7 +186,7 @@ object ExportVCF {
         if (i > 0)
           sb += ':'
         val j = formatFieldOrder(i)
-        val fIsDefined = missingnessArray(i)
+        val fIsDefined = fieldDefined(i)
         val fOffset = tg.loadField(m, offset, j)
 
         tg.fields(j).typ match {
@@ -373,7 +373,7 @@ object ExportVCF {
       val sb = new StringBuilder
       var m: Region = null
 
-      val formatMissingnessArray = new Array[Boolean](formatFieldOrder.length)
+      val formatDefinedArray = new Array[Boolean](formatFieldOrder.length)
 
       val rvv = new RegionValueVariant(fullRowType)
       it.map { rv =>
@@ -386,13 +386,13 @@ object ExportVCF {
         sb += '\t'
         sb.append(rvv.position())
         sb += '\t'
-  
+
         if (idExists && fullRowType.isFieldDefined(rv, idIdx)) {
           val idOffset = fullRowType.loadField(rv, idIdx)
           sb.append(PString.loadString(m, idOffset))
         } else
           sb += '.'
-  
+
         sb += '\t'
         sb.append(rvv.alleles()(0))
         sb += '\t'
@@ -405,9 +405,9 @@ object ExportVCF {
           sb.append(m.loadDouble(qualOffset).formatted("%.2f"))
         } else
           sb += '.'
-        
+
         sb += '\t'
-        
+
         if (filtersExists && fullRowType.isFieldDefined(rv, filtersIdx)) {
           val filtersOffset = fullRowType.loadField(rv, filtersIdx)
           val filtersLength = filtersPType.loadLength(m, filtersOffset)
@@ -419,7 +419,7 @@ object ExportVCF {
           sb += '.'
 
         sb += '\t'
-        
+
         var wroteAnyInfo: Boolean = false
         if (infoExists && fullRowType.isFieldDefined(rv, infoIdx)) {
           var wrote: Boolean = false
@@ -445,7 +445,7 @@ object ExportVCF {
           while (i < localNSamples) {
             sb += '\t'
             if (localEntriesType.isElementDefined(m, gsOffset, i))
-              emitGenotype(sb, formatFieldOrder, tg, m, localEntriesType.loadElement(m, gsOffset, localNSamples, i), formatMissingnessArray)
+              emitGenotype(sb, formatFieldOrder, tg, m, localEntriesType.loadElement(m, gsOffset, localNSamples, i), formatDefinedArray)
             else
               sb.append("./.")
 
