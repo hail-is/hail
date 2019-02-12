@@ -225,6 +225,7 @@ def get_gene_intervals(gene_symbols=None, gene_ids=None, transcript_ids=None,
     ht = ht.filter(combine_functions(criteria, ht, operator='or'))
     gene_info = ht.aggregate(hl.agg.collect((ht.feature, ht.gene_name, ht.gene_id, ht.transcript_id, ht.interval)))
     if verbose:
-        print('get_gene_intervals found:\n' + "\n".join(map(lambda x: f'{x[0]}: {x[1]} ({x[2] if x[0] == "gene" else x[3]})', gene_info)))
+        print(f'get_gene_intervals found {len(gene_info)} entries:\n' +
+              "\n".join(map(lambda x: f'{x[0]}: {x[1]} ({x[2] if x[0] == "gene" else x[3]})', gene_info)))
     intervals = list(map(lambda x: x[-1], gene_info))
     return intervals
