@@ -160,3 +160,70 @@ def import_gtf(path, reference_genome=None, skip_invalid_contigs=False, min_part
     ht = ht.key_by('interval')
 
     return ht
+
+
+def get_gene_intervals(gene_symbols=None, gene_ids=None, transcript_ids=None,
+                       verbose=True, gtf_file='gs://hail-common/references/gencode/gencode.v19.annotation.gtf.bgz',
+                       reference_genome=None):
+    """Get intervals of genes or transcripts.
+
+       Get the boundaries of genes or transcripts from a GTF file, for quick filtering of a Table or MatrixTable.
+
+       Gencode v19 GTF available at: gs://hail-common/references/gencode/gencode.v19.annotation.gtf.bgz
+
+       Example
+       -------
+       >>> hl.filter_intervals(ht, get_gene_intervals(gene_symbols=['PCSK9']))  # doctest: +SKIP
+
+       Parameters
+       ----------
+
+       gene_symbols : :obj:`list` of :obj:`str`, optional
+           Gene symbols (e.g. PCSK9).
+       gene_ids : :obj:`list` of :obj:`str`, optional
+           Gene IDs (e.g. ENSG00000223972).
+       transcript_ids : :obj:`list` of :obj:`str`, optional
+           Transcript IDs (e.g. ENSG00000223972).
+       verbose : :obj:`bool`
+           If ``True``, print which genes and transcripts were matched in the GTF file.
+       gtf_file : :obj:`str`
+           GTF file to load.
+       reference_genome : :obj:`str` or :class:`.ReferenceGenome`, optional
+           Reference genome to use (passed along to import_gtf).
+
+       Returns
+       -------
+       :obj:`list` of :class:`.Interval`
+    """
+    if not gene_symbols and not gene_ids and not transcript_ids:
+        raise ValueError('get_gene_intervals requires at least one of gene_symbols, gene_ids, or transcript_ids')
+    ht = hl.experimental.import_gtf(gtf_file, reference_genome=reference_genome,
+                                    skip_invalid_contigs=True, min_partitions=12)
+    ht = ht.annotate(gene_id=ht.gene_id.split(f'\\.')[0],
+                     transcript_id=ht.transcript_id.split('\\.')[0])
+    criteria = [lambda x: False]
+    if gene_symbols:
+        criteria.append(lambda x: hl.any(lambda y: (x.feature == 'gene') & (x.gene_name == y), gene_symbols))
+    if gene_ids:
+        criteria.append(lambda x: hl.any(lambda y: (x.feature == 'gene') & (x.gene_id == y.split('\\.')[0]), gene_ids))
+    if transcript_ids:
+        criteria.append(lambda x: hl.any(lambda y: (x.feature == 'transcript') & (x.transcript_id == y.split('\\.')[0]), transcript_ids))
+
+    def combine_functions(func_list, x, operator='and'):
+        possible_operators = ('and', 'or')
+        if operator not in possible_operators:
+            raise ValueError(f'combine_functions only allows operators: {", ".join(possible_operators)}')
+        cond = func_list[0](x)
+        for c in func_list[1:]:
+            if operator == 'and':
+                cond &= c(x)
+            elif operator == 'or':
+                cond |= c(x)
+        return cond
+
+    ht = ht.filter(combine_functions(criteria, ht, operator='or'))
+    gene_info = ht.aggregate(hl.agg.collect((ht.feature, ht.gene_name, ht.gene_id, ht.transcript_id, ht.interval)))
+    if verbose:
+        print('filter_to_genes found:\n' + "\n".join(map(lambda x: f'{x[0]}: {x[1]} ({x[2] if x[0] == "gene" else x[3]})', gene_info)))
+    intervals = list(map(lambda x: x[-1], gene_info))
+    return intervals
