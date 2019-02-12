@@ -1,15 +1,7 @@
 from .utils import decode
 import argparse
 import sys
-from cloudtools import start
-from cloudtools import submit
-from cloudtools import connect
-from cloudtools import diagnose
-from cloudtools import stop
-from cloudtools import list_clusters
-from cloudtools import modify
-from cloudtools import describe
-from cloudtools import latest
+from cloudtools.cloudtools import describe, connect, start, latest, submit, list_clusters, diagnose, modify, stop
 from cloudtools import __version__
 
 

@@ -3,7 +3,7 @@ from .utils import latest_sha, load_config, load_config_file
 from subprocess import call, check_call, check_output
 import sys
 import json
-from . import __version__
+from cloudtools import __version__
 import re
 
 COMPATIBILITY_VERSION = 1

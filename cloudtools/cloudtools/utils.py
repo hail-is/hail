@@ -1,7 +1,7 @@
 from .cluster_config import ClusterConfig
 import subprocess as sp
 import sys
-from . import __version__
+from cloudtools import __version__
 
 
 if sys.version_info >= (3,0):
