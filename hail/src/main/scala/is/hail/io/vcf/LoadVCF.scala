@@ -797,10 +797,13 @@ object LoadVCF {
       infoFlagFields)
   }
 
-  def getHeaderLines[T](hConf: Configuration, file: String): Array[String] = hConf.readFile(file) { s =>
-    Source.fromInputStream(s)
-      .getLines()
-      .takeWhile { line => line(0) == '#' }
+  def getHeaderLines[T](
+    hConf: Configuration,
+    file: String,
+    filterAndReplace: TextInputFilterAndReplace): Array[String] = hConf.readLines(file, filterAndReplace) { lines =>
+      lines
+      .takeWhile { line => line.value(0) == '#' }
+      .map(_.value)
       .toArray
   }
 
@@ -878,7 +881,7 @@ object LoadVCF {
 
   def parseHeaderMetadata(hc: HailContext, reader: HtsjdkRecordReader, headerFile: String): VCFMetadata = {
     val hConf = hc.hadoopConf
-    val headerLines = getHeaderLines(hConf, headerFile)
+    val headerLines = getHeaderLines(hConf, headerFile, TextInputFilterAndReplace())
     val VCFHeaderInfo(_, _, _, _, filterAttrs, infoAttrs, formatAttrs, _) = parseHeader(reader, headerLines)
 
     Map("filter" -> filterAttrs, "info" -> infoAttrs, "format" -> formatAttrs)
@@ -994,6 +997,7 @@ case class MatrixVCFReader(
   skipInvalidLoci: Boolean,
   gzAsBGZ: Boolean,
   forceGZ: Boolean,
+  filterAndReplace: TextInputFilterAndReplace,
   partitionsJSON: String) extends MatrixReader {
 
   private val hc = HailContext.get
@@ -1007,7 +1011,7 @@ case class MatrixVCFReader(
 
   private val reader = new HtsjdkRecordReader(callFields, entryFloatType)
 
-  private val headerLines1 = getHeaderLines(hConf, headerFile.getOrElse(inputs.head))
+  private val headerLines1 = getHeaderLines(hConf, headerFile.getOrElse(inputs.head), filterAndReplace)
   private val header1 = parseHeader(reader, headerLines1, arrayElementsRequired = arrayElementsRequired)
 
   if (headerFile.isEmpty) {
@@ -1017,9 +1021,10 @@ case class MatrixVCFReader(
     val localReader = reader
     val localInputs = inputs
     val localArrayElementsRequired = arrayElementsRequired
+    val localFilterAndReplace = filterAndReplace
     sc.parallelize(inputs.tail, math.max(1, inputs.length - 1)).foreach { file =>
       val hConf = confBc.value.value
-      val hd = parseHeader(localReader, getHeaderLines(hConf, file), arrayElementsRequired = localArrayElementsRequired)
+      val hd = parseHeader(localReader, getHeaderLines(hConf, file, localFilterAndReplace), arrayElementsRequired = localArrayElementsRequired)
       val hd1 = header1Bc.value
 
       if (hd1.sampleIds.length != hd.sampleIds.length) {
@@ -1098,7 +1103,7 @@ case class MatrixVCFReader(
 
   private lazy val lines = {
     HailContext.maybeGZipAsBGZip(gzAsBGZ) {
-      ContextRDD.textFilesLines[RVDContext](sc, inputs, minPartitions)
+      ContextRDD.textFilesLines[RVDContext](sc, inputs, minPartitions, filterAndReplace)
     }
   }
 
@@ -1158,7 +1163,10 @@ object ImportVCFs {
     skipInvalidLoci: Boolean,
     gzAsBGZ: Boolean,
     forceGZ: Boolean,
-    partitionsJSON: String
+    partitionsJSON: String,
+    filter: String,
+    find: String,
+    replace: String
   ): Array[MatrixTable] = {
     val reader = VCFsReader(
       files.asScala.toArray,
@@ -1170,6 +1178,7 @@ object ImportVCFs {
       skipInvalidLoci,
       gzAsBGZ,
       forceGZ,
+      TextInputFilterAndReplace(Option(find), Option(filter), Option(replace)),
       partitionsJSON)
 
     reader.read()
@@ -1193,6 +1202,7 @@ case class VCFsReader(
   skipInvalidLoci: Boolean,
   gzAsBGZ: Boolean,
   forceGZ: Boolean,
+  filterAndReplace: TextInputFilterAndReplace,
   partitionsJSON: String) {
 
   private val hc = HailContext.get
@@ -1224,10 +1234,11 @@ case class VCFsReader(
     val localFiles = files
     val localArrayElementsRequired = arrayElementsRequired
     val localRangeBounds = partitioner.rangeBounds
+    val localFilterAndReplace = filterAndReplace
 
     sc.parallelize(localFiles, localFiles.length).map { file =>
       val hConf = confBc.value.value
-      val headerLines = getHeaderLines(hConf, file)
+      val headerLines = getHeaderLines(hConf, file, localFilterAndReplace)
       val header = parseHeader(localReader, headerLines, arrayElementsRequired = localArrayElementsRequired)
       val VCFHeaderInfo(_, infoSignature, vaSignature, genotypeSignature, _, _, _, infoFlagFieldNames) = header
 

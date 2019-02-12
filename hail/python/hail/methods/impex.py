@@ -11,6 +11,8 @@ from hail.genetics.reference_genome import reference_genome_type
 from hail.methods.misc import require_biallelic, require_row_key_variant, require_row_key_variant_w_struct_locus, require_col_key_str
 import hail as hl
 
+from typing import List
+
 _cached_importvcfs = None
 
 def locus_interval_expr(contig, start, end, includes_start, includes_end,
@@ -1136,7 +1138,9 @@ def import_gen(path,
            types=dictof(str, hail_type),
            quote=nullable(char),
            skip_blank_lines=bool,
-           force_bgz=bool)
+           force_bgz=bool,
+           filter=nullable(str),
+           find_replace=nullable(sized_tupleof(str, str)))
 def import_table(paths,
                  key=None,
                  min_partitions=None,
@@ -1148,7 +1152,9 @@ def import_table(paths,
                  types={},
                  quote=None,
                  skip_blank_lines=False,
-                 force_bgz=False) -> Table:
+                 force_bgz=False,
+                 filter=None,
+                 find_replace=None) -> Table:
     """Import delimited text file (text table) as :class:`.Table`.
 
     The resulting :class:`.Table` will have no key fields. Use
@@ -1309,6 +1315,13 @@ def import_table(paths,
         useful when the file extension is not ``'.bgz'``, but the file is
         blocked gzip, so that the file can be read in parallel and not on a
         single node.
+    filter : :obj:`str`, optional
+        Line filter regex. A partial match results in the line being removed
+        from the file. Applies before `find_replace`, if both are defined.
+    find_replace : (:obj:`str`, :obj:`str`)
+        Line substitution regex. Functions like ``re.sub``, but obeys the exact
+        semantics of Java's
+        `String.replaceAll <https://docs.oracle.com/javase/8/docs/api/java/lang/String.html#replaceAll-java.lang.String-java.lang.String->`__.
 
     Returns
     -------
@@ -1319,7 +1332,7 @@ def import_table(paths,
 
     tr = TextTableReader(paths, min_partitions, types, comment,
                          delimiter, missing, no_header, impute, quote,
-                         skip_blank_lines, force_bgz)
+                         skip_blank_lines, force_bgz, filter, find_replace)
     t = Table(TableRead(tr))
     if key:
         key = wrap_to_list(key)
@@ -1451,7 +1464,7 @@ def import_matrix_table(paths,
 
     All columns to be imported as row fields must be at the start of the row.
 
-    Unlike import_table, no type imputation is done so types must be specified
+    Unlike :func:`import_table`, no type imputation is done so types must be specified
     for all columns that should be imported as row fields. (The other columns are
     imported as entries in the matrix.)
 
@@ -1746,7 +1759,9 @@ def get_vcf_metadata(path):
            array_elements_required=bool,
            skip_invalid_loci=bool,
            entry_float_type=enumeration(tfloat32, tfloat64),
-           # json
+           filter=nullable(str),
+           find_replace=nullable(sized_tupleof(str, str)),
+            # json
            _partitions=nullable(str))
 def import_vcf(path,
                force=False,
@@ -1760,6 +1775,8 @@ def import_vcf(path,
                array_elements_required=True,
                skip_invalid_loci=False,
                entry_float_type=tfloat64,
+               filter=None,
+               find_replace=None,
                _partitions=None) -> MatrixTable:
     """Import VCF file(s) as a :class:`.MatrixTable`.
 
@@ -1880,6 +1897,13 @@ def import_vcf(path,
         Type of floating point entries in matrix table. Must be one of:
         :py:data:`.tfloat32` or :py:data:`.tfloat64`. Default:
         :py:data:`.tfloat64`.
+    filter : :obj:`str`, optional
+        Line filter regex. A partial match results in the line being removed
+        from the file. Applies before `find_replace`, if both are defined.
+    find_replace : (:obj:`str`, :obj:`str`)
+        Line substitution regex. Functions like ``re.sub``, but obeys the exact
+        semantics of Java's
+        `String.replaceAll <https://docs.oracle.com/javase/8/docs/api/java/lang/String.html#replaceAll-java.lang.String-java.lang.String->`__.
 
     Returns
     -------
@@ -1888,7 +1912,7 @@ def import_vcf(path,
 
     reader = MatrixVCFReader(path, call_fields, entry_float_type, header_file, min_partitions,
                              reference_genome, contig_recoding, array_elements_required,
-                             skip_invalid_loci, force_bgz, force, _partitions)
+                             skip_invalid_loci, force_bgz, force, filter, find_replace, _partitions)
     return MatrixTable(MatrixRead(reader, drop_cols=drop_samples))
 
 @typecheck(path=sequenceof(str),
@@ -1900,7 +1924,9 @@ def import_vcf(path,
            reference_genome=nullable(reference_genome_type),
            contig_recoding=nullable(dictof(str, str)),
            array_elements_required=bool,
-           skip_invalid_loci=bool)
+           skip_invalid_loci=bool,
+           filter=nullable(str),
+           find_replace=nullable(sized_tupleof(str, str)))
 def import_vcfs(path,
                 partitions,
                 force=False,
@@ -1910,8 +1936,10 @@ def import_vcfs(path,
                 reference_genome='default',
                 contig_recoding=None,
                 array_elements_required=True,
-                skip_invalid_loci=False) -> MatrixTable:
-    """Experimental. Import multiple vcfs as :class:`MatrixTable`s
+                skip_invalid_loci=False,
+                filter=None,
+                find_replace=None) -> List[MatrixTable]:
+    """Experimental. Import multiple vcfs as :class:`.MatrixTable`s
 
     The arguments to this function are almost identical to :func:`.import_vcf`,
     the only difference is the `partitions` argument, which is used to divide
@@ -1964,7 +1992,10 @@ def import_vcfs(path,
         skip_invalid_loci,
         force_bgz,
         force,
-        partitions)
+        partitions,
+        filter,
+        find_replace[0] if find_replace is not None else None,
+        find_replace[1] if find_replace is not None else None)
     return [MatrixTable._from_java(jmt) for jmt in jmts]
 
 @typecheck(path=oneof(str, sequenceof(str)),

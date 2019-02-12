@@ -295,7 +295,7 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
   def writeFile[T](filename: String)(f: (OutputStream) => T): T =
     using(create(filename))(f)
 
-  def readLines[T](filename: String)(reader: (Iterator[WithContext[String]] => T)): T = {
+  def readLines[T](filename: String, filtAndReplace: TextInputFilterAndReplace = TextInputFilterAndReplace())(reader: Iterator[WithContext[String]] => T): T = {
     readFile[T](filename) {
       is =>
         val lines = Source.fromInputStream(is)
@@ -306,7 +306,7 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
               val source = Context(value, filename, Some(position))
               WithContext(value, source)
           }
-        reader(lines)
+        reader(filtAndReplace(lines))
     }
   }
 
