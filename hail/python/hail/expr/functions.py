@@ -3666,8 +3666,8 @@ def sorted(collection,
         return (hl.case()
                 .when(hl.is_missing(l), False)
                 .when(hl.is_missing(r), True)
-                .when(reverse, hl._compare(l, r) > 0)
-                .default(hl._compare(l, r) > 0))
+                .when(reverse, hl._compare(r, l) < 0)
+                .default(hl._compare(l, r) < 0))
 
     if key is None:
         return _sort_by(collection, comp)
