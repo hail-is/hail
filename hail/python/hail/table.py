@@ -773,7 +773,7 @@ class Table(ExprContainer):
         is ``True``, then rows where `expr` evaluates to ``False`` will be removed (the
         filter keeps the rows where the predicate evaluates to ``True``). If `keep` is
         ``False``, then rows where `expr` evaluates to ``True`` will be removed (the
-        filter removes the rows where the predicate evaluates to ``True``).
+        filter keeps the rows where the predicate evaluates to ``False``).
 
         Warning
         -------

@@ -1358,7 +1358,7 @@ class MatrixTable(ExprContainer):
         is ``True``, then rows where `expr` evaluates to ``False`` will be removed (the
         filter keeps the rows where the predicate evaluates to ``True``). If `keep` is
         ``False``, then rows where `expr` evaluates to ``True`` will be removed (the
-        filter removes the rows where the predicate evaluates to ``True``).
+        filter keeps the rows where the predicate evaluates to ``False``).
 
         Warning
         -------
@@ -1429,8 +1429,8 @@ class MatrixTable(ExprContainer):
         `keep` is ``True``, then columns where `expr` evaluates to ``False`` will be
         removed (the filter keeps the columns where the predicate evaluates to
         ``True``). If `keep` is ``False``, then columns where `expr` evaluates to
-        ``False`` will be removed (the filter removes the columns where the predicate
-        evaluates to ``True``).
+        ``True`` will be removed (the filter keeps the columns where the predicate
+        evaluates to ``False``).
 
         Warning
         -------
@@ -1488,8 +1488,8 @@ class MatrixTable(ExprContainer):
         `keep` is ``True``, then entries where `expr` evaluates to ``False`` will be
         removed (the filter keeps the entries where the predicate evaluates to
         ``True``). If `keep` is ``False``, then entries where `expr` evaluates to
-        ``False`` will be removed (the filter removes the entries where the predicate
-        evaluates to ``True``).
+        ``True`` will be removed (the filter keeps the entries where the predicate
+        evaluates to ``False``).
 
         Note
         ----
