@@ -330,6 +330,9 @@ class Table(val hc: HailContext, val tir: TableIR) {
       ir.InsertFields(ir.Ref("global", tir.typ.globalType), FastSeq(name -> ir.Literal.coerce(t, a)))))
   }
 
+  def annotateGlobal(a: Annotation, t: String, name: String): Table =
+    annotateGlobal(a, IRParser.parseType(t), name)
+
   def keyBy(keys: IndexedSeq[String], isSorted: Boolean = false): Table =
     new Table(hc, TableKeyBy(tir, keys, isSorted))
 
