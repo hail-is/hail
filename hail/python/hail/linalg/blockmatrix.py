@@ -474,7 +474,7 @@ class BlockMatrix(object):
             block_size = BlockMatrix.default_block_size()
 
         bmir = BlockMatrixBroadcast(_to_bmir(value, block_size),
-                                    [], ["i", "j"],
+                                    [], [0, 1],
                                     [n_rows, n_cols],
                                     block_size, [True, True])
         return BlockMatrix(bmir)
@@ -1146,7 +1146,7 @@ class BlockMatrix(object):
         :class:`.BlockMatrix`
         """
         return BlockMatrix(BlockMatrixBroadcast(self._bmir,
-                                                ["i", "j"], ["j", "i"],
+                                                [0, 1], [1, 0],
                                                 [self.n_cols, self.n_rows],
                                                 self.block_size,
                                                 self._bmir.typ.dims_partitioned))
@@ -2115,11 +2115,11 @@ def _broadcast_index_expr(shape):
     assert len(shape) <= 2
 
     if shape == [] or shape == [1] or shape == [1, 1]:
-        return [], ["i", "j"]
+        return [], [0, 1]
     elif shape[0] == 1:
-        return ["i"], ["j", "i"]
+        return [0], [1, 0]
     else:
-        return ["i"], ["i", "j"]
+        return [0], [0, 1]
 
 
 def _ndarray_as_2d(nd):

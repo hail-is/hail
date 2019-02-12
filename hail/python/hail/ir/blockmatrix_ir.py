@@ -37,8 +37,8 @@ class BlockMatrixMap2(BlockMatrixIR):
 
 class BlockMatrixBroadcast(BlockMatrixIR):
     @typecheck_method(child=BlockMatrixIR,
-                      in_index_expr=sequenceof(str),
-                      out_index_expr=sequenceof(str),
+                      in_index_expr=sequenceof(int),
+                      out_index_expr=sequenceof(int),
                       shape=sequenceof(int),
                       block_size=int,
                       dims_partitioned=sequenceof(bool))
@@ -52,12 +52,12 @@ class BlockMatrixBroadcast(BlockMatrixIR):
         self.dims_partitioned = dims_partitioned
 
     def render(self, r):
-        return '(BlockMatrixBroadcast {} {} ({}) {} ({}) {})'\
-            .format(parsable_strings(self.in_index_expr),
-                    parsable_strings(self.out_index_expr),
-                    ' '.join([str(x) for x in self.shape]),
+        return '(BlockMatrixBroadcast {} {} {} {} {} {})'\
+            .format(_serialize_ints(self.in_index_expr),
+                    _serialize_ints(self.out_index_expr),
+                    _serialize_ints(self.shape),
                     self.block_size,
-                    ' '.join([str(b) for b in self.dims_partitioned]),
+                    _serialize_ints(self.dims_partitioned),
                     r(self.child))
 
     def _compute_type(self):
@@ -80,10 +80,10 @@ class ValueToBlockMatrix(BlockMatrixIR):
         self.dims_partitioned = dims_partitioned
 
     def render(self, r):
-        return '(ValueToBlockMatrix ({}) {} ({}) {})'.format(' '.join([str(x) for x in self.shape]),
-                                                             self.block_size,
-                                                             ' '.join([str(b) for b in self.dims_partitioned]),
-                                                             r(self.child))
+        return '(ValueToBlockMatrix {} {} {} {})'.format(_serialize_ints(self.shape),
+                                                         self.block_size,
+                                                         _serialize_ints(self.dims_partitioned),
+                                                         r(self.child))
 
     def _compute_type(self):
         child_type = self.child.typ
@@ -105,3 +105,7 @@ class JavaBlockMatrix(BlockMatrixIR):
 
     def _compute_type(self):
         self._type = tblockmatrix._from_java(self.jir.typ())
+
+
+def _serialize_ints(ints):
+    return "(" + ' '.join([str(x) for x in ints]) + ")"

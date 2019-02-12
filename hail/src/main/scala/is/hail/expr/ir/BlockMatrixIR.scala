@@ -206,8 +206,8 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, applyBinOp
 
 case class BlockMatrixBroadcast(
   child: BlockMatrixIR,
-  inIndexExpr: IndexedSeq[String],
-  outIndexExpr: IndexedSeq[String],
+  inIndexExpr: IndexedSeq[Int],
+  outIndexExpr: IndexedSeq[Int],
   shape: IndexedSeq[Long],
   blockSize: Int,
   dimsPartitioned: IndexedSeq[Boolean]) extends BlockMatrixIR {
