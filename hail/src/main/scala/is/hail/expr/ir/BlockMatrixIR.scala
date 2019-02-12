@@ -276,15 +276,12 @@ case class ValueToBlockMatrix(
   }
 
   override protected[ir] def execute(hc: HailContext): BlockMatrix = {
-    assert(shape.length == 2)
-    val nRows = shape(0).toInt
-    val nCols = shape(1).toInt
-
     Interpret[Any](child) match {
       case scalar: Double =>
-        BlockMatrix.fill(hc, nRows, nCols, scalar, blockSize)
+        BlockMatrix.fill(hc, nRows = 1, nCols = 1, scalar, blockSize)
       case data: IndexedSeq[Double] =>
-        BlockMatrixIR.toBlockMatrix(hc, nRows, nCols, data.toArray, blockSize)
+        assert(shape.length == 2)
+        BlockMatrixIR.toBlockMatrix(hc, shape(0).toInt, shape(1).toInt, data.toArray, blockSize)
     }
   }
 }

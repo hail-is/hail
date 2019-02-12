@@ -472,7 +472,12 @@ class BlockMatrix(object):
         """
         if not block_size:
             block_size = BlockMatrix.default_block_size()
-        return BlockMatrix._from_java(Env.hail().linalg.BlockMatrix.fill(Env.hc()._jhc, n_rows, n_cols, value, block_size))
+
+        bmir = BlockMatrixBroadcast(_to_bmir(value, block_size),
+                                    [], ["i", "j"],
+                                    [n_rows, n_cols],
+                                    block_size, [True, True])
+        return BlockMatrix(bmir)
 
     @classmethod
     @typecheck_method(n_rows=int,
@@ -533,7 +538,7 @@ class BlockMatrix(object):
         -------
         :obj:`int`
         """
-        return self._jbm.blockSize()
+        return self._bmir.typ.block_size
 
     @typecheck_method(path=str,
                       overwrite=bool,
