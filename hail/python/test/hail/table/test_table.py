@@ -2,6 +2,7 @@ import unittest
 
 import pandas as pd
 import pyspark.sql
+import pytest
 
 import hail as hl
 import hail.expr.aggregators as agg
@@ -618,8 +619,20 @@ class Tests(unittest.TestCase):
                                          hl.struct(idx=0, a='b'),
                                          hl.struct(idx=0, a='c')])))
 
+    def test_explode_nested(self):
+        t = hl.utils.range_table(2)
+        t = t.annotate(foo=hl.case().when(t.idx == 1, hl.struct(bar=[1, 2, 3])).or_missing())
+        t = t.explode(t.foo.bar)
+        assert t.foo.bar.collect() == [1, 2, 3]
+
+    def test_value_error(self):
+        t = hl.utils.range_table(2)
+        t = t.annotate(foo=hl.struct(bar=[1, 2, 3]))
+        with pytest.raises(ValueError):
+            t.explode(t.foo.bar, name='baz')
+
     def test_export(self):
-        t = hl.utils.range_table(1).annotate(foo = 3)
+        t = hl.utils.range_table(1).annotate(foo=3)
         tmp_file = new_temp_file()
         t.export(tmp_file)
 
