@@ -74,8 +74,7 @@ optimized Spark performance and exceptional scalability to thousands of cores
 without the overhead of installing and managing an on-premesis cluster.
 
 On `Google Dataproc <https://cloud.google.com/dataproc/>`_,
-we provide pre-built JARs and a Python package
-`cloudtools <https://github.com/Nealelab/cloudtools>`_
+we provide pre-built JARs and a Python package :ref:`.cloudtools`
 to simplify running Hail, whether through an interactive Jupyter notebook or by
 submitting Python scripts.
 

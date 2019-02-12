@@ -52,7 +52,6 @@ users = [
 default_repo = 'hail'
 repos = {
     'hail': 'hail-is/hail',
-    'cloudtools': 'Nealelab/cloudtools'
 }
 
 app = Flask('scorecard')

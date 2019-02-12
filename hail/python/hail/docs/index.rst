@@ -18,6 +18,7 @@ Contents
     Datasets <datasets>
     How-To Guides <guides>
     For Software Developers <getting_started_developing>
+    CloudTools <cloudtools>
     Other Resources <other_resources>
     Change Log <change_log>
 

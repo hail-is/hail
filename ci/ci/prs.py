@@ -177,7 +177,6 @@ class PRS(object):
 
     _deploy_secrets = {
         Repo('hail-is', 'hail'): f'hail-ci-deploy-hail-is-hail',
-        Repo('Nealelab', 'cloudtools'): f'ci-deploy-{VERSION}--nealelab-cloudtools'
     }
 
     def try_deploy(self, target_ref):

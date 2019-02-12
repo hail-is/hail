@@ -2096,7 +2096,7 @@ class BlockMatrix(object):
         of master cores and the NumPy / SciPy configuration, viewable
         with ``np.show_config()``. For Intel machines, we recommend installing
         the `MKL <https://anaconda.org/anaconda/mkl>`__ package for Anaconda, as
-        is done by `cloudtools <https://github.com/Nealelab/cloudtools>`__.
+        is done by :ref:`.cloudtools`.
 
         Consequently, the optimal value of `complexity_bound` is highly
         configuration-dependent.

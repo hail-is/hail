@@ -900,7 +900,7 @@ class LinearMixedModel(object):
         number of master cores and the NumPy / SciPy configuration, viewable
         with ``np.show_config()``. For Intel machines, we recommend installing
         the `MKL <https://anaconda.org/anaconda/mkl>`__ package for Anaconda, as
-        is done by `cloudtools <https://github.com/Nealelab/cloudtools>`__.
+        is done by :ref:`.cloudtools`.
 
         `k` must be positive semi-definite; symmetry is not checked as only the
         lower triangle is used.
