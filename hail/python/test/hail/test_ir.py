@@ -218,7 +218,7 @@ class TableIRTests(unittest.TestCase):
             matrix_read,
             matrix_range,
             ir.MatrixRead(ir.MatrixVCFReader(resource('sample.vcf'), ['GT'], hl.tfloat64, None, None, None, None,
-                                             False, True, False, True, None)),
+                                             False, True, False, True, None, None, None)),
             ir.MatrixRead(ir.MatrixBGENReader(resource('example.8bits.bgen'), None, {}, 10, 1, None)),
             ir.MatrixFilterRows(matrix_read, ir.FalseIR()),
             ir.MatrixFilterCols(matrix_read, ir.FalseIR()),

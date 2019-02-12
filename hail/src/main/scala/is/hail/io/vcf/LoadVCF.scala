@@ -1234,10 +1234,11 @@ case class VCFsReader(
     val localFiles = files
     val localArrayElementsRequired = arrayElementsRequired
     val localRangeBounds = partitioner.rangeBounds
+    val localFilterAndReplace = filterAndReplace
 
     sc.parallelize(localFiles, localFiles.length).map { file =>
       val hConf = confBc.value.value
-      val headerLines = getHeaderLines(hConf, file, filterAndReplace)
+      val headerLines = getHeaderLines(hConf, file, localFilterAndReplace)
       val header = parseHeader(localReader, headerLines, arrayElementsRequired = localArrayElementsRequired)
       val VCFHeaderInfo(_, infoSignature, vaSignature, genotypeSignature, _, _, _, infoFlagFieldNames) = header
 
