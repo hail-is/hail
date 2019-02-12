@@ -24,9 +24,9 @@ load-env: build/conda-env
 	source activate hail-pipeline
 
 test-local: build/conda-env $(PY_CHECKERS)
-	POD_NAMESPACE='test' BATCH_USE_KUBE_CONFIG=1 ./test-locally.sh
+	POD_NAMESPACE='test' BATCH_USE_KUBE_CONFIG=1 pip install -U ../batch/ && ./test-locally.sh
 
 # local means server and test client are two processes on one machine
 # in-cluster means in a k8s pod (from which we get k8s creds)
 test-local-in-cluster: build/conda-env $(PY_CHECKERS)
-	POD_NAMESPACE='test' ./test-locally.sh
+	POD_NAMESPACE='test' pip install -U ../batch/ && ./test-locally.sh
