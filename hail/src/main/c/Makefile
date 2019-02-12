@@ -48,7 +48,7 @@ BUILD_OBJECTS := $(OBJECTS:%=$(BUILD)/%.o)
 simdpp/simd.h: $(LIBSIMDPP)
 catch.hpp: $(CATCH_HEADER_LOCATION)
 
-TEST_CPP := $(foreach obj,$(OBJECTS),$(wildcard $(obj)_test.cpp)) ApproximateQuantiles_test.cpp
+TEST_CPP := $(foreach obj,$(OBJECTS),$(wildcard $(obj)_test.cpp))
 TEST_OBJECTS := $(foreach file,$(TEST_CPP),$(BUILD)/$(basename $(file)).o)
 TEST_OBJECTS += $(BUILD)/unit-tests.o
 
