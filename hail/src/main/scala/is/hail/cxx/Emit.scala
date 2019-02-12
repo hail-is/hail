@@ -167,7 +167,8 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
   outer =>
   type E = ir.Env[EmitTriplet]
 
-  def jHadoopConfiguration: Variable = fb.getArg(1)
+  def up: Variable = fb.getArg(1)
+  def jHadoopConfiguration: Variable = fb.getArg(2)
   def emit(resultRegion: EmitRegion, x: ir.IR, env: E): EmitTriplet = {
     def triplet(setup: Code, m: Code, v: Code): EmitTriplet =
       EmitTriplet(x.pType, setup, m, v, resultRegion)
@@ -790,21 +791,26 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
           }
         }
 
-      case x@ir.ReadPartition(pathIR, spec, _) =>
-        assert(nSpecialArgs > 1)
+      case x@ir.ReadPartition(pathIR, spec, encodedType, _) =>
+        assert(nSpecialArgs > 2)
         val arrayRegion = EmitRegion.from(resultRegion, sameRegion)
         arrayRegion.use()
-        val dec = spec.buildNativeDecoderClass(x.pType, x.pType, fb.translationUnitBuilder())
+        val decClass = spec.buildNativeDecoderClass(encodedType.physicalType, x.pType, fb.translationUnitBuilder())
         val path = emit(resultRegion, pathIR, env)
 
+        fb.translationUnitBuilder().include("hail/Upcalls.h")
+
         new ArrayEmitter(path.setup, path.m, "", None, arrayRegion) {
+          val dec: Variable = fb.variable("decoder", decClass.name,
+            s"{ std::make_shared<InputStream>($up, ${path.v}, $jHadoopConfiguration) }")
+          val row: Variable = fb.variable("row", "const char *", s"$dec.decode_row($arrayRegion)")
           def emit(f: (Code, Code) => Code): Code = {
             s"""
-               |InputStream is {};
-               |$dec dec { std::make_shared<InputStream>(${path.v}, $jHadoopConfiguration) };
-               |while (dec.read_byte()) {
+               |${ dec.define }
+               |while ($dec.decode_byte()) {
                |  ${ arrayRegion.defineIfUsed(sameRegion) }
-               |  ${ f("false", s"dec.decode_row($arrayRegion)") }
+               |  ${ row.define }
+               |  ${ f("false", row.toString) }
                |}
              """.stripMargin
           }

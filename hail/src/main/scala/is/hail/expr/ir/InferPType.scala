@@ -143,7 +143,7 @@ object InferPType {
       case TableToValueApply(child, function) => PType.canonical(function.typ(child.typ))
       case MatrixToValueApply(child, function) => PType.canonical(function.typ(child.typ))
       case CollectDistributedArray(_, _, _, _, body) => PArray(body.pType)
-      case ReadPartition(path, spec, rowType) => PType.canonical(TArray(rowType))
+      case ReadPartition(_, _, _, rowType) => PType.canonical(TArray(rowType))
     }
   }
 }

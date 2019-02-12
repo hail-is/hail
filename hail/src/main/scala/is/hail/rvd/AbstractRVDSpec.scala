@@ -28,12 +28,14 @@ object AbstractRVDSpec {
     new TStructSerializer +
     new RVDTypeSerializer
 
-  def read(hc: HailContext, path: String): AbstractRVDSpec = {
+  def read(conf: org.apache.hadoop.conf.Configuration, path: String): AbstractRVDSpec = {
     val metadataFile = path + "/metadata.json.gz"
-    hc.hadoopConf.readFile(metadataFile) { in => JsonMethods.parse(in) }
+    conf.readFile(metadataFile) { in => JsonMethods.parse(in) }
       .transformField { case ("orvdType", value) => ("rvdType", value) } // ugh
       .extract[AbstractRVDSpec]
   }
+
+  def read(hc: HailContext, path: String): AbstractRVDSpec = read(hc.hadoopConf, path)
 
   def readLocal(hc: HailContext, path: String, rowType: PStruct, codecSpec: CodecSpec, partFiles: Array[String], requestedType: PStruct): IndexedSeq[Row] = {
     assert(partFiles.length == 1)

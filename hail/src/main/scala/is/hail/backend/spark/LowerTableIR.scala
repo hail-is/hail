@@ -1,7 +1,5 @@
 package is.hail.backend.spark
 
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
-
 import is.hail.annotations._
 import is.hail.cxx
 import is.hail.expr.ir._
@@ -11,6 +9,7 @@ import is.hail.io.CodecSpec
 import is.hail.nativecode._
 import is.hail.rvd.{RVDPartitioner, RVDType}
 import is.hail.utils._
+import is.hail.utils.richUtils.RichHadoopConfiguration
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
@@ -37,8 +36,8 @@ case class SparkPipeline(stages: Map[String, SparkStage], body: IR) {
 
     val ref = Ref(genUID(), inputType)
     val node = MakeTuple(FastSeq(Subst(body, Env[IR](fields.map { case (name, _) => name -> GetField(ref, name) }.toFastSeq : _*))))
-    val f = cxx.Compile(ref.name, inputType.physicalType, node, optimize = true)
-    (node.pType.asInstanceOf[PTuple], f(region.get(), rvb.end()))
+    val f = cxx.Compile.withHadoopConf(ref.name, inputType.physicalType, node, optimize = true)
+    (node.pType.asInstanceOf[PTuple], f(region, sc.hadoopConfiguration, rvb.end()))
   }
 }
 
@@ -89,9 +88,9 @@ case class SparkStage(
     tub.include("hail/Region.h")
 
     tub.include("<cstring>")
-    val ef = tub.buildFunction("process_partition", Array("RegionPtr" -> "region", "const char *" -> "bindings", "const char *" -> "contexts"), "const char *")
+    val ef = tub.buildFunction("process_partition", Array("RegionPtr" -> "region", "UpcallEnv" -> "up", "jobject" -> "jhadoop_conf", "const char *" -> "bindings", "const char *" -> "contexts"), "const char *")
 
-    val et = cxx.Emit(ef, 1, resultIR)
+    val et = cxx.Emit(ef, 3, resultIR)
     ef +=
       s"""
          |${ et.setup }
@@ -104,12 +103,13 @@ case class SparkStage(
 
     val wrapper = tub.buildFunction(
       "process_partition_wrapper",
-      Array("NativeStatus *" -> "st", "long" -> "region", "long" -> "bindings", "long" -> "contexts"), "long")
+      Array("NativeStatus *" -> "st", "long" -> "region", "long" -> "jhadoop_config", "long" -> "bindings", "long" -> "contexts"), "long")
 
     wrapper +=
       s"""
          |try {
-         |  return (long) process_partition(((ScalaRegion *)${ wrapper.getArg(1) })->region_, (char *)${ wrapper.getArg(2) }, (char *)${ wrapper.getArg(3) });
+         |  UpcallEnv up;
+         |  return (long) process_partition(((ScalaRegion *)${ wrapper.getArg(1) })->region_, up, ${ wrapper.getArg(2) }->at(0), (char *)${ wrapper.getArg(2) }, (char *)${ wrapper.getArg(3) });
          |} catch (const FatalError& e) {
          |  NATIVE_ERROR(${ wrapper.getArg(0) }, 1005, e.what());
          |  return -1;
@@ -126,12 +126,14 @@ case class SparkStage(
 
     val resultEncoder = codecSpec.buildEncoder(resultType)
 
+    val hadoopConf = new SerializableHadoopConfiguration(sc.hadoopConfiguration)
+
     val values = sc.parallelize(context, context.length).mapPartitions { ctxIt =>
       val ctx = ctxIt.next()
       assert(!ctxIt.hasNext)
 
       val mod = new NativeModule(key, bin)
-      val f = mod.findLongFuncL3("process_partition_wrapper")
+      val f = mod.findLongFuncL4("process_partition_wrapper")
 
       Region.scoped { region =>
         val rvb = new RegionValueBuilder(region)
@@ -142,7 +144,7 @@ case class SparkStage(
         rvb.addAnnotation(localContextType, ctx)
         val contextOff = rvb.end()
 
-        val result = f(region.get(), globalsOff, contextOff)
+        val result = f(region.get(), new ObjectArray(Array(new RichHadoopConfiguration(hadoopConf.value))).get(), globalsOff, contextOff)
 
         val encoded = RegionValue.toBytes(resultEncoder, region, result)
         Iterator.single(encoded)
@@ -160,20 +162,20 @@ case class SparkStage(
 
 object LowerTableIR {
 
-  def lower(ir: IR): SparkPipeline = ir match {
+  def lower(sc: SparkContext, ir: IR): SparkPipeline = ir match {
 
     case TableCount(tableIR) =>
-      val stage = lower(tableIR)
+      val stage = lower(sc, tableIR)
       val counts = Ref(genUID(), TArray(TInt64()))
       SparkPipeline(
         Map(counts.name -> stage.copy(body = Cast(ArrayLen(stage.body), TInt64()))),
         invoke("sum", counts))
 
     case TableGetGlobals(child) =>
-      lower(child).globals.value
+      lower(sc, child).globals.value
 
     case TableCollect(child) =>
-      val lowered = lower(child)
+      val lowered = lower(sc, child)
       val globals = lowered.globals
       val rows = Ref(genUID(), TArray(lowered.body.typ))
       assert(lowered.body.typ.isInstanceOf[TContainer])
@@ -191,13 +193,54 @@ object LowerTableIR {
       throw new cxx.CXXUnsupportedOperation(s"MatrixIR nodes must be lowered to TableIR nodes separately: \n${ Pretty(node) }")
 
     case _ =>
-      val pipelines = ir.children.map { case c: IR => lower(c) }
+      val pipelines = ir.children.map { case c: IR => lower(sc, c) }
       SparkPipeline(pipelines.flatMap(_.stages).toMap, ir.copy(pipelines.map(_.body)))
   }
 
   // table globals should be stored in the first element of `globals` in SparkStage;
   // globals in SparkStage should have unique identifiers.
-  def lower(tir: TableIR): SparkStage = tir match {
+  def lower(sc: SparkContext, tir: TableIR): SparkStage = tir match {
+    case TableRead(typ, dropRows, reader) =>
+      reader match {
+        case r@TableNativeReader(path) =>
+
+          val pathField = genUID()
+          val contextType = TStruct(pathField -> TString())
+          val encType = r.spec.table_type.rowType
+          val rowSpec = r.spec.rowsComponent.rvdSpec(sc.hadoopConfiguration, path)
+          val globalsSpec = r.spec.rowsComponent.rvdSpec(sc.hadoopConfiguration, path)
+          val globals = SparkBinding(genUID(),
+            SparkPipeline.local(ArrayRef(ReadPartition(
+              Str(globalsSpec.partFiles(0)),
+              globalsSpec.codecSpec,
+              encType,
+              typ.globalType), 0)))
+
+          if (dropRows) {
+            SparkStage(
+              globals,
+              List(),
+              typ.canonicalRVDType,
+              RVDPartitioner.empty(typ.canonicalRVDType),
+              Map.empty,
+              TStruct(), Array(),
+              MakeArray(FastSeq(), TArray(typ.rowType)))
+          } else {
+            if (rowSpec.key startsWith typ.key)
+              SparkStage(
+                globals,
+                List(),
+                typ.canonicalRVDType,
+                rowSpec.partitioner,
+                Map.empty,
+                contextType, rowSpec.partFiles.map(Row(_)),
+                ReadPartition(GetField(Ref("context", contextType), pathField), rowSpec.codecSpec, encType, typ.rowType))
+            else
+              throw new cxx.CXXUnsupportedOperation(s"Can't rekey tables yet: \n${ Pretty(tir) }")
+          }
+        case _ =>
+          throw new cxx.CXXUnsupportedOperation(s"Can't lower table reader in: \n${ Pretty(tir) }")
+      }
     case TableRange(n, nPartitions) =>
       val nPartitionsAdj = math.max(math.min(n, nPartitions), 1)
       val partCounts = partition(n, nPartitionsAdj)
@@ -234,14 +277,14 @@ object LowerTableIR {
           I32(1)), i.name, MakeStruct(FastSeq("idx" -> i))))
 
     case TableMapGlobals(child, newGlobals) =>
-      val loweredChild = lower(child)
+      val loweredChild = lower(sc, child)
       val oldGlobals = loweredChild.globals.value
-      var loweredGlobals = lower(Let("global", oldGlobals.body, newGlobals))
+      var loweredGlobals = lower(sc, Let("global", oldGlobals.body, newGlobals))
       loweredGlobals = loweredGlobals.copy(stages = loweredGlobals.stages ++ oldGlobals.stages)
       loweredChild.copy(globals = SparkBinding(genUID(), loweredGlobals))
 
     case TableMapRows(child, newRow) =>
-      val loweredChild = lower(child)
+      val loweredChild = lower(sc, child)
       val row = Ref(genUID(), child.typ.rowType)
       val global = loweredChild.globals
       val env: Env[IR] = Env("row" -> row, "global" -> Ref(global.name, global.value.typ))

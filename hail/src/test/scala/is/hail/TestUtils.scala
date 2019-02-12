@@ -190,7 +190,7 @@ object TestUtils {
         rvb.endTuple()
         val argsOff = rvb.end()
 
-        val resultOff = f(region.get(), argsOff)
+        val resultOff = f(region, argsOff)
         SafeRow(resultType.asInstanceOf[TBaseStruct].physicalType, region, resultOff).get(0)
       }
     }

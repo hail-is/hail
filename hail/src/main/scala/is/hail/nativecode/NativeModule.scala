@@ -126,6 +126,19 @@ class NativeModule() extends NativeBase() {
     nativeFindLongFuncL4(st.get(), func, name)
     func
   }
+
+  def findLongFuncL4(name: String): (Long, Long, Long, Long) => Long = {
+    val st = new NativeStatus()
+    val f = findLongFuncL4(st, name)
+    assert(st.ok, st.toString())
+    val wrapped = { (v1: Long, v2: Long, v3: Long, v4: Long) =>
+      val res = f(st, v1, v2, v3, v4)
+      if (st.fail)
+        fatal(st.toString())
+      res
+    }
+    wrapped
+  }
   
   def findLongFuncL5(st: NativeStatus, name: String): NativeLongFuncL5 = {
     val func = new NativeLongFuncL5()

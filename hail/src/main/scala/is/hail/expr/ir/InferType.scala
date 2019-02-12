@@ -152,7 +152,7 @@ object InferType {
       case TableToValueApply(child, function) => function.typ(child.typ)
       case MatrixToValueApply(child, function) => function.typ(child.typ)
       case CollectDistributedArray(_, _, _, _, body) => TArray(body.typ)
-      case ReadPartition(path, spec, rowType) => TArray(rowType)
+      case ReadPartition(_, _, _, rowType) => TArray(rowType)
     }
   }
 }

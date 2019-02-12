@@ -836,9 +836,10 @@ object IRParser {
       case "ReadPartition" =>
         implicit val formats: Formats = AbstractRVDSpec.formats
         val spec = JsonMethods.parse(string_literal(it)).extract[CodecSpec]
+        val encType = coerce[TStruct](type_expr(it))
         val rowType = coerce[TStruct](type_expr(it))
         val path = ir_value_expr(env)(it)
-        ReadPartition(path, spec, rowType)
+        ReadPartition(path, spec, encType, rowType)
     }
   }
 

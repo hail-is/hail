@@ -1044,7 +1044,7 @@ class IRSuite extends SparkSuite {
       MatrixAggregate(mt, MakeStruct(Seq("foo" -> count))),
       BlockMatrixWrite(blockMatrix, tmpDir.createLocalTempFile(), false, false, false),
       CollectDistributedArray(ArrayRange(0, 3, 1), 1, "x", "y", Ref("x", TInt32())),
-      ReadPartition(Str("foo"), CodecSpec.default, TStruct("foo"->TInt32()))
+      ReadPartition(Str("foo"), CodecSpec.default, TStruct("foo"->TInt32(), "bar" -> TString()), TStruct("foo"->TInt32()))
     )
     irs.map(x => Array(x))
   }

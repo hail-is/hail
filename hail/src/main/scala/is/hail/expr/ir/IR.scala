@@ -324,7 +324,7 @@ final case class BlockMatrixWrite(child: BlockMatrixIR, path: String,
   overwrite: Boolean, forceRowMajor: Boolean, stageLocally: Boolean) extends IR
 
 final case class CollectDistributedArray(contexts: IR, globals: IR, cname: String, gname: String, body: IR) extends IR
-final case class ReadPartition(path: IR, spec: CodecSpec, rowType: TStruct) extends IR
+final case class ReadPartition(path: IR, spec: CodecSpec, encodedType: TStruct, rowType: TStruct) extends IR
 
 class PrimitiveIR(val self: IR) extends AnyVal {
   def +(other: IR): IR = ApplyBinaryPrimOp(Add(), self, other)

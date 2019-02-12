@@ -67,6 +67,18 @@ class TableIRSuite extends SparkSuite {
     assertEvalsTo(TableCollect(node), Row(expected, Row(collectedT)))
   }
 
+  @Test def testTableReadWrite() {
+    val tmpFile = tmpDir.createTempFile("table", "t")
+    val t1 = TableMapGlobals(TableRange(10, 2), MakeStruct(FastSeq("a" -> 0, "b" -> Str("foo"))))
+    Interpret(TableWrite(t1, tmpFile))
+
+    assertEvalsTo(TableCollect(TableIR.read(hc, tmpFile, dropRows = false, None)),
+      Row(Array.tabulate(10)(Row(_)).toFastIndexedSeq, Row(0, "foo")))
+
+    assertEvalsTo(TableCollect(TableIR.read(hc, tmpFile, dropRows = true, None)),
+      Row(FastIndexedSeq.empty, Row(0, "foo")))
+  }
+
   @Test def testFilter() {
     val kt = getKT
     assertEvalsTo(TableCount(TableFilter(kt.tir,
