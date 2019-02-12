@@ -179,7 +179,7 @@ object ExportVCF {
       end -= 1
 
     if (end == 0)
-      sb.append("./.")
+      sb.append(missingFormat)
     else {
       i = 0
       while (i < end) {
