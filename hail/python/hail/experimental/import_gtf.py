@@ -169,7 +169,8 @@ def get_gene_intervals(gene_symbols=None, gene_ids=None, transcript_ids=None,
 
        Get the boundaries of genes or transcripts from a GTF file, for quick filtering of a Table or MatrixTable.
 
-       Gencode v19 GTF available at: gs://hail-common/references/gencode/gencode.v19.annotation.gtf.bgz
+       Gencode v19 (GRCh37) GTF available at: gs://hail-common/references/gencode/gencode.v19.annotation.gtf.bgz
+       Gencode v29 (GRCh38) GTF available at: gs://hail-common/references/gencode/gencode.v29.annotation.gtf.bgz
 
        Example
        -------
