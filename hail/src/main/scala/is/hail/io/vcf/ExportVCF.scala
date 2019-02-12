@@ -167,28 +167,47 @@ object ExportVCF {
     }
   }
   
-  def emitGenotype(sb: StringBuilder, formatFieldOrder: Array[Int], tg: PStruct, m: Region, offset: Long) {
-    formatFieldOrder.foreachBetween { j =>
-      val fIsDefined = tg.isFieldDefined(m, offset, j)
-      val fOffset = tg.loadField(m, offset, j)
+  def emitGenotype(sb: StringBuilder, formatFieldOrder: Array[Int], tg: PStruct, m: Region, offset: Long, fieldDefined: Array[Boolean], missingFormat: String) {
+    var i = 0
+    while (i < formatFieldOrder.length) {
+      fieldDefined(i) = tg.isFieldDefined(m, offset, formatFieldOrder(i))
+      i += 1
+    }
 
-      tg.fields(j).typ match {
-        case it: PContainer =>
-          val pt = it
-          if (fIsDefined) {
-            val fLength = pt.loadLength(m, fOffset)
-            iterableVCF(sb, pt, m, fLength, fOffset, ',')
-          } else
-            sb += '.'
-        case t =>
-          if (fIsDefined)
-            strVCF(sb, t, m, fOffset)
-          else if (t.virtualType.isOfType(TCall()))
-            sb.append("./.")
-          else
-            sb += '.'
+    var end = i
+    while (end > 0 && !fieldDefined(end - 1))
+      end -= 1
+
+    if (end == 0)
+      sb.append(missingFormat)
+    else {
+      i = 0
+      while (i < end) {
+        if (i > 0)
+          sb += ':'
+        val j = formatFieldOrder(i)
+        val fIsDefined = fieldDefined(i)
+        val fOffset = tg.loadField(m, offset, j)
+
+        tg.fields(j).typ match {
+          case it: PContainer =>
+            val pt = it
+            if (fIsDefined) {
+              val fLength = pt.loadLength(m, fOffset)
+              iterableVCF(sb, pt, m, fLength, fOffset, ',')
+            } else
+              sb += '.'
+          case t =>
+            if (fIsDefined)
+              strVCF(sb, t, m, fOffset)
+            else if (t.virtualType.isOfType(TCall()))
+              sb.append("./.")
+            else
+              sb += '.'
+        }
+        i += 1
       }
-    }(sb += ':')
+    }
   }
 
   def getAttributes(k1: String, attributes: Option[VCFMetadata]): Option[VCFAttributes] =
@@ -218,6 +237,10 @@ object ExportVCF {
       case t =>
         fatal(s"export_vcf requires g to have type TStruct, found $t")
     }
+
+    val missingFormatStr = if (typ.entryType.size > 0 && typ.entryType.types(0).isInstanceOf[TCall])
+      "./."
+    else "."
 
     checkFormatSignature(tg.virtualType)
         
@@ -354,6 +377,8 @@ object ExportVCF {
       val sb = new StringBuilder
       var m: Region = null
 
+      val formatDefinedArray = new Array[Boolean](formatFieldOrder.length)
+
       val rvv = new RegionValueVariant(fullRowType)
       it.map { rv =>
         sb.clear()
@@ -365,13 +390,13 @@ object ExportVCF {
         sb += '\t'
         sb.append(rvv.position())
         sb += '\t'
-  
+
         if (idExists && fullRowType.isFieldDefined(rv, idIdx)) {
           val idOffset = fullRowType.loadField(rv, idIdx)
           sb.append(PString.loadString(m, idOffset))
         } else
           sb += '.'
-  
+
         sb += '\t'
         sb.append(rvv.alleles()(0))
         sb += '\t'
@@ -384,9 +409,9 @@ object ExportVCF {
           sb.append(m.loadDouble(qualOffset).formatted("%.2f"))
         } else
           sb += '.'
-        
+
         sb += '\t'
-        
+
         if (filtersExists && fullRowType.isFieldDefined(rv, filtersIdx)) {
           val filtersOffset = fullRowType.loadField(rv, filtersIdx)
           val filtersLength = filtersPType.loadLength(m, filtersOffset)
@@ -398,7 +423,7 @@ object ExportVCF {
           sb += '.'
 
         sb += '\t'
-        
+
         var wroteAnyInfo: Boolean = false
         if (infoExists && fullRowType.isFieldDefined(rv, infoIdx)) {
           var wrote: Boolean = false
@@ -424,9 +449,9 @@ object ExportVCF {
           while (i < localNSamples) {
             sb += '\t'
             if (localEntriesType.isElementDefined(m, gsOffset, i))
-              emitGenotype(sb, formatFieldOrder, tg, m, localEntriesType.loadElement(m, gsOffset, localNSamples, i))
+              emitGenotype(sb, formatFieldOrder, tg, m, localEntriesType.loadElement(m, gsOffset, localNSamples, i), formatDefinedArray, missingFormatStr)
             else
-              sb.append("./.")
+              sb.append(missingFormatStr)
 
             i += 1
           }
