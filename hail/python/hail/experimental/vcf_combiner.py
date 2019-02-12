@@ -123,11 +123,6 @@ def combine_gvcfs(mts):
             is_sorted=True))
 
 
-# FIXME Placeholder
-def densify(mt):
-    return mt
-
-
 @typecheck(lgt=expr_call, la=expr_array(expr_int32))
 def lgt_to_gt(lgt, la):
     """A method for transforming Local GT and Local Alleles into the true GT"""
@@ -137,7 +132,7 @@ def lgt_to_gt(lgt, la):
 
 
 def summarize(mt):
-    mt = densify(mt)
+    mt = hl.experimental.densify(mt)
     return mt.annotate_rows(info=hl.rbind(
         hl.agg.call_stats(lgt_to_gt(mt.GT, mt.LA), mt.alleles),
         lambda gs: hl.struct(
