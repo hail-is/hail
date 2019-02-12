@@ -84,7 +84,7 @@ class Pipeline:
         self._resource_map.update({rg._uid: rg})
         return rg
 
-    def write_output(self, resource, dest):
+    def write_output(self, resource, dest):  # pylint: disable=R0201
         resource.add_output_path(dest)
 
     def select_tasks(self, pattern):
