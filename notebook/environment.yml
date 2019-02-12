@@ -6,6 +6,6 @@ dependencies:
 - pip
 - ujson
 - pip:
-    - kubernetes
-    - Flask_Sockets
-    - python-dotenv
+  - kubernetes
+  - Flask_Sockets
+  - python-dotenv
