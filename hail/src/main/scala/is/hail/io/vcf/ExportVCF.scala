@@ -167,7 +167,7 @@ object ExportVCF {
     }
   }
   
-  def emitGenotype(sb: StringBuilder, formatFieldOrder: Array[Int], tg: PStruct, m: Region, offset: Long, fieldDefined: Array[Boolean]) {
+  def emitGenotype(sb: StringBuilder, formatFieldOrder: Array[Int], tg: PStruct, m: Region, offset: Long, fieldDefined: Array[Boolean], missingFormat: String) {
     var i = 0
     while (i < formatFieldOrder.length) {
       fieldDefined(i) = tg.isFieldDefined(m, offset, formatFieldOrder(i))
@@ -237,6 +237,10 @@ object ExportVCF {
       case t =>
         fatal(s"export_vcf requires g to have type TStruct, found $t")
     }
+
+    val missingFormatStr = if (typ.entryType.size > 0 && typ.entryType.types(0).isInstanceOf[TCall])
+      "./."
+    else "."
 
     checkFormatSignature(tg.virtualType)
         
@@ -445,9 +449,9 @@ object ExportVCF {
           while (i < localNSamples) {
             sb += '\t'
             if (localEntriesType.isElementDefined(m, gsOffset, i))
-              emitGenotype(sb, formatFieldOrder, tg, m, localEntriesType.loadElement(m, gsOffset, localNSamples, i), formatDefinedArray)
+              emitGenotype(sb, formatFieldOrder, tg, m, localEntriesType.loadElement(m, gsOffset, localNSamples, i), formatDefinedArray, missingFormatStr)
             else
-              sb.append("./.")
+              sb.append(missingFormatStr)
 
             i += 1
           }
