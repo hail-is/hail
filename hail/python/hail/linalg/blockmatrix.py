@@ -2071,7 +2071,6 @@ def _shape_after_broadcast(left, right):
     return [join_dim(l, r) for l, r in zip(left, right)]
 
 
-# Can easily be transformed to hl.tensor()
 @typecheck(x=oneof(numeric, np.ndarray), block_size=int)
 def _to_bmir(x, block_size):
     if _is_scalar(x):
