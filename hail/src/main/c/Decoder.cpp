@@ -13,6 +13,9 @@ InputStream::InputStream(UpcallEnv up, jobject jinput_stream) :
   jbuf_(nullptr),
   jbuf_size_(-1) { }
 
+InputStream::InputStream(UpcallEnv up, jobject jhadoop_conf, char * path) :
+  InputStream(up, up.get_input_stream(jhadoop_conf, path)) { }
+
 int InputStream::read(char * buf, int n) {
   if (jbuf_size_ < n) {
     if (jbuf_ != nullptr) {

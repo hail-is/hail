@@ -24,6 +24,7 @@ class InputStream {
     InputStream() = delete;
     InputStream(InputStream &is) = delete;
     InputStream(UpcallEnv up, jobject jinput_stream);
+    InputStream(UpcallEnv up, jobject jhadoop_conf, char * path);
     int read(char * buf, int n);
     long skip(long n);
     void close();

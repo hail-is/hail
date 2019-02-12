@@ -4,6 +4,7 @@ import is.hail.expr.ir
 import is.hail.expr.types._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
+import is.hail.io.PackCodecSpec
 import is.hail.utils.{ArrayBuilder, StringEscapeUtils}
 
 import scala.collection.mutable
@@ -166,6 +167,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
   outer =>
   type E = ir.Env[EmitTriplet]
 
+  def jHadoopConfiguration: Variable = fb.getArg(1)
   def emit(resultRegion: EmitRegion, x: ir.IR, env: E): EmitTriplet = {
     def triplet(setup: Code, m: Code, v: Code): EmitTriplet =
       EmitTriplet(x.pType, setup, m, v, resultRegion)
@@ -785,6 +787,26 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
                  |}
                  |""".stripMargin
             }
+          }
+        }
+
+      case x@ir.ReadPartition(pathIR, spec, _) =>
+        assert(nSpecialArgs > 1)
+        val arrayRegion = EmitRegion.from(resultRegion, sameRegion)
+        arrayRegion.use()
+        val dec = spec.buildNativeDecoderClass(x.pType, x.pType, fb.translationUnitBuilder())
+        val path = emit(resultRegion, pathIR, env)
+
+        new ArrayEmitter(path.setup, path.m, "", None, arrayRegion) {
+          def emit(f: (Code, Code) => Code): Code = {
+            s"""
+               |InputStream is {};
+               |$dec dec { std::make_shared<InputStream>(${path.v}, $jHadoopConfiguration) };
+               |while (dec.read_byte()) {
+               |  ${ arrayRegion.defineIfUsed(sameRegion) }
+               |  ${ f("false", s"dec.decode_row($arrayRegion)") }
+               |}
+             """.stripMargin
           }
         }
 

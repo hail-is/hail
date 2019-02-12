@@ -28,6 +28,8 @@ class UpcallConfig {
   // RVIterator methods
   jmethodID RVIterator_hasNext_;
   jmethodID RVIterator_next_;
+  // RichHadoopConfiguration methods
+  jmethodID RichHadoopConfiguration_unsafeReader_;
   
   UpcallConfig();
 };
@@ -56,6 +58,9 @@ class UpcallEnv {
   void info(const std::string& msg);
   void warn(const std::string& msg);
   void error(const std::string& msg);
+
+  // path is stored in Hail RegionValue format with 4-byte length prefix.
+  jobject get_input_stream(jobject jHadoopConf, const char * path);
 
 };
 

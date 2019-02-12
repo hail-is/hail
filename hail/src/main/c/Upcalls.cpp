@@ -40,6 +40,8 @@ UpcallConfig::UpcallConfig() {
   auto cl4 = env->FindClass("is/hail/cxx/RegionValueIterator");
   RVIterator_hasNext_ = env->GetMethodID(cl4, "hasNext", "()Z");
   RVIterator_next_ = env->GetMethodID(cl4, "next", "()J");
+  auto cl5 = env->FindClass("is/hail/utils/richUtils/RichHadoopConfiguration");
+  RichHadoopConfiguration_unsafeReader_ = env->GetMethodID(cl5, "hasNext", "(Ljava/lang/String;Z)Ljava/io/InputStream;");
 
 }
 
@@ -112,6 +114,14 @@ void UpcallEnv::error(const std::string& msg) {
   jstring msgJ = env_->NewStringUTF(msg.c_str());
   env_->CallVoidMethod(config_->upcalls_, config_->Upcalls_error_, msgJ);
   env_->DeleteLocalRef(msgJ);
+}
+
+jobject UpcallEnv::get_input_stream(jobject jhadoop_conf, const char * path) {
+  auto cpath = std::string(path + 4, *reinterpret_cast<const int *>(path));
+  auto jpath = env_->NewStringUTF(cpath.c_str());
+  auto is = env_->CallObjectMethod(jhadoop_conf, config_->RichHadoopConfiguration_unsafeReader_, jpath);
+  env_->DeleteLocalRef(jpath);
+  return is;
 }
 
 } // namespace hail
