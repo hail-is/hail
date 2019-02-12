@@ -3,6 +3,7 @@ import unittest
 import hail as hl
 from hail.genetics import *
 from ..helpers import *
+from hail.utils import FatalError
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
@@ -123,5 +124,7 @@ class Tests(unittest.TestCase):
                          hl.eval(hl.struct(result=hl.locus_interval('chr12', 32563117, 32563121, True, True, 'GRCh38'),
                                            is_negative_strand=True)))
 
-        grch37.remove_liftover("GRCh38")
+        with self.assertRaises(FatalError):
+            hl.eval(hl.liftover(hl.parse_locus_interval('1:10000-10000', reference_genome='GRCh37'), 'GRCh38'))
 
+        grch37.remove_liftover("GRCh38")
