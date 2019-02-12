@@ -253,69 +253,27 @@ case class MatrixRangeReader(nRows: Int, nCols: Int, nPartitions: Option[Int]) e
     Some(partition(nRows, nPartitionsAdj).map(_.toLong))
   }
 
-  def apply(mr: MatrixRead): MatrixValue = {
-    assert(mr.typ == fullType)
+  override def canLower: Boolean = true
 
-    val partCounts = mr.partitionCounts.get.map(_.toInt)
-    val nPartitionsAdj = mr.partitionCounts.get.length
+  override def lower(mr: MatrixRead): TableIR = {
+    val uid1 = genUID()
 
-    val hc = HailContext.get
-    val localRVType = mr.rvdType.rowType
-    val partStarts = partCounts.scanLeft(0)(_ + _)
-    val localNCols = if (mr.dropCols) 0 else nCols
-
-    val rvd = if (mr.dropRows)
-      RVD.empty(hc.sc, fullType.canonicalRVDType)
-    else {
-      RVD(mr.rvdType,
-        new RVDPartitioner(
-          fullType.rowKeyStruct,
-          Array.tabulate(nPartitionsAdj) { i =>
-            val start = partStarts(i)
-            Interval(Row(start), Row(start + partCounts(i)), includesStart = true, includesEnd = false)
-          }),
-        ContextRDD.parallelize[RVDContext](hc.sc, Range(0, nPartitionsAdj), nPartitionsAdj)
-          .cmapPartitionsWithIndex { (i, ctx, _) =>
-            val region = ctx.region
-            val rvb = ctx.rvb
-            val rv = RegionValue(region)
-
-            val start = partStarts(i)
-            Iterator.range(start, start + partCounts(i))
-              .map { j =>
-                rvb.start(localRVType)
-                rvb.startStruct()
-
-                // row idx field
-                rvb.addInt(j)
-
-                // entries field
-                rvb.startArray(localNCols)
-                var i = 0
-                while (i < localNCols) {
-                  rvb.startStruct()
-                  rvb.endStruct()
-                  i += 1
-                }
-                rvb.endArray()
-
-                rvb.endStruct()
-                rv.setOffset(rvb.end())
-                rv
-              }
-          })
-    }
-
-    MatrixValue(fullType,
-      BroadcastRow(Row(), fullType.globalType, hc.sc),
-      BroadcastIndexedSeq(
-        Iterator.range(0, localNCols)
-          .map(Row(_))
-          .toFastIndexedSeq,
-        TArray(fullType.colType),
-        hc.sc),
-      rvd)
+    TableMapRows(
+      TableMapGlobals(
+        TableRange(nRows, nPartitions.getOrElse(HailContext.get.sc.defaultParallelism)),
+        MakeStruct(FastSeq(
+          LowerMatrixIR.colsFieldName ->
+            ArrayMap(
+              ArrayRange(I32(0), I32(nCols), I32(1)),
+              uid1,
+              MakeStruct(FastSeq("col_idx" -> Ref(uid1, TInt32()))))))),
+      ArrayMap(
+        ArrayRange(I32(0), I32(nCols), I32(1)),
+        genUID(),
+        MakeStruct(FastSeq())))
   }
+
+  def apply(mr: MatrixRead): MatrixValue = ???
 }
 
 case class MatrixRead(
