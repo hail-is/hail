@@ -95,12 +95,12 @@ case class BlockMatrixMap(child: BlockMatrixIR, f: IR) extends BlockMatrixIR {
   }
 
   private def applyUnaryOp(hc: HailContext, unaryOp: UnaryOp): BlockMatrix = {
-    val childBm = child.execute(hc)
+    val blockMatrix = child.execute(hc)
     unaryOp match {
-      case Negate() => childBm.unary_-()
-      case Abs() => childBm.abs()
-      case Log() => childBm.log()
-      case Sqrt() => childBm.sqrt()
+      case Negate() => blockMatrix.unary_-()
+      case Abs() => blockMatrix.abs()
+      case Log() => blockMatrix.log()
+      case Sqrt() => blockMatrix.sqrt()
       case _ => fatal(s"Unsupported unary operation on BlockMatrices: $unaryOp")
     }
   }

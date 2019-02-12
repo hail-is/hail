@@ -256,6 +256,7 @@ class BlockMatrixIRTests(unittest.TestCase):
 
         read = ir.BlockMatrixRead(resource('blockmatrix_example/0'))
         add_two_bms = BlockMatrixIRTests._make_element_wise_op_ir(read, read, '+')
+        abs_bm = ir.BlockMatrixMap(read, ir.ApplyUnaryOp('abs', ir.Ref('element')))
         negate_bm = ir.BlockMatrixMap(read, ir.ApplyUnaryOp('-', ir.Ref('element')))
         sqrt_bm = ir.BlockMatrixMap(read, ir.ApplyUnaryOp('sqrt', ir.Ref('element')))
 
@@ -275,6 +276,7 @@ class BlockMatrixIRTests(unittest.TestCase):
             broadcast_scalar,
             broadcast_col,
             broadcast_row,
+            abs_bm,
             negate_bm,
             sqrt_bm
         ]

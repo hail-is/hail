@@ -23,14 +23,14 @@ class BlockMatrixMap(BlockMatrixIR):
     @typecheck_method(child=BlockMatrixIR, op=IR)
     def __init__(self, child, op):
         super().__init__()
-        self._child = child
-        self._op = op
+        self.child = child
+        self.op = op
 
     def render(self, r):
-        return f'(BlockMatrixMap {r(self._child)} {r(self._op)})'
+        return f'(BlockMatrixMap {r(self.child)} {r(self.op)})'
 
     def _compute_type(self):
-        self._type = self._child.typ
+        self._type = self.child.typ
 
 
 class BlockMatrixMap2(BlockMatrixIR):
