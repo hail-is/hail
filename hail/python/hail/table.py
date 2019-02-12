@@ -768,12 +768,12 @@ class Table(ExprContainer):
 
         Notes
         -----
-
-        The expression `expr` will be evaluated for every row of the table. If `keep`
-        is ``True``, then rows where `expr` evaluates to ``False`` will be removed (the
-        filter keeps the rows where the predicate evaluates to ``True``). If `keep` is
-        ``False``, then rows where `expr` evaluates to ``False`` will be removed (the
-        filter removes the rows where the predicate evaluates to ``True``).
+        The expression `expr` will be evaluated for every row of the table. If
+        `keep` is ``True``, then rows where `expr` evaluates to ``True`` will be
+        kept (the filter removes the rows where the predicate evaluates to
+        ``False``). If `keep` is ``False``, then rows where `expr` evaluates to
+        ``True`` will be removed (the filter keeps the rows where the predicate
+        evaluates to ``False``).
 
         Warning
         -------
@@ -964,10 +964,11 @@ class Table(ExprContainer):
         return table
 
     @typecheck_method(output=str,
-               types_file=nullable(str),
-               header=bool,
-               parallel=nullable(enumeration('separate_header', 'header_per_shard')))
-    def export(self, output, types_file=None, header=True, parallel=None):
+                      types_file=nullable(str),
+                      header=bool,
+                      parallel=nullable(enumeration('separate_header', 'header_per_shard')),
+                      delimiter=str)
+    def export(self, output, types_file=None, header=True, parallel=None, delimiter='\t'):
         """Export to a TSV file.
 
         Examples
@@ -997,10 +998,12 @@ class Table(ExprContainer):
             the header file is output separately from the file shards. If
             'header_per_shard', each file shard has a header. If set to None
             the export will be slower.
+        delimiter : :obj:`str`
+            Field delimiter.
         """
 
         Env.backend().execute(
-            TableExport(self._tir, output, types_file, header, Env.hail().utils.ExportType.getExportType(parallel)))
+            TableExport(self._tir, output, types_file, header, Env.hail().utils.ExportType.getExportType(parallel), delimiter))
 
     def group_by(self, *exprs, **named_exprs) -> 'GroupedTable':
         """Group by a new key for use with :meth:`.GroupedTable.aggregate`.
@@ -1207,10 +1210,11 @@ class Table(ExprContainer):
 
         t = self
         t = t.flatten()
-        fields = [trunc(f) for f in t.row]
+        fields = list(t.row)
+        trunc_fields = [trunc(f) for f in fields]
         n_fields = len(fields)
 
-        types = [trunc(str(t.row[f].dtype)) for f in fields]
+        type_strs = [trunc(str(t.row[f].dtype)) for f in fields] if types else [''] * len(fields)
         right_align = [hl.expr.types.is_numeric(t.row[f].dtype) for f in fields]
 
         t = t.select(**{k: hl_format(v) for (k, v) in t.row.items()})
@@ -1222,7 +1226,7 @@ class Table(ExprContainer):
         rows = [[row[f] for f in fields] for row in rows]
 
         max_value_width = lambda i: max(itertools.chain([0], (len(row[i]) for row in rows)))
-        column_width = [max(len(fields[i]), len(types[i]), max_value_width(i)) for i in range(n_fields)]
+        column_width = [max(len(trunc_fields[i]), len(type_strs[i]), max_value_width(i)) for i in range(n_fields)]
 
         column_blocks = []
         start = 0
@@ -1265,10 +1269,10 @@ class Table(ExprContainer):
             hline = format_hline(block_column_width)
 
             s += hline
-            s += format_line(fields[start:end], block_column_width, block_right_align)
+            s += format_line(trunc_fields[start:end], block_column_width, block_right_align)
             s += hline
             if types:
-                s += format_line(types[start:end], block_column_width, block_right_align)
+                s += format_line(type_strs[start:end], block_column_width, block_right_align)
                 s += hline
             for row in rows:
                 row = row[start:end]
@@ -2067,7 +2071,7 @@ class Table(ExprContainer):
         renames = {}
 
         for field in right._fields:
-            if field in seen:
+            if field in seen and field not in right.key:
                 i = 1
                 while i < 100:
                     mod = _mangle(field, i)

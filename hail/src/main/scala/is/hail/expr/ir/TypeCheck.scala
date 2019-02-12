@@ -95,6 +95,19 @@ object TypeCheck {
         assert(a.typ.isOfType(TInt32()))
         assert(b.typ.isOfType(TInt32()))
         assert(c.typ.isOfType(TInt32()))
+      case x@MakeNDArray(data, shape, row_major) =>
+        check(data)
+        check(shape)
+        check(row_major)
+        assert(data.typ.isInstanceOf[TArray])
+        assert(coerce[TNDArray](x.typ).elementType == coerce[TArray](data.typ).elementType)
+        assert(shape.typ.isOfType(TArray(TInt64())))
+        assert(row_major.typ.isOfType(TBoolean()))
+      case x@NDArrayRef(nd, idxs) =>
+        check(nd)
+        check(idxs)
+        assert(nd.typ.isInstanceOf[TNDArray])
+        assert(idxs.typ.isOfType(TArray(TInt64())))
       case x@ArraySort(a, ascending, onKey) =>
         check(a)
         check(ascending)
@@ -184,6 +197,10 @@ object TypeCheck {
         check(key, env = aggEnv.get)
         check(aggIR)
         assert(x.typ == TDict(key.typ, aggIR.typ))
+      case x@AggArrayPerElement(a, name, aggBody) =>
+        check(a, env = aggEnv.get)
+        check(aggBody, env = env, aggEnv = aggEnv.map(_.bind(name -> -coerce[TArray](a.typ).elementType)))
+        assert(x.typ == TArray(aggBody.typ))
       case x@InitOp(i, args, aggSig) =>
         args.foreach(check(_))
         check(i)
@@ -284,7 +301,7 @@ object TypeCheck {
           aggEnv = Some(child.typ.entryEnv))
         assert(x.typ == query.typ)
       case TableWrite(_, _, _, _, _) =>
-      case TableExport(_, _, _, _, _) =>
+      case TableExport(_, _, _, _, _, _) =>
       case TableCount(_) =>
       case TableGetGlobals(_) =>
       case TableCollect(_) =>

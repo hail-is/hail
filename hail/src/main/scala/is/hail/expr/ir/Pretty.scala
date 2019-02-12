@@ -166,6 +166,7 @@ object Pretty {
             case ArrayFor(_, valueName, _) => prettyIdentifier(valueName)
             case ArrayAgg(a, name, query) => prettyIdentifier(name)
             case AggExplode(_, name, _) => prettyIdentifier(name)
+            case AggArrayPerElement(_, name, _) => prettyIdentifier(name)
             case ArraySort(_, _, onKey) => prettyBooleanLiteral(onKey)
             case ApplyIR(function, _, _) => prettyIdentifier(function)
             case Apply(function, _) => prettyIdentifier(function)
@@ -198,6 +199,7 @@ object Pretty {
               prettyStrings(rowFields) + " " +
               prettyStrings(colFields) + " " +
               prettyIntOpt(nPartitions)
+            case MatrixRowsHead(_, n) => n.toString
             case MatrixAnnotateRowsTable(_, _, uid) =>
               prettyStringLiteral(uid) + " "
             case MatrixAnnotateColsTable(_, _, uid) =>
@@ -222,21 +224,12 @@ object Pretty {
                   "None"
                 else
                   prettyStringLiteral(codecSpecJSONStr))
-            case TableExport(_, path, typesFile, header, exportType) =>
-              val args = Array(
-                Some(StringEscapeUtils.escapeString(path)),
-                Option(typesFile).map(StringEscapeUtils.escapeString(_)),
-                if (header) Some("header") else None,
-                Some(exportType)
-              ).flatten
-
-              sb += '\n'
-              args.foreachBetween { a =>
-                sb.append(" " * (depth + 2))
-                sb.append(a)
-              }(sb += '\n')
-
-              ""
+            case TableExport(_, path, typesFile, header, exportType, delimiter) =>
+              prettyStringLiteral(path) + " " +
+                (if (typesFile == null) "None" else prettyStringLiteral(typesFile)) + " " +
+                prettyBooleanLiteral(header) + " " +
+                exportType.toString + " " +
+                prettyStringLiteral(delimiter)
             case TableKeyBy(_, keys, isSorted) =>
               prettyIdentifiers(keys) + " " +
                 prettyBooleanLiteral(isSorted)

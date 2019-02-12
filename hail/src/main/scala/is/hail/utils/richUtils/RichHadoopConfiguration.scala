@@ -34,7 +34,15 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
   private def open(filename: String, checkCodec: Boolean = true): InputStream = {
     val fs = fileSystem(filename)
     val hPath = new hadoop.fs.Path(filename)
-    val is = fs.open(hPath)
+    val is = try {
+      fs.open(hPath)
+    } catch {
+      case e: FileNotFoundException =>
+        if (isDir(filename))
+          throw new FileNotFoundException(s"'$filename' is a directory (or native Table/MatrixTable)")
+        else
+          throw e
+    }
     if (checkCodec) {
       val codecFactory = new CompressionCodecFactory(hConf)
       val codec = codecFactory.getCodec(hPath)
@@ -133,11 +141,11 @@ class RichHadoopConfiguration(val hConf: hadoop.conf.Configuration) extends AnyV
     files
   }
 
-  def copy(src: String, dst: String) {
+  def copy(src: String, dst: String, deleteSource: Boolean = false) {
     hadoop.fs.FileUtil.copy(
       fileSystem(src), new hadoop.fs.Path(src),
       fileSystem(dst), new hadoop.fs.Path(dst),
-      false, hConf)
+      deleteSource, hConf)
   }
 
   def copyMerge(

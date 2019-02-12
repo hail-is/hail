@@ -1259,7 +1259,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(kin1._same(kin_s1, tolerance=1e-4))
         self.assertTrue(kin2._same(kin_s2, tolerance=1e-4))
         self.assertTrue(kin3._same(kin_s3, tolerance=1e-4))
-        self.assertTrue(kin4._same(kin_s4, tolerance=1e-4))
+        self.assertTrue(kin4._same(kin_s4, tolerance=1e-2))
 
         self.assertTrue(kin1.count() == 50 * 49 / 2)
 
@@ -1268,6 +1268,14 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(kin3.count() > 0)
         self.assertTrue(kin3.filter(kin3.kin < 0.1).count() == 0)
+
+    def test_pcrelate_issue_5263(self):
+        mt = hl.balding_nichols_model(3, 50, 100)
+        expected = hl.pc_relate(mt.GT, 0.10, k=2, statistics='all')
+        mt = mt.select_entries(GT2=mt.GT,
+                               GT=hl.call(hl.rand_bool(0.5), hl.rand_bool(0.5)))
+        actual = hl.pc_relate(mt.GT2, 0.10, k=2, statistics='all')
+        assert expected._same(actual, tolerance=1e-4)
 
     def test_split_multi_hts(self):
         ds1 = hl.import_vcf(resource('split_test.vcf'))
@@ -1399,17 +1407,20 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(glob.bn.fst), [.02, .06])
 
     def test_balding_nichols_model_same_results(self):
-        hl.set_global_seed(1)
-        ds1 = hl.balding_nichols_model(2, 20, 25, 3,
-                                       pop_dist=[1.0, 2.0],
-                                       fst=[.02, .06],
-                                       af_dist=hl.rand_beta(a=0.01, b=2.0, lower=0.05, upper=0.95))
-        hl.set_global_seed(1)
-        ds2 = hl.balding_nichols_model(2, 20, 25, 3,
-                                       pop_dist=[1.0, 2.0],
-                                       fst=[.02, .06],
-                                       af_dist=hl.rand_beta(a=0.01, b=2.0, lower=0.05, upper=0.95))
-        self.assertTrue(ds1._same(ds2))
+        for mixture in [True, False]:
+            hl.set_global_seed(1)
+            ds1 = hl.balding_nichols_model(2, 20, 25, 3,
+                                           pop_dist=[1.0, 2.0],
+                                           fst=[.02, .06],
+                                           af_dist=hl.rand_beta(a=0.01, b=2.0, lower=0.05, upper=0.95),
+                                           mixture=mixture)
+            hl.set_global_seed(1)
+            ds2 = hl.balding_nichols_model(2, 20, 25, 3,
+                                           pop_dist=[1.0, 2.0],
+                                           fst=[.02, .06],
+                                           af_dist=hl.rand_beta(a=0.01, b=2.0, lower=0.05, upper=0.95),
+                                           mixture=mixture)
+            self.assertTrue(ds1._same(ds2))
 
     def test_balding_nichols_model_af_ranges(self):
         def test_af_range(rand_func, min, max, seed):

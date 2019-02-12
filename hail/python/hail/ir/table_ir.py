@@ -326,7 +326,7 @@ class TableOrderBy(TableIR):
 
     def render(self, r):
         return '(TableOrderBy ({}) {})'.format(
-            ' '.join(['{}{}'.format(order, escape_id(f)) for (f, order) in self.sort_fields]),
+            ' '.join([escape_id(order + f) for (f, order) in self.sort_fields]),
             r(self.child))
 
     def _compute_type(self):
@@ -509,6 +509,12 @@ class MatrixToTableApply(TableIR):
                 hl.tstruct(),
                 skat_type,
                 ['id'])
+        elif name == 'PCA':
+            self._type = hl.ttable(
+                hl.tstruct(eigenvalues=hl.tarray(hl.tfloat64),
+                           scores=child_typ.col_key_type._insert_field('scores', hl.tarray(hl.tfloat64))),
+                child_typ.row_key_type._insert_field('loadings', dtype('array<float64>')),
+                child_typ.row_key)
         else:
             assert name == 'LocalLDPrune', name
             self._type = hl.ttable(

@@ -1,11 +1,13 @@
 batch
 ci
 cloudtools
+etc
 notebook
 gateway
 hail
 image-fetcher
 letsencrypt
+pipeline
 scorecard
 site
 spark

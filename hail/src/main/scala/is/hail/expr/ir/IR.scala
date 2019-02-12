@@ -160,11 +160,17 @@ final case class ArrayAgg(a: IR, name: String, query: IR) extends IR
 
 final case class ArrayLeftJoinDistinct(left: IR, right: IR, l: String, r: String, keyF: IR, joinF: IR) extends IR
 
+final case class MakeNDArray(data: IR, shape: IR, row_major: IR) extends IR
+
+final case class NDArrayRef(nd: IR, idxs: IR) extends IR
+
 final case class AggFilter(cond: IR, aggIR: IR) extends IR
 
 final case class AggExplode(array: IR, name: String, aggBody: IR) extends IR
 
 final case class AggGroupBy(key: IR, aggIR: IR) extends IR
+
+final case class AggArrayPerElement(a: IR, name: String, aggBody: IR) extends IR
 
 final case class ApplyAggOp(constructorArgs: IndexedSeq[IR], initOpArgs: Option[IndexedSeq[IR]], seqOpArgs: IndexedSeq[IR], aggSig: AggSignature) extends IR {
   assert(!(seqOpArgs ++ constructorArgs ++ initOpArgs.getOrElse(FastIndexedSeq.empty[IR])).exists(ContainsScan(_)))
@@ -270,7 +276,8 @@ final case class TableExport(
   path: String,
   typesFile: String = null,
   header: Boolean = true,
-  exportType: Int = ExportType.CONCATENATED) extends IR
+  exportType: Int = ExportType.CONCATENATED,
+  delimiter: String) extends IR
 
 final case class TableGetGlobals(child: TableIR) extends IR
 final case class TableCollect(child: TableIR) extends IR

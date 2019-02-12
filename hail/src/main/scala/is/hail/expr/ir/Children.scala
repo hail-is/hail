@@ -42,6 +42,8 @@ object Children {
       Array(start, stop, step)
     case ArraySort(a, ascending, _) =>
       Array(a, ascending)
+    case MakeNDArray(data, shape, row_major) =>
+      Array(data, shape, row_major)
     case ToSet(a) =>
       Array(a)
     case ToDict(a) =>
@@ -68,12 +70,15 @@ object Children {
       Array(a, body)
     case ArrayAgg(a, name, query) =>
       Array(a, query)
+    case NDArrayRef(nd, idxs) =>
+      Array(nd, idxs)
     case AggFilter(cond, aggIR) =>
       Array(cond, aggIR)
     case AggExplode(array, _, aggBody) =>
       Array(array, aggBody)
     case AggGroupBy(key, aggIR) =>
       Array(key, aggIR)
+    case AggArrayPerElement(a, name, aggBody) => Array(a, aggBody)
     case MakeStruct(fields) =>
       fields.map(_._2).toFastIndexedSeq
     case SelectFields(old, fields) =>
@@ -124,7 +129,7 @@ object Children {
     case TableAggregate(child, query) => IndexedSeq(child, query)
     case MatrixAggregate(child, query) => IndexedSeq(child, query)
     case TableWrite(child, _, _, _, _) => IndexedSeq(child)
-    case TableExport(child, _, _, _, _) => IndexedSeq(child)
+    case TableExport(child, _, _, _, _, _) => IndexedSeq(child)
     case TableToValueApply(child, _) => IndexedSeq(child)
     case MatrixToValueApply(child, _) => IndexedSeq(child)
     // from BlockMatrixIR

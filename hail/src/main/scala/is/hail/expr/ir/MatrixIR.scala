@@ -147,12 +147,12 @@ abstract class MatrixReader {
 
 case class MatrixNativeReader(path: String) extends MatrixReader {
 
-  val spec: AbstractMatrixTableSpec = (RelationalSpec.read(HailContext.get, path): @unchecked) match {
+  lazy val spec: AbstractMatrixTableSpec = (RelationalSpec.read(HailContext.get, path): @unchecked) match {
     case mts: AbstractMatrixTableSpec => mts
     case _: AbstractTableSpec => fatal(s"file is a Table, not a MatrixTable: '$path'")
   }
 
-  override val fullRVDType: RVDType = spec.rvdType(path)
+  override lazy val fullRVDType: RVDType = spec.rvdType(path)
 
   lazy val columnCount: Option[Int] = Some(RelationalSpec.read(HailContext.get, path + "/cols")
     .asInstanceOf[AbstractTableSpec]
@@ -160,9 +160,9 @@ case class MatrixNativeReader(path: String) extends MatrixReader {
     .sum
     .toInt)
 
-  lazy val partitionCounts: Option[IndexedSeq[Long]] = Some(spec.partitionCounts)
+  def partitionCounts: Option[IndexedSeq[Long]] = Some(spec.partitionCounts)
 
-  val fullType = spec.matrix_type
+  def fullType: MatrixType = spec.matrix_type
 
   def apply(mr: MatrixRead): MatrixValue = {
     val hc = HailContext.get
@@ -1794,6 +1794,20 @@ case class MatrixDistinctByRow(child: MatrixIR) extends MatrixIR {
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixDistinctByRow = {
     val IndexedSeq(newChild: MatrixIR) = newChildren
     MatrixDistinctByRow(newChild)
+  }
+
+  override def columnCount: Option[Int] = child.columnCount
+}
+
+case class MatrixRowsHead(child: MatrixIR, n: Long) extends MatrixIR {
+  require(n >= 0)
+  val typ: MatrixType = child.typ
+
+  override def children: IndexedSeq[BaseIR] = Array(child)
+
+  override def copy(newChildren: IndexedSeq[BaseIR]): MatrixRowsHead = {
+    val IndexedSeq(newChild: MatrixIR) = newChildren
+    MatrixRowsHead(newChild, n)
   }
 
   override def columnCount: Option[Int] = child.columnCount

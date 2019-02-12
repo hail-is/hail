@@ -72,7 +72,7 @@ abstract class TableReader {
 }
 
 case class TableNativeReader(path: String) extends TableReader {
-  val spec: AbstractTableSpec = (RelationalSpec.read(HailContext.get, path): @unchecked) match {
+  lazy val spec: AbstractTableSpec = (RelationalSpec.read(HailContext.get, path): @unchecked) match {
     case ts: AbstractTableSpec => ts
     case _: AbstractMatrixTableSpec => fatal(s"file is a MatrixTable, not a Table: '$path'")
   }
@@ -642,10 +642,11 @@ case class TableLeftJoinRightDistinct(left: TableIR, right: TableIR, root: Strin
     val leftValue = left.execute(hc)
     val rightValue = right.execute(hc)
 
+    val joinKey = math.min(left.typ.key.length, right.typ.key.length)
     leftValue.copy(
       typ = typ,
       rvd = leftValue.rvd
-        .orderedLeftJoinDistinctAndInsert(rightValue.rvd, root))
+        .orderedLeftJoinDistinctAndInsert(rightValue.rvd.truncateKey(joinKey), root))
   }
 }
 

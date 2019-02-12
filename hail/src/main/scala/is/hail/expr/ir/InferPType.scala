@@ -21,6 +21,7 @@ object InferPType {
       case Ref(_, t) => PType.canonical(t) // FIXME fill in with supplied physical type
       case In(_, t) => PType.canonical(t) // FIXME fill in with supplied physical type
       case MakeArray(_, t) => PType.canonical(t)
+      case MakeNDArray(data, _, _) => PNDArray(data.pType.asInstanceOf[PArray].elementType)
       case _: ArrayLen => PInt32()
       case _: ArrayRange => PArray(PInt32())
       case _: LowerBoundOnOrderedCollection => PInt32()
@@ -86,12 +87,17 @@ object InferPType {
         query.pType
       case ArrayLeftJoinDistinct(left, right, l, r, compare, join) =>
         PArray(join.pType)
+      case NDArrayRef(nd, idxs) =>
+        coerce[PNDArray](nd.pType).elementType.setRequired(nd.pType.required && 
+          idxs.pType.required &&
+          coerce[PArray](idxs.pType).elementType.required)
       case AggFilter(_, aggIR) =>
         aggIR.pType
       case AggExplode(array, name, aggBody) =>
         aggBody.pType
       case AggGroupBy(key, aggIR) =>
         PDict(PType.canonical(key.pType), aggIR.pType)
+      case AggArrayPerElement(a, name, aggBody) => PArray(aggBody.pType)
       case ApplyAggOp(_, _, _, aggSig) =>
         PType.canonical(AggOp.getType(aggSig))
       case ApplyScanOp(_, _, _, aggSig) =>

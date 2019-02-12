@@ -5,6 +5,7 @@ import unittest
 
 import hail as hl
 import hail.expr.aggregators as agg
+from hail.utils.java import Env
 from hail.utils.misc import new_temp_file
 from ..helpers import *
 
@@ -71,6 +72,26 @@ class Tests(unittest.TestCase):
         for x, t, f in data:
             self.assertTrue(f(hl.eval(mt.annotate_globals(foo=hl.literal(x, t)).foo), x), f"{x}, {t}")
             self.assertTrue(f(hl.eval(ht.annotate_globals(foo=hl.literal(x, t)).foo), x), f"{x}, {t}")
+
+    def test_head(self):
+        # no empty partitions
+        mt1 = hl.utils.range_matrix_table(10, 10)
+
+        # empty partitions at front
+        mt2 = hl.utils.range_matrix_table(20, 10, 20)
+        mt2 = mt2.filter_rows(mt2.row_idx > 9)
+        mts = [mt1, mt2]
+
+        for mt in mts:
+            tmp_file = new_temp_file(suffix='mt')
+
+            mt.write(tmp_file)
+            mt_readback = hl.read_matrix_table(tmp_file)
+            for mt_ in [mt, mt_readback]:
+                assert mt_.head(1).count_rows() == 1
+                assert mt_.head(1)._force_count_rows() == 1
+                assert mt_.head(100).count_rows() == 10
+                assert mt_.head(100)._force_count_rows() == 10
 
     def test_filter(self):
         vds = self.get_vds()
@@ -370,6 +391,9 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(r1._same(r2))
 
+        with self.assertRaises(ValueError):
+            ds1.filter_cols(ds1.s.endswith('5')).union_rows(ds2)
+
         # test union_cols
         ds = dataset.union_cols(dataset).union_cols(dataset)
         for s, count in ds.aggregate_cols(agg.counter(ds.s)).items():
@@ -602,7 +626,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(ds.globals_table()._same(t))
 
     def test_codecs_matrix(self):
-        from hail.utils.java import Env, scala_object
+        from hail.utils.java import scala_object
         codecs = scala_object(Env.hail().io, 'CodecSpec').codecSpecs()
         ds = self.get_vds()
         temp = new_temp_file(suffix='hmt')
@@ -612,7 +636,7 @@ class Tests(unittest.TestCase):
             self.assertTrue(ds._same(ds2))
 
     def test_codecs_table(self):
-        from hail.utils.java import Env, scala_object
+        from hail.utils.java import scala_object
         codecs = scala_object(Env.hail().io, 'CodecSpec').codecSpecs()
         rt = self.get_vds().rows()
         temp = new_temp_file(suffix='ht')
@@ -1043,3 +1067,35 @@ class Tests(unittest.TestCase):
                  ]
         for aggregation, expected in tests:
             self.assertEqual(t.select_rows(result = aggregation).result.collect()[0], expected)
+
+    def localize_entries_with_both_none_is_rows_table(self):
+        mt = hl.utils.range_matrix_table(10, 10)
+        mt = mt.select_entries(x = mt.row_idx * mt.col_idx)
+        localized = mt.localize_entries(entries_array_field_name=None,
+                                        columns_array_field_name=None)
+        rows_table = mt.rows()
+        assert rows_table.collect() == localized.collect()
+        assert rows_table.globals_table().collect() == localized.globals_table().collect()
+
+    def localize_entries_with_none_cols_adds_no_globals(self):
+        mt = hl.utils.range_matrix_table(10, 10)
+        mt = mt.select_entries(x = mt.row_idx * mt.col_idx)
+        localized = mt.localize_entries(entries_array_field_name=Env.get_uid(),
+                                        columns_array_field_name=None)
+        assert mt.globals_table().collect() == localized.globals_table().collect()
+
+    def localize_entries_with_none_entries_changes_no_rows(self):
+        mt = hl.utils.range_matrix_table(10, 10)
+        mt = mt.select_entries(x = mt.row_idx * mt.col_idx)
+        localized = mt.localize_entries(entries_array_field_name=None,
+                                        columns_array_field_name=Env.get_uid())
+        rows_table = mt.rows()
+        assert rows_table.collect() == localized.collect()
+
+    def localize_entries_creates_arrays_of_entries_and_array_of_cols(self):
+        mt = hl.utils.range_matrix_table(10, 10)
+        mt = mt.select_entries(x = mt.row_idx * mt.col_idx)
+        localized = mt.localize_entries(entries_array_field_name='entries',
+                                        columns_array_field_name='cols')
+        assert [[x * y for x in range(0, 10)] for y in range(0, 10)] == localized.entries.collect()
+        assert range(0, 10) == localized.cols.collect()

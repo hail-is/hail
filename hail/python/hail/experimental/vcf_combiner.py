@@ -3,7 +3,9 @@
 import hail as hl
 from hail.matrixtable import MatrixTable
 from hail.expr import ArrayExpression, StructExpression
+from hail.expr.expressions import expr_call, expr_array, expr_int32
 from hail.ir.matrix_ir import MatrixKeyRowsBy
+from hail.typecheck import typecheck
 
 
 def transform_one(mt: MatrixTable) -> MatrixTable:
@@ -21,7 +23,8 @@ def transform_one(mt: MatrixTable) -> MatrixTable:
     )
     mt = mt.annotate_rows(
         info=mt.info.annotate(
-            SB=hl.agg.array_sum(mt.entry.SB)
+            DP=hl.agg.sum(mt.entry.DP),
+            SB=hl.agg.array_sum(mt.entry.SB),
         ).select(
             "DP",
             "MQ_DP",
@@ -30,7 +33,7 @@ def transform_one(mt: MatrixTable) -> MatrixTable:
             "VarDP",
             "SB",
         ))
-    mt = mt.drop('SB', 'qual')
+    mt = mt.drop('SB', 'qual', 'filters')
 
     return mt
 
@@ -49,7 +52,6 @@ def combine(ts):
     tmp = ts.annotate(
         alleles=merge_alleles(ts.data.map(lambda d: d.alleles)),
         rsid=hl.find(hl.is_defined, ts.data.map(lambda d: d.rsid)),
-        filters=hl.set(hl.flatten(ts.data.map(lambda d: hl.array(d.filters)))),
         info=hl.struct(
             DP=hl.sum(ts.data.map(lambda d: d.info.DP)),
             MQ_DP=hl.sum(ts.data.map(lambda d: d.info.MQ_DP)),
@@ -120,6 +122,40 @@ def combine_gvcfs(mts):
             ['locus', 'alleles'],
             is_sorted=True))
 
+
+@typecheck(lgt=expr_call, la=expr_array(expr_int32))
+def lgt_to_gt(lgt, la):
+    """A method for transforming Local GT and Local Alleles into the true GT"""
+    one = hl.cond(lgt[0] == 0, 0, la[lgt[0] - 1] + 1)
+    two = hl.cond(lgt[1] == 0, 0, la[lgt[1] - 1] + 1)
+    return hl.call(one, two)
+
+
+def summarize(mt):
+    mt = hl.experimental.densify(mt)
+    return mt.annotate_rows(info=hl.rbind(
+        hl.agg.call_stats(lgt_to_gt(mt.GT, mt.LA), mt.alleles),
+        lambda gs: hl.struct(
+            # here, we alphabetize the INFO fields by GATK convention
+            AC=gs.AC,
+            AF=gs.AF,
+            AN=gs.AN,
+            BaseQRankSum=hl.median(hl.agg.collect(mt.entry.BaseQRankSum)),
+            ClippingRankSum=hl.median(hl.agg.collect(mt.entry.ClippingRankSum)),
+            DP=hl.agg.sum(mt.entry.DP),  # some DPs may have been missing during earlier combining operations
+            MQ=hl.median(hl.agg.collect(mt.entry.MQ)),
+            MQRankSum=hl.median(hl.agg.collect(mt.entry.MQRankSum)),
+            MQ_DP=mt.info.MQ_DP,
+            QUALapprox=mt.info.QUALapprox,
+            RAW_MQ=mt.info.RAW_MQ,
+            ReadPosRankSum=hl.median(hl.agg.collect(mt.entry.ReadPosRankSum)),
+            SB=mt.info.SB,
+            VarDP=mt.info.VarDP,
+        )))
+
+def finalize(mt):
+    return mt.drop('BaseQRankSum', 'ClippingRankSum', 'MQ', 'MQRankSum', 'ReadPosRankSum')
+
 # NOTE: these are just @chrisvittal's notes on how gVCF fields are combined
 #       some of it is copied from GenomicsDB's wiki.
 # always missing items include MQ, HaplotypeScore, InbreedingCoeff
@@ -168,3 +204,45 @@ def combine_gvcfs(mts):
 # ##INFO=<ID=RAW_MQ,Number=1,Type=Float>
 # ##INFO=<ID=ReadPosRankSum,Number=1,Type=Float>
 # ##INFO=<ID=VarDP,Number=1,Type=Integer>
+#
+# As of 2/8/19, the schema returned by the combiner is as follows:
+# ----------------------------------------
+# Global fields:
+#     None
+# ----------------------------------------
+# Column fields:
+#     's': str
+# ----------------------------------------
+# Row fields:
+#     'locus': locus<GRCh38>
+#     'alleles': array<str>
+#     'rsid': str
+#     'info': struct {
+#         DP: int64,
+#         MQ_DP: int32,
+#         QUALapprox: int32,
+#         RAW_MQ: float64,
+#         VarDP: int32,
+#         SB: array<int64>
+#     }
+# ----------------------------------------
+# Entry fields:
+#     'AD': array<int32>
+#     'DP': int32
+#     'GQ': int32
+#     'GT': call
+#     'MIN_DP': int32
+#     'PGT': call
+#     'PID': str
+#     'PL': array<int32>
+#     'LA': array<int32>
+#     'END': int32
+#     'BaseQRankSum': float64
+#     'ClippingRankSum': float64
+#     'MQ': float64
+#     'MQRankSum': float64
+#     'ReadPosRankSum': float64
+# ----------------------------------------
+# Column key: ['s']
+# Row key: ['locus', 'alleles']
+# ----------------------------------------

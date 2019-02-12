@@ -21,6 +21,7 @@ object InferType {
       case Ref(_, t) => t
       case In(_, t) => t
       case MakeArray(_, t) => t
+      case MakeNDArray(data, _, _) => TNDArray(data.typ.asInstanceOf[TArray].elementType)
       case _: ArrayLen => TInt32()
       case _: ArrayRange => TArray(TInt32())
       case _: LowerBoundOnOrderedCollection => TInt32()
@@ -91,12 +92,18 @@ object InferType {
         query.typ
       case ArrayLeftJoinDistinct(left, right, l, r, compare, join) =>
         TArray(join.typ)
+      case NDArrayRef(nd, idxs) =>
+        assert(idxs.typ.isOfType(TArray(TInt64())))
+        coerce[TNDArray](nd.typ).elementType.setRequired(nd.typ.required && 
+          idxs.typ.required && 
+          coerce[TArray](idxs.typ).elementType.required)
       case AggFilter(_, aggIR) =>
         aggIR.typ
       case AggExplode(array, name, aggBody) =>
         aggBody.typ
       case AggGroupBy(key, aggIR) =>
         TDict(key.typ, aggIR.typ)
+      case AggArrayPerElement(a, name, aggBody) => TArray(aggBody.typ)
       case ApplyAggOp(_, _, _, aggSig) =>
         AggOp.getType(aggSig)
       case ApplyScanOp(_, _, _, aggSig) =>

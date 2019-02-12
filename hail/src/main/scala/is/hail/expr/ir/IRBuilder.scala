@@ -89,6 +89,9 @@ object IRBuilder {
         .map(Symbol(uid) ~> makeTuple(Symbol(uid).selectFields(keyFields: _*), Symbol(uid).selectFields(valueFields: _*)))
         .toDict
     }
+
+    def aggregate(ir: IRProxy): IRProxy =
+      TableAggregate(tir, ir(env))
   }
 
   class IRProxy(val ir: E => IR) extends AnyVal with Dynamic {
@@ -128,11 +131,13 @@ object IRBuilder {
     def selectFields(fields: String*): IRProxy = (env: E) =>
       SelectFields(ir(env), fields)
 
-    def dropFields(fields: Symbol*): IRProxy = (env: E) => {
+    def dropFieldList(fields: Seq[String]): IRProxy = (env: E) => {
       val struct = ir(env)
       val typ = struct.typ.asInstanceOf[TStruct]
-      SelectFields(struct, typ.fieldNames.diff(fields.map(_.name)))
+      SelectFields(struct, typ.fieldNames.diff(fields))
     }
+
+    def dropFields(fields: Symbol*): IRProxy = dropFieldList(fields.map(_.name))
 
     def len: IRProxy = (env: E) => ArrayLen(ir(env))
 
@@ -175,6 +180,16 @@ object IRBuilder {
     def toDict: IRProxy = (env: E) => ToDict(ir(env))
 
     def parallelize(nPartitions: Option[Int] = None): TableIR = TableParallelize(ir(Env.empty), nPartitions)
+
+    def arrayStructToDict(fields: IndexedSeq[String]): IRProxy = {
+      val element = Symbol(genUID())
+      ir
+        .map(element ~>
+          makeTuple(
+            element.selectFields(fields: _*),
+            element.dropFieldList(fields)))
+        .toDict
+    }
 
     private[ir] def apply(env: E): IR = ir(env)
   }

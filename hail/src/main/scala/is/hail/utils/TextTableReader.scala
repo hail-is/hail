@@ -325,11 +325,11 @@ object TextTableReader {
 case class TextTableReader(options: TextTableReaderOptions) extends TableReader {
   val partitionCounts: Option[IndexedSeq[Long]] = None
 
-  private val metadata = TextTableReader.readMetadata(options)
+  private lazy val metadata = TextTableReader.readMetadata(options)
 
-  val fullType: TableType = metadata.fullType
+  lazy val fullType: TableType = metadata.fullType
 
-  val fullRVDType: RVDType = fullType.canonicalRVDType
+  lazy val fullRVDType: RVDType = fullType.canonicalRVDType
 
   def apply(tr: TableRead): TableValue = {
     HailContext.maybeGZipAsBGZip(options.forceBGZ) {

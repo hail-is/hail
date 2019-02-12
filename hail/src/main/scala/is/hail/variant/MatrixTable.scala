@@ -796,49 +796,4 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   def write(path: String, overwrite: Boolean = false, stageLocally: Boolean = false, codecSpecJSONStr: String = null) {
     ir.Interpret(ir.MatrixWrite(ast, MatrixNativeWriter(path, overwrite, stageLocally, codecSpecJSONStr)))
   }
-
-  def toRowMatrix(entryField: String): RowMatrix = {
-    val partCounts = partitionCounts()
-    val partStarts = partCounts.scanLeft(0L)(_ + _) // FIXME: use partitionStarts once partitionCounts is durable
-    assert(partStarts.length == rvd.getNumPartitions + 1)
-    val partStartsBc = sparkContext.broadcast(partStarts)
-
-    val rvRowType = matrixType.rvRowType.physicalType
-    val entryArrayType = matrixType.entryArrayType.physicalType
-    val entryType = matrixType.entryType.physicalType
-    val fieldType = entryType.field(entryField).typ
-
-    assert(fieldType.virtualType.isOfType(TFloat64()))
-
-    val entryArrayIdx = matrixType.entriesIdx
-    val fieldIdx = entryType.fieldIdx(entryField)
-    val numColsLocal = numCols
-
-    val rows = rvd.mapPartitionsWithIndex { (pi, it) =>
-      var i = partStartsBc.value(pi)
-      it.map { rv =>
-        val region = rv.region
-        val data = new Array[Double](numColsLocal)
-        val entryArrayOffset = rvRowType.loadField(rv, entryArrayIdx)
-        var j = 0
-        while (j < numColsLocal) {
-          if (entryArrayType.isElementDefined(region, entryArrayOffset, j)) {
-            val entryOffset = entryArrayType.loadElement(region, entryArrayOffset, j)
-            if (entryType.isFieldDefined(region, entryOffset, fieldIdx)) {
-              val fieldOffset = entryType.loadField(region, entryOffset, fieldIdx)
-              data(j) = region.loadDouble(fieldOffset)
-            } else
-              fatal(s"Cannot create RowMatrix: missing value at row $i and col $j")
-          } else
-            fatal(s"Cannot create RowMatrix: missing entry at row $i and col $j")
-          j += 1
-        }
-        val row = (i, data)
-        i += 1
-        row
-      }
-    }
-
-    new RowMatrix(hc, rows, numCols, Some(partStarts.last), Some(partCounts))
-  }
 }

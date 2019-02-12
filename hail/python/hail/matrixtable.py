@@ -1353,12 +1353,12 @@ class MatrixTable(ExprContainer):
 
         Notes
         -----
-
-        The expression `expr` will be evaluated for every row of the table. If `keep`
-        is ``True``, then rows where `expr` evaluates to ``False`` will be removed (the
-        filter keeps the rows where the predicate evaluates to ``True``). If `keep` is
-        ``False``, then rows where `expr` evaluates to ``False`` will be removed (the
-        filter removes the rows where the predicate evaluates to ``True``).
+        The expression `expr` will be evaluated for every row of the table. If
+        `keep` is ``True``, then rows where `expr` evaluates to ``True`` will be
+        kept (the filter removes the rows where the predicate evaluates to
+        ``False``). If `keep` is ``False``, then rows where `expr` evaluates to
+        ``True`` will be removed (the filter keeps the rows where the predicate
+        evaluates to ``False``).
 
         Warning
         -------
@@ -1424,13 +1424,12 @@ class MatrixTable(ExprContainer):
 
         Notes
         -----
-
-        The expression `expr` will be evaluated for every column of the table. If
-        `keep` is ``True``, then columns where `expr` evaluates to ``False`` will be
-        removed (the filter keeps the columns where the predicate evaluates to
-        ``True``). If `keep` is ``False``, then columns where `expr` evaluates to
-        ``False`` will be removed (the filter removes the columns where the predicate
-        evaluates to ``True``).
+        The expression `expr` will be evaluated for every column of the table.
+        If `keep` is ``True``, then columns where `expr` evaluates to ``True``
+        will be kept (the filter removes the columns where the predicate
+        evaluates to ``False``). If `keep` is ``False``, then columns where
+        `expr` evaluates to ``True`` will be removed (the filter keeps the
+        columns where the predicate evaluates to ``False``).
 
         Warning
         -------
@@ -1483,13 +1482,12 @@ class MatrixTable(ExprContainer):
 
         Notes
         -----
-
-        The expression `expr` will be evaluated for every entry of the table. If
-        `keep` is ``True``, then entries where `expr` evaluates to ``False`` will be
-        removed (the filter keeps the entries where the predicate evaluates to
-        ``True``). If `keep` is ``False``, then entries where `expr` evaluates to
-        ``False`` will be removed (the filter removes the entries where the predicate
-        evaluates to ``True``).
+        The expression `expr` will be evaluated for every entry of the table.
+        If `keep` is ``True``, then entries where `expr` evaluates to ``True``
+        will be kept (the filter removes the entries where the predicate
+        evaluates to ``False``). If `keep` is ``False``, then entries where
+        `expr` evaluates to ``True`` will be removed (the filter keeps the
+        entries where the predicate evaluates to ``False``).
 
         Note
         ----
@@ -2533,6 +2531,92 @@ class MatrixTable(ExprContainer):
         return Table(CastMatrixToTable(
             self._mir, entries_field_name, cols_field_name))
 
+    @typecheck_method(entries_array_field_name=nullable(str),
+                      columns_array_field_name=nullable(str))
+    def localize_entries(self,
+                         entries_array_field_name=None,
+                         columns_array_field_name=None) -> 'Table':
+        """Convert the matrix table to a table with entries localized as an array of structs.
+
+        Examples
+        --------
+        Build a numpy ndarray from a small :class:`.MatrixTable`:
+
+        >>> mt = hl.utils.range_matrix_table(3,3)
+        >>> mt = mt.select_entries(x = mt.row_idx * mt.col_idx)
+        >>> mt.x.show()
+        +---------+---------+-------+
+        | row_idx | col_idx |     x |
+        +---------+---------+-------+
+        |   int32 |   int32 | int32 |
+        +---------+---------+-------+
+        |       0 |       0 |     0 |
+        |       0 |       1 |     0 |
+        |       0 |       2 |     0 |
+        |       1 |       0 |     0 |
+        |       1 |       1 |     1 |
+        |       1 |       2 |     2 |
+        |       2 |       0 |     0 |
+        |       2 |       1 |     2 |
+        |       2 |       2 |     4 |
+        +---------+---------+-------+
+
+        >>> t = mt.localize_entries('entry_structs', 'columns')
+        >>> t.describe()
+        ----------------------------------------
+        Global fields:
+            'columns': array<struct {
+                col_idx: int32
+            }> 
+        ----------------------------------------
+        Row fields:
+            'row_idx': int32 
+            'entry_structs': array<struct {
+                x: int32
+            }> 
+        ----------------------------------------
+        Key: ['row_idx']
+        ----------------------------------------
+
+        >>> t = t.select(entries = t.entry_structs.map(lambda entry: entry.x))
+        >>> import numpy as np
+        >>> np.array(t.entries.collect())
+        array([[0, 0, 0],
+               [0, 1, 2],
+               [0, 2, 4]])
+
+        Notes
+        -----
+        Both of the added fields are arrays of length equal to
+        ``mt.count_cols()``. Missing entries are represented as missing structs
+        in the entries array.
+
+        Parameters
+        ----------
+        entries_array_field_name : :obj:`str`
+            The name of the table field containing the array of entry structs
+            for the given row.
+        columns_array_field_name : :obj:`str`
+            The name of the global field containing the array of column
+            structs.
+
+        Returns
+        -------
+        :class:`.Table`
+            A table whose fields are the row fields of this matrix table plus
+            one field named ``entries_array_field_name``. The global fields of
+            this table are the global fields of this matrix table plus one field
+            named ``columns_array_field_name``.
+        """
+        entries = entries_array_field_name or Env.get_uid()
+        cols = columns_array_field_name or Env.get_uid()
+        t = self._localize_entries(entries, cols)
+        if entries_array_field_name is None:
+            t = t.drop(entries)
+        if columns_array_field_name is None:
+            t = t.drop(cols)
+        return t
+
     def _unfilter_entries(self):
         entry_ir = hl.cond(hl.is_defined(self.entry), self.entry, hl.struct(**self.entry))._ir
         return MatrixTable(MatrixMapEntries(self._mir, entry_ir))
@@ -2632,13 +2716,13 @@ class MatrixTable(ExprContainer):
         if len(self.globals) == 0:
             global_fields = '\n    None'
         else:
-            global_fields = ''.join("\n    '{name}': {type} ".format(
+            global_fields = ''.join("\n    '{name}': {type}".format(
                 name=f, type=format_type(t)) for f, t in self.globals.dtype.items())
 
         if len(self.row) == 0:
             row_fields = '\n    None'
         else:
-            row_fields = ''.join("\n    '{name}': {type} ".format(
+            row_fields = ''.join("\n    '{name}': {type}".format(
                 name=f, type=format_type(t)) for f, t in self.row.dtype.items())
 
         row_key = '[' + ', '.join("'{name}'".format(name=f) for f in self.row_key) + ']' \
@@ -2647,7 +2731,7 @@ class MatrixTable(ExprContainer):
         if len(self.col) == 0:
             col_fields = '\n    None'
         else:
-            col_fields = ''.join("\n    '{name}': {type} ".format(
+            col_fields = ''.join("\n    '{name}': {type}".format(
                 name=f, type=format_type(t)) for f, t in self.col.dtype.items())
 
         col_key = '[' + ', '.join("'{name}'".format(name=f) for f in self.col_key) + ']' \
@@ -2656,7 +2740,7 @@ class MatrixTable(ExprContainer):
         if len(self.entry) == 0:
             entry_fields = '\n    None'
         else:
-            entry_fields = ''.join("\n    '{name}': {type} ".format(
+            entry_fields = ''.join("\n    '{name}': {type}".format(
                 name=f, type=format_type(t)) for f, t in self.entry.dtype.items())
 
         s = '----------------------------------------\n' \
@@ -3067,6 +3151,12 @@ class MatrixTable(ExprContainer):
                     raise ValueError(error_msg.format(
                         "col key types", 0, first.col_key.dtype, i+1, next.col_key.dtype
                     ))
+            wrong_keys = hl.eval(hl.rbind(first.col_key.collect(_localize=False), lambda first_keys: (
+                hl.zip_with_index([mt.col_key.collect(_localize=False) for mt in datasets[1:]])
+                    .find(lambda x: ~(x[1] == first_keys))[0])))
+            if wrong_keys is not None:
+                raise ValueError("'MatrixTable.union_rows' expects all datasets to have the same columns. " +
+                                 "Datasets 0 and {} have different columns (or possibly different order).".format(wrong_keys+1))
             return MatrixTable(MatrixUnionRows(*[d._mir for d in datasets]))
 
     @typecheck_method(other=matrix_table_type)
@@ -3108,26 +3198,22 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
             Dataset with columns from both datasets.
         """
-        if self._entry_type != other._entry_type:
-            raise ValueError('\n'.join(
-                "entry types differ",
-                f"  left: {self._entry_type}",
-                f"  right: {other.entry_type}"))
-        if self._col_type != other._col_type:
-            raise ValueError("\n".join(
-                "column types differ",
-                f"  left: {self._col_type}",
-                f"  right: {other.col_type}"))
-        if list(self._col_key_types) != list(other._col_key_types):
-            raise ValueError("\n".join(
-                "column key types differ",
-                f"  left: {', '.join(self._col_key_types)}",
-                f"  right: {', '.join(other._col_key_types)}"))
-        if list(self._row_key_types) != list(other._row_key_types):
-            raise ValueError("\n".join(
-                "row key types differ",
-                f"  left: {', '.join(self._row_key_types)}",
-                f"  right: {', '.join(other._row_key_types)}"))
+        if self.entry.dtype != other.entry.dtype:
+            raise ValueError(f'entry types differ:\n'
+                             f'    left: {self.entry.dtype}\n'
+                             f'    right: {other.entry.dtype}')
+        if self.col.dtype != other.col.dtype:
+            raise ValueError(f'column types differ:\n'
+                             f'    left: {self.col.dtype}\n'
+                             f'    right: {other.col.dtype}')
+        if self.col_key.keys() != other.col_key.keys():
+            raise ValueError(f'column key fields differ:\n'
+                             f'    left: {", ".join(self.col_key.keys())}\n'
+                             f'    right: {", ".join(other.col_key.keys())}')
+        if list(self.row_key.dtype.values()) != list(other.row_key.dtype.values()):
+            raise ValueError(f'row key types differ:\n'
+                             f'    left: {", ".join(self.row_key.dtype.values())}\n'
+                             f'    right: {", ".join(other.row_key.dtype.values())}')
         
         return MatrixTable(MatrixUnionCols(self._mir, other._mir))
 
@@ -3159,8 +3245,9 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
             Matrix including the first `n` rows.
         """
-
-        return MatrixTable._from_java(self._jmt.head(n))
+        if n < 0:
+            raise ValueError(f"MatrixTable.head: expect 'n' to be non-negative, found '{n}'")
+        return MatrixTable(MatrixRowsHead(self._mir, n))
 
     @typecheck_method(parts=sequenceof(int), keep=bool)
     def _filter_partitions(self, parts, keep=True) -> 'MatrixTable':

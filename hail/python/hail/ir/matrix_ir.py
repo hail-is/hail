@@ -351,6 +351,19 @@ class MatrixDistinctByRow(MatrixIR):
         self._type = self.child.typ
 
 
+class MatrixRowsHead(MatrixIR):
+    def __init__(self, child, n):
+        super().__init__()
+        self.child = child
+        self.n = n
+
+    def render(self, r):
+        return f'(MatrixRowsHead {self.n} {r(self.child)})'
+
+    def _compute_type(self):
+        self._type = self.child.typ
+
+
 class MatrixExplodeCols(MatrixIR):
     def __init__(self, child, path):
         super().__init__()

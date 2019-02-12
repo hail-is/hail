@@ -1,4 +1,6 @@
 import os
+import time
+import re
 import unittest
 import batch
 from flask import Flask, Response, request
@@ -22,6 +24,26 @@ class Test(unittest.TestCase):
         self.assertEqual(j.log(), 'test\n')
 
         self.assertTrue(j.is_complete())
+
+    def test_create_fails_for_closed_batch(self):
+        b = self.batch.create_batch()
+        b.close()
+        try:
+            b.create_job('alpine', ['echo', 'test'])
+        except requests.exceptions.HTTPError as err:
+            assert err.response.status_code == 400
+            assert re.search('.*invalid request: batch_id [0-9]+ is closed', err.response.text)
+            return
+        assert False
+
+    def test_batch_ttl(self):
+        b = self.batch.create_batch(ttl=1)
+        t = 1
+        while b.status()['is_open']:
+            if t > 64:
+                assert False, "took more than 128 seconds to close a batch with ttl 1"
+            time.sleep(t)
+            t = t * 2
 
     def test_attributes(self):
         a = {

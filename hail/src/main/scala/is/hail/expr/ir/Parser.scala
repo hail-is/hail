@@ -587,6 +587,15 @@ object IRParser {
         val a = ir_value_expr(env)(it)
         val ascending = ir_value_expr(env)(it)
         ArraySort(a, ascending, onKey)
+      case "MakeNDArray" =>
+        val data = ir_value_expr(env)(it)
+        val shape = ir_value_expr(env)(it)
+        val row_major = ir_value_expr(env)(it)
+        MakeNDArray(data, shape, row_major)
+      case "NDArrayRef" =>
+        val nd = ir_value_expr(env)(it)
+        val idxs = ir_value_expr(env)(it)
+        NDArrayRef(nd, idxs)
       case "ToSet" => ToSet(ir_value_expr(env)(it))
       case "ToDict" => ToDict(ir_value_expr(env)(it))
       case "ToArray" => ToArray(ir_value_expr(env)(it))
@@ -660,6 +669,11 @@ object IRParser {
         val key = ir_value_expr(env)(it)
         val aggIR = ir_value_expr(env)(it)
         AggGroupBy(key, aggIR)
+      case "AggArrayPerElement" =>
+        val name = identifier(it)
+        val a = ir_value_expr(env)(it)
+        val aggBody = ir_value_expr(env + (name -> coerce[TArray](a.typ).elementType))(it)
+        AggArrayPerElement(a, name, aggBody)
       case "ApplyAggOp" =>
         val aggOp = agg_op(it)
         val ctorArgs = ir_value_exprs(env)(it)
@@ -763,12 +777,13 @@ object IRParser {
         val child = matrix_ir(env)(it)
         MatrixToValueApply(child, RelationalFunctions.lookupMatrixToValue(config))
       case "TableExport" =>
-        val child = table_ir(env.withRefMap(Map.empty))(it)
         val path = string_literal(it)
         val typesFile = opt(it, string_literal).orNull
         val header = boolean_literal(it)
         val exportType = int32_literal(it)
-        TableExport(child, path, typesFile, header, exportType)
+        val delimiter = string_literal(it)
+        val child = table_ir(env.withRefMap(Map.empty))(it)
+        TableExport(child, path, typesFile, header, exportType, delimiter)
       case "TableWrite" =>
         val path = string_literal(it)
         val overwrite = boolean_literal(it)
@@ -1082,6 +1097,10 @@ object IRParser {
       case "MatrixDistinctByRow" =>
         val child = matrix_ir(env)(it)
         MatrixDistinctByRow(child)
+      case "MatrixRowsHead" =>
+        val n = int64_literal(it)
+        val child = matrix_ir(env)(it)
+        MatrixRowsHead(child, n)
       case "CastTableToMatrix" =>
         val entriesField = identifier(it)
         val colsField = identifier(it)

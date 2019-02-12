@@ -1491,12 +1491,19 @@ def pca(entry_expr, k=10, compute_loadings=False) -> Tuple[List[float], Table, T
         mt = mt.select_entries(**{field: entry_expr})
     mt = mt.select_cols().select_rows().select_globals()
 
-    r = Env.hail().methods.PCA.apply(mt._jmt, field, k, compute_loadings)
-    scores = Table._from_java(Env.hail().methods.PCA.scoresTable(mt._jmt, r._2()))
-    loadings = from_option(r._3())
-    if loadings:
-        loadings = Table._from_java(loadings)
-    return jiterable_to_list(r._1()), scores, loadings
+    t = (Table(MatrixToTableApply(mt._mir, {
+        'name': 'PCA',
+        'entryField': field,
+        'k': k,
+        'computeLoadings': compute_loadings
+    }))
+         .cache())
+
+    g = t.index_globals()
+    scores = hl.Table.parallelize(g.scores, key=list(mt.col_key))
+    if not compute_loadings:
+        t = None
+    return hl.eval(g.eigenvalues), scores, t
 
 
 @typecheck(call_expr=expr_call,
@@ -1774,7 +1781,7 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
     mt = matrix_table_source('pc_relate/call_expr', call_expr)
 
     if k and scores_expr is None:
-        _, scores, _ = hwe_normalized_pca(mt.GT, k, compute_loadings=False)
+        _, scores, _ = hwe_normalized_pca(call_expr, k, compute_loadings=False)
         scores_expr = scores[mt.col_key].scores
     elif not k and scores_expr is not None:
         analyze('pc_relate/scores_expr', scores_expr, mt._col_indices)
@@ -2594,7 +2601,7 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
                           pop_dist=None, fst=None, af_dist=hl.rand_unif(0.1, 0.9, seed=0),
                           reference_genome='default', mixture=False) -> MatrixTable:
     r"""Generate a matrix table of variants, samples, and genotypes using the
-    Balding-Nichols model.
+    Balding-Nichols or Pritchard-Stephens-Donnelly model.
 
     Examples
     --------
@@ -2615,8 +2622,8 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
     ...          fst=[.02, .06, .04, .12],
     ...          af_dist=hl.rand_beta(a=0.01, b=2.0, lower=0.05, upper=1.0))
 
-    Note that in order to guarantee reproducibility, the hail global seed is set
-    with :func:`.set_global_seed` immediately prior to generating the dataset.
+    To guarantee reproducibility, we set the Hail global seed with
+    :func:`.set_global_seed` immediately prior to generating the dataset.
 
     Notes
     -----
@@ -2703,6 +2710,12 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
 
     - `GT` (:py:data:`.tcall`) -- Genotype call (diploid, unphased).
 
+    For the `Pritchard-Stephens-Donnelly model <http://www.genetics.org/content/155/2/945.long>`__,
+    set the `mixture` to true to treat `pop_dist` as the parameters of the
+    Dirichlet distribution describing admixture between the modern populations.
+    In this case, the type of `pop` is :class:`.tarray` of
+    :py:data:`.tfloat64` and the value is the mixture proportions.
+
     Parameters
     ----------
     n_populations : :obj:`int`
@@ -2728,10 +2741,7 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
         Reference genome to use.
     mixture : :obj:`bool`
         Treat `pop_dist` as the parameters of a Dirichlet distribution,
-        as in the Prichard-Stevens-Donnelly model. This feature is
-        EXPERIMENTAL and currently undocumented and untested.
-        If ``True``, the type of `pop` is :class:`.tarray` of
-        :py:data:`.tfloat64` and the value is the mixture proportions.
+        as in the Prichard-Stevens-Donnelly model.
 
     Returns
     -------

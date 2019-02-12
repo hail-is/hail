@@ -548,6 +548,64 @@ class ArrayRange(IR):
         self._type = tarray(tint32)
 
 
+class MakeNDArray(IR):
+    @typecheck_method(data=IR, shape=IR, row_major=IR)
+    def __init__(self, data, shape, row_major):
+        super().__init__(data, shape, row_major)
+        self.data = data
+        self.shape = shape
+        self.row_major = row_major
+
+    @typecheck_method(data=IR, shape=IR, row_major=IR)
+    def copy(self, data, shape, row_major):
+        new_instance = self.__class__
+        return new_instance(data, shape, row_major)
+
+    def render(self, r):
+        return '(MakeNDArray {} {} {})'.format(
+            r(self.data),
+            r(self.shape),
+            r(self.row_major))
+
+    def __eq__(self, other):
+        return isinstance(other, MakeNDArray) and \
+               other.data == self.data and \
+               other.shape == self.shape and \
+               other.row_major == self.row_major
+
+    def _compute_type(self, env, agg_env):
+        self.data._compute_type(env, agg_env)
+        self.shape._compute_type(env, agg_env)
+        self.row_major._compute_type(env, agg_env)
+        self._type = tndarray(self.data.typ.element_type)
+
+
+class NDArrayRef(IR):
+    @typecheck_method(nd=IR, idxs=IR)
+    def __init__(self, nd, idxs):
+        super().__init__(nd, idxs)
+        self.nd = nd
+        self.idxs = idxs
+
+    @typecheck_method(nd=IR, idxs=IR)
+    def copy(self, nd, idxs):
+        new_instance = self.__class__
+        return new_instance(nd, idxs)
+
+    def render(self, r):
+        return '(NDArrayRef {} {})'.format(r(self.nd), r(self.idxs))
+
+    def __eq__(self, other):
+        return isinstance(other, NDArrayRef) and \
+               other.nd == self.nd and \
+               other.idxs == self.idxs
+
+    def _compute_type(self, env, agg_env):
+        self.nd._compute_type(env, agg_env)
+        self.idxs._compute_type(env, agg_env)
+        self._type = self.nd.typ.element_type
+
+
 class ArraySort(IR):
     @typecheck_method(a=IR, ascending=IR, on_key=bool)
     def __init__(self, a, ascending, on_key):
@@ -1022,6 +1080,38 @@ class AggGroupBy(IR):
         self.key._compute_type(agg_env, None)
         self.agg_ir._compute_type(env, agg_env)
         self._type = tdict(self.key.typ, self.agg_ir.typ)
+
+class AggArrayPerElement(IR):
+    @typecheck_method(array=IR, name=str, agg_ir=IR)
+    def __init__(self, array, name, agg_ir):
+        super().__init__(array, agg_ir)
+        self.array = array
+        self.name = name
+        self.agg_ir = agg_ir
+
+    @typecheck_method(array=IR, agg_ir=IR)
+    def copy(self, array, agg_ir):
+        new_instance = self.__class__
+        return new_instance(array, self.name, agg_ir)
+
+    def render(self, r):
+        return '(AggArrayPerElement {} {} {})'.format(escape_id(self.name), r(self.array), r(self.agg_ir))
+
+    def __eq__(self, other):
+        return isinstance(other, AggArrayPerElement) and \
+               other.array == self.array and \
+               other.name == self.name and \
+               other.agg_ir == self.agg_ir
+
+    def _compute_type(self, env, agg_env):
+        self.array._compute_type(agg_env, None)
+        self.agg_ir._compute_type(env, _env_bind(agg_env, self.name, self.array.typ.element_type))
+        self._type = tarray(self.agg_ir.typ)
+
+    @property
+    def bound_variables(self):
+        return {self.name} | super().bound_variables
+
 
 def _register(registry, name, f):
     if name in registry:
@@ -1699,27 +1789,31 @@ class TableExport(IR):
                       path=str,
                       types_file=nullable(str),
                       header=bool,
-                      export_type=int)
-    def __init__(self, child, path, types_file, header, export_type):
+                      export_type=int,
+                      delimiter=str)
+    def __init__(self, child, path, types_file, header, export_type, delimiter):
         super().__init__(child)
         self.child = child
         self.path = path
         self.types_file = types_file
         self.header = header
         self.export_type = export_type
+        self.delimiter = delimiter
 
     @typecheck_method(child=TableIR)
     def copy(self, child):
         new_instance = self.__class__
-        return new_instance(child, self.path, self.types_file, self.header, self.export_type)
+        return new_instance(child, self.path, self.types_file, self.header, self.export_type, self.delimiter)
 
     def render(self, r):
-        return '(TableExport {} "{}" "{}" {} {})'.format(
-            r(self.child),
+        return '(TableExport "{}" {} {} {} "{}" {})'.format(
             escape_str(self.path),
-            escape_str(self.types_file) if self.types_file else 'None',
+            f'"{escape_str(self.types_file)}"' if self.types_file else 'None',
             self.header,
-            self.export_type)
+            self.export_type,
+            escape_str(self.delimiter),
+            r(self.child)
+        )
 
     def __eq__(self, other):
         return isinstance(other, TableExport) and \
@@ -1727,7 +1821,8 @@ class TableExport(IR):
                other.path == self.path and \
                other.types_file == self.types_file and \
                other.header == self.header and \
-               other.export_type == self.export_type
+               other.export_type == self.export_type and \
+               other.delimiter == self.delimiter
 
     def _compute_type(self, env, agg_env):
         self.child._compute_type()
@@ -1861,6 +1956,8 @@ class MatrixToValueApply(IR):
         name = self.config['name']
         if name == 'ForceCountMatrixTable':
             self._type = tint64
+        elif name == 'MatrixExportEntriesByCol':
+            self._type = tvoid
         else:
             assert name == 'MatrixWriteBlockMatrix', name
             self._type = tvoid

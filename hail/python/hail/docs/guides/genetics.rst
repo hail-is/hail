@@ -84,12 +84,14 @@ Filter loci by a list of locus intervals
 From a table of intervals
 +++++++++++++++++++++++++
 
+:**tags**: genomic region, genomic range
+
 :**description**: Import a text file of locus intervals as a table, then use
                   this table to filter the loci in a matrix table.
 
 :**code**:
 
-    >>> interval_table = hl.import_locus_intervals('data/gene.interval_list')
+    >>> interval_table = hl.import_locus_intervals('data/gene.interval_list', reference_genome='GRCh37')
     >>> filtered_mt = mt.filter_rows(hl.is_defined(interval_table[mt.locus]))
 
 :**dependencies**: :func:`.import_locus_intervals`, :meth:`.MatrixTable.filter_rows`
@@ -116,22 +118,47 @@ From a table of intervals
             To do our filtering, we can filter to the rows of our matrix table where the
             struct expression ``interval_table[mt.locus]`` is defined.
 
-            This method will also work to filter a table of loci, instead of
-            a matrix table.
+            This method will also work to filter a table of loci, as well as a matrix
+            table.
 
-From a Python list
-++++++++++++++++++
+From a UCSC BED file
+++++++++++++++++++++
 
-:**description**: Filter loci in a matrix table using a list of intervals.
-                  Suitable for a small list of intervals.
-
-:**dependencies**: :func:`.filter_intervals`
+:**description**: Import a UCSC BED file as a table of intervals, then use this
+                  table to filter the loci in a matrix table.
 
 :**code**:
 
-    >>> interval_table = hl.import_locus_intervals('data/gene.interval_list')
-    >>> interval_list = [x.interval for x in interval_table.collect()]
-    >>> filtered_mt = hl.filter_intervals(mt, interval_list)
+    >>> interval_table = hl.import_bed('data/file1.bed', reference_genome='GRCh37')
+    >>> filtered_mt = mt.filter_rows(hl.is_defined(interval_table[mt.locus]))
+
+:**dependencies**: :func:`.import_bed`, :meth:`.MatrixTable.filter_rows`
+
+Using ``hl.filter_intervals``
++++++++++++++++++++++++++++++
+
+:**description**: Filter using an interval table, suitable for a small list of
+                  intervals.
+
+:**code**:
+
+    >>> filtered_mt = hl.filter_intervals(mt, interval_table['interval'].collect())
+
+:**dependencies**: :func:`.filter_intervals`
+
+Declaring intervals with ``hl.parse_locus_interval``
+++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+:**description**: Filter to declared intervals.
+
+:**code**:
+
+    >>> intervals = ['1:100M-200M', '16:29.1M-30.2M', 'X']
+    >>> filtered_mt = hl.filter_intervals(
+    ...     mt,
+    ...     [hl.parse_locus_interval(x, reference_genome='GRCh37') for x in intervals])
+
+:**dependencies**: :func:`.filter_intervals`, :func:`.parse_locus_interval`
 
 Pruning Variants in Linkage Disequilibrium
 ..........................................

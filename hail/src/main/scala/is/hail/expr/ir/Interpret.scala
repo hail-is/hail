@@ -512,6 +512,7 @@ object Interpret {
           interpret(aggIR, agg=Some(row, aggElementType))
         }
 
+      case x@AggArrayPerElement(a, name, aggBody) => ???
       case x@ApplyAggOp(constructorArgs, initOpArgs, seqOpArgs, aggSig) =>
         assert(AggOp.getType(aggSig) == x.typ)
 
@@ -779,10 +780,10 @@ object Interpret {
         val hc = HailContext.get
         val tableValue = child.execute(hc)
         tableValue.write(path, overwrite, stageLocally, codecSpecJSONStr)
-      case TableExport(child, path, typesFile, header, exportType) =>
+      case TableExport(child, path, typesFile, header, exportType, delimiter) =>
         val hc = HailContext.get
         val tableValue = child.execute(hc)
-        tableValue.export(path, typesFile, header, exportType)
+        tableValue.export(path, typesFile, header, exportType, delimiter)
       case BlockMatrixWrite(child, path, overwrite, forceRowMajor, stageLocally) =>
         val hc = HailContext.get
         val blockMatrix = child.execute(hc)

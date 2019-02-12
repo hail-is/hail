@@ -37,6 +37,8 @@ object Subst {
         AggExplode(subst(array, aggEnv), name, subst(aggBody, aggEnv.delete(name), aggEnv.delete(name)))
       case AggGroupBy(key, aggIR) =>
         AggGroupBy(subst(key, aggEnv), subst(aggIR, aggEnv))
+      case AggArrayPerElement(a, name, aggBody) =>
+        AggArrayPerElement(subst(a, aggEnv), name, subst(aggBody, aggEnv.delete(name), aggEnv.delete(name)))
       case ApplyAggOp(constructorArgs, initOpArgs, seqOpArgs, aggSig) =>
         val substConstructorArgs = constructorArgs.map(arg => MapIR(subst(_))(arg))
         val substInitOpArgs = initOpArgs.map(initOpArgs =>

@@ -63,3 +63,5 @@ def register_aggregators():
     register_aggregator('LinearRegression', (dtype('int32'), dtype('int32'),), None, (dtype('float64'), dtype('array<float64>'),), linreg_aggregator_type)
 
     register_aggregator('PearsonCorrelation', (), None, (dtype('tfloat64'), dtype('float64'),), dtype('float64'))
+
+    register_aggregator('PrevNonnull', (), None, (dtype('?in'),), dtype('?in'))

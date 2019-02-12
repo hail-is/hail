@@ -601,6 +601,8 @@ object PruneDeadFields {
         children.foreach(memoizeMatrixIR(_, requestedType, memo))
       case MatrixDistinctByRow(child) =>
         memoizeMatrixIR(child, requestedType, memo)
+      case MatrixRowsHead(child, n) =>
+        memoizeMatrixIR(child, requestedType, memo)
       case CastTableToMatrix(child, entriesFieldName, colsFieldName, _) =>
         val m = Map(MatrixType.entriesIdentifier -> entriesFieldName)
         val childDep = child.typ.copy(
@@ -778,6 +780,15 @@ object PruneDeadFields {
           bodyDep.delete(name),
           memoizeValueIR(a, aType.copy(elementType = valueType), memo)
         )
+      case AggArrayPerElement(a, name, aggBody) =>
+        val aType = a.typ.asInstanceOf[TArray]
+        val bodyDep = memoizeValueIR(aggBody,
+          requestedType.asInstanceOf[TArray].elementType,
+          memo)
+        val valueType = bodyDep.lookupOption(name).map(_._2).getOrElse(minimal(-aType.elementType))
+        unifyEnvs(
+          bodyDep.delete(name),
+          memoizeValueIR(a, aType.copy(elementType = valueType), memo))
       case MakeStruct(fields) =>
         val sType = requestedType.asInstanceOf[TStruct]
         unifyEnvsSeq(fields.flatMap { case (fname, fir) =>
@@ -1194,6 +1205,20 @@ object PruneDeadFields {
           val uid = genUID()
           val ref = Ref(uid, -ta.elementType)
           ArrayMap(ir, uid, upcast(ref, ra.elementType))
+        case tt: TTuple =>
+          val rt = rType.asInstanceOf[TTuple]
+          val uid = genUID()
+          val ref = Ref(uid, ir.typ)
+          val mt = MakeTuple(rt.types.zipWithIndex.map { case (typ, i) =>
+              upcast(GetTupleElement(ref, i), typ)
+          })
+          Let(uid, ir, mt)
+        case td: TDict =>
+          val rd = rType.asInstanceOf[TDict]
+          ToDict(upcast(ToArray(ir), TArray(rd.elementType)))
+        case ts: TSet =>
+          val rs = rType.asInstanceOf[TSet]
+          ToSet(upcast(ToArray(ir), TSet(rs.elementType)))
         case t => ir
       }
     }

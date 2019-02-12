@@ -2,19 +2,29 @@ import sys
 import os
 import time
 import random
+import sched
 import uuid
 from collections import Counter
 import logging
 import threading
-from flask import Flask, request, jsonify, abort
+from flask import Flask, request, jsonify, abort, render_template
 import kubernetes as kube
 import cerberus
 import requests
 
 from .globals import max_id, pod_name_job, job_id_job, _log_path, _read_file, batch_id_batch
-from .globals import next_id
+from .globals import next_id, get_recent_events, add_event
 
 from .. import schemas
+
+s = sched.scheduler()
+
+
+def schedule(ttl, fun, args=(), kwargs=None):
+    if kwargs is None:
+        kwargs = {}
+    s.enter(ttl, 1, fun, args, kwargs)
+
 
 if not os.path.exists('logs'):
     os.mkdir('logs')
@@ -142,6 +152,7 @@ class Job:
             spec=pod_spec)
 
         log.info('created job {}'.format(self.id))
+        add_event({'message': f'created job {self.id}', 'command': ' '.join(pod_spec.containers[0].command)})
 
         if not self.parent_ids:
             self._create_pod()
@@ -219,6 +230,9 @@ class Job:
             pod.metadata.name,
             POD_NAMESPACE,
             _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+
+        add_event({'message': f'job {self.id} exited', 'log': pod_log[:64000]})
+
         fname = _log_path(self.id)
         with open(fname, 'w') as f:
             f.write(pod_log)
@@ -268,7 +282,7 @@ app = Flask('batch')
 
 
 @app.route('/jobs/create', methods=['POST'])
-def create_job():
+def create_job():  # pylint: disable=R0912
     parameters = request.json
 
     schema = {
@@ -292,19 +306,27 @@ def create_job():
 
     batch_id = parameters.get('batch_id')
     if batch_id:
-        if batch_id not in batch_id_batch:
-            abort(404, 'valid request: batch_id {} not found'.format(batch_id))
+        batch = batch_id_batch.get(batch_id)
+        if batch is None:
+            abort(404, f'invalid request: batch_id {batch_id} not found')
+        if not batch.is_open:
+            abort(400, f'invalid request: batch_id {batch_id} is closed')
 
     parent_ids = parameters.get('parent_ids', [])
     for parent_id in parent_ids:
-        if parent_id not in job_id_job:
+        parent_job = job_id_job.get(parent_id, None)
+        if parent_job is None:
             abort(400, f'invalid parent_id: no job with id {parent_id}')
+        if parent_job.batch_id != batch_id or parent_job.batch_id is None or batch_id is None:
+            abort(400,
+                  f'invalid parent batch: {parent_id} is in batch '
+                  f'{parent_job.batch_id} but child is in {batch_id}')
 
     if len(pod_spec.containers) != 1:
         abort(400, f'only one container allowed in pod_spec {pod_spec}')
 
     if pod_spec.containers[0].name != 'default':
-        abort(400, f'container name must be "default" was {pod_spec.containres[0].name}')
+        abort(400, f'container name must be "default" was {pod_spec.containers[0].name}')
 
     job = Job(
         pod_spec,
@@ -365,12 +387,19 @@ def cancel_job(job_id):
 
 
 class Batch:
-    def __init__(self, attributes, callback):
+    MAX_TTL = 30 * 60
+
+    def __init__(self, attributes, callback, ttl):
         self.attributes = attributes
         self.callback = callback
         self.id = next_id()
         batch_id_batch[self.id] = self
         self.jobs = set([])
+        self.is_open = True
+        if ttl is None or ttl > Batch.MAX_TTL:
+            ttl = Batch.MAX_TTL
+        self.ttl = ttl
+        schedule(self.ttl, self.close)
 
     def delete(self):
         del batch_id_batch[self.id]
@@ -397,6 +426,13 @@ class Batch:
                 args=(self.id, job.id, self.callback, job.to_json())
             ).start()
 
+    def close(self):
+        if self.is_open:
+            log.info(f'closing batch {self.id}, ttl was {self.ttl}')
+            self.is_open = False
+        else:
+            log.info(f're-closing batch {self.id}, ttl was {self.ttl}')
+
     def to_json(self):
         state_count = Counter([j._state for j in self.jobs])
         return {
@@ -407,7 +443,8 @@ class Batch:
                 'Cancelled': state_count.get('Cancelled', 0)
             },
             'exit_codes': {j.id: j.exit_code for j in self.jobs},
-            'attributes': self.attributes
+            'attributes': self.attributes,
+            'is_open': self.is_open
         }
 
 
@@ -421,13 +458,14 @@ def create_batch():
             'keyschema': {'type': 'string'},
             'valueschema': {'type': 'string'}
         },
-        'callback': {'type': 'string'}
+        'callback': {'type': 'string'},
+        'ttl': {'type': 'number'}
     }
     validator = cerberus.Validator(schema)
     if not validator.validate(parameters):
         abort(400, 'invalid request: {}'.format(validator.errors))
 
-    batch = Batch(parameters.get('attributes'), parameters.get('callback'))
+    batch = Batch(parameters.get('attributes'), parameters.get('callback'), parameters.get('ttl'))
     return jsonify(batch.to_json())
 
 
@@ -445,6 +483,15 @@ def delete_batch(batch_id):
     if not batch:
         abort(404)
     batch.delete()
+    return jsonify({})
+
+
+@app.route('/batches/<int:batch_id>/close', methods=['POST'])
+def close_batch(batch_id):
+    batch = batch_id_batch.get(batch_id)
+    if not batch:
+        abort(404)
+    batch.close()
     return jsonify({})
 
 
@@ -512,6 +559,12 @@ def refresh_k8s_state():
     return '', 204
 
 
+@app.route('/recent', methods=['GET'])
+def recent():
+    recent_events = get_recent_events()
+    return render_template('recent.html', recent=list(reversed(recent_events)))
+
+
 def run_forever(target, *args, **kwargs):
     # target should be a function
     target_name = target.__name__
@@ -563,12 +616,23 @@ def polling_event_loop(port):
         time.sleep(REFRESH_INTERVAL_IN_SECONDS)
 
 
+def scheduling_loop():
+    while True:
+        try:
+            s.run(blocking=False)
+        except Exception as exc:  # pylint: disable=W0703
+            log.error(f'Could not run scheduled jobs due to: {exc}')
+
+
 def serve(port=5000):
     kube_thread = threading.Thread(target=run_forever, args=(kube_event_loop, port))
     kube_thread.start()
 
     polling_thread = threading.Thread(target=run_forever, args=(polling_event_loop, port))
     polling_thread.start()
+
+    scheduling_thread = threading.Thread(target=run_forever, args=(scheduling_loop,))
+    scheduling_thread.start()
 
     # debug/reloader must run in main thread
     # see: https://stackoverflow.com/questions/31264826/start-a-flask-application-in-separate-thread
