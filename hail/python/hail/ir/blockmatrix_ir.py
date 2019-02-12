@@ -34,15 +34,15 @@ class BlockMatrixMap(BlockMatrixIR):
 
 
 class BlockMatrixMap2(BlockMatrixIR):
-    @typecheck_method(left=BlockMatrixIR, right=BlockMatrixIR, apply_bin_op=ApplyBinaryOp)
-    def __init__(self, left, right, apply_bin_op):
+    @typecheck_method(left=BlockMatrixIR, right=BlockMatrixIR, f=IR)
+    def __init__(self, left, right, f):
         super().__init__()
         self.left = left
         self.right = right
-        self.apply_bin_op = apply_bin_op
+        self.f = f
 
     def render(self, r):
-        return f'(BlockMatrixMap2 {r(self.left)} {r(self.right)} {r(self.apply_bin_op)})'
+        return f'(BlockMatrixMap2 {r(self.left)} {r(self.right)} {r(self.f)})'
 
     def _compute_type(self):
         self.right.typ  # Force

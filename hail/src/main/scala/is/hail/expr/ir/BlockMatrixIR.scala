@@ -106,21 +106,29 @@ case class BlockMatrixMap(child: BlockMatrixIR, f: IR) extends BlockMatrixIR {
   }
 }
 
-case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, applyBinOp: ApplyBinaryPrimOp) extends BlockMatrixIR {
+case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, f: IR) extends BlockMatrixIR {
+  assert(f.isInstanceOf[ApplyBinaryPrimOp])
+
   override def typ: BlockMatrixType = left.typ
 
-  override def children: IndexedSeq[BaseIR] = Array(left, right, applyBinOp)
+  override def children: IndexedSeq[BaseIR] = Array(left, right, f)
 
   override def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
     assert(newChildren.length == 3)
     BlockMatrixMap2(
       newChildren(0).asInstanceOf[BlockMatrixIR],
       newChildren(1).asInstanceOf[BlockMatrixIR],
-      newChildren(2).asInstanceOf[ApplyBinaryPrimOp])
+      newChildren(2).asInstanceOf[IR])
   }
 
   override protected[ir] def execute(hc: HailContext): BlockMatrix = {
-    val op = applyBinOp.op
+    f match {
+      case ApplyBinaryPrimOp(op, _, _) => applyBinOp(hc, left, right, op)
+      case _ => fatal(s"Unsupported operation on BlockMatrix: ${Pretty(f)}")
+    }
+  }
+
+  private def applyBinOp(hc: HailContext, left: BlockMatrixIR, right: BlockMatrixIR, op: BinaryOp): BlockMatrix = {
     left match {
       case BlockMatrixBroadcast(scalarIR: BlockMatrixIR, IndexedSeq(), _, _, _) =>
         scalarOnLeft(hc, coerceToScalar(hc, scalarIR), right, op)

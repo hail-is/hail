@@ -1279,7 +1279,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return self._apply_map2('+', self, b)
+        return self._apply_map2('+', b)
 
     @typecheck_method(b=oneof(numeric, np.ndarray, block_matrix_type))
     def __sub__(self, b):
@@ -1293,7 +1293,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return self._apply_map2('-', self, b)
+        return self._apply_map2('-', b)
 
     @typecheck_method(b=oneof(numeric, np.ndarray, block_matrix_type))
     def __mul__(self, b):
@@ -1307,7 +1307,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return self._apply_map2('*', self, b)
+        return self._apply_map2('*', b)
 
     @typecheck_method(b=oneof(numeric, np.ndarray, block_matrix_type))
     def __truediv__(self, b):
@@ -1321,23 +1321,23 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return self._apply_map2('/', self, b)
+        return self._apply_map2('/', b)
 
     @typecheck_method(b=numeric)
     def __radd__(self, b):
-        return self._apply_map2('+', b, self)
+        return self._apply_map2('+', b, reverse=True)
 
     @typecheck_method(b=numeric)
     def __rsub__(self, b):
-        return self._apply_map2('-', b, self)
+        return self._apply_map2('-', b, reverse=True)
 
     @typecheck_method(b=numeric)
     def __rmul__(self, b):
-        return self._apply_map2('*', b, self)
+        return self._apply_map2('*', b, reverse=True)
 
     @typecheck_method(b=numeric)
     def __rtruediv__(self, b):
-        return self._apply_map2('/', b, self)
+        return self._apply_map2('/', b, reverse=True)
 
     @typecheck_method(b=oneof(np.ndarray, block_matrix_type))
     def __matmul__(self, b):
