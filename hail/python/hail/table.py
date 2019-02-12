@@ -1697,9 +1697,9 @@ class Table(ExprContainer):
         """Print information about the fields in the table."""
 
         def format_type(typ):
-            return typ.pretty(indent=4)
+            return typ.pretty(indent=4).lstrip()
 
-        if len(self.globals.dtype) == 0:
+        if len(self.globals) == 0:
             global_fields = '\n    None'
         else:
             global_fields = ''.join("\n    '{name}': {type} ".format(

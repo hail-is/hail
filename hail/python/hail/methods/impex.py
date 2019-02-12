@@ -1730,8 +1730,8 @@ def get_vcf_metadata(path):
     -------
     :obj:`dict` of :obj:`str` to (:obj:`dict` of :obj:`str` to (:obj:`dict` of :obj:`str` to :obj:`str`))
     """
-    typ = tdict(tstr, tdict(tstr, tdict(tstr, tstr)))
-    return typ._convert_to_py(Env.hc()._jhc.parseVCFMetadata(path))
+    
+    return Env.backend().parse_vcf_metadata(path)
 
 
 @typecheck(path=oneof(str, sequenceof(str)),

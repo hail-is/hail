@@ -2627,9 +2627,9 @@ class MatrixTable(ExprContainer):
         """Print information about the fields in the matrix."""
 
         def format_type(typ):
-            return typ.pretty(indent=4)
+            return typ.pretty(indent=4).lstrip()
 
-        if len(self.globals.dtype) == 0:
+        if len(self.globals) == 0:
             global_fields = '\n    None'
         else:
             global_fields = ''.join("\n    '{name}': {type} ".format(
@@ -3408,12 +3408,12 @@ class MatrixTable(ExprContainer):
             else:
                 return col_key
 
-        t = t.select(**{
+        t = t.annotate(**{
             fmt(f, col_keys[i]): t[entries_uid][i][j]
             for i in range(len(col_keys))
             for j, f in enumerate(self.entry)
         })
-        t = t.drop(cols_uid)
+        t = t.drop(cols_uid, entries_uid)
 
         return t
 

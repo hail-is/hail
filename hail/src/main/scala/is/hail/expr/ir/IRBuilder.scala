@@ -75,11 +75,30 @@ object IRBuilder {
 
     def filter(ir: IRProxy): TableIR =
       TableFilter(tir, ir(env))
+
+    def distinct(): TableIR = TableDistinct(tir)
+
+    def collect(): IRProxy = TableCollect(tir)
+
+    def collectAsDict(): IRProxy = {
+      val uid = genUID()
+      val keyFields = tir.typ.key
+      val valueFields = tir.typ.valueType.fieldNames
+      collect()
+        .apply('rows)
+        .map(Symbol(uid) ~> makeTuple(Symbol(uid).selectFields(keyFields: _*), Symbol(uid).selectFields(valueFields: _*)))
+        .toDict
+    }
   }
 
   class IRProxy(val ir: E => IR) extends AnyVal with Dynamic {
     def apply(idx: IRProxy): IRProxy = (env: E) =>
       ArrayRef(ir(env), idx(env))
+
+    def invoke(name: String, args: IRProxy*): IRProxy = { env: E =>
+      val irArgs = Array(ir(env)) ++ args.map(_(env))
+      is.hail.expr.ir.invoke(name, irArgs: _*)
+    }
 
     def selectDynamic(field: String): IRProxy = (env: E) =>
       GetField(ir(env), field)
@@ -152,6 +171,8 @@ object IRBuilder {
     def groupByKey: IRProxy = (env: E) => GroupByKey(ir(env))
 
     def toArray: IRProxy = (env: E) => ToArray(ir(env))
+
+    def toDict: IRProxy = (env: E) => ToDict(ir(env))
 
     def parallelize(nPartitions: Option[Int] = None): TableIR = TableParallelize(ir(Env.empty), nPartitions)
 

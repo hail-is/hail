@@ -135,6 +135,17 @@ object LowerMatrixIR {
           .insertFields(colsField -> 'global('newColIdx).map('i ~> 'global(colsField)('i)))
           .dropFields('newColIdx))
 
+    case MatrixAnnotateColsTable(child, table, root) =>
+      val col = Symbol(genUID())
+      val colKey = makeStruct(table.typ.key.zip(child.typ.colKey).map { case (tk, mck) => Symbol(tk) -> col(Symbol(mck))}: _*)
+      lower(child)
+        .mapGlobals(let(__dictfield = lower(table)
+          .distinct()
+          .collectAsDict()) {
+          'global.insertFields(colsField ->
+            'global(colsField).map(col ~> col.insertFields(Symbol(root) -> '__dictfield.invoke("get", colKey))))
+        })
+
     case MatrixMapGlobals(child, newGlobals) =>
       lower(child)
         .mapGlobals(
