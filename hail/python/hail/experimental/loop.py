@@ -40,17 +40,17 @@ def loop(f: Callable, typ, *exprs):
     Returns
     -------
     :class:`.Expression`
-        Result of the loop with `exprs` as inital loop values.
+        Result of the loop with `exprs` as initial loop values.
     """
     @typecheck(recur_exprs=expr_any)
     def make_loop(*recur_exprs):
         if len(recur_exprs) != len(exprs):
-            raise TypeError('loop and recursion must have the same number of arguments')
+            raise TypeError('Recursive call in loop has wrong number of arguments')
         err = None
         for i, (rexpr, expr) in enumerate(zip(recur_exprs, exprs)):
             if rexpr.dtype != expr.dtype:
                 if err is None:
-                    err = 'Type of loop and recur arguments must match, errors:'
+                    err = 'Type error in recursive call,'
                 err += f'\n  at argument index {i}, loop arg type: {expr.dtype}, '
                 err += f'recur arg type: {rexpr.dtype}'
         if err is not None:
@@ -60,14 +60,14 @@ def loop(f: Callable, typ, *exprs):
         return construct_expr(Recur(irs, typ), typ, indices, aggregations)
 
     uid_irs = []
-    args = []
+    loop_vars = []
 
     for expr in exprs:
         uid = Env.get_uid()
-        args.append(construct_variable(uid, expr._type, expr._indices, expr._aggregations))
+        loop_vars.append(construct_variable(uid, expr._type, expr._indices, expr._aggregations))
         uid_irs.append((uid, expr._ir))
 
-    lambda_res = to_expr(f(make_loop, *args))
+    lambda_res = to_expr(f(make_loop, *loop_vars))
     indices, aggregations = unify_all(*exprs, lambda_res)
     ir = Loop(uid_irs, lambda_res._ir)
     if ir.typ != typ:
