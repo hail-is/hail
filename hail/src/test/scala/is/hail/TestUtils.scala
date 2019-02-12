@@ -484,7 +484,7 @@ object TestUtils {
     )
     if (addedReference)
       ReferenceGenome.removeReference(rg.get.name)
-    new MatrixTable(hc, MatrixRead(reader.fullType, dropSamples, false, reader))
+    new MatrixTable(hc, MatrixRead(reader.fullMatrixType, dropSamples, false, reader))
   }
 
   def importPlink(hc: HailContext,
@@ -505,7 +505,7 @@ object TestUtils {
       a2Reference, rg.map(_.name), contigRecoding.getOrElse(Map.empty[String, String]),
       skipInvalidLoci)
 
-    new MatrixTable(hc, MatrixRead(reader.fullType, dropCols = false, dropRows = false, reader))
+    new MatrixTable(hc, MatrixRead(reader.fullMatrixType, dropCols = false, dropRows = false, reader))
   }
 
 

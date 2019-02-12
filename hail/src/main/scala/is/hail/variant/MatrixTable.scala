@@ -175,6 +175,7 @@ object MatrixTable {
           val rvb = new RegionValueBuilder(region)
           val rv = RegionValue(region)
 
+
           it.map { case (va, gs) =>
             val vaRow = va.asInstanceOf[Row]
             assert(matrixType.rowType.typeCheck(vaRow), s"${ matrixType.rowType }, $vaRow")
