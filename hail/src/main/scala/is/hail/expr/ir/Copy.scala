@@ -56,6 +56,9 @@ object Copy {
       case NDArrayRef(_, _) =>
         val IndexedSeq(nd: IR, idxs: IR) = newChildren
         NDArrayRef(nd, idxs)
+      case ArraySort(_, l, r, _) =>
+        val IndexedSeq(a: IR, comp: IR) = newChildren
+        ArraySort(a, l, r, comp)
       case ToSet(_) =>
         val IndexedSeq(a: IR) = newChildren
         ToSet(a)
