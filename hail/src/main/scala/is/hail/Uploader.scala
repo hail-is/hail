@@ -104,7 +104,7 @@ class Uploader { self =>
           self.upload(typ, contents, email)
         } catch {
           case e: Exception =>
-            warn(s"upload failed, caught $e")
+            log.warn(s"upload failed, caught $e")
         }
       }
     }

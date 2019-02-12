@@ -137,7 +137,7 @@ object ExtractAggregators {
 
       aggSig match {
         case AggSignature(Collect() | Take() | CollectAsSet(), _, _, Seq(t@(_: TBoolean | _: TInt32 | _: TInt64 | _: TFloat32 | _: TFloat64 | _: TCall))) =>
-        case AggSignature(Collect() | Take() | CollectAsSet(), _, _, Seq(t)) =>
+        case AggSignature(Collect() | Take() | CollectAsSet() | PrevNonnull(), _, _, Seq(t)) =>
           codeConstructorArgs ++= FastIndexedSeq(EmitTriplet(Code._empty, const(false), fb.getType(t)))
         case AggSignature(Counter(), _, _, Seq(t@(_: TBoolean))) =>
         case AggSignature(Counter(), _, _, Seq(t)) =>

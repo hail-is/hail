@@ -8,6 +8,7 @@ from .datasets import load_dataset
 from .import_gtf import import_gtf
 from .write_multiple import write_matrix_tables
 from .export_entries_by_col import export_entries_by_col
+from .densify import densify
 
 __all__ = ['ld_score',
            'ld_score_regression',
@@ -21,4 +22,5 @@ __all__ = ['ld_score',
            'import_gtf',
            'haplotype_freq_em',
            'write_matrix_tables',
-           'export_entries_by_col']
+           'export_entries_by_col',
+           'densify']

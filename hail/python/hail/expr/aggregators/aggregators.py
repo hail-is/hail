@@ -1416,6 +1416,9 @@ def group_by(group, agg_expr) -> DictExpression:
 
     return _agg_func.group_by(group, agg_expr)
 
+@typecheck(expr=expr_any)
+def _prev_nonnull(expr) -> ArrayExpression:
+    return _agg_func('PrevNonnull', [expr], expr.dtype, [])
 
 @typecheck(f=func_spec(1, expr_any),
            array=expr_array())
