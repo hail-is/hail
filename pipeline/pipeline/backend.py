@@ -198,7 +198,7 @@ class BatchBackend(Backend):
             if task._label:
                 attributes['label'] = task._label
 
-            resources = {}
+            resources = {'requests': {}}
             if task._cpu:
                 resources['requests']['cpu'] = task._cpu
             if task._memory:
