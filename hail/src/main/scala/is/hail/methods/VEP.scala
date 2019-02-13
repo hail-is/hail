@@ -71,8 +71,7 @@ object VEP {
       val errorLines = Source.fromInputStream(new BufferedInputStream(proc.getErrorStream)).getLines().mkString("\n")
 
       fatal(s"VEP command '${ cmd.mkString(" ") }' failed with non-zero exit status $rc\n" +
-        "  VEP Error output:\n" +
-        Source.fromInputStream(new BufferedInputStream(proc.getErrorStream)).getLines().mkString("\n"))
+        "  VEP Error output:\n" + errorLines)
     }
   }
 
