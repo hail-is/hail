@@ -19,7 +19,7 @@ class Task:
         self._label = label
         self._cpu = None
         self._memory = None
-        self._docker = None
+        self._image = None
         self._command = []
 
         self._resources = {}  # dict of name to resource
@@ -95,9 +95,18 @@ class Task:
         self._cpu = cpu
         return self
 
-    def docker(self, docker):
-        self._docker = docker
+    def image(self, image):
+        self._image = image
         return self
+
+    def _pretty(self):
+        s = f"Task '{self._uid}'" \
+            f"\tLabel:\t'{self._label}'" \
+            f"\tImage:\t'{self._image}'" \
+            f"\tCPU:\t'{self._cpu}'" \
+            f"\tMemory:\t'{self._memory}'" \
+            f"\tCommand:\t'{self._command}'"
+        return s
 
     def __str__(self):
         return self._uid

@@ -50,7 +50,7 @@ class LocalBackend(Backend):
             def copy_task_inputs(r):
                 if isinstance(r, InputResourceFile):
                     absolute_input_path = os.path.realpath(r._input_path)
-                    if task._docker:
+                    if task._image is not None:
                         return [f'cp {absolute_input_path} {tmpdir}/{get_path(r)}']
                     else:
                         return [f'ln -sf {absolute_input_path} {tmpdir}/{get_path(r)}']
@@ -64,17 +64,16 @@ class LocalBackend(Backend):
 
             resource_defs = [define_resource(r) for r in task._inputs.union(task._outputs)]
 
-            if task._docker:
+            if task._image:
                 defs = '; '.join(resource_defs) + '; ' if resource_defs else ''
                 cmd = " && ".join(task._command)
-                image = task._docker
                 memory = f'-m {task._memory}' if task._memory else ''
 
                 script += [f"docker run "
                            f"-v {tmpdir}:{tmpdir} "
                            f"-w {tmpdir} "
                            f"{memory} "
-                           f"{image} /bin/bash "
+                           f"{task._image} /bin/bash "
                            f"-c {escape_string(defs + cmd)}",
                            '\n']
             else:
@@ -182,7 +181,12 @@ class BatchBackend(Backend):
                 list(flatten([copy_task_outputs(r) for r in task._outputs]))
             resource_defs = [define_resource(r) for r in task._inputs.union(task._outputs)]
 
-            image = task._docker if task._docker else pipeline._default_image  # this image must include gsutil!
+            if task._image is None:
+                raise Exception(f"Image for task {task._uid} cannot be None for the BatchBackend.\n"
+                                "Use the 'default_image' argument when constructing a pipeline "
+                                "or the 'image' method of a task to specify the docker image\n\n"
+                                f"{task._pretty()}")
+
             defs = '; '.join(resource_defs) + '; ' if resource_defs else ''
             task_command = [cmd.strip() for cmd in task._command]
             cmd = " && ".join(task_inputs + task_command + task_outputs)
@@ -192,7 +196,7 @@ class BatchBackend(Backend):
                 attributes['label'] = task._label
 
             # FIXME: add memory, cpu, etc.
-            j = batch.create_job(image=image,
+            j = batch.create_job(image=task._image,
                                  command=['/bin/bash', '-c', defs + cmd],
                                  parent_ids=parent_ids,
                                  attributes=attributes,

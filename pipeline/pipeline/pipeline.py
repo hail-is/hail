@@ -29,7 +29,7 @@ class Pipeline:
         t = Task(pipeline=self)
         self._tasks.append(t)
         if self._default_image is not None:
-            t.docker(self._default_image)
+            t.image(self._default_image)
         return t
 
     def _tmp_file(self, prefix=None, suffix=None):
