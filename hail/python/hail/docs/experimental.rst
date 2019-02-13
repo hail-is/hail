@@ -27,6 +27,8 @@ Genetics Methods
 
     ld_score
     ld_score_regression
+    write_expression
+    read_expression
     filtering_allele_frequency
     hail_metadata
     plot_roc_curve
@@ -40,6 +42,8 @@ Genetics Methods
 
 .. autofunction:: ld_score
 .. autofunction:: ld_score_regression
+.. autofunction:: write_expression
+.. autofunction:: read_expression
 .. autofunction:: hail_metadata
 .. autofunction:: plot_roc_curve
 .. autofunction:: filtering_allele_frequency
