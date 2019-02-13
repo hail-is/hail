@@ -95,7 +95,7 @@ def forbidden():
     return 'Forbidden', 404
 
 
-def start_pod(jupyter_token, image, labels={}):
+def start_pod(jupyter_token: str, image: str, labels={}):
     pod_id = uuid.uuid4().hex
     service_spec = kube.client.V1ServiceSpec(
         selector={
@@ -156,7 +156,7 @@ def start_pod(jupyter_token, image, labels={}):
     return svc, pod
 
 
-def del_pod(pod_name):
+def del_pod(pod_name: str):
     k8s.delete_namespaced_pod(
         pod_name,
         'default',
@@ -164,7 +164,7 @@ def del_pod(pod_name):
         _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
 
 
-def del_svc(svc_name):
+def del_svc(svc_name: str):
     k8s.delete_namespaced_service(
         svc_name,
         'default',
@@ -214,7 +214,7 @@ def marshall_json(resources: [], paths=[], flatten=False):
     return ujson.dumps(resp)
 
 
-def read_svc_status(svc_name):
+def read_svc_status(svc_name: str):
     try:
         # TODO: inspect exception for non-404
         _ = k8s.read_namespaced_service(svc_name, 'default')
