@@ -2118,8 +2118,10 @@ def _broadcast_index_expr(shape):
         return [], [0, 1]
     elif shape[0] == 1:
         return [0], [1, 0]
-    else:
+    elif shape[1] == 1:
         return [0], [0, 1]
+    else:
+        raise ValueError(f'Cannot broadcast shape: ${shape}')
 
 
 def _ndarray_as_2d(nd):
