@@ -15,6 +15,7 @@ from typing import List
 
 _cached_importvcfs = None
 
+
 def locus_interval_expr(contig, start, end, includes_start, includes_end,
                         reference_genome, skip_invalid_intervals):
     if reference_genome:
@@ -39,11 +40,13 @@ def locus_interval_expr(contig, start, end, includes_start, includes_end,
                            includes_start,
                            includes_end)
 
+
 def expr_or_else(expr, default, f=lambda x: x):
     if expr is not None:
         return hl.or_else(f(expr), default)
     else:
         return to_expr(default)
+
 
 @typecheck(dataset=MatrixTable,
            output=str,
@@ -1675,7 +1678,7 @@ def import_plink(bed, bim, fam,
            _drop_cols=bool,
            _drop_rows=bool)
 def read_matrix_table(path, _drop_cols=False, _drop_rows=False) -> MatrixTable:
-    """Read in a :class:`.MatrixTable` written with written with :meth:`.MatrixTable.write`
+    """Read in a :class:`.MatrixTable` written with :meth:`.MatrixTable.write`.
 
     Parameters
     ----------
@@ -1915,6 +1918,7 @@ def import_vcf(path,
                              skip_invalid_loci, force_bgz, force, filter, find_replace, _partitions)
     return MatrixTable(MatrixRead(reader, drop_cols=drop_samples))
 
+
 @typecheck(path=sequenceof(str),
            partitions=str,
            force=bool,
@@ -1998,6 +2002,7 @@ def import_vcfs(path,
         find_replace[1] if find_replace is not None else None)
     return [MatrixTable._from_java(jmt) for jmt in jmts]
 
+
 @typecheck(path=oneof(str, sequenceof(str)),
            index_file_map=nullable(dictof(str, str)),
            reference_genome=nullable(reference_genome_type),
@@ -2070,6 +2075,7 @@ def read_table(path) -> Table:
     """
     tr = TableNativeReader(path)
     return Table(TableRead(tr, False))
+
 
 @typecheck(t=Table,
            host=str,
