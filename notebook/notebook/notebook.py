@@ -41,8 +41,8 @@ else:
 DEFAULT_HAIL_IMAGE = os.environ.get("DEFAULT_HAIL_IMAGE",
                                     list(WORKER_IMAGES.keys())[0])
 AUTH_GATEWAY = os.environ.get("AUTH_GATEWAY", "http://auth-gateway")
-KUBERNETES_TIMEOUT_IN_SECONDS = float(
-    os.environ.get('KUBERNETES_TIMEOUT_IN_SECONDS', 5.0))
+KUBERNETES_TIMEOUT_IN_SECONDS = int(
+    os.environ.get('KUBERNETES_TIMEOUT_IN_SECONDS', 5))
 
 INSTANCE_ID = uuid.uuid4().hex
 
