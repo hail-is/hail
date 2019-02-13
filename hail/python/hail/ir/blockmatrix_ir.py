@@ -50,6 +50,25 @@ class BlockMatrixMap2(BlockMatrixIR):
         self._type = self.left.typ
 
 
+class BlockMatrixDot(BlockMatrixIR):
+    @typecheck_method(left=BlockMatrixIR, right=BlockMatrixIR)
+    def __init__(self, left, right):
+        super().__init__()
+        self.left = left
+        self.right = right
+
+    def render(self, r):
+        return '(BlockMatrixDot {} {})'.format(r(self.left), r(self.right))
+
+    def _compute_type(self):
+        l_type = self.left.typ
+        r_type = self.right.typ
+        self._type = tblockmatrix(l_type.element_type,
+                                  [l_type.shape[0], r_type.shape[1]],
+                                  l_type.block_size,
+                                  [l_type.dims_partitioned[0], r_type.dims_partitioned[1]])
+
+
 class BlockMatrixBroadcast(BlockMatrixIR):
     @typecheck_method(child=BlockMatrixIR,
                       in_index_expr=sequenceof(int),

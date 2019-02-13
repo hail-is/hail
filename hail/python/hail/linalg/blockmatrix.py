@@ -6,8 +6,8 @@ import hail as hl
 import hail.expr.aggregators as agg
 from hail.expr import construct_expr
 from hail.ir import BlockMatrixWrite, BlockMatrixMap2, ApplyBinaryOp, Ref, F64, \
-    BlockMatrixBroadcast, ValueToBlockMatrix, MakeArray, BlockMatrixRead, JavaBlockMatrix, BlockMatrixMap, ApplyUnaryOp, \
-    IR
+    BlockMatrixBroadcast, ValueToBlockMatrix, MakeArray, BlockMatrixRead, JavaBlockMatrix, BlockMatrixMap,\
+    ApplyUnaryOp, IR, BlockMatrixDot
 from hail.utils import new_temp_file, new_local_temp_file, local_path_uri, storage_level
 from hail.utils.java import Env, jarray, joption
 from hail.typecheck import *
@@ -1362,12 +1362,12 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        if isinstance(b, np.ndarray):
-            return self @ BlockMatrix.from_numpy(b, self.block_size)
-        else:
-            if self.n_cols != b.n_rows:
-                raise ValueError(f'incompatible shapes for matrix multiplication: {self.shape} and {b.shape}')
-            return BlockMatrix._from_java(self._jbm.dot(b._jbm))
+        b_bmir = b._bmir if isinstance(b, BlockMatrix) else _to_bmir(b, self.block_size)
+
+        if self.n_cols != b_bmir.typ.shape[0]:
+            raise ValueError(f'incompatible shapes for matrix multiplication: {self.shape} and {b.shape}')
+
+        return BlockMatrix(BlockMatrixDot(self._bmir, b_bmir))
 
     @typecheck_method(x=numeric)
     def __pow__(self, x):

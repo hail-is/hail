@@ -249,6 +249,27 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, f: IR) ext
   }
 }
 
+case class BlockMatrixDot(left: BlockMatrixIR, right: BlockMatrixIR) extends BlockMatrixIR {
+  override def typ: BlockMatrixType = {
+    BlockMatrixType(
+      left.typ.elementType,
+      IndexedSeq(left.typ.shape(0), right.typ.shape(1)),
+      left.typ.blockSize,
+      IndexedSeq(left.typ.dimsPartitioned(0), right.typ.dimsPartitioned(1)))
+  }
+
+  override def children: IndexedSeq[BaseIR] = Array(left, right)
+
+  override def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
+    assert(newChildren.length == 2)
+    BlockMatrixDot(newChildren(0).asInstanceOf[BlockMatrixIR], newChildren(1).asInstanceOf[BlockMatrixIR])
+  }
+
+  override protected[ir] def execute(hc: HailContext): BlockMatrix = {
+    left.execute(hc).dot(right.execute(hc))
+  }
+}
+
 case class BlockMatrixBroadcast(
   child: BlockMatrixIR,
   inIndexExpr: IndexedSeq[Int],
