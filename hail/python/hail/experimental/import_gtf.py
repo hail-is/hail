@@ -3,6 +3,7 @@ import functools
 import hail as hl
 from hail.genetics.reference_genome import reference_genome_type
 from hail.typecheck import *
+from hail.utils.java import info
 
 
 def import_gtf(path, reference_genome=None, skip_invalid_contigs=False, min_partitions=None) -> hl.Table:
@@ -214,7 +215,7 @@ def get_gene_intervals(gene_symbols=None, gene_ids=None, transcript_ids=None,
         gtf_file = GTFS.get(reference_genome)
         if gtf_file is None:
             raise ValueError('get_gene_intervals requires a GTF file, or the reference genome be one of GRCh37 or GRCh38 (when on Google Cloud Platform)')
-    if not gene_symbols and not gene_ids and not transcript_ids:
+    if gene_symbols is None and gene_ids is None and transcript_ids is None:
         raise ValueError('get_gene_intervals requires at least one of gene_symbols, gene_ids, or transcript_ids')
     ht = hl.experimental.import_gtf(gtf_file, reference_genome=reference_genome,
                                     skip_invalid_contigs=True, min_partitions=12)
@@ -231,7 +232,7 @@ def get_gene_intervals(gene_symbols=None, gene_ids=None, transcript_ids=None,
     ht = ht.filter(functools.reduce(operator.ior, criteria))
     gene_info = ht.aggregate(hl.agg.collect((ht.feature, ht.gene_name, ht.gene_id, ht.transcript_id, ht.interval)))
     if verbose:
-        print(f'get_gene_intervals found {len(gene_info)} entries:\n' +
-              "\n".join(map(lambda x: f'{x[0]}: {x[1]} ({x[2] if x[0] == "gene" else x[3]})', gene_info)))
+        info(f'get_gene_intervals found {len(gene_info)} entries:\n' +
+             "\n".join(map(lambda x: f'{x[0]}: {x[1]} ({x[2] if x[0] == "gene" else x[3]})', gene_info)))
     intervals = list(map(lambda x: x[-1], gene_info))
     return intervals
