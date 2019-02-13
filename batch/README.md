@@ -49,7 +49,7 @@ gcloud config set project <PROJECT_ID>
 
 <br>
 
-#####2. Update your `kubeconfig` to point `kubectl` to the desired cluster
+##### 2. Update your `kubeconfig` to point `kubectl` to the desired cluster
 
 List available clusters
 
@@ -124,13 +124,7 @@ kubectl create clusterrolebinding \
 Create a `batch` service:
 
 ```
-kubectl create -f deployment.yaml.in
-```
-
-If you ever need to shutdown the service, execute:
-
-```
-kubectl delete -f deployment.yaml.in
+make deploy
 ```
 
 Look for the newly created `batch` pod:
@@ -272,4 +266,4 @@ make build build-test
 
 You must also set the `imagePullPolicy` of any `container` you `kubectl create` to `Never` if you're using the `:latest` image tag (which is implicitly used if no tag is specified on the image name).
 
-Otherwise, k8s will always tryto check if there is a newer version of the image. Even if `imagePullPolicy` is set to `NotIfPresent`, k8s will still check for a newer image if you use the `:latest` tag.
+Otherwise, k8s will always try to check if there is a newer version of the image. Even if `imagePullPolicy` is set to `NotIfPresent`, k8s will still check for a newer image if you use the `:latest` tag.
