@@ -68,11 +68,13 @@ class LocalBackend(Backend):
                 defs = '; '.join(resource_defs) + '; ' if resource_defs else ''
                 cmd = " && ".join(task._command)
                 memory = f'-m {task._memory}' if task._memory else ''
+                cpu = f'--cpus={task._cpu}' if task._cpu else ''
 
                 script += [f"docker run "
                            f"-v {tmpdir}:{tmpdir} "
                            f"-w {tmpdir} "
                            f"{memory} "
+                           f"{cpu} "
                            f"{task._image} /bin/bash "
                            f"-c {escape_string(defs + cmd)}",
                            '\n']
@@ -191,16 +193,23 @@ class BatchBackend(Backend):
             task_command = [cmd.strip() for cmd in task._command]
             cmd = " && ".join(task_inputs + task_command + task_outputs)
             parent_ids = [task_to_job_mapping[t].id for t in task._dependencies]
+
             attributes = {'task_uid': task._uid}
             if task._label:
                 attributes['label'] = task._label
 
-            # FIXME: add memory, cpu, etc.
+            resources = {}
+            if task._cpu:
+                resources['requests']['cpu'] = task._cpu
+            if task._memory:
+                resources['requests']['memory'] = task._memory
+
             j = batch.create_job(image=task._image,
                                  command=['/bin/bash', '-c', defs + cmd],
                                  parent_ids=parent_ids,
                                  attributes=attributes,
-                                 volumes=volumes)
+                                 volumes=volumes,
+                                 resources=resources)
             n_jobs_submitted += 1
 
             task_to_job_mapping[task] = j

@@ -17,19 +17,26 @@ class Pipeline:
         cls._counter += 1
         return uid
 
-    def __init__(self, backend=None, default_image=None):
+    def __init__(self, backend=None, default_image=None, default_memory=None,
+                 default_cpu=None):
         self._tasks = []
         self._resource_map = {}
         self._allocated_files = set()
         self._backend = backend if backend else LocalBackend()
         self._uid = Pipeline._get_uid()
         self._default_image = default_image
+        self._default_memory = default_memory
+        self._default_cpu = default_cpu
 
     def new_task(self):
         t = Task(pipeline=self)
         self._tasks.append(t)
         if self._default_image is not None:
             t.image(self._default_image)
+        if self._default_memory is not None:
+            t.memory(self._default_memory)
+        if self._default_cpu is not None:
+            t.cpu(self._default_cpu)
         return t
 
     def _tmp_file(self, prefix=None, suffix=None):

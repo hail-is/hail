@@ -5,6 +5,10 @@ import subprocess as sp
 from pipeline import Pipeline, BatchBackend
 
 
+gcs_input_dir = 'gs://hail-pipeline-test/data/'
+gcs_output_dir = 'gs://hail-pipeline-test/output/'
+
+
 class LocalTests(unittest.TestCase):
     def read(self, file):
         with open(file, 'r') as f:
@@ -225,14 +229,14 @@ class BatchTests(unittest.TestCase):
 
     def test_single_task_input(self):
         p = self.pipeline()
-        input = p.read_input('gs://hail-pipeline-test/data/hello.txt')
+        input = p.read_input(f'{gcs_input_dir}/hello.txt')
         t = p.new_task()
         t.command(f'cat {input}')
         p.run()
 
     def test_single_task_input_resource_group(self):
         p = self.pipeline()
-        input = p.read_input_group(foo='gs://hail-pipeline-test/data/hello.txt')
+        input = p.read_input_group(foo=f'{gcs_input_dir}/hello.txt')
         t = p.new_task()
         t.command(f'cat {input.foo}')
         p.run()
@@ -247,7 +251,7 @@ class BatchTests(unittest.TestCase):
         p = self.pipeline()
         t = p.new_task()
         t.command(f'echo hello > {t.ofile}')
-        p.write_output(t.ofile, 'gs://hail-pipeline-test/output/test_single_task_output.txt')
+        p.write_output(t.ofile, f'{gcs_output_dir}/test_single_task_output.txt')
         p.run()
 
     def test_single_task_resource_group(self):
@@ -262,6 +266,20 @@ class BatchTests(unittest.TestCase):
         t = p.new_task()
         t.declare_resource_group(output={'foo': '{root}.foo'})
         t.command(f'echo "hello" > {t.output.foo}')
-        p.write_output(t.output, 'gs://hail-pipeline-test/output/test_single_task_write_resource_group')
-        p.write_output(t.output.foo, 'gs://hail-pipeline-test/output/test_single_task_write_resource_group_file.txt')
+        p.write_output(t.output, f'{gcs_output_dir}/test_single_task_write_resource_group')
+        p.write_output(t.output.foo, f'{gcs_output_dir}/test_single_task_write_resource_group_file.txt')
+        p.run()
+
+    def test_specify_cpu(self):
+        p = self.pipeline()
+        t = p.new_task()
+        t.cpu('0.5')
+        t.command(f'echo "hello" > {t.ofile}')
+        p.run()
+
+    def test_specify_memory(self):
+        p = self.pipeline()
+        t = p.new_task()
+        t.memory('100M')
+        t.command(f'echo "hello" > {t.ofile}')
         p.run()
