@@ -118,7 +118,7 @@ server {
         internal;
 
         resolver kube-dns.kube-system.svc.cluster.local;
-        proxy_pass http://notebook.default.svc.cluster.local/api/verify/$svc_name/;
+        proxy_pass http://notebook.default.svc.cluster.local/jupyter/verify/$svc_name/;
     }
 
     location / {
