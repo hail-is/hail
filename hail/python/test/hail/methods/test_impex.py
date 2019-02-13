@@ -212,6 +212,20 @@ class VCFTests(unittest.TestCase):
         # are py4 JavaMaps, not dicts, so can't use assertDictEqual
         self.assertEqual(vcf_metadata, metadata_imported)
 
+    def test_export_vcf_empty_format(self):
+        mt = hl.import_vcf(resource('sample.vcf.bgz')).select_entries()
+        tmp = new_temp_file(suffix="vcf")
+        hl.export_vcf(mt, tmp)
+
+        assert hl.import_vcf(tmp)._same(mt)
+
+    def test_export_vcf_no_gt(self):
+        mt = hl.import_vcf(resource('sample.vcf.bgz')).drop('GT')
+        tmp = new_temp_file(suffix="vcf")
+        hl.export_vcf(mt, tmp)
+
+        assert hl.import_vcf(tmp)._same(mt)
+
     def test_import_vcfs(self):
         path = resource('sample.vcf.bgz')
         parts = [

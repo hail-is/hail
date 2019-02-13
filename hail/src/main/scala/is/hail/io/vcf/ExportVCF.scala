@@ -238,17 +238,17 @@ object ExportVCF {
         fatal(s"export_vcf requires g to have type TStruct, found $t")
     }
 
-    val missingFormatStr = if (typ.entryType.size > 0 && typ.entryType.types(0).isInstanceOf[TCall])
-      "./."
-    else "."
-
     checkFormatSignature(tg.virtualType)
-        
+
     val formatFieldOrder: Array[Int] = tg.fieldIdx.get("GT") match {
       case Some(i) => (i +: tg.fields.filter(fd => fd.name != "GT").map(_.index)).toArray
       case None => tg.fields.indices.toArray
     }
     val formatFieldString = formatFieldOrder.map(i => tg.fields(i).name).mkString(":")
+
+    val missingFormatStr = if (typ.entryType.size > 0 && typ.entryType.types(formatFieldOrder(0)).isInstanceOf[TCall])
+      "./."
+    else "."
 
     val tinfo =
       if (typ.rowType.hasField("info")) {
