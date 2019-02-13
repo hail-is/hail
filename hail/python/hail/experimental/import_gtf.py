@@ -163,8 +163,7 @@ def import_gtf(path, reference_genome=None, skip_invalid_contigs=False, min_part
 
 
 def get_gene_intervals(gene_symbols=None, gene_ids=None, transcript_ids=None,
-                       verbose=True, gtf_file='gs://hail-common/references/gencode/gencode.v19.annotation.gtf.bgz',
-                       reference_genome=None):
+                       verbose=True, gtf_file=None, reference_genome=hl.default_reference()):
     """Get intervals of genes or transcripts.
 
        Get the boundaries of genes or transcripts from a GTF file, for quick filtering of a Table or MatrixTable.
@@ -196,6 +195,14 @@ def get_gene_intervals(gene_symbols=None, gene_ids=None, transcript_ids=None,
        -------
        :obj:`list` of :class:`.Interval`
     """
+    GTFS = {
+        'GRCh37': 'gs://hail-common/references/gencode/gencode.v19.annotation.gtf.bgz',
+        'GRCh38': 'gs://hail-common/references/gencode/gencode.v29.annotation.gtf.bgz',
+    }
+    if gtf_file is None:
+        gtf_file = GTFS.get(reference_genome)
+        if gtf_file is None:
+            raise ValueError('get_gene_intervals requires a GTF file, or the reference genome be one of GRCh37 or GRCh38')
     if not gene_symbols and not gene_ids and not transcript_ids:
         raise ValueError('get_gene_intervals requires at least one of gene_symbols, gene_ids, or transcript_ids')
     ht = hl.experimental.import_gtf(gtf_file, reference_genome=reference_genome,
