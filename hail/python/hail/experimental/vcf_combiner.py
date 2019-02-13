@@ -84,8 +84,8 @@ def combine(ts):
                             lambda old_to_new: tmp.data[i].__entries.map(lambda e: renumber_entry(e, old_to_new)),
                             hl.range(0, hl.len(tmp.data[i].alleles)).map(
                                 lambda j: combined_allele_index[tmp.data[i].alleles[j]])))),
-            hl.dict(hl.range(0, hl.len(tmp.alleles)).map(
-                lambda j: hl.tuple([tmp.alleles[j], j])))))
+            hl.dict(hl.range(1, hl.len(tmp.alleles) + 1).map(
+                lambda j: hl.tuple([tmp.alleles[j - 1], j])))))
     tmp = tmp.annotate_globals(__cols=hl.flatten(tmp.g.map(lambda g: g.__cols)))
 
     return tmp.drop('data', 'g')
@@ -134,8 +134,8 @@ def combine_gvcfs(mts):
 @typecheck(lgt=expr_call, la=expr_array(expr_int32))
 def lgt_to_gt(lgt, la):
     """A method for transforming Local GT and Local Alleles into the true GT"""
-    one = hl.cond(lgt[0] == 0, 0, la[lgt[0] - 1] + 1)
-    two = hl.cond(lgt[1] == 0, 0, la[lgt[1] - 1] + 1)
+    one = hl.cond(lgt[0] == 0, 0, la[lgt[0] - 1])
+    two = hl.cond(lgt[1] == 0, 0, la[lgt[1] - 1])
     return hl.call(one, two)
 
 
