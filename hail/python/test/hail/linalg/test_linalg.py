@@ -1,6 +1,5 @@
 import unittest
 
-import hail as hl
 from hail.linalg import BlockMatrix
 from hail.utils import new_temp_file, new_local_temp_dir, local_path_uri, FatalError
 from ..helpers import *
@@ -140,46 +139,6 @@ class Tests(unittest.TestCase):
                 self._assert_eq(at3, at)
                 self._assert_eq(at4, at)
                 self._assert_eq(at5, at)
-
-    def test_promote(self):
-        nx = np.matrix([[2.0]])
-        nc = np.matrix([[1.0], [2.0]])
-        nr = np.matrix([[1.0, 2.0, 3.0]])
-        nm = np.matrix([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
-
-        e = 2
-        x = BlockMatrix.from_numpy(nx)
-        c = BlockMatrix.from_numpy(nc)
-        r = BlockMatrix.from_numpy(nr)
-        m = BlockMatrix.from_numpy(nm)
-
-        nct, nrt, nmt = nc.T, nr.T, nm.T
-        ct, rt, mt = c.T, r.T, m.T
-
-        good = [(x, x),  (x, c),  (x, r),  (x, m), (x, e),
-                (c, x),  (c, c),           (c, m), (c, e),
-                (r, x),           (r, r),  (r, m), (r, e),
-                (m, x),  (m, c),  (m, r),  (m, m), (m, e),
-                (x, nx), (x, nc), (x, nr), (x, nm),
-                (c, nx), (c, nc),          (c, nm),
-                (r, nx),          (r, nr), (r, nm),
-                (m, nx), (m, nc), (m, nr), (m, nm)]
-
-        bad = [(c, r), (r, c), (c, ct), (r, rt),
-               (c, rt), (c, mt), (ct, r), (ct, m),
-               (r, ct), (r, mt), (rt, c), (rt, m),
-               (m, ct), (m, rt), (m, mt), (mt, c), (mt, r), (mt, m),
-               (c, nr), (r, nc), (c, nct), (r, nrt),
-               (c, nrt), (c, nmt), (ct, nr), (ct, nm),
-               (r, nct), (r, nmt), (rt, nc), (rt, nm),
-               (m, nct), (m, nrt), (m, nmt), (mt, nc), (mt, nr), (mt, nm)]
-
-        for (a, b) in good:
-            a._promote(b, '')
-
-        for (a, b) in bad:
-            self.assertRaises(ValueError,
-                              lambda: a._promote(b, ''))
 
     def test_elementwise_ops(self):
         nx = np.matrix([[2.0]])

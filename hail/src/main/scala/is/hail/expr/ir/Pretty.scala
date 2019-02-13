@@ -38,6 +38,8 @@ object Pretty {
 
   def prettyInts(x: IndexedSeq[Int]): String = x.mkString("(", " ", ")")
 
+  def prettyLiterals[T](x: IndexedSeq[T]): String = x.mkString("(", " ", ")")
+
   def prettyLongsOpt(x: Option[IndexedSeq[Long]]): String =
     x.map(prettyLongs).getOrElse("None")
 
@@ -193,6 +195,15 @@ object Pretty {
               prettyBooleanLiteral(overwrite) + " " +
               prettyBooleanLiteral(forceRowMajor) + " " +
               prettyBooleanLiteral(stageLocally)
+            case BlockMatrixBroadcast(_, broadcastType, shape, blockSize, dimsPartitioned) =>
+              prettyClass(broadcastType) + " " +
+              prettyLongs(shape) + " " +
+              blockSize.toString + " " +
+              prettyLiterals(dimsPartitioned)
+            case ValueToBlockMatrix(_, shape, blockSize, dimsPartitioned) =>
+              prettyLongs(shape) + " " +
+              blockSize.toString + " " +
+              prettyLiterals(dimsPartitioned)
             case TableToMatrixTable(_, rowKey, colKey, rowFields, colFields, nPartitions) =>
               prettyStrings(rowKey) + " " +
               prettyStrings(colKey) +  " " +
