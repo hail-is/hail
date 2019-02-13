@@ -27,23 +27,13 @@ while getopts ":v:b:" args; do
   esac
 done
 
-if !$VERSION; then
-  echo "-v argument must be supplied to indicate dataset version." >&2
-  exit 1
-fi
-
-if !$BUILD; then
-  echo "-b argument must be supplied to indicate reference genome build." >&2
-  exit 1
-fi
-
-SNVS_URL="http://krishna.gs.washington.edu/download/CADD/${VERSION}/${BUILD}/whole_genome_SNVs.tsv.gz"
-INDELS_URL="http://krishna.gs.washington.edu/download/CADD/${VERSION}/${BUILD}/InDels.tsv.gz"
+SNVS_URL="http://krishna.gs.washington.edu/download/CADD/v${VERSION}/${BUILD}/whole_genome_SNVs.tsv.gz"
+INDELS_URL="http://krishna.gs.washington.edu/download/CADD/v${VERSION}/${BUILD}/InDels.tsv.gz"
 
 wget -c -O - $SNVS_URL $INDELS_URL | \
 zcat | \
 grep -v '^#' | \
 awk -v FS=$'\t' -v OFS=$'\t' 'BEGIN {print "chromosome","position","ref","alt","raw_score","PHRED_score"} {print $0}' | \
 bgzip -c | \
-gsutil cp - gs://hail-datasets/raw-data/CADD/CADD.${VERSION}.${BUILD}.tsv.bgz
+gsutil cp - gs://hail-datasets-extract/CADD_v${VERSION}_${BUILD}.tsv.bgz
 
