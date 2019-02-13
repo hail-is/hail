@@ -5,8 +5,8 @@ import subprocess as sp
 from pipeline import Pipeline, BatchBackend
 
 
-gcs_input_dir = 'gs://hail-pipeline-test/data/'
-gcs_output_dir = 'gs://hail-pipeline-test/output/'
+gcs_input_dir = 'gs://hail-pipeline-test/data'
+gcs_output_dir = 'gs://hail-pipeline-test/output'
 
 
 class LocalTests(unittest.TestCase):
