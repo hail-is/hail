@@ -1,4 +1,5 @@
-
+import operator
+import functools
 import hail as hl
 from hail.genetics.reference_genome import reference_genome_type
 from hail.typecheck import *
@@ -172,35 +173,36 @@ def get_gene_intervals(gene_symbols=None, gene_ids=None, transcript_ids=None,
                        verbose=True, reference_genome=None, gtf_file=None):
     """Get intervals of genes or transcripts.
 
-       Get the boundaries of genes or transcripts from a GTF file, for quick filtering of a Table or MatrixTable.
+    Get the boundaries of genes or transcripts from a GTF file, for quick filtering of a Table or MatrixTable.
 
-       Gencode v19 (GRCh37) GTF available at: gs://hail-common/references/gencode/gencode.v19.annotation.gtf.bgz
-       Gencode v29 (GRCh38) GTF available at: gs://hail-common/references/gencode/gencode.v29.annotation.gtf.bgz
+    On Google Cloud platform:
+    Gencode v19 (GRCh37) GTF available at: gs://hail-common/references/gencode/gencode.v19.annotation.gtf.bgz
+    Gencode v29 (GRCh38) GTF available at: gs://hail-common/references/gencode/gencode.v29.annotation.gtf.bgz
 
-       Example
-       -------
-       >>> hl.filter_intervals(ht, get_gene_intervals(gene_symbols=['PCSK9']))  # doctest: +SKIP
+    Example
+    -------
+    >>> hl.filter_intervals(ht, get_gene_intervals(gene_symbols=['PCSK9'], reference_genome='GRCh37'))  # doctest: +SKIP
 
-       Parameters
-       ----------
+    Parameters
+    ----------
 
-       gene_symbols : :obj:`list` of :obj:`str`, optional
-           Gene symbols (e.g. PCSK9).
-       gene_ids : :obj:`list` of :obj:`str`, optional
-           Gene IDs (e.g. ENSG00000223972).
-       transcript_ids : :obj:`list` of :obj:`str`, optional
-           Transcript IDs (e.g. ENSG00000223972).
-       verbose : :obj:`bool`
-           If ``True``, print which genes and transcripts were matched in the GTF file.
-       reference_genome : :obj:`str` or :class:`.ReferenceGenome`, optional
-           Reference genome to use (passed along to import_gtf).
-       gtf_file : :obj:`str`
-           GTF file to load. If none is provided, but `reference_genome` is one of
-           `GRCh37` or `GRCh38`, a default will be used.
+    gene_symbols : :obj:`list` of :obj:`str`, optional
+       Gene symbols (e.g. PCSK9).
+    gene_ids : :obj:`list` of :obj:`str`, optional
+       Gene IDs (e.g. ENSG00000223972).
+    transcript_ids : :obj:`list` of :obj:`str`, optional
+       Transcript IDs (e.g. ENSG00000223972).
+    verbose : :obj:`bool`
+       If ``True``, print which genes and transcripts were matched in the GTF file.
+    reference_genome : :obj:`str` or :class:`.ReferenceGenome`, optional
+       Reference genome to use (passed along to import_gtf).
+    gtf_file : :obj:`str`
+       GTF file to load. If none is provided, but `reference_genome` is one of
+       `GRCh37` or `GRCh38`, a default will be used (on Google Cloud Platform).
 
-       Returns
-       -------
-       :obj:`list` of :class:`.Interval`
+    Returns
+    -------
+    :obj:`list` of :class:`.Interval`
     """
     GTFS = {
         'GRCh37': 'gs://hail-common/references/gencode/gencode.v19.annotation.gtf.bgz',
@@ -211,34 +213,22 @@ def get_gene_intervals(gene_symbols=None, gene_ids=None, transcript_ids=None,
     if gtf_file is None:
         gtf_file = GTFS.get(reference_genome)
         if gtf_file is None:
-            raise ValueError('get_gene_intervals requires a GTF file, or the reference genome be one of GRCh37 or GRCh38')
+            raise ValueError('get_gene_intervals requires a GTF file, or the reference genome be one of GRCh37 or GRCh38 (when on Google Cloud Platform)')
     if not gene_symbols and not gene_ids and not transcript_ids:
         raise ValueError('get_gene_intervals requires at least one of gene_symbols, gene_ids, or transcript_ids')
     ht = hl.experimental.import_gtf(gtf_file, reference_genome=reference_genome,
                                     skip_invalid_contigs=True, min_partitions=12)
     ht = ht.annotate(gene_id=ht.gene_id.split(f'\\.')[0],
                      transcript_id=ht.transcript_id.split('\\.')[0])
-    criteria = [lambda x: False]
+    criteria = []
     if gene_symbols:
-        criteria.append(lambda x: hl.any(lambda y: (x.feature == 'gene') & (x.gene_name == y), gene_symbols))
+        criteria.append(hl.any(lambda y: (ht.feature == 'gene') & (ht.gene_name == y), gene_symbols))
     if gene_ids:
-        criteria.append(lambda x: hl.any(lambda y: (x.feature == 'gene') & (x.gene_id == y.split('\\.')[0]), gene_ids))
+        criteria.append(hl.any(lambda y: (ht.feature == 'gene') & (ht.gene_id == y.split('\\.')[0]), gene_ids))
     if transcript_ids:
-        criteria.append(lambda x: hl.any(lambda y: (x.feature == 'transcript') & (x.transcript_id == y.split('\\.')[0]), transcript_ids))
+        criteria.append(hl.any(lambda y: (ht.feature == 'transcript') & (ht.transcript_id == y.split('\\.')[0]), transcript_ids))
 
-    def combine_functions(func_list, x, operator='and'):
-        possible_operators = ('and', 'or')
-        if operator not in possible_operators:
-            raise ValueError(f'combine_functions only allows operators: {", ".join(possible_operators)}')
-        cond = func_list[0](x)
-        for c in func_list[1:]:
-            if operator == 'and':
-                cond &= c(x)
-            elif operator == 'or':
-                cond |= c(x)
-        return cond
-
-    ht = ht.filter(combine_functions(criteria, ht, operator='or'))
+    ht = ht.filter(functools.reduce(operator.ior, criteria))
     gene_info = ht.aggregate(hl.agg.collect((ht.feature, ht.gene_name, ht.gene_id, ht.transcript_id, ht.interval)))
     if verbose:
         print(f'get_gene_intervals found {len(gene_info)} entries:\n' +
