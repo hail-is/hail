@@ -224,11 +224,12 @@ case class BlockMatrixBroadcast(
 
   override protected[ir] def execute(hc: HailContext): BlockMatrix = {
     val childBm = child.execute(hc)
-    val nRows = shape(0).toInt
-    val nCols = shape(1).toInt
 
     outIndexExpr match {
       case IndexedSeq(i, j) =>
+        val nRows = shape(0).toInt
+        val nCols = shape(1).toInt
+
         inIndexExpr match {
           case IndexedSeq() =>
             val scalar = childBm.toBreezeMatrix().apply(0,0)

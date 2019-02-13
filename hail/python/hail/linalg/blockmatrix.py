@@ -1149,7 +1149,7 @@ class BlockMatrix(object):
                                                 [0, 1], [1, 0],
                                                 [self.n_cols, self.n_rows],
                                                 self.block_size,
-                                                self._bmir.typ.dims_partitioned))
+                                                self._bmir.typ.dims_partitioned[::-1]))
 
     def densify(self):
         """Restore all dropped blocks as explicit blocks of zeros.
