@@ -4,8 +4,10 @@ import itertools
 
 import hail as hl
 import hail.expr.aggregators as agg
+from hail.expr import construct_expr
 from hail.ir import BlockMatrixWrite, BlockMatrixMap2, ApplyBinaryOp, Ref, F64, \
-    BlockMatrixBroadcast, ValueToBlockMatrix, MakeArray, BlockMatrixRead, JavaBlockMatrix, BlockMatrixMap, ApplyUnaryOp
+    BlockMatrixBroadcast, ValueToBlockMatrix, MakeArray, BlockMatrixRead, JavaBlockMatrix, BlockMatrixMap, ApplyUnaryOp, \
+    IR
 from hail.utils import new_temp_file, new_local_temp_file, local_path_uri, storage_level
 from hail.utils.java import Env, jarray, joption
 from hail.typecheck import *
@@ -1239,11 +1241,11 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return self._apply_map("-")
+        return self._apply_map(ApplyUnaryOp("-", Ref("element")))
 
-    @typecheck_method(op=str)
-    def _apply_map(self, op):
-        return BlockMatrix(BlockMatrixMap(self._bmir, ApplyUnaryOp(op, Ref('element'))))
+    @typecheck_method(f=IR)
+    def _apply_map(self, f):
+        return BlockMatrix(BlockMatrixMap(self._bmir, f))
 
     @typecheck_method(op=str,
                       other=oneof(numeric, np.ndarray, block_matrix_type),
@@ -1380,7 +1382,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return self._apply_map("sqrt")
+        return self._apply_map(hl.sqrt(construct_expr(Ref("element"), hl.tfloat64))._ir)
 
     def abs(self):
         """Element-wise absolute value.
@@ -1389,7 +1391,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return self._apply_map("abs")
+        return self._apply_map(hl.abs(construct_expr(Ref("element"), hl.tfloat64))._ir)
 
     def log(self):
         """Element-wise natural logarithm.
@@ -1398,7 +1400,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return self._apply_map("log")
+        return self._apply_map(hl.log(construct_expr(Ref("element"), hl.tfloat64))._ir)
 
     def diagonal(self):
         """Extracts diagonal elements as ndarray.

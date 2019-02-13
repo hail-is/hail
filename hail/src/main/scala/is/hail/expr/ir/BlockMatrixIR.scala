@@ -76,7 +76,7 @@ class BlockMatrixLiteral(value: BlockMatrix) extends BlockMatrixIR {
 }
 
 case class BlockMatrixMap(child: BlockMatrixIR, f: IR) extends BlockMatrixIR {
-  assert(f.isInstanceOf[ApplyUnaryPrimOp])
+  assert(f.isInstanceOf[ApplyUnaryPrimOp] || f.isInstanceOf[Apply], s"${Pretty(f)}")
 
   override def typ: BlockMatrixType = child.typ
 
@@ -90,6 +90,7 @@ case class BlockMatrixMap(child: BlockMatrixIR, f: IR) extends BlockMatrixIR {
   override protected[ir] def execute(hc: HailContext): BlockMatrix = {
     f match {
       case ApplyUnaryPrimOp(unaryOp, _) => applyUnaryOp(hc, unaryOp)
+      case Apply(fName, _) => applyRegisteredFunc(hc, fName)
       case _ => fatal(s"Unsupported operation on BlockMatrices: ${Pretty(f)}")
     }
   }
@@ -98,10 +99,17 @@ case class BlockMatrixMap(child: BlockMatrixIR, f: IR) extends BlockMatrixIR {
     val blockMatrix = child.execute(hc)
     unaryOp match {
       case Negate() => blockMatrix.unary_-()
-      case Abs() => blockMatrix.abs()
-      case Log() => blockMatrix.log()
-      case Sqrt() => blockMatrix.sqrt()
       case _ => fatal(s"Unsupported unary operation on BlockMatrices: $unaryOp")
+    }
+  }
+
+  private def applyRegisteredFunc(hc: HailContext, fName: String): BlockMatrix = {
+    val blockMatrix = child.execute(hc)
+    fName match {
+      case "abs" => blockMatrix.abs()
+      case "log" => blockMatrix.log()
+      case "sqrt" => blockMatrix.sqrt()
+      case _ => fatal(s"Unsupported registered function on BlockMatrices: $fName")
     }
   }
 }
