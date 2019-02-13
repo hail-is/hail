@@ -131,8 +131,12 @@ server {
             add_header 'Content-Type' 'text/plain charset=UTF-8';
             add_header 'Content-Length' 0;
             return 204;
-            break;
         }
+
+        add_header 'Access-Control-Allow-Origin' '*';
+        add_header 'Access-Control-Allow-Credentials' 'true';
+        add_header 'Access-Control-Allow-Methods' 'GET, POST, DELETE, OPTIONS';
+        add_header 'Access-Control-Allow-Headers' 'Authorization,Keep-Alive,User-Agent,X-Requested-With,Cache-Control,Content-Type';
 
         auth_request /auth;
         auth_request_set $auth_user $upstream_http_user;
@@ -173,11 +177,6 @@ server {
         proxy_read_timeout 86400;
         proxy_connect_timeout 10s;
     }
-
-    add_header 'Access-Control-Allow-Origin' '*';
-    add_header 'Access-Control-Allow-Credentials' 'true';
-    add_header 'Access-Control-Allow-Methods' 'GET, POST, DELETE, OPTIONS';
-    add_header 'Access-Control-Allow-Headers' 'Authorization,Keep-Alive,User-Agent,Cache-Control,Content-Type';
 
     listen [::]:443 ssl;
     listen 443 ssl;
