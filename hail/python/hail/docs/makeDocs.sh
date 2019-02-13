@@ -15,7 +15,7 @@ trap 'exit 1' INT TERM
 mkdir -p build/www/ build/tmp/python/ build/tmp/docs build/www/docs
 
 # copy website content
-cp www/*.{js,css,css.map,html,png} build/www #  www/annotationdb/* does not exist
+cp www/*.{js,css,css.map,html,png,ico} build/www #  www/annotationdb/* does not exist
 
 for f in $(find www -name \*.md)
 do
