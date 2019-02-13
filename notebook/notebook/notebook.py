@@ -375,8 +375,8 @@ def verify(svc_name: str):
         return '', 401
 
     # FIXME: Replace with pod ip
-    #resp = Response('')
-    #resp.headers['IP'] = k_res.spec.cluster_ip
+    # resp = Response('')
+    # resp.headers['IP'] = k_res.spec.cluster_ip
 
     return '', 200
 
