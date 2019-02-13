@@ -567,9 +567,9 @@ object IRParser {
         val op = ComparisonOp.fromStringAndTypes(opName, l.typ, r.typ)
         ApplyComparisonOp(op, l, r)
       case "MakeArray" =>
-        val typ = opt[Type](it, type_expr).orNull
+        val elementType = opt[Type](it, type_expr).orNull
         val args = ir_value_children(env)(it)
-        MakeArray.unify(args, typ)
+        MakeArray.unify(args, elementType)
       case "ArrayRef" =>
         val a = ir_value_expr(env)(it)
         val i = ir_value_expr(env)(it)
