@@ -1,6 +1,9 @@
 """
-A Jupyter notebook service with local-mode Hail pre-installed
+A Jupyter notebook service with Hail pre-installed
+It is expected that all endpoints are protected
+by an upstream service that verifies an OAuth2 access_token
 """
+
 import gevent
 # must happen before anytyhing else
 from gevent import monkey, pywsgi
@@ -35,11 +38,12 @@ if 'BATCH_USE_KUBE_CONFIG' in os.environ:
 else:
     kube.config.load_incluster_config()
 
+DEFAULT_HAIL_IMAGE = os.environ.get("DEFAULT_HAIL_IMAGE",
+                                    list(WORKER_IMAGES.keys())[0])
 AUTH_GATEWAY = os.environ.get("AUTH_GATEWAY", "http://auth-gateway")
-DEFAULT_HAIL_IMAGE = os.environ.get("DEFAULT_HAIL_IMAGE", list(WORKER_IMAGES.keys())[0])
-
 KUBERNETES_TIMEOUT_IN_SECONDS = float(
     os.environ.get('KUBERNETES_TIMEOUT_IN_SECONDS', 5.0))
+
 INSTANCE_ID = uuid.uuid4().hex
 
 fmt = logging.Formatter(
@@ -67,18 +71,14 @@ log.info(f'KUBERNETES_TIMEOUT_IN_SECONDS: {KUBERNETES_TIMEOUT_IN_SECONDS}')
 log.info(f'INSTANCE_ID: {INSTANCE_ID}')
 
 # Prevent issues with many websockets leading to many kube connections
-# TODO: tune this
-# TODO: probably remove once asynchttp used, re-use one connection, watch all pods, yield if no websockets in global for user
+# TODO: tune this, potentially watch many users with one connection
 kube.config.connection_pool_maxsize = 5000
 k8s = kube.client.CoreV1Api()
 
 app = Flask(__name__)
 sockets = Sockets(app)
 
-# A basic transformation to make user_ids safe for Kube
 # FIXME: use hash
-
-
 def UNSAFE_user_id_transform(user_id): return user_id.replace('|', '--_--')
 
 
@@ -201,9 +201,6 @@ def marshall_json(resources: [], paths=[], flatten=False):
     return ujson.dumps(resp)
 
 
-# Pod resource marshalling path functions #
-
-
 def read_svc_status(svc_name):
     try:
         # TODO: inspect exception for non-404
@@ -308,12 +305,12 @@ def forbidden():
     return 'Forbidden', 404
 
 
-# TODO: learn how to properly handle webscocket close in gevent + wsgi
-# Simply checking ws.close isn't enough
+# TODO: Simply checking ws.close isn't enough
 # https://github.com/heroku-python/flask-sockets/issues/60
+# Solution may be move to aiohttp
 @sockets.route('/jupyter/ws')
 def echo_socket(ws):
-    user_id = ws.environ['HTTP_USER']  # and scope is ws.environ['HTTP_SCOPE']
+    user_id = ws.environ['HTTP_USER']
     w = kube.watch.Watch()
 
     for event in w.stream(k8s.list_namespaced_pod, namespace='default',
@@ -347,12 +344,6 @@ def echo_socket(ws):
 @app.route('/jupyter/verify/<svc_name>/', methods=['GET'])
 def verify(svc_name):
     access_token = request.cookies.get('access_token')
-    # No longer verify the juptyer token; let jupyter handle this
-    # The URI gets modified by jupyter, so get queries get lost
-    # Since the token is just a jupyter password, we can skip this
-    # and simply verify the user owns the resource (here svc_name)
-    # token = request.args.get('token')
-    # log.info(f'JUPYTER TOKEN: {token}')
 
     if not access_token:
         return '', 401
@@ -390,7 +381,8 @@ def get_notebooks():
 
     pods = k8s.list_namespaced_pod(
         namespace='default',
-        label_selector=f"user_id={UNSAFE_user_id_transform(user_id)}", timeout_seconds=30).items
+        label_selector=f"user_id={UNSAFE_user_id_transform(user_id)}",
+        timeout_seconds=KUBERNETES_TIMEOUT_IN_SECONDS).items
 
     return marshall_json(pods, pod_paths), 200
 
@@ -414,7 +406,9 @@ def delete_notebook(svc_name):
         del_svc(svc_name)
 
         pods = k8s.list_namespaced_pod(
-            namespace='default', label_selector=f"uuid={svc.metadata.labels['uuid']}", timeout_seconds=30).items
+            namespace='default',
+            label_selector=f"uuid={svc.metadata.labels['uuid']}",
+            timeout_seconds=KUBERNETES_TIMEOUT_IN_SECONDS).items
 
         if len(pods) == 0:
             log.error(
@@ -433,7 +427,7 @@ def delete_notebook(svc_name):
         return '', 200
 
     except kube.client.rest.ApiException:
-        # TODO: Return non-200 errors, not done now because web app
+        # FIXME: Return non-200 errors, not done now because web app
         # needs to be updated to catch and handle 404 as a non-fatal response
         # return '', str(e)[1:4]
         return '', 200
@@ -450,7 +444,7 @@ def new_notebook():
         return forbidden()
 
     # Token does not need to be cryptographically secure
-    # Is trusted, and authorization is handled in /verify
+    # Is trusted, and authorization is handled upstream
     jupyter_token = uuid.uuid4().hex
     _, pod = start_pod(
         jupyter_token, WORKER_IMAGES[image],
