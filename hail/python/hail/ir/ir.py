@@ -442,32 +442,30 @@ class ApplyComparisonOp(IR):
 
 
 class MakeArray(IR):
-    @typecheck_method(args=sequenceof(IR), element_type=nullable(hail_type))
-    def __init__(self, args, element_type):
+    @typecheck_method(args=sequenceof(IR), type=nullable(hail_type))
+    def __init__(self, args, type):
         super().__init__(*args)
         self.args = args
-        self._element_type = element_type
+        self._type = type
 
     def copy(self, *args):
         new_instance = self.__class__
-        return new_instance(list(args), self._element_type)
+        return new_instance(list(args), self._type)
 
     def render(self, r):
         return '(MakeArray {} {})'.format(
-            self._element_type._parsable_string() if self._element_type is not None else 'None',
+            self._type._parsable_string() if self._type is not None else 'None',
             ' '.join([r(x) for x in self.args]))
 
     def __eq__(self, other):
         return isinstance(other, MakeArray) and \
                other.args == self.args and \
-               other._element_type == self._element_type
+               other._type == self._type
 
     def _compute_type(self, env, agg_env):
         for a in self.args:
             a._compute_type(env, agg_env)
-        if self._element_type:
-            self._type = self._element_type
-        else:
+        if self._type is None:
             self._type = tarray(self.args[0].typ)
 
 
