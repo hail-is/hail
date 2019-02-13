@@ -137,9 +137,7 @@ class Job:
                                               labels={
                                                   'app': 'batch-job',
                                                   'hail.is/batch-instance': instance_id,
-                                                  'uuid': uuid.uuid4().hex
-            }),
-            spec=pod_spec)
+                                                  'uuid': uuid.uuid4().hex}), spec=pod_spec)
 
         log.info('created job {}'.format(self.id))
 
