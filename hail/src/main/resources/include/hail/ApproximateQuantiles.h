@@ -50,13 +50,13 @@ public:
     check_compact(0);
   }
   void finalize() {
-    for (int i = 0; i < buffers.size() - 1; ++i) {
+    for (size_t i = 0; i < buffers.size() - 1; ++i) {
       compact(i);
     }
     sort_buffer(buffers.size() - 1);
   }
   void write() {
-    for (int i = 0; i < buffers.size() - 1; ++i) {
+    for (size_t i = 0; i < buffers.size() - 1; ++i) {
       auto &buffer = buffers[i];
       std::cout << "buffer " << i << " = [";
       for (auto x : buffer) {
