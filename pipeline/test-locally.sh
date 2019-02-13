@@ -4,6 +4,8 @@ set -ex
 
 . activate hail-pipeline
 
+PYTEST_ARGS=${PYTEST_ARGS:- -v --failed-first}
+
 cleanup() {
     set +e
     trap "" INT TERM
@@ -24,4 +26,4 @@ do
     sleep 1
 done
 
-BATCH_URL='http://127.0.0.1:5000' pytest -v test
+BATCH_URL='http://127.0.0.1:5000' pytest ${PYTEST_ARGS} test
