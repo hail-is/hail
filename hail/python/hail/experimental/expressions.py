@@ -43,7 +43,8 @@ def read_expression(path):
 
    Example
    -------
-   >>> expression = hl.experimental.read_expression('output/expression.he')
+   >>> hl.experimental.write_expression(hl.array([1, 2]), 'output/test_expression.he')
+   >>> expression = hl.experimental.read_expression('output/test_expression.he')
    >>> hl.eval(expression)
 
    Parameters
