@@ -374,10 +374,11 @@ def verify(svc_name: str):
     if labels['user_id'] != UNSAFE_user_id_transform(user_id):
         return '', 401
 
-    resp = Response('')
-    resp.headers['IP'] = k_res.spec.cluster_ip
+    # FIXME: Replace with pod ip
+    #resp = Response('')
+    #resp.headers['IP'] = k_res.spec.cluster_ip
 
-    return resp
+    return '', 200
 
 
 @app.route('/jupyter', methods=['GET'])
