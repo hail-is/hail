@@ -85,7 +85,7 @@ trait Py4jUtils {
   private val giga: Long = mega * 1024
   private val tera: Long = giga * 1024
 
-  private def readableBytes(bytes: Long): String = {
+  def readableBytes(bytes: Long): String = {
     if (bytes < kilo)
       bytes.toString
     else if (bytes < mega)
