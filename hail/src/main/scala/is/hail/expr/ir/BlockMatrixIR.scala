@@ -8,6 +8,8 @@ import is.hail.utils.fatal
 import breeze.linalg.DenseMatrix
 import is.hail.expr.types.virtual.Type
 
+import scala.collection.mutable.ArrayBuffer
+
 object BlockMatrixIR {
   def toBlockMatrix(
     hc: HailContext,
@@ -242,15 +244,15 @@ case class BlockMatrixBroadcast(
   }
 
   private def broadcastRowVector(hc: HailContext, vec: Array[Double], nRows: Int, nCols: Int): BlockMatrix = {
-    var data = Array[Double]()
-    (0 to nRows).foreach(_ => data = data ++ vec)
-    BlockMatrixIR.toBlockMatrix(hc, nRows, nCols, data, blockSize)
+    val data = ArrayBuffer[Double]()
+    (0 to nRows).foreach(_ => data ++= vec)
+    BlockMatrixIR.toBlockMatrix(hc, nRows, nCols, data.toArray, blockSize)
   }
 
   private def broadcastColVector(hc: HailContext, vec: Array[Double], nRows: Int, nCols: Int): BlockMatrix = {
-    var data = Array[Double]()
-    (0 to nRows).foreach(idx => (0 to nCols).foreach(_ => data = data :+ vec(idx)))
-    BlockMatrixIR.toBlockMatrix(hc, nRows, nCols, data, blockSize)
+    val data = ArrayBuffer[Double]()
+    (0 to nRows).foreach(row => (0 to nCols).foreach(_ => data += vec(row)))
+    BlockMatrixIR.toBlockMatrix(hc, nRows, nCols, data.toArray, blockSize)
   }
 }
 
@@ -281,7 +283,6 @@ case class ValueToBlockMatrix(
       case scalar: Double =>
         BlockMatrix.fill(hc, nRows = 1, nCols = 1, scalar, blockSize)
       case data: IndexedSeq[Double] =>
-        assert(shape.length == 2)
         BlockMatrixIR.toBlockMatrix(hc, shape(0).toInt, shape(1).toInt, data.toArray, blockSize)
     }
   }
