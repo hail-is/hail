@@ -78,14 +78,22 @@ k8s = kube.client.CoreV1Api()
 app = Flask(__name__)
 sockets = Sockets(app)
 
+
 # FIXME: use hash
 def UNSAFE_user_id_transform(user_id): return user_id.replace('|', '--_--')
 
 
+# TODO: decide if allowing empty strings (or whitespace-only)
+# opens us to any attacks
 def is_falsy_str(s: str):
     if s is None or s.strip() == "":
         return True
     return False
+
+
+def forbidden():
+    return 'Forbidden', 404
+
 
 def start_pod(jupyter_token, image, labels={}):
     pod_id = uuid.uuid4().hex
@@ -306,10 +314,6 @@ pod_paths_post = [
 # Routes #
 
 
-def forbidden():
-    return 'Forbidden', 404
-
-
 # TODO: Simply checking ws.close isn't enough
 # https://github.com/heroku-python/flask-sockets/issues/60
 # Solution may be move to aiohttp
@@ -347,7 +351,7 @@ def echo_socket(ws):
 
 
 @app.route('/jupyter/verify/<svc_name>/', methods=['GET'])
-def verify(svc_name):
+def verify(svc_name: str):
     access_token = request.cookies.get('access_token')
 
     if is_falsy_str(access_token):
@@ -380,13 +384,12 @@ def verify(svc_name):
 def get_notebooks():
     user_id = request.headers.get('User')
 
-    # list_namespaced_pod defaults to returning everything
-    # The behavior of an empty selector is ambiguous
-    # https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/CoreV1Api.md
-    # https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
     if is_falsy_str(user_id):
         return forbidden()
 
+    # Not well-documented: empty selector returns nothing
+    # https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/CoreV1Api.md
+    # https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
     pods = k8s.list_namespaced_pod(
         namespace='default',
         label_selector=f"user_id={UNSAFE_user_id_transform(user_id)}",
@@ -394,11 +397,9 @@ def get_notebooks():
 
     return marshall_json(pods, pod_paths), 200
 
-# TODO: decide if need to communicate issues to user; probably just alert devs
-
 
 @app.route('/jupyter/<svc_name>', methods=['DELETE'])
-def delete_notebook(svc_name):
+def delete_notebook(svc_name: str):
     # TODO: Is it possible to have a falsy token value and get here?
     user_id = request.headers.get("User")
 
