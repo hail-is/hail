@@ -6,7 +6,7 @@ import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.expr.ir
 import is.hail.expr.ir.functions.{MatrixToMatrixFunction, RelationalFunctions}
 import is.hail.expr.types._
-import is.hail.expr.types.physical.{PArray, PInt32, PStruct}
+import is.hail.expr.types.physical.{PArray, PInt32, PStruct, PType}
 import is.hail.expr.types.virtual._
 import is.hail.io.bgen.MatrixBGENReader
 import is.hail.io.gen.MatrixGENReader
@@ -144,9 +144,14 @@ abstract class MatrixReader {
   def fullRVDType: RVDType
 
   def requestType(requestedType: MatrixType): MatrixType = requestedType
+
+  def canLower: Boolean = false
+  def lower(mr: MatrixRead): TableIR = null
 }
 
 case class MatrixNativeReader(path: String) extends MatrixReader {
+
+  override def apply(mr: MatrixRead): MatrixValue = throw new UnsupportedOperationException
 
   lazy val spec: AbstractMatrixTableSpec = (RelationalSpec.read(HailContext.get, path): @unchecked) match {
     case mts: AbstractMatrixTableSpec => mts
@@ -165,97 +170,66 @@ case class MatrixNativeReader(path: String) extends MatrixReader {
 
   def fullType: MatrixType = spec.matrix_type
 
-  def apply(mr: MatrixRead): MatrixValue = {
+  override def canLower: Boolean = true
+
+  override def lower(mr: MatrixRead): TableIR = {
+    val rowsPath = path + "/rows"
+    val entriesPath = path + "/entries"
+    val colsPath = path + "/cols"
+
     val hc = HailContext.get
 
-    val requestedType = mr.typ
-    assert(PruneDeadFields.isSupertype(requestedType, spec.matrix_type),
-      s"R: ${ requestedType.parsableString() }\nS: ${ spec.matrix_type.parsableString() }")
+    var tr: TableIR = TableRead(
+      TableType(
+        mr.typ.rowType,
+        mr.typ.rowKey,
+        mr.typ.globalType
+      ),
+      mr.dropRows,
+      TableNativeReader(rowsPath, spec.rowsTableSpec(rowsPath))
+    )
 
-    val globals = spec.globalsComponent.readLocal(hc, path, requestedType.globalType.physicalType)(0).asInstanceOf[Row]
+    if (mr.dropCols) {
+      tr = TableMapGlobals(
+        tr,
+        InsertFields(
+          Ref("global", tr.typ.globalType),
+          FastSeq(LowerMatrixIR.colsFieldName -> MakeArray(FastSeq(), TArray(mr.typ.colType)))))
+      tr = TableMapRows(
+        tr,
+        InsertFields(
+          Ref("row", tr.typ.rowType),
+        FastSeq(LowerMatrixIR.entriesFieldName -> MakeArray(FastSeq(), TArray(mr.typ.entryType)))))
+    } else {
+      val colsTable = TableRead(
+        TableType(
+          mr.typ.colType,
+          FastIndexedSeq(),
+          TStruct()
+        ),
+        dropRows = false,
+        TableNativeReader(colsPath, spec.colsTableSpec(colsPath))
+      )
 
-    val colAnnotations =
-      if (mr.dropCols)
-        FastIndexedSeq.empty[Annotation]
-      else
-        spec.colsComponent.readLocal(hc, path, requestedType.colType.physicalType).asInstanceOf[IndexedSeq[Annotation]]
+      tr = TableMapGlobals(tr, InsertFields(
+        Ref("global", tr.typ.globalType),
+        FastSeq(LowerMatrixIR.colsFieldName -> GetField(TableCollect(colsTable), "rows"))
+      ))
 
-    val rvd =
-      if (mr.dropRows)
-        RVD.empty(hc.sc, requestedType.canonicalRVDType)
-      else {
-        val fullRowType = requestedType.rvRowType
-        val localEntriesIndex = requestedType.entriesIdx
+      val entries: TableIR = TableRead(
+        TableType(
+          TStruct(LowerMatrixIR.entriesFieldName -> TArray(mr.typ.entryType)),
+          FastIndexedSeq(),
+          TStruct()
+        ),
+        mr.dropRows,
+        TableNativeReader(entriesPath, spec.entriesTableSpec(entriesPath))
+      )
 
-        val rowsRVD = spec.rowsComponent.read(hc, path, requestedType.rowType.physicalType)
-        if (mr.dropCols) {
-          val (t2, makeF) = ir.Compile[Long, Long](
-            "row", requestedType.rowType.physicalType,
-            MakeStruct(
-              fullRowType.fields.zipWithIndex.map { case (f, i) =>
-                val v: IR = if (i == localEntriesIndex)
-                  MakeArray(FastSeq.empty, TArray(requestedType.entryType))
-                else
-                  GetField(Ref("row", requestedType.rowType), f.name)
-                f.name -> v
-              }))
-          assert(t2.virtualType == fullRowType)
+      tr = TableZipUnchecked(tr, entries)
+    }
 
-          rowsRVD.mapPartitionsWithIndex(requestedType.canonicalRVDType) { (i, it) =>
-            val f = makeF(i)
-            val rv2 = RegionValue()
-            it.map { rv =>
-              val off = f(rv.region, rv.offset, false)
-              rv2.set(rv.region, off)
-              rv2
-            }
-          }
-        } else {
-          val entriesRVD = spec.entriesComponent.read(hc, path, requestedType.entriesRVType.physicalType)
-          val entriesRowType = entriesRVD.rowType
-
-          val (t2, makeF) = ir.Compile[Long, Long, Long](
-            "row", requestedType.rowType.physicalType,
-            "entriesRow", entriesRowType.physicalType,
-            MakeStruct(
-              fullRowType.fields.zipWithIndex.map { case (f, i) =>
-                val v: IR = if (i == localEntriesIndex)
-                  GetField(Ref("entriesRow", entriesRowType), MatrixType.entriesIdentifier)
-                else
-                  GetField(Ref("row", requestedType.rowType), f.name)
-                f.name -> v
-              }))
-          assert(t2.virtualType == fullRowType)
-
-          rowsRVD.zipPartitionsWithIndex(requestedType.canonicalRVDType, entriesRVD) { (i, ctx, it1, it2) =>
-            val f = makeF(i)
-            val region = ctx.region
-            val rv3 = RegionValue(region)
-            new Iterator[RegionValue] {
-              def hasNext = {
-                val hn1 = it1.hasNext
-                val hn2 = it2.hasNext
-                assert(hn1 == hn2)
-                hn1
-              }
-
-              def next(): RegionValue = {
-                val rv1 = it1.next()
-                val rv2 = it2.next()
-                val off = f(region, rv1.offset, false, rv2.offset, false)
-                rv3.set(region, off)
-                rv3
-              }
-            }
-          }
-        }
-      }
-
-    MatrixValue(
-      requestedType,
-      BroadcastRow(globals, requestedType.globalType, hc.sc),
-      BroadcastIndexedSeq(colAnnotations, TArray(requestedType.colType), hc.sc),
-      rvd)
+    tr
   }
 }
 
@@ -384,6 +358,10 @@ case class MatrixRead(
     else
       reader.columnCount
   }
+
+  final def canLower: Boolean = reader.canLower
+
+  final def lower: TableIR = reader.lower(this)
 }
 
 case class MatrixFilterCols(child: MatrixIR, pred: IR) extends MatrixIR {

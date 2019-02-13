@@ -286,6 +286,8 @@ object LowerMatrixIR {
         )
 
     case MatrixExplodeRows(child, path) => TableExplode(lower(child), path)
+
+    case mr: MatrixRead if mr.reader.canLower => mr.reader.lower(mr)
   }
 
   private[this] def tableRules: PartialFunction[TableIR, TableIR] = {

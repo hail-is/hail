@@ -149,6 +149,11 @@ object Simplify {
 
     case Cast(x, t) if x.typ == t => x
 
+    case ApplyBinaryPrimOp(Add(), I32(0), x) => x
+    case ApplyBinaryPrimOp(Add(), x, I32(0)) => x
+    case ApplyBinaryPrimOp(Subtract(), I32(0), x) => x
+    case ApplyBinaryPrimOp(Subtract(), x, I32(0)) => x
+
     case ArrayLen(MakeArray(args, _)) => I32(args.length)
 
     case ArrayLen(ArrayRange(start, end, I32(1))) => ApplyBinaryPrimOp(Subtract(), end, start)
@@ -156,6 +161,8 @@ object Simplify {
     case ArrayLen(ArrayMap(a, _, _)) => ArrayLen(a)
 
     case ArrayLen(ArrayFlatMap(a, _, MakeArray(args, _))) => ApplyBinaryPrimOp(Multiply(), I32(args.length), ArrayLen(a))
+
+    case ArrayLen(ArraySort(a, _, _)) => ArrayLen(a)
 
     case ArrayRef(MakeArray(args, _), I32(i)) if i >= 0 && i < args.length => args(i)
 
@@ -267,6 +274,7 @@ object Simplify {
               g2.typ.asInstanceOf[TStruct].fields.map(f => f.name -> (GetField(Ref(g2s, g2.typ), f.name): IR)))))
     case TableGetGlobals(x@TableMultiWayZipJoin(children, _, globalName)) =>
       MakeStruct(FastSeq(globalName -> MakeArray(children.map(TableGetGlobals), TArray(children.head.typ.globalType))))
+    case TableGetGlobals(TableZipUnchecked(left, _)) => TableGetGlobals(left)
     case TableGetGlobals(TableLeftJoinRightDistinct(child, _, _)) => TableGetGlobals(child)
     case TableGetGlobals(TableMapRows(child, _)) => TableGetGlobals(child)
     case TableGetGlobals(TableMapGlobals(child, newGlobals)) =>
