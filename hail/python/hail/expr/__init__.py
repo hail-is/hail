@@ -163,4 +163,6 @@ __all__ = ['HailType',
            'bit_lshift',
            'bit_rshift',
            'bit_not',
+           '_sort_by',
+           '_compare',
            ]
