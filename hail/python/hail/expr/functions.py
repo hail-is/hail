@@ -4228,6 +4228,9 @@ def liftover(x, dest_reference_genome, min_match=0.95, include_strand=False):
              True,
              True)
 
+    See :ref:`liftover_howto` for more instructions on lifting over a Table
+    or MatrixTable.
+
     Notes
     -----
     This function requires the reference genome of `x` has a chain file loaded

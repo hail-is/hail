@@ -35,6 +35,7 @@ Convert variants in string format to separate locus and allele fields
             this struct so that the resulting table has two new fields, ``locus`` and
             ``alleles``.
 
+.. _liftover_howto:
 
 Liftover variants from one coordinate system to another
 .......................................................
