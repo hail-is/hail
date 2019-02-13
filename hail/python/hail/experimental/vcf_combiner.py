@@ -39,7 +39,11 @@ def transform_one(mt: MatrixTable) -> MatrixTable:
 
 
 def merge_alleles(alleles) -> ArrayExpression:
-    return hl.array(hl.set(hl.flatten(alleles)))
+    # alleles is tarray(tarray(tstruct(ref=tstr, alt=tstr)))
+    return hl.rbind(hl.array(hl.set(hl.flatten(alleles))),
+                    lambda arr:
+                    hl.filter(lambda a: a.alt != '<NON_REF>', arr)
+                      .extend(hl.filter(lambda a: a.alt == '<NON_REF>', arr)))
 
 
 def renumber_entry(entry, old_to_new) -> StructExpression:
