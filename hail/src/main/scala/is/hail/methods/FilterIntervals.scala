@@ -10,7 +10,7 @@ import is.hail.utils.Interval
 import org.json4s.CustomSerializer
 import org.json4s.JsonAST.{JBool, JObject, JString}
 
-class MatrixFilterItervalsSerializer extends CustomSerializer[MatrixFilterIntervals](format => (
+class MatrixFilterIntervalsSerializer extends CustomSerializer[MatrixFilterIntervals](format => (
   { case JObject(fields) =>
       val fieldMap = fields.toMap
 
@@ -46,7 +46,7 @@ case class MatrixFilterIntervals(
   }
 }
 
-class TableFilterItervalsSerializer extends CustomSerializer[TableFilterIntervals](format => (
+class TableFilterIntervalsSerializer extends CustomSerializer[TableFilterIntervals](format => (
   { case JObject(fields) =>
     val fieldMap = fields.toMap
 

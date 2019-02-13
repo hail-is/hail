@@ -65,8 +65,8 @@ object RelationalFunctions {
     classOf[MatrixExportEntriesByCol],
     classOf[PCA]
   )) +
-    new MatrixFilterItervalsSerializer +
-    new TableFilterItervalsSerializer
+    new MatrixFilterIntervalsSerializer +
+    new TableFilterIntervalsSerializer
 
   def extractTo[T : Manifest](config: String): T = {
     Serialization.read[T](config)
