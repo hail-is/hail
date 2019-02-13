@@ -360,10 +360,9 @@ def verify(svc_name):
         return '', 401
 
     k_res = k8s.read_namespaced_service(svc_name, 'default')
+    labels = k_res.metadata.labels
 
-    l = k_res.metadata.labels
-
-    if l['user_id'] != UNSAFE_user_id_transform(user_id):
+    if labels['user_id'] != UNSAFE_user_id_transform(user_id):
         return '', 401
 
     resp = Response('')
