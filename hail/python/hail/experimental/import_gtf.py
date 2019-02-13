@@ -1,5 +1,7 @@
 
 import hail as hl
+from hail.genetics.reference_genome import reference_genome_type
+from hail.typecheck import *
 
 
 def import_gtf(path, reference_genome=None, skip_invalid_contigs=False, min_partitions=None) -> hl.Table:
@@ -162,8 +164,12 @@ def import_gtf(path, reference_genome=None, skip_invalid_contigs=False, min_part
     return ht
 
 
+@typecheck(gene_symbols=nullable(sequenceof(str)),
+           gene_ids=nullable(sequenceof(str)),
+           transcript_ids=nullable(sequenceof(str)),
+           verbose=bool, reference_genome=nullable(reference_genome_type), gtf_file=nullable(str))
 def get_gene_intervals(gene_symbols=None, gene_ids=None, transcript_ids=None,
-                       verbose=True, gtf_file=None, reference_genome=hl.default_reference()):
+                       verbose=True, reference_genome=None, gtf_file=None):
     """Get intervals of genes or transcripts.
 
        Get the boundaries of genes or transcripts from a GTF file, for quick filtering of a Table or MatrixTable.
@@ -186,10 +192,11 @@ def get_gene_intervals(gene_symbols=None, gene_ids=None, transcript_ids=None,
            Transcript IDs (e.g. ENSG00000223972).
        verbose : :obj:`bool`
            If ``True``, print which genes and transcripts were matched in the GTF file.
-       gtf_file : :obj:`str`
-           GTF file to load.
        reference_genome : :obj:`str` or :class:`.ReferenceGenome`, optional
            Reference genome to use (passed along to import_gtf).
+       gtf_file : :obj:`str`
+           GTF file to load. If none is provided, but `reference_genome` is one of
+           `GRCh37` or `GRCh38`, a default will be used.
 
        Returns
        -------
@@ -199,6 +206,8 @@ def get_gene_intervals(gene_symbols=None, gene_ids=None, transcript_ids=None,
         'GRCh37': 'gs://hail-common/references/gencode/gencode.v19.annotation.gtf.bgz',
         'GRCh38': 'gs://hail-common/references/gencode/gencode.v29.annotation.gtf.bgz',
     }
+    if reference_genome is None:
+        reference_genome = hl.default_reference().name
     if gtf_file is None:
         gtf_file = GTFS.get(reference_genome)
         if gtf_file is None:
