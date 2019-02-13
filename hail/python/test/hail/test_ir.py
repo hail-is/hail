@@ -218,7 +218,7 @@ class TableIRTests(unittest.TestCase):
             matrix_read,
             matrix_range,
             ir.MatrixRead(ir.MatrixVCFReader(resource('sample.vcf'), ['GT'], hl.tfloat64, None, None, None, None,
-                                             False, True, False, True, None)),
+                                             False, True, False, True, None, None, None)),
             ir.MatrixRead(ir.MatrixBGENReader(resource('example.8bits.bgen'), None, {}, 10, 1, None)),
             ir.MatrixFilterRows(matrix_read, ir.FalseIR()),
             ir.MatrixFilterCols(matrix_read, ir.FalseIR()),
@@ -247,12 +247,32 @@ class TableIRTests(unittest.TestCase):
 
 
 class BlockMatrixIRTests(unittest.TestCase):
+    @staticmethod
+    def _make_element_wise_op_ir(bm1, bm2, op):
+        return ir.BlockMatrixMap2(bm1, bm2, ir.ApplyBinaryOp(op, ir.Ref("l"), ir.Ref("r")))
 
     def block_matrix_irs(self):
-        read = ir.BlockMatrixRead('fake_file_path')
-        add = ir.BlockMatrixAdd(read, read)
+        scalar_ir = ir.F64(2)
+        vector_ir = ir.MakeArray([ir.F64(3), ir.F64(2)], hl.tarray(hl.tfloat64))
 
-        return [read, add]
+        read = ir.BlockMatrixRead(resource('blockmatrix_example/0'))
+        add_two_bms = BlockMatrixIRTests._make_element_wise_op_ir(read, read, '+')
+
+        scalar_to_bm = ir.ValueToBlockMatrix(scalar_ir, [], 1, [])
+        vector_to_bm = ir.ValueToBlockMatrix(vector_ir, [2], 1, [False])
+        broadcast_scalar = ir.BlockMatrixBroadcast(scalar_to_bm, "scalar", [2, 2], 256, [False, False])
+        broadcast_col = ir.BlockMatrixBroadcast(vector_to_bm, "col", [2, 2], 256, [False, False])
+        broadcast_row = ir.BlockMatrixBroadcast(vector_to_bm, "row", [2, 2], 256, [False, False])
+
+        return [
+            read,
+            add_two_bms,
+            scalar_to_bm,
+            vector_to_bm,
+            broadcast_scalar,
+            broadcast_col,
+            broadcast_row,
+        ]
 
     def test_parses(self):
         for x in self.block_matrix_irs():

@@ -479,6 +479,7 @@ object TestUtils {
       skipInvalidLoci,
       forceBGZ,
       force,
+      TextInputFilterAndReplace(),
       partitionsJSON
     )
     if (addedReference)

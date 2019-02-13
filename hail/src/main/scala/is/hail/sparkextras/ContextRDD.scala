@@ -65,24 +65,28 @@ object ContextRDD {
   def textFilesLines[C <: AutoCloseable](
     sc: SparkContext,
     files: Array[String],
-    nPartitions: Option[Int] = None
+    nPartitions: Option[Int] = None,
+    filterAndReplace: TextInputFilterAndReplace = TextInputFilterAndReplace()
   )(implicit c: Pointed[C]
   ): ContextRDD[C, WithContext[String]] =
     textFilesLines(
       sc,
       files,
-      nPartitions.getOrElse(sc.defaultMinPartitions))
+      nPartitions.getOrElse(sc.defaultMinPartitions),
+      filterAndReplace)
 
   def textFilesLines[C <: AutoCloseable](
     sc: SparkContext,
     files: Array[String],
-    nPartitions: Int
+    nPartitions: Int,
+    filterAndReplace: TextInputFilterAndReplace
   )(implicit c: Pointed[C]
   ): ContextRDD[C, WithContext[String]] =
     ContextRDD.weaken[C](
       sc.textFilesLines(
         files,
-        nPartitions))
+        nPartitions)
+        .mapPartitions(filterAndReplace.apply))
 
   // this one weird trick permits the caller to specify C without T
   sealed trait Parallelize[C <: AutoCloseable] {

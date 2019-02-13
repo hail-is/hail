@@ -128,7 +128,8 @@ case class MatrixLiteral(value: MatrixValue) extends MatrixIR {
 object MatrixReader {
   implicit val formats: Formats = RelationalSpec.formats + ShortTypeHints(
     List(classOf[MatrixNativeReader], classOf[MatrixRangeReader], classOf[MatrixVCFReader],
-      classOf[MatrixBGENReader], classOf[MatrixPLINKReader], classOf[MatrixGENReader]))
+      classOf[MatrixBGENReader], classOf[MatrixPLINKReader], classOf[MatrixGENReader],
+      classOf[TextInputFilterAndReplace]))
 }
 
 abstract class MatrixReader {

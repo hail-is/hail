@@ -355,14 +355,4 @@ class LocalLDPruneSuite extends SparkSuite {
     assert(isLocallyUncorrelated(vds, locallyPrunedVariantsTable, 0.2, 1000000))
     assert(!isGloballyUncorrelated(vds, locallyPrunedVariantsTable, 0.2, 1000000))
   }
-
-  @Test def testCallExpressionParameter() {
-    val entryMap = new java.util.HashMap[String, String](1)
-    entryMap.put("GT", "foo")
-    val fooVDS = vds.renameFields(new java.util.HashMap[String, String](), new java.util.HashMap[String, String](),
-      entryMap, new java.util.HashMap[String, String]())
-    val locallyPrunedVariantsTable = LocalLDPrune(fooVDS, "foo", r2Threshold = 0.2, windowSize = 1000000, maxQueueSize)
-    assert(isLocallyUncorrelated(vds, locallyPrunedVariantsTable, 0.2, 1000000))
-    assert(!isGloballyUncorrelated(vds, locallyPrunedVariantsTable, 0.2, 1000000))
-  }
 }
