@@ -82,6 +82,11 @@ sockets = Sockets(app)
 def UNSAFE_user_id_transform(user_id): return user_id.replace('|', '--_--')
 
 
+def is_falsy_str(s: str):
+    if s is None or s.strip() == "":
+        return True
+    return False
+
 def start_pod(jupyter_token, image, labels={}):
     pod_id = uuid.uuid4().hex
     service_spec = kube.client.V1ServiceSpec(
@@ -345,7 +350,7 @@ def echo_socket(ws):
 def verify(svc_name):
     access_token = request.cookies.get('access_token')
 
-    if not access_token:
+    if is_falsy_str(access_token):
         return '', 401
 
     resp = requests.get(f'{AUTH_GATEWAY}/verify',
@@ -356,7 +361,7 @@ def verify(svc_name):
 
     user_id = resp.headers.get('User')
 
-    if not user_id:
+    if is_falsy_str(user_id):
         return '', 401
 
     k_res = k8s.read_namespaced_service(svc_name, 'default')
@@ -375,7 +380,11 @@ def verify(svc_name):
 def get_notebooks():
     user_id = request.headers.get('User')
 
-    if not user_id:
+    # list_namespaced_pod defaults to returning everything
+    # The behavior of an empty selector is ambiguous
+    # https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/CoreV1Api.md
+    # https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+    if is_falsy_str(user_id):
         return forbidden()
 
     pods = k8s.list_namespaced_pod(
@@ -391,7 +400,9 @@ def get_notebooks():
 @app.route('/jupyter/<svc_name>', methods=['DELETE'])
 def delete_notebook(svc_name):
     # TODO: Is it possible to have a falsy token value and get here?
-    if not request.headers.get("User") or not svc_name:
+    user_id = request.headers.get("User")
+
+    if is_falsy_str(user_id) or is_falsy_str(svc_name):
         return forbidden()
 
     escp_user_id = UNSAFE_user_id_transform(request.headers.get("User"))
@@ -439,7 +450,7 @@ def new_notebook():
 
     user_id = request.headers.get('User')
 
-    if not user_id or image not in WORKER_IMAGES:
+    if is_falsy_str(user_id) or image not in WORKER_IMAGES:
         return forbidden()
 
     # Token does not need to be cryptographically secure
@@ -457,7 +468,6 @@ def new_notebook():
 
 
 if __name__ == '__main__':
-
     server = pywsgi.WSGIServer(
         ('', 5000), app, handler_class=WebSocketHandler, log=log)
 
