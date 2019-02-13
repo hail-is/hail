@@ -1,6 +1,7 @@
 import unittest
 import hail as hl
 import hail.ir as ir
+from hail.expr import construct_expr
 from hail.utils.java import Env
 from hail.utils import new_temp_file
 from .helpers import *
@@ -256,9 +257,8 @@ class BlockMatrixIRTests(unittest.TestCase):
 
         read = ir.BlockMatrixRead(resource('blockmatrix_example/0'))
         add_two_bms = BlockMatrixIRTests._make_element_wise_op_ir(read, read, '+')
-        abs_bm = ir.BlockMatrixMap(read, ir.ApplyUnaryOp('abs', ir.Ref('element')))
         negate_bm = ir.BlockMatrixMap(read, ir.ApplyUnaryOp('-', ir.Ref('element')))
-        sqrt_bm = ir.BlockMatrixMap(read, ir.ApplyUnaryOp('sqrt', ir.Ref('element')))
+        sqrt_bm = ir.BlockMatrixMap(read, hl.sqrt(construct_expr(ir.Ref("element"), hl.tfloat64))._ir)
 
         scalar_to_bm = ir.ValueToBlockMatrix(scalar_ir, [1, 1], 1, [])
         col_vector_to_bm = ir.ValueToBlockMatrix(vector_ir, [2, 1], 1, [False])
@@ -276,7 +276,6 @@ class BlockMatrixIRTests(unittest.TestCase):
             broadcast_scalar,
             broadcast_col,
             broadcast_row,
-            abs_bm,
             negate_bm,
             sqrt_bm
         ]

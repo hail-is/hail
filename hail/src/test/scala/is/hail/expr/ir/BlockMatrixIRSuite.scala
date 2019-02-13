@@ -57,10 +57,10 @@ class BlockMatrixIRSuite extends SparkSuite {
 
 
   @Test def testBlockMatrixMap() {
-    val sqrtFoursIR = BlockMatrixMap(new BlockMatrixLiteral(fours), ApplyUnaryPrimOp(Sqrt(), Ref("element", TFloat64())))
+    val sqrtFoursIR = BlockMatrixMap(new BlockMatrixLiteral(fours), Apply("sqrt", IndexedSeq(Ref("element", TFloat64()))))
     val negFoursIR = BlockMatrixMap(new BlockMatrixLiteral(fours), ApplyUnaryPrimOp(Negate(), Ref("element", TFloat64())))
-    val logOnesIR = BlockMatrixMap(new BlockMatrixLiteral(ones), ApplyUnaryPrimOp(Log(), Ref("element", TFloat64())))
-    val absNegFoursIR = BlockMatrixMap(new BlockMatrixLiteral(negFours), ApplyUnaryPrimOp(Abs(), Ref("element", TFloat64())))
+    val logOnesIR = BlockMatrixMap(new BlockMatrixLiteral(ones), Apply("log", IndexedSeq(Ref("element", TFloat64()))))
+    val absNegFoursIR = BlockMatrixMap(new BlockMatrixLiteral(negFours), Apply("abs", IndexedSeq(Ref("element", TFloat64()))))
 
     assertBmEq(sqrtFoursIR.execute(hc), twos)
     assertBmEq(negFoursIR.execute(hc), negFours)
