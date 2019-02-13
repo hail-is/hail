@@ -47,24 +47,26 @@ Liftover variants from one coordinate system to another
 :**code**:
 
     First, we need to set up the two reference genomes (source and destination):
-        >>> rg37 = hl.get_reference('GRCh37')  # doctest: +SKIP
-        >>> rg38 = hl.get_reference('GRCh38')  # doctest: +SKIP
-        >>> rg37.add_liftover('gs://hail-common/references/grch37_to_grch38.over.chain.gz', rg38)  # doctest: +SKIP
+
+    >>> rg37 = hl.get_reference('GRCh37')  # doctest: +SKIP
+    >>> rg38 = hl.get_reference('GRCh38')  # doctest: +SKIP
+    >>> rg37.add_liftover('gs://hail-common/references/grch37_to_grch38.over.chain.gz', rg38)  # doctest: +SKIP
 
     Then we can liftover the locus coordinates in a Table or MatrixTable (here, `ht`)
     from reference genome ``'GRCh37'`` to ``'GRCh38'``:
-        >>> ht = ht.annotate(new_locus=hl.liftover(ht.locus, 'GRCh38'))  # doctest: +SKIP
-        >>> ht = ht.filter(hl.is_defined(ht.new_locus))  # doctest: +SKIP
-        >>> ht = ht.key_by(locus=ht.new_locus)  # doctest: +SKIP
+
+    >>> ht = ht.annotate(new_locus=hl.liftover(ht.locus, 'GRCh38'))  # doctest: +SKIP
+    >>> ht = ht.filter(hl.is_defined(ht.new_locus))  # doctest: +SKIP
+    >>> ht = ht.key_by(locus=ht.new_locus)  # doctest: +SKIP
 
     Note that this approach does not retain the old locus, nor does it verify
     that the allele has not changed strand. We can keep the old one for
     reference and filter out any liftover that changed strands using:
 
-        >>> ht = ht.annotate(new_locus=hl.liftover(ht.locus, 'GRCh38', include_strand=True),
-        ...                  old_locus=ht.locus)  # doctest: +SKIP
-        >>> ht = ht.filter(hl.is_defined(ht.new_locus) & ~ht.new_locus.is_negative_strand)  # doctest: +SKIP
-        >>> ht = ht.key_by(locus=ht.new_locus.result)  # doctest: +SKIP
+    >>> ht = ht.annotate(new_locus=hl.liftover(ht.locus, 'GRCh38', include_strand=True),
+    ...                  old_locus=ht.locus)  # doctest: +SKIP
+    >>> ht = ht.filter(hl.is_defined(ht.new_locus) & ~ht.new_locus.is_negative_strand)  # doctest: +SKIP
+    >>> ht = ht.key_by(locus=ht.new_locus.result)  # doctest: +SKIP
 
 :**dependencies**: :func:`.liftover`, :meth:`.add_liftover`, :meth:`.get_reference`
 
