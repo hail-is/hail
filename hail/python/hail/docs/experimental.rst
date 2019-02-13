@@ -37,6 +37,7 @@ Genetics Methods
     explode_trio_matrix
     load_dataset
     import_gtf
+    get_gene_intervals
     export_entries_by_col
 
 
@@ -52,4 +53,5 @@ Genetics Methods
 .. autofunction:: explode_trio_matrix
 .. autofunction:: load_dataset
 .. autofunction:: import_gtf
+.. autofunction:: get_gene_intervals
 .. autofunction:: export_entries_by_col
