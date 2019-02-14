@@ -12,7 +12,7 @@ def transform_one(mt: MatrixTable) -> MatrixTable:
     """transforms a gvcf into a form suitable for combining"""
     mt = mt.annotate_entries(
         # local (alt) allele index into global (alt) alleles
-        LA=hl.range(0, hl.len(mt.alleles) - 1),
+        LA=hl.range(1, hl.len(mt.alleles)),
         END=mt.info.END,
         BaseQRankSum=mt.info['BaseQRankSum'],
         ClippingRankSum=mt.info['ClippingRankSum'],
@@ -52,7 +52,7 @@ def merge_alleles(alleles) -> ArrayExpression:
 
 def renumber_entry(entry, old_to_new) -> StructExpression:
     # global index of alternate (non-ref) alleles
-    return entry.annotate(LA=entry.LA.map(lambda lak: old_to_new[lak]))
+    return entry.annotate(LA=entry.LA.map(lambda lak: old_to_new[lak - 1]))
 
 
 def combine(ts):
