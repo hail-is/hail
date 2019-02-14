@@ -115,14 +115,10 @@
           <th align="left">reviewers</th>
 	</thead>
 	<tbody>
-          {% for component, users in component_users.items() %}
+          {% for component, user in component_user.items() %}
 	  <tr>
             <td align="left">{{ component }}</td>
-            <td align="left">
-	      {% for user in users %}
-	      <a href="/users/{{ user }}">{{ user }}</a>
-	      {% endfor %}
-	    </td>
+            <td align="left"><a href="/users/{{ user }}">{{ user }}</a></td>
 	  </tr>
 	  {% endfor %}
 	</tbody>

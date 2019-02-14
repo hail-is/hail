@@ -58,15 +58,9 @@ timsetamp = None
 @app.route('/')
 def index():
     user_data, unassigned, urgent_issues, updated = get_users()
-
-    def functional_shuffle(x):
-        x = list(x)
-        random.shuffle(x)
-        return x
-
-    component_users_random = {c: functional_shuffle(us) for c, us in component_users.items()}
+    component_random_user = {c: random.choice(us) for c, us in component_users.items()}
     return render_template('index.html', unassigned=unassigned,
-                           user_data=user_data, urgent_issues=urgent_issues, component_users=component_users_random, updated=updated)
+                           user_data=user_data, urgent_issues=urgent_issues, component_user=component_random_user, updated=updated)
 
 @app.route('/users/<user>')
 def html_get_user(user):
