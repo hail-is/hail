@@ -115,7 +115,7 @@ case class BlockMatrixMap(child: BlockMatrixIR, f: IR) extends BlockMatrixIR {
 }
 
 case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, f: IR) extends BlockMatrixIR {
-  assert(f.isInstanceOf[ApplyBinaryPrimOp])
+  assert(f.isInstanceOf[ApplyBinaryPrimOp] || f.isInstanceOf[Apply])
 
   override def typ: BlockMatrixType = left.typ
 
@@ -130,74 +130,67 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, f: IR) ext
   }
 
   override protected[ir] def execute(hc: HailContext): BlockMatrix = {
-    f match {
-      case ApplyBinaryPrimOp(op, _, _) => applyBinOp(hc, left, right, op)
-      case _ => fatal(s"Unsupported operation on BlockMatrix: ${Pretty(f)}")
-    }
-  }
-
-  private def applyBinOp(hc: HailContext, left: BlockMatrixIR, right: BlockMatrixIR, op: BinaryOp): BlockMatrix = {
     left match {
       case BlockMatrixBroadcast(scalarIR: BlockMatrixIR, IndexedSeq(), _, _, _) =>
-        scalarOnLeft(hc, coerceToScalar(hc, scalarIR), right, op)
+        scalarOnLeft(hc, coerceToScalar(hc, scalarIR), right, f)
       case BlockMatrixBroadcast(vectorIR: BlockMatrixIR,inIndexExpr, _, _, _) =>
         val vector = coerceToVector(hc, vectorIR)
         inIndexExpr match {
-          case IndexedSeq(1) => rowVectorOnLeft(hc, vector, right, op)
-          case IndexedSeq(0) => colVectorOnLeft(hc, vector, right, op)
+          case IndexedSeq(1) => rowVectorOnLeft(hc, vector, right, f)
+          case IndexedSeq(0) => colVectorOnLeft(hc, vector, right, f)
         }
       case _ =>
-        matrixOnLeft(hc, left.execute(hc), right, op)
+        matrixOnLeft(hc, left.execute(hc), right, f)
     }
   }
 
-  private def scalarOnLeft(hc: HailContext, scalar: Double, right: BlockMatrixIR, op: BinaryOp): BlockMatrix = {
+  private def scalarOnLeft(hc: HailContext, scalar: Double, right: BlockMatrixIR, f: IR): BlockMatrix = {
     right match {
       case BlockMatrixBroadcast(vectorIR: BlockMatrixIR, IndexedSeq(_), _, _, _) =>
-        opWithScalar(vectorIR.execute(hc), scalar, op, reverse = true)
+        opWithScalar(vectorIR.execute(hc), scalar, f, reverse = true)
       case _ =>
-        opWithScalar(right.execute(hc), scalar, op, reverse = true)
+        opWithScalar(right.execute(hc), scalar, f, reverse = true)
     }
   }
 
-  private def rowVectorOnLeft(hc: HailContext, rowVector: Array[Double], right: BlockMatrixIR, op: BinaryOp): BlockMatrix = {
+  private def rowVectorOnLeft(hc: HailContext, rowVector: Array[Double], right: BlockMatrixIR, f: IR): BlockMatrix = {
     right match {
       case BlockMatrixBroadcast(scalarIR: BlockMatrixIR, IndexedSeq(), _, _, _) =>
         val rightAsScalar = coerceToScalar(hc, scalarIR)
         val rowVectorAsBm = BlockMatrixIR.toBlockMatrix(hc, 1, rowVector.length, rowVector)
-        opWithScalar(rowVectorAsBm, rightAsScalar, op, reverse = false)
+        opWithScalar(rowVectorAsBm, rightAsScalar, f, reverse = false)
       case _ =>
-        opWithRowVector(right.execute(hc), rowVector, op, reverse = true)
+        opWithRowVector(right.execute(hc), rowVector, f, reverse = true)
     }
   }
 
-  private def colVectorOnLeft(hc: HailContext, colVector: Array[Double], right: BlockMatrixIR, op: BinaryOp): BlockMatrix = {
+  private def colVectorOnLeft(hc: HailContext, colVector: Array[Double], right: BlockMatrixIR, f: IR): BlockMatrix = {
     right match {
       case BlockMatrixBroadcast(scalarIR: BlockMatrixIR, IndexedSeq(), _, _, _) =>
         val rightAsScalar = coerceToScalar(hc, scalarIR)
         val colVectorAsBm = BlockMatrixIR.toBlockMatrix(hc, colVector.length, 1, colVector)
-        opWithScalar(colVectorAsBm, rightAsScalar, op, reverse = false)
+        opWithScalar(colVectorAsBm, rightAsScalar, f, reverse = false)
       case _ =>
-        opWithColVector(right.execute(hc), colVector, op, reverse = true)
+        opWithColVector(right.execute(hc), colVector, f, reverse = true)
     }
   }
 
-  private def matrixOnLeft(hc: HailContext, matrix: BlockMatrix, right: BlockMatrixIR, op: BinaryOp): BlockMatrix = {
+  private def matrixOnLeft(hc: HailContext, matrix: BlockMatrix, right: BlockMatrixIR, f: IR): BlockMatrix = {
     right match {
       case BlockMatrixBroadcast(scalarIR: BlockMatrixIR, IndexedSeq(), _, _, _) =>
         val rightAsScalar = coerceToScalar(hc, scalarIR)
-        opWithScalar(matrix, rightAsScalar, op, reverse = false)
+        opWithScalar(matrix, rightAsScalar, f, reverse = false)
       case BlockMatrixBroadcast(vectorIR: BlockMatrixIR, inIndexExpr, _, _, _) =>
         inIndexExpr match {
           case IndexedSeq(1) =>
             val rightAsRowVec = coerceToVector(hc, vectorIR)
-            opWithRowVector(matrix, rightAsRowVec, op, reverse = false)
+            opWithRowVector(matrix, rightAsRowVec, f, reverse = false)
           case IndexedSeq(0) =>
             val rightAsColVec = coerceToVector(hc, vectorIR)
-            opWithColVector(matrix, rightAsColVec, op, reverse = false)
+            opWithColVector(matrix, rightAsColVec, f, reverse = false)
         }
       case _ =>
-        opWithTwoBlockMatrices(matrix, right.execute(hc), op)
+        opWithTwoBlockMatrices(matrix, right.execute(hc), f)
     }
   }
 
@@ -222,45 +215,46 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, f: IR) ext
     }
   }
 
-  private def opWithScalar(left: BlockMatrix, right: Double, op: BinaryOp, reverse: Boolean): BlockMatrix = {
-    op match {
-      case Add() => left.scalarAdd(right)
-      case Multiply() => left.scalarMul(right)
-      case Subtract() =>
+  private def opWithScalar(left: BlockMatrix, right: Double, f: IR, reverse: Boolean): BlockMatrix = {
+    f match {
+      case ApplyBinaryPrimOp(Add(), _, _) => left.scalarAdd(right)
+      case ApplyBinaryPrimOp(Multiply(), _, _) => left.scalarMul(right)
+      case ApplyBinaryPrimOp(Subtract(), _, _) =>
         if (reverse) left.reverseScalarSub(right) else left.scalarSub(right)
-      case FloatingPointDivide() =>
+      case ApplyBinaryPrimOp(FloatingPointDivide(), _, _) =>
         if (reverse) left.reverseScalarDiv(right) else left.scalarDiv(right)
+      case Apply("**", _) => left.pow(right)
     }
   }
 
-  private def opWithRowVector(left: BlockMatrix, right: Array[Double], op: BinaryOp, reverse: Boolean): BlockMatrix = {
-    op match {
-      case Add() => left.rowVectorAdd(right)
-      case Multiply() => left.rowVectorMul(right)
-      case Subtract() =>
+  private def opWithRowVector(left: BlockMatrix, right: Array[Double], f: IR, reverse: Boolean): BlockMatrix = {
+    f match {
+      case ApplyBinaryPrimOp(Add(), _, _) => left.rowVectorAdd(right)
+      case ApplyBinaryPrimOp(Multiply(), _, _) => left.rowVectorMul(right)
+      case ApplyBinaryPrimOp(Subtract(), _, _) =>
         if (reverse) left.reverseRowVectorSub(right) else left.rowVectorSub(right)
-      case FloatingPointDivide() =>
+      case ApplyBinaryPrimOp(FloatingPointDivide(), _, _) =>
         if (reverse) left.reverseRowVectorDiv(right) else left.rowVectorDiv(right)
     }
   }
 
-  private def opWithColVector(left: BlockMatrix, right: Array[Double], op: BinaryOp, reverse: Boolean): BlockMatrix = {
-    op match {
-      case Add() => left.colVectorAdd(right)
-      case Multiply() => left.colVectorMul(right)
-      case Subtract() =>
+  private def opWithColVector(left: BlockMatrix, right: Array[Double], f: IR, reverse: Boolean): BlockMatrix = {
+    f match {
+      case ApplyBinaryPrimOp(Add(), _, _) => left.colVectorAdd(right)
+      case ApplyBinaryPrimOp(Multiply(), _, _) => left.colVectorMul(right)
+      case ApplyBinaryPrimOp(Subtract(), _, _) =>
         if (reverse) left.reverseColVectorSub(right) else left.colVectorSub(right)
-      case FloatingPointDivide() =>
+      case ApplyBinaryPrimOp(FloatingPointDivide(), _, _) =>
         if (reverse) left.reverseColVectorDiv(right) else left.colVectorDiv(right)
     }
   }
 
-  private def opWithTwoBlockMatrices(left: BlockMatrix, right: BlockMatrix, op: BinaryOp): BlockMatrix = {
-    op match {
-      case Add() => left.add(right)
-      case Multiply() => left.mul(right)
-      case Subtract() => left.sub(right)
-      case FloatingPointDivide() => left.div(right)
+  private def opWithTwoBlockMatrices(left: BlockMatrix, right: BlockMatrix, f: IR): BlockMatrix = {
+    f match {
+      case ApplyBinaryPrimOp(Add(), _, _) => left.add(right)
+      case ApplyBinaryPrimOp(Multiply(), _, _) => left.mul(right)
+      case ApplyBinaryPrimOp(Subtract(), _, _) => left.sub(right)
+      case ApplyBinaryPrimOp(FloatingPointDivide(), _, _) => left.div(right)
     }
   }
 }

@@ -77,11 +77,14 @@ class BlockMatrixIRSuite extends SparkSuite {
     val threesSubTwo = makeMap2(new BlockMatrixLiteral(threes), broadcastTwo, Subtract())
     val twosMulTwo = makeMap2(new BlockMatrixLiteral(twos), broadcastTwo, Multiply())
     val foursDivTwo = makeMap2(new BlockMatrixLiteral(fours), broadcastTwo, FloatingPointDivide())
+    val twosPowTwo = BlockMatrixMap2(new BlockMatrixLiteral(twos), broadcastTwo,
+      Apply("**", IndexedSeq(Ref("l", TFloat64()), Ref("r", TFloat64()))))
 
     assertBmEq(onesAddTwo.execute(hc), threes)
     assertBmEq(threesSubTwo.execute(hc), ones)
     assertBmEq(twosMulTwo.execute(hc), fours)
     assertBmEq(foursDivTwo.execute(hc), twos)
+    assertBmEq(twosPowTwo.execute(hc), fours)
   }
 
   @Test def testBlockMatrixBroadcastValue_Vectors() {

@@ -247,18 +247,14 @@ class TableIRTests(unittest.TestCase):
 
 
 class BlockMatrixIRTests(unittest.TestCase):
-    @staticmethod
-    def _make_element_wise_op_ir(bm1, bm2, op):
-        return ir.BlockMatrixMap2(bm1, bm2, ir.ApplyBinaryOp(op, ir.Ref("l"), ir.Ref("r")))
-
     def block_matrix_irs(self):
         scalar_ir = ir.F64(2)
         vector_ir = ir.MakeArray([ir.F64(3), ir.F64(2)], hl.tarray(hl.tfloat64))
 
         read = ir.BlockMatrixRead(resource('blockmatrix_example/0'))
-        add_two_bms = BlockMatrixIRTests._make_element_wise_op_ir(read, read, '+')
+        add_two_bms = ir.BlockMatrixMap2(read, read, ir.ApplyBinaryOp('+', ir.Ref('l'), ir.Ref('r')))
         negate_bm = ir.BlockMatrixMap(read, ir.ApplyUnaryOp('-', ir.Ref('element')))
-        sqrt_bm = ir.BlockMatrixMap(read, hl.sqrt(construct_expr(ir.Ref("element"), hl.tfloat64))._ir)
+        sqrt_bm = ir.BlockMatrixMap(read, hl.sqrt(construct_expr(ir.Ref('element'), hl.tfloat64))._ir)
 
         scalar_to_bm = ir.ValueToBlockMatrix(scalar_ir, [1, 1], 1, [])
         col_vector_to_bm = ir.ValueToBlockMatrix(vector_ir, [2, 1], 1, [False])
@@ -267,17 +263,21 @@ class BlockMatrixIRTests(unittest.TestCase):
         broadcast_col = ir.BlockMatrixBroadcast(col_vector_to_bm, [0], [2, 2], 256, [False, False])
         broadcast_row = ir.BlockMatrixBroadcast(row_vector_to_bm, [1], [2, 2], 256, [False, False])
 
+        pow_ir = (construct_expr(ir.Ref('l'), hl.tfloat64) ** construct_expr(ir.Ref('r'), hl.tfloat64))._ir
+        squared_bm = ir.BlockMatrixMap2(scalar_to_bm, scalar_to_bm, pow_ir)
+
         return [
             read,
             add_two_bms,
+            negate_bm,
+            sqrt_bm,
             scalar_to_bm,
             col_vector_to_bm,
             row_vector_to_bm,
             broadcast_scalar,
             broadcast_col,
             broadcast_row,
-            negate_bm,
-            sqrt_bm
+            squared_bm
         ]
 
     def test_parses(self):
