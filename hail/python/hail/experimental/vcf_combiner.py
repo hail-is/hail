@@ -14,7 +14,6 @@ def transform_one(mt: MatrixTable) -> MatrixTable:
         # local (alt) allele index into global (alt) alleles
         LA=hl.range(0, hl.len(mt.alleles) - 1),
         END=mt.info.END,
-        PL=mt['PL'][0:],
         BaseQRankSum=mt.info['BaseQRankSum'],
         ClippingRankSum=mt.info['ClippingRankSum'],
         MQ=mt.info['MQ'],
@@ -33,6 +32,11 @@ def transform_one(mt: MatrixTable) -> MatrixTable:
             "VarDP",
             "SB",
         ))
+    mt = mt.transmute_entries(
+        LGT=mt.GT,
+        LAD=mt.AD,
+        LPL=mt.PL,
+        LPGT=mt.PGT)
     mt = mt.drop('SB', 'qual', 'filters')
 
     return mt
@@ -138,7 +142,7 @@ def lgt_to_gt(lgt, la):
 def summarize(mt):
     mt = hl.experimental.densify(mt)
     return mt.annotate_rows(info=hl.rbind(
-        hl.agg.call_stats(lgt_to_gt(mt.GT, mt.LA), mt.alleles),
+        hl.agg.call_stats(lgt_to_gt(mt.LGT, mt.LA), mt.alleles),
         lambda gs: hl.struct(
             # here, we alphabetize the INFO fields by GATK convention
             AC=gs.AC,
@@ -231,14 +235,14 @@ def finalize(mt):
 #     }
 # ----------------------------------------
 # Entry fields:
-#     'AD': array<int32>
+#     'LAD': array<int32>
 #     'DP': int32
 #     'GQ': int32
-#     'GT': call
+#     'LGT': call
 #     'MIN_DP': int32
-#     'PGT': call
+#     'LPGT': call
 #     'PID': str
-#     'PL': array<int32>
+#     'LPL': array<int32>
 #     'LA': array<int32>
 #     'END': int32
 #     'BaseQRankSum': float64
