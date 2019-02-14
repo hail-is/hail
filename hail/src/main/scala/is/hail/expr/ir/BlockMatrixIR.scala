@@ -9,6 +9,8 @@ import breeze.linalg.DenseMatrix
 import is.hail.expr.types.virtual.Type
 
 import scala.collection.mutable.ArrayBuffer
+import is.hail.utils.richUtils.RichDenseMatrixDouble
+import org.json4s.{DefaultFormats, Formats, ShortTypeHints}
 
 object BlockMatrixIR {
   def toBlockMatrix(
@@ -52,23 +54,56 @@ abstract sealed class BlockMatrixIR extends BaseIR {
     fatal("tried to execute unexecutable IR:\n" + Pretty(this))
 }
 
-case class BlockMatrixRead(path: String) extends BlockMatrixIR {
-  override def typ: BlockMatrixType = {
-    val metadata = BlockMatrix.readMetadata(HailContext.get, path)
-
-    val (shape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(metadata.nRows, metadata.nCols)
-    BlockMatrixType(TFloat64(), shape, isRowVector, metadata.blockSize, IndexedSeq(true, true))
-  }
+case class BlockMatrixRead(reader: BlockMatrixReader) extends BlockMatrixIR {
+  override def typ: BlockMatrixType = reader.fullType
 
   override def children: IndexedSeq[BaseIR] = Array.empty[BlockMatrixIR]
 
   override def copy(newChildren: IndexedSeq[BaseIR]): BlockMatrixRead = {
     assert(newChildren.isEmpty)
-    BlockMatrixRead(path)
+    BlockMatrixRead(reader)
   }
 
   override protected[ir] def execute(hc: HailContext): BlockMatrix = {
-    BlockMatrix.read(hc, path)
+    reader(hc)
+  }
+}
+
+object BlockMatrixReader {
+  implicit val formats: Formats = new DefaultFormats() {
+    override val typeHints = ShortTypeHints(
+      List(classOf[BlockMatrixNativeReader], classOf[BlockMatrixBinaryReader]))
+    override val typeHintFieldName: String = "name"
+  }
+}
+
+abstract class BlockMatrixReader {
+  def apply(hc: HailContext): BlockMatrix
+  def fullType: BlockMatrixType
+}
+
+case class BlockMatrixNativeReader(path: String) extends BlockMatrixReader {
+  override def fullType: BlockMatrixType = {
+    val metadata = BlockMatrix.readMetadata(HailContext.get, path)
+    val (tensorShape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(metadata.nRows, metadata.nCols)
+
+    BlockMatrixType(TFloat64(), tensorShape, isRowVector, metadata.blockSize, IndexedSeq(true, true))
+  }
+
+  override def apply(hc: HailContext): BlockMatrix = BlockMatrix.read(hc, path)
+}
+
+case class BlockMatrixBinaryReader(path: String, shape: Seq[Long], blockSize: Int) extends BlockMatrixReader {
+  override def fullType: BlockMatrixType = {
+    assert(shape.length == 2)
+    val (tensorShape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(shape.head, shape(1))
+
+    BlockMatrixType(TFloat64(), tensorShape, isRowVector, blockSize, IndexedSeq(true, true))
+  }
+
+  override def apply(hc: HailContext): BlockMatrix = {
+    val breezeMatrix = RichDenseMatrixDouble.importFromDoubles(hc, path, shape.head.toInt, shape(1).toInt, rowMajor = true)
+    BlockMatrix.fromBreezeMatrix(hc.sc, breezeMatrix, blockSize)
   }
 }
 

@@ -9,6 +9,7 @@ from hail.ir import BlockMatrixWrite, BlockMatrixMap2, ApplyBinaryOp, Ref, F64, 
     BlockMatrixBroadcast, ValueToBlockMatrix, MakeArray, BlockMatrixRead, JavaBlockMatrix, BlockMatrixMap, \
     ApplyUnaryOp, IR, BlockMatrixDot, tensor_shape_to_matrix_shape, BlockMatrixAgg, BlockMatrixRandom, \
     BlockMatrixToValueApply
+from hail.ir.blockmatrix_reader import BlockMatrixNativeReader, BlockMatrixBinaryReader
 from hail.utils import new_temp_file, new_local_temp_file, local_path_uri, storage_level
 from hail.utils.java import Env, jarray, joption
 from hail.typecheck import *
@@ -235,7 +236,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return cls(BlockMatrixRead(path))
+        return cls(BlockMatrixRead(BlockMatrixNativeReader(path)))
 
     @classmethod
     @typecheck_method(uri=str,
@@ -292,13 +293,14 @@ class BlockMatrix(object):
         --------
         :meth:`.from_numpy`
         """
+        n_entries = n_rows * n_cols
+        if n_entries >= 1 << 31:
+            raise ValueError(f'number of entries must be less than 2^31, found {n_entries}')
+
         if not block_size:
             block_size = BlockMatrix.default_block_size()
 
-        return BlockMatrix._from_java(Env.hail().linalg.BlockMatrix.fromBreezeMatrix(
-            Env.hc()._jsc,
-            _breeze_fromfile(uri, n_rows, n_cols),
-            block_size))
+        return cls(BlockMatrixRead(BlockMatrixBinaryReader(uri, [n_rows, n_cols], block_size)))
 
     @classmethod
     @typecheck_method(ndarray=np.ndarray,

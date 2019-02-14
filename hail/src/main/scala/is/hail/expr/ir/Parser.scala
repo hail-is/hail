@@ -12,7 +12,7 @@ import is.hail.table.{Ascending, Descending, SortField}
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
-import org.json4s.MappingException
+import org.json4s.{Formats, MappingException}
 import org.json4s.jackson.{JsonMethods, Serialization}
 
 import scala.util.parsing.combinator.JavaTokenParsers
@@ -1146,8 +1146,14 @@ object IRParser {
   def blockmatrix_ir1(env: IRParserEnvironment)(it: TokenIterator): BlockMatrixIR = {
     identifier(it) match {
       case "BlockMatrixRead" =>
-        val path = string_literal(it)
-        BlockMatrixRead(path)
+        val readerStr = string_literal(it)
+        implicit val formats: Formats = BlockMatrixReader.formats
+        val reader = try {
+          Serialization.read[BlockMatrixReader](readerStr)
+        } catch {
+          case e: MappingException => throw e.cause
+        }
+        BlockMatrixRead(reader)
       case "BlockMatrixMap" =>
         val child = blockmatrix_ir(env)(it)
         val f = ir_value_expr(env + ("element" -> child.typ.elementType))(it)

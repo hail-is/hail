@@ -192,8 +192,6 @@ object Pretty {
               '"' + StringEscapeUtils.escapeString(Serialization.write(writer)(MatrixWriter.formats)) + '"'
             case MatrixMultiWrite(_, writer) =>
               '"' + StringEscapeUtils.escapeString(Serialization.write(writer)(MatrixNativeMultiWriter.formats)) + '"'
-            case BlockMatrixRead(path) =>
-              prettyStringLiteral(path)
             case BlockMatrixWrite(_, path, overwrite, forceRowMajor, stageLocally) =>
               prettyStringLiteral(path) + " " +
               prettyBooleanLiteral(overwrite) + " " +
