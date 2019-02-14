@@ -2396,17 +2396,12 @@ class Table(ExprContainer):
     @typecheck_method(field=oneof(str, Expression),
                       name=nullable(str))
     def explode(self, field, name=None) -> 'Table':
-        """Explode rows along a top-level field of the table.
-
-        Each row is copied for each element of `field`.
-        The explode operation unpacks the elements in a field of type
-        ``Array`` or ``Set`` into its own row. If an empty ``Array`` or ``Set``
-        is exploded, the entire row is removed from the table.
+        """Explode rows along a field of type array or set, copying the entire row for each element.
 
         Examples
         --------
-
-        `people_table` is a :class:`.Table` with three fields: `Name`, `Age` and `Children`.
+        `people_table` is a :class:`.Table` with three fields: `Name`, `Age`
+        and `Children`.
 
         >>> people_table.show()
         +------------+-------+--------------------------+
@@ -2455,11 +2450,17 @@ class Table(ExprContainer):
 
         Notes
         -----
-        Empty arrays or sets produce no rows in the resulting table. In the
-        example above, notice that the name "Caroline" is not found in the
-        exploded table.
+        Each row is copied for each element of `field`. The explode operation
+        unpacks the elements in a field of type ``array`` or ``set`` into its
+        own row. If an empty ``array`` or ``set`` is exploded, the entire row is
+        removed from the table. In the example above, notice that the name
+        "Caroline" is not found in the exploded table.
 
         Missing arrays or sets are treated as empty.
+
+        Currently, the `name` argument may not be used if `field` is not a
+        top-level field of the table (e.g. `name` may be used with ``ht.foo``
+        but not ``ht.foo.bar``).
 
         Parameters
         ----------
@@ -2471,20 +2472,26 @@ class Table(ExprContainer):
         Returns
         -------
         :class:`.Table`
-            Table with exploded field.
         """
-
-        if not isinstance(field, Expression):
-            # field is a str
-            field = self[field]
-
-        if not field in self._fields_inverse:
-            # nested or complex expression
-            raise ValueError("method 'explode' expects a top-level field name or expression")
-        if not field._indices == self._row_indices:
-            # global field
-            assert field._indices == self._global_indices
-            raise ValueError("method 'explode' expects a field indexed by ['row'], found global field")
+        if isinstance(field, str):
+            if not field in self._fields:
+                raise KeyError("Table has no field '{}'".format(field))
+            elif self._fields[field]._indices != self._row_indices:
+                raise ExpressionException("Method 'explode' expects a field indexed by row, found axes '{}'"
+                                          .format(self._fields[field]._indices.axes))
+            root = [field]
+            field = self._fields[field]
+        else:
+            analyze('Table.explode', field, self._row_indices, set(self._fields.keys()))
+            if not field._ir.is_nested_field:
+                raise ExpressionException(
+                    "method 'explode' requires a field or subfield, not a complex expression")
+            nested = field._ir
+            root = []
+            while isinstance(nested, GetField):
+                root.append(nested.name)
+                nested = nested.o
+            root = root[::-1]
 
         if not isinstance(field.dtype, (tarray, tset)):
             raise ValueError(f"method 'explode' expects array or set, found: {field.dtype}")
@@ -2493,10 +2500,11 @@ class Table(ExprContainer):
             if k is field:
                 raise ValueError(f"method 'explode' cannot explode a key field")
 
-        f = self._fields_inverse[field]
-        t = Table(TableExplode(self._tir, [f]))
+        t = Table(TableExplode(self._tir, root))
         if name is not None:
-            t = t.rename({f: name})
+            if len(root) > 1:
+                raise ValueError(f"'Table.explode' does not support the 'name' argument when exploding nested fields")
+            t = t.rename({root[0]: name})
         return t
 
     @typecheck_method(row_key=sequenceof(str),

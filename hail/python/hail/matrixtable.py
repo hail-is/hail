@@ -1860,7 +1860,7 @@ class MatrixTable(ExprContainer):
             while isinstance(nested, GetField):
                 root.append(nested.name)
                 nested = nested.o
-            root = [r for r in reversed(root)]
+            root = root[::-1]
 
         if not isinstance(field_expr.dtype, (tarray, tset)):
             raise ValueError(f"method 'explode_rows' expects array or set, found: {field_expr.dtype}")
@@ -1922,7 +1922,7 @@ class MatrixTable(ExprContainer):
             while isinstance(nested, GetField):
                 root.append(nested.name)
                 nested = nested.o
-            root = [r for r in reversed(root)]
+            root = root[::-1]
 
         if not isinstance(field_expr.dtype, (tarray, tset)):
             raise ValueError(f"method 'explode_cols' expects array or set, found: {field_expr.dtype}")
