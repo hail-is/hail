@@ -15,6 +15,7 @@ object Compilable {
       case _: TableToValueApply => false
       case _: MatrixToValueApply => false
       case _: Literal => false
+      case _: CollectDistributedArray => false
 
       case _ => true
     }

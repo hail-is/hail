@@ -822,6 +822,13 @@ object IRParser {
         val stageLocally = boolean_literal(it)
         val child = blockmatrix_ir(env)(it)
         BlockMatrixWrite(child, path, overwrite, forceRowMajor, stageLocally)
+      case "CollectDistributedArray" =>
+        val cname = identifier(it)
+        val gname = identifier(it)
+        val ctxs = ir_value_expr(env)(it)
+        val globals = ir_value_expr(env)(it)
+        val body = ir_value_expr(env + (cname, coerce[TArray](ctxs.typ).elementType) + (gname, globals.typ))(it)
+        CollectDistributedArray(ctxs, globals, cname, gname, body)
       case "JavaIR" =>
         val name = identifier(it)
         env.irMap(name).asInstanceOf[IR]

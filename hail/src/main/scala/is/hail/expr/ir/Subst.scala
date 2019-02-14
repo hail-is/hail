@@ -50,6 +50,8 @@ object Subst {
           initOpArgs.map(arg => MapIR(subst(_))(arg)))
         val substSeqOpArgs = seqOpArgs.map(arg => subst(arg, aggEnv, Env.empty))
         ApplyAggOp(substConstructorArgs, substInitOpArgs, substSeqOpArgs, aggSig)
+      case CollectDistributedArray(contexts, globals, cname, gname, body) =>
+        CollectDistributedArray(subst(contexts, env), subst(globals, env), cname, gname, subst(body, env.delete(cname).delete(gname)))
       case _ =>
         MapIR(subst(_))(e)
     }

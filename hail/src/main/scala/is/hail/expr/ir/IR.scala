@@ -322,6 +322,8 @@ final case class MatrixToValueApply(child: MatrixIR, function: MatrixToValueFunc
 final case class BlockMatrixWrite(child: BlockMatrixIR, path: String,
   overwrite: Boolean, forceRowMajor: Boolean, stageLocally: Boolean) extends IR
 
+final case class CollectDistributedArray(contexts: IR, globals: IR, contextName: String, globalName: String, body: IR) extends IR
+
 class PrimitiveIR(val self: IR) extends AnyVal {
   def +(other: IR): IR = ApplyBinaryPrimOp(Add(), self, other)
   def -(other: IR): IR = ApplyBinaryPrimOp(Subtract(), self, other)

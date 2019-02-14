@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.functions.RelationalFunctions
+import is.hail.expr.types.virtual.TArray
 import is.hail.table.Ascending
 import is.hail.utils._
 import org.json4s.jackson.{JsonMethods, Serialization}
@@ -180,6 +181,8 @@ object Pretty {
             case In(i, typ) => s"${ typ.parsableString() } $i"
             case Die(message, typ) => typ.parsableString()
             case Uniroot(name, _, _, _) => prettyIdentifier(name)
+            case CollectDistributedArray(_, _, cname, gname, _) =>
+              s"${ prettyIdentifier(cname) } ${ prettyIdentifier(gname) }"
             case MatrixRead(typ, dropCols, dropRows, reader) =>
               (if (typ == reader.fullType) "None" else typ.parsableString()) + " " +
               prettyBooleanLiteral(dropCols) + " " +
