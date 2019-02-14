@@ -1,27 +1,28 @@
-.PHONY: all build push deploy transform
+.PHONY: build push deploy clean
 
 PROJECT = $(shell gcloud config get-value project)
-
 SOURCE_NAME := notebook
 TARGET_NAME = gcr.io/$(PROJECT)/$(SOURCE_NAME):$(shell docker images -q --no-trunc $(SOURCE_NAME) | awk -F':' '{print $$2}')
+DEPLOYMENT_FILE := deployment.yaml
 
 build:
 	docker build -t $(SOURCE_NAME) ./
 
-push:
+push: build
 	docker tag $(SOURCE_NAME) $(TARGET_NAME)
 	docker push $(TARGET_NAME)
 
-transform:
-	cat deployment.yaml.in \
-	| sed -e "s,@name@,$(SOURCE_NAME)," \
-	| sed -e "s,@image@,$(TARGET_NAME)," \
-	| sed -e "s,@sha@,$(shell git rev-parse HEAD)," > deployment.yaml
+$(DEPLOYMENT_FILE): build push
+	sed < deployment.yaml.in \
+	 -e "s,@name@,$(SOURCE_NAME)," \
+	 -e "s,@image@,$(TARGET_NAME)," \
+	 -e "s,@sha@,$(shell git rev-parse HEAD)," > $@
 
-deploy:
-	kubectl -n default apply -f deployment.yaml
+deploy: $(DEPLOYMENT_FILE)
+	kubectl -n default apply -f $<
 
-run-docker-local:
-	docker run -p 5000:5000 -e BATCH_USE_KUBE_CONFIG=1 -v ~/:/root notebook
+run-docker-local: build
+	docker run -p 5000:5000 -e BATCH_USE_KUBE_CONFIG=1 -v ~/:/root $(SOURCE_NAME)
 
-all: build push transform deploy
+clean:
+	rm -rf $(DEPLOYMENT_FILE)
