@@ -2109,6 +2109,50 @@ class Tests(unittest.TestCase):
         self.assertFalse(hl.eval(li.overlaps(li3)))
         self.assertFalse(hl.eval(li.overlaps(li5)))
 
+    def test_locus_interval_constructors(self):
+        li_contig_start = hl.locus_interval('1', 0, 2, False, False,
+                                            invalid_missing=True)
+        self.assertTrue(hl.eval(li_contig_start) == hl.utils.Interval(
+            hl.genetics.Locus("1", 1),
+            hl.genetics.Locus("1", 2),
+            includes_start=True,
+            includes_end=False))
+
+        li_contig_middle1 = hl.locus_interval('1', 100, 100, True, False,
+                                              invalid_missing=True)
+        self.assertTrue(hl.eval(li_contig_middle1) == hl.utils.Interval(
+            hl.genetics.Locus("1", 99),
+            hl.genetics.Locus("1", 100),
+            includes_start=False,
+            includes_end=False))
+
+        li_contig_middle2 = hl.locus_interval('1', 100, 100, False, True,
+                                              invalid_missing=True)
+        self.assertTrue(hl.eval(li_contig_middle2) == hl.utils.Interval(
+            hl.genetics.Locus("1", 100),
+            hl.genetics.Locus("1", 101),
+            includes_start=False,
+            includes_end=False))
+
+        li_contig_end = hl.locus_interval('1', 249250621, 249250622, True,
+                                          False, invalid_missing=True)
+        self.assertTrue(hl.eval(li_contig_end) == hl.utils.Interval(
+            hl.genetics.Locus("1", 249250621),
+            hl.genetics.Locus("1", 249250621),
+            includes_start=True,
+            includes_end=True))
+
+        li1 = hl.locus_interval('1', 0, 1, False, False, invalid_missing=True)
+        li2 = hl.locus_interval('1', 0, 1, True, False, invalid_missing=True)
+        li3 = hl.locus_interval('1', 20, 20, False, False, invalid_missing=True)
+        li4 = hl.locus_interval('1', 249250621, 249250622, False, True, invalid_missing=True)
+
+        for expr in [li1, li2, li3, li4]:
+            self.assertTrue(hl.eval(expr) is None)
+
+        li_parsed = hl.parse_locus_interval('(1:20-20)', invalid_missing=True)
+        self.assertTrue(hl.eval(li_parsed) is None)
+
     def test_reference_genome_fns(self):
         self.assertTrue(hl.eval(hl.is_valid_contig('1', 'GRCh37')))
         self.assertFalse(hl.eval(hl.is_valid_contig('chr1', 'GRCh37')))
