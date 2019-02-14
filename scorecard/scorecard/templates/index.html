@@ -112,7 +112,7 @@
       <table>
 	<thead>
           <th align="left">component</th>
-          <th align="left">users</th>
+          <th align="left">reviewers</th>
 	</thead>
 	<tbody>
           {% for component, users in component_users.items() %}
@@ -121,7 +121,7 @@
             <td align="left">
 	      {% for user in users %}
 	      <a href="/users/{{ user }}">{{ user }}</a>
-	      {% endif %}
+	      {% endfor %}
 	    </td>
 	  </tr>
 	  {% endfor %}

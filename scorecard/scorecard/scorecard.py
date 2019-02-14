@@ -37,11 +37,11 @@ with open(GITHUB_TOKEN_PATH, 'r') as f:
 github = Github(token)
 
 component_users = {
-    'Hail front-end (Py)': ['danking', 'tpoterba', 'jigold', 'jbloom22', 'catoverdrive', 'patrick-schultz', 'chrisvittal', 'daniel-goldstein'],
+    'Hail front-end (Py)': ['tpoterba', 'jigold', 'jbloom22', 'catoverdrive', 'patrick-schultz', 'chrisvittal', 'daniel-goldstein'],
     'Hail middle-end (Scala)': ['danking', 'tpoterba', 'jigold', 'jbloom22', 'catoverdrive', 'patrick-schultz', 'chrisvittal', 'daniel-goldstein'],
     'C++ backend': ['jbloom22', 'catoverdrive', 'patrick-schultz'],
     'k8s, services': ['danking', 'jigold', 'akotlar'],
-    'Web app (JS)': ['akotlar', 'danking'],
+    'Web app (JS)': ['akotlar', 'danking', 'daniel-goldstein'],
 }
 
 default_repo = 'hail'
@@ -64,7 +64,7 @@ def index():
         random.shuffle(x)
         return x
 
-    component_users_random = {c: ' '.join(functional_shuffle(us)) for c, us in component_users}
+    component_users_random = {c: functional_shuffle(us) for c, us in component_users.items()}
     return render_template('index.html', unassigned=unassigned,
                            user_data=user_data, urgent_issues=urgent_issues, component_users=component_users_random, updated=updated)
 
