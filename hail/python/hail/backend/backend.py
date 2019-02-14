@@ -154,7 +154,7 @@ class SparkBackend(Backend):
         scala_object(Env.hail().variant, 'ReferenceGenome').addSequence(name, fasta_file, index_file)
 
     def remove_sequence(self, name):
-        Env.hail().variant.ReferenceGenome.removeSequence(name)
+        scala_object(Env.hail().variant, 'ReferenceGenome').removeSequence(name)
 
     def add_liftover(self, name, chain_file, dest_reference_genome):
         Env.hail().variant.ReferenceGenome.referenceAddLiftover(name, chain_file, dest_reference_genome)

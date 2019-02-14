@@ -355,6 +355,7 @@ class ReferenceGenome(object):
         -------
         :obj:`bool`
         """
+        self._has_sequence = False
         Env.backend().remove_sequence(self.name)
 
     @classmethod
