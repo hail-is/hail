@@ -68,7 +68,7 @@ Liftover variants from one coordinate system to another
     >>> ht = ht.filter(hl.is_defined(ht.new_locus) & ~ht.new_locus.is_negative_strand)  # doctest: +SKIP
     >>> ht = ht.key_by(locus=ht.new_locus.result)  # doctest: +SKIP
 
-:**dependencies**: :func:`.liftover`, :meth:`.add_liftover`, :meth:`.get_reference`
+:**dependencies**: :meth:`.liftover`, :meth:`.add_liftover`, :meth:`.get_reference`
 
 Filtering and Pruning
 ~~~~~~~~~~~~~~~~~~~~~
