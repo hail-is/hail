@@ -1,3 +1,4 @@
+
 package is.hail.expr.ir
 
 import is.hail.HailContext
@@ -5,6 +6,7 @@ import is.hail.annotations._
 import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.expr.ir
 import is.hail.expr.ir.functions.{MatrixToMatrixFunction, RelationalFunctions}
+import is.hail.expr.ir.IRBuilder._
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PArray, PInt32, PStruct, PType}
 import is.hail.expr.types.virtual._
@@ -256,21 +258,14 @@ case class MatrixRangeReader(nRows: Int, nCols: Int, nPartitions: Option[Int]) e
   override def canLower: Boolean = true
 
   override def lower(mr: MatrixRead): TableIR = {
-    val uid1 = genUID()
+    val uid1 = Symbol(genUID())
 
-    TableMapRows(
-      TableMapGlobals(
-        TableRange(nRows, nPartitions.getOrElse(HailContext.get.sc.defaultParallelism)),
-        MakeStruct(FastSeq(
-          LowerMatrixIR.colsFieldName ->
-            ArrayMap(
-              ArrayRange(I32(0), I32(nCols), I32(1)),
-              uid1,
-              MakeStruct(FastSeq("col_idx" -> Ref(uid1, TInt32()))))))),
-      ArrayMap(
-        ArrayRange(I32(0), I32(nCols), I32(1)),
-        genUID(),
-        MakeStruct(FastSeq())))
+    TableRange(nRows, nPartitions.getOrElse(HailContext.get.sc.defaultParallelism))
+      .rename(Map("idx" -> "row_idx"))
+      .mapGlobals(makeStruct(LowerMatrixIR.colsField ->
+        irRange(0, nCols).map('i ~> makeStruct('col_idx -> 'i))))
+      .mapRows('row.insertFields(LowerMatrixIR.entriesField ->
+        irRange(0, nCols).map('i ~> makeStruct())))
   }
 
   def apply(mr: MatrixRead): MatrixValue = ???
