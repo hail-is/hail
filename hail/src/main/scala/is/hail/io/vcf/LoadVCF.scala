@@ -685,6 +685,13 @@ object LoadVCF {
                 |use force_bgz=True to ignore the file extension and treat this file as if
                 |it were a .bgz file. If you are sure that you want to load a non-block
                 |gzipped using the very slow, non-parallel algorithm, use force=True.""".stripMargin)
+          else {
+            val fileSize = hConf.getFileSize(input)
+            if (fileSize > 1024 * 1024 * 128)
+              warn(s"file '$input' is ${readableBytes(fileSize)}, but will be loaded serially (on one core)\n" +
+                s"  due to usage of the 'force' argument. If it is actually block-gzipped, either rename to .bgz\n" +
+                s"  or use the 'force_bgz' argument")
+          }
         } else
           fatal(s"unknown input file type `$input', expect .vcf[.bgz]")
       }
