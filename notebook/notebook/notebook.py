@@ -176,7 +176,6 @@ def del_svc(svc_name: str):
 
 
 def get_path(data, path: str):
-    # Not using tail recursion because python doesn't optimize such calls
     while True:
         idx = path.find('.')
 

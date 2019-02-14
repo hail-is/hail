@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: @name@-deployment
+  name: @name@
   labels:
     app: @name@
     hail.is/sha: "@sha@"
@@ -22,14 +22,6 @@ spec:
         image: @image@
         ports:
         - containerPort: 5000
-        volumeMounts:
-          - mountPath: /notebook-secrets
-            readOnly: true
-            name: notebook-secrets
-      volumes:
-        - name: notebook-secrets
-          secret:
-            secretName: notebook-secrets
 ---
 apiVersion: v1
 kind: Service

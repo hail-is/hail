@@ -2,20 +2,20 @@
 
 PROJECT = $(shell gcloud config get-value project)
 
-NAME:="notebook"
-TAG = gcr.io/$(PROJECT)/$(NAME):$(shell docker images -q --no-trunc ${NAME} | awk -F':' '{print $$2}')
+SOURCE_NAME := notebook
+TARGET_NAME = gcr.io/$(PROJECT)/$(SOURCE_NAME):$(shell docker images -q --no-trunc $(SOURCE_NAME) | awk -F':' '{print $$2}')
 
 build:
-	docker build -t $(NAME) ./
+	docker build -t $(SOURCE_NAME) ./
 
 push:
-	docker tag $(NAME) $(TAG)
-	docker push $(TAG)
+	docker tag $(SOURCE_NAME) $(TARGET_NAME)
+	docker push $(TARGET_NAME)
 
 transform:
 	cat deployment.yaml.in \
-	| sed -e "s,@name@,${NAME}," \
-	| sed -e "s,@image@,${TAG}," \
+	| sed -e "s,@name@,$(SOURCE_NAME)," \
+	| sed -e "s,@image@,$(TARGET_NAME)," \
 	| sed -e "s,@sha@,$(shell git rev-parse HEAD)," > deployment.yaml
 
 deploy:
