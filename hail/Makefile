@@ -187,7 +187,7 @@ clean-docs:
 .PHONY: clean
 clean: clean-docs clean-env
 	./gradlew $(GRADLE_ARGS) clean
-	cd src/main/c && %(MAKE) clean
+	cd src/main/c && $(MAKE) clean
 	rm -rf python/hail/hail-all-spark.jar
 
 test-apiserver: jar
