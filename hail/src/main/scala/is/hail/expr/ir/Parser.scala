@@ -1051,14 +1051,6 @@ object IRParser {
           case e: MappingException => throw e.cause
         }
         MatrixRead(requestedType.getOrElse(reader.fullType), dropCols, dropRows, reader)
-      case "TableToMatrixTable" =>
-        val rowKey = string_literals(it)
-        val colKey = string_literals(it)
-        val rowFields = string_literals(it)
-        val colFields = string_literals(it)
-        val nPartitions = opt(it, int32_literal)
-        val child = table_ir(env)(it)
-        TableToMatrixTable(child, rowKey, colKey, rowFields, colFields, nPartitions)
       case "MatrixAnnotateRowsTable" =>
         val root = string_literal(it)
         val child = matrix_ir(env)(it)

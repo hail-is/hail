@@ -204,12 +204,6 @@ object Pretty {
               prettyLongs(shape) + " " +
               blockSize.toString + " " +
               prettyLiterals(dimsPartitioned)
-            case TableToMatrixTable(_, rowKey, colKey, rowFields, colFields, nPartitions) =>
-              prettyStrings(rowKey) + " " +
-              prettyStrings(colKey) +  " " +
-              prettyStrings(rowFields) + " " +
-              prettyStrings(colFields) + " " +
-              prettyIntOpt(nPartitions)
             case MatrixRowsHead(_, n) => n.toString
             case MatrixAnnotateRowsTable(_, _, uid) =>
               prettyStringLiteral(uid) + " "

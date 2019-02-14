@@ -256,38 +256,6 @@ class MatrixAggregateColsByKey(MatrixIR):
             self.entry_expr.typ)
             
 
-class TableToMatrixTable(MatrixIR):
-    def __init__(self, child, row_key, col_key, row_fields, col_fields, n_partitions):
-        super().__init__()
-        self.child = child
-        self.row_key = row_key
-        self.col_key = col_key
-        self.row_fields = row_fields
-        self.col_fields = col_fields
-        self.n_partitions = n_partitions
-
-    def render(self, r):
-        return f'(TableToMatrixTable ' \
-               f'{parsable_strings(self.row_key)} ' \
-               f'{parsable_strings(self.col_key)} ' \
-               f'{parsable_strings(self.row_fields)} ' \
-               f'{parsable_strings(self.col_fields)} ' \
-               f'{"None" if self.n_partitions is None else str(self.n_partitions)} ' \
-               f'{r(self.child)})'
-
-    def _compute_type(self):
-        child_typ = self.child.typ
-        other_field_set = set(self.row_key + self.row_fields + self.col_key + self.col_fields)
-        entry_fields = [f for f in list(child_typ.row_type) if f not in other_field_set]
-        self._type = hl.tmatrix(
-            child_typ.global_type,
-            hl.tstruct(**{f: child_typ.row_type[f] for f in self.col_key + self.col_fields}),
-            self.col_key,
-            hl.tstruct(**{f: child_typ.row_type[f] for f in self.row_key + self.row_fields}) ,
-            self.row_key,
-            hl.tstruct(**{f: child_typ.row_type[f] for f in entry_fields}))
-
-
 class MatrixExplodeRows(MatrixIR):
     def __init__(self, child, path):
         super().__init__()
