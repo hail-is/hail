@@ -143,11 +143,7 @@ object Parser extends JavaTokenParsers {
         contig ~ "-" ~ contig ^^ { case c1 ~ _ ~ c2 => (Locus(c1, 1), Locus(c2, rg.contigLength(c2)), true, true) } |
         contig ^^ { c => (Locus(c, 1), Locus(c, rg.contigLength(c)), true, true) }
 
-    intervalWithEndpoints(valueParser) ^^ { i =>
-      val normInterval = rg.normalizeLocusInterval(i)
-      rg.checkLocusInterval(normInterval)
-      normInterval
-    }
+    intervalWithEndpoints(valueParser) ^^ { i => rg.toLocusInterval(i) }
   }
 
   def locusUnchecked(rg: RGBase): Parser[Locus] =

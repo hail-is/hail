@@ -1182,7 +1182,7 @@ class LocusIntervalTests(unittest.TestCase):
                     hl.interval(hl.locus('20', 17000000), hl.locus('20', 18000000), False, True),  # 20    17000000   18000000  gene2
                     hl.interval(hl.locus('20', 63025510), hl.locus('20', 63025520), False, True), # 20    63025510   63025520  gene3
                     hl.interval(hl.locus('20', 5), hl.locus('20', 5), False, True)] # 20    5   5   gene4
-        
+
         self.assertEqual(t.interval.collect(), hl.eval(expected))
 
     def test_import_bed_no_reference_specified(self):

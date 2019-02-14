@@ -254,44 +254,64 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     }
   }
 
-  def checkLocusInterval(i: Interval): Unit = {
-    val start = i.start.asInstanceOf[Locus]
-    val end = i.end.asInstanceOf[Locus]
-    val includesStart = i.includesStart
-    val includesEnd = i.includesEnd
+  def toLocusInterval(i: Interval): Interval = {
+    val origInterval = i
 
-    if (!isValidLocus(start.contig, if (includesStart) start.position else start.position + 1)) {
-      if (!isValidContig(start.contig))
-        fatal(s"Invalid interval `$i' found. Contig `${ start.contig }' is not in the reference genome `$name'.")
-      else
-        fatal(s"Invalid interval `$i' found. Start `$start' is not within the range [1-${ contigLength(start.contig) }] for reference genome `$name'.")
-    }
-
-    if (!isValidLocus(end.contig, if (includesEnd) end.position else end.position - 1)) {
-      if (!isValidContig(end.contig))
-        fatal(s"Invalid interval `$i' found. Contig `${ end.contig }' is not in the reference genome `$name'.")
-      else
-        fatal(s"Invalid interval `$i' found. End `$end' is not within the range [1-${ contigLength(end.contig) }] for reference genome `$name'.")
-    }
-
-    if (!Interval.isValid(locusType.ordering, start, end, includesStart, includesEnd))
-        fatal(s"Invalid interval `$i' found. ")
-  }
-
-  def normalizeLocusInterval(i: Interval): Interval = {
     var start = i.start.asInstanceOf[Locus]
     var end = i.end.asInstanceOf[Locus]
     var includesStart = i.includesStart
     var includesEnd = i.includesEnd
 
+    val contigEnd = contigLength(end.contig)
+
     if (!includesStart && start.position == 0) {
       start = start.copyChecked(this, position = 1)
       includesStart = true
     }
-    if (!includesEnd && end.position == contigLength(end.contig) + 1) {
-      end = end.copyChecked(this, position = contigLength(end.contig))
+
+    if (!includesEnd && end.position == contigEnd + 1) {
+      end = end.copyChecked(this, position = contigEnd)
       includesEnd = true
     }
+
+    if (start.contig == end.contig && start.position == end.position) {
+      (includesStart, includesEnd) match {
+        case (true, true) =>
+        case (true, false) =>
+          if (start.position != 1) {
+            start = start.copyChecked(rg = this, position = start.position - 1)
+            includesStart = false
+          } else {
+            fatal(s"Invalid interval `$origInterval' found. ")
+          }
+        case (false, true) =>
+          if (end.position != contigEnd) {
+            end = end.copyChecked(rg = this, position = end.position + 1)
+            includesEnd = false
+          } else {
+            fatal(s"Invalid interval `$origInterval' found. ")
+          }
+        case (false, false) =>
+          fatal(s"Invalid interval `$origInterval' found. ")
+      }
+    }
+
+    if (!isValidLocus(start)) {
+      if (!isValidContig(start.contig))
+        fatal(s"Invalid interval `$origInterval' found. Contig `${ start.contig }' is not in the reference genome `$name'.")
+      else
+        fatal(s"Invalid interval `$origInterval' found. Start `$start' is not within the range [1-${ contigLength(start.contig) }] for reference genome `$name'.")
+    }
+
+    if (!isValidLocus(end)) {
+      if (!isValidContig(end.contig))
+        fatal(s"Invalid interval `$origInterval' found. Contig `${ end.contig }' is not in the reference genome `$name'.")
+      else
+        fatal(s"Invalid interval `$origInterval' found. End `$end' is not within the range [1-$contigEnd] for reference genome `$name'.")
+    }
+
+    if (!Interval.isValid(locusType.ordering, start, end, includesStart, includesEnd))
+      fatal(s"Invalid interval `$origInterval' found. ")
 
     Interval(start, end, includesStart, includesEnd)
   }

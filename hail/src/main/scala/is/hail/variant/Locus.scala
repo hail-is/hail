@@ -58,9 +58,7 @@ object Locus {
 
   def makeInterval(contig: String, start: Int, end: Int, includesStart: Boolean, includesEnd: Boolean, rgBase: RGBase): Interval = {
     val rg = rgBase.asInstanceOf[ReferenceGenome]
-    val i = rg.normalizeLocusInterval(Interval(Locus(contig, start), Locus(contig, end), includesStart, includesEnd))
-    rg.checkLocusInterval(i)
-    i
+    rg.toLocusInterval(Interval(Locus(contig, start), Locus(contig, end), includesStart, includesEnd))
   }
 }
 
