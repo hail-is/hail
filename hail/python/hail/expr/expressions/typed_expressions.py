@@ -136,14 +136,10 @@ class CollectionExpression(Expression):
             Expression whose type is the element type of the collection.
         """
 
-        def unify_ret(t):
-            if t != tbool:
-                raise TypeError("'find' expects 'f' to return an expression of type 'bool', found '{}'".format(t))
-            return self._type.element_type
-
-        # FIXME make more efficient when we can call ArrayFold
-        return hl.bind(lambda fa: hl.cond(hl.len(fa) > 0, fa[0], hl.null(self._type.element_type)),
-                       hl.array(self.filter(f)))
+        # FIXME this should short-circuit
+        return self.fold(lambda accum, x:
+                         hl.cond(hl.is_missing(accum) & f(x), x, accum),
+                         hl.null(self._type.element_type))
 
     @typecheck_method(f=func_spec(1, expr_any))
     def flatmap(self, f):
