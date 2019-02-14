@@ -8,10 +8,10 @@ SPARK_VERSION ?= 2.2.0
 # Hail has three notions of version:
 #  - hail short version: MAJOR.MINOR
 #  - hail pip version: MAJOR.MINOR.PATCH
-#  - hail version: MAJOR.MINOR.PATCH-GIT_SHA, calculated by generateBuildInfo
-MAJOR ?= 0
-MINOR ?= 2
-PATCH ?= 10
+#  - hail version: MAJOR.MINOR.PATCH-GIT_SHA
+MAJOR := 0
+MINOR := 2
+PATCH := 10
 HAIL_PIP_VERSION := $(MAJOR).$(MINOR).$(PATCH)$(PIP_VERSION_SUFFIX)
 GRADLE_ARGS := $(GRADLE_ARGS) -Dspark.version=$(SPARK_VERSION)
 GIT_SHA := $(shell git rev-parse HEAD)
