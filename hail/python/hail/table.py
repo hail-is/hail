@@ -2502,7 +2502,7 @@ class Table(ExprContainer):
 
         t = Table(TableExplode(self._tir, root))
         if name is not None:
-            if len(root) > 0:
+            if len(root) > 1:
                 raise ValueError(f"'Table.explode' does not support the 'name' argument when exploding nested fields")
             t = t.rename({root[0]: name})
         return t
