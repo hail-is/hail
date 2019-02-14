@@ -41,6 +41,8 @@ object InferPType {
           cnsq.pType
       case Let(name, value, body) =>
         body.pType
+      case AggLet(name, value, body) =>
+        body.pType
       case ApplyBinaryPrimOp(op, l, r) =>
         PType.canonical(BinaryOp.getReturnType(op, l.typ, r.typ)).setRequired(l.pType.required && r.pType.required)
       case ApplyUnaryPrimOp(op, v) =>

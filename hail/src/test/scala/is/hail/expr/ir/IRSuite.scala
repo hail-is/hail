@@ -5,8 +5,9 @@ import is.hail.TestUtils._
 import is.hail.annotations.BroadcastRow
 import is.hail.asm4s.Code
 import is.hail.expr.ir
+import is.hail.expr.ir.IRBuilder._
 import is.hail.expr.ir.IRSuite.TestFunctions
-import is.hail.expr.ir.functions.{IRFunctionRegistry, RegistryFunctions, SeededIRFunction, SetFunctions}
+import is.hail.expr.ir.functions.{IRFunctionRegistry, RegistryFunctions, SeededIRFunction}
 import is.hail.expr.types.TableType
 import is.hail.expr.types.virtual._
 import is.hail.io.bgen.MatrixBGENReader
@@ -16,8 +17,11 @@ import is.hail.rvd.RVD
 import is.hail.table.{Ascending, Descending, SortField, Table}
 import is.hail.utils._
 import is.hail.variant.MatrixTable
+import org.apache.commons.math3.stat.descriptive.AggregateSummaryStatistics
 import org.apache.spark.sql.Row
 import org.testng.annotations.{BeforeClass, DataProvider, Test}
+
+import scala.language.{dynamics, implicitConversions}
 
 object IRSuite {
   outer =>
@@ -1443,5 +1447,22 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(TableGetGlobals(TableJoin(tab1, tab2, "left")), Row(1, 1.1, 2, 2.2))
     assertEvalsTo(TableGetGlobals(TableMapGlobals(tab1, InsertFields(Ref("global", t1.globalType), Seq("g1" -> I32(3))))), Row(3, 1.1))
     assertEvalsTo(TableGetGlobals(TableRename(tab1, Map.empty, Map("g2" -> "g3"))), Row(1, 1.1))
+  }
+
+
+
+  @Test def testAggLet() {
+    val ir = TableRange(2, 2)
+      .aggregate(
+        aggLet(a = 'row('idx).toL + I64(1)) {
+          aggLet(b = 'a * I64(2)) {
+            applyAggOp(Max(), seqOpArgs = FastIndexedSeq('b * 'b))
+          } + aggLet(c = 'a * I64(3)) {
+            applyAggOp(Sum(), seqOpArgs = FastIndexedSeq('c * 'c))
+          }
+        }
+      )
+
+    assertEvalsTo(ir, 61L)
   }
 }

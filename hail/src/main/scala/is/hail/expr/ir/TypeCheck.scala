@@ -55,6 +55,10 @@ object TypeCheck {
         check(value)
         check(body, env = env.bind(name, value.typ))
         assert(x.typ == body.typ)
+      case x@AggLet(name, value, body) =>
+        check(value, env = aggEnv.get, aggEnv = None)
+        check(body, env, aggEnv = aggEnv.map(_.bind(name, value.typ)))
+        assert(x.typ == body.typ)
       case x@Ref(name, _) =>
         val expected = env.lookup(x)
         assert(x.typ == expected, s"type mismatch:\n  name: $name\n  actual: ${ x.typ.parsableString() }\n  expect: ${ expected.parsableString() }")

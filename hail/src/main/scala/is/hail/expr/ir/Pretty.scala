@@ -152,6 +152,7 @@ object Pretty {
                     "<literal value>"
                 )
             case Let(name, _, _) => prettyIdentifier(name)
+            case AggLet(name, _, _) => prettyIdentifier(name)
             case Ref(name, _) => prettyIdentifier(name)
             case ApplyBinaryPrimOp(op, _, _) => prettyClass(op)
             case ApplyUnaryPrimOp(op, _) => prettyClass(op)

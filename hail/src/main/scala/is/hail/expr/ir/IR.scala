@@ -94,6 +94,7 @@ object If {
 
 final case class If(cond: IR, cnsq: IR, altr: IR) extends IR
 
+final case class AggLet(name: String, value: IR, body: IR) extends IR
 final case class Let(name: String, value: IR, body: IR) extends IR
 final case class Ref(name: String, var _typ: Type) extends IR
 
