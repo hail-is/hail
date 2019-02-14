@@ -50,17 +50,17 @@ object Locus {
     Locus(contig, elts(size - 1).toInt, rg)
   }
 
-  def parseInterval(str: String, rg: RGBase): Interval = Parser.parseLocusInterval(str, rg)
+  def parseInterval(str: String, rg: RGBase, invalidMissing: Boolean = false): Interval =
+    Parser.parseLocusInterval(str, rg, invalidMissing)
 
-  def parseIntervals(arr: Array[String], rg: RGBase): Array[Interval] = arr.map(parseInterval(_, rg))
+  def parseIntervals(arr: Array[String], rg: RGBase, invalidMissing: Boolean): Array[Interval] = arr.map(parseInterval(_, rg, invalidMissing))
 
-  def parseIntervals(arr: java.util.List[String], rg: RGBase): Array[Interval] = parseIntervals(arr.asScala.toArray, rg)
+  def parseIntervals(arr: java.util.List[String], rg: RGBase, invalidMissing: Boolean = false): Array[Interval] = parseIntervals(arr.asScala.toArray, rg, invalidMissing)
 
-  def makeInterval(contig: String, start: Int, end: Int, includesStart: Boolean, includesEnd: Boolean, rgBase: RGBase): Interval = {
+  def makeInterval(contig: String, start: Int, end: Int, includesStart: Boolean, includesEnd: Boolean,
+    rgBase: RGBase, invalidMissing: Boolean = false): Interval = {
     val rg = rgBase.asInstanceOf[ReferenceGenome]
-    val i = rg.normalizeLocusInterval(Interval(Locus(contig, start), Locus(contig, end), includesStart, includesEnd))
-    rg.checkLocusInterval(i)
-    i
+    rg.toLocusInterval(Interval(Locus(contig, start), Locus(contig, end), includesStart, includesEnd), invalidMissing)
   }
 }
 
