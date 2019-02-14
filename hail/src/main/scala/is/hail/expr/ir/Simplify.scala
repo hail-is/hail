@@ -162,7 +162,7 @@ object Simplify {
 
     case ArrayLen(ArrayFlatMap(a, _, MakeArray(args, _))) => ApplyBinaryPrimOp(Multiply(), I32(args.length), ArrayLen(a))
 
-    case ArrayLen(ArraySort(a, _, _)) => ArrayLen(a)
+    case ArrayLen(ArraySort(a, _, _, _)) => ArrayLen(a)
 
     case ArrayRef(MakeArray(args, _), I32(i)) if i >= 0 && i < args.length => args(i)
 
