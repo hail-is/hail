@@ -34,8 +34,8 @@ def transform_one(mt: MatrixTable) -> MatrixTable:
         ))
     mt = mt.transmute_entries(
         LGT=mt.GT,
-        LAD=mt.AD,
-        LPL=mt.PL,
+        LAD=mt.AD[0:],  # requiredness issues :'(
+        LPL=mt.PL[0:],
         LPGT=mt.PGT)
     mt = mt.drop('SB', 'qual', 'filters')
 
