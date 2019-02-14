@@ -1177,11 +1177,11 @@ class LocusIntervalTests(unittest.TestCase):
         self.assertTrue(list(t.key.dtype) == ['interval'])
         self.assertTrue(list(t.row.dtype) == ['interval','target'])
 
-        expected = [hl.interval(hl.locus('20', 1), hl.locus('20', 10), True, True),   # 20    0 10      gene0
-                    hl.interval(hl.locus('20', 1), hl.locus('20', 14000000), False, True),  # 20    1          14000000  gene1
-                    hl.interval(hl.locus('20', 17000000), hl.locus('20', 18000000), False, True),  # 20    17000000   18000000  gene2
+        expected = [hl.interval(hl.locus('20', 1), hl.locus('20', 11), True, False),   # 20    0 10      gene0
+                    hl.interval(hl.locus('20', 1), hl.locus('20', 14000001), False, False),  # 20    1          14000000  gene1
+                    hl.interval(hl.locus('20', 17000000), hl.locus('20', 18000001), False, False),  # 20    17000000   18000000  gene2
                     hl.interval(hl.locus('20', 63025510), hl.locus('20', 63025520), False, True), # 20    63025510   63025520  gene3
-                    hl.interval(hl.locus('20', 5), hl.locus('20', 5), False, True)] # 20    5   5   gene4
+                    hl.interval(hl.locus('20', 5), hl.locus('20', 6), False, False)] # 20    5   5   gene4
 
         self.assertEqual(t.interval.collect(), hl.eval(expected))
 
