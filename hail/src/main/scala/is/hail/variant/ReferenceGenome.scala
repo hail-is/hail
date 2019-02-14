@@ -282,17 +282,17 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
             start = start.copyChecked(rg = this, position = start.position - 1)
             includesStart = false
           } else {
-            fatal(s"Invalid interval `$origInterval' found. ")
+            fatal(s"Invalid interval `$origInterval' found. Interval extends beyond the chromosome boundary.")
           }
         case (false, true) =>
           if (end.position != contigEnd) {
             end = end.copyChecked(rg = this, position = end.position + 1)
             includesEnd = false
           } else {
-            fatal(s"Invalid interval `$origInterval' found. ")
+            fatal(s"Invalid interval `$origInterval' found. Interval extends beyond the chromosome boundary.")
           }
         case (false, false) =>
-          fatal(s"Invalid interval `$origInterval' found. ")
+          fatal(s"Invalid interval `$origInterval' found.")
       }
     }
 
