@@ -7,8 +7,8 @@
 template<int log2_buffer_size>
 class ApproximateQuantiles {
   static constexpr int buffer_size = 1 << log2_buffer_size;
-  std::random_device rd;
-  std::mt19937 gen{rd};
+  std::random_device rd{};
+  std::mt19937 gen{rd()};
   std::uniform_int_distribution<int> coin_dist{0, 1};
   int coin() { return coin_dist(gen); }
   std::vector<int> ends{0};
@@ -27,7 +27,7 @@ class ApproximateQuantiles {
   }
 
   void compact(int current) {
-    int next = current + 1;
+    size_t next = current + 1;
     if (next == buffers.size()) {
       buffers.emplace_back();
       ends.emplace_back();
