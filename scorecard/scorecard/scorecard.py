@@ -37,7 +37,7 @@ with open(GITHUB_TOKEN_PATH, 'r') as f:
 github = Github(token)
 
 component_users = {
-    'Hail front-end (Py)': ['tpoterba', 'jigold', 'jbloom22', 'catoverdrive', 'patrick-schultz', 'chrisvittal', 'daniel-goldstein'],
+    'Hail front-end (Py)': ['tpoterba', 'jigold', 'jbloom22', 'catoverdrive', 'patrick-schultz', 'chrisvittal', 'daniel-goldstein', 'konradjk'],
     'Hail middle-end (Scala)': ['danking', 'tpoterba', 'jigold', 'jbloom22', 'catoverdrive', 'patrick-schultz', 'chrisvittal', 'daniel-goldstein'],
     'C++ backend': ['jbloom22', 'catoverdrive', 'patrick-schultz'],
     'k8s, services': ['danking', 'jigold', 'akotlar'],
