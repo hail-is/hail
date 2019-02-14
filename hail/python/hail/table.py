@@ -1438,8 +1438,7 @@ class Table(ExprContainer):
             for e in exprs:
                 analyze('Table.index', e, src._row_indices)
 
-            is_key = len(exprs) == len(src.key) and all(
-                expr is key_field for expr, key_field in zip(exprs, src.key.values()))
+            is_key = all(expr is key_field for expr, key_field in zip(exprs, src.key.values()))
             is_interval = (len(self.key) == 1
                            and isinstance(self.key[0].dtype, hl.tinterval)
                            and exprs[0].dtype == self.key[0].dtype.point_type)
