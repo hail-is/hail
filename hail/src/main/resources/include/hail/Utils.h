@@ -133,6 +133,34 @@ public:
   }
 };
 
+template<typename ElemT, size_t elem_size, size_t elem_align>
+class NDArrayImpl {
+public:
+  static long load_flag(const char *a) {
+    return load_long(a);
+  }
+  
+  static int load_n_dim(const char *a) {
+    return load_int(a + 8);
+  }
+
+  static long[] load_shape(const char *a) {
+    return reinterpret_cast<const long *>(a + 12);
+  }
+
+  static long load_offset(const char *a) {
+    return load_long(a + 12 + 8 * load_n_dim(a));
+  }
+
+  static long[] load_strides(const char *a) {
+    return reinterpret_cast<const long *>(a + 20 + 8 * load_n_dim(a));
+  }
+
+  static ElemT[] load_data(const char *a) {
+    return reinterpret_cast<const ElemT *>(a + 20 + 16 * load_n_dim(a));
+  }
+}
+
 struct FatalError: public std::exception {
   private:
     static constexpr int max_error_len = 4 * 1024;
