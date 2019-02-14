@@ -275,9 +275,6 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     }
 
     if (!Interval.isValid(locusType.ordering, start, end, includesStart, includesEnd))
-      if (start == end && ((includesStart && !includesEnd) || (!includesStart && includesStart)))
-        fatal(s"Invalid interval `$i' found. Start and end cannot be equal if one endpoint is inclusive and the other endpoint is exclusive.")
-      else
         fatal(s"Invalid interval `$i' found. ")
   }
 

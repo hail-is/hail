@@ -192,7 +192,7 @@ object Interval {
     includesStart: Boolean, includesEnd: Boolean
   ): Boolean = {
     val (left, right) = toIntervalEndpoints(start, end, includesStart, includesEnd)
-    pord.intervalEndpointOrdering.compare(left, right) < 0
+    pord.intervalEndpointOrdering.compare(left, right) <= 0
   }
 
   def toIntervalEndpoints(

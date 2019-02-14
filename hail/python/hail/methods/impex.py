@@ -656,18 +656,18 @@ def import_bed(path, reference_genome='default', skip_invalid_intervals=False) -
 
     if t.row.dtype == tstruct(f0=tstr, f1=tint32, f2=tint32):
         t = t.select(interval=locus_interval_expr(t['f0'],
-                                                  t['f1'] + 1,
+                                                  t['f1'],
                                                   t['f2'],
-                                                  True,
+                                                  False,
                                                   True,
                                                   reference_genome,
                                                   skip_invalid_intervals))
 
     elif len(t.row) >= 4 and tstruct(**dict([(n, typ) for n, typ in t.row.dtype._field_types.items()][:4])) == tstruct(f0=tstr, f1=tint32, f2=tint32, f3=tstr):
         t = t.select(interval=locus_interval_expr(t['f0'],
-                                                  t['f1'] + 1,
+                                                  t['f1'],
                                                   t['f2'],
-                                                  True,
+                                                  False,
                                                   True,
                                                   reference_genome,
                                                   skip_invalid_intervals),
