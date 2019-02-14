@@ -57,6 +57,13 @@ class Tests(unittest.TestCase):
         l = hl.locus("a", 7, gr4)
         self.assertTrue(hl.eval(l.sequence_context(before=3, after=3) == "TTTCGAA"))
 
+        gr4.remove_sequence()
+        assert not gr4.has_sequence()
+
+        gr4.add_sequence(resource("fake_reference.fasta"),
+                         resource("fake_reference.fasta.fai"))
+        assert gr4.has_sequence()
+
     def test_reference_genome_liftover(self):
         grch37 = hl.get_reference('GRCh37')
         grch38 = hl.get_reference('GRCh38')

@@ -151,16 +151,16 @@ class SparkBackend(Backend):
         return json.loads(Env.hail().variant.ReferenceGenome.getReference(name).toJSONString())
 
     def add_sequence(self, name, fasta_file, index_file):
-        Env.hail().variant.ReferenceGenome.addSequence(name, fasta_file, index_file)
+        scala_object(Env.hail().variant, 'ReferenceGenome').addSequence(name, fasta_file, index_file)
 
     def remove_sequence(self, name):
-        Env.hail().variant.ReferenceGenome.removeSequence(name)
+        scala_object(Env.hail().variant, 'ReferenceGenome').removeSequence(name)
 
     def add_liftover(self, name, chain_file, dest_reference_genome):
-        Env.hail().variant.ReferenceGenome.referenceAddLiftover(name, chain_file, dest_reference_genome)
+        scala_object(Env.hail().variant, 'ReferenceGenome').referenceAddLiftover(name, chain_file, dest_reference_genome)
 
     def remove_liftover(self, name, dest_reference_genome):
-        Env.hail().variant.ReferenceGenome.referenceRemoveLiftover(name, dest_reference_genome)
+        scala_object(Env.hail().variant, 'ReferenceGenome').referenceRemoveLiftover(name, dest_reference_genome)
 
     def parse_vcf_metadata(self, path):
         return Env.hc()._jhc.pyParseVCFMetadata(path)

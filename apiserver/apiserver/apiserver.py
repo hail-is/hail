@@ -1,6 +1,7 @@
 import hail as hl
 
-from hail.utils.java import Env, info
+from hail.utils import FatalError
+from hail.utils.java import Env, info, scala_object
 
 import os
 import logging
@@ -138,7 +139,7 @@ def get_reference():
 def reference_add_sequence():
     try:
         data = flask.request.json
-        Env.hail().variant.ReferenceGenome.addSequence(data['name'], data['fasta_file'], data['index_file'])
+        scala_object(Env.hail().variant, 'ReferenceGenome').addSequence(data['name'], data['fasta_file'], data['index_file'])
         return '', 204
     except FatalError as e:
         return flask.jsonify({
