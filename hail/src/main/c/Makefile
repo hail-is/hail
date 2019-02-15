@@ -22,7 +22,7 @@ LIBSIMDPP := libsimdpp-2.1
 
 CATCH_HEADER_LOCATION := ../resources/include/catch.hpp
 
-# If you want to add a new cpp file, like foo.cpp, to the library, add foo.o to
+# If you want to add a new cpp file, like foo.cpp, to the library, add foo to
 # this list
 OBJECTS := \
   davies \
@@ -67,7 +67,9 @@ $(BUILD)/%.o: %.cpp
 	@mkdir -p $(@D)
 	$(CXX) -o $@ $(CXXFLAGS) -MD -MF $(@:%.o=%.d) -MT $@ -c $<
 
-$(BUILD)/ibs.d: CXXFLAGS += -DNUMBER_OF_GENOTYPES_PER_ROW=256
+# if libsimdpp does not exist (e.g. after a clean), UNIT64_VECTOR_SIZE needs to
+# be set explicitly via HAIL_OVERRIDE_WIDTH
+$(BUILD)/ibs.d: CXXFLAGS += -DHAIL_OVERRIDE_WIDTH=4 -DNUMBER_OF_GENOTYPES_PER_ROW=256
 $(BUILD)/ibs.o: CXXFLAGS += -DNUMBER_OF_GENOTYPES_PER_ROW=256
 
 ifndef JAVA_HOME
