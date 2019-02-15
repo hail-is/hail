@@ -1,9 +1,9 @@
 import re
+import uuid
 
 from .backend import LocalBackend
 from .task import Task
 from .resource import ResourceGroup, InputResourceFile, TaskResourceFile
-from .utils import get_sha
 
 
 class Pipeline:
@@ -42,7 +42,7 @@ class Pipeline:
     def _tmp_file(self, prefix=None, suffix=None):
         def _get_random_file():
             file = '{}{}{}'.format(prefix if prefix else '',
-                                   get_sha(8),
+                                   uuid.uuid4().hex[:6],
                                    suffix if suffix else '')
             if file not in self._allocated_files:
                 self._allocated_files.add(file)

@@ -5,7 +5,7 @@ import batch.client
 import uuid
 
 from .resource import ResourceFile, ResourceGroup, InputResourceFile, TaskResourceFile
-from .utils import get_sha, escape_string
+from .utils import escape_string, flatten
 
 
 class Backend:
@@ -121,7 +121,7 @@ class LocalBackend(Backend):
 
 
 class BatchBackend(Backend):
-    def __init__(self, url='http://localhost:5000'):
+    def __init__(self, url):
         self._batch_client = batch.client.BatchClient(url)
 
     def run(self, pipeline, dry_run, verbose, delete_scratch_on_exit):  # pylint: disable-msg=R0915
@@ -175,8 +175,8 @@ class BatchBackend(Backend):
 
             make_local_tmpdir = f'mkdir -p {local_tmpdir}'
 
-            task_inputs = [make_local_tmpdir, activate_service_account, copy_task_inputs]
-            task_outputs = [activate_service_account, copy_task_outputs]
+            task_inputs = [make_local_tmpdir, activate_service_account] + copy_task_inputs
+            task_outputs = [activate_service_account] + copy_task_outputs
             resource_defs = [r.declare(directory=local_tmpdir) for r in task._inputs.union(task._outputs)]
 
             if task._image is None:
@@ -185,6 +185,7 @@ class BatchBackend(Backend):
 
             defs = '; '.join(resource_defs) + '; ' if resource_defs else ''
             task_command = [cmd.strip() for cmd in task._command]
+
             cmd = " && ".join(task_inputs + task_command + task_outputs)
             parent_ids = [task_to_job_mapping[t].id for t in task._dependencies]
 
@@ -222,9 +223,9 @@ class BatchBackend(Backend):
                 assert isinstance(r, ResourceGroup)
                 return [write_pipeline_outputs(rf, dest + '.' + ext) for ext, rf in r._resources.items()]
 
-        pipeline_outputs = [x for _, r in pipeline._resource_map.items()
-                            for dest in r._output_paths
-                            for x in write_pipeline_outputs(r, dest)]
+        pipeline_outputs = list(flatten([write_pipeline_outputs(r, dest)
+                                         for _, r in pipeline._resource_map.items()
+                                         for dest in r._output_paths]))
 
         for parent_id, write_cmd in pipeline_outputs:
             j = batch.create_job(image='google/cloud-sdk:alpine',
