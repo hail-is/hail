@@ -1,7 +1,7 @@
 MAKEFLAGS += --no-builtin-rules
 .PHONY: all clean debug prebuilt test
 .SUFFIXES:
-.DEFAULT_GOAL: all
+.DEFAULT_GOAL := all
 
 UNAME_S :=$(shell uname -s)
 UNAME_P :=$(shell uname -p)
