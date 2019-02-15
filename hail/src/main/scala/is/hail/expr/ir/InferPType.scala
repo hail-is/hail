@@ -58,7 +58,7 @@ object InferPType {
       case _: Uniroot => PFloat64()
       case ArrayRef(a, i) =>
         coerce[PArray](a.pType).elementType.setRequired(a.pType.required && i.pType.required)
-      case ArraySort(a, ascending, _) =>
+      case ArraySort(a, _, _, _) =>
         val et = coerce[PArray](a.pType).elementType
         PArray(et, a.pType.required)
       case ToSet(a) =>

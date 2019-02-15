@@ -581,10 +581,12 @@ object IRParser {
         val step = ir_value_expr(env)(it)
         ArrayRange(start, stop, step)
       case "ArraySort" =>
-        val onKey = boolean_literal(it)
+        val l = identifier(it)
+        val r = identifier(it)
         val a = ir_value_expr(env)(it)
-        val ascending = ir_value_expr(env)(it)
-        ArraySort(a, ascending, onKey)
+        val elt = coerce[TArray](a.typ).elementType
+        val body = ir_value_expr(env + (l -> elt) + (r -> elt))(it)
+        ArraySort(a, l, r, body)
       case "MakeNDArray" =>
         val data = ir_value_expr(env)(it)
         val shape = ir_value_expr(env)(it)

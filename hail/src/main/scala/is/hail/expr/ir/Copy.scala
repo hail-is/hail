@@ -50,15 +50,15 @@ object Copy {
       case ArrayRange(_, _, _) =>
         val IndexedSeq(start: IR, stop: IR, step: IR) = newChildren
         ArrayRange(start, stop, step)
-      case ArraySort(_, _, onKey) =>
-        val IndexedSeq(a: IR, ascending: IR) = newChildren
-        ArraySort(a, ascending, onKey)
       case MakeNDArray(_, _, _) =>
         val IndexedSeq(data: IR, shape: IR, row_major: IR) = newChildren
         MakeNDArray(data, shape, row_major)
       case NDArrayRef(_, _) =>
         val IndexedSeq(nd: IR, idxs: IR) = newChildren
         NDArrayRef(nd, idxs)
+      case ArraySort(_, l, r, _) =>
+        val IndexedSeq(a: IR, comp: IR) = newChildren
+        ArraySort(a, l, r, comp)
       case ToSet(_) =>
         val IndexedSeq(a: IR) = newChildren
         ToSet(a)

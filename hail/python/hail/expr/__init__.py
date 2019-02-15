@@ -4,6 +4,7 @@ from .matrix_type import *
 from .blockmatrix_type import *
 from .expressions import eval, eval_typed
 from .functions import *
+from .functions import _sort_by, _compare
 __all__ = ['HailType',
            'dtype',
            'tint',
@@ -163,4 +164,6 @@ __all__ = ['HailType',
            'bit_lshift',
            'bit_rshift',
            'bit_not',
+           '_sort_by',
+           '_compare',
            ]

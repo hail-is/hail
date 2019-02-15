@@ -62,8 +62,8 @@ object InferType {
       case ArrayRef(a, i) =>
         assert(i.typ.isOfType(TInt32()))
         coerce[TArray](a.typ).elementType.setRequired(a.typ.required && i.typ.required)
-      case ArraySort(a, ascending, _) =>
-        assert(ascending.typ.isOfType(TBoolean()))
+      case ArraySort(a, _, _, compare) =>
+        assert(compare.typ.isOfType(TBoolean()))
         val et = coerce[TArray](a.typ).elementType
         TArray(et, a.typ.required)
       case ToSet(a) =>

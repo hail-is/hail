@@ -30,6 +30,8 @@ object Subst {
         ArrayScan(subst(a), subst(zero), accumName, valueName, subst(body, env.delete(accumName).delete(valueName)))
       case ArrayLeftJoinDistinct(left, right, l, r, compare, join) =>
         ArrayLeftJoinDistinct(subst(left), subst(right), l, r, subst(compare, env.delete(l).delete(r)), subst(join, env.delete(l).delete(r)))
+      case ArraySort(a, left, right, sort) =>
+        ArraySort(subst(a), left, right, subst(sort, env.delete(left).delete(right)))
       case ArrayFor(a, valueName, body) =>
         ArrayFor(subst(a), valueName, subst(body, env.delete(valueName)))
       case ArrayAgg(a, name, query) =>

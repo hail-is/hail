@@ -1918,9 +1918,13 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(hl.sorted([0, 1, 4, 3, 2], lambda x: x % 2, reverse=True)), [1, 3, 0, 4, 2])
 
         self.assertEqual(hl.eval(hl.sorted([0, 1, 4, hl.null(tint), 3, 2], lambda x: x)), [0, 1, 2, 3, 4, None])
-        # FIXME: this next line triggers a bug: None should be sorted last!
-        # self.assertEqual(hl.sorted([0, 1, 4, hl.null(tint), 3, 2], lambda x: x, reverse=True).collect()[0], [4, 3, 2, 1, 0, None])
+        self.assertEqual(hl.sorted([0, 1, 4, hl.null(tint), 3, 2], lambda x: x, reverse=True).collect()[0], [4, 3, 2, 1, 0, None])
         self.assertEqual(hl.eval(hl.sorted([0, 1, 4, hl.null(tint), 3, 2], lambda x: x, reverse=True)), [4, 3, 2, 1, 0, None])
+
+    def test_sort_by(self):
+        self.assertEqual(hl.eval(hl._sort_by(["c", "aaa", "bb", hl.null(hl.tstr)], lambda l, r: hl.len(l) < hl.len(r))), ["c", "bb", "aaa", None])
+        self.assertEqual(hl.eval(hl._sort_by([hl.Struct(x=i, y="foo", z=5.5) for i in [5, 3, 8, 2, 5, hl.null(hl.tint32)]], lambda l, r: l.x < r.x)),
+                         [hl.Struct(x=i, y="foo", z=5.5) for i in [2, 3, 5, 5, 8, None]])
 
     def test_bool_r_ops(self):
         self.assertTrue(hl.eval(hl.literal(True) & True))

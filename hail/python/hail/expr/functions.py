@@ -3598,6 +3598,28 @@ def delimit(collection, delimiter=',') -> StringExpression:
     return collection._method("mkString", tstr, delimiter)
 
 
+@typecheck(left=expr_any, right=expr_any)
+def _compare(left, right):
+    if left.dtype != right.dtype:
+        raise TypeError(f"'compare' expected 'left' and 'right' to have the same type: found {left.dtype} vs {right.dtype}")
+    indices, aggregations = unify_all(left, right)
+    return construct_expr(ApplyComparisonOp("Compare", left._ir, right._ir), tint32, indices, aggregations)
+
+
+@typecheck(collection=expr_array(),
+           less_than=nullable(func_spec(2, expr_bool)))
+def _sort_by(collection, less_than):
+    l = Env.get_uid()
+    r = Env.get_uid()
+    left = construct_expr(Ref(l), collection.dtype.element_type, collection._indices, collection._aggregations)
+    right = construct_expr(Ref(r), collection.dtype.element_type, collection._indices, collection._aggregations)
+    return construct_expr(
+        ArraySort(collection._ir, l, r, less_than(left, right)._ir),
+        collection.dtype,
+        collection._indices,
+        collection._aggregations)
+
+
 @typecheck(collection=expr_array(),
            key=nullable(func_spec(1, expr_any)),
            reverse=expr_bool)
@@ -3638,16 +3660,19 @@ def sorted(collection,
     :class:`.ArrayExpression`
         Sorted array.
     """
-    ascending = ~reverse
+
+    def comp(l, r):
+        return (hl.case()
+                .when(hl.is_missing(l), False)
+                .when(hl.is_missing(r), True)
+                .when(reverse, hl._compare(r, l) < 0)
+                .default(hl._compare(l, r) < 0))
 
     if key is None:
-        return collection._method("sort", collection.dtype, ascending)
+        return _sort_by(collection, comp)
     else:
         with_key = collection.map(lambda elt: hl.tuple([key(elt), elt]))
-        ir = ArraySort(with_key._ir, ascending._ir, on_key=True)
-
-        indices, aggregations = unify_all(with_key, ascending)
-        return construct_expr(ir, with_key.dtype, indices, aggregations).map(lambda elt: elt[1])
+        return _sort_by(with_key, lambda l, r: comp(l[0], r[0])).map(lambda elt: elt[1])
 
 
 @typecheck(array=expr_array(expr_numeric), unique=bool)

@@ -132,7 +132,31 @@ final case class ArrayRef(a: IR, i: IR) extends IR
 final case class ArrayLen(a: IR) extends IR
 final case class ArrayRange(start: IR, stop: IR, step: IR) extends IR
 
-final case class ArraySort(a: IR, ascending: IR, onKey: Boolean = false) extends IR
+
+object ArraySort {
+  def apply(a: IR, ascending: IR = True(), onKey: Boolean = false): ArraySort = {
+    val l = genUID()
+    val r = genUID()
+    val atyp = coerce[TContainer](a.typ)
+    val compare = if (onKey) {
+      a.typ match {
+        case atyp: TDict =>
+          ApplyComparisonOp(Compare(atyp.keyType), GetField(Ref(l, atyp.elementType), "key"), GetField(Ref(r, atyp.elementType), "key"))
+        case atyp: TArray if atyp.elementType.isInstanceOf[TStruct] =>
+          val elt = coerce[TStruct](atyp.elementType)
+          ApplyComparisonOp(Compare(elt.types(0)), GetField(Ref(l, elt), elt.fieldNames(0)), GetField(Ref(r, atyp.elementType), elt.fieldNames(0)))
+        case atyp: TArray if atyp.elementType.isInstanceOf[TTuple] =>
+          val elt = coerce[TTuple](atyp.elementType)
+          ApplyComparisonOp(Compare(elt.types(0)), GetTupleElement(Ref(l, elt), 0), GetTupleElement(Ref(r, atyp.elementType), 0))
+      }
+    } else {
+      ApplyComparisonOp(Compare(atyp.elementType), Ref(l, -atyp.elementType), Ref(r, -atyp.elementType))
+    }
+
+    ArraySort(a, l, r, If(ascending, compare < 0, compare > 0))
+  }
+}
+final case class ArraySort(a: IR, left: String, right: String, compare: IR) extends IR
 final case class ToSet(a: IR) extends IR
 final case class ToDict(a: IR) extends IR
 final case class ToArray(a: IR) extends IR
