@@ -73,16 +73,16 @@ const getAuthToken = req => {
     }
   }
 
-  if (req.query.access_token) {
-    whereFoundCount += 1;
-  }
-
   if (req.headers.authorization) {
     bearerIdx = req.headers.authorization.indexOf(bearerPrefix);
 
     if (bearerIdx > -1) {
       whereFoundCount += 1;
     }
+  }
+
+  if (req.query.access_token) {
+    whereFoundCount += 1;
   }
 
   // oauth2 spec specifies token should be presented in only one location
@@ -95,35 +95,34 @@ const getAuthToken = req => {
     return null;
   }
 
-  // The method we are least likely to use; disable for now
-  // as this means access tokens are even easier to abuse
-  // if (req.query.access_token) {
-  //   return req.query.access_token;
-  // }
-
-  let token;
-
   if (bearerIdx > -1) {
-    token = req.headers.authorization.substr(bearerPrefixLen);
-  } else if (cookieIdx > -1) {
-    token = req.headers.cookie.substr(cookieIdx + cookieOffset);
+    return req.headers.authorization.substr(bearerPrefixLen);
   }
 
-  if (!token) {
-    return null;
+  if (cookieIdx > -1) {
+    const token = req.headers.cookie.substr(cookieIdx + cookieOffset);
+
+    if (!token) {
+      return null;
+    }
+
+    const spaceIdx = token.indexOf(' ');
+
+    if (spaceIdx === -1) {
+      return token;
+    }
+
+    // Cookies are by a delimiter followed by a space i.e ", " or "; "
+    // https://stackoverflow.com/questions/4843556/in-http-specification-what-is-the-string-that-separates-cookies
+    if(token[spaceIdx - 1] !== ';' && token[spaceIdx - 1] !== ',') {
+      return null;
+    }
+
+    return token.substr(0, spaceIdx - 1);
   }
 
-  const spaceIdx = token.indexOf(' ');
-
-  if (spaceIdx === -1) {
-    return token;
-  }
-
-  // When multiple authorization headers, they are delimited by a space and a ,
-  // https://stackoverflow.com/questions/29282578/multiple-http-authorization-headers
-  // Similarly, when multiple cookies present, separated by value1, cookie2=value2
-  // or likewise by semicolon
-  return token.substr(0, spaceIdx - 1);
+  // The method we are least likely to use
+  return req.query.access_token;
 };
 
 const PORT = 8000;
