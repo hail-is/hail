@@ -22,7 +22,6 @@ def transform_one(mt: MatrixTable) -> MatrixTable:
     )
     mt = mt.annotate_rows(
         info=mt.info.annotate(
-            DP=hl.agg.sum(mt.entry.DP),
             SB=hl.array([
                 hl.agg.sum(mt.entry.SB[0]),
                 hl.agg.sum(mt.entry.SB[1]),
@@ -30,7 +29,6 @@ def transform_one(mt: MatrixTable) -> MatrixTable:
                 hl.agg.sum(mt.entry.SB[3]),
             ])
         ).select(
-            "DP",
             "MQ_DP",
             "QUALapprox",
             "RAW_MQ",
@@ -66,7 +64,6 @@ def combine(ts):
         alleles=merge_alleles(ts.data.map(lambda d: d.alleles)),
         rsid=hl.find(hl.is_defined, ts.data.map(lambda d: d.rsid)),
         info=hl.struct(
-            DP=hl.sum(ts.data.map(lambda d: d.info.DP)),
             MQ_DP=hl.sum(ts.data.map(lambda d: d.info.MQ_DP)),
             QUALapprox=hl.sum(ts.data.map(lambda d: d.info.QUALapprox)),
             RAW_MQ=hl.sum(ts.data.map(lambda d: d.info.RAW_MQ)),
@@ -155,7 +152,7 @@ def summarize(mt):
             AN=gs.AN,
             BaseQRankSum=hl.median(hl.agg.collect(mt.entry.BaseQRankSum)),
             ClippingRankSum=hl.median(hl.agg.collect(mt.entry.ClippingRankSum)),
-            DP=hl.agg.sum(mt.entry.DP),  # some DPs may have been missing during earlier combining operations
+            DP=hl.agg.sum(mt.entry.DP),
             MQ=hl.median(hl.agg.collect(mt.entry.MQ)),
             MQRankSum=hl.median(hl.agg.collect(mt.entry.MQRankSum)),
             MQ_DP=mt.info.MQ_DP,
@@ -218,7 +215,7 @@ def finalize(mt):
 # ##INFO=<ID=ReadPosRankSum,Number=1,Type=Float>
 # ##INFO=<ID=VarDP,Number=1,Type=Integer>
 #
-# As of 2/8/19, the schema returned by the combiner is as follows:
+# As of 2/15/19, the schema returned by the combiner is as follows:
 # ----------------------------------------
 # Global fields:
 #     None
@@ -231,7 +228,6 @@ def finalize(mt):
 #     'alleles': array<str>
 #     'rsid': str
 #     'info': struct {
-#         DP: int64,
 #         MQ_DP: int32,
 #         QUALapprox: int32,
 #         RAW_MQ: float64,
