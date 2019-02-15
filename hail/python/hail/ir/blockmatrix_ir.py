@@ -93,8 +93,9 @@ class ValueToBlockMatrix(BlockMatrixIR):
         tensor_shape, is_row_vector = self._matrix_shape_to_tensor_shape(self.shape)
         self._type = tblockmatrix(element_type, tensor_shape, is_row_vector, self.block_size, self.dims_partitioned)
 
-    def _matrix_shape_to_tensor_shape(self, shape):
-        assert len(self.shape) == 2
+    @staticmethod
+    def _matrix_shape_to_tensor_shape(shape):
+        assert len(shape) == 2
 
         if shape == [1, 1]:
             return [], False
