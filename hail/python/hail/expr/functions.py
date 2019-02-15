@@ -971,13 +971,15 @@ def interval(start,
 
 @typecheck(contig=expr_str, start=expr_int32,
            end=expr_int32, includes_start=expr_bool,
-           includes_end=expr_bool, reference_genome=reference_genome_type)
+           includes_end=expr_bool, reference_genome=reference_genome_type,
+           invalid_missing=expr_bool)
 def locus_interval(contig,
                    start,
                    end,
                    includes_start=True,
                    includes_end=False,
-                   reference_genome: Union[str, ReferenceGenome] = 'default') -> IntervalExpression:
+                   reference_genome: Union[str, ReferenceGenome] = 'default',
+                   invalid_missing=False) -> IntervalExpression:
     """Construct a locus interval expression.
 
     Examples
@@ -1003,18 +1005,21 @@ def locus_interval(contig,
         If ``True``, interval includes end point.
     reference_genome : :obj:`str` or :class:`.hail.genetics.ReferenceGenome`
         Reference genome to use.
+    invalid_missing : :class:`.BooleanExpression`
+        If ``True``, invalid intervals are set to NA rather than causing an exception.
 
     Returns
     -------
     :class:`.IntervalExpression`
     """
     fname = 'LocusInterval({})'.format(reference_genome.name)
-    return _func(fname, tinterval(tlocus(reference_genome)), contig, start, end, includes_start, includes_end)
+    return _func(fname, tinterval(tlocus(reference_genome)), contig, start, end, includes_start, includes_end, invalid_missing)
 
 
 @typecheck(s=expr_str,
-           reference_genome=reference_genome_type)
-def parse_locus_interval(s, reference_genome: Union[str, ReferenceGenome] = 'default') -> IntervalExpression:
+           reference_genome=reference_genome_type,
+           invalid_missing=expr_bool)
+def parse_locus_interval(s, reference_genome: Union[str, ReferenceGenome] = 'default', invalid_missing=False) -> IntervalExpression:
     """Construct a locus interval expression by parsing a string or string
     expression.
 
@@ -1077,13 +1082,15 @@ def parse_locus_interval(s, reference_genome: Union[str, ReferenceGenome] = 'def
         String to parse.
     reference_genome : :obj:`str` or :class:`.hail.genetics.ReferenceGenome`
         Reference genome to use.
+    invalid_missing : :class:`.BooleanExpression`
+        If ``True``, invalid intervals are set to NA rather than causing an exception.
 
     Returns
     -------
     :class:`.IntervalExpression`
     """
     return _func('LocusInterval({})'.format(reference_genome.name),
-                 tinterval(tlocus(reference_genome)), s)
+                 tinterval(tlocus(reference_genome)), s, invalid_missing)
 
 
 @typecheck(alleles=expr_int32,

@@ -250,8 +250,8 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
       Interval.isValid(locusType.ordering, start, end, includesStart, includesEnd)
   }
 
-  def isValidLocusInterval(startContig: String, startPos: Int, endContig: String, endPos: Int, includesStart: Boolean, includesEnd: Boolean): Boolean =
-    isValidLocusInterval(Interval(Locus(startContig, startPos), Locus(endContig, endPos), includesStart, includesEnd))
+//  def isValidLocusInterval(startContig: String, startPos: Int, endContig: String, endPos: Int, includesStart: Boolean, includesEnd: Boolean): Boolean =
+//    isValidLocusInterval(Interval(Locus(startContig, startPos), Locus(endContig, endPos), includesStart, includesEnd))
 
   def checkContig(contig: String): Unit = {
     if (!isValidContig(contig))
@@ -330,9 +330,13 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     Interval(start, end, includesStart, includesEnd)
   }
 
-  def toLocusInterval(i: Interval): Interval = {
+  def toLocusInterval(i: Interval, invalidMissing: Boolean): Interval = {
     val normInterval = normalizeLocusInterval(i)
-    checkLocusInterval(normInterval)
+    if (invalidMissing) {
+      if (!isValidLocusInterval(normInterval))
+        return null
+    } else
+      checkLocusInterval(normInterval)
     normInterval
   }
 

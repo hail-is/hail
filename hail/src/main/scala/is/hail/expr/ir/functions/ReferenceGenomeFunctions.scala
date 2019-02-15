@@ -232,21 +232,21 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
         emitVariant(mb, variant)
     }
 
-    registerRGCode("LocusInterval", TString(), tinterval) {
-      (mb, ioff: Code[Long]) =>
+    registerRGCode("LocusInterval", TString(), TBoolean(), tinterval) {
+      (mb, ioff: Code[Long], invalidMissing: Code[Boolean]) =>
         val sinterval = asm4s.coerce[String](wrapArg(mb, TString())(ioff))
         val interval = Code
-          .invokeScalaObject[String, RGBase, Interval](
-          locusClass, "parseInterval", sinterval, rgCode(mb))
+          .invokeScalaObject[String, RGBase, Boolean, Interval](
+          locusClass, "parseInterval", sinterval, rgCode(mb), invalidMissing)
         emitInterval(mb, interval)
     }
 
-    registerRGCode("LocusInterval", TString(), TInt32(), TInt32(), TBoolean(), TBoolean(), tinterval) {
-      (mb, locoff: Code[Long], pos1: Code[Int], pos2: Code[Int], include1: Code[Boolean], include2: Code[Boolean]) =>
+    registerRGCode("LocusInterval", TString(), TInt32(), TInt32(), TBoolean(), TBoolean(), TBoolean(), tinterval) {
+      (mb, locoff: Code[Long], pos1: Code[Int], pos2: Code[Int], include1: Code[Boolean], include2: Code[Boolean], invalidMissing: Code[Boolean]) =>
         val sloc = asm4s.coerce[String](wrapArg(mb, TString())(locoff))
         val interval = Code
-          .invokeScalaObject[String, Int, Int, Boolean, Boolean, RGBase, Interval](
-          locusClass, "makeInterval", sloc, pos1, pos2, include1, include2, rgCode(mb))
+          .invokeScalaObject[String, Int, Int, Boolean, Boolean, RGBase, Boolean, Interval](
+          locusClass, "makeInterval", sloc, pos1, pos2, include1, include2, rgCode(mb), invalidMissing)
         emitInterval(mb, interval)
     }
 
