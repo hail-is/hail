@@ -19,7 +19,7 @@ NATIVEMETHOD(jlong, NativeCode, dlopenGlobal)(
 }
 
 NATIVEMETHOD(jlong, NativeCode, dlclose)(
-  JNIEnv* env,
+  JNIEnv*,
   jobject /*thisJ*/,
   jlong handle
 ) {
