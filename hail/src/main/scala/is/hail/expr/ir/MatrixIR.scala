@@ -1628,58 +1628,6 @@ case class MatrixExplodeCols(child: MatrixIR, path: IndexedSeq[String]) extends 
   }
   val (newColType, inserter) = child.typ.colType.structInsert(keyType, path.toList)
   val typ: MatrixType = child.typ.copy(colType = newColType)
-
-  protected[ir] override def execute(hc: HailContext): MatrixValue = {
-    val prev = child.execute(hc)
-
-    val fullRowType = prev.rvd.rowPType
-
-    var size = 0
-    val keys = prev.colValues.value.map { sa =>
-      val ks = querier(sa).asInstanceOf[Iterable[Any]]
-      if (ks == null)
-        Iterable.empty[Any]
-      else {
-        size += ks.size
-        ks
-      }
-    }
-
-    val sampleMap = new Array[Int](size)
-    val newColValues = new Array[Annotation](size)
-    val newNCols = newColValues.length
-
-    var i = 0
-    var j = 0
-    while (i < prev.nCols) {
-      keys(i).foreach { e =>
-        sampleMap(j) = i
-        newColValues(j) = inserter(prev.colValues.value(i), e)
-        j += 1
-      }
-      i += 1
-    }
-
-    val sampleMapBc = hc.sc.broadcast(sampleMap)
-    val localEntriesIndex = MatrixType.getEntriesIndex(fullRowType)
-    val localEntriesType = MatrixType.getEntryArrayType(fullRowType)
-    val localEntryType = MatrixType.getEntryType(fullRowType)
-
-    prev.insertEntries(noOp, newColType = newColType,
-      newColValues = prev.colValues.copy(value = newColValues, t = TArray(newColType)))(
-      localEntryType,
-      { case (_, rv, rvb) =>
-
-        val entriesOffset = fullRowType.loadField(rv, localEntriesIndex)
-        rvb.startArray(newNCols)
-        var i = 0
-        while (i < newNCols) {
-          rvb.addElement(localEntriesType, rv.region, entriesOffset, sampleMapBc.value(i))
-          i += 1
-        }
-        rvb.endArray()
-      })
-  }
 }
 
 /** Create a MatrixTable from a Table, where the column values are stored in a
