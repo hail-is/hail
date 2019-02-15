@@ -9,7 +9,6 @@ from hail.ir import BlockMatrixWrite, BlockMatrixMap2, ApplyBinaryOp, Ref, F64, 
     BlockMatrixBroadcast, ValueToBlockMatrix, MakeArray, BlockMatrixRead, JavaBlockMatrix, BlockMatrixMap, \
     ApplyUnaryOp, IR, BlockMatrixDot, tensor_shape_to_matrix_shape, BlockMatrixAgg, BlockMatrixRandom, \
     BlockMatrixToValueApply, BlockMatrixToTable
-from hail.ir.blockmatrix_writer import BlockMatrixBinaryWriter, BlockMatrixNativeWriter
 from hail.ir.blockmatrix_reader import BlockMatrixNativeReader, BlockMatrixBinaryReader
 from hail.ir.blockmatrix_writer import BlockMatrixBinaryWriter, BlockMatrixNativeWriter
 from hail.utils import new_temp_file, new_local_temp_file, local_path_uri, storage_level
@@ -295,9 +294,6 @@ class BlockMatrix(object):
         --------
         :meth:`.from_numpy`
         """
-        n_entries = n_rows * n_cols
-        if n_entries >= 1 << 31:
-            raise ValueError(f'number of entries must be less than 2^31, found {n_entries}')
 
         if not block_size:
             block_size = BlockMatrix.default_block_size()
