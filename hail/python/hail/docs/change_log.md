@@ -1,5 +1,33 @@
 # Change Log
 
+## 0.2.10
+
+Released 2019-02-15
+
+### New features
+
+- (hail#5272) Added a new 'delimiter' option to Table.export.
+- (hail#5251) Add utility aliases to `hl.plot` for `output_notebook` and `show`.
+- (hail#5249) Add `histogram2d` function to `hl.plot` module.
+- (hail#5247) Expose `MatrixTable.localize_entries` method for converting to a Table with an entries array.
+- (hail#5300) Add new `filter` and `find_replace` arguments to `hl.import_table` and `hl.import_vcf` to apply regex and substitutions to text input.
+
+### Performance improvements
+
+- (hail#5298) Reduce size of exported VCF files by exporting missing genotypes without trailing fields.
+
+### Bug fixes
+
+- (hail#5306) Fix `ReferenceGenome.add_sequence` causing a crash.
+- (hail#5268) Fix `Table.export` writing a file called 'None' in the current directory.
+- (hail#5265) Fix `hl.get_reference` raising an exception when called before `hl.init()`.
+- (hail#5250) Fix crash in `pc_relate` when called on a MatrixTable field other than 'GT'.
+- (hail#5278) Fix crash in `Table.order_by` when sorting by fields whose names are not valid Python identifiers.
+- (hail#5294) Fix crash in `hl.trio_matrix` when sample IDs are missing.
+- (hail#5295) Fix crash in `Table.index` related to key field incompatibilities.
+
+-----
+
 ## 0.2.9
 
 Released 2019-01-30
