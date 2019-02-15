@@ -1,6 +1,7 @@
 import unittest
 import os
 import subprocess as sp
+import tempfile
 
 from pipeline import Pipeline, BatchBackend
 
@@ -29,20 +30,22 @@ class LocalTests(unittest.TestCase):
                 raise ValueError(f"file '{file}' does not exist.")
 
     def assert_same_file(self, file1, file2):
-        self.assertEqual(self.read(file1).rstrip(), self.read(file2).rstrip())
+        assert self.read(file1).rstrip() == self.read(file2).rstrip()
 
     def test_read_input_and_write_output(self):
-        input_file = '/tmp/data/example1.txt'
-        output_file = '/tmp/example1.txt'
-        self.write(input_file, 'abc')
+        with tempfile.NamedTemporaryFile('w') as input_file, \
+                tempfile.NamedTemporaryFile('rw') as output_file:
+            input_file.write('abc')
 
-        p = Pipeline()
-        input = p.read_input(input_file)
-        p.write_output(input, output_file)
-        p.run()
+            p = Pipeline()
+            input = p.read_input(input_file.name)
+            p.write_output(input, output_file.name)
+            p.run()
 
-        self.assert_same_file(input_file, output_file)
-        self.rm(input_file, output_file)
+            try:
+                self.assert_same_file(input_file.name, output_file.name)
+            finally:
+                self.rm(input_file.name, output_file.name)
 
     def test_read_input_group(self):
         input_file1 = '/tmp/data/example1.txt'
