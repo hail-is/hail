@@ -262,11 +262,11 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
         rgCode(mb).invoke[String, Int, Boolean]("isValidLocus", scontig, pos)
     }
 
-    registerRGCode("isValidLocusInterval", TString(), TInt32(), TString(), TInt32(), TBoolean(), TBoolean(), TBoolean()) {
-      (mb, startContig: Code[Long], startPos: Code[Int], endContig: Code[Long], endPos: Code[Int], includesStart: Code[Boolean], includesEnd: Code[Boolean]) =>
-        val scontig = asm4s.coerce[String](wrapArg(mb, TString())(startContig))
-        val econtig = asm4s.coerce[String](wrapArg(mb, TString())(endContig))
-        rgCode(mb).invoke[String, Int, String, Int, Boolean, Boolean, Boolean]("isValidLocusInterval", scontig, startPos, econtig, endPos, includesStart, includesEnd)
+//    registerRGCode("isValidLocusInterval", TString(), TInt32(), TString(), TInt32(), TBoolean(), TBoolean(), TBoolean()) {
+//      (mb, startContig: Code[Long], startPos: Code[Int], endContig: Code[Long], endPos: Code[Int], includesStart: Code[Boolean], includesEnd: Code[Boolean]) =>
+//        val scontig = asm4s.coerce[String](wrapArg(mb, TString())(startContig))
+//        val econtig = asm4s.coerce[String](wrapArg(mb, TString())(endContig))
+//        rgCode(mb).invoke[String, Int, String, Int, Boolean, Boolean, Boolean]("isValidLocusInterval", scontig, startPos, econtig, endPos, includesStart, includesEnd)
     }
 
     registerRGCode("getReferenceSequenceFromValidLocus", TString(), TInt32(), TInt32(), TInt32(), TString()) {
