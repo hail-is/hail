@@ -8,7 +8,7 @@ const { AUTH0_DOMAIN, AUTH0_AUDIENCE } = process.env;
 const AUTH0_ISSUER = `https://${AUTH0_DOMAIN}/`;
 
 // Grabs public key, caches it, from Auth0's servers
-// asymeetric signature used to ensure that not only the jwt was unmodified
+// asymmetric signature used to ensure that not only the jwt was unmodified
 // since signed, but that the issuer was Auth0 (since they hold the private key)
 const jwksFn = jwksRsa({
   cache: true,
@@ -16,8 +16,6 @@ const jwksFn = jwksRsa({
   jwksRequestsPerMinute: 5,
   jwksUri: `https://${AUTH0_DOMAIN}/.well-known/jwks.json`
 });
-
-// TODO: Validate audience, issuer
 
 // Ref: https://github.com/auth0/node-jwks-rsa/blob/master/src/integrations/express.js
 function getSecretKey(header, cb) {
@@ -55,14 +53,6 @@ const verifyToken = token =>
     );
   });
 
-// Polka is *mostly* express compatible, but let's not use unnecessary libraries
-// better to understand the underlying security issues
-// Best practices state that we should check the exact form of the auth header
-// and if accepting from more than 1 place (say body or get query)
-// make sure the token exists in only one place
-// We have no need for this. Accept only from the header
-
-// Also, I prefer not using middleware; call the functions needed inside the route
 const bearerPrefix = 'Bearer ';
 const bearerPrefixLen = bearerPrefix.length;
 
@@ -125,7 +115,6 @@ const getAuthToken = req => {
 
   const spaceIdx = token.indexOf(' ');
 
-  // We have a single authorization value, and it is the Bearer token
   if (spaceIdx === -1) {
     return token;
   }
