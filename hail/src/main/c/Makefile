@@ -1,11 +1,12 @@
-.PHONY: top all clean debug prebuilt test
-
-top: all
+MAKEFLAGS += --no-builtin-rules
+.PHONY: all clean debug prebuilt test
+.SUFFIXES:
+.DEFAULT_GOAL := all
 
 UNAME_S :=$(shell uname -s)
 UNAME_P :=$(shell uname -p)
 
-BUILD :=build
+BUILD := build
 
 # Control optimization level and gdb-in-xterm code in NativePtr.cpp
 HAIL_ENABLE_DEBUG := 0
@@ -17,9 +18,11 @@ else
 endif
 
 # Change this setting to update the version of libsimdpp
-LIBSIMDPP :=libsimdpp-2.1
+LIBSIMDPP := libsimdpp-2.1
 
-# If you want to add a new cpp file, like foo.cpp, to the library, add foo.o to
+CATCH_HEADER_LOCATION := ../resources/include/catch.hpp
+
+# If you want to add a new cpp file, like foo.cpp, to the library, add foo to
 # this list
 OBJECTS := \
   davies \
@@ -39,14 +42,35 @@ OBJECTS := \
 
 BUILD_OBJECTS := $(OBJECTS:%=$(BUILD)/%.o)
 
-TEST_OBJECTS := $(foreach obj, $(OBJECTS), $(foreach file, $(wildcard $(obj)_test.cpp), $(BUILD)/$(basename $(file)).o))
+# before libsimdpp and catch.hpp are downloaded, clang -MG -MM will generate
+# unresolved dependencies
+.PHONY: simdpp/simd.h catch.hpp
+simdpp/simd.h: $(LIBSIMDPP)
+catch.hpp: $(CATCH_HEADER_LOCATION)
+
+TEST_CPP := $(foreach obj,$(OBJECTS),$(wildcard $(obj)_test.cpp))
+TEST_OBJECTS := $(foreach file,$(TEST_CPP),$(BUILD)/$(basename $(file)).o)
 TEST_OBJECTS += $(BUILD)/unit-tests.o
 
+HEADER_DEPENDENCIES := $(BUILD_OBJECTS:%.o=%.d) $(TEST_OBJECTS:%.o=%.d)
+-include $(HEADER_DEPENDENCIES)
+
 $(BUILD)/unit-tests.o: testutils/unit-tests.cpp
+	@mkdir -p $(@D)
 	$(CXX) -o $@ $(CXXFLAGS) -c $<
 
+$(BUILD)/%.d: %.cpp
+	@mkdir -p $(@D)
+	$(CXX) $(CXXFLAGS) $< -MG -M -MF $@ -MT $(@:%.d=%.o)
+
 $(BUILD)/%.o: %.cpp
-	$(CXX) -o $@ $(CXXFLAGS) -c $<
+	@mkdir -p $(@D)
+	$(CXX) -o $@ $(CXXFLAGS) -MD -MF $(@:%.o=%.d) -MT $@ -c $<
+
+# if libsimdpp does not exist (e.g. after a clean), UNIT64_VECTOR_SIZE needs to
+# be set explicitly via HAIL_OVERRIDE_WIDTH
+$(BUILD)/ibs.d: CXXFLAGS += -DHAIL_OVERRIDE_WIDTH=4 -DNUMBER_OF_GENOTYPES_PER_ROW=256
+$(BUILD)/ibs.o: CXXFLAGS += -DNUMBER_OF_GENOTYPES_PER_ROW=256
 
 ifndef JAVA_HOME
   TMP :=$(shell java -XshowSettings:properties -version 2>&1 | fgrep -i java.home)
@@ -128,10 +152,7 @@ ifeq ($(UNAME_S),Darwin)
   LIBHAIL := lib/darwin/libhail.dylib
 endif
 
-all: $(BUILD) $(LIBBOOT) $(LIBHAIL)
-
-$(BUILD):
-	-mkdir -p $@
+all: $(LIBBOOT) $(LIBHAIL)
 
 debug:
 	echo "make debug"
@@ -142,55 +163,43 @@ endif
 	echo "CXX is $(CXX)"
 	-$(CXX) --version
 
-$(BUILD)/functional-tests: ibs.cpp test.cpp
-	-mkdir -p build
-	$(CXX) $(CXXFLAGS) -DNUMBER_OF_GENOTYPES_PER_ROW=256 ibs.cpp test.cpp -o $(BUILD)/functional-tests
+$(BUILD)/functional-tests: $(BUILD)/ibs.o $(BUILD)/test.o
+	@mkdir -p $(@D)
+	$(CXX) $(CXXFLAGS) -ldl -o $(BUILD)/functional-tests $^
 
-$(BUILD)/unit-tests: all $(TEST_OBJECTS)
+$(BUILD)/unit-tests: $(BUILD_OBJECTS) $(TEST_OBJECTS)
+	@mkdir -p $(@D)
 	$(CXX) $(CXXFLAGS) -ldl -o $(BUILD)/unit-tests $(BUILD_OBJECTS) $(TEST_OBJECTS)
 
-prebuilt: all
-	@echo updating $(PREBUILT) ...
-	cp -p -f $(LIBBOOT) $(PREBUILT)/$(LIBBOOT)
-	cp -p -f $(LIBHAIL) $(PREBUILT)/$(LIBHAIL)
+$(PREBUILT)/$(LIBBOOT): $(LIBBOOT)
+	cp -p -f $< $@
+
+$(PREBUILT)/$(LIBHAIL): $(LIBHAIL)
+	cp -p -f $< $@
+
+prebuilt: $(PREBUILT)/$(LIBBOOT) $(PREBUILT)/$(LIBHAIL)
 
 test: $(BUILD)/functional-tests $(BUILD)/unit-tests
 	./$(BUILD)/unit-tests -w NoAssertions -s -d yes -# --use-colour yes -r xml -o $(BUILD)/cxx-test.xml; \
-    	case "$$?" in \
-    		*) \
-    		mkdir -p $(BUILD)/reports; \
-    		cp testutils/style.css $(BUILD)/reports; \
-    		xsltproc -o $(BUILD)/reports/index.html testutils/test-reporter.xslt $(BUILD)/cxx-test.xml;; \
-		esac
+			case "$$?" in \
+				*) \
+				mkdir -p $(BUILD)/reports; \
+				cp testutils/style.css $(BUILD)/reports; \
+				xsltproc -o $(BUILD)/reports/index.html testutils/test-reporter.xslt $(BUILD)/cxx-test.xml;; \
+			esac
 	./$(BUILD)/functional-tests
 
 benchmark: $(BUILD)/unit-tests
 	./$(BUILD)/unit-tests "[!benchmark]" -s -d yes -# -r xml -o $(BUILD)/cxx-benchmark.xml; \
-    	case "$$?" in \
-    		*) \
-    		mkdir -p $(BUILD)/benchmark-reports; \
-    		cp testutils/style.css $(BUILD)/benchmark-reports; \
-    		xsltproc -o $(BUILD)/benchmark-reports/index.html testutils/test-reporter.xslt $(BUILD)/cxx-benchmark.xml;; \
-    	esac
+			case "$$?" in \
+				*) \
+				mkdir -p $(BUILD)/benchmark-reports; \
+				cp testutils/style.css $(BUILD)/benchmark-reports; \
+				xsltproc -o $(BUILD)/benchmark-reports/index.html testutils/test-reporter.xslt $(BUILD)/cxx-benchmark.xml;; \
+			esac
 
 clean:
 	-rm -rf $(BUILD) $(LIBSIMDPP) $(LIBBOOT) $(LIBHAIL)
-
-# The $(BUILD)/headers target is updated whenever any .h file has changed
-# under either the source directory, *or* the ../resources/include tree.
-# Header files under ../resources/include are visible to both libhail.so
-# code and dynamic-generated code; headers under the source are only visible
-# to code that goes into libhail.so
-#
-# We use this as a pessimistic dependency: if any header has changed, all
-# objects will be rebuilt. Since the quantity of code is small and the
-# clean-rebuild time is short (compared to other parts of the build process),
-# this seems good enough, and simpler than managing precise dependencies.
-
-$(BUILD)/headers: $(LIBSIMDPP) $(shell find . -name "*.h"; find ../resources/include -name "*.h")
-	touch $@
-
-$(BUILD_OBJECTS) $(BUILD)/NativeBoot.o: $(BUILD)/headers
 
 # We take all headers files visible to dynamic-generated code, together with
 # the output of "$(CXX) --version", to give a checksum $(ALL_HEADER_CKSUM)
@@ -203,23 +212,23 @@ ALL_HEADER_FILES := $(shell find ../resources/include -name "*.h")
 ALL_HEADER_CKSUM := $(shell $(CXX) --version >.cxx.vsn ; cat .cxx.vsn $(ALL_HEADER_FILES) | cksum | cut -d " " -f 1)
 
 $(BUILD)/NativeModule.o: NativeModule.cpp
+	@mkdir -p $(@D)
 	$(CXX) $(CXXFLAGS) -DALL_HEADER_CKSUM=$(ALL_HEADER_CKSUM)UL -c NativeModule.cpp -o $@
 
-# If your build machine cannot access this URL, download this tar.gz and place
-# it in the same directory as this Makefile. If you do so, the build will
-# succeed without attempting to access the Internet.
-# WGET ?= wget
-WGET ?= curl -L -O
+$(CATCH_HEADER_LOCATION):
+	@mkdir -p $(@D)
+	curl -sSL 'https://github.com/catchorg/Catch2/releases/download/v2.6.0/catch.hpp' > $@
+
 $(LIBSIMDPP).tar.gz:
-	$(WGET) https://storage.googleapis.com/hail-common/$@
+	curl -sSL https://storage.googleapis.com/hail-common/$@ > $@
 
 $(LIBSIMDPP): $(LIBSIMDPP).tar.gz
 	tar -xzf $<
 
 $(LIBBOOT): $(BUILD)/NativeBoot.o
-	-mkdir -p $(basename $(LIBBOOT))
+	@mkdir -p $(basename $(LIBBOOT))
 	$(CXX) $(LIBFLAGS) $(LIBDIRS) $(CXXFLAGS) $(BUILD)/NativeBoot.o -o $@
 
 $(LIBHAIL): $(BUILD_OBJECTS)
-	-mkdir -p $(basename $(LIBHAIL))
+	@mkdir -p $(basename $(LIBHAIL))
 	$(CXX) $(LIBFLAGS) $(LIBDIRS) $(CXXFLAGS) $(BUILD_OBJECTS) -o $@

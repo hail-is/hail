@@ -11,6 +11,7 @@ src/main/c/headers
 src/main/c/lib
 src/main/c/libsimdpp-2*
 src/main/resources/build-info.properties
+src/main/resources/include/catch.hpp
 src/test/resources/example.8bits.bgen.idx*
 src/test/resources/example.v11.bgen.idx*
 src/test/resources/parallelBgenExport.bgen/part-00000.idx*
