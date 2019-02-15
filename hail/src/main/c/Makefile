@@ -162,11 +162,11 @@ endif
 $(BUILD)/functional-tests: CXXFLAGS += -DNUMBER_OF_GENOTYPES_PER_ROW=256
 $(BUILD)/functional-tests: $(BUILD)/ibs.o $(BUILD)/test.o
 	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) -o $(BUILD)/functional-tests $^ -ldl
+	$(CXX) $(CXXFLAGS) -ldl -o $(BUILD)/functional-tests $^
 
 $(BUILD)/unit-tests: $(BUILD_OBJECTS) $(TEST_OBJECTS)
 	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) -o $(BUILD)/unit-tests $(BUILD_OBJECTS) $(TEST_OBJECTS) -ldl
+	$(CXX) $(CXXFLAGS) -ldl -o $(BUILD)/unit-tests $(BUILD_OBJECTS) $(TEST_OBJECTS)
 
 $(PREBUILT)/$(LIBBOOT): $(LIBBOOT)
 	cp -p -f $< $@
