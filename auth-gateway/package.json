@@ -1,6 +1,6 @@
 {
   "name": "auth-gateway",
-  "version": "0.2.0",
+  "version": "0.2.9",
   "description": "Hail Auth Gateway",
   "main": "index.js",
   "scripts": {
@@ -20,7 +20,7 @@
   "bugs": {
     "url": "https://github.com/hail-is/hail/issues"
   },
-  "homepage": "https://github.com/hail-is/hail#readme",
+  "homepage": "https://hail.is",
   "dependencies": {
     "dotenv": "^6.2.0",
     "jsonwebtoken": "^8.4.0",
