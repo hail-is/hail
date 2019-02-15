@@ -82,6 +82,7 @@ sockets = Sockets(app)
 # FIXME: use hash
 def UNSAFE_user_id_transform(user_id): return user_id.replace('|', '--_--')
 
+
 def forbidden():
     return 'Forbidden', 404
 
