@@ -96,6 +96,9 @@ def forbidden():
 
 
 def start_pod(jupyter_token: str, image: str, labels={}):
+    if jupyter_token is None or image is None:
+        raise ValueError("start_pod must be called w/ 'jupyter_token' & 'image'")
+
     pod_id = uuid.uuid4().hex
     service_spec = kube.client.V1ServiceSpec(
         selector={
