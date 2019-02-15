@@ -506,7 +506,7 @@ object Interpret {
           interpret(aggIR, agg=Some(row, aggElementType))
         }
 
-      case x@AggArrayPerElement(a, name, aggBody, isScan) => ???
+      case x@AggArrayPerElement(a, elementName, indexName, aggBody, isScan) => ???
       case x@ApplyAggOp(constructorArgs, initOpArgs, seqOpArgs, aggSig) =>
         assert(AggOp.getType(aggSig) == x.typ)
 

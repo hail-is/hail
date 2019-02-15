@@ -919,32 +919,34 @@ class AggGroupBy(IR):
 
 
 class AggArrayPerElement(IR):
-    @typecheck_method(array=IR, name=str, agg_ir=IR, is_scan=bool)
-    def __init__(self, array, name, agg_ir, is_scan):
+    @typecheck_method(array=IR, element_name=str, index_name=str, agg_ir=IR, is_scan=bool)
+    def __init__(self, array, element_name, index_name, agg_ir, is_scan):
         super().__init__(array, agg_ir)
         self.array = array
-        self.name = name
+        self.element_name = element_name
+        self.index_name = index_name
         self.agg_ir = agg_ir
         self.is_scan = is_scan
 
     @typecheck_method(array=IR, agg_ir=IR)
     def copy(self, array, agg_ir):
-        return AggArrayPerElement(array, self.name, agg_ir, self.is_scan)
+        return AggArrayPerElement(array, self.element_name, self.index_name, agg_ir, self.is_scan)
 
     def head_str(self):
-        return f'{escape_id(self.name)} {self.is_scan}'
+        return f'{escape_id(self.element_name)} {escape_id(self.index_name)} {self.is_scan}'
 
     def _eq(self, other):
-        return self.name == other.name and self.is_scan == other.is_scan
+        return self.element_name == other.element_name and self.index_name == other.index_name and  self.is_scan == other.is_scan
 
     def _compute_type(self, env, agg_env):
         self.array._compute_type(agg_env, None)
-        self.agg_ir._compute_type(env, _env_bind(agg_env, self.name, self.array.typ.element_type))
+        self.agg_ir._compute_type(_env_bind(env, self.index_name, tint32),
+                                  _env_bind(agg_env, self.element_name, self.array.typ.element_type))
         self._type = tarray(self.agg_ir.typ)
 
     @property
     def bound_variables(self):
-        return {self.name} | super().bound_variables
+        return {self.element_name, self.index_name} | super().bound_variables
 
 
 def _register(registry, name, f):

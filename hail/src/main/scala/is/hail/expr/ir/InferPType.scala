@@ -115,7 +115,7 @@ object InferPType {
         aggBody.pType
       case AggGroupBy(key, aggIR, _) =>
         PDict(PType.canonical(key.pType), aggIR.pType)
-      case AggArrayPerElement(a, name, aggBody, _) => PArray(aggBody.pType)
+      case AggArrayPerElement(a, _, _, aggBody, _) => PArray(aggBody.pType)
       case ApplyAggOp(_, _, _, aggSig) =>
         PType.canonical(AggOp.getType(aggSig))
       case ApplyScanOp(_, _, _, aggSig) =>

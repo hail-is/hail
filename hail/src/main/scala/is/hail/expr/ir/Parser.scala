@@ -724,11 +724,14 @@ object IRParser {
         val aggIR = ir_value_expr(env)(it)
         AggGroupBy(key, aggIR, isScan)
       case "AggArrayPerElement" =>
-        val name = identifier(it)
+        val elementName = identifier(it)
+        val indexName = identifier(it)
         val isScan = boolean_literal(it)
         val a = ir_value_expr(env)(it)
-        val aggBody = ir_value_expr(env + (name -> coerce[TStreamable](a.typ).elementType))(it)
-        AggArrayPerElement(a, name, aggBody, isScan)
+        val aggBody = ir_value_expr(env
+          + (elementName -> coerce[TStreamable](a.typ).elementType)
+          + (indexName -> TInt32()))(it)
+        AggArrayPerElement(a, elementName, indexName, aggBody, isScan)
       case "ApplyAggOp" =>
         val aggOp = agg_op(it)
         val ctorArgs = ir_value_exprs(env)(it)
