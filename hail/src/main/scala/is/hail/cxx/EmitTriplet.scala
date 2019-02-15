@@ -60,8 +60,6 @@ class EmitRegion private (val fb: FunctionBuilder, val region: Variable, val poo
 
   override def toString: String = region.toString
 
-  var referenced: mutable.Set[String] = mutable.Set()
-
   private[this] var isUsed: Boolean = false
   def use(): Unit = { isUsed = true }
   def used: Boolean = isUsed

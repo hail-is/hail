@@ -10,7 +10,7 @@ import scala.collection.mutable
 
 object Emit {
   def apply(fb: FunctionBuilder, nSpecialArgs: Int, x: ir.IR): EmitTriplet = {
-    val emitter = new Emitter(fb.getArg(0), fb, nSpecialArgs)
+    val emitter = new Emitter(fb, nSpecialArgs)
     emitter.emit(EmitRegion(fb, fb.getArg(0)), x, ir.Env.empty[EmitTriplet])
   }
 }
@@ -162,7 +162,7 @@ class Orderings {
   }
 }
 
-class Emitter(parentRegion: Variable, fb: FunctionBuilder, nSpecialArgs: Int) {
+class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
   outer =>
   type E = ir.Env[EmitTriplet]
 
@@ -674,19 +674,25 @@ class Emitter(parentRegion: Variable, fb: FunctionBuilder, nSpecialArgs: Int) {
           }
         }
 
-      case ir.MakeArray(args, _) =>
+      case ir.MakeArray(args, t) =>
         val arrayRegion = EmitRegion.from(resultRegion, sameRegion)
         val triplets = args.map { arg => outer.emit(arrayRegion, arg, env) }
         new ArrayEmitter("", "false", "", Some(args.length.toString), arrayRegion) {
           def emit(f: (Code, Code) => Code): Code = {
             val sb = new ArrayBuilder[Code]
+            val m = fb.variable("argm", "bool")
+            val v = fb.variable("argv", typeToCXXType(t.elementType.physicalType))
+            val cont = f(m.toString, v.toString)
+
             triplets.foreach { argt =>
               sb +=
                 s"""
                    |{
                    |${ arrayRegion.defineIfUsed(sameRegion) }
                    |${ argt.setup }
-                   |${ f(argt.m, argt.v) }
+                   |${ m.defineWith(argt.m) }
+                   |${ v.defineWith(argt.v) }
+                   |$cont
                    |}
                  """.stripMargin
             }
@@ -755,20 +761,17 @@ class Emitter(parentRegion: Variable, fb: FunctionBuilder, nSpecialArgs: Int) {
 
         val ae = emitArray(resultRegion, a, env, sameRegion)
         val arrayRegion = ae.arrayRegion
-        val newArrayRegion = EmitRegion.from(arrayRegion, sameRegion)
 
         val vm = fb.variable("m", "bool")
         val vv = fb.variable("v", typeToCXXType(aElementPType))
         val bodyt = outer.emitArray(arrayRegion, body,
           env.bind(name, EmitTriplet(aElementPType, "", vm.toString, vv.toString, arrayRegion)), sameRegion)
 
-        new ArrayEmitter(ae.setup, ae.m, ae.setupLen, None, newArrayRegion) {
+        new ArrayEmitter(ae.setup, ae.m, ae.setupLen, None, bodyt.arrayRegion) {
           def emit(f: (Code, Code) => Code): Code = {
             ae.emit { (m2: Code, v2: Code) =>
               s"""
                  |{
-                 |  ${ newArrayRegion.defineIfUsed(sameRegion) }
-                 |  ${ newArrayRegion.addReference(arrayRegion) }
                  |  ${ vm.define }
                  |  ${ vv.define }
                  |  $vm = $m2;
