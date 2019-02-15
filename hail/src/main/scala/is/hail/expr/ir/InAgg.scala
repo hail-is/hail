@@ -9,6 +9,10 @@ object InAgg {
       memo.bind(ir, inAgg)
 
       ir match {
+        case AggLet(name, value, body) =>
+          assert(!inAgg)
+          memoize(value, inAgg = true)
+          memoize(body, inAgg = false)
         case AggGroupBy(key, aggIR) =>
           assert(!inAgg)
           memoize(key, inAgg = true)

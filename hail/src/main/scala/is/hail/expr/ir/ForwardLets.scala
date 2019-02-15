@@ -70,7 +70,7 @@ object ForwardLets {
 
             case FORWARD =>
               val ref = refs.head
-              m.bind(ref, x.value)
+              m.bind(ref, rewrite(x.value))
 
               rewrite(x.body)
 
