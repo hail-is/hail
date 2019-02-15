@@ -250,9 +250,6 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
       Interval.isValid(locusType.ordering, start, end, includesStart, includesEnd)
   }
 
-//  def isValidLocusInterval(startContig: String, startPos: Int, endContig: String, endPos: Int, includesStart: Boolean, includesEnd: Boolean): Boolean =
-//    isValidLocusInterval(Interval(Locus(startContig, startPos), Locus(endContig, endPos), includesStart, includesEnd))
-
   def checkContig(contig: String): Unit = {
     if (!isValidContig(contig))
       fatal(s"Contig '$contig' is not in the reference genome '$name'.")

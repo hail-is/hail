@@ -265,24 +265,6 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
         emitVariant(mb, variant)
     }
 
-//    registerRGCode("LocusInterval", TString(), TBoolean(), tinterval) {
-//      (mb, ioff: Code[Long], invalidMissing: Code[Boolean]) =>
-//        val sinterval = asm4s.coerce[String](wrapArg(mb, TString())(ioff))
-//        val interval = Code
-//          .invokeScalaObject[String, RGBase, Boolean, Interval](
-//          locusClass, "parseInterval", sinterval, rgCode(mb), invalidMissing)
-//        emitInterval(mb, interval)
-//    }
-
-//    registerRGCode("LocusInterval", TString(), TInt32(), TInt32(), TBoolean(), TBoolean(), TBoolean(), tinterval) {
-//      (mb, locoff: Code[Long], pos1: Code[Int], pos2: Code[Int], include1: Code[Boolean], include2: Code[Boolean], invalidMissing: Code[Boolean]) =>
-//        val sloc = asm4s.coerce[String](wrapArg(mb, TString())(locoff))
-//        val interval = Code
-//          .invokeScalaObject[String, Int, Int, Boolean, Boolean, RGBase, Boolean, Interval](
-//          locusClass, "makeInterval", sloc, pos1, pos2, include1, include2, rgCode(mb), invalidMissing)
-//        emitInterval(mb, interval)
-//    }
-
     registerRGCodeWithMissingness("LocusInterval", TString(), TBoolean(), tinterval) {
       (mb: EmitMethodBuilder, ioff: EmitTriplet, invalidMissing: EmitTriplet) =>
         val sinterval = asm4s.coerce[String](wrapArg(mb, TString())(ioff.value[Long]))
@@ -322,13 +304,6 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
         val scontig = asm4s.coerce[String](wrapArg(mb, TString())(contig))
         rgCode(mb).invoke[String, Int, Boolean]("isValidLocus", scontig, pos)
     }
-
-//    registerRGCode("isValidLocusInterval", TString(), TInt32(), TString(), TInt32(), TBoolean(), TBoolean(), TBoolean()) {
-//      (mb, startContig: Code[Long], startPos: Code[Int], endContig: Code[Long], endPos: Code[Int], includesStart: Code[Boolean], includesEnd: Code[Boolean]) =>
-//        val scontig = asm4s.coerce[String](wrapArg(mb, TString())(startContig))
-//        val econtig = asm4s.coerce[String](wrapArg(mb, TString())(endContig))
-//        rgCode(mb).invoke[String, Int, String, Int, Boolean, Boolean, Boolean]("isValidLocusInterval", scontig, startPos, econtig, endPos, includesStart, includesEnd)
-//    }
 
     registerRGCode("getReferenceSequenceFromValidLocus", TString(), TInt32(), TInt32(), TInt32(), TString()) {
       (mb, contig: Code[Long], pos: Code[Int], before: Code[Int], after: Code[Int]) =>
