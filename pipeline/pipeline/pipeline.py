@@ -97,7 +97,7 @@ class Pipeline:
     def select_tasks(self, pattern):
         return [task for task in self._tasks if task._label is not None and re.match(pattern, task._label) is not None]
 
-    def run(self, dry_run=False, verbose=False, delete_on_exit=True):
+    def run(self, dry_run=False, verbose=False, delete_scratch_on_exit=True):
         dependencies = {task: task._dependencies for task in self._tasks}
         ordered_tasks = []
         niter = 0
@@ -117,7 +117,7 @@ class Pipeline:
                 raise ValueError("cycle detected in dependency graph")
 
         self._tasks = ordered_tasks
-        self._backend.run(self, dry_run, verbose, False, delete_on_exit)  # FIXME: expose bg option when implemented!
+        self._backend.run(self, dry_run, verbose, delete_scratch_on_exit)
 
     def __str__(self):
         return self._uid

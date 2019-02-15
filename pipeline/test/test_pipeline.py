@@ -215,10 +215,7 @@ class LocalTests(unittest.TestCase):
 
 class BatchTests(unittest.TestCase):
     def pipeline(self):
-        url = os.environ.get('BATCH_URL')
-        if url is None:
-            raise Exception("BATCH_URL not defined in the environment.")
-        return Pipeline(backend=BatchBackend(url),
+        return Pipeline(backend=BatchBackend(os.environ.get('BATCH_URL')),
                         default_image='google/cloud-sdk:alpine')
 
     def test_single_task_no_io(self):

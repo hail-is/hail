@@ -2,35 +2,44 @@ import abc
 import os
 import subprocess as sp
 import batch.client
+import uuid
 
 from .resource import ResourceFile, ResourceGroup, InputResourceFile, TaskResourceFile
-from .utils import get_sha, escape_string, flatten
-
-
-def get_path(r):
-    if isinstance(r, ResourceFile):
-        assert r._value is not None
-        return r._value
-    else:
-        assert isinstance(r, ResourceGroup)
-        return r._root
+from .utils import get_sha, escape_string
 
 
 class Backend:
     @abc.abstractmethod
-    def tmp_dir(self):
+    def run(self, pipeline, dry_run, verbose, delete_scratch_on_exit):
         return
 
     @abc.abstractmethod
-    def run(self, pipeline, dry_run, verbose, bg, delete_on_exit):
-        return
+    def _copy_input(self, resource):
+        pass
+
+    @abc.abstractmethod
+    def _copy_output(self, resource):
+        pass
 
 
 class LocalBackend(Backend):
     def __init__(self, tmp_dir='/tmp/'):
         self._tmp_dir = tmp_dir
 
-    def run(self, pipeline, dry_run, verbose, bg, delete_on_exit):
+    def copy_input(r):
+        if isinstance(r, InputResourceFile):
+            absolute_input_path = os.path.realpath(r._input_path)
+            if task._image is not None:
+                return [f'cp {absolute_input_path} {tmpdir}/{r.file_name}']
+            else:
+                return [f'ln -sf {absolute_input_path} {tmpdir}/{r.file_name}']
+        elif isinstance(r, ResourceGroup):
+            return [x for _, rf in r._resources.items() for x in copy_input(rf)]
+        else:
+            assert isinstance(r, TaskResourceFile)
+            return []
+
+    def run(self, pipeline, dry_run, verbose, delete_scratch_on_exit):
         tmpdir = self.tmp_dir()
 
         script = ['#!/bin/bash',
@@ -40,29 +49,14 @@ class LocalBackend(Backend):
                   f"cd {tmpdir}",
                   '\n']
 
-        def define_resource(r):
-            return f"{r._uid}={escape_string(get_path(r))}"
-
         for task in pipeline._tasks:
             script.append(f"# {task._uid} {task._label if task._label else ''}")
 
-            # Make copies of input resource files if they don't already exist
-            def copy_task_inputs(r):
-                if isinstance(r, InputResourceFile):
-                    absolute_input_path = os.path.realpath(r._input_path)
-                    if task._image is not None:
-                        return [f'cp {absolute_input_path} {tmpdir}/{get_path(r)}']
-                    else:
-                        return [f'ln -sf {absolute_input_path} {tmpdir}/{get_path(r)}']
-                elif isinstance(r, ResourceGroup):
-                    return [copy_task_inputs(rf) for _, rf in r._resources.items()]
-                else:
-                    assert isinstance(r, TaskResourceFile)
-                    return []
 
-            script += list(flatten([copy_task_inputs(r) for r in task._inputs]))
 
-            resource_defs = [define_resource(r) for r in task._inputs.union(task._outputs)]
+            script += [x for r in task._inputs for x in copy_input(r)]
+
+            resource_defs = [r.declare() for r in task._inputs.union(task._outputs)]
 
             if task._image:
                 defs = '; '.join(resource_defs) + '; ' if resource_defs else ''
@@ -90,14 +84,15 @@ class LocalBackend(Backend):
             if isinstance(r, InputResourceFile):
                 return [f'cp {r._input_path} {dest}']
             elif isinstance(r, TaskResourceFile):
-                return [f'cp {get_path(r)} {dest}']
+                return [f'cp {r.file_name} {dest}']
             else:
                 assert isinstance(r, ResourceGroup)
                 return [write_pipeline_outputs(rf, dest + '.' + ext) for ext, rf in r._resources.items()]
 
-        outputs = list(flatten([write_pipeline_outputs(r, dest)
-                                for _, r in pipeline._resource_map.items()
-                                for dest in r._output_paths]))
+        outputs = [x for _, r in pipeline._resource_map.items()
+                   for dest in r._output_paths
+                   for x in write_pipeline_outputs(r, dest)]
+
         script += ["# Write resources to output destinations"]
         script += outputs
 
@@ -106,12 +101,12 @@ class LocalBackend(Backend):
             print(script)
         else:
             try:
-                sp.check_output(script, shell=True)  # FIXME: implement non-blocking (bg = True)
+                sp.check_output(script, shell=True)
             except sp.CalledProcessError as e:
                 print(e.output)
                 raise e
             finally:
-                if delete_on_exit:
+                if delete_scratch_on_exit:
                     sp.run(f'rm -r {tmpdir}', shell=True)
 
     def tmp_dir(self):
@@ -131,15 +126,12 @@ class BatchBackend(Backend):
     def __init__(self, url='http://localhost:5000'):
         self._batch_client = batch.client.BatchClient(url)
 
-    def run(self, pipeline, dry_run, verbose, bg, delete_on_exit):  # pylint: disable-msg=R0915
+    def run(self, pipeline, dry_run, verbose, delete_scratch_on_exit):  # pylint: disable-msg=R0915
         remote_tmpdir = self.tmp_dir()
         local_tmpdir = '/tmp/pipeline/'
 
         batch = self._batch_client.create_batch()
         n_jobs_submitted = 0
-
-        def define_resource(r):
-            return f"{r._uid}={escape_string(local_tmpdir + '/' + get_path(r))}"
 
         task_to_job_mapping = {}
         job_id_to_command = {}
@@ -156,32 +148,34 @@ class BatchBackend(Backend):
                                    '--key-file /secrets/pipeline-test-0-1--hail-is.key'
 
         for task in pipeline._tasks:
-            def copy_task_inputs(r):
+            def copy_input(r):
                 if isinstance(r, ResourceFile):
                     if isinstance(r, InputResourceFile):
-                        return [f'gsutil cp {r._input_path} {local_tmpdir}/{get_path(r)}']  # FIXME: This is serial!
+                        return [f'gsutil cp {r._input_path} {local_tmpdir}/{r.file_name}']  # FIXME: This is serial!
                     else:
                         assert isinstance(r, TaskResourceFile)
-                        return [f'gsutil cp {remote_tmpdir}/{get_path(r)} {local_tmpdir}/{get_path(r)}']
+                        return [f'gsutil cp {remote_tmpdir}/{r.file_name} {local_tmpdir}/{r.file_name}']
                 else:
                     assert isinstance(r, ResourceGroup)
-                    return [copy_task_inputs(rf) for _, rf in r._resources.items()]
+                    return [copy_input(rf) for _, rf in r._resources.items()]
 
-            def copy_task_outputs(r):
+            copy_task_inputs = [x for r in task._inputs for x in copy_input(r)]
+
+            def copy_output(r):
                 assert r._source == task  # pylint: disable-msg=W0640
                 if isinstance(r, TaskResourceFile):
-                    return [f'gsutil cp {local_tmpdir}/{get_path(r)} {remote_tmpdir}/{get_path(r)}']
+                    return [f'gsutil cp {local_tmpdir}/{r.file_name} {remote_tmpdir}/{r.file_name}']
                 else:
                     assert isinstance(r, ResourceGroup)
-                    return [copy_task_outputs(rf) for _, rf in r._resources.items()]
+                    return [copy_output(rf) for _, rf in r._resources.items()]
+
+            copy_task_outputs = [x for r in task._outputs for x in copy_output(r)]
 
             make_local_tmpdir = f'mkdir -p {local_tmpdir}'
 
-            task_inputs = [make_local_tmpdir, activate_service_account] + \
-                list(flatten([copy_task_inputs(r) for r in task._inputs]))
-            task_outputs = [activate_service_account] + \
-                list(flatten([copy_task_outputs(r) for r in task._outputs]))
-            resource_defs = [define_resource(r) for r in task._inputs.union(task._outputs)]
+            task_inputs = [make_local_tmpdir, activate_service_account, copy_task_inputs]
+            task_outputs = [activate_service_account, copy_task_outputs]
+            resource_defs = [r.declare(directory=local_tmpdir) for r in task._inputs.union(task._outputs)]
 
             if task._image is None:
                 raise Exception(f"Image for task {task._uid} cannot be None for the BatchBackend.\n"
@@ -223,14 +217,14 @@ class BatchBackend(Backend):
                          ' && ' + f'gsutil cp {r._input_path} {dest}')]
             elif isinstance(r, TaskResourceFile):
                 return [(task_to_job_mapping[r._source].id, activate_service_account +
-                         ' && ' + f'gsutil cp {remote_tmpdir}/{get_path(r)} {dest}')]
+                         ' && ' + f'gsutil cp {remote_tmpdir}/{r.file_name} {dest}')]
             else:
                 assert isinstance(r, ResourceGroup)
                 return [write_pipeline_outputs(rf, dest + '.' + ext) for ext, rf in r._resources.items()]
 
-        pipeline_outputs = list(flatten([write_pipeline_outputs(r, dest)
-                                         for _, r in pipeline._resource_map.items()
-                                         for dest in r._output_paths]))
+        pipeline_outputs = [x for _, r in pipeline._resource_map.items()
+                            for dest in r._output_paths
+                            for x in write_pipeline_outputs(r, dest)]
 
         for parent_id, write_cmd in pipeline_outputs:
             j = batch.create_job(image='google/cloud-sdk:alpine',
@@ -245,8 +239,7 @@ class BatchBackend(Backend):
 
         status = batch.wait()  # FIXME: add background mode
 
-        # cleanup scratch directory
-        if delete_on_exit:
+        if delete_scratch_on_exit:
             rm_cmd = f'gsutil rm -r {remote_tmpdir}'
             j = self._batch_client.create_job(image='google/cloud-sdk:alpine',
                                               command=['/bin/bash', '-c', activate_service_account + '&&' + rm_cmd],
@@ -273,5 +266,5 @@ class BatchBackend(Backend):
 
     def tmp_dir(self):
         hail_scratch_bucket = 'hail-pipeline-scratch'
-        subdir_name = 'pipeline-{}'.format(get_sha(16).lower())  # FIXME: This should check if directory exists
+        subdir_name = 'pipeline-{}'.format(uuid.uuid4().hex)  # FIXME: This should check if directory exists
         return f'gs://{hail_scratch_bucket}/{subdir_name}/'

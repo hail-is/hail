@@ -1,5 +1,23 @@
+import abc
+
+from .utils import escape_string
+
+
 class Resource:
-    pass
+    @property
+    @abc.abstractmethod
+    def _uid(self) -> str:
+        pass
+
+    @property
+    @abc.abstractmethod
+    def file_name(self) -> str:
+        pass
+
+    @abc.abstractmethod
+    def declare(self, directory=None):
+        directory = directory + '/' if directory else ''
+        return f"{self._uid}={escape_string(directory + self.file_name)}"
 
 
 class ResourceFile(Resource, str):
@@ -29,6 +47,10 @@ class ResourceFile(Resource, str):
 
     def add_output_path(self, path):
         self._output_paths.add(path)
+
+    def file_name(self):
+        assert self._value is not None
+        return self._value
 
     def __str__(self):
         return self._uid
@@ -68,6 +90,9 @@ class ResourceGroup(Resource):
 
         for name, resource in values.items():
             self._resources[name] = resource
+
+    def file_name(self):
+        return self._root
 
     def add_output_path(self, path):
         self._output_paths.add(path)
