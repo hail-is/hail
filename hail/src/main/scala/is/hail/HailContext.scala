@@ -252,6 +252,7 @@ object HailContext {
 
     val sqlContext = new org.apache.spark.sql.SQLContext(sparkContext)
     val hailTempDir = TempDir.createTempDir(tmpDir, sparkContext.hadoopConfiguration)
+    info(s"Hail temporary directory: $hailTempDir")
     val hc = new HailContext(sparkContext, sqlContext, logFile, hailTempDir, branchingFactor)
     sparkContext.uiWebUrl.foreach(ui => info(s"SparkUI: $ui"))
 
