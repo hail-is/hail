@@ -22,14 +22,20 @@ object MapIR {
   * Would be more elegant in a mutable IR with parent pointers
   */
 object MapIRSubtrees {
-  def apply(f: IR => IR)(ir: BaseIR): BaseIR = {
-    RewriteBottomUp(ir, {
-      case _: IR => None
-      case _ => Some(ir.copy(ir.children.map {
-        case child: IR => f(child)
-        case c => c
-      }))
-    }) match {
+  def apply(f: IR => IR)(ir0: BaseIR): BaseIR = {
+    def rewrite(ir: BaseIR): BaseIR = {
+      ir match {
+        case valueIR: IR => valueIR.copy(valueIR.children.map(rewrite))
+        case relational => relational.copy(relational.children.map {
+          rewrite(_) match {
+            case child: IR => f(child)
+            case child => child
+          }
+        })
+      }
+    }
+
+    rewrite(ir0) match {
       case ir: IR => f(ir)
       case x => x
     }
