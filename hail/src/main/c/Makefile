@@ -48,11 +48,10 @@ BUILD_OBJECTS := $(OBJECTS:%=$(BUILD)/%.o)
 simdpp/simd.h: $(LIBSIMDPP)
 catch.hpp: $(CATCH_HEADER_LOCATION)
 
-TEST_CPP := $(foreach obj,$(OBJECTS),$(wildcard $(obj)_test.cpp)) testutils/unit-tests.cpp
+TEST_CPP := $(wildcard *_test.cpp) testutils/unit-tests.cpp
 TEST_OBJECTS := $(foreach file,$(TEST_CPP),$(BUILD)/$(basename $(file)).o)
 
 ALL_CPP := $(shell find * -iname '*.cpp')
-$(info $(ALL_CPP))
 HEADER_DEPENDENCIES := $(ALL_CPP:%.cpp=build/%.d)
 -include $(HEADER_DEPENDENCIES)
 
