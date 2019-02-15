@@ -23,7 +23,12 @@ def transform_one(mt: MatrixTable) -> MatrixTable:
     mt = mt.annotate_rows(
         info=mt.info.annotate(
             DP=hl.agg.sum(mt.entry.DP),
-            SB=hl.agg.array_sum(mt.entry.SB),
+            SB=hl.array([
+                hl.agg.sum(mt.entry.SB[0]),
+                hl.agg.sum(mt.entry.SB[1]),
+                hl.agg.sum(mt.entry.SB[2]),
+                hl.agg.sum(mt.entry.SB[3]),
+            ])
         ).select(
             "DP",
             "MQ_DP",
