@@ -68,9 +68,6 @@ $(BUILD)/%.o: %.cpp
 	@mkdir -p $(@D)
 	$(CXX) -o $@ $(CXXFLAGS) -MD -MF $(@:%.o=%.d) -MT $@ -c $<
 
-$(BUILD)/ibs.d: CXXFLAGS += -DNUMBER_OF_GENOTYPES_PER_ROW=256
-$(BUILD)/ibs.o: CXXFLAGS += -DNUMBER_OF_GENOTYPES_PER_ROW=256
-
 ifndef JAVA_HOME
   TMP :=$(shell java -XshowSettings:properties -version 2>&1 | fgrep -i java.home)
   ifneq ($(TMP),)
@@ -162,6 +159,7 @@ endif
 	echo "CXX is $(CXX)"
 	-$(CXX) --version
 
+$(BUILD)/functional-tests: CXXFLAGS += -DNUMBER_OF_GENOTYPES_PER_ROW=256
 $(BUILD)/functional-tests: $(BUILD)/ibs.o $(BUILD)/test.o
 	@mkdir -p $(@D)
 	$(CXX) $(CXXFLAGS) -o $(BUILD)/functional-tests $^ -ldl
