@@ -1,4 +1,5 @@
 import json
+import re
 from hail.typecheck import *
 from hail.utils import wrap_to_list
 from hail.utils.java import jiterable_to_list, Env, joption
@@ -293,8 +294,8 @@ class ReferenceGenome(object):
             json.dump(self._config, f)
 
     @typecheck_method(fasta_file=str,
-                      index_file=str)
-    def add_sequence(self, fasta_file, index_file):
+                      index_file=nullable(str))
+    def add_sequence(self, fasta_file, index_file=None):
         """Load the reference sequence from a FASTA file.
 
         Examples
@@ -307,6 +308,11 @@ class ReferenceGenome(object):
 
         >>> rg.add_sequence('gs://hail-common/references/human_g1k_v37.fasta.gz',
         ...                 'gs://hail-common/references/human_g1k_v37.fasta.fai') # doctest: +SKIP
+
+        Add a sequence file with the default index location:
+
+        >>> rg.add_sequence('gs://hail-common/references/human_g1k_v37.fasta.gz') # doctest: +SKIP
+
 
         Notes
         -----
@@ -333,9 +339,12 @@ class ReferenceGenome(object):
         ----------
         fasta_file : :obj:`str`
             Path to FASTA file. Can be compressed (GZIP) or uncompressed.
-        index_file : :obj:`str`
-            Path to FASTA index file. Must be uncompressed.
+        index_file : :obj:`None` or :obj:`str`
+            Path to FASTA index file. Must be uncompressed. If `None`, replace
+            the fasta_file's extension with `fai`.
         """
+        if index_file is None:
+            index_file = re.sub('\.[^.]*$', '.fai', fasta_file)
         Env.backend().add_sequence(self.name, fasta_file, index_file)
         self._has_sequence = True
 
