@@ -344,31 +344,27 @@ output:
 
 extern "C"
 EXPORT
-real qfWrapper(real* lb1, real* nc1, int* n1, int r1, real sigma, real c1,
+real qfWrapper(real* lb1, real* nc1, int* dof, int r1, real sigma, real c1,
                int lim1, real acc, real* trace, int* ifault)
 {
 
   real * lambdas = new real[r1];
   real * noncentrality = new real[r1];
-  int * dof = new int[r1];
 
   for(int i = 0; i < r1; i++){
     lambdas[i] = lb1[i];
     noncentrality[i] = nc1[i];
-    dof[i] = 1;
   }
 
-  real trace2[7] = {0.0};
   int fault = *ifault;
 
   DaviesAlgo algoClass;
  
   real result = algoClass.qf(lambdas, noncentrality, dof, r1, sigma, c1,
-                   lim1, acc, trace2, &fault);
+                   lim1, acc, trace, &fault);
   *ifault = fault;
   delete[] lambdas;
   delete[] noncentrality;
-  delete[] dof;
   return result;
 
 }
