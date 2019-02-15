@@ -55,7 +55,6 @@ const verifyToken = token =>
     );
   });
 
-const PORT = 8000;
 // Polka is *mostly* express compatible, but let's not use unnecessary libraries
 // better to understand the underlying security issues
 // Best practices state that we should check the exact form of the auth header
@@ -138,6 +137,7 @@ const getAuthToken = req => {
   return token.substr(0, spaceIdx - 1);
 };
 
+const PORT = 8000;
 polka()
   .get('/verify', (req, res) => {
     const token = getAuthToken(req);
