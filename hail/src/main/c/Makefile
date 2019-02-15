@@ -1,7 +1,7 @@
 MAKEFLAGS += --no-builtin-rules
 .PHONY: all clean debug prebuilt test
 .SUFFIXES:
-.DEFAULT: all
+.DEFAULT_GOAL: all
 
 UNAME_S :=$(shell uname -s)
 UNAME_P :=$(shell uname -p)
@@ -56,15 +56,15 @@ HEADER_DEPENDENCIES := $(BUILD_OBJECTS:%.o=%.d) $(TEST_OBJECTS:%.o=%.d)
 -include $(HEADER_DEPENDENCIES)
 
 $(BUILD)/unit-tests.o: testutils/unit-tests.cpp
-	mkdir -p $(@D)
+	@mkdir -p $(@D)
 	$(CXX) -o $@ $(CXXFLAGS) -c $<
 
 $(BUILD)/%.d: %.cpp
-	mkdir -p $(@D)
+	@mkdir -p $(@D)
 	$(CXX) $(CXXFLAGS) $< -MG -M -MF $@ -MT $(@:%.d=%.o)
 
 $(BUILD)/%.o: %.cpp
-	mkdir -p $(@D)
+	@mkdir -p $(@D)
 	$(CXX) -o $@ $(CXXFLAGS) -MD -MF $(@:%.o=%.d) -MT $@ -c $<
 
 $(BUILD)/ibs.d: CXXFLAGS += -DNUMBER_OF_GENOTYPES_PER_ROW=256
@@ -162,11 +162,11 @@ endif
 	-$(CXX) --version
 
 $(BUILD)/functional-tests: $(BUILD)/ibs.o $(BUILD)/test.o
-	mkdir -p $(@D)
+	@mkdir -p $(@D)
 	$(CXX) $(CXXFLAGS) -ldl -o $(BUILD)/functional-tests $^
 
 $(BUILD)/unit-tests: $(BUILD_OBJECTS) $(TEST_OBJECTS)
-	mkdir -p $(@D)
+	@mkdir -p $(@D)
 	$(CXX) $(CXXFLAGS) -ldl -o $(BUILD)/unit-tests $(BUILD_OBJECTS) $(TEST_OBJECTS)
 
 $(PREBUILT)/$(LIBBOOT): $(LIBBOOT)
@@ -210,11 +210,11 @@ ALL_HEADER_FILES := $(shell find ../resources/include -name "*.h")
 ALL_HEADER_CKSUM := $(shell $(CXX) --version >.cxx.vsn ; cat .cxx.vsn $(ALL_HEADER_FILES) | cksum | cut -d " " -f 1)
 
 $(BUILD)/NativeModule.o: NativeModule.cpp
-	mkdir -p $(@D)
+	@mkdir -p $(@D)
 	$(CXX) $(CXXFLAGS) -DALL_HEADER_CKSUM=$(ALL_HEADER_CKSUM)UL -c NativeModule.cpp -o $@
 
 $(CATCH_HEADER_LOCATION):
-	mkdir -p $(@D)
+	@mkdir -p $(@D)
 	curl -sSL 'https://github.com/catchorg/Catch2/releases/download/v2.6.0/catch.hpp' > $@
 
 $(LIBSIMDPP).tar.gz:
@@ -224,9 +224,9 @@ $(LIBSIMDPP): $(LIBSIMDPP).tar.gz
 	tar -xzf $<
 
 $(LIBBOOT): $(BUILD)/NativeBoot.o
-	-mkdir -p $(basename $(LIBBOOT))
+	@mkdir -p $(basename $(LIBBOOT))
 	$(CXX) $(LIBFLAGS) $(LIBDIRS) $(CXXFLAGS) $(BUILD)/NativeBoot.o -o $@
 
 $(LIBHAIL): $(BUILD_OBJECTS)
-	-mkdir -p $(basename $(LIBHAIL))
+	@mkdir -p $(basename $(LIBHAIL))
 	$(CXX) $(LIBFLAGS) $(LIBDIRS) $(CXXFLAGS) $(BUILD_OBJECTS) -o $@
