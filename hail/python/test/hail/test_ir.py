@@ -31,7 +31,7 @@ class ValueIRTests(unittest.TestCase):
         matrix_read = ir.MatrixRead(ir.MatrixNativeReader(
             resource('backward_compatability/1.0.0/matrix_table/0.hmt')), False, False)
 
-        block_matrix_read = ir.BlockMatrixRead('fake_file_path')
+        block_matrix_read = ir.BlockMatrixRead(ir.BlockMatrixNativeReader('fake_file_path'))
 
         value_irs = [
             i, ir.I64(5), ir.F32(3.14), ir.F64(3.14), s, ir.TrueIR(), ir.FalseIR(), ir.Void(),
@@ -103,7 +103,7 @@ class ValueIRTests(unittest.TestCase):
             ir.MatrixWrite(matrix_read, ir.MatrixGENWriter(new_temp_file(), 4)),
             ir.MatrixWrite(matrix_read, ir.MatrixPLINKWriter(new_temp_file())),
             ir.MatrixMultiWrite([matrix_read, matrix_read], ir.MatrixNativeMultiWriter(new_temp_file(), False, False)),
-            ir.BlockMatrixWrite(block_matrix_read, 'fake_file_path', False, False, False)
+            ir.BlockMatrixWrite(block_matrix_read, ir.BlockMatrixNativeWriter('fake_file_path', False, False, False))
         ]
 
         return value_irs
@@ -251,7 +251,7 @@ class BlockMatrixIRTests(unittest.TestCase):
         scalar_ir = ir.F64(2)
         vector_ir = ir.MakeArray([ir.F64(3), ir.F64(2)], hl.tarray(hl.tfloat64))
 
-        read = ir.BlockMatrixRead(resource('blockmatrix_example/0'))
+        read = ir.BlockMatrixRead(ir.BlockMatrixNativeReader(resource('blockmatrix_example/0')))
         add_two_bms = ir.BlockMatrixMap2(read, read, ir.ApplyBinaryOp('+', ir.Ref('l'), ir.Ref('r')))
         negate_bm = ir.BlockMatrixMap(read, ir.ApplyUnaryOp('-', ir.Ref('element')))
         sqrt_bm = ir.BlockMatrixMap(read, hl.sqrt(construct_expr(ir.Ref('element'), hl.tfloat64))._ir)
