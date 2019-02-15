@@ -10,6 +10,7 @@ from hail.ir import BlockMatrixWrite, BlockMatrixMap2, ApplyBinaryOp, Ref, F64, 
     ApplyUnaryOp, IR, BlockMatrixDot, tensor_shape_to_matrix_shape, BlockMatrixAgg, BlockMatrixRandom, \
     BlockMatrixToValueApply
 from hail.ir.blockmatrix_reader import BlockMatrixNativeReader, BlockMatrixBinaryReader
+from hail.ir.blockmatrix_writer import BlockMatrixBinaryWriter, BlockMatrixNativeWriter
 from hail.utils import new_temp_file, new_local_temp_file, local_path_uri, storage_level
 from hail.utils.java import Env, jarray, joption
 from hail.typecheck import *
@@ -571,7 +572,8 @@ class BlockMatrix(object):
             If ``True``, major output will be written to temporary local storage
             before being copied to ``output``.
         """
-        Env.backend().execute(BlockMatrixWrite(self._bmir, path, overwrite, force_row_major, stage_locally))
+        writer = BlockMatrixNativeWriter(path, overwrite, force_row_major, stage_locally)
+        Env.backend().execute(BlockMatrixWrite(self._bmir, writer))
 
     @staticmethod
     @typecheck(entry_expr=expr_float64,
@@ -1106,9 +1108,8 @@ class BlockMatrix(object):
         if n_entries >= 2 << 31:
             raise ValueError(f'number of entries must be less than 2^31, found {n_entries}')
 
-        bdm = self._jbm.toBreezeMatrix()
-        row_major = Env.hail().utils.richUtils.RichDenseMatrixDouble.exportToDoubles(Env.hc()._jhc, uri, bdm, True)
-        assert row_major
+        writer = BlockMatrixBinaryWriter(uri)
+        Env.backend().execute(BlockMatrixWrite(self._bmir, writer))
 
     def to_numpy(self):
         """Collects the block matrix into a `NumPy ndarray

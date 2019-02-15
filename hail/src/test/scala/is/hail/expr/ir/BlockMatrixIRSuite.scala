@@ -49,10 +49,11 @@ class BlockMatrixIRSuite extends SparkSuite {
 
   @Test def testBlockMatrixWriteRead() {
     val tempPath = tmpDir.createLocalTempFile()
-    Interpret(BlockMatrixWrite(new BlockMatrixLiteral(ones), tempPath, false, false, false))
+    Interpret(BlockMatrixWrite(new BlockMatrixLiteral(sampleMatrix),
+      BlockMatrixNativeWriter(tempPath, false, false, false)))
 
-    val actualMatrix = BlockMatrixRead(tempPath).execute(hc)
-    assertBmEq(actualMatrix, ones)
+    val actualMatrix = BlockMatrixRead(BlockMatrixNativeReader(tempPath)).execute(hc)
+    assertBmEq(actualMatrix, sampleMatrix)
   }
 
 

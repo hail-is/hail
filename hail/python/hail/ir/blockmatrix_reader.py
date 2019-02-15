@@ -27,7 +27,7 @@ class BlockMatrixNativeReader(BlockMatrixReader):
 
     def __eq__(self, other):
         return isinstance(other, BlockMatrixNativeReader) and \
-               other.path == self.path
+               self.path == other.path
 
 
 class BlockMatrixBinaryReader(BlockMatrixReader):

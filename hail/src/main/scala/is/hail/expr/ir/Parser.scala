@@ -820,12 +820,15 @@ object IRParser {
         val children = matrix_ir_children(env)(it)
         MatrixMultiWrite(children, writer)
       case "BlockMatrixWrite" =>
-        val path = string_literal(it)
-        val overwrite = boolean_literal(it)
-        val forceRowMajor = boolean_literal(it)
-        val stageLocally = boolean_literal(it)
+        val writerStr = string_literal(it)
+        implicit val formats: Formats = BlockMatrixWriter.formats
+        val writer = try {
+          Serialization.read[BlockMatrixWriter](writerStr)
+        } catch {
+          case e: MappingException => throw e.cause
+        }
         val child = blockmatrix_ir(env)(it)
-        BlockMatrixWrite(child, path, overwrite, forceRowMajor, stageLocally)
+        BlockMatrixWrite(child, writer)
       case "CollectDistributedArray" =>
         val cname = identifier(it)
         val gname = identifier(it)
