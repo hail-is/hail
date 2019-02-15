@@ -61,11 +61,11 @@ $(BUILD)/unit-tests.o: testutils/unit-tests.cpp
 
 $(BUILD)/%.d: %.cpp
 	mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) $< -MG -MM -MF $@ -MT $(@:%.d=%.o)
+	$(CXX) $(CXXFLAGS) $< -MG -M -MF $@ -MT $(@:%.d=%.o)
 
 $(BUILD)/%.o: %.cpp
 	mkdir -p $(@D)
-	$(CXX) -o $@ $(CXXFLAGS) -MMD -MF $(@:%.o=%.d) -MT $@ -c $<
+	$(CXX) -o $@ $(CXXFLAGS) -MD -MF $(@:%.o=%.d) -MT $@ -c $<
 
 $(BUILD)/ibs.d: CXXFLAGS += -DNUMBER_OF_GENOTYPES_PER_ROW=256
 $(BUILD)/ibs.o: CXXFLAGS += -DNUMBER_OF_GENOTYPES_PER_ROW=256
