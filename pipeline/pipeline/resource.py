@@ -4,10 +4,7 @@ from .utils import escape_string
 
 
 class Resource:
-    @property
-    @abc.abstractmethod
-    def _uid(self) -> str:
-        pass
+    _uid : str
 
     @property
     @abc.abstractmethod
@@ -48,6 +45,7 @@ class ResourceFile(Resource, str):
     def add_output_path(self, path):
         self._output_paths.add(path)
 
+    @property
     def file_name(self):
         assert self._value is not None
         return self._value
@@ -91,6 +89,7 @@ class ResourceGroup(Resource):
         for name, resource in values.items():
             self._resources[name] = resource
 
+    @property
     def file_name(self):
         return self._root
 

@@ -26,19 +26,6 @@ class LocalBackend(Backend):
     def __init__(self, tmp_dir='/tmp/'):
         self._tmp_dir = tmp_dir
 
-    def copy_input(r):
-        if isinstance(r, InputResourceFile):
-            absolute_input_path = os.path.realpath(r._input_path)
-            if task._image is not None:
-                return [f'cp {absolute_input_path} {tmpdir}/{r.file_name}']
-            else:
-                return [f'ln -sf {absolute_input_path} {tmpdir}/{r.file_name}']
-        elif isinstance(r, ResourceGroup):
-            return [x for _, rf in r._resources.items() for x in copy_input(rf)]
-        else:
-            assert isinstance(r, TaskResourceFile)
-            return []
-
     def run(self, pipeline, dry_run, verbose, delete_scratch_on_exit):
         tmpdir = self.tmp_dir()
 
@@ -52,7 +39,18 @@ class LocalBackend(Backend):
         for task in pipeline._tasks:
             script.append(f"# {task._uid} {task._label if task._label else ''}")
 
-
+            def copy_input(r):
+                if isinstance(r, InputResourceFile):
+                    absolute_input_path = os.path.realpath(r._input_path)
+                    if task._image is not None:
+                        return [f'cp {absolute_input_path} {tmpdir}/{r.file_name}']
+                    else:
+                        return [f'ln -sf {absolute_input_path} {tmpdir}/{r.file_name}']
+                elif isinstance(r, ResourceGroup):
+                    return [x for _, rf in r._resources.items() for x in copy_input(rf)]
+                else:
+                    assert isinstance(r, TaskResourceFile)
+                    return []
 
             script += [x for r in task._inputs for x in copy_input(r)]
 
@@ -127,8 +125,13 @@ class BatchBackend(Backend):
         self._batch_client = batch.client.BatchClient(url)
 
     def run(self, pipeline, dry_run, verbose, delete_scratch_on_exit):  # pylint: disable-msg=R0915
+        if dry_run:
+            raise NotImplementedError
+
         remote_tmpdir = self.tmp_dir()
         local_tmpdir = '/tmp/pipeline/'
+
+        default_image = 'ubuntu'
 
         batch = self._batch_client.create_batch()
         n_jobs_submitted = 0
@@ -159,8 +162,6 @@ class BatchBackend(Backend):
                     assert isinstance(r, ResourceGroup)
                     return [copy_input(rf) for _, rf in r._resources.items()]
 
-            copy_task_inputs = [x for r in task._inputs for x in copy_input(r)]
-
             def copy_output(r):
                 assert r._source == task  # pylint: disable-msg=W0640
                 if isinstance(r, TaskResourceFile):
@@ -169,6 +170,7 @@ class BatchBackend(Backend):
                     assert isinstance(r, ResourceGroup)
                     return [copy_output(rf) for _, rf in r._resources.items()]
 
+            copy_task_inputs = [x for r in task._inputs for x in copy_input(r)]
             copy_task_outputs = [x for r in task._outputs for x in copy_output(r)]
 
             make_local_tmpdir = f'mkdir -p {local_tmpdir}'
@@ -178,10 +180,8 @@ class BatchBackend(Backend):
             resource_defs = [r.declare(directory=local_tmpdir) for r in task._inputs.union(task._outputs)]
 
             if task._image is None:
-                raise Exception(f"Image for task {task._uid} cannot be None for the BatchBackend.\n"
-                                "Use the 'default_image' argument when constructing a pipeline "
-                                "or the 'image' method of a task to specify the docker image\n\n"
-                                f"{task._pretty()}")
+                if verbose:
+                    print(f"Using image '{default_image}' since no image was specified.")
 
             defs = '; '.join(resource_defs) + '; ' if resource_defs else ''
             task_command = [cmd.strip() for cmd in task._command]
@@ -198,7 +198,7 @@ class BatchBackend(Backend):
             if task._memory:
                 resources['requests']['memory'] = task._memory
 
-            j = batch.create_job(image=task._image,
+            j = batch.create_job(image=task._image if task._image else default_image,
                                  command=['/bin/bash', '-c', defs + cmd],
                                  parent_ids=parent_ids,
                                  attributes=attributes,
@@ -213,11 +213,11 @@ class BatchBackend(Backend):
 
         def write_pipeline_outputs(r, dest):
             if isinstance(r, InputResourceFile):
-                return [(task_to_job_mapping[r._source].id, activate_service_account +
-                         ' && ' + f'gsutil cp {r._input_path} {dest}')]
+                copy_output = activate_service_account + ' && ' + f'gsutil cp {r._input_path} {dest}'
+                return [(task_to_job_mapping[r._source].id, copy_output)]
             elif isinstance(r, TaskResourceFile):
-                return [(task_to_job_mapping[r._source].id, activate_service_account +
-                         ' && ' + f'gsutil cp {remote_tmpdir}/{r.file_name} {dest}')]
+                copy_output = activate_service_account + ' && ' + f'gsutil cp {remote_tmpdir}/{r.file_name} {dest}'
+                return [(task_to_job_mapping[r._source].id, copy_output)]
             else:
                 assert isinstance(r, ResourceGroup)
                 return [write_pipeline_outputs(rf, dest + '.' + ext) for ext, rf in r._resources.items()]
@@ -237,7 +237,7 @@ class BatchBackend(Backend):
             if verbose:
                 print(f"Submitted Job {j.id} with command: {write_cmd}")
 
-        status = batch.wait()  # FIXME: add background mode
+        status = batch.wait()
 
         if delete_scratch_on_exit:
             rm_cmd = f'gsutil rm -r {remote_tmpdir}'
