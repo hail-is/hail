@@ -14,7 +14,7 @@
 #endif
 #endif // HAIL_OVERRIDE_ARCH
 
-#include <simdpp/simd.h>
+#include "simdpp/simd.h"
 #include <inttypes.h>
 
 using namespace simdpp;
