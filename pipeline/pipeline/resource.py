@@ -4,14 +4,13 @@ from .utils import escape_string
 
 
 class Resource:
-    _uid : str
+    _uid: str
 
     @property
     @abc.abstractmethod
     def file_name(self) -> str:
         pass
 
-    @abc.abstractmethod
     def declare(self, directory=None):
         directory = directory + '/' if directory else ''
         return f"{self._uid}={escape_string(directory + self.file_name)}"

@@ -4,10 +4,10 @@
 # protected member access, W0621 redefining name from outer scope, R0914 too
 # many local variables, W0603 using the global statement, R0902 too many
 # instance attributes, R1705 unnecessary "else" after "return", W0511 fixme,
-# R0903 Too few public methods, R0401 Cyclic import, R0801 Similar lines
-# W0640 cell-var-from-loop
+# R0903 Too few public methods, R0401 Cyclic import, R0801 Similar lines,
+# R0912 Too many branches
 
-disable=C0111,W1203,W1202,C0111,R0913,W0622,W0212,W0621,R0914,W0603,R0902,R1705,W0511,R0903,R0401,R0801,W0640
+disable=C0111,W1203,W1202,C0111,R0913,W0622,W0212,W0621,R0914,W0603,R0902,R1705,W0511,R0903,R0401,R0801,R0912
 
 [FORMAT]
 # String used as indentation unit. This is usually "    " (4 spaces) or "\t" (1

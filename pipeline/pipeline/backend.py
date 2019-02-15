@@ -1,8 +1,8 @@
 import abc
 import os
 import subprocess as sp
-import batch.client
 import uuid
+import batch.client
 
 from .resource import ResourceFile, ResourceGroup, InputResourceFile, TaskResourceFile
 from .utils import escape_string, flatten
@@ -12,14 +12,6 @@ class Backend:
     @abc.abstractmethod
     def run(self, pipeline, dry_run, verbose, delete_scratch_on_exit):
         return
-
-    @abc.abstractmethod
-    def _copy_input(self, resource):
-        pass
-
-    @abc.abstractmethod
-    def _copy_output(self, resource):
-        pass
 
 
 class LocalBackend(Backend):
@@ -42,7 +34,7 @@ class LocalBackend(Backend):
             def copy_input(r):
                 if isinstance(r, InputResourceFile):
                     absolute_input_path = os.path.realpath(r._input_path)
-                    if task._image is not None:
+                    if task._image is not None:  # pylint: disable-msg=W0640
                         return [f'cp {absolute_input_path} {tmpdir}/{r.file_name}']
                     else:
                         return [f'ln -sf {absolute_input_path} {tmpdir}/{r.file_name}']
@@ -109,7 +101,7 @@ class LocalBackend(Backend):
 
     def tmp_dir(self):
         def _get_random_name():
-            directory = self._tmp_dir + '/pipeline.{}/'.format(get_sha(8))
+            directory = self._tmp_dir + '/pipeline.{}/'.format(uuid.uuid4().hex[:8])
 
             if os.path.isdir(directory):
                 return _get_random_name()
@@ -128,7 +120,10 @@ class BatchBackend(Backend):
         if dry_run:
             raise NotImplementedError
 
-        remote_tmpdir = self.tmp_dir()
+        hail_scratch_bucket = 'hail-pipeline-scratch'
+        subdir_name = 'pipeline-{}'.format(uuid.uuid4().hex)
+
+        remote_tmpdir = f'gs://{hail_scratch_bucket}/{subdir_name}/'
         local_tmpdir = '/tmp/pipeline/'
 
         default_image = 'ubuntu'
@@ -264,8 +259,3 @@ class BatchBackend(Backend):
             raise Exception(fail_msg)
         else:
             print("Pipeline completed successfully!")
-
-    def tmp_dir(self):
-        hail_scratch_bucket = 'hail-pipeline-scratch'
-        subdir_name = 'pipeline-{}'.format(uuid.uuid4().hex)  # FIXME: This should check if directory exists
-        return f'gs://{hail_scratch_bucket}/{subdir_name}/'
