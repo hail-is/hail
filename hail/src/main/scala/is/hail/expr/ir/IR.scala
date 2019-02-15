@@ -94,8 +94,14 @@ object If {
 
 final case class If(cond: IR, cnsq: IR, altr: IR) extends IR
 
-final case class AggLet(name: String, value: IR, body: IR) extends IR
-final case class Let(name: String, value: IR, body: IR) extends IR
+trait LetNode extends IR {
+  def name: String
+  def value: IR
+  def body: IR
+}
+
+final case class AggLet(name: String, value: IR, body: IR) extends LetNode
+final case class Let(name: String, value: IR, body: IR) extends LetNode
 final case class Ref(name: String, var _typ: Type) extends IR
 
 final case class ApplyBinaryPrimOp(op: BinaryOp, l: IR, r: IR) extends IR
