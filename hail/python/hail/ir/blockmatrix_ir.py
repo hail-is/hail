@@ -60,6 +60,7 @@ class BlockMatrixBroadcast(BlockMatrixIR):
     def _compute_type(self):
         self._type = tblockmatrix(self.child.typ.element_type,
                                   self.shape,
+                                  False,
                                   self.block_size,
                                   self.dims_partitioned)
 
@@ -89,7 +90,20 @@ class ValueToBlockMatrix(BlockMatrixIR):
         else:
             element_type = child_type
 
-        self._type = tblockmatrix(element_type, self.shape, self.block_size, self.dims_partitioned)
+        tensor_shape, is_row_vector = self._matrix_shape_to_tensor_shape(self.shape)
+        self._type = tblockmatrix(element_type, tensor_shape, is_row_vector, self.block_size, self.dims_partitioned)
+
+    def _matrix_shape_to_tensor_shape(self, shape):
+        assert len(self.shape) == 2
+
+        if shape == [1, 1]:
+            return [], False
+        elif shape[0] == 1:
+            return [shape[1]], True
+        elif shape[1] == 1:
+            return [shape[0]], False
+        else:
+            return shape, False
 
 
 class JavaBlockMatrix(BlockMatrixIR):

@@ -203,12 +203,11 @@ class BlockMatrix(object):
     - Natural logarithm, :meth:`log`.
     """
     @staticmethod
-    def _from_java(jbm, shape):
-        return BlockMatrix(JavaBlockMatrix(jbm), shape)
+    def _from_java(jbm):
+        return BlockMatrix(JavaBlockMatrix(jbm))
 
-    def __init__(self, bmir, shape):
+    def __init__(self, bmir):
         self._bmir = bmir
-        self.shape = shape
         self._cached_jbm = None
 
     @property
@@ -475,8 +474,7 @@ class BlockMatrix(object):
             block_size = BlockMatrix.default_block_size()
 
         bmir = BlockMatrixBroadcast(_to_bmir(value, block_size),
-                                    [], [0, 1],
-                                    [n_rows, n_cols],
+                                    [], [n_rows, n_cols],
                                     block_size, [True, True])
         return BlockMatrix(bmir)
 
@@ -519,6 +517,26 @@ class BlockMatrix(object):
         :obj:`int`
         """
         return self.shape[1]
+
+    @property
+    def shape(self):
+        """Shape of matrix.
+
+        Returns
+        -------
+        (:obj:`int`, :obj:`int`)
+           Number of rows and number of columns.
+        """
+        shape = self._bmir.typ.shape
+        assert len(shape) <= 2
+
+        if len(shape) == 0:
+            return 1, 1
+        elif len(shape) == 1:
+            length = shape[0]
+            return (1, length) if self._bmir.typ.is_row_vector else (length, 1)
+        else:
+            return tuple(shape)
 
     @property
     def block_size(self):
@@ -1136,7 +1154,7 @@ class BlockMatrix(object):
         :class:`.BlockMatrix`
         """
         return BlockMatrix(BlockMatrixBroadcast(self._bmir,
-                                                [0, 1], [1, 0],
+                                                [1, 0],
                                                 [self.n_cols, self.n_rows],
                                                 self.block_size,
                                                 self._bmir.typ.dims_partitioned[::-1]))
@@ -1230,12 +1248,14 @@ class BlockMatrix(object):
     def _apply_map(self, op, other, reverse=False):
         apply_bin_op = ApplyBinaryOp(op, Ref('l'), Ref('r'))
 
-        self_bmir = self._bmir
-        other_bmir = other._bmir if isinstance(other, BlockMatrix) else _to_bmir(other, self.block_size)
+        if not isinstance(other, BlockMatrix):
+            other = BlockMatrix(_to_bmir(other, self.block_size))
 
-        result_shape = _shape_after_broadcast(self.shape, other_bmir.typ.shape)
-        self_bmir = _broadcast_to_shape(self_bmir, result_shape)
-        other_bmir = _broadcast_to_shape(other_bmir, result_shape)
+        self_shape, other_shape = list(self.shape), list(other.shape)
+        result_shape = _shape_after_broadcast(self_shape, other_shape)
+
+        self_bmir = self._bmir if self_shape == result_shape else _broadcast_to_shape(self._bmir, result_shape)
+        other_bmir = other._bmir if other_shape == result_shape else _broadcast_to_shape(other._bmir, result_shape)
 
         if reverse:
             left, right = other_bmir, self_bmir
@@ -2073,18 +2093,14 @@ def _shape_after_broadcast(left, right):
 @typecheck(x=oneof(numeric, np.ndarray), block_size=int)
 def _to_bmir(x, block_size):
     if _is_scalar(x):
-        return ValueToBlockMatrix(F64(x), [], block_size, [])
+        return ValueToBlockMatrix(F64(x), [1, 1], block_size, [True, True])
     else:
-        return ValueToBlockMatrix(_ndarray_to_makearray(x), list(x.shape),
-                                  block_size, [True for _ in x.shape])
+        return ValueToBlockMatrix(_ndarray_to_makearray(x), list(_ndarray_as_2d(x).shape),
+                                  block_size, [True, True])
 
 
 def _broadcast_to_shape(bmir, result_shape):
-    current_shape = bmir.typ.shape
-    if current_shape == result_shape:
-        return bmir
-
-    in_index_expr = _broadcast_index_expr(current_shape)
+    in_index_expr = _broadcast_index_expr(bmir.typ.shape, bmir.typ.is_row_vector)
     return BlockMatrixBroadcast(bmir, in_index_expr, result_shape,
                                 bmir.typ.block_size, [True for _ in result_shape])
 
@@ -2101,17 +2117,13 @@ def _ndarray_to_makearray(ndarray):
     return MakeArray(data_as_ir, hl.tarray(hl.tfloat64))
 
 
-def _broadcast_index_expr(shape):
-    assert len(shape) <= 2
-
-    if shape == [] or shape == [1] or shape == [1, 1]:
+def _broadcast_index_expr(bmir_shape, is_row_vector):
+    if len(bmir_shape) == 0:
         return []
-    elif shape[0] == 1:
-        return [1]
-    elif shape[1] == 1:
-        return [0]
+    elif len(bmir_shape) == 1:
+        return [1] if is_row_vector else [0]
     else:
-        raise ValueError(f'Cannot broadcast shape: ${shape}')
+        raise ValueError(f'Cannot broadcast shape: ${bmir_shape}')
 
 
 def _ndarray_as_2d(nd):
