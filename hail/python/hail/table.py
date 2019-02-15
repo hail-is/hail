@@ -2550,15 +2550,14 @@ class Table(ExprContainer):
         entry_fields = [x for x in ht.row if x not in non_entry_fields]
 
         if not entry_fields:
-            raise ValueError(...)
+            raise ValueError(f"'Table.to_matrix_table': no fields remain as entry fields:\n"
+                             f"  all table fields found in one of 'row_key', 'col_key', 'row_fields', 'col_fields'")
 
         col_data = hl.rbind(
             hl.array(
-                hl.dict(
-                    ht.aggregate(
-                        hl.agg.collect_as_set(
-                            (ht.row.select(*col_key),
-                             ht.row.select(*col_fields)))))),
+                ht.aggregate(
+                    hl.agg.group_by(ht.row.select(*col_key), hl.agg.take(ht.row.select(*col_fields), 1)[0]),
+                    _localize=False)),
             lambda data: hl.struct(data=data,
                                    key_to_index=hl.dict(hl.range(0, hl.len(data)).map(lambda i: (data[i][0], i))))
         )
