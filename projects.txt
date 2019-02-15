@@ -1,3 +1,4 @@
+auth-gateway
 batch
 ci
 cloudtools
