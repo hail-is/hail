@@ -52,7 +52,8 @@ TEST_CPP := $(foreach obj,$(OBJECTS),$(wildcard $(obj)_test.cpp))
 TEST_OBJECTS := $(foreach file,$(TEST_CPP),$(BUILD)/$(basename $(file)).o)
 TEST_OBJECTS += $(BUILD)/unit-tests.o
 
-HEADER_DEPENDENCIES := $(BUILD_OBJECTS:%.o=%.d) $(TEST_OBJECTS:%.o=%.d)
+ALL_CPP := $(wildcard *.cpp)
+HEADER_DEPENDENCIES := $(ALL_CPP:%.cpp=build/%.d)
 -include $(HEADER_DEPENDENCIES)
 
 $(BUILD)/unit-tests.o: testutils/unit-tests.cpp
@@ -67,9 +68,7 @@ $(BUILD)/%.o: %.cpp
 	@mkdir -p $(@D)
 	$(CXX) -o $@ $(CXXFLAGS) -MD -MF $(@:%.o=%.d) -MT $@ -c $<
 
-# if libsimdpp does not exist (e.g. after a clean), UNIT64_VECTOR_SIZE needs to
-# be set explicitly via HAIL_OVERRIDE_WIDTH
-$(BUILD)/ibs.d: CXXFLAGS += -DHAIL_OVERRIDE_WIDTH=4 -DNUMBER_OF_GENOTYPES_PER_ROW=256
+$(BUILD)/ibs.d: CXXFLAGS += -DNUMBER_OF_GENOTYPES_PER_ROW=256
 $(BUILD)/ibs.o: CXXFLAGS += -DNUMBER_OF_GENOTYPES_PER_ROW=256
 
 ifndef JAVA_HOME

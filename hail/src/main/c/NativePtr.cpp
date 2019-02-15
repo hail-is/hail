@@ -19,13 +19,15 @@ extern "C" int hail_gdb_breakpoint() {
   return ++count;;
 }
 
-extern "C" void hail_pause_for_gdb(const char* file, int line, const char* why) {
 #ifdef HAIL_ENABLE_DEBUG
+extern "C" void hail_pause_for_gdb(const char* file, int line, const char* why) {
   fprintf(stderr, "DEBUG: %s,%d: HAIL_PAUSE %s ...\n", file, line, why);
   int n = hail_gdb_breakpoint();
   fprintf(stderr, "DEBUG: %s,%d: HAIL_PAUSE %s done (count %d)\n", file, line, why, n);
-#endif
 }
+#else
+extern "C" void hail_pause_for_gdb(const char*, int, const char*) { }
+#endif
 
 namespace hail {
 
@@ -100,7 +102,7 @@ public:
   jfieldID addrB_id_;
 
 public:
-  NativePtrInfo(JNIEnv* env, int line) {
+  NativePtrInfo(JNIEnv* env, int) {
     auto rc = env->GetJavaVM(&java_vm_); // needed for making C++-to-JVM calls
     assert(rc == JNI_OK);
     auto cl = env->FindClass("is/hail/nativecode/NativeBase");
@@ -224,7 +226,7 @@ NATIVEMETHOD(void, NativeBase, nativeCopyCtor)(
   JNIEnv* env,
   jobject thisJ,
   jlong b_addrA,
-  jlong b_addrB
+  jlong
 ) {
   auto obj = reinterpret_cast<NativeObj*>(b_addrA);
   // This adds a new reference to the object
@@ -260,8 +262,8 @@ NATIVEMETHOD(void, NativeBase, moveAssign)(
 }
 
 NATIVEMETHOD(void, NativeBase, nativeReset)(
-  JNIEnv* env,
-  jobject thisJ,
+  JNIEnv*,
+  jobject,
   jlong addrA,
   jlong addrB
 ) {
@@ -271,8 +273,8 @@ NATIVEMETHOD(void, NativeBase, nativeReset)(
 }
 
 NATIVEMETHOD(jlong, NativeBase, nativeUseCount)(
-  JNIEnv* env,
-  jobject thisJ,
+  JNIEnv*,
+  jobject,
   jlong addrA,
   jlong addrB
 ) {
