@@ -82,15 +82,6 @@ sockets = Sockets(app)
 # FIXME: use hash
 def UNSAFE_user_id_transform(user_id): return user_id.replace('|', '--_--')
 
-
-# TODO: decide if allowing empty strings (or whitespace-only)
-# opens us to any attacks
-def is_falsy_str(s: str):
-    if s is None or s.strip() == "":
-        return True
-    return False
-
-
 def forbidden():
     return 'Forbidden', 404
 
@@ -356,7 +347,7 @@ def echo_socket(ws):
 def verify(svc_name: str):
     access_token = request.cookies.get('access_token')
 
-    if is_falsy_str(access_token):
+    if access_token is None or access_token.strip() == "":
         return '', 401
 
     resp = requests.get(f'{AUTH_GATEWAY}/verify',
@@ -366,9 +357,6 @@ def verify(svc_name: str):
         return '', 401
 
     user_id = resp.headers.get('User')
-
-    if is_falsy_str(user_id):
-        return '', 401
 
     k_res = k8s.read_namespaced_service(svc_name, 'default')
     labels = k_res.metadata.labels
@@ -387,9 +375,6 @@ def verify(svc_name: str):
 def get_notebooks():
     user_id = request.headers.get('User')
 
-    if is_falsy_str(user_id):
-        return forbidden()
-
     # Not well-documented: empty selector returns nothing
     # https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/CoreV1Api.md
     # https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
@@ -403,12 +388,6 @@ def get_notebooks():
 
 @app.route('/jupyter/<svc_name>', methods=['DELETE'])
 def delete_notebook(svc_name: str):
-    # TODO: Is it possible to have a falsy token value and get here?
-    user_id = request.headers.get("User")
-
-    if is_falsy_str(user_id) or is_falsy_str(svc_name):
-        return forbidden()
-
     escp_user_id = UNSAFE_user_id_transform(request.headers.get("User"))
 
     try:
@@ -424,19 +403,18 @@ def delete_notebook(svc_name: str):
             label_selector=f"uuid={svc.metadata.labels['uuid']}",
             timeout_seconds=KUBERNETES_TIMEOUT_IN_SECONDS).items
 
+        # This can happen if the pod was previously deleted, not a 500 error
         if len(pods) == 0:
             log.error(
                 f"svc_name: {svc_name} pod_uuid: {svc.metadata.labels['uuid']}: pod not found for given uuid")
             return '', 200
 
-        if len(pods) > 1:
-            log.error(
-                f"svc_name: {svc_name} pod_uuid: {svc.metadata.labels['uuid']}: pod_uuid is not unique")
+        assert len(pods) == 1
 
-        for pod in pods:
-            if pod.metadata.labels['user_id'] != escp_user_id:
-                return forbidden()
-            del_pod(pod.metadata.name)
+        if pods[0].metadata.labels['user_id'] != escp_user_id:
+            return forbidden()
+
+        del_pod(pods[0].metadata.name)
 
         return '', 200
 
@@ -454,7 +432,7 @@ def new_notebook():
 
     user_id = request.headers.get('User')
 
-    if is_falsy_str(user_id) or image not in WORKER_IMAGES:
+    if image not in WORKER_IMAGES:
         return forbidden()
 
     # Token does not need to be cryptographically secure
