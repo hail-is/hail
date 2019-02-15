@@ -3,8 +3,7 @@ import collections
 import datetime
 import os
 import sys
-from flask import Flask, render_template, request, jsonify, abort, url_for
-from flask_cors import CORS
+from flask import Flask, render_template, request, abort, url_for
 from github import Github
 import random
 import threading
@@ -37,17 +36,13 @@ with open(GITHUB_TOKEN_PATH, 'r') as f:
     token = f.read().strip()
 github = Github(token)
 
-users = [
-    'danking',
-    'tpoterba',
-    'jigold',
-    'jbloom22',
-    'catoverdrive',
-    'patrick-schultz',
-    'chrisvittal',
-    'akotlar',
-    'daniel-goldstein',
-]
+component_users = {
+    'Hail front-end (Py)': ['tpoterba', 'jigold', 'jbloom22', 'catoverdrive', 'patrick-schultz', 'chrisvittal', 'daniel-goldstein', 'konradjk'],
+    'Hail middle-end (Scala)': ['danking', 'tpoterba', 'jigold', 'jbloom22', 'catoverdrive', 'patrick-schultz', 'chrisvittal', 'daniel-goldstein'],
+    'C++ backend': ['jbloom22', 'catoverdrive', 'patrick-schultz'],
+    'k8s, services': ['danking', 'jigold', 'akotlar'],
+    'Web app (JS)': ['akotlar', 'danking', 'daniel-goldstein'],
+}
 
 default_repo = 'hail'
 repos = {
@@ -56,7 +51,6 @@ repos = {
 }
 
 app = Flask('scorecard')
-CORS(app, resources={r'/json/*': {'origins': '*'}})
 
 data = None
 timsetamp = None
@@ -64,34 +58,14 @@ timsetamp = None
 @app.route('/')
 def index():
     user_data, unassigned, urgent_issues, updated = get_users()
-
-    random_user = random.choice(users)
-
+    component_random_user = {c: random.choice(us) for c, us in component_users.items()}
     return render_template('index.html', unassigned=unassigned,
-                           user_data=user_data, urgent_issues=urgent_issues, random_user=random_user, updated=updated)
+                           user_data=user_data, urgent_issues=urgent_issues, component_user=component_random_user, updated=updated)
 
 @app.route('/users/<user>')
 def html_get_user(user):
     user_data, updated = get_user(user)
     return render_template('user.html', user=user, user_data=user_data, updated=updated)
-
-@app.route('/json')
-def json_all_users():
-    user_data, unassigned, urgent_issues, updated = get_users()
-
-    for issue in urgent_issues:
-        issue['timedelta'] = humanize.naturaltime(issue['timedelta'])
-
-    return jsonify(updated=updated, user_data=user_data, unassigned=unassigned, urgent_issues=urgent_issues)
-
-@app.route('/json/users/<user>')
-def json_user(user):
-    user_data, updated = get_user(user)
-    return jsonify(updated=updated, data=user_data)
-
-@app.route('/json/random')
-def json_random_user():
-    return jsonify(random.choice(users))
 
 def get_users():
     cur_data = data

@@ -109,12 +109,24 @@
     {% endif %}
 
     <div class="grid-item">
-        <p><img id="avatar" src="https://github.com/{{ random_user }}.png?s=88"></p>
-        <p>
-            Random user: {{ random_user }}
-            <br>
-            <small>last updated {{ updated }}</small>
-        </p>
+      <table>
+	<thead>
+          <th align="left">component</th>
+          <th align="left">reviewers</th>
+	</thead>
+	<tbody>
+          {% for component, user in component_user.items() %}
+	  <tr>
+            <td align="left">{{ component }}</td>
+            <td align="left"><a href="/users/{{ user }}">{{ user }}</a></td>
+	  </tr>
+	  {% endfor %}
+	</tbody>
+      </table>
+    </div>
+    
+    <div class="grid-item">
+      <p><small>last updated {{ updated }}</small></p>
     </div>
 </div>
 
