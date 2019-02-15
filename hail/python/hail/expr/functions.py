@@ -4088,6 +4088,30 @@ def is_valid_locus(contig, position, reference_genome='default') -> BooleanExpre
     """
     return _func("isValidLocus({})".format(reference_genome.name), tbool, contig, position)
 
+
+@typecheck(interval=expr_interval(expr_locus),
+           reference_genome=reference_genome_type)
+def is_valid_locus_interval(interval, reference_genome='default') -> BooleanExpression:
+    """Returns ``True`` if `interval` is a valid local interval in `reference_genome`.
+
+    Examples
+    --------
+
+    >>> hl.eval(hl.is_valid_locus_interval(hl.parse_locus_interval("1:7689-2:435323"), 'GRCh37'))
+    True
+
+    Parameters
+    ----------
+    interval : :class:`.Expression` of type :py:data:`.tlocus`
+    reference_genome : :obj:`str` or :class:`.ReferenceGenome`
+
+    Returns
+    -------
+    :class:`.BooleanExpression`
+    """
+    return _func("isValidLocusInterval({})".format(reference_genome.name), tbool, interval)
+
+
 @typecheck(locus=expr_locus(), is_female=expr_bool, father=expr_call, mother=expr_call, child=expr_call)
 def mendel_error_code(locus, is_female, father, mother, child):
     r"""Compute a Mendelian violation code for genotypes.

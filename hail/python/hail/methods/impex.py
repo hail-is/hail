@@ -20,16 +20,22 @@ _cached_importvcfs = None
 
 def locus_interval_expr(contig, start, end, includes_start, includes_end,
                         reference_genome, skip_invalid_intervals):
+    includes_start = hl.bool(includes_start)
+    includes_end = hl.bool(includes_end)
+
     if reference_genome:
         if skip_invalid_intervals:
-            is_valid_locus_interval = (
+            is_valid_endpoints = (
                 (hl.is_valid_contig(contig, reference_genome) &
                  (hl.is_valid_locus(contig, start, reference_genome) |
-                  (~hl.bool(includes_start) & (start == 0))) &
+                  (~includes_start & (start == 0))) &
                  (hl.is_valid_locus(contig, end, reference_genome) |
-                  (~hl.bool(includes_end) & hl.is_valid_locus(contig, end - 1, reference_genome)))))
+                  (~includes_end & hl.is_valid_locus(contig, end - 1, reference_genome)))))
 
-            return hl.or_missing(is_valid_locus_interval,
+            is_beyond_contig_boundary = (start == end) & ((start.position == 1 & ~includes_start) |
+                                                          (end.position == reference_genome))
+
+            return hl.or_missing(is_valid_endpoints,
                                  hl.locus_interval(contig, start, end,
                                                    includes_start, includes_end,
                                                    reference_genome))

@@ -14,6 +14,7 @@ def register_reference_genome_functions(rg):
     register_function(f"LocusInterval({rg})", (dtype("str"),dtype("int32"),dtype("int32"),dtype("bool"),dtype("bool"),), tinterval)
     register_function(f"isValidContig({rg})", (dtype("str"),), dtype("bool"))
     register_function(f"isValidLocus({rg})", (dtype("str"),dtype("int32"),), dtype("bool"))
+    register_function(f"isValidLocusInterval({rg})", (dtype("str"),dtype("int32"),dtype("int32"),dtype("bool"),dtype("bool"),), dtype("bool"))
 
     register_function(f"getReferenceSequenceFromValidLocus({rg})", (dtype("str"),dtype("int32"),dtype("int32"),dtype("int32"),), dtype("str"))
     register_function(f"getReferenceSequence({rg})", (dtype("str"),dtype("int32"),dtype("int32"),dtype("int32"),), dtype("str"))

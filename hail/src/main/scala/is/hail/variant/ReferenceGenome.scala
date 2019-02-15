@@ -40,7 +40,7 @@ abstract class RGBase extends Serializable {
 
   def checkLocus(contig: String, pos: Int): Unit
 
-  def checkLocusInterval(i: Interval): Unit
+  def toLocusInterval(i: Interval): Interval
 
   def contigLength(contig: String): Int
 
@@ -238,6 +238,56 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
 
   def isValidLocus(l: Locus): Boolean = isValidLocus(l.contig, l.position)
 
+  def isValidLocusInterval(contig: String, start: Int, end: Int, includesStart: Boolean, includesEnd: Boolean): Boolean = {
+
+  }
+
+  def isValidLocusInterval(i: Interval): Boolean = {
+    val origInterval = i
+
+    var start = i.start.asInstanceOf[Locus]
+    var end = i.end.asInstanceOf[Locus]
+    var includesStart = i.includesStart
+    var includesEnd = i.includesEnd
+
+    val contigEnd = contigLength(end.contig)
+
+
+    if (start.contig == end.contig && start.position == end.position) {
+      (includesStart, includesEnd) match {
+        case (true, true) =>
+        case (true, false) =>
+          if (start.position != 1) {
+            start = start.copyChecked(rg = this, position = start.position - 1)
+            includesStart = false
+          } else {
+            return false
+          }
+        case (false, true) =>
+          if (end.position != contigEnd) {
+            end = end.copyChecked(rg = this, position = end.position + 1)
+            includesEnd = false
+          } else {
+            return false
+          }
+        case (false, false) =>
+          return false
+      }
+    }
+
+    isValidLocus(start) &&
+      isValidLocus(end) &&
+      Interval.isValid(locusType.ordering, start, end, includesStart, includesEnd)
+
+    checkLocus(start)
+    checkLocus(end)
+
+    if (!Interval.isValid(locusType.ordering, start, end, includesStart, includesEnd))
+      fatal(s"Invalid interval `$origInterval' found. ")
+
+    Interval(start, end, includesStart, includesEnd)
+  }
+
   def checkContig(contig: String): Unit = {
     if (!isValidContig(contig))
       fatal(s"Contig '$contig' is not in the reference genome '$name'.")
@@ -252,6 +302,14 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
       else
         fatal(s"Invalid locus `$contig:$pos' found. Position `$pos' is not within the range [1-${ contigLength(contig) }] for reference genome `$name'.")
     }
+  }
+
+  def checkLocusInterval(i: Interval): Unit = {
+    
+  }
+
+  def normalizeLocusInterval(i: Interval): Interval = {
+
   }
 
   def toLocusInterval(i: Interval): Interval = {
@@ -296,19 +354,8 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
       }
     }
 
-    if (!isValidLocus(start)) {
-      if (!isValidContig(start.contig))
-        fatal(s"Invalid interval `$origInterval' found. Contig `${ start.contig }' is not in the reference genome `$name'.")
-      else
-        fatal(s"Invalid interval `$origInterval' found. Start `$start' is not within the range [1-${ contigLength(start.contig) }] for reference genome `$name'.")
-    }
-
-    if (!isValidLocus(end)) {
-      if (!isValidContig(end.contig))
-        fatal(s"Invalid interval `$origInterval' found. Contig `${ end.contig }' is not in the reference genome `$name'.")
-      else
-        fatal(s"Invalid interval `$origInterval' found. End `$end' is not within the range [1-$contigEnd] for reference genome `$name'.")
-    }
+    checkLocus(start)
+    checkLocus(end)
 
     if (!Interval.isValid(locusType.ordering, start, end, includesStart, includesEnd))
       fatal(s"Invalid interval `$origInterval' found. ")
@@ -823,7 +870,7 @@ case class RGVariable(var rg: RGBase = null) extends RGBase {
 
   def checkLocus(contig: String, pos: Int): Unit = ???
 
-  def checkLocusInterval(i: Interval): Unit = ???
+  def toLocusInterval(i: Interval): Interval = ???
 
   def contigLength(contig: String): Int = ???
 
