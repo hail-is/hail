@@ -203,11 +203,12 @@ class BlockMatrix(object):
     - Natural logarithm, :meth:`log`.
     """
     @staticmethod
-    def _from_java(jbm):
-        return BlockMatrix(JavaBlockMatrix(jbm))
+    def _from_java(jbm, shape):
+        return BlockMatrix(JavaBlockMatrix(jbm), shape)
 
-    def __init__(self, bmir):
+    def __init__(self, bmir, shape):
         self._bmir = bmir
+        self.shape = shape
         self._cached_jbm = None
 
     @property
@@ -507,7 +508,7 @@ class BlockMatrix(object):
         -------
         :obj:`int`
         """
-        return self._bmir.typ.shape[0]
+        return self.shape[0]
 
     @property
     def n_cols(self):
@@ -517,18 +518,7 @@ class BlockMatrix(object):
         -------
         :obj:`int`
         """
-        return self._bmir.typ.shape[1]
-
-    @property
-    def shape(self):
-        """Shape of matrix.
-
-        Returns
-        -------
-        (:obj:`int`, :obj:`int`)
-           Number of rows and number of columns.
-        """
-        return self.n_rows, self.n_cols
+        return self.shape[1]
 
     @property
     def block_size(self):
@@ -2094,8 +2084,8 @@ def _broadcast_to_shape(bmir, result_shape):
     if current_shape == result_shape:
         return bmir
 
-    in_index_expr, out_index_expr = _broadcast_index_expr(current_shape)
-    return BlockMatrixBroadcast(bmir, in_index_expr, out_index_expr, result_shape,
+    in_index_expr = _broadcast_index_expr(current_shape)
+    return BlockMatrixBroadcast(bmir, in_index_expr, result_shape,
                                 bmir.typ.block_size, [True for _ in result_shape])
 
 
@@ -2115,11 +2105,11 @@ def _broadcast_index_expr(shape):
     assert len(shape) <= 2
 
     if shape == [] or shape == [1] or shape == [1, 1]:
-        return [], [0, 1]
+        return []
     elif shape[0] == 1:
-        return [0], [1, 0]
+        return [1]
     elif shape[1] == 1:
-        return [0], [0, 1]
+        return [0]
     else:
         raise ValueError(f'Cannot broadcast shape: ${shape}')
 

@@ -38,23 +38,20 @@ class BlockMatrixMap2(BlockMatrixIR):
 class BlockMatrixBroadcast(BlockMatrixIR):
     @typecheck_method(child=BlockMatrixIR,
                       in_index_expr=sequenceof(int),
-                      out_index_expr=sequenceof(int),
                       shape=sequenceof(int),
                       block_size=int,
                       dims_partitioned=sequenceof(bool))
-    def __init__(self, child, in_index_expr, out_index_expr, shape, block_size, dims_partitioned):
+    def __init__(self, child, in_index_expr, shape, block_size, dims_partitioned):
         super().__init__()
         self.child = child
         self.in_index_expr = in_index_expr
-        self.out_index_expr = out_index_expr
         self.shape = shape
         self.block_size = block_size
         self.dims_partitioned = dims_partitioned
 
     def render(self, r):
-        return '(BlockMatrixBroadcast {} {} {} {} {} {})'\
+        return '(BlockMatrixBroadcast {} {} {} {} {})'\
             .format(_serialize_ints(self.in_index_expr),
-                    _serialize_ints(self.out_index_expr),
                     _serialize_ints(self.shape),
                     self.block_size,
                     _serialize_ints(self.dims_partitioned),

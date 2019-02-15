@@ -1145,12 +1145,11 @@ object IRParser {
         BlockMatrixMap2(left, right, applyBinOp.asInstanceOf[ApplyBinaryPrimOp])
       case "BlockMatrixBroadcast" =>
         val inIndexExpr = int32_literals(it)
-        val outIndexExpr = int32_literals(it)
         val shape = int64_literals(it)
         val blockSize = int32_literal(it)
         val dimsPartitioned = boolean_literals(it)
         val child = blockmatrix_ir(env)(it)
-        BlockMatrixBroadcast(child, inIndexExpr, outIndexExpr, shape, blockSize, dimsPartitioned)
+        BlockMatrixBroadcast(child, inIndexExpr, shape, blockSize, dimsPartitioned)
       case "ValueToBlockMatrix" =>
         val shape = int64_literals(it)
         val blockSize = int32_literal(it)

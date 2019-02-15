@@ -19,7 +19,7 @@ object Simplify {
       case ir: IR => simplifyValue(ir)
       case tir: TableIR => simplifyTable(allowRepartitioning)(tir)
       case mir: MatrixIR => simplifyMatrix(allowRepartitioning)(mir)
-      case bmir: BlockMatrixIR => bmir //NOTE Currently nothing to simplify for BlockMatrixIRs
+      case bmir: BlockMatrixIR => simplifyBlockMatrix(bmir)
     }
 
   private[this] def visitNode[T <: BaseIR](
@@ -51,6 +51,14 @@ object Simplify {
       simplifyMatrix(allowRepartitioning)
     )(mir)
 
+  private[this] def simplifyBlockMatrix(bmir: BlockMatrixIR): BlockMatrixIR = {
+    visitNode(
+      Simplify(_),
+      rewriteBlockMatrixNode,
+      simplifyBlockMatrix
+    )(bmir)
+  }
+
   private[this] def rewriteValueNode: IR => Option[IR] = valueRules.lift
 
   private[this] def rewriteTableNode(allowRepartitioning: Boolean)(tir: TableIR): Option[TableIR] =
@@ -58,6 +66,8 @@ object Simplify {
 
   private[this] def rewriteMatrixNode(allowRepartitioning: Boolean)(mir: MatrixIR): Option[MatrixIR] =
     matrixRules(allowRepartitioning && isDeterministicallyRepartitionable(mir)).lift(mir)
+
+  private[this] def rewriteBlockMatrixNode: BlockMatrixIR => Option[BlockMatrixIR] = blockMatrixRules.lift
 
   /** Returns true if 'x' propagates missingness, meaning if any child of 'x'
     * evaluates to missing, then 'x' will evaluate to missing.
@@ -510,5 +520,9 @@ object Simplify {
     case MatrixFilterEntries(MatrixFilterEntries(child, pred1), pred2) => MatrixFilterEntries(child, ApplySpecial("&&", FastSeq(pred1, pred2)))
 
     case MatrixMapGlobals(MatrixMapGlobals(child, ng1), ng2) => MatrixMapGlobals(child, Let("global", ng1, ng2))
+  }
+
+  private[this] def blockMatrixRules: PartialFunction[BlockMatrixIR, BlockMatrixIR] = {
+    case BlockMatrixBroadcast(child, IndexedSeq(0, 1), _, _, _) => child
   }
 }
