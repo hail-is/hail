@@ -142,6 +142,15 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
     registerCode(newName, args, rt)(impl)
   }
 
+  def registerRGCodeWithMissingness(
+    mname: String, args: Array[Type], rt: Type)(
+    impl: (EmitMethodBuilder, Array[EmitTriplet]) => EmitTriplet
+  ): Unit = {
+    val newName = rg.wrapFunctionName(mname)
+    registered += newName
+    registerCodeWithMissingness(newName, args, rt)(impl)
+  }
+
   def registerRGCode[A1](
     mname: String, arg1: Type, rt: Type)(
     impl: (EmitMethodBuilder, Code[A1]) => Code[_]
@@ -156,6 +165,16 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
   ): Unit =
     registerRGCode(mname, Array[Type](arg1, arg2), rt) {
       case (mb, Array(a1: Code[A1] @unchecked, a2: Code[A2] @unchecked)) => impl(mb, a1, a2)
+    }
+
+  def registerRGCodeWithMissingness(
+    mname: String, arg1: Type, arg2: Type, rt: Type)(
+    impl: (EmitMethodBuilder, EmitTriplet, EmitTriplet) => EmitTriplet
+  ): Unit =
+    registerRGCodeWithMissingness(mname, Array[Type](arg1, arg2), rt) {
+      case (mb, Array(
+      a1: EmitTriplet,
+      a2: EmitTriplet)) => impl(mb, a1, a2)
     }
 
   def registerRGCode[A1, A2, A3, A4](
@@ -197,6 +216,20 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
       a6: Code[A6] @unchecked)) => impl(mb, a1, a2, a3, a4, a5, a6)
     }
 
+  def registerRGCodeWithMissingness(
+    mname: String, arg1: Type, arg2: Type, arg3: Type, arg4: Type, arg5: Type, arg6: Type, rt: Type)(
+    impl: (EmitMethodBuilder, EmitTriplet, EmitTriplet, EmitTriplet, EmitTriplet, EmitTriplet, EmitTriplet) => EmitTriplet
+  ): Unit =
+    registerRGCodeWithMissingness(mname, Array[Type](arg1, arg2, arg3, arg4, arg5, arg6), rt) {
+      case (mb, Array(
+      a1: EmitTriplet,
+      a2: EmitTriplet,
+      a3: EmitTriplet,
+      a4: EmitTriplet,
+      a5: EmitTriplet,
+      a6: EmitTriplet)) => impl(mb, a1, a2, a3, a4, a5, a6)
+    }
+
   def registerAll() {
 
     val locusClass = Locus.getClass
@@ -232,22 +265,50 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
         emitVariant(mb, variant)
     }
 
-    registerRGCode("LocusInterval", TString(), TBoolean(), tinterval) {
-      (mb, ioff: Code[Long], invalidMissing: Code[Boolean]) =>
-        val sinterval = asm4s.coerce[String](wrapArg(mb, TString())(ioff))
-        val interval = Code
-          .invokeScalaObject[String, RGBase, Boolean, Interval](
-          locusClass, "parseInterval", sinterval, rgCode(mb), invalidMissing)
-        emitInterval(mb, interval)
+//    registerRGCode("LocusInterval", TString(), TBoolean(), tinterval) {
+//      (mb, ioff: Code[Long], invalidMissing: Code[Boolean]) =>
+//        val sinterval = asm4s.coerce[String](wrapArg(mb, TString())(ioff))
+//        val interval = Code
+//          .invokeScalaObject[String, RGBase, Boolean, Interval](
+//          locusClass, "parseInterval", sinterval, rgCode(mb), invalidMissing)
+//        emitInterval(mb, interval)
+//    }
+
+//    registerRGCode("LocusInterval", TString(), TInt32(), TInt32(), TBoolean(), TBoolean(), TBoolean(), tinterval) {
+//      (mb, locoff: Code[Long], pos1: Code[Int], pos2: Code[Int], include1: Code[Boolean], include2: Code[Boolean], invalidMissing: Code[Boolean]) =>
+//        val sloc = asm4s.coerce[String](wrapArg(mb, TString())(locoff))
+//        val interval = Code
+//          .invokeScalaObject[String, Int, Int, Boolean, Boolean, RGBase, Boolean, Interval](
+//          locusClass, "makeInterval", sloc, pos1, pos2, include1, include2, rgCode(mb), invalidMissing)
+//        emitInterval(mb, interval)
+//    }
+
+    registerRGCodeWithMissingness("LocusInterval", TString(), TBoolean(), tinterval) {
+      (mb: EmitMethodBuilder, ioff: EmitTriplet, invalidMissing: EmitTriplet) =>
+        val sinterval = asm4s.coerce[String](wrapArg(mb, TString())(ioff.value[Long]))
+        val intervalLocal = mb.newLocal[Interval](name="intervalObject")
+        val interval = Code.invokeScalaObject[String, RGBase, Boolean, Interval](
+          locusClass, "parseInterval", sinterval, rgCode(mb), invalidMissing.value[Boolean])
+
+        EmitTriplet(
+          Code(ioff.setup, invalidMissing.setup),
+          ioff.m || invalidMissing.m || Code(intervalLocal := interval, intervalLocal.load().isNull),
+          emitInterval(mb, interval)
+        )
     }
 
-    registerRGCode("LocusInterval", TString(), TInt32(), TInt32(), TBoolean(), TBoolean(), TBoolean(), tinterval) {
-      (mb, locoff: Code[Long], pos1: Code[Int], pos2: Code[Int], include1: Code[Boolean], include2: Code[Boolean], invalidMissing: Code[Boolean]) =>
-        val sloc = asm4s.coerce[String](wrapArg(mb, TString())(locoff))
-        val interval = Code
-          .invokeScalaObject[String, Int, Int, Boolean, Boolean, RGBase, Boolean, Interval](
-          locusClass, "makeInterval", sloc, pos1, pos2, include1, include2, rgCode(mb), invalidMissing)
-        emitInterval(mb, interval)
+    registerRGCodeWithMissingness("LocusInterval", TString(), TInt32(), TInt32(), TBoolean(), TBoolean(), TBoolean(), tinterval) {
+      (mb: EmitMethodBuilder, locoff: EmitTriplet, pos1: EmitTriplet, pos2: EmitTriplet, include1: EmitTriplet, include2: EmitTriplet, invalidMissing: EmitTriplet) =>
+        val sloc = asm4s.coerce[String](wrapArg(mb, TString())(locoff.value[Long]))
+        val intervalLocal = mb.newLocal[Interval]("intervalObject")
+        val interval = Code.invokeScalaObject[String, Int, Int, Boolean, Boolean, RGBase, Boolean, Interval](
+          locusClass, "makeInterval", sloc, pos1.value[Int], pos2.value[Int], include1.value[Boolean], include2.value[Boolean], rgCode(mb), invalidMissing.value[Boolean])
+
+        EmitTriplet(
+          Code(locoff.setup, pos1.setup, pos2.setup, include1.setup, include2.setup, invalidMissing.setup),
+          locoff.m || pos1.m || pos2.m || include1.m || include2.m || invalidMissing.m || Code(intervalLocal := interval, intervalLocal.load().isNull),
+          emitInterval(mb, interval)
+      )
     }
 
     registerRGCode("isValidContig", TString(), TBoolean()) {
@@ -267,7 +328,7 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
 //        val scontig = asm4s.coerce[String](wrapArg(mb, TString())(startContig))
 //        val econtig = asm4s.coerce[String](wrapArg(mb, TString())(endContig))
 //        rgCode(mb).invoke[String, Int, String, Int, Boolean, Boolean, Boolean]("isValidLocusInterval", scontig, startPos, econtig, endPos, includesStart, includesEnd)
-    }
+//    }
 
     registerRGCode("getReferenceSequenceFromValidLocus", TString(), TInt32(), TInt32(), TInt32(), TString()) {
       (mb, contig: Code[Long], pos: Code[Int], before: Code[Int], after: Code[Int]) =>

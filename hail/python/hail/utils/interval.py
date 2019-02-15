@@ -45,7 +45,7 @@ class Interval(object):
         self._includes_end = includes_end
 
     def __str__(self):
-        if isinstance(self._start, Locus) and self._start.contig == self._end.contig:
+        if isinstance(self._start, hail.genetics.Locus) and self._start.contig == self._end.contig:
             bounds = f'{self._start}-{self._end.position}'
         else:
             bounds = f'{self._start}-{self._end}'

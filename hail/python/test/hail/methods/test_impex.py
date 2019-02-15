@@ -1194,15 +1194,12 @@ class LocusIntervalTests(unittest.TestCase):
     def test_import_bed_badly_defined_intervals(self):
         bed_file = resource('example4.bed')
         t = hl.import_bed(bed_file, reference_genome='GRCh37', skip_invalid_intervals=True)
+        t.show()
         self.assertTrue(t.count() == 3)
 
         t = hl.import_bed(bed_file, reference_genome=None, skip_invalid_intervals=True)
+        t.show()
         self.assertTrue(t.count() == 4)
-
-    def test_import_bed_contig_boundaries(self):
-        bed_file = resource('example5.bed')
-        t = hl.import_bed(bed_file, reference_genome='GRCh37', skip_invalid_intervals=True)
-        self.assertTrue(t.count() == 0)
 
 
 class ImportMatrixTableTests(unittest.TestCase):
