@@ -160,7 +160,7 @@ $(BUILD)/functional-tests: ibs.cpp test.cpp $(LIBSIMDPP)
 
 $(BUILD)/unit-tests: $(BUILD_OBJECTS) $(TEST_OBJECTS)
 	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) -o $(BUILD)/unit-tests $(BUILD_OBJECTS) $(TEST_OBJECTS) -ldl
+	$(CXX) $(CXXFLAGS) -ldl -o $(BUILD)/unit-tests $(BUILD_OBJECTS) $(TEST_OBJECTS)
 
 $(PREBUILT)/$(LIBBOOT): $(LIBBOOT)
 	cp -p -f $< $@
