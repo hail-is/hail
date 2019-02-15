@@ -357,16 +357,6 @@ class Table(val hc: HailContext, val tir: TableIR) {
     new Table(hc, ir.TableDistinct(tir))
   }
 
-  def toMatrixTable(
-    rowKeys: Array[String],
-    colKeys: Array[String],
-    rowFields: Array[String],
-    colFields: Array[String],
-    nPartitions: Option[Int] = None
-  ): MatrixTable = {
-    new MatrixTable(hc, TableToMatrixTable(tir, rowKeys, colKeys, rowFields, colFields, nPartitions))
-  }
-
   // expandTypes must be called before toDF
   def toDF(sqlContext: SQLContext): DataFrame = {
     val localSignature = signature.physicalType

@@ -87,34 +87,6 @@ class TableSuite extends SparkSuite {
     assert(kt.unkey().keyBy(Array("Sample")).count() == count)
   }
 
-  @Test def testTableToMatrixTableWithDuplicateKeys(): Unit = {
-    val table = new Table(hc, ir.TableParallelize(ir.Literal.coerce(TStruct(
-      "rows" -> TArray(TStruct("locus" -> TString(), "pval" -> TFloat32Required, "phenotype" -> TString())),
-      "global" -> TStruct()), Row(FastIndexedSeq(
-      Row("1:100", 0.5.toFloat, "trait1"),
-      Row("1:100", 0.6.toFloat, "trait1")), Row())), None))
-
-    TestUtils.interceptSpark("duplicate \\(row key, col key\\) pairs are not supported")(
-      table.toMatrixTable(Array("locus"), Array("phenotype"), Array(),
-        Array()).count())
-  }
-
-  @Test def testToMatrixTable() {
-    val vds = TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
-    val gkt = vds.entriesTable()
-
-    val reVDS = gkt.toMatrixTable(Array("locus", "alleles"),
-      Array("s"),
-      vds.rowType.fieldNames.filter(x => x != "locus" && x != "alleles"),
-      vds.colType.fieldNames.filter(_ != "s"))
-
-    val sampleOrder = vds.colKeys.toArray
-
-    assert(reVDS.rowsTable().same(vds.rowsTable()))
-    assert(reVDS.colsTable().same(vds.colsTable()))
-    assert(reVDS.reorderCols(sampleOrder).same(vds))
-  }
-
   @Test def testExplode() {
     val kt1 = sampleKT1
     val kt2 = sampleKT2

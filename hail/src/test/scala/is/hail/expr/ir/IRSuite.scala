@@ -1166,13 +1166,6 @@ class IRSuite extends SparkSuite {
         range,
         vcf,
         bgen,
-        TableToMatrixTable(
-          tableRead,
-          Array("astruct", "aset"),
-          Array("d", "ml"),
-          Array("mc"),
-          Array("t"),
-          None),
         MatrixExplodeRows(read, FastIndexedSeq("row_mset")),
         MatrixUnionRows(FastIndexedSeq(range1, range2)),
         MatrixDistinctByRow(range1),

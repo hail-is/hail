@@ -192,6 +192,20 @@ class Tests(unittest.TestCase):
         r = kt.aggregate(agg.filter(kt.idx % 2 != 0, agg.sum(kt.idx + 2)) + kt.g1)
         self.assertEqual(r, 40)
 
+    def test_to_matrix_table(self):
+        N, M = 50, 50
+        mt = hl.utils.range_matrix_table(N, M)
+        mt = mt.key_cols_by(s = 'Col' + hl.str(M - mt.col_idx))
+        mt = mt.annotate_cols(c1 = hl.rand_bool(0.5))
+        mt = mt.annotate_rows(r1 = hl.rand_bool(0.5))
+        mt = mt.annotate_entries(e1 = hl.rand_bool(0.5))
+
+        re_mt = mt.entries().to_matrix_table(['row_idx'], ['s'], ['r1'], ['col_idx', 'c1'])
+        new_col_order = re_mt.col_idx.collect()
+        mapping = [t[1] for t in sorted([(old, new) for new, old in enumerate(new_col_order)])]
+
+        assert re_mt.choose_cols(mapping).drop('col_idx')._same(mt.drop('col_idx'))
+
     def test_group_by_field_lifetimes(self):
         ht = hl.utils.range_table(3)
         ht2 = (ht.group_by(idx='100')
