@@ -83,8 +83,8 @@ sockets = Sockets(app)
 def UNSAFE_user_id_transform(user_id): return user_id.replace('|', '--_--')
 
 
-def forbidden():
-    return 'Forbidden', 404
+def not_found():
+    return 'Not Found', 404
 
 
 def start_pod(jupyter_token: str, image: str, labels={}):
@@ -395,7 +395,7 @@ def delete_notebook(svc_name: str):
         svc = k8s.read_namespaced_service(svc_name, 'default')
 
         if svc.metadata.labels['user_id'] != escp_user_id:
-            return forbidden()
+            return not_found()
 
         del_svc(svc_name)
 
@@ -413,7 +413,7 @@ def delete_notebook(svc_name: str):
         assert len(pods) == 1
 
         if pods[0].metadata.labels['user_id'] != escp_user_id:
-            return forbidden()
+            return not_found()
 
         del_pod(pods[0].metadata.name)
 
