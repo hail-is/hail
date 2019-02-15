@@ -5,7 +5,7 @@
 
 NATIVEMETHOD(jlong, NativeCode, dlopenGlobal)(
   JNIEnv* env,
-  jobject /*thisJ*/,
+  jobject,
   jstring dllPathJ
 ) {
   const char* dll_path = env->GetStringUTFChars(dllPathJ, 0);
@@ -20,7 +20,7 @@ NATIVEMETHOD(jlong, NativeCode, dlopenGlobal)(
 
 NATIVEMETHOD(jlong, NativeCode, dlclose)(
   JNIEnv*,
-  jobject /*thisJ*/,
+  jobject,
   jlong handle
 ) {
   jlong result = dlclose(reinterpret_cast<void*>(handle));
