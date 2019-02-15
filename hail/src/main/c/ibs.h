@@ -19,22 +19,25 @@
 
 using namespace simdpp;
 
+#ifndef HAIL_OVERRIDE_WIDTH
+#define UINT64_VECTOR_SIZE SIMDPP_FAST_INT64_SIZE
+#else
+#define UINT64_VECTOR_SIZE HAIL_OVERRIDE_WIDTH
+#endif // HAIL_OVERRIDE_WIDTH
+
+using uint64vector = uint64<UINT64_VECTOR_SIZE>;
+
 // should be equal to chunkSize from IBD.scala
 #ifndef NUMBER_OF_GENOTYPES_PER_ROW
 #define NUMBER_OF_GENOTYPES_PER_ROW 1024
 #endif
 #define NUMBER_OF_UINT64_GENOTYPE_PACKS_PER_ROW (NUMBER_OF_GENOTYPES_PER_ROW / 32)
 
-#ifndef HAIL_OVERRIDE_WIDTH
-#define UINT64_VECTOR_SIZE SIMDPP_FAST_INT64_SIZE
-#else
-#if (NUMBER_OF_UINT64_GENOTYPE_PACKS_PER_ROW % HAIL_OVERRIDE_WIDTH) != 0
+// when generating dependency files withou simd.h is UINT64_VECTOR_SIZE empty,
+// so we avoid throwing an error on $(CXX) -M
+#if UINT64_VECTOR_SIZE != 0 && (NUMBER_OF_UINT64_GENOTYPE_PACKS_PER_ROW % UINT64_VECTOR_SIZE) != 0
 #error "genotype packs per row, NUMBER_OF_UINT64_GENOTYPE_PACKS_PER_ROW, must be multiple of vector width, UINT64_VECTOR_SIZE."
 #endif
-#define UINT64_VECTOR_SIZE HAIL_OVERRIDE_WIDTH
-#endif // HAIL_OVERRIDE_WIDTH
-
-using uint64vector = uint64<UINT64_VECTOR_SIZE>;
 
 #ifndef CACHE_SIZE_PER_MATRIX_IN_KB
 #define CACHE_SIZE_PER_MATRIX_IN_KB 4
