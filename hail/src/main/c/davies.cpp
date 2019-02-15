@@ -238,7 +238,7 @@ output:
 {
   int j, nj, nt, ntm;  real acc1, almx, xlim, xnt, xntm;
   real utx, tausq, sd, intv, intv1, x, up, un, d1, d2, lj, ncj;
-  real qfval = -1.0;
+  real qfval;
   static int rats[]={1,2,4,8};
   
   if (setjmp(env) != 0) { *ifault=4; goto endofproc; }
