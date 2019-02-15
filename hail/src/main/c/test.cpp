@@ -13,7 +13,7 @@ uint64_t resultIndex(uint64_t* result, int nSamples, int si, int sj, int ibs) {
   return result[si*nSamples*3 + sj*3 + ibs];
 }
 
-int main(int argc, char** argv) {
+int main(int argc, char**) {
   if (argc != 1) {
     printf("Expected zero arguments.\n");
     return -1;

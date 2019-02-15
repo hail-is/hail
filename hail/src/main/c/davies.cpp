@@ -348,9 +348,9 @@ real qfWrapper(real* lb1, real* nc1, int* n1, int r1, real sigma, real c1,
                int lim1, real acc, real* trace, int* ifault)
 {
 
-  real lambdas[r1];
-  real noncentrality[r1];
-  int dof[r1];
+  real * lambdas = new real[r1];
+  real * noncentrality = new real[r1];
+  int * dof = new int[r1];
 
   for(int i = 0; i < r1; i++){
     lambdas[i] = lb1[i];
@@ -366,6 +366,9 @@ real qfWrapper(real* lb1, real* nc1, int* n1, int r1, real sigma, real c1,
   real result = algoClass.qf(lambdas, noncentrality, dof, r1, sigma, c1,
                    lim1, acc, trace2, &fault);
   *ifault = fault;
+  delete[] lambdas;
+  delete[] noncentrality;
+  delete[] dof;
   return result;
 
 }
