@@ -26,7 +26,7 @@ import org.json4s._
 
 object BlockMatrix {
   type M = BlockMatrix
-  val defaultBlockSize: Int = 4096 // 32 * 1024 bytes
+  val defaultBlockSize: Int = 1024
   val bufferSpec: BufferSpec =
     new BlockingBufferSpec(32 * 1024,
       new LZ4BlockBufferSpec(32 * 1024,
