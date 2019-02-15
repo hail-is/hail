@@ -3602,7 +3602,7 @@ def delimit(collection, delimiter=',') -> StringExpression:
 def _compare(left, right):
     if left.dtype != right.dtype:
         raise TypeError(f"'compare' expected 'left' and 'right' to have the same type: found {left.dtype} vs {right.dtype}")
-    indices, aggregations = unify_exprs(left, right)
+    indices, aggregations = unify_all(left, right)
     return construct_expr(ApplyComparisonOp("Compare", left._ir, right._ir), tint32, indices, aggregations)
 
 
@@ -3661,7 +3661,6 @@ def sorted(collection,
         Sorted array.
     """
 
-    rev = Env.get_uid()
     def comp(l, r):
         return (hl.case()
                 .when(hl.is_missing(l), False)

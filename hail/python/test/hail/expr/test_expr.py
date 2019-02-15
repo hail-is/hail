@@ -1922,8 +1922,8 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(hl.sorted([0, 1, 4, hl.null(tint), 3, 2], lambda x: x, reverse=True)), [4, 3, 2, 1, 0, None])
 
     def test_sort_by(self):
-        self.assertEqual(hl.eval(hl._sort_by(["c", "aaa", "bb", None], lambda l, r: hl.len(l) < hl.len(r))), ["c", "bb", "aaa", None])
-        self.assertEqual(hl.eval(hl._sort_by([hl.Struct(x=i, y="foo", z=5.5) for i in [5, 3, 8, 2, 5, None]], lambda l, r: l.x < r.x)),
+        self.assertEqual(hl.eval(hl._sort_by(["c", "aaa", "bb", hl.null(hl.tstr)], lambda l, r: hl.len(l) < hl.len(r))), ["c", "bb", "aaa", None])
+        self.assertEqual(hl.eval(hl._sort_by([hl.Struct(x=i, y="foo", z=5.5) for i in [5, 3, 8, 2, 5, hl.null(hl.tint32)]], lambda l, r: l.x < r.x)),
                          [hl.Struct(x=i, y="foo", z=5.5) for i in [2, 3, 5, 5, 8, None]])
 
     def test_bool_r_ops(self):
