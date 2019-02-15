@@ -183,6 +183,20 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
       a5: Code[A5] @unchecked)) => impl(mb, a1, a2, a3, a4, a5)
     }
 
+  def registerRGCode[A1, A2, A3, A4, A5, A6](
+    mname: String, arg1: Type, arg2: Type, arg3: Type, arg4: Type, arg5: Type, arg6: Type, rt: Type)(
+    impl: (EmitMethodBuilder, Code[A1], Code[A2], Code[A3], Code[A4], Code[A5], Code[A6]) => Code[_]
+  ): Unit =
+    registerRGCode(mname, Array[Type](arg1, arg2, arg3, arg4, arg5, arg6), rt) {
+      case (mb, Array(
+      a1: Code[A1] @unchecked,
+      a2: Code[A2] @unchecked,
+      a3: Code[A3] @unchecked,
+      a4: Code[A4] @unchecked,
+      a5: Code[A5] @unchecked,
+      a6: Code[A6] @unchecked)) => impl(mb, a1, a2, a3, a4, a5, a6)
+    }
+
   def registerAll() {
 
     val locusClass = Locus.getClass
@@ -248,10 +262,11 @@ class ReferenceGenomeFunctions(rg: ReferenceGenome) extends RegistryFunctions {
         rgCode(mb).invoke[String, Int, Boolean]("isValidLocus", scontig, pos)
     }
 
-    registerRGCode("isValidLocusInterval", TString(), TInt32(), TInt32(), TBoolean(), TBoolean(), TBoolean()) {
-      (mb, contig: Code[Long], start: Code[Int], end: Code[Int], includesStart: Code[Boolean], includesEnd: Code[Boolean]) =>
-        val scontig = asm4s.coerce[String](wrapArg(mb, TString())(contig))
-        rgCode(mb).invoke[String, Int, Int, Boolean, Boolean, Boolean]("isValidLocusInterval", scontig, start, end, includesStart, includesEnd)
+    registerRGCode("isValidLocusInterval", TString(), TInt32(), TString(), TInt32(), TBoolean(), TBoolean(), TBoolean()) {
+      (mb, startContig: Code[Long], startPos: Code[Int], endContig: Code[Long], endPos: Code[Int], includesStart: Code[Boolean], includesEnd: Code[Boolean]) =>
+        val scontig = asm4s.coerce[String](wrapArg(mb, TString())(startContig))
+        val econtig = asm4s.coerce[String](wrapArg(mb, TString())(endContig))
+        rgCode(mb).invoke[String, Int, String, Int, Boolean, Boolean, Boolean]("isValidLocusInterval", scontig, startPos, econtig, endPos, includesStart, includesEnd)
     }
 
     registerRGCode("getReferenceSequenceFromValidLocus", TString(), TInt32(), TInt32(), TInt32(), TString()) {
