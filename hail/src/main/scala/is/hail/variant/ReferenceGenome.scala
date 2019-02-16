@@ -591,8 +591,8 @@ object ReferenceGenome {
   }
 
   def fromFASTAFile(hc: HailContext, name: String, fastaFile: String, indexFile: String,
-    xContigs: java.util.ArrayList[String], yContigs: java.util.ArrayList[String],
-    mtContigs: java.util.ArrayList[String], parInput: java.util.ArrayList[String]): ReferenceGenome =
+    xContigs: java.util.List[String], yContigs: java.util.List[String],
+    mtContigs: java.util.List[String], parInput: java.util.List[String]): ReferenceGenome =
     fromFASTAFile(hc, name, fastaFile, indexFile, xContigs.asScala.toArray, yContigs.asScala.toArray,
       mtContigs.asScala.toArray, parInput.asScala.toArray)
 
@@ -728,9 +728,9 @@ object ReferenceGenome {
     rg
   }
 
-  def apply(name: java.lang.String, contigs: java.util.ArrayList[String], lengths: java.util.HashMap[String, Int],
-    xContigs: java.util.ArrayList[String], yContigs: java.util.ArrayList[String],
-    mtContigs: java.util.ArrayList[String], parInput: java.util.ArrayList[String]): ReferenceGenome =
+  def apply(name: java.lang.String, contigs: java.util.List[String], lengths: java.util.Map[String, Int],
+    xContigs: java.util.List[String], yContigs: java.util.List[String],
+    mtContigs: java.util.List[String], parInput: java.util.List[String]): ReferenceGenome =
     ReferenceGenome(name, contigs.asScala.toArray, lengths.asScala.toMap, xContigs.asScala.toArray, yContigs.asScala.toArray,
       mtContigs.asScala.toArray, parInput.asScala.toArray)
 }

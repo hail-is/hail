@@ -1161,8 +1161,8 @@ case class MatrixVCFReader(
 
 object ImportVCFs {
   def pyApply(
-    files: java.util.ArrayList[String],
-    callFields: java.util.ArrayList[String],
+    files: java.util.List[String],
+    callFields: java.util.List[String],
     entryFloatType: String,
     rg: String,
     contigRecoding: java.util.Map[String, String],

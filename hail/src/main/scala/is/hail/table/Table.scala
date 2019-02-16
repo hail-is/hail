@@ -49,7 +49,7 @@ object Table {
   def range(hc: HailContext, n: Int, nPartitions: Option[Int] = None): Table =
     new Table(hc, TableRange(n, nPartitions.getOrElse(hc.sc.defaultParallelism)))
 
-  def fromDF(hc: HailContext, df: DataFrame, key: java.util.ArrayList[String]): Table = {
+  def fromDF(hc: HailContext, df: DataFrame, key: java.util.List[String]): Table = {
     fromDF(hc, df, key.asScala.toArray.toFastIndexedSeq)
   }
 

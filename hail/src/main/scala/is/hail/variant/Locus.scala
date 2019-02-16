@@ -54,7 +54,7 @@ object Locus {
 
   def parseIntervals(arr: Array[String], rg: RGBase): Array[Interval] = arr.map(parseInterval(_, rg))
 
-  def parseIntervals(arr: java.util.ArrayList[String], rg: RGBase): Array[Interval] = parseIntervals(arr.asScala.toArray, rg)
+  def parseIntervals(arr: java.util.List[String], rg: RGBase): Array[Interval] = parseIntervals(arr.asScala.toArray, rg)
 
   def makeInterval(contig: String, start: Int, end: Int, includesStart: Boolean, includesEnd: Boolean, rgBase: RGBase): Interval = {
     val rg = rgBase.asInstanceOf[ReferenceGenome]
