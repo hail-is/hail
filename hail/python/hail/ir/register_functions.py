@@ -80,7 +80,7 @@ def register_functions():
     register_function("[:*]", (dtype("array<?T>"),dtype("int32"),), dtype("array<?T>"))
     register_function("remove", (dtype("set<?T>"),dtype("?T"),), dtype("set<?T>"))
     register_function("[]", (dtype("str"),dtype("int32"),), dtype("str"))
-    register_function("[]", (dtype("array<?T>"),dtype("int32"),), dtype("?T"))
+    register_function("indexArray", (dtype("array<?T>"),dtype("int32"),), dtype("?T"))
     register_function("[]", (dtype("dict<?key, ?value>"),dtype("?key"),), dtype("?value"))
     register_function("dictToArray", (dtype("dict<?key, ?value>"),), dtype("array<tuple(?key, ?value)>"))
     register_function("%", (dtype("array<?T:numeric>"),dtype("?T"),), dtype("array<?T>"))

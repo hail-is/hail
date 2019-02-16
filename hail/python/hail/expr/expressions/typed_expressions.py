@@ -429,7 +429,7 @@ class ArrayExpression(CollectionExpression):
             if not item.dtype == tint32:
                 raise TypeError("array expects key to be type 'slice' or expression of type 'int32', "
                                 "found expression of type '{}'".format(item._type))
-            return self._index(self.dtype.element_type, item)
+            return self._method("indexArray", self.dtype.element_type, item)
 
     @typecheck_method(item=expr_any)
     def contains(self, item):
