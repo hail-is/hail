@@ -58,19 +58,6 @@ case class Variant(contig: String,
   require(start >= 0, s"invalid variant: negative position: `${ this.toString }'")
   require(!ref.isEmpty, s"invalid variant: empty contig: `${ this.toString }'")
 
-  def toLocusAlleles: Row = Row(locus, IndexedSeq(ref) ++ altAlleles.map(_.alt))
-
-  def alleles: IndexedSeq[String] = {
-    val a = new Array[String](nAlleles)
-    a(0) = ref
-    var i = 1
-    while (i < a.length) {
-      a(i) = altAlleles(i - 1).alt
-      i += 1
-    }
-    a
-  }
-
   def nAltAlleles: Int = altAlleles.length
 
   def isBiallelic: Boolean = nAltAlleles == 1
@@ -90,68 +77,8 @@ case class Variant(contig: String,
   else
     altAlleles(i - 1).alt
 
-  def nGenotypes = VariantMethods.nGenotypes(nAlleles)
-
   def locus: Locus = Locus(contig, start)
-
-  def isAutosomalOrPseudoAutosomal(rg: RGBase): Boolean = isAutosomal(rg) || inXPar(rg) || inYPar(rg)
-
-  def isAutosomal(rg: RGBase): Boolean = !(inX(rg) || inY(rg) || isMitochondrial(rg))
-
-  def isMitochondrial(rg: RGBase): Boolean = rg.isMitochondrial(contig)
-
-  def inXPar(rg: RGBase): Boolean = rg.inXPar(locus)
-
-  def inYPar(rg: RGBase): Boolean = rg.inYPar(locus)
-
-  def inXNonPar(rg: RGBase): Boolean = inX(rg) && !inXPar(rg)
-
-  def inYNonPar(rg: RGBase): Boolean = inY(rg) && !inYPar(rg)
-
-  private def inX(rg: RGBase): Boolean = rg.inX(contig)
-
-  private def inY(rg: RGBase): Boolean = rg.inY(contig)
-
-  import is.hail.variant.CopyState._
-
-  def copyState(sex: Sex.Sex, rg: ReferenceGenome): CopyState =
-    if (sex == Sex.Male)
-      if (inXNonPar(rg))
-        HemiX
-      else if (inYNonPar(rg))
-        HemiY
-      else
-        Auto
-    else
-      Auto
-
-  def compare(that: Variant, rg: ReferenceGenome): Int = {
-    val t = TStruct(
-      "locus" -> TLocus(rg),
-      "alleles" -> TArray(TString()))
-    t.ordering.compare(Row(locus, alleles),
-      Row(that.locus, that.alleles))
-  }
-
-  def minRep: Variant = {
-    val (minLocus, minAlleles) = VariantMethods.minRep(locus, ref +: altAlleles.map(_.alt))
-    Variant(minLocus.contig, minLocus.position, minAlleles(0), minAlleles.tail.toArray)
-  }
 
   override def toString: String =
     s"$contig:$start:$ref:${ altAlleles.map(_.alt).mkString(",") }"
-
-  def toRow = {
-    Row.fromSeq(Array(
-      contig,
-      start,
-      ref,
-      altAlleles.map { a => Row.fromSeq(Array(a.ref, a.alt)) }))
-  }
-
-  def toJSON: JValue = JObject(
-    ("contig", JString(contig)),
-    ("start", JInt(start)),
-    ("ref", JString(ref)),
-    ("altAlleles", JArray(altAlleles.map(_.toJSON).toList)))
 }

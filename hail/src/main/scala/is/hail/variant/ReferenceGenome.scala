@@ -21,8 +21,6 @@ import is.hail.expr.ir.EmitFunctionBuilder
 import is.hail.expr.ir.functions.{IRFunctionRegistry, LiftoverFunctions, ReferenceGenomeFunctions}
 import is.hail.expr.types.virtual.{TInt64, TInterval, TLocus, Type}
 import is.hail.io.reference.LiftOver
-import is.hail.variant.CopyState.CopyState
-import is.hail.variant.Sex.Sex
 import org.apache.hadoop.conf.Configuration
 
 abstract class RGBase extends Serializable {
@@ -273,19 +271,6 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
   def inY(contigIdx: Int): Boolean = yContigIndices.contains(contigIdx)
 
   def inY(contig: String): Boolean = yContigs.contains(contig)
-
-  def copyState(sex: Sex, locus: Locus): CopyState = {
-    // FIXME this seems wrong (no MT); I copied it from Variant
-    if (sex == Sex.Male)
-      if (inX(locus.contig) && !inXPar(locus))
-        CopyState.HemiX
-      else if (inY(locus.contig) && !inYPar(locus))
-        CopyState.HemiY
-      else
-        CopyState.Auto
-    else
-      CopyState.Auto
-  }
 
   def isMitochondrial(contigIdx: Int): Boolean = mtContigIndices.contains(contigIdx)
 
