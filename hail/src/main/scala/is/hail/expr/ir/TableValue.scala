@@ -1,17 +1,19 @@
 package is.hail.expr.ir
 
 import is.hail.HailContext
-import is.hail.annotations.{BroadcastRow, RegionValue, RegionValueBuilder, UnsafeRow}
+import is.hail.annotations._
 import is.hail.expr.TableAnnotationImpex
 import is.hail.expr.types.TableType
 import is.hail.io.{CodecSpec, exportTypes}
 import is.hail.rvd.{AbstractRVDSpec, RVD, RVDContext}
 import is.hail.sparkextras.ContextRDD
-import is.hail.table.{Table, TableSpec}
+import is.hail.table.TableSpec
 import is.hail.utils._
 import is.hail.variant.{FileFormat, PartitionCountsComponentSpec, RVDComponentSpec, ReferenceGenome}
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.Row
+import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.{DataFrame, Row, SQLContext}
+import org.apache.spark.storage.StorageLevel
 import org.json4s.jackson.JsonMethods
 
 object TableValue {
@@ -133,5 +135,15 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
         sb.result()
       }
     }.writeTable(path, hc.tmpDir, Some(fields.map(_.name).mkString(localDelim)).filter(_ => header), exportType = exportType)
+  }
+
+  def persist(storageLevel: StorageLevel): TableValue = copy(rvd = rvd.persist(storageLevel))
+
+  def unpersist(): TableValue = copy(rvd = rvd.unpersist())
+
+  def toDF(): DataFrame = {
+    HailContext.get.sqlContext.createDataFrame(
+      rvd.toRows,
+      typ.rowType.schema.asInstanceOf[StructType])
   }
 }

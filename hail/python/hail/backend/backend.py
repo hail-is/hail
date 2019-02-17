@@ -106,10 +106,10 @@ class SparkBackend(Backend):
         return tmatrix._from_java(jir.typ())
 
     def persist_table(self, ht, storage_level):
-        return Table._from_java(ht._jt.persist(storage_level))
+        return Table._from_java(self.to_java_ir(ht._tir).pyPersist(storage_level))
 
     def unpersist_table(self, ht):
-        return Table._from_java(ht._jt.unpersist())
+        return Table._from_java(self.to_java_ir(ht._tir).pyUnpersist())
 
     def persist_matrix_table(self, mt, storage_level):
         return MatrixTable._from_java(mt._jmt.persist(storage_level))
@@ -122,13 +122,13 @@ class SparkBackend(Backend):
         return tblockmatrix._from_java(jir.typ())
 
     def from_spark(self, df, key):
-        return Table._from_java(Env.hail().table.Table.fromDF(Env.hc()._jhc, df._jdf, key))
+        return Table._from_java(Env.hail().table.Table.pyFromDF(Env.hc()._jhc, df._jdf, key))
 
     def to_spark(self, t, flatten):
         t = t.expand_types()
         if flatten:
             t = t.flatten()
-        return pyspark.sql.DataFrame(t._jt.toDF(Env.hc()._jsql_context), Env.sql_context())
+        return pyspark.sql.DataFrame(t._jt.pyToDF(), Env.sql_context())
 
     def to_pandas(self, t, flatten):
         return self.to_spark(t, flatten).toPandas()

@@ -410,7 +410,7 @@ def concordance(left, right) -> Tuple[List[List[int]], Table, Table]:
     left = require_biallelic(left, "concordance, left")
     right = require_biallelic(right, "concordance, right")
 
-    r = Env.hail().methods.CalculateConcordance.apply(left._jmt, right._jmt)
+    r = Env.hail().methods.CalculateConcordance.pyApply(left._jmt, right._jmt)
     j_global_conc = r._1()
     col_conc = Table._from_java(r._2())
     row_conc = Table._from_java(r._3())
@@ -514,7 +514,11 @@ def vep(dataset: Union[Table, MatrixTable], config, block_size=1000, name='vep',
         require_table_key_variant(dataset, 'vep')
         ht = dataset.select()
 
-    annotations = Table._from_java(Env.hail().methods.VEP.apply(ht._jt, config, csq, block_size))
+    annotations = Table(TableToTableApply(ht._tir,
+                                          {'name': 'VEP',
+                                           'config': config,
+                                           'csq': csq,
+                                           'block_size': block_size}))
 
     if csq:
         dataset = dataset.annotate_globals(

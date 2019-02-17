@@ -49,13 +49,10 @@ object Table {
   def range(hc: HailContext, n: Int, nPartitions: Option[Int] = None): Table =
     new Table(hc, TableRange(n, nPartitions.getOrElse(hc.sc.defaultParallelism)))
 
-  def fromDF(hc: HailContext, df: DataFrame, key: java.util.ArrayList[String]): Table = {
-    fromDF(hc, df, key.asScala.toArray.toFastIndexedSeq)
-  }
-
-  def fromDF(hc: HailContext, df: DataFrame, key: IndexedSeq[String] = FastIndexedSeq()): Table = {
+  def pyFromDF(df: DataFrame, jKey: java.util.ArrayList[String]): TableIR = {
+    val key = jKey.asScala.toArray.toFastIndexedSeq
     val signature = SparkAnnotationImpex.importType(df.schema).asInstanceOf[TStruct]
-    Table(hc, df.rdd, signature, key)
+    Table(HailContext.get, df.rdd, signature, key).tir
   }
 
   def read(hc: HailContext, path: String): Table =

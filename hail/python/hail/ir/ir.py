@@ -1934,8 +1934,11 @@ class TableToValueApply(IR):
 
     def _compute_type(self, env, agg_env):
         name = self.config['name']
-        assert name == 'ForceCountTable', name
-        self._type = tint64
+        if: name == 'ForceCountTable':
+            self._type = tint64
+        else:
+            assert name == 'NPartitionsTable', name
+            self._type = tint32
 
 
 class MatrixToValueApply(IR):
@@ -1959,6 +1962,8 @@ class MatrixToValueApply(IR):
         name = self.config['name']
         if name == 'ForceCountMatrixTable':
             self._type = tint64
+        elif name == 'NPartitionsMatrixTable':
+            self._type = tint32
         elif name == 'MatrixExportEntriesByCol':
             self._type = tvoid
         else:

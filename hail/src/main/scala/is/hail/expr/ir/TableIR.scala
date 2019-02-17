@@ -3,17 +3,18 @@ package is.hail.expr.ir
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.annotations.aggregators.RegionValueAggregator
-import is.hail.expr.ir.functions.{MatrixToTableFunction, RelationalFunctions, TableToTableFunction}
+import is.hail.expr.ir.functions.{MatrixToTableFunction, TableToTableFunction}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PInt32, PStruct}
 import is.hail.expr.types.virtual._
-import is.hail.expr.{TableAnnotationImpex, ir}
+import is.hail.expr.ir
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
 import is.hail.table.{AbstractTableSpec, Ascending, SortField}
 import is.hail.utils._
 import is.hail.variant._
-import org.apache.spark.sql.Row
+import org.apache.spark.sql.{DataFrame, Row}
+import org.apache.spark.storage.StorageLevel
 import org.json4s.{Formats, ShortTypeHints}
 
 import scala.reflect.ClassTag
@@ -40,6 +41,30 @@ abstract sealed class TableIR extends BaseIR {
     fatal("tried to execute unexecutable IR:\n" + Pretty(this))
 
   override def copy(newChildren: IndexedSeq[BaseIR]): TableIR
+
+  def persist(storageLevel: StorageLevel): TableIR = {
+    val tv = Interpret(this)
+    TableLiteral(tv.persist(storageLevel))
+  }
+
+  def unpersist(): TableIR = {
+    val tv = Interpret(this)
+    TableLiteral(tv.unpersist())
+  }
+
+  def pyPersist(storageLevel: String): TableIR = {
+    val level = try {
+      StorageLevel.fromString(storageLevel)
+    } catch {
+      case e: IllegalArgumentException =>
+        fatal(s"unknown StorageLevel: $storageLevel")
+    }
+    persist(level)
+  }
+
+  def pyUnpersist(): TableIR = unpersist()
+
+  def pyToDF(): DataFrame = Interpret(this).toDF()
 }
 
 case class TableLiteral(value: TableValue) extends TableIR {

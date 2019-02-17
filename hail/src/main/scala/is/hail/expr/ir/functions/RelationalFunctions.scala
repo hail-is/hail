@@ -55,6 +55,8 @@ object RelationalFunctions {
     classOf[MatrixFilterPartitions],
     classOf[ForceCountTable],
     classOf[ForceCountMatrixTable],
+    classOf[NPartitionsTable],
+    classOf[NPartitionsMatrixTable],
     classOf[LogisticRegression],
     classOf[MatrixWriteBlockMatrix],
     classOf[TableFilterIntervals],
@@ -63,7 +65,8 @@ object RelationalFunctions {
     classOf[Skat],
     classOf[LocalLDPrune],
     classOf[MatrixExportEntriesByCol],
-    classOf[PCA]
+    classOf[PCA],
+    classOf[VEP]
   )) +
     new MatrixFilterIntervalsSerializer +
     new TableFilterIntervalsSerializer

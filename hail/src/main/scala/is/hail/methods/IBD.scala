@@ -306,11 +306,11 @@ object IBD {
       }
   }
 
-  def apply(vds: MatrixTable,
+  def pyApply(vds: MatrixTable,
     mafFieldName: Option[String] = None,
     bounded: Boolean = true,
     min: Option[Double] = None,
-    max: Option[Double] = None): Table = {
+    max: Option[Double] = None): TableIR = {
 
     min.foreach(min => optionCheckInRangeInclusive(0.0, 1.0)("minimum", min))
     max.foreach(max => optionCheckInRangeInclusive(0.0, 1.0)("maximum", max))
@@ -326,7 +326,7 @@ object IBD {
     val sampleIds = vds.stringSampleIds
 
     val ktRdd2 = computeIBDMatrix(vds, computeMaf, min, max, sampleIds, bounded)
-    new Table(vds.hc, ktRdd2, ibdSignature, IndexedSeq("i", "j"))
+    new Table(vds.hc, ktRdd2, ibdSignature, IndexedSeq("i", "j")).tir
   }
 
   private val ibdSignature = TStruct(("i", TString()), ("j", TString())) ++ ExtendedIBDInfo.signature
@@ -338,8 +338,8 @@ object IBD {
     Table(sc, ktRdd, ibdSignature, IndexedSeq("i", "j"))
   }
 
-  def toRDD(kt: Table): RDD[((Annotation, Annotation), ExtendedIBDInfo)] = {
-    val rvd = kt.rvd
+  def toRDD(tv: TableValue): RDD[((Annotation, Annotation), ExtendedIBDInfo)] = {
+    val rvd = tv.rvd
     rvd.map { rv =>
       val region = rv.region
       val i = PString.loadString(region, ibdPType.loadField(rv, 0))

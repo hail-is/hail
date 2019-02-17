@@ -1,10 +1,12 @@
 package is.hail.utils
 
 import is.hail.annotations.{Region, RegionValueBuilder, SafeRow}
-import is.hail.expr.ir.{Compile, MakeTuple, IRParserEnvironment, IRParser}
+import is.hail.expr.JSONAnnotationImpex
+import is.hail.expr.ir.{Compile, IRParser, IRParserEnvironment, MakeTuple}
 import is.hail.expr.types.physical.PBaseStruct
-import is.hail.expr.types.virtual.{TInt64, TTuple, Type}
+import is.hail.expr.types.virtual._
 import org.apache.spark.sql.Row
+import org.json4s.jackson.JsonMethods
 
 import scala.collection.mutable
 import scala.reflect.ClassTag
@@ -33,8 +35,18 @@ object Graph {
     m
   }
 
-  def maximalIndependentSet(edges: Array[Row], nodeType: String, tieBreaker: Option[String]): Set[Any] =
-    maximalIndependentSet(edges, IRParser.parseType(nodeType), tieBreaker)
+  def pyMaximalIndependentSetJSON(edgesJSONStr: String, nodeTypeStr: String, tieBreaker: Option[String]): String = {
+    val nodeType = IRParser.parseType(nodeTypeStr)
+    val edgesType = TStruct("__i" -> nodeType, "__j" -> nodeType)
+
+    val edges = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(edgesJSONStr), edgesType)
+      .asInstanceOf[IndexedSeq[Row]]
+      .toArray
+
+    val resultType = TSet(nodeType)
+    val result = maximalIndependentSet(edges, nodeType, tieBreaker)
+    JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(result, resultType))
+  }
 
   def maximalIndependentSet(edges: Array[Row], nodeType: Type, tieBreaker: Option[String]): Set[Any] = {
     val edges2 = edges.map { r =>

@@ -7,6 +7,7 @@ import breeze.numerics.{abs => breezeAbs, log => breezeLog, pow => breezePow, sq
 import breeze.stats.distributions.{RandBasis, ThreadLocalRandomGenerator}
 import is.hail._
 import is.hail.annotations._
+import is.hail.expr.ir.TableIR
 import is.hail.table.Table
 import is.hail.expr.types._
 import is.hail.expr.types.virtual.{TFloat64, TFloat64Optional, TInt64Optional, TStruct}
@@ -1189,7 +1190,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       blockSize, keepRows.length, keepCols.length)
   }
 
-  def entriesTable(hc: HailContext): Table = {
+  def entriesTable(hc: HailContext): TableIR = {
     val rvRowType = TStruct("i" -> TInt64Optional, "j" -> TInt64Optional, "entry" -> TFloat64Optional)
     
     val entriesRDD = ContextRDD.weaken[RVDContext](blocks).cflatMap { case (ctx, ((blockRow, blockCol), block)) =>
@@ -1213,7 +1214,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
         }
     }
 
-    new Table(hc, entriesRDD, rvRowType, Array[String]())
+    new Table(hc, entriesRDD, rvRowType, Array[String]()).tir
   }
 }
 

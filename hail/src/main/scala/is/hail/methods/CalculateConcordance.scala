@@ -1,6 +1,7 @@
 package is.hail.methods
 
 import is.hail.annotations.UnsafeRow
+import is.hail.expr.ir.TableIR
 import is.hail.expr.types._
 import is.hail.expr.types.virtual.{TArray, TInt64, TStruct}
 import is.hail.table.Table
@@ -60,7 +61,7 @@ class ConcordanceCombiner extends Serializable {
 
 object CalculateConcordance {
 
-  def apply(left: MatrixTable, right: MatrixTable): (IndexedSeq[IndexedSeq[Long]], Table, Table) = {
+  def pyApply(left: MatrixTable, right: MatrixTable): (IndexedSeq[IndexedSeq[Long]], TableIR, TableIR) = {
     left.requireUniqueSamples("concordance")
     right.requireUniqueSamples("concordance")
 
@@ -235,6 +236,6 @@ object CalculateConcordance {
 
     val variantKT = Table(left.hc, variantCRDD, variantSchema, left.rowKey, isSorted = false)
 
-    (global.toAnnotation, sampleKT, variantKT)
+    (global.toAnnotation, sampleKT.tir, variantKT.tir)
   }
 }

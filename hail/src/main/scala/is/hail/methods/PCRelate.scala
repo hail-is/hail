@@ -4,11 +4,11 @@ import breeze.linalg.{DenseMatrix => BDM}
 import is.hail.annotations.Annotation
 import is.hail.linalg.BlockMatrix
 import is.hail.linalg.BlockMatrix.ops._
-import is.hail.expr.types._
 import is.hail.table.Table
 import is.hail.utils._
 import is.hail.variant.{Call, HardCallView, MatrixTable}
 import is.hail.HailContext
+import is.hail.expr.ir.{IR, Interpret, TableIR}
 import is.hail.expr.types.virtual._
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.mllib.linalg.Vectors
@@ -45,23 +45,22 @@ object PCRelate {
 
   private val keys: IndexedSeq[String] = Array("i", "j")
 
-  def apply(
-    hc: HailContext,
+  def pyApply(
     blockedG: M,
-    scoresTable: Table,
+    scores: IR,
     maf: Double,
     blockSize: Int,
     minKinship: Double,
-    statistics: PCRelate.StatisticSubset): Table = {
+    statistics: PCRelate.StatisticSubset): TableIR = {
     
-    val scoresLocal = scoresTable.collect()
+    val scoresLocal = Interpret(scores).asInstanceOf[IndexedSeq[Row]].toArray
     assert(scoresLocal.length == blockedG.nCols)
     
     val pcs = rowsToBDM(scoresLocal.map(_.getAs[IndexedSeq[java.lang.Double]](0))) // non-missing in Python
     
-    val result = new PCRelate(maf, blockSize, statistics, defaultStorageLevel)(hc, blockedG, pcs)
+    val result = new PCRelate(maf, blockSize, statistics, defaultStorageLevel)(HailContext.get, blockedG, pcs)
 
-    Table(hc, toRowRdd(result, blockSize, minKinship, statistics), sig, keys)
+    Table(HailContext.get, toRowRdd(result, blockSize, minKinship, statistics), sig, keys).tir
   }
 
   private[methods] def apply(hc: HailContext,
