@@ -80,8 +80,8 @@ object PCRelate {
     val result = new PCRelate(maf, blockSize, statistics, defaultStorageLevel)(hc, blockedG, pcs)
 
     val irFields = Array(
-      "i" -> "(Apply `[]` (GetField sample_ids (Ref global)) (GetField i (Ref row)))",
-      "j" -> "(Apply `[]` (GetField sample_ids (Ref global)) (GetField j (Ref row)))",
+      "i" -> "(Apply `indexArray` (GetField sample_ids (Ref global)) (GetField i (Ref row)))",
+      "j" -> "(Apply `indexArray` (GetField sample_ids (Ref global)) (GetField j (Ref row)))",
       "kin" -> "(GetField kin (Ref row))",
       "ibd0" -> "(GetField ibd0 (Ref row))",
       "ibd1" -> "(GetField ibd1 (Ref row))",

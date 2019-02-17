@@ -196,15 +196,15 @@ class ArrayFunctionsSuite extends TestNGSuite {
 
   @Test def indexing() {
     val a = IRArray(0, null, 2)
-    assertEvalsTo(invoke("[]", a, I32(0)), 0)
-    assertEvalsTo(invoke("[]", a, I32(1)), null)
-    assertEvalsTo(invoke("[]", a, I32(2)), 2)
-    assertEvalsTo(invoke("[]", a, I32(-1)), 2)
-    assertEvalsTo(invoke("[]", a, I32(-3)), 0)
-    assertFatal(invoke("[]", a, I32(3)), "array index out of bounds")
-    assertFatal(invoke("[]", a, I32(-4)), "array index out of bounds")
-    assertEvalsTo(invoke("[]", naa, I32(2)), null)
-    assertEvalsTo(invoke("[]", a, NA(TInt32())), null)
+    assertEvalsTo(invoke("indexArray", a, I32(0)), 0)
+    assertEvalsTo(invoke("indexArray", a, I32(1)), null)
+    assertEvalsTo(invoke("indexArray", a, I32(2)), 2)
+    assertEvalsTo(invoke("indexArray", a, I32(-1)), 2)
+    assertEvalsTo(invoke("indexArray", a, I32(-3)), 0)
+    assertFatal(invoke("indexArray", a, I32(3)), "array index out of bounds")
+    assertFatal(invoke("indexArray", a, I32(-4)), "array index out of bounds")
+    assertEvalsTo(invoke("indexArray", naa, I32(2)), null)
+    assertEvalsTo(invoke("indexArray", a, NA(TInt32())), null)
   }
 
   @Test def slicing() {
