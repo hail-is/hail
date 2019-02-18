@@ -73,7 +73,7 @@ class PruneSuite extends SparkSuite {
       fatal(s"IR did not rebuild the same:\n  Base:    $ir\n  Rebuilt: $rebuilt")
   }
 
-  lazy val tab = TableLiteral(new Table(hc,
+  lazy val tab = TableLiteral(Interpret(
     TableParallelize(
       Literal(
         TStruct(
@@ -84,8 +84,7 @@ class PruneSuite extends SparkSuite {
             "5" -> TString())),
           "global" -> TStruct("g1" -> TInt32(), "g2" -> TInt32())),
         Row(FastIndexedSeq(Row("hi", FastIndexedSeq(Row(1)), "bye", Row(2, FastIndexedSeq(Row("bar"))), "foo")), Row(5, 10))),
-      None)
-  ).value)
+      None)))
 
   lazy val tr = TableRead(tab.typ, false, new TableReader {
     def apply(tr: TableRead): TableValue = ???

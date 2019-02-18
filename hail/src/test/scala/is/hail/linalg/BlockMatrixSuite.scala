@@ -10,7 +10,6 @@ import is.hail.check._
 import is.hail.linalg.BlockMatrix.ops._
 import is.hail.expr.types._
 import is.hail.expr.types.virtual.{TFloat64Optional, TInt64Optional, TStruct}
-import is.hail.table.Table
 import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
@@ -734,39 +733,6 @@ class BlockMatrixSuite extends SparkSuite {
 
     assert(lm1 === lm2)
     assert(lm1 !== lm3)
-  }
-
-  @Test
-  def testEntriesTable(): Unit = {
-    val data = (0 until 90).map(_.toDouble).toArray
-    val lm = new BDM[Double](9, 10, data)
-    val expectedEntries = data.map(x => ((x % 9).toLong, (x / 9).toLong, x)).toSet
-    val expectedSignature = TStruct("i" -> TInt64Optional, "j" -> TInt64Optional, "entry" -> TFloat64Optional)
-
-    for {blockSize <- Seq(1, 4, 10)} {
-      val entriesTable = new Table(hc, toBM(lm, blockSize).entriesTable())
-      val entries = entriesTable.collect().map(row => (row.get(0), row.get(1), row.get(2))).toSet
-      // block size affects order of rows in table, but sets will be the same
-      assert(entries === expectedEntries)
-      assert(entriesTable.signature === expectedSignature)
-    }
-  }
-
-  @Test
-  def testEntriesTableWhenKeepingOnlySomeBlocks(): Unit = {
-    val data = (0 until 50).map(_.toDouble).toArray
-    val lm = new BDM[Double](5, 10, data)
-    val bm = toBM(lm, blockSize = 2)
-
-    val expected = new Table(hc,
-      bm
-        .filterBlocks(Array(0, 1, 6))
-        .entriesTable())
-      .collect()
-      .sortBy(r => (r.get(0).asInstanceOf[Long], r.get(1).asInstanceOf[Long]))
-      .map(r => r.get(2).asInstanceOf[Double])
-
-    assert(expected sameElements Array[Double](0, 5, 20, 25, 1, 6, 21, 26, 2, 7, 3, 8))
   }
 
   @Test

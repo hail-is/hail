@@ -4,7 +4,6 @@ import breeze.linalg.{DenseMatrix => BDM}
 import is.hail.annotations.{Annotation, BroadcastRow}
 import is.hail.linalg.BlockMatrix
 import is.hail.linalg.BlockMatrix.ops._
-import is.hail.table.Table
 import is.hail.utils._
 import is.hail.variant.{Call, HardCallView, MatrixTable}
 import is.hail.HailContext
@@ -64,37 +63,6 @@ object PCRelate {
     val result = new PCRelate(maf, blockSize, statistics, defaultStorageLevel)(HailContext.get, blockedG, pcs)
 
     TableLiteral(TableValue(sig, keys, toRowRdd(result, blockSize, minKinship, statistics)))
-  }
-
-  private[methods] def apply(hc: HailContext,
-    vds: MatrixTable,
-    pcs: BDM[Double],
-    maf: Double,
-    blockSize: Int,
-    minKinship: Double,
-    statistics: PCRelate.StatisticSubset): Table = {
-
-    val g = vdsToMeanImputedMatrix(vds)
-    val blockedG = BlockMatrix.fromIRM(g, blockSize).cache()
-    val sampleIds = vds.stringSampleIds.toArray[Annotation]
-    val idType = TString()
-
-    val result = new PCRelate(maf, blockSize, statistics, defaultStorageLevel)(hc, blockedG, pcs)
-
-    val irFields = Array(
-      "i" -> "(Apply `indexArray` (GetField sample_ids (Ref global)) (GetField i (Ref row)))",
-      "j" -> "(Apply `indexArray` (GetField sample_ids (Ref global)) (GetField j (Ref row)))",
-      "kin" -> "(GetField kin (Ref row))",
-      "ibd0" -> "(GetField ibd0 (Ref row))",
-      "ibd1" -> "(GetField ibd1 (Ref row))",
-      "ibd2" -> "(GetField ibd2 (Ref row))"
-    ).map { case (name, expr) => s"($name $expr)" }
-    val irExpr = s"(MakeStruct ${irFields.mkString(" ")})"
-
-    Table(vds.hc, toRowRdd(result, blockSize, minKinship, statistics), sig, FastIndexedSeq())
-      .annotateGlobal(sampleIds.toFastIndexedSeq, TArray(TString()), "sample_ids")
-      .mapRows(irExpr)
-      .keyBy(keys.toArray)
   }
 
   // FIXME move matrix formation to Python

@@ -39,25 +39,4 @@ class PartitioningSuite extends SparkSuite {
         "foo"))
       .rvd.count()
   }
-
-  @Test def testEmptyRightRDDOrderedJoinDistinct() {
-    val mt = MatrixTable.fromRowsTable(Table.range(hc, 100, nPartitions = Some(6)))
-    val rvdType = mt.matrixType.canonicalRVDType
-
-    mt.rvd.orderedJoinDistinct(RVD.empty(hc.sc, rvdType), "left", (_, it) => it.map(_._1), rvdType).count()
-    mt.rvd.orderedJoinDistinct(RVD.empty(hc.sc, rvdType), "inner", (_, it) => it.map(_._1), rvdType).count()
-  }
-
-  @Test def testEmptyRDDOrderedJoin() {
-    val mt = MatrixTable.fromRowsTable(Table.range(hc, 100, nPartitions = Some(6)))
-    val rvdType = mt.matrixType.canonicalRVDType
-
-    val nonEmptyRVD = mt.rvd
-    val emptyRVD = RVD.empty(hc.sc, rvdType)
-
-    emptyRVD.orderedJoin(nonEmptyRVD, "left", (_, it) => it.map(_._1), rvdType).count()
-    emptyRVD.orderedJoin(nonEmptyRVD, "inner", (_, it) => it.map(_._1), rvdType).count()
-    nonEmptyRVD.orderedJoin(emptyRVD, "left", (_, it) => it.map(_._1), rvdType).count()
-    nonEmptyRVD.orderedJoin(emptyRVD, "inner", (_, it) => it.map(_._1), rvdType).count()
-  }
 }

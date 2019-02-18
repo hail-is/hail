@@ -11,7 +11,7 @@ import is.hail.linalg._
 import is.hail.methods._
 import is.hail.rvd._
 import is.hail.sparkextras.{ContextRDD, RepartitionedOrderedRDD2}
-import is.hail.table.{AbstractTableSpec, Table, TableSpec}
+import is.hail.table.{AbstractTableSpec, TableSpec}
 import is.hail.utils._
 import is.hail.{HailContext, cxx, utils}
 import org.apache.hadoop
@@ -207,41 +207,6 @@ object MatrixTable {
 
   def gen(hc: HailContext, gen: VSMSubgen): Gen[MatrixTable] =
     gen.gen(hc)
-
-  def fromRowsTable(kt: Table): MatrixTable = {
-    val matrixType = MatrixType.fromParts(
-      kt.globalSignature,
-      Array.empty[String],
-      TStruct.empty(),
-      kt.key,
-      kt.signature,
-      TStruct.empty())
-
-    val rvRowType = matrixType.rvRowType.physicalType
-    val oldRowType = kt.signature.physicalType
-
-    val rvd = kt.rvd.mapPartitions(matrixType.canonicalRVDType) { it =>
-      val rvb = new RegionValueBuilder()
-      val rv2 = RegionValue()
-
-      it.map { rv =>
-        rvb.set(rv.region)
-        rvb.start(rvRowType)
-        rvb.startStruct()
-        rvb.addAllFields(oldRowType, rv)
-        rvb.startArray(0) // gs
-        rvb.endArray()
-        rvb.endStruct()
-        rv2.set(rv.region, rvb.end())
-        rv2
-      }
-    }
-
-    val colValues =
-      BroadcastIndexedSeq(Array.empty[Annotation], TArray(matrixType.colType), kt.hc.sc)
-
-    new MatrixTable(kt.hc, matrixType, kt.globals, colValues, rvd)
-  }
 }
 
 case class VSMSubgen(
@@ -642,8 +607,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
   def copyAST(ast: MatrixIR = ast): MatrixTable =
     new MatrixTable(hc, ast)
 
-  def colsTable(): Table = new Table(hc, MatrixColsTable(ast))
-
   def storageLevel: String = rvd.storageLevel.toReadableString()
 
   def numCols: Int = colValues.value.length
@@ -688,10 +651,6 @@ class MatrixTable(val hc: HailContext, val ast: MatrixIR) {
     if (foundError)
       fatal("found one or more type check errors")
   }
-
-  def rowsTable(): Table = new Table(hc, MatrixRowsTable(ast))
-
-  def entriesTable(): Table = new Table(hc, MatrixEntriesTable(ast))
 
   def persist(storageLevel: String = "MEMORY_AND_DISK"): MatrixTable = {
     val level = try {

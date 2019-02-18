@@ -16,7 +16,6 @@ import is.hail.io.vcf._
 import is.hail.io.{CodecSpec, Decoder, LoadMatrix}
 import is.hail.rvd.RVDContext
 import is.hail.sparkextras.ContextRDD
-import is.hail.table.Table
 import is.hail.utils.{log, _}
 import is.hail.variant.{MatrixTable, ReferenceGenome}
 import org.apache.commons.io.FileUtils
@@ -402,46 +401,6 @@ class HailContext private(val sc: SparkContext,
     skipInvalidLoci: Boolean = false) {
     IndexBgen(this, files.toArray, indexFileMap, rg, contigRecoding, skipInvalidLoci)
     info(s"Number of BGEN files indexed: ${ files.length }")
-  }
-
-  def importTable(input: String,
-    keyNames: Option[IndexedSeq[String]] = None,
-    nPartitions: Option[Int] = None,
-    types: Map[String, Type] = Map.empty[String, Type],
-    comment: Array[String] = Array.empty[String],
-    separator: String = "\t",
-    missing: String = "NA",
-    noHeader: Boolean = false,
-    impute: Boolean = false,
-    quote: java.lang.Character = null,
-    skipBlankLines: Boolean = false,
-    forceBGZ: Boolean = false
-  ): Table = importTables(List(input), keyNames, nPartitions, types, comment,
-    separator, missing, noHeader, impute, quote, skipBlankLines, forceBGZ)
-
-  def importTables(inputs: Seq[String],
-    keyNames: Option[IndexedSeq[String]] = None,
-    nPartitions: Option[Int] = None,
-    types: Map[String, Type] = Map.empty[String, Type],
-    comment: Array[String] = Array.empty[String],
-    separator: String = "\t",
-    missing: String = "NA",
-    noHeader: Boolean = false,
-    impute: Boolean = false,
-    quote: java.lang.Character = null,
-    skipBlankLines: Boolean = false,
-    forceBGZ: Boolean = false): Table = {
-    require(nPartitions.forall(_ > 0), "nPartitions argument must be positive")
-
-    val files = hadoopConf.globAll(inputs)
-    if (files.isEmpty)
-      fatal(s"Arguments referred to no files: '${ inputs.mkString(",") }'")
-
-    HailContext.maybeGZipAsBGZip(forceBGZ) {
-      TextTableReader.read(this)(files, types, comment, separator, missing,
-        noHeader, impute, nPartitions.getOrElse(sc.defaultMinPartitions), quote,
-        skipBlankLines).keyBy(keyNames)
-    }
   }
 
   def read(file: String, dropCols: Boolean = false, dropRows: Boolean = false): MatrixTable = {

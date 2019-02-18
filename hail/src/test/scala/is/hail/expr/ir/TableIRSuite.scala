@@ -15,18 +15,7 @@ import org.testng.annotations.{BeforeClass, DataProvider, Test}
 import is.hail.TestUtils._
 
 class TableIRSuite extends SparkSuite {
-  def getKT: Table = {
-    val data = Array(Array("Sample1", 9, 5), Array("Sample2", 3, 5), Array("Sample3", 2, 5), Array("Sample4", 1, 5))
-    val rdd = sc.parallelize(data.map(Row.fromSeq(_)))
-    val signature = TStruct(("Sample", TString()), ("field1", TInt32()), ("field2", TInt32()))
-    val keyNames = IndexedSeq("Sample")
-
-    val kt = Table(hc, rdd, signature, keyNames)
-    kt.typeCheck()
-    kt
-  }
-
-  def rangeKT: TableIR = Table.range(hc, 20, Some(4)).unkey().tir
+  def rangeKT: TableIR = TableKeyBy(Table.range(hc, 20, Some(4)), FastIndexedSeq())
 
   @BeforeClass def ensureHCDefined() { initializeHailContext() }
 
@@ -65,12 +54,6 @@ class TableIRSuite extends SparkSuite {
     val expected = Array.tabulate(10)(i => Row(i, collectedT)).toFastIndexedSeq
 
     assertEvalsTo(TableCollect(node), Row(expected, Row(collectedT)))
-  }
-
-  @Test def testFilter() {
-    val kt = getKT
-    assertEvalsTo(TableCount(TableFilter(kt.tir,
-      GetField(Ref("row", kt.typ.rowType), "field1").ceq(3))), 1L)
   }
 
   @Test def testScanCountBehavesLikeIndex() {
@@ -245,66 +228,6 @@ class TableIRSuite extends SparkSuite {
       if !leftProject.contains(1) || rightProject.contains(1)
     } yield Array[Any](l, r, j, p, leftProject, rightProject)
 
-  @Test(dataProvider = "join")
-  def testTableJoin(
-    leftPart: RVDPartitioner,
-    rightPart: RVDPartitioner,
-    joinType: String,
-    pred: Row => Boolean,
-    leftProject: Set[Int],
-    rightProject: Set[Int]
-  ) {
-    val (leftType, leftProjectF) = rowType.filter(f => !leftProject.contains(f.index))
-    val left = new Table(hc, TableKeyBy(
-      TableParallelize(
-        Literal(
-          TStruct("rows" -> TArray(leftType), "global" -> TStruct()),
-          Row(leftData.map(leftProjectF.asInstanceOf[Row => Row]), Row())),
-        Some(1)),
-      if (!leftProject.contains(1)) IndexedSeq("A", "B") else IndexedSeq("A")))
-    val partitionedLeft = left.copy2(
-      rvd = left.value.rvd
-        .repartition(if (!leftProject.contains(1)) leftPart else leftPart.coarsen(1)))
-
-    val (rightType, rightProjectF) = rowType.filter(f => !rightProject.contains(f.index))
-    val right = new Table(hc, TableKeyBy(
-      TableParallelize(
-        Literal(
-          TStruct("rows" -> TArray(rightType), "global" -> TStruct()),
-          Row(rightData.map(rightProjectF.asInstanceOf[Row => Row]), Row())),
-        Some(1)),
-      if (!rightProject.contains(1)) IndexedSeq("A", "B") else IndexedSeq("A")))
-    val partitionedRight = right.copy2(
-      rvd = right.value.rvd
-        .repartition(if (!rightProject.contains(1)) rightPart else rightPart.coarsen(1)))
-
-    val (_, joinProjectF) = joinedType.filter(f => !leftProject.contains(f.index) && !rightProject.contains(f.index - 2))
-    val joined = TableCollect(
-      TableJoin(
-        partitionedLeft.tir,
-        TableRename(
-          partitionedRight.tir,
-          Array("A","B","C")
-            .filter(partitionedRight.typ.rowType.hasField)
-            .map(a => a -> (a + "_"))
-            .toMap,
-          Map.empty),
-        joinType, 1))
-      assertEvalsTo(joined, Row(expected.filter(pred).map(joinProjectF).toFastIndexedSeq, Row()))
-  }
-
-  @Test def testTableKeyBy() {
-    val data = Array(Array("A", 1), Array("A", 2), Array("B", 1))
-    val rdd = sc.parallelize(data.map(Row.fromSeq(_)))
-    val signature = TStruct(("field1", TString()), ("field2", TInt32()))
-    val keyNames = IndexedSeq("field1", "field2")
-    val kt = Table(hc, rdd, signature, keyNames)
-    val distinctCount = TableCount(TableDistinct(TableLiteral(
-      kt.value.copy(typ = kt.typ.copy(key = IndexedSeq("field1")))
-    )))
-    assertEvalsTo(distinctCount, 2L)
-  }
-
   @Test def testTableParallelize() {
     val t = TStruct("rows" -> TArray(TStruct("a" -> TInt32(), "b" -> TString())), "global" -> TStruct("x" -> TString()))
     val value = Row(IndexedSeq(Row(0, "row1"), Row(1, "row2")), Row("glob"))
@@ -340,80 +263,5 @@ class TableIRSuite extends SparkSuite {
     val after = Interpret(t)
     assert(beforeValue.globals.safeValue == after.globals.safeValue)
     assert(beforeValue.rdd.collect().toFastIndexedSeq == after.rdd.collect().toFastIndexedSeq)
-  }
-
-  @Test def testTableWrite() {
-    val table = TableRange(5, 4)
-    val path = tmpDir.createLocalTempFile(extension = "ht")
-    Interpret(TableWrite(table, path))
-    val before = table.execute(hc)
-    val after = Table.read(hc, path)
-    assert(before.globals.safeValue == after.globals.safeValue)
-    assert(before.rdd.collect().toFastIndexedSeq == after.rdd.collect().toFastIndexedSeq)
-  }
-
-  @Test def testTableMultiWayZipJoin() {
-    val rowSig = TStruct(
-      "id" -> TInt32(),
-      "name" -> TString(),
-      "data" -> TFloat64()
-    )
-    val key = IndexedSeq("id")
-    val d1 = sc.parallelize(Array(
-      Array(0, "a", 0.0),
-      Array(1, "b", 3.14),
-      Array(2, "c", 2.78)).map(Row.fromSeq(_)))
-    val d2 = sc.parallelize(Array(
-      Array(0, "d", 1.1),
-      Array(0, "x", 2.2),
-      Array(2, "v", 7.89)).map(Row.fromSeq(_)))
-    val d3 = sc.parallelize(Array(
-      Array(1, "f", 9.99),
-      Array(2, "g", -1.0),
-      Array(3, "z", 0.01)).map(Row.fromSeq(_)))
-    val t1 = Table(hc, d1, rowSig, key)
-    val t2 = Table(hc, d2, rowSig, key)
-    val t3 = Table(hc, d3, rowSig, key)
-
-    val testIr = TableMultiWayZipJoin(IndexedSeq(t1, t2, t3).map(_.tir), "__data", "__globals")
-    val testTable = new Table(hc, testIr)
-
-    val expectedSchema = TStruct(
-      "id" -> TInt32(),
-      "__data" -> TArray(TStruct(
-        "name" -> TString(),
-        "data" -> TFloat64()))
-    )
-    val globalSig = TStruct("__globals" -> TArray(TStruct()))
-    val globalData = Row.fromSeq(Array(IndexedSeq(Array[Any](), Array[Any](), Array[Any]()).map(Row.fromSeq(_))))
-    val expectedData = sc.parallelize(Array(
-        Array(0, IndexedSeq(Row.fromSeq(Array("a", 0.0)),  Row.fromSeq(Array("d", 1.1)),  null)),
-        Array(0, IndexedSeq(null,                          Row.fromSeq(Array("x", 2.2)),  null)),
-        Array(1, IndexedSeq(Row.fromSeq(Array("b", 3.14)), null,                          Row.fromSeq(Array("f",  9.99)))),
-        Array(2, IndexedSeq(Row.fromSeq(Array("c", 2.78)), Row.fromSeq(Array("v", 7.89)), Row.fromSeq(Array("g", -1.0)))),
-        Array(3, IndexedSeq(null,                          null,                          Row.fromSeq(Array("z",  0.01))))
-      ).map(Row.fromSeq(_)))
-    val expectedTable = Table(hc, expectedData, expectedSchema, key, globalSig, globalData)
-    assert(testTable.same(expectedTable))
-  }
-
-  @Test def testTableMultiWayZipJoinGlobals() {
-    val t1 = TableMapGlobals(TableRange(10, 1), MakeStruct(Seq("x" -> I32(5))))
-    val t2 = TableMapGlobals(TableRange(10, 1), MakeStruct(Seq("x" -> I32(0))))
-    val t3 = TableMapGlobals(TableRange(10, 1), MakeStruct(Seq("x" -> NA(TInt32()))))
-    val testIr = TableMultiWayZipJoin(IndexedSeq(t1, t2, t3), "__data", "__globals")
-    val testTable = new Table(hc, testIr)
-    val texp = new Table(hc, TableMapGlobals(
-      TableRange(10, 1),
-      MakeStruct(Seq("__globals" -> MakeArray(
-        Seq(
-          MakeStruct(Seq("x" -> I32(5))),
-          MakeStruct(Seq("x" -> I32(0))),
-          MakeStruct(Seq("x" -> NA(TInt32())))),
-        TArray(TStruct("x" -> TInt32()))
-      )
-    ))))
-
-    assert(testTable.globals.safeValue == texp.globals.safeValue)
   }
 }

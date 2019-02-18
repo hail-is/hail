@@ -2091,4 +2091,6 @@ def export_elasticsearch(t, host, port, index, index_type, block_size, config=No
     .. warning::
         :func:`.export_elasticsearch` is EXPERIMENTAL.
     """
-    Env.hail().io.ElasticsearchConnector.export(t.expand_types()._jt, host, port, index, index_type, block_size, config, verbose)
+    Env.hail().io.ElasticsearchConnector.export(
+        Env.spark_backend('export_elasticsearch')._to_java_ir(t.expand_types()._tir),
+        host, port, index, index_type, block_size, config, verbose)

@@ -2,7 +2,6 @@ package is.hail.methods
 
 import is.hail.HailContext
 import is.hail.expr.ir._
-import is.hail.table.Table
 import is.hail.annotations._
 import is.hail.expr.types.physical.PString
 import is.hail.expr.types.virtual.{TFloat64, TInt64, TString, TStruct}
@@ -330,11 +329,6 @@ object IBD {
   private val ibdSignature = TStruct(("i", TString()), ("j", TString())) ++ ExtendedIBDInfo.signature
 
   private val ibdPType = ibdSignature.physicalType
-
-  def toKeyTable(sc: HailContext, ibdMatrix: RDD[((Annotation, Annotation), ExtendedIBDInfo)]): Table = {
-    val ktRdd = ibdMatrix.map { case ((i, j), eibd) => eibd.makeRow(i, j) }
-    Table(sc, ktRdd, ibdSignature, IndexedSeq("i", "j"))
-  }
 
   def toRDD(tv: TableValue): RDD[((Annotation, Annotation), ExtendedIBDInfo)] = {
     val rvd = tv.rvd

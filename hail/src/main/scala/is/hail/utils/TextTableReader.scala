@@ -9,7 +9,6 @@ import is.hail.expr.types._
 import is.hail.expr.types.virtual._
 import is.hail.rvd.{RVD, RVDContext, RVDType}
 import is.hail.sparkextras.ContextRDD
-import is.hail.table.Table
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
 import org.apache.spark.rdd.RDD
@@ -301,26 +300,6 @@ object TextTableReader {
 
     val t = TableType(TStruct(namesAndTypes: _*), FastIndexedSeq(), TStruct())
     TextTableReaderMetadata(header, t)
-  }
-
-  def read(hc: HailContext)(files: Array[String],
-    types: Map[String, Type] = Map.empty[String, Type],
-    comment: Array[String] = Array.empty[String],
-    separator: String = "\t",
-    missing: String = "NA",
-    noHeader: Boolean = false,
-    impute: Boolean = false,
-    nPartitions: Int = hc.sc.defaultMinPartitions,
-    quote: java.lang.Character = null,
-    skipBlankLines: Boolean = false,
-    forceBGZ: Boolean = false,
-    filterAndReplace: TextInputFilterAndReplace = TextInputFilterAndReplace()): Table = {
-    val options = TextTableReaderOptions(
-      files, types.mapValues(t => t._toPretty).map(identity), comment, separator,
-      missing, noHeader, impute, Some(nPartitions),
-      if (quote != null) quote.toString else null, skipBlankLines, forceBGZ, filterAndReplace)
-    val tr = TextTableReader(options)
-    new Table(hc, TableRead(tr.fullType, dropRows = false, tr))
   }
 }
 

@@ -3,9 +3,10 @@ package is.hail.methods
 import java.io.{FileInputStream, IOException}
 import java.util.Properties
 
+import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.JSONAnnotationImpex
-import is.hail.expr.ir.{TableLiteral, TableValue}
+import is.hail.expr.ir.{Interpret, TableIR, TableLiteral, TableValue}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PType
 import is.hail.expr.types.virtual._
@@ -357,9 +358,11 @@ object Nirvana {
     w(sb.result())
   }
 
-  def annotate(ht: Table, config: String, blockSize: Int): Table = {
-    assert(ht.key.contains(FastIndexedSeq("locus", "alleles")))
-    assert(ht.typ.rowType.size == 2)
+  def annotate(tir: TableIR, config: String, blockSize: Int): TableIR = {
+    val tv = Interpret(tir)
+
+    assert(tv.typ.key == FastIndexedSeq("locus", "alleles"))
+    assert(tv.typ.rowType.size == 2)
 
     val properties = try {
       val p = new Properties()
@@ -401,14 +404,14 @@ object Nirvana {
     val startQuery = nirvanaSignature.query("position")
     val refQuery = nirvanaSignature.query("refAllele")
     val altsQuery = nirvanaSignature.query("altAlleles")
-    val localRowType = ht.typ.rowType.physicalType
+    val localRowType = tv.typ.rowType.physicalType
     val localBlockSize = blockSize
 
-    val rowKeyOrd = ht.typ.keyType.ordering
+    val rowKeyOrd = tv.typ.keyType.ordering
 
     info("Running Nirvana")
 
-    val prev = ht.value.rvd
+    val prev = tv.rvd
 
     val annotations = prev
       .mapPartitions { it =>
@@ -450,7 +453,7 @@ object Nirvana {
       }
       .persist(StorageLevel.MEMORY_AND_DISK)
 
-    val nirvanaRVDType = prev.typ.copy(rowType = (ht.typ.rowType ++ TStruct("nirvana" -> nirvanaSignature)).physicalType)
+    val nirvanaRVDType = prev.typ.copy(rowType = (tv.typ.rowType ++ TStruct("nirvana" -> nirvanaSignature)).physicalType)
 
     val nirvanaRowType = nirvanaRVDType.rowType
 
@@ -475,14 +478,13 @@ object Nirvana {
         }
       }).persist(StorageLevel.MEMORY_AND_DISK)
 
-    new Table(ht.hc, TableLiteral(
+    TableLiteral(
       TableValue(
         TableType(nirvanaRowType.virtualType, FastIndexedSeq("locus", "alleles"), TStruct()),
-        BroadcastRow(Row(), TStruct(), ht.hc.sc),
-        nirvanaRVD
-      )))
+        BroadcastRow(Row(), TStruct(), HailContext.get.sc),
+        nirvanaRVD))
   }
 
-  def apply(ht: Table, config: String, blockSize: Int = 500000): Table =
-    annotate(ht, config, blockSize)
+  def pyApply(tir: TableIR, config: String, blockSize: Int = 500000): TableIR =
+    annotate(tir, config, blockSize)
 }

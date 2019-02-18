@@ -2,7 +2,7 @@ package is.hail.io.bgen
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr.ir.{IRParser, IRParserEnvironment, MatrixRead, MatrixReader, MatrixValue, Pretty}
+import is.hail.expr.ir.{IRParser, IRParserEnvironment, Interpret, MatrixRead, MatrixReader, MatrixValue, Pretty, TableDistinct, TableIR}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual._
@@ -284,8 +284,7 @@ class MatrixBGENReaderSerializer(env: IRParserEnvironment) extends CustomSeriali
     val nPartitions = (jObj \ "nPartitions").extractOpt[Int]
     val blockSizeInMB = (jObj \ "blockSizeInMB").extractOpt[Int]
     val includedVariantsIR = (jObj \ "includedVariants").extractOpt[String].map(IRParser.parse_table_ir(_, env))
-    val includedVariants = includedVariantsIR.map(new Table(HailContext.get, _))
-    MatrixBGENReader(files, sampleFile, indexFileMap, nPartitions, blockSizeInMB, includedVariants)
+    MatrixBGENReader(files, sampleFile, indexFileMap, nPartitions, blockSizeInMB, includedVariantsIR)
   }, { case reader: MatrixBGENReader =>
     JObject(List(
       "files" -> JArray(reader.files.map(JString).toList),
@@ -295,7 +294,7 @@ class MatrixBGENReaderSerializer(env: IRParserEnvironment) extends CustomSeriali
       )}.toList),
       "nPartitions" -> reader.nPartitions.map(JInt(_)).getOrElse(JNull),
       "blockSizeInMB" -> reader.blockSizeInMB.map(JInt(_)).getOrElse(JNull),
-      "includedVariants" -> reader.includedVariants.map(t => JString(Pretty(t.tir))).getOrElse(JNull)
+      "includedVariants" -> reader.includedVariantsIR.map(tir => JString(Pretty(tir))).getOrElse(JNull)
     ))
   })
 )
@@ -342,7 +341,7 @@ case class MatrixBGENReader(
   indexFileMap: Map[String, String],
   nPartitions: Option[Int],
   blockSizeInMB: Option[Int],
-  includedVariants: Option[Table]) extends MatrixReader {
+  includedVariantsIR: Option[TableIR]) extends MatrixReader {
   private val hc = HailContext.get
   private val sc = hc.sc
   private val hConf = sc.hadoopConfiguration
@@ -397,17 +396,15 @@ case class MatrixBGENReader(
     blockSizeInMB, nPartitions, indexKeyType)
   val partitioner = new RVDPartitioner(indexKeyType.asInstanceOf[TStruct], partitionRangeBounds)
 
-  val (partitions, variants) = includedVariants match {
-    case Some(variantsTable) =>
-      val rowType = variantsTable.typ.rowType
+  val (partitions, variants) = includedVariantsIR match {
+    case Some(variantsIR) =>
+      val tv = Interpret(TableDistinct(variantsIR))
+
+      val rowType = tv.typ.rowType
       assert(rowType.isPrefixOf(fullType.rowKeyStruct))
       assert(rowType.types.nonEmpty)
 
-      val rvd = variantsTable
-        .distinctByKey()
-        .rvd
-
-      val repartitioned = RepartitionedOrderedRDD2(rvd, partitionRangeBounds.map(_.coarsen(rowType.types.length)))
+      val repartitioned = RepartitionedOrderedRDD2(tv.rvd, partitionRangeBounds.map(_.coarsen(rowType.types.length)))
         .toRows(rowType.physicalType)
       assert(repartitioned.getNumPartitions == maybePartitions.length)
 

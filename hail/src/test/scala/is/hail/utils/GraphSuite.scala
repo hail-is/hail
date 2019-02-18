@@ -3,11 +3,7 @@ package is.hail.utils
 import org.testng.annotations.Test
 import org.scalatest._
 import Matchers._
-import is.hail.expr.types._
-import is.hail.table.Table
-import org.apache.spark.sql.Row
 import scala.collection.mutable
-import is.hail.SparkSuite
 
 
 class GraphSuite {
