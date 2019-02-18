@@ -7,6 +7,7 @@ from hail.utils.java import Env
 from hail.utils.misc import divide_null
 from hail.matrixtable import MatrixTable
 from hail.table import Table
+from hail.ir import TableToTableApply
 from .misc import require_biallelic, require_row_key_variant, require_col_key_str, require_table_key_variant
 
 
