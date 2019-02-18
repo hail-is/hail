@@ -410,7 +410,9 @@ def concordance(left, right) -> Tuple[List[List[int]], Table, Table]:
     left = require_biallelic(left, "concordance, left")
     right = require_biallelic(right, "concordance, right")
 
-    r = Env.hail().methods.CalculateConcordance.pyApply(left._jmt, right._jmt)
+    r = Env.hail().methods.CalculateConcordance.pyApply(
+        Env.spark_backend('concordance')._to_java_ir(left._mir),
+        Env.spark_backend('concordance')._to_java_ir(right._mir))
     j_global_conc = r._1()
     col_conc = Table._from_java(r._2())
     row_conc = Table._from_java(r._3())

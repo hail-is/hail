@@ -539,17 +539,8 @@ class MatrixTable(ExprContainer):
     def _from_java(jmt):
         return MatrixTable(JavaMatrix(jmt.ast()))
 
-    @property
-    def _jmt(self):
-        if self._jmt_cache is None:
-            self._jmt_cache = Env.hail().variant.MatrixTable(
-                Env.hc()._jhc, Env.hc()._backend._to_java_ir(self._mir))
-        return self._jmt_cache
-
     def __init__(self, mir):
         super(MatrixTable, self).__init__()
-
-        self._jmt_cache = None
 
         self._mir = mir
 
@@ -2813,7 +2804,7 @@ class MatrixTable(ExprContainer):
         int
             Number of partitions.
         """
-        return self._jmt.nPartitions()
+        return Env.backend().execute(MarixToValueApply(self._mir, {'name': 'NPartitionsMatrixTable'}))
 
     @typecheck_method(n_partitions=int,
                       shuffle=bool)

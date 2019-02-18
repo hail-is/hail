@@ -18,6 +18,7 @@ import is.hail.table.AbstractTableSpec
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.sql.Row
+import org.apache.spark.storage.StorageLevel
 import org.json4s._
 
 import scala.collection.mutable
@@ -104,6 +105,28 @@ abstract sealed class MatrixIR extends BaseIR {
     fatal("tried to execute unexecutable IR")
 
   override def copy(newChildren: IndexedSeq[BaseIR]): MatrixIR
+
+  def persist(storageLevel: StorageLevel): MatrixIR = {
+    val mv = Interpret(this)
+    TableLiteral(mv.persist(storageLevel))
+  }
+
+  def unpersist(): MatrixIR = {
+    val mv = Interpret(this)
+    TableLiteral(mv.unpersist())
+  }
+
+  def pyPersist(storageLevel: String): MatrixIR = {
+    val level = try {
+      StorageLevel.fromString(storageLevel)
+    } catch {
+      case e: IllegalArgumentException =>
+        fatal(s"unknown StorageLevel: $storageLevel")
+    }
+    persist(level)
+  }
+
+  def pyUnpersist(): MatrixIR = unpersist()
 }
 
 case class MatrixLiteral(value: MatrixValue) extends MatrixIR {
