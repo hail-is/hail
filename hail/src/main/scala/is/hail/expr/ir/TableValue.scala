@@ -4,6 +4,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.TableAnnotationImpex
 import is.hail.expr.types.TableType
+import is.hail.expr.types.virtual.TStruct
 import is.hail.io.{CodecSpec, exportTypes}
 import is.hail.rvd.{AbstractRVDSpec, RVD, RVDContext}
 import is.hail.sparkextras.ContextRDD
@@ -12,24 +13,27 @@ import is.hail.utils._
 import is.hail.variant.{FileFormat, PartitionCountsComponentSpec, RVDComponentSpec, ReferenceGenome}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.StructType
-import org.apache.spark.sql.{DataFrame, Row, SQLContext}
+import org.apache.spark.sql.{DataFrame, Row}
 import org.apache.spark.storage.StorageLevel
 import org.json4s.jackson.JsonMethods
 
 object TableValue {
-  def fromCRDDRV(typ: TableType, globals: BroadcastRow, rdd: ContextRDD[RVDContext, RegionValue]): TableValue = {
+  def apply(rowType: TStruct, key: IndexedSeq[String], rdd: ContextRDD[RVDContext, RegionValue]): TableValue = {
     Interpret(
-      TableKeyBy(TableLiteral(TableValue(typ.copy(key = FastIndexedSeq()), globals,
-        RVD.unkeyed(typ.rowType.physicalType, rdd))),
-        typ.key), optimize = true)
+      TableKeyBy(TableLiteral(TableValue(TableType(rowType, FastIndexedSeq(), TStruct.empty()),
+        BroadcastRow.empty(),
+        RVD.unkeyed(rowType.physicalType, rdd))),
+        key))
   }
 
-  def apply(typ: TableType, globals: BroadcastRow, rdd: ContextRDD[RVDContext, Row]): TableValue =
-    fromCRDDRV(typ, globals,
-      rdd.cmapPartitions((ctx, it) => it.toRegionValueIterator(ctx.region, typ.rowType.physicalType)))
+  def apply(rowType:  TStruct, key: IndexedSeq[String], rdd: RDD[Row]): TableValue =
+    apply(rowType, key, ContextRDD.weaken[RVDContext](rdd).toRegionValues(rowType))
 
   def apply(typ: TableType, globals: BroadcastRow, rdd: RDD[Row]): TableValue =
-    TableValue(typ, globals, ContextRDD.weaken[RVDContext](rdd))
+    Interpret(
+      TableKeyBy(TableLiteral(TableValue(typ.copy(key = FastIndexedSeq()), globals,
+      RVD.unkeyed(typ.rowType.physicalType, ContextRDD.weaken[RVDContext](rdd).toRegionValues(typ.rowType)))),
+        typ.key))
 }
 
 case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {

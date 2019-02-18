@@ -326,9 +326,7 @@ object IBD {
     val sampleIds = vds.stringSampleIds
 
     val ktRdd2 = computeIBDMatrix(vds, computeMaf, min, max, sampleIds, bounded)
-    TableKeyBy(TableLiteral(TableValue.fromCRDDRV(TableType(ibdSignature, FastIndexedSeq(), TStruct.empty()),
-      BroadcastRow.empty(HailContext.get.sc),
-      ktRdd2)),
+    TableKeyBy(TableLiteral(TableValue(ibdSignature, FastIndexedSeq(), ktRdd2)),
       FastIndexedSeq("i", "j"))
   }
 

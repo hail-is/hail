@@ -9,7 +9,7 @@ import org.apache.spark.sql.Row
 import scala.collection.mutable
 
 object LiftNonCompilable {
-  lazy val emptyRow: BroadcastRow = BroadcastRow.empty(HailContext.get.sc)
+  lazy val emptyRow: BroadcastRow = BroadcastRow.empty()
 
   def extractNonCompilable(irs: IR*): Map[String, IR] = {
     val included = mutable.Set.empty[IR]

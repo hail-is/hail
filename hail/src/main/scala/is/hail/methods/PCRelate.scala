@@ -11,6 +11,8 @@ import is.hail.HailContext
 import is.hail.expr.ir.{IR, Interpret, TableIR, TableKeyBy, TableLiteral, TableValue}
 import is.hail.expr.types.TableType
 import is.hail.expr.types.virtual._
+import is.hail.rvd.RVDContext
+import is.hail.sparkextras.ContextRDD
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
@@ -61,9 +63,7 @@ object PCRelate {
     
     val result = new PCRelate(maf, blockSize, statistics, defaultStorageLevel)(HailContext.get, blockedG, pcs)
 
-    TableKeyBy(TableLiteral(TableValue(TableType(sig, FastIndexedSeq(), TStruct.empty()),
-      BroadcastRow.empty(HailContext.get.sc),
-      toRowRdd(result, blockSize, minKinship, statistics))),
+    TableKeyBy(TableLiteral(TableValue(sig, FastIndexedSeq(), toRowRdd(result, blockSize, minKinship, statistics))),
       keys)
   }
 

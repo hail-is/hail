@@ -240,9 +240,7 @@ object CalculateConcordance {
       left.colKey)
 
     val variant = TableKeyBy(
-      TableLiteral(TableValue(TableType(variantSchema, FastIndexedSeq(), TStruct.empty()),
-        BroadcastRow.empty(HailContext.get.sc),
-        variantCRDD)),
+      TableLiteral(TableValue(variantSchema, FastIndexedSeq(), variantCRDD.toRegionValues(variantSchema))),
       left.rowKey,
       isSorted = false)
 

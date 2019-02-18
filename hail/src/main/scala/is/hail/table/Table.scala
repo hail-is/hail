@@ -52,9 +52,7 @@ object Table {
   def pyFromDF(df: DataFrame, jKey: java.util.ArrayList[String]): TableIR = {
     val key = jKey.asScala.toArray.toFastIndexedSeq
     val signature = SparkAnnotationImpex.importType(df.schema).asInstanceOf[TStruct]
-    TableKeyBy(TableLiteral(TableValue(TableType(signature, FastIndexedSeq(), TStruct.empty()),
-      BroadcastRow.empty(HailContext.get.sc),
-      df.rdd)),
+    TableKeyBy(TableLiteral(TableValue(signature, FastIndexedSeq(), df.rdd)),
       key)
   }
 

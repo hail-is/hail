@@ -21,6 +21,7 @@ import org.apache.commons.math3.random.MersenneTwister
 import org.apache.spark.executor.InputMetrics
 import org.apache.spark._
 import org.apache.spark.mllib.linalg.distributed._
+
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
 import org.json4s._
@@ -1215,7 +1216,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     }
 
     TableLiteral(TableValue(TableType(rowType, IndexedSeq.empty[String], TStruct.empty()),
-      BroadcastRow.empty(HailContext.get.sc),
+      BroadcastRow.empty(),
       RVD.unkeyed(rowType.physicalType, entriesRDD)))
   }
 }
