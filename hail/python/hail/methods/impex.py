@@ -1519,9 +1519,9 @@ def import_matrix_table(paths,
     if len(sep) != 1:
         raise FatalError('sep must be a single character')
 
-    jmt = Env.hc()._jhc.importMatrix(paths, jrow_fields, row_key, entry_type._parsable_string(), missing, joption(min_partitions),
-                                     no_header, force_bgz, sep)
-    return MatrixTable._from_java(jmt)
+    return MatrixTable._from_java(
+        Env.hail().io.LoadMatrix.pyApply(paths, jrow_fields, row_key, entry_type._parsable_string(), missing, joption(min_partitions),
+                                         no_header, force_bgz, sep))
 
 
 @typecheck(bed=str,

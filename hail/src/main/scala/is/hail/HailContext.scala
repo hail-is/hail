@@ -17,7 +17,7 @@ import is.hail.io.{CodecSpec, Decoder, LoadMatrix}
 import is.hail.rvd.RVDContext
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils.{log, _}
-import is.hail.variant.{MatrixTable, ReferenceGenome}
+import is.hail.variant.ReferenceGenome
 import org.apache.commons.io.FileUtils
 import org.apache.hadoop
 import org.apache.log4j.{ConsoleAppender, LogManager, PatternLayout, PropertyConfigurator}
@@ -403,13 +403,6 @@ class HailContext private(val sc: SparkContext,
     info(s"Number of BGEN files indexed: ${ files.length }")
   }
 
-  def read(file: String, dropCols: Boolean = false, dropRows: Boolean = false): MatrixTable = {
-    MatrixTable.read(this, file, dropCols = dropCols, dropRows = dropRows)
-  }
-
-  def readVDS(file: String, dropSamples: Boolean = false, dropVariants: Boolean = false): MatrixTable =
-    read(file, dropSamples, dropVariants)
-
   def readPartitions[T: ClassTag](
     path: String,
     partFiles: Array[String],
@@ -464,36 +457,6 @@ class HailContext private(val sc: SparkContext,
         fields.asJava
       }.asJava
     }.asJava
-  }
-  
-  def importMatrix(files: java.util.ArrayList[String],
-    rowFields: java.util.HashMap[String, String],
-    keyNames: java.util.ArrayList[String],
-    cellType: String,
-    missingVal: String,
-    minPartitions: Option[Int],
-    noHeader: Boolean,
-    forceBGZ: Boolean,
-    sep: String = "\t"): MatrixTable =
-    importMatrices(files.asScala, rowFields.asScala.toMap.mapValues(IRParser.parseType), keyNames.asScala.toArray,
-      IRParser.parseType(cellType), missingVal, minPartitions, noHeader, forceBGZ, sep)
-
-  def importMatrices(files: Seq[String],
-    rowFields: Map[String, Type],
-    keyNames: Array[String],
-    cellType: Type,
-    missingVal: String = "NA",
-    nPartitions: Option[Int],
-    noHeader: Boolean,
-    forceBGZ: Boolean,
-    sep: String = "\t"): MatrixTable = {
-    assert(sep.length == 1)
-
-    val inputs = hadoopConf.globAll(files)
-
-    HailContext.maybeGZipAsBGZip(forceBGZ) {
-      LoadMatrix(this, inputs, rowFields, keyNames, cellType = TStruct("x" -> cellType), missingVal, nPartitions, noHeader, sep(0))
-    }
   }
 
   def setUploadURL(url: String) {

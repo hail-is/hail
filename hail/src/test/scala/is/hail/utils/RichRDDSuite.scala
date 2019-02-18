@@ -9,26 +9,6 @@ class RichRDDSuite extends SparkSuite {
     assert(r.headPerPartition(5).count() == 100)
   }
 
-  @Test def testHead() {
-    val r = sc.parallelize(0 until 1024, numSlices = 20)
-    val partitionRanges = r.countPerPartition().scanLeft(Range(0, 1)) { case (x, c) => Range(x.end, x.end + c.toInt + 1) }
-
-    def getExpectedNumPartitions(n: Int): Int =
-      partitionRanges.indexWhere(_.contains(n))
-
-    for (n <- Array(0, 15, 200, 562, 1024, 2000)) {
-      val t = r.head(n)
-      val nActual = math.min(n, 1024)
-
-      assert(t.collect() sameElements (0 until nActual))
-      assert(t.count() == nActual)
-      assert(t.getNumPartitions == getExpectedNumPartitions(nActual))
-    }
-
-    val vds = TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
-    assert(vds.head(3).countRows() == 3)
-  }
-
   @Test def binaryParallelWrite() {
     def readBytes(file: String): Array[Byte] = hadoopConf.readFile(file) { dis =>
       val buffer = new Array[Byte](32)

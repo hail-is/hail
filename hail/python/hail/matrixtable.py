@@ -536,8 +536,8 @@ class MatrixTable(ExprContainer):
     """
 
     @staticmethod
-    def _from_java(jmt):
-        return MatrixTable(JavaMatrix(jmt.ast()))
+    def _from_java(jmir):
+        return MatrixTable(JavaMatrix(jmir))
 
     def __init__(self, mir):
         super(MatrixTable, self).__init__()

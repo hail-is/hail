@@ -16,8 +16,6 @@ import is.hail.methods.{ForceCountMatrixTable, ForceCountTable}
 import is.hail.rvd.RVD
 import is.hail.table.{Ascending, Descending, SortField, Table}
 import is.hail.utils._
-import is.hail.variant.MatrixTable
-import org.apache.commons.math3.stat.descriptive.AggregateSummaryStatistics
 import org.apache.spark.sql.Row
 import org.testng.annotations.{BeforeClass, DataProvider, Test}
 
@@ -883,10 +881,10 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testMatrixAggregate() {
-    val matrix = MatrixTable.range(hc, 5, 5, None)
+    val matrix = MatrixIR.range(hc, 5, 5, None)
     val countSig = AggSignature(Count(), Seq(), None, Seq())
     val count = ApplyAggOp(FastIndexedSeq.empty, None, FastIndexedSeq.empty, countSig)
-    assertEvalsTo(MatrixAggregate(matrix.ast, MakeStruct(Seq("foo" -> count))), Row(25L))
+    assertEvalsTo(MatrixAggregate(matrix, MakeStruct(Seq("foo" -> count))), Row(25L))
   }
 
   @Test def testGroupByKey() {
@@ -957,9 +955,9 @@ class IRSuite extends SparkSuite {
 
     val table = TableRange(100, 10)
 
-    val mt = MatrixTable.range(hc, 20, 2, Some(3)).ast.asInstanceOf[MatrixRead]
+    val mt = MatrixIR.range(hc, 20, 2, Some(3)).asInstanceOf[MatrixRead]
     val vcf = is.hail.TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
-      .ast.asInstanceOf[MatrixRead]
+      .asInstanceOf[MatrixRead]
 
     val bgenReader = MatrixBGENReader(FastIndexedSeq("src/test/resources/example.8bits.bgen"), None, Map.empty[String, String], None, None, None)
     val bgen = MatrixRead(bgenReader.fullType, false, false, bgenReader)
@@ -1047,11 +1045,11 @@ class IRSuite extends SparkSuite {
   @DataProvider(name = "tableIRs")
   def tableIRs(): Array[Array[TableIR]] = {
     try {
-      val ht = Table.read(hc, "src/test/resources/backward_compatability/1.0.0/table/0.ht")
-      val mt = MatrixTable.read(hc, "src/test/resources/backward_compatability/1.0.0/matrix_table/0.hmt")
+      val read = TableIR.read(hc, "src/test/resources/backward_compatability/1.0.0/table/0.ht")
+        .asInstanceOf[TableRead]
+      val mtRead = MatrixIR.read(hc, "src/test/resources/backward_compatability/1.0.0/matrix_table/0.hmt")
+        .asInstanceOf[MatrixRead]
 
-      val read = ht.tir.asInstanceOf[TableRead]
-      val mtRead = mt.ast.asInstanceOf[MatrixRead]
       val b = True()
 
       val xs: Array[TableIR] = Array(
@@ -1111,20 +1109,20 @@ class IRSuite extends SparkSuite {
 
       val tableRead = Table.read(hc, "src/test/resources/backward_compatability/1.0.0/table/0.ht")
         .tir.asInstanceOf[TableRead]
-      val read = MatrixTable.read(hc, "src/test/resources/backward_compatability/1.0.0/matrix_table/0.hmt")
-        .ast.asInstanceOf[MatrixRead]
-      val range = MatrixTable.range(hc, 3, 7, None)
-        .ast.asInstanceOf[MatrixRead]
+      val read = MatrixIR.read(hc, "src/test/resources/backward_compatability/1.0.0/matrix_table/0.hmt")
+        .asInstanceOf[MatrixRead]
+      val range = MatrixIR.range(hc, 3, 7, None)
+        .asInstanceOf[MatrixRead]
       val vcf = is.hail.TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
-        .ast.asInstanceOf[MatrixRead]
+        .asInstanceOf[MatrixRead]
       
       val bgenReader = MatrixBGENReader(FastIndexedSeq("src/test/resources/example.8bits.bgen"), None, Map.empty[String, String], None, None, None)
       val bgen = MatrixRead(bgenReader.fullType, false, false, bgenReader)
 
-      val range1 = MatrixTable.range(hc, 20, 2, Some(3))
-        .ast.asInstanceOf[MatrixRead]
-      val range2 = MatrixTable.range(hc, 20, 2, Some(4))
-        .ast.asInstanceOf[MatrixRead]
+      val range1 = MatrixIR.range(hc, 20, 2, Some(3))
+        .asInstanceOf[MatrixRead]
+      val range2 = MatrixIR.range(hc, 20, 2, Some(4))
+        .asInstanceOf[MatrixRead]
 
       val b = True()
 
@@ -1256,7 +1254,7 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testCachedMatrixIR() {
-    val cached = MatrixTable.range(hc, 3, 7, None).ast
+    val cached = MatrixIR.range(hc, 3, 7, None)
     val s = s"(JavaMatrix __uid1)"
     val x2 = IRParser.parse_matrix_ir(s, IRParserEnvironment(refMap = Map.empty, irMap = Map("__uid1" -> cached)))
     assert(x2 eq cached)

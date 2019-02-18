@@ -7,7 +7,7 @@ import is.hail.expr.types.physical.PString
 import is.hail.expr.types.virtual.{TFloat64, TInt64, TString, TStruct}
 import is.hail.rvd.RVDContext
 import is.hail.sparkextras.ContextRDD
-import is.hail.variant.{Call, Genotype, HardCallView, MatrixTable}
+import is.hail.variant.{Call, Genotype, HardCallView}
 import org.apache.spark.rdd.RDD
 import is.hail.utils._
 import org.apache.spark.sql.Row

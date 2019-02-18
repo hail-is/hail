@@ -45,6 +45,8 @@ case class MatrixValue(
     colValues.value.map(querier(_).asInstanceOf[String])
   }
 
+  def stringSampleIdSet: Set[String] = stringSampleIds.toSet
+
   def requireUniqueSamples(method: String) {
     val dups = stringSampleIds.counter().filter(_._2 > 1).toArray
     if (dups.nonEmpty)

@@ -24,7 +24,7 @@ import org.json4s._
 import scala.collection.mutable
 
 object MatrixIR {
-  def read(hc: HailContext, path: String, dropCols: Boolean = false, dropRows: Boolean = false, requestedType: Option[MatrixType]): MatrixIR = {
+  def read(hc: HailContext, path: String, dropCols: Boolean = false, dropRows: Boolean = false, requestedType: Option[MatrixType] = None): MatrixIR = {
     val reader = MatrixNativeReader(path)
     MatrixRead(requestedType.getOrElse(reader.fullType), dropCols, dropRows, reader)
   }
@@ -108,12 +108,12 @@ abstract sealed class MatrixIR extends BaseIR {
 
   def persist(storageLevel: StorageLevel): MatrixIR = {
     val mv = Interpret(this)
-    TableLiteral(mv.persist(storageLevel))
+    MatrixLiteral(mv.persist(storageLevel))
   }
 
   def unpersist(): MatrixIR = {
     val mv = Interpret(this)
-    TableLiteral(mv.unpersist())
+    MatrixLiteral(mv.unpersist())
   }
 
   def pyPersist(storageLevel: String): MatrixIR = {

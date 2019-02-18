@@ -5,7 +5,7 @@ import is.hail.annotations.{Annotation, BroadcastRow}
 import is.hail.linalg.BlockMatrix
 import is.hail.linalg.BlockMatrix.ops._
 import is.hail.utils._
-import is.hail.variant.{Call, HardCallView, MatrixTable}
+import is.hail.variant.{Call, HardCallView}
 import is.hail.HailContext
 import is.hail.expr.ir.{IR, Interpret, TableIR, TableKeyBy, TableLiteral, TableValue}
 import is.hail.expr.types.TableType
@@ -143,54 +143,6 @@ object PCRelate {
   }
 
   private val k0cutoff = math.pow(2.0, -5.0 / 2.0)
-
-  // now only used in tests
-  private[methods] def vdsToMeanImputedMatrix(vds: MatrixTable): IndexedRowMatrix = {
-    val nSamples = vds.numCols
-    val localRowType = vds.rvRowType
-    val localRowPType = localRowType.physicalType
-    val partStarts = vds.partitionStarts()
-    val partStartsBc = vds.sparkContext.broadcast(partStarts)
-    val rdd = vds.rvd.mapPartitionsWithIndex { (partIdx, it) =>
-      val view = HardCallView(localRowPType)
-      val missingIndices = new ArrayBuilder[Int]()
-
-      var rowIdx = partStartsBc.value(partIdx)
-      it.map { rv =>
-        view.setRegion(rv)
-
-        missingIndices.clear()
-        var sum = 0
-        var nNonMissing = 0
-        val a = new Array[Double](nSamples)
-        var i = 0
-        while (i < nSamples) {
-          view.setGenotype(i)
-          if (view.hasGT) {
-            val gt = Call.unphasedDiploidGtIndex(view.getGT)
-            sum += gt
-            a(i) = gt
-            nNonMissing += 1
-          } else
-            missingIndices += i
-          i += 1
-        }
-
-        val mean = sum.toDouble / nNonMissing
-
-        i = 0
-        while (i < missingIndices.length) {
-          a(missingIndices(i)) = mean
-          i += 1
-        }
-
-        rowIdx += 1
-        IndexedRow(rowIdx - 1, Vectors.dense(a))
-      }
-    }
-
-    new IndexedRowMatrix(rdd.cache(), partStarts.last, nSamples)
-  }
 
   def k1(k2: M, k0: M): M = {
     1.0 - (k2 + k0)

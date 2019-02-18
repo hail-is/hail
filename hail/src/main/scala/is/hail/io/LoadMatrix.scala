@@ -2,12 +2,12 @@ package is.hail.io
 
 import is.hail.HailContext
 import is.hail.annotations._
+import is.hail.expr.ir.{MatrixIR, MatrixLiteral, MatrixValue}
 import is.hail.expr.types._
 import is.hail.expr.types.virtual._
 import is.hail.rvd.{RVD, RVDContext, RVDPartitioner}
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
-import is.hail.variant._
 import org.apache.hadoop.conf.Configuration
 import org.apache.spark.sql.Row
 
@@ -267,7 +267,7 @@ object LoadMatrix {
     TStruct(fields: _*)
   }
 
-  def apply(hc: HailContext,
+  def pyApply(hc: HailContext,
     files: Array[String],
     rowFields: Map[String, Type],
     keyFields: Array[String],
@@ -275,7 +275,7 @@ object LoadMatrix {
     missingValue: String = "NA",
     nPartitions: Option[Int] = None,
     noHeader: Boolean = false,
-    sep: Char = '\t'): MatrixTable = {
+    sep: Char = '\t'): MatrixIR = {
 
     require(cellType.size == 1, "cellType can only have 1 field")
 
@@ -366,7 +366,9 @@ object LoadMatrix {
         val rvb = new RegionValueBuilder(region)
         val rv = RegionValue(region)
 
-        if (firstPartitions(i) == i && !noHeader) { it.next() }
+        if (firstPartitions(i) == i && !noHeader) {
+          it.next()
+        }
 
         val partitionStartInFile = partitionCounts(i) - partitionCounts(firstPartitions(i))
         val parser = new LoadMatrixParser(rvb, rowFieldType.types, cellType, nCols, missingValue, fileByPartition(i), sep)
@@ -393,10 +395,9 @@ object LoadMatrix {
     } else
       RVD.coerce(matrixType.canonicalRVDType, rdd)
 
-    new MatrixTable(hc,
-      matrixType,
+    MatrixLiteral(MatrixValue(matrixType,
       BroadcastRow(Row(), matrixType.globalType, hc.sc),
       BroadcastIndexedSeq(colIDs.map(x => Annotation(x)), TArray(matrixType.colType), hc.sc),
-      rvd)
+      rvd))
   }
 }

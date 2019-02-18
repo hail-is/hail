@@ -4,30 +4,16 @@ import is.hail.{SparkSuite, TestUtils}
 import is.hail.annotations.Annotation
 import is.hail.check.Gen
 import is.hail.check.Prop._
-import is.hail.expr.types._
 import is.hail.expr.types.virtual._
 import is.hail.io.vcf.ExportVCF
 import is.hail.utils._
-import is.hail.variant.{Locus, MatrixTable, VSMSubgen}
+import is.hail.variant.Locus
 import org.testng.annotations.Test
-import is.hail.testUtils._
 
 import scala.io.Source
 import scala.language.postfixOps
 
 class ExportVCFSuite extends SparkSuite {
-
-  @Test def testSameAsOrigBGzip() {
-    val vcfFile = "src/test/resources/multipleChromosomes.vcf"
-    val outFile = tmpDir.createTempFile("export", "vcf")
-
-    val vdsOrig = TestUtils.importVCF(hc, vcfFile, nPartitions = Some(10))
-
-    ExportVCF(vdsOrig, outFile)
-
-    assert(vdsOrig.same(TestUtils.importVCF(hc, outFile, nPartitions = Some(10)),
-      tolerance = 1e-3))
-  }
 
   @Test def testSorted() {
     val vcfFile = "src/test/resources/multipleChromosomes.vcf"
@@ -39,7 +25,7 @@ class ExportVCFSuite extends SparkSuite {
 
     val vdsNew = TestUtils.importVCF(hc, outFile, nPartitions = Some(10))
 
-    implicit val locusAllelesOrdering = vdsNew.rowKeyStruct.ordering.toOrdering
+    implicit val locusAllelesOrdering = vdsNew.typ.rowKeyStruct.ordering.toOrdering
 
     assert(hadoopConf.readFile(outFile) { s =>
       Source.fromInputStream(s)
@@ -47,36 +33,6 @@ class ExportVCFSuite extends SparkSuite {
         .filter(line => !line.isEmpty && line(0) != '#')
         .map(line => line.split("\t")).take(5).map(a => Annotation(Locus(a(0), a(1).toInt), FastIndexedSeq(a(3), a(4)))).toArray
     }.isSorted)
-  }
-
-  @Test def testReadWrite() {
-    val out = tmpDir.createTempFile("foo", "vcf.bgz")
-    val out2 = tmpDir.createTempFile("foo2", "vcf.bgz")
-    val p = forAll(MatrixTable.gen(hc, VSMSubgen.random), Gen.choose(1, 10),
-      Gen.choose(1, 10)) { case (vds, nPar1, nPar2) =>
-      hadoopConf.delete(out, recursive = true)
-      hadoopConf.delete(out2, recursive = true)
-      ExportVCF(vds, out)
-      val vds2 = TestUtils.importVCF(hc, out, nPartitions = Some(nPar1), rg = Some(vds.referenceGenome))
-      ExportVCF(vds, out2)
-      TestUtils.importVCF(hc, out2, nPartitions = Some(nPar2), rg = Some(vds.referenceGenome)).same(vds2)
-    }
-
-    p.check()
-  }
-
-  @Test def testEmptyReadWrite() {
-    val vds = TestUtils.importVCF(hc, "src/test/resources/sample.vcf").dropRows()
-    val out = tmpDir.createTempFile("foo", "vcf")
-    val out2 = tmpDir.createTempFile("foo", "vcf.bgz")
-
-    ExportVCF(vds, out)
-    ExportVCF(vds, out2)
-
-    assert(hadoopConf.getFileSize(out) > 0)
-    assert(hadoopConf.getFileSize(out2) > 0)
-    assert(TestUtils.importVCF(hc, out).same(vds))
-    assert(TestUtils.importVCF(hc, out2).same(vds))
   }
 
   @Test def testVCFFormatHeader() {

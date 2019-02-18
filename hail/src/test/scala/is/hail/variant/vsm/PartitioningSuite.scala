@@ -7,26 +7,10 @@ import is.hail.expr.ir.{Interpret, MatrixAnnotateRowsTable, TableLiteral, TableV
 import is.hail.expr.types._
 import is.hail.expr.types.virtual.{TInt32, TStruct}
 import is.hail.rvd.RVD
-import is.hail.table.Table
-import is.hail.variant.MatrixTable
-import is.hail.testUtils._
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
 class PartitioningSuite extends SparkSuite {
-
-  def compare(vds1: MatrixTable, vds2: MatrixTable): Boolean = {
-    val s1 = vds1.variantsAndAnnotations
-      .mapPartitionsWithIndex { case (i, it) => it.zipWithIndex.map(x => (i, x)) }
-      .collect()
-      .toSet
-    val s2 = vds2.variantsAndAnnotations
-      .mapPartitionsWithIndex { case (i, it) => it.zipWithIndex.map(x => (i, x)) }
-      .collect()
-      .toSet
-    s1 == s2
-  }
-
   @Test def testShuffleOnEmptyRDD() {
     val typ = TableType(TStruct("tidx" -> TInt32()), IndexedSeq("tidx"), TStruct.empty())
     val t = TableLiteral(TableValue(

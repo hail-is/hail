@@ -2,18 +2,20 @@ package is.hail.io.gen
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr.ir.{MatrixRead, MatrixReader, MatrixValue}
+import is.hail.expr.ir.{Interpret, MatrixKeyRowsBy, MatrixLiteral, MatrixRead, MatrixReader, MatrixValue}
 import is.hail.expr.types.MatrixType
 import is.hail.expr.types.virtual._
 import is.hail.io.bgen.LoadBgen
 import is.hail.io.vcf.LoadVCF
-import is.hail.rvd.RVDType
+import is.hail.rvd.{RVD, RVDContext, RVDType}
+import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.SparkContext
+import org.apache.spark.sql.Row
 
-case class GenResult(file: String, nSamples: Int, nVariants: Int, rdd: RDD[(Annotation, Iterable[Annotation])])
+case class GenResult(file: String, nSamples: Int, nVariants: Int, rdd: RDD[Row])
 
 object LoadGen {
   def apply(
@@ -47,7 +49,7 @@ object LoadGen {
     rg: Option[ReferenceGenome],
     chromosome: Option[String] = None,
     contigRecoding: Map[String, String] = Map.empty[String, String],
-    skipInvalidLoci: Boolean = false): Option[(Annotation, Iterable[Annotation])] = {
+    skipInvalidLoci: Boolean = false): Option[Row] = {
 
     val arr = line.split("\\s+")
     val chrCol = if (chromosome.isDefined) 1 else 0
@@ -92,9 +94,7 @@ object LoadGen {
         gsb += a
       }
 
-      val annotations = Annotation(locus, alleles, rsid, varid)
-
-      Some(annotations, gsb.result().toIterable)
+      Some(Row(locus, alleles, rsid, varid, gsb.result().toFastIndexedSeq))
     }
   }
 }
@@ -168,12 +168,18 @@ case class MatrixGENReader(
 
   def apply(mr: MatrixRead): MatrixValue = {
     assert(mr.typ == fullType)
-    val rdd =
+    val rdd: RDD[Row] =
       if (mr.dropRows)
-        HailContext.get.sc.emptyRDD[(Annotation, Iterable[Annotation])]
+        HailContext.get.sc.emptyRDD[Row]
       else
         HailContext.get.sc.union(results.map(_.rdd))
-    MatrixTable.fromLegacy(HailContext.get, fullType, Annotation.empty, samples.map(Annotation(_)), rdd)
-      .value
+
+    Interpret(MatrixKeyRowsBy(
+      MatrixLiteral(MatrixValue(fullType.copy(rowKey = FastIndexedSeq()),
+        BroadcastRow.empty(),
+        BroadcastIndexedSeq(samples.map(Annotation(_)), TArray(fullType.colValueStruct), HailContext.get.sc),
+        RVD.unkeyed(fullType.rowType.physicalType,
+          ContextRDD.weaken[RVDContext](rdd).toRegionValues(fullType.rowType)))),
+      fullType.rowKey))
   }
 }

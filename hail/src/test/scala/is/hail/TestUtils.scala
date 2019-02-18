@@ -9,7 +9,6 @@ import is.hail.expr.types.MatrixType
 import is.hail.expr.types.virtual._
 import is.hail.io.plink.MatrixPLINKReader
 import is.hail.io.vcf.MatrixVCFReader
-import is.hail.nativecode.NativeStatus
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.SparkException
@@ -458,7 +457,7 @@ object TestUtils {
     contigRecoding: Option[Map[String, String]] = None,
     arrayElementsRequired: Boolean = true,
     skipInvalidLoci: Boolean = false,
-    partitionsJSON: String = null): MatrixTable = {
+    partitionsJSON: String = null): MatrixIR = {
     val addedReference = rg.exists { referenceGenome =>
       if (!ReferenceGenome.hasReference(referenceGenome.name)) {
         ReferenceGenome.addReference(referenceGenome)
@@ -484,7 +483,7 @@ object TestUtils {
     )
     if (addedReference)
       ReferenceGenome.removeReference(rg.get.name)
-    new MatrixTable(hc, MatrixRead(reader.fullType, dropSamples, false, reader))
+    MatrixRead(reader.fullType, dropSamples, false, reader)
   }
 
   def importPlink(hc: HailContext,
@@ -498,44 +497,13 @@ object TestUtils {
     a2Reference: Boolean = true,
     rg: Option[ReferenceGenome] = Some(ReferenceGenome.GRCh37),
     contigRecoding: Option[Map[String, String]] = None,
-    skipInvalidLoci: Boolean = false): MatrixTable = {
+    skipInvalidLoci: Boolean = false): MatrixIR = {
 
     val reader = MatrixPLINKReader(bed, bim, fam,
       nPartitions, delimiter, missing, quantPheno,
       a2Reference, rg.map(_.name), contigRecoding.getOrElse(Map.empty[String, String]),
       skipInvalidLoci)
 
-    new MatrixTable(hc, MatrixRead(reader.fullType, dropCols = false, dropRows = false, reader))
-  }
-
-
-  def vdsFromCallMatrix(hc: HailContext)(
-    callMat: Matrix[BoxedCall],
-    samplesIdsOpt: Option[Array[String]] = None,
-    nPartitions: Int = hc.sc.defaultMinPartitions): MatrixTable = {
-
-    require(samplesIdsOpt.forall(_.length == callMat.rows))
-    require(samplesIdsOpt.forall(_.areDistinct()))
-
-    val sampleIds = samplesIdsOpt.getOrElse((0 until callMat.rows).map(_.toString).toArray)
-
-    val rdd = hc.sc.parallelize(
-      (0 until callMat.cols).map { j =>
-        (Annotation(Locus("1", j + 1), FastIndexedSeq("A", "C")),
-          (0 until callMat.rows).map { i =>
-            Genotype(callMat(i, j))
-          }: Iterable[Annotation])
-      },
-      nPartitions)
-
-    MatrixTable.fromLegacy(hc, MatrixType.fromParts(
-      globalType = TStruct.empty(),
-      colKey = Array("s"),
-      colType = TStruct("s" -> TString()),
-      rowKey = Array("locus", "alleles"),
-      rowType = TStruct("locus" -> TLocus(ReferenceGenome.GRCh37),
-        "alleles" -> TArray(TString())),
-      entryType = Genotype.htsGenotypeType),
-      Annotation.empty, sampleIds.map(Annotation(_)), rdd)
+    MatrixRead(reader.fullType, dropCols = false, dropRows = false, reader)
   }
 }
