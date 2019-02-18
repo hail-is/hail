@@ -25,6 +25,7 @@ class Tests(unittest.TestCase):
     def _assert_close(self, a, b):
         self.assertTrue(np.allclose(self._np_matrix(a), self._np_matrix(b)))
 
+    @skip_unless_spark_backend()
     def test_from_entry_expr(self):
         mt = get_dataset()
         mt = mt.annotate_entries(x=hl.or_else(mt.GT.n_alt_alleles(), 0)).cache()
@@ -41,6 +42,7 @@ class Tests(unittest.TestCase):
         a4 = BlockMatrix.read(path).to_numpy()
         self._assert_eq(a1, a4)
 
+    @skip_unless_spark_backend()
     def test_from_entry_expr_options(self):
         def build_mt(a):
             data = [{'v': 0, 's': 0, 'x': a[0]},
@@ -75,6 +77,7 @@ class Tests(unittest.TestCase):
         with self.assertRaises(Exception):
             BlockMatrix.from_entry_expr(mt.x)
 
+    @skip_unless_spark_backend()
     def test_write_from_entry_expr_overwrite(self):
         mt = hl.balding_nichols_model(1, 1, 1)
         mt = mt.select_entries(x=mt.GT.n_alt_alleles())
@@ -95,6 +98,7 @@ class Tests(unittest.TestCase):
         BlockMatrix.write_from_entry_expr(mt.x + 2, path2, overwrite=True)
         self._assert_eq(BlockMatrix.read(path2), bm + 2)
 
+    @skip_unless_spark_backend()
     def test_random_uniform(self):
         uniform = BlockMatrix.random(10, 10, gaussian=False)
 
@@ -103,6 +107,7 @@ class Tests(unittest.TestCase):
             for entry in row:
                 assert entry > 0
 
+    @skip_unless_spark_backend()
     def test_to_from_numpy(self):
         n_rows = 10
         n_cols = 11
@@ -148,6 +153,7 @@ class Tests(unittest.TestCase):
                 self._assert_eq(at4, at)
                 self._assert_eq(at5, at)
 
+    @skip_unless_spark_backend()
     def test_elementwise_ops(self):
         nx = np.matrix([[2.0]])
         nc = np.matrix([[1.0], [2.0]])
@@ -334,6 +340,7 @@ class Tests(unittest.TestCase):
         self._assert_close(m / nr, m / r)
         self._assert_close(m / nm, m / m)
 
+    @skip_unless_spark_backend()
     def test_special_elementwise_ops(self):
         nm = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
         m = BlockMatrix.from_numpy(nm)
@@ -346,6 +353,7 @@ class Tests(unittest.TestCase):
 
         self._assert_close((m - 4).abs(), np.abs(nm - 4))
 
+    @skip_unless_spark_backend()
     def test_matrix_ops(self):
         nm = np.matrix([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
         m = BlockMatrix.from_numpy(nm, block_size=2)
@@ -374,6 +382,7 @@ class Tests(unittest.TestCase):
         self._assert_eq(m.T.diagonal(), np.array([1.0, 5.0]))
         self._assert_eq((m @ m.T).diagonal(), np.array([14.0, 77.0]))
 
+    @skip_unless_spark_backend()
     def test_fill(self):
         nd = np.ones((3, 5))
         bm = BlockMatrix.fill(3, 5, 1.0)
@@ -384,6 +393,7 @@ class Tests(unittest.TestCase):
         self._assert_eq(bm, nd)
         self._assert_eq(bm2, nd)
 
+    @skip_unless_spark_backend()
     def test_sum(self):
         def sums_agree(bm, nd):
             self.assertAlmostEqual(bm.sum(), np.sum(nd))
@@ -413,6 +423,7 @@ class Tests(unittest.TestCase):
         sums_agree(bm4, nd2)
         sums_agree(bm5, nd5)
 
+    @skip_unless_spark_backend()
     def test_slicing(self):
         nd = np.array(np.arange(0, 80, dtype=float)).reshape(8, 10)
         bm = BlockMatrix.from_numpy(nd, block_size=3)
@@ -476,6 +487,7 @@ class Tests(unittest.TestCase):
         self._assert_eq(bm2[1, :], nd2[1:2, :])
         self._assert_eq(bm2[0:5, 0:5], nd2[0:5, 0:5])
 
+    @skip_unless_spark_backend()
     def test_sparsify_row_intervals(self):
         nd = np.array([[ 1.0,  2.0,  3.0,  4.0],
                        [ 5.0,  6.0,  7.0,  8.0],
@@ -521,6 +533,7 @@ class Tests(unittest.TestCase):
                     expected[i, j] = 0.0
             self._assert_eq(actual, expected)
 
+    @skip_unless_spark_backend()
     def test_sparsify_band(self):
         nd = np.array([[ 1.0,  2.0,  3.0,  4.0],
                        [ 5.0,  6.0,  7.0,  8.0],
@@ -551,6 +564,7 @@ class Tests(unittest.TestCase):
             mask = np.fromfunction(lambda i, j: (lower <= j - i) * (j - i <= upper), (8, 10))
             self._assert_eq(actual, nd2 * mask)
 
+    @skip_unless_spark_backend()
     def test_sparsify_triangle(self):
         nd = np.array([[ 1.0,  2.0,  3.0,  4.0],
                        [ 5.0,  6.0,  7.0,  8.0],
@@ -582,6 +596,7 @@ class Tests(unittest.TestCase):
                       [ 0.,  0., 11., 12.],
                       [ 0.,  0., 15., 16.]]))
 
+    @skip_unless_spark_backend()
     def test_sparsify_rectangles(self):
         nd = np.array([[ 1.0,  2.0,  3.0,  4.0],
                        [ 5.0,  6.0,  7.0,  8.0],
@@ -598,6 +613,7 @@ class Tests(unittest.TestCase):
 
         self._assert_eq(bm.sparsify_rectangles([]), np.zeros(shape=(4, 4)))
 
+    @skip_unless_spark_backend()
     def test_export_rectangles(self):
         nd = np.arange(0, 80, dtype=float).reshape(8, 10)
 
@@ -650,6 +666,7 @@ class Tests(unittest.TestCase):
             BlockMatrix.export_rectangles(bm_uri, rect_uri, [[5, 6, 5, 6]])
             self.assertEquals(e.msg, 'block (1, 1) missing for rectangle 0 with bounds [5, 6, 5, 6]')
 
+    @skip_unless_spark_backend()
     def test_block_matrix_entries(self):
         n_rows, n_cols = 5, 3
         rows = [{'i': i, 'j': j, 'entry': float(i + j)} for i in range(n_rows) for j in range(n_cols)]
@@ -790,6 +807,7 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(res, [0, 0, 2, 2, 4, 6])
 
+    @skip_unless_spark_backend()
     def test_write_overwrite(self):
         path = new_temp_file()
 
@@ -801,6 +819,7 @@ class Tests(unittest.TestCase):
         bm2.write(path, overwrite=True)
         self._assert_eq(BlockMatrix.read(path), bm2)
 
+    @skip_unless_spark_backend()
     def test_stage_locally(self):
         nd = np.arange(0, 80, dtype=float).reshape(8, 10)
         bm_uri = new_temp_file()
@@ -809,6 +828,7 @@ class Tests(unittest.TestCase):
         bm = BlockMatrix.read(bm_uri)
         self._assert_eq(nd, bm)
 
+    @skip_unless_spark_backend()
     def test_svd(self):
         def assert_same_columns_up_to_sign(a, b):
             for j in range(a.shape[1]):

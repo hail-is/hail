@@ -16,73 +16,76 @@ app = flask.Flask('hail-apiserver')
 @app.route('/execute', methods=['POST'])
 def execute():
     code = flask.request.json
-    
     info(f'execute: {code}')
-    
-    jir = Env.hail().expr.ir.IRParser.parse_value_ir(code, {}, {})
-    
-    typ = hl.dtype(jir.typ().toString())
-    value = Env.hail().expr.ir.Interpret.interpretJSON(jir)
+    try:
+        jir = Env.hail().expr.ir.IRParser.parse_value_ir(code, {}, {})
+        typ = hl.dtype(jir.typ().toString())
+        value = Env.hail().expr.ir.Interpret.interpretJSON(jir)
+        result = {
+            'type': str(typ),
+            'value': value
+        }
+        info(f'result: {result}')
+        return flask.jsonify(result)
+    except FatalError as e:
+        return flask.jsonify({
+            'message': e.args[0]
+        }), 400
 
-    result = {
-        'type': str(typ),
-        'value': value
-    }
-    
-    info(f'result: {result}')
-    
-    return flask.jsonify(result)
 
 @app.route('/type/value', methods=['POST'])
 def value_type():
     code = flask.request.json
-
     info(f'value type: {code}')
-
-    jir = Env.hail().expr.ir.IRParser.parse_value_ir(code, {}, {})
-    result = jir.typ().toString()
-
-    info(f'result: {result}')
-
-    return flask.jsonify(result)
+    try:
+        jir = Env.hail().expr.ir.IRParser.parse_value_ir(code, {}, {})
+        result = jir.typ().toString()
+        info(f'result: {result}')
+        return flask.jsonify(result)
+    except FatalError as e:
+        return flask.jsonify({
+            'message': e.args[0]
+        }), 400
+    
 
 @app.route('/type/table', methods=['POST'])
 def table_type():
     code = flask.request.json
-
     info(f'table type: {code}')
-
-    jir = Env.hail().expr.ir.IRParser.parse_table_ir(code, {}, {})
-    ttyp = hl.ttable._from_java(jir.typ())
-    
-    result = {'global': str(ttyp.global_type),
-              'row': str(ttyp.row_type),
-              'row_key': ttyp.row_key}
-    
-    info(f'result: {result}')
-
-    return flask.jsonify(result)
+    try:
+        jir = Env.hail().expr.ir.IRParser.parse_table_ir(code, {}, {})
+        ttyp = hl.ttable._from_java(jir.typ())
+        result = {'global': str(ttyp.global_type),
+                  'row': str(ttyp.row_type),
+                  'row_key': ttyp.row_key}
+        info(f'result: {result}')
+        return flask.jsonify(result)
+    except FatalError as e:
+        return flask.jsonify({
+            'message': e.args[0]
+        }), 400
 
 
 @app.route('/type/matrix', methods=['POST'])
 def matrix_type():
     code = flask.request.json
-
     info(f'matrix type: {code}')
+    try:
+        jir = Env.hail().expr.ir.IRParser.parse_matrix_ir(code, {}, {})
+        mtyp = hl.tmatrix._from_java(jir.typ())
+        result = {'global': str(mtyp.global_type),
+                  'col': str(mtyp.col_type),
+                  'col_key': mtyp.col_key,
+                  'row': str(mtyp.row_type),
+                  'row_key': mtyp.row_key,
+                  'entry': str(mtyp.entry_type)}
+        info(f'result: {result}')
+        return flask.jsonify(result)
+    except FatalError as e:
+        return flask.jsonify({
+            'message': e.args[0]
+        }), 400
 
-    jir = Env.hail().expr.ir.IRParser.parse_matrix_ir(code, {}, {})
-    mtyp = hl.tmatrix._from_java(jir.typ())
-    
-    result = {'global': str(mtyp.global_type),
-              'col': str(mtyp.col_type),
-              'col_key': mtyp.col_key,
-              'row': str(mtyp.row_type),
-              'row_key': mtyp.row_key,
-              'entry': str(mtyp.entry_type)}
-    
-    info(f'result: {result}')
-
-    return flask.jsonify(result)
 
 @app.route('/references/create', methods=['POST'])
 def create_reference():
@@ -150,7 +153,7 @@ def reference_add_sequence():
 def reference_remove_sequence():
     try:
         data = flask.request.json
-        Env.hail().variant.ReferenceGenome.removeSequence(data['name'], data['fasta_file'], data['index_file'])
+        scala_object(Env.hail().variant, 'ReferenceGenome').removeSequence(data['name'])
         return '', 204
     except FatalError as e:
         return flask.jsonify({
@@ -183,8 +186,8 @@ def reference_remove_liftover():
 def parse_vcf_metadata():
     try:
         data = flask.request.json
-        metadata = Env.hc()._jhc.pyParseVCFMetadata(data['path'])
-        return metadata
+        return flask.jsonify(
+            json.loads(Env.hc()._jhc.pyParseVCFMetadataJSON(data['path'])))
     except FatalError as e:
         return flask.jsonify({
             'message': e.args[0]

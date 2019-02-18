@@ -26,6 +26,8 @@ import org.apache.spark._
 import org.apache.spark.executor.InputMetrics
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SQLContext
+import org.json4s.Extraction
+import org.json4s.jackson.JsonMethods
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -498,14 +500,11 @@ class HailContext private(val sc: SparkContext,
     LoadVCF.parseHeaderMetadata(this, reader, file)
   }
 
-  def pyParseVCFMetadata(file: String): java.util.Map[String, java.util.Map[String, java.util.Map[String, String]]] = {
+  def pyParseVCFMetadataJSON(file: String): String = {
     val reader = new HtsjdkRecordReader(Set.empty)
     val metadata = LoadVCF.parseHeaderMetadata(this, reader, file)
-    metadata.mapValues { groupIds =>
-      groupIds.mapValues { fields =>
-        fields.asJava
-      }.asJava
-    }.asJava
+    implicit val formats = defaultJSONFormats
+    JsonMethods.compact(Extraction.decompose(metadata))
   }
   
   def importMatrix(files: java.util.ArrayList[String],

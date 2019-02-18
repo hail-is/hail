@@ -163,7 +163,7 @@ class SparkBackend(Backend):
         scala_object(Env.hail().variant, 'ReferenceGenome').referenceRemoveLiftover(name, dest_reference_genome)
 
     def parse_vcf_metadata(self, path):
-        return Env.hc()._jhc.pyParseVCFMetadata(path)
+        return json.loads(Env.hc()._jhc.pyParseVCFMetadataJSON(path))
 
 
 class LocalBackend(Backend):
@@ -196,18 +196,22 @@ class ServiceBackend(Backend):
     def execute(self, ir):
         code = self._render(ir)
         resp = requests.post(f'{self.url}/execute', json=code)
+        if resp.status_code == 400:
+            resp_json = resp.json()
+            raise FatalError(resp_json['message'])
         resp.raise_for_status()
         
         resp_json = resp.json()
-        
         typ = dtype(resp_json['type'])
         result = resp_json['value']
-        
         return typ._from_json(result)
 
     def _request_type(self, ir, kind):
         code = self._render(ir)
         resp = requests.post(f'{self.url}/type/{kind}', json=code)
+        if resp.status_code == 400:
+            resp_json = resp.json()
+            raise FatalError(resp_json['message'])
         resp.raise_for_status()
         
         return resp.json()
@@ -225,8 +229,7 @@ class ServiceBackend(Backend):
         return tmatrix._from_json(resp)
 
     def blockmatrix_type(self, bmir):
-        resp = self._request_type(bmir, 'blockmatrix')
-        return tblockmatrix._from_json(resp)
+        raise NotImplementedError("ServiceBackend doesn't support blockmatrix_type, only SparkBackend")
 
     def add_reference(self, config):
         resp = requests.post(f'{self.url}/references/create', json=config)
