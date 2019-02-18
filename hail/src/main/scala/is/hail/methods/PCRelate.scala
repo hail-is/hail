@@ -1,14 +1,15 @@
 package is.hail.methods
 
 import breeze.linalg.{DenseMatrix => BDM}
-import is.hail.annotations.Annotation
+import is.hail.annotations.{Annotation, BroadcastRow}
 import is.hail.linalg.BlockMatrix
 import is.hail.linalg.BlockMatrix.ops._
 import is.hail.table.Table
 import is.hail.utils._
 import is.hail.variant.{Call, HardCallView, MatrixTable}
 import is.hail.HailContext
-import is.hail.expr.ir.{IR, Interpret, TableIR}
+import is.hail.expr.ir.{IR, Interpret, TableIR, TableKeyBy, TableLiteral, TableValue}
+import is.hail.expr.types.TableType
 import is.hail.expr.types.virtual._
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.mllib.linalg.Vectors
@@ -60,7 +61,10 @@ object PCRelate {
     
     val result = new PCRelate(maf, blockSize, statistics, defaultStorageLevel)(HailContext.get, blockedG, pcs)
 
-    Table(HailContext.get, toRowRdd(result, blockSize, minKinship, statistics), sig, keys).tir
+    TableKeyBy(TableLiteral(TableValue(TableType(sig, FastIndexedSeq(), TStruct.empty()),
+      BroadcastRow.empty(HailContext.get.sc),
+      toRowRdd(result, blockSize, minKinship, statistics))),
+      keys)
   }
 
   private[methods] def apply(hc: HailContext,

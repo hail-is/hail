@@ -1934,7 +1934,7 @@ class TableToValueApply(IR):
 
     def _compute_type(self, env, agg_env):
         name = self.config['name']
-        if: name == 'ForceCountTable':
+        if name == 'ForceCountTable':
             self._type = tint64
         else:
             assert name == 'NPartitionsTable', name

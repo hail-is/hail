@@ -1811,7 +1811,7 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
 
     ht = Table._from_java(scala_object(Env.hail().methods, 'PCRelate')
                           .pyApply(g._jbm,
-                                   Env.spark_backend()._to_java_ir(scores_table.collect(_localize=False)._ir),
+                                   Env.spark_backend('pc_relate')._to_java_ir(scores_table.collect(_localize=False)._ir),
                                    min_individual_maf,
                                    block_size,
                                    min_kinship,

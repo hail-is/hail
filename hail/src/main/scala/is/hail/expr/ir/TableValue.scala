@@ -17,14 +17,19 @@ import org.apache.spark.storage.StorageLevel
 import org.json4s.jackson.JsonMethods
 
 object TableValue {
-  def apply(typ: TableType, globals: BroadcastRow, rdd: RDD[Row]): TableValue = {
+  def fromCRDDRV(typ: TableType, globals: BroadcastRow, rdd: ContextRDD[RVDContext, RegionValue]): TableValue = {
     Interpret(
       TableKeyBy(TableLiteral(TableValue(typ.copy(key = FastIndexedSeq()), globals,
-        RVD.unkeyed(typ.rowType.physicalType,
-          ContextRDD.weaken[RVDContext](rdd)
-            .cmapPartitions((ctx, it) => it.toRegionValueIterator(ctx.region, typ.rowType.physicalType))))),
+        RVD.unkeyed(typ.rowType.physicalType, rdd))),
         typ.key), optimize = true)
   }
+
+  def apply(typ: TableType, globals: BroadcastRow, rdd: ContextRDD[RVDContext, Row]): TableValue =
+    fromCRDDRV(typ, globals,
+      rdd.cmapPartitions((ctx, it) => it.toRegionValueIterator(ctx.region, typ.rowType.physicalType)))
+
+  def apply(typ: TableType, globals: BroadcastRow, rdd: RDD[Row]): TableValue =
+    TableValue(typ, globals, ContextRDD.weaken[RVDContext](rdd))
 }
 
 case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {

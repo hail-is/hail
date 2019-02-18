@@ -148,7 +148,7 @@ def maximal_independent_set(i, j, keep=True, tie_breaker=None, keyed=True) -> Ta
 
     mis_nodes_t = hl.tset(node_t)
     mis_nodes = mis_nodes_t._from_json(Env.hail().utils.Graph.pyMaximalIndependentSetJSON(
-        edges.row.dtype._to_json(edges.collect()),
+        hl.tarray(edges.row.dtype)._to_json(edges.collect()),
         node_t._parsable_string(),
         joption(tie_breaker_str)))
     

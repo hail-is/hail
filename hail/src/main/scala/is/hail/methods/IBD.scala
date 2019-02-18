@@ -8,7 +8,7 @@ import is.hail.annotations._
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PString, PType}
 import is.hail.expr.types.virtual.{TFloat64, TInt64, TString, TStruct}
-import is.hail.rvd.RVDContext
+import is.hail.rvd.{RVD, RVDContext}
 import is.hail.sparkextras.ContextRDD
 import is.hail.variant.{Call, Genotype, HardCallView, MatrixTable}
 import is.hail.stats.RegressionUtils
@@ -326,7 +326,10 @@ object IBD {
     val sampleIds = vds.stringSampleIds
 
     val ktRdd2 = computeIBDMatrix(vds, computeMaf, min, max, sampleIds, bounded)
-    new Table(vds.hc, ktRdd2, ibdSignature, IndexedSeq("i", "j")).tir
+    TableKeyBy(TableLiteral(TableValue.fromCRDDRV(TableType(ibdSignature, FastIndexedSeq(), TStruct.empty()),
+      BroadcastRow.empty(HailContext.get.sc),
+      ktRdd2)),
+      FastIndexedSeq("i", "j"))
   }
 
   private val ibdSignature = TStruct(("i", TString()), ("j", TString())) ++ ExtendedIBDInfo.signature

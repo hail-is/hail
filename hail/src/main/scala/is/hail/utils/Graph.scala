@@ -39,7 +39,7 @@ object Graph {
     val nodeType = IRParser.parseType(nodeTypeStr)
     val edgesType = TStruct("__i" -> nodeType, "__j" -> nodeType)
 
-    val edges = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(edgesJSONStr), edgesType)
+    val edges = JSONAnnotationImpex.importAnnotation(JsonMethods.parse(edgesJSONStr), TArray(edgesType))
       .asInstanceOf[IndexedSeq[Row]]
       .toArray
 
