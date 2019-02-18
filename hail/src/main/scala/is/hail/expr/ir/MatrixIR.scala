@@ -110,12 +110,12 @@ abstract sealed class MatrixIR extends BaseIR {
 
   def persist(storageLevel: StorageLevel): MatrixIR = {
     val mv = Interpret(this)
-    TableLiteral(mv.persist(storageLevel))
+    MatrixLiteral(mv.persist(storageLevel))
   }
 
   def unpersist(): MatrixIR = {
     val mv = Interpret(this)
-    TableLiteral(mv.unpersist())
+    MatrixLiteral(mv.unpersist())
   }
 
   def pyPersist(storageLevel: String): MatrixIR = {
