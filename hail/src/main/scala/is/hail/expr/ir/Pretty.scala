@@ -204,6 +204,10 @@ object Pretty {
               prettyLongs(shape) + " " +
               blockSize.toString + " " +
               prettyBooleans(dimsPartitioned)
+            case BlockMatrixAgg(_, outIndexExpr, blockSize, dimsPartitioned) =>
+              prettyInts(outIndexExpr) + " " +
+              blockSize.toString + " " +
+              prettyBooleans(dimsPartitioned)
             case ValueToBlockMatrix(_, shape, blockSize, dimsPartitioned) =>
               prettyLongs(shape) + " " +
               blockSize.toString + " " +

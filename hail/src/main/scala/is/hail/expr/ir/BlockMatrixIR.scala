@@ -344,6 +344,42 @@ case class BlockMatrixBroadcast(
   }
 }
 
+case class BlockMatrixAgg(
+  child: BlockMatrixIR,
+  outIndexExpr: IndexedSeq[Int],
+  blockSize: Int,
+  dimsPartitioned: IndexedSeq[Boolean]) extends BlockMatrixIR {
+
+  assert(outIndexExpr.length < 2)
+
+  override def typ: BlockMatrixType = {
+    val isRowVector = outIndexExpr == IndexedSeq(1)
+
+    BlockMatrixType(child.typ.elementType, shape, isRowVector, blockSize, dimsPartitioned)
+  }
+
+  private def shape: IndexedSeq[Long] = {
+    outIndexExpr.map({ i: Int => child.typ.shape(i) }).toIndexedSeq
+  }
+
+  override def children: IndexedSeq[BaseIR] = Array(child)
+
+  override def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
+    assert(newChildren.length == 1)
+    BlockMatrixAgg(newChildren(0).asInstanceOf[BlockMatrixIR], outIndexExpr, blockSize, dimsPartitioned)
+  }
+
+  override protected[ir] def execute(hc: HailContext): BlockMatrix = {
+    val childBm = child.execute(hc)
+
+    outIndexExpr match {
+      case IndexedSeq() => BlockMatrixIR.toBlockMatrix(hc, nRows = 1, nCols = 1, Array(childBm.sum()), blockSize)
+      case IndexedSeq(1) => childBm.rowSum()
+      case IndexedSeq(0) => childBm.colSum()
+    }
+  }
+}
+
 case class ValueToBlockMatrix(
   child: IR,
   shape: IndexedSeq[Long],

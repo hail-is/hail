@@ -104,6 +104,36 @@ class BlockMatrixBroadcast(BlockMatrixIR):
                                   self.dims_partitioned)
 
 
+class BlockMatrixAgg(BlockMatrixIR):
+    @typecheck_method(child=BlockMatrixIR,
+                      out_index_expr=sequenceof(int),
+                      block_size=int,
+                      dims_partitioned=sequenceof(bool))
+    def __init__(self, child, out_index_expr, block_size, dims_partitioned):
+        super().__init__()
+        self.child = child
+        self.out_index_expr = out_index_expr
+        self.block_size = block_size
+        self.dims_partitioned = dims_partitioned
+
+    def render(self, r):
+        return '(BlockMatrixAgg {} {} {} {})' \
+            .format(_serialize_ints(self.out_index_expr),
+                    self.block_size,
+                    _serialize_ints(self.dims_partitioned),
+                    r(self.child))
+
+    def _compute_type(self):
+        shape = [self.child.typ.shape[i] for i in self.out_index_expr]
+        is_row_vector = self.out_index_expr == [1]
+
+        self._type = tblockmatrix(self.child.typ.element_type,
+                                  shape,
+                                  is_row_vector,
+                                  self.block_size,
+                                  self.dims_partitioned)
+
+
 class ValueToBlockMatrix(BlockMatrixIR):
     @typecheck_method(child=IR,
                       shape=sequenceof(int),

@@ -7,7 +7,7 @@ import hail.expr.aggregators as agg
 from hail.expr import construct_expr
 from hail.ir import BlockMatrixWrite, BlockMatrixMap2, ApplyBinaryOp, Ref, F64, \
     BlockMatrixBroadcast, ValueToBlockMatrix, MakeArray, BlockMatrixRead, JavaBlockMatrix, BlockMatrixMap,\
-    ApplyUnaryOp, IR, BlockMatrixDot, tensor_shape_to_matrix_shape
+    ApplyUnaryOp, IR, BlockMatrixDot, tensor_shape_to_matrix_shape, BlockMatrixAgg
 from hail.utils import new_temp_file, new_local_temp_file, local_path_uri, storage_level
 from hail.utils.java import Env, jarray, joption
 from hail.typecheck import *
@@ -1449,11 +1449,13 @@ class BlockMatrix(object):
             If ``1``, returns a block matrix with a single column.
         """
         if axis is None:
-            return self._jbm.sum()
-        elif axis == 0:
-            return BlockMatrix._from_java(self._jbm.rowSum())
-        elif axis == 1:
-            return BlockMatrix._from_java(self._jbm.colSum())
+            bmir = BlockMatrixAgg(self._bmir, [], self.block_size, [])
+            return BlockMatrix(bmir)[0, 0]
+        elif axis == 0 or axis == 1:
+            out_index_expr = [1] if axis == 0 else [0]
+
+            bmir = BlockMatrixAgg(self._bmir, out_index_expr, self.block_size, [True])
+            return BlockMatrix(bmir)
         else:
             raise ValueError(f'axis must be None, 0, or 1: found {axis}')
 
