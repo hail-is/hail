@@ -325,9 +325,8 @@ object IBD {
     val computeMaf = mafFieldName.map(generateComputeMaf(vds, _))
     val sampleIds = vds.stringSampleIds
 
-    val ktRdd2 = computeIBDMatrix(vds, computeMaf, min, max, sampleIds, bounded)
-    TableKeyBy(TableLiteral(TableValue(ibdSignature, FastIndexedSeq(), ktRdd2)),
-      FastIndexedSeq("i", "j"))
+    TableLiteral(TableValue(ibdSignature, FastIndexedSeq("i", "j"),
+      computeIBDMatrix(vds, computeMaf, min, max, sampleIds, bounded)))
   }
 
   private val ibdSignature = TStruct(("i", TString()), ("j", TString())) ++ ExtendedIBDInfo.signature

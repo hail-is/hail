@@ -1215,9 +1215,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
         }
     }
 
-    TableLiteral(TableValue(TableType(rowType, IndexedSeq.empty[String], TStruct.empty()),
-      BroadcastRow.empty(),
-      RVD.unkeyed(rowType.physicalType, entriesRDD)))
+    TableLiteral(TableValue(rowType, FastIndexedSeq(), entriesRDD))
   }
 }
 

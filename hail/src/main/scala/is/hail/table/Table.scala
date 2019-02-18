@@ -52,8 +52,7 @@ object Table {
   def pyFromDF(df: DataFrame, jKey: java.util.ArrayList[String]): TableIR = {
     val key = jKey.asScala.toArray.toFastIndexedSeq
     val signature = SparkAnnotationImpex.importType(df.schema).asInstanceOf[TStruct]
-    TableKeyBy(TableLiteral(TableValue(signature, FastIndexedSeq(), df.rdd)),
-      key)
+    TableLiteral(TableValue(signature, key, df.rdd))
   }
 
   def read(hc: HailContext, path: String): Table =

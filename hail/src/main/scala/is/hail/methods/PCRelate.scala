@@ -63,8 +63,7 @@ object PCRelate {
     
     val result = new PCRelate(maf, blockSize, statistics, defaultStorageLevel)(HailContext.get, blockedG, pcs)
 
-    TableKeyBy(TableLiteral(TableValue(sig, FastIndexedSeq(), toRowRdd(result, blockSize, minKinship, statistics))),
-      keys)
+    TableLiteral(TableValue(sig, keys, toRowRdd(result, blockSize, minKinship, statistics)))
   }
 
   private[methods] def apply(hc: HailContext,

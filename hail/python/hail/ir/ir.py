@@ -2044,6 +2044,9 @@ class JavaIR(IR):
     def render(self, r):
         return f'(JavaIR {r.add_jir(self._jir)})'
 
+    def _compute_type(self, env, agg_env):
+        self._type = dtype(self._jir.typ().toString())
+
 
 def subst(ir, env, agg_env):
     def _subst(ir, env2=None, agg_env2=None):
