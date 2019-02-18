@@ -109,13 +109,13 @@ class SparkBackend(Backend):
         return Table._from_java(self._to_java_ir(t._tir).pyPersist(storage_level))
 
     def unpersist_table(self, t):
-        return Table._from_java(self.to_java_ir(t._tir).pyUnpersist())
+        return Table._from_java(self._to_java_ir(t._tir).pyUnpersist())
 
     def persist_matrix_table(self, mt, storage_level):
-        return MatrixTable._from_java(mt._jmt.persist(storage_level))
+        return MatrixTable._from_java(self._to_java_ir(mt._mir).pyPersist(storage_level))
 
     def unpersist_matrix_table(self, mt):
-        return MatrixTable._from_java(mt._jmt.unpersist())
+        return MatrixTable._from_java(self._to_java_ir(mt._mir).pyUnpersist())
     
     def blockmatrix_type(self, bmir):
         jir = self._to_java_ir(bmir)
