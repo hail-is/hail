@@ -91,7 +91,7 @@ class MatrixIRSuite extends SparkSuite {
 
   def rangeRowMatrix(start: Int, end: Int): MatrixIR = {
     val i = end - start
-    val baseRange = MatrixTable.range(hc, i, 5, Some(math.min(4, i))).ast
+    val baseRange = MatrixTable.range(hc, i, 5, Some(math.max(1, math.min(4, i)))).ast
     val row = Ref("va", baseRange.typ.rvRowType)
     MatrixKeyRowsBy(
       MatrixMapRows(
