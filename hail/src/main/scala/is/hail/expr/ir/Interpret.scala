@@ -783,7 +783,7 @@ object Interpret {
         tableValue.export(path, typesFile, header, exportType, delimiter)
       case BlockMatrixWrite(child, writer) =>
         val hc = HailContext.get
-        writer(child.execute(hc))
+        writer(hc, child.execute(hc))
       case TableToValueApply(child, function) =>
         function.execute(child.execute(HailContext.get))
       case MatrixToValueApply(child, function) =>

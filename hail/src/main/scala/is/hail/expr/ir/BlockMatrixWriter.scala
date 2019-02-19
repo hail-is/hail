@@ -15,7 +15,7 @@ object BlockMatrixWriter {
 
 
 abstract class BlockMatrixWriter {
-  def apply(bm: BlockMatrix): Unit
+  def apply(hc: HailContext, bm: BlockMatrix): Unit
 }
 
 case class BlockMatrixNativeWriter(
