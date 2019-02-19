@@ -30,6 +30,16 @@ object BlockMatrixIR {
       case _ => (IndexedSeq(nRows, nCols), false)
     }
   }
+
+  def tensorShapeToMatrixShape(shape: IndexedSeq[Long], isRowVector: Boolean): (Long, Long) = {
+    assert(shape.length <= 2)
+
+    shape match {
+      case IndexedSeq() => (1, 1)
+      case IndexedSeq(len) => if (isRowVector) (len, 1) else (1, len)
+      case IndexedSeq(r, c) => (r, c)
+    }
+  }
 }
 
 abstract sealed class BlockMatrixIR extends BaseIR {
@@ -250,10 +260,17 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, f: IR) ext
 }
 
 case class BlockMatrixDot(left: BlockMatrixIR, right: BlockMatrixIR) extends BlockMatrixIR {
+
   override def typ: BlockMatrixType = {
+    val (lRows, lCols) = BlockMatrixIR.tensorShapeToMatrixShape(left.typ.shape, left.typ.isRowVector)
+    val (rRows, rCols) = BlockMatrixIR.tensorShapeToMatrixShape(left.typ.shape, left.typ.isRowVector)
+    assert(lCols == rRows)
+
+    val (tensorShape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(lRows, rCols)
     BlockMatrixType(
       left.typ.elementType,
-      IndexedSeq(left.typ.shape(0), right.typ.shape(1)),
+      tensorShape,
+      isRowVector,
       left.typ.blockSize,
       IndexedSeq(left.typ.dimsPartitioned(0), right.typ.dimsPartitioned(1)))
   }
@@ -277,11 +294,14 @@ case class BlockMatrixBroadcast(
   blockSize: Int,
   dimsPartitioned: IndexedSeq[Boolean]) extends BlockMatrixIR {
 
+  assert(shape.length == 2)
   assert(inIndexExpr.length < 2 || (inIndexExpr.length == 2 && inIndexExpr(0) != inIndexExpr(1)))
-  assert(inIndexExpr.zipWithIndex.forall({ case (out: Int, in: Int) => child.typ.shape(in) == shape(out) }))
 
   override def typ: BlockMatrixType = {
-    BlockMatrixType(child.typ.elementType, shape, isRowVector = false, blockSize, dimsPartitioned)
+    val (tensorShape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(shape(0), shape(1))
+    assert(inIndexExpr.zipWithIndex.forall({ case (out: Int, in: Int) => child.typ.shape(in) == tensorShape(out) }))
+
+    BlockMatrixType(child.typ.elementType, tensorShape, isRowVector, blockSize, dimsPartitioned)
   }
 
   override def children: IndexedSeq[BaseIR] = Array(child)

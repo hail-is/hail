@@ -38,7 +38,7 @@ object Pretty {
 
   def prettyInts(x: IndexedSeq[Int]): String = x.mkString("(", " ", ")")
 
-  def prettyLiterals[T](x: IndexedSeq[T]): String = x.mkString("(", " ", ")")
+  def prettyBooleans(bools: IndexedSeq[Boolean]): String = prettyIdentifiers(bools.map(prettyBooleanLiteral))
 
   def prettyLongsOpt(x: Option[IndexedSeq[Long]]): String =
     x.map(prettyLongs).getOrElse("None")
@@ -200,11 +200,11 @@ object Pretty {
               prettyInts(inIndexExpr) + " " +
               prettyLongs(shape) + " " +
               blockSize.toString + " " +
-              prettyLiterals(dimsPartitioned)
+              prettyBooleans(dimsPartitioned)
             case ValueToBlockMatrix(_, shape, blockSize, dimsPartitioned) =>
               prettyLongs(shape) + " " +
               blockSize.toString + " " +
-              prettyLiterals(dimsPartitioned)
+              prettyBooleans(dimsPartitioned)
             case MatrixRowsHead(_, n) => n.toString
             case MatrixAnnotateRowsTable(_, _, uid) =>
               prettyStringLiteral(uid) + " "

@@ -1,6 +1,5 @@
 from hail.expr.blockmatrix_type import tblockmatrix
-from hail.expr.types import tarray
-from hail.ir import BlockMatrixIR, IR
+from hail.ir import BlockMatrixIR, IR, tarray
 from hail.utils.java import escape_str
 from hail.typecheck import typecheck_method, sequenceof
 
@@ -63,8 +62,14 @@ class BlockMatrixDot(BlockMatrixIR):
     def _compute_type(self):
         l_type = self.left.typ
         r_type = self.right.typ
+
+        l_rows, l_cols = tensor_shape_to_matrix_shape(l_type.shape, l_type.is_row_vector)
+        r_rows, r_cols = tensor_shape_to_matrix_shape(r_type.shape, r_type.is_row_vector)
+        assert l_cols == r_rows
+
+        tensor_shape, is_row_vector = _matrix_shape_to_tensor_shape([l_rows, r_cols])
         self._type = tblockmatrix(l_type.element_type,
-                                  [l_type.shape[0], r_type.shape[1]],
+                                  tensor_shape, is_row_vector,
                                   l_type.block_size,
                                   [l_type.dims_partitioned[0], r_type.dims_partitioned[1]])
 
@@ -92,9 +97,9 @@ class BlockMatrixBroadcast(BlockMatrixIR):
                     r(self.child))
 
     def _compute_type(self):
+        tensor_shape, is_row_vector = _matrix_shape_to_tensor_shape(self.shape)
         self._type = tblockmatrix(self.child.typ.element_type,
-                                  self.shape,
-                                  False,
+                                  tensor_shape, is_row_vector,
                                   self.block_size,
                                   self.dims_partitioned)
 
@@ -124,21 +129,10 @@ class ValueToBlockMatrix(BlockMatrixIR):
         else:
             element_type = child_type
 
-        tensor_shape, is_row_vector = self._matrix_shape_to_tensor_shape(self.shape)
-        self._type = tblockmatrix(element_type, tensor_shape, is_row_vector, self.block_size, self.dims_partitioned)
-
-    @staticmethod
-    def _matrix_shape_to_tensor_shape(shape):
-        assert len(shape) == 2
-
-        if shape == [1, 1]:
-            return [], False
-        elif shape[0] == 1:
-            return [shape[1]], True
-        elif shape[1] == 1:
-            return [shape[0]], False
-        else:
-            return shape, False
+        tensor_shape, is_row_vector = _matrix_shape_to_tensor_shape(self.shape)
+        self._type = tblockmatrix(element_type,
+                                  tensor_shape, is_row_vector,
+                                  self.block_size, self.dims_partitioned)
 
 
 class JavaBlockMatrix(BlockMatrixIR):
@@ -155,3 +149,28 @@ class JavaBlockMatrix(BlockMatrixIR):
 
 def _serialize_ints(ints):
     return "(" + ' '.join([str(x) for x in ints]) + ")"
+
+
+def _matrix_shape_to_tensor_shape(shape):
+    assert len(shape) == 2
+
+    if shape == [1, 1]:
+        return [], False
+    elif shape[0] == 1:
+        return [shape[1]], True
+    elif shape[1] == 1:
+        return [shape[0]], False
+    else:
+        return shape, False
+
+
+def tensor_shape_to_matrix_shape(shape, is_row_vector):
+    assert len(shape) <= 2
+
+    if len(shape) == 0:
+        return 1, 1
+    elif len(shape) == 1:
+        length = shape[0]
+        return (1, length) if is_row_vector else (length, 1)
+    else:
+        return tuple(shape)
