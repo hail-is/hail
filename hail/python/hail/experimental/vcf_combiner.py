@@ -12,7 +12,7 @@ def transform_one(mt: MatrixTable) -> MatrixTable:
     """transforms a gvcf into a form suitable for combining"""
     mt = mt.annotate_entries(
         # local (alt) allele index into global (alt) alleles
-        LA=hl.range(0, hl.len(mt.alleles) - 1),
+        LA=hl.range(1, hl.len(mt.alleles)),
         END=mt.info.END,
         BaseQRankSum=mt.info['BaseQRankSum'],
         ClippingRankSum=mt.info['ClippingRankSum'],
@@ -37,8 +37,8 @@ def transform_one(mt: MatrixTable) -> MatrixTable:
         ))
     mt = mt.transmute_entries(
         LGT=mt.GT,
-        LAD=mt.AD,
-        LPL=mt.PL,
+        LAD=mt.AD[0:],  # requiredness issues :'(
+        LPL=mt.PL[0:],
         LPGT=mt.PGT)
     mt = mt.drop('SB', 'qual', 'filters')
 
@@ -55,7 +55,7 @@ def merge_alleles(alleles) -> ArrayExpression:
 
 def renumber_entry(entry, old_to_new) -> StructExpression:
     # global index of alternate (non-ref) alleles
-    return entry.annotate(LA=entry.LA.map(lambda lak: old_to_new[lak]))
+    return entry.annotate(LA=entry.LA.map(lambda lak: old_to_new[lak - 1]))
 
 
 def combine(ts):
@@ -86,8 +86,8 @@ def combine(ts):
                             lambda old_to_new: tmp.data[i].__entries.map(lambda e: renumber_entry(e, old_to_new)),
                             hl.range(0, hl.len(tmp.data[i].alleles)).map(
                                 lambda j: combined_allele_index[tmp.data[i].alleles[j]])))),
-            hl.dict(hl.range(0, hl.len(tmp.alleles)).map(
-                lambda j: hl.tuple([tmp.alleles[j], j])))))
+            hl.dict(hl.range(1, hl.len(tmp.alleles) + 1).map(
+                lambda j: hl.tuple([tmp.alleles[j - 1], j])))))
     tmp = tmp.annotate_globals(__cols=hl.flatten(tmp.g.map(lambda g: g.__cols)))
 
     return tmp.drop('data', 'g')
@@ -112,11 +112,12 @@ def combine_gvcfs(mts):
         return hl.array([ref]).extend(alts)
 
     def min_rep(locus, ref, alt):
-        mr = hl.min_rep(locus, [ref, alt])
-        return (hl.case()
-                  .when(alt == '<NON_REF>', hl.struct(ref=ref[0:1], alt=alt))
-                  .when(locus == mr.locus, hl.struct(ref=mr.alleles[0], alt=mr.alleles[1]))
-                  .or_error("locus before and after minrep differ"))
+        return hl.rbind(
+            hl.min_rep(locus, [ref, alt]),
+            lambda mr: hl.case()
+                         .when(alt == '<NON_REF>', hl.struct(ref=ref[0:1], alt=alt))
+                         .when(locus == mr.locus, hl.struct(ref=mr.alleles[0], alt=mr.alleles[1]))
+                         .or_error("locus before and after minrep differ"))
 
     mts = [hl.MatrixTable(MatrixKeyRowsBy(mt._mir, ['locus'], is_sorted=True)) for mt in mts]
     mts = [mt.annotate_rows(
@@ -136,8 +137,8 @@ def combine_gvcfs(mts):
 @typecheck(lgt=expr_call, la=expr_array(expr_int32))
 def lgt_to_gt(lgt, la):
     """A method for transforming Local GT and Local Alleles into the true GT"""
-    one = hl.cond(lgt[0] == 0, 0, la[lgt[0] - 1] + 1)
-    two = hl.cond(lgt[1] == 0, 0, la[lgt[1] - 1] + 1)
+    one = hl.cond(lgt[0] == 0, 0, la[lgt[0] - 1])
+    two = hl.cond(lgt[1] == 0, 0, la[lgt[1] - 1])
     return hl.call(one, two)
 
 
