@@ -265,7 +265,7 @@ case class BlockMatrixDot(left: BlockMatrixIR, right: BlockMatrixIR) extends Blo
 
   override def typ: BlockMatrixType = {
     val (lRows, lCols) = BlockMatrixIR.tensorShapeToMatrixShape(left)
-    val (rRows, rCols) = BlockMatrixIR.tensorShapeToMatrixShape(left)
+    val (rRows, rCols) = BlockMatrixIR.tensorShapeToMatrixShape(right)
     assert(lCols == rRows)
 
     val (tensorShape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(lRows, rCols)
