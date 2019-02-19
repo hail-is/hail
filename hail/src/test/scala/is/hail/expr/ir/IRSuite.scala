@@ -666,9 +666,11 @@ class IRSuite extends SparkSuite {
 
     assertEvalsTo(ArrayFlatMap(ArrayRange(I32(0), I32(3), I32(1)), "i", ArrayRef(a, Ref("i", TInt32()))), FastIndexedSeq(7, null, 2))
 
-    assertEvalsTo(Let("a", I32(5),
-      ArrayFlatMap(a, "a", Ref("a", ta))),
-      FastIndexedSeq(7, null, 2))
+    assertEvalsTo(Let("a", I32(5), ArrayFlatMap(a, "a", Ref("a", ta))), FastIndexedSeq(7, null, 2))
+
+    val arr = MakeArray(List(I32(1), I32(5), I32(2), NA(TInt32())), TArray(TInt32()))
+    val expected = FastIndexedSeq(-1, 0, -1, 0, 1, 2, 3, 4, -1, 0, 1)
+    assertEvalsTo(ArrayFlatMap(arr, "foo", ArrayRange(I32(-1), Ref("foo", TInt32()), I32(1))), expected)
   }
 
   @Test def testArrayFold() {

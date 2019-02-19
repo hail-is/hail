@@ -239,10 +239,6 @@ class InterpretSuite {
     assertEvalSame(ArrayFilter(arr, "foo", ApplyComparisonOp(LT(TInt32()), Ref("foo", TInt32()), NA(TInt32()))))
   }
 
-  @Test def testArrayFlatMap() {
-    assertEvalSame(ArrayFlatMap(arr, "foo", ArrayRange(I32(-1), Ref("foo", TInt32()), I32(1))))
-  }
-
   @Test def testArrayFold() {
     assertEvalSame(ArrayFold(arr, I32(0), "sum", "element", ApplyBinaryPrimOp(Add(), Ref("sum", TInt32()), Ref("element", TInt32()))))
   }

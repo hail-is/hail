@@ -1,5 +1,7 @@
 package is.hail.cxx
 
+import java.io.FileOutputStream
+
 import is.hail.expr.ir
 import is.hail.expr.types.physical._
 import is.hail.nativecode.NativeStatus
@@ -8,6 +10,7 @@ import is.hail.utils.fatal
 import scala.reflect.classTag
 
 object Compile {
+  var i = 0
   def apply(
     arg0: String, arg0Type: PType,
     body: ir.IR, optimize: Boolean): (Long, Long) => Long = {
@@ -23,17 +26,19 @@ object Compile {
     tub.include("hail/hail.h")
     tub.include("hail/Utils.h")
     tub.include("hail/Region.h")
+    tub.include("hail/Upcalls.h")
 
     tub.include("<cstring>")
 
     val fb = tub.buildFunction("f",
-      Array("Region *" -> "region", "const char *" -> "v"),
+      Array("RegionPtr" -> "region", "const char *" -> "v"),
       "char *")
 
     val v = Emit(fb, 1, ir.Subst(body, ir.Env(arg0 -> ir.In(0, arg0Type.virtualType))))
 
     fb +=
       s"""
+         |UpcallEnv up;
          |${ v.setup }
          |if (${ v.m })
          |  abort();
@@ -48,7 +53,7 @@ object Compile {
         s"""
            |long entrypoint(NativeStatus *st, long region, long v) {
            |  try {
-           |    return (long)${ f.name }(((ScalaRegion *)region)->get_wrapped_region(), (char *)v);
+           |    return (long)${ f.name }(((ScalaRegion *)region)->region_, (char *)v);
            |  } catch (const FatalError& e) {
            |    NATIVE_ERROR(st, 1005, e.what());
            |    return -1;
@@ -59,6 +64,7 @@ object Compile {
 
     val tu = tub.end()
     val mod = tu.build(if (optimize) "-ggdb -O1" else "-ggdb -O0")
+    i += 1
 
     val st = new NativeStatus()
     mod.findOrBuild(st)

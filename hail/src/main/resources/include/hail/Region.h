@@ -27,6 +27,7 @@ class Region {
           if (region_ != nullptr) { ++(region_->references_); }
         }
       public:
+        SharedPtr(std::nullptr_t) : region_(nullptr) { }
         SharedPtr(const SharedPtr &ptr) : SharedPtr(ptr.region_) { }
         SharedPtr(SharedPtr &&ptr) : region_(ptr.region_) { ptr.region_ = nullptr; }
         ~SharedPtr() { clear(); }

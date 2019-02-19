@@ -89,7 +89,7 @@ case class SparkStage(
     tub.include("hail/Region.h")
 
     tub.include("<cstring>")
-    val ef = tub.buildFunction("process_partition", Array("Region *" -> "region", "const char *" -> "bindings", "const char *" -> "contexts"), "const char *")
+    val ef = tub.buildFunction("process_partition", Array("RegionPtr" -> "region", "const char *" -> "bindings", "const char *" -> "contexts"), "const char *")
 
     val et = cxx.Emit(ef, 1, resultIR)
     ef +=
@@ -109,7 +109,7 @@ case class SparkStage(
     wrapper +=
       s"""
          |try {
-         |  return (long) process_partition(((ScalaRegion *)${ wrapper.getArg(1) })->get_wrapped_region(), (char *)${ wrapper.getArg(2) }, (char *)${ wrapper.getArg(3) });
+         |  return (long) process_partition(((ScalaRegion *)${ wrapper.getArg(1) })->region_, (char *)${ wrapper.getArg(2) }, (char *)${ wrapper.getArg(3) });
          |} catch (const FatalError& e) {
          |  NATIVE_ERROR(${ wrapper.getArg(0) }, 1005, e.what());
          |  return -1;

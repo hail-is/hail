@@ -250,6 +250,14 @@ abstract class PType extends BaseType with Serializable {
     }
   }
 
+  final def isPrimitive: Boolean = {
+    fundamentalType.isInstanceOf[PBoolean] ||
+      fundamentalType.isInstanceOf[PInt32] ||
+      fundamentalType.isInstanceOf[PInt64] ||
+      fundamentalType.isInstanceOf[PFloat32] ||
+      fundamentalType.isInstanceOf[PFloat64]
+  }
+
   def subsetTo(t: Type): PType = {
     // FIXME
     t.physicalType
