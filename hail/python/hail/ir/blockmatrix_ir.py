@@ -64,7 +64,7 @@ class BlockMatrixDot(BlockMatrixIR):
         r_rows, r_cols = tensor_shape_to_matrix_shape(self.right)
         assert l_cols == r_rows
 
-        tensor_shape, is_row_vector = _matrix_shape_to_tensor_shape([l_rows, r_cols])
+        tensor_shape, is_row_vector = _matrix_shape_to_tensor_shape(l_rows, r_cols)
         self._type = tblockmatrix(self.left.typ.element_type,
                                   tensor_shape, is_row_vector,
                                   self.left.typ.block_size,
@@ -94,7 +94,8 @@ class BlockMatrixBroadcast(BlockMatrixIR):
                     r(self.child))
 
     def _compute_type(self):
-        tensor_shape, is_row_vector = _matrix_shape_to_tensor_shape(self.shape)
+        assert len(self.shape) == 2
+        tensor_shape, is_row_vector = _matrix_shape_to_tensor_shape(self.shape[0], self.shape[1])
         self._type = tblockmatrix(self.child.typ.element_type,
                                   tensor_shape, is_row_vector,
                                   self.block_size,
@@ -126,7 +127,8 @@ class ValueToBlockMatrix(BlockMatrixIR):
         else:
             element_type = child_type
 
-        tensor_shape, is_row_vector = _matrix_shape_to_tensor_shape(self.shape)
+        assert len(self.shape) == 2
+        tensor_shape, is_row_vector = _matrix_shape_to_tensor_shape(self.shape[0], self.shape[1])
         self._type = tblockmatrix(element_type,
                                   tensor_shape, is_row_vector,
                                   self.block_size, self.dims_partitioned)
@@ -148,17 +150,15 @@ def _serialize_ints(ints):
     return "(" + ' '.join([str(x) for x in ints]) + ")"
 
 
-def _matrix_shape_to_tensor_shape(shape):
-    assert len(shape) == 2
-
-    if shape == [1, 1]:
+def _matrix_shape_to_tensor_shape(n_rows, n_cols):
+    if n_rows == 1 and n_cols == 1:
         return [], False
-    elif shape[0] == 1:
-        return [shape[1]], True
-    elif shape[1] == 1:
-        return [shape[0]], False
+    elif n_rows == 1:
+        return [n_cols], True
+    elif n_cols == 1:
+        return [n_rows], False
     else:
-        return shape, False
+        return [n_rows, n_cols], False
 
 
 def tensor_shape_to_matrix_shape(bmir):
