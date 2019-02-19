@@ -100,7 +100,7 @@ object VEP {
   }
 }
 
-class VEP(config: String, csq: Boolean, blockSize: Int) extends TableToTableFunction {
+case class VEP(config: String, csq: Boolean, blockSize: Int) extends TableToTableFunction {
   private val conf = VEP.readConfiguration(HailContext.get.hadoopConf, config)
   private val vepSignature = conf.vep_json_schema
 
