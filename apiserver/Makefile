@@ -1,4 +1,4 @@
-.PHONY: install-hail-locally build push run run-hail rm deploy src-test-resources
+.PHONY: install-hail-locally build push run run-hail rm deploy
 
 PROJECT = $(shell gcloud config get-value project)
 
@@ -43,20 +43,6 @@ run-hail:
 
 rm:
 	docker rm -f spark-master spark-w-1
-
-src-test-resources:
-	rm -rf src
-	mkdir -p src/test
-	cp -a ../hail/src/test/resources src/test/
-
-# SPARK_PATH must be set
-run-local-apiserver:
-	(cd ../hail && ./gradlew shadowJar)
-	(cd ../hail && \
-  PYTHONPATH=$$(ls $$SPARK_HOME/python/lib/py4j-*-src.zip):$$SPARK_HOME/python:./python \
-  JAR=./build/libs/hail-all-spark.jar \
-  PYSPARK_SUBMIT_ARGS="--conf spark.driver.extraClassPath=./build/libs/hail-all-spark.jar --conf spark.executor.extraClassPath=./build/libs/hail-all-spark.jar pyspark-shell" \
-  python ../apiserver/apiserver/apiserver.py)
 
 # doesn't push
 run-hail-jupyter-pod: HAIL_JUPYTER_IMAGE=$(shell kubectl get deployment apiserver -o jsonpath='{.metadata.annotations.hail-jupyter-image}')

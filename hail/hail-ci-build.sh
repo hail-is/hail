@@ -20,6 +20,7 @@ CXX_TEST_LOG="build/cxx-test.log"
 SCALA_TEST_LOG="build/scala-test.log"
 CXX_CODEGEN_TEST_LOG="build/codegen-test.log"
 PYTHON_TEST_LOG="build/python-test.log"
+APISERVER_TEST_LOG="build/apiserver-test.log"
 DOCTEST_LOG="build/doctest.log"
 DOCS_LOG="build/docs.log"
 GCP_LOG="build/gcp.log"
@@ -30,6 +31,7 @@ CXX_TEST_SUCCESS="build/_CXX_TEST_SUCCESS"
 SCALA_TEST_SUCCESS="build/_SCALA_TEST_SUCCESS"
 CXX_CODEGEN_TEST_SUCCESS="build/_CXX_CODEGEN_TEST_SUCCESS"
 PYTHON_TEST_SUCCESS="build/_PYTHON_TEST_SUCCESS"
+APISERVER_TEST_SUCCESS="build/_APISERVER_TEST_SUCCESS"
 DOCTEST_SUCCESS="build/_DOCTEST_SUCCESS"
 DOCS_SUCCESS="build/_DOCS_SUCCESS"
 GCP_SUCCESS="build/_GCP_SUCCESS"
@@ -67,6 +69,7 @@ on_exit() {
     cp ${SCALA_TEST_LOG} ${ARTIFACTS}
     cp ${CXX_CODEGEN_TEST_LOG} ${ARTIFACTS}
     cp ${PYTHON_TEST_LOG} ${ARTIFACTS}
+    cp ${APISERVER_TEST_LOG} ${ARTIFACTS}
     cp ${DOCS_LOG} ${ARTIFACTS}
     cp ${DOCTEST_LOG} ${ARTIFACTS}
     cp ${GCP_LOG} ${ARTIFACTS}
@@ -216,6 +219,8 @@ test_project() {
     touch ${CXX_CODEGEN_TEST_SUCCESS}
     ./gradlew testPython > ${PYTHON_TEST_LOG} 2>&1
     touch ${PYTHON_TEST_SUCCESS}
+    make test-apiserver > ${APISERVER_TEST_LOG} 2>&1
+    touch ${APISERVER_TEST_SUCCESS}
     ./gradlew doctest > ${DOCTEST_LOG} 2>&1
     touch ${DOCTEST_SUCCESS}
     ./gradlew makeDocs > ${DOCS_LOG} 2>&1

@@ -13,6 +13,10 @@ hl.init(master=master, min_block_size=0)
 
 app = flask.Flask('hail-apiserver')
 
+@app.route('/healthcheck')
+def healthcheck():
+    return '', 200
+
 @app.route('/execute', methods=['POST'])
 def execute():
     code = flask.request.json
