@@ -24,11 +24,11 @@ case class BlockMatrixNativeWriter(
   forceRowMajor: Boolean,
   stageLocally: Boolean) extends BlockMatrixWriter {
 
-  def apply(bm: BlockMatrix): Unit = bm.write(path, overwrite, forceRowMajor, stageLocally)
+  def apply(hc: HailContext, bm: BlockMatrix): Unit = bm.write(path, overwrite, forceRowMajor, stageLocally)
 }
 
 case class BlockMatrixBinaryWriter(path: String) extends BlockMatrixWriter {
-  def apply(bm: BlockMatrix): Unit = {
-    RichDenseMatrixDouble.exportToDoubles(HailContext.get, path, bm.toBreezeMatrix(), forceRowMajor = true)
+  def apply(hc: HailContext, bm: BlockMatrix): Unit = {
+    RichDenseMatrixDouble.exportToDoubles(hc, path, bm.toBreezeMatrix(), forceRowMajor = true)
   }
 }
