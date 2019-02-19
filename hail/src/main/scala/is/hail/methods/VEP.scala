@@ -108,7 +108,7 @@ case class VEP(config: String, csq: Boolean, blockSize: Int) extends TableToTabl
 
   override def typeInfo(childType: TableType, childRVDType: RVDType): (TableType, RVDType) = {
     val vepType = if (csq) TArray(TString()) else vepSignature
-    val t = TableType(childType.rowType ++ TStruct("vep" -> vepType), FastIndexedSeq("locus", "alleles"), childType.globalType)
+    val t = TableType(childType.rowType ++ TStruct("vep" -> vepType), childType.key, childType.globalType)
     (t, t.canonicalRVDType)
   }
 
