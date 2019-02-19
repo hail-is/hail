@@ -101,23 +101,23 @@ def combine_gvcfs(mts):
         return mt._localize_entries('__entries', '__cols')
 
     def fix_alleles(alleles):
-        ref = alleles.map(lambda d: d.ref).fold(lambda s, t: hl.cond(hl.len(s) > hl.len(t), s, t), '')
-        alts = alleles.map(
-            lambda a: hl.switch(hl.allele_type(a.ref, a.alt))
-                        .when('SNP', a.alt + ref[hl.len(a.alt):])
-                        .when('Insertion', a.alt + ref[hl.len(a.ref):])
-                        .when('Deletion', a.alt + ref[hl.len(a.ref):])
-                        .default(a.alt)
-        )
-        return hl.array([ref]).extend(alts)
+        return hl.rbind(
+            alleles.map(lambda d: d.ref).fold(lambda s, t: hl.cond(hl.len(s) > hl.len(t), s, t), ''),
+            lambda ref: hl.rbind(
+                alleles.map(lambda a: hl.switch(hl.allele_type(a.ref, a.alt))
+                                        .when('SNP', a.alt + ref[hl.len(a.alt):])
+                                        .when('Insertion', a.alt + ref[hl.len(a.ref):])
+                                        .when('Deletion', a.alt + ref[hl.len(a.ref):])
+                                        .default(a.alt)),
+                lambda alts: hl.array([ref]).extend(alts)
+            ))
 
     def min_rep(locus, ref, alt):
-        return hl.rbind(
-            hl.min_rep(locus, [ref, alt]),
-            lambda mr: hl.case()
-                         .when(alt == '<NON_REF>', hl.struct(ref=ref[0:1], alt=alt))
-                         .when(locus == mr.locus, hl.struct(ref=mr.alleles[0], alt=mr.alleles[1]))
-                         .or_error("locus before and after minrep differ"))
+        return hl.rbind(hl.min_rep(locus, [ref, alt]),
+                        lambda mr: hl.case()
+                          .when(alt == '<NON_REF>', hl.struct(ref=ref[0:1], alt=alt))
+                          .when(locus == mr.locus, hl.struct(ref=mr.alleles[0], alt=mr.alleles[1]))
+                          .or_error("locus before and after minrep differ"))
 
     mts = [hl.MatrixTable(MatrixKeyRowsBy(mt._mir, ['locus'], is_sorted=True)) for mt in mts]
     mts = [mt.annotate_rows(
