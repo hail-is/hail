@@ -1,6 +1,6 @@
 package is.hail.io
 
-import is.hail.SparkSuite
+import is.hail.{HailContext, SparkSuite}
 import is.hail.annotations._
 import is.hail.check.Gen
 import is.hail.check.Prop.forAll
@@ -51,7 +51,7 @@ class ImportMatrixSuite extends SparkSuite {
   @Test def testMissingVals() {
     val files = hc.hadoopConf.globAll(List("src/test/resources/samplesmissing.txt"))
     val e = intercept[SparkException] {
-      val vsm = LoadMatrix(hc, files, Map("f0" -> TString()), Array("f0"))
+      val vsm = new MatrixTable(HailContext.get, LoadMatrix(hc, files, Map("f0" -> TString()), Array("f0")))
       vsm.rvd.count()
     }
     assert(e.getMessage.contains("Incorrect number"))

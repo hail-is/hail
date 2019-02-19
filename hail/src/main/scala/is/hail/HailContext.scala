@@ -5,7 +5,7 @@ import java.util.Properties
 
 import is.hail.annotations._
 import is.hail.expr.Parser
-import is.hail.expr.ir.{IRParser, MatrixRead, TextTableReader}
+import is.hail.expr.ir.{IRParser, MatrixIR, MatrixRead, TextTableReader}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual._
@@ -516,7 +516,7 @@ class HailContext private(val sc: SparkContext,
     minPartitions: Option[Int],
     noHeader: Boolean,
     forceBGZ: Boolean,
-    sep: String = "\t"): MatrixTable =
+    sep: String = "\t"): MatrixIR =
     importMatrices(files.asScala, rowFields.asScala.toMap.mapValues(IRParser.parseType), keyNames.asScala.toArray,
       IRParser.parseType(cellType), missingVal, minPartitions, noHeader, forceBGZ, sep)
 
@@ -528,7 +528,7 @@ class HailContext private(val sc: SparkContext,
     nPartitions: Option[Int],
     noHeader: Boolean,
     forceBGZ: Boolean,
-    sep: String = "\t"): MatrixTable = {
+    sep: String = "\t"): MatrixIR = {
     assert(sep.length == 1)
 
     val inputs = hadoopConf.globAll(files)

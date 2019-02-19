@@ -5,7 +5,7 @@ import htsjdk.variant.vcf._
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.JSONAnnotationImpex
-import is.hail.expr.ir.{MatrixLiteral, MatrixRead, MatrixReader, MatrixValue, PruneDeadFields}
+import is.hail.expr.ir.{MatrixIR, MatrixLiteral, MatrixRead, MatrixReader, MatrixValue, PruneDeadFields}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual._
@@ -1174,7 +1174,7 @@ object ImportVCFs {
     filter: String,
     find: String,
     replace: String
-  ): Array[MatrixTable] = {
+  ): Array[MatrixIR] = {
     val reader = VCFsReader(
       files.asScala.toArray,
       callFields.asScala.toSet,
@@ -1288,7 +1288,7 @@ case class VCFsReader(
       .collect()
   }
 
-  def readFile(reader: HtsjdkRecordReader, file: String, i: Int): MatrixTable = {
+  def readFile(reader: HtsjdkRecordReader, file: String, i: Int): MatrixIR = {
     val VCFInfo(headerLines, sampleIDs, localInfoFlagFieldNames, typ, partitions) = fileInfo(i)
 
     val lines = ContextRDD.weaken[RVDContext](
@@ -1308,15 +1308,14 @@ case class VCFsReader(
       partitioner,
       parsedLines)
 
-    new MatrixTable(hc,
-      MatrixLiteral(
-        MatrixValue(typ,
-          BroadcastRow(Row.empty, typ.globalType, sc),
-          BroadcastIndexedSeq(sampleIDs.map(Annotation(_)), TArray(typ.colType), sc),
-          rvd)))
+    MatrixLiteral(
+      MatrixValue(typ,
+        BroadcastRow(Row.empty, typ.globalType, sc),
+        BroadcastIndexedSeq(sampleIDs.map(Annotation(_)), TArray(typ.colType), sc),
+        rvd))
   }
 
-  def read(): Array[MatrixTable] = {
+  def read(): Array[MatrixIR] = {
     val reader = new HtsjdkRecordReader(callFields, entryFloatType)
     files.zipWithIndex.map { case (file, i) =>
       readFile(reader, file, i)
