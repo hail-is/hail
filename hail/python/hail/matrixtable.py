@@ -536,8 +536,8 @@ class MatrixTable(ExprContainer):
     """
 
     @staticmethod
-    def _from_java(jmt):
-        return MatrixTable(JavaMatrix(jmt.ast()))
+    def _from_java(jmir):
+        return MatrixTable(JavaMatrix(jmir))
 
     def __init__(self, mir):
         super(MatrixTable, self).__init__()
@@ -2804,7 +2804,7 @@ class MatrixTable(ExprContainer):
         int
             Number of partitions.
         """
-        return Env.backend().execute(MarixToValueApply(self._mir, {'name': 'NPartitionsMatrixTable'}))
+        return Env.backend().execute(MatrixToValueApply(self._mir, {'name': 'NPartitionsMatrixTable'}))
 
     @typecheck_method(n_partitions=int,
                       shuffle=bool)
