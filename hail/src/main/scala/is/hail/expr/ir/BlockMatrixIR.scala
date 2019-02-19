@@ -140,7 +140,7 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, f: IR) ext
 
   private def rowVectorOnLeft(hc: HailContext, rowVector: Array[Double], right: BlockMatrixIR, f: IR): BlockMatrix = {
     right match {
-      case BlockMatrixBroadcast(scalarIR: BlockMatrixIR, IndexedSeq(), _, _, _) =>
+      case BlockMatrixBroadcast(scalarIR, IndexedSeq(), _, _, _) =>
         val rightAsScalar = coerceToScalar(hc, scalarIR)
         val rowVectorAsBm = BlockMatrixIR.toBlockMatrix(hc, 1, rowVector.length, rowVector)
         opWithScalar(rowVectorAsBm, rightAsScalar, f, reverse = false)
@@ -151,7 +151,7 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, f: IR) ext
 
   private def colVectorOnLeft(hc: HailContext, colVector: Array[Double], right: BlockMatrixIR, f: IR): BlockMatrix = {
     right match {
-      case BlockMatrixBroadcast(scalarIR: BlockMatrixIR, IndexedSeq(), _, _, _) =>
+      case BlockMatrixBroadcast(scalarIR, IndexedSeq(), _, _, _) =>
         val rightAsScalar = coerceToScalar(hc, scalarIR)
         val colVectorAsBm = BlockMatrixIR.toBlockMatrix(hc, colVector.length, 1, colVector)
         opWithScalar(colVectorAsBm, rightAsScalar, f, reverse = false)
@@ -162,10 +162,10 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, f: IR) ext
 
   private def matrixOnLeft(hc: HailContext, matrix: BlockMatrix, right: BlockMatrixIR, f: IR): BlockMatrix = {
     right match {
-      case BlockMatrixBroadcast(scalarIR: BlockMatrixIR, IndexedSeq(), _, _, _) =>
+      case BlockMatrixBroadcast(scalarIR, IndexedSeq(), _, _, _) =>
         val rightAsScalar = coerceToScalar(hc, scalarIR)
         opWithScalar(matrix, rightAsScalar, f, reverse = false)
-      case BlockMatrixBroadcast(vectorIR: BlockMatrixIR, inIndexExpr, _, _, _) =>
+      case BlockMatrixBroadcast(vectorIR, inIndexExpr, _, _, _) =>
         inIndexExpr match {
           case IndexedSeq(1) =>
             val rightAsRowVec = coerceToVector(hc, vectorIR)
@@ -240,6 +240,11 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, f: IR) ext
       case ApplyBinaryPrimOp(Multiply(), _, _) => left.mul(right)
       case ApplyBinaryPrimOp(Subtract(), _, _) => left.sub(right)
       case ApplyBinaryPrimOp(FloatingPointDivide(), _, _) => left.div(right)
+      case Apply("**", _) =>
+        assert(right.nRows == 1 && right.nCols == 1)
+        // BlockMatrix does not currently support elem-wise pow and this case would
+        // only get hit when left and right are both 1x1
+        left.pow(right.toBreezeMatrix().apply(0, 0))
     }
   }
 }
