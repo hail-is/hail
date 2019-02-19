@@ -1452,7 +1452,7 @@ class BlockMatrix(object):
             bmir = BlockMatrixAgg(self._bmir, [], self.block_size, [])
             return BlockMatrix(bmir)[0, 0]
         elif axis == 0 or axis == 1:
-            out_index_expr = [1] if axis == 0 else [0]
+            out_index_expr = [dim for dim in range(len(self.shape)) if dim != axis]
 
             bmir = BlockMatrixAgg(self._bmir, out_index_expr, self.block_size, [True])
             return BlockMatrix(bmir)
