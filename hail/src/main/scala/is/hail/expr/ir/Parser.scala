@@ -1137,11 +1137,15 @@ object IRParser {
       case "BlockMatrixRead" =>
         val path = string_literal(it)
         BlockMatrixRead(path)
+      case "BlockMatrixMap" =>
+        val child = blockmatrix_ir(env)(it)
+        val f = ir_value_expr(env + ("element" -> child.typ.elementType))(it)
+        BlockMatrixMap(child, f)
       case "BlockMatrixMap2" =>
         val left = blockmatrix_ir(env)(it)
         val right = blockmatrix_ir(env)(it)
-        val applyBinOp = ir_value_expr(env.update(Map("l" -> left.typ.elementType, "r" -> right.typ.elementType)))(it)
-        BlockMatrixMap2(left, right, applyBinOp.asInstanceOf[ApplyBinaryPrimOp])
+        val f = ir_value_expr(env.update(Map("l" -> left.typ.elementType, "r" -> right.typ.elementType)))(it)
+        BlockMatrixMap2(left, right, f)
       case "BlockMatrixBroadcast" =>
         val inIndexExpr = int32_literals(it)
         val shape = int64_literals(it)

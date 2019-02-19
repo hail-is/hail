@@ -1,5 +1,6 @@
 from hail.expr.blockmatrix_type import tblockmatrix
-from hail.ir import BlockMatrixIR, ApplyBinaryOp, IR, parsable_strings, tarray
+from hail.expr.types import tarray
+from hail.ir import BlockMatrixIR, IR
 from hail.utils.java import escape_str
 from hail.typecheck import typecheck_method, sequenceof
 
@@ -19,16 +20,30 @@ class BlockMatrixRead(BlockMatrixIR):
         self._type = Env.backend().blockmatrix_type(self)
 
 
+class BlockMatrixMap(BlockMatrixIR):
+    @typecheck_method(child=BlockMatrixIR, f=IR)
+    def __init__(self, child, f):
+        super().__init__()
+        self.child = child
+        self.f = f
+
+    def render(self, r):
+        return f'(BlockMatrixMap {r(self.child)} {r(self.f)})'
+
+    def _compute_type(self):
+        self._type = self.child.typ
+
+
 class BlockMatrixMap2(BlockMatrixIR):
-    @typecheck_method(left=BlockMatrixIR, right=BlockMatrixIR, apply_bin_op=ApplyBinaryOp)
-    def __init__(self, left, right, apply_bin_op):
+    @typecheck_method(left=BlockMatrixIR, right=BlockMatrixIR, f=IR)
+    def __init__(self, left, right, f):
         super().__init__()
         self.left = left
         self.right = right
-        self.apply_bin_op = apply_bin_op
+        self.f = f
 
     def render(self, r):
-        return f'(BlockMatrixMap2 {r(self.left)} {r(self.right)} {r(self.apply_bin_op)})'
+        return f'(BlockMatrixMap2 {r(self.left)} {r(self.right)} {r(self.f)})'
 
     def _compute_type(self):
         self.right.typ  # Force
