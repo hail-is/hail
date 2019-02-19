@@ -92,15 +92,18 @@ def sparse_split_multi(sparse_mt):
     new_id = hl.utils.java.Env.get_uid()
 
     non_ref = '<NON_REF>'
-    def struct_from_min_rep(mr, i):
-        return (hl.case()
-                .when(ds.locus == mr.locus,
-                      hl.struct(
-                          locus=ds.locus,
-                          alleles=[mr.alleles[0], mr.alleles[1], non_ref],
-                          a_index=i,
-                          was_split=True))
-                .or_error("Found non-left-aligned variant in sparse_split_multi"))
+
+    def struct_from_min_rep(i):
+        return hl.bind(lambda mr:
+                       (hl.case()
+                        .when(ds.locus == mr.locus,
+                              hl.struct(
+                                  locus=ds.locus,
+                                  alleles=[mr.alleles[0], mr.alleles[1], non_ref],
+                                  a_index=i,
+                                  was_split=True))
+                        .or_error("Found non-left-aligned variant in sparse_split_multi")),
+                       hl.min_rep(ds.locus, [ds.alleles[0], ds.alleles[i]]))
 
     explode_structs = (hl.case()
                        .when(ds.alleles[-1] == non_ref,
@@ -111,10 +114,8 @@ def sparse_split_multi(sparse_mt):
                                        a_index=1,
                                        was_split=False)],
                                      hl._sort_by(
-                                         hl.range(1, hl.len(ds.alleles) - 1).map(
-                                             lambda i: hl.bind(
-                                                 lambda mr: struct_from_min_rep(mr, i),
-                                                 hl.min_rep(ds.locus, [ds.alleles[0], ds.alleles[i]]))),
+                                         hl.range(1, hl.len(ds.alleles) - 1)
+                                             .map(struct_from_min_rep),
                                          lambda l, r: hl._compare(l.alleles, r.alleles) < 0
                                      )))
                        .or_error("'sparse_split_multi': Last allele in sparse representation was not '<NON_REF>'"))
@@ -125,10 +126,22 @@ def sparse_split_multi(sparse_mt):
         def with_non_ref_index(non_ref_index):
             def with_local_a_index(local_a_index):
                 def downcodes_to(c, c2):
-                    return (((hl.case().when(c2[0] == 1, c[0] == local_a_index).when(c2[0] == 2, c[0] == non_ref_index).default((c[0] != local_a_index) & (c[0] != non_ref_index))) &
-                             (hl.case().when(c2[1] == 1, c[1] == local_a_index).when(c2[1] == 2, c[1] == non_ref_index).default((c[1] != local_a_index) & (c[1] != non_ref_index)))) |
-                            ((hl.case().when(c2[0] == 1, c[1] == local_a_index).when(c2[0] == 2, c[1] == non_ref_index).default((c[1] != local_a_index) & (c[1] != non_ref_index))) &
-                             (hl.case().when(c2[1] == 1, c[0] == local_a_index).when(c2[1] == 2, c[0] == non_ref_index).default((c[0] != local_a_index) & (c[0] != non_ref_index)))))
+                    return (((hl.case()
+                              .when(c2[0] == 1, c[0] == local_a_index)
+                              .when(c2[0] == 2, c[0] == non_ref_index)
+                              .default((c[0] != local_a_index) & (c[0] != non_ref_index))) &
+                             (hl.case()
+                              .when(c2[1] == 1, c[1] == local_a_index)
+                              .when(c2[1] == 2, c[1] == non_ref_index)
+                              .default((c[1] != local_a_index) & (c[1] != non_ref_index)))) |
+                            ((hl.case()
+                              .when(c2[0] == 1, c[1] == local_a_index)
+                              .when(c2[0] == 2, c[1] == non_ref_index)
+                              .default((c[1] != local_a_index) & (c[1] != non_ref_index))) &
+                             (hl.case()
+                              .when(c2[1] == 1, c[0] == local_a_index)
+                              .when(c2[1] == 2, c[0] == non_ref_index)
+                              .default((c[0] != local_a_index) & (c[0] != non_ref_index)))))
 
                 new_pl = hl.or_missing(
                     hl.is_defined(old_entry.LPL),
