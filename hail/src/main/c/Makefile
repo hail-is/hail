@@ -154,10 +154,9 @@ endif
 	echo "CXX is $(CXX)"
 	-$(CXX) --version
 
-$(BUILD)/functional-tests: CXXFLAGS += -DNUMBER_OF_GENOTYPES_PER_ROW=256
-$(BUILD)/functional-tests: $(BUILD)/ibs.o $(BUILD)/test.o
+$(BUILD)/functional-tests: ibs.cpp test.cpp $(LIBSIMDPP)
 	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) -ldl -o $(BUILD)/functional-tests $^
+	$(CXX) $(CXXFLAGS) -DNUMBER_OF_GENOTYPES_PER_ROW=256 -o $(BUILD)/functional-tests ibs.cpp test.cpp
 
 $(BUILD)/unit-tests: $(BUILD_OBJECTS) $(TEST_OBJECTS)
 	@mkdir -p $(@D)
