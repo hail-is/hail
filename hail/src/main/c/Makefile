@@ -48,16 +48,12 @@ BUILD_OBJECTS := $(OBJECTS:%=$(BUILD)/%.o)
 simdpp/simd.h: $(LIBSIMDPP)
 catch.hpp: $(CATCH_HEADER_LOCATION)
 
-TEST_CPP := $(foreach obj,$(OBJECTS),$(wildcard $(obj)_test.cpp))
+TEST_CPP := $(wildcard *_test.cpp) testutils/unit-tests.cpp
 TEST_OBJECTS := $(foreach file,$(TEST_CPP),$(BUILD)/$(basename $(file)).o)
-TEST_OBJECTS += $(BUILD)/unit-tests.o
 
-HEADER_DEPENDENCIES := $(BUILD_OBJECTS:%.o=%.d) $(TEST_OBJECTS:%.o=%.d)
+ALL_CPP := $(shell find * -iname '*.cpp')
+HEADER_DEPENDENCIES := $(ALL_CPP:%.cpp=build/%.d)
 -include $(HEADER_DEPENDENCIES)
-
-$(BUILD)/unit-tests.o: testutils/unit-tests.cpp
-	@mkdir -p $(@D)
-	$(CXX) -o $@ $(CXXFLAGS) -c $<
 
 $(BUILD)/%.d: %.cpp
 	@mkdir -p $(@D)
@@ -66,11 +62,6 @@ $(BUILD)/%.d: %.cpp
 $(BUILD)/%.o: %.cpp
 	@mkdir -p $(@D)
 	$(CXX) -o $@ $(CXXFLAGS) -MD -MF $(@:%.o=%.d) -MT $@ -c $<
-
-# if libsimdpp does not exist (e.g. after a clean), UNIT64_VECTOR_SIZE needs to
-# be set explicitly via HAIL_OVERRIDE_WIDTH
-$(BUILD)/ibs.d: CXXFLAGS += -DHAIL_OVERRIDE_WIDTH=4 -DNUMBER_OF_GENOTYPES_PER_ROW=256
-$(BUILD)/ibs.o: CXXFLAGS += -DNUMBER_OF_GENOTYPES_PER_ROW=256
 
 ifndef JAVA_HOME
   TMP :=$(shell java -XshowSettings:properties -version 2>&1 | fgrep -i java.home)
@@ -131,7 +122,7 @@ ifeq ($(filter -march=%,$(CXXFLAGS)),)
 endif
 
 # Append to any inherited flags which survived filtering
-CXXFLAGS += $(HAIL_OPT_FLAGS) $(CXXSTD) -I$(LIBSIMDPP) -Wall -Werror
+CXXFLAGS += $(HAIL_OPT_FLAGS) $(CXXSTD) -I$(LIBSIMDPP) -Wall -Werror -Wextra
 CXXFLAGS += -fPIC -ggdb -fno-strict-aliasing
 CXXFLAGS += -I../resources/include -I$(JAVA_HOME)/include -I$(JAVA_HOME)/include/$(JAVA_MD)
 LIBFLAGS += -fvisibility=default
@@ -163,9 +154,9 @@ endif
 	echo "CXX is $(CXX)"
 	-$(CXX) --version
 
-$(BUILD)/functional-tests: $(BUILD)/ibs.o $(BUILD)/test.o
+$(BUILD)/functional-tests: ibs.cpp test.cpp $(LIBSIMDPP)
 	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) -ldl -o $(BUILD)/functional-tests $^
+	$(CXX) $(CXXFLAGS) -DNUMBER_OF_GENOTYPES_PER_ROW=256 -o $(BUILD)/functional-tests ibs.cpp test.cpp
 
 $(BUILD)/unit-tests: $(BUILD_OBJECTS) $(TEST_OBJECTS)
 	@mkdir -p $(@D)
