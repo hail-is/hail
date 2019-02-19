@@ -519,7 +519,7 @@ def vep(dataset: Union[Table, MatrixTable], config, block_size=1000, name='vep',
                                           {'name': 'VEP',
                                            'config': config,
                                            'csq': csq,
-                                           'block_size': block_size}))
+                                           'blockSize': block_size}))
 
     if csq:
         dataset = dataset.annotate_globals(
