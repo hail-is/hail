@@ -239,15 +239,14 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
   def isValidLocus(l: Locus): Boolean = isValidLocus(l.contig, l.position)
 
   def isValidLocusInterval(i: Interval): Boolean = {
-    val normInterval = normalizeLocusInterval(i)
-    val start = normInterval.start.asInstanceOf[Locus]
-    val end = normInterval.end.asInstanceOf[Locus]
-    val includesStart = normInterval.includesStart
-    val includesEnd = normInterval.includesEnd
+    val start = i.start.asInstanceOf[Locus]
+    val end = i.end.asInstanceOf[Locus]
 
-    isValidLocus(start) &&
-      isValidLocus(end) &&
-      Interval.isValid(locusType.ordering, start, end, includesStart, includesEnd)
+    (isValidLocus(start) || (!i.includesStart && start.position == 0)) &&
+      (isValidLocus(end) || (!i.includesEnd && end.position == contigLength(end.contig) + 1)) && {
+        val norm = normalizeLocusInterval(i)
+        Interval.isValid(locusType.ordering, norm.start, norm.end, norm.includesStart, norm.includesEnd)
+      }
   }
 
   def checkContig(contig: String): Unit = {
@@ -295,7 +294,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     var end = i.end.asInstanceOf[Locus]
     var includesStart = i.includesStart
     var includesEnd = i.includesEnd
-    val contigEnd = contigLength(start.contig)
+    val contigEnd = contigLength(end.contig)
 
     if (!includesStart && start.position == 0) {
       start = start.copy(position = 1)
@@ -328,13 +327,16 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
   }
 
   def toLocusInterval(i: Interval, invalidMissing: Boolean): Interval = {
-    val normInterval = normalizeLocusInterval(i)
     if (invalidMissing) {
-      if (!isValidLocusInterval(normInterval))
-        return null
-    } else
+      if (!isValidLocusInterval(i))
+        null
+      else
+        normalizeLocusInterval(i)
+    } else {
+      val normInterval = normalizeLocusInterval(i)
       checkLocusInterval(normInterval)
-    normInterval
+      normInterval
+    }
   }
 
   def inX(contigIdx: Int): Boolean = xContigIndices.contains(contigIdx)
