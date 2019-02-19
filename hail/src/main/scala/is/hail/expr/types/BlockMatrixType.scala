@@ -6,6 +6,7 @@ import is.hail.expr.types.virtual.Type
 case class BlockMatrixType(
   elementType: Type,
   shape: IndexedSeq[Long],
+  isRowVector: Boolean,
   blockSize: Int,
   dimsPartitioned: IndexedSeq[Boolean]) extends BaseType {
 
@@ -33,6 +34,11 @@ case class BlockMatrixType(
     sb.append(s"shape:$space[")
     shape.foreachBetween(dimSize => sb.append(dimSize))(sb.append(s",$space"))
     sb += ']'
+    sb += ','
+    newline()
+
+    sb.append(s"isRowVector:$space")
+    sb.append(isRowVector)
     sb += ','
     newline()
 

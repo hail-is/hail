@@ -257,17 +257,19 @@ class BlockMatrixIRTests(unittest.TestCase):
         read = ir.BlockMatrixRead(resource('blockmatrix_example/0'))
         add_two_bms = BlockMatrixIRTests._make_element_wise_op_ir(read, read, '+')
 
-        scalar_to_bm = ir.ValueToBlockMatrix(scalar_ir, [], 1, [])
-        vector_to_bm = ir.ValueToBlockMatrix(vector_ir, [2], 1, [False])
-        broadcast_scalar = ir.BlockMatrixBroadcast(scalar_to_bm, "scalar", [2, 2], 256, [False, False])
-        broadcast_col = ir.BlockMatrixBroadcast(vector_to_bm, "col", [2, 2], 256, [False, False])
-        broadcast_row = ir.BlockMatrixBroadcast(vector_to_bm, "row", [2, 2], 256, [False, False])
+        scalar_to_bm = ir.ValueToBlockMatrix(scalar_ir, [1, 1], 1, [])
+        col_vector_to_bm = ir.ValueToBlockMatrix(vector_ir, [2, 1], 1, [False])
+        row_vector_to_bm = ir.ValueToBlockMatrix(vector_ir, [1, 2], 1, [False])
+        broadcast_scalar = ir.BlockMatrixBroadcast(scalar_to_bm, [], [2, 2], 256, [False, False])
+        broadcast_col = ir.BlockMatrixBroadcast(col_vector_to_bm, [0], [2, 2], 256, [False, False])
+        broadcast_row = ir.BlockMatrixBroadcast(row_vector_to_bm, [1], [2, 2], 256, [False, False])
 
         return [
             read,
             add_two_bms,
             scalar_to_bm,
-            vector_to_bm,
+            col_vector_to_bm,
+            row_vector_to_bm,
             broadcast_scalar,
             broadcast_col,
             broadcast_row,

@@ -196,8 +196,8 @@ object Pretty {
               prettyBooleanLiteral(overwrite) + " " +
               prettyBooleanLiteral(forceRowMajor) + " " +
               prettyBooleanLiteral(stageLocally)
-            case BlockMatrixBroadcast(_, broadcastType, shape, blockSize, dimsPartitioned) =>
-              prettyClass(broadcastType) + " " +
+            case BlockMatrixBroadcast(_, inIndexExpr, shape, blockSize, dimsPartitioned) =>
+              prettyInts(inIndexExpr) + " " +
               prettyLongs(shape) + " " +
               blockSize.toString + " " +
               prettyLiterals(dimsPartitioned)

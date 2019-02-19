@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.SparkSuite
 import is.hail.TestUtils.assertEvalsTo
 import is.hail.expr.ir.TestUtils.IRAggCount
-import is.hail.expr.types.virtual.{TInt32, TStruct}
+import is.hail.expr.types.virtual.{TArray, TFloat64, TInt32, TStruct}
 import is.hail.table.{Ascending, SortField}
 import is.hail.utils.FastIndexedSeq
 import org.apache.spark.sql.Row
@@ -54,5 +54,13 @@ class SimplifySuite extends SparkSuite {
 
     val ir2 = SelectFields(InsertFields(base, FastIndexedSeq("3" -> I32(1)), None), FastIndexedSeq("3", "1"))
     assert(Simplify(ir2) == InsertFields(SelectFields(base, FastIndexedSeq("1")), FastIndexedSeq("3" -> I32(1)), Some(FastIndexedSeq("3", "1"))))
+  }
+
+  @Test def testBlockMatrixRewriteRules() {
+    val bmir = ValueToBlockMatrix(MakeArray(IndexedSeq(F64(1), F64(2), F64(3), F64(4)), TArray(TFloat64())),
+      IndexedSeq(2, 2), 10, IndexedSeq(false, false))
+    val identityBroadcast = BlockMatrixBroadcast(bmir, IndexedSeq(0, 1), IndexedSeq(2, 2), 10, IndexedSeq(false, false))
+
+    assert(Simplify(identityBroadcast) == bmir)
   }
 }
