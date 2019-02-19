@@ -533,7 +533,7 @@ class BlockMatrix(object):
         (:obj:`int`, :obj:`int`)
            Number of rows and number of columns.
         """
-        return tensor_shape_to_matrix_shape(self._bmir.typ.shape, self._bmir.typ.is_row_vector)
+        return tensor_shape_to_matrix_shape(self._bmir)
 
     @property
     def block_size(self):

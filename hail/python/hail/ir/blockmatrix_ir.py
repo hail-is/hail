@@ -60,18 +60,15 @@ class BlockMatrixDot(BlockMatrixIR):
         return '(BlockMatrixDot {} {})'.format(r(self.left), r(self.right))
 
     def _compute_type(self):
-        l_type = self.left.typ
-        r_type = self.right.typ
-
-        l_rows, l_cols = tensor_shape_to_matrix_shape(l_type.shape, l_type.is_row_vector)
-        r_rows, r_cols = tensor_shape_to_matrix_shape(r_type.shape, r_type.is_row_vector)
+        l_rows, l_cols = tensor_shape_to_matrix_shape(self.left)
+        r_rows, r_cols = tensor_shape_to_matrix_shape(self.right)
         assert l_cols == r_rows
 
         tensor_shape, is_row_vector = _matrix_shape_to_tensor_shape([l_rows, r_cols])
-        self._type = tblockmatrix(l_type.element_type,
+        self._type = tblockmatrix(self.left.typ.element_type,
                                   tensor_shape, is_row_vector,
-                                  l_type.block_size,
-                                  [l_type.dims_partitioned[0], r_type.dims_partitioned[1]])
+                                  self.left.typ.block_size,
+                                  [True for _ in tensor_shape])
 
 
 class BlockMatrixBroadcast(BlockMatrixIR):
@@ -164,9 +161,11 @@ def _matrix_shape_to_tensor_shape(shape):
         return shape, False
 
 
-def tensor_shape_to_matrix_shape(shape, is_row_vector):
-    assert len(shape) <= 2
+def tensor_shape_to_matrix_shape(bmir):
+    shape = bmir.typ.shape
+    is_row_vector = bmir.typ.is_row_vector
 
+    assert len(shape) <= 2
     if len(shape) == 0:
         return 1, 1
     elif len(shape) == 1:

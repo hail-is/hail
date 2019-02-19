@@ -31,9 +31,11 @@ object BlockMatrixIR {
     }
   }
 
-  def tensorShapeToMatrixShape(shape: IndexedSeq[Long], isRowVector: Boolean): (Long, Long) = {
-    assert(shape.length <= 2)
+  def tensorShapeToMatrixShape(bmir: BlockMatrixIR): (Long, Long) = {
+    val shape = bmir.typ.shape
+    val isRowVector = bmir.typ.isRowVector
 
+    assert(shape.length <= 2)
     shape match {
       case IndexedSeq() => (1, 1)
       case IndexedSeq(len) => if (isRowVector) (len, 1) else (1, len)
@@ -262,8 +264,8 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, f: IR) ext
 case class BlockMatrixDot(left: BlockMatrixIR, right: BlockMatrixIR) extends BlockMatrixIR {
 
   override def typ: BlockMatrixType = {
-    val (lRows, lCols) = BlockMatrixIR.tensorShapeToMatrixShape(left.typ.shape, left.typ.isRowVector)
-    val (rRows, rCols) = BlockMatrixIR.tensorShapeToMatrixShape(left.typ.shape, left.typ.isRowVector)
+    val (lRows, lCols) = BlockMatrixIR.tensorShapeToMatrixShape(left)
+    val (rRows, rCols) = BlockMatrixIR.tensorShapeToMatrixShape(left)
     assert(lCols == rRows)
 
     val (tensorShape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(lRows, rCols)
@@ -272,7 +274,7 @@ case class BlockMatrixDot(left: BlockMatrixIR, right: BlockMatrixIR) extends Blo
       tensorShape,
       isRowVector,
       left.typ.blockSize,
-      IndexedSeq(left.typ.dimsPartitioned(0), right.typ.dimsPartitioned(1)))
+      tensorShape.map(_ => true))
   }
 
   override def children: IndexedSeq[BaseIR] = Array(left, right)
