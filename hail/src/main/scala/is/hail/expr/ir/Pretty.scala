@@ -192,6 +192,8 @@ object Pretty {
               '"' + StringEscapeUtils.escapeString(Serialization.write(writer)(MatrixWriter.formats)) + '"'
             case MatrixMultiWrite(_, writer) =>
               '"' + StringEscapeUtils.escapeString(Serialization.write(writer)(MatrixNativeMultiWriter.formats)) + '"'
+            case BlockMatrixRead(reader) =>
+              '"' + StringEscapeUtils.escapeString(Serialization.write(reader)(BlockMatrixReader.formats)) + '"'
             case BlockMatrixWrite(_, writer) =>
               '"' + StringEscapeUtils.escapeString(Serialization.write(writer)(BlockMatrixWriter.formats)) + '"'
             case BlockMatrixBroadcast(_, inIndexExpr, shape, blockSize, dimsPartitioned) =>

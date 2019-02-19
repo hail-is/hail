@@ -1101,7 +1101,7 @@ class BlockMatrix(object):
         --------
         :meth:`.to_numpy`
         """
-        _check_num_entries(self.n_rows, self.n_cols)
+        _check_entries_size(self.n_rows, self.n_cols)
 
         writer = BlockMatrixBinaryWriter(uri)
         Env.backend().execute(BlockMatrixWrite(self._bmir, writer))
@@ -2179,12 +2179,12 @@ def _ndarray_from_jarray(ja):
 
 
 def _breeze_fromfile(uri, n_rows, n_cols):
-    _check_num_entries(n_rows, n_cols)
+    _check_entries_size(n_rows, n_cols)
 
     return Env.hail().utils.richUtils.RichDenseMatrixDouble.importFromDoubles(Env.hc()._jhc, uri, n_rows, n_cols, True)
 
 
-def _check_num_entries(n_rows, n_cols):
+def _check_entries_size(n_rows, n_cols):
     n_entries = n_rows * n_cols
     if n_entries >= 1 << 31:
         raise ValueError(f'number of entries must be less than 2^31, found {n_entries}')
