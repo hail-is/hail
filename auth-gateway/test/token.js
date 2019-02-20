@@ -25,7 +25,7 @@ describe("getAuthToken()", function() {
         cookie: `access_token=${access_token}; some_other_token=some_great_value`
       }
     });
-    console.info(getAuthToken(request));
+
     expect(getAuthToken(request)).to.be.equal(access_token);
   });
 
