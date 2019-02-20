@@ -28,7 +28,7 @@ def densify(sparse_mt):
     t = t.annotate(
         __entries = hl.rbind(
             hl.scan.array_agg(
-                lambda entry: hl.scan._prev_nonnull(entry),
+                lambda entry: hl.scan._prev_nonnull(hl.or_missing(hl.is_defined(entry.END), entry)),
                 t.__entries),
             lambda prev_entries: hl.map(
                 lambda i:
@@ -36,8 +36,7 @@ def densify(sparse_mt):
                     prev_entries[i], t.__entries[i],
                     lambda prev_entry, entry:
                     hl.cond(
-                        (~hl.is_defined(entry)) &
-                        (hl.is_defined(prev_entry.END) &
+                        (~hl.is_defined(entry) &
                          (prev_entry.END >= t.locus.position) &
                          (prev_entry.__contig == t.locus.contig)),
                         prev_entry,
