@@ -1353,7 +1353,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        if not isinstance(b, BlockMatrix):
+        if isinstance(b, np.ndarray):
             b = BlockMatrix(_to_bmir(b, self.block_size))
 
         if self.n_cols != b.n_rows:

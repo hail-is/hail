@@ -66,7 +66,8 @@ class BlockMatrixDot(BlockMatrixIR):
 
         tensor_shape, is_row_vector = _matrix_shape_to_tensor_shape(l_rows, r_cols)
         self._type = tblockmatrix(self.left.typ.element_type,
-                                  tensor_shape, is_row_vector,
+                                  tensor_shape,
+                                  is_row_vector,
                                   self.left.typ.block_size,
                                   [True for _ in tensor_shape])
 
@@ -97,7 +98,8 @@ class BlockMatrixBroadcast(BlockMatrixIR):
         assert len(self.shape) == 2
         tensor_shape, is_row_vector = _matrix_shape_to_tensor_shape(self.shape[0], self.shape[1])
         self._type = tblockmatrix(self.child.typ.element_type,
-                                  tensor_shape, is_row_vector,
+                                  tensor_shape,
+                                  is_row_vector,
                                   self.block_size,
                                   self.dims_partitioned)
 
@@ -130,8 +132,10 @@ class ValueToBlockMatrix(BlockMatrixIR):
         assert len(self.shape) == 2
         tensor_shape, is_row_vector = _matrix_shape_to_tensor_shape(self.shape[0], self.shape[1])
         self._type = tblockmatrix(element_type,
-                                  tensor_shape, is_row_vector,
-                                  self.block_size, self.dims_partitioned)
+                                  tensor_shape,
+                                  is_row_vector,
+                                  self.block_size,
+                                  self.dims_partitioned)
 
 
 class JavaBlockMatrix(BlockMatrixIR):
@@ -144,6 +148,20 @@ class JavaBlockMatrix(BlockMatrixIR):
 
     def _compute_type(self):
         self._type = tblockmatrix._from_java(self.jir.typ())
+
+
+def tensor_shape_to_matrix_shape(bmir):
+    shape = bmir.typ.shape
+    is_row_vector = bmir.typ.is_row_vector
+
+    assert len(shape) <= 2
+    if len(shape) == 0:
+        return (1, 1)
+    elif len(shape) == 1:
+        length = shape[0]
+        return (1, length) if is_row_vector else (length, 1)
+    else:
+        return tuple(shape)
 
 
 def _serialize_ints(ints):
@@ -159,17 +177,3 @@ def _matrix_shape_to_tensor_shape(n_rows, n_cols):
         return [n_rows], False
     else:
         return [n_rows, n_cols], False
-
-
-def tensor_shape_to_matrix_shape(bmir):
-    shape = bmir.typ.shape
-    is_row_vector = bmir.typ.is_row_vector
-
-    assert len(shape) <= 2
-    if len(shape) == 0:
-        return 1, 1
-    elif len(shape) == 1:
-        length = shape[0]
-        return (1, length) if is_row_vector else (length, 1)
-    else:
-        return tuple(shape)
