@@ -85,7 +85,8 @@ on_exit() {
     SCALA_TEST_STATUS=$(get_status "${SCALA_TEST_SUCCESS}" "${CXX_TEST_STATUS}")
     CXX_CODEGEN_TEST_STATUS=$(get_status "${CXX_CODEGEN_TEST_SUCCESS}" "${SCALA_TEST_STATUS}")
     PYTHON_TEST_STATUS=$(get_status "${PYTHON_TEST_SUCCESS}" "${CXX_CODEGEN_TEST_STATUS}")
-    DOCTEST_STATUS=$(get_status "${DOCTEST_SUCCESS}" "${PYTHON_TEST_STATUS}")
+    APISERVER_TEST_STATUS=$(get_status "${APISERVER_TEST_SUCCESS}" "${PYTHON_TEST_STATUS}")
+    DOCTEST_STATUS=$(get_status "${DOCTEST_SUCCESS}" "${APISERVER_TEST_STATUS}")
     DOCS_STATUS=$(get_status "${DOCS_SUCCESS}" "${DOCTEST_STATUS}")
     GCP_STATUS=$(if [ -e ${GCP_STOPPED} ]; then echo "${STOPPED}"; else get_status "${GCP_SUCCESS}"; fi)
     PIP_PACKAGE_STATUS=$(if [ -e ${PIP_PACKAGE_STOPPED} ]; then echo "${STOPPED}"; else get_status "${PIP_PACKAGE_SUCCESS}"; fi)
@@ -150,6 +151,10 @@ on_exit() {
 <tr>
 <td>${PYTHON_TEST_STATUS}</td>
 <td><a href='hail-python-test.html'>PyTest report</a></td>
+</tr>
+<tr>
+<td>${APISERVER_TEST_STATUS}</td>
+<td><a href='apiserver-test.log'>PyTest log</a></td>
 </tr>
 <tr>
 <td>${DOCTEST_STATUS}</td>
