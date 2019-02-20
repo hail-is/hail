@@ -22,7 +22,7 @@ def transform_one(mt: MatrixTable) -> MatrixTable:
     )
     mt = mt.annotate_rows(
         info=mt.info.annotate(
-            SB=hl.array([
+            SB_TABLE=hl.array([
                 hl.agg.sum(mt.entry.SB[0]),
                 hl.agg.sum(mt.entry.SB[1]),
                 hl.agg.sum(mt.entry.SB[2]),
@@ -33,7 +33,7 @@ def transform_one(mt: MatrixTable) -> MatrixTable:
             "QUALapprox",
             "RAW_MQ",
             "VarDP",
-            "SB",
+            "SB_TABLE",
         ))
     mt = mt.transmute_entries(
         LGT=mt.GT,
@@ -68,11 +68,11 @@ def combine(ts):
             QUALapprox=hl.sum(ts.data.map(lambda d: d.info.QUALapprox)),
             RAW_MQ=hl.sum(ts.data.map(lambda d: d.info.RAW_MQ)),
             VarDP=hl.sum(ts.data.map(lambda d: d.info.VarDP)),
-            SB=hl.array([
-                hl.sum(ts.data.map(lambda d: d.info.SB[0])),
-                hl.sum(ts.data.map(lambda d: d.info.SB[1])),
-                hl.sum(ts.data.map(lambda d: d.info.SB[2])),
-                hl.sum(ts.data.map(lambda d: d.info.SB[3]))
+            SB_TABLE=hl.array([
+                hl.sum(ts.data.map(lambda d: d.info.SB_TABLE[0])),
+                hl.sum(ts.data.map(lambda d: d.info.SB_TABLE[1])),
+                hl.sum(ts.data.map(lambda d: d.info.SB_TABLE[2])),
+                hl.sum(ts.data.map(lambda d: d.info.SB_TABLE[3]))
             ])))
     tmp = tmp.annotate(
         __entries=hl.bind(
@@ -160,7 +160,7 @@ def summarize(mt):
             QUALapprox=mt.info.QUALapprox,
             RAW_MQ=mt.info.RAW_MQ,
             ReadPosRankSum=hl.median(hl.agg.collect(mt.entry.ReadPosRankSum)),
-            SB=mt.info.SB,
+            SB_TABLE=mt.info.SB_TABLE,
             VarDP=mt.info.VarDP,
         )))
 
@@ -195,7 +195,7 @@ def finalize(mt):
 #       QUALApprox: sum,
 #       RAW_MQ: sum
 #       ReadPosRankSum: median, # NOTE : move to format for combine
-#       SB: elementwise sum, # NOTE: after being moved from FORMAT
+#       SB_TABLE: elementwise sum, # NOTE: after being moved from FORMAT as SB
 #       VarDP: sum
 #   }
 #   FORMAT {
@@ -233,7 +233,7 @@ def finalize(mt):
 #         QUALapprox: int32,
 #         RAW_MQ: float64,
 #         VarDP: int32,
-#         SB: array<int64>
+#         SB_TABLE: array<int64>
 #     }
 # ----------------------------------------
 # Entry fields:
