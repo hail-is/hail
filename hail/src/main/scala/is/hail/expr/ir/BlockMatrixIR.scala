@@ -198,7 +198,7 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, f: IR) ext
           case scalar: Double => scalar
           case oneElementArray: IndexedSeq[Double] => oneElementArray.head
         }
-      case _ => ir.execute(hc).toBreezeMatrix().apply(0, 0)
+      case _ => ir.execute(hc).getElement(row = 0, col = 0)
     }
   }
 
@@ -256,7 +256,7 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, f: IR) ext
         assert(right.nRows == 1 && right.nCols == 1)
         // BlockMatrix does not currently support elem-wise pow and this case would
         // only get hit when left and right are both 1x1
-        left.pow(right.toBreezeMatrix().apply(0, 0))
+        left.pow(right.getElement(row = 0, col = 0))
     }
   }
 }
@@ -320,7 +320,7 @@ case class BlockMatrixBroadcast(
 
     inIndexExpr match {
       case IndexedSeq() =>
-        val scalar = childBm.toBreezeMatrix().apply(0,0)
+        val scalar = childBm.getElement(row = 0, col = 0)
         BlockMatrix.fill(hc, nRows, nCols, scalar, blockSize)
       case IndexedSeq(0) => broadcastColVector(hc, childBm.toBreezeMatrix().data, nRows, nCols)
       case IndexedSeq(1) => broadcastRowVector(hc, childBm.toBreezeMatrix().data, nRows, nCols)

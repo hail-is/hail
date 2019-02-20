@@ -776,6 +776,10 @@ object IRParser {
         val config = string_literal(it)
         val child = matrix_ir(env)(it)
         MatrixToValueApply(child, RelationalFunctions.lookupMatrixToValue(config))
+      case "BlockMatrixToValueApply" =>
+        val config = string_literal(it)
+        val child = blockmatrix_ir(env)(it)
+        BlockMatrixToValueApply(child, RelationalFunctions.lookupBlockMatrixToValue(config))
       case "TableExport" =>
         val path = string_literal(it)
         val typesFile = opt(it, string_literal).orNull
