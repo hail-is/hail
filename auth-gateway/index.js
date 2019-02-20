@@ -1,8 +1,8 @@
-require('dotenv').config();
+require("dotenv").config();
 
-const polka = require('polka');
-const jwksRsa = require('jwks-rsa');
-const jwt = require('jsonwebtoken');
+const polka = require("polka");
+const jwksRsa = require("jwks-rsa");
+const jwt = require("jsonwebtoken");
 
 const { AUTH0_DOMAIN, AUTH0_AUDIENCE } = process.env;
 const AUTH0_ISSUER = `https://${AUTH0_DOMAIN}/`;
@@ -40,7 +40,7 @@ const verifyToken = token =>
         issuer: AUTH0_ISSUER,
         audience: AUTH0_AUDIENCE,
         clockTolerance: 2, // seconds to deal with clock skew
-        algorithms: ['RS256']
+        algorithms: ["RS256"]
       },
       (err, dToken) => {
         if (err) {
@@ -53,81 +53,61 @@ const verifyToken = token =>
     );
   });
 
-const bearerPrefix = 'Bearer ';
+const bearerPrefix = "Bearer ";
 const bearerPrefixLen = bearerPrefix.length;
 
-const cookiePrefix = 'access_token=';
+const cookiePrefix = "access_token=";
 const cookieOffset = cookiePrefix.length;
 
 const getAuthToken = req => {
-  let whereFoundCount = 0;
-
-  let bearerIdx;
-  let cookieIdx;
-
-  if (req.headers.cookie) {
-    cookieIdx = req.headers.cookie.indexOf(cookiePrefix);
-
-    if (cookieIdx > -1) {
-      whereFoundCount += 1;
-    }
-  }
-
-  if (req.headers.authorization) {
-    bearerIdx = req.headers.authorization.indexOf(bearerPrefix);
-
-    if (bearerIdx > -1) {
-      whereFoundCount += 1;
-    }
-  }
-
   if (req.query.access_token) {
-    whereFoundCount += 1;
-  }
-
-  // oauth2 spec specifies token should be presented in only one location
-  if (whereFoundCount === 0) {
     return null;
   }
 
-  if (whereFoundCount > 1) {
-    console.warn('User specified > 1 access tokens', req.headers.origin);
+  const bearerIdx = req.headers.authorization
+    ? req.headers.authorization.indexOf(bearerPrefix)
+    : -1;
+
+  const cookieIdx = req.headers.cookie
+    ? req.headers.cookie.indexOf(cookiePrefix)
+    : -1;
+
+  if (bearerIdx === -1 && cookieIdx === -1) {
+    return null;
+  }
+
+  if (bearerIdx > -1 && cookieIdx > -1) {
+    console.warn("User specified > 1 access tokens", req.headers.origin);
     return null;
   }
 
   if (bearerIdx > -1) {
-    return req.headers.authorization.substr(bearerPrefixLen);
+    return req.headers.authorization.substring(bearerPrefixLen);
   }
 
-  if (cookieIdx > -1) {
-    const token = req.headers.cookie.substr(cookieIdx + cookieOffset);
+  const token = req.headers.cookie.substring(cookieIdx + cookieOffset);
 
-    if (!token) {
-      return null;
-    }
-
-    const spaceIdx = token.indexOf(' ');
-
-    if (spaceIdx === -1) {
-      return token;
-    }
-
-    // Cookies are by a delimiter followed by a space i.e ", " or "; "
-    // https://stackoverflow.com/questions/4843556/in-http-specification-what-is-the-string-that-separates-cookies
-    if(token[spaceIdx - 1] !== ';' && token[spaceIdx - 1] !== ',') {
-      return null;
-    }
-
-    return token.substr(0, spaceIdx - 1);
+  if (!token) {
+    return null;
   }
 
-  // The method we are least likely to use
-  return req.query.access_token;
+  const spaceIdx = token.indexOf(" ");
+
+  if (spaceIdx === -1) {
+    return token;
+  }
+
+  // https://stackoverflow.com/questions/4843556/in-http-specification-what-is-the-string-that-separates-cookies
+  if (token[spaceIdx - 1] !== ";" && token[spaceIdx - 1] !== ",") {
+    return null;
+  }
+
+  return token.substring(0, spaceIdx - 1);
 };
 
 const PORT = 8000;
 polka()
-  .get('/verify', (req, res) => {
+  .get("/verify", (req, res) => {
     const token = getAuthToken(req);
 
     if (!token) {
@@ -137,8 +117,8 @@ polka()
 
     verifyToken(token)
       .then(user => {
-        res.setHeader('User', user.sub);
-        res.setHeader('Scope', user.scope);
+        res.setHeader("User", user.sub);
+        res.setHeader("Scope", user.scope);
 
         res.end();
       })
