@@ -12,7 +12,7 @@ def transform_one(mt: MatrixTable) -> MatrixTable:
     """transforms a gvcf into a form suitable for combining"""
     mt = mt.annotate_entries(
         # local (alt) allele index into global (alt) alleles
-        LA=hl.range(1, hl.len(mt.alleles)),
+        LA=hl.range(0, hl.len(mt.alleles)),
         END=mt.info.END,
         BaseQRankSum=mt.info['BaseQRankSum'],
         ClippingRankSum=mt.info['ClippingRankSum'],
@@ -55,7 +55,7 @@ def merge_alleles(alleles) -> ArrayExpression:
 
 def renumber_entry(entry, old_to_new) -> StructExpression:
     # global index of alternate (non-ref) alleles
-    return entry.annotate(LA=entry.LA.map(lambda lak: old_to_new[lak - 1]))
+    return entry.annotate(LA=entry.LA.map(lambda lak: old_to_new[lak]))
 
 
 def combine(ts):
@@ -84,8 +84,9 @@ def combine(ts):
                           .map(lambda _: hl.null(tmp.data[i].__entries.dtype.element_type)),
                         hl.bind(
                             lambda old_to_new: tmp.data[i].__entries.map(lambda e: renumber_entry(e, old_to_new)),
-                            hl.range(0, hl.len(tmp.data[i].alleles)).map(
-                                lambda j: combined_allele_index[tmp.data[i].alleles[j]])))),
+                            hl.array([0]).extend(
+                                hl.range(0, hl.len(tmp.data[i].alleles)).map(
+                                    lambda j: combined_allele_index[tmp.data[i].alleles[j]]))))),
             hl.dict(hl.range(1, hl.len(tmp.alleles) + 1).map(
                 lambda j: hl.tuple([tmp.alleles[j - 1], j])))))
     tmp = tmp.annotate_globals(__cols=hl.flatten(tmp.g.map(lambda g: g.__cols)))
@@ -137,9 +138,7 @@ def combine_gvcfs(mts):
 @typecheck(lgt=expr_call, la=expr_array(expr_int32))
 def lgt_to_gt(lgt, la):
     """A method for transforming Local GT and Local Alleles into the true GT"""
-    one = hl.cond(lgt[0] == 0, 0, la[lgt[0] - 1])
-    two = hl.cond(lgt[1] == 0, 0, la[lgt[1] - 1])
-    return hl.call(one, two)
+    return hl.call(la[lgt[0]], la[lgt[1]])
 
 
 def summarize(mt):
