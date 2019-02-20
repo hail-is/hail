@@ -56,7 +56,7 @@ class Test(unittest.TestCase):
 
     def test_scratch_bucket(self):
         sb = 'gs://test-bucket/'
-        j = self.batch.create_job('alpine', [], scratch_bucket=sb)
+        j = self.batch.create_job('alpine', ['true'], scratch_bucket=sb)
         status = j.status()
         assert(status['scratch_bucket'] == sb)
 
