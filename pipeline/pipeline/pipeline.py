@@ -42,7 +42,7 @@ class Pipeline:
     def _tmp_file(self, prefix=None, suffix=None):
         def _get_random_file():
             file = '{}{}{}'.format(prefix if prefix else '',
-                                   uuid.uuid4().hex[:6],
+                                   uuid.uuid4().hex[:8],
                                    suffix if suffix else '')
             if file not in self._allocated_files:
                 self._allocated_files.add(file)

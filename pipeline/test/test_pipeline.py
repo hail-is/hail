@@ -185,21 +185,6 @@ class LocalTests(unittest.TestCase):
 
             assert self.read(output_file.name) == '2\n1\n0'
 
-    # FIXME: Run docker inside docker
-    # def test_single_task_docker(self):
-    #     output_file = '/tmp/test_single_task_docker.txt'
-    #     msg = 'hello world'
-    #
-    #     p = Pipeline()
-    #     t = p.new_task()
-    #     t.docker('ubuntu')
-    #     t.command(f'echo "{msg}" > {t.ofile}')
-    #     p.write_output(t.ofile, output_file)
-    #     p.run()
-    #
-    #     self.assertEqual(self.read(output_file), msg)
-    #     self.rm(output_file)
-
 
 class BatchTests(unittest.TestCase):
     def pipeline(self):

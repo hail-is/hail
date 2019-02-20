@@ -149,7 +149,7 @@ class BatchBackend(Backend):
             def copy_input(r):
                 if isinstance(r, ResourceFile):
                     if isinstance(r, InputResourceFile):
-                        return [f'gsutil cp {r._input_path} {local_tmpdir}/{r.file_name}']  # FIXME: This is serial!
+                        return [f'gsutil cp {r._input_path} {local_tmpdir}/{r.file_name}']
                     else:
                         assert isinstance(r, TaskResourceFile)
                         return [f'gsutil cp {remote_tmpdir}/{r.file_name} {local_tmpdir}/{r.file_name}']
