@@ -154,7 +154,7 @@ on_exit() {
 </tr>
 <tr>
 <td>${APISERVER_TEST_STATUS}</td>
-<td><a href='apiserver-test.log'>PyTest log</a></td>
+<td><a href='apiserver-test.log'>apiserver Test log</a></td>
 </tr>
 <tr>
 <td>${DOCTEST_STATUS}</td>
