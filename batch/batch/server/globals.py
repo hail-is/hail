@@ -1,13 +1,13 @@
 import datetime
 import collections
 
-pod_name_job = {}
+pod_name_job_task = {}
 job_id_job = {}
 batch_id_batch = {}
 
 
-def _log_path(id):
-    return f'logs/job-{id}.log'
+def _log_path(id, task_name):
+    return f'logs/job-{id}-{task_name}.log'
 
 
 def _read_file(fname):

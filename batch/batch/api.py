@@ -14,7 +14,8 @@ class API():
         """
         self.timeout = timeout
 
-    def create_job(self, url, spec, attributes, batch_id, callback, parent_ids, scratch_folder):
+    def create_job(self, url, spec, attributes, batch_id, callback, parent_ids,
+                   scratch_folder, input_files, output_files):
         doc = {
             'spec': spec,
             'parent_ids': parent_ids
@@ -27,6 +28,10 @@ class API():
             doc['callback'] = callback
         if scratch_folder:
             doc['scratch_folder'] = scratch_folder
+        if input_files:
+            doc['input_files'] = input_files
+        if output_files:
+            doc['output_files'] = output_files
 
         response = requests.post(url + '/jobs/create', json=doc, timeout=self.timeout)
         raise_on_failure(response)
@@ -45,7 +50,7 @@ class API():
     def get_job_log(self, url, job_id):
         response = requests.get(url + '/jobs/{}/log'.format(job_id), timeout=self.timeout)
         raise_on_failure(response)
-        return response.text
+        return response.json()
 
     def delete_job(self, url, job_id):
         response = requests.delete(url + '/jobs/{}/delete'.format(job_id), timeout=self.timeout)
@@ -92,8 +97,11 @@ class API():
 DEFAULT_API = API()
 
 
-def create_job(url, spec, attributes, batch_id, callback, parent_ids, scratch_folder):
-    return DEFAULT_API.create_job(url, spec, attributes, batch_id, callback, parent_ids, scratch_folder)
+def create_job(url, spec, attributes, batch_id, callback, parent_ids, scratch_folder,
+               input_files, output_files):
+    return DEFAULT_API.create_job(url, spec, attributes, batch_id, callback,
+                                  parent_ids, scratch_folder, input_files,
+                                  output_files)
 
 
 def list_jobs(url):
