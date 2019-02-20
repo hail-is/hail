@@ -94,7 +94,7 @@ object PackEncoder {
     tub.include("<cstdio>")
     tub.include("<memory>")
 
-    val encBuilder = tub.buildClass("Encoder", "NativeObj")
+    val encBuilder = tub.buildClass(tub.genSym("Encoder"), "NativeObj")
 
     val bufType = bufSpec.nativeOutputBufferType
     val buf = encBuilder.variable("buf", s"std::shared_ptr<$bufType>")

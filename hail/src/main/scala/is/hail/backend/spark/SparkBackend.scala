@@ -1,11 +1,11 @@
 package is.hail.backend.spark
 
-import is.hail.HailContext
+import is.hail.{HailContext, cxx}
 import is.hail.annotations.{Region, SafeRow}
 import is.hail.cxx.CXXUnsupportedOperation
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir._
-import is.hail.expr.types.physical.PTuple
+import is.hail.expr.types.physical.{PInt32, PTuple}
 import is.hail.utils._
 import org.apache.spark.SparkContext
 import org.json4s.jackson.JsonMethods
@@ -19,6 +19,7 @@ object SparkBackend {
   }
 
   def executeOrError(sc: SparkContext, ir0: IR, optimize: Boolean = true): Any = {
+    println("trying to execute IR")
     var ir = ir0
 
     ir = ir.unwrap
@@ -29,10 +30,16 @@ object SparkBackend {
     if (optimize)
       ir = Optimize(ir, noisy = true, canGenerateLiterals = false, context = Some("SparkBackend.execute - after MatrixIR lowering"))
 
-    val pipeline = LowerTableIR.lower(ir)
+    val pipeline = MakeTuple(FastIndexedSeq(LowerTableIR.lower(ir)))
+//    println(s"executing \n${ Pretty(pipeline) }")
+
+    val f = cxx.Compile("foo", PTuple(FastSeq(PInt32())), pipeline, optimize: Boolean)
+
+    println("executing IR")
+
     Region.scoped { region =>
-      val (t, off) = pipeline.execute(sc, region)
-      SafeRow(t, region, off).get(0)
+      val off = f(region.get(), 0L)
+      SafeRow(pipeline.pType.asInstanceOf[PTuple], region, off).get(0)
     }
   }
 

@@ -1,7 +1,5 @@
 package is.hail.cxx
 
-import java.io.FileOutputStream
-
 import is.hail.expr.ir
 import is.hail.expr.types.physical._
 import is.hail.nativecode.NativeStatus
@@ -10,7 +8,37 @@ import is.hail.utils.fatal
 import scala.reflect.classTag
 
 object Compile {
-  var i = 0
+
+  def makeNonmissingFunction(tub: TranslationUnitBuilder, body: ir.IR, args: (String, PType)*): Function = {
+    tub.include("hail/hail.h")
+    tub.include("hail/Utils.h")
+    tub.include("hail/Region.h")
+    tub.include("hail/Upcalls.h")
+    tub.include("hail/SparkUtils.h")
+
+    tub.include("<cstring>")
+
+    val fb = tub.buildFunction(tub.genSym("f"),
+      (("SparkFunctionContext", "spark_ctx") +: args.map { case (name, typ) =>
+        typeToCXXType(typ) -> name  }).toArray,
+      typeToCXXType(body.pType))
+
+    val emitEnv = args.zipWithIndex
+      .foldLeft(ir.Env[ir.IR]()){ case (env, ((arg, argType), i)) =>
+        env.bind(arg -> ir.In(i, argType.virtualType)) }
+    val v = Emit(fb, 1, ir.Subst(body, emitEnv))
+
+    fb +=
+      s"""
+         |${ v.setup }
+         |if (${ v.m })
+         |  abort();
+         |return ${ v.v };
+         |""".stripMargin
+    fb.end()
+  }
+
+
   def apply(
     arg0: String, arg0Type: PType,
     body: ir.IR, optimize: Boolean): (Long, Long) => Long = {
@@ -22,29 +50,7 @@ object Compile {
     assert(returnType.isInstanceOf[PBaseStruct])
 
     val tub = new TranslationUnitBuilder
-
-    tub.include("hail/hail.h")
-    tub.include("hail/Utils.h")
-    tub.include("hail/Region.h")
-    tub.include("hail/Upcalls.h")
-
-    tub.include("<cstring>")
-
-    val fb = tub.buildFunction("f",
-      Array("RegionPtr" -> "region", "const char *" -> "v"),
-      "char *")
-
-    val v = Emit(fb, 1, ir.Subst(body, ir.Env(arg0 -> ir.In(0, arg0Type.virtualType))))
-
-    fb +=
-      s"""
-         |UpcallEnv up;
-         |${ v.setup }
-         |if (${ v.m })
-         |  abort();
-         |return ${ v.v };
-         |""".stripMargin
-    val f = fb.end()
+    val f = makeNonmissingFunction(tub, body, arg0 -> arg0Type)
 
     tub += new Definition {
       def name: String = "entrypoint"
@@ -53,7 +59,7 @@ object Compile {
         s"""
            |long entrypoint(NativeStatus *st, long region, long v) {
            |  try {
-           |    return (long)${ f.name }(((ScalaRegion *)region)->region_, (char *)v);
+           |    return (long)${ f.name }(SparkFunctionContext(((ScalaRegion *)region)->region_, nullptr), (char *)v);
            |  } catch (const FatalError& e) {
            |    NATIVE_ERROR(st, 1005, e.what());
            |    return -1;
@@ -64,7 +70,6 @@ object Compile {
 
     val tu = tub.end()
     val mod = tu.build(if (optimize) "-ggdb -O1" else "-ggdb -O0")
-    i += 1
 
     val st = new NativeStatus()
     mod.findOrBuild(st)
