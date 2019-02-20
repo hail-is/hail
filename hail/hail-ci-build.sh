@@ -21,6 +21,7 @@ SCALA_TEST_LOG="build/scala-test.log"
 CXX_CODEGEN_TEST_LOG="build/codegen-test.log"
 PYTHON_TEST_LOG="build/python-test.log"
 APISERVER_TEST_LOG="build/apiserver-test.log"
+APISERVER_LOG="build/apiserver.log"
 DOCTEST_LOG="build/doctest.log"
 DOCS_LOG="build/docs.log"
 GCP_LOG="build/gcp.log"
@@ -70,6 +71,7 @@ on_exit() {
     cp ${CXX_CODEGEN_TEST_LOG} ${ARTIFACTS}
     cp ${PYTHON_TEST_LOG} ${ARTIFACTS}
     cp ${APISERVER_TEST_LOG} ${ARTIFACTS}
+    cp ${APISERVER_LOG} ${ARTIFACTS}
     cp ${DOCS_LOG} ${ARTIFACTS}
     cp ${DOCTEST_LOG} ${ARTIFACTS}
     cp ${GCP_LOG} ${ARTIFACTS}
@@ -155,6 +157,10 @@ on_exit() {
 <tr>
 <td>${APISERVER_TEST_STATUS}</td>
 <td><a href='apiserver-test.log'>apiserver Test log</a></td>
+</tr>
+<tr>
+<td>${APISERVER_TEST_STATUS}</td>
+<td><a href='apiserver.log'>apiserver log</a></td>
 </tr>
 <tr>
 <td>${DOCTEST_STATUS}</td>
