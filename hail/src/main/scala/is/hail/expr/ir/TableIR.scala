@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.annotations.aggregators.RegionValueAggregator
-import is.hail.expr.ir.functions.{MatrixToTableFunction, TableToTableFunction}
+import is.hail.expr.ir.functions.{BlockMatrixToTableFunction, MatrixToTableFunction, TableToTableFunction}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PInt32, PStruct}
 import is.hail.expr.types.virtual._
@@ -1532,6 +1532,21 @@ case class TableToTableApply(child: TableIR, function: TableToTableFunction) ext
 
   override def partitionCounts: Option[IndexedSeq[Long]] =
     if (function.preservesPartitionCounts) child.partitionCounts else None
+
+  protected[ir] override def execute(hc: HailContext): TableValue = {
+    function.execute(child.execute(hc))
+  }
+}
+
+case class BlockMatrixToTableApply(child: BlockMatrixIR, function: BlockMatrixToTableFunction) extends TableIR {
+  def children: IndexedSeq[BaseIR] = Array(child)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): TableIR = {
+    val IndexedSeq(newChild: BlockMatrixIR) = newChildren
+    BlockMatrixToTableApply(newChild, function)
+  }
+
+  override val typ: TableType = function.typ(child.typ)
 
   protected[ir] override def execute(hc: HailContext): TableValue = {
     function.execute(child.execute(hc))

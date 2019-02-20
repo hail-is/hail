@@ -8,7 +8,7 @@ from hail.expr import construct_expr
 from hail.ir import BlockMatrixWrite, BlockMatrixMap2, ApplyBinaryOp, Ref, F64, \
     BlockMatrixBroadcast, ValueToBlockMatrix, MakeArray, BlockMatrixRead, JavaBlockMatrix, BlockMatrixMap, \
     ApplyUnaryOp, IR, BlockMatrixDot, tensor_shape_to_matrix_shape, BlockMatrixAgg, BlockMatrixRandom, \
-    BlockMatrixToValueApply
+    BlockMatrixToValueApply, BlockMatrixToTableApply
 from hail.ir.blockmatrix_reader import BlockMatrixNativeReader, BlockMatrixBinaryReader
 from hail.ir.blockmatrix_writer import BlockMatrixBinaryWriter, BlockMatrixNativeWriter
 from hail.utils import new_temp_file, new_local_temp_file, local_path_uri, storage_level
@@ -822,12 +822,6 @@ class BlockMatrix(object):
         else:
             return self.filter(rows_to_keep, cols_to_keep)
 
-    @typecheck_method(table=Table,
-                      radius=int,
-                      include_diagonal=bool)
-    def _filtered_entries_table(self, table, radius, include_diagonal):
-        return Table._from_java(self._jbm.filteredEntriesTable(table._jt, radius, include_diagonal))
-
     @typecheck_method(lower=int, upper=int, blocks_only=bool)
     def sparsify_band(self, lower=0, upper=0, blocks_only=False):
         r"""Filter to a diagonal band.
@@ -1510,7 +1504,7 @@ class BlockMatrix(object):
         :class:`.Table`
             Table with a row for each entry.
         """
-        t = Table._from_java(self._jbm.entriesTable())
+        t = Table(BlockMatrixToTableApply(self._bmir, {'name': 'BlockMatrixEntries'}))
         if keyed:
             t = t.key_by('i', 'j')
         return t

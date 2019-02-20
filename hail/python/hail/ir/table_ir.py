@@ -445,6 +445,21 @@ class TableToTableApply(TableIR):
             self._type = Env.backend().table_type(self)
 
 
+
+class BlockMatrixToTableApply(TableIR):
+    def __init__(self, child, config):
+        super().__init__()
+        self.child = child
+        self.config = config
+
+    def render(self, r):
+        return f'(BlockMatrixToTableApply {dump_json(self.config)} {r(self.child)})'
+
+    def _compute_type(self):
+        assert self.config['name'] == 'BlockMatrixEntries'
+        self._type = hl.ttable(hl.tstruct(), hl.tstruct(**{'i': hl.tint64, 'j': hl.tint64, 'entry': hl.tfloat64}), [])
+
+
 def regression_test_type(test):
     glm_fit_schema = dtype('struct{n_iterations:int32,converged:bool,exploded:bool}')
     if test == 'wald':
@@ -456,6 +471,7 @@ def regression_test_type(test):
     else:
         assert test == 'firth', test
         return dtype(f'struct{{beta:float64,chi_sq_stat:float64,p_value:float64,fit:{glm_fit_schema}}}')
+
 
 class MatrixToTableApply(TableIR):
     def __init__(self, child, config):
