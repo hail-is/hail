@@ -139,3 +139,7 @@ function unauthorized(res) {
   res.statusCode = 401;
   res.end();
 }
+
+module.exports = {
+  getAuthToken
+};

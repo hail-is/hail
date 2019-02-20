@@ -4,7 +4,7 @@
   "description": "Hail Auth Gateway",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "mocha --recursive --exit test/"
   },
   "repository": {
     "type": "git",
@@ -28,6 +28,9 @@
     "polka": "^0.5.1"
   },
   "devDependencies": {
+    "chai": "^4.2.0",
+    "mocha": "^6.0.0",
+    "node-mocks-http": "^1.7.3",
     "nodemon": "^1.18.9"
   }
 }
