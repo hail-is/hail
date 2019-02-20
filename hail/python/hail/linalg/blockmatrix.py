@@ -6,8 +6,8 @@ import hail as hl
 import hail.expr.aggregators as agg
 from hail.expr import construct_expr
 from hail.ir import BlockMatrixWrite, BlockMatrixMap2, ApplyBinaryOp, Ref, F64, \
-    BlockMatrixBroadcast, ValueToBlockMatrix, MakeArray, BlockMatrixRead, JavaBlockMatrix, BlockMatrixMap, ApplyUnaryOp, \
-    IR
+    BlockMatrixBroadcast, ValueToBlockMatrix, MakeArray, BlockMatrixRead, JavaBlockMatrix, BlockMatrixMap,\
+    ApplyUnaryOp, IR, BlockMatrixDot, tensor_shape_to_matrix_shape
 from hail.utils import new_temp_file, new_local_temp_file, local_path_uri, storage_level
 from hail.utils.java import Env, jarray, joption
 from hail.typecheck import *
@@ -533,16 +533,7 @@ class BlockMatrix(object):
         (:obj:`int`, :obj:`int`)
            Number of rows and number of columns.
         """
-        shape = self._bmir.typ.shape
-        assert len(shape) <= 2
-
-        if len(shape) == 0:
-            return 1, 1
-        elif len(shape) == 1:
-            length = shape[0]
-            return (1, length) if self._bmir.typ.is_row_vector else (length, 1)
-        else:
-            return tuple(shape)
+        return tensor_shape_to_matrix_shape(self._bmir)
 
     @property
     def block_size(self):
@@ -1363,11 +1354,12 @@ class BlockMatrix(object):
         :class:`.BlockMatrix`
         """
         if isinstance(b, np.ndarray):
-            return self @ BlockMatrix.from_numpy(b, self.block_size)
-        else:
-            if self.n_cols != b.n_rows:
-                raise ValueError(f'incompatible shapes for matrix multiplication: {self.shape} and {b.shape}')
-            return BlockMatrix._from_java(self._jbm.dot(b._jbm))
+            b = BlockMatrix(_to_bmir(b, self.block_size))
+
+        if self.n_cols != b.n_rows:
+            raise ValueError(f'incompatible shapes for matrix multiplication: {self.shape} and {b.shape}')
+
+        return BlockMatrix(BlockMatrixDot(self._bmir, b._bmir))
 
     @typecheck_method(x=numeric)
     def __pow__(self, x):

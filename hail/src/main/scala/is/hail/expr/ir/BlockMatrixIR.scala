@@ -30,6 +30,18 @@ object BlockMatrixIR {
       case _ => (IndexedSeq(nRows, nCols), false)
     }
   }
+
+  def tensorShapeToMatrixShape(bmir: BlockMatrixIR): (Long, Long) = {
+    val shape = bmir.typ.shape
+    val isRowVector = bmir.typ.isRowVector
+
+    assert(shape.length <= 2)
+    shape match {
+      case IndexedSeq() => (1, 1)
+      case IndexedSeq(len) => if (isRowVector) (len, 1) else (1, len)
+      case IndexedSeq(r, c) => (r, c)
+    }
+  }
 }
 
 abstract sealed class BlockMatrixIR extends BaseIR {
@@ -249,6 +261,34 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, f: IR) ext
   }
 }
 
+case class BlockMatrixDot(left: BlockMatrixIR, right: BlockMatrixIR) extends BlockMatrixIR {
+
+  override def typ: BlockMatrixType = {
+    val (lRows, lCols) = BlockMatrixIR.tensorShapeToMatrixShape(left)
+    val (rRows, rCols) = BlockMatrixIR.tensorShapeToMatrixShape(right)
+    assert(lCols == rRows)
+
+    val (tensorShape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(lRows, rCols)
+    BlockMatrixType(
+      left.typ.elementType,
+      tensorShape,
+      isRowVector,
+      left.typ.blockSize,
+      tensorShape.map(_ => true))
+  }
+
+  override def children: IndexedSeq[BaseIR] = Array(left, right)
+
+  override def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
+    assert(newChildren.length == 2)
+    BlockMatrixDot(newChildren(0).asInstanceOf[BlockMatrixIR], newChildren(1).asInstanceOf[BlockMatrixIR])
+  }
+
+  override protected[ir] def execute(hc: HailContext): BlockMatrix = {
+    left.execute(hc).dot(right.execute(hc))
+  }
+}
+
 case class BlockMatrixBroadcast(
   child: BlockMatrixIR,
   inIndexExpr: IndexedSeq[Int],
@@ -256,11 +296,14 @@ case class BlockMatrixBroadcast(
   blockSize: Int,
   dimsPartitioned: IndexedSeq[Boolean]) extends BlockMatrixIR {
 
+  assert(shape.length == 2)
   assert(inIndexExpr.length < 2 || (inIndexExpr.length == 2 && inIndexExpr(0) != inIndexExpr(1)))
-  assert(inIndexExpr.zipWithIndex.forall({ case (out: Int, in: Int) => child.typ.shape(in) == shape(out) }))
 
   override def typ: BlockMatrixType = {
-    BlockMatrixType(child.typ.elementType, shape, isRowVector = false, blockSize, dimsPartitioned)
+    val (tensorShape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(shape(0), shape(1))
+    assert(inIndexExpr.zipWithIndex.forall({ case (out: Int, in: Int) => child.typ.shape(in) == tensorShape(out) }))
+
+    BlockMatrixType(child.typ.elementType, tensorShape, isRowVector, blockSize, dimsPartitioned)
   }
 
   override def children: IndexedSeq[BaseIR] = Array(child)

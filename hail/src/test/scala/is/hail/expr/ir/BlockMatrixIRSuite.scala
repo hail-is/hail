@@ -158,4 +158,9 @@ class BlockMatrixIRSuite extends SparkSuite {
     assertBmEq(actualOnesDivRowOnLeft.execute(hc),  expectedOnesDivRowLeft)
     assertBmEq(actualOnesDivColOnLeft.execute(hc),  expectedOnesDivColLeft)
   }
+
+  @Test def testBlockMatrixDot() {
+    val dotTwosAndThrees = BlockMatrixDot(new BlockMatrixLiteral(twos), new BlockMatrixLiteral(threes))
+    assertBmEq(dotTwosAndThrees.execute(hc), BlockMatrix.fill(hc, 3, 3, 2 * 3 * 3))
+  }
 }

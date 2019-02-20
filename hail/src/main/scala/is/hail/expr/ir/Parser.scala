@@ -1153,6 +1153,10 @@ object IRParser {
         val right = blockmatrix_ir(env)(it)
         val f = ir_value_expr(env.update(Map("l" -> left.typ.elementType, "r" -> right.typ.elementType)))(it)
         BlockMatrixMap2(left, right, f)
+      case "BlockMatrixDot" =>
+        val left = blockmatrix_ir(env)(it)
+        val right = blockmatrix_ir(env)(it)
+        BlockMatrixDot(left, right)
       case "BlockMatrixBroadcast" =>
         val inIndexExpr = int32_literals(it)
         val shape = int64_literals(it)

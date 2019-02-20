@@ -262,6 +262,8 @@ class BlockMatrixIRTests(unittest.TestCase):
         broadcast_scalar = ir.BlockMatrixBroadcast(scalar_to_bm, [], [2, 2], 256, [False, False])
         broadcast_col = ir.BlockMatrixBroadcast(col_vector_to_bm, [0], [2, 2], 256, [False, False])
         broadcast_row = ir.BlockMatrixBroadcast(row_vector_to_bm, [1], [2, 2], 256, [False, False])
+        transpose = ir.BlockMatrixBroadcast(broadcast_scalar, [1, 0], [2, 2], 256, [False, False])
+        matmul = ir.BlockMatrixDot(broadcast_scalar, transpose)
 
         pow_ir = (construct_expr(ir.Ref('l'), hl.tfloat64) ** construct_expr(ir.Ref('r'), hl.tfloat64))._ir
         squared_bm = ir.BlockMatrixMap2(scalar_to_bm, scalar_to_bm, pow_ir)
@@ -277,7 +279,9 @@ class BlockMatrixIRTests(unittest.TestCase):
             broadcast_scalar,
             broadcast_col,
             broadcast_row,
-            squared_bm
+            squared_bm,
+            transpose,
+            matmul
         ]
 
     def test_parses(self):

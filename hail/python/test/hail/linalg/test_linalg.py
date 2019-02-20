@@ -342,14 +342,22 @@ class Tests(unittest.TestCase):
         nm = np.matrix([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
         m = BlockMatrix.from_numpy(nm, block_size=2)
 
+        nrow = np.matrix([[7.0, 8.0, 9.0]])
+        row = BlockMatrix.from_numpy(nrow, block_size=2)
+
         self._assert_eq(m.T, nm.T)
         self._assert_eq(m.T, nm.T)
+        self._assert_eq(row.T, nrow.T)
 
         self._assert_eq(m @ m.T, nm @ nm.T)
         self._assert_eq(m @ nm.T, nm @ nm.T)
+        self._assert_eq(row @ row.T, nrow @ nrow.T)
+        self._assert_eq(row @ nrow.T, nrow @ nrow.T)
 
         self._assert_eq(m.T @ m, nm.T @ nm)
         self._assert_eq(m.T @ nm, nm.T @ nm)
+        self._assert_eq(row.T @ row, nrow.T @ nrow)
+        self._assert_eq(row.T @ nrow, nrow.T @ nrow)
 
         self.assertRaises(ValueError, lambda: m @ m)
         self.assertRaises(ValueError, lambda: m @ nm)
