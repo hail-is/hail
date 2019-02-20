@@ -36,6 +36,7 @@ def densify(sparse_mt):
                     prev_entries[i], t.__entries[i],
                     lambda prev_entry, entry:
                     hl.cond(
+                        (~hl.is_defined(entry)) &
                         (hl.is_defined(prev_entry.END) &
                          (prev_entry.END >= t.locus.position) &
                          (prev_entry.__contig == t.locus.contig)),
