@@ -267,7 +267,7 @@ class Tests(unittest.TestCase):
 
     def test_sparse(self):
         expected_split_mt = hl.import_vcf(resource('sparse_split_test_b.vcf'))
-        mt = (hl.experimental.sparse_split_multi(
-            hl.import_vcf(resource('sparse_split_test.vcf'), call_fields=['LGT', 'LPGT']))
+        unsplit_mt = hl.import_vcf(resource('sparse_split_test.vcf'), call_fields=['LGT', 'LPGT'], array_elements_required=False)
+        mt = (hl.experimental.sparse_split_multi(unsplit_mt)
               .drop('a_index', 'was_split').select_entries(*expected_split_mt.entry.keys()))
         assert mt._same(expected_split_mt)

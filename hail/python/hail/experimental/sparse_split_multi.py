@@ -148,7 +148,7 @@ def sparse_split_multi(sparse_mt):
                 new_pl = hl.or_missing(
                     hl.is_defined(old_entry.LPL),
                     (hl.range(0, 6).map(lambda i: hl.min(
-                        (hl.range(0, hl.triangle(hl.len(old_entry.LA) + 1))
+                        (hl.range(0, hl.triangle(hl.len(old_entry.LA)))
                          .filter(lambda j: hl.bind(downcodes_to,
                                                    hl.unphased_diploid_gt_index_call(j),
                                                    hl.unphased_diploid_gt_index_call(i)))
@@ -189,12 +189,12 @@ def sparse_split_multi(sparse_mt):
 
             lai = hl.fold(lambda accum, elt:
                           hl.cond(old_entry.LA[elt] == ds[new_id].a_index,
-                                  elt + 1, accum),
+                                  elt, accum),
                           non_ref_index,
                           hl.range(0, hl.len(old_entry.LA)))
             return hl.bind(with_local_a_index, lai)
 
-        return hl.bind(with_non_ref_index, hl.len(old_entry.LA))
+        return hl.bind(with_non_ref_index, hl.len(old_entry.LA) - 1)
 
     new_row = ds.row.annotate(**{
         'locus': ds[new_id].locus,
