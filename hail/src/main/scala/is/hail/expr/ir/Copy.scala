@@ -205,6 +205,9 @@ object Copy {
       case BlockMatrixWrite(_, path, overwrite, forceRowMajor, stageLocally) =>
         val IndexedSeq(newChild: BlockMatrixIR) = newChildren
         BlockMatrixWrite(newChild, path, overwrite, forceRowMajor, stageLocally)
+      case CollectDistributedArray(_, _, cname, gname, _) =>
+        val IndexedSeq(ctxs: IR, globals: IR, newBody: IR) = newChildren
+        CollectDistributedArray(ctxs, globals, cname, gname, newBody)
     }
   }
 }

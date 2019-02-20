@@ -311,6 +311,11 @@ object TypeCheck {
       case TableToValueApply(_, _) =>
       case MatrixToValueApply(_, _) =>
       case BlockMatrixWrite(_, _, _, _, _) =>
+      case CollectDistributedArray(ctxs, globals, cname, gname, body) =>
+        check(ctxs)
+        assert(ctxs.typ.isInstanceOf[TArray])
+        check(globals)
+        check(body, env = env.bind(cname, coerce[TArray](ctxs.typ).elementType).bind(gname, globals.typ))
     }
   }
 }

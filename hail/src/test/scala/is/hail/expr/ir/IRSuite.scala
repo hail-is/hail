@@ -1041,7 +1041,8 @@ class IRSuite extends SparkSuite {
       MatrixWrite(bgen, MatrixGENWriter(tmpDir.createLocalTempFile())),
       MatrixMultiWrite(Array(mt, mt), MatrixNativeMultiWriter(tmpDir.createLocalTempFile())),
       MatrixAggregate(mt, MakeStruct(Seq("foo" -> count))),
-      BlockMatrixWrite(blockMatrix, tmpDir.createLocalTempFile(), false, false, false)
+      BlockMatrixWrite(blockMatrix, tmpDir.createLocalTempFile(), false, false, false),
+      CollectDistributedArray(ArrayRange(0, 3, 1), 1, "x", "y", Ref("x", TInt32()))
     )
     irs.map(x => Array(x))
   }
