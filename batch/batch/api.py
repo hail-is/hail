@@ -14,7 +14,7 @@ class API():
         """
         self.timeout = timeout
 
-    def create_job(self, url, spec, attributes, batch_id, callback, parent_ids, scratch_bucket):
+    def create_job(self, url, spec, attributes, batch_id, callback, parent_ids, scratch_folder):
         doc = {
             'spec': spec,
             'parent_ids': parent_ids
@@ -25,8 +25,8 @@ class API():
             doc['batch_id'] = batch_id
         if callback:
             doc['callback'] = callback
-        if scratch_bucket:
-            doc['scratch_bucket'] = scratch_bucket
+        if scratch_folder:
+            doc['scratch_folder'] = scratch_folder
 
         response = requests.post(url + '/jobs/create', json=doc, timeout=self.timeout)
         raise_on_failure(response)
@@ -92,8 +92,8 @@ class API():
 DEFAULT_API = API()
 
 
-def create_job(url, spec, attributes, batch_id, callback, parent_ids, scratch_bucket):
-    return DEFAULT_API.create_job(url, spec, attributes, batch_id, callback, parent_ids, scratch_bucket)
+def create_job(url, spec, attributes, batch_id, callback, parent_ids, scratch_folder):
+    return DEFAULT_API.create_job(url, spec, attributes, batch_id, callback, parent_ids, scratch_folder)
 
 
 def list_jobs(url):
