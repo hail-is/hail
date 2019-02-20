@@ -501,7 +501,9 @@ class BlockMatrix(object):
     @staticmethod
     def default_block_size():
         """Default block side length."""
-        return Env.hail().linalg.BlockMatrix.defaultBlockSize()
+
+        # This should match BlockMatrix.defaultBlockSize in the Scala backend.
+        return 4096  # 32 * 1024 bytes
 
     @property
     def element_type(self):
