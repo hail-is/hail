@@ -1994,8 +1994,7 @@ class BlockMatrixToValueApply(IR):
         return isinstance(other, BlockMatrixToValueApply) and other.child == self.child and other.config == self.config
 
     def _compute_type(self, env, agg_env):
-        name = self.config['name']
-        assert name == 'GetElement'
+        assert self.config['name'] == 'GetElement'
         self._type = tfloat64
 
 
