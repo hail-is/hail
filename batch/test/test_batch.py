@@ -54,11 +54,11 @@ class Test(unittest.TestCase):
         status = j.status()
         assert(status['attributes'] == a)
 
-    def test_scratch_bucket(self):
-        sb = 'gs://test-bucket/'
-        j = self.batch.create_job('alpine', ['true'], scratch_bucket=sb)
+    def test_scratch_folder(self):
+        sb = 'gs://test-bucket/folder'
+        j = self.batch.create_job('alpine', ['true'], scratch_folder=sb)
         status = j.status()
-        assert(status['scratch_bucket'] == sb)
+        assert(status['scratch_folder'] == sb)
 
     def test_fail(self):
         j = self.batch.create_job('alpine', ['false'])
