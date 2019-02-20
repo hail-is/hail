@@ -24,14 +24,16 @@ def sparse_split_multi(sparse_mt):
 
         .. code-block:: text
 
-        LGT: call
-        LAD: array<int32>
-        DP: int32
-        GQ: int32
-        LPL: array<int32>
-        LPGT: call
-        LA: array<int32>
-        END: int32
+          struct {
+            LGT: call
+            LAD: array<int32>
+            DP: int32
+            GQ: int32
+            LPL: array<int32>
+            LPGT: call
+            LA: array<int32>
+            END: int32
+          }
 
     All fields except for `LA` are optional, and only handled if they exist.
 
