@@ -121,7 +121,7 @@ class Job:
         assert self._state == 'Cancelled'
         return None
 
-    def __init__(self, pod_spec, batch_id, attributes, callback, parent_ids):
+    def __init__(self, pod_spec, batch_id, attributes, callback, parent_ids, scratch_bucket):
         self.id = next_id()
         self.batch_id = batch_id
         self.attributes = attributes
@@ -129,6 +129,7 @@ class Job:
         self.child_ids = set([])
         self.parent_ids = parent_ids
         self.incomplete_parent_ids = set(self.parent_ids)
+        self.scratch_bucket = scratch_bucket
         self._pod_name = None
         self.exit_code = None
         self._state = 'Created'
@@ -275,6 +276,8 @@ class Job:
             result['attributes'] = self.attributes
         if self.parent_ids:
             result['parent_ids'] = self.parent_ids
+        if self.scratch_bucket:
+            result['scratch_bucket'] = self.scratch_bucket
         return result
 
 
@@ -292,6 +295,7 @@ def create_job():  # pylint: disable=R0912
         'spec': schemas.pod_spec,
         'batch_id': {'type': 'integer'},
         'parent_ids': {'type': 'list', 'schema': {'type': 'integer'}},
+        'scratch_bucket': {'type': 'string'},
         'attributes': {
             'type': 'dict',
             'keyschema': {'type': 'string'},
@@ -324,6 +328,8 @@ def create_job():  # pylint: disable=R0912
                   f'invalid parent batch: {parent_id} is in batch '
                   f'{parent_job.batch_id} but child is in {batch_id}')
 
+    scratch_bucket = parameters.get('scratch_bucket')
+
     if len(pod_spec.containers) != 1:
         abort(400, f'only one container allowed in pod_spec {pod_spec}')
 
@@ -335,7 +341,8 @@ def create_job():  # pylint: disable=R0912
         batch_id,
         parameters.get('attributes'),
         parameters.get('callback'),
-        parent_ids)
+        parent_ids,
+        scratch_bucket)
     return jsonify(job.to_json())
 
 
