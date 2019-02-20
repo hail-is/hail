@@ -11,14 +11,14 @@ def sparse_split_multi(sparse_mt):
 
     Variants are split thus:
 
-    * A row with only one (reference) or two (reference and alternate) alleles
-    in addition to the symbolic `<NON_REF>` will not be split.
+    - A row with only one (reference) or two (reference and alternate) alleles
+      in addition to the symbolic `<NON_REF>` will not be split.
 
-    * A row with multiple alternate alleles in addition to the symbolic
-    `<NON_REF>` allele be split, with one row for each alternate allele not
-    including `<NON_REF>`, and each row will contain three alleles: ref, alt,
-    and `<NON_REF>`. The reference and alternate allele will be minrepped using
-    :func:`.min_rep`.
+    - A row with multiple alternate alleles in addition to the symbolic
+      `<NON_REF>` allele be split, with one row for each alternate allele not
+      including `<NON_REF>`, and each row will contain three alleles: ref, alt,
+      and `<NON_REF>`. The reference and alternate allele will be minrepped using
+      :func:`.min_rep`.
 
     The split multi logic handles the following entry fields:
 
@@ -35,32 +35,32 @@ def sparse_split_multi(sparse_mt):
 
     All fields except for `LA` are optional, and only handled if they exist.
 
-    * `LA` is used to find the corresponding local allele index for the desired
-    global `a_index`, and then dropped from the resulting dataset. If `LA` does
-    not contain the global `a_index`, the index for the `<NON_REF>` allele is
-    used to process the entry fields.
+    - `LA` is used to find the corresponding local allele index for the desired
+      global `a_index`, and then dropped from the resulting dataset. If `LA`
+      does not contain the global `a_index`, the index for the `<NON_REF>`
+      allele is used to process the entry fields.
 
-    * `LGT` and `LPGT` are downcoded using the corresponding local `a_index`.
-    They are renamed to `GT` and `PGT` respectively, as the resulting call is
-    no longer local.
+    - `LGT` and `LPGT` are downcoded using the corresponding local `a_index`.
+      They are renamed to `GT` and `PGT` respectively, as the resulting call is
+      no longer local.
 
-    * `LAD` is used to create an `AD` field consisting of the allele depths
-    corresponding to the reference, global `a_index` allele, and `<NON_REF>`
-    allele.
+    - `LAD` is used to create an `AD` field consisting of the allele depths
+      corresponding to the reference, global `a_index` allele, and `<NON_REF>`
+      allele.
 
-    * `DP` is preserved unchanged.
+    - `DP` is preserved unchanged.
 
-    * `GQ` is recalculated from the updated `PL`, if it exists, but otherwise
-    preserved unchanged.
+    - `GQ` is recalculated from the updated `PL`, if it exists, but otherwise
+      preserved unchanged.
 
-    * `PL` array elements are calculated from the minimum `LPL` value for all
-    allele pairs that downcode to the desired one. (This logic is identical to
-    the `PL` logic in :func:`.split_mult_hts`, except with the addition of
-    a special case where `<NON_REF>` alleles don't downcode to ref but instead
-    are used for the (ref, `<NON_REF>`), (alt, `<NON_REF>`), and (`<NON_REF>`,
-    `<NON_REF>`) cases.)
+    - `PL` array elements are calculated from the minimum `LPL` value for all
+      allele pairs that downcode to the desired one. (This logic is identical to
+      the `PL` logic in :func:`.split_mult_hts`, except with the addition of
+      a special case where `<NON_REF>` alleles don't downcode to ref but instead
+      are used for the (ref, `<NON_REF>`), (alt, `<NON_REF>`), and (`<NON_REF>`,
+      `<NON_REF>`) cases.)
 
-    * `END` is untouched.
+    - `END` is untouched.
 
     Notes
     -----
