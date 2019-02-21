@@ -7,7 +7,6 @@ import is.hail.linalg.BlockMatrix
 
 case class BlockMatrixEntries() extends BlockMatrixToTableFunction {
   override def typ(childType: BlockMatrixType): TableType = {
-    //Copied from the BlockMatrix.entriesTable implementation
     val rvType = TStruct("i" -> TInt64Optional, "j" -> TInt64Optional, "entry" -> TFloat64Optional)
     TableType(rvType, Array[String](), TStruct.empty())
   }
