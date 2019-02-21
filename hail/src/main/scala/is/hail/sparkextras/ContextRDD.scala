@@ -201,10 +201,13 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
     val aggregatePartition = clean { (it: Iterator[C => Iterator[T]]) =>
       using(mkc()) { c =>
         serialize(it.flatMap(_(c)).aggregate(zeroValue)(seqOp(c, _, _), combOp)) } }
+    val vs = sparkContext.runJob(rdd, aggregatePartition)
     var result = zero
-    val localCombiner = { (_: Int, v: V) =>
-      result = combOp(result, deserialize(v)) }
-    sparkContext.runJob(rdd, aggregatePartition, localCombiner)
+    var i = 0
+    while (i < vs.length) {
+      result = combOp(result, deserialize(vs(i)))
+      i += 1
+    }
     result
   }
 
