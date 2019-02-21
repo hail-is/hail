@@ -1,18 +1,10 @@
 """
-A Jupyter notebook service with Hail pre-installed
-It is expected that all endpoints are protected
-by an upstream service that verifies an OAuth2 access_token
+A Jupyter notebook service with local-mode Hail pre-installed
 """
-
 import gevent
 # must happen before anytyhing else
-from gevent import monkey, pywsgi
-from geventwebsocket.handler import WebSocketHandler
-monkey.patch_all()
-
-import requests
-import ujson
-from flask import Flask, request, Response
+from gevent import monkey; monkey.patch_all()
+from flask import Flask, session, redirect, render_template, request
 from flask_sockets import Sockets
 import flask
 import kubernetes as kube
@@ -23,33 +15,10 @@ import requests
 import time
 import uuid
 
-try:
-    with open('notebook-worker-images', 'r') as f:
-        def get_name(line):
-            return re.search("/([^/:]+):", line).group(1)
-        WORKER_IMAGES = {get_name(line): line.strip() for line in f}
-except FileNotFoundError as e:
-    raise ValueError(
-        "working directory must contain a file called `notebook-worker-images' "
-        "containing the name of the docker image to use for worker pods.") from e
-
-if 'BATCH_USE_KUBE_CONFIG' in os.environ:
-    kube.config.load_kube_config()
-else:
-    kube.config.load_incluster_config()
-
-DEFAULT_HAIL_IMAGE = os.environ.get("DEFAULT_HAIL_IMAGE",
-                                    list(WORKER_IMAGES.keys())[0])
-AUTH_GATEWAY = os.environ.get("AUTH_GATEWAY", "http://auth-gateway")
-KUBERNETES_TIMEOUT_IN_SECONDS = int(
-    os.environ.get('KUBERNETES_TIMEOUT_IN_SECONDS', 5))
-
-INSTANCE_ID = uuid.uuid4().hex
-
 fmt = logging.Formatter(
-    # NB: no space after levelname because WARNING is so long
-    '%(levelname)s\t| %(asctime)s \t| %(filename)s \t| %(funcName)s:%(lineno)d | '
-    '%(message)s')
+   # NB: no space after levelname because WARNING is so long
+   '%(levelname)s\t| %(asctime)s \t| %(filename)s \t| %(funcName)s:%(lineno)d | '
+   '%(message)s')
 
 fh = logging.FileHandler('notebook.log')
 fh.setLevel(logging.INFO)
@@ -65,32 +34,40 @@ logging.basicConfig(
     handlers=[fh, ch],
     level=logging.INFO)
 
-log.info(f'AUTH_GATEWAY: {AUTH_GATEWAY}')
-log.info(f'DEFAULT_HAIL_IMAGE: {DEFAULT_HAIL_IMAGE}')
-log.info(f'KUBERNETES_TIMEOUT_IN_SECONDS: {KUBERNETES_TIMEOUT_IN_SECONDS}')
-log.info(f'INSTANCE_ID: {INSTANCE_ID}')
-
-# Prevent issues with many websockets leading to many kube connections
-# TODO: tune this, potentially watch many users with one connection
-kube.config.connection_pool_maxsize = 5000
+if 'BATCH_USE_KUBE_CONFIG' in os.environ:
+    kube.config.load_kube_config()
+else:
+    kube.config.load_incluster_config()
 k8s = kube.client.CoreV1Api()
 
 app = Flask(__name__)
 sockets = Sockets(app)
 
+def read_string(f):
+    with open(f, 'r') as f:
+        return f.read().strip()
 
-# FIXME: use hash
-def UNSAFE_user_id_transform(user_id): return user_id.replace('|', '--_--')
+KUBERNETES_TIMEOUT_IN_SECONDS = float(os.environ.get('KUBERNETES_TIMEOUT_IN_SECONDS', 5.0))
+app.secret_key = read_string('/notebook-secrets/secret-key')
+PASSWORD = read_string('/notebook-secrets/password')
+ADMIN_PASSWORD = read_string('/notebook-secrets/admin-password')
+INSTANCE_ID = uuid.uuid4().hex
+
+log.info(f'KUBERNETES_TIMEOUT_IN_SECONDS {KUBERNETES_TIMEOUT_IN_SECONDS}')
+log.info(f'INSTANCE_ID {INSTANCE_ID}')
+
+try:
+    with open('notebook-worker-images', 'r') as f:
+        def get_name(line):
+            return re.search("/([^/:]+):", line).group(1)
+        WORKER_IMAGES = {get_name(line): line.strip() for line in f}
+except FileNotFoundError as e:
+    raise ValueError(
+        "working directory must contain a file called `notebook-worker-images' "
+        "containing the name of the docker image to use for worker pods.") from e
 
 
-def not_found():
-    return 'Not Found', 404
-
-
-def start_pod(jupyter_token: str, image: str, labels={}):
-    if jupyter_token is None or image is None:
-        raise ValueError("start_pod must be called w/ 'jupyter_token' & 'image'")
-
+def start_pod(jupyter_token, image):
     pod_id = uuid.uuid4().hex
     service_spec = kube.client.V1ServiceSpec(
         selector={
@@ -104,8 +81,7 @@ def start_pod(jupyter_token: str, image: str, labels={}):
             labels={
                 'app': 'notebook-worker',
                 'hail.is/notebook-instance': INSTANCE_ID,
-                'uuid': pod_id,
-                **labels}),
+                'uuid': pod_id}),
         spec=service_spec)
     svc = k8s.create_namespaced_service(
         'default',
@@ -118,7 +94,6 @@ def start_pod(jupyter_token: str, image: str, labels={}):
                 command=[
                     'jupyter',
                     'notebook',
-                    "--ip", "0.0.0.0", "--no-browser",
                     f'--NotebookApp.token={jupyter_token}',
                     f'--NotebookApp.base_url=/instance/{svc.metadata.name}/'
                 ],
@@ -138,320 +113,201 @@ def start_pod(jupyter_token: str, image: str, labels={}):
                 'app': 'notebook-worker',
                 'hail.is/notebook-instance': INSTANCE_ID,
                 'uuid': pod_id,
-                'svc_name': svc.metadata.name,
-                **labels
-            },),
+            }),
         spec=pod_spec)
     pod = k8s.create_namespaced_pod(
         'default',
         pod_template,
-        _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS,
-    )
-
+        _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
     return svc, pod
 
 
-def del_pod(pod_name: str):
-    k8s.delete_namespaced_pod(
-        pod_name,
-        'default',
-        kube.client.V1DeleteOptions(),
-        _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+def external_url_for(path):
+    # NOTE: nginx strips https and sets X-Forwarded-Proto: https, but
+    # it is not used by request.url or url_for, so rewrite the url and
+    # set _scheme='https' explicitly.
+    protocol = request.headers.get('X-Forwarded-Proto', None)
+    url = flask.url_for('root', _scheme=protocol, _external='true')
+    return url + path
 
 
-def del_svc(svc_name: str):
-    k8s.delete_namespaced_service(
-        svc_name,
-        'default',
-        kube.client.V1DeleteOptions(),
-        _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
-
-
-# General resource marshalling functions #
-
-
-def get_path(data, path: str):
-    while True:
-        idx = path.find('.')
-
-        if idx == -1:
-            if isinstance(data, dict):
-                return data[path]
-            return getattr(data, path)
-
-        data = getattr(data, path[0:idx])
-
-        path = path[idx + 1:]
-
-
-def marshall_json(resources: [], paths=[], flatten=False):
-    if len(resources) == 0 or len(paths) == 0:
-        if flatten:
-            return "{}"
-
-        return "[]"
-
-    resp = []
-    for rsc in resources:
-        data = {}
-        for path in paths:
-            if len(path) == 3:
-                data[path[0]] = path[2](get_path(rsc, path[1]))
-            else:
-                data[path[0]] = get_path(rsc, path[1])
-
-        resp.append(data)
-
-    if flatten and len(resources) == 1:
-        return ujson.dumps(resp[0])
-
-    return ujson.dumps(resp)
-
-
-def read_svc_status(svc_name: str):
-    try:
-        # TODO: inspect exception for non-404
-        _ = k8s.read_namespaced_service(svc_name, 'default')
-        return 'Running'
-    except Exception:
-        return 'Deleted'
-
-
-def read_containers_status(container_statuses):
-    """
-        Summarize the container status based on its most recent state
-
-        Parameters
-        ----------
-        container_statuses : list[V1ContainerStatus]
-            https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1ContainerStatus.md
-    """
-    if container_statuses is None:
-        return None
-
-    state = container_statuses[0].state
-    rn = None
-    wt = None
-    tm = None
-    if state.running:
-        rn = {"started_at": state.running.started_at}
-
-    if state.waiting:
-        wt = {"reason": state.waiting.reason}
-
-    if state.terminated:
-        tm = {"exit_code": state.terminated.exit_code, "finished_at": state.terminated.finished_at,
-              "started_at": state.terminated.started_at, "reason": state.terminated.reason}
-
-    if rn is None and wt is None and tm is None:
-        return None
-
-    return {"running": rn, "terminated": tm, "waiting": wt}
-
-
-def read_conditions(conds):
-    """
-        Return the most recent status=="True" V1PodCondition or None
-
-        Parameters
-        ----------
-        conds : list[V1PodCondition]
-            https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1PodCondition.md
-
-    """
-    if conds is None:
-        return None
-
-    maxDate = None
-    maxCond = None
-    for condition in conds:
-        if maxDate is None:
-            maxCond = condition
-            maxDate = condition.last_transition_time
-            continue
-
-        if condition.last_transition_time > maxDate and condition.status == "True":
-            maxCond = condition
-            maxDate = condition.last_transition_time
-
-    return {
-        "message": maxCond.message,
-        "reason": maxCond.reason,
-        "status": maxCond.status,
-        "type": maxCond.type}
-
-
-common_pod_paths = [
-    ['name', 'metadata.labels.name'],
-    ['pod_name', 'metadata.name'],
-    ['svc_name', 'metadata.labels.svc_name'],
-    ['pod_status', 'status.phase'],
-    ['creation_date', 'metadata.creation_timestamp',
-        lambda x: x.strftime('%D')],
-    ['token', 'metadata.labels.jupyter_token'],
-    ['container_status', 'status.container_statuses',
-        lambda x: read_containers_status(x)],
-    ['condition', 'status.conditions', lambda x: read_conditions(x)]
-]
-
-pod_paths = [
-    *common_pod_paths,
-    ['svc_status', 'metadata.labels.svc_name', lambda x: read_svc_status(x)],
-]
-
-pod_paths_post = [
-    *common_pod_paths,
-    ['svc_status', 'metadata.labels.svc_name', lambda _: 'Running'],
-]
-
-
-# Routes #
-
-
-# TODO: Simply checking ws.close isn't enough
-# https://github.com/heroku-python/flask-sockets/issues/60
-# Solution may be move to aiohttp
-@sockets.route('/jupyter/ws')
-def echo_socket(ws):
-    user_id = ws.environ['HTTP_USER']
-    w = kube.watch.Watch()
-
-    for event in w.stream(k8s.list_namespaced_pod, namespace='default',
-                          label_selector=f"user_id={UNSAFE_user_id_transform(user_id)}"):
-
-        if ws.closed:
-            log.info("Websocket closed")
-            w.stop()
-            return
-
-        try:
-            obj = event["object"]
-
-            if event['type'] == 'MODIFIED' or event['type'] == 'ADDED':
-                ws.send(
-                    f'{{"event": "{event["type"]}", "resource": {marshall_json([obj], pod_paths, True)}}}')
-
-            if event['type'] == 'DELETED':
-                ws.send(
-                    f'{{"event": "DELETED", "resource": {marshall_json([obj], pod_paths, True)}}}')
-
-        except Exception as e:
-            log.info("Issue with watcher")
-            log.error(e)
-            w.stop()
-            break
-
-    ws.close()
-
-
-@app.route('/jupyter/verify/<svc_name>/', methods=['GET'])
-def verify(svc_name: str):
-    access_token = request.cookies.get('access_token')
-
-    if access_token is None or access_token.strip() == "":
-        return '', 401
-
-    resp = requests.get(f'{AUTH_GATEWAY}/verify',
-                        headers={'Authorization': f'Bearer {access_token}'})
-
-    if resp.status_code != 200:
-        return '', 401
-
-    user_id = resp.headers.get('User')
-
-    k_res = k8s.read_namespaced_service(svc_name, 'default')
-    labels = k_res.metadata.labels
-
-    if labels['user_id'] != UNSAFE_user_id_transform(user_id):
-        return '', 401
-
-    # FIXME: Replace with pod ip
-    # resp = Response('')
-    # resp.headers['IP'] = k_res.spec.cluster_ip
-
+@app.route('/healthcheck')
+def healthcheck():
     return '', 200
 
 
-@app.route('/jupyter', methods=['GET'])
-def get_notebooks():
-    user_id = request.headers.get('User')
+@app.route('/')
+def root():
+    if 'svc_name' not in session:
+        log.info(f'no svc_name found in session {session.keys()}')
+        return render_template('index.html',
+                               form_action_url=external_url_for('new'),
+                               images=list(WORKER_IMAGES),
+                               default='hail')
+    svc_name = session['svc_name']
+    jupyter_token = session['jupyter_token']
+    log.info('redirecting to ' + external_url_for(f'instance/{svc_name}/?token={jupyter_token}'))
+    return redirect(external_url_for(f'instance/{svc_name}/?token={jupyter_token}'))
 
-    # Not well-documented: empty selector returns nothing
-    # https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/CoreV1Api.md
-    # https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
-    pods = k8s.list_namespaced_pod(
+
+@app.route('/new', methods=['GET'])
+def new_get():
+    pod_name = session.get('pod_name')
+    svc_name = session.get('svc_name')
+    if pod_name:
+        delete_worker_pod(pod_name, svc_name)
+    session.clear()
+    return redirect(external_url_for('/'))
+
+@app.route('/new', methods=['POST'])
+def new_post():
+    log.info('new received')
+    password = request.form['password']
+    image = request.form['image']
+    if password != PASSWORD or image not in WORKER_IMAGES:
+        return '403 Forbidden', 403
+    jupyter_token = uuid.uuid4().hex  # FIXME: probably should be cryptographically secure
+    svc, pod = start_pod(jupyter_token, WORKER_IMAGES[image])
+    session['svc_name'] = svc.metadata.name
+    session['pod_name'] = pod.metadata.name
+    session['jupyter_token'] = jupyter_token
+    return redirect(external_url_for(f'wait'))
+
+@app.route('/wait', methods=['GET'])
+def wait_webpage():
+    return render_template('wait.html')
+
+@app.route('/auth/<requested_svc_name>')
+def auth(requested_svc_name):
+    approved_svc_name = session.get('svc_name')
+    if approved_svc_name and approved_svc_name == requested_svc_name:
+        return '', 200
+    return '', 403
+
+
+def get_all_workers():
+    workers = k8s.list_namespaced_pod(
         namespace='default',
-        label_selector=f"user_id={UNSAFE_user_id_transform(user_id)}",
-        timeout_seconds=KUBERNETES_TIMEOUT_IN_SECONDS).items
-
-    return marshall_json(pods, pod_paths), 200
-
-
-@app.route('/jupyter/<svc_name>', methods=['DELETE'])
-def delete_notebook(svc_name: str):
-    escp_user_id = UNSAFE_user_id_transform(request.headers.get("User"))
-
-    try:
-        svc = k8s.read_namespaced_service(svc_name, 'default')
-
-        if svc.metadata.labels['user_id'] != escp_user_id:
-            return not_found()
-
-        del_svc(svc_name)
-
-        pods = k8s.list_namespaced_pod(
+        watch=False,
+        label_selector='app=notebook-worker',
+        _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+    workers_and_svcs = []
+    for w in workers.items:
+        uuid = w.metadata.labels['uuid']
+        svcs = k8s.list_namespaced_service(
             namespace='default',
-            label_selector=f"uuid={svc.metadata.labels['uuid']}",
-            timeout_seconds=KUBERNETES_TIMEOUT_IN_SECONDS).items
-
-        # This can happen if the pod was previously deleted, not a 500 error
-        if len(pods) == 0:
-            log.error(
-                f"svc_name: {svc_name} pod_uuid: {svc.metadata.labels['uuid']}: pod not found for given uuid")
-            return '', 200
-
-        assert len(pods) == 1
-
-        if pods[0].metadata.labels['user_id'] != escp_user_id:
-            return not_found()
-
-        del_pod(pods[0].metadata.name)
-
-        return '', 200
-
-    except kube.client.rest.ApiException:
-        # FIXME: Return non-200 errors, not done now because web app
-        # needs to be updated to catch and handle 404 as a non-fatal response
-        # return '', str(e)[1:4]
-        return '', 200
+            watch=False,
+            label_selector='uuid=' + uuid,
+            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS).items
+        assert len(svcs) <= 1
+        if len(svcs) == 1:
+            workers_and_svcs.append((w, svcs[0]))
+        else:
+            log.info(f'assuming pod {w.metadata.name} is getting deleted '
+                     f'because it has no service')
+    return workers_and_svcs
 
 
-@app.route('/jupyter', methods=['POST'])
-def new_notebook():
-    name = request.form.get('name', 'a_notebook')
-    image = request.form.get('image', DEFAULT_HAIL_IMAGE)
+@app.route('/workers')
+def workers():
+    if not session.get('admin'):
+        return redirect(external_url_for('admin-login'))
+    workers_and_svcs = get_all_workers()
+    return render_template('workers.html',
+                           workers=workers_and_svcs,
+                           workers_url=external_url_for('workers'),
+                           leader_instance=INSTANCE_ID)
 
-    user_id = request.headers.get('User')
 
-    if image not in WORKER_IMAGES:
-        return forbidden()
+@app.route('/workers/<pod_name>/<svc_name>/delete')
+def workers_delete(pod_name, svc_name):
+    if not session.get('admin'):
+        return redirect(external_url_for('admin-login'))
+    delete_worker_pod(pod_name, svc_name)
+    return redirect(external_url_for('workers'))
 
-    # Token does not need to be cryptographically secure
-    # Is trusted, and authorization is handled upstream
-    jupyter_token = uuid.uuid4().hex
-    _, pod = start_pod(
-        jupyter_token, WORKER_IMAGES[image],
-        labels={'name': name,
-                'jupyter_token': jupyter_token,
-                'user_id': UNSAFE_user_id_transform(user_id)}
-    )
 
-    # We could also construct pod_paths_post here, and close over svc
-    return marshall_json([pod], pod_paths_post, True), 200
+@app.route('/workers/delete-all-workers', methods=['POST'])
+def delete_all_workers():
+    if not session.get('admin'):
+        return redirect(external_url_for('admin-login'))
+    workers_and_svcs = get_all_workers()
+    for pod_name, svc_name in workers_and_svcs:
+        delete_worker_pod(pod_name, svc_name)
+    return redirect(external_url_for('workers'))
+
+
+def delete_worker_pod(pod_name, svc_name):
+    try:
+        k8s.delete_namespaced_pod(
+            pod_name,
+            'default',
+            kube.client.V1DeleteOptions(),
+            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+    except kube.client.rest.ApiException as e:
+        log.info(f'pod {pod_name} or associated service already deleted {e}')
+    try:
+        k8s.delete_namespaced_service(
+            svc_name,
+            'default',
+            kube.client.V1DeleteOptions(),
+            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+    except kube.client.rest.ApiException as e:
+        log.info(f'service {svc_name} (for pod {pod_name}) already deleted {e}')
+
+
+@app.route('/admin-login', methods=['GET'])
+def admin_login():
+    return render_template('admin-login.html',
+                           form_action_url=external_url_for('admin-login'))
+
+
+@app.route('/admin-login', methods=['POST'])
+def admin_login_post():
+    if request.form['password'] != ADMIN_PASSWORD:
+        return '403 Forbidden', 403
+    session['admin'] = True
+    return redirect(external_url_for('workers'))
+
+
+@app.route('/worker-image')
+def worker_image():
+    return '\n'.join(WORKER_IMAGES.values()), 200
+
+
+@sockets.route('/wait')
+def wait_websocket(ws):
+    pod_name = session['pod_name']
+    svc_name = session['svc_name']
+    jupyter_token = session['jupyter_token']
+    log.info(f'received wait websocket for {svc_name} {pod_name}')
+    # wait for instance ready
+    while True:
+        try:
+            response = requests.head(f'https://notebook.hail.is/instance-ready/{svc_name}/',
+                                     timeout=1)
+            if response.status_code < 500:
+                log.info(f'HEAD on jupyter succeeded for {svc_name} {pod_name} response: {response}')
+                # if someone responds with a 2xx, 3xx, or 4xx, the notebook
+                # server is alive and functioning properly (in particular, our
+                # HEAD request will return 405 METHOD NOT ALLOWED)
+                break
+            else:
+                # somewhat unusual, means the gateway had an error before we
+                # timed out, usually means the gateway itself is broken
+                log.info(f'HEAD on jupyter failed for {svc_name} {pod_name} response: {response}')
+                gevent.sleep(1)
+            break
+        except requests.exceptions.Timeout as e:
+            log.info(f'GET on jupyter failed for {svc_name} {pod_name}')
+            gevent.sleep(1)
+    ws.send(external_url_for(f'instance/{svc_name}/?token={jupyter_token}'))
+    log.info(f'notification sent to user for {svc_name} {pod_name}')
 
 
 if __name__ == '__main__':
-    server = pywsgi.WSGIServer(
-        ('', 5000), app, handler_class=WebSocketHandler, log=log)
-
+    from gevent import pywsgi
+    from geventwebsocket.handler import WebSocketHandler
+    server = pywsgi.WSGIServer(('', 5000), app, handler_class=WebSocketHandler, log=log)
     server.serve_forever()
+

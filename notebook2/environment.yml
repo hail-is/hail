@@ -4,6 +4,7 @@ dependencies:
 - requests
 - flask
 - pip
+- ujson
 - pip:
   - kubernetes
   - Flask_Sockets

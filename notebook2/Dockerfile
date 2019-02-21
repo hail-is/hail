@@ -15,7 +15,8 @@ RUN apk add \
   flask \
   Flask_Sockets \
   kubernetes \
-  'urllib3<1.24'
+  'urllib3<1.24' \
+  ujson
 
 COPY notebook /notebook
 COPY notebook-worker-images /notebook
