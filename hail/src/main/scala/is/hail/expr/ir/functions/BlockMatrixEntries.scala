@@ -12,5 +12,5 @@ case class BlockMatrixEntries() extends BlockMatrixToTableFunction {
     TableType(rvType, Array[String](), TStruct.empty())
   }
 
-  override def execute(bm: BlockMatrix): TableValue = bm.entriesTable(HailContext.get).value
+  override def execute(bm: BlockMatrix): TableValue = bm.entriesTable().execute(HailContext.get)
 }
