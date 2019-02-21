@@ -252,43 +252,6 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     }
   }
 
-  def normalizeLocusInterval(i: Interval): Interval = {
-    var start = i.start.asInstanceOf[Locus]
-    var end = i.end.asInstanceOf[Locus]
-    var includesStart = i.includesStart
-    var includesEnd = i.includesEnd
-    val contigEnd = contigLength(end.contig)
-
-    if (!includesStart && start.position == 0) {
-      start = start.copy(position = 1)
-      includesStart = true
-    }
-
-    if (!includesEnd && end.position == contigEnd + 1) {
-      end = end.copy(position = contigEnd)
-      includesEnd = true
-    }
-
-    if (start.contig == end.contig && start.position == end.position) {
-      (includesStart, includesEnd) match {
-        case (true, true) =>
-        case (true, false) =>
-          if (start.position != 1) {
-            start = start.copy(position = start.position - 1)
-            includesStart = false
-          }
-        case (false, true) =>
-          if (end.position != contigEnd) {
-            end = end.copy(position = end.position + 1)
-            includesEnd = false
-          }
-        case (false, false) =>
-      }
-    }
-
-    Interval(start, end, includesStart, includesEnd)
-  }
-
   def toLocusInterval(i: Interval, invalidMissing: Boolean): Interval = {
     var start = i.start.asInstanceOf[Locus]
     var end = i.end.asInstanceOf[Locus]
