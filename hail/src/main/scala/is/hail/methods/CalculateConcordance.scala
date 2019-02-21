@@ -166,8 +166,8 @@ object CalculateConcordance {
       arr1
     }
 
-    val leftRowKeysF = left.typ.rowKeysF
-    val rightRowKeysF = right.typ.rowKeysF
+    val leftRowKeysF = left.typ.extractRowKey
+    val rightRowKeysF = right.typ.extractRowKey
     val variantCRDD = join.mapPartitions { it =>
       val comb = new ConcordanceCombiner
 

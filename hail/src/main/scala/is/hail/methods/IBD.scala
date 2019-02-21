@@ -356,7 +356,7 @@ object IBD {
     val rvRowPType = rvRowType.physicalType
     val field = rvRowType.field(fieldName)
     assert(field.typ.isOfType(TFloat64()))
-    val rowKeysF = input.typ.rowKeysF
+    val rowKeysF = input.typ.extractRowKey
     val entriesIdx = input.typ.entriesIdx
 
     val idx = rvRowType.fieldIdx(fieldName)

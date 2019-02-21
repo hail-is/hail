@@ -193,10 +193,4 @@ case class MatrixType(
       case TLocus(rg: ReferenceGenome, _) => rg
     }
   }
-
-  def rowKeysF: (Row) => Row = {
-    val localRowType = rowType
-    val queriers = rowKey.map(localRowType.query(_)).toArray
-    (r: Row) => Row.fromSeq(queriers.map(_ (r)))
-  }
 }
