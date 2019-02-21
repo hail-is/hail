@@ -110,7 +110,7 @@ class IBDSuite extends SparkSuite {
     }
     val vds = TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
 
-    val us = IBD.toRDD(Interpret(IBD.pyApply(vds))).collect().toMap
+    val us = IBD.toRDD(Interpret(IBD.pyApply(vds.ast))).collect().toMap
 
     val plink = runPlinkIBD(vds)
     val sampleIds = vds.stringSampleIds
@@ -121,6 +121,6 @@ class IBDSuite extends SparkSuite {
 
   @Test def ibdSchemaCorrect() {
     val vds = TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
-    val us = new Table(HailContext.get, IBD.pyApply(vds)).typeCheck()
+    val us = new Table(HailContext.get, IBD.pyApply(vds.ast)).typeCheck()
   }
 }

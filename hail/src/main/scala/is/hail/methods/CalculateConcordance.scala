@@ -1,12 +1,8 @@
 package is.hail.methods
 
-import is.hail.HailContext
-import is.hail.annotations.{BroadcastRow, UnsafeRow}
-import is.hail.expr.ir.{Literal, TableIR, TableKeyBy, TableLiteral, TableParallelize, TableRead, TableValue}
-import is.hail.expr.types._
+import is.hail.annotations.UnsafeRow
+import is.hail.expr.ir.{Interpret, Literal, MatrixIR, MatrixValue, TableIR, TableKeyBy, TableLiteral, TableParallelize, TableRead, TableValue}
 import is.hail.expr.types.virtual.{TArray, TInt64, TStruct}
-import is.hail.rvd.RVD
-import is.hail.table.Table
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.sql.Row
@@ -63,7 +59,10 @@ class ConcordanceCombiner extends Serializable {
 
 object CalculateConcordance {
 
-  def pyApply(left: MatrixTable, right: MatrixTable): (IndexedSeq[IndexedSeq[Long]], TableIR, TableIR) = {
+  def pyApply(leftIR: MatrixIR, rightIR: MatrixIR): (IndexedSeq[IndexedSeq[Long]], TableIR, TableIR) = {
+    val left = Interpret(leftIR)
+    val right = Interpret(rightIR)
+
     left.requireUniqueSamples("concordance")
     right.requireUniqueSamples("concordance")
 
@@ -71,29 +70,29 @@ object CalculateConcordance {
     if (overlap.isEmpty)
       fatal("No overlapping samples between datasets")
 
-    if (!left.rowKeyTypes.sameElements(right.rowKeyTypes))
+    if (!left.typ.rowKeyStruct.types.sameElements(right.typ.rowKeyStruct.types))
       fatal(s"""Cannot compute concordance for datasets with different key types:
-              |  left: ${ left.rowKeyTypes.map(_.toString).mkString(", ") }
-              |  right: ${ right.rowKeyTypes.map(_.toString).mkString(", ") }""")
+              |  left: ${ left.typ.rowKeyStruct.types.map(_.toString).mkString(", ") }
+              |  right: ${ right.typ.rowKeyStruct.types.map(_.toString).mkString(", ") }""")
 
     info(
       s"""Found ${ overlap.size } overlapping samples
-         |  Left: ${ left.numCols } total samples
-         |  Right: ${ right.numCols } total samples""".stripMargin)
+         |  Left: ${ left.nCols } total samples
+         |  Right: ${ right.nCols } total samples""".stripMargin)
 
     val leftPreIds = left.stringSampleIds
     val rightPreIds = right.stringSampleIds
-    val leftFiltered = left.filterCols { case (_, i) => overlap(leftPreIds(i)) }
-    val rightFiltered = right.filterCols { case (_, i) => overlap(rightPreIds(i)) }
+    val leftFiltered: MatrixValue = left.filterCols { case (_, i) => overlap(leftPreIds(i)) }
+    val rightFiltered: MatrixValue = right.filterCols { case (_, i) => overlap(rightPreIds(i)) }
 
     val sampleSchema = TStruct(
-      left.colKey.zip(left.colKeyTypes) ++
+      left.typ.colKey.zip(left.typ.colKeyStruct.types) ++
       Array("n_discordant" -> TInt64(),
       "concordance" -> ConcordanceCombiner.schema): _*
     )
 
     val variantSchema = TStruct(
-      left.rowKey.zip(left.rowKeyTypes) ++
+      left.typ.rowKey.zip(left.typ.rowKeyStruct.types) ++
         Array("n_discordant" -> TInt64(), "concordance" -> ConcordanceCombiner.schema): _*
     )
 
@@ -108,9 +107,9 @@ object CalculateConcordance {
 
     val (_, join) = leftFiltered.rvd.orderedZipJoin(rightFiltered.rvd)
 
-    val leftRowType = leftFiltered.rvRowType
+    val leftRowType = leftFiltered.typ.rvRowType
     val leftRowPType = leftRowType.physicalType
-    val rightRowType = rightFiltered.rvRowType
+    val rightRowType = rightFiltered.typ.rvRowType
     val rightRowPType = rightRowType.physicalType
 
     val nSamples = leftIds.length
@@ -167,8 +166,8 @@ object CalculateConcordance {
       arr1
     }
 
-    val leftRowKeysF = left.rowKeysF
-    val rightRowKeysF = right.rowKeysF
+    val leftRowKeysF = left.typ.extractRowKey
+    val rightRowKeysF = right.typ.extractRowKey
     val variantCRDD = join.mapPartitions { it =>
       val comb = new ConcordanceCombiner
 
@@ -237,11 +236,11 @@ object CalculateConcordance {
           Row(leftFiltered.stringSampleIds.zip(sampleResults)
             .map { case (id, comb) => Row(id, comb.nDiscordant, comb.toAnnotation) },
 	  Row()))),
-      left.colKey)
+      left.typ.colKey)
 
     val variant = TableKeyBy(
       TableLiteral(TableValue(variantSchema, FastIndexedSeq(), variantCRDD.toRegionValues(variantSchema))),
-      left.rowKey,
+      left.typ.rowKey,
       isSorted = false)
 
     (global.toAnnotation, sample, variant)

@@ -1519,9 +1519,9 @@ def import_matrix_table(paths,
     if len(sep) != 1:
         raise FatalError('sep must be a single character')
 
-    jmt = Env.hc()._jhc.importMatrix(paths, jrow_fields, row_key, entry_type._parsable_string(), missing, joption(min_partitions),
-                                     no_header, force_bgz, sep)
-    return MatrixTable._from_java(jmt)
+    return MatrixTable._from_java(
+        Env.hc()._jhc.importMatrix(paths, jrow_fields, row_key, entry_type._parsable_string(), missing, joption(min_partitions),
+                                   no_header, force_bgz, sep))
 
 
 @typecheck(bed=str,
@@ -1986,7 +1986,7 @@ def import_vcfs(path,
     if _cached_importvcfs is None:
         _cached_importvcfs = Env.hail().io.vcf.ImportVCFs
 
-    jmts = _cached_importvcfs.pyApply(
+    jmirs = _cached_importvcfs.pyApply(
         wrap_to_list(path),
         wrap_to_list(call_fields),
         entry_float_type._parsable_string(),
@@ -2000,7 +2000,7 @@ def import_vcfs(path,
         filter,
         find_replace[0] if find_replace is not None else None,
         find_replace[1] if find_replace is not None else None)
-    return [MatrixTable._from_java(jmt) for jmt in jmts]
+    return [MatrixTable._from_java(jmir) for jmir in jmirs]
 
 
 @typecheck(path=oneof(str, sequenceof(str)),

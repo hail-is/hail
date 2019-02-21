@@ -2,6 +2,7 @@ package is.hail.io
 
 import is.hail.HailContext
 import is.hail.annotations._
+import is.hail.expr.ir.{MatrixIR, MatrixLiteral, MatrixValue}
 import is.hail.expr.types._
 import is.hail.expr.types.virtual._
 import is.hail.rvd.{RVD, RVDContext, RVDPartitioner}
@@ -275,7 +276,7 @@ object LoadMatrix {
     missingValue: String = "NA",
     nPartitions: Option[Int] = None,
     noHeader: Boolean = false,
-    sep: Char = '\t'): MatrixTable = {
+    sep: Char = '\t'): MatrixIR = {
 
     require(cellType.size == 1, "cellType can only have 1 field")
 
@@ -393,10 +394,9 @@ object LoadMatrix {
     } else
       RVD.coerce(matrixType.canonicalRVDType, rdd)
 
-    new MatrixTable(hc,
-      matrixType,
+    MatrixLiteral(MatrixValue(matrixType,
       BroadcastRow(Row(), matrixType.globalType, hc.sc),
       BroadcastIndexedSeq(colIDs.map(x => Annotation(x)), TArray(matrixType.colType), hc.sc),
-      rvd)
+      rvd))
   }
 }

@@ -638,7 +638,6 @@ class BGENTests(unittest.TestCase):
                               entry_fields=[],
                               sample_file=resource('example.sample'))
         self.assertEqual(bgen.entry.dtype, hl.tstruct())
-        bgen._jmt.typecheck()
 
     def test_import_bgen_no_reference(self):
         hl.index_bgen(resource('example.8bits.bgen'),

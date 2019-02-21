@@ -1,17 +1,14 @@
 package is.hail.methods
 
 import is.hail.HailContext
-import is.hail.expr._
 import is.hail.expr.ir._
 import is.hail.table.Table
 import is.hail.annotations._
-import is.hail.expr.types._
-import is.hail.expr.types.physical.{PString, PType}
+import is.hail.expr.types.physical.PString
 import is.hail.expr.types.virtual.{TFloat64, TInt64, TString, TStruct}
-import is.hail.rvd.{RVD, RVDContext}
+import is.hail.rvd.RVDContext
 import is.hail.sparkextras.ContextRDD
 import is.hail.variant.{Call, Genotype, HardCallView, MatrixTable}
-import is.hail.stats.RegressionUtils
 import org.apache.spark.rdd.RDD
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -211,18 +208,18 @@ object IBD {
 
   final val chunkSize = 1024
 
-  def computeIBDMatrix(vds: MatrixTable,
+  def computeIBDMatrix(input: MatrixValue,
     computeMaf: Option[(RegionValue) => Double],
     min: Option[Double],
     max: Option[Double],
     sampleIds: IndexedSeq[String],
     bounded: Boolean): ContextRDD[RVDContext, RegionValue] = {
 
-    val nSamples = vds.numCols
+    val nSamples = input.nCols
 
-    val rowType = vds.rvRowType
+    val rowType = input.typ.rvRowType
     val rowPType = rowType.physicalType
-    val unnormalizedIbse = vds.rvd.mapPartitions { it =>
+    val unnormalizedIbse = input.rvd.mapPartitions { it =>
       val view = HardCallView(rowPType)
       it.map { rv =>
         view.setRegion(rv)
@@ -232,7 +229,7 @@ object IBD {
 
     val ibse = unnormalizedIbse.normalized
 
-    val chunkedGenotypeMatrix = vds.rvd.mapPartitions { it =>
+    val chunkedGenotypeMatrix = input.rvd.mapPartitions { it =>
       val view = HardCallView(rowPType)
       it.map { rv =>
         view.setRegion(rv)
@@ -306,15 +303,16 @@ object IBD {
       }
   }
 
-  def pyApply(vds: MatrixTable,
+  def pyApply(inputIR: MatrixIR,
     mafFieldName: Option[String] = None,
     bounded: Boolean = true,
     min: Option[Double] = None,
     max: Option[Double] = None): TableIR = {
-
     min.foreach(min => optionCheckInRangeInclusive(0.0, 1.0)("minimum", min))
     max.foreach(max => optionCheckInRangeInclusive(0.0, 1.0)("maximum", max))
-    vds.requireUniqueSamples("ibd")
+
+    val input = Interpret(inputIR)
+    input.requireUniqueSamples("ibd")
 
     min.liftedZip(max).foreach { case (min, max) =>
       if (min > max) {
@@ -322,11 +320,11 @@ object IBD {
       }
     }
 
-    val computeMaf = mafFieldName.map(generateComputeMaf(vds, _))
-    val sampleIds = vds.stringSampleIds
+    val computeMaf = mafFieldName.map(generateComputeMaf(input, _))
+    val sampleIds = input.stringSampleIds
 
     TableLiteral(TableValue(ibdSignature, FastIndexedSeq("i", "j"),
-      computeIBDMatrix(vds, computeMaf, min, max, sampleIds, bounded)))
+      computeIBDMatrix(input, computeMaf, min, max, sampleIds, bounded)))
   }
 
   private val ibdSignature = TStruct(("i", TString()), ("j", TString())) ++ ExtendedIBDInfo.signature
@@ -353,13 +351,13 @@ object IBD {
     }
   }
 
-  private[methods] def generateComputeMaf(vds: MatrixTable, fieldName: String): (RegionValue) => Double = {
-    val rvRowType = vds.rvRowType
+  private[methods] def generateComputeMaf(input: MatrixValue, fieldName: String): (RegionValue) => Double = {
+    val rvRowType = input.typ.rvRowType
     val rvRowPType = rvRowType.physicalType
     val field = rvRowType.field(fieldName)
     assert(field.typ.isOfType(TFloat64()))
-    val rowKeysF = vds.rowKeysF
-    val entriesIdx = vds.entriesIndex
+    val rowKeysF = input.typ.extractRowKey
+    val entriesIdx = input.typ.entriesIdx
 
     val idx = rvRowType.fieldIdx(fieldName)
 
