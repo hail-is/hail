@@ -1,7 +1,73 @@
 package is.hail.annotations.aggregators
 
 import is.hail.annotations.{Annotation, Region, RegionValueBuilder, SafeRow}
+import is.hail.expr.types.physical.PType
 import is.hail.expr.types.virtual.Type
+import is.hail.io._
+
+// TODO
+// CompiledPackEncoder
+//
+
+class RegionValuePrevNonnullAnnotationAggregator2(
+  t: PType,
+  makeEncoder: (MemoryBuffer) => Encoder,
+  makeDecoder: (MemoryBuffer) => Decoder
+) extends RegionValueAggregator {
+  def this(t: PType) = this(t,
+    (mb: MemoryBuffer) => new PackEncoder(t, new MemoryOutputBuffer(mb)), {
+      val f = EmitPackDecoder(t, t)
+      (mb: MemoryBuffer) => new CompiledPackDecoder(new MemoryInputBuffer(mb), f)
+    })
+
+  val mb = new MemoryBuffer
+  val encoder: Encoder = makeEncoder(mb)
+  val decoder: Decoder = makeDecoder(mb)
+
+  var present: Boolean = false
+
+  def seqOp(region: Region, offset: Long, missing: Boolean) {
+    if (!missing) {
+      mb.clear()
+      encoder.writeRegionValue(region, offset)
+      present = true
+    }
+  }
+
+  def combOp(agg2: RegionValueAggregator) {
+    val that = agg2.asInstanceOf[RegionValuePrevNonnullAnnotationAggregator2]
+    if (that.present) {
+      mb.copyFrom(that.mb)
+      present = true
+    }
+  }
+
+  def result(rvb: RegionValueBuilder) {
+    if (present) {
+      val p = decoder.readRegionValue(rvb.region)
+      rvb.addRegionValue(t, rvb.region, p)
+    } else
+      rvb.setMissing()
+  }
+
+  def newInstance(): RegionValuePrevNonnullAnnotationAggregator2 =
+    new RegionValuePrevNonnullAnnotationAggregator2(t, makeEncoder, makeDecoder)
+
+  def copy(): RegionValuePrevNonnullAnnotationAggregator2 = {
+    val rva = new RegionValuePrevNonnullAnnotationAggregator2(t, makeEncoder, makeDecoder)
+    if (present) {
+      rva.mb.copyFrom(mb)
+      rva.present = true
+    }
+    rva
+  }
+
+  def clear() {
+    mb.clear()
+    present = false
+  }
+}
+
 
 class RegionValuePrevNonnullAnnotationAggregator(t: Type) extends RegionValueAggregator {
   var last: Annotation = null
