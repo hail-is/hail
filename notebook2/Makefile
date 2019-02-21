@@ -1,7 +1,7 @@
 .PHONY: build push deploy clean
 
 PROJECT = $(shell gcloud config get-value project)
-SOURCE_NAME := notebook
+SOURCE_NAME := $(shell basename $(CURDIR))
 TARGET_NAME = gcr.io/$(PROJECT)/$(SOURCE_NAME):$(shell docker images -q --no-trunc $(SOURCE_NAME) | awk -F':' '{print $$2}')
 DEPLOYMENT_FILE := deployment.yaml
 
