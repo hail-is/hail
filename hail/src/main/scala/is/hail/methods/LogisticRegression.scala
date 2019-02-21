@@ -126,6 +126,6 @@ case class LogisticRegression(
       }
     }.persist(StorageLevel.MEMORY_AND_DISK)
 
-    TableValue(tableType, BroadcastRow.empty(sc), newRVD)
+    TableValue(tableType, BroadcastRow.empty(), newRVD)
   }
 }

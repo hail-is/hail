@@ -1,8 +1,11 @@
 package is.hail.methods
 
-import is.hail.annotations.UnsafeRow
+import is.hail.HailContext
+import is.hail.annotations.{BroadcastRow, UnsafeRow}
+import is.hail.expr.ir.{Literal, TableIR, TableKeyBy, TableLiteral, TableParallelize, TableRead, TableValue}
 import is.hail.expr.types._
 import is.hail.expr.types.virtual.{TArray, TInt64, TStruct}
+import is.hail.rvd.RVD
 import is.hail.table.Table
 import is.hail.utils._
 import is.hail.variant._
@@ -60,7 +63,7 @@ class ConcordanceCombiner extends Serializable {
 
 object CalculateConcordance {
 
-  def apply(left: MatrixTable, right: MatrixTable): (IndexedSeq[IndexedSeq[Long]], Table, Table) = {
+  def pyApply(left: MatrixTable, right: MatrixTable): (IndexedSeq[IndexedSeq[Long]], TableIR, TableIR) = {
     left.requireUniqueSamples("concordance")
     right.requireUniqueSamples("concordance")
 
@@ -228,13 +231,19 @@ object CalculateConcordance {
 
     global.report()
 
-    val sampleRDD = left.hc.sc.parallelize(leftFiltered.stringSampleIds.zip(sampleResults)
-      .map { case (id, comb) => Row(id, comb.nDiscordant, comb.toAnnotation) })
+    val sample = TableKeyBy(
+      TableParallelize(
+        Literal(TStruct("rows" -> TArray(sampleSchema), "global" -> TStruct.empty()),
+          Row(leftFiltered.stringSampleIds.zip(sampleResults)
+            .map { case (id, comb) => Row(id, comb.nDiscordant, comb.toAnnotation) },
+	  Row()))),
+      left.colKey)
 
-    val sampleKT = Table(left.hc, sampleRDD, sampleSchema, left.colKey)
+    val variant = TableKeyBy(
+      TableLiteral(TableValue(variantSchema, FastIndexedSeq(), variantCRDD.toRegionValues(variantSchema))),
+      left.rowKey,
+      isSorted = false)
 
-    val variantKT = Table(left.hc, variantCRDD, variantSchema, left.rowKey, isSorted = false)
-
-    (global.toAnnotation, sampleKT, variantKT)
+    (global.toAnnotation, sample, variant)
   }
 }

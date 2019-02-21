@@ -744,7 +744,7 @@ class BlockMatrixSuite extends SparkSuite {
     val expectedSignature = TStruct("i" -> TInt64Optional, "j" -> TInt64Optional, "entry" -> TFloat64Optional)
 
     for {blockSize <- Seq(1, 4, 10)} {
-      val entriesTable = toBM(lm, blockSize).entriesTable(hc)
+      val entriesTable = new Table(hc, toBM(lm, blockSize).entriesTable())
       val entries = entriesTable.collect().map(row => (row.get(0), row.get(1), row.get(2))).toSet
       // block size affects order of rows in table, but sets will be the same
       assert(entries === expectedEntries)
@@ -758,9 +758,10 @@ class BlockMatrixSuite extends SparkSuite {
     val lm = new BDM[Double](5, 10, data)
     val bm = toBM(lm, blockSize = 2)
 
-    val expected = bm
-      .filterBlocks(Array(0, 1, 6))
-      .entriesTable(hc)
+    val expected = new Table(hc,
+      bm
+        .filterBlocks(Array(0, 1, 6))
+        .entriesTable())
       .collect()
       .sortBy(r => (r.get(0).asInstanceOf[Long], r.get(1).asInstanceOf[Long]))
       .map(r => r.get(2).asInstanceOf[Double])

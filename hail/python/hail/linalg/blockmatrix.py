@@ -1498,7 +1498,7 @@ class BlockMatrix(object):
         :class:`.Table`
             Table with a row for each entry.
         """
-        t = Table._from_java(self._jbm.entriesTable(Env.hc()._jhc))
+        t = Table._from_java(self._jbm.entriesTable())
         if keyed:
             t = t.key_by('i', 'j')
         return t

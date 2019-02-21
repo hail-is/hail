@@ -124,5 +124,7 @@ trait Implicits {
 
   implicit def toRichContextRDD[T: ClassTag](x: ContextRDD[RVDContext, T]): RichContextRDD[T] = new RichContextRDD(x)
 
+  implicit def toRichContextRDDRow(x: ContextRDD[RVDContext, Row]): RichContextRDDRow = new RichContextRDDRow(x)
+
   implicit def toRichCodeInputBuffer(in: Code[InputBuffer]): RichCodeInputBuffer = new RichCodeInputBuffer(in)
 }

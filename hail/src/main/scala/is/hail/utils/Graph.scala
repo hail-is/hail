@@ -1,9 +1,9 @@
 package is.hail.utils
 
 import is.hail.annotations.{Region, RegionValueBuilder, SafeRow}
-import is.hail.expr.ir.{Compile, MakeTuple, IRParserEnvironment, IRParser}
+import is.hail.expr.ir.{Compile, IR, IRParser, IRParserEnvironment, Interpret, Literal, MakeTuple}
 import is.hail.expr.types.physical.PBaseStruct
-import is.hail.expr.types.virtual.{TInt64, TTuple, Type}
+import is.hail.expr.types.virtual._
 import org.apache.spark.sql.Row
 
 import scala.collection.mutable
@@ -33,8 +33,15 @@ object Graph {
     m
   }
 
-  def maximalIndependentSet(edges: Array[Row], nodeType: String, tieBreaker: Option[String]): Set[Any] =
-    maximalIndependentSet(edges, IRParser.parseType(nodeType), tieBreaker)
+  def pyMaximalIndependentSet(edgesIR: IR, nodeTypeStr: String, tieBreaker: Option[String]): IR = {
+    val nodeType = IRParser.parseType(nodeTypeStr)
+    
+    val edges = Interpret[IndexedSeq[Row]](edgesIR).toArray
+
+    val resultType = TSet(nodeType)
+    val result = maximalIndependentSet(edges, nodeType, tieBreaker)
+    Literal(resultType, result)
+  }
 
   def maximalIndependentSet(edges: Array[Row], nodeType: Type, tieBreaker: Option[String]): Set[Any] = {
     val edges2 = edges.map { r =>
