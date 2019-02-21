@@ -29,8 +29,6 @@ function getSecretKey(header, cb) {
   });
 }
 
-// Verifies signature, as well as the issuer and audience, to guarantee
-// that the token was truly for our resource server
 const verifyToken = token =>
   new Promise((resolve, reject) => {
     jwt.verify(
