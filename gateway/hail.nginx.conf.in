@@ -90,6 +90,76 @@ server {
 }
 
 server {
+    server_name notebook.@domain@;
+
+    # needed to correctly handle error_page with internal handles
+    recursive_error_pages on;
+
+    location = /auth {
+        internal;
+        proxy_pass http://notebook/auth/$jupyter_auth_name;
+    }
+
+    location ~ /instance/([^/]+)/(.*) {
+        set $jupyter_auth_name $1;
+        auth_request /auth;
+
+        resolver kube-dns.kube-system.svc.cluster.local;
+        proxy_pass http://$1.default.svc.cluster.local$request_uri;
+
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $http_host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_http_version 1.1;
+        proxy_redirect off;
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 86400;
+
+        proxy_connect_timeout 5s;
+
+        proxy_intercept_errors on;
+        # 502: no service, 504: pod not responding
+        error_page 502 504 = @pod_dead;
+    }
+
+    location @pod_dead {
+        return 307 $scheme://$http_host/new;
+    }
+
+    location ~ /instance-ready/([^/]+)/ {
+        resolver kube-dns.kube-system.svc.cluster.local;
+        proxy_pass http://$1.default.svc.cluster.local/instance/$1/;
+    }
+
+    location / {
+        proxy_pass http://notebook/;
+
+        proxy_set_header Host $http_host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host $http_host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_http_version 1.1;
+        proxy_redirect off;
+        proxy_buffering off;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 86400;
+    }
+
+    listen [::]:443 ssl;
+    listen 443 ssl;
+    ssl_certificate /etc/letsencrypt/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+}
+
+server {
     server_name app.@domain@;
 
     location / {
@@ -105,7 +175,7 @@ server {
 }
 
 server {
-    server_name notebook.@domain@;
+    server_name notebook2.@domain@;
 
     location = /auth {
         internal;
@@ -118,7 +188,7 @@ server {
         internal;
 
         resolver kube-dns.kube-system.svc.cluster.local;
-        proxy_pass http://notebook.default.svc.cluster.local/jupyter/verify/$svc_name/;
+        proxy_pass http://notebook2.default.svc.cluster.local/jupyter/verify/$svc_name/;
     }
 
     location / {
@@ -140,7 +210,7 @@ server {
         auth_request /auth;
         auth_request_set $auth_user $upstream_http_user;
         auth_request_set $auth_scope $upstream_http_scope;
-        proxy_pass http://notebook;
+        proxy_pass http://notebook2;
         proxy_set_header Host $http_host;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Host $http_host;
