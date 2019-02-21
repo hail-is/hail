@@ -4,7 +4,7 @@ import hail as hl
 from hail.matrixtable import MatrixTable
 from hail.expr import ArrayExpression, StructExpression
 from hail.expr.expressions import expr_call, expr_array, expr_int32
-from hail.ir.matrix_ir import MatrixKeyRowsBy
+from hail.ir import MatrixKeyRowsBy, TableKeyBy
 from hail.typecheck import typecheck
 
 
@@ -142,6 +142,13 @@ def lgt_to_gt(lgt, la):
 
 
 def summarize(mt):
+    """Computes summary statistics
+
+    Note
+    ----
+    You will not be able to run :func:`.combine_gvcfs` with the output of this
+    function.
+    """
     mt = hl.experimental.densify(mt)
     return mt.annotate_rows(info=hl.rbind(
         hl.agg.call_stats(lgt_to_gt(mt.LGT, mt.LA), mt.alleles),
@@ -164,7 +171,86 @@ def summarize(mt):
         )))
 
 def finalize(mt):
+    """Drops entry fields no longer needed for combining.
+
+    Note
+    ----
+    You will not be able to run :func:`.combine_gvcfs` with the output of this
+    function.
+    """
     return mt.drop('BaseQRankSum', 'ClippingRankSum', 'MQ', 'MQRankSum', 'ReadPosRankSum')
+
+
+def reannotate(mt, gatk_ht, summarize_ht):
+    """Re-annotate a sparse MT with annotations from certain GATK tools
+
+    `gatk_ht` should be a table from the rows of a VCF, with `info` having at least
+    the following fields.  Be aware that fields not present in this list will
+    be dropped.
+    ```
+        struct {
+            AC: array<int32>,
+            AF: array<float64>,
+            AN: int32,
+            BaseQRankSum: float64,
+            ClippingRankSum: float64,
+            DP: int32,
+            FS: float64,
+            MQ: float64,
+            MQRankSum: float64,
+            MQ_DP: int32,
+            NEGATIVE_TRAIN_SITE: bool,
+            POSITIVE_TRAIN_SITE: bool,
+            QD: float64,
+            QUALapprox: int32,
+            RAW_MQ: float64,
+            ReadPosRankSum: float64,
+            SB_TABLE: array<int32>,
+            SOR: float64,
+            VQSLOD: float64,
+            VarDP: int32,
+            culprit: str
+        }
+    ```
+    `summarize_ht` should be the output of :func:`.summarize` as a rows table.
+
+    Note
+    ----
+    You will not be able to run :func:`.combine_gvcfs` with the output of this
+    function.
+    """
+    gatk_ht = hl.Table(TableKeyBy(gatk_ht._tir, ['locus'], is_sorted=True))
+    summ_ht = hl.Table(TableKeyBy(summarize_ht._tir, ['locus'], is_sorted=True))
+    return mt.annotate_rows(
+        info=hl.rbind(
+            gatk_ht[mt.locus].info, summ_ht[mt.locus].info,
+            lambda ginfo, hinfo: hl.struct(
+                AC=hl.or_else(hinfo.AC, ginfo.AC),
+                AF=hl.or_else(hinfo.AF, ginfo.AF),
+                AN=hl.or_else(hinfo.AN, ginfo.AN),
+                BaseQRankSum=hl.or_else(hinfo.BaseQRankSum, ginfo.BaseQRankSum),
+                ClippingRankSum=hl.or_else(hinfo.ClippingRankSum, ginfo.ClippingRankSum),
+                DP=hl.or_else(hinfo.DP, ginfo.DP),
+                FS=ginfo.FS,
+                MQ=hl.or_else(hinfo.MQ, ginfo.MQ),
+                MQRankSum=hl.or_else(hinfo.MQRankSum, ginfo.MQRankSum),
+                MQ_DP=hl.or_else(hinfo.MQ_DP, ginfo.MQ_DP),
+                NEGATIVE_TRAIN_SITE=ginfo.NEGATIVE_TRAIN_SITE,
+                POSITIVE_TRAIN_SITE=ginfo.POSITIVE_TRAIN_SITE,
+                QD=ginfo.QD,
+                QUALapprox=hl.or_else(hinfo.QUALapprox, ginfo.QUALapprox),
+                RAW_MQ=hl.or_else(hinfo.RAW_MQ, ginfo.RAW_MQ),
+                ReadPosRankSum=hl.or_else(hinfo.ReadPosRankSum, ginfo.ReadPosRankSum),
+                SB_TABLE=hl.or_else(hinfo.SB_TABLE, ginfo.SB_TABLE),
+                SOR=ginfo.SOR,
+                VQSLOD=ginfo.VQSLOD,
+                VarDP=hl.or_else(hinfo.VarDP, ginfo.VarDP),
+                culprit=ginfo.culprit,
+            )),
+        qual=gatk_ht[mt.locus].qual,
+        filters=gatk_ht[mt.locus].filters,
+    )
+
 
 # NOTE: these are just @chrisvittal's notes on how gVCF fields are combined
 #       some of it is copied from GenomicsDB's wiki.
