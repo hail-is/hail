@@ -35,5 +35,5 @@ zcat | \
 grep -v '^#' | \
 awk -v FS=$'\t' -v OFS=$'\t' 'BEGIN {print "chromosome","position","ref","alt","raw_score","PHRED_score"} {print $0}' | \
 bgzip -c | \
-gsutil cp - gs://hail-datasets-extract/CADD_v${VERSION}_${BUILD}.tsv.bgz
+gsutil cp - gs://hail-datasets-raw-data/CADD/CADD_v${VERSION}_${BUILD}.tsv.bgz
 
