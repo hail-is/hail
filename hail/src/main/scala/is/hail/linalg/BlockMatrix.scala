@@ -146,35 +146,28 @@ object BlockMatrix {
     }
   }
 
-  // rectangles checked in Python
   def exportRectangles(
     hc: HailContext,
-    input: String,
     output: String,
     flattenedRectangles: Array[Long],
     delimiter: String,
     nPartitions: Int,
-    binary: Boolean): Unit = {
+    binary: Boolean,
+    blockSize: Int,
+    transferData: (Array[Long], Int, (Array[Double], Int, Boolean) => Unit) => Unit): Unit = {
     require(flattenedRectangles.length % 4 == 0)
 
-    checkWriteSuccess(hc, input)
-
-    val BlockMatrixMetadata(blockSize, nRows, nCols, maybeFiltered, partFiles) = BlockMatrix.readMetadata(hc, input)
-    val gp = GridPartitioner(blockSize, nRows, nCols, maybeFiltered)
-
-    val rectangles = flattenedRectangles.grouped(4).toArray    
+    val rectangles = flattenedRectangles.grouped(4).toArray
     val dRect = digitsNeeded(rectangles.length)
 
     val sHadoopBc = HailContext.hadoopConfBc
     val partFilesBc = hc.sc.broadcast(partFiles)
 
     val rdd = hc.sc.parallelize(rectangles.zipWithIndex, numSlices = nPartitions).map { case (r, index) =>
-      val partFiles = partFilesBc.value
-      val data = new Array[Double](blockSize)
-      val sb = new StringBuilder(blockSize << 2)
       val paddedIndex = StringUtils.leftPad(index.toString, dRect, "0")
       val outputFile = output + "/rect-" + paddedIndex + "_" + r.mkString("-")
-      
+      val sb = new StringBuilder(blockSize << 2)
+
       sHadoopBc.value.value.writeFile(outputFile) { uos =>
         using(
           if (binary)
@@ -203,97 +196,7 @@ object BlockMatrix {
                 os.asInstanceOf[OutputStreamWriter].write(sb.result())
             }
 
-          val startRow = r(0)
-          val stopRow = r(1)
-          val startCol = r(2)
-          val stopCol = r(3)
-
-          val nonEmpty = startRow < stopRow && startCol < stopCol
-
-          if (nonEmpty) {
-            val startRowOffset = gp.indexBlockOffset(startRow)
-
-            val startBlockCol = gp.indexBlockIndex(startCol)
-            val startColOffset = gp.indexBlockOffset(startCol)
-
-            val stopBlockCol = gp.indexBlockIndex(stopCol - 1) + 1
-            val stopColOffset = gp.indexBlockOffset(stopCol - 1) + 1
-
-            val startColByteOffset = startColOffset << 3
-            val stopColByteDeficit = (gp.blockColNCols(stopBlockCol - 1) - stopColOffset) << 3
-
-            val inPerBlockCol = new Array[InputBuffer](stopBlockCol - startBlockCol)
-            try {
-              var i = startRow
-              while (i < stopRow) {
-                if (i == startRow || gp.indexBlockOffset(i) == 0) {
-                  val blockRow = gp.indexBlockIndex(i)
-                  val nRowsInBlock = gp.blockRowNRows(blockRow)
-
-                  var blockCol = startBlockCol
-                  while (blockCol < stopBlockCol) {
-                    val pi = gp.coordinatesPart(blockRow, blockCol)
-                    if (pi < 0)
-                      fatal(s"block ($blockRow, $blockCol) missing for rectangle $index " +
-                        s"with bounds ${ r.mkString("[", ", ", "]") }")
-
-                    val is = sHadoopBc.value.value.unsafeReader(input + "/parts/" + partFiles(pi))
-                    val in = BlockMatrix.bufferSpec.buildInputBuffer(is)
-
-                    val nColsInBlock = gp.blockColNCols(blockCol)
-
-                    assert(in.readInt() == nRowsInBlock)
-                    assert(in.readInt() == nColsInBlock)
-                    val isTranspose = in.readBoolean()
-                    if (!isTranspose)
-                      fatal("BlockMatrix must be stored row major on disk in order to export rectangular regions.")
-
-                    if (i == startRow) {
-                      val skip = startRowOffset * (nColsInBlock << 3)
-                      in.skipBytes(skip)
-                    }
-
-                    inPerBlockCol(blockCol - startBlockCol) = in
-
-                    blockCol += 1
-                  }
-                }
-
-                inPerBlockCol.head.skipBytes(startColByteOffset)
-
-                var blockCol = startBlockCol
-                while (blockCol < stopBlockCol) {
-                  val startColOffsetInBlock =
-                    if (blockCol > startBlockCol)
-                      0
-                    else
-                      startColOffset
-
-                  val stopColOffsetInBlock =
-                    if (blockCol < stopBlockCol - 1)
-                      blockSize
-                    else
-                      stopColOffset
-
-                  val n = stopColOffsetInBlock - startColOffsetInBlock
-                  inPerBlockCol(blockCol - startBlockCol).readDoubles(data, 0, n)
-                  val endLine = blockCol + 1 == stopBlockCol
-
-                  writeData(data, n, endLine)
-
-                  blockCol += 1
-                }
-                i += 1
-
-                inPerBlockCol.last.skipBytes(stopColByteDeficit)
-
-                if (i % blockSize == 0 && i < stopRow)
-                  inPerBlockCol.foreach(_.close())
-              }
-            } finally {
-              inPerBlockCol.foreach(in => if (in != null) in.close())
-            }
-          }
+          transferData(r, index, writeData)
         }
       }
       1
@@ -301,8 +204,125 @@ object BlockMatrix {
 
     val nFiles = rdd.reduce(_ + _)
     assert(nFiles == rectangles.length)
-    
+
     info(s"wrote $nFiles rectangular regions to files")
+  }
+
+  def exportRectangles(
+    hc: HailContext,
+    input: String,
+    output: String,
+    flattenedRectangles: Array[Long],
+    delimiter: String,
+    nPartitions: Int,
+    binary: Boolean): Unit = {
+
+    val BlockMatrixMetadata(blockSize, nRows, nCols, maybeFiltered, partFiles) = BlockMatrix.readMetadata(hc, input)
+    val gp = GridPartitioner(blockSize, nRows, nCols, maybeFiltered)
+    val data = new Array[Double](blockSize)
+
+    val sHadoopBc = hc.sc.broadcast(new SerializableHadoopConfiguration(hc.hadoopConf))
+    val transferData = (rectangle: Array[Long], index: Int, writeData: (Array[Double], Int, Boolean) => Unit) => {
+      val startRow = rectangle(0)
+      val stopRow = rectangle(1)
+      val startCol = rectangle(2)
+      val stopCol = rectangle(3)
+
+      val nonEmpty = startRow < stopRow && startCol < stopCol
+
+      if (nonEmpty) {
+        val startRowOffset = gp.indexBlockOffset(startRow)
+
+        val startBlockCol = gp.indexBlockIndex(startCol)
+        val startColOffset = gp.indexBlockOffset(startCol)
+
+        val stopBlockCol = gp.indexBlockIndex(stopCol - 1) + 1
+        val stopColOffset = gp.indexBlockOffset(stopCol - 1) + 1
+
+        val startColByteOffset = startColOffset << 3
+        val stopColByteDeficit = (gp.blockColNCols(stopBlockCol - 1) - stopColOffset) << 3
+
+        val inPerBlockCol = new Array[InputBuffer](stopBlockCol - startBlockCol)
+        try {
+
+          // This whole thing basically builds up the Array[InputBuffer]
+          var i = startRow
+          while (i < stopRow) {
+            if (i == startRow || gp.indexBlockOffset(i) == 0) {
+              val blockRow = gp.indexBlockIndex(i)
+              val nRowsInBlock = gp.blockRowNRows(blockRow)
+
+              var blockCol = startBlockCol
+              // Yup here's where
+              while (blockCol < stopBlockCol) {
+                val pi = gp.coordinatesPart(blockRow, blockCol)
+                if (pi < 0)
+                  fatal(s"block ($blockRow, $blockCol) missing for rectangle $index " +
+                    s"with bounds ${ rectangle.mkString("[", ", ", "]") }")
+
+                val is = sHadoopBc.value.value.unsafeReader(input + "/parts/" + partFiles(pi))
+                val in = BlockMatrix.bufferSpec.buildInputBuffer(is)
+
+                val nColsInBlock = gp.blockColNCols(blockCol)
+
+                assert(in.readInt() == nRowsInBlock)
+                assert(in.readInt() == nColsInBlock)
+                val isTranspose = in.readBoolean()
+                if (!isTranspose)
+                  fatal("BlockMatrix must be stored row major on disk in order to export rectangular regions.")
+
+                if (i == startRow) {
+                  val skip = startRowOffset * (nColsInBlock << 3)
+                  in.skipBytes(skip)
+                }
+
+                inPerBlockCol(blockCol - startBlockCol) = in
+
+                blockCol += 1
+              }
+            }
+
+            //End of building up Array[InputBuffer]
+
+            //Start of of writing out to data and stuff
+            inPerBlockCol.head.skipBytes(startColByteOffset)
+
+            var blockCol = startBlockCol
+            while (blockCol < stopBlockCol) {
+              val startColOffsetInBlock =
+                if (blockCol > startBlockCol)
+                  0
+                else
+                  startColOffset
+
+              val stopColOffsetInBlock =
+                if (blockCol < stopBlockCol - 1)
+                  blockSize
+                else
+                  stopColOffset
+
+              val n = stopColOffsetInBlock - startColOffsetInBlock
+              inPerBlockCol(blockCol - startBlockCol).readDoubles(data, 0, n)
+              val endLine = blockCol + 1 == stopBlockCol
+
+              writeData(data, n, endLine)
+
+              blockCol += 1
+            }
+            i += 1
+
+            inPerBlockCol.last.skipBytes(stopColByteDeficit)
+
+            if (i % blockSize == 0 && i < stopRow)
+              inPerBlockCol.foreach(_.close())
+          }
+        } finally {
+          inPerBlockCol.foreach(in => if (in != null) in.close())
+        }
+      }
+    }
+
+    exportRectangles(hc, output, flattenedRectangles, delimiter, nPartitions, binary, blockSize, transferData)
   }
 
   object ops {
