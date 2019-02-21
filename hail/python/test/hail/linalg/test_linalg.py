@@ -94,7 +94,15 @@ class Tests(unittest.TestCase):
 
         BlockMatrix.write_from_entry_expr(mt.x + 2, path2, overwrite=True)
         self._assert_eq(BlockMatrix.read(path2), bm + 2)
-        
+
+    def test_random_uniform(self):
+        uniform = BlockMatrix.random(10, 10, gaussian=False)
+
+        nuniform = uniform.to_numpy()
+        for row in nuniform:
+            for entry in row:
+                assert entry > 0
+
     def test_to_from_numpy(self):
         n_rows = 10
         n_cols = 11
