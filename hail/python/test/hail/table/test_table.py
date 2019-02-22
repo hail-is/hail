@@ -983,3 +983,12 @@ def test_large_number_of_fields(tmpdir):
 
 def test_import_many_fields():
     assert_time(lambda: hl.import_table(resource('many_cols.txt')), 5)
+
+def test_segfault():
+    t = hl.utils.range_table(1)
+    t2 = hl.utils.range_table(3)
+    t = t.annotate(foo = [0])
+    t2 = t2.annotate(foo = [0])
+    joined = t.key_by('foo').join(t2.key_by('foo'))
+    joined = joined.filter(hl.is_missing(joined.idx))
+    assert joined.collect() == []
