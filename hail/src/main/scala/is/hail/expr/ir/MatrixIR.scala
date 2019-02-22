@@ -171,7 +171,7 @@ trait MatrixReader {
 }
 
 abstract class MatrixHybridReader extends TableReader with MatrixReader {
-  val fullType: TableType = LowerMatrixIR.loweredType(fullMatrixType)
+  lazy val fullType: TableType = LowerMatrixIR.loweredType(fullMatrixType)
 
   override def lower(mr: MatrixRead): TableIR = {
     var tr: TableIR = TableRead(LowerMatrixIR.loweredType(mr.typ), mr.dropRows, this)
