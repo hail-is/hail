@@ -52,12 +52,6 @@ const verifyToken = token =>
     );
   });
 
-const bearerPrefix = "Bearer ";
-const bearerPrefixLen = bearerPrefix.length;
-
-const cookiePrefix = "access_token=";
-const cookieOffset = cookiePrefix.length;
-
 const getAuthToken = req => {
   const token = req.headers.cookie
     ? cookie.parse(req.headers.cookie)["access_token"]
