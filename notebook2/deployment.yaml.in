@@ -23,11 +23,11 @@ spec:
         ports:
         - containerPort: 5000
         volumeMounts:
-          - mountPath: /notebook2-secrets
+          - mountPath: /notebook-secrets
             readOnly: true
-            name: notebook2-secrets
+            name: notebook-secrets
       volumes:
-        - name: notebook2-secrets
+        - name: notebook-secrets
           secret:
             secretName: notebook2-secrets
 ---
