@@ -1,4 +1,4 @@
-apiVersion: apps/v1beta2
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: notebook2
@@ -16,7 +16,7 @@ spec:
         app: notebook2
         hail.is/sha: "@sha@"
     spec:
-      serviceAccountName: notebook2
+      serviceAccountName: notebook
       containers:
       - name: notebook2
         image: @image@
