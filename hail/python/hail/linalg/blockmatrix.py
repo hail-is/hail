@@ -1411,7 +1411,12 @@ class BlockMatrix(object):
         -------
         :class:`numpy.ndarray`
         """
-        return _ndarray_from_jarray(self._jbm.diagonal())
+        diag_bmir = BlockMatrixBroadcast(self._bmir,
+                                         [0, 0],
+                                         [1, min(self.n_rows, self.n_cols)],
+                                         self.block_size,
+                                         [True])
+        return BlockMatrix(diag_bmir).to_numpy()
 
     @typecheck_method(axis=nullable(int))
     def sum(self, axis=None):
