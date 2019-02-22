@@ -29,27 +29,9 @@ trait BufferSpec extends Serializable {
 
   def buildOutputBuffer(out: OutputStream): OutputBuffer
 
-  def buildMemoryInputBuffer(mb: MemoryBuffer): InputBuffer = ???
-
-  def buildMemoryOutputBuffer(mb: MemoryBuffer): OutputBuffer = ???
-
   def nativeOutputBufferType: String
 
   def nativeInputBufferType: String
-}
-
-final class MemoryBufferSpec extends BufferSpec {
-  def buildInputBuffer(in: InputStream): InputBuffer = ???
-
-  def buildOutputBuffer(out: OutputStream): OutputBuffer = ???
-
-  override def buildMemoryInputBuffer(mb: MemoryBuffer): InputBuffer = new MemoryInputBuffer(mb)
-
-  override def buildMemoryOutputBuffer(mb: MemoryBuffer): OutputBuffer = new MemoryOutputBuffer(mb)
-
-  def nativeOutputBufferType: String = ???
-
-  def nativeInputBufferType: String = ???
 }
 
 final class LEB128BufferSpec(child: BufferSpec) extends BufferSpec {
@@ -143,10 +125,6 @@ trait CodecSpec extends Serializable {
 
   def buildDecoder(t: PType, requestedType: PType): (InputStream) => Decoder
 
-  def buildMemoryEncoder(t: PType): (MemoryBuffer) => Encoder
-
-  def buildMemoryDecoder(t: PType): (MemoryBuffer) => Decoder
-
   def buildNativeDecoderClass(t: PType, requestedType: PType, tub: cxx.TranslationUnitBuilder): cxx.Class
 
   def buildNativeEncoderClass(t: PType, tub: cxx.TranslationUnitBuilder): cxx.Class
@@ -217,10 +195,6 @@ final case class PackCodecSpec(child: BufferSpec) extends CodecSpec {
       (in: InputStream) => new CompiledPackDecoder(child.buildInputBuffer(in), f)
     }
   }
-
-  def buildMemoryEncoder(t: PType): (MemoryBuffer) => Encoder = (mb: MemoryBuffer) => new PackEncoder(t, child.buildMemoryOutputBuffer(mb))
-
-  def buildMemoryDecoder(t: PType): (MemoryBuffer) => Decoder = (mb: MemoryBuffer) => new PackDecoder(t, child.buildMemoryInputBuffer(mb))
 
   def buildNativeDecoderClass(t: PType, requestedType: PType, tub: cxx.TranslationUnitBuilder): cxx.Class = cxx.PackDecoder(t, requestedType, child, tub)
 

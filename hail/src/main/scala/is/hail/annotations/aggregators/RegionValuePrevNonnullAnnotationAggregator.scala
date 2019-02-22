@@ -5,10 +5,6 @@ import is.hail.expr.types.physical.PType
 import is.hail.expr.types.virtual.Type
 import is.hail.io._
 
-// TODO
-// CompiledPackEncoder
-//
-
 class RegionValuePrevNonnullAnnotationAggregator2(
   t: PType,
   makeEncoder: (MemoryBuffer) => Encoder,
@@ -67,7 +63,6 @@ class RegionValuePrevNonnullAnnotationAggregator2(
     present = false
   }
 }
-
 
 class RegionValuePrevNonnullAnnotationAggregator(t: Type) extends RegionValueAggregator {
   var last: Annotation = null
