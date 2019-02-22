@@ -509,6 +509,7 @@ class Tests(unittest.TestCase):
         kt_small = kt.sample(0.01)
         self.assertTrue(kt_small.count() < kt.count())
 
+    @skip_unless_spark_backend()
     def test_from_spark_works(self):
         sql_context = Env.sql_context()
         df = sql_context.createDataFrame([pyspark.sql.Row(x=5, y='foo')])
@@ -518,6 +519,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(rows[0].x, 5)
         self.assertEqual(rows[0].y, 'foo')
 
+    @skip_unless_spark_backend()
     def test_from_pandas_works(self):
         d = {'a': [1, 2], 'b': ['foo', 'bar']}
         df = pd.DataFrame(data=d)

@@ -6,11 +6,11 @@ etc
 notebook
 gateway
 hail
+apiserver
 image-fetcher
 letsencrypt
 pipeline
 scorecard
 site
-spark
 upload
 vdc
