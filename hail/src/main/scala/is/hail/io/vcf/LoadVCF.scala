@@ -668,7 +668,10 @@ object LoadVCF {
     }
   }
 
-  def globAllVCFs(arguments: Array[String], hConf: hadoop.conf.Configuration, forcegz: Boolean = false): Array[String] = {
+  def globAllVCFs(arguments: Array[String],
+    hConf: hadoop.conf.Configuration,
+    forceGZ: Boolean = false,
+    gzAsBGZ: Boolean = false): Array[String] = {
     val inputs = hConf.globAll(arguments)
 
     if (inputs.isEmpty)
@@ -678,14 +681,14 @@ object LoadVCF {
       if (!input.endsWith(".vcf")
         && !input.endsWith(".vcf.bgz")) {
         if (input.endsWith(".vcf.gz")) {
-          if (!forcegz)
+          if (!forceGZ && !gzAsBGZ)
             fatal(
               """.gz cannot be loaded in parallel. Is your file actually *block* gzipped?
                 |If your file is actually block gzipped (even though its extension is .gz),
                 |use force_bgz=True to ignore the file extension and treat this file as if
-                |it were a .bgz file. If you are sure that you want to load a non-block
-                |gzipped using the very slow, non-parallel algorithm, use force=True.""".stripMargin)
-          else {
+                |it were a .bgz file. If you are sure that you want to load a non-block-
+                |gzipped file serially on one core, use force=True.""".stripMargin)
+          else if (!gzAsBGZ) {
             val fileSize = hConf.getFileSize(input)
             if (fileSize > 1024 * 1024 * 128)
               warn(s"file '$input' is ${readableBytes(fileSize)}, but will be loaded serially (on one core)\n" +
@@ -1014,7 +1017,7 @@ case class MatrixVCFReader(
 
   referenceGenome.foreach(_.validateContigRemap(contigRecoding))
 
-  private val inputs = LoadVCF.globAllVCFs(hConf.globAll(files), hConf, gzAsBGZ || forceGZ)
+  private val inputs = LoadVCF.globAllVCFs(hConf.globAll(files), hConf, forceGZ, gzAsBGZ)
 
   private val reader = new HtsjdkRecordReader(callFields, entryFloatType)
 
