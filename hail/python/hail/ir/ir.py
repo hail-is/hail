@@ -1879,6 +1879,11 @@ class MatrixMultiWrite(IR):
                other.children == self.children and \
                other.writer == self.writer
 
+    def _compute_type(self, env, agg_env):
+        for x in self.children:
+            x._compute_type()
+        self._type = tvoid
+
 
 class BlockMatrixWrite(IR):
     @typecheck_method(child=BlockMatrixIR, path=str, overwrite=bool, force_row_major=bool, stage_locally=bool)
