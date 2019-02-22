@@ -1,6 +1,7 @@
 require("dotenv").config();
 
 const polka = require("polka");
+const cookie = require("cookie");
 const jwksRsa = require("jwks-rsa");
 const jwt = require("jsonwebtoken");
 
@@ -58,57 +59,23 @@ const cookiePrefix = "access_token=";
 const cookieOffset = cookiePrefix.length;
 
 const getAuthToken = req => {
-  if (req.query.access_token) {
+  const token = req.headers.cookie
+    ? cookie.parse(req.headers.cookie)["access_token"]
+    : null;
+
+  if (token === null || token === "") {
     return null;
   }
 
-  const bearerIdx = req.headers.authorization
-    ? req.headers.authorization.indexOf(bearerPrefix)
-    : -1;
-
-  const cookieIdx = req.headers.cookie
-    ? req.headers.cookie.indexOf(cookiePrefix)
-    : -1;
-
-  if (bearerIdx === -1 && cookieIdx === -1) {
-    return null;
-  }
-
-  if (bearerIdx > -1 && cookieIdx > -1) {
-    console.warn("User specified > 1 access tokens", req.headers.origin);
-    return null;
-  }
-
-  if (bearerIdx > -1) {
-    return req.headers.authorization.substring(bearerPrefixLen);
-  }
-
-  const token = req.headers.cookie.substring(cookieIdx + cookieOffset);
-
-  if (!token) {
-    return null;
-  }
-
-  const spaceIdx = token.indexOf(" ");
-
-  if (spaceIdx === -1) {
-    return token;
-  }
-
-  // https://stackoverflow.com/questions/4843556/in-http-specification-what-is-the-string-that-separates-cookies
-  if (token[spaceIdx - 1] !== ";" && token[spaceIdx - 1] !== ",") {
-    return null;
-  }
-
-  return token.substring(0, spaceIdx - 1);
+  return token;
 };
 
 const PORT = 8000;
 polka()
   .get("/verify", (req, res) => {
-    const token = getAuthToken(req);
+    const token = cookie.parse(req.headers.cookie)["access_token"];
 
-    if (!token) {
+    if (token === null) {
       unauthorized(res);
       return;
     }
