@@ -10,9 +10,6 @@ cleanup() {
 trap cleanup EXIT
 trap "exit 1" INT TERM
 
-# FIXME update pr-builder image
-pip install flask
-
 export PYTHONPATH=$(ls $SPARK_HOME/python/lib/py4j-*-src.zip):$SPARK_HOME/python:./python
 export JAR=./build/libs/hail-all-spark.jar
 export PYSPARK_SUBMIT_ARGS="--conf spark.driver.extraClassPath=./build/libs/hail-all-spark.jar --conf spark.executor.extraClassPath=./build/libs/hail-all-spark.jar pyspark-shell"
