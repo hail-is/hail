@@ -702,7 +702,7 @@ def logistic_regression_rows(test, y, x, covariates, pass_through=()) -> hail.Ta
     if not y_is_list:
         result = result.transmute(**result.logistic_regression[0])
 
-    return result
+    return result.persist()
 
 @typecheck(test=enumeration('wald', 'lrt', 'score'),
            y=expr_float64,
@@ -776,7 +776,7 @@ def poisson_regression_rows(test, y, x, covariates, pass_through=()) -> Table:
         'passThrough': [x for x in row_fields if x not in mt.row_key]
     }
     
-    return Table(MatrixToTableApply(mt._mir, config))
+    return Table(MatrixToTableApply(mt._mir, config)).persist()
 
 
 @typecheck(y=expr_float64,
