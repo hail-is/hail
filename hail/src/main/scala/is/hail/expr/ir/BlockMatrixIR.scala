@@ -42,6 +42,17 @@ object BlockMatrixIR {
       case IndexedSeq(r, c) => (r, c)
     }
   }
+
+  def coerceToScalar(hc: HailContext, ir: BlockMatrixIR): Double = {
+    ir match {
+      case ValueToBlockMatrix(child, _, _, _) =>
+        Interpret[Any](child) match {
+          case scalar: Double => scalar
+          case oneElementArray: IndexedSeq[Double] => oneElementArray.head
+        }
+      case _ => ir.execute(hc).toBreezeMatrix().apply(0, 0)
+    }
+  }
 }
 
 abstract sealed class BlockMatrixIR extends BaseIR {
@@ -88,7 +99,7 @@ class BlockMatrixLiteral(value: BlockMatrix) extends BlockMatrixIR {
 }
 
 case class BlockMatrixMap(child: BlockMatrixIR, f: IR) extends BlockMatrixIR {
-  assert(f.isInstanceOf[ApplyUnaryPrimOp] || f.isInstanceOf[Apply])
+  assert(f.isInstanceOf[ApplyUnaryPrimOp] || f.isInstanceOf[Apply] || f.isInstanceOf[ApplySeeded])
 
   override def typ: BlockMatrixType = child.typ
 
@@ -100,12 +111,15 @@ case class BlockMatrixMap(child: BlockMatrixIR, f: IR) extends BlockMatrixIR {
   }
 
   override protected[ir] def execute(hc: HailContext): BlockMatrix = {
-    val blockMatrix = child.execute(hc)
     f match {
-      case ApplyUnaryPrimOp(Negate(), _) => blockMatrix.unary_-()
-      case Apply("abs", _) => blockMatrix.abs()
-      case Apply("log", _) => blockMatrix.log()
-      case Apply("sqrt", _) => blockMatrix.sqrt()
+      case ApplyUnaryPrimOp(Negate(), _) => child.execute(hc).unary_-()
+      case Apply("abs", _) => child.execute(hc).abs()
+      case Apply("log", _) => child.execute(hc).log()
+      case Apply("sqrt", _) => child.execute(hc).sqrt()
+      case ApplySeeded(x@("rand_unif" | "rand_norm"), _, _) =>
+        val BlockMatrixBroadcast(scalarIR, _, shape, blockSize, _) = child
+        val seed = BlockMatrixIR.coerceToScalar(hc, scalarIR).toInt
+        BlockMatrix.random(hc, shape(0).toInt, shape(1).toInt, blockSize, seed, gaussian = x == "rand_norm")
       case _ => fatal(s"Unsupported operation on BlockMatrices: ${Pretty(f)}")
     }
   }
@@ -129,7 +143,7 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, f: IR) ext
   override protected[ir] def execute(hc: HailContext): BlockMatrix = {
     left match {
       case BlockMatrixBroadcast(scalarIR: BlockMatrixIR, IndexedSeq(), _, _, _) =>
-        scalarOnLeft(hc, coerceToScalar(hc, scalarIR), right, f)
+        scalarOnLeft(hc, BlockMatrixIR.coerceToScalar(hc, scalarIR), right, f)
       case BlockMatrixBroadcast(vectorIR: BlockMatrixIR,inIndexExpr, _, _, _) =>
         val vector = coerceToVector(hc, vectorIR)
         inIndexExpr match {
@@ -153,7 +167,7 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, f: IR) ext
   private def rowVectorOnLeft(hc: HailContext, rowVector: Array[Double], right: BlockMatrixIR, f: IR): BlockMatrix = {
     right match {
       case BlockMatrixBroadcast(scalarIR, IndexedSeq(), _, _, _) =>
-        val rightAsScalar = coerceToScalar(hc, scalarIR)
+        val rightAsScalar = BlockMatrixIR.coerceToScalar(hc, scalarIR)
         val rowVectorAsBm = BlockMatrixIR.toBlockMatrix(hc, 1, rowVector.length, rowVector)
         opWithScalar(rowVectorAsBm, rightAsScalar, f, reverse = false)
       case _ =>
@@ -164,7 +178,7 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, f: IR) ext
   private def colVectorOnLeft(hc: HailContext, colVector: Array[Double], right: BlockMatrixIR, f: IR): BlockMatrix = {
     right match {
       case BlockMatrixBroadcast(scalarIR, IndexedSeq(), _, _, _) =>
-        val rightAsScalar = coerceToScalar(hc, scalarIR)
+        val rightAsScalar = BlockMatrixIR.coerceToScalar(hc, scalarIR)
         val colVectorAsBm = BlockMatrixIR.toBlockMatrix(hc, colVector.length, 1, colVector)
         opWithScalar(colVectorAsBm, rightAsScalar, f, reverse = false)
       case _ =>
@@ -175,7 +189,7 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, f: IR) ext
   private def matrixOnLeft(hc: HailContext, matrix: BlockMatrix, right: BlockMatrixIR, f: IR): BlockMatrix = {
     right match {
       case BlockMatrixBroadcast(scalarIR, IndexedSeq(), _, _, _) =>
-        val rightAsScalar = coerceToScalar(hc, scalarIR)
+        val rightAsScalar = BlockMatrixIR.coerceToScalar(hc, scalarIR)
         opWithScalar(matrix, rightAsScalar, f, reverse = false)
       case BlockMatrixBroadcast(vectorIR, inIndexExpr, _, _, _) =>
         inIndexExpr match {
@@ -191,16 +205,6 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, f: IR) ext
     }
   }
 
-  private def coerceToScalar(hc: HailContext, ir: BlockMatrixIR): Double = {
-    ir match {
-      case ValueToBlockMatrix(child, _, _, _) =>
-        Interpret[Any](child) match {
-          case scalar: Double => scalar
-          case oneElementArray: IndexedSeq[Double] => oneElementArray.head
-        }
-      case _ => ir.execute(hc).toBreezeMatrix().apply(0, 0)
-    }
-  }
 
   private def coerceToVector(hc: HailContext, ir: BlockMatrixIR): Array[Double] = {
     ir match {
