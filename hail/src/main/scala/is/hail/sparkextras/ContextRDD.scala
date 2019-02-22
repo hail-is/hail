@@ -7,6 +7,42 @@ import org.apache.spark.ExposedUtils
 
 import scala.reflect.ClassTag
 
+class AssociativeCombiner[U](zero: U, combine: (U, U) => U) {
+  case class TreeValue(var value: U, var end: Int)
+
+  private val t = new java.util.TreeMap[Int, TreeValue]()
+
+  def combine(i: Int, value0: U) {
+    var value = value0
+    var end = i
+
+    val nexttv = t.get(i + 1)
+    if (nexttv != null) {
+      value = combine(value, nexttv.value)
+      end = nexttv.end
+      t.remove(i + 1)
+    }
+
+    val prevtv = t.get(i - 1)
+    if (prevtv != null) {
+      prevtv.value = combine(prevtv.value, value)
+      prevtv.end = end
+      return
+    }
+
+    t.put(i, TreeValue(value, end))
+  }
+
+  def result(): U = {
+    val n = t.size()
+    if (n > 0) {
+      assert(n == 1)
+      t.firstEntry().getValue.value
+    } else
+      zero
+  }
+}
+
 object ContextRDD {
   def apply[C <: AutoCloseable : Pointed, T: ClassTag](
     rdd: RDD[C => Iterator[T]]
@@ -201,14 +237,9 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
     val aggregatePartition = clean { (it: Iterator[C => Iterator[T]]) =>
       using(mkc()) { c =>
         serialize(it.flatMap(_(c)).aggregate(zeroValue)(seqOp(c, _, _), combOp)) } }
-    val vs = sparkContext.runJob(rdd, aggregatePartition)
-    var result = zero
-    var i = 0
-    while (i < vs.length) {
-      result = combOp(result, deserialize(vs(i)))
-      i += 1
-    }
-    result
+    val ac = new AssociativeCombiner(zero, combOp)
+    sparkContext.runJob(rdd, aggregatePartition, (i: Int, v: V) => ac.combine(i, deserialize(v)))
+    ac.result()
   }
 
   // FIXME: update with serializers when region values are non-serializable
@@ -229,13 +260,7 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
       .getOrElse(throw new RuntimeException("nothing in the RDD!"))
   }
 
-  // FIXME: delete when region values are non-serializable
-  def treeAggregate[U: ClassTag](
-    zero: U,
-    seqOp: (C, U, T) => U,
-    combOp: (U, U) => U
-  ): U = treeAggregate(zero, seqOp, combOp, 2)
-
+  // only used by Concordance
   def treeAggregate[U: ClassTag](
     zero: U,
     seqOp: (C, U, T) => U,
@@ -248,51 +273,58 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
     seqOp: (C, U, T) => U,
     combOp: (U, U) => U,
     serialize: U => V,
-    deserialize: V => U
-  ): V = treeAggregate(zero, seqOp, combOp, serialize, deserialize, 2)
-
-  def treeAggregate[U: ClassTag, V: ClassTag](
-    zero: U,
-    seqOp: (C, U, T) => U,
-    combOp: (U, U) => U,
-    serialize: U => V,
     deserialize: V => U,
     depth: Int
-  ): V = {
+  ): U = {
     require(depth > 0)
     val zeroValue = serialize(zero)
     val aggregatePartitionOfContextTs = clean { (it: Iterator[C => Iterator[T]]) =>
       using(mkc()) { c =>
         serialize(
-          it.flatMap(_(c)).aggregate(deserialize(zeroValue))(seqOp(c, _, _), combOp)) } }
+          it.flatMap(_ (c)).aggregate(deserialize(zeroValue))(seqOp(c, _, _), combOp))
+      }
+    }
     val aggregatePartitionOfVs = clean { (it: Iterator[V]) =>
       serialize(
-        it.map(deserialize).fold(deserialize(zeroValue))(combOp)) }
-    val combOpV = clean { (l: V, r: V) =>
-      serialize(
-        combOp(deserialize(l), deserialize(r))) }
+        it.map(deserialize).fold(deserialize(zeroValue))(combOp))
+    }
 
     var reduced: RDD[V] =
       rdd.mapPartitions(
         aggregatePartitionOfContextTs.andThen(Iterator.single _))
-    var level = depth
-    val scale =
-      math.max(
-        math.ceil(math.pow(reduced.partitions.length, 1.0 / depth)).toInt,
-        2)
-    var targetPartitionCount = reduced.partitions.length / scale
 
-    while (level > 1 && targetPartitionCount >= scale) {
+    val scale = math.max(
+      math.ceil(math.pow(reduced.partitions.length, 1.0 / depth)).toInt,
+      2)
+    var i = 0
+    while (i < depth - 1 && reduced.getNumPartitions > scale) {
+      val nParts = reduced.getNumPartitions
+      val newNParts = nParts / scale
       reduced = reduced.mapPartitionsWithIndex { (i, it) =>
-        it.map(i % targetPartitionCount -> _)
-      }.reduceByKey(combOpV, targetPartitionCount).map(_._2)
-      level -= 1
-      targetPartitionCount /= scale
+        it.map(x => (itemPartition(i, nParts, newNParts), (i, x)))
+      }
+        .partitionBy(new Partitioner {
+          override def getPartition(key: Any): Int = key.asInstanceOf[Int]
+
+          override def numPartitions: Int = newNParts
+        })
+        .mapPartitions { it =>
+          val ac = new AssociativeCombiner(deserialize(zeroValue), combOp)
+          it.foreach { case (newPart, (oldPart, v)) =>
+            ac.combine(oldPart, deserialize(v))
+          }
+          Iterator.single(
+            serialize(ac.result()))
+        }
+      i += 1
     }
 
-    reduced.reduce(combOpV)
+    val ac = new AssociativeCombiner(zero, combOp)
+    sparkContext.runJob(reduced, (it: Iterator[V]) => singletonElement(it), (i: Int, v: V) => ac.combine(i, deserialize(v)))
+    ac.result()
   }
 
+  // only used by MatrixMapCols
   def treeAggregateWithPartitionOp[PC, U: ClassTag](
     zero: U,
     makePC: (Int, C) => PC,
@@ -309,7 +341,7 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
     serialize: U => V,
     deserialize: V => U,
     depth: Int
-  ): V = {
+  ): U = {
     require(depth > 0)
     val zeroValue = serialize(zero)
     val aggregatePartitionOfContextTs = clean { (i: Int, it: Iterator[C => Iterator[T]]) =>
@@ -317,29 +349,40 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
         val pc = makePC(i, c)
         serialize(
           it.flatMap(_(c)).aggregate(deserialize(zeroValue))(seqOp(c, pc, _, _), combOp)) } }
-    val combOpV = clean { (l: V, r: V) =>
-      serialize(
-        combOp(deserialize(l), deserialize(r))) }
 
     var reduced: RDD[V] =
       rdd.mapPartitionsWithIndex((i, it) =>
         Iterator.single(aggregatePartitionOfContextTs(i, it)))
-    var level = depth
-    val scale =
-      math.max(
-        math.ceil(math.pow(reduced.partitions.length, 1.0 / depth)).toInt,
-        2)
-    var targetPartitionCount = reduced.partitions.length / scale
 
-    while (level > 1 && targetPartitionCount >= scale) {
+    val scale = math.max(
+      math.ceil(math.pow(reduced.partitions.length, 1.0 / depth)).toInt,
+      2)
+    var i = 0
+    while (i < depth - 1 && reduced.getNumPartitions > scale) {
+      val nParts = reduced.getNumPartitions
+      val newNParts = nParts / scale
       reduced = reduced.mapPartitionsWithIndex { (i, it) =>
-        it.map(i % targetPartitionCount -> _)
-      }.reduceByKey(combOpV, targetPartitionCount).map(_._2)
-      level -= 1
-      targetPartitionCount /= scale
+        it.map(x => (itemPartition(i, nParts, newNParts), (i, x)))
+      }
+        .partitionBy(new Partitioner {
+          override def getPartition(key: Any): Int = key.asInstanceOf[Int]
+
+          override def numPartitions: Int = newNParts
+        })
+        .mapPartitions { it =>
+          val ac = new AssociativeCombiner(deserialize(zeroValue), combOp)
+          it.foreach { case (newPart, (oldPart, v)) =>
+            ac.combine(oldPart, deserialize(v))
+          }
+          Iterator.single(
+            serialize(ac.result()))
+        }
+      i += 1
     }
 
-    reduced.reduce(combOpV)
+    val ac = new AssociativeCombiner(zero, combOp)
+    sparkContext.runJob(reduced, (it: Iterator[V]) => singletonElement(it), (i: Int, v: V) => ac.combine(i, deserialize(v)))
+    ac.result()
   }
 
   def cmap[U: ClassTag](f: (C, T) => U): ContextRDD[C, U] =
