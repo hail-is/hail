@@ -4,6 +4,7 @@ ci
 cloudtools
 etc
 notebook
+notebook2
 gateway
 hail
 image-fetcher
