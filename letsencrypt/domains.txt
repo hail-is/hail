@@ -2,7 +2,7 @@
 ci.@domain@
 dev1.@domain@
 notebook.@domain@
-notebook-api.@domain@
+notebook2.@domain@
 app.@domain@
 scorecard.@domain@
 test.@domain@
