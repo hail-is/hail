@@ -521,7 +521,7 @@ def vep(dataset: Union[Table, MatrixTable], config, block_size=1000, name='vep',
                                           {'name': 'VEP',
                                            'config': config,
                                            'csq': csq,
-                                           'blockSize': block_size}))
+                                           'blockSize': block_size})).persist()
 
     if csq:
         dataset = dataset.annotate_globals(
@@ -864,7 +864,7 @@ def nirvana(dataset: Union[MatrixTable, Table], config, block_size=500000, name=
         require_table_key_variant(dataset, 'nirvana')
         ht = dataset.select()
 
-    annotations = Table._from_java(Env.hail().methods.Nirvana.apply(ht._jt, config, block_size))
+    annotations = Table._from_java(Env.hail().methods.Nirvana.apply(ht._jt, config, block_size)).persist()
 
     if isinstance(dataset, MatrixTable):
         return dataset.annotate_rows(**{name: annotations[dataset.row_key].nirvana})

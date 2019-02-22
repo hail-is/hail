@@ -239,7 +239,7 @@ case class VEP(config: String, csq: Boolean, blockSize: Int) extends TableToTabl
           rv.setOffset(rvb.end())
           rv
         }
-      }).persist(StorageLevel.MEMORY_AND_DISK)
+      })
 
     val (globalValue, globalType) =
       if (csq)
