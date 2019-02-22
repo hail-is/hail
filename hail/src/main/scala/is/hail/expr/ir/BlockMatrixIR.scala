@@ -44,7 +44,6 @@ object BlockMatrixIR {
       case IndexedSeq(r, c) => (r, c)
     }
   }
-
 }
 
 abstract sealed class BlockMatrixIR extends BaseIR {
@@ -124,7 +123,7 @@ class BlockMatrixLiteral(value: BlockMatrix) extends BlockMatrixIR {
 }
 
 case class BlockMatrixMap(child: BlockMatrixIR, f: IR) extends BlockMatrixIR {
-  assert(f.isInstanceOf[ApplyUnaryPrimOp] || f.isInstanceOf[Apply])
+  assert(f.isInstanceOf[ApplyUnaryPrimOp] || f.isInstanceOf[Apply] || f.isInstanceOf[ApplySeeded])
 
   override def typ: BlockMatrixType = child.typ
 
