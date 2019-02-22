@@ -521,19 +521,7 @@ class RVD(
 
   // Aggregating
 
-  def aggregate[U: ClassTag](
-    zeroValue: U
-  )(seqOp: (U, RegionValue) => U,
-    combOp: (U, U) => U
-  ): U = {
-    val clearingSeqOp = { (ctx: RVDContext, u: U, rv: RegionValue) =>
-      val u2 = seqOp(u, rv)
-      ctx.region.clear()
-      u2
-    }
-    crdd.aggregate(zeroValue, clearingSeqOp, combOp)
-  }
-
+  // used in Interpret by TableAggregate, MatrixAggregate
   def aggregateWithPartitionOp[PC, U: ClassTag](
     zeroValue: U,
     makePC: (Int, RVDContext) => PC
@@ -555,6 +543,7 @@ class RVD(
     ac.result()
   }
 
+  // only used by MatrixMapCols
   def treeAggregateWithPartitionOp[PC, U: ClassTag](
     zeroValue: U,
     makePC: (Int, RVDContext) => PC
