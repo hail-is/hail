@@ -29,7 +29,7 @@ spec:
       volumes:
         - name: notebook-secrets
           secret:
-            secretName: notebook2-secrets
+            secretName: notebook-secrets
 ---
 apiVersion: v1
 kind: Service
