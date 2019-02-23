@@ -5,6 +5,7 @@ import org.apache.spark._
 import org.apache.spark.rdd._
 import org.apache.spark.ExposedUtils
 
+import scala.collection.JavaConverters._
 import scala.reflect.ClassTag
 
 class AssociativeCombiner[U](zero: U, combine: (U, U) => U) {
@@ -23,8 +24,9 @@ class AssociativeCombiner[U](zero: U, combine: (U, U) => U) {
       t.remove(i + 1)
     }
 
-    val prevtv = t.get(i - 1)
-    if (prevtv != null) {
+    val prevEntry = t.floorEntry(i - 1)
+    if (prevEntry != null) {
+      val prevtv = prevEntry.getValue
       prevtv.value = combine(prevtv.value, value)
       prevtv.end = end
       return
