@@ -33,6 +33,7 @@ object IndexBgen {
     contigRecoding: Map[String, String] = null,
     skipInvalidLoci: Boolean = false) {
     val hConf = hc.hadoopConf
+    val hConfBc = hc.hadoopConfBc
 
     val statuses = LoadBgen.getAllFileStatuses(hConf, files)
     val bgenFilePaths = statuses.map(_.getPath.toString)
@@ -64,8 +65,6 @@ object IndexBgen {
 
     val typ = RVDType(settings.typ.physicalType, Array("file_idx", "locus", "alleles"))
 
-    val sHadoopConfBc = hc.sc.broadcast(new SerializableHadoopConfiguration(hConf))
-
     val partitions: Array[Partition] = headers.zipWithIndex.map { case (f, i) =>
       IndexBgenPartition(
         f.path,
@@ -75,7 +74,7 @@ object IndexBgen {
         f.dataStart,
         f.fileByteSize,
         i,
-        sHadoopConfBc)
+        hConfBc)
     }
 
     val rowType = typ.rowType
@@ -100,7 +99,7 @@ object IndexBgen {
       .foreachPartition({ it =>
         val partIdx = TaskContext.get.partitionId()
 
-        using(new IndexWriter(sHadoopConfBc.value.value, indexFilePaths(partIdx), indexKeyType, annotationType, attributes = attributes)) { iw =>
+        using(new IndexWriter(hConfBc.value.value, indexFilePaths(partIdx), indexKeyType, annotationType, attributes = attributes)) { iw =>
           it.foreach { r =>
             assert(r.getInt(fileIdxIdx) == partIdx)
             iw += (Row(r(locusIdx), r(allelesIdx)), r.getLong(offsetIdx), Row())

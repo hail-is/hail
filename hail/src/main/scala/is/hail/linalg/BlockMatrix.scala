@@ -165,7 +165,7 @@ object BlockMatrix {
     val rectangles = flattenedRectangles.grouped(4).toArray    
     val dRect = digitsNeeded(rectangles.length)
 
-    val sHadoopBc = hc.sc.broadcast(new SerializableHadoopConfiguration(hc.hadoopConf))
+    val sHadoopBc = HailContext.hadoopConfBc
     val partFilesBc = hc.sc.broadcast(partFiles)
 
     val rdd = hc.sc.parallelize(rectangles.zipWithIndex, numSlices = nPartitions).map { case (r, index) =>
@@ -1572,7 +1572,7 @@ class WriteBlocksRDD(path: String,
   private val rvRowType = rvd.rowPType
 
   private val d = digitsNeeded(gp.numPartitions)
-  private val sHadoopBc = sc.broadcast(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
+  private val sHadoopBc = HailContext.hadoopConfBc
 
   override def getDependencies: Seq[Dependency[_]] =
     Array[Dependency[_]](

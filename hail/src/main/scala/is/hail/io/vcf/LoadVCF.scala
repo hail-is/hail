@@ -954,7 +954,7 @@ class PartitionedVCFRDD(
   @(transient@param) _partitions: Array[Partition]
 ) extends RDD[String](sc, Seq()) {
   protected def getPartitions: Array[Partition] = _partitions
-  val confBc = sc.broadcast(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
+  val confBc = HailContext.hadoopConfBc
 
   def compute(split: Partition, context: TaskContext): Iterator[String] = {
     val p = split.asInstanceOf[PartitionedVCFPartition]
@@ -1025,7 +1025,7 @@ case class MatrixVCFReader(
   private val header1 = parseHeader(reader, headerLines1, arrayElementsRequired = arrayElementsRequired)
 
   if (headerFile.isEmpty) {
-    val confBc = sc.broadcast(new SerializableHadoopConfiguration(hConf))
+    val confBc = HailContext.hadoopConfBc
     val header1Bc = sc.broadcast(header1)
 
     val localReader = reader
@@ -1237,7 +1237,7 @@ case class VCFsReader(
   }
 
   private val fileInfo = {
-    val confBc = sc.broadcast(new SerializableHadoopConfiguration(hConf))
+    val confBc = HailContext.hadoopConfBc
 
     val localLocusType = locusType
     val localReader = new HtsjdkRecordReader(callFields, entryFloatType)
