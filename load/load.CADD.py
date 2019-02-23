@@ -2,8 +2,8 @@
 import hail as hl
 import argparse
 
-EXTRACT_BUCKET = 'gs://hail-datasets-extracted-data/'
-HAIL_BUCKET = 'gs://hail-datasets/'
+raw_data_root = 'gs://hail-datasets-raw-data/CADD'
+hail_data_root = 'gs://hail-datasets-hail-data'
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-v', required=True, help='CADD version.')
@@ -11,30 +11,32 @@ parser.add_argument('-b', required=True, choices=['GRCh37', 'GRCh38'], help='Ens
 args = parser.parse_args()
 
 name = 'CADD'
-version = 'v' + args.v
-reference_genome = args.b
+version = args.v
+build = args.b
 
-ht = hl.import_table(EXTRACT_BUCKET + 'CADD/{n}.{v}.{rg}.tsv.bgz'.format(n=name, v=version, rg=reference_genome),
+ht = hl.import_table(f'{raw_data_root}/CADD_v{version}_{build}.tsv.bgz',
                      types={'position': hl.tint,
                             'raw_score': hl.tfloat,
                             'PHRED_score': hl.tfloat})
-if reference_genome == 'GRCh37':
-    ht = ht.annotate(locus=hl.locus(ht['chromosome'], ht['position'], reference_genome))
-else:
-    ht = ht.annotate(locus=hl.locus('chr' + ht['chromosome'], ht['position'], reference_genome))
-ht = ht.annotate(alleles=hl.array([ht['ref'], ht['alt']]))
-
-ht = ht.drop('chromosome', 'position', 'ref', 'alt')
-ht = ht.select('locus', 'alleles', 'raw_score', 'PHRED_score')
-ht = ht.key_by('locus', 'alleles')
 
 n_rows = ht.count()
 n_partitions = ht.n_partitions()
+
+if build == 'GRCh37':
+    ht = ht.annotate(locus=hl.locus(ht['chromosome'], ht['position'], build))
+else:
+    ht = ht.annotate(locus=hl.locus('chr' + ht['chromosome'], ht['position'], build))
+
+ht = ht.annotate(alleles=hl.array([ht['ref'], ht['alt']]))
+ht = ht.key_by('locus', 'alleles')
+ht = ht.select('raw_score', 'PHRED_score')
+
 ht = ht.annotate_globals(metadata=hl.struct(name=name,
                                             version=version,
-                                            reference_genome=reference_genome,
+                                            reference_genome=build,
                                             n_rows=n_rows,
                                             n_partitions=n_partitions))
 
+ht.write(f'{hail_data_root}/{name}.{version}.{build}.ht', overwrite=True)
+ht = hl.read_table(f'{hail_data_root}/{name}.{version}.{build}.ht')
 ht.describe()
-ht.write(HAIL_BUCKET + '{n}.{v}.{rg}.ht'.format(n=name, v=version, rg=args.b), overwrite=True)
