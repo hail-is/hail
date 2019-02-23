@@ -18,9 +18,9 @@ class RegionValuePrevNonnullAnnotationAggregator2(
   def this(t: Type) = this(t.physicalType)
 
   val mb = new MemoryBuffer
-  val encoder: Encoder = makeEncoder(mb)
-  val decoder: Decoder = makeDecoder(mb)
-
+  @transient lazy val encoder: Encoder = makeEncoder(mb)
+  @transient lazy val decoder: Decoder = makeDecoder(mb)
+  
   var present: Boolean = false
 
   def seqOp(region: Region, offset: Long, missing: Boolean) {
