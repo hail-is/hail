@@ -67,7 +67,7 @@ const getAuthToken = req => {
 const PORT = 8000;
 polka()
   .get("/verify", (req, res) => {
-    const token = getAuthToken(req)
+    const token = getAuthToken(req);
 
     if (token === null) {
       unauthorized(res);
