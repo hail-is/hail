@@ -27,9 +27,11 @@ class AssociativeCombiner[U](zero: U, combine: (U, U) => U) {
     val prevEntry = t.floorEntry(i - 1)
     if (prevEntry != null) {
       val prevtv = prevEntry.getValue
-      prevtv.value = combine(prevtv.value, value)
-      prevtv.end = end
-      return
+      if (prevtv.end == i - 1) {
+        prevtv.value = combine(prevtv.value, value)
+        prevtv.end = end
+        return
+      }
     }
 
     t.put(i, TreeValue(value, end))
