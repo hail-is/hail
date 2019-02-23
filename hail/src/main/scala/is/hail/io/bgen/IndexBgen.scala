@@ -64,8 +64,6 @@ object IndexBgen {
 
     val typ = RVDType(settings.typ.physicalType, Array("file_idx", "locus", "alleles"))
 
-    val sHadoopConfBc = hc.sc.broadcast(new SerializableHadoopConfiguration(hConf))
-
     val partitions: Array[Partition] = headers.zipWithIndex.map { case (f, i) =>
       IndexBgenPartition(
         f.path,
@@ -75,7 +73,7 @@ object IndexBgen {
         f.dataStart,
         f.fileByteSize,
         i,
-        sHadoopConfBc)
+        hc.hadoopConfBc)
     }
 
     val rowType = typ.rowType

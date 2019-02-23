@@ -38,10 +38,8 @@ object LiftOver {
     uriPath(localChainFile)
   }
 
-  def apply(hc: HailContext, chainFile: String): LiftOver = {
-    val hConf = new SerializableHadoopConfiguration(hc.hadoopConf)
-    new LiftOver(hConf, chainFile)
-  }
+  def apply(hc: HailContext, chainFile: String): LiftOver =
+    new LiftOver(hc.sHadoopConf, chainFile)
 }
 
 class LiftOver(val hConf: SerializableHadoopConfiguration, val chainFile: String) extends Serializable {

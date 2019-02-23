@@ -1336,7 +1336,7 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
       hConf.mkDir(path + s + ".mt" + "/entries/rows/parts")
     }
 
-    val sHConfBc = sc.broadcast(new SerializableHadoopConfiguration(hConf))
+    val sHConfBc = HailContext.hadoopConfBc
 
     val fullRowType = t.rowType
     val rowsRVType = MatrixType.getRowType(fullRowType)
@@ -1400,7 +1400,7 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
     hConf.mkDir(path + "/rows/rows/parts")
     hConf.mkDir(path + "/entries/rows/parts")
 
-    val sHConfBc = sc.broadcast(new SerializableHadoopConfiguration(hConf))
+    val sHConfBc = HailContext.hadoopConfBc
 
     val nPartitions = crdd.getNumPartitions
     val d = digitsNeeded(nPartitions)

@@ -1,5 +1,6 @@
 package is.hail.io.bgen
 
+import is.hail.HailContext
 import is.hail.annotations.{Region, _}
 import is.hail.asm4s._
 import is.hail.expr.types._
@@ -91,7 +92,7 @@ object BgenRDDPartitions extends Logging {
     keyType: Type
   ): (Array[Partition], Array[Interval]) = {
     val hConf = sc.hadoopConfiguration
-    val sHadoopConfBc = sc.broadcast(new SerializableHadoopConfiguration(hConf))
+    val sHadoopConfBc = HailContext.hadoopConfBc
 
     val fileRangeBounds = checkFilesDisjoint(hConf, files, keyType)
     val intervalOrdering = TInterval(keyType).ordering

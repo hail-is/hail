@@ -2,6 +2,7 @@ package is.hail.methods
 
 import java.io.OutputStreamWriter
 
+import is.hail.HailContext
 import is.hail.annotations.{UnsafeIndexedSeq, UnsafeRow}
 import is.hail.expr.TableAnnotationImpex
 import is.hail.expr.ir.MatrixValue
@@ -41,7 +42,7 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
 
       val partFileBase = path + "/tmp/"
 
-      val hConfBc = mv.sparkContext.broadcast(new SerializableHadoopConfiguration(hConf))
+      val hConfBc = HailContext.hadoopConfBc
 
       val extension = if (bgzip) ".tsv.bgz" else ".tsv"
 

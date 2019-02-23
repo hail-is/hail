@@ -23,6 +23,7 @@ import org.apache.commons.io.FileUtils
 import org.apache.hadoop
 import org.apache.log4j.{ConsoleAppender, LogManager, PatternLayout, PropertyConfigurator}
 import org.apache.spark._
+import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.executor.InputMetrics
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SQLContext
@@ -49,6 +50,14 @@ object HailContext {
   def get: HailContext = contextLock.synchronized {
     theContext
   }
+
+  def sc: SparkContext = get.sc
+
+  def hadoopConf: hadoop.conf.Configuration = get.hadoopConf
+
+  def sHadoopConf: SerializableHadoopConfiguration = get.sHadoopConf
+
+  def hadoopConfBc: Broadcast[SerializableHadoopConfiguration] = get.hadoopConfBc
 
   def checkSparkCompatibility(jarVersion: String, sparkVersion: String): Unit = {
     def majorMinor(version: String): String = version.split("\\.", 3).take(2).mkString(".")
@@ -366,6 +375,8 @@ class HailContext private(val sc: SparkContext,
   val tmpDir: String,
   val branchingFactor: Int) {
   val hadoopConf: hadoop.conf.Configuration = sc.hadoopConfiguration
+  val sHadoopConf: SerializableHadoopConfiguration = new SerializableHadoopConfiguration(hadoopConf)
+  val hadoopConfBc: Broadcast[SerializableHadoopConfiguration] = sc.broadcast(sHadoopConf)
 
   val flags: HailFeatureFlags = new HailFeatureFlags()
 
@@ -461,7 +472,7 @@ class HailContext private(val sc: SparkContext,
     optPartitioner: Option[Partitioner] = None): RDD[T] = {
     val nPartitions = partFiles.length
 
-    val sHadoopConfBc = sc.broadcast(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
+    val localHadoopConfBc = hadoopConfBc
 
     new RDD[T](sc, Nil) {
       def getPartitions: Array[Partition] =
@@ -470,7 +481,7 @@ class HailContext private(val sc: SparkContext,
       override def compute(split: Partition, context: TaskContext): Iterator[T] = {
         val p = split.asInstanceOf[FilePartition]
         val filename = path + "/parts/" + p.file
-        val in = sHadoopConfBc.value.value.unsafeReader(filename)
+        val in = localHadoopConfBc.value.value.unsafeReader(filename)
         read(p.index, in, context.taskMetrics().inputMetrics)
       }
 
