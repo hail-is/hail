@@ -95,8 +95,8 @@ object IndexBgen {
     val crvd = BgenRDD(hc.sc, partitions, settings, null)
 
     val codecSpec = CodecSpec.default
-    val makeLeafEncoder = codecSpec.buildEncoder(LeafNodeBuilder.typ(keyType, annotationType).physicalType)
-    val makeInternalEncoder = codecSpec.buildEncoder(InternalNodeBuilder.typ(keyType, annotationType).physicalType)
+    val makeLeafEncoder = codecSpec.buildEncoder(LeafNodeBuilder.typ(indexKeyType, annotationType).physicalType)
+    val makeInternalEncoder = codecSpec.buildEncoder(InternalNodeBuilder.typ(indexKeyType, annotationType).physicalType)
 
     RVD.unkeyed(rowType, crvd)
       .repartition(partitioner, shuffle = true)
