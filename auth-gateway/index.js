@@ -54,7 +54,7 @@ const verifyToken = token =>
 
 const getAuthToken = req => {
   const token = req.headers.cookie
-    ? cookie.parse(req.headers.cookie)["access_token"]
+    ? cookie.parse(req.headers.cookie).access_token
     : null;
 
   if (token === null || token === "") {
@@ -67,7 +67,7 @@ const getAuthToken = req => {
 const PORT = 8000;
 polka()
   .get("/verify", (req, res) => {
-    const token = cookie.parse(req.headers.cookie)["access_token"];
+    const token = getAuthToken(req)
 
     if (token === null) {
       unauthorized(res);
