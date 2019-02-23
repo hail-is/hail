@@ -1,9 +1,11 @@
 package is.hail.io.index
 
+import java.io.OutputStream
+
 import is.hail.annotations.{Annotation, Region, RegionValueBuilder}
 import is.hail.expr.types._
 import is.hail.expr.types.virtual.Type
-import is.hail.io.CodecSpec
+import is.hail.io.{CodecSpec, Encoder}
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
 import org.apache.hadoop.conf.Configuration
@@ -39,6 +41,8 @@ class IndexWriter(
   path: String,
   keyType: Type,
   annotationType: Type,
+  makeLeafEncoder: (OutputStream) => Encoder,
+  makeInternalEncoder: (OutputStream) => Encoder,
   branchingFactor: Int = 4096,
   attributes: Map[String, Any] = Map.empty[String, Any]) extends AutoCloseable {
   require(branchingFactor > 1)
@@ -53,9 +57,8 @@ class IndexWriter(
 
   private val trackedOS = new ByteTrackingOutputStream(hConf.unsafeWriter(path + "/index"))
 
-  private val codecSpec = CodecSpec.default
-  private val leafEncoder = codecSpec.buildEncoder(leafNodeBuilder.typ.physicalType)(trackedOS)
-  private val internalEncoder = codecSpec.buildEncoder(InternalNodeBuilder.typ(keyType, annotationType).physicalType)(trackedOS)
+  private val leafEncoder = makeLeafEncoder(trackedOS)
+  private val internalEncoder = makeInternalEncoder(trackedOS)
 
   private def height: Int = internalNodeBuilders.length + 1 // have one leaf node layer
 

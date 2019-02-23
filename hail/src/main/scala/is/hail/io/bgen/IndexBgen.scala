@@ -2,7 +2,8 @@ package is.hail.io.bgen
 
 import is.hail.HailContext
 import is.hail.expr.types.virtual.TStruct
-import is.hail.io.index.IndexWriter
+import is.hail.io.CodecSpec
+import is.hail.io.index.{IndexWriter, InternalNodeBuilder, LeafNodeBuilder}
 import is.hail.rvd.{RVD, RVDPartitioner, RVDType}
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
@@ -93,13 +94,18 @@ object IndexBgen {
     val partitioner = new RVDPartitioner(Array("file_idx"), keyType.asInstanceOf[TStruct], rangeBounds)
     val crvd = BgenRDD(hc.sc, partitions, settings, null)
 
+    val codecSpec = CodecSpec.default
+    val makeLeafEncoder = codecSpec.buildEncoder(LeafNodeBuilder.typ(keyType, annotationType).physicalType)
+    val makeInternalEncoder = codecSpec.buildEncoder(InternalNodeBuilder.typ(keyType, annotationType).physicalType)
+
     RVD.unkeyed(rowType, crvd)
       .repartition(partitioner, shuffle = true)
       .toRows
       .foreachPartition({ it =>
         val partIdx = TaskContext.get.partitionId()
 
-        using(new IndexWriter(hConfBc.value.value, indexFilePaths(partIdx), indexKeyType, annotationType, attributes = attributes)) { iw =>
+        using(new IndexWriter(hConfBc.value.value, indexFilePaths(partIdx), indexKeyType, annotationType,
+          makeLeafEncoder, makeInternalEncoder, attributes = attributes)) { iw =>
           it.foreach { r =>
             assert(r.getInt(fileIdxIdx) == partIdx)
             iw += (Row(r(locusIdx), r(allelesIdx)), r.getLong(offsetIdx), Row())
