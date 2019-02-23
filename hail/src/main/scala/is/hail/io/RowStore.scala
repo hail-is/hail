@@ -253,6 +253,10 @@ final class MemoryBuffer extends Serializable {
     end = 0
   }
 
+  def clearPos() {
+    pos = 0
+  }
+
   def grow(n: Int) {
     capacity = math.max(capacity * 2, end + n)
     mem = util.Arrays.copyOf(mem, capacity)
@@ -343,7 +347,7 @@ final class MemoryBuffer extends Serializable {
 
   def readBytes(toRegion: Region, toOff: Long, n: Int) {
     assert(pos + n <= end)
-    Memory.memcpy(toOff, pos, n)
+    Memory.memcpy(toOff, mem, pos, n)
     pos += n
   }
 

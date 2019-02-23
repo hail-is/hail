@@ -41,6 +41,7 @@ class RegionValuePrevNonnullAnnotationAggregator2(
 
   def result(rvb: RegionValueBuilder) {
     if (present) {
+      mb.clearPos()
       val p = decoder.readRegionValue(rvb.region)
       rvb.addRegionValue(t, rvb.region, p)
     } else

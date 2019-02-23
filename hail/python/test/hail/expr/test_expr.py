@@ -1014,7 +1014,6 @@ class Tests(unittest.TestCase):
         t = t.annotate(
             prev = hl.scan._prev_nonnull(
                 hl.or_missing((t.idx % 3) != 0, t.row)))
-        t.show()
         self.assertTrue(
             t.all(hl._values_similar(t.prev.idx,
                                      hl.case()
