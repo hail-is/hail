@@ -19,7 +19,7 @@ class RVDPartitioner(
     kType: TStruct,
     rangeBounds: IndexedSeq[Interval],
     allowedOverlap: Int
-  ) = this(kType, rangeBounds.toArray, kType.size)
+  ) = this(kType, rangeBounds.toArray, allowedOverlap)
 
   def this(
     kType: TStruct,
@@ -184,9 +184,10 @@ class RVDPartitioner(
 
   def copy(
     kType: TStruct = kType,
-    rangeBounds: IndexedSeq[Interval] = rangeBounds
+    rangeBounds: IndexedSeq[Interval] = rangeBounds,
+    allowedOverlap: Int = allowedOverlap
   ): RVDPartitioner =
-    new RVDPartitioner(kType, rangeBounds)
+    new RVDPartitioner(kType, rangeBounds, allowedOverlap)
 
   def coalesceRangeBounds(newPartEnd: IndexedSeq[Int]): RVDPartitioner = {
     val newRangeBounds = (-1 +: newPartEnd.init).zip(newPartEnd).map { case (s, e) =>
