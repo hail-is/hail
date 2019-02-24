@@ -1259,7 +1259,7 @@ case class VCFsReader(
         colType = TStruct("s" -> TString()),
         colKey = Array("s"),
         rowType = kType ++ vaSignature,
-        rowKey = Array("locus", "alleles"),
+        rowKey = Array("locus"),
         entryType = genotypeSignature)
 
       val partitions = {
