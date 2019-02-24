@@ -182,19 +182,13 @@ case class MatrixGENReader(
 
     val localNSamples = nSamples
 
-    val hasLocus = requestedRowType.hasField("locus")
-    val locusType = requestedRowType.fieldType("locus")
-    val hasAlleles = requestedRowType.hasField("alleles")
-    val allelesType = requestedRowType.fieldType("alleles")
-    val hasRSID= requestedRowType.hasField("rsid")
-    val rsidType = requestedRowType.fieldType("rsid")
-    val hasVarID = requestedRowType.hasField("varid")
-    val varidType = requestedRowType.fieldType("varid")
+    val locusType = requestedRowType.fieldOption("locus").map(_.typ)
+    val allelesType = requestedRowType.fieldOption("alleles").map(_.typ)
+    val rsidType = requestedRowType.fieldOption("rsid").map(_.typ)
+    val varidType = requestedRowType.fieldOption("varid").map(_.typ)
 
-    val hasGT = requestedEntryType.hasField("GT")
-    val gtType = requestedEntryType.fieldType("GT")
-    val hasGP = requestedEntryType.hasField("GP")
-    val gpType = requestedEntryType.fieldType("GP")
+    val gtType = requestedEntryType.fieldOption("GT").map(_.typ)
+    val gpType = requestedEntryType.fieldOption("GP").map(_.typ)
 
     val localRVDType = tr.typ.canonicalRVDType
     val rvd = RVD.coerce(localRVDType,
@@ -208,22 +202,16 @@ case class MatrixGENReader(
           rvb.start(localRVDType.rowType)
           rvb.startStruct()
           val Row(locus, alleles, rsid, varid) = va.asInstanceOf[Row]
-          if (hasLocus)
-            rvb.addAnnotation(locusType, locus)
-          if (hasAlleles)
-            rvb.addAnnotation(allelesType, alleles)
-          if (hasRSID)
-            rvb.addAnnotation(rsidType, rsid)
-          if (hasVarID)
-            rvb.addAnnotation(varidType, varid)
+          locusType.foreach(rvb.addAnnotation(_, locus))
+          allelesType.foreach(rvb.addAnnotation(_, alleles))
+          rsidType.foreach(rvb.addAnnotation(_, rsid))
+          varidType.foreach(rvb.addAnnotation(_, varid))
 
           if (!dropCols) {
             rvb.startArray(localNSamples)
             gs.foreach { case Row(gt, gp) =>
-              if (hasGT)
-                rvb.addAnnotation(gtType, gt)
-              if (hasGP)
-                rvb.addAnnotation(gpType, gp)
+              gtType.foreach(rvb.addAnnotation(_, gt))
+              gpType.foreach(rvb.addAnnotation(_, gp))
             }
             rvb.endArray()
           }
