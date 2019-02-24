@@ -884,7 +884,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
 
     tv.copy(
       typ = typ,
-      rvd = tv.rvd.mapPartitionsWithIndex(RVDType(rTyp.asInstanceOf[PStruct], typ.key), itF))
+      rvd = tv.rvd.mapPartitionsPreservePartitioningWithIndex(RVDType(rTyp.asInstanceOf[PStruct], typ.key), itF))
   }
 }
 

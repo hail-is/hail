@@ -392,6 +392,17 @@ class RVD(
       crdd.cmapPartitionsWithIndex(f))
   }
 
+  def mapPartitionsPreservePartitioningWithIndex(
+    newTyp: RVDType,
+    f: (Int, RVDContext, Iterator[RegionValue]) => Iterator[RegionValue]
+  ): RVD = {
+    require(newTyp.kType == typ.kType)
+    RVD(
+      newTyp,
+      partitioner,
+      crdd.cmapPartitionsWithIndex(f))
+  }
+
   def zipWithIndex(name: String, partitionCounts: Option[IndexedSeq[Long]] = None): RVD = {
     assert(!typ.key.contains(name))
 
