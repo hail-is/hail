@@ -380,6 +380,8 @@ class HailContext private(val sc: SparkContext,
 
   val flags: HailFeatureFlags = new HailFeatureFlags()
 
+  var checkRVDKeys: Boolean = false
+
   def version: String = is.hail.HAIL_PRETTY_VERSION
 
   def grep(regex: String, files: Seq[String], maxLines: Int = 100) {
