@@ -10,6 +10,11 @@ object ForwardLets {
   private val FORWARD: Strategy = 1
   private val PROCEED: Strategy = 2
 
+  def valueAndBody(x: IR): (IR, IR) = x match {
+    case Let(_, value, body) => (value, body)
+    case AggLet(_, value, body) => (value, body)
+  }
+
   private def rewriteIR(ir0: IR): IR = {
     val UsesAndDefs(uses, defs) = ComputeUsesAndDefs(ir0)
     val nestingDepth = NestingDepth(ir0)
@@ -24,7 +29,6 @@ object ForwardLets {
       if (size == 0)
         ELIMINATE
       else if (size == 1) {
-        val depth = nestingDepth.lookup(x)
         if (nestingDepth.lookup(refs.head) == nestingDepth.lookup(x))
           FORWARD
         else
@@ -34,19 +38,20 @@ object ForwardLets {
 
     def rewrite(ir: IR): IR = {
       ir match {
-        case x: LetNode =>
-          val refs = uses.lookup(x)
+        case _: Let | _: AggLet =>
+          val (value, body) = valueAndBody(ir)
+          val refs = uses.lookup(ir)
 
-          (strategy(RefEquality(x), refs): @unchecked) match {
+          (strategy(RefEquality(ir), refs): @unchecked) match {
             case ELIMINATE =>
               def visit(ir: IR): Unit = {
                 ir match {
-                  case x: LetNode =>
-                    val refs = uses.lookup(x)
+                  case _: Let | _: AggLet =>
+                    val refs = uses.lookup(ir)
                     refs.foreach { r =>
                       defs.delete(r)
                     }
-                    uses.delete(x)
+                    uses.delete(ir)
                   case r: Ref =>
                     val re = RefEquality(r)
 
@@ -61,21 +66,20 @@ object ForwardLets {
                       if (!needsRewrite && strategy(definition, otherUses) != PROCEED)
                         needsRewrite = true
                     }
-                  case _ => VisitIR(visit)(ir)
+                  case _ => VisitIRChildren(visit)(ir)
                 }
               }
 
-              visit(x.value)
-              rewrite(x.body)
+              visit(value)
+              rewrite(body)
 
             case FORWARD =>
               val ref = refs.head
-              m.bind(ref, rewrite(x.value))
-
-              rewrite(x.body)
+              m.bind(ref, rewrite(value))
+              rewrite(body)
 
             case PROCEED =>
-              MapIR(rewrite)(x)
+              MapIR(rewrite)(ir)
           }
         case r: Ref =>
           val re = RefEquality(r)

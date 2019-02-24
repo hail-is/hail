@@ -34,7 +34,7 @@ object InAgg {
           assert(!inAgg)
           memoize(a, inAgg = true)
           memoize(aggBody, inAgg = false)
-        case _ => VisitIR(memoize(_, inAgg))(ir)
+        case _ => VisitIRChildren(memoize(_, inAgg))(ir)
       }
     }
     memoize(ir0, inAgg = false)

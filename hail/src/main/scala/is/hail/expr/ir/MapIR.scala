@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-object VisitIR {
+object VisitIRChildren {
   def apply(f: IR => Unit)(ir: IR): Unit = {
     Children(ir).foreach {
       case c: IR => f(c)

@@ -11,7 +11,7 @@ object ComputeUsesAndDefs {
 
     val inAgg = InAgg(ir0)
 
-    def memoize(ir1: IR, env: Env[RefEquality[IR]], aggEnv: Env[RefEquality[IR]]) {
+    def compute(ir1: IR, env: Env[RefEquality[IR]], aggEnv: Env[RefEquality[IR]]) {
       ir1 match {
         case r@Ref(name, _) =>
           (if (inAgg.lookup(r)) aggEnv.lookupOption(name) else env.lookupOption(name)).foreach { decl =>
@@ -40,13 +40,13 @@ object ComputeUsesAndDefs {
                   aggEnv_ = aggEnv_.bind(binding, RefEquality(ir))
                 }
               }
-              memoize(child, env_, aggEnv_)
+              compute(child, env_, aggEnv_)
             case _ =>
           }
       }
     }
 
-    memoize(ir0, Env.empty, Env.empty)
+    compute(ir0, Env.empty, Env.empty)
     UsesAndDefs(uses, defs)
   }
 }
