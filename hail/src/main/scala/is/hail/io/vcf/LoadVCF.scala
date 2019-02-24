@@ -1079,7 +1079,7 @@ case class MatrixVCFReader(
     rowKey = Array("locus", "alleles"),
     entryType = genotypeSignature)
 
-  override val fullType: TableType = LowerMatrixIR.loweredType(fullMatrixType)
+  override lazy val fullType: TableType = LowerMatrixIR.loweredType(fullMatrixType)
 
   val partitioner = if (partitionsJSON != null) {
     assert(inputs.length == 1)
