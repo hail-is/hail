@@ -209,9 +209,14 @@ case class MatrixGENReader(
 
           if (!dropCols) {
             rvb.startArray(localNSamples)
-            gs.foreach { case Row(gt, gp) =>
-              gtType.foreach(rvb.addAnnotation(_, gt))
-              gpType.foreach(rvb.addAnnotation(_, gp))
+            gs.foreach {
+              case Row(gt, gp) =>
+                rvb.startStruct()
+                gtType.foreach(rvb.addAnnotation(_, gt))
+                gpType.foreach(rvb.addAnnotation(_, gp))
+                rvb.endStruct()
+              case null =>
+                rvb.setMissing()
             }
             rvb.endArray()
           }
