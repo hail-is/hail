@@ -13,7 +13,7 @@ class RVDPartitioner(
   // rangeBounds: Array[Interval[kType]]
   // rangeBounds is interval containing all keys within a partition
   val rangeBounds: Array[Interval],
-  allowedOverlap: Int
+  val allowedOverlap: Int
 ) {
   def this(
     kType: TStruct,

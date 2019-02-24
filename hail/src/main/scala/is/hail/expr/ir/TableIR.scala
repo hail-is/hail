@@ -688,9 +688,18 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
     }
 
     val childRVDs = childValues.map(_.rvd)
-    val childRanges = childRVDs.flatMap(_.partitioner.rangeBounds)
-    val newPartitioner = RVDPartitioner.generate(childRVDs.head.typ.kType.virtualType, childRanges)
-    val repartitionedRVDs = childRVDs.map(_.repartition(newPartitioner))
+    val repartitionedRVDs =
+      if (childRVDs.forall(rvd =>
+        (rvd.partitioner.rangeBounds sameElements childRVDs(0).partitioner.rangeBounds) &&
+          rvd.partitioner.allowedOverlap == 0))
+        childRVDs
+      else {
+        info("TableMultiWayZipJoin: repartitioning children")
+        val childRanges = childRVDs.flatMap(_.partitioner.rangeBounds)
+        val newPartitioner = RVDPartitioner.generate(childRVDs.head.typ.kType.virtualType, childRanges)
+        childRVDs.map(_.repartition(newPartitioner))
+      }
+    val newPartitioner = repartitionedRVDs(0).partitioner
     val newRVDType = RVDType(localNewRowType, localRVDType.key)
     val rvd = RVD(
       typ = newRVDType,
