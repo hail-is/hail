@@ -24,7 +24,7 @@ case class LocalTableIR(
 
   def close(x: IR): IR = close(x, globals)
 
-  def closedGlobals(): IR = globals match {
+  def closedGlobals(): IR = (globals: @unchecked) match {
     case LocalBinding(g, gv) :: rest =>
       close(gv, rest)
   }
@@ -56,7 +56,7 @@ object LowerTableIR {
       ir.copy(ir.children.map(lower))
   }
 
-  def lower(tir: TableIR): LocalTableIR = tir match {
+  def lower(tir: TableIR): LocalTableIR = (tir: @unchecked) match {
     case TableRange(n, nPartitions) =>
       val g = genUID()
       val i = genUID()

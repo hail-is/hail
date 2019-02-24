@@ -1559,9 +1559,9 @@ case class WriteBlocksRDDPartition(
 }
 
 class WriteBlocksRDD(path: String,
-  @transient rvd: RVD,
+  rvd: RVD,
   sc: SparkContext,
-  @transient parentPartStarts: Array[Long],
+  parentPartStarts: Array[Long],
   entryField: String,
   gp: GridPartitioner) extends RDD[(Int, String)](sc, Nil) {
 

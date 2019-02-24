@@ -160,7 +160,7 @@ object Interpret {
             case (_: TInt32, _: TInt32) =>
               val ll = lValue.asInstanceOf[Int]
               val rr = rValue.asInstanceOf[Int]
-              op match {
+              (op: @unchecked) match {
                 case Add() => ll + rr
                 case Subtract() => ll - rr
                 case Multiply() => ll * rr
@@ -176,7 +176,7 @@ object Interpret {
             case (_: TInt64, _: TInt32) =>
               val ll = lValue.asInstanceOf[Long]
               val rr = rValue.asInstanceOf[Int]
-              op match {
+              (op: @unchecked) match {
                 case LeftShift() => ll << rr
                 case RightShift() => ll >> rr
                 case LogicalRightShift() => ll >>> rr
@@ -184,7 +184,7 @@ object Interpret {
             case (_: TInt64, _: TInt64) =>
               val ll = lValue.asInstanceOf[Long]
               val rr = rValue.asInstanceOf[Long]
-              op match {
+              (op: @unchecked) match {
                 case Add() => ll + rr
                 case Subtract() => ll - rr
                 case Multiply() => ll * rr
@@ -199,7 +199,7 @@ object Interpret {
             case (_: TFloat32, _: TFloat32) =>
               val ll = lValue.asInstanceOf[Float]
               val rr = rValue.asInstanceOf[Float]
-              op match {
+              (op: @unchecked) match {
                 case Add() => ll + rr
                 case Subtract() => ll - rr
                 case Multiply() => ll * rr
@@ -209,7 +209,7 @@ object Interpret {
             case (_: TFloat64, _: TFloat64) =>
               val ll = lValue.asInstanceOf[Double]
               val rr = rValue.asInstanceOf[Double]
-              op match {
+              (op: @unchecked) match {
                 case Add() => ll + rr
                 case Subtract() => ll - rr
                 case Multiply() => ll * rr
@@ -510,7 +510,7 @@ object Interpret {
       case x@ApplyAggOp(constructorArgs, initOpArgs, seqOpArgs, aggSig) =>
         assert(AggOp.getType(aggSig) == x.typ)
 
-        def getAggregator(aggOp: AggOp, seqOpArgTypes: Seq[Type]): TypedAggregator[_] = aggOp match {
+        def getAggregator(aggOp: AggOp, seqOpArgTypes: Seq[Type]): TypedAggregator[_] = (aggOp: @unchecked) match {
           case CallStats() =>
             assert(seqOpArgTypes == FastIndexedSeq(TCall()))
             val nAlleles = interpret(initOpArgs.get(0))

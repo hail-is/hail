@@ -263,7 +263,7 @@ private class Emit(
       mb.getArg[Array[RegionValueAggregator]](2)
     }
 
-    ir match {
+    (ir: @unchecked) match {
       case I32(x) =>
         present(const(x))
       case I64(x) =>
@@ -440,7 +440,7 @@ private class Emit(
         val vab = new StagedArrayBuilder(atyp.elementType, mb, 16)
         val sorter = new ArraySorter(mb, vab)
 
-        val (array, compare, distinct) = x match {
+        val (array, compare, distinct) = (x: @unchecked) match {
           case ArraySort(a, l, r, comp) => (a, Subst(comp, Env[IR](l -> In(0, eltType), r -> In(1, eltType))), Code._empty[Unit])
           case ToSet(a) =>
             val discardNext = mb.fb.newMethod(Array[TypeInfo[_]](typeInfo[Region], sorter.ti, typeInfo[Boolean], sorter.ti, typeInfo[Boolean]), typeInfo[Boolean])

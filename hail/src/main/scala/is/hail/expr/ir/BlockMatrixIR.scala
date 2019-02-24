@@ -213,7 +213,7 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, f: IR) ext
   }
 
   private def opWithScalar(left: BlockMatrix, right: Double, f: IR, reverse: Boolean): BlockMatrix = {
-    f match {
+    (f: @unchecked) match {
       case ApplyBinaryPrimOp(Add(), _, _) => left.scalarAdd(right)
       case ApplyBinaryPrimOp(Multiply(), _, _) => left.scalarMul(right)
       case ApplyBinaryPrimOp(Subtract(), _, _) =>
@@ -225,7 +225,7 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, f: IR) ext
   }
 
   private def opWithRowVector(left: BlockMatrix, right: Array[Double], f: IR, reverse: Boolean): BlockMatrix = {
-    f match {
+    (f: @unchecked) match {
       case ApplyBinaryPrimOp(Add(), _, _) => left.rowVectorAdd(right)
       case ApplyBinaryPrimOp(Multiply(), _, _) => left.rowVectorMul(right)
       case ApplyBinaryPrimOp(Subtract(), _, _) =>
@@ -236,7 +236,7 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, f: IR) ext
   }
 
   private def opWithColVector(left: BlockMatrix, right: Array[Double], f: IR, reverse: Boolean): BlockMatrix = {
-    f match {
+    (f: @unchecked) match {
       case ApplyBinaryPrimOp(Add(), _, _) => left.colVectorAdd(right)
       case ApplyBinaryPrimOp(Multiply(), _, _) => left.colVectorMul(right)
       case ApplyBinaryPrimOp(Subtract(), _, _) =>
@@ -247,7 +247,7 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, f: IR) ext
   }
 
   private def opWithTwoBlockMatrices(left: BlockMatrix, right: BlockMatrix, f: IR): BlockMatrix = {
-    f match {
+    (f: @unchecked) match {
       case ApplyBinaryPrimOp(Add(), _, _) => left.add(right)
       case ApplyBinaryPrimOp(Multiply(), _, _) => left.mul(right)
       case ApplyBinaryPrimOp(Subtract(), _, _) => left.sub(right)
