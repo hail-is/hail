@@ -19,7 +19,7 @@ object SparkSuite {
       logFile = "/tmp/hail.log")
     if (System.getenv("HAIL_ENABLE_CPP_CODEGEN") != null)
       SparkSuite.hc.flags.set("cpp", "1")
-    hc.testRVDKeys = true
+    hc.checkRVDKeys = true
     hc
   }
 }

@@ -1249,7 +1249,7 @@ object RVD {
   ): RVD = {
     if (!HailContext.get.checkRVDKeys)
       return new RVD(typ, partitioner, crdd)
-    
+
     val sc = crdd.sparkContext
 
     val partitionerBc = partitioner.broadcast(sc)
