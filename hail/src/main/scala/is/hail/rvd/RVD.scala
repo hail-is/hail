@@ -521,26 +521,14 @@ class RVD(
 
   // Aggregating
 
-  def aggregate[U: ClassTag](
-    zeroValue: U
-  )(seqOp: (U, RegionValue) => U,
-    combOp: (U, U) => U
-  ): U = {
-    val clearingSeqOp = { (ctx: RVDContext, u: U, rv: RegionValue) =>
-      val u2 = seqOp(u, rv)
-      ctx.region.clear()
-      u2
-    }
-    crdd.aggregate(zeroValue, clearingSeqOp, combOp)
-  }
-
+  // used in Interpret by TableAggregate, MatrixAggregate
   def aggregateWithPartitionOp[PC, U: ClassTag](
     zeroValue: U,
     makePC: (Int, RVDContext) => PC
   )(seqOp: (PC, U, RegionValue) => Unit,
     combOp: (U, U) => U
   ): U = {
-    crdd.cmapPartitionsWithIndex[U] { (i, ctx, it) =>
+    val reduced = crdd.cmapPartitionsWithIndex[U] { (i, ctx, it) =>
       val pc = makePC(i, ctx)
       val comb = zeroValue
       it.foreach { rv =>
@@ -548,23 +536,14 @@ class RVD(
         ctx.region.clear()
       }
       Iterator.single(comb)
-    }.fold(zeroValue, combOp)
-  }
-
-  def treeAggregate[U: ClassTag](
-    zeroValue: U
-  )(seqOp: (U, RegionValue) => U,
-    combOp: (U, U) => U,
-    depth: Int = treeAggDepth(HailContext.get, crdd.getNumPartitions)
-  ): U = {
-    val clearingSeqOp = { (ctx: RVDContext, u: U, rv: RegionValue) =>
-      val u2 = seqOp(u, rv)
-      ctx.region.clear()
-      u2
     }
-    crdd.treeAggregate(zeroValue, clearingSeqOp, combOp, depth)
+
+    val ac = new AssociativeCombiner(zeroValue, combOp)
+    sparkContext.runJob(reduced.run, (it: Iterator[U]) => singletonElement(it), ac.combine _)
+    ac.result()
   }
 
+  // only used by MatrixMapCols
   def treeAggregateWithPartitionOp[PC, U: ClassTag](
     zeroValue: U,
     makePC: (Int, RVDContext) => PC
