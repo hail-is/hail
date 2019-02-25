@@ -10,7 +10,7 @@ object ForwardLets {
   private val FORWARD: Strategy = 1
   private val PROCEED: Strategy = 2
 
-  def valueAndBody(x: IR): (IR, IR) = x match {
+  def valueAndBody(x: IR): (IR, IR) = (x: @unchecked) match {
     case Let(_, value, body) => (value, body)
     case AggLet(_, value, body) => (value, body)
   }

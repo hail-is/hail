@@ -22,6 +22,7 @@ object ComputeUsesAndDefs {
         case ir =>
           val bindings = Bindings(ir)
           val aggBindings = AggBindings(ir)
+          val irInAgg = inAgg.lookup(ir)
 
           if (bindings.nonEmpty || aggBindings.nonEmpty)
               uses.bind(ir, mutable.Set.empty[RefEquality[Ref]])
@@ -32,7 +33,10 @@ object ComputeUsesAndDefs {
 
               bindings.foreach { binding =>
                 if (Binds(ir, binding, idx)) {
-                  env_ = env_.bind(binding, RefEquality(ir))
+                  if (irInAgg)
+                    aggEnv_ = aggEnv_.bind(binding, RefEquality(ir))
+                  else
+                    env_ = env_.bind(binding, RefEquality(ir))
                 }
               }
               aggBindings.foreach { binding =>

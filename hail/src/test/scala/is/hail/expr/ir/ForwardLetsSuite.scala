@@ -1,9 +1,10 @@
 package is.hail.expr.ir
 
-import is.hail.expr.types.virtual.{TInt32, TVoid}
+import is.hail.expr.types.virtual.{TInt32, TStruct, TVoid, Type}
 import is.hail.TestUtils._
-import is.hail.expr.ir
-import is.hail.utils.FastSeq
+import is.hail.expr.ir.IRBuilder._
+import is.hail.expr.ir.IRBuilder.{applyAggOp, let}
+import is.hail.utils.{FastIndexedSeq, FastSeq}
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.{DataProvider, Test}
 
@@ -65,5 +66,16 @@ class ForwardLetsSuite extends TestNGSuite {
   @Test def testLetRefRewrite(): Unit = {
     val ir = Let("x", I32(1), Ref("x", TInt32()))
     assert(ForwardLets(ir) == I32(1))
+  }
+
+  @Test def testAggregators(): Unit = {
+    val aggEnv = Env[Type]("row" -> TStruct("idx" -> TInt32()))
+    val ir0 = applyAggOp(Sum(), seqOpArgs = FastIndexedSeq(let(x = 'row('idx) - 1) {'x.toD}))
+      .apply(aggEnv)
+
+    TypeCheck(
+      ForwardLets(ir0).asInstanceOf[IR],
+      env = Env.empty[Type],
+      aggEnv = Some(aggEnv))
   }
 }
