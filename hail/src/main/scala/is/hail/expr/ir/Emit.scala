@@ -543,10 +543,18 @@ private class Emit(
         val srvb = new StagedRegionValueBuilder(mb, ir.pType)
 
         type E = Env[(TypeInfo[_], Code[Boolean], Code[_])]
+
+        val (lastKey, currKey) = (etyp.virtualType: @unchecked) match {
+          case ts: TStruct =>
+            GetField(Ref("i-1", ts), ts.fieldNames(0)) -> GetField(Ref("i", ts), ts.fieldNames(0))
+          case tt: TTuple =>
+            GetTupleElement(Ref("i-1", tt), 0) -> GetTupleElement(Ref("i", tt), 0)
+        }
+
         val isSame = emit(
           ApplyComparisonOp(EQWithNA(ktyp.virtualType),
-            GetTupleElement(Ref("i-1", etyp.virtualType), 0),
-            GetTupleElement(Ref("i", etyp.virtualType), 0)),
+            lastKey,
+            currKey),
           Env(
             "i-1" -> (typeInfo[Long], eab.isMissing(i-1), eab.apply(i-1)),
             "i" -> (typeInfo[Long], eab.isMissing(i), eab.apply(i))))
