@@ -4,6 +4,7 @@ import is.hail.annotations.ExtendedOrdering
 import is.hail.expr.types._
 import is.hail.expr.types.virtual.{TArray, TInterval, TStruct}
 import is.hail.utils._
+import org.apache.commons.lang.builder.HashCodeBuilder
 import org.apache.spark.sql.Row
 import org.apache.spark.{Partitioner, SparkContext}
 import org.apache.spark.broadcast.Broadcast
@@ -13,7 +14,7 @@ class RVDPartitioner(
   // rangeBounds: Array[Interval[kType]]
   // rangeBounds is interval containing all keys within a partition
   val rangeBounds: Array[Interval],
-  val allowedOverlap: Int
+  allowedOverlap: Int
 ) {
   def this(
     kType: TStruct,
@@ -66,8 +67,15 @@ class RVDPartitioner(
 
   override def equals(other: Any): Boolean = other match {
     case that: RVDPartitioner =>
-      this.kType == that.kType && this.rangeBounds == that.rangeBounds
+      this.eq(that) || (this.kType == that.kType && this.rangeBounds.sameElements(that.rangeBounds))
     case _ => false
+  }
+
+  override def hashCode: Int = {
+    val b = new HashCodeBuilder()
+    b.append(kType)
+    rangeBounds.foreach(b.append)
+    b.toHashCode
   }
 
   @transient

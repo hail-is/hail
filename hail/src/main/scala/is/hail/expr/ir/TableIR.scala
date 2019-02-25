@@ -689,9 +689,8 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
 
     val childRVDs = childValues.map(_.rvd)
     val repartitionedRVDs =
-      if (childRVDs.forall(rvd =>
-        (rvd.partitioner.rangeBounds sameElements childRVDs(0).partitioner.rangeBounds) &&
-          rvd.partitioner.allowedOverlap == 0))
+      if (childRVDs(0).partitioner.satisfiesAllowedOverlap(0) &&
+        childRVDs.forall(rvd => rvd.partitioner == childRVDs(0).partitioner))
         childRVDs
       else {
         info("TableMultiWayZipJoin: repartitioning children")
