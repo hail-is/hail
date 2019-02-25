@@ -7,13 +7,12 @@ from bokeh.io import output_notebook
 from bokeh.layouts import gridplot
 from bokeh.models import *
 from bokeh.palettes import Spectral8
-from bokeh.plotting import figure, show
+from bokeh.plotting import figure
 from bokeh.transform import factor_cmap
 from bokeh.models import ColumnDataSource, HoverTool
 from bokeh.models.tools import CustomJSHover
 from hail.typecheck import *
 from hail.utils.hadoop_utils import *
-output_notebook()
 
 
 
@@ -270,15 +269,14 @@ def hail_metadata(t_path):
     else:
         return rows_grid
 
-def cnv_variant_cluster(mt, variant_range, show_plot=False, consecutive_interval=True):
+def genotype_array_cluster_plot(mt, positional_input, x_type='NORMX', y_type='NORMY', gt_type='GT', show_plot=False, show_ellipse=True):
     """Create a (set of) scatterplot(s) showing SNP clusters per variant specified.
 
     Parameters
     ----------
-    mt : hail matrix table with locus, GTA, NORMX, NORMY, THETA values
-    variant_range : either string with interval ('1:1000-2000') or list of positions (can be 1)"
-    show_plot : default False, adivsed to only use this for small number of variants.
-    consecutive_interval : default True, if variant range is interval or list
+    mt : hail matrix table with locus, gt_type, x_type, y_typee, THETA values
+    positional_input : either a type IntervalExpression or list of positions (can be 1)"
+    show_plot : default False, advised to only use this for small number of variants.
 
     Dependencies
     -----------
@@ -289,32 +287,39 @@ def cnv_variant_cluster(mt, variant_range, show_plot=False, consecutive_interval
     :class:`bokeh.plotting.figure.Figure` OR a list of :class:`bokeh.plotting.figure.Figure`'s
 
     """
-    def run_plotting(position, show_plot):
-        mt_variant = mt.filter_rows(['locus'] == hl.eval(hl.parse_locus(position)))
+
+    def cluster_plot(position, x_type, y_type, show_plot):
+        mt_variant = mt.filter_rows(mt['locus'] == hl.eval(position))
         mt_variant_df = mt_variant.entries().to_pandas()
 
         #Partition each genotype call
-        GT_HET = mt_variant_df.loc[mt_variant_df['GTA'] == '1/0']
-        GT_HOM_DOM = mt_variant_df.loc[mt_variant_df['GTA'] == '0/0']
-        GT_HOM_R = mt_variant_df.loc[mt_variant_df['GTA'] == '1/1']
-        GT_NA = mt_variant_df.loc[mt_variant_df['GTA'] == './.']
+        GT_HET = mt_variant_df.loc[(mt_variant_df[gt_type] == '1/0') | (mt_variant_df[gt_type] == '0/1')]
+        GT_HOM_DOM = mt_variant_df.loc[mt_variant_df[gt_type] == '0/0']
+        GT_HOM_R = mt_variant_df.loc[mt_variant_df[gt_type] == '1/1']
+        GT_NA = mt_variant_df.loc[mt_variant_df[gt_type] == './.']
 
-        #For ellipse : generate mean angle for each GT partition
+        #For ellipse : generate mean angle and width for each GT partition
         HET_THETA = GT_HET.THETA.mean()
         HOM_DOM_THETA = GT_HOM_DOM.THETA.mean()
         HOM_R_THETA = GT_HOM_R.THETA.mean()
+        HET_MEAN_X = GT_HET[x_type].mean()
+        HET_MEAN_Y = GT_HET[y_type].mean()
+        HOM_DOM_MEAN_X = GT_HOM_DOM[x_type].mean()
+        HOM_DOM_MEAN_Y = GT_HOM_DOM[y_type].mean()
+        HOM_R_MEAN_X = GT_HOM_R[x_type].mean()
+        HOM_R_MEAN_Y = GT_HOM_R[y_type].mean()
 
         def max_distance(values):
             v = max(values)-min(values)
             return v
 
         #For ellipse : Take [1% to 99% Quantile] of values, this minimizes noise
-        HET_QUANT_X = GT_HET.NORMX.quantile([.01, .99])
-        HET_QUANT_Y = GT_HET.NORMY.quantile([.01, .99])
-        HOM_DOM_QUANT_X = GT_HOM_DOM.NORMX.quantile([.01, .99])
-        HOM_DOM_QUANT_Y = GT_HOM_DOM.NORMY.quantile([.01, .99])
-        HOM_R_QUANT_X = GT_HOM_R.NORMX.quantile([.01, .99])
-        HOM_R_QUANT_Y = GT_HOM_R.NORMY.quantile([.01, .99])
+        HET_QUANT_X = GT_HET[x_type].quantile([.01, .99])
+        HET_QUANT_Y = GT_HET[y_type].quantile([.01, .99])
+        HOM_DOM_QUANT_X = GT_HOM_DOM[x_type].quantile([.01, .99])
+        HOM_DOM_QUANT_Y = GT_HOM_DOM[y_type].quantile([.01, .99])
+        HOM_R_QUANT_X = GT_HOM_R[x_type].quantile([.01, .99])
+        HOM_R_QUANT_Y = GT_HOM_R[y_type].quantile([.01, .99])
 
         #For ellipse : take maximum distance between the genotype calls once noise is removed
         #this gives width and height for ellipse
@@ -327,17 +332,15 @@ def cnv_variant_cluster(mt, variant_range, show_plot=False, consecutive_interval
 
         df = pd.DataFrame(
             {
-                "GT_call": mt_variant_df['GTA'],
-                "HET_XNORMS": GT_HET['NORMX'],
-                "HET_YNORMS": GT_HET['NORMY'],
-                "HOM_DOM_XNORMS": GT_HOM_DOM['NORMX'],
-                "HOM_DOM_YNORMS": GT_HOM_DOM['NORMY'],
-                "HOM_R_XNORMS": GT_HOM_R['NORMX'],
-                "HOM_R_YNORMS": GT_HOM_R['NORMY'],
-                "GT_NA_YNORMS": GT_NA['NORMX'],
-                "GT_NA_XNORMS": GT_NA['NORMY'],
-                "BAF" : mt_variant_df['BAF'],
-                "LRR" : mt_variant_df['LRR'],
+                "GT_call": mt_variant_df[gt_type],
+                "HET_X": GT_HET[x_type],
+                "HET_Y": GT_HET[y_type],
+                "HOM_DOM_X": GT_HOM_DOM[x_type],
+                "HOM_DOM_Y": GT_HOM_DOM[y_type],
+                "HOM_R_X": GT_HOM_R[x_type],
+                "HOM_R_Y": GT_HOM_R[y_type],
+                "GT_NA_Y": GT_NA[x_type],
+                "GT_NA_X": GT_NA[y_type],
                 "HET_X" : HET_MEAN_X,
                 "HET_Y": HET_MEAN_Y,
                 "HET_THETA" : HET_THETA,
@@ -356,33 +359,35 @@ def cnv_variant_cluster(mt, variant_range, show_plot=False, consecutive_interval
             }
         )
         df
+        df = df.fillna('')
 
         source = ColumnDataSource.from_df(df)
         hover = HoverTool(
             tooltips=[
                 ('Sample ID', '@Sample_ID'),
-                ('GT Call', '@GT_call')
+                ('GT Call', '@GT_call'),
+
             ]
         )
-        p = figure(tools=[hover], plot_width=1000, plot_height=1000, title= Position + ' Cluster Genotype Call')
-        p.xaxis.axis_label='x normalized'
-        p.yaxis.axis_label='y normalized'
+        p = figure(tools=[hover], plot_width=1000, plot_height=1000, title= str(position) + ' Varient Genotype Cluster Plot')
+        p.xaxis.axis_label= x_type
+        p.yaxis.axis_label= y_type
         p.scatter(
-            'HET_XNORMS', 'HET_YNORMS', source=source, fill_color='red', line_color='white')
+            'HET_X', 'HET_Y', source=source, fill_color='red', line_color='white')
         p.scatter(
-            'HOM_DOM_XNORMS', 'HOM_DOM_YNORMS', source=source, fill_color='navy', line_color='white')
+            'HOM_DOM_X', 'HOM_DOM_Y', source=source, fill_color='navy', line_color='white')
         p.scatter(
-            'HOM_R_XNORMS', 'HOM_R_YNORMS', source=source, fill_color='green', line_color='white')
+            'HOM_R_X', 'HOM_R_Y', source=source, fill_color='green', line_color='white')
         p.scatter(
-            'GT_NA_XNORMS', 'GT_NA_YNORMS', source=source, fill_color='black', line_color='white')
+            'GT_NA_X', 'GT_NA_Y', source=source, fill_color='black', line_color='white')
 
-        HET_glyph = Ellipse(x=HET_MEAN_X, y=HET_MEAN_Y, width=HET_MAX_Y, height=HET_MAX_X, angle=(HET_THETA*(180/math.pi)), fill_color="#cab2d6", fill_alpha = 0.05)
+        HET_glyph = Ellipse(x=HET_MEAN_X, y=HET_MEAN_Y, width=HET_MAX_Y, height=HET_MAX_X, angle=(HET_THETA*(180/pi)), fill_color="#cab2d6", fill_alpha = 0.05)
         p.add_glyph(HET_glyph)
 
-        HOM_DOM_glyph = Ellipse(x=HOM_DOM_MEAN_X, y=HOM_DOM_MEAN_Y, width=HOM_DOM_MAX_Y, height=HOM_DOM_MAX_X, angle=-(HOM_DOM_THETA*(180/math.pi)), fill_color="#cab2d6", fill_alpha = 0.05)
+        HOM_DOM_glyph = Ellipse(x=HOM_DOM_MEAN_X, y=HOM_DOM_MEAN_Y, width=HOM_DOM_MAX_Y, height=HOM_DOM_MAX_X, angle=-(HOM_DOM_THETA*(180/pi)), fill_color="#cab2d6", fill_alpha = 0.05)
         p.add_glyph(HOM_DOM_glyph)
 
-        HOM_R_glyph = Ellipse(x=HOM_R_MEAN_X, y=HOM_R_MEAN_Y, width=HOM_R_MAX_Y, height=HOM_R_MAX_X, angle=-(HOM_R_THETA*(180/math.pi)), fill_color="#cab2d6", fill_alpha = 0.05)
+        HOM_R_glyph = Ellipse(x=HOM_R_MEAN_X, y=HOM_R_MEAN_Y, width=HOM_R_MAX_Y, height=HOM_R_MAX_X, angle=-(HOM_R_THETA*(180/pi)), fill_color="#cab2d6", fill_alpha = 0.05)
         p.add_glyph(HOM_R_glyph)
 
         p.legend.glyph_width = 50
@@ -397,20 +402,33 @@ def cnv_variant_cluster(mt, variant_range, show_plot=False, consecutive_interval
         return p
 
     list_p = []
-    if consecutive_interval == True:
-        variant_range = hl.eval(hl.parse_locus_interval('variant range'))
-        position = variant_range.start.position
-        while position <= variant_range.end.position:
-            new_plot = run_plotting(position, show_plot)
-            list_p.append(new_plot)
-            position += 1
-        return list_p
-    else:
-        if len(variant_range) == 1:
-            new_plot = run_plotting(x, show_plot)
-            return new_plot
-        else:
-            for x in variant_range:
-                new_plot = run_plotting(x, show_plot)
+    if type(positional_input) is list:
+        for value in positional_input:
+            if value.dtype == hl.tinterval:
+                if not isinstance(value.dtype._point_type, hl.tlocus):
+                    raise ValueError("Wrong point type for interval input. Expecting locus as point type.")
+                filtered_mt = hl.filter_intervals(mt, [hl.parse_locus_interval(x) for x in intervals])
+                variant_listing = filtered_mt.locus.collect()
+                for variant in variant_listing:
+                    variant_string = variant_listing[variant].contig + ':' + variant_listing[variant].position
+                    new_plot = cluster_plot(variant_string, x_type, y_type, show_plot)
+                    list_p.append(new_plot)
+            elif value.dtype == hl.tlocus:
+                new_plot = cluster_plot(x, t)
                 list_p.append(new_plot)
-            return list_p
+        return list_p
+    elif isinstance(positional_input.dtype, hl.tinterval):
+        if not isinstance(positional_input.dtype._point_type, hl.tlocus):
+            raise ValueError("Wrong point type for interval input. Expecting locus as point type.")
+        filtered_mt = hl.filter_intervals(mt, hl.parse_locus_interval(hl.eval(positional_input)))
+        variant_listing = filtered_mt.locus.collect()
+        for variant in variant_listing:
+            variant_string = variant_listing[variant].contig + ':' + variant_listing[variant].position
+            new_plot = cluster_plot(variant_string, x_type, y_type, show_plot)
+            list_p.append(new_plot)
+        return list_p
+    elif isinstance(positional_input.dtype, hl.tlocus):
+        new_plot = cluster_plot(positional_input, x_type, y_type, show_plot)
+        return new_plot
+    else:
+        raise ValueError("Not a valid variant type. Expecting tinterval, tlocus or Array of the two.")
