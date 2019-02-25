@@ -1879,6 +1879,11 @@ class MatrixMultiWrite(IR):
                other.children == self.children and \
                other.writer == self.writer
 
+    def _compute_type(self, env, agg_env):
+        for x in self.children:
+            x._compute_type()
+        self._type = tvoid
+
 
 class BlockMatrixWrite(IR):
     @typecheck_method(child=BlockMatrixIR, path=str, overwrite=bool, force_row_major=bool, stage_locally=bool)
@@ -1934,8 +1939,11 @@ class TableToValueApply(IR):
 
     def _compute_type(self, env, agg_env):
         name = self.config['name']
-        assert name == 'ForceCountTable', name
-        self._type = tint64
+        if name == 'ForceCountTable':
+            self._type = tint64
+        else:
+            assert name == 'NPartitionsTable', name
+            self._type = tint32
 
 
 class MatrixToValueApply(IR):
@@ -1959,6 +1967,8 @@ class MatrixToValueApply(IR):
         name = self.config['name']
         if name == 'ForceCountMatrixTable':
             self._type = tint64
+        elif name == 'NPartitionsMatrixTable':
+            self._type = tint32
         elif name == 'MatrixExportEntriesByCol':
             self._type = tvoid
         else:
@@ -2038,6 +2048,9 @@ class JavaIR(IR):
 
     def render(self, r):
         return f'(JavaIR {r.add_jir(self._jir)})'
+
+    def _compute_type(self, env, agg_env):
+        self._type = dtype(self._jir.typ().toString())
 
 
 def subst(ir, env, agg_env):

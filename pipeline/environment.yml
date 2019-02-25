@@ -6,4 +6,3 @@ dependencies:
   - pylint
   - flake8
   - pytest
-  - google-cloud-storage

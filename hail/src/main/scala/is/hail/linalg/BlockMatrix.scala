@@ -7,6 +7,7 @@ import breeze.numerics.{abs => breezeAbs, log => breezeLog, pow => breezePow, sq
 import breeze.stats.distributions.{RandBasis, ThreadLocalRandomGenerator}
 import is.hail._
 import is.hail.annotations._
+import is.hail.expr.ir.{TableIR, TableLiteral, TableValue}
 import is.hail.table.Table
 import is.hail.expr.types._
 import is.hail.expr.types.virtual.{TFloat64, TFloat64Optional, TInt64Optional, TStruct}
@@ -20,6 +21,7 @@ import org.apache.commons.math3.random.MersenneTwister
 import org.apache.spark.executor.InputMetrics
 import org.apache.spark._
 import org.apache.spark.mllib.linalg.distributed._
+
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
 import org.json4s._
@@ -163,7 +165,7 @@ object BlockMatrix {
     val rectangles = flattenedRectangles.grouped(4).toArray    
     val dRect = digitsNeeded(rectangles.length)
 
-    val sHadoopBc = hc.sc.broadcast(new SerializableHadoopConfiguration(hc.hadoopConf))
+    val sHadoopBc = HailContext.hadoopConfBc
     val partFilesBc = hc.sc.broadcast(partFiles)
 
     val rdd = hc.sc.parallelize(rectangles.zipWithIndex, numSlices = nPartitions).map { case (r, index) =>
@@ -1189,8 +1191,8 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       blockSize, keepRows.length, keepCols.length)
   }
 
-  def entriesTable(hc: HailContext): Table = {
-    val rvRowType = TStruct("i" -> TInt64Optional, "j" -> TInt64Optional, "entry" -> TFloat64Optional)
+  def entriesTable(): TableIR = {
+    val rowType = TStruct("i" -> TInt64Optional, "j" -> TInt64Optional, "entry" -> TFloat64Optional)
     
     val entriesRDD = ContextRDD.weaken[RVDContext](blocks).cflatMap { case (ctx, ((blockRow, blockCol), block)) =>
       val rowOffset = blockRow * blockSize.toLong
@@ -1202,7 +1204,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
 
       block.activeIterator
         .map { case ((i, j), entry) =>
-          rvb.start(rvRowType.physicalType)
+          rvb.start(rowType.physicalType)
           rvb.startStruct()
           rvb.addLong(rowOffset + i)
           rvb.addLong(colOffset + j)
@@ -1213,7 +1215,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
         }
     }
 
-    new Table(hc, entriesRDD, rvRowType, Array[String]())
+    TableLiteral(TableValue(rowType, FastIndexedSeq(), entriesRDD))
   }
 }
 
@@ -1570,7 +1572,7 @@ class WriteBlocksRDD(path: String,
   private val rvRowType = rvd.rowPType
 
   private val d = digitsNeeded(gp.numPartitions)
-  private val sHadoopBc = sc.broadcast(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
+  private val sHadoopBc = HailContext.hadoopConfBc
 
   override def getDependencies: Seq[Dependency[_]] =
     Array[Dependency[_]](

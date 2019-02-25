@@ -211,7 +211,7 @@ object AggOp {
         seqOpArgTypes = Array(classOf[Double], classOf[Double])
       )
 
-    case (PrevNonnull(), Seq(), None, Seq(in)) => CodeAggregator[RegionValuePrevNonnullAnnotationAggregator](in, constrArgTypes = Array(classOf[Type]), seqOpArgTypes = Array(classOf[Long]))
+    case (PrevNonnull(), Seq(), None, Seq(in)) => CodeAggregator[RegionValuePrevNonnullAnnotationAggregator2](in, constrArgTypes = Array(classOf[Type]), seqOpArgTypes = Array(classOf[Long]))
   }
 
   private def incompatible(aggSig: AggSignature): Nothing = {

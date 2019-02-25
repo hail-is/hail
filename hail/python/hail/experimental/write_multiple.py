@@ -12,4 +12,4 @@ from hail.utils.java import Env
 def write_matrix_tables(mts: List[MatrixTable], prefix: str, overwrite: bool = False,
                         stage_locally: bool = False):
     writer = MatrixNativeMultiWriter(prefix, overwrite, stage_locally)
-    Env.hc()._backend.interpret(MatrixMultiWrite([mt._mir for mt in mts], writer))
+    Env.backend().execute(MatrixMultiWrite([mt._mir for mt in mts], writer))

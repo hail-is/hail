@@ -8,7 +8,7 @@ tearDownModule = stopTestHailContext
 
 
 class Tests(unittest.TestCase):
-
+    @skip_unless_spark_backend()
     def test_ld_score(self):
 
         ht = hl.import_table(doctest_resource('ldsc.annot'),
@@ -91,6 +91,7 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(mean_annotated.binary, 0.965, places=3)
         self.assertAlmostEqual(mean_annotated.continuous, 176.528, places=3)
 
+    @skip_unless_spark_backend()
     def test_plot_roc_curve(self):
         x = hl.utils.range_table(100).annotate(score1=hl.rand_norm(), score2=hl.rand_norm())
         x = x.annotate(tp=hl.cond(x.score1 > 0, hl.rand_bool(0.7), False), score3=x.score1 + hl.rand_norm())

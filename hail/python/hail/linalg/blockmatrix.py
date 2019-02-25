@@ -217,7 +217,7 @@ class BlockMatrix(object):
         if self._cached_jbm is not None:
             return self._cached_jbm
         else:
-            self._cached_jbm = Env.hc()._backend._to_java_ir(self._bmir).execute(Env.hc()._jhc)
+            self._cached_jbm = Env.spark_backend('BlockMatrix._jbm')._to_java_ir(self._bmir).execute(Env.hc()._jhc)
             return self._cached_jbm
 
     @classmethod
@@ -410,8 +410,8 @@ class BlockMatrix(object):
                       n_cols=int,
                       block_size=nullable(int),
                       seed=int,
-                      uniform=bool)
-    def random(cls, n_rows, n_cols, block_size=None, seed=0, uniform=False):
+                      gaussian=bool)
+    def random(cls, n_rows, n_cols, block_size=None, seed=0, gaussian=True):
         """Creates a block matrix with standard normal or uniform random entries.
 
         Examples
@@ -430,10 +430,10 @@ class BlockMatrix(object):
             Block size. Default given by :meth:`default_block_size`.
         seed: :obj:`int`
             Random seed.
-        uniform: :obj:`bool`
-            If ``True``, entries are drawn from the uniform distribution
-            on [0,1]. If ``False``, entries are drawn from the standard
-            normal distribution.
+        gaussian: :obj:`bool`
+            If ``True``, entries are drawn from the standard
+            normal distribution. If ``False``, entries are drawn from
+            the uniform distribution on [0,1].
 
         Returns
         -------
@@ -441,7 +441,7 @@ class BlockMatrix(object):
         """
         if not block_size:
             block_size = BlockMatrix.default_block_size()
-        return BlockMatrix._from_java(Env.hail().linalg.BlockMatrix.random(Env.hc()._jhc, n_rows, n_cols, block_size, seed, uniform))
+        return BlockMatrix._from_java(Env.hail().linalg.BlockMatrix.random(Env.hc()._jhc, n_rows, n_cols, block_size, seed, gaussian))
 
     @classmethod
     @typecheck_method(n_rows=int,
@@ -1498,7 +1498,7 @@ class BlockMatrix(object):
         :class:`.Table`
             Table with a row for each entry.
         """
-        t = Table._from_java(self._jbm.entriesTable(Env.hc()._jhc))
+        t = Table._from_java(self._jbm.entriesTable())
         if keyed:
             t = t.key_by('i', 'j')
         return t

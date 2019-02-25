@@ -30,11 +30,11 @@ class Backend(abc.ABC):
     def matrix_type(self, mir):
         return
 
-    def persist_table(self, ht, storage_level):
-        return ht
+    def persist_table(self, t, storage_level):
+        return t
 
-    def unpersist_table(self, ht):
-        return ht
+    def unpersist_table(self, t):
+        return t
 
     def persist_matrix_table(self, mt, storage_level):
         return mt
@@ -105,30 +105,30 @@ class SparkBackend(Backend):
         jir = self._to_java_ir(mir)
         return tmatrix._from_java(jir.typ())
 
-    def persist_table(self, ht, storage_level):
-        return Table._from_java(ht._jt.persist(storage_level))
+    def persist_table(self, t, storage_level):
+        return Table._from_java(self._to_java_ir(t._tir).pyPersist(storage_level))
 
-    def unpersist_table(self, ht):
-        return Table._from_java(ht._jt.unpersist())
+    def unpersist_table(self, t):
+        return Table._from_java(self._to_java_ir(t._tir).pyUnpersist())
 
     def persist_matrix_table(self, mt, storage_level):
-        return MatrixTable._from_java(mt._jmt.persist(storage_level))
+        return MatrixTable._from_java(self._to_java_ir(mt._mir).pyPersist(storage_level))
 
     def unpersist_matrix_table(self, mt):
-        return MatrixTable._from_java(mt._jmt.unpersist())
+        return MatrixTable._from_java(self._to_java_ir(mt._mir).pyUnpersist())
     
     def blockmatrix_type(self, bmir):
         jir = self._to_java_ir(bmir)
         return tblockmatrix._from_java(jir.typ())
 
     def from_spark(self, df, key):
-        return Table._from_java(Env.hail().table.Table.fromDF(Env.hc()._jhc, df._jdf, key))
+        return Table._from_java(Env.hail().table.Table.pyFromDF(df._jdf, key))
 
     def to_spark(self, t, flatten):
         t = t.expand_types()
         if flatten:
             t = t.flatten()
-        return pyspark.sql.DataFrame(t._jt.toDF(Env.hc()._jsql_context), Env.sql_context())
+        return pyspark.sql.DataFrame(self._to_java_ir(t._tir).pyToDF(), Env.sql_context())
 
     def to_pandas(self, t, flatten):
         return self.to_spark(t, flatten).toPandas()
@@ -163,7 +163,7 @@ class SparkBackend(Backend):
         scala_object(Env.hail().variant, 'ReferenceGenome').referenceRemoveLiftover(name, dest_reference_genome)
 
     def parse_vcf_metadata(self, path):
-        return Env.hc()._jhc.pyParseVCFMetadata(path)
+        return json.loads(Env.hc()._jhc.pyParseVCFMetadataJSON(path))
 
 
 class LocalBackend(Backend):
@@ -196,18 +196,22 @@ class ServiceBackend(Backend):
     def execute(self, ir):
         code = self._render(ir)
         resp = requests.post(f'{self.url}/execute', json=code)
+        if resp.status_code == 400:
+            resp_json = resp.json()
+            raise FatalError(resp_json['message'])
         resp.raise_for_status()
         
         resp_json = resp.json()
-        
         typ = dtype(resp_json['type'])
         result = resp_json['value']
-        
         return typ._from_json(result)
 
     def _request_type(self, ir, kind):
         code = self._render(ir)
         resp = requests.post(f'{self.url}/type/{kind}', json=code)
+        if resp.status_code == 400:
+            resp_json = resp.json()
+            raise FatalError(resp_json['message'])
         resp.raise_for_status()
         
         return resp.json()
@@ -225,8 +229,7 @@ class ServiceBackend(Backend):
         return tmatrix._from_json(resp)
 
     def blockmatrix_type(self, bmir):
-        resp = self._request_type(bmir, 'blockmatrix')
-        return tblockmatrix._from_json(resp)
+        raise NotImplementedError("ServiceBackend doesn't support blockmatrix_type, only SparkBackend")
 
     def add_reference(self, config):
         resp = requests.post(f'{self.url}/references/create', json=config)

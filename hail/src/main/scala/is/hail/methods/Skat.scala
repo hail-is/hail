@@ -278,7 +278,7 @@ case class Skat(
 
     val (tableType, _) = typeInfo(mv.typ, mv.rvd.typ)
 
-    TableValue(tableType, BroadcastRow.empty(sc), skatRdd)
+    TableValue(tableType, BroadcastRow.empty(), skatRdd)
   }
 
   def computeKeyGsWeightRdd(mv: MatrixValue,

@@ -365,7 +365,7 @@ case class LocalLDPrune(
       }
     })
 
-    TableValue(tableType, BroadcastRow.empty(mv.sparkContext), sitesOnly)
+    TableValue(tableType, BroadcastRow.empty(), sitesOnly)
   }
 }
 

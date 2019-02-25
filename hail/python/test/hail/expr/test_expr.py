@@ -1009,6 +1009,18 @@ class Tests(unittest.TestCase):
         self.assertEqual(df.aggregate(agg.filter(False, agg.any(df.all_true))), False)
         self.assertEqual(df.aggregate(agg.filter(False, agg.all(df.all_true))), True)
 
+    def test_agg_prev_nonnull(self):
+        t = hl.utils.range_table(17, n_partitions=8)
+        t = t.annotate(
+            prev = hl.scan._prev_nonnull(
+                hl.or_missing((t.idx % 3) != 0, t.row)))
+        self.assertTrue(
+            t.all(hl._values_similar(t.prev.idx,
+                                     hl.case()
+                                     .when(t.idx < 2, hl.null(hl.tint32))
+                                     .when(((t.idx - 1) % 3) == 0, t.idx - 2)
+                                     .default(t.idx - 1))))
+
     def test_str_ops(self):
         s = hl.literal("123")
         self.assertEqual(hl.eval(hl.int32(s)), 123)

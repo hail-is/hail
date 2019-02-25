@@ -1099,3 +1099,15 @@ class Tests(unittest.TestCase):
                                         columns_array_field_name='cols')
         assert [[x * y for x in range(0, 10)] for y in range(0, 10)] == localized.entries.collect()
         assert range(0, 10) == localized.cols.collect()
+
+    def test_multi_write(self):
+        mt = self.get_vds()
+        f = new_temp_file()
+        hl.experimental.write_matrix_tables([mt, mt], f)
+        path1 = f + '0.mt'
+        path2 = f + '1.mt'
+        mt1 = hl.read_matrix_table(path1)
+        mt2 = hl.read_matrix_table(path2)
+        self.assertTrue(mt._same(mt1))
+        self.assertTrue(mt._same(mt2))
+        self.assertTrue(mt1._same(mt2))

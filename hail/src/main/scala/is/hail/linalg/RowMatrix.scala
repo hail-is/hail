@@ -189,7 +189,7 @@ class ReadBlocksAsRowsRDD(path: String,
   private val nBlockCols = gp.nBlockCols
   private val blockSize = gp.blockSize
 
-  private val sHadoopBc = sc.broadcast(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
+  private val sHadoopBc = HailContext.hadoopConfBc
 
   protected def getPartitions: Array[Partition] = Array.tabulate(partitionStarts.length - 1)(pi => 
     ReadBlocksAsRowsRDDPartition(pi, partitionStarts(pi), partitionStarts(pi + 1)))

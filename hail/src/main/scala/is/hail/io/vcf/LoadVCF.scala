@@ -5,7 +5,7 @@ import htsjdk.variant.vcf._
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.JSONAnnotationImpex
-import is.hail.expr.ir.{MatrixLiteral, MatrixRead, MatrixReader, MatrixValue, PruneDeadFields}
+import is.hail.expr.ir.{MatrixIR, MatrixLiteral, MatrixRead, MatrixReader, MatrixValue, PruneDeadFields}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual._
@@ -668,7 +668,10 @@ object LoadVCF {
     }
   }
 
-  def globAllVCFs(arguments: Array[String], hConf: hadoop.conf.Configuration, forcegz: Boolean = false): Array[String] = {
+  def globAllVCFs(arguments: Array[String],
+    hConf: hadoop.conf.Configuration,
+    forceGZ: Boolean = false,
+    gzAsBGZ: Boolean = false): Array[String] = {
     val inputs = hConf.globAll(arguments)
 
     if (inputs.isEmpty)
@@ -678,14 +681,14 @@ object LoadVCF {
       if (!input.endsWith(".vcf")
         && !input.endsWith(".vcf.bgz")) {
         if (input.endsWith(".vcf.gz")) {
-          if (!forcegz)
+          if (!forceGZ && !gzAsBGZ)
             fatal(
               """.gz cannot be loaded in parallel. Is your file actually *block* gzipped?
                 |If your file is actually block gzipped (even though its extension is .gz),
                 |use force_bgz=True to ignore the file extension and treat this file as if
-                |it were a .bgz file. If you are sure that you want to load a non-block
-                |gzipped using the very slow, non-parallel algorithm, use force=True.""".stripMargin)
-          else {
+                |it were a .bgz file. If you are sure that you want to load a non-block-
+                |gzipped file serially on one core, use force=True.""".stripMargin)
+          else if (!gzAsBGZ) {
             val fileSize = hConf.getFileSize(input)
             if (fileSize > 1024 * 1024 * 128)
               warn(s"file '$input' is ${readableBytes(fileSize)}, but will be loaded serially (on one core)\n" +
@@ -951,7 +954,7 @@ class PartitionedVCFRDD(
   @(transient@param) _partitions: Array[Partition]
 ) extends RDD[String](sc, Seq()) {
   protected def getPartitions: Array[Partition] = _partitions
-  val confBc = sc.broadcast(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
+  val confBc = HailContext.hadoopConfBc
 
   def compute(split: Partition, context: TaskContext): Iterator[String] = {
     val p = split.asInstanceOf[PartitionedVCFPartition]
@@ -1014,7 +1017,7 @@ case class MatrixVCFReader(
 
   referenceGenome.foreach(_.validateContigRemap(contigRecoding))
 
-  private val inputs = LoadVCF.globAllVCFs(hConf.globAll(files), hConf, gzAsBGZ || forceGZ)
+  private val inputs = LoadVCF.globAllVCFs(hConf.globAll(files), hConf, forceGZ, gzAsBGZ)
 
   private val reader = new HtsjdkRecordReader(callFields, entryFloatType)
 
@@ -1022,7 +1025,7 @@ case class MatrixVCFReader(
   private val header1 = parseHeader(reader, headerLines1, arrayElementsRequired = arrayElementsRequired)
 
   if (headerFile.isEmpty) {
-    val confBc = sc.broadcast(new SerializableHadoopConfiguration(hConf))
+    val confBc = HailContext.hadoopConfBc
     val header1Bc = sc.broadcast(header1)
 
     val localReader = reader
@@ -1174,7 +1177,7 @@ object ImportVCFs {
     filter: String,
     find: String,
     replace: String
-  ): Array[MatrixTable] = {
+  ): Array[MatrixIR] = {
     val reader = VCFsReader(
       files.asScala.toArray,
       callFields.asScala.toSet,
@@ -1234,7 +1237,7 @@ case class VCFsReader(
   }
 
   private val fileInfo = {
-    val confBc = sc.broadcast(new SerializableHadoopConfiguration(hConf))
+    val confBc = HailContext.hadoopConfBc
 
     val localLocusType = locusType
     val localReader = new HtsjdkRecordReader(callFields, entryFloatType)
@@ -1288,7 +1291,7 @@ case class VCFsReader(
       .collect()
   }
 
-  def readFile(reader: HtsjdkRecordReader, file: String, i: Int): MatrixTable = {
+  def readFile(reader: HtsjdkRecordReader, file: String, i: Int): MatrixIR = {
     val VCFInfo(headerLines, sampleIDs, localInfoFlagFieldNames, typ, partitions) = fileInfo(i)
 
     val lines = ContextRDD.weaken[RVDContext](
@@ -1308,15 +1311,14 @@ case class VCFsReader(
       partitioner,
       parsedLines)
 
-    new MatrixTable(hc,
-      MatrixLiteral(
-        MatrixValue(typ,
-          BroadcastRow(Row.empty, typ.globalType, sc),
-          BroadcastIndexedSeq(sampleIDs.map(Annotation(_)), TArray(typ.colType), sc),
-          rvd)))
+    MatrixLiteral(
+      MatrixValue(typ,
+        BroadcastRow(Row.empty, typ.globalType, sc),
+        BroadcastIndexedSeq(sampleIDs.map(Annotation(_)), TArray(typ.colType), sc),
+        rvd))
   }
 
-  def read(): Array[MatrixTable] = {
+  def read(): Array[MatrixIR] = {
     val reader = new HtsjdkRecordReader(callFields, entryFloatType)
     files.zipWithIndex.map { case (file, i) =>
       readFile(reader, file, i)

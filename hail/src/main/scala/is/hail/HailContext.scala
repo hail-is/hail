@@ -5,7 +5,7 @@ import java.util.Properties
 
 import is.hail.annotations._
 import is.hail.expr.Parser
-import is.hail.expr.ir.{IRParser, MatrixRead, TextTableReader}
+import is.hail.expr.ir.{IRParser, MatrixIR, MatrixRead, TextTableReader}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual._
@@ -23,9 +23,12 @@ import org.apache.commons.io.FileUtils
 import org.apache.hadoop
 import org.apache.log4j.{ConsoleAppender, LogManager, PatternLayout, PropertyConfigurator}
 import org.apache.spark._
+import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.executor.InputMetrics
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.SQLContext
+import org.json4s.Extraction
+import org.json4s.jackson.JsonMethods
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -47,6 +50,14 @@ object HailContext {
   def get: HailContext = contextLock.synchronized {
     theContext
   }
+
+  def sc: SparkContext = get.sc
+
+  def hadoopConf: hadoop.conf.Configuration = get.hadoopConf
+
+  def sHadoopConf: SerializableHadoopConfiguration = get.sHadoopConf
+
+  def hadoopConfBc: Broadcast[SerializableHadoopConfiguration] = get.hadoopConfBc
 
   def checkSparkCompatibility(jarVersion: String, sparkVersion: String): Unit = {
     def majorMinor(version: String): String = version.split("\\.", 3).take(2).mkString(".")
@@ -364,6 +375,8 @@ class HailContext private(val sc: SparkContext,
   val tmpDir: String,
   val branchingFactor: Int) {
   val hadoopConf: hadoop.conf.Configuration = sc.hadoopConfiguration
+  val sHadoopConf: SerializableHadoopConfiguration = new SerializableHadoopConfiguration(hadoopConf)
+  val hadoopConfBc: Broadcast[SerializableHadoopConfiguration] = sc.broadcast(sHadoopConf)
 
   val flags: HailFeatureFlags = new HailFeatureFlags()
 
@@ -459,7 +472,7 @@ class HailContext private(val sc: SparkContext,
     optPartitioner: Option[Partitioner] = None): RDD[T] = {
     val nPartitions = partFiles.length
 
-    val sHadoopConfBc = sc.broadcast(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
+    val localHadoopConfBc = hadoopConfBc
 
     new RDD[T](sc, Nil) {
       def getPartitions: Array[Partition] =
@@ -468,7 +481,7 @@ class HailContext private(val sc: SparkContext,
       override def compute(split: Partition, context: TaskContext): Iterator[T] = {
         val p = split.asInstanceOf[FilePartition]
         val filename = path + "/parts/" + p.file
-        val in = sHadoopConfBc.value.value.unsafeReader(filename)
+        val in = localHadoopConfBc.value.value.unsafeReader(filename)
         read(p.index, in, context.taskMetrics().inputMetrics)
       }
 
@@ -498,14 +511,11 @@ class HailContext private(val sc: SparkContext,
     LoadVCF.parseHeaderMetadata(this, reader, file)
   }
 
-  def pyParseVCFMetadata(file: String): java.util.Map[String, java.util.Map[String, java.util.Map[String, String]]] = {
+  def pyParseVCFMetadataJSON(file: String): String = {
     val reader = new HtsjdkRecordReader(Set.empty)
     val metadata = LoadVCF.parseHeaderMetadata(this, reader, file)
-    metadata.mapValues { groupIds =>
-      groupIds.mapValues { fields =>
-        fields.asJava
-      }.asJava
-    }.asJava
+    implicit val formats = defaultJSONFormats
+    JsonMethods.compact(Extraction.decompose(metadata))
   }
   
   def importMatrix(files: java.util.ArrayList[String],
@@ -516,7 +526,7 @@ class HailContext private(val sc: SparkContext,
     minPartitions: Option[Int],
     noHeader: Boolean,
     forceBGZ: Boolean,
-    sep: String = "\t"): MatrixTable =
+    sep: String = "\t"): MatrixIR =
     importMatrices(files.asScala, rowFields.asScala.toMap.mapValues(IRParser.parseType), keyNames.asScala.toArray,
       IRParser.parseType(cellType), missingVal, minPartitions, noHeader, forceBGZ, sep)
 
@@ -528,7 +538,7 @@ class HailContext private(val sc: SparkContext,
     nPartitions: Option[Int],
     noHeader: Boolean,
     forceBGZ: Boolean,
-    sep: String = "\t"): MatrixTable = {
+    sep: String = "\t"): MatrixIR = {
     assert(sep.length == 1)
 
     val inputs = hadoopConf.globAll(files)

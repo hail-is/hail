@@ -226,6 +226,7 @@ class VCFTests(unittest.TestCase):
 
         assert hl.import_vcf(tmp)._same(mt)
 
+    @skip_unless_spark_backend()
     def test_import_vcfs(self):
         path = resource('sample.vcf.bgz')
         parts = [
@@ -262,6 +263,7 @@ class VCFTests(unittest.TestCase):
         self.assertEqual(hl.filter_intervals(vcf2, interval_b).n_partitions(), 2)
         self.assertEqual(hl.filter_intervals(vcf2, interval_c).n_partitions(), 3)
 
+    @skip_unless_spark_backend()
     def test_import_vcfs_subset(self):
         path = resource('sample.vcf.bgz')
         parts = [
@@ -278,6 +280,7 @@ class VCFTests(unittest.TestCase):
         self.assertTrue(vcf2._same(filter1))
         self.assertEqual(len(parts), vcf2.n_partitions())
 
+    @skip_unless_spark_backend()
     def test_import_multiple_vcfs(self):
         _paths = ['gvcfs/HG00096.g.vcf.gz', 'gvcfs/HG00268.g.vcf.gz']
         paths = [resource(p) for p in _paths]
@@ -307,6 +310,7 @@ class VCFTests(unittest.TestCase):
         pos268 = set(filt268.locus.position.collect())
         self.assertFalse(pos096 & pos268)
 
+    @skip_unless_spark_backend()
     def test_combiner_works(self):
         from hail.experimental.vcf_combiner import transform_one, combine_gvcfs
         _paths = ['gvcfs/HG00096.g.vcf.gz', 'gvcfs/HG00268.g.vcf.gz']
@@ -638,7 +642,6 @@ class BGENTests(unittest.TestCase):
                               entry_fields=[],
                               sample_file=resource('example.sample'))
         self.assertEqual(bgen.entry.dtype, hl.tstruct())
-        bgen._jmt.typecheck()
 
     def test_import_bgen_no_reference(self):
         hl.index_bgen(resource('example.8bits.bgen'),
@@ -1180,6 +1183,7 @@ class LocusIntervalTests(unittest.TestCase):
 
 
 class ImportMatrixTableTests(unittest.TestCase):
+    @skip_unless_spark_backend()
     def test_import_matrix_table(self):
         mt = hl.import_matrix_table(doctest_resource('matrix1.tsv'),
                                     row_fields={'Barcode': hl.tstr, 'Tissue': hl.tstr, 'Days': hl.tfloat32})
