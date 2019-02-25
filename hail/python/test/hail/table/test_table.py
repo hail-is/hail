@@ -960,6 +960,17 @@ class Tests(unittest.TestCase):
     def test_show_long_field_names(self):
         hl.utils.range_table(1).annotate(**{'a' * 256: 5}).show()
 
+    def test_show__various_types(self):
+        ht = hl.utils.range_table(1)
+        ht = ht.annotate(
+            x1 = [1],
+            x2 = [hl.struct(y=[1])],
+            x3 = {1},
+            x4 = {1: 'foo'},
+            x5 = {hl.struct(foo=5): 'bar'}
+        )
+        ht.show()
+
     def test_import_filter_replace(self):
         def assert_filter_equals(filter, find_replace, to):
             assert hl.import_table(resource('filter_replace.txt'),
