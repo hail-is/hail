@@ -5,7 +5,6 @@ import org.apache.spark._
 import org.apache.spark.rdd._
 import org.apache.spark.ExposedUtils
 
-import scala.collection.JavaConverters._
 import scala.reflect.ClassTag
 
 class AssociativeCombiner[U](zero: U, combine: (U, U) => U) {
