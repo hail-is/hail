@@ -669,7 +669,7 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
         rvb.startStruct()
         rvb.addFields(rowType, rv, keyIdx) // Add the key
         rvb.startMissingArray(localDataLength) // add the values
-      var i = 0
+        var i = 0
         while (i < rvs.length) {
           val (rv, j) = rvs(i)
           rvb.setArrayIndex(j)
@@ -686,10 +686,10 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
         newRegionValue
       }
     }
-
+    
     val childRVDs = childValues.map(_.rvd)
     val repartitionedRVDs =
-      if (childRVDs(0).partitioner.satisfiesAllowedOverlap(0) &&
+      if (childRVDs(0).partitioner.satisfiesAllowedOverlap(typ.key.length - 1) &&
         childRVDs.forall(rvd => rvd.partitioner == childRVDs(0).partitioner))
         childRVDs
       else {
