@@ -16,11 +16,11 @@ build/conda-env: environment.yml
 	mkdir -p build && touch $@
 
 build/flake8: $(PY_FILES) build/conda-env
-	. ../loadconda && conda activate hail-batch && python -m flake8 batch
+	source activate hail-batch && python -m flake8 batch # . ../loadconda && conda
 	mkdir -p build && touch $@
 
 build/pylint: $(PY_FILES) build/conda-env
-	. ../loadconda && conda activate hail-batch && python -m pylint --rcfile batch/pylintrc batch --score=n
+	source activate hail-batch && python -m pylint --rcfile batch/pylintrc batch --score=n #. ../loadconda && conda
 	mkdir -p build && touch $@
 
 build:
@@ -55,11 +55,12 @@ test: push-test
 	  < test-batch-pod.yaml.in > test-batch-pod.yaml
 	kubectl create -f test-batch-pod.yaml
 
+# PY_CHECK = false
 ifneq ($(PY_CHECK),false)
 test-local: $(PY_CHECKERS)
 endif
 test-local: build/conda-env
-	. ../loadconda && conda activate hail-batch && POD_NAMESPACE='test' BATCH_USE_KUBE_CONFIG=1 ./test-locally.sh
+	source activate hail-batch && POD_NAMESPACE='test' BATCH_USE_KUBE_CONFIG=1 ./test-locally.sh # . ../loadconda && conda
 
 # local means server and test client are two processes on one machine
 # in-cluster means in a k8s pod (from which we get k8s creds)

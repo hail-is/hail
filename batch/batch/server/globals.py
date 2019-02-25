@@ -1,7 +1,7 @@
 import datetime
 import collections
 
-pod_name_job_task = {}
+pod_name_job = {}
 job_id_job = {}
 batch_id_batch = {}
 

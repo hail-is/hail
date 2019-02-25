@@ -140,7 +140,7 @@ class BatchClient:
 
         container = {
             'image': image,
-            'name': 'default'
+            'name': 'main'
         }
         if command:
             container['command'] = command
