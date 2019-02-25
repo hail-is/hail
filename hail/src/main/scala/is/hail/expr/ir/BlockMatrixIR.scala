@@ -116,10 +116,10 @@ case class BlockMatrixMap(child: BlockMatrixIR, f: IR) extends BlockMatrixIR {
       case Apply("abs", _) => child.execute(hc).abs()
       case Apply("log", _) => child.execute(hc).log()
       case Apply("sqrt", _) => child.execute(hc).sqrt()
-      case ApplySeeded(x@("rand_unif" | "rand_norm"), _, _) =>
+      case ApplySeeded(rand@("rand_norm" | "rand_unif"), _, _) =>
         val BlockMatrixBroadcast(scalarIR, _, shape, blockSize, _) = child
         val seed = BlockMatrixIR.coerceToScalar(hc, scalarIR).toInt
-        BlockMatrix.random(hc, shape(0).toInt, shape(1).toInt, blockSize, seed, gaussian = x == "rand_norm")
+        BlockMatrix.random(hc, shape(0).toInt, shape(1).toInt, blockSize, seed, gaussian = rand == "rand_norm")
       case _ => fatal(s"Unsupported operation on BlockMatrices: ${Pretty(f)}")
     }
   }

@@ -442,9 +442,9 @@ class BlockMatrix(object):
         if not block_size:
             block_size = BlockMatrix.default_block_size()
 
-        rand_func = hl.rand_norm() if gaussian else hl.rand_unif(0, 1)
+        rand = hl.rand_norm() if gaussian else hl.rand_unif(0, 1)
         seed_bmir = BlockMatrixBroadcast(_to_bmir(seed, block_size), [], [n_rows, n_cols], block_size, [True, True])
-        return BlockMatrix(BlockMatrixMap(seed_bmir, rand_func._ir))
+        return BlockMatrix(BlockMatrixMap(seed_bmir, rand._ir))
 
     @classmethod
     @typecheck_method(n_rows=int,
