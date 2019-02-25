@@ -297,6 +297,7 @@ case class BlockMatrixBroadcast(
   dimsPartitioned: IndexedSeq[Boolean]) extends BlockMatrixIR {
 
   assert(shape.length == 2)
+  assert(inIndexExpr.length <= 2 && inIndexExpr.forall(x => x == 0 || x == 1))
 
   override def typ: BlockMatrixType = {
     val (tensorShape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(shape(0), shape(1))
