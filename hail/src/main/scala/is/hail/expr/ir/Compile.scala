@@ -15,7 +15,7 @@ import scala.reflect.{ClassTag, classTag}
 class CacheMap[K, V] {
   val capacity: Int = 30
 
-  private[this] val m = new util.LinkedHashMap[K, V](capacity, 0.75f, true) {
+  val m = new util.LinkedHashMap[K, V](capacity, 0.75f, true) {
     override def removeEldestEntry(eldest: Entry[K, V]): Boolean = size() > capacity
   }
 
@@ -108,6 +108,45 @@ class NormalizeNames {
 object Compile {
   private[this] val codeCache: CacheMap[CodeCacheKey, CodeCacheValue] = new CacheMap()
 
+  var smap = Map.empty[String, CodeCacheKey]
+
+  def debug(x: IR, x2: IR): IR = {
+    x.children.zip(x2.children).foreach { case (c, c2) =>
+      val r = debug(c.asInstanceOf[IR], c2.asInstanceOf[IR])
+      if (r != null)
+        return r
+    }
+    if (x.hashCode() != x2.hashCode())
+      return x
+    
+    null
+  }
+
+  def debugT(t1: PType, t2: PType) {
+    import is.hail.expr.types.physical._
+    
+    t1 match {
+      case t1: PBaseStruct =>
+        t1.types.zip(t2.asInstanceOf[PBaseStruct].types).foreach { case (c1, c2) =>
+            debugT(c1, c2)
+        }
+      case t1: PContainer =>
+          debugT(t1.elementType, t2.asInstanceOf[PContainer].elementType)
+      case t1: PLocus =>
+	import is.hail.variant.ReferenceGenome
+
+        val t3 = t2.asInstanceOf[PLocus]
+        println(("here", t1.rg, t1.rg.hashCode(), t3.rg, t3.rg.hashCode(), System.identityHashCode(t1.rg), System.identityHashCode(t3.rg)))
+        println(("cast", System.identityHashCode(t1.rg.asInstanceOf[ReferenceGenome]), System.identityHashCode(t3.rg.asInstanceOf[ReferenceGenome])))
+	println("there", t1.rg, t3.rg)
+	println("typ", t1.rg.getClass.getName, t3.rg.getClass.getName)
+	println("h38", ReferenceGenome.GRCh38.hashCode(), System.identityHashCode(ReferenceGenome.GRCh38))
+      case _ =>
+    }
+    if (t1.hashCode() != t2.hashCode())
+      println(t1, t1._toPretty)
+  }
+
   private def apply[F >: Null : TypeInfo, R: TypeInfo : ClassTag](
     args: Seq[(String, PType, ClassTag[_])],
     argTypeInfo: Array[MaybeGenericTypeInfo[_]],
@@ -128,6 +167,23 @@ object Compile {
       	println("hit!")
         return (v.typ, v.f.asInstanceOf[Int => F])
       case None =>
+        smap.get(k.toString) match {
+          case Some(k2) =>
+	    println((codeCache.m.get(k) != null, codeCache.m.get(k2) != null))
+	    println(k == k2, k.args == k2.args, k.nSpecialArgs == k2.nSpecialArgs, k.body == k2.body)
+	    println(k.hashCode(), k2.hashCode())
+	    println(k.args.hashCode(), k.nSpecialArgs.hashCode(), k.body.hashCode())
+	    println(k2.args.hashCode(), k2.nSpecialArgs.hashCode(), k2.body.hashCode())
+	    println(k.args, k2.args)
+	    k.args.zip(k2.args).map { case ((n1, t1), (n2, t2)) =>
+	      println(n1, n2, n1.hashCode(), n2.hashCode(), n1 == n2)
+	      println(t1, t2, t1.hashCode(), t2.hashCode(), t1._toPretty, t2._toPretty, t1 == t2)
+	      debugT(t1, t2)
+            }
+	    println(Pretty(debug(k.body, k2.body)))
+	    assert(k != k2)
+          case None =>
+        }
       	println("miss :-(")
     }
 
@@ -148,6 +204,7 @@ object Compile {
 
     val f = fb.resultWithIndex()
     codeCache += k -> CodeCacheValue(ir.pType, f)
+    smap += k.toString -> k
     assert(codeCache.get(k).isDefined)
     (ir.pType, f)
   }
