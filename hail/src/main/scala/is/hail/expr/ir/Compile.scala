@@ -1,8 +1,5 @@
 package is.hail.expr.ir
 
-import java.util
-import java.util.Map.Entry
-
 import is.hail.annotations._
 import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.asm4s._
@@ -11,20 +8,6 @@ import is.hail.expr.types.virtual.Type
 import is.hail.utils._
 
 import scala.reflect.{ClassTag, classTag}
-
-class CacheMap[K, V] {
-  val capacity: Int = 30
-
-  val m = new util.LinkedHashMap[K, V](capacity, 0.75f, true) {
-    override def removeEldestEntry(eldest: Entry[K, V]): Boolean = size() > capacity
-  }
-
-  def get(k: K): Option[V] = Option(m.get(k))
-
-  def +=(p: (K, V)): Unit = m.put(p._1, p._2)
-
-  def size: Int = m.size()
-}
 
 case class CodeCacheKey(args: Seq[(String, PType)], nSpecialArgs: Int, body: IR)
 
@@ -106,7 +89,7 @@ class NormalizeNames {
 }
 
 object Compile {
-  private[this] val codeCache: CacheMap[CodeCacheKey, CodeCacheValue] = new CacheMap()
+  private[this] val codeCache: Cache[CodeCacheKey, CodeCacheValue] = new Cache(50)
 
   private def apply[F >: Null : TypeInfo, R: TypeInfo : ClassTag](
     args: Seq[(String, PType, ClassTag[_])],
