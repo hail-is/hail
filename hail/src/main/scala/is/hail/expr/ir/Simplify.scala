@@ -164,7 +164,7 @@ object Simplify {
     case ApplyBinaryPrimOp(Subtract(), I32(0), x) => x
     case ApplyBinaryPrimOp(Subtract(), x, I32(0)) => x
 
-    case ApplyIR("indexArray", Seq(a, i@I32(v)), _) if v >= 0 =>
+    case ApplyIR("indexArray", Seq(a, i@I32(v))) if v >= 0 =>
       ArrayRef(a, i)
 
     case ArrayLen(MakeArray(args, _)) => I32(args.length)
@@ -314,7 +314,7 @@ object Simplify {
     case TableCollect(TableParallelize(x, _)) => x
     case ArrayLen(GetField(TableCollect(child), "rows")) => TableCount(child)
 
-    case ApplyIR("annotate", Seq(s, MakeStruct(fields)), _) =>
+    case ApplyIR("annotate", Seq(s, MakeStruct(fields))) =>
       InsertFields(s, fields)
 
     // simplify Boolean equality

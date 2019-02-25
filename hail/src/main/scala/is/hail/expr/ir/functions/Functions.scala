@@ -58,7 +58,10 @@ object IRFunctionRegistry {
         }
     }
     val validIR: Option[Seq[IR] => IR] = lookupInRegistry[Conversion](irRegistry, name, args, findIR).map {
-      case (_, _, conversion) => args => ApplyIR(name, args, conversion)
+      case (_, _, conversion) => args =>
+        val x = ApplyIR(name, args)
+        x.conversion = conversion
+        x
     }
 
     val validMethods = lookupFunction(name, args).map { f => { irArgs: Seq[IR] =>

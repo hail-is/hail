@@ -692,7 +692,7 @@ object Interpret {
       case Die(message, typ) =>
         val message_ = interpret(message).asInstanceOf[String]
         fatal(if (message_ != null) message_ else "<exception message missing>")
-      case ir@ApplyIR(function, functionArgs, conversion) =>
+      case ir@ApplyIR(function, functionArgs) =>
         interpret(ir.explicitNode, env, args, agg)
       case ApplySpecial("||", Seq(left_, right_)) =>
         val left = interpret(left_)
