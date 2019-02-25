@@ -1,0 +1,56 @@
+@import 'variables/typeography.scss';
+@import 'variables/colors.scss';
+#theme-site {
+  body {
+    font-size: 16px;
+    letter-spacing: 0.5;
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  }
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    margin: 0px;
+  }
+  h1 {
+    font-size: 96px;
+    letter-spacing: -1.5;
+  }
+  h2 {
+    font-size: 60px;
+    letter-spacing: -0.5;
+  }
+  h3 {
+    font-size: 48px;
+    letter-spacing: 0;
+  }
+  h4 {
+    font-size: 34px;
+    letter-spacing: 0.25;
+  }
+  h5 {
+    font-size: 24px;
+    letter-spacing: 0;
+  }
+  h6 {
+    font-size: 20px;
+    letter-spacing: 0.15;
+  }
+  .subtitle-1 {
+    font-size: 16px;
+    letter-spacing: 0.15;
+  }
+  .subtitle-2 {
+    font-size: 14px;
+    font-size: $weight-medium;
+  }
+  .body-2 {
+    font-size: 14px;
+    letter-spacing: 0.25;
+  }
+  &.dark {
+    color: $white;
+  }
+}

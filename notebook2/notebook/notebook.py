@@ -4,10 +4,14 @@ A Jupyter notebook service with local-mode Hail pre-installed
 import gevent
 # must happen before anytyhing else
 from gevent import monkey; monkey.patch_all()
+
 from flask import Flask, session, redirect, render_template, request
 from flask_sockets import Sockets
 import flask
+import sass
+
 import kubernetes as kube
+
 import logging
 import os
 import re
@@ -42,6 +46,12 @@ k8s = kube.client.CoreV1Api()
 
 app = Flask(__name__)
 sockets = Sockets(app)
+
+scss_path = os.path.join(app.static_folder, 'styles')
+css_path = os.path.join(app.static_folder, 'css')
+os.makedirs(css_path, exist_ok=True)
+
+sass.compile(dirname=(scss_path, css_path), output_style='compressed')
 
 def read_string(f):
     with open(f, 'r') as f:
