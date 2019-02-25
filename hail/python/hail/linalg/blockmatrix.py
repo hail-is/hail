@@ -1889,8 +1889,11 @@ class BlockMatrix(object):
 
         flattened_rectangles = jarray(Env.jvm().long, list(itertools.chain(*rectangles)))
 
-        return Env.hail().linalg.BlockMatrix.exportRectangles(
-            Env.hc()._jhc, path_in, path_out, flattened_rectangles, delimiter, n_partitions, binary)
+        jbm = BlockMatrix.read(path_in)._jbm
+
+        jbm.exportRectangles(Env.hc()._jhc, path_out, flattened_rectangles, delimiter, n_partitions, binary)
+        # return Env.hail().linalg.BlockMatrix.exportRectangles(
+        #     Env.hc()._jhc, path_in, path_out, flattened_rectangles, delimiter, n_partitions, binary)
 
     @typecheck_method(compute_uv=bool,
                       complexity_bound=int)
