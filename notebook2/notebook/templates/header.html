@@ -1,0 +1,23 @@
+<span id="header">
+  <a class="home link-button" href="/">
+    <b>/</b>
+  </a>
+
+  <a href="/notebook" class="home link-button">
+    Notebook
+  </a>
+
+<span id="profile-divider" />
+   {% if user in session %}
+      <a class='link-button'  href="/user">
+        <b>{auth.user!.given_name}</b>
+      </a>
+    <a class='link-button' href="/logout">
+      Log out
+    </a>
+  {% else %}
+    <a class='link-button' href='/login'>
+      Login
+    </a>
+  {% endif %}
+</span>
