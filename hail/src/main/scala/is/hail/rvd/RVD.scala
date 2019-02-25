@@ -166,12 +166,15 @@ class RVD(
       val shuffledCRDD = codec.decodeRDD(localRowPType, shuffled.values)
 
       RVD(newType, newPartitioner, shuffledCRDD)
-
-    } else
-      new RVD(
-        typ.copy(key = typ.key.take(newPartitioner.kType.size)),
-        newPartitioner,
-        RepartitionedOrderedRDD2(this, newPartitioner.rangeBounds))
+    } else {
+      if (newPartitioner != partitioner)
+        new RVD(
+          typ.copy(key = typ.key.take(newPartitioner.kType.size)),
+          newPartitioner,
+          RepartitionedOrderedRDD2(this, newPartitioner.rangeBounds))
+      else
+        this
+    }
   }
 
   def naiveCoalesce(maxPartitions: Int): RVD = {
@@ -1226,6 +1229,9 @@ object RVD {
     partitioner: RVDPartitioner,
     crdd: ContextRDD[RVDContext, RegionValue]
   ): RVD = {
+    if (!HailContext.get.checkRVDKeys)
+      return new RVD(typ, partitioner, crdd)
+
     val sc = crdd.sparkContext
 
     val partitionerBc = partitioner.broadcast(sc)

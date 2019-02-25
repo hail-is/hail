@@ -669,7 +669,7 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
         rvb.startStruct()
         rvb.addFields(rowType, rv, keyIdx) // Add the key
         rvb.startMissingArray(localDataLength) // add the values
-      var i = 0
+        var i = 0
         while (i < rvs.length) {
           val (rv, j) = rvs(i)
           rvb.setArrayIndex(j)
@@ -686,16 +686,24 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
         newRegionValue
       }
     }
-
+    
     val childRVDs = childValues.map(_.rvd)
-    val childRanges = childRVDs.flatMap(_.partitioner.rangeBounds)
-    val newPartitioner = RVDPartitioner.generate(childRVDs.head.typ.kType.virtualType, childRanges)
-    val repartitionedRVDs = childRVDs.map(_.repartition(newPartitioner))
+    val repartitionedRVDs =
+      if (childRVDs(0).partitioner.satisfiesAllowedOverlap(typ.key.length - 1) &&
+        childRVDs.forall(rvd => rvd.partitioner == childRVDs(0).partitioner))
+        childRVDs
+      else {
+        info("TableMultiWayZipJoin: repartitioning children")
+        val childRanges = childRVDs.flatMap(_.partitioner.rangeBounds)
+        val newPartitioner = RVDPartitioner.generate(childRVDs.head.typ.kType.virtualType, childRanges)
+        childRVDs.map(_.repartition(newPartitioner))
+      }
+    val newPartitioner = repartitionedRVDs(0).partitioner
     val newRVDType = RVDType(localNewRowType, localRVDType.key)
     val rvd = RVD(
       typ = newRVDType,
       partitioner = newPartitioner,
-      crdd = ContextRDD.czipNPartitions(repartitionedRVDs.map(_.crdd)) { (ctx, its) =>
+      crdd = ContextRDD.czipNPartitions(repartitionedRVDs.map(_.crdd.boundary)) { (ctx, its) =>
         val orvIters = its.map(it => OrderedRVIterator(localRVDType, it, ctx))
         rvMerger(OrderedRVIterator.multiZipJoin(orvIters))
       })

@@ -244,7 +244,7 @@ class VCFTests(unittest.TestCase):
                      'includeEnd': True},
                 ]
         parts_str = json.dumps(parts)
-        vcf1 = hl.import_vcf(path)
+        vcf1 = hl.import_vcf(path).key_rows_by('locus')
         vcf2 = hl.import_vcfs([path], parts_str)[0]
         self.assertEqual(len(parts), vcf2.n_partitions())
         self.assertTrue(vcf1._same(vcf2))
@@ -273,7 +273,7 @@ class VCFTests(unittest.TestCase):
                      'includeEnd': True},
                 ]
         parts_str = json.dumps(parts)
-        vcf1 = hl.import_vcf(path)
+        vcf1 = hl.import_vcf(path).key_rows_by('locus')
         vcf2 = hl.import_vcfs([path], parts_str)[0]
         interval = [hl.parse_locus_interval('[20:13509136-16493533]')]
         filter1 = hl.filter_intervals(vcf1, interval)
