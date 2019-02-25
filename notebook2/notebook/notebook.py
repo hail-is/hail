@@ -9,6 +9,9 @@ from flask import Flask, session, redirect, render_template, request
 from flask_sockets import Sockets
 import flask
 import sass
+from authlib.flask.client import OAuth
+from functools import wraps
+from urllib.parse import urlencode
 
 import kubernetes as kube
 
@@ -46,6 +49,7 @@ k8s = kube.client.CoreV1Api()
 
 app = Flask(__name__)
 sockets = Sockets(app)
+oauth = OAuth(app)
 
 scss_path = os.path.join(app.static_folder, 'styles')
 css_path = os.path.join(app.static_folder, 'css')
@@ -58,10 +62,34 @@ def read_string(f):
         return f.read().strip()
 
 KUBERNETES_TIMEOUT_IN_SECONDS = float(os.environ.get('KUBERNETES_TIMEOUT_IN_SECONDS', 5.0))
-app.secret_key = read_string('/notebook-secrets/secret-key')
+
+NOTEBOOK_DEBUG =  os.environ.get("NOTEBOOK_DEBUG")
 PASSWORD = read_string('/notebook-secrets/password')
 ADMIN_PASSWORD = read_string('/notebook-secrets/admin-password')
 INSTANCE_ID = uuid.uuid4().hex
+
+app.config.update(
+    TESTING = NOTEBOOK_DEBUG,
+    SECRET_KEY = read_string('/notebook-secrets/secret-key'),
+    SESSION_COOKIE_SAMESITE = 'strict',
+    SESSION_COOKIE_HTTPONLY = True,
+    SESSION_COOKIE_SECURE = not NOTEBOOK_DEBUG,
+)
+
+AUTH0_CLIENT_ID = 'Ck5wxfo1BfBTVbusBeeBOXHp3a7Z6fvZ'
+AUTH0_BASE_URL = 'https://hail.auth0.com'
+
+auth0 = oauth.register(
+    'auth0',
+    client_id = AUTH0_CLIENT_ID,
+    client_secret = read_string('/notebook-secrets/auth0-client-secret'),
+    api_base_url = AUTH0_BASE_URL,
+    access_token_url = f'{AUTH0_BASE_URL}/oauth/token',
+    authorize_url = f'{AUTH0_BASE_URL}/authorize',
+    client_kwargs = {
+        'scope': 'openid profile',
+    },
+)
 
 log.info(f'KUBERNETES_TIMEOUT_IN_SECONDS {KUBERNETES_TIMEOUT_IN_SECONDS}')
 log.info(f'INSTANCE_ID {INSTANCE_ID}')
@@ -139,6 +167,17 @@ def external_url_for(path):
     protocol = request.headers.get('X-Forwarded-Proto', None)
     url = flask.url_for('root', _scheme=protocol, _external='true')
     return url + path
+
+
+def requires_auth(f):
+  @wraps(f)
+  def decorated(*args, **kwargs):
+    if 'profile' not in session:
+      # Redirect to Login page here
+      return redirect('/')
+    return f(*args, **kwargs)
+
+  return decorated
 
 
 @app.route('/healthcheck')
@@ -313,6 +352,46 @@ def wait_websocket(ws):
             gevent.sleep(1)
     ws.send(external_url_for(f'instance/{svc_name}/?token={jupyter_token}'))
     log.info(f'notification sent to user for {svc_name} {pod_name}')
+
+# Auth0 login/registration callback
+@app.route('/auth0-callback')
+def auth0_callback():
+    print("IN CALLBACK")
+    # Handles response from token endpoint
+    auth0.authorize_access_token()
+    resp = auth0.get('userinfo')
+    userinfo = resp.json()
+
+    # Store the user information in flask session.
+    session['jwt_payload'] = userinfo
+    session['user'] = {
+        'user_id': userinfo['sub'],
+        'name': userinfo['name'],
+        'picture': userinfo['picture']
+    }
+    return redirect('/')
+
+
+@app.route('/login', methods=['GET'])
+def login_page():
+    return render_template('login.html')
+
+
+@app.route('/login', methods=['POST'])
+def login_auth0():
+    # FIXME ?: Could be placed outside route
+    external_url = flask.url_for('auth0_callback', _external = True)
+    state = request.form.get('workshop-password')
+    print("WORKSHOP PASSWORD!!!",  state, external_url )
+    return auth0.authorize_redirect(redirect_uri = external_url, audience = f'{AUTH0_BASE_URL}/userinfo', state = state, prompt: 'login')
+
+
+@app.route('/logout')
+def logout():
+    # Clear session stored data
+    session.clear()
+    params = {'returnTo': flask.url_for('root', _external=True), 'client_id': AUTH0_CLIENT_ID}
+    return redirect(auth0.api_base_url + '/v2/logout?' + urlencode(params))
 
 
 if __name__ == '__main__':
