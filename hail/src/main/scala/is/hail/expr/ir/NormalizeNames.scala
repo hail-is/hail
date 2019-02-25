@@ -66,6 +66,9 @@ class NormalizeNames {
           initOpArgs.map(_.map(a => normalize(a))),
           seqOpArgs.map(a => normalize(a, aggEnv.get, None)),
           aggSig)
+      case Uniroot(argname, function, min, max) =>
+        val newArgname = gen()
+        Uniroot(newArgname, normalize(function, env.bind(argname, newArgname)), normalize(min), normalize(max))
       case _ =>
         // FIXME when Binding lands, assert nothing is bound in any child
         Copy(ir, ir.children.map {
