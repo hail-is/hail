@@ -406,7 +406,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
           }
           k += 1
         }
-        sb.append(data.last)
+        sb.append(data.last).append("\n")
 
         os.write(sb.result())
         os.close()
@@ -424,7 +424,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
 
       if (rectData.size > 0) {
         sHadoopBc.value.value.writeFile(outputFile) { uos =>
-          writeRectangle(uos, rectData.t.data, rectData.cols)
+          writeRectangle(uos, rectData.t.toArray, rectData.cols)
           uos.close()
         }
       }
@@ -1456,24 +1456,21 @@ case class BlockMatrixRectanglesRDD(rectangles: Array[Array[Long]], bm: BlockMat
 
     val rectData = new BDM[Double](rectEndRow - rectStartRow, rectEndCol - rectStartCol)
     val blocksInRectangle = gp.rectangleBlocks(rect)
-    blocksInRectangle.foreach( blockIndex => {
-      val (blockRowIdx, blockColIdx) = gp.blockCoordinates(blockIndex)
-      val nRowsInBlock = gp.blockRowNRows(blockRowIdx)
-      val nColsInBlock = gp.blockColNCols(blockColIdx)
-
+    blocksInRectangle.foreach( blockIdx => {
+      val (blockRowIdx, blockColIdx) = gp.blockCoordinates(blockIdx)
       val blockStartRow = blockRowIdx * gp.blockSize
       val blockStartCol = blockColIdx * gp.blockSize
-      val blockEndRow = blockStartRow + nRowsInBlock - 1
-      val blockEndCol = blockStartCol + nColsInBlock - 1
+      val blockEndRow = blockStartRow + gp.blockRowNRows(blockRowIdx)
+      val blockEndCol = blockStartCol + gp.blockColNCols(blockColIdx)
 
       val blockRowSlice = overlapBlockSlice(rectStartRow, rectEndRow, blockStartRow, blockEndRow)
       val blockColSlice = overlapBlockSlice(rectStartCol, rectEndCol, blockStartCol, blockEndCol)
       val rectRowSlice = overlapRectSlice(rectStartRow, rectEndRow, blockStartRow, blockEndRow)
       val rectColSlice = overlapRectSlice(rectStartCol, rectEndCol, blockStartCol, blockEndCol)
 
-      BlockMatrix.block(bm, bm.blocks.partitions, gp, context, blockRowIdx, blockColIdx).foreach( dm => {
+      BlockMatrix.block(bm, bm.blocks.partitions, gp, context, blockRowIdx, blockColIdx).foreach( dm =>
         rectData(rectRowSlice, rectColSlice) := dm(blockRowSlice, blockColSlice)
-      })
+      )
     })
 
     Iterator.single((split.index, rectData))

@@ -655,17 +655,6 @@ class Tests(unittest.TestCase):
                     actual = np.reshape(np.fromfile(file), (r[1] - r[0], r[3] - r[2]))
                     self._assert_eq(expected, actual)
 
-        bm_uri = new_temp_file()
-        rect_uri = new_temp_file()
-
-        (BlockMatrix.from_numpy(nd, block_size=5)
-            .sparsify_rectangles([[0, 1, 0, 1]])
-            .write(bm_uri, force_row_major=True))
-
-        with self.assertRaises(FatalError) as e:
-            BlockMatrix.export_rectangles(bm_uri, rect_uri, [[5, 6, 5, 6]])
-            self.assertEquals(e.msg, 'block (1, 1) missing for rectangle 0 with bounds [5, 6, 5, 6]')
-
     @skip_unless_spark_backend()
     def test_block_matrix_entries(self):
         n_rows, n_cols = 5, 3
