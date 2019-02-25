@@ -1449,12 +1449,12 @@ class BlockMatrix(object):
             If ``1``, returns a block matrix with a single column.
         """
         if axis is None:
-            bmir = BlockMatrixAgg(self._bmir, [], self.block_size, [])
+            bmir = BlockMatrixAgg(self._bmir, [], [])
             return BlockMatrix(bmir)[0, 0]
         elif axis == 0 or axis == 1:
             out_index_expr = [dim for dim in range(len(self.shape)) if dim != axis]
 
-            bmir = BlockMatrixAgg(self._bmir, out_index_expr, self.block_size, [True])
+            bmir = BlockMatrixAgg(self._bmir, out_index_expr, [True])
             return BlockMatrix(bmir)
         else:
             raise ValueError(f'axis must be None, 0, or 1: found {axis}')

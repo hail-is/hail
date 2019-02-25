@@ -1166,10 +1166,9 @@ object IRParser {
         BlockMatrixBroadcast(child, inIndexExpr, shape, blockSize, dimsPartitioned)
       case "BlockMatrixAgg" =>
         val outIndexExpr = int32_literals(it)
-        val blockSize = int32_literal(it)
         val dimsPartitioned = boolean_literals(it)
         val child = blockmatrix_ir(env)(it)
-        BlockMatrixAgg(child, outIndexExpr, blockSize, dimsPartitioned)
+        BlockMatrixAgg(child, outIndexExpr, dimsPartitioned)
       case "ValueToBlockMatrix" =>
         val shape = int64_literals(it)
         val blockSize = int32_literal(it)
