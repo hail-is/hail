@@ -384,7 +384,6 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     output: String,
     flattenedRectangles: Array[Long],
     delimiter: String,
-    nPartitions: Int,
     binary: Boolean) {
 
     val writeRectangle = (uos: OutputStream, data: Array[Double], nCols: Long) => {

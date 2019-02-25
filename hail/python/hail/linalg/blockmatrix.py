@@ -10,7 +10,7 @@ from hail.ir import BlockMatrixWrite, BlockMatrixMap2, ApplyBinaryOp, Ref, F64, 
     ApplyUnaryOp, IR, BlockMatrixDot, tensor_shape_to_matrix_shape, BlockMatrixAgg, BlockMatrixRandom, \
     BlockMatrixToValueApply, BlockMatrixToTable
 from hail.ir.blockmatrix_reader import BlockMatrixNativeReader, BlockMatrixBinaryReader
-from hail.ir.blockmatrix_writer import BlockMatrixBinaryWriter, BlockMatrixNativeWriter
+from hail.ir.blockmatrix_writer import BlockMatrixBinaryWriter, BlockMatrixNativeWriter, BlockMatrixRectanglesWriter
 from hail.utils import new_temp_file, new_local_temp_file, local_path_uri, storage_level
 from hail.utils.java import Env, jarray, joption
 from hail.typecheck import *
@@ -1861,39 +1861,25 @@ class BlockMatrix(object):
         binary: :obj:`bool`
             If true, export elements as raw bytes in row major order.
         """
+        bm = BlockMatrix.read(path_in)
+
         n_rectangles = len(rectangles)
         if n_rectangles == 0:
             raise ValueError('no rectangles provided')
         if n_rectangles >= (1 << 29):
             raise ValueError(f'number of rectangles must be less than 2^29, found {n_rectangles}')
 
-        if n_partitions is None:
-            n_partitions = n_rectangles
-        else:
-            if n_partitions > n_rectangles:
-                raise ValueError(
-                    f'n_partitions ({n_partitions}) cannot exceed the number of rectangles ({n_rectangles})')
-            elif n_partitions < 0:
-                raise ValueError(f'n_partitions must be positive, found {n_partitions}')
-
-        meta = Env.hail().linalg.BlockMatrix.readMetadata(Env.hc()._jhc, path_in)
-        n_rows = meta.nRows()
-        n_cols = meta.nCols()
-
         for r in rectangles:
             if len(r) != 4:
                 raise ValueError(f'rectangle {r} does not have length 4')
-            if not (0 <= r[0] <= r[1] <= n_rows and 0 <= r[2] <= r[3] <= n_cols):
+            if not (0 <= r[0] <= r[1] <= bm.n_rows and 0 <= r[2] <= r[3] <= bm.n_cols):
                 raise ValueError(f'rectangle {r} does not satisfy '
                                  f'0 <= r[0] <= r[1] <= n_rows and 0 <= r[2] <= r[3] <= n_cols')
 
-        flattened_rectangles = jarray(Env.jvm().long, list(itertools.chain(*rectangles)))
+        flattened_rectangles = [x for rect in rectangles for x in rect]
 
-        jbm = BlockMatrix.read(path_in)._jbm
-
-        jbm.exportRectangles(Env.hc()._jhc, path_out, flattened_rectangles, delimiter, n_partitions, binary)
-        # return Env.hail().linalg.BlockMatrix.exportRectangles(
-        #     Env.hc()._jhc, path_in, path_out, flattened_rectangles, delimiter, n_partitions, binary)
+        writer = BlockMatrixRectanglesWriter(path_out, flattened_rectangles, delimiter, binary)
+        Env.backend().execute(BlockMatrixWrite(bm._bmir, writer))
 
     @typecheck_method(compute_uv=bool,
                       complexity_bound=int)
