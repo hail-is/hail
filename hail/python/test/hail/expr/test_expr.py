@@ -2516,3 +2516,8 @@ class Tests(unittest.TestCase):
 
         with pytest.raises(hl.utils.FatalError):
             hl.eval(hl.bit_rshift(hl.int64(1), -1, logical=True))
+
+    def test_prev_non_null(self):
+        ht = hl.utils.range_table(1)
+
+        assert ht.aggregate((hl.agg._prev_nonnull(ht.idx))) == 0
