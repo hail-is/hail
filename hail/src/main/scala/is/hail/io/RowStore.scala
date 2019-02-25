@@ -182,7 +182,8 @@ final case class PackCodecSpec(child: BufferSpec) extends CodecSpec {
       val e: NativeEncoderModule = cxx.PackEncoder.buildModule(t, child)
       (out: OutputStream) => new NativePackEncoder(out, e)
     } else {
-      out: OutputStream => new PackEncoder(t, child.buildOutputBuffer(out))
+      val f = EmitPackEncoder(t)
+      out: OutputStream => new CompiledPackEncoder(child.buildOutputBuffer(out), f)
     }
   }
 
@@ -1286,6 +1287,123 @@ trait Encoder extends Closeable {
   def writeRegionValue(region: Region, offset: Long): Unit
 
   def writeByte(b: Byte): Unit
+}
+
+object EmitPackEncoder { self =>
+
+  type Emitter = EstimableEmitter[MethodBuilderSelfLike]
+
+  def emitTypeSize(t: PType): Int = {
+    t match {
+      case t: PArray => 120 + emitTypeSize(t.elementType)
+      case t: PStruct => 100
+      case _ => 20
+    }
+  }
+
+  def emitBaseStruct(t: PBaseStruct, mb: MethodBuilder, region: Code[Region], off: Code[Long], out: Code[OutputBuffer]): Code[Unit] = {
+    val foff = mb.newField[Long]
+
+    val nMissingBytes = t.nMissingBytes
+    val writeMissingBytes = out.writeBytes(region, off, nMissingBytes)
+
+    val fieldEmitters = t.types.zipWithIndex.map { case (ft, i) =>
+      new Emitter {
+        def emit(mbLike: MethodBuilderSelfLike): Code[Unit] = {
+          val mb = mbLike.mb
+          val region = mb.getArg[Region](1).load()
+          val offset = mb.getArg[Long](2).load()
+          val out = mb.getArg[OutputBuffer](3).load()
+
+          t.isFieldDefined(region, foff, i).mux(
+            self.emit(ft, mb, region, t.fieldOffset(foff, i), out),
+            Code._empty[Unit])
+        }
+
+        def estimatedSize: Int = emitTypeSize(ft)
+      }
+    }
+
+    Code(
+      writeMissingBytes,
+      foff := off,
+      EmitUtils.wrapToMethod(fieldEmitters, new MethodBuilderSelfLike(mb)),
+      Code._empty[Unit])
+  }
+
+  def emitArray(t: PArray, mb: MethodBuilder, region: Code[Region], aoff: Code[Long], out: Code[OutputBuffer]): Code[Unit] = {
+    val length = region.loadInt(aoff)
+
+    val writeLen = out.writeInt(length)
+    val writeMissingBytes =
+      if (!t.elementType.required) {
+        val nMissingBytes = (length + 7) >>> 3
+        out.writeBytes(region, aoff + const(4), nMissingBytes)
+      } else
+        Code._empty[Unit]
+
+    val i = mb.newLocal[Int]("i")
+
+    val writeElems = Code(
+      i := 0,
+      Code.whileLoop(
+        i < length,
+        Code(t.isElementDefined(region, aoff, i).mux(
+          emit(t.elementType, mb, region, t.elementOffset(aoff, length, i), out),
+          Code._empty[Unit]),
+          i := i + const(1))))
+
+    Code(writeLen, writeMissingBytes, writeElems)
+  }
+
+  def writeBinary(mb: MethodBuilder, region: Code[Region], off: Code[Long], out: Code[OutputBuffer]): Code[Unit] = {
+    val boff = region.loadAddress(off)
+    val length = region.loadInt(boff)
+    Code(out.writeInt(length),
+      out.writeBytes(region, boff + const(4), length))
+  }
+
+  def emit(t: PType, mb: MethodBuilder, region: Code[Region], off: Code[Long], out: Code[OutputBuffer]): Code[Unit] = {
+    t.fundamentalType match {
+      case t: PBaseStruct => emitBaseStruct(t, mb, region, off, out)
+      case t: PArray => emitArray(t, mb, region, region.loadAddress(off), out)
+      case _: PBoolean => out.writeBoolean(region.loadBoolean(off))
+      case _: PInt32 => out.writeInt(region.loadInt(off))
+      case _: PInt64 => out.writeLong(region.loadLong(off))
+      case _: PFloat32 => out.writeFloat(region.loadFloat(off))
+      case _: PFloat64 => out.writeDouble(region.loadDouble(off))
+      case _: PBinary => writeBinary(mb, region, off, out)
+    }
+  }
+
+  def apply(t: PType): () => AsmFunction3[Region, Long, OutputBuffer, Unit] = {
+    val fb = new Function3Builder[Region, Long, OutputBuffer, Unit]
+    val mb = fb.apply_method
+    val region = mb.getArg[Region](1).load()
+    val offset = mb.getArg[Long](2).load()
+    val out = mb.getArg[OutputBuffer](3).load()
+
+    mb.emit(emit(t, mb, region, offset, out))
+    fb.result()
+  }
+}
+
+final class CompiledPackEncoder(out: OutputBuffer, f: () => AsmFunction3[Region, Long, OutputBuffer, Unit]) extends Encoder {
+  def flush() {
+    out.flush()
+  }
+
+  def close() {
+    out.close()
+  }
+
+  def writeRegionValue(region: Region, offset: Long) {
+    f()(region, offset, out)
+  }
+
+  def writeByte(b: Byte) {
+    out.writeByte(b)
+  }
 }
 
 final class PackEncoder(rowType: PType, out: OutputBuffer) extends Encoder {

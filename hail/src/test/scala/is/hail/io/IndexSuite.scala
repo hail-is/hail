@@ -40,7 +40,10 @@ class IndexSuite extends SparkSuite {
     annotationType: Type,
     branchingFactor: Int,
     attributes: Map[String, Any]) {
-    val iw = new IndexWriter(hc.hadoopConf, file, keyType, annotationType, branchingFactor, attributes)
+    val codecSpec = CodecSpec.default
+    val makeLeafEncoder = codecSpec.buildEncoder(LeafNodeBuilder.typ(keyType, annotationType).physicalType)
+    val makeInternalEncoder = codecSpec.buildEncoder(InternalNodeBuilder.typ(keyType, annotationType).physicalType)
+    val iw = new IndexWriter(hc.hadoopConf, file, keyType, annotationType, makeLeafEncoder, makeInternalEncoder, branchingFactor, attributes)
     data.zip(annotations).zipWithIndex.foreach { case ((s, a), offset) =>
       iw += (s, offset, a)
     }
