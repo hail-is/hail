@@ -1,5 +1,8 @@
 package is.hail.expr.ir
 
+import java.util
+import java.util.Map.Entry
+
 import is.hail.annotations._
 import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.asm4s._
@@ -9,7 +12,128 @@ import is.hail.utils._
 
 import scala.reflect.{ClassTag, classTag}
 
+class CacheMap[K, V] {
+  val capacity: Int = 30
+
+  private[this] val m = new util.LinkedHashMap[K, V](capacity, 0.75f, true) {
+    override def removeEldestEntry(eldest: Entry[K, V]): Boolean = size() > capacity
+  }
+
+  def get(k: K): Option[V] = Some(m.get(k))
+
+  def +=(p: (K, V)): Unit = m.put(p._1, p._2)
+}
+
+case class CodeCacheKey(args: Seq[(String, PType)], nSpecialArgs: Int, body: IR)
+
+case class CodeCacheValue(typ: PType, f: Int => Any)
+
+class NormalizeNames {
+  var count: Int = 0
+
+  def gen(): String = {
+    count += 1
+    count.toString
+  }
+
+  def apply(ir: IR, env: Env[String]): IR = apply(ir, env, None)
+
+  def apply(ir: IR, env: Env[String], aggEnv: Option[Env[String]]): IR = {
+    def normalize(ir: IR, env: Env[String] = env, aggEnv: Option[Env[String]] = aggEnv): IR = apply(ir, env, aggEnv)
+
+    ir match {
+      case Let(name, value, body) =>
+        val newName = gen()
+        Let(newName, normalize(value), normalize(body, env.bind(name, newName)))
+      case AggLet(name, value, body) =>
+        val newName = gen()
+        AggLet(newName, normalize(value), normalize(body, env, Some(aggEnv.get.bind(name, newName))))
+      case ArraySort(a, left, right, compare) =>
+        val newLeft = gen()
+        val newRight = gen()
+        ArraySort(normalize(a), newLeft, newRight, normalize(compare, env.bind(left -> newLeft, right -> newRight)))
+      case ArrayMap(a, name, body) =>
+        val newName = gen()
+        ArrayMap(normalize(a), newName, normalize(body, env.bind(name, newName)))
+      case ArrayFilter(a, name, body) =>
+        val newName = gen()
+        ArrayFilter(normalize(a), newName, normalize(body, env.bind(name, newName)))
+      case ArrayFlatMap(a, name, body) =>
+        val newName = gen()
+        ArrayFlatMap(normalize(a), newName, normalize(body, env.bind(name, newName)))
+      case ArrayFold(a, zero, accumName, valueName, body) =>
+        val newAccumName = gen()
+        val newValueName = gen()
+        ArrayFold(normalize(a), normalize(zero), newAccumName, newValueName, normalize(body, env.bind(accumName -> newAccumName, valueName -> newValueName)))
+      case ArrayScan(a, zero, accumName, valueName, body) =>
+        val newAccumName = gen()
+        val newValueName = gen()
+        ArrayScan(normalize(a), normalize(zero), newAccumName, newValueName, normalize(body, env.bind(accumName -> newAccumName, valueName -> newValueName)))
+      case ArrayFor(a, valueName, body) =>
+        val newValueName = gen()
+        ArrayFor(normalize(a), newValueName, normalize(body, env.bind(valueName, newValueName)))
+      case ArrayAgg(a, name, body) =>
+        assert(aggEnv.isEmpty)
+        val newName = gen()
+        ArrayAgg(normalize(a), newName, normalize(body, env, Some(env.bind(name, newName))))
+      case ArrayLeftJoinDistinct(left, right, l, r, keyF, joinF) =>
+        val newL = gen()
+        val newR = gen()
+        val newEnv = env.bind(l -> newL, r -> newR)
+        ArrayLeftJoinDistinct(normalize(left), normalize(right), newL, newR, normalize(keyF, newEnv), normalize(joinF, newEnv))
+      case AggExplode(a, name, aggBody) =>
+        val newName = gen()
+        AggExplode(normalize(a, aggEnv.get, None), newName, normalize(aggBody, env, Some(aggEnv.get.bind(name, newName))))
+      case AggArrayPerElement(a, name, aggBody) =>
+        val newName = gen()
+        AggArrayPerElement(normalize(a, aggEnv.get, None), newName, normalize(aggBody, env, Some(aggEnv.get.bind(name, newName))))
+      case _ =>
+        // FIXME when Binding lands, assert nothing is bound in any child
+        Copy(ir, ir.children.map {
+          case c: IR => normalize(c)
+        })
+    }
+  }
+}
+
 object Compile {
+  private[this] val codeCache: CacheMap[CodeCacheKey, CodeCacheValue] = new CacheMap()
+
+  private def apply[F >: Null : TypeInfo, R: TypeInfo : ClassTag](
+    args: Seq[(String, PType, ClassTag[_])],
+    argTypeInfo: Array[MaybeGenericTypeInfo[_]],
+    body: IR,
+    nSpecialArgs: Int
+  ): (PType, Int => F) = {
+
+    val normalizeNames = new NormalizeNames
+    val normalizedBody = normalizeNames(body,
+      Env(args.map { case (n, _, _) => n -> n }: _*))
+    val k = CodeCacheKey(args.map { case (n, pt, _) => (n, pt) }, nSpecialArgs, normalizedBody)
+    codeCache.get(k) match {
+      case Some(v) => return (v.typ, v.f.asInstanceOf[Int => F])
+      case None =>
+    }
+
+    val fb = new EmitFunctionBuilder[F](argTypeInfo, GenericTypeInfo[R]())
+
+    var ir = body
+    ir = Optimize(ir, noisy = false, canGenerateLiterals = false)
+    TypeCheck(ir, Env.empty[Type].bind(args.map { case (name, t, _) => name -> t.virtualType}: _*), None)
+
+    val env = args
+      .zipWithIndex
+      .foldLeft(Env.empty[IR]) { case (e, ((n, t, _), i)) => e.bind(n, In(i, t.virtualType)) }
+
+    ir = Subst(ir, env)
+    assert(TypeToIRIntermediateClassTag(ir.typ) == classTag[R])
+
+    Emit(ir, fb, nSpecialArgs)
+
+    val f = fb.resultWithIndex()
+    codeCache += k -> CodeCacheValue(ir.pType, f)
+    (ir.pType, f)
+  }
 
   def apply[F >: Null : TypeInfo, R: TypeInfo : ClassTag](
     args: Seq[(String, PType, ClassTag[_])],
@@ -30,29 +154,6 @@ object Compile {
     val argTypeInfo: Array[MaybeGenericTypeInfo[_]] = ab.result()
 
     Compile[F, R](args, argTypeInfo, body, nSpecialArgs)
-  }
-
-  private def apply[F >: Null : TypeInfo, R: TypeInfo : ClassTag](
-    args: Seq[(String, PType, ClassTag[_])],
-    argTypeInfo: Array[MaybeGenericTypeInfo[_]],
-    body: IR,
-    nSpecialArgs: Int
-  ): (PType, Int => F) = {
-    val fb = new EmitFunctionBuilder[F](argTypeInfo, GenericTypeInfo[R]())
-
-    var ir = body
-    ir = Optimize(ir, noisy = false, canGenerateLiterals = false)
-    TypeCheck(ir, Env.empty[Type].bind(args.map { case (name, t, _) => name -> t.virtualType}: _*), None)
-
-    val env = args
-      .zipWithIndex
-      .foldLeft(Env.empty[IR]) { case (e, ((n, t, _), i)) => e.bind(n, In(i, t.virtualType)) }
-
-    ir = Subst(ir, env)
-    assert(TypeToIRIntermediateClassTag(ir.typ) == classTag[R])
-
-    Emit(ir, fb, nSpecialArgs)
-    (ir.pType, fb.resultWithIndex())
   }
 
   def apply[R: TypeInfo : ClassTag](body: IR): (PType, Int => AsmFunction1[Region, R]) = {
