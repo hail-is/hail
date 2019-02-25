@@ -1,6 +1,7 @@
 package is.hail.io
 
 import java.io._
+import java.util
 
 import is.hail.annotations._
 import is.hail.asm4s._
@@ -241,6 +242,196 @@ final class StreamBlockInputBuffer(in: InputStream) extends InputBlockBuffer {
   }
 }
 
+final class MemoryBuffer extends Serializable {
+  var capacity: Int = 8
+  var mem: Array[Byte] = new Array[Byte](capacity)
+  var pos: Int = 0
+  var end: Int = 0
+
+  def clear() {
+    pos = 0
+    end = 0
+  }
+
+  def clearPos() {
+    pos = 0
+  }
+
+  def grow(n: Int) {
+    capacity = math.max(capacity * 2, end + n)
+    mem = util.Arrays.copyOf(mem, capacity)
+  }
+
+  def copyFrom(src: MemoryBuffer) {
+    mem = util.Arrays.copyOf(src.mem, src.capacity)
+    end = src.end
+    pos = src.pos
+  }
+
+  def writeByte(b: Byte) {
+    if (end + 1 > capacity)
+      grow(1)
+    Memory.storeByte(mem, end, b)
+    end += 1
+  }
+
+  def writeInt(i: Int) {
+    if (end + 4 > capacity)
+      grow(4)
+    Memory.storeInt(mem, end, i)
+    end += 4
+  }
+
+  def writeLong(i: Long) {
+    if (end + 8 > capacity)
+      grow(8)
+    Memory.storeLong(mem, end, i)
+    end += 8
+  }
+
+  def writeFloat(i: Float) {
+    if (end + 4 > capacity)
+      grow(4)
+    Memory.storeFloat(mem, end, i)
+    end += 4
+  }
+
+  def writeDouble(i: Double) {
+    if (end + 8 > capacity)
+      grow(8)
+    Memory.storeDouble(mem, end, i)
+    end += 8
+  }
+
+  def writeBytes(region: Region, off: Long, n: Int) {
+    if (end + n > capacity)
+      grow(n)
+    Memory.memcpy(mem, end, off, n)
+    end += n
+  }
+
+  def readByte(): Byte = {
+    assert(pos + 1 <= end)
+    val b = Memory.loadByte(mem, pos)
+    pos += 1
+    b
+  }
+
+  def readInt(): Int = {
+    assert(pos + 4 <= end)
+    val i = Memory.loadInt(mem, pos)
+    pos += 4
+    i
+  }
+
+  def readLong(): Long = {
+    assert(pos + 8 <= end)
+    val l = Memory.loadLong(mem, pos)
+    pos += 8
+    l
+  }
+
+  def readFloat(): Float = {
+    assert(pos + 4 <= end)
+    val f = Memory.loadFloat(mem, pos)
+    pos += 4
+    f
+  }
+
+  def readDouble(): Double = {
+    assert(pos + 8 <= end)
+    val d = Memory.loadDouble(mem, pos)
+    pos += 8
+    d
+  }
+
+  def readBytes(toRegion: Region, toOff: Long, n: Int) {
+    assert(pos + n <= end)
+    Memory.memcpy(toOff, mem, pos, n)
+    pos += n
+  }
+
+  def skipByte() {
+    assert(pos + 1 <= end)
+    pos += 1
+  }
+
+  def skipInt() {
+    assert(pos + 4 <= end)
+    pos += 4
+  }
+
+  def skipLong() {
+    assert(pos + 8 <= end)
+    pos += 8
+  }
+
+  def skipFloat() {
+    assert(pos + 4 <= end)
+    pos += 4
+  }
+
+  def skipDouble() {
+    assert(pos + 8 <= end)
+    pos += 8
+  }
+
+  def skipBytes(n: Int) {
+    assert(pos + n <= end)
+    pos += n
+  }
+}
+
+final class MemoryInputBuffer(mb: MemoryBuffer) extends InputBuffer {
+  def close() {}
+
+  def readByte(): Byte = mb.readByte()
+
+  def readInt(): Int = mb.readInt()
+
+  def readLong(): Long = mb.readLong()
+
+  def readFloat(): Float = mb.readFloat()
+
+  def readDouble(): Double = mb.readDouble()
+
+  def readBytes(toRegion: Region, toOff: Long, n: Int): Unit = mb.readBytes(toRegion, toOff, n)
+
+  def skipByte(): Unit = mb.skipByte()
+
+  def skipInt(): Unit = mb.skipInt()
+
+  def skipLong(): Unit = mb.skipLong()
+
+  def skipFloat(): Unit = mb.skipFloat()
+
+  def skipDouble(): Unit = mb.skipDouble()
+
+  def skipBytes(n: Int): Unit = mb.skipBytes(n)
+
+  def readDoubles(to: Array[Double], off: Int, n: Int): Unit = ???
+}
+
+final class MemoryOutputBuffer(mb: MemoryBuffer) extends OutputBuffer {
+  def flush() {}
+
+  def close() {}
+
+  def writeByte(b: Byte): Unit = mb.writeByte(b)
+
+  def writeInt(i: Int): Unit = mb.writeInt(i)
+
+  def writeLong(l: Long): Unit = mb.writeLong(l)
+
+  def writeFloat(f: Float): Unit = mb.writeFloat(f)
+
+  def writeDouble(d: Double): Unit = mb.writeDouble(d)
+
+  def writeBytes(region: Region, off: Long, n: Int): Unit = mb.writeBytes(region, off, n)
+
+  def writeDoubles(from: Array[Double], fromOff: Int, n: Int): Unit = ???
+}
+
 trait OutputBuffer extends Closeable {
   def flush(): Unit
 
@@ -413,8 +604,6 @@ final class BlockingOutputBuffer(blockSize: Int, out: OutputBlockBuffer) extends
 }
 
 trait InputBuffer extends Closeable {
-  def decoderId: Int
-
   def close(): Unit
 
   def readByte(): Byte
@@ -454,8 +643,6 @@ final class LEB128InputBuffer(in: InputBuffer) extends InputBuffer {
   def close() {
     in.close()
   }
-
-  def decoderId = 1
 
   def readByte(): Byte = {
     in.readByte()
@@ -559,8 +746,6 @@ final class BlockingInputBuffer(blockSize: Int, in: InputBlockBuffer) extends In
   def close() {
     in.close()
   }
-
-  def decoderId = 0
 
   def readByte(): Byte = {
     ensure(1)
