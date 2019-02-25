@@ -10,7 +10,7 @@ object RVDContext {
   def fromRegion(region: Region): RVDContext = new RVDContext(region)
 }
 
-class RVDContext(r: Region) extends AutoCloseable {
+class RVDContext(val r: Region) extends AutoCloseable {
   private[this] val children = new mutable.HashSet[AutoCloseable]()
 
   private[this] def own(child: AutoCloseable): Unit = children += child

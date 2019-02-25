@@ -448,7 +448,7 @@ class RVD(
         if (f(c, rv))
           true
         else {
-          rv.region.clear()
+          context.r.clear()
           false
         }
       }
