@@ -18,7 +18,7 @@ object SparkSuite {
           .set("spark.unsafe.exceptionOnMemoryLeak", "true")),
       logFile = "/tmp/hail.log")
     if (System.getenv("HAIL_ENABLE_CPP_CODEGEN") != null)
-      SparkSuite.hc.flags.set("cpp", "1")
+      hc.flags.set("cpp", "1")
     hc.checkRVDKeys = true
     hc
   }
