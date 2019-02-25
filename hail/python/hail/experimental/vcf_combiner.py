@@ -127,8 +127,7 @@ def combine_gvcfs(mts):
     ts = hl.Table._multi_way_zip_join([localize(mt) for mt in mts], 'data', 'g')
     combined = combine(ts)
     combined = combined.annotate(alleles=fix_alleles(combined.alleles))
-    return hl.MatrixTable(
-        combined._unlocalize_entries('__entries', '__cols', ['s'])._mir)
+    return combined._unlocalize_entries('__entries', '__cols', ['s'])
 
 
 @typecheck(lgt=expr_call, la=expr_array(expr_int32))
