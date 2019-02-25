@@ -19,9 +19,11 @@ class CacheMap[K, V] {
     override def removeEldestEntry(eldest: Entry[K, V]): Boolean = size() > capacity
   }
 
-  def get(k: K): Option[V] = Some(m.get(k))
+  def get(k: K): Option[V] = Option(m.get(k))
 
   def +=(p: (K, V)): Unit = m.put(p._1, p._2)
+
+  def size: Int = m.size()
 }
 
 case class CodeCacheKey(args: Seq[(String, PType)], nSpecialArgs: Int, body: IR)
@@ -45,6 +47,8 @@ class NormalizeNames {
       case Let(name, value, body) =>
         val newName = gen()
         Let(newName, normalize(value), normalize(body, env.bind(name, newName)))
+      case Ref(name, typ) =>
+        Ref(env.lookup(name), typ)
       case AggLet(name, value, body) =>
         val newName = gen()
         AggLet(newName, normalize(value), normalize(body, env, Some(aggEnv.get.bind(name, newName))))
@@ -87,6 +91,11 @@ class NormalizeNames {
       case AggArrayPerElement(a, name, aggBody) =>
         val newName = gen()
         AggArrayPerElement(normalize(a, aggEnv.get, None), newName, normalize(aggBody, env, Some(aggEnv.get.bind(name, newName))))
+      case ApplyAggOp(ctorArgs, initOpArgs, seqOpArgs, aggSig) =>
+        ApplyAggOp(ctorArgs.map(a => normalize(a)),
+          initOpArgs.map(_.map(a => normalize(a))),
+          seqOpArgs.map(a => normalize(a, aggEnv.get, None)),
+          aggSig)
       case _ =>
         // FIXME when Binding lands, assert nothing is bound in any child
         Copy(ir, ir.children.map {
@@ -106,13 +115,20 @@ object Compile {
     nSpecialArgs: Int
   ): (PType, Int => F) = {
 
+    println(Pretty(body))
     val normalizeNames = new NormalizeNames
     val normalizedBody = normalizeNames(body,
       Env(args.map { case (n, _, _) => n -> n }: _*))
     val k = CodeCacheKey(args.map { case (n, pt, _) => (n, pt) }, nSpecialArgs, normalizedBody)
+    assert(k == k)
+    println(k)
+    println(codeCache.size)
     codeCache.get(k) match {
-      case Some(v) => return (v.typ, v.f.asInstanceOf[Int => F])
+      case Some(v) => 
+      	println("hit!")
+        return (v.typ, v.f.asInstanceOf[Int => F])
       case None =>
+      	println("miss :-(")
     }
 
     val fb = new EmitFunctionBuilder[F](argTypeInfo, GenericTypeInfo[R]())
@@ -132,6 +148,7 @@ object Compile {
 
     val f = fb.resultWithIndex()
     codeCache += k -> CodeCacheValue(ir.pType, f)
+    assert(codeCache.get(k).isDefined)
     (ir.pType, f)
   }
 
