@@ -148,9 +148,7 @@ class Job:
                                               labels={
                                                   'app': 'batch-job',
                                                   'hail.is/batch-instance': instance_id,
-                                                  'uuid': uuid.uuid4().hex
-                                              }),
-            spec=pod_spec)
+                                                  'uuid': uuid.uuid4().hex}), spec=pod_spec)
 
         log.info('created job {}'.format(self.id))
         add_event({'message': f'created job {self.id}', 'command': ' '.join(pod_spec.containers[0].command)})
@@ -575,25 +573,28 @@ def recent():
 
 
 def run_forever(target, *args, **kwargs):
-    # target should be a function
-    target_name = target.__name__
-
     expected_retry_interval_ms = 15 * 1000
+
     while True:
         start = time.time()
-        try:
-            log.info(f'run_forever: run target {target_name}')
-            target(*args, **kwargs)
-            log.info(f'run_forever: target {target_name} returned')
-        except Exception:  # pylint: disable=W0703
-            log.error(f'run_forever: target {target_name} threw exception', exc_info=sys.exc_info())
+        run_once(target, *args, **kwargs)
         end = time.time()
 
         run_time_ms = int((end - start) * 1000 + 0.5)
+
         sleep_duration_ms = random.randrange(expected_retry_interval_ms * 2) - run_time_ms
         if sleep_duration_ms > 0:
-            log.debug(f'run_forever: {target_name}: sleep {sleep_duration_ms}ms')
+            log.debug(f'run_forever: {target.__name__}: sleep {sleep_duration_ms}ms')
             time.sleep(sleep_duration_ms / 1000.0)
+
+
+def run_once(target, *args, **kwargs):
+    try:
+        log.info(f'run_forever: {target.__name__}')
+        target(*args, **kwargs)
+        log.info(f'run_forever: {target.__name__} returned')
+    except Exception:  # pylint: disable=W0703
+        log.error(f'run_forever: {target.__name__} caught_exception: ', exc_info=sys.exc_info())
 
 
 def flask_event_loop(port):
@@ -601,9 +602,12 @@ def flask_event_loop(port):
 
 
 def kube_event_loop(port):
+    # May not be thread-safe; opens http connection, so use local version
+    v1_ = kube.client.CoreV1Api()
+
     watch = kube.watch.Watch()
     stream = watch.stream(
-        v1.list_namespaced_pod,
+        v1_.list_namespaced_pod,
         POD_NAMESPACE,
         label_selector=f'app=batch-job,hail.is/batch-instance={instance_id}')
     for event in stream:
