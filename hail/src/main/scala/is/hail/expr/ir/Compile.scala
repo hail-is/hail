@@ -50,7 +50,6 @@ object Compile {
 
     val f = fb.resultWithIndex()
     codeCache += k -> CodeCacheValue(ir.pType, f)
-    assert(codeCache.get(k).isDefined)
     (ir.pType, f)
   }
 
