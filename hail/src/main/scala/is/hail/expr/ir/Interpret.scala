@@ -77,7 +77,7 @@ object Interpret {
     var ir = ir0.unwrap
 
     def optimizeIR(canGenerateLiterals: Boolean) {
-      ir = Optimize(ir, noisy = true, canGenerateLiterals)
+      ir = Optimize(ir, noisy = true, canGenerateLiterals, context = Some("Interpret"))
       TypeCheck(ir, typeEnv, agg.map { agg =>
         agg._2.fields.foldLeft(Env.empty[Type]) { case (env, f) =>
           env.bind(f.name, f.typ)

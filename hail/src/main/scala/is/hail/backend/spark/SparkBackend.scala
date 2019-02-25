@@ -23,11 +23,11 @@ object SparkBackend {
 
     ir = ir.unwrap
     if (optimize)
-      ir = Optimize(ir, noisy = true, canGenerateLiterals = true)
+      ir = Optimize(ir, noisy = true, canGenerateLiterals = true, context = Some("SparkBackend.execute - first pass"))
     ir = LiftNonCompilable(ir).asInstanceOf[IR]
     ir = LowerMatrixIR(ir)
     if (optimize)
-      ir = Optimize(ir, noisy = true, canGenerateLiterals = false)
+      ir = Optimize(ir, noisy = true, canGenerateLiterals = false, context = Some("SparkBackend.execute - after MatrixIR lowering"))
 
     val pipeline = LowerTableIR.lower(ir)
     Region.scoped { region =>
