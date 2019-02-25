@@ -1,4 +1,4 @@
-@import './variables/colors.scss';
+@import "./variables/colors.scss";
 #theme-site {
   a {
     color: $black;
@@ -8,6 +8,7 @@
       color: $devil-gray;
     }
   }
+
   button {
     outline: none;
     /* border: none; */
@@ -22,9 +23,13 @@
       border-color: $devil-gray;
     }
   }
+
+  .link-button {
+    cursor: pointer;
+  }
+
   .link-button,
   button {
-    cursor: pointer;
     color: $black;
     &:focus,
     &:hover {
