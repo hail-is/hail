@@ -1,7 +1,7 @@
 """
 A Jupyter notebook service with local-mode Hail pre-installed
 """
-# TODO: Figure out why 'strict' policy doesn't appear to work with authlib.flask.client.OAuth
+
 import gevent
 # must happen before anytyhing else
 from gevent import monkey; monkey.patch_all()
@@ -10,11 +10,8 @@ from flask import Flask, session, redirect, render_template, request
 from flask_sockets import Sockets
 import flask
 import sass
-<<<<<<< HEAD
 from authlib.flask.client import OAuth
 from urllib.parse import urlencode
-=======
->>>>>>> 3f82dc9e64d95e5e25d1494c4f722c24c496ff6a
 
 import kubernetes as kube
 
