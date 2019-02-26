@@ -19,7 +19,7 @@ object Optimize {
         s"\n  Before IR:\n  ----------\n${ Pretty(ir0) }\n  After IR:\n  ---------\n${ Pretty(ir) }")
 
     if (noisy)
-      log.info(s"optimize$contextStr: after: IR size ${ IRSize(ir0) }:\n" + Pretty(ir, elideLiterals = true))
+      log.info(s"optimize$contextStr: after: IR size ${ IRSize(ir) }:\n" + Pretty(ir, elideLiterals = true))
 
     ir
   }
