@@ -57,12 +57,6 @@ os.makedirs(css_path, exist_ok=True)
 
 sass.compile(dirname=(scss_path, css_path), output_style='compressed')
 
-scss_path = os.path.join(app.static_folder, 'styles')
-css_path = os.path.join(app.static_folder, 'css')
-os.makedirs(css_path, exist_ok=True)
-
-sass.compile(dirname=(scss_path, css_path), output_style='compressed')
-
 def read_string(f):
     with open(f, 'r') as f:
         return f.read().strip()
