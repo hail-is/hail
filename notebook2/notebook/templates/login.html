@@ -1,0 +1,36 @@
+<html lang="en" class="{{ 'dark' if session['dark'] }}">
+    <head>
+        <title>Hail Notebooks</title>
+        <link rel="stylesheet" type="text/css" href="/static/css/main.css">
+        <link rel="stylesheet" type="text/css" href="/static/css/components/header.css">
+        <link rel="stylesheet" type="text/css" href="/static/css/pages/login.css">
+    </head>
+    <body id='theme-site'>
+        <div>{% include 'header.html' %}</div>
+        <span id="main">
+            <span id="login" class="centered">
+                {% if unauthorized %}
+                    <div>Unauthorized</div>
+                {% else %}
+                    <h3>Login</h3>
+                    <span id="login-choices">
+                        <form action="/login" method='POST'>
+                            <button
+                            type='submit'
+                            class="outlined-button"
+                            >
+                            Login
+                            </button>
+                            <span id="separator">or</span>
+                            <input
+                                name='workshop-password'
+                                type="password"
+                                placeholder="Enter the workshop password"
+                            />
+                        </form>
+                    {% endif %}
+                </span>
+            </span>
+        </span>
+    </body>
+</html>
