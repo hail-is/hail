@@ -438,7 +438,7 @@ def import_locus_intervals(path, reference_genome='default', skip_invalid_interv
     Add the row field `capture_region` indicating inclusion in
     at least one locus interval from `capture_intervals.txt`:
 
-    >>> intervals = hl.import_locus_intervals('data/capture_intervals.txt')
+    >>> intervals = hl.import_locus_intervals('data/capture_intervals.txt', reference_genome='GRCh37')
     >>> result = dataset.annotate_rows(capture_region = hl.is_defined(intervals[dataset.locus]))
 
     Notes
@@ -589,7 +589,7 @@ def import_bed(path, reference_genome='default', skip_invalid_intervals=False) -
     Add the row field `cnv_region` indicating inclusion in
     at least one interval of the three-column BED file:
 
-    >>> bed = hl.import_bed('data/file1.bed')
+    >>> bed = hl.import_bed('data/file1.bed', reference_genome='GRCh37')
     >>> result = dataset.annotate_rows(cnv_region = hl.is_defined(bed[dataset.locus]))
 
     Add a row field `cnv_id` with the value given by the
@@ -1047,7 +1047,8 @@ def import_gen(path,
     --------
 
     >>> ds = hl.import_gen('data/example.gen',
-    ...                    sample_file='data/example.sample')
+    ...                    sample_file='data/example.sample',
+    ...                    reference_genome='GRCh37')
 
     Notes
     -----
@@ -1549,9 +1550,10 @@ def import_plink(bed, bim, fam,
     Examples
     --------
 
-    >>> ds = hl.import_plink(bed="data/test.bed",
-    ...                      bim="data/test.bim",
-    ...                      fam="data/test.fam")
+    >>> ds = hl.import_plink(bed='data/test.bed',
+    ...                      bim='data/test.bim',
+    ...                      fam='data/test.fam',
+    ...                      reference_genome='GRCh37')
 
     Notes
     -----
@@ -1786,7 +1788,7 @@ def import_vcf(path,
     Examples
     --------
 
-    >>> ds = hl.import_vcf('data/example2.vcf.bgz')
+    >>> ds = hl.import_vcf('data/example2.vcf.bgz', reference_genome='GRCh37')
 
     Notes
     -----
@@ -2023,7 +2025,8 @@ def index_bgen(path,
     Index a BGEN file, renaming contig name "01" to "1":
 
     >>> hl.index_bgen("data/example.8bits.bgen",
-    ...               contig_recoding={"01": "1"})
+    ...               contig_recoding={"01": "1"},
+    ...               reference_genome='GRCh37')
 
     Warning
     -------

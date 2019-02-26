@@ -709,7 +709,7 @@ def locus(contig, pos, reference_genome: Union[str, ReferenceGenome] = 'default'
     Examples
     --------
 
-    >>> hl.eval(hl.locus("1", 10000))
+    >>> hl.eval(hl.locus("1", 10000, reference_genome='GRCh37'))
     Locus(contig=1, position=10000, reference_genome=GRCh37)
 
     Parameters
@@ -744,7 +744,7 @@ def locus_from_global_position(global_pos,
     >>> hl.eval(hl.locus_from_global_position(2824183054))
     Locus(contig=21, position=42584230, reference_genome=GRCh37)
 
-    >>> hl.eval(hl.locus_from_global_position(2824183054, 'GRCh38'))
+    >>> hl.eval(hl.locus_from_global_position(2824183054, reference_genome='GRCh38'))
     Locus(contig=chr22, position=1, reference_genome=GRCh38)
 
     Parameters
@@ -770,7 +770,7 @@ def parse_locus(s, reference_genome: Union[str, ReferenceGenome] = 'default') ->
     Examples
     --------
 
-    >>> hl.eval(hl.parse_locus("1:10000"))
+    >>> hl.eval(hl.parse_locus('1:10000', reference_genome='GRCh37'))
     Locus(contig=1, position=10000, reference_genome=GRCh37)
 
     Notes
@@ -800,7 +800,7 @@ def parse_variant(s, reference_genome: Union[str, ReferenceGenome] = 'default') 
     Examples
     --------
 
-    >>> hl.eval(hl.parse_variant('1:100000:A:T,C'))
+    >>> hl.eval(hl.parse_variant('1:100000:A:T,C', reference_genome='GRCh37'))
     Struct(locus=Locus(contig=1, position=100000, reference_genome=GRCh37), alleles=['A', 'T', 'C'])
 
     Notes
@@ -982,7 +982,7 @@ def locus_interval(contig,
     Examples
     --------
 
-    >>> hl.eval(hl.locus_interval("1", 100, 1000))
+    >>> hl.eval(hl.locus_interval("1", 100, 1000, reference_genome='GRCh37'))
     Interval(start=Locus(contig=1, position=100, reference_genome=GRCh37),
              end=Locus(contig=1, position=1000, reference_genome=GRCh37),
              includes_start=True,
@@ -1020,13 +1020,13 @@ def parse_locus_interval(s, reference_genome: Union[str, ReferenceGenome] = 'def
     Examples
     --------
 
-    >>> hl.eval(hl.parse_locus_interval('1:1000-2000'))
+    >>> hl.eval(hl.parse_locus_interval('1:1000-2000', reference_genome='GRCh37'))
     Interval(start=Locus(contig=1, position=1000, reference_genome=GRCh37),
              end=Locus(contig=1, position=2000, reference_genome=GRCh37),
              includes_start=True,
              includes_end=False)
 
-    >>> hl.eval(hl.parse_locus_interval('1:start-10M'))
+    >>> hl.eval(hl.parse_locus_interval('1:start-10M', reference_genome='GRCh37'))
     Interval(start=Locus(contig=1, position=1, reference_genome=GRCh37),
              end=Locus(contig=1, position=10000000, reference_genome=GRCh37),
              includes_start=True,
@@ -4039,10 +4039,10 @@ def is_valid_contig(contig, reference_genome='default') -> BooleanExpression:
     Examples
     --------
 
-    >>> hl.eval(hl.is_valid_contig('1', 'GRCh37'))
+    >>> hl.eval(hl.is_valid_contig('1', reference_genome='GRCh37'))
     True
 
-    >>> hl.eval(hl.is_valid_contig('chr1', 'GRCh37'))
+    >>> hl.eval(hl.is_valid_contig('chr1', reference_genome='GRCh37'))
     False
 
     Parameters
