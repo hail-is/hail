@@ -10,8 +10,11 @@ from flask import Flask, session, redirect, render_template, request
 from flask_sockets import Sockets
 import flask
 import sass
+<<<<<<< HEAD
 from authlib.flask.client import OAuth
 from urllib.parse import urlencode
+=======
+>>>>>>> 3f82dc9e64d95e5e25d1494c4f722c24c496ff6a
 
 import kubernetes as kube
 
@@ -50,6 +53,12 @@ k8s = kube.client.CoreV1Api()
 app = Flask(__name__)
 sockets = Sockets(app)
 oauth = OAuth(app)
+
+scss_path = os.path.join(app.static_folder, 'styles')
+css_path = os.path.join(app.static_folder, 'css')
+os.makedirs(css_path, exist_ok=True)
+
+sass.compile(dirname=(scss_path, css_path), output_style='compressed')
 
 scss_path = os.path.join(app.static_folder, 'styles')
 css_path = os.path.join(app.static_folder, 'css')
