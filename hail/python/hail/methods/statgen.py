@@ -2608,7 +2608,7 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
     Generate a matrix table of genotypes with 1000 variants and 100 samples
     across 3 populations:
 
-    >>> bn_ds = hl.balding_nichols_model(3, 100, 1000)
+    >>> bn_ds = hl.balding_nichols_model(3, 100, 1000, reference_genome='GRCh37')
 
     Generate a matrix table using 4 populations, 40 samples, 150 variants, 3
     partitions, population distribution ``[0.1, 0.2, 0.3, 0.4]``,
