@@ -108,13 +108,13 @@ except FileNotFoundError as e:
         "containing the name of the docker image to use for worker pods.") from e
 
 
-def requires_auth(resource_type = 'page'):
+def requires_auth(for_page = True):
     def auth(f):
         @wraps(f)
         def decorated(*args, **kwargs):
             if 'user' not in session:
                 # Redirect to Login page here
-                if resource_type == 'page':
+                if for_page:
                     session['referrer'] = request.url
                     return redirect(flask.url_for('login_page'))
 
@@ -346,7 +346,7 @@ def worker_image():
 
 
 @sockets.route('/wait')
-@requires_auth()
+@requires_auth(for_page = False)
 def wait_websocket(ws):
     log.info(f"user is {session['user']['email']}")
     pod_name = session['pod_name']
