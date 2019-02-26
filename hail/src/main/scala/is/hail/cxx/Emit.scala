@@ -635,10 +635,10 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: EmitContext) {
         tub.include("<string>")
         val wrappedBody = if (body.pType.isPrimitive) ir.MakeTuple(FastSeq(body)) else body
 
-        val bodyF = Compile.makeNonmissingFunction(tub, wrappedBody, "context" -> ctxType, "global" -> g.pType)
+        val bodyF = Compile.makeNonmissingFunction(tub, body, "context" -> ctxType, "global" -> g.pType)
         val ctxDec = PackDecoder(ctxType, ctxType, spec.child, tub)
         val globDec = PackDecoder(g.pType, g.pType, spec.child, tub).name
-        val resEnc = PackEncoder(wrappedBody.pType, spec.child, tub).name
+        val resEnc = PackEncoder(body.pType, spec.child, tub).name
 
         val fname = tub.genSym("wrapper")
         val wrapperf = tub.buildFunction(fname,
@@ -686,12 +686,9 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: EmitContext) {
         val ctxEnc = PackEncoder(ctxType, spec.child, fb.translationUnitBuilder())
         val ctxsEnc = s"SparkEnv::ArrayEncoder<${ ctxEnc.name }, ${ coerce[PArray](c.pType).cxxImpl }>"
         val globEnc = PackEncoder(g.pType, spec.child, fb.translationUnitBuilder()).name
-        val resDec = PackDecoder(wrappedBody.pType, wrappedBody.pType, spec.child, fb.translationUnitBuilder())
+        val resDec = PackDecoder(body.pType, body.pType, spec.child, fb.translationUnitBuilder())
         val codeAB = resultRegion.arrayBuilder(fb, coerce[PArray](x.pType))
-        val arrayBuilder = if (body.pType.isPrimitive)
-          codeAB.asClass(fb.translationUnitBuilder(), wrappedType = wrappedBody.pType.asInstanceOf[PTuple])
-        else
-          codeAB.asClass(fb.translationUnitBuilder())
+        val arrayBuilder = codeAB.asClass(fb.translationUnitBuilder())
         val resultsDecoder = s"SparkEnv::ArrayDecoder<${ resDec.name }, ${ arrayBuilder.name }>"
 
         EmitTriplet(

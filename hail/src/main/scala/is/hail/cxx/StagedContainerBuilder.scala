@@ -54,7 +54,7 @@ class StagedContainerBuilder(fb: FunctionBuilder, region: Code, containerPType: 
 
   def end(): Code = aoff.toString
 
-  def asClass(tub: TranslationUnitBuilder, wrappedType: PTuple = null): Class = {
+  def asClass(tub: TranslationUnitBuilder): Class = {
     val c = tub.buildClass(tub.genSym("ArrayBuilder"))
 
     c += s"int len_;"
@@ -66,7 +66,7 @@ class StagedContainerBuilder(fb: FunctionBuilder, region: Code, containerPType: 
     val eltsOffset = s"offset_ + ${ containerPType.cxxElementsOffset("len_") } + i * ${ UnsafeUtils.arrayElementSize(containerPType.elementType) }"
     c +=
       s"""
-         |${c.name}(Region * region, int len) :
+         |${ c.name }(Region * region, int len) :
          |len_(len),
          |region_(region),
          |offset_(region->allocate(${ containerPType.contentsAlignment }, ${ containerPType.cxxContentsByteSize("len") })) {
@@ -75,24 +75,12 @@ class StagedContainerBuilder(fb: FunctionBuilder, region: Code, containerPType: 
          |}
        """.stripMargin
 
-    if (wrappedType == null) {
-      c +=
-        s"""
-           |void set_element(int i, ${ typeToCXXType(containerPType.elementType) } elt) {
-           |  ${ storeIRIntermediate(containerPType.elementType, eltsOffset, "elt") };
-           |}
-         """.stripMargin
-    } else {
-      assert(wrappedType.types(0) == containerPType.elementType)
-      c +=
+    c +=
       s"""
-         |void set_element(int i, ${ typeToCXXType(wrappedType) } elt) {
-         |  ${ storeIRIntermediate(containerPType.elementType, eltsOffset, wrappedType.cxxLoadField("elt", 0)) };
+         |void set_element(int i, ${ typeToCXXType(containerPType.elementType) } elt) {
+         |  ${ storeIRIntermediate(containerPType.elementType, eltsOffset, "elt") };
          |}
-       """.stripMargin
-
-    }
-
+         """.stripMargin
     c += s"char * offset() { return offset_; }"
 
     c.end()
