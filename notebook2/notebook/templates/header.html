@@ -9,9 +9,9 @@
 
   <div id="profile-divider"></div>
 
-  {% if user in session %}
+  {% if session['user'] %}
       <a class='link-button'  href="/user">
-        <b>{auth.user!.given_name}</b>
+        <b>{{ session['user']['name'] }}</b>
       </a>
     <a class='link-button' href="/logout">
       Log out

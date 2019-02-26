@@ -1,6 +1,7 @@
 """
 A Jupyter notebook service with local-mode Hail pre-installed
 """
+# TODO: Figure out why 'strict' policy doesn't work with authlib.flask.client.OAuth
 import gevent
 # must happen before anytyhing else
 from gevent import monkey; monkey.patch_all()
@@ -71,7 +72,8 @@ INSTANCE_ID = uuid.uuid4().hex
 app.config.update(
     TESTING = NOTEBOOK_DEBUG,
     SECRET_KEY = read_string('/notebook-secrets/secret-key'),
-    SESSION_COOKIE_SAMESITE = 'strict',
+    # authlib / oauth doesn't work with 'strict'
+    SESSION_COOKIE_SAMESITE = 'lax',
     SESSION_COOKIE_HTTPONLY = True,
     SESSION_COOKIE_SECURE = not NOTEBOOK_DEBUG,
 )
@@ -367,7 +369,7 @@ def auth0_callback():
     session['user'] = {
         'user_id': userinfo['sub'],
         'name': userinfo['name'],
-        'picture': userinfo['picture']
+        'picture': userinfo['picture'],
     }
     return redirect('/')
 
@@ -381,9 +383,9 @@ def login_page():
 def login_auth0():
     # FIXME ?: Could be placed outside route
     external_url = flask.url_for('auth0_callback', _external = True)
-    state = request.form.get('workshop-password')
-    print("WORKSHOP PASSWORD!!!",  state, external_url )
-    return auth0.authorize_redirect(redirect_uri = external_url, audience = f'{AUTH0_BASE_URL}/userinfo', state = state, prompt: 'login')
+    password = request.form.get('workshop-password')
+    
+    return auth0.authorize_redirect(redirect_uri = external_url, audience = f'{AUTH0_BASE_URL}/userinfo', prompt = 'login')
 
 
 @app.route('/logout')
