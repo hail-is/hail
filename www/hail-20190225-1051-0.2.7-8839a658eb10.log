@@ -1,0 +1,111 @@
+2019-02-25 10:51:25 SparkContext: INFO: Running Spark version 2.2.0
+2019-02-25 10:51:25 NativeCodeLoader: WARN: Unable to load native-hadoop library for your platform... using builtin-java classes where applicable
+2019-02-25 10:51:26 SparkContext: INFO: Submitted application: Hail
+2019-02-25 10:51:26 SparkContext: INFO: Spark configuration:
+spark.app.name=Hail
+spark.driver.extraClassPath=/Users/labbott/hail/hail/build/libs/hail-all-spark.jar
+spark.executor.extraClassPath=./hail-all-spark.jar
+spark.hadoop.io.compression.codecs=org.apache.hadoop.io.compress.DefaultCodec,is.hail.io.compress.BGzipCodec,is.hail.io.compress.BGzipCodecTbi,org.apache.hadoop.io.compress.GzipCodec
+spark.hadoop.mapreduce.input.fileinputformat.split.minsize=1048576
+spark.jars=file:/Users/labbott/hail/hail/build/libs/hail-all-spark.jar
+spark.kryo.registrator=is.hail.kryo.HailKryoRegistrator
+spark.logConf=true
+spark.master=local[*]
+spark.serializer=org.apache.spark.serializer.KryoSerializer
+spark.submit.deployMode=client
+spark.ui.showConsoleProgress=false
+2019-02-25 10:51:26 SecurityManager: INFO: Changing view acls to: labbott
+2019-02-25 10:51:26 SecurityManager: INFO: Changing modify acls to: labbott
+2019-02-25 10:51:26 SecurityManager: INFO: Changing view acls groups to: 
+2019-02-25 10:51:26 SecurityManager: INFO: Changing modify acls groups to: 
+2019-02-25 10:51:26 SecurityManager: INFO: SecurityManager: authentication disabled; ui acls disabled; users  with view permissions: Set(labbott); groups with view permissions: Set(); users  with modify permissions: Set(labbott); groups with modify permissions: Set()
+2019-02-25 10:51:26 Utils: INFO: Successfully started service 'sparkDriver' on port 57138.
+2019-02-25 10:51:26 SparkEnv: INFO: Registering MapOutputTracker
+2019-02-25 10:51:26 SparkEnv: INFO: Registering BlockManagerMaster
+2019-02-25 10:51:26 BlockManagerMasterEndpoint: INFO: Using org.apache.spark.storage.DefaultTopologyMapper for getting topology information
+2019-02-25 10:51:26 BlockManagerMasterEndpoint: INFO: BlockManagerMasterEndpoint up
+2019-02-25 10:51:26 DiskBlockManager: INFO: Created local directory at /private/var/folders/k9/030l_7js6634cphk5k4rg63c940c2d/T/blockmgr-1c70d358-0651-4fd5-bb3e-b3fcb214a7e0
+2019-02-25 10:51:26 MemoryStore: INFO: MemoryStore started with capacity 366.3 MB
+2019-02-25 10:51:27 SparkEnv: INFO: Registering OutputCommitCoordinator
+2019-02-25 10:51:27 log: INFO: Logging initialized @3597ms
+2019-02-25 10:51:27 Server: INFO: jetty-9.3.z-SNAPSHOT
+2019-02-25 10:51:27 Server: INFO: Started @3773ms
+2019-02-25 10:51:27 AbstractConnector: INFO: Started ServerConnector@205caa1{HTTP/1.1,[http/1.1]}{0.0.0.0:4040}
+2019-02-25 10:51:27 Utils: INFO: Successfully started service 'SparkUI' on port 4040.
+2019-02-25 10:51:27 ContextHandler: INFO: Started o.s.j.s.ServletContextHandler@5eff1999{/jobs,null,AVAILABLE,@Spark}
+2019-02-25 10:51:27 ContextHandler: INFO: Started o.s.j.s.ServletContextHandler@47bb303a{/jobs/json,null,AVAILABLE,@Spark}
+2019-02-25 10:51:27 ContextHandler: INFO: Started o.s.j.s.ServletContextHandler@25b4fb0e{/jobs/job,null,AVAILABLE,@Spark}
+2019-02-25 10:51:27 ContextHandler: INFO: Started o.s.j.s.ServletContextHandler@69252f36{/jobs/job/json,null,AVAILABLE,@Spark}
+2019-02-25 10:51:27 ContextHandler: INFO: Started o.s.j.s.ServletContextHandler@6fe10e21{/stages,null,AVAILABLE,@Spark}
+2019-02-25 10:51:27 ContextHandler: INFO: Started o.s.j.s.ServletContextHandler@1363bde6{/stages/json,null,AVAILABLE,@Spark}
+2019-02-25 10:51:27 ContextHandler: INFO: Started o.s.j.s.ServletContextHandler@4146a781{/stages/stage,null,AVAILABLE,@Spark}
+2019-02-25 10:51:27 ContextHandler: INFO: Started o.s.j.s.ServletContextHandler@3c89f63d{/stages/stage/json,null,AVAILABLE,@Spark}
+2019-02-25 10:51:27 ContextHandler: INFO: Started o.s.j.s.ServletContextHandler@22f76faa{/stages/pool,null,AVAILABLE,@Spark}
+2019-02-25 10:51:27 ContextHandler: INFO: Started o.s.j.s.ServletContextHandler@209a221c{/stages/pool/json,null,AVAILABLE,@Spark}
+2019-02-25 10:51:27 ContextHandler: INFO: Started o.s.j.s.ServletContextHandler@3066036b{/storage,null,AVAILABLE,@Spark}
+2019-02-25 10:51:27 ContextHandler: INFO: Started o.s.j.s.ServletContextHandler@1a65d5b9{/storage/json,null,AVAILABLE,@Spark}
+2019-02-25 10:51:27 ContextHandler: INFO: Started o.s.j.s.ServletContextHandler@1e77bb77{/storage/rdd,null,AVAILABLE,@Spark}
+2019-02-25 10:51:27 ContextHandler: INFO: Started o.s.j.s.ServletContextHandler@350a5387{/storage/rdd/json,null,AVAILABLE,@Spark}
+2019-02-25 10:51:27 ContextHandler: INFO: Started o.s.j.s.ServletContextHandler@5c31251d{/environment,null,AVAILABLE,@Spark}
+2019-02-25 10:51:27 ContextHandler: INFO: Started o.s.j.s.ServletContextHandler@e33e6bc{/environment/json,null,AVAILABLE,@Spark}
+2019-02-25 10:51:27 ContextHandler: INFO: Started o.s.j.s.ServletContextHandler@50664474{/executors,null,AVAILABLE,@Spark}
+2019-02-25 10:51:27 ContextHandler: INFO: Started o.s.j.s.ServletContextHandler@38f96cd1{/executors/json,null,AVAILABLE,@Spark}
+2019-02-25 10:51:27 ContextHandler: INFO: Started o.s.j.s.ServletContextHandler@b25f567{/executors/threadDump,null,AVAILABLE,@Spark}
+2019-02-25 10:51:27 ContextHandler: INFO: Started o.s.j.s.ServletContextHandler@22377812{/executors/threadDump/json,null,AVAILABLE,@Spark}
+2019-02-25 10:51:27 ContextHandler: INFO: Started o.s.j.s.ServletContextHandler@7d2a1978{/static,null,AVAILABLE,@Spark}
+2019-02-25 10:51:27 ContextHandler: INFO: Started o.s.j.s.ServletContextHandler@b263d5c{/,null,AVAILABLE,@Spark}
+2019-02-25 10:51:27 ContextHandler: INFO: Started o.s.j.s.ServletContextHandler@73cdc358{/api,null,AVAILABLE,@Spark}
+2019-02-25 10:51:27 ContextHandler: INFO: Started o.s.j.s.ServletContextHandler@467302b7{/jobs/job/kill,null,AVAILABLE,@Spark}
+2019-02-25 10:51:27 ContextHandler: INFO: Started o.s.j.s.ServletContextHandler@d0132ad{/stages/stage/kill,null,AVAILABLE,@Spark}
+2019-02-25 10:51:27 SparkUI: INFO: Bound SparkUI to 0.0.0.0, and started at http://10.1.2.93:4040
+2019-02-25 10:51:27 SparkContext: INFO: Added JAR file:/Users/labbott/hail/hail/build/libs/hail-all-spark.jar at spark://10.1.2.93:57138/jars/hail-all-spark.jar with timestamp 1551109887516
+2019-02-25 10:51:27 Executor: INFO: Starting executor ID driver on host localhost
+2019-02-25 10:51:27 Utils: INFO: Successfully started service 'org.apache.spark.network.netty.NettyBlockTransferService' on port 57139.
+2019-02-25 10:51:27 NettyBlockTransferService: INFO: Server created on 10.1.2.93:57139
+2019-02-25 10:51:27 BlockManager: INFO: Using org.apache.spark.storage.RandomBlockReplicationPolicy for block replication policy
+2019-02-25 10:51:27 BlockManagerMaster: INFO: Registering BlockManager BlockManagerId(driver, 10.1.2.93, 57139, None)
+2019-02-25 10:51:27 BlockManagerMasterEndpoint: INFO: Registering block manager 10.1.2.93:57139 with 366.3 MB RAM, BlockManagerId(driver, 10.1.2.93, 57139, None)
+2019-02-25 10:51:27 BlockManagerMaster: INFO: Registered BlockManager BlockManagerId(driver, 10.1.2.93, 57139, None)
+2019-02-25 10:51:27 BlockManager: INFO: Initialized BlockManager: BlockManagerId(driver, 10.1.2.93, 57139, None)
+2019-02-25 10:51:27 ContextHandler: INFO: Started o.s.j.s.ServletContextHandler@733086fb{/metrics/json,null,AVAILABLE,@Spark}
+2019-02-25 10:51:28 Hail: INFO: SparkUI: http://10.1.2.93:4040
+2019-02-25 10:51:28 Hail: INFO: Running Hail version 0.2.7-8839a658eb10
+2019-02-25 10:51:29 root: ERROR: IOException: No FileSystem for scheme: gs
+From java.io.IOException: No FileSystem for scheme: gs
+	at org.apache.hadoop.fs.FileSystem.getFileSystemClass(FileSystem.java:2660)
+	at org.apache.hadoop.fs.FileSystem.createFileSystem(FileSystem.java:2667)
+	at org.apache.hadoop.fs.FileSystem.access$200(FileSystem.java:94)
+	at org.apache.hadoop.fs.FileSystem$Cache.getInternal(FileSystem.java:2703)
+	at org.apache.hadoop.fs.FileSystem$Cache.get(FileSystem.java:2685)
+	at org.apache.hadoop.fs.FileSystem.get(FileSystem.java:373)
+	at org.apache.hadoop.fs.Path.getFileSystem(Path.java:295)
+	at is.hail.utils.richUtils.RichHadoopConfiguration$.fileSystem$extension(RichHadoopConfiguration.scala:19)
+	at is.hail.utils.richUtils.RichHadoopConfiguration$.listStatus$extension(RichHadoopConfiguration.scala:53)
+	at is.hail.utils.Py4jUtils$class.ls(Py4jUtils.scala:63)
+	at is.hail.utils.package$.ls(package.scala:26)
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.lang.reflect.Method.invoke(Method.java:498)
+	at py4j.reflection.MethodInvoker.invoke(MethodInvoker.java:244)
+	at py4j.reflection.ReflectionEngine.invoke(ReflectionEngine.java:357)
+	at py4j.Gateway.invoke(Gateway.java:280)
+	at py4j.commands.AbstractCommand.invokeMethod(AbstractCommand.java:132)
+	at py4j.commands.CallCommand.execute(CallCommand.java:79)
+	at py4j.GatewayConnection.run(GatewayConnection.java:214)
+	at java.lang.Thread.run(Thread.java:748)
+
+
+
+2019-02-25 11:00:29 SparkContext: INFO: Invoking stop() from shutdown hook
+2019-02-25 11:00:29 AbstractConnector: INFO: Stopped Spark@205caa1{HTTP/1.1,[http/1.1]}{0.0.0.0:4040}
+2019-02-25 11:00:29 SparkUI: INFO: Stopped Spark web UI at http://10.1.2.93:4040
+2019-02-25 11:00:29 MapOutputTrackerMasterEndpoint: INFO: MapOutputTrackerMasterEndpoint stopped!
+2019-02-25 11:00:29 MemoryStore: INFO: MemoryStore cleared
+2019-02-25 11:00:29 BlockManager: INFO: BlockManager stopped
+2019-02-25 11:00:29 BlockManagerMaster: INFO: BlockManagerMaster stopped
+2019-02-25 11:00:29 OutputCommitCoordinator$OutputCommitCoordinatorEndpoint: INFO: OutputCommitCoordinator stopped!
+2019-02-25 11:00:29 SparkContext: INFO: Successfully stopped SparkContext
+2019-02-25 11:00:29 ShutdownHookManager: INFO: Shutdown hook called
+2019-02-25 11:00:29 ShutdownHookManager: INFO: Deleting directory /private/var/folders/k9/030l_7js6634cphk5k4rg63c940c2d/T/spark-27e91ae9-3b3a-4c82-ab52-8574f6289fdd/pyspark-1c2d0b8b-595e-49c6-9567-67f344dfbf5e
+2019-02-25 11:00:29 ShutdownHookManager: INFO: Deleting directory /private/var/folders/k9/030l_7js6634cphk5k4rg63c940c2d/T/spark-27e91ae9-3b3a-4c82-ab52-8574f6289fdd

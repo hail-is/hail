@@ -1,0 +1,217 @@
+<!doctype html>
+
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <title>Hail Datasets</title>
+    <meta name="description" content="A collection of Hail-formatted genetic datasets.">
+    <meta name="author" content="Liam Abbott">
+
+    <link type="text/css" rel="stylesheet" href="//unpkg.com/bootstrap/dist/css/bootstrap.css"></link>
+    <link type="text/css" rel="stylesheet" href="//unpkg.com/bootstrap-vue@latest/dist/bootstrap-vue.css"></link>
+    <link type="text/css" rel="stylesheet" href="./style.css"></link>
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.7.2/css/all.css"
+          integrity="sha384-fnmOCqbTlWIlj8LyTjo7mOUStjsKC4pOpQbqyi7RrhN7udi9RwhKkMHpvLbHG9Sr"
+          crossorigin="anonymous">
+
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+    <script src="//unpkg.com/vue@latest/dist/vue.js"></script>
+    <script src="//unpkg.com/bootstrap-vue@latest/dist/bootstrap-vue.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fuse.js/3.4.2/fuse.js"></script>
+</head>
+<body>
+    <div id="app">
+        <b-container>
+            <b-jumbotron header="Hail Datasets" 
+                         lead="A collection of genetic datasets formatted for use with Hail."
+                         bg-variant="transparent"
+                         class="pb-0 mb-4">
+                <p>This page describes genetic datasets that are hosted in a public repository on Google Cloud Platform and are available for use through Hail’s load_dataset() function.</p>
+                <p>To load a dataset from the repository into a Hail pipeline, provide the name, version, and reference genome build of the dataset you would like to use as parameters to the load_dataset() function. The available datasets are listed in the table below.</p>
+            </b-jumbotron>
+            <div class="mb-4">
+                <b-form>
+                    <b-form-group description="Copy and paste the query above for use in a Hail pipeline.">
+                        <b-form-textarea placeholder="A Hail query will populate here when datasets are selected from the table below." :value="hail_query">
+                        
+                    </b-form-input>
+                </b-form>
+            </div>
+            <div>
+                <b-form-input v-model="search_text" type="text" placeholder="Search datasets and annotations" @input="fuseSearch"/>
+                <div class="mt-2">Value: {{ search_text }}</div>
+            </div>
+            <b-table :items="datasets_display" :fields="dataset_fields" selectable @row-selected="buildQuery">
+                <template slot="show_details" slot-scope="row" cols="1">
+                    <b-button @click="row.toggleDetails" class="p0 m0 sm">
+                        <i v-if="row.detailsShowing" class="fas fa-chevron-down"></i>
+                        <i v-else class="fas fa-chevron-right"></i>
+                    </b-button>
+                </template>
+                <template slot="row-details" slot-scope="row">
+                    <b-card>
+                        <b-row class="mb-2">
+                            <b-col cols="2" class="text-sm-right"><b>Type:</b></b-col>
+                            <b-col cols="4">{{ row.item.type }}</b-col>
+                            <b-col cols="2" class="text-sm-right"><b>Number of partitions:</b></b-col>
+                            <b-col cols="4">{{ addCommas(row.item.n_partitions) }}</b-col>
+                        </b-row>
+
+                        <b-row class="mb-2">
+                            <b-col cols="2" class="text-sm-right"><b>Row key:</b></b-col>
+                            <b-col cols="4">{{ row.item.row_key }}</b-col>
+                            <b-col cols="2" class="text-sm-right"><b>Number of rows:</b></b-col>
+                            <b-col cols="4">{{ addCommas(row.item.n_rows) }}</b-col>
+                        </b-row>
+
+                        <b-row v-if="row.item.type == 'MatrixTable'" class="mb-2">
+                            <b-col cols="2" class="text-sm-right"><b>Column key:</b></b-col>
+                            <b-col cols="4">{{ row.item.col_key }}</b-col>
+                            <b-col cols="2" class="text-sm-right"><b>Number of columns:</b></b-col>
+                            <b-col cols="4">{{ addCommas(row.item.n_cols) }}</b-col>
+                        </b-row>
+
+                        <b-row class="mb-2 mt-3">
+                            <b-col cols="2" class="text-sm-right"><b>Row fields:</b></b-col>
+                            <b-col cols="10">
+                                <b-table :items="row.item.row_fields" :fields="annotation_fields">
+                                </b-table>
+                            </b-col>
+                        </b-row>
+
+                        <b-row v-if="row.item.type == 'MatrixTable'" class="mb-2">
+                            <b-col cols="2" class="text-sm-right"><b>Column fields:</b></b-col>
+                            <b-col cols="10">
+                                <b-table :items="row.item.row_fields" :fields="annotation_fields">
+                                </b-table>
+                            </b-col>
+                        </b-row>
+                            <!--<b-col cols="2" class="text-sm-right"><b>Row fields:</b></b-col>
+                            <b-col cols="10">
+                                <b-row v-for="rf in row.item.row_fields">
+                                    <b-col cols="9" class="field-col">{{ rf[0] }}</b-col>
+                                    <b-col cols="3" class="field-col">{{ rf[1] }}</b-col>
+                                </b-row>
+                            </b-col>
+                            <b-col cols="2" class="text-sm-right"><b>Column fields:</b></b-col>
+                            <b-col cols="4" class="pl-0">
+                                <b-row v-for="cf in row.item.col_fields">
+                                    <b-col cols="9" class="field-col">{{ checkNA(cf)[0] }}</b-col>
+                                    <b-col cols="3" class="field-col">{{ checkNA(cf)[1] }}</b-col>
+                                </b-row>
+                            </b-col>-->
+                        </b-row>
+
+                    </b-card>
+                </template>
+            </b-table>
+        </b-container>
+    </div>
+    <script>
+        var app = new Vue({
+            el: '#app',
+            mounted () {
+                axios.get('https://storage.googleapis.com/hail-datasets-hail-data/datasets.json?ignoreCache=1')
+                     .then(response => {
+                        this.datasets = response.data.map(function(dataset) {
+                            dataset.row_fields = dataset.row_fields.map(function(rf) {
+                                return {
+                                    name: rf[0],
+                                    type: rf[1],
+                                    description: ''
+                                }
+                            });
+                            return dataset;
+                        });
+                        this.datasets_display = this.datasets;
+                     })
+                     .catch(error => {
+                        console.log(error);
+                     });
+            },
+            data: {
+                hail_query: '',
+                search_text: '',
+                datasets: [],
+                datasets_display: [],
+                dataset_fields: {
+                    show_details: {
+                        label: 'Details',
+                        sortable: false
+                    },
+                    name: {
+                        label: 'Name',
+                        sortable: true
+                    },
+                    version: {
+                        label: 'Version',
+                        sortable: false
+                    },
+                    reference_genome: {
+                        label: 'Reference Genome Build',
+                        sortable: true
+                    },
+                    description: {
+                        label: 'Description',
+                        sortable: false
+                    }
+                },
+                annotation_fields: {
+                    name: {
+                        label: 'Name',
+                        sortable: true
+                    },
+                    type: {
+                        label: 'Type',
+                        sortable: true
+                    },
+                    description: {
+                        label: 'Description',
+                        sortable: false
+                    }
+                }
+            },
+            methods: {
+                addCommas: function(x) {
+                    return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+                },
+                checkNA: function(x) {
+                    if (x) {
+                        return x;
+                    } else {
+                        return 'N/A';
+                    }
+                },
+                fuseSearch: function() {
+                    fuse = new Fuse(this.datasets, {
+                        keys: ['name', 'row_fields.name', 'col_fields.name'],
+                        threshold: 0.2,
+                        tokenize: true,
+                        matchAllTokens: true
+                    });
+                    if (this.search_text == '') {
+                        this.datasets_display = this.datasets;
+                    } else {
+                        this.datasets_display = fuse.search(this.search_text);
+                    }
+                },
+                buildQuery: function(rows) {
+                    var selections = rows.map(function(x) {
+                        return {
+                            name: x.name,
+                            version: x.version,
+                            reference_genome: x.reference_genome
+                        };
+                    });
+                    this.hail_query = `
+                        datasets = hl.experimental.load_datasets(name='` + selections[0].name + `',\n
+                                                                 version='` + selections[0].version + `',\n
+                                                                 reference_genome='` + selections[0].reference_genome + "')"
+                    console.log(this.hail_query);
+                }
+            }
+        });
+    </script>
+</body>
