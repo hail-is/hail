@@ -215,12 +215,17 @@ def notebook():
 
 
 @app.route('/new', methods=['GET'])
+@requires_auth()
 def new_get():
     pod_name = session.get('pod_name')
     svc_name = session.get('svc_name')
     if pod_name:
         delete_worker_pod(pod_name, svc_name)
-    session.clear()
+        del session['pod_name']
+
+    if svc_name not None:
+        del session['svc_name']
+
     return redirect(external_url_for('/notebook'))
 
 
