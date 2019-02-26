@@ -67,18 +67,15 @@ KUBERNETES_TIMEOUT_IN_SECONDS = float(os.environ.get('KUBERNETES_TIMEOUT_IN_SECO
 AUTHORIZED_USERS = read_string('/notebook-secrets/authorized-users').split(',')
 AUTHORIZED_USERS = dict((email, True) for email in AUTHORIZED_USERS)
 
-SECRET_KEY = read_string('/notebook-secrets/secret-key')
-NOTEBOOK_DEBUG =  os.environ.get("NOTEBOOK_DEBUG")
 PASSWORD = read_string('/notebook-secrets/password')
 ADMIN_PASSWORD = read_string('/notebook-secrets/admin-password')
 INSTANCE_ID = uuid.uuid4().hex
 
 app.config.update(
-    TESTING = NOTEBOOK_DEBUG,
-    SECRET_KEY = SECRET_KEY,
+    SECRET_KEY = read_string('/notebook-secrets/secret-key'),
     SESSION_COOKIE_SAMESITE = 'lax',
     SESSION_COOKIE_HTTPONLY = True,
-    SESSION_COOKIE_SECURE = not NOTEBOOK_DEBUG,
+    SESSION_COOKIE_SECURE = os.environ.get("NOTEBOOK_DEBUG") != "1"
 )
 
 AUTH0_CLIENT_ID = 'Ck5wxfo1BfBTVbusBeeBOXHp3a7Z6fvZ'
