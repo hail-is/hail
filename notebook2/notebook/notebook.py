@@ -11,7 +11,6 @@ from flask_sockets import Sockets
 import flask
 import sass
 from authlib.flask.client import OAuth
-from functools import wraps
 from urllib.parse import urlencode
 
 import kubernetes as kube
