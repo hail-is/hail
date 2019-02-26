@@ -348,7 +348,6 @@ def worker_image():
 @sockets.route('/wait')
 @requires_auth(for_page = False)
 def wait_websocket(ws):
-    log.info(f"user is {session['user']['email']}")
     pod_name = session['pod_name']
     svc_name = session['svc_name']
     jupyter_token = session['jupyter_token']
