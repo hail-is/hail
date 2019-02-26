@@ -42,6 +42,7 @@ object BlockMatrixIR {
       case IndexedSeq(r, c) => (r, c)
     }
   }
+
 }
 
 abstract sealed class BlockMatrixIR extends BaseIR {
@@ -100,12 +101,11 @@ case class BlockMatrixMap(child: BlockMatrixIR, f: IR) extends BlockMatrixIR {
   }
 
   override protected[ir] def execute(hc: HailContext): BlockMatrix = {
-    val blockMatrix = child.execute(hc)
     f match {
-      case ApplyUnaryPrimOp(Negate(), _) => blockMatrix.unary_-()
-      case Apply("abs", _) => blockMatrix.abs()
-      case Apply("log", _) => blockMatrix.log()
-      case Apply("sqrt", _) => blockMatrix.sqrt()
+      case ApplyUnaryPrimOp(Negate(), _) => child.execute(hc).unary_-()
+      case Apply("abs", _) => child.execute(hc).abs()
+      case Apply("log", _) => child.execute(hc).log()
+      case Apply("sqrt", _) => child.execute(hc).sqrt()
       case _ => fatal(s"Unsupported operation on BlockMatrices: ${Pretty(f)}")
     }
   }
@@ -411,5 +411,31 @@ case class ValueToBlockMatrix(
       case data: IndexedSeq[Double] =>
         BlockMatrixIR.toBlockMatrix(hc, shape(0).toInt, shape(1).toInt, data.toArray, blockSize)
     }
+  }
+}
+
+case class BlockMatrixRandom(
+  seed: Int,
+  gaussian: Boolean,
+  shape: IndexedSeq[Long],
+  blockSize: Int,
+  dimsPartitioned: IndexedSeq[Boolean]) extends BlockMatrixIR {
+
+  assert(shape.length == 2)
+
+  override def typ: BlockMatrixType = {
+    val (tensorShape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(shape(0), shape(1))
+    BlockMatrixType(TFloat64(), tensorShape, isRowVector, blockSize, dimsPartitioned)
+  }
+
+  override def children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
+
+  override def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
+    assert(newChildren.isEmpty)
+    BlockMatrixRandom(seed, gaussian, shape, blockSize, dimsPartitioned)
+  }
+
+  override protected[ir] def execute(hc: HailContext): BlockMatrix = {
+    BlockMatrix.random(hc, shape(0).toInt, shape(1).toInt, blockSize, seed, gaussian)
   }
 }

@@ -1175,6 +1175,13 @@ object IRParser {
         val dimsPartitioned = boolean_literals(it)
         val child = ir_value_expr(env)(it)
         ValueToBlockMatrix(child, shape, blockSize, dimsPartitioned)
+      case "BlockMatrixRandom" =>
+        val seed = int32_literal(it)
+        val gaussian = boolean_literal(it)
+        val shape = int64_literals(it)
+        val blockSize = int32_literal(it)
+        val dimsPartitioned = boolean_literals(it)
+        BlockMatrixRandom(seed, gaussian, shape, blockSize, dimsPartitioned)
       case "JavaBlockMatrix" =>
         val name = identifier(it)
         env.irMap(name).asInstanceOf[BlockMatrixIR]
