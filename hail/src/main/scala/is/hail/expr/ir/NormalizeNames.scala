@@ -58,6 +58,10 @@ class NormalizeNames {
       case AggExplode(a, name, aggBody) =>
         val newName = gen()
         AggExplode(normalize(a, aggEnv.get, None), newName, normalize(aggBody, env, Some(aggEnv.get.bind(name, newName))))
+      case AggFilter(cond, aggIR) =>
+        AggFilter(normalize(cond, aggEnv.get, None), normalize(aggIR))
+      case AggGroupBy(key, aggIR) =>
+        AggGroupBy(normalize(key, aggEnv.get, None), normalize(aggIR))
       case AggArrayPerElement(a, name, aggBody) =>
         val newName = gen()
         AggArrayPerElement(normalize(a, aggEnv.get, None), newName, normalize(aggBody, env, Some(aggEnv.get.bind(name, newName))))

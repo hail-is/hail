@@ -22,7 +22,6 @@ object Compile {
     body: IR,
     nSpecialArgs: Int
   ): (PType, Int => F) = {
-
     val normalizeNames = new NormalizeNames
     val normalizedBody = normalizeNames(body,
       Env(args.map { case (n, _, _) => n -> n }: _*))
