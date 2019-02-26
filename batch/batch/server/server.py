@@ -90,10 +90,10 @@ class JobTask:  # pylint: disable=R0903
             return JobTask(job_id, task_name, spec)
         return None
 
-    def __init__(self, job, name, pod_spec):
+    def __init__(self, job_id, name, pod_spec):
         assert pod_spec is not None
 
-        metadata = kube.client.V1ObjectMeta(generate_name='job-{}-{}-'.format(job.id, name),
+        metadata = kube.client.V1ObjectMeta(generate_name='job-{}-{}-'.format(job_id, name),
                                             labels={
                                                 'app': 'batch-job',
                                                 'hail.is/batch-instance': instance_id,
@@ -181,9 +181,9 @@ class Job:
         self.exit_code = None
         self._state = 'Created'
 
-        self._tasks = [JobTask.copy_task(self, 'input', input_files),
-                       JobTask(self, 'main', pod_spec),
-                       JobTask.copy_task(self, 'output', output_files)]
+        self._tasks = [JobTask.copy_task(self.id, 'input', input_files),
+                       JobTask(self.id, 'main', pod_spec),
+                       JobTask.copy_task(self.id, 'output', output_files)]
 
         self._tasks = [t for t in self._tasks if t is not None]
         self._task_idx = -1
