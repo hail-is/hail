@@ -398,7 +398,12 @@ def auth0_callback():
         'picture': userinfo['picture'],
     }
 
-    return redirect(session.get('referrer', '/'))
+    if 'referrer' in session:
+        referrer = session['referrer']
+        del session['referrer']
+        return redirect(referrer)
+
+    return redirect('/')
 
 
 @app.route('/login', methods=['GET'])
