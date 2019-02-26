@@ -210,6 +210,7 @@ def root():
 
 
 @app.route('/new', methods=['GET'])
+@requires_auth()
 def new_get():
     pod_name = session.get('pod_name')
     svc_name = session.get('svc_name')
