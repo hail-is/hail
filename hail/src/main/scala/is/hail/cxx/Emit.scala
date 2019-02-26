@@ -12,7 +12,11 @@ import scala.collection.mutable
 object Emit {
   def apply(fb: FunctionBuilder, nSpecialArgs: Int, x: ir.IR): EmitTriplet = {
     val emitter = new Emitter(fb, nSpecialArgs)
-    emitter.emit(EmitRegion(fb, fb.getArg(0)), x, ir.Env.empty[EmitTriplet])
+    emitter.emit(x, ir.Env.empty[EmitTriplet])
+  }
+  def apply(fb: FunctionBuilder, nSpecialArgs: Int, x: ir.IR, ctx: EmitContext): EmitTriplet = {
+    val emitter = new Emitter(fb, nSpecialArgs, ctx)
+    emitter.emit(x, ir.Env.empty[EmitTriplet])
   }
 }
 
@@ -163,12 +167,15 @@ class Orderings {
   }
 }
 
-class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
+class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, _ctx: EmitContext = null) {
   outer =>
   type E = ir.Env[EmitTriplet]
 
-  def up: Variable = fb.getArg(1)
-  def jHadoopConfiguration: Variable = fb.getArg(2)
+  val emitContext: EmitContext = if (_ctx == null)
+    EmitContext(null, null, EmitRegion(fb, fb.getArg(0))) else _ctx
+
+  def up: Variable = emitContext.up
+  def jHadoopConfiguration: Variable = emitContext.jhadoopConfig
   def emit(resultRegion: EmitRegion, x: ir.IR, env: E): EmitTriplet = {
     def triplet(setup: Code, m: Code, v: Code): EmitTriplet =
       EmitTriplet(x.pType, setup, m, v, resultRegion)
@@ -612,6 +619,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
         throw new CXXUnsupportedOperation(ir.Pretty(x))
     }
   }
+  def emit(x: ir.IR, env: E): EmitTriplet = emit(emitContext.baseResultRegion, x, env)
 
   def emitArray(resultRegion: EmitRegion, x: ir.IR, env: E, sameRegion: Boolean): ArrayEmitter = {
 
@@ -792,7 +800,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
         }
 
       case x@ir.ReadPartition(pathIR, spec, encodedType, _) =>
-        assert(nSpecialArgs > 2)
+        assert(jHadoopConfiguration != null && up != null)
         val arrayRegion = EmitRegion.from(resultRegion, sameRegion)
         arrayRegion.use()
         val decClass = spec.buildNativeDecoderClass(encodedType.physicalType, x.pType, fb.translationUnitBuilder())

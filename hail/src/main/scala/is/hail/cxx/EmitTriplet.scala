@@ -81,6 +81,8 @@ class EmitRegion private (val fb: FunctionBuilder, val region: Variable, val poo
   def newRegion(): EmitRegion = new EmitRegion(fb, fb.variable("region", "RegionPtr", s"$pool->get_region()"), pool)
 }
 
+case class EmitContext(up: Variable, jhadoopConfig: Variable, baseResultRegion: EmitRegion)
+
 abstract class ArrayEmitter(val setup: Code, val m: Code, val setupLen: Code, val length: Option[Code], val arrayRegion: EmitRegion) {
   def emit(f: (Code, Code) => Code): Code
 }

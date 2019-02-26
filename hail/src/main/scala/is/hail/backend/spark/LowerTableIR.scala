@@ -90,7 +90,7 @@ case class SparkStage(
     tub.include("<cstring>")
     val ef = tub.buildFunction("process_partition", Array("RegionPtr" -> "region", "UpcallEnv" -> "up", "jobject" -> "jhadoop_conf", "const char *" -> "bindings", "const char *" -> "contexts"), "const char *")
 
-    val et = cxx.Emit(ef, 3, resultIR)
+    val et = cxx.Emit(ef, 3, resultIR, cxx.EmitContext(ef.getArg(1), ef.getArg(2), cxx.EmitRegion(ef, ef.getArg(0))))
     ef +=
       s"""
          |${ et.setup }
