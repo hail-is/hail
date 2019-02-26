@@ -223,7 +223,7 @@ def new_get():
         delete_worker_pod(pod_name, svc_name)
         del session['pod_name']
 
-    if svc_name not None:
+    if svc_name is not None:
         del session['svc_name']
 
     return redirect(external_url_for('/notebook'))
