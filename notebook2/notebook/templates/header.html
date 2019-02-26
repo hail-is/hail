@@ -1,4 +1,4 @@
-<span id="header">
+<div id="header">
   <a class="home link-button" href="/">
     <b>/</b>
   </a>
@@ -7,8 +7,9 @@
     Notebook
   </a>
 
-<span id="profile-divider" />
-   {% if user in session %}
+  <div id="profile-divider"></div>
+
+  {% if user in session %}
       <a class='link-button'  href="/user">
         <b>{auth.user!.given_name}</b>
       </a>
@@ -20,4 +21,4 @@
       Login
     </a>
   {% endif %}
-</span>
+</div>
