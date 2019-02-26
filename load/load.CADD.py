@@ -11,10 +11,10 @@ parser.add_argument('-b', required=True, choices=['GRCh37', 'GRCh38'], help='Ens
 args = parser.parse_args()
 
 name = 'CADD'
-version = args.v
+version = f'v{args.v}'
 build = args.b
 
-ht = hl.import_table(f'{raw_data_root}/CADD_v{version}_{build}.tsv.bgz',
+ht = hl.import_table(f'{raw_data_root}/CADD_{version}_{build}.tsv.bgz',
                      types={'position': hl.tint,
                             'raw_score': hl.tfloat,
                             'PHRED_score': hl.tfloat})
