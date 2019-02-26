@@ -1,7 +1,7 @@
 """
 A Jupyter notebook service with local-mode Hail pre-installed
 """
-# TODO: Figure out why 'strict' policy doesn't work with authlib.flask.client.OAuth
+# TODO: Figure out why 'strict' policy doesn't appear to work with authlib.flask.client.OAuth
 import gevent
 # must happen before anytyhing else
 from gevent import monkey; monkey.patch_all()
@@ -64,7 +64,10 @@ def read_string(f):
 
 KUBERNETES_TIMEOUT_IN_SECONDS = float(os.environ.get('KUBERNETES_TIMEOUT_IN_SECONDS', 5.0))
 
-AUTHORIZED_USERS =  dict((email, True) for email in read_string('/notebook-secrets/authorized-users').split(','))
+AUTHORIZED_USERS = read_string('/notebook-secrets/authorized-users').split(',')
+AUTHORIZED_USERS = dict((email, True) for email in AUTHORIZED_USERS)
+
+SECRET_KEY = read_string('/notebook-secrets/secret-key')
 NOTEBOOK_DEBUG =  os.environ.get("NOTEBOOK_DEBUG")
 PASSWORD = read_string('/notebook-secrets/password')
 ADMIN_PASSWORD = read_string('/notebook-secrets/admin-password')
@@ -72,8 +75,7 @@ INSTANCE_ID = uuid.uuid4().hex
 
 app.config.update(
     TESTING = NOTEBOOK_DEBUG,
-    SECRET_KEY = read_string('/notebook-secrets/secret-key'),
-    # authlib / oauth doesn't work with 'strict'
+    SECRET_KEY = SECRET_KEY,
     SESSION_COOKIE_SAMESITE = 'lax',
     SESSION_COOKIE_HTTPONLY = True,
     SESSION_COOKIE_SECURE = not NOTEBOOK_DEBUG,
@@ -211,6 +213,7 @@ def new_get():
     session.clear()
     return redirect(external_url_for('/'))
 
+
 @app.route('/new', methods=['POST'])
 def new_post():
     log.info('new received')
@@ -225,9 +228,11 @@ def new_post():
     session['jupyter_token'] = jupyter_token
     return redirect(external_url_for(f'wait'))
 
+
 @app.route('/wait', methods=['GET'])
 def wait_webpage():
     return render_template('wait.html')
+
 
 @app.route('/auth/<requested_svc_name>')
 def auth(requested_svc_name):
@@ -356,6 +361,7 @@ def wait_websocket(ws):
     ws.send(external_url_for(f'instance/{svc_name}/?token={jupyter_token}'))
     log.info(f'notification sent to user for {svc_name} {pod_name}')
 
+
 @app.route('/auth0-callback')
 def auth0_callback():
     auth0.authorize_access_token()
@@ -366,7 +372,7 @@ def auth0_callback():
     workshop_password = session['workshop_password']
 
     if AUTHORIZED_USERS.get(email) is None and workshop_password != PASSWORD:
-        return '', 401
+        return redirect(flask.url_for('login_page', unauthorized = True))
 
     session['jwt_payload'] = userinfo
     session['user'] = {
@@ -380,7 +386,7 @@ def auth0_callback():
 
 @app.route('/login', methods=['GET'])
 def login_page():
-    return render_template('login.html')
+    return render_template('login.html', unauthorized = request.args.get('unauthorized'))
 
 
 @app.route('/login', methods=['POST'])
