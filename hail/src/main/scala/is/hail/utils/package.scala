@@ -3,6 +3,8 @@ package is.hail
 import java.io._
 import java.lang.reflect.Method
 import java.net.{URI, URLClassLoader}
+import java.text.SimpleDateFormat
+import java.util.{Calendar, Date}
 import java.util.zip.Inflater
 
 import is.hail.check.Gen
@@ -711,6 +713,18 @@ package object utils extends Logging
     val parent = cl.getParent
     if (parent != null)
       dumpClassLoader(parent)
+  }
+
+  def writeNativeFileReadMe(path: String): Unit = {
+    val hc = HailContext.get
+    val dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss")
+
+    hc.hadoopConf.writeTextFile(path + "/README.txt") { out =>
+      out.write(
+        s"""This folder comprises a Hail (www.hail.is) native Table or MatrixTable.
+           |  Written with version ${ hc.version }
+           |  Created at ${ dateFormat.format(new Date()) }""".stripMargin)
+    }
   }
 }
 
