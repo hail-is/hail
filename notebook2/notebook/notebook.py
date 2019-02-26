@@ -64,6 +64,7 @@ def read_string(f):
 
 KUBERNETES_TIMEOUT_IN_SECONDS = float(os.environ.get('KUBERNETES_TIMEOUT_IN_SECONDS', 5.0))
 
+AUTHORIZED_USERS =  dict((email, True) for email in read_string('/notebook-secrets/authorized-users').split(','))
 NOTEBOOK_DEBUG =  os.environ.get("NOTEBOOK_DEBUG")
 PASSWORD = read_string('/notebook-secrets/password')
 ADMIN_PASSWORD = read_string('/notebook-secrets/admin-password')
@@ -89,7 +90,7 @@ auth0 = oauth.register(
     access_token_url = f'{AUTH0_BASE_URL}/oauth/token',
     authorize_url = f'{AUTH0_BASE_URL}/authorize',
     client_kwargs = {
-        'scope': 'openid profile',
+        'scope': 'openid email profile',
     },
 )
 
@@ -355,22 +356,25 @@ def wait_websocket(ws):
     ws.send(external_url_for(f'instance/{svc_name}/?token={jupyter_token}'))
     log.info(f'notification sent to user for {svc_name} {pod_name}')
 
-# Auth0 login/registration callback
 @app.route('/auth0-callback')
 def auth0_callback():
-    print("IN CALLBACK")
-    # Handles response from token endpoint
     auth0.authorize_access_token()
-    resp = auth0.get('userinfo')
-    userinfo = resp.json()
 
-    # Store the user information in flask session.
+    userinfo = auth0.get('userinfo').json()
+
+    email = userinfo.get('email')
+    workshop_password = session['workshop_password']
+
+    if AUTHORIZED_USERS.get(email) is None and workshop_password != PASSWORD:
+        return '', 401
+
     session['jwt_payload'] = userinfo
     session['user'] = {
         'user_id': userinfo['sub'],
         'name': userinfo['name'],
         'picture': userinfo['picture'],
     }
+
     return redirect('/')
 
 
@@ -383,8 +387,8 @@ def login_page():
 def login_auth0():
     # FIXME ?: Could be placed outside route
     external_url = flask.url_for('auth0_callback', _external = True)
-    password = request.form.get('workshop-password')
-    
+    session['workshop_password'] = request.form.get('workshop-password')
+
     return auth0.authorize_redirect(redirect_uri = external_url, audience = f'{AUTH0_BASE_URL}/userinfo', prompt = 'login')
 
 
