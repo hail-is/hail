@@ -1,6 +1,8 @@
-<html lang="en" class="{{ 'dark' if session['dark'] }}">
+<!DOCTYPE html>
+<html lang="en" {{ 'class=dark' if session['dark'] }}>
     <head>
-        <title>Hail Notebooks</title>
+        <title>Hail Login</title>
+        <link href="https://fonts.googleapis.com/css?family=Open+Sans" rel="stylesheet"/>
         <link rel="stylesheet" type="text/css" href="/static/css/main.css">
         <link rel="stylesheet" type="text/css" href="/static/css/components/header.css">
         <link rel="stylesheet" type="text/css" href="/static/css/pages/login.css">
