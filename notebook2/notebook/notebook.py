@@ -195,11 +195,16 @@ def healthcheck():
     return '', 200
 
 @app.route('/')
-@requires_auth()
 def root():
+    return render_template('index.html')
+
+
+@app.route('/notebook')
+@requires_auth()
+def notebook():
     if 'svc_name' not in session:
         log.info(f'no svc_name found in session {session.keys()}')
-        return render_template('index.html',
+        return render_template('notebook.html',
                                form_action_url=external_url_for('new'),
                                images=list(WORKER_IMAGES),
                                default='hail')
@@ -216,7 +221,7 @@ def new_get():
     if pod_name:
         delete_worker_pod(pod_name, svc_name)
     session.clear()
-    return redirect(external_url_for('/'))
+    return redirect(external_url_for('/notebook'))
 
 
 @app.route('/new', methods=['POST'])

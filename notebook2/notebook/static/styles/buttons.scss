@@ -22,7 +22,8 @@
   }
 
   .link-button,
-  button {
+  button,
+  input[type="submit"] {
     cursor: pointer;
     color: $black;
     &:focus,
