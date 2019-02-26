@@ -58,8 +58,8 @@ class SimplifySuite extends SparkSuite {
 
   @Test def testBlockMatrixRewriteRules() {
     val bmir = ValueToBlockMatrix(MakeArray(IndexedSeq(F64(1), F64(2), F64(3), F64(4)), TArray(TFloat64())),
-      IndexedSeq(2, 2), 10, IndexedSeq(false, false))
-    val identityBroadcast = BlockMatrixBroadcast(bmir, IndexedSeq(0, 1), IndexedSeq(2, 2), 10, IndexedSeq(false, false))
+      IndexedSeq(2, 2), 10)
+    val identityBroadcast = BlockMatrixBroadcast(bmir, IndexedSeq(0, 1), IndexedSeq(2, 2), 10)
 
     assert(Simplify(identityBroadcast) == bmir)
   }

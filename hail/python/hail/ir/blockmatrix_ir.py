@@ -78,22 +78,19 @@ class BlockMatrixBroadcast(BlockMatrixIR):
     @typecheck_method(child=BlockMatrixIR,
                       in_index_expr=sequenceof(int),
                       shape=sequenceof(int),
-                      block_size=int,
-                      dims_partitioned=sequenceof(bool))
-    def __init__(self, child, in_index_expr, shape, block_size, dims_partitioned):
+                      block_size=int)
+    def __init__(self, child, in_index_expr, shape, block_size):
         super().__init__()
         self.child = child
         self.in_index_expr = in_index_expr
         self.shape = shape
         self.block_size = block_size
-        self.dims_partitioned = dims_partitioned
 
     def render(self, r):
-        return '(BlockMatrixBroadcast {} {} {} {} {})'\
+        return '(BlockMatrixBroadcast {} {} {} {})'\
             .format(_serialize_list(self.in_index_expr),
                     _serialize_list(self.shape),
                     self.block_size,
-                    _serialize_list(self.dims_partitioned),
                     r(self.child))
 
     def _compute_type(self):
@@ -103,23 +100,20 @@ class BlockMatrixBroadcast(BlockMatrixIR):
                                   tensor_shape,
                                   is_row_vector,
                                   self.block_size,
-                                  self.dims_partitioned)
+                                  [True for _ in tensor_shape])
 
 
 class BlockMatrixAgg(BlockMatrixIR):
     @typecheck_method(child=BlockMatrixIR,
-                      out_index_expr=sequenceof(int),
-                      dims_partitioned=sequenceof(bool))
-    def __init__(self, child, out_index_expr, dims_partitioned):
+                      out_index_expr=sequenceof(int))
+    def __init__(self, child, out_index_expr):
         super().__init__()
         self.child = child
         self.out_index_expr = out_index_expr
-        self.dims_partitioned = dims_partitioned
 
     def render(self, r):
-        return '(BlockMatrixAgg {} {} {})' \
+        return '(BlockMatrixAgg {} {})' \
             .format(_serialize_list(self.out_index_expr),
-                    _serialize_list(self.dims_partitioned),
                     r(self.child))
 
     def _compute_type(self):
@@ -130,26 +124,23 @@ class BlockMatrixAgg(BlockMatrixIR):
                                   shape,
                                   is_row_vector,
                                   self.child.typ.block_size,
-                                  self.dims_partitioned)
+                                  [True for _ in shape])
 
 
 class ValueToBlockMatrix(BlockMatrixIR):
     @typecheck_method(child=IR,
                       shape=sequenceof(int),
-                      block_size=int,
-                      dims_partitioned=sequenceof(bool))
-    def __init__(self, child, shape, block_size, dims_partitioned):
+                      block_size=int)
+    def __init__(self, child, shape, block_size):
         super().__init__()
         self.child = child
         self.shape = shape
         self.block_size = block_size
-        self.dims_partitioned = dims_partitioned
 
     def render(self, r):
-        return '(ValueToBlockMatrix {} {} {} {})'.format(_serialize_list(self.shape),
-                                                         self.block_size,
-                                                         _serialize_list(self.dims_partitioned),
-                                                         r(self.child))
+        return '(ValueToBlockMatrix {} {} {})'.format(_serialize_list(self.shape),
+                                                      self.block_size,
+                                                      r(self.child))
 
     def _compute_type(self):
         child_type = self.child.typ
@@ -164,29 +155,26 @@ class ValueToBlockMatrix(BlockMatrixIR):
                                   tensor_shape,
                                   is_row_vector,
                                   self.block_size,
-                                  self.dims_partitioned)
+                                  [True for _ in tensor_shape])
 
 
 class BlockMatrixRandom(BlockMatrixIR):
     @typecheck_method(seed=int,
                       gaussian=bool,
                       shape=sequenceof(int),
-                      block_size=int,
-                      dims_partitioned=sequenceof(bool))
-    def __init__(self, seed, gaussian, shape, block_size, dims_partitioned):
+                      block_size=int)
+    def __init__(self, seed, gaussian, shape, block_size):
         super().__init__()
         self.seed = seed
         self.gaussian = gaussian
         self.shape = shape
         self.block_size = block_size
-        self.dims_partitioned = dims_partitioned
 
     def render(self, r):
-        return '(BlockMatrixRandom {} {} {} {} {})'.format(self.seed,
-                                                           self.gaussian,
-                                                           _serialize_list(self.shape),
-                                                           self.block_size,
-                                                           _serialize_list(self.dims_partitioned))
+        return '(BlockMatrixRandom {} {} {} {})'.format(self.seed,
+                                                        self.gaussian,
+                                                        _serialize_list(self.shape),
+                                                        self.block_size)
 
     def _compute_type(self):
         assert len(self.shape) == 2
@@ -196,7 +184,7 @@ class BlockMatrixRandom(BlockMatrixIR):
                                   tensor_shape,
                                   is_row_vector,
                                   self.block_size,
-                                  self.dims_partitioned)
+                                  [True for _ in tensor_shape])
 
 
 class JavaBlockMatrix(BlockMatrixIR):
