@@ -349,20 +349,22 @@ def wait_websocket(ws):
 
 @app.route('/auth0-callback')
 def auth0_callback():
+    # https://github.com/auth0-samples/auth0-python-web-app/commit/d048d6497caa714c52e8411a5f37500787e37305
     auth0.authorize_access_token()
 
     userinfo = auth0.get('userinfo').json()
 
-    email = userinfo.get('email')
+    email = userinfo['email']
     workshop_password = session['workshop_password']
+    del session['workshop_password']
 
     if AUTHORIZED_USERS.get(email) is None and workshop_password != PASSWORD:
         return redirect(flask.url_for('login_page', unauthorized = True))
 
-    session['jwt_payload'] = userinfo
     session['user'] = {
         'user_id': userinfo['sub'],
         'name': userinfo['name'],
+        'email': email,
         'picture': userinfo['picture'],
     }
 
