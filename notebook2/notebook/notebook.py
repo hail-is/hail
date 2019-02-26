@@ -171,17 +171,6 @@ def external_url_for(path):
     return url + path
 
 
-def requires_auth(f):
-  @wraps(f)
-  def decorated(*args, **kwargs):
-    if 'profile' not in session:
-      # Redirect to Login page here
-      return redirect('/')
-    return f(*args, **kwargs)
-
-  return decorated
-
-
 @app.route('/healthcheck')
 def healthcheck():
     return '', 200
