@@ -1,6 +1,5 @@
 package is.hail.expr.ir
 
-import is.hail.expr.types._
 import is.hail.expr.types.virtual._
 import is.hail.utils._
 
@@ -9,27 +8,113 @@ object TypeCheck {
     apply(ir, new Env[Type](), aggEnv)
   }
 
+  def apply(ir: BaseIR): Unit = {
+    ir match {
+      case mir: MatrixIR => checkMatrix(mir)
+      case tir: TableIR => checkTable(tir)
+      case vir: IR => checkValue(vir, empty, None)
+      case bmir: BlockMatrixIR => checkBlockMatrix(bmir)
+    }
+  }
+
   def apply(ir: IR, env: Env[Type], aggEnv: Option[Env[Type]]): Unit = {
     try {
-      _apply(ir, env, aggEnv)
+      checkValue(ir, env, aggEnv)
     } catch {
       case e: Throwable => fatal(s"Error while typechecking IR:\n${ Pretty(ir) }", e)
     }
   }
 
-  private def _apply(ir: IR, env: Env[Type], aggEnv: Option[Env[Type]]) {
+  private val empty = Env.empty[Type]
+
+  private def checkBlockMatrix(ir: BlockMatrixIR): Unit = {
+    // TODO: fill in when BM is more stable
+  }
+
+  private def checkTable(ir: TableIR): Unit = {
+    ir match {
+      case TableAggregateByKey(child, expr) =>
+        checkTable(child)
+        checkValue(expr, child.typ.globalEnv, Some(child.typ.rowEnv))
+      case TableMapGlobals(child, newGlobals) =>
+        checkTable(child)
+        checkValue(newGlobals, child.typ.globalEnv, None)
+      case TableFilter(child, pred) =>
+        checkTable(child)
+        checkValue(pred, child.typ.rowEnv, None)
+      case TableMapRows(child, newRow) =>
+        checkTable(child)
+        checkValue(newRow, child.typ.rowEnv, None)
+      case TableKeyByAndAggregate(child, expr, newKey, _, _) =>
+        checkTable(child)
+        checkValue(newKey, child.typ.rowEnv, None)
+        checkValue(expr, child.typ.globalEnv, Some(child.typ.rowEnv))
+      case TableParallelize(rowsAndGlobal, _) =>
+        checkValue(rowsAndGlobal, empty, None)
+      case _ =>
+        ir.children.foreach {
+          case tir: TableIR => checkTable(tir)
+          case mir: MatrixIR => checkMatrix(mir)
+          case bmir: BlockMatrixIR => checkBlockMatrix(bmir)
+          case _: IR => throw new RuntimeException(s"no TypeCheck rule found for IR child of node ${ ir.getClass.getName }")
+        }
+    }
+  }
+
+  private def checkMatrix(ir: MatrixIR): Unit = {
+    ir match {
+      case MatrixMapGlobals(child, newGlobals) =>
+        checkMatrix(child)
+        checkValue(newGlobals, child.typ.globalEnv, None)
+      case MatrixMapCols(child, newCol, _) =>
+        checkMatrix(child)
+        checkValue(newCol, child.typ.colEnv, Some(child.typ.entryEnv))
+      case MatrixMapRows(child, newRow) =>
+        checkMatrix(child)
+        checkValue(newRow, child.typ.rowEnv, Some(child.typ.entryEnv))
+      case MatrixMapEntries(child, newEntries) =>
+        checkMatrix(child)
+        checkValue(newEntries, child.typ.entryEnv, None)
+      case MatrixFilterCols(child, pred) =>
+        checkMatrix(child)
+        checkValue(pred, child.typ.colEnv, Some(child.typ.entryEnv))
+      case MatrixFilterRows(child, pred) =>
+        checkMatrix(child)
+        checkValue(pred, child.typ.rowEnv, Some(child.typ.entryEnv))
+      case MatrixFilterEntries(child, pred) =>
+        checkMatrix(child)
+        checkValue(pred, child.typ.entryEnv, None)
+      case MatrixAggregateColsByKey(child, entryExpr, colExpr) =>
+        checkMatrix(child)
+        checkValue(entryExpr, child.typ.rowEnv, Some(child.typ.entryEnv))
+        checkValue(colExpr, child.typ.globalEnv, Some(child.typ.colEnv))
+      case MatrixAggregateRowsByKey(child, entryExpr, rowExpr) =>
+        checkMatrix(child)
+        checkValue(entryExpr, child.typ.colEnv, Some(child.typ.entryEnv))
+        checkValue(rowExpr, child.typ.globalEnv, Some(child.typ.rowEnv))
+      case _ =>
+        ir.children.foreach {
+          case tir: TableIR => checkTable(tir)
+          case mir: MatrixIR => checkMatrix(mir)
+          case bmir: BlockMatrixIR => checkBlockMatrix(bmir)
+          case _: IR => throw new RuntimeException(s"no TypeCheck rule found for IR child of node ${ ir.getClass.getName }")
+        }
+    }
+  }
+
+  private def checkValue(ir: IR, env: Env[Type], aggEnv: Option[Env[Type]]) {
     def check(ir: IR, env: Env[Type] = env, aggEnv: Option[Env[Type]] = aggEnv) {
-      _apply(ir, env, aggEnv)
+      checkValue(ir, env, aggEnv)
     }
 
     ir match {
-      case I32(x) =>
-      case I64(x) =>
-      case F32(x) =>
-      case F64(x) =>
+      case I32(_) =>
+      case I64(_) =>
+      case F32(_) =>
+      case F64(_) =>
       case True() =>
       case False() =>
-      case Str(x) =>
+      case Str(_) =>
       case Literal(_, _) =>
       case Void() =>
 
@@ -78,7 +163,7 @@ object TypeCheck {
           case _: Compare => assert(x.typ.isInstanceOf[TInt32])
           case _ => assert(x.typ.isInstanceOf[TBoolean])
         }
-      case x@MakeArray(args, typ) =>
+      case MakeArray(args, typ) =>
         assert(typ != null)
         args.map(_.typ).zipWithIndex.foreach { case (x, i) => assert(x == typ.elementType,
           s"at position $i type mismatch: ${ typ.parsableString() } ${ x.parsableString() }")
@@ -92,7 +177,7 @@ object TypeCheck {
       case ArrayLen(a) =>
         check(a)
         assert(a.typ.isInstanceOf[TArray])
-      case x@ArrayRange(a, b, c) =>
+      case ArrayRange(a, b, c) =>
         check(a)
         check(b)
         check(c)
@@ -107,27 +192,27 @@ object TypeCheck {
         assert(coerce[TNDArray](x.typ).elementType == coerce[TArray](data.typ).elementType)
         assert(shape.typ.isOfType(TArray(TInt64())))
         assert(row_major.typ.isOfType(TBoolean()))
-      case x@NDArrayRef(nd, idxs) =>
+      case NDArrayRef(nd, idxs) =>
         check(nd)
         check(idxs)
         assert(nd.typ.isInstanceOf[TNDArray])
         assert(idxs.typ.isOfType(TArray(TInt64())))
-      case x@ArraySort(a, l, r, compare) =>
+      case ArraySort(a, l, r, compare) =>
         check(a)
         val tarray = coerce[TArray](a.typ)
         check(compare, env = env.bind(l, -tarray.elementType).bind(r, -tarray.elementType))
         assert(compare.typ.isOfType(TBoolean()))
-      case x@ToSet(a) =>
+      case ToSet(a) =>
         check(a)
         assert(a.typ.isInstanceOf[TArray])
-      case x@ToDict(a) =>
+      case ToDict(a) =>
         check(a)
         assert(a.typ.isInstanceOf[TArray])
         assert(coerce[TBaseStruct](coerce[TArray](a.typ).elementType).size == 2)
-      case x@ToArray(a) =>
+      case ToArray(a) =>
         check(a)
         assert(a.typ.isInstanceOf[TContainer])
-      case x@LowerBoundOnOrderedCollection(orderedCollection, elem, onKey) =>
+      case LowerBoundOnOrderedCollection(orderedCollection, elem, onKey) =>
         check(orderedCollection)
         check(elem)
         val elt = -coerce[TContainer](orderedCollection.typ).elementType
@@ -143,12 +228,12 @@ object TypeCheck {
         val tarray = coerce[TArray](a.typ)
         check(body, env = env.bind(name, -tarray.elementType))
         assert(x.elementTyp == body.typ)
-      case x@ArrayFilter(a, name, cond) =>
+      case ArrayFilter(a, name, cond) =>
         check(a)
         val tarray = coerce[TArray](a.typ)
         check(cond, env = env.bind(name, -tarray.elementType))
         assert(cond.typ.isOfType(TBoolean()))
-      case x@ArrayFlatMap(a, name, body) =>
+      case ArrayFlatMap(a, name, body) =>
         check(a)
         val tarray = coerce[TArray](a.typ)
         check(body, env = env.bind(name, -tarray.elementType))
@@ -176,12 +261,12 @@ object TypeCheck {
         check(join, env = env.bind(l -> -ltyp.elementType, r -> -rtyp.elementType))
         assert(compare.typ.isOfType(TInt32()))
         assert(x.typ == TArray(join.typ))
-      case x@ArrayFor(a, valueName, body) =>
+      case ArrayFor(a, valueName, body) =>
         check(a)
         val tarray = coerce[TArray](a.typ)
         check(body, env = env.bind(valueName -> -tarray.elementType))
         assert(body.typ == TVoid)
-      case x@ArrayAgg(a, name, query) =>
+      case ArrayAgg(a, name, query) =>
         check(a)
         val tarray = coerce[TArray](a.typ)
         assert(aggEnv.isEmpty)
@@ -204,17 +289,17 @@ object TypeCheck {
         check(a, env = aggEnv.get)
         check(aggBody, env = env, aggEnv = aggEnv.map(_.bind(name -> -coerce[TArray](a.typ).elementType)))
         assert(x.typ == TArray(aggBody.typ))
-      case x@InitOp(i, args, aggSig) =>
+      case InitOp(i, args, aggSig) =>
         args.foreach(check(_))
         check(i)
-        assert(Some(args.map(_.typ)) == aggSig.initOpArgs)
+        assert(aggSig.initOpArgs.contains(args.map(_.typ)))
         assert(i.typ.isInstanceOf[TInt32])
-      case x@SeqOp(i, args, aggSig) =>
+      case SeqOp(i, args, aggSig) =>
         check(i)
         args.foreach(check(_))
         assert(args.map(_.typ) == aggSig.seqOpArgs)
         assert(i.typ.isInstanceOf[TInt32])
-      case x@Begin(xs) =>
+      case Begin(xs) =>
         xs.foreach { x =>
           check(x)
           assert(x.typ == TVoid)
@@ -227,14 +312,14 @@ object TypeCheck {
       case x@ApplyScanOp(constructorArgs, initOpArgs, seqOpArgs, aggSig) =>
         constructorArgs.foreach(check(_))
         initOpArgs.foreach(_.foreach(check(_)))
-        seqOpArgs.foreach(check(_, env = aggEnv.get))
+        seqOpArgs.foreach(check(_))
         assert(x.typ == AggOp.getType(aggSig))
       case x@MakeStruct(fields) =>
-        fields.foreach { case (name, a) => check(a) }
+        fields.foreach { case (_, a) => check(a) }
         assert(x.typ == TStruct(fields.map { case (name, a) =>
           (name, a.typ)
         }: _*))
-      case x@SelectFields(old, fields) =>
+      case SelectFields(old, fields) =>
         check(old)
         assert {
           val oldfields = coerce[TStruct](old.typ).fieldNames.toSet
@@ -253,7 +338,7 @@ object TypeCheck {
           assert(fds.toSet.forall(f => newFieldSet.contains(f) || oldFieldNameSet.contains(f)))
         }
         check(old)
-        fields.foreach { case (name, a) => check(a) }
+        fields.foreach { case (_, a) => check(a) }
       case x@GetField(o, name) =>
         check(o)
         val t = coerce[TStruct](o.typ)
@@ -277,12 +362,12 @@ object TypeCheck {
       case StringLength(s) =>
         check(s)
         assert(s.typ isOfType TString())
-      case In(i, typ) =>
+      case In(_, typ) =>
         assert(typ != null)
-      case Die(msg, typ) =>
+      case Die(msg, _) =>
         check(msg)
         assert(msg.typ isOfType TString())
-      case x@ApplyIR(fn, args) =>
+      case x@ApplyIR(_, _) =>
         check(x.explicitNode)
       case x: AbstractApplyNode[_] =>
         x.args.foreach(check(_))
@@ -291,26 +376,28 @@ object TypeCheck {
         assert(fn.typ.isInstanceOf[TFloat64])
         assert(min.typ.isInstanceOf[TFloat64])
         assert(max.typ.isInstanceOf[TFloat64])
-      case MatrixWrite(_, _) =>
-      case MatrixMultiWrite(_, _) => // do nothing
+      case MatrixWrite(child, _) => checkMatrix(child)
+      case MatrixMultiWrite(children, _) => children.foreach(checkMatrix)
       case x@TableAggregate(child, query) =>
+        checkTable(child)
         check(query,
           env = child.typ.globalEnv,
           aggEnv = Some(child.typ.rowEnv))
         assert(x.typ == query.typ)
       case x@MatrixAggregate(child, query) =>
+        checkMatrix(child)
         check(query,
           env = child.typ.globalEnv,
           aggEnv = Some(child.typ.entryEnv))
         assert(x.typ == query.typ)
-      case TableWrite(_, _, _, _, _) =>
-      case TableExport(_, _, _, _, _, _) =>
-      case TableCount(_) =>
-      case TableGetGlobals(_) =>
-      case TableCollect(_) =>
-      case TableToValueApply(_, _) =>
-      case MatrixToValueApply(_, _) =>
-      case BlockMatrixWrite(_, _, _, _, _) =>
+      case TableWrite(child, _, _, _, _) => checkTable(child)
+      case TableExport(child, _, _, _, _, _) => checkTable(child)
+      case TableCount(child) => checkTable(child)
+      case TableGetGlobals(child) => checkTable(child)
+      case TableCollect(child) => checkTable(child)
+      case TableToValueApply(child, _) => checkTable(child)
+      case MatrixToValueApply(child, _) => checkMatrix(child)
+      case BlockMatrixWrite(child, _, _, _, _) => checkBlockMatrix(child)
       case CollectDistributedArray(ctxs, globals, cname, gname, body) =>
         check(ctxs)
         assert(ctxs.typ.isInstanceOf[TArray])

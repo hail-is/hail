@@ -41,7 +41,7 @@ object Emit {
     fb: EmitFunctionBuilder[_],
     env: E,
     nSpecialArguments: Int): EmitTriplet = {
-    TypeCheck(ir)
+    TypeCheck(ir, Env.empty[Type], None)
     new Emit(fb.apply_method, nSpecialArguments).emit(ir, env)
   }
 }
