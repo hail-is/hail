@@ -4,12 +4,22 @@ import hail as hl
 from hail.matrixtable import MatrixTable
 from hail.expr import ArrayExpression, StructExpression
 from hail.expr.expressions import expr_call, expr_array, expr_int32
-from hail.ir import MatrixKeyRowsBy, TableKeyBy
+from hail.ir import TableKeyBy
 from hail.typecheck import typecheck
 
 
 def transform_one(mt: MatrixTable) -> MatrixTable:
-    """transforms a gvcf into a form suitable for combining"""
+    """transforms a gvcf into a form suitable for combining
+
+    The input to this should be some result of either :func:`.import_vcf` or
+    :func:`.import_vcfs`.  Be aware of requiredness issues surrounding `LAD` and `LPL` in the
+    output of this function and the output of :func:`.combine_gvcfs`. The output of
+    :func:`.combine_gvcfs` will have `LAD` and `LPL` elements as not-required. Without the
+    `array_elements_required` flag being set to `True` in :func:`.import_vcf` and
+    :func:`.import_vcfs`, the LAD and LPL fields' elements in the output of this function will
+    be required which will lead to a type error if the output of this function and the output
+    of :func:`.combine_gvcfs` are passed to :func:`.combine_gvcfs`.
+    """
     mt = mt.annotate_entries(
         # local (alt) allele index into global (alt) alleles
         LA=hl.range(0, hl.len(mt.alleles)),
@@ -19,6 +29,10 @@ def transform_one(mt: MatrixTable) -> MatrixTable:
         MQ=mt.info['MQ'],
         MQRankSum=mt.info['MQRankSum'],
         ReadPosRankSum=mt.info['ReadPosRankSum'],
+        LGT=mt.GT,
+        LAD=mt.AD,
+        LPL=mt.PL,
+        LPGT=mt.PGT
     )
     mt = mt.annotate_rows(
         info=mt.info.annotate(
@@ -35,12 +49,7 @@ def transform_one(mt: MatrixTable) -> MatrixTable:
             "VarDP",
             "SB_TABLE",
         ))
-    mt = mt.transmute_entries(
-        LGT=mt.GT,
-        LAD=mt.AD[0:],  # requiredness issues :'(
-        LPL=mt.PL[0:],
-        LPGT=mt.PGT)
-    mt = mt.drop('SB', 'qual', 'filters')
+    mt = mt.drop('SB', 'qual', 'filters', 'GT', 'AD', 'PL', 'PGT')
 
     return mt
 
