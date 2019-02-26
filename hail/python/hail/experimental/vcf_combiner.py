@@ -120,7 +120,6 @@ def combine_gvcfs(mts):
                           .when(locus == mr.locus, hl.struct(ref=mr.alleles[0], alt=mr.alleles[1]))
                           .or_error("locus before and after minrep differ"))
 
-    mts = [hl.MatrixTable(MatrixKeyRowsBy(mt._mir, ['locus'], is_sorted=True)) for mt in mts]
     mts = [mt.annotate_rows(
         # now minrep'ed (ref, alt) allele pairs
         alleles=hl.bind(lambda ref, locus: mt.alleles[1:].map(lambda alt: min_rep(locus, ref, alt)),
@@ -128,11 +127,7 @@ def combine_gvcfs(mts):
     ts = hl.Table._multi_way_zip_join([localize(mt) for mt in mts], 'data', 'g')
     combined = combine(ts)
     combined = combined.annotate(alleles=fix_alleles(combined.alleles))
-    return hl.MatrixTable(
-        MatrixKeyRowsBy(
-            combined._unlocalize_entries('__entries', '__cols', ['s'])._mir,
-            ['locus', 'alleles'],
-            is_sorted=True))
+    return combined._unlocalize_entries('__entries', '__cols', ['s'])
 
 
 @typecheck(lgt=expr_call, la=expr_array(expr_int32))

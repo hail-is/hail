@@ -1418,7 +1418,13 @@ def group_by(group, agg_expr) -> DictExpression:
 
 @typecheck(expr=expr_any)
 def _prev_nonnull(expr) -> ArrayExpression:
-    return _agg_func('PrevNonnull', [expr], expr.dtype, [])
+    wrap = expr.dtype in {tint32, tint64, tfloat32, tfloat64, tbool, tcall}
+    if wrap:
+        expr = hl.tuple([expr])
+    r = _agg_func('PrevNonnull', [expr], expr.dtype, [])
+    if wrap:
+        r = r[0]
+    return r
 
 @typecheck(f=func_spec(1, expr_any),
            array=expr_array())

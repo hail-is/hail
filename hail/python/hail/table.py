@@ -1182,7 +1182,7 @@ class Table(ExprContainer):
             elif isinstance(v.dtype, hl.tset):
                 s = "{" + hl.delimit(hl.map(hl_repr, hl.array(v)), ",") + "}"
             elif isinstance(v.dtype, hl.tdict):
-                s = "{" + hl.delimit(hl.map(lambda x: x[0] + ":" + hl_repr(x[1]), hl.array(v)), ",") + "}"
+                s = "{" + hl.delimit(hl.map(lambda x: hl_repr(x[0]) + ":" + hl_repr(x[1]), hl.array(v)), ",") + "}"
             elif v.dtype == hl.tstr:
                 s = hl.str('"') + hl.expr.functions._escape_string(v) + '"'
             elif isinstance(v.dtype, (hl.tstruct, hl.tarray)):

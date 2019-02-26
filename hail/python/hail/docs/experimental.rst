@@ -39,6 +39,7 @@ Genetics Methods
     import_gtf
     get_gene_intervals
     export_entries_by_col
+    sparse_split_multi
 
 
 .. autofunction:: ld_score
@@ -55,3 +56,4 @@ Genetics Methods
 .. autofunction:: import_gtf
 .. autofunction:: get_gene_intervals
 .. autofunction:: export_entries_by_col
+.. autofunction:: sparse_split_multi
