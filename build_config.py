@@ -27,7 +27,8 @@ for path in paths:
         if path.endswith('.ht'):
             dataset = hl.read_table(path)
             dataset_type = 'Table'
-            col_fields = [(None, None)]
+            entry_fields = None
+            col_fields = None
             col_key = None
             row_key = [x for x in dataset.key]
             row_fields = []
@@ -39,13 +40,19 @@ for path in paths:
         else:
             dataset = hl.read_matrix_table(path)
             dataset_type = 'MatrixTable'
+            entry_fields = []
+            for field_name in dataset.entry:
+                field_type = re.sub(r'{.*}', '', str(dataset[field_name].dtype))
+                entry_fields.append((field_name, field_type))
+                if field_type == 'struct':
+                    parse_struct_fields(dataset[field_name], field_name, entry_fields)
+            col_key = [x for x in dataset.col_key]
             col_fields = []
             for field_name in dataset.col_value:
                 field_type = re.sub(r'{.*}', '', str(dataset[field_name].dtype))
                 col_fields.append((field_name, field_type))
                 if field_type == 'struct':
                     parse_struct_fields(dataset[field_name], field_name, col_fields)
-            col_key = [x for x in dataset.col_key]
             row_key = [x for x in dataset.row_key]
             row_fields = []
             for field_name in dataset.row_value:
@@ -54,14 +61,21 @@ for path in paths:
                 if field_type == 'struct':
                     parse_struct_fields(dataset[field_name], field_name, row_fields)
 
-        global_fields = [x for x in dataset.globals]
+        global_fields = []
+        for field_name in dataset.globals:
+            field_type = re.sub(r'{.*}', '', str(dataset[field_name].dtype))
+            global_fields.append((field_name, field_type))
+            if field_type == 'struct':
+                parse_struct_fields(dataset[field_name], field_name, global_fields)
 
+        """
         stdout = sys.stdout
         schema = StringIO()
         sys.stdout = schema
         dataset.describe()
         sys.stdout = stdout
         schema = schema.getvalue()
+        """
 
         metadata = dataset['metadata'].collect()[0]
         datasets.append({
@@ -73,12 +87,13 @@ for path in paths:
             'n_rows': metadata['n_rows'],
             'n_cols': metadata['n_cols'] if 'n_cols' in metadata else None,
             'n_partitions': metadata['n_partitions'],
-            'schema': schema,
+            #'schema': schema,
             'global_fields': global_fields,
             'row_fields': row_fields,
             'row_key': row_key, 
             'col_fields': col_fields,
-            'col_key': col_key
+            'col_key': col_key,
+            'entry_fields': entry_fields
         })
 
 with hl.hadoop_open(f'{hail_data_root}/datasets.json', 'w') as f:

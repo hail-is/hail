@@ -11,7 +11,7 @@ parser.add_argument('-b', required=True, choices=['GRCh37', 'GRCh38'], help='Ens
 args = parser.parse_args()
 
 name = 'Ensembl_homo_sapiens_reference_genome'
-version = {args.v}
+version = args.v
 build = args.b
 
 ht = hl.import_table(f'{raw_data_root}/Ensembl_homo_sapiens_reference_genome_release{version}_{build}.tsv.bgz')
