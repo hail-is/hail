@@ -294,7 +294,10 @@ object Interpret {
         else {
           aValue.asInstanceOf[IndexedSeq[Any]].sortWith { (left, right) =>
             if (left != null && right != null) {
-              interpret(compare, env.bind(l, left).bind(r, right), args, agg).asInstanceOf[Boolean]
+              val res = interpret(compare, env.bind(l, left).bind(r, right), args, agg)
+              if (res == null)
+                fatal("Result of sorting function cannot be missing.")
+              res.asInstanceOf[Boolean]
             } else {
               right == null
             }

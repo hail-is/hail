@@ -1923,8 +1923,11 @@ class Tests(unittest.TestCase):
 
     def test_sort_by(self):
         self.assertEqual(hl.eval(hl._sort_by(["c", "aaa", "bb", hl.null(hl.tstr)], lambda l, r: hl.len(l) < hl.len(r))), ["c", "bb", "aaa", None])
-        self.assertEqual(hl.eval(hl._sort_by([hl.Struct(x=i, y="foo", z=5.5) for i in [5, 3, 8, 2, 5, hl.null(hl.tint32)]], lambda l, r: l.x < r.x)),
-                         [hl.Struct(x=i, y="foo", z=5.5) for i in [2, 3, 5, 5, 8, None]])
+        self.assertEqual(hl.eval(hl._sort_by([hl.Struct(x=i, y="foo", z=5.5) for i in [5, 3, 8, 2, 5]], lambda l, r: l.x < r.x)),
+                         [hl.Struct(x=i, y="foo", z=5.5) for i in [2, 3, 5, 5, 8]])
+        with self.assertRaises(hl.utils.java.FatalError):
+            self.assertEqual(hl.eval(hl._sort_by([hl.Struct(x=i, y="foo", z=5.5) for i in [5, 3, 8, 2, 5, hl.null(hl.tint32)]], lambda l, r: l.x < r.x)),
+                             [hl.Struct(x=i, y="foo", z=5.5) for i in [2, 3, 5, 5, 8, None]])
 
     def test_bool_r_ops(self):
         self.assertTrue(hl.eval(hl.literal(True) & True))
