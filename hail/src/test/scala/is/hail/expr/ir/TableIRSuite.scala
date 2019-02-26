@@ -67,7 +67,7 @@ class TableIRSuite extends SparkSuite {
     assertEvalsTo(TableCollect(node), Row(expected, Row(collectedT)))
   }
 
-  @Test def testTableReadWrite() {
+  @Test def testTableWriteRead() {
     val tmpFile = tmpDir.createTempFile("table", "t")
     val t1 = TableMapGlobals(TableRange(10, 2), MakeStruct(FastSeq("a" -> 0, "b" -> Str("foo"))))
     Interpret(TableWrite(t1, tmpFile))

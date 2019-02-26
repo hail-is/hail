@@ -105,7 +105,7 @@ object Compile {
     tub.include("<cstring>")
 
     val fb = tub.buildFunction("f",
-      Array("Region *" -> "region", "UpcallEnv" -> "up", "jobject" -> "conf", "const char *" -> "v"),
+      Array("RegionPtr" -> "region", "UpcallEnv" -> "up", "jobject" -> "conf", "const char *" -> "v"),
       "char *")
 
     val v = Emit(fb, 3, ir.Subst(body, ir.Env(arg0 -> ir.In(0, arg0Type.virtualType))))
@@ -127,7 +127,7 @@ object Compile {
            |long entrypoint(NativeStatus *st, long region, long conf, long v) {
            |  try {
            |    UpcallEnv up;
-           |    return (long)${ f.name }(((ScalaRegion *)region)->get_wrapped_region(), up, ((ObjectArray *) conf)->at(0), (char *)v);
+           |    return (long)${ f.name }(((ScalaRegion *)region)->region_, up, ((ObjectArray *) conf)->at(0), (char *)v);
            |  } catch (const FatalError& e) {
            |    NATIVE_ERROR(st, 1005, e.what());
            |    return -1;

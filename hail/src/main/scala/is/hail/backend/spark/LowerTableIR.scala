@@ -202,7 +202,7 @@ object LowerTableIR {
   def lower(sc: SparkContext, tir: TableIR): SparkStage = tir match {
     case TableRead(typ, dropRows, reader) =>
       reader match {
-        case r@TableNativeReader(path) =>
+        case r@TableNativeReader(path, _) =>
 
           val pathField = genUID()
           val contextType = TStruct(pathField -> TString())
