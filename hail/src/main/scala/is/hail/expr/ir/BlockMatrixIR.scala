@@ -191,7 +191,7 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, f: IR) ext
     }
   }
 
-  def coerceToScalar(hc: HailContext, ir: BlockMatrixIR): Double = {
+  private def coerceToScalar(hc: HailContext, ir: BlockMatrixIR): Double = {
     ir match {
       case ValueToBlockMatrix(child, _, _, _) =>
         Interpret[Any](child) match {
