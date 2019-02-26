@@ -211,6 +211,12 @@ object Pretty {
               prettyLongs(shape) + " " +
               blockSize.toString + " " +
               prettyBooleans(dimsPartitioned)
+            case BlockMatrixRandom(seed, gaussian, shape, blockSize, dimsPartitioned) =>
+              seed.toString + " " +
+              prettyBooleanLiteral(gaussian) + " " +
+              prettyLongs(shape) + " " +
+              blockSize.toString + " " +
+              prettyBooleans(dimsPartitioned)
             case MatrixRowsHead(_, n) => n.toString
             case MatrixAnnotateRowsTable(_, _, uid) =>
               prettyStringLiteral(uid) + " "

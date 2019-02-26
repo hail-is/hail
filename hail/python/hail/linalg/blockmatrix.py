@@ -6,8 +6,8 @@ import hail as hl
 import hail.expr.aggregators as agg
 from hail.expr import construct_expr
 from hail.ir import BlockMatrixWrite, BlockMatrixMap2, ApplyBinaryOp, Ref, F64, \
-    BlockMatrixBroadcast, ValueToBlockMatrix, MakeArray, BlockMatrixRead, JavaBlockMatrix, BlockMatrixMap,\
-    ApplyUnaryOp, IR, BlockMatrixDot, tensor_shape_to_matrix_shape, BlockMatrixAgg
+    BlockMatrixBroadcast, ValueToBlockMatrix, MakeArray, BlockMatrixRead, JavaBlockMatrix, BlockMatrixMap, \
+    ApplyUnaryOp, IR, BlockMatrixDot, tensor_shape_to_matrix_shape, BlockMatrixAgg, BlockMatrixRandom
 from hail.utils import new_temp_file, new_local_temp_file, local_path_uri, storage_level
 from hail.utils.java import Env, jarray, joption
 from hail.typecheck import *
@@ -442,9 +442,8 @@ class BlockMatrix(object):
         if not block_size:
             block_size = BlockMatrix.default_block_size()
 
-        rand = hl.rand_norm() if gaussian else hl.rand_unif(0, 1)
-        seed_bmir = BlockMatrixBroadcast(_to_bmir(seed, block_size), [], [n_rows, n_cols], block_size, [True, True])
-        return BlockMatrix(BlockMatrixMap(seed_bmir, rand._ir))
+        rand = BlockMatrixRandom(seed, gaussian, [n_rows, n_cols], block_size, [True])
+        return BlockMatrix(rand)
 
     @classmethod
     @typecheck_method(n_rows=int,
