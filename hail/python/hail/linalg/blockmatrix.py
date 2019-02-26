@@ -1405,18 +1405,18 @@ class BlockMatrix(object):
         return self._apply_map(self._unary_func_ir(hl.log))
 
     def diagonal(self):
-        """Extracts diagonal elements as ndarray.
+        """Extracts diagonal elements as a row vector.
 
         Returns
         -------
-        :class:`numpy.ndarray`
+        :class:`.BlockMatrix`
         """
         diag_bmir = BlockMatrixBroadcast(self._bmir,
                                          [0, 0],
                                          [1, min(self.n_rows, self.n_cols)],
                                          self.block_size,
                                          [True])
-        return BlockMatrix(diag_bmir).to_numpy()
+        return BlockMatrix(diag_bmir)
 
     @typecheck_method(axis=nullable(int))
     def sum(self, axis=None):
