@@ -418,6 +418,20 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     lo.queryInterval(interval, minMatch)
   }
 
+  override def hashCode: Int = {
+    import org.apache.commons.lang.builder.HashCodeBuilder
+
+    val b = new HashCodeBuilder()
+      .append(name)
+      .append(contigs)
+      .append(lengths)
+      .append(xContigs)
+      .append(yContigs)
+      .append(mtContigs)
+      .append(par)
+    b.toHashCode
+  }
+
   override def equals(other: Any): Boolean = {
     other match {
       case rg: ReferenceGenome =>

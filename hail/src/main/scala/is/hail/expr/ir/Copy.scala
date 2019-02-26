@@ -157,8 +157,10 @@ object Copy {
       case Die(_, typ) =>
         val IndexedSeq(s: IR) = newChildren
         Die(s, typ)
-      case ApplyIR(fn, args, conversion) =>
-        ApplyIR(fn, newChildren.map(_.asInstanceOf[IR]), conversion)
+      case x@ApplyIR(fn, args) =>
+        val r = ApplyIR(fn, newChildren.map(_.asInstanceOf[IR]))
+        r.conversion = x.conversion
+        r
       case Apply(fn, args) =>
         Apply(fn, newChildren.map(_.asInstanceOf[IR]))
       case ApplySeeded(fn, args, seed) =>

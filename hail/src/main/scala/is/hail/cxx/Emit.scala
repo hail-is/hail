@@ -597,7 +597,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
                  |""".stripMargin)
         }
 
-      case x@ir.ApplyIR(_, _, _) =>
+      case x@ir.ApplyIR(_, _) =>
         // FIXME small only
         emit(x.explicitNode)
 

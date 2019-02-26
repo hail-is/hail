@@ -1075,7 +1075,7 @@ private class Emit(
               cm.m.mux[String](
                 "<exception message missing>",
                 coerce[String](StringFunctions.wrapArg(mb, m.typ)(cm.v)))))))
-      case ir@ApplyIR(fn, args, conversion) =>
+      case ir@ApplyIR(fn, args) =>
         if (ir.explicitNode.size < 10)
           emit(ir.explicitNode)
         else {
