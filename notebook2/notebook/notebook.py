@@ -12,6 +12,7 @@ import flask
 import sass
 from authlib.flask.client import OAuth
 from urllib.parse import urlencode
+from functools import wraps
 
 import kubernetes as kube
 
@@ -88,6 +89,7 @@ auth0 = oauth.register(
     access_token_url = f'{AUTH0_BASE_URL}/oauth/token',
     authorize_url = f'{AUTH0_BASE_URL}/authorize',
     client_kwargs = {
+        'response_type': 'code',
         'scope': 'openid email profile',
     },
 )
@@ -104,6 +106,24 @@ except FileNotFoundError as e:
     raise ValueError(
         "working directory must contain a file called `notebook-worker-images' "
         "containing the name of the docker image to use for worker pods.") from e
+
+
+def requires_auth(resource_type = 'page'):
+    def auth(f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            if 'user' not in session:
+                # Redirect to Login page here
+                if resource_type == 'page':
+                    session['referrer'] = request.url
+                    return redirect(flask.url_for('login_page'))
+
+                return '', 401
+
+            return f(*args, **kwargs)
+
+        return decorated
+    return auth
 
 
 def start_pod(jupyter_token, image):
@@ -174,8 +194,8 @@ def external_url_for(path):
 def healthcheck():
     return '', 200
 
-
 @app.route('/')
+@requires_auth()
 def root():
     if 'svc_name' not in session:
         log.info(f'no svc_name found in session {session.keys()}')
@@ -200,11 +220,11 @@ def new_get():
 
 
 @app.route('/new', methods=['POST'])
+@requires_auth()
 def new_post():
     log.info('new received')
-    password = request.form['password']
     image = request.form['image']
-    if password != PASSWORD or image not in WORKER_IMAGES:
+    if image not in WORKER_IMAGES:
         return '403 Forbidden', 403
     jupyter_token = uuid.uuid4().hex  # FIXME: probably should be cryptographically secure
     svc, pod = start_pod(jupyter_token, WORKER_IMAGES[image])
@@ -215,11 +235,13 @@ def new_post():
 
 
 @app.route('/wait', methods=['GET'])
+@requires_auth()
 def wait_webpage():
     return render_template('wait.html')
 
 
 @app.route('/auth/<requested_svc_name>')
+@requires_auth()
 def auth(requested_svc_name):
     approved_svc_name = session.get('svc_name')
     if approved_svc_name and approved_svc_name == requested_svc_name:
@@ -251,6 +273,7 @@ def get_all_workers():
 
 
 @app.route('/workers')
+@requires_auth()
 def workers():
     if not session.get('admin'):
         return redirect(external_url_for('admin-login'))
@@ -262,6 +285,7 @@ def workers():
 
 
 @app.route('/workers/<pod_name>/<svc_name>/delete')
+@requires_auth()
 def workers_delete(pod_name, svc_name):
     if not session.get('admin'):
         return redirect(external_url_for('admin-login'))
@@ -270,6 +294,7 @@ def workers_delete(pod_name, svc_name):
 
 
 @app.route('/workers/delete-all-workers', methods=['POST'])
+@requires_auth()
 def delete_all_workers():
     if not session.get('admin'):
         return redirect(external_url_for('admin-login'))
@@ -299,12 +324,14 @@ def delete_worker_pod(pod_name, svc_name):
 
 
 @app.route('/admin-login', methods=['GET'])
+@requires_auth()
 def admin_login():
     return render_template('admin-login.html',
                            form_action_url=external_url_for('admin-login'))
 
 
 @app.route('/admin-login', methods=['POST'])
+@requires_auth()
 def admin_login_post():
     if request.form['password'] != ADMIN_PASSWORD:
         return '403 Forbidden', 403
@@ -313,12 +340,15 @@ def admin_login_post():
 
 
 @app.route('/worker-image')
+@requires_auth()
 def worker_image():
     return '\n'.join(WORKER_IMAGES.values()), 200
 
 
 @sockets.route('/wait')
+@requires_auth()
 def wait_websocket(ws):
+    log.info(f"user is {session['user']['email']}")
     pod_name = session['pod_name']
     svc_name = session['svc_name']
     jupyter_token = session['jupyter_token']
@@ -349,24 +379,26 @@ def wait_websocket(ws):
 
 @app.route('/auth0-callback')
 def auth0_callback():
+    # https://github.com/auth0-samples/auth0-python-web-app/commit/d048d6497caa714c52e8411a5f37500787e37305
     auth0.authorize_access_token()
 
     userinfo = auth0.get('userinfo').json()
 
-    email = userinfo.get('email')
+    email = userinfo['email']
     workshop_password = session['workshop_password']
+    del session['workshop_password']
 
     if AUTHORIZED_USERS.get(email) is None and workshop_password != PASSWORD:
         return redirect(flask.url_for('login_page', unauthorized = True))
 
-    session['jwt_payload'] = userinfo
     session['user'] = {
         'user_id': userinfo['sub'],
         'name': userinfo['name'],
+        'email': email,
         'picture': userinfo['picture'],
     }
 
-    return redirect('/')
+    return redirect(session.get('referrer', '/'))
 
 
 @app.route('/login', methods=['GET'])
