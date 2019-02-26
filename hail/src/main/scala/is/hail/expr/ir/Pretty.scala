@@ -204,6 +204,8 @@ object Pretty {
             case ValueToBlockMatrix(_, shape, blockSize) =>
               prettyLongs(shape) + " " +
               blockSize.toString + " "
+            case BlockMatrixFilter(_, indicesToKeepPerDim) =>
+              indicesToKeepPerDim.map(indices => prettyLongs(indices.toIndexedSeq)).mkString("(", " ", ")")
             case BlockMatrixRandom(seed, gaussian, shape, blockSize) =>
               seed.toString + " " +
               prettyBooleanLiteral(gaussian) + " " +

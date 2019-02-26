@@ -1178,6 +1178,10 @@ object IRParser {
         val outIndexExpr = int32_literals(it)
         val child = blockmatrix_ir(env)(it)
         BlockMatrixAgg(child, outIndexExpr)
+      case "BlockMatrixFilter" =>
+        val intervals = literals(literals(int64_literal))(it)
+        val child = blockmatrix_ir(env)(it)
+        BlockMatrixFilter(child, intervals)
       case "ValueToBlockMatrix" =>
         val shape = int64_literals(it)
         val blockSize = int32_literal(it)

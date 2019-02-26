@@ -404,6 +404,42 @@ case class BlockMatrixAgg(
   }
 }
 
+case class BlockMatrixFilter(
+  child: BlockMatrixIR,
+  indicesToKeepPerDim: Array[Array[Long]]) extends BlockMatrixIR {
+
+  assert(indicesToKeepPerDim.length == 2)
+
+  override def typ: BlockMatrixType = {
+    val matrixShape = indicesToKeepPerDim.zipWithIndex.map({ case (dim, i) =>
+      if (dim.isEmpty) child.typ.shape(i) else dim.length
+    })
+
+    val (tensorShape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(matrixShape(0), matrixShape(1))
+    BlockMatrixType(child.typ.elementType, tensorShape, isRowVector, child.typ.blockSize, child.typ.dimsPartitioned)
+  }
+
+  override def children: IndexedSeq[BaseIR] = Array(child)
+
+  override def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
+    assert(newChildren.length == 1)
+    BlockMatrixFilter(newChildren(0).asInstanceOf[BlockMatrixIR], indicesToKeepPerDim)
+  }
+
+  override protected[ir] def execute(hc: HailContext): BlockMatrix = {
+    val Array(rowIndices, colIndices) = indicesToKeepPerDim
+    val bm = child.execute(hc)
+
+    if (rowIndices.isEmpty) {
+      bm.filterCols(colIndices)
+    } else if (colIndices.isEmpty) {
+      bm.filterRows(rowIndices)
+    } else {
+      bm.filter(rowIndices, colIndices)
+    }
+  }
+}
+
 case class ValueToBlockMatrix(
   child: IR,
   shape: IndexedSeq[Long],
