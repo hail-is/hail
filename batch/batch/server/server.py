@@ -79,14 +79,14 @@ log.info(f'instance_id = {instance_id}')
 class JobTask:  # pylint: disable=R0903
     @staticmethod
     def copy_task(job_id, task_name, files):
-        container = kube.client.V1Container(image='alpine',
-                                            name=task_name,
-                                            command=['echo', 'hello'])
-
-        spec = kube.client.V1PodSpec(containers=[container],
-                                     restart_policy='Never')
-
         if files:
+            container = kube.client.V1Container(image='alpine',
+                                                name=task_name,
+                                                command=['echo', 'hello'])
+
+            spec = kube.client.V1PodSpec(containers=[container],
+                                         restart_policy='Never')
+
             return JobTask(job_id, task_name, spec)
         return None
 
@@ -110,8 +110,9 @@ class Job:
         self._task_idx += 1
         if self._task_idx < len(self._tasks):
             self._current_task = self._tasks[self._task_idx]
-            return self._current_task
-        return None
+
+    def _has_next_task(self):
+        return self._task_idx < len(self._tasks)
 
     def _create_pod(self):
         assert not self._pod_name
@@ -187,7 +188,7 @@ class Job:
 
         self._tasks = [t for t in self._tasks if t is not None]
         self._task_idx = -1
-        self._current_task = self._next_task()
+        self._next_task()
         assert self._current_task is not None
 
         job_id_job[self.id] = self
@@ -293,7 +294,8 @@ class Job:
             del pod_name_job[self._pod_name]
             self._pod_name = None
 
-        if self.exit_code == 0 and self._next_task() is not None:
+        if self.exit_code == 0 and self._has_next_task():
+            self._next_task()
             self._create_pod()
             return
 
