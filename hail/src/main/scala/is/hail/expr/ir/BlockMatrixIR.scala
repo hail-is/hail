@@ -123,7 +123,7 @@ class BlockMatrixLiteral(value: BlockMatrix) extends BlockMatrixIR {
 }
 
 case class BlockMatrixMap(child: BlockMatrixIR, f: IR) extends BlockMatrixIR {
-  assert(f.isInstanceOf[ApplyUnaryPrimOp] || f.isInstanceOf[Apply] || f.isInstanceOf[ApplySeeded])
+  assert(f.isInstanceOf[ApplyUnaryPrimOp] || f.isInstanceOf[Apply])
 
   override def typ: BlockMatrixType = child.typ
 
