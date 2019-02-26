@@ -385,7 +385,6 @@ def login_auth0():
 
 @app.route('/logout')
 def logout():
-    # Clear session stored data
     session.clear()
     params = {'returnTo': flask.url_for('root', _external=True), 'client_id': AUTH0_CLIENT_ID}
     return redirect(auth0.api_base_url + '/v2/logout?' + urlencode(params))
