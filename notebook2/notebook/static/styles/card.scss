@@ -1,0 +1,13 @@
+#theme-site {
+  .card {
+    min-width: 275px;
+    display: flex;
+    flex-direction: column;
+    .header {
+      text-align: left;
+    }
+    .content {
+      display: flex;
+    }
+  }
+}

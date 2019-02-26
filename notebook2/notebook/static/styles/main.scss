@@ -1,0 +1,68 @@
+@import "./variables/colors.scss";
+@import "./variables/margins.scss";
+@import "./buttons.scss";
+@import "./typography.scss";
+@import "./input.scss";
+@import "./spinkit-mod.scss";
+
+html {
+  box-sizing: border-box;
+  font-size: 16px;
+}
+
+button,
+input {
+  margin: 0px;
+  font-size: 0.875rem;
+}
+
+*,
+*:before,
+*:after {
+  box-sizing: inherit;
+}
+
+body {
+  margin: 0px;
+}
+
+#theme-site {
+  font-size: 0.875rem;
+  background-color: $white;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  font-family: "Open Sans", Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-font-smmothing: grayscale;
+  input::placeholder {
+    -webkit-font-smoothing: antialiased;
+    -moz-font-smmothing: grayscale;
+  }
+  #main {
+    display: flex;
+    flex-direction: column;
+    padding: $margin;
+    min-height: calc(100vh - 50px * 2);
+    .centered {
+      margin: auto;
+    }
+  }
+  #footer {
+    height: 50px;
+    display: flex;
+    padding: 0 $margin;
+    align-content: center;
+    align-items: center;
+  }
+  .material-icons {
+    font-size: 1.75rem;
+  }
+  &.dark {
+    background-color: $black;
+    color: $white;
+  }
+  table {
+    border-collapse: collapse;
+  }
+}
