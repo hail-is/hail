@@ -66,8 +66,7 @@ class EmitRegion private (val fb: FunctionBuilder, val baseRegion: Code, _region
   def used: Boolean = isUsed
 
   def defineIfUsed(sameRegion: Boolean): Code = {
-    assert(_region != null)
-    if (isUsed && !sameRegion) _region.define else ""
+    if (isUsed && !sameRegion && _region != null) _region.define else ""
   }
 
   def addReference(other: EmitRegion): Code =
