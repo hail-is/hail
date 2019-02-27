@@ -1,17 +1,16 @@
 package is.hail.cxx
 
 import is.hail.expr.ir
-import is.hail.expr.types._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
-import is.hail.utils.{ArrayBuilder, StringEscapeUtils}
+import is.hail.utils._
 
 import scala.collection.mutable
 
 object Emit {
   def apply(fb: FunctionBuilder, nSpecialArgs: Int, x: ir.IR): EmitTriplet = {
-    val emitter = new Emitter(fb, nSpecialArgs)
-    emitter.emit(EmitRegion(fb, fb.getArg(0)), x, ir.Env.empty[EmitTriplet])
+    val emitter = new Emitter(fb, nSpecialArgs, EmitContext(fb))
+    emitter.emit(x, ir.Env.empty[EmitTriplet])
   }
 }
 
@@ -162,9 +161,11 @@ class Orderings {
   }
 }
 
-class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
+class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: EmitContext) {
   outer =>
   type E = ir.Env[EmitTriplet]
+
+  val sparkEnv = ctx.sparkEnv
 
   def emit(resultRegion: EmitRegion, x: ir.IR, env: E): EmitTriplet = {
     def triplet(setup: Code, m: Code, v: Code): EmitTriplet =
@@ -610,6 +611,8 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int) {
     }
   }
 
+  def emit(x: ir.IR, env: E): EmitTriplet =
+    emit(ctx.region, x, env)
   def emitArray(resultRegion: EmitRegion, x: ir.IR, env: E, sameRegion: Boolean): ArrayEmitter = {
 
     val elemType = x.pType.asInstanceOf[PContainer].elementType

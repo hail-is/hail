@@ -50,22 +50,25 @@ object EmitRegion {
   def from(parentRegion: EmitRegion, sameRegion: Boolean): EmitRegion =
     if (sameRegion) parentRegion else parentRegion.newRegion()
 
-  def apply(fb: FunctionBuilder, region: Variable): EmitRegion = {
-    new EmitRegion(fb, region, region)
+  def apply(fb: FunctionBuilder, region: Code): EmitRegion = {
+    new EmitRegion(fb, region, null)
   }
 }
 
-class EmitRegion private (val fb: FunctionBuilder, val region: Variable, val pool: Variable) {
-  assert(region.typ == "RegionPtr")
+class EmitRegion private (val fb: FunctionBuilder, val baseRegion: Code, _region: Variable) {
+  assert(_region == null || _region.typ == "RegionPtr")
 
+  val region: Code = if (_region == null) baseRegion else _region.toString
   override def toString: String = region.toString
 
   private[this] var isUsed: Boolean = false
   def use(): Unit = { isUsed = true }
   def used: Boolean = isUsed
 
-  def defineIfUsed(sameRegion: Boolean): Code =
-    if (isUsed && !sameRegion) region.define else ""
+  def defineIfUsed(sameRegion: Boolean): Code = {
+    assert(_region != null)
+    if (isUsed && !sameRegion) _region.define else ""
+  }
 
   def addReference(other: EmitRegion): Code =
     if (other.used && this != other) s"$region->add_reference_to($other);" else ""
@@ -75,11 +78,20 @@ class EmitRegion private (val fb: FunctionBuilder, val region: Variable, val poo
   }
 
   def arrayBuilder(fb: FunctionBuilder, pType: PContainer): StagedContainerBuilder = {
-    use(); new StagedContainerBuilder(fb, region.name, pType)
+    use(); new StagedContainerBuilder(fb, region, pType)
   }
 
-  def newRegion(): EmitRegion = new EmitRegion(fb, fb.variable("region", "RegionPtr", s"$pool->get_region()"), pool)
+  def newRegion(): EmitRegion = new EmitRegion(fb, baseRegion, fb.variable("region", "RegionPtr", s"$baseRegion->get_region()"))
 }
+
+object EmitContext {
+  def apply(fb: FunctionBuilder, spark_context: Variable): EmitContext =
+    EmitContext(s"$spark_context.spark_env_", EmitRegion(fb, s"$spark_context.region_"))
+
+  def apply(fb: FunctionBuilder): EmitContext = apply(fb, fb.getArg(0))
+}
+
+case class EmitContext(sparkEnv: Code, region: EmitRegion)
 
 abstract class ArrayEmitter(val setup: Code, val m: Code, val setupLen: Code, val length: Option[Code], val arrayRegion: EmitRegion) {
   def emit(f: (Code, Code) => Code): Code
