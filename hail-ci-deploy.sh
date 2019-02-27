@@ -1,7 +1,7 @@
 #!/bin/bash
 set -ex
 
-PROJECTS=$(cat projects.txt)
+PROJECTS=$(cat projects.txt | grep '$- project: ' | sed 's/^- project: //')
 
 SHA=$(git rev-parse --short=12 HEAD)
 
