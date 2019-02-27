@@ -378,14 +378,13 @@ def login_page():
 
 @app.route('/login', methods=['POST'])
 def login_auth0():
-    # FIXME ?: Could be placed outside route
     external_url = flask.url_for('auth0_callback', _external = True)
     session['workshop_password'] = request.form.get('workshop-password')
 
     return auth0.authorize_redirect(redirect_uri = external_url, audience = f'{AUTH0_BASE_URL}/userinfo', prompt = 'login')
 
 
-@app.route('/logout')
+@app.route('/logout', methods=['POST'])
 def logout():
     session.clear()
     params = {'returnTo': flask.url_for('root', _external=True), 'client_id': AUTH0_CLIENT_ID}
