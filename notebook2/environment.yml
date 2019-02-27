@@ -8,3 +8,4 @@ dependencies:
   - kubernetes
   - Flask_Sockets
   - libsass
+  - authlib

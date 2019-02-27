@@ -1,6 +1,7 @@
 """
 A Jupyter notebook service with local-mode Hail pre-installed
 """
+
 import gevent
 # must happen before anytyhing else
 from gevent import monkey; monkey.patch_all()
@@ -9,6 +10,8 @@ from flask import Flask, session, redirect, render_template, request
 from flask_sockets import Sockets
 import flask
 import sass
+from authlib.flask.client import OAuth
+from urllib.parse import urlencode
 
 import kubernetes as kube
 
@@ -46,6 +49,7 @@ k8s = kube.client.CoreV1Api()
 
 app = Flask(__name__)
 sockets = Sockets(app)
+oauth = OAuth(app)
 
 scss_path = os.path.join(app.static_folder, 'styles')
 css_path = os.path.join(app.static_folder, 'css')
@@ -58,10 +62,35 @@ def read_string(f):
         return f.read().strip()
 
 KUBERNETES_TIMEOUT_IN_SECONDS = float(os.environ.get('KUBERNETES_TIMEOUT_IN_SECONDS', 5.0))
-app.secret_key = read_string('/notebook-secrets/secret-key')
+
+AUTHORIZED_USERS = read_string('/notebook-secrets/authorized-users').split(',')
+AUTHORIZED_USERS = dict((email, True) for email in AUTHORIZED_USERS)
+
 PASSWORD = read_string('/notebook-secrets/password')
 ADMIN_PASSWORD = read_string('/notebook-secrets/admin-password')
 INSTANCE_ID = uuid.uuid4().hex
+
+app.config.update(
+    SECRET_KEY = read_string('/notebook-secrets/secret-key'),
+    SESSION_COOKIE_SAMESITE = 'lax',
+    SESSION_COOKIE_HTTPONLY = True,
+    SESSION_COOKIE_SECURE = os.environ.get("NOTEBOOK_DEBUG") != "1"
+)
+
+AUTH0_CLIENT_ID = 'Ck5wxfo1BfBTVbusBeeBOXHp3a7Z6fvZ'
+AUTH0_BASE_URL = 'https://hail.auth0.com'
+
+auth0 = oauth.register(
+    'auth0',
+    client_id = AUTH0_CLIENT_ID,
+    client_secret = read_string('/notebook-secrets/auth0-client-secret'),
+    api_base_url = AUTH0_BASE_URL,
+    access_token_url = f'{AUTH0_BASE_URL}/oauth/token',
+    authorize_url = f'{AUTH0_BASE_URL}/authorize',
+    client_kwargs = {
+        'scope': 'openid email profile',
+    },
+)
 
 log.info(f'KUBERNETES_TIMEOUT_IN_SECONDS {KUBERNETES_TIMEOUT_IN_SECONDS}')
 log.info(f'INSTANCE_ID {INSTANCE_ID}')
@@ -169,6 +198,7 @@ def new_get():
     session.clear()
     return redirect(external_url_for('/'))
 
+
 @app.route('/new', methods=['POST'])
 def new_post():
     log.info('new received')
@@ -183,9 +213,11 @@ def new_post():
     session['jupyter_token'] = jupyter_token
     return redirect(external_url_for(f'wait'))
 
+
 @app.route('/wait', methods=['GET'])
 def wait_webpage():
     return render_template('wait.html')
+
 
 @app.route('/auth/<requested_svc_name>')
 def auth(requested_svc_name):
@@ -313,6 +345,54 @@ def wait_websocket(ws):
             gevent.sleep(1)
     ws.send(external_url_for(f'instance/{svc_name}/?token={jupyter_token}'))
     log.info(f'notification sent to user for {svc_name} {pod_name}')
+
+
+@app.route('/auth0-callback')
+def auth0_callback():
+    auth0.authorize_access_token()
+
+    userinfo = auth0.get('userinfo').json()
+
+    email = userinfo['email']
+    workshop_password = session['workshop_password']
+    del session['workshop_password']
+
+    if AUTHORIZED_USERS.get(email) is None and workshop_password != PASSWORD:
+        return redirect(flask.url_for('error_page', err = 'Unauthorized'))
+
+    session['user'] = {
+        'user_id': userinfo['sub'],
+        'name': userinfo['name'],
+        'email': email,
+        'picture': userinfo['picture'],
+    }
+
+    return redirect('/')
+
+
+@app.route('/error', methods=['GET'])
+def error_page():
+    return render_template('error.html', error = request.args.get('err'))
+
+
+@app.route('/login', methods=['GET'])
+def login_page():
+    return render_template('login.html')
+
+
+@app.route('/login', methods=['POST'])
+def login_auth0():
+    external_url = flask.url_for('auth0_callback', _external = True)
+    session['workshop_password'] = request.form.get('workshop-password')
+
+    return auth0.authorize_redirect(redirect_uri = external_url, audience = f'{AUTH0_BASE_URL}/userinfo', prompt = 'login')
+
+
+@app.route('/logout', methods=['POST'])
+def logout():
+    session.clear()
+    params = {'returnTo': flask.url_for('root', _external=True), 'client_id': AUTH0_CLIENT_ID}
+    return redirect(auth0.api_base_url + '/v2/logout?' + urlencode(params))
 
 
 if __name__ == '__main__':
