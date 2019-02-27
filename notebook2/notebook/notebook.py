@@ -359,7 +359,7 @@ def auth0_callback():
     del session['workshop_password']
 
     if AUTHORIZED_USERS.get(email) is None and workshop_password != PASSWORD:
-        return redirect(flask.url_for('login_page', unauthorized = True))
+        return redirect(flask.url_for('error_page', err = 'Unauthorized'))
 
     session['user'] = {
         'user_id': userinfo['sub'],
@@ -371,9 +371,14 @@ def auth0_callback():
     return redirect('/')
 
 
+@app.route('/error', methods=['GET'])
+def error_page():
+    return render_template('error.html', error = request.args.get('err'))
+
+
 @app.route('/login', methods=['GET'])
 def login_page():
-    return render_template('login.html', unauthorized = request.args.get('unauthorized'))
+    return render_template('login.html')
 
 
 @app.route('/login', methods=['POST'])
