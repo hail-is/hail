@@ -54,7 +54,10 @@ object Pretty {
     def prettySeq(xs: Seq[BaseIR], depth: Int) {
       sb.append(" " * depth)
       sb += '('
-      xs.foreachBetween(x => pretty(x, depth + 2))(sb += '\n')
+      xs.foreach { x =>
+        sb += '\n'
+        pretty(x, depth + 2)
+      }
       sb += ')'
     }
 

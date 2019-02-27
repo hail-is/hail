@@ -108,5 +108,6 @@ object ForwardLets {
     ir
   }
 
-  def apply(ir0: BaseIR, needsCopy: Boolean = true): BaseIR = MapIRSubtrees(rewriteIR)(if (needsCopy) ir0.deepCopy() else ir0)
+  def apply(ir0: BaseIR, needsCopy: Boolean = true): BaseIR =
+    MapIRSubtrees(rewriteIR)(if (needsCopy) ir0.deepCopy() else ir0)
 }

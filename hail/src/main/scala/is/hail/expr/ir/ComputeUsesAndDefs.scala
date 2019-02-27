@@ -19,6 +19,11 @@ object ComputeUsesAndDefs {
             uses.lookup(decl) += re
             defs.bind(re, decl)
           }
+        case aa@ArrayAgg(_, name, query) =>
+          val re = RefEquality(aa)
+          val aggEnv_ = aggEnv.bind(Array(name -> re) ++ env.m: _*)
+          uses.bind(re, mutable.Set.empty[RefEquality[Ref]])
+          compute(query, env, aggEnv_)
         case ir =>
           val bindings = Bindings(ir)
           val aggBindings = AggBindings(ir)

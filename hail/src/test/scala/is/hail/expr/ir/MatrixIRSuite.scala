@@ -6,9 +6,11 @@ import is.hail.expr.types._
 import is.hail.table.Table
 import is.hail.utils._
 import is.hail.TestUtils._
+import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.types.virtual._
 import is.hail.io.CodecSpec
-import is.hail.variant.MatrixTable
+import is.hail.variant.{MatrixTable, ReferenceGenome}
+import org.apache.hadoop.yarn.proto.YarnServerResourceManagerServiceProtos.RefreshSuperUserGroupsConfigurationRequestProto
 import org.apache.spark.SparkException
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
