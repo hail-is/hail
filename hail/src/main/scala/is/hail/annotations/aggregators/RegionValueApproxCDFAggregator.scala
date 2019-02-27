@@ -12,7 +12,7 @@ import net.sourceforge.jdistlib.rng.MersenneTwister
 
 class RegionValueApproxCDFLongAggregator(bufSize: Int) extends RegionValueAggregator {
 
-  val resultType: PType = PStruct("values" -> PArray(PInt64()), "ranks" -> PArray(PInt64()))
+  val resultType: PType = PStruct("values" -> PArray(PInt64()), "ranks" -> PArray(PInt64()), "count" -> PInt64())
   private val bufferPool: mutable.ArrayStack[Array[Long]] = mutable.ArrayStack()
 
   private val fullBuffers: ArrayBuffer[Array[Long]] = ArrayBuffer(null)
@@ -203,7 +203,7 @@ class RegionValueApproxCDFLongAggregator(bufSize: Int) extends RegionValueAggreg
     rvb.addAnnotation(resultType.virtualType, res)
   }
 
-  def cdf: (Array[Long], Array[Long]) = {
+  def cdf: (Array[Long], Array[Long], Long) = {
     initBufferSizes()
     val builder: ArrayBuilder[(Long, Long)] = new ArrayBuilder(0)
     var height: Int = 0
@@ -240,7 +240,7 @@ class RegionValueApproxCDFLongAggregator(bufSize: Int) extends RegionValueAggreg
       rank += sorted(i)._1
       i += 1
     }
-    (values, ranks)
+    (values, ranks, n)
   }
 
   def pdf: Array[(Long, Long)] = {

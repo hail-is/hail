@@ -307,7 +307,8 @@ class Tests(unittest.TestCase):
 
     def test_approx_cdf(self):
         table = hl.utils.range_table(100)
-        table.aggregate(hl.agg.approx_cdf(table.idx))
+        table = table.annotate(i=hl.int64(table.idx))
+        table.aggregate(hl.agg.approx_cdf(table.i))
 
     def test_counter_ordering(self):
         ht = hl.utils.range_table(10)

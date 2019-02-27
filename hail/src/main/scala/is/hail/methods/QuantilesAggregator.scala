@@ -324,11 +324,13 @@ object Main {
 
     val data = rand.shuffle(IndexedSeq.range(0, n)).toArray
 //    val data = Array.range(0, n)
+    var cdf: Array[(Long, Long)] = null
     val time1 = time {
       var i = 0
 //      while (i < n/2) { agg2.seqOp(data(i)); i += 1 }
       while (i < n) { agg.seqOp(data(i)); i += 1 }
 //      agg.combOp(agg2.asInstanceOf[agg.type])
+      cdf = agg.cdf
     }
 //    val time3 = time {
 //      data.sorted
@@ -352,7 +354,6 @@ object Main {
 //    println(s"stable sort took ${ time3.toDouble / factor } s")
     println(s"java sort took ${ time4.toDouble / factor } s")
 
-    val cdf = agg.cdf
 //    for ((weight, value) <- cdf) println(s"$weight : $value")
 
     val epsilon: Double = 0.05

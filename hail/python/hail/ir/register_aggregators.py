@@ -3,6 +3,8 @@ from .ir import register_aggregator
 def register_aggregators():
     from hail.expr.types import dtype
 
+    register_aggregator('ApproxCDF', (dtype('int32'),), None, (dtype('int64'),),
+                        dtype('struct{values:array<int64>,ranks:array<int64>,count:int64}'))
     register_aggregator('Fraction', (), None, (dtype('bool'),), dtype('float64'))
 
     stats_aggregator_type = dtype('struct{mean:float64,stdev:float64,min:float64,max:float64,n:int64,sum:float64}')
