@@ -1747,14 +1747,11 @@ class BlockMatrix(object):
         flattened_rectangles = jarray(Env.jvm().long, list(itertools.chain(*rectangles)))
         return BlockMatrix._from_java(self._jbm.filterRectangles(flattened_rectangles))
 
-    @staticmethod
-    @typecheck(path_in=str,
-               path_out=str,
-               rectangles=sequenceof(sequenceof(int)),
-               delimiter=str,
-               n_partitions=nullable(int),
-               binary=bool)
-    def export_rectangles(path_in, path_out, rectangles, delimiter='\t', n_partitions=None, binary=False):
+    @typecheck_method(path_out=str,
+                      rectangles=sequenceof(sequenceof(int)),
+                      delimiter=str,
+                      binary=bool)
+    def export_rectangles(self, path_out, rectangles, delimiter='\t', binary=False):
         """Export rectangular regions from a stored block matrix to delimited text or binary files.
 
         Examples
@@ -1861,8 +1858,6 @@ class BlockMatrix(object):
         binary: :obj:`bool`
             If true, export elements as raw bytes in row major order.
         """
-        bm = BlockMatrix.read(path_in)
-
         n_rectangles = len(rectangles)
         if n_rectangles == 0:
             raise ValueError('no rectangles provided')
@@ -1872,14 +1867,14 @@ class BlockMatrix(object):
         for r in rectangles:
             if len(r) != 4:
                 raise ValueError(f'rectangle {r} does not have length 4')
-            if not (0 <= r[0] <= r[1] <= bm.n_rows and 0 <= r[2] <= r[3] <= bm.n_cols):
+            if not (0 <= r[0] <= r[1] <= self.n_rows and 0 <= r[2] <= r[3] <= self.n_cols):
                 raise ValueError(f'rectangle {r} does not satisfy '
                                  f'0 <= r[0] <= r[1] <= n_rows and 0 <= r[2] <= r[3] <= n_cols')
 
         flattened_rectangles = [x for rect in rectangles for x in rect]
 
         writer = BlockMatrixRectanglesWriter(path_out, flattened_rectangles, delimiter, binary)
-        Env.backend().execute(BlockMatrixWrite(bm._bmir, writer))
+        Env.backend().execute(BlockMatrixWrite(self._bmir, writer))
 
     @typecheck_method(compute_uv=bool,
                       complexity_bound=int)

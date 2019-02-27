@@ -632,11 +632,10 @@ class Tests(unittest.TestCase):
                 rect_path = new_local_temp_dir()
                 rect_uri = local_path_uri(rect_path)
 
-                (BlockMatrix.from_numpy(nd, block_size=block_size)
-                    .sparsify_rectangles(rects)
-                    .write(bm_uri, force_row_major=True))
+                bm = BlockMatrix.from_numpy(nd, block_size=block_size)
 
-                BlockMatrix.export_rectangles(bm_uri, rect_uri, rects)
+                bm.sparsify_rectangles(rects).write(bm_uri, force_row_major=True)
+                bm.export_rectangles(rect_uri, rects)
 
                 for (i, r) in enumerate(rects):
                     file = rect_path + '/rect-' + str(i) + '_' + '-'.join(map(str, r))
@@ -647,7 +646,7 @@ class Tests(unittest.TestCase):
                 rect_path_bytes = new_local_temp_dir()
                 rect_uri_bytes = local_path_uri(rect_path_bytes)
 
-                BlockMatrix.export_rectangles(bm_uri, rect_uri_bytes, rects, binary=True)
+                bm.export_rectangles(rect_uri_bytes, rects, binary=True)
 
                 for (i, r) in enumerate(rects):
                     file = rect_path_bytes + '/rect-' + str(i) + '_' + '-'.join(map(str, r))
