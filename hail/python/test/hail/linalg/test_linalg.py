@@ -651,6 +651,13 @@ class Tests(unittest.TestCase):
                     self._assert_eq(expected, actual)
 
     @skip_unless_spark_backend()
+    def test_export_blocks(self):
+        nd = np.arange(0, 80, dtype=float).reshape(8, 10)
+
+        bm_path = new_local_temp_dir()
+        bm_uri = local_path_uri(bm_path)
+        BlockMatrix.from_numpy(nd, block_size=4).export_blocks_binary(bm_uri)
+
     def test_block_matrix_entries(self):
         n_rows, n_cols = 5, 3
         rows = [{'i': i, 'j': j, 'entry': float(i + j)} for i in range(n_rows) for j in range(n_cols)]

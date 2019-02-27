@@ -1,6 +1,8 @@
 import numpy as np
 import scipy.linalg as spla
 import itertools
+import math
+import os
 
 import hail as hl
 import hail.expr.aggregators as agg
@@ -1852,6 +1854,53 @@ class BlockMatrix(object):
 
         writer = BlockMatrixRectanglesWriter(path_out, rectangles, delimiter, binary)
         Env.backend().execute(BlockMatrixWrite(self._bmir, writer))
+
+    @typecheck_method(path_out=str)
+    def export_blocks_binary(self, path_out):
+        def rows_in_block(block_row):
+            if block_row == n_block_rows - 1:
+                return self.n_rows - block_row * self.block_size
+            return self.block_size
+
+        def cols_in_block(block_col):
+            if block_col == n_block_cols - 1:
+                return self.n_cols - block_col * self.block_size
+            return self.block_size
+
+        def block_boundaries(block_row, block_col):
+            start_row = block_row * self.block_size
+            start_col = block_col * self.block_size
+            end_row = start_row + rows_in_block(block_row)
+            end_col = start_col + cols_in_block(block_col)
+
+            return [start_row, end_row, start_col, end_col]
+
+        n_block_rows = math.ceil(self.n_rows / self.block_size)
+        n_block_cols = math.ceil(self.n_cols / self.block_size)
+        block_indices = itertools.product(range(n_block_rows), range(n_block_cols))
+        rectangles = [block_boundaries(block_row, block_col) for (block_row, block_col) in block_indices]
+
+        self.export_rectangles(path_out, rectangles, binary=True)
+
+    @staticmethod
+    @typecheck(path_in=str)
+    def blocks_to_numpy(path_in):
+        def extract_rect_bounds(filename):
+            rect_idx_and_bounds = [int(i) for i in filename.split('-|_') if i.isdigit()]
+            assert len(rect_idx_and_bounds) == 5
+
+            rect_bounds = rect_idx_and_bounds[1:]
+            return rect_bounds
+
+        rect_files = os.listdir(path_in)
+
+        # TODO: Construct ndarray with size hint
+        nd = np.array([])
+        for rect_file in rect_files:
+            rect = extract_rect_bounds(rect_file)
+            nd[rect[0]:rect[1], rect[2]:rect[3]] = np.fromfile(rect_file)
+
+        return nd
 
     @typecheck_method(compute_uv=bool,
                       complexity_bound=int)
