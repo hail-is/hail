@@ -12,10 +12,10 @@ class Resource:
         pass
 
     @abc.abstractmethod
-    def add_output_path(self, path):
+    def _add_output_path(self, path):
         pass
 
-    def declare(self, directory=None):
+    def _declare(self, directory=None):
         directory = directory + '/' if directory else ''
         return f"{self._uid}={escape_string(directory + self.path)}"
 
@@ -39,31 +39,39 @@ class ResourceFile(Resource, str):
         self._uid = ResourceFile._new_uid()
         self._output_paths = set()
         self._resource_group = None
+        self._has_extension = False
 
-    def add_source(self, source):
+    def _add_source(self, source):
         from .task import Task
         assert isinstance(source, Task)
         self._source = source
         return self
 
-    def add_output_path(self, path):
+    def _add_output_path(self, path):
         self._output_paths.add(path)
         if self._source is not None:
             self._source._add_outputs(self)
 
-    def add_resource_group(self, rg):
+    def _add_resource_group(self, rg):
         self._resource_group = rg
 
-    def has_resource_group(self):
+    def _has_resource_group(self):
         return self._resource_group is not None
 
-    def get_resource_group(self):
+    def _get_resource_group(self):
         return self._resource_group
 
     @property
     def path(self):
         assert self._value is not None
         return self._value
+
+    def add_extension(self, extension):
+        if self._has_extension:
+            raise Exception("Resource already has a file extension added.")
+        self._value += extension
+        self._has_extension = True
+        return self
 
     def __str__(self):
         return self._uid
@@ -74,7 +82,7 @@ class InputResourceFile(ResourceFile):
         self._input_path = None
         super().__init__(value)
 
-    def add_input_path(self, path):
+    def _add_input_path(self, path):
         self._input_path = path
         return self
 
@@ -104,13 +112,13 @@ class ResourceGroup(Resource):
         for name, resource_file in values.items():
             assert isinstance(resource_file, ResourceFile)
             self._resources[name] = resource_file
-            resource_file.add_resource_group(self)
+            resource_file._add_resource_group(self)
 
     @property
     def path(self):
         return self._root
 
-    def add_output_path(self, path):
+    def _add_output_path(self, path):
         self._output_paths.add(path)
         if self._source is not None:
             self._source._add_outputs(self)

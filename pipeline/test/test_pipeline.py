@@ -227,6 +227,21 @@ class LocalTests(unittest.TestCase):
 
             assert self.read(output_file.name) == '2\n1\n0'
 
+    def test_add_extension_task_resource_file(self):
+        p = Pipeline()
+        t = p.new_task()
+        t.command(f'echo "hello" > {t.ofile}')
+        t.ofile.add_extension('.txt.bgz')
+        assert t.ofile._value.endswith('.txt.bgz')
+
+    def test_add_extension_input_resource_file(self):
+        input_file1 = '/tmp/data/example1.txt.bgz.foo'
+        p = Pipeline()
+        in1 = p.read_input(input_file1, extension='.txt.bgz.foo')
+        with self.assertRaises(Exception):
+            in1.add_extension('.baz')
+        assert in1._value.endswith('.txt.bgz.foo')
+
 
 class BatchTests(unittest.TestCase):
     def pipeline(self):
