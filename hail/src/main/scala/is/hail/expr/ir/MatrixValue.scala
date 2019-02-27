@@ -153,6 +153,8 @@ case class MatrixValue(
         "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
     spec.write(hc, path)
 
+    writeNativeFileReadMe(path)
+
     hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
 
     val nRows = partitionCounts.sum

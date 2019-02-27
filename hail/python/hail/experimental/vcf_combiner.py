@@ -185,7 +185,7 @@ def finalize(mt):
     return mt.drop('BaseQRankSum', 'ClippingRankSum', 'MQ', 'MQRankSum', 'ReadPosRankSum')
 
 
-def reannotate(mt, gatk_ht, summarize_ht):
+def reannotate(mt, gatk_ht, summ_ht):
     """Re-annotate a sparse MT with annotations from certain GATK tools
 
     `gatk_ht` should be a table from the rows of a VCF, with `info` having at least
@@ -223,8 +223,15 @@ def reannotate(mt, gatk_ht, summarize_ht):
     You will not be able to run :func:`.combine_gvcfs` with the output of this
     function.
     """
-    gatk_ht = hl.Table(TableKeyBy(gatk_ht._tir, ['locus'], is_sorted=True))
-    summ_ht = hl.Table(TableKeyBy(summarize_ht._tir, ['locus'], is_sorted=True))
+    def check(ht):
+        keys = list(ht.key)
+        if keys[0] != 'locus':
+            raise TypeError(f'table inputs must have first key "locus", found {keys}')
+        if keys != ['locus']:
+            return hl.Table(TableKeyBy(ht._tir, ['locus'], is_sorted=True))
+        return ht
+
+    gatk_ht, summ_ht = [check(ht) for ht in (gatk_ht, summ_ht)]
     return mt.annotate_rows(
         info=hl.rbind(
             gatk_ht[mt.locus].info, summ_ht[mt.locus].info,

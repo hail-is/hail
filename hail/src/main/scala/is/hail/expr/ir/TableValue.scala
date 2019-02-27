@@ -108,6 +108,8 @@ case class TableValue(typ: TableType, globals: BroadcastRow, rvd: RVD) {
         "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))
     spec.write(hc, path)
 
+    writeNativeFileReadMe(path)
+
     hc.hadoopConf.writeTextFile(path + "/_SUCCESS")(out => ())
 
     val nRows = partitionCounts.sum
