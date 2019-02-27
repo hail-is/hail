@@ -260,3 +260,15 @@ class Test(unittest.TestCase):
                 pass
             else:
                 raise
+
+    def test_log_after_failing_job(self):
+        j = self.batch.create_job('alpine', ['/bin/sh', '-c', 'echo test; exit 127'])
+        status = j.wait()
+        self.assertTrue('attributes' not in status)
+        self.assertEqual(status['state'], 'Complete')
+        self.assertEqual(status['exit_code'], 127)
+
+        self.assertEqual(status['log']['main'], 'test\n')
+        self.assertEqual(j.log(), {'main': 'test\n'})
+
+        self.assertTrue(j.is_complete())
