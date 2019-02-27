@@ -172,7 +172,10 @@ class BatchClient:
 
         j = self.api.create_job(self.url, spec, attributes, batch_id, callback,
                                 parent_ids, scratch_folder, input_files, output_files)
-        return Job(self, j['id'], j.get('attributes'), j.get('parent_ids', []))
+        return Job(self,
+                   j['id'],
+                   attributes=j.get('attributes'),
+                   parent_ids=j.get('parent_ids', []))
 
     def _get_job(self, id):
         return self.api.get_job(self.url, id)
@@ -197,12 +200,21 @@ class BatchClient:
 
     def list_jobs(self):
         jobs = self.api.list_jobs(self.url)
-        return [Job(self, j['id'], j.get('attributes'), j.get('parent_ids', []), j) for j in jobs]
+        return [Job(self,
+                    j['id'],
+                    attributes=j.get('attributes'),
+                    parent_ids=j.get('parent_ids', []),
+                    _status=j)
+                for j in jobs]
 
     def get_job(self, id):
         # make sure job exists
         j = self.api.get_job(self.url, id)
-        return Job(self, j['id'], j.get('attributes'), j.get('parent_ids', []), j)
+        return Job(self,
+                   j['id'],
+                   attributes=j.get('attributes'),
+                   parent_ids=j.get('parent_ids', []),
+                   _status=j)
 
     def create_job(self,
                    image,
