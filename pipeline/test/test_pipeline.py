@@ -325,3 +325,19 @@ class BatchTests(unittest.TestCase):
         t.memory('100M')
         t.command(f'echo "hello" > {t.ofile}')
         p.run()
+
+    def test_scatter_gather(self):
+        p = self.pipeline()
+
+        for i in range(3):
+            t = p.new_task().label(f'foo{i}')
+            t.command(f'echo "{i}" > {t.ofile}')
+
+        merger = p.new_task()
+        merger.command('cat {files} > {ofile}'.format(files=' '.join([t.ofile for t in sorted(p.select_tasks('foo'),
+                                                                                              key=lambda x: x._label,
+                                                                                              reverse=True)]),
+                                                      ofile=merger.ofile))
+
+        p.run(delete_scratch_on_exit=False)
+
