@@ -349,7 +349,6 @@ def wait_websocket(ws):
 
 @app.route('/auth0-callback')
 def auth0_callback():
-    # https://github.com/auth0-samples/auth0-python-web-app/commit/d048d6497caa714c52e8411a5f37500787e37305
     auth0.authorize_access_token()
 
     userinfo = auth0.get('userinfo').json()
