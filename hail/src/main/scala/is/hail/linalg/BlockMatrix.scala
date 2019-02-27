@@ -1448,12 +1448,12 @@ case class BlockMatrixRectanglesRDD(rectangles: Array[Array[Long]], bm: BlockMat
 
   override def compute(split: Partition, context: TaskContext): Iterator[(Int, BDM[Double])] = {
     val rect = rectangles(split.index)
-    val rectStartRow = rect(0).toInt
-    val rectEndRow = rect(1).toInt
-    val rectStartCol = rect(2).toInt
-    val rectEndCol = rect(3).toInt
+    val rectStartRow = rect(0)
+    val rectEndRow = rect(1)
+    val rectStartCol = rect(2)
+    val rectEndCol = rect(3)
 
-    val rectData = new BDM[Double](rectEndRow - rectStartRow, rectEndCol - rectStartCol)
+    val rectData = new BDM[Double]((rectEndRow - rectStartRow).toInt, (rectEndCol - rectStartCol).toInt)
     val blocksInRectangle = gp.rectangleBlocks(rect)
     blocksInRectangle.foreach( blockIdx => {
       val (blockRowIdx, blockColIdx) = gp.blockCoordinates(blockIdx)
@@ -1467,25 +1467,24 @@ case class BlockMatrixRectanglesRDD(rectangles: Array[Array[Long]], bm: BlockMat
       val rectRowSlice = overlapRectSlice(rectStartRow, rectEndRow, blockStartRow, blockEndRow)
       val rectColSlice = overlapRectSlice(rectStartCol, rectEndCol, blockStartCol, blockEndCol)
 
-      BlockMatrix.block(bm, bm.blocks.partitions, gp, context, blockRowIdx, blockColIdx).foreach( dm =>
-        rectData(rectRowSlice, rectColSlice) := dm(blockRowSlice, blockColSlice)
-      )
+      val block = BlockMatrix.block(bm, bm.blocks.partitions, gp, context, blockRowIdx, blockColIdx).get
+      rectData(rectRowSlice, rectColSlice) := block(blockRowSlice, blockColSlice)
     })
 
     Iterator.single((split.index, rectData))
   }
 
-  private def overlapBlockSlice(rectStart: Int, rectEnd: Int, blockStart: Int, blockEnd: Int): Range = {
-    val (absStart, absEnd) = absoluteOverlap(rectStart, rectEnd, blockStart, blockEnd)
-    absStart - blockStart until absEnd - blockStart
+  private def overlapBlockSlice(rectStart: Long, rectEnd: Long, blockStart: Long, blockEnd: Long): Range = {
+    val (start, end) = absoluteOverlap(rectStart, rectEnd, blockStart, blockEnd)
+    (start - blockStart).toInt until (end - blockStart).toInt
   }
 
-  private def overlapRectSlice(rectStart: Int, rectEnd: Int, blockStart: Int, blockEnd: Int): Range = {
-    val (absStart, absEnd) = absoluteOverlap(rectStart, rectEnd, blockStart, blockEnd)
-    absStart - rectStart until absEnd - rectStart
+  private def overlapRectSlice(rectStart: Long, rectEnd: Long, blockStart: Long, blockEnd: Long): Range = {
+    val (start, end) = absoluteOverlap(rectStart, rectEnd, blockStart, blockEnd)
+    (start - rectStart).toInt until (end - rectStart).toInt
   }
 
-  private def absoluteOverlap(rectStart: Int, rectEnd: Int, blockStart: Int, blockEnd: Int): (Int, Int) = {
+  private def absoluteOverlap(rectStart: Long, rectEnd: Long, blockStart: Long, blockEnd: Long): (Long, Long) = {
     (Math.max(rectStart, blockStart), Math.min(rectEnd, blockEnd))
   }
 
