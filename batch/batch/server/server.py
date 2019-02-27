@@ -294,8 +294,8 @@ class Job:
             del pod_name_job[self._pod_name]
             self._pod_name = None
 
+        self._next_task()
         if self.exit_code == 0 and self._has_next_task():
-            self._next_task()
             self._create_pod()
             return
 
