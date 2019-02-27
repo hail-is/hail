@@ -333,7 +333,7 @@ Using Variants (SNPs) as Covariates
 
     >>> mt_filt = mt.filter_rows(mt_snps_lit.contains(mt.row_key))
     >>> sample_genos = mt_filt.annotate_cols(genotypes = hl.agg.collect(mt_filt.GT.n_alt_alleles()))
-    >>> mt = mt.annotate_cols(snp_covs = sample_genos[mt.x].genotypes)
+    >>> mt = mt.annotate_cols(snp_covs = sample_genos[mt.s].genotypes)
 
     Use these values in :func:`.linear_regression_rows`:
 
