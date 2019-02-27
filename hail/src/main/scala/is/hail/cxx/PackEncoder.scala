@@ -5,31 +5,31 @@ import is.hail.io.{BufferSpec, NativeEncoderModule}
 
 object PackEncoder {
 
-  def encodeBinary(tub: TranslationUnitBuilder, output_buf_ptr: Expression, off: Expression): Code = {
-    val len = tub.variable("len", "int", s"load_length($off)")
+  def encodeBinary(tub: TranslationUnitBuilder, output_buf_ptr: Expression, value: Expression): Code = {
+    val len = tub.variable("len", "int", s"load_length($value)")
     s"""
        |${ len.define }
        |$output_buf_ptr->write_int($len);
-       |$output_buf_ptr->write_bytes($off + 4, $len);""".stripMargin
+       |$output_buf_ptr->write_bytes($value + 4, $len);""".stripMargin
   }
 
-  def encodeArray(tub: TranslationUnitBuilder, t: PArray, output_buf_ptr: Expression, off: Expression): Code = {
-    val len = tub.variable("len", "int", s"load_length($off)")
+  def encodeArray(tub: TranslationUnitBuilder, t: PArray, output_buf_ptr: Expression, value: Expression): Code = {
+    val len = tub.variable("len", "int", s"load_length($value)")
     val i = tub.variable("i", "int", s"0")
     val copyLengthAndMissing = if (t.elementType.required)
       s"$output_buf_ptr->write_int($len);"
     else
       s"""
          |$output_buf_ptr->write_int($len);
-         |$output_buf_ptr->write_bytes($off + 4, n_missing_bytes($len));""".stripMargin
+         |$output_buf_ptr->write_bytes($value + 4, n_missing_bytes($len));""".stripMargin
 
-    val elt = t.cxxLoadElement(off.toString, i.toString)
+    val elt = t.cxxLoadElement(value.toString, i.toString)
 
     val writeElt = if (t.elementType.required)
       encode(tub, t.elementType, output_buf_ptr, Expression(elt))
     else
       s"""
-         |if (!load_bit($off + 4, $i)) {
+         |if (!load_bit($value + 4, $i)) {
          |  ${ encode(tub, t.elementType, output_buf_ptr, Expression(elt)) };
          |}""".stripMargin
 
@@ -42,34 +42,34 @@ object PackEncoder {
       """.stripMargin
   }
 
-  def encodeBaseStruct(tub: TranslationUnitBuilder, t: PBaseStruct, output_buf_ptr: Expression, off: Expression): Code = {
+  def encodeBaseStruct(tub: TranslationUnitBuilder, t: PBaseStruct, output_buf_ptr: Expression, value: Expression): Code = {
     val nMissingBytes = t.nMissingBytes
     val storeFields: Array[Code] = Array.tabulate[Code](t.size) { idx =>
-      val store = encode(tub, t.types(idx), output_buf_ptr, Expression(t.cxxLoadField(off.toString, idx)))
+      val store = encode(tub, t.types(idx), output_buf_ptr, Expression(t.cxxLoadField(value.toString, idx)))
       if (t.fieldRequired(idx)) {
         store
       } else {
         s"""
-           |if (!load_bit($off, ${ t.missingIdx(idx) })) {
+           |if (!load_bit($value, ${ t.missingIdx(idx) })) {
            |  $store
            |}""".stripMargin
       }
     }
     s"""
-       |$output_buf_ptr->write_bytes($off, $nMissingBytes);
+       |$output_buf_ptr->write_bytes($value, $nMissingBytes);
        |${ storeFields.mkString("\n") }
       """.stripMargin
   }
 
-  def encode(tub: TranslationUnitBuilder, t: PType, output_buf_ptr: Expression, off: Expression): Code = t match {
-    case _: PBoolean => s"$output_buf_ptr->write_byte($off ? 1 : 0);"
-    case _: PInt32 => s"$output_buf_ptr->write_int($off);"
-    case _: PInt64 => s"$output_buf_ptr->write_long($off);"
-    case _: PFloat32 => s"$output_buf_ptr->write_float($off);"
-    case _: PFloat64 => s"$output_buf_ptr->write_double($off);"
-    case _: PBinary => encodeBinary(tub, output_buf_ptr, off)
-    case t2: PArray => encodeArray(tub, t2, output_buf_ptr, off)
-    case t2: PBaseStruct => encodeBaseStruct(tub, t2, output_buf_ptr, off)
+  def encode(tub: TranslationUnitBuilder, t: PType, output_buf_ptr: Expression, value: Expression): Code = t match {
+    case _: PBoolean => s"$output_buf_ptr->write_byte($value ? 1 : 0);"
+    case _: PInt32 => s"$output_buf_ptr->write_int($value);"
+    case _: PInt64 => s"$output_buf_ptr->write_long($value);"
+    case _: PFloat32 => s"$output_buf_ptr->write_float($value);"
+    case _: PFloat64 => s"$output_buf_ptr->write_double($value);"
+    case _: PBinary => encodeBinary(tub, output_buf_ptr, value)
+    case t2: PArray => encodeArray(tub, t2, output_buf_ptr, value)
+    case t2: PBaseStruct => encodeBaseStruct(tub, t2, output_buf_ptr, value)
   }
 
   def apply(t: PType, bufSpec: BufferSpec, tub: TranslationUnitBuilder): Class = {
