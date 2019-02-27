@@ -10,17 +10,9 @@ import is.hail.utils.using
 
 import scala.collection.mutable
 
-object SparkUtils {
+class SparkUtils(mods: Array[(String, NativeModule)]) {
 
-  private[this] val loadedModules: mutable.Map[String, NativeModule] = mutable.Map()
-
-  def addModule(mod: NativeModule): String = {
-    val id = s"mod${ ir.genUID() }"
-    loadedModules.update(id, mod)
-    id
-  }
-
-  def removeModule(id: String): Unit = loadedModules.remove(id)
+  private[this] val loadedModules: Map[String, NativeModule] = mods.toMap
   def getModule(id: String): (String, Array[Byte]) =
     (loadedModules(id).getKey, loadedModules(id).getBinary)
 

@@ -19,8 +19,7 @@ class SparkEnv {
     JNIEnv * env() { return up_.env(); }
 
   private:
-    jclass spark_utils_class_ = env()->FindClass("is/hail/cxx/SparkUtils$");
-    jfieldID spark_utils_field_ = env()->GetStaticFieldID(spark_utils_class_, "MODULE$", "Lis/hail/cxx/SparkUtils$;");
+    jclass spark_utils_class_ = env()->FindClass("is/hail/cxx/SparkUtils");
     jmethodID parallelize_compute_collect_ = up_.env()->GetMethodID(spark_utils_class_, "parallelizeComputeCollect", "(Ljava/lang/String;Ljava/lang/String;[[B[B)[[B");
 
     jclass bais_ = env()->FindClass("java/io/ByteArrayInputStream");
@@ -31,11 +30,15 @@ class SparkEnv {
     jmethodID OutputStream_reset_ = env()->GetMethodID(baos_, "reset", "()V");
     jclass byteArrayClass_ = env()->FindClass("[B");
 
+    jobject spark_utils_;
+
     UpcallEnv * up() { return &up_; }
-    jobject spark_utils() { return env()->GetStaticObjectField(spark_utils_class_, spark_utils_field_); }
 
 
   public:
+    SparkEnv(jobject spark_utils) : spark_utils_(env()->NewGlobalRef(spark_utils)) { }
+    ~SparkEnv() { env()->DeleteGlobalRef(spark_utils_); }
+
     // contexts can't be missing
     template <typename EltEncoder, typename ArrayImpl>
     class ArrayEncoder {
@@ -109,7 +112,7 @@ class SparkEnv {
 
       jobject jmodID = env()->NewStringUTF(modID);
       jobject jfname = env()->NewStringUTF(fname);
-      auto res = env()->NewGlobalRef(env()->CallObjectMethod(spark_utils(), parallelize_compute_collect_, jmodID, jfname, jctxs, jglobals));
+      auto res = env()->NewGlobalRef(env()->CallObjectMethod(spark_utils_, parallelize_compute_collect_, jmodID, jfname, jctxs, jglobals));
       env()->DeleteLocalRef(jmodID);
       env()->DeleteLocalRef(jfname);
       env()->DeleteLocalRef(jctxs);
@@ -127,8 +130,10 @@ struct SparkFunctionContext {
   RegionPtr region_;
   SparkEnv spark_env_;
 
-  SparkFunctionContext(RegionPtr region) :
-  region_(region), spark_env_() { }
+  SparkFunctionContext(RegionPtr region, jobject spark_utils) :
+  region_(region), spark_env_(spark_utils) { }
+
+  SparkFunctionContext(RegionPtr region) : SparkFunctionContext(region, nullptr) { }
 };
 
 }

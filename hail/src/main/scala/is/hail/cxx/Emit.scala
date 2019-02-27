@@ -5,15 +5,15 @@ import is.hail.expr.types.coerce
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io.CodecSpec
-import is.hail.nativecode.NativeStatus
+import is.hail.nativecode.{NativeModule, NativeStatus}
 import is.hail.utils._
 
 import scala.collection.mutable
 
 object Emit {
-  def apply(fb: FunctionBuilder, nSpecialArgs: Int, x: ir.IR): EmitTriplet = {
+  def apply(fb: FunctionBuilder, nSpecialArgs: Int, x: ir.IR): (EmitTriplet, Array[(String, NativeModule)]) = {
     val emitter = new Emitter(fb, nSpecialArgs, SparkFunctionContext(fb))
-    emitter.emit(x, ir.Env.empty[EmitTriplet])
+    emitter.emit(x, ir.Env.empty[EmitTriplet]) -> emitter.modules.result()
   }
 }
 
@@ -168,7 +168,8 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
   outer =>
   type E = ir.Env[EmitTriplet]
 
-  val sparkEnv = ctx.sparkEnv
+  val modules: ArrayBuilder[(String, NativeModule)] = new ArrayBuilder()
+  val sparkEnv: Code = ctx.sparkEnv
 
   def emit(resultRegion: EmitRegion, x: ir.IR, env: E): EmitTriplet = {
     def triplet(setup: Code, m: Code, v: Code): EmitTriplet =
@@ -624,7 +625,8 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         tub.include("<string>")
         val wrappedBody = if (body.pType.isPrimitive) ir.MakeTuple(FastSeq(body)) else body
 
-        val bodyF = Compile.makeNonmissingFunction(tub, body, "context" -> ctxType, "global" -> g.pType)
+        val (bodyF, mods) = Compile.makeNonmissingFunction(tub, body, "context" -> ctxType, "global" -> g.pType)
+        assert(mods.isEmpty)
         val ctxDec = PackDecoder(ctxType, ctxType, spec.child, tub)
         val globDec = PackDecoder(g.pType, g.pType, spec.child, tub).name
         val resEnc = PackEncoder(body.pType, spec.child, tub).name
@@ -668,9 +670,9 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         mod.findOrBuild(st)
         assert(st.ok, st.toString())
 
-        val modString = SparkUtils.addModule(mod)
+        val modString = ir.genUID()
+        modules += modString -> mod
 
-        fb.translationUnitBuilder().include("hail/SparkUtils.h")
         fb.translationUnitBuilder().include("hail/SparkUtils.h")
         val ctxs = fb.variable("ctxs", "char *")
         val ctxEnc = PackEncoder(ctxType, spec.child, fb.translationUnitBuilder())
