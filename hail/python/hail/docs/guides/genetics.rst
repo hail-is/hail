@@ -315,6 +315,34 @@ Multiple Phenotypes
             patterns of missingness. Approach #2 will do two passes over the data while Approaches #1 and #3 will
             do one pass over the data and compute the regression statistics for each phenotype simultaneously.
 
+Using Variants (SNPs) as Covariates
++++++++++++++++++++++++++++++++++++
+
+:**tags**: sample genotypes covariate
+
+:**description**: Use sample genotype dosage at specific variant(s) as covariates in regression routines.
+
+:**code**:
+
+    Convert a Python list of variant strings to a Hail set literal:
+
+    >>> my_snps = ['1:1:A:T', '16:29102912:T:TTT']
+    >>> mt_snps_lit = hl.literal({hl.parse_variant(x) for x in my_snps})
+
+    Compute an array of genotypes per sample and annotate the matrix table `mt`:
+
+    >>> mt_filt = mt.filter_rows(mt_snps_lit.contains(mt.row_key))
+    >>> sample_genos = mt_filt.annotate_cols(genotypes = hl.agg.collect(mt_filt.GT.n_alt_alleles()))
+    >>> mt = mt.annotate_cols(snp_covs = sample_genos[mt.x].genotypes)
+
+    Use these values in :func:`.linear_regression_rows`:
+
+    >>> gwas = hl.linear_regression_rows(
+    ...     mt.GT.n_alt_alleles(),
+    ...     mt.pheno,
+    ...     covariates=[1, mt.age, mt.PC1, mt.PC2, *(mt.snp_covs[i] for i in range(len(my_snps)))])
+
+:**dependencies**: :func:`.linear_regression_rows`, :func:`.aggregators.collect`, :func:`.parse_variant`, :func:`.literal`
 
 Stratified by Group
 +++++++++++++++++++
