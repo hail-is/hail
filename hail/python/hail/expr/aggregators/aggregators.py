@@ -187,6 +187,9 @@ def _check_agg_bindings(expr, bindings):
         raise ExpressionException("dynamic variables created by 'hl.bind' or lambda methods like 'hl.map' may not be aggregated")
 
 
+def approx_cdf(expr):
+    return _agg_func('ApproxCDF', [expr], tstruct(values=tarray(expr.dtype), ranks=tarray(tint64()), count=tint64()))
+
 @typecheck(expr=expr_any)
 def collect(expr) -> ArrayExpression:
     """Collect records into an array.
