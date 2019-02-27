@@ -22,16 +22,11 @@ object PackEncoder {
       s"""
          |$output_buf_ptr->write_int($len);
          |$output_buf_ptr->write_bytes($off + 4, n_missing_bytes($len));""".stripMargin
-    val eltOff = tub.variable("eoff",
-      "char *",
-      s"round_up_alignment(${ if (!t.elementType.required) s"$off + 4 + n_missing_bytes($len)" else s"$off + 4" }, ${ t.elementType.alignment })")
-    val elt = t.elementType match {
-      case (_: PBinary | _: PArray) => s"load_address($eltOff)"
-      case _ => eltOff.toString
-    }
+
+    val elt = t.cxxLoadElement(off.toString, i.toString)
 
     val writeElt = if (t.elementType.required)
-      encode(tub,  t.elementType, output_buf_ptr, Expression(elt))
+      encode(tub, t.elementType, output_buf_ptr, Expression(elt))
     else
       s"""
          |if (!load_bit($off + 4, $i)) {
@@ -41,10 +36,8 @@ object PackEncoder {
     s"""
        |${ len.define }
        |$copyLengthAndMissing
-       |${ eltOff.define }
        |for (${ i.define } $i < $len; $i++) {
        |  $writeElt
-       |  $eltOff += ${ t.elementByteSize };
        |}
       """.stripMargin
   }
@@ -52,13 +45,7 @@ object PackEncoder {
   def encodeBaseStruct(tub: TranslationUnitBuilder, t: PBaseStruct, output_buf_ptr: Expression, off: Expression): Code = {
     val nMissingBytes = t.nMissingBytes
     val storeFields: Array[Code] = Array.tabulate[Code](t.size) { idx =>
-      val store = t.types(idx) match {
-        case t2@(_: PArray | _: PBinary) =>
-          encode(tub, t2, output_buf_ptr, Expression(s"load_address($off + ${ t.byteOffsets(idx) })"))
-        case t2 =>
-          encode(tub, t2, output_buf_ptr, Expression(s"$off + ${ t.byteOffsets(idx) }"))
-
-      }
+      val store = encode(tub, t.types(idx), output_buf_ptr, Expression(t.cxxLoadField(off.toString, idx)))
       if (t.fieldRequired(idx)) {
         store
       } else {
@@ -75,18 +62,17 @@ object PackEncoder {
   }
 
   def encode(tub: TranslationUnitBuilder, t: PType, output_buf_ptr: Expression, off: Expression): Code = t match {
-    case _: PBoolean => s"$output_buf_ptr->write_byte(*($off) ? 1 : 0);"
-    case _: PInt32 => s"$output_buf_ptr->write_int(load_int($off));"
-    case _: PInt64 => s"$output_buf_ptr->write_long(load_long($off));"
-    case _: PFloat32 => s"$output_buf_ptr->write_float(load_float($off));"
-    case _: PFloat64 => s"$output_buf_ptr->write_double(load_double($off));"
+    case _: PBoolean => s"$output_buf_ptr->write_byte($off ? 1 : 0);"
+    case _: PInt32 => s"$output_buf_ptr->write_int($off);"
+    case _: PInt64 => s"$output_buf_ptr->write_long($off);"
+    case _: PFloat32 => s"$output_buf_ptr->write_float($off);"
+    case _: PFloat64 => s"$output_buf_ptr->write_double($off);"
     case _: PBinary => encodeBinary(tub, output_buf_ptr, off)
     case t2: PArray => encodeArray(tub, t2, output_buf_ptr, off)
     case t2: PBaseStruct => encodeBaseStruct(tub, t2, output_buf_ptr, off)
   }
 
   def apply(t: PType, bufSpec: BufferSpec, tub: TranslationUnitBuilder): Class = {
-    assert(t.isInstanceOf[PBaseStruct] || t.isInstanceOf[PArray])
     tub.include("hail/hail.h")
     tub.include("hail/Encoder.h")
     tub.include("hail/ObjectArray.h")
@@ -94,7 +80,7 @@ object PackEncoder {
     tub.include("<cstdio>")
     tub.include("<memory>")
 
-    val encBuilder = tub.buildClass("Encoder", "NativeObj")
+    val encBuilder = tub.buildClass(tub.genSym("Encoder"), "NativeObj")
 
     val bufType = bufSpec.nativeOutputBufferType
     val buf = encBuilder.variable("buf", s"std::shared_ptr<$bufType>")
@@ -102,7 +88,7 @@ object PackEncoder {
 
     encBuilder += s"${ encBuilder.name }(std::shared_ptr<OutputStream> os) : $buf(std::make_shared<$bufType>(os)) { }"
 
-    val rowFB = encBuilder.buildMethod("encode_row", Array("const char *" -> "row"), "void")
+    val rowFB = encBuilder.buildMethod("encode_row", Array(typeToCXXType(t) -> "row"), "void")
     rowFB += encode(tub, t.fundamentalType, buf.ref, rowFB.getArg(0).ref)
     rowFB += "return;"
     rowFB.end()

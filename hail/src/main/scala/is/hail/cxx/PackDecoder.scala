@@ -183,20 +183,33 @@ object PackDecoder {
 
     decoderBuilder += s"${ decoderBuilder.name }(std::shared_ptr<InputStream> is) : $buf(std::make_shared<$bufType>(is)) { }"
 
-    val rowFB = decoderBuilder.buildMethod("decode_row", Array("Region *" -> "region"), "char *", const = true)
-    val region = rowFB.getArg(0)
-    val initialSize = rt match {
-      case _: PArray | _: PBinary => 8
-      case _ => rt.byteSize
+    rt.fundamentalType match {
+      case node if node.isPrimitive =>
+        val rowFB = decoderBuilder.buildMethod("decode_row", Array("Region *" -> "region"), typeToCXXType(rt), const = true)
+        val region = rowFB.getArg(0)
+        val row = rowFB.variable("row", "char *", s"$region->allocate(${ rt.alignment }, ${ rt.byteSize })")
+        rowFB += row.define
+        rowFB += decode(t.fundamentalType, rt.fundamentalType, buf.ref, region.ref, row.ref, rowFB)
+        rowFB += s"return *reinterpret_cast<${typeToCXXType(rt)} *>($row);"
+        rowFB.end()
+
+      case _ =>
+        val rowFB = decoderBuilder.buildMethod("decode_row", Array("Region *" -> "region"), "char *", const = true)
+        val region = rowFB.getArg(0)
+        val initialSize = rt match {
+          case _: PArray | _: PBinary => 8
+          case _ => rt.byteSize
+        }
+        val row = rowFB.variable("row", "char *", s"$region->allocate(${ rt.alignment }, $initialSize)")
+        rowFB += row.define
+        rowFB += decode(t.fundamentalType, rt.fundamentalType, buf.ref, region.ref, row.ref, rowFB)
+        rowFB += (rt match {
+          case _: PArray | _: PBinary => s"return load_address($row);"
+          case _ => s"return $row;"
+        })
+        rowFB.end()
     }
-    val row = rowFB.variable("row", "char *", s"$region->allocate(${ rt.alignment }, $initialSize)")
-    rowFB += row.define
-    rowFB += decode(t.fundamentalType, rt.fundamentalType, buf.ref, region.ref, row.ref, rowFB)
-    rowFB += (rt match {
-      case _: PArray | _: PBinary => s"return load_address($row);"
-      case _ => s"return $row;"
-    })
-    rowFB.end()
+
 
     val byteFB = decoderBuilder.buildMethod("decode_byte", Array(), "char", const = true)
     byteFB += s"return $buf->read_byte();"
