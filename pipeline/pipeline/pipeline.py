@@ -92,7 +92,8 @@ class Pipeline:
         return rg
 
     def write_output(self, resource, dest):  # pylint: disable=R0201
-        assert isinstance(resource, Resource)
+        if not isinstance(resource, Resource):
+            raise Exception(f"'write_output' only accepts Resource inputs. Found '{type(resource)}'.")
         if isinstance(resource, TaskResourceFile) and resource not in resource._source._mentioned:
             name = resource._source._resources_inverse
             raise Exception(f"undefined resource '{name}'\n"

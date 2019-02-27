@@ -101,10 +101,10 @@ class ResourceGroup(Resource):
         self._uid = ResourceGroup._new_uid()
         self._output_paths = set()
 
-        for name, resource in values.items():
-            assert isinstance(resource, ResourceFile)
-            self._resources[name] = resource
-            resource.add_resource_group(self)
+        for name, resource_file in values.items():
+            assert isinstance(resource_file, ResourceFile)
+            self._resources[name] = resource_file
+            resource_file.add_resource_group(self)
 
     @property
     def path(self):
