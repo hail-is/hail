@@ -35,7 +35,7 @@ class BaseArrayBuilder {
 
   char * element_address(int idx) const { return elem_addr_ + idx * ArrayImpl::array_elem_size; }
 
-  const char * offset() const { return off_; }
+  char * offset() const { return off_; }
 };
 
 template<typename ElemT, bool elem_required, size_t elem_size, size_t elem_align, size_t array_align>
@@ -46,7 +46,7 @@ class ArrayLoadBuilder : public BaseArrayBuilder<elem_required, elem_size, elem_
     void set_element(int idx, ElemT elem) {
       *reinterpret_cast<ElemT *>(Base::element_address(idx)) = elem;
     }
-    using Base::BaseArrayBuilder;
+    using Base::Base;
 };
 
 template<bool elem_required, size_t elem_size, size_t elem_align, size_t array_align>
@@ -57,7 +57,7 @@ class ArrayAddrBuilder : public BaseArrayBuilder<elem_required, elem_size, elem_
     void set_element(int idx, const char * elem) {
       memcpy(Base::element_address(idx), elem, elem_size);
     }
-    using Base::BaseArrayBuilder;
+    using Base::Base;
 };
 
 }

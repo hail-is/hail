@@ -2,17 +2,20 @@ package is.hail.cxx
 
 import is.hail.expr.types.physical.{PBaseStruct, PContainer, PType}
 
+object StagedContainerBuilder {
+  def builderType(containerPType: PContainer): Type = {
+    val eltType = containerPType.elementType.fundamentalType
+    val params = s"${ eltType.required }, ${ eltType.byteSize }, ${ eltType.alignment }, ${ containerPType.contentsAlignment }"
+    eltType match {
+      case _: PBaseStruct => s"ArrayAddrBuilder<$params>"
+      case t => s"ArrayLoadBuilder<${ typeToCXXType(t) }, $params>"
+    }
+  }
+}
+
 class StagedContainerBuilder(fb: FunctionBuilder, region: Code, containerPType: PContainer) {
   fb.translationUnitBuilder().include("hail/ArrayBuilder.h")
-
-  val eltType: PType = containerPType.elementType.fundamentalType
-
-  private[this] val params = s"${ eltType.required }, ${ eltType.byteSize }, ${ eltType.alignment }, ${ containerPType.contentsAlignment }"
-  private[this] val builderType: Type = eltType match {
-    case _: PBaseStruct => s"ArrayAddrBuilder<$params>"
-    case t => s"ArrayLoadBuilder<${typeToCXXType(t)}, $params>"
-  }
-  private[this] val builder = fb.variable("builder", builderType)
+  private[this] val builder = fb.variable("builder", StagedContainerBuilder.builderType(containerPType))
   private[this] val i = fb.variable("i", "int", "0")
 
   def start(len: Code, clearMissing: Boolean = true): Code = {
