@@ -1462,6 +1462,7 @@ class IRSuite extends SparkSuite {
         MatrixMapCols(read, newCol, None),
         MatrixKeyRowsBy(read, FastIndexedSeq("row_m", "row_d"), false),
         MatrixMapRows(read, newRow),
+        MatrixRepartition(read, 10, 0),
         MatrixMapEntries(read, MakeStruct(FastIndexedSeq(
           "global_f32" -> ApplyBinaryPrimOp(Add(),
             GetField(Ref("global", read.typ.globalType), "global_f32"),

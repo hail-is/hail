@@ -1,13 +1,14 @@
 import abc
 import json
 
+from hail.ir.utils import make_filter_and_replace
 from hail.typecheck import *
 from hail.utils.java import escape_str
-from hail.ir.utils import make_filter_and_replace
+
 
 class TableReader(object):
     @abc.abstractmethod
-    def render(self, r):
+    def render(self):
         pass
 
     @abc.abstractmethod
@@ -20,7 +21,7 @@ class TableNativeReader(TableReader):
     def __init__(self, path):
         self.path = path
 
-    def render(self, r):
+    def render(self):
         reader = {'name': 'TableNativeReader',
                   'path': self.path}
         return escape_str(json.dumps(reader))
@@ -50,7 +51,7 @@ class TextTableReader(TableReader):
             'forceGZ': force_gz
         }
 
-    def render(self, r):
+    def render(self):
         reader = {'name': 'TextTableReader',
                   'options': self.config}
         return escape_str(json.dumps(reader))

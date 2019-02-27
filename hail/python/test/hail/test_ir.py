@@ -41,8 +41,8 @@ class ValueIRTests(unittest.TestCase):
             ir.If(b, i, j),
             ir.Let('v', i, v),
             ir.Ref('x'),
-            ir.ApplyBinaryOp('+', i, j),
-            ir.ApplyUnaryOp('-', i),
+            ir.ApplyBinaryPrimOp('+', i, j),
+            ir.ApplyUnaryPrimOp('-', i),
             ir.ApplyComparisonOp('EQ', i, j),
             ir.MakeArray([i, ir.NA(hl.tint32), ir.I32(-3)], hl.tarray(hl.tint32)),
             ir.ArrayRef(a, i),
@@ -247,6 +247,17 @@ class MatrixIRTests(unittest.TestCase):
             except Exception as e:
                 raise ValueError(str(x)) from e
 
+    def test_highly_nested_ir(self):
+        N = 10
+        M = 250
+        ht = hl.utils.range_table(N)
+        for i in range(M):
+            ht = ht.annotate(**{f'x{i}': i})
+        str(ht._tir)
+
+        # TODO: Scala Pretty errors out with a StackOverflowError here
+        # ht._force_count()
+
 
 class BlockMatrixIRTests(unittest.TestCase):
     def blockmatrix_irs(self):
@@ -255,7 +266,7 @@ class BlockMatrixIRTests(unittest.TestCase):
 
         read = ir.BlockMatrixRead(ir.BlockMatrixNativeReader(resource('blockmatrix_example/0')))
         add_two_bms = ir.BlockMatrixMap2(read, read, ir.ApplyBinaryOp('+', ir.Ref('l'), ir.Ref('r')))
-        negate_bm = ir.BlockMatrixMap(read, ir.ApplyUnaryOp('-', ir.Ref('element')))
+        negate_bm = ir.BlockMatrixMap(read, ir.ApplyUnaryPrimOp('-', ir.Ref('element')))
         sqrt_bm = ir.BlockMatrixMap(read, hl.sqrt(construct_expr(ir.Ref('element'), hl.tfloat64))._ir)
 
         scalar_to_bm = ir.ValueToBlockMatrix(scalar_ir, [1, 1], 1)

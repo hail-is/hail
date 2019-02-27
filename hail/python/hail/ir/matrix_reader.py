@@ -1,18 +1,17 @@
 import abc
 import json
 
+from .utils import make_filter_and_replace
 from ..expr.types import tfloat32, tfloat64
+from ..genetics.reference_genome import reference_genome_type
 from ..typecheck import *
 from ..utils import wrap_to_list
 from ..utils.java import escape_str
-from ..genetics.reference_genome import reference_genome_type
-
-from .utils import make_filter_and_replace
 
 
 class MatrixReader(object):
     @abc.abstractmethod
-    def render(self, r):
+    def render(self):
         pass
 
     @abc.abstractmethod
@@ -25,7 +24,7 @@ class MatrixNativeReader(MatrixReader):
     def __init__(self, path):
         self.path = path
 
-    def render(self, r):
+    def render(self):
         reader = {'name': 'MatrixNativeReader',
                   'path': self.path}
         return escape_str(json.dumps(reader))
@@ -44,7 +43,7 @@ class MatrixRangeReader(MatrixReader):
         self.n_cols = n_cols
         self.n_partitions = n_partitions
 
-    def render(self, r):
+    def render(self):
         reader = {'name': 'MatrixRangeReader',
                   'nRows': self.n_rows,
                   'nCols': self.n_cols,
@@ -103,7 +102,7 @@ class MatrixVCFReader(MatrixReader):
         self.find_replace = find_replace
         self._partitions_json = _partitions_json
 
-    def render(self, r):
+    def render(self):
         reader = {'name': 'MatrixVCFReader',
                   'files': self.path,
                   'callFields': self.call_fields,
@@ -154,10 +153,10 @@ class MatrixBGENReader(MatrixReader):
 
         from hail.table import Table
         if included_variants is not None:
-            assert(isinstance(included_variants, Table))
+            assert (isinstance(included_variants, Table))
         self.included_variants = included_variants
 
-    def render(self, r):
+    def render(self):
         reader = {'name': 'MatrixBGENReader',
                   'files': self.path,
                   'sampleFile': self.sample_file,
@@ -196,7 +195,7 @@ class MatrixPLINKReader(MatrixReader):
         self.contig_recoding = contig_recoding
         self.skip_invalid_loci = skip_invalid_loci
 
-    def render(self, r):
+    def render(self):
         reader = {'name': 'MatrixPLINKReader',
                   'bed': self.bed,
                   'bim': self.bim,
@@ -225,6 +224,7 @@ class MatrixPLINKReader(MatrixReader):
                other.contig_recoding == self.contig_recoding and \
                other.skip_invalid_loci == self.skip_invalid_loci
 
+
 class MatrixGENReader(MatrixReader):
     @typecheck_method(files=sequenceof(str), sample_file=str, chromosome=nullable(str),
                       min_partitions=nullable(int), tolerance=float, rg=nullable(str),
@@ -243,9 +243,9 @@ class MatrixGENReader(MatrixReader):
             'skipInvalidLoci': skip_invalid_loci
         }
 
-    def render(self, r):
+    def render(self):
         return escape_str(json.dumps(self.config))
 
     def __eq__(self, other):
         return isinstance(other, MatrixGENReader) and \
-            self.config == other.config
+               self.config == other.config

@@ -4484,7 +4484,7 @@ def _shift_op(x, y, op):
     return hl.bind(lambda x, y: (
         hl.case()
             .when(y >= word_size, hl.sign(x) if op == '>>' else zero)
-            .when(y > 0, construct_expr(ApplyBinaryOp(op, x._ir, y._ir), t, indices, aggregations))
+            .when(y > 0, construct_expr(ApplyBinaryPrimOp(op, x._ir, y._ir), t, indices, aggregations))
             .or_error('cannot shift by a negative value: ' + hl.str(x) + f" {op} " + hl.str(y))), x, y)
 
 def _bit_op(x, y, op):
@@ -4497,7 +4497,7 @@ def _bit_op(x, y, op):
     y = coercer.coerce(y)
 
     indices, aggregations = unify_all(x, y)
-    return construct_expr(ApplyBinaryOp(op, x._ir, y._ir), t, indices, aggregations)
+    return construct_expr(ApplyBinaryPrimOp(op, x._ir, y._ir), t, indices, aggregations)
 
 
 @typecheck(x=expr_oneof(expr_int32, expr_int64), y=expr_oneof(expr_int32, expr_int64))
@@ -4692,7 +4692,7 @@ def bit_not(x):
     -------
     :class:`.Int32Expression` or :class:`.Int64Expression`
     """
-    return construct_expr(ApplyUnaryOp('~', x._ir), x.dtype, x._indices, x._aggregations)
+    return construct_expr(ApplyUnaryPrimOp('~', x._ir), x.dtype, x._indices, x._aggregations)
 
 
 @typecheck(s=expr_str)
