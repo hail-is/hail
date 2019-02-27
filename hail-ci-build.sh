@@ -1,7 +1,7 @@
 #!/bin/bash
 set -ex
 
-PROJECTS=$(cat projects.txt)
+PROJECTS=$(cat projects.yaml | grep '^- project: ' | sed 's/^- project: //')
 
 for project in $PROJECTS; do
     if [[ -e $project/hail-ci-build.sh ]]; then
