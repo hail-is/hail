@@ -22,7 +22,7 @@ class StagedContainerBuilder(fb: FunctionBuilder, region: Code, containerPType: 
     s"""
        |${ builder.defineWith(s"{ (int)$len, $region }") }
        |${ i.define }
-       |${ if (clearMissing) s"$builder.clear_missing_bits();" }
+       |${ if (clearMissing) s"$builder.clear_missing_bits();" else "" }
      """.stripMargin
   }
 
