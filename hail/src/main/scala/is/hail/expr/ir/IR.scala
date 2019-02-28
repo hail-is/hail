@@ -258,7 +258,9 @@ object Die {
 
 final case class Die(message: IR, _typ: Type) extends IR
 
-final case class ApplyIR(function: String, args: Seq[IR], conversion: Seq[IR] => IR) extends IR {
+final case class ApplyIR(function: String, args: Seq[IR]) extends IR {
+  var conversion: Seq[IR] => IR = _
+
   lazy val explicitNode: IR = {
     val refs = args.map(a => Ref(genUID(), a.typ)).toArray
     var body = conversion(refs)
@@ -318,9 +320,11 @@ final case class MatrixMultiWrite(
 
 final case class TableToValueApply(child: TableIR, function: TableToValueFunction) extends IR
 final case class MatrixToValueApply(child: MatrixIR, function: MatrixToValueFunction) extends IR
+final case class BlockMatrixToValueApply(child: BlockMatrixIR, function: BlockMatrixToValueFunction) extends IR
 
-final case class BlockMatrixWrite(child: BlockMatrixIR, path: String,
-  overwrite: Boolean, forceRowMajor: Boolean, stageLocally: Boolean) extends IR
+final case class BlockMatrixWrite(child: BlockMatrixIR, writer: BlockMatrixWriter) extends IR
+
+final case class CollectDistributedArray(contexts: IR, globals: IR, cname: String, gname: String, body: IR) extends IR
 
 class PrimitiveIR(val self: IR) extends AnyVal {
   def +(other: IR): IR = ApplyBinaryPrimOp(Add(), self, other)

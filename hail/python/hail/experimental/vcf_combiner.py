@@ -2,27 +2,41 @@
 
 import hail as hl
 from hail.matrixtable import MatrixTable
-from hail.expr import ArrayExpression, StructExpression
+from hail.expr import StructExpression
 from hail.expr.expressions import expr_call, expr_array, expr_int32
-from hail.ir.matrix_ir import MatrixKeyRowsBy
+from hail.ir import TableKeyBy
 from hail.typecheck import typecheck
 
 
 def transform_one(mt: MatrixTable) -> MatrixTable:
-    """transforms a gvcf into a form suitable for combining"""
+    """transforms a gvcf into a form suitable for combining
+
+    The input to this should be some result of either :func:`.import_vcf` or
+    :func:`.import_vcfs`.  Be aware of requiredness issues surrounding `LAD` and `LPL` in the
+    output of this function and the output of :func:`.combine_gvcfs`. The output of
+    :func:`.combine_gvcfs` will have `LAD` and `LPL` elements as not-required. Without the
+    `array_elements_required` flag being set to `True` in :func:`.import_vcf` and
+    :func:`.import_vcfs`, the LAD and LPL fields' elements in the output of this function will
+    be required which will lead to a type error if the output of this function and the output
+    of :func:`.combine_gvcfs` are passed to :func:`.combine_gvcfs`.
+    """
     mt = mt.annotate_entries(
         # local (alt) allele index into global (alt) alleles
-        LA=hl.range(0, hl.len(mt.alleles) - 1),
+        LA=hl.range(0, hl.len(mt.alleles)),
         END=mt.info.END,
         BaseQRankSum=mt.info['BaseQRankSum'],
         ClippingRankSum=mt.info['ClippingRankSum'],
         MQ=mt.info['MQ'],
         MQRankSum=mt.info['MQRankSum'],
         ReadPosRankSum=mt.info['ReadPosRankSum'],
+        LGT=mt.GT,
+        LAD=mt.AD,
+        LPL=mt.PL,
+        LPGT=mt.PGT
     )
     mt = mt.annotate_rows(
         info=mt.info.annotate(
-            SB=hl.array([
+            SB_TABLE=hl.array([
                 hl.agg.sum(mt.entry.SB[0]),
                 hl.agg.sum(mt.entry.SB[1]),
                 hl.agg.sum(mt.entry.SB[2]),
@@ -33,32 +47,52 @@ def transform_one(mt: MatrixTable) -> MatrixTable:
             "QUALapprox",
             "RAW_MQ",
             "VarDP",
-            "SB",
+            "SB_TABLE",
         ))
-    mt = mt.transmute_entries(
-        LGT=mt.GT,
-        LAD=mt.AD,
-        LPL=mt.PL,
-        LPGT=mt.PGT)
-    mt = mt.drop('SB', 'qual', 'filters')
+    mt = mt.drop('SB', 'qual', 'filters', 'GT', 'AD', 'PL', 'PGT')
 
     return mt
 
-
-def merge_alleles(alleles) -> ArrayExpression:
-    # alleles is tarray(tarray(tstruct(ref=tstr, alt=tstr)))
-    return hl.rbind(hl.array(hl.set(hl.flatten(alleles))),
-                    lambda arr:
-                    hl.filter(lambda a: a.alt != '<NON_REF>', arr)
-                      .extend(hl.filter(lambda a: a.alt == '<NON_REF>', arr)))
-
-
-def renumber_entry(entry, old_to_new) -> StructExpression:
-    # global index of alternate (non-ref) alleles
-    return entry.annotate(LA=entry.LA.map(lambda lak: old_to_new[lak]))
-
-
 def combine(ts):
+    def merge_alleles(alleles):
+        from hail.expr.functions import _num_allele_type, _allele_ints
+        return hl.rbind(
+            alleles.map(lambda a: hl.or_else(a[0], ''))
+                   .fold(lambda s, t: hl.cond(hl.len(s) > hl.len(t), s, t), ''),
+            lambda ref:
+            hl.rbind(
+                alleles.map(
+                    lambda al: hl.rbind(
+                        al[0],
+                        lambda r:
+                        hl.array([ref]).extend(
+                            al[1:].map(
+                                lambda a:
+                                hl.rbind(
+                                    _num_allele_type(r, a),
+                                    lambda at:
+                                    hl.cond(
+                                        (_allele_ints['SNP'] == at) |
+                                        (_allele_ints['Insertion'] == at) |
+                                        (_allele_ints['Deletion'] == at) |
+                                        (_allele_ints['MNP'] == at) |
+                                        (_allele_ints['Complex'] == at),
+                                        a + ref[hl.len(r):],
+                                        a)))))),
+                lambda lal:
+                hl.struct(
+                    globl=hl.array([ref]).extend(hl.rbind(
+                        hl.array(hl.set(hl.flatten(lal)).remove(ref)),
+                        lambda arr:
+                        hl.filter(lambda a: a != '<NON_REF>', arr)
+                        .extend(hl.filter(lambda a: a == '<NON_REF>', arr)))),
+                    local=lal)))
+
+    def renumber_entry(entry, old_to_new) -> StructExpression:
+        # global index of alternate (non-ref) alleles
+        return entry.annotate(LA=entry.LA.map(lambda lak: old_to_new[lak]))
+
+
     # pylint: disable=protected-access
     tmp = ts.annotate(
         alleles=merge_alleles(ts.data.map(lambda d: d.alleles)),
@@ -68,11 +102,11 @@ def combine(ts):
             QUALapprox=hl.sum(ts.data.map(lambda d: d.info.QUALapprox)),
             RAW_MQ=hl.sum(ts.data.map(lambda d: d.info.RAW_MQ)),
             VarDP=hl.sum(ts.data.map(lambda d: d.info.VarDP)),
-            SB=hl.array([
-                hl.sum(ts.data.map(lambda d: d.info.SB[0])),
-                hl.sum(ts.data.map(lambda d: d.info.SB[1])),
-                hl.sum(ts.data.map(lambda d: d.info.SB[2])),
-                hl.sum(ts.data.map(lambda d: d.info.SB[3]))
+            SB_TABLE=hl.array([
+                hl.sum(ts.data.map(lambda d: d.info.SB_TABLE[0])),
+                hl.sum(ts.data.map(lambda d: d.info.SB_TABLE[1])),
+                hl.sum(ts.data.map(lambda d: d.info.SB_TABLE[2])),
+                hl.sum(ts.data.map(lambda d: d.info.SB_TABLE[3]))
             ])))
     tmp = tmp.annotate(
         __entries=hl.bind(
@@ -84,10 +118,11 @@ def combine(ts):
                           .map(lambda _: hl.null(tmp.data[i].__entries.dtype.element_type)),
                         hl.bind(
                             lambda old_to_new: tmp.data[i].__entries.map(lambda e: renumber_entry(e, old_to_new)),
-                            hl.range(0, hl.len(tmp.data[i].alleles)).map(
-                                lambda j: combined_allele_index[tmp.data[i].alleles[j]])))),
-            hl.dict(hl.range(0, hl.len(tmp.alleles)).map(
-                lambda j: hl.tuple([tmp.alleles[j], j])))))
+                            hl.range(0, hl.len(tmp.alleles.local[i])).map(
+                                lambda j: combined_allele_index[tmp.alleles.local[i][j]])))),
+            hl.dict(hl.range(0, hl.len(tmp.alleles.globl)).map(
+                lambda j: hl.tuple([tmp.alleles.globl[j], j])))))
+    tmp = tmp.annotate(alleles=tmp.alleles.globl)
     tmp = tmp.annotate_globals(__cols=hl.flatten(tmp.g.map(lambda g: g.__cols)))
 
     return tmp.drop('data', 'g')
@@ -100,48 +135,25 @@ def combine_gvcfs(mts):
     def localize(mt):
         return mt._localize_entries('__entries', '__cols')
 
-    def fix_alleles(alleles):
-        ref = alleles.map(lambda d: d.ref).fold(lambda s, t: hl.cond(hl.len(s) > hl.len(t), s, t), '')
-        alts = alleles.map(
-            lambda a: hl.switch(hl.allele_type(a.ref, a.alt))
-                        .when('SNP', a.alt + ref[hl.len(a.alt):])
-                        .when('Insertion', a.alt + ref[hl.len(a.ref):])
-                        .when('Deletion', a.alt + ref[hl.len(a.ref):])
-                        .default(a.alt)
-        )
-        return hl.array([ref]).extend(alts)
-
-    def min_rep(locus, ref, alt):
-        mr = hl.min_rep(locus, [ref, alt])
-        return (hl.case()
-                  .when(alt == '<NON_REF>', hl.struct(ref=ref[0:1], alt=alt))
-                  .when(locus == mr.locus, hl.struct(ref=mr.alleles[0], alt=mr.alleles[1]))
-                  .or_error("locus before and after minrep differ"))
-
-    mts = [hl.MatrixTable(MatrixKeyRowsBy(mt._mir, ['locus'], is_sorted=True)) for mt in mts]
-    mts = [mt.annotate_rows(
-        # now minrep'ed (ref, alt) allele pairs
-        alleles=hl.bind(lambda ref, locus: mt.alleles[1:].map(lambda alt: min_rep(locus, ref, alt)),
-                        mt.alleles[0], mt.locus)) for mt in mts]
     ts = hl.Table._multi_way_zip_join([localize(mt) for mt in mts], 'data', 'g')
     combined = combine(ts)
-    combined = combined.annotate(alleles=fix_alleles(combined.alleles))
-    return hl.MatrixTable(
-        MatrixKeyRowsBy(
-            combined._unlocalize_entries('__entries', '__cols', ['s'])._mir,
-            ['locus', 'alleles'],
-            is_sorted=True))
+    return combined._unlocalize_entries('__entries', '__cols', ['s'])
 
 
 @typecheck(lgt=expr_call, la=expr_array(expr_int32))
 def lgt_to_gt(lgt, la):
     """A method for transforming Local GT and Local Alleles into the true GT"""
-    one = hl.cond(lgt[0] == 0, 0, la[lgt[0] - 1] + 1)
-    two = hl.cond(lgt[1] == 0, 0, la[lgt[1] - 1] + 1)
-    return hl.call(one, two)
+    return hl.call(la[lgt[0]], la[lgt[1]])
 
 
 def summarize(mt):
+    """Computes summary statistics
+
+    Note
+    ----
+    You will not be able to run :func:`.combine_gvcfs` with the output of this
+    function.
+    """
     mt = hl.experimental.densify(mt)
     return mt.annotate_rows(info=hl.rbind(
         hl.agg.call_stats(lgt_to_gt(mt.LGT, mt.LA), mt.alleles),
@@ -159,12 +171,98 @@ def summarize(mt):
             QUALapprox=mt.info.QUALapprox,
             RAW_MQ=mt.info.RAW_MQ,
             ReadPosRankSum=hl.median(hl.agg.collect(mt.entry.ReadPosRankSum)),
-            SB=mt.info.SB,
+            SB_TABLE=mt.info.SB_TABLE,
             VarDP=mt.info.VarDP,
         )))
 
 def finalize(mt):
+    """Drops entry fields no longer needed for combining.
+
+    Note
+    ----
+    You will not be able to run :func:`.combine_gvcfs` with the output of this
+    function.
+    """
     return mt.drop('BaseQRankSum', 'ClippingRankSum', 'MQ', 'MQRankSum', 'ReadPosRankSum')
+
+
+def reannotate(mt, gatk_ht, summ_ht):
+    """Re-annotate a sparse MT with annotations from certain GATK tools
+
+    `gatk_ht` should be a table from the rows of a VCF, with `info` having at least
+    the following fields.  Be aware that fields not present in this list will
+    be dropped.
+    ```
+        struct {
+            AC: array<int32>,
+            AF: array<float64>,
+            AN: int32,
+            BaseQRankSum: float64,
+            ClippingRankSum: float64,
+            DP: int32,
+            FS: float64,
+            MQ: float64,
+            MQRankSum: float64,
+            MQ_DP: int32,
+            NEGATIVE_TRAIN_SITE: bool,
+            POSITIVE_TRAIN_SITE: bool,
+            QD: float64,
+            QUALapprox: int32,
+            RAW_MQ: float64,
+            ReadPosRankSum: float64,
+            SB_TABLE: array<int32>,
+            SOR: float64,
+            VQSLOD: float64,
+            VarDP: int32,
+            culprit: str
+        }
+    ```
+    `summarize_ht` should be the output of :func:`.summarize` as a rows table.
+
+    Note
+    ----
+    You will not be able to run :func:`.combine_gvcfs` with the output of this
+    function.
+    """
+    def check(ht):
+        keys = list(ht.key)
+        if keys[0] != 'locus':
+            raise TypeError(f'table inputs must have first key "locus", found {keys}')
+        if keys != ['locus']:
+            return hl.Table(TableKeyBy(ht._tir, ['locus'], is_sorted=True))
+        return ht
+
+    gatk_ht, summ_ht = [check(ht) for ht in (gatk_ht, summ_ht)]
+    return mt.annotate_rows(
+        info=hl.rbind(
+            gatk_ht[mt.locus].info, summ_ht[mt.locus].info,
+            lambda ginfo, hinfo: hl.struct(
+                AC=hl.or_else(hinfo.AC, ginfo.AC),
+                AF=hl.or_else(hinfo.AF, ginfo.AF),
+                AN=hl.or_else(hinfo.AN, ginfo.AN),
+                BaseQRankSum=hl.or_else(hinfo.BaseQRankSum, ginfo.BaseQRankSum),
+                ClippingRankSum=hl.or_else(hinfo.ClippingRankSum, ginfo.ClippingRankSum),
+                DP=hl.or_else(hinfo.DP, ginfo.DP),
+                FS=ginfo.FS,
+                MQ=hl.or_else(hinfo.MQ, ginfo.MQ),
+                MQRankSum=hl.or_else(hinfo.MQRankSum, ginfo.MQRankSum),
+                MQ_DP=hl.or_else(hinfo.MQ_DP, ginfo.MQ_DP),
+                NEGATIVE_TRAIN_SITE=ginfo.NEGATIVE_TRAIN_SITE,
+                POSITIVE_TRAIN_SITE=ginfo.POSITIVE_TRAIN_SITE,
+                QD=ginfo.QD,
+                QUALapprox=hl.or_else(hinfo.QUALapprox, ginfo.QUALapprox),
+                RAW_MQ=hl.or_else(hinfo.RAW_MQ, ginfo.RAW_MQ),
+                ReadPosRankSum=hl.or_else(hinfo.ReadPosRankSum, ginfo.ReadPosRankSum),
+                SB_TABLE=hl.or_else(hinfo.SB_TABLE, ginfo.SB_TABLE),
+                SOR=ginfo.SOR,
+                VQSLOD=ginfo.VQSLOD,
+                VarDP=hl.or_else(hinfo.VarDP, ginfo.VarDP),
+                culprit=ginfo.culprit,
+            )),
+        qual=gatk_ht[mt.locus].qual,
+        filters=gatk_ht[mt.locus].filters,
+    )
+
 
 # NOTE: these are just @chrisvittal's notes on how gVCF fields are combined
 #       some of it is copied from GenomicsDB's wiki.
@@ -194,7 +292,7 @@ def finalize(mt):
 #       QUALApprox: sum,
 #       RAW_MQ: sum
 #       ReadPosRankSum: median, # NOTE : move to format for combine
-#       SB: elementwise sum, # NOTE: after being moved from FORMAT
+#       SB_TABLE: elementwise sum, # NOTE: after being moved from FORMAT as SB
 #       VarDP: sum
 #   }
 #   FORMAT {
@@ -232,7 +330,7 @@ def finalize(mt):
 #         QUALapprox: int32,
 #         RAW_MQ: float64,
 #         VarDP: int32,
-#         SB: array<int64>
+#         SB_TABLE: array<int64>
 #     }
 # ----------------------------------------
 # Entry fields:

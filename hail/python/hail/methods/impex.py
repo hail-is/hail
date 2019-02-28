@@ -438,7 +438,7 @@ def import_locus_intervals(path, reference_genome='default', skip_invalid_interv
     Add the row field `capture_region` indicating inclusion in
     at least one locus interval from `capture_intervals.txt`:
 
-    >>> intervals = hl.import_locus_intervals('data/capture_intervals.txt')
+    >>> intervals = hl.import_locus_intervals('data/capture_intervals.txt', reference_genome='GRCh37')
     >>> result = dataset.annotate_rows(capture_region = hl.is_defined(intervals[dataset.locus]))
 
     Notes
@@ -589,7 +589,7 @@ def import_bed(path, reference_genome='default', skip_invalid_intervals=False) -
     Add the row field `cnv_region` indicating inclusion in
     at least one interval of the three-column BED file:
 
-    >>> bed = hl.import_bed('data/file1.bed')
+    >>> bed = hl.import_bed('data/file1.bed', reference_genome='GRCh37')
     >>> result = dataset.annotate_rows(cnv_region = hl.is_defined(bed[dataset.locus]))
 
     Add a row field `cnv_id` with the value given by the
@@ -1047,7 +1047,8 @@ def import_gen(path,
     --------
 
     >>> ds = hl.import_gen('data/example.gen',
-    ...                    sample_file='data/example.sample')
+    ...                    sample_file='data/example.sample',
+    ...                    reference_genome='GRCh37')
 
     Notes
     -----
@@ -1143,7 +1144,8 @@ def import_gen(path,
            skip_blank_lines=bool,
            force_bgz=bool,
            filter=nullable(str),
-           find_replace=nullable(sized_tupleof(str, str)))
+           find_replace=nullable(sized_tupleof(str, str)),
+           force=bool)
 def import_table(paths,
                  key=None,
                  min_partitions=None,
@@ -1157,7 +1159,8 @@ def import_table(paths,
                  skip_blank_lines=False,
                  force_bgz=False,
                  filter=None,
-                 find_replace=None) -> Table:
+                 find_replace=None,
+                 force=False) -> Table:
     """Import delimited text file (text table) as :class:`.Table`.
 
     The resulting :class:`.Table` will have no key fields. Use
@@ -1325,6 +1328,10 @@ def import_table(paths,
         Line substitution regex. Functions like ``re.sub``, but obeys the exact
         semantics of Java's
         `String.replaceAll <https://docs.oracle.com/javase/8/docs/api/java/lang/String.html#replaceAll-java.lang.String-java.lang.String->`__.
+    force : :obj:`bool`
+        If ``True``, load gzipped files serially on one core. This should
+        be used only when absolutely necessary, as processing time will be
+        increased due to lack of parallelism.
 
     Returns
     -------
@@ -1335,7 +1342,8 @@ def import_table(paths,
 
     tr = TextTableReader(paths, min_partitions, types, comment,
                          delimiter, missing, no_header, impute, quote,
-                         skip_blank_lines, force_bgz, filter, find_replace)
+                         skip_blank_lines, force_bgz, filter, find_replace,
+                         force)
     t = Table(TableRead(tr))
     if key:
         key = wrap_to_list(key)
@@ -1519,9 +1527,9 @@ def import_matrix_table(paths,
     if len(sep) != 1:
         raise FatalError('sep must be a single character')
 
-    jmt = Env.hc()._jhc.importMatrix(paths, jrow_fields, row_key, entry_type._parsable_string(), missing, joption(min_partitions),
-                                     no_header, force_bgz, sep)
-    return MatrixTable._from_java(jmt)
+    return MatrixTable._from_java(
+        Env.hc()._jhc.importMatrix(paths, jrow_fields, row_key, entry_type._parsable_string(), missing, joption(min_partitions),
+                                   no_header, force_bgz, sep))
 
 
 @typecheck(bed=str,
@@ -1549,9 +1557,10 @@ def import_plink(bed, bim, fam,
     Examples
     --------
 
-    >>> ds = hl.import_plink(bed="data/test.bed",
-    ...                      bim="data/test.bim",
-    ...                      fam="data/test.fam")
+    >>> ds = hl.import_plink(bed='data/test.bed',
+    ...                      bim='data/test.bim',
+    ...                      fam='data/test.fam',
+    ...                      reference_genome='GRCh37')
 
     Notes
     -----
@@ -1786,7 +1795,7 @@ def import_vcf(path,
     Examples
     --------
 
-    >>> ds = hl.import_vcf('data/example2.vcf.bgz')
+    >>> ds = hl.import_vcf('data/example2.vcf.bgz', reference_genome='GRCh37')
 
     Notes
     -----
@@ -1986,7 +1995,7 @@ def import_vcfs(path,
     if _cached_importvcfs is None:
         _cached_importvcfs = Env.hail().io.vcf.ImportVCFs
 
-    jmts = _cached_importvcfs.pyApply(
+    jmirs = _cached_importvcfs.pyApply(
         wrap_to_list(path),
         wrap_to_list(call_fields),
         entry_float_type._parsable_string(),
@@ -2000,7 +2009,7 @@ def import_vcfs(path,
         filter,
         find_replace[0] if find_replace is not None else None,
         find_replace[1] if find_replace is not None else None)
-    return [MatrixTable._from_java(jmt) for jmt in jmts]
+    return [MatrixTable._from_java(jmir) for jmir in jmirs]
 
 
 @typecheck(path=oneof(str, sequenceof(str)),
@@ -2023,7 +2032,8 @@ def index_bgen(path,
     Index a BGEN file, renaming contig name "01" to "1":
 
     >>> hl.index_bgen("data/example.8bits.bgen",
-    ...               contig_recoding={"01": "1"})
+    ...               contig_recoding={"01": "1"},
+    ...               reference_genome='GRCh37')
 
     Warning
     -------

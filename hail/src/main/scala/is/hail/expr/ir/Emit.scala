@@ -1075,7 +1075,7 @@ private class Emit(
               cm.m.mux[String](
                 "<exception message missing>",
                 coerce[String](StringFunctions.wrapArg(mb, m.typ)(cm.v)))))))
-      case ir@ApplyIR(fn, args, conversion) =>
+      case ir@ApplyIR(fn, args) =>
         if (ir.explicitNode.size < 10)
           emit(ir.explicitNode)
         else {
@@ -1185,7 +1185,7 @@ private class Emit(
     val sort = f.newMethod[Region, T, Boolean, T, Boolean, Boolean]
     val EmitTriplet(setup, m, v) = new Emit(sort, 1).emit(newIR, newEnv)
 
-    sort.emit(Code(setup, m.mux(Code._fatal("result of sorting function cannot be missing"), v)))
+    sort.emit(Code(setup, m.mux(Code._fatal("Result of sorting function cannot be missing."), v)))
     f.apply_method.emit(Code(sort.invoke(fregion, f.getArg[T](1), false, f.getArg[T](2), false)))
     f
   }

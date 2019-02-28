@@ -108,4 +108,6 @@ RUN conda env create -f ./python/hail/dev-environment.yml && \
 # gcloud iam key files will be stored here
 VOLUME /secrets
 
+RUN pip3 install --no-cache-dir pyyaml
+
 WORKDIR /hail

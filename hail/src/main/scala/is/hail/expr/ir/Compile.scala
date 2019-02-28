@@ -9,7 +9,48 @@ import is.hail.utils._
 
 import scala.reflect.{ClassTag, classTag}
 
+case class CodeCacheKey(args: Seq[(String, PType)], nSpecialArgs: Int, body: IR)
+
+case class CodeCacheValue(typ: PType, f: Int => Any)
+
 object Compile {
+  private[this] val codeCache: Cache[CodeCacheKey, CodeCacheValue] = new Cache(50)
+
+  private def apply[F >: Null : TypeInfo, R: TypeInfo : ClassTag](
+    args: Seq[(String, PType, ClassTag[_])],
+    argTypeInfo: Array[MaybeGenericTypeInfo[_]],
+    body: IR,
+    nSpecialArgs: Int
+  ): (PType, Int => F) = {
+    val normalizeNames = new NormalizeNames
+    val normalizedBody = normalizeNames(body,
+      Env(args.map { case (n, _, _) => n -> n }: _*))
+    val k = CodeCacheKey(args.map { case (n, pt, _) => (n, pt) }, nSpecialArgs, normalizedBody)
+    codeCache.get(k) match {
+      case Some(v) => 
+        return (v.typ, v.f.asInstanceOf[Int => F])
+      case None =>
+    }
+
+    val fb = new EmitFunctionBuilder[F](argTypeInfo, GenericTypeInfo[R]())
+
+    var ir = body
+    ir = Optimize(ir, noisy = false, canGenerateLiterals = false, context = Some("Compile"))
+    TypeCheck(ir, Env.empty[Type].bind(args.map { case (name, t, _) => name -> t.virtualType}: _*), None)
+
+    val env = args
+      .zipWithIndex
+      .foldLeft(Env.empty[IR]) { case (e, ((n, t, _), i)) => e.bind(n, In(i, t.virtualType)) }
+
+    ir = Subst(ir, env)
+    assert(TypeToIRIntermediateClassTag(ir.typ) == classTag[R])
+
+    Emit(ir, fb, nSpecialArgs)
+
+    val f = fb.resultWithIndex()
+    codeCache += k -> CodeCacheValue(ir.pType, f)
+    (ir.pType, f)
+  }
 
   def apply[F >: Null : TypeInfo, R: TypeInfo : ClassTag](
     args: Seq[(String, PType, ClassTag[_])],
@@ -30,29 +71,6 @@ object Compile {
     val argTypeInfo: Array[MaybeGenericTypeInfo[_]] = ab.result()
 
     Compile[F, R](args, argTypeInfo, body, nSpecialArgs)
-  }
-
-  private def apply[F >: Null : TypeInfo, R: TypeInfo : ClassTag](
-    args: Seq[(String, PType, ClassTag[_])],
-    argTypeInfo: Array[MaybeGenericTypeInfo[_]],
-    body: IR,
-    nSpecialArgs: Int
-  ): (PType, Int => F) = {
-    val fb = new EmitFunctionBuilder[F](argTypeInfo, GenericTypeInfo[R]())
-
-    var ir = body
-    ir = Optimize(ir, noisy = false, canGenerateLiterals = false)
-    TypeCheck(ir, Env.empty[Type].bind(args.map { case (name, t, _) => name -> t.virtualType}: _*), None)
-
-    val env = args
-      .zipWithIndex
-      .foldLeft(Env.empty[IR]) { case (e, ((n, t, _), i)) => e.bind(n, In(i, t.virtualType)) }
-
-    ir = Subst(ir, env)
-    assert(TypeToIRIntermediateClassTag(ir.typ) == classTag[R])
-
-    Emit(ir, fb, nSpecialArgs)
-    (ir.pType, fb.resultWithIndex())
   }
 
   def apply[R: TypeInfo : ClassTag](body: IR): (PType, Int => AsmFunction1[Region, R]) = {

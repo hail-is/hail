@@ -77,7 +77,7 @@ object Interpret {
     var ir = ir0.unwrap
 
     def optimizeIR(canGenerateLiterals: Boolean) {
-      ir = Optimize(ir, noisy = true, canGenerateLiterals)
+      ir = Optimize(ir, noisy = true, canGenerateLiterals, context = Some("Interpret"))
       TypeCheck(ir, typeEnv, agg.map { agg =>
         agg._2.fields.foldLeft(Env.empty[Type]) { case (env, f) =>
           env.bind(f.name, f.typ)
@@ -294,7 +294,10 @@ object Interpret {
         else {
           aValue.asInstanceOf[IndexedSeq[Any]].sortWith { (left, right) =>
             if (left != null && right != null) {
-              interpret(compare, env.bind(l, left).bind(r, right), args, agg).asInstanceOf[Boolean]
+              val res = interpret(compare, env.bind(l, left).bind(r, right), args, agg)
+              if (res == null)
+                fatal("Result of sorting function cannot be missing.")
+              res.asInstanceOf[Boolean]
             } else {
               right == null
             }
@@ -692,7 +695,7 @@ object Interpret {
       case Die(message, typ) =>
         val message_ = interpret(message).asInstanceOf[String]
         fatal(if (message_ != null) message_ else "<exception message missing>")
-      case ir@ApplyIR(function, functionArgs, conversion) =>
+      case ir@ApplyIR(function, functionArgs) =>
         interpret(ir.explicitNode, env, args, agg)
       case ApplySpecial("||", Seq(left_, right_)) =>
         val left = interpret(left_)
@@ -778,13 +781,14 @@ object Interpret {
         val hc = HailContext.get
         val tableValue = child.execute(hc)
         tableValue.export(path, typesFile, header, exportType, delimiter)
-      case BlockMatrixWrite(child, path, overwrite, forceRowMajor, stageLocally) =>
+      case BlockMatrixWrite(child, writer) =>
         val hc = HailContext.get
-        val blockMatrix = child.execute(hc)
-        blockMatrix.write(path, overwrite, forceRowMajor, stageLocally)
+        writer(hc, child.execute(hc))
       case TableToValueApply(child, function) =>
         function.execute(child.execute(HailContext.get))
       case MatrixToValueApply(child, function) =>
+        function.execute(child.execute(HailContext.get))
+      case BlockMatrixToValueApply(child, function) =>
         function.execute(child.execute(HailContext.get))
       case TableAggregate(child, query) =>
         val localGlobalSignature = child.typ.globalType

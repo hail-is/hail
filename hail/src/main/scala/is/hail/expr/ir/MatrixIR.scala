@@ -1,3 +1,4 @@
+
 package is.hail.expr.ir
 
 import is.hail.HailContext
@@ -5,6 +6,7 @@ import is.hail.annotations._
 import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.expr.ir
 import is.hail.expr.ir.functions.{MatrixToMatrixFunction, RelationalFunctions}
+import is.hail.expr.ir.IRBuilder._
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PArray, PInt32, PStruct, PType}
 import is.hail.expr.types.virtual._
@@ -18,6 +20,7 @@ import is.hail.table.AbstractTableSpec
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.sql.Row
+import org.apache.spark.storage.StorageLevel
 import org.json4s._
 
 import scala.collection.mutable
@@ -104,6 +107,28 @@ abstract sealed class MatrixIR extends BaseIR {
     fatal("tried to execute unexecutable IR")
 
   override def copy(newChildren: IndexedSeq[BaseIR]): MatrixIR
+
+  def persist(storageLevel: StorageLevel): MatrixIR = {
+    val mv = Interpret(this)
+    MatrixLiteral(mv.persist(storageLevel))
+  }
+
+  def unpersist(): MatrixIR = {
+    val mv = Interpret(this)
+    MatrixLiteral(mv.unpersist())
+  }
+
+  def pyPersist(storageLevel: String): MatrixIR = {
+    val level = try {
+      StorageLevel.fromString(storageLevel)
+    } catch {
+      case e: IllegalArgumentException =>
+        fatal(s"unknown StorageLevel: $storageLevel")
+    }
+    persist(level)
+  }
+
+  def pyUnpersist(): MatrixIR = unpersist()
 }
 
 case class MatrixLiteral(value: MatrixValue) extends MatrixIR {
@@ -253,69 +278,20 @@ case class MatrixRangeReader(nRows: Int, nCols: Int, nPartitions: Option[Int]) e
     Some(partition(nRows, nPartitionsAdj).map(_.toLong))
   }
 
-  def apply(mr: MatrixRead): MatrixValue = {
-    assert(mr.typ == fullType)
+  override def canLower: Boolean = true
 
-    val partCounts = mr.partitionCounts.get.map(_.toInt)
-    val nPartitionsAdj = mr.partitionCounts.get.length
+  override def lower(mr: MatrixRead): TableIR = {
+    val uid1 = Symbol(genUID())
 
-    val hc = HailContext.get
-    val localRVType = mr.rvdType.rowType
-    val partStarts = partCounts.scanLeft(0)(_ + _)
-    val localNCols = if (mr.dropCols) 0 else nCols
-
-    val rvd = if (mr.dropRows)
-      RVD.empty(hc.sc, fullType.canonicalRVDType)
-    else {
-      RVD(mr.rvdType,
-        new RVDPartitioner(
-          fullType.rowKeyStruct,
-          Array.tabulate(nPartitionsAdj) { i =>
-            val start = partStarts(i)
-            Interval(Row(start), Row(start + partCounts(i)), includesStart = true, includesEnd = false)
-          }),
-        ContextRDD.parallelize[RVDContext](hc.sc, Range(0, nPartitionsAdj), nPartitionsAdj)
-          .cmapPartitionsWithIndex { (i, ctx, _) =>
-            val region = ctx.region
-            val rvb = ctx.rvb
-            val rv = RegionValue(region)
-
-            val start = partStarts(i)
-            Iterator.range(start, start + partCounts(i))
-              .map { j =>
-                rvb.start(localRVType)
-                rvb.startStruct()
-
-                // row idx field
-                rvb.addInt(j)
-
-                // entries field
-                rvb.startArray(localNCols)
-                var i = 0
-                while (i < localNCols) {
-                  rvb.startStruct()
-                  rvb.endStruct()
-                  i += 1
-                }
-                rvb.endArray()
-
-                rvb.endStruct()
-                rv.setOffset(rvb.end())
-                rv
-              }
-          })
-    }
-
-    MatrixValue(fullType,
-      BroadcastRow(Row(), fullType.globalType, hc.sc),
-      BroadcastIndexedSeq(
-        Iterator.range(0, localNCols)
-          .map(Row(_))
-          .toFastIndexedSeq,
-        TArray(fullType.colType),
-        hc.sc),
-      rvd)
+    TableRange(nRows, nPartitions.getOrElse(HailContext.get.sc.defaultParallelism))
+      .rename(Map("idx" -> "row_idx"))
+      .mapGlobals(makeStruct(LowerMatrixIR.colsField ->
+        irRange(0, nCols).map('i ~> makeStruct('col_idx -> 'i))))
+      .mapRows('row.insertFields(LowerMatrixIR.entriesField ->
+        irRange(0, nCols).map('i ~> makeStruct())))
   }
+
+  def apply(mr: MatrixRead): MatrixValue = ???
 }
 
 case class MatrixRead(

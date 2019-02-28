@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en" {{ 'class=dark' if session['dark'] }}>
+    <head>
+        <title>Hail Login</title>
+        <link href="https://fonts.googleapis.com/css?family=Open+Sans" rel="stylesheet"/>
+        <link rel="stylesheet" type="text/css" href="/static/css/main.css">
+        <link rel="stylesheet" type="text/css" href="/static/css/components/header.css">
+        <link rel="stylesheet" type="text/css" href="/static/css/pages/login.css">
+    </head>
+    <body id='theme-site'>
+        {% include 'header.html' %}
+        <div id="main">
+            <div id="login" class="centered">
+                <h3>Login</h3>
+                <div id="login-choices">
+                    <form action="/login" method='POST'>
+                        <button
+                        type='submit'
+                        class="outlined-button"
+                        >
+                        Login
+                        </button>
+                        <span id="separator">or</span>
+                        <input
+                            name='workshop-password'
+                            type="password"
+                            placeholder="Enter the workshop password"
+                        />
+                    </form>
+                </div>
+            </div>
+        </div>
+    </body>
+</html>

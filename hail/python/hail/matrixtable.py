@@ -536,20 +536,11 @@ class MatrixTable(ExprContainer):
     """
 
     @staticmethod
-    def _from_java(jmt):
-        return MatrixTable(JavaMatrix(jmt.ast()))
-
-    @property
-    def _jmt(self):
-        if self._jmt_cache is None:
-            self._jmt_cache = Env.hail().variant.MatrixTable(
-                Env.hc()._jhc, Env.hc()._backend._to_java_ir(self._mir))
-        return self._jmt_cache
+    def _from_java(jmir):
+        return MatrixTable(JavaMatrix(jmir))
 
     def __init__(self, mir):
         super(MatrixTable, self).__init__()
-
-        self._jmt_cache = None
 
         self._mir = mir
 
@@ -2813,7 +2804,7 @@ class MatrixTable(ExprContainer):
         int
             Number of partitions.
         """
-        return self._jmt.nPartitions()
+        return Env.backend().execute(MatrixToValueApply(self._mir, {'name': 'NPartitionsMatrixTable'}))
 
     @typecheck_method(n_partitions=int,
                       shuffle=bool)
@@ -3295,10 +3286,14 @@ class MatrixTable(ExprContainer):
 
         Examples
         --------
-
         Downsample the dataset to approximately 1% of its rows.
 
         >>> small_dataset = dataset.sample_rows(0.01)
+
+        Notes
+        -----
+        Although the :class:`MatrixTable` returned by this method may be
+        small, it requires a full pass over the rows of the sampled object.
 
         Parameters
         ----------
@@ -3317,6 +3312,35 @@ class MatrixTable(ExprContainer):
             raise ValueError("Requires 'p' in [0,1]. Found p={}".format(p))
 
         return self.filter_rows(hl.rand_bool(p, seed))
+
+    @typecheck_method(p=numeric,
+                      seed=nullable(int))
+    def sample_cols(self, p: float, seed=None) -> 'MatrixTable':
+        """Downsample the matrix table by keeping each column with probability ``p``.
+
+        Examples
+        --------
+        Downsample the dataset to approximately 1% of its columns.
+
+        >>> small_dataset = dataset.sample_cols(0.01)
+
+        Parameters
+        ----------
+        p : :obj:`float`
+            Probability of keeping each column.
+        seed : :obj:`int`
+            Random seed.
+
+        Returns
+        -------
+        :class:`.MatrixTable`
+            Matrix table with approximately ``p * n_cols`` column.
+        """
+
+        if not (0 <= p <= 1):
+            raise ValueError("Requires 'p' in [0,1]. Found p={}".format(p))
+
+        return self.filter_cols(hl.rand_bool(p, seed))
 
     @typecheck_method(fields=dictof(str, str))
     def rename(self, fields: Dict[str, str]) -> 'MatrixTable':

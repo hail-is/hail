@@ -509,6 +509,7 @@ class Tests(unittest.TestCase):
         kt_small = kt.sample(0.01)
         self.assertTrue(kt_small.count() < kt.count())
 
+    @skip_unless_spark_backend()
     def test_from_spark_works(self):
         sql_context = Env.sql_context()
         df = sql_context.createDataFrame([pyspark.sql.Row(x=5, y='foo')])
@@ -518,6 +519,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(rows[0].x, 5)
         self.assertEqual(rows[0].y, 'foo')
 
+    @skip_unless_spark_backend()
     def test_from_pandas_works(self):
         d = {'a': [1, 2], 'b': ['foo', 'bar']}
         df = pd.DataFrame(data=d)
@@ -958,6 +960,17 @@ class Tests(unittest.TestCase):
     def test_show_long_field_names(self):
         hl.utils.range_table(1).annotate(**{'a' * 256: 5}).show()
 
+    def test_show__various_types(self):
+        ht = hl.utils.range_table(1)
+        ht = ht.annotate(
+            x1 = [1],
+            x2 = [hl.struct(y=[1])],
+            x3 = {1},
+            x4 = {1: 'foo'},
+            x5 = {hl.struct(foo=5): 'bar'}
+        )
+        ht.show()
+
     def test_import_filter_replace(self):
         def assert_filter_equals(filter, find_replace, to):
             assert hl.import_table(resource('filter_replace.txt'),
@@ -981,3 +994,12 @@ def test_large_number_of_fields(tmpdir):
 
 def test_import_many_fields():
     assert_time(lambda: hl.import_table(resource('many_cols.txt')), 5)
+
+def test_segfault():
+    t = hl.utils.range_table(1)
+    t2 = hl.utils.range_table(3)
+    t = t.annotate(foo = [0])
+    t2 = t2.annotate(foo = [0])
+    joined = t.key_by('foo').join(t2.key_by('foo'))
+    joined = joined.filter(hl.is_missing(joined.idx))
+    assert joined.collect() == []

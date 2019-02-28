@@ -1,6 +1,7 @@
 import copy
 
 import hail
+from hail.ir.blockmatrix_writer import BlockMatrixWriter
 from hail.utils.java import escape_str, escape_id, dump_json, parsable_strings
 from hail.expr.types import *
 from hail.typecheck import *
@@ -1879,36 +1880,30 @@ class MatrixMultiWrite(IR):
                other.children == self.children and \
                other.writer == self.writer
 
+    def _compute_type(self, env, agg_env):
+        for x in self.children:
+            x._compute_type()
+        self._type = tvoid
+
 
 class BlockMatrixWrite(IR):
-    @typecheck_method(child=BlockMatrixIR, path=str, overwrite=bool, force_row_major=bool, stage_locally=bool)
-    def __init__(self, child, path, overwrite, force_row_major, stage_locally):
+    @typecheck_method(child=BlockMatrixIR, writer=BlockMatrixWriter)
+    def __init__(self, child, writer):
         super().__init__(child)
         self.child = child
-        self.path = path
-        self.overwrite = overwrite
-        self.force_row_major = force_row_major
-        self.stage_locally = stage_locally
+        self.writer = writer
 
     def copy(self, child):
         new_instance = self.__class__
-        return new_instance(child, self.path, self.overwrite, self.force_row_major, self.stage_locally)
+        return new_instance(child, self.writer)
 
     def render(self, r):
-        return '(BlockMatrixWrite "{}" {} {} {} {})'.format(
-            escape_str(self.path),
-            self.overwrite,
-            self.force_row_major,
-            self.stage_locally,
-            r(self.child))
+        return f'(BlockMatrixWrite "{r(self.writer)}" {r(self.child)})'
 
     def __eq__(self, other):
         return isinstance(other, BlockMatrixWrite) and \
                other.child == self.child and \
-               other.path == self.path and \
-               other.overwrite == self.overwrite and \
-               other.force_row_major == self.force_row_major and \
-               other.stage_locally == self.stage_locally
+               other.writer == self.writer
 
     def _compute_type(self, env, agg_env):
         self.child._compute_type()
@@ -1934,8 +1929,11 @@ class TableToValueApply(IR):
 
     def _compute_type(self, env, agg_env):
         name = self.config['name']
-        assert name == 'ForceCountTable', name
-        self._type = tint64
+        if name == 'ForceCountTable':
+            self._type = tint64
+        else:
+            assert name == 'NPartitionsTable', name
+            self._type = tint32
 
 
 class MatrixToValueApply(IR):
@@ -1959,11 +1957,35 @@ class MatrixToValueApply(IR):
         name = self.config['name']
         if name == 'ForceCountMatrixTable':
             self._type = tint64
+        elif name == 'NPartitionsMatrixTable':
+            self._type = tint32
         elif name == 'MatrixExportEntriesByCol':
             self._type = tvoid
         else:
             assert name == 'MatrixWriteBlockMatrix', name
             self._type = tvoid
+
+
+class BlockMatrixToValueApply(IR):
+    def __init__(self, child, config):
+        super().__init__()
+        self.child = child
+        self.config = config
+
+    @typecheck_method(child=BlockMatrixIR)
+    def copy(self, child):
+        new_instance = self.__class__
+        return new_instance(child, self.config)
+
+    def render(self, r):
+        return f'(BlockMatrixToValueApply {dump_json(self.config)} {r(self.child)})'
+
+    def __eq__(self, other):
+        return isinstance(other, BlockMatrixToValueApply) and other.child == self.child and other.config == self.config
+
+    def _compute_type(self, env, agg_env):
+        assert self.config['name'] == 'GetElement'
+        self._type = tfloat64
 
 
 class Literal(IR):
@@ -2038,6 +2060,9 @@ class JavaIR(IR):
 
     def render(self, r):
         return f'(JavaIR {r.add_jir(self._jir)})'
+
+    def _compute_type(self, env, agg_env):
+        self._type = dtype(self._jir.typ().toString())
 
 
 def subst(ir, env, agg_env):

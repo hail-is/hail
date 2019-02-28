@@ -20,8 +20,8 @@ class Test(unittest.TestCase):
         self.assertEqual(status['state'], 'Complete')
         self.assertEqual(status['exit_code'], 0)
 
-        self.assertEqual(status['log'], 'test\n')
-        self.assertEqual(j.log(), 'test\n')
+        self.assertEqual(status['log']['main'], 'test\n')
+        self.assertEqual(j.log(), {'main': 'test\n'})
 
         self.assertTrue(j.is_complete())
 
@@ -54,6 +54,12 @@ class Test(unittest.TestCase):
         status = j.status()
         assert(status['attributes'] == a)
 
+    def test_scratch_folder(self):
+        sb = 'gs://test-bucket/folder'
+        j = self.batch.create_job('alpine', ['true'], scratch_folder=sb)
+        status = j.status()
+        assert(status['scratch_folder'] == sb)
+
     def test_fail(self):
         j = self.batch.create_job('alpine', ['false'])
         status = j.wait()
@@ -64,7 +70,7 @@ class Test(unittest.TestCase):
         id = j.id
         j.wait()
         j.delete()
-        self.assertEqual(self.batch._get_job_log(id), 'test\n')
+        self.assertEqual(self.batch._get_job_log(id), {'main': 'test\n'})
 
     def test_delete_job(self):
         j = self.batch.create_job('alpine', ['sleep', '30'])
@@ -177,3 +183,92 @@ class Test(unittest.TestCase):
         finally:
             server.shutdown()
             server.join()
+
+    def test_inputs(self):
+        j = self.batch.create_job('alpine', ['echo', 'main'], input_files=['foo'])
+        status = j.wait()
+        self.assertTrue('attributes' not in status)
+        self.assertEqual(status['state'], 'Complete')
+        self.assertEqual(status['exit_code'], 0)
+
+        self.assertEqual(status['log'], {'main': 'main\n', 'input': 'hello\n'})
+        self.assertEqual(j.log(), {'main': 'main\n', 'input': 'hello\n'})
+
+        self.assertTrue(j.is_complete())
+
+    def test_outputs(self):
+        j = self.batch.create_job('alpine', ['echo', 'main'], output_files=['foo'])
+        status = j.wait()
+        self.assertTrue('attributes' not in status)
+        self.assertEqual(status['state'], 'Complete')
+        self.assertEqual(status['exit_code'], 0)
+
+        self.assertEqual(status['log'], {'main': 'main\n', 'output': 'hello\n'})
+        self.assertEqual(j.log(), {'main': 'main\n', 'output': 'hello\n'})
+
+        self.assertTrue(j.is_complete())
+
+    def test_inputs_and_outputs(self):
+        j = self.batch.create_job('alpine', ['echo', 'main'],
+                                  input_files=['foo_in'], output_files=['foo_out'])
+        status = j.wait()
+        self.assertTrue('attributes' not in status)
+        self.assertEqual(status['state'], 'Complete')
+        self.assertEqual(status['exit_code'], 0)
+
+        self.assertEqual(status['log'], {'main': 'main\n',
+                                         'input': 'hello\n',
+                                         'output': 'hello\n'})
+        self.assertEqual(j.log(), {'main': 'main\n',
+                                   'input': 'hello\n',
+                                   'output': 'hello\n'})
+
+        self.assertTrue(j.is_complete())
+
+    def test_inputs_and_outputs_delete(self):
+        j = self.batch.create_job('alpine', ['sleep', '30'],
+                                  input_files=['foo_in'], output_files=['foo_out'])
+        id = j.id
+        j.delete()
+
+        # verify doesn't exist
+        try:
+            self.batch._get_job(id)
+        except requests.HTTPError as e:
+            if e.response.status_code == 404:
+                pass
+            else:
+                raise
+
+    def test_inputs_outputs_cancel(self):
+        j = self.batch.create_job('alpine', ['sleep', '30'],
+                                  input_files=['foo_in'], output_files=['foo_out'])
+        status = j.status()
+        self.assertTrue(status['state'], 'Created')
+
+        j.cancel()
+
+        status = j.status()
+        self.assertTrue(status['state'], 'Cancelled')
+        self.assertTrue('log' not in status)
+
+        # cancelled job has no log
+        try:
+            j.log()
+        except requests.HTTPError as e:
+            if e.response.status_code == 404:
+                pass
+            else:
+                raise
+
+    def test_log_after_failing_job(self):
+        j = self.batch.create_job('alpine', ['/bin/sh', '-c', 'echo test; exit 127'])
+        status = j.wait()
+        self.assertTrue('attributes' not in status)
+        self.assertEqual(status['state'], 'Complete')
+        self.assertEqual(status['exit_code'], 127)
+
+        self.assertEqual(status['log']['main'], 'test\n')
+        self.assertEqual(j.log(), {'main': 'test\n'})
+
+        self.assertTrue(j.is_complete())

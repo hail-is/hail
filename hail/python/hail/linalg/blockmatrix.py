@@ -4,8 +4,13 @@ import itertools
 
 import hail as hl
 import hail.expr.aggregators as agg
+from hail.expr import construct_expr
 from hail.ir import BlockMatrixWrite, BlockMatrixMap2, ApplyBinaryOp, Ref, F64, \
-     BlockMatrixBroadcast, ValueToBlockMatrix, MakeArray, BlockMatrixRead, JavaBlockMatrix
+    BlockMatrixBroadcast, ValueToBlockMatrix, MakeArray, BlockMatrixRead, JavaBlockMatrix, BlockMatrixMap, \
+    ApplyUnaryOp, IR, BlockMatrixDot, tensor_shape_to_matrix_shape, BlockMatrixAgg, BlockMatrixRandom, \
+    BlockMatrixToValueApply
+from hail.ir.blockmatrix_reader import BlockMatrixNativeReader, BlockMatrixBinaryReader
+from hail.ir.blockmatrix_writer import BlockMatrixBinaryWriter, BlockMatrixNativeWriter
 from hail.utils import new_temp_file, new_local_temp_file, local_path_uri, storage_level
 from hail.utils.java import Env, jarray, joption
 from hail.typecheck import *
@@ -215,7 +220,7 @@ class BlockMatrix(object):
         if self._cached_jbm is not None:
             return self._cached_jbm
         else:
-            self._cached_jbm = Env.hc()._backend._to_java_ir(self._bmir).execute(Env.hc()._jhc)
+            self._cached_jbm = Env.spark_backend('BlockMatrix._jbm')._to_java_ir(self._bmir).execute(Env.hc()._jhc)
             return self._cached_jbm
 
     @classmethod
@@ -232,7 +237,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return cls(BlockMatrixRead(path))
+        return cls(BlockMatrixRead(BlockMatrixNativeReader(path)))
 
     @classmethod
     @typecheck_method(uri=str,
@@ -289,13 +294,11 @@ class BlockMatrix(object):
         --------
         :meth:`.from_numpy`
         """
+
         if not block_size:
             block_size = BlockMatrix.default_block_size()
 
-        return BlockMatrix._from_java(Env.hail().linalg.BlockMatrix.fromBreezeMatrix(
-            Env.hc()._jsc,
-            _breeze_fromfile(uri, n_rows, n_cols),
-            block_size))
+        return cls(BlockMatrixRead(BlockMatrixBinaryReader(uri, [n_rows, n_cols], block_size)))
 
     @classmethod
     @typecheck_method(ndarray=np.ndarray,
@@ -408,8 +411,8 @@ class BlockMatrix(object):
                       n_cols=int,
                       block_size=nullable(int),
                       seed=int,
-                      uniform=bool)
-    def random(cls, n_rows, n_cols, block_size=None, seed=0, uniform=False):
+                      gaussian=bool)
+    def random(cls, n_rows, n_cols, block_size=None, seed=0, gaussian=True):
         """Creates a block matrix with standard normal or uniform random entries.
 
         Examples
@@ -428,10 +431,10 @@ class BlockMatrix(object):
             Block size. Default given by :meth:`default_block_size`.
         seed: :obj:`int`
             Random seed.
-        uniform: :obj:`bool`
-            If ``True``, entries are drawn from the uniform distribution
-            on [0,1]. If ``False``, entries are drawn from the standard
-            normal distribution.
+        gaussian: :obj:`bool`
+            If ``True``, entries are drawn from the standard
+            normal distribution. If ``False``, entries are drawn from
+            the uniform distribution on [0,1].
 
         Returns
         -------
@@ -439,7 +442,9 @@ class BlockMatrix(object):
         """
         if not block_size:
             block_size = BlockMatrix.default_block_size()
-        return BlockMatrix._from_java(Env.hail().linalg.BlockMatrix.random(Env.hc()._jhc, n_rows, n_cols, block_size, seed, uniform))
+
+        rand = BlockMatrixRandom(seed, gaussian, [n_rows, n_cols], block_size)
+        return BlockMatrix(rand)
 
     @classmethod
     @typecheck_method(n_rows=int,
@@ -472,7 +477,11 @@ class BlockMatrix(object):
         """
         if not block_size:
             block_size = BlockMatrix.default_block_size()
-        return BlockMatrix._from_java(Env.hail().linalg.BlockMatrix.fill(Env.hc()._jhc, n_rows, n_cols, value, block_size))
+
+        bmir = BlockMatrixBroadcast(_to_bmir(value, block_size),
+                                    [], [n_rows, n_cols],
+                                    block_size)
+        return BlockMatrix(bmir)
 
     @classmethod
     @typecheck_method(n_rows=int,
@@ -492,7 +501,13 @@ class BlockMatrix(object):
     @staticmethod
     def default_block_size():
         """Default block side length."""
-        return Env.hail().linalg.BlockMatrix.defaultBlockSize()
+
+        # This should match BlockMatrix.defaultBlockSize in the Scala backend.
+        return 4096  # 32 * 1024 bytes
+
+    @property
+    def element_type(self):
+        return self._bmir.typ.element_type
 
     @property
     def n_rows(self):
@@ -502,7 +517,7 @@ class BlockMatrix(object):
         -------
         :obj:`int`
         """
-        return self._bmir.typ.shape[0]
+        return self.shape[0]
 
     @property
     def n_cols(self):
@@ -512,7 +527,7 @@ class BlockMatrix(object):
         -------
         :obj:`int`
         """
-        return self._bmir.typ.shape[1]
+        return self.shape[1]
 
     @property
     def shape(self):
@@ -523,7 +538,7 @@ class BlockMatrix(object):
         (:obj:`int`, :obj:`int`)
            Number of rows and number of columns.
         """
-        return self.n_rows, self.n_cols
+        return tensor_shape_to_matrix_shape(self._bmir)
 
     @property
     def block_size(self):
@@ -533,7 +548,7 @@ class BlockMatrix(object):
         -------
         :obj:`int`
         """
-        return self._jbm.blockSize()
+        return self._bmir.typ.block_size
 
     @typecheck_method(path=str,
                       overwrite=bool,
@@ -556,7 +571,8 @@ class BlockMatrix(object):
             If ``True``, major output will be written to temporary local storage
             before being copied to ``output``.
         """
-        Env.backend().execute(BlockMatrixWrite(self._bmir, path, overwrite, force_row_major, stage_locally))
+        writer = BlockMatrixNativeWriter(path, overwrite, force_row_major, stage_locally)
+        Env.backend().execute(BlockMatrixWrite(self._bmir, writer))
 
     @staticmethod
     @typecheck(entry_expr=expr_float64,
@@ -790,7 +806,9 @@ class BlockMatrix(object):
         if isinstance(row_idx, int) and isinstance(col_idx, int):
             i = BlockMatrix._pos_index(row_idx, self.n_rows, 'row index')
             j = BlockMatrix._pos_index(col_idx, self.n_cols, 'col index')
-            return self._jbm.getElement(i, j)
+
+            return Env.backend().execute(BlockMatrixToValueApply(self._bmir,
+                                                                 {'name': 'GetElement', 'index': [i, j]}))
 
         rows_to_keep = BlockMatrix._range_to_keep(row_idx, self.n_rows)
         cols_to_keep = BlockMatrix._range_to_keep(col_idx, self.n_cols)
@@ -1085,13 +1103,10 @@ class BlockMatrix(object):
         --------
         :meth:`.to_numpy`
         """
-        n_entries = self.n_rows * self.n_cols
-        if n_entries >= 2 << 31:
-            raise ValueError(f'number of entries must be less than 2^31, found {n_entries}')
+        _check_entries_size(self.n_rows, self.n_cols)
 
-        bdm = self._jbm.toBreezeMatrix()
-        row_major = Env.hail().utils.richUtils.RichDenseMatrixDouble.exportToDoubles(Env.hc()._jhc, uri, bdm, True)
-        assert row_major
+        writer = BlockMatrixBinaryWriter(uri)
+        Env.backend().execute(BlockMatrixWrite(self._bmir, writer))
 
     def to_numpy(self):
         """Collects the block matrix into a `NumPy ndarray
@@ -1140,7 +1155,10 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return BlockMatrix._from_java(self._jbm.transpose())
+        return BlockMatrix(BlockMatrixBroadcast(self._bmir,
+                                                [1, 0],
+                                                [self.n_cols, self.n_rows],
+                                                self.block_size))
 
     def densify(self):
         """Restore all dropped blocks as explicit blocks of zeros.
@@ -1222,28 +1240,38 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        op = getattr(self._jbm, "unary_$minus")
-        return BlockMatrix._from_java(op())
+        return self._apply_map(ApplyUnaryOp('-', Ref('element')))
 
-    @typecheck_method(op=str,
+    def _unary_func_ir(self, hail_func):
+        return hail_func(construct_expr(Ref('element'), self.element_type))._ir
+
+    @staticmethod
+    def _binary_op_ir(op):
+        return ApplyBinaryOp(op, Ref('l'), Ref('r'))
+
+    @typecheck_method(f=IR)
+    def _apply_map(self, f):
+        return BlockMatrix(BlockMatrixMap(self._bmir, f))
+
+    @typecheck_method(f=IR,
                       other=oneof(numeric, np.ndarray, block_matrix_type),
                       reverse=bool)
-    def _apply_map(self, op, other, reverse=False):
-        apply_bin_op = ApplyBinaryOp(op, Ref('l'), Ref('r'))
+    def _apply_map2(self, f, other, reverse=False):
+        if not isinstance(other, BlockMatrix):
+            other = BlockMatrix(_to_bmir(other, self.block_size))
 
-        self_bmir = self._bmir
-        other_bmir = other._bmir if isinstance(other, BlockMatrix) else _to_bmir(other, self.block_size)
+        self_shape, other_shape = list(self.shape), list(other.shape)
+        result_shape = _shape_after_broadcast(self_shape, other_shape)
 
-        result_shape = _shape_after_broadcast(self.shape, other_bmir.typ.shape)
-        self_bmir = _broadcast_to_shape(self_bmir, result_shape)
-        other_bmir = _broadcast_to_shape(other_bmir, result_shape)
+        self_bmir = self._bmir if self_shape == result_shape else _broadcast_to_shape(self._bmir, result_shape)
+        other_bmir = other._bmir if other_shape == result_shape else _broadcast_to_shape(other._bmir, result_shape)
 
         if reverse:
             left, right = other_bmir, self_bmir
         else:
             left, right = self_bmir, other_bmir
 
-        return BlockMatrix(BlockMatrixMap2(left, right, apply_bin_op))
+        return BlockMatrix(BlockMatrixMap2(left, right, f))
 
     @typecheck_method(b=oneof(numeric, np.ndarray, block_matrix_type))
     def __add__(self, b):
@@ -1257,7 +1285,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return self._apply_map('+', b)
+        return self._apply_map2(BlockMatrix._binary_op_ir('+'), b)
 
     @typecheck_method(b=oneof(numeric, np.ndarray, block_matrix_type))
     def __sub__(self, b):
@@ -1271,7 +1299,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return self._apply_map('-', b)
+        return self._apply_map2(BlockMatrix._binary_op_ir('-'), b)
 
     @typecheck_method(b=oneof(numeric, np.ndarray, block_matrix_type))
     def __mul__(self, b):
@@ -1285,7 +1313,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return self._apply_map('*', b)
+        return self._apply_map2(BlockMatrix._binary_op_ir('*'), b)
 
     @typecheck_method(b=oneof(numeric, np.ndarray, block_matrix_type))
     def __truediv__(self, b):
@@ -1299,23 +1327,23 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return self._apply_map('/', b)
+        return self._apply_map2(BlockMatrix._binary_op_ir('/'), b)
 
     @typecheck_method(b=numeric)
     def __radd__(self, b):
-        return self._apply_map('+', b, reverse=True)
+        return self._apply_map2(BlockMatrix._binary_op_ir('+'), b, reverse=True)
 
     @typecheck_method(b=numeric)
     def __rsub__(self, b):
-        return self._apply_map('-', b, reverse=True)
+        return self._apply_map2(BlockMatrix._binary_op_ir('-'), b, reverse=True)
 
     @typecheck_method(b=numeric)
     def __rmul__(self, b):
-        return self._apply_map('*', b, reverse=True)
+        return self._apply_map2(BlockMatrix._binary_op_ir('*'), b, reverse=True)
 
     @typecheck_method(b=numeric)
     def __rtruediv__(self, b):
-        return self._apply_map('/', b, reverse=True)
+        return self._apply_map2(BlockMatrix._binary_op_ir('/'), b, reverse=True)
 
     @typecheck_method(b=oneof(np.ndarray, block_matrix_type))
     def __matmul__(self, b):
@@ -1330,11 +1358,12 @@ class BlockMatrix(object):
         :class:`.BlockMatrix`
         """
         if isinstance(b, np.ndarray):
-            return self @ BlockMatrix.from_numpy(b, self.block_size)
-        else:
-            if self.n_cols != b.n_rows:
-                raise ValueError(f'incompatible shapes for matrix multiplication: {self.shape} and {b.shape}')
-            return BlockMatrix._from_java(self._jbm.dot(b._jbm))
+            b = BlockMatrix(_to_bmir(b, self.block_size))
+
+        if self.n_cols != b.n_rows:
+            raise ValueError(f'incompatible shapes for matrix multiplication: {self.shape} and {b.shape}')
+
+        return BlockMatrix(BlockMatrixDot(self._bmir, b._bmir))
 
     @typecheck_method(x=numeric)
     def __pow__(self, x):
@@ -1349,7 +1378,8 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return BlockMatrix._from_java(self._jbm.pow(float(x)))
+        pow_ir = (construct_expr(Ref('l'), self.element_type) ** construct_expr(Ref('r'), hl.tfloat64))._ir
+        return self._apply_map2(pow_ir, x)
 
     def sqrt(self):
         """Element-wise square root.
@@ -1358,7 +1388,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return BlockMatrix._from_java(self._jbm.sqrt())
+        return self._apply_map(self._unary_func_ir(hl.sqrt))
 
     def abs(self):
         """Element-wise absolute value.
@@ -1367,7 +1397,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return BlockMatrix._from_java(self._jbm.abs())
+        return self._apply_map(self._unary_func_ir(hl.abs))
 
     def log(self):
         """Element-wise natural logarithm.
@@ -1376,16 +1406,20 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return BlockMatrix._from_java(self._jbm.log())
+        return self._apply_map(self._unary_func_ir(hl.log))
 
     def diagonal(self):
-        """Extracts diagonal elements as ndarray.
+        """Extracts diagonal elements as a row vector.
 
         Returns
         -------
-        :class:`numpy.ndarray`
+        :class:`.BlockMatrix`
         """
-        return _ndarray_from_jarray(self._jbm.diagonal())
+        diag_bmir = BlockMatrixBroadcast(self._bmir,
+                                         [0, 0],
+                                         [1, min(self.n_rows, self.n_cols)],
+                                         self.block_size)
+        return BlockMatrix(diag_bmir)
 
     @typecheck_method(axis=nullable(int))
     def sum(self, axis=None):
@@ -1423,11 +1457,13 @@ class BlockMatrix(object):
             If ``1``, returns a block matrix with a single column.
         """
         if axis is None:
-            return self._jbm.sum()
-        elif axis == 0:
-            return BlockMatrix._from_java(self._jbm.rowSum())
-        elif axis == 1:
-            return BlockMatrix._from_java(self._jbm.colSum())
+            bmir = BlockMatrixAgg(self._bmir, [])
+            return BlockMatrix(bmir)[0, 0]
+        elif axis == 0 or axis == 1:
+            out_index_expr = [dim for dim in range(len(self.shape)) if dim != axis]
+
+            bmir = BlockMatrixAgg(self._bmir, out_index_expr)
+            return BlockMatrix(bmir)
         else:
             raise ValueError(f'axis must be None, 0, or 1: found {axis}')
 
@@ -1472,7 +1508,7 @@ class BlockMatrix(object):
         :class:`.Table`
             Table with a row for each entry.
         """
-        t = Table._from_java(self._jbm.entriesTable(Env.hc()._jhc))
+        t = Table._from_java(self._jbm.entriesTable())
         if keyed:
             t = t.key_by('i', 'j')
         return t
@@ -2074,20 +2110,14 @@ def _shape_after_broadcast(left, right):
 @typecheck(x=oneof(numeric, np.ndarray), block_size=int)
 def _to_bmir(x, block_size):
     if _is_scalar(x):
-        return ValueToBlockMatrix(F64(x), [], block_size, [])
+        return ValueToBlockMatrix(F64(x), [1, 1], block_size)
     else:
-        return ValueToBlockMatrix(_ndarray_to_makearray(x), list(x.shape),
-                                  block_size, [True for _ in x.shape])
+        return ValueToBlockMatrix(_ndarray_to_makearray(x), list(_ndarray_as_2d(x).shape), block_size)
 
 
 def _broadcast_to_shape(bmir, result_shape):
-    current_shape = bmir.typ.shape
-    if current_shape == result_shape:
-        return bmir
-
-    broadcast_kind = _broadcast_kind(current_shape)
-    return BlockMatrixBroadcast(bmir, broadcast_kind, result_shape,
-                                bmir.typ.block_size, [True for _ in result_shape])
+    in_index_expr = _broadcast_index_expr(bmir.typ.shape, bmir.typ.is_row_vector)
+    return BlockMatrixBroadcast(bmir, in_index_expr, result_shape, bmir.typ.block_size)
 
 
 def _ndarray_to_makearray(ndarray):
@@ -2102,15 +2132,13 @@ def _ndarray_to_makearray(ndarray):
     return MakeArray(data_as_ir, hl.tarray(hl.tfloat64))
 
 
-def _broadcast_kind(shape):
-    assert len(shape) <= 2
-
-    if shape == [] or shape == [1] or shape == [1, 1]:
-        return "scalar"
-    elif shape[0] == 1:
-        return "row"
+def _broadcast_index_expr(bmir_shape, is_row_vector):
+    if len(bmir_shape) == 0:
+        return []
+    elif len(bmir_shape) == 1:
+        return [1] if is_row_vector else [0]
     else:
-        return "col"
+        raise ValueError(f'Cannot broadcast shape: ${bmir_shape}')
 
 
 def _ndarray_as_2d(nd):
@@ -2149,11 +2177,15 @@ def _ndarray_from_jarray(ja):
 
 
 def _breeze_fromfile(uri, n_rows, n_cols):
+    _check_entries_size(n_rows, n_cols)
+
+    return Env.hail().utils.richUtils.RichDenseMatrixDouble.importFromDoubles(Env.hc()._jhc, uri, n_rows, n_cols, True)
+
+
+def _check_entries_size(n_rows, n_cols):
     n_entries = n_rows * n_cols
     if n_entries >= 1 << 31:
         raise ValueError(f'number of entries must be less than 2^31, found {n_entries}')
-
-    return Env.hail().utils.richUtils.RichDenseMatrixDouble.importFromDoubles(Env.hc()._jhc, uri, n_rows, n_cols, True)
 
 
 def _breeze_from_ndarray(nd):

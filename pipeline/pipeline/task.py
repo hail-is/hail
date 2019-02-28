@@ -1,6 +1,14 @@
 import re
 
-from .resource import Resource, ResourceGroup
+from .resource import ResourceFile, ResourceGroup
+
+
+def _add_resource_to_set(resource_set, resource):
+    resource_set.add(resource)
+    if isinstance(resource, ResourceFile) and resource._has_resource_group():
+        rg = resource._get_resource_group()
+        for _, resource_file in rg._resources.items():
+            resource_set.add(resource_file)
 
 
 class Task:
@@ -19,23 +27,25 @@ class Task:
         self._label = label
         self._cpu = None
         self._memory = None
-        self._docker = None
+        self._image = None
         self._command = []
-        self._namespace = {}
-        self._resources = {}
-        self._dependencies = set()
-        self._inputs = set()
+
+        self._resources = {}  # dict of name to resource
+        self._resources_inverse = {}  # dict of resource to name
         self._uid = Task._new_uid()
 
+        self._inputs = set()
+        self._outputs = set()
+        self._mentioned = set()
+        self._dependencies = set()
+
     def _get_resource(self, item):
-        if item not in self._namespace:
-            self._namespace[item] = self._pipeline._new_resource(self)
-        r = self._namespace[item]
-        if isinstance(r, Resource):
-            return str(r)
-        else:
-            assert isinstance(r, ResourceGroup)
-            return r
+        if item not in self._resources:
+            r = self._pipeline._new_task_resource_file(self)
+            self._resources[item] = r
+            self._resources_inverse[r] = item
+
+        return self._resources[item]
 
     def __getitem__(self, item):
         return self._get_resource(item)
@@ -43,12 +53,20 @@ class Task:
     def __getattr__(self, item):
         return self._get_resource(item)
 
+    def _add_outputs(self, resource):
+        _add_resource_to_set(self._outputs, resource)
+
+    def _add_inputs(self, resource):
+        _add_resource_to_set(self._inputs, resource)
+
     def declare_resource_group(self, **mappings):
         for name, d in mappings.items():
-            assert name not in self._namespace
+            assert name not in self._resources
             if not isinstance(d, dict):
                 raise ValueError(f"value for name '{name}' is not a dict. Found '{type(d)}' instead.")
-            self._namespace[name] = self._pipeline._new_resource_group(self, d)
+            rg = self._pipeline._new_resource_group(self, d)
+            self._resources[name] = rg
+            self._mentioned.add(rg)
         return self
 
     def depends_on(self, *tasks):
@@ -58,15 +76,6 @@ class Task:
     def command(self, command):
         from .pipeline import Pipeline
 
-        def add_dependencies(r):
-            if isinstance(r, ResourceGroup):
-                for _, resource in r._namespace.items():
-                    add_dependencies(resource)
-            else:
-                assert isinstance(r, Resource)
-                if r._source is not None and r._source != self:
-                    self._dependencies.add(r._source)
-
         def handler(match_obj):
             groups = match_obj.groupdict()
             if groups['TASK']:
@@ -74,17 +83,27 @@ class Task:
             elif groups['PIPELINE']:
                 raise ValueError(f"found a reference to a Pipeline object in command '{command}'.")
             else:
-                assert groups['RESOURCE'] or groups['RESOURCE_GROUP']
+                assert groups['RESOURCE_FILE'] or groups['RESOURCE_GROUP']
                 r_uid = match_obj.group()
                 r = self._pipeline._resource_map.get(r_uid)
                 if r is None:
-                    raise KeyError(f"undefined resource '{r_uid}' in command '{command}'. "
+                    raise KeyError(f"undefined resource '{r_uid}' in command '{command}'.\n"
                                    f"Hint: resources must be from the same pipeline as the current task.")
-                add_dependencies(r)
-                self._resources[r._uid] = r
+                if r._source != self:
+                    self._add_inputs(r)
+                    if r._source is not None:
+                        if r not in r._source._mentioned:
+                            name = r._source._resources_inverse
+                            raise Exception(f"undefined resource '{name}'\n"
+                                            f"Hint: resources must be defined within "
+                                            "the task methods 'command' or 'declare_resource_group'")
+                        self._dependencies.add(r._source)
+                        r._source._add_outputs(r)
+                else:
+                    self._mentioned.add(r)
                 return f"${{{r_uid}}}"
 
-        subst_command = re.sub(f"({Resource._regex_pattern})|({ResourceGroup._regex_pattern})"
+        subst_command = re.sub(f"({ResourceFile._regex_pattern})|({ResourceGroup._regex_pattern})"
                                f"|({Task._regex_pattern})|({Pipeline._regex_pattern})",
                                handler,
                                command)
@@ -103,9 +122,18 @@ class Task:
         self._cpu = cpu
         return self
 
-    def docker(self, docker):
-        self._docker = docker
+    def image(self, image):
+        self._image = image
         return self
+
+    def _pretty(self):
+        s = f"Task '{self._uid}'" \
+            f"\tLabel:\t'{self._label}'" \
+            f"\tImage:\t'{self._image}'" \
+            f"\tCPU:\t'{self._cpu}'" \
+            f"\tMemory:\t'{self._memory}'" \
+            f"\tCommand:\t'{self._command}'"
+        return s
 
     def __str__(self):
         return self._uid

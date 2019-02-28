@@ -1,13 +1,14 @@
 package is.hail.methods
 
-import is.hail.{SparkSuite, TestUtils}
+import is.hail.{HailContext, SparkSuite, TestUtils}
 import is.hail.annotations.Annotation
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
-import is.hail.expr.ir.TextTableReader
+import is.hail.expr.ir.{Interpret, TextTableReader}
 import is.hail.expr.types._
 import is.hail.expr.types.virtual.{TFloat64, TInt32, TString}
 import is.hail.io.vcf.ExportVCF
+import is.hail.table.Table
 import is.hail.utils.AbsoluteFuzzyComparable._
 import is.hail.utils._
 import is.hail.variant._
@@ -109,7 +110,7 @@ class IBDSuite extends SparkSuite {
     }
     val vds = TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
 
-    val us = IBD.toRDD(IBD(vds)).collect().toMap
+    val us = IBD.toRDD(Interpret(IBD.pyApply(vds.ast))).collect().toMap
 
     val plink = runPlinkIBD(vds)
     val sampleIds = vds.stringSampleIds
@@ -120,6 +121,6 @@ class IBDSuite extends SparkSuite {
 
   @Test def ibdSchemaCorrect() {
     val vds = TestUtils.importVCF(hc, "src/test/resources/sample.vcf")
-    val us = IBD(vds).typeCheck()
+    val us = new Table(HailContext.get, IBD.pyApply(vds.ast)).typeCheck()
   }
 }

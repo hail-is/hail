@@ -282,7 +282,7 @@ object TypeCheck {
       case Die(msg, typ) =>
         check(msg)
         assert(msg.typ isOfType TString())
-      case x@ApplyIR(fn, args, conversion) =>
+      case x@ApplyIR(fn, args) =>
         check(x.explicitNode)
       case x: AbstractApplyNode[_] =>
         x.args.foreach(check(_))
@@ -310,7 +310,13 @@ object TypeCheck {
       case TableCollect(_) =>
       case TableToValueApply(_, _) =>
       case MatrixToValueApply(_, _) =>
-      case BlockMatrixWrite(_, _, _, _, _) =>
+      case BlockMatrixToValueApply(_, _) =>
+      case BlockMatrixWrite(_, _) =>
+      case CollectDistributedArray(ctxs, globals, cname, gname, body) =>
+        check(ctxs)
+        assert(ctxs.typ.isInstanceOf[TArray])
+        check(globals)
+        check(body, env = env.bind(cname, coerce[TArray](ctxs.typ).elementType).bind(gname, globals.typ))
     }
   }
 }

@@ -6,8 +6,8 @@ import is.hail.expr.types.virtual.Type
 case class BlockMatrixType(
   elementType: Type,
   shape: IndexedSeq[Long],
-  blockSize: Int,
-  dimsPartitioned: IndexedSeq[Boolean]) extends BaseType {
+  isRowVector: Boolean,
+  blockSize: Int) extends BaseType {
 
   override def pretty(sb: StringBuilder, indent0: Int, compact: Boolean): Unit = {
     var indent = indent0
@@ -36,14 +36,15 @@ case class BlockMatrixType(
     sb += ','
     newline()
 
+    sb.append(s"isRowVector:$space")
+    sb.append(isRowVector)
+    sb += ','
+    newline()
+
     sb.append(s"blockSize:$space")
     sb.append(blockSize)
     sb += ','
     newline()
-
-    sb.append(s"dimsPartitioned:$space[")
-    dimsPartitioned.foreachBetween(dim => sb.append(dim))(sb.append(s",$space"))
-    sb += ']'
 
     indent -= 4
     newline()

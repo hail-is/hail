@@ -27,6 +27,8 @@ object Binds {
         v == n && i == 1
       case ArrayAgg(_, name, _) =>
         v == name && i == 2
+      case CollectDistributedArray(_, _, n1, n2, _) =>
+        (v == n1 || v == n2) && i == 2
       case _ =>
         false
     }

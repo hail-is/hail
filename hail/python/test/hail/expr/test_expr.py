@@ -1009,6 +1009,18 @@ class Tests(unittest.TestCase):
         self.assertEqual(df.aggregate(agg.filter(False, agg.any(df.all_true))), False)
         self.assertEqual(df.aggregate(agg.filter(False, agg.all(df.all_true))), True)
 
+    def test_agg_prev_nonnull(self):
+        t = hl.utils.range_table(17, n_partitions=8)
+        t = t.annotate(
+            prev = hl.scan._prev_nonnull(
+                hl.or_missing((t.idx % 3) != 0, t.row)))
+        self.assertTrue(
+            t.all(hl._values_similar(t.prev.idx,
+                                     hl.case()
+                                     .when(t.idx < 2, hl.null(hl.tint32))
+                                     .when(((t.idx - 1) % 3) == 0, t.idx - 2)
+                                     .default(t.idx - 1))))
+
     def test_str_ops(self):
         s = hl.literal("123")
         self.assertEqual(hl.eval(hl.int32(s)), 123)
@@ -1923,8 +1935,11 @@ class Tests(unittest.TestCase):
 
     def test_sort_by(self):
         self.assertEqual(hl.eval(hl._sort_by(["c", "aaa", "bb", hl.null(hl.tstr)], lambda l, r: hl.len(l) < hl.len(r))), ["c", "bb", "aaa", None])
-        self.assertEqual(hl.eval(hl._sort_by([hl.Struct(x=i, y="foo", z=5.5) for i in [5, 3, 8, 2, 5, hl.null(hl.tint32)]], lambda l, r: l.x < r.x)),
-                         [hl.Struct(x=i, y="foo", z=5.5) for i in [2, 3, 5, 5, 8, None]])
+        self.assertEqual(hl.eval(hl._sort_by([hl.Struct(x=i, y="foo", z=5.5) for i in [5, 3, 8, 2, 5]], lambda l, r: l.x < r.x)),
+                         [hl.Struct(x=i, y="foo", z=5.5) for i in [2, 3, 5, 5, 8]])
+        with self.assertRaises(hl.utils.java.FatalError):
+            self.assertEqual(hl.eval(hl._sort_by([hl.Struct(x=i, y="foo", z=5.5) for i in [5, 3, 8, 2, 5, hl.null(hl.tint32)]], lambda l, r: l.x < r.x)),
+                             [hl.Struct(x=i, y="foo", z=5.5) for i in [2, 3, 5, 5, 8, None]])
 
     def test_bool_r_ops(self):
         self.assertTrue(hl.eval(hl.literal(True) & True))
@@ -2516,3 +2531,8 @@ class Tests(unittest.TestCase):
 
         with pytest.raises(hl.utils.FatalError):
             hl.eval(hl.bit_rshift(hl.int64(1), -1, logical=True))
+
+    def test_prev_non_null(self):
+        ht = hl.utils.range_table(1)
+
+        assert ht.aggregate((hl.agg._prev_nonnull(ht.idx))) == 0

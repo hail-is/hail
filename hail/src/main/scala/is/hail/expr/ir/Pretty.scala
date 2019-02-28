@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.functions.RelationalFunctions
+import is.hail.expr.types.virtual.TArray
 import is.hail.table.Ascending
 import is.hail.utils._
 import org.json4s.jackson.{JsonMethods, Serialization}
@@ -38,7 +39,7 @@ object Pretty {
 
   def prettyInts(x: IndexedSeq[Int]): String = x.mkString("(", " ", ")")
 
-  def prettyLiterals[T](x: IndexedSeq[T]): String = x.mkString("(", " ", ")")
+  def prettyBooleans(bools: IndexedSeq[Boolean]): String = prettyIdentifiers(bools.map(prettyBooleanLiteral))
 
   def prettyLongsOpt(x: Option[IndexedSeq[Long]]): String =
     x.map(prettyLongs).getOrElse("None")
@@ -171,7 +172,7 @@ object Pretty {
             case AggExplode(_, name, _) => prettyIdentifier(name)
             case AggArrayPerElement(_, name, _) => prettyIdentifier(name)
             case ArraySort(_, l, r, _) => prettyIdentifier(l) + " " + prettyIdentifier(r)
-            case ApplyIR(function, _, _) => prettyIdentifier(function)
+            case ApplyIR(function, _) => prettyIdentifier(function)
             case Apply(function, _) => prettyIdentifier(function)
             case ApplySeeded(function, _, seed) => prettyIdentifier(function) + " " + seed.toString
             case ApplySpecial(function, _) => prettyIdentifier(function)
@@ -180,6 +181,8 @@ object Pretty {
             case In(i, typ) => s"${ typ.parsableString() } $i"
             case Die(message, typ) => typ.parsableString()
             case Uniroot(name, _, _, _) => prettyIdentifier(name)
+            case CollectDistributedArray(_, _, cname, gname, _) =>
+              s"${ prettyIdentifier(cname) } ${ prettyIdentifier(gname) }"
             case MatrixRead(typ, dropCols, dropRows, reader) =>
               (if (typ == reader.fullType) "None" else typ.parsableString()) + " " +
               prettyBooleanLiteral(dropCols) + " " +
@@ -189,22 +192,23 @@ object Pretty {
               '"' + StringEscapeUtils.escapeString(Serialization.write(writer)(MatrixWriter.formats)) + '"'
             case MatrixMultiWrite(_, writer) =>
               '"' + StringEscapeUtils.escapeString(Serialization.write(writer)(MatrixNativeMultiWriter.formats)) + '"'
-            case BlockMatrixRead(path) =>
-              prettyStringLiteral(path)
-            case BlockMatrixWrite(_, path, overwrite, forceRowMajor, stageLocally) =>
-              prettyStringLiteral(path) + " " +
-              prettyBooleanLiteral(overwrite) + " " +
-              prettyBooleanLiteral(forceRowMajor) + " " +
-              prettyBooleanLiteral(stageLocally)
-            case BlockMatrixBroadcast(_, broadcastType, shape, blockSize, dimsPartitioned) =>
-              prettyClass(broadcastType) + " " +
+            case BlockMatrixRead(reader) =>
+              '"' + StringEscapeUtils.escapeString(Serialization.write(reader)(BlockMatrixReader.formats)) + '"'
+            case BlockMatrixWrite(_, writer) =>
+              '"' + StringEscapeUtils.escapeString(Serialization.write(writer)(BlockMatrixWriter.formats)) + '"'
+            case BlockMatrixBroadcast(_, inIndexExpr, shape, blockSize) =>
+              prettyInts(inIndexExpr) + " " +
               prettyLongs(shape) + " " +
-              blockSize.toString + " " +
-              prettyLiterals(dimsPartitioned)
-            case ValueToBlockMatrix(_, shape, blockSize, dimsPartitioned) =>
+              blockSize.toString + " "
+            case BlockMatrixAgg(_, outIndexExpr) => prettyInts(outIndexExpr)
+            case ValueToBlockMatrix(_, shape, blockSize) =>
               prettyLongs(shape) + " " +
-              blockSize.toString + " " +
-              prettyLiterals(dimsPartitioned)
+              blockSize.toString + " "
+            case BlockMatrixRandom(seed, gaussian, shape, blockSize) =>
+              seed.toString + " " +
+              prettyBooleanLiteral(gaussian) + " " +
+              prettyLongs(shape) + " " +
+              blockSize.toString + " "
             case MatrixRowsHead(_, n) => n.toString
             case MatrixAnnotateRowsTable(_, _, uid) =>
               prettyStringLiteral(uid) + " "

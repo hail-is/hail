@@ -1,0 +1,23 @@
+@import "./variables/colors.scss";
+#theme-site {
+  input {
+    padding: 10px;
+    border: 1px solid $black;
+    border-radius: 3px;
+    appearance: none;
+  }
+  input:focus {
+    outline: none;
+    border-color: $dark-gray;
+  }
+  &.dark {
+    input {
+      border-color: $white;
+      background: $black;
+    }
+    input,
+    input::placeholder {
+      color: $white;
+    }
+  }
+}

@@ -238,7 +238,7 @@ output:
 {
   int j, nj, nt, ntm;  real acc1, almx, xlim, xnt, xntm;
   real utx, tausq, sd, intv, intv1, x, up, un, d1, d2, lj, ncj;
-  real qfval = -1.0;
+  real qfval;
   static int rats[]={1,2,4,8};
   
   if (setjmp(env) != 0) { *ifault=4; goto endofproc; }
@@ -344,28 +344,27 @@ output:
 
 extern "C"
 EXPORT
-real qfWrapper(real* lb1, real* nc1, int* n1, int r1, real sigma, real c1,
+real qfWrapper(real* lb1, real* nc1, int* dof, int r1, real sigma, real c1,
                int lim1, real acc, real* trace, int* ifault)
 {
 
-  real lambdas[r1];
-  real noncentrality[r1];
-  int dof[r1];
+  real * lambdas = new real[r1];
+  real * noncentrality = new real[r1];
 
   for(int i = 0; i < r1; i++){
     lambdas[i] = lb1[i];
     noncentrality[i] = nc1[i];
-    dof[i] = 1;
   }
 
-  real trace2[7] = {0.0};
   int fault = *ifault;
 
   DaviesAlgo algoClass;
  
   real result = algoClass.qf(lambdas, noncentrality, dof, r1, sigma, c1,
-                   lim1, acc, trace2, &fault);
+                   lim1, acc, trace, &fault);
   *ifault = fault;
+  delete[] lambdas;
+  delete[] noncentrality;
   return result;
 
 }

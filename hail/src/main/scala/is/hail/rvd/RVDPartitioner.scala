@@ -4,6 +4,7 @@ import is.hail.annotations.ExtendedOrdering
 import is.hail.expr.types._
 import is.hail.expr.types.virtual.{TArray, TInterval, TStruct}
 import is.hail.utils._
+import org.apache.commons.lang.builder.HashCodeBuilder
 import org.apache.spark.sql.Row
 import org.apache.spark.{Partitioner, SparkContext}
 import org.apache.spark.broadcast.Broadcast
@@ -19,7 +20,7 @@ class RVDPartitioner(
     kType: TStruct,
     rangeBounds: IndexedSeq[Interval],
     allowedOverlap: Int
-  ) = this(kType, rangeBounds.toArray, kType.size)
+  ) = this(kType, rangeBounds.toArray, allowedOverlap)
 
   def this(
     kType: TStruct,
@@ -66,8 +67,15 @@ class RVDPartitioner(
 
   override def equals(other: Any): Boolean = other match {
     case that: RVDPartitioner =>
-      this.kType == that.kType && this.rangeBounds == that.rangeBounds
+      this.eq(that) || (this.kType == that.kType && this.rangeBounds.sameElements(that.rangeBounds))
     case _ => false
+  }
+
+  override def hashCode: Int = {
+    val b = new HashCodeBuilder()
+    b.append(kType)
+    rangeBounds.foreach(b.append)
+    b.toHashCode
   }
 
   @transient
@@ -98,11 +106,13 @@ class RVDPartitioner(
   def coarsenedRangeBounds(newKeyLen: Int): Array[Interval] =
     rangeBounds.map(_.coarsen(newKeyLen))
 
-  def coarsen(newKeyLen: Int): RVDPartitioner =
+  def coarsen(newKeyLen: Int): RVDPartitioner = {
+    assert(newKeyLen <= kType.size)
     new RVDPartitioner(
       kType.truncate(newKeyLen),
-      coarsenedRangeBounds(newKeyLen)
-    )
+      coarsenedRangeBounds(newKeyLen),
+      math.min(allowedOverlap, newKeyLen))
+  }
 
   def strictify: RVDPartitioner = extendKey(kType)
 
@@ -184,9 +194,10 @@ class RVDPartitioner(
 
   def copy(
     kType: TStruct = kType,
-    rangeBounds: IndexedSeq[Interval] = rangeBounds
+    rangeBounds: IndexedSeq[Interval] = rangeBounds,
+    allowedOverlap: Int = allowedOverlap
   ): RVDPartitioner =
-    new RVDPartitioner(kType, rangeBounds)
+    new RVDPartitioner(kType, rangeBounds, allowedOverlap)
 
   def coalesceRangeBounds(newPartEnd: IndexedSeq[Int]): RVDPartitioner = {
     val newRangeBounds = (-1 +: newPartEnd.init).zip(newPartEnd).map { case (s, e) =>

@@ -98,11 +98,12 @@ def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None) -> 
     else:
         dataset = dataset.select_rows()
     dataset = dataset.select_cols().select_globals().select_entries('GT')
-    return Table._from_java(Env.hail().methods.IBD.apply(require_biallelic(dataset, 'ibd')._jmt,
-                                                         joption('__maf' if maf is not None else None),
-                                                         bounded,
-                                                         joption(min),
-                                                         joption(max)))
+    return Table._from_java(Env.hail().methods.IBD.pyApply(
+        Env.spark_backend('ibd')._to_java_ir(require_biallelic(dataset, 'ibd')._mir),
+        joption('__maf' if maf is not None else None),
+        bounded,
+        joption(min),
+        joption(max)))
 
 
 @typecheck(call=expr_call,
@@ -701,7 +702,7 @@ def logistic_regression_rows(test, y, x, covariates, pass_through=()) -> hail.Ta
     if not y_is_list:
         result = result.transmute(**result.logistic_regression[0])
 
-    return result
+    return result.persist()
 
 @typecheck(test=enumeration('wald', 'lrt', 'score'),
            y=expr_float64,
@@ -775,7 +776,7 @@ def poisson_regression_rows(test, y, x, covariates, pass_through=()) -> Table:
         'passThrough': [x for x in row_fields if x not in mt.row_key]
     }
     
-    return Table(MatrixToTableApply(mt._mir, config))
+    return Table(MatrixToTableApply(mt._mir, config)).persist()
 
 
 @typecheck(y=expr_float64,
@@ -1810,13 +1811,12 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
     int_statistics = {'kin': 0, 'kin2': 1, 'kin20': 2, 'all': 3}[statistics]
 
     ht = Table._from_java(scala_object(Env.hail().methods, 'PCRelate')
-                          .apply(Env.hc()._jhc,
-                                 g._jbm,
-                                 scores_table._jt,
-                                 min_individual_maf,
-                                 block_size,
-                                 min_kinship,
-                                 int_statistics))
+                          .pyApply(g._jbm,
+                                   Env.spark_backend('pc_relate')._to_java_ir(scores_table.collect(_localize=False)._ir),
+                                   min_individual_maf,
+                                   block_size,
+                                   min_kinship,
+                                   int_statistics))
 
     if statistics == 'kin':
         ht = ht.drop('ibd0', 'ibd1', 'ibd2')
@@ -2608,7 +2608,7 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
     Generate a matrix table of genotypes with 1000 variants and 100 samples
     across 3 populations:
 
-    >>> bn_ds = hl.balding_nichols_model(3, 100, 1000)
+    >>> bn_ds = hl.balding_nichols_model(3, 100, 1000, reference_genome='GRCh37')
 
     Generate a matrix table using 4 populations, 40 samples, 150 variants, 3
     partitions, population distribution ``[0.1, 0.2, 0.3, 0.4]``,

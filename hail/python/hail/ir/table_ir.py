@@ -437,9 +437,13 @@ class TableToTableApply(TableIR):
         return f'(TableToTableApply {dump_json(self.config)} {r(self.child)})'
 
     def _compute_type(self):
-        assert (self.config['name'] == 'TableFilterPartitions'
-                or self.config['name'] == 'TableFilterIntervals')
-        self._type = self.child.typ
+        name = self.config['name']
+        if name == 'TableFilterPartitions' or name == 'TableFilterIntervals':
+            self._type = self.child.typ
+        else:
+            assert name == 'VEP', name
+            self._type = Env.backend().table_type(self)
+
 
 def regression_test_type(test):
     glm_fit_schema = dtype('struct{n_iterations:int32,converged:bool,exploded:bool}')
@@ -512,7 +516,7 @@ class MatrixToTableApply(TableIR):
         elif name == 'PCA':
             self._type = hl.ttable(
                 hl.tstruct(eigenvalues=hl.tarray(hl.tfloat64),
-                           scores=child_typ.col_key_type._insert_field('scores', hl.tarray(hl.tfloat64))),
+                           scores=hl.tarray(child_typ.col_key_type._insert_field('scores', hl.tarray(hl.tfloat64)))),
                 child_typ.row_key_type._insert_field('loadings', dtype('array<float64>')),
                 child_typ.row_key)
         else:

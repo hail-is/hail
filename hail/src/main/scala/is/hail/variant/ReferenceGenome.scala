@@ -21,8 +21,6 @@ import is.hail.expr.ir.EmitFunctionBuilder
 import is.hail.expr.ir.functions.{IRFunctionRegistry, LiftoverFunctions, ReferenceGenomeFunctions}
 import is.hail.expr.types.virtual.{TInt64, TInterval, TLocus, Type}
 import is.hail.io.reference.LiftOver
-import is.hail.variant.CopyState.CopyState
-import is.hail.variant.Sex.Sex
 import org.apache.hadoop.conf.Configuration
 
 abstract class RGBase extends Serializable {
@@ -274,19 +272,6 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
 
   def inY(contig: String): Boolean = yContigs.contains(contig)
 
-  def copyState(sex: Sex, locus: Locus): CopyState = {
-    // FIXME this seems wrong (no MT); I copied it from Variant
-    if (sex == Sex.Male)
-      if (inX(locus.contig) && !inXPar(locus))
-        CopyState.HemiX
-      else if (inY(locus.contig) && !inYPar(locus))
-        CopyState.HemiY
-      else
-        CopyState.Auto
-    else
-      CopyState.Auto
-  }
-
   def isMitochondrial(contigIdx: Int): Boolean = mtContigIndices.contains(contigIdx)
 
   def isMitochondrial(contig: String): Boolean = mtContigs.contains(contig)
@@ -433,6 +418,20 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     lo.queryInterval(interval, minMatch)
   }
 
+  override def hashCode: Int = {
+    import org.apache.commons.lang.builder.HashCodeBuilder
+
+    val b = new HashCodeBuilder()
+      .append(name)
+      .append(contigs)
+      .append(lengths)
+      .append(xContigs)
+      .append(yContigs)
+      .append(mtContigs)
+      .append(par)
+    b.toHashCode
+  }
+
   override def equals(other: Any): Boolean = {
     other match {
       case rg: ReferenceGenome =>
@@ -488,7 +487,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
 
     var rg = Code.invokeScalaObject[String, ReferenceGenome](ReferenceGenome.getClass, "parse", stringAssembler)
     if (fastaReader != null) {
-      fb.addHadoopConfiguration(fastaReader.hConf)
+      fb.addHadoopConfiguration(HailContext.sHadoopConf)
       rg = rg.invoke[SerializableHadoopConfiguration, String, String, Int, Int, ReferenceGenome](
         "addSequenceFromReader",
         fb.getHadoopConfiguration,
@@ -499,7 +498,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     }
 
     for ((destRG, lo) <- liftoverMaps) {
-      fb.addHadoopConfiguration(lo.hConf)
+      fb.addHadoopConfiguration(HailContext.sHadoopConf)
       rg = rg.invoke[SerializableHadoopConfiguration, String, String, ReferenceGenome](
         "addLiftoverFromHConf",
         fb.getHadoopConfiguration,

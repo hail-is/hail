@@ -7,6 +7,7 @@ RUN apk add --no-cache \
   && true
 
 COPY setup.py /batch/
+COPY MANIFEST.in /batch/
 COPY batch /batch/batch/
 RUN pip3 install --no-cache-dir /batch
 

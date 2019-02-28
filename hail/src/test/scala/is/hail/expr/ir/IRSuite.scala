@@ -666,9 +666,11 @@ class IRSuite extends SparkSuite {
 
     assertEvalsTo(ArrayFlatMap(ArrayRange(I32(0), I32(3), I32(1)), "i", ArrayRef(a, Ref("i", TInt32()))), FastIndexedSeq(7, null, 2))
 
-    assertEvalsTo(Let("a", I32(5),
-      ArrayFlatMap(a, "a", Ref("a", ta))),
-      FastIndexedSeq(7, null, 2))
+    assertEvalsTo(Let("a", I32(5), ArrayFlatMap(a, "a", Ref("a", ta))), FastIndexedSeq(7, null, 2))
+
+    val arr = MakeArray(List(I32(1), I32(5), I32(2), NA(TInt32())), TArray(TInt32()))
+    val expected = FastIndexedSeq(-1, 0, -1, 0, 1, 2, 3, 4, -1, 0, 1)
+    assertEvalsTo(ArrayFlatMap(arr, "foo", ArrayRange(I32(-1), Ref("foo", TInt32()), I32(1))), expected)
   }
 
   @Test def testArrayFold() {
@@ -964,7 +966,7 @@ class IRSuite extends SparkSuite {
     val bgenReader = MatrixBGENReader(FastIndexedSeq("src/test/resources/example.8bits.bgen"), None, Map.empty[String, String], None, None, None)
     val bgen = MatrixRead(bgenReader.fullType, false, false, bgenReader)
 
-    val blockMatrix = BlockMatrixRead(tmpDir.createLocalTempFile())
+    val blockMatrix = BlockMatrixRead(BlockMatrixNativeReader(tmpDir.createLocalTempFile()))
 
     val irs = Array(
       i, I64(5), F32(3.14f), F64(3.14), str, True(), False(), Void(),
@@ -1039,7 +1041,8 @@ class IRSuite extends SparkSuite {
       MatrixWrite(bgen, MatrixGENWriter(tmpDir.createLocalTempFile())),
       MatrixMultiWrite(Array(mt, mt), MatrixNativeMultiWriter(tmpDir.createLocalTempFile())),
       MatrixAggregate(mt, MakeStruct(Seq("foo" -> count))),
-      BlockMatrixWrite(blockMatrix, tmpDir.createLocalTempFile(), false, false, false)
+      BlockMatrixWrite(blockMatrix, BlockMatrixNativeWriter(tmpDir.createLocalTempFile(), false, false, false)),
+      CollectDistributedArray(ArrayRange(0, 3, 1), 1, "x", "y", Ref("x", TInt32()))
     )
     irs.map(x => Array(x))
   }
@@ -1192,9 +1195,11 @@ class IRSuite extends SparkSuite {
 
   @DataProvider(name = "blockMatrixIRs")
   def blockMatrixIRs(): Array[Array[BlockMatrixIR]] = {
-    val read = BlockMatrixRead(tmpDir.createLocalTempFile())
+    val read = BlockMatrixRead(BlockMatrixNativeReader("src/test/resources/blockmatrix_example/0"))
+    val transpose = BlockMatrixBroadcast(read, IndexedSeq(1, 0), IndexedSeq(2, 2), 2)
+    val dot = BlockMatrixDot(read, transpose)
 
-    val blockMatrixIRs = Array[BlockMatrixIR](read)
+    val blockMatrixIRs = Array[BlockMatrixIR](read, transpose, dot)
 
     blockMatrixIRs.map(ir => Array(ir))
   }

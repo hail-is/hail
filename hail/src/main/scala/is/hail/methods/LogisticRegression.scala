@@ -124,8 +124,8 @@ case class LogisticRegression(
         rv2.set(rv.region, rvb.end())
         rv2
       }
-    }.persist(StorageLevel.MEMORY_AND_DISK)
+    }
 
-    TableValue(tableType, BroadcastRow.empty(sc), newRVD)
+    TableValue(tableType, BroadcastRow.empty(), newRVD)
   }
 }

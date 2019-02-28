@@ -111,7 +111,7 @@ object Children {
       none
     case Die(message, typ) =>
       Array(message)
-    case ApplyIR(_, args, _) =>
+    case ApplyIR(_, args) =>
       args.toFastIndexedSeq
     case Apply(_, args) =>
       args.toFastIndexedSeq
@@ -135,6 +135,8 @@ object Children {
     case TableToValueApply(child, _) => IndexedSeq(child)
     case MatrixToValueApply(child, _) => IndexedSeq(child)
     // from BlockMatrixIR
-    case BlockMatrixWrite(child, _, _, _, _) => IndexedSeq(child)
+    case BlockMatrixToValueApply(child, _) => IndexedSeq(child)
+    case BlockMatrixWrite(child, _) => IndexedSeq(child)
+    case CollectDistributedArray(ctxs, globals, _, _, body) => IndexedSeq(ctxs, globals, body)
   }
 }

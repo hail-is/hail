@@ -10,6 +10,8 @@ from .import_gtf import import_gtf, get_gene_intervals
 from .write_multiple import write_matrix_tables
 from .export_entries_by_col import export_entries_by_col
 from .densify import densify
+from .sparse_split_multi import sparse_split_multi
+from .function import define_function
 
 __all__ = ['ld_score',
            'ld_score_regression',
@@ -27,4 +29,7 @@ __all__ = ['ld_score',
            'haplotype_freq_em',
            'write_matrix_tables',
            'export_entries_by_col',
-           'densify']
+           'densify',
+           'sparse_split_multi',
+           'define_function'
+]
