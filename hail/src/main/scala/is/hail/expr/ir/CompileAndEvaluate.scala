@@ -22,15 +22,15 @@ object CompileAndEvaluate {
   ): T = {
     var ir = ir0
 
-    def optimizeIR(canGenerateLiterals: Boolean) {
-      ir = Optimize(ir, noisy = true, canGenerateLiterals)
+    def optimizeIR(canGenerateLiterals: Boolean, context: String) {
+      ir = Optimize(ir, noisy = true, canGenerateLiterals, Some(context))
       TypeCheck(ir, env.mapValues(_._2), None)
     }
 
-    if (optimize) optimizeIR(true)
+    if (optimize) optimizeIR(true, "CompileAndEvaluate: first pass")
     ir = LiftNonCompilable(ir).asInstanceOf[IR]
     ir = LowerMatrixIR(ir)
-    if (optimize) optimizeIR(true)
+    if (optimize) optimizeIR(true, "CompileAndEvaluate: after Matrix lowering")
 
     // void is not really supported by IR utilities
     if (ir.typ == TVoid)
