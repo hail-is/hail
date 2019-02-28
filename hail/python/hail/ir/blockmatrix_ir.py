@@ -143,8 +143,7 @@ class BlockMatrixFilter(BlockMatrixIR):
         self._type = tblockmatrix(self.child.typ.element_type,
                                   tensor_shape,
                                   is_row_vector,
-                                  self.child.typ.block_size,
-                                  self.child.typ.dims_partitioned)
+                                  self.child.typ.block_size)
 
 
 class ValueToBlockMatrix(BlockMatrixIR):

@@ -406,28 +406,28 @@ case class BlockMatrixAgg(
 
 case class BlockMatrixFilter(
   child: BlockMatrixIR,
-  indicesToKeepPerDim: Array[Array[Long]]) extends BlockMatrixIR {
+  indices: Array[Array[Long]]) extends BlockMatrixIR {
 
-  assert(indicesToKeepPerDim.length == 2)
+  assert(indices.length == 2)
 
   override def typ: BlockMatrixType = {
-    val matrixShape = indicesToKeepPerDim.zipWithIndex.map({ case (dim, i) =>
+    val matrixShape = indices.zipWithIndex.map({ case (dim, i) =>
       if (dim.isEmpty) child.typ.shape(i) else dim.length
     })
 
     val (tensorShape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(matrixShape(0), matrixShape(1))
-    BlockMatrixType(child.typ.elementType, tensorShape, isRowVector, child.typ.blockSize, child.typ.dimsPartitioned)
+    BlockMatrixType(child.typ.elementType, tensorShape, isRowVector, child.typ.blockSize)
   }
 
   override def children: IndexedSeq[BaseIR] = Array(child)
 
   override def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
     assert(newChildren.length == 1)
-    BlockMatrixFilter(newChildren(0).asInstanceOf[BlockMatrixIR], indicesToKeepPerDim)
+    BlockMatrixFilter(newChildren(0).asInstanceOf[BlockMatrixIR], indices)
   }
 
   override protected[ir] def execute(hc: HailContext): BlockMatrix = {
-    val Array(rowIndices, colIndices) = indicesToKeepPerDim
+    val Array(rowIndices, colIndices) = indices
     val bm = child.execute(hc)
 
     if (rowIndices.isEmpty) {
