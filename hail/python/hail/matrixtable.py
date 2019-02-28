@@ -1451,7 +1451,7 @@ class MatrixTable(ExprContainer):
         caller = 'MatrixTable.filter_cols'
         analyze(caller, expr, self._col_indices, {self._row_axis})
 
-        if expr._aggregations:
+        if expr._ir.aggregations:
             bool_uid = Env.get_uid()
             mt = self._select_cols(caller, self.col.annotate(**{bool_uid: expr}))
             return mt.filter_cols(mt[bool_uid], keep).drop(bool_uid)
