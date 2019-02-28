@@ -382,7 +382,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
   def exportRectangles(
     hc: HailContext,
     output: String,
-    flattenedRectangles: Array[Long],
+    rectangles: Array[Array[Long]],
     delimiter: String,
     binary: Boolean) {
 
@@ -416,7 +416,6 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
 
     val writeRectangle = if (binary) writeRectangleBinary else writeRectangleText
 
-    val rectangles = flattenedRectangles.grouped(4).toArray
     val dRect = digitsNeeded(rectangles.length)
     val sHadoopBc = hc.hadoopConfBc
     BlockMatrixRectanglesRDD(rectangles, bm = this).foreach({ case (index, rectData) =>

@@ -56,19 +56,19 @@ class BlockMatrixBinaryWriter(BlockMatrixWriter):
 
 class BlockMatrixRectanglesWriter(BlockMatrixWriter):
     @typecheck_method(path=str,
-                      flattened_rectangles=sequenceof(int),
+                      rectangles=sequenceof(sequenceof(int)),
                       delimiter=str,
                       binary=bool)
-    def __init__(self, path, flattened_rectangles, delimiter, binary):
+    def __init__(self, path, rectangles, delimiter, binary):
         self.path = path
-        self.flattened_rectangles = flattened_rectangles
+        self.rectangles = rectangles
         self.delimiter = delimiter
         self.binary = binary
 
     def render(self, r):
         writer = {'name': 'BlockMatrixRectanglesWriter',
                   'path': self.path,
-                  'flattenedRectangles': self.flattened_rectangles,
+                  'rectangles': self.rectangles,
                   'delimiter': self.delimiter,
                   'binary': self.binary}
         return escape_str(json.dumps(writer))
@@ -76,6 +76,6 @@ class BlockMatrixRectanglesWriter(BlockMatrixWriter):
     def __eq__(self, other):
         return isinstance(other, BlockMatrixRectanglesWriter) and \
                self.path == other.path and \
-               self.flattened_rectangles == other.flattened_rectangles and \
+               self.rectangles == other.rectangles and \
                self.delimiter == other.delimiter and \
                self.binary == other.binary

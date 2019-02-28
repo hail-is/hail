@@ -1871,9 +1871,7 @@ class BlockMatrix(object):
                 raise ValueError(f'rectangle {r} does not satisfy '
                                  f'0 <= r[0] <= r[1] <= n_rows and 0 <= r[2] <= r[3] <= n_cols')
 
-        flattened_rectangles = [x for rect in rectangles for x in rect]
-
-        writer = BlockMatrixRectanglesWriter(path_out, flattened_rectangles, delimiter, binary)
+        writer = BlockMatrixRectanglesWriter(path_out, rectangles, delimiter, binary)
         Env.backend().execute(BlockMatrixWrite(self._bmir, writer))
 
     @typecheck_method(compute_uv=bool,

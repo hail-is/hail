@@ -35,11 +35,11 @@ case class BlockMatrixBinaryWriter(path: String) extends BlockMatrixWriter {
 
 case class BlockMatrixRectanglesWriter(
   path: String,
-  flattenedRectangles: Seq[Long],
+  rectangles: Array[Array[Long]],
   delimiter: String,
   binary: Boolean) extends BlockMatrixWriter {
 
   def apply(hc: HailContext, bm: BlockMatrix): Unit = {
-    bm.exportRectangles(hc, path, flattenedRectangles.toArray, delimiter, binary)
+    bm.exportRectangles(hc, path, rectangles, delimiter, binary)
   }
 }
