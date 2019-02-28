@@ -1857,7 +1857,66 @@ class BlockMatrix(object):
         Env.backend().execute(BlockMatrixWrite(self._bmir, writer))
 
     @typecheck_method(path_out=str, delimiter=str, binary=bool)
-    def export_blocks(self, path_out, delimiter='\t', binary=True):
+    def export_blocks(self, path_out, delimiter='\t', binary=False):
+        """Export each block of the block matrix as its own delimited text or binary file.
+        This is a special case of :meth:`.export_rectangles`
+
+        Examples
+        --------
+        Consider the following block matrix:
+
+        >>> import numpy as np
+        >>> nd = np.array([[ 1.0,  2.0,  3.0],
+        ...                [ 5.0,  6.0,  7.0],
+        ...                [ 9.0, 10.0, 11.0]])
+
+        >>> BlockMatrix.from_numpy(nd, block_size=2).export_blocks('output/example')
+
+        This produces four files in the folder ``output/example``.
+
+        The first file is ``rect-0_0-2-0-2``:
+
+        .. code-block:: text
+
+            1.0 2.0
+            5.0 6.0
+
+        The second file is ``rect-1_0-2-2-3``:
+
+        .. code-block:: text
+
+            3.0
+            7.0
+
+        The third file is ``rect-2_2-3-0-2``:
+
+        .. code-block:: text
+
+            9.0 10.0
+
+        And the fourth file is ``rect-3_3-4-3-4``:
+
+        .. code-block:: text
+
+            11.0
+
+        Notes
+        -----
+        This method is particularly useful if the block matrix is too large to write to a single file.
+
+        See Also
+        --------
+        :meth:`.blocks_to_numpy`
+
+        Parameters
+        ----------
+        path_out: :obj:`str`
+            Path for folder of exported files.
+        delimiter: :obj:`str`
+            Column delimiter.
+        binary: :obj:`bool`
+            If true, export elements as raw bytes in row major order.
+        """
         def rows_in_block(block_row):
             if block_row == n_block_rows - 1:
                 return self.n_rows - block_row * self.block_size
@@ -1868,7 +1927,7 @@ class BlockMatrix(object):
                 return self.n_cols - block_col * self.block_size
             return self.block_size
 
-        def block_boundaries(block_row, block_col):
+        def bounds(block_row, block_col):
             start_row = block_row * self.block_size
             start_col = block_col * self.block_size
             end_row = start_row + rows_in_block(block_row)
@@ -1879,15 +1938,27 @@ class BlockMatrix(object):
         n_block_rows = math.ceil(self.n_rows / self.block_size)
         n_block_cols = math.ceil(self.n_cols / self.block_size)
         block_indices = itertools.product(range(n_block_rows), range(n_block_cols))
-        rectangles = [block_boundaries(block_row, block_col) for (block_row, block_col) in block_indices]
+        rectangles = [bounds(block_row, block_col) for (block_row, block_col) in block_indices]
 
         self.export_rectangles(path_out, rectangles, delimiter, binary)
 
     @staticmethod
     @typecheck(path=str)
     def blocks_to_numpy(path):
-        def extract_rectangles(filename):
-            rect_idx_and_bounds = [int(i) for i in re.findall(r'\d+', filename)]
+        """Instantiates a NumPy ndarray from files of blocks written out using
+        :meth:`.export_blocks`, with `binary=True`.
+
+        Parameters
+        ----------
+        path: :obj:`str`
+            Path to directory where blocks were written.
+
+        Returns
+        -------
+        :class:`numpy.ndarray`
+        """
+        def extract_rectangles(fname):
+            rect_idx_and_bounds = [int(i) for i in re.findall(r'\d+', fname)]
             assert len(rect_idx_and_bounds) == 5
             return rect_idx_and_bounds
 
