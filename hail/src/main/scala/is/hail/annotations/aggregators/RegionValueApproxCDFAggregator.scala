@@ -20,19 +20,22 @@ class RegionValueApproxCDFLongAggregator(bufSize: Int) extends RegionValueAggreg
   private val bufSize2 = bufSize * 2
   private var inputBuffer: Array[Long] = Array.ofDim[Long](bufSize2 + 1)
   private var inBufSize: Int = 0
+  private var hasCombined: Boolean = false
 
   private val rand = new MersenneTwister()
 
   def seqOp(region: Region, x: Long, missing: Boolean) {
-    if (!missing) {
-      inputBuffer(inBufSize) = x
-      inBufSize += 1
-      if (inBufSize == bufSize2)
-        processFullInputBuffer()
-    }
+    if (!missing) _seqOp(x)
   }
 
-  def processFullInputBuffer(): Unit = {
+  def _seqOp(x: Long){
+    inputBuffer(inBufSize) = x
+    inBufSize += 1
+    if (inBufSize == bufSize2)
+      processFullInputBuffer()
+  }
+
+  def processFullInputBuffer() {
     java.util.Arrays.sort(inputBuffer)
     val compacted = getBuffer()
     QuantilesAggregator.compactBuffer(inputBuffer, 0, bufSize2, compacted, 0, rand.nextBoolean())
@@ -43,7 +46,8 @@ class RegionValueApproxCDFLongAggregator(bufSize: Int) extends RegionValueAggreg
     inBufSize = 0
   }
 
-  def compact(height: Int, other: Array[Long]): Unit = {
+  def compact(height: Int, other: Array[Long]) {
+    assert(!hasCombined)
     var curHeight = height
     var right = other
     do {
@@ -69,8 +73,9 @@ class RegionValueApproxCDFLongAggregator(bufSize: Int) extends RegionValueAggreg
       bufferPool.pop()
   }
 
-  def initBufferSizes(): Unit = {
+  def initBufferSizes() {
     if (bufferSizes.isEmpty) {
+      hasCombined = true
       var i = 0
       while (i < fullBuffers.size) {
         if (fullBuffers(i) == null) {
@@ -83,7 +88,7 @@ class RegionValueApproxCDFLongAggregator(bufSize: Int) extends RegionValueAggreg
     }
   }
 
-  def combOp(_that: RegionValueAggregator): Unit = {
+  def combOp(_that: RegionValueAggregator) {
     val that = _that.asInstanceOf[RegionValueApproxCDFLongAggregator]
     initBufferSizes()
     that.initBufferSizes()
@@ -152,7 +157,8 @@ class RegionValueApproxCDFLongAggregator(bufSize: Int) extends RegionValueAggreg
         } else if (bufferSizes(i) > 0 && rightSize > 0) {
           QuantilesAggregator.mergeAndCompactBuffer(fullBuffers(i), lStart, bufferSizes(i), rightBuffer, 0, rightSize, carry, 0, rand.nextBoolean())
         } else if (carrySize > 0 && rightSize > 0) {
-          QuantilesAggregator.mergeAndCompactBuffer(carry, 0, carrySize, rightBuffer, 0, rightSize, scratch, 0, rand.nextBoolean())
+          fullBuffers(i)(0) = carry(0)
+          QuantilesAggregator.mergeAndCompactBuffer(carry, lStart, carrySize, rightBuffer, 0, rightSize, scratch, 0, rand.nextBoolean())
           val tmp = carry
           carry = scratch
           scratch = tmp
@@ -177,33 +183,12 @@ class RegionValueApproxCDFLongAggregator(bufSize: Int) extends RegionValueAggreg
     }
   }
 
-  def compactAfterComb(height: Int, other: Array[Long], otherSize: Int): Unit = {
-    var curHeight = height
-    var right = other
-    var rightSize = otherSize
-    do {
-      if (fullBuffers.size == curHeight + 1) {
-        fullBuffers += getBuffer()
-        bufferSizes += 0
-      }
-      val left = fullBuffers(curHeight)
-      fullBuffers(curHeight) = null
-      val out = getBuffer()
-      QuantilesAggregator.mergeAndCompactBuffer(left, 0, bufSize, right, 0, bufSize, out, 0, rand.nextBoolean())
-      bufferPool.push(left)
-      bufferPool.push(right)
-      curHeight += 1
-      right = out
-    } while (fullBuffers(curHeight) != null)
-    fullBuffers(curHeight) = right
-  }
-
   def result(rvb: RegionValueBuilder): Unit = {
     val res = Row.fromTuple(cdf)
     rvb.addAnnotation(resultType.virtualType, res)
   }
 
-  def cdf: (Array[Long], Array[Long], Long) = {
+  def cdf: (IndexedSeq[Long], IndexedSeq[Long], Long) = {
     initBufferSizes()
     val builder: ArrayBuilder[(Long, Long)] = new ArrayBuilder(0)
     var height: Int = 0
@@ -241,32 +226,6 @@ class RegionValueApproxCDFLongAggregator(bufSize: Int) extends RegionValueAggreg
       i += 1
     }
     (values, ranks, n)
-  }
-
-  def pdf: Array[(Long, Long)] = {
-    initBufferSizes()
-    val builder: ArrayBuilder[(Long, Long)] = new ArrayBuilder(0)
-    var height: Int = 0
-    var n: Long = 0
-    while (height < fullBuffers.size) {
-      val buf = fullBuffers(height)
-      var i: Int = 0
-      while (i < bufferSizes(height)) {
-        val weight: Long = 1 << (height + 1)
-        builder += (weight, buf(i))
-        i += 1
-        n += weight
-      }
-      height += 1
-    }
-    var i: Int = 0
-    while (i < inBufSize) {
-      builder += (1, inputBuffer(i))
-      i += 1
-      n += 1
-    }
-    //    builder.result().sortWith((p1, p2) => comp(p1._2, p2._2))
-    builder.result().sortWith(_._2 < _._2)
   }
 
   def copy(): RegionValueApproxCDFLongAggregator = {
@@ -374,5 +333,87 @@ object QuantilesAggregator {
       i += 2
       o += 1
     }
+  }
+}
+
+object Main {
+  def time(block: => Unit): Long = {
+    val t0 = System.nanoTime()
+    block
+    val t1 = System.nanoTime()
+    t1 - t0
+  }
+
+  def main(args: Array[String]): Unit = {
+    import scala.math.{abs, pow}
+    val agg = new RegionValueApproxCDFLongAggregator(100)
+    //    val agg2 = new QuantilesAggregator(0.5, 100, TInt64(), rand)
+    val n: Int = 150000
+
+    import scala.util.{Random, Sorting}
+    val rand = new Random()
+    val data = rand.shuffle(IndexedSeq.range(0, n)).toArray
+    //    val data = Array.range(0, n)
+    var cdf: (IndexedSeq[Long], IndexedSeq[Long], Long) = null
+    val time1 = time {
+      var i = 0
+      //      while (i < n/2) { agg2.seqOp(data(i)); i += 1 }
+      while (i < n) { agg._seqOp(data(i)); i += 1 }
+      //      agg.combOp(agg2.asInstanceOf[agg.type])
+      cdf = agg.cdf
+    }
+    val (values, ranks, count) = cdf
+    //    val time3 = time {
+    //      data.sorted
+    //    }
+    val time2 = time {
+      val data2 = Array.ofDim[Long](n)
+      var i = 0
+      while (i < n) {
+        data2(i) = data(i)
+        i += 1
+      }
+      Sorting.quickSort(data2)
+    }
+    val time4 = time {
+      val data2 = Array.ofDim[Long](n)
+      var i = 0
+      while (i < n) {
+        data2(i) = data(i)
+        i += 1
+      }
+      java.util.Arrays.sort(data2)
+    }
+    val factor: Double = pow(10, 9)
+    println(s"approx took ${ time1.toDouble / factor } s")
+    println(s"quicksort took ${ time2.toDouble / factor } s")
+    //    println(s"stable sort took ${ time3.toDouble / factor } s")
+    println(s"java sort took ${ time4.toDouble / factor } s")
+
+    //    for ((weight, value) <- cdf) println(s"$weight : $value")
+
+    val epsilon: Double = 0.01
+    var i: Int = 0
+    var q: Double = epsilon
+    var totalError: Long = 0
+    var maxError: Long = 0
+    var numErrors: Int = 0
+    while (q < 1) {
+      val rank: Long = {
+        val r = (q * n).floor.toLong
+        if (r == n) r - 1 else r
+      }
+      while (ranks(i) <= rank) {
+        i += 1
+      }
+      val error = abs(values(i-1) - rank)
+      totalError += error
+      if (error > maxError) maxError = error
+      numErrors += 1
+
+      q += epsilon
+    }
+    println(s"average error = ${ (totalError.toDouble / n) / numErrors }")
+    println(s"max error = ${ maxError.toDouble / n }")
   }
 }
