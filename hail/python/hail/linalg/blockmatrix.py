@@ -8,7 +8,7 @@ from hail.expr import construct_expr
 from hail.ir import BlockMatrixWrite, BlockMatrixMap2, ApplyBinaryOp, Ref, F64, \
     BlockMatrixBroadcast, ValueToBlockMatrix, MakeArray, BlockMatrixRead, JavaBlockMatrix, BlockMatrixMap, \
     ApplyUnaryOp, IR, BlockMatrixDot, tensor_shape_to_matrix_shape, BlockMatrixAgg, BlockMatrixRandom, \
-    BlockMatrixToValueApply, BlockMatrixToTableApply
+    BlockMatrixToValueApply, BlockMatrixToTable
 from hail.ir.blockmatrix_reader import BlockMatrixNativeReader, BlockMatrixBinaryReader
 from hail.ir.blockmatrix_writer import BlockMatrixBinaryWriter, BlockMatrixNativeWriter
 from hail.utils import new_temp_file, new_local_temp_file, local_path_uri, storage_level
@@ -1504,7 +1504,7 @@ class BlockMatrix(object):
         :class:`.Table`
             Table with a row for each entry.
         """
-        t = Table(BlockMatrixToTableApply(self._bmir, {'name': 'BlockMatrixEntries'}))
+        t = Table(BlockMatrixToTable(self._bmir))
         if keyed:
             t = t.key_by('i', 'j')
         return t

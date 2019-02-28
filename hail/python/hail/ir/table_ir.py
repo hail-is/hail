@@ -445,21 +445,6 @@ class TableToTableApply(TableIR):
             self._type = Env.backend().table_type(self)
 
 
-
-class BlockMatrixToTableApply(TableIR):
-    def __init__(self, child, config):
-        super().__init__()
-        self.child = child
-        self.config = config
-
-    def render(self, r):
-        return f'(BlockMatrixToTableApply {dump_json(self.config)} {r(self.child)})'
-
-    def _compute_type(self):
-        assert self.config['name'] == 'BlockMatrixEntries'
-        self._type = hl.ttable(hl.tstruct(), hl.tstruct(**{'i': hl.tint64, 'j': hl.tint64, 'entry': hl.tfloat64}), [])
-
-
 def regression_test_type(test):
     glm_fit_schema = dtype('struct{n_iterations:int32,converged:bool,exploded:bool}')
     if test == 'wald':
@@ -541,6 +526,18 @@ class MatrixToTableApply(TableIR):
                 hl.tstruct(),
                 child_typ.row_key_type._insert_fields(mean=hl.tfloat64, centered_length_rec=hl.tfloat64),
                 list(child_typ.row_key))
+
+
+class BlockMatrixToTable(TableIR):
+    def __init__(self, child):
+        super().__init__()
+        self.child = child
+
+    def render(self, r):
+        return f'(BlockMatrixToTable {r(self.child)})'
+
+    def _compute_type(self):
+        self._type = hl.ttable(hl.tstruct(), hl.tstruct(**{'i': hl.tint64, 'j': hl.tint64, 'entry': hl.tfloat64}), [])
 
 
 class JavaTable(TableIR):

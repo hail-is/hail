@@ -423,7 +423,7 @@ object PruneDeadFields {
         memoizeTableIR(child, childDep, memo)
       case TableToTableApply(child, _) => memoizeTableIR(child, child.typ, memo)
       case MatrixToTableApply(child, _) => memoizeMatrixIR(child, child.typ, memo)
-      case BlockMatrixToTableApply(child, _) => memoizeBlockMatrixIR(child, child.typ, memo)
+      case BlockMatrixToTable(child) => memoizeBlockMatrixIR(child, child.typ, memo)
     }
   }
 

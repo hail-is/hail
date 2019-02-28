@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.annotations.aggregators.RegionValueAggregator
-import is.hail.expr.ir.functions.{BlockMatrixToTableFunction, MatrixToTableFunction, TableToTableFunction}
+import is.hail.expr.ir.functions.{MatrixToTableFunction, TableToTableFunction}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.{PInt32, PStruct}
 import is.hail.expr.types.virtual._
@@ -1538,17 +1538,20 @@ case class TableToTableApply(child: TableIR, function: TableToTableFunction) ext
   }
 }
 
-case class BlockMatrixToTableApply(child: BlockMatrixIR, function: BlockMatrixToTableFunction) extends TableIR {
+case class BlockMatrixToTable(child: BlockMatrixIR) extends TableIR {
   def children: IndexedSeq[BaseIR] = Array(child)
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableIR = {
     val IndexedSeq(newChild: BlockMatrixIR) = newChildren
-    BlockMatrixToTableApply(newChild, function)
+    BlockMatrixToTable(newChild)
   }
 
-  override val typ: TableType = function.typ(child.typ)
+  override val typ: TableType = {
+    val rvType = TStruct("i" -> TInt64Optional, "j" -> TInt64Optional, "entry" -> TFloat64Optional)
+    TableType(rvType, Array[String](), TStruct.empty())
+  }
 
   protected[ir] override def execute(hc: HailContext): TableValue = {
-    function.execute(child.execute(hc))
+    child.execute(hc).entriesTable()
   }
 }

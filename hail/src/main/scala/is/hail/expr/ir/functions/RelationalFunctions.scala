@@ -47,12 +47,6 @@ abstract class MatrixToValueFunction {
   def execute(mv: MatrixValue): Any
 }
 
-abstract class BlockMatrixToTableFunction {
-  def typ(childType: BlockMatrixType): TableType
-
-  def execute(bm: BlockMatrix): TableValue
-}
-
 abstract class BlockMatrixToValueFunction {
   def typ(childType: BlockMatrixType): Type
 
@@ -80,8 +74,7 @@ object RelationalFunctions {
     classOf[MatrixExportEntriesByCol],
     classOf[PCA],
     classOf[VEP],
-    classOf[GetElement],
-    classOf[BlockMatrixEntries]
+    classOf[GetElement]
   )) +
     new MatrixFilterIntervalsSerializer +
     new TableFilterIntervalsSerializer
@@ -95,6 +88,5 @@ object RelationalFunctions {
   def lookupTableToTable(config: String): TableToTableFunction = extractTo[TableToTableFunction](config)
   def lookupTableToValue(config: String): TableToValueFunction = extractTo[TableToValueFunction](config)
   def lookupMatrixToValue(config: String): MatrixToValueFunction = extractTo[MatrixToValueFunction](config)
-  def lookupBlockMatrixToTable(config: String): BlockMatrixToTableFunction = extractTo[BlockMatrixToTableFunction](config)
   def lookupBlockMatrixToValue(config: String): BlockMatrixToValueFunction = extractTo[BlockMatrixToValueFunction](config)
 }
