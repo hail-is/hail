@@ -1,19 +1,21 @@
 from hail.expr.blockmatrix_type import tblockmatrix
-from hail.ir import BlockMatrixIR, IR, tarray, hl
-from hail.utils.java import escape_str
+from hail.ir import hl
+from hail.expr.types import tarray
+from hail.ir import BlockMatrixIR, IR
+from hail.ir.blockmatrix_reader import BlockMatrixReader
 from hail.typecheck import typecheck_method, sequenceof
 
 from hail.utils.java import Env
 
 
 class BlockMatrixRead(BlockMatrixIR):
-    @typecheck_method(path=str)
-    def __init__(self, path):
+    @typecheck_method(reader=BlockMatrixReader)
+    def __init__(self, reader):
         super().__init__()
-        self.path = path
+        self.reader = reader
 
     def render(self, r):
-        return f'(BlockMatrixRead "{escape_str(self.path)}")'
+        return f'(BlockMatrixRead "{r(self.reader)}")'
 
     def _compute_type(self):
         self._type = Env.backend().blockmatrix_type(self)

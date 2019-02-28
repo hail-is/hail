@@ -12,7 +12,7 @@ import is.hail.table.{Ascending, Descending, SortField}
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
-import org.json4s.MappingException
+import org.json4s.{Formats, MappingException}
 import org.json4s.jackson.{JsonMethods, Serialization}
 
 import scala.util.parsing.combinator.JavaTokenParsers
@@ -139,6 +139,14 @@ case class IRParserEnvironment(
 
 object IRParser {
   def error(t: Token, msg: String): Nothing = ParserUtils.error(t.pos, msg)
+
+  def deserialize[T](str: String)(implicit formats: Formats, mf: Manifest[T]): T = {
+    try {
+      Serialization.read[T](str)
+    } catch {
+      case e: MappingException => throw e.cause
+    }
+  }
 
   def consumeToken(it: TokenIterator): Token = {
     if (!it.hasNext)
@@ -801,12 +809,8 @@ object IRParser {
         MatrixAggregate(child, query)
       case "MatrixWrite" =>
         val writerStr = string_literal(it)
-        implicit val formats = MatrixWriter.formats
-        val writer = try {
-          Serialization.read[MatrixWriter](writerStr)
-        } catch {
-          case e: MappingException => throw e.cause
-        }
+        implicit val formats: Formats = MatrixWriter.formats
+        val writer = deserialize[MatrixWriter](writerStr)
         val child = matrix_ir(env.withRefMap(Map.empty))(it)
         MatrixWrite(child, writer)
       case "MatrixMultiWrite" =>
@@ -820,12 +824,11 @@ object IRParser {
         val children = matrix_ir_children(env)(it)
         MatrixMultiWrite(children, writer)
       case "BlockMatrixWrite" =>
-        val path = string_literal(it)
-        val overwrite = boolean_literal(it)
-        val forceRowMajor = boolean_literal(it)
-        val stageLocally = boolean_literal(it)
+        val writerStr = string_literal(it)
+        implicit val formats: Formats = BlockMatrixWriter.formats
+        val writer = deserialize[BlockMatrixWriter](writerStr)
         val child = blockmatrix_ir(env)(it)
-        BlockMatrixWrite(child, path, overwrite, forceRowMajor, stageLocally)
+        BlockMatrixWrite(child, writer)
       case "CollectDistributedArray" =>
         val cname = identifier(it)
         val gname = identifier(it)
@@ -875,13 +878,8 @@ object IRParser {
         val requestedType = opt(it, table_type_expr)
         val dropRows = boolean_literal(it)
         val readerStr = string_literal(it)
-        implicit val formats = TableReader.formats
-          val reader = try {
-            Serialization.read[TableReader](readerStr)
-          } catch {
-            case e: MappingException =>
-              throw e.cause
-          }
+        implicit val formats: Formats = TableReader.formats
+        val reader = deserialize[TableReader](readerStr)
     TableRead(requestedType.getOrElse(reader.fullType), dropRows, reader)
       case "MatrixColsTable" =>
         val child = matrix_ir(env)(it)
@@ -1062,12 +1060,8 @@ object IRParser {
         val dropCols = boolean_literal(it)
         val dropRows = boolean_literal(it)
         val readerStr = string_literal(it)
-        implicit val formats = MatrixReader.formats + new MatrixBGENReaderSerializer(env)
-        val reader = try {
-          Serialization.read[MatrixReader](readerStr)
-        } catch {
-          case e: MappingException => throw e.cause
-        }
+        implicit val formats: Formats = MatrixReader.formats + new MatrixBGENReaderSerializer(env)
+        val reader = deserialize[MatrixReader](readerStr)
         MatrixRead(requestedType.getOrElse(reader.fullType), dropCols, dropRows, reader)
       case "MatrixAnnotateRowsTable" =>
         val root = string_literal(it)
@@ -1146,8 +1140,10 @@ object IRParser {
   def blockmatrix_ir1(env: IRParserEnvironment)(it: TokenIterator): BlockMatrixIR = {
     identifier(it) match {
       case "BlockMatrixRead" =>
-        val path = string_literal(it)
-        BlockMatrixRead(path)
+        val readerStr = string_literal(it)
+        implicit val formats: Formats = BlockMatrixReader.formats
+        val reader = deserialize[BlockMatrixReader](readerStr)
+        BlockMatrixRead(reader)
       case "BlockMatrixMap" =>
         val child = blockmatrix_ir(env)(it)
         val f = ir_value_expr(env + ("element" -> child.typ.elementType))(it)

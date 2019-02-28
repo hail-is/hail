@@ -322,8 +322,7 @@ final case class TableToValueApply(child: TableIR, function: TableToValueFunctio
 final case class MatrixToValueApply(child: MatrixIR, function: MatrixToValueFunction) extends IR
 final case class BlockMatrixToValueApply(child: BlockMatrixIR, function: BlockMatrixToValueFunction) extends IR
 
-final case class BlockMatrixWrite(child: BlockMatrixIR, path: String,
-  overwrite: Boolean, forceRowMajor: Boolean, stageLocally: Boolean) extends IR
+final case class BlockMatrixWrite(child: BlockMatrixIR, writer: BlockMatrixWriter) extends IR
 
 final case class CollectDistributedArray(contexts: IR, globals: IR, cname: String, gname: String, body: IR) extends IR
 
