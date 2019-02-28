@@ -176,7 +176,7 @@ case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) 
 
   protected[ir] override def execute(hc: HailContext): TableValue = {
     val Row(rows: IndexedSeq[Row], globals: Row) = Interpret[Row](rowsAndGlobal, optimize = false)
-    rows.zipWithIndex.foreach { case (r, idx) =>
+    rows.zipWithIndex.foreach { case (r: Row, idx) =>
       if (r == null)
         fatal(s"cannot parallelize null values: found null value at index $idx")
     }

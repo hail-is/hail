@@ -58,6 +58,7 @@ object BinaryOp {
           case LeftShift() => ll << rr
           case RightShift() => ll >> rr
           case LogicalRightShift() => ll >>> rr
+          case _ => incompatible(lt, rt, op)
         }
       case (_: TInt64, _: TInt64) =>
         val ll = coerce[Long](l)
