@@ -237,6 +237,11 @@ object IRBuilder {
       ArrayMap(array, f.s.name, f.body(env.bind(f.s.name -> eltType)))
     }
 
+    def aggExplode(f: LambdaProxy): IRProxy = (env: E) => {
+      val array = ir(env)
+      AggExplode(array, f.s.name, f.body(env))
+    }
+
     def flatMap(f: LambdaProxy): IRProxy = (env: E) => {
       val array = ir(env)
       val eltType = array.typ.asInstanceOf[TArray].elementType
