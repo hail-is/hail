@@ -386,44 +386,46 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
     delimiter: String,
     binary: Boolean) {
 
-    val writeRectangle = (uos: OutputStream, data: Array[Double], nCols: Long) => {
-      if (binary) {
-        val os = new DoubleOutputBuffer(uos, RichArray.defaultBufSize)
-        os.writeDoubles(data)
-        os.close()
-      } else {
-        val os = new OutputStreamWriter(uos)
-        val sb = new StringBuilder(blockSize << 2)
-
-        var k = 0
-        while (k < data.length - 1) {
-          sb.append(data(k))
-          if (k % nCols == nCols - 1) {
-            sb.append("\n")
-          } else {
-            sb.append(delimiter)
-          }
-          k += 1
-        }
-        sb.append(data.last).append("\n")
-
-        os.write(sb.result())
-        os.close()
-      }
+    val writeRectangleBinary = (uos: OutputStream, dm: BDM[Double]) => {
+      val os = new DoubleOutputBuffer(uos, RichArray.defaultBufSize)
+      os.writeDoubles(dm.t.toArray)
+      os.close()
     }
+
+    val writeRectangleText = (uos: OutputStream, dm: BDM[Double]) => {
+      val data = dm.t.toArray
+      val nCols = dm.cols
+      val os = new OutputStreamWriter(uos)
+      val sb = new StringBuilder(blockSize << 2)
+
+      var k = 0
+      while (k < data.length - 1) {
+        sb.append(data(k))
+        if (k % nCols == nCols - 1) {
+          sb.append("\n")
+        } else {
+          sb.append(delimiter)
+        }
+        k += 1
+      }
+      sb.append(data.last).append("\n")
+
+      os.write(sb.result())
+      os.close()
+    }
+
+    val writeRectangle = if (binary) writeRectangleBinary else writeRectangleText
 
     val rectangles = flattenedRectangles.grouped(4).toArray
     val dRect = digitsNeeded(rectangles.length)
-    val sHadoopBc = hc.sc.broadcast(new SerializableHadoopConfiguration(hc.hadoopConf))
-
     BlockMatrixRectanglesRDD(rectangles, bm = this).foreach({ case (index, rectData) =>
       val r = rectangles(index)
       val paddedIndex = StringUtils.leftPad(index.toString, dRect, "0")
       val outputFile = output + "/rect-" + paddedIndex + "_" + r.mkString("-")
 
       if (rectData.size > 0) {
-        sHadoopBc.value.value.writeFile(outputFile) { uos =>
-          writeRectangle(uos, rectData.t.toArray, rectData.cols)
+        hc.hadoopConfBc.value.value.writeFile(outputFile) { uos =>
+          writeRectangle(uos, rectData)
           uos.close()
         }
       }
