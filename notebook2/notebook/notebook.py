@@ -432,7 +432,6 @@ def login_auth0():
 
 
 @app.route('/logout', methods=['POST'])
-@requires_auth()
 def logout():
     session.clear()
     params = {'returnTo': flask.url_for('root', _external=True), 'client_id': AUTH0_CLIENT_ID}
