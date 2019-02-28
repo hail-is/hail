@@ -11,13 +11,11 @@ def sparse_split_multi(sparse_mt):
 
     Variants are split thus:
 
-    - A row with only one (reference) or two (reference and alternate) alleles
-      in addition to the symbolic `<NON_REF>` will not be split.
+    - A row with only one (reference) or two (reference and alternate) alleles.
 
-    - A row with multiple alternate alleles in addition to the symbolic
-      `<NON_REF>` allele be split, with one row for each alternate allele not
-      including `<NON_REF>`, and each row will contain three alleles: ref, alt,
-      and `<NON_REF>`. The reference and alternate allele will be minrepped using
+    - A row with multiple alternate alleles  will be split, with one row for
+      each alternate allele, and each row will contain two alleles: ref and alt.
+      The reference and alternate allele will be minrepped using
       :func:`.min_rep`.
 
     The split multi logic handles the following entry fields:
@@ -30,6 +28,7 @@ def sparse_split_multi(sparse_mt):
             DP: int32
             GQ: int32
             LPL: array<int32>
+            RGQ: int32
             LPGT: call
             LA: array<int32>
             END: int32
@@ -57,10 +56,11 @@ def sparse_split_multi(sparse_mt):
 
     - `PL` array elements are calculated from the minimum `LPL` value for all
       allele pairs that downcode to the desired one. (This logic is identical to
-      the `PL` logic in :func:`.split_mult_hts`, except with the addition of
-      a special case where `<NON_REF>` alleles don't downcode to ref but instead
-      are used for the (ref, `<NON_REF>`), (alt, `<NON_REF>`), and (`<NON_REF>`,
-      `<NON_REF>`) cases.)
+      the `PL` logic in :func:`.split_mult_hts`; if a row has an alternate
+      allele but it is not present in `LA`, the `PL` field is set to missing.
+      The `PL` for `ref/<NON_REF>` in that case can be drawn from `RGQ`.
+
+    - `RGQ` (the ref genotype quality) is preserved unchanged.
 
     - `END` is untouched.
 
@@ -93,108 +93,80 @@ def sparse_split_multi(sparse_mt):
     ds = sparse_mt.localize_entries(entries, cols)
     new_id = hl.utils.java.Env.get_uid()
 
-    non_ref = '<NON_REF>'
-
     def struct_from_min_rep(i):
         return hl.bind(lambda mr:
                        (hl.case()
                         .when(ds.locus == mr.locus,
                               hl.struct(
                                   locus=ds.locus,
-                                  alleles=[mr.alleles[0], mr.alleles[1], non_ref],
+                                  alleles=[mr.alleles[0], mr.alleles[1]],
                                   a_index=i,
                                   was_split=True))
                         .or_error("Found non-left-aligned variant in sparse_split_multi")),
                        hl.min_rep(ds.locus, [ds.alleles[0], ds.alleles[i]]))
 
-    explode_structs = (hl.case()
-                       .when(ds.alleles[-1] == non_ref,
-                             hl.cond(hl.len(ds.alleles) < 4,
-                                   [hl.struct(
-                                       locus=ds.locus,
-                                       alleles=ds.alleles,
-                                       a_index=1,
-                                       was_split=False)],
-                                     hl._sort_by(
-                                         hl.range(1, hl.len(ds.alleles) - 1)
-                                             .map(struct_from_min_rep),
-                                         lambda l, r: hl._compare(l.alleles, r.alleles) < 0
-                                     )))
-                       .or_error("'sparse_split_multi': Last allele in sparse representation was not '<NON_REF>'"))
+    explode_structs = hl.cond(hl.len(ds.alleles) < 3,
+                              [hl.struct(
+                                  locus=ds.locus,
+                                  alleles=ds.alleles,
+                                  a_index=1,
+                                  was_split=False)],
+                              hl._sort_by(
+                                  hl.range(1, hl.len(ds.alleles))
+                                      .map(struct_from_min_rep),
+                                  lambda l, r: hl._compare(l.alleles, r.alleles) < 0
+                              ))
 
     ds = ds.annotate(**{new_id: explode_structs}).explode(new_id)
 
     def transform_entries(old_entry):
-        def with_non_ref_index(non_ref_index):
-            def with_local_a_index(local_a_index):
-                def downcodes_to(c, c2):
-                    return (((hl.case()
-                              .when(c2[0] == 1, c[0] == local_a_index)
-                              .when(c2[0] == 2, c[0] == non_ref_index)
-                              .default((c[0] != local_a_index) & (c[0] != non_ref_index))) &
-                             (hl.case()
-                              .when(c2[1] == 1, c[1] == local_a_index)
-                              .when(c2[1] == 2, c[1] == non_ref_index)
-                              .default((c[1] != local_a_index) & (c[1] != non_ref_index)))) |
-                            ((hl.case()
-                              .when(c2[0] == 1, c[1] == local_a_index)
-                              .when(c2[0] == 2, c[1] == non_ref_index)
-                              .default((c[1] != local_a_index) & (c[1] != non_ref_index))) &
-                             (hl.case()
-                              .when(c2[1] == 1, c[0] == local_a_index)
-                              .when(c2[1] == 2, c[0] == non_ref_index)
-                              .default((c[0] != local_a_index) & (c[0] != non_ref_index)))))
+        def with_local_a_index(local_a_index):
+            new_pl = hl.or_missing(
+                hl.is_defined(old_entry.LPL),
+                hl.or_missing(
+                    hl.is_defined(local_a_index),
+                    hl.range(0, 3).map(lambda i: hl.min(
+                        hl.range(0, hl.triangle(hl.len(old_entry.LA)))
+                            .filter(lambda j: hl.downcode(hl.unphased_diploid_gt_index_call(j), local_a_index) == hl.unphased_diploid_gt_index_call(i))
+                            .map(lambda idx: old_entry.LPL[idx])))))
+            fields = set(old_entry.keys())
 
-                new_pl = hl.or_missing(
-                    hl.is_defined(old_entry.LPL),
-                    (hl.range(0, 6).map(lambda i: hl.min(
-                        (hl.range(0, hl.triangle(hl.len(old_entry.LA)))
-                         .filter(lambda j: hl.bind(downcodes_to,
-                                                   hl.unphased_diploid_gt_index_call(j),
-                                                   hl.unphased_diploid_gt_index_call(i)))
-                         .map(lambda j: old_entry.LPL[j]))))))
-
-                fields = set(old_entry.keys())
-
-                def with_pl(pl):
-                        new_exprs = {}
-                        dropped_fields = ['LA']
-
-                        if 'LGT' in fields:
-                            new_exprs['GT'] = hl.downcode(old_entry.LGT, local_a_index)
-                            dropped_fields.append('LGT')
-                        if 'LPGT' in fields:
-                            new_exprs['PGT'] = hl.downcode(old_entry.LPGT, local_a_index)
-                            dropped_fields.append('LPGT')
-                        if 'LAD' in fields:
-                            new_exprs['AD'] = hl.or_missing(
-                                hl.is_defined(old_entry.LAD),
-                                [old_entry.LAD[0], old_entry.LAD[local_a_index], old_entry.LAD[non_ref_index]])
-                            dropped_fields.append('LAD')
-                        if 'LPL' in fields:
-                            new_exprs['PL'] = pl
-                            if 'GQ' in fields:
-                                new_exprs['GQ'] = hl.gq_from_pl(pl)
-
-                            dropped_fields.append('LPL')
-
-                        return hl.cond(hl.len(ds.alleles) < 3,
-                                       old_entry.annotate(**{f[1:]: old_entry[f] for f in ['LGT', 'LPGT', 'LAD', 'LPL'] if f in fields}).drop(*dropped_fields),
-                                       old_entry.annotate(**new_exprs).drop(*dropped_fields))
-
+            def with_pl(pl):
+                new_exprs = {}
+                dropped_fields = ['LA']
+                if 'LGT' in fields:
+                    new_exprs['GT'] = hl.downcode(old_entry.LGT, hl.or_else(local_a_index, hl.len(old_entry.LA)))
+                    dropped_fields.append('LGT')
+                if 'LPGT' in fields:
+                    new_exprs['PGT'] = hl.downcode(old_entry.LPGT, hl.or_else(local_a_index, hl.len(old_entry.LA)))
+                    dropped_fields.append('LPGT')
+                if 'LAD' in fields:
+                    new_exprs['AD'] = hl.or_missing(
+                        hl.is_defined(old_entry.LAD),
+                        [old_entry.LAD[0], hl.or_else(old_entry.LAD[local_a_index], 0)]) # second entry zeroed for lack of non-ref AD
+                    dropped_fields.append('LAD')
                 if 'LPL' in fields:
-                    return hl.bind(with_pl, new_pl)
-                else:
-                    return with_pl(None)
+                    new_exprs['PL'] = pl
+                    if 'GQ' in fields:
+                        new_exprs['GQ'] = hl.or_else(hl.gq_from_pl(pl), old_entry.GQ)
 
-            lai = hl.fold(lambda accum, elt:
-                          hl.cond(old_entry.LA[elt] == ds[new_id].a_index,
-                                  elt, accum),
-                          non_ref_index,
-                          hl.range(0, hl.len(old_entry.LA)))
-            return hl.bind(with_local_a_index, lai)
+                    dropped_fields.append('LPL')
 
-        return hl.bind(with_non_ref_index, hl.len(old_entry.LA) - 1)
+                return hl.cond(hl.len(ds.alleles) == 1,
+                                   old_entry.annotate(**{f[1:]: old_entry[f] for f in ['LGT', 'LPGT', 'LAD', 'LPL'] if f in fields}).drop(*dropped_fields),
+                                   old_entry.annotate(**new_exprs).drop(*dropped_fields))
+
+            if 'LPL' in fields:
+                return hl.bind(with_pl, new_pl)
+            else:
+                return with_pl(None)
+
+        lai = hl.fold(lambda accum, elt:
+                        hl.cond(old_entry.LA[elt] == ds[new_id].a_index,
+                                elt, accum),
+                        hl.null(hl.tint32),
+                        hl.range(0, hl.len(old_entry.LA)))
+        return hl.bind(with_local_a_index, lai)
 
     new_row = ds.row.annotate(**{
         'locus': ds[new_id].locus,
