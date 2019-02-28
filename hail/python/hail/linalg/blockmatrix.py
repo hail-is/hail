@@ -3,6 +3,7 @@ import scipy.linalg as spla
 import itertools
 import math
 import os
+import re
 
 import hail as hl
 import hail.expr.aggregators as agg
@@ -1855,8 +1856,8 @@ class BlockMatrix(object):
         writer = BlockMatrixRectanglesWriter(path_out, rectangles, delimiter, binary)
         Env.backend().execute(BlockMatrixWrite(self._bmir, writer))
 
-    @typecheck_method(path_out=str)
-    def export_blocks_binary(self, path_out):
+    @typecheck_method(path_out=str, delimiter=str, binary=bool)
+    def export_blocks(self, path_out, delimiter='\t', binary=True):
         def rows_in_block(block_row):
             if block_row == n_block_rows - 1:
                 return self.n_rows - block_row * self.block_size
@@ -1880,25 +1881,28 @@ class BlockMatrix(object):
         block_indices = itertools.product(range(n_block_rows), range(n_block_cols))
         rectangles = [block_boundaries(block_row, block_col) for (block_row, block_col) in block_indices]
 
-        self.export_rectangles(path_out, rectangles, binary=True)
+        self.export_rectangles(path_out, rectangles, delimiter, binary)
 
     @staticmethod
-    @typecheck(path_in=str)
-    def blocks_to_numpy(path_in):
-        def extract_rect_bounds(filename):
-            rect_idx_and_bounds = [int(i) for i in filename.split('-|_') if i.isdigit()]
+    @typecheck(path=str)
+    def blocks_to_numpy(path):
+        def extract_rectangles(filename):
+            rect_idx_and_bounds = [int(i) for i in re.findall(r'\d+', filename)]
             assert len(rect_idx_and_bounds) == 5
+            return rect_idx_and_bounds
 
-            rect_bounds = rect_idx_and_bounds[1:]
-            return rect_bounds
+        rect_files = [file for file in os.listdir(path) if not re.match(r'.*\.crc', file)]
+        rects = [extract_rectangles(file) for file in rect_files]
 
-        rect_files = os.listdir(path_in)
+        last_rect = max(rects, key=lambda r: r[0])  # first element is the index of the rectangle
+        n_rows = last_rect[2]
+        n_cols = last_rect[4]
 
-        # TODO: Construct ndarray with size hint
-        nd = np.array([])
-        for rect_file in rect_files:
-            rect = extract_rect_bounds(rect_file)
-            nd[rect[0]:rect[1], rect[2]:rect[3]] = np.fromfile(rect_file)
+        nd = np.empty(shape=(n_rows, n_cols))
+        for rect, file in zip(rects, rect_files):
+            rows = rect[2] - rect[1]
+            cols = rect[4] - rect[3]
+            nd[rect[1]:rect[2], rect[3]:rect[4]] = np.fromfile(f'{path}/{file}').reshape(rows, cols)
 
         return nd
 
