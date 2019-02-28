@@ -1058,9 +1058,7 @@ object PruneDeadFields {
     }
   }
 
-  def rebuild(bmir: BlockMatrixIR, memo: Memo[BaseType]): BlockMatrixIR = {
-    bmir
-  }
+  def rebuild(bmir: BlockMatrixIR, memo: Memo[BaseType]): BlockMatrixIR = bmir
 
   def rebuild(ir: IR, in: BaseType, memo: Memo[BaseType]): IR = {
     rebuild(ir, relationalTypeToEnv(in), memo)
