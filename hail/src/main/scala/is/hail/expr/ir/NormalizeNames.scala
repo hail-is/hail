@@ -10,15 +10,24 @@ class NormalizeNames {
 
   def apply(ir: IR, env: Env[String]): IR = apply(ir, env, None)
 
-  def apply(ir: IR, env: Env[String], aggEnv: Option[Env[String]]): IR = {
-    def normalize(ir: IR, env: Env[String] = env, aggEnv: Option[Env[String]] = aggEnv): IR = apply(ir, env, aggEnv)
+  def apply(ir: IR, env: Env[String], aggEnv: Option[Env[String]], freeVariables: Boolean = false): IR = {
+    def normalize(ir: IR, env: Env[String] = env, aggEnv: Option[Env[String]] = aggEnv): IR = apply(ir, env, aggEnv, freeVariables)
 
     ir match {
       case Let(name, value, body) =>
         val newName = gen()
         Let(newName, normalize(value), normalize(body, env.bind(name, newName)))
       case Ref(name, typ) =>
-        Ref(env.lookup(name), typ)
+        val newName = env.lookupOption(name) match {
+          case Some(n) => n
+          case None =>
+            if (!freeVariables)
+              throw new RuntimeException(s"NormalizeNames: found free variable '$name" +
+                s"'")
+            else
+              name
+        }
+        Ref(newName, typ)
       case AggLet(name, value, body) =>
         val newName = gen()
         AggLet(newName, normalize(value), normalize(body, env, Some(aggEnv.get.bind(name, newName))))

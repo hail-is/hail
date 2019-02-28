@@ -78,4 +78,12 @@ class ForwardLetsSuite extends TestNGSuite {
       env = Env.empty[Type],
       aggEnv = Some(aggEnv))
   }
+
+  @Test def testNestedBindingOverwrites(): Unit = {
+    val env = Env[Type]("x" -> TInt32())
+    val ir = let(x = 'x.toD, y = 'x) { 'x + 'y + 'y}(env)
+
+    TypeCheck(ir, env, None)
+    TypeCheck(ForwardLets(ir, false).asInstanceOf[IR], env, None)
+  }
 }
