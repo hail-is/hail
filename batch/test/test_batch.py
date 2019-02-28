@@ -3,15 +3,26 @@ import time
 import re
 import unittest
 import batch
+import uuid
 from flask import Flask, Response, request
 import requests
 
 from .serverthread import ServerThread
+from batch.server.database import Database
 
 
 class Test(unittest.TestCase):
     def setUp(self):
         self.batch = batch.client.BatchClient(url=os.environ.get('BATCH_URL'))
+        self.db_name = 'test_' + uuid.uuid4().hex[8]
+        self.db = Database(host=os.environ.get('SQL_HOST', 'localhost'),
+                           port=int(os.environ.get('SQL_PORT', 3306)),
+                           db=os.environ.get('SQL_DB_NAME', 'batch'),
+                           user=os.environ.get('SQL_USER_NAME'),
+                           password=os.environ.get('SQL_PASSWORD'))
+
+    def tearDown(self):
+        self.db.delete()
 
     def test_job(self):
         j = self.batch.create_job('alpine', ['echo', 'test'])
