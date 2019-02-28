@@ -93,6 +93,12 @@ class Tests(unittest.TestCase):
                 assert mt_.head(100).count_rows() == 10
                 assert mt_.head(100)._force_count_rows() == 10
 
+    def test_head_cols(self):
+        mt1 = hl.utils.range_matrix_table(10, 10)
+        assert mt1.head(1, 2).count() == (1, 2)
+        assert mt1.head(1, None).count() == (1, 10)
+        assert mt1.head(None, 1).count() == (10, 1)
+
     def test_filter(self):
         vds = self.get_vds()
         vds = vds.annotate_globals(foo=5)

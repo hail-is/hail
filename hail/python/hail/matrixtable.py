@@ -3208,20 +3208,40 @@ class MatrixTable(ExprContainer):
         
         return MatrixTable(MatrixUnionCols(self._mir, other._mir))
 
-    @typecheck_method(n=int)
-    def head(self, n: int) -> 'MatrixTable':
+    @typecheck_method(n=nullable(int), n_cols=nullable(int))
+    def head(self, n: Optional[int], n_cols: Optional[int] = None) -> 'MatrixTable':
         """Subset matrix to first `n` rows.
 
         Examples
         --------
-        Subset to the first three rows of the matrix:
+        >>> mt_range = hl.utils.range_matrix_table(100, 100)
 
-        >>> dataset_result = dataset.head(3)
-        >>> dataset_result.count_rows()
-        3
+        Passing only one argument will take the first `n` rows:
+
+        >>> mt_range.head(10).count()
+        (10, 100)
+
+        Passing two arguments refers to rows and columns, respectively:
+
+        >>> mt_range.head(10, 20).count()
+        (10, 20)
+
+        Either argument may be ``None`` to indicate no filter.
+
+        First 10 rows, all columns:
+
+        >>> mt_range.head(10, None).count()
+        (10, 100)
+
+        All rows, first 10 columns:
+
+        >>> mt_range.head(None, 10)
+        (100, 10)
 
         Notes
         -----
+        For backwards compatibility, the `n` parameter is not named `n_rows`,
+        but the parameter refers to the number of rows to keep.
 
         The number of partitions in the new matrix is equal to the number of
         partitions containing the first `n` rows.
@@ -3229,16 +3249,25 @@ class MatrixTable(ExprContainer):
         Parameters
         ----------
         n : :obj:`int`
-            Number of rows to include.
+            Number of rows to include (all rows included if ``None``).
+        n_cols : :obj:`int`, optional
+            Number of cols to include (all cols included if ``None``).
 
         Returns
         -------
         :class:`.MatrixTable`
-            Matrix including the first `n` rows.
+            Matrix including the first `n` rows and first `n_cols` cols.
         """
-        if n < 0:
-            raise ValueError(f"MatrixTable.head: expect 'n' to be non-negative, found '{n}'")
-        return MatrixTable(MatrixRowsHead(self._mir, n))
+        mt = self
+        if n is not None:
+            if n < 0:
+                raise ValueError(f"MatrixTable.head: expect 'n' to be non-negative or None, found '{n}'")
+            mt = MatrixTable(MatrixRowsHead(self._mir, n))
+        if n_cols is not None:
+            if n_cols < 0:
+                raise ValueError(f"MatrixTable.head: expect 'n_cols' to be non-negative or None, found '{n_cols}'")
+            mt = mt.filter_cols(hl.scan.count() < n_cols)
+        return mt
 
     @typecheck_method(parts=sequenceof(int), keep=bool)
     def _filter_partitions(self, parts, keep=True) -> 'MatrixTable':
