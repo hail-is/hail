@@ -112,7 +112,7 @@ def requires_auth(for_page = True):
         @wraps(f)
         def decorated(*args, **kwargs):
             if 'user' not in session:
-                if for_page is True:
+                if for_page:
                     session['referrer'] = request.url
                     return redirect(flask.url_for('login_page'))
 
