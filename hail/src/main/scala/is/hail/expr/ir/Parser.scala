@@ -1161,27 +1161,23 @@ object IRParser {
         val inIndexExpr = int32_literals(it)
         val shape = int64_literals(it)
         val blockSize = int32_literal(it)
-        val dimsPartitioned = boolean_literals(it)
         val child = blockmatrix_ir(env)(it)
-        BlockMatrixBroadcast(child, inIndexExpr, shape, blockSize, dimsPartitioned)
+        BlockMatrixBroadcast(child, inIndexExpr, shape, blockSize)
       case "BlockMatrixAgg" =>
         val outIndexExpr = int32_literals(it)
-        val dimsPartitioned = boolean_literals(it)
         val child = blockmatrix_ir(env)(it)
-        BlockMatrixAgg(child, outIndexExpr, dimsPartitioned)
+        BlockMatrixAgg(child, outIndexExpr)
       case "ValueToBlockMatrix" =>
         val shape = int64_literals(it)
         val blockSize = int32_literal(it)
-        val dimsPartitioned = boolean_literals(it)
         val child = ir_value_expr(env)(it)
-        ValueToBlockMatrix(child, shape, blockSize, dimsPartitioned)
+        ValueToBlockMatrix(child, shape, blockSize)
       case "BlockMatrixRandom" =>
         val seed = int32_literal(it)
         val gaussian = boolean_literal(it)
         val shape = int64_literals(it)
         val blockSize = int32_literal(it)
-        val dimsPartitioned = boolean_literals(it)
-        BlockMatrixRandom(seed, gaussian, shape, blockSize, dimsPartitioned)
+        BlockMatrixRandom(seed, gaussian, shape, blockSize)
       case "JavaBlockMatrix" =>
         val name = identifier(it)
         env.irMap(name).asInstanceOf[BlockMatrixIR]

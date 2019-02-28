@@ -44,7 +44,6 @@ object BlockMatrixIR {
       case IndexedSeq(r, c) => (r, c)
     }
   }
-
 }
 
 abstract sealed class BlockMatrixIR extends BaseIR {
@@ -87,7 +86,7 @@ case class BlockMatrixNativeReader(path: String) extends BlockMatrixReader {
     val metadata = BlockMatrix.readMetadata(HailContext.get, path)
     val (tensorShape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(metadata.nRows, metadata.nCols)
 
-    BlockMatrixType(TFloat64(), tensorShape, isRowVector, metadata.blockSize, IndexedSeq(true, true))
+    BlockMatrixType(TFloat64(), tensorShape, isRowVector, metadata.blockSize)
   }
 
   override def apply(hc: HailContext): BlockMatrix = BlockMatrix.read(hc, path)
@@ -98,7 +97,7 @@ case class BlockMatrixBinaryReader(path: String, shape: Seq[Long], blockSize: In
     assert(shape.length == 2)
     val (tensorShape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(shape.head, shape(1))
 
-    BlockMatrixType(TFloat64(), tensorShape, isRowVector, blockSize, IndexedSeq(true, true))
+    BlockMatrixType(TFloat64(), tensorShape, isRowVector, blockSize)
   }
 
   override def apply(hc: HailContext): BlockMatrix = {
@@ -110,7 +109,7 @@ case class BlockMatrixBinaryReader(path: String, shape: Seq[Long], blockSize: In
 class BlockMatrixLiteral(value: BlockMatrix) extends BlockMatrixIR {
   override def typ: BlockMatrixType = {
     val (shape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(value.nRows, value.nCols)
-    BlockMatrixType(TFloat64(), shape, isRowVector, value.blockSize, IndexedSeq(true, true))
+    BlockMatrixType(TFloat64(), shape, isRowVector, value.blockSize)
   }
 
   override def children: IndexedSeq[BaseIR] = Array.empty[BlockMatrixIR]
@@ -163,9 +162,9 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, f: IR) ext
 
   override protected[ir] def execute(hc: HailContext): BlockMatrix = {
     left match {
-      case BlockMatrixBroadcast(scalarIR: BlockMatrixIR, IndexedSeq(), _, _, _) =>
+      case BlockMatrixBroadcast(scalarIR: BlockMatrixIR, IndexedSeq(), _, _) =>
         scalarOnLeft(hc, coerceToScalar(hc, scalarIR), right, f)
-      case BlockMatrixBroadcast(vectorIR: BlockMatrixIR,inIndexExpr, _, _, _) =>
+      case BlockMatrixBroadcast(vectorIR: BlockMatrixIR,inIndexExpr, _, _) =>
         val vector = coerceToVector(hc, vectorIR)
         inIndexExpr match {
           case IndexedSeq(1) => rowVectorOnLeft(hc, vector, right, f)
@@ -178,7 +177,7 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, f: IR) ext
 
   private def scalarOnLeft(hc: HailContext, scalar: Double, right: BlockMatrixIR, f: IR): BlockMatrix = {
     right match {
-      case BlockMatrixBroadcast(vectorIR: BlockMatrixIR, IndexedSeq(_), _, _, _) =>
+      case BlockMatrixBroadcast(vectorIR: BlockMatrixIR, IndexedSeq(_), _, _) =>
         opWithScalar(vectorIR.execute(hc), scalar, f, reverse = true)
       case _ =>
         opWithScalar(right.execute(hc), scalar, f, reverse = true)
@@ -187,7 +186,7 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, f: IR) ext
 
   private def rowVectorOnLeft(hc: HailContext, rowVector: Array[Double], right: BlockMatrixIR, f: IR): BlockMatrix = {
     right match {
-      case BlockMatrixBroadcast(scalarIR, IndexedSeq(), _, _, _) =>
+      case BlockMatrixBroadcast(scalarIR, IndexedSeq(), _, _) =>
         val rightAsScalar = coerceToScalar(hc, scalarIR)
         val rowVectorAsBm = BlockMatrixIR.toBlockMatrix(hc, 1, rowVector.length, rowVector)
         opWithScalar(rowVectorAsBm, rightAsScalar, f, reverse = false)
@@ -198,7 +197,7 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, f: IR) ext
 
   private def colVectorOnLeft(hc: HailContext, colVector: Array[Double], right: BlockMatrixIR, f: IR): BlockMatrix = {
     right match {
-      case BlockMatrixBroadcast(scalarIR, IndexedSeq(), _, _, _) =>
+      case BlockMatrixBroadcast(scalarIR, IndexedSeq(), _, _) =>
         val rightAsScalar = coerceToScalar(hc, scalarIR)
         val colVectorAsBm = BlockMatrixIR.toBlockMatrix(hc, colVector.length, 1, colVector)
         opWithScalar(colVectorAsBm, rightAsScalar, f, reverse = false)
@@ -209,10 +208,10 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, f: IR) ext
 
   private def matrixOnLeft(hc: HailContext, matrix: BlockMatrix, right: BlockMatrixIR, f: IR): BlockMatrix = {
     right match {
-      case BlockMatrixBroadcast(scalarIR, IndexedSeq(), _, _, _) =>
+      case BlockMatrixBroadcast(scalarIR, IndexedSeq(), _, _) =>
         val rightAsScalar = coerceToScalar(hc, scalarIR)
         opWithScalar(matrix, rightAsScalar, f, reverse = false)
-      case BlockMatrixBroadcast(vectorIR, inIndexExpr, _, _, _) =>
+      case BlockMatrixBroadcast(vectorIR, inIndexExpr, _, _) =>
         inIndexExpr match {
           case IndexedSeq(1) =>
             val rightAsRowVec = coerceToVector(hc, vectorIR)
@@ -228,7 +227,7 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, f: IR) ext
 
   private def coerceToScalar(hc: HailContext, ir: BlockMatrixIR): Double = {
     ir match {
-      case ValueToBlockMatrix(child, _, _, _) =>
+      case ValueToBlockMatrix(child, _, _) =>
         Interpret[Any](child) match {
           case scalar: Double => scalar
           case oneElementArray: IndexedSeq[Double] => oneElementArray.head
@@ -239,7 +238,7 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, f: IR) ext
 
   private def coerceToVector(hc: HailContext, ir: BlockMatrixIR): Array[Double] = {
     ir match {
-      case ValueToBlockMatrix(child, _, _, _) =>
+      case ValueToBlockMatrix(child, _, _) =>
         Interpret[Any](child) match {
           case vector: IndexedSeq[Double] => vector.toArray
         }
@@ -304,12 +303,7 @@ case class BlockMatrixDot(left: BlockMatrixIR, right: BlockMatrixIR) extends Blo
     assert(lCols == rRows)
 
     val (tensorShape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(lRows, rCols)
-    BlockMatrixType(
-      left.typ.elementType,
-      tensorShape,
-      isRowVector,
-      left.typ.blockSize,
-      tensorShape.map(_ => true))
+    BlockMatrixType(left.typ.elementType, tensorShape, isRowVector, left.typ.blockSize)
   }
 
   override def children: IndexedSeq[BaseIR] = Array(left, right)
@@ -328,8 +322,7 @@ case class BlockMatrixBroadcast(
   child: BlockMatrixIR,
   inIndexExpr: IndexedSeq[Int],
   shape: IndexedSeq[Long],
-  blockSize: Int,
-  dimsPartitioned: IndexedSeq[Boolean]) extends BlockMatrixIR {
+  blockSize: Int) extends BlockMatrixIR {
 
   assert(shape.length == 2)
   assert(inIndexExpr.length <= 2 && inIndexExpr.forall(x => x == 0 || x == 1))
@@ -338,14 +331,14 @@ case class BlockMatrixBroadcast(
     val (tensorShape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(shape(0), shape(1))
     assert(inIndexExpr.zipWithIndex.forall({ case (out: Int, in: Int) => child.typ.shape(in) == tensorShape(out) }))
 
-    BlockMatrixType(child.typ.elementType, tensorShape, isRowVector, blockSize, dimsPartitioned)
+    BlockMatrixType(child.typ.elementType, tensorShape, isRowVector, blockSize)
   }
 
   override def children: IndexedSeq[BaseIR] = Array(child)
 
   override def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
     assert(newChildren.length == 1)
-    BlockMatrixBroadcast(newChildren(0).asInstanceOf[BlockMatrixIR], inIndexExpr, shape, blockSize, dimsPartitioned)
+    BlockMatrixBroadcast(newChildren(0).asInstanceOf[BlockMatrixIR], inIndexExpr, shape, blockSize)
   }
 
   override protected[ir] def execute(hc: HailContext): BlockMatrix = {
@@ -382,8 +375,7 @@ case class BlockMatrixBroadcast(
 
 case class BlockMatrixAgg(
   child: BlockMatrixIR,
-  outIndexExpr: IndexedSeq[Int],
-  dimsPartitioned: IndexedSeq[Boolean]) extends BlockMatrixIR {
+  outIndexExpr: IndexedSeq[Int]) extends BlockMatrixIR {
 
   assert(outIndexExpr.length < 2)
 
@@ -391,14 +383,14 @@ case class BlockMatrixAgg(
     val shape = outIndexExpr.map({ i: Int => child.typ.shape(i) }).toIndexedSeq
     val isRowVector = outIndexExpr == IndexedSeq(1)
 
-    BlockMatrixType(child.typ.elementType, shape, isRowVector, child.typ.blockSize, dimsPartitioned)
+    BlockMatrixType(child.typ.elementType, shape, isRowVector, child.typ.blockSize)
   }
 
   override def children: IndexedSeq[BaseIR] = Array(child)
 
   override def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
     assert(newChildren.length == 1)
-    BlockMatrixAgg(newChildren(0).asInstanceOf[BlockMatrixIR], outIndexExpr, dimsPartitioned)
+    BlockMatrixAgg(newChildren(0).asInstanceOf[BlockMatrixIR], outIndexExpr)
   }
 
   override protected[ir] def execute(hc: HailContext): BlockMatrix = {
@@ -415,14 +407,13 @@ case class BlockMatrixAgg(
 case class ValueToBlockMatrix(
   child: IR,
   shape: IndexedSeq[Long],
-  blockSize: Int,
-  dimsPartitioned: IndexedSeq[Boolean]) extends BlockMatrixIR {
+  blockSize: Int) extends BlockMatrixIR {
 
   assert(shape.length == 2)
 
   override def typ: BlockMatrixType = {
     val (tensorShape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(shape(0), shape(1))
-    BlockMatrixType(elementType(child.typ), tensorShape, isRowVector, blockSize, dimsPartitioned)
+    BlockMatrixType(elementType(child.typ), tensorShape, isRowVector, blockSize)
   }
 
   private def elementType(childType: Type): Type = {
@@ -436,7 +427,7 @@ case class ValueToBlockMatrix(
 
   override def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
     assert(newChildren.length == 1)
-    ValueToBlockMatrix(newChildren(0).asInstanceOf[IR], shape, blockSize, dimsPartitioned)
+    ValueToBlockMatrix(newChildren(0).asInstanceOf[IR], shape, blockSize)
   }
 
   override protected[ir] def execute(hc: HailContext): BlockMatrix = {
@@ -454,21 +445,20 @@ case class BlockMatrixRandom(
   seed: Int,
   gaussian: Boolean,
   shape: IndexedSeq[Long],
-  blockSize: Int,
-  dimsPartitioned: IndexedSeq[Boolean]) extends BlockMatrixIR {
+  blockSize: Int) extends BlockMatrixIR {
 
   assert(shape.length == 2)
 
   override def typ: BlockMatrixType = {
     val (tensorShape, isRowVector) = BlockMatrixIR.matrixShapeToTensorShape(shape(0), shape(1))
-    BlockMatrixType(TFloat64(), tensorShape, isRowVector, blockSize, dimsPartitioned)
+    BlockMatrixType(TFloat64(), tensorShape, isRowVector, blockSize)
   }
 
   override def children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
   override def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
     assert(newChildren.isEmpty)
-    BlockMatrixRandom(seed, gaussian, shape, blockSize, dimsPartitioned)
+    BlockMatrixRandom(seed, gaussian, shape, blockSize)
   }
 
   override protected[ir] def execute(hc: HailContext): BlockMatrix = {

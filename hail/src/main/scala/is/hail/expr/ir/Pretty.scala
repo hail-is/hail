@@ -196,24 +196,19 @@ object Pretty {
               '"' + StringEscapeUtils.escapeString(Serialization.write(reader)(BlockMatrixReader.formats)) + '"'
             case BlockMatrixWrite(_, writer) =>
               '"' + StringEscapeUtils.escapeString(Serialization.write(writer)(BlockMatrixWriter.formats)) + '"'
-            case BlockMatrixBroadcast(_, inIndexExpr, shape, blockSize, dimsPartitioned) =>
+            case BlockMatrixBroadcast(_, inIndexExpr, shape, blockSize) =>
               prettyInts(inIndexExpr) + " " +
               prettyLongs(shape) + " " +
-              blockSize.toString + " " +
-              prettyBooleans(dimsPartitioned)
-            case BlockMatrixAgg(_, outIndexExpr, dimsPartitioned) =>
-              prettyInts(outIndexExpr) + " " +
-              prettyBooleans(dimsPartitioned)
-            case ValueToBlockMatrix(_, shape, blockSize, dimsPartitioned) =>
+              blockSize.toString + " "
+            case BlockMatrixAgg(_, outIndexExpr) => prettyInts(outIndexExpr)
+            case ValueToBlockMatrix(_, shape, blockSize) =>
               prettyLongs(shape) + " " +
-              blockSize.toString + " " +
-              prettyBooleans(dimsPartitioned)
-            case BlockMatrixRandom(seed, gaussian, shape, blockSize, dimsPartitioned) =>
+              blockSize.toString + " "
+            case BlockMatrixRandom(seed, gaussian, shape, blockSize) =>
               seed.toString + " " +
               prettyBooleanLiteral(gaussian) + " " +
               prettyLongs(shape) + " " +
-              blockSize.toString + " " +
-              prettyBooleans(dimsPartitioned)
+              blockSize.toString + " "
             case MatrixRowsHead(_, n) => n.toString
             case MatrixAnnotateRowsTable(_, _, uid) =>
               prettyStringLiteral(uid) + " "

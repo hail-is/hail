@@ -256,13 +256,13 @@ class BlockMatrixIRTests(unittest.TestCase):
         negate_bm = ir.BlockMatrixMap(read, ir.ApplyUnaryOp('-', ir.Ref('element')))
         sqrt_bm = ir.BlockMatrixMap(read, hl.sqrt(construct_expr(ir.Ref('element'), hl.tfloat64))._ir)
 
-        scalar_to_bm = ir.ValueToBlockMatrix(scalar_ir, [1, 1], 1, [])
-        col_vector_to_bm = ir.ValueToBlockMatrix(vector_ir, [2, 1], 1, [False])
-        row_vector_to_bm = ir.ValueToBlockMatrix(vector_ir, [1, 2], 1, [False])
-        broadcast_scalar = ir.BlockMatrixBroadcast(scalar_to_bm, [], [2, 2], 256, [False, False])
-        broadcast_col = ir.BlockMatrixBroadcast(col_vector_to_bm, [0], [2, 2], 256, [False, False])
-        broadcast_row = ir.BlockMatrixBroadcast(row_vector_to_bm, [1], [2, 2], 256, [False, False])
-        transpose = ir.BlockMatrixBroadcast(broadcast_scalar, [1, 0], [2, 2], 256, [False, False])
+        scalar_to_bm = ir.ValueToBlockMatrix(scalar_ir, [1, 1], 1)
+        col_vector_to_bm = ir.ValueToBlockMatrix(vector_ir, [2, 1], 1)
+        row_vector_to_bm = ir.ValueToBlockMatrix(vector_ir, [1, 2], 1)
+        broadcast_scalar = ir.BlockMatrixBroadcast(scalar_to_bm, [], [2, 2], 256)
+        broadcast_col = ir.BlockMatrixBroadcast(col_vector_to_bm, [0], [2, 2], 256)
+        broadcast_row = ir.BlockMatrixBroadcast(row_vector_to_bm, [1], [2, 2], 256)
+        transpose = ir.BlockMatrixBroadcast(broadcast_scalar, [1, 0], [2, 2], 256)
         matmul = ir.BlockMatrixDot(broadcast_scalar, transpose)
 
         pow_ir = (construct_expr(ir.Ref('l'), hl.tfloat64) ** construct_expr(ir.Ref('r'), hl.tfloat64))._ir

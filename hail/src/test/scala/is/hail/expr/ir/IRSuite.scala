@@ -1196,7 +1196,7 @@ class IRSuite extends SparkSuite {
   @DataProvider(name = "blockMatrixIRs")
   def blockMatrixIRs(): Array[Array[BlockMatrixIR]] = {
     val read = BlockMatrixRead(BlockMatrixNativeReader("src/test/resources/blockmatrix_example/0"))
-    val transpose = BlockMatrixBroadcast(read, IndexedSeq(1, 0), IndexedSeq(2, 2), 2, IndexedSeq(true, true))
+    val transpose = BlockMatrixBroadcast(read, IndexedSeq(1, 0), IndexedSeq(2, 2), 2)
     val dot = BlockMatrixDot(read, transpose)
 
     val blockMatrixIRs = Array[BlockMatrixIR](read, transpose, dot)
