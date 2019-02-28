@@ -2,7 +2,8 @@ package is.hail.expr.ir.functions
 
 import is.hail.expr.ir.{MatrixValue, TableValue}
 import is.hail.expr.types.virtual.Type
-import is.hail.expr.types.{MatrixType, TableType}
+import is.hail.expr.types.{BlockMatrixType, MatrixType, TableType}
+import is.hail.linalg.BlockMatrix
 import is.hail.methods._
 import is.hail.rvd.RVDType
 import is.hail.variant.RelationalSpec
@@ -46,6 +47,12 @@ abstract class MatrixToValueFunction {
   def execute(mv: MatrixValue): Any
 }
 
+abstract class BlockMatrixToValueFunction {
+  def typ(childType: BlockMatrixType): Type
+
+  def execute(bm: BlockMatrix): Any
+}
+
 object RelationalFunctions {
   implicit val formats = RelationalSpec.formats + ShortTypeHints(List(
     classOf[LinearRegressionRowsSingle],
@@ -66,7 +73,8 @@ object RelationalFunctions {
     classOf[LocalLDPrune],
     classOf[MatrixExportEntriesByCol],
     classOf[PCA],
-    classOf[VEP]
+    classOf[VEP],
+    classOf[GetElement]
   )) +
     new MatrixFilterIntervalsSerializer +
     new TableFilterIntervalsSerializer
@@ -80,4 +88,5 @@ object RelationalFunctions {
   def lookupTableToTable(config: String): TableToTableFunction = extractTo[TableToTableFunction](config)
   def lookupTableToValue(config: String): TableToValueFunction = extractTo[TableToValueFunction](config)
   def lookupMatrixToValue(config: String): MatrixToValueFunction = extractTo[MatrixToValueFunction](config)
+  def lookupBlockMatrixToValue(config: String): BlockMatrixToValueFunction = extractTo[BlockMatrixToValueFunction](config)
 }

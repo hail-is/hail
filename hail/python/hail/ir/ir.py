@@ -1976,6 +1976,28 @@ class MatrixToValueApply(IR):
             self._type = tvoid
 
 
+class BlockMatrixToValueApply(IR):
+    def __init__(self, child, config):
+        super().__init__()
+        self.child = child
+        self.config = config
+
+    @typecheck_method(child=BlockMatrixIR)
+    def copy(self, child):
+        new_instance = self.__class__
+        return new_instance(child, self.config)
+
+    def render(self, r):
+        return f'(BlockMatrixToValueApply {dump_json(self.config)} {r(self.child)})'
+
+    def __eq__(self, other):
+        return isinstance(other, BlockMatrixToValueApply) and other.child == self.child and other.config == self.config
+
+    def _compute_type(self, env, agg_env):
+        assert self.config['name'] == 'GetElement'
+        self._type = tfloat64
+
+
 class Literal(IR):
     @typecheck_method(typ=hail_type,
                       value=anytype)

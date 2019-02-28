@@ -7,7 +7,8 @@ import hail.expr.aggregators as agg
 from hail.expr import construct_expr
 from hail.ir import BlockMatrixWrite, BlockMatrixMap2, ApplyBinaryOp, Ref, F64, \
     BlockMatrixBroadcast, ValueToBlockMatrix, MakeArray, BlockMatrixRead, JavaBlockMatrix, BlockMatrixMap, \
-    ApplyUnaryOp, IR, BlockMatrixDot, tensor_shape_to_matrix_shape, BlockMatrixAgg, BlockMatrixRandom
+    ApplyUnaryOp, IR, BlockMatrixDot, tensor_shape_to_matrix_shape, BlockMatrixAgg, BlockMatrixRandom, \
+    BlockMatrixToValueApply
 from hail.utils import new_temp_file, new_local_temp_file, local_path_uri, storage_level
 from hail.utils.java import Env, jarray, joption
 from hail.typecheck import *
@@ -802,7 +803,9 @@ class BlockMatrix(object):
         if isinstance(row_idx, int) and isinstance(col_idx, int):
             i = BlockMatrix._pos_index(row_idx, self.n_rows, 'row index')
             j = BlockMatrix._pos_index(col_idx, self.n_cols, 'col index')
-            return self._jbm.getElement(i, j)
+
+            return Env.backend().execute(BlockMatrixToValueApply(self._bmir,
+                                                                 {'name': 'GetElement', 'index': [i, j]}))
 
         rows_to_keep = BlockMatrix._range_to_keep(row_idx, self.n_rows)
         cols_to_keep = BlockMatrix._range_to_keep(col_idx, self.n_cols)

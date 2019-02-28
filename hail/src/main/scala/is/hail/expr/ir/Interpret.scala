@@ -789,6 +789,8 @@ object Interpret {
         function.execute(child.execute(HailContext.get))
       case MatrixToValueApply(child, function) =>
         function.execute(child.execute(HailContext.get))
+      case BlockMatrixToValueApply(child, function) =>
+        function.execute(child.execute(HailContext.get))
       case TableAggregate(child, query) =>
         val localGlobalSignature = child.typ.globalType
         val (rvAggs, initOps, seqOps, aggResultType, postAggIR) = CompileWithAggregators[Long, Long, Long](
