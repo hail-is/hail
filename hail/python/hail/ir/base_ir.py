@@ -72,7 +72,10 @@ class IR(BaseIR):
         raise NotImplementedError(self)
 
     def parse(self, code, ref_map={}, ir_map={}):
-        return Env.hail().expr.ir.IRParser.parse_value_ir(code, ref_map, ir_map)
+        return Env.hail().expr.ir.IRParser.parse_value_ir(
+            code,
+            {k: t._parsable_string() for k, t in ref_map.items()},
+            ir_map)
 
 
 class TableIR(BaseIR):
