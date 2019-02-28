@@ -70,8 +70,7 @@ class BlockMatrixDot(BlockMatrixIR):
         self._type = tblockmatrix(self.left.typ.element_type,
                                   tensor_shape,
                                   is_row_vector,
-                                  self.left.typ.block_size,
-                                  [True for _ in tensor_shape])
+                                  self.left.typ.block_size)
 
 
 class BlockMatrixBroadcast(BlockMatrixIR):
@@ -99,8 +98,7 @@ class BlockMatrixBroadcast(BlockMatrixIR):
         self._type = tblockmatrix(self.child.typ.element_type,
                                   tensor_shape,
                                   is_row_vector,
-                                  self.block_size,
-                                  [True for _ in tensor_shape])
+                                  self.block_size)
 
 
 class BlockMatrixAgg(BlockMatrixIR):
@@ -123,8 +121,7 @@ class BlockMatrixAgg(BlockMatrixIR):
         self._type = tblockmatrix(self.child.typ.element_type,
                                   shape,
                                   is_row_vector,
-                                  self.child.typ.block_size,
-                                  [True for _ in shape])
+                                  self.child.typ.block_size)
 
 
 class ValueToBlockMatrix(BlockMatrixIR):
@@ -151,11 +148,7 @@ class ValueToBlockMatrix(BlockMatrixIR):
 
         assert len(self.shape) == 2
         tensor_shape, is_row_vector = _matrix_shape_to_tensor_shape(self.shape[0], self.shape[1])
-        self._type = tblockmatrix(element_type,
-                                  tensor_shape,
-                                  is_row_vector,
-                                  self.block_size,
-                                  [True for _ in tensor_shape])
+        self._type = tblockmatrix(element_type, tensor_shape, is_row_vector, self.block_size)
 
 
 class BlockMatrixRandom(BlockMatrixIR):
@@ -180,11 +173,7 @@ class BlockMatrixRandom(BlockMatrixIR):
         assert len(self.shape) == 2
         tensor_shape, is_row_vector = _matrix_shape_to_tensor_shape(self.shape[0], self.shape[1])
 
-        self._type = tblockmatrix(hl.tfloat64,
-                                  tensor_shape,
-                                  is_row_vector,
-                                  self.block_size,
-                                  [True for _ in tensor_shape])
+        self._type = tblockmatrix(hl.tfloat64, tensor_shape, is_row_vector, self.block_size)
 
 
 class JavaBlockMatrix(BlockMatrixIR):
