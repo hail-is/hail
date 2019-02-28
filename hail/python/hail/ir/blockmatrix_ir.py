@@ -1,19 +1,21 @@
 from hail.expr.blockmatrix_type import tblockmatrix
-from hail.ir import BlockMatrixIR, IR, tarray
-from hail.utils.java import escape_str
+from hail.ir import hl
+from hail.expr.types import tarray
+from hail.ir import BlockMatrixIR, IR
+from hail.ir.blockmatrix_reader import BlockMatrixReader
 from hail.typecheck import typecheck_method, sequenceof
 
 from hail.utils.java import Env
 
 
 class BlockMatrixRead(BlockMatrixIR):
-    @typecheck_method(path=str)
-    def __init__(self, path):
+    @typecheck_method(reader=BlockMatrixReader)
+    def __init__(self, reader):
         super().__init__()
-        self.path = path
+        self.reader = reader
 
     def render(self, r):
-        return f'(BlockMatrixRead "{escape_str(self.path)}")'
+        return f'(BlockMatrixRead "{r(self.reader)}")'
 
     def _compute_type(self):
         self._type = Env.backend().blockmatrix_type(self)
@@ -88,10 +90,10 @@ class BlockMatrixBroadcast(BlockMatrixIR):
 
     def render(self, r):
         return '(BlockMatrixBroadcast {} {} {} {} {})'\
-            .format(_serialize_ints(self.in_index_expr),
-                    _serialize_ints(self.shape),
+            .format(_serialize_list(self.in_index_expr),
+                    _serialize_list(self.shape),
                     self.block_size,
-                    _serialize_ints(self.dims_partitioned),
+                    _serialize_list(self.dims_partitioned),
                     r(self.child))
 
     def _compute_type(self):
@@ -116,8 +118,8 @@ class BlockMatrixAgg(BlockMatrixIR):
 
     def render(self, r):
         return '(BlockMatrixAgg {} {} {})' \
-            .format(_serialize_ints(self.out_index_expr),
-                    _serialize_ints(self.dims_partitioned),
+            .format(_serialize_list(self.out_index_expr),
+                    _serialize_list(self.dims_partitioned),
                     r(self.child))
 
     def _compute_type(self):
@@ -144,9 +146,9 @@ class ValueToBlockMatrix(BlockMatrixIR):
         self.dims_partitioned = dims_partitioned
 
     def render(self, r):
-        return '(ValueToBlockMatrix {} {} {} {})'.format(_serialize_ints(self.shape),
+        return '(ValueToBlockMatrix {} {} {} {})'.format(_serialize_list(self.shape),
                                                          self.block_size,
-                                                         _serialize_ints(self.dims_partitioned),
+                                                         _serialize_list(self.dims_partitioned),
                                                          r(self.child))
 
     def _compute_type(self):
@@ -159,6 +161,38 @@ class ValueToBlockMatrix(BlockMatrixIR):
         assert len(self.shape) == 2
         tensor_shape, is_row_vector = _matrix_shape_to_tensor_shape(self.shape[0], self.shape[1])
         self._type = tblockmatrix(element_type,
+                                  tensor_shape,
+                                  is_row_vector,
+                                  self.block_size,
+                                  self.dims_partitioned)
+
+
+class BlockMatrixRandom(BlockMatrixIR):
+    @typecheck_method(seed=int,
+                      gaussian=bool,
+                      shape=sequenceof(int),
+                      block_size=int,
+                      dims_partitioned=sequenceof(bool))
+    def __init__(self, seed, gaussian, shape, block_size, dims_partitioned):
+        super().__init__()
+        self.seed = seed
+        self.gaussian = gaussian
+        self.shape = shape
+        self.block_size = block_size
+        self.dims_partitioned = dims_partitioned
+
+    def render(self, r):
+        return '(BlockMatrixRandom {} {} {} {} {})'.format(self.seed,
+                                                           self.gaussian,
+                                                           _serialize_list(self.shape),
+                                                           self.block_size,
+                                                           _serialize_list(self.dims_partitioned))
+
+    def _compute_type(self):
+        assert len(self.shape) == 2
+        tensor_shape, is_row_vector = _matrix_shape_to_tensor_shape(self.shape[0], self.shape[1])
+
+        self._type = tblockmatrix(hl.tfloat64,
                                   tensor_shape,
                                   is_row_vector,
                                   self.block_size,
@@ -191,8 +225,8 @@ def tensor_shape_to_matrix_shape(bmir):
         return tuple(shape)
 
 
-def _serialize_ints(ints):
-    return "(" + ' '.join([str(x) for x in ints]) + ")"
+def _serialize_list(xs):
+    return "(" + ' '.join([str(x) for x in xs]) + ")"
 
 
 def _matrix_shape_to_tensor_shape(n_rows, n_cols):

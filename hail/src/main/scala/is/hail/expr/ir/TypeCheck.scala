@@ -310,7 +310,8 @@ object TypeCheck {
       case TableCollect(_) =>
       case TableToValueApply(_, _) =>
       case MatrixToValueApply(_, _) =>
-      case BlockMatrixWrite(_, _, _, _, _) =>
+      case BlockMatrixToValueApply(_, _) =>
+      case BlockMatrixWrite(_, _) =>
       case CollectDistributedArray(ctxs, globals, cname, gname, body) =>
         check(ctxs)
         assert(ctxs.typ.isInstanceOf[TArray])
