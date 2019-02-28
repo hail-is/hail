@@ -418,13 +418,14 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
 
     val rectangles = flattenedRectangles.grouped(4).toArray
     val dRect = digitsNeeded(rectangles.length)
+    val sHadoopBc = hc.hadoopConfBc
     BlockMatrixRectanglesRDD(rectangles, bm = this).foreach({ case (index, rectData) =>
       val r = rectangles(index)
       val paddedIndex = StringUtils.leftPad(index.toString, dRect, "0")
       val outputFile = output + "/rect-" + paddedIndex + "_" + r.mkString("-")
 
       if (rectData.size > 0) {
-        hc.hadoopConfBc.value.value.writeFile(outputFile) { uos =>
+        sHadoopBc.value.value.writeFile(outputFile) { uos =>
           writeRectangle(uos, rectData)
           uos.close()
         }
