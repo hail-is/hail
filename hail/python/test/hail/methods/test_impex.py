@@ -1223,3 +1223,7 @@ class ImportTableTests(unittest.TestCase):
         run_command(["cp", uri_path(f), uri_path(f2)])
         t2 = hl.import_table(f2, force_bgz=True, impute=True).key_by('idx')
         self.assertTrue(t._same(t2))
+
+    def test_glob(self):
+        tables = hl.import_table(resource('variantAnnotations.split.*.tsv'))
+        assert tables.count() == 346

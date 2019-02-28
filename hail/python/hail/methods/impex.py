@@ -1144,7 +1144,8 @@ def import_gen(path,
            skip_blank_lines=bool,
            force_bgz=bool,
            filter=nullable(str),
-           find_replace=nullable(sized_tupleof(str, str)))
+           find_replace=nullable(sized_tupleof(str, str)),
+           force=bool)
 def import_table(paths,
                  key=None,
                  min_partitions=None,
@@ -1158,7 +1159,8 @@ def import_table(paths,
                  skip_blank_lines=False,
                  force_bgz=False,
                  filter=None,
-                 find_replace=None) -> Table:
+                 find_replace=None,
+                 force=False) -> Table:
     """Import delimited text file (text table) as :class:`.Table`.
 
     The resulting :class:`.Table` will have no key fields. Use
@@ -1326,6 +1328,10 @@ def import_table(paths,
         Line substitution regex. Functions like ``re.sub``, but obeys the exact
         semantics of Java's
         `String.replaceAll <https://docs.oracle.com/javase/8/docs/api/java/lang/String.html#replaceAll-java.lang.String-java.lang.String->`__.
+    force : :obj:`bool`
+        If ``True``, load gzipped files serially on one core. This should
+        be used only when absolutely necessary, as processing time will be
+        increased due to lack of parallelism.
 
     Returns
     -------
@@ -1336,7 +1342,8 @@ def import_table(paths,
 
     tr = TextTableReader(paths, min_partitions, types, comment,
                          delimiter, missing, no_header, impute, quote,
-                         skip_blank_lines, force_bgz, filter, find_replace)
+                         skip_blank_lines, force_bgz, filter, find_replace,
+                         force)
     t = Table(TableRead(tr))
     if key:
         key = wrap_to_list(key)

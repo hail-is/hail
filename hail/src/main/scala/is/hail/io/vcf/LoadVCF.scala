@@ -680,22 +680,9 @@ object LoadVCF {
     inputs.foreach { input =>
       if (!input.endsWith(".vcf")
         && !input.endsWith(".vcf.bgz")) {
-        if (input.endsWith(".vcf.gz")) {
-          if (!forceGZ && !gzAsBGZ)
-            fatal(
-              """.gz cannot be loaded in parallel. Is your file actually *block* gzipped?
-                |If your file is actually block gzipped (even though its extension is .gz),
-                |use force_bgz=True to ignore the file extension and treat this file as if
-                |it were a .bgz file. If you are sure that you want to load a non-block-
-                |gzipped file serially on one core, use force=True.""".stripMargin)
-          else if (!gzAsBGZ) {
-            val fileSize = hConf.getFileSize(input)
-            if (fileSize > 1024 * 1024 * 128)
-              warn(s"file '$input' is ${readableBytes(fileSize)}, but will be loaded serially (on one core)\n" +
-                s"  due to usage of the 'force' argument. If it is actually block-gzipped, either rename to .bgz\n" +
-                s"  or use the 'force_bgz' argument")
-          }
-        } else
+        if (input.endsWith(".vcf.gz"))
+          checkGzippedFile(hConf, input, forceGZ, gzAsBGZ)
+        else
           fatal(s"unknown input file type `$input', expect .vcf[.bgz]")
       }
     }
