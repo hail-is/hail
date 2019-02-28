@@ -193,9 +193,15 @@ def external_url_for(path):
 def healthcheck():
     return '', 200
 
-@app.route('/')
-@requires_auth()
+
+@app.route('/', methods=['GET'])
 def root():
+    return render_template('index.html')
+
+
+@app.route('/notebook', methods=['GET'])
+@requires_auth()
+def notebook_get():
     if 'svc_name' not in session:
         log.info(f'no svc_name found in session {session.keys()}')
         return render_template('index.html',
