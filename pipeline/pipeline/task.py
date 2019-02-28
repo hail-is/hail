@@ -5,8 +5,8 @@ from .resource import ResourceFile, ResourceGroup
 
 def _add_resource_to_set(resource_set, resource):
     resource_set.add(resource)
-    if isinstance(resource, ResourceFile) and resource.has_resource_group():
-        rg = resource.get_resource_group()
+    if isinstance(resource, ResourceFile) and resource._has_resource_group():
+        rg = resource._get_resource_group()
         for _, resource_file in rg._resources.items():
             resource_set.add(resource_file)
 

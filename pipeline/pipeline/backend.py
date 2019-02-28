@@ -46,7 +46,7 @@ class LocalBackend(Backend):
 
             script += [x for r in task._inputs for x in copy_input(r)]
 
-            resource_defs = [r.declare() for r in task._inputs.union(task._mentioned)]
+            resource_defs = [r._declare() for r in task._inputs.union(task._mentioned)]
 
             if task._image:
                 defs = '; '.join(resource_defs) + '; ' if resource_defs else ''
@@ -172,7 +172,7 @@ class BatchBackend(Backend):
 
             task_inputs = [make_local_tmpdir, activate_service_account] + copy_task_inputs
             task_outputs = [activate_service_account] + copy_task_outputs
-            resource_defs = [r.declare(directory=local_tmpdir) for r in task._inputs.union(task._mentioned)]
+            resource_defs = [r._declare(directory=local_tmpdir) for r in task._inputs.union(task._mentioned)]
 
             if task._image is None:
                 if verbose:
