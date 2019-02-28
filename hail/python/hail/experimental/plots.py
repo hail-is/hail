@@ -10,7 +10,6 @@ from bokeh.palettes import Spectral8
 from bokeh.plotting import figure
 from bokeh.transform import factor_cmap
 from bokeh.models import ColumnDataSource, HoverTool
-from bokeh.models.tools import CustomJSHover
 from hail.typecheck import *
 from hail.utils.hadoop_utils import *
 
