@@ -37,7 +37,7 @@ object BinaryOp {
       case (_: TInt32, _: TInt32) =>
         val ll = coerce[Int](l)
         val rr = coerce[Int](r)
-        (op: @unchecked) match {
+        op match {
           case Add() => ll + rr
           case Subtract() => ll - rr
           case Multiply() => ll * rr
@@ -54,15 +54,16 @@ object BinaryOp {
       case (_: TInt64, _: TInt32) =>
         val ll = coerce[Long](l)
         val rr = coerce[Int](r)
-        (op: @unchecked) match {
+        op match {
           case LeftShift() => ll << rr
           case RightShift() => ll >> rr
           case LogicalRightShift() => ll >>> rr
+          case _ => incompatible(lt, rt, op)
         }
       case (_: TInt64, _: TInt64) =>
         val ll = coerce[Long](l)
         val rr = coerce[Long](r)
-        (op: @unchecked) match {
+        op match {
           case Add() => ll + rr
           case Subtract() => ll - rr
           case Multiply() => ll * rr
@@ -76,7 +77,7 @@ object BinaryOp {
       case (_: TFloat32, _: TFloat32) =>
         val ll = coerce[Float](l)
         val rr = coerce[Float](r)
-        (op: @unchecked) match {
+        op match {
           case Add() => ll + rr
           case Subtract() => ll - rr
           case Multiply() => ll * rr
@@ -87,7 +88,7 @@ object BinaryOp {
       case (_: TFloat64, _: TFloat64) =>
         val ll = coerce[Double](l)
         val rr = coerce[Double](r)
-        (op: @unchecked) match {
+        op match {
           case Add() => ll + rr
           case Subtract() => ll - rr
           case Multiply() => ll * rr
@@ -98,7 +99,7 @@ object BinaryOp {
       case (_: TBoolean, _: TBoolean) =>
         val ll = coerce[Boolean](l)
         val rr = coerce[Boolean](r)
-        (op: @unchecked) match {
+        op match {
           case _ => incompatible(lt, rt, op)
         }
 
