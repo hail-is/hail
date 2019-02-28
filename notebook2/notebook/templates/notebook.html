@@ -3,6 +3,8 @@
   <head>
     <title>Hail Notebooks</title>
     <link href="https://fonts.googleapis.com/css?family=Open+Sans" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons"
+      rel="stylesheet">
     <link rel="stylesheet" type="text/css" href="/static/css/main.css">
     <link rel="stylesheet" type="text/css" href="/static/css/components/header.css">
     <link rel="stylesheet" type="text/css" href="/static/css/pages/notebook.css">
@@ -11,17 +13,11 @@
     {% include 'header.html' %}
     <div id="main">
       <div id="notebook" class="centered">
-        <form action="{{ form_action_url }}" method="post">
-          <p>
-            <label for="image">Image:</label>
-            <select name="image" id="image">
-              {% for image in images %}
-              <option value="{{ image }}"{{'selected' if image == default else ''}}>{{ image }}</option>
-              {% endfor %}
-            </select>
-          </p>
-          <input type="submit" value="Start a Hail Notebook" />
-        </form>
+        {% if notebook is not defined %}
+            {% include 'notebook-form.html' %}
+        {% else %}
+            {% include 'notebook-object.html' %}
+        {% endif %}
       </div>
     </div>
   </body>

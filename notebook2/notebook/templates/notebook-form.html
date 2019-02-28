@@ -1,0 +1,15 @@
+<form action="{{ form_action_url }}" method="post">
+    {% if images|length == 1 %}
+    <input type='hidden' name='image' value="{{images[0]}}"/>
+    {% else %}
+        <p>
+            <label for="image">Image:</label>
+            <select name="image" id="image">
+                {% for image in images %}
+                <option value="{{ image }}"{{'selected' if image == default else ''}}>{{ image }}</option>
+                {% endfor %}
+            </select>
+        </p>
+    {% endif %}
+    <input type="submit" value="Create" />
+</form>

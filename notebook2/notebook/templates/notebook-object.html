@@ -1,0 +1,67 @@
+<div style="display: flex;flexDirection: column;cursor: pointer"> 
+    <!-- Kubernetes events are noisy, this prevents us from seeing pods that
+    are unreachable (since back-end/service is missing)
+    -->
+    <div class='nb'>
+        {% set ready = notebook.svc_status == 'Running'
+                       and notebook.pod_status == 'Running'
+                       and notebook.condition.status == 'True'
+                       and notebook.condition.type == 'Ready'
+        %}
+        
+        {% if ready %}
+            <i
+            style="color: #428bca; margin-right: 14px"
+            class="material-icons"
+            id='ready-icon'
+            >
+            done
+            </i>
+        {% else %}
+            <div id='unready-icon' class="spinner" style="margin-right: 14px"></div>
+        {% endif %}
+        <a
+            target="_blank"
+            style="flex-direction: column; display: flex"
+            href={{ notebook['url'] }}
+        >
+            <b>{{notebook.name}}</b>
+            <span className="small">
+            Condition:
+            
+                {% if notebook.condition is not defined %}
+                    <b>Initializing</b>
+                {% elif notebook.condition.status != "True" %}
+                    <b>{{"Waiting for " ~ notebook.condition.type}}</b>
+                {% else %}
+                    <b>{{notebook.condition.type}}</b>
+                {% endif %}
+            </b>
+            </span>
+            <span className="small">
+            Pod: <b>{{notebook.pod_status}}</b>
+            </span>
+            <span className="small">
+            Pod Name: <b>{{notebook.pod_name}}</b>
+            </span>
+            <span className="small">Created on: {{notebook.creation_date}}</span>
+        </a>
+        <form action='/notebook/delete' method='POST'>
+            <button type='submit'
+                class="material-icons"
+                style="margin-left: 56px"
+            >
+                close
+            </button>
+        </form>
+    </div>
+</div>
+{% if not ready %}
+    <script>
+        let protocol = location.protocol.replace("http", "ws")
+        let sock = new WebSocket(protocol + location.host + "/wait");
+        sock.onmessage = function (event) {
+            window.location.reload()
+        }
+    </script>
+{% endif %}
