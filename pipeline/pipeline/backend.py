@@ -18,7 +18,7 @@ class LocalBackend(Backend):
     def __init__(self, tmp_dir='/tmp/'):
         self._tmp_dir = tmp_dir
 
-    def run(self, pipeline, dry_run, verbose, delete_scratch_on_exit):
+    def run(self, pipeline, dry_run, verbose, delete_scratch_on_exit):  # pylint: disable=R0915
         tmpdir = self.tmp_dir()
 
         script = ['#!/bin/bash',
@@ -28,16 +28,25 @@ class LocalBackend(Backend):
                   f"cd {tmpdir}",
                   '\n']
 
+        copied_input_resource_files = set()
+        os.makedirs(tmpdir + 'inputs/', exist_ok=True)
+
         for task in pipeline._tasks:
+            os.makedirs(tmpdir + task._uid + '/', exist_ok=True)
+
             script.append(f"# {task._uid} {task._label if task._label else ''}")
 
             def copy_input(r):
                 if isinstance(r, InputResourceFile):
-                    absolute_input_path = os.path.realpath(r._input_path)
-                    if task._image is not None:  # pylint: disable-msg=W0640
-                        return [f'cp {absolute_input_path} {tmpdir}/{r.path}']
+                    if r not in copied_input_resource_files:
+                        copied_input_resource_files.add(r)
+                        absolute_input_path = os.path.realpath(r._input_path)
+                        if task._image is not None:  # pylint: disable-msg=W0640
+                            return [f'cp {absolute_input_path} {r._get_path(tmpdir)}']
+                        else:
+                            return [f'ln -sf {absolute_input_path} {r._get_path(tmpdir)}']
                     else:
-                        return [f'ln -sf {absolute_input_path} {tmpdir}/{r.path}']
+                        return []
                 elif isinstance(r, ResourceGroup):
                     return [x for _, rf in r._resources.items() for x in copy_input(rf)]
                 else:
@@ -46,7 +55,7 @@ class LocalBackend(Backend):
 
             script += [x for r in task._inputs for x in copy_input(r)]
 
-            resource_defs = [r._declare() for r in task._inputs.union(task._mentioned)]
+            resource_defs = [r._declare(tmpdir) for r in task._inputs.union(task._mentioned)]
 
             if task._image:
                 defs = '; '.join(resource_defs) + '; ' if resource_defs else ''
@@ -74,7 +83,7 @@ class LocalBackend(Backend):
             if isinstance(r, InputResourceFile):
                 return [f'cp {r._input_path} {dest}']
             elif isinstance(r, TaskResourceFile):
-                return [f'cp {r.path} {dest}']
+                return [f'cp {r._get_path(tmpdir)} {dest}']
             else:
                 assert isinstance(r, ResourceGroup)
                 return [write_pipeline_outputs(rf, dest + '.' + ext) for ext, rf in r._resources.items()]
@@ -101,7 +110,7 @@ class LocalBackend(Backend):
 
     def tmp_dir(self):
         def _get_random_name():
-            directory = self._tmp_dir + '/pipeline.{}/'.format(uuid.uuid4().hex[:8])
+            directory = self._tmp_dir + '/pipeline-{}/'.format(uuid.uuid4().hex[:12])
 
             if os.path.isdir(directory):
                 return _get_random_name()
@@ -123,8 +132,8 @@ class BatchBackend(Backend):
         hail_scratch_bucket = 'hail-pipeline-scratch'
         subdir_name = 'pipeline-{}'.format(uuid.uuid4().hex[:12])
 
-        remote_tmpdir = f'gs://{hail_scratch_bucket}/{subdir_name}/'
-        local_tmpdir = '/tmp/pipeline/'
+        remote_tmpdir = f'gs://{hail_scratch_bucket}/{subdir_name}'
+        local_tmpdir = f'/tmp/pipeline/{subdir_name}'
 
         default_image = 'ubuntu'
 
@@ -149,10 +158,10 @@ class BatchBackend(Backend):
             def copy_input(r):
                 if isinstance(r, ResourceFile):
                     if isinstance(r, InputResourceFile):
-                        return [f'gsutil cp {r._input_path} {local_tmpdir}/{r.path}']
+                        return [f'gsutil cp {r._input_path} {r._get_path(local_tmpdir)}']
                     else:
                         assert isinstance(r, TaskResourceFile)
-                        return [f'gsutil cp {remote_tmpdir}/{r.path} {local_tmpdir}/{r.path}']
+                        return [f'gsutil cp {r._get_path(remote_tmpdir)} {r._get_path(local_tmpdir)}']
                 else:
                     assert isinstance(r, ResourceGroup)
                     return [x for _, rf in r._resources.items() for x in copy_input(rf)]
@@ -160,7 +169,7 @@ class BatchBackend(Backend):
             def copy_output(r):
                 assert r._source == task  # pylint: disable-msg=W0640
                 if isinstance(r, TaskResourceFile):
-                    return [f'gsutil cp {local_tmpdir}/{r.path} {remote_tmpdir}/{r.path}']
+                    return [f'gsutil cp {r._get_path(local_tmpdir)} {r._get_path(remote_tmpdir)}']
                 else:
                     assert isinstance(r, ResourceGroup)
                     return [x for _, rf in r._resources.items() for x in copy_output(rf)]
@@ -168,9 +177,13 @@ class BatchBackend(Backend):
             copy_task_inputs = [x for r in task._inputs for x in copy_input(r)]
             copy_task_outputs = [x for r in task._outputs for x in copy_output(r)]
 
-            make_local_tmpdir = f'mkdir -p {local_tmpdir}'
+            local_dirs_needed = [local_tmpdir,
+                                 local_tmpdir + '/inputs/',
+                                 local_tmpdir + f'/{task._uid}/']
+            local_dirs_needed += [local_tmpdir + f'/{dep._uid}/' for dep in task._dependencies]
+            make_local_tmpdir = [f'mkdir -p {dir}' for dir in local_dirs_needed]
 
-            task_inputs = [make_local_tmpdir, activate_service_account] + copy_task_inputs
+            task_inputs = make_local_tmpdir + [activate_service_account] + copy_task_inputs
             task_outputs = [activate_service_account] + copy_task_outputs
             resource_defs = [r._declare(directory=local_tmpdir) for r in task._inputs.union(task._mentioned)]
 
@@ -209,10 +222,12 @@ class BatchBackend(Backend):
 
         def write_pipeline_outputs(r, dest):
             if isinstance(r, InputResourceFile):
-                copy_output = activate_service_account + ' && ' + f'gsutil cp {r._input_path} {dest}'
+                copy_output = activate_service_account + ' && ' + \
+                              f'gsutil cp {r._input_path} {dest}'
                 return [(task_to_job_mapping[r._source].id, copy_output)]
             elif isinstance(r, TaskResourceFile):
-                copy_output = activate_service_account + ' && ' + f'gsutil cp {remote_tmpdir}/{r.path} {dest}'
+                copy_output = activate_service_account + ' && ' + \
+                              f'gsutil cp {r._get_path(remote_tmpdir)} {dest}'
                 return [(task_to_job_mapping[r._source].id, copy_output)]
             else:
                 assert isinstance(r, ResourceGroup)
