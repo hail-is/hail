@@ -3,7 +3,7 @@ import uuid
 
 from .backend import LocalBackend
 from .task import Task
-from .resource import ResourceGroup, InputResourceFile, TaskResourceFile
+from .resource import Resource, InputResourceFile, TaskResourceFile, ResourceGroup
 
 
 class Pipeline:
@@ -92,6 +92,13 @@ class Pipeline:
         return rg
 
     def write_output(self, resource, dest):  # pylint: disable=R0201
+        if not isinstance(resource, Resource):
+            raise Exception(f"'write_output' only accepts Resource inputs. Found '{type(resource)}'.")
+        if isinstance(resource, TaskResourceFile) and resource not in resource._source._mentioned:
+            name = resource._source._resources_inverse
+            raise Exception(f"undefined resource '{name}'\n"
+                            f"Hint: resources must be defined within the "
+                            "task methods 'command' or 'declare_resource_group'")
         resource.add_output_path(dest)
 
     def select_tasks(self, pattern):

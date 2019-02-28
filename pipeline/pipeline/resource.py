@@ -8,12 +8,16 @@ class Resource:
 
     @property
     @abc.abstractmethod
-    def file_name(self) -> str:
+    def path(self) -> str:
+        pass
+
+    @abc.abstractmethod
+    def add_output_path(self, path):
         pass
 
     def declare(self, directory=None):
         directory = directory + '/' if directory else ''
-        return f"{self._uid}={escape_string(directory + self.file_name)}"
+        return f"{self._uid}={escape_string(directory + self.path)}"
 
 
 class ResourceFile(Resource, str):
@@ -34,6 +38,7 @@ class ResourceFile(Resource, str):
         self._source = None
         self._uid = ResourceFile._new_uid()
         self._output_paths = set()
+        self._resource_group = None
 
     def add_source(self, source):
         from .task import Task
@@ -43,9 +48,20 @@ class ResourceFile(Resource, str):
 
     def add_output_path(self, path):
         self._output_paths.add(path)
+        if self._source is not None:
+            self._source._add_outputs(self)
+
+    def add_resource_group(self, rg):
+        self._resource_group = rg
+
+    def has_resource_group(self):
+        return self._resource_group is not None
+
+    def get_resource_group(self):
+        return self._resource_group
 
     @property
-    def file_name(self):
+    def path(self):
         assert self._value is not None
         return self._value
 
@@ -85,15 +101,19 @@ class ResourceGroup(Resource):
         self._uid = ResourceGroup._new_uid()
         self._output_paths = set()
 
-        for name, resource in values.items():
-            self._resources[name] = resource
+        for name, resource_file in values.items():
+            assert isinstance(resource_file, ResourceFile)
+            self._resources[name] = resource_file
+            resource_file.add_resource_group(self)
 
     @property
-    def file_name(self):
+    def path(self):
         return self._root
 
     def add_output_path(self, path):
         self._output_paths.add(path)
+        if self._source is not None:
+            self._source._add_outputs(self)
 
     def _get_resource(self, item):
         if item not in self._resources:
