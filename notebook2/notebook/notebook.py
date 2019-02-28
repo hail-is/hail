@@ -12,6 +12,7 @@ import flask
 import sass
 from authlib.flask.client import OAuth
 from urllib.parse import urlencode
+from functools import wraps
 
 import kubernetes as kube
 
@@ -106,6 +107,23 @@ except FileNotFoundError as e:
         "containing the name of the docker image to use for worker pods.") from e
 
 
+def requires_auth(for_page = True):
+    def auth(f):
+        @wraps(f)
+        def decorated(*args, **kwargs):
+            if 'user' not in session:
+                if for_page:
+                    session['referrer'] = request.url
+                    return redirect(flask.url_for('login_page'))
+
+                return '', 401
+
+            return f(*args, **kwargs)
+
+        return decorated
+    return auth
+
+
 def start_pod(jupyter_token, image):
     pod_id = uuid.uuid4().hex
     service_spec = kube.client.V1ServiceSpec(
@@ -175,8 +193,14 @@ def healthcheck():
     return '', 200
 
 
-@app.route('/')
+@app.route('/', methods=['GET'])
 def root():
+    return render_template('index.html')
+
+
+@app.route('/notebook', methods=['GET'])
+@requires_auth()
+def notebook_get():
     if 'svc_name' not in session:
         log.info(f'no svc_name found in session {session.keys()}')
         return render_template('index.html',
@@ -190,21 +214,26 @@ def root():
 
 
 @app.route('/new', methods=['GET'])
+@requires_auth()
 def new_get():
     pod_name = session.get('pod_name')
     svc_name = session.get('svc_name')
     if pod_name:
         delete_worker_pod(pod_name, svc_name)
-    session.clear()
+        del session['pod_name']
+
+    if svc_name is not None:
+        del session['svc_name']
+
     return redirect(external_url_for('/'))
 
 
 @app.route('/new', methods=['POST'])
+@requires_auth()
 def new_post():
     log.info('new received')
-    password = request.form['password']
     image = request.form['image']
-    if password != PASSWORD or image not in WORKER_IMAGES:
+    if image not in WORKER_IMAGES:
         return '403 Forbidden', 403
     jupyter_token = uuid.uuid4().hex  # FIXME: probably should be cryptographically secure
     svc, pod = start_pod(jupyter_token, WORKER_IMAGES[image])
@@ -215,11 +244,13 @@ def new_post():
 
 
 @app.route('/wait', methods=['GET'])
+@requires_auth()
 def wait_webpage():
     return render_template('wait.html')
 
 
 @app.route('/auth/<requested_svc_name>')
+@requires_auth()
 def auth(requested_svc_name):
     approved_svc_name = session.get('svc_name')
     if approved_svc_name and approved_svc_name == requested_svc_name:
@@ -251,6 +282,7 @@ def get_all_workers():
 
 
 @app.route('/workers')
+@requires_auth()
 def workers():
     if not session.get('admin'):
         return redirect(external_url_for('admin-login'))
@@ -262,6 +294,7 @@ def workers():
 
 
 @app.route('/workers/<pod_name>/<svc_name>/delete')
+@requires_auth()
 def workers_delete(pod_name, svc_name):
     if not session.get('admin'):
         return redirect(external_url_for('admin-login'))
@@ -270,6 +303,7 @@ def workers_delete(pod_name, svc_name):
 
 
 @app.route('/workers/delete-all-workers', methods=['POST'])
+@requires_auth()
 def delete_all_workers():
     if not session.get('admin'):
         return redirect(external_url_for('admin-login'))
@@ -299,12 +333,14 @@ def delete_worker_pod(pod_name, svc_name):
 
 
 @app.route('/admin-login', methods=['GET'])
+@requires_auth()
 def admin_login():
     return render_template('admin-login.html',
                            form_action_url=external_url_for('admin-login'))
 
 
 @app.route('/admin-login', methods=['POST'])
+@requires_auth()
 def admin_login_post():
     if request.form['password'] != ADMIN_PASSWORD:
         return '403 Forbidden', 403
@@ -313,11 +349,13 @@ def admin_login_post():
 
 
 @app.route('/worker-image')
+@requires_auth()
 def worker_image():
     return '\n'.join(WORKER_IMAGES.values()), 200
 
 
 @sockets.route('/wait')
+@requires_auth(for_page = False)
 def wait_websocket(ws):
     pod_name = session['pod_name']
     svc_name = session['svc_name']
@@ -366,6 +404,11 @@ def auth0_callback():
         'email': email,
         'picture': userinfo['picture'],
     }
+
+    if 'referrer' in session:
+        referrer = session['referrer']
+        del session['referrer']
+        return redirect(referrer)
 
     return redirect('/')
 
