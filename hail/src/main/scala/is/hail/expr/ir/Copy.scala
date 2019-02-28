@@ -198,15 +198,18 @@ object Copy {
       case TableExport(_, path, typesFile, header, exportType, delimiter) =>
         val IndexedSeq(child: TableIR) = newChildren
         TableExport(child, path, typesFile, header, exportType, delimiter)
-      case TableToValueApply(child, function) =>
+      case TableToValueApply(_, function) =>
         val IndexedSeq(newChild: TableIR) = newChildren
         TableToValueApply(newChild, function)
-      case MatrixToValueApply(child, function) =>
+      case MatrixToValueApply(_, function) =>
         val IndexedSeq(newChild: MatrixIR) = newChildren
         MatrixToValueApply(newChild, function)
-      case BlockMatrixWrite(_, path, overwrite, forceRowMajor, stageLocally) =>
+      case BlockMatrixToValueApply(_, function) =>
         val IndexedSeq(newChild: BlockMatrixIR) = newChildren
-        BlockMatrixWrite(newChild, path, overwrite, forceRowMajor, stageLocally)
+        BlockMatrixToValueApply(newChild, function)
+      case BlockMatrixWrite(_, writer) =>
+        val IndexedSeq(newChild: BlockMatrixIR) = newChildren
+        BlockMatrixWrite(newChild, writer)
       case CollectDistributedArray(_, _, cname, gname, _) =>
         val IndexedSeq(ctxs: IR, globals: IR, newBody: IR) = newChildren
         CollectDistributedArray(ctxs, globals, cname, gname, newBody)

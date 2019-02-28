@@ -192,13 +192,10 @@ object Pretty {
               '"' + StringEscapeUtils.escapeString(Serialization.write(writer)(MatrixWriter.formats)) + '"'
             case MatrixMultiWrite(_, writer) =>
               '"' + StringEscapeUtils.escapeString(Serialization.write(writer)(MatrixNativeMultiWriter.formats)) + '"'
-            case BlockMatrixRead(path) =>
-              prettyStringLiteral(path)
-            case BlockMatrixWrite(_, path, overwrite, forceRowMajor, stageLocally) =>
-              prettyStringLiteral(path) + " " +
-              prettyBooleanLiteral(overwrite) + " " +
-              prettyBooleanLiteral(forceRowMajor) + " " +
-              prettyBooleanLiteral(stageLocally)
+            case BlockMatrixRead(reader) =>
+              '"' + StringEscapeUtils.escapeString(Serialization.write(reader)(BlockMatrixReader.formats)) + '"'
+            case BlockMatrixWrite(_, writer) =>
+              '"' + StringEscapeUtils.escapeString(Serialization.write(writer)(BlockMatrixWriter.formats)) + '"'
             case BlockMatrixBroadcast(_, inIndexExpr, shape, blockSize, dimsPartitioned) =>
               prettyInts(inIndexExpr) + " " +
               prettyLongs(shape) + " " +
@@ -208,6 +205,12 @@ object Pretty {
               prettyInts(outIndexExpr) + " " +
               prettyBooleans(dimsPartitioned)
             case ValueToBlockMatrix(_, shape, blockSize, dimsPartitioned) =>
+              prettyLongs(shape) + " " +
+              blockSize.toString + " " +
+              prettyBooleans(dimsPartitioned)
+            case BlockMatrixRandom(seed, gaussian, shape, blockSize, dimsPartitioned) =>
+              seed.toString + " " +
+              prettyBooleanLiteral(gaussian) + " " +
               prettyLongs(shape) + " " +
               blockSize.toString + " " +
               prettyBooleans(dimsPartitioned)

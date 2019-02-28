@@ -706,7 +706,7 @@ class Expression(object):
             name = source._fields_inverse.get(self, name)
         t = self._to_table(name)
         if name in t.key:
-            t = t.key_by(name).select()
+            t = t.order_by(*t.key).select(name)
         return t._show(n, width, truncate, types)
 
 

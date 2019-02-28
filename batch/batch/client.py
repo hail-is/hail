@@ -70,12 +70,13 @@ class Batch:
     def create_job(self, image, command=None, args=None, env=None, ports=None,
                    resources=None, tolerations=None, volumes=None, security_context=None,
                    service_account_name=None, attributes=None, callback=None, parent_ids=None,
-                   scratch_folder=None):
+                   scratch_folder=None, input_files=None, output_files=None):
         if parent_ids is None:
             parent_ids = []
         return self.client._create_job(
             image, command, args, env, ports, resources, tolerations, volumes, security_context,
-            service_account_name, attributes, self.id, callback, parent_ids, scratch_folder)
+            service_account_name, attributes, self.id, callback, parent_ids, scratch_folder,
+            input_files, output_files)
 
     def close(self):
         self.client._close_batch(self.id)
@@ -118,7 +119,9 @@ class BatchClient:
                     batch_id,
                     callback,
                     parent_ids,
-                    scratch_folder):
+                    scratch_folder,
+                    input_files,
+                    output_files):
         if env:
             env = [{'name': k, 'value': v} for (k, v) in env.items()]
         else:
@@ -137,7 +140,7 @@ class BatchClient:
 
         container = {
             'image': image,
-            'name': 'default'
+            'name': 'main'
         }
         if command:
             container['command'] = command
@@ -167,8 +170,12 @@ class BatchClient:
         if service_account_name:
             spec['serviceAccountName'] = service_account_name
 
-        j = self.api.create_job(self.url, spec, attributes, batch_id, callback, parent_ids, scratch_folder)
-        return Job(self, j['id'], j.get('attributes'), j.get('parent_ids', []))
+        j = self.api.create_job(self.url, spec, attributes, batch_id, callback,
+                                parent_ids, scratch_folder, input_files, output_files)
+        return Job(self,
+                   j['id'],
+                   attributes=j.get('attributes'),
+                   parent_ids=j.get('parent_ids', []))
 
     def _get_job(self, id):
         return self.api.get_job(self.url, id)
@@ -193,12 +200,21 @@ class BatchClient:
 
     def list_jobs(self):
         jobs = self.api.list_jobs(self.url)
-        return [Job(self, j['id'], j.get('attributes'), j.get('parent_ids', []), j) for j in jobs]
+        return [Job(self,
+                    j['id'],
+                    attributes=j.get('attributes'),
+                    parent_ids=j.get('parent_ids', []),
+                    _status=j)
+                for j in jobs]
 
     def get_job(self, id):
         # make sure job exists
         j = self.api.get_job(self.url, id)
-        return Job(self, j['id'], j.get('attributes'), j.get('parent_ids', []), j)
+        return Job(self,
+                   j['id'],
+                   attributes=j.get('attributes'),
+                   parent_ids=j.get('parent_ids', []),
+                   _status=j)
 
     def create_job(self,
                    image,
@@ -214,12 +230,15 @@ class BatchClient:
                    attributes=None,
                    callback=None,
                    parent_ids=None,
-                   scratch_folder=None):
+                   scratch_folder=None,
+                   input_files=None,
+                   output_files=None):
         if parent_ids is None:
             parent_ids = []
         return self._create_job(
             image, command, args, env, ports, resources, tolerations, volumes, security_context,
-            service_account_name, attributes, None, callback, parent_ids, scratch_folder)
+            service_account_name, attributes, None, callback, parent_ids, scratch_folder,
+            input_files, output_files)
 
     def create_batch(self, attributes=None, callback=None, ttl=None):
         batch = self.api.create_batch(self.url, attributes, callback, ttl)

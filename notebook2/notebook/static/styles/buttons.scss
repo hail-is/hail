@@ -1,4 +1,6 @@
 @import "./variables/colors.scss";
+@import "./variables/margins.scss";
+
 #theme-site {
   a {
     color: $black;
@@ -13,7 +15,7 @@
     outline: none;
     border: 1px solid $black;
     background-color: $white;
-    padding: 10px;
+    padding: $margin * 2 / 3;
     border-radius: 3px;
     &:focus,
     &:hover {
@@ -30,13 +32,14 @@
       color: $devil-gray;
     }
   }
+
   &.dark {
     a {
       color: $white;
       background-color: $black;
     }
     button {
-      border: 1px solid $white;
+      border-color: $white;
       background: $black;
     }
     .link-button,

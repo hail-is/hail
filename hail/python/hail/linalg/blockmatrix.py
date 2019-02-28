@@ -6,8 +6,11 @@ import hail as hl
 import hail.expr.aggregators as agg
 from hail.expr import construct_expr
 from hail.ir import BlockMatrixWrite, BlockMatrixMap2, ApplyBinaryOp, Ref, F64, \
-    BlockMatrixBroadcast, ValueToBlockMatrix, MakeArray, BlockMatrixRead, JavaBlockMatrix, BlockMatrixMap,\
-    ApplyUnaryOp, IR, BlockMatrixDot, tensor_shape_to_matrix_shape, BlockMatrixAgg
+    BlockMatrixBroadcast, ValueToBlockMatrix, MakeArray, BlockMatrixRead, JavaBlockMatrix, BlockMatrixMap, \
+    ApplyUnaryOp, IR, BlockMatrixDot, tensor_shape_to_matrix_shape, BlockMatrixAgg, BlockMatrixRandom, \
+    BlockMatrixToValueApply
+from hail.ir.blockmatrix_reader import BlockMatrixNativeReader, BlockMatrixBinaryReader
+from hail.ir.blockmatrix_writer import BlockMatrixBinaryWriter, BlockMatrixNativeWriter
 from hail.utils import new_temp_file, new_local_temp_file, local_path_uri, storage_level
 from hail.utils.java import Env, jarray, joption
 from hail.typecheck import *
@@ -234,7 +237,7 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
-        return cls(BlockMatrixRead(path))
+        return cls(BlockMatrixRead(BlockMatrixNativeReader(path)))
 
     @classmethod
     @typecheck_method(uri=str,
@@ -291,13 +294,11 @@ class BlockMatrix(object):
         --------
         :meth:`.from_numpy`
         """
+
         if not block_size:
             block_size = BlockMatrix.default_block_size()
 
-        return BlockMatrix._from_java(Env.hail().linalg.BlockMatrix.fromBreezeMatrix(
-            Env.hc()._jsc,
-            _breeze_fromfile(uri, n_rows, n_cols),
-            block_size))
+        return cls(BlockMatrixRead(BlockMatrixBinaryReader(uri, [n_rows, n_cols], block_size)))
 
     @classmethod
     @typecheck_method(ndarray=np.ndarray,
@@ -441,7 +442,9 @@ class BlockMatrix(object):
         """
         if not block_size:
             block_size = BlockMatrix.default_block_size()
-        return BlockMatrix._from_java(Env.hail().linalg.BlockMatrix.random(Env.hc()._jhc, n_rows, n_cols, block_size, seed, gaussian))
+
+        rand = BlockMatrixRandom(seed, gaussian, [n_rows, n_cols], block_size, [True])
+        return BlockMatrix(rand)
 
     @classmethod
     @typecheck_method(n_rows=int,
@@ -498,7 +501,9 @@ class BlockMatrix(object):
     @staticmethod
     def default_block_size():
         """Default block side length."""
-        return Env.hail().linalg.BlockMatrix.defaultBlockSize()
+
+        # This should match BlockMatrix.defaultBlockSize in the Scala backend.
+        return 4096  # 32 * 1024 bytes
 
     @property
     def element_type(self):
@@ -566,7 +571,8 @@ class BlockMatrix(object):
             If ``True``, major output will be written to temporary local storage
             before being copied to ``output``.
         """
-        Env.backend().execute(BlockMatrixWrite(self._bmir, path, overwrite, force_row_major, stage_locally))
+        writer = BlockMatrixNativeWriter(path, overwrite, force_row_major, stage_locally)
+        Env.backend().execute(BlockMatrixWrite(self._bmir, writer))
 
     @staticmethod
     @typecheck(entry_expr=expr_float64,
@@ -800,7 +806,9 @@ class BlockMatrix(object):
         if isinstance(row_idx, int) and isinstance(col_idx, int):
             i = BlockMatrix._pos_index(row_idx, self.n_rows, 'row index')
             j = BlockMatrix._pos_index(col_idx, self.n_cols, 'col index')
-            return self._jbm.getElement(i, j)
+
+            return Env.backend().execute(BlockMatrixToValueApply(self._bmir,
+                                                                 {'name': 'GetElement', 'index': [i, j]}))
 
         rows_to_keep = BlockMatrix._range_to_keep(row_idx, self.n_rows)
         cols_to_keep = BlockMatrix._range_to_keep(col_idx, self.n_cols)
@@ -1095,13 +1103,10 @@ class BlockMatrix(object):
         --------
         :meth:`.to_numpy`
         """
-        n_entries = self.n_rows * self.n_cols
-        if n_entries >= 2 << 31:
-            raise ValueError(f'number of entries must be less than 2^31, found {n_entries}')
+        _check_entries_size(self.n_rows, self.n_cols)
 
-        bdm = self._jbm.toBreezeMatrix()
-        row_major = Env.hail().utils.richUtils.RichDenseMatrixDouble.exportToDoubles(Env.hc()._jhc, uri, bdm, True)
-        assert row_major
+        writer = BlockMatrixBinaryWriter(uri)
+        Env.backend().execute(BlockMatrixWrite(self._bmir, writer))
 
     def to_numpy(self):
         """Collects the block matrix into a `NumPy ndarray
@@ -1405,13 +1410,18 @@ class BlockMatrix(object):
         return self._apply_map(self._unary_func_ir(hl.log))
 
     def diagonal(self):
-        """Extracts diagonal elements as ndarray.
+        """Extracts diagonal elements as a row vector.
 
         Returns
         -------
-        :class:`numpy.ndarray`
+        :class:`.BlockMatrix`
         """
-        return _ndarray_from_jarray(self._jbm.diagonal())
+        diag_bmir = BlockMatrixBroadcast(self._bmir,
+                                         [0, 0],
+                                         [1, min(self.n_rows, self.n_cols)],
+                                         self.block_size,
+                                         [True])
+        return BlockMatrix(diag_bmir)
 
     @typecheck_method(axis=nullable(int))
     def sum(self, axis=None):
@@ -2171,11 +2181,15 @@ def _ndarray_from_jarray(ja):
 
 
 def _breeze_fromfile(uri, n_rows, n_cols):
+    _check_entries_size(n_rows, n_cols)
+
+    return Env.hail().utils.richUtils.RichDenseMatrixDouble.importFromDoubles(Env.hc()._jhc, uri, n_rows, n_cols, True)
+
+
+def _check_entries_size(n_rows, n_cols):
     n_entries = n_rows * n_cols
     if n_entries >= 1 << 31:
         raise ValueError(f'number of entries must be less than 2^31, found {n_entries}')
-
-    return Env.hail().utils.richUtils.RichDenseMatrixDouble.importFromDoubles(Env.hc()._jhc, uri, n_rows, n_cols, True)
 
 
 def _breeze_from_ndarray(nd):

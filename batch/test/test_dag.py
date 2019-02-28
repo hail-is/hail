@@ -3,6 +3,7 @@ import pkg_resources
 import pytest
 import re
 import requests
+from flask import Response
 
 from batch.client import BatchClient
 
@@ -239,7 +240,7 @@ def test_callback(client):
     @app.route('/test', methods=['POST'])
     def test():
         output.append(request.get_json())
-        return 200
+        return Response(status=200)
 
     try:
         server = ServerThread(app)

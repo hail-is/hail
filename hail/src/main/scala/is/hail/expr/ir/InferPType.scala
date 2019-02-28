@@ -142,6 +142,7 @@ object InferPType {
       case TableCollect(child) => PStruct("rows" -> PArray(PType.canonical(child.typ.rowType)), "global" -> PType.canonical(child.typ.globalType))
       case TableToValueApply(child, function) => PType.canonical(function.typ(child.typ))
       case MatrixToValueApply(child, function) => PType.canonical(function.typ(child.typ))
+      case BlockMatrixToValueApply(child, function) => PType.canonical(function.typ(child.typ))
       case CollectDistributedArray(_, _, _, _, body) => PArray(body.pType)
     }
   }

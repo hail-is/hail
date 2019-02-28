@@ -89,7 +89,6 @@ auth0 = oauth.register(
     access_token_url = f'{AUTH0_BASE_URL}/oauth/token',
     authorize_url = f'{AUTH0_BASE_URL}/authorize',
     client_kwargs = {
-        'response_type': 'code',
         'scope': 'openid email profile',
     },
 )
@@ -114,7 +113,7 @@ def requires_auth(for_page = True):
         def decorated(*args, **kwargs):
             if 'user' not in session:
                 # Redirect to Login page here
-                if for_page:
+                if for_page is True:
                     session['referrer'] = request.url
                     return redirect(flask.url_for('login_page'))
 
@@ -383,7 +382,6 @@ def wait_websocket(ws):
 
 @app.route('/auth0-callback')
 def auth0_callback():
-    # https://github.com/auth0-samples/auth0-python-web-app/commit/d048d6497caa714c52e8411a5f37500787e37305
     auth0.authorize_access_token()
 
     userinfo = auth0.get('userinfo').json()
@@ -393,7 +391,7 @@ def auth0_callback():
     del session['workshop_password']
 
     if AUTHORIZED_USERS.get(email) is None and workshop_password != PASSWORD:
-        return redirect(flask.url_for('login_page', unauthorized = True))
+        return redirect(flask.url_for('error_page', err = 'Unauthorized'))
 
     session['user'] = {
         'user_id': userinfo['sub'],
@@ -410,21 +408,25 @@ def auth0_callback():
     return redirect('/')
 
 
+@app.route('/error', methods=['GET'])
+def error_page():
+    return render_template('error.html', error = request.args.get('err'))
+
+
 @app.route('/login', methods=['GET'])
 def login_page():
-    return render_template('login.html', unauthorized = request.args.get('unauthorized'))
+    return render_template('login.html')
 
 
 @app.route('/login', methods=['POST'])
 def login_auth0():
-    # FIXME ?: Could be placed outside route
     external_url = flask.url_for('auth0_callback', _external = True)
     session['workshop_password'] = request.form.get('workshop-password')
 
     return auth0.authorize_redirect(redirect_uri = external_url, audience = f'{AUTH0_BASE_URL}/userinfo', prompt = 'login')
 
 
-@app.route('/logout')
+@app.route('/logout', methods=['POST'])
 def logout():
     session.clear()
     params = {'returnTo': flask.url_for('root', _external=True), 'client_id': AUTH0_CLIENT_ID}

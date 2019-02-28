@@ -29,8 +29,9 @@ case class TextTableReaderOptions(
   quoteStr: String,
   skipBlankLines: Boolean,
   forceBGZ: Boolean,
-  filterAndReplace: TextInputFilterAndReplace) {
-  val typeMap: Map[String, Type] = typeMapStr.mapValues(s => IRParser.parseType(s)).map(identity)
+  filterAndReplace: TextInputFilterAndReplace,
+  forceGZ: Boolean) {
+  @transient val typeMap: Map[String, Type] = typeMapStr.mapValues(s => IRParser.parseType(s)).map(identity)
 
   private val commentStartsWith: Array[String] = comment.filter(_.length == 1)
   private val commentRegexes: Array[Regex] = comment.filter(_.length > 1).map(_.r)
@@ -42,7 +43,7 @@ case class TextTableReaderOptions(
   def nPartitions: Int = nPartitionsOpt.getOrElse(HailContext.get.sc.defaultParallelism)
 }
 
-case class TextTableReaderMetadata(header: String, fullType: TableType)
+case class TextTableReaderMetadata(globbedFiles: Array[String], header: String, fullType: TableType)
 
 object TextTableReader {
 
@@ -218,14 +219,27 @@ object TextTableReader {
   def readMetadata1(options: TextTableReaderOptions): TextTableReaderMetadata = {
     val hc = HailContext.get
 
-    val TextTableReaderOptions(files, _, comment, separator, missing, noHeader, impute, _, _, skipBlankLines, forceBGZ, filterAndReplace) = options
+    val TextTableReaderOptions(files, _, comment, separator, missing, noHeader, impute, _, _, skipBlankLines, forceBGZ, filterAndReplace, forceGZ) = options
+
+    val globbedFiles: Array[String] = {
+      val hConf = HailContext.get.hadoopConf
+      val globbed = hConf.globAll(files)
+      if (globbed.isEmpty)
+        fatal("arguments refer to no files")
+      if (!forceBGZ) {
+        globbed.foreach { file =>
+          if (file.endsWith(".gz"))
+            checkGzippedFile(hConf, file, forceGZ, forceBGZ)
+        }
+      }
+      globbed
+    }
+
     val types = options.typeMap
     val quote = options.quote
     val nPartitions: Int = options.nPartitions
 
-    require(files.nonEmpty)
-
-    val firstFile = files.head
+    val firstFile = globbedFiles.head
     val header = hc.hadoopConf.readLines(firstFile, filterAndReplace) { lines =>
       val filt = lines.filter(line => !options.isComment(line.value) && !(skipBlankLines && line.value.isEmpty))
 
@@ -251,7 +265,7 @@ object TextTableReader {
         duplicates.map { case (pre, post) => s"'$pre' -> '$post'" }.truncatable("\n  "))
     }
 
-    val rdd = hc.sc.textFilesLines(files, nPartitions)
+    val rdd = hc.sc.textFilesLines(globbedFiles, nPartitions)
       .filter { line =>
         !options.isComment(line.value) &&
           (noHeader || line.value != header) &&
@@ -300,7 +314,7 @@ object TextTableReader {
     info(sb.result())
 
     val t = TableType(TStruct(namesAndTypes: _*), FastIndexedSeq(), TStruct())
-    TextTableReaderMetadata(header, t)
+    TextTableReaderMetadata(globbedFiles, header, t)
   }
 
   def read(hc: HailContext)(files: Array[String],
@@ -314,11 +328,12 @@ object TextTableReader {
     quote: java.lang.Character = null,
     skipBlankLines: Boolean = false,
     forceBGZ: Boolean = false,
+    forceGZ: Boolean = false,
     filterAndReplace: TextInputFilterAndReplace = TextInputFilterAndReplace()): Table = {
     val options = TextTableReaderOptions(
       files, types.mapValues(t => t._toPretty).map(identity), comment, separator,
       missing, noHeader, impute, Some(nPartitions),
-      if (quote != null) quote.toString else null, skipBlankLines, forceBGZ, filterAndReplace)
+      if (quote != null) quote.toString else null, skipBlankLines, forceBGZ, filterAndReplace, forceGZ)
     val tr = TextTableReader(options)
     new Table(hc, TableRead(tr.fullType, dropRows = false, tr))
   }
@@ -347,7 +362,7 @@ case class TextTableReader(options: TextTableReaderOptions) extends TableReader 
 
     val useColIndices = rowTyp.fields.map(f => fullType.rowType.fieldIdx(f.name))
 
-    val crdd = ContextRDD.textFilesLines[RVDContext](hc.sc, options.files, options.nPartitions, options.filterAndReplace)
+    val crdd = ContextRDD.textFilesLines[RVDContext](hc.sc, metadata.globbedFiles, options.nPartitions, options.filterAndReplace)
       .filter { line =>
         !options.isComment(line.value) &&
           (options.noHeader || metadata.header != line.value) &&
