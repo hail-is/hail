@@ -2,7 +2,7 @@
 
 import hail as hl
 from hail.matrixtable import MatrixTable
-from hail.expr import ArrayExpression, StructExpression
+from hail.expr import StructExpression
 from hail.expr.expressions import expr_call, expr_array, expr_int32
 from hail.ir import TableKeyBy
 from hail.typecheck import typecheck
@@ -53,21 +53,46 @@ def transform_one(mt: MatrixTable) -> MatrixTable:
 
     return mt
 
-
-def merge_alleles(alleles) -> ArrayExpression:
-    # alleles is tarray(tarray(tstruct(ref=tstr, alt=tstr)))
-    return hl.rbind(hl.array(hl.set(hl.flatten(alleles))),
-                    lambda arr:
-                    hl.filter(lambda a: a.alt != '<NON_REF>', arr)
-                      .extend(hl.filter(lambda a: a.alt == '<NON_REF>', arr)))
-
-
-def renumber_entry(entry, old_to_new) -> StructExpression:
-    # global index of alternate (non-ref) alleles
-    return entry.annotate(LA=entry.LA.map(lambda lak: old_to_new[lak]))
-
-
 def combine(ts):
+    def merge_alleles(alleles):
+        from hail.expr.functions import _num_allele_type, _allele_ints
+        return hl.rbind(
+            alleles.map(lambda a: hl.or_else(a[0], ''))
+                   .fold(lambda s, t: hl.cond(hl.len(s) > hl.len(t), s, t), ''),
+            lambda ref:
+            hl.rbind(
+                alleles.map(
+                    lambda al: hl.rbind(
+                        al[0],
+                        lambda r:
+                        hl.array([ref]).extend(
+                            al[1:].map(
+                                lambda a:
+                                hl.rbind(
+                                    _num_allele_type(r, a),
+                                    lambda at:
+                                    hl.cond(
+                                        (_allele_ints['SNP'] == at) |
+                                        (_allele_ints['Insertion'] == at) |
+                                        (_allele_ints['Deletion'] == at) |
+                                        (_allele_ints['MNP'] == at) |
+                                        (_allele_ints['Complex'] == at),
+                                        a + ref[hl.len(r):],
+                                        a)))))),
+                lambda lal:
+                hl.struct(
+                    globl=hl.array([ref]).extend(hl.rbind(
+                        hl.array(hl.set(hl.flatten(lal)).remove(ref)),
+                        lambda arr:
+                        hl.filter(lambda a: a != '<NON_REF>', arr)
+                        .extend(hl.filter(lambda a: a == '<NON_REF>', arr)))),
+                    local=lal)))
+
+    def renumber_entry(entry, old_to_new) -> StructExpression:
+        # global index of alternate (non-ref) alleles
+        return entry.annotate(LA=entry.LA.map(lambda lak: old_to_new[lak]))
+
+
     # pylint: disable=protected-access
     tmp = ts.annotate(
         alleles=merge_alleles(ts.data.map(lambda d: d.alleles)),
@@ -93,11 +118,11 @@ def combine(ts):
                           .map(lambda _: hl.null(tmp.data[i].__entries.dtype.element_type)),
                         hl.bind(
                             lambda old_to_new: tmp.data[i].__entries.map(lambda e: renumber_entry(e, old_to_new)),
-                            hl.array([0]).extend(
-                                hl.range(0, hl.len(tmp.data[i].alleles)).map(
-                                    lambda j: combined_allele_index[tmp.data[i].alleles[j]]))))),
-            hl.dict(hl.range(1, hl.len(tmp.alleles) + 1).map(
-                lambda j: hl.tuple([tmp.alleles[j - 1], j])))))
+                            hl.range(0, hl.len(tmp.alleles.local[i])).map(
+                                lambda j: combined_allele_index[tmp.alleles.local[i][j]])))),
+            hl.dict(hl.range(0, hl.len(tmp.alleles.globl)).map(
+                lambda j: hl.tuple([tmp.alleles.globl[j], j])))))
+    tmp = tmp.annotate(alleles=tmp.alleles.globl)
     tmp = tmp.annotate_globals(__cols=hl.flatten(tmp.g.map(lambda g: g.__cols)))
 
     return tmp.drop('data', 'g')
@@ -110,32 +135,8 @@ def combine_gvcfs(mts):
     def localize(mt):
         return mt._localize_entries('__entries', '__cols')
 
-    def fix_alleles(alleles):
-        return hl.rbind(
-            alleles.map(lambda d: d.ref).fold(lambda s, t: hl.cond(hl.len(s) > hl.len(t), s, t), ''),
-            lambda ref: hl.rbind(
-                alleles.map(lambda a: hl.switch(hl.allele_type(a.ref, a.alt))
-                                        .when('SNP', a.alt + ref[hl.len(a.alt):])
-                                        .when('Insertion', a.alt + ref[hl.len(a.ref):])
-                                        .when('Deletion', a.alt + ref[hl.len(a.ref):])
-                                        .default(a.alt)),
-                lambda alts: hl.array([ref]).extend(alts)
-            ))
-
-    def min_rep(locus, ref, alt):
-        return hl.rbind(hl.min_rep(locus, [ref, alt]),
-                        lambda mr: hl.case()
-                          .when(alt == '<NON_REF>', hl.struct(ref=ref[0:1], alt=alt))
-                          .when(locus == mr.locus, hl.struct(ref=mr.alleles[0], alt=mr.alleles[1]))
-                          .or_error("locus before and after minrep differ"))
-
-    mts = [mt.annotate_rows(
-        # now minrep'ed (ref, alt) allele pairs
-        alleles=hl.bind(lambda ref, locus: mt.alleles[1:].map(lambda alt: min_rep(locus, ref, alt)),
-                        mt.alleles[0], mt.locus)) for mt in mts]
     ts = hl.Table._multi_way_zip_join([localize(mt) for mt in mts], 'data', 'g')
     combined = combine(ts)
-    combined = combined.annotate(alleles=fix_alleles(combined.alleles))
     return combined._unlocalize_entries('__entries', '__cols', ['s'])
 
 
