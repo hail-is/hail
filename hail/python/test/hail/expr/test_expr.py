@@ -401,6 +401,26 @@ class Tests(unittest.TestCase):
         assert r == [hl.utils.Struct(AC=[1, 1], AF=[0.5, 0.5], AN=2, homozygote_count=[0, 0]),
                      hl.utils.Struct(AC=[0, 2], AF=[0.0, 1.0], AN=2, homozygote_count=[0, 1])]
 
+    def test_agg_collect_all_types_runs(self):
+        ht = hl.utils.range_table(2)
+        ht = ht.annotate(x = hl.case().when(ht.idx % 1 == 0, True).or_missing())
+        ht.aggregate((
+            hl.agg.collect(ht.x),
+            hl.agg.collect(hl.int32(ht.x)),
+            hl.agg.collect(hl.int64(ht.x)),
+            hl.agg.collect(hl.float32(ht.x)),
+            hl.agg.collect(hl.float64(ht.x)),
+            hl.agg.collect(hl.str(ht.x)),
+            hl.agg.collect(hl.call(0, 0, phased=ht.x)),
+            hl.agg.collect(hl.struct(foo = ht.x)),
+            hl.agg.collect(hl.tuple([ht.x])),
+            hl.agg.collect([ht.x]),
+            hl.agg.collect({ht.x}),
+            hl.agg.collect({ht.x: 1}),
+            hl.agg.collect(hl.interval(0, 1, includes_start=ht.x)),
+        ))
+
+
     def test_agg_explode(self):
         t = hl.utils.range_table(10)
 
