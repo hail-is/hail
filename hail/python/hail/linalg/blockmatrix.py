@@ -1752,7 +1752,7 @@ class BlockMatrix(object):
                       delimiter=str,
                       binary=bool)
     def export_rectangles(self, path_out, rectangles, delimiter='\t', binary=False):
-        """Export rectangular regions from a stored block matrix to delimited text or binary files.
+        """Export rectangular regions from a block matrix to delimited text or binary files.
 
         Examples
         --------
@@ -1764,20 +1764,12 @@ class BlockMatrix(object):
         ...                [ 9.0, 10.0, 11.0, 12.0],
         ...                [13.0, 14.0, 15.0, 16.0]])
 
-        Filter to the three rectangles and write.
+        Filter to the three rectangles and export as TSV files.
 
         >>> rectangles = [[0, 1, 0, 1], [0, 3, 0, 2], [1, 2, 0, 4]]
         >>>
         >>> (BlockMatrix.from_numpy(nd)
-        ...     .sparsify_rectangles(rectangles)
-        ...     .write('output/example.bm', overwrite=True, force_row_major=True))
-
-        Export the three rectangles to TSV files:
-
-        >>> BlockMatrix.export_rectangles(
-        ...     path_in='output/example.bm',
-        ...     path_out='output/example',
-        ...     rectangles = rectangles)
+        ...     .export_rectangles('output/example.bm', rectangles))
 
         This produces three files in the folder ``output/example``.
 
@@ -1800,13 +1792,6 @@ class BlockMatrix(object):
         .. code-block:: text
 
             5.0 6.0 7.0 8.0
-
-        Warning
-        -------
-        The block matrix must be stored in row-major format, as results
-        from :meth:`.BlockMatrix.write` with ``force_row_major=True`` and
-        from :meth:`.BlockMatrix.write_from_entry_expr`. Otherwise,
-        :meth:`export` will fail.
 
         Notes
         -----
@@ -1843,8 +1828,6 @@ class BlockMatrix(object):
 
         Parameters
         ----------
-        path_in: :obj:`srt`
-            Path to input block matrix, stored row-major on disk.
         path_out: :obj:`str`
             Path for folder of exported files.
         rectangles: :obj:`list` of :obj:`list` of :obj:`int`
@@ -1852,9 +1835,6 @@ class BlockMatrix(object):
             ``[row_start, row_stop, col_start, col_stop]``.
         delimiter: :obj:`str`
             Column delimiter.
-        n_partitions: :obj:`int`, optional
-            Maximum parallelism of export.
-            Defaults to (and cannot exceed) the number of rectangles.
         binary: :obj:`bool`
             If true, export elements as raw bytes in row major order.
         """
