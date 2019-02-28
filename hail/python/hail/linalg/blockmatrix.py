@@ -1418,8 +1418,7 @@ class BlockMatrix(object):
         diag_bmir = BlockMatrixBroadcast(self._bmir,
                                          [0, 0],
                                          [1, min(self.n_rows, self.n_cols)],
-                                         self.block_size,
-                                         [True])
+                                         self.block_size)
         return BlockMatrix(diag_bmir)
 
     @typecheck_method(axis=nullable(int))
