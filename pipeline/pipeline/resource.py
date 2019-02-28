@@ -29,7 +29,7 @@ class ResourceFile(Resource, str):
         cls._counter += 1
         return uid
 
-    def __new__(cls, value):
+    def __new__(cls, value):  # pylint: disable=W0613
         uid = ResourceFile._new_uid()
         r = str.__new__(cls, uid)
         r._uid = uid
@@ -43,6 +43,9 @@ class ResourceFile(Resource, str):
         self._output_paths = set()
         self._resource_group = None
         self._has_extension = False
+
+    def _get_path(self, directory):
+        raise NotImplementedError
 
     def _add_source(self, source):
         from .task import Task

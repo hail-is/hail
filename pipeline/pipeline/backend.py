@@ -18,7 +18,7 @@ class LocalBackend(Backend):
     def __init__(self, tmp_dir='/tmp/'):
         self._tmp_dir = tmp_dir
 
-    def run(self, pipeline, dry_run, verbose, delete_scratch_on_exit):
+    def run(self, pipeline, dry_run, verbose, delete_scratch_on_exit):  # pylint: disable=R0915
         tmpdir = self.tmp_dir()
 
         script = ['#!/bin/bash',
