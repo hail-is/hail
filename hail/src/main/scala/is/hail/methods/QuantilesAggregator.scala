@@ -335,10 +335,15 @@ object Main {
 //    val time3 = time {
 //      data.sorted
 //    }
-//    var data2 = Array(data: _*)
-//    val time2 = time {
-//      Sorting.quickSort(data2)
-//    }
+    val time2 = time {
+      val data2 = Array.ofDim[Long](n)
+      var i = 0
+      while (i < n) {
+        data2(i) = data(i)
+        i += 1
+      }
+      Sorting.quickSort(data2)
+    }
     val time4 = time {
       val data2 = Array.ofDim[Long](n)
       var i = 0
@@ -350,7 +355,7 @@ object Main {
     }
     val factor: Double = pow(10, 9)
     println(s"approx took ${ time1.toDouble / factor } s")
-//    println(s"quicksort took ${ time2.toDouble / factor } s")
+    println(s"quicksort took ${ time2.toDouble / factor } s")
 //    println(s"stable sort took ${ time3.toDouble / factor } s")
     println(s"java sort took ${ time4.toDouble / factor } s")
 
