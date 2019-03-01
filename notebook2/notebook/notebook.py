@@ -225,7 +225,7 @@ def new_get():
     if svc_name is not None:
         del session['svc_name']
 
-    return redirect(external_url_for(''))
+    return redirect(external_url_for('notebook'))
 
 
 @app.route('/new', methods=['POST'])
