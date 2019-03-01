@@ -9,7 +9,7 @@ import scala.collection.mutable
 
 object Emit {
   def apply(fb: FunctionBuilder, nSpecialArgs: Int, x: ir.IR): EmitTriplet = {
-    val emitter = new Emitter(fb, nSpecialArgs, EmitContext(fb))
+    val emitter = new Emitter(fb, nSpecialArgs, SparkFunctionContext(fb))
     emitter.emit(x, ir.Env.empty[EmitTriplet])
   }
 }
@@ -161,7 +161,7 @@ class Orderings {
   }
 }
 
-class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: EmitContext) {
+class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext) {
   outer =>
   type E = ir.Env[EmitTriplet]
 

@@ -83,14 +83,14 @@ class EmitRegion private (val fb: FunctionBuilder, val baseRegion: Code, _region
   def newRegion(): EmitRegion = new EmitRegion(fb, baseRegion, fb.variable("region", "RegionPtr", s"$baseRegion->get_region()"))
 }
 
-object EmitContext {
-  def apply(fb: FunctionBuilder, spark_context: Variable): EmitContext =
-    EmitContext(s"$spark_context.spark_env_", EmitRegion(fb, s"$spark_context.region_"))
+object SparkFunctionContext {
+  def apply(fb: FunctionBuilder, spark_context: Variable): SparkFunctionContext =
+    SparkFunctionContext(s"$spark_context.spark_env_", EmitRegion(fb, s"$spark_context.region_"))
 
-  def apply(fb: FunctionBuilder): EmitContext = apply(fb, fb.getArg(0))
+  def apply(fb: FunctionBuilder): SparkFunctionContext = apply(fb, fb.getArg(0))
 }
 
-case class EmitContext(sparkEnv: Code, region: EmitRegion)
+case class SparkFunctionContext(sparkEnv: Code, region: EmitRegion)
 
 abstract class ArrayEmitter(val setup: Code, val m: Code, val setupLen: Code, val length: Option[Code], val arrayRegion: EmitRegion) {
   def emit(f: (Code, Code) => Code): Code
