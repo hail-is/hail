@@ -26,7 +26,7 @@ sealed trait IR extends BaseIR {
     _typ
   }
 
-  @transient lazy val children: IndexedSeq[BaseIR] =
+  lazy val children: IndexedSeq[BaseIR] =
     Children(this)
 
   override def copy(newChildren: IndexedSeq[BaseIR]): IR =

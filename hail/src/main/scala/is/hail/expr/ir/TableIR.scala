@@ -319,7 +319,7 @@ case class TableHead(child: TableIR, n: Long) extends TableIR {
 
   override lazy val rvdType: RVDType = child.rvdType
 
-  @transient lazy val children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
+  lazy val children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableHead = {
     val IndexedSeq(newChild: TableIR) = newChildren
@@ -351,7 +351,7 @@ case class TableRepartition(child: TableIR, n: Int, strategy: Int) extends Table
       child.rvdType
   }
 
-  @transient lazy val children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
+  lazy val children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableRepartition = {
     val IndexedSeq(newChild: TableIR) = newChildren
@@ -517,7 +517,7 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
 }
 
 case class TableIntervalJoin(left: TableIR, right: TableIR, root: String) extends TableIR {
-  @transient lazy val children: IndexedSeq[BaseIR] = Array(left, right)
+  lazy val children: IndexedSeq[BaseIR] = Array(left, right)
 
   val (newRowPType, ins) = left.typ.rowType.physicalType.unsafeStructInsert(right.typ.valueType.physicalType, List(root))
   val typ: TableType = left.typ.copy(rowType = newRowPType.virtualType)
@@ -577,7 +577,7 @@ case class TableZipUnchecked(left: TableIR, right: TableIR) extends TableIR {
 
   override def partitionCounts: Option[IndexedSeq[Long]] = left.partitionCounts
 
-  @transient lazy val children: IndexedSeq[BaseIR] = Array(left, right)
+  lazy val children: IndexedSeq[BaseIR] = Array(left, right)
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableIR = {
     val IndexedSeq(newLeft: TableIR, newRight: TableIR) = newChildren
@@ -721,7 +721,7 @@ case class TableLeftJoinRightDistinct(left: TableIR, right: TableIR, root: Strin
   require(right.typ.keyType isPrefixOf left.typ.keyType,
     s"\n  L: ${ left.typ }\n  R: ${ right.typ }")
 
-  @transient lazy val children: IndexedSeq[BaseIR] = Array(left, right)
+  lazy val children: IndexedSeq[BaseIR] = Array(left, right)
 
   private val newRowType = left.typ.rowType.structInsert(right.typ.valueType, List(root))._1
   val typ: TableType = left.typ.copy(rowType = newRowType)
@@ -917,7 +917,7 @@ case class TableExplode(child: TableIR, path: IndexedSeq[String]) extends TableI
   assert(path.nonEmpty)
   assert(!child.typ.key.contains(path.head))
 
-  @transient lazy val children: IndexedSeq[BaseIR] = Array(child)
+  lazy val children: IndexedSeq[BaseIR] = Array(child)
 
   private val childRowType = child.typ.rowType
 
@@ -1055,7 +1055,7 @@ case class MatrixEntriesTable(child: MatrixIR) extends TableIR {
 }
 
 case class TableDistinct(child: TableIR) extends TableIR {
-  @transient lazy val children: IndexedSeq[BaseIR] = Array(child)
+  lazy val children: IndexedSeq[BaseIR] = Array(child)
 
   override lazy val rvdType: RVDType = child.rvdType
 
@@ -1082,7 +1082,7 @@ case class TableKeyByAndAggregate(
   require(newKey.typ.isInstanceOf[TStruct])
   require(bufferSize > 0)
 
-  @transient lazy val children: IndexedSeq[BaseIR] = Array(child, expr, newKey)
+  lazy val children: IndexedSeq[BaseIR] = Array(child, expr, newKey)
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableKeyByAndAggregate = {
     val IndexedSeq(newChild: TableIR, newExpr: IR, newNewKey: IR) = newChildren
@@ -1231,7 +1231,7 @@ case class TableKeyByAndAggregate(
 case class TableAggregateByKey(child: TableIR, expr: IR) extends TableIR {
   require(child.typ.key.nonEmpty)
 
-  @transient lazy val children: IndexedSeq[BaseIR] = Array(child, expr)
+  lazy val children: IndexedSeq[BaseIR] = Array(child, expr)
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableAggregateByKey = {
     assert(newChildren.length == 2)
@@ -1429,7 +1429,7 @@ case class CastMatrixToTable(
   override lazy val rvdType: RVDType = child.rvdType.copy(rowType = child.rvdType.rowType
     .rename(Map(MatrixType.entriesIdentifier -> entriesFieldName)))
 
-  @transient lazy val children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
+  lazy val children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
 
   def copy(newChildren: IndexedSeq[BaseIR]): CastMatrixToTable = {
     val IndexedSeq(newChild) = newChildren
@@ -1470,7 +1470,7 @@ case class TableRename(child: TableIR, rowMap: Map[String, String], globalMap: M
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
-  @transient lazy val children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
+  lazy val children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableRename = {
     val IndexedSeq(newChild: TableIR) = newChildren
@@ -1485,7 +1485,7 @@ case class TableRename(child: TableIR, rowMap: Map[String, String], globalMap: M
 }
 
 case class MatrixToTableApply(child: MatrixIR, function: MatrixToTableFunction) extends TableIR {
-  @transient lazy val children: IndexedSeq[BaseIR] = Array(child)
+  lazy val children: IndexedSeq[BaseIR] = Array(child)
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableIR = {
     val IndexedSeq(newChild: MatrixIR) = newChildren
@@ -1503,7 +1503,7 @@ case class MatrixToTableApply(child: MatrixIR, function: MatrixToTableFunction) 
 }
 
 case class TableToTableApply(child: TableIR, function: TableToTableFunction) extends TableIR {
-  @transient lazy val children: IndexedSeq[BaseIR] = Array(child)
+  lazy val children: IndexedSeq[BaseIR] = Array(child)
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableIR = {
     val IndexedSeq(newChild: TableIR) = newChildren
@@ -1521,7 +1521,7 @@ case class TableToTableApply(child: TableIR, function: TableToTableFunction) ext
 }
 
 case class BlockMatrixToTable(child: BlockMatrixIR) extends TableIR {
-  @transient lazy val children: IndexedSeq[BaseIR] = Array(child)
+  lazy val children: IndexedSeq[BaseIR] = Array(child)
 
   def copy(newChildren: IndexedSeq[BaseIR]): TableIR = {
     val IndexedSeq(newChild: BlockMatrixIR) = newChildren

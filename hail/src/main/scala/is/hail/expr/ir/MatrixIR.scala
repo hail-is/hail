@@ -136,7 +136,7 @@ case class MatrixLiteral(value: MatrixValue) extends MatrixIR {
 
   override val rvdType: RVDType = value.rvd.typ
 
-  @transient lazy val children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
+  lazy val children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
   protected[ir] override def execute(hc: HailContext): MatrixValue = value
 
@@ -333,7 +333,7 @@ case class MatrixRead(
 
   override lazy val rvdType: RVDType = reader.fullRVDType.subsetTo(typ.rvRowType)
 
-  @transient lazy val children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
+  lazy val children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixRead = {
     assert(newChildren.isEmpty)
@@ -365,7 +365,7 @@ case class MatrixRead(
 
 case class MatrixFilterCols(child: MatrixIR, pred: IR) extends MatrixIR {
 
-  @transient lazy val children: IndexedSeq[BaseIR] = Array(child, pred)
+  lazy val children: IndexedSeq[BaseIR] = Array(child, pred)
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixFilterCols = {
     assert(newChildren.length == 2)
@@ -379,7 +379,7 @@ case class MatrixFilterCols(child: MatrixIR, pred: IR) extends MatrixIR {
 
 case class MatrixFilterRows(child: MatrixIR, pred: IR) extends MatrixIR {
 
-  @transient lazy val children: IndexedSeq[BaseIR] = Array(child, pred)
+  lazy val children: IndexedSeq[BaseIR] = Array(child, pred)
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixFilterRows = {
     assert(newChildren.length == 2)
@@ -392,7 +392,7 @@ case class MatrixFilterRows(child: MatrixIR, pred: IR) extends MatrixIR {
 }
 
 case class MatrixChooseCols(child: MatrixIR, oldIndices: IndexedSeq[Int]) extends MatrixIR {
-  @transient lazy val children: IndexedSeq[BaseIR] = Array(child)
+  lazy val children: IndexedSeq[BaseIR] = Array(child)
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixChooseCols = {
     assert(newChildren.length == 1)
@@ -407,7 +407,7 @@ case class MatrixChooseCols(child: MatrixIR, oldIndices: IndexedSeq[Int]) extend
 }
 
 case class MatrixCollectColsByKey(child: MatrixIR) extends MatrixIR {
-  @transient lazy val children: IndexedSeq[BaseIR] = Array(child)
+  lazy val children: IndexedSeq[BaseIR] = Array(child)
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixCollectColsByKey = {
     assert(newChildren.length == 1)
@@ -428,7 +428,7 @@ case class MatrixCollectColsByKey(child: MatrixIR) extends MatrixIR {
 case class MatrixAggregateRowsByKey(child: MatrixIR, entryExpr: IR, rowExpr: IR) extends MatrixIR {
   require(child.typ.rowKey.nonEmpty)
 
-  @transient lazy val children: IndexedSeq[BaseIR] = Array(child, entryExpr, rowExpr)
+  lazy val children: IndexedSeq[BaseIR] = Array(child, entryExpr, rowExpr)
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixAggregateRowsByKey = {
     val IndexedSeq(newChild: MatrixIR, newEntryExpr: IR, newRowExpr: IR) = newChildren
@@ -690,7 +690,7 @@ case class MatrixAggregateRowsByKey(child: MatrixIR, entryExpr: IR, rowExpr: IR)
 case class MatrixAggregateColsByKey(child: MatrixIR, entryExpr: IR, colExpr: IR) extends MatrixIR {
   require(child.typ.colKey.nonEmpty)
 
-  @transient lazy val children: IndexedSeq[BaseIR] = Array(child, entryExpr, colExpr)
+  lazy val children: IndexedSeq[BaseIR] = Array(child, entryExpr, colExpr)
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixAggregateColsByKey = {
     val IndexedSeq(newChild: MatrixIR, newEntryExpr: IR, newColExpr: IR) = newChildren
@@ -1061,7 +1061,7 @@ case class MatrixAggregateColsByKey(child: MatrixIR, entryExpr: IR, colExpr: IR)
 }
 
 case class MatrixUnionCols(left: MatrixIR, right: MatrixIR) extends MatrixIR {
-  @transient lazy val children: IndexedSeq[BaseIR] = Array(left, right)
+  lazy val children: IndexedSeq[BaseIR] = Array(left, right)
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixUnionCols = {
     assert(newChildren.length == 2)
@@ -1075,7 +1075,7 @@ case class MatrixUnionCols(left: MatrixIR, right: MatrixIR) extends MatrixIR {
 }
 
 case class MatrixMapEntries(child: MatrixIR, newEntries: IR) extends MatrixIR {
-  @transient lazy val children: IndexedSeq[BaseIR] = Array(child, newEntries)
+  lazy val children: IndexedSeq[BaseIR] = Array(child, newEntries)
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixMapEntries = {
     assert(newChildren.length == 2)
@@ -1108,7 +1108,7 @@ case class MatrixKeyRowsBy(child: MatrixIR, keys: IndexedSeq[String], isSorted: 
 
 case class MatrixMapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
 
-  @transient lazy val children: IndexedSeq[BaseIR] = Array(child, newRow)
+  lazy val children: IndexedSeq[BaseIR] = Array(child, newRow)
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixMapRows = {
     assert(newChildren.length == 2)
@@ -1138,7 +1138,7 @@ case class MatrixMapRows(child: MatrixIR, newRow: IR) extends MatrixIR {
 }
 
 case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[String]]) extends MatrixIR {
-  @transient lazy val children: IndexedSeq[BaseIR] = Array(child, newCol)
+  lazy val children: IndexedSeq[BaseIR] = Array(child, newCol)
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixMapCols = {
     assert(newChildren.length == 2)
@@ -1461,7 +1461,7 @@ case class MatrixAnnotateColsTable(
   root: String) extends MatrixIR {
   require(child.typ.colType.fieldOption(root).isEmpty)
 
-  @transient lazy val children: IndexedSeq[BaseIR] = FastIndexedSeq(child, table)
+  lazy val children: IndexedSeq[BaseIR] = FastIndexedSeq(child, table)
 
   override def columnCount: Option[Call] = child.columnCount
 
@@ -1485,7 +1485,7 @@ case class MatrixAnnotateRowsTable(
   table: TableIR,
   root: String) extends MatrixIR {
 
-  @transient lazy val children: IndexedSeq[BaseIR] = FastIndexedSeq(child, table)
+  lazy val children: IndexedSeq[BaseIR] = FastIndexedSeq(child, table)
 
   override def columnCount: Option[Int] = child.columnCount
 
@@ -1507,7 +1507,7 @@ case class MatrixAnnotateRowsTable(
 case class MatrixExplodeRows(child: MatrixIR, path: IndexedSeq[String]) extends MatrixIR {
   assert(path.nonEmpty)
 
-  @transient lazy val children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
+  lazy val children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixExplodeRows = {
     val IndexedSeq(newChild) = newChildren
@@ -1539,7 +1539,7 @@ case class MatrixExplodeRows(child: MatrixIR, path: IndexedSeq[String]) extends 
 case class MatrixRepartition(child: MatrixIR, n: Int, strategy: Int) extends MatrixIR {
   val typ: MatrixType = child.typ
 
-  @transient lazy val children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
+  lazy val children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixRepartition = {
     val IndexedSeq(newChild: MatrixIR) = newChildren
@@ -1589,7 +1589,7 @@ case class MatrixDistinctByRow(child: MatrixIR) extends MatrixIR {
 
   val typ: MatrixType = child.typ
 
-  @transient lazy val children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
+  lazy val children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixDistinctByRow = {
     val IndexedSeq(newChild: MatrixIR) = newChildren
@@ -1603,7 +1603,7 @@ case class MatrixRowsHead(child: MatrixIR, n: Long) extends MatrixIR {
   require(n >= 0)
   val typ: MatrixType = child.typ
 
-  @transient lazy val children: IndexedSeq[BaseIR] = Array(child)
+  lazy val children: IndexedSeq[BaseIR] = Array(child)
 
   override def copy(newChildren: IndexedSeq[BaseIR]): MatrixRowsHead = {
     val IndexedSeq(newChild: MatrixIR) = newChildren
@@ -1615,7 +1615,7 @@ case class MatrixRowsHead(child: MatrixIR, n: Long) extends MatrixIR {
 
 case class MatrixExplodeCols(child: MatrixIR, path: IndexedSeq[String]) extends MatrixIR {
 
-  @transient lazy val children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
+  lazy val children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixExplodeCols = {
     val IndexedSeq(newChild) = newChildren
@@ -1669,7 +1669,7 @@ case class CastTableToMatrix(
 
   override lazy val rvdType: RVDType = child.rvdType.copy(rowType = child.rvdType.rowType.rename(m))
 
-  @transient lazy val children: IndexedSeq[BaseIR] = Array(child)
+  lazy val children: IndexedSeq[BaseIR] = Array(child)
 
   def copy(newChildren: IndexedSeq[BaseIR]): CastTableToMatrix = {
     assert(newChildren.length == 1)
@@ -1713,7 +1713,7 @@ case class CastTableToMatrix(
 }
 
 case class MatrixToMatrixApply(child: MatrixIR, function: MatrixToMatrixFunction) extends MatrixIR {
-  @transient lazy val children: IndexedSeq[BaseIR] = Array(child)
+  lazy val children: IndexedSeq[BaseIR] = Array(child)
 
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixIR = {
     val IndexedSeq(newChild: MatrixIR) = newChildren
@@ -1745,7 +1745,7 @@ case class MatrixRename(child: MatrixIR,
     rowType = child.typ.rowType.rename(rowMap),
     entryType = child.typ.entryType.rename(entryMap))
 
-  @transient lazy val children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
+  lazy val children: IndexedSeq[BaseIR] = FastIndexedSeq(child)
 
   override def partitionCounts: Option[IndexedSeq[Long]] = child.partitionCounts
 
