@@ -279,7 +279,7 @@ metadata:
   namespace: test
   name: delete-test-pvc
 rules:
-- apiGroups: ["*"]
+- apiGroups: [""]
   resources: ["persistentvolumeclaims"]
   verbs: ["delete"]
 ---
@@ -305,7 +305,7 @@ metadata:
   namespace: batch-pods
   name: delete-batch-pods-pvc
 rules:
-- apiGroups: ["*"]
+- apiGroups: [""]
   resources: ["persistentvolumeclaims"]
   verbs: ["delete"]
 ---
