@@ -119,45 +119,46 @@ class Job:
     def _has_next_task(self):
         return self._task_idx < len(self._tasks)
 
-    def pvc(self):
-        if self._pvc is None:
-            self._pvc = v1.create_namespaced_persistent_volume_claim(
-                POD_NAMESPACE,
-                kube.client.V1PersistentVolumeClaim(
-                    metadata=kube.client.V1ObjectMeta(
-                        generate_name=f'job-{self.id}-',
-                        labels={'app': 'batch-job',
-                                'hail.is/batch-instance': instance_id}),
-                    spec=kube.client.V1PersistentVolumeClaimSpec(
-                        access_modes=['ReadWriteOnce'],
-                        volume_mode='Filesystem',
-                        resources=kube.client.V1ResourceRequirements(
-                            requests={'storage': POD_VOLUME_SIZE}),
-                        storage_class_name=STORAGE_CLASS_NAME)),
-                _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
-            log.info(f'created pvc name: {self._pvc.metadata.name} for job {self.id}')
-        return self._pvc
+    def _create_pvc(self):
+        pvc = v1.create_namespaced_persistent_volume_claim(
+            POD_NAMESPACE,
+            kube.client.V1PersistentVolumeClaim(
+                metadata=kube.client.V1ObjectMeta(
+                    generate_name=f'job-{self.id}-',
+                    labels={'app': 'batch-job',
+                            'hail.is/batch-instance': instance_id}),
+                spec=kube.client.V1PersistentVolumeClaimSpec(
+                    access_modes=['ReadWriteOnce'],
+                    volume_mode='Filesystem',
+                    resources=kube.client.V1ResourceRequirements(
+                        requests={'storage': POD_VOLUME_SIZE}),
+                    storage_class_name=STORAGE_CLASS_NAME)),
+            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+        log.info(f'created pvc name: {self._pvc.metadata.name} for job {self.id}')
+        return pvc
 
     def _create_pod(self):
         assert not self._pod_name
         assert self._current_task is not None
 
         if len(self._tasks) > 1:
+            if self._pvc is None:
+                self._pvc = self._create_pvc()
             current_pod_spec = self._current_task.pod_template.spec
             if current_pod_spec.volumes is None:
                 current_pod_spec.volumes = []
             current_pod_spec.volumes.append(
                 kube.client.V1Volume(
                     persistent_volume_claim=kube.client.V1PersistentVolumeClaimVolumeSource(
-                        claim_name=self.pvc().metadata.name),
-                    name=self.pvc().metadata.name))
+                        claim_name=self._pvc.metadata.name),
+                    name=self._pvc.metadata.name))
             for container in current_pod_spec.containers:
                 if container.volume_mounts is None:
                     container.volume_mounts = []
                 container.volume_mounts.append(
                     kube.client.V1VolumeMount(
                         mount_path='/volume',
-                        name=self.pvc().metadata.name))
+                        name=self._pvc.metadata.name))
 
         pod = v1.create_namespaced_pod(
             POD_NAMESPACE,
