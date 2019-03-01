@@ -195,7 +195,7 @@ object PackDecoder {
     val row = rowFB.variable("row", "char *", s"$region->allocate(${ rt.alignment }, $initialSize)")
     rowFB += row.define
     rowFB += decode(t.fundamentalType, rt.fundamentalType, buf.ref, region.ref, row.ref, rowFB)
-    rowFB += s"return ${ returnVal(row) }"
+    rowFB += s"return ${ returnVal(row) };"
     rowFB.end()
 
     val byteFB = decoderBuilder.buildMethod("decode_byte", Array(), "char", const = true)
