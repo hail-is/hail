@@ -6,7 +6,7 @@ import gevent
 # must happen before anytyhing else
 from gevent import monkey; monkey.patch_all()
 
-from flask import Flask, session, redirect, render_template, request
+from flask import Flask, session, redirect, render_template, request, response
 from flask_sockets import Sockets
 import flask
 import sass
@@ -127,27 +127,7 @@ def requires_auth(for_page = True):
 
 def start_pod(jupyter_token, image, name, user_id):
     pod_id = uuid.uuid4().hex
-    service_spec = kube.client.V1ServiceSpec(
-        selector={
-            'app': 'notebook2-worker',
-            'hail.is/notebook2-instance': INSTANCE_ID,
-            'uuid': pod_id},
-        ports=[kube.client.V1ServicePort(port=80, target_port=8888)])
-    service_template = kube.client.V1Service(
-        metadata=kube.client.V1ObjectMeta(
-            generate_name='notebook2-worker-service-',
-            labels={
-                'app': 'notebook2-worker',
-                'hail.is/notebook2-instance': INSTANCE_ID,
-                'uuid': pod_id,
-                'name': name,
-                'user_id': user_id}),
-        spec=service_spec)
-    svc = k8s.create_namespaced_service(
-        'default',
-        service_template,
-        _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS
-    )
+
     pod_spec = kube.client.V1PodSpec(
         containers=[
             kube.client.V1Container(
@@ -155,7 +135,7 @@ def start_pod(jupyter_token, image, name, user_id):
                     'jupyter',
                     'notebook',
                     f'--NotebookApp.token={jupyter_token}',
-                    f'--NotebookApp.base_url=/instance/{svc.metadata.name}/'
+                    f'--NotebookApp.base_url=/instance/{pod_id}/'
                 ],
                 name='default',
                 image=image,
@@ -165,7 +145,7 @@ def start_pod(jupyter_token, image, name, user_id):
                 readiness_probe=kube.client.V1Probe(
                     period_seconds=5,
                     http_get=kube.client.V1HTTPGetAction(
-                        path=f'/instance/{svc.metadata.name}/login',
+                        path=f'/instance/{pod_id}/login',
                         port=8888)))])
     pod_template = kube.client.V1Pod(
         metadata=kube.client.V1ObjectMeta(
@@ -174,7 +154,6 @@ def start_pod(jupyter_token, image, name, user_id):
                 'app': 'notebook2-worker',
                 'hail.is/notebook2-instance': INSTANCE_ID,
                 'uuid': pod_id,
-                'svc_name': svc.metadata.name,
                 'name': name,
                 'jupyter_token': jupyter_token,
                 'user_id': user_id
@@ -199,15 +178,6 @@ def external_url_for(path):
 
 # FIXME: use hash
 def UNSAFE_user_id_transform(user_id): return user_id.replace('|', '--_--')
-
-
-def read_svc_status(svc_name: str):
-    try:
-        # TODO: inspect exception for non-404
-        _ = k8s.read_namespaced_service(svc_name, 'default')
-        return 'Running'
-    except Exception:
-        return 'Deleted'
 
 
 def read_containers_status(container_statuses):
@@ -274,28 +244,26 @@ def read_conditions(conds):
         "type": maxCond.type}
 
 
-def marshall_notebooks(pods = [], svc_status = None):
+def marshall_notebooks(pods = []):
     notebooks = []
 
     for pod in pods:
+        print("POD! ", pod)
+
         notebook = {
             'name': pod.metadata.labels['name'],
             'pod_name': pod.metadata.name,
-            'svc_name': pod.metadata.labels['svc_name'],
             'pod_status': pod.status.phase,
+            'pod_uuid': pod.metadata.labels['uuid'],
+            'pod_ip': pod.ip,
             'creation_date': pod.metadata.creation_timestamp.strftime('%D'),
             'jupyter_token': pod.metadata.labels['jupyter_token'],
             'container_status': read_containers_status(pod.status.container_statuses),
-            'condition': read_conditions(pod.status.conditions)
+            'condition': read_conditions(pod.status.conditions),
         }
 
-        notebook['url'] = f"/instance/{notebook['svc_name']}/?token={notebook['jupyter_token']}"
-
-        if svc_status is not None:
-            notebook['svc_status'] = svc_status
-        else:
-            notebook['svc_status'] = read_svc_status(notebook['svc_name'])
-
+        notebook['url'] = f"/instance/{notebook['pod_uuid']}/?token={notebook['jupyter_token']}"
+    
         notebooks.append(notebook)
 
     return notebooks
@@ -357,7 +325,7 @@ def notebook_delete():
     notebook = session.get('notebook')
 
     if notebook is not None:
-        delete_worker_pod(notebook['pod_name'], notebook['svc_name'])
+        delete_worker_pod(notebook['pod_name'])
         del session['notebook']
 
     return redirect(external_url_for('notebook'))
@@ -376,43 +344,30 @@ def notebook_post():
     safe_user_id = UNSAFE_user_id_transform(session['user']['id'])
 
     pod = start_pod(jupyter_token, WORKER_IMAGES[image], name, safe_user_id)
-    session['notebook'] = marshall_notebooks([pod], svc_status = "Running")[0]
+    session['notebook'] = marshall_notebooks([pod])[0]
 
     return redirect(external_url_for('notebook'))
 
 
-@app.route('/auth/<requested_svc_name>')
+@app.route('/auth/<requested_pod_uuid>')
 @requires_auth()
-def auth(requested_svc_name):
+def auth(requested_pod_uuid):
     notebook = session.get('notebook')
 
-    if notebook is not None and notebook['svc_name'] == requested_svc_name:
+    if notebook is not None and notebook['pod_uuid'] == requested_pod_uuid:
+        res = response.make_response()
+        res.headers['ip']
         return '', 200
 
     return '', 404
 
 
 def get_all_workers():
-    workers = k8s.list_namespaced_pod(
+    return k8s.list_namespaced_pod(
         namespace='default',
         watch=False,
         label_selector='app=notebook2-worker',
         _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
-    workers_and_svcs = []
-    for w in workers.items:
-        uuid = w.metadata.labels['uuid']
-        svcs = k8s.list_namespaced_service(
-            namespace='default',
-            watch=False,
-            label_selector='uuid=' + uuid,
-            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS).items
-        assert len(svcs) <= 1
-        if len(svcs) == 1:
-            workers_and_svcs.append((w, svcs[0]))
-        else:
-            log.info(f'assuming pod {w.metadata.name} is getting deleted '
-                     f'because it has no service')
-    return workers_and_svcs
 
 
 @app.route('/workers')
@@ -455,15 +410,7 @@ def delete_worker_pod(pod_name, svc_name):
             kube.client.V1DeleteOptions(),
             _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
     except kube.client.rest.ApiException as e:
-        log.info(f'pod {pod_name} or associated service already deleted {e}')
-    try:
-        k8s.delete_namespaced_service(
-            svc_name,
-            'default',
-            kube.client.V1DeleteOptions(),
-            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
-    except kube.client.rest.ApiException as e:
-        log.info(f'service {svc_name} (for pod {pod_name}) already deleted {e}')
+        log.info(f'pod {pod_name} already deleted {e}')
 
 
 @app.route('/admin-login', methods=['GET'])
