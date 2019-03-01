@@ -355,8 +355,7 @@ class Job:
             if self._has_next_task():
                 self._create_pod()
                 return
-            else:
-                self._delete_pvc()
+            self._delete_pvc()
         else:
             self._delete_pvc()
 
