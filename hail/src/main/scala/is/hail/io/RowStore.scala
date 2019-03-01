@@ -34,7 +34,7 @@ trait BufferSpec extends Serializable {
   def nativeInputBufferType: String
 }
 
-final class LEB128BufferSpec(child: BufferSpec) extends BufferSpec {
+final case class LEB128BufferSpec(child: BufferSpec) extends BufferSpec {
   def buildInputBuffer(in: InputStream): InputBuffer = new LEB128InputBuffer(child.buildInputBuffer(in))
 
   def buildOutputBuffer(out: OutputStream): OutputBuffer = new LEB128OutputBuffer(child.buildOutputBuffer(out))
@@ -44,7 +44,7 @@ final class LEB128BufferSpec(child: BufferSpec) extends BufferSpec {
   def nativeInputBufferType: String = s"LEB128InputBuffer<${ child.nativeInputBufferType }>"
 }
 
-final class BlockingBufferSpec(blockSize: Int, child: BlockBufferSpec) extends BufferSpec {
+final case class BlockingBufferSpec(blockSize: Int, child: BlockBufferSpec) extends BufferSpec {
   def buildInputBuffer(in: InputStream): InputBuffer = new BlockingInputBuffer(blockSize, child.buildInputBuffer(in))
 
   def buildOutputBuffer(out: OutputStream): OutputBuffer = new BlockingOutputBuffer(blockSize, child.buildOutputBuffer(out))
@@ -64,7 +64,7 @@ trait BlockBufferSpec extends Serializable {
   def nativeInputBufferType: String
 }
 
-final class LZ4BlockBufferSpec(blockSize: Int, child: BlockBufferSpec) extends BlockBufferSpec {
+final case class LZ4BlockBufferSpec(blockSize: Int, child: BlockBufferSpec) extends BlockBufferSpec {
   def buildInputBuffer(in: InputStream): InputBlockBuffer = new LZ4InputBlockBuffer(blockSize, child.buildInputBuffer(in))
 
   def buildOutputBuffer(out: OutputStream): OutputBlockBuffer = new LZ4OutputBlockBuffer(blockSize, child.buildOutputBuffer(out))
@@ -86,6 +86,8 @@ final class StreamBlockBufferSpec extends BlockBufferSpec {
   def nativeOutputBufferType: String = s"StreamOutputBlockBuffer"
 
   def nativeInputBufferType: String = s"StreamInputBlockBuffer"
+
+  override def equals(other: Any): Boolean = other.isInstanceOf[StreamBlockBufferSpec]
 }
 
 object CodecSpec {

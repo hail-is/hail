@@ -153,6 +153,7 @@ object InferType {
       case MatrixToValueApply(child, function) => function.typ(child.typ)
       case BlockMatrixToValueApply(child, function) => function.typ(child.typ)
       case CollectDistributedArray(_, _, _, _, body) => TArray(body.typ)
+      case ReadPartition(_, _, _, rowType) => TArray(rowType)
     }
   }
 }

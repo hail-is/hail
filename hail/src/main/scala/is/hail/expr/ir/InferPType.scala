@@ -144,6 +144,7 @@ object InferPType {
       case MatrixToValueApply(child, function) => PType.canonical(function.typ(child.typ))
       case BlockMatrixToValueApply(child, function) => PType.canonical(function.typ(child.typ))
       case CollectDistributedArray(_, _, _, _, body) => PArray(body.pType)
+      case ReadPartition(_, _, _, rowType) => PType.canonical(TArray(rowType))
     }
   }
 }
