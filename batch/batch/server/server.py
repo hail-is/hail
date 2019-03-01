@@ -113,8 +113,6 @@ class Job:
         self._task_idx += 1
         if self._task_idx < len(self._tasks):
             self._current_task = self._tasks[self._task_idx]
-        else:
-            self._delete_pvc()
 
     def _has_next_task(self):
         return self._task_idx < len(self._tasks)
@@ -138,7 +136,7 @@ class Job:
         return pvc
 
     def _create_pod(self):
-        assert not self._pod_name
+        assert self._pod_name is not None
         assert self._current_task is not None
 
         if len(self._tasks) > 1:
@@ -186,9 +184,8 @@ class Job:
                 if err.status == 404:
                     log.info(f'persistent volume claim {self._pvc.metadata.name} in '
                              f'{self._pvc.metadata.namespace} is already deleted')
-                else:
-                    log.warning(f'persistent volume claim {self._pvc.metadata.name} in '
-                                f'{self._pvc.metadata.namespace} could not be deleted')
+                    return
+                raise
 
     def _delete_k8s_resources(self):
         self._delete_pvc()
@@ -202,8 +199,7 @@ class Job:
             except kube.client.rest.ApiException as err:
                 if err.status == 404:
                     pass
-                else:
-                    raise
+                raise
             del pod_name_job[self._pod_name]
             self._pod_name = None
 
@@ -359,6 +355,8 @@ class Job:
             if self._has_next_task():
                 self._create_pod()
                 return
+            else:
+                self._delete_pvc()
         else:
             self._delete_pvc()
 
