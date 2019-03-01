@@ -255,7 +255,7 @@ def marshall_notebooks(pods = []):
             'pod_name': pod.metadata.name,
             'pod_status': pod.status.phase,
             'pod_uuid': pod.metadata.labels['uuid'],
-            'pod_ip': pod.ip,
+            'pod_ip': pod.status.pod_ip,
             'creation_date': pod.metadata.creation_timestamp.strftime('%D'),
             'jupyter_token': pod.metadata.labels['jupyter_token'],
             'container_status': read_containers_status(pod.status.container_statuses),
@@ -282,7 +282,7 @@ def get_live_user_notebooks(user_id = None):
         return None
 
     # Kubernetes service will reflect the change immediately, pod will not
-    notebooks = list(filter(lambda n: n['svc_status'] != 'Deleted', marshall_notebooks(pods)))
+    notebooks = list(filter(lambda n: n['container_status']['terminated'] is None, marshall_notebooks(pods)))
 
     if len(notebooks) == 0:
         return None
