@@ -10,9 +10,7 @@
   <div id="profile-divider"></div>
 
   {% if session['user'] %}
-      <a class='link-button'  href="/user">
-        <b>{{ session['user']['name'] }}</b>
-      </a>
+    <b id='user-name'>{{ session['user']['name'] }}</b>
     <form action='/logout' method='POST'>
       <button class='link-button' type='submit'>
         Log out
