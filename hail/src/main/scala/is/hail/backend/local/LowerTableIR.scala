@@ -1,7 +1,7 @@
 package is.hail.backend.local
 
 import is.hail.expr.ir._
-import is.hail.HailContext
+import is.hail.{HailContext, cxx}
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.types.virtual._
 import is.hail.rvd.AbstractRVDSpec
@@ -24,7 +24,7 @@ case class LocalTableIR(
 
   def close(x: IR): IR = close(x, globals)
 
-  def closedGlobals(): IR = globals match {
+  def closedGlobals(): IR = (globals: @unchecked) match {
     case LocalBinding(g, gv) :: rest =>
       close(gv, rest)
   }
@@ -131,6 +131,7 @@ object LowerTableIR {
               ArrayRange(I32(0), I32(n.toInt), I32(1)),
               i,
               ArrayRef(Ref(rows, p.rows.typ), Ref(i, TInt32()))))))
+    case _ => throw new cxx.CXXUnsupportedOperation(tir.toString)
   }
 
   def lower(mir: MatrixIR): MatrixIR = ???

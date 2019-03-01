@@ -4,6 +4,7 @@ MAINTAINER Hail Team <hail@broadinstitute.org>
 RUN apk add \
   bash \
   gcc \
+  g++ \
   libffi-dev \
   musl-dev \
   openssl-dev \

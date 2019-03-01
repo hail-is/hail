@@ -6,14 +6,16 @@ from .utils import escape_string
 class Resource:
     _uid: str
 
-    @property
     @abc.abstractmethod
-    def file_name(self) -> str:
+    def _get_path(self, directory) -> str:
         pass
 
-    def declare(self, directory=None):
-        directory = directory + '/' if directory else ''
-        return f"{self._uid}={escape_string(directory + self.file_name)}"
+    @abc.abstractmethod
+    def _add_output_path(self, path):
+        pass
+
+    def _declare(self, directory):
+        return f"{self._uid}={escape_string(self._get_path(directory))}"
 
 
 class ResourceFile(Resource, str):
@@ -27,29 +29,55 @@ class ResourceFile(Resource, str):
         cls._counter += 1
         return uid
 
+    def __new__(cls, value):  # pylint: disable=W0613
+        uid = ResourceFile._new_uid()
+        r = str.__new__(cls, uid)
+        r._uid = uid
+        return r
+
     def __init__(self, value):
         super(ResourceFile, self).__init__()
         assert value is None or isinstance(value, str)
         self._value = value
         self._source = None
-        self._uid = ResourceFile._new_uid()
         self._output_paths = set()
+        self._resource_group = None
+        self._has_extension = False
 
-    def add_source(self, source):
+    def _get_path(self, directory):
+        raise NotImplementedError
+
+    def _add_source(self, source):
         from .task import Task
         assert isinstance(source, Task)
         self._source = source
         return self
 
-    def add_output_path(self, path):
+    def _add_output_path(self, path):
         self._output_paths.add(path)
+        if self._source is not None:
+            self._source._add_outputs(self)
 
-    @property
-    def file_name(self):
-        assert self._value is not None
-        return self._value
+    def _add_resource_group(self, rg):
+        self._resource_group = rg
+
+    def _has_resource_group(self):
+        return self._resource_group is not None
+
+    def _get_resource_group(self):
+        return self._resource_group
+
+    def add_extension(self, extension):
+        if self._has_extension:
+            raise Exception("Resource already has a file extension added.")
+        self._value += extension
+        self._has_extension = True
+        return self
 
     def __str__(self):
+        return self._uid
+
+    def __repr__(self):
         return self._uid
 
 
@@ -58,13 +86,20 @@ class InputResourceFile(ResourceFile):
         self._input_path = None
         super().__init__(value)
 
-    def add_input_path(self, path):
+    def _add_input_path(self, path):
         self._input_path = path
         return self
 
+    def _get_path(self, directory):
+        assert self._value is not None
+        return directory + '/inputs/' + self._value
+
 
 class TaskResourceFile(ResourceFile):
-    pass
+    def _get_path(self, directory):
+        assert self._source is not None
+        assert self._value is not None
+        return directory + '/' + self._source._uid + '/' + self._value
 
 
 class ResourceGroup(Resource):
@@ -85,15 +120,19 @@ class ResourceGroup(Resource):
         self._uid = ResourceGroup._new_uid()
         self._output_paths = set()
 
-        for name, resource in values.items():
-            self._resources[name] = resource
+        for name, resource_file in values.items():
+            assert isinstance(resource_file, ResourceFile)
+            self._resources[name] = resource_file
+            resource_file._add_resource_group(self)
 
-    @property
-    def file_name(self):
-        return self._root
+    def _get_path(self, directory):
+        subdir = self._source._uid if self._source else 'inputs'
+        return directory + '/' + subdir + '/' + self._root
 
-    def add_output_path(self, path):
+    def _add_output_path(self, path):
         self._output_paths.add(path)
+        if self._source is not None:
+            self._source._add_outputs(self)
 
     def _get_resource(self, item):
         if item not in self._resources:

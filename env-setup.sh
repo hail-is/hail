@@ -67,7 +67,7 @@ fi
 kubectl version -c || gcloud components install kubectl
 kubectl version || gcloud container clusters get-credentials $CLUSTER_NAME --region us-central1-a
 
-for project in $(cat projects.txt)
+for project in $(cat projects.yaml | grep '^- project: ' | sed 's/^- project: //')
 do
     if [[ -e $project/environment.yml ]]
     then

@@ -71,8 +71,8 @@ class BlockMatrixIRSuite extends SparkSuite {
 
   @Test def testBlockMatrixBroadcastValue_Scalars() {
     val broadcastTwo = BlockMatrixBroadcast(
-      ValueToBlockMatrix(MakeArray(Seq[F64](F64(2)), TArray(TFloat64())), Array[Long](1, 1), 0, Array[Boolean]()),
-        IndexedSeq(), shape, 0, Array[Boolean](false, false))
+      ValueToBlockMatrix(MakeArray(Seq[F64](F64(2)), TArray(TFloat64())), Array[Long](1, 1), 0),
+        IndexedSeq(), shape, 0)
 
     val onesAddTwo = makeMap2(new BlockMatrixLiteral(ones), broadcastTwo, Add())
     val threesSubTwo = makeMap2(new BlockMatrixLiteral(threes), broadcastTwo, Subtract())
@@ -92,9 +92,9 @@ class BlockMatrixIRSuite extends SparkSuite {
     val vectorLiteral = MakeArray(Seq[F64](F64(1), F64(2), F64(3)), TArray(TFloat64()))
 
     val broadcastRowVector = BlockMatrixBroadcast(ValueToBlockMatrix(vectorLiteral, Array[Long](1, 3),
-      0, Array(false)), IndexedSeq(1), shape, 0, Array[Boolean](false, false))
+      0), IndexedSeq(1), shape, 0)
     val broadcastColVector = BlockMatrixBroadcast(ValueToBlockMatrix(vectorLiteral, Array[Long](3, 1),
-      0, Array(false)), IndexedSeq(0), shape, 0, Array[Boolean](false, false))
+      0), IndexedSeq(0), shape, 0)
 
     // Addition
     val actualOnesAddRowOnRight = makeMap2(new BlockMatrixLiteral(ones), broadcastRowVector, Add())

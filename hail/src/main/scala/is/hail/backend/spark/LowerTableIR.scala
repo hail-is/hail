@@ -79,28 +79,15 @@ case class SparkStage(
     val globsBC = RegionValue.toBytes(gEncoder, region, rvb2.end())
     val gDecoder = codecSpec.buildDecoder(gType.physicalType, gType.physicalType)
 
-    val env = Env[IR](("context", In(1, contextType)) +: broadcastVals.map(b => b.name -> GetField(In(0, gType), b.name)): _*)
+    val bindings = genUID()
+    val env = Env[IR](broadcastVals.map(b => b.name -> GetField(Ref(bindings, gType), b.name)): _*)
     val resultIR = MakeTuple(FastSeq(Subst(body, env)))
     val resultType = TTuple(body.typ).physicalType
 
     val tub = new cxx.TranslationUnitBuilder()
-    tub.include("hail/hail.h")
-    tub.include("hail/Utils.h")
-    tub.include("hail/Region.h")
-
-    tub.include("<cstring>")
-    val ef = tub.buildFunction("process_partition", Array("RegionPtr" -> "region", "const char *" -> "bindings", "const char *" -> "contexts"), "const char *")
-
-    val et = cxx.Emit(ef, 1, resultIR)
-    ef +=
-      s"""
-         |${ et.setup }
-         |if (${ et.m }) {
-         |  ${ ef.nativeError("return value for partition cannot be missing.") }
-         |}
-         |return (${ et.v });
-       """.stripMargin
-    ef.end()
+    val f = cxx.Compile.makeNonmissingFunction(tub, resultIR,
+      bindings -> gType.physicalType,
+      "context" -> contextType.physicalType)
 
     val wrapper = tub.buildFunction(
       "process_partition_wrapper",
@@ -109,7 +96,7 @@ case class SparkStage(
     wrapper +=
       s"""
          |try {
-         |  return (long) process_partition(((ScalaRegion *)${ wrapper.getArg(1) })->region_, (char *)${ wrapper.getArg(2) }, (char *)${ wrapper.getArg(3) });
+         |  return (long) ${ f.name }(((ScalaRegion *)${ wrapper.getArg(1) })->region_, (char *)${ wrapper.getArg(2) }, (char *)${ wrapper.getArg(3) });
          |} catch (const FatalError& e) {
          |  NATIVE_ERROR(${ wrapper.getArg(0) }, 1005, e.what());
          |  return -1;

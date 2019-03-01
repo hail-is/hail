@@ -176,7 +176,7 @@ case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) 
 
   protected[ir] override def execute(hc: HailContext): TableValue = {
     val Row(rows: IndexedSeq[Row], globals: Row) = Interpret[Row](rowsAndGlobal, optimize = false)
-    rows.zipWithIndex.foreach { case (r, idx) =>
+    rows.zipWithIndex.foreach { case (r: Row, idx) =>
       if (r == null)
         fatal(s"cannot parallelize null values: found null value at index $idx")
     }
@@ -1535,5 +1535,23 @@ case class TableToTableApply(child: TableIR, function: TableToTableFunction) ext
 
   protected[ir] override def execute(hc: HailContext): TableValue = {
     function.execute(child.execute(hc))
+  }
+}
+
+case class BlockMatrixToTable(child: BlockMatrixIR) extends TableIR {
+  def children: IndexedSeq[BaseIR] = Array(child)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): TableIR = {
+    val IndexedSeq(newChild: BlockMatrixIR) = newChildren
+    BlockMatrixToTable(newChild)
+  }
+
+  override val typ: TableType = {
+    val rvType = TStruct("i" -> TInt64Optional, "j" -> TInt64Optional, "entry" -> TFloat64Optional)
+    TableType(rvType, Array[String](), TStruct.empty())
+  }
+
+  protected[ir] override def execute(hc: HailContext): TableValue = {
+    child.execute(hc).entriesTable()
   }
 }

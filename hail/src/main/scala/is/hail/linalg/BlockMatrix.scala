@@ -1191,7 +1191,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
       blockSize, keepRows.length, keepCols.length)
   }
 
-  def entriesTable(): TableIR = {
+  def entriesTable(): TableValue = {
     val rowType = TStruct("i" -> TInt64Optional, "j" -> TInt64Optional, "entry" -> TFloat64Optional)
     
     val entriesRDD = ContextRDD.weaken[RVDContext](blocks).cflatMap { case (ctx, ((blockRow, blockCol), block)) =>
@@ -1215,7 +1215,7 @@ class BlockMatrix(val blocks: RDD[((Int, Int), BDM[Double])],
         }
     }
 
-    TableLiteral(TableValue(rowType, FastIndexedSeq(), entriesRDD))
+    TableValue(rowType, FastIndexedSeq(), entriesRDD)
   }
 }
 
@@ -1559,9 +1559,9 @@ case class WriteBlocksRDDPartition(
 }
 
 class WriteBlocksRDD(path: String,
-  @transient rvd: RVD,
+  rvd: RVD,
   sc: SparkContext,
-  @transient parentPartStarts: Array[Long],
+  parentPartStarts: Array[Long],
   entryField: String,
   gp: GridPartitioner) extends RDD[(Int, String)](sc, Nil) {
 

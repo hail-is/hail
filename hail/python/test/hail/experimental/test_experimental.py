@@ -272,3 +272,8 @@ class Tests(unittest.TestCase):
         mt = (hl.experimental.sparse_split_multi(unsplit_mt)
               .drop('a_index', 'was_split').select_entries(*expected_split_mt.entry.keys()))
         assert mt._same(expected_split_mt)
+
+    def test_define_function(self):
+        f = hl.experimental.define_function(
+            lambda a, b: (a + 7) * b, hl.tint32, hl.tint32)
+        self.assertEqual(hl.eval(f(1, 3)), 24)

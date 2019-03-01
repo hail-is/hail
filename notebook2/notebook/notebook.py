@@ -112,8 +112,7 @@ def requires_auth(for_page = True):
         @wraps(f)
         def decorated(*args, **kwargs):
             if 'user' not in session:
-                # Redirect to Login page here
-                if for_page is True:
+                if for_page:
                     session['referrer'] = request.url
                     return redirect(flask.url_for('login_page'))
 
@@ -226,7 +225,7 @@ def new_get():
     if svc_name is not None:
         del session['svc_name']
 
-    return redirect(external_url_for('/notebook'))
+    return redirect(external_url_for(''))
 
 
 @app.route('/new', methods=['POST'])
