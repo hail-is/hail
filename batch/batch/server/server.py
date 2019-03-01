@@ -354,9 +354,12 @@ class Job:
             self._pod_name = None
 
         self._next_task()
-        if self.exit_code == 0 and self._has_next_task():
-            self._create_pod()
-            return
+        if self.exit_code == 0:
+            if self._has_next_task():
+                self._create_pod()
+                return
+        else:
+            self._delete_pvc()
 
         self.set_state('Complete')
 
