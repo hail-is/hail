@@ -226,6 +226,15 @@ class VCFTests(unittest.TestCase):
 
         assert hl.import_vcf(tmp)._same(mt)
 
+    def test_export_vcf_no_alt_alleles(self):
+        mt = hl.import_vcf(resource('gvcfs/HG0096_excerpt.g.vcf'), reference_genome='GRCh38')
+        self.assertEqual(mt.filter_rows(hl.len(mt.alleles) == 1).count_rows(), 5)
+
+        tmp = new_temp_file(suffix="vcf")
+        hl.export_vcf(mt, tmp)
+        mt2 = hl.import_vcf(tmp, reference_genome='GRCh38')
+        self.assertTrue(mt._same(mt2))
+
     @skip_unless_spark_backend()
     def test_import_vcfs(self):
         path = resource('sample.vcf.bgz')
