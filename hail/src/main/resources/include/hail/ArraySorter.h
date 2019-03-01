@@ -17,7 +17,7 @@ class ArraySorter {
       LessThan lt_;
 
       SortableElem(T elem) : elem_(elem) { }
-      friend bool operator<(const SortableElem& lhs, const SortableElem& rhs) { return lhs.lt_(nullptr, lhs.elem_, rhs.elem_); }
+      friend bool operator<(const SortableElem& lhs, const SortableElem& rhs) { return lhs.lt_(lhs.elem_, rhs.elem_); }
     };
 
     std::vector<SortableElem> non_missing_;
@@ -39,8 +39,8 @@ class ArraySorter {
     template<typename IsEqual>
     void distinct() {
       IsEqual eq_;
-      for (auto it = non_missing_.begin(); it != non_missing_.end(); ) {
-        if (eq_(*it, *(it + 1))) {
+      for (auto it = ++non_missing_.begin(); it != non_missing_.end(); ) {
+        if (eq_((*it).elem_, (*(it - 1)).elem_)) {
             it = non_missing_.erase(it);
         } else { ++it; }
       }
