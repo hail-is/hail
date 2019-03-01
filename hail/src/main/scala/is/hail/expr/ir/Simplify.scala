@@ -537,6 +537,6 @@ object Simplify {
   }
 
   private[this] def blockMatrixRules: PartialFunction[BlockMatrixIR, BlockMatrixIR] = {
-    case BlockMatrixBroadcast(child, IndexedSeq(0, 1), _, _, _) => child
+    case BlockMatrixBroadcast(child, IndexedSeq(0, 1), _, _) => child
   }
 }

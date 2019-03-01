@@ -113,10 +113,9 @@ def requires_auth(for_page = True):
         @wraps(f)
         def decorated(*args, **kwargs):
             if 'user' not in session:
-                # Redirect to Login page here
-                if for_page is True:
+                if for_page:
                     session['referrer'] = request.url
-                    return redirect(flask.url_for('login_page'))
+                    return redirect(external_url_for('login'))
 
                 return '', 401
 
@@ -340,7 +339,7 @@ def notebook_page():
 
     if notebooks is None:
         return render_template('notebook.html',
-                               form_action_url=flask.url_for('notebook_post'),
+                               form_action_url=external_url_for('notebook'),
                                images=list(WORKER_IMAGES),
                                default='hail')
 
@@ -361,17 +360,15 @@ def notebook_delete():
         delete_worker_pod(notebook['pod_name'], notebook['svc_name'])
         del session['notebook']
 
-
-    return redirect(flask.url_for('notebook_page'))
+    return redirect(external_url_for('notebook'))
 
 
 @app.route('/notebook', methods=['POST'])
 @requires_auth()
 def notebook_post():
     image = request.form['image']
-    print("IMAGE", image)
+
     if image not in WORKER_IMAGES:
-        print("NOT IN")
         return '', 404
 
     jupyter_token = uuid.uuid4().hex
@@ -381,7 +378,7 @@ def notebook_post():
     pod = start_pod(jupyter_token, WORKER_IMAGES[image], name, safe_user_id)
     session['notebook'] = marshall_notebooks([pod], svc_status = "Running")[0]
 
-    return redirect(flask.url_for('notebook_page'))
+    return redirect(external_url_for('notebook'))
 
 
 @app.route('/auth/<requested_svc_name>')
@@ -535,7 +532,7 @@ def auth0_callback():
     del session['workshop_password']
 
     if AUTHORIZED_USERS.get(email) is None and workshop_password != PASSWORD:
-        return redirect(flask.url_for('error_page', err = 'Unauthorized'))
+        return redirect(external_url_for(f"error?err=Unauthorized"))
 
     session['user'] = {
         'id': userinfo['sub'],
@@ -571,7 +568,6 @@ def login_auth0():
 
 
 @app.route('/logout', methods=['POST'])
-@requires_auth()
 def logout():
     session.clear()
     params = {'returnTo': flask.url_for('root', _external=True), 'client_id': AUTH0_CLIENT_ID}

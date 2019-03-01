@@ -3,7 +3,7 @@ import uuid
 
 from .backend import LocalBackend
 from .task import Task
-from .resource import ResourceGroup, InputResourceFile, TaskResourceFile
+from .resource import Resource, InputResourceFile, TaskResourceFile, ResourceGroup
 
 
 class Pipeline:
@@ -54,13 +54,13 @@ class Pipeline:
 
     def _new_task_resource_file(self, source, value=None):
         trf = TaskResourceFile(value if value else self._tmp_file())
-        trf.add_source(source)
+        trf._add_source(source)
         self._resource_map[trf._uid] = trf
         return trf
 
     def _new_input_resource_file(self, input_path, value=None):
         irf = InputResourceFile(value if value else self._tmp_file())
-        irf.add_input_path(input_path)
+        irf._add_input_path(input_path)
         self._resource_map[irf._uid] = irf
         return irf
 
@@ -81,8 +81,11 @@ class Pipeline:
         self._resource_map.update({rg._uid: rg})
         return rg
 
-    def read_input(self, path):
-        return self._new_input_resource_file(path)
+    def read_input(self, path, extension=None):
+        irf = self._new_input_resource_file(path)
+        if extension is not None:
+            irf.add_extension(extension)
+        return irf
 
     def read_input_group(self, **kwargs):
         root = self._tmp_file()
@@ -92,7 +95,14 @@ class Pipeline:
         return rg
 
     def write_output(self, resource, dest):  # pylint: disable=R0201
-        resource.add_output_path(dest)
+        if not isinstance(resource, Resource):
+            raise Exception(f"'write_output' only accepts Resource inputs. Found '{type(resource)}'.")
+        if isinstance(resource, TaskResourceFile) and resource not in resource._source._mentioned:
+            name = resource._source._resources_inverse
+            raise Exception(f"undefined resource '{name}'\n"
+                            f"Hint: resources must be defined within the "
+                            "task methods 'command' or 'declare_resource_group'")
+        resource._add_output_path(dest)
 
     def select_tasks(self, pattern):
         return [task for task in self._tasks if task._label is not None and re.match(pattern, task._label) is not None]

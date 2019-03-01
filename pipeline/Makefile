@@ -1,7 +1,7 @@
 .PHONY: test-local test-local-in-cluster clean build
 
 IGNORED_FILE_PATTERN := \( -name '*~' -o -name '*.log' \)
-BATCH_PY_FILES = $(shell find ../batch -iname \*.py -not $(IGNORED_FILE_PATTERN) \; -print)
+BATCH_PY_FILES = $(shell find ../batch -iname \*.py -not $(IGNORED_FILE_PATTERN) -print)
 PIPELINE_PY_FILES = $(shell find pipeline -iname \*.py -not -exec git check-ignore -q {} \; -print)
 PY_CHECKERS = build/flake8 build/pylint
 

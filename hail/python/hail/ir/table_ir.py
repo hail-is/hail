@@ -457,6 +457,7 @@ def regression_test_type(test):
         assert test == 'firth', test
         return dtype(f'struct{{beta:float64,chi_sq_stat:float64,p_value:float64,fit:{glm_fit_schema}}}')
 
+
 class MatrixToTableApply(TableIR):
     def __init__(self, child, config):
         super().__init__()
@@ -525,6 +526,18 @@ class MatrixToTableApply(TableIR):
                 hl.tstruct(),
                 child_typ.row_key_type._insert_fields(mean=hl.tfloat64, centered_length_rec=hl.tfloat64),
                 list(child_typ.row_key))
+
+
+class BlockMatrixToTable(TableIR):
+    def __init__(self, child):
+        super().__init__()
+        self.child = child
+
+    def render(self, r):
+        return f'(BlockMatrixToTable {r(self.child)})'
+
+    def _compute_type(self):
+        self._type = hl.ttable(hl.tstruct(), hl.tstruct(**{'i': hl.tint64, 'j': hl.tint64, 'entry': hl.tfloat64}), [])
 
 
 class JavaTable(TableIR):

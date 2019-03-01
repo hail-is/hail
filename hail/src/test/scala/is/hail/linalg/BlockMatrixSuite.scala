@@ -7,6 +7,7 @@ import is.hail.check.Arbitrary._
 import is.hail.check.Prop._
 import is.hail.check.Gen._
 import is.hail.check._
+import is.hail.expr.ir.TableLiteral
 import is.hail.linalg.BlockMatrix.ops._
 import is.hail.expr.types._
 import is.hail.expr.types.virtual.{TFloat64Optional, TInt64Optional, TStruct}
@@ -744,7 +745,7 @@ class BlockMatrixSuite extends SparkSuite {
     val expectedSignature = TStruct("i" -> TInt64Optional, "j" -> TInt64Optional, "entry" -> TFloat64Optional)
 
     for {blockSize <- Seq(1, 4, 10)} {
-      val entriesTable = new Table(hc, toBM(lm, blockSize).entriesTable())
+      val entriesTable = new Table(hc, TableLiteral(toBM(lm, blockSize).entriesTable()))
       val entries = entriesTable.collect().map(row => (row.get(0), row.get(1), row.get(2))).toSet
       // block size affects order of rows in table, but sets will be the same
       assert(entries === expectedEntries)
@@ -759,9 +760,9 @@ class BlockMatrixSuite extends SparkSuite {
     val bm = toBM(lm, blockSize = 2)
 
     val expected = new Table(hc,
-      bm
+      TableLiteral(bm
         .filterBlocks(Array(0, 1, 6))
-        .entriesTable())
+        .entriesTable()))
       .collect()
       .sortBy(r => (r.get(0).asInstanceOf[Long], r.get(1).asInstanceOf[Long]))
       .map(r => r.get(2).asInstanceOf[Double])

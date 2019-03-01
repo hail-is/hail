@@ -9,8 +9,8 @@ RUN apk add \
   openssl-dev \
   python3 \
   python3-dev && \
-  # <19 due to https://github.com/pypa/pip/issues/6197
-  pip3 install -U 'pip<19' && \
+  # >=19.0.2 due to https://github.com/pypa/pip/issues/6197#issuecomment-462014853
+  pip3 install -U 'pip>=19.0.2' && \
   pip3 install --no-cache-dir \
   flask \
   Flask_Sockets \

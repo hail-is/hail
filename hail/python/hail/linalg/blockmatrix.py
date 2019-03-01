@@ -8,7 +8,7 @@ from hail.expr import construct_expr
 from hail.ir import BlockMatrixWrite, BlockMatrixMap2, ApplyBinaryOp, Ref, F64, \
     BlockMatrixBroadcast, ValueToBlockMatrix, MakeArray, BlockMatrixRead, JavaBlockMatrix, BlockMatrixMap, \
     ApplyUnaryOp, IR, BlockMatrixDot, tensor_shape_to_matrix_shape, BlockMatrixAgg, BlockMatrixRandom, \
-    BlockMatrixToValueApply
+    BlockMatrixToValueApply, BlockMatrixToTable
 from hail.ir.blockmatrix_reader import BlockMatrixNativeReader, BlockMatrixBinaryReader
 from hail.ir.blockmatrix_writer import BlockMatrixBinaryWriter, BlockMatrixNativeWriter
 from hail.utils import new_temp_file, new_local_temp_file, local_path_uri, storage_level
@@ -443,7 +443,7 @@ class BlockMatrix(object):
         if not block_size:
             block_size = BlockMatrix.default_block_size()
 
-        rand = BlockMatrixRandom(seed, gaussian, [n_rows, n_cols], block_size, [True])
+        rand = BlockMatrixRandom(seed, gaussian, [n_rows, n_cols], block_size)
         return BlockMatrix(rand)
 
     @classmethod
@@ -480,7 +480,7 @@ class BlockMatrix(object):
 
         bmir = BlockMatrixBroadcast(_to_bmir(value, block_size),
                                     [], [n_rows, n_cols],
-                                    block_size, [True, True])
+                                    block_size)
         return BlockMatrix(bmir)
 
     @classmethod
@@ -822,12 +822,6 @@ class BlockMatrix(object):
         else:
             return self.filter(rows_to_keep, cols_to_keep)
 
-    @typecheck_method(table=Table,
-                      radius=int,
-                      include_diagonal=bool)
-    def _filtered_entries_table(self, table, radius, include_diagonal):
-        return Table._from_java(self._jbm.filteredEntriesTable(table._jt, radius, include_diagonal))
-
     @typecheck_method(lower=int, upper=int, blocks_only=bool)
     def sparsify_band(self, lower=0, upper=0, blocks_only=False):
         r"""Filter to a diagonal band.
@@ -1158,8 +1152,7 @@ class BlockMatrix(object):
         return BlockMatrix(BlockMatrixBroadcast(self._bmir,
                                                 [1, 0],
                                                 [self.n_cols, self.n_rows],
-                                                self.block_size,
-                                                self._bmir.typ.dims_partitioned[::-1]))
+                                                self.block_size))
 
     def densify(self):
         """Restore all dropped blocks as explicit blocks of zeros.
@@ -1419,8 +1412,7 @@ class BlockMatrix(object):
         diag_bmir = BlockMatrixBroadcast(self._bmir,
                                          [0, 0],
                                          [1, min(self.n_rows, self.n_cols)],
-                                         self.block_size,
-                                         [True])
+                                         self.block_size)
         return BlockMatrix(diag_bmir)
 
     @typecheck_method(axis=nullable(int))
@@ -1459,12 +1451,12 @@ class BlockMatrix(object):
             If ``1``, returns a block matrix with a single column.
         """
         if axis is None:
-            bmir = BlockMatrixAgg(self._bmir, [], [])
+            bmir = BlockMatrixAgg(self._bmir, [])
             return BlockMatrix(bmir)[0, 0]
         elif axis == 0 or axis == 1:
             out_index_expr = [dim for dim in range(len(self.shape)) if dim != axis]
 
-            bmir = BlockMatrixAgg(self._bmir, out_index_expr, [True])
+            bmir = BlockMatrixAgg(self._bmir, out_index_expr)
             return BlockMatrix(bmir)
         else:
             raise ValueError(f'axis must be None, 0, or 1: found {axis}')
@@ -1510,7 +1502,7 @@ class BlockMatrix(object):
         :class:`.Table`
             Table with a row for each entry.
         """
-        t = Table._from_java(self._jbm.entriesTable())
+        t = Table(BlockMatrixToTable(self._bmir))
         if keyed:
             t = t.key_by('i', 'j')
         return t
@@ -2112,16 +2104,14 @@ def _shape_after_broadcast(left, right):
 @typecheck(x=oneof(numeric, np.ndarray), block_size=int)
 def _to_bmir(x, block_size):
     if _is_scalar(x):
-        return ValueToBlockMatrix(F64(x), [1, 1], block_size, [True, True])
+        return ValueToBlockMatrix(F64(x), [1, 1], block_size)
     else:
-        return ValueToBlockMatrix(_ndarray_to_makearray(x), list(_ndarray_as_2d(x).shape),
-                                  block_size, [True, True])
+        return ValueToBlockMatrix(_ndarray_to_makearray(x), list(_ndarray_as_2d(x).shape), block_size)
 
 
 def _broadcast_to_shape(bmir, result_shape):
     in_index_expr = _broadcast_index_expr(bmir.typ.shape, bmir.typ.is_row_vector)
-    return BlockMatrixBroadcast(bmir, in_index_expr, result_shape,
-                                bmir.typ.block_size, [True for _ in result_shape])
+    return BlockMatrixBroadcast(bmir, in_index_expr, result_shape, bmir.typ.block_size)
 
 
 def _ndarray_to_makearray(ndarray):
