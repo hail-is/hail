@@ -132,7 +132,7 @@ class Job:
                         requests={'storage': POD_VOLUME_SIZE}),
                     storage_class_name=STORAGE_CLASS_NAME)),
             _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
-        log.info(f'created pvc name: {self._pvc.metadata.name} for job {self.id}')
+        log.info(f'created pvc name: {pvc.metadata.name} for job {self.id}')
         return pvc
 
     def _create_pod(self):
