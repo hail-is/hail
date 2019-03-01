@@ -14,14 +14,14 @@ class TableTypeSerializer extends CustomSerializer[TableType](format => (
 case class TableType(rowType: TStruct, key: IndexedSeq[String], globalType: TStruct) extends BaseType {
   val canonicalRVDType = RVDType(rowType.physicalType, key)
 
-  def globalEnv: Env[Type] = Env.empty[Type]
+  @transient lazy val globalEnv: Env[Type] = Env.empty[Type]
     .bind("global" -> globalType)
 
-  def rowEnv: Env[Type] = Env.empty[Type]
+  @transient lazy val rowEnv: Env[Type] = Env.empty[Type]
     .bind("global" -> globalType)
     .bind("row" -> rowType)
 
-  def refMap: Map[String, Type] = Map(
+  @transient lazy val refMap: Map[String, Type] = Map(
     "global" -> globalType,
     "row" -> rowType)
 
