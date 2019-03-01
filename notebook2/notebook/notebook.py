@@ -561,16 +561,16 @@ def login_page():
 
 @app.route('/login', methods=['POST'])
 def login_auth0():
-    external_url = flask.url_for('auth0_callback', _external = True)
     session['workshop_password'] = request.form.get('workshop-password')
 
-    return auth0.authorize_redirect(redirect_uri = external_url, audience = f'{AUTH0_BASE_URL}/userinfo', prompt = 'login')
+    return auth0.authorize_redirect(redirect_uri = external_url_for('auth0-callback'),
+                                    audience = f'{AUTH0_BASE_URL}/userinfo', prompt = 'login')
 
 
 @app.route('/logout', methods=['POST'])
 def logout():
     session.clear()
-    params = {'returnTo': flask.url_for('root', _external=True), 'client_id': AUTH0_CLIENT_ID}
+    params = {'returnTo': external_url_for(''), 'client_id': AUTH0_CLIENT_ID}
     return redirect(auth0.api_base_url + '/v2/logout?' + urlencode(params))
 
 
