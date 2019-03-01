@@ -24,7 +24,8 @@ object Memo {
 class Memo[T] private(val m: mutable.HashMap[RefEquality[BaseIR], T]) {
   def bind(ir: BaseIR, t: T): Memo[T] = {
     val re = RefEquality(ir)
-    assert(!m.contains(re))
+    if (m.contains(re))
+      throw new RuntimeException(s"IR already in memo: $ir")
     m += re -> t
     this
   }

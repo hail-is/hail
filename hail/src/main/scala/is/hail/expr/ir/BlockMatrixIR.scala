@@ -56,7 +56,7 @@ abstract sealed class BlockMatrixIR extends BaseIR {
 case class BlockMatrixRead(reader: BlockMatrixReader) extends BlockMatrixIR {
   override def typ: BlockMatrixType = reader.fullType
 
-  override def children: IndexedSeq[BaseIR] = Array.empty[BlockMatrixIR]
+  @transient lazy val children: IndexedSeq[BaseIR] = Array.empty[BlockMatrixIR]
 
   override def copy(newChildren: IndexedSeq[BaseIR]): BlockMatrixRead = {
     assert(newChildren.isEmpty)
@@ -112,7 +112,7 @@ class BlockMatrixLiteral(value: BlockMatrix) extends BlockMatrixIR {
     BlockMatrixType(TFloat64(), shape, isRowVector, value.blockSize)
   }
 
-  override def children: IndexedSeq[BaseIR] = Array.empty[BlockMatrixIR]
+  @transient lazy val children: IndexedSeq[BaseIR] = Array.empty[BlockMatrixIR]
 
   override def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
     assert(newChildren.isEmpty)
@@ -127,7 +127,7 @@ case class BlockMatrixMap(child: BlockMatrixIR, f: IR) extends BlockMatrixIR {
 
   override def typ: BlockMatrixType = child.typ
 
-  override def children: IndexedSeq[BaseIR] = Array(child)
+  @transient lazy val children: IndexedSeq[BaseIR] = Array(child)
 
   override def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
     assert(newChildren.length == 1)
@@ -150,7 +150,7 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, f: IR) ext
 
   override def typ: BlockMatrixType = left.typ
 
-  override def children: IndexedSeq[BaseIR] = Array(left, right, f)
+  @transient lazy val children: IndexedSeq[BaseIR] = Array(left, right, f)
 
   override def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
     assert(newChildren.length == 3)
@@ -306,7 +306,7 @@ case class BlockMatrixDot(left: BlockMatrixIR, right: BlockMatrixIR) extends Blo
     BlockMatrixType(left.typ.elementType, tensorShape, isRowVector, left.typ.blockSize)
   }
 
-  override def children: IndexedSeq[BaseIR] = Array(left, right)
+  @transient lazy val children: IndexedSeq[BaseIR] = Array(left, right)
 
   override def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
     assert(newChildren.length == 2)
@@ -334,7 +334,7 @@ case class BlockMatrixBroadcast(
     BlockMatrixType(child.typ.elementType, tensorShape, isRowVector, blockSize)
   }
 
-  override def children: IndexedSeq[BaseIR] = Array(child)
+  @transient lazy val children: IndexedSeq[BaseIR] = Array(child)
 
   override def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
     assert(newChildren.length == 1)
@@ -386,7 +386,7 @@ case class BlockMatrixAgg(
     BlockMatrixType(child.typ.elementType, shape, isRowVector, child.typ.blockSize)
   }
 
-  override def children: IndexedSeq[BaseIR] = Array(child)
+  @transient lazy val children: IndexedSeq[BaseIR] = Array(child)
 
   override def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
     assert(newChildren.length == 1)
@@ -459,7 +459,7 @@ case class ValueToBlockMatrix(
     }
   }
 
-  override def children: IndexedSeq[BaseIR] = Array(child)
+  @transient lazy val children: IndexedSeq[BaseIR] = Array(child)
 
   override def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
     assert(newChildren.length == 1)
@@ -490,7 +490,7 @@ case class BlockMatrixRandom(
     BlockMatrixType(TFloat64(), tensorShape, isRowVector, blockSize)
   }
 
-  override def children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
+  @transient lazy val children: IndexedSeq[BaseIR] = Array.empty[BaseIR]
 
   override def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
     assert(newChildren.isEmpty)

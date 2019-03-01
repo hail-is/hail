@@ -10,17 +10,17 @@ object TypeCheck {
 
   def apply(ir: BaseIR, env: Env[Type], aggEnv: Option[Env[Type]]): Unit = {
     try {
-      _apply(ir, env, aggEnv)
+      val irCp = ir.deepCopy()
+      val inAgg = InAgg(irCp)
+      _apply(irCp, env, aggEnv, inAgg)
     } catch {
       case e: Throwable => fatal(s"Error while typechecking IR:\n${ Pretty(ir) }", e)
     }
   }
 
-  private def _apply(ir: BaseIR, env: Env[Type], aggEnv: Option[Env[Type]]) {
-    val inAgg = InAgg(ir)
-
+  private def _apply(ir: BaseIR, env: Env[Type], aggEnv: Option[Env[Type]], inAgg: Memo[Boolean]) {
     def check(ir: BaseIR, env: Env[Type] = env, aggEnv: Option[Env[Type]] = aggEnv) {
-      _apply(ir, env, aggEnv)
+      _apply(ir, env, aggEnv, inAgg)
     }
 
     ir match {
@@ -231,15 +231,9 @@ object TypeCheck {
       .iterator
       .zipWithIndex
       .foreach { case (child, i) =>
-        if (ClearsBindings(ir, i))
-          check(child, Env.empty, None)
-        else
-          check(child, env.bindIterable(Bindings(ir, i)), aggEnv match {
-            case Some(ae) => Some(ae.bindIterable(AggBindings(ir, i)))
-            case None =>
-              assert(AggBindings(ir, i).isEmpty)
-              None
-          })
+        val (e, ae) = TransitiveBindings(ir, i, env, aggEnv)
+        check(child, e, ae)
+
       }
   }
 }

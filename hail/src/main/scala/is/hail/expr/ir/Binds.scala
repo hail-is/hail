@@ -6,13 +6,6 @@ object Binds {
   def apply(x: IR, v: String, i: Int): Boolean = Bindings(x, i).exists(_ == v)
 }
 
-object ClearsBindings {
-  def apply(x: BaseIR, i: Int): Boolean = x match {
-    case MatrixAggregate(_, _) => i == 1
-    case TableAggregate(_, _) => i == 1
-    case _ => false
-  }
-}
 
 object Bindings {
   private val empty: Array[(String, Type)] = Array()
@@ -66,5 +59,26 @@ object AggBindings {
     case MatrixAggregateColsByKey(child, _, _) => if (i == 1) child.typ.entryEnv.m else if (i == 2) child.typ.colEnv.m else empty
     case MatrixAggregateRowsByKey(child, _, _) => if (i == 1) child.typ.entryEnv.m else if (i == 2) child.typ.rowEnv.m else empty
     case _ => empty
+  }
+}
+
+object TransitiveBindings {
+  private val empty = (Env.empty[Type], None)
+
+  def apply(ir: BaseIR, i: Int, env: Env[Type], aggEnv: Option[Env[Type]]): (Env[Type], Option[Env[Type]]) = ir match {
+    case _: ArrayAgg => if (i == 1) (env, Some(aggEnv.get.bindIterable(env.m).bindIterable(AggBindings(ir, i)))) else (env, aggEnv)
+    case MatrixAggregate(_, _) => if (i == 1) (Env.empty.bindIterable(Bindings(ir, i)), Some(Env.empty.bindIterable(AggBindings(ir, i)))) else empty
+    case TableAggregate(_, _) => if (i == 1) (Env.empty.bindIterable(Bindings(ir, i)), Some(Env.empty.bindIterable(AggBindings(ir, i)))) else empty
+    case _ =>
+      ir.children(i) match {
+        case vir: IR =>
+          (env.bindIterable(Bindings(ir, i)), aggEnv match {
+            case Some(ae) => Some(ae.bindIterable(AggBindings(ir, i)))
+            case None =>
+              assert(AggBindings(ir, i).isEmpty)
+              None
+          })
+        case _ => empty
+      }
   }
 }
