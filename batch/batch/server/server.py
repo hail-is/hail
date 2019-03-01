@@ -136,7 +136,7 @@ class Job:
         return pvc
 
     def _create_pod(self):
-        assert self._pod_name is not None
+        assert self._pod_name is None
         assert self._current_task is not None
 
         if len(self._tasks) > 1:
