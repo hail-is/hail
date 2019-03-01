@@ -602,6 +602,55 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
                  |""".stripMargin)
         }
 
+      case ir.ArraySort(a, l, r, comp) =>
+        fb.translationUnitBuilder().include("hail/ArraySorter.h")
+        fb.translationUnitBuilder().include("hail/ArrayBuilder.h")
+        val aType = coerce[PContainer](a.pType)
+        val eltType = coerce[TContainer](a.typ).elementType
+        val array = emit(a)
+
+        val ltClass = fb.translationUnitBuilder().buildClass(fb.translationUnitBuilder().genSym("SorterLessThan"))
+        Compile.makeNonmissingMethod(ltClass, "operator()", comp, l -> eltType.physicalType, r -> eltType.physicalType)
+        ltClass.end()
+
+        val sorter = fb.variable("sorter", aType.cxxArraySorter(ltClass.name), s"{ ${array.v} }")
+        resultRegion.use()
+
+        EmitTriplet(array.pType, array.setup, array.m,
+          s"""{
+             |${ sorter.define }
+             |$sorter.sort();
+             |$sorter.to_region($resultRegion);
+             |}
+           """.stripMargin,
+          resultRegion)
+
+//      case x@(_: ir.ArraySort | _: ir.ToSet | _: ir.ToDict) =>
+//        fb.
+//        val atyp = coerce[PContainer](x.pType)
+//        val eltType = -atyp.elementType.virtualType
+//        val vab = new StagedArrayBuilder(atyp.elementType, mb, 16)
+//        val sorter = new ArraySorter(mb, vab)
+//
+//        val (array, compare, distinct) = (x: @unchecked) match {
+//          case ir.ArraySort(a, l, r, comp) => (a, ir.Subst(comp, ir.Env[ir.IR](l -> ir.In(0, eltType), r -> ir.In(1, eltType))), Code._empty[Unit])
+//          case ir.ToSet(a) =>
+//            val discardNext = mb.fb.newMethod(Array[TypeInfo[_]](typeInfo[Region], sorter.ti, typeInfo[Boolean], sorter.ti, typeInfo[Boolean]), typeInfo[Boolean])
+//            val EmitTriplet(s, m, v) = new Emit(discardNext, 1).emit(ApplyComparisonOp(EQWithNA(eltType), In(0, eltType), In(1, eltType)), Env.empty)
+//            discardNext.emit(Code(s, m || coerce[Boolean](v)))
+//            (a, ApplyComparisonOp(Compare(eltType), In(0, eltType), In(1, eltType)) < 0, sorter.distinctFromSorted(discardNext.invoke(_, _, _, _, _)))
+//          case ir.ToDict(a) =>
+//            val dType = coerce[PDict](ir.pType).virtualType
+//            val k0 = GetField(In(0, dType.elementType), "key")
+//            val k1 = GetField(In(1, dType.elementType), "key")
+//            val discardNext = mb.fb.newMethod(Array[TypeInfo[_]](typeInfo[Region], sorter.ti, typeInfo[Boolean], sorter.ti, typeInfo[Boolean]), typeInfo[Boolean])
+//            val EmitTriplet(s, m, v) = new Emit(discardNext, 1).emit(ApplyComparisonOp(EQWithNA(dType.keyType), k0, k1), Env.empty)
+//            discardNext.emit(Code(s, m || coerce[Boolean](v)))
+//            (a, ApplyComparisonOp(Compare(dType.keyType), k0, k1) < 0, Code(sorter.pruneMissing, sorter.distinctFromSorted(discardNext.invoke(_, _, _, _, _))))
+//        }
+//
+//        val aout = emitArrayIterator(array)
+
       case x@ir.ApplyIR(_, _) =>
         // FIXME small only
         emit(x.explicitNode)

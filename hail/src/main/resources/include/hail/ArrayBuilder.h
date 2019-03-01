@@ -43,6 +43,7 @@ class BaseArrayBuilder {
 template<typename ElemT, bool elem_required, size_t elem_size, size_t elem_align, size_t array_align>
 class ArrayLoadBuilder : public BaseArrayBuilder<elem_required, elem_size, elem_align, array_align> {
   public:
+    using ArrayImpl = ArrayLoadImpl<ElemT, elem_required, elem_size, elem_align>;
     using T = ElemT;
     using Base = BaseArrayBuilder<elem_required, elem_size, elem_align, array_align>;
     void set_element(int idx, ElemT elem) {
@@ -54,6 +55,7 @@ class ArrayLoadBuilder : public BaseArrayBuilder<elem_required, elem_size, elem_
 template<bool elem_required, size_t elem_size, size_t elem_align, size_t array_align>
 class ArrayAddrBuilder : public BaseArrayBuilder<elem_required, elem_size, elem_align, array_align> {
   public:
+    using ArrayImpl = ArrayAddrImpl<elem_required, elem_size, elem_align>;
     using T = char *;
     using Base = BaseArrayBuilder<elem_required, elem_size, elem_align, array_align>;
     void set_element(int idx, const char * elem) {
