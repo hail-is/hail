@@ -6,7 +6,7 @@ import gevent
 # must happen before anytyhing else
 from gevent import monkey; monkey.patch_all()
 
-from flask import Flask, session, redirect, render_template, request, response
+from flask import Flask, session, redirect, render_template, request, Response
 from flask_sockets import Sockets
 import flask
 import sass
@@ -355,7 +355,7 @@ def auth(requested_pod_uuid):
     notebook = session.get('notebook')
 
     if notebook is not None and notebook['pod_uuid'] == requested_pod_uuid:
-        res = response.make_response()
+        res = Response.make_response()
         res.headers['ip']
         return '', 200
 
