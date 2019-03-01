@@ -627,14 +627,10 @@ class Tests(unittest.TestCase):
 
         for rects in [rects1, rects2, rects3]:
             for block_size in [3, 4, 10]:
-                bm_uri = new_temp_file()
-
                 rect_path = new_local_temp_dir()
                 rect_uri = local_path_uri(rect_path)
 
                 bm = BlockMatrix.from_numpy(nd, block_size=block_size)
-
-                bm.sparsify_rectangles(rects).write(bm_uri, force_row_major=True)
                 bm.export_rectangles(rect_uri, rects)
 
                 for (i, r) in enumerate(rects):
