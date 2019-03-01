@@ -658,13 +658,13 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
     val localRVDType = rvdType
     val localNewRowType = newRowType.physicalType
     val localDataLength = children.length
-    val rvMerger = { it: Iterator[ArrayBuilder[(RegionValue, Int)]] =>
+    val rvMerger = { (ctx: RVDContext, it: Iterator[ArrayBuilder[(RegionValue, Int)]]) =>
       val rvb = new RegionValueBuilder()
       val newRegionValue = RegionValue()
 
       it.map { rvs =>
         val rv = rvs(0)._1
-        rvb.set(rv.region)
+        rvb.set(ctx.region)
         rvb.start(localNewRowType)
         rvb.startStruct()
         rvb.addFields(rowType, rv, keyIdx) // Add the key
@@ -686,7 +686,7 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
         newRegionValue
       }
     }
-    
+
     val childRVDs = childValues.map(_.rvd)
     val repartitionedRVDs =
       if (childRVDs(0).partitioner.satisfiesAllowedOverlap(typ.key.length - 1) &&
@@ -705,7 +705,7 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
       partitioner = newPartitioner,
       crdd = ContextRDD.czipNPartitions(repartitionedRVDs.map(_.crdd.boundary)) { (ctx, its) =>
         val orvIters = its.map(it => OrderedRVIterator(localRVDType, it, ctx))
-        rvMerger(OrderedRVIterator.multiZipJoin(orvIters))
+        rvMerger(ctx, OrderedRVIterator.multiZipJoin(orvIters))
       })
 
     val newGlobals = BroadcastRow(
