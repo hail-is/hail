@@ -627,16 +627,11 @@ class Tests(unittest.TestCase):
 
         for rects in [rects1, rects2, rects3]:
             for block_size in [3, 4, 10]:
-                bm_uri = new_temp_file()
-
                 rect_path = new_local_temp_dir()
                 rect_uri = local_path_uri(rect_path)
 
-                (BlockMatrix.from_numpy(nd, block_size=block_size)
-                    .sparsify_rectangles(rects)
-                    .write(bm_uri, force_row_major=True))
-
-                BlockMatrix.export_rectangles(bm_uri, rect_uri, rects)
+                bm = BlockMatrix.from_numpy(nd, block_size=block_size)
+                bm.export_rectangles(rect_uri, rects)
 
                 for (i, r) in enumerate(rects):
                     file = rect_path + '/rect-' + str(i) + '_' + '-'.join(map(str, r))
@@ -647,24 +642,13 @@ class Tests(unittest.TestCase):
                 rect_path_bytes = new_local_temp_dir()
                 rect_uri_bytes = local_path_uri(rect_path_bytes)
 
-                BlockMatrix.export_rectangles(bm_uri, rect_uri_bytes, rects, binary=True)
+                bm.export_rectangles(rect_uri_bytes, rects, binary=True)
 
                 for (i, r) in enumerate(rects):
                     file = rect_path_bytes + '/rect-' + str(i) + '_' + '-'.join(map(str, r))
                     expected = nd[r[0]:r[1], r[2]:r[3]]
                     actual = np.reshape(np.fromfile(file), (r[1] - r[0], r[3] - r[2]))
                     self._assert_eq(expected, actual)
-
-        bm_uri = new_temp_file()
-        rect_uri = new_temp_file()
-
-        (BlockMatrix.from_numpy(nd, block_size=5)
-            .sparsify_rectangles([[0, 1, 0, 1]])
-            .write(bm_uri, force_row_major=True))
-
-        with self.assertRaises(FatalError) as e:
-            BlockMatrix.export_rectangles(bm_uri, rect_uri, [[5, 6, 5, 6]])
-            self.assertEquals(e.msg, 'block (1, 1) missing for rectangle 0 with bounds [5, 6, 5, 6]')
 
     @skip_unless_spark_backend()
     def test_block_matrix_entries(self):

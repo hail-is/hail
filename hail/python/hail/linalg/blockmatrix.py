@@ -10,7 +10,7 @@ from hail.ir import BlockMatrixWrite, BlockMatrixMap2, ApplyBinaryOp, Ref, F64, 
     ApplyUnaryOp, IR, BlockMatrixDot, tensor_shape_to_matrix_shape, BlockMatrixAgg, BlockMatrixRandom, \
     BlockMatrixToValueApply, BlockMatrixToTable
 from hail.ir.blockmatrix_reader import BlockMatrixNativeReader, BlockMatrixBinaryReader
-from hail.ir.blockmatrix_writer import BlockMatrixBinaryWriter, BlockMatrixNativeWriter
+from hail.ir.blockmatrix_writer import BlockMatrixBinaryWriter, BlockMatrixNativeWriter, BlockMatrixRectanglesWriter
 from hail.utils import new_temp_file, new_local_temp_file, local_path_uri, storage_level
 from hail.utils.java import Env, jarray, joption
 from hail.typecheck import *
@@ -1747,15 +1747,12 @@ class BlockMatrix(object):
         flattened_rectangles = jarray(Env.jvm().long, list(itertools.chain(*rectangles)))
         return BlockMatrix._from_java(self._jbm.filterRectangles(flattened_rectangles))
 
-    @staticmethod
-    @typecheck(path_in=str,
-               path_out=str,
-               rectangles=sequenceof(sequenceof(int)),
-               delimiter=str,
-               n_partitions=nullable(int),
-               binary=bool)
-    def export_rectangles(path_in, path_out, rectangles, delimiter='\t', n_partitions=None, binary=False):
-        """Export rectangular regions from a stored block matrix to delimited text or binary files.
+    @typecheck_method(path_out=str,
+                      rectangles=sequenceof(sequenceof(int)),
+                      delimiter=str,
+                      binary=bool)
+    def export_rectangles(self, path_out, rectangles, delimiter='\t', binary=False):
+        """Export rectangular regions from a block matrix to delimited text or binary files.
 
         Examples
         --------
@@ -1767,20 +1764,12 @@ class BlockMatrix(object):
         ...                [ 9.0, 10.0, 11.0, 12.0],
         ...                [13.0, 14.0, 15.0, 16.0]])
 
-        Filter to the three rectangles and write.
+        Filter to the three rectangles and export as TSV files.
 
         >>> rectangles = [[0, 1, 0, 1], [0, 3, 0, 2], [1, 2, 0, 4]]
         >>>
         >>> (BlockMatrix.from_numpy(nd)
-        ...     .sparsify_rectangles(rectangles)
-        ...     .write('output/example.bm', overwrite=True, force_row_major=True))
-
-        Export the three rectangles to TSV files:
-
-        >>> BlockMatrix.export_rectangles(
-        ...     path_in='output/example.bm',
-        ...     path_out='output/example',
-        ...     rectangles = rectangles)
+        ...     .export_rectangles('output/example.bm', rectangles))
 
         This produces three files in the folder ``output/example``.
 
@@ -1803,13 +1792,6 @@ class BlockMatrix(object):
         .. code-block:: text
 
             5.0 6.0 7.0 8.0
-
-        Warning
-        -------
-        The block matrix must be stored in row-major format, as results
-        from :meth:`.BlockMatrix.write` with ``force_row_major=True`` and
-        from :meth:`.BlockMatrix.write_from_entry_expr`. Otherwise,
-        :meth:`export` will fail.
 
         Notes
         -----
@@ -1846,8 +1828,6 @@ class BlockMatrix(object):
 
         Parameters
         ----------
-        path_in: :obj:`srt`
-            Path to input block matrix, stored row-major on disk.
         path_out: :obj:`str`
             Path for folder of exported files.
         rectangles: :obj:`list` of :obj:`list` of :obj:`int`
@@ -1855,9 +1835,6 @@ class BlockMatrix(object):
             ``[row_start, row_stop, col_start, col_stop]``.
         delimiter: :obj:`str`
             Column delimiter.
-        n_partitions: :obj:`int`, optional
-            Maximum parallelism of export.
-            Defaults to (and cannot exceed) the number of rectangles.
         binary: :obj:`bool`
             If true, export elements as raw bytes in row major order.
         """
@@ -1867,30 +1844,15 @@ class BlockMatrix(object):
         if n_rectangles >= (1 << 29):
             raise ValueError(f'number of rectangles must be less than 2^29, found {n_rectangles}')
 
-        if n_partitions is None:
-            n_partitions = n_rectangles
-        else:
-            if n_partitions > n_rectangles:
-                raise ValueError(
-                    f'n_partitions ({n_partitions}) cannot exceed the number of rectangles ({n_rectangles})')
-            elif n_partitions < 0:
-                raise ValueError(f'n_partitions must be positive, found {n_partitions}')
-
-        meta = Env.hail().linalg.BlockMatrix.readMetadata(Env.hc()._jhc, path_in)
-        n_rows = meta.nRows()
-        n_cols = meta.nCols()
-
         for r in rectangles:
             if len(r) != 4:
                 raise ValueError(f'rectangle {r} does not have length 4')
-            if not (0 <= r[0] <= r[1] <= n_rows and 0 <= r[2] <= r[3] <= n_cols):
+            if not (0 <= r[0] <= r[1] <= self.n_rows and 0 <= r[2] <= r[3] <= self.n_cols):
                 raise ValueError(f'rectangle {r} does not satisfy '
                                  f'0 <= r[0] <= r[1] <= n_rows and 0 <= r[2] <= r[3] <= n_cols')
 
-        flattened_rectangles = jarray(Env.jvm().long, list(itertools.chain(*rectangles)))
-
-        return Env.hail().linalg.BlockMatrix.exportRectangles(
-            Env.hc()._jhc, path_in, path_out, flattened_rectangles, delimiter, n_partitions, binary)
+        writer = BlockMatrixRectanglesWriter(path_out, rectangles, delimiter, binary)
+        Env.backend().execute(BlockMatrixWrite(self._bmir, writer))
 
     @typecheck_method(compute_uv=bool,
                       complexity_bound=int)
