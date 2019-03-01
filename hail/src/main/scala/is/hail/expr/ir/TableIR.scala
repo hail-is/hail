@@ -1537,3 +1537,21 @@ case class TableToTableApply(child: TableIR, function: TableToTableFunction) ext
     function.execute(child.execute(hc))
   }
 }
+
+case class BlockMatrixToTable(child: BlockMatrixIR) extends TableIR {
+  def children: IndexedSeq[BaseIR] = Array(child)
+
+  def copy(newChildren: IndexedSeq[BaseIR]): TableIR = {
+    val IndexedSeq(newChild: BlockMatrixIR) = newChildren
+    BlockMatrixToTable(newChild)
+  }
+
+  override val typ: TableType = {
+    val rvType = TStruct("i" -> TInt64Optional, "j" -> TInt64Optional, "entry" -> TFloat64Optional)
+    TableType(rvType, Array[String](), TStruct.empty())
+  }
+
+  protected[ir] override def execute(hc: HailContext): TableValue = {
+    child.execute(hc).entriesTable()
+  }
+}

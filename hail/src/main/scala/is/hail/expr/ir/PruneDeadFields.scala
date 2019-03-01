@@ -67,7 +67,9 @@ object PruneDeadFields {
         case tir: TableIR =>
           memoizeTableIR(tir, tir.typ, memo)
           rebuild(tir, memo)
-        case bmir: BlockMatrixIR => bmir //NOTE Currently no BlockMatrixIRs would have dead fields
+        case bmir: BlockMatrixIR =>
+          memoizeBlockMatrixIR(bmir, bmir.typ, memo)
+          rebuild(bmir, memo)
         case vir: IR =>
           memoizeValueIR(vir, vir.typ, memo)
           rebuild(vir, Env.empty[Type], memo)
@@ -421,6 +423,7 @@ object PruneDeadFields {
         memoizeTableIR(child, childDep, memo)
       case TableToTableApply(child, _) => memoizeTableIR(child, child.typ, memo)
       case MatrixToTableApply(child, _) => memoizeMatrixIR(child, child.typ, memo)
+      case BlockMatrixToTable(child) => memoizeBlockMatrixIR(child, child.typ, memo)
     }
   }
 
@@ -631,6 +634,7 @@ object PruneDeadFields {
     }
   }
 
+  def memoizeBlockMatrixIR(bmir: BlockMatrixIR, requestedType: BlockMatrixType, memo: Memo[BaseType]) {}
 
   def memoizeAndGetDep(ir: IR, requestedType: Type, base: TableType, memo: Memo[BaseType]): TableType = {
     val depEnv = memoizeValueIR(ir, requestedType, memo).m.mapValues(_._2)
@@ -868,6 +872,8 @@ object PruneDeadFields {
         Env.empty[(Type, Type)]
       case MatrixToValueApply(child, __) => memoizeMatrixIR(child, child.typ, memo)
         Env.empty[(Type, Type)]
+      case BlockMatrixToValueApply(child, _) => memoizeBlockMatrixIR(child, child.typ, memo)
+        Env.empty[(Type, Type)]
       case TableAggregate(child, query) =>
         val queryDep = memoizeAndGetDep(query, query.typ, child.typ, memo)
         memoizeTableIR(child, queryDep, memo)
@@ -973,6 +979,7 @@ object PruneDeadFields {
         // IR should be a match error - all nodes with child value IRs should have a rule
         case childT: TableIR => rebuild(childT, memo)
         case childM: MatrixIR => rebuild(childM, memo)
+        case childBm: BlockMatrixIR => rebuild(childBm, memo)
       })
     }
   }
@@ -1048,9 +1055,10 @@ object PruneDeadFields {
         case childT: TableIR => rebuild(childT, memo)
         case childM: MatrixIR => rebuild(childM, memo)
       })
-
     }
   }
+
+  def rebuild(bmir: BlockMatrixIR, memo: Memo[BaseType]): BlockMatrixIR = bmir
 
   def rebuild(ir: IR, in: BaseType, memo: Memo[BaseType]): IR = {
     rebuild(ir, relationalTypeToEnv(in), memo)

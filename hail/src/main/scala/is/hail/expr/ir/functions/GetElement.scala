@@ -9,5 +9,5 @@ case class GetElement(index: Seq[Long]) extends BlockMatrixToValueFunction {
 
   override def typ(childType: BlockMatrixType): Type = childType.elementType
 
-  override def execute(bm: BlockMatrix): Any = bm.getElement(index.head, index(1))
+  override def execute(bm: BlockMatrix): Any = bm.getElement(index(0), index(1))
 }
