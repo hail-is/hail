@@ -24,7 +24,7 @@ def execute():
     try:
         jir = Env.hail().expr.ir.IRParser.parse_value_ir(code, {}, {})
         typ = hl.dtype(jir.typ().toString())
-        value = Env.hail().expr.ir.Interpret.interpretJSON(jir)
+        value = Env.hail().expr.ir.CompileAndEvaluate.evaluateToJSON(jir)
         result = {
             'type': str(typ),
             'value': value
