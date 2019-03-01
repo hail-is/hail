@@ -56,7 +56,7 @@ if role == 'Master':
         'nbconvert<6',
         'notebook<6',
         'qtconsole<5',
-        'jupyter',
+        'jupyter', 'tornado<6', # https://github.com/hail-is/hail/issues/5505
         'lxml<5',
         'jupyter-spark<0.5',
         'bokeh<0.14',
