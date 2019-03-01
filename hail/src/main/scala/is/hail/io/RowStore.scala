@@ -1790,7 +1790,7 @@ class RichContextRDDRegionValue(val crdd: ContextRDD[RVDContext, RegionValue]) e
             val rvb = new RegionValueBuilder()
 
             it.foreach { rv =>
-              val region = rv.region
+              val region = ctx.region
               rvb.set(region)
               rvb.start(rowsRVType)
               rvb.startStruct()

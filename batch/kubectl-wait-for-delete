@@ -1,0 +1,18 @@
+#!/bin/sh
+# kubectl-wait-for-delete TYPE NAME
+#
+# Wait for a k8s resource of type TYPE and name NAME to not exist.
+#
+# When we have k8s 1.12 https://github.com/kubernetes/kubernetes/pull/64034, we
+# can rely directly on kubectl:
+#
+#     kubectl wait --for=delete namespace/test
+#
+# This script is intended to be POSIX compliant.
+
+: $((delay = 1))
+while kubectl get $1 $2
+do
+    : $((delay = delay + delay))
+    sleep ${delay}
+done
