@@ -1146,6 +1146,7 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
 
     val colValuesType = TArray(prev.typ.colType)
     val vaType = prev.rvd.rowPType
+    val gType = MatrixType.getEntryType(vaType)
 
     var initOpNeedsSA = false
     var initOpNeedsGlobals = false
@@ -1204,10 +1205,15 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
         }
       }
 
-      var oneSampleSeqOp = ir.Let("g", ir.ArrayRef(
-        ir.GetField(ir.Ref("va", vaType.virtualType), MatrixType.entriesIdentifier),
-        ir.Ref(colIdx, TInt32())),
-        rewrite(seqOp)
+      var oneSampleSeqOp = ir.Let(
+        "g",
+        ir.ArrayRef(
+          ir.GetField(ir.Ref("va", vaType.virtualType), MatrixType.entriesIdentifier),
+          ir.Ref(colIdx, TInt32())),
+        If(
+          IsNA(ir.Ref("g", gType.virtualType)),
+          Begin(FastSeq()),
+          rewrite(seqOp))
       )
 
       if (seqOpNeedsSA)

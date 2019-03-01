@@ -206,6 +206,8 @@ object IRBuilder {
 
     def len: IRProxy = (env: E) => ArrayLen(ir(env))
 
+    def isNA: IRProxy = (env: E) => IsNA(ir(env))
+
     def orElse(alt: IRProxy): IRProxy = { env: E =>
       val uid = genUID()
       val eir = ir(env)
