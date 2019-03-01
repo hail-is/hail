@@ -6,8 +6,9 @@ import is.hail.expr.{JSONAnnotationImpex, ParserUtils}
 import is.hail.expr.types.{MatrixType, TableType}
 import is.hail.expr.types.virtual._
 import is.hail.expr.types.physical.PType
+import is.hail.io.CodecSpec
 import is.hail.io.bgen.MatrixBGENReaderSerializer
-import is.hail.rvd.RVDType
+import is.hail.rvd.{AbstractRVDSpec, RVDType}
 import is.hail.table.{Ascending, Descending, SortField}
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
@@ -839,6 +840,13 @@ object IRParser {
       case "JavaIR" =>
         val name = identifier(it)
         env.irMap(name).asInstanceOf[IR]
+      case "ReadPartition" =>
+        implicit val formats: Formats = AbstractRVDSpec.formats
+        val spec = JsonMethods.parse(string_literal(it)).extract[CodecSpec]
+        val encType = coerce[TStruct](type_expr(it))
+        val rowType = coerce[TStruct](type_expr(it))
+        val path = ir_value_expr(env)(it)
+        ReadPartition(path, spec, encType, rowType)
     }
   }
 

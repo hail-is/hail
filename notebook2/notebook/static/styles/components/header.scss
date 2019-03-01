@@ -54,6 +54,9 @@
         cursor: pointer;
       }
     }
+    #user-name {
+      margin-right: $margin;
+    }
   }
   &.dark {
     #header {

@@ -90,21 +90,24 @@ abstract class RelationalSpec {
 }
 
 case class RVDComponentSpec(rel_path: String) extends ComponentSpec {
+  def rvdSpec(hadoopConf: org.apache.hadoop.conf.Configuration, path: String): AbstractRVDSpec =
+    AbstractRVDSpec.read(hadoopConf, path + "/" + rel_path)
+
   def read(hc: HailContext, path: String, requestedType: PStruct): RVD = {
     val rvdPath = path + "/" + rel_path
-    AbstractRVDSpec.read(hc, rvdPath)
+    rvdSpec(hc.hadoopConf, path)
       .read(hc, rvdPath, requestedType)
   }
 
   def readLocal(hc: HailContext, path: String, requestedType: PStruct): IndexedSeq[Row] = {
     val rvdPath = path + "/" + rel_path
-    AbstractRVDSpec.read(hc, rvdPath)
+    rvdSpec(hc.hadoopConf, path)
       .readLocal(hc, rvdPath, requestedType)
   }
 
   def cxxEmitRead(hc: HailContext, path: String, requestedType: TStruct, tub: cxx.TranslationUnitBuilder): cxx.RVDEmitTriplet = {
     val rvdPath = path + "/" + rel_path
-    AbstractRVDSpec.read(hc, rvdPath)
+    rvdSpec(hc.hadoopConf, path)
       .cxxEmitRead(hc, rvdPath, requestedType, tub)
   }
 }
