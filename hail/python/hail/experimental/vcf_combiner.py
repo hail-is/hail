@@ -21,8 +21,6 @@ def transform_one(mt: MatrixTable) -> MatrixTable:
     of :func:`.combine_gvcfs` are passed to :func:`.combine_gvcfs`.
     """
     mt = mt.annotate_entries(
-        # local (alt) allele index into global (alt) alleles
-        LA=hl.range(0, hl.len(mt.alleles)),
         END=mt.info.END,
         BaseQRankSum=mt.info['BaseQRankSum'],
         ClippingRankSum=mt.info['ClippingRankSum'],
@@ -30,11 +28,28 @@ def transform_one(mt: MatrixTable) -> MatrixTable:
         MQRankSum=mt.info['MQRankSum'],
         ReadPosRankSum=mt.info['ReadPosRankSum'],
         LGT=mt.GT,
-        LAD=mt.AD,
-        LPL=mt.PL,
-        LPGT=mt.PGT
+        LAD=hl.cond(
+            mt.alleles[-1] == '<NON_REF>',
+            mt.AD[:-1],
+            mt.AD),
+        LPL=hl.cond(
+            mt.alleles[-1] == '<NON_REF>',
+            hl.cond(hl.len(mt.alleles) > 2, mt.PL[:-hl.len(mt.alleles)], hl.null(mt.PL.dtype)),
+            hl.cond(hl.len(mt.alleles) > 1, mt.PL, hl.null(mt.PL.dtype))
+        ),
+        LPGT=mt.PGT,
+        # If present, <NON_REF> is always the last allele in a gVCF
+        RGQ=hl.cond(
+            mt.alleles[-1] == '<NON_REF>',
+            mt.PL[hl.call(0, hl.len(mt.alleles) - 1).unphased_diploid_gt_index()],
+            hl.null(mt.PL.dtype.element_type)
+        )
     )
     mt = mt.annotate_rows(
+        alleles=hl.cond(
+            mt.alleles[-1] == '<NON_REF>',
+            mt.alleles[:-1],
+            mt.alleles),
         info=mt.info.annotate(
             SB_TABLE=hl.array([
                 hl.agg.sum(mt.entry.SB[0]),
@@ -49,6 +64,7 @@ def transform_one(mt: MatrixTable) -> MatrixTable:
             "VarDP",
             "SB_TABLE",
         ))
+    mt = mt.annotate_entries(LA=hl.range(0, hl.len(mt.alleles)))
     mt = mt.drop('SB', 'qual', 'filters', 'GT', 'AD', 'PL', 'PGT')
 
     return mt
@@ -81,19 +97,13 @@ def combine(ts):
                                         a)))))),
                 lambda lal:
                 hl.struct(
-                    globl=hl.array([ref]).extend(hl.rbind(
-                        hl.array(hl.set(hl.flatten(lal)).remove(ref)),
-                        lambda arr:
-                        hl.filter(lambda a: a != '<NON_REF>', arr)
-                        .extend(hl.filter(lambda a: a == '<NON_REF>', arr)))),
+                    globl=hl.array([ref]).extend(hl.array(hl.set(hl.flatten(lal)).remove(ref))),
                     local=lal)))
 
     def renumber_entry(entry, old_to_new) -> StructExpression:
         # global index of alternate (non-ref) alleles
         return entry.annotate(LA=entry.LA.map(lambda lak: old_to_new[lak]))
 
-
-    # pylint: disable=protected-access
     tmp = ts.annotate(
         alleles=merge_alleles(ts.data.map(lambda d: d.alleles)),
         rsid=hl.find(hl.is_defined, ts.data.map(lambda d: d.rsid)),
