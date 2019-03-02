@@ -875,12 +875,15 @@ object Interpret {
               ArrayRange(I32(0), I32(value.nCols), I32(1)),
               "idx",
               Let(
-                "sa",
-                ArrayRef(Ref("sa", colArrayType), Ref("idx", TInt32Optional)),
-                Let(
-                  "g",
-                  ArrayRef(GetField(Ref("va", child.typ.rvRowType), MatrixType.entriesIdentifier), Ref("idx", TInt32Optional)),
-                  seqOpIR))))
+                "g",
+                ArrayRef(GetField(Ref("va", child.typ.rvRowType), MatrixType.entriesIdentifier), Ref("idx", TInt32Optional)),
+                If(
+                  IsNA(Ref("g", child.typ.entryType)),
+                  Begin(FastSeq()),
+                  Let(
+                    "sa",
+                    ArrayRef(Ref("sa", colArrayType), Ref("idx", TInt32Optional)),
+                    seqOpIR)))))
 
         val (t, f) = Compile[Long, Long, Long](
           "AGGR", aggResultType,

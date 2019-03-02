@@ -1111,3 +1111,17 @@ class Tests(unittest.TestCase):
         self.assertTrue(mt._same(mt1))
         self.assertTrue(mt._same(mt2))
         self.assertTrue(mt1._same(mt2))
+
+    def test_entry_filtering(self):
+        mt = hl.utils.range_matrix_table(10, 10)
+        mt = mt.filter_entries((mt.col_idx + mt.row_idx) % 2 == 0)
+
+        assert mt.aggregate_entries(hl.agg.count()) == 50
+        assert all(x == 5 for x in mt.annotate_cols(x = hl.agg.count()).x.collect())
+        assert all(x == 5 for x in mt.annotate_rows(x = hl.agg.count()).x.collect())
+
+        mt = mt.unfilter_entries()
+
+        assert mt.aggregate_entries(hl.agg.count()) == 100
+        assert all(x == 10 for x in mt.annotate_cols(x = hl.agg.count()).x.collect())
+        assert all(x == 10 for x in mt.annotate_rows(x = hl.agg.count()).x.collect())
