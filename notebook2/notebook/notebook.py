@@ -22,6 +22,7 @@ import re
 import requests
 import time
 import uuid
+import hashlib
 
 fmt = logging.Formatter(
    # NB: no space after levelname because WARNING is so long
@@ -197,8 +198,8 @@ def external_url_for(path):
     return url + path
 
 
-# FIXME: use hash
-def UNSAFE_user_id_transform(user_id): return user_id.replace('|', '--_--')
+# Kube has max 63 character limit
+def user_id_transform(user_id): return hashlib.sha224(user_id.encode('utf-8')).hexdigest()
 
 
 def read_svc_status(svc_name: str):
@@ -335,7 +336,7 @@ def root():
 @app.route('/notebook', methods=['GET'])
 @requires_auth()
 def notebook_page():
-    notebooks = get_live_user_notebooks(user_id = UNSAFE_user_id_transform(session['user']['id']))
+    notebooks = get_live_user_notebooks(user_id = user_id_transform(session['user']['id']))
 
     if notebooks is None:
         return render_template('notebook.html',
@@ -373,7 +374,7 @@ def notebook_post():
 
     jupyter_token = uuid.uuid4().hex
     name = request.form.get('name', 'a_notebook')
-    safe_user_id = UNSAFE_user_id_transform(session['user']['id'])
+    safe_user_id = user_id_transform(session['user']['id'])
 
     pod = start_pod(jupyter_token, WORKER_IMAGES[image], name, safe_user_id)
     session['notebook'] = marshall_notebooks([pod], svc_status = "Running")[0]
