@@ -1906,7 +1906,7 @@ class BlockMatrix(object):
 
         See Also
         --------
-        :meth:`.blocks_to_numpy`
+        :meth:`.rectangles_to_numpy`
 
         Parameters
         ----------
@@ -1944,32 +1944,39 @@ class BlockMatrix(object):
 
     @staticmethod
     @typecheck(path=str)
-    def blocks_to_numpy(path):
-        """Instantiates a NumPy ndarray from files of blocks written out using
-        :meth:`.export_blocks`, with `binary=True`.
+    def rectangles_to_numpy(path):
+        """Instantiates a NumPy ndarray from files of rectangles written out using
+        :meth:`.export_rectangles` or :meth:`.export_blocks`, with `binary=True`. The
+        resulting ndarray will have number of rows equal to the largest row covered by
+        any of the given rectangles, and likewise with the columns. Entries not covered
+        by any rectangle will be initialized as 0.
+
+        See Also
+        --------
+        :meth:`.export_rectangles`
+        :meth:`.export_blocks`
 
         Parameters
         ----------
         path: :obj:`str`
-            Path to directory where blocks were written.
+            Path to directory where rectangles were written.
 
         Returns
         -------
         :class:`numpy.ndarray`
         """
-        def extract_rectangles(fname):
+        def parse_rectangles(fname):
             rect_idx_and_bounds = [int(i) for i in re.findall(r'\d+', fname)]
             assert len(rect_idx_and_bounds) == 5
             return rect_idx_and_bounds
 
         rect_files = [file for file in os.listdir(path) if not re.match(r'.*\.crc', file)]
-        rects = [extract_rectangles(file) for file in rect_files]
+        rects = [parse_rectangles(file) for file in rect_files]
 
-        last_rect = max(rects, key=lambda r: r[0])  # first element is the index of the rectangle
-        n_rows = last_rect[2]
-        n_cols = last_rect[4]
+        n_rows = max(rects, key=lambda r: r[2])[2]
+        n_cols = max(rects, key=lambda r: r[3])[3]
 
-        nd = np.empty(shape=(n_rows, n_cols))
+        nd = np.zeros(shape=(n_rows, n_cols))
         for rect, file in zip(rects, rect_files):
             rows = rect[2] - rect[1]
             cols = rect[4] - rect[3]
