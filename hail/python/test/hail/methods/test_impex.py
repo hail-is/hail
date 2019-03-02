@@ -334,7 +334,8 @@ class VCFTests(unittest.TestCase):
             MQ_DP=hl.null(hl.tint32),
             VarDP=hl.null(hl.tint32),
             QUALapprox=hl.null(hl.tint32))))
-                for mt in hl.import_vcfs(paths, parts_str, reference_genome='GRCh38')]
+                for mt in hl.import_vcfs(paths, parts_str, reference_genome='GRCh38',
+                                         array_elements_required=False)]
         comb = combine_gvcfs(vcfs)
         self.assertEqual(len(parts), comb.n_partitions())
         comb._force_count_rows()
