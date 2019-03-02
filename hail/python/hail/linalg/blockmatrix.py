@@ -1115,7 +1115,8 @@ class BlockMatrix(object):
 
         Notes
         -----
-        The number of entries must be less than :math:`2^{31}`.
+        The number of entries must be less than :math:`2^{31}`. If the number of entries is
+        larger than this, consider using :meth:`.export_blocks` and :meth:`.rectangles_to_numpy`.
 
         The resulting ndarray will have the same shape as the block matrix.
 
