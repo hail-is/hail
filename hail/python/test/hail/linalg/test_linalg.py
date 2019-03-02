@@ -651,6 +651,29 @@ class Tests(unittest.TestCase):
                     self._assert_eq(expected, actual)
 
     @skip_unless_spark_backend()
+    def test_export_rectangles_sparse(self):
+        rect_path = new_local_temp_dir()
+        rect_uri = local_path_uri(rect_path)
+        nd = np.array([[1.0, 2.0, 3.0, 4.0],
+                       [5.0, 6.0, 7.0, 8.0],
+                       [9.0, 10.0, 11.0, 12.0],
+                       [13.0, 14.0, 15.0, 16.0]])
+        bm = BlockMatrix.from_numpy(nd, block_size=2)
+        sparsify_rects = [[0, 1, 0, 1], [0, 3, 0, 2], [1, 2, 0, 4]]
+        export_rects = [[0, 1, 0, 1], [0, 3, 0, 2], [1, 2, 0, 4], [2, 4, 2, 4]]
+        bm.sparsify_rectangles(sparsify_rects).export_rectangles(rect_uri, export_rects)
+
+        expected = np.array([[1.0, 2.0, 3.0, 4.0],
+                             [5.0, 6.0, 7.0, 8.0],
+                             [9.0, 10.0, 0.0, 0.0],
+                             [13.0, 14.0, 0.0, 0.0]])
+        for (i, r) in enumerate(export_rects):
+            file = rect_path + '/rect-' + str(i) + '_' + '-'.join(map(str, r))
+            expected_rect = expected[r[0]:r[1], r[2]:r[3]]
+            actual_rect = np.loadtxt(file, ndmin = 2)
+            self._assert_eq(expected_rect, actual_rect)
+ 
+    @skip_unless_spark_backend()
     def test_block_matrix_entries(self):
         n_rows, n_cols = 5, 3
         rows = [{'i': i, 'j': j, 'entry': float(i + j)} for i in range(n_rows) for j in range(n_cols)]
