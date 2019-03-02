@@ -68,6 +68,15 @@ class TableIRSuite extends SparkSuite {
   }
 
   @Test def testFilter() {
+    val t = TableRange(10, 2)
+    val node =TableFilter(
+      TableMapGlobals(t, MakeStruct(FastSeq("x"->GetField(ArrayRef(GetField(TableCollect(t), "rows"), 4), "idx")))),
+      ApplyComparisonOp(EQ(TInt32()), GetField(Ref("row", t.typ.rowType), "idx"), GetField(Ref("global", TStruct("x"->TInt32())), "x")))
+
+    val expected = Array.tabulate(10)(Row(_)).filter(_.get(0) == 4).toFastIndexedSeq
+
+    assertEvalsTo(TableCollect(node), Row(expected, Row(4)))
+
     val kt = getKT
     assertEvalsTo(TableCount(TableFilter(kt.tir,
       GetField(Ref("row", kt.typ.rowType), "field1").ceq(3))), 1L)
