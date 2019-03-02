@@ -298,12 +298,7 @@ object CompileDecoder {
           Code.toUnit(cbfis.invoke[Long, Long]("skipBytes", dataSize.toL))
 
         case EntriesWithFields(_, _, _) if settings.dropCols =>
-          Code(
-            srvb.addArray(settings.matrixType.entryArrayType.physicalType, { srvb =>
-              srvb.start(0)
-            }),
-            srvb.advance(),
-            Code.toUnit(cbfis.invoke[Long, Long]("skipBytes", dataSize.toL)))
+          Code.toUnit(cbfis.invoke[Long, Long]("skipBytes", dataSize.toL))
 
         case EntriesWithFields(gt, gp, dosage) if !(gt || gp || dosage) =>
           assert(settings.matrixType.entryType.physicalType.byteSize == 0)

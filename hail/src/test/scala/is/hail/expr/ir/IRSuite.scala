@@ -965,7 +965,7 @@ class IRSuite extends SparkSuite {
       .ast.asInstanceOf[MatrixRead]
 
     val bgenReader = MatrixBGENReader(FastIndexedSeq("src/test/resources/example.8bits.bgen"), None, Map.empty[String, String], None, None, None)
-    val bgen = MatrixRead(bgenReader.fullType, false, false, bgenReader)
+    val bgen = MatrixRead(bgenReader.fullMatrixType, false, false, bgenReader)
 
     val blockMatrix = BlockMatrixRead(BlockMatrixNativeReader(tmpDir.createLocalTempFile()))
 
@@ -1124,7 +1124,7 @@ class IRSuite extends SparkSuite {
         .ast.asInstanceOf[MatrixRead]
       
       val bgenReader = MatrixBGENReader(FastIndexedSeq("src/test/resources/example.8bits.bgen"), None, Map.empty[String, String], None, None, None)
-      val bgen = MatrixRead(bgenReader.fullType, false, false, bgenReader)
+      val bgen = MatrixRead(bgenReader.fullMatrixType, false, false, bgenReader)
 
       val range1 = MatrixTable.range(hc, 20, 2, Some(3))
         .ast.asInstanceOf[MatrixRead]
