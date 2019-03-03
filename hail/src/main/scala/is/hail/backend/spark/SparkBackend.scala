@@ -13,7 +13,10 @@ import org.json4s.jackson.JsonMethods
 object SparkBackend {
   def executeJSON(ir: IR): String = {
     val t = ir.typ
-    val value = execute(HailContext.get.sc, ir)
+    val hc = HailContext.get
+    val value = if (hc.flags.get("cpp") != null)
+      execute(hc.sc, ir)
+    else CompileAndEvaluate(ir)
     JsonMethods.compact(
       JSONAnnotationImpex.exportAnnotation(value, t))
   }
@@ -41,7 +44,7 @@ object SparkBackend {
       executeOrError(sc, ir, optimize)
     } catch {
       case e: CXXUnsupportedOperation =>
-        Interpret(ir, optimize = optimize)
+        CompileAndEvaluate(ir, optimize = optimize)
     }
   }
 }
