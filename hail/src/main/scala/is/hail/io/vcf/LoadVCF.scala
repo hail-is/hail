@@ -676,13 +676,10 @@ object LoadVCF {
       fatal("arguments refer to no files")
 
     inputs.foreach { input =>
-      if (!input.endsWith(".vcf")
-        && !input.endsWith(".vcf.bgz")) {
-        if (input.endsWith(".vcf.gz"))
-          checkGzippedFile(hConf, input, forceGZ, gzAsBGZ)
-        else
-          fatal(s"unknown input file type `$input', expect .vcf[.bgz]")
-      }
+      if (!(input.endsWith(".vcf") || !input.endsWith(".vcf.bgz") || !input.endsWith(".vcf.gz")))
+        warn(s"expected input file `$input' to end in .vcf[.bgz, .gz]")
+      if (input.endsWith(".gz"))
+        checkGzippedFile(hConf, input, forceGZ, gzAsBGZ)
     }
     inputs
   }
@@ -1235,7 +1232,7 @@ class VCFsReader(
       val start = b.start.asInstanceOf[Row].getAs[Locus](0)
       val end = b.end.asInstanceOf[Row].getAs[Locus](0)
       if (start.contig != end.contig)
-        fatal(s"partion spec must not cross contig boundaries, start: ${start.contig} | end: ${end.contig}")
+        fatal(s"partition spec must not cross contig boundaries, start: ${start.contig} | end: ${end.contig}")
     }
 
     new RVDPartitioner(
