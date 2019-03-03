@@ -1,27 +1,21 @@
 <!DOCTYPE html>
 <html lang="en" {{ 'class=dark' if session['dark'] }}>
   <head>
-    <title>Hail Notebooks</title>
+    <title>Hail</title>
     <link href="https://fonts.googleapis.com/css?family=Open+Sans" rel="stylesheet"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/3.7.0/animate.min.css">
     <link rel="stylesheet" type="text/css" href="/static/css/main.css">
     <link rel="stylesheet" type="text/css" href="/static/css/components/header.css">
-    <link rel="stylesheet" type="text/css" href="/static/css/pages/notebook.css">
   </head>
   <body id='theme-site'>
     {% include 'header.html' %}
     <div id="main">
-      <div id="notebook" class="centered">
-        <form action="{{ form_action_url }}" method="post">
-          <p>
-            <label for="image">Image:</label>
-            <select name="image" id="image">
-              {% for image in images %}
-              <option value="{{ image }}"{{'selected' if image == default else ''}}>{{ image }}</option>
-              {% endfor %}
-            </select>
-          </p>
-          <input type="submit" value="Start a Hail Notebook" />
-        </form>
+      <div class="centered">
+        <h3 class='animated fadeInUp faster'>
+          <a href="https://hail.is/" target="_blank">
+            Hail
+          </a>
+        </h3>
       </div>
     </div>
   </body>
