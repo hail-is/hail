@@ -8,7 +8,7 @@ from hail.expr import construct_expr
 from hail.ir import BlockMatrixWrite, BlockMatrixMap2, ApplyBinaryOp, Ref, F64, \
     BlockMatrixBroadcast, ValueToBlockMatrix, MakeArray, BlockMatrixRead, JavaBlockMatrix, BlockMatrixMap, \
     ApplyUnaryOp, IR, BlockMatrixDot, tensor_shape_to_matrix_shape, BlockMatrixAgg, BlockMatrixRandom, \
-    BlockMatrixToValueApply, BlockMatrixToTable
+    BlockMatrixToValueApply, BlockMatrixToTable, BlockMatrixFilter
 from hail.ir.blockmatrix_reader import BlockMatrixNativeReader, BlockMatrixBinaryReader
 from hail.ir.blockmatrix_writer import BlockMatrixBinaryWriter, BlockMatrixNativeWriter, BlockMatrixRectanglesWriter
 from hail.utils import new_temp_file, new_local_temp_file, local_path_uri, storage_level
@@ -721,7 +721,7 @@ class BlockMatrix(object):
         :class:`.BlockMatrix`
         """
         BlockMatrix._check_indices(rows_to_keep, self.n_rows)
-        return BlockMatrix._from_java(self._jbm.filterRows(jarray(Env.jvm().long, rows_to_keep)))
+        return BlockMatrix(BlockMatrixFilter(self._bmir, [rows_to_keep, []]))
 
     @typecheck_method(cols_to_keep=sequenceof(int))
     def filter_cols(self, cols_to_keep):
@@ -737,7 +737,7 @@ class BlockMatrix(object):
         :class:`.BlockMatrix`
         """
         BlockMatrix._check_indices(cols_to_keep, self.n_cols)
-        return BlockMatrix._from_java(self._jbm.filterCols(jarray(Env.jvm().long, cols_to_keep)))
+        return BlockMatrix(BlockMatrixFilter(self._bmir, [[], cols_to_keep]))
 
     @typecheck_method(rows_to_keep=sequenceof(int),
                       cols_to_keep=sequenceof(int))
@@ -763,8 +763,7 @@ class BlockMatrix(object):
         """
         BlockMatrix._check_indices(rows_to_keep, self.n_rows)
         BlockMatrix._check_indices(cols_to_keep, self.n_cols)
-        return BlockMatrix._from_java(self._jbm.filter(jarray(Env.jvm().long, rows_to_keep),
-                                                       jarray(Env.jvm().long, cols_to_keep)))
+        return BlockMatrix(BlockMatrixFilter(self._bmir, [rows_to_keep, cols_to_keep]))
 
     @staticmethod
     def _pos_index(i, size, name, allow_size=False):

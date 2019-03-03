@@ -175,8 +175,8 @@ case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) 
     globalsType)
 
   protected[ir] override def execute(hc: HailContext): TableValue = {
-    val Row(rows: IndexedSeq[Row], globals: Row) = Interpret[Row](rowsAndGlobal, optimize = false)
-    rows.zipWithIndex.foreach { case (r: Row, idx) =>
+    val Row(rows: IndexedSeq[Row], globals: Row) = CompileAndEvaluate[Row](rowsAndGlobal, optimize = false)
+    rows.zipWithIndex.foreach { case (r, idx) =>
       if (r == null)
         fatal(s"cannot parallelize null values: found null value at index $idx")
     }
@@ -905,28 +905,10 @@ case class TableMapGlobals(child: TableIR, newGlobals: IR) extends TableIR {
   protected[ir] override def execute(hc: HailContext): TableValue = {
     val tv = child.execute(hc)
 
-    val uid = genUID()
-    val (evalIR, value, valueType) = EvaluateNonCompilable(newGlobals, uid)
-
-    val globalsPType = tv.globals.t.physicalType
-    val nonCompilablePType = valueType.physicalType
-
-    val newGlobalValue = Region.scoped { r =>
-      val rvb = new RegionValueBuilder(r)
-      rvb.start(globalsPType)
-      rvb.addAnnotation(tv.globals.t, tv.globals.value)
-      val global = rvb.end()
-
-      rvb.start(nonCompilablePType)
-      rvb.addAnnotation(valueType, value)
-      val valueOffset = rvb.end()
-
-      val (resultType, f) = Compile[Long, Long, Long]("global", tv.globals.t.physicalType, uid, nonCompilablePType, evalIR)
-
-      val newGlobalOffset = f(0)(r, global, false, valueOffset, false)
-      SafeRow.read(resultType, r, newGlobalOffset).asInstanceOf[Row]
-    }
-
+    val newGlobalValue = CompileAndEvaluate[Row](newGlobals,
+      Env("global" -> (tv.globals.value, tv.globals.t)),
+      FastIndexedSeq(),
+      optimize = false)
     tv.copy(typ = typ, globals = BroadcastRow(newGlobalValue, typ.globalType, hc.sc))
   }
 }
