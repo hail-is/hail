@@ -254,6 +254,7 @@ object Simplify {
 
     case TableCount(MatrixColsTable(child)) if child.columnCount.isDefined => I64(child.columnCount.get)
 
+    case TableCount(TableRead(_, dropRows, tr)) if tr.rowCount.isDefined => if (dropRows) I64(0L) else tr.rowCount.get
     case TableCount(child) if child.partitionCounts.isDefined => I64(child.partitionCounts.get.sum)
     case TableCount(TableMapGlobals(child, _)) => TableCount(child)
     case TableCount(TableMapRows(child, _)) => TableCount(child)

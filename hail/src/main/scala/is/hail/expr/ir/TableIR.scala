@@ -92,6 +92,8 @@ abstract class TableReader {
 
   def partitionCounts: Option[IndexedSeq[Long]]
 
+  def rowCount: Option[Long] = partitionCounts.map(_.sum)
+
   def fullType: TableType
 
   def fullRVDType: RVDType

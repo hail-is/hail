@@ -378,6 +378,8 @@ case class MatrixBGENReader(
 
   val nVariants = fileMetadata.map(_.nVariants).sum
 
+  override def rowCount: Option[Long] = Some(nVariants)
+
   info(s"Number of BGEN files parsed: ${ fileMetadata.length }")
   info(s"Number of samples in BGEN files: $nSamples")
   info(s"Number of variants across all BGEN files: $nVariants")
