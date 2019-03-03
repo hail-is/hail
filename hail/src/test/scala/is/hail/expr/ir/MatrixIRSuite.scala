@@ -298,7 +298,8 @@ class MatrixIRSuite extends SparkSuite {
   }
 
   @Test def testMatrixMultiWrite() {
-    val ranges = IndexedSeq(MatrixTable.range(hc, 15, 3, Some(10)), MatrixTable.range(hc, 8, 27, Some(1)))
+    // partitioning must be the same
+    val ranges = IndexedSeq(MatrixTable.range(hc, 15, 3, Some(10)), MatrixTable.range(hc, 15, 27, Some(10)))
     val path = tmpDir.createLocalTempFile()
     Interpret(MatrixMultiWrite(ranges.map(_.ast), MatrixNativeMultiWriter(path)))
     val read0 = MatrixTable.read(hc, path + "0.mt")
