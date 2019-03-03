@@ -3235,7 +3235,7 @@ class MatrixTable(ExprContainer):
 
         All rows, first 10 columns:
 
-        >>> mt_range.head(None, 10)
+        >>> mt_range.head(None, 10).count()
         (100, 10)
 
         Notes
