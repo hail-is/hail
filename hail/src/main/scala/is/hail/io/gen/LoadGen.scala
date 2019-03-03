@@ -14,6 +14,7 @@ import is.hail.variant._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.Row
+import org.apache.spark.broadcast.Broadcast
 
 case class GenResult(file: String, nSamples: Int, nVariants: Int, rdd: RDD[(Annotation, Iterable[Annotation])])
 
@@ -22,7 +23,7 @@ object LoadGen {
     genFile: String,
     sampleFile: String,
     sc: SparkContext,
-    rg: Option[ReferenceGenome],
+    rgBc: Option[Broadcast[ReferenceGenome]],
     nPartitions: Option[Int] = None,
     tolerance: Double = 0.02,
     chromosome: Option[String] = None,
@@ -38,7 +39,7 @@ object LoadGen {
 
     val rdd = sc.textFileLines(genFile, nPartitions.getOrElse(sc.defaultMinPartitions))
       .flatMap(_.map { l =>
-        readGenLine(l, nSamples, tolerance, rg, chromosome, contigRecoding, skipInvalidLoci)
+        readGenLine(l, nSamples, tolerance, rgBc.map(_.value), chromosome, contigRecoding, skipInvalidLoci)
       }.value)
 
     GenResult(genFile, nSamples, rdd.count().toInt, rdd = rdd)
@@ -127,7 +128,7 @@ case class MatrixGENReader(
   private val nSamples = samples.length
 
   // FIXME: can't specify multiple chromosomes
-  private val results = files.map(f => LoadGen(f, sampleFile, HailContext.get.sc, referenceGenome, nPartitions,
+  private val results = files.map(f => LoadGen(f, sampleFile, HailContext.sc, referenceGenome.map(_.broadcast), nPartitions,
     tolerance, chromosome, contigRecoding, skipInvalidLoci))
 
   private val unequalSamples = results.filter(_.nSamples != nSamples).map(x => (x.file, x.nSamples))

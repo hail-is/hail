@@ -189,8 +189,6 @@ case class MatrixType(
 
   def referenceGenome: ReferenceGenome = {
     val firstKeyField = rowKeyStruct.types(0)
-    firstKeyField match {
-      case TLocus(rg: ReferenceGenome, _) => rg
-    }
+    firstKeyField.asInstanceOf[TLocus].rg.asInstanceOf[ReferenceGenome]
   }
 }
