@@ -1,7 +1,6 @@
 import numpy as np
 import scipy.linalg as spla
 import itertools
-import math
 import os
 import re
 
@@ -1115,9 +1114,6 @@ class BlockMatrix(object):
 
         Notes
         -----
-        The number of entries must be less than :math:`2^{31}`. If the number of entries is
-        larger than this, consider using :meth:`.export_blocks` and :meth:`.rectangles_to_numpy`.
-
         The resulting ndarray will have the same shape as the block matrix.
 
         Returns
@@ -1126,6 +1122,11 @@ class BlockMatrix(object):
         """
         path = new_local_temp_file()
         uri = local_path_uri(path)
+
+        if self.n_rows * self.n_cols > 1 << 31:
+            self.export_blocks(uri)
+            return BlockMatrix.rectangles_to_numpy(path)
+
         self.tofile(uri)
         return np.fromfile(path).reshape((self.n_rows, self.n_cols))
 
@@ -1903,7 +1904,10 @@ class BlockMatrix(object):
 
         Notes
         -----
-        This method is particularly useful if the block matrix is too large to write to a single file.
+        This method does not have any matrix size limitations.
+
+        If exporting to binary files, note that they are not platform independent. No byte-order
+        or data-type information is saved.
 
         See Also
         --------
@@ -1936,8 +1940,8 @@ class BlockMatrix(object):
 
             return [start_row, end_row, start_col, end_col]
 
-        n_block_rows = math.ceil(self.n_rows / self.block_size)
-        n_block_cols = math.ceil(self.n_cols / self.block_size)
+        n_block_rows = (self.n_rows + self.block_size - 1) // self.block_size
+        n_block_cols = (self.n_cols + self.block_size - 1) // self.block_size
         block_indices = itertools.product(range(n_block_rows), range(n_block_cols))
         rectangles = [bounds(block_row, block_col) for (block_row, block_col) in block_indices]
 
@@ -1970,6 +1974,11 @@ class BlockMatrix(object):
             1.0 0.0
             4.0 5.0
             7.0 0.0
+
+        Notes
+        -----
+        If exporting to binary files, note that they are not platform independent. No byte-order
+        or data-type information is saved.
 
         See Also
         --------
