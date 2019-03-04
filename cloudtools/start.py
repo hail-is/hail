@@ -87,6 +87,8 @@ def init_parser(parser):
     parser.add_argument('--init', default='', help='Comma-separated list of init scripts to run.')
     parser.add_argument('--init_timeout', default='20m', help='Flag to specify a timeout period for the initialization action')
     parser.add_argument('--vep', action='store_true', help='Configure the cluster to run VEP.')
+    parser.add_argument('--vep-reference', default='GRCh37', help='Set the reference genome version for VEP.',
+                        choices=['GRCh37', 'GRCh38'])
     parser.add_argument('--dry-run', action='store_true', help="Print gcloud dataproc command, but don't run it.")
 
     # custom config file
@@ -134,7 +136,10 @@ def main(args):
                       init_script])
     # add VEP init script
     if args.vep:
-        vep_init = 'gs://hail-common/vep/vep/vep85-loftee-1.0-GRCh37-init-docker.sh' if args.version == '0.2' else 'gs://hail-common/vep/vep/vep85-init.sh'
+        if args.version == '0.1':
+            vep_init = 'gs://hail-common/vep/vep/vep85-init.sh'
+        else:
+            vep_init = 'gs://hail-common/vep/vep/vep85-loftee-1.0-{vep_ref}-init-docker.sh'.format(vep_ref=args.vep_reference)
         conf.extend_flag('initialization-actions', [vep_init])
     # add custom init scripts
     if args.init:
