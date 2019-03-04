@@ -383,7 +383,7 @@ def delete_all_workers():
     return redirect(external_url_for('workers'))
 
 
-def delete_worker_pod(pod_name, svc_name):
+def delete_worker_pod(pod_name):
     try:
         k8s.delete_namespaced_pod(
             pod_name,
