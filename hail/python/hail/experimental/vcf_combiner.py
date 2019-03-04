@@ -46,8 +46,8 @@ def transform_one(mt) -> Table:
                         "MQ_DP",
                         "QUALapprox",
                         "RAW_MQ",
-                        "VarDP",
                         "SB_TABLE",
+                        "VarDP",
                     ),
                     __entries=row.__entries.map(
                         lambda e:
@@ -72,7 +72,7 @@ def transform_one(mt) -> Table:
                             MQ=row.info['MQ'],
                             MQRankSum=row.info['MQRankSum'],
                             PID=e.PID,
-                            RGT=hl.cond(
+                            RGQ=hl.cond(
                                 has_non_ref,
                                 e.PL[hl.call(0, alleles_len - 1).unphased_diploid_gt_index()],
                                 hl.null(e.PL.dtype.element_type)),
