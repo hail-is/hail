@@ -9,9 +9,10 @@ import is.hail.expr.ir.PruneDeadFields.isSupertype
 import is.hail.expr.types.{virtual, _}
 import is.hail.expr.types.physical.{PInt64, PStruct}
 import is.hail.expr.types.virtual.{TArray, TInterval, TStruct}
-import is.hail.io.CodecSpec
+import is.hail.io.{CodecSpec, RichContextRDDRegionValue}
 import is.hail.sparkextras._
 import is.hail.utils._
+import org.apache.commons.lang3.StringUtils
 import org.apache.spark.{Partitioner, SparkContext}
 import org.apache.spark.rdd.{RDD, ShuffledRDD}
 import org.apache.spark.sql.Row
@@ -1309,11 +1310,78 @@ object RVD {
     stageLocally: Boolean
   ): Array[Array[Long]] = {
     val first = rvds.head
-    require(rvds.forall(_.typ == first.typ))
-    val crdd = new ContextRDD(
-      new OriginUnionRDD(first.crdd.rdd.sparkContext, rvds.map(_.crdd.rdd)),
-      first.crdd.mkc
-    )
-    crdd.writeRowsSplitFiles(path, first.typ, codecSpec, rvds.map(_.partitioner), stageLocally)
+    require(rvds.forall(rvd => rvd.typ == first.typ && rvd.partitioner == first.partitioner))
+
+    val sc = HailContext.sc
+    val hConf = HailContext.hadoopConf
+    val hConfBc = HailContext.hadoopConfBc
+
+    val nRVDs = rvds.length
+    val partitioner = first.partitioner
+    val partitionerBc = partitioner.broadcast(sc)
+    val nPartitions = partitioner.numPartitions
+
+    val localTyp = first.typ
+    val fullRowType = first.typ.rowType
+    val rowsRVType = MatrixType.getRowType(fullRowType)
+    val entriesRVType = MatrixType.getSplitEntriesType(fullRowType)
+
+    val makeRowsEnc = codecSpec.buildEncoder(rowsRVType)
+
+    val makeEntriesEnc = codecSpec.buildEncoder(entriesRVType)
+
+    val partDigits = digitsNeeded(nPartitions)
+    val fileDigits = digitsNeeded(rvds.length)
+    for (i <- 0 until nRVDs) {
+      val s = StringUtils.leftPad(i.toString, fileDigits, '0')
+      hConf.mkDir(path + s + ".mt" + "/rows/rows/parts")
+      hConf.mkDir(path + s + ".mt" + "/entries/rows/parts")
+    }
+
+    val partF = { (originIdx: Int, originPartIdx: Int, it: Iterator[RVDContext => Iterator[RegionValue]]) =>
+      Iterator.single { ctx: RVDContext =>
+        val hConf = hConfBc.value.value
+        val s = StringUtils.leftPad(originIdx.toString, fileDigits, '0')
+        val fullPath = path + s + ".mt"
+        val (f, rowCount) = RichContextRDDRegionValue.writeSplitRegion(
+          hConf,
+          fullPath,
+          localTyp,
+          singletonElement(it)(ctx),
+          originPartIdx,
+          ctx,
+          partDigits,
+          stageLocally,
+          makeRowsEnc,
+          makeEntriesEnc)
+        Iterator.single((f, rowCount, originIdx))
+      }
+    }
+
+    val partFilePartitionCounts = new ContextRDD(
+      new OriginUnionRDD(first.crdd.rdd.sparkContext, rvds.map(_.crdd.rdd), partF),
+      first.crdd.mkc)
+      .collect()
+
+    val partFilesByOrigin = Array.fill[ArrayBuilder[String]](nRVDs)(new ArrayBuilder())
+    val partitionCountsByOrigin = Array.fill[ArrayBuilder[Long]](nRVDs)(new ArrayBuilder())
+
+    for ((f, rowCount, oidx) <- partFilePartitionCounts) {
+      partFilesByOrigin(oidx) += f
+      partitionCountsByOrigin(oidx) += rowCount
+    }
+
+    val partFiles = partFilesByOrigin.map(_.result())
+    val partCounts = partitionCountsByOrigin.map(_.result())
+
+    sc.parallelize(partFiles.zipWithIndex, partFiles.length)
+      .foreach { case (partFiles, i) =>
+        val hConf = hConfBc.value.value
+        val s = StringUtils.leftPad(i.toString, fileDigits, '0')
+        val basePath = path + s + ".mt"
+        RichContextRDDRegionValue.writeSplitSpecs(hConf, basePath, codecSpec, localTyp.key, rowsRVType, entriesRVType, partFiles, partitionerBc.value)
+      }
+
+    partCounts
   }
 }

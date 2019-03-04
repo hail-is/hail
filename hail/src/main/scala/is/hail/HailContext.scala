@@ -403,10 +403,10 @@ class HailContext private(val sc: SparkContext,
   def getTemporaryFile(nChar: Int = 10, prefix: Option[String] = None, suffix: Option[String] = None): String =
     sc.hadoopConfiguration.getTemporaryFile(tmpDir, nChar, prefix, suffix)
 
-  def indexBgen(files: java.util.ArrayList[String],
-    indexFileMap: java.util.HashMap[String, String],
+  def indexBgen(files: java.util.List[String],
+    indexFileMap: java.util.Map[String, String],
     rg: Option[String],
-    contigRecoding: java.util.HashMap[String, String],
+    contigRecoding: java.util.Map[String, String],
     skipInvalidLoci: Boolean) {
     indexBgen(files.asScala, indexFileMap.asScala.toMap, rg, contigRecoding.asScala.toMap, skipInvalidLoci)
   }
@@ -520,9 +520,9 @@ class HailContext private(val sc: SparkContext,
     JsonMethods.compact(Extraction.decompose(metadata))
   }
   
-  def importMatrix(files: java.util.ArrayList[String],
-    rowFields: java.util.HashMap[String, String],
-    keyNames: java.util.ArrayList[String],
+  def importMatrix(files: java.util.List[String],
+    rowFields: java.util.Map[String, String],
+    keyNames: java.util.List[String],
     cellType: String,
     missingVal: String,
     minPartitions: Option[Int],

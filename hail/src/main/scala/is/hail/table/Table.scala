@@ -49,7 +49,7 @@ object Table {
   def range(hc: HailContext, n: Int, nPartitions: Option[Int] = None): Table =
     new Table(hc, TableRange(n, nPartitions.getOrElse(hc.sc.defaultParallelism)))
 
-  def pyFromDF(df: DataFrame, jKey: java.util.ArrayList[String]): TableIR = {
+  def pyFromDF(df: DataFrame, jKey: java.util.List[String]): TableIR = {
     val key = jKey.asScala.toArray.toFastIndexedSeq
     val signature = SparkAnnotationImpex.importType(df.schema).asInstanceOf[TStruct]
     TableLiteral(TableValue(signature, key, df.rdd))

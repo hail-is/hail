@@ -16,7 +16,7 @@ object TTuple {
 
   def apply(args: Type*): TTuple = apply(false, args: _*)
 
-  def apply(types: java.util.ArrayList[Type], required: Boolean): TTuple = {
+  def apply(types: java.util.List[Type], required: Boolean): TTuple = {
     TTuple(types.asScala.toArray, required)
   }
 }
