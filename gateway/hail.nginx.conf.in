@@ -196,17 +196,17 @@ server {
         error_page 502 504 = @pod_dead;
     }
 
+    location @pod_dead {
+        set $args "?err=Notebook not found";
+        return 307 $scheme://$http_host/error$args;
+    }
+
     location ~ /instance-ready/([^/]+)/ {
         set $pod_uuid $1;
         auth_request /auth;
         auth_request_set $auth_pod_ip $upstream_http_pod_ip;
 
         proxy_pass http://$1/instance/$1/;
-    }
-
-    location @pod_dead {
-        set $args "?err=Notebook not found";
-        return 307 $scheme://$http_host/error$args;
     }
 
     location / {
