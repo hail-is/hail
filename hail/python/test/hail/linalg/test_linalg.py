@@ -32,6 +32,11 @@ class Tests(unittest.TestCase):
             actual_rect = np.reshape(np.fromfile(file), (r[1] - r[0], r[3] - r[2])) if binary else np.loadtxt(file, ndmin=2)
             self._assert_eq(expected_rect, actual_rect)
 
+    def assert_sums_agree(self, bm, nd):
+        self.assertAlmostEqual(bm.sum(), np.sum(nd))
+        self._assert_close(bm.sum(axis=0), np.sum(nd, axis=0, keepdims=True))
+        self._assert_close(bm.sum(axis=1), np.sum(nd, axis=1, keepdims=True))
+
     @skip_unless_spark_backend()
     def test_from_entry_expr(self):
         mt = get_dataset()
@@ -49,7 +54,6 @@ class Tests(unittest.TestCase):
         a4 = BlockMatrix.read(path).to_numpy()
         self._assert_eq(a1, a4)
 
-    @skip_unless_spark_backend()
     def test_from_entry_expr_options(self):
         def build_mt(a):
             data = [{'v': 0, 's': 0, 'x': a[0]},
@@ -84,7 +88,6 @@ class Tests(unittest.TestCase):
         with self.assertRaises(Exception):
             BlockMatrix.from_entry_expr(mt.x)
 
-    @skip_unless_spark_backend()
     def test_write_from_entry_expr_overwrite(self):
         mt = hl.balding_nichols_model(1, 1, 1)
         mt = mt.select_entries(x=mt.GT.n_alt_alleles())
@@ -105,7 +108,6 @@ class Tests(unittest.TestCase):
         BlockMatrix.write_from_entry_expr(mt.x + 2, path2, overwrite=True)
         self._assert_eq(BlockMatrix.read(path2), bm + 2)
 
-    @skip_unless_spark_backend()
     def test_random_uniform(self):
         uniform = BlockMatrix.random(10, 10, gaussian=False)
 
@@ -114,13 +116,12 @@ class Tests(unittest.TestCase):
             for entry in row:
                 assert entry > 0
 
-    @skip_unless_spark_backend()
     def test_to_from_numpy(self):
         n_rows = 10
         n_cols = 11
         data = np.random.rand(n_rows * n_cols)
 
-        bm = BlockMatrix._create(n_rows, n_cols, data.tolist(), row_major=True, block_size=4)
+        bm = BlockMatrix._create(n_rows, n_cols, data.tolist(), block_size=4)
         a = data.reshape((n_rows, n_cols))
 
         with tempfile.NamedTemporaryFile() as bm_f:
@@ -160,7 +161,6 @@ class Tests(unittest.TestCase):
                 self._assert_eq(at4, at)
                 self._assert_eq(at5, at)
 
-    @skip_unless_spark_backend()
     def test_elementwise_ops(self):
         nx = np.matrix([[2.0]])
         nc = np.matrix([[1.0], [2.0]])
@@ -347,20 +347,15 @@ class Tests(unittest.TestCase):
         self._assert_close(m / nr, m / r)
         self._assert_close(m / nm, m / m)
 
-    @skip_unless_spark_backend()
     def test_special_elementwise_ops(self):
         nm = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
         m = BlockMatrix.from_numpy(nm)
 
         self._assert_close(m ** 3, nm ** 3)
-
         self._assert_close(m.sqrt(), np.sqrt(nm))
-
         self._assert_close(m.log(), np.log(nm))
-
         self._assert_close((m - 4).abs(), np.abs(nm - 4))
 
-    @skip_unless_spark_backend()
     def test_matrix_ops(self):
         nm = np.matrix([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
         m = BlockMatrix.from_numpy(nm, block_size=2)
@@ -389,7 +384,6 @@ class Tests(unittest.TestCase):
         self._assert_eq(m.T.diagonal(), np.array([1.0, 5.0]))
         self._assert_eq((m @ m.T).diagonal(), np.array([14.0, 77.0]))
 
-    @skip_unless_spark_backend()
     def test_fill(self):
         nd = np.ones((3, 5))
         bm = BlockMatrix.fill(3, 5, 1.0)
@@ -400,37 +394,33 @@ class Tests(unittest.TestCase):
         self._assert_eq(bm, nd)
         self._assert_eq(bm2, nd)
 
-    @skip_unless_spark_backend()
     def test_sum(self):
-        def sums_agree(bm, nd):
-            self.assertAlmostEqual(bm.sum(), np.sum(nd))
-            self._assert_close(bm.sum(axis=0), np.sum(nd, axis=0, keepdims=True))
-            self._assert_close(bm.sum(axis=1), np.sum(nd, axis=1, keepdims=True))
-
         nd = np.random.normal(size=(11, 13))
         bm = BlockMatrix.from_numpy(nd, block_size=3)
 
-        nd2 = np.zeros(shape=(5, 7))
-        nd2[2, 4] = 1.0
-        nd2[2, 5] = 2.0
-        nd2[3, 4] = 3.0
-        nd2[3, 5] = 4.0
-        bm2 = BlockMatrix.from_numpy(nd2, block_size=2).sparsify_rectangles([[2, 4, 4, 6]])
-
-        bm3 = BlockMatrix.from_numpy(nd2, block_size=2).sparsify_rectangles([[2, 4, 4, 6], [0, 5, 0, 1]])
-
-        bm4 = BlockMatrix.from_numpy(nd2, block_size=2).sparsify_rectangles([[2, 4, 4, 6], [0, 1, 0, 7]])
-
-        nd5 = np.zeros(shape=(5, 7))
-        bm5 = BlockMatrix.fill(5, 7, value=0.0, block_size=2).sparsify_rectangles([])
-
-        sums_agree(bm, nd)
-        sums_agree(bm2, nd2)
-        sums_agree(bm3, nd2)
-        sums_agree(bm4, nd2)
-        sums_agree(bm5, nd5)
+        self.assert_sums_agree(bm, nd)
 
     @skip_unless_spark_backend()
+    def test_sum_with_sparsify(self):
+        nd = np.zeros(shape=(5, 7))
+        nd[2, 4] = 1.0
+        nd[2, 5] = 2.0
+        nd[3, 4] = 3.0
+        nd[3, 5] = 4.0
+        bm = BlockMatrix.from_numpy(nd, block_size=2).sparsify_rectangles([[2, 4, 4, 6]])
+
+        bm2 = BlockMatrix.from_numpy(nd, block_size=2).sparsify_rectangles([[2, 4, 4, 6], [0, 5, 0, 1]])
+
+        bm3 = BlockMatrix.from_numpy(nd, block_size=2).sparsify_rectangles([[2, 4, 4, 6], [0, 1, 0, 7]])
+
+        nd4 = np.zeros(shape=(5, 7))
+        bm4 = BlockMatrix.fill(5, 7, value=0.0, block_size=2).sparsify_rectangles([])
+
+        self.assert_sums_agree(bm, nd)
+        self.assert_sums_agree(bm2, nd)
+        self.assert_sums_agree(bm3, nd)
+        self.assert_sums_agree(bm4, nd4)
+
     def test_slicing(self):
         nd = np.array(np.arange(0, 80, dtype=float)).reshape(8, 10)
         bm = BlockMatrix.from_numpy(nd, block_size=3)
@@ -481,6 +471,10 @@ class Tests(unittest.TestCase):
         self.assertRaises(ValueError, lambda: bm[0, -11:])
         self.assertRaises(ValueError, lambda: bm[0, :-11])
 
+    @skip_unless_spark_backend()
+    def test_slices_with_sparsify(self):
+        nd = np.array(np.arange(0, 80, dtype=float)).reshape(8, 10)
+        bm = BlockMatrix.from_numpy(nd, block_size=3)
         bm2 = bm.sparsify_row_intervals([0, 0, 0, 0, 0, 0, 0, 0], [2, 0, 0, 0, 0, 0, 0, 0])
         self.assertEqual(bm2[0, 1], 1.0)
         self.assertEqual(bm2[0, 2], 0.0)
@@ -620,7 +614,6 @@ class Tests(unittest.TestCase):
 
         self._assert_eq(bm.sparsify_rectangles([]), np.zeros(shape=(4, 4)))
 
-    @skip_unless_spark_backend()
     def test_export_rectangles(self):
         nd = np.arange(0, 80, dtype=float).reshape(8, 10)
 
@@ -859,7 +852,6 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(res, [0, 0, 2, 2, 4, 6])
 
-    @skip_unless_spark_backend()
     def test_write_overwrite(self):
         path = new_temp_file()
 
@@ -871,7 +863,6 @@ class Tests(unittest.TestCase):
         bm2.write(path, overwrite=True)
         self._assert_eq(BlockMatrix.read(path), bm2)
 
-    @skip_unless_spark_backend()
     def test_stage_locally(self):
         nd = np.arange(0, 80, dtype=float).reshape(8, 10)
         bm_uri = new_temp_file()
