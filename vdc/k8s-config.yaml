@@ -144,6 +144,9 @@ rules:
 - apiGroups: [""]
   resources: ["services"]
   verbs: ["*"]
+- apiGroups: [""]
+  resources: ["persistentvolumeclaims"]
+  verbs: ["*"]
 ---
 kind: RoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
