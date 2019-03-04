@@ -2217,6 +2217,46 @@ class MatrixTable(ExprContainer):
                       overwrite=bool,
                       stage_locally=bool,
                       _codec_spec=nullable(str))
+    def checkpoint(self, output: str, overwrite: bool = False, stage_locally: bool = False,
+              _codec_spec: Optional[str] = None) -> 'MatrixTable':
+        """Checkpoint the matrix table to disk by writing and reading.
+
+        Parameters
+        ----------
+        output : str
+            Path at which to write.
+        stage_locally: bool
+            If ``True``, major output will be written to temporary local storage
+            before being copied to ``output``
+        overwrite : bool
+            If ``True``, overwrite an existing file at the destination.
+
+        Returns
+        -------
+        :class:`MatrixTable`
+
+        Warning
+        -------
+        Do not checkpoint to a path that is being read from in the same computation.
+
+        Notes
+        -----
+        An alias for :meth:`write` followed by :func:`.read_matrix_table`. It
+        is possible to read the file at this path later with
+        :func:`.read_matrix_table`.
+
+        Examples
+        --------
+        >>> dataset = dataset.checkpoint('output/dataset_checkpoint.mt')
+
+        """
+        self.write(output=output, overwrite=overwrite, stage_locally=stage_locally, _codec_spec=_codec_spec)
+        return hl.read_matrix_table(output)
+
+    @typecheck_method(output=str,
+                      overwrite=bool,
+                      stage_locally=bool,
+                      _codec_spec=nullable(str))
     def write(self, output: str, overwrite: bool = False, stage_locally: bool = False,
               _codec_spec: Optional[str] = None):
         """Write to disk.
