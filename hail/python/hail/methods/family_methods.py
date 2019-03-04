@@ -67,7 +67,7 @@ def trio_matrix(dataset, pedigree, complete_trios=False) -> MatrixTable:
     samples = mt[k].collect()
 
     pedigree = pedigree.filter_to(samples)
-    trios = pedigree.complete_trios() if complete_trios else pedigree.trios()
+    trios = pedigree.complete_trios() if complete_trios else pedigree.trios
     n_trios = len(trios)
 
     sample_idx = {}
