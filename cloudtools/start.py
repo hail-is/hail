@@ -73,6 +73,8 @@ def init_parser(parser):
                         help='Comma-separated list of metadata to add: KEY1=VALUE1,KEY2=VALUE2...')
     parser.add_argument('--packages', '--pkgs',
                         help='Comma-separated list of Python packages to be installed on the master node.')
+    parser.add_argument('--project', help='Google Cloud project to start cluster (defaults to currently set project).')
+    parser.add_argument('--configuration', help='Google Cloud configuration to start cluster (defaults to currently set configuration).')
     parser.add_argument('--max-idle', type=str, help='If specified, maximum idle time before shutdown (e.g. 60m).')
     parser.add_argument('--max-age', type=str, help='If specified, maximum age before shutdown (e.g. 60m).')
     parser.add_argument('--bucket', type=str, help='The Google Cloud Storage bucket to use for cluster staging (just the bucket name, no gs:// prefix).')
@@ -169,6 +171,10 @@ def main(args):
     conf.flags['worker-machine-type'] = args.worker_machine_type
     conf.flags['zone'] = args.zone
     conf.flags['initialization-action-timeout'] = args.init_timeout
+    if args.configuration:
+        conf.flags['configuration'] = args.configuration
+    if args.project:
+        conf.flags['project'] = args.project
     if args.bucket:
         conf.flags['bucket'] = args.bucket
 
