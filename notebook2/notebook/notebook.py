@@ -299,7 +299,6 @@ def get_live_user_notebooks(user_id):
     if len(pods) == 0:
         return []
 
-    # Kubernetes service will reflect the change immediately, pod will not
     notebooks = list(filter(lambda n: n['deletion_timestamp'] is None, notebooks_for_ui(pods)))
 
     return notebooks
