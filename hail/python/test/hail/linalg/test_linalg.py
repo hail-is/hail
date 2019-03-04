@@ -25,11 +25,11 @@ class Tests(unittest.TestCase):
     def _assert_close(self, a, b):
         self.assertTrue(np.allclose(self._np_matrix(a), self._np_matrix(b)))
 
-    def _assert_rectangles_eq(self, expected, rect_path, export_rects):
+    def _assert_rectangles_eq(self, expected, rect_path, export_rects, binary=False):
         for (i, r) in enumerate(export_rects):
             file = rect_path + '/rect-' + str(i) + '_' + '-'.join(map(str, r))
             expected_rect = expected[r[0]:r[1], r[2]:r[3]]
-            actual_rect = np.loadtxt(file, ndmin = 2)
+            actual_rect = np.reshape(np.fromfile(file), (r[1] - r[0], r[3] - r[2])) if binary else np.loadtxt(file, ndmin=2)
             self._assert_eq(expected_rect, actual_rect)
 
     @skip_unless_spark_backend()
@@ -646,7 +646,7 @@ class Tests(unittest.TestCase):
                 rect_uri_bytes = local_path_uri(rect_path_bytes)
 
                 bm.export_rectangles(rect_uri_bytes, rects, binary=True)
-                self._assert_rectangles_eq(nd, rect_path_bytes, rects)
+                self._assert_rectangles_eq(nd, rect_path_bytes, rects, binary=True)
 
     @skip_unless_spark_backend()
     def test_export_rectangles_sparse(self):
@@ -677,7 +677,7 @@ class Tests(unittest.TestCase):
                        [9.0, 10.0, 11.0, 12.0],
                        [13.0, 14.0, 15.0, 16.0]])
         bm = BlockMatrix.from_numpy(nd)
-        bm = bm[1:2, 1:2]
+        bm = bm[1:3, 1:3]
         export_rects = [[0, 1, 0, 2], [1, 2, 0, 2]]
         bm.export_rectangles(rect_uri, export_rects)
 
