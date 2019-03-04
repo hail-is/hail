@@ -226,11 +226,7 @@ def pod_condition_for_ui(conds):
 
     maxCond = max(conds, key=lambda c: (c.last_transition_time, c.status == 'True'))
 
-    return {
-        "message": maxCond.message,
-        "reason": maxCond.reason,
-        "status": maxCond.status,
-        "type": maxCond.type}
+    return {"status": maxCond.status, "type": maxCond.type}
 
 
 def pod_to_ui_dict(pod, svc_status = None):
@@ -335,9 +331,9 @@ def auth(requested_pod_uuid):
     notebook = session.get('notebook')
 
     if notebook is not None and notebook['pod_uuid'] == requested_pod_uuid:
-        res = Response.make_response()
-        res.headers['ip']
-        return '', 200
+        res = flask.make_response()
+        res.headers['pod_ip'] = notebook['pod_ip']
+        return res
 
     return '', 404
 
@@ -349,25 +345,26 @@ def get_all_workers():
         label_selector='app=notebook2-worker',
         _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
 
-
 @app.route('/workers')
 @requires_auth()
 def workers():
     if not session.get('admin'):
         return redirect(external_url_for('admin-login'))
-    workers_and_svcs = get_all_workers()
+
     return render_template('workers.html',
-                           workers=workers_and_svcs,
+                           workers=get_all_workers(),
                            workers_url=external_url_for('workers'),
                            leader_instance=INSTANCE_ID)
 
 
-@app.route('/workers/<pod_name>/<svc_name>/delete')
+@app.route('/workers/<pod_name>/delete')
 @requires_auth()
-def workers_delete(pod_name, svc_name):
+def workers_delete(pod_name):
     if not session.get('admin'):
         return redirect(external_url_for('admin-login'))
-    delete_worker_pod(pod_name, svc_name)
+
+    delete_worker_pod(pod_name)
+
     return redirect(external_url_for('workers'))
 
 
@@ -376,9 +373,10 @@ def workers_delete(pod_name, svc_name):
 def delete_all_workers():
     if not session.get('admin'):
         return redirect(external_url_for('admin-login'))
-    workers_and_svcs = get_all_workers()
-    for pod_name, svc_name in workers_and_svcs:
-        delete_worker_pod(pod_name, svc_name)
+
+    for pod_name in get_all_workers():
+        delete_worker_pod(pod_name)
+
     return redirect(external_url_for('workers'))
 
 
@@ -405,7 +403,9 @@ def admin_login():
 def admin_login_post():
     if request.form['password'] != ADMIN_PASSWORD:
         return '403 Forbidden', 403
+
     session['admin'] = True
+
     return redirect(external_url_for('workers'))
 
 
@@ -423,14 +423,16 @@ def wait_websocket(ws):
     if notebook is None:
         return
 
-    pod_name = notebook['pod_name']
-    svc_name = notebook['svc_name']
+    pod_uuid = notebook['pod_uuid']
+
+    url = external_url_for('')
+    url = f'{url}instance/{pod_uuid}/'
+
     while True:
         try:
-            response = requests.head(f'https://notebook2.hail.is/instance-ready/{svc_name}/',
-                                     timeout=1)
+            response = requests.head(url, timeout=1)
             if response.status_code < 500:
-                log.info(f'HEAD on jupyter succeeded for {svc_name} {pod_name} response: {response}')
+                log.info(f'HEAD on jupyter succeeded for pod_uuid: {pod_uuid} : response: {response}')
                 # if someone responds with a 2xx, 3xx, or 4xx, the notebook
                 # server is alive and functioning properly (in particular, our
                 # HEAD request will return 405 METHOD NOT ALLOWED)
@@ -438,11 +440,11 @@ def wait_websocket(ws):
             else:
                 # somewhat unusual, means the gateway had an error before we
                 # timed out, usually means the gateway itself is broken
-                log.info(f'HEAD on jupyter failed for {svc_name} {pod_name} response: {response}')
+                log.info(f'HEAD on jupyter failed for pod_uuid: {pod_uuid} : response: {response}')
                 gevent.sleep(1)
             break
-        except requests.exceptions.Timeout as e:
-            log.info(f'GET on jupyter failed for {svc_name} {pod_name}')
+        except requests.exceptions.Timeout:
+            log.info(f'GET on jupyter failed for pod_uuid: {pod_uuid} : response')
             gevent.sleep(1)
 
     ws.send("1")
