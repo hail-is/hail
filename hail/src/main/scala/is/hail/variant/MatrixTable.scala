@@ -104,12 +104,6 @@ case class RVDComponentSpec(rel_path: String) extends ComponentSpec {
     rvdSpec(hc.hadoopConf, path)
       .readLocal(hc, rvdPath, requestedType)
   }
-
-  def cxxEmitRead(hc: HailContext, path: String, requestedType: TStruct, tub: cxx.TranslationUnitBuilder): cxx.RVDEmitTriplet = {
-    val rvdPath = path + "/" + rel_path
-    rvdSpec(hc.hadoopConf, path)
-      .cxxEmitRead(hc, rvdPath, requestedType, tub)
-  }
 }
 
 case class PartitionCountsComponentSpec(counts: Seq[Long]) extends ComponentSpec
@@ -177,6 +171,7 @@ object MatrixTable {
           val region = ctx.region
           val rvb = new RegionValueBuilder(region)
           val rv = RegionValue(region)
+
 
           it.map { case (va, gs) =>
             val vaRow = va.asInstanceOf[Row]

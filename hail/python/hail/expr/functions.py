@@ -2799,7 +2799,7 @@ def group_by(f: Callable, collection) -> DictExpression:
 
     >>> a = ['The', 'quick', 'brown', 'fox']
 
-    >>> hl.eval(hl.group_by(lambda x: hl.len(x), a))
+    >>> hl.eval(hl.group_by(lambda x: hl.len(x), a))  # doctest: +NOTEST
     {5: ['quick', 'brown'], 3: ['The', 'fox']}
 
     Parameters

@@ -220,7 +220,7 @@ abstract class PContainer extends PType {
 
   def cxxImpl: String = {
     elementType match {
-      case _: PStruct =>
+      case _: PStruct | _: PTuple =>
         s"ArrayAddrImpl<${ elementType.required },${ elementType.byteSize },${ elementType.alignment }>"
       case _ =>
         s"ArrayLoadImpl<${ cxx.typeToCXXType(elementType) },${ elementType.required },${ elementType.byteSize },${ elementType.alignment }>"

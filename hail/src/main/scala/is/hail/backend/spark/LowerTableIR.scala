@@ -5,6 +5,7 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 import is.hail.annotations._
 import is.hail.cxx
 import is.hail.expr.ir._
+import is.hail.expr.types._
 import is.hail.expr.types.physical.PTuple
 import is.hail.expr.types.virtual._
 import is.hail.io.CodecSpec
@@ -233,6 +234,23 @@ object LowerTableIR {
       val global = loweredChild.globals
       val env: Env[IR] = Env("row" -> row, "global" -> Ref(global.name, global.value.typ))
       loweredChild.copy(body = ArrayMap(loweredChild.body, row.name, Subst(newRow, env)))
+
+    case TableExplode(child, path) =>
+      val loweredChild = lower(child)
+      val row = Ref(genUID(), child.typ.rowType)
+
+      val fieldRef = path.foldLeft[IR](row) { case (expr, field) => GetField(expr, field) }
+      val elt = Ref(genUID(), coerce[TContainer](fieldRef.typ).elementType)
+
+      val refs = path.scanLeft(row)((struct, name) =>
+        Ref(genUID(), coerce[TStruct](struct.typ).field(name).typ))
+      val newRow = path.zip(refs).zipWithIndex.foldRight[IR](elt) {
+        case (((field, ref), i), arg) =>
+          InsertFields(ref, FastIndexedSeq(field ->
+              Let(refs(i + 1).name, GetField(ref, field), arg)))
+      }.asInstanceOf[InsertFields]
+
+      loweredChild.copy(body = ArrayFlatMap(loweredChild.body, row.name, ArrayMap(fieldRef, elt.name, newRow)))
 
     case node =>
       throw new cxx.CXXUnsupportedOperation(s"undefined: \n${ Pretty(node) }")

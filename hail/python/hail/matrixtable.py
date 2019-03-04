@@ -1451,7 +1451,7 @@ class MatrixTable(ExprContainer):
         caller = 'MatrixTable.filter_cols'
         analyze(caller, expr, self._col_indices, {self._row_axis})
 
-        if expr._aggregations:
+        if expr._ir.aggregations:
             bool_uid = Env.get_uid()
             mt = self._select_cols(caller, self.col.annotate(**{bool_uid: expr}))
             return mt.filter_cols(mt[bool_uid], keep).drop(bool_uid)
@@ -1464,38 +1464,6 @@ class MatrixTable(ExprContainer):
     def filter_entries(self, expr, keep: bool = True) -> 'MatrixTable':
         """Filter entries of the matrix.
 
-        Examples
-        --------
-
-        Keep entries where the sum of `AD` is greater than 10 and `GQ` is greater than 20:
-
-        >>> dataset_result = dataset.filter_entries((hl.sum(dataset.AD) > 10) & (dataset.GQ > 20))
-
-        Notes
-        -----
-        The expression `expr` will be evaluated for every entry of the table.
-        If `keep` is ``True``, then entries where `expr` evaluates to ``True``
-        will be kept (the filter removes the entries where the predicate
-        evaluates to ``False``). If `keep` is ``False``, then entries where
-        `expr` evaluates to ``True`` will be removed (the filter keeps the
-        entries where the predicate evaluates to ``False``).
-
-        Note
-        ----
-        "Removal" of an entry constitutes setting all its fields to missing. There
-        is some debate about what removing an entry of a matrix means semantically,
-        given the representation of a :class:`.MatrixTable` as a whole workspace in
-        Hail.
-
-        Warning
-        -------
-        When `expr` evaluates to missing, the entry will be removed regardless of
-        `keep`.
-
-        Note
-        ----
-        This method does not support aggregation.
-
         Parameters
         ----------
         expr : bool or :class:`.BooleanExpression`
@@ -1507,12 +1475,119 @@ class MatrixTable(ExprContainer):
         -------
         :class:`.MatrixTable`
             Filtered matrix table.
+
+        Examples
+        --------
+
+        Keep entries where the sum of `AD` is greater than 10 and `GQ` is greater than 20:
+
+        >>> dataset_result = dataset.filter_entries((hl.sum(dataset.AD) > 10) & (dataset.GQ > 20))
+
+        Warning
+        -------
+        When `expr` evaluates to missing, the entry will be removed regardless of
+        `keep`.
+
+        Note
+        ----
+        This method does not support aggregation.
+
+        Notes
+        -----
+        The expression `expr` will be evaluated for every entry of the table.
+        If `keep` is ``True``, then entries where `expr` evaluates to ``True``
+        will be kept (the filter removes the entries where the predicate
+        evaluates to ``False``). If `keep` is ``False``, then entries where
+        `expr` evaluates to ``True`` will be removed (the filter keeps the
+        entries where the predicate evaluates to ``False``).
+
+        Filtered entries are removed entirely from downstream operations. This
+        means that the resulting matrix table has sparsity -- that is, that the
+        number of entries is **smaller** than the product of :meth:`count_rows`
+        and :meth:`count_cols`. To re-densify a filtered matrix table, use the
+        :meth:`unfilter_entries` method to restore filtered entries, populated
+        all fields with missing values. Below are some properties of an
+        entry-filtered matrix table.
+
+        1. Filtered entries are not included in the :meth:`entries` table.
+
+        >>> mt_range = hl.utils.range_matrix_table(10, 10)
+        >>> mt_range = mt_range.annotate_entries(x = mt_range.row_idx + mt_range.col_idx)
+        >>> mt_range.count()
+        (10, 10)
+
+        >>> mt_range.entries().count()
+        100
+
+        >>> mt_filt = mt_range.filter_entries(mt_range.x % 2 == 0)
+        >>> mt_filt.count()
+        (10, 10)
+
+        >>> mt_filt.count_rows() * mt_filt.count_cols()
+        100
+
+        >>> mt_filt.entries().count()
+        50
+
+        2. Filtered entries are not included in aggregation.
+
+        >>> mt_filt.aggregate_entries(hl.agg.count())
+        50
+
+        >>> mt_filt = mt_filt.annotate_cols(col_n = hl.agg.count())
+        >>> mt_filt.col_n.take(5)
+        [5, 5, 5, 5, 5]
+
+        >>> mt_filt = mt_filt.annotate_rows(row_n = hl.agg.count())
+        >>> mt_filt.row_n.take(5)
+        [5, 5, 5, 5, 5]
+
+        3. Annotating a new entry field will not annotate filtered entries.
+
+        >>> mt_filt = mt_filt.annotate_entries(y = 1)
+        >>> mt_filt.aggregate_entries(hl.agg.sum(mt_filt.y))
+        50
+
+        4. If all the entries in a row or column of a matrix table are
+        filtered, the row or column remains.
+
+        >>> mt_filt.filter_entries(False).count()
+        (10, 10)
+
+        See Also
+        --------
+        :meth:`unfilter_entries`
         """
         base, cleanup = self._process_joins(expr)
         analyze('MatrixTable.filter_entries', expr, self._entry_indices)
 
         m = MatrixTable(MatrixFilterEntries(base._mir, filter_predicate_with_keep(expr._ir, keep)))
         return cleanup(m)
+
+    def unfilter_entries(self):
+        """Unfilters filtered entries, populating fields with missing values.
+
+        Returns
+        -------
+        :class:`MatrixTable`
+
+        Notes
+        -----
+        This method is used in the case that a pipeline downstream of :meth:`filter_entries`
+        requires a fully dense (no filtered entries) matrix table.
+
+        Generally, if this method is required in a pipeline, the upstream pipeline can
+        be rewritten to use annotation instead of entry filtering.
+
+        See Also
+        --------
+        :meth:`filter_entries`
+        """
+        entry_ir = hl.cond(
+            hl.is_defined(self.entry),
+            self.entry,
+            hl.struct(**{k: hl.null(v.dtype) for k, v in self.entry.items()}))._ir
+        return MatrixTable(MatrixMapEntries(self._mir, entry_ir))
 
     @typecheck_method(named_exprs=expr_any)
     def transmute_globals(self, **named_exprs) -> 'MatrixTable':
@@ -2608,10 +2683,6 @@ class MatrixTable(ExprContainer):
             t = t.drop(cols)
         return t
 
-    def _unfilter_entries(self):
-        entry_ir = hl.cond(hl.is_defined(self.entry), self.entry, hl.struct(**self.entry))._ir
-        return MatrixTable(MatrixMapEntries(self._mir, entry_ir))
-
     @typecheck_method(row_exprs=dictof(str, expr_any),
                       col_exprs=dictof(str, expr_any),
                       entry_exprs=dictof(str, expr_any),
@@ -3208,20 +3279,40 @@ class MatrixTable(ExprContainer):
         
         return MatrixTable(MatrixUnionCols(self._mir, other._mir))
 
-    @typecheck_method(n=int)
-    def head(self, n: int) -> 'MatrixTable':
+    @typecheck_method(n=nullable(int), n_cols=nullable(int))
+    def head(self, n: Optional[int], n_cols: Optional[int] = None) -> 'MatrixTable':
         """Subset matrix to first `n` rows.
 
         Examples
         --------
-        Subset to the first three rows of the matrix:
+        >>> mt_range = hl.utils.range_matrix_table(100, 100)
 
-        >>> dataset_result = dataset.head(3)
-        >>> dataset_result.count_rows()
-        3
+        Passing only one argument will take the first `n` rows:
+
+        >>> mt_range.head(10).count()
+        (10, 100)
+
+        Passing two arguments refers to rows and columns, respectively:
+
+        >>> mt_range.head(10, 20).count()
+        (10, 20)
+
+        Either argument may be ``None`` to indicate no filter.
+
+        First 10 rows, all columns:
+
+        >>> mt_range.head(10, None).count()
+        (10, 100)
+
+        All rows, first 10 columns:
+
+        >>> mt_range.head(None, 10).count()
+        (100, 10)
 
         Notes
         -----
+        For backwards compatibility, the `n` parameter is not named `n_rows`,
+        but the parameter refers to the number of rows to keep.
 
         The number of partitions in the new matrix is equal to the number of
         partitions containing the first `n` rows.
@@ -3229,16 +3320,25 @@ class MatrixTable(ExprContainer):
         Parameters
         ----------
         n : :obj:`int`
-            Number of rows to include.
+            Number of rows to include (all rows included if ``None``).
+        n_cols : :obj:`int`, optional
+            Number of cols to include (all cols included if ``None``).
 
         Returns
         -------
         :class:`.MatrixTable`
-            Matrix including the first `n` rows.
+            Matrix including the first `n` rows and first `n_cols` cols.
         """
-        if n < 0:
-            raise ValueError(f"MatrixTable.head: expect 'n' to be non-negative, found '{n}'")
-        return MatrixTable(MatrixRowsHead(self._mir, n))
+        mt = self
+        if n is not None:
+            if n < 0:
+                raise ValueError(f"MatrixTable.head: expect 'n' to be non-negative or None, found '{n}'")
+            mt = MatrixTable(MatrixRowsHead(self._mir, n))
+        if n_cols is not None:
+            if n_cols < 0:
+                raise ValueError(f"MatrixTable.head: expect 'n_cols' to be non-negative or None, found '{n_cols}'")
+            mt = mt.filter_cols(hl.scan.count() < n_cols)
+        return mt
 
     @typecheck_method(parts=sequenceof(int), keep=bool)
     def _filter_partitions(self, parts, keep=True) -> 'MatrixTable':

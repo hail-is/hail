@@ -183,19 +183,19 @@ object PackDecoder {
 
     decoderBuilder += s"${ decoderBuilder.name }(std::shared_ptr<InputStream> is) : $buf(std::make_shared<$bufType>(is)) { }"
 
-    val rowFB = decoderBuilder.buildMethod("decode_row", Array("Region *" -> "region"), "char *", const = true)
-    val region = rowFB.getArg(0)
-    val initialSize = rt match {
-      case _: PArray | _: PBinary => 8
-      case _ => rt.byteSize
+    val (valueType, initialSize, returnVal) = rt match {
+      case typ if typ.isPrimitive =>
+        (typeToCXXType(rt), rt.byteSize, { r: Variable => s"*reinterpret_cast<${typeToCXXType(rt)} *>($r)" })
+      case _: PArray | _: PBinary => ("char *", 8, { r: Variable => s"load_address($r)" })
+      case _ => ("char *", rt.byteSize, { r: Variable => s"$r" })
     }
+
+    val rowFB = decoderBuilder.buildMethod("decode_row", Array("Region *" -> "region"), valueType, const = true)
+    val region = rowFB.getArg(0)
     val row = rowFB.variable("row", "char *", s"$region->allocate(${ rt.alignment }, $initialSize)")
     rowFB += row.define
     rowFB += decode(t.fundamentalType, rt.fundamentalType, buf.ref, region.ref, row.ref, rowFB)
-    rowFB += (rt match {
-      case _: PArray | _: PBinary => s"return load_address($row);"
-      case _ => s"return $row;"
-    })
+    rowFB += s"return ${ returnVal(row) };"
     rowFB.end()
 
     val byteFB = decoderBuilder.buildMethod("decode_byte", Array(), "char", const = true)

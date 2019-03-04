@@ -22,6 +22,7 @@ import re
 import requests
 import time
 import uuid
+import hashlib
 
 fmt = logging.Formatter(
    # NB: no space after levelname because WARNING is so long
@@ -63,7 +64,7 @@ def read_string(f):
         return f.read().strip()
 
 # Must be int for Kubernetes V1 api timeout_seconds property
-KUBERNETES_TIMEOUT_IN_SECONDS = int(os.environ.get('KUBERNETES_TIMEOUT_IN_SECONDS', 5))
+KUBERNETES_TIMEOUT_IN_SECONDS = float(os.environ.get('KUBERNETES_TIMEOUT_IN_SECONDS', 5))
 
 AUTHORIZED_USERS = read_string('/notebook-secrets/authorized-users').split(',')
 AUTHORIZED_USERS = dict((email, True) for email in AUTHORIZED_USERS)
@@ -176,11 +177,11 @@ def external_url_for(path):
     return url + path
 
 
-# FIXME: use hash
-def UNSAFE_user_id_transform(user_id): return user_id.replace('|', '--_--')
+# Kube has max 63 character limit
+def user_id_transform(user_id): return hashlib.sha224(user_id.encode('utf-8')).hexdigest()
 
 
-def read_containers_status(container_statuses):
+def container_status_for_ui(container_statuses):
     """
         Summarize the container status based on its most recent state
 
@@ -192,50 +193,38 @@ def read_containers_status(container_statuses):
     if container_statuses is None:
         return None
 
+    assert(len(container_statuses) == 1)
+
     state = container_statuses[0].state
-    rn = None
-    wt = None
-    tm = None
+
     if state.running:
-        rn = {"started_at": state.running.started_at}
+        return {"running": {"started_at": state.running.started_at}}
 
     if state.waiting:
-        wt = {"reason": state.waiting.reason}
+        return {"waiting": {"reason": state.waiting.reason}}
 
     if state.terminated:
-        tm = {"exit_code": state.terminated.exit_code, "finished_at": state.terminated.finished_at,
-              "started_at": state.terminated.started_at, "reason": state.terminated.reason}
+        return {"terminated": {
+                                "exit_code": state.terminated.exit_code,
+                                "finished_at": state.terminated.finished_at,
+                                "started_at": state.terminated.started_at,
+                                "reason": state.terminated.reason
+                              }
+                }
 
-    if rn is None and wt is None and tm is None:
-        return None
 
-    return {"running": rn, "terminated": tm, "waiting": wt}
-
-
-def read_conditions(conds):
+def pod_condition_for_ui(conds):
     """
         Return the most recent status=="True" V1PodCondition or None
-
         Parameters
         ----------
         conds : list[V1PodCondition]
             https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1PodCondition.md
-
     """
     if conds is None:
         return None
 
-    maxDate = None
-    maxCond = None
-    for condition in conds:
-        if maxDate is None:
-            maxCond = condition
-            maxDate = condition.last_transition_time
-            continue
-
-        if condition.last_transition_time > maxDate and condition.status == "True":
-            maxCond = condition
-            maxDate = condition.last_transition_time
+    maxCond = max(conds, key=lambda c: (c.last_transition_time, c.status == 'True'))
 
     return {
         "message": maxCond.message,
@@ -244,48 +233,40 @@ def read_conditions(conds):
         "type": maxCond.type}
 
 
-def marshall_notebooks(pods = []):
-    notebooks = []
+def pod_to_ui_dict(pod, svc_status = None):
+    notebook = {
+        'name': pod.metadata.labels['name'],
+        'pod_name': pod.metadata.name,
+        'pod_status': pod.status.phase,
+        'pod_uuid': pod.metadata.labels['uuid'],
+        'pod_ip': pod.status.pod_ip,
+        'creation_date': pod.metadata.creation_timestamp.strftime('%D'),
+        'jupyter_token': pod.metadata.labels['jupyter_token'],
+        'container_status': container_status_for_ui(pod.status.container_statuses),
+        'condition': pod_condition_for_ui(pod.status.conditions),
+        'deletion_timestamp': pod.metadata.deletion_timestamp
+    }
 
-    for pod in pods:
-        print("POD! ", pod)
+    notebook['url'] = f"/instance/{notebook['pod_uuid']}/?token={notebook['jupyter_token']}"
 
-        notebook = {
-            'name': pod.metadata.labels['name'],
-            'pod_name': pod.metadata.name,
-            'pod_status': pod.status.phase,
-            'pod_uuid': pod.metadata.labels['uuid'],
-            'pod_ip': pod.status.pod_ip,
-            'creation_date': pod.metadata.creation_timestamp.strftime('%D'),
-            'jupyter_token': pod.metadata.labels['jupyter_token'],
-            'container_status': read_containers_status(pod.status.container_statuses),
-            'condition': read_conditions(pod.status.conditions),
-        }
-
-        notebook['url'] = f"/instance/{notebook['pod_uuid']}/?token={notebook['jupyter_token']}"
-    
-        notebooks.append(notebook)
-
-    return notebooks
+    return notebook
 
 
-def get_live_user_notebooks(user_id = None):
-    if user_id is None:
-        return None
+def notebooks_for_ui(pods, svc_status = None):
+    return [pod_to_ui_dict(pod, svc_status) for pod in pods]
 
+
+def get_live_user_notebooks(user_id):
     pods = k8s.list_namespaced_pod(
         namespace='default',
         label_selector=f"user_id={user_id}",
-        timeout_seconds=KUBERNETES_TIMEOUT_IN_SECONDS).items
+        _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS).items
 
     if len(pods) == 0:
-        return None
+        return []
 
     # Kubernetes service will reflect the change immediately, pod will not
-    notebooks = list(filter(lambda n: n['container_status']['terminated'] is None, marshall_notebooks(pods)))
-
-    if len(notebooks) == 0:
-        return None
+    notebooks = list(filter(lambda n: n['deletion_timestamp'] is None, notebooks_for_ui(pods)))
 
     return notebooks
 
@@ -303,17 +284,17 @@ def root():
 @app.route('/notebook', methods=['GET'])
 @requires_auth()
 def notebook_page():
-    notebooks = get_live_user_notebooks(user_id = UNSAFE_user_id_transform(session['user']['id']))
+    notebooks = get_live_user_notebooks(user_id = user_id_transform(session['user']['id']))
 
-    if notebooks is None:
+    # https://github.com/hail-is/hail/issues/5487
+    assert len(notebooks) <= 1
+
+    if len(notebooks) == 0:
         return render_template('notebook.html',
                                form_action_url=external_url_for('notebook'),
                                images=list(WORKER_IMAGES),
                                default='hail')
 
-    # TODO: We currently simplify state tracking, since using vanilla js makes this trickier
-    # by restricting to one alive notebook displayed
-    # This could be problematic if multiple notebooks are found in running state
     session['notebook'] = notebooks[0]
 
     return render_template('notebook.html', notebook=notebooks[0])
@@ -341,10 +322,10 @@ def notebook_post():
 
     jupyter_token = uuid.uuid4().hex
     name = request.form.get('name', 'a_notebook')
-    safe_user_id = UNSAFE_user_id_transform(session['user']['id'])
+    safe_user_id = user_id_transform(session['user']['id'])
 
     pod = start_pod(jupyter_token, WORKER_IMAGES[image], name, safe_user_id)
-    session['notebook'] = marshall_notebooks([pod])[0]
+    session['notebook'] = notebooks_for_ui([pod])[0]
 
     return redirect(external_url_for('notebook'))
 

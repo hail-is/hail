@@ -184,7 +184,7 @@ object Pretty {
             case CollectDistributedArray(_, _, cname, gname, _) =>
               s"${ prettyIdentifier(cname) } ${ prettyIdentifier(gname) }"
             case MatrixRead(typ, dropCols, dropRows, reader) =>
-              (if (typ == reader.fullType) "None" else typ.parsableString()) + " " +
+              (if (typ == reader.fullMatrixType) "None" else typ.parsableString()) + " " +
               prettyBooleanLiteral(dropCols) + " " +
               prettyBooleanLiteral(dropRows) + " " +
               '"' + StringEscapeUtils.escapeString(Serialization.write(reader)(MatrixReader.formats)) + '"'
@@ -204,6 +204,8 @@ object Pretty {
             case ValueToBlockMatrix(_, shape, blockSize) =>
               prettyLongs(shape) + " " +
               blockSize.toString + " "
+            case BlockMatrixFilter(_, indicesToKeepPerDim) =>
+              indicesToKeepPerDim.map(indices => prettyLongs(indices.toIndexedSeq)).mkString("(", " ", ")")
             case BlockMatrixRandom(seed, gaussian, shape, blockSize) =>
               seed.toString + " " +
               prettyBooleanLiteral(gaussian) + " " +

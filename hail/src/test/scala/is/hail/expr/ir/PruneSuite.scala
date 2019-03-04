@@ -10,7 +10,7 @@ import is.hail.methods.{ForceCountMatrixTable, ForceCountTable}
 import is.hail.rvd.{RVD, RVDType}
 import is.hail.table._
 import is.hail.utils._
-import is.hail.variant.MatrixTable
+import is.hail.variant.{MatrixTable, MatrixTableSpec}
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
 
@@ -107,14 +107,7 @@ class PruneSuite extends SparkSuite {
     BroadcastIndexedSeq(FastIndexedSeq(Row("1", 2, FastIndexedSeq(Row(3)))), TArray(mType.colType), sc),
     RVD.empty(sc, mType.canonicalRVDType)))
 
-  val mr = MatrixRead(mat.typ, false, false,
-    new MatrixReader {
-      def apply(mr: MatrixRead): MatrixValue = ???
-      def partitionCounts: Option[IndexedSeq[Long]] = ???
-      def columnCount: Option[Int] = ???
-      def fullType: MatrixType = mat.typ
-      def fullRVDType: RVDType = ???
-    })
+  val mr = MatrixRead(mat.typ, false, false, MatrixNativeReader("", MatrixTableSpec(0, "", "", mat.typ, Map())))
 
   val emptyTableDep = TableType(TStruct(), FastIndexedSeq(), TStruct())
 

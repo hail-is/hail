@@ -70,4 +70,6 @@ deploy: push
 	sed -e "s,@sha@,$$(git rev-parse --short=12 HEAD)," \
 	  -e "s,@image@,$$(cat batch-image)," \
 	  < deployment.yaml.in > deployment.yaml
+	kubectl delete persistentvolumeclaim --all --namespace test
+	kubectl delete persistentvolumeclaim --all --namespace batch-pods
 	kubectl -n default apply -f deployment.yaml

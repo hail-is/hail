@@ -28,12 +28,12 @@ import scala.collection.mutable
 object MatrixIR {
   def read(hc: HailContext, path: String, dropCols: Boolean = false, dropRows: Boolean = false, requestedType: Option[MatrixType]): MatrixIR = {
     val reader = MatrixNativeReader(path)
-    MatrixRead(requestedType.getOrElse(reader.fullType), dropCols, dropRows, reader)
+    MatrixRead(requestedType.getOrElse(reader.fullMatrixType), dropCols, dropRows, reader)
   }
 
   def range(hc: HailContext, nRows: Int, nCols: Int, nPartitions: Option[Int], dropCols: Boolean = false, dropRows: Boolean = false): MatrixIR = {
     val reader = MatrixRangeReader(nRows, nCols, nPartitions)
-    MatrixRead(reader.fullType, dropCols = dropCols, dropRows = dropRows, reader = reader)
+    MatrixRead(reader.fullMatrixType, dropCols = dropCols, dropRows = dropRows, reader = reader)
   }
 
   def chooseColsWithArray(typ: MatrixType): (MatrixType, (MatrixValue, Array[Int]) => MatrixValue) = {
@@ -157,31 +157,68 @@ object MatrixReader {
       classOf[TextInputFilterAndReplace]))
 }
 
-abstract class MatrixReader {
-  def apply(mr: MatrixRead): MatrixValue
-
+trait MatrixReader {
   def columnCount: Option[Int]
 
   def partitionCounts: Option[IndexedSeq[Long]]
 
-  def fullType: MatrixType
+  def fullMatrixType: MatrixType
 
+  // TODO: remove fullRVDType when lowering is finished
   def fullRVDType: RVDType
 
-  def requestType(requestedType: MatrixType): MatrixType = requestedType
-
-  def canLower: Boolean = false
-  def lower(mr: MatrixRead): TableIR = null
+  def lower(mr: MatrixRead): TableIR
 }
 
-case class MatrixNativeReader(path: String) extends MatrixReader {
+abstract class MatrixHybridReader extends TableReader with MatrixReader {
+  lazy val fullType: TableType = LowerMatrixIR.loweredType(fullMatrixType)
 
-  override def apply(mr: MatrixRead): MatrixValue = throw new UnsupportedOperationException
-
-  lazy val spec: AbstractMatrixTableSpec = (RelationalSpec.read(HailContext.get, path): @unchecked) match {
-    case mts: AbstractMatrixTableSpec => mts
-    case _: AbstractTableSpec => fatal(s"file is a Table, not a MatrixTable: '$path'")
+  override def lower(mr: MatrixRead): TableIR = {
+    var tr: TableIR = TableRead(LowerMatrixIR.loweredType(mr.typ), mr.dropRows, this)
+    if (mr.dropCols) {
+      // this lowering preserves dropCols using pruning
+      tr = TableMapRows(
+        tr,
+        InsertFields(
+          Ref("row", tr.typ.rowType),
+          FastIndexedSeq(LowerMatrixIR.entriesFieldName -> MakeArray(FastSeq(), mr.typ.entryArrayType))))
+      tr = TableMapGlobals(
+        tr,
+        InsertFields(
+          Ref("global", tr.typ.globalType),
+          FastIndexedSeq(LowerMatrixIR.colsFieldName -> MakeArray(FastSeq(), TArray(mr.typ.colType)))))
+    }
+    tr
   }
+
+  def makeGlobalValue(requestedType: TableType, values: => IndexedSeq[Row]): BroadcastRow = {
+    assert(fullType.globalType.size == 1)
+    val colType = requestedType.globalType.fieldOption(LowerMatrixIR.colsFieldName)
+      .map(fd => fd.typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct])
+
+    colType match {
+      case Some(ct) =>
+        assert(requestedType.globalType.size == 1)
+        val containedFields = ct.fieldNames.toSet
+        val colValueIndices = fullMatrixType.colType.fields
+          .filter(f => containedFields.contains(f.name))
+          .map(_.index)
+          .toArray
+        val arr = values.map(r => Row.fromSeq(colValueIndices.map(r.get))).toFastIndexedSeq
+        BroadcastRow(Row(arr), requestedType.globalType, HailContext.get.sc)
+      case None =>
+        assert(requestedType.globalType == TStruct())
+        BroadcastRow(Row.empty, requestedType.globalType, HailContext.get.sc)
+    }
+  }
+}
+
+case class MatrixNativeReader(path: String, _spec: AbstractMatrixTableSpec = null) extends MatrixReader {
+  lazy val spec: AbstractMatrixTableSpec = Option(_spec).getOrElse(
+    (RelationalSpec.read(HailContext.get, path): @unchecked) match {
+      case mts: AbstractMatrixTableSpec => mts
+      case _: AbstractTableSpec => fatal(s"file is a Table, not a MatrixTable: '$path'")
+    })
 
   override lazy val fullRVDType: RVDType = spec.rvdType(path)
 
@@ -193,9 +230,7 @@ case class MatrixNativeReader(path: String) extends MatrixReader {
 
   def partitionCounts: Option[IndexedSeq[Long]] = Some(spec.partitionCounts)
 
-  def fullType: MatrixType = spec.matrix_type
-
-  override def canLower: Boolean = true
+  def fullMatrixType: MatrixType = spec.matrix_type
 
   override def lower(mr: MatrixRead): TableIR = {
     val rowsPath = path + "/rows"
@@ -259,7 +294,7 @@ case class MatrixNativeReader(path: String) extends MatrixReader {
 }
 
 case class MatrixRangeReader(nRows: Int, nCols: Int, nPartitions: Option[Int]) extends MatrixReader {
-  val fullType: MatrixType = MatrixType.fromParts(
+  val fullMatrixType: MatrixType = MatrixType.fromParts(
     globalType = TStruct.empty(),
     colKey = Array("col_idx"),
     colType = TStruct("col_idx" -> TInt32()),
@@ -278,8 +313,6 @@ case class MatrixRangeReader(nRows: Int, nCols: Int, nPartitions: Option[Int]) e
     Some(partition(nRows, nPartitionsAdj).map(_.toLong))
   }
 
-  override def canLower: Boolean = true
-
   override def lower(mr: MatrixRead): TableIR = {
     val uid1 = Symbol(genUID())
 
@@ -290,8 +323,6 @@ case class MatrixRangeReader(nRows: Int, nCols: Int, nPartitions: Option[Int]) e
       .mapRows('row.insertFields(LowerMatrixIR.entriesField ->
         irRange(0, nCols).map('i ~> makeStruct())))
   }
-
-  def apply(mr: MatrixRead): MatrixValue = ???
 }
 
 case class MatrixRead(
@@ -307,12 +338,6 @@ case class MatrixRead(
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixRead = {
     assert(newChildren.isEmpty)
     MatrixRead(typ, dropCols, dropRows, reader)
-  }
-
-  protected[ir] override def execute(hc: HailContext): MatrixValue = {
-    val mv = reader(this)
-    assert(mv.typ == typ)
-    mv
   }
 
   override def toString: String = s"MatrixRead($typ, " +
@@ -335,9 +360,7 @@ case class MatrixRead(
       reader.columnCount
   }
 
-  final def canLower: Boolean = reader.canLower
-
-  final def lower: TableIR = reader.lower(this)
+  final def lower(): TableIR = reader.lower(this)
 }
 
 case class MatrixFilterCols(child: MatrixIR, pred: IR) extends MatrixIR {
@@ -1146,6 +1169,7 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
 
     val colValuesType = TArray(prev.typ.colType)
     val vaType = prev.rvd.rowPType
+    val gType = MatrixType.getEntryType(vaType)
 
     var initOpNeedsSA = false
     var initOpNeedsGlobals = false
@@ -1204,10 +1228,15 @@ case class MatrixMapCols(child: MatrixIR, newCol: IR, newKey: Option[IndexedSeq[
         }
       }
 
-      var oneSampleSeqOp = ir.Let("g", ir.ArrayRef(
-        ir.GetField(ir.Ref("va", vaType.virtualType), MatrixType.entriesIdentifier),
-        ir.Ref(colIdx, TInt32())),
-        rewrite(seqOp)
+      var oneSampleSeqOp = ir.Let(
+        "g",
+        ir.ArrayRef(
+          ir.GetField(ir.Ref("va", vaType.virtualType), MatrixType.entriesIdentifier),
+          ir.Ref(colIdx, TInt32())),
+        If(
+          IsNA(ir.Ref("g", gType.virtualType)),
+          Begin(FastSeq()),
+          rewrite(seqOp))
       )
 
       if (seqOpNeedsSA)

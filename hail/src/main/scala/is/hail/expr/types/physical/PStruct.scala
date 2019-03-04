@@ -25,7 +25,7 @@ object PStruct {
   def apply(args: (String, PType)*): PStruct =
     apply(false, args: _*)
 
-  def apply(names: java.util.ArrayList[String], types: java.util.ArrayList[PType], required: Boolean): PStruct = {
+  def apply(names: java.util.List[String], types: java.util.List[PType], required: Boolean): PStruct = {
     val sNames = names.asScala.toArray
     val sTypes = types.asScala.toArray
     if (sNames.length != sTypes.length)

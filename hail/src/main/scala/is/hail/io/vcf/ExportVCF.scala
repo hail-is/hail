@@ -52,7 +52,7 @@ object ExportVCF {
         fatal(s"VCF does not support type $elementType")
     }
   }
-  
+
   def iterableVCF(sb: StringBuilder, t: PContainer, m: Region, length: Int, offset: Long, delim: Char) {
     if (length > 0) {
       var i = 0
@@ -155,7 +155,7 @@ object ExportVCF {
       case _ => false
     }
   }
-  
+
   def checkFormatSignature(tg: TStruct) {
     tg.fields.foreach { fd =>
       val valid = fd.typ match {
@@ -166,7 +166,7 @@ object ExportVCF {
         fatal(s"Invalid type for format field '${ fd.name }'. Found '${ fd.typ }'.")
     }
   }
-  
+
   def emitGenotype(sb: StringBuilder, formatFieldOrder: Array[Int], tg: PStruct, m: Region, offset: Long, fieldDefined: Array[Boolean], missingFormat: String) {
     var i = 0
     while (i < formatFieldOrder.length) {
@@ -368,7 +368,7 @@ object ExportVCF {
     val (qualExists, qualIdx) = lookupVAField("qual", "QUAL", Some(TFloat64()))
     val (filtersExists, filtersIdx) = lookupVAField("filters", "FILTERS", Some(filtersType))
     val (infoExists, infoIdx) = lookupVAField("info", "INFO", None)
-    
+
     val fullRowType = typ.rvRowType.physicalType
     val localEntriesIndex = typ.entriesIdx
     val localEntriesType = typ.entryArrayType.physicalType
@@ -400,8 +400,12 @@ object ExportVCF {
         sb += '\t'
         sb.append(rvv.alleles()(0))
         sb += '\t'
-        rvv.alleles().tail.foreachBetween(aa =>
-          sb.append(aa))(sb += ',')
+        if (rvv.alleles().length > 1) {
+          rvv.alleles().tail.foreachBetween(aa =>
+            sb.append(aa))(sb += ',')
+        } else {
+          sb += '.'
+        }
         sb += '\t'
 
         if (qualExists && fullRowType.isFieldDefined(rv, qualIdx)) {
@@ -456,7 +460,7 @@ object ExportVCF {
             i += 1
           }
         }
-        
+
         sb.result()
       }
     }.writeTable(path, HailContext.get.tmpDir, Some(header), exportType = exportType)

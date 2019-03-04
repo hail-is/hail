@@ -175,8 +175,8 @@ case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) 
     globalsType)
 
   protected[ir] override def execute(hc: HailContext): TableValue = {
-    val Row(rows: IndexedSeq[Row], globals: Row) = Interpret[Row](rowsAndGlobal, optimize = false)
-    rows.zipWithIndex.foreach { case (r: Row, idx) =>
+    val Row(rows: IndexedSeq[Row], globals: Row) = CompileAndEvaluate[Row](rowsAndGlobal, optimize = false)
+    rows.zipWithIndex.foreach { case (r, idx) =>
       if (r == null)
         fatal(s"cannot parallelize null values: found null value at index $idx")
     }
@@ -658,13 +658,13 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
     val localRVDType = rvdType
     val localNewRowType = newRowType.physicalType
     val localDataLength = children.length
-    val rvMerger = { it: Iterator[ArrayBuilder[(RegionValue, Int)]] =>
+    val rvMerger = { (ctx: RVDContext, it: Iterator[ArrayBuilder[(RegionValue, Int)]]) =>
       val rvb = new RegionValueBuilder()
       val newRegionValue = RegionValue()
 
       it.map { rvs =>
         val rv = rvs(0)._1
-        rvb.set(rv.region)
+        rvb.set(ctx.region)
         rvb.start(localNewRowType)
         rvb.startStruct()
         rvb.addFields(rowType, rv, keyIdx) // Add the key
@@ -686,7 +686,7 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
         newRegionValue
       }
     }
-    
+
     val childRVDs = childValues.map(_.rvd)
     val repartitionedRVDs =
       if (childRVDs(0).partitioner.satisfiesAllowedOverlap(typ.key.length - 1) &&
@@ -705,7 +705,7 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
       partitioner = newPartitioner,
       crdd = ContextRDD.czipNPartitions(repartitionedRVDs.map(_.crdd.boundary)) { (ctx, its) =>
         val orvIters = its.map(it => OrderedRVIterator(localRVDType, it, ctx))
-        rvMerger(OrderedRVIterator.multiZipJoin(orvIters))
+        rvMerger(ctx, OrderedRVIterator.multiZipJoin(orvIters))
       })
 
     val newGlobals = BroadcastRow(
@@ -905,28 +905,10 @@ case class TableMapGlobals(child: TableIR, newGlobals: IR) extends TableIR {
   protected[ir] override def execute(hc: HailContext): TableValue = {
     val tv = child.execute(hc)
 
-    val uid = genUID()
-    val (evalIR, value, valueType) = EvaluateNonCompilable(newGlobals, uid)
-
-    val globalsPType = tv.globals.t.physicalType
-    val nonCompilablePType = valueType.physicalType
-
-    val newGlobalValue = Region.scoped { r =>
-      val rvb = new RegionValueBuilder(r)
-      rvb.start(globalsPType)
-      rvb.addAnnotation(tv.globals.t, tv.globals.value)
-      val global = rvb.end()
-
-      rvb.start(nonCompilablePType)
-      rvb.addAnnotation(valueType, value)
-      val valueOffset = rvb.end()
-
-      val (resultType, f) = Compile[Long, Long, Long]("global", tv.globals.t.physicalType, uid, nonCompilablePType, evalIR)
-
-      val newGlobalOffset = f(0)(r, global, false, valueOffset, false)
-      SafeRow.read(resultType, r, newGlobalOffset).asInstanceOf[Row]
-    }
-
+    val newGlobalValue = CompileAndEvaluate[Row](newGlobals,
+      Env("global" -> (tv.globals.value, tv.globals.t)),
+      FastIndexedSeq(),
+      optimize = false)
     tv.copy(typ = typ, globals = BroadcastRow(newGlobalValue, typ.globalType, hc.sc))
   }
 }

@@ -3,10 +3,11 @@ package is.hail.expr.ir
 import is.hail.expr.types.virtual.TStruct
 import org.apache.spark.sql.Row
 
-object EvaluateNonCompilable {
+object InterpretNonCompilable {
 
-  def apply(ir: IR, name: String): (IR, Row, TStruct) = {
+  def apply(ir: IR): (IR, Row, TStruct, String) = {
 
+    val name = genUID()
     val nonCompilableNodes = LiftNonCompilable.extractNonCompilable(ir).toArray
     val emittable = nonCompilableNodes.filter { case (_, value) => CanEmit(value.typ) }
     val nonEmittable = nonCompilableNodes.filter { case (_, value) => !CanEmit(value.typ) }
@@ -25,6 +26,6 @@ object EvaluateNonCompilable {
       }
     }
 
-    (rewrite(ir), nonEmittableValues, rowType)
+    (rewrite(ir), nonEmittableValues, rowType, name)
   }
 }

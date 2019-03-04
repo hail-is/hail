@@ -2,16 +2,18 @@ package is.hail.io.gen
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr.ir.{MatrixRead, MatrixReader, MatrixValue}
+import is.hail.expr.ir.{LowerMatrixIR, MatrixHybridReader, MatrixRead, MatrixReader, MatrixValue, TableRead, TableValue}
 import is.hail.expr.types.MatrixType
 import is.hail.expr.types.virtual._
 import is.hail.io.bgen.LoadBgen
 import is.hail.io.vcf.LoadVCF
-import is.hail.rvd.RVDType
+import is.hail.rvd.{RVD, RVDContext, RVDType}
+import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.SparkContext
+import org.apache.spark.sql.Row
 
 case class GenResult(file: String, nSamples: Int, nVariants: Int, rdd: RDD[(Annotation, Iterable[Annotation])])
 
@@ -107,7 +109,7 @@ case class MatrixGENReader(
   tolerance: Double,
   rg: Option[String],
   contigRecoding: Map[String, String],
-  skipInvalidLoci: Boolean) extends MatrixReader {
+  skipInvalidLoci: Boolean) extends MatrixHybridReader {
 
   files.foreach { input =>
     if (!HailContext.get.hadoopConf.stripCodec(input).endsWith(".gen"))
@@ -150,9 +152,7 @@ case class MatrixGENReader(
 
   def partitionCounts: Option[IndexedSeq[Long]] = None
 
-  override def requestType(requestedType: MatrixType): MatrixType = fullType
-
-  def fullType: MatrixType = MatrixType.fromParts(
+  def fullMatrixType: MatrixType = MatrixType.fromParts(
     globalType = TStruct.empty(),
     colKey = Array("s"),
     colType = TStruct("s" -> TString()),
@@ -164,16 +164,70 @@ case class MatrixGENReader(
     entryType = TStruct("GT" -> TCall(),
       "GP" -> TArray(TFloat64())))
 
-  def fullRVDType: RVDType = fullType.canonicalRVDType
+  def fullRVDType: RVDType = fullMatrixType.canonicalRVDType
 
-  def apply(mr: MatrixRead): MatrixValue = {
-    assert(mr.typ == fullType)
+  def apply(tr: TableRead): TableValue = {
     val rdd =
-      if (mr.dropRows)
+      if (tr.dropRows)
         HailContext.get.sc.emptyRDD[(Annotation, Iterable[Annotation])]
       else
         HailContext.get.sc.union(results.map(_.rdd))
-    MatrixTable.fromLegacy(HailContext.get, fullType, Annotation.empty, samples.map(Annotation(_)), rdd)
-      .value
+
+    val requestedType = tr.typ
+    val requestedRowType = requestedType.rowType
+    val (requestedEntryType, dropCols) = requestedRowType.fieldOption(LowerMatrixIR.entriesFieldName) match {
+      case Some(fd) => fd.typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct] -> false
+      case None => TStruct() -> true
+    }
+
+    val localNSamples = nSamples
+
+    val locusType = requestedRowType.fieldOption("locus").map(_.typ)
+    val allelesType = requestedRowType.fieldOption("alleles").map(_.typ)
+    val rsidType = requestedRowType.fieldOption("rsid").map(_.typ)
+    val varidType = requestedRowType.fieldOption("varid").map(_.typ)
+
+    val gtType = requestedEntryType.fieldOption("GT").map(_.typ)
+    val gpType = requestedEntryType.fieldOption("GP").map(_.typ)
+
+    val localRVDType = tr.typ.canonicalRVDType
+    val rvd = RVD.coerce(localRVDType,
+      ContextRDD.weaken[RVDContext](rdd).cmapPartitions { (ctx, it) =>
+        val region = ctx.region
+        val rvb = new RegionValueBuilder(region)
+        val rv = RegionValue(region)
+
+        it.map { case (va, gs) =>
+
+          rvb.start(localRVDType.rowType)
+          rvb.startStruct()
+          val Row(locus, alleles, rsid, varid) = va.asInstanceOf[Row]
+          locusType.foreach(rvb.addAnnotation(_, locus))
+          allelesType.foreach(rvb.addAnnotation(_, alleles))
+          rsidType.foreach(rvb.addAnnotation(_, rsid))
+          varidType.foreach(rvb.addAnnotation(_, varid))
+
+          if (!dropCols) {
+            rvb.startArray(localNSamples)
+            gs.foreach {
+              case Row(gt, gp) =>
+                rvb.startStruct()
+                gtType.foreach(rvb.addAnnotation(_, gt))
+                gpType.foreach(rvb.addAnnotation(_, gp))
+                rvb.endStruct()
+              case null =>
+                rvb.setMissing()
+            }
+            rvb.endArray()
+          }
+          rvb.endStruct()
+          rv.setOffset(rvb.end())
+          rv
+        }
+      })
+
+    val globalValue = makeGlobalValue(requestedType, samples.map(Row(_)))
+
+    TableValue(tr.typ, globalValue, rvd)
   }
 }
