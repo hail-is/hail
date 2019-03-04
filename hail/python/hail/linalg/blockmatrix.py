@@ -451,7 +451,7 @@ class BlockMatrix(object):
     @classmethod
     @typecheck_method(n_rows=int,
                       n_cols=int,
-                      value=float,
+                      value=numeric,
                       block_size=nullable(int))
     def fill(cls, n_rows, n_cols, value, block_size=None):
         """Creates a block matrix with all elements the same value.
@@ -492,7 +492,7 @@ class BlockMatrix(object):
                       block_size=int)
     def _create(cls, n_rows, n_cols, data, block_size):
         """Private method for creating small test matrices."""
-        return BlockMatrix(ValueToBlockMatrix(_list_to_makearray(data), [n_rows, n_cols], block_size))
+        return BlockMatrix(ValueToBlockMatrix(hl.literal(data)._ir, [n_rows, n_cols], block_size))
 
     @staticmethod
     def default_block_size():
@@ -2228,18 +2228,13 @@ def _to_bmir(x, block_size):
     if _is_scalar(x):
         return ValueToBlockMatrix(F64(x), [1, 1], block_size)
     else:
-        return ValueToBlockMatrix(_list_to_makearray(x.flat),
-                                  list(_ndarray_as_2d(x).shape),
-                                  block_size)
+        data = list(_ndarray_as_float64(x).flat)
+        return ValueToBlockMatrix(hl.literal(data)._ir, list(_ndarray_as_2d(x).shape), block_size)
 
 
 def _broadcast_to_shape(bmir, result_shape):
     in_index_expr = _broadcast_index_expr(bmir.typ.shape, bmir.typ.is_row_vector)
     return BlockMatrixBroadcast(bmir, in_index_expr, result_shape, bmir.typ.block_size)
-
-
-def _list_to_makearray(l):
-    return MakeArray([F64(x) for x in l], hl.tarray(hl.tfloat64))
 
 
 def _broadcast_index_expr(bmir_shape, is_row_vector):
