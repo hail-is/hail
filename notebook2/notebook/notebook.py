@@ -296,12 +296,7 @@ def get_live_user_notebooks(user_id):
         label_selector=f"user_id={user_id}",
         _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS).items
 
-    if len(pods) == 0:
-        return []
-
-    notebooks = list(filter(lambda n: n['deletion_timestamp'] is None, notebooks_for_ui(pods)))
-
-    return notebooks
+    return list(filter(lambda n: n['deletion_timestamp'] is None, notebooks_for_ui(pods)))
 
 
 @app.route('/healthcheck')
