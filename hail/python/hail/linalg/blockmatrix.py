@@ -1124,8 +1124,8 @@ class BlockMatrix(object):
         uri = local_path_uri(path)
 
         if self.n_rows * self.n_cols > 1 << 31:
-            self.export_blocks(uri)
-            return BlockMatrix.rectangles_to_numpy(path)
+            self.export_blocks(uri, binary=True)
+            return BlockMatrix.rectangles_to_numpy(path, binary=True)
 
         self.tofile(uri)
         return np.fromfile(path).reshape((self.n_rows, self.n_cols))
