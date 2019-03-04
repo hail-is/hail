@@ -282,7 +282,8 @@ def pod_to_ui_dict(pod, svc_status = None):
         'creation_date': pod.metadata.creation_timestamp.strftime('%D'),
         'jupyter_token': pod.metadata.labels['jupyter_token'],
         'container_status': read_containers_status(pod.status.container_statuses),
-        'condition': read_conditions(pod.status.conditions)
+        'condition': read_conditions(pod.status.conditions),
+        'deletion_timestamp': pod.metadata.deletion_timestamp
     }
 
     notebook['url'] = f"/instance/{notebook['svc_name']}/?token={notebook['jupyter_token']}"
@@ -306,10 +307,10 @@ def get_live_user_notebooks(user_id):
         _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS).items
 
     if len(pods) == 0:
-        return None
+        return []
 
     # Kubernetes service will reflect the change immediately, pod will not
-    notebooks = list(filter(lambda n: n['svc_status'] != 'Deleted', notebooks_for_ui(pods)))
+    notebooks = list(filter(lambda n: n['deletion_timestamp'] is None, notebooks_for_ui(pods)))
 
     return notebooks
 
@@ -329,15 +330,15 @@ def root():
 def notebook_page():
     notebooks = get_live_user_notebooks(user_id = user_id_transform(session['user']['id']))
 
+    # https://github.com/hail-is/hail/issues/5487
+    assert len(notebooks) <= 1
+
     if len(notebooks) == 0:
         return render_template('notebook.html',
                                form_action_url=external_url_for('notebook'),
                                images=list(WORKER_IMAGES),
                                default='hail')
 
-    # TODO: We currently simplify state tracking, since using vanilla js makes this trickier
-    # by restricting to one alive notebook displayed
-    # This could be problematic if multiple notebooks are found in running state
     session['notebook'] = notebooks[0]
 
     return render_template('notebook.html', notebook=notebooks[0])
