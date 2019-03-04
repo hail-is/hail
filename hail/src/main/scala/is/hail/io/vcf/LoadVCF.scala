@@ -1081,22 +1081,6 @@ case class MatrixVCFReader(
 
   override lazy val fullType: TableType = LowerMatrixIR.loweredType(fullMatrixType)
 
-  val partitioner = if (partitionsJSON != null) {
-    assert(inputs.length == 1)
-    assert(minPartitions.isEmpty)
-    assert(hConf.exists(inputs.head + ".tbi"))
-
-    val pkType = TArray(TInterval(TStruct("locus" -> locusType)))
-    val jv = JsonMethods.parse(partitionsJSON)
-    val rangeBounds = JSONAnnotationImpex.importAnnotation(jv, pkType)
-
-    new RVDPartitioner(
-      Array("locus"),
-      fullMatrixType.rowKeyStruct,
-      rangeBounds.asInstanceOf[IndexedSeq[Interval]])
-  } else
-    null
-
   val fullRVDType: RVDType = RVDType(fullType.rowType.physicalType, fullType.key)
 
   private lazy val lines = {
