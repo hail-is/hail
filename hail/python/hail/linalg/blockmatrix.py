@@ -1867,9 +1867,9 @@ class BlockMatrix(object):
         Consider the following block matrix:
 
         >>> import numpy as np
-        >>> nd = np.array([[ 1.0,  2.0,  3.0],
-        ...                [ 5.0,  6.0,  7.0],
-        ...                [ 9.0, 10.0, 11.0]])
+        >>> nd = np.array([[ 1.0, 2.0, 3.0],
+        ...                [ 4.0, 5.0, 6.0],
+        ...                [ 7.0, 8.0, 9.0]])
 
         >>> BlockMatrix.from_numpy(nd, block_size=2).export_blocks('output/example')
 
@@ -1880,26 +1880,26 @@ class BlockMatrix(object):
         .. code-block:: text
 
             1.0 2.0
-            5.0 6.0
+            4.0 5.0
 
         The second file is ``rect-1_0-2-2-3``:
 
         .. code-block:: text
 
             3.0
-            7.0
+            6.0
 
         The third file is ``rect-2_2-3-0-2``:
 
         .. code-block:: text
 
-            9.0 10.0
+            7.0 8.0
 
         And the fourth file is ``rect-3_3-4-3-4``:
 
         .. code-block:: text
 
-            11.0
+            9.0
 
         Notes
         -----
@@ -1947,10 +1947,29 @@ class BlockMatrix(object):
     @typecheck(path=str)
     def rectangles_to_numpy(path):
         """Instantiates a NumPy ndarray from files of rectangles written out using
-        :meth:`.export_rectangles` or :meth:`.export_blocks`, with `binary=True`. The
-        resulting ndarray will have number of rows equal to the largest row covered by
-        any of the given rectangles, and likewise with the columns. Entries not covered
-        by any rectangle will be initialized as 0.
+        :meth:`.export_rectangles` or :meth:`.export_blocks`, with `binary=True`. For any given
+        dimension, the ndarray will have length equal to the upper bound of that dimension
+        across the union of the rectangles. Entries not covered by any rectangle will be initialized to 0.
+
+        Examples
+        --------
+        Consider the following:
+
+        >>> import numpy as np
+        >>> nd = np.array([[ 1.0, 2.0, 3.0],
+        ...                [ 4.0, 5.0, 6.0],
+        ...                [ 7.0, 8.0, 9.0]])
+
+        >>> BlockMatrix.from_numpy(nd).export_rectangles('output/example', [[0, 3, 0, 1], [1, 2, 0, 2]])
+        >>> BlockMatrix.rectangles_to_numpy('output/example')
+
+        This would produce the following NumPy ndarray:
+
+        .. code-block:: text
+
+            1.0 0.0
+            4.0 5.0
+            7.0 0.0
 
         See Also
         --------
@@ -1966,13 +1985,13 @@ class BlockMatrix(object):
         -------
         :class:`numpy.ndarray`
         """
-        def parse_rectangles(fname):
+        def parse_rects(fname):
             rect_idx_and_bounds = [int(i) for i in re.findall(r'\d+', fname)]
             assert len(rect_idx_and_bounds) == 5
             return rect_idx_and_bounds
 
         rect_files = [file for file in os.listdir(path) if not re.match(r'.*\.crc', file)]
-        rects = [parse_rectangles(file) for file in rect_files]
+        rects = [parse_rects(file) for file in rect_files]
 
         n_rows = max(rects, key=lambda r: r[2])[2]
         n_cols = max(rects, key=lambda r: r[3])[3]
