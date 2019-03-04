@@ -73,6 +73,8 @@ PASSWORD = read_string('/notebook-secrets/password')
 ADMIN_PASSWORD = read_string('/notebook-secrets/admin-password')
 INSTANCE_ID = uuid.uuid4().hex
 
+POD_PORT = 8888
+
 app.config.update(
     SECRET_KEY = read_string('/notebook-secrets/secret-key'),
     SESSION_COOKIE_SAMESITE = 'lax',
@@ -140,14 +142,14 @@ def start_pod(jupyter_token, image, name, user_id):
                 ],
                 name='default',
                 image=image,
-                ports=[kube.client.V1ContainerPort(container_port=8888)],
+                ports=[kube.client.V1ContainerPort(container_port=POD_PORT)],
                 resources=kube.client.V1ResourceRequirements(
                     requests={'cpu': '1.601', 'memory': '1.601G'}),
                 readiness_probe=kube.client.V1Probe(
                     period_seconds=5,
                     http_get=kube.client.V1HTTPGetAction(
                         path=f'/instance/{pod_id}/login',
-                        port=8888)))])
+                        port=POD_PORT)))])
     pod_template = kube.client.V1Pod(
         metadata=kube.client.V1ObjectMeta(
             generate_name='notebook2-worker-',
@@ -229,7 +231,7 @@ def pod_condition_for_ui(conds):
     return {"status": maxCond.status, "type": maxCond.type}
 
 
-def pod_to_ui_dict(pod, svc_status = None):
+def pod_to_ui_dict(pod):
     notebook = {
         'name': pod.metadata.labels['name'],
         'pod_name': pod.metadata.name,
@@ -248,8 +250,8 @@ def pod_to_ui_dict(pod, svc_status = None):
     return notebook
 
 
-def notebooks_for_ui(pods, svc_status = None):
-    return [pod_to_ui_dict(pod, svc_status) for pod in pods]
+def notebooks_for_ui(pods):
+    return [pod_to_ui_dict(pod) for pod in pods]
 
 
 def get_live_user_notebooks(user_id):
@@ -332,7 +334,7 @@ def auth(requested_pod_uuid):
 
     if notebook is not None and notebook['pod_uuid'] == requested_pod_uuid:
         res = flask.make_response()
-        res.headers['pod_ip'] = notebook['pod_ip']
+        res.headers['pod_ip'] = f"{notebook['pod_ip']}:{POD_PORT}"
         return res
 
     return '', 404
