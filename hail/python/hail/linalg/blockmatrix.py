@@ -1,6 +1,8 @@
 import numpy as np
 import scipy.linalg as spla
 import itertools
+import os
+import re
 
 import hail as hl
 import hail.expr.aggregators as agg
@@ -1112,8 +1114,6 @@ class BlockMatrix(object):
 
         Notes
         -----
-        The number of entries must be less than :math:`2^{31}`.
-
         The resulting ndarray will have the same shape as the block matrix.
 
         Returns
@@ -1122,6 +1122,11 @@ class BlockMatrix(object):
         """
         path = new_local_temp_file()
         uri = local_path_uri(path)
+
+        if self.n_rows * self.n_cols > 1 << 31:
+            self.export_blocks(uri, binary=True)
+            return BlockMatrix.rectangles_to_numpy(path, binary=True)
+
         self.tofile(uri)
         return np.fromfile(path).reshape((self.n_rows, self.n_cols))
 
@@ -1852,6 +1857,168 @@ class BlockMatrix(object):
 
         writer = BlockMatrixRectanglesWriter(path_out, rectangles, delimiter, binary)
         Env.backend().execute(BlockMatrixWrite(self._bmir, writer))
+
+    @typecheck_method(path_out=str, delimiter=str, binary=bool)
+    def export_blocks(self, path_out, delimiter='\t', binary=False):
+        """Export each block of the block matrix as its own delimited text or binary file.
+        This is a special case of :meth:`.export_rectangles`
+
+        Examples
+        --------
+        Consider the following block matrix:
+
+        >>> import numpy as np
+        >>> nd = np.array([[ 1.0, 2.0, 3.0],
+        ...                [ 4.0, 5.0, 6.0],
+        ...                [ 7.0, 8.0, 9.0]])
+
+        >>> BlockMatrix.from_numpy(nd, block_size=2).export_blocks('output/example')
+
+        This produces four files in the folder ``output/example``.
+
+        The first file is ``rect-0_0-2-0-2``:
+
+        .. code-block:: text
+
+            1.0 2.0
+            4.0 5.0
+
+        The second file is ``rect-1_0-2-2-3``:
+
+        .. code-block:: text
+
+            3.0
+            6.0
+
+        The third file is ``rect-2_2-3-0-2``:
+
+        .. code-block:: text
+
+            7.0 8.0
+
+        And the fourth file is ``rect-3_3-4-3-4``:
+
+        .. code-block:: text
+
+            9.0
+
+        Notes
+        -----
+        This method does not have any matrix size limitations.
+
+        If exporting to binary files, note that they are not platform independent. No byte-order
+        or data-type information is saved.
+
+        See Also
+        --------
+        :meth:`.rectangles_to_numpy`
+
+        Parameters
+        ----------
+        path_out: :obj:`str`
+            Path for folder of exported files.
+        delimiter: :obj:`str`
+            Column delimiter.
+        binary: :obj:`bool`
+            If true, export elements as raw bytes in row major order.
+        """
+        def rows_in_block(block_row):
+            if block_row == n_block_rows - 1:
+                return self.n_rows - block_row * self.block_size
+            return self.block_size
+
+        def cols_in_block(block_col):
+            if block_col == n_block_cols - 1:
+                return self.n_cols - block_col * self.block_size
+            return self.block_size
+
+        def bounds(block_row, block_col):
+            start_row = block_row * self.block_size
+            start_col = block_col * self.block_size
+            end_row = start_row + rows_in_block(block_row)
+            end_col = start_col + cols_in_block(block_col)
+
+            return [start_row, end_row, start_col, end_col]
+
+        n_block_rows = (self.n_rows + self.block_size - 1) // self.block_size
+        n_block_cols = (self.n_cols + self.block_size - 1) // self.block_size
+        block_indices = itertools.product(range(n_block_rows), range(n_block_cols))
+        rectangles = [bounds(block_row, block_col) for (block_row, block_col) in block_indices]
+
+        self.export_rectangles(path_out, rectangles, delimiter, binary)
+
+    @staticmethod
+    @typecheck(path=str, binary=bool)
+    def rectangles_to_numpy(path, binary=False):
+        """Instantiates a NumPy ndarray from files of rectangles written out using
+        :meth:`.export_rectangles` or :meth:`.export_blocks`. For any given
+        dimension, the ndarray will have length equal to the upper bound of that dimension
+        across the union of the rectangles. Entries not covered by any rectangle will be initialized to 0.
+
+        Examples
+        --------
+        Consider the following:
+
+        >>> import numpy as np
+        >>> nd = np.array([[ 1.0, 2.0, 3.0],
+        ...                [ 4.0, 5.0, 6.0],
+        ...                [ 7.0, 8.0, 9.0]])
+
+        >>> BlockMatrix.from_numpy(nd).export_rectangles('output/example', [[0, 3, 0, 1], [1, 2, 0, 2]])
+        >>> BlockMatrix.rectangles_to_numpy('output/example')
+
+        This would produce the following NumPy ndarray:
+
+        .. code-block:: text
+
+            1.0 0.0
+            4.0 5.0
+            7.0 0.0
+
+        Notes
+        -----
+        If exporting to binary files, note that they are not platform independent. No byte-order
+        or data-type information is saved.
+
+        See Also
+        --------
+        :meth:`.export_rectangles`
+        :meth:`.export_blocks`
+
+        Parameters
+        ----------
+        path: :obj:`str`
+            Path to directory where rectangles were written.
+        binary: :obj:`bool`
+            If true, reads the files as binary, otherwise as text delimited.
+
+        Returns
+        -------
+        :class:`numpy.ndarray`
+        """
+        def parse_rects(fname):
+            rect_idx_and_bounds = [int(i) for i in re.findall(r'\d+', fname)]
+            if len(rect_idx_and_bounds) != 5:
+                raise ValueError(f'Invalid rectangle file name: {fname}')
+            return rect_idx_and_bounds
+
+        rect_files = [file for file in os.listdir(path) if not re.match(r'.*\.crc', file)]
+        rects = [parse_rects(file) for file in rect_files]
+
+        n_rows = max(rects, key=lambda r: r[2])[2]
+        n_cols = max(rects, key=lambda r: r[4])[4]
+
+        nd = np.zeros(shape=(n_rows, n_cols))
+        for rect, file in zip(rects, rect_files):
+            file_path = f'{path}/{file}'
+            if binary:
+                rect_data = np.reshape(np.fromfile(file_path), (rect[2]-rect[1], rect[4]-rect[3]))
+            else:
+                rect_data = np.loadtxt(file_path, ndmin=2)
+
+            nd[rect[1]:rect[2], rect[3]:rect[4]] = rect_data
+
+        return nd
 
     @typecheck_method(compute_uv=bool,
                       complexity_bound=int)
