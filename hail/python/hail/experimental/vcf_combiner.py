@@ -1,73 +1,89 @@
 """A work in progress pipeline to combine (g)VCFs into an alternate format"""
 
 import hail as hl
-from hail.matrixtable import MatrixTable
+from hail import MatrixTable, Table
 from hail.expr import StructExpression
 from hail.expr.expressions import expr_call, expr_array, expr_int32
 from hail.ir import TableKeyBy
 from hail.typecheck import typecheck
 
+_transform_rows_function_map = {}
 
-def transform_one(mt: MatrixTable) -> MatrixTable:
+def localize(mt):
+    if isinstance(mt, MatrixTable):
+        return mt._localize_entries('__entries', '__cols')
+    return mt
+
+def unlocalize(mt):
+    if isinstance(mt, Table):
+        return mt._unlocalize_entries('__entries', '__cols', ['s'])
+    return mt
+
+def transform_one(mt) -> Table:
     """transforms a gvcf into a form suitable for combining
 
     The input to this should be some result of either :func:`.import_vcf` or
-    :func:`.import_vcfs`.  Be aware of requiredness issues surrounding `LAD` and `LPL` in the
-    output of this function and the output of :func:`.combine_gvcfs`. The output of
-    :func:`.combine_gvcfs` will have `LAD` and `LPL` elements as not-required. Without the
-    `array_elements_required` flag being set to `True` in :func:`.import_vcf` and
-    :func:`.import_vcfs`, the LAD and LPL fields' elements in the output of this function will
-    be required which will lead to a type error if the output of this function and the output
-    of :func:`.combine_gvcfs` are passed to :func:`.combine_gvcfs`.
+    :func:`.import_vcfs` with `array_elements_required=False`.
     """
-    mt = mt.annotate_entries(
-        END=mt.info.END,
-        BaseQRankSum=mt.info['BaseQRankSum'],
-        ClippingRankSum=mt.info['ClippingRankSum'],
-        MQ=mt.info['MQ'],
-        MQRankSum=mt.info['MQRankSum'],
-        ReadPosRankSum=mt.info['ReadPosRankSum'],
-        LGT=mt.GT,
-        LAD=hl.cond(
-            mt.alleles[-1] == '<NON_REF>',
-            mt.AD[:-1],
-            mt.AD),
-        LPL=hl.cond(
-            mt.alleles[-1] == '<NON_REF>',
-            hl.cond(hl.len(mt.alleles) > 2, mt.PL[:-hl.len(mt.alleles)], hl.null(mt.PL.dtype)),
-            hl.cond(hl.len(mt.alleles) > 1, mt.PL, hl.null(mt.PL.dtype))
-        ),
-        LPGT=mt.PGT,
-        # If present, <NON_REF> is always the last allele in a gVCF
-        RGQ=hl.cond(
-            mt.alleles[-1] == '<NON_REF>',
-            mt.PL[hl.call(0, hl.len(mt.alleles) - 1).unphased_diploid_gt_index()],
-            hl.null(mt.PL.dtype.element_type)
-        )
-    )
-    mt = mt.annotate_rows(
-        alleles=hl.cond(
-            mt.alleles[-1] == '<NON_REF>',
-            mt.alleles[:-1],
-            mt.alleles),
-        info=mt.info.annotate(
-            SB_TABLE=hl.array([
-                hl.agg.sum(mt.entry.SB[0]),
-                hl.agg.sum(mt.entry.SB[1]),
-                hl.agg.sum(mt.entry.SB[2]),
-                hl.agg.sum(mt.entry.SB[3]),
-            ])
-        ).select(
-            "MQ_DP",
-            "QUALapprox",
-            "RAW_MQ",
-            "VarDP",
-            "SB_TABLE",
-        ))
-    mt = mt.annotate_entries(LA=hl.range(0, hl.len(mt.alleles)))
-    mt = mt.drop('SB', 'qual', 'filters', 'GT', 'AD', 'PL', 'PGT')
+    global _transform_rows_function_map
+    mt = localize(mt)
+    if mt.row.dtype not in _transform_rows_function_map:
+        f = hl.experimental.define_function(
+            lambda row: hl.rbind(
+                hl.len(row.alleles), '<NON_REF>' == row.alleles[-1],
+                lambda alleles_len, has_non_ref: hl.struct(
+                    alleles=hl.cond(has_non_ref, row.alleles[:-1], row.alleles),
+                    rsid=row.rsid,
+                    info=row.info.annotate(
+                        SB_TABLE=hl.array([
+                            hl.sum(row.__entries.map(lambda d: d.SB[0])),
+                            hl.sum(row.__entries.map(lambda d: d.SB[1])),
+                            hl.sum(row.__entries.map(lambda d: d.SB[2])),
+                            hl.sum(row.__entries.map(lambda d: d.SB[3])),
+                        ])
+                    ).select(
+                        "MQ_DP",
+                        "QUALapprox",
+                        "RAW_MQ",
+                        "VarDP",
+                        "SB_TABLE",
+                    ),
+                    __entries=row.__entries.map(
+                        lambda e:
+                        hl.struct(
+                            BaseQRankSum=row.info['BaseQRankSum'],
+                            ClippingRankSum=row.info['ClippingRankSum'],
+                            DP=e.DP,
+                            END=row.info.END,
+                            GQ=e.GQ,
+                            LA=hl.range(0, alleles_len - hl.cond(has_non_ref, 1, 0)),
+                            LAD=hl.cond(has_non_ref, e.AD[:-1], e.AD),
+                            LGT=e.GT,
+                            LPGT=e.PGT,
+                            LPL=hl.cond(has_non_ref,
+                                        hl.cond(alleles_len > 2,
+                                                e.PL[:-alleles_len],
+                                                hl.null(e.PL.dtype)),
+                                        hl.cond(alleles_len > 1,
+                                                e.PL,
+                                                hl.null(e.PL.dtype))),
+                            MIN_DP=e.MIN_DP,
+                            MQ=row.info['MQ'],
+                            MQRankSum=row.info['MQRankSum'],
+                            PID=e.PID,
+                            RGT=hl.cond(
+                                has_non_ref,
+                                e.PL[hl.call(0, alleles_len - 1).unphased_diploid_gt_index()],
+                                hl.null(e.PL.dtype.element_type)),
+                            ReadPosRankSum=row.info['ReadPosRankSum'],
+                        ))),
+            ),
+            mt.row.dtype)
+        _transform_rows_function_map[mt.row.dtype] = f
+    transform_row = _transform_rows_function_map[mt.row.dtype]
+    mt = mt.select(tmp=hl.rbind(transform_row(mt.row), lambda a: a))
+    return mt.select(**mt.tmp)
 
-    return mt
 
 def combine(ts):
     def merge_alleles(alleles):
@@ -127,7 +143,8 @@ def combine(ts):
                         hl.range(0, hl.len(tmp.g[i].__cols))
                           .map(lambda _: hl.null(tmp.data[i].__entries.dtype.element_type)),
                         hl.bind(
-                            lambda old_to_new: tmp.data[i].__entries.map(lambda e: renumber_entry(e, old_to_new)),
+                            lambda old_to_new: tmp.data[i].__entries.map(
+                                lambda e: renumber_entry(e, old_to_new)),
                             hl.range(0, hl.len(tmp.alleles.local[i])).map(
                                 lambda j: combined_allele_index[tmp.alleles.local[i][j]])))),
             hl.dict(hl.range(0, hl.len(tmp.alleles.globl)).map(
@@ -140,14 +157,9 @@ def combine(ts):
 
 def combine_gvcfs(mts):
     """merges vcfs using multi way join"""
-
-    # pylint: disable=protected-access
-    def localize(mt):
-        return mt._localize_entries('__entries', '__cols')
-
     ts = hl.Table._multi_way_zip_join([localize(mt) for mt in mts], 'data', 'g')
     combined = combine(ts)
-    return combined._unlocalize_entries('__entries', '__cols', ['s'])
+    return unlocalize(combined)
 
 
 @typecheck(lgt=expr_call, la=expr_array(expr_int32))
