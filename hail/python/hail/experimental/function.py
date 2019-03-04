@@ -1,8 +1,18 @@
 from hail.utils.java import Env
-from hail.ir import *
-from hail.expr.types import *
-from hail.expr.expressions import *
-from hail.typecheck import *
+from hail.ir import Apply, Ref, Renderer, register_function
+from hail.expr.types import HailType
+from hail.expr.expressions import construct_expr, anytype, expr_any, unify_all
+from hail.typecheck import typecheck
+
+
+class Function(object):
+    def __init__(self, f, name):
+        self._f = f
+        self._name = name
+
+    def __call__(self, *args):
+        return self._f(*args)
+
 
 @typecheck(f=anytype, param_types=HailType)
 def define_function(f, *param_types):
@@ -24,5 +34,5 @@ def define_function(f, *param_types):
     def f(*args):
         indices, aggregations = unify_all(*args)
         return construct_expr(Apply(mname, *(a._ir for a in args)), ret_type, indices, aggregations)
-        
-    return f
+
+    return Function(f, mname)
