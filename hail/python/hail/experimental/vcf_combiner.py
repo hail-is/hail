@@ -4,7 +4,7 @@ import hail as hl
 from hail import MatrixTable, Table
 from hail.expr import StructExpression
 from hail.expr.expressions import expr_call, expr_array, expr_int32
-from hail.ir import TableKeyBy
+from hail.ir import Apply, TableKeyBy, TableMapRows, TopLevelReference
 from hail.typecheck import typecheck
 
 _transform_rows_function_map = {}
@@ -32,6 +32,7 @@ def transform_one(mt) -> Table:
             lambda row: hl.rbind(
                 hl.len(row.alleles), '<NON_REF>' == row.alleles[-1],
                 lambda alleles_len, has_non_ref: hl.struct(
+                    locus=row.locus,
                     alleles=hl.cond(has_non_ref, row.alleles[:-1], row.alleles),
                     rsid=row.rsid,
                     info=row.info.annotate(
@@ -81,8 +82,7 @@ def transform_one(mt) -> Table:
             mt.row.dtype)
         _transform_rows_function_map[mt.row.dtype] = f
     transform_row = _transform_rows_function_map[mt.row.dtype]
-    mt = mt.select(tmp=hl.rbind(transform_row(mt.row), lambda a: a))
-    return mt.select(**mt.tmp)
+    return Table(TableMapRows(mt._tir, Apply(transform_row._name, TopLevelReference('row'))))
 
 
 def combine(ts):
