@@ -658,7 +658,7 @@ class Tests(unittest.TestCase):
         bm_path = new_local_temp_dir()
         bm_uri = local_path_uri(bm_path)
         bm.export_blocks(bm_uri, binary=True)
-        actual = BlockMatrix.rectangles_to_numpy(bm_path)
+        actual = BlockMatrix.rectangles_to_numpy(bm_path, binary=True)
 
         self._assert_eq(nd, actual)
 

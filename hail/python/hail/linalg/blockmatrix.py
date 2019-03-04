@@ -1944,10 +1944,10 @@ class BlockMatrix(object):
         self.export_rectangles(path_out, rectangles, delimiter, binary)
 
     @staticmethod
-    @typecheck(path=str)
-    def rectangles_to_numpy(path):
+    @typecheck(path=str, binary=bool)
+    def rectangles_to_numpy(path, binary=False):
         """Instantiates a NumPy ndarray from files of rectangles written out using
-        :meth:`.export_rectangles` or :meth:`.export_blocks`, with `binary=True`. For any given
+        :meth:`.export_rectangles` or :meth:`.export_blocks`. For any given
         dimension, the ndarray will have length equal to the upper bound of that dimension
         across the union of the rectangles. Entries not covered by any rectangle will be initialized to 0.
 
@@ -1980,6 +1980,8 @@ class BlockMatrix(object):
         ----------
         path: :obj:`str`
             Path to directory where rectangles were written.
+        binary: :obj:`bool`
+            If true, reads the files as binary, otherwise as text delimited.
 
         Returns
         -------
@@ -1987,20 +1989,25 @@ class BlockMatrix(object):
         """
         def parse_rects(fname):
             rect_idx_and_bounds = [int(i) for i in re.findall(r'\d+', fname)]
-            assert len(rect_idx_and_bounds) == 5
+            if len(rect_idx_and_bounds) != 5:
+                raise ValueError(f'Invalid rectangle file name: {fname}')
             return rect_idx_and_bounds
 
         rect_files = [file for file in os.listdir(path) if not re.match(r'.*\.crc', file)]
         rects = [parse_rects(file) for file in rect_files]
 
         n_rows = max(rects, key=lambda r: r[2])[2]
-        n_cols = max(rects, key=lambda r: r[3])[3]
+        n_cols = max(rects, key=lambda r: r[4])[4]
 
         nd = np.zeros(shape=(n_rows, n_cols))
         for rect, file in zip(rects, rect_files):
-            rows = rect[2] - rect[1]
-            cols = rect[4] - rect[3]
-            nd[rect[1]:rect[2], rect[3]:rect[4]] = np.fromfile(f'{path}/{file}').reshape(rows, cols)
+            file_path = f'{path}/{file}'
+            if binary:
+                rect_data = np.reshape(np.fromfile(file_path), (rect[2]-rect[1], rect[4]-rect[3]))
+            else:
+                rect_data = np.loadtxt(file_path, ndmin=2)
+
+            nd[rect[1]:rect[2], rect[3]:rect[4]] = rect_data
 
         return nd
 
