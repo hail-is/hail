@@ -64,7 +64,7 @@ def read_string(f):
         return f.read().strip()
 
 # Must be int for Kubernetes V1 api timeout_seconds property
-KUBERNETES_TIMEOUT_IN_SECONDS = int(os.environ.get('KUBERNETES_TIMEOUT_IN_SECONDS', 5))
+KUBERNETES_TIMEOUT_IN_SECONDS = float(os.environ.get('KUBERNETES_TIMEOUT_IN_SECONDS', 5))
 
 AUTHORIZED_USERS = read_string('/notebook-secrets/authorized-users').split(',')
 AUTHORIZED_USERS = dict((email, True) for email in AUTHORIZED_USERS)
@@ -246,12 +246,10 @@ def read_containers_status(container_statuses):
 def read_conditions(conds):
     """
         Return the most recent status=="True" V1PodCondition or None
-
         Parameters
         ----------
         conds : list[V1PodCondition]
             https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1PodCondition.md
-
     """
     if conds is None:
         return None
@@ -275,47 +273,43 @@ def read_conditions(conds):
         "type": maxCond.type}
 
 
-def marshall_notebooks(pods = [], svc_status = None):
-    notebooks = []
+def pod_to_ui_dict(pod, svc_status = None):
+    notebook = {
+        'name': pod.metadata.labels['name'],
+        'pod_name': pod.metadata.name,
+        'svc_name': pod.metadata.labels['svc_name'],
+        'pod_status': pod.status.phase,
+        'creation_date': pod.metadata.creation_timestamp.strftime('%D'),
+        'jupyter_token': pod.metadata.labels['jupyter_token'],
+        'container_status': read_containers_status(pod.status.container_statuses),
+        'condition': read_conditions(pod.status.conditions)
+    }
 
-    for pod in pods:
-        notebook = {
-            'name': pod.metadata.labels['name'],
-            'pod_name': pod.metadata.name,
-            'svc_name': pod.metadata.labels['svc_name'],
-            'pod_status': pod.status.phase,
-            'creation_date': pod.metadata.creation_timestamp.strftime('%D'),
-            'jupyter_token': pod.metadata.labels['jupyter_token'],
-            'container_status': read_containers_status(pod.status.container_statuses),
-            'condition': read_conditions(pod.status.conditions)
-        }
+    notebook['url'] = f"/instance/{notebook['svc_name']}/?token={notebook['jupyter_token']}"
 
-        notebook['url'] = f"/instance/{notebook['svc_name']}/?token={notebook['jupyter_token']}"
+    if svc_status is not None:
+        notebook['svc_status'] = svc_status
+    else:
+        notebook['svc_status'] = read_svc_status(notebook['svc_name'])
 
-        if svc_status is not None:
-            notebook['svc_status'] = svc_status
-        else:
-            notebook['svc_status'] = read_svc_status(notebook['svc_name'])
-
-        notebooks.append(notebook)
-
-    return notebooks
+    return notebook
 
 
-def get_live_user_notebooks(user_id = None):
-    if user_id is None:
-        return None
+def notebooks_for_ui(pods, svc_status = None):
+    return [pod_to_ui_dict(pod, svc_status) for pod in pods]
 
+
+def get_live_user_notebooks(user_id):
     pods = k8s.list_namespaced_pod(
         namespace='default',
         label_selector=f"user_id={user_id}",
-        timeout_seconds=KUBERNETES_TIMEOUT_IN_SECONDS).items
+        _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS).items
 
     if len(pods) == 0:
         return None
 
     # Kubernetes service will reflect the change immediately, pod will not
-    notebooks = list(filter(lambda n: n['svc_status'] != 'Deleted', marshall_notebooks(pods)))
+    notebooks = list(filter(lambda n: n['svc_status'] != 'Deleted', notebooks_for_ui(pods)))
 
     if len(notebooks) == 0:
         return None
@@ -377,7 +371,7 @@ def notebook_post():
     safe_user_id = user_id_transform(session['user']['id'])
 
     pod = start_pod(jupyter_token, WORKER_IMAGES[image], name, safe_user_id)
-    session['notebook'] = marshall_notebooks([pod], svc_status = "Running")[0]
+    session['notebook'] = notebooks_for_ui([pod], svc_status = "Running")[0]
 
     return redirect(external_url_for('notebook'))
 
