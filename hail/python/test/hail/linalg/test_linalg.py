@@ -667,14 +667,21 @@ class Tests(unittest.TestCase):
                        [4.0, 5.0, 6.0],
                        [7.0, 8.0, 9.0]])
 
+        rects = [[0, 3, 0, 1], [1, 2, 0, 2]]
+
         rect_path = new_local_temp_dir()
         rect_uri = local_path_uri(rect_path)
-        BlockMatrix.from_numpy(nd).export_rectangles(rect_uri, [[0, 3, 0, 1], [1, 2, 0, 2]])
+        BlockMatrix.from_numpy(nd).export_rectangles(rect_uri, rects)
+
+        rect_bytes_path = new_local_temp_dir()
+        rect_bytes_uri = local_path_uri(rect_bytes_path)
+        BlockMatrix.from_numpy(nd).export_rectangles(rect_bytes_uri, rects, binary=True)
 
         expected = np.array([[1.0, 0.0],
                              [4.0, 5.0],
                              [7.0, 0.0]])
         self._assert_eq(expected, BlockMatrix.rectangles_to_numpy(rect_path))
+        self._assert_eq(expected, BlockMatrix.rectangles_to_numpy(rect_bytes_path, binary=True))
 
     def test_block_matrix_entries(self):
         n_rows, n_cols = 5, 3
