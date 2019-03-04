@@ -311,9 +311,6 @@ def get_live_user_notebooks(user_id):
     # Kubernetes service will reflect the change immediately, pod will not
     notebooks = list(filter(lambda n: n['svc_status'] != 'Deleted', notebooks_for_ui(pods)))
 
-    if len(notebooks) == 0:
-        return None
-
     return notebooks
 
 
@@ -332,7 +329,7 @@ def root():
 def notebook_page():
     notebooks = get_live_user_notebooks(user_id = user_id_transform(session['user']['id']))
 
-    if notebooks is None:
+    if len(notebooks) == 0:
         return render_template('notebook.html',
                                form_action_url=external_url_for('notebook'),
                                images=list(WORKER_IMAGES),
