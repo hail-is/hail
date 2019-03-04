@@ -211,7 +211,7 @@ def read_svc_status(svc_name: str):
         return 'Deleted'
 
 
-def read_containers_status(container_statuses):
+def container_status_for_ui(container_statuses):
     """
         Summarize the container status based on its most recent state
 
@@ -223,27 +223,27 @@ def read_containers_status(container_statuses):
     if container_statuses is None:
         return None
 
+    assert(len(container_statuses) == 1)
+
     state = container_statuses[0].state
-    rn = None
-    wt = None
-    tm = None
+
     if state.running:
-        rn = {"started_at": state.running.started_at}
+        return {"running": {"started_at": state.running.started_at}}
 
     if state.waiting:
-        wt = {"reason": state.waiting.reason}
+        return {"waiting": {"reason": state.waiting.reason}}
 
     if state.terminated:
-        tm = {"exit_code": state.terminated.exit_code, "finished_at": state.terminated.finished_at,
-              "started_at": state.terminated.started_at, "reason": state.terminated.reason}
+        return {"terminated": {
+                                "exit_code": state.terminated.exit_code,
+                                "finished_at": state.terminated.finished_at,
+                                "started_at": state.terminated.started_at,
+                                "reason": state.terminated.reason
+                              }
+                }
 
-    if rn is None and wt is None and tm is None:
-        return None
 
-    return {"running": rn, "terminated": tm, "waiting": wt}
-
-
-def read_conditions(conds):
+def pod_condition_for_ui(conds):
     """
         Return the most recent status=="True" V1PodCondition or None
         Parameters
@@ -254,17 +254,7 @@ def read_conditions(conds):
     if conds is None:
         return None
 
-    maxDate = None
-    maxCond = None
-    for condition in conds:
-        if maxDate is None:
-            maxCond = condition
-            maxDate = condition.last_transition_time
-            continue
-
-        if condition.last_transition_time > maxDate and condition.status == "True":
-            maxCond = condition
-            maxDate = condition.last_transition_time
+    maxCond = max(conds, key=lambda c: (c.last_transition_time, c.status == 'True'))
 
     return {
         "message": maxCond.message,
@@ -281,8 +271,8 @@ def pod_to_ui_dict(pod, svc_status = None):
         'pod_status': pod.status.phase,
         'creation_date': pod.metadata.creation_timestamp.strftime('%D'),
         'jupyter_token': pod.metadata.labels['jupyter_token'],
-        'container_status': read_containers_status(pod.status.container_statuses),
-        'condition': read_conditions(pod.status.conditions),
+        'container_status': container_status_for_ui(pod.status.container_statuses),
+        'condition': pod_condition_for_ui(pod.status.conditions),
         'deletion_timestamp': pod.metadata.deletion_timestamp
     }
 
