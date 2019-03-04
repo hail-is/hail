@@ -21,6 +21,10 @@
     &:hover {
       border-color: $devil-gray;
     }
+
+    &.material-icons {
+      border: none;
+    }
   }
 
   .link-button,

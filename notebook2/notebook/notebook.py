@@ -22,6 +22,7 @@ import re
 import requests
 import time
 import uuid
+import hashlib
 
 fmt = logging.Formatter(
    # NB: no space after levelname because WARNING is so long
@@ -62,7 +63,8 @@ def read_string(f):
     with open(f, 'r') as f:
         return f.read().strip()
 
-KUBERNETES_TIMEOUT_IN_SECONDS = float(os.environ.get('KUBERNETES_TIMEOUT_IN_SECONDS', 5.0))
+# Must be int for Kubernetes V1 api timeout_seconds property
+KUBERNETES_TIMEOUT_IN_SECONDS = int(os.environ.get('KUBERNETES_TIMEOUT_IN_SECONDS', 5))
 
 AUTHORIZED_USERS = read_string('/notebook-secrets/authorized-users').split(',')
 AUTHORIZED_USERS = dict((email, True) for email in AUTHORIZED_USERS)
@@ -114,7 +116,7 @@ def requires_auth(for_page = True):
             if 'user' not in session:
                 if for_page:
                     session['referrer'] = request.url
-                    return redirect(flask.url_for('login_page'))
+                    return redirect(external_url_for('login'))
 
                 return '', 401
 
@@ -124,7 +126,7 @@ def requires_auth(for_page = True):
     return auth
 
 
-def start_pod(jupyter_token, image):
+def start_pod(jupyter_token, image, name, user_id):
     pod_id = uuid.uuid4().hex
     service_spec = kube.client.V1ServiceSpec(
         selector={
@@ -138,7 +140,9 @@ def start_pod(jupyter_token, image):
             labels={
                 'app': 'notebook2-worker',
                 'hail.is/notebook2-instance': INSTANCE_ID,
-                'uuid': pod_id}),
+                'uuid': pod_id,
+                'name': name,
+                'user_id': user_id}),
         spec=service_spec)
     svc = k8s.create_namespaced_service(
         'default',
@@ -160,6 +164,7 @@ def start_pod(jupyter_token, image):
                 resources=kube.client.V1ResourceRequirements(
                     requests={'cpu': '1.601', 'memory': '1.601G'}),
                 readiness_probe=kube.client.V1Probe(
+                    period_seconds=5,
                     http_get=kube.client.V1HTTPGetAction(
                         path=f'/instance/{svc.metadata.name}/login',
                         port=8888)))])
@@ -170,13 +175,18 @@ def start_pod(jupyter_token, image):
                 'app': 'notebook2-worker',
                 'hail.is/notebook2-instance': INSTANCE_ID,
                 'uuid': pod_id,
+                'svc_name': svc.metadata.name,
+                'name': name,
+                'jupyter_token': jupyter_token,
+                'user_id': user_id
             }),
         spec=pod_spec)
     pod = k8s.create_namespaced_pod(
         'default',
         pod_template,
         _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
-    return svc, pod
+
+    return pod
 
 
 def external_url_for(path):
@@ -186,6 +196,131 @@ def external_url_for(path):
     protocol = request.headers.get('X-Forwarded-Proto', None)
     url = flask.url_for('root', _scheme=protocol, _external='true')
     return url + path
+
+
+# Kube has max 63 character limit
+def user_id_transform(user_id): return hashlib.sha224(user_id.encode('utf-8')).hexdigest()
+
+
+def read_svc_status(svc_name: str):
+    try:
+        # TODO: inspect exception for non-404
+        _ = k8s.read_namespaced_service(svc_name, 'default')
+        return 'Running'
+    except Exception:
+        return 'Deleted'
+
+
+def read_containers_status(container_statuses):
+    """
+        Summarize the container status based on its most recent state
+
+        Parameters
+        ----------
+        container_statuses : list[V1ContainerStatus]
+            https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1ContainerStatus.md
+    """
+    if container_statuses is None:
+        return None
+
+    state = container_statuses[0].state
+    rn = None
+    wt = None
+    tm = None
+    if state.running:
+        rn = {"started_at": state.running.started_at}
+
+    if state.waiting:
+        wt = {"reason": state.waiting.reason}
+
+    if state.terminated:
+        tm = {"exit_code": state.terminated.exit_code, "finished_at": state.terminated.finished_at,
+              "started_at": state.terminated.started_at, "reason": state.terminated.reason}
+
+    if rn is None and wt is None and tm is None:
+        return None
+
+    return {"running": rn, "terminated": tm, "waiting": wt}
+
+
+def read_conditions(conds):
+    """
+        Return the most recent status=="True" V1PodCondition or None
+
+        Parameters
+        ----------
+        conds : list[V1PodCondition]
+            https://github.com/kubernetes-client/python/blob/master/kubernetes/docs/V1PodCondition.md
+
+    """
+    if conds is None:
+        return None
+
+    maxDate = None
+    maxCond = None
+    for condition in conds:
+        if maxDate is None:
+            maxCond = condition
+            maxDate = condition.last_transition_time
+            continue
+
+        if condition.last_transition_time > maxDate and condition.status == "True":
+            maxCond = condition
+            maxDate = condition.last_transition_time
+
+    return {
+        "message": maxCond.message,
+        "reason": maxCond.reason,
+        "status": maxCond.status,
+        "type": maxCond.type}
+
+
+def marshall_notebooks(pods = [], svc_status = None):
+    notebooks = []
+
+    for pod in pods:
+        notebook = {
+            'name': pod.metadata.labels['name'],
+            'pod_name': pod.metadata.name,
+            'svc_name': pod.metadata.labels['svc_name'],
+            'pod_status': pod.status.phase,
+            'creation_date': pod.metadata.creation_timestamp.strftime('%D'),
+            'jupyter_token': pod.metadata.labels['jupyter_token'],
+            'container_status': read_containers_status(pod.status.container_statuses),
+            'condition': read_conditions(pod.status.conditions)
+        }
+
+        notebook['url'] = f"/instance/{notebook['svc_name']}/?token={notebook['jupyter_token']}"
+
+        if svc_status is not None:
+            notebook['svc_status'] = svc_status
+        else:
+            notebook['svc_status'] = read_svc_status(notebook['svc_name'])
+
+        notebooks.append(notebook)
+
+    return notebooks
+
+
+def get_live_user_notebooks(user_id = None):
+    if user_id is None:
+        return None
+
+    pods = k8s.list_namespaced_pod(
+        namespace='default',
+        label_selector=f"user_id={user_id}",
+        timeout_seconds=KUBERNETES_TIMEOUT_IN_SECONDS).items
+
+    if len(pods) == 0:
+        return None
+
+    # Kubernetes service will reflect the change immediately, pod will not
+    notebooks = list(filter(lambda n: n['svc_status'] != 'Deleted', marshall_notebooks(pods)))
+
+    if len(notebooks) == 0:
+        return None
+
+    return notebooks
 
 
 @app.route('/healthcheck')
@@ -200,62 +335,62 @@ def root():
 
 @app.route('/notebook', methods=['GET'])
 @requires_auth()
-def notebook_get():
-    if 'svc_name' not in session:
-        log.info(f'no svc_name found in session {session.keys()}')
+def notebook_page():
+    notebooks = get_live_user_notebooks(user_id = user_id_transform(session['user']['id']))
+
+    if notebooks is None:
         return render_template('notebook.html',
-                               form_action_url=external_url_for('new'),
+                               form_action_url=external_url_for('notebook'),
                                images=list(WORKER_IMAGES),
                                default='hail')
-    svc_name = session['svc_name']
-    jupyter_token = session['jupyter_token']
-    log.info('redirecting to ' + external_url_for(f'instance/{svc_name}/?token={jupyter_token}'))
-    return redirect(external_url_for(f'instance/{svc_name}/?token={jupyter_token}'))
+
+    # TODO: We currently simplify state tracking, since using vanilla js makes this trickier
+    # by restricting to one alive notebook displayed
+    # This could be problematic if multiple notebooks are found in running state
+    session['notebook'] = notebooks[0]
+
+    return render_template('notebook.html', notebook=notebooks[0])
 
 
-@app.route('/new', methods=['GET'])
+@app.route('/notebook/delete', methods=['POST'])
 @requires_auth()
-def new_get():
-    pod_name = session.get('pod_name')
-    svc_name = session.get('svc_name')
-    if pod_name:
-        delete_worker_pod(pod_name, svc_name)
-        del session['pod_name']
+def notebook_delete():
+    notebook = session.get('notebook')
 
-    if svc_name is not None:
-        del session['svc_name']
+    if notebook is not None:
+        delete_worker_pod(notebook['pod_name'], notebook['svc_name'])
+        del session['notebook']
 
     return redirect(external_url_for('notebook'))
 
 
-@app.route('/new', methods=['POST'])
+@app.route('/notebook', methods=['POST'])
 @requires_auth()
-def new_post():
-    log.info('new received')
+def notebook_post():
     image = request.form['image']
+
     if image not in WORKER_IMAGES:
-        return '403 Forbidden', 403
-    jupyter_token = uuid.uuid4().hex  # FIXME: probably should be cryptographically secure
-    svc, pod = start_pod(jupyter_token, WORKER_IMAGES[image])
-    session['svc_name'] = svc.metadata.name
-    session['pod_name'] = pod.metadata.name
-    session['jupyter_token'] = jupyter_token
-    return redirect(external_url_for(f'wait'))
+        return '', 404
 
+    jupyter_token = uuid.uuid4().hex
+    name = request.form.get('name', 'a_notebook')
+    safe_user_id = user_id_transform(session['user']['id'])
 
-@app.route('/wait', methods=['GET'])
-@requires_auth()
-def wait_webpage():
-    return render_template('wait.html')
+    pod = start_pod(jupyter_token, WORKER_IMAGES[image], name, safe_user_id)
+    session['notebook'] = marshall_notebooks([pod], svc_status = "Running")[0]
+
+    return redirect(external_url_for('notebook'))
 
 
 @app.route('/auth/<requested_svc_name>')
 @requires_auth()
 def auth(requested_svc_name):
-    approved_svc_name = session.get('svc_name')
-    if approved_svc_name and approved_svc_name == requested_svc_name:
+    notebook = session.get('notebook')
+
+    if notebook is not None and notebook['svc_name'] == requested_svc_name:
         return '', 200
-    return '', 403
+
+    return '', 404
 
 
 def get_all_workers():
@@ -357,11 +492,13 @@ def worker_image():
 @sockets.route('/wait')
 @requires_auth(for_page = False)
 def wait_websocket(ws):
-    pod_name = session['pod_name']
-    svc_name = session['svc_name']
-    jupyter_token = session['jupyter_token']
-    log.info(f'received wait websocket for {svc_name} {pod_name}')
-    # wait for instance ready
+    notebook = session['notebook']
+
+    if notebook is None:
+        return
+
+    pod_name = notebook['pod_name']
+    svc_name = notebook['svc_name']
     while True:
         try:
             response = requests.head(f'https://notebook2.hail.is/instance-ready/{svc_name}/',
@@ -381,8 +518,8 @@ def wait_websocket(ws):
         except requests.exceptions.Timeout as e:
             log.info(f'GET on jupyter failed for {svc_name} {pod_name}')
             gevent.sleep(1)
-    ws.send(external_url_for(f'instance/{svc_name}/?token={jupyter_token}'))
-    log.info(f'notification sent to user for {svc_name} {pod_name}')
+
+    ws.send("1")
 
 
 @app.route('/auth0-callback')
@@ -396,10 +533,10 @@ def auth0_callback():
     del session['workshop_password']
 
     if AUTHORIZED_USERS.get(email) is None and workshop_password != PASSWORD:
-        return redirect(flask.url_for('error_page', err = 'Unauthorized'))
+        return redirect(external_url_for(f"error?err=Unauthorized"))
 
     session['user'] = {
-        'user_id': userinfo['sub'],
+        'id': userinfo['sub'],
         'name': userinfo['name'],
         'email': email,
         'picture': userinfo['picture'],

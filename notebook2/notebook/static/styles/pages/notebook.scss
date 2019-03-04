@@ -1,6 +1,10 @@
 @import "../variables/margins.scss";
+@import "../variables/colors.scss";
 #theme-site {
   #notebook {
+    display: flex;
+    flex-direction: column;
+
     .nb {
       flex-direction: row;
       display: flex;
@@ -8,6 +12,24 @@
       margin-bottom: $margin;
       justify-content: space-around;
       min-width: 320px;
+    }
+
+    .ready-icon {
+      color: $blue;
+      margin-right: $margin;
+    }
+
+    .spinner {
+      margin-right: $margin;
+    }
+
+    .nb-state-container {
+      flex-direction: column;
+      display: flex;
+    }
+
+    .nb-close {
+      margin-left: $margin * 4;
     }
   }
 }
