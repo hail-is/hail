@@ -143,7 +143,7 @@ def start_pod(jupyter_token, image, name, user_id):
                     'jupyter',
                     'notebook',
                     f'--NotebookApp.token={jupyter_token}',
-                    f'--NotebookApp.base_url=/instance'
+                    f'--NotebookApp.base_url=/instance/{pod_id}'
                 ],
                 name='default',
                 image=image,
@@ -153,7 +153,7 @@ def start_pod(jupyter_token, image, name, user_id):
                 readiness_probe=kube.client.V1Probe(
                     period_seconds=5,
                     http_get=kube.client.V1HTTPGetAction(
-                        path=f'/instance/login',
+                        path=f'/instance/{pod_id}/login',
                         port=POD_PORT)))])
     pod_template = kube.client.V1Pod(
         metadata=kube.client.V1ObjectMeta(
@@ -240,6 +240,7 @@ def pod_to_ui_dict(pod):
     notebook = {
         'name': pod.metadata.labels['name'],
         'pod_name': pod.metadata.name,
+        'pod_uuid': pod.metadata.labels['uuid'],
         'pod_status': pod.status.phase,
         'pod_ip': pod.status.pod_ip,
         'creation_date': pod.metadata.creation_timestamp.strftime('%D'),
@@ -249,7 +250,7 @@ def pod_to_ui_dict(pod):
         'deletion_timestamp': pod.metadata.deletion_timestamp
     }
 
-    notebook['url'] = f"/instance?token={notebook['jupyter_token']}"
+    notebook['url'] = f"/instance/{notebook['pod_uuid']}/?token={notebook['jupyter_token']}"
 
     return notebook
 
@@ -326,12 +327,12 @@ def notebook_post():
     return redirect(external_url_for('notebook'))
 
 
-@app.route('/auth/<requested_pod_name>')
+@app.route('/auth/<requested_pod_uuid>')
 @requires_auth()
-def auth(requested_pod_name):
+def auth(requested_pod_uuid):
     notebook = session.get('notebook')
 
-    if notebook is not None and notebook['pod_name'] == requested_pod_name:
+    if notebook is not None and notebook['pod_uuid'] == requested_pod_uuid:
         res = flask.make_response()
         res.headers['pod_ip'] = f"{notebook['pod_ip']}:{POD_PORT}"
         return res
