@@ -14,11 +14,12 @@ object Compile {
     tub.include("hail/Utils.h")
     tub.include("hail/Region.h")
     tub.include("hail/Upcalls.h")
+    tub.include("hail/SparkUtils.h")
 
     tub.include("<cstring>")
 
     val fb = tub.buildFunction(tub.genSym("f"),
-      (("RegionPtr", "region") +: args.map { case (name, typ) =>
+      (("SparkFunctionContext", "ctx") +: args.map { case (name, typ) =>
         typeToCXXType(typ) -> name  }).toArray,
       typeToCXXType(body.pType))
 
@@ -58,7 +59,7 @@ object Compile {
         s"""
            |long entrypoint(NativeStatus *st, long region, long v) {
            |  try {
-           |    return (long)${ f.name }(((ScalaRegion *)region)->region_, (char *)v);
+           |    return (long)${ f.name }(SparkFunctionContext(((ScalaRegion *)region)->region_), (char *)v);
            |  } catch (const FatalError& e) {
            |    NATIVE_ERROR(st, 1005, e.what());
            |    return -1;

@@ -97,7 +97,7 @@ case class SparkStage(
     wrapper +=
       s"""
          |try {
-         |  return (long) ${ f.name }(((ScalaRegion *)${ wrapper.getArg(1) })->region_, (char *)${ wrapper.getArg(2) }, (char *)${ wrapper.getArg(3) });
+         |  return (long) ${ f.name }(SparkFunctionContext(((ScalaRegion *)${ wrapper.getArg(1) })->region_), (char *)${ wrapper.getArg(2) }, (char *)${ wrapper.getArg(3) });
          |} catch (const FatalError& e) {
          |  NATIVE_ERROR(${ wrapper.getArg(0) }, 1005, e.what());
          |  return -1;
