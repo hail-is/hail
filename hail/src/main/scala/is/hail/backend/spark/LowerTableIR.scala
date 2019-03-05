@@ -228,6 +228,13 @@ object LowerTableIR {
       loweredGlobals = loweredGlobals.copy(stages = loweredGlobals.stages ++ oldGlobals.stages)
       loweredChild.copy(globals = SparkBinding(genUID(), loweredGlobals))
 
+    case TableFilter(child, cond) =>
+      val loweredChild = lower(child)
+      val row = Ref(genUID(), child.typ.rowType)
+      val global = loweredChild.globals
+      val env: Env[IR] = Env("row" -> row, "global" -> Ref(global.name, global.value.typ))
+      loweredChild.copy(body = ArrayFilter(loweredChild.body, row.name, Subst(cond, env)))
+
     case TableMapRows(child, newRow) =>
       val loweredChild = lower(child)
       val row = Ref(genUID(), child.typ.rowType)
