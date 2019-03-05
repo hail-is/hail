@@ -1,5 +1,5 @@
 
-<meta id='data' data-pod-name="{{notebook.pod_name}}" data-pod-uuid="{{notebook.pod_uuid}}"/>
+<meta id='data' data-pod-name="{{notebook.pod_name}}"/>
 
 <div class='nb'>
     {% set ready =  notebook.pod_status == 'Running'
@@ -66,7 +66,7 @@
 <script src="https://unpkg.com/unfetch/polyfill"></script>
 
 <script>
-    function checkReachabilityAndMark(podName, uuid) {
+    function checkReachabilityAndMark(podName) {
         el = document.getElementById(`${podName}-visual-summary`);
 
         if(el === null) {
@@ -74,20 +74,19 @@
             return;
         }
 
-        checkReachability(podName, uuid).then(() => {
+        checkReachability(podName).then(() => {
             el.innerHTML = '<i class="material-icons reachable-icon">done</i>';
         }, () => {
             el.innerHTML = '<i class="material-icons unreachable-icon">block</i>';
         });
     }
 
-    function checkReachability(podName, uuid) {
-        const url = `/instance/${uuid}`
+    function checkReachability(podName) {
+        const url = `/instance-ready/${podName}`
         const el = document.getElementById(`${podName}-reach`);
 
         el.innerText = "Testing!";
 
-        console.info("el", el);
         const promise = new Promise((resolve, reject) => {
             if(el === null) {
                 reject("Job not found in this window")
@@ -98,8 +97,6 @@
                 fetch(url, {
                     method: 'HEAD'
                 }).then((r) => {
-                    console.info(r.status);
-
                     if(r.status < 400) {
                         el.innerText = "Yep!";
 
@@ -130,15 +127,13 @@
 </script>
 
 {% if ready %}
-<script>
-    el = document.getElementById('data');
-    const podName = el.dataset.podName;
-    const podUuid = el.dataset.podUuid;
+    <script>
+        el = document.getElementById('data');
+        const podName = el.dataset.podName;
+        const podUuid = el.dataset.podUuid;
 
-    console.info(podName, podUuid);
-
-    checkReachabilityAndMark(podName, podUuid);
-</script>
+        checkReachabilityAndMark(podName, podUuid);
+    </script>
 {% else  %}
     <script>
         let protocol = location.protocol.replace("http", "ws")
@@ -156,11 +151,8 @@
                 const notebook = notebooks[i];
 
                 if(!document.getElementById(`${notebook.pod_name}`)) {
-                    console.info("watch for different notebook", notebook)
                     continue;
                 }
-
-                console.info('notebook', notebook);
 
                 const conditionElem = document.getElementById(`${notebook.pod_name}-condition`);
 
@@ -185,13 +177,11 @@
                 }
 
                 const ready = notebook.pod_status === 'Running' && notebook.condition.status === 'True' && notebook.condition.type === 'Ready';
-                console.info("ready?", ready, notebook);
 
                 if(ready) {
-                    checkReachabilityAndMark(notebook.pod_name, notebook.pod_uuid));
+                    checkReachabilityAndMark(notebook.pod_name));
                 }
             }
         }
-
     </script>
 {% endif %}
