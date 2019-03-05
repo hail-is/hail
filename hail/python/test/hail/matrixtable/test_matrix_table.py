@@ -332,6 +332,20 @@ class Tests(unittest.TestCase):
         ds2.explode_rows(ds2['\%!^!@#&#&$%#$%'])
         ds2.group_rows_by(ds2.a).aggregate(**{'*``81': agg.count()})
 
+    def test_semi_anti_join_rows(self):
+        mt = hl.utils.range_matrix_table(10, 3)
+        ht = hl.utils.range_table(3)
+
+        assert mt.semi_join_rows(ht).count() == (3, 3)
+        assert mt.anti_join_rows(ht).count() == (7, 3)
+
+    def test_semi_anti_join_cols(self):
+        mt = hl.utils.range_matrix_table(3, 10)
+        ht = hl.utils.range_table(3)
+
+        assert mt.semi_join_cols(ht).count() == (3, 3)
+        assert mt.anti_join_cols(ht).count() == (3, 7)
+
     def test_joins(self):
         vds = self.get_vds().select_rows(x1=1, y1=1)
         vds2 = vds.select_rows(x2=1, y2=2)

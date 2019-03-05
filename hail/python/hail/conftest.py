@@ -59,6 +59,10 @@ def init(doctest_namespace):
 
     s_metadata = ds.cols().annotate(pop='AMR', is_case=False, sex='F')
     doctest_namespace['s_metadata'] = s_metadata
+    doctest_namespace['rows_to_keep'] = s_metadata
+    doctest_namespace['rows_to_remove'] = s_metadata
+    doctest_namespace['cols_to_keep'] = v_metadata
+    doctest_namespace['cols_to_remove'] = v_metadata
 
     # Table
     table1 = hl.import_table('data/kt_example1.tsv', impute=True, key='ID')
