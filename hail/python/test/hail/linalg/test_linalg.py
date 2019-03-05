@@ -37,7 +37,6 @@ class Tests(unittest.TestCase):
         self._assert_close(bm.sum(axis=0), np.sum(nd, axis=0, keepdims=True))
         self._assert_close(bm.sum(axis=1), np.sum(nd, axis=1, keepdims=True))
 
-    @skip_unless_spark_backend()
     def test_from_entry_expr(self):
         mt = get_dataset()
         mt = mt.annotate_entries(x=hl.or_else(mt.GT.n_alt_alleles(), 0)).cache()
@@ -661,7 +660,6 @@ class Tests(unittest.TestCase):
 
         self._assert_rectangles_eq(expected, rect_path, export_rects)
 
-    @skip_unless_spark_backend()
     def test_export_rectangles_filtered(self):
         rect_path = new_local_temp_dir()
         rect_uri = local_path_uri(rect_path)
@@ -679,7 +677,6 @@ class Tests(unittest.TestCase):
 
         self._assert_rectangles_eq(expected, rect_path, export_rects)
 
-    @skip_unless_spark_backend()
     def test_export_blocks(self):
         nd = np.ones(shape=(8, 10))
         bm = BlockMatrix.from_numpy(nd, block_size=20)
