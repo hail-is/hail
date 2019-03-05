@@ -23,6 +23,7 @@ import requests
 import time
 import uuid
 import hashlib
+import ujson
 
 fmt = logging.Formatter(
    # NB: no space after levelname because WARNING is so long
@@ -47,6 +48,10 @@ if 'BATCH_USE_KUBE_CONFIG' in os.environ:
     kube.config.load_kube_config()
 else:
     kube.config.load_incluster_config()
+
+# Prevent issues with many websockets leading to many kube connections
+# TODO: Consider alternatives; having a single watcher for all users not be ideal during peak hours
+kube.config.connection_pool_maxsize = 5000
 k8s = kube.client.CoreV1Api()
 
 app = Flask(__name__)
@@ -200,7 +205,7 @@ def container_status_for_ui(container_statuses):
     state = container_statuses[0].state
 
     if state.running:
-        return {"running": {"started_at": state.running.started_at}}
+        return {"running": {"started_at": state.running.started_at.strftime('%D')}}
 
     if state.waiting:
         return {"waiting": {"reason": state.waiting.reason}}
@@ -208,8 +213,8 @@ def container_status_for_ui(container_statuses):
     if state.terminated:
         return {"terminated": {
                                 "exit_code": state.terminated.exit_code,
-                                "finished_at": state.terminated.finished_at,
-                                "started_at": state.terminated.started_at,
+                                "finished_at": state.terminated.finished_at.strftime('%D'),
+                                "started_at": state.terminated.started_at.strftime('%D'),
                                 "reason": state.terminated.reason
                               }
                 }
@@ -411,40 +416,26 @@ def admin_login_post():
 def worker_image():
     return '\n'.join(WORKER_IMAGES.values()), 200
 
-
 @sockets.route('/wait')
 @requires_auth(for_page = False)
 def wait_websocket(ws):
-    notebook = session['notebook']
+    kube_safe_user_id = user_id_transform(session['user']['id'])
 
-    if notebook is None:
-        return
+    w = kube.watch.Watch()
+    for event in w.stream(k8s.list_namespaced_pod, namespace='default',
+                          label_selector=f"app=notebook2-worker,user_id={kube_safe_user_id}"):
 
-    pod_uuid = notebook['pod_uuid']
-
-    url = external_url_for('')
-    url = f'{url}instance-ready/{pod_uuid}/'
-
-    while True:
         try:
-            response = requests.head(url, timeout=1)
-            if response.status_code < 500:
-                log.info(f'HEAD on jupyter succeeded for pod_uuid: {pod_uuid} : response: {response}')
-                # if someone responds with a 2xx, 3xx, or 4xx, the notebook
-                # server is alive and functioning properly (in particular, our
-                # HEAD request will return 405 METHOD NOT ALLOWED)
-                break
-            else:
-                # somewhat unusual, means the gateway had an error before we
-                # timed out, usually means the gateway itself is broken
-                log.info(f'HEAD on jupyter failed for pod_uuid: {pod_uuid} : response: {response}')
-                gevent.sleep(1)
-            break
-        except requests.exceptions.Timeout:
-            log.info(f'GET on jupyter failed for pod_uuid: {pod_uuid} : response')
-            gevent.sleep(1)
+            pod = event["object"]
 
-    ws.send("1")
+            ws.send(
+                    f'{{"event": "{event["type"]}", "resource_id": "{pod.metadata.name}", "resource": {ujson.dumps(notebooks_for_ui([pod]))}}}')
+
+        except Exception as e:
+            log.error(e)
+            break
+
+    w.stop()
 
 
 @app.route('/auth0-callback')
@@ -503,6 +494,6 @@ def logout():
 if __name__ == '__main__':
     from gevent import pywsgi
     from geventwebsocket.handler import WebSocketHandler
+
     server = pywsgi.WSGIServer(('', 5000), app, handler_class=WebSocketHandler, log=log)
     server.serve_forever()
-
