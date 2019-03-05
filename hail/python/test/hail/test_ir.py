@@ -191,7 +191,9 @@ class TableIRTests(unittest.TestCase):
         for x in self.table_irs():
             Env.hail().expr.ir.IRParser.parse_table_ir(str(x))
 
-    def test_matrix_ir_parses(self):
+
+class MatrixIRTests(unittest.TestCase):
+    def matrix_irs(self):
         hl.index_bgen(resource('example.8bits.bgen'),
                       reference_genome=hl.get_reference('GRCh37'),
                       contig_recoding={'01': '1'})
@@ -238,8 +240,10 @@ class TableIRTests(unittest.TestCase):
             ir.MatrixToMatrixApply(matrix_read, {'name': 'MatrixFilterPartitions', 'parts': [0], 'keep': True})
         ]
 
+        return matrix_irs
 
-        for x in matrix_irs:
+    def test_parses(self):
+        for x in self.matrix_irs():
             try:
                 Env.hail().expr.ir.IRParser.parse_matrix_ir(str(x))
             except Exception as e:
@@ -247,7 +251,7 @@ class TableIRTests(unittest.TestCase):
 
 
 class BlockMatrixIRTests(unittest.TestCase):
-    def block_matrix_irs(self):
+    def blockmatrix_irs(self):
         scalar_ir = ir.F64(2)
         vector_ir = ir.MakeArray([ir.F64(3), ir.F64(2)], hl.tarray(hl.tfloat64))
 
@@ -285,7 +289,7 @@ class BlockMatrixIRTests(unittest.TestCase):
         ]
 
     def test_parses(self):
-        for x in self.block_matrix_irs():
+        for x in self.blockmatrix_irs():
             Env.hail().expr.ir.IRParser.parse_blockmatrix_ir(str(x))
 
 
