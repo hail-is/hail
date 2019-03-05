@@ -3,7 +3,6 @@ import hail as hl
 from hail.expr.expressions import *
 from hail.typecheck import *
 from hail.table import Table
-from hail.linalg import BlockMatrix
 from hail.matrixtable import MatrixTable
 from hail.utils import wrap_to_list, new_temp_file
 import numpy as np
