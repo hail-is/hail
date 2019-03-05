@@ -65,7 +65,7 @@ class Orderings {
           val r = mb.getArg(1)
 
           t.fields.zipWithIndex.foreach { case (f, i) =>
-            val lfTyp  = lBaseStructP.fields(i).typ
+            val lfTyp = lBaseStructP.fields(i).typ
             val rfTyp = rBaseStructP.fields(i).typ
 
             val fOrd = ordering(tub, lfTyp, rfTyp)
@@ -544,68 +544,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
       case _: ir.ArrayFilter | _: ir.ArrayRange | _: ir.ArrayMap | _: ir.ArrayFlatMap | _: ir.MakeArray =>
         val containerPType = x.pType.asInstanceOf[PContainer]
         val useOneRegion = !containerPType.elementType.isPrimitive
-
-        val ae = emitArray(resultRegion, x, env, useOneRegion)
-        ae.length match {
-          case Some(length) =>
-            val sab = resultRegion.arrayBuilder(fb, containerPType)
-            triplet(ae.setup, ae.m,
-              s"""
-                 |({
-                 |  ${ ae.setupLen }
-                 |  ${ sab.start(length) }
-                 |  ${
-                ae.emit { case (m, v) =>
-                  s"""
-                     |if (${ m })
-                     |  ${ sab.setMissing() }
-                     |else
-                     |  ${ sab.add(v) }
-                     |${ sab.advance() }
-                     |""".stripMargin
-                }
-              }
-                 |  ${ sab.end() };
-                 |})
-                 |""".stripMargin)
-
-          case None =>
-            val xs = fb.variable("xs", s"std::vector<${ typeToCXXType(containerPType.elementType) }>")
-            val ms = fb.variable("ms", "std::vector<bool>")
-            val i = fb.variable("i", "int")
-            val sab = resultRegion.arrayBuilder(fb, containerPType)
-            triplet(ae.setup, ae.m,
-              s"""
-                 |({
-                 |  ${ ae.setupLen }
-                 |  ${ xs.define }
-                 |  ${ ms.define }
-                 |  ${
-                ae.emit { case (m, v) =>
-                  s"""
-                     |if (${ m }) {
-                     |  $ms.push_back(true);
-                     |  $xs.push_back(${ typeDefaultValue(containerPType.elementType) });
-                     |} else {
-                     |  $ms.push_back(false);
-                     |  $xs.push_back($v);
-                     |}
-                     |""".stripMargin
-                }
-              }
-                 |  ${ sab.start(s"$xs.size()") }
-                 |  ${ i.define }
-                 |  for ($i = 0; $i < $xs.size(); ++$i) {
-                 |    if ($ms[$i])
-                 |      ${ sab.setMissing() }
-                 |   else
-                 |      ${ sab.add(s"$xs[$i]") }
-                 |    ${ sab.advance() }
-                 |  }
-                 |  ${ sab.end() };
-                 |})
-                 |""".stripMargin)
-        }
+        emitArray(resultRegion, x, env, useOneRegion)
 
       case ir.ArraySort(a, l, r, comp) =>
         fb.translationUnitBuilder().include("hail/ArraySorter.h")
@@ -804,9 +743,11 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
 
   def emit(x: ir.IR, env: E): EmitTriplet =
     emit(ctx.region, x, env)
-  def emitArray(resultRegion: EmitRegion, x: ir.IR, env: E, sameRegion: Boolean): ArrayEmitter = {
 
-    val elemType = x.pType.asInstanceOf[PContainer].elementType
+  def emitArray(resultRegion: EmitRegion, x: ir.IR, env: E, sameRegion: Boolean): EmitStream = {
+
+    val aType = x.pType.asInstanceOf[PContainer]
+    val elemType = aType.elementType
 
     x match {
       case ir.ArrayRange(start, stop, step) =>
@@ -829,7 +770,8 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
 
 
         val arrayRegion = EmitRegion.from(resultRegion, sameRegion)
-        new ArrayEmitter(
+        new EmitStream(
+          aType,
           s"""
              |${ startt.setup }
              |${ stopt.setup }
@@ -852,7 +794,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              |  ${ fb.nativeError("Array range cannot have more than INT_MAX elements.  IR: %s".format(s)) }
              |} else
              |  $len = ($llen < 0) ? 0 : (int)$llen;
-             |""".stripMargin, Some(len.toString), arrayRegion) {
+             |""".stripMargin, Some(len.toString), resultRegion, arrayRegion) {
 
           def emit(f: (Code, Code) => Code): Code = {
             val i = fb.variable("i", "int", "0")
@@ -871,7 +813,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
       case ir.MakeArray(args, t) =>
         val arrayRegion = EmitRegion.from(resultRegion, sameRegion)
         val triplets = args.map { arg => outer.emit(arrayRegion, arg, env) }
-        new ArrayEmitter("", "false", "", Some(args.length.toString), arrayRegion) {
+        new EmitStream(aType, "", "false", "", Some(args.length.toString), resultRegion, arrayRegion) {
           def emit(f: (Code, Code) => Code): Code = {
             val sb = new ArrayBuilder[Code]
             val m = fb.variable("argm", "bool")
@@ -902,24 +844,20 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         val condt = outer.emit(arrayRegion, cond,
           env.bind(name, EmitTriplet(elemType, "", vm.toString, vv.toString, arrayRegion)))
 
-        new ArrayEmitter(ae.setup, ae.m, ae.setupLen, None, arrayRegion) {
-          def emit(f: (Code, Code) => Code): Code = {
-            ae.emit { (m2: Code, v2: Code) =>
-              s"""
-                 |{
-                 |  ${ vm.define }
-                 |  ${ vv.define }
-                 |  $vm = $m2;
-                 |  if (!$vm)
-                 |    $vv = $v2;
-                 |  ${ condt.setup }
-                 |  if (!${ condt.m } && ${ condt.v }) {
-                 |    ${ f(vm.toString, vv.toString) }
-                 |  }
-                 |}
-                 |""".stripMargin
-            }
-          }
+        ae.mapEmit(aType) { (f: ae.F, m2: Code, v2: Code) =>
+          s"""
+             |{
+             |  ${ vm.define }
+             |  ${ vv.define }
+             |  $vm = $m2;
+             |  if (!$vm)
+             |    $vv = $v2;
+             |  ${ condt.setup }
+             |  if (!${ condt.m } && ${ condt.v }) {
+             |    ${ f(vm.toString, vv.toString) }
+             |  }
+             |}
+             |""".stripMargin
         }
 
       case ir.ArrayMap(a, name, body) =>
@@ -932,22 +870,18 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         val bodyt = outer.emit(arrayRegion, body,
           env.bind(name, EmitTriplet(aElementPType, "", vm.toString, vv.toString, arrayRegion)))
 
-        new ArrayEmitter(ae.setup, ae.m, ae.setupLen, ae.length, arrayRegion) {
-          def emit(f: (Code, Code) => Code): Code = {
-            ae.emit { (m2: Code, v2: Code) =>
-              s"""
-                 |{
-                 |  ${ vm.define }
-                 |  ${ vv.define }
-                 |  $vm = $m2;
-                 |  if (!$vm)
-                 |    $vv = $v2;
-                 |  ${ bodyt.setup }
-                 |  ${ f(bodyt.m, bodyt.v) }
-                 |}
-                 |""".stripMargin
-            }
-          }
+        ae.mapEmit(aType) { (f: ae.F, m2: Code, v2: Code) =>
+          s"""
+             |{
+             |  ${ vm.define }
+             |  ${ vv.define }
+             |  $vm = $m2;
+             |  if (!$vm)
+             |    $vv = $v2;
+             |  ${ bodyt.setup }
+             |  ${ f(bodyt.m, bodyt.v) }
+             |}
+             |""".stripMargin
         }
 
       case ir.ArrayFlatMap(a, name, body) =>
@@ -961,53 +895,25 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         val bodyt = outer.emitArray(arrayRegion, body,
           env.bind(name, EmitTriplet(aElementPType, "", vm.toString, vv.toString, arrayRegion)), sameRegion)
 
-        new ArrayEmitter(ae.setup, ae.m, ae.setupLen, None, bodyt.arrayRegion) {
-          def emit(f: (Code, Code) => Code): Code = {
-            ae.emit { (m2: Code, v2: Code) =>
-              s"""
-                 |{
-                 |  ${ vm.define }
-                 |  ${ vv.define }
-                 |  $vm = $m2;
-                 |  if (!$vm)
-                 |    $vv = $v2;
-                 |  ${ bodyt.setup }
-                 |  if (!${ bodyt.m }) {
-                 |    ${ bodyt.setupLen }
-                 |    ${ bodyt.emit(f) }
-                 |  }
-                 |}
-                 |""".stripMargin
-            }
-          }
+        ae.mapEmit(aType, bodyt.arrayRegion) { (f: ae.F, m2: Code, v2: Code) =>
+          s"""
+             |{
+             |  ${ vm.define }
+             |  ${ vv.define }
+             |  $vm = $m2;
+             |  if (!$vm)
+             |    $vv = $v2;
+             |  ${ bodyt.setup }
+             |  if (!${ bodyt.m }) {
+             |    ${ bodyt.setupLen }
+             |    ${ bodyt.emit(f) }
+             |  }
+             |}
+             |""".stripMargin
         }
 
       case _ =>
-        val pArray = x.pType.asInstanceOf[PArray]
-        val t = emit(resultRegion, x, env)
-        val arrayRegion = EmitRegion.from(resultRegion, sameRegion)
-
-        val a = fb.variable("a", "const char *", t.v)
-        val len = fb.variable("len", "int", pArray.cxxLoadLength(a.toString))
-        new ArrayEmitter(t.setup, t.m,
-          s"""
-             |${ a.define }
-             |${ len.define }
-             |""".stripMargin, Some(len.toString), arrayRegion) {
-          val i = fb.variable("i", "int", "0")
-
-          def emit(f: (Code, Code) => Code): Code = {
-            s"""
-               |for (${ i.define } $i < $len; ++$i) {
-               |  ${ arrayRegion.defineIfUsed(sameRegion) }
-               |  ${
-              f(pArray.cxxIsElementMissing(a.toString, i.toString),
-                loadIRIntermediate(pArray.elementType, pArray.cxxElementAddress(a.toString, i.toString)))
-            }
-               |}
-               |""".stripMargin
-          }
-        }
+        emit(resultRegion, x, env).asEmitStream(sameRegion)
     }
   }
 }
