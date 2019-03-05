@@ -9,11 +9,7 @@
 
 
         <div id="{{notebook.pod_name}}-visual-summary">
-        {% if ready %}
-            <i class="material-icons ready-icon">done</i>
-        {% else %}
             <div class="spinner"></div>
-        {% endif %}
         </div>
 
     <a
@@ -23,8 +19,11 @@
         href={{ notebook['url'] }}
     >
         <b>{{notebook.name}}</b>
+        <span class="small">
+                Pod Name: <b>{{notebook.pod_name}}</b>
+            </span>
         <span class="small">Created on: <b id="{{notebook.pod_name}}-creation-date">{{notebook.creation_date}}</b></span>
-        <span class="small">Reachable: <b id="{{notebook.pod_name}}-reach">Testing...</b></span>
+        <span class="small">Reachable: <b id="{{notebook.pod_name}}-reach">N/A</b></span>
         <span class="small">
             Container:
             <b id="{{notebook.pod_name}}-container-status">
@@ -54,9 +53,6 @@
         <span class="small">
             Pod Status: <b id="{{notebook.pod_name}}-pod-status">{{notebook.pod_status}}</b>
         </span>
-        <span class="small">
-            Pod Name: <b>{{notebook.pod_name}}</b>
-        </span>
 
 
     </a>
@@ -70,37 +66,66 @@
 <script src="https://unpkg.com/unfetch/polyfill"></script>
 
 <script>
+    function checkReachabilityAndMark(podName, uuid) {
+        el = document.getElementById(`${podName}-visual-summary`);
+
+        if(el === null) {
+            console.error(`${podName} not found on page`);
+            return;
+        }
+
+        checkReachability(podName, uuid).then(() => {
+            el.innerHTML = '<i class="material-icons reachable-icon">done</i>';
+        }, () => {
+            el.innerHTML = '<i class="material-icons unreachable-icon">block</i>';
+        });
+    }
+
     function checkReachability(podName, uuid) {
         const url = `/instance/${uuid}`
         const el = document.getElementById(`${podName}-reach`);
 
+        el.innerText = "Testing!";
+
+        console.info("el", el);
         const promise = new Promise((resolve, reject) => {
             if(el === null) {
                 reject("Job not found in this window")
                 return;
             }
+
+            const interval = setInterval(() => {
+                fetch(url, {
+                    method: 'HEAD'
+                }).then((r) => {
+                    console.info(r.status);
+
+                    if(r.status < 400) {
+                        el.innerText = "Yep!";
+
+                        clearInterval(interval);
+
+                        resolve(true);
+                        return;
+                    }
+
+                    if(r.status == 499) {
+                        el.innerText = "Not yet!";
+                        return;
+                    }
+
+                    if(r.status == 404) {
+                        el.innerText = "Nope (not found)";
+
+                        clearInterval(interval);
+                        reject("Job endpoint not found on server");
+                        return;
+                    }
+                });
+            }, 500);
         })
 
-
-        const interval = setInterval(() => {
-            fetch(url, {
-                method: 'HEAD'
-            }).then((r) => {
-                console.info(r);
-
-                if(r.status < 400) {
-                    el.innerText("Yep!")
-
-                    cancelInterval(interval);
-
-                    resolve(true);
-                    return;
-                }
-
-                el.innerText("Nope!")
-            });
-        }, 250);
-        console.info('url', url);
+        return promise;
     }
 </script>
 
@@ -112,14 +137,13 @@
 
     console.info(podName, podUuid);
 
-    checkReachability(podName, podUuid);
+    checkReachabilityAndMark(podName, podUuid);
 </script>
 {% else  %}
     <script>
         let protocol = location.protocol.replace("http", "ws")
         let sock = new WebSocket(protocol + location.host + "/wait");
         sock.onmessage = function (ev) {
-            console.info('trying to process', ev.data)
             process(ev.data)
         }
 
@@ -164,9 +188,7 @@
                 console.info("ready?", ready, notebook);
 
                 if(ready) {
-                    document.getElementById(`${notebook.pod_name}-visual-summary`).innerHTML = '<i class="material-icons ready-icon">done</i>';
-
-                    checkReachability();
+                    checkReachabilityAndMark(notebook.pod_name, notebook.pod_uuid));
                 }
             }
         }
