@@ -28,7 +28,9 @@ class TableIRSuite extends SparkSuite {
 
   def rangeKT: TableIR = Table.range(hc, 20, Some(4)).unkey().tir
 
-  @BeforeClass def ensureHCDefined() { initializeHailContext() }
+  @BeforeClass def ensureHCDefined() {
+    initializeHailContext()
+  }
 
   @Test def testRangeCount() {
     val node1 = TableCount(TableRange(10, 2))
@@ -57,7 +59,7 @@ class TableIRSuite extends SparkSuite {
   @Test def testCollectGlobals() {
     val t = TableRange(10, 2)
     val newGlobals = InsertFields(Ref("global", t.typ.globalType), FastSeq("x" -> TableCollect(t)))
-    val node =TableMapRows(
+    val node = TableMapRows(
       TableMapGlobals(t, newGlobals),
       InsertFields(Ref("row", t.typ.rowType), FastSeq("x" -> GetField(Ref("global", newGlobals.typ), "x"))))
 
@@ -69,9 +71,9 @@ class TableIRSuite extends SparkSuite {
 
   @Test def testFilter() {
     val t = TableRange(10, 2)
-    val node =TableFilter(
-      TableMapGlobals(t, MakeStruct(FastSeq("x"->GetField(ArrayRef(GetField(TableCollect(t), "rows"), 4), "idx")))),
-      ApplyComparisonOp(EQ(TInt32()), GetField(Ref("row", t.typ.rowType), "idx"), GetField(Ref("global", TStruct("x"->TInt32())), "x")))
+    val node = TableFilter(
+      TableMapGlobals(t, MakeStruct(FastSeq("x" -> GetField(ArrayRef(GetField(TableCollect(t), "rows"), 4), "idx")))),
+       ApplyComparisonOp(EQ(TInt32()), GetField(Ref("row", t.typ.rowType), "idx"), GetField(Ref("global", TStruct("x" -> TInt32())), "x")))
 
     val expected = Array.tabulate(10)(Row(_)).filter(_.get(0) == 4).toFastIndexedSeq
 
@@ -108,8 +110,8 @@ class TableIRSuite extends SparkSuite {
   val kType = TStruct(("A", TInt32()), ("B", TInt32()))
 
   val leftData = IndexedSeq(
-    ( 3, 1, -1),
-    ( 3, 2, -1),
+    (3, 1, -1),
+    (3, 2, -1),
     (11, 1, -1),
     (11, 2, -1),
     (16, 1, -1),
@@ -135,8 +137,8 @@ class TableIRSuite extends SparkSuite {
   ).map(Row.fromTuple)
 
   val rightData = IndexedSeq(
-    ( 6, 1, 1),
-    ( 6, 2, 1),
+    (6, 1, 1),
+    (6, 2, 1),
     (17, 1, 1),
     (17, 2, 1),
     (18, 1, 1),
@@ -162,54 +164,54 @@ class TableIRSuite extends SparkSuite {
   ).map(Row.fromTuple)
 
   val expected = Array(
-    ( 3,    1,  -1, null, null),
-    ( 3,    2,  -1, null, null),
-    ( 6, null,null,    1,    1),
-    ( 6, null,null,    2,    1),
-    (11,    1,  -1, null, null),
-    (11,    2,  -1, null, null),
-    (16,    1,  -1, null, null),
-    (16,    2,  -1, null, null),
-    (17,    1,  -1,    1,    1),
-    (17,    1,  -1,    2,    1),
-    (17,    2,  -1,    1,    1),
-    (17,    2,  -1,    2,    1),
-    (18, null,null,    1,    1),
-    (18, null,null,    2,    1),
-    (21, null,null,    1,    1),
-    (21, null,null,    2,    1),
-    (22,    1,  -1,    1,    1),
-    (22,    1,  -1,    2,    1),
-    (22,    2,  -1,    1,    1),
-    (22,    2,  -1,    2,    1),
-    (23,    1,  -1, null, null),
-    (23,    2,  -1, null, null),
-    (26,    1,  -1, null, null),
-    (26,    2,  -1, null, null),
-    (27,    1,  -1,    1,    1),
-    (27,    1,  -1,    2,    1),
-    (27,    2,  -1,    1,    1),
-    (27,    2,  -1,    2,    1),
-    (28, null,null,    1,    1),
-    (28, null,null,    2,    1),
-    (31, null,null,    1,    1),
-    (31, null,null,    2,    1),
-    (32,    1,  -1,    1,    1),
-    (32,    1,  -1,    2,    1),
-    (32,    2,  -1,    1,    1),
-    (32,    2,  -1,    2,    1),
-    (33,    1,  -1, null, null),
-    (33,    2,  -1, null, null),
-    (36,    1,  -1, null, null),
-    (36,    2,  -1, null, null),
-    (37,    1,  -1,    1,    1),
-    (37,    1,  -1,    2,    1),
-    (37,    2,  -1,    1,    1),
-    (37,    2,  -1,    2,    1),
-    (38, null,null,    1,    1),
-    (38, null,null,    2,    1),
-    (41, null,null,    1,    1),
-    (41, null,null,    2,    1)
+    (3, 1, -1, null, null),
+    (3, 2, -1, null, null),
+    (6, null, null, 1, 1),
+    (6, null, null, 2, 1),
+    (11, 1, -1, null, null),
+    (11, 2, -1, null, null),
+    (16, 1, -1, null, null),
+    (16, 2, -1, null, null),
+    (17, 1, -1, 1, 1),
+    (17, 1, -1, 2, 1),
+    (17, 2, -1, 1, 1),
+    (17, 2, -1, 2, 1),
+    (18, null, null, 1, 1),
+    (18, null, null, 2, 1),
+    (21, null, null, 1, 1),
+    (21, null, null, 2, 1),
+    (22, 1, -1, 1, 1),
+    (22, 1, -1, 2, 1),
+    (22, 2, -1, 1, 1),
+    (22, 2, -1, 2, 1),
+    (23, 1, -1, null, null),
+    (23, 2, -1, null, null),
+    (26, 1, -1, null, null),
+    (26, 2, -1, null, null),
+    (27, 1, -1, 1, 1),
+    (27, 1, -1, 2, 1),
+    (27, 2, -1, 1, 1),
+    (27, 2, -1, 2, 1),
+    (28, null, null, 1, 1),
+    (28, null, null, 2, 1),
+    (31, null, null, 1, 1),
+    (31, null, null, 2, 1),
+    (32, 1, -1, 1, 1),
+    (32, 1, -1, 2, 1),
+    (32, 2, -1, 1, 1),
+    (32, 2, -1, 2, 1),
+    (33, 1, -1, null, null),
+    (33, 2, -1, null, null),
+    (36, 1, -1, null, null),
+    (36, 2, -1, null, null),
+    (37, 1, -1, 1, 1),
+    (37, 1, -1, 2, 1),
+    (37, 2, -1, 1, 1),
+    (37, 2, -1, 2, 1),
+    (38, null, null, 1, 1),
+    (38, null, null, 2, 1),
+    (41, null, null, 1, 1),
+    (41, null, null, 2, 1)
   ).map(Row.fromTuple)
 
   val leftPartitioners = Array(
@@ -218,10 +220,10 @@ class TableIRSuite extends SparkSuite {
       Interval(Row(10, -1), Row(19, 1), true, false),
       Interval(Row(20, 0), Row(24, 0), true, true),
       Interval(Row(25, 0), Row(39, 0), true, true))
-//    IndexedSeq(
-//      Interval(Row(0, 0), Row(10), true, false),
-//      Interval(Row(10), Row(44, 0), true, true)),
-//    IndexedSeq(Interval(Row(), Row(), true, true))
+    //    IndexedSeq(
+    //      Interval(Row(0, 0), Row(10), true, false),
+    //      Interval(Row(10), Row(44, 0), true, true)),
+    //    IndexedSeq(Interval(Row(), Row(), true, true))
   ).map(new RVDPartitioner(kType, _))
 
   val rightPartitioners = Array(
@@ -230,15 +232,15 @@ class TableIRSuite extends SparkSuite {
       Interval(Row(15, -1), Row(29, 1), true, false),
       Interval(Row(30, 0), Row(34, 0), true, true),
       Interval(Row(35, 0), Row(44, 0), true, true))
-//    IndexedSeq(
-//      Interval(Row(0, 0), Row(10), true, false),
-//      Interval(Row(10), Row(44, 0), true, true)),
-//    IndexedSeq(Interval(Row(), Row(), true, true))
+    //    IndexedSeq(
+    //      Interval(Row(0, 0), Row(10), true, false),
+    //      Interval(Row(10), Row(44, 0), true, true)),
+    //    IndexedSeq(Interval(Row(), Row(), true, true))
   ).map(new RVDPartitioner(kType, _))
 
   val joinTypes = Array(
     ("outer", (row: Row) => true),
-    ("left",  (row: Row) => !row.isNullAt(1)),
+    ("left", (row: Row) => !row.isNullAt(1)),
     ("right", (row: Row) => !row.isNullAt(3)),
     ("inner", (row: Row) => !row.isNullAt(1) && !row.isNullAt(3))
   )
@@ -293,13 +295,13 @@ class TableIRSuite extends SparkSuite {
         partitionedLeft.tir,
         TableRename(
           partitionedRight.tir,
-          Array("A","B","C")
+          Array("A", "B", "C")
             .filter(partitionedRight.typ.rowType.hasField)
             .map(a => a -> (a + "_"))
             .toMap,
           Map.empty),
         joinType, 1))
-      assertEvalsTo(joined, Row(expected.filter(pred).map(joinProjectF).toFastIndexedSeq, Row()))
+    assertEvalsTo(joined, Row(expected.filter(pred).map(joinProjectF).toFastIndexedSeq, Row()))
   }
 
   @Test def testTableKeyBy() {
@@ -335,7 +337,7 @@ class TableIRSuite extends SparkSuite {
         TableMapRows(
           TableRange(50000, 1),
           InsertFields(row,
-            FastIndexedSeq("k" -> (I32(49999)-GetField(row, "idx"))))),
+            FastIndexedSeq("k" -> (I32(49999) - GetField(row, "idx"))))),
         FastIndexedSeq("k"))
 
     Interpret(TableJoin(t1, t2, "left")).rvd.count()
@@ -396,12 +398,12 @@ class TableIRSuite extends SparkSuite {
     val globalSig = TStruct("__globals" -> TArray(TStruct()))
     val globalData = Row.fromSeq(Array(IndexedSeq(Array[Any](), Array[Any](), Array[Any]()).map(Row.fromSeq(_))))
     val expectedData = sc.parallelize(Array(
-        Array(0, IndexedSeq(Row.fromSeq(Array("a", 0.0)),  Row.fromSeq(Array("d", 1.1)),  null)),
-        Array(0, IndexedSeq(null,                          Row.fromSeq(Array("x", 2.2)),  null)),
-        Array(1, IndexedSeq(Row.fromSeq(Array("b", 3.14)), null,                          Row.fromSeq(Array("f",  9.99)))),
-        Array(2, IndexedSeq(Row.fromSeq(Array("c", 2.78)), Row.fromSeq(Array("v", 7.89)), Row.fromSeq(Array("g", -1.0)))),
-        Array(3, IndexedSeq(null,                          null,                          Row.fromSeq(Array("z",  0.01))))
-      ).map(Row.fromSeq(_)))
+      Array(0, IndexedSeq(Row.fromSeq(Array("a", 0.0)), Row.fromSeq(Array("d", 1.1)), null)),
+      Array(0, IndexedSeq(null, Row.fromSeq(Array("x", 2.2)), null)),
+      Array(1, IndexedSeq(Row.fromSeq(Array("b", 3.14)), null, Row.fromSeq(Array("f", 9.99)))),
+      Array(2, IndexedSeq(Row.fromSeq(Array("c", 2.78)), Row.fromSeq(Array("v", 7.89)), Row.fromSeq(Array("g", -1.0)))),
+      Array(3, IndexedSeq(null, null, Row.fromSeq(Array("z", 0.01))))
+    ).map(Row.fromSeq(_)))
     val expectedTable = Table(hc, expectedData, expectedSchema, key, globalSig, globalData)
     assert(testTable.same(expectedTable))
   }
@@ -421,7 +423,7 @@ class TableIRSuite extends SparkSuite {
           MakeStruct(Seq("x" -> NA(TInt32())))),
         TArray(TStruct("x" -> TInt32()))
       )
-    ))))
+      ))))
 
     assert(testTable.globals.safeValue == texp.globals.safeValue)
   }
