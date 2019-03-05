@@ -1988,6 +1988,83 @@ class Table(ExprContainer):
         return Table(TableRepartition(
             self._tir, max_partitions, RepartitionStrategy.NAIVE_COALESCE))
 
+
+    @typecheck_method(other=table_type)
+    def semi_join(self, other: 'Table') -> 'Table':
+        """Filters the table to rows whose key appears in `other`.
+
+        Parameters
+        ----------
+        other : :class:`.Table`
+            Table with compatible key field(s).
+
+        Returns
+        -------
+        :class:`.Table`
+
+        Notes
+        -----
+        The key type of the table must match the key type of `other`.
+
+        This method does not change the schema of the table; it is a method of
+        filtering the table to keys present in another table.
+
+        To discard keys present in `other`, use :meth:`.anti_join`.
+
+        Examples
+        --------
+        >>> table_result = table1.semi_join(table2)
+
+        It may be expensive to key the left-side table by the right-side key.
+        In this case, it is possible to implement a semi-join using a non-key
+        field as follows:
+
+        >>> table_result = table1.filter(hl.is_defined(table2.index(table1['ID'])))
+
+        See Also
+        --------
+        :meth:`.anti_join`
+        """
+        return self.filter(hl.is_defined(other.index(self.key)))
+
+    @typecheck_method(other=table_type)
+    def anti_join(self, other: 'Table') -> 'Table':
+        """Filters the table to rows whose key does not appear in `other`.
+
+        Parameters
+        ----------
+        other : :class:`.Table`
+            Table with compatible key field(s).
+
+        Returns
+        -------
+        :class:`.Table`
+
+        Notes
+        -----
+        The key type of the table must match the key type of `other`.
+
+        This method does not change the schema of the table; it is a method of
+        filtering the table to keys not present in another table.
+
+        To restrict to keys present in `other`, use :meth:`.semi_join`.
+
+        Examples
+        --------
+        >>> table_result = table1.anti_join(table2)
+
+        It may be expensive to key the left-side table by the right-side key.
+        In this case, it is possible to implement an anti-join using a non-key
+        field as follows:
+
+        >>> table_result = table1.filter(hl.is_missing(table2.index(table1['ID'])))
+
+        See Also
+        --------
+        :meth:`.semi_join`, :meth:`.filter`
+        """
+        return self.filter(hl.is_missing(other.index(self.key)))
+
     @typecheck_method(right=table_type,
                       how=enumeration('inner', 'outer', 'left', 'right'),
                       _mangle=anyfunc)

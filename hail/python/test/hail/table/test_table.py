@@ -316,6 +316,13 @@ class Tests(unittest.TestCase):
 
         self.assertRaises(NotImplementedError, f)
 
+    def test_semi_anti_join(self):
+        ht = hl.utils.range_table(10)
+        ht2 = ht.filter(ht.idx < 3)
+
+        assert ht.semi_join(ht2).count() == 3
+        assert ht.anti_join(ht2).count() == 7
+
     def test_joins(self):
         kt = hl.utils.range_table(1).key_by().drop('idx')
         kt = kt.annotate(a='foo')
