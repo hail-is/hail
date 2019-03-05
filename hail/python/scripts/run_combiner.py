@@ -80,7 +80,8 @@ def main():
     samples = build_sample_list(args.sample_map, args.sample_file)
     with open(args.json) as j:
         json = j.read()
-    hl.init(default_reference=DEFAULT_REF, log='/hail-' + time.strftime('%Y%m%d-%H%M') + '.log')
+    hl.init(default_reference=DEFAULT_REF,
+            log='/hail-joint-caller-' + time.strftime('%Y%m%d-%H%M') + '.log')
     run_combiner(samples, json, args.out_file, args.tmp_path, summary_path=args.summarize,
                  overwrite=True)
 
