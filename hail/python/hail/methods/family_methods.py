@@ -76,8 +76,8 @@ def trio_matrix(dataset, pedigree, complete_trios=False) -> MatrixTable:
 
     trios = [hl.Struct(
         id=sample_idx[t.s],
-        pat_id=sample_idx[t.pat_id],
-        mat_id=sample_idx[t.mat_id],
+        pat_id=None if t.pat_id is None else sample_idx[t.pat_id],
+        mat_id=None if t.mat_id is None else sample_idx[t.mat_id],
         is_female=t.is_female,
         fam_id=t.fam_id) for t in trios]
     trios_type = hl.dtype('array<struct{id:int,pat_id:int,mat_id:int,is_female:bool,fam_id:str}>')
