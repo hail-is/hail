@@ -91,6 +91,25 @@ def matrix_type():
         }), 400
 
 
+@app.route('/type/blockmatrix', methods=['POST'])
+def blockmatrix_type():
+    code = flask.request.json
+    info(f'blockmatrix type: {code}')
+    try:
+        jir = Env.hail().expr.ir.IRParser.parse_blockmatrix_ir(code, {}, {})
+        bmtyp = hl.tblockmatrix._from_java(jir.typ())
+        result = {'element_type': str(bmtyp.element_type),
+                  'shape': bmtyp.shape,
+                  'is_row_vector': bmtyp.is_row_vector,
+                  'block_size': bmtyp.block_size}
+        info(f'result: {result}')
+        return flask.jsonify(result)
+    except FatalError as e:
+        return flask.jsonify({
+            'message': e.args[0]
+        }), 400
+
+
 @app.route('/references/create', methods=['POST'])
 def create_reference():
     try:

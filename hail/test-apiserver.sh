@@ -22,3 +22,4 @@ server_pid=$!
 export HAIL_TEST_SERVICE_BACKEND_URL=http://localhost:5000
 
 python -m unittest test.hail.table.test_table.Tests.test_range_table
+python -m unittest test.hail.linalg.test_linalg.Tests.test_matrix_ops

@@ -229,7 +229,8 @@ class ServiceBackend(Backend):
         return tmatrix._from_json(resp)
 
     def blockmatrix_type(self, bmir):
-        raise NotImplementedError("ServiceBackend doesn't support blockmatrix_type, only SparkBackend")
+        resp = self._request_type(bmir, 'blockmatrix')
+        return tblockmatrix._from_json(resp)
 
     def add_reference(self, config):
         resp = requests.post(f'{self.url}/references/create', json=config)
