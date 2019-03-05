@@ -26,7 +26,6 @@ def transform_one(mt) -> Table:
     The input to this should be some result of either :func:`.import_vcf` or
     :func:`.import_vcfs` with `array_elements_required=False`.
     """
-    global _transform_rows_function_map
     mt = localize(mt)
     if mt.row.dtype not in _transform_rows_function_map:
         f = hl.experimental.define_function(
@@ -120,7 +119,6 @@ def combine(ts):
         # global index of alternate (non-ref) alleles
         return entry.annotate(LA=entry.LA.map(lambda lak: old_to_new[lak]))
 
-    global _merge_function_map
     if (ts.row.dtype, ts.globals.dtype) not in _merge_function_map:
         f = hl.experimental.define_function(
             lambda row, gbl:
