@@ -8,6 +8,7 @@ from hail.ir import Apply, TableKeyBy, TableMapRows, TopLevelReference
 from hail.typecheck import typecheck
 
 _transform_rows_function_map = {}
+_merge_function_map = {}
 
 def localize(mt):
     if isinstance(mt, MatrixTable):
@@ -84,7 +85,6 @@ def transform_one(mt) -> Table:
     transform_row = _transform_rows_function_map[mt.row.dtype]
     return Table(TableMapRows(mt._tir, Apply(transform_row._name, TopLevelReference('row'))))
 
-
 def combine(ts):
     def merge_alleles(alleles):
         from hail.expr.functions import _num_allele_type, _allele_ints
@@ -120,40 +120,49 @@ def combine(ts):
         # global index of alternate (non-ref) alleles
         return entry.annotate(LA=entry.LA.map(lambda lak: old_to_new[lak]))
 
-    tmp = ts.annotate(
-        alleles=merge_alleles(ts.data.map(lambda d: d.alleles)),
-        rsid=hl.find(hl.is_defined, ts.data.map(lambda d: d.rsid)),
-        info=hl.struct(
-            MQ_DP=hl.sum(ts.data.map(lambda d: d.info.MQ_DP)),
-            QUALapprox=hl.sum(ts.data.map(lambda d: d.info.QUALapprox)),
-            RAW_MQ=hl.sum(ts.data.map(lambda d: d.info.RAW_MQ)),
-            VarDP=hl.sum(ts.data.map(lambda d: d.info.VarDP)),
-            SB_TABLE=hl.array([
-                hl.sum(ts.data.map(lambda d: d.info.SB_TABLE[0])),
-                hl.sum(ts.data.map(lambda d: d.info.SB_TABLE[1])),
-                hl.sum(ts.data.map(lambda d: d.info.SB_TABLE[2])),
-                hl.sum(ts.data.map(lambda d: d.info.SB_TABLE[3]))
-            ])))
-    tmp = tmp.annotate(
-        __entries=hl.bind(
-            lambda combined_allele_index:
-            hl.range(0, hl.len(tmp.data)).flatmap(
-                lambda i:
-                hl.cond(hl.is_missing(tmp.data[i].__entries),
-                        hl.range(0, hl.len(tmp.g[i].__cols))
-                          .map(lambda _: hl.null(tmp.data[i].__entries.dtype.element_type)),
-                        hl.bind(
-                            lambda old_to_new: tmp.data[i].__entries.map(
-                                lambda e: renumber_entry(e, old_to_new)),
-                            hl.range(0, hl.len(tmp.alleles.local[i])).map(
-                                lambda j: combined_allele_index[tmp.alleles.local[i][j]])))),
-            hl.dict(hl.range(0, hl.len(tmp.alleles.globl)).map(
-                lambda j: hl.tuple([tmp.alleles.globl[j], j])))))
-    tmp = tmp.annotate(alleles=tmp.alleles.globl)
-    tmp = tmp.annotate_globals(__cols=hl.flatten(tmp.g.map(lambda g: g.__cols)))
-
-    return tmp.drop('data', 'g')
-
+    global _merge_function_map
+    if (ts.row.dtype, ts.globals.dtype) not in _merge_function_map:
+        f = hl.experimental.define_function(
+            lambda row, gbl:
+            hl.rbind(
+                merge_alleles(row.data.map(lambda d: d.alleles)),
+                lambda alleles:
+                hl.struct(
+                    locus=row.locus,
+                    alleles=alleles.globl,
+                    rsid=hl.find(hl.is_defined, row.data.map(lambda d: d.rsid)),
+                    info=hl.struct(
+                        MQ_DP=hl.sum(row.data.map(lambda d: d.info.MQ_DP)),
+                        QUALapprox=hl.sum(row.data.map(lambda d: d.info.QUALapprox)),
+                        RAW_MQ=hl.sum(row.data.map(lambda d: d.info.RAW_MQ)),
+                        VarDP=hl.sum(row.data.map(lambda d: d.info.VarDP)),
+                        SB_TABLE=hl.array([
+                            hl.sum(row.data.map(lambda d: d.info.SB_TABLE[0])),
+                            hl.sum(row.data.map(lambda d: d.info.SB_TABLE[1])),
+                            hl.sum(row.data.map(lambda d: d.info.SB_TABLE[2])),
+                            hl.sum(row.data.map(lambda d: d.info.SB_TABLE[3]))
+                        ])),
+                    __entries=hl.bind(
+                        lambda combined_allele_index:
+                        hl.range(0, hl.len(row.data)).flatmap(
+                            lambda i:
+                            hl.cond(hl.is_missing(row.data[i].__entries),
+                                    hl.range(0, hl.len(gbl.g[i].__cols))
+                                      .map(lambda _: hl.null(row.data[i].__entries.dtype.element_type)),
+                                    hl.bind(
+                                        lambda old_to_new: row.data[i].__entries.map(
+                                            lambda e: renumber_entry(e, old_to_new)),
+                                        hl.range(0, hl.len(alleles.local[i])).map(
+                                            lambda j: combined_allele_index[alleles.local[i][j]])))),
+                        hl.dict(hl.range(0, hl.len(alleles.globl)).map(
+                            lambda j: hl.tuple([alleles.globl[j], j])))))),
+            ts.row.dtype, ts.globals.dtype)
+        _merge_function_map[(ts.row.dtype, ts.globals.dtype)] = f
+    merge_function = _merge_function_map[(ts.row.dtype, ts.globals.dtype)]
+    ts = Table(TableMapRows(ts._tir, Apply(merge_function._name,
+                                           TopLevelReference('row'),
+                                           TopLevelReference('global'))))
+    return ts.transmute_globals(__cols=hl.flatten(ts.g.map(lambda g: g.__cols)))
 
 def combine_gvcfs(mts):
     """merges vcfs using multi way join"""
@@ -161,12 +170,10 @@ def combine_gvcfs(mts):
     combined = combine(ts)
     return unlocalize(combined)
 
-
 @typecheck(lgt=expr_call, la=expr_array(expr_int32))
 def lgt_to_gt(lgt, la):
     """A method for transforming Local GT and Local Alleles into the true GT"""
     return hl.call(la[lgt[0]], la[lgt[1]])
-
 
 def summarize(mt):
     """Computes summary statistics
@@ -206,7 +213,6 @@ def finalize(mt):
     function.
     """
     return mt.drop('BaseQRankSum', 'ClippingRankSum', 'MQ', 'MQRankSum', 'ReadPosRankSum')
-
 
 def reannotate(mt, gatk_ht, summ_ht):
     """Re-annotate a sparse MT with annotations from certain GATK tools
@@ -335,7 +341,7 @@ def reannotate(mt, gatk_ht, summ_ht):
 # ##INFO=<ID=ReadPosRankSum,Number=1,Type=Float>
 # ##INFO=<ID=VarDP,Number=1,Type=Integer>
 #
-# As of 2/15/19, the schema returned by the combiner is as follows:
+# As of 2019-03-04, the schema returned by the combiner is as follows:
 # ----------------------------------------
 # Global fields:
 #     None
@@ -352,26 +358,27 @@ def reannotate(mt, gatk_ht, summ_ht):
 #         QUALapprox: int32,
 #         RAW_MQ: float64,
 #         VarDP: int32,
-#         SB_TABLE: array<int64>
+#         SB_TABLE: array<int32>
 #     }
 # ----------------------------------------
 # Entry fields:
-#     'LAD': array<int32>
-#     'DP': int32
-#     'GQ': int32
-#     'LGT': call
-#     'MIN_DP': int32
-#     'LPGT': call
-#     'PID': str
-#     'LPL': array<int32>
-#     'LA': array<int32>
-#     'END': int32
 #     'BaseQRankSum': float64
 #     'ClippingRankSum': float64
+#     'DP': int32
+#     'END': int32
+#     'GQ': int32
+#     'LA': array<int32>
+#     'LAD': array<int32>
+#     'LGT': call
+#     'LPGT': call
+#     'LPL': array<int32>
+#     'MIN_DP': int32
 #     'MQ': float64
 #     'MQRankSum': float64
+#     'PID': str
+#     'RGQ': int32
 #     'ReadPosRankSum': float64
 # ----------------------------------------
 # Column key: ['s']
-# Row key: ['locus', 'alleles']
+# Row key: ['locus']
 # ----------------------------------------
