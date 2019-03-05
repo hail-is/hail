@@ -12,17 +12,7 @@ import java.util.Arrays.sort
 
 import net.sourceforge.jdistlib.rng.MersenneTwister
 
-object Test {
-  def main(args: Array[String]): Unit = {
-    val k = 10000
-    val agg = new RegionValueApproxCDFLongAggregator2(k, 8, false)
-    for (i <- Range(0, 29))
-      println(s"depth $i: ${agg.depthCapacity(i)} vs ${k * math.pow(2.0/3.0, i)}")
-  }
-}
-
-class RegionValueApproxCDFLongAggregator2(val k: Int, val m: Int, eager: Boolean) { // extends RegionValueAggregator {
-  private val growthRate: Int = 4
+class RegionValueApproxCDFLongAggregator2(val k: Int, val m: Int, growthRate: Int = 4, eager: Boolean) { // extends RegionValueAggregator {
 
   // 0 <= power <= 30
   private val powersOfThree = Array[Long](1, 3, 9, 27, 81, 243, 729, 2187, 6561, 19683,
@@ -32,23 +22,22 @@ class RegionValueApproxCDFLongAggregator2(val k: Int, val m: Int, eager: Boolean
     22876792454961L, 68630377364883L, 205891132094649L)
 
   var n: Long = 0
-  var numLevelsCapacity = findInitialNumLevels()
+  var levelsCapacity = findInitialLevelsCapacity()
   var numLevels = 1
-  var items: Array[Long] = Array.ofDim[Long](computeTotalCapacity(numLevelsCapacity))
-  var levels: Array[Int] = Array.fill[Int](numLevelsCapacity + 1)(items.length)
-  var base = if (eager) items.length - levelCapacity(0) else 0
+  var items: Array[Long] = Array.ofDim[Long](computeTotalCapacity(levelsCapacity))
+  var levels: Array[Int] = Array.fill[Int](levelsCapacity + 1)(items.length)
   private val rand = new MersenneTwister()
 
-  def size: Int = levels(numLevels) - levels(0)
+  private def size: Int = levels(numLevels) - levels(0)
 
-  def memUsage: Int = items.length
+  private def memUsage: Int = items.length
 
   def seqOp(region: Region, x: Long, missing: Boolean) {
     if (!missing) _seqOp(x)
   }
 
   def _seqOp(x: Long) {
-    if (levels(0) == base) {
+    if (levels(0) == 0) {
       if (eager)
         compactEager()
       else
@@ -81,7 +70,6 @@ class RegionValueApproxCDFLongAggregator2(val k: Int, val m: Int, eager: Boolean
       levels(i) = items.length
       i += 1
     }
-    base = if (eager) items.length - levelCapacity(0) else 0
   }
 
   def compact() {
@@ -120,7 +108,7 @@ class RegionValueApproxCDFLongAggregator2(val k: Int, val m: Int, eager: Boolean
     def compactAndGrow(level: Int, singletons: Int) {
       val curTotalCap = levels(numLevels)
       assert(items.length == curTotalCap)
-      assert(level == numLevelsCapacity - 1)
+      assert(level == levelsCapacity - 1)
       val size: Int = levels(level + 1) - levels(level)
       assert(size % 2 == 0)
 
@@ -129,8 +117,8 @@ class RegionValueApproxCDFLongAggregator2(val k: Int, val m: Int, eager: Boolean
       val newTotalCap = curTotalCap + deltaCap
       val newBuf = Array.ofDim[Long](newTotalCap)
 
-      numLevelsCapacity += growthRate
-      levels = levels.padTo(numLevelsCapacity + growthRate + 1, newTotalCap)
+      levelsCapacity += growthRate
+      levels = levels.padTo(levelsCapacity + 1, newTotalCap)
 
       val halfSize = size / 2
       QuantilesAggregator.compactBuffer(items, levels(level), levels(level + 1), newBuf, newTotalCap - halfSize, rand.nextBoolean())
@@ -143,8 +131,11 @@ class RegionValueApproxCDFLongAggregator2(val k: Int, val m: Int, eager: Boolean
 
     var level = 0
     var singletons = 0
-    while (levels(level + 1) - levels(level) >= levelCapacity(level)) {
+    var desiredFreeCapacity = 0
+    var grew = false
+    do {
       val size = levels(level + 1) - levels(level)
+//      assert(size >= levelCapacity(level))
       val adj = size % 2
 
       items(singletons) = items(levels(level))
@@ -152,20 +143,23 @@ class RegionValueApproxCDFLongAggregator2(val k: Int, val m: Int, eager: Boolean
       levels(level) += adj
 
       if (level >= numLevels - 1) {
-        if (level == numLevelsCapacity - 1) {
+        if (level == levelsCapacity - 1) {
           compactAndGrow(level, singletons)
         } else {
           numLevels += 1
           compactLevel(items, levels, level)
         }
+//        assert(levels(numLevels) >= computeTotalCapacity())
+        grew = true
       } else {
         compactLevel(items, levels, level)
       }
 
       levels(level) = singletons
       singletons += adj
+      desiredFreeCapacity += levelCapacity(level)
       level += 1
-    }
+    } while (levels(level) < desiredFreeCapacity && !grew)
     val shift = levels(level) - singletons
     var i = 0
     while (i < level) {
@@ -173,7 +167,6 @@ class RegionValueApproxCDFLongAggregator2(val k: Int, val m: Int, eager: Boolean
       i += 1
     }
     System.arraycopy(items, 0, items, shift, singletons)
-    base = levels(1) - levelCapacity(0)
   }
 
   def compactLevel(buf: Array[Long], levels: Array[Int], level: Int): Int = {
@@ -187,12 +180,12 @@ class RegionValueApproxCDFLongAggregator2(val k: Int, val m: Int, eager: Boolean
 
     val b = a + ((c - a) / 2)
 
-    if (level == 0) sort(items, a, c)
+    if (level == 0) sort(buf, a, c)
     if (sizeAbove == 0) {
-      QuantilesAggregator.compactBufferBackwards(items, a, c, items, c, rand.nextBoolean())
+      QuantilesAggregator.compactBufferBackwards(buf, a, c, buf, c, rand.nextBoolean())
     } else {
-      QuantilesAggregator.compactBuffer(items, a, c, items, a, rand.nextBoolean())
-      QuantilesAggregator.mergeNoSentinals(items, a, b, items, c, d, items, b)
+      QuantilesAggregator.compactBuffer(buf, a, c, buf, a, rand.nextBoolean())
+      QuantilesAggregator.mergeNoSentinals(buf, a, b, buf, c, d, buf, b)
     }
     levels(level + 1) = b
     b
@@ -223,9 +216,9 @@ class RegionValueApproxCDFLongAggregator2(val k: Int, val m: Int, eager: Boolean
     assert(items.length == curTotalCap)
 
     numLevels += 1
-    if (numLevels > numLevelsCapacity) {
-      numLevelsCapacity += growthRate
-      levels = levels.padTo(numLevelsCapacity + growthRate + 1, curTotalCap)
+    if (numLevels > levelsCapacity) {
+      levelsCapacity += growthRate
+      levels = levels.padTo(levelsCapacity + growthRate + 1, curTotalCap)
 
       val deltaCap = m * growthRate
       val newTotalCap = curTotalCap + deltaCap
@@ -254,8 +247,11 @@ class RegionValueApproxCDFLongAggregator2(val k: Int, val m: Int, eager: Boolean
     populateWorkArrays(other, workbuf, worklevels, provisionalNumLevels)
 
     // notice that workbuf is being used as both the input and output here
-    val (finalNumLevels, finalCapacity, finalPop) = generalCompress(k, m, provisionalNumLevels, workbuf, worklevels, workbuf, outlevels)
-    assert(finalNumLevels <= ub) // can sometimes be much bigger
+    val (finalNumLevels, finalCapacity, finalPop) =
+      generalCompress(k, m, provisionalNumLevels,
+        workbuf, worklevels,
+        workbuf, outlevels)
+    assert(finalNumLevels <= ub)
 
     // now we need to transfer the results back into the "self" sketch
     val newbuf = if (finalCapacity == items.length) items else Array.ofDim[Long](finalCapacity)
@@ -395,7 +391,7 @@ class RegionValueApproxCDFLongAggregator2(val k: Int, val m: Int, eager: Boolean
     assert(total == n)
   }
 
-  def computeTotalCapacity(numLevels: Int): Int = {
+  def computeTotalCapacity(numLevels: Int = numLevels): Int = {
     var total = 0
     var h = 0
     while (h < numLevels) {
@@ -410,7 +406,7 @@ class RegionValueApproxCDFLongAggregator2(val k: Int, val m: Int, eager: Boolean
 
   def sizeAboveLevel0 = levels(numLevels) - levels(1)
 
-  def findInitialNumLevels(): Int = {
+  def findInitialLevelsCapacity(): Int = {
     var numLevels = 0
     while (depthCapacity(numLevels) >= m) numLevels += 1
     numLevels + 1
@@ -675,6 +671,7 @@ class RegionValueApproxCDFLongAggregator(bufSize: Int) extends RegionValueAggreg
     fullBuffers.clear()
     fullBuffers += null
     bufferSizes.clear()
+    hasCombined = false
   }
 }
 
@@ -832,110 +829,154 @@ object Main {
 
   def main(args: Array[String]) = {
     import scala.math.{abs, pow}
-    val agg = new RegionValueApproxCDFLongAggregator(80)
-    val kllAgg = new RegionValueApproxCDFLongAggregator2(220, 8, false)
-    val kllEager = new RegionValueApproxCDFLongAggregator2(220, 8, true)
-    val n = 150000
+//    val agg = new RegionValueApproxCDFLongAggregator(80)
+//    val kllEager = new RegionValueApproxCDFLongAggregator2(100, 32, false)
+    val kllAgg = new RegionValueApproxCDFLongAggregator2(150, 8, 4, true)
+    val kllAgg2 = new RegionValueApproxCDFLongAggregator2(150, 8, 4, true)
+    val n = 10000000
+    val preReps = 0
+    val reps = 10
 
     import scala.util.{Random, Sorting}
     val rand = new Random()
     val data = rand.shuffle(IndexedSeq.range(0, n)).toArray
     //    val data = Array.range(0, n)
-    var cdf: (Array[Long], Array[Long]) = null
-    var kllTime = time {
-      var i = 0
-      //      while (i < n/2) { agg2.seqOp(data(i)); i += 1 }
-      while (i < n) { kllAgg._seqOp(data(i)); i += 1 }
-      //      agg.combOp(agg2.asInstanceOf[agg.type])
-    }
-    kllAgg.clear()
-    kllTime = time {
-      var i = 0
-      //      while (i < n/2) { agg2.seqOp(data(i)); i += 1 }
-      while (i < n) { kllAgg._seqOp(data(i)); i += 1 }
-      //      agg.combOp(agg2.asInstanceOf[agg.type])
-      cdf = kllAgg.cdf
-    }
-    val (kllValues, kllRanks) = cdf
-    var aggTime = time {
-      var i = 0
-      //      while (i < n/2) { agg2.seqOp(data(i)); i += 1 }
-      while (i < n) { agg._seqOp(data(i)); i += 1 }
-      //      agg.combOp(agg2.asInstanceOf[agg.type])
-    }
-    agg.clear()
-    aggTime = time {
-      var i = 0
-      //      while (i < n/2) { agg2.seqOp(data(i)); i += 1 }
-      while (i < n) { agg._seqOp(data(i)); i += 1 }
-      //      agg.combOp(agg2.asInstanceOf[agg.type])
-      cdf = agg.cdf
-    }
-    val (values, ranks) = cdf
-    var kllEagerTime = time {
-      var i = 0
-      //      while (i < n/2) { agg2.seqOp(data(i)); i += 1 }
-      while (i < n) { kllEager._seqOp(data(i)); i += 1 }
-      //      agg.combOp(agg2.asInstanceOf[agg.type])
-    }
-    kllEager.clear()
-    kllEagerTime = time {
-      var i = 0
-      //      while (i < n/2) { agg2.seqOp(data(i)); i += 1 }
-      while (i < n) { kllEager._seqOp(data(i)); i += 1 }
-      //      agg.combOp(agg2.asInstanceOf[agg.type])
-      cdf = kllEager.cdf
-    }
-    val (kllEagValues, kllEagRanks) = cdf
-    val scalaStableSortTime = time {
-      data.sorted
-    }
-    val scalaSortTime = time {
-      val data2 = Array.ofDim[Long](n)
-      var i = 0
-      while (i < n) {
-        data2(i) = data(i)
-        i += 1
+    val results: ArrayBuilder[(Array[Long], Array[Long])] = new ArrayBuilder(reps)
+
+//    time {
+//      var i = 0
+//      //      while (i < n/2) { agg2.seqOp(data(i)); i += 1 }
+//      while (i < n) { agg._seqOp(data(i)); i += 1 }
+//      //      agg.combOp(agg2.asInstanceOf[agg.type])
+//    }
+//    val aggTime = time {
+//      var rep = 0
+//      while (rep < reps) {
+//        agg.clear()
+//        var i = 0
+//        //      while (i < n/2) { agg2.seqOp(data(i)); i += 1 }
+//        while (i < n) {
+//          agg._seqOp(data(i)); i += 1
+//        }
+//        //      agg.combOp(agg2.asInstanceOf[agg.type])
+//        results += agg.cdf
+//        rep += 1
+//      }
+//    }
+//    val randomResults = results.result()
+//    results.clear()
+
+    time {
+      var rep = 0
+      while (rep < preReps) {
+        var i = 0
+        //      while (i < n/2) { agg2.seqOp(data(i)); i += 1 }
+        while (i < n) {
+          kllAgg._seqOp(data(i));
+          i += 1
+        }
+        //      agg.combOp(agg2.asInstanceOf[agg.type])
+        rep += 1
       }
-      Sorting.quickSort(data2)
     }
+    val kllTime = time {
+      var rep = 0
+      while (rep < reps) {
+        kllAgg.clear()
+        kllAgg2.clear()
+        var i = 0
+        while (i < n/2) { kllAgg2._seqOp(data(i)); i += 1 }
+        while (i < n) { kllAgg._seqOp(data(i)); i += 1 }
+        kllAgg.combOp(kllAgg2)
+        results += kllAgg.cdf
+        rep += 1
+      }
+    }
+    val kllResults = results.result()
+    results.clear()
+
+//    time {
+//      var i = 0
+//      //      while (i < n/2) { agg2.seqOp(data(i)); i += 1 }
+//      while (i < n) { kllEager._seqOp(data(i)); i += 1 }
+//      //      agg.combOp(agg2.asInstanceOf[agg.type])
+//    }
+//    val kllEagerTime = time {
+//      var rep = 0
+//      while (rep < reps) {
+//        kllEager.clear()
+//        var i = 0
+//        //      while (i < n/2) { agg2.seqOp(data(i)); i += 1 }
+//        while (i < n) {
+//          kllEager._seqOp(data(i)); i += 1
+//        }
+//        //      agg.combOp(agg2.asInstanceOf[agg.type])
+//        results += kllEager.cdf
+//        rep += 1
+//      }
+//    }
+//    val kllEagResults = results.result()
+//    results.clear()
+
+//    val scalaStableSortTime = time {
+//      var rep = 0
+//      while (rep < reps) { data.sorted; rep += 1 }
+//    }
+//    val scalaSortTime = time {
+//      var rep = 0
+//      while (rep < reps) {
+//        val data2 = Array.ofDim[Long](n)
+//        var i = 0
+//        while (i < n) {
+//          data2(i) = data(i)
+//          i += 1
+//        }
+//        Sorting.quickSort(data2)
+//        rep += 1
+//      }
+//    }
+
     val javaSortTime = time {
-      val data2 = Array.ofDim[Long](n)
-      var i = 0
-      while (i < n) {
-        data2(i) = data(i)
-        i += 1
+      var rep = 0
+      while (rep < reps) {
+        val data2 = Array.ofDim[Long](n)
+        var i = 0
+        while (i < n) {
+          data2(i) = data(i)
+          i += 1
+        }
+        java.util.Arrays.sort(data2)
+        rep += 1
       }
-      java.util.Arrays.sort(data2)
     }
+
     val factor = pow(10, 9)
-    println(s"approx took ${ aggTime.toDouble / factor } s")
-    println(s"KLL took ${ kllTime.toDouble / factor } s")
-    println(s"Eager KLL took ${ kllEagerTime.toDouble / factor } s")
-    println(s"java sort took ${ javaSortTime.toDouble / factor } s")
-    println(s"scala quicksort took ${ scalaSortTime.toDouble / factor } s")
-    println(s"stable sort took ${ scalaStableSortTime.toDouble / factor } s")
+//    println(s"approx took ${ aggTime.toDouble / factor / reps } s")
+    println(s"KLL took ${ kllTime.toDouble / factor / reps } s")
+//    println(s"Eager KLL took ${ kllEagerTime.toDouble / factor / reps } s")
+    println(s"java sort took ${ javaSortTime.toDouble / factor / reps } s")
+//    println(s"scala quicksort took ${ scalaSortTime.toDouble / factor / reps } s")
+//    println(s"stable sort took ${ scalaStableSortTime.toDouble / factor / reps } s")
 
     println()
 
-    //    for ((weight, value) <- cdf) println(s"$weight : $value")
-    val (avgError, maxError) = computeErrors(values, ranks, 0.01)
-    println(s"average error = $avgError")
-    println(s"max error = $maxError")
-    println(s"memory used = ${agg.memUsage}")
+//    val (avgErrors, maxErrors) = randomResults.map { case (values, ranks) => computeErrors(values, ranks, 0.01) }.unzip
+//    println(s"average error = ${ avgErrors.sum / reps }")
+//    println(s"max error = ${ maxErrors.sum / reps }")
+//    println(s"memory used = ${ agg.memUsage }")
+//
+//    println()
 
-    println()
+    val (kllAvgErrors, kllMaxErrors) = kllResults.map { case (values, ranks) => computeErrors(values, ranks, 0.01) }.unzip
+    println(s"KLL average error = ${ kllAvgErrors.sum / reps }")
+    println(s"KLL max error = ${ kllMaxErrors.sum / reps }")
+    println(s"KLL memory used = ${ kllAgg.memUsage }")
 
-    val (kllAvgError, kllMaxError) = computeErrors(kllValues, kllRanks, 0.01)
-    println(s"KLL average error = $kllAvgError")
-    println(s"KLL max error = $kllMaxError")
-    println(s"KLL memory used = ${kllAgg.memUsage}")
-
-    println()
-
-    val (kllEagAvgError, kllEagMaxError) = computeErrors(kllEagValues, kllEagRanks, 0.01)
-    println(s"Eager KLL average error = $kllEagAvgError")
-    println(s"Eager KLL max error = $kllEagMaxError")
-    println(s"Eager KLL memory used = ${kllEager.memUsage}")
+//    println()
+//
+//    val (kllEagAvgErrors, kllEagMaxErrors) = kllEagResults.map { case (values, ranks) => computeErrors(values, ranks, 0.01) }.unzip
+//    println(s"Eager KLL average error = ${ kllEagAvgErrors.sum / reps }")
+//    println(s"Eager KLL max error = ${ kllEagMaxErrors.sum / reps }")
+//    println(s"Eager KLL memory used = ${ kllEager.memUsage }")
   }
 }
