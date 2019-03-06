@@ -422,8 +422,7 @@ def wait_websocket(ws):
 
     pod_uuid = notebook['pod_uuid']
 
-    url = external_url_for('')
-    url = f'{url}instance-ready/{pod_uuid}/'
+    url = f'{external_url_for("")}instance-ready/{pod_uuid}/'
 
     while True:
         try:
@@ -441,7 +440,7 @@ def wait_websocket(ws):
                 gevent.sleep(1)
             break
         except requests.exceptions.Timeout:
-            log.info(f'GET on jupyter failed for pod_uuid: {pod_uuid} : response')
+            log.info(f'GET on jupyter failed for pod_uuid: {pod_uuid}')
             gevent.sleep(1)
 
     ws.send("1")
