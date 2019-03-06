@@ -7,7 +7,6 @@
                     and notebook.condition.type == 'Ready'
     %}
 
-
         <div id="{{notebook.pod_uuid}}-visual-summary">
             <div class="spinner"></div>
         </div>
@@ -16,7 +15,7 @@
         target="_blank"
         class="nb-state-container"
         id="{{notebook.pod_uuid}}"
-        href={{ notebook['url'] }}
+        href={{notebook['url']}}
     >
         <b>{{notebook.pod_name}}</b>
         <span class="small">Created:<b id="{{notebook.pod_uuid}}-creation-date">{{notebook.creation_date}}</b></span>
@@ -98,28 +97,19 @@
                     method: 'HEAD'
                 }).then((r) => {
                     if(r.status < 400) {
-                        el.innerText = "Yes!";
+                        el.innerText = `Yes! (${r.status})`;
 
                         clearInterval(interval);
-
                         resolve(true);
-                        return;
-                    }
-
-                    if(r.status == 499) {
+                    } else if(r.status == 499) {
                         el.innerText = `Booting (tried ${checked[podUUID] > 1 ? checked[podUUID] + ' times' : 'once'})`;
                         checked[podUUID]++;
-                        return;
-                    }
-
-                    if(r.status === 404 || r.status === 502) {
+                    } else {
                         el.innerText = `No, sorry! (${r.status})`;
 
                         clearInterval(interval);
                         reject("Job endpoint not found on server");
-                        return;
                     }
-
                 });
             }, 500);
         })
