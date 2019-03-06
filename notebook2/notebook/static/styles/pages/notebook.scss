@@ -14,9 +14,17 @@
       min-width: 320px;
     }
 
-    .ready-icon {
-      color: $blue;
+    .reachable-icon,
+    .unreachable-icon {
       margin-right: $margin;
+    }
+
+    .reachable-icon {
+      color: $blue;
+    }
+
+    .unreachable-icon {
+      color: $light-gray;
     }
 
     .spinner {
