@@ -100,7 +100,7 @@
                     method: 'HEAD'
                 }).then((r) => {
                     if(r.status == 405 || r.status == 302) {
-                        el.innerText = `Yes! (${r.status})`;
+                        el.innerText = `Yes!`;
 
                         clearInterval(interval);
                         resolve(true);
