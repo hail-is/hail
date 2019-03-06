@@ -15,6 +15,7 @@ object Compile {
     tub.include("hail/Region.h")
     tub.include("hail/Upcalls.h")
     tub.include("hail/SparkUtils.h")
+    tub.include("hail/ObjectArray.h")
 
     tub.include("<cstring>")
 
