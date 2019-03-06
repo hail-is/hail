@@ -18,7 +18,8 @@ RUN apk add \
   kubernetes \
   'urllib3<1.24'\
   libsass \
-  authlib
+  authlib \
+  ujson
 
 COPY notebook /notebook
 COPY notebook-worker-images /notebook
