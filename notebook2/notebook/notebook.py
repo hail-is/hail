@@ -141,7 +141,7 @@ def start_pod(jupyter_token, image, name, user_id):
                     'jupyter',
                     'notebook',
                     f'--NotebookApp.token={jupyter_token}',
-                    f'--NotebookApp.base_url=/instance/{pod_id}'
+                    f'--NotebookApp.base_url=/instance/{pod_id}/'
                 ],
                 name='default',
                 image=image,
