@@ -8,7 +8,11 @@
     %}
 
         <div id="{{notebook.pod_uuid}}-visual-summary">
-            <div class="spinner"></div>
+            {% if ready %}
+                <i class="material-icons reachable-icon">done</i>
+            {% else %}
+                <div class="spinner"></div>
+            {% endif %}
         </div>
 
     <a
