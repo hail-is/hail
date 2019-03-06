@@ -21,7 +21,7 @@
         href={{ notebook['url'] }}
     >
         <b>{{notebook.name}}</b>
-        <span className="small">
+        <span class="small">
         Condition:
 
             {% if notebook.condition is not defined %}
@@ -33,13 +33,13 @@
             {% endif %}
         </b>
         </span>
-        <span className="small">
+        <span class="small">
         Pod: <b>{{notebook.pod_status}}</b>
         </span>
-        <span className="small">
+        <span class="small">
         Pod Name: <b>{{notebook.pod_name}}</b>
         </span>
-        <span className="small">Created on: {{notebook.creation_date}}</span>
+        <span class="small">Created on: {{notebook.creation_date}}</span>
     </a>
     <form action='/notebook/delete' method='POST'>
         <button type='submit' class="material-icons nb-close">
