@@ -105,8 +105,7 @@
                         clearInterval(interval);
                         resolve(true);
                     } else if(r.status == 502) {
-                        el.innerText = `Booting (tried ${checked[podUUID] > 1 ? checked[podUUID] + ' times' : 'once'})`;
-                        checked[podUUID]++;
+                        location.reload();
                     } else {
                         el.innerText = `No (${r.status})`;
 
