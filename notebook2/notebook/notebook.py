@@ -505,4 +505,3 @@ if __name__ == '__main__':
     from geventwebsocket.handler import WebSocketHandler
     server = pywsgi.WSGIServer(('', 5000), app, handler_class=WebSocketHandler, log=log)
     server.serve_forever()
-
