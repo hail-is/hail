@@ -18,8 +18,8 @@
         id="{{notebook.pod_uuid}}"
         href={{ notebook['url'] }}
     >
-        <b>{{notebook.name}} ({{notebook.pod_name}})</b>
-        <span class="small">Created on: <b id="{{notebook.pod_uuid}}-creation-date">{{notebook.creation_date}}</b></span>
+        <b>{{notebook.pod_name}}</b>
+        <span class="small">Created:<b id="{{notebook.pod_uuid}}-creation-date">{{notebook.creation_date}}</b></span>
         <br/>
         <span class="small">Reachable: <b id="{{notebook.pod_uuid}}-reach">N/A</b></span>
         <span class="small">
@@ -79,12 +79,14 @@
         });
     }
 
+    const checked = {};
     function checkReachability(podUUID) {
         const url = `/instance-ready/${podUUID}/`
         const el = document.getElementById(`${podUUID}-reach`);
 
-        el.innerText = "Testing!";
+        el.innerText = "Checking";
 
+        checked[podUUID] = 0;
         const promise = new Promise((resolve, reject) => {
             if(el === null) {
                 reject("Job not found in this window")
@@ -95,8 +97,6 @@
                 fetch(url, {
                     method: 'HEAD'
                 }).then((r) => {
-
-                    console.info('r.status', r.status);
                     if(r.status < 400) {
                         el.innerText = "Yes!";
 
@@ -107,7 +107,8 @@
                     }
 
                     if(r.status == 499) {
-                        el.innerText = "Booting up!";
+                        el.innerText = `Booting (tried ${checked[podUUID] > 1 ? checked[podUUID] + ' times' : 'once'})`;
+                        checked[podUUID]++;
                         return;
                     }
 
@@ -179,7 +180,7 @@
                 const ready = notebook.pod_status === 'Running' && notebook.condition.status === 'True' && notebook.condition.type === 'Ready';
 
                 if(ready) {
-                    checkReachabilityAndMark(notebook.pod_uuid));
+                    checkReachabilityAndMark(notebook.pod_uuid);
                 }
             }
         }
