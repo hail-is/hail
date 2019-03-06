@@ -12,6 +12,10 @@
       margin-bottom: $margin;
       justify-content: space-around;
       min-width: 320px;
+
+      & + .nb {
+        margin-top: $margin * 2;
+      }
     }
 
     .reachable-icon,
@@ -34,6 +38,7 @@
     .nb-state-container {
       flex-direction: column;
       display: flex;
+      width: 212px;
     }
 
     .nb-close {

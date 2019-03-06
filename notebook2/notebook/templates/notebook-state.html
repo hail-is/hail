@@ -1,83 +1,82 @@
-<meta id='data' data-pod-uuid="{{notebook.pod_uuid}}"/>
+{% for notebook in notebooks %}
+    <div class='nb'>
+        {% set ready =  notebook.pod_status == 'Running'
+                        and notebook.condition.status == 'True'
+                        and notebook.condition.type == 'Ready'
+        %}
 
-<div class='nb'>
-    {% set ready =  notebook.pod_status == 'Running'
-                    and notebook.condition.status == 'True'
-                    and notebook.condition.type == 'Ready'
-    %}
-
-        <div id="{{notebook.pod_uuid}}-visual-summary">
-            {% if ready %}
-                <i class="material-icons reachable-icon">done</i>
-            {% else %}
-                <div class="spinner"></div>
-            {% endif %}
-        </div>
-
-    <a
-        target="_blank"
-        class="nb-state-container"
-        id="{{notebook.pod_uuid}}"
-        href={{notebook['url']}}
-    >
-        <b>{{notebook.pod_name}}</b>
-        <span class="small">Created:<b id="{{notebook.pod_uuid}}-creation-date">{{notebook.creation_date}}</b></span>
-        <br/>
-        <span class="small">Reachable: <b id="{{notebook.pod_uuid}}-reach">N/A</b></span>
-        <span class="small">
-            Container:
-            <b id="{{notebook.pod_uuid}}-container-status">
-                {% if notebook.container_status.waiting %}
-                    {{ notebook.container_status.waiting.reason }}
-                {% elif notebook.container_status.running %}
-                    Started
-                {% elif notebook.container_status.terminated %}
-                    Finished
+            <div id="{{notebook.pod_uuid}}-visual-summary">
+                {% if ready %}
+                    <i class="material-icons reachable-icon">done</i>
                 {% else %}
-                    Initializing
+                    <div class="spinner"></div>
                 {% endif %}
-            </b>
-        </span>
-        <span class="small">
-            Pod Condition:
-            <b id="{{notebook.pod_uuid}}-condition">
-                {% if notebook.condition is not defined %}
-                    Initializing
-                {% elif notebook.condition.status != "True" %}
-                    {{"Waiting on " ~ notebook.condition.type}}
-                {% else %}
-                    {{notebook.condition.type}}
-                {% endif %}
-            </b>
-        </span>
-        <span class="small">
-            Pod Status: <b id="{{notebook.pod_uuid}}-pod-status">{{notebook.pod_status}}</b>
-        </span>
+            </div>
+
+        <a
+            target="_blank"
+            class="nb-state-container"
+            id="{{notebook.pod_uuid}}"
+            href={{notebook['url']}}
+        >
+            <b>{{notebook.pod_name}}</b>
+            <span class="small">Created:<b id="{{notebook.pod_uuid}}-creation-date">{{notebook.creation_date}}</b></span>
+            <br/>
+            <span class="small">Reachable: <b id="{{notebook.pod_uuid}}-reach">N/A</b></span>
+            <span class="small">
+                Container:
+                <b id="{{notebook.pod_uuid}}-container-status">
+                    {% if notebook.container_status.waiting %}
+                        {{ notebook.container_status.waiting.reason }}
+                    {% elif notebook.container_status.running %}
+                        Started
+                    {% elif notebook.container_status.terminated %}
+                        Finished
+                    {% else %}
+                        Initializing
+                    {% endif %}
+                </b>
+            </span>
+            <span class="small">
+                Pod Condition:
+                <b id="{{notebook.pod_uuid}}-condition">
+                    {% if notebook.condition is not defined %}
+                        Initializing
+                    {% elif notebook.condition.status != "True" %}
+                        {{"Waiting on " ~ notebook.condition.type}}
+                    {% else %}
+                        {{notebook.condition.type}}
+                    {% endif %}
+                </b>
+            </span>
+            <span class="small">
+                Pod Status: <b id="{{notebook.pod_uuid}}-pod-status">{{notebook.pod_status}}</b>
+            </span>
 
 
-    </a>
-    <form action='/notebook/delete' method='POST'>
-        <button type='submit' class="material-icons nb-close">
-            close
-        </button>
-    </form>
-</div>
+        </a>
+        <form action='/notebook/{{notebook.pod_uuid}}/delete' method='POST'>
+            <button type='submit' class="material-icons nb-close">
+                close
+            </button>
+        </form>
+    </div>
+{% endfor %}
 
 <script src="https://unpkg.com/unfetch/polyfill"></script>
 
 <script>
     function checkReachabilityAndMark(podUUID) {
-        el = document.getElementById(`${podUUID}-visual-summary`);
-
-        if(el === null) {
+        if(document.getElementById(podUUID) === null) {
             console.error(`${podUUID} not found on page`);
             return;
         }
 
         checkReachability(podUUID).then(() => {
-            el.innerHTML = '<i class="material-icons reachable-icon">done</i>';
+            // Async issues may prevent cached element from updating unless we look up here
+            document.getElementById(`${podUUID}-visual-summary`).innerHTML = '<i class="material-icons reachable-icon">done</i>';
         }, () => {
-            el.innerHTML = '<i class="material-icons unreachable-icon">block</i>';
+            document.getElementById(`${podUUID}-visual-summary`).innerHTML = '<i class="material-icons unreachable-icon">block</i>';
         });
     }
 
@@ -121,61 +120,52 @@
     }
 </script>
 
-{% if ready %}
-    <script>
-        el = document.getElementById('data');
-        const podUUID = el.dataset.podUuid;
+<script>
+    let protocol = location.protocol.replace("http", "ws")
+    let sock = new WebSocket(protocol + location.host + "/wait");
+    sock.onmessage = function (ev) {
+        process(ev.data)
+    }
 
-        checkReachabilityAndMark(podUUID);
-    </script>
-{% else  %}
-    <script>
-        let protocol = location.protocol.replace("http", "ws")
-        let sock = new WebSocket(protocol + location.host + "/wait");
-        sock.onmessage = function (ev) {
-            process(ev.data)
-        }
+    function process(json) {
+        const data = JSON.parse(json);
 
-        function process(json) {
-            const data = JSON.parse(json);
+        const notebooks = data.resource;
 
-            const notebooks = data.resource;
+        for (let i = 0; i < notebooks.length; i++ ){
+            const notebook = notebooks[i];
 
-            for (let i = 0; i < notebooks.length; i++ ){
-                const notebook = notebooks[i];
+            if(!document.getElementById(`${notebook.pod_uuid}`)) {
+                continue;
+            }
 
-                if(!document.getElementById(`${notebook.pod_uuid}`)) {
-                    continue;
-                }
+            const conditionElem = document.getElementById(`${notebook.pod_uuid}-condition`);
 
-                const conditionElem = document.getElementById(`${notebook.pod_uuid}-condition`);
+            if(!notebook.condition) {
+                conditionElem.innerText = "Initializing";
+            } else if(notebook.condition.status !== "True") {
+                conditionElem.innerText = `Waiting on ${notebook.condition.type}`
+            } else {
+                conditionElem.innerText = `${notebook.condition.type}`
+            }
 
-                if(!notebook.condition) {
-                    conditionElem.innerText = "Initializing";
-                } else if(notebook.condition.status !== "True") {
-                    conditionElem.innerText = `Waiting on ${notebook.condition.type}`
-                } else {
-                    conditionElem.innerText = `${notebook.condition.type}`
-                }
+            document.getElementById(`${notebook.pod_uuid}-pod-status`).innerText = notebook.pod_status;
 
-                document.getElementById(`${notebook.pod_uuid}-pod-status`).innerText = notebook.pod_status;
+            const containerStatusElem = document.getElementById(`${notebook.pod_uuid}-container-status`)
 
-                const containerStatusElem = document.getElementById(`${notebook.pod_uuid}-container-status`)
+            if(notebook.container_status.waiting) {
+                containerStatusElem.innerText = `${notebook.container_status.waiting.reason}`;
+            } else if(notebook.container_status.running) {
+                containerStatusElem.innerText = "Started";
+            } else if(notebook.container_status.terminated) {
+                containerStatusElem.innerText = "Finished";
+            }
 
-                if(notebook.container_status.waiting) {
-                    containerStatusElem.innerText = `${notebook.container_status.waiting.reason}`;
-                } else if(notebook.container_status.running) {
-                    containerStatusElem.innerText = "Started";
-                } else if(notebook.container_status.terminated) {
-                    containerStatusElem.innerText = "Finished";
-                }
-
-                if(notebook.pod_status === 'Running'
-                && notebook.condition.status === 'True'
-                && notebook.condition.type === 'Ready') {
-                    checkReachabilityAndMark(notebook.pod_uuid);
-                }
+            if(notebook.pod_status === 'Running'
+            && notebook.condition.status === 'True'
+            && notebook.condition.type === 'Ready') {
+                checkReachabilityAndMark(notebook.pod_uuid);
             }
         }
-    </script>
-{% endif %}
+    }
+</script>

@@ -13,7 +13,7 @@
     {% include 'header.html' %}
     <div id="main">
       <div id="notebook" class="centered">
-        {% if notebook is not defined %}
+        {% if notebooks|length == 0 %}
             {% include 'notebook-form.html' %}
         {% else %}
             {% include 'notebook-state.html' %}

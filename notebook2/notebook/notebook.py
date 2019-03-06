@@ -260,6 +260,10 @@ def get_live_user_notebooks(user_id):
     return list(filter(lambda n: n['deletion_timestamp'] is None, notebooks_for_ui(pods)))
 
 
+def notebook_to_dict(notebooks):
+    return dict((n['pod_uuid'], n) for n in notebooks)
+
+
 @app.route('/healthcheck')
 def healthcheck():
     return '', 200
@@ -275,28 +279,25 @@ def root():
 def notebook_page():
     notebooks = get_live_user_notebooks(user_id = user_id_transform(session['user']['id']))
 
-    # https://github.com/hail-is/hail/issues/5487
-    assert len(notebooks) <= 1
-
     if len(notebooks) == 0:
         return render_template('notebook.html',
                                form_action_url=external_url_for('notebook'),
                                images=list(WORKER_IMAGES),
                                default='hail')
 
-    session['notebook'] = notebooks[0]
+    session['notebooks'] = notebook_to_dict(notebooks)
 
-    return render_template('notebook.html', notebook=notebooks[0])
+    return render_template('notebook.html', notebooks=notebooks)
 
 
-@app.route('/notebook/delete', methods=['POST'])
+@app.route('/notebook/<pod_uuid>/delete', methods=['POST'])
 @requires_auth()
-def notebook_delete():
-    notebook = session.get('notebook')
+def notebook_delete(pod_uuid):
+    notebooks = session.get('notebooks')
 
-    if notebook is not None:
-        delete_worker_pod(notebook['pod_name'])
-        del session['notebook']
+    if notebooks is not None and pod_uuid in notebooks:
+        delete_worker_pod(notebooks[pod_uuid]['pod_name'])
+        del session['notebooks'][pod_uuid]
 
     return redirect(external_url_for('notebook'))
 
@@ -314,7 +315,7 @@ def notebook_post():
     safe_user_id = user_id_transform(session['user']['id'])
 
     pod = start_pod(jupyter_token, WORKER_IMAGES[image], name, safe_user_id)
-    session['notebook'] = notebooks_for_ui([pod])[0]
+    session['notebooks'] = notebook_to_dict(notebooks_for_ui([pod]))
 
     return redirect(external_url_for('notebook'))
 
@@ -322,11 +323,11 @@ def notebook_post():
 @app.route('/auth/<requested_pod_uuid>')
 @requires_auth()
 def auth(requested_pod_uuid):
-    notebook = session.get('notebook')
+    notebooks = session.get('notebooks')
 
-    if notebook is not None and notebook['pod_uuid'] == requested_pod_uuid:
+    if notebooks is not None and requested_pod_uuid in notebooks:
         res = flask.make_response()
-        res.headers['pod_ip'] = f"{notebook['pod_ip']}:{POD_PORT}"
+        res.headers['pod_ip'] = f"{notebooks[requested_pod_uuid]['pod_ip']}:{POD_PORT}"
         return res
 
     return '', 404
