@@ -171,9 +171,9 @@
                     containerStatusElem.innerText = "Finished";
                 }
 
-                const ready = notebook.pod_status === 'Running' && notebook.condition.status === 'True' && notebook.condition.type === 'Ready';
-
-                if(ready) {
+                if(notebook.pod_status === 'Running'
+                && notebook.condition.status === 'True'
+                && notebook.condition.type === 'Ready') {
                     checkReachabilityAndMark(notebook.pod_uuid);
                 }
             }
