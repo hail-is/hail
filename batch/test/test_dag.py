@@ -304,3 +304,16 @@ def test_no_parents_allowed_without_batches(client):
         assert re.search('.*invalid parent batch: .*', err.response.text)
         return
     assert False
+
+
+def test_input_dependency(client):
+    batch = client.create_batch()
+    head = batch.create_job('alpine:3.8',
+                            command=['/bin/sh', '-c', 'echo head > /out'],
+                            output_files=[('/out', 'gs://hail-ci-0-1/garbage/')])
+    tail = batch.create_job('alpine:3.8',
+                            command=['/bin/sh', '-c', 'cat /in'],
+                            input_files=[('gs://hail-ci-0-1/garbage/', '/in')],
+                            parent_ids=[head.id])
+    tail.wait()
+    assert tail.log() == 'head\n'

@@ -83,13 +83,13 @@ class JobTask:  # pylint: disable=R0903
     @staticmethod
     def copy_task(job_id, task_name, files):
         if files:
-            container = kube.client.V1Container(image='alpine',
-                                                name=task_name,
-                                                command=['echo', 'hello'])
-
+            copies = [f'gsutil cp {src} {dst}' for (src, dst) in files]
+            container = kube.client.V1Container(
+                image='google/cloud-sdk',
+                name=task_name,
+                command=['/bin/sh', '-c', ' & '.join(copies) + ' ; wait'])
             spec = kube.client.V1PodSpec(containers=[container],
                                          restart_policy='Never')
-
             return JobTask(job_id, task_name, spec)
         return None
 
@@ -413,8 +413,12 @@ def create_job():  # pylint: disable=R0912
         'batch_id': {'type': 'integer'},
         'parent_ids': {'type': 'list', 'schema': {'type': 'integer'}},
         'scratch_folder': {'type': 'string'},
-        'input_files': {'type': 'list', 'schema': {'type': 'string'}},
-        'output_files': {'type': 'list', 'schema': {'type': 'string'}},
+        'input_files': {
+            'type': 'list',
+            'schema': {'type': 'list', 'items': 2 * ({'type': 'string'},)}},
+        'output_files': {
+            'type': 'list',
+            'schema': {'type': 'list', 'items': 2 * ({'type': 'string'},)}},
         'attributes': {
             'type': 'dict',
             'keyschema': {'type': 'string'},
