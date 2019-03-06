@@ -18,11 +18,9 @@
         id="{{notebook.pod_uuid}}"
         href={{ notebook['url'] }}
     >
-        <b>{{notebook.name}}</b>
-        <span class="small">
-                Pod Name: <b>{{notebook.pod_name}}</b>
-            </span>
+        <b>{{notebook.name}} ({{notebook.pod_name}})</b>
         <span class="small">Created on: <b id="{{notebook.pod_uuid}}-creation-date">{{notebook.creation_date}}</b></span>
+        <br/>
         <span class="small">Reachable: <b id="{{notebook.pod_uuid}}-reach">N/A</b></span>
         <span class="small">
             Container:
@@ -30,9 +28,9 @@
                 {% if notebook.container_status.waiting %}
                     {{ notebook.container_status.waiting.reason }}
                 {% elif notebook.container_status.running %}
-                    Started @ {{ notebook.container_status.running.started_at }}
+                    Started
                 {% elif notebook.container_status.terminated %}
-                    Finished @ {{ notebook.container_status.running.finished_at }}
+                    Finished
                 {% else %}
                     Initializing
                 {% endif %}
@@ -44,7 +42,7 @@
                 {% if notebook.condition is not defined %}
                     Initializing
                 {% elif notebook.condition.status != "True" %}
-                    {{"Waiting for " ~ notebook.condition.type}}
+                    {{"Waiting on " ~ notebook.condition.type}}
                 {% else %}
                     {{notebook.condition.type}}
                 {% endif %}
@@ -97,8 +95,10 @@
                 fetch(url, {
                     method: 'HEAD'
                 }).then((r) => {
+
+                    console.info('r.status', r.status);
                     if(r.status < 400) {
-                        el.innerText = "Yep!";
+                        el.innerText = "Yes!";
 
                         clearInterval(interval);
 
@@ -107,17 +107,18 @@
                     }
 
                     if(r.status == 499) {
-                        el.innerText = "Not yet!";
+                        el.innerText = "Booting up!";
                         return;
                     }
 
-                    if(r.status == 404) {
-                        el.innerText = "Nope (not found)";
+                    if(r.status === 404 || r.status === 502) {
+                        el.innerText = `No, sorry! (${r.status})`;
 
                         clearInterval(interval);
                         reject("Job endpoint not found on server");
                         return;
                     }
+
                 });
             }, 500);
         })
@@ -158,7 +159,7 @@
                 if(!notebook.condition) {
                     conditionElem.innerText = "Initializing";
                 } else if(notebook.condition.status !== "True") {
-                    conditionElem.innerText = `Waiting for ${notebook.condition.type}`
+                    conditionElem.innerText = `Waiting on ${notebook.condition.type}`
                 } else {
                     conditionElem.innerText = `${notebook.condition.type}`
                 }
@@ -170,9 +171,9 @@
                 if(notebook.container_status.waiting) {
                     containerStatusElem.innerText = `${notebook.container_status.waiting.reason}`;
                 } else if(notebook.container_status.running) {
-                    containerStatusElem.innerText = `Started @ ${ notebook.container_status.running.started_at }`;
+                    containerStatusElem.innerText = "Started";
                 } else if(notebook.container_status.terminated) {
-                    containerStatusElem.innerText = `Finished @ ${ notebook.container_status.running.finished_at }`;
+                    containerStatusElem.innerText = "Finished";
                 }
 
                 const ready = notebook.pod_status === 'Running' && notebook.condition.status === 'True' && notebook.condition.type === 'Ready';
