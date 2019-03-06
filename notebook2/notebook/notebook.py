@@ -427,11 +427,12 @@ def wait_websocket(ws):
     while True:
         try:
             response = requests.head(url, timeout=1)
-            if response.status_code == 405:
+            if response.status_code == 405 or response.status_code == 302:
                 log.info(f'HEAD on jupyter succeeded for pod_uuid: {pod_uuid} : response: {response}')
                 # if someone responds with a 2xx, 3xx, or 4xx, the notebook
                 # server is alive and functioning properly (in particular, our
                 # HEAD request will return 405 METHOD NOT ALLOWED)
+                # or 302 if the user had previously logged in (and has nec. cookie)
                 break
             else:
                 # somewhat unusual, means the gateway had an error before we
