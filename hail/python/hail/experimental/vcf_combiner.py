@@ -186,8 +186,8 @@ def summarize(mt):
         hl.agg.call_stats(lgt_to_gt(mt.LGT, mt.LA), mt.alleles),
         lambda gs: hl.struct(
             # here, we alphabetize the INFO fields by GATK convention
-            AC=gs.AC,
-            AF=gs.AF,
+            AC=gs.AC[1:],  # The VCF spec indicates that AC and AF have Number=A, so we need
+            AF=gs.AF[1:],  # to drop the first element from each of these.
             AN=gs.AN,
             BaseQRankSum=hl.median(hl.agg.collect(mt.entry.BaseQRankSum)),
             ClippingRankSum=hl.median(hl.agg.collect(mt.entry.ClippingRankSum)),
