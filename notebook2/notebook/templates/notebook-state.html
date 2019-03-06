@@ -109,7 +109,7 @@
                         el.innerText = `Booting (tried ${checked[podUUID] > 1 ? checked[podUUID] + ' times' : 'once'})`;
                         checked[podUUID]++;
                     } else {
-                        el.innerText = `No, sorry! (${r.status})`;
+                        el.innerText = `No (${r.status})`;
 
                         clearInterval(interval);
                         reject("Job endpoint not found on server");
