@@ -451,7 +451,7 @@ class BlockMatrix(object):
     @classmethod
     @typecheck_method(n_rows=int,
                       n_cols=int,
-                      value=float,
+                      value=numeric,
                       block_size=nullable(int))
     def fill(cls, n_rows, n_cols, value, block_size=None):
         """Creates a block matrix with all elements the same value.
@@ -489,16 +489,10 @@ class BlockMatrix(object):
     @typecheck_method(n_rows=int,
                       n_cols=int,
                       data=sequenceof(float),
-                      row_major=bool,
                       block_size=int)
-    def _create(cls, n_rows, n_cols, data, row_major, block_size):
+    def _create(cls, n_rows, n_cols, data, block_size):
         """Private method for creating small test matrices."""
-
-        bdm = Env.hail().utils.richUtils.RichDenseMatrixDouble.apply(n_rows,
-                                                                     n_cols,
-                                                                     jarray(Env.jvm().double, data),
-                                                                     row_major)
-        return BlockMatrix._from_java(Env.hail().linalg.BlockMatrix.fromBreezeMatrix(Env.hc()._jsc, bdm, block_size))
+        return BlockMatrix(ValueToBlockMatrix(hl.literal(data)._ir, [n_rows, n_cols], block_size))
 
     @staticmethod
     def default_block_size():
@@ -1696,7 +1690,7 @@ class BlockMatrix(object):
         ...                [ 5.0,  6.0,  7.0,  8.0],
         ...                [ 9.0, 10.0, 11.0, 12.0],
         ...                [13.0, 14.0, 15.0, 16.0]])
-        >>> bm = BlockMatrix.from_numpy(nd)
+        >>> bm = BlockMatrix.from_numpy(nd, block_size=2)
 
         Filter to blocks covering three rectangles and collect to NumPy:
 
@@ -2234,24 +2228,13 @@ def _to_bmir(x, block_size):
     if _is_scalar(x):
         return ValueToBlockMatrix(F64(x), [1, 1], block_size)
     else:
-        return ValueToBlockMatrix(_ndarray_to_makearray(x), list(_ndarray_as_2d(x).shape), block_size)
+        data = list(_ndarray_as_float64(x).flat)
+        return ValueToBlockMatrix(hl.literal(data)._ir, list(_ndarray_as_2d(x).shape), block_size)
 
 
 def _broadcast_to_shape(bmir, result_shape):
     in_index_expr = _broadcast_index_expr(bmir.typ.shape, bmir.typ.is_row_vector)
     return BlockMatrixBroadcast(bmir, in_index_expr, result_shape, bmir.typ.block_size)
-
-
-def _ndarray_to_makearray(ndarray):
-    data = ndarray.tolist()
-
-    # Flatten in the case of 2-D arrays. Would have to be flattened
-    # and reshaped anyway to construct a BlockMatrix
-    if len(ndarray.shape) == 2:
-        data = [x for row in data for x in row]
-
-    data_as_ir = [F64(x) for x in data]
-    return MakeArray(data_as_ir, hl.tarray(hl.tfloat64))
 
 
 def _broadcast_index_expr(bmir_shape, is_row_vector):

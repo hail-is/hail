@@ -97,7 +97,7 @@ case class SparkStage(
     wrapper +=
       s"""
          |try {
-         |  return (long) ${ f.name }(((ScalaRegion *)${ wrapper.getArg(1) })->region_, (char *)${ wrapper.getArg(2) }, (char *)${ wrapper.getArg(3) });
+         |  return (long) ${ f.name }(SparkFunctionContext(((ScalaRegion *)${ wrapper.getArg(1) })->region_), (char *)${ wrapper.getArg(2) }, (char *)${ wrapper.getArg(3) });
          |} catch (const FatalError& e) {
          |  NATIVE_ERROR(${ wrapper.getArg(0) }, 1005, e.what());
          |  return -1;
@@ -227,6 +227,13 @@ object LowerTableIR {
       var loweredGlobals = lower(Let("global", oldGlobals.body, newGlobals))
       loweredGlobals = loweredGlobals.copy(stages = loweredGlobals.stages ++ oldGlobals.stages)
       loweredChild.copy(globals = SparkBinding(genUID(), loweredGlobals))
+
+    case TableFilter(child, cond) =>
+      val loweredChild = lower(child)
+      val row = Ref(genUID(), child.typ.rowType)
+      val global = loweredChild.globals
+      val env: Env[IR] = Env("row" -> row, "global" -> Ref(global.name, global.value.typ))
+      loweredChild.copy(body = ArrayFilter(loweredChild.body, row.name, Subst(cond, env)))
 
     case TableMapRows(child, newRow) =>
       val loweredChild = lower(child)

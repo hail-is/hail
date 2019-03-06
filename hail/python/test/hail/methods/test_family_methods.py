@@ -93,6 +93,12 @@ class Tests(unittest.TestCase):
         tt = hl.trio_matrix(mt, ped, complete_trios=True)
         self.assertEqual(tt.count_cols(), 0)
 
+    def test_trio_matrix_incomplete_trios(self):
+        ped = hl.Pedigree.read(resource('triomatrix.fam'))
+        mt = hl.import_vcf(resource('triomatrix.vcf'))
+        hl.trio_matrix(mt, ped, complete_trios=False)
+
+
     def test_mendel_errors(self):
         mt = hl.import_vcf(resource('mendel.vcf'))
         ped = hl.Pedigree.read(resource('mendel.fam'))

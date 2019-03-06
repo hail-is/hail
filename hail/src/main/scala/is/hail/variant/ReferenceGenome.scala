@@ -446,7 +446,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     }
   }
 
-  def unify(concrete: RGBase): Boolean = this eq concrete
+  def unify(concrete: RGBase): Boolean = this == concrete
 
   def isBound: Boolean = true
 
@@ -745,7 +745,7 @@ case class RGVariable(var rg: RGBase = null) extends RGBase {
       rg = concrete
       true
     } else
-      rg eq concrete
+      rg == concrete
   }
 
   def isBound: Boolean = rg != null

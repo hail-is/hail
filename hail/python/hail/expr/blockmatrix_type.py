@@ -14,10 +14,10 @@ class tblockmatrix(object):
 
     @staticmethod
     def _from_json(json):
-        return tblockmatrix(dtype(json['elementType']),
+        return tblockmatrix(dtype(json['element_type']),
                             json['shape'],
-                            json['isRowVector'],
-                            json['blockSize'])
+                            json['is_row_vector'],
+                            json['block_size'])
 
     @typecheck_method(element_type=hail_type, shape=sequenceof(int), is_row_vector=bool, block_size=int)
     def __init__(self, element_type, shape, is_row_vector, block_size):

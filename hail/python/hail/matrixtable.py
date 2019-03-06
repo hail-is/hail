@@ -1327,6 +1327,163 @@ class MatrixTable(ExprContainer):
 
         return m
 
+    @typecheck_method(other=Table)
+    def semi_join_rows(self, other: 'Table') -> 'MatrixTable':
+        """Filters the matrix table to rows whose key appears in `other`.
+
+        Parameters
+        ----------
+        other : :class:`.Table`
+            Table with compatible key field(s).
+
+        Returns
+        -------
+        :class:`.MatrixTable`
+
+        Notes
+        -----
+        The row key type of the matrix table must match the key type of `other`.
+
+        This method does not change the schema of the matrix table; it is a
+        filtering the matrix table to row keys not present in another table.
+
+        To discard rows whose key is present in `other`, use
+        :meth:`.anti_join_rows`.
+
+        Examples
+        --------
+        >>> ds_result = ds.semi_join_rows(rows_to_keep)
+
+        It may be expensive to key the matrix table by the right-side key.
+        In this case, it is possible to implement a semi-join using a non-key
+        field as follows:
+
+        >>> ds_result = ds.filter_rows(hl.is_defined(rows_to_keep.index(ds['locus'], ds['alleles'])))
+
+        See Also
+        --------
+        :meth:`.anti_join_rows`, :meth:`.filter_rows`, :meth:`.semi_join_cols`
+        """
+        return self.filter_rows(hl.is_defined(other.index(self.row_key)))
+
+    @typecheck_method(other=Table)
+    def anti_join_rows(self, other: 'Table') -> 'MatrixTable':
+        """Filters the table to rows whose key does not appear in `other`.
+
+        Parameters
+        ----------
+        other : :class:`.Table`
+            Table with compatible key field(s).
+
+        Returns
+        -------
+        :class:`.MatrixTable`
+
+        Notes
+        -----
+        The row key type of the matrix table must match the key type of `other`.
+
+        This method does not change the schema of the table; it is a method of
+        filtering the matrix table to row keys not present in another table.
+
+        To restrict to rows whose key is present in `other`, use
+        :meth:`.anti_join_rows`.
+
+        Examples
+        --------
+        >>> ds_result = ds.anti_join_rows(rows_to_remove)
+
+        It may be expensive to key the matrix table by the right-side key.
+        In this case, it is possible to implement an anti-join using a non-key
+        field as follows:
+
+        >>> ds_result = ds.filter_rows(hl.is_missing(rows_to_remove.index(ds['locus'], ds['alleles'])))
+
+        See Also
+        --------
+        :meth:`.anti_join_rows`, :meth:`.filter_rows`, :meth:`.anti_join_cols`
+        """
+        return self.filter_rows(hl.is_missing(other.index(self.row_key)))
+
+
+    @typecheck_method(other=Table)
+    def semi_join_cols(self, other: 'Table') -> 'MatrixTable':
+        """Filters the matrix table to columns whose key appears in `other`.
+
+        Parameters
+        ----------
+        other : :class:`.Table`
+            Table with compatible key field(s).
+
+        Returns
+        -------
+        :class:`.MatrixTable`
+
+        Notes
+        -----
+        The column key type of the matrix table must match the key type of `other`.
+
+        This method does not change the schema of the matrix table; it is a
+        filtering the matrix table to column keys not present in another table.
+
+        To discard collumns whose key is present in `other`, use
+        :meth:`.anti_join_cols`.
+
+        Examples
+        --------
+        >>> ds_result = ds.semi_join_cols(cols_to_keep)
+
+        It may be inconvenient to key the matrix table by the right-side key.
+        In this case, it is possible to implement a semi-join using a non-key
+        field as follows:
+
+        >>> ds_result = ds.filter_cols(hl.is_defined(cols_to_keep.index(ds['s'])))
+
+        See Also
+        --------
+        :meth:`.anti_join_cols`, :meth:`.filter_cols`, :meth:`.semi_join_rows`
+        """
+        return self.filter_cols(hl.is_defined(other.index(self.col_key)))
+
+    @typecheck_method(other=Table)
+    def anti_join_cols(self, other: 'Table') -> 'MatrixTable':
+        """Filters the table to columns whose key does not appear in `other`.
+
+        Parameters
+        ----------
+        other : :class:`.Table`
+            Table with compatible key field(s).
+
+        Returns
+        -------
+        :class:`.MatrixTable`
+
+        Notes
+        -----
+        The column key type of the matrix table must match the key type of `other`.
+
+        This method does not change the schema of the table; it is a method of
+        filtering the matrix table to column keys not present in another table.
+
+        To restrict to columns whose key is present in `other`, use
+        :meth:`.anti_join_cols`.
+
+        Examples
+        --------
+        >>> ds_result = ds.anti_join_cols(cols_to_remove)
+
+        It may be inconvenient to key the matrix table by the right-side key.
+        In this case, it is possible to implement an anti-join using a non-key
+        field as follows:
+
+        >>> ds_result = ds.filter_cols(hl.is_missing(cols_to_remove.index(ds['s'])))
+
+        See Also
+        --------
+        :meth:`.semi_join_cols`, :meth:`.filter_cols`, :meth:`.anti_join_rows`
+        """
+        return self.filter_cols(hl.is_missing(other.index(self.col_key)))
+
     @typecheck_method(expr=expr_bool, keep=bool)
     def filter_rows(self, expr, keep: bool = True) -> 'MatrixTable':
         """Filter rows of the matrix.
