@@ -255,10 +255,10 @@ def test_callback(client):
         batch.wait()
         i = 0
         while len(output) != 4:
-            j = random.randrange(2 ** i)
-            time.sleep(0.100 * j)
-            if i < 9:
-                i = i + 1
+            time.sleep(0.100 * (3/2) ** i)
+            i = i + 1
+            if i > 14:
+                break
         assert len(output) == 4
         assert all([job_result['state'] == 'Complete' and job_result['exit_code'] == 0
                     for job_result in output])
