@@ -206,7 +206,7 @@ server {
         auth_request /auth;
         auth_request_set $auth_pod_ip $upstream_http_pod_ip;
 
-        proxy_pass http://$1/instance/$1/;
+        proxy_pass http://$auth_pod_ip/instance/$1/;
     }
 
     location / {
