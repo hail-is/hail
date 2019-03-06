@@ -427,7 +427,7 @@ def wait_websocket(ws):
     while True:
         try:
             response = requests.head(url, timeout=1)
-            if response.status_code < 500:
+            if response.status_code == 405:
                 log.info(f'HEAD on jupyter succeeded for pod_uuid: {pod_uuid} : response: {response}')
                 # if someone responds with a 2xx, 3xx, or 4xx, the notebook
                 # server is alive and functioning properly (in particular, our
