@@ -49,8 +49,6 @@ if 'BATCH_USE_KUBE_CONFIG' in os.environ:
 else:
     kube.config.load_incluster_config()
 
-# Prevent issues with many websockets leading to many kube connections
-# TODO: Consider alternatives; having a single watcher for all users not be ideal during peak hours
 kube.config.connection_pool_maxsize = 5000
 k8s = kube.client.CoreV1Api()
 
