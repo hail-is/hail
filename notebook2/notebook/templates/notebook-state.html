@@ -98,7 +98,7 @@
                 fetch(url, {
                     method: 'HEAD'
                 }).then((r) => {
-                    if(r.status < 400) {
+                    if(r.status == 405) {
                         el.innerText = `Yes! (${r.status})`;
 
                         clearInterval(interval);
