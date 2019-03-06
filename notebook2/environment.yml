@@ -9,3 +9,4 @@ dependencies:
   - Flask_Sockets
   - libsass
   - authlib
+  - ujson
