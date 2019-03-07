@@ -1,5 +1,29 @@
 # Change Log
 
+## 0.2.11
+
+Released 2019-03-06
+
+### New features
+
+- (hail#5374) Add default arguments to `hl.add_sequence` for running on GCP.
+- (hail#5481) Added `sample_cols` method to `MatrixTable`.
+- (hail#5501) Exposed `MatrixTable.unfilter_entries`. See `filter_entries` documentation for more information.
+- (hail#5480) Added `n_cols` argument to `MatrixTable.head`.
+- (hail#5529) Added `Table.{semi_join, anti_join}` and `MatrixTable.{semi_join_rows, semi_join_cols, anti_join_rows, anti_join_cols}`.
+- (hail#5528) Added `{MatrixTable, Table}.checkpoint` methods as wrappers around `write` / `read_{matrix_table, table}`.  
+
+### Bug fixes
+
+- (hail#5416) Resolved issue wherein VEP and certain regressions were recomputed on each use, rather than once.
+- (hail#5419) Resolved issue with `import_vcf` `force_bgz` and file size checks.
+- (hail#5427) Resolved issue with `Table.show` and dictionary field types.
+- (hail#5468) Resolved ordering problem with `Expression.show` on key fields that are not the first key.
+- (hail#5492) Fixed `hl.agg.collect` crashing when collecting `float32` values.
+- (hail#5525) Fixed `hl.trio_matrix` crashing when `complete_trios` is `False`.
+
+-----
+
 ## 0.2.10
 
 Released 2019-02-15
