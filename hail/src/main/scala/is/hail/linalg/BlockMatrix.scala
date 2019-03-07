@@ -10,6 +10,7 @@ import is.hail.annotations._
 import is.hail.expr.ir.{TableIR, TableLiteral, TableValue}
 import is.hail.table.Table
 import is.hail.expr.types._
+import is.hail.expr.types.physical.{PFloat64, PStruct}
 import is.hail.expr.types.virtual.{TFloat64, TFloat64Optional, TInt64Optional, TStruct}
 import is.hail.io._
 import is.hail.rvd.{RVD, RVDContext}
@@ -22,7 +23,6 @@ import org.apache.spark.executor.InputMetrics
 import org.apache.spark._
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.mllib.linalg.distributed._
-
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
 import org.json4s._
@@ -1651,5 +1651,67 @@ class WriteBlocksRDD(path: String,
     }
     outPerBlockCol.foreach(_.close())
     blockPartFiles.iterator
+  }
+}
+
+class BlockMatrixReadRowBlockedRDD(
+  path: String,
+  rowsPerPartition: Int,
+  metadata: BlockMatrixMetadata,
+  hc: HailContext) extends RDD[RVDContext => Iterator[RegionValue]](hc.sc, Nil) {
+
+  val BlockMatrixMetadata(blockSize, nRows, nCols, maybeFiltered, partFiles) = metadata
+  val localHadoopConfBc = hc.hadoopConfBc
+
+  val gp = GridPartitioner(blockSize, nRows, nCols)
+
+  override def compute(split: Partition, context: TaskContext): Iterator[RVDContext => Iterator[RegionValue]] = {
+    val pi = split.index
+    val startRowForPartition = pi * rowsPerPartition
+    Iterator.single { ctx =>
+      val region = ctx.region
+
+      val rvb = new RegionValueBuilder(region)
+      val rv = RegionValue(region)
+      Iterator.tabulate(rowsPerPartition) { rowInPartition =>
+        val row = startRowForPartition + rowInPartition
+        val rowInPartFile = row % blockSize
+        val partFiles = partFilesForRow(row, partFiles)
+
+        rvb.start(PFloat64())
+        partFiles.foreach { pFile => readPartFileRow(rvb, rowInPartFile, pFile) }
+        rv.setOffset(rvb.end())
+        rv
+      }
+    }
+  }
+
+  private def partFilesForRow(row: Int, partFiles: Array[String]): Array[String] = {
+    val startBlockCol = gp.nBlockCols * row / blockSize
+    Array.tabulate(gp.nBlockCols) { blockCol => partFiles(startBlockCol + blockCol)}
+  }
+
+  private def readPartFileRow(rvb: RegionValueBuilder, rowIdx: Int, pFile: String) {
+    val filename = path + "/parts/" + pFile
+    val is = localHadoopConfBc.value.value.unsafeReader(filename)
+    val in = BlockMatrix.bufferSpec.buildInputBuffer(is)
+
+    val rows = in.readInt()
+    val cols = in.readInt()
+    val isTranspose = in.readBoolean()
+    assert(!isTranspose, "BlockMatrix must be saved in row-major format")
+
+    val entriesToSkip = rowIdx * cols
+    in.skipBytes(8 * entriesToSkip)
+
+    var i = 0
+    while (i < cols) {
+      rvb.addDouble(in.readDouble())
+      i += 1
+    }
+  }
+
+  override def getPartitions: Array[Partition] = {
+    Array.tabulate(nRows.toInt / rowsPerPartition) { pi => new Partition { val index: Int = pi } }
   }
 }
