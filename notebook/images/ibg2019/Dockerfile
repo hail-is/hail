@@ -10,7 +10,7 @@ USER jovyan
 
 RUN pip install --no-cache-dir \
   'jupyter-spark<0.5' \
-  hail==0.2.10.dev0 \
+  hail==0.2.11 \
   jupyter_contrib_nbextensions \
   && \
   jupyter serverextension enable --user --py jupyter_spark && \
@@ -27,4 +27,4 @@ ENV PATH $PATH:/home/jovyan/google-cloud-sdk/bin
 
 RUN rm -r work/
 
-RUN gsutil -m cp -r gs://hail-tutorial/ibg2019/ /home/jovyan
+RUN gsutil -m cp -r "gs://hail-tutorial/ibg2019/*" /home/jovyan/.
