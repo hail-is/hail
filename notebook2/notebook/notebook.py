@@ -282,7 +282,7 @@ def notebook_page():
         return render_template('notebook.html',
                                form_action_url=external_url_for('notebook'),
                                images=list(WORKER_IMAGES),
-                               default='hail')
+                               default='ibg2019')
 
     session['notebook'] = notebooks[0]
 
@@ -425,8 +425,26 @@ def wait_websocket(ws):
             ws.send(
                     f'{{"event": "{event["type"]}", "resource_id": "{pod.metadata.name}", "resource": {ujson.dumps(notebooks_for_ui([pod]))}}}')
 
+<<<<<<< HEAD
         except Exception as e:
             log.error(e)
+=======
+    while True:
+        try:
+            response = requests.head(url, timeout=1)
+            if response.status_code == 405 or response.status_code == 302:
+                log.info(f'HEAD on jupyter succeeded for pod_uuid: {pod_uuid} : response: {response}')
+                # if someone responds with a 2xx, 3xx, or 4xx, the notebook
+                # server is alive and functioning properly (in particular, our
+                # HEAD request will return 405 METHOD NOT ALLOWED)
+                # or 302 if the user had previously logged in (and has nec. cookie)
+                break
+            else:
+                # somewhat unusual, means the gateway had an error before we
+                # timed out, usually means the gateway itself is broken
+                log.info(f'HEAD on jupyter failed for pod_uuid: {pod_uuid} : response: {response}')
+                gevent.sleep(1)
+>>>>>>> notebook2-no-svc
             break
 
     w.stop()
@@ -439,10 +457,8 @@ def auth0_callback():
     userinfo = auth0.get('userinfo').json()
 
     email = userinfo['email']
-    workshop_password = session['workshop_password']
-    del session['workshop_password']
 
-    if AUTHORIZED_USERS.get(email) is None and workshop_password != PASSWORD:
+    if AUTHORIZED_USERS.get(email) is None:
         return redirect(external_url_for(f"error?err=Unauthorized"))
 
     session['user'] = {
@@ -472,7 +488,25 @@ def login_page():
 
 @app.route('/login', methods=['POST'])
 def login_auth0():
-    session['workshop_password'] = request.form.get('workshop-password')
+    workshop_password = request.form['workshop-password']
+
+    if workshop_password != '':
+        if workshop_password != PASSWORD:
+            return redirect(external_url_for(f"error?err=Unauthorized"))
+
+        session['user'] = {
+            'id': uuid.uuid4().hex,
+            'name': "Guest",
+            'email': "N/A",
+            'picture': "N/A",
+        }
+
+        if 'referrer' in session:
+            referrer = session['referrer']
+            del session['referrer']
+            return redirect(referrer)
+
+        return redirect(external_url_for(''))
 
     return auth0.authorize_redirect(redirect_uri = external_url_for('auth0-callback'),
                                     audience = f'{AUTH0_BASE_URL}/userinfo', prompt = 'login')
