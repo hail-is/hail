@@ -272,5 +272,5 @@ class BatchBackend(Backend):
 
         if failed_jobs or status['jobs']['Complete'] != n_jobs_submitted:
             raise Exception(fail_msg)
-        else:
-            print("Pipeline completed successfully!")
+
+        print("Pipeline completed successfully!")
