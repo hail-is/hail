@@ -1453,12 +1453,11 @@ def coalesce(*args):
         arg_types = ''.join([f"\n    argument {i}: type '{arg.dtype}'" for i, arg in enumerate(exprs)])
         raise TypeError(f"'coalesce' requires all arguments to have the same type or compatible types"
                         f"{arg_types}")
-    def make_case(*expr_args):
-        c = case()
-        for e in expr_args:
-            c = c.when(hl.is_defined(e), e)
-        return c.or_missing()
-    return bind(make_case, *exprs)
+    exprs.reverse()
+    coalesced = exprs[0]
+    for expr in exprs[1:]:
+        coalesced = hl.or_else(expr, coalesced)
+    return coalesced
 
 @typecheck(a=expr_any, b=expr_any)
 def or_else(a, b):
@@ -1492,7 +1491,7 @@ def or_else(a, b):
                         f"    a: type '{a.dtype}'\n"
                         f"    b: type '{b.dtype}'")
     assert a.dtype == b.dtype
-    return hl.cond(hl.is_defined(a), a, b)
+    return hl.rbind(a, lambda aa: hl.cond(hl.is_defined(aa), aa, b))
 
 @typecheck(predicate=expr_bool, value=expr_any)
 def or_missing(predicate, value):
