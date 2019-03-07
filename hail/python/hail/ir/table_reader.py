@@ -58,3 +58,21 @@ class TextTableReader(TableReader):
     def __eq__(self, other):
         return isinstance(other, TextTableReader) and \
                other.config == self.config
+
+
+class TableFromBlockMatrixNativeReader(TableReader):
+    @typecheck_method(path=str, n_partitions=int)
+    def __init__(self, path, n_partitions):
+        self.path = path
+        self.n_partitions = n_partitions
+
+    def render(self, r):
+        reader = {'name': 'TableFromBlockMatrixNativeReader',
+                  'path': self.path,
+                  'nPartitions': self.n_partitions}
+        return escape_str(json.dumps(reader))
+
+    def __eq__(self, other):
+        return isinstance(other, TableFromBlockMatrixNativeReader) and \
+               other.path == self.path and \
+               other.n_partitions == self.n_partitions

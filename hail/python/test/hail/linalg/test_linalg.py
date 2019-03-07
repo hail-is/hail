@@ -160,6 +160,11 @@ class Tests(unittest.TestCase):
                 self._assert_eq(at4, at)
                 self._assert_eq(at5, at)
 
+    def test_to_table(self):
+        bm = BlockMatrix.random(10, 10, 3)
+        t = bm.to_table(2)
+        t.show()
+
     def test_elementwise_ops(self):
         nx = np.matrix([[2.0]])
         nc = np.matrix([[1.0], [2.0]])

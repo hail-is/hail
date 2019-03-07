@@ -10,7 +10,7 @@ from hail.expr import construct_expr
 from hail.ir import BlockMatrixWrite, BlockMatrixMap2, ApplyBinaryOp, Ref, F64, \
     BlockMatrixBroadcast, ValueToBlockMatrix, MakeArray, BlockMatrixRead, JavaBlockMatrix, BlockMatrixMap, \
     ApplyUnaryOp, IR, BlockMatrixDot, tensor_shape_to_matrix_shape, BlockMatrixAgg, BlockMatrixRandom, \
-    BlockMatrixToValueApply, BlockMatrixToTable, BlockMatrixFilter
+    BlockMatrixToValueApply, BlockMatrixToTable, BlockMatrixFilter, TableFromBlockMatrixNativeReader, TableRead
 from hail.ir.blockmatrix_reader import BlockMatrixNativeReader, BlockMatrixBinaryReader
 from hail.ir.blockmatrix_writer import BlockMatrixBinaryWriter, BlockMatrixNativeWriter, BlockMatrixRectanglesWriter
 from hail.utils import new_temp_file, new_local_temp_file, local_path_uri, storage_level
@@ -1504,6 +1504,21 @@ class BlockMatrix(object):
         if keyed:
             t = t.key_by('i', 'j')
         return t
+
+    @typecheck_method(n_partitions=int)
+    def to_table(self, n_partitions):
+        """Returns a table where each row represents a row in the block matrix.
+
+        Returns
+        -------
+        :class:`.Table`
+            Table with one row per row in the block matrix.
+        """
+        path = new_local_temp_file()
+
+        self.write(path, overwrite=True)
+        reader = TableFromBlockMatrixNativeReader(path, n_partitions)
+        return Table(TableRead(reader))
 
     @staticmethod
     @typecheck(path_in=str,

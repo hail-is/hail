@@ -13,7 +13,7 @@ import is.hail.expr.types._
 import is.hail.expr.types.physical.{PFloat64, PStruct}
 import is.hail.expr.types.virtual.{TFloat64, TFloat64Optional, TInt64Optional, TStruct}
 import is.hail.io._
-import is.hail.rvd.{RVD, RVDContext}
+import is.hail.rvd.{RVD, RVDContext, RVDPartitioner}
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.utils.richUtils.{RichArray, RichDenseMatrixDouble}
@@ -127,6 +127,24 @@ object BlockMatrix {
     val blocks = hc.readPartitions(uri, partFiles, readBlock, Some(gp))
 
     new BlockMatrix(blocks, blockSize, nRows, nCols)
+  }
+
+  def partsToTableValue(
+    hc: HailContext,
+    uri: String,
+    nPartitions: Int,
+    metadata: BlockMatrixMetadata,
+    tableTyp: TableType): TableValue = {
+
+    checkWriteSuccess(hc, uri)
+
+    val rowsRDD = new BlockMatrixReadRowBlockedRDD(uri, nPartitions, metadata, hc)
+    val cutPoints = IndexedSeq.tabulate(nPartitions) { pi => IntervalEndpoint(pi * nPartitions / metadata.nRows, 1) }
+    val partitioner = new RVDPartitioner(tableTyp.rowType, Array(Interval(0, metadata.nRows, true, false)))
+      .subdivide(cutPoints)
+
+    val rvd = RVD(tableTyp.canonicalRVDType, partitioner, ContextRDD(rowsRDD))
+    TableValue(tableTyp, BroadcastRow.empty(), rvd)
   }
 
   private[linalg] def assertCompatibleLocalMatrix(lm: BDM[Double]) {
@@ -1676,10 +1694,10 @@ class BlockMatrixReadRowBlockedRDD(
       Iterator.tabulate(rowsPerPartition) { rowInPartition =>
         val row = startRowForPartition + rowInPartition
         val rowInPartFile = row % blockSize
-        val partFiles = partFilesForRow(row, partFiles)
+        val pfs = partFilesForRow(row, partFiles)
 
         rvb.start(PFloat64())
-        partFiles.foreach { pFile => readPartFileRow(rvb, rowInPartFile, pFile) }
+        pfs.foreach { pFile => readPartFileRow(rvb, rowInPartFile, pFile) }
         rv.setOffset(rvb.end())
         rv
       }

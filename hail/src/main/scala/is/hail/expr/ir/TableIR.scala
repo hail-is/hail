@@ -8,6 +8,7 @@ import is.hail.expr.types._
 import is.hail.expr.types.physical.{PInt32, PStruct}
 import is.hail.expr.types.virtual._
 import is.hail.expr.ir
+import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata}
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
 import is.hail.table.{AbstractTableSpec, Ascending, SortField}
@@ -84,7 +85,8 @@ object TableReader {
   implicit val formats: Formats = RelationalSpec.formats + ShortTypeHints(
     List(classOf[TableNativeReader],
       classOf[TextTableReader],
-      classOf[TextInputFilterAndReplace]))
+      classOf[TextInputFilterAndReplace],
+      classOf[TableFromBlockMatrixNativeReader]))
 }
 
 abstract class TableReader {
@@ -128,6 +130,30 @@ case class TableNativeReader(path: String, var _spec: AbstractTableSpec = null) 
       }
     }
     TableValue(tr.typ, BroadcastRow(globals, tr.typ.globalType, hc.sc), rvd)
+  }
+}
+
+case class TableFromBlockMatrixNativeReader(path: String, nPartitions: Int) extends TableReader {
+  val metadata: BlockMatrixMetadata = BlockMatrix.readMetadata(HailContext.get, path)
+
+  override def partitionCounts: Option[IndexedSeq[Long]] = {
+    Some(Array.tabulate(nPartitions) { pi =>
+      if (pi == nPartitions - 1)
+        metadata.nRows % nPartitions
+      else
+        metadata.nRows / nPartitions
+    })
+  }
+
+  override def fullType: TableType = {
+    val rowType = TStruct("row" -> TInt64(), "entries" -> TArray(TFloat64()))
+    TableType(rowType, Array("row"), TStruct())
+  }
+
+  override def fullRVDType: RVDType = fullType.canonicalRVDType
+
+  def apply(tr: TableRead): TableValue = {
+    BlockMatrix.partsToTableValue(HailContext.get, path, nPartitions, metadata, fullType)
   }
 }
 
