@@ -376,6 +376,7 @@ def scatter(x, y, label=None, title=None, xlabel=None, ylabel=None, size=4, lege
 
     p = figure(title=title, x_axis_label=xlabel, y_axis_label=ylabel, background_fill_color='#EEEEEE')
     if label is not None:
+        label = ['None' if x is None else x for x in label]
         fields = dict(x=x, y=y, label=label)
         if source_fields is not None:
             for key, values in source_fields.items():
