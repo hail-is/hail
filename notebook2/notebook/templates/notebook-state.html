@@ -67,16 +67,17 @@
 
 <script>
     function checkReachabilityAndMark(podUUID) {
-        if(document.getElementById(podUUID) === null) {
-            console.error(`${podUUID} not found on page`);
+        const el = document.getElementById(`${podUUID}-visual-summary`);
+
+        if(el === null) {
+            console.error(`${podUUID}-visual-summary element not found on page`);
             return;
         }
 
         checkReachability(podUUID).then(() => {
-            // Async issues may prevent cached element from updating unless we look up here
-            document.getElementById(`${podUUID}-visual-summary`).innerHTML = '<i class="material-icons reachable-icon">done</i>';
+            el.innerHTML = '<i class="material-icons reachable-icon">done</i>';
         }, () => {
-            document.getElementById(`${podUUID}-visual-summary`).innerHTML = '<i class="material-icons unreachable-icon">block</i>';
+            el.innerHTML = '<i class="material-icons unreachable-icon">block</i>';
         });
     }
 
