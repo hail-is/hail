@@ -86,7 +86,6 @@
 
         el.innerText = "Checking";
 
-        checked[podUUID] = 0;
         const promise = new Promise((resolve, reject) => {
             if(el === null) {
                 reject("Job not found in this window")
