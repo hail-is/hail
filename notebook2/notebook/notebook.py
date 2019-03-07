@@ -203,13 +203,13 @@ def container_status_for_ui(container_statuses):
     state = container_statuses[0].state
 
     if state.running:
-        return {"running": {}}
+        return {"running": True}
 
     if state.waiting:
         return {"waiting": {"reason": state.waiting.reason}}
 
     if state.terminated:
-        return {"terminated": {}}
+        return {"terminated": True}
 
 
 def pod_condition_for_ui(conds):
@@ -425,26 +425,8 @@ def wait_websocket(ws):
             ws.send(
                     f'{{"event": "{event["type"]}", "resource_id": "{pod.metadata.name}", "resource": {ujson.dumps(notebooks_for_ui([pod]))}}}')
 
-<<<<<<< HEAD
         except Exception as e:
             log.error(e)
-=======
-    while True:
-        try:
-            response = requests.head(url, timeout=1)
-            if response.status_code == 405 or response.status_code == 302:
-                log.info(f'HEAD on jupyter succeeded for pod_uuid: {pod_uuid} : response: {response}')
-                # if someone responds with a 2xx, 3xx, or 4xx, the notebook
-                # server is alive and functioning properly (in particular, our
-                # HEAD request will return 405 METHOD NOT ALLOWED)
-                # or 302 if the user had previously logged in (and has nec. cookie)
-                break
-            else:
-                # somewhat unusual, means the gateway had an error before we
-                # timed out, usually means the gateway itself is broken
-                log.info(f'HEAD on jupyter failed for pod_uuid: {pod_uuid} : response: {response}')
-                gevent.sleep(1)
->>>>>>> notebook2-no-svc
             break
 
     w.stop()
