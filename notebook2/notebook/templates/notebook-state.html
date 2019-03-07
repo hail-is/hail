@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 {% for notebook in notebooks %}
     <div class='nb'>
         {% set ready =  notebook.pod_status == 'Running'
@@ -9,41 +8,6 @@
             <div id="{{notebook.pod_uuid}}-visual-summary">
                 {% if ready %}
                     <i class="material-icons reachable-icon">done</i>
-=======
-<div class='nb'>
-    {% set ready =  notebook.pod_status == 'Running'
-                    and notebook.condition.status == 'True'
-                    and notebook.condition.type == 'Ready'
-    %}
-
-        <div id="{{notebook.pod_uuid}}-visual-summary">
-            {% if ready %}
-                <i class="material-icons reachable-icon">done</i>
-            {% else %}
-                <div class="spinner"></div>
-            {% endif %}
-        </div>
-
-    <a
-        target="_blank"
-        class="nb-state-container"
-        id="{{notebook.pod_uuid}}"
-        href={{notebook['url']}}
-    >
-        <b>{{notebook.pod_name}}</b>
-        <span class="small">Created:<b id="{{notebook.pod_uuid}}-creation-date">{{notebook.creation_date}}</b></span>
-        <br/>
-        <span class="small">Reachable: <b id="{{notebook.pod_uuid}}-reach">N/A</b></span>
-        <span class="small">
-            Container:
-            <b id="{{notebook.pod_uuid}}-container-status">
-                {% if notebook.container_status.waiting %}
-                    {{ notebook.container_status.waiting.reason }}
-                {% elif notebook.container_status.running %}
-                    Started
-                {% elif notebook.container_status.terminated %}
-                    Finished
->>>>>>> notebook2-fine-grained-state-updates
                 {% else %}
                     <div class="spinner"></div>
                 {% endif %}
