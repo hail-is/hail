@@ -4,6 +4,7 @@ import breeze.linalg.{DenseMatrix => BDM}
 import is.hail.SparkSuite
 import is.hail.expr.types.virtual.{TArray, TFloat64}
 import is.hail.linalg.BlockMatrix
+import is.hail.table.Table
 import org.testng.annotations.Test
 
 class BlockMatrixIRSuite extends SparkSuite {
@@ -163,5 +164,14 @@ class BlockMatrixIRSuite extends SparkSuite {
   @Test def testBlockMatrixDot() {
     val dotTwosAndThrees = BlockMatrixDot(new BlockMatrixLiteral(twos), new BlockMatrixLiteral(threes))
     assertBmEq(dotTwosAndThrees.execute(hc), BlockMatrix.fill(hc, 3, 3, 2 * 3 * 3))
+  }
+
+  @Test def test() {
+    val tempPath = tmpDir.createLocalTempFile()
+    Interpret(BlockMatrixWrite(new BlockMatrixLiteral(ones),
+      BlockMatrixNativeWriter(tempPath, false, false, false)))
+
+    val tv = TableFromBlockMatrixNativeReader(tempPath, 2).apply(null)
+    assert(tv.typ.key == IndexedSeq("row_idx"))
   }
 }

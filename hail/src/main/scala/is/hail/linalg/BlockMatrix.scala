@@ -10,8 +10,8 @@ import is.hail.annotations._
 import is.hail.expr.ir.{TableIR, TableLiteral, TableValue}
 import is.hail.table.Table
 import is.hail.expr.types._
-import is.hail.expr.types.physical.{PFloat64, PStruct}
-import is.hail.expr.types.virtual.{TFloat64, TFloat64Optional, TInt64Optional, TStruct}
+import is.hail.expr.types.physical.{PArray, PFloat64, PStruct}
+import is.hail.expr.types.virtual._
 import is.hail.io._
 import is.hail.rvd.{RVD, RVDContext, RVDPartitioner}
 import is.hail.sparkextras.ContextRDD
@@ -24,6 +24,7 @@ import org.apache.spark._
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.mllib.linalg.distributed._
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.json4s._
 
@@ -139,9 +140,11 @@ object BlockMatrix {
     checkWriteSuccess(hc, uri)
 
     val rowsRDD = new BlockMatrixReadRowBlockedRDD(uri, nPartitions, metadata, hc)
-    val cutPoints = IndexedSeq.tabulate(nPartitions) { pi => IntervalEndpoint(pi * nPartitions / metadata.nRows, 1) }
-    val partitioner = new RVDPartitioner(tableTyp.rowType, Array(Interval(0, metadata.nRows, true, false)))
-      .subdivide(cutPoints)
+    val partitionBoundaries = Array.tabulate(nPartitions) { pi =>
+      val len = if (pi == nPartitions - 1) metadata.nRows % nPartitions else metadata.nRows / nPartitions
+      Interval(Row(pi.toLong), Row((pi + len).toLong), true, false)
+    }
+    val partitioner = new RVDPartitioner(tableTyp.keyType, partitionBoundaries)
 
     val rvd = RVD(tableTyp.canonicalRVDType, partitioner, ContextRDD(rowsRDD))
     TableValue(tableTyp, BroadcastRow.empty(), rvd)
@@ -1674,7 +1677,7 @@ class WriteBlocksRDD(path: String,
 
 class BlockMatrixReadRowBlockedRDD(
   path: String,
-  rowsPerPartition: Int,
+  nPartitions: Int,
   metadata: BlockMatrixMetadata,
   hc: HailContext) extends RDD[RVDContext => Iterator[RegionValue]](hc.sc, Nil) {
 
@@ -1685,13 +1688,15 @@ class BlockMatrixReadRowBlockedRDD(
 
   override def compute(split: Partition, context: TaskContext): Iterator[RVDContext => Iterator[RegionValue]] = {
     val pi = split.index
-    val startRowForPartition = pi * rowsPerPartition
+    val rowsForPartition = if (pi == nPartitions - 1) (nRows % nPartitions).toInt else (nRows / nPartitions).toInt
+
+    val startRowForPartition = (pi * nRows / nPartitions).toInt
     Iterator.single { ctx =>
       val region = ctx.region
 
       val rvb = new RegionValueBuilder(region)
       val rv = RegionValue(region)
-      Iterator.tabulate(rowsPerPartition) { rowInPartition =>
+      Iterator.tabulate(rowsForPartition) { rowInPartition =>
         val row = startRowForPartition + rowInPartition
         val rowInPartFile = row % blockSize
         val pfs = partFilesForRow(row, partFiles)
@@ -1727,9 +1732,10 @@ class BlockMatrixReadRowBlockedRDD(
       rvb.addDouble(in.readDouble())
       i += 1
     }
+    is.close()
   }
 
   override def getPartitions: Array[Partition] = {
-    Array.tabulate(nRows.toInt / rowsPerPartition) { pi => new Partition { val index: Int = pi } }
+    Array.tabulate(nPartitions) { pi => new Partition { val index: Int = pi } }
   }
 }

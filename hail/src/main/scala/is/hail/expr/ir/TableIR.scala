@@ -146,8 +146,8 @@ case class TableFromBlockMatrixNativeReader(path: String, nPartitions: Int) exte
   }
 
   override def fullType: TableType = {
-    val rowType = TStruct("row" -> TInt64(), "entries" -> TArray(TFloat64()))
-    TableType(rowType, Array("row"), TStruct())
+    val rowType = TStruct("row_idx" -> TInt64(), "entries" -> TArray(TFloat64()))
+    TableType(rowType, Array("row_idx"), TStruct())
   }
 
   override def fullRVDType: RVDType = fullType.canonicalRVDType

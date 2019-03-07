@@ -161,7 +161,7 @@ class Tests(unittest.TestCase):
                 self._assert_eq(at5, at)
 
     def test_to_table(self):
-        bm = BlockMatrix.random(10, 10, 3)
+        bm = BlockMatrix.fill(3, 3, 1)
         t = bm.to_table(2)
         t.show()
 

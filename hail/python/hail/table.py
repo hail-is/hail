@@ -2695,6 +2695,11 @@ class Table(ExprContainer):
             **{col_data_uid: hl.array(ht[col_data_uid]['data'].map(lambda elt: hl.struct(**elt[0], **elt[1])))})
         return ht._unlocalize_entries(entries_uid, col_data_uid, col_key)
 
+    def to_matrix_table_row_major(self, columns):
+        t = self.transmute(entries=[self._get_field(col) for col in columns])
+        t = t.annotate_globals(cols=hl.array([hl.struct(col_key=col) for col in columns]))
+        return t._unlocalize_entries('entries', 'cols', ['col_key'])
+
     @property
     def globals(self) -> 'StructExpression':
         """Returns a struct expression including all global fields.

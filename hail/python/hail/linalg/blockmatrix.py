@@ -1509,16 +1509,26 @@ class BlockMatrix(object):
     def to_table(self, n_partitions):
         """Returns a table where each row represents a row in the block matrix.
 
+        The resulting table has the following fields:
+            - **row_idx** (:py:data.`tint64`, key field) -- Row index
+            - **entries** (:py:data:`.tarray<tfloat64>`) -- Entries for the row
+
         Returns
         -------
         :class:`.Table`
-            Table with one row per row in the block matrix.
+            Table where each row corresponds to a row in the block matrix.
         """
         path = new_local_temp_file()
 
         self.write(path, overwrite=True)
         reader = TableFromBlockMatrixNativeReader(path, n_partitions)
         return Table(TableRead(reader))
+
+    @typecheck_method(n_partitions=int)
+    def to_matrix_table_row_major(self, n_partitions):
+        t = self.to_table(n_partitions)
+        t.annotate_globals(cols=hl.array([hl.struct(col_idx=i) for i in range(self.n_cols)]))
+        return t._unlocalize_entries('entries', 'cols', ['col_idx'])
 
     @staticmethod
     @typecheck(path_in=str,
