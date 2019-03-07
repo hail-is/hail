@@ -14,7 +14,6 @@ from hail.typecheck import *
 from hail.utils import wrap_to_list, storage_level, LinkedList, Struct
 from hail.utils.java import *
 from hail.utils.misc import *
-from hail.methods.misc import require_key
 
 from collections import OrderedDict, Counter
 import itertools
@@ -2924,7 +2923,8 @@ class Table(ExprContainer):
         :class:`.Table`
         """
 
-        require_key(self, 'collect_by_key')
+        import hail.methods.misc as misc
+        misc.require_key(self, 'collect_by_key')
 
         return Table(TableAggregateByKey(
             self._tir,
@@ -2974,7 +2974,8 @@ class Table(ExprContainer):
         :class:`.Table`
         """
 
-        require_key(self, 'distinct')
+        import hail.methods.misc as misc
+        misc.require_key(self, 'distinct')
 
         return Table(TableDistinct(self._tir))
 
