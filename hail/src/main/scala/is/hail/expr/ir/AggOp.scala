@@ -57,7 +57,7 @@ object AggOp {
   val getOption: ((AggOp, Seq[Type], Option[Seq[Type]], Seq[Type])) => Option[CodeAggregator[T] forSome { type T <: RegionValueAggregator }] = lift {
 
     case (ApproxCDF(), Seq(_: TInt32), None, Seq(elType)) => elType match {
-      case _: TInt64 => CodeAggregator[RegionValueApproxCDFLongAggregator](
+      case _: TInt64 => CodeAggregator[RegionValueApproxCDFAggregator[Long]](
         TStruct("values" -> TArray(TInt64()), "ranks" -> TArray(TInt64()), "count" -> TInt64()),
         constrArgTypes = Array(classOf[Int]),
         seqOpArgTypes = Array(classOf[Long])
