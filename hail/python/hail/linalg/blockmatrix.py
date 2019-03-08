@@ -1509,8 +1509,8 @@ class BlockMatrix(object):
             t = t.key_by('i', 'j')
         return t
 
-    @typecheck_method(n_partitions=int)
-    def to_table_row_major(self, n_partitions):
+    @typecheck_method(n_partitions=nullable(int))
+    def to_table_row_major(self, n_partitions=None):
         """Returns a table where each row represents a row in the block matrix.
 
         The resulting table has the following fields:
@@ -1535,7 +1535,7 @@ class BlockMatrix(object):
 
         Parameters
         ----------
-        n_partitions : int
+        n_partitions : int or None
             Number of partitions of the table.
 
         Returns
@@ -1549,15 +1549,15 @@ class BlockMatrix(object):
         reader = TableFromBlockMatrixNativeReader(path, n_partitions)
         return Table(TableRead(reader))
 
-    @typecheck_method(n_partitions=int)
-    def to_matrix_table_row_major(self, n_partitions):
+    @typecheck_method(n_partitions=nullable(int))
+    def to_matrix_table_row_major(self, n_partitions=None):
         """Returns a matrix table with a row key of "row_idx" and a col key of "col_idx", whose
         entries are structs of a single field: "entry".
 
         Parameters
         ----------
-        n_partitions : int
-            Number of partitions of the table.
+        n_partitions : int or None
+            Number of partitions of the matrix table.
 
         Returns
         -------

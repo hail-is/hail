@@ -2700,8 +2700,12 @@ class Table(ExprContainer):
         """Construct a matrix table from a table in row major representation. Each element in `columns`
         is a field that will become a column field in the matrix table. Fields omitted from `columns` become row
         fields. The entries of the matrix table are structs of a single element `entry_field_name`,
-        where the value is the value from the fields in `columns`. Note this means that all fields in `columns`
-        must have the same type. The matrix table will be column indexed by `col_field_name`.
+        where the value is the value from the fields in `columns`. The matrix table is column indexed by
+        `col_field_name`.
+
+        Notes
+        -----
+        All fields in `columns` must have the same type.
 
         Parameters
         ----------

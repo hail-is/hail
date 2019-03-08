@@ -61,7 +61,7 @@ class TextTableReader(TableReader):
 
 
 class TableFromBlockMatrixNativeReader(TableReader):
-    @typecheck_method(path=str, n_partitions=int)
+    @typecheck_method(path=str, n_partitions=nullable(int))
     def __init__(self, path, n_partitions):
         self.path = path
         self.n_partitions = n_partitions

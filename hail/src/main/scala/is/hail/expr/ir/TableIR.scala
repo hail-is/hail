@@ -133,14 +133,15 @@ case class TableNativeReader(path: String, var _spec: AbstractTableSpec = null) 
   }
 }
 
-case class TableFromBlockMatrixNativeReader(path: String, nPartitions: Int) extends TableReader {
+case class TableFromBlockMatrixNativeReader(path: String, nPartitions: Option[Int] = None) extends TableReader {
   val metadata: BlockMatrixMetadata = BlockMatrix.readMetadata(HailContext.get, path)
 
-  val blockSize = metadata.nRows / nPartitions
+  val getNumPartitions: Int = nPartitions.getOrElse(HailContext.get.sc.defaultMinPartitions)
+  val blockSize: Long = metadata.nRows / getNumPartitions
 
   override def partitionCounts: Option[IndexedSeq[Long]] = {
-    Some(Array.tabulate(nPartitions) { pi =>
-      if (pi == nPartitions - 1)
+    Some(Array.tabulate(getNumPartitions) { pi =>
+      if (pi == getNumPartitions - 1)
         metadata.nRows - blockSize * pi
       else
         blockSize
@@ -155,9 +156,7 @@ case class TableFromBlockMatrixNativeReader(path: String, nPartitions: Int) exte
   override def fullRVDType: RVDType = fullType.canonicalRVDType
 
   def apply(tr: TableRead): TableValue = {
-    val hc = HailContext.get
-
-    val rowsRDD = new BlockMatrixReadRowBlockedRDD(path, nPartitions, metadata, hc)
+    val rowsRDD = new BlockMatrixReadRowBlockedRDD(path, getNumPartitions, metadata, HailContext.get)
 
     val partitionBounds = partitionCounts.get.zipWithIndex.map { case (partLength, pi) =>
       val start = pi * blockSize

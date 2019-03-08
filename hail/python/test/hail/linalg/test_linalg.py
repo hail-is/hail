@@ -183,7 +183,7 @@ class Tests(unittest.TestCase):
         mt = bm.to_matrix_table_row_major(n_partitions)
 
         for entry in mt.entries().collect():
-            self.assertEquals(entry['entry'], bm[entry['row_idx'], entry['col_idx']])
+            self.assertEqual(entry['entry'], bm[entry['row_idx'], entry['col_idx']])
 
     def test_elementwise_ops(self):
         nx = np.matrix([[2.0]])
