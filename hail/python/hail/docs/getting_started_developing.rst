@@ -19,20 +19,14 @@ You'll need:
 Building a Hail JAR
 ~~~~~~~~~~~~~~~~~~~
 
-To build Hail from source, you will need a C++ compiler and lz4. On a Debian-based OS like Ubuntu, a C++ compiler can be installed with apt-get::
+To build Hail from source, you will need a C++ compiler and lz4 Debian users
+might try::
 
-    sudo apt-get install g++
+    sudo apt-get install g++ liblz4-dev
 
-On Mac OS X, a C++ compiler is provided by the Apple Xcode::
+On Mac OS X, you might try::
 
     xcode-select --install
-
-To install lz4 on a Debian-based OS, run::
-    
-    sudo apt-get install liblz4-dev
-
-On Mac OS X, ensure you have Homebrew and run::
-    
     brew install lz4
 
 The Hail source code is hosted `on GitHub <https://github.com/hail-is/hail>`_::
@@ -40,8 +34,7 @@ The Hail source code is hosted `on GitHub <https://github.com/hail-is/hail>`_::
     git clone https://github.com/hail-is/hail.git
     cd hail/hail
 
-A Hail JAR can be built using Gradle. Note that every Hail JAR is specific to
-one version of Spark::
+Build a Hail JAR compatible with Spark 2.2.0::
 
     ./gradlew -Dspark.version=2.2.0 shadowJar
 
