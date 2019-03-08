@@ -188,7 +188,41 @@ def _check_agg_bindings(expr, bindings):
 
 
 def approx_cdf(expr, k=100):
-    return _agg_func('ApproxCDF', [expr], tstruct(values=tarray(expr.dtype), ranks=tarray(tint64), count=tint64), constructor_args=[k])
+    """Produce a summary of the distribution of values.
+
+    .. include: _templates/experimental.rst
+
+    Notes
+    -----
+    This method returns a struct collecting two array: `values` and `ranks`. The
+    `values` array contains an ordered sample of values seen. The `ranks` array
+    is one longer, and contains the approximate ranks for the corresponding
+    values.
+
+    These represent a summary of the sorted list of values seen by the
+    aggregator. For example, values=[0,2,5,6,9] and ranks=[0,3,4,5,8,10]
+    represents the approximation [0,0,0,2,5,6,6,6,9,9], with the value
+    `values(i)` occupying indices `ranks(i)` (inclusive) to `ranks(i+1)`
+    (exclusive).
+
+    Warning
+    -------
+    This is an approximate and nondeterministic method.
+
+    Parameters
+    ----------
+    expr : :class:`.Expression`
+        Expression to collect.
+    k : :obj:`int`
+        Parameter controlling the accuracy vs. memory usage tradeoff.
+
+    Returns
+    -------
+    :class:`.StructExpression`
+        Struct containing `values` and `ranks` arrays.
+    """
+    return _agg_func('ApproxCDF', [expr], tstruct(values=tarray(expr.dtype), ranks=tarray(tint64)), constructor_args=[k])
+
 
 @typecheck(expr=expr_any)
 def collect(expr) -> ArrayExpression:

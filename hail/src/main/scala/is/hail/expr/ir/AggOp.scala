@@ -56,12 +56,14 @@ object AggOp {
 
   val getOption: ((AggOp, Seq[Type], Option[Seq[Type]], Seq[Type])) => Option[CodeAggregator[T] forSome { type T <: RegionValueAggregator }] = lift {
 
-    case (ApproxCDF(), Seq(_: TInt32), None, Seq(elType)) => elType match {
-      case _: TInt64 => CodeAggregator[RegionValueApproxCDFAggregator[Long]](
-        TStruct("values" -> TArray(TInt64()), "ranks" -> TArray(TInt64()), "count" -> TInt64()),
-        constrArgTypes = Array(classOf[Int]),
-        seqOpArgTypes = Array(classOf[Long])
-      )
+    case (ApproxCDF(), Seq(_: TInt32), None, Seq(elType)) =>
+      val resType = QuantilesAggregator.resultType(elType)
+      val constrArgTypes: Array[Class[_]] = Array(classOf[Int])
+      elType match {
+        case _: TInt32 => CodeAggregator[RegionValueApproxCDFIntAggregator](resType, constrArgTypes = constrArgTypes, seqOpArgTypes = Array(classOf[Int]))
+        case _: TInt64 => CodeAggregator[RegionValueApproxCDFLongAggregator](resType, constrArgTypes = constrArgTypes, seqOpArgTypes = Array(classOf[Long]))
+        case _: TFloat32 => CodeAggregator[RegionValueApproxCDFFloatAggregator](resType, constrArgTypes = constrArgTypes, seqOpArgTypes = Array(classOf[Float]))
+        case _: TFloat64 => CodeAggregator[RegionValueApproxCDFDoubleAggregator](resType, constrArgTypes = constrArgTypes, seqOpArgTypes = Array(classOf[Double]))
     }
 
     case (Fraction(), Seq(), None, Seq(_: TBoolean)) =>
