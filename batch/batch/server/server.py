@@ -16,9 +16,9 @@ import jinja2
 from aiohttp import web
 import aiomysql
 
-from .globals import max_id, _log_path, _read_file, pod_name_job, job_id_job, batch_id_batch
+from .globals import _log_path, _read_file, pod_name_job, job_id_job, batch_id_batch
 from .globals import next_id, get_recent_events, add_event
-from .database import Database, JobsTable
+from .database import Database
 
 from .. import schemas
 
@@ -86,13 +86,13 @@ app = web.Application()
 routes = web.RouteTableDef()
 aiohttp_jinja2.setup(app, loader=jinja2.PackageLoader('batch', 'templates'))
 
-db = Database.create(host=os.environ.get('SQL_HOST', 'localhost'),
-                     port=int(os.environ.get('SQL_PORT', 3306)),
-                     db_name=os.environ.get('SQL_DB_NAME', 'batch'),
-                     user=os.environ.get('SQL_USER_NAME'),
-                     password=os.environ.get('SQL_PASSWORD'))
+db = Database.create(host=os.environ.get('BATCH_MYSQL_HOST', 'localhost'),
+                     port=int(os.environ.get('BATCH_MYSQL_PORT', 3306)),
+                     db_name=os.environ.get('BATCH_MYSQL_DB_NAME', 'batch'),
+                     user=os.environ.get('BATCH_MYSQL_USER_NAME'),
+                     password=os.environ.get('BATCH_MYSQL_PASSWORD'))
 
-jobs_table = db.tables['jobs']
+# db.jobs = db.jobs
 
 def abort(code, reason=None):
     if code == 400:
@@ -154,7 +154,7 @@ class Job:
             _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
         self._pod_name = pod.metadata.name
         pod_name_job[self._pod_name] = self
-        await jobs_table.update_record(self.id, pod_name=self._pod_name)
+        await db.jobs.update_record(self.id, pod_name=self._pod_name)
 
         add_event({'message': f'created pod for job {self.id}, task {self._current_task.name}',
                    'command': f'{pod.spec.containers[0].command}'})
@@ -178,7 +178,7 @@ class Job:
                     raise
             del pod_name_job[self._pod_name]
             self._pod_name = None
-            await jobs_table.update_record(self.id, pod_name=None)
+            await db.jobs.update_record(self.id, pod_name=None)
 
     def _read_logs(self):
         logs = {jt.name: _read_file(_log_path(self.id, jt.name))
@@ -212,7 +212,7 @@ class Job:
         self._pod_name = None
         self.exit_code = None
         self._state = 'Created'
-        self.id = jobs_table.new_record(state=self._state,
+        self.id = db.jobs.new_record(state=self._state,
                                         exit_code=self.exit_code,
                                         batch_id=self.batch_id,
                                         scratch_folder=self.scratch_folder,
@@ -251,7 +251,7 @@ class Job:
 
     def set_state(self, new_state):
         if self._state != new_state:
-            jobs_table.update_record(self.id, state=new_state)
+            db.jobs.update_record(self.id, state=new_state)
             log.info('job {} changed state: {} -> {}'.format(
                 self.id,
                 self._state,
@@ -330,7 +330,7 @@ class Job:
         if self._pod_name:
             del pod_name_job[self._pod_name]
             self._pod_name = None
-            jobs_table.update_record(self.id, pod_name=None)
+            db.jobs.update_record(self.id, pod_name=None)
 
         self._next_task()
         if self.exit_code == 0 and self._has_next_task():
@@ -338,7 +338,7 @@ class Job:
             return
 
         self.set_state('Complete')
-        jobs_table.update_record(self.id, exit_code=self.exit_code)
+        db.jobs.update_record(self.id, exit_code=self.exit_code)
 
         log.info('job {} complete, exit_code {}'.format(self.id, self.exit_code))
 
@@ -461,7 +461,7 @@ async def get_job(request):
 @routes.get('/jobs/{job_id}/log')
 async def get_job_log(request):  # pylint: disable=R1710
     job_id = int(request.match_info['job_id'])
-    if not jobs_table.has_record(job_id):
+    if not db.jobs.has_record(job_id):
         abort(404)
 
     job = job_id_job.get(job_id)

@@ -1,26 +1,24 @@
-import pymysql
-import asyncio
 import aiomysql
 
 
 class Database:
     @classmethod
-    async def create(cls, host, port, db_name, user, password, charset='utf8mb4'):
-        db = cls.__init__(host, port, db_name, user, password, charset)
-        db.connection = await pymysql.connect(host=host,
-                                              port=port,
-                                              user=user,
-                                              password=password,
-                                              charset=charset,
-                                              cursorclass=pymysql.cursors.DictCursor,
-                                              autocommit=True)
+    def create(cls, host, port, db_name, user, password, charset='utf8mb4'):
+        db = cls(host, port, db_name, user, password, charset)
+        db.connection = aiomysql.connect(host=host,
+                                         port=port,
+                                         user=user,
+                                         password=password,
+                                               charset=charset,
+                                               cursorclass=aiomysql.cursors.DictCursor,
+                                               autocommit=True)
 
         async with db.connection.cursor() as cursor:
             cursor._defer_warnings = True
             await cursor.execute(f"CREATE DATABASE IF NOT EXISTS `{db_name}`")
             await db.connection.select_db(db_name)
 
-        db.tables = {'jobs': JobsTable.create(db)}
+        db._jobs_table = await JobsTable.create(db)
 
         return db
 
@@ -31,25 +29,17 @@ class Database:
         self.user = user
         self.password = password
         self.charset = charset
-        self.connection = pymysql.connect(host=host,
-                                          port=port,
-                                          user=user,
-                                          password=password,
-                                          charset=charset,
-                                          cursorclass=pymysql.cursors.DictCursor,
-                                          autocommit=True)
-
-        with self.connection.cursor() as cursor:
-            cursor._defer_warnings = True
-            cursor.execute(f"CREATE DATABASE IF NOT EXISTS `{db_name}`")
-            self.connection.select_db(db_name)
-
-        self.tables = {'jobs': JobsTable.create(db)}
+        self.connection = None
+        self._jobs_table = None
 
     async def delete(self):
         async with self.connection.cursor() as cursor:
             await cursor.execute(f"DROP DATABASE IF EXISTS `{self.name}`")
             await self.connection.select_db(None)
+
+    @property
+    def jobs(self):
+        return self._jobs_table
 
 
 class Table:
@@ -113,7 +103,7 @@ class Table:
 class JobsTable(Table):
     @classmethod
     async def create(cls, db):
-        jt = cls.__init__(db)
+        jt = cls(db)
         await jt._create_table(jt._schema, jt._keys)
         return jt
 

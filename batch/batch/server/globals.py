@@ -18,10 +18,6 @@ def _read_file(fname):
 _counter = 0
 
 
-def max_id():
-    return _counter
-
-
 def next_id():
     global _counter
 
