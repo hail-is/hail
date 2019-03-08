@@ -217,8 +217,8 @@ class Tests(unittest.TestCase):
         self.assertTrue(t._same(t2))
 
         t = t.annotate(**{'foo': 1, 'bar': 'baz'})
-        self.assertRaises(ValueError, t.to_matrix_table_row_major(['foo', 'bar']))
-        self.assertRaises(ValueError, t.to_matrix_table_row_major([]))
+        self.assertRaises(ValueError, lambda: t.to_matrix_table_row_major(['foo', 'bar']))
+        self.assertRaises(ValueError, lambda: t.to_matrix_table_row_major([]))
 
     def test_group_by_field_lifetimes(self):
         ht = hl.utils.range_table(3)
