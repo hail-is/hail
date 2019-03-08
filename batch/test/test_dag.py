@@ -1,4 +1,5 @@
 import os
+import time
 import pkg_resources
 import pytest
 import re
@@ -251,6 +252,12 @@ def test_callback(client):
         right = batch.create_job('alpine:3.8', command=['echo', 'right'], parent_ids=[head.id])
         tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parent_ids=[left.id, right.id])
         batch.wait()
+        i = 0
+        while len(output) != 4:
+            time.sleep(0.100 * (3/2) ** i)
+            i = i + 1
+            if i > 14:
+                break
         assert len(output) == 4
         assert all([job_result['state'] == 'Complete' and job_result['exit_code'] == 0
                     for job_result in output])

@@ -1,3 +1,4 @@
+import math
 import time
 import random
 import yaml
@@ -42,7 +43,7 @@ class Job:
             self.status()  # update
             if self.is_complete():
                 return self._status
-            j = random.randrange(2 ** i)
+            j = random.randrange(math.floor(1.5 ** i))
             time.sleep(0.100 * j)
             # max 5.12s
             if i < 9:
