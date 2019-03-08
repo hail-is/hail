@@ -310,10 +310,10 @@ def test_input_dependency(client):
     batch = client.create_batch()
     head = batch.create_job('alpine:3.8',
                             command=['/bin/sh', '-c', 'echo head > /out'],
-                            output_files=[('/out', 'gs://hail-ci-0-1/garbage/')])
+                            output_files=[('/out', 'gs://hail-ci-0-1-batch-volume-test-bucket')])
     tail = batch.create_job('alpine:3.8',
                             command=['/bin/sh', '-c', 'cat /in'],
-                            input_files=[('gs://hail-ci-0-1/garbage/', '/in')],
+                            input_files=[('gs://hail-ci-0-1-batch-volume-test-bucket', '/in')],
                             parent_ids=[head.id])
     tail.wait()
     assert tail.log() == 'head\n'
