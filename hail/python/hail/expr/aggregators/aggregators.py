@@ -1047,7 +1047,7 @@ def hist(expr, start, end, bins) -> StructExpression:
         Start of histogram range.
     end : :obj:`int` or :obj:`float`
         End of histogram range.
-    bins : :obj:`int` or :obj:`float`
+    bins : :obj:`int`
         Number of bins.
 
     Returns
