@@ -1,24 +1,24 @@
+import asyncio
 import aiomysql
 
 
 class Database:
     @classmethod
-    def create(cls, host, port, db_name, user, password, charset='utf8mb4'):
+    async def create(cls, host, port, db_name, user, password, charset='utf8mb4'):
         db = cls(host, port, db_name, user, password, charset)
-        db.connection = aiomysql.connect(host=host,
-                                         port=port,
-                                         user=user,
-                                         password=password,
+        db.connection = await aiomysql.connect(host=host,
+                                               port=port,
+                                               user=user,
+                                               password=password,
                                                charset=charset,
                                                cursorclass=aiomysql.cursors.DictCursor,
                                                autocommit=True)
 
         async with db.connection.cursor() as cursor:
-            cursor._defer_warnings = True
             await cursor.execute(f"CREATE DATABASE IF NOT EXISTS `{db_name}`")
             await db.connection.select_db(db_name)
 
-        db._jobs_table = await JobsTable.create(db)
+        db._jobs_table = await JobsTable.create(db)  # asyncio.gather(JobsTable.create(db))
 
         return db
 
@@ -51,8 +51,6 @@ class Table:
         assert all([k in schema for k in keys])
 
         async with self._db.connection.cursor() as cursor:
-            cursor._defer_warnings = True
-
             schema = ", ".join([f"`{n}` {t}" for n, t in schema.items()])
 
             key_names = ", ".join([f'`{name.replace("`", "``")}`' for name in keys])
@@ -67,7 +65,7 @@ class Table:
         async with self._db.connection.cursor() as cursor:
             sql = f"INSERT INTO `{self._table_name}` ({names}) VALUES ({values_template})"
             await cursor.execute(sql, tuple(items.values()))
-            id = await cursor.lastrowid
+            id = cursor.lastrowid
         return id
 
     async def _update_record(self, key, items):

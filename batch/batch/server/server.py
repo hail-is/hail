@@ -11,9 +11,10 @@ import kubernetes as kube
 import cerberus
 import requests
 import uvloop
+import asyncio
+from aiohttp import web
 import aiohttp_jinja2
 import jinja2
-from aiohttp import web
 import aiomysql
 
 from .globals import _log_path, _read_file, pod_name_job, job_id_job, batch_id_batch
@@ -86,11 +87,12 @@ app = web.Application()
 routes = web.RouteTableDef()
 aiohttp_jinja2.setup(app, loader=jinja2.PackageLoader('batch', 'templates'))
 
-db = Database.create(host=os.environ.get('BATCH_MYSQL_HOST', 'localhost'),
-                     port=int(os.environ.get('BATCH_MYSQL_PORT', 3306)),
-                     db_name=os.environ.get('BATCH_MYSQL_DB_NAME', 'batch'),
-                     user=os.environ.get('BATCH_MYSQL_USER_NAME'),
-                     password=os.environ.get('BATCH_MYSQL_PASSWORD'))
+loop = asyncio.get_event_loop()
+db = loop.run_until_complete(Database.create(host=os.environ.get('BATCH_MYSQL_HOST', 'localhost'),
+                                             port=int(os.environ.get('BATCH_MYSQL_PORT', 3306)),
+                                             db_name=os.environ.get('BATCH_MYSQL_DB_NAME', 'batch'),
+                                             user=os.environ.get('BATCH_MYSQL_USER_NAME'),
+                                             password=os.environ.get('BATCH_MYSQL_PASSWORD')))
 
 # db.jobs = db.jobs
 
@@ -199,8 +201,27 @@ class Job:
         assert self._state == 'Cancelled'
         return None
 
+    @classmethod
+    async def create(cls, pod_spec, batch_id, attributes, callback, parent_ids,
+               scratch_folder, input_files, output_files):
+        id = await db.jobs.new_record(state='Created',
+                                      exit_code=None,
+                                      batch_id=batch_id,
+                                      scratch_folder=scratch_folder,
+                                      pod_name=None)
+
+        job = cls(pod_spec, batch_id, attributes, callback, parent_ids, scratch_folder,
+                  input_files, output_files, id)
+
+        if not job.parent_ids:
+            await job._create_pod()
+        else:
+            await job.refresh_parents_and_maybe_create()
+
+        return job
+
     def __init__(self, pod_spec, batch_id, attributes, callback, parent_ids,
-                 scratch_folder, input_files, output_files):
+                 scratch_folder, input_files, output_files, id):
         self.batch_id = batch_id
         self.attributes = attributes
         self.callback = callback
@@ -212,11 +233,7 @@ class Job:
         self._pod_name = None
         self.exit_code = None
         self._state = 'Created'
-        self.id = db.jobs.new_record(state=self._state,
-                                        exit_code=self.exit_code,
-                                        batch_id=self.batch_id,
-                                        scratch_folder=self.scratch_folder,
-                                        pod_name=self._pod_name)
+        self.id = id
 
         self._tasks = [JobTask.copy_task(self.id, 'input', input_files),
                        JobTask(self.id, 'main', pod_spec),
@@ -239,35 +256,35 @@ class Job:
         log.info('created job {}'.format(self.id))
         add_event({'message': f'created job {self.id}'})
 
-        if not self.parent_ids:
-            self._create_pod()
-        else:
-            self.refresh_parents_and_maybe_create()
+        # if not self.parent_ids:
+        #     self._create_pod()
+        # else:
+        #     self.refresh_parents_and_maybe_create()
 
-    def refresh_parents_and_maybe_create(self):
+    async def refresh_parents_and_maybe_create(self):
         for parent in self.parent_ids:
             parent_job = job_id_job[parent]
-            self.parent_new_state(parent_job._state, parent, parent_job.exit_code)
+            await self.parent_new_state(parent_job._state, parent, parent_job.exit_code)
 
-    def set_state(self, new_state):
+    async def set_state(self, new_state):
         if self._state != new_state:
-            db.jobs.update_record(self.id, state=new_state)
+            await db.jobs.update_record(self.id, state=new_state)
             log.info('job {} changed state: {} -> {}'.format(
                 self.id,
                 self._state,
                 new_state))
             self._state = new_state
-            self.notify_children(new_state)
+            await self.notify_children(new_state)
 
-    def notify_children(self, new_state):
+    async def notify_children(self, new_state):
         for child_id in self.child_ids:
             child = job_id_job.get(child_id)
             if child:
-                child.parent_new_state(new_state, self.id, self.exit_code)
+                await child.parent_new_state(new_state, self.id, self.exit_code)
             else:
                 log.info(f'missing child: {child_id}')
 
-    def parent_new_state(self, new_state, parent_id, maybe_exit_code):
+    async def parent_new_state(self, new_state, parent_id, maybe_exit_code):
         if new_state == 'Complete' and maybe_exit_code == 0:
             log.info(f'parent {parent_id} successfully complete for {self.id}')
             self.incomplete_parent_ids.discard(parent_id)
@@ -276,44 +293,45 @@ class Job:
                 if self._state != 'Cancelled':
                     log.info(f'all parents successfully complete for {self.id},'
                              f' creating pod')
-                    self._create_pod()
+                    await self._create_pod()
                 else:
                     log.info(f'all parents successfully complete for {self.id},'
                              f' but it is already cancelled')
         elif new_state == 'Cancelled' or (new_state == 'Complete' and maybe_exit_code != 0):
             log.info(f'parents deleted, cancelled, or failed: {new_state} {maybe_exit_code} {parent_id}')
             self.incomplete_parent_ids.discard(parent_id)
-            self.cancel()
+            await self.cancel()
 
-    def cancel(self):
+    async def cancel(self):
         if self.is_complete():
             return
-        self._delete_pod()
-        self.set_state('Cancelled')
+        await self._delete_pod()
+        await self.set_state('Cancelled')
 
-    def delete(self):
+    async def delete(self):
         # remove from structures
         del job_id_job[self.id]
         if self.batch_id:
             batch = batch_id_batch[self.batch_id]
             batch.remove(self)
 
-        self._delete_pod()
-        self.set_state('Cancelled')
+        await self._delete_pod()
+        await self.set_state('Cancelled')
 
     def is_complete(self):
         return self._state == 'Complete' or self._state == 'Cancelled'
 
-    def mark_unscheduled(self):
+    async def mark_unscheduled(self):
         if self._pod_name:
             del pod_name_job[self._pod_name]
             self._pod_name = None
-        self._create_pod()
+        await self._create_pod()
 
-    def mark_complete(self, pod):
+    async def mark_complete(self, pod):
         task_name = self._current_task.name
 
         self.exit_code = pod.status.container_statuses[0].state.terminated.exit_code
+        await db.jobs.update_record(self.id, exit_code=self.exit_code)
 
         pod_log = v1.read_namespaced_pod_log(
             pod.metadata.name,
@@ -330,15 +348,14 @@ class Job:
         if self._pod_name:
             del pod_name_job[self._pod_name]
             self._pod_name = None
-            db.jobs.update_record(self.id, pod_name=None)
+            await db.jobs.update_record(self.id, pod_name=None)
 
         self._next_task()
         if self.exit_code == 0 and self._has_next_task():
-            self._create_pod()
+            await self._create_pod()
             return
 
-        self.set_state('Complete')
-        db.jobs.update_record(self.id, exit_code=self.exit_code)
+        await self.set_state('Complete')
 
         log.info('job {} complete, exit_code {}'.format(self.id, self.exit_code))
 
@@ -431,7 +448,7 @@ async def create_job(request):  # pylint: disable=R0912
     if pod_spec.containers[0].name != 'main':
         abort(400, f'container name must be "main" was {pod_spec.containers[0].name}')
 
-    job = Job(
+    job = await Job.create(
         pod_spec,
         batch_id,
         parameters.get('attributes'),
@@ -461,7 +478,7 @@ async def get_job(request):
 @routes.get('/jobs/{job_id}/log')
 async def get_job_log(request):  # pylint: disable=R1710
     job_id = int(request.match_info['job_id'])
-    if not db.jobs.has_record(job_id):
+    if not await db.jobs.has_record(job_id):
         abort(404)
 
     job = job_id_job.get(job_id)
@@ -486,7 +503,7 @@ async def delete_job(request):
     job = job_id_job.get(job_id)
     if not job:
         abort(404)
-    job.delete()
+    await job.delete()
     return jsonify({})
 
 
@@ -496,7 +513,7 @@ async def cancel_job(request):
     job = job_id_job.get(job_id)
     if not job:
         abort(404)
-    job.cancel()
+    await job.cancel()
     return jsonify({})
 
 
@@ -613,7 +630,7 @@ async def close_batch(request):
     return jsonify({})
 
 
-def update_job_with_pod(job, pod):
+async def update_job_with_pod(job, pod):
     if pod:
         if pod.status.container_statuses:
             assert len(pod.status.container_statuses) == 1
@@ -621,9 +638,9 @@ def update_job_with_pod(job, pod):
             assert container_status.name in ['input', 'main', 'output']
 
             if container_status.state and container_status.state.terminated:
-                job.mark_complete(pod)
+                await job.mark_complete(pod)
     else:
-        job.mark_unscheduled()
+        await job.mark_unscheduled()
 
 
 @routes.post('/pod_changed')
@@ -646,7 +663,7 @@ async def pod_changed(request):
             else:
                 raise
 
-        update_job_with_pod(job, pod)
+        await update_job_with_pod(job, pod)
 
     return web.Response(status=204)
 
@@ -667,11 +684,11 @@ async def refresh_k8s_state(request):  # pylint: disable=W0613
 
         job = pod_name_job.get(pod_name)
         if job and not job.is_complete():
-            update_job_with_pod(job, pod)
+            await update_job_with_pod(job, pod)
 
     for pod_name, job in pod_name_job.items():
         if pod_name not in seen_pods:
-            update_job_with_pod(job, None)
+            await update_job_with_pod(job, None)
 
     log.info('k8s state refresh complete')
 
