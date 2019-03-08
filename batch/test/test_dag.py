@@ -359,8 +359,8 @@ def test_input_dependency(client):
                             copy_service_account_name='batch-volume-tester')
     tail = batch.create_job('alpine:3.8',
                             command=['/bin/sh', '-c', 'cat /io/in'],
-                            input_files=[('gs://hail-ci-0-1-batch-volume-test-bucket', '/io/in')],
+                            input_files=[('gs://hail-ci-0-1-batch-volume-test-bucket/data', '/io/in')],
                             copy_service_account_name='batch-volume-tester',
                             parent_ids=[head.id])
     tail.wait()
-    assert tail.log() == 'head\n'
+    assert tail.log()['main'] == 'head\n'
