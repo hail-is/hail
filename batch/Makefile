@@ -59,7 +59,7 @@ ifneq ($(PY_CHECK),false)
 test-local: $(PY_CHECKERS)
 endif
 test-local: build/conda-env
-	source activate hail-batch && POD_NAMESPACE='test' BATCH_USE_KUBE_CONFIG=1 ./test-locally.sh # . ../loadconda && conda
+	. ../loadconda && conda activate hail-batch && POD_NAMESPACE='test' BATCH_USE_KUBE_CONFIG=1 ./test-locally.sh
 
 # local means server and test client are two processes on one machine
 # in-cluster means in a k8s pod (from which we get k8s creds)
