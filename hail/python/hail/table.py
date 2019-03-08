@@ -2962,6 +2962,9 @@ class Table(ExprContainer):
         :class:`.Table`
         """
 
+        import hail.methods.misc as misc
+        misc.require_key(self, 'collect_by_key')
+
         return Table(TableAggregateByKey(
             self._tir,
             hl.struct(**{name: hl.agg.collect(self.row_value)})._ir))
@@ -3009,6 +3012,9 @@ class Table(ExprContainer):
         -------
         :class:`.Table`
         """
+
+        import hail.methods.misc as misc
+        misc.require_key(self, 'distinct')
 
         return Table(TableDistinct(self._tir))
 
