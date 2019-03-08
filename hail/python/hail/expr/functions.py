@@ -1,4 +1,5 @@
 import builtins
+import functools
 from typing import *
 
 import hail as hl
@@ -1453,11 +1454,7 @@ def coalesce(*args):
         arg_types = ''.join([f"\n    argument {i}: type '{arg.dtype}'" for i, arg in enumerate(exprs)])
         raise TypeError(f"'coalesce' requires all arguments to have the same type or compatible types"
                         f"{arg_types}")
-    exprs.reverse()
-    coalesced = exprs[0]
-    for expr in exprs[1:]:
-        coalesced = hl.or_else(expr, coalesced)
-    return coalesced
+    return functools.reduce(lambda x, y: hl.or_else(y, x), exprs[::-1])
 
 @typecheck(a=expr_any, b=expr_any)
 def or_else(a, b):
