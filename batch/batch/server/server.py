@@ -82,7 +82,7 @@ log.info(f'instance_id = {instance_id}')
 class JobTask:  # pylint: disable=R0903
     @staticmethod
     def copy_task(job_id, task_name, files, copy_service_account_name):
-        if files:
+        if files is not None:
             assert copy_service_account_name is not None
             authenticate = 'gcloud -q auth activate-service-account --key-file=/gcp-sa-key/key.json'
             copies = ' & '.join([f'gsutil cp {src} {dst}' for (src, dst) in files])
