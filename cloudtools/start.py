@@ -139,7 +139,9 @@ def main(args):
         if args.version == '0.1':
             vep_init = 'gs://hail-common/vep/vep/vep85-init.sh'
         else:
-            vep_init = 'gs://hail-common/vep/vep/vep85-loftee-1.0-{vep_ref}-init-docker.sh'.format(vep_ref=args.vep_reference)
+            vep_init = 'gs://hail-common/vep/vep/vep{vep_version}-loftee-1.0-{vep_ref}-init-docker.sh'.format(
+                vep_version=85 if args.vep_reference == 'GRCh37' else 95,
+                vep_ref=args.vep_reference)
         conf.extend_flag('initialization-actions', [vep_init])
     # add custom init scripts
     if args.init:
