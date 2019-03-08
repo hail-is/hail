@@ -7,10 +7,9 @@ import breeze.numerics.{abs => breezeAbs, log => breezeLog, pow => breezePow, sq
 import breeze.stats.distributions.{RandBasis, ThreadLocalRandomGenerator}
 import is.hail._
 import is.hail.annotations._
-import is.hail.expr.ir.{TableIR, TableLiteral, TableValue}
-import is.hail.table.Table
+import is.hail.expr.ir.TableValue
 import is.hail.expr.types._
-import is.hail.expr.types.physical.{PArray, PFloat64, PStruct}
+import is.hail.expr.types.physical.{PArray, PFloat64, PInt64, PStruct}
 import is.hail.expr.types.virtual._
 import is.hail.io._
 import is.hail.rvd.{RVD, RVDContext, RVDPartitioner}
@@ -21,7 +20,6 @@ import org.apache.commons.lang3.StringUtils
 import org.apache.commons.math3.random.MersenneTwister
 import org.apache.spark.executor.InputMetrics
 import org.apache.spark._
-import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.mllib.linalg.distributed._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
@@ -141,7 +139,12 @@ object BlockMatrix {
 
     val rowsRDD = new BlockMatrixReadRowBlockedRDD(uri, nPartitions, metadata, hc)
     val partitionBoundaries = Array.tabulate(nPartitions) { pi =>
-      val len = if (pi == nPartitions - 1) metadata.nRows % nPartitions else metadata.nRows / nPartitions
+      val len =
+        if (pi == nPartitions - 1)
+          (metadata.nRows + nPartitions - 1) / nPartitions
+        else
+          metadata.nRows / nPartitions
+
       Interval(Row(pi.toLong), Row((pi + len).toLong), true, false)
     }
     val partitioner = new RVDPartitioner(tableTyp.keyType, partitionBoundaries)
@@ -1688,7 +1691,11 @@ class BlockMatrixReadRowBlockedRDD(
 
   override def compute(split: Partition, context: TaskContext): Iterator[RVDContext => Iterator[RegionValue]] = {
     val pi = split.index
-    val rowsForPartition = if (pi == nPartitions - 1) (nRows % nPartitions).toInt else (nRows / nPartitions).toInt
+    val rowsForPartition =
+      if (pi == nPartitions - 1)
+        (nRows - (nRows / nPartitions) * pi).toInt
+      else
+        (nRows / nPartitions).toInt
 
     val startRowForPartition = (pi * nRows / nPartitions).toInt
     Iterator.single { ctx =>
@@ -1701,8 +1708,13 @@ class BlockMatrixReadRowBlockedRDD(
         val rowInPartFile = row % blockSize
         val pfs = partFilesForRow(row, partFiles)
 
-        rvb.start(PFloat64())
+        rvb.start(PStruct(("row_idx", PInt64()), ("entries", PArray(PFloat64()))))
+        rvb.startStruct()
+        rvb.addLong(row)
+        rvb.startArray(nCols.toInt)
         pfs.foreach { pFile => readPartFileRow(rvb, rowInPartFile, pFile) }
+        rvb.endArray()
+        rvb.endStruct()
         rv.setOffset(rvb.end())
         rv
       }
@@ -1721,8 +1733,8 @@ class BlockMatrixReadRowBlockedRDD(
 
     val rows = in.readInt()
     val cols = in.readInt()
-    val isTranspose = in.readBoolean()
-    assert(!isTranspose, "BlockMatrix must be saved in row-major format")
+    val isRowMajor = in.readBoolean()
+    assert(isRowMajor, "BlockMatrix must be saved in row-major format")
 
     val entriesToSkip = rowIdx * cols
     in.skipBytes(8 * entriesToSkip)

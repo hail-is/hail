@@ -489,9 +489,13 @@ class BlockMatrix(object):
     @typecheck_method(n_rows=int,
                       n_cols=int,
                       data=sequenceof(float),
-                      block_size=int)
-    def _create(cls, n_rows, n_cols, data, block_size):
+                      block_size=nullable(int))
+    def _create(cls, n_rows, n_cols, data, block_size=None):
         """Private method for creating small test matrices."""
+
+        if block_size is None:
+            block_size = BlockMatrix.default_block_size()
+
         return BlockMatrix(ValueToBlockMatrix(hl.literal(data)._ir, [n_rows, n_cols], block_size))
 
     @staticmethod
@@ -1506,7 +1510,7 @@ class BlockMatrix(object):
         return t
 
     @typecheck_method(n_partitions=int)
-    def to_table(self, n_partitions):
+    def to_table(self, n_partitions) -> Table:
         """Returns a table where each row represents a row in the block matrix.
 
         The resulting table has the following fields:
@@ -1520,7 +1524,7 @@ class BlockMatrix(object):
         """
         path = new_local_temp_file()
 
-        self.write(path, overwrite=True)
+        self.write(path, overwrite=True, force_row_major=True)
         reader = TableFromBlockMatrixNativeReader(path, n_partitions)
         return Table(TableRead(reader))
 

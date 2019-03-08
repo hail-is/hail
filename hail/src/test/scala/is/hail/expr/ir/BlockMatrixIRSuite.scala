@@ -1,16 +1,17 @@
 package is.hail.expr.ir
 
 import breeze.linalg.{DenseMatrix => BDM}
-import is.hail.SparkSuite
-import is.hail.expr.types.virtual.{TArray, TFloat64}
+import is.hail.{HailContext, SparkSuite}
+import is.hail.expr.types.TableType
+import is.hail.expr.types.virtual.{TArray, TFloat64, TInt64, TStruct}
 import is.hail.linalg.BlockMatrix
 import is.hail.table.Table
 import org.testng.annotations.Test
 
 class BlockMatrixIRSuite extends SparkSuite {
 
-  val N_ROWS = 3
-  val N_COLS = 3
+  val N_ROWS = 10
+  val N_COLS = 9
   val shape: Array[Long] = Array[Long](N_ROWS, N_COLS)
 
   val negFours: BlockMatrix = BlockMatrix.fill(hc, N_ROWS, N_COLS,-4)
@@ -171,7 +172,8 @@ class BlockMatrixIRSuite extends SparkSuite {
     Interpret(BlockMatrixWrite(new BlockMatrixLiteral(ones),
       BlockMatrixNativeWriter(tempPath, false, false, false)))
 
-    val tv = TableFromBlockMatrixNativeReader(tempPath, 2).apply(null)
-    assert(tv.typ.key == IndexedSeq("row_idx"))
+    val rowType = TStruct("row_idx" -> TInt64(), "entries" -> TArray(TFloat64()))
+    val tableType = TableType(rowType, Array("row_idx"), TStruct())
+    print(Interpret(TableCollect(TableRead(tableType, false, TableFromBlockMatrixNativeReader(tempPath, 2)))))
   }
 }

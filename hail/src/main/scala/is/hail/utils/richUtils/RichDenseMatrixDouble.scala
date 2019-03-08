@@ -83,24 +83,26 @@ class RichDenseMatrixDouble(val m: BDM[Double]) extends AnyVal {
   def isCompact: Boolean = m.rows * m.cols == m.data.length
 
   def toCompactData(forceRowMajor: Boolean = false): (Array[Double], Boolean) = {
-    if (isCompact && (!forceRowMajor || m.isTranspose))
-      (m.data, m.isTranspose)
-    else if (forceRowMajor)
-      (m.t.toArray, true)
-    else
-      (m.toArray, false)
+    val isMatrixRowMajor = m.isTranspose
+
+    if (forceRowMajor) {
+      val data = if (isMatrixRowMajor) m.toArray else m.t.toArray
+      (data, true)
+    } else {
+      (m.toArray, isMatrixRowMajor)
+    }
   }
 
   // caller must close
   def write(os: OutputStream, forceRowMajor: Boolean, bufferSpec: BufferSpec) {
-    val (data, isTranspose) = m.toCompactData(forceRowMajor)
+    val (data, isRowMajor) = m.toCompactData(forceRowMajor)
     assert(data.length == m.rows * m.cols)
 
     val out = bufferSpec.buildOutputBuffer(os)
 
     out.writeInt(m.rows)
     out.writeInt(m.cols)
-    out.writeBoolean(isTranspose)
+    out.writeBoolean(isRowMajor)
     out.writeDoubles(data)
     out.flush()
   }

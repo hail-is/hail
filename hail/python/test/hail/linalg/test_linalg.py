@@ -161,9 +161,20 @@ class Tests(unittest.TestCase):
                 self._assert_eq(at5, at)
 
     def test_to_table(self):
-        bm = BlockMatrix.fill(3, 3, 1)
-        t = bm.to_table(2)
-        t.show()
+        n_partitions = 2
+
+        bm = BlockMatrix._create(5, 2, [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0])
+        bm_t = bm.to_table(n_partitions)
+
+        schema = hl.tstruct(row_idx=hl.tint64, entries=hl.tarray(hl.tfloat64))
+        rows = [{'row_idx': 0, 'entries': [1.0, 2.0]},
+                {'row_idx': 1, 'entries': [3.0, 4.0]},
+                {'row_idx': 2, 'entries': [5.0, 6.0]},
+                {'row_idx': 3, 'entries': [7.0, 8.0]},
+                {'row_idx': 4, 'entries': [9.0, 10.0]}]
+
+        t = hl.Table.parallelize(rows, schema, 'row_idx', n_partitions)
+        self.assertTrue(bm_t._same(t))
 
     def test_elementwise_ops(self):
         nx = np.matrix([[2.0]])
