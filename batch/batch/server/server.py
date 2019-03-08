@@ -169,7 +169,7 @@ class Job:
                     container.volume_mounts = []
                 container.volume_mounts.append(
                     kube.client.V1VolumeMount(
-                        mount_path='/volume',
+                        mount_path='/io',
                         name=self._pvc.metadata.name))
 
         pod = v1.create_namespaced_pod(

@@ -354,12 +354,12 @@ def test_service_account_no_files_is_error(client):
 def test_input_dependency(client):
     batch = client.create_batch()
     head = batch.create_job('alpine:3.8',
-                            command=['/bin/sh', '-c', 'echo head > /out'],
-                            output_files=[('/out', 'gs://hail-ci-0-1-batch-volume-test-bucket')],
+                            command=['/bin/sh', '-c', 'echo head > /io/data'],
+                            output_files=[('/io/data', 'gs://hail-ci-0-1-batch-volume-test-bucket')],
                             copy_service_account_name='batch-volume-tester')
     tail = batch.create_job('alpine:3.8',
-                            command=['/bin/sh', '-c', 'cat /in'],
-                            input_files=[('gs://hail-ci-0-1-batch-volume-test-bucket', '/in')],
+                            command=['/bin/sh', '-c', 'cat /io/in'],
+                            input_files=[('gs://hail-ci-0-1-batch-volume-test-bucket', '/io/in')],
                             copy_service_account_name='batch-volume-tester',
                             parent_ids=[head.id])
     tail.wait()
