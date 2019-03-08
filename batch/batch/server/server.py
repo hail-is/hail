@@ -79,8 +79,7 @@ log.info(f'instance_id = {instance_id}')
 
 app = web.Application()
 routes = web.RouteTableDef()
-aiohttp_jinja2.setup(app,
-                     loader=jinja2.PackageLoader('batch', 'templates'))
+aiohttp_jinja2.setup(app, loader=jinja2.PackageLoader('batch', 'templates'))
 
 
 def abort(code, reason=None):
