@@ -206,6 +206,16 @@ class Tests(unittest.TestCase):
 
         assert re_mt.choose_cols(mapping).drop('col_idx')._same(mt.drop('col_idx'))
 
+    def test_to_matrix_table_row_major(self):
+        t = hl.utils.range_table(10)
+        t = t.annotate(**{'foo': 1, 'bar': 2, 'baz': 3})
+        mt = t.to_matrix_table_row_major(['bar', 'baz'], 'entry', 'col')
+        t2 = mt.localize_entries('entries', 'cols')
+        t2 = t2.transmute(**{col.col: t2.entries[i].entry for i, col in enumerate(hl.eval(t2.cols))})
+        t2 = t2.drop(t2.cols)
+
+        self.assertTrue(t._same(t2))
+
     def test_group_by_field_lifetimes(self):
         ht = hl.utils.range_table(3)
         ht2 = (ht.group_by(idx='100')

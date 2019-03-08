@@ -1510,12 +1510,33 @@ class BlockMatrix(object):
         return t
 
     @typecheck_method(n_partitions=int)
-    def to_table(self, n_partitions) -> Table:
+    def to_table_row_major(self, n_partitions):
         """Returns a table where each row represents a row in the block matrix.
 
         The resulting table has the following fields:
             - **row_idx** (:py:data.`tint64`, key field) -- Row index
             - **entries** (:py:data:`.tarray<tfloat64>`) -- Entries for the row
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> block_matrix = BlockMatrix.from_numpy(np.array([[1, 2], [3, 4], [5, 6]]), 2)
+        >>> t = block_matrix.to_table_row_major()
+        >>> t.show()
+        +---------+---------------------+
+        | row_idx | entries             |
+        +---------+---------------------+
+        |   int64 | array<float64>      |
+        +---------+---------------------+
+        |       0 | [1.00e+00,2.00e+00] |
+        |       1 | [3.00e+00,4.00e+00] |
+        |       2 | [5.00e+00,6.00e+00] |
+        +---------+---------------------+
+
+        Parameters
+        ----------
+        n_partitions : int
+            Number of partitions of the table.
 
         Returns
         -------
@@ -1530,8 +1551,22 @@ class BlockMatrix(object):
 
     @typecheck_method(n_partitions=int)
     def to_matrix_table_row_major(self, n_partitions):
-        t = self.to_table(n_partitions)
-        t.annotate_globals(cols=hl.array([hl.struct(col_idx=i) for i in range(self.n_cols)]))
+        """Returns a matrix table with a row key of "row_idx" and a col key of "col_idx", whose
+        entries are structs of a single field: "entry".
+
+        Parameters
+        ----------
+        n_partitions : int
+            Number of partitions of the table.
+
+        Returns
+        -------
+        :class:`.MatrixTable`
+            Matrix table where each entry corresponds to an entry in the block matrix.
+        """
+        t = self.to_table_row_major(n_partitions)
+        t = t.transmute(entries=t.entries.map(lambda i: hl.struct(entry=i)))
+        t = t.annotate_globals(cols=hl.array([hl.struct(col_idx=i) for i in range(self.n_cols)]))
         return t._unlocalize_entries('entries', 'cols', ['col_idx'])
 
     @staticmethod
