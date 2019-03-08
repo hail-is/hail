@@ -48,7 +48,6 @@ class API():
         return response.json()
 
     def get_job_log(self, url, job_id):
-        print(url, job_id)
         response = requests.get(url + '/jobs/{}/log'.format(job_id), timeout=self.timeout)
         raise_on_failure(response)
         return response.json()
