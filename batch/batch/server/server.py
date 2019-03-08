@@ -10,9 +10,9 @@ import threading
 import kubernetes as kube
 import cerberus
 import requests
-from aiohttp import web
 import aiohttp_jinja2
 import jinja2
+from aiohttp import web
 
 from .globals import max_id, _log_path, _read_file, pod_name_job, job_id_job, batch_id_batch
 from .globals import next_id, get_recent_events, add_event
@@ -426,7 +426,7 @@ async def create_job(request):  # pylint: disable=R0912
 
 
 @routes.get('/jobs')
-async def get_job_list(request):
+async def get_job_list(request):  # pylint: disable=W0613
     return jsonify([job.to_json() for _, job in job_id_job.items()])
 
 
@@ -632,7 +632,7 @@ async def pod_changed(request):
 
 
 @routes.post('/refresh_k8s_state')
-async def refresh_k8s_state(request):
+async def refresh_k8s_state(request):  # pylint: disable=W0613
     log.info('started k8s state refresh')
 
     pods = v1.list_namespaced_pod(
@@ -660,7 +660,7 @@ async def refresh_k8s_state(request):
 
 @routes.get('/recent')
 @aiohttp_jinja2.template('recent.html')
-async def recent(request):
+async def recent(request):  # pylint: disable=W0613
     recent_events = get_recent_events()
     return {'recent': list(reversed(recent_events))}
 
