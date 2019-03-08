@@ -112,8 +112,23 @@ class JobsTable(Table):
                         'state': 'VARCHAR(40) NOT NULL',
                         'exit_code': 'INT',
                         'batch_id': 'INT',
-                        'scratch_folder': 'VARCHAR(200)',
-                        'pod_name': 'VARCHAR(200)'}
+                        'scratch_folder': 'VARCHAR(1000)',
+                        'pod_name': 'VARCHAR(1000)',
+                        'callback': 'TEXT(65535)',
+                        'ttl': 'INT',
+                        'task_idx': 'INT NOT NULL',
+                        'task_names': 'JSON',
+                        'time_created': 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP',
+                        'time_ended': 'TIMESTAMP DEFAULT NULL',
+                        'user': 'VARCHAR(1000)',  # FIXME: future PR to add user
+                        'attributes': 'JSON',
+                        'pod_spec': 'TEXT(65535)',
+                        'input_files': 'JSON',
+                        'output_files': 'JSON',
+                        'parent_ids': 'JSON',
+                        'input_log_uri': 'VARCHAR(1000)',
+                        'main_log_uri': 'VARCHAR(1000)',
+                        'output_log_uri': 'VARCHAR(1000)'}
 
         self._keys = ['id']
 

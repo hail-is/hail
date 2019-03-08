@@ -4,6 +4,7 @@ import time
 import random
 import sched
 import uuid
+import json
 from collections import Counter
 import logging
 import threading
@@ -138,8 +139,9 @@ class JobTask:  # pylint: disable=R0903
 
 
 class Job:
-    def _next_task(self):
+    async def _next_task(self):
         self._task_idx += 1
+        await db.jobs.update_record(self.id, task_idx=self._task_idx)
         if self._task_idx < len(self._tasks):
             self._current_task = self._tasks[self._task_idx]
 
@@ -204,14 +206,54 @@ class Job:
     @classmethod
     async def create(cls, pod_spec, batch_id, attributes, callback, parent_ids,
                scratch_folder, input_files, output_files):
-        id = await db.jobs.new_record(state='Created',
-                                      exit_code=None,
-                                      batch_id=batch_id,
-                                      scratch_folder=scratch_folder,
-                                      pod_name=None)
+        job = cls()
 
-        job = cls(pod_spec, batch_id, attributes, callback, parent_ids, scratch_folder,
-                  input_files, output_files, id)
+        job.attributes = attributes
+        job.callback = callback
+        job.child_ids = set([])
+        job.parent_ids = parent_ids
+        job.incomplete_parent_ids = set(job.parent_ids)
+        job.scratch_folder = scratch_folder
+        job.batch_id = batch_id
+
+        job._pod_name = None
+        job.exit_code = None
+        job._state = 'Created'
+
+        job.id = await db.jobs.new_record(state='Created',
+                                          exit_code=None,
+                                          batch_id=batch_id,
+                                          scratch_folder=scratch_folder,
+                                          pod_name=None,
+                                          task_idx=-1,
+                                          callback=callback,
+                                          attributes=json.dumps(attributes),
+                                          pod_spec=pod_spec.to_str(),
+                                          input_files=json.dumps(input_files),
+                                          output_files=json.dumps(output_files),
+                                          parent_ids=json.dumps(parent_ids))
+
+        job._tasks = [JobTask.copy_task(job.id, 'input', input_files),
+                       JobTask(job.id, 'main', pod_spec),
+                       JobTask.copy_task(job.id, 'output', output_files)]
+    
+        job._tasks = [t for t in job._tasks if t is not None]
+        job._task_idx = -1
+        await job._next_task()
+        await db.jobs.update_record(job.id, task_names=json.dumps([t.name for t in job._tasks]))
+        assert job._current_task is not None
+
+        job_id_job[job.id] = job
+
+        for parent in job.parent_ids:
+            job_id_job[parent].child_ids.add(job.id)
+
+        if batch_id:
+            batch = batch_id_batch[batch_id]
+            batch.jobs.add(job)
+
+        log.info('created job {}'.format(job.id))
+        add_event({'message': f'created job {job.id}'})
 
         if not job.parent_ids:
             await job._create_pod()
@@ -219,47 +261,6 @@ class Job:
             await job.refresh_parents_and_maybe_create()
 
         return job
-
-    def __init__(self, pod_spec, batch_id, attributes, callback, parent_ids,
-                 scratch_folder, input_files, output_files, id):
-        self.batch_id = batch_id
-        self.attributes = attributes
-        self.callback = callback
-        self.child_ids = set([])
-        self.parent_ids = parent_ids
-        self.incomplete_parent_ids = set(self.parent_ids)
-        self.scratch_folder = scratch_folder
-
-        self._pod_name = None
-        self.exit_code = None
-        self._state = 'Created'
-        self.id = id
-
-        self._tasks = [JobTask.copy_task(self.id, 'input', input_files),
-                       JobTask(self.id, 'main', pod_spec),
-                       JobTask.copy_task(self.id, 'output', output_files)]
-
-        self._tasks = [t for t in self._tasks if t is not None]
-        self._task_idx = -1
-        self._next_task()
-        assert self._current_task is not None
-
-        job_id_job[self.id] = self
-
-        for parent in self.parent_ids:
-            job_id_job[parent].child_ids.add(self.id)
-
-        if batch_id:
-            batch = batch_id_batch[batch_id]
-            batch.jobs.add(self)
-
-        log.info('created job {}'.format(self.id))
-        add_event({'message': f'created job {self.id}'})
-
-        # if not self.parent_ids:
-        #     self._create_pod()
-        # else:
-        #     self.refresh_parents_and_maybe_create()
 
     async def refresh_parents_and_maybe_create(self):
         for parent in self.parent_ids:
