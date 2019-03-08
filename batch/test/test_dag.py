@@ -336,6 +336,21 @@ def test_input_files_no_service_account_is_error(client):
     assert False
 
 
+def test_service_account_no_files_is_error(client):
+    batch = client.create_batch()
+    try:
+        batch.create_job('alpine:3.8',
+                         command=['/bin/sh', '-c', 'echo head > /out'],
+                         copy_service_account_name='batch-volume-test')
+    except requests.exceptions.HTTPError as err:
+        assert err.response.status_code == 400
+        assert re.search('.*invalid request: service account may be specified '
+                         'if and only if input_files or output_files is set.*',
+                         err.response.text)
+        return
+    assert False
+
+
 def test_input_dependency(client):
     batch = client.create_batch()
     head = batch.create_job('alpine:3.8',
