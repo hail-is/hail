@@ -3645,7 +3645,7 @@ class MatrixTable(ExprContainer):
         """
 
         if cols:
-            computations, printers = hl.expr.generic_summary(self.col, prefix='[col] ')
+            computations, printers = hl.expr.generic_summary(self.col, prefix='[col]', skip_top=True)
             results = self.aggregate_cols(computations)
             print('Columns')
             print('=======')
@@ -3657,7 +3657,7 @@ class MatrixTable(ExprContainer):
                     print(f'    {k.rjust(max_k_len)} : {v(results)}')
                 print()
         if rows:
-            computations, printers = hl.expr.generic_summary(self.row, prefix='[row] ')
+            computations, printers = hl.expr.generic_summary(self.row, prefix='[row]', skip_top=True)
             results = self.aggregate_rows(computations)
             print('Rows')
             print('====')
@@ -3669,7 +3669,7 @@ class MatrixTable(ExprContainer):
                     print(f'    {k.rjust(max_k_len)} : {v(results)}')
                 print()
         if entries:
-            computations, printers = hl.expr.generic_summary(self.entry, prefix='[entry] ')
+            computations, printers = hl.expr.generic_summary(self.entry, prefix='[entry]', skip_top=True)
             results = self.aggregate_entries(computations)
             print('Entries')
             print('=======')

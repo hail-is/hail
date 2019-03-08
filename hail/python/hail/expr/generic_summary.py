@@ -35,7 +35,7 @@ def map_int(x):
         return int(x)
 
 
-def generic_summary(x, prefix=''):
+def generic_summary(x, prefix='', skip_top=False):
     computations = Computations()
     to_print = []
 
@@ -48,6 +48,7 @@ def generic_summary(x, prefix=''):
     def recur_expr(expr, path):
         d = {}
         missingness = append_agg(hl.agg.count_where(hl.is_missing(expr)))
+        d['type'] = lambda _: str(expr.dtype)
         d['missing'] = lambda \
                 results: f'{results[missingness]} values ({pct(results[missingness] / results[count])})'
 
@@ -58,12 +59,13 @@ def generic_summary(x, prefix=''):
             if t in (hl.tint32, hl.tint64):
                 d['minimum'] = lambda results: format(map_int(results[stats]['min']))
                 d['maximum'] = lambda results: format(map_int(results[stats]['max']))
+                d['sum'] = lambda results: format(map_int(results[stats]['sum']))
             else:
                 d['minimum'] = lambda results: format(results[stats]['min'])
                 d['maximum'] = lambda results: format(results[stats]['max'])
+                d['sum'] = lambda results: format(results[stats]['sum'])
             d['mean'] = lambda results: format(results[stats]['mean'])
             d['stdev'] = lambda results: format(results[stats]['stdev'])
-            d['sum'] = lambda results: format(results[stats]['sum'])
         elif t == hl.tbool:
             counter = append_agg(hl.agg.filter(hl.is_defined(expr), hl.agg.counter(expr)))
             d['counts'] = lambda results: format(results[counter])
@@ -80,9 +82,9 @@ def generic_summary(x, prefix=''):
             n_hom_ref = append_agg(hl.agg.count_where(expr.is_hom_ref()))
             n_hom_var = append_agg(hl.agg.count_where(expr.is_hom_var()))
             n_het = append_agg(hl.agg.count_where(expr.is_het()))
-            d['Homozygous reference'] = lambda results: format(results[n_hom_ref])
-            d['Heterozygous'] = lambda results: format(results[n_het])
-            d['Homozygous variant'] = lambda results: format(results[n_hom_var])
+            d['homozygous reference'] = lambda results: format(results[n_hom_ref])
+            d['heterozygous'] = lambda results: format(results[n_het])
+            d['homozygous variant'] = lambda results: format(results[n_hom_var])
             d['ploidy'] = lambda results: format(results[ploidy_counts])
             d['phased'] = lambda results: format(results[phased_counts])
         elif isinstance(t, hl.tlocus):
@@ -93,7 +95,6 @@ def generic_summary(x, prefix=''):
             d['minimum size'] = lambda results: format(map_int(results[size]['min']))
             d['maximum size'] = lambda results: format(map_int(results[size]['max']))
             d['mean size'] = lambda results: format(results[size]['mean'])
-
         to_print.append((path, d))
         if isinstance(t, hl.ttuple):
             for i in range(len(expr)):
@@ -102,7 +103,10 @@ def generic_summary(x, prefix=''):
             for k, v in expr.items():
                 recur_expr(v, f'{path} / {repr(k)[1:-1]}')
 
-    for k, v in x.items():
-        recur_expr(x[k], prefix + repr(k)[1:-1])
+    if skip_top:
+        for k, v in x.items():
+            recur_expr(x[k], prefix + ' / ' + repr(k)[1:-1])
+    else:
+        recur_expr(x, prefix)
 
     return computations.result(), to_print

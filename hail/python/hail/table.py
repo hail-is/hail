@@ -2897,12 +2897,12 @@ class Table(ExprContainer):
         return Table(TableDistinct(self._tir))
 
     def summarize(self):
-        """Compute and print summary information about the fields in the matrix table.
+        """Compute and print summary information about the fields in the table.
 
         .. include:: _templates/experimental.rst
         """
 
-        computations, printers = hl.expr.generic_summary(self.row)
+        computations, printers = hl.expr.generic_summary(self.row, skip_top=True)
         results = self.aggregate(computations)
         for name, fields in printers:
             print(f'* {name}:')

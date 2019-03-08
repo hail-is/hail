@@ -775,16 +775,53 @@ class Expression(object):
         else:
             return e
 
-    def _aggregation_method(self):
+    def summarize(self):
+        """Compute and print summary information about the expression.
+
+        .. include:: _templates/experimental.rst
+        """
+        src =self._indices.source
+        if src is None or len(self._indices.axes) == 0:
+            raise ValueError("Cannot summarize a scalar expression")
+
+        selector, agg_f = self._selector_and_agg_method()
+
+        if self in src._fields:
+            field_name = src._fields_inverse[self]
+            prefix = field_name
+            t = selector(field_name)
+        else:
+            field_name = Env.get_uid()
+            if self._ir.is_nested_field:
+                prefix = self._ir.name
+            else:
+                prefix = '<expr>'
+            t = selector(**{field_name: self})
+        computations, printers = hl.expr.generic_summary(t[field_name], prefix)
+        results = agg_f(t)(computations)
+
+        for name, fields in printers:
+            print(f'* {name}:')
+
+            max_k_len = max(len(f) for f in fields)
+            for k, v in fields.items():
+                print(f'    {k.rjust(max_k_len)} : {v(results)}')
+            print()
+
+
+    def _selector_and_agg_method(self):
         src = self._indices.source
         assert src is not None
         assert len(self._indices.axes) > 0
         if isinstance(src, hl.MatrixTable):
             if self._indices == src._row_indices:
-                return src.aggregate_rows
+                return src.select_rows, lambda t: t.aggregate_rows
             elif self._indices == src._col_indices:
-                return src.aggregate_cols
+                return src.select_cols, lambda t: t.aggregate_cols
             else:
-                return src.aggregate_entries
+                return src.select_entries, lambda t: t.aggregate_entries
         else:
-            return src.aggregate
+            return src.select, lambda t: t.aggregate
+
+    def _aggregation_method(self):
+        return self._selector_and_agg_method()[1](self)
