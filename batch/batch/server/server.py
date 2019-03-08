@@ -91,7 +91,7 @@ class JobTask:  # pylint: disable=R0903
             container = kube.client.V1Container(
                 image='google/cloud-sdk',
                 name=task_name,
-                command=['/bin/sh', '-c',  sh_expression],
+                command=['/bin/sh', '-c', sh_expression],
                 volume_mounts=[
                     kube.client.V1VolumeMount(
                         mount_path='/gcp-sa-key',
@@ -498,7 +498,7 @@ def create_job():  # pylint: disable=R0912
     return jsonify(job.to_json())
 
 
-def both_or_neither(x, y):
+def both_or_neither(x, y):  # pylint: disable=C0103
     assert isinstance(x, bool)
     assert isinstance(y, bool)
     return x == y
