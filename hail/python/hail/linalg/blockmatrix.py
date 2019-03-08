@@ -1551,8 +1551,8 @@ class BlockMatrix(object):
 
     @typecheck_method(n_partitions=nullable(int))
     def to_matrix_table_row_major(self, n_partitions=None):
-        """Returns a matrix table with a row key of "row_idx" and a col key of "col_idx", whose
-        entries are structs of a single field: "entry".
+        """Returns a matrix table with row key of `row_idx` and col key `col_idx`, whose
+        entries are structs of a single field `entry`.
 
         Parameters
         ----------

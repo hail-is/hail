@@ -128,16 +128,15 @@ object BlockMatrix {
     new BlockMatrix(blocks, blockSize, nRows, nCols)
   }
 
-  def partsToTableValue(
+  def readPartsToTableValue(
     hc: HailContext,
-    uri: String,
+    path: String,
     nPartitions: Int,
     metadata: BlockMatrixMetadata,
     tableTyp: TableType): TableValue = {
+    checkWriteSuccess(hc, path)
 
-    checkWriteSuccess(hc, uri)
-
-    val rowsRDD = new BlockMatrixReadRowBlockedRDD(uri, nPartitions, metadata, hc)
+    val rowsRDD = new BlockMatrixReadRowBlockedRDD(path, nPartitions, metadata, hc)
     val partitionBoundaries = Array.tabulate(nPartitions) { pi =>
       val len =
         if (pi == nPartitions - 1)
@@ -1700,9 +1699,9 @@ class BlockMatrixReadRowBlockedRDD(
     val startRowForPartition = (pi * nRows / nPartitions).toInt
     Iterator.single { ctx =>
       val region = ctx.region
-
       val rvb = new RegionValueBuilder(region)
       val rv = RegionValue(region)
+
       Iterator.tabulate(rowsForPartition) { rowInPartition =>
         val row = startRowForPartition + rowInPartition
         val rowInPartFile = row % blockSize

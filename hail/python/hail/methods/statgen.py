@@ -2372,7 +2372,7 @@ def row_correlation(entry_expr, block_size=None) -> BlockMatrix:
     ...         {'v': '1:3:C:G', 's': 'c', 'GT': hl.Call([1, 1])},
     ...         {'v': '1:3:C:G', 's': 'd', 'GT': hl.null(hl.tcall)}]
     >>> ht = hl.Table.parallelize(data, hl.dtype('struct{v: str, s: str, GT: call}'))
-    >>> mt = ht.to_matrix_table_row_major(row_key=['v'], col_key=['s'])
+    >>> mt = ht.to_matrix_table(row_key=['v'], col_key=['s'])
 
     Compute genotype correlation between all pairs of variants:
 
@@ -2479,7 +2479,7 @@ def ld_matrix(entry_expr, locus_expr, radius, coord_expr=None, block_size=None) 
     ...         {'v': '2:1:C:G',       'cm': 0.2, 's': 'd', 'GT': hl.null(hl.tcall)}]
     >>> ht = hl.Table.parallelize(data, hl.dtype('struct{v: str, s: str, cm: float64, GT: call}'))
     >>> ht = ht.transmute(**hl.parse_variant(ht.v))
-    >>> mt = ht.to_matrix_table_row_major(row_key=['locus', 'alleles'], col_key=['s'], row_fields=['cm'])
+    >>> mt = ht.to_matrix_table(row_key=['locus', 'alleles'], col_key=['s'], row_fields=['cm'])
 
     Compute linkage disequilibrium between all pairs of variants on the same
     contig and within two megabases:

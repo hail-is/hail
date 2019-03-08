@@ -166,14 +166,4 @@ class BlockMatrixIRSuite extends SparkSuite {
     val dotTwosAndThrees = BlockMatrixDot(new BlockMatrixLiteral(twos), new BlockMatrixLiteral(threes))
     assertBmEq(dotTwosAndThrees.execute(hc), BlockMatrix.fill(hc, 3, 3, 2 * 3 * 3))
   }
-
-  @Test def test() {
-    val tempPath = tmpDir.createLocalTempFile()
-    Interpret(BlockMatrixWrite(new BlockMatrixLiteral(ones),
-      BlockMatrixNativeWriter(tempPath, false, false, false)))
-
-    val rowType = TStruct("row_idx" -> TInt64(), "entries" -> TArray(TFloat64()))
-    val tableType = TableType(rowType, Array("row_idx"), TStruct())
-    print(Interpret(TableCollect(TableRead(tableType, false, TableFromBlockMatrixNativeReader(tempPath, 2)))))
-  }
 }

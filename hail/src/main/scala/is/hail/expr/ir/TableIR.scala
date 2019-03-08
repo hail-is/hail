@@ -135,7 +135,6 @@ case class TableNativeReader(path: String, var _spec: AbstractTableSpec = null) 
 
 case class TableFromBlockMatrixNativeReader(path: String, nPartitions: Option[Int] = None) extends TableReader {
   val metadata: BlockMatrixMetadata = BlockMatrix.readMetadata(HailContext.get, path)
-
   val getNumPartitions: Int = nPartitions.getOrElse(HailContext.get.sc.defaultMinPartitions)
   val blockSize: Long = metadata.nRows / getNumPartitions
 
