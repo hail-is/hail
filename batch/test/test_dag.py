@@ -341,7 +341,7 @@ def test_service_account_no_files_is_error(client):
     try:
         batch.create_job('alpine:3.8',
                          command=['/bin/sh', '-c', 'echo head > /out'],
-                         copy_service_account_name='batch-volume-test')
+                         copy_service_account_name='batch-volume-tester')
     except requests.exceptions.HTTPError as err:
         assert err.response.status_code == 400
         assert re.search('.*invalid request: service account may be specified '
@@ -356,11 +356,11 @@ def test_input_dependency(client):
     head = batch.create_job('alpine:3.8',
                             command=['/bin/sh', '-c', 'echo head > /out'],
                             output_files=[('/out', 'gs://hail-ci-0-1-batch-volume-test-bucket')],
-                            copy_service_account_name='batch-volume-test')
+                            copy_service_account_name='batch-volume-tester')
     tail = batch.create_job('alpine:3.8',
                             command=['/bin/sh', '-c', 'cat /in'],
                             input_files=[('gs://hail-ci-0-1-batch-volume-test-bucket', '/in')],
-                            copy_service_account_name='batch-volume-test',
+                            copy_service_account_name='batch-volume-tester',
                             parent_ids=[head.id])
     tail.wait()
     assert tail.log() == 'head\n'

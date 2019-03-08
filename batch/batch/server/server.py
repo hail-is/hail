@@ -102,7 +102,7 @@ class JobTask:  # pylint: disable=R0903
                 volumes=[
                     kube.client.V1Volume(
                         secret=kube.client.V1SecretVolumeSource(
-                            secret_name='gcp-sa-key-{copy_service_account_name}'),
+                            secret_name=f'gcp-sa-key-{copy_service_account_name}'),
                         name='gcp-sa-key')])
             return JobTask(job_id, task_name, spec)
         return None
