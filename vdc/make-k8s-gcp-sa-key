@@ -26,5 +26,3 @@ kubectl create secret generic \
     gcp-sa-key-${service_account_name} \
     --namespace=${namespace} \
     --from-file=key.json="${temp_file}"
-
-
