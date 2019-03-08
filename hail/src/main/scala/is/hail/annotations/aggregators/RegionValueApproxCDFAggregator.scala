@@ -205,6 +205,222 @@ abstract class Sorting[@specialized(Int, Long, Float, Double) T] {
   }
 }
 
+class ApproxCDFCombiner[@specialized(Int, Long, Float, Double) T: ClassTag : Ordering](
+  val levels: Array[Int], val items: Array[T], var numLevels: Int
+)(implicit sorting: Sorting[T]
+) {
+  def this(numLevels: Int, capacity: Int)(implicit sorting: Sorting[T]) = this(
+    Array.fill[Int](numLevels + 1)(capacity),
+    Array.ofDim[T](capacity),
+    1)
+
+  def copy(): ApproxCDFCombiner[T] =
+    new ApproxCDFCombiner[T](levels.clone(), items.clone(), numLevels)
+
+  def maxNumLevels = levels.length - 1
+  def capacity = items.length
+  def isFull = levels(0) == 0
+
+  def size = levels(maxNumLevels) - levels(0)
+
+  def levelSize(level: Int): Int = levels(level + 1) - levels(level)
+
+  def safeLevelSize(level: Int): Int =
+    if (level >= maxNumLevels) 0 else levels(level + 1) - levels(level)
+
+  def push(t: T) {
+    val newBot = levels(0) - 1
+    items(newBot) = t
+    levels(0) = newBot
+  }
+
+  def grow(newNumLevels: Int, newCapacity: Int): ApproxCDFCombiner[T] = {
+    require(newNumLevels > maxNumLevels && newCapacity > capacity)
+    val newLevels = Array.ofDim[Int](newNumLevels + 1)
+    val newItems = Array.ofDim[T](newCapacity)
+    val shift = newCapacity - capacity
+    var i = 0
+    while (i <= maxNumLevels) {
+      newLevels(i) = levels(i) + shift
+      i += 1
+    }
+    while (i <= newNumLevels) {
+      newLevels(i) = newCapacity
+    }
+    System.arraycopy(items, levels(0), newItems, newLevels(0), size)
+
+    new ApproxCDFCombiner[T](newLevels, newItems, numLevels)
+  }
+
+  def clear() {
+    numLevels = 1
+    var i = 0
+    while (i < levels.length) {
+      levels(i) = items.length
+      i += 1
+    }
+  }
+
+  /* Compact level `level`, merging the compacted results into level `level+1`.
+   * Shift lower levels up to keep items contiguous.
+   */
+  def compactLevel(level: Int, shiftLowerLevels: Boolean = true) {
+    assert(level < maxNumLevels - 1)
+    if (level == numLevels - 1) numLevels += 1
+
+    val bot = levels(0)
+    val a0 = levels(level)
+    val c = levels(level + 1)
+    val d = levels(level + 2)
+
+    val size = c - a0
+    val halfSize = size / 2
+    val adj = size % 2
+
+    val a = a0 + adj
+    val b = a + halfSize
+
+    val sizeBelow = a - bot
+    val sizeAbove = d - c
+
+    if (level == 0) sorting.sort(items, a, c)
+    if (sizeAbove == 0) {
+      sorting.compactBufferBackwards(items, a, c, items, c)
+    } else {
+      sorting.compactBuffer(items, a, c, items, a)
+      sorting.merge(items, a, b, items, c, d, items, b)
+    }
+    levels(level + 1) = b
+
+    if (shiftLowerLevels) {
+      // shift up values below
+      if (sizeBelow > 1) {
+        // copy [bot, a) to [bot+halfSize, b)
+        System.arraycopy(items, levels(0), items, bot + halfSize, sizeBelow)
+      } else {
+        // only needs to be done if sizeBelow == 1, but doesn't hurt otherwise
+        items(b - 1) = items(a0)
+      }
+
+      // shift up level boundaries below
+      var lvl = 0
+      while (lvl <= level) {
+        levels(lvl) += halfSize
+        lvl += 1
+      }
+    }
+  }
+
+  def merge(other: ApproxCDFCombiner[T], ubOnNumLevels: Int ): ApproxCDFCombiner[T] = {
+    val mergedLevels = Array.ofDim[Int](ubOnNumLevels + 1)
+    val mergedItems = Array.ofDim[T](size + other.size)
+
+    val selfPop = levelSize(0)
+    val otherPop = other.levelSize(0)
+    System.arraycopy(items, levels(0), mergedItems, 0, selfPop)
+    System.arraycopy(other.items, other.levels(0), mergedItems, selfPop, otherPop)
+
+    mergedLevels(0) = 0
+    mergedLevels(1) = selfPop + otherPop
+
+    var lvl = 1
+    while (lvl < mergedLevels.length - 1) {
+      val selfPop = safeLevelSize(lvl)
+      val otherPop = other.safeLevelSize(lvl)
+      mergedLevels(lvl + 1) = mergedLevels(lvl) + selfPop + otherPop
+
+      if (selfPop > 0 && otherPop > 0)
+        sorting.merge(
+          items, levels(lvl), levels(lvl + 1),
+          other.items, other.levels(lvl), other.levels(lvl + 1),
+          mergedItems, mergedLevels(lvl))
+      else if (selfPop > 0)
+        System.arraycopy(items, levels(lvl), mergedItems, mergedLevels(lvl), selfPop)
+      else if (otherPop > 0)
+        System.arraycopy(other.items, other.levels(lvl), mergedItems, mergedLevels(lvl), otherPop)
+
+      lvl += 1
+    }
+
+    new ApproxCDFCombiner[T](mergedLevels, mergedItems, math.max(numLevels, other.numLevels))
+  }
+
+  def generalCompact(capacities: Array[Int], minCapacity: Int): (Int, Int, Int) = {
+    var currentItemCount = levels(numLevels) - levels(0) // decreases with each compaction
+    // FIXME: pass in functions
+    def levelCapacity(level: Int, numLevels: Int): Int = {
+      val depth = numLevels - level - 1
+      if (depth < capacities.length) capacities(depth) else minCapacity
+    }
+    var targetItemCount = { // increases if we add levels
+      var lvl = 0
+      var acc = 0
+      while (lvl < numLevels) {
+        acc += levelCapacity(lvl, numLevels)
+        lvl += 1
+      }
+      acc
+    }
+
+    levels(0) = 0
+
+    var curLevel = 0
+    var endOfCompacted = 0
+    while (curLevel < numLevels) {
+      val start = levels(curLevel)
+      val lvlSize = levels(curLevel + 1) - start
+
+      if (currentItemCount < targetItemCount
+        || lvlSize < levelCapacity(curLevel, numLevels)) { // copy level over as is
+        assert(start >= levels(curLevel))
+        System.arraycopy(items, start, items, endOfCompacted, lvlSize)
+        levels(curLevel) = endOfCompacted
+        endOfCompacted = levels(curLevel) + lvlSize
+      } else { // The sketch is too full AND this level is too full, so we compact it
+        // Note: this can add a level and thus change the sketches capacities
+        val adj = lvlSize % 2
+        val halfSize = lvlSize / 2
+
+        // Shift down odd first item. Only needs to be done if lvlSize is odd,
+        // but never hurts.
+        items(endOfCompacted) = items(start)
+
+        compactLevel(curLevel, false)
+        levels(curLevel) = endOfCompacted
+        endOfCompacted = levels(curLevel) + adj
+
+        currentItemCount -= halfSize
+        if (curLevel == (numLevels - 1)) {
+          numLevels += 1
+          targetItemCount += levelCapacity(0, numLevels)
+        }
+      }
+      curLevel += 1
+    }
+    levels(curLevel) = endOfCompacted
+    (numLevels, targetItemCount, currentItemCount)
+  }
+
+  def copyFrom(other: ApproxCDFCombiner[T]) {
+    val freeSpaceAtBottom = items.length - other.size
+
+    System.arraycopy(other.items, other.levels(0), items, freeSpaceAtBottom, other.size)
+
+    val offset = freeSpaceAtBottom - other.levels(0)
+    var lvl = 0
+    while (lvl < other.maxNumLevels + 1) {
+      levels(lvl) = other.levels(lvl) + offset
+      lvl += 1
+    }
+    while (lvl < levels.length) {
+      levels(lvl) = items.length
+      lvl += 1
+    }
+
+    numLevels = other.numLevels
+  }
+}
+
 /* Compute an approximation to the sorted sequence of values seen.
  *
  * The result of the aggregator is an array "values" of samples, in
@@ -223,7 +439,7 @@ class RegionValueApproxCDFAggregator[@specialized(Int, Long, Float, Double) T: C
 )(implicit sorting: Sorting[T]
 ) extends RegionValueAggregator {
 
-  val resultType: PType = PStruct("values" -> PArray(PInt64()), "ranks" -> PArray(PInt64()))
+//  val resultType: PType = PStruct("values" -> PArray(PInt64()), "ranks" -> PArray(PInt64()))
 
   /* The sketch maintains a sample of items seen, organized into levels. The
    * levels are stored contiguously in `items`, right justified. Level i
@@ -270,30 +486,32 @@ class RegionValueApproxCDFAggregator[@specialized(Int, Long, Float, Double) T: C
    */
 
   var n: Long = 0
-  var levelsCapacity = QuantilesAggregator.findInitialLevelsCapacity(k, m)
-  var numLevels = 1
-  var levels: Array[Int] = Array.fill[Int](levelsCapacity + 1)(QuantilesAggregator.computeTotalCapacity(levelsCapacity, k, m))
-  var items: Array[T] = Array.ofDim[T](levels(0))
+  var initLevelsCapacity = QuantilesAggregator.findInitialLevelsCapacity(k, m)
+  var combiner = new ApproxCDFCombiner[T](
+    initLevelsCapacity,
+    QuantilesAggregator.computeTotalCapacity(initLevelsCapacity, k, m))
+  def levels: Array[Int] = combiner.levels
+  def items: Array[T] = combiner.items
+  def numLevels = combiner.numLevels
+  def levelsCapacity = combiner.maxNumLevels
 
-  private def size: Int = levels(numLevels) - levels(0)
+  private def size: Int = combiner.size
 
-  private[aggregators] def memUsage: Int = items.length
+  private[aggregators] def memUsage: Int = combiner.capacity
 
   def seqOp(region: Region, x: T, missing: Boolean) {
     if (!missing) _seqOp(x)
   }
 
   private[aggregators] def _seqOp(x: T) {
-    if (levels(0) == 0) {
+    if (combiner.isFull) {
       if (eager)
         compactEager(sorting.dummyValue)
       else
         compact(sorting.dummyValue)
     }
     n += 1
-    val newBot = levels(0) - 1
-    items(newBot) = x
-    levels(0) = newBot
+    combiner.push(x)
   }
 
   def combOp(other: RegionValueAggregator) {
@@ -313,10 +531,10 @@ class RegionValueApproxCDFAggregator[@specialized(Int, Long, Float, Double) T: C
     }
   }
 
-  def result(rvb: RegionValueBuilder): Unit = {
-    val res = Row.fromTuple(cdf)
-    rvb.addAnnotation(resultType.virtualType, res)
-  }
+  def result(rvb: RegionValueBuilder): Unit = ??? // {
+//    val res = Row.fromTuple(cdf)
+//    rvb.addAnnotation(resultType.virtualType, res)
+//  }
 
   private[aggregators] def cdf: (Array[T], Array[Long]) = {
     val builder: ArrayBuilder[(Long, T)] = new ArrayBuilder(0)
@@ -351,17 +569,14 @@ class RegionValueApproxCDFAggregator[@specialized(Int, Long, Float, Double) T: C
       ranks(i) = rank
     }
 
+    assert(ranks(values.length) == n)
+
     (values, ranks)
   }
 
   def clear() {
     n = 0
-    numLevels = 1
-    var i = 0
-    while (i < levels.length) {
-      levels(i) = items.length
-      i += 1
-    }
+    combiner.clear()
   }
 
   def newInstance(): RegionValueApproxCDFAggregator[T] =
@@ -370,10 +585,7 @@ class RegionValueApproxCDFAggregator[@specialized(Int, Long, Float, Double) T: C
   def copy(): RegionValueApproxCDFAggregator[T] = {
     val newAgg = newInstance()
     newAgg.n = n
-    newAgg.levelsCapacity = levelsCapacity
-    newAgg.numLevels = numLevels
-    newAgg.items = items.clone()
-    newAgg.levels = levels.clone()
+    newAgg.combiner = combiner.copy()
     newAgg
   }
 
@@ -385,37 +597,22 @@ class RegionValueApproxCDFAggregator[@specialized(Int, Long, Float, Double) T: C
     level
   }
 
-  private def levelCapacity(level: Int, numLevels: Int = numLevels): Int =
-    QuantilesAggregator.levelCapacity(level, numLevels, k, m)
+  private val capacities: Array[Int] = QuantilesAggregator.capacities(k, m)
+
+  private def levelCapacity(level: Int, numLevels: Int = numLevels): Int = {
+    val depth = numLevels - level - 1
+    if (depth < capacities.length) capacities(depth) else m
+  }
 
   /* Compact the first over-capacity level. If that is the top level, grow the
    * sketch.
    */
   private def compact(dummy: T) {
-    assert(levels(0) == 0)
+    assert(combiner.isFull)
     val level = findFullLevel()
-    if (level == numLevels - 1) growFullSketch()
+    if (level == numLevels - 1) growSketch()
 
-    val start = levels(level)
-    val size = levels(level + 1) - levels(level)
-    val adj = size % 2
-    val halfSize = size / 2
-
-    levels(level) += adj
-    val end = sorting.compactLevel(items, levels, level)
-
-    // If size was odd, need to copy extra element up. If not, this is still safe.
-    items(end - 1) = items(start)
-    levels(level) = levels(level + 1) - adj
-
-    if (level > 0) {
-      System.arraycopy(items, 0, items, halfSize, start)
-      var lvl = 0
-      while (lvl < level) {
-        levels(lvl) += halfSize
-        lvl += 1
-      }
-    }
+    combiner.compactLevel(level)
   }
 
   /* If we are following the eager compacting strategy, level 0 must be full
@@ -424,176 +621,48 @@ class RegionValueApproxCDFAggregator[@specialized(Int, Long, Float, Double) T: C
    * avoids having to shift up items below the compacted level.
    */
   private def compactEager(dummy: T) {
-    assert(levels(1) - levels(0) >= levelCapacity(0))
-
-    def compactAndGrow(level: Int, singletons: Int) {
-      val curTotalCap = levels(numLevels)
-      assert(items.length == curTotalCap)
-      assert(level == levelsCapacity - 1)
-      val size: Int = levels(level + 1) - levels(level)
-      assert(size % 2 == 0)
-
-      numLevels += 1
-      val deltaCap = m * growthRate
-      val newTotalCap = curTotalCap + deltaCap
-      val newBuf = Array.ofDim[T](newTotalCap)
-
-      levelsCapacity += growthRate
-      levels = levels.padTo(levelsCapacity + 1, newTotalCap)
-
-      val halfSize = size / 2
-      sorting.compactBuffer(items, levels(level), levels(level + 1), newBuf, newTotalCap - halfSize)
-
-      levels(level + 1) = newTotalCap - halfSize
-
-      System.arraycopy(items, 0, newBuf, 0, singletons)
-      items = newBuf
-    }
+    assert(combiner.levelSize(0) >= levelCapacity(0))
 
     var level = 0
-    var singletons = 0
     var desiredFreeCapacity = 0
     var grew = false
     do {
-      val size = levels(level + 1) - levels(level)
-      assert(size >= levelCapacity(level))
-      val adj = size % 2
+      assert(combiner.levelSize(level) >= levelCapacity(level))
 
-      items(singletons) = items(levels(level))
-
-      levels(level) += adj
-
-      if (level >= numLevels - 1) {
-        if (level == levelsCapacity - 1) {
-          compactAndGrow(level, singletons)
-        } else {
-          numLevels += 1
-          sorting.compactLevel(items, levels, level)
-        }
-        assert(levels(numLevels) >= computeTotalCapacity())
+      if (level == numLevels - 1) {
+        growSketch()
+        assert(combiner.capacity >= computeTotalCapacity(numLevels + 1))
         grew = true
-      } else {
-        sorting.compactLevel(items, levels, level)
       }
-
-      levels(level) = singletons
-      singletons += adj
+      combiner.compactLevel(level)
       desiredFreeCapacity += levelCapacity(level)
       level += 1
     } while (levels(level) < desiredFreeCapacity && !grew)
-    val shift = levels(level) - singletons
-    var i = 0
-    while (i < level) {
-      levels(i) += shift
-      i += 1
-    }
-    System.arraycopy(items, 0, items, shift, singletons)
   }
 
-  private def growFullSketch() {
-    val curTotalCap = levels(numLevels)
-    assert(levels(0) == 0)
-    assert(items.length == curTotalCap)
-
-    numLevels += 1
-    if (numLevels > levelsCapacity) {
-      levelsCapacity += growthRate
-      levels = levels.padTo(levelsCapacity + growthRate + 1, curTotalCap)
-
-      val deltaCap = m * growthRate
-      val newTotalCap = curTotalCap + deltaCap
-      val newBuf = Array.ofDim[T](newTotalCap)
-
-      System.arraycopy(items, 0, newBuf, deltaCap, curTotalCap)
-      items = newBuf
-
-      var i = 0
-      while (i < levels.length) {
-        levels(i) += deltaCap
-        i += 1
-      }
-      assert(levels(numLevels) == newTotalCap)
-    }
+  private def growSketch() {
+    if (combiner.numLevels == combiner.maxNumLevels)
+      combiner = combiner.grow(
+        combiner.maxNumLevels + growthRate,
+        combiner.capacity + m * growthRate)
   }
-
-  private def sortLevel0() { sorting.sort(items, levels(0), levels(1)) }
 
   private def merge(other: RegionValueApproxCDFAggregator[T]) {
     val finalN = n + other.n
-    val workbuf = Array.ofDim[T](size + other.size)
     val ub = QuantilesAggregator.ubOnNumLevels(finalN)
-    val worklevels = new Array[Int](ub + 2)
-    // ub+1 does not work
-    val outlevels = new Array[Int](ub + 2)
 
-    val provisionalNumLevels = math.max(numLevels, other.numLevels)
-    sortLevel0()
-    other.sortLevel0()
-    levelwiseMerge(other, workbuf, worklevels)
+    val mergedCombiner = combiner.merge(other.combiner, ub)
+    mergedCombiner.generalCompact(capacities, m)
 
-    // notice that workbuf is being used as both the input and output here
-    val (finalNumLevels, finalCapacity, finalPop) =
-      sorting.generalCompact(k, m, provisionalNumLevels,
-        workbuf, worklevels,
-        workbuf, outlevels)
-    assert(finalNumLevels <= ub)
+    val finalNumLevels = mergedCombiner.numLevels
+    if (finalNumLevels > levelsCapacity)
+      combiner = new ApproxCDFCombiner[T](finalNumLevels, computeTotalCapacity(finalNumLevels))
 
-    if (finalNumLevels > levelsCapacity) {
-      items = Array.ofDim[T](finalCapacity)
-      levels = Array.ofDim[Int](finalNumLevels + 1)
-      levelsCapacity = finalNumLevels
-    }
-
-    val freeSpaceAtBottom = items.length - finalPop
-    System.arraycopy(workbuf, outlevels(0), items, freeSpaceAtBottom, finalPop)
-
-    val offset = freeSpaceAtBottom - outlevels(0)
-    var lvl = 0
-    while (lvl < finalNumLevels + 1) {
-      levels(lvl) = outlevels(lvl) + offset
-      lvl += 1
-    }
-    while (lvl < levels.length) {
-      levels(lvl) = items.length
-      lvl += 1
-    }
-
-    numLevels = finalNumLevels
-    n = finalN
-  }
-
-  private def levelwiseMerge(
-    other: RegionValueApproxCDFAggregator[T],
-    workbuf: Array[T],
-    worklevels: Array[Int]
-  ) {
-    worklevels(0) = 0
-
-    var lvl = 0
-    while (lvl < worklevels.length - 1) {
-      val selfPop = levelSize(lvl)
-      val otherPop = other.levelSize(lvl)
-      worklevels(lvl + 1) = worklevels(lvl) + selfPop + otherPop
-
-      if (selfPop > 0 && otherPop > 0)
-        sorting.merge(
-          items, levels(lvl), levels(lvl + 1),
-          other.items, other.levels(lvl), other.levels(lvl + 1),
-          workbuf, worklevels(lvl))
-      else if (selfPop > 0)
-        System.arraycopy(items, levels(lvl), workbuf, worklevels(lvl), selfPop)
-      else if (otherPop > 0)
-        System.arraycopy(other.items, other.levels(lvl), workbuf, worklevels(lvl), otherPop)
-
-      lvl += 1
-    }
+    combiner.copyFrom(mergedCombiner)
   }
 
   private def computeTotalCapacity(numLevels: Int = numLevels): Int =
     QuantilesAggregator.computeTotalCapacity(numLevels, k, m)
-
-  private def levelSize(level: Int): Int =
-    if (level >= numLevels) 0 else levels(level + 1) - levels(level)
 }
 
 object QuantilesAggregator {
@@ -626,6 +695,18 @@ object QuantilesAggregator {
 
   def levelCapacity(level: Int, numLevels: Int, k: Int, m: Int): Int =
     math.max(m, depthCapacity(numLevels - level - 1, k))
+
+  def capacities(k: Int, m: Int): Array[Int] = {
+    val buffer: ArrayBuilder[Int] = new ArrayBuilder()
+    var depth = 0
+    var capacity = depthCapacity(depth, k)
+    while (capacity > m) {
+      buffer += capacity
+      depth += 1
+      capacity = depthCapacity(depth, k)
+    }
+    buffer.result()
+  }
 
   def findInitialLevelsCapacity(k: Int, m: Int): Int = {
     var numLevels = 0
