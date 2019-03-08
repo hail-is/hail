@@ -422,7 +422,7 @@ def wait_websocket(ws):
 
     pod_uuid = notebook['pod_uuid']
 
-    url = f'{external_url_for("")}instance-ready/{pod_uuid}/'
+    url = external_url_for(f'instance-ready/{pod_uuid}/')
 
     while True:
         try:
