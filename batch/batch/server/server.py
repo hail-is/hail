@@ -95,7 +95,6 @@ db = loop.run_until_complete(Database.create(host=os.environ.get('BATCH_MYSQL_HO
                                              user=os.environ.get('BATCH_MYSQL_USER_NAME'),
                                              password=os.environ.get('BATCH_MYSQL_PASSWORD')))
 
-# db.jobs = db.jobs
 
 def abort(code, reason=None):
     if code == 400:
