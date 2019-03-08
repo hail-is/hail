@@ -10,7 +10,6 @@ import threading
 import kubernetes as kube
 import cerberus
 import requests
-import asyncio
 from aiohttp import web
 import aiohttp_jinja2
 import jinja2

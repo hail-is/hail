@@ -11,7 +11,6 @@ dependencies:
   - pylint
   - pytest
   - requests
-  - asyncio
   - aiohttp
   - aiodns
   - cchardet
