@@ -87,8 +87,7 @@ def abort(code, reason=None):
         raise web.HTTPBadRequest(reason=reason)
     elif code == 404:
         raise web.HTTPNotFound(reason=reason)
-    else:
-        raise NotImplementedError
+    raise web.HTTPException(reason=reason)
 
 
 def jsonify(data):
@@ -687,7 +686,6 @@ def run_once(target, *args, **kwargs):
         log.info(f'run_forever: {target.__name__} returned')
     except Exception:  # pylint: disable=W0703
         log.error(f'run_forever: {target.__name__} caught_exception: ', exc_info=sys.exc_info())
-        #  FIXME: Should this raise an exception? Server tests log this, but do not fail
 
 
 def aiohttp_event_loop(port):
