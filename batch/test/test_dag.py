@@ -326,7 +326,7 @@ def test_input_files_no_service_account_is_error(client):
     try:
         batch.create_job('alpine:3.8',
                          command=['/bin/sh', '-c', 'echo head > /out'],
-                         output_input=[('gs://hail-ci-0-1-batch-volume-test-bucket', '/in')])
+                         input_files=[('gs://hail-ci-0-1-batch-volume-test-bucket', '/in')])
     except requests.exceptions.HTTPError as err:
         assert err.response.status_code == 400
         assert re.search('.*invalid request: service account may be specified '
