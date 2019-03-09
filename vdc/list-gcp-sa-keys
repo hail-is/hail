@@ -1,0 +1,14 @@
+#!/bin/sh
+
+set -ex
+
+if [ ! $# -eq 1 ]
+then
+    echo "USAGE: list-gcp-sa-keys SERIVCE_ACCOUNT_NAME"
+    exit 1
+fi
+
+service_account_name=$1
+
+gcloud iam service-accounts keys list \
+       --iam-account="${service_account_name}@$(gcloud config get-value project).iam.gserviceaccount.com"
