@@ -24,7 +24,7 @@ def execute():
     try:
         jir = Env.hail().expr.ir.IRParser.parse_value_ir(code, {}, {})
         typ = hl.dtype(jir.typ().toString())
-        value = Env.hail().backend.SparkBackend.executeJSON(jir)
+        value = Env.hail().backend.spark.SparkBackend.executeJSON(jir)
         result = {
             'type': str(typ),
             'value': value
