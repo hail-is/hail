@@ -29,18 +29,21 @@ class RegionValueStatisticsAggregator extends RegionValueAggregator {
   }
 
   def result(rvb: RegionValueBuilder) {
-    if (sc.count == 0)
-      rvb.setMissing()
-    else {
       rvb.startStruct()
-      rvb.addDouble(sc.mean)
-      rvb.addDouble(sc.stdev)
-      rvb.addDouble(sc.min)
-      rvb.addDouble(sc.max)
+      if (sc.count == 0) {
+        rvb.setMissing()
+        rvb.setMissing()
+        rvb.setMissing()
+        rvb.setMissing()
+      } else {
+        rvb.addDouble(sc.mean)
+        rvb.addDouble(sc.stdev)
+        rvb.addDouble(sc.min)
+        rvb.addDouble(sc.max)
+      }
       rvb.addLong(sc.count)
       rvb.addDouble(sc.sum)
       rvb.endStruct()
-    }
   }
 
   def newInstance() = new RegionValueStatisticsAggregator()
