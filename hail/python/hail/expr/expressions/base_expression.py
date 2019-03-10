@@ -824,4 +824,4 @@ class Expression(object):
             return src.select, lambda t: t.aggregate
 
     def _aggregation_method(self):
-        return self._selector_and_agg_method()[1](self)
+        return self._selector_and_agg_method()[1](self._indices.source)
