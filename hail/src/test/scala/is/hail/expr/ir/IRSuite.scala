@@ -380,6 +380,115 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(ApplyBinaryPrimOp(LogicalRightShift(), i64na, i32na), null)
   }
 
+  @Test def testApplyComparisonOpGT() {
+    assertEvalsTo(ApplyComparisonOp(GT(TInt32()), 1, 1), false)
+    assertEvalsTo(ApplyComparisonOp(GT(TInt32()), 0, 1), false)
+    assertEvalsTo(ApplyComparisonOp(GT(TInt32()), 1, 0), true)
+
+    assertEvalsTo(ApplyComparisonOp(GT(TInt64()), 1L, 1L), false)
+    assertEvalsTo(ApplyComparisonOp(GT(TInt64()), 0L, 1L), false)
+    assertEvalsTo(ApplyComparisonOp(GT(TInt64()), 1L, 0L), true)
+
+    assertEvalsTo(ApplyComparisonOp(GT(TFloat32()), 1.0f, 1.0f), false)
+    assertEvalsTo(ApplyComparisonOp(GT(TFloat32()), 0.0f, 1.0f), false)
+    assertEvalsTo(ApplyComparisonOp(GT(TFloat32()), 1.0f, 0.0f), true)
+
+    assertEvalsTo(ApplyComparisonOp(GT(TFloat64()), 1.0, 1.0), false)
+    assertEvalsTo(ApplyComparisonOp(GT(TFloat64()), 0.0, 1.0), false)
+    assertEvalsTo(ApplyComparisonOp(GT(TFloat64()), 1.0, 0.0), true)
+  }
+
+  @Test def testApplyComparisonOpGTEQ() {
+    assertEvalsTo(ApplyComparisonOp(GTEQ(TInt32()), 1, 1), true)
+    assertEvalsTo(ApplyComparisonOp(GTEQ(TInt32()), 0, 1), false)
+    assertEvalsTo(ApplyComparisonOp(GTEQ(TInt32()), 1, 0), true)
+
+    assertEvalsTo(ApplyComparisonOp(GTEQ(TInt64()), 1L, 1L), true)
+    assertEvalsTo(ApplyComparisonOp(GTEQ(TInt64()), 0L, 1L), false)
+    assertEvalsTo(ApplyComparisonOp(GTEQ(TInt64()), 1L, 0L), true)
+
+    assertEvalsTo(ApplyComparisonOp(GTEQ(TFloat32()), 1.0f, 1.0f), true)
+    assertEvalsTo(ApplyComparisonOp(GTEQ(TFloat32()), 0.0f, 1.0f), false)
+    assertEvalsTo(ApplyComparisonOp(GTEQ(TFloat32()), 1.0f, 0.0f), true)
+
+    assertEvalsTo(ApplyComparisonOp(GTEQ(TFloat64()), 1.0, 1.0), true)
+    assertEvalsTo(ApplyComparisonOp(GTEQ(TFloat64()), 0.0, 1.0), false)
+    assertEvalsTo(ApplyComparisonOp(GTEQ(TFloat64()), 1.0, 0.0), true)
+  }
+
+
+  @Test def testApplyComparisonOpLT() {
+    assertEvalsTo(ApplyComparisonOp(LT(TInt32()), 1, 1), false)
+    assertEvalsTo(ApplyComparisonOp(LT(TInt32()), 0, 1), true)
+    assertEvalsTo(ApplyComparisonOp(LT(TInt32()), 1, 0), false)
+
+    assertEvalsTo(ApplyComparisonOp(LT(TInt64()), 1L, 1L), false)
+    assertEvalsTo(ApplyComparisonOp(LT(TInt64()), 0L, 1L), true)
+    assertEvalsTo(ApplyComparisonOp(LT(TInt64()), 1L, 0L), false)
+
+    assertEvalsTo(ApplyComparisonOp(LT(TFloat32()), 1.0f, 1.0f), false)
+    assertEvalsTo(ApplyComparisonOp(LT(TFloat32()), 0.0f, 1.0f), true)
+    assertEvalsTo(ApplyComparisonOp(LT(TFloat32()), 1.0f, 0.0f), false)
+
+    assertEvalsTo(ApplyComparisonOp(LT(TFloat64()), 1.0, 1.0), false)
+    assertEvalsTo(ApplyComparisonOp(LT(TFloat64()), 0.0, 1.0), true)
+    assertEvalsTo(ApplyComparisonOp(LT(TFloat64()), 1.0, 0.0), false)
+  }
+
+  @Test def testApplyComparisonOpLTEQ() {
+    assertEvalsTo(ApplyComparisonOp(LTEQ(TInt32()), 1, 1), true)
+    assertEvalsTo(ApplyComparisonOp(LTEQ(TInt32()), 0, 1), true)
+    assertEvalsTo(ApplyComparisonOp(LTEQ(TInt32()), 1, 0), false)
+
+    assertEvalsTo(ApplyComparisonOp(LTEQ(TInt64()), 1L, 1L), true)
+    assertEvalsTo(ApplyComparisonOp(LTEQ(TInt64()), 0L, 1L), true)
+    assertEvalsTo(ApplyComparisonOp(LTEQ(TInt64()), 1L, 0L), false)
+
+    assertEvalsTo(ApplyComparisonOp(LTEQ(TFloat32()), 1.0f, 1.0f), true)
+    assertEvalsTo(ApplyComparisonOp(LTEQ(TFloat32()), 0.0f, 1.0f), true)
+    assertEvalsTo(ApplyComparisonOp(LTEQ(TFloat32()), 1.0f, 0.0f), false)
+    
+    assertEvalsTo(ApplyComparisonOp(LTEQ(TFloat64()), 1.0, 1.0), true)
+    assertEvalsTo(ApplyComparisonOp(LTEQ(TFloat64()), 0.0, 1.0), true)
+    assertEvalsTo(ApplyComparisonOp(LTEQ(TFloat64()), 1.0, 0.0), false)
+  }
+
+  @Test def testApplyComparisonOpEQ() {
+    assertEvalsTo(ApplyComparisonOp(EQ(TInt32()), 1, 1), true)
+    assertEvalsTo(ApplyComparisonOp(EQ(TInt32()), 0, 1), false)
+    assertEvalsTo(ApplyComparisonOp(EQ(TInt32()), 1, 0), false)
+
+    assertEvalsTo(ApplyComparisonOp(EQ(TInt64()), 1L, 1L), true)
+    assertEvalsTo(ApplyComparisonOp(EQ(TInt64()), 0L, 1L), false)
+    assertEvalsTo(ApplyComparisonOp(EQ(TInt64()), 1L, 0L), false)
+
+    assertEvalsTo(ApplyComparisonOp(EQ(TFloat32()), 1.0f, 1.0f), true)
+    assertEvalsTo(ApplyComparisonOp(EQ(TFloat32()), 0.0f, 1.0f), false)
+    assertEvalsTo(ApplyComparisonOp(EQ(TFloat32()), 1.0f, 0.0f), false)
+
+    assertEvalsTo(ApplyComparisonOp(EQ(TFloat64()), 1.0, 1.0), true)
+    assertEvalsTo(ApplyComparisonOp(EQ(TFloat64()), 0.0, 1.0), false)
+    assertEvalsTo(ApplyComparisonOp(EQ(TFloat64()), 1.0, 0.0), false)
+  }
+
+  @Test def testApplyComparisonOpNE() {
+    assertEvalsTo(ApplyComparisonOp(NEQ(TInt32()), 1, 1), false)
+    assertEvalsTo(ApplyComparisonOp(NEQ(TInt32()), 0, 1), true)
+    assertEvalsTo(ApplyComparisonOp(NEQ(TInt32()), 1, 0), true)
+
+    assertEvalsTo(ApplyComparisonOp(NEQ(TInt64()), 1L, 1L), false)
+    assertEvalsTo(ApplyComparisonOp(NEQ(TInt64()), 0L, 1L), true)
+    assertEvalsTo(ApplyComparisonOp(NEQ(TInt64()), 1L, 0L), true)
+
+    assertEvalsTo(ApplyComparisonOp(NEQ(TFloat32()), 1.0f, 1.0f), false)
+    assertEvalsTo(ApplyComparisonOp(NEQ(TFloat32()), 0.0f, 1.0f), true)
+    assertEvalsTo(ApplyComparisonOp(NEQ(TFloat32()), 1.0f, 0.0f), true)
+
+    assertEvalsTo(ApplyComparisonOp(NEQ(TFloat64()), 1.0, 1.0), false)
+    assertEvalsTo(ApplyComparisonOp(NEQ(TFloat64()), 0.0, 1.0), true)
+    assertEvalsTo(ApplyComparisonOp(NEQ(TFloat64()), 1.0, 0.0), true)
+  }
+
   @Test def testIf() {
     assertEvalsTo(If(True(), I32(5), I32(7)), 5)
     assertEvalsTo(If(False(), I32(5), I32(7)), 7)
@@ -750,6 +859,18 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(ArrayRange(NA(TInt32()), I32(5), I32(1)), null)
 
     assertFatal(ArrayRange(I32(0), I32(5), I32(0)), "step size")
+
+    for {
+      start <- -2 to 2
+      stop <- -2 to 8
+      step <- 1 to 3
+    } {
+      assertEvalsTo(ArrayRange(start, stop, step), Array.range(start, stop, step).toFastIndexedSeq)
+      assertEvalsTo(ArrayRange(start, stop, -step), Array.range(start, stop, -step).toFastIndexedSeq)
+    }
+    // this needs to be written this way because of a bug in Scala's Array.range
+    val expected = Array.tabulate(11)(Int.MinValue + _ * (Int.MaxValue / 5)).toFastIndexedSeq
+    assertEvalsTo(ArrayRange(Int.MinValue, Int.MaxValue, Int.MaxValue / 5), expected)
   }
 
   @Test def testArrayAgg() {
