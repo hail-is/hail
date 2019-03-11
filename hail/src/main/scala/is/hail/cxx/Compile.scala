@@ -19,8 +19,8 @@ object Compile {
     tub.include("<cstring>")
 
     val fb = tub.buildFunction(tub.genSym("f"),
-      (("SparkFunctionContext", "ctx") +: args.map { case (name, typ) =>
-        typeToCXXType(typ) -> tub.genSym("v") }).toArray,
+      (("SparkFunctionContext", "ctx") +: args.map { case (_, typ) =>
+        typeToCXXType(typ) -> "v" }).toArray,
       typeToCXXType(body.pType))
 
     val emitEnv = args.zipWithIndex
