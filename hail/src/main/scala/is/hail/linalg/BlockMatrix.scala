@@ -128,30 +128,6 @@ object BlockMatrix {
     new BlockMatrix(blocks, blockSize, nRows, nCols)
   }
 
-  def readPartsToTableValue(
-    hc: HailContext,
-    path: String,
-    nPartitions: Int,
-    metadata: BlockMatrixMetadata,
-    tableTyp: TableType): TableValue = {
-    checkWriteSuccess(hc, path)
-
-    val rowsRDD = new BlockMatrixReadRowBlockedRDD(path, nPartitions, metadata, hc)
-    val partitionBoundaries = Array.tabulate(nPartitions) { pi =>
-      val len =
-        if (pi == nPartitions - 1)
-          (metadata.nRows + nPartitions - 1) / nPartitions
-        else
-          metadata.nRows / nPartitions
-
-      Interval(Row(pi.toLong), Row((pi + len).toLong), true, false)
-    }
-    val partitioner = new RVDPartitioner(tableTyp.keyType, partitionBoundaries)
-
-    val rvd = RVD(tableTyp.canonicalRVDType, partitioner, ContextRDD(rowsRDD))
-    TableValue(tableTyp, BroadcastRow.empty(), rvd)
-  }
-
   private[linalg] def assertCompatibleLocalMatrix(lm: BDM[Double]) {
     assert(lm.isCompact)
   }
