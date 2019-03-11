@@ -66,7 +66,7 @@ object TransitiveBindings {
   private val empty = (Env.empty[Type], None)
 
   def apply(ir: BaseIR, i: Int, env: Env[Type], aggEnv: Option[Env[Type]]): (Env[Type], Option[Env[Type]]) = ir match {
-    case _: ArrayAgg => if (i == 1) (env, Some(aggEnv.get.bindIterable(env.m).bindIterable(AggBindings(ir, i)))) else (env, aggEnv)
+    case _: ArrayAgg => if (i == 1) (env, Some(env.bindIterable(AggBindings(ir, i)))) else (env, aggEnv)
     case MatrixAggregate(_, _) => if (i == 1) (Env.empty.bindIterable(Bindings(ir, i)), Some(Env.empty.bindIterable(AggBindings(ir, i)))) else empty
     case TableAggregate(_, _) => if (i == 1) (Env.empty.bindIterable(Bindings(ir, i)), Some(Env.empty.bindIterable(AggBindings(ir, i)))) else empty
     case _ =>
@@ -75,8 +75,11 @@ object TransitiveBindings {
           (env.bindIterable(Bindings(ir, i)), aggEnv match {
             case Some(ae) => Some(ae.bindIterable(AggBindings(ir, i)))
             case None =>
-              assert(AggBindings(ir, i).isEmpty)
-              None
+              val ab = AggBindings(ir, i)
+              if (ab.nonEmpty)
+                Some(Env.empty.bindIterable(ab))
+              else
+                None
           })
         case _ => empty
       }
