@@ -865,8 +865,12 @@ class IRSuite extends SparkSuite {
       stop <- -2 to 8
       step <- 1 to 3
     } {
-      assertEvalsTo(ArrayRange(start, stop, step), Array.range(start, stop, step).toFastIndexedSeq)
-      assertEvalsTo(ArrayRange(start, stop, -step), Array.range(start, stop, -step).toFastIndexedSeq)
+      assertEvalsTo(ArrayRange(In(0, TInt32()), In(1, TInt32()), In(2, TInt32())),
+        args = FastIndexedSeq(start -> TInt32(), stop -> TInt32(), step -> TInt32()),
+        expected = Array.range(start, stop, step).toFastIndexedSeq)
+      assertEvalsTo(ArrayRange(In(0, TInt32()), In(1, TInt32()), In(2, TInt32())),
+        args = FastIndexedSeq(start -> TInt32(), stop -> TInt32(), -step -> TInt32()),
+        expected = Array.range(start, stop, -step).toFastIndexedSeq)
     }
     // this needs to be written this way because of a bug in Scala's Array.range
     val expected = Array.tabulate(11)(Int.MinValue + _ * (Int.MaxValue / 5)).toFastIndexedSeq
