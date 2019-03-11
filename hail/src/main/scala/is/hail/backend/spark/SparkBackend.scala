@@ -13,12 +13,11 @@ import org.json4s.jackson.JsonMethods
 object SparkBackend {
   def executeJSON(ir: IR): String = {
     val t = ir.typ
-    val value = execute(HailContext.get.sc, ir)
-    JsonMethods.compact(
-      JSONAnnotationImpex.exportAnnotation(value, t))
+    val value = execute(ir)
+    JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(value, t))
   }
 
-  def executeOrError(sc: SparkContext, ir0: IR, optimize: Boolean = true): Any = {
+  def cxxExecute(sc: SparkContext, ir0: IR, optimize: Boolean = true): Any = {
     var ir = ir0
 
     ir = ir.unwrap
@@ -36,12 +35,15 @@ object SparkBackend {
     }
   }
 
-  def execute(sc: SparkContext, ir: IR, optimize: Boolean = true): Any = {
+  def execute(ir: IR, optimize: Boolean = true): Any = {
+    val hc = HailContext.get
     try {
-      executeOrError(sc, ir, optimize)
+      if (hc.flags.get("cpp") == null)
+        throw new CXXUnsupportedOperation("'cpp' flag not enabled.")
+      cxxExecute(hc.sc, ir, optimize)
     } catch {
-      case e: CXXUnsupportedOperation =>
-        Interpret(ir, optimize = optimize)
+      case _: CXXUnsupportedOperation =>
+        CompileAndEvaluate(ir, optimize = optimize)
     }
   }
 }

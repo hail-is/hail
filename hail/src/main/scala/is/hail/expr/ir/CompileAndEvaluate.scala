@@ -9,12 +9,6 @@ import org.apache.spark.sql.Row
 import org.json4s.jackson.JsonMethods
 
 object CompileAndEvaluate {
-  def evaluateToJSON(ir: IR): String = {
-    val t = ir.typ
-    val value = apply[Any](ir)
-    JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(value, t))
-  }
-
   def apply[T](ir0: IR,
     env: Env[(Any, Type)] = Env(),
     args: IndexedSeq[(Any, Type)] = FastIndexedSeq(),

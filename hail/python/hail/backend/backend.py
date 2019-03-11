@@ -90,7 +90,7 @@ class SparkBackend(Backend):
 
     def execute(self, ir):
         return ir.typ._from_json(
-            Env.hail().expr.ir.CompileAndEvaluate.evaluateToJSON(
+            Env.hail().backend.spark.SparkBackend.executeJSON(
                 self._to_java_ir(ir)))
 
     def value_type(self, ir):
