@@ -854,9 +854,14 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testArrayRange() {
-    assertEvalsTo(ArrayRange(I32(0), I32(5), NA(TInt32())), null)
-    assertEvalsTo(ArrayRange(I32(0), NA(TInt32()), I32(1)), null)
-    assertEvalsTo(ArrayRange(NA(TInt32()), I32(5), I32(1)), null)
+    def assertEquals(start: Integer, stop: Integer, step: Integer, expected: IndexedSeq[Int]) {
+      assertEvalsTo(ArrayRange(In(0, TInt32()), In(1, TInt32()), In(2, TInt32())),
+        args = FastIndexedSeq(start -> TInt32(), stop -> TInt32(), step -> TInt32()),
+        expected = expected)
+    }
+    assertEquals(0, 5, null, null)
+    assertEquals(0, null, 1, null)
+    assertEquals(null, 5, 1, null)
 
     assertFatal(ArrayRange(I32(0), I32(5), I32(0)), "step size")
 
@@ -865,16 +870,12 @@ class IRSuite extends SparkSuite {
       stop <- -2 to 8
       step <- 1 to 3
     } {
-      assertEvalsTo(ArrayRange(In(0, TInt32()), In(1, TInt32()), In(2, TInt32())),
-        args = FastIndexedSeq(start -> TInt32(), stop -> TInt32(), step -> TInt32()),
-        expected = Array.range(start, stop, step).toFastIndexedSeq)
-      assertEvalsTo(ArrayRange(In(0, TInt32()), In(1, TInt32()), In(2, TInt32())),
-        args = FastIndexedSeq(start -> TInt32(), stop -> TInt32(), -step -> TInt32()),
-        expected = Array.range(start, stop, -step).toFastIndexedSeq)
+      assertEquals(start, stop, step, expected = Array.range(start, stop, step).toFastIndexedSeq)
+      assertEquals(start, stop, -step, expected = Array.range(start, stop, -step).toFastIndexedSeq)
     }
     // this needs to be written this way because of a bug in Scala's Array.range
     val expected = Array.tabulate(11)(Int.MinValue + _ * (Int.MaxValue / 5)).toFastIndexedSeq
-    assertEvalsTo(ArrayRange(Int.MinValue, Int.MaxValue, Int.MaxValue / 5), expected)
+    assertEquals(Int.MinValue, Int.MaxValue, Int.MaxValue / 5, expected)
   }
 
   @Test def testArrayAgg() {
