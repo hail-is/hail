@@ -330,12 +330,12 @@ class Job:
                         f'callback for job {id} failed due to an error, I will not retry. '
                         f'Error: {exc}')
 
-            threading.Thread(target=handler, args=(self.id, self.callback, self.to_json())).start()
+            threading.Thread(target=handler, args=(self.id, self.callback, self.to_dict())).start()
 
         if self.batch_id:
             batch_id_batch[self.batch_id].mark_job_complete(self)
 
-    def to_json(self):
+    def to_dict(self):
         result = {
             'id': self.id,
             'state': self._state
@@ -420,12 +420,12 @@ async def create_job(request):  # pylint: disable=R0912
         input_files,
         output_files)
 
-    return jsonify(job.to_json())
+    return jsonify(job.to_dict())
 
 
 @routes.get('/jobs')
 async def get_job_list(request):  # pylint: disable=W0613
-    return jsonify([job.to_json() for _, job in job_id_job.items()])
+    return jsonify([job.to_dict() for _, job in job_id_job.items()])
 
 
 @routes.get('/jobs/{job_id}')
@@ -434,7 +434,7 @@ async def get_job(request):
     job = job_id_job.get(job_id)
     if not job:
         abort(404)
-    return jsonify(job.to_json())
+    return jsonify(job.to_dict())
 
 
 @routes.get('/jobs/{job_id}/log')
@@ -516,7 +516,7 @@ class Batch:
 
             threading.Thread(
                 target=handler,
-                args=(self.id, job.id, self.callback, job.to_json())
+                args=(self.id, job.id, self.callback, job.to_dict())
             ).start()
 
     def close(self):
@@ -526,7 +526,7 @@ class Batch:
         else:
             log.info(f're-closing batch {self.id}, ttl was {self.ttl}')
 
-    def to_json(self):
+    def to_dict(self):
         state_count = Counter([j._state for j in self.jobs])
         return {
             'id': self.id,
@@ -559,7 +559,7 @@ async def create_batch(request):
         abort(400, 'invalid request: {}'.format(validator.errors))
 
     batch = Batch(parameters.get('attributes'), parameters.get('callback'), parameters.get('ttl'))
-    return jsonify(batch.to_json())
+    return jsonify(batch.to_dict())
 
 
 @routes.get('/batches/{batch_id}')
@@ -568,7 +568,7 @@ async def get_batch(request):
     batch = batch_id_batch.get(batch_id)
     if not batch:
         abort(404)
-    return jsonify(batch.to_json())
+    return jsonify(batch.to_dict())
 
 
 @routes.delete('/batches/{batch_id}/delete')
