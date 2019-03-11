@@ -19,8 +19,8 @@ object Compile {
     tub.include("<cstring>")
 
     val fb = tub.buildFunction(tub.genSym("f"),
-      (("SparkFunctionContext", "ctx") +: args.map { case (name, typ) =>
-        typeToCXXType(typ) -> name  }).toArray,
+      (("SparkFunctionContext", "ctx") +: args.zipWithIndex.map { case ((name, typ), i) =>
+        typeToCXXType(typ) -> s"v$i" }).toArray,
       typeToCXXType(body.pType))
 
     val emitEnv = args.zipWithIndex
@@ -69,7 +69,7 @@ object Compile {
     }
 
     val tu = tub.end()
-    val mod = tu.build(if (optimize) "-ggdb -O1" else "-ggdb -O0")
+    val mod = tu.build(if (optimize) "-ggdb -O1" else "-ggdb -O0", System.out)
 
     val st = new NativeStatus()
     mod.findOrBuild(st)

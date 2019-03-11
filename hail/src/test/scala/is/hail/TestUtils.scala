@@ -361,14 +361,13 @@ object TestUtils {
     assert(t.valuesSimilar(i, c), s"interpret $i vs compile $c")
     assert(t.valuesSimilar(i2, c), s"interpret (optimize = false) $i vs compile $c")
 
-    // FIXME: unmanageable test times
-//    try {
-//      val c2 = nativeExecute(x, env, args, agg)
-//      assert(t.typeCheck(c2))
-//      assert(t.valuesSimilar(c2, c), s"native compile $c2 vs compile $c")
-//    } catch {
-//      case _: CXXUnsupportedOperation =>
-//    }
+    try {
+      val c2 = nativeExecute(x, env, args, agg)
+      assert(t.typeCheck(c2))
+      assert(t.valuesSimilar(c2, c), s"native compile $c2 vs compile $c")
+    } catch {
+      case _: CXXUnsupportedOperation =>
+    }
   }
 
   def assertEvalsTo(x: IR, expected: Any) {
