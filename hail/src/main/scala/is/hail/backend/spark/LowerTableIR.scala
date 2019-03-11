@@ -22,7 +22,7 @@ case class SparkStage(
   partitioner: RVDPartitioner,
   rdds: Map[String, RDD[RegionValue]],
   contextType: Type,
-  context: IR,
+  contexts: IR,
   body: IR) {
 
   val broadcastVals: List[SparkBinding] = globals +: otherBroadcastVals
@@ -30,7 +30,7 @@ case class SparkStage(
   def toIR(bodyTransform: IR => IR): CollectDistributedArray = {
     val globalVals = MakeStruct(broadcastVals.map { case SparkBinding(n, v) => n -> v })
     val substEnv = Env[IR](broadcastVals.map(b => b.name -> GetField(Ref("global", globalVals.typ), b.name)): _*)
-    CollectDistributedArray(context, globalVals, "context", "global", Subst(bodyTransform(body), substEnv))
+    CollectDistributedArray(contexts, globalVals, "context", "global", Subst(bodyTransform(body), substEnv))
   }
 }
 

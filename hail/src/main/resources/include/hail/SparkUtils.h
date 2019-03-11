@@ -112,7 +112,7 @@ class SparkEnv {
 
       jobject jmodID = env()->NewStringUTF(modID);
       jobject jfname = env()->NewStringUTF(fname);
-      auto res = env()->NewGlobalRef(env()->CallObjectMethod(spark_utils_, parallelize_compute_collect_, jmodID, jfname, jctxs, jglobals));
+      auto res = env()->CallObjectMethod(spark_utils_, parallelize_compute_collect_, jmodID, jfname, jctxs, jglobals);
       env()->DeleteLocalRef(jmodID);
       env()->DeleteLocalRef(jfname);
       env()->DeleteLocalRef(jctxs);
@@ -120,7 +120,7 @@ class SparkEnv {
 
       ResultDecoder dec { this };
       auto off = dec.decode(region.get(), (jobjectArray) res);
-      env()->DeleteGlobalRef(res);
+      env()->DeleteLocalRef(res);
 
       return off;
     }

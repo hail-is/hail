@@ -30,10 +30,10 @@ object SparkBackend {
 
     val pipeline = MakeTuple(FastIndexedSeq(LowerTableIR.lower(ir)))
 
-    val f = cxx.Compile("foo", PTuple(FastSeq(PInt32())), pipeline, optimize: Boolean)
+    val f = cxx.Compile(pipeline, optimize: Boolean)
 
     Region.scoped { region =>
-      val off = f(region.get(), 0L)
+      val off = f(region.get())
       SafeRow(pipeline.pType.asInstanceOf[PTuple], region, off).get(0)
     }
   }

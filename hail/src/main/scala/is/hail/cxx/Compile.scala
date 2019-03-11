@@ -39,6 +39,60 @@ object Compile {
     (fb.end(), mods)
   }
 
+  def makeEntryPoint(tub: TranslationUnitBuilder, fname: String, argTypes: PType*): Unit = {
+    val nArgs = argTypes.size
+    val rawArgs = Array.tabulate(nArgs)(i => s"long v$i").mkString(", ")
+    val castArgs = Array.tabulate(nArgs)(i => s"(${ typeToNonConstCXXType(argTypes(i)) }) v$i").mkString(", ")
+
+    tub += new Definition {
+      def name: String = "entrypoint"
+
+      def define: String =
+        s"""
+           |long entrypoint(NativeStatus *st, long sparkUtils, long region, $rawArgs) {
+           |  try {
+           |    return (long)$fname(SparkFunctionContext(((ScalaRegion *)region)->region_, ((ObjectArray *)sparkUtils)->at(0)), $castArgs);
+           |  } catch (const FatalError& e) {f
+           |    NATIVE_ERROR(st, 1005, e.what());
+           |    return -1;
+           |  }
+           |}
+         """.stripMargin
+    }
+
+  }
+
+  def compile(body: ir.IR, optimize: Boolean, args: Array[(String, PType)]): (NativeModule, SparkUtils) = {
+    val tub = new TranslationUnitBuilder
+    val (f, mods) = makeNonmissingFunction(tub, body, args: _*)
+    makeEntryPoint(tub, f.name, args.map(_._2): _*)
+
+    val tu = tub.end()
+    val mod = tu.build(if (optimize) "-ggdb -O1" else "-ggdb -O0")
+
+    val st = new NativeStatus()
+    mod.findOrBuild(st)
+    assert(st.ok, st.toString())
+
+    (mod, new SparkUtils(mods))
+  }
+
+  def apply(body: ir.IR, optimize: Boolean): Long => Long = {
+    val (mod, sparkUtils) = compile(body, optimize, Array())
+
+    val st = new NativeStatus()
+    val nativef = mod.findLongFuncL2(st, "entrypoint")
+    mod.close()
+    st.close()
+
+    { (region: Long) =>
+      val st2 = new NativeStatus()
+      val res = nativef(st2, new ObjectArray(sparkUtils).get(), region)
+      if (st2.fail)
+        fatal(st2.toString())
+      res
+    }
+  }
 
   def apply(
     arg0: String, arg0Type: PType,
@@ -49,40 +103,12 @@ object Compile {
 
     assert(ir.TypeToIRIntermediateClassTag(returnType.virtualType) == classTag[Long])
     assert(returnType.isInstanceOf[PBaseStruct])
-
-    val tub = new TranslationUnitBuilder
-    val (f, mods) = makeNonmissingFunction(tub, body, arg0 -> arg0Type)
-
-    tub += new Definition {
-      def name: String = "entrypoint"
-
-      def define: String =
-        s"""
-           |long entrypoint(NativeStatus *st, long sparkUtils, long region, long v) {
-           |  try {
-           |    return (long)${ f.name }(SparkFunctionContext(((ScalaRegion *)region)->region_, ((ObjectArray *)sparkUtils)->at(0)), (char *)v);
-           |  } catch (const FatalError& e) {
-           |    NATIVE_ERROR(st, 1005, e.what());
-           |    return -1;
-           |  }
-           |}
-         """.stripMargin
-    }
-
-    val tu = tub.end()
-    val mod = tu.build(if (optimize) "-ggdb -O1" else "-ggdb -O0")
+    val (mod, sparkUtils) = compile(body, optimize, Array())
 
     val st = new NativeStatus()
-    mod.findOrBuild(st)
-    assert(st.ok, st.toString())
     val nativef = mod.findLongFuncL3(st, "entrypoint")
-    assert(st.ok, st.toString())
-
-    // mod will be cleaned up when f is closed
     mod.close()
     st.close()
-
-    val sparkUtils = new SparkUtils(mods)
 
     { (region: Long, v2: Long) =>
       val st2 = new NativeStatus()
