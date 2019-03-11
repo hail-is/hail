@@ -86,23 +86,23 @@ class RichDenseMatrixDouble(val m: BDM[Double]) extends AnyVal {
     val isMatrixRowMajor = m.isTranspose
 
     if (forceRowMajor) {
-      val data = if (isMatrixRowMajor) m.toArray else m.t.toArray
-      (data, true)
+      if (isMatrixRowMajor) (m.toArray, false) else (m.t.toArray, true)
     } else {
-      (m.toArray, isMatrixRowMajor)
+      // Don't force reordering of the Breeze data with .toArray
+      (m.data, isMatrixRowMajor)
     }
   }
 
   // caller must close
   def write(os: OutputStream, forceRowMajor: Boolean, bufferSpec: BufferSpec) {
-    val (data, isRowMajor) = m.toCompactData(forceRowMajor)
+    val (data, isTranspose) = m.toCompactData(forceRowMajor)
     assert(data.length == m.rows * m.cols)
 
     val out = bufferSpec.buildOutputBuffer(os)
 
     out.writeInt(m.rows)
     out.writeInt(m.cols)
-    out.writeBoolean(isRowMajor)
+    out.writeBoolean(isTranspose)
     out.writeDoubles(data)
     out.flush()
   }
