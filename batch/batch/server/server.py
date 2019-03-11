@@ -85,7 +85,7 @@ aiohttp_jinja2.setup(app, loader=jinja2.PackageLoader('batch', 'templates'))
 def abort(code, reason=None):
     if code == 400:
         raise web.HTTPBadRequest(reason=reason)
-    elif code == 404:
+    if code == 404:
         raise web.HTTPNotFound(reason=reason)
     raise web.HTTPException(reason=reason)
 
