@@ -285,7 +285,7 @@ def notebook_page():
         return render_template('notebook.html',
                                form_action_url=external_url_for('notebook'),
                                images=list(WORKER_IMAGES),
-                               default='ibg2019')
+                               default='hail')
 
     session['notebook'] = notebooks[0]
 

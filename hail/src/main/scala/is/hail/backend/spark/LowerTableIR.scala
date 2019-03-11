@@ -178,6 +178,9 @@ object LowerTableIR {
     case node if node.children.exists( _.isInstanceOf[MatrixIR] ) =>
       throw new cxx.CXXUnsupportedOperation(s"MatrixIR nodes must be lowered to TableIR nodes separately: \n${ Pretty(node) }")
 
+    case _: In =>
+      throw new cxx.CXXUnsupportedOperation(s"`In` value IR node cannot be lowered in Spark backend.")
+
     case _ =>
       val pipelines = ir.children.map { case c: IR => lower(c) }
       SparkPipeline(pipelines.flatMap(_.stages).toMap, ir.copy(pipelines.map(_.body)))

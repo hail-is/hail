@@ -1,0 +1,21 @@
+#!/bin/sh
+
+set -ex
+
+if [ ! $# -eq 2 ]
+then
+    echo "USAGE: remove-k8s-gcp-sa-key SERIVCE_ACCOUNT_NAME NAMESPACE"
+    exit 1
+fi
+
+service_account_name=$1
+namespace=$2
+private_key_id=$(kubectl get secret gcp-sa-key-${service_account_name} \
+        -o json \
+        --namespace=$namespace \
+    | jq -r '.data["key.json"]' \
+    | base64 -D \
+    | jq -r '.private_key_id')
+
+gcloud iam service-accounts keys delete ${private_key_id} \
+       --iam-account="${service_account_name}@$(gcloud config get-value project).iam.gserviceaccount.com"

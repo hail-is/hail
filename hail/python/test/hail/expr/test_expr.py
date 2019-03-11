@@ -2556,3 +2556,22 @@ class Tests(unittest.TestCase):
         ht = hl.utils.range_table(1)
 
         assert ht.aggregate((hl.agg._prev_nonnull(ht.idx))) == 0
+
+    def test_summarize_runs(self):
+        mt = hl.utils.range_matrix_table(3,3).annotate_entries(
+            x1 = 'a',
+            x2 = 1,
+            x3 = 1.5,
+            x4 = True,
+            x5 = ['1'],
+            x6 = {'1'},
+            x7={'1': 5},
+            x8=hl.struct(a=5, b='7'),
+            x9=(1,2,3),
+            x10=hl.locus('1', 123123),
+            x11=hl.call(0, 1, phased=True)
+        )
+
+        mt.summarize()
+        mt.entries().summarize()
+        mt.x1.summarize()
