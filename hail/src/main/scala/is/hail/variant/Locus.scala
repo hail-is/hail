@@ -53,7 +53,7 @@ object Locus {
   def parseInterval(str: String, rg: RGBase, invalidMissing: Boolean = false): Interval =
     Parser.parseLocusInterval(str, rg, invalidMissing)
 
-  def parseIntervals(arr: Array[String], rg: RGBase, invalidMissing: Boolean = false): Array[Interval] = arr.map(parseInterval(_, rg, invalidMissing))
+  def parseIntervals(arr: Array[String], rg: RGBase, invalidMissing: Boolean): Array[Interval] = arr.map(parseInterval(_, rg, invalidMissing))
 
   def parseIntervals(arr: java.util.List[String], rg: RGBase, invalidMissing: Boolean = false): Array[Interval] = parseIntervals(arr.asScala.toArray, rg, invalidMissing)
 
