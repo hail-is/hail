@@ -10,6 +10,7 @@ import threading
 import kubernetes as kube
 import cerberus
 import requests
+import uvloop
 import aiohttp_jinja2
 import jinja2
 from aiohttp import web
@@ -18,6 +19,8 @@ from .globals import max_id, _log_path, _read_file, pod_name_job, job_id_job, ba
 from .globals import next_id, get_recent_events, add_event
 
 from .. import schemas
+
+uvloop.install()
 
 s = sched.scheduler()
 
