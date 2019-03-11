@@ -40,6 +40,7 @@ component_users = {
     'Hail front-end (Py)': ['tpoterba', 'jigold', 'jbloom22', 'catoverdrive', 'patrick-schultz', 'chrisvittal', 'daniel-goldstein', 'konradjk'],
     'Hail middle-end (Scala)': ['danking', 'tpoterba', 'jigold', 'jbloom22', 'catoverdrive', 'patrick-schultz', 'chrisvittal', 'daniel-goldstein'],
     'C++ backend': ['jbloom22', 'catoverdrive', 'patrick-schultz'],
+    'cloudtools': ['tpoterba', 'danking'],
     'k8s, services': ['danking', 'jigold', 'akotlar'],
     'Web app (JS)': ['akotlar', 'danking', 'daniel-goldstein'],
 }
