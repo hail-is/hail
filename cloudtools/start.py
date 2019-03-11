@@ -123,6 +123,11 @@ def main(args):
     conf.configure(hash, args.spark)
 
     # parse Spark and HDFS configuration parameters, combine into properties argument
+    conf.extend_flag('properties',
+                     {
+                         'dataproc:dataproc.logging.stackdriver.enable': 'false',
+                         'dataproc:dataproc.monitoring.stackdriver.enable': 'false'
+                     })
     if args.properties:
         conf.parse_and_extend('properties', args.properties)
 
