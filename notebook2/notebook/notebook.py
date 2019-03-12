@@ -431,6 +431,7 @@ def wait_websocket(ws):
         # This may happen if client re-reqeusts after seeing 405
         # which can occur if it relies on container status,
         # which may not be "Ready" immediately after jupyter server is reachable
+        # https://youtu.be/dp-RYuH4tmw
         gevent.sleep(1)
 
         try:
