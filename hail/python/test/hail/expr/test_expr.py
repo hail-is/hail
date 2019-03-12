@@ -2029,6 +2029,10 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(hl.coalesce(hl.null('int'), hl.null('int'), 2)), 2)
         self.assertEqual(hl.eval(hl.coalesce(hl.null('int'), hl.null('int'), 2.5)), 2.5)
         self.assertEqual(hl.eval(hl.coalesce(2.5)), 2.5)
+        self.assertEqual(hl.eval(hl.coalesce(2.5, hl.null('int'))), 2.5)
+        self.assertEqual(hl.eval(hl.coalesce(hl.null('int'), 2.5, hl.null('int'))), 2.5)
+        self.assertEqual(hl.eval(hl.coalesce(hl.null('int'), 2.5, 100)), 2.5)
+        self.assertEqual(hl.eval(hl.coalesce(hl.null('int'), 2.5, hl.int(1) / 0)), 2.5)
         with self.assertRaises(TypeError):
             hl.coalesce(2.5, 'hello')
 
