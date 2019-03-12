@@ -8,11 +8,13 @@ namespace hail {
 
 template<bool elem_required, size_t elem_size, size_t elem_align, size_t array_align>
 class BaseArrayBuilder {
-  public:
-    using ArrayImpl = BaseArrayImpl<elem_required, elem_size, elem_align>;
+  private:
     int len_;
     char * off_;
     char * elem_addr_;
+    
+  public:
+    using ArrayImpl = BaseArrayImpl<elem_required, elem_size, elem_align>;
 
     BaseArrayBuilder(int len, Region * region) :
     len_(len), off_(nullptr), elem_addr_(nullptr) {
@@ -24,18 +26,18 @@ class BaseArrayBuilder {
 
     BaseArrayBuilder(int len, RegionPtr region) : BaseArrayBuilder(len, region.get()) { }
 
-  void clear_missing_bits() {
-    if (!elem_required) { memset(off_ + 4, 0, n_missing_bytes(len_)); }
-  }
+    void clear_missing_bits() {
+      if (!elem_required) { memset(off_ + 4, 0, n_missing_bytes(len_)); }
+    }
 
-  void set_missing(int idx) {
-    if (elem_required) { throw FatalError("Required array element cannot be missing."); }
-    set_bit(off_ + 4, idx);
-  }
+    void set_missing(int idx) {
+      if (elem_required) { throw FatalError("Required array element cannot be missing."); }
+      set_bit(off_ + 4, idx);
+    }
 
-  char * element_address(int idx) const { return elem_addr_ + idx * ArrayImpl::array_elem_size; }
+    char * element_address(int idx) const { return elem_addr_ + idx * ArrayImpl::array_elem_size; }
 
-  char * offset() const { return off_; }
+    char * offset() const { return off_; }
 };
 
 template<typename ElemT, bool elem_required, size_t elem_size, size_t elem_align, size_t array_align>
