@@ -898,6 +898,37 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(scan(TestUtils.IRArray(1, null, 3), 0, (accum, elt) => accum + elt), FastIndexedSeq(0, 1, null, null))
   }
 
+  @Test def testMakeNDArray() {
+    def nd = MakeNDArray(
+      MakeArray(FastSeq(F64(-1.0), F64(1.0)), TArray(TFloat64())),
+      MakeArray(FastSeq(I64(2)), TArray(TInt64())),
+      True())
+
+    def ndRow = MakeNDArray(
+      MakeArray(FastSeq(F64(-1.0), F64(1.0)), TArray(TFloat64())),
+      MakeArray(FastSeq(I64(1), I64(2)), TArray(TInt64())),
+      True())
+
+    def ndCol = MakeNDArray(
+      MakeArray(FastSeq(F64(-1.0), F64(1.0)), TArray(TFloat64())),
+      MakeArray(FastSeq(I64(2), I64(1)), TArray(TInt64())),
+      True())
+
+    assertEvalsTo(nd, FastIndexedSeq(-1.0, 1.0))
+    assertEvalsTo(nd, FastIndexedSeq(FastIndexedSeq(-1.0, 1.0)))
+    assertEvalsTo(nd, FastIndexedSeq(FastIndexedSeq(-1.0), FastIndexedSeq(1.0)))
+  }
+
+  @Test def testNDArrayRef() {
+    def nd = MakeNDArray(
+      MakeArray(FastSeq(F64(-1.0), F64(1.0)), TArray(TFloat64())),
+      MakeArray(FastSeq(I64(2)), TArray(TInt64())),
+      True())
+
+    def negOne = NDArrayRef(nd, MakeArray(FastSeq(F64(0)), TArray(TFloat64())))
+    assertEvalsTo(negOne, -1)
+  }
+
   @Test def testLeftJoinRightDistinct() {
     implicit val execStrats = ExecStrategy.javaOnly
 

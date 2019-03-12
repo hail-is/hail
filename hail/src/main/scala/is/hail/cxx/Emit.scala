@@ -811,9 +811,8 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
            """.stripMargin,
           s"${datat.m} || ${shapet.m} || ${rowMajort.m}",
           s"""
-             |NDArray(${shapet.v}, ${datat.v}, ${rowMajort.v})
-           """.stripMargin
-        )
+             |new NDArray(${shapet.v}, ${datat.v}, ${rowMajort.v})
+           """.stripMargin)
 
       case ir.NDArrayRef(nd, idxs) =>
         val ndt = emit(nd)
@@ -825,9 +824,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              |${idxst.setup}
            """.stripMargin,
           s"${ndt.m} || ${idxst.m}",
-          s"""
-             |${ndt.v}[${idxst.v}]
-           """.stripMargin)
+          s"${ndt.v}.get_element(${idxst.v})")
       case _ =>
         throw new CXXUnsupportedOperation(ir.Pretty(x))
     }
