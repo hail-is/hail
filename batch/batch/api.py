@@ -15,10 +15,12 @@ class API():
         self.timeout = timeout
 
     def create_job(self, url, spec, attributes, batch_id, callback, parent_ids,
-                   scratch_folder, input_files, output_files, copy_service_account_name):
+                   scratch_folder, input_files, output_files, copy_service_account_name,
+                   always_run):
         doc = {
             'spec': spec,
-            'parent_ids': parent_ids
+            'parent_ids': parent_ids,
+            'always_run': always_run
         }
         if attributes:
             doc['attributes'] = attributes
