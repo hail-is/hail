@@ -342,6 +342,7 @@ def get_all_workers():
         label_selector='app=notebook2-worker',
         _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
 
+
 @app.route('/workers')
 @requires_auth()
 def workers():
@@ -421,28 +422,32 @@ def wait_websocket(ws):
         return
 
     pod_uuid = notebook['pod_uuid']
-
     url = external_url_for(f'instance-ready/{pod_uuid}/')
 
-    while True:
+    attempts = -1
+    while attempts < 10:
+        attempts += 1
+        # Protect against many requests being issued
+        # This may happen if client re-reqeusts after seeing 405
+        # which can occur if it relies on container status,
+        # which may not be "Ready" immediately after jupyter server is reachable
+        gevent.sleep(1)
+
         try:
-            response = requests.head(url, timeout=1)
-            if response.status_code == 405 or response.status_code == 302:
+            response = requests.head(url, timeout=1, cookies=request.cookies)
+
+            if response.status_code == 502:
+                log.info(f'Pod not reachable for pod_uuid: {pod_uuid} : response: {response}')
+                continue
+
+            if response.status_code == 405:
                 log.info(f'HEAD on jupyter succeeded for pod_uuid: {pod_uuid} : response: {response}')
-                # if someone responds with a 2xx, 3xx, or 4xx, the notebook
-                # server is alive and functioning properly (in particular, our
-                # HEAD request will return 405 METHOD NOT ALLOWED)
-                # or 302 if the user had previously logged in (and has nec. cookie)
-                break
             else:
-                # somewhat unusual, means the gateway had an error before we
-                # timed out, usually means the gateway itself is broken
                 log.info(f'HEAD on jupyter failed for pod_uuid: {pod_uuid} : response: {response}')
-                gevent.sleep(1)
+
             break
         except requests.exceptions.Timeout:
-            log.info(f'GET on jupyter failed for pod_uuid: {pod_uuid}')
-            gevent.sleep(1)
+            log.info(f'HEAD on jupyter timed out for pod_uuid : {pod_uuid}')
 
     ws.send("1")
 
