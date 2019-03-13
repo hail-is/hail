@@ -613,7 +613,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         val aType = coerce[PContainer](a.pType)
         val eltType = coerce[TContainer](a.typ).elementType
         val cxxType = typeToCXXType(eltType.physicalType)
-        val array = emit(a)
+        val array = emitArray(resultRegion, a, env, sameRegion = !eltType.physicalType.isPrimitive)
 
         val ltClass = fb.translationUnitBuilder().buildClass(fb.translationUnitBuilder().genSym("SorterLessThan"))
         val lt = ltClass.buildMethod("operator()", Array(cxxType -> "l", cxxType -> "r"), "bool", const=true)
@@ -626,12 +626,14 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         lt.end()
         ltClass.end()
 
-        val sorter = fb.variable("sorter", aType.cxxArraySorter(ltClass.name), s"{ ${array.v} }")
+        val sorter = fb.variable("sorter", aType.cxxArraySorter(ltClass.name), s"{ }")
         resultRegion.use()
 
-        EmitTriplet(array.pType, array.setup, array.m,
+        EmitTriplet(aType, array.setup, array.m,
           s"""{
              |${ sorter.define }
+             |${ array.setupLen }
+             |${ array.emit { (m, v) => s"if ($m) { $sorter.add_missing(); } else { $sorter.add_element($v); }" } }
              |$sorter.sort();
              |$sorter.to_region($resultRegion);
              |}
@@ -640,22 +642,23 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
       case x@(ir.ToSet(_) | ir.ToDict(_)) =>
         fb.translationUnitBuilder().include("hail/ArraySorter.h")
         fb.translationUnitBuilder().include("hail/ArrayBuilder.h")
-        val aType = coerce[PContainer](x.pType)
-        val eltType = coerce[TContainer](x.typ).elementType
+        val a = x.children(0).asInstanceOf[ir.IR]
+        val eltType = coerce[TContainer](a.typ).elementType
+        val array = emitArray(resultRegion, a, env, sameRegion = !eltType.physicalType.isPrimitive)
         val cxxType = typeToCXXType(eltType.physicalType)
         val l = ir.In(0, eltType)
         val r = ir.In(1, eltType)
 
-        val (array, ltIR, eqIR) = x match {
-          case ir.ToSet(a) =>
+        val (ltIR, eqIR, removeMissing) = x match {
+          case ir.ToSet(_) =>
             val lt = ir.ApplyComparisonOp(ir.Compare(eltType), l, r) < 0
             val eq = ir.ApplyComparisonOp(ir.EQWithNA(eltType), l, r)
-            (emit(a), lt, eq)
-          case ir.ToDict(a) =>
+            (lt, eq, "false")
+          case ir.ToDict(_) =>
             val keyType = coerce[TBaseStruct](eltType).types(0)
-            val lt = ir.ApplyComparisonOp(ir.Compare(keyType), ir.GetField(l, "key"), ir.GetField(r, "key")) < 0
-            val eq = ir.ApplyComparisonOp(ir.EQWithNA(keyType), ir.GetField(l, "key"), ir.GetField(r, "key"))
-            (emit(a), lt, eq)
+            val lt = ir.ApplyComparisonOp(ir.Compare(keyType), ir.GetFieldByIdx(l, 0), ir.GetFieldByIdx(r, 0)) < 0
+            val eq = ir.ApplyComparisonOp(ir.EQWithNA(keyType), ir.GetFieldByIdx(l, 0), ir.GetFieldByIdx(r, 0))
+            (lt, eq, "true")
         }
 
         val ltClass = fb.translationUnitBuilder().buildClass(fb.translationUnitBuilder().genSym("SorterLessThan"))
@@ -680,14 +683,16 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         eq.end()
         eqClass.end()
 
-        val sorter = fb.variable("sorter", aType.cxxArraySorter(ltClass.name), s"{ ${array.v} }")
+        val sorter = fb.variable("sorter", coerce[PContainer](x.pType).cxxArraySorter(ltClass.name), s"{ }")
         resultRegion.use()
 
-        EmitTriplet(array.pType, array.setup, array.m,
+        EmitTriplet(x.pType, array.setup, array.m,
           s"""{
              |${ sorter.define }
+             |${ array.setupLen }
+             |${ array.emit { (m, v) => s"if ($m) { $sorter.add_missing(); } else { $sorter.add_element($v); }" } }
              |$sorter.sort();
-             |$sorter.distinct<${ eqClass.name }>();
+             |$sorter.distinct<${ eqClass.name }>($removeMissing);
              |$sorter.to_region($resultRegion);
              |}
            """.stripMargin,
