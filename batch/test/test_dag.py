@@ -314,8 +314,10 @@ def test_output_files_no_service_account_is_error(client):
                          output_files=[('/out', 'gs://hail-ci-0-1-batch-volume-test-bucket')])
     except requests.exceptions.HTTPError as err:
         assert err.response.status_code == 400
-        assert re.search('.*invalid request: service account may be specified '
-                         'if and only if input_files or output_files is set.*',
+        assert re.search('.*invalid request: if either input_files or '
+                         'ouput_files is set, then the service account must '
+                         'be specified; otherwise the service account must '
+                         'not be specified.*',
                          err.response.text)
         return
     assert False
@@ -329,8 +331,10 @@ def test_input_files_no_service_account_is_error(client):
                          input_files=[('gs://hail-ci-0-1-batch-volume-test-bucket', '/in')])
     except requests.exceptions.HTTPError as err:
         assert err.response.status_code == 400
-        assert re.search('.*invalid request: service account may be specified '
-                         'if and only if input_files or output_files is set.*',
+        assert re.search('.*invalid request: if either input_files or '
+                         'ouput_files is set, then the service account must '
+                         'be specified; otherwise the service account must '
+                         'not be specified.*',
                          err.response.text)
         return
     assert False
@@ -344,8 +348,10 @@ def test_service_account_no_files_is_error(client):
                          copy_service_account_name='batch-volume-tester')
     except requests.exceptions.HTTPError as err:
         assert err.response.status_code == 400
-        assert re.search('.*invalid request: service account may be specified '
-                         'if and only if input_files or output_files is set.*',
+        assert re.search('.*invalid request: if either input_files or '
+                         'ouput_files is set, then the service account must '
+                         'be specified; otherwise the service account must '
+                         'not be specified.*',
                          err.response.text)
         return
     assert False

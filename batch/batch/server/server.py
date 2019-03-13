@@ -480,10 +480,11 @@ def create_job():  # pylint: disable=R0912
     if not both_or_neither(input_files is None and output_files is None,
                            copy_service_account_name is None):
         abort(400,
-              f'invalid request: service account may be specified if '
-              f'and only if input_files or output_files is set '
-              f'input_files: {input_files}, output_files: {output_files}, '
-              f'copy_service_account_name: {copy_service_account_name}')
+              f'invalid request: if either input_files or ouput_files is set, '
+              f'then the service account must be specified; otherwise the '
+              f'service account must *not* be specified. input_files: {input_files}, '
+              f'output_files: {output_files}, copy_service_account_name: '
+              f'{copy_service_account_name}')
 
     job = Job(
         pod_spec,
