@@ -1708,8 +1708,8 @@ class BlockMatrixReadRowBlockedRDD(
 
     val rows = in.readInt()
     val cols = in.readInt()
-    val isRowMajor = in.readBoolean()
-    assert(isRowMajor, "BlockMatrix must be saved in row-major format")
+    val isTranspose = in.readBoolean()
+    assert(isTranspose, "BlockMatrix must be saved in row-major format")
 
     val entriesToSkip = rowIdx * cols
     in.skipBytes(8 * entriesToSkip)

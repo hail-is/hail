@@ -83,14 +83,12 @@ class RichDenseMatrixDouble(val m: BDM[Double]) extends AnyVal {
   def isCompact: Boolean = m.rows * m.cols == m.data.length
 
   def toCompactData(forceRowMajor: Boolean = false): (Array[Double], Boolean) = {
-    val isMatrixRowMajor = m.isTranspose
-
-    if (forceRowMajor) {
-      if (isMatrixRowMajor) (m.toArray, false) else (m.t.toArray, true)
-    } else {
-      // Don't force reordering of the Breeze data with .toArray
-      (m.data, isMatrixRowMajor)
-    }
+    if (isCompact && (!forceRowMajor || m.isTranspose))
+      (m.data, m.isTranspose)
+    else if (forceRowMajor)
+      (m.t.toArray, true)
+    else
+      (m.toArray, false)
   }
 
   // caller must close
