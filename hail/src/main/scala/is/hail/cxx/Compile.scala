@@ -52,7 +52,7 @@ object Compile {
            |long entrypoint(NativeStatus *st, long sparkUtils, long region, $rawArgs) {
            |  try {
            |    return (long)$fname(SparkFunctionContext(((ScalaRegion *)region)->region_, ((ObjectArray *)sparkUtils)->at(0)), $castArgs);
-           |  } catch (const FatalError& e) {f
+           |  } catch (const FatalError& e) {
            |    NATIVE_ERROR(st, 1005, e.what());
            |    return -1;
            |  }
