@@ -421,9 +421,9 @@ object TestUtils {
         assert(t.typeCheck(res))
         assert(t.valuesSimilar(res, expected), s"($res, $expected)")
       } catch {
-        case _: Exception =>
+        case e: Exception =>
           if (execStrats.contains(strat)) {
-            fail(s"Failed to execute for $strat")
+            fail(s"Failed to execute for $strat: ${e.getMessage}")
           }
       }
     }

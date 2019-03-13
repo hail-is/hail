@@ -83,8 +83,6 @@ class IntervalSuite extends TestNGSuite {
     invoke("Interval", i.start, i.end, i.includesStart, i.includesEnd)
 
   @Test def contains() {
-    implicit val execStrats = ExecStrategy.values
-
     for (setInterval <- testIntervals; p <- points) {
       val interval = toIRInterval(setInterval)
       assert(eval(invoke("contains", interval, p)) == setInterval.contains(p))
@@ -92,8 +90,6 @@ class IntervalSuite extends TestNGSuite {
   }
 
   @Test def isEmpty() {
-    implicit val execStrats = ExecStrategy.values
-
     for (setInterval <- testIntervals) {
       val interval = toIRInterval(setInterval)
       assert(eval(invoke("isEmpty", interval)) == setInterval.definitelyEmpty())
@@ -101,8 +97,6 @@ class IntervalSuite extends TestNGSuite {
   }
 
   @Test def overlaps() {
-    implicit val execStrats = ExecStrategy.values
-
     for (setInterval1 <- testIntervals; setInterval2 <- testIntervals) {
       val interval1 = toIRInterval(setInterval1)
       val interval2 = toIRInterval(setInterval2)
