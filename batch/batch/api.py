@@ -102,10 +102,11 @@ DEFAULT_API = API()
 
 
 def create_job(url, spec, attributes, batch_id, callback, parent_ids, scratch_folder,
-               input_files, output_files, copy_service_account_name):
+               input_files, output_files, copy_service_account_name, always_run):
     return DEFAULT_API.create_job(url, spec, attributes, batch_id, callback,
                                   parent_ids, scratch_folder, input_files,
-                                  output_files, copy_service_account_name)
+                                  output_files, copy_service_account_name,
+                                  always_run)
 
 
 def list_jobs(url):
