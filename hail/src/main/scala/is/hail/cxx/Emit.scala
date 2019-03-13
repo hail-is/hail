@@ -797,34 +797,45 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
            """.stripMargin,
           resultRegion)
 
-      case ir.MakeNDArray(data, shape, rowMajor) =>
+      case ir.MakeNDArray(data, shape, leftOrdered) =>
         val containerPType = data.pType.asInstanceOf[PContainer]
-        val datat = emit(data)
+        val flagst = emit(leftOrdered) //TODO Ignored for now
         val shapet = emit(shape)
-        val rowMajort = emit(rowMajor)
+        val datat = emit(data)
 
-        triplet(
+        val offset = containerPType.elementType.byteSize.toString
+
+        val shapeRegion = fb.variable("shapeRegion", "const char *", shapet.v)
+        val nDims = fb.variable("nDims", "int", containerPType.cxxLoadLength(shapeRegion.toString))
+        triplet("",
+          "false",
           s"""
-             |${datat.setup}
-             |${shapet.setup}
-             |${rowMajort.setup}
-           """.stripMargin,
-          s"${datat.m} || ${shapet.m} || ${rowMajort.m}",
-          s"""
-             |new NDArray(${shapet.v}, ${datat.v}, ${rowMajort.v})
-           """.stripMargin)
+             |({
+             | ${ shapeRegion.define }
+             | ${ nDims.define }
+             | make_ndarray($offset, to_int_vec(${shapeRegion.toString}, ${nDims.toString}), ${datat.v});
+             |})
+             |""".stripMargin)
 
       case ir.NDArrayRef(nd, idxs) =>
+        val idxContainerPType = idxs.pType.asInstanceOf[PContainer]
         val ndt = emit(nd)
         val idxst = emit(idxs)
 
+        val idxsRegion = fb.variable("idxsRegion", "const char *", idxst.v)
+        val nDims = fb.variable("nDims", "int", idxContainerPType.cxxLoadLength(idxsRegion.toString))
         triplet(
           s"""
-             |${ndt.setup}
-             |${idxst.setup}
+             | ${ ndt.setup }
            """.stripMargin,
-          s"${ndt.m} || ${idxst.m}",
-          s"${ndt.v}.get_element(${idxst.v})")
+          "false",
+          s"""
+             |({
+             | ${ idxsRegion.define }
+             | ${ nDims.define }
+             | load_double(load_ndarray_element(${ndt.v}, to_int_vec(${idxsRegion.toString}, ${nDims.toString})));
+             |})
+             |""".stripMargin)
       case _ =>
         throw new CXXUnsupportedOperation(ir.Pretty(x))
     }
