@@ -1,16 +1,19 @@
 package is.hail.cxx
 
 import is.hail.expr.ir
+import is.hail.expr.types.coerce
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
+import is.hail.io.CodecSpec
+import is.hail.nativecode.{NativeModule, NativeStatus}
 import is.hail.utils._
 
 import scala.collection.mutable
 
 object Emit {
-  def apply(fb: FunctionBuilder, nSpecialArgs: Int, x: ir.IR): EmitTriplet = {
+  def apply(fb: FunctionBuilder, nSpecialArgs: Int, x: ir.IR): (EmitTriplet, Array[(String, NativeModule)]) = {
     val emitter = new Emitter(fb, nSpecialArgs, SparkFunctionContext(fb))
-    emitter.emit(x, ir.Env.empty[EmitTriplet])
+    emitter.emit(x, ir.Env.empty[EmitTriplet]) -> emitter.modules.result()
   }
 }
 
@@ -165,7 +168,8 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
   outer =>
   type E = ir.Env[EmitTriplet]
 
-  val sparkEnv = ctx.sparkEnv
+  val modules: ArrayBuilder[(String, NativeModule)] = new ArrayBuilder()
+  val sparkEnv: Code = ctx.sparkEnv
 
   def emit(resultRegion: EmitRegion, x: ir.IR, env: E): EmitTriplet = {
     def triplet(setup: Code, m: Code, v: Code): EmitTriplet =
@@ -605,6 +609,94 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
       case ir.In(i, _) =>
         EmitTriplet(x.pType, "",
           "false", fb.getArg(nSpecialArgs + i).toString, null)
+
+      case x@ir.CollectDistributedArray(c, g, cname, gname, body) =>
+        if (ir.Exists(body, _.isInstanceOf[ir.CollectDistributedArray])) {
+          fatal("cannot nest distributed arrays")
+        }
+
+        val spec = CodecSpec.defaultUncompressed
+        val ctxType = coerce[PArray](c.pType).elementType
+
+        val contexts = emit(c)
+        val globals = emit(g).memoize(fb)
+
+        val tub = new TranslationUnitBuilder
+        tub.include("<string>")
+        val wrappedBody = if (body.pType.isPrimitive) ir.MakeTuple(FastSeq(body)) else body
+
+        val (bodyF, mods) = Compile.makeNonmissingFunction(tub, body, "context" -> ctxType, "global" -> g.pType)
+        assert(mods.isEmpty)
+        val ctxDec = PackDecoder(ctxType, ctxType, spec.child, tub)
+        val globDec = PackDecoder(g.pType, g.pType, spec.child, tub).name
+        val resEnc = PackEncoder(body.pType, spec.child, tub).name
+
+        val fname = tub.genSym("wrapper")
+        val wrapperf = tub.buildFunction(fname,
+          Array("NativeStatus *" -> "st", "long" -> "region", "long" -> "objects"), "long")
+
+        wrapperf +=
+          s"""
+             |UpcallEnv up;
+             |
+             |RegionPtr region = ((ScalaRegion *)${ wrapperf.getArg(1) })->region_;
+             |jobject jres_out = reinterpret_cast<ObjectArray *>(${ wrapperf.getArg(2) })->at(0);
+             |$resEnc res_out { std::make_shared<OutputStream>(up, jres_out) };
+             |
+             |jobject jctx_in = reinterpret_cast<ObjectArray *>(${ wrapperf.getArg(2) })->at(1);
+             |$ctxDec ctx_in { std::make_shared<InputStream>(up, jctx_in) };
+             |char * ctx_ptr = ctx_in.decode_row(region.get());
+             |
+             |jobject jglob_in = reinterpret_cast<ObjectArray *>(${ wrapperf.getArg(2) })->at(2);
+             |$globDec glob_in { std::make_shared<InputStream>(up, jglob_in) };
+             |char * glob_ptr = glob_in.decode_row(region.get());
+             |
+             |try {
+             |  auto res = ${ bodyF.name }(SparkFunctionContext(region), ctx_ptr, glob_ptr);
+             |  res_out.encode_row(res);
+             |  res_out.flush();
+             |  return 0;
+             |} catch (const FatalError& e) {
+             |  NATIVE_ERROR(${ wrapperf.getArg(0) }, 1005, e.what());
+             |  return -1;
+             |}
+             |
+           """.stripMargin
+        wrapperf.end()
+
+        val tu = tub.end()
+        val mod = tu.build("-ggdb -O3")
+        val st = new NativeStatus()
+        mod.findOrBuild(st)
+        assert(st.ok, st.toString())
+
+        val modString = ir.genUID()
+        modules += modString -> mod
+
+        fb.translationUnitBuilder().include("hail/SparkUtils.h")
+        val ctxs = fb.variable("ctxs", "char *")
+        val ctxEnc = PackEncoder(ctxType, spec.child, fb.translationUnitBuilder())
+        val ctxsEnc = s"SparkEnv::ArrayEncoder<${ ctxEnc.name }, ${ coerce[PArray](c.pType).cxxImpl }>"
+        val globEnc = PackEncoder(g.pType, spec.child, fb.translationUnitBuilder()).name
+        val resDec = PackDecoder(body.pType, body.pType, spec.child, fb.translationUnitBuilder())
+
+        fb.translationUnitBuilder().include("hail/ArrayBuilder.h")
+        val arrayBuilder = StagedContainerBuilder.builderType(coerce[PArray](x.pType))
+        val resultsDecoder = s"SparkEnv::ArrayDecoder<${ resDec.name }, $arrayBuilder>"
+
+        EmitTriplet(
+          x.pType,
+          s"${ contexts.setup }\n${ globals.setup }",
+          contexts.m,
+          s"""{
+             |if (${ globals.m }) {
+             |  throw new FatalError("globals can't be missing!");
+             |}
+             |${ ctxs.defineWith(contexts.v) }
+             |$sparkEnv.compute_distributed_array<$ctxsEnc, $globEnc, $resultsDecoder>($resultRegion, "$modString", "$fname", $ctxs, ${ globals.v });
+             |}
+           """.stripMargin,
+          resultRegion)
 
       case _ =>
         throw new CXXUnsupportedOperation(ir.Pretty(x))
