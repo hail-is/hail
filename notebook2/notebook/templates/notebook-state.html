@@ -1,7 +1,6 @@
 
 <div class='nb'>
-    {% set ready = notebook.svc_status == 'Running'
-                    and notebook.pod_status == 'Running'
+    {% set ready =  notebook.pod_status == 'Running'
                     and notebook.condition.status == 'True'
                     and notebook.condition.type == 'Ready'
     %}

@@ -73,6 +73,8 @@ PASSWORD = read_string('/notebook-secrets/password')
 ADMIN_PASSWORD = read_string('/notebook-secrets/admin-password')
 INSTANCE_ID = uuid.uuid4().hex
 
+POD_PORT = 8888
+
 app.config.update(
     SECRET_KEY = read_string('/notebook-secrets/secret-key'),
     SESSION_COOKIE_SAMESITE = 'lax',
@@ -128,27 +130,7 @@ def requires_auth(for_page = True):
 
 def start_pod(jupyter_token, image, name, user_id):
     pod_id = uuid.uuid4().hex
-    service_spec = kube.client.V1ServiceSpec(
-        selector={
-            'app': 'notebook2-worker',
-            'hail.is/notebook2-instance': INSTANCE_ID,
-            'uuid': pod_id},
-        ports=[kube.client.V1ServicePort(port=80, target_port=8888)])
-    service_template = kube.client.V1Service(
-        metadata=kube.client.V1ObjectMeta(
-            generate_name='notebook2-worker-service-',
-            labels={
-                'app': 'notebook2-worker',
-                'hail.is/notebook2-instance': INSTANCE_ID,
-                'uuid': pod_id,
-                'name': name,
-                'user_id': user_id}),
-        spec=service_spec)
-    svc = k8s.create_namespaced_service(
-        'default',
-        service_template,
-        _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS
-    )
+
     pod_spec = kube.client.V1PodSpec(
         containers=[
             kube.client.V1Container(
@@ -156,18 +138,18 @@ def start_pod(jupyter_token, image, name, user_id):
                     'jupyter',
                     'notebook',
                     f'--NotebookApp.token={jupyter_token}',
-                    f'--NotebookApp.base_url=/instance/{svc.metadata.name}/'
+                    f'--NotebookApp.base_url=/instance/{pod_id}/'
                 ],
                 name='default',
                 image=image,
-                ports=[kube.client.V1ContainerPort(container_port=8888)],
+                ports=[kube.client.V1ContainerPort(container_port=POD_PORT)],
                 resources=kube.client.V1ResourceRequirements(
                     requests={'cpu': '1.601', 'memory': '1.601G'}),
                 readiness_probe=kube.client.V1Probe(
                     period_seconds=5,
                     http_get=kube.client.V1HTTPGetAction(
-                        path=f'/instance/{svc.metadata.name}/login',
-                        port=8888)))])
+                        path=f'/instance/{pod_id}/login',
+                        port=POD_PORT)))])
     pod_template = kube.client.V1Pod(
         metadata=kube.client.V1ObjectMeta(
             generate_name='notebook2-worker-',
@@ -175,7 +157,6 @@ def start_pod(jupyter_token, image, name, user_id):
                 'app': 'notebook2-worker',
                 'hail.is/notebook2-instance': INSTANCE_ID,
                 'uuid': pod_id,
-                'svc_name': svc.metadata.name,
                 'name': name,
                 'jupyter_token': jupyter_token,
                 'user_id': user_id
@@ -200,15 +181,6 @@ def external_url_for(path):
 
 # Kube has max 63 character limit
 def user_id_transform(user_id): return hashlib.sha224(user_id.encode('utf-8')).hexdigest()
-
-
-def read_svc_status(svc_name: str):
-    try:
-        # TODO: inspect exception for non-404
-        _ = k8s.read_namespaced_service(svc_name, 'default')
-        return 'Running'
-    except Exception:
-        return 'Deleted'
 
 
 def container_status_for_ui(container_statuses):
@@ -256,19 +228,16 @@ def pod_condition_for_ui(conds):
 
     maxCond = max(conds, key=lambda c: (c.last_transition_time, c.status == 'True'))
 
-    return {
-        "message": maxCond.message,
-        "reason": maxCond.reason,
-        "status": maxCond.status,
-        "type": maxCond.type}
+    return {"status": maxCond.status, "type": maxCond.type}
 
 
-def pod_to_ui_dict(pod, svc_status = None):
+def pod_to_ui_dict(pod):
     notebook = {
         'name': pod.metadata.labels['name'],
         'pod_name': pod.metadata.name,
-        'svc_name': pod.metadata.labels['svc_name'],
         'pod_status': pod.status.phase,
+        'pod_uuid': pod.metadata.labels['uuid'],
+        'pod_ip': pod.status.pod_ip,
         'creation_date': pod.metadata.creation_timestamp.strftime('%D'),
         'jupyter_token': pod.metadata.labels['jupyter_token'],
         'container_status': container_status_for_ui(pod.status.container_statuses),
@@ -276,18 +245,13 @@ def pod_to_ui_dict(pod, svc_status = None):
         'deletion_timestamp': pod.metadata.deletion_timestamp
     }
 
-    notebook['url'] = f"/instance/{notebook['svc_name']}/?token={notebook['jupyter_token']}"
-
-    if svc_status is not None:
-        notebook['svc_status'] = svc_status
-    else:
-        notebook['svc_status'] = read_svc_status(notebook['svc_name'])
+    notebook['url'] = f"/instance/{notebook['pod_uuid']}/?token={notebook['jupyter_token']}"
 
     return notebook
 
 
-def notebooks_for_ui(pods, svc_status = None):
-    return [pod_to_ui_dict(pod, svc_status) for pod in pods]
+def notebooks_for_ui(pods):
+    return [pod_to_ui_dict(pod) for pod in pods]
 
 
 def get_live_user_notebooks(user_id):
@@ -334,7 +298,7 @@ def notebook_delete():
     notebook = session.get('notebook')
 
     if notebook is not None:
-        delete_worker_pod(notebook['pod_name'], notebook['svc_name'])
+        delete_worker_pod(notebook['pod_name'])
         del session['notebook']
 
     return redirect(external_url_for('notebook'))
@@ -353,43 +317,30 @@ def notebook_post():
     safe_user_id = user_id_transform(session['user']['id'])
 
     pod = start_pod(jupyter_token, WORKER_IMAGES[image], name, safe_user_id)
-    session['notebook'] = notebooks_for_ui([pod], svc_status = "Running")[0]
+    session['notebook'] = notebooks_for_ui([pod])[0]
 
     return redirect(external_url_for('notebook'))
 
 
-@app.route('/auth/<requested_svc_name>')
+@app.route('/auth/<requested_pod_uuid>')
 @requires_auth()
-def auth(requested_svc_name):
+def auth(requested_pod_uuid):
     notebook = session.get('notebook')
 
-    if notebook is not None and notebook['svc_name'] == requested_svc_name:
-        return '', 200
+    if notebook is not None and notebook['pod_uuid'] == requested_pod_uuid:
+        res = flask.make_response()
+        res.headers['pod_ip'] = f"{notebook['pod_ip']}:{POD_PORT}"
+        return res
 
     return '', 404
 
 
 def get_all_workers():
-    workers = k8s.list_namespaced_pod(
+    return k8s.list_namespaced_pod(
         namespace='default',
         watch=False,
         label_selector='app=notebook2-worker',
         _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
-    workers_and_svcs = []
-    for w in workers.items:
-        uuid = w.metadata.labels['uuid']
-        svcs = k8s.list_namespaced_service(
-            namespace='default',
-            watch=False,
-            label_selector='uuid=' + uuid,
-            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS).items
-        assert len(svcs) <= 1
-        if len(svcs) == 1:
-            workers_and_svcs.append((w, svcs[0]))
-        else:
-            log.info(f'assuming pod {w.metadata.name} is getting deleted '
-                     f'because it has no service')
-    return workers_and_svcs
 
 
 @app.route('/workers')
@@ -397,19 +348,21 @@ def get_all_workers():
 def workers():
     if not session.get('admin'):
         return redirect(external_url_for('admin-login'))
-    workers_and_svcs = get_all_workers()
+
     return render_template('workers.html',
-                           workers=workers_and_svcs,
+                           workers=get_all_workers(),
                            workers_url=external_url_for('workers'),
                            leader_instance=INSTANCE_ID)
 
 
-@app.route('/workers/<pod_name>/<svc_name>/delete')
+@app.route('/workers/<pod_name>/delete')
 @requires_auth()
-def workers_delete(pod_name, svc_name):
+def workers_delete(pod_name):
     if not session.get('admin'):
         return redirect(external_url_for('admin-login'))
-    delete_worker_pod(pod_name, svc_name)
+
+    delete_worker_pod(pod_name)
+
     return redirect(external_url_for('workers'))
 
 
@@ -418,13 +371,14 @@ def workers_delete(pod_name, svc_name):
 def delete_all_workers():
     if not session.get('admin'):
         return redirect(external_url_for('admin-login'))
-    workers_and_svcs = get_all_workers()
-    for pod_name, svc_name in workers_and_svcs:
-        delete_worker_pod(pod_name, svc_name)
+
+    for pod_name in get_all_workers():
+        delete_worker_pod(pod_name)
+
     return redirect(external_url_for('workers'))
 
 
-def delete_worker_pod(pod_name, svc_name):
+def delete_worker_pod(pod_name):
     try:
         k8s.delete_namespaced_pod(
             pod_name,
@@ -432,15 +386,7 @@ def delete_worker_pod(pod_name, svc_name):
             kube.client.V1DeleteOptions(),
             _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
     except kube.client.rest.ApiException as e:
-        log.info(f'pod {pod_name} or associated service already deleted {e}')
-    try:
-        k8s.delete_namespaced_service(
-            svc_name,
-            'default',
-            kube.client.V1DeleteOptions(),
-            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
-    except kube.client.rest.ApiException as e:
-        log.info(f'service {svc_name} (for pod {pod_name}) already deleted {e}')
+        log.info(f'pod {pod_name} already deleted {e}')
 
 
 @app.route('/admin-login', methods=['GET'])
@@ -455,7 +401,9 @@ def admin_login():
 def admin_login_post():
     if request.form['password'] != ADMIN_PASSWORD:
         return '403 Forbidden', 403
+
     session['admin'] = True
+
     return redirect(external_url_for('workers'))
 
 
@@ -473,27 +421,34 @@ def wait_websocket(ws):
     if notebook is None:
         return
 
-    pod_name = notebook['pod_name']
-    svc_name = notebook['svc_name']
-    while True:
+    pod_uuid = notebook['pod_uuid']
+    url = external_url_for(f'instance-ready/{pod_uuid}/')
+
+    attempts = -1
+    while attempts < 10:
+        attempts += 1
+        # Protect against many requests being issued
+        # This may happen if client re-reqeusts after seeing 405
+        # which can occur if it relies on container status,
+        # which may not be "Ready" immediately after jupyter server is reachable
+        # https://youtu.be/dp-RYuH4tmw
+        gevent.sleep(1)
+
         try:
-            response = requests.head(f'https://notebook2.hail.is/instance-ready/{svc_name}/',
-                                     timeout=1)
-            if response.status_code < 500:
-                log.info(f'HEAD on jupyter succeeded for {svc_name} {pod_name} response: {response}')
-                # if someone responds with a 2xx, 3xx, or 4xx, the notebook
-                # server is alive and functioning properly (in particular, our
-                # HEAD request will return 405 METHOD NOT ALLOWED)
-                break
+            response = requests.head(url, timeout=1, cookies=request.cookies)
+
+            if response.status_code == 502:
+                log.info(f'Pod not reachable for pod_uuid: {pod_uuid} : response: {response}')
+                continue
+
+            if response.status_code == 405:
+                log.info(f'HEAD on jupyter succeeded for pod_uuid: {pod_uuid} : response: {response}')
             else:
-                # somewhat unusual, means the gateway had an error before we
-                # timed out, usually means the gateway itself is broken
-                log.info(f'HEAD on jupyter failed for {svc_name} {pod_name} response: {response}')
-                gevent.sleep(1)
+                log.info(f'HEAD on jupyter failed for pod_uuid: {pod_uuid} : response: {response}')
+
             break
-        except requests.exceptions.Timeout as e:
-            log.info(f'GET on jupyter failed for {svc_name} {pod_name}')
-            gevent.sleep(1)
+        except requests.exceptions.Timeout:
+            log.info(f'HEAD on jupyter timed out for pod_uuid : {pod_uuid}')
 
     ws.send("1")
 
@@ -572,4 +527,3 @@ if __name__ == '__main__':
     from geventwebsocket.handler import WebSocketHandler
     server = pywsgi.WSGIServer(('', 5000), app, handler_class=WebSocketHandler, log=log)
     server.serve_forever()
-
