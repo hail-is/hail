@@ -41,17 +41,17 @@ object Compile {
 
   def makeEntryPoint(tub: TranslationUnitBuilder, fname: String, argTypes: PType*): Unit = {
     val nArgs = argTypes.size
-    val rawArgs = Array.tabulate(nArgs)(i => s"long v$i").mkString(", ")
-    val castArgs = Array.tabulate(nArgs)(i => s"(${ typeToNonConstCXXType(argTypes(i)) }) v$i").mkString(", ")
+    val rawArgs = ("long region" +: Array.tabulate(nArgs)(i => s"long v$i")).mkString(", ")
+    val castArgs = ("((ObjectArray *)sparkUtils)->at(0))" +: Array.tabulate(nArgs)(i => s"(${ typeToNonConstCXXType(argTypes(i)) }) v$i")).mkString(", ")
 
     tub += new Definition {
       def name: String = "entrypoint"
 
       def define: String =
         s"""
-           |long entrypoint(NativeStatus *st, long sparkUtils, long region, $rawArgs) {
+           |long entrypoint(NativeStatus *st, long sparkUtils, $rawArgs) {
            |  try {
-           |    return (long)$fname(SparkFunctionContext(((ScalaRegion *)region)->region_, ((ObjectArray *)sparkUtils)->at(0)), $castArgs);
+           |    return (long)$fname(SparkFunctionContext(((ScalaRegion *)region)->region_, $castArgs);
            |  } catch (const FatalError& e) {
            |    NATIVE_ERROR(st, 1005, e.what());
            |    return -1;
