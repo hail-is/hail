@@ -117,6 +117,43 @@ object Skat {
 
   def computeGramian(st: Array[SkatTuple], useSmallN: Boolean): (Double, BDM[Double]) =
     if (useSmallN) computeGramianSmallN(st) else computeGramianLargeN(st)
+
+  /** Davies Algorithm original C code
+  *   Citation:
+  *     Davies, Robert B. "The distribution of a linear combination of
+  *     x2 random variables." Applied Statistics 29.3 (1980): 323-333.
+  *   Software Link:
+  *     http://www.robertnz.net/QF.htm
+  */
+  @native
+  def qfWrapper(lb1: Array[Double], nc1: Array[Double], n1: Array[Int], r1: Int,
+    sigma: Double, c1: Double, lim1: Int, acc: Double, trace: Array[Double],
+    ifault: IntByReference): Double
+
+  // NativeCode needs to control the initial loading of the libhail DLL, and
+  // the call to getHailName() guarantees that.
+  Native.register(NativeCode.getHailName())
+
+  // gramian is the m x m matrix (G * sqrt(W)).t * P_0 * (G * sqrt(W)) which has the same non-zero eigenvalues
+  // as the n x n matrix in the paper P_0^{1/2} * (G * W * G.t) * P_0^{1/2}
+  def computePval(q: Double, gramian: BDM[Double], accuracy: Double, iterations: Int): (Double, Int) = {
+    val allEvals = eigSymD.justEigenvalues(gramian)
+
+    // filter out those eigenvalues below the mean / 100k
+    val threshold = 1e-5 * sum(allEvals) / allEvals.length
+    val evals = allEvals.toArray.dropWhile(_ < threshold) // evals are increasing
+
+    val terms = evals.length
+    val noncentrality = Array.fill[Double](terms)(0.0)
+    val dof = Array.fill[Int](terms)(1)
+    val trace = Array.fill[Double](7)(0.0)
+    val fault = new IntByReference()
+    val s = 0.0
+    val x = qfWrapper(evals, noncentrality, dof, terms, s, q, iterations, accuracy, trace, fault)
+    val pval = 1 - x
+
+    (pval, fault.getValue)
+  }
 }
 
 case class Skat(
@@ -210,7 +247,7 @@ case class Skat(
             val (q, gramian) = Skat.computeGramian(skatTuples, size.toLong * n <= maxEntriesForSmallN)
             
             // using q / sigmaSq since Z.t * Z = gramian / sigmaSq
-            val (pval, fault) = computePval(q / sigmaSq, gramian, accuracy, iterations)
+            val (pval, fault) = Skat.computePval(q / sigmaSq, gramian, accuracy, iterations)
             
             // returning qstat = q / (2 * sigmaSq) to agree with skat R table convention
             Row(key, size, q / (2 * sigmaSq), pval, fault)
@@ -264,7 +301,7 @@ case class Skat(
         if (size <= maxSize) {
           val skatTuples = vs.map((logisticTuple _).tupled).toArray
           val (q, gramian) = Skat.computeGramian(skatTuples, size.toLong * n <= maxEntriesForSmallN)
-          val (pval, fault) = computePval(q, gramian, accuracy, iterations)
+          val (pval, fault) = Skat.computePval(q, gramian, accuracy, iterations)
   
           // returning qstat = q / 2 to agree with skat R table convention
           Row(key, size, q / 2, pval, fault)
@@ -330,41 +367,5 @@ case class Skat(
     }.groupByKey(), keyType.virtualType)
   }
 
-  /** Davies Algorithm original C code
-  *   Citation:
-  *     Davies, Robert B. "The distribution of a linear combination of
-  *     x2 random variables." Applied Statistics 29.3 (1980): 323-333.
-  *   Software Link:
-  *     http://www.robertnz.net/QF.htm
-  */
-  @native
-  def qfWrapper(lb1: Array[Double], nc1: Array[Double], n1: Array[Int], r1: Int,
-    sigma: Double, c1: Double, lim1: Int, acc: Double, trace: Array[Double],
-    ifault: IntByReference): Double
-
-  // NativeCode needs to control the initial loading of the libhail DLL, and
-  // the call to getHailName() guarantees that.
-  Native.register(NativeCode.getHailName())
-  
-  // gramian is the m x m matrix (G * sqrt(W)).t * P_0 * (G * sqrt(W)) which has the same non-zero eigenvalues
-  // as the n x n matrix in the paper P_0^{1/2} * (G * W * G.t) * P_0^{1/2}
-  def computePval(q: Double, gramian: BDM[Double], accuracy: Double, iterations: Int): (Double, Int) = {
-    val allEvals = eigSymD.justEigenvalues(gramian)
-
-    // filter out those eigenvalues below the mean / 100k
-    val threshold = 1e-5 * sum(allEvals) / allEvals.length
-    val evals = allEvals.toArray.dropWhile(_ < threshold) // evals are increasing
-
-    val terms = evals.length
-    val noncentrality = Array.fill[Double](terms)(0.0)
-    val dof = Array.fill[Int](terms)(1)
-    val trace = Array.fill[Double](7)(0.0)
-    val fault = new IntByReference()
-    val s = 0.0
-    val x = qfWrapper(evals, noncentrality, dof, terms, s, q, iterations, accuracy, trace, fault)
-    val pval = 1 - x
-    
-    (pval, fault.getValue)
-  }
 }
 
