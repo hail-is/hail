@@ -242,6 +242,15 @@ final case class InsertFields(old: IR, fields: Seq[(String, IR)], fieldOrder: Op
   override def pType: PStruct = coerce[PStruct](super.pType)
 }
 
+object GetFieldByIdx {
+  def apply(s: IR, field: Int): IR = {
+    (s.typ: @unchecked) match {
+      case t: TStruct => GetField(s, t.fieldNames(field))
+      case _: TTuple => GetTupleElement(s, field)
+    }
+  }
+}
+
 final case class GetField(o: IR, name: String) extends IR
 
 final case class MakeTuple(types: Seq[IR]) extends IR

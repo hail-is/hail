@@ -1,7 +1,7 @@
 package is.hail.cxx
 
 import is.hail.expr.ir
-import is.hail.expr.types.coerce
+import is.hail.expr.types._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.io.CodecSpec
@@ -13,7 +13,12 @@ import scala.collection.mutable
 object Emit {
   def apply(fb: FunctionBuilder, nSpecialArgs: Int, x: ir.IR): (EmitTriplet, Array[(String, NativeModule)]) = {
     val emitter = new Emitter(fb, nSpecialArgs, SparkFunctionContext(fb))
-    emitter.emit(x, ir.Env.empty[EmitTriplet]) -> emitter.modules.result()
+    if (nSpecialArgs == 0) {
+      val res = emitter.emit(x, ir.Env.empty[EmitTriplet])
+      if (res.region.used) { throw new CXXUnsupportedOperation("can't use region if none is provided.") }
+      res -> emitter.modules.result()
+    } else
+      emitter.emit(x, ir.Env.empty[EmitTriplet]) -> emitter.modules.result()
   }
 }
 
@@ -601,6 +606,100 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
                  |})
                  |""".stripMargin)
         }
+
+      case ir.ArraySort(a, l, r, comp) =>
+        fb.translationUnitBuilder().include("hail/ArraySorter.h")
+        fb.translationUnitBuilder().include("hail/ArrayBuilder.h")
+        val aType = coerce[PContainer](a.pType)
+        val eltType = coerce[TContainer](a.typ).elementType
+        val cxxType = typeToCXXType(eltType.physicalType)
+        val array = emitArray(resultRegion, a, env, sameRegion = !eltType.physicalType.isPrimitive)
+
+        val ltClass = fb.translationUnitBuilder().buildClass(fb.translationUnitBuilder().genSym("SorterLessThan"))
+        val lt = ltClass.buildMethod("operator()", Array(cxxType -> "l", cxxType -> "r"), "bool", const=true)
+        val (trip, mods) = Emit(lt, 0, ir.Subst(comp, ir.Env(l -> ir.In(0, eltType), r -> ir.In(1, eltType))))
+        assert(mods.isEmpty)
+        lt += s"""
+             |${ trip.setup }
+             |if (${ trip.m }) { throw new FatalError("ArraySort: comparison function cannot evaluate to missing."); }
+             |return (${ trip.v });
+           """.stripMargin
+        lt.end()
+        ltClass.end()
+
+        val sorter = fb.variable("sorter", aType.cxxArraySorter(ltClass.name), s"{ }")
+        resultRegion.use()
+
+        EmitTriplet(aType, array.setup, array.m,
+          s"""{
+             |${ sorter.define }
+             |${ array.setupLen }
+             |${ array.emit { (m, v) => s"if ($m) { $sorter.add_missing(); } else { $sorter.add_element($v); }" } }
+             |$sorter.sort();
+             |$sorter.to_region($resultRegion);
+             |}
+           """.stripMargin,
+          resultRegion)
+      case x@(ir.ToSet(_) | ir.ToDict(_)) =>
+        fb.translationUnitBuilder().include("hail/ArraySorter.h")
+        fb.translationUnitBuilder().include("hail/ArrayBuilder.h")
+        val a = x.children(0).asInstanceOf[ir.IR]
+        val eltType = coerce[TContainer](a.typ).elementType
+        val array = emitArray(resultRegion, a, env, sameRegion = !eltType.physicalType.isPrimitive)
+        val cxxType = typeToCXXType(eltType.physicalType)
+        val l = ir.In(0, eltType)
+        val r = ir.In(1, eltType)
+
+        val (ltIR, eqIR, removeMissing) = x match {
+          case ir.ToSet(_) =>
+            val lt = ir.ApplyComparisonOp(ir.Compare(eltType), l, r) < 0
+            val eq = ir.ApplyComparisonOp(ir.EQWithNA(eltType), l, r)
+            (lt, eq, "false")
+          case ir.ToDict(_) =>
+            val keyType = coerce[TBaseStruct](eltType).types(0)
+            val lt = ir.ApplyComparisonOp(ir.Compare(keyType), ir.GetFieldByIdx(l, 0), ir.GetFieldByIdx(r, 0)) < 0
+            val eq = ir.ApplyComparisonOp(ir.EQWithNA(keyType), ir.GetFieldByIdx(l, 0), ir.GetFieldByIdx(r, 0))
+            (lt, eq, "true")
+        }
+
+        val ltClass = fb.translationUnitBuilder().buildClass(fb.translationUnitBuilder().genSym("SorterLessThan"))
+        val lt = ltClass.buildMethod("operator()", Array(cxxType -> "l", cxxType -> "r"), "bool", const=true)
+        val (trip, mods) = Emit(lt, 0, ltIR)
+        assert(mods.isEmpty)
+        lt += s"""
+                 |${ trip.setup }
+                 |if (${ trip.m }) { abort(); }
+                 |return (${ trip.v });
+           """.stripMargin
+        lt.end()
+        ltClass.end()
+
+        val eqClass = fb.translationUnitBuilder().buildClass(fb.translationUnitBuilder().genSym("SorterEq"))
+        val eq = eqClass.buildMethod("operator()", Array(cxxType -> "l", cxxType -> "r"), "bool", const=true)
+        val (eqTrip, eqmods) = Emit(eq, 0, eqIR)
+        assert(eqmods.isEmpty)
+        eq += s"""
+                 |${ eqTrip.setup }
+                 |if (${ eqTrip.m }) { abort(); }
+                 |return (${ eqTrip.v });
+           """.stripMargin
+        eq.end()
+        eqClass.end()
+
+        val sorter = fb.variable("sorter", coerce[PContainer](x.pType).cxxArraySorter(ltClass.name), s"{ }")
+        resultRegion.use()
+
+        EmitTriplet(x.pType, array.setup, array.m,
+          s"""{
+             |${ sorter.define }
+             |${ array.setupLen }
+             |${ array.emit { (m, v) => s"if ($m) { $sorter.add_missing(); } else { $sorter.add_element($v); }" } }
+             |$sorter.sort();
+             |$sorter.distinct<${ eqClass.name }>($removeMissing);
+             |$sorter.to_region($resultRegion);
+             |}
+           """.stripMargin,
+          resultRegion)
 
       case x@ir.ApplyIR(_, _) =>
         // FIXME small only
