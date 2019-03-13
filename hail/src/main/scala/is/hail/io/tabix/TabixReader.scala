@@ -105,19 +105,22 @@ class TabixReader(val filePath: String, hConf: hd.conf.Configuration, idxFilePat
   val index: Tabix = hConf.readFile(indexPath) { is =>
     var buf = new Array[Byte](4)
     is.read(buf, 0, 4) // read magic bytes "TBI\1"
-    assert(Magic sameElements buf, s"""magic number failed validation
-      |magic: ${ Magic.mkString("[", ",", "]") }
-      |data : ${ buf.mkString("[", ",", "]") }""".stripMargin)
+    if (!(Magic sameElements buf))
+      fatal(s"""magic number failed validation
+        |magic: ${ Magic.mkString("[", ",", "]") }
+        |data : ${ buf.mkString("[", ",", "]") }""".stripMargin)
     val seqs = new Array[String](readInt(is))
     val format = readInt(is)
     // Require VCF for now
-    assert(format == 2, s"Hail only supports tabix indexing for VCF, found format code ${ format }")
+    if (format != 2)
+      fatal(s"Hail only supports tabix indexing for VCF, found format code ${ format }")
     val colSeq = readInt(is)
     val colBeg = readInt(is)
     val colEnd = readInt(is)
     val meta = readInt(is)
     // meta char for VCF is '#'
-    assert(meta == '#', s"Meta character was ${ meta }, should be '#' for VCF")
+    if (meta != '#')
+      fatal(s"Meta character was ${ meta }, should be '#' for VCF")
     val chr2tid = new mutable.HashMap[String, Int]()
     readInt(is) // unused, need to consume
 
