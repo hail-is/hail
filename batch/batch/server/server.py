@@ -443,6 +443,7 @@ def create_job():  # pylint: disable=R0912
         'output_files': {
             'type': 'list',
             'schema': {'type': 'list', 'items': 2 * ({'type': 'string'},)}},
+        'always_run': {'type': 'boolean'},
         'attributes': {
             'type': 'dict',
             'keyschema': {'type': 'string'},
