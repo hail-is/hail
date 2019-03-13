@@ -5,6 +5,7 @@ IMAGE_SHORT_NAMES = $(shell ls -1 images)
 BUILT = $(foreach image,$(IMAGE_SHORT_NAMES),build/images/$(image)/_BUILT)
 PUSHED = $(foreach image,$(IMAGE_SHORT_NAMES),build/images/$(image)/_PUSHED)
 PUSHED_LATEST_TAG = $(foreach image,$(IMAGE_SHORT_NAMES),build/images/$(image)/_PUSHED_LATEST_TAG)
+APISERVER = $(shell kubectl -n default get deployments apiserver -o json -o "jsonpath={.metadata.annotations.hail-jupyter-image}")
 
 .PHONY: $(IMAGE_SHORT_NAMES)
 
@@ -32,8 +33,9 @@ build/images/%/_PUSHED_LATEST_TAG: build/images/%/_BUILT
 
 $(IMAGE_SHORT_NAMES): %: build/images/%/_BUILT
 
+
 notebook-worker-images: $(PUSHED)
-	cat $^ > $@
+	cat $^ > $@ && test $(APISERVER) && echo $(APISERVER) >> $@
 
 build: $(BUILT) notebook-worker-images
 ifeq ($(CI_BUILD),true)
