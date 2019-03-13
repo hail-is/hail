@@ -307,6 +307,7 @@ def test_no_parents_allowed_without_batches(client):
 
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 def test_output_files_no_service_account_is_error(client):
     batch = client.create_batch()
     try:
@@ -373,7 +374,7 @@ def test_input_dependency(client):
     assert tail.log()['main'] == 'head1\nhead2\n'
 
 
-def test_always_run(client):
+def test_always_run_delete(client):
     batch = client.create_batch()
     head = batch.create_job('alpine:3.8', command=['echo', 'head'])
     left = batch.create_job(
@@ -392,3 +393,21 @@ def test_always_run(client):
         status = node.status()
         assert status['state'] == 'Complete'
         assert status['exit_code'] == 0
+
+
+def test_always_run_error(client):
+    batch = client.create_batch()
+    head = batch.create_job('alpine:3.8', command=['/bin/sh', '-c', 'exit 1'])
+    tail = batch.create_job('alpine:3.8',
+                            command=['echo', 'tail'],
+                            parent_ids=[head.id],
+                            always_run=True)
+
+    status = batch.wait()
+    assert status['jobs']['Complete'] == 2
+    head_status = tail.status()
+    assert head_status['state'] == 'Complete'
+    assert head_status['exit_code'] == 0
+    tail_status = tail.status()
+    assert tail_status['state'] == 'Complete'
+    assert tail_status['exit_code'] == 0

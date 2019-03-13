@@ -480,8 +480,7 @@ def create_job():  # pylint: disable=R0912
     input_files = parameters.get('input_files')
     output_files = parameters.get('output_files')
     copy_service_account_name = parameters.get('copy_service_account_name')
-
-    always_run = parameters.get('always_run')
+    always_run = parameters.get('always_run', False)
 
     if len(pod_spec.containers) != 1:
         abort(400, f'only one container allowed in pod_spec {pod_spec}')
