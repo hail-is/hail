@@ -58,6 +58,9 @@ abstract class ApproxCDFHelper[@specialized(Int, Long, Float, Double) T] extends
   def compare(x: T, y: T): Int
   def lt(x: T, y: T): Boolean
 
+  def min(x: T, y: T): T = if (lt(x, y)) x else y
+  def max(x: T, y: T): T = if (lt(x, y)) y else x
+
   def sort(a: Array[T], begin: Int, end: Int): Unit
 
   def merge(
@@ -152,15 +155,14 @@ object ApproxCDFCombiner {
  *   never empty, so this is also the greatest nonempty level.
  */
 class ApproxCDFCombiner[@specialized(Int, Long, Float, Double) T: ClassTag : Ordering](
-  val levels: Array[Int], val items: Array[T], var numLevels: Int
+  val levels: Array[Int], val items: Array[T], var numLevels: Int, var minValue: T, var maxValue: T
 )(implicit helper: ApproxCDFHelper[T]
 ) extends Serializable {
-
-  var minValue: T = helper.dummyValue
-  var maxValue: T = helper.dummyValue
+  def this(levels: Array[Int], items: Array[T], numLevels: Int)(implicit helper: ApproxCDFHelper[T]) =
+    this(levels, items, numLevels, helper.dummyValue, helper.dummyValue)
 
   def copy(): ApproxCDFCombiner[T] =
-    new ApproxCDFCombiner[T](levels.clone(), items.clone(), numLevels)
+    new ApproxCDFCombiner[T](levels.clone(), items.clone(), numLevels, minValue, maxValue)
 
   def maxNumLevels = levels.length - 1
   def capacity = items.length
@@ -207,10 +209,12 @@ class ApproxCDFCombiner[@specialized(Int, Long, Float, Double) T: ClassTag : Ord
     }
     System.arraycopy(items, levels(0), newItems, newLevels(0), size)
 
-    new ApproxCDFCombiner[T](newLevels, newItems, numLevels)
+    new ApproxCDFCombiner[T](newLevels, newItems, numLevels, minValue, maxValue)
   }
 
   def clear() {
+    minValue = helper.dummyValue
+    maxValue = helper.dummyValue
     numLevels = 1
     var i = 0
     while (i < levels.length) {
@@ -270,6 +274,9 @@ class ApproxCDFCombiner[@specialized(Int, Long, Float, Double) T: ClassTag : Ord
   }
 
   def merge(other: ApproxCDFCombiner[T], ubOnNumLevels: Int ): ApproxCDFCombiner[T] = {
+    minValue = helper.min(minValue, other.minValue)
+    maxValue = helper.max(maxValue, other.maxValue)
+
     val mergedLevels = Array.ofDim[Int](ubOnNumLevels + 1)
     val mergedItems = Array.ofDim[T](size + other.size)
 
@@ -300,7 +307,12 @@ class ApproxCDFCombiner[@specialized(Int, Long, Float, Double) T: ClassTag : Ord
       lvl += 1
     }
 
-    new ApproxCDFCombiner[T](mergedLevels, mergedItems, math.max(numLevels, other.numLevels))
+    new ApproxCDFCombiner[T](
+      mergedLevels,
+      mergedItems,
+      math.max(numLevels, other.numLevels),
+      helper.min(minValue, other.minValue),
+      helper.max(maxValue, other.maxValue))
   }
 
   def generalCompact(capacities: Array[Int], minCapacity: Int, levelCapacity: (Int, Int) => Int) {
@@ -374,6 +386,8 @@ class ApproxCDFCombiner[@specialized(Int, Long, Float, Double) T: ClassTag : Ord
     }
 
     numLevels = other.numLevels
+    minValue = other.minValue
+    maxValue = other.maxValue
   }
 
   def cdf: (Array[T], Array[Long]) = {
@@ -521,6 +535,8 @@ class RegionValueApproxCDFAggregator[@specialized(Int, Long, Float, Double) T: C
         _seqOp(other.items(i))
         i += 1
       }
+      combiner.minValue = helper.min(combiner.minValue, other.combiner.minValue)
+      combiner.maxValue = helper.max(combiner.maxValue, other.combiner.maxValue)
     } else {
       merge(other)
     }
