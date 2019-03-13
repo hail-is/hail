@@ -103,7 +103,7 @@ object Compile {
 
     assert(ir.TypeToIRIntermediateClassTag(returnType.virtualType) == classTag[Long])
     assert(returnType.isInstanceOf[PBaseStruct])
-    val (mod, sparkUtils) = compile(body, optimize, Array())
+    val (mod, sparkUtils) = compile(body, optimize, Array(arg0 -> arg0Type))
 
     val st = new NativeStatus()
     val nativef = mod.findLongFuncL3(st, "entrypoint")
