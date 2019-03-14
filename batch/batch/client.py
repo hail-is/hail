@@ -43,10 +43,10 @@ class Job:
             self.status()  # update
             if self.is_complete():
                 return self._status
-            j = random.randrange(math.floor(1.5 ** i))
+            j = random.randrange(math.floor(1.1 ** i))
             time.sleep(0.100 * j)
-            # max 5.12s
-            if i < 9:
+            # max 4.45s
+            if i < 64:
                 i = i + 1
 
     def cancel(self):
@@ -91,10 +91,10 @@ class Batch:
             status = self.status()
             if status['jobs']['Created'] == 0:
                 return status
-            j = random.randrange(2 ** i)
+            j = random.randrange(math.floor(1.1 ** i))
             time.sleep(0.100 * j)
-            # max 5.12s
-            if i < 9:
+            # max 4.45s
+            if i < 64:
                 i = i + 1
 
 
