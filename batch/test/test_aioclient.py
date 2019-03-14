@@ -4,6 +4,7 @@ import aiohttp
 import unittest
 import batch
 
+
 class Test(unittest.TestCase):
     def setUp(self):
         self.session = aiohttp.ClientSession(

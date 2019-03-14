@@ -51,9 +51,9 @@ export BATCH_JOBS_TABLE=batch-jobs-$(../generate-uid.sh)
 tables=($JOBS_TABLE $JOBS_PARENTS_TABLE $BATCH_TABLE $BATCH_JOBS_TABLE)
 
 export BATCH_SERVER_URL=http://127.0.0.1:5001
-POD_NAMESPACE='test' python3 -c 'import batch.server; batch.server.serve(5001)' & batch_pid=$!
+python3 -c 'import batch.server; batch.server.serve(5001)' & batch_pid=$!
 
-../until-with-fuel 30 curl -fL 127.0.0.1:5001/jobs
+../until-with-fuel 30 curl -fL 127.0.0.1:5001/alive
 
 # create the temp repo
 set +x
@@ -64,9 +64,7 @@ curl -XPOST \
      -d "{ \"name\" : \"${REPO_NAME}\" }"
 set -x
 
-# wait for create to propagate
-# FIXME poll?
-sleep 5
+../until-with-fuel 30 curl -fL https://github.com/hail-ci-test/${REPO_NAME}
 
 # upload files to temp repo
 # https://unix.stackexchange.com/questions/30091/fix-or-alternative-for-mktemp-in-os-x

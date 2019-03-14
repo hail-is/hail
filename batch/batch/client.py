@@ -1,11 +1,9 @@
-import math
-import time
-import random
+import os
 import yaml
 
 import cerberus
 
-from . import api, schemas
+from . import api, schemas, poll_until
 
 
 class Job:
@@ -38,16 +36,11 @@ class Job:
         return self._status
 
     def wait(self):
-        i = 0
-        while True:
-            self.status()  # update
-            if self.is_complete():
-                return self._status
-            j = random.randrange(math.floor(1.1 ** i))
-            time.sleep(0.100 * j)
-            # max 4.45s
-            if i < 64:
-                i = i + 1
+        def update_and_is_complete():
+            self.status()
+            return self.is_complete()
+        poll_until(update_and_is_complete)
+        return self._status
 
     def cancel(self):
         self.client._cancel_job(self.id)
@@ -76,14 +69,13 @@ class Batch:
     def create_job(self, image, command=None, args=None, env=None, ports=None,
                    resources=None, tolerations=None, volumes=None, security_context=None,
                    service_account_name=None, attributes=None, callback=None, parent_ids=None,
-                   scratch_folder=None, input_files=None, output_files=None,
-                   copy_service_account_name=None, always_run=False):
+                   scratch_folder=None, input_files=None, output_files=None, always_run=False):
         if parent_ids is None:
             parent_ids = []
         return self.client._create_job(
             image, command, args, env, ports, resources, tolerations, volumes, security_context,
             service_account_name, attributes, self.id, callback, parent_ids, scratch_folder,
-            input_files, output_files, copy_service_account_name, always_run)
+            input_files, output_files, always_run)
 
     def close(self):
         self.client._close_batch(self.id)
@@ -92,16 +84,12 @@ class Batch:
         return self.client._get_batch(self.id)
 
     def wait(self):
-        i = 0
-        while True:
+        def update_and_is_complete():
             status = self.status()
             if not any(j['state'] == 'Created' for j in status['jobs']):
                 return status
-            j = random.randrange(math.floor(1.1 ** i))
-            time.sleep(0.100 * j)
-            # max 4.45s
-            if i < 64:
-                i = i + 1
+            return False
+        return poll_until(update_and_is_complete)
 
     def cancel(self):
         self.client._cancel_batch(self.id)
@@ -111,11 +99,29 @@ class Batch:
 
 
 class BatchClient:
-    def __init__(self, url=None, timeout=None, cookies=None, headers=None):
+    HAIL_NOTEBOOK_JWT_TOKEN_LOCATION = '/user-jwt/jwt'
+
+    def __init__(self, url=None, timeout=None, token_file=None, token=None, headers=None):
+        if token_file is not None and token is not None:
+            raise ValueError('set only one of token_file and token')
         if not url:
             url = 'http://batch.default'
         self.url = url
-        self.api = api.API(timeout=timeout, cookies=cookies, headers=headers)
+        if token is None:
+            token_file = (token_file or
+                          os.environ.get('HAIL_TOKEN_FILE') or
+                          os.path.expanduser('~/.hail/token'))
+            if not os.path.exists(token_file):
+                if not os.path.exists(BatchClient.HAIL_NOTEBOOK_JWT_TOKEN_LOCATION):
+                    raise ValueError(
+                        f'cannot create a client without a token. no file was '
+                        f'found at {token_file} nor {BatchClient.HAIL_NOTEBOOK_JWT_TOKEN_LOCATION}')
+                token_file = BatchClient.HAIL_NOTEBOOK_JWT_TOKEN_LOCATION
+            with open(token_file) as f:
+                token = f.read()
+        self.api = api.API(timeout=timeout,
+                           cookies={'user': token},
+                           headers=headers)
 
     def _create_job(self,  # pylint: disable=R0912
                     image,
@@ -135,7 +141,6 @@ class BatchClient:
                     scratch_folder,
                     input_files,
                     output_files,
-                    copy_service_account_name,
                     always_run):
         if env:
             env = [{'name': k, 'value': v} for (k, v) in env.items()]
@@ -187,7 +192,7 @@ class BatchClient:
 
         j = self.api.create_job(self.url, spec, attributes, batch_id, callback,
                                 parent_ids, scratch_folder, input_files, output_files,
-                                copy_service_account_name, always_run)
+                                always_run)
         return Job(self,
                    j['id'],
                    attributes=j.get('attributes'),
@@ -216,9 +221,6 @@ class BatchClient:
 
     def _close_batch(self, batch_id):
         return self.api.close_batch(self.url, batch_id)
-
-    def _refresh_k8s_state(self):
-        self.api.refresh_k8s_state(self.url)
 
     def list_jobs(self, complete=None, success=None, attributes=None):
         jobs = self.api.list_jobs(self.url, complete=complete, success=success, attributes=attributes)
@@ -268,14 +270,13 @@ class BatchClient:
                    scratch_folder=None,
                    input_files=None,
                    output_files=None,
-                   copy_service_account_name=None,
                    always_run=False):
         if parent_ids is None:
             parent_ids = []
         return self._create_job(
             image, command, args, env, ports, resources, tolerations, volumes, security_context,
             service_account_name, attributes, None, callback, parent_ids, scratch_folder,
-            input_files, output_files, copy_service_account_name, always_run)
+            input_files, output_files, always_run)
 
     def create_batch(self, attributes=None, callback=None, ttl=None):
         batch = self.api.create_batch(self.url, attributes, callback, ttl)

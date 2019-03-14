@@ -1,32 +1,62 @@
+from collections import Counter
+import asyncio
+import concurrent
+import functools
+import logging
 import os
-import time
-import random
-import sched
-import uuid
 import threading
-import kubernetes as kube
+import uuid
+
+from aiohttp import web
+import aiohttp_jinja2
 import cerberus
+import jinja2
+import jwt
+import kubernetes as kube
 import requests
 import uvloop
-import aiohttp_jinja2
-import jinja2
-from aiohttp import web
+
+import hailjwt as hj
 
 from .globals import max_id, _log_path, _read_file, pod_name_job, job_id_job, batch_id_batch
 from .globals import next_id, get_recent_events, add_event
 from .database import BatchDatabase
 
-from .. import schemas, run_once, log
+from .. import schemas
+
+
+def make_logger():
+    fmt = logging.Formatter(
+        # NB: no space after levename because WARNING is so long
+        '%(levelname)s\t| %(asctime)s \t| %(filename)s \t| %(funcName)s:%(lineno)d | '
+        '%(message)s')
+
+    file_handler = logging.FileHandler('batch.log')
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(fmt)
+
+    stream_handler = logging.StreamHandler()
+    stream_handler.setLevel(logging.INFO)
+    stream_handler.setFormatter(fmt)
+
+    log = logging.getLogger('batch')
+    log.setLevel(logging.INFO)
+
+    logging.basicConfig(handlers=[file_handler, stream_handler], level=logging.INFO)
+
+    return log
+
+
+log = make_logger()
+
 
 uvloop.install()
-
-s = sched.scheduler()
 
 
 def schedule(ttl, fun, args=(), kwargs=None):
     if kwargs is None:
         kwargs = {}
-    s.enter(ttl, 1, fun, args, kwargs)
+    asyncio.get_event_loop().call_later(ttl, functools.partial(fun, *args, **kwargs))
 
 
 if not os.path.exists('logs'):
@@ -79,10 +109,9 @@ def jsonify(data):
 
 class JobTask:  # pylint: disable=R0903
     @staticmethod
-    def copy_task(job_id, task_name, files, copy_service_account_name):
+    def copy_task(job_id, task_name, files):
         if files is not None:
-            assert copy_service_account_name is not None
-            authenticate = 'gcloud -q auth activate-service-account --key-file=/gcp-sa-key/key.json'
+            authenticate = 'set -ex; gcloud -q auth activate-service-account --key-file=/gsa-key/key.json'
 
             def copy_command(src, dst):
                 if not dst.startswith('gs://'):
@@ -91,25 +120,15 @@ class JobTask:  # pylint: disable=R0903
                     mkdirs = ""
                 return f'{mkdirs} gsutil -m cp -R {src} {dst}'
 
-            copies = ' & '.join([copy_command(src, dst) for (src, dst) in files])
-            wait = 'wait'
-            sh_expression = f'{authenticate} && ({copies} ; {wait})'
+            copies = ' && '.join([copy_command(src, dst) for (src, dst) in files])
+            sh_expression = f'{authenticate} && {copies}'
             container = kube.client.V1Container(
                 image='google/cloud-sdk:237.0.0-alpine',
                 name=task_name,
-                command=['/bin/sh', '-c', sh_expression],
-                volume_mounts=[
-                    kube.client.V1VolumeMount(
-                        mount_path='/gcp-sa-key',
-                        name='gcp-sa-key')])
+                command=['/bin/sh', '-c', sh_expression])
             spec = kube.client.V1PodSpec(
                 containers=[container],
-                restart_policy='Never',
-                volumes=[
-                    kube.client.V1Volume(
-                        secret=kube.client.V1SecretVolumeSource(
-                            secret_name=f'gcp-sa-key-{copy_service_account_name}'),
-                        name='gcp-sa-key')])
+                restart_policy='Never')
             return JobTask(job_id, task_name, spec)
         return None
 
@@ -159,24 +178,35 @@ class Job:
         assert self._pod_name is None
         assert self._current_task is not None
 
+        volumes = [
+            kube.client.V1Volume(
+                secret=kube.client.V1SecretVolumeSource(
+                    secret_name=self.userdata['secret_name']),
+                name='gsa-key')]
+        volume_mounts = [
+            kube.client.V1VolumeMount(
+                mount_path='/gsa-key',
+                name='gsa-key')]
+
         if len(self._tasks) > 1:
             if self._pvc is None:
                 self._pvc = self._create_pvc()
-            current_pod_spec = self._current_task.pod_template.spec
-            if current_pod_spec.volumes is None:
-                current_pod_spec.volumes = []
-            current_pod_spec.volumes.append(
-                kube.client.V1Volume(
-                    persistent_volume_claim=kube.client.V1PersistentVolumeClaimVolumeSource(
-                        claim_name=self._pvc.metadata.name),
-                    name=self._pvc.metadata.name))
-            for container in current_pod_spec.containers:
-                if container.volume_mounts is None:
-                    container.volume_mounts = []
-                container.volume_mounts.append(
-                    kube.client.V1VolumeMount(
-                        mount_path='/io',
-                        name=self._pvc.metadata.name))
+            volumes.append(kube.client.V1Volume(
+                persistent_volume_claim=kube.client.V1PersistentVolumeClaimVolumeSource(
+                    claim_name=self._pvc.metadata.name),
+                name=self._pvc.metadata.name))
+            volume_mounts.append(kube.client.V1VolumeMount(
+                mount_path='/io',
+                name=self._pvc.metadata.name))
+
+        current_pod_spec = self._current_task.pod_template.spec
+        if current_pod_spec.volumes is None:
+            current_pod_spec.volumes = []
+        current_pod_spec.volumes.extend(volumes)
+        for container in current_pod_spec.containers:
+            if container.volume_mounts is None:
+                container.volume_mounts = []
+            container.volume_mounts.extend(volume_mounts)
 
         pod = v1.create_namespaced_pod(
             POD_NAMESPACE,
@@ -194,6 +224,8 @@ class Job:
 
     def _delete_pvc(self):
         if self._pvc is not None:
+            log.info(f'deleting persistent volume claim {self._pvc.metadata.name} in '
+                     f'{self._pvc.metadata.namespace}')
             try:
                 v1.delete_namespaced_persistent_volume_claim(
                     self._pvc.metadata.name,
@@ -241,8 +273,7 @@ class Job:
         return None
 
     def __init__(self, pod_spec, batch_id, attributes, callback, parent_ids,
-                 scratch_folder, input_files, output_files, copy_service_account_name,
-                 always_run):
+                 scratch_folder, input_files, output_files, userdata, always_run):
         self.id = next_id()
         self.batch_id = batch_id
         self.attributes = attributes
@@ -252,15 +283,16 @@ class Job:
         self.incomplete_parent_ids = set(self.parent_ids)
         self.scratch_folder = scratch_folder
         self.always_run = always_run
+        self.userdata = userdata
 
         self._pvc = None
         self._pod_name = None
         self.exit_code = None
         self._state = 'Created'
 
-        self._tasks = [JobTask.copy_task(self.id, 'input', input_files, copy_service_account_name),
+        self._tasks = [JobTask.copy_task(self.id, 'input', input_files),
                        JobTask(self.id, 'main', pod_spec),
-                       JobTask.copy_task(self.id, 'output', output_files, copy_service_account_name)]
+                       JobTask.copy_task(self.id, 'output', output_files)]
 
         self._tasks = [t for t in self._tasks if t is not None]
         self._task_idx = -1
@@ -390,9 +422,9 @@ class Job:
         else:
             self._delete_pvc()
 
-        self.set_state('Complete')
-
         log.info('job {} complete, exit_code {}'.format(self.id, self.exit_code))
+
+        self.set_state('Complete')
 
         if self.callback:
             def handler(id, callback, json):
@@ -429,14 +461,34 @@ class Job:
         return result
 
 
+with open(os.environ.get('HAIL_JWT_SECRET_KEY_FILE') or '/jwt-secret/secret-key') as f:
+    jwtclient = hj.JWTClient(f.read())
+
+
+def authenticated_users_only(fun):
+    def wrapped(request, *args, **kwargs):
+        encoded_token = request.cookies.get('user')
+        if encoded_token is not None:
+            try:
+                userdata = jwtclient.decode(encoded_token)
+                if 'userdata' in fun.__code__.co_varnames:
+                    return fun(request, *args, userdata=userdata, **kwargs)
+                return fun(request, *args, **kwargs)
+            except jwt.exceptions.DecodeError as de:
+                log.info(f'could not decode token: {de}')
+        raise web.HTTPForbidden()
+    wrapped.__name__ = fun.__name__
+    return wrapped
+
+
 @routes.post('/jobs/create')
-async def create_job(request):  # pylint: disable=R0912
+@authenticated_users_only
+async def create_job(request, userdata):  # pylint: disable=R0912
     parameters = await request.json()
 
     schema = {
         # will be validated when creating pod
         'spec': schemas.pod_spec,
-        'copy_service_account_name': {'type': 'string'},
         'batch_id': {'type': 'integer'},
         'parent_ids': {'type': 'list', 'schema': {'type': 'integer'}},
         'scratch_folder': {'type': 'string'},
@@ -482,7 +534,6 @@ async def create_job(request):  # pylint: disable=R0912
     scratch_folder = parameters.get('scratch_folder')
     input_files = parameters.get('input_files')
     output_files = parameters.get('output_files')
-    copy_service_account_name = parameters.get('copy_service_account_name')
     always_run = parameters.get('always_run', False)
 
     if len(pod_spec.containers) != 1:
@@ -491,36 +542,27 @@ async def create_job(request):  # pylint: disable=R0912
     if pod_spec.containers[0].name != 'main':
         abort(400, f'container name must be "main" was {pod_spec.containers[0].name}')
 
-    if not both_or_neither(input_files is None and output_files is None,
-                           copy_service_account_name is None):
-        abort(400,
-              f'invalid request: if either input_files or ouput_files is set, '
-              f'then the service account must be specified; otherwise the '
-              f'service account must not be specified. input_files: {input_files}, '
-              f'output_files: {output_files}, copy_service_account_name: '
-              f'{copy_service_account_name}')
-
     job = Job(
-        pod_spec,
-        batch_id,
-        parameters.get('attributes'),
-        parameters.get('callback'),
-        parent_ids,
-        scratch_folder,
-        input_files,
-        output_files,
-        copy_service_account_name,
-        always_run)
+        pod_spec=pod_spec,
+        batch_id=batch_id,
+        attributes=parameters.get('attributes'),
+        callback=parameters.get('callback'),
+        parent_ids=parent_ids,
+        scratch_folder=scratch_folder,
+        input_files=input_files,
+        output_files=output_files,
+        userdata=userdata,
+        always_run=always_run)
     return jsonify(job.to_dict())
 
 
-def both_or_neither(x, y):  # pylint: disable=C0103
-    assert isinstance(x, bool)
-    assert isinstance(y, bool)
-    return x == y
+@routes.get('/alive')
+async def get_alive(request):  # pylint: disable=W0613
+    return jsonify({})
 
 
 @routes.get('/jobs')
+@authenticated_users_only
 async def get_job_list(request):
     params = request.query
 
@@ -547,6 +589,7 @@ async def get_job_list(request):
 
 
 @routes.get('/jobs/{job_id}')
+@authenticated_users_only
 async def get_job(request):
     job_id = int(request.match_info['job_id'])
     job = job_id_job.get(job_id)
@@ -556,6 +599,7 @@ async def get_job(request):
 
 
 @routes.get('/jobs/{job_id}/log')
+@authenticated_users_only
 async def get_job_log(request):  # pylint: disable=R1710
     job_id = int(request.match_info['job_id'])
     if job_id > max_id():
@@ -578,6 +622,7 @@ async def get_job_log(request):  # pylint: disable=R1710
 
 
 @routes.delete('/jobs/{job_id}/delete')
+@authenticated_users_only
 async def delete_job(request):
     job_id = int(request.match_info['job_id'])
     job = job_id_job.get(job_id)
@@ -588,6 +633,7 @@ async def delete_job(request):
 
 
 @routes.patch('/jobs/{job_id}/cancel')
+@authenticated_users_only
 async def cancel_job(request):
     job_id = int(request.match_info['job_id'])
     job = job_id_job.get(job_id)
@@ -692,6 +738,7 @@ async def get_batches_list(request):
 
 
 @routes.post('/batches/create')
+@authenticated_users_only
 async def create_batch(request):
     parameters = await request.json()
 
@@ -713,6 +760,7 @@ async def create_batch(request):
 
 
 @routes.get('/batches/{batch_id}')
+@authenticated_users_only
 async def get_batch(request):
     batch_id = int(request.match_info['batch_id'])
     batch = batch_id_batch.get(batch_id)
@@ -732,6 +780,7 @@ async def cancel_batch(request):
 
 
 @routes.delete('/batches/{batch_id}/delete')
+@authenticated_users_only
 async def delete_batch(request):
     batch_id = int(request.match_info['batch_id'])
     batch = batch_id_batch.get(batch_id)
@@ -742,6 +791,7 @@ async def delete_batch(request):
 
 
 @routes.patch('/batches/{batch_id}/close')
+@authenticated_users_only
 async def close_batch(request):
     batch_id = int(request.match_info['batch_id'])
     batch = batch_id_batch.get(batch_id)
@@ -764,36 +814,54 @@ def update_job_with_pod(job, pod):
         job.mark_unscheduled()
 
 
-@routes.post('/pod_changed')
-async def pod_changed(request):
-    parameters = await request.json()
+@routes.get('/recent')
+@aiohttp_jinja2.template('recent.html')
+@authenticated_users_only
+async def recent(request):  # pylint: disable=W0613
+    recent_events = get_recent_events()
+    return {'recent': list(reversed(recent_events))}
 
-    pod_name = parameters['pod_name']
 
-    job = pod_name_job.get(pod_name)
+def blocking_to_async(f, *args, **kwargs):
+    return asyncio.get_event_loop().run_in_executor(
+        app['blocking_pool'], lambda: f(*args, **kwargs))
+
+
+class DeblockedIterator:
+    def __init__(self, it):
+        self.it = it
+
+    def __aiter__(self):
+        return self
+
+    def __anext__(self):
+        return blocking_to_async(self.it.__next__)
+
+
+def pod_changed(pod):
+    job = pod_name_job.get(pod.metadata.name)
 
     if job and not job.is_complete():
-        try:
-            pod = v1.read_namespaced_pod(
-                pod_name,
-                POD_NAMESPACE,
-                _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
-        except kube.client.rest.ApiException as exc:
-            if exc.status == 404:
-                pod = None
-            else:
-                raise
-
         update_job_with_pod(job, pod)
 
-    return web.Response(status=204)
+
+async def kube_event_loop():
+    stream = kube.watch.Watch().stream(
+        v1.list_namespaced_pod,
+        POD_NAMESPACE,
+        label_selector=f'app=batch-job,hail.is/batch-instance={instance_id}')
+    async for event in DeblockedIterator(stream):
+        pod = event['object']
+        asyncio.get_event_loop().call_soon_threadsafe(
+            pod_changed, pod)
 
 
-@routes.post('/refresh_k8s_state')
-async def refresh_k8s_state(request):  # pylint: disable=W0613
+async def refresh_k8s_state():  # pylint: disable=W0613
     log.info('started k8s state refresh')
 
-    pods = v1.list_namespaced_pod(
+    pods = await blocking_to_async(
+        app['blocking_pool'],
+        v1.list_namespaced_pod,
         POD_NAMESPACE,
         label_selector=f'app=batch-job,hail.is/batch-instance={instance_id}',
         _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
@@ -813,87 +881,29 @@ async def refresh_k8s_state(request):  # pylint: disable=W0613
 
     log.info('k8s state refresh complete')
 
-    return web.Response(status=204)
 
-
-@routes.get('/recent')
-@aiohttp_jinja2.template('recent.html')
-async def recent(request):  # pylint: disable=W0613
-    recent_events = get_recent_events()
-    return {'recent': list(reversed(recent_events))}
-
-
-def run_forever(target, *args, **kwargs):
-    expected_retry_interval_ms = 15 * 1000
-
-    while True:
-        start = time.time()
-        run_once(target, *args, **kwargs)
-        end = time.time()
-
-        run_time_ms = int((end - start) * 1000 + 0.5)
-
-        sleep_duration_ms = random.randrange(expected_retry_interval_ms * 2) - run_time_ms
-        if sleep_duration_ms > 0:
-            log.debug(f'run_forever: {target.__name__}: sleep {sleep_duration_ms}ms')
-            time.sleep(sleep_duration_ms / 1000.0)
-
-
-def aiohttp_event_loop(port):
-    app.add_routes(routes)
-    web.run_app(app, host='0.0.0.0', port=port)
-
-
-def kube_event_loop(port):
-    # May not be thread-safe; opens http connection, so use local version
-    v1_ = kube.client.CoreV1Api()
-
-    watch = kube.watch.Watch()
-    stream = watch.stream(
-        v1_.list_namespaced_pod,
-        POD_NAMESPACE,
-        label_selector=f'app=batch-job,hail.is/batch-instance={instance_id}')
-    for event in stream:
-        pod = event['object']
-        name = pod.metadata.name
-        requests.post(f'http://127.0.0.1:{port}/pod_changed', json={'pod_name': name}, timeout=120)
-
-
-def polling_event_loop(port):
-    time.sleep(1)
+async def polling_event_loop():
+    await asyncio.sleep(1)
     while True:
         try:
-            response = requests.post(f'http://127.0.0.1:{port}/refresh_k8s_state', timeout=120)
-            response.raise_for_status()
-        except requests.HTTPError as exc:
-            log.error(f'Could not poll due to exception: {exc}, text: {exc.response.text}')
+            await refresh_k8s_state()
         except Exception as exc:  # pylint: disable=W0703
             log.error(f'Could not poll due to exception: {exc}')
-        time.sleep(REFRESH_INTERVAL_IN_SECONDS)
-
-
-def scheduling_loop():
-    while True:
-        try:
-            s.run(blocking=False)
-        except Exception as exc:  # pylint: disable=W0703
-            log.error(f'Could not run scheduled jobs due to: {exc}')
+        await asyncio.sleep(REFRESH_INTERVAL_IN_SECONDS)
 
 
 def serve(port=5000):
-    kube_thread = threading.Thread(target=run_forever, args=(kube_event_loop, port))
-    kube_thread.start()
+    def if_anyone_dies_we_all_die(loop, context):
+        try:
+            loop.default_exception_handler(context)
+        finally:
+            loop.stop()
+    asyncio.get_event_loop().set_exception_handler(
+        if_anyone_dies_we_all_die)
+    app.add_routes(routes)
+    with concurrent.futures.ThreadPoolExecutor() as pool:
 
-    polling_thread = threading.Thread(target=run_forever, args=(polling_event_loop, port))
-    polling_thread.start()
-
-    scheduling_thread = threading.Thread(target=run_forever, args=(scheduling_loop,))
-    scheduling_thread.start()
-
-    # debug/reloader must run in main thread
-    # see: https://stackoverflow.com/questions/31264826/start-a-flask-application-in-separate-thread
-    # flask_thread = threading.Thread(target=flask_event_loop)
-    # flask_thread.start()
-    run_forever(aiohttp_event_loop, port)
-
-    kube_thread.join()
+        app['blocking_pool'] = pool
+        asyncio.ensure_future(polling_event_loop())
+        asyncio.ensure_future(kube_event_loop())
+        web.run_app(app, host='0.0.0.0', port=port)

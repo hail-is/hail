@@ -44,7 +44,7 @@ server_pid=$!
 cd ../pipeline/
 
 : $((tries = 0))
-until curl -fL 127.0.0.1:5000/jobs >/dev/null 2>&1
+until curl -fL 127.0.0.1:5000/alive >/dev/null 2>&1
 do
     : $((tries = tries + 1)) && [ $tries -lt 30 ]
     sleep 1

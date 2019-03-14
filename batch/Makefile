@@ -2,7 +2,7 @@
   push push-test \
   run-docker run \
   test test-local deploy test-deploy \
-  check clean
+  check clean install-hailjwt
 
 PROJECT := $(shell gcloud config get-value project)
 BATCH_LATEST = gcr.io/$(PROJECT)/batch:latest
@@ -18,11 +18,20 @@ BATCH_PORT ?= 5000
 
 include ../cloud-sql.mk
 
-flake8-stmp: $(PY_FILES)
+test/jwt-test-user-token: test/jwt-test-user.json test/jwt-test-secret-key install-hailjwt create_key.py
+	python create_key.py test/jwt-test-secret-key < $< > $@
+
+install-hailjwt:
+	cd ../hailjwt && python3 setup.py install --user
+
+install: install-hailjwt
+	pip install -U ./
+
+flake8-stmp: $(PY_FILES) install-hailjwt
 	python3 -m flake8 batch
 	touch $@
 
-pylint-stmp: $(PY_FILES)
+pylint-stmp: $(PY_FILES) install-hailjwt
 	python3 -m pylint --rcfile ../pylintrc batch --score=n
 	touch $@
 
@@ -31,6 +40,9 @@ check: $(PY_CHECKERS)
 build:
 	make -C ../docker build
 	-docker pull $(BATCH_LATEST)
+	mkdir -p hailjwt
+	cp ../hailjwt/setup.py hailjwt/
+	cp -R ../hailjwt/hailjwt/ hailjwt/hailjwt/
 	docker build -t batch --cache-from batch,$(BATCH_LATEST),base,ubuntu:18.04 .
 
 build-test:
@@ -54,10 +66,11 @@ run-docker: build
 run:
 	python3 -c 'import batch.server; batch.server.serve('$(BATCH_PORT)')'
 
-run-local: run-cloud-sql-proxy-batch-test
-	CLOUD_SQL_CONFIG_PATH=batch-secrets/batch-test-cloud-sql-config.json \
-            BATCH_USE_KUBE_CONFIG=1 \
-            python3 -c 'import batch.server; batch.server.serve('$(BATCH_PORT)')'
+run-local: run-cloud-sql-proxy-batch-test test/jwt-test-user-token
+	HAIL_JWT_SECRET_KEY_FILE=test/jwt-test-secret-key \
+		CLOUD_SQL_CONFIG_PATH=batch-secrets/batch-test-cloud-sql-config.json \
+		BATCH_USE_KUBE_CONFIG=1 \
+		python3 -c 'import batch.server; batch.server.serve('$(BATCH_PORT)')'
 
 test: push-test
 	sed -e "s,@image@,$(BATCH_TEST_IMAGE)," \
@@ -67,15 +80,23 @@ test: push-test
 ifneq ($(PY_CHECK),false)
 test-local: check
 endif
-test-local: install-cloud-sql-proxy 
-test-local: batch-secrets/batch-test-cloud-sql-config.json
-	POD_NAMESPACE='test' BATCH_USE_KUBE_CONFIG=1 ./test-locally.sh
+test-local: install-cloud-sql-proxy install-hailjwt
+test-local: batch-secrets/batch-test-cloud-sql-config.json test/jwt-test-user-token
+	rm -rf logs
+	HAIL_JWT_SECRET_KEY_FILE=test/jwt-test-secret-key \
+		HAIL_TOKEN_FILE=test/jwt-test-user-token \
+		POD_NAMESPACE='test' \
+		BATCH_USE_KUBE_CONFIG=1 \
+		./test-locally.sh
 
 # local means server and test client are two processes on one machine
 # in-cluster means in a k8s pod (from which we get k8s creds)
 test-local-in-cluster: /batch-secrets/batch-test-cloud-sql-config.json
-test-local-in-cluster: check
-	POD_NAMESPACE='test' ./test-locally.sh
+test-local-in-cluster: check install-hailjwt test/jwt-test-user-token
+	HAIL_JWT_SECRET_KEY_FILE=test/jwt-test-secret-key \
+		HAIL_TOKEN_FILE=test/jwt-test-user-token \
+		POD_NAMESPACE=test \
+		./test-locally.sh
 
 deploy: push
 	sed -e "s,@sha@,$$(git rev-parse --short=12 HEAD)," \
@@ -95,7 +116,9 @@ test-deploy: push-test
 	kubectl -n $(TEST_NAMESPACE) apply -f deployment.yaml
 
 clean:
-	rm -f $(PY_CHECKERS) && rm -rf batch-secrets
+	rm -rf hailjwt
+	rm -f $(PY_CHECKERS)
+	rm -rf batch-secrets
 
 clean-db-production-local: batch-secrets/batch-production-cloud-sql-config.json
 	CLOUD_SQL_CONFIG_PATH=$< ./clean-db.sh
