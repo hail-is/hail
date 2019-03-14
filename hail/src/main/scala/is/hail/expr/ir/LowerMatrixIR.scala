@@ -154,23 +154,46 @@ object LowerMatrixIR {
           let (global = 'global.dropFields(colsField)) { newGlobals }
           .insertFields(colsField -> 'global(colsField)))
 
-    case MatrixMapRows(child, newRow) =>
-      var loweredNewRow: IRProxy =
-        subst(newRow, Env("va" -> 'row, "global" -> 'global))
+    case MatrixMapRows(child, newRow) => {
+      def liftScans(ir: IR): IRProxy = {
+        val scans = new ArrayBuilder[(String, IR)]
 
-      if (ContainsAgg(newRow)) {
-        loweredNewRow = irRange(0, 'row (entriesField).len)
-          .filter('i ~> !'row (entriesField)('i).isNA)
-          .arrayAgg('i ~>
-            (aggLet(sa = 'global (colsField)('i),
-              g = 'row (entriesField)('i),
-              va = 'row)
-              in loweredNewRow))
+        def f(ir: IR): IR = ir match {
+          case x@(_: ApplyScanOp | _: AggFilter | _: AggExplode | _: AggGroupBy) if ContainsScan(x) =>
+            assert(!ContainsAgg(x))
+            val s = genUID()
+            scans += (s -> x)
+            Ref(s, x.typ)
+          case _ =>
+            MapIR(f)(ir)
+        }
+
+        val b0 = f(ir)
+        
+        var b: IRProxy =
+          if (ContainsAgg(b0)) {
+            irRange(0, 'row (entriesField).len)
+              .filter('i ~> !'row (entriesField)('i).isNA)
+              .arrayAgg('i ~>
+                (aggLet(sa = 'global (colsField)('i),
+                  g = 'row (entriesField)('i),
+                  va = 'row)
+                  in b0))
+          } else
+            b0
+
+        scans.result().foldLeft(b) { case (acc, (s, x)) =>
+          (env: E) => {
+            Let(s, x, acc(env))
+          }
+        }
       }
 
       lower(child)
-        .mapRows(loweredNewRow
-          .insertFields(entriesField -> 'row (entriesField)))
+        .mapRows(
+          subst(liftScans(newRow), Env("va" -> 'row, "global" -> 'global))
+            .insertFields(entriesField -> 'row (entriesField)))
+    }
 
     case MatrixFilterEntries(child, pred) =>
       lower(child).mapRows('row.insertFields(entriesField ->
