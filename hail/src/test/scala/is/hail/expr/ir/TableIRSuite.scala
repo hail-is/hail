@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.SparkSuite
+import is.hail.{ExecStrategy, SparkSuite}
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.types._
 import is.hail.expr.types.virtual.{TArray, TFloat64, TInt32, TString, TStruct}
@@ -27,6 +27,8 @@ class TableIRSuite extends SparkSuite {
   }
 
   def rangeKT: TableIR = Table.range(hc, 20, Some(4)).unkey().tir
+
+  implicit val execStrats = ExecStrategy.interpretOnly
 
   @BeforeClass def ensureHCDefined() {
     initializeHailContext()

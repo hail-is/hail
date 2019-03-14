@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.SparkSuite
+import is.hail.{ExecStrategy, SparkSuite}
 import is.hail.TestUtils.assertEvalsTo
 import is.hail.expr.ir.TestUtils.IRAggCount
 import is.hail.expr.types.virtual.{TArray, TFloat64, TInt32, TStruct}
@@ -10,6 +10,8 @@ import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
 class SimplifySuite extends SparkSuite {
+  implicit val execStrats = ExecStrategy.interpretOnly
+
   @Test def testTableMultiWayZipJoinGlobalsRewrite() {
     hc
     val tmwzj = TableGetGlobals(TableMultiWayZipJoin(
