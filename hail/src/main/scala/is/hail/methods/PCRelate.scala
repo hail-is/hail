@@ -1,15 +1,18 @@
 package is.hail.methods
 
 import breeze.linalg.{DenseMatrix => BDM}
-import is.hail.annotations.Annotation
+import is.hail.annotations.{Annotation, BroadcastRow}
 import is.hail.linalg.BlockMatrix
 import is.hail.linalg.BlockMatrix.ops._
-import is.hail.expr.types._
 import is.hail.table.Table
 import is.hail.utils._
 import is.hail.variant.{Call, HardCallView, MatrixTable}
 import is.hail.HailContext
+import is.hail.expr.ir.{IR, Interpret, TableIR, TableKeyBy, TableLiteral, TableValue}
+import is.hail.expr.types.TableType
 import is.hail.expr.types.virtual._
+import is.hail.rvd.RVDContext
+import is.hail.sparkextras.ContextRDD
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.mllib.linalg.Vectors
 import org.apache.spark.mllib.linalg.distributed.{IndexedRow, IndexedRowMatrix}
@@ -45,23 +48,22 @@ object PCRelate {
 
   private val keys: IndexedSeq[String] = Array("i", "j")
 
-  def apply(
-    hc: HailContext,
+  def pyApply(
     blockedG: M,
-    scoresTable: Table,
+    scores: IR,
     maf: Double,
     blockSize: Int,
     minKinship: Double,
-    statistics: PCRelate.StatisticSubset): Table = {
+    statistics: PCRelate.StatisticSubset): TableIR = {
     
-    val scoresLocal = scoresTable.collect()
+    val scoresLocal = Interpret(scores).asInstanceOf[IndexedSeq[Row]].toArray
     assert(scoresLocal.length == blockedG.nCols)
     
     val pcs = rowsToBDM(scoresLocal.map(_.getAs[IndexedSeq[java.lang.Double]](0))) // non-missing in Python
     
-    val result = new PCRelate(maf, blockSize, statistics, defaultStorageLevel)(hc, blockedG, pcs)
+    val result = new PCRelate(maf, blockSize, statistics, defaultStorageLevel)(HailContext.get, blockedG, pcs)
 
-    Table(hc, toRowRdd(result, blockSize, minKinship, statistics), sig, keys)
+    TableLiteral(TableValue(sig, keys, toRowRdd(result, blockSize, minKinship, statistics)))
   }
 
   private[methods] def apply(hc: HailContext,
@@ -80,8 +82,8 @@ object PCRelate {
     val result = new PCRelate(maf, blockSize, statistics, defaultStorageLevel)(hc, blockedG, pcs)
 
     val irFields = Array(
-      "i" -> "(Apply `[]` (GetField sample_ids (Ref global)) (GetField i (Ref row)))",
-      "j" -> "(Apply `[]` (GetField sample_ids (Ref global)) (GetField j (Ref row)))",
+      "i" -> "(Apply `indexArray` (GetField sample_ids (Ref global)) (GetField i (Ref row)))",
+      "j" -> "(Apply `indexArray` (GetField sample_ids (Ref global)) (GetField j (Ref row)))",
       "kin" -> "(GetField kin (Ref row))",
       "ibd0" -> "(GetField ibd0 (Ref row))",
       "ibd1" -> "(GetField ibd1 (Ref row))",

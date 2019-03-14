@@ -1,7 +1,8 @@
 from hail import ir
 
+
 class Renderer(object):
-    def __init__(self, stop_at_jir):
+    def __init__(self, stop_at_jir=False):
         self.stop_at_jir = stop_at_jir
         self.count = 0
         self.jirs = {}
@@ -19,6 +20,8 @@ class Renderer(object):
                 return f'(JavaMatrix {jir_id})'
             elif isinstance(x, ir.TableIR):
                 return f'(JavaTable {jir_id})'
+            elif isinstance(x, ir.BlockMatrixIR):
+                return f'(JavaBlockMatrix {jir_id})'
             else:
                 assert isinstance(x, ir.IR)
                 return f'(JavaIR {jir_id})'

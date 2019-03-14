@@ -2,17 +2,29 @@ import sys
 import os
 import time
 import random
+import sched
 import uuid
 from collections import Counter
 import logging
 import threading
-from flask import Flask, request, jsonify, abort
+from flask import Flask, request, jsonify, abort, render_template
 import kubernetes as kube
 import cerberus
 import requests
 
 from .globals import max_id, pod_name_job, job_id_job, _log_path, _read_file, batch_id_batch
-from .globals import next_id
+from .globals import next_id, get_recent_events, add_event
+
+from .. import schemas
+
+s = sched.scheduler()
+
+
+def schedule(ttl, fun, args=(), kwargs=None):
+    if kwargs is None:
+        kwargs = {}
+    s.enter(ttl, 1, fun, args, kwargs)
+
 
 if not os.path.exists('logs'):
     os.mkdir('logs')
@@ -46,13 +58,16 @@ def make_logger():
 log = make_logger()
 
 KUBERNETES_TIMEOUT_IN_SECONDS = float(os.environ.get('KUBERNETES_TIMEOUT_IN_SECONDS', 5.0))
-
 REFRESH_INTERVAL_IN_SECONDS = int(os.environ.get('REFRESH_INTERVAL_IN_SECONDS', 5 * 60))
-
 POD_NAMESPACE = os.environ.get('POD_NAMESPACE', 'batch-pods')
+POD_VOLUME_SIZE = os.environ.get('POD_VOLUME_SIZE', '10Mi')
 
 log.info(f'KUBERNETES_TIMEOUT_IN_SECONDS {KUBERNETES_TIMEOUT_IN_SECONDS}')
 log.info(f'REFRESH_INTERVAL_IN_SECONDS {REFRESH_INTERVAL_IN_SECONDS}')
+log.info(f'POD_NAMESPACE {POD_NAMESPACE}')
+log.info(f'POD_VOLUME_SIZE {POD_VOLUME_SIZE}')
+
+STORAGE_CLASS_NAME = 'batch'
 
 if 'BATCH_USE_KUBE_CONFIG' in os.environ:
     kube.config.load_kube_config()
@@ -64,21 +79,117 @@ instance_id = uuid.uuid4().hex
 log.info(f'instance_id = {instance_id}')
 
 
+class JobTask:  # pylint: disable=R0903
+    @staticmethod
+    def copy_task(job_id, task_name, files):
+        if files:
+            container = kube.client.V1Container(image='alpine',
+                                                name=task_name,
+                                                command=['echo', 'hello'])
+
+            spec = kube.client.V1PodSpec(containers=[container],
+                                         restart_policy='Never')
+
+            return JobTask(job_id, task_name, spec)
+        return None
+
+    def __init__(self, job_id, name, pod_spec):
+        assert pod_spec is not None
+
+        metadata = kube.client.V1ObjectMeta(generate_name='job-{}-{}-'.format(job_id, name),
+                                            labels={
+                                                'app': 'batch-job',
+                                                'hail.is/batch-instance': instance_id,
+                                                'uuid': uuid.uuid4().hex
+                                            })
+
+        self.pod_template = kube.client.V1Pod(metadata=metadata,
+                                              spec=pod_spec)
+        self.name = name
+
+
 class Job:
+    def _next_task(self):
+        self._task_idx += 1
+        if self._task_idx < len(self._tasks):
+            self._current_task = self._tasks[self._task_idx]
+
+    def _has_next_task(self):
+        return self._task_idx < len(self._tasks)
+
+    def _create_pvc(self):
+        pvc = v1.create_namespaced_persistent_volume_claim(
+            POD_NAMESPACE,
+            kube.client.V1PersistentVolumeClaim(
+                metadata=kube.client.V1ObjectMeta(
+                    generate_name=f'job-{self.id}-',
+                    labels={'app': 'batch-job',
+                            'hail.is/batch-instance': instance_id}),
+                spec=kube.client.V1PersistentVolumeClaimSpec(
+                    access_modes=['ReadWriteOnce'],
+                    volume_mode='Filesystem',
+                    resources=kube.client.V1ResourceRequirements(
+                        requests={'storage': POD_VOLUME_SIZE}),
+                    storage_class_name=STORAGE_CLASS_NAME)),
+            _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+        log.info(f'created pvc name: {pvc.metadata.name} for job {self.id}')
+        return pvc
+
     def _create_pod(self):
-        assert not self._pod_name
+        assert self._pod_name is None
+        assert self._current_task is not None
+
+        if len(self._tasks) > 1:
+            if self._pvc is None:
+                self._pvc = self._create_pvc()
+            current_pod_spec = self._current_task.pod_template.spec
+            if current_pod_spec.volumes is None:
+                current_pod_spec.volumes = []
+            current_pod_spec.volumes.append(
+                kube.client.V1Volume(
+                    persistent_volume_claim=kube.client.V1PersistentVolumeClaimVolumeSource(
+                        claim_name=self._pvc.metadata.name),
+                    name=self._pvc.metadata.name))
+            for container in current_pod_spec.containers:
+                if container.volume_mounts is None:
+                    container.volume_mounts = []
+                container.volume_mounts.append(
+                    kube.client.V1VolumeMount(
+                        mount_path='/volume',
+                        name=self._pvc.metadata.name))
 
         pod = v1.create_namespaced_pod(
             POD_NAMESPACE,
-            self.pod_template,
+            self._current_task.pod_template,
             _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
         self._pod_name = pod.metadata.name
         pod_name_job[self._pod_name] = self
 
-        log.info('created pod name: {} for job {}'.format(self._pod_name, self.id))
+        add_event({'message': f'created pod for job {self.id}, task {self._current_task.name}',
+                   'command': f'{pod.spec.containers[0].command}'})
 
-    def _delete_pod(self):
-        if self._pod_name:
+        log.info('created pod name: {} for job {}, task {}'.format(self._pod_name,
+                                                                   self.id,
+                                                                   self._current_task.name))
+
+    def _delete_pvc(self):
+        if self._pvc is not None:
+            try:
+                v1.delete_namespaced_persistent_volume_claim(
+                    self._pvc.metadata.name,
+                    POD_NAMESPACE,
+                    kube.client.V1DeleteOptions(),
+                    _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+            except kube.client.rest.ApiException as err:
+                if err.status == 404:
+                    log.info(f'persistent volume claim {self._pvc.metadata.name} in '
+                             f'{self._pvc.metadata.namespace} is already deleted')
+                    return
+                raise
+
+    def _delete_k8s_resources(self):
+        self._delete_pvc()
+        if self._pod_name is not None:
             try:
                 v1.delete_namespaced_pod(
                     self._pod_name,
@@ -88,28 +199,31 @@ class Job:
             except kube.client.rest.ApiException as err:
                 if err.status == 404:
                     pass
-                else:
-                    raise
+                raise
             del pod_name_job[self._pod_name]
             self._pod_name = None
 
-    def _read_log(self):
+    def _read_logs(self):
+        logs = {jt.name: _read_file(_log_path(self.id, jt.name))
+                for idx, jt in enumerate(self._tasks) if idx < self._task_idx}
         if self._state == 'Created':
             if self._pod_name:
                 try:
-                    return v1.read_namespaced_pod_log(
+                    log = v1.read_namespaced_pod_log(
                         self._pod_name,
                         POD_NAMESPACE,
                         _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
+                    logs[self._current_task.name] = log
                 except kube.client.rest.ApiException:
                     pass
-            return None
+            return logs
         if self._state == 'Complete':
-            return _read_file(_log_path(self.id))
+            return logs
         assert self._state == 'Cancelled'
         return None
 
-    def __init__(self, pod_spec, batch_id, attributes, callback, parent_ids):
+    def __init__(self, pod_spec, batch_id, attributes, callback, parent_ids,
+                 scratch_folder, input_files, output_files):
         self.id = next_id()
         self.batch_id = batch_id
         self.attributes = attributes
@@ -117,9 +231,21 @@ class Job:
         self.child_ids = set([])
         self.parent_ids = parent_ids
         self.incomplete_parent_ids = set(self.parent_ids)
+        self.scratch_folder = scratch_folder
+
+        self._pvc = None
         self._pod_name = None
         self.exit_code = None
         self._state = 'Created'
+
+        self._tasks = [JobTask.copy_task(self.id, 'input', input_files),
+                       JobTask(self.id, 'main', pod_spec),
+                       JobTask.copy_task(self.id, 'output', output_files)]
+
+        self._tasks = [t for t in self._tasks if t is not None]
+        self._task_idx = -1
+        self._next_task()
+        assert self._current_task is not None
 
         job_id_job[self.id] = self
 
@@ -130,16 +256,8 @@ class Job:
             batch = batch_id_batch[batch_id]
             batch.jobs.add(self)
 
-        self.pod_template = kube.client.V1Pod(
-            metadata=kube.client.V1ObjectMeta(generate_name='job-{}-'.format(self.id),
-                                              labels={
-                                                  'app': 'batch-job',
-                                                  'hail.is/batch-instance': instance_id,
-                                                  'uuid': uuid.uuid4().hex
-                                              }),
-            spec=pod_spec)
-
         log.info('created job {}'.format(self.id))
+        add_event({'message': f'created job {self.id}'})
 
         if not self.parent_ids:
             self._create_pod()
@@ -173,8 +291,14 @@ class Job:
             log.info(f'parent {parent_id} successfully complete for {self.id}')
             self.incomplete_parent_ids.discard(parent_id)
             if not self.incomplete_parent_ids:
-                log.info(f'all parents successfully complete for {self.id}')
-                self._create_pod()
+                assert self._state in ('Cancelled', 'Created'), f'bad state: {self._state}'
+                if self._state != 'Cancelled':
+                    log.info(f'all parents successfully complete for {self.id},'
+                             f' creating pod')
+                    self._create_pod()
+                else:
+                    log.info(f'all parents successfully complete for {self.id},'
+                             f' but it is already cancelled')
         elif new_state == 'Cancelled' or (new_state == 'Complete' and maybe_exit_code != 0):
             log.info(f'parents deleted, cancelled, or failed: {new_state} {maybe_exit_code} {parent_id}')
             self.incomplete_parent_ids.discard(parent_id)
@@ -183,7 +307,7 @@ class Job:
     def cancel(self):
         if self.is_complete():
             return
-        self._delete_pod()
+        self._delete_k8s_resources()
         self.set_state('Cancelled')
 
     def delete(self):
@@ -192,7 +316,8 @@ class Job:
         if self.batch_id:
             batch = batch_id_batch[self.batch_id]
             batch.remove(self)
-        self._delete_pod()
+
+        self._delete_k8s_resources()
         self.set_state('Cancelled')
 
     def is_complete(self):
@@ -205,25 +330,38 @@ class Job:
         self._create_pod()
 
     def mark_complete(self, pod):
+        task_name = self._current_task.name
+
         self.exit_code = pod.status.container_statuses[0].state.terminated.exit_code
 
         pod_log = v1.read_namespaced_pod_log(
             pod.metadata.name,
             POD_NAMESPACE,
             _request_timeout=KUBERNETES_TIMEOUT_IN_SECONDS)
-        fname = _log_path(self.id)
+
+        add_event({'message': f'job {self.id}, {task_name} task exited', 'log': pod_log[:64000]})
+
+        fname = _log_path(self.id, task_name)
         with open(fname, 'w') as f:
             f.write(pod_log)
-        log.info(f'wrote log for job {self.id} to {fname}')
+        log.info(f'wrote log for job {self.id}, {task_name} task to {fname}')
 
         if self._pod_name:
             del pod_name_job[self._pod_name]
             self._pod_name = None
 
+        self._next_task()
+        if self.exit_code == 0:
+            if self._has_next_task():
+                self._create_pod()
+                return
+            self._delete_pvc()
+        else:
+            self._delete_pvc()
+
         self.set_state('Complete')
 
-        log.info('job {} complete, exit_code {}'.format(
-            self.id, self.exit_code))
+        log.info('job {} complete, exit_code {}'.format(self.id, self.exit_code))
 
         if self.callback:
             def handler(id, callback, json):
@@ -246,33 +384,37 @@ class Job:
         }
         if self._state == 'Complete':
             result['exit_code'] = self.exit_code
-        pod_log = self._read_log()
-        if pod_log:
-            result['log'] = pod_log
+
+        logs = self._read_logs()
+        if logs is not None:
+            result['log'] = logs
+
         if self.attributes:
             result['attributes'] = self.attributes
         if self.parent_ids:
             result['parent_ids'] = self.parent_ids
+        if self.scratch_folder:
+            result['scratch_folder'] = self.scratch_folder
         return result
 
 
 app = Flask('batch')
 
+log.info(f'app.root_path = {app.root_path}')
+
 
 @app.route('/jobs/create', methods=['POST'])
-def create_job():
+def create_job():  # pylint: disable=R0912
     parameters = request.json
 
     schema = {
         # will be validated when creating pod
-        'spec': {
-            'type': 'dict',
-            'required': True,
-            'allow_unknown': True,
-            'schema': {}
-        },
+        'spec': schemas.pod_spec,
         'batch_id': {'type': 'integer'},
         'parent_ids': {'type': 'list', 'schema': {'type': 'integer'}},
+        'scratch_folder': {'type': 'string'},
+        'input_files': {'type': 'list', 'schema': {'type': 'string'}},
+        'output_files': {'type': 'list', 'schema': {'type': 'string'}},
         'attributes': {
             'type': 'dict',
             'keyschema': {'type': 'string'},
@@ -289,26 +431,41 @@ def create_job():
 
     batch_id = parameters.get('batch_id')
     if batch_id:
-        if batch_id not in batch_id_batch:
-            abort(404, 'valid request: batch_id {} not found'.format(batch_id))
+        batch = batch_id_batch.get(batch_id)
+        if batch is None:
+            abort(404, f'invalid request: batch_id {batch_id} not found')
+        if not batch.is_open:
+            abort(400, f'invalid request: batch_id {batch_id} is closed')
 
     parent_ids = parameters.get('parent_ids', [])
     for parent_id in parent_ids:
-        if parent_id not in job_id_job:
+        parent_job = job_id_job.get(parent_id, None)
+        if parent_job is None:
             abort(400, f'invalid parent_id: no job with id {parent_id}')
+        if parent_job.batch_id != batch_id or parent_job.batch_id is None or batch_id is None:
+            abort(400,
+                  f'invalid parent batch: {parent_id} is in batch '
+                  f'{parent_job.batch_id} but child is in {batch_id}')
+
+    scratch_folder = parameters.get('scratch_folder')
+    input_files = parameters.get('input_files')
+    output_files = parameters.get('output_files')
 
     if len(pod_spec.containers) != 1:
         abort(400, f'only one container allowed in pod_spec {pod_spec}')
 
-    if pod_spec.containers[0].name != 'default':
-        abort(400, f'container name must be "default" was {pod_spec.containres[0].name}')
+    if pod_spec.containers[0].name != 'main':
+        abort(400, f'container name must be "main" was {pod_spec.containers[0].name}')
 
     job = Job(
         pod_spec,
         batch_id,
         parameters.get('attributes'),
         parameters.get('callback'),
-        parent_ids)
+        parent_ids,
+        scratch_folder,
+        input_files,
+        output_files)
     return jsonify(job.to_json())
 
 
@@ -332,14 +489,17 @@ def get_job_log(job_id):  # pylint: disable=R1710
 
     job = job_id_job.get(job_id)
     if job:
-        job_log = job._read_log()
+        job_log = job._read_logs()
         if job_log:
-            return job_log
+            return jsonify(job_log)
     else:
-        fname = _log_path(job_id)
-        if os.path.exists(fname):
-            return _read_file(fname)
-
+        logs = {}
+        for task_name in ['input', 'main', 'output']:
+            fname = _log_path(job_id, task_name)
+            if os.path.exists(fname):
+                logs[task_name] = _read_file(fname)
+        if logs:
+            return jsonify(logs)
     abort(404)
 
 
@@ -362,12 +522,19 @@ def cancel_job(job_id):
 
 
 class Batch:
-    def __init__(self, attributes, callback):
+    MAX_TTL = 30 * 60
+
+    def __init__(self, attributes, callback, ttl):
         self.attributes = attributes
         self.callback = callback
         self.id = next_id()
         batch_id_batch[self.id] = self
         self.jobs = set([])
+        self.is_open = True
+        if ttl is None or ttl > Batch.MAX_TTL:
+            ttl = Batch.MAX_TTL
+        self.ttl = ttl
+        schedule(self.ttl, self.close)
 
     def delete(self):
         del batch_id_batch[self.id]
@@ -394,6 +561,13 @@ class Batch:
                 args=(self.id, job.id, self.callback, job.to_json())
             ).start()
 
+    def close(self):
+        if self.is_open:
+            log.info(f'closing batch {self.id}, ttl was {self.ttl}')
+            self.is_open = False
+        else:
+            log.info(f're-closing batch {self.id}, ttl was {self.ttl}')
+
     def to_json(self):
         state_count = Counter([j._state for j in self.jobs])
         return {
@@ -403,7 +577,9 @@ class Batch:
                 'Complete': state_count.get('Complete', 0),
                 'Cancelled': state_count.get('Cancelled', 0)
             },
-            'attributes': self.attributes
+            'exit_codes': {j.id: j.exit_code for j in self.jobs},
+            'attributes': self.attributes,
+            'is_open': self.is_open
         }
 
 
@@ -417,13 +593,14 @@ def create_batch():
             'keyschema': {'type': 'string'},
             'valueschema': {'type': 'string'}
         },
-        'callback': {'type': 'string'}
+        'callback': {'type': 'string'},
+        'ttl': {'type': 'number'}
     }
     validator = cerberus.Validator(schema)
     if not validator.validate(parameters):
         abort(400, 'invalid request: {}'.format(validator.errors))
 
-    batch = Batch(parameters.get('attributes'), parameters.get('callback'))
+    batch = Batch(parameters.get('attributes'), parameters.get('callback'), parameters.get('ttl'))
     return jsonify(batch.to_json())
 
 
@@ -444,12 +621,21 @@ def delete_batch(batch_id):
     return jsonify({})
 
 
+@app.route('/batches/<int:batch_id>/close', methods=['POST'])
+def close_batch(batch_id):
+    batch = batch_id_batch.get(batch_id)
+    if not batch:
+        abort(404)
+    batch.close()
+    return jsonify({})
+
+
 def update_job_with_pod(job, pod):
     if pod:
         if pod.status.container_statuses:
             assert len(pod.status.container_statuses) == 1
             container_status = pod.status.container_statuses[0]
-            assert container_status.name == 'default'
+            assert container_status.name in ['input', 'main', 'output']
 
             if container_status.state and container_status.state.terminated:
                 job.mark_complete(pod)
@@ -508,26 +694,35 @@ def refresh_k8s_state():
     return '', 204
 
 
-def run_forever(target, *args, **kwargs):
-    # target should be a function
-    target_name = target.__name__
+@app.route('/recent', methods=['GET'])
+def recent():
+    recent_events = get_recent_events()
+    return render_template('recent.html', recent=list(reversed(recent_events)))
 
+
+def run_forever(target, *args, **kwargs):
     expected_retry_interval_ms = 15 * 1000
+
     while True:
         start = time.time()
-        try:
-            log.info(f'run_forever: run target {target_name}')
-            target(*args, **kwargs)
-            log.info(f'run_forever: target {target_name} returned')
-        except Exception:  # pylint: disable=W0703
-            log.error(f'run_forever: target {target_name} threw exception', exc_info=sys.exc_info())
+        run_once(target, *args, **kwargs)
         end = time.time()
 
         run_time_ms = int((end - start) * 1000 + 0.5)
+
         sleep_duration_ms = random.randrange(expected_retry_interval_ms * 2) - run_time_ms
         if sleep_duration_ms > 0:
-            log.debug(f'run_forever: {target_name}: sleep {sleep_duration_ms}ms')
+            log.debug(f'run_forever: {target.__name__}: sleep {sleep_duration_ms}ms')
             time.sleep(sleep_duration_ms / 1000.0)
+
+
+def run_once(target, *args, **kwargs):
+    try:
+        log.info(f'run_forever: {target.__name__}')
+        target(*args, **kwargs)
+        log.info(f'run_forever: {target.__name__} returned')
+    except Exception:  # pylint: disable=W0703
+        log.error(f'run_forever: {target.__name__} caught_exception: ', exc_info=sys.exc_info())
 
 
 def flask_event_loop(port):
@@ -535,9 +730,12 @@ def flask_event_loop(port):
 
 
 def kube_event_loop(port):
+    # May not be thread-safe; opens http connection, so use local version
+    v1_ = kube.client.CoreV1Api()
+
     watch = kube.watch.Watch()
     stream = watch.stream(
-        v1.list_namespaced_pod,
+        v1_.list_namespaced_pod,
         POD_NAMESPACE,
         label_selector=f'app=batch-job,hail.is/batch-instance={instance_id}')
     for event in stream:
@@ -559,12 +757,23 @@ def polling_event_loop(port):
         time.sleep(REFRESH_INTERVAL_IN_SECONDS)
 
 
+def scheduling_loop():
+    while True:
+        try:
+            s.run(blocking=False)
+        except Exception as exc:  # pylint: disable=W0703
+            log.error(f'Could not run scheduled jobs due to: {exc}')
+
+
 def serve(port=5000):
     kube_thread = threading.Thread(target=run_forever, args=(kube_event_loop, port))
     kube_thread.start()
 
     polling_thread = threading.Thread(target=run_forever, args=(polling_event_loop, port))
     polling_thread.start()
+
+    scheduling_thread = threading.Thread(target=run_forever, args=(scheduling_loop,))
+    scheduling_thread.start()
 
     # debug/reloader must run in main thread
     # see: https://stackoverflow.com/questions/31264826/start-a-flask-application-in-separate-thread

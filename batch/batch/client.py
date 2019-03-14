@@ -1,11 +1,15 @@
+import math
 import time
 import random
+import yaml
 
-from . import api
+import cerberus
+
+from . import api, schemas
 
 
 class Job:
-    def __init__(self, client, id, attributes=None, parent_ids=None, _status=None):
+    def __init__(self, client, id, attributes=None, parent_ids=None, scratch_folder=None, _status=None):
         if parent_ids is None:
             parent_ids = []
         if attributes is None:
@@ -15,6 +19,7 @@ class Job:
         self.id = id
         self.attributes = attributes
         self.parent_ids = parent_ids
+        self.scratch_folder = scratch_folder
         self._status = _status
 
     def is_complete(self):
@@ -38,7 +43,7 @@ class Job:
             self.status()  # update
             if self.is_complete():
                 return self._status
-            j = random.randrange(2 ** i)
+            j = random.randrange(math.floor(1.5 ** i))
             time.sleep(0.100 * j)
             # max 5.12s
             if i < 9:
@@ -65,12 +70,17 @@ class Batch:
 
     def create_job(self, image, command=None, args=None, env=None, ports=None,
                    resources=None, tolerations=None, volumes=None, security_context=None,
-                   service_account_name=None, attributes=None, callback=None, parent_ids=None):
+                   service_account_name=None, attributes=None, callback=None, parent_ids=None,
+                   scratch_folder=None, input_files=None, output_files=None):
         if parent_ids is None:
             parent_ids = []
         return self.client._create_job(
             image, command, args, env, ports, resources, tolerations, volumes, security_context,
-            service_account_name, attributes, self.id, callback, parent_ids)
+            service_account_name, attributes, self.id, callback, parent_ids, scratch_folder,
+            input_files, output_files)
+
+    def close(self):
+        self.client._close_batch(self.id)
 
     def status(self):
         return self.client._get_batch(self.id)
@@ -95,7 +105,7 @@ class BatchClient:
         self.url = url
         self.api = api
 
-    def _create_job(self,
+    def _create_job(self,  # pylint: disable=R0912
                     image,
                     command,
                     args,
@@ -109,7 +119,10 @@ class BatchClient:
                     attributes,
                     batch_id,
                     callback,
-                    parent_ids):
+                    parent_ids,
+                    scratch_folder,
+                    input_files,
+                    output_files):
         if env:
             env = [{'name': k, 'value': v} for (k, v) in env.items()]
         else:
@@ -128,7 +141,7 @@ class BatchClient:
 
         container = {
             'image': image,
-            'name': 'default'
+            'name': 'main'
         }
         if command:
             container['command'] = command
@@ -158,8 +171,12 @@ class BatchClient:
         if service_account_name:
             spec['serviceAccountName'] = service_account_name
 
-        j = self.api.create_job(self.url, spec, attributes, batch_id, callback, parent_ids)
-        return Job(self, j['id'], j.get('attributes'), j.get('parent_ids', []))
+        j = self.api.create_job(self.url, spec, attributes, batch_id, callback,
+                                parent_ids, scratch_folder, input_files, output_files)
+        return Job(self,
+                   j['id'],
+                   attributes=j.get('attributes'),
+                   parent_ids=j.get('parent_ids', []))
 
     def _get_job(self, id):
         return self.api.get_job(self.url, id)
@@ -176,17 +193,29 @@ class BatchClient:
     def _get_batch(self, batch_id):
         return self.api.get_batch(self.url, batch_id)
 
+    def _close_batch(self, batch_id):
+        return self.api.close_batch(self.url, batch_id)
+
     def _refresh_k8s_state(self):
         self.api.refresh_k8s_state(self.url)
 
     def list_jobs(self):
         jobs = self.api.list_jobs(self.url)
-        return [Job(self, j['id'], j.get('attributes'), j.get('parent_ids', []), j) for j in jobs]
+        return [Job(self,
+                    j['id'],
+                    attributes=j.get('attributes'),
+                    parent_ids=j.get('parent_ids', []),
+                    _status=j)
+                for j in jobs]
 
     def get_job(self, id):
         # make sure job exists
         j = self.api.get_job(self.url, id)
-        return Job(self, j['id'], j.get('attributes'), j.get('parent_ids', []), j)
+        return Job(self,
+                   j['id'],
+                   attributes=j.get('attributes'),
+                   parent_ids=j.get('parent_ids', []),
+                   _status=j)
 
     def create_job(self,
                    image,
@@ -201,13 +230,50 @@ class BatchClient:
                    service_account_name=None,
                    attributes=None,
                    callback=None,
-                   parent_ids=None):
+                   parent_ids=None,
+                   scratch_folder=None,
+                   input_files=None,
+                   output_files=None):
         if parent_ids is None:
             parent_ids = []
         return self._create_job(
             image, command, args, env, ports, resources, tolerations, volumes, security_context,
-            service_account_name, attributes, None, callback, parent_ids)
+            service_account_name, attributes, None, callback, parent_ids, scratch_folder,
+            input_files, output_files)
 
-    def create_batch(self, attributes=None, callback=None):
-        batch = self.api.create_batch(self.url, attributes, callback)
+    def create_batch(self, attributes=None, callback=None, ttl=None):
+        batch = self.api.create_batch(self.url, attributes, callback, ttl)
         return Batch(self, batch['id'])
+
+    job_yaml_schema = {
+        'spec': schemas.pod_spec,
+        'type': {'type': 'string', 'allowed': ['execute']},
+        'name': {'type': 'string'},
+        'dependsOn': {'type': 'list', 'schema': {'type': 'string'}},
+    }
+    job_yaml_validator = cerberus.Validator(job_yaml_schema)
+
+    def create_batch_from_file(self, file):
+        job_id_by_name = {}
+
+        def job_id_by_name_or_error(id, self_id):
+            job = job_id_by_name.get(id)
+            if job:
+                return job
+            raise ValueError(
+                '"{self_id}" must appear in the file after its dependency "{id}"')
+
+        batch = self.create_batch()
+        for doc in yaml.load(file):
+            if not BatchClient.job_yaml_validator.validate(doc):
+                raise BatchClient.job_yaml_validator.errors
+            spec = doc['spec']
+            type = doc['type']
+            name = doc['name']
+            dependsOn = doc.get('dependsOn', [])
+            if type == 'execute':
+                job = batch.create_job(
+                    parent_ids=[job_id_by_name_or_error(x, name) for x in dependsOn],
+                    **spec)
+                job_id_by_name[name] = job.id
+        return batch

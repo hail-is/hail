@@ -448,7 +448,6 @@ object Nirvana {
             r
           }
       }
-      .persist(StorageLevel.MEMORY_AND_DISK)
 
     val nirvanaRVDType = prev.typ.copy(rowType = (ht.typ.rowType ++ TStruct("nirvana" -> nirvanaSignature)).physicalType)
 

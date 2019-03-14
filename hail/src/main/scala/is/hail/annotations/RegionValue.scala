@@ -27,6 +27,23 @@ object RegionValue {
         carrierRv
       }
     }
+
+  def fromBytes(
+    makeDec: InputStream => Decoder, r: Region, bytes: Array[Byte]): Long =
+    using(new ByteArrayInputStream(bytes)) { bais =>
+      using(makeDec(bais)) { dec =>
+        dec.readRegionValue(r)
+      }
+    }
+
+  def toBytes(makeEnc: OutputStream => Encoder, r: Region, off: Long): Array[Byte] =
+    using(new ByteArrayOutputStream()) { baos =>
+      using(makeEnc(baos)) { enc =>
+        enc.writeRegionValue(r, off)
+        enc.flush()
+        baos.toByteArray
+      }
+    }
 }
 
 final class RegionValue(

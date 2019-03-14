@@ -3,6 +3,7 @@ import unittest
 import hail as hl
 from hail.genetics import *
 from ..helpers import *
+from hail.utils import FatalError
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
@@ -55,6 +56,13 @@ class Tests(unittest.TestCase):
 
         l = hl.locus("a", 7, gr4)
         self.assertTrue(hl.eval(l.sequence_context(before=3, after=3) == "TTTCGAA"))
+
+        gr4.remove_sequence()
+        assert not gr4.has_sequence()
+
+        gr4.add_sequence(resource("fake_reference.fasta"),
+                         resource("fake_reference.fasta.fai"))
+        assert gr4.has_sequence()
 
     def test_reference_genome_liftover(self):
         grch37 = hl.get_reference('GRCh37')
@@ -123,5 +131,7 @@ class Tests(unittest.TestCase):
                          hl.eval(hl.struct(result=hl.locus_interval('chr12', 32563117, 32563121, True, True, 'GRCh38'),
                                            is_negative_strand=True)))
 
-        grch37.remove_liftover("GRCh38")
+        with self.assertRaises(FatalError):
+            hl.eval(hl.liftover(hl.parse_locus_interval('1:10000-10000', reference_genome='GRCh37'), 'GRCh38'))
 
+        grch37.remove_liftover("GRCh38")

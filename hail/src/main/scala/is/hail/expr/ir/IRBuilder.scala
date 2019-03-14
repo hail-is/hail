@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.expr.types._
 import is.hail.expr.types.virtual._
+import is.hail.utils.FastIndexedSeq
 
 import scala.language.{dynamics, implicitConversions}
 
@@ -49,6 +50,19 @@ object IRBuilder {
   def makeTuple(values: IRProxy*): IRProxy = (env: E) =>
     MakeTuple(values.map(_(env)))
 
+  def applyAggOp(
+    op: AggOp,
+    constructorArgs: IndexedSeq[IRProxy] = FastIndexedSeq(),
+    initOpArgs: Option[IndexedSeq[IRProxy]] = None,
+    seqOpArgs: IndexedSeq[IRProxy] = FastIndexedSeq()): IRProxy = (env: E) => {
+
+    val c = constructorArgs.map(x => x(env))
+    val i = initOpArgs.map(_.map(x => x(env)))
+    val s = seqOpArgs.map(x => x(env))
+
+    ApplyAggOp(c, i, s, AggSignature(op, c.map(_.typ), i.map(_.map(_.typ)), s.map(_.typ)))
+  }
+
   class TableIRProxy(val tir: TableIR) extends AnyVal {
     def empty: E = Env.empty
     def globalEnv: E = typ.globalEnv
@@ -75,16 +89,89 @@ object IRBuilder {
 
     def filter(ir: IRProxy): TableIR =
       TableFilter(tir, ir(env))
+
+    def distinct(): TableIR = TableDistinct(tir)
+
+    def collect(): IRProxy = TableCollect(tir)
+
+    def collectAsDict(): IRProxy = {
+      val uid = genUID()
+      val keyFields = tir.typ.key
+      val valueFields = tir.typ.valueType.fieldNames
+      collect()
+        .apply('rows)
+        .map(Symbol(uid) ~> makeTuple(Symbol(uid).selectFields(keyFields: _*), Symbol(uid).selectFields(valueFields: _*)))
+        .toDict
+    }
+
+    def aggregate(ir: IRProxy): IR =
+      TableAggregate(tir, ir(env))
   }
 
   class IRProxy(val ir: E => IR) extends AnyVal with Dynamic {
     def apply(idx: IRProxy): IRProxy = (env: E) =>
       ArrayRef(ir(env), idx(env))
 
+    def invoke(name: String, args: IRProxy*): IRProxy = { env: E =>
+      val irArgs = Array(ir(env)) ++ args.map(_(env))
+      is.hail.expr.ir.invoke(name, irArgs: _*)
+    }
+
     def selectDynamic(field: String): IRProxy = (env: E) =>
       GetField(ir(env), field)
 
-    def unary_! = new IRProxy((env: E) => ApplyUnaryPrimOp(Bang(), ir(env)))
+    def +(other: IRProxy): IRProxy = (env: E) => ApplyBinaryPrimOp(Add(), ir(env), other(env))
+    def -(other: IRProxy): IRProxy = (env: E) => ApplyBinaryPrimOp(Subtract(), ir(env), other(env))
+    def *(other: IRProxy): IRProxy = (env: E) => ApplyBinaryPrimOp(Multiply(), ir(env), other(env))
+    def /(other: IRProxy): IRProxy = (env: E) => ApplyBinaryPrimOp(FloatingPointDivide(), ir(env), other(env))
+    def floorDiv(other: IRProxy): IRProxy = (env: E) => ApplyBinaryPrimOp(RoundToNegInfDivide(), ir(env), other(env))
+
+    def &&(other: IRProxy): IRProxy = invoke("&&", ir, other)
+    def ||(other: IRProxy): IRProxy = invoke("||", ir, other)
+
+    def toI: IRProxy = (env: E) => Cast(ir(env), TInt32())
+    def toL: IRProxy = (env: E) => Cast(ir(env), TInt64())
+    def toF: IRProxy = (env: E) => Cast(ir(env), TFloat32())
+    def toD: IRProxy = (env: E) => Cast(ir(env), TFloat64())
+
+    def unary_-(): IRProxy = (env: E) => ApplyUnaryPrimOp(Negate(), ir(env))
+    def unary_!(): IRProxy = (env: E) => ApplyUnaryPrimOp(Bang(), ir(env))
+
+    def ceq(other: IRProxy): IRProxy = (env: E) => {
+      val left = ir(env)
+      val right = other(env);
+      ApplyComparisonOp(EQWithNA(left.typ, right.typ), left, right)
+    }
+
+    def cne(other: IRProxy): IRProxy = (env: E) => {
+      val left = ir(env)
+      val right = other(env)
+      ApplyComparisonOp(NEQWithNA(left.typ, right.typ), left, right)
+    }
+
+    def <(other: IRProxy): IRProxy = (env: E) => {
+      val left = ir(env)
+      val right = other(env)
+      ApplyComparisonOp(LT(left.typ, right.typ), left, right)
+    }
+
+    def >(other: IRProxy): IRProxy = (env: E) => {
+      val left = ir(env)
+      val right = other(env)
+      ApplyComparisonOp(GT(left.typ, right.typ), left, right)
+    }
+
+    def <=(other: IRProxy): IRProxy = (env: E) => {
+      val left = ir(env)
+      val right = other(env)
+      ApplyComparisonOp(LTEQ(left.typ, right.typ), left, right)
+    }
+
+    def >=(other: IRProxy): IRProxy = (env: E) => {
+      val left = ir(env)
+      val right = other(env)
+      ApplyComparisonOp(GTEQ(left.typ, right.typ), left, right)
+    }
 
     def apply(lookup: Symbol): IRProxy = (env: E) => {
       val eval = ir(env)
@@ -109,13 +196,23 @@ object IRBuilder {
     def selectFields(fields: String*): IRProxy = (env: E) =>
       SelectFields(ir(env), fields)
 
-    def dropFields(fields: Symbol*): IRProxy = (env: E) => {
+    def dropFieldList(fields: Seq[String]): IRProxy = (env: E) => {
       val struct = ir(env)
       val typ = struct.typ.asInstanceOf[TStruct]
-      SelectFields(struct, typ.fieldNames.diff(fields.map(_.name)))
+      SelectFields(struct, typ.fieldNames.diff(fields))
     }
 
+    def dropFields(fields: Symbol*): IRProxy = dropFieldList(fields.map(_.name))
+
     def len: IRProxy = (env: E) => ArrayLen(ir(env))
+
+    def isNA: IRProxy = (env: E) => IsNA(ir(env))
+
+    def orElse(alt: IRProxy): IRProxy = { env: E =>
+      val uid = genUID()
+      val eir = ir(env)
+      Let(uid, eir, If(IsNA(Ref(uid, eir.typ)), alt(env), Ref(uid, eir.typ)))
+    }
 
     def filter(pred: LambdaProxy): IRProxy = (env: E) => {
       val array = ir(env)
@@ -147,7 +244,19 @@ object IRBuilder {
 
     def toArray: IRProxy = (env: E) => ToArray(ir(env))
 
+    def toDict: IRProxy = (env: E) => ToDict(ir(env))
+
     def parallelize(nPartitions: Option[Int] = None): TableIR = TableParallelize(ir(Env.empty), nPartitions)
+
+    def arrayStructToDict(fields: IndexedSeq[String]): IRProxy = {
+      val element = Symbol(genUID())
+      ir
+        .map(element ~>
+          makeTuple(
+            element.selectFields(fields: _*),
+            element.dropFieldList(fields)))
+        .toDict
+    }
 
     private[ir] def apply(env: E): IR = ir(env)
   }
@@ -161,12 +270,15 @@ object IRBuilder {
   case class BindingProxy(s: Symbol, value: IRProxy)
 
   object LetProxy {
-    def bind(bindings: Seq[BindingProxy], body: IRProxy, env: E): IR =
+    def bind(bindings: Seq[BindingProxy], body: IRProxy, env: E, isAgg: Boolean): IR =
       bindings match {
         case BindingProxy(sym, binding) +: rest =>
           val name = sym.name
           val value = binding(env)
-          Let(name, value, bind(rest, body, env.bind(name -> value.typ)))
+          if (isAgg)
+            AggLet(name, value, bind(rest, body, env.bind(name -> value.typ), isAgg))
+          else
+            Let(name, value, bind(rest, body, env.bind(name -> value.typ), isAgg))
         case Seq() =>
           body(env)
       }
@@ -183,7 +295,22 @@ object IRBuilder {
     def apply(body: IRProxy): IRProxy = in(body)
 
     def in(body: IRProxy): IRProxy = { (env: E) =>
-      LetProxy.bind(bindings, body, env)
+      LetProxy.bind(bindings, body, env, isAgg = false)
+    }
+  }
+
+  object aggLet extends Dynamic {
+    def applyDynamicNamed(method: String)(args: (String, IRProxy)*): AggLetProxy = {
+      assert(method == "apply")
+      new AggLetProxy(args.map { case (s, b) => BindingProxy(Symbol(s), b) })
+    }
+  }
+
+  class AggLetProxy(val bindings: Seq[BindingProxy]) extends AnyVal with Dynamic {
+    def apply(body: IRProxy): IRProxy = in(body)
+
+    def in(body: IRProxy): IRProxy = { (env: E) =>
+      LetProxy.bind(bindings, body, env, isAgg = true)
     }
   }
 

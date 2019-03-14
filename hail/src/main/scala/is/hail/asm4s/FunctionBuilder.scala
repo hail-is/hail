@@ -124,7 +124,7 @@ class MethodBuilder(val fb: FunctionBuilder[_], val mname: String, val parameter
     mn.instructions.add(end)
   }
 
-  def invoke(args: Code[_]*) = {
+  def invoke[T](args: Code[_]*): Code[T] = {
     var c: Code[_] = getArg[java.lang.Object](0)
     args.foreach { a => c = Code(c, a) }
     Code(c, new MethodInsnNode(INVOKESPECIAL, fb.name, mname, descriptor, false))

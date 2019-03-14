@@ -21,6 +21,7 @@ object InferType {
       case Ref(_, t) => t
       case In(_, t) => t
       case MakeArray(_, t) => t
+      case MakeNDArray(data, _, _) => TNDArray(data.typ.asInstanceOf[TArray].elementType)
       case _: ArrayLen => TInt32()
       case _: ArrayRange => TArray(TInt32())
       case _: LowerBoundOnOrderedCollection => TInt32()
@@ -39,6 +40,8 @@ object InferType {
         else
           cnsq.typ
       case Let(name, value, body) =>
+        body.typ
+      case AggLet(name, value, body) =>
         body.typ
       case ApplyBinaryPrimOp(op, l, r) =>
         BinaryOp.getReturnType(op, l.typ, r.typ).setRequired(l.typ.required && r.typ.required)
@@ -59,8 +62,8 @@ object InferType {
       case ArrayRef(a, i) =>
         assert(i.typ.isOfType(TInt32()))
         coerce[TArray](a.typ).elementType.setRequired(a.typ.required && i.typ.required)
-      case ArraySort(a, ascending, _) =>
-        assert(ascending.typ.isOfType(TBoolean()))
+      case ArraySort(a, _, _, compare) =>
+        assert(compare.typ.isOfType(TBoolean()))
         val et = coerce[TArray](a.typ).elementType
         TArray(et, a.typ.required)
       case ToSet(a) =>
@@ -91,12 +94,18 @@ object InferType {
         query.typ
       case ArrayLeftJoinDistinct(left, right, l, r, compare, join) =>
         TArray(join.typ)
+      case NDArrayRef(nd, idxs) =>
+        assert(idxs.typ.isOfType(TArray(TInt64())))
+        coerce[TNDArray](nd.typ).elementType.setRequired(nd.typ.required && 
+          idxs.typ.required && 
+          coerce[TArray](idxs.typ).elementType.required)
       case AggFilter(_, aggIR) =>
         aggIR.typ
       case AggExplode(array, name, aggBody) =>
         aggBody.typ
       case AggGroupBy(key, aggIR) =>
         TDict(key.typ, aggIR.typ)
+      case AggArrayPerElement(a, name, aggBody) => TArray(aggBody.typ)
       case ApplyAggOp(_, _, _, aggSig) =>
         AggOp.getType(aggSig)
       case ApplyScanOp(_, _, _, aggSig) =>
@@ -111,7 +120,10 @@ object InferType {
       case InsertFields(old, fields, fieldOrder) =>
         val tbs = coerce[TStruct](old.typ)
         val s = tbs.insertFields(fields.map(f => (f._1, f._2.typ)))
-        fieldOrder.map(fds => TStruct(fds.map(f => f -> s.fieldType(f)): _*)).getOrElse(s)
+        fieldOrder.map { fds =>
+          assert(fds.length == s.size)
+          TStruct(fds.map(f => f -> s.fieldType(f)): _*)
+        }.getOrElse(s)
       case GetField(o, name) =>
         val t = coerce[TStruct](o.typ)
         if (t.index(name).isEmpty)
@@ -133,11 +145,15 @@ object InferType {
       case _: TableWrite => TVoid
       case _: MatrixWrite => TVoid
       case _: MatrixMultiWrite => TVoid
+      case _: BlockMatrixWrite => TVoid
       case _: TableExport => TVoid
       case TableGetGlobals(child) => child.typ.globalType
       case TableCollect(child) => TStruct("rows" -> TArray(child.typ.rowType), "global" -> child.typ.globalType)
       case TableToValueApply(child, function) => function.typ(child.typ)
       case MatrixToValueApply(child, function) => function.typ(child.typ)
+      case BlockMatrixToValueApply(child, function) => function.typ(child.typ)
+      case CollectDistributedArray(_, _, _, _, body) => TArray(body.typ)
+      case ReadPartition(_, _, _, rowType) => TArray(rowType)
     }
   }
 }

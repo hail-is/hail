@@ -27,6 +27,8 @@ Genetics Methods
 
     ld_score
     ld_score_regression
+    write_expression
+    read_expression
     filtering_allele_frequency
     hail_metadata
     plot_roc_curve
@@ -35,9 +37,15 @@ Genetics Methods
     explode_trio_matrix
     load_dataset
     import_gtf
+    get_gene_intervals
+    export_entries_by_col
+    sparse_split_multi
+
 
 .. autofunction:: ld_score
 .. autofunction:: ld_score_regression
+.. autofunction:: write_expression
+.. autofunction:: read_expression
 .. autofunction:: hail_metadata
 .. autofunction:: plot_roc_curve
 .. autofunction:: filtering_allele_frequency
@@ -46,3 +54,6 @@ Genetics Methods
 .. autofunction:: explode_trio_matrix
 .. autofunction:: load_dataset
 .. autofunction:: import_gtf
+.. autofunction:: get_gene_intervals
+.. autofunction:: export_entries_by_col
+.. autofunction:: sparse_split_multi

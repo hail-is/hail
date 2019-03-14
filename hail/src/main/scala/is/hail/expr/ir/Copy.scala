@@ -25,6 +25,9 @@ object Copy {
       case Let(name, _, _) =>
         val IndexedSeq(value: IR, body: IR) = newChildren
         Let(name, value, body)
+      case AggLet(name, _, _) =>
+        val IndexedSeq(value: IR, body: IR) = newChildren
+        AggLet(name, value, body)
       case Ref(name, t) => Ref(name, t)
       case ApplyBinaryPrimOp(op, _, _) =>
         val IndexedSeq(l: IR, r: IR) = newChildren
@@ -47,9 +50,15 @@ object Copy {
       case ArrayRange(_, _, _) =>
         val IndexedSeq(start: IR, stop: IR, step: IR) = newChildren
         ArrayRange(start, stop, step)
-      case ArraySort(_, _, onKey) =>
-        val IndexedSeq(a: IR, ascending: IR) = newChildren
-        ArraySort(a, ascending, onKey)
+      case MakeNDArray(_, _, _) =>
+        val IndexedSeq(data: IR, shape: IR, row_major: IR) = newChildren
+        MakeNDArray(data, shape, row_major)
+      case NDArrayRef(_, _) =>
+        val IndexedSeq(nd: IR, idxs: IR) = newChildren
+        NDArrayRef(nd, idxs)
+      case ArraySort(_, l, r, _) =>
+        val IndexedSeq(a: IR, comp: IR) = newChildren
+        ArraySort(a, l, r, comp)
       case ToSet(_) =>
         val IndexedSeq(a: IR) = newChildren
         ToSet(a)
@@ -98,6 +107,9 @@ object Copy {
       case AggGroupBy(_, _) =>
         val IndexedSeq(key: IR, aggIR: IR) = newChildren
         AggGroupBy(key, aggIR)
+      case AggArrayPerElement(a, name, aggBody) =>
+        val IndexedSeq(newA: IR, newAggBody: IR) = newChildren
+        AggArrayPerElement(newA, name, newAggBody)
       case MakeStruct(fields) =>
         assert(fields.length == newChildren.length)
         MakeStruct(fields.zip(newChildren).map { case ((n, _), a) => (n, a.asInstanceOf[IR]) })
@@ -145,8 +157,10 @@ object Copy {
       case Die(_, typ) =>
         val IndexedSeq(s: IR) = newChildren
         Die(s, typ)
-      case ApplyIR(fn, args, conversion) =>
-        ApplyIR(fn, newChildren.map(_.asInstanceOf[IR]), conversion)
+      case x@ApplyIR(fn, args) =>
+        val r = ApplyIR(fn, newChildren.map(_.asInstanceOf[IR]))
+        r.conversion = x.conversion
+        r
       case Apply(fn, args) =>
         Apply(fn, newChildren.map(_.asInstanceOf[IR]))
       case ApplySeeded(fn, args, seed) =>
@@ -181,15 +195,27 @@ object Copy {
       case TableWrite(_, path, overwrite, stageLocally, codecSpecJSONStr) =>
         val IndexedSeq(child: TableIR) = newChildren
         TableWrite(child, path, overwrite, stageLocally, codecSpecJSONStr)
-      case TableExport(_, path, typesFile, header, exportType) =>
+      case TableExport(_, path, typesFile, header, exportType, delimiter) =>
         val IndexedSeq(child: TableIR) = newChildren
-        TableExport(child, path, typesFile, header, exportType)
-      case TableToValueApply(child, function) =>
+        TableExport(child, path, typesFile, header, exportType, delimiter)
+      case TableToValueApply(_, function) =>
         val IndexedSeq(newChild: TableIR) = newChildren
         TableToValueApply(newChild, function)
-      case MatrixToValueApply(child, function) =>
+      case MatrixToValueApply(_, function) =>
         val IndexedSeq(newChild: MatrixIR) = newChildren
         MatrixToValueApply(newChild, function)
+      case BlockMatrixToValueApply(_, function) =>
+        val IndexedSeq(newChild: BlockMatrixIR) = newChildren
+        BlockMatrixToValueApply(newChild, function)
+      case BlockMatrixWrite(_, writer) =>
+        val IndexedSeq(newChild: BlockMatrixIR) = newChildren
+        BlockMatrixWrite(newChild, writer)
+      case CollectDistributedArray(_, _, cname, gname, _) =>
+        val IndexedSeq(ctxs: IR, globals: IR, newBody: IR) = newChildren
+        CollectDistributedArray(ctxs, globals, cname, gname, newBody)
+      case ReadPartition(path, spec, encodedType, rowType) =>
+        val IndexedSeq(newPath: IR) = newChildren
+        ReadPartition(newPath, spec, encodedType, rowType)
     }
   }
 }

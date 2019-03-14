@@ -1,7 +1,10 @@
 import os
+import time
+import pkg_resources
 import pytest
 import re
 import requests
+from flask import Response
 
 from batch.client import BatchClient
 
@@ -45,7 +48,7 @@ def test_already_deleted_parent_is_400(client):
         head = batch.create_job('alpine:3.8', command=['echo', 'head'])
         head_id = head.id
         head.delete()
-        tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parent_ids=[head_id])
+        batch.create_job('alpine:3.8', command=['echo', 'tail'], parent_ids=[head_id])
     except requests.exceptions.HTTPError as err:
         assert err.response.status_code == 400
         assert re.search('.*invalid parent_id: no job with id.*', err.response.text)
@@ -78,7 +81,7 @@ def test_cancel_tail(client):
     right = batch.create_job('alpine:3.8', command=['echo', 'right'], parent_ids=[head.id])
     tail = batch.create_job(
         'alpine:3.8',
-        command=['/bin/bash', '-c', 'while true; do sleep 86000; done'],
+        command=['/bin/sh', '-c', 'while true; do sleep 86000; done'],
         parent_ids=[left.id, right.id])
     tail.cancel()
     status = batch.wait()
@@ -95,7 +98,7 @@ def test_cancel_left_before_tail(client):
     head = batch.create_job('alpine:3.8', command=['echo', 'head'])
     left = batch.create_job(
         'alpine:3.8',
-        command=['/bin/bash', '-c', 'while true; do sleep 86000; done'],
+        command=['/bin/sh', '-c', 'while true; do sleep 86000; done'],
         parent_ids=[head.id])
     left.cancel()
     right = batch.create_job('alpine:3.8', command=['echo', 'right'], parent_ids=[head.id])
@@ -238,7 +241,7 @@ def test_callback(client):
     @app.route('/test', methods=['POST'])
     def test():
         output.append(request.get_json())
-        return 200
+        return Response(status=200)
 
     try:
         server = ServerThread(app)
@@ -249,6 +252,12 @@ def test_callback(client):
         right = batch.create_job('alpine:3.8', command=['echo', 'right'], parent_ids=[head.id])
         tail = batch.create_job('alpine:3.8', command=['echo', 'tail'], parent_ids=[left.id, right.id])
         batch.wait()
+        i = 0
+        while len(output) != 4:
+            time.sleep(0.100 * (3/2) ** i)
+            i = i + 1
+            if i > 14:
+                break
         assert len(output) == 4
         assert all([job_result['state'] == 'Complete' and job_result['exit_code'] == 0
                     for job_result in output])
@@ -260,3 +269,38 @@ def test_callback(client):
         if server:
             server.shutdown()
             server.join()
+
+
+def test_from_file(client):
+        fname = pkg_resources.resource_filename(
+            __name__,
+            'diamond_dag.yml')
+        with open(fname) as f:
+            batch = client.create_batch_from_file(f)
+
+        status = batch.wait()
+        assert status['jobs']['Complete'] == 4
+
+
+def test_no_parents_allowed_in_other_batches(client):
+    b1 = client.create_batch()
+    b2 = client.create_batch()
+    head = b1.create_job('alpine:3.8', command=['echo', 'head'])
+    try:
+        b2.create_job('alpine:3.8', command=['echo', 'tail'], parent_ids=[head.id])
+    except requests.exceptions.HTTPError as err:
+        assert err.response.status_code == 400
+        assert re.search('.*invalid parent batch: .*', err.response.text)
+        return
+    assert False
+
+
+def test_no_parents_allowed_without_batches(client):
+    head = client.create_job('alpine:3.8', command=['echo', 'head'])
+    try:
+        client.create_job('alpine:3.8', command=['echo', 'tail'], parent_ids=[head.id])
+    except requests.exceptions.HTTPError as err:
+        assert err.response.status_code == 400
+        assert re.search('.*invalid parent batch: .*', err.response.text)
+        return
+    assert False

@@ -8,7 +8,7 @@ tearDownModule = stopTestHailContext
 
 
 class Tests(unittest.TestCase):
-
+    @skip_unless_spark_backend()
     def test_ld_score(self):
 
         ht = hl.import_table(doctest_resource('ldsc.annot'),
@@ -91,6 +91,7 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(mean_annotated.binary, 0.965, places=3)
         self.assertAlmostEqual(mean_annotated.continuous, 176.528, places=3)
 
+    @skip_unless_spark_backend()
     def test_plot_roc_curve(self):
         x = hl.utils.range_table(100).annotate(score1=hl.rand_norm(), score2=hl.rand_norm())
         x = x.annotate(tp=hl.cond(x.score1 > 0, hl.rand_bool(0.7), False), score3=x.score1 + hl.rand_norm())
@@ -264,3 +265,15 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(
             results[1]['snp_heritability_standard_error'],
             0.0416, places=4)
+
+    def test_sparse(self):
+        expected_split_mt = hl.import_vcf(resource('sparse_split_test_b.vcf'))
+        unsplit_mt = hl.import_vcf(resource('sparse_split_test.vcf'), call_fields=['LGT', 'LPGT'])
+        mt = (hl.experimental.sparse_split_multi(unsplit_mt)
+              .drop('a_index', 'was_split').select_entries(*expected_split_mt.entry.keys()))
+        assert mt._same(expected_split_mt)
+
+    def test_define_function(self):
+        f = hl.experimental.define_function(
+            lambda a, b: (a + 7) * b, hl.tint32, hl.tint32)
+        self.assertEqual(hl.eval(f(1, 3)), 24)

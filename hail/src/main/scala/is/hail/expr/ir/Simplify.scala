@@ -19,6 +19,7 @@ object Simplify {
       case ir: IR => simplifyValue(ir)
       case tir: TableIR => simplifyTable(allowRepartitioning)(tir)
       case mir: MatrixIR => simplifyMatrix(allowRepartitioning)(mir)
+      case bmir: BlockMatrixIR => simplifyBlockMatrix(bmir)
     }
 
   private[this] def visitNode[T <: BaseIR](
@@ -50,6 +51,14 @@ object Simplify {
       simplifyMatrix(allowRepartitioning)
     )(mir)
 
+  private[this] def simplifyBlockMatrix(bmir: BlockMatrixIR): BlockMatrixIR = {
+    visitNode(
+      Simplify(_),
+      rewriteBlockMatrixNode,
+      simplifyBlockMatrix
+    )(bmir)
+  }
+
   private[this] def rewriteValueNode: IR => Option[IR] = valueRules.lift
 
   private[this] def rewriteTableNode(allowRepartitioning: Boolean)(tir: TableIR): Option[TableIR] =
@@ -57,6 +66,8 @@ object Simplify {
 
   private[this] def rewriteMatrixNode(allowRepartitioning: Boolean)(mir: MatrixIR): Option[MatrixIR] =
     matrixRules(allowRepartitioning && isDeterministicallyRepartitionable(mir)).lift(mir)
+
+  private[this] def rewriteBlockMatrixNode: BlockMatrixIR => Option[BlockMatrixIR] = blockMatrixRules.lift
 
   /** Returns true if 'x' propagates missingness, meaning if any child of 'x'
     * evaluates to missing, then 'x' will evaluate to missing.
@@ -148,6 +159,14 @@ object Simplify {
 
     case Cast(x, t) if x.typ == t => x
 
+    case ApplyBinaryPrimOp(Add(), I32(0), x) => x
+    case ApplyBinaryPrimOp(Add(), x, I32(0)) => x
+    case ApplyBinaryPrimOp(Subtract(), I32(0), x) => x
+    case ApplyBinaryPrimOp(Subtract(), x, I32(0)) => x
+
+    case ApplyIR("indexArray", Seq(a, i@I32(v))) if v >= 0 =>
+      ArrayRef(a, i)
+
     case ArrayLen(MakeArray(args, _)) => I32(args.length)
 
     case ArrayLen(ArrayRange(start, end, I32(1))) => ApplyBinaryPrimOp(Subtract(), end, start)
@@ -155,6 +174,8 @@ object Simplify {
     case ArrayLen(ArrayMap(a, _, _)) => ArrayLen(a)
 
     case ArrayLen(ArrayFlatMap(a, _, MakeArray(args, _))) => ApplyBinaryPrimOp(Multiply(), I32(args.length), ArrayLen(a))
+
+    case ArrayLen(ArraySort(a, _, _, _)) => ArrayLen(a)
 
     case ArrayRef(MakeArray(args, _), I32(i)) if i >= 0 && i < args.length => args(i)
 
@@ -266,6 +287,7 @@ object Simplify {
               g2.typ.asInstanceOf[TStruct].fields.map(f => f.name -> (GetField(Ref(g2s, g2.typ), f.name): IR)))))
     case TableGetGlobals(x@TableMultiWayZipJoin(children, _, globalName)) =>
       MakeStruct(FastSeq(globalName -> MakeArray(children.map(TableGetGlobals), TArray(children.head.typ.globalType))))
+    case TableGetGlobals(TableZipUnchecked(left, _)) => TableGetGlobals(left)
     case TableGetGlobals(TableLeftJoinRightDistinct(child, _, _)) => TableGetGlobals(child)
     case TableGetGlobals(TableMapRows(child, _)) => TableGetGlobals(child)
     case TableGetGlobals(TableMapGlobals(child, newGlobals)) =>
@@ -292,7 +314,7 @@ object Simplify {
     case TableCollect(TableParallelize(x, _)) => x
     case ArrayLen(GetField(TableCollect(child), "rows")) => TableCount(child)
 
-    case ApplyIR("annotate", Seq(s, MakeStruct(fields)), _) =>
+    case ApplyIR("annotate", Seq(s, MakeStruct(fields))) =>
       InsertFields(s, fields)
 
     // simplify Boolean equality
@@ -312,15 +334,17 @@ object Simplify {
 
     case TableFilter(t, True()) => t
 
-    case TableFilter(TableRead(path, spec, typ, _), False() | NA(_)) =>
-      TableRead(path, spec, typ, dropRows = true)
+    case TableFilter(TableRead(typ, _, tr), False() | NA(_)) =>
+      TableRead(typ, dropRows = true, tr)
 
     case TableFilter(TableFilter(t, p1), p2) =>
       TableFilter(t,
         ApplySpecial("&&", Array(p1, p2)))
 
-    case TableOrderBy(child, sortFields) if sortFields.isEmpty =>
-      child
+    case TableFilter(TableKeyBy(child, key, isSorted), p) if canRepartition => TableKeyBy(TableFilter(child, p), key, isSorted)
+    case TableFilter(TableRepartition(child, n, strategy), p) => TableRepartition(TableFilter(child, p), n, strategy)
+
+    case TableOrderBy(TableKeyBy(child, _, _), sortFields) => TableOrderBy(child, sortFields)
 
     case TableFilter(TableOrderBy(child, sortFields), pred) if canRepartition =>
       TableOrderBy(TableFilter(child, pred), sortFields)
@@ -348,6 +372,9 @@ object Simplify {
         if oldName != newName
       } yield oldName -> newName
       TableRename(child, Map(renamedPairs: _*), Map.empty)
+
+    case TableMapRows(TableMapRows(child, newRow1), newRow2) if !ContainsScan(newRow2) =>
+      TableMapRows(child, Let("row", newRow1, newRow2))
 
     case TableMapGlobals(child, Ref("global", _)) => child
 
@@ -429,7 +456,8 @@ object Simplify {
       TableMapGlobals(TableHead(child, n), newGlobals)
 
     case TableHead(TableOrderBy(child, sortFields), n)
-      if sortFields.forall(_.sortOrder == Ascending) && n < 256 && canRepartition =>
+      if !TableOrderBy.isAlreadyOrdered(sortFields, child.rvdType.key)
+        && n < 256 && canRepartition =>
       // n < 256 is arbitrary for memory concerns
       val uid = genUID()
       val row = Ref("row", child.typ.rowType)
@@ -506,5 +534,9 @@ object Simplify {
     case MatrixFilterEntries(MatrixFilterEntries(child, pred1), pred2) => MatrixFilterEntries(child, ApplySpecial("&&", FastSeq(pred1, pred2)))
 
     case MatrixMapGlobals(MatrixMapGlobals(child, ng1), ng2) => MatrixMapGlobals(child, Let("global", ng1, ng2))
+  }
+
+  private[this] def blockMatrixRules: PartialFunction[BlockMatrixIR, BlockMatrixIR] = {
+    case BlockMatrixBroadcast(child, IndexedSeq(0, 1), _, _) => child
   }
 }

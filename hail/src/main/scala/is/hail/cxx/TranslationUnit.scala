@@ -29,7 +29,7 @@ class TranslationUnit(preamble: String, definitions: Array[Code]) {
     val st = new NativeStatus()
     val mod = new NativeModule(options, src)
     mod.findOrBuild(st)
-    assert(st.ok, st.toString())
+    assert(st.ok, st.toString() + "\n" + source)
     mod
   }
 }
@@ -128,7 +128,7 @@ class TranslationUnitBuilder() extends ScopeBuilder {
   def end(): TranslationUnit = {
 
     new TranslationUnit(
-      includes.result().mkString("\n"),
+      includes.result().distinct.mkString("\n"),
       definitions.result())
   }
 }

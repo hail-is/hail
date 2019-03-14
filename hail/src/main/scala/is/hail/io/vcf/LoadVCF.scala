@@ -1,34 +1,30 @@
 package is.hail.io.vcf
 
-import htsjdk.variant.variantcontext.VariantContext
 import htsjdk.variant.vcf._
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.JSONAnnotationImpex
-import is.hail.expr.ir.{MatrixLiteral, MatrixRead, MatrixReader, MatrixValue, PruneDeadFields}
+import is.hail.expr.ir.{LowerMatrixIR, MatrixHybridReader, MatrixIR, MatrixLiteral, MatrixValue, PruneDeadFields, TableRead, TableValue}
 import is.hail.expr.types._
-import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual._
-import is.hail.io._
-import is.hail.io.vcf.LoadVCF.{getHeaderLines, parseHeader, parseLines}
 import is.hail.io.tabix._
-import is.hail.rvd.{RVD, RVDContext, RVDPartitioner, RVDType}
+import is.hail.io.vcf.LoadVCF.{getHeaderLines, parseHeader, parseLines}
 import is.hail.io.{VCFAttributes, VCFMetadata}
+import is.hail.rvd.{RVD, RVDContext, RVDPartitioner, RVDType}
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.hadoop
 import org.apache.hadoop.conf.Configuration
-import org.apache.spark.{Partition, SparkContext, TaskContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
+import org.apache.spark.{Partition, SparkContext, TaskContext}
 import org.json4s.jackson.JsonMethods
 
 import scala.annotation.meta.param
 import scala.collection.JavaConversions._
 import scala.collection.JavaConverters._
 import scala.collection.mutable
-import scala.io.Source
 import scala.language.implicitConversions
 
 case class VCFHeaderInfo(sampleIds: Array[String], infoSignature: TStruct, vaSignature: TStruct, genotypeSignature: TStruct,
@@ -426,7 +422,9 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
   }
 
   def parseArrayElement[T](ab: MissingArrayBuilder[T], eltParser: () => T) {
-    if (!arrayElementsRequired && formatArrayFieldMissing()) {
+    if (formatArrayFieldMissing()) {
+      if (arrayElementsRequired)
+        parseError(s"missing value in FORMAT array. Import with argument 'array_elements_required=False'")
       ab.addMissing()
       pos += 1
     } else {
@@ -435,7 +433,9 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
   }
 
   def parseIntArrayElement() {
-    if (!arrayElementsRequired && formatArrayFieldMissing()) {
+    if (formatArrayFieldMissing()) {
+      if (arrayElementsRequired)
+        parseError(s"missing value in FORMAT array. Import with argument 'array_elements_required=False'")
       abi.addMissing()
       pos += 1
     } else {
@@ -444,7 +444,9 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
   }
 
   def parseDoubleArrayElement() {
-    if (!arrayElementsRequired && formatArrayFieldMissing()) {
+    if (formatArrayFieldMissing()) {
+      if (arrayElementsRequired)
+        parseError(s"missing value in FORMAT array. Import with argument 'array_elements_required=False'")
       abd.addMissing()
       pos += 1
     } else {
@@ -453,7 +455,9 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean) {
   }
 
   def parseStringArrayElement() {
-    if (!arrayElementsRequired && formatArrayFieldMissing()) {
+    if (formatArrayFieldMissing()) {
+      if (arrayElementsRequired)
+        parseError(s"missing value in FORMAT array. Import with argument 'array_elements_required=False'")
       abs.addMissing()
       pos += 1
     } else {
@@ -626,14 +630,16 @@ class FormatParser(
   }
 }
 
-class ParseLineContext(typ: MatrixType, val infoFlagFieldNames: Set[String], headerLines: BufferedLineIterator) {
-  val gType: TStruct = typ.entryType
+class ParseLineContext(typ: TableType, val infoFlagFieldNames: Set[String], headerLines: BufferedLineIterator) {
+  val entryType: TStruct = typ.rowType.fieldOption(LowerMatrixIR.entriesFieldName) match {
+    case Some(entriesArray) => entriesArray.typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct]
+    case None => TStruct()
+  }
   val infoSignature = typ.rowType.fieldOption("info").map(_.typ.asInstanceOf[TStruct]).orNull
   val hasRSID = typ.rowType.hasField("rsid")
   val hasQual = typ.rowType.hasField("qual")
   val hasFilters = typ.rowType.hasField("filters")
-  val formatSignature = typ.entryType
-  val hasEntryFields = formatSignature.size > 0
+  val hasEntryFields = entryType.size > 0
 
   val codec = new htsjdk.variant.vcf.VCFCodec()
   codec.readHeader(headerLines)
@@ -644,7 +650,7 @@ class ParseLineContext(typ: MatrixType, val infoFlagFieldNames: Set[String], hea
     formatParsers.get(format) match {
       case Some(fp) => fp
       case None =>
-        val fp = FormatParser(gType, format)
+        val fp = FormatParser(entryType, format)
         formatParsers += format -> fp
         fp
     }
@@ -660,26 +666,20 @@ object LoadVCF {
     }
   }
 
-  def globAllVCFs(arguments: Array[String], hConf: hadoop.conf.Configuration, forcegz: Boolean = false): Array[String] = {
+  def globAllVCFs(arguments: Array[String],
+    hConf: hadoop.conf.Configuration,
+    forceGZ: Boolean = false,
+    gzAsBGZ: Boolean = false): Array[String] = {
     val inputs = hConf.globAll(arguments)
 
     if (inputs.isEmpty)
       fatal("arguments refer to no files")
 
     inputs.foreach { input =>
-      if (!input.endsWith(".vcf")
-        && !input.endsWith(".vcf.bgz")) {
-        if (input.endsWith(".vcf.gz")) {
-          if (!forcegz)
-            fatal(
-              """.gz cannot be loaded in parallel. Is your file actually *block* gzipped?
-                |If your file is actually block gzipped (even though its extension is .gz),
-                |use force_bgz=True to ignore the file extension and treat this file as if
-                |it were a .bgz file. If you are sure that you want to load a non-block
-                |gzipped using the very slow, non-parallel algorithm, use force=True.""".stripMargin)
-        } else
-          fatal(s"unknown input file type `$input', expect .vcf[.bgz]")
-      }
+      if (!(input.endsWith(".vcf") || input.endsWith(".vcf.bgz") || !input.endsWith(".vcf.gz")))
+        warn(s"expected input file `$input' to end in .vcf[.bgz, .gz]")
+      if (input.endsWith(".gz"))
+        checkGzippedFile(hConf, input, forceGZ, gzAsBGZ)
     }
     inputs
   }
@@ -789,10 +789,13 @@ object LoadVCF {
       infoFlagFields)
   }
 
-  def getHeaderLines[T](hConf: Configuration, file: String): Array[String] = hConf.readFile(file) { s =>
-    Source.fromInputStream(s)
-      .getLines()
-      .takeWhile { line => line(0) == '#' }
+  def getHeaderLines[T](
+    hConf: Configuration,
+    file: String,
+    filterAndReplace: TextInputFilterAndReplace): Array[String] = hConf.readLines(file, filterAndReplace) { lines =>
+      lines
+      .takeWhile { line => line.value(0) == '#' }
+      .map(_.value)
       .toArray
   }
 
@@ -870,7 +873,7 @@ object LoadVCF {
 
   def parseHeaderMetadata(hc: HailContext, reader: HtsjdkRecordReader, headerFile: String): VCFMetadata = {
     val hConf = hc.hadoopConf
-    val headerLines = getHeaderLines(hConf, headerFile)
+    val headerLines = getHeaderLines(hConf, headerFile, TextInputFilterAndReplace())
     val VCFHeaderInfo(_, _, _, _, filterAttrs, infoAttrs, formatAttrs, _) = parseHeader(reader, headerLines)
 
     Map("filter" -> filterAttrs, "info" -> infoAttrs, "format" -> formatAttrs)
@@ -884,44 +887,45 @@ object LoadVCF {
     dropSamples: Boolean = false
   ): Unit = {
     val vc = c.codec.decode(l.line)
-    val nSamples = if (!dropSamples) vc.getNSamples else 0
-
     reader.readVariantInfo(vc, rvb, c.hasRSID, c.hasQual, c.hasFilters, c.infoSignature, c.infoFlagFieldNames)
 
-    rvb.startArray(nSamples) // gs
+    if (!dropSamples) {
+      val nSamples = vc.getNSamples
+      rvb.startArray(nSamples) // gs
 
-    if (nSamples > 0) {
-      if (!c.hasEntryFields) {
-        var i = 0
-        while (i < nSamples) {
-          rvb.startStruct()
-          rvb.endStruct()
-          i += 1
-        }
-      } else {
-        // l is pointing at qual
-        var i = 0
-        while (i < 3) { // qual, filter, info
-          l.skipField()
+      if (nSamples > 0) {
+        if (!c.hasEntryFields) {
+          var i = 0
+          while (i < nSamples) {
+            rvb.startStruct()
+            rvb.endStruct()
+            i += 1
+          }
+        } else {
+          // l is pointing at qual
+          var i = 0
+          while (i < 3) { // qual, filter, info
+            l.skipField()
+            l.nextField()
+            i += 1
+          }
+
+          val format = l.parseString()
           l.nextField()
-          i += 1
-        }
 
-        val format = l.parseString()
-        l.nextField()
+          val fp = c.getFormatParser(format)
 
-        val fp = c.getFormatParser(format)
-
-        fp.parse(l, rvb)
-        i = 1
-        while (i < nSamples) {
-          l.nextField()
           fp.parse(l, rvb)
-          i += 1
+          i = 1
+          while (i < nSamples) {
+            l.nextField()
+            fp.parse(l, rvb)
+            i += 1
+          }
         }
       }
+      rvb.endArray()
     }
-    rvb.endArray()
   }
 }
 
@@ -933,7 +937,7 @@ class PartitionedVCFRDD(
   @(transient@param) _partitions: Array[Partition]
 ) extends RDD[String](sc, Seq()) {
   protected def getPartitions: Array[Partition] = _partitions
-  val confBc = sc.broadcast(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
+  val confBc = HailContext.hadoopConfBc
 
   def compute(split: Partition, context: TaskContext): Iterator[String] = {
     val p = split.asInstanceOf[PartitionedVCFPartition]
@@ -986,7 +990,8 @@ case class MatrixVCFReader(
   skipInvalidLoci: Boolean,
   gzAsBGZ: Boolean,
   forceGZ: Boolean,
-  partitionsJSON: String) extends MatrixReader {
+  filterAndReplace: TextInputFilterAndReplace,
+  partitionsJSON: String) extends MatrixHybridReader {
 
   private val hc = HailContext.get
   private val sc = hc.sc
@@ -995,23 +1000,24 @@ case class MatrixVCFReader(
 
   referenceGenome.foreach(_.validateContigRemap(contigRecoding))
 
-  private val inputs = LoadVCF.globAllVCFs(hConf.globAll(files), hConf, gzAsBGZ || forceGZ)
+  private val inputs = LoadVCF.globAllVCFs(hConf.globAll(files), hConf, forceGZ, gzAsBGZ)
 
   private val reader = new HtsjdkRecordReader(callFields, entryFloatType)
 
-  private val headerLines1 = getHeaderLines(hConf, headerFile.getOrElse(inputs.head))
+  private val headerLines1 = getHeaderLines(hConf, headerFile.getOrElse(inputs.head), filterAndReplace)
   private val header1 = parseHeader(reader, headerLines1, arrayElementsRequired = arrayElementsRequired)
 
   if (headerFile.isEmpty) {
-    val confBc = sc.broadcast(new SerializableHadoopConfiguration(hConf))
+    val confBc = HailContext.hadoopConfBc
     val header1Bc = sc.broadcast(header1)
 
     val localReader = reader
     val localInputs = inputs
     val localArrayElementsRequired = arrayElementsRequired
+    val localFilterAndReplace = filterAndReplace
     sc.parallelize(inputs.tail, math.max(1, inputs.length - 1)).foreach { file =>
       val hConf = confBc.value.value
-      val hd = parseHeader(localReader, getHeaderLines(hConf, file), arrayElementsRequired = localArrayElementsRequired)
+      val hd = parseHeader(localReader, getHeaderLines(hConf, file, localFilterAndReplace), arrayElementsRequired = localArrayElementsRequired)
       val hd1 = header1Bc.value
 
       if (hd1.sampleIds.length != hd.sampleIds.length) {
@@ -1062,7 +1068,7 @@ case class MatrixVCFReader(
   val locusType = TLocus.schemaFromRG(referenceGenome)
   private val kType = TStruct("locus" -> locusType, "alleles" -> TArray(TString()))
 
-  val fullType: MatrixType = MatrixType.fromParts(
+  val fullMatrixType: MatrixType = MatrixType.fromParts(
     TStruct.empty(),
     colType = TStruct("s" -> TString()),
     colKey = Array("s"),
@@ -1070,79 +1076,62 @@ case class MatrixVCFReader(
     rowKey = Array("locus", "alleles"),
     entryType = genotypeSignature)
 
-  val partitioner = if (partitionsJSON != null) {
-    assert(inputs.length == 1)
-    assert(minPartitions.isEmpty)
-    assert(hConf.exists(inputs.head + ".tbi"))
+  override lazy val fullType: TableType = LowerMatrixIR.loweredType(fullMatrixType)
 
-    val pkType = TArray(TInterval(TStruct("locus" -> locusType)))
-    val jv = JsonMethods.parse(partitionsJSON)
-    val rangeBounds = JSONAnnotationImpex.importAnnotation(jv, pkType)
-
-    new RVDPartitioner(
-      Array("locus"),
-      fullType.rowKeyStruct,
-      rangeBounds.asInstanceOf[IndexedSeq[Interval]])
-  } else
-    null
-
-  val fullRVDType: RVDType = RVDType(fullType.rvRowType.physicalType, fullType.rowKey)
+  val fullRVDType: RVDType = RVDType(fullType.rowType.physicalType, fullType.key)
 
   private lazy val lines = {
-    hc.maybeGZipAsBGZip(gzAsBGZ) {
-      ContextRDD.textFilesLines[RVDContext](sc, inputs, minPartitions)
+    HailContext.maybeGZipAsBGZip(gzAsBGZ) {
+      ContextRDD.textFilesLines[RVDContext](sc, inputs, minPartitions, filterAndReplace)
     }
   }
 
   private lazy val coercer = RVD.makeCoercer(
-    fullType.canonicalRVDType,
+    fullMatrixType.canonicalRVDType,
     1,
     parseLines(
       () => ()
     )((c, l, rvb) => ()
     )(lines,
-      fullType.rowKeyStruct,
+      fullMatrixType.rowKeyStruct,
       referenceGenome,
       contigRecoding,
       arrayElementsRequired,
       skipInvalidLoci))
 
-  def apply(mr: MatrixRead): MatrixValue = {
+  def apply(tr: TableRead): TableValue = {
     val reader = new HtsjdkRecordReader(callFields, entryFloatType)
     val headerLinesBc = sc.broadcast(headerLines1)
 
-    val requestedType = mr.typ
+    val requestedType = tr.typ
     assert(PruneDeadFields.isSupertype(requestedType, fullType))
 
-    val localTyp = mr.typ
     val localInfoFlagFieldNames = infoFlagFieldNames
 
-    val dropSamples = mr.dropCols
+    val dropSamples = !requestedType.rowType.hasField(LowerMatrixIR.entriesFieldName)
     val localSampleIDs: Array[String] = if (dropSamples) Array.empty[String] else sampleIDs
 
-    val rvd = if (mr.dropRows)
+    val rvd = if (tr.dropRows)
       RVD.empty(sc, requestedType.canonicalRVDType)
     else
       coercer.coerce(requestedType.canonicalRVDType, parseLines { () =>
-        new ParseLineContext(localTyp,
+        new ParseLineContext(requestedType,
           localInfoFlagFieldNames,
           new BufferedLineIterator(headerLinesBc.value.iterator.buffered))
       } { (c, l, rvb) => LoadVCF.parseLine(reader, c, l, rvb, dropSamples) }(
-        lines, requestedType.rvRowType, referenceGenome, contigRecoding, arrayElementsRequired, skipInvalidLoci
+        lines, requestedType.rowType, referenceGenome, contigRecoding, arrayElementsRequired, skipInvalidLoci
       ))
 
-    MatrixValue(requestedType,
-      BroadcastRow(Row.empty, requestedType.globalType, sc),
-      BroadcastIndexedSeq(localSampleIDs.map(Annotation(_)), TArray(requestedType.colType), sc),
-      rvd
-    )
+    val globalValue = makeGlobalValue(requestedType, sampleIDs.map(Row(_)))
+
+    TableValue(requestedType, globalValue, rvd)
   }
 }
 
 object ImportVCFs {
   def pyApply(
-    files: java.util.ArrayList[String],
-    callFields: java.util.ArrayList[String],
+    files: java.util.List[String],
+    callFields: java.util.List[String],
     entryFloatType: String,
     rg: String,
     contigRecoding: java.util.Map[String, String],
@@ -1150,9 +1139,12 @@ object ImportVCFs {
     skipInvalidLoci: Boolean,
     gzAsBGZ: Boolean,
     forceGZ: Boolean,
-    partitionsJSON: String
-  ): Array[MatrixTable] = {
-    val reader = VCFsReader(
+    partitionsJSON: String,
+    filter: String,
+    find: String,
+    replace: String
+  ): Array[MatrixIR] = {
+    val reader = new VCFsReader(
       files.asScala.toArray,
       callFields.asScala.toSet,
       entryFloatType,
@@ -1162,20 +1154,14 @@ object ImportVCFs {
       skipInvalidLoci,
       gzAsBGZ,
       forceGZ,
+      TextInputFilterAndReplace(Option(find), Option(filter), Option(replace)),
       partitionsJSON)
 
     reader.read()
   }
 }
 
-case class VCFInfo(
-  headerLines: Array[String],
-  sampleIDs: Array[String],
-  infoFlagFieldNames: Set[String],
-  typ: MatrixType,
-  partitions: Array[Partition])
-
-case class VCFsReader(
+class VCFsReader(
   files: Array[String],
   callFields: Set[String],
   entryFloatType: String,
@@ -1185,85 +1171,117 @@ case class VCFsReader(
   skipInvalidLoci: Boolean,
   gzAsBGZ: Boolean,
   forceGZ: Boolean,
+  filterAndReplace: TextInputFilterAndReplace,
   partitionsJSON: String) {
 
   private val hc = HailContext.get
   private val sc = hc.sc
-  private val hConf = sc.hadoopConfiguration
+  private val hConf = hc.hadoopConf
+  private val hConfBc = hc.hadoopConfBc
   private val referenceGenome = rg.map(ReferenceGenome.getReference)
 
   referenceGenome.foreach(_.validateContigRemap(contigRecoding))
 
   private val locusType = TLocus.schemaFromRG(referenceGenome)
-  private val rowKeyType = TStruct("locus" -> locusType, "alleles" -> TArray(TString()))
+  private val rowKeyType = TStruct("locus" -> locusType)
+
+  private val file1 = files.head
+  private val headerLines1 = getHeaderLines(hConf, file1, filterAndReplace)
+  private val headerLines1Bc = sc.broadcast(headerLines1)
+  private val header1 = {
+    val reader = new HtsjdkRecordReader(callFields, entryFloatType)
+    parseHeader(reader, headerLines1, arrayElementsRequired = arrayElementsRequired)
+  }
+
+  private val kType = TStruct("locus" -> locusType, "alleles" -> TArray(TString()))
+
+  private val typ = MatrixType.fromParts(
+    TStruct.empty(),
+    colType = TStruct("s" -> TString()),
+    colKey = Array("s"),
+    rowType = kType ++ header1.vaSignature,
+    rowKey = Array("locus"),
+    entryType = header1.genotypeSignature)
 
   val partitioner: RVDPartitioner = {
     val pkType = TArray(TInterval(TStruct("locus" -> locusType)))
     val jv = JsonMethods.parse(partitionsJSON)
     val rangeBounds = JSONAnnotationImpex.importAnnotation(jv, pkType)
+      .asInstanceOf[IndexedSeq[Interval]]
+
+    rangeBounds.zipWithIndex.foreach { case (b, i) =>
+      if (!(b.includesStart && b.includesEnd))
+        fatal("range bounds must be inclusive")
+
+      val start = b.start.asInstanceOf[Row].getAs[Locus](0)
+      val end = b.end.asInstanceOf[Row].getAs[Locus](0)
+      if (start.contig != end.contig)
+        fatal(s"partition spec must not cross contig boundaries, start: ${start.contig} | end: ${end.contig}")
+    }
 
     new RVDPartitioner(
       Array("locus"),
       rowKeyType,
-      rangeBounds.asInstanceOf[IndexedSeq[Interval]])
+      rangeBounds)
   }
 
   private val fileInfo = {
-    val confBc = sc.broadcast(new SerializableHadoopConfiguration(hConf))
-
-    val localLocusType = locusType
-    val localReader = new HtsjdkRecordReader(callFields, entryFloatType)
-    val localFiles = files
+    val localHConfBc = hConfBc
+    val localFile1 = file1
+    val localEntryFloatType = entryFloatType
+    val localCallFields = callFields
     val localArrayElementsRequired = arrayElementsRequired
-    val localRangeBounds = partitioner.rangeBounds
+    val localFilterAndReplace = filterAndReplace
+    val localGenotypeSignature = header1.genotypeSignature
+    val localVASignature = header1.vaSignature
+    val partitionerBc = partitioner.broadcast(sc)
 
-    sc.parallelize(localFiles, localFiles.length).map { file =>
-      val hConf = confBc.value.value
-      val headerLines = getHeaderLines(hConf, file)
-      val header = parseHeader(localReader, headerLines, arrayElementsRequired = localArrayElementsRequired)
-      val VCFHeaderInfo(_, infoSignature, vaSignature, genotypeSignature, _, _, _, infoFlagFieldNames) = header
+    sc.parallelize(files, files.length).map { file =>
+      val hConf = localHConfBc.value.value
+      val headerLines = getHeaderLines(hConf, file, localFilterAndReplace)
+      val reader = new HtsjdkRecordReader(localCallFields, localEntryFloatType)
+      val header = parseHeader(reader, headerLines, arrayElementsRequired = localArrayElementsRequired)
 
-      val kType = TStruct("locus" -> localLocusType, "alleles" -> TArray(TString()))
+      if (header.genotypeSignature != localGenotypeSignature)
+        fatal(
+          s"""invalid genotype signature: expected signatures to be identical for all inputs.
+             |   $localFile1: $localGenotypeSignature
+             |   $file: ${header.genotypeSignature}""".stripMargin)
 
-      val typ = MatrixType.fromParts(
-        TStruct.empty(),
-        colType = TStruct("s" -> TString()),
-        colKey = Array("s"),
-        rowType = kType ++ vaSignature,
-        rowKey = Array("locus", "alleles"),
-        entryType = genotypeSignature)
+      if (header.vaSignature != localVASignature)
+        fatal(
+          s"""invalid variant annotation signature: expected signatures to be identical for all inputs.
+             |   $localFile1: $localVASignature
+             |   $file: ${header.vaSignature}""".stripMargin)
 
-      val partitions = {
-        val r = new TabixReader(file, hConf)
-        localRangeBounds.zipWithIndex.map { case (b, i) =>
-          if (!(b.includesStart && b.includesEnd))
-            fatal("range bounds must be inclusive")
+      val r = new TabixReader(file, hConf)
+      val partitions = partitionerBc.value.rangeBounds.zipWithIndex.map { case (b, i) =>
+        val start = b.start.asInstanceOf[Row].getAs[Locus](0)
+        val end = b.end.asInstanceOf[Row].getAs[Locus](0)
 
-          val start = b.start.asInstanceOf[Row].getAs[Locus](0)
-          val end = b.end.asInstanceOf[Row].getAs[Locus](0)
-          if (start.contig != end.contig)
-            fatal(s"partion spec must not cross contig boundaries, start: ${ start.contig } | end: ${ end.contig }")
+        val contig = start.contig
+        val startPos = start.position
+        val endPos = end.position
 
-          val contig = start.contig
-          val startPos = start.position
-          val endPos = end.position
+        val tid = r.chr2tid(contig)
+        val reg = r.queryPairs(tid, startPos - 1, endPos)
 
-          val tid = r.chr2tid(contig)
-          val reg = r.queryPairs(tid, startPos - 1, endPos)
-
-          val p: Partition = PartitionedVCFPartition(i, start.contig, start.position, end.position, reg)
-          p
-        }
-          .toArray
+        PartitionedVCFPartition(i, start.contig, start.position, end.position, reg): Partition
       }
 
-      VCFInfo(headerLines, header.sampleIds, infoFlagFieldNames, typ, partitions)
+      (header.sampleIds, partitions)
     }
       .collect()
   }
 
-  def readFile(reader: HtsjdkRecordReader, file: String, i: Int): MatrixTable = {
-    val VCFInfo(headerLines, sampleIDs, localInfoFlagFieldNames, typ, partitions) = fileInfo(i)
+  def readFile(file: String, i: Int): MatrixIR = {
+    val (sampleIDs, partitions) = fileInfo(i)
+
+    val localEntryFloatType = entryFloatType
+    val localCallFields = callFields
+    val localHeaderLines1Bc = headerLines1Bc
+    val localInfoFlagFieldNames = header1.infoFlagFields
+    val localTyp = typ
 
     val lines = ContextRDD.weaken[RVDContext](
       new PartitionedVCFRDD(sc, file, partitions)
@@ -1271,29 +1289,28 @@ case class VCFsReader(
           WithContext(l, Context(l, file, None))))
 
     val parsedLines = parseLines { () =>
-      new ParseLineContext(typ,
+      new ParseLineContext(LowerMatrixIR.loweredType(localTyp),
         localInfoFlagFieldNames,
-        new BufferedLineIterator(headerLines.iterator.buffered))
-    } { (c, l, rvb) => LoadVCF.parseLine(reader, c, l, rvb) }(
-      lines, typ.rvRowType, referenceGenome, contigRecoding, arrayElementsRequired, skipInvalidLoci
-    )
+        new BufferedLineIterator(localHeaderLines1Bc.value.iterator.buffered))
+    } { (c, l, rvb) =>
+      val reader = new HtsjdkRecordReader(localCallFields, localEntryFloatType)
+      LoadVCF.parseLine(reader, c, l, rvb)
+    }(lines, typ.rvRowType, referenceGenome, contigRecoding, arrayElementsRequired, skipInvalidLoci)
 
     val rvd = RVD(typ.canonicalRVDType,
       partitioner,
       parsedLines)
 
-    new MatrixTable(hc,
-      MatrixLiteral(
-        MatrixValue(typ,
-          BroadcastRow(Row.empty, typ.globalType, sc),
-          BroadcastIndexedSeq(sampleIDs.map(Annotation(_)), TArray(typ.colType), sc),
-          rvd)))
+    MatrixLiteral(
+      MatrixValue(typ,
+        BroadcastRow(Row.empty, typ.globalType, sc),
+        BroadcastIndexedSeq(sampleIDs.map(Annotation(_)), TArray(typ.colType), sc),
+        rvd))
   }
 
-  def read(): Array[MatrixTable] = {
-    val reader = new HtsjdkRecordReader(callFields, entryFloatType)
+  def read(): Array[MatrixIR] = {
     files.zipWithIndex.map { case (file, i) =>
-      readFile(reader, file, i)
+      readFile(file, i)
     }
   }
 }

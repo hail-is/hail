@@ -18,6 +18,11 @@ object Exists {
   }
 }
 
+object Forall {
+  def apply(node: BaseIR, visitor: BaseIR => Boolean): Boolean =
+    !Exists(node, n => !visitor(n))
+}
+
 object ContainsAgg {
   def apply(root: BaseIR): Boolean = Exists(root, _.isInstanceOf[ApplyAggOp])
 }

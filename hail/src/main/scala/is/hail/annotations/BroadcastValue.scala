@@ -1,5 +1,6 @@
 package is.hail.annotations
 
+import is.hail.HailContext
 import is.hail.expr.types._
 import is.hail.expr.types.virtual.{TArray, TBaseStruct, TStruct, Type}
 import org.apache.spark.SparkContext
@@ -23,8 +24,8 @@ abstract class BroadcastValue[T: ClassTag](value: T, t: Type, sc: SparkContext) 
 }
 
 object BroadcastRow {
-  def empty(sc: SparkContext): BroadcastRow =
-    BroadcastRow(Row.empty, TStruct.empty(), sc)
+  def empty(): BroadcastRow =
+    BroadcastRow(Row.empty, TStruct.empty(), HailContext.get.sc)
 }
 
 case class BroadcastRow(value: Row,

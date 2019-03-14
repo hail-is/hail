@@ -1,6 +1,6 @@
 package is.hail.io
 
-import is.hail.SparkSuite
+import is.hail.{HailContext, SparkSuite}
 import is.hail.annotations._
 import is.hail.check.Gen
 import is.hail.check.Prop.forAll
@@ -36,46 +36,8 @@ class ImportMatrixSuite extends SparkSuite {
     vGen = (t: Type) => t.genNonmissingValue,
     tGen = (t: Type, v: Annotation) => t.genNonmissingValue)
 
-  def reKeyCols(vsm: MatrixTable): MatrixTable = {
-    val rowMap = new java.util.HashMap[String, String](vsm.rowType.size)
-    vsm.rowType.fields.foreach { f => rowMap.put(f.name, s"f${ f.index }") }
-
-    val renamed = vsm.renameFields(rowMap,
-      new java.util.HashMap[String, String](),
-      new java.util.HashMap[String, String](),
-      new java.util.HashMap[String, String]())
-
-    renamed.copy2(colType = TStruct("s" -> TInt32()),
-      colValues = vsm.colValues.copy(Array.tabulate[Annotation](vsm.colValues.value.length){ i => Row(i) }, t = TArray(TStruct("s" -> TInt32()))))
-  }
-
-  def renameColKeyField(vsm: MatrixTable): MatrixTable = {
-    val colMap = new java.util.HashMap[String, String](vsm.rowType.size)
-    colMap.put("s", "col_id")
-
-    vsm.renameFields(new java.util.HashMap[String, String](),
-      colMap,
-      new java.util.HashMap[String, String](),
-      new java.util.HashMap[String, String]())
-  }
-
   def getVAFieldsAndTypes(vsm: MatrixTable): (Array[String], Array[Type]) = {
     (vsm.rowType.fieldNames, vsm.rowType.types)
-  }
-
-  def checkValidResult(f: MatrixTable => (MatrixTable, MatrixTable)): Unit = {
-    forAll(MatrixTable.gen(hc, genImportableMatrix)
-      .filter(vsm => vsm.stringSampleIds.intersect(vsm.rowType.fieldNames).isEmpty)) { vsm =>
-      val (transformed, result) = f(vsm)
-      val transformed2 = renameColKeyField(transformed)
-      assert(transformed2.same(result, tolerance=0.001))
-      val tmp1 = tmpDir.createTempFile(extension = "vds")
-      result.write(tmp1, true)
-
-      val vsm2 = MatrixTable.read(hc, tmp1)
-      assert(result.same(vsm2))
-      true
-    }.check()
   }
 
   @Test def testHeadersNotIdentical() {
@@ -89,7 +51,7 @@ class ImportMatrixSuite extends SparkSuite {
   @Test def testMissingVals() {
     val files = hc.hadoopConf.globAll(List("src/test/resources/samplesmissing.txt"))
     val e = intercept[SparkException] {
-      val vsm = LoadMatrix(hc, files, Map("f0" -> TString()), Array("f0"))
+      val vsm = new MatrixTable(HailContext.get, LoadMatrix(hc, files, Map("f0" -> TString()), Array("f0")))
       vsm.rvd.count()
     }
     assert(e.getMessage.contains("Incorrect number"))

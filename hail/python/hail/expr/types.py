@@ -8,7 +8,6 @@ from hail import genetics
 from hail.expr.type_parsing import type_grammar, type_node_visitor
 from hail.genetics.reference_genome import reference_genome_type
 from hail.typecheck import *
-from hail.utils import Struct, Interval
 from hail.utils.java import scala_object, jset, Env, escape_parsable
 
 __all__ = [
@@ -38,6 +37,7 @@ __all__ = [
     'tlocus',
     'tcall',
     'tvoid',
+    'tvariable',
     'hts_entry_schema',
 ]
 
@@ -217,6 +217,19 @@ class HailType(object):
         """
         f(self, obj)
 
+    @abc.abstractmethod
+    def unify(self, t):
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def subst(self):
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def clear(self):
+        raise NotImplementedError
+
+
 hail_type = oneof(HailType, transformed((str, dtype)))
 
 
@@ -233,6 +246,14 @@ class _tvoid(HailType):
     def _parsable_string(self):
         return "Void"
 
+    def unify(self, t):
+        return t == tvoid
+
+    def subst(self):
+        return self
+
+    def clear(self):
+        pass
 
 class _tint32(HailType):
     """Hail type for signed 32-bit integers.
@@ -245,15 +266,6 @@ class _tint32(HailType):
 
     def __init__(self):
         super(_tint32, self).__init__()
-
-    def _convert_to_py(self, annotation):
-        return annotation
-
-    def _convert_to_j(self, annotation):
-        if annotation is not None:
-            return Env.jutils().makeInt(annotation)
-        else:
-            return None
 
     def _typecheck_one_level(self, annotation):
         if annotation is not None:
@@ -280,6 +292,15 @@ class _tint32(HailType):
     def max_value(self):
         return (1 << 31) - 1
 
+    def unify(self, t):
+        return t == tint32
+
+    def subst(self):
+        return self
+
+    def clear(self):
+        pass
+
 
 class _tint64(HailType):
     """Hail type for signed 64-bit integers.
@@ -291,12 +312,6 @@ class _tint64(HailType):
 
     def __init__(self):
         super(_tint64, self).__init__()
-
-    def _convert_to_py(self, annotation):
-        return annotation
-
-    def _convert_to_j(self, annotation):
-        raise NotImplementedError('int64 conversion from Python to JVM')
 
     def _typecheck_one_level(self, annotation):
         if annotation is not None:
@@ -323,6 +338,15 @@ class _tint64(HailType):
     def max_value(self):
         return (1 << 63) - 1
 
+    def unify(self, t):
+        return t == tint64
+
+    def subst(self):
+        return self
+
+    def clear(self):
+        pass
+
 
 class _tfloat32(HailType):
     """Hail type for 32-bit floating point numbers.
@@ -332,18 +356,6 @@ class _tfloat32(HailType):
 
     def __init__(self):
         super(_tfloat32, self).__init__()
-
-    def _convert_to_py(self, annotation):
-        return annotation
-
-    def _convert_to_j(self, annotation):
-        # if annotation:
-        #     return Env.jutils().makeFloat(annotation)
-        # else:
-        #     return annotation
-
-        # FIXME: This function is unsupported until py4j-0.10.4: https://github.com/bartdag/py4j/issues/255
-        raise NotImplementedError('float32 is currently unsupported in certain operations, use float64 instead')
 
     def _typecheck_one_level(self, annotation):
         if annotation is not None and not isinstance(annotation, (float, int)):
@@ -367,6 +379,15 @@ class _tfloat32(HailType):
         else:
             return str(x)
 
+    def unify(self, t):
+        return t == tfloat32
+
+    def subst(self):
+        return self
+
+    def clear(self):
+        pass
+
 
 class _tfloat64(HailType):
     """Hail type for 64-bit floating point numbers.
@@ -376,15 +397,6 @@ class _tfloat64(HailType):
 
     def __init__(self):
         super(_tfloat64, self).__init__()
-
-    def _convert_to_py(self, annotation):
-        return annotation
-
-    def _convert_to_j(self, annotation):
-        if annotation is not None:
-            return Env.jutils().makeDouble(annotation)
-        else:
-            return None
 
     def _typecheck_one_level(self, annotation):
         if annotation is not None and not isinstance(annotation, (float, int)):
@@ -407,6 +419,15 @@ class _tfloat64(HailType):
         else:
             return str(x)
 
+    def unify(self, t):
+        return t == tfloat64
+
+    def subst(self):
+        return self
+
+    def clear(self):
+        pass
+
 
 class _tstr(HailType):
     """Hail type for text strings.
@@ -416,12 +437,6 @@ class _tstr(HailType):
 
     def __init__(self):
         super(_tstr, self).__init__()
-
-    def _convert_to_py(self, annotation):
-        return annotation
-
-    def _convert_to_j(self, annotation):
-        return annotation
 
     def _typecheck_one_level(self, annotation):
         if annotation and not isinstance(annotation, str):
@@ -436,6 +451,15 @@ class _tstr(HailType):
     def _parsable_string(self):
         return "String"
 
+    def unify(self, t):
+        return t == tstr
+
+    def subst(self):
+        return self
+
+    def clear(self):
+        pass
+
 
 class _tbool(HailType):
     """Hail type for Boolean (``True`` or ``False``) values.
@@ -445,12 +469,6 @@ class _tbool(HailType):
 
     def __init__(self):
         super(_tbool, self).__init__()
-
-    def _convert_to_py(self, annotation):
-        return annotation
-
-    def _convert_to_j(self, annotation):
-        return annotation
 
     def _typecheck_one_level(self, annotation):
         if annotation is not None and not isinstance(annotation, bool):
@@ -464,6 +482,15 @@ class _tbool(HailType):
 
     def _parsable_string(self):
         return "Boolean"
+
+    def unify(self, t):
+        return t == tbool
+
+    def subst(self):
+        return self
+
+    def clear(self):
+        pass
 
 
 class tndarray(HailType):
@@ -504,12 +531,6 @@ class tndarray(HailType):
             Element type.
         """
         return self._element_type
-
-    def _convert_to_py(self, annotation):
-        raise NotImplementedError
-
-    def _convert_to_j(self, annotation):
-        raise NotImplementedError
 
     def _traverse(self, obj, f):
         if f(self, obj):
@@ -577,21 +598,6 @@ class tarray(HailType):
         """
         return self._element_type
 
-    def _convert_to_py(self, annotation):
-        if annotation is not None:
-            lst = Env.jutils().iterableToArrayList(annotation)
-            return [self.element_type._convert_to_py(x) for x in lst]
-        else:
-            return None
-
-    def _convert_to_j(self, annotation):
-        if annotation is not None:
-            return Env.jutils().arrayListToISeq(
-                [self.element_type._convert_to_j(elt) for elt in annotation]
-            )
-        else:
-            return None
-
     def _traverse(self, obj, f):
         if f(self, obj):
             for elt in obj:
@@ -624,6 +630,15 @@ class tarray(HailType):
 
     def _propagate_jtypes(self, jtype):
         self._element_type._add_jtype(jtype.elementType())
+
+    def unify(self, t):
+        return isinstance(t, tarray) and self.element_type.unify(t.element_type)
+
+    def subst(self):
+        return tarray(self.element_type.subst())
+
+    def clear(self):
+        self.element_type.clear()
 
 
 class tset(HailType):
@@ -663,21 +678,6 @@ class tset(HailType):
         """
         return self._element_type
 
-    def _convert_to_py(self, annotation):
-        if annotation is not None:
-            lst = Env.jutils().iterableToArrayList(annotation)
-            return set([self.element_type._convert_to_py(x) for x in lst])
-        else:
-            return None
-
-    def _convert_to_j(self, annotation):
-        if annotation is not None:
-            return jset(
-                [self.element_type._convert_to_j(elt) for elt in annotation]
-            )
-        else:
-            return None
-
     def _traverse(self, obj, f):
         if f(self, obj):
             for elt in obj:
@@ -710,6 +710,15 @@ class tset(HailType):
 
     def _propagate_jtypes(self, jtype):
         self._element_type._add_jtype(jtype.elementType())
+
+    def unify(self, t):
+        return isinstance(t, tset) and self.element_type.unify(t.element_type)
+
+    def subst(self):
+        return tset(self.element_type.subst())
+
+    def clear(self):
+        self.element_type.clear()
 
 
 class tdict(HailType):
@@ -762,23 +771,9 @@ class tdict(HailType):
         """
         return self._value_type
 
-    def _convert_to_py(self, annotation):
-        if annotation is not None:
-            lst = Env.jutils().iterableToArrayList(annotation)
-            d = dict()
-            for x in lst:
-                d[self.key_type._convert_to_py(x._1())] = self.value_type._convert_to_py(x._2())
-            return d
-        else:
-            return None
-
-    def _convert_to_j(self, annotation):
-        if annotation is not None:
-            return Env.jutils().javaMapToMap(
-                {self.key_type._convert_to_j(k): self.value_type._convert_to_j(v) for k, v in annotation.items()}
-            )
-        else:
-            return None
+    @property
+    def element_type(self):
+        return tstruct(key = self._key_type, value = self._value_type)
 
     def _traverse(self, obj, f):
         if f(self, obj):
@@ -819,6 +814,19 @@ class tdict(HailType):
         self._key_type._add_jtype(jtype.keyType())
         self._value_type._add_jtype(jtype.valueType())
 
+    def unify(self, t):
+        return (isinstance(t, tdict)
+                and self.key_type.unify(t.key_type)
+                and self.value_type.unify(t.value_type))
+
+    def subst(self):
+        return tdict(self._key_type.subst(), self._value_type.subst())
+
+    def clear(self):
+        self.key_type.clear()
+        self.value_type.clear()
+
+
 class tstruct(HailType, Mapping):
     """Hail type for structured groups of heterogeneous fields.
 
@@ -850,23 +858,6 @@ class tstruct(HailType, Mapping):
             Struct fields.
         """
         return self._fields
-
-    def _convert_to_py(self, annotation):
-        if annotation is not None:
-            d = dict()
-            for i, (f, t) in enumerate(self.items()):
-                d[f] = t._convert_to_py(annotation.get(i))
-            return Struct(**d)
-        else:
-            return None
-
-    def _convert_to_j(self, annotation):
-        if annotation is not None:
-            return scala_object(Env.hail().annotations, 'Annotation').fromSeq(
-                Env.jutils().arrayListToISeq(
-                    [t._convert_to_j(annotation.get(f)) for f, t in self.items()]))
-        else:
-            return None
 
     def _traverse(self, obj, f):
         if f(self, obj):
@@ -931,6 +922,7 @@ class tstruct(HailType, Mapping):
             ','.join('{}:{}'.format(escape_parsable(f), t._parsable_string()) for f, t in self.items()))
 
     def _convert_from_json(self, x):
+        from hail.utils import Struct
         return Struct(**{f: t._convert_from_json_na(x.get(f)) for f, t in self.items()})
 
     def _convert_to_json(self, x):
@@ -941,6 +933,60 @@ class tstruct(HailType, Mapping):
                 len(self._fields) <= len(other._fields) and
                 all(x == y for x, y in zip(self._field_types.values(), other._field_types.values())))
 
+    def _concat(self, other):
+        new_field_types = {}
+        new_field_types.update(self._field_types)
+        new_field_types.update(other._field_types)
+        return tstruct(**new_field_types)
+
+    def _insert(self, path, t):
+        if not path:
+            return t
+
+        key = path[0]
+        keyt = self.get(key)
+        if not (keyt and isinstance(keyt, tstruct)):
+            keyt = tstruct()
+        return self._insert_fields(**{key: keyt._insert(path[1:], t)})
+
+    def _insert_field(self, field, typ):
+        return self._insert_fields(**{field: typ})
+
+    def _insert_fields(self, **new_fields):
+        new_field_types = {}
+        new_field_types.update(self._field_types)
+        new_field_types.update(new_fields)
+        return tstruct(**new_field_types)
+
+    def _drop_fields(self, fields):
+        return tstruct(**{f: t for f, t in self.items() if f not in fields})
+
+    def _select_fields(self, fields):
+        return tstruct(**{f: self[f] for f in fields})
+
+    def _index_path(self, path):
+        t = self
+        for p in path:
+            t = t[p]
+        return t
+
+    def _rename(self, map):
+        return tstruct(**{map.get(f, f): t for f, t in self.items()})
+
+    def unify(self, t):
+        if not (isinstance(t, tstruct) and len(self) == len(t)):
+            return False
+        for (f1, t1), (f2, t2) in zip(self.items(), t.items()):
+            if not (f1 == f2 and t1.unify(t2)):
+                return False
+        return True
+
+    def subst(self):
+        return tstruct(**{f: t.subst() for f, t in self.items()})
+
+    def clear(self):
+        for f, t in self.items():
+            t.clear()
 
 class ttuple(HailType):
     """Hail type for tuples.
@@ -971,20 +1017,6 @@ class ttuple(HailType):
         :obj:`tuple` of :class:`.HailType`
         """
         return self._types
-
-    def _convert_to_py(self, annotation):
-        if annotation is not None:
-            return tuple(*(t._convert_to_py(annotation.get(i)) for i, t in enumerate(self.types)))
-        else:
-            return None
-
-    def _convert_to_j(self, annotation):
-        if annotation is not None:
-            return Env.jutils().arrayListToISeq(
-                [self.types[i]._convert_to_j(elt) for i, elt in enumerate(annotation)]
-            )
-        else:
-            return None
 
     def _traverse(self, obj, f):
         if f(self, obj):
@@ -1031,6 +1063,21 @@ class ttuple(HailType):
     def _convert_to_json(self, x):
         return [self.types[i]._convert_to_json_na(x[i]) for i in range(len(self.types))]
 
+    def unify(self, t):
+        if not (isinstance(t, ttuple) and len(self.types) == len(t.types)):
+            return False
+        for t1, t2 in zip(self.types, t.types):
+            if not t1.unify(t2):
+                return False
+        return True
+
+    def subst(self):
+        return ttuple(*[t.subst() for t in self.types])
+
+    def clear(self):
+        for t in self.types:
+            t.clear()
+
 
 class _tcall(HailType):
     """Hail type for a diploid genotype.
@@ -1040,20 +1087,6 @@ class _tcall(HailType):
 
     def __init__(self):
         super(_tcall, self).__init__()
-
-    @typecheck_method(annotation=nullable(int))
-    def _convert_to_py(self, annotation):
-        if annotation is not None:
-            return genetics.Call._from_java(annotation)
-        else:
-            return None
-
-    @typecheck_method(annotation=nullable(genetics.Call))
-    def _convert_to_j(self, annotation):
-        if annotation is not None:
-            return annotation._call
-        else:
-            return None
 
     def _typecheck_one_level(self, annotation):
         if annotation is not None and not isinstance(annotation, genetics.Call):
@@ -1074,6 +1107,15 @@ class _tcall(HailType):
 
     def _convert_to_json(self, x):
         return str(x)
+
+    def unify(self, t):
+        return t == tcall
+
+    def subst(self):
+        return self
+
+    def clear(self):
+        pass
 
 
 class tlocus(HailType):
@@ -1096,18 +1138,6 @@ class tlocus(HailType):
     def __init__(self, reference_genome='default'):
         self._rg = reference_genome
         super(tlocus, self).__init__()
-
-    def _convert_to_py(self, annotation):
-        if annotation is not None:
-            return genetics.Locus._from_java(annotation, self._rg)
-        else:
-            return None
-
-    def _convert_to_j(self, annotation):
-        if annotation is not None:
-            return annotation._jrep
-        else:
-            return None
 
     def _typecheck_one_level(self, annotation):
         if annotation is not None:
@@ -1149,6 +1179,15 @@ class tlocus(HailType):
     def _convert_to_json(self, x):
         return {'contig': x.contig, 'position': x.position}
 
+    def unify(self, t):
+        return isinstance(t, tlocus) and self.reference_genome == t.reference_genome
+
+    def subst(self):
+        return self
+
+    def clear(self):
+        pass
+
 
 class tinterval(HailType):
     """Hail type for intervals of ordered values.
@@ -1182,24 +1221,13 @@ class tinterval(HailType):
         """
         return self._point_type
 
-    def _convert_to_py(self, annotation):
-        if annotation is not None:
-            return Interval._from_java(annotation, self._point_type)
-        else:
-            return None
-
-    def _convert_to_j(self, annotation):
-        if annotation is not None:
-            return annotation._jrep
-        else:
-            return None
-
     def _traverse(self, obj, f):
         if f(self, obj):
             self.point_type._traverse(obj.start, f)
             self.point_type._traverse(obj.end, f)
 
     def _typecheck_one_level(self, annotation):
+        from hail.utils import Interval
         if annotation is not None:
             if not isinstance(annotation, Interval):
                 raise TypeError("type '{}' expected Python hail.utils.Interval, but found {}"
@@ -1223,6 +1251,7 @@ class tinterval(HailType):
         return "Interval[{}]".format(self.point_type._parsable_string())
 
     def _convert_from_json(self, x):
+        from hail.utils import Interval
         return Interval(self.point_type._convert_from_json_na(x['start']),
                         self.point_type._convert_from_json_na(x['end']),
                         x['includeStart'],
@@ -1233,6 +1262,44 @@ class tinterval(HailType):
                 'end': self.point_type._convert_to_json_na(x.end),
                 'includeStart': x.includes_start,
                 'includeEnd': x.includes_end}
+
+    def unify(self, t):
+        return isinstance(t, tinterval) and self.point_type.unify(t.point_type)
+
+    def subst(self):
+        return tinterval(self.point_type.subst())
+
+    def clear(self):
+        self.point_type.clear()
+
+
+class Box(object):
+    named_boxes = {}
+
+    @staticmethod
+    def from_name(name):
+        if name in Box.named_boxes:
+            return Box.named_boxes[name]
+        b = Box()
+        Box.named_boxes[name] = b
+        return b
+
+    def __init__(self):
+        pass
+
+    def unify(self, v):
+        if hasattr(self, 'value'):
+            return self.value == v
+        self.value = v
+        return True
+
+    def clear(self):
+        if hasattr(self, 'value'):
+            del self.value
+
+    def get(self):
+        assert hasattr(self, 'value')
+        return self.value
 
 
 tvoid = _tvoid()
@@ -1354,6 +1421,42 @@ def is_compound(t) -> bool:
 def types_match(left, right) -> bool:
     return (len(left) == len(right)
             and all(map(lambda lr: lr[0].dtype == lr[1].dtype, zip(left, right))))
+
+
+class tvariable(HailType):
+    _cond_map = {
+        'numeric': is_numeric,
+        'int32': lambda x: x == tint32,
+        'int64': lambda x: x == tint64,
+        'float32': lambda x: x == tfloat32,
+        'float64': lambda x: x == tfloat64,
+        'locus': lambda x: isinstance(x, tlocus),
+        'struct': lambda x: isinstance(x, tstruct),
+        'tuple': lambda x: isinstance(x, ttuple)
+    }
+
+    def __init__(self, name, cond):
+        self.name = name
+        self.cond = cond
+        self.condf = tvariable._cond_map[cond] if cond else None
+        self.box = Box.from_name(name)
+
+    def unify(self, t):
+        if self.condf and not self.condf(t):
+            return False
+        return self.box.unify(t)
+
+    def clear(self):
+        self.box.clear()
+
+    def subst(self):
+        return self.box.get()
+
+    def __str__(self):
+        s = '?' + self.name
+        if self.cond:
+            s = s + ':' + self.cond
+        return s
 
 
 import pprint

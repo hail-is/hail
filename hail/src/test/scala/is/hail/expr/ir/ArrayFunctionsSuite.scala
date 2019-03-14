@@ -89,21 +89,6 @@ class ArrayFunctionsSuite extends TestNGSuite {
   )
 
   @Test(dataProvider = "sort")
-  def sort(a: Seq[Integer], asc: Seq[Integer], desc: Seq[Integer]) {
-    assertEvalsTo(invoke("sort", toIRArray(a)), asc)
-  }
-
-  @Test(dataProvider = "sort")
-  def sortAsc(a: Seq[Integer], asc: Seq[Integer], desc: Seq[Integer]) {
-    assertEvalsTo(invoke("sort", toIRArray(a), True()), asc)
-  }
-
-  @Test(dataProvider = "sort")
-  def sortDesc(a: Seq[Integer], asc: Seq[Integer], desc: Seq[Integer]) {
-    assertEvalsTo(invoke("sort", toIRArray(a), False()), desc)
-  }
-
-  @Test(dataProvider = "sort")
   def min(a: Seq[Integer], asc: Seq[Integer], desc: Seq[Integer]) {
     assertEvalsTo(invoke("min", toIRArray(a)),
       Option(asc).filter(!_.contains(null)).flatMap(_.headOption).orNull)
@@ -211,15 +196,15 @@ class ArrayFunctionsSuite extends TestNGSuite {
 
   @Test def indexing() {
     val a = IRArray(0, null, 2)
-    assertEvalsTo(invoke("[]", a, I32(0)), 0)
-    assertEvalsTo(invoke("[]", a, I32(1)), null)
-    assertEvalsTo(invoke("[]", a, I32(2)), 2)
-    assertEvalsTo(invoke("[]", a, I32(-1)), 2)
-    assertEvalsTo(invoke("[]", a, I32(-3)), 0)
-    assertFatal(invoke("[]", a, I32(3)), "array index out of bounds")
-    assertFatal(invoke("[]", a, I32(-4)), "array index out of bounds")
-    assertEvalsTo(invoke("[]", naa, I32(2)), null)
-    assertEvalsTo(invoke("[]", a, NA(TInt32())), null)
+    assertEvalsTo(invoke("indexArray", a, I32(0)), 0)
+    assertEvalsTo(invoke("indexArray", a, I32(1)), null)
+    assertEvalsTo(invoke("indexArray", a, I32(2)), 2)
+    assertEvalsTo(invoke("indexArray", a, I32(-1)), 2)
+    assertEvalsTo(invoke("indexArray", a, I32(-3)), 0)
+    assertFatal(invoke("indexArray", a, I32(3)), "array index out of bounds")
+    assertFatal(invoke("indexArray", a, I32(-4)), "array index out of bounds")
+    assertEvalsTo(invoke("indexArray", naa, I32(2)), null)
+    assertEvalsTo(invoke("indexArray", a, NA(TInt32())), null)
   }
 
   @Test def slicing() {

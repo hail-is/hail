@@ -20,16 +20,48 @@ from hail.utils.misc import *
 class GroupedMatrixTable(ExprContainer):
     """Matrix table grouped by row or column that can be aggregated into a new matrix table."""
 
-    def __init__(self, parent: 'MatrixTable', row_keys=None, col_keys=None, entry_fields=None, row_fields=None, col_fields=None):
+    def __init__(self,
+                 parent: 'MatrixTable',
+                 row_keys=None,
+                 computed_row_key=None,
+                 col_keys=None,
+                 computed_col_key=None,
+                 entry_fields=None,
+                 row_fields=None,
+                 col_fields=None,
+                 partitions=None):
         super(GroupedMatrixTable, self).__init__()
         self._parent = parent
         self._copy_fields_from(parent)
         self._row_keys = row_keys
+        self._computed_row_key = computed_row_key
         self._col_keys = col_keys
+        self._computed_col_key = computed_col_key
         self._entry_fields = entry_fields
         self._row_fields = row_fields
         self._col_fields = col_fields
-        self._partitions = None
+        self._partitions = partitions
+
+    def _copy(self, *,
+              row_keys=None,
+              computed_row_key=None,
+              col_keys=None,
+              computed_col_key=None,
+              entry_fields=None,
+              row_fields=None,
+              col_fields=None,
+              partitions=None):
+        return GroupedMatrixTable(
+            parent=self._parent,
+            row_keys=row_keys if row_keys  is not None else self._row_keys,
+            computed_row_key=computed_row_key if computed_row_key  is not None else self._computed_row_key,
+            col_keys=col_keys if col_keys  is not None else self._col_keys,
+            computed_col_key=computed_col_key if computed_col_key  is not None else self._computed_col_key,
+            entry_fields=entry_fields if entry_fields  is not None else self._entry_fields,
+            row_fields=row_fields if row_fields  is not None else self._row_fields,
+            col_fields=col_fields if col_fields  is not None else self._col_fields,
+            partitions=partitions if partitions  is not None else self._partitions
+        )
 
     def _fixed_indices(self):
         if self._row_keys is None and self._col_keys is None:
@@ -97,35 +129,21 @@ class GroupedMatrixTable(ExprContainer):
         :class:`.GroupedMatrixTable`
             Grouped matrix. Can be used to call :meth:`.GroupedMatrixTable.aggregate`.
         """
-        if self._row_keys:
+        if self._row_keys is not None:
             raise NotImplementedError("GroupedMatrixTable is already grouped by rows.")
-        if self._col_keys:
+        if self._col_keys is not None:
             raise NotImplementedError("GroupedMatrixTable is already grouped by cols; cannot also group by rows.")
-        new_keys = {}
-        kept_fields = list(self._parent.globals.dtype)
-        if self._col_keys is None:
-            kept_fields.extend(list(self._parent.col.dtype))
 
-        for e in exprs:
-            if isinstance(e, str):
-                e = self[e]
-            else:
-                e = to_expr(e)
-            analyze('MatrixTable.group_rows_by', e, self._parent._row_indices)
-            if not e._ir.is_nested_field:
-                raise ExpressionException("method 'group_rows_by' expects keyword arguments for complex expressions")
-            key = e._ir.name
+        caller = 'group_rows_by'
+        row_key, computed_key = get_key_by_exprs(caller,
+                                                 exprs,
+                                                 named_exprs,
+                                                 self._parent._row_indices,
+                                                 override_protected_indices={self._parent._global_indices,
+                                                                             self._parent._col_indices})
 
-            if key in new_keys or key in kept_fields:
-                raise ExpressionException("method 'group_rows_by' found duplicate field: {}".format(key))
-            new_keys[key] = e
-
-        for key, e in named_exprs.items():
-            if key in new_keys or key in kept_fields:
-                raise ExpressionException("method 'group_rows_by' found duplicate field: {}".format(key))
-            new_keys[key] = e
-
-        return GroupedMatrixTable(self._parent, row_keys=new_keys)
+        self._check_bindings(caller, computed_key, self._parent._row_indices)
+        return self._copy(row_keys=row_key, computed_row_key=computed_key)
 
     @typecheck_method(exprs=oneof(str, Expression),
                       named_exprs=expr_any)
@@ -156,34 +174,44 @@ class GroupedMatrixTable(ExprContainer):
         :class:`.GroupedMatrixTable`
             Grouped matrix, can be used to call :meth:`.GroupedMatrixTable.aggregate`.
         """
-        if self._row_keys:
+        if self._row_keys is not None:
             raise NotImplementedError("GroupedMatrixTable is already grouped by rows; cannot also group by cols.")
-        if self._col_keys:
+        if self._col_keys is not None:
             raise NotImplementedError("GroupedMatrixTable is already grouped by cols.")
-        new_keys = {}
-        kept_fields = list(self._parent.globals.dtype)
-        if self._row_keys is None:
-            kept_fields.extend(list(self._parent.row.dtype))
 
-        for e in exprs:
-            if isinstance(e, str):
-                e = self[e]
-            else:
-                e = to_expr(e)
-            analyze('MatrixTable.group_cols_by', e, self._parent._col_indices)
-            if not e._ir.is_nested_field:
-                raise ExpressionException("method 'group_cols_by' expects keyword arguments for complex expressions")
-            key = e._ir.name
-            if key in new_keys or key in kept_fields:
-                raise ExpressionException("method 'group_cols_by' found duplicate field: {}".format(key))
-            new_keys[key] = e
+        caller = 'group_cols_by'
+        col_key, computed_key = get_key_by_exprs(caller,
+                                                 exprs,
+                                                 named_exprs,
+                                                 self._parent._col_indices,
+                                                 override_protected_indices={self._parent._global_indices,
+                                                                             self._parent._row_indices})
 
-        for key, e in named_exprs.items():
-            if key in new_keys or key in kept_fields:
-                raise ExpressionException("method 'group_cols_by' found duplicate field: {}".format(key))
-            new_keys[key] = e
+        self._check_bindings(caller, computed_key, self._parent._col_indices)
+        return self._copy(col_keys=col_key, computed_col_key=computed_key)
 
-        return GroupedMatrixTable(self._parent, col_keys=new_keys)
+    def _check_bindings(self, caller, new_bindings, indices):
+        empty = []
+        def iter_option(o):
+            return o if o is not None else empty
+
+        if indices == self._parent._row_indices:
+            fixed_fields = [*self._parent.globals, *self._parent.col]
+        else:
+            assert indices == self._parent._col_indices
+            fixed_fields = [*self._parent.globals, *self._parent.row]
+
+        bound_fields = set(itertools.chain(
+            iter_option(self._row_keys),
+            iter_option(self._col_keys),
+            iter_option(self._col_fields),
+            iter_option(self._row_fields),
+            iter_option(self._entry_fields),
+            fixed_fields))
+
+        for k in new_bindings:
+            if k in bound_fields:
+                raise ExpressionException(f"{caller!r} cannot assign duplicate field {k!r}")
 
     def partition_hint(self, n: int) -> 'GroupedMatrixTable':
         """Set the target number of partitions for aggregation.
@@ -253,31 +281,16 @@ class GroupedMatrixTable(ExprContainer):
         -------
         :class:`.GroupedMatrixTable`
         """
-
-        if self._row_keys:
+        if self._row_keys is not None:
             raise NotImplementedError("GroupedMatrixTable is already grouped by rows. Cannot aggregate over cols.")
-
         assert self._col_keys is not None
 
-        existing_fields = list(self._parent.globals.dtype)
-        existing_fields.extend(self._col_keys.keys())
-        existing_fields.extend(list(self._parent.row.dtype))
-        if self._entry_fields is not None:
-            existing_fields.extend(list(self._entry_fields.keys()))
-
-        new_fields = self._col_fields if self._col_fields is not None else {}
+        base = self._col_fields if self._col_fields is not None else hl.struct()
         for k, e in named_exprs.items():
-            if k in existing_fields or k in new_fields:
-                raise ExpressionException(f"GroupedMatrixTable.aggregate_cols cannot assign duplicate field {repr(k)}")
             analyze('GroupedMatrixTable.aggregate_cols', e, self._parent._global_indices, {self._parent._col_axis})
-            new_fields[k] = e
 
-        return GroupedMatrixTable(self._parent,
-                                  row_keys=self._row_keys,
-                                  col_keys=self._col_keys,
-                                  entry_fields=self._entry_fields,
-                                  row_fields=self._row_fields,
-                                  col_fields=new_fields)
+        self._check_bindings('aggregate_cols', named_exprs, self._parent._col_indices)
+        return self._copy(col_fields = base.annotate(**named_exprs))
 
     @typecheck_method(named_exprs=expr_any)
     def aggregate_rows(self, **named_exprs) -> 'GroupedMatrixTable':
@@ -309,31 +322,16 @@ class GroupedMatrixTable(ExprContainer):
         -------
         :class:`.GroupedMatrixTable`
         """
-
-        if self._col_keys:
+        if self._col_keys is not None:
             raise NotImplementedError("GroupedMatrixTable is already grouped by cols. Cannot aggregate over rows.")
-
         assert self._row_keys is not None
 
-        existing_fields = list(self._parent.globals.dtype)
-        existing_fields.extend(self._row_keys.keys())
-        existing_fields.extend(list(self._parent.col.dtype))
-        if self._entry_fields is not None:
-            existing_fields.extend(list(self._entry_fields.keys()))
-
-        new_fields = self._row_fields if self._row_fields is not None else {}
+        base = self._row_fields if self._row_fields is not None else hl.struct()
         for k, e in named_exprs.items():
-            if k in existing_fields or k in new_fields:
-                raise ExpressionException(f"GroupedMatrixTable.aggregate_rows cannot assign duplicate field {repr(k)}")
             analyze('GroupedMatrixTable.aggregate_rows', e, self._parent._global_indices, {self._parent._row_axis})
-            new_fields[k] = e
 
-        return GroupedMatrixTable(self._parent,
-                                  row_keys=self._row_keys,
-                                  col_keys=self._col_keys,
-                                  entry_fields=self._entry_fields,
-                                  row_fields=new_fields,
-                                  col_fields=self._col_fields)
+        self._check_bindings('aggregate_rows', named_exprs, self._parent._row_indices)
+        return self._copy(row_fields = base.annotate(**named_exprs))
 
     @typecheck_method(named_exprs=expr_any)
     def aggregate_entries(self, **named_exprs) -> 'GroupedMatrixTable':
@@ -363,35 +361,13 @@ class GroupedMatrixTable(ExprContainer):
         """
         assert self._row_keys is not None or self._col_keys is not None
 
-        fixed_fields = list(self._parent.globals.dtype)
-
-        if self._row_keys is not None:
-            fixed_fields.extend(self._row_keys.keys())
-            if self._row_fields is not None:
-                fixed_fields.extend(list(self._row_fields.keys()))
-        else:
-            fixed_fields.extend(list(self._parent.row.dtype))
-
-        if self._col_keys is not None:
-            fixed_fields.extend(self._col_keys.keys())
-            if self._col_fields is not None:
-                fixed_fields.extend(list(self._col_fields.keys()))
-        else:
-            fixed_fields.extend(list(self._parent.col.dtype))
-
-        new_fields = self._entry_fields if self._entry_fields is not None else {}
+        base = self._entry_fields if self._entry_fields is not None else hl.struct()
         for k, e in named_exprs.items():
-            if k in fixed_fields or k in new_fields:
-                raise ExpressionException(f"GroupedMatrixTable.aggregate_entries cannot assign duplicate field {repr(k)}")
             analyze('GroupedMatrixTable.aggregate_entries', e, self._fixed_indices(), {self._parent._row_axis, self._parent._col_axis})
-            new_fields[k] = e
 
-        return GroupedMatrixTable(self._parent,
-                                  row_keys=self._row_keys,
-                                  col_keys=self._col_keys,
-                                  entry_fields=new_fields,
-                                  row_fields=self._row_fields,
-                                  col_fields=self._col_fields)
+        self._check_bindings('aggregate_entries', named_exprs,
+                             self._parent._col_indices if self._col_keys is not None else self._parent._row_indices)
+        return self._copy(entry_fields = base.annotate(**named_exprs))
 
     def result(self) -> 'MatrixTable':
         """Return the result of aggregating by group.
@@ -425,33 +401,51 @@ class GroupedMatrixTable(ExprContainer):
         :class:`.MatrixTable`
             Aggregated matrix table.
         """
-        if self._col_keys is None and self._row_keys is None:
-            raise ValueError("GroupedMatrixTable cannot be aggregated if no groupings are specified.")
+        assert self._row_keys is not None or self._col_keys is not None
 
-        group_exprs = dict(self._col_keys) if self._col_keys is not None else dict(self._row_keys)
-        entry_exprs = dict(self._entry_fields) if self._entry_fields is not None else {}
-        row_exprs = dict(self._row_fields) if self._row_fields is not None else {}
-        col_exprs = dict(self._col_fields) if self._col_fields is not None else {}
+        defined_exprs = []
+        for e in [self._row_fields, self._col_fields, self._entry_fields]:
+            if e is not None:
+                defined_exprs.append(e)
+        for e in [self._computed_row_key, self._computed_col_key]:
+            if e is not None:
+                defined_exprs.extend(e.values())
 
+        def promote_none(e):
+            return hl.struct() if e is None else e
+        entry_exprs = promote_none(self._entry_fields)
         if len(entry_exprs) == 0:
             warn("'GroupedMatrixTable.result': No entry fields were defined.")
 
-        base, cleanup = self._parent._process_joins(*group_exprs.values(),
-                                                    *entry_exprs.values(),
-                                                    *row_exprs.values(),
-                                                    *col_exprs.values())
+        base, cleanup = self._parent._process_joins(*defined_exprs)
 
         if self._col_keys is not None:
-            keyed_mt = base._select_cols_processed(hl.struct(**group_exprs))
-            mt = MatrixTable(MatrixAggregateColsByKey(keyed_mt._mir,
-                                                      hl.struct(**entry_exprs)._ir,
-                                                      hl.struct(**col_exprs)._ir))
+            cck = self._computed_col_key or {}
+            computed_key_uids = {k: Env.get_uid() for k in cck}
+            modified_keys = [computed_key_uids.get(k, k) for k in self._col_keys]
+            mt = MatrixTable(MatrixAggregateColsByKey(
+                MatrixMapCols(
+                    base._mir,
+                    self._parent.col.annotate(**{computed_key_uids[k]: v for k, v in cck.items()})._ir,
+                    modified_keys),
+                entry_exprs._ir,
+                promote_none(self._col_fields)._ir))
+            if cck:
+                mt = mt.rename({v: k for k, v in computed_key_uids.items()})
         else:
-            assert self._row_keys is not None
-            keyed_mt = base._select_rows_processed(hl.struct(**group_exprs))
-            mt = MatrixTable(MatrixAggregateRowsByKey(keyed_mt._mir,
-                                                      hl.struct(**entry_exprs)._ir,
-                                                      hl.struct(**row_exprs)._ir))
+            cck = self._computed_row_key or {}
+            computed_key_uids = {k: Env.get_uid() for k in cck}
+            modified_keys = [computed_key_uids.get(k, k) for k in self._row_keys]
+            mt = MatrixTable(MatrixAggregateRowsByKey(
+                MatrixKeyRowsBy(
+                    MatrixMapRows(
+                        MatrixKeyRowsBy(base._mir, []),
+                        self._parent._rvrow.annotate(**{computed_key_uids[k]: v for k, v in cck.items()})._ir),
+                    modified_keys),
+                entry_exprs._ir,
+                promote_none(self._row_fields)._ir))
+            if cck:
+                mt = mt.rename({v: k for k, v in computed_key_uids.items()})
 
         return cleanup(mt)
 
@@ -542,15 +536,13 @@ class MatrixTable(ExprContainer):
     """
 
     @staticmethod
-    def _from_java(jmt):
-        return MatrixTable(JavaMatrix(jmt.ast()))
+    def _from_java(jmir):
+        return MatrixTable(JavaMatrix(jmir))
 
     def __init__(self, mir):
         super(MatrixTable, self).__init__()
 
         self._mir = mir
-        self._jmt = Env.hail().variant.MatrixTable(
-            Env.hc()._jhc, Env.hc()._backend._to_java_ir(self._mir))
 
         self._globals = None
         self._col_values = None
@@ -637,7 +629,7 @@ class MatrixTable(ExprContainer):
         return [v.dtype for _, v in self.row_key.items()]
 
     @property
-    def col_key(self):
+    def col_key(self) -> 'StructExpression':
         """Column key struct.
 
         Examples
@@ -652,10 +644,11 @@ class MatrixTable(ExprContainer):
         -------
         :class:`.StructExpression`
         """
+        s = self.row_key.keys()
         return self._col_key
 
     @property
-    def row_key(self):
+    def row_key(self) -> 'StructExpression':
         """Row key struct.
 
         Examples
@@ -673,7 +666,7 @@ class MatrixTable(ExprContainer):
         return self._row_key
 
     @property
-    def globals(self):
+    def globals(self) -> 'StructExpression':
         """Returns a struct expression including all global fields.
 
         Returns
@@ -683,7 +676,7 @@ class MatrixTable(ExprContainer):
         return self._globals
 
     @property
-    def row(self):
+    def row(self) -> 'StructExpression':
         """Returns a struct expression of all row-indexed fields, including keys.
 
         Examples
@@ -701,7 +694,7 @@ class MatrixTable(ExprContainer):
         return self._row
 
     @property
-    def row_value(self):
+    def row_value(self) -> 'StructExpression':
         """Returns a struct expression including all non-key row-indexed fields.
 
         Examples
@@ -719,7 +712,7 @@ class MatrixTable(ExprContainer):
         return self._row.drop(*self.row_key)
 
     @property
-    def col(self):
+    def col(self) -> 'StructExpression':
         """Returns a struct expression of all column-indexed fields, including keys.
 
         Examples
@@ -737,7 +730,7 @@ class MatrixTable(ExprContainer):
         return self._col
 
     @property
-    def col_value(self):
+    def col_value(self) -> 'StructExpression':
         """Returns a struct expression including all non-key column-indexed fields.
 
         Examples
@@ -755,7 +748,7 @@ class MatrixTable(ExprContainer):
         return self._col.drop(*self.col_key)
 
     @property
-    def entry(self):
+    def entry(self) -> 'StructExpression':
         """Returns a struct expression including all row-and-column-indexed fields.
 
         Examples
@@ -790,12 +783,20 @@ class MatrixTable(ExprContainer):
         -------
         :class:`.MatrixTable`
         """
-        key_fields = get_select_exprs("MatrixTable.key_cols_by",
-                                      keys, named_keys, self._col_indices,
-                                      protect_keys=False)
-        return self._select_cols("MatrixTable.key_cols_by",
-                                 self.col.annotate(**key_fields),
-                                 new_key=list(key_fields.keys()))
+        key_fields, computed_keys = get_key_by_exprs("MatrixTable.key_cols_by", keys, named_keys, self._col_indices)
+
+        if not computed_keys:
+            return MatrixTable(MatrixMapCols(self._mir, self._col._ir, key_fields))
+        else:
+            new_col = self.col.annotate(**computed_keys)
+            base, cleanup = self._process_joins(new_col)
+
+            return cleanup(MatrixTable(
+                MatrixMapCols(
+                    base._mir,
+                    new_col._ir,
+                    key_fields
+                )))
 
     @typecheck_method(keys=oneof(str, Expression),
                       named_keys=expr_any)
@@ -834,21 +835,22 @@ class MatrixTable(ExprContainer):
         -------
         :class:`.MatrixTable`
         """
+        key_fields, computed_keys = get_key_by_exprs("MatrixTable.key_rows_by", keys, named_keys, self._row_indices)
 
-        key_fields = get_select_exprs("MatrixTable.key_rows_by",
-                                      keys, named_keys, self._row_indices,
-                                      protect_keys=False)
+        if not computed_keys:
+            return MatrixTable(MatrixKeyRowsBy(self._mir, key_fields))
+        else:
+            new_row = self._rvrow.annotate(**computed_keys)
+            base, cleanup = self._process_joins(new_row)
 
-        new_row = self._rvrow.annotate(**key_fields)
-        base, cleanup = self._process_joins(new_row)
+            return cleanup(MatrixTable(
+                MatrixKeyRowsBy(
+                    MatrixMapRows(
+                        MatrixKeyRowsBy(base._mir, []),
+                        new_row._ir),
+                    list(key_fields))))
 
-        return cleanup(MatrixTable(
-            MatrixKeyRowsBy(
-                MatrixMapRows(
-                    MatrixKeyRowsBy(base._mir, []),
-                    new_row._ir),
-                list(key_fields))))
-
+    @typecheck_method(named_exprs=expr_any)
     def annotate_globals(self, **named_exprs) -> 'MatrixTable':
         """Create new global fields by name.
 
@@ -891,13 +893,11 @@ class MatrixTable(ExprContainer):
             Matrix table with new global field(s).
         """
 
-        named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
+        caller = "MatrixTable.annotate_globals"
+        check_annotate_exprs(caller, named_exprs, self._global_indices)
+        return self._select_globals(caller, self.globals.annotate(**named_exprs))
 
-        for k, v in named_exprs.items():
-            check_collisions(self._fields, k, self._global_indices)
-
-        return self._select_globals("MatrixTable.annotate_globals", self.globals.annotate(**named_exprs))
-
+    @typecheck_method(named_exprs=expr_any)
     def annotate_rows(self, **named_exprs) -> 'MatrixTable':
         """Create new row-indexed fields by name.
 
@@ -946,9 +946,10 @@ class MatrixTable(ExprContainer):
         """
 
         caller = "MatrixTable.annotate_rows"
-        e = get_annotate_exprs(caller, named_exprs, self._row_indices)
-        return self._select_rows(caller, self._rvrow.annotate(**e))
+        check_annotate_exprs(caller, named_exprs, self._row_indices)
+        return self._select_rows(caller, self._rvrow.annotate(**named_exprs))
 
+    @typecheck_method(named_exprs=expr_any)
     def annotate_cols(self, **named_exprs) -> 'MatrixTable':
         """Create new column-indexed fields by name.
 
@@ -992,9 +993,10 @@ class MatrixTable(ExprContainer):
             Matrix table with new column-indexed field(s).
         """
         caller = "MatrixTable.annotate_cols"
-        e = get_annotate_exprs(caller, named_exprs, self._col_indices)
-        return self._select_cols(caller, self.col.annotate(**e))
+        check_annotate_exprs(caller, named_exprs, self._col_indices)
+        return self._select_cols(caller, self.col.annotate(**named_exprs))
 
+    @typecheck_method(named_exprs=expr_any)
     def annotate_entries(self, **named_exprs) -> 'MatrixTable':
         """Create new row-and-column-indexed fields by name.
 
@@ -1041,8 +1043,8 @@ class MatrixTable(ExprContainer):
             Matrix table with new row-and-column-indexed field(s).
         """
         caller = "MatrixTable.annotate_entries"
-        e = get_annotate_exprs(caller, named_exprs, self._entry_indices)
-        return self._select_entries(caller, s=self.entry.annotate(**e))
+        check_annotate_exprs(caller, named_exprs, self._entry_indices)
+        return self._select_entries(caller, s=self.entry.annotate(**named_exprs))
 
     def select_globals(self, *exprs, **named_exprs) -> 'MatrixTable':
         """Select existing global fields or create new fields by name, dropping the rest.
@@ -1081,22 +1083,13 @@ class MatrixTable(ExprContainer):
             MatrixTable with specified global fields.
         """
 
-        exprs = [self[e] if not isinstance(e, Expression) else e for e in exprs]
-        named_exprs = {k: to_expr(v) for k, v in named_exprs.items()}
-        assignments = OrderedDict()
-
-        for e in exprs:
-            if not e._ir.is_nested_field:
-                raise ExpressionException("method 'select_globals' expects keyword arguments for complex expressions")
-            assert isinstance(e._ir, GetField)
-            assignments[e._ir.name] = e
-
-        for k, e in named_exprs.items():
-            check_collisions(self._fields, k, self._global_indices)
-            assignments[k] = e
-
-        check_field_uniqueness(assignments.keys())
-        return self._select_globals('MatrixTable.select_globals', hl.struct(**assignments))
+        caller = 'MatrixTable.select_globals'
+        new_global = get_select_exprs(caller,
+                               exprs,
+                               named_exprs,
+                               self._global_indices,
+                               self._globals)
+        return self._select_globals(caller, new_global)
 
     def select_rows(self, *exprs, **named_exprs) -> 'MatrixTable':
         """Select existing row fields or create new fields by name, dropping all
@@ -1145,10 +1138,13 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
             MatrixTable with specified row fields.
         """
-        row = get_select_exprs("MatrixTable.select_rows",
-                               exprs, named_exprs, self._row_indices,
-                               protect_keys=True)
-        return self._select_rows('MatrixTable.select_rows', self.row_key.annotate(**row))
+        caller = 'MatrixTable.select_rows'
+        new_row = get_select_exprs(caller,
+                               exprs,
+                               named_exprs,
+                               self._row_indices,
+                               self._rvrow)
+        return self._select_rows(caller, new_row)
 
     def select_cols(self, *exprs, **named_exprs) -> 'MatrixTable':
         """Select existing column fields or create new fields by name, dropping the rest.
@@ -1192,10 +1188,13 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
             MatrixTable with specified column fields.
         """
-        col = get_select_exprs("MatrixTable.select_cols",
-                               exprs, named_exprs, self._col_indices,
-                               protect_keys=True)
-        return self._select_cols('MatrixTable.select_cols', self.col_key.annotate(**col))
+        caller = 'MatrixTable.select_cols'
+        new_col = get_select_exprs(caller,
+                               exprs,
+                               named_exprs,
+                               self._col_indices,
+                               self._col)
+        return self._select_cols(caller, new_col)
 
     def select_entries(self, *exprs, **named_exprs) -> 'MatrixTable':
         """Select existing entry fields or create new fields by name, dropping the rest.
@@ -1232,10 +1231,13 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
             MatrixTable with specified entry fields.
         """
-        entry = get_select_exprs("MatrixTable.select_entries",
-                                 exprs, named_exprs, self._entry_indices,
-                                 protect_keys=True)
-        return self._select_entries("MatrixTable.select_entries", hl.struct(**entry))
+        caller = 'MatrixTable.select_entries'
+        new_entry = get_select_exprs(caller,
+                               exprs,
+                               named_exprs,
+                               self._entry_indices,
+                               self._entry)
+        return self._select_entries(caller, new_entry)
 
     @typecheck_method(exprs=oneof(str, Expression))
     def drop(self, *exprs) -> 'MatrixTable':
@@ -1325,6 +1327,163 @@ class MatrixTable(ExprContainer):
 
         return m
 
+    @typecheck_method(other=Table)
+    def semi_join_rows(self, other: 'Table') -> 'MatrixTable':
+        """Filters the matrix table to rows whose key appears in `other`.
+
+        Parameters
+        ----------
+        other : :class:`.Table`
+            Table with compatible key field(s).
+
+        Returns
+        -------
+        :class:`.MatrixTable`
+
+        Notes
+        -----
+        The row key type of the matrix table must match the key type of `other`.
+
+        This method does not change the schema of the matrix table; it is a
+        filtering the matrix table to row keys not present in another table.
+
+        To discard rows whose key is present in `other`, use
+        :meth:`.anti_join_rows`.
+
+        Examples
+        --------
+        >>> ds_result = ds.semi_join_rows(rows_to_keep)
+
+        It may be expensive to key the matrix table by the right-side key.
+        In this case, it is possible to implement a semi-join using a non-key
+        field as follows:
+
+        >>> ds_result = ds.filter_rows(hl.is_defined(rows_to_keep.index(ds['locus'], ds['alleles'])))
+
+        See Also
+        --------
+        :meth:`.anti_join_rows`, :meth:`.filter_rows`, :meth:`.semi_join_cols`
+        """
+        return self.filter_rows(hl.is_defined(other.index(self.row_key)))
+
+    @typecheck_method(other=Table)
+    def anti_join_rows(self, other: 'Table') -> 'MatrixTable':
+        """Filters the table to rows whose key does not appear in `other`.
+
+        Parameters
+        ----------
+        other : :class:`.Table`
+            Table with compatible key field(s).
+
+        Returns
+        -------
+        :class:`.MatrixTable`
+
+        Notes
+        -----
+        The row key type of the matrix table must match the key type of `other`.
+
+        This method does not change the schema of the table; it is a method of
+        filtering the matrix table to row keys not present in another table.
+
+        To restrict to rows whose key is present in `other`, use
+        :meth:`.anti_join_rows`.
+
+        Examples
+        --------
+        >>> ds_result = ds.anti_join_rows(rows_to_remove)
+
+        It may be expensive to key the matrix table by the right-side key.
+        In this case, it is possible to implement an anti-join using a non-key
+        field as follows:
+
+        >>> ds_result = ds.filter_rows(hl.is_missing(rows_to_remove.index(ds['locus'], ds['alleles'])))
+
+        See Also
+        --------
+        :meth:`.anti_join_rows`, :meth:`.filter_rows`, :meth:`.anti_join_cols`
+        """
+        return self.filter_rows(hl.is_missing(other.index(self.row_key)))
+
+
+    @typecheck_method(other=Table)
+    def semi_join_cols(self, other: 'Table') -> 'MatrixTable':
+        """Filters the matrix table to columns whose key appears in `other`.
+
+        Parameters
+        ----------
+        other : :class:`.Table`
+            Table with compatible key field(s).
+
+        Returns
+        -------
+        :class:`.MatrixTable`
+
+        Notes
+        -----
+        The column key type of the matrix table must match the key type of `other`.
+
+        This method does not change the schema of the matrix table; it is a
+        filtering the matrix table to column keys not present in another table.
+
+        To discard collumns whose key is present in `other`, use
+        :meth:`.anti_join_cols`.
+
+        Examples
+        --------
+        >>> ds_result = ds.semi_join_cols(cols_to_keep)
+
+        It may be inconvenient to key the matrix table by the right-side key.
+        In this case, it is possible to implement a semi-join using a non-key
+        field as follows:
+
+        >>> ds_result = ds.filter_cols(hl.is_defined(cols_to_keep.index(ds['s'])))
+
+        See Also
+        --------
+        :meth:`.anti_join_cols`, :meth:`.filter_cols`, :meth:`.semi_join_rows`
+        """
+        return self.filter_cols(hl.is_defined(other.index(self.col_key)))
+
+    @typecheck_method(other=Table)
+    def anti_join_cols(self, other: 'Table') -> 'MatrixTable':
+        """Filters the table to columns whose key does not appear in `other`.
+
+        Parameters
+        ----------
+        other : :class:`.Table`
+            Table with compatible key field(s).
+
+        Returns
+        -------
+        :class:`.MatrixTable`
+
+        Notes
+        -----
+        The column key type of the matrix table must match the key type of `other`.
+
+        This method does not change the schema of the table; it is a method of
+        filtering the matrix table to column keys not present in another table.
+
+        To restrict to columns whose key is present in `other`, use
+        :meth:`.anti_join_cols`.
+
+        Examples
+        --------
+        >>> ds_result = ds.anti_join_cols(cols_to_remove)
+
+        It may be inconvenient to key the matrix table by the right-side key.
+        In this case, it is possible to implement an anti-join using a non-key
+        field as follows:
+
+        >>> ds_result = ds.filter_cols(hl.is_missing(cols_to_remove.index(ds['s'])))
+
+        See Also
+        --------
+        :meth:`.semi_join_cols`, :meth:`.filter_cols`, :meth:`.anti_join_rows`
+        """
+        return self.filter_cols(hl.is_missing(other.index(self.col_key)))
+
     @typecheck_method(expr=expr_bool, keep=bool)
     def filter_rows(self, expr, keep: bool = True) -> 'MatrixTable':
         """Filter rows of the matrix.
@@ -1342,12 +1501,12 @@ class MatrixTable(ExprContainer):
 
         Notes
         -----
-
-        The expression `expr` will be evaluated for every row of the table. If `keep`
-        is ``True``, then rows where `expr` evaluates to ``False`` will be removed (the
-        filter keeps the rows where the predicate evaluates to ``True``). If `keep` is
-        ``False``, then rows where `expr` evaluates to ``False`` will be removed (the
-        filter removes the rows where the predicate evaluates to ``True``).
+        The expression `expr` will be evaluated for every row of the table. If
+        `keep` is ``True``, then rows where `expr` evaluates to ``True`` will be
+        kept (the filter removes the rows where the predicate evaluates to
+        ``False``). If `keep` is ``False``, then rows where `expr` evaluates to
+        ``True`` will be removed (the filter keeps the rows where the predicate
+        evaluates to ``False``).
 
         Warning
         -------
@@ -1413,13 +1572,12 @@ class MatrixTable(ExprContainer):
 
         Notes
         -----
-
-        The expression `expr` will be evaluated for every column of the table. If
-        `keep` is ``True``, then columns where `expr` evaluates to ``False`` will be
-        removed (the filter keeps the columns where the predicate evaluates to
-        ``True``). If `keep` is ``False``, then columns where `expr` evaluates to
-        ``False`` will be removed (the filter removes the columns where the predicate
-        evaluates to ``True``).
+        The expression `expr` will be evaluated for every column of the table.
+        If `keep` is ``True``, then columns where `expr` evaluates to ``True``
+        will be kept (the filter removes the columns where the predicate
+        evaluates to ``False``). If `keep` is ``False``, then columns where
+        `expr` evaluates to ``True`` will be removed (the filter keeps the
+        columns where the predicate evaluates to ``False``).
 
         Warning
         -------
@@ -1450,7 +1608,7 @@ class MatrixTable(ExprContainer):
         caller = 'MatrixTable.filter_cols'
         analyze(caller, expr, self._col_indices, {self._row_axis})
 
-        if expr._aggregations:
+        if expr._ir.aggregations:
             bool_uid = Env.get_uid()
             mt = self._select_cols(caller, self.col.annotate(**{bool_uid: expr}))
             return mt.filter_cols(mt[bool_uid], keep).drop(bool_uid)
@@ -1463,39 +1621,6 @@ class MatrixTable(ExprContainer):
     def filter_entries(self, expr, keep: bool = True) -> 'MatrixTable':
         """Filter entries of the matrix.
 
-        Examples
-        --------
-
-        Keep entries where the sum of `AD` is greater than 10 and `GQ` is greater than 20:
-
-        >>> dataset_result = dataset.filter_entries((hl.sum(dataset.AD) > 10) & (dataset.GQ > 20))
-
-        Notes
-        -----
-
-        The expression `expr` will be evaluated for every entry of the table. If
-        `keep` is ``True``, then entries where `expr` evaluates to ``False`` will be
-        removed (the filter keeps the entries where the predicate evaluates to
-        ``True``). If `keep` is ``False``, then entries where `expr` evaluates to
-        ``False`` will be removed (the filter removes the entries where the predicate
-        evaluates to ``True``).
-
-        Note
-        ----
-        "Removal" of an entry constitutes setting all its fields to missing. There
-        is some debate about what removing an entry of a matrix means semantically,
-        given the representation of a :class:`.MatrixTable` as a whole workspace in
-        Hail.
-
-        Warning
-        -------
-        When `expr` evaluates to missing, the entry will be removed regardless of
-        `keep`.
-
-        Note
-        ----
-        This method does not support aggregation.
-
         Parameters
         ----------
         expr : bool or :class:`.BooleanExpression`
@@ -1507,6 +1632,88 @@ class MatrixTable(ExprContainer):
         -------
         :class:`.MatrixTable`
             Filtered matrix table.
+
+        Examples
+        --------
+
+        Keep entries where the sum of `AD` is greater than 10 and `GQ` is greater than 20:
+
+        >>> dataset_result = dataset.filter_entries((hl.sum(dataset.AD) > 10) & (dataset.GQ > 20))
+
+        Warning
+        -------
+        When `expr` evaluates to missing, the entry will be removed regardless of
+        `keep`.
+
+        Note
+        ----
+        This method does not support aggregation.
+
+        Notes
+        -----
+        The expression `expr` will be evaluated for every entry of the table.
+        If `keep` is ``True``, then entries where `expr` evaluates to ``True``
+        will be kept (the filter removes the entries where the predicate
+        evaluates to ``False``). If `keep` is ``False``, then entries where
+        `expr` evaluates to ``True`` will be removed (the filter keeps the
+        entries where the predicate evaluates to ``False``).
+
+        Filtered entries are removed entirely from downstream operations. This
+        means that the resulting matrix table has sparsity -- that is, that the
+        number of entries is **smaller** than the product of :meth:`count_rows`
+        and :meth:`count_cols`. To re-densify a filtered matrix table, use the
+        :meth:`unfilter_entries` method to restore filtered entries, populated
+        all fields with missing values. Below are some properties of an
+        entry-filtered matrix table.
+
+        1. Filtered entries are not included in the :meth:`entries` table.
+
+        >>> mt_range = hl.utils.range_matrix_table(10, 10)
+        >>> mt_range = mt_range.annotate_entries(x = mt_range.row_idx + mt_range.col_idx)
+        >>> mt_range.count()
+        (10, 10)
+
+        >>> mt_range.entries().count()
+        100
+
+        >>> mt_filt = mt_range.filter_entries(mt_range.x % 2 == 0)
+        >>> mt_filt.count()
+        (10, 10)
+
+        >>> mt_filt.count_rows() * mt_filt.count_cols()
+        100
+
+        >>> mt_filt.entries().count()
+        50
+
+        2. Filtered entries are not included in aggregation.
+
+        >>> mt_filt.aggregate_entries(hl.agg.count())
+        50
+
+        >>> mt_filt = mt_filt.annotate_cols(col_n = hl.agg.count())
+        >>> mt_filt.col_n.take(5)
+        [5, 5, 5, 5, 5]
+
+        >>> mt_filt = mt_filt.annotate_rows(row_n = hl.agg.count())
+        >>> mt_filt.row_n.take(5)
+        [5, 5, 5, 5, 5]
+
+        3. Annotating a new entry field will not annotate filtered entries.
+
+        >>> mt_filt = mt_filt.annotate_entries(y = 1)
+        >>> mt_filt.aggregate_entries(hl.agg.sum(mt_filt.y))
+        50
+
+        4. If all the entries in a row or column of a matrix table are
+        filtered, the row or column remains.
+
+        >>> mt_filt.filter_entries(False).count()
+        (10, 10)
+
+        See Also
+        --------
+        :meth:`unfilter_entries`
         """
         base, cleanup = self._process_joins(expr)
         analyze('MatrixTable.filter_entries', expr, self._entry_indices)
@@ -1514,6 +1721,32 @@ class MatrixTable(ExprContainer):
         m = MatrixTable(MatrixFilterEntries(base._mir, filter_predicate_with_keep(expr._ir, keep)))
         return cleanup(m)
 
+    def unfilter_entries(self):
+        """Unfilters filtered entries, populating fields with missing values.
+
+        Returns
+        -------
+        :class:`MatrixTable`
+
+        Notes
+        -----
+        This method is used in the case that a pipeline downstream of :meth:`filter_entries`
+        requires a fully dense (no filtered entries) matrix table.
+
+        Generally, if this method is required in a pipeline, the upstream pipeline can
+        be rewritten to use annotation instead of entry filtering.
+
+        See Also
+        --------
+        :meth:`filter_entries`
+        """
+        entry_ir = hl.cond(
+            hl.is_defined(self.entry),
+            self.entry,
+            hl.struct(**{k: hl.null(v.dtype) for k, v in self.entry.items()}))._ir
+        return MatrixTable(MatrixMapEntries(self._mir, entry_ir))
+
+    @typecheck_method(named_exprs=expr_any)
     def transmute_globals(self, **named_exprs) -> 'MatrixTable':
         """Similar to :meth:`.MatrixTable.annotate_globals`, but drops referenced fields.
 
@@ -1539,12 +1772,12 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
         """
         caller = 'MatrixTable.transmute_globals'
-        e = get_annotate_exprs(caller, named_exprs, self._global_indices)
-        fields_referenced = extract_refs_by_indices(e.values(), self._global_indices) - set(e.keys())
-
+        check_annotate_exprs(caller, named_exprs, self._global_indices)
+        fields_referenced = extract_refs_by_indices(named_exprs.values(), self._global_indices) - set(named_exprs.keys())
         return self._select_globals(caller,
                                     self.globals.annotate(**named_exprs).drop(*fields_referenced))
 
+    @typecheck_method(named_exprs=expr_any)
     def transmute_rows(self, **named_exprs) -> 'MatrixTable':
         """Similar to :meth:`.MatrixTable.annotate_rows`, but drops referenced fields.
 
@@ -1578,12 +1811,13 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
         """
         caller = 'MatrixTable.transmute_rows'
-        e = get_annotate_exprs(caller, named_exprs, self._row_indices)
-        fields_referenced = extract_refs_by_indices(e.values(), self._row_indices) - set(e.keys())
+        check_annotate_exprs(caller, named_exprs, self._row_indices)
+        fields_referenced = extract_refs_by_indices(named_exprs.values(), self._row_indices) - set(named_exprs.keys())
         fields_referenced -= set(self.row_key)
 
         return self._select_rows(caller, self.row.annotate(**named_exprs).drop(*fields_referenced))
 
+    @typecheck_method(named_exprs=expr_any)
     def transmute_cols(self, **named_exprs) -> 'MatrixTable':
         """Similar to :meth:`.MatrixTable.annotate_cols`, but drops referenced fields.
 
@@ -1617,14 +1851,15 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
         """
         caller = 'MatrixTable.transmute_cols'
-        e = get_annotate_exprs(caller, named_exprs, self._col_indices)
-        fields_referenced = extract_refs_by_indices(e.values(), self._col_indices) - set(e.keys())
+        check_annotate_exprs(caller, named_exprs, self._col_indices)
+        fields_referenced = extract_refs_by_indices(named_exprs.values(), self._col_indices) - set(named_exprs.keys())
         fields_referenced -= set(self.col_key)
 
         return self._select_cols(caller,
                                  self.col.annotate(**named_exprs).drop(*fields_referenced))
 
-    def transmute_entries(self, **named_exprs):
+    @typecheck_method(named_exprs=expr_any)
+    def transmute_entries(self, **named_exprs) -> 'MatrixTable':
         """Similar to :meth:`.MatrixTable.annotate_entries`, but drops referenced fields.
 
         Notes
@@ -1649,8 +1884,8 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
         """
         caller = 'MatrixTable.transmute_entries'
-        e = get_annotate_exprs(caller, named_exprs, self._entry_indices)
-        fields_referenced = extract_refs_by_indices(e.values(), self._entry_indices) - set(e.keys())
+        check_annotate_exprs(caller, named_exprs, self._entry_indices)
+        fields_referenced = extract_refs_by_indices(named_exprs.values(), self._entry_indices) - set(named_exprs.keys())
 
         return self._select_entries(caller,
                                     self.entry.annotate(**named_exprs).drop(*fields_referenced))
@@ -1848,7 +2083,7 @@ class MatrixTable(ExprContainer):
             while isinstance(nested, GetField):
                 root.append(nested.name)
                 nested = nested.o
-            root = [r for r in reversed(root)]
+            root = root[::-1]
 
         if not isinstance(field_expr.dtype, (tarray, tset)):
             raise ValueError(f"method 'explode_rows' expects array or set, found: {field_expr.dtype}")
@@ -1910,7 +2145,7 @@ class MatrixTable(ExprContainer):
             while isinstance(nested, GetField):
                 root.append(nested.name)
                 nested = nested.o
-            root = [r for r in reversed(root)]
+            root = root[::-1]
 
         if not isinstance(field_expr.dtype, (tarray, tset)):
             raise ValueError(f"method 'explode_cols' expects array or set, found: {field_expr.dtype}")
@@ -1981,26 +2216,6 @@ class MatrixTable(ExprContainer):
         :class:`.GroupedMatrixTable`
             Grouped matrix, can be used to call :meth:`.GroupedMatrixTable.aggregate`.
         """
-        new_keys = []
-        for e in exprs:
-            if isinstance(e, str):
-                e = self[e]
-            else:
-                e = to_expr(e)
-            analyze('MatrixTable.group_cols_by', e, self._col_indices)
-            if not e._ir.is_nested_field:
-                raise ExpressionException("method 'group_cols_by' expects keyword arguments for complex expressions")
-            key = e._ir.name
-            if key in new_keys:
-                raise ExpressionException("method 'group_cols_by' found duplicate field: {}".format(key))
-            new_keys.append(key)
-
-        ds = self.annotate_cols(**named_exprs)
-        for key in named_exprs.keys():
-            if key in new_keys:
-                raise ExpressionException("method 'group_cols_by' found duplicate field: {}".format(key))
-            new_keys.append(key)
-
         return GroupedMatrixTable(self).group_cols_by(*exprs, **named_exprs)
 
     def collect_cols_by_key(self) -> 'MatrixTable':
@@ -2120,6 +2335,7 @@ class MatrixTable(ExprContainer):
 
     def _force_count_cols(self):
         return self.cols()._force_count()
+
     def count_cols(self) -> int:
         """Count the number of columns in the matrix.
 
@@ -2153,6 +2369,46 @@ class MatrixTable(ExprContainer):
             Number of rows, number of cols.
         """
         return (self.count_rows(), self.count_cols())
+
+    @typecheck_method(output=str,
+                      overwrite=bool,
+                      stage_locally=bool,
+                      _codec_spec=nullable(str))
+    def checkpoint(self, output: str, overwrite: bool = False, stage_locally: bool = False,
+              _codec_spec: Optional[str] = None) -> 'MatrixTable':
+        """Checkpoint the matrix table to disk by writing and reading.
+
+        Parameters
+        ----------
+        output : str
+            Path at which to write.
+        stage_locally: bool
+            If ``True``, major output will be written to temporary local storage
+            before being copied to ``output``
+        overwrite : bool
+            If ``True``, overwrite an existing file at the destination.
+
+        Returns
+        -------
+        :class:`MatrixTable`
+
+        Warning
+        -------
+        Do not checkpoint to a path that is being read from in the same computation.
+
+        Notes
+        -----
+        An alias for :meth:`write` followed by :func:`.read_matrix_table`. It
+        is possible to read the file at this path later with
+        :func:`.read_matrix_table`.
+
+        Examples
+        --------
+        >>> dataset = dataset.checkpoint('output/dataset_checkpoint.mt')
+
+        """
+        self.write(output=output, overwrite=overwrite, stage_locally=stage_locally, _codec_spec=_codec_spec)
+        return hl.read_matrix_table(output)
 
     @typecheck_method(output=str,
                       overwrite=bool,
@@ -2306,7 +2562,7 @@ class MatrixTable(ExprContainer):
         """
         return construct_expr(TableGetGlobals(MatrixRowsTable(self._mir)), self.globals.dtype)
 
-    def index_rows(self, *exprs):
+    def index_rows(self, *exprs) -> 'StructExpression':
         """Expose the row values as if looked up in a dictionary, indexing
         with `exprs`.
 
@@ -2356,9 +2612,6 @@ class MatrixTable(ExprContainer):
                   and isinstance(exprs[0], StructExpression)
                   and types_match(self.row_key.values(), exprs[0].values())):
                 return self.index_rows(*exprs[0].values())
-            elif len(exprs) != len(self.row_key):
-                raise ExpressionException(f'Key mismatch: matrix table has {len(self.row_key)} row key fields, '
-                                          f'found {len(exprs)} index expressions')
             else:
                 raise ExpressionException(
                     f"Key type mismatch: cannot index matrix table with given expressions:\n"
@@ -2380,7 +2633,7 @@ class MatrixTable(ExprContainer):
             if is_row_key:
                 def joiner(left):
                     return MatrixTable(MatrixAnnotateRowsTable(
-                        left._mir, right.rows()._tir, uid, None))
+                        left._mir, right.rows()._tir, uid))
                 schema = tstruct(**{f: t for f, t in self.row.dtype.items() if f not in self.row_key})
                 ir = Join(GetField(TopLevelReference('va'), uid),
                           uids_to_delete,
@@ -2390,7 +2643,7 @@ class MatrixTable(ExprContainer):
             else:
                 return self.rows().index(*exprs)
 
-    def index_cols(self, *exprs):
+    def index_cols(self, *exprs) -> 'StructExpression':
         """Expose the column values as if looked up in a dictionary, indexing
         with `exprs`.
 
@@ -2482,9 +2735,9 @@ class MatrixTable(ExprContainer):
                                           f'found {len(row_exprs)} index expressions')
             else:
                 raise ExpressionException(
-                    f"Cannot index table with given expressions\n"
-                    f"  MatrixTable row key: {', '.join(str(t) for t in self.row_key.dtype.values())}\n"
-                    f"  Index expressions:   {', '.join(str(e.dtype) for e in row_exprs)}")
+                    f"Key type mismatch: Cannot index matrix table with given expressions\n"
+                    f"  MatrixTable row key:   {', '.join(str(t) for t in self.row_key.dtype.values())}\n"
+                    f"  Row index expressions: {', '.join(str(e.dtype) for e in row_exprs)}")
 
         if not types_match(self.col_key.values(), col_exprs):
             if (len(col_exprs) == 1
@@ -2501,8 +2754,8 @@ class MatrixTable(ExprContainer):
             else:
                 raise ExpressionException(
                     f"Key type mismatch: cannot index matrix table with given expressions:\n"
-                    f"  MatrixTable col key: {', '.join(str(t) for t in self.col_key.dtype.values())}\n"
-                    f"  Index expressions:   {', '.join(str(e.dtype) for e in col_exprs)}")
+                    f"  MatrixTable col key:   {', '.join(str(t) for t in self.col_key.dtype.values())}\n"
+                    f"  Col index expressions: {', '.join(str(e.dtype) for e in col_exprs)}")
 
         indices, aggregations = unify_all(*(row_exprs + col_exprs))
         src = indices.source
@@ -2537,9 +2790,95 @@ class MatrixTable(ExprContainer):
             return construct_expr(ir, self.entry.dtype, indices, aggregations)
 
     @typecheck_method(entries_field_name=str, cols_field_name=str)
-    def _localize_entries(self, entries_field_name, cols_field_name):
+    def _localize_entries(self, entries_field_name, cols_field_name) -> 'Table':
         return Table(CastMatrixToTable(
             self._mir, entries_field_name, cols_field_name))
+
+    @typecheck_method(entries_array_field_name=nullable(str),
+                      columns_array_field_name=nullable(str))
+    def localize_entries(self,
+                         entries_array_field_name=None,
+                         columns_array_field_name=None) -> 'Table':
+        """Convert the matrix table to a table with entries localized as an array of structs.
+
+        Examples
+        --------
+        Build a numpy ndarray from a small :class:`.MatrixTable`:
+
+        >>> mt = hl.utils.range_matrix_table(3,3)
+        >>> mt = mt.select_entries(x = mt.row_idx * mt.col_idx)
+        >>> mt.x.show()
+        +---------+---------+-------+
+        | row_idx | col_idx |     x |
+        +---------+---------+-------+
+        |   int32 |   int32 | int32 |
+        +---------+---------+-------+
+        |       0 |       0 |     0 |
+        |       0 |       1 |     0 |
+        |       0 |       2 |     0 |
+        |       1 |       0 |     0 |
+        |       1 |       1 |     1 |
+        |       1 |       2 |     2 |
+        |       2 |       0 |     0 |
+        |       2 |       1 |     2 |
+        |       2 |       2 |     4 |
+        +---------+---------+-------+
+
+        >>> t = mt.localize_entries('entry_structs', 'columns')
+        >>> t.describe()
+        ----------------------------------------
+        Global fields:
+            'columns': array<struct {
+                col_idx: int32
+            }> 
+        ----------------------------------------
+        Row fields:
+            'row_idx': int32 
+            'entry_structs': array<struct {
+                x: int32
+            }> 
+        ----------------------------------------
+        Key: ['row_idx']
+        ----------------------------------------
+
+        >>> t = t.select(entries = t.entry_structs.map(lambda entry: entry.x))
+        >>> import numpy as np
+        >>> np.array(t.entries.collect())
+        array([[0, 0, 0],
+               [0, 1, 2],
+               [0, 2, 4]])
+
+        Notes
+        -----
+        Both of the added fields are arrays of length equal to
+        ``mt.count_cols()``. Missing entries are represented as missing structs
+        in the entries array.
+
+        Parameters
+        ----------
+        entries_array_field_name : :obj:`str`
+            The name of the table field containing the array of entry structs
+            for the given row.
+        columns_array_field_name : :obj:`str`
+            The name of the global field containing the array of column
+            structs.
+
+        Returns
+        -------
+        :class:`.Table`
+            A table whose fields are the row fields of this matrix table plus
+            one field named ``entries_array_field_name``. The global fields of
+            this table are the global fields of this matrix table plus one field
+            named ``columns_array_field_name``.
+        """
+        entries = entries_array_field_name or Env.get_uid()
+        cols = columns_array_field_name or Env.get_uid()
+        t = self._localize_entries(entries, cols)
+        if entries_array_field_name is None:
+            t = t.drop(entries)
+        if columns_array_field_name is None:
+            t = t.drop(cols)
+        return t
 
     @typecheck_method(row_exprs=dictof(str, expr_any),
                       col_exprs=dictof(str, expr_any),
@@ -2624,25 +2963,25 @@ class MatrixTable(ExprContainer):
         return (mt.drop(*(f for f in mt._fields if f not in keep)) \
                 .rename({uid: original for original, uid in uids.items()}))
 
-    def _process_joins(self, *exprs):
+    def _process_joins(self, *exprs) -> 'MatrixTable':
         return process_joins(self, exprs)
 
     def describe(self, handler=print):
         """Print information about the fields in the matrix."""
 
         def format_type(typ):
-            return typ.pretty(indent=4)
+            return typ.pretty(indent=4).lstrip()
 
-        if len(self.globals.dtype) == 0:
+        if len(self.globals) == 0:
             global_fields = '\n    None'
         else:
-            global_fields = ''.join("\n    '{name}': {type} ".format(
+            global_fields = ''.join("\n    '{name}': {type}".format(
                 name=f, type=format_type(t)) for f, t in self.globals.dtype.items())
 
         if len(self.row) == 0:
             row_fields = '\n    None'
         else:
-            row_fields = ''.join("\n    '{name}': {type} ".format(
+            row_fields = ''.join("\n    '{name}': {type}".format(
                 name=f, type=format_type(t)) for f, t in self.row.dtype.items())
 
         row_key = '[' + ', '.join("'{name}'".format(name=f) for f in self.row_key) + ']' \
@@ -2651,7 +2990,7 @@ class MatrixTable(ExprContainer):
         if len(self.col) == 0:
             col_fields = '\n    None'
         else:
-            col_fields = ''.join("\n    '{name}': {type} ".format(
+            col_fields = ''.join("\n    '{name}': {type}".format(
                 name=f, type=format_type(t)) for f, t in self.col.dtype.items())
 
         col_key = '[' + ', '.join("'{name}'".format(name=f) for f in self.col_key) + ']' \
@@ -2660,7 +2999,7 @@ class MatrixTable(ExprContainer):
         if len(self.entry) == 0:
             entry_fields = '\n    None'
         else:
-            entry_fields = ''.join("\n    '{name}': {type} ".format(
+            entry_fields = ''.join("\n    '{name}': {type}".format(
                 name=f, type=format_type(t)) for f, t in self.entry.dtype.items())
 
         s = '----------------------------------------\n' \
@@ -2733,7 +3072,7 @@ class MatrixTable(ExprContainer):
         int
             Number of partitions.
         """
-        return self._jmt.nPartitions()
+        return Env.backend().execute(MatrixToValueApply(self._mir, {'name': 'NPartitionsMatrixTable'}))
 
     @typecheck_method(n_partitions=int,
                       shuffle=bool)
@@ -2881,7 +3220,7 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
             Persisted dataset.
         """
-        return MatrixTable._from_java(self._jmt.persist(storage_level))
+        return Env.backend().persist_matrix_table(self, storage_level)
 
     def unpersist(self) -> 'MatrixTable':
         """
@@ -2897,7 +3236,7 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
             Unpersisted dataset.
         """
-        return MatrixTable._from_java(self._jmt.unpersist())
+        return Env.backend().unpersist_matrix_table(self)
 
     @typecheck_method(name=str)
     def add_row_index(self, name: str = 'row_idx') -> 'MatrixTable':
@@ -2958,8 +3297,11 @@ class MatrixTable(ExprContainer):
     @typecheck_method(other=matrix_table_type,
                       tolerance=numeric,
                       absolute=bool)
-    def _same(self, other, tolerance=1e-6, absolute=False):
-        return self._jmt.same(other._jmt, tolerance, absolute)
+    def _same(self, other, tolerance=1e-6, absolute=False) -> bool:
+        entries_name = Env.get_uid()
+        cols_name = Env.get_uid()
+        return self._localize_entries(entries_name, cols_name)._same(
+            other._localize_entries(entries_name, cols_name), tolerance, absolute)
 
     @typecheck_method(caller=str, s=expr_struct())
     def _select_entries(self, caller, s) -> 'MatrixTable':
@@ -2969,39 +3311,18 @@ class MatrixTable(ExprContainer):
 
     @typecheck_method(caller=str,
                       row=expr_struct())
-    def _select_rows(self, caller, row):
+    def _select_rows(self, caller, row) -> 'MatrixTable':
         analyze(caller, row, self._row_indices, {self._col_axis})
         base, cleanup = self._process_joins(row)
         return cleanup(MatrixTable(MatrixMapRows(base._mir, row._ir)))
 
-    @typecheck_method(key_struct=expr_struct())
-    def _select_rows_processed(self, key_struct):
-        new_key = list(key_struct.keys())
-        keys = Env.get_uid()
-        fields = [(n, GetField(Ref(keys), n)) for (n, t) in key_struct.dtype.items()]
-        row_ir = Let(keys, key_struct._ir, InsertFields(self.row._ir, fields, None))
-        return MatrixTable(
-            MatrixKeyRowsBy(
-                MatrixMapRows(
-                    MatrixKeyRowsBy(self._mir, []),
-                row_ir),
-            new_key))
-
     @typecheck_method(caller=str,
                       col=expr_struct(),
                       new_key=nullable(sequenceof(str)))
-    def _select_cols(self, caller, col, new_key=None):
+    def _select_cols(self, caller, col, new_key=None) -> 'MatrixTable':
         analyze(caller, col, self._col_indices, {self._row_axis})
         base, cleanup = self._process_joins(col)
         return cleanup(MatrixTable(MatrixMapCols(base._mir, col._ir, new_key)))
-
-    @typecheck_method(key_struct=expr_struct())
-    def _select_cols_processed(self, key_struct):
-        new_key = list(key_struct.keys())
-        keys = Env.get_uid()
-        fields = [(n, GetField(Ref(keys), n)) for (n, t) in key_struct.dtype.items()]
-        col_ir = Let(keys, key_struct._ir, InsertFields(self.col._ir, fields, None))
-        return MatrixTable(MatrixMapCols(self._mir, col_ir, new_key))
 
     @typecheck_method(caller=str, s=expr_struct())
     def _select_globals(self, caller, s) -> 'MatrixTable':
@@ -3089,6 +3410,12 @@ class MatrixTable(ExprContainer):
                     raise ValueError(error_msg.format(
                         "col key types", 0, first.col_key.dtype, i+1, next.col_key.dtype
                     ))
+            wrong_keys = hl.eval(hl.rbind(first.col_key.collect(_localize=False), lambda first_keys: (
+                hl.zip_with_index([mt.col_key.collect(_localize=False) for mt in datasets[1:]])
+                    .find(lambda x: ~(x[1] == first_keys))[0])))
+            if wrong_keys is not None:
+                raise ValueError("'MatrixTable.union_rows' expects all datasets to have the same columns. " +
+                                 "Datasets 0 and {} have different columns (or possibly different order).".format(wrong_keys+1))
             return MatrixTable(MatrixUnionRows(*[d._mir for d in datasets]))
 
     @typecheck_method(other=matrix_table_type)
@@ -3130,43 +3457,59 @@ class MatrixTable(ExprContainer):
         :class:`.MatrixTable`
             Dataset with columns from both datasets.
         """
-        if self._entry_type != other._entry_type:
-            raise ValueError('\n'.join(
-                "entry types differ",
-                f"  left: {self._entry_type}",
-                f"  right: {other.entry_type}"))
-        if self._col_type != other._col_type:
-            raise ValueError("\n".join(
-                "column types differ",
-                f"  left: {self._col_type}",
-                f"  right: {other.col_type}"))
-        if list(self._col_key_types) != list(other._col_key_types):
-            raise ValueError("\n".join(
-                "column key types differ",
-                f"  left: {', '.join(self._col_key_types)}",
-                f"  right: {', '.join(other._col_key_types)}"))
-        if list(self._row_key_types) != list(other._row_key_types):
-            raise ValueError("\n".join(
-                "row key types differ",
-                f"  left: {', '.join(self._row_key_types)}",
-                f"  right: {', '.join(other._row_key_types)}"))
+        if self.entry.dtype != other.entry.dtype:
+            raise ValueError(f'entry types differ:\n'
+                             f'    left: {self.entry.dtype}\n'
+                             f'    right: {other.entry.dtype}')
+        if self.col.dtype != other.col.dtype:
+            raise ValueError(f'column types differ:\n'
+                             f'    left: {self.col.dtype}\n'
+                             f'    right: {other.col.dtype}')
+        if self.col_key.keys() != other.col_key.keys():
+            raise ValueError(f'column key fields differ:\n'
+                             f'    left: {", ".join(self.col_key.keys())}\n'
+                             f'    right: {", ".join(other.col_key.keys())}')
+        if list(self.row_key.dtype.values()) != list(other.row_key.dtype.values()):
+            raise ValueError(f'row key types differ:\n'
+                             f'    left: {", ".join(self.row_key.dtype.values())}\n'
+                             f'    right: {", ".join(other.row_key.dtype.values())}')
         
         return MatrixTable(MatrixUnionCols(self._mir, other._mir))
 
-    @typecheck_method(n=int)
-    def head(self, n: int) -> 'MatrixTable':
+    @typecheck_method(n=nullable(int), n_cols=nullable(int))
+    def head(self, n: Optional[int], n_cols: Optional[int] = None) -> 'MatrixTable':
         """Subset matrix to first `n` rows.
 
         Examples
         --------
-        Subset to the first three rows of the matrix:
+        >>> mt_range = hl.utils.range_matrix_table(100, 100)
 
-        >>> dataset_result = dataset.head(3)
-        >>> dataset_result.count_rows()
-        3
+        Passing only one argument will take the first `n` rows:
+
+        >>> mt_range.head(10).count()
+        (10, 100)
+
+        Passing two arguments refers to rows and columns, respectively:
+
+        >>> mt_range.head(10, 20).count()
+        (10, 20)
+
+        Either argument may be ``None`` to indicate no filter.
+
+        First 10 rows, all columns:
+
+        >>> mt_range.head(10, None).count()
+        (10, 100)
+
+        All rows, first 10 columns:
+
+        >>> mt_range.head(None, 10).count()
+        (100, 10)
 
         Notes
         -----
+        For backwards compatibility, the `n` parameter is not named `n_rows`,
+        but the parameter refers to the number of rows to keep.
 
         The number of partitions in the new matrix is equal to the number of
         partitions containing the first `n` rows.
@@ -3174,18 +3517,28 @@ class MatrixTable(ExprContainer):
         Parameters
         ----------
         n : :obj:`int`
-            Number of rows to include.
+            Number of rows to include (all rows included if ``None``).
+        n_cols : :obj:`int`, optional
+            Number of cols to include (all cols included if ``None``).
 
         Returns
         -------
         :class:`.MatrixTable`
-            Matrix including the first `n` rows.
+            Matrix including the first `n` rows and first `n_cols` cols.
         """
-
-        return MatrixTable._from_java(self._jmt.head(n))
+        mt = self
+        if n is not None:
+            if n < 0:
+                raise ValueError(f"MatrixTable.head: expect 'n' to be non-negative or None, found '{n}'")
+            mt = MatrixTable(MatrixRowsHead(self._mir, n))
+        if n_cols is not None:
+            if n_cols < 0:
+                raise ValueError(f"MatrixTable.head: expect 'n_cols' to be non-negative or None, found '{n_cols}'")
+            mt = mt.filter_cols(hl.scan.count() < n_cols)
+        return mt
 
     @typecheck_method(parts=sequenceof(int), keep=bool)
-    def _filter_partitions(self, parts, keep=True):
+    def _filter_partitions(self, parts, keep=True) -> 'MatrixTable':
         return MatrixTable(MatrixToMatrixApply(self._mir, {'name': 'MatrixFilterPartitions', 'parts': parts, 'keep': keep}))
 
     @classmethod
@@ -3230,10 +3583,14 @@ class MatrixTable(ExprContainer):
 
         Examples
         --------
-
         Downsample the dataset to approximately 1% of its rows.
 
         >>> small_dataset = dataset.sample_rows(0.01)
+
+        Notes
+        -----
+        Although the :class:`MatrixTable` returned by this method may be
+        small, it requires a full pass over the rows of the sampled object.
 
         Parameters
         ----------
@@ -3252,6 +3609,35 @@ class MatrixTable(ExprContainer):
             raise ValueError("Requires 'p' in [0,1]. Found p={}".format(p))
 
         return self.filter_rows(hl.rand_bool(p, seed))
+
+    @typecheck_method(p=numeric,
+                      seed=nullable(int))
+    def sample_cols(self, p: float, seed=None) -> 'MatrixTable':
+        """Downsample the matrix table by keeping each column with probability ``p``.
+
+        Examples
+        --------
+        Downsample the dataset to approximately 1% of its columns.
+
+        >>> small_dataset = dataset.sample_cols(0.01)
+
+        Parameters
+        ----------
+        p : :obj:`float`
+            Probability of keeping each column.
+        seed : :obj:`int`
+            Random seed.
+
+        Returns
+        -------
+        :class:`.MatrixTable`
+            Matrix table with approximately ``p * n_cols`` column.
+        """
+
+        if not (0 <= p <= 1):
+            raise ValueError("Requires 'p' in [0,1]. Found p={}".format(p))
+
+        return self.filter_cols(hl.rand_bool(p, seed))
 
     @typecheck_method(fields=dictof(str, str))
     def rename(self, fields: Dict[str, str]) -> 'MatrixTable':
@@ -3305,9 +3691,9 @@ class MatrixTable(ExprContainer):
             elif self[k]._indices == self._global_indices:
                 global_map[k] = v
 
-        return MatrixTable._from_java(self._jmt.renameFields(row_map, col_map, entry_map, global_map))
+        return MatrixTable(MatrixRename(self._mir, global_map, col_map, row_map, entry_map))
 
-    def distinct_by_row(self):
+    def distinct_by_row(self) -> 'MatrixTable':
         """Remove rows with a duplicate row key.
 
         Returns
@@ -3316,7 +3702,7 @@ class MatrixTable(ExprContainer):
         """
         return MatrixTable(MatrixDistinctByRow(self._mir))
 
-    def distinct_by_col(self):
+    def distinct_by_col(self) -> 'MatrixTable':
         """Remove columns with a duplicate row key.
 
         Returns
@@ -3430,13 +3816,79 @@ class MatrixTable(ExprContainer):
             else:
                 return col_key
 
-        t = t.select(**{
+        t = t.annotate(**{
             fmt(f, col_keys[i]): t[entries_uid][i][j]
             for i in range(len(col_keys))
             for j, f in enumerate(self.entry)
         })
-        t = t.drop(cols_uid)
+        t = t.drop(cols_uid, entries_uid)
 
         return t
+
+    @typecheck_method(rows=bool, cols=bool, entries=bool)
+    def summarize(self, *, rows=True, cols=True, entries=True):
+        """Compute and print summary information about the fields in the matrix table.
+
+        .. include:: _templates/experimental.rst
+
+        Parameters
+        ----------
+        rows : :obj:`bool`
+            Compute summary for the row fields.
+        cols : :obj:`bool`
+            Compute summary for the column fields.
+        entries : :obj:`bool`
+            Compute summary for the entry fields.
+        """
+
+        if cols:
+            computations, printers = hl.expr.generic_summary(self.col, prefix='[col]', skip_top=True)
+            results = self.aggregate_cols(computations)
+            print('Columns')
+            print('=======')
+            for name, fields in printers:
+                print(f'* {name}:')
+
+                max_k_len = max(len(f) for f in fields)
+                for k, v in fields.items():
+                    print(f'    {k.rjust(max_k_len)} : {v(results)}')
+                print()
+        if rows:
+            computations, printers = hl.expr.generic_summary(self.row, prefix='[row]', skip_top=True)
+            results = self.aggregate_rows(computations)
+            print('Rows')
+            print('====')
+            for name, fields in printers:
+                print(f'* {name}:')
+
+                max_k_len = max(len(f) for f in fields)
+                for k, v in fields.items():
+                    print(f'    {k.rjust(max_k_len)} : {v(results)}')
+                print()
+        if entries:
+            computations, printers = hl.expr.generic_summary(self.entry, prefix='[entry]', skip_top=True)
+            results = self.aggregate_entries(computations)
+            print('Entries')
+            print('=======')
+            for name, fields in printers:
+                print(f'* {name}:')
+
+                max_k_len = max(len(f) for f in fields)
+                for k, v in fields.items():
+                    print(f'    {k.rjust(max_k_len)} : {v(results)}')
+                print()
+
+
+    def _write_block_matrix(self, path, overwrite, entry_field, block_size):
+        mt = self
+        mt = mt.select_entries(entry_field).select_cols().select_globals()
+        Env.backend().execute(MatrixToValueApply(
+            mt._mir,
+            {'name': 'MatrixWriteBlockMatrix',
+             'path': path,
+             'overwrite': overwrite,
+             'entryField': entry_field,
+             'blockSize': block_size}))
+
 
 matrix_table_type.set(MatrixTable)

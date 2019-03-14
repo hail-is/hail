@@ -7,6 +7,7 @@ from hail.utils.java import Env
 from hail.utils.misc import divide_null
 from hail.matrixtable import MatrixTable
 from hail.table import Table
+from hail.ir import TableToTableApply
 from .misc import require_biallelic, require_row_key_variant, require_col_key_str, require_table_key_variant
 
 
@@ -410,7 +411,9 @@ def concordance(left, right) -> Tuple[List[List[int]], Table, Table]:
     left = require_biallelic(left, "concordance, left")
     right = require_biallelic(right, "concordance, right")
 
-    r = Env.hail().methods.CalculateConcordance.apply(left._jmt, right._jmt)
+    r = Env.hail().methods.CalculateConcordance.pyApply(
+        Env.spark_backend('concordance')._to_java_ir(left._mir),
+        Env.spark_backend('concordance')._to_java_ir(right._mir))
     j_global_conc = r._1()
     col_conc = Table._from_java(r._2())
     row_conc = Table._from_java(r._3())
@@ -459,23 +462,23 @@ def vep(dataset: Union[Table, MatrixTable], config, block_size=1000, name='vep',
     .. code-block:: text
 
         {
-        	"command": [
-        		"/vep",
-        		"--format", "vcf",
-        		"__OUTPUT_FORMAT_FLAG__",
-        		"--everything",
-        		"--allele_number",
-        		"--no_stats",
-        		"--cache", "--offline",
-        		"--minimal",
-        		"--assembly", "GRCh37",
-        		"--plugin", "LoF,human_ancestor_fa:/root/.vep/loftee_data/human_ancestor.fa.gz,filter_position:0.05,min_intron_size:15,conservation_file:/root/.vep/loftee_data/phylocsf_gerp.sql,gerp_file:/root/.vep/loftee_data/GERP_scores.final.sorted.txt.gz",
-        		"-o", "STDOUT"
-        	],
-        	"env": {
-        		"PERL5LIB": "/vep_data/loftee"
-        	},
-        	"vep_json_schema": "Struct{assembly_name:String,allele_string:String,ancestral:String,colocated_variants:Array[Struct{aa_allele:String,aa_maf:Float64,afr_allele:String,afr_maf:Float64,allele_string:String,amr_allele:String,amr_maf:Float64,clin_sig:Array[String],end:Int32,eas_allele:String,eas_maf:Float64,ea_allele:String,ea_maf:Float64,eur_allele:String,eur_maf:Float64,exac_adj_allele:String,exac_adj_maf:Float64,exac_allele:String,exac_afr_allele:String,exac_afr_maf:Float64,exac_amr_allele:String,exac_amr_maf:Float64,exac_eas_allele:String,exac_eas_maf:Float64,exac_fin_allele:String,exac_fin_maf:Float64,exac_maf:Float64,exac_nfe_allele:String,exac_nfe_maf:Float64,exac_oth_allele:String,exac_oth_maf:Float64,exac_sas_allele:String,exac_sas_maf:Float64,id:String,minor_allele:String,minor_allele_freq:Float64,phenotype_or_disease:Int32,pubmed:Array[Int32],sas_allele:String,sas_maf:Float64,somatic:Int32,start:Int32,strand:Int32}],context:String,end:Int32,id:String,input:String,intergenic_consequences:Array[Struct{allele_num:Int32,consequence_terms:Array[String],impact:String,minimised:Int32,variant_allele:String}],most_severe_consequence:String,motif_feature_consequences:Array[Struct{allele_num:Int32,consequence_terms:Array[String],high_inf_pos:String,impact:String,minimised:Int32,motif_feature_id:String,motif_name:String,motif_pos:Int32,motif_score_change:Float64,strand:Int32,variant_allele:String}],regulatory_feature_consequences:Array[Struct{allele_num:Int32,biotype:String,consequence_terms:Array[String],impact:String,minimised:Int32,regulatory_feature_id:String,variant_allele:String}],seq_region_name:String,start:Int32,strand:Int32,transcript_consequences:Array[Struct{allele_num:Int32,amino_acids:String,biotype:String,canonical:Int32,ccds:String,cdna_start:Int32,cdna_end:Int32,cds_end:Int32,cds_start:Int32,codons:String,consequence_terms:Array[String],distance:Int32,domains:Array[Struct{db:String,name:String}],exon:String,gene_id:String,gene_pheno:Int32,gene_symbol:String,gene_symbol_source:String,hgnc_id:String,hgvsc:String,hgvsp:String,hgvs_offset:Int32,impact:String,intron:String,lof:String,lof_flags:String,lof_filter:String,lof_info:String,minimised:Int32,polyphen_prediction:String,polyphen_score:Float64,protein_end:Int32,protein_start:Int32,protein_id:String,sift_prediction:String,sift_score:Float64,strand:Int32,swissprot:String,transcript_id:String,trembl:String,uniparc:String,variant_allele:String}],variant_class:String}"
+            "command": [
+                "/vep",
+                "--format", "vcf",
+                "__OUTPUT_FORMAT_FLAG__",
+                "--everything",
+                "--allele_number",
+                "--no_stats",
+                "--cache", "--offline",
+                "--minimal",
+                "--assembly", "GRCh37",
+                "--plugin", "LoF,human_ancestor_fa:/root/.vep/loftee_data/human_ancestor.fa.gz,filter_position:0.05,min_intron_size:15,conservation_file:/root/.vep/loftee_data/phylocsf_gerp.sql,gerp_file:/root/.vep/loftee_data/GERP_scores.final.sorted.txt.gz",
+                "-o", "STDOUT"
+            ],
+            "env": {
+                "PERL5LIB": "/vep_data/loftee"
+            },
+            "vep_json_schema": "Struct{assembly_name:String,allele_string:String,ancestral:String,colocated_variants:Array[Struct{aa_allele:String,aa_maf:Float64,afr_allele:String,afr_maf:Float64,allele_string:String,amr_allele:String,amr_maf:Float64,clin_sig:Array[String],end:Int32,eas_allele:String,eas_maf:Float64,ea_allele:String,ea_maf:Float64,eur_allele:String,eur_maf:Float64,exac_adj_allele:String,exac_adj_maf:Float64,exac_allele:String,exac_afr_allele:String,exac_afr_maf:Float64,exac_amr_allele:String,exac_amr_maf:Float64,exac_eas_allele:String,exac_eas_maf:Float64,exac_fin_allele:String,exac_fin_maf:Float64,exac_maf:Float64,exac_nfe_allele:String,exac_nfe_maf:Float64,exac_oth_allele:String,exac_oth_maf:Float64,exac_sas_allele:String,exac_sas_maf:Float64,id:String,minor_allele:String,minor_allele_freq:Float64,phenotype_or_disease:Int32,pubmed:Array[Int32],sas_allele:String,sas_maf:Float64,somatic:Int32,start:Int32,strand:Int32}],context:String,end:Int32,id:String,input:String,intergenic_consequences:Array[Struct{allele_num:Int32,consequence_terms:Array[String],impact:String,minimised:Int32,variant_allele:String}],most_severe_consequence:String,motif_feature_consequences:Array[Struct{allele_num:Int32,consequence_terms:Array[String],high_inf_pos:String,impact:String,minimised:Int32,motif_feature_id:String,motif_name:String,motif_pos:Int32,motif_score_change:Float64,strand:Int32,variant_allele:String}],regulatory_feature_consequences:Array[Struct{allele_num:Int32,biotype:String,consequence_terms:Array[String],impact:String,minimised:Int32,regulatory_feature_id:String,variant_allele:String}],seq_region_name:String,start:Int32,strand:Int32,transcript_consequences:Array[Struct{allele_num:Int32,amino_acids:String,biotype:String,canonical:Int32,ccds:String,cdna_start:Int32,cdna_end:Int32,cds_end:Int32,cds_start:Int32,codons:String,consequence_terms:Array[String],distance:Int32,domains:Array[Struct{db:String,name:String}],exon:String,gene_id:String,gene_pheno:Int32,gene_symbol:String,gene_symbol_source:String,hgnc_id:String,hgvsc:String,hgvsp:String,hgvs_offset:Int32,impact:String,intron:String,lof:String,lof_flags:String,lof_filter:String,lof_info:String,minimised:Int32,polyphen_prediction:String,polyphen_score:Float64,protein_end:Int32,protein_start:Int32,protein_id:String,sift_prediction:String,sift_score:Float64,strand:Int32,swissprot:String,transcript_id:String,trembl:String,uniparc:String,variant_allele:String}],variant_class:String}"
         }
 
     **Annotations**
@@ -514,7 +517,11 @@ def vep(dataset: Union[Table, MatrixTable], config, block_size=1000, name='vep',
         require_table_key_variant(dataset, 'vep')
         ht = dataset.select()
 
-    annotations = Table._from_java(Env.hail().methods.VEP.apply(ht._jt, config, csq, block_size))
+    annotations = Table(TableToTableApply(ht._tir,
+                                          {'name': 'VEP',
+                                           'config': config,
+                                           'csq': csq,
+                                           'blockSize': block_size})).persist()
 
     if csq:
         dataset = dataset.annotate_globals(
@@ -857,7 +864,7 @@ def nirvana(dataset: Union[MatrixTable, Table], config, block_size=500000, name=
         require_table_key_variant(dataset, 'nirvana')
         ht = dataset.select()
 
-    annotations = Table._from_java(Env.hail().methods.Nirvana.apply(ht._jt, config, block_size))
+    annotations = Table._from_java(Env.hail().methods.Nirvana.apply(ht._jt, config, block_size)).persist()
 
     if isinstance(dataset, MatrixTable):
         return dataset.annotate_rows(**{name: annotations[dataset.row_key].nirvana})

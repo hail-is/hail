@@ -8,6 +8,7 @@ setup(
     author_email = 'hail@broadinstitute.org',
     description = 'Job manager for k8s',
     packages = find_packages(),
+    include_package_data=True,
     install_requires=[
         'cerberus',
         'kubernetes',

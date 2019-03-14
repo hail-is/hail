@@ -37,7 +37,9 @@ Follow Hail on Twitter <a href="https://twitter.com/hailgenetics">@hailgenetics<
 
 If you use Hail for published work, please cite the software:
 
+```
  - Hail, https://github.com/hail-is/hail
+```
 
 ##### Acknowledgements
 

@@ -20,6 +20,8 @@ CXX_TEST_LOG="build/cxx-test.log"
 SCALA_TEST_LOG="build/scala-test.log"
 CXX_CODEGEN_TEST_LOG="build/codegen-test.log"
 PYTHON_TEST_LOG="build/python-test.log"
+APISERVER_TEST_LOG="build/apiserver-test.log"
+APISERVER_LOG="build/apiserver.log"
 DOCTEST_LOG="build/doctest.log"
 DOCS_LOG="build/docs.log"
 GCP_LOG="build/gcp.log"
@@ -30,6 +32,7 @@ CXX_TEST_SUCCESS="build/_CXX_TEST_SUCCESS"
 SCALA_TEST_SUCCESS="build/_SCALA_TEST_SUCCESS"
 CXX_CODEGEN_TEST_SUCCESS="build/_CXX_CODEGEN_TEST_SUCCESS"
 PYTHON_TEST_SUCCESS="build/_PYTHON_TEST_SUCCESS"
+APISERVER_TEST_SUCCESS="build/_APISERVER_TEST_SUCCESS"
 DOCTEST_SUCCESS="build/_DOCTEST_SUCCESS"
 DOCS_SUCCESS="build/_DOCS_SUCCESS"
 GCP_SUCCESS="build/_GCP_SUCCESS"
@@ -67,14 +70,16 @@ on_exit() {
     cp ${SCALA_TEST_LOG} ${ARTIFACTS}
     cp ${CXX_CODEGEN_TEST_LOG} ${ARTIFACTS}
     cp ${PYTHON_TEST_LOG} ${ARTIFACTS}
+    cp ${APISERVER_TEST_LOG} ${ARTIFACTS}
+    cp ${APISERVER_LOG} ${ARTIFACTS}
     cp ${DOCS_LOG} ${ARTIFACTS}
     cp ${DOCTEST_LOG} ${ARTIFACTS}
     cp ${GCP_LOG} ${ARTIFACTS}
     cp ${PIP_PACKAGE_LOG} ${ARTIFACTS}
     cp -R build/www ${ARTIFACTS}/www
     cp -R src/main/c/build/reports ${ARTIFACTS}/cxx-report
-    cp -R build/reports/scala-tests ${ARTIFACTS}/test-report
-    cp -R build/reports/tests ${ARTIFACTS}/codegen-test-report
+    cp -R build/reports/tests ${ARTIFACTS}/test-report
+    cp -R build/reports/codegen-tests ${ARTIFACTS}/codegen-test-report
     cp -R build/reports/pytest.html ${ARTIFACTS}/hail-python-test.html
 
     COMP_STATUS=$(get_status "${COMP_SUCCESS}")
@@ -82,7 +87,8 @@ on_exit() {
     SCALA_TEST_STATUS=$(get_status "${SCALA_TEST_SUCCESS}" "${CXX_TEST_STATUS}")
     CXX_CODEGEN_TEST_STATUS=$(get_status "${CXX_CODEGEN_TEST_SUCCESS}" "${SCALA_TEST_STATUS}")
     PYTHON_TEST_STATUS=$(get_status "${PYTHON_TEST_SUCCESS}" "${CXX_CODEGEN_TEST_STATUS}")
-    DOCTEST_STATUS=$(get_status "${DOCTEST_SUCCESS}" "${PYTHON_TEST_STATUS}")
+    APISERVER_TEST_STATUS=$(get_status "${APISERVER_TEST_SUCCESS}" "${PYTHON_TEST_STATUS}")
+    DOCTEST_STATUS=$(get_status "${DOCTEST_SUCCESS}" "${APISERVER_TEST_STATUS}")
     DOCS_STATUS=$(get_status "${DOCS_SUCCESS}" "${DOCTEST_STATUS}")
     GCP_STATUS=$(if [ -e ${GCP_STOPPED} ]; then echo "${STOPPED}"; else get_status "${GCP_SUCCESS}"; fi)
     PIP_PACKAGE_STATUS=$(if [ -e ${PIP_PACKAGE_STOPPED} ]; then echo "${STOPPED}"; else get_status "${PIP_PACKAGE_SUCCESS}"; fi)
@@ -149,6 +155,14 @@ on_exit() {
 <td><a href='hail-python-test.html'>PyTest report</a></td>
 </tr>
 <tr>
+<td>${APISERVER_TEST_STATUS}</td>
+<td><a href='apiserver-test.log'>apiserver Test log</a></td>
+</tr>
+<tr>
+<td>${APISERVER_TEST_STATUS}</td>
+<td><a href='apiserver.log'>apiserver log</a></td>
+</tr>
+<tr>
 <td>${DOCTEST_STATUS}</td>
 <td><a href='doctest.log'>Doctest log</a/td>
 </tr>
@@ -212,11 +226,12 @@ test_project() {
     touch ${CXX_TEST_SUCCESS}
     ./gradlew test > ${SCALA_TEST_LOG} 2>&1
     touch ${SCALA_TEST_SUCCESS}
-    mv build/reports/tests build/reports/scala-tests
     ./gradlew testCppCodegen > ${CXX_CODEGEN_TEST_LOG} 2>&1
     touch ${CXX_CODEGEN_TEST_SUCCESS}
     ./gradlew testPython > ${PYTHON_TEST_LOG} 2>&1
     touch ${PYTHON_TEST_SUCCESS}
+    make test-apiserver > ${APISERVER_TEST_LOG} 2>&1
+    touch ${APISERVER_TEST_SUCCESS}
     ./gradlew doctest > ${DOCTEST_LOG} 2>&1
     touch ${DOCTEST_SUCCESS}
     ./gradlew makeDocs > ${DOCS_LOG} 2>&1

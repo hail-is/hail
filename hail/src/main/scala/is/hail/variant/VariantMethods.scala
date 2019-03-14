@@ -40,11 +40,11 @@ object VariantMethods {
 
     if (ref.length == 1)
       (locus, alleles)
-    else if (altAlleles.forall(a => AltAlleleMethods.isStar(ref, a)))
+    else if (altAlleles.forall(a => a == "*"))
       (locus, ref.substring(0, 1) +: altAlleles)
     else {
-      val alts = altAlleles.filter(a => !AltAlleleMethods.isStar(ref, a))
-      require(alts.forall(ref != _))
+      val alts = altAlleles.filter(a => a != "*")
+      require(!alts.contains(ref))
 
       val min_length = math.min(ref.length, alts.map(x => x.length).min)
       var ne = 0
@@ -68,7 +68,7 @@ object VariantMethods {
         assert(ns < ref.length - ne && alts.forall(x => ns < x.length - ne))
         (Locus(locus.contig, locus.position + ns),
           ref.substring(ns, ref.length - ne) +:
-          altAlleles.map(a => if (AltAlleleMethods.isStar(ref, a)) a else a.substring(ns, a.length - ne)).toArray)
+          altAlleles.map(a => if (a == "*") a else a.substring(ns, a.length - ne)).toArray)
       }
     }
   }

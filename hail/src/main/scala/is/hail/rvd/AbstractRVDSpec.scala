@@ -28,12 +28,14 @@ object AbstractRVDSpec {
     new TStructSerializer +
     new RVDTypeSerializer
 
-  def read(hc: HailContext, path: String): AbstractRVDSpec = {
+  def read(conf: org.apache.hadoop.conf.Configuration, path: String): AbstractRVDSpec = {
     val metadataFile = path + "/metadata.json.gz"
-    hc.hadoopConf.readFile(metadataFile) { in => JsonMethods.parse(in) }
+    conf.readFile(metadataFile) { in => JsonMethods.parse(in) }
       .transformField { case ("orvdType", value) => ("rvdType", value) } // ugh
       .extract[AbstractRVDSpec]
   }
+
+  def read(hc: HailContext, path: String): AbstractRVDSpec = read(hc.hadoopConf, path)
 
   def readLocal(hc: HailContext, path: String, rowType: PStruct, codecSpec: CodecSpec, partFiles: Array[String], requestedType: PStruct): IndexedSeq[Row] = {
     assert(partFiles.length == 1)
@@ -122,15 +124,6 @@ case class OrderedRVDSpec(
     new RVDPartitioner(rvdType.kType.virtualType,
       JSONAnnotationImpex.importAnnotation(jRangeBounds, rangeBoundsType, padNulls = false).asInstanceOf[IndexedSeq[Interval]])
   }
-
-  def cxxEmitRead(hc: HailContext, path: String, requestedType: TStruct, tub: cxx.TranslationUnitBuilder): cxx.RVDEmitTriplet = {
-    val requestedRVDType = rvdType.copy(rowType = requestedType.physicalType)
-    assert(requestedRVDType.kType == rvdType.kType)
-    val rangeBoundsType = TArray(TInterval(requestedRVDType.kType.virtualType))
-    val partitioner = new RVDPartitioner(requestedRVDType.kType.virtualType,
-      JSONAnnotationImpex.importAnnotation(jRangeBounds, rangeBoundsType, padNulls = false).asInstanceOf[IndexedSeq[Interval]])
-    cxx.RVDEmitTriplet.read(path, rvdType.rowType, codecSpec, partFiles, requestedRVDType, partitioner, tub)
-  }
 }
 
 abstract class AbstractRVDSpec {
@@ -150,8 +143,6 @@ abstract class AbstractRVDSpec {
 
     RVD(rvdType, partitioner, hc.readRows(path, encodedType, codecSpec, partFiles, requestedType))
   }
-
-  def cxxEmitRead(hc: HailContext, path: String, requestedType: TStruct, tub: cxx.TranslationUnitBuilder): cxx.RVDEmitTriplet
 
   def readLocal(hc: HailContext, path: String, requestedType: PStruct): IndexedSeq[Row] =
     AbstractRVDSpec.readLocal(hc, path, encodedType, codecSpec, partFiles, requestedType)

@@ -9,9 +9,24 @@ tearDownModule = stopTestHailContext
 
 class Tests(unittest.TestCase):
     def test_rename_duplicates(self):
-        dataset = get_dataset()  # FIXME - want to rename samples with same id
-        renamed_ids = hl.rename_duplicates(dataset).cols().select().collect()
-        self.assertTrue(len(set(renamed_ids)), len(renamed_ids))
+        mt = hl.utils.range_matrix_table(5, 5)
+
+        assert hl.rename_duplicates(
+            mt.key_cols_by(s=hl.str(mt.col_idx))
+        ).unique_id.collect() == ['0', '1', '2', '3', '4']
+
+        assert hl.rename_duplicates(
+            mt.key_cols_by(s='0')
+        ).unique_id.collect() == ['0', '0_1', '0_2', '0_3', '0_4']
+
+        assert hl.rename_duplicates(
+            mt.key_cols_by(s=hl.literal(['0', '0_1', '0', '0_2', '0'])[mt.col_idx])
+        ).unique_id.collect() == ['0', '0_1', '0_2', '0_2_1', '0_3']
+
+        assert hl.rename_duplicates(
+            mt.key_cols_by(s=hl.str(mt.col_idx)),
+            'foo'
+        )['foo'].dtype == hl.tstr
 
     def test_annotate_intervals(self):
         ds = get_dataset()
@@ -46,6 +61,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(ds.annotate_rows(target=interval_list2[ds.locus].target).rows()
                         ._same(ds.annotate_rows(target=bed2[ds.locus].target).rows()))
 
+    @skip_unless_spark_backend()
     def test_maximal_independent_set(self):
         # prefer to remove nodes with higher index
         t = hl.utils.range_table(10)
@@ -61,6 +77,7 @@ class Tests(unittest.TestCase):
         self.assertRaises(ValueError, lambda: hl.maximal_independent_set(graph.i, hl.utils.range_table(10).idx, True))
         self.assertRaises(ValueError, lambda: hl.maximal_independent_set(hl.literal(1), hl.literal(2), True))
 
+    @skip_unless_spark_backend()
     def test_maximal_independent_set2(self):
         edges = [(0, 4), (0, 1), (0, 2), (1, 5), (1, 3), (2, 3), (2, 6),
                  (3, 7), (4, 5), (4, 6), (5, 7), (6, 7)]
@@ -76,6 +93,7 @@ class Tests(unittest.TestCase):
         non_maximal_indep_sets = [{0, 7}, {6, 1}]
         self.assertTrue(mis in non_maximal_indep_sets or mis in maximal_indep_sets)
 
+    @skip_unless_spark_backend()
     def test_maximal_independent_set3(self):
         is_case = {"A", "C", "E", "G", "H"}
         edges = [("A", "B"), ("C", "D"), ("E", "F"), ("G", "H")]
@@ -97,6 +115,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(mis.all(mis.node.is_case))
         self.assertTrue(set([row.id for row in mis.select(mis.node.id).collect()]) in expected_sets)
 
+    @skip_unless_spark_backend()
     def test_maximal_independent_set_types(self):
         ht = hl.utils.range_table(10)
         ht = ht.annotate(i=hl.struct(a='1', b=hl.rand_norm(0, 1)),

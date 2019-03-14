@@ -38,7 +38,7 @@
             {% for pr in user_data['NEEDS_REVIEW'] %}
             <tr>
                 <td><a href="{{ pr.html_url }}">{{ pr.id }}</a></td>
-                <td><a href="https://github.com/{{ user }}">{{ pr.user }}</a></td>
+                <td><a href="https://github.com/{{ pr.user }}">{{ pr.user }}</a></td>
                 <td>{{ pr.title }}</td>
             </tr>
             {% endfor %}

@@ -225,4 +225,30 @@ class UtilsSuite extends SparkSuite {
     assert(toMapIfUnique(Seq(1 -> 2, 6 -> 6, 10 -> 2))(x => x % 5) ==
       Left(Map(1 -> Seq(1, 6))))
   }
+
+  @Test def testItemPartition(): Unit = {
+    def test(n: Int, k: Int) {
+      val a = new Array[Int](k)
+      var prevj = 0
+      for (i <- 0 until n) {
+        val j = itemPartition(i, n, k)
+
+        assert(j >= 0)
+        assert(j < k)
+        a(j) += 1
+
+        assert(prevj <= j)
+        prevj = j
+      }
+      val p = partition(n, k)
+      assert(a sameElements p)
+    }
+
+    test(0, 0)
+    test(0, 4)
+    test(2, 4)
+    test(2, 5)
+    test(12, 4)
+    test(12, 5)
+  }
 }

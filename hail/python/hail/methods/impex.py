@@ -11,7 +11,10 @@ from hail.genetics.reference_genome import reference_genome_type
 from hail.methods.misc import require_biallelic, require_row_key_variant, require_row_key_variant_w_struct_locus, require_col_key_str
 import hail as hl
 
+from typing import List
+
 _cached_importvcfs = None
+
 
 def locus_interval_expr(contig, start, end, includes_start, includes_end,
                         reference_genome, skip_invalid_intervals):
@@ -37,11 +40,13 @@ def locus_interval_expr(contig, start, end, includes_start, includes_end,
                            includes_start,
                            includes_end)
 
+
 def expr_or_else(expr, default, f=lambda x: x):
     if expr is not None:
         return hl.or_else(f(expr), default)
     else:
         return to_expr(default)
+
 
 @typecheck(dataset=MatrixTable,
            output=str,
@@ -433,7 +438,7 @@ def import_locus_intervals(path, reference_genome='default', skip_invalid_interv
     Add the row field `capture_region` indicating inclusion in
     at least one locus interval from `capture_intervals.txt`:
 
-    >>> intervals = hl.import_locus_intervals('data/capture_intervals.txt')
+    >>> intervals = hl.import_locus_intervals('data/capture_intervals.txt', reference_genome='GRCh37')
     >>> result = dataset.annotate_rows(capture_region = hl.is_defined(intervals[dataset.locus]))
 
     Notes
@@ -584,7 +589,7 @@ def import_bed(path, reference_genome='default', skip_invalid_intervals=False) -
     Add the row field `cnv_region` indicating inclusion in
     at least one interval of the three-column BED file:
 
-    >>> bed = hl.import_bed('data/file1.bed')
+    >>> bed = hl.import_bed('data/file1.bed', reference_genome='GRCh37')
     >>> result = dataset.annotate_rows(cnv_region = hl.is_defined(bed[dataset.locus]))
 
     Add a row field `cnv_id` with the value given by the
@@ -740,10 +745,10 @@ def import_fam(path, quant_pheno=False, delimiter=r'\\s+', missing='NA') -> Tabl
     -------
     :class:`.Table`
     """
-
-    jkt = Env.hail().table.Table.importFam(Env.hc()._jhc, path,
-                                           quant_pheno, delimiter, missing)
-    return Table._from_java(jkt)
+    type_and_data = json.loads(Env.hail().table.Table.importFamJSON(path, quant_pheno, delimiter, missing))
+    typ = hl.dtype(type_and_data['type'])
+    return hl.Table.parallelize(
+        hl.tarray(typ)._convert_from_json_na(type_and_data['data']), typ, key=['id'])
 
 
 @typecheck(regex=str,
@@ -953,16 +958,15 @@ def import_bgen(path,
 
     if index_file_map is None:
         index_file_map = {}
-    java_index_file_map = tdict(tstr, tstr)._convert_to_j(index_file_map)
 
     entry_set = set(entry_fields)
     row_set = set(_row_fields)
 
-    # have to get reference genome from the index files!
-    reference_genome = Env.hail().io.bgen.LoadBgen.getReferenceGenome(Env.hc()._jhc.hadoopConf(), wrap_to_list(path), java_index_file_map)
-    lt = tlocus(reference_genome) if reference_genome else tstruct(contig=tstr, position=tint32)
-
     if variants is not None:
+        mt_type = Env.backend().matrix_type(
+            MatrixRead(MatrixBGENReader(path, sample_file, index_file_map, n_partitions, block_size, None)))
+        lt = mt_type.row_type['locus']
+
         expected_vtype = tstruct(locus=lt, alleles=tarray(tstr))
 
         if isinstance(variants, StructExpression) or isinstance(variants, LocusExpression):
@@ -1043,7 +1047,8 @@ def import_gen(path,
     --------
 
     >>> ds = hl.import_gen('data/example.gen',
-    ...                    sample_file='data/example.sample')
+    ...                    sample_file='data/example.sample',
+    ...                    reference_genome='GRCh37')
 
     Notes
     -----
@@ -1118,16 +1123,12 @@ def import_gen(path,
     -------
     :class:`.MatrixTable`
     """
-
-    rg = reference_genome._jrep if reference_genome else None
-
-    if contig_recoding:
-        contig_recoding = tdict(tstr, tstr)._convert_to_j(contig_recoding)
-
-    jmt = Env.hc()._jhc.importGens(jindexed_seq_args(path), sample_file, joption(chromosome), joption(min_partitions),
-                                   tolerance, joption(rg), joption(contig_recoding),
-                                   skip_invalid_loci)
-    return MatrixTable._from_java(jmt)
+    path = wrap_to_list(path)
+    rg = reference_genome.name if reference_genome else None
+    if contig_recoding is None:
+        contig_recoding = {}
+    return MatrixTable(MatrixRead(MatrixGENReader(
+        path, sample_file, chromosome, min_partitions, tolerance, rg, contig_recoding, skip_invalid_loci)))
 
 
 @typecheck(paths=oneof(str, sequenceof(str)),
@@ -1141,7 +1142,10 @@ def import_gen(path,
            types=dictof(str, hail_type),
            quote=nullable(char),
            skip_blank_lines=bool,
-           force_bgz=bool)
+           force_bgz=bool,
+           filter=nullable(str),
+           find_replace=nullable(sized_tupleof(str, str)),
+           force=bool)
 def import_table(paths,
                  key=None,
                  min_partitions=None,
@@ -1153,7 +1157,10 @@ def import_table(paths,
                  types={},
                  quote=None,
                  skip_blank_lines=False,
-                 force_bgz=False) -> Table:
+                 force_bgz=False,
+                 filter=None,
+                 find_replace=None,
+                 force=False) -> Table:
     """Import delimited text file (text table) as :class:`.Table`.
 
     The resulting :class:`.Table` will have no key fields. Use
@@ -1314,19 +1321,34 @@ def import_table(paths,
         useful when the file extension is not ``'.bgz'``, but the file is
         blocked gzip, so that the file can be read in parallel and not on a
         single node.
+    filter : :obj:`str`, optional
+        Line filter regex. A partial match results in the line being removed
+        from the file. Applies before `find_replace`, if both are defined.
+    find_replace : (:obj:`str`, :obj:`str`)
+        Line substitution regex. Functions like ``re.sub``, but obeys the exact
+        semantics of Java's
+        `String.replaceAll <https://docs.oracle.com/javase/8/docs/api/java/lang/String.html#replaceAll-java.lang.String-java.lang.String->`__.
+    force : :obj:`bool`
+        If ``True``, load gzipped files serially on one core. This should
+        be used only when absolutely necessary, as processing time will be
+        increased due to lack of parallelism.
 
     Returns
     -------
     :class:`.Table`
     """
     paths = wrap_to_list(paths)
-    jtypes = {k: v._parsable_string() for k, v in types.items()}
     comment = wrap_to_list(comment)
 
-    jt = Env.hc()._jhc.importTable(paths, key, min_partitions, jtypes, comment,
-                                   delimiter, missing, no_header, impute, quote,
-                                   skip_blank_lines, force_bgz)
-    return Table._from_java(jt)
+    tr = TextTableReader(paths, min_partitions, types, comment,
+                         delimiter, missing, no_header, impute, quote,
+                         skip_blank_lines, force_bgz, filter, find_replace,
+                         force)
+    t = Table(TableRead(tr))
+    if key:
+        key = wrap_to_list(key)
+        t = t.key_by(*key)
+    return t
 
 
 @typecheck(paths=oneof(str, sequenceof(str)),
@@ -1453,7 +1475,7 @@ def import_matrix_table(paths,
 
     All columns to be imported as row fields must be at the start of the row.
 
-    Unlike import_table, no type imputation is done so types must be specified
+    Unlike :func:`import_table`, no type imputation is done so types must be specified
     for all columns that should be imported as row fields. (The other columns are
     imported as entries in the matrix.)
 
@@ -1505,9 +1527,9 @@ def import_matrix_table(paths,
     if len(sep) != 1:
         raise FatalError('sep must be a single character')
 
-    jmt = Env.hc()._jhc.importMatrix(paths, jrow_fields, row_key, entry_type._parsable_string(), missing, joption(min_partitions),
-                                     no_header, force_bgz, sep)
-    return MatrixTable._from_java(jmt)
+    return MatrixTable._from_java(
+        Env.hc()._jhc.importMatrix(paths, jrow_fields, row_key, entry_type._parsable_string(), missing, joption(min_partitions),
+                                   no_header, force_bgz, sep))
 
 
 @typecheck(bed=str,
@@ -1535,9 +1557,10 @@ def import_plink(bed, bim, fam,
     Examples
     --------
 
-    >>> ds = hl.import_plink(bed="data/test.bed",
-    ...                      bim="data/test.bim",
-    ...                      fam="data/test.fam")
+    >>> ds = hl.import_plink(bed='data/test.bed',
+    ...                      bim='data/test.bim',
+    ...                      fam='data/test.fam',
+    ...                      reference_genome='GRCh37')
 
     Notes
     -----
@@ -1664,7 +1687,7 @@ def import_plink(bed, bim, fam,
            _drop_cols=bool,
            _drop_rows=bool)
 def read_matrix_table(path, _drop_cols=False, _drop_rows=False) -> MatrixTable:
-    """Read in a :class:`.MatrixTable` written with written with :meth:`.MatrixTable.write`
+    """Read in a :class:`.MatrixTable` written with :meth:`.MatrixTable.write`.
 
     Parameters
     ----------
@@ -1732,8 +1755,8 @@ def get_vcf_metadata(path):
     -------
     :obj:`dict` of :obj:`str` to (:obj:`dict` of :obj:`str` to (:obj:`dict` of :obj:`str` to :obj:`str`))
     """
-    typ = tdict(tstr, tdict(tstr, tdict(tstr, tstr)))
-    return typ._convert_to_py(Env.hc()._jhc.parseVCFMetadata(path))
+    
+    return Env.backend().parse_vcf_metadata(path)
 
 
 @typecheck(path=oneof(str, sequenceof(str)),
@@ -1748,7 +1771,9 @@ def get_vcf_metadata(path):
            array_elements_required=bool,
            skip_invalid_loci=bool,
            entry_float_type=enumeration(tfloat32, tfloat64),
-           # json
+           filter=nullable(str),
+           find_replace=nullable(sized_tupleof(str, str)),
+            # json
            _partitions=nullable(str))
 def import_vcf(path,
                force=False,
@@ -1762,13 +1787,15 @@ def import_vcf(path,
                array_elements_required=True,
                skip_invalid_loci=False,
                entry_float_type=tfloat64,
+               filter=None,
+               find_replace=None,
                _partitions=None) -> MatrixTable:
     """Import VCF file(s) as a :class:`.MatrixTable`.
 
     Examples
     --------
 
-    >>> ds = hl.import_vcf('data/example2.vcf.bgz')
+    >>> ds = hl.import_vcf('data/example2.vcf.bgz', reference_genome='GRCh37')
 
     Notes
     -----
@@ -1882,6 +1909,13 @@ def import_vcf(path,
         Type of floating point entries in matrix table. Must be one of:
         :py:data:`.tfloat32` or :py:data:`.tfloat64`. Default:
         :py:data:`.tfloat64`.
+    filter : :obj:`str`, optional
+        Line filter regex. A partial match results in the line being removed
+        from the file. Applies before `find_replace`, if both are defined.
+    find_replace : (:obj:`str`, :obj:`str`)
+        Line substitution regex. Functions like ``re.sub``, but obeys the exact
+        semantics of Java's
+        `String.replaceAll <https://docs.oracle.com/javase/8/docs/api/java/lang/String.html#replaceAll-java.lang.String-java.lang.String->`__.
 
     Returns
     -------
@@ -1890,8 +1924,9 @@ def import_vcf(path,
 
     reader = MatrixVCFReader(path, call_fields, entry_float_type, header_file, min_partitions,
                              reference_genome, contig_recoding, array_elements_required,
-                             skip_invalid_loci, force_bgz, force, _partitions)
+                             skip_invalid_loci, force_bgz, force, filter, find_replace, _partitions)
     return MatrixTable(MatrixRead(reader, drop_cols=drop_samples))
+
 
 @typecheck(path=sequenceof(str),
            partitions=str,
@@ -1902,18 +1937,22 @@ def import_vcf(path,
            reference_genome=nullable(reference_genome_type),
            contig_recoding=nullable(dictof(str, str)),
            array_elements_required=bool,
-           skip_invalid_loci=bool)
+           skip_invalid_loci=bool,
+           filter=nullable(str),
+           find_replace=nullable(sized_tupleof(str, str)))
 def import_vcfs(path,
                 partitions,
                 force=False,
                 force_bgz=False,
-                call_fields=[],
+                call_fields=['PGT'],
                 entry_float_type=tfloat64,
                 reference_genome='default',
                 contig_recoding=None,
                 array_elements_required=True,
-                skip_invalid_loci=False) -> MatrixTable:
-    """Experimental. Import multiple vcfs as :class:`MatrixTable`s
+                skip_invalid_loci=False,
+                filter=None,
+                find_replace=None) -> List[MatrixTable]:
+    """Experimental. Import multiple vcfs as :class:`.MatrixTable`s
 
     The arguments to this function are almost identical to :func:`.import_vcf`,
     the only difference is the `partitions` argument, which is used to divide
@@ -1956,7 +1995,7 @@ def import_vcfs(path,
     if _cached_importvcfs is None:
         _cached_importvcfs = Env.hail().io.vcf.ImportVCFs
 
-    jmts = _cached_importvcfs.pyApply(
+    jmirs = _cached_importvcfs.pyApply(
         wrap_to_list(path),
         wrap_to_list(call_fields),
         entry_float_type._parsable_string(),
@@ -1966,8 +2005,12 @@ def import_vcfs(path,
         skip_invalid_loci,
         force_bgz,
         force,
-        partitions)
-    return [MatrixTable._from_java(jmt) for jmt in jmts]
+        partitions,
+        filter,
+        find_replace[0] if find_replace is not None else None,
+        find_replace[1] if find_replace is not None else None)
+    return [MatrixTable._from_java(jmir) for jmir in jmirs]
+
 
 @typecheck(path=oneof(str, sequenceof(str)),
            index_file_map=nullable(dictof(str, str)),
@@ -1989,7 +2032,8 @@ def index_bgen(path,
     Index a BGEN file, renaming contig name "01" to "1":
 
     >>> hl.index_bgen("data/example.8bits.bgen",
-    ...               contig_recoding={"01": "1"})
+    ...               contig_recoding={"01": "1"},
+    ...               reference_genome='GRCh37')
 
     Warning
     -------
@@ -2019,14 +2063,11 @@ def index_bgen(path,
 
     """
     rg = reference_genome.name if reference_genome else None
-
-    if contig_recoding:
-        contig_recoding = tdict(tstr, tstr)._convert_to_j(contig_recoding)
-
-    if index_file_map:
-        index_file_map = tdict(tstr, tstr)._convert_to_j(index_file_map)
-
-    Env.hc()._jhc.indexBgen(jindexed_seq_args(path), index_file_map, joption(rg), contig_recoding, skip_invalid_loci)
+    if index_file_map is None:
+        index_file_map = {}
+    if contig_recoding is None:
+        contig_recoding = {}
+    Env.hc()._jhc.indexBgen(wrap_to_list(path), index_file_map, joption(rg), contig_recoding, skip_invalid_loci)
 
 
 @typecheck(path=str)
@@ -2042,7 +2083,9 @@ def read_table(path) -> Table:
     -------
     :class:`.Table`
     """
-    return Table._from_java(Env.hc()._jhc.readTable(path))
+    tr = TableNativeReader(path)
+    return Table(TableRead(tr, False))
+
 
 @typecheck(t=Table,
            host=str,

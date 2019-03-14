@@ -1,6 +1,5 @@
 import unittest
 
-import hail as hl
 from hail.linalg import BlockMatrix
 from hail.utils import new_temp_file, new_local_temp_dir, local_path_uri, FatalError
 from ..helpers import *
@@ -25,6 +24,18 @@ class Tests(unittest.TestCase):
 
     def _assert_close(self, a, b):
         self.assertTrue(np.allclose(self._np_matrix(a), self._np_matrix(b)))
+
+    def _assert_rectangles_eq(self, expected, rect_path, export_rects, binary=False):
+        for (i, r) in enumerate(export_rects):
+            file = rect_path + '/rect-' + str(i) + '_' + '-'.join(map(str, r))
+            expected_rect = expected[r[0]:r[1], r[2]:r[3]]
+            actual_rect = np.reshape(np.fromfile(file), (r[1] - r[0], r[3] - r[2])) if binary else np.loadtxt(file, ndmin=2)
+            self._assert_eq(expected_rect, actual_rect)
+
+    def assert_sums_agree(self, bm, nd):
+        self.assertAlmostEqual(bm.sum(), np.sum(nd))
+        self._assert_close(bm.sum(axis=0), np.sum(nd, axis=0, keepdims=True))
+        self._assert_close(bm.sum(axis=1), np.sum(nd, axis=1, keepdims=True))
 
     def test_from_entry_expr(self):
         mt = get_dataset()
@@ -95,13 +106,21 @@ class Tests(unittest.TestCase):
 
         BlockMatrix.write_from_entry_expr(mt.x + 2, path2, overwrite=True)
         self._assert_eq(BlockMatrix.read(path2), bm + 2)
-        
+
+    def test_random_uniform(self):
+        uniform = BlockMatrix.random(10, 10, gaussian=False)
+
+        nuniform = uniform.to_numpy()
+        for row in nuniform:
+            for entry in row:
+                assert entry > 0
+
     def test_to_from_numpy(self):
         n_rows = 10
         n_cols = 11
         data = np.random.rand(n_rows * n_cols)
 
-        bm = BlockMatrix._create(n_rows, n_cols, data.tolist(), row_major=True, block_size=4)
+        bm = BlockMatrix._create(n_rows, n_cols, data.tolist(), block_size=4)
         a = data.reshape((n_rows, n_cols))
 
         with tempfile.NamedTemporaryFile() as bm_f:
@@ -140,46 +159,6 @@ class Tests(unittest.TestCase):
                 self._assert_eq(at3, at)
                 self._assert_eq(at4, at)
                 self._assert_eq(at5, at)
-
-    def test_promote(self):
-        nx = np.matrix([[2.0]])
-        nc = np.matrix([[1.0], [2.0]])
-        nr = np.matrix([[1.0, 2.0, 3.0]])
-        nm = np.matrix([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
-
-        e = 2
-        x = BlockMatrix.from_numpy(nx)
-        c = BlockMatrix.from_numpy(nc)
-        r = BlockMatrix.from_numpy(nr)
-        m = BlockMatrix.from_numpy(nm)
-
-        nct, nrt, nmt = nc.T, nr.T, nm.T
-        ct, rt, mt = c.T, r.T, m.T
-
-        good = [(x, x),  (x, c),  (x, r),  (x, m), (x, e),
-                (c, x),  (c, c),           (c, m), (c, e),
-                (r, x),           (r, r),  (r, m), (r, e),
-                (m, x),  (m, c),  (m, r),  (m, m), (m, e),
-                (x, nx), (x, nc), (x, nr), (x, nm),
-                (c, nx), (c, nc),          (c, nm),
-                (r, nx),          (r, nr), (r, nm),
-                (m, nx), (m, nc), (m, nr), (m, nm)]
-
-        bad = [(c, r), (r, c), (c, ct), (r, rt),
-               (c, rt), (c, mt), (ct, r), (ct, m),
-               (r, ct), (r, mt), (rt, c), (rt, m),
-               (m, ct), (m, rt), (m, mt), (mt, c), (mt, r), (mt, m),
-               (c, nr), (r, nc), (c, nct), (r, nrt),
-               (c, nrt), (c, nmt), (ct, nr), (ct, nm),
-               (r, nct), (r, nmt), (rt, nc), (rt, nm),
-               (m, nct), (m, nrt), (m, nmt), (mt, nc), (mt, nr), (mt, nm)]
-
-        for (a, b) in good:
-            a._promote(b, '')
-
-        for (a, b) in bad:
-            self.assertRaises(ValueError,
-                              lambda: a._promote(b, ''))
 
     def test_elementwise_ops(self):
         nx = np.matrix([[2.0]])
@@ -372,25 +351,30 @@ class Tests(unittest.TestCase):
         m = BlockMatrix.from_numpy(nm)
 
         self._assert_close(m ** 3, nm ** 3)
-
         self._assert_close(m.sqrt(), np.sqrt(nm))
-
         self._assert_close(m.log(), np.log(nm))
-
         self._assert_close((m - 4).abs(), np.abs(nm - 4))
 
     def test_matrix_ops(self):
         nm = np.matrix([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
         m = BlockMatrix.from_numpy(nm, block_size=2)
 
+        nrow = np.matrix([[7.0, 8.0, 9.0]])
+        row = BlockMatrix.from_numpy(nrow, block_size=2)
+
         self._assert_eq(m.T, nm.T)
         self._assert_eq(m.T, nm.T)
+        self._assert_eq(row.T, nrow.T)
 
         self._assert_eq(m @ m.T, nm @ nm.T)
         self._assert_eq(m @ nm.T, nm @ nm.T)
+        self._assert_eq(row @ row.T, nrow @ nrow.T)
+        self._assert_eq(row @ nrow.T, nrow @ nrow.T)
 
         self._assert_eq(m.T @ m, nm.T @ nm)
         self._assert_eq(m.T @ nm, nm.T @ nm)
+        self._assert_eq(row.T @ row, nrow.T @ nrow)
+        self._assert_eq(row.T @ nrow, nrow.T @ nrow)
 
         self.assertRaises(ValueError, lambda: m @ m)
         self.assertRaises(ValueError, lambda: m @ nm)
@@ -410,33 +394,31 @@ class Tests(unittest.TestCase):
         self._assert_eq(bm2, nd)
 
     def test_sum(self):
-        def sums_agree(bm, nd):
-            self.assertAlmostEqual(bm.sum(), np.sum(nd))
-            self._assert_close(bm.sum(axis=0), np.sum(nd, axis=0, keepdims=True))
-            self._assert_close(bm.sum(axis=1), np.sum(nd, axis=1, keepdims=True))
-
         nd = np.random.normal(size=(11, 13))
         bm = BlockMatrix.from_numpy(nd, block_size=3)
 
-        nd2 = np.zeros(shape=(5, 7))
-        nd2[2, 4] = 1.0
-        nd2[2, 5] = 2.0
-        nd2[3, 4] = 3.0
-        nd2[3, 5] = 4.0
-        bm2 = BlockMatrix.from_numpy(nd2, block_size=2).sparsify_rectangles([[2, 4, 4, 6]])
+        self.assert_sums_agree(bm, nd)
 
-        bm3 = BlockMatrix.from_numpy(nd2, block_size=2).sparsify_rectangles([[2, 4, 4, 6], [0, 5, 0, 1]])
+    @skip_unless_spark_backend()
+    def test_sum_with_sparsify(self):
+        nd = np.zeros(shape=(5, 7))
+        nd[2, 4] = 1.0
+        nd[2, 5] = 2.0
+        nd[3, 4] = 3.0
+        nd[3, 5] = 4.0
+        bm = BlockMatrix.from_numpy(nd, block_size=2).sparsify_rectangles([[2, 4, 4, 6]])
 
-        bm4 = BlockMatrix.from_numpy(nd2, block_size=2).sparsify_rectangles([[2, 4, 4, 6], [0, 1, 0, 7]])
+        bm2 = BlockMatrix.from_numpy(nd, block_size=2).sparsify_rectangles([[2, 4, 4, 6], [0, 5, 0, 1]])
 
-        nd5 = np.zeros(shape=(5, 7))
-        bm5 = BlockMatrix.fill(5, 7, value=0.0, block_size=2).sparsify_rectangles([])
+        bm3 = BlockMatrix.from_numpy(nd, block_size=2).sparsify_rectangles([[2, 4, 4, 6], [0, 1, 0, 7]])
 
-        sums_agree(bm, nd)
-        sums_agree(bm2, nd2)
-        sums_agree(bm3, nd2)
-        sums_agree(bm4, nd2)
-        sums_agree(bm5, nd5)
+        nd4 = np.zeros(shape=(5, 7))
+        bm4 = BlockMatrix.fill(5, 7, value=0.0, block_size=2).sparsify_rectangles([])
+
+        self.assert_sums_agree(bm, nd)
+        self.assert_sums_agree(bm2, nd)
+        self.assert_sums_agree(bm3, nd)
+        self.assert_sums_agree(bm4, nd4)
 
     def test_slicing(self):
         nd = np.array(np.arange(0, 80, dtype=float)).reshape(8, 10)
@@ -488,6 +470,10 @@ class Tests(unittest.TestCase):
         self.assertRaises(ValueError, lambda: bm[0, -11:])
         self.assertRaises(ValueError, lambda: bm[0, :-11])
 
+    @skip_unless_spark_backend()
+    def test_slices_with_sparsify(self):
+        nd = np.array(np.arange(0, 80, dtype=float)).reshape(8, 10)
+        bm = BlockMatrix.from_numpy(nd, block_size=3)
         bm2 = bm.sparsify_row_intervals([0, 0, 0, 0, 0, 0, 0, 0], [2, 0, 0, 0, 0, 0, 0, 0])
         self.assertEqual(bm2[0, 1], 1.0)
         self.assertEqual(bm2[0, 2], 0.0)
@@ -501,6 +487,7 @@ class Tests(unittest.TestCase):
         self._assert_eq(bm2[1, :], nd2[1:2, :])
         self._assert_eq(bm2[0:5, 0:5], nd2[0:5, 0:5])
 
+    @skip_unless_spark_backend()
     def test_sparsify_row_intervals(self):
         nd = np.array([[ 1.0,  2.0,  3.0,  4.0],
                        [ 5.0,  6.0,  7.0,  8.0],
@@ -546,6 +533,7 @@ class Tests(unittest.TestCase):
                     expected[i, j] = 0.0
             self._assert_eq(actual, expected)
 
+    @skip_unless_spark_backend()
     def test_sparsify_band(self):
         nd = np.array([[ 1.0,  2.0,  3.0,  4.0],
                        [ 5.0,  6.0,  7.0,  8.0],
@@ -576,6 +564,7 @@ class Tests(unittest.TestCase):
             mask = np.fromfunction(lambda i, j: (lower <= j - i) * (j - i <= upper), (8, 10))
             self._assert_eq(actual, nd2 * mask)
 
+    @skip_unless_spark_backend()
     def test_sparsify_triangle(self):
         nd = np.array([[ 1.0,  2.0,  3.0,  4.0],
                        [ 5.0,  6.0,  7.0,  8.0],
@@ -607,6 +596,7 @@ class Tests(unittest.TestCase):
                       [ 0.,  0., 11., 12.],
                       [ 0.,  0., 15., 16.]]))
 
+    @skip_unless_spark_backend()
     def test_sparsify_rectangles(self):
         nd = np.array([[ 1.0,  2.0,  3.0,  4.0],
                        [ 5.0,  6.0,  7.0,  8.0],
@@ -636,44 +626,88 @@ class Tests(unittest.TestCase):
 
         for rects in [rects1, rects2, rects3]:
             for block_size in [3, 4, 10]:
-                bm_uri = new_temp_file()
-
                 rect_path = new_local_temp_dir()
                 rect_uri = local_path_uri(rect_path)
 
-                (BlockMatrix.from_numpy(nd, block_size=block_size)
-                    .sparsify_rectangles(rects)
-                    .write(bm_uri, force_row_major=True))
+                bm = BlockMatrix.from_numpy(nd, block_size=block_size)
+                bm.export_rectangles(rect_uri, rects)
 
-                BlockMatrix.export_rectangles(bm_uri, rect_uri, rects)
-
-                for (i, r) in enumerate(rects):
-                    file = rect_path + '/rect-' + str(i) + '_' + '-'.join(map(str, r))
-                    expected = nd[r[0]:r[1], r[2]:r[3]]
-                    actual = np.loadtxt(file, ndmin = 2)
-                    self._assert_eq(expected, actual)
+                self._assert_rectangles_eq(nd, rect_path, rects)
 
                 rect_path_bytes = new_local_temp_dir()
                 rect_uri_bytes = local_path_uri(rect_path_bytes)
 
-                BlockMatrix.export_rectangles(bm_uri, rect_uri_bytes, rects, binary=True)
+                bm.export_rectangles(rect_uri_bytes, rects, binary=True)
+                self._assert_rectangles_eq(nd, rect_path_bytes, rects, binary=True)
 
-                for (i, r) in enumerate(rects):
-                    file = rect_path_bytes + '/rect-' + str(i) + '_' + '-'.join(map(str, r))
-                    expected = nd[r[0]:r[1], r[2]:r[3]]
-                    actual = np.reshape(np.fromfile(file), (r[1] - r[0], r[3] - r[2]))
-                    self._assert_eq(expected, actual)
+    @skip_unless_spark_backend()
+    def test_export_rectangles_sparse(self):
+        rect_path = new_local_temp_dir()
+        rect_uri = local_path_uri(rect_path)
+        nd = np.array([[1.0, 2.0, 3.0, 4.0],
+                       [5.0, 6.0, 7.0, 8.0],
+                       [9.0, 10.0, 11.0, 12.0],
+                       [13.0, 14.0, 15.0, 16.0]])
+        bm = BlockMatrix.from_numpy(nd, block_size=2)
+        sparsify_rects = [[0, 1, 0, 1], [0, 3, 0, 2], [1, 2, 0, 4]]
+        export_rects = [[0, 1, 0, 1], [0, 3, 0, 2], [1, 2, 0, 4], [2, 4, 2, 4]]
+        bm.sparsify_rectangles(sparsify_rects).export_rectangles(rect_uri, export_rects)
 
-        bm_uri = new_temp_file()
-        rect_uri = new_temp_file()
+        expected = np.array([[1.0, 2.0, 3.0, 4.0],
+                             [5.0, 6.0, 7.0, 8.0],
+                             [9.0, 10.0, 0.0, 0.0],
+                             [13.0, 14.0, 0.0, 0.0]])
 
-        (BlockMatrix.from_numpy(nd, block_size=5)
-            .sparsify_rectangles([[0, 1, 0, 1]])
-            .write(bm_uri, force_row_major=True))
+        self._assert_rectangles_eq(expected, rect_path, export_rects)
 
-        with self.assertRaises(FatalError) as e:
-            BlockMatrix.export_rectangles(bm_uri, rect_uri, [[5, 6, 5, 6]])
-            self.assertEquals(e.msg, 'block (1, 1) missing for rectangle 0 with bounds [5, 6, 5, 6]')
+    def test_export_rectangles_filtered(self):
+        rect_path = new_local_temp_dir()
+        rect_uri = local_path_uri(rect_path)
+        nd = np.array([[1.0, 2.0, 3.0, 4.0],
+                       [5.0, 6.0, 7.0, 8.0],
+                       [9.0, 10.0, 11.0, 12.0],
+                       [13.0, 14.0, 15.0, 16.0]])
+        bm = BlockMatrix.from_numpy(nd)
+        bm = bm[1:3, 1:3]
+        export_rects = [[0, 1, 0, 2], [1, 2, 0, 2]]
+        bm.export_rectangles(rect_uri, export_rects)
+
+        expected = np.array([[6.0, 7.0],
+                             [10.0, 11.0]])
+
+        self._assert_rectangles_eq(expected, rect_path, export_rects)
+
+    def test_export_blocks(self):
+        nd = np.ones(shape=(8, 10))
+        bm = BlockMatrix.from_numpy(nd, block_size=20)
+
+        bm_path = new_local_temp_dir()
+        bm_uri = local_path_uri(bm_path)
+        bm.export_blocks(bm_uri, binary=True)
+        actual = BlockMatrix.rectangles_to_numpy(bm_path, binary=True)
+
+        self._assert_eq(nd, actual)
+
+    def test_rectangles_to_numpy(self):
+        nd = np.array([[1.0, 2.0, 3.0],
+                       [4.0, 5.0, 6.0],
+                       [7.0, 8.0, 9.0]])
+
+        rects = [[0, 3, 0, 1], [1, 2, 0, 2]]
+
+        rect_path = new_local_temp_dir()
+        rect_uri = local_path_uri(rect_path)
+        BlockMatrix.from_numpy(nd).export_rectangles(rect_uri, rects)
+
+        rect_bytes_path = new_local_temp_dir()
+        rect_bytes_uri = local_path_uri(rect_bytes_path)
+        BlockMatrix.from_numpy(nd).export_rectangles(rect_bytes_uri, rects, binary=True)
+
+        expected = np.array([[1.0, 0.0],
+                             [4.0, 5.0],
+                             [7.0, 0.0]])
+        self._assert_eq(expected, BlockMatrix.rectangles_to_numpy(rect_path))
+        self._assert_eq(expected, BlockMatrix.rectangles_to_numpy(rect_bytes_path, binary=True))
 
     def test_block_matrix_entries(self):
         n_rows, n_cols = 5, 3
@@ -834,6 +868,7 @@ class Tests(unittest.TestCase):
         bm = BlockMatrix.read(bm_uri)
         self._assert_eq(nd, bm)
 
+    @skip_unless_spark_backend()
     def test_svd(self):
         def assert_same_columns_up_to_sign(a, b):
             for j in range(a.shape[1]):

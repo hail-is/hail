@@ -5,6 +5,7 @@ import unittest
 
 import hail as hl
 import hail.expr.aggregators as agg
+from hail.utils.java import Env
 from hail.utils.misc import new_temp_file
 from ..helpers import *
 
@@ -71,6 +72,32 @@ class Tests(unittest.TestCase):
         for x, t, f in data:
             self.assertTrue(f(hl.eval(mt.annotate_globals(foo=hl.literal(x, t)).foo), x), f"{x}, {t}")
             self.assertTrue(f(hl.eval(ht.annotate_globals(foo=hl.literal(x, t)).foo), x), f"{x}, {t}")
+
+    def test_head(self):
+        # no empty partitions
+        mt1 = hl.utils.range_matrix_table(10, 10)
+
+        # empty partitions at front
+        mt2 = hl.utils.range_matrix_table(20, 10, 20)
+        mt2 = mt2.filter_rows(mt2.row_idx > 9)
+        mts = [mt1, mt2]
+
+        for mt in mts:
+            tmp_file = new_temp_file(suffix='mt')
+
+            mt.write(tmp_file)
+            mt_readback = hl.read_matrix_table(tmp_file)
+            for mt_ in [mt, mt_readback]:
+                assert mt_.head(1).count_rows() == 1
+                assert mt_.head(1)._force_count_rows() == 1
+                assert mt_.head(100).count_rows() == 10
+                assert mt_.head(100)._force_count_rows() == 10
+
+    def test_head_cols(self):
+        mt1 = hl.utils.range_matrix_table(10, 10)
+        assert mt1.head(1, 2).count() == (1, 2)
+        assert mt1.head(1, None).count() == (1, 10)
+        assert mt1.head(None, 1).count() == (10, 1)
 
     def test_filter(self):
         vds = self.get_vds()
@@ -206,6 +233,16 @@ class Tests(unittest.TestCase):
         with self.assertRaises(ValueError):
             mt.explode_rows('b')
 
+    def test_group_by_field_lifetimes(self):
+        mt = hl.utils.range_matrix_table(3, 3)
+        mt2 = (mt.group_rows_by(row_idx='100')
+               .aggregate(x=hl.agg.collect_as_set(mt.row_idx + 5)))
+        assert mt2.aggregate_entries(hl.agg.all(mt2.x == hl.set({5, 6, 7})))
+
+        mt3 = (mt.group_cols_by(col_idx='100')
+               .aggregate(x=hl.agg.collect_as_set(mt.col_idx + 5)))
+        assert mt3.aggregate_entries(hl.agg.all(mt3.x == hl.set({5, 6, 7})))
+
     def test_aggregate_cols_by(self):
         mt = hl.utils.range_matrix_table(2, 4)
         mt = (mt.annotate_cols(group=mt.col_idx < 2)
@@ -295,6 +332,20 @@ class Tests(unittest.TestCase):
         ds2.explode_rows(ds2['\%!^!@#&#&$%#$%'])
         ds2.group_rows_by(ds2.a).aggregate(**{'*``81': agg.count()})
 
+    def test_semi_anti_join_rows(self):
+        mt = hl.utils.range_matrix_table(10, 3)
+        ht = hl.utils.range_table(3)
+
+        assert mt.semi_join_rows(ht).count() == (3, 3)
+        assert mt.anti_join_rows(ht).count() == (7, 3)
+
+    def test_semi_anti_join_cols(self):
+        mt = hl.utils.range_matrix_table(3, 10)
+        ht = hl.utils.range_table(3)
+
+        assert mt.semi_join_cols(ht).count() == (3, 3)
+        assert mt.anti_join_cols(ht).count() == (3, 7)
+
     def test_joins(self):
         vds = self.get_vds().select_rows(x1=1, y1=1)
         vds2 = vds.select_rows(x2=1, y2=2)
@@ -359,6 +410,9 @@ class Tests(unittest.TestCase):
         r2 = hl.MatrixTable.union_rows(*datasets)
 
         self.assertTrue(r1._same(r2))
+
+        with self.assertRaises(ValueError):
+            ds1.filter_cols(ds1.s.endswith('5')).union_rows(ds2)
 
         # test union_cols
         ds = dataset.union_cols(dataset).union_cols(dataset)
@@ -592,7 +646,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(ds.globals_table()._same(t))
 
     def test_codecs_matrix(self):
-        from hail.utils.java import Env, scala_object
+        from hail.utils.java import scala_object
         codecs = scala_object(Env.hail().io, 'CodecSpec').codecSpecs()
         ds = self.get_vds()
         temp = new_temp_file(suffix='hmt')
@@ -602,7 +656,7 @@ class Tests(unittest.TestCase):
             self.assertTrue(ds._same(ds2))
 
     def test_codecs_table(self):
-        from hail.utils.java import Env, scala_object
+        from hail.utils.java import scala_object
         codecs = scala_object(Env.hail().io, 'CodecSpec').codecSpecs()
         rt = self.get_vds().rows()
         temp = new_temp_file(suffix='ht')
@@ -763,10 +817,18 @@ class Tests(unittest.TestCase):
         mt = mt.key_cols_by(col_idx=hl.str(mt.col_idx))
 
         t = mt.make_table()
-        assert(list(t.row) == ['row_idx'], ['0.x'], ['1.x'])
+        assert list(t.row) == ['row_idx', '0.x', '1.x']
 
         t = mt.make_table(separator='__')
-        assert(list(t.row) == ['row_idx'], ['0__x'], ['1__x'])
+        assert list(t.row) == ['row_idx', '0__x', '1__x']
+
+    def test_make_table_row_equivalence(self):
+        mt = hl.utils.range_matrix_table(3, 3)
+        mt = mt.annotate_rows(r1 = hl.rand_norm(), r2 = hl.rand_norm())
+        mt = mt.annotate_entries(e1 = hl.rand_norm(), e2 = hl.rand_norm())
+        mt = mt.key_cols_by(col_idx=hl.str(mt.col_idx))
+
+        assert mt.make_table().select(*mt.row_value)._same(mt.rows())
 
     def test_transmute(self):
         mt = (
@@ -1025,3 +1087,61 @@ class Tests(unittest.TestCase):
                  ]
         for aggregation, expected in tests:
             self.assertEqual(t.select_rows(result = aggregation).result.collect()[0], expected)
+
+    def localize_entries_with_both_none_is_rows_table(self):
+        mt = hl.utils.range_matrix_table(10, 10)
+        mt = mt.select_entries(x = mt.row_idx * mt.col_idx)
+        localized = mt.localize_entries(entries_array_field_name=None,
+                                        columns_array_field_name=None)
+        rows_table = mt.rows()
+        assert rows_table.collect() == localized.collect()
+        assert rows_table.globals_table().collect() == localized.globals_table().collect()
+
+    def localize_entries_with_none_cols_adds_no_globals(self):
+        mt = hl.utils.range_matrix_table(10, 10)
+        mt = mt.select_entries(x = mt.row_idx * mt.col_idx)
+        localized = mt.localize_entries(entries_array_field_name=Env.get_uid(),
+                                        columns_array_field_name=None)
+        assert mt.globals_table().collect() == localized.globals_table().collect()
+
+    def localize_entries_with_none_entries_changes_no_rows(self):
+        mt = hl.utils.range_matrix_table(10, 10)
+        mt = mt.select_entries(x = mt.row_idx * mt.col_idx)
+        localized = mt.localize_entries(entries_array_field_name=None,
+                                        columns_array_field_name=Env.get_uid())
+        rows_table = mt.rows()
+        assert rows_table.collect() == localized.collect()
+
+    def localize_entries_creates_arrays_of_entries_and_array_of_cols(self):
+        mt = hl.utils.range_matrix_table(10, 10)
+        mt = mt.select_entries(x = mt.row_idx * mt.col_idx)
+        localized = mt.localize_entries(entries_array_field_name='entries',
+                                        columns_array_field_name='cols')
+        assert [[x * y for x in range(0, 10)] for y in range(0, 10)] == localized.entries.collect()
+        assert range(0, 10) == localized.cols.collect()
+
+    def test_multi_write(self):
+        mt = self.get_vds()
+        f = new_temp_file()
+        hl.experimental.write_matrix_tables([mt, mt], f)
+        path1 = f + '0.mt'
+        path2 = f + '1.mt'
+        mt1 = hl.read_matrix_table(path1)
+        mt2 = hl.read_matrix_table(path2)
+        self.assertTrue(mt._same(mt1))
+        self.assertTrue(mt._same(mt2))
+        self.assertTrue(mt1._same(mt2))
+
+    def test_entry_filtering(self):
+        mt = hl.utils.range_matrix_table(10, 10)
+        mt = mt.filter_entries((mt.col_idx + mt.row_idx) % 2 == 0)
+
+        assert mt.aggregate_entries(hl.agg.count()) == 50
+        assert all(x == 5 for x in mt.annotate_cols(x = hl.agg.count()).x.collect())
+        assert all(x == 5 for x in mt.annotate_rows(x = hl.agg.count()).x.collect())
+
+        mt = mt.unfilter_entries()
+
+        assert mt.aggregate_entries(hl.agg.count()) == 100
+        assert all(x == 10 for x in mt.annotate_cols(x = hl.agg.count()).x.collect())
+        assert all(x == 10 for x in mt.annotate_rows(x = hl.agg.count()).x.collect())

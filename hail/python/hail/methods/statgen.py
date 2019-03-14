@@ -98,11 +98,12 @@ def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None) -> 
     else:
         dataset = dataset.select_rows()
     dataset = dataset.select_cols().select_globals().select_entries('GT')
-    return Table._from_java(Env.hail().methods.IBD.apply(require_biallelic(dataset, 'ibd')._jmt,
-                                                         joption('__maf' if maf is not None else None),
-                                                         bounded,
-                                                         joption(min),
-                                                         joption(max)))
+    return Table._from_java(Env.hail().methods.IBD.pyApply(
+        Env.spark_backend('ibd')._to_java_ir(require_biallelic(dataset, 'ibd')._mir),
+        joption('__maf' if maf is not None else None),
+        bounded,
+        joption(min),
+        joption(max)))
 
 
 @typecheck(call=expr_call,
@@ -492,7 +493,7 @@ def logistic_regression_rows(test, y, x, covariates, pass_through=()) -> hail.Ta
 
     .. math::
 
-        \mathrm{Prob}(\mathrm{is_case}) =
+        \mathrm{Prob}(\mathrm{is\_case}) =
             \mathrm{sigmoid}(\beta_0 + \beta_1 \, \mathrm{gt}
                             + \beta_2 \, \mathrm{age}
                             + \beta_3 \, \mathrm{is\_female} + \varepsilon),
@@ -665,6 +666,7 @@ def logistic_regression_rows(test, y, x, covariates, pass_through=()) -> hail.Ta
     y_is_list = isinstance(y, list)
     if y_is_list and len(y) == 0:
         raise ValueError(f"'logistic_regression_rows': found no values for 'y'")
+    y = wrap_to_list(y)
 
     for e in covariates:
         analyze('logistic_regression_rows/covariates', e, mt._col_indices)
@@ -672,12 +674,11 @@ def logistic_regression_rows(test, y, x, covariates, pass_through=()) -> hail.Ta
     _warn_if_no_intercept('logistic_regression_rows', covariates)
 
     x_field_name = Env.get_uid()
-    y_field = list(f'__y_{i}' for i in range(len(y))) if y_is_list else "__y"
+    y_field = [f'__y_{i}' for i in range(len(y))]
 
-    y_dict = dict(zip(y_field, y)) if y_is_list else {y_field: y}
-    func = Env.hail().methods.LogisticRegression
+    y_dict = dict(zip(y_field, y))
 
-    cov_field_names = list(f'__cov{i}' for i in range(len(covariates)))
+    cov_field_names = [f'__cov{i}' for i in range(len(covariates))]
     row_fields = _get_regression_row_fields(mt, pass_through, 'logistic_regression_rows')
 
     # FIXME: selecting an existing entry field should be emitted as a SelectFields
@@ -687,15 +688,21 @@ def logistic_regression_rows(test, y, x, covariates, pass_through=()) -> hail.Ta
                         col_key=[],
                         entry_exprs={x_field_name: x})
 
-    jt = func.apply(
-        mt._jmt,
-        test,
-        y_field,
-        x_field_name,
-        cov_field_names,
-        [x for x in row_fields if x not in mt.row_key])
-    return Table._from_java(jt)
+    config = {
+        'name': 'LogisticRegression',
+        'test': test,
+        'yFields': y_field,
+        'xField': x_field_name,
+        'covFields': cov_field_names,
+        'passThrough': [x for x in row_fields if x not in mt.row_key]
+    }
 
+    result = Table(MatrixToTableApply(mt._mir, config))
+
+    if not y_is_list:
+        result = result.transmute(**result.logistic_regression[0])
+
+    return result.persist()
 
 @typecheck(test=enumeration('wald', 'lrt', 'score'),
            y=expr_float64,
@@ -760,14 +767,16 @@ def poisson_regression_rows(test, y, x, covariates, pass_through=()) -> Table:
                         col_key=[],
                         entry_exprs={x_field_name: x})
 
-    jt = Env.hail().methods.PoissonRegression.apply(
-        mt._jmt,
-        test,
-        y_field_name,
-        x_field_name,
-        cov_field_names,
-        [x for x in row_fields if x not in mt.row_key])
-    return Table._from_java(jt)
+    config = {
+        'name': 'PoissonRegression',
+        'test': test,
+        'yField': y_field_name,
+        'xField': x_field_name,
+        'covFields': cov_field_names,
+        'passThrough': [x for x in row_fields if x not in mt.row_key]
+    }
+    
+    return Table(MatrixToTableApply(mt._mir, config)).persist()
 
 
 @typecheck(y=expr_float64,
@@ -1290,19 +1299,20 @@ def skat(key_expr, weight_expr, y, x, covariates, logistic=False,
                                      key_field_name: key_expr},
                           entry_exprs=entry_expr)
 
-    jt = Env.hail().methods.Skat.apply(
-        mt._jmt,
-        key_field_name,
-        weight_field_name,
-        y_field_name,
-        x_field_name,
-        jarray(Env.jvm().java.lang.String, cov_field_names),
-        logistic,
-        max_size,
-        accuracy,
-        iterations)
+    config = {
+        'name': 'Skat',
+        'keyField': key_field_name,
+        'weightField': weight_field_name,
+        'xField': x_field_name,
+        'yField': y_field_name,
+        'covFields': cov_field_names,
+        'logistic': logistic,
+        'maxSize': max_size,
+        'accuracy': accuracy,
+        'iterations': iterations
+    }
 
-    return Table._from_java(jt)
+    return Table(MatrixToTableApply(mt._mir, config))
 
 
 @typecheck(call_expr=expr_call,
@@ -1378,6 +1388,7 @@ def hwe_normalized_pca(call_expr, k=10, compute_loadings=False) -> Tuple[List[fl
     mt = mt.annotate_rows(__mean_gt=mt.__AC / mt.__n_called)
     mt = mt.annotate_rows(
         __hwe_scaled_std_dev=hl.sqrt(mt.__mean_gt * (2 - mt.__mean_gt) * n_variants / 2))
+    mt = mt.unfilter_entries()
 
     normalized_gt = hl.or_else((mt.__gt - mt.__mean_gt) / mt.__hwe_scaled_std_dev, 0.0)
 
@@ -1481,12 +1492,19 @@ def pca(entry_expr, k=10, compute_loadings=False) -> Tuple[List[float], Table, T
         mt = mt.select_entries(**{field: entry_expr})
     mt = mt.select_cols().select_rows().select_globals()
 
-    r = Env.hail().methods.PCA.apply(mt._jmt, field, k, compute_loadings)
-    scores = Table._from_java(Env.hail().methods.PCA.scoresTable(mt._jmt, r._2()))
-    loadings = from_option(r._3())
-    if loadings:
-        loadings = Table._from_java(loadings)
-    return jiterable_to_list(r._1()), scores, loadings
+    t = (Table(MatrixToTableApply(mt._mir, {
+        'name': 'PCA',
+        'entryField': field,
+        'k': k,
+        'computeLoadings': compute_loadings
+    }))
+         .cache())
+
+    g = t.index_globals()
+    scores = hl.Table.parallelize(g.scores, key=list(mt.col_key))
+    if not compute_loadings:
+        t = None
+    return hl.eval(g.eigenvalues), scores, t
 
 
 @typecheck(call_expr=expr_call,
@@ -1764,7 +1782,7 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
     mt = matrix_table_source('pc_relate/call_expr', call_expr)
 
     if k and scores_expr is None:
-        _, scores, _ = hwe_normalized_pca(mt.GT, k, compute_loadings=False)
+        _, scores, _ = hwe_normalized_pca(call_expr, k, compute_loadings=False)
         scores_expr = scores[mt.col_key].scores
     elif not k and scores_expr is not None:
         analyze('pc_relate/scores_expr', scores_expr, mt._col_indices)
@@ -1793,13 +1811,12 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
     int_statistics = {'kin': 0, 'kin2': 1, 'kin20': 2, 'all': 3}[statistics]
 
     ht = Table._from_java(scala_object(Env.hail().methods, 'PCRelate')
-                          .apply(Env.hc()._jhc,
-                                 g._jbm,
-                                 scores_table._jt,
-                                 min_individual_maf,
-                                 block_size,
-                                 min_kinship,
-                                 int_statistics))
+                          .pyApply(g._jbm,
+                                   Env.spark_backend('pc_relate')._to_java_ir(scores_table.collect(_localize=False)._ir),
+                                   min_individual_maf,
+                                   block_size,
+                                   min_kinship,
+                                   int_statistics))
 
     if statistics == 'kin':
         ht = ht.drop('ibd0', 'ibd1', 'ibd2')
@@ -2584,14 +2601,14 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
                           pop_dist=None, fst=None, af_dist=hl.rand_unif(0.1, 0.9, seed=0),
                           reference_genome='default', mixture=False) -> MatrixTable:
     r"""Generate a matrix table of variants, samples, and genotypes using the
-    Balding-Nichols model.
+    Balding-Nichols or Pritchard-Stephens-Donnelly model.
 
     Examples
     --------
     Generate a matrix table of genotypes with 1000 variants and 100 samples
     across 3 populations:
 
-    >>> bn_ds = hl.balding_nichols_model(3, 100, 1000)
+    >>> bn_ds = hl.balding_nichols_model(3, 100, 1000, reference_genome='GRCh37')
 
     Generate a matrix table using 4 populations, 40 samples, 150 variants, 3
     partitions, population distribution ``[0.1, 0.2, 0.3, 0.4]``,
@@ -2605,8 +2622,8 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
     ...          fst=[.02, .06, .04, .12],
     ...          af_dist=hl.rand_beta(a=0.01, b=2.0, lower=0.05, upper=1.0))
 
-    Note that in order to guarantee reproducibility, the hail global seed is set
-    with :func:`.set_global_seed` immediately prior to generating the dataset.
+    To guarantee reproducibility, we set the Hail global seed with
+    :func:`.set_global_seed` immediately prior to generating the dataset.
 
     Notes
     -----
@@ -2693,6 +2710,12 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
 
     - `GT` (:py:data:`.tcall`) -- Genotype call (diploid, unphased).
 
+    For the `Pritchard-Stephens-Donnelly model <http://www.genetics.org/content/155/2/945.long>`__,
+    set the `mixture` to true to treat `pop_dist` as the parameters of the
+    Dirichlet distribution describing admixture between the modern populations.
+    In this case, the type of `pop` is :class:`.tarray` of
+    :py:data:`.tfloat64` and the value is the mixture proportions.
+
     Parameters
     ----------
     n_populations : :obj:`int`
@@ -2718,10 +2741,7 @@ def balding_nichols_model(n_populations, n_samples, n_variants, n_partitions=Non
         Reference genome to use.
     mixture : :obj:`bool`
         Treat `pop_dist` as the parameters of a Dirichlet distribution,
-        as in the Prichard-Stevens-Donnelly model. This feature is
-        EXPERIMENTAL and currently undocumented and untested.
-        If ``True``, the type of `pop` is :class:`.tarray` of
-        :py:data:`.tfloat64` and the value is the mixture proportions.
+        as in the Prichard-Stevens-Donnelly model.
 
     Returns
     -------
@@ -3181,10 +3201,13 @@ def _local_ld_prune(mt, call_field, r2=0.2, bp_window_size=1000000, memory_per_c
 
     info(f'ld_prune: running local pruning stage with max queue size of {max_queue_size} variants')
 
-    sites_only_table = Table._from_java(Env.hail().methods.LocalLDPrune.apply(
-        mt._jmt, call_field, float(r2), bp_window_size, max_queue_size))
-
-    return sites_only_table
+    return Table(MatrixToTableApply(mt._mir, {
+        'name': 'LocalLDPrune',
+        'callField': call_field,
+        'r2Threshold': float(r2),
+        'windowSize': bp_window_size,
+        'maxQueueSize': max_queue_size
+    }))
 
 
 @typecheck(call_expr=expr_call,
@@ -3298,60 +3321,59 @@ def ld_prune(call_expr, r2=0.2, bp_window_size=1000000, memory_per_core=256, kee
         .write(locally_pruned_table_path, overwrite=True))
     locally_pruned_table = hl.read_table(locally_pruned_table_path).add_index()
 
-    locally_pruned_ds_path = new_temp_file()
     mt = mt.annotate_rows(info=locally_pruned_table[mt.row_key])
-    (mt.filter_rows(hl.is_defined(mt.info))
-        .write(locally_pruned_ds_path, overwrite=True))
-    locally_pruned_ds = hl.read_matrix_table(locally_pruned_ds_path)
+    mt = mt.filter_rows(hl.is_defined(mt.info))
 
-    n_locally_pruned_variants = locally_pruned_ds.count_rows()
-    info(f'ld_prune: local pruning stage retained {n_locally_pruned_variants} variants')
-
-    standardized_mean_imputed_gt_expr = hl.or_else(
-        (locally_pruned_ds[field].n_alt_alleles() - locally_pruned_ds.info.mean) * locally_pruned_ds.info.centered_length_rec,
-        0.0)
-
-    std_gt_bm = BlockMatrix.from_entry_expr(standardized_mean_imputed_gt_expr, block_size=block_size)
+    std_gt_bm = BlockMatrix.from_entry_expr(
+        hl.or_else(
+            (mt[field].n_alt_alleles() - mt.info.mean) * mt.info.centered_length_rec,
+            0.0),
+        block_size=block_size)
     r2_bm = (std_gt_bm @ std_gt_bm.T) ** 2
 
     _, stops = hl.linalg.utils.locus_windows(locally_pruned_table.locus, bp_window_size)
 
-    entries = r2_bm.sparsify_row_intervals(range(stops.size), stops, blocks_only=True).entries()
+    entries = r2_bm.sparsify_row_intervals(range(stops.size), stops, blocks_only=True).entries(keyed=False)
     entries = entries.filter((entries.entry >= r2) & (entries.i < entries.j))
-
-    locally_pruned_info = locally_pruned_table.key_by('idx').select('locus', 'mean')
-
-    entries = entries.select(info_i=locally_pruned_info[entries.i],
-                             info_j=locally_pruned_info[entries.j])
-
-    entries = entries.filter((entries.info_i.locus.contig == entries.info_j.locus.contig)
-                             & (entries.info_j.locus.position - entries.info_i.locus.position <= bp_window_size))
-
-    entries_path = new_temp_file()
-    entries.write(entries_path, overwrite=True)
-    entries = hl.read_table(entries_path)
-
-    n_edges = entries.count()
-    info(f'ld_prune: correlation graph of locally-pruned variants has {n_edges} edges,'
-         f'\n    finding maximal independent set...')
+    entries = entries.select(i = hl.int32(entries.i), j = hl.int32(entries.j))
 
     if keep_higher_maf:
-        entries = entries.key_by(
+        fields = ['mean', 'locus']
+    else:
+        fields = ['locus']
+
+    info = locally_pruned_table.aggregate(
+        hl.agg.collect(locally_pruned_table.row.select('idx', *fields)), _localize=False)
+    info = hl.sorted(info, key=lambda x: x.idx)
+
+    entries = entries.annotate_globals(info = info)
+
+    entries = entries.filter(
+        (entries.info[entries.i].locus.contig == entries.info[entries.j].locus.contig) &
+        (entries.info[entries.j].locus.position - entries.info[entries.i].locus.position <= bp_window_size))
+
+    if keep_higher_maf:
+        entries = entries.annotate(
             i=hl.struct(idx=entries.i,
-                        twice_maf=hl.min(entries.info_i.mean, 2.0 - entries.info_i.mean)),
+                        twice_maf=hl.min(entries.info[entries.i].mean, 2.0 - entries.info[entries.i].mean)),
             j=hl.struct(idx=entries.j,
-                        twice_maf=hl.min(entries.info_j.mean, 2.0 - entries.info_j.mean)))
+                        twice_maf=hl.min(entries.info[entries.j].mean, 2.0 - entries.info[entries.j].mean)))
 
         def tie_breaker(l, r):
             return hl.sign(r.twice_maf - l.twice_maf)
-
-        variants_to_remove = hl.maximal_independent_set(entries.i, entries.j, keep=False, tie_breaker=tie_breaker)
-        variants_to_remove = variants_to_remove.key_by(variants_to_remove.node.idx)
     else:
-        variants_to_remove = hl.maximal_independent_set(entries.i, entries.j, keep=False)
+        tie_breaker = None
 
+    variants_to_remove = hl.maximal_independent_set(
+        entries.i, entries.j, keep=False, tie_breaker=tie_breaker, keyed=False)
+
+    locally_pruned_table = locally_pruned_table.annotate_globals(
+        variants_to_remove = variants_to_remove.aggregate(
+            hl.agg.collect_as_set(variants_to_remove.node.idx), _localize=False))
     return locally_pruned_table.filter(
-        hl.is_defined(variants_to_remove[locally_pruned_table.idx]), keep=False).select().persist()
+        locally_pruned_table.variants_to_remove.contains(hl.int32(locally_pruned_table.idx)),
+        keep=False
+    ).select().persist()
 
 
 def _warn_if_no_intercept(caller, covariates):

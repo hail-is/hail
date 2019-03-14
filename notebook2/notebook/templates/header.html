@@ -1,0 +1,24 @@
+<div id="header">
+  <a class="home link-button" href="/">
+    <b>/</b>
+  </a>
+
+  <a href="/notebook" class="home link-button">
+    Notebook
+  </a>
+
+  <div id="profile-divider"></div>
+
+  {% if session['user'] %}
+    <b id='user-name'>{{ session['user']['name'] }}</b>
+    <form action='/logout' method='POST'>
+      <button class='link-button' type='submit'>
+        Log out
+      </button>
+    </form>
+  {% else %}
+    <a class='link-button' href='/login'>
+      Login
+    </a>
+  {% endif %}
+</div>

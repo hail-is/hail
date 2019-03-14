@@ -1,10 +1,18 @@
 import copy
 
 import hail
-from hail.expr.types import hail_type
+from hail.ir.blockmatrix_writer import BlockMatrixWriter
 from hail.utils.java import escape_str, escape_id, dump_json, parsable_strings
+from hail.expr.types import *
+from hail.typecheck import *
 from .base_ir import *
 from .matrix_writer import MatrixWriter, MatrixNativeMultiWriter
+
+
+def _env_bind(env, k, v):
+    env = env.copy()
+    env[k] = v
+    return env
 
 
 class I32(IR):
@@ -24,6 +32,9 @@ class I32(IR):
         return isinstance(other, I32) and \
                other.x == self.x
 
+    def _compute_type(self, env, agg_env):
+        self._type = tint32
+
 
 class I64(IR):
     @typecheck_method(x=int)
@@ -41,6 +52,9 @@ class I64(IR):
     def __eq__(self, other):
         return isinstance(other, I64) and \
                other.x == self.x
+
+    def _compute_type(self, env, agg_env):
+        self._type = tint64
 
 
 class F32(IR):
@@ -60,6 +74,8 @@ class F32(IR):
         return isinstance(other, F32) and \
                other.x == self.x
 
+    def _compute_type(self, env, agg_env):
+        self._type = tfloat32
 
 class F64(IR):
     @typecheck_method(x=numeric)
@@ -77,6 +93,9 @@ class F64(IR):
     def __eq__(self, other):
         return isinstance(other, F64) and \
                other.x == self.x
+
+    def _compute_type(self, env, agg_env):
+        self._type = tfloat64
 
 
 class Str(IR):
@@ -96,6 +115,9 @@ class Str(IR):
         return isinstance(other, Str) and \
                other.x == self.x
 
+    def _compute_type(self, env, agg_env):
+        self._type = tstr
+
 
 class FalseIR(IR):
     def __init__(self):
@@ -110,6 +132,9 @@ class FalseIR(IR):
 
     def __eq__(self, other):
         return isinstance(other, FalseIR)
+
+    def _compute_type(self, env, agg_env):
+        self._type = tbool
 
 
 class TrueIR(IR):
@@ -126,6 +151,9 @@ class TrueIR(IR):
     def __eq__(self, other):
         return isinstance(other, TrueIR)
 
+    def _compute_type(self, env, agg_env):
+        self._type = tbool
+
 
 class Void(IR):
     def __init__(self):
@@ -140,6 +168,9 @@ class Void(IR):
 
     def __eq__(self, other):
         return isinstance(other, Void)
+
+    def _compute_type(self, env, agg_env):
+        self._type = tvoid
 
 
 class Cast(IR):
@@ -166,6 +197,10 @@ class Cast(IR):
         other.v == self.v and \
         other._typ == self._typ
 
+    def _compute_type(self, env, agg_env):
+        self.v._compute_type(env, agg_env)
+        self._type = self._typ
+
 
 class NA(IR):
     @typecheck_method(typ=hail_type)
@@ -188,6 +223,9 @@ class NA(IR):
         return isinstance(other, NA) and \
                other._typ == self._typ
 
+    def _compute_type(self, env, agg_env):
+        self._type = self._typ
+
 
 class IsNA(IR):
     @typecheck_method(value=IR)
@@ -206,6 +244,10 @@ class IsNA(IR):
     def __eq__(self, other):
         return isinstance(other, IsNA) and \
                other.value == self.value
+
+    def _compute_type(self, env, agg_env):
+        self.value._compute_type(env, agg_env)
+        self._type = tbool
 
 
 class If(IR):
@@ -229,6 +271,14 @@ class If(IR):
                other.cond == self.cond and \
                other.cnsq == self.cnsq and \
                other.altr == self.altr
+
+    def _compute_type(self, env, agg_env):
+        self.cond._compute_type(env, agg_env)
+        self.cnsq._compute_type(env, agg_env)
+        self.altr._compute_type(env, agg_env)
+        assert(self.cnsq.typ == self.altr.typ)
+        self._type = self.cnsq.typ
+    
 
 class Let(IR):
     @typecheck_method(name=str, value=IR, body=IR)
@@ -256,6 +306,11 @@ class Let(IR):
                other.value == self.value and \
                other.body == self.body
 
+    def _compute_type(self, env, agg_env):
+        self.value._compute_type(env, agg_env)
+        self.body._compute_type(_env_bind(env, self.name, self.value._type), agg_env)
+        self._type = self.body._type
+
 
 class Ref(IR):
     @typecheck_method(name=str)
@@ -274,6 +329,9 @@ class Ref(IR):
         return isinstance(other, Ref) and \
                other.name == self.name
 
+    def _compute_type(self, env, agg_env):
+        self._type = env[self.name]
+
 
 class TopLevelReference(Ref):
     @typecheck_method(name=str)
@@ -291,6 +349,10 @@ class TopLevelReference(Ref):
     def __eq__(self, other):
         return isinstance(other, TopLevelReference) and \
                other.name == self.name
+
+    def _compute_type(self, env, agg_env):
+        assert self.name in env, f'{self.name} not found in {env}'
+        self._type = env[self.name]
 
 
 class ApplyBinaryOp(IR):
@@ -315,6 +377,17 @@ class ApplyBinaryOp(IR):
                other.l == self.l and \
                other.r == self.r
 
+    def _compute_type(self, env, agg_env):
+        self.l._compute_type(env, agg_env)
+        self.r._compute_type(env, agg_env)
+        if self.op == '/':
+            if self.l.typ == tfloat64:
+                self._type = tfloat64
+            else:
+                self._type = tfloat32
+        else:
+            self._type = self.l.typ
+                
 
 class ApplyUnaryOp(IR):
     @typecheck_method(op=str, x=IR)
@@ -335,6 +408,10 @@ class ApplyUnaryOp(IR):
         return isinstance(other, ApplyUnaryOp) and \
                other.op == self.op and \
                other.x == self.x
+
+    def _compute_type(self, env, agg_env):
+        self.x._compute_type(env, agg_env)
+        self._type = self.x.typ
 
 
 class ApplyComparisonOp(IR):
@@ -359,27 +436,38 @@ class ApplyComparisonOp(IR):
                other.l == self.l and \
                other.r == self.r
 
+    def _compute_type(self, env, agg_env):
+        self.l._compute_type(env, agg_env)
+        self.r._compute_type(env, agg_env)
+        self._type = tbool
+
 
 class MakeArray(IR):
-    @typecheck_method(args=sequenceof(IR), element_type=nullable(hail_type))
-    def __init__(self, args, element_type):
+    @typecheck_method(args=sequenceof(IR), type=nullable(hail_type))
+    def __init__(self, args, type):
         super().__init__(*args)
         self.args = args
-        self._element_type = element_type
+        self._type = type
 
     def copy(self, *args):
         new_instance = self.__class__
-        return new_instance(list(args), self._element_type)
+        return new_instance(list(args), self._type)
 
     def render(self, r):
         return '(MakeArray {} {})'.format(
-            self._element_type._parsable_string() if self._element_type is not None else 'None',
+            self._type._parsable_string() if self._type is not None else 'None',
             ' '.join([r(x) for x in self.args]))
 
     def __eq__(self, other):
         return isinstance(other, MakeArray) and \
                other.args == self.args and \
-               other._element_type == self._element_type
+               other._type == self._type
+
+    def _compute_type(self, env, agg_env):
+        for a in self.args:
+            a._compute_type(env, agg_env)
+        if self._type is None:
+            self._type = tarray(self.args[0].typ)
 
 
 class ArrayRef(IR):
@@ -402,6 +490,11 @@ class ArrayRef(IR):
                other.a == self.a and \
                other.i == self.i
 
+    def _compute_type(self, env, agg_env):
+        self.a._compute_type(env, agg_env)
+        self.i._compute_type(env, agg_env)
+        self._type = self.a.typ.element_type
+
 
 class ArrayLen(IR):
     @typecheck_method(a=IR)
@@ -421,6 +514,9 @@ class ArrayLen(IR):
         return isinstance(other, ArrayLen) and \
                other.a == self.a
 
+    def _compute_type(self, env, agg_env):
+        self.a._compute_type(env, agg_env)
+        self._type = tint32
 
 class ArrayRange(IR):
     @typecheck_method(start=IR, stop=IR, step=IR)
@@ -444,28 +540,101 @@ class ArrayRange(IR):
                other.stop == self.stop and \
                other.step == self.step
 
+    def _compute_type(self, env, agg_env):
+        self.start._compute_type(env, agg_env)
+        self.stop._compute_type(env, agg_env)
+        self.step._compute_type(env, agg_env)
+        self._type = tarray(tint32)
 
-class ArraySort(IR):
-    @typecheck_method(a=IR, ascending=IR, on_key=bool)
-    def __init__(self, a, ascending, on_key):
-        super().__init__(a, ascending)
-        self.a = a
-        self.ascending = ascending
-        self.on_key = on_key
 
-    @typecheck_method(a=IR, ascending=IR)
-    def copy(self, a, ascending):
+class MakeNDArray(IR):
+    @typecheck_method(data=IR, shape=IR, row_major=IR)
+    def __init__(self, data, shape, row_major):
+        super().__init__(data, shape, row_major)
+        self.data = data
+        self.shape = shape
+        self.row_major = row_major
+
+    @typecheck_method(data=IR, shape=IR, row_major=IR)
+    def copy(self, data, shape, row_major):
         new_instance = self.__class__
-        return new_instance(a, ascending, self.on_key)
+        return new_instance(data, shape, row_major)
 
     def render(self, r):
-        return '(ArraySort {} {} {})'.format(self.on_key, r(self.a), r(self.ascending))
+        return '(MakeNDArray {} {} {})'.format(
+            r(self.data),
+            r(self.shape),
+            r(self.row_major))
+
+    def __eq__(self, other):
+        return isinstance(other, MakeNDArray) and \
+               other.data == self.data and \
+               other.shape == self.shape and \
+               other.row_major == self.row_major
+
+    def _compute_type(self, env, agg_env):
+        self.data._compute_type(env, agg_env)
+        self.shape._compute_type(env, agg_env)
+        self.row_major._compute_type(env, agg_env)
+        self._type = tndarray(self.data.typ.element_type)
+
+
+class NDArrayRef(IR):
+    @typecheck_method(nd=IR, idxs=IR)
+    def __init__(self, nd, idxs):
+        super().__init__(nd, idxs)
+        self.nd = nd
+        self.idxs = idxs
+
+    @typecheck_method(nd=IR, idxs=IR)
+    def copy(self, nd, idxs):
+        new_instance = self.__class__
+        return new_instance(nd, idxs)
+
+    def render(self, r):
+        return '(NDArrayRef {} {})'.format(r(self.nd), r(self.idxs))
+
+    def __eq__(self, other):
+        return isinstance(other, NDArrayRef) and \
+               other.nd == self.nd and \
+               other.idxs == self.idxs
+
+    def _compute_type(self, env, agg_env):
+        self.nd._compute_type(env, agg_env)
+        self.idxs._compute_type(env, agg_env)
+        self._type = self.nd.typ.element_type
+
+
+class ArraySort(IR):
+    @typecheck_method(a=IR, l_name=str, r_name=str, compare=IR)
+    def __init__(self, a, l_name, r_name, compare):
+        super().__init__(a, compare)
+        self.a = a
+        self.l_name = l_name
+        self.r_name = r_name
+        self.compare = compare
+
+    @typecheck_method(a=IR, compare=IR)
+    def copy(self, a, compare):
+        new_instance = self.__class__
+        return new_instance(a, self.l_name, self.r_name, compare)
+
+    def render(self, r):
+        return '(ArraySort {} {} {} {})'.format(self.l_name, self.r_name, r(self.a), r(self.compare))
+
+    @property
+    def bound_variables(self):
+        return {self.l_name, self.r_name} | super().bound_variables
 
     def __eq__(self, other):
         return isinstance(other, ArraySort) and \
                other.a == self.a and \
-               other.ascending == self.ascending and \
-               other.on_key == self.on_key
+               other.compare == self.compare and \
+               other.l_name == self.l_name and other.r_name == self.r_name
+
+    def _compute_type(self, env, agg_env):
+        self.a._compute_type(env, agg_env)
+        self._type = self.a.typ
 
 
 class ToSet(IR):
@@ -486,6 +655,10 @@ class ToSet(IR):
         return isinstance(other, ToSet) and \
                other.a == self.a
 
+    def _compute_type(self, env, agg_env):
+        self.a._compute_type(env, agg_env)
+        self._type = tset(self.a.typ.element_type)
+
 
 class ToDict(IR):
     @typecheck_method(a=IR)
@@ -504,6 +677,10 @@ class ToDict(IR):
     def __eq__(self, other):
         return isinstance(other, ToDict) and \
                other.a == self.a
+
+    def _compute_type(self, env, agg_env):
+        self.a._compute_type(env, agg_env)
+        self._type = tdict(self.a.typ['key'], self.a.typ['value'])
 
 
 class ToArray(IR):
@@ -524,6 +701,9 @@ class ToArray(IR):
         return isinstance(other, ToArray) and \
                other.a == self.a
 
+    def _compute_type(self, env, agg_env):
+        self.a._compute_type(env, agg_env)
+        self._type = tarray(self.a.typ.element_type)
 
 class LowerBoundOnOrderedCollection(IR):
     @typecheck_method(ordered_collection=IR, elem=IR, on_key=bool)
@@ -547,6 +727,10 @@ class LowerBoundOnOrderedCollection(IR):
                other.elem == self.elem and \
                other.on_key == self.on_key
 
+    def _compute_type(self, env, agg_env):
+        self.a._compute_type(env, agg_env)
+        self.elem._compute_type(env, agg_env)
+        self._type = tint32
 
 class GroupByKey(IR):
     @typecheck_method(collection=IR)
@@ -566,6 +750,10 @@ class GroupByKey(IR):
         return isinstance(other, GroupByKey) and \
                other.collection == self.collection
 
+    def _compute_type(self, env, agg_env):
+        self.collection._compute_type(env, agg_env)
+        self._type = tdict(self.collection.typ.element_type.types[0],
+                           tarray(self.collection.typ.element_type.types[1]))
 
 class ArrayMap(IR):
     @typecheck_method(a=IR, name=str, body=IR)
@@ -593,6 +781,10 @@ class ArrayMap(IR):
                other.name == self.name and \
                other.body == self.body
 
+    def _compute_type(self, env, agg_env):
+        self.a._compute_type(env, agg_env)
+        self.body._compute_type(_env_bind(env, self.name, self.a.typ.element_type), agg_env)
+        self._type = tarray(self.body.typ)
 
 class ArrayFilter(IR):
     @typecheck_method(a=IR, name=str, body=IR)
@@ -620,6 +812,10 @@ class ArrayFilter(IR):
                other.name == self.name and \
                other.body == self.body
 
+    def _compute_type(self, env, agg_env):
+        self.a._compute_type(env, agg_env)
+        self.body._compute_type(_env_bind(env, self.name, self.a.typ.element_type), agg_env)
+        self._type = self.a.typ
 
 class ArrayFlatMap(IR):
     @typecheck_method(a=IR, name=str, body=IR)
@@ -646,6 +842,11 @@ class ArrayFlatMap(IR):
                other.a == self.a and \
                other.name == self.name and \
                other.body == self.body
+
+    def _compute_type(self, env, agg_env):
+        self.a._compute_type(env, agg_env)
+        self.body._compute_type(_env_bind(env, self.name, self.a.typ.element_type), agg_env)
+        self._type = tarray(self.body.typ.element_type)
 
 
 class ArrayFold(IR):
@@ -680,7 +881,17 @@ class ArrayFold(IR):
                other.value_name == self.value_name and \
                other.body == self.body
 
+    def _compute_type(self, env, agg_env):
+        self.a._compute_type(env, agg_env)
+        self.zero._compute_type(env, agg_env)
+        self.body._compute_type(
+            _env_bind(
+                _env_bind(env, self.value_name, self.a.typ.element_type),
+                self.accum_name, self.zero.typ),
+            agg_env)
+        self._type = self.zero.typ
 
+        
 class ArrayScan(IR):
     @typecheck_method(a=IR, zero=IR, accum_name=str, value_name=str, body=IR)
     def __init__(self, a, zero, accum_name, value_name, body):
@@ -712,6 +923,16 @@ class ArrayScan(IR):
                other.accum_name == self.accum_name and \
                other.value_name == self.value_name and \
                other.body == self.body
+
+    def _compute_type(self, env, agg_env):
+        self.a._compute_type(env, agg_env)
+        self.zero._compute_type(env, agg_env)
+        self.body._compute_type(
+            _env_bind(
+                _env_bind(env, self.value_name, self.a.typ.element_type),
+                self.accum_name, self.zero.typ),
+            agg_env)
+        self._type = tarray(self.body.typ)
 
 
 class ArrayLeftJoinDistinct(IR):
@@ -775,6 +996,11 @@ class ArrayFor(IR):
                other.value_name == self.value_name and \
                other.body == self.body
 
+    def _compute_type(self, env, agg_env):
+        self.a._compute_type(env, agg_env)
+        self.body._compute_type(_env_bind(env, self.value_name, self.a.typ.element_type), agg_env)
+        self._type = tvoid
+
 
 class AggFilter(IR):
     @typecheck_method(cond=IR, agg_ir=IR)
@@ -795,6 +1021,11 @@ class AggFilter(IR):
         return isinstance(other, AggFilter) and \
                other.cond == self.cond and \
                other.agg_ir == self.agg_ir
+
+    def _compute_type(self, env, agg_env):
+        self.cond._compute_type(agg_env, None)
+        self.agg_ir._compute_type(env, agg_env)
+        self._type = self.agg_ir.typ
 
 
 class AggExplode(IR):
@@ -823,6 +1054,11 @@ class AggExplode(IR):
                other.name == self.name and \
                other.agg_body == self.agg_body
 
+    def _compute_type(self, env, agg_env):
+        self.array._compute_type(agg_env, None)
+        self.agg_body._compute_type(env, _env_bind(agg_env, self.name, self.array.typ.element_type))
+        self._type = self.agg_body.typ
+
 
 class AggGroupBy(IR):
     @typecheck_method(key=IR, agg_ir=IR)
@@ -843,6 +1079,78 @@ class AggGroupBy(IR):
         return isinstance(other, AggGroupBy) and \
                other.key == self.key and \
                other.agg_ir == self.agg_ir
+
+    def _compute_type(self, env, agg_env):
+        self.key._compute_type(agg_env, None)
+        self.agg_ir._compute_type(env, agg_env)
+        self._type = tdict(self.key.typ, self.agg_ir.typ)
+
+class AggArrayPerElement(IR):
+    @typecheck_method(array=IR, name=str, agg_ir=IR)
+    def __init__(self, array, name, agg_ir):
+        super().__init__(array, agg_ir)
+        self.array = array
+        self.name = name
+        self.agg_ir = agg_ir
+
+    @typecheck_method(array=IR, agg_ir=IR)
+    def copy(self, array, agg_ir):
+        new_instance = self.__class__
+        return new_instance(array, self.name, agg_ir)
+
+    def render(self, r):
+        return '(AggArrayPerElement {} {} {})'.format(escape_id(self.name), r(self.array), r(self.agg_ir))
+
+    def __eq__(self, other):
+        return isinstance(other, AggArrayPerElement) and \
+               other.array == self.array and \
+               other.name == self.name and \
+               other.agg_ir == self.agg_ir
+
+    def _compute_type(self, env, agg_env):
+        self.array._compute_type(agg_env, None)
+        self.agg_ir._compute_type(env, _env_bind(agg_env, self.name, self.array.typ.element_type))
+        self._type = tarray(self.agg_ir.typ)
+
+    @property
+    def bound_variables(self):
+        return {self.name} | super().bound_variables
+
+
+def _register(registry, name, f):
+    if name in registry:
+        registry[name].append(f)
+    else:
+        registry[name] = [f]
+
+_aggregator_registry = {}
+
+def register_aggregator(name, ctor_params, init_params, seq_params, ret_type):
+    _register(_aggregator_registry, name, (ctor_params, init_params, seq_params, ret_type))
+
+def lookup_aggregator_return_type(name, ctor_args, init_args, seq_args):
+    if name in _aggregator_registry:
+        fns = _aggregator_registry[name]
+        for f in fns:
+            (ctor_params, init_params, seq_params, ret_type) = f
+            for p in ctor_params:
+                p.clear()
+            if init_params:
+                for p in init_params:
+                    p.clear()
+            for p in seq_params:
+                p.clear()
+            if init_params:
+                init_match = all(p.unify(a) for p, a in zip(init_params, init_args))
+            else:
+                init_match = init_args is None
+            if (init_match
+                and all(p.unify(a) for p, a in zip(ctor_params, ctor_args))
+                and all(p.unify(a) for p, a in zip(seq_params, seq_args))):
+                return ret_type.subst()
+    raise KeyError(f'aggregator {name}({ ",".join([str(t) for t in seq_args]) }) not found')
+            
+            
 
 
 class BaseApplyAggOp(IR):
@@ -887,6 +1195,20 @@ class BaseApplyAggOp(IR):
                other.init_op_args == self.init_op_args and \
                other.seq_op_args == self.seq_op_args
 
+    def _compute_type(self, env, agg_env):
+        for a in self.constructor_args:
+            a._compute_type(env, agg_env)
+        if self.init_op_args:
+            for a in self.init_op_args:
+                a._compute_type(env, agg_env)
+        for a in self.seq_op_args:
+            a._compute_type(agg_env, None)
+
+        self._type = lookup_aggregator_return_type(
+            self.agg_op,
+            [a.typ for a in self.constructor_args],
+            [a.typ for a in self.init_op_args] if self.init_op_args else None,
+            [a.typ for a in self.seq_op_args])
 
 class ApplyAggOp(BaseApplyAggOp):
     @typecheck_method(agg_op=str,
@@ -923,6 +1245,11 @@ class Begin(IR):
         return isinstance(other, Begin) \
                and other.xs == self.xs
 
+    def _compute_type(self, env, agg_env):
+        for x in self.xs:
+            x._compute_type(env, agg_env)
+        self._type = tvoid
+
 
 class MakeStruct(IR):
     @typecheck_method(fields=sequenceof(sized_tupleof(str, IR)))
@@ -941,6 +1268,11 @@ class MakeStruct(IR):
     def __eq__(self, other):
         return isinstance(other, MakeStruct) \
                and other.fields == self.fields
+
+    def _compute_type(self, env, agg_env):
+        for f, x in self.fields:
+            x._compute_type(env, agg_env)
+        self._type = tstruct(**{f: x.typ for f, x in self.fields})
 
 
 class SelectFields(IR):
@@ -962,6 +1294,10 @@ class SelectFields(IR):
         return isinstance(other, SelectFields) and \
                other.old == self.old and \
                other.fields == self.fields
+
+    def _compute_type(self, env, agg_env):
+        self.old._compute_type(env, agg_env)
+        self._type = self.old.typ._select_fields(self.fields)
 
 
 class InsertFields(IR):
@@ -989,6 +1325,14 @@ class InsertFields(IR):
                other.fields == self.fields and \
                other.field_order == self.field_order
 
+    def _compute_type(self, env, agg_env):
+        self.old._compute_type(env, agg_env)
+        for f, x in self.fields:
+            x._compute_type(env, agg_env)
+        self._type = self.old.typ._insert_fields(**{f: x.typ for f, x in self.fields})
+        if self.field_order:
+            self._type = tstruct(**{f: self._type[f] for f in self.field_order})
+
 
 class GetField(IR):
     @typecheck_method(o=IR, name=str)
@@ -1014,6 +1358,10 @@ class GetField(IR):
                other.o == self.o and \
                other.name == self.name
 
+    def _compute_type(self, env, agg_env):
+        self.o._compute_type(env, agg_env)
+        self._type = self.o.typ[self.name]
+
 
 class MakeTuple(IR):
     @typecheck_method(elements=sequenceof(IR))
@@ -1031,6 +1379,11 @@ class MakeTuple(IR):
     def __eq__(self, other):
         return isinstance(other, MakeTuple) and \
                other.elements == self.elements
+
+    def _compute_type(self, env, agg_env):
+        for x in self.elements:
+            x._compute_type(env, agg_env)
+        self._type = ttuple(*[x.typ for x in self.elements])
 
 
 class GetTupleElement(IR):
@@ -1052,6 +1405,10 @@ class GetTupleElement(IR):
         return isinstance(other, GetTupleElement) and \
                other.o == self.o and \
                other.idx == self.idx
+
+    def _compute_type(self, env, agg_env):
+        self.o._compute_type(env, agg_env)
+        self._type = self.o.typ.types[self.idx]
 
 
 class StringSlice(IR):
@@ -1076,6 +1433,12 @@ class StringSlice(IR):
                other.start == self.start and \
                other.end == self.end
 
+    def _compute_type(self, env, agg_env):
+        self.s._compute_type(env, agg_env)
+        self.start._compute_type(env, agg_env)
+        self.end._compute_type(env, agg_env)
+        self._type = tstr
+
 
 class StringLength(IR):
     @typecheck_method(s=IR)
@@ -1094,6 +1457,9 @@ class StringLength(IR):
     def __eq__(self, other):
         return isinstance(other, StringLength) and \
                other.s == self.s
+
+    def _compute_type(self, env, agg_env):
+        self._type = tint32
 
 
 class In(IR):
@@ -1119,6 +1485,9 @@ class In(IR):
                other.i == self.i and \
                other._typ == self._typ
 
+    def _compute_type(self, env, agg_env):
+        self._type = self._typ
+
 
 class Die(IR):
     @typecheck_method(message=IR, typ=hail_type)
@@ -1143,6 +1512,37 @@ class Die(IR):
                other.message == self.message and \
                other._typ == self._typ
 
+    def _compute_type(self, env, agg_env):
+        self._type = self._typ
+
+
+_function_registry = {}
+_seeded_function_registry = {}
+
+def register_function(name, param_types, ret_type):
+    _register(_function_registry, name, (param_types, ret_type))
+
+def register_seeded_function(name, param_types, ret_type):
+    _register(_seeded_function_registry, name, (param_types, ret_type))
+
+def _lookup_function_return_type(registry, fkind, name, arg_types):
+    if name in registry:
+        fns = registry[name]
+        for f in fns:
+            (param_types, ret_type) = f
+            for p in param_types:
+                p.clear()
+            ret_type.clear()
+            if all(p.unify(a) for p, a in zip(param_types, arg_types)):
+                return ret_type.subst()
+    raise KeyError(f'{fkind} {name}({ ",".join([str(t) for t in arg_types]) }) not found')
+
+def lookup_function_return_type(name, arg_types):
+    return _lookup_function_return_type(_function_registry, 'function', name, arg_types)
+
+def lookup_seeded_function_return_type(name, arg_types):
+    return _lookup_function_return_type(_seeded_function_registry, 'seeded function', name, arg_types)
+
 
 class Apply(IR):
     @typecheck_method(function=str, args=IR)
@@ -1162,6 +1562,12 @@ class Apply(IR):
         return isinstance(other, Apply) and \
                other.function == self.function and \
                other.args == self.args
+
+    def _compute_type(self, env, agg_env):
+        for arg in self.args:
+            arg._compute_type(env, agg_env)
+
+        self._type = lookup_function_return_type(self.function, [a.typ for a in self.args])
 
 
 class ApplySeeded(IR):
@@ -1186,6 +1592,12 @@ class ApplySeeded(IR):
         return isinstance(other, Apply) and \
                other.function == self.function and \
                other.args == self.args
+
+    def _compute_type(self, env, agg_env):
+        for arg in self.args:
+            arg._compute_type(env, agg_env)
+
+        self._type = lookup_seeded_function_return_type(self.function, [a.typ for a in self.args])
 
 
 class Uniroot(IR):
@@ -1217,6 +1629,12 @@ class Uniroot(IR):
                other.min == self.min and \
                other.max == self.max
 
+    def _compute_type(self, env, agg_env):
+        self.function._compute_type(_env_bind(env, self.argname, tfloat64), agg_env)
+        self.min._compute_type(env, agg_env)
+        self.max._compute_type(env, agg_env)
+        self._type = tfloat64
+
 
 class TableCount(IR):
     @typecheck_method(child=TableIR)
@@ -1235,6 +1653,10 @@ class TableCount(IR):
     def __eq__(self, other):
         return isinstance(other, TableCount) and \
                other.child == self.child
+
+    def _compute_type(self, env, agg_env):
+        self.child._compute_type()
+        self._type = tint64
 
 
 class TableGetGlobals(IR):
@@ -1255,6 +1677,9 @@ class TableGetGlobals(IR):
         return isinstance(other, TableGetGlobals) and \
                other.child == self.child
 
+    def _compute_type(self, env, agg_env):
+        self.child._compute_type()
+        self._type = self.child.typ.global_type
 
 class TableCollect(IR):
     @typecheck_method(child=TableIR)
@@ -1273,6 +1698,11 @@ class TableCollect(IR):
     def __eq__(self, other):
         return isinstance(other, TableCollect) and \
                other.child == self.child
+
+    def _compute_type(self, env, agg_env):
+        self.child._compute_type()
+        self._type = tstruct(**{'rows': tarray(self.child.typ.row_type),
+                                'global': self.child.typ.global_type})
 
 
 class TableAggregate(IR):
@@ -1295,6 +1725,10 @@ class TableAggregate(IR):
                other.child == self.child and \
                other.query == self.query
 
+    def _compute_type(self, env, agg_env):
+        self.query._compute_type(self.child.typ.global_env(), self.child.typ.row_env())
+        self._type = self.query.typ
+
 
 class MatrixAggregate(IR):
     @typecheck_method(child=MatrixIR, query=IR)
@@ -1315,6 +1749,10 @@ class MatrixAggregate(IR):
         return isinstance(other, MatrixAggregate) and \
                other.child == self.child and \
                other.query == self.query
+
+    def _compute_type(self, env, agg_env):
+        self.query._compute_type(self.child.typ.global_env(), self.child.typ.entry_env())
+        self._type = self.query.typ
 
 
 class TableWrite(IR):
@@ -1345,32 +1783,41 @@ class TableWrite(IR):
                other.stage_locally == self.stage_locally and \
                other._codec_spec == self._codec_spec
 
+    def _compute_type(self, env, agg_env):
+        self.child._compute_type()
+        self._type = tvoid
+
+
 class TableExport(IR):
     @typecheck_method(child=TableIR,
                       path=str,
                       types_file=nullable(str),
                       header=bool,
-                      export_type=int)
-    def __init__(self, child, path, types_file, header, export_type):
+                      export_type=int,
+                      delimiter=str)
+    def __init__(self, child, path, types_file, header, export_type, delimiter):
         super().__init__(child)
         self.child = child
         self.path = path
         self.types_file = types_file
         self.header = header
         self.export_type = export_type
+        self.delimiter = delimiter
 
     @typecheck_method(child=TableIR)
     def copy(self, child):
         new_instance = self.__class__
-        return new_instance(child, self.path, self.types_file, self.header, self.export_type)
+        return new_instance(child, self.path, self.types_file, self.header, self.export_type, self.delimiter)
 
     def render(self, r):
-        return '(TableExport {} "{}" "{}" {} {})'.format(
-            r(self.child),
+        return '(TableExport "{}" {} {} {} "{}" {})'.format(
             escape_str(self.path),
-            escape_str(self.types_file) if self.types_file else 'None',
+            f'"{escape_str(self.types_file)}"' if self.types_file else 'None',
             self.header,
-            self.export_type)
+            self.export_type,
+            escape_str(self.delimiter),
+            r(self.child)
+        )
 
     def __eq__(self, other):
         return isinstance(other, TableExport) and \
@@ -1378,7 +1825,12 @@ class TableExport(IR):
                other.path == self.path and \
                other.types_file == self.types_file and \
                other.header == self.header and \
-               other.export_type == self.export_type
+               other.export_type == self.export_type and \
+               other.delimiter == self.delimiter
+
+    def _compute_type(self, env, agg_env):
+        self.child._compute_type()
+        self._type = tvoid
 
 
 class MatrixWrite(IR):
@@ -1403,6 +1855,10 @@ class MatrixWrite(IR):
                other.child == self.child and \
                other.matrix_writer == self.matrix_writer
 
+    def _compute_type(self, env, agg_env):
+        self.child._compute_type()
+        self._type = tvoid
+
 
 class MatrixMultiWrite(IR):
     @typecheck_method(children=sequenceof(MatrixIR), writer=MatrixNativeMultiWriter)
@@ -1424,6 +1880,35 @@ class MatrixMultiWrite(IR):
                other.children == self.children and \
                other.writer == self.writer
 
+    def _compute_type(self, env, agg_env):
+        for x in self.children:
+            x._compute_type()
+        self._type = tvoid
+
+
+class BlockMatrixWrite(IR):
+    @typecheck_method(child=BlockMatrixIR, writer=BlockMatrixWriter)
+    def __init__(self, child, writer):
+        super().__init__(child)
+        self.child = child
+        self.writer = writer
+
+    def copy(self, child):
+        new_instance = self.__class__
+        return new_instance(child, self.writer)
+
+    def render(self, r):
+        return f'(BlockMatrixWrite "{r(self.writer)}" {r(self.child)})'
+
+    def __eq__(self, other):
+        return isinstance(other, BlockMatrixWrite) and \
+               other.child == self.child and \
+               other.writer == self.writer
+
+    def _compute_type(self, env, agg_env):
+        self.child._compute_type()
+        self._type = tvoid
+
 
 class TableToValueApply(IR):
     def __init__(self, child, config):
@@ -1441,6 +1926,14 @@ class TableToValueApply(IR):
 
     def __eq__(self, other):
         return isinstance(other, TableToValueApply) and other.child == self.child and other.config == self.config
+
+    def _compute_type(self, env, agg_env):
+        name = self.config['name']
+        if name == 'ForceCountTable':
+            self._type = tint64
+        else:
+            assert name == 'NPartitionsTable', name
+            self._type = tint32
 
 
 class MatrixToValueApply(IR):
@@ -1460,26 +1953,63 @@ class MatrixToValueApply(IR):
     def __eq__(self, other):
         return isinstance(other, MatrixToValueApply) and other.child == self.child and other.config == self.config
 
+    def _compute_type(self, env, agg_env):
+        name = self.config['name']
+        if name == 'ForceCountMatrixTable':
+            self._type = tint64
+        elif name == 'NPartitionsMatrixTable':
+            self._type = tint32
+        elif name == 'MatrixExportEntriesByCol':
+            self._type = tvoid
+        else:
+            assert name == 'MatrixWriteBlockMatrix', name
+            self._type = tvoid
+
+
+class BlockMatrixToValueApply(IR):
+    def __init__(self, child, config):
+        super().__init__()
+        self.child = child
+        self.config = config
+
+    @typecheck_method(child=BlockMatrixIR)
+    def copy(self, child):
+        new_instance = self.__class__
+        return new_instance(child, self.config)
+
+    def render(self, r):
+        return f'(BlockMatrixToValueApply {dump_json(self.config)} {r(self.child)})'
+
+    def __eq__(self, other):
+        return isinstance(other, BlockMatrixToValueApply) and other.child == self.child and other.config == self.config
+
+    def _compute_type(self, env, agg_env):
+        assert self.config['name'] == 'GetElement'
+        self._type = tfloat64
+
 
 class Literal(IR):
-    @typecheck_method(dtype=hail_type,
+    @typecheck_method(typ=hail_type,
                       value=anytype)
-    def __init__(self, dtype, value):
+    def __init__(self, typ, value):
         super(Literal, self).__init__()
-        self.dtype: 'hail.HailType' = dtype
+        self._typ: 'hail.HailType' = typ
         self.value = value
 
     def copy(self):
-        return Literal(self.dtype, self.value)
+        return Literal(self._typ, self.value)
 
     def render(self, r):
-        return f'(Literal {self.dtype._parsable_string()} ' \
-               f'"{escape_str(self.dtype._to_json(self.value))}")'
+        return f'(Literal {self._typ._parsable_string()} ' \
+               f'"{escape_str(self._typ._to_json(self.value))}")'
 
     def __eq__(self, other):
         return isinstance(other, Literal) and \
-               other.dtype == self.dtype and \
+               other._typ == self._typ and \
                other.value == self.value
+
+    def _compute_type(self, env, agg_env):
+        self._type = self._typ
 
 
 class Join(IR):
@@ -1517,6 +2047,10 @@ class Join(IR):
     def render(self, r):
         return r(self.virtual_ir)
 
+    def _compute_type(self, env, agg_env):
+        self.virtual_ir._compute_type(env, agg_env)
+        self._type = self.virtual_ir._type
+
 
 class JavaIR(IR):
     def __init__(self, jir):
@@ -1526,6 +2060,9 @@ class JavaIR(IR):
 
     def render(self, r):
         return f'(JavaIR {r.add_jir(self._jir)})'
+
+    def _compute_type(self, env, agg_env):
+        self._type = dtype(self._jir.typ().toString())
 
 
 def subst(ir, env, agg_env):

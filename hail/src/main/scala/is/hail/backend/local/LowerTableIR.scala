@@ -1,8 +1,7 @@
 package is.hail.backend.local
 
 import is.hail.expr.ir._
-import is.hail.HailContext
-import is.hail.backend.Binding
+import is.hail.{HailContext, cxx}
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.types.virtual._
 import is.hail.rvd.AbstractRVDSpec
@@ -10,21 +9,23 @@ import is.hail.utils._
 import is.hail.variant.RVDComponentSpec
 import org.json4s.jackson.JsonMethods
 
+case class LocalBinding(name: String, value: IR)
+
 case class LocalTableIR(
-  globals: List[Binding],
+  globals: List[LocalBinding],
   key: IndexedSeq[String],
   rows: IR) {
 
-  def close(x: IR, globals: List[Binding]): IR = globals match {
-    case Binding(g, gv) :: rest =>
+  def close(x: IR, globals: List[LocalBinding]): IR = globals match {
+    case LocalBinding(g, gv) :: rest =>
       close(Let(g, gv, x), rest)
     case Nil => x
   }
 
   def close(x: IR): IR = close(x, globals)
 
-  def closedGlobals(): IR = globals match {
-    case Binding(g, gv) :: rest =>
+  def closedGlobals(): IR = (globals: @unchecked) match {
+    case LocalBinding(g, gv) :: rest =>
       close(gv, rest)
   }
 
@@ -43,7 +44,7 @@ object LowerTableIR {
       lower(child).closedGlobals()
     case TableCollect(child) =>
       val p = lower(child)
-      val Binding(g, gv) = p.globals.head
+      val LocalBinding(g, gv) = p.globals.head
       p.close(
         MakeStruct(Seq(
           "rows" -> p.rows,
@@ -60,7 +61,7 @@ object LowerTableIR {
       val g = genUID()
       val i = genUID()
       LocalTableIR(
-        List(Binding(g, MakeStruct(FastIndexedSeq()))),
+        List(LocalBinding(g, MakeStruct(FastIndexedSeq()))),
         Array("idx"),
         ArrayMap(
           ArrayRange(I32(0), I32(n), I32(1)),
@@ -74,14 +75,14 @@ object LowerTableIR {
       val g = genUID()
       LocalTableIR(
         List(
-          Binding(g, GetField(Ref(rg, rowsAndGlobalType), "global")),
-          Binding(rg, rowsAndGlobal)),
+          LocalBinding(g, GetField(Ref(rg, rowsAndGlobalType), "global")),
+          LocalBinding(rg, rowsAndGlobal)),
         FastIndexedSeq(),
         GetField(Ref(rg, rowsAndGlobalType), "rows"))
 
     case TableMapRows(child, newRow) =>
       val p = lower(child)
-      val Binding(g, gv) = p.globals.head
+      val LocalBinding(g, gv) = p.globals.head
       p.copy(
         rows = ArrayMap(p.rows, "row",
           Let("global", Ref(g, gv.typ), newRow)))
@@ -89,16 +90,16 @@ object LowerTableIR {
     case TableMapGlobals(child, newGlobals) =>
       val p = lower(child)
       val newG = genUID()
-      val Binding(g, gv) = p.globals.head
+      val LocalBinding(g, gv) = p.globals.head
       p.copy(
-        globals = Binding(newG,
+        globals = LocalBinding(newG,
           Let("global", Ref(g, gv.typ),
             newGlobals)) :: p.globals)
 
     case TableFilter(child, pred) =>
       val row = genUID()
       val p = lower(child)
-      val Binding(g, gv) = p.globals.head
+      val LocalBinding(g, gv) = p.globals.head
       p.copy(
         rows = ArrayFilter(p.rows, "row",
           Let("global", Ref(g, gv.typ),
@@ -130,6 +131,7 @@ object LowerTableIR {
               ArrayRange(I32(0), I32(n.toInt), I32(1)),
               i,
               ArrayRef(Ref(rows, p.rows.typ), Ref(i, TInt32()))))))
+    case _ => throw new cxx.CXXUnsupportedOperation(tir.toString)
   }
 
   def lower(mir: MatrixIR): MatrixIR = ???

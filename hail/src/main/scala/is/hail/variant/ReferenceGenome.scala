@@ -21,8 +21,6 @@ import is.hail.expr.ir.EmitFunctionBuilder
 import is.hail.expr.ir.functions.{IRFunctionRegistry, LiftoverFunctions, ReferenceGenomeFunctions}
 import is.hail.expr.types.virtual.{TInt64, TInterval, TLocus, Type}
 import is.hail.io.reference.LiftOver
-import is.hail.variant.CopyState.CopyState
-import is.hail.variant.Sex.Sex
 import org.apache.hadoop.conf.Configuration
 
 abstract class RGBase extends Serializable {
@@ -240,6 +238,12 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
       else
         fatal(s"Invalid interval `$i' found. End `$end' is not within the range [1-${ contigLength(end.contig) }] for reference genome `$name'.")
     }
+
+    if (!Interval.isValid(locusType.ordering, start, end, includesStart, includesEnd))
+      if (start == end && ((includesStart && !includesEnd) || (!includesStart && includesStart)))
+        fatal(s"Invalid interval `$i' found. Start and end cannot be equal if one endpoint is inclusive and the other endpoint is exclusive.")
+      else
+        fatal(s"Invalid interval `$i' found. ")
   }
 
   def normalizeLocusInterval(i: Interval): Interval = {
@@ -267,19 +271,6 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
   def inY(contigIdx: Int): Boolean = yContigIndices.contains(contigIdx)
 
   def inY(contig: String): Boolean = yContigs.contains(contig)
-
-  def copyState(sex: Sex, locus: Locus): CopyState = {
-    // FIXME this seems wrong (no MT); I copied it from Variant
-    if (sex == Sex.Male)
-      if (inX(locus.contig) && !inXPar(locus))
-        CopyState.HemiX
-      else if (inY(locus.contig) && !inYPar(locus))
-        CopyState.HemiY
-      else
-        CopyState.Auto
-    else
-      CopyState.Auto
-  }
 
   def isMitochondrial(contigIdx: Int): Boolean = mtContigIndices.contains(contigIdx)
 
@@ -427,6 +418,20 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     lo.queryInterval(interval, minMatch)
   }
 
+  override def hashCode: Int = {
+    import org.apache.commons.lang.builder.HashCodeBuilder
+
+    val b = new HashCodeBuilder()
+      .append(name)
+      .append(contigs)
+      .append(lengths)
+      .append(xContigs)
+      .append(yContigs)
+      .append(mtContigs)
+      .append(par)
+    b.toHashCode
+  }
+
   override def equals(other: Any): Boolean = {
     other match {
       case rg: ReferenceGenome =>
@@ -441,7 +446,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     }
   }
 
-  def unify(concrete: RGBase): Boolean = this eq concrete
+  def unify(concrete: RGBase): Boolean = this == concrete
 
   def isBound: Boolean = true
 
@@ -482,7 +487,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
 
     var rg = Code.invokeScalaObject[String, ReferenceGenome](ReferenceGenome.getClass, "parse", stringAssembler)
     if (fastaReader != null) {
-      fb.addHadoopConfiguration(fastaReader.hConf)
+      fb.addHadoopConfiguration(HailContext.sHadoopConf)
       rg = rg.invoke[SerializableHadoopConfiguration, String, String, Int, Int, ReferenceGenome](
         "addSequenceFromReader",
         fb.getHadoopConfiguration,
@@ -493,7 +498,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     }
 
     for ((destRG, lo) <- liftoverMaps) {
-      fb.addHadoopConfiguration(lo.hConf)
+      fb.addHadoopConfiguration(HailContext.sHadoopConf)
       rg = rg.invoke[SerializableHadoopConfiguration, String, String, ReferenceGenome](
         "addLiftoverFromHConf",
         fb.getHadoopConfiguration,
@@ -522,8 +527,6 @@ object ReferenceGenome {
   val GRCh37: ReferenceGenome = fromResource("reference/grch37.json")
   val GRCh38: ReferenceGenome = fromResource("reference/grch38.json")
   val GRCm38: ReferenceGenome = fromResource("reference/grcm38.json")
-  var defaultReference = GRCh37
-  references += ("default" -> defaultReference)
   val hailReferences = references.keySet
 
   def addReference(rg: ReferenceGenome) {
@@ -558,19 +561,6 @@ object ReferenceGenome {
     references -= name
   }
 
-  def setDefaultReference(rg: ReferenceGenome) {
-    assert(references.contains(rg.name))
-    defaultReference = rg
-  }
-
-  def setDefaultReference(hc: HailContext, rgSource: String) {
-    defaultReference =
-      if (hasReference(rgSource))
-        getReference(rgSource)
-      else
-        fromFile(hc, rgSource)
-  }
-
   def read(is: InputStream): ReferenceGenome = {
     implicit val formats = defaultJSONFormats
     JsonMethods.parse(is).extract[JSONExtractReferenceGenome].toReferenceGenome
@@ -593,9 +583,15 @@ object ReferenceGenome {
     rg
   }
 
+  def fromJSON(config: String): ReferenceGenome = {
+    val rg = parse(config)
+    addReference(rg)
+    rg
+  }
+
   def fromFASTAFile(hc: HailContext, name: String, fastaFile: String, indexFile: String,
-    xContigs: java.util.ArrayList[String], yContigs: java.util.ArrayList[String],
-    mtContigs: java.util.ArrayList[String], parInput: java.util.ArrayList[String]): ReferenceGenome =
+    xContigs: java.util.List[String], yContigs: java.util.List[String],
+    mtContigs: java.util.List[String], parInput: java.util.List[String]): ReferenceGenome =
     fromFASTAFile(hc, name, fastaFile, indexFile, xContigs.asScala.toArray, yContigs.asScala.toArray,
       mtContigs.asScala.toArray, parInput.asScala.toArray)
 
@@ -624,6 +620,22 @@ object ReferenceGenome {
     val rg = ReferenceGenome(name, contigs.result(), lengths.result().toMap, xContigs, yContigs, mtContigs, parInput)
     rg.fastaReader = FASTAReader(hc, rg, fastaFile, indexFile)
     rg
+  }
+
+  def addSequence(name: String, fastaFile: String, indexFile: String): Unit = {
+    references(name).addSequence(HailContext.get, fastaFile, indexFile)
+  }
+
+  def removeSequence(name: String): Unit = {
+    references(name).removeSequence()
+  }
+
+  def referenceAddLiftover(name: String, chainFile: String, destRGName: String): Unit = {
+    references(name).addLiftover(HailContext.get, chainFile, destRGName)
+  }
+  
+  def referenceRemoveLiftover(name: String, destRGName: String): Unit = {
+    references(name).removeLiftover(destRGName)
   }
 
   def importReferences(hConf: Configuration, path: String) {
@@ -715,9 +727,9 @@ object ReferenceGenome {
     rg
   }
 
-  def apply(name: java.lang.String, contigs: java.util.ArrayList[String], lengths: java.util.HashMap[String, Int],
-    xContigs: java.util.ArrayList[String], yContigs: java.util.ArrayList[String],
-    mtContigs: java.util.ArrayList[String], parInput: java.util.ArrayList[String]): ReferenceGenome =
+  def apply(name: java.lang.String, contigs: java.util.List[String], lengths: java.util.Map[String, Int],
+    xContigs: java.util.List[String], yContigs: java.util.List[String],
+    mtContigs: java.util.List[String], parInput: java.util.List[String]): ReferenceGenome =
     ReferenceGenome(name, contigs.asScala.toArray, lengths.asScala.toMap, xContigs.asScala.toArray, yContigs.asScala.toArray,
       mtContigs.asScala.toArray, parInput.asScala.toArray)
 }
@@ -733,7 +745,7 @@ case class RGVariable(var rg: RGBase = null) extends RGBase {
       rg = concrete
       true
     } else
-      rg eq concrete
+      rg == concrete
   }
 
   def isBound: Boolean = rg != null

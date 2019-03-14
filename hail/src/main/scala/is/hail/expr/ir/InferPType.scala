@@ -21,6 +21,7 @@ object InferPType {
       case Ref(_, t) => PType.canonical(t) // FIXME fill in with supplied physical type
       case In(_, t) => PType.canonical(t) // FIXME fill in with supplied physical type
       case MakeArray(_, t) => PType.canonical(t)
+      case MakeNDArray(data, _, _) => PNDArray(data.pType.asInstanceOf[PArray].elementType)
       case _: ArrayLen => PInt32()
       case _: ArrayRange => PArray(PInt32())
       case _: LowerBoundOnOrderedCollection => PInt32()
@@ -40,6 +41,8 @@ object InferPType {
           cnsq.pType
       case Let(name, value, body) =>
         body.pType
+      case AggLet(name, value, body) =>
+        body.pType
       case ApplyBinaryPrimOp(op, l, r) =>
         PType.canonical(BinaryOp.getReturnType(op, l.typ, r.typ)).setRequired(l.pType.required && r.pType.required)
       case ApplyUnaryPrimOp(op, v) =>
@@ -55,7 +58,7 @@ object InferPType {
       case _: Uniroot => PFloat64()
       case ArrayRef(a, i) =>
         coerce[PArray](a.pType).elementType.setRequired(a.pType.required && i.pType.required)
-      case ArraySort(a, ascending, _) =>
+      case ArraySort(a, _, _, _) =>
         val et = coerce[PArray](a.pType).elementType
         PArray(et, a.pType.required)
       case ToSet(a) =>
@@ -86,12 +89,17 @@ object InferPType {
         query.pType
       case ArrayLeftJoinDistinct(left, right, l, r, compare, join) =>
         PArray(join.pType)
+      case NDArrayRef(nd, idxs) =>
+        coerce[PNDArray](nd.pType).elementType.setRequired(nd.pType.required && 
+          idxs.pType.required &&
+          coerce[PArray](idxs.pType).elementType.required)
       case AggFilter(_, aggIR) =>
         aggIR.pType
       case AggExplode(array, name, aggBody) =>
         aggBody.pType
       case AggGroupBy(key, aggIR) =>
         PDict(PType.canonical(key.pType), aggIR.pType)
+      case AggArrayPerElement(a, name, aggBody) => PArray(aggBody.pType)
       case ApplyAggOp(_, _, _, aggSig) =>
         PType.canonical(AggOp.getType(aggSig))
       case ApplyScanOp(_, _, _, aggSig) =>
@@ -128,11 +136,15 @@ object InferPType {
       case _: TableWrite => PVoid
       case _: MatrixWrite => PVoid
       case _: MatrixMultiWrite => PVoid
+      case _: BlockMatrixWrite => PVoid
       case _: TableExport => PVoid
       case TableGetGlobals(child) => PType.canonical(child.typ.globalType)
       case TableCollect(child) => PStruct("rows" -> PArray(PType.canonical(child.typ.rowType)), "global" -> PType.canonical(child.typ.globalType))
       case TableToValueApply(child, function) => PType.canonical(function.typ(child.typ))
       case MatrixToValueApply(child, function) => PType.canonical(function.typ(child.typ))
+      case BlockMatrixToValueApply(child, function) => PType.canonical(function.typ(child.typ))
+      case CollectDistributedArray(_, _, _, _, body) => PArray(body.pType)
+      case ReadPartition(_, _, _, rowType) => PType.canonical(TArray(rowType))
     }
   }
 }

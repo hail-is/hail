@@ -3,6 +3,8 @@ package is.hail
 import java.io._
 import java.lang.reflect.Method
 import java.net.{URI, URLClassLoader}
+import java.text.SimpleDateFormat
+import java.util.{Calendar, Date}
 import java.util.zip.Inflater
 
 import is.hail.check.Gen
@@ -42,6 +44,30 @@ package object utils extends Logging
   def format(s: String, substitutions: Any*): String = {
     substitutions.zipWithIndex.foldLeft(s) { case (str, (value, i)) =>
       str.replace(s"@${ i + 1 }", value.toString)
+    }
+  }
+
+  def checkGzippedFile(hConf: org.apache.hadoop.conf.Configuration,
+    input: String,
+    forceGZ: Boolean,
+    gzAsBGZ: Boolean,
+    maxSizeMB: Int = 128) {
+    if (!forceGZ && !gzAsBGZ)
+      fatal(
+        s"""Cannot load file '$input'
+           |  .gz cannot be loaded in parallel. Is the file actually *block* gzipped?
+           |  If the file is actually block gzipped (even though its extension is .gz),
+           |  use the 'force_bgz' argument to treat all .gz file extensions as .bgz.
+           |  If you are sure that you want to load a non-block-gzipped file serially
+           |  on one core, use the 'force' argument.""".stripMargin)
+    else if (!gzAsBGZ) {
+      val fileSize = hConf.getFileSize(input)
+      if (fileSize > 1024 * 1024 * maxSizeMB)
+        warn(
+          s"""file '$input' is ${ readableBytes(fileSize) }
+             |  It will be loaded serially (on one core) due to usage of the 'force' argument.
+             |  If it is actually block-gzipped, either rename to .bgz or use the 'force_bgz'
+             |  argument.""".stripMargin)
     }
   }
 
@@ -592,6 +618,31 @@ package object utils extends Logging
 
   def point[T]()(implicit t: Pointed[T]): T = t.point
 
+  def singletonElement[T](it: Iterator[T]): T = {
+    val x = it.next()
+    assert(!it.hasNext)
+    x
+  }
+
+  // return partition of the ith item
+  def itemPartition(i: Int, n: Int, k: Int): Int = {
+    assert(n >= 0)
+    assert(k > 0)
+    assert(i >= 0 && i < n)
+    val minItemsPerPartition = n / k
+    val r = n % k
+    if (r == 0)
+      i / minItemsPerPartition
+    else {
+      val maxItemsPerPartition = minItemsPerPartition + 1
+      val crossover = maxItemsPerPartition * r
+      if (i < crossover)
+        i / maxItemsPerPartition
+      else
+        r + ((i - crossover) / minItemsPerPartition)
+    }
+  }
+
   def partition(n: Int, k: Int): Array[Int] = {
     if (k == 0) {
       assert(n == 0)
@@ -686,6 +737,18 @@ package object utils extends Logging
     val parent = cl.getParent
     if (parent != null)
       dumpClassLoader(parent)
+  }
+
+  def writeNativeFileReadMe(path: String): Unit = {
+    val hc = HailContext.get
+    val dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss")
+
+    hc.hadoopConf.writeTextFile(path + "/README.txt") { out =>
+      out.write(
+        s"""This folder comprises a Hail (www.hail.is) native Table or MatrixTable.
+           |  Written with version ${ hc.version }
+           |  Created at ${ dateFormat.format(new Date()) }""".stripMargin)
+    }
   }
 }
 

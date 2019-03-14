@@ -67,7 +67,11 @@ class HailContext(object):
         jsc = sc._jsc.sc() if sc else None
 
         if _backend is None:
-            _backend = SparkBackend()
+            apiserver_url = os.environ.get('HAIL_APISERVER_URL')
+            if apiserver_url is not None:
+                _backend = ServiceBackend(apiserver_url)
+            else:
+                _backend = SparkBackend()
         self._backend = _backend
 
         tmp_dir = get_env_or_default(tmp_dir, 'TMPDIR', '/tmp')
@@ -101,9 +105,15 @@ class HailContext(object):
 
         # do this at the end in case something errors, so we don't raise the above error without a real HC
         Env._hc = self
-
-        self._default_ref = None
-        Env.hail().variant.ReferenceGenome.setDefaultReference(self._jhc, default_reference)
+        
+        ReferenceGenome._from_config(_backend.get_reference('GRCh37'), True)
+        ReferenceGenome._from_config(_backend.get_reference('GRCh38'), True)
+        ReferenceGenome._from_config(_backend.get_reference('GRCm38'), True)
+        
+        if default_reference in ReferenceGenome._references:
+            self._default_ref = ReferenceGenome._references[default_reference]
+        else:
+            self._default_ref = ReferenceGenome.read(default_reference)
 
         jar_version = self._jhc.version()
 
@@ -111,8 +121,6 @@ class HailContext(object):
             raise RuntimeError(f"Hail version mismatch between JAR and Python library\n"
                    f"  JAR:    {jar_version}\n"
                    f"  Python: {version}")
-
-
 
         if not quiet:
             sys.stderr.write('Running on Apache Spark version {}\n'.format(self.sc.version))
@@ -139,10 +147,9 @@ class HailContext(object):
         install_exception_handler()
         Env.set_seed(global_seed)
 
+
     @property
     def default_reference(self):
-        if not self._default_ref:
-            self._default_ref = ReferenceGenome._from_java(Env.hail().variant.ReferenceGenome.defaultReference())
         return self._default_ref
 
     def stop(self):
@@ -169,7 +176,7 @@ class HailContext(object):
            min_block_size=int,
            branching_factor=int,
            tmp_dir=str,
-           default_reference=enumeration('GRCh37', 'GRCh38'),
+           default_reference=enumeration('GRCh37', 'GRCh38', 'GRCm38'),
            idempotent=bool,
            global_seed=nullable(int),
            _backend=nullable(Backend))
@@ -297,13 +304,11 @@ def get_reference(name) -> 'hail.ReferenceGenome':
     -------
     :class:`.ReferenceGenome`
     """
+    Env.hc()
     if name == 'default':
         return default_reference()
     else:
-        return hail.ReferenceGenome._references.get(
-            name,
-            hail.ReferenceGenome._from_java(Env.hail().variant.ReferenceGenome.getReference(name))
-        )
+        return ReferenceGenome._references[name]
 
 
 @typecheck(seed=int)
@@ -314,10 +319,6 @@ def set_global_seed(seed):
     ----------
     seed : :obj:`int`
         Integer used to seed Hail's random number generator
-
-    Returns
-    -------
-    :class:`.ReferenceGenome`
     """
 
     Env.set_seed(seed)

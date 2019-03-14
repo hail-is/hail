@@ -1,23 +1,27 @@
 package is.hail.methods
 
+import java.io.BufferedInputStream
+
 import com.fasterxml.jackson.core.JsonParseException
+import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr._
-import is.hail.expr.ir.{TableLiteral, TableValue}
+import is.hail.expr.ir.functions.TableToTableFunction
+import is.hail.expr.ir.TableValue
 import is.hail.expr.types._
 import is.hail.expr.types.virtual._
-import is.hail.rvd.{RVD, RVDContext}
+import is.hail.methods.VEP._
+import is.hail.rvd.{RVD, RVDContext, RVDType}
 import is.hail.sparkextras.ContextRDD
-import is.hail.table.Table
 import is.hail.utils._
 import is.hail.variant.{Locus, RegionValueVariant, VariantMethods}
+import org.apache.hadoop
 import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.json4s.jackson.JsonMethods
-import org.apache.hadoop
 
 import scala.collection.JavaConverters._
-import scala.util.{Failure, Success, Try}
+import scala.io.Source
 
 case class VEPConfiguration(
   command: Array[String],
@@ -62,6 +66,17 @@ object VEP {
     }
   }
 
+  def waitFor(proc: Process, cmd: Array[String]): Unit = {
+    val rc = proc.waitFor()
+
+    if (rc != 0) {
+      val errorLines = Source.fromInputStream(new BufferedInputStream(proc.getErrorStream)).getLines().mkString("\n")
+
+      fatal(s"VEP command '${ cmd.mkString(" ") }' failed with non-zero exit status $rc\n" +
+        "  VEP Error output:\n" + errorLines)
+    }
+  }
+
   def getCSQHeaderDefinition(cmd: Array[String], confEnv: Map[String, String]): Option[String] = {
     val csqHeaderRegex = "ID=CSQ[^>]+Description=\"([^\"]+)".r
     val pb = new ProcessBuilder(cmd.toList.asJava)
@@ -74,9 +89,7 @@ object VEP {
       _ => ())
 
     val csqHeader = jt.flatMap(s => csqHeaderRegex.findFirstMatchIn(s).map(m => m.group(1)))
-    val rc = proc.waitFor()
-    if (rc != 0)
-      fatal(s"VEP command failed with non-zero exit status $rc")
+    waitFor(proc, cmd)
 
     if (csqHeader.hasNext)
       Some(csqHeader.next())
@@ -85,12 +98,25 @@ object VEP {
       None
     }
   }
+}
 
-  def annotate(ht: Table, config: String, csq: Boolean, blockSize: Int): Table = {
-    assert(ht.key == FastIndexedSeq("locus", "alleles"))
-    assert(ht.typ.rowType.size == 2)
+case class VEP(config: String, csq: Boolean, blockSize: Int) extends TableToTableFunction {
+  private val conf = VEP.readConfiguration(HailContext.get.hadoopConf, config)
+  private val vepSignature = conf.vep_json_schema
 
-    val conf = readConfiguration(ht.hc.hadoopConf, config)
+  override def preservesPartitionCounts: Boolean = false
+
+  override def typeInfo(childType: TableType, childRVDType: RVDType): (TableType, RVDType) = {
+    val vepType = if (csq) TArray(TString()) else vepSignature
+    val t = TableType(childType.rowType ++ TStruct("vep" -> vepType), childType.key, childType.globalType)
+    (t, t.canonicalRVDType)
+  }
+
+  override def execute(tv: TableValue): TableValue = {
+    assert(tv.typ.key == FastIndexedSeq("locus", "alleles"))
+    assert(tv.typ.rowType.size == 2)
+
+    val conf = readConfiguration(HailContext.get.hadoopConf, config)
     val vepSignature = conf.vep_json_schema
 
     val cmd = conf.command.map(s =>
@@ -107,16 +133,16 @@ object VEP {
 
     val localBlockSize = blockSize
 
-    val localRowType = ht.typ.rowType.physicalType
-    val rowKeyOrd = ht.typ.keyType.ordering
+    val localRowType = tv.typ.rowType.physicalType
+    val rowKeyOrd = tv.typ.keyType.ordering
 
-    val prev = ht.value.rvd
+    val prev = tv.rvd
     val annotations = prev
       .mapPartitions { it =>
         val pb = new ProcessBuilder(cmd.toList.asJava)
         val env = pb.environment()
         conf.env.foreach { case (key, value) =>
-            env.put(key, value)
+          env.put(key, value)
         }
 
         val rvv = new RegionValueVariant(localRowType)
@@ -183,9 +209,7 @@ object VEP {
             val r = kt.toArray
               .sortBy(_._1)(rowKeyOrd.toOrdering)
 
-            val rc = proc.waitFor()
-            if (rc != 0)
-              fatal(s"vep command '${ cmd.mkString(" ") }' failed with non-zero exit status $rc")
+            waitFor(proc, cmd)
 
             r
           }
@@ -215,7 +239,7 @@ object VEP {
           rv.setOffset(rvb.end())
           rv
         }
-      }).persist(StorageLevel.MEMORY_AND_DISK)
+      })
 
     val (globalValue, globalType) =
       if (csq)
@@ -223,12 +247,9 @@ object VEP {
       else
         (Row(), TStruct())
 
-    new Table(ht.hc, TableLiteral(TableValue(
+    TableValue(
       TableType(vepRowType.virtualType, FastIndexedSeq("locus", "alleles"), globalType),
-      BroadcastRow(globalValue, globalType, ht.hc.sc),
-      vepRVD)))
+      BroadcastRow(globalValue, globalType, HailContext.get.sc),
+      vepRVD)
   }
-
-  def apply(ht: Table, config: String, csq: Boolean = false, blockSize: Int = 1000): Table =
-    annotate(ht, config, csq, blockSize)
 }

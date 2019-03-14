@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: hail-jupyter
+  labels:
+    app: hail-jupyter
+spec:
+  containers:
+  - name: hail-jupyter
+    image: @hail_jupyter_image@
+    ports:
+    - containerPort: 8888
+  restartPolicy: Never

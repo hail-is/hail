@@ -2,10 +2,8 @@ from typing import *
 
 from hail.expr import expressions
 from hail.expr.types import *
-from hail.genetics import Locus, Call
 from hail.ir import *
 from hail.typecheck import linked_list
-from hail.utils import Interval, Struct
 from hail.utils.java import *
 from hail.utils.linkedlist import LinkedList
 from .indices import *
@@ -24,6 +22,9 @@ class ExpressionWarning(Warning):
 
 
 def impute_type(x):
+    from hail.genetics import Locus, Call
+    from hail.utils import Interval, Struct
+    
     if isinstance(x, Expression):
         return x.dtype
     elif isinstance(x, bool):
@@ -106,7 +107,7 @@ def to_expr(e, dtype=None) -> 'Expression':
 
 def _to_expr(e, dtype):
     if e is None:
-        return hl.null(dtype)
+        return None
     elif isinstance(e, Expression):
         if e.dtype != dtype:
             assert is_numeric(dtype), 'expected {}, got {}'.format(dtype, e.dtype)
@@ -705,12 +706,12 @@ class Expression(object):
             name = source._fields_inverse.get(self, name)
         t = self._to_table(name)
         if name in t.key:
-            t = t.key_by(name).select()
+            t = t.order_by(*t.key).select(name)
         return t._show(n, width, truncate, types)
 
 
-    @typecheck_method(n=int)
-    def take(self, n):
+    @typecheck_method(n=int, _localize=bool)
+    def take(self, n, _localize=True):
         """Collect the first `n` records of an expression.
 
         Examples
@@ -735,9 +736,14 @@ class Expression(object):
         :obj:`list`
         """
         uid = Env.get_uid()
-        return [r[uid] for r in self._to_table(uid).take(n)]
+        e = self._to_table(uid).take(n, _localize=False).map(lambda r: r[uid])
+        if _localize:
+            return hl.eval(e)
+        else:
+            return e
 
-    def collect(self):
+    @typecheck_method(_localize=bool)
+    def collect(self, _localize=True):
         """Collect all records of an expression into a local list.
 
         Examples
@@ -761,19 +767,61 @@ class Expression(object):
         :obj:`list`
         """
         uid = Env.get_uid()
-        t = self._to_table(uid).key_by()
-        return [r[uid] for r in t._select("collect", hl.struct(**{uid: t[uid]})).collect()]
+        t = self._to_table(uid).key_by().select(uid)
 
-    def _aggregation_method(self):
+        e = t.collect(_localize=False).map(lambda r: r[uid])
+        if _localize:
+            return hl.eval(e)
+        else:
+            return e
+
+    def summarize(self):
+        """Compute and print summary information about the expression.
+
+        .. include:: _templates/experimental.rst
+        """
+        src =self._indices.source
+        if src is None or len(self._indices.axes) == 0:
+            raise ValueError("Cannot summarize a scalar expression")
+
+        selector, agg_f = self._selector_and_agg_method()
+
+        if self in src._fields:
+            field_name = src._fields_inverse[self]
+            prefix = field_name
+            t = selector(field_name)
+        else:
+            field_name = Env.get_uid()
+            if self._ir.is_nested_field:
+                prefix = self._ir.name
+            else:
+                prefix = '<expr>'
+            t = selector(**{field_name: self})
+        computations, printers = hl.expr.generic_summary(t[field_name], prefix)
+        results = agg_f(t)(computations)
+
+        for name, fields in printers:
+            print(f'* {name}:')
+
+            max_k_len = max(len(f) for f in fields)
+            for k, v in fields.items():
+                print(f'    {k.rjust(max_k_len)} : {v(results)}')
+            print()
+
+
+    def _selector_and_agg_method(self):
         src = self._indices.source
         assert src is not None
         assert len(self._indices.axes) > 0
         if isinstance(src, hl.MatrixTable):
             if self._indices == src._row_indices:
-                return src.aggregate_rows
+                return src.select_rows, lambda t: t.aggregate_rows
             elif self._indices == src._col_indices:
-                return src.aggregate_cols
+                return src.select_cols, lambda t: t.aggregate_cols
             else:
-                return src.aggregate_entries
+                return src.select_entries, lambda t: t.aggregate_entries
         else:
-            return src.aggregate
+            return src.select, lambda t: t.aggregate
+
+    def _aggregation_method(self):
+        return self._selector_and_agg_method()[1](self._indices.source)

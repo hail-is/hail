@@ -1,4 +1,5 @@
 import builtins
+import functools
 from typing import *
 
 import hail as hl
@@ -329,6 +330,41 @@ def bind(f: Callable, *exprs):
         res_ir = Let(uid, ir, res_ir)
 
     return construct_expr(res_ir, lambda_result.dtype, indices, aggregations)
+
+
+def rbind(*exprs):
+    """Bind a temporary variable and use it in a function.
+
+    This is :func:`.bind` with flipped argument order.
+
+    Examples
+    --------
+
+    >>> hl.eval(hl.rbind(1, lambda x: x + 1))
+    2
+
+    :func:`.let` also can take multiple arguments:
+
+    >>> hl.eval(hl.rbind(4.0, 2.0, lambda x, y: x / y))
+    2.0
+
+    Parameters
+    ----------
+    exprs : variable-length args of :class:`.Expression`
+        Expressions to bind.
+    f : function ( (args) -> :class:`.Expression`)
+        Function of `exprs`.
+
+    Returns
+    -------
+    :class:`.Expression`
+        Result of evaluating `f` with `exprs` as arguments.
+    """
+
+    f = exprs[-1]
+    args = [expr_any.check(arg, 'rbind', f'argument {index}') for index, arg in enumerate(exprs[:-1])]
+
+    return hl.bind(f, *args)
 
 
 @typecheck(c1=expr_int32, c2=expr_int32, c3=expr_int32, c4=expr_int32)
@@ -674,7 +710,7 @@ def locus(contig, pos, reference_genome: Union[str, ReferenceGenome] = 'default'
     Examples
     --------
 
-    >>> hl.eval(hl.locus("1", 10000))
+    >>> hl.eval(hl.locus("1", 10000, reference_genome='GRCh37'))
     Locus(contig=1, position=10000, reference_genome=GRCh37)
 
     Parameters
@@ -709,7 +745,7 @@ def locus_from_global_position(global_pos,
     >>> hl.eval(hl.locus_from_global_position(2824183054))
     Locus(contig=21, position=42584230, reference_genome=GRCh37)
 
-    >>> hl.eval(hl.locus_from_global_position(2824183054, 'GRCh38'))
+    >>> hl.eval(hl.locus_from_global_position(2824183054, reference_genome='GRCh38'))
     Locus(contig=chr22, position=1, reference_genome=GRCh38)
 
     Parameters
@@ -735,7 +771,7 @@ def parse_locus(s, reference_genome: Union[str, ReferenceGenome] = 'default') ->
     Examples
     --------
 
-    >>> hl.eval(hl.parse_locus("1:10000"))
+    >>> hl.eval(hl.parse_locus('1:10000', reference_genome='GRCh37'))
     Locus(contig=1, position=10000, reference_genome=GRCh37)
 
     Notes
@@ -765,7 +801,7 @@ def parse_variant(s, reference_genome: Union[str, ReferenceGenome] = 'default') 
     Examples
     --------
 
-    >>> hl.eval(hl.parse_variant('1:100000:A:T,C'))
+    >>> hl.eval(hl.parse_variant('1:100000:A:T,C', reference_genome='GRCh37'))
     Struct(locus=Locus(contig=1, position=100000, reference_genome=GRCh37), alleles=['A', 'T', 'C'])
 
     Notes
@@ -947,7 +983,7 @@ def locus_interval(contig,
     Examples
     --------
 
-    >>> hl.eval(hl.locus_interval("1", 100, 1000))
+    >>> hl.eval(hl.locus_interval("1", 100, 1000, reference_genome='GRCh37'))
     Interval(start=Locus(contig=1, position=100, reference_genome=GRCh37),
              end=Locus(contig=1, position=1000, reference_genome=GRCh37),
              includes_start=True,
@@ -985,13 +1021,13 @@ def parse_locus_interval(s, reference_genome: Union[str, ReferenceGenome] = 'def
     Examples
     --------
 
-    >>> hl.eval(hl.parse_locus_interval('1:1000-2000'))
+    >>> hl.eval(hl.parse_locus_interval('1:1000-2000', reference_genome='GRCh37'))
     Interval(start=Locus(contig=1, position=1000, reference_genome=GRCh37),
              end=Locus(contig=1, position=2000, reference_genome=GRCh37),
              includes_start=True,
              includes_end=False)
 
-    >>> hl.eval(hl.parse_locus_interval('1:start-10M'))
+    >>> hl.eval(hl.parse_locus_interval('1:start-10M', reference_genome='GRCh37'))
     Interval(start=Locus(contig=1, position=1, reference_genome=GRCh37),
              end=Locus(contig=1, position=10000000, reference_genome=GRCh37),
              includes_start=True,
@@ -1418,12 +1454,7 @@ def coalesce(*args):
         arg_types = ''.join([f"\n    argument {i}: type '{arg.dtype}'" for i, arg in enumerate(exprs)])
         raise TypeError(f"'coalesce' requires all arguments to have the same type or compatible types"
                         f"{arg_types}")
-    def make_case(*expr_args):
-        c = case()
-        for e in expr_args:
-            c = c.when(hl.is_defined(e), e)
-        return c.or_missing()
-    return bind(make_case, *exprs)
+    return functools.reduce(lambda x, y: hl.or_else(y, x), exprs[::-1])
 
 @typecheck(a=expr_any, b=expr_any)
 def or_else(a, b):
@@ -1457,7 +1488,7 @@ def or_else(a, b):
                         f"    a: type '{a.dtype}'\n"
                         f"    b: type '{b.dtype}'")
     assert a.dtype == b.dtype
-    return hl.cond(hl.is_defined(a), a, b)
+    return hl.rbind(a, lambda aa: hl.cond(hl.is_defined(aa), aa, b))
 
 @typecheck(predicate=expr_bool, value=expr_any)
 def or_missing(predicate, value):
@@ -2764,7 +2795,7 @@ def group_by(f: Callable, collection) -> DictExpression:
 
     >>> a = ['The', 'quick', 'brown', 'fox']
 
-    >>> hl.eval(hl.group_by(lambda x: hl.len(x), a))
+    >>> hl.eval(hl.group_by(lambda x: hl.len(x), a))  # doctest: +NOTEST
     {5: ['quick', 'brown'], 3: ['The', 'fox']}
 
     Parameters
@@ -3563,6 +3594,28 @@ def delimit(collection, delimiter=',') -> StringExpression:
     return collection._method("mkString", tstr, delimiter)
 
 
+@typecheck(left=expr_any, right=expr_any)
+def _compare(left, right):
+    if left.dtype != right.dtype:
+        raise TypeError(f"'compare' expected 'left' and 'right' to have the same type: found {left.dtype} vs {right.dtype}")
+    indices, aggregations = unify_all(left, right)
+    return construct_expr(ApplyComparisonOp("Compare", left._ir, right._ir), tint32, indices, aggregations)
+
+
+@typecheck(collection=expr_array(),
+           less_than=nullable(func_spec(2, expr_bool)))
+def _sort_by(collection, less_than):
+    l = Env.get_uid()
+    r = Env.get_uid()
+    left = construct_expr(Ref(l), collection.dtype.element_type, collection._indices, collection._aggregations)
+    right = construct_expr(Ref(r), collection.dtype.element_type, collection._indices, collection._aggregations)
+    return construct_expr(
+        ArraySort(collection._ir, l, r, less_than(left, right)._ir),
+        collection.dtype,
+        collection._indices,
+        collection._aggregations)
+
+
 @typecheck(collection=expr_array(),
            key=nullable(func_spec(1, expr_any)),
            reverse=expr_bool)
@@ -3603,16 +3656,19 @@ def sorted(collection,
     :class:`.ArrayExpression`
         Sorted array.
     """
-    ascending = ~reverse
+
+    def comp(l, r):
+        return (hl.case()
+                .when(hl.is_missing(l), False)
+                .when(hl.is_missing(r), True)
+                .when(reverse, hl._compare(r, l) < 0)
+                .default(hl._compare(l, r) < 0))
 
     if key is None:
-        return collection._method("sort", collection.dtype, ascending)
+        return _sort_by(collection, comp)
     else:
         with_key = collection.map(lambda elt: hl.tuple([key(elt), elt]))
-        ir = ArraySort(with_key._ir, ascending._ir, on_key=True)
-
-        indices, aggregations = unify_all(with_key, ascending)
-        return construct_expr(ir, with_key.dtype, indices, aggregations).map(lambda elt: elt[1])
+        return _sort_by(with_key, lambda l, r: comp(l[0], r[0])).map(lambda elt: elt[1])
 
 
 @typecheck(array=expr_array(expr_numeric), unique=bool)
@@ -3979,10 +4035,10 @@ def is_valid_contig(contig, reference_genome='default') -> BooleanExpression:
     Examples
     --------
 
-    >>> hl.eval(hl.is_valid_contig('1', 'GRCh37'))
+    >>> hl.eval(hl.is_valid_contig('1', reference_genome='GRCh37'))
     True
 
-    >>> hl.eval(hl.is_valid_contig('chr1', 'GRCh37'))
+    >>> hl.eval(hl.is_valid_contig('chr1', reference_genome='GRCh37'))
     False
 
     Parameters
@@ -4193,6 +4249,9 @@ def liftover(x, dest_reference_genome, min_match=0.95, include_strand=False):
              True,
              True)
 
+    See :ref:`liftover_howto` for more instructions on lifting over a Table
+    or MatrixTable.
+
     Notes
     -----
     This function requires the reference genome of `x` has a chain file loaded
@@ -4357,6 +4416,238 @@ def approx_equal(x, y, tolerance=1e-6, absolute=False, nan_same=False):
 
     return _func("approxEqual", hl.tbool, x, y, tolerance, absolute, nan_same)
 
+
+def _shift_op(x, y, op):
+    assert op in ('<<', '>>', '>>>')
+    t = x.dtype
+    if t == hl.tint64:
+        word_size = 64
+        zero = hl.int64(0)
+    else:
+        word_size = 32
+        zero = hl.int32(0)
+
+    indices, aggregations = unify_all(x, y)
+    return hl.bind(lambda x, y: (
+        hl.case()
+            .when(y >= word_size, hl.sign(x) if op == '>>' else zero)
+            .when(y > 0, construct_expr(ApplyBinaryOp(op, x._ir, y._ir), t, indices, aggregations))
+            .or_error('cannot shift by a negative value: ' + hl.str(x) + f" {op} " + hl.str(y))), x, y)
+
+def _bit_op(x, y, op):
+    if x.dtype == hl.tint32 and y.dtype == hl.tint32:
+        t = hl.tint32
+    else:
+        t = hl.tint64
+    coercer = coercer_from_dtype(t)
+    x = coercer.coerce(x)
+    y = coercer.coerce(y)
+
+    indices, aggregations = unify_all(x, y)
+    return construct_expr(ApplyBinaryOp(op, x._ir, y._ir), t, indices, aggregations)
+
+
+@typecheck(x=expr_oneof(expr_int32, expr_int64), y=expr_oneof(expr_int32, expr_int64))
+def bit_and(x, y):
+    """Bitwise and `x` and `y`.
+
+    Examples
+    --------
+    >>> hl.eval(hl.bit_and(5, 3))
+    1
+
+    Notes
+    -----
+    See `the Python wiki <https://wiki.python.org/moin/BitwiseOperators>`__
+    for more information about bit operators.
+
+
+    Parameters
+    ----------
+    x : :class:`.Int32Expression` or :class:`.Int64Expression`
+    y : :class:`.Int32Expression` or :class:`.Int64Expression`
+
+    Returns
+    -------
+    :class:`.Int32Expression` or :class:`.Int64Expression`
+    """
+    return _bit_op(x, y, '&')
+
+
+@typecheck(x=expr_oneof(expr_int32, expr_int64), y=expr_oneof(expr_int32, expr_int64))
+def bit_or(x, y):
+    """Bitwise or `x` and `y`.
+
+    Examples
+    --------
+    >>> hl.eval(hl.bit_or(5, 3))
+    7
+
+    Notes
+    -----
+    See `the Python wiki <https://wiki.python.org/moin/BitwiseOperators>`__
+    for more information about bit operators.
+
+
+    Parameters
+    ----------
+    x : :class:`.Int32Expression` or :class:`.Int64Expression`
+    y : :class:`.Int32Expression` or :class:`.Int64Expression`
+
+    Returns
+    -------
+    :class:`.Int32Expression` or :class:`.Int64Expression`
+    """
+    return _bit_op(x, y, '|')
+
+
+@typecheck(x=expr_oneof(expr_int32, expr_int64), y=expr_oneof(expr_int32, expr_int64))
+def bit_xor(x, y):
+    """Bitwise exclusive-or `x` and `y`.
+
+    Examples
+    --------
+    >>> hl.eval(hl.bit_xor(5, 3))
+    6
+
+    Notes
+    -----
+    See `the Python wiki <https://wiki.python.org/moin/BitwiseOperators>`__
+    for more information about bit operators.
+
+
+    Parameters
+    ----------
+    x : :class:`.Int32Expression` or :class:`.Int64Expression`
+    y : :class:`.Int32Expression` or :class:`.Int64Expression`
+
+    Returns
+    -------
+    :class:`.Int32Expression` or :class:`.Int64Expression`
+    """
+    return _bit_op(x, y, '^')
+
+
+@typecheck(x=expr_oneof(expr_int32, expr_int64), y=expr_int32)
+def bit_lshift(x, y):
+    """Bitwise left-shift `x` by `y`.
+
+    Examples
+    --------
+    >>> hl.eval(hl.bit_lshift(5, 3))
+    40
+
+    >>> hl.eval(hl.bit_lshift(1, 8))
+    256
+
+    Unlike Python, Hail integers are fixed-size (32 or 64 bits),
+    and bits extended beyond will be ignored:
+
+    >>> hl.eval(hl.bit_lshift(1, 31))
+    -2147483648
+
+    >>> hl.eval(hl.bit_lshift(1, 32))
+    0
+
+    >>> hl.eval(hl.bit_lshift(hl.int64(1), 32))
+    4294967296
+
+    >>> hl.eval(hl.bit_lshift(hl.int64(1), 64))
+    0
+
+    Notes
+    -----
+    See `the Python wiki <https://wiki.python.org/moin/BitwiseOperators>`__
+    for more information about bit operators.
+
+    Parameters
+    ----------
+    x : :class:`.Int32Expression` or :class:`.Int64Expression`
+    y : :class:`.Int32Expression` or :class:`.Int64Expression`
+
+    Returns
+    -------
+    :class:`.Int32Expression` or :class:`.Int64Expression`
+    """
+    return _shift_op(x, y, '<<')
+
+
+@typecheck(x=expr_oneof(expr_int32, expr_int64), y=expr_int32, logical=builtins.bool)
+def bit_rshift(x, y, logical=False):
+    """Bitwise right-shift `x` by `y`.
+
+    Examples
+    --------
+    >>> hl.eval(hl.bit_rshift(256, 3))
+    32
+
+    With ``logical=False`` (default), the sign is preserved:
+
+    >>> hl.eval(hl.bit_rshift(-1, 1))
+    -1
+
+    With ``logical=True``, the sign bit is treated as any other:
+
+    >>> hl.eval(hl.bit_rshift(-1, 1, logical=True))
+    2147483647
+
+    Notes
+    -----
+    If `logical` is ``False``, then the shift is a sign-preserving right shift.
+    If `logical` is ``True``, then the shift is logical, with the sign bit
+    treated as any other bit.
+
+    See `the Python wiki <https://wiki.python.org/moin/BitwiseOperators>`__
+    for more information about bit operators.
+
+    Parameters
+    ----------
+    x : :class:`.Int32Expression` or :class:`.Int64Expression`
+    y : :class:`.Int32Expression` or :class:`.Int64Expression`
+    logical : :obj:`bool`
+
+    Returns
+    -------
+    :class:`.Int32Expression` or :class:`.Int64Expression`
+    """
+    if logical:
+        return _shift_op(x, y, '>>>')
+    else:
+        return _shift_op(x, y, '>>')
+
+
+@typecheck(x=expr_oneof(expr_int32, expr_int64))
+def bit_not(x):
+    """Bitwise invert `x`.
+
+    Examples
+    --------
+    >>> hl.eval(hl.bit_not(0))
+    -1
+
+    Notes
+    -----
+    See `the Python wiki <https://wiki.python.org/moin/BitwiseOperators>`__
+    for more information about bit operators.
+
+
+    Parameters
+    ----------
+    x : :class:`.Int32Expression` or :class:`.Int64Expression`
+
+    Returns
+    -------
+    :class:`.Int32Expression` or :class:`.Int64Expression`
+    """
+    return construct_expr(ApplyUnaryOp('~', x._ir), x.dtype, x._indices, x._aggregations)
+
+
 @typecheck(s=expr_str)
 def _escape_string(s):
     return _func("escapeString", hl.tstr, s)
+
+@typecheck(l=expr_any, r=expr_any, tolerance=expr_float64, absolute=expr_bool)
+def _values_similar(l, r, tolerance=1e-6, absolute=False):
+    assert l.dtype == r.dtype
+    return ((is_missing(l) & is_missing(r))
+            | ((is_defined(l) & is_defined(r)) & _func("valuesSimilar", hl.tbool, l, r, tolerance, absolute)))

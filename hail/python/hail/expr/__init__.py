@@ -1,8 +1,11 @@
 from .types import *
 from .table_type import *
 from .matrix_type import *
+from .blockmatrix_type import *
 from .expressions import eval, eval_typed
 from .functions import *
+from .functions import _sort_by, _compare, _values_similar
+from .generic_summary import generic_summary
 __all__ = ['HailType',
            'dtype',
            'tint',
@@ -23,8 +26,10 @@ __all__ = ['HailType',
            'tlocus',
            'tcall',
            'tvoid',
+           'tvariable',
            'ttable',
            'tmatrix',
+           'tblockmatrix',
            'hts_entry_schema',
            'eval',
            'eval_typed',
@@ -34,6 +39,7 @@ __all__ = ['HailType',
            'switch',
            'case',
            'bind',
+           'rbind',
            'contingency_table_test',
            'dbeta',
            'dict',
@@ -153,5 +159,14 @@ __all__ = ['HailType',
            'uniroot',
            'format',
            'approx_equal',
-           'reversed'
-           ]
+           'reversed',
+           'bit_and',
+           'bit_or',
+           'bit_xor',
+           'bit_lshift',
+           'bit_rshift',
+           'bit_not',
+           'generic_summary',
+           '_values_similar',
+           '_sort_by',
+           '_compare']

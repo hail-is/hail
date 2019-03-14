@@ -144,6 +144,9 @@ rules:
 - apiGroups: [""]
   resources: ["services"]
   verbs: ["*"]
+- apiGroups: [""]
+  resources: ["persistentvolumeclaims"]
+  verbs: ["*"]
 ---
 kind: RoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
@@ -271,3 +274,95 @@ spec:
   resources:
     requests:
       storage: 10Mi
+---
+apiVersion: v1
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: test
+  name: delete-test-pvc
+rules:
+- apiGroups: [""]
+  resources: ["persistentvolumeclaims"]
+  verbs: ["list", "delete"]
+---
+apiVersion: v1
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: deploy-svc-delete-test-pvc
+  namespace: test
+subjects:
+- kind: ServiceAccount
+  name: deploy-svc
+  namespace: batch-pods
+roleRef:
+  kind: Role
+  name: delete-test-pvc
+  apiGroup: "rbac.authorization.k8s.io"
+---
+apiVersion: v1
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: batch-pods
+  name: delete-batch-pods-pvc
+rules:
+- apiGroups: [""]
+  resources: ["persistentvolumeclaims"]
+  verbs: ["list", "delete"]
+---
+apiVersion: v1
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: deploy-svc-delete-batch-pods-pvc
+  namespace: batch-pods
+subjects:
+- kind: ServiceAccount
+  name: deploy-svc
+  namespace: batch-pods
+roleRef:
+  kind: Role
+  name: delete-batch-pods-pvc
+  apiGroup: "rbac.authorization.k8s.io"
+---
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: batch
+  namespace: batch-pods
+provisioner: kubernetes.io/gce-pd
+parameters:
+  type: pd-standard
+  replication-type: none
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: batch-storage-class-quota
+  namespace: batch-pods
+spec:
+  hard:
+    batch.storageclass.storage.k8s.io/requests.storage: 100Gi
+    batch.storageclass.storage.k8s.io/persistentvolumeclaims: 100
+---
+kind: StorageClass
+apiVersion: storage.k8s.io/v1
+metadata:
+  name: batch
+  namespace: test
+provisioner: kubernetes.io/gce-pd
+parameters:
+  type: pd-standard
+  replication-type: none
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: batch-storage-class-quota
+  namespace: test
+spec:
+  hard:
+    batch.storageclass.storage.k8s.io/requests.storage: 100Gi
+    batch.storageclass.storage.k8s.io/persistentvolumeclaims: 100

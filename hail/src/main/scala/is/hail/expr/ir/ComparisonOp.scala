@@ -31,7 +31,7 @@ object ComparisonOp {
     case ("<" | "LT", t1, t2) =>
       checkCompatible(t1, t2)
       LT(t1, t2)
-    case ("compare" | "Compare", t1, t2) =>
+    case ("Compare", t1, t2) =>
       checkCompatible(t1, t2)
       Compare(t1, t2)
   }

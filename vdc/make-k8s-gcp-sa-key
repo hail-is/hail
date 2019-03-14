@@ -1,0 +1,28 @@
+#!/bin/sh
+
+set -ex
+
+if [ ! $# -eq 2 ]
+then
+    echo "USAGE: make-k8s-gcp-sa-key SERIVCE_ACCOUNT_NAME NAMESPACE"
+    exit 1
+fi
+
+service_account_name=$1
+namespace=$2
+temp_file=$(mktemp /tmp/key.json.XXXXXX)
+
+cleanup() {
+    set +e
+    trap "" INT TERM
+    rm -rf ${temp_file}
+}
+trap cleanup EXIT
+trap "exit 24" INT TERM
+
+gcloud iam service-accounts keys create ${temp_file} \
+    --iam-account=${service_account_name}@hail-vdc.iam.gserviceaccount.com
+kubectl create secret generic \
+    gcp-sa-key-${service_account_name} \
+    --namespace=${namespace} \
+    --from-file=key.json="${temp_file}"

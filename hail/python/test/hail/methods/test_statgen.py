@@ -17,6 +17,7 @@ tearDownModule = stopTestHailContext
 
 
 class Tests(unittest.TestCase):
+    @skip_unless_spark_backend()
     @unittest.skipIf('HAIL_TEST_SKIP_PLINK' in os.environ, 'Skipping tests requiring plink')
     def test_ibd(self):
         dataset = get_dataset()
@@ -1024,6 +1025,7 @@ class Tests(unittest.TestCase):
         assert mt.aggregate_rows(hl.agg.all(mt.foo.bar == ht[mt.row_key].bar))
 
 
+    @skip_unless_spark_backend()
     def test_genetic_relatedness_matrix(self):
         n, m = 100, 200
         hl.set_global_seed(0)
@@ -1056,6 +1058,7 @@ class Tests(unittest.TestCase):
         col_filter = col_lengths > 0
         return np.copy(a[:, np.squeeze(col_filter)] / col_lengths[col_filter])
 
+    @skip_unless_spark_backend()
     def test_realized_relationship_matrix(self):
         n, m = 100, 200
         hl.set_global_seed(0)
@@ -1070,6 +1073,7 @@ class Tests(unittest.TestCase):
         rrm = hl.realized_relationship_matrix(mt.GT).to_numpy()
         self.assertTrue(np.allclose(k, rrm))
 
+    @skip_unless_spark_backend()
     def test_row_correlation_vs_hardcode(self):
         data = [{'v': '1:1:A:C', 's': '1', 'GT': hl.Call([0, 0])},
                 {'v': '1:1:A:C', 's': '2', 'GT': hl.Call([0, 0])},
@@ -1091,6 +1095,7 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(np.allclose(actual, expected))
 
+    @skip_unless_spark_backend()
     def test_row_correlation_vs_numpy(self):
         n, m = 11, 10
         hl.set_global_seed(0)
@@ -1107,6 +1112,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(cor.shape[0] > 5 and cor.shape[0] == cor.shape[1])
         self.assertTrue(np.allclose(l, cor))
 
+    @skip_unless_spark_backend()
     def test_ld_matrix(self):
         data = [{'v': '1:1:A:C',       'cm': 0.1, 's': 'a', 'GT': hl.Call([0, 0])},
                 {'v': '1:1:A:C',       'cm': 0.1, 's': 'b', 'GT': hl.Call([0, 0])},
@@ -1224,6 +1230,7 @@ class Tests(unittest.TestCase):
                                 ibd1=plink_kin.k1,
                                 ibd2=plink_kin.k2).key_by('i', 'j')
 
+    @skip_unless_spark_backend()
     @unittest.skipIf('HAIL_TEST_SKIP_R' in os.environ, 'Skipping tests requiring R')
     def test_pc_relate_on_balding_nichols_against_R_pc_relate(self):
         mt = hl.balding_nichols_model(3, 100, 1000)
@@ -1236,6 +1243,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(rkin.select("ibd1")._same(hkin.select("ibd1"), tolerance=2.6e-2, absolute=True))
         self.assertTrue(rkin.select("ibd2")._same(hkin.select("ibd2"), tolerance=1.3e-2, absolute=True))
 
+    @skip_unless_spark_backend()
     def test_pcrelate_paths(self):
         mt = hl.balding_nichols_model(3, 50, 100)
         _, scores2, _ = hl.hwe_normalized_pca(mt.GT, k=2, compute_loadings=False)
@@ -1259,7 +1267,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(kin1._same(kin_s1, tolerance=1e-4))
         self.assertTrue(kin2._same(kin_s2, tolerance=1e-4))
         self.assertTrue(kin3._same(kin_s3, tolerance=1e-4))
-        self.assertTrue(kin4._same(kin_s4, tolerance=1e-4))
+        self.assertTrue(kin4._same(kin_s4, tolerance=1e-2))
 
         self.assertTrue(kin1.count() == 50 * 49 / 2)
 
@@ -1268,6 +1276,15 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(kin3.count() > 0)
         self.assertTrue(kin3.filter(kin3.kin < 0.1).count() == 0)
+
+    @skip_unless_spark_backend()
+    def test_pcrelate_issue_5263(self):
+        mt = hl.balding_nichols_model(3, 50, 100)
+        expected = hl.pc_relate(mt.GT, 0.10, k=2, statistics='all')
+        mt = mt.select_entries(GT2=mt.GT,
+                               GT=hl.call(hl.rand_bool(0.5), hl.rand_bool(0.5)))
+        actual = hl.pc_relate(mt.GT2, 0.10, k=2, statistics='all')
+        assert expected._same(actual, tolerance=1e-4)
 
     def test_split_multi_hts(self):
         ds1 = hl.import_vcf(resource('split_test.vcf'))
@@ -1299,6 +1316,7 @@ class Tests(unittest.TestCase):
         mt = hl.split_multi(mt)
         self.assertEqual(1, mt._force_count_rows())
 
+    @skip_unless_spark_backend()
     def test_ld_prune(self):
         r2_threshold = 0.001
         window_size = 5
@@ -1334,6 +1352,7 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(entries.filter(bad_pair).count(), 0)
 
+    @skip_unless_spark_backend()
     def test_ld_prune_inputs(self):
         ds = hl.balding_nichols_model(n_populations=1, n_samples=1, n_variants=1)
         self.assertRaises(ValueError, lambda: hl.ld_prune(ds.GT, memory_per_core=0))
@@ -1341,17 +1360,20 @@ class Tests(unittest.TestCase):
         self.assertRaises(ValueError, lambda: hl.ld_prune(ds.GT, r2=-1.0))
         self.assertRaises(ValueError, lambda: hl.ld_prune(ds.GT, r2=2.0))
 
+    @skip_unless_spark_backend()
     def test_ld_prune_no_prune(self):
         ds = hl.balding_nichols_model(n_populations=1, n_samples=10, n_variants=10, n_partitions=3)
         pruned_table = hl.ld_prune(ds.GT, r2=0.0, bp_window_size=0)
         expected_count = ds.filter_rows(agg.collect_as_set(ds.GT).size() > 1, keep=True).count_rows()
         self.assertEqual(pruned_table.count(), expected_count)
 
+    @skip_unless_spark_backend()
     def test_ld_prune_identical_variants(self):
         ds = hl.import_vcf(resource('ldprune2.vcf'), min_partitions=2)
         pruned_table = hl.ld_prune(ds.GT)
         self.assertEqual(pruned_table.count(), 1)
 
+    @skip_unless_spark_backend()
     def test_ld_prune_maf(self):
         ds = hl.balding_nichols_model(n_populations=1, n_samples=50, n_variants=10, n_partitions=10).cache()
 
@@ -1366,12 +1388,14 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(kept_maf, max(ht.maf.collect()))
 
+    @skip_unless_spark_backend()
     def test_ld_prune_call_expression(self):
         ds = hl.import_vcf(resource("ldprune2.vcf"), min_partitions=2)
         ds = ds.select_entries(foo=ds.GT)
         pruned_table = hl.ld_prune(ds.foo)
         self.assertEqual(pruned_table.count(), 1)
 
+    @skip_unless_spark_backend()
     def test_ld_prune_with_duplicate_row_keys(self):
         ds = hl.import_vcf(resource('ldprune2.vcf'), min_partitions=2)
         ds_duplicate = ds.annotate_rows(duplicate=[1, 2]).explode_rows('duplicate')
@@ -1399,17 +1423,20 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(glob.bn.fst), [.02, .06])
 
     def test_balding_nichols_model_same_results(self):
-        hl.set_global_seed(1)
-        ds1 = hl.balding_nichols_model(2, 20, 25, 3,
-                                       pop_dist=[1.0, 2.0],
-                                       fst=[.02, .06],
-                                       af_dist=hl.rand_beta(a=0.01, b=2.0, lower=0.05, upper=0.95))
-        hl.set_global_seed(1)
-        ds2 = hl.balding_nichols_model(2, 20, 25, 3,
-                                       pop_dist=[1.0, 2.0],
-                                       fst=[.02, .06],
-                                       af_dist=hl.rand_beta(a=0.01, b=2.0, lower=0.05, upper=0.95))
-        self.assertTrue(ds1._same(ds2))
+        for mixture in [True, False]:
+            hl.set_global_seed(1)
+            ds1 = hl.balding_nichols_model(2, 20, 25, 3,
+                                           pop_dist=[1.0, 2.0],
+                                           fst=[.02, .06],
+                                           af_dist=hl.rand_beta(a=0.01, b=2.0, lower=0.05, upper=0.95),
+                                           mixture=mixture)
+            hl.set_global_seed(1)
+            ds2 = hl.balding_nichols_model(2, 20, 25, 3,
+                                           pop_dist=[1.0, 2.0],
+                                           fst=[.02, .06],
+                                           af_dist=hl.rand_beta(a=0.01, b=2.0, lower=0.05, upper=0.95),
+                                           mixture=mixture)
+            self.assertTrue(ds1._same(ds2))
 
     def test_balding_nichols_model_af_ranges(self):
         def test_af_range(rand_func, min, max, seed):

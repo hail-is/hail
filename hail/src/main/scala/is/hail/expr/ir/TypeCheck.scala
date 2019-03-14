@@ -55,6 +55,10 @@ object TypeCheck {
         check(value)
         check(body, env = env.bind(name, value.typ))
         assert(x.typ == body.typ)
+      case x@AggLet(name, value, body) =>
+        check(value, env = aggEnv.get, aggEnv = None)
+        check(body, env, aggEnv = aggEnv.map(_.bind(name, value.typ)))
+        assert(x.typ == body.typ)
       case x@Ref(name, _) =>
         val expected = env.lookup(x)
         assert(x.typ == expected, s"type mismatch:\n  name: $name\n  actual: ${ x.typ.parsableString() }\n  expect: ${ expected.parsableString() }")
@@ -95,12 +99,24 @@ object TypeCheck {
         assert(a.typ.isOfType(TInt32()))
         assert(b.typ.isOfType(TInt32()))
         assert(c.typ.isOfType(TInt32()))
-      case x@ArraySort(a, ascending, onKey) =>
+      case x@MakeNDArray(data, shape, row_major) =>
+        check(data)
+        check(shape)
+        check(row_major)
+        assert(data.typ.isInstanceOf[TArray])
+        assert(coerce[TNDArray](x.typ).elementType == coerce[TArray](data.typ).elementType)
+        assert(shape.typ.isOfType(TArray(TInt64())))
+        assert(row_major.typ.isOfType(TBoolean()))
+      case x@NDArrayRef(nd, idxs) =>
+        check(nd)
+        check(idxs)
+        assert(nd.typ.isInstanceOf[TNDArray])
+        assert(idxs.typ.isOfType(TArray(TInt64())))
+      case x@ArraySort(a, l, r, compare) =>
         check(a)
-        check(ascending)
-        assert(a.typ.isInstanceOf[TArray])
-        assert(!onKey || coerce[TArray](a.typ).elementType.isInstanceOf[TBaseStruct])
-        assert(ascending.typ.isOfType(TBoolean()))
+        val tarray = coerce[TArray](a.typ)
+        check(compare, env = env.bind(l, -tarray.elementType).bind(r, -tarray.elementType))
+        assert(compare.typ.isOfType(TBoolean()))
       case x@ToSet(a) =>
         check(a)
         assert(a.typ.isInstanceOf[TArray])
@@ -184,6 +200,10 @@ object TypeCheck {
         check(key, env = aggEnv.get)
         check(aggIR)
         assert(x.typ == TDict(key.typ, aggIR.typ))
+      case x@AggArrayPerElement(a, name, aggBody) =>
+        check(a, env = aggEnv.get)
+        check(aggBody, env = env, aggEnv = aggEnv.map(_.bind(name -> -coerce[TArray](a.typ).elementType)))
+        assert(x.typ == TArray(aggBody.typ))
       case x@InitOp(i, args, aggSig) =>
         args.foreach(check(_))
         check(i)
@@ -225,6 +245,7 @@ object TypeCheck {
           val newFieldSet = fields.map(_._1).toSet
           val oldFieldNames = old.typ.asInstanceOf[TStruct].fieldNames
           val oldFieldNameSet = oldFieldNames.toSet
+          assert(fds.length == x.typ.size)
           assert(oldFieldNames
             .filter(f => !newFieldSet.contains(f))
             .sameElements(fds.filter(f => !newFieldSet.contains(f))))
@@ -261,7 +282,7 @@ object TypeCheck {
       case Die(msg, typ) =>
         check(msg)
         assert(msg.typ isOfType TString())
-      case x@ApplyIR(fn, args, conversion) =>
+      case x@ApplyIR(fn, args) =>
         check(x.explicitNode)
       case x: AbstractApplyNode[_] =>
         x.args.foreach(check(_))
@@ -283,12 +304,22 @@ object TypeCheck {
           aggEnv = Some(child.typ.entryEnv))
         assert(x.typ == query.typ)
       case TableWrite(_, _, _, _, _) =>
-      case TableExport(_, _, _, _, _) =>
+      case TableExport(_, _, _, _, _, _) =>
       case TableCount(_) =>
       case TableGetGlobals(_) =>
       case TableCollect(_) =>
       case TableToValueApply(_, _) =>
       case MatrixToValueApply(_, _) =>
+      case BlockMatrixToValueApply(_, _) =>
+      case BlockMatrixWrite(_, _) =>
+      case CollectDistributedArray(ctxs, globals, cname, gname, body) =>
+        check(ctxs)
+        assert(ctxs.typ.isInstanceOf[TArray])
+        check(globals)
+        check(body, env = env.bind(cname, coerce[TArray](ctxs.typ).elementType).bind(gname, globals.typ))
+      case x@ReadPartition(path, _, _, rowType) =>
+        check(path.typ == TString())
+        assert(x.typ == TArray(rowType))
     }
   }
 }

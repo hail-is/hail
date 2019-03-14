@@ -91,7 +91,7 @@ class MatrixIRSuite extends SparkSuite {
 
   def rangeRowMatrix(start: Int, end: Int): MatrixIR = {
     val i = end - start
-    val baseRange = MatrixTable.range(hc, i, 5, Some(math.min(4, i))).ast
+    val baseRange = MatrixTable.range(hc, i, 5, Some(math.max(1, math.min(4, i)))).ast
     val row = Ref("va", baseRange.typ.rvRowType)
     MatrixKeyRowsBy(
       MatrixMapRows(
@@ -297,18 +297,9 @@ class MatrixIRSuite extends SparkSuite {
     Interpret(MatrixWrite(plinkIR, MatrixPLINKWriter(path)))
   }
 
-  @Test def testMatrixGENWrite() {
-    val gen = hc.importGen("src/test/resources/example.gen", "src/test/resources/example.sample",
-      contigRecoding = Some(Map("01" -> "1")))
-    val genIR = MatrixMapCols(gen.ast, SelectFields(InsertFields(Ref("sa", gen.colType),
-      FastIndexedSeq("id1" -> Str(""), "id2" -> Str(""), "missing" -> F64(0.0))), FastIndexedSeq("id1", "id2", "missing")),
-      Some(FastIndexedSeq("id1")))
-    val path = tmpDir.createLocalTempFile()
-    Interpret(MatrixWrite(genIR, MatrixGENWriter(path)))
-  }
-
   @Test def testMatrixMultiWrite() {
-    val ranges = IndexedSeq(MatrixTable.range(hc, 15, 3, Some(10)), MatrixTable.range(hc, 8, 27, Some(1)))
+    // partitioning must be the same
+    val ranges = IndexedSeq(MatrixTable.range(hc, 15, 3, Some(10)), MatrixTable.range(hc, 15, 27, Some(10)))
     val path = tmpDir.createLocalTempFile()
     Interpret(MatrixMultiWrite(ranges.map(_.ast), MatrixNativeMultiWriter(path)))
     val read0 = MatrixTable.read(hc, path + "0.mt")

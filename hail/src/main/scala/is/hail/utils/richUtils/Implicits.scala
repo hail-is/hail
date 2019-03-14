@@ -6,9 +6,8 @@ import breeze.linalg.DenseMatrix
 import is.hail.annotations.aggregators.RegionValueAggregator
 import is.hail.annotations.{JoinedRegionValue, Region, RegionValue, RegionValueBuilder}
 import is.hail.asm4s.Code
-import is.hail.io.RichContextRDDRegionValue
+import is.hail.io.{InputBuffer, OutputBuffer, RichContextRDDRegionValue}
 import is.hail.rvd.RVDContext
-import is.hail.io.{InputBuffer, RichContextRDDRegionValue}
 import is.hail.sparkextras._
 import is.hail.utils.{ArrayBuilder, HailIterator, JSONWriter, MultiArray2, Truncatable, WithContext}
 import org.apache.hadoop
@@ -124,5 +123,9 @@ trait Implicits {
 
   implicit def toRichContextRDD[T: ClassTag](x: ContextRDD[RVDContext, T]): RichContextRDD[T] = new RichContextRDD(x)
 
+  implicit def toRichContextRDDRow(x: ContextRDD[RVDContext, Row]): RichContextRDDRow = new RichContextRDDRow(x)
+
   implicit def toRichCodeInputBuffer(in: Code[InputBuffer]): RichCodeInputBuffer = new RichCodeInputBuffer(in)
+
+  implicit def toRichCodeOutputBuffer(out: Code[OutputBuffer]): RichCodeOutputBuffer = new RichCodeOutputBuffer(out)
 }

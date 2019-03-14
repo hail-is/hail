@@ -2,7 +2,7 @@ package is.hail.io.bgen
 
 import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.expr.ir.{IRParser, IRParserEnvironment, MatrixRead, MatrixReader, MatrixValue, Pretty}
+import is.hail.expr.ir.{IRParser, IRParserEnvironment, LowerMatrixIR, MatrixHybridReader, MatrixRead, MatrixReader, MatrixValue, Pretty, TableIR, TableRead, TableReader, TableValue}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual._
@@ -246,19 +246,6 @@ object LoadBgen {
   def getFileHeaders(hConf: Configuration, files: Seq[String]): Array[BgenHeader] =
     files.map(LoadBgen.readState(hConf, _)).toArray
 
-  def getReferenceGenome(hConf: Configuration, files: Array[String], indexFileMap: Map[String, String]): Option[ReferenceGenome] = {
-    val allFiles = getAllFilePaths(hConf, files)
-    val indexFiles = getIndexFiles(hConf, allFiles, indexFileMap)
-    val rgs = indexFiles.map { path =>
-      val metadata = IndexReader.readMetadata(hConf, path)
-      Option(metadata.attributes("reference_genome")).map(name => ReferenceGenome.getReference(name.asInstanceOf[String]))
-    }
-    getReferenceGenome(rgs)
-  }
-
-  def getReferenceGenome(hConf: Configuration, files: java.util.ArrayList[String], indexFileMap: Map[String, String]): String =
-    getReferenceGenome(hConf, files.asScala.toArray, indexFileMap).map(_.name).orNull
-
   def getReferenceGenome(fileMetadata: Array[BgenFileMetadata]): Option[ReferenceGenome] =
     getReferenceGenome(fileMetadata.map(_.referenceGenome))
 
@@ -355,7 +342,7 @@ case class MatrixBGENReader(
   indexFileMap: Map[String, String],
   nPartitions: Option[Int],
   blockSizeInMB: Option[Int],
-  includedVariants: Option[Table]) extends MatrixReader {
+  includedVariants: Option[Table]) extends MatrixHybridReader {
   private val hc = HailContext.get
   private val sc = hc.sc
   private val hConf = sc.hadoopConfiguration
@@ -397,9 +384,9 @@ case class MatrixBGENReader(
 
   private val referenceGenome = LoadBgen.getReferenceGenome(fileMetadata)
 
-  val fullType: MatrixType = MatrixBGENReader.getMatrixType(referenceGenome)
+  val fullMatrixType: MatrixType = MatrixBGENReader.getMatrixType(referenceGenome)
 
-  val fullRVDType: RVDType = RVDType(fullType.rvRowType.physicalType, fullType.rowKey)
+  val fullRVDType: RVDType = RVDType(fullMatrixType.rvRowType.physicalType, fullMatrixType.rowKey)
 
   val (indexKeyType, indexAnnotationType) = LoadBgen.getIndexTypes(fileMetadata)
 
@@ -413,7 +400,7 @@ case class MatrixBGENReader(
   val (partitions, variants) = includedVariants match {
     case Some(variantsTable) =>
       val rowType = variantsTable.typ.rowType
-      assert(rowType.isPrefixOf(fullType.rowKeyStruct))
+      assert(rowType.isPrefixOf(fullMatrixType.rowKeyStruct))
       assert(rowType.types.nonEmpty)
 
       val rvd = variantsTable
@@ -434,50 +421,49 @@ case class MatrixBGENReader(
 
   def partitionCounts: Option[IndexedSeq[Long]] = None
 
-  def apply(mr: MatrixRead): MatrixValue = {
+
+  def apply(tr: TableRead): TableValue = {
     require(files.nonEmpty)
 
-    val requestedType = mr.typ
-    val requestedEntryType = requestedType.entryType
+    val requestedType = tr.typ
+    val requestedRowType = requestedType.rowType
+
+    val (requestedEntryType, dropCols): (TStruct, Boolean) = requestedRowType.fieldOption(LowerMatrixIR.entriesFieldName) match {
+      case Some(entriesArray) => entriesArray.typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct] -> false
+      case None => TStruct() -> true
+    }
+
 
     val includeGT = requestedEntryType.hasField("GT")
     val includeGP = requestedEntryType.hasField("GP")
     val includeDosage = requestedEntryType.hasField("dosage")
 
-    val requestedRowType = requestedType.rowType
     val includeLid = requestedRowType.hasField("varid")
     val includeRsid = requestedRowType.hasField("rsid")
     val includeOffset = requestedRowType.hasField("offset")
     val includeFileIdx = requestedRowType.hasField("file_idx")
 
-    assert(requestedType.rowKeyStruct == indexKeyType)
+    assert(requestedType.keyType == indexKeyType)
 
     val settings = BgenSettings(
       nSamples,
       EntriesWithFields(includeGT, includeGP, includeDosage),
-      mr.dropCols,
+      dropCols,
       RowFields(includeLid, includeRsid, includeOffset, includeFileIdx),
       referenceGenome,
       indexAnnotationType)
 
-    assert(mr.typ == settings.matrixType)
-    assert(mr.typ.rowKeyStruct == indexKeyType)
+//    assert(tr.typ == settings.matrixType)
 
-    val rvd = if (mr.dropRows)
+    val rvd = if (tr.dropRows)
       RVD.empty(sc, requestedType.canonicalRVDType)
     else
       new RVD(requestedType.canonicalRVDType,
         partitioner,
         BgenRDD(sc, partitions, settings, variants))
 
-    MatrixValue(mr.typ,
-      BroadcastRow(Row.empty, mr.typ.globalType, sc),
-      BroadcastIndexedSeq(
-        if (mr.dropCols)
-          IndexedSeq.empty[Annotation]
-        else
-          sampleIds.map(x => Annotation(x)),
-        TArray(requestedType.colType), sc),
-      rvd)
+    val globalValue = makeGlobalValue(requestedType, sampleIds.map(Row(_)))
+
+    TableValue(tr.typ, globalValue, rvd)
   }
 }

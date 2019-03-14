@@ -14,7 +14,7 @@
 #endif
 #endif // HAIL_OVERRIDE_ARCH
 
-#include <simdpp/simd.h>
+#include "simdpp/simd.h"
 #include <inttypes.h>
 
 using namespace simdpp;
@@ -33,8 +33,10 @@ using uint64vector = uint64<UINT64_VECTOR_SIZE>;
 #endif
 #define NUMBER_OF_UINT64_GENOTYPE_PACKS_PER_ROW (NUMBER_OF_GENOTYPES_PER_ROW / 32)
 
-#if (NUMBER_OF_UINT64_GENOTYPE_PACKS_PER_ROW % UINT64_VECTOR_SIZE) != 0
-#error "genotype packs per row, NUMBER_OF_UINT64_GENOTYPE_PACKS_PER_ROW, must be multuple of vector width, UINT64_VECTOR_SIZE."
+// when generating dependency files without simd.h, UINT64_VECTOR_SIZE is empty,
+// so we avoid throwing an error on $(CXX) -M
+#if UINT64_VECTOR_SIZE != 0 && (NUMBER_OF_UINT64_GENOTYPE_PACKS_PER_ROW % UINT64_VECTOR_SIZE) != 0
+#error "genotype packs per row, NUMBER_OF_UINT64_GENOTYPE_PACKS_PER_ROW, must be multiple of vector width, UINT64_VECTOR_SIZE."
 #endif
 
 #ifndef CACHE_SIZE_PER_MATRIX_IN_KB

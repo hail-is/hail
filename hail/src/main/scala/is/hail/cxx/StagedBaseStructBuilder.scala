@@ -31,8 +31,8 @@ class StagedBaseStructBuilder(fb: FunctionBuilder, pStruct: PBaseStruct, off: Ex
   def offset: Code = off.toString
 }
 
-class StagedBaseStructTripletBuilder(fb: FunctionBuilder, pStruct: PBaseStruct) {
-  private[this] val s = fb.variable("s", "char *", s"${ fb.getArg(0) }->allocate(${ pStruct.alignment }, ${ pStruct.byteSize })")
+class StagedBaseStructTripletBuilder(region: EmitRegion, fb: FunctionBuilder, pStruct: PBaseStruct) {
+  private[this] val s = fb.variable("s", "char *", s"$region->allocate(${ pStruct.alignment }, ${ pStruct.byteSize })")
   private[this] val ssb = new StagedBaseStructBuilder(fb, pStruct, s.ref)
   private[this] val ab = new ArrayBuilder[Code]
   ab += s.define
@@ -52,6 +52,8 @@ class StagedBaseStructTripletBuilder(fb: FunctionBuilder, pStruct: PBaseStruct) 
 
   def add(t: EmitTriplet) {
     val f = pStruct.fields(i)
+    if (t.needsRegion && t.region != region)
+      ab += region.addReference(t.region)
     ab +=
       s"""
          |${ t.setup }
@@ -63,5 +65,5 @@ class StagedBaseStructTripletBuilder(fb: FunctionBuilder, pStruct: PBaseStruct) 
     i += 1
   }
 
-  def triplet(): EmitTriplet = EmitTriplet(pStruct, body(), "false", end())
+  def triplet(): EmitTriplet = EmitTriplet(pStruct, body(), "false", end(), region)
 }

@@ -5,6 +5,7 @@ import is.hail.expr.types._
 import is.hail.expr.ir.functions._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
+import is.hail.io.CodecSpec
 import is.hail.utils.{ExportType, FastIndexedSeq}
 
 import scala.language.existentials
@@ -94,6 +95,7 @@ object If {
 
 final case class If(cond: IR, cnsq: IR, altr: IR) extends IR
 
+final case class AggLet(name: String, value: IR, body: IR) extends IR
 final case class Let(name: String, value: IR, body: IR) extends IR
 final case class Ref(name: String, var _typ: Type) extends IR
 
@@ -131,7 +133,31 @@ final case class ArrayRef(a: IR, i: IR) extends IR
 final case class ArrayLen(a: IR) extends IR
 final case class ArrayRange(start: IR, stop: IR, step: IR) extends IR
 
-final case class ArraySort(a: IR, ascending: IR, onKey: Boolean = false) extends IR
+
+object ArraySort {
+  def apply(a: IR, ascending: IR = True(), onKey: Boolean = false): ArraySort = {
+    val l = genUID()
+    val r = genUID()
+    val atyp = coerce[TContainer](a.typ)
+    val compare = if (onKey) {
+      a.typ match {
+        case atyp: TDict =>
+          ApplyComparisonOp(Compare(atyp.keyType), GetField(Ref(l, atyp.elementType), "key"), GetField(Ref(r, atyp.elementType), "key"))
+        case atyp: TArray if atyp.elementType.isInstanceOf[TStruct] =>
+          val elt = coerce[TStruct](atyp.elementType)
+          ApplyComparisonOp(Compare(elt.types(0)), GetField(Ref(l, elt), elt.fieldNames(0)), GetField(Ref(r, atyp.elementType), elt.fieldNames(0)))
+        case atyp: TArray if atyp.elementType.isInstanceOf[TTuple] =>
+          val elt = coerce[TTuple](atyp.elementType)
+          ApplyComparisonOp(Compare(elt.types(0)), GetTupleElement(Ref(l, elt), 0), GetTupleElement(Ref(r, atyp.elementType), 0))
+      }
+    } else {
+      ApplyComparisonOp(Compare(atyp.elementType), Ref(l, -atyp.elementType), Ref(r, -atyp.elementType))
+    }
+
+    ArraySort(a, l, r, If(ascending, compare < 0, compare > 0))
+  }
+}
+final case class ArraySort(a: IR, left: String, right: String, compare: IR) extends IR
 final case class ToSet(a: IR) extends IR
 final case class ToDict(a: IR) extends IR
 final case class ToArray(a: IR) extends IR
@@ -160,11 +186,17 @@ final case class ArrayAgg(a: IR, name: String, query: IR) extends IR
 
 final case class ArrayLeftJoinDistinct(left: IR, right: IR, l: String, r: String, keyF: IR, joinF: IR) extends IR
 
+final case class MakeNDArray(data: IR, shape: IR, row_major: IR) extends IR
+
+final case class NDArrayRef(nd: IR, idxs: IR) extends IR
+
 final case class AggFilter(cond: IR, aggIR: IR) extends IR
 
 final case class AggExplode(array: IR, name: String, aggBody: IR) extends IR
 
 final case class AggGroupBy(key: IR, aggIR: IR) extends IR
+
+final case class AggArrayPerElement(a: IR, name: String, aggBody: IR) extends IR
 
 final case class ApplyAggOp(constructorArgs: IndexedSeq[IR], initOpArgs: Option[IndexedSeq[IR]], seqOpArgs: IndexedSeq[IR], aggSig: AggSignature) extends IR {
   assert(!(seqOpArgs ++ constructorArgs ++ initOpArgs.getOrElse(FastIndexedSeq.empty[IR])).exists(ContainsScan(_)))
@@ -210,6 +242,15 @@ final case class InsertFields(old: IR, fields: Seq[(String, IR)], fieldOrder: Op
   override def pType: PStruct = coerce[PStruct](super.pType)
 }
 
+object GetFieldByIdx {
+  def apply(s: IR, field: Int): IR = {
+    (s.typ: @unchecked) match {
+      case t: TStruct => GetField(s, t.fieldNames(field))
+      case _: TTuple => GetTupleElement(s, field)
+    }
+  }
+}
+
 final case class GetField(o: IR, name: String) extends IR
 
 final case class MakeTuple(types: Seq[IR]) extends IR
@@ -227,7 +268,9 @@ object Die {
 
 final case class Die(message: IR, _typ: Type) extends IR
 
-final case class ApplyIR(function: String, args: Seq[IR], conversion: Seq[IR] => IR) extends IR {
+final case class ApplyIR(function: String, args: Seq[IR]) extends IR {
+  var conversion: Seq[IR] => IR = _
+
   lazy val explicitNode: IR = {
     val refs = args.map(a => Ref(genUID(), a.typ)).toArray
     var body = conversion(refs)
@@ -241,7 +284,9 @@ sealed abstract class AbstractApplyNode[F <: IRFunction] extends IR {
   def function: String
   def args: Seq[IR]
   def argTypes: Seq[Type] = args.map(_.typ)
-  lazy val implementation: F = IRFunctionRegistry.lookupFunction(function, argTypes).get.asInstanceOf[F]
+  lazy val implementation: F = IRFunctionRegistry.lookupFunction(function, argTypes)
+    .getOrElse(throw new RuntimeException(s"no function match for $function: ${ argTypes.map(_.parsableString()).mkString(", ") }"))
+      .asInstanceOf[F]
 }
 
 final case class Apply(function: String, args: Seq[IR]) extends AbstractApplyNode[IRFunctionWithoutMissingness]
@@ -268,7 +313,8 @@ final case class TableExport(
   path: String,
   typesFile: String = null,
   header: Boolean = true,
-  exportType: Int = ExportType.CONCATENATED) extends IR
+  exportType: Int = ExportType.CONCATENATED,
+  delimiter: String) extends IR
 
 final case class TableGetGlobals(child: TableIR) extends IR
 final case class TableCollect(child: TableIR) extends IR
@@ -284,6 +330,12 @@ final case class MatrixMultiWrite(
 
 final case class TableToValueApply(child: TableIR, function: TableToValueFunction) extends IR
 final case class MatrixToValueApply(child: MatrixIR, function: MatrixToValueFunction) extends IR
+final case class BlockMatrixToValueApply(child: BlockMatrixIR, function: BlockMatrixToValueFunction) extends IR
+
+final case class BlockMatrixWrite(child: BlockMatrixIR, writer: BlockMatrixWriter) extends IR
+
+final case class CollectDistributedArray(contexts: IR, globals: IR, cname: String, gname: String, body: IR) extends IR
+final case class ReadPartition(path: IR, spec: CodecSpec, encodedType: TStruct, rowType: TStruct) extends IR
 
 class PrimitiveIR(val self: IR) extends AnyVal {
   def +(other: IR): IR = ApplyBinaryPrimOp(Add(), self, other)

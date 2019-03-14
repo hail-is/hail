@@ -31,7 +31,7 @@ object TStruct {
   def apply(args: (String, Type)*): TStruct =
     apply(false, args: _*)
 
-  def apply(names: java.util.ArrayList[String], types: java.util.ArrayList[Type], required: Boolean): TStruct = {
+  def apply(names: java.util.List[String], types: java.util.List[Type], required: Boolean): TStruct = {
     val sNames = names.asScala.toArray
     val sTypes = types.asScala.toArray
     if (sNames.length != sTypes.length)

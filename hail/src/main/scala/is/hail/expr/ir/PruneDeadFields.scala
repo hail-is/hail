@@ -67,6 +67,9 @@ object PruneDeadFields {
         case tir: TableIR =>
           memoizeTableIR(tir, tir.typ, memo)
           rebuild(tir, memo)
+        case bmir: BlockMatrixIR =>
+          memoizeBlockMatrixIR(bmir, bmir.typ, memo)
+          rebuild(bmir, memo)
         case vir: IR =>
           memoizeValueIR(vir, vir.typ, memo)
           rebuild(vir, Env.empty[Type], memo)
@@ -228,11 +231,10 @@ object PruneDeadFields {
   def memoizeTableIR(tir: TableIR, requestedType: TableType, memo: Memo[BaseType]) {
     memo.bind(tir, requestedType)
     tir match {
-      case TableRead(_, _, _, _) =>
+      case TableRead(_, _, _) =>
       case TableLiteral(_) =>
       case TableParallelize(rowsAndGlobal, _) =>
         memoizeValueIR(rowsAndGlobal, TStruct("rows" -> TArray(requestedType.rowType), "global" -> requestedType.globalType), memo)
-      case TableImport(paths, typ, readerOpts) =>
       case TableRange(_, _) =>
       case TableRepartition(child, _, _) => memoizeTableIR(child, requestedType, memo)
       case TableHead(child, _) => memoizeTableIR(child, requestedType, memo)
@@ -291,6 +293,21 @@ object PruneDeadFields {
             // don't memoize right if we are going to elide it during rebuild
             memoizeTableIR(left, requestedType, memo)
         }
+      case TableZipUnchecked(left, right) =>
+        val leftFieldSet = left.typ.rowType.fieldNames.toSet
+        val rightFieldSet = right.typ.rowType.fieldNames.toSet
+        // no dependence on right
+        if (requestedType.rowType.fieldNames.forall(f => !rightFieldSet.contains(f)))
+          memoizeTableIR(left, requestedType, memo)
+        else {
+          val leftRType = requestedType.copy(rowType = requestedType.rowType.filter(f => leftFieldSet.contains(f.name))._1)
+          val rightRType = TableType(
+            requestedType.rowType.filter(f => rightFieldSet.contains(f.name))._1,
+            FastIndexedSeq(),
+            TStruct())
+          memoizeTableIR(left, leftRType, memo)
+          memoizeTableIR(right, rightRType, memo)
+        }
       case TableMultiWayZipJoin(children, fieldName, globalName) =>
         val gType = requestedType.globalType.fieldOption(globalName)
           .map(_.typ.asInstanceOf[TArray].elementType)
@@ -330,7 +347,7 @@ object PruneDeadFields {
       case TableOrderBy(child, sortFields) =>
         memoizeTableIR(child, child.typ.copy(
           rowType = unify(child.typ.rowType,
-            child.typ.rowType.filterSet(sortFields.map(_.field).toSet)._1,
+            child.typ.rowType.filterSet((sortFields.map(_.field) ++ child.typ.key).toSet)._1,
             requestedType.rowType),
           globalType = requestedType.globalType), memo)
       case TableDistinct(child) =>
@@ -406,6 +423,7 @@ object PruneDeadFields {
         memoizeTableIR(child, childDep, memo)
       case TableToTableApply(child, _) => memoizeTableIR(child, child.typ, memo)
       case MatrixToTableApply(child, _) => memoizeMatrixIR(child, child.typ, memo)
+      case BlockMatrixToTable(child) => memoizeBlockMatrixIR(child, child.typ, memo)
     }
   }
 
@@ -515,18 +533,7 @@ object PruneDeadFields {
           colType = unify(child.typ.colType, irDepEntry.colType, irDepCol.colType)
         )
         memoizeMatrixIR(child, childDep, memo)
-      case TableToMatrixTable(child, rowKey, colKey, rowFields, colFields, nPartitions) =>
-        val dependencyMap = (requestedType.rowType.fields.map(f => f.name -> f.typ) ++
-          requestedType.colType.fields.map(f => f.name -> f.typ) ++
-          requestedType.entryType.fields.map(f => f.name -> f.typ)).toMap
-        val rowDep = TStruct(child.typ.rowType.fields.flatMap { f =>
-         dependencyMap.get(f.name).map(t => f.name -> t)
-        }: _*)
-        val requestedChildType = child.typ.copy(
-          rowType = unify(child.typ.rowType, rowDep),
-          globalType = requestedType.globalType)
-        memoizeTableIR(child, requestedChildType, memo)
-      case MatrixAnnotateRowsTable(child, table, root, key) =>
+      case MatrixAnnotateRowsTable(child, table, root) =>
         val fieldDep = requestedType.rvRowType.fieldOption(root).map(_.typ.asInstanceOf[TStruct])
         fieldDep match {
           case Some(struct) =>
@@ -536,16 +543,10 @@ object PruneDeadFields {
                 FastIndexedSeq(struct): _*),
               globalType = minimal(table.typ.globalType))
             memoizeTableIR(table, tableDep, memo)
-            val keyDep = unify(child.typ,
-              key.map(_.map(ir => memoizeAndGetDep(ir, ir.typ, child.typ, memo)))
-                .getOrElse(FastIndexedSeq.empty[MatrixType]): _*)
-            val matDep = unify(
-              child.typ,
-              keyDep,
-              requestedType.copy(rvRowType =
-                unify(child.typ.rvRowType,
-                  minimal(child.typ).rvRowType,
-                  requestedType.rvRowType.filterSet(Set(root), include = false)._1)))
+            val matDep = requestedType.copy(rvRowType =
+              unify(child.typ.rvRowType,
+                minimal(child.typ).rvRowType,
+                requestedType.rvRowType.filterSet(Set(root), include = false)._1))
             memoizeMatrixIR(child, matDep, memo)
           case None =>
             // don't depend on key IR dependencies if we are going to elide the node anyway
@@ -607,6 +608,8 @@ object PruneDeadFields {
         children.foreach(memoizeMatrixIR(_, requestedType, memo))
       case MatrixDistinctByRow(child) =>
         memoizeMatrixIR(child, requestedType, memo)
+      case MatrixRowsHead(child, n) =>
+        memoizeMatrixIR(child, requestedType, memo)
       case CastTableToMatrix(child, entriesFieldName, colsFieldName, _) =>
         val m = Map(MatrixType.entriesIdentifier -> entriesFieldName)
         val childDep = child.typ.copy(
@@ -615,9 +618,23 @@ object PruneDeadFields {
         )
         memoizeTableIR(child, childDep, memo)
       case MatrixToMatrixApply(child, _) => memoizeMatrixIR(child, child.typ, memo)
+      case MatrixRename(child, globalMap, colMap, rowMap, entryMap) =>
+        val globalMapRev = globalMap.map { case (k, v) => (v, k) }
+        val colMapRev = colMap.map { case (k, v) => (v, k) }
+        val rowMapRev = rowMap.map { case (k, v) => (v, k) }
+        val entryMapRev = entryMap.map { case (k, v) => (v, k) }
+        val childDep = MatrixType.fromParts(
+          globalType = requestedType.globalType.rename(globalMapRev),
+          colType = requestedType.colType.rename(colMapRev),
+          colKey = requestedType.colKey.map(k => colMapRev.getOrElse(k, k)),
+          rowType = requestedType.rowType.rename(rowMapRev),
+          rowKey = requestedType.rowKey.map(k => rowMapRev.getOrElse(k, k)),
+          entryType = requestedType.entryType.rename(entryMapRev))
+        memoizeMatrixIR(child, childDep, memo)
     }
   }
 
+  def memoizeBlockMatrixIR(bmir: BlockMatrixIR, requestedType: BlockMatrixType, memo: Memo[BaseType]) {}
 
   def memoizeAndGetDep(ir: IR, requestedType: Type, base: TableType, memo: Memo[BaseType]): TableType = {
     val depEnv = memoizeValueIR(ir, requestedType, memo).m.mapValues(_._2)
@@ -667,6 +684,13 @@ object PruneDeadFields {
           memoizeValueIR(alt, requestedType, memo)
         )
       case Let(name, value, body) =>
+        val bodyEnv = memoizeValueIR(body, requestedType, memo)
+        val valueType = bodyEnv.lookupOption(name).map(_._2).getOrElse(minimal(value.typ))
+        unifyEnvs(
+          bodyEnv.delete(name),
+          memoizeValueIR(value, valueType, memo)
+        )
+      case AggLet(name, value, body) =>
         val bodyEnv = memoizeValueIR(body, requestedType, memo)
         val valueType = bodyEnv.lookupOption(name).map(_._2).getOrElse(minimal(value.typ))
         unifyEnvs(
@@ -771,6 +795,15 @@ object PruneDeadFields {
           bodyDep.delete(name),
           memoizeValueIR(a, aType.copy(elementType = valueType), memo)
         )
+      case AggArrayPerElement(a, name, aggBody) =>
+        val aType = a.typ.asInstanceOf[TArray]
+        val bodyDep = memoizeValueIR(aggBody,
+          requestedType.asInstanceOf[TArray].elementType,
+          memo)
+        val valueType = bodyDep.lookupOption(name).map(_._2).getOrElse(minimal(-aType.elementType))
+        unifyEnvs(
+          bodyDep.delete(name),
+          memoizeValueIR(a, aType.copy(elementType = valueType), memo))
       case MakeStruct(fields) =>
         val sType = requestedType.asInstanceOf[TStruct]
         unifyEnvsSeq(fields.flatMap { case (fname, fir) =>
@@ -839,6 +872,8 @@ object PruneDeadFields {
         Env.empty[(Type, Type)]
       case MatrixToValueApply(child, __) => memoizeMatrixIR(child, child.typ, memo)
         Env.empty[(Type, Type)]
+      case BlockMatrixToValueApply(child, _) => memoizeBlockMatrixIR(child, child.typ, memo)
+        Env.empty[(Type, Type)]
       case TableAggregate(child, query) =>
         val queryDep = memoizeAndGetDep(query, query.typ, child.typ, memo)
         memoizeTableIR(child, queryDep, memo)
@@ -847,6 +882,13 @@ object PruneDeadFields {
         val queryDep = memoizeAndGetDep(query, query.typ, child.typ, memo)
         memoizeMatrixIR(child, queryDep, memo)
         Env.empty[(Type, Type)]
+      case ArrayAgg(a, name, query) =>
+        val elemType = a.typ.asInstanceOf[TArray].elementType
+        val queryEnv = memoizeValueIR(query, requestedType, memo)
+        val requestedElemType = queryEnv.lookupOption(name).map(_._2).getOrElse(minimal(elemType))
+        val aEnv = memoizeValueIR(a, TArray(requestedElemType), memo)
+        val env = unifyEnvs(queryEnv.delete(name), aEnv)
+        env
       case _: IR =>
         val envs = ir.children.flatMap {
           case mir: MatrixIR =>
@@ -854,6 +896,8 @@ object PruneDeadFields {
             None
           case tir: TableIR =>
             memoizeTableIR(tir, tir.typ, memo)
+            None
+          case bmir: BlockMatrixIR => //NOTE Currently no BlockMatrixIRs would have dead fields
             None
           case ir: IR =>
             Some(memoizeValueIR(ir, ir.typ, memo))
@@ -865,17 +909,12 @@ object PruneDeadFields {
   def rebuild(tir: TableIR, memo: Memo[BaseType]): TableIR = {
     val dep = memo.lookup(tir).asInstanceOf[TableType]
     tir match {
-      case TableImport(paths, typ, readerOpts) =>
-        val fieldsToRead = readerOpts.originalType.fields.flatMap(f => dep.rowType.fieldOption(f.name).map(_ => f.index)).toArray
-        val newTyp = typ.copy(rowType = TStruct(typ.rowType.required,
-          fieldsToRead.map(i => readerOpts.originalType.fieldNames(i) -> readerOpts.originalType.types(i)): _*))
-        TableImport(paths, newTyp, readerOpts.copy(useColIndices = fieldsToRead))
       case TableParallelize(rowsAndGlobal, nPartitions) =>
         TableParallelize(
           upcast(rebuild(rowsAndGlobal, Env.empty[Type], memo),
             memo.lookup(rowsAndGlobal).asInstanceOf[TStruct]),
           nPartitions)
-      case TableRead(path, spec, _, dropRows) => TableRead(path, spec, dep, dropRows)
+      case TableRead(_, dropRows, tr) => TableRead(dep, dropRows, tr)
       case TableFilter(child, pred) =>
         val child2 = rebuild(child, memo)
         val pred2 = rebuild(pred, child2.typ, memo)
@@ -911,6 +950,11 @@ object PruneDeadFields {
         val rebuilt = children.map { c => rebuild(c, memo) }
         val upcasted = rebuilt.map { t => upcastTable(t, memo.lookup(children(0)).asInstanceOf[TableType]) }
         TableMultiWayZipJoin(upcasted, fieldName, globalName)
+      case TableZipUnchecked(left, right) =>
+        if (!memo.contains(right))
+          rebuild(left, memo)
+        else
+          TableZipUnchecked(rebuild(left, memo), rebuild(right, memo))
       case TableAggregateByKey(child, expr) =>
         val child2 = rebuild(child, memo)
         TableAggregateByKey(child2, rebuild(expr, child2.typ, memo))
@@ -935,6 +979,7 @@ object PruneDeadFields {
         // IR should be a match error - all nodes with child value IRs should have a rule
         case childT: TableIR => rebuild(childT, memo)
         case childM: MatrixIR => rebuild(childM, memo)
+        case childBm: BlockMatrixIR => rebuild(childBm, memo)
       })
     }
   }
@@ -972,16 +1017,6 @@ object PruneDeadFields {
       case MatrixAggregateColsByKey(child, entryExpr, colExpr) =>
         val child2 = rebuild(child, memo)
         MatrixAggregateColsByKey(child2, rebuild(entryExpr, child2.typ, memo), rebuild(colExpr, child2.typ, memo))
-      case TableToMatrixTable(child, rowKey, colKey, rowFields, colFields, nPartitions) =>
-        val child2 = rebuild(child, memo)
-        val childFieldSet = child2.typ.rowType.fieldNames.toSet
-        TableToMatrixTable(
-          child2,
-          rowKey,
-          colKey,
-          rowFields.filter(childFieldSet.contains),
-          colFields.filter(childFieldSet.contains),
-          nPartitions)
       case MatrixUnionRows(children) =>
         val requestedType = memo.lookup(mir).asInstanceOf[MatrixType]
         MatrixUnionRows(children.map { child =>
@@ -989,15 +1024,14 @@ object PruneDeadFields {
             upcastCols = false,
             upcastGlobals = false)
         } )
-      case MatrixAnnotateRowsTable(child, table, root, key) =>
+      case MatrixAnnotateRowsTable(child, table, root) =>
         // if the field is not used, this node can be elided entirely
         if (!requestedType.rvRowType.hasField(root))
           rebuild(child, memo)
         else {
           val child2 = rebuild(child, memo)
           val table2 = rebuild(table, memo)
-          val key2 = key.map(_.map(ir => rebuild(ir, child2.typ, memo)))
-          MatrixAnnotateRowsTable(child2, table2, root, key2)
+          MatrixAnnotateRowsTable(child2, table2, root)
         }
       case MatrixAnnotateColsTable(child, table, uid) =>
         // if the field is not used, this node can be elided entirely
@@ -1008,14 +1042,23 @@ object PruneDeadFields {
           val table2 = rebuild(table, memo)
           MatrixAnnotateColsTable(child2, table2, uid)
         }
+      case MatrixRename(child, globalMap, colMap, rowMap, entryMap) =>
+        val child2 = rebuild(child, memo)
+        MatrixRename(
+          child2,
+          globalMap.filterKeys(child2.typ.globalType.hasField),
+          colMap.filterKeys(child2.typ.colType.hasField),
+          rowMap.filterKeys(child2.typ.rowType.hasField),
+          entryMap.filterKeys(child2.typ.entryType.hasField))
       case _ => mir.copy(mir.children.map {
         // IR should be a match error - all nodes with child value IRs should have a rule
         case childT: TableIR => rebuild(childT, memo)
         case childM: MatrixIR => rebuild(childM, memo)
       })
-
     }
   }
+
+  def rebuild(bmir: BlockMatrixIR, memo: Memo[BaseType]): BlockMatrixIR = bmir
 
   def rebuild(ir: IR, in: BaseType, memo: Memo[BaseType]): IR = {
     rebuild(ir, relationalTypeToEnv(in), memo)
@@ -1033,6 +1076,13 @@ object PruneDeadFields {
       case Let(name, value, body) =>
         val value2 = rebuild(value, in, memo)
         Let(
+          name,
+          value2,
+          rebuild(body, in.bind(name, value2.typ), memo)
+        )
+      case AggLet(name, value, body) =>
+        val value2 = rebuild(value, in, memo)
+        AggLet(
           name,
           value2,
           rebuild(body, in.bind(name, value2.typ), memo)
@@ -1139,11 +1189,19 @@ object PruneDeadFields {
             MakeStruct(FastSeq())
         else
           TableCollect(rebuild(child, memo))
+      case ArrayAgg(a, name, query) =>
+        val a2 = rebuild(a, in, memo)
+        ArrayAgg(
+          a2,
+          name,
+          rebuild(query, in.bind(name, a2.typ.asInstanceOf[TArray].elementType), memo)
+        )
       case _ =>
         ir.copy(ir.children.map {
           case valueIR: IR => rebuild(valueIR, in, memo)
           case mir: MatrixIR => rebuild(mir, memo)
           case tir: TableIR => rebuild(tir, memo)
+          case bmir: BlockMatrixIR => bmir //NOTE Currently no BlockMatrixIRs would have dead fields
         })
     }
   }
@@ -1168,6 +1226,20 @@ object PruneDeadFields {
           val uid = genUID()
           val ref = Ref(uid, -ta.elementType)
           ArrayMap(ir, uid, upcast(ref, ra.elementType))
+        case tt: TTuple =>
+          val rt = rType.asInstanceOf[TTuple]
+          val uid = genUID()
+          val ref = Ref(uid, ir.typ)
+          val mt = MakeTuple(rt.types.zipWithIndex.map { case (typ, i) =>
+              upcast(GetTupleElement(ref, i), typ)
+          })
+          Let(uid, ir, mt)
+        case td: TDict =>
+          val rd = rType.asInstanceOf[TDict]
+          ToDict(upcast(ToArray(ir), TArray(rd.elementType)))
+        case ts: TSet =>
+          val rs = rType.asInstanceOf[TSet]
+          ToSet(upcast(ToArray(ir), TSet(rs.elementType)))
         case t => ir
       }
     }

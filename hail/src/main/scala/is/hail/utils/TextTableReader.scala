@@ -1,34 +1,49 @@
-package is.hail.utils
+package is.hail.expr.ir
 
 import java.util.regex.Pattern
 
 import is.hail.HailContext
-import is.hail.expr._
-import is.hail.expr.ir.TableImport
+import is.hail.annotations.{BroadcastRow, RegionValue}
+import is.hail.expr.TableAnnotationImpex
 import is.hail.expr.types._
 import is.hail.expr.types.virtual._
+import is.hail.rvd.{RVD, RVDContext, RVDType}
+import is.hail.sparkextras.ContextRDD
 import is.hail.table.Table
 import is.hail.utils.StringEscapeUtils._
+import is.hail.utils._
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.Row
 
 import scala.util.matching.Regex
 
-case class TableReaderOptions(
-  nPartitions: Int,
-  commentStartsWith: Array[String],
-  commentRegexes: Array[Regex],
+case class TextTableReaderOptions(
+  files: Array[String],
+  typeMapStr: Map[String, String],
+  comment: Array[String],
   separator: String,
   missing: String,
   noHeader: Boolean,
-  header: String,
-  quote: java.lang.Character,
+  impute: Boolean,
+  nPartitionsOpt: Option[Int],
+  quoteStr: String,
   skipBlankLines: Boolean,
-  useColIndices: Array[Int],
-  originalType: TStruct) {
-  assert(useColIndices.isSorted)
+  forceBGZ: Boolean,
+  filterAndReplace: TextInputFilterAndReplace,
+  forceGZ: Boolean) {
+  @transient val typeMap: Map[String, Type] = typeMapStr.mapValues(s => IRParser.parseType(s)).map(identity)
+
+  private val commentStartsWith: Array[String] = comment.filter(_.length == 1)
+  private val commentRegexes: Array[Regex] = comment.filter(_.length > 1).map(_.r)
 
   def isComment(s: String): Boolean = TextTableReader.isCommentLine(commentStartsWith, commentRegexes)(s)
+
+  val quote: java.lang.Character = if (quoteStr != null) quoteStr(0) else null
+
+  def nPartitions: Int = nPartitionsOpt.getOrElse(HailContext.get.sc.defaultParallelism)
 }
+
+case class TextTableReaderMetadata(globbedFiles: Array[String], header: String, fullType: TableType)
 
 object TextTableReader {
 
@@ -150,40 +165,42 @@ object TextTableReader {
       val ma = MultiArray2.fill[Boolean](nFields, nMatchers + 1)(true)
       val ab = new ArrayBuilder[String]
       val sb = new StringBuilder
-      it.foreach { line => line.foreach { l =>
-        val split = splitLine(l, delimiter, quote, ab, sb)
-        if (split.length != nFields)
-          fatal(s"expected $nFields fields, but found ${ split.length }")
+      it.foreach { line =>
+        line.foreach { l =>
+          val split = splitLine(l, delimiter, quote, ab, sb)
+          if (split.length != nFields)
+            fatal(s"expected $nFields fields, but found ${ split.length }")
 
-        var i = 0
-        while (i < nFields) {
-          val field = split(i)
-          if (field != missing) {
-            var j = 0
-            while (j < nMatchers) {
-              ma.update(i, j, ma(i, j) && matchers(j)(field))
-              j += 1
+          var i = 0
+          while (i < nFields) {
+            val field = split(i)
+            if (field != missing) {
+              var j = 0
+              while (j < nMatchers) {
+                ma.update(i, j, ma(i, j) && matchers(j)(field))
+                j += 1
+              }
+              ma.update(i, nMatchers, false)
             }
-            ma.update(i, nMatchers, false)
+            i += 1
           }
-          i += 1
         }
-      }}
+      }
       Iterator.single(ma)
     }
       .reduce({ case (ma1, ma2) =>
-      var i = 0
-      while (i < nFields) {
-        var j = 0
-        while (j < nMatchers) {
-          ma1.update(i, j, ma1(i, j) && ma2(i, j))
-          j += 1
+        var i = 0
+        while (i < nFields) {
+          var j = 0
+          while (j < nMatchers) {
+            ma1.update(i, j, ma1(i, j) && ma2(i, j))
+            j += 1
+          }
+          ma1.update(i, nMatchers, ma1(i, nMatchers) && ma2(i, nMatchers))
+          i += 1
         }
-        ma1.update(i, nMatchers, ma1(i, nMatchers) && ma2(i, nMatchers))
-        i += 1
-      }
-      ma1
-    })
+        ma1
+      })
 
     imputation.rowIndices.map { i =>
       someIf(!imputation(i, nMatchers),
@@ -193,27 +210,38 @@ object TextTableReader {
     }.toArray
   }
 
-  def read(hc: HailContext)(files: Array[String],
-    types: Map[String, Type] = Map.empty[String, Type],
-    comment: Array[String] = Array.empty[String],
-    separator: String = "\t",
-    missing: String = "NA",
-    noHeader: Boolean = false,
-    impute: Boolean = false,
-    nPartitions: Int = hc.sc.defaultMinPartitions,
-    quote: java.lang.Character = null,
-    skipBlankLines: Boolean = false): Table = {
+  def readMetadata(options: TextTableReaderOptions): TextTableReaderMetadata = {
+    HailContext.maybeGZipAsBGZip(options.forceBGZ) {
+      readMetadata1(options)
+    }
+  }
 
-    require(files.nonEmpty)
+  def readMetadata1(options: TextTableReaderOptions): TextTableReaderMetadata = {
+    val hc = HailContext.get
 
-    val commentStartsWith = comment.filter(_.length == 1)
-    val commentRegexes = comment.filter(_.length > 1).map(_.r)
+    val TextTableReaderOptions(files, _, comment, separator, missing, noHeader, impute, _, _, skipBlankLines, forceBGZ, filterAndReplace, forceGZ) = options
 
-    val isComment = isCommentLine(commentStartsWith, commentRegexes) _
+    val globbedFiles: Array[String] = {
+      val hConf = HailContext.get.hadoopConf
+      val globbed = hConf.globAll(files)
+      if (globbed.isEmpty)
+        fatal("arguments refer to no files")
+      if (!forceBGZ) {
+        globbed.foreach { file =>
+          if (file.endsWith(".gz"))
+            checkGzippedFile(hConf, file, forceGZ, forceBGZ)
+        }
+      }
+      globbed
+    }
 
-    val firstFile = files.head
-    val header = hc.hadoopConf.readLines(firstFile) { lines =>
-      val filt = lines.filter(line => !isComment(line.value) && !(skipBlankLines && line.value.isEmpty))
+    val types = options.typeMap
+    val quote = options.quote
+    val nPartitions: Int = options.nPartitions
+
+    val firstFile = globbedFiles.head
+    val header = hc.hadoopConf.readLines(firstFile, filterAndReplace) { lines =>
+      val filt = lines.filter(line => !options.isComment(line.value) && !(skipBlankLines && line.value.isEmpty))
 
       if (filt.isEmpty)
         fatal(
@@ -237,9 +265,9 @@ object TextTableReader {
         duplicates.map { case (pre, post) => s"'$pre' -> '$post'" }.truncatable("\n  "))
     }
 
-    val rdd = hc.sc.textFilesLines(files, nPartitions)
+    val rdd = hc.sc.textFilesLines(globbedFiles, nPartitions)
       .filter { line =>
-        !isComment(line.value) &&
+        !options.isComment(line.value) &&
           (noHeader || line.value != header) &&
           !(skipBlankLines && line.value.isEmpty)
       }
@@ -268,8 +296,7 @@ object TextTableReader {
               }
           }
         }
-      }
-      else {
+      } else {
         sb.append("Reading table with no type imputation\n")
         columns.map { c =>
           types.get(c) match {
@@ -286,10 +313,102 @@ object TextTableReader {
 
     info(sb.result())
 
-    val ttyp = TableType(TStruct(namesAndTypes: _*), FastIndexedSeq(), TStruct())
-    val readerOpts = TableReaderOptions(nPartitions, commentStartsWith, commentRegexes,
-      separator, missing, noHeader, header, quote, skipBlankLines, namesAndTypes.indices.toArray,
-      ttyp.rowType)
-    new Table(hc, TableImport(files, ttyp, readerOpts))
+    val t = TableType(TStruct(namesAndTypes: _*), FastIndexedSeq(), TStruct())
+    TextTableReaderMetadata(globbedFiles, header, t)
+  }
+
+  def read(hc: HailContext)(files: Array[String],
+    types: Map[String, Type] = Map.empty[String, Type],
+    comment: Array[String] = Array.empty[String],
+    separator: String = "\t",
+    missing: String = "NA",
+    noHeader: Boolean = false,
+    impute: Boolean = false,
+    nPartitions: Int = hc.sc.defaultMinPartitions,
+    quote: java.lang.Character = null,
+    skipBlankLines: Boolean = false,
+    forceBGZ: Boolean = false,
+    forceGZ: Boolean = false,
+    filterAndReplace: TextInputFilterAndReplace = TextInputFilterAndReplace()): Table = {
+    val options = TextTableReaderOptions(
+      files, types.mapValues(t => t._toPretty).map(identity), comment, separator,
+      missing, noHeader, impute, Some(nPartitions),
+      if (quote != null) quote.toString else null, skipBlankLines, forceBGZ, filterAndReplace, forceGZ)
+    val tr = TextTableReader(options)
+    new Table(hc, TableRead(tr.fullType, dropRows = false, tr))
+  }
+}
+
+case class TextTableReader(options: TextTableReaderOptions) extends TableReader {
+  val partitionCounts: Option[IndexedSeq[Long]] = None
+
+  private lazy val metadata = TextTableReader.readMetadata(options)
+
+  lazy val fullType: TableType = metadata.fullType
+
+  lazy val fullRVDType: RVDType = fullType.canonicalRVDType
+
+  def apply(tr: TableRead): TableValue = {
+    HailContext.maybeGZipAsBGZip(options.forceBGZ) {
+      apply1(tr)
+    }
+  }
+
+  def apply1(tr: TableRead): TableValue = {
+    val hc = HailContext.get
+    val rowTyp = tr.typ.rowType
+    val nFieldOrig = fullType.rowType.size
+    val rowFields = rowTyp.fields
+
+    val useColIndices = rowTyp.fields.map(f => fullType.rowType.fieldIdx(f.name))
+
+    val crdd = ContextRDD.textFilesLines[RVDContext](hc.sc, metadata.globbedFiles, options.nPartitions, options.filterAndReplace)
+      .filter { line =>
+        !options.isComment(line.value) &&
+          (options.noHeader || metadata.header != line.value) &&
+          !(options.skipBlankLines && line.value.isEmpty)
+      }.cmapPartitions { (ctx, it) =>
+      val region = ctx.region
+      val rvb = ctx.rvb
+      val rv = RegionValue(region)
+
+      val ab = new ArrayBuilder[String]
+      val sb = new StringBuilder
+      it.map {
+        _.map { line =>
+          val sp = TextTableReader.splitLine(line, options.separator, options.quote, ab, sb)
+          if (sp.length != nFieldOrig)
+            fatal(s"expected $nFieldOrig fields, but found ${ sp.length } fields")
+
+          rvb.set(region)
+          rvb.start(rowTyp.physicalType)
+          rvb.startStruct()
+
+          var i = 0
+          while (i < useColIndices.length) {
+            val f = rowFields(i)
+            val name = f.name
+            val typ = f.typ
+            val field = sp(useColIndices(i))
+            try {
+              if (field == options.missing)
+                rvb.setMissing()
+              else
+                rvb.addAnnotation(typ, TableAnnotationImpex.importAnnotation(field, typ))
+            } catch {
+              case e: Exception =>
+                fatal(s"""${ e.getClass.getName }: could not convert "$field" to $typ in column "$name" """, e)
+            }
+            i += 1
+          }
+
+          rvb.endStruct()
+          rv.setOffset(rvb.end())
+          rv
+        }.value
+      }
+    }
+
+    TableValue(tr.typ, BroadcastRow(Row.empty, tr.typ.globalType, hc.sc), RVD.unkeyed(rowTyp.physicalType, crdd))
   }
 }

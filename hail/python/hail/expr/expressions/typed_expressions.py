@@ -136,14 +136,10 @@ class CollectionExpression(Expression):
             Expression whose type is the element type of the collection.
         """
 
-        def unify_ret(t):
-            if t != tbool:
-                raise TypeError("'find' expects 'f' to return an expression of type 'bool', found '{}'".format(t))
-            return self._type.element_type
-
-        # FIXME make more efficient when we can call ArrayFold
-        return hl.bind(lambda fa: hl.cond(hl.len(fa) > 0, fa[0], hl.null(self._type.element_type)),
-                       hl.array(self.filter(f)))
+        # FIXME this should short-circuit
+        return self.fold(lambda accum, x:
+                         hl.cond(hl.is_missing(accum) & f(x), x, accum),
+                         hl.null(self._type.element_type))
 
     @typecheck_method(f=func_spec(1, expr_any))
     def flatmap(self, f):
@@ -429,7 +425,7 @@ class ArrayExpression(CollectionExpression):
             if not item.dtype == tint32:
                 raise TypeError("array expects key to be type 'slice' or expression of type 'int32', "
                                 "found expression of type '{}'".format(item._type))
-            return self._index(self.dtype.element_type, item)
+            return self._method("indexArray", self.dtype.element_type, item)
 
     @typecheck_method(item=expr_any)
     def contains(self, item):
@@ -1218,7 +1214,7 @@ class DictExpression(Expression):
         return self._method("values", tarray(self.dtype.value_type))
 
 
-class StructExpression(Mapping, Expression):
+class StructExpression(Mapping[str, Expression], Expression):
     """Expression of type :class:`.tstruct`.
 
     >>> struct = hl.struct(a=5, b='Foo')
@@ -1333,6 +1329,20 @@ class StructExpression(Mapping, Expression):
 
     def __nonzero__(self):
         return Expression.__nonzero__(self)
+
+    def _annotate_ordered(self, insertions_dict, field_order):
+        def get_type(field):
+            e = insertions_dict.get(field)
+            if e is None:
+                e = self._fields[field]
+            return e.dtype
+
+        new_type = hl.tstruct(**{f: get_type(f) for f in field_order})
+        indices, aggregations = unify_all(self, *insertions_dict.values())
+        return construct_expr(InsertFields(self._ir, [(field, expr._ir) for field, expr in insertions_dict.items()], field_order),
+                              new_type,
+                              indices,
+                              aggregations)
 
     @typecheck_method(named_exprs=expr_any)
     def annotate(self, **named_exprs):
@@ -2363,6 +2373,10 @@ class CallExpression(Expression):
         >>> hl.eval(call.ploidy)
         2
 
+        Notes
+        -----
+        Currently only ploidy 1 and 2 are supported.
+
         Returns
         -------
         :class:`.Expression` of type :py:data:`.tint32`
@@ -2424,6 +2438,11 @@ class CallExpression(Expression):
         >>> hl.eval(call.is_non_ref())
         True
 
+        Notes
+        -----
+        In the diploid biallelic case, a ``0/0`` call will return ``False``,
+        and ``0/1`` and ``1/1`` will return ``True``.
+
         Returns
         -------
         :class:`.BooleanExpression`
@@ -2440,6 +2459,11 @@ class CallExpression(Expression):
         >>> hl.eval(call.is_het())
         True
 
+        Notes
+        -----
+        In the diploid biallelic case, a ``0/1`` call will return ``True``,
+        and ``0/0`` and ``1/1`` will return ``False``.
+
         Returns
         -------
         :class:`.BooleanExpression`
@@ -2455,6 +2479,11 @@ class CallExpression(Expression):
 
         >>> hl.eval(call.is_het_non_ref())
         False
+
+        Notes
+        -----
+        A biallelic variant may never have a het-non-ref call. Examples of
+        these calls are ``1/2`` and ``2/4``.
 
         Returns
         -------
@@ -2519,6 +2548,12 @@ class CallExpression(Expression):
 
         >>> hl.eval(call.n_alt_alleles())
         1
+
+        Notes
+        -----
+        For diploid biallelic calls, this method is equivalent to the alternate
+        allele dosage. For instance, ``0/0`` will return ``0``, ``0/1`` will
+        return ``1``, and ``1/1`` will return ``2``.
 
         Returns
         -------

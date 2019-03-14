@@ -1,4 +1,5 @@
 import math
+import pytest
 import random
 from scipy.stats import pearsonr
 import unittest
@@ -245,6 +246,13 @@ class Tests(unittest.TestCase):
     def test_bind_placement(self):
         self.assertEqual(hl.eval(5 / hl.bind(lambda x: x, 5)), 1.0)
 
+    def test_rbind_multiple(self):
+        self.assertEqual(hl.eval(hl.rbind(2, 3, lambda x, y: x * y)), 6)
+        self.assertEqual(hl.eval(hl.rbind(3, lambda y: y * 2)), 6)
+
+    def test_rbind_placement(self):
+        self.assertEqual(hl.eval(5 / hl.rbind(5, lambda x: x)), 1.0)
+
     def test_matches(self):
         self.assertEqual(hl.eval('\d+'), '\d+')
         string = hl.literal('12345')
@@ -317,6 +325,101 @@ class Tests(unittest.TestCase):
                  ]
         for aggregation, expected in tests:
             self.assertEqual(t.aggregate(aggregation), expected)
+
+    def test_agg_array_empty(self):
+        ht = hl.utils.range_table(1).annotate(a=[0]).filter(False)
+        assert ht.aggregate(hl.agg.array_agg(lambda x: hl.agg.sum(x), ht.a)) == None
+
+    def test_agg_array_non_trivial_post_op(self):
+        ht = hl.utils.range_table(10)
+        ht = ht.annotate(a=[ht.idx, 2 * ht.idx])
+        assert ht.aggregate(hl.agg.array_agg(
+            lambda x: hl.agg.sum(x) + hl.agg.filter(x % 3 == 0, hl.agg.sum(x)),
+            ht.a)) == [63, 126]
+
+    def test_agg_array_agg_empty_partitions(self):
+        ht = hl.utils.range_table(11, 11)
+        ht = ht.filter(ht.idx < 10)
+        ht = ht.annotate(a=hl.range(ht.idx, ht.idx + 10))
+        assert ht.aggregate(hl.agg.array_agg(lambda x: hl.agg.sum(x), ht.a)) == [45 + 10 * x for x in range(10)]
+
+    def test_agg_array_agg_sum_vs_sum(self):
+        ht = hl.utils.range_table(25).annotate(x=hl.range(0, 10).map(lambda _: hl.rand_bool(0.5)))
+        assert ht.aggregate(hl.agg.array_agg(lambda x: hl.agg.sum(x), ht.x) == hl.agg.array_sum(ht.x))
+
+    def test_agg_array_agg_errors(self):
+        ht = hl.utils.range_table(10)
+        ht = ht.annotate(a=hl.range(0, ht.idx))
+        with pytest.raises(hl.utils.FatalError):
+            ht.aggregate(hl.agg.array_agg(lambda x: hl.agg.sum(x), ht.a))
+
+    def test_agg_array_explode(self):
+        ht = hl.utils.range_table(10)
+        ht = ht.annotate(a=hl.range(0, ht.idx).map(lambda _: [ht.idx, 2 * ht.idx]))
+        r = ht.aggregate(hl.agg.explode(lambda x: hl.agg.array_agg(lambda elt: hl.agg.sum(elt), x), ht.a))
+        assert r == [285, 570]
+
+        ht = hl.utils.range_table(10)
+        ht = ht.annotate(a=[hl.range(0, ht.idx), hl.range(ht.idx, 2 * ht.idx)])
+        r = ht.aggregate(hl.agg.array_agg(lambda x: hl.agg.explode(lambda elt: hl.agg.sum(elt), x), ht.a))
+        assert r == [120, 405]
+
+    def test_agg_array_filter(self):
+        ht = hl.utils.range_table(10)
+        ht = ht.annotate(a=[ht.idx])
+        r = ht.aggregate(hl.agg.filter(ht.idx == 5, hl.agg.array_agg(lambda x: hl.agg.sum(x), ht.a)))
+        assert r == [5]
+
+        r2 = ht.aggregate(hl.agg.array_agg(lambda x: hl.agg.filter(x == 5, hl.agg.sum(x)), ht.a))
+        assert r2 == [5]
+
+    def test_agg_array_group_by(self):
+        ht = hl.utils.range_table(10)
+        ht = ht.annotate(a=[ht.idx, ht.idx + 1])
+        r = ht.aggregate(
+            hl.agg.group_by(ht.idx % 2, hl.agg.array_agg(lambda x: hl.agg.sum(x), ht.a)))
+        assert r == {0: [20, 25], 1: [25, 30]}
+
+        r2 = ht.aggregate(
+            hl.agg.array_agg(lambda x: hl.agg.group_by(x % 2, hl.agg.sum(x)), ht.a)
+        )
+
+        assert r2 == [{0: 20, 1: 25}, {0: 30, 1: 25}]
+
+    def test_agg_array_nested(self):
+        ht = hl.utils.range_table(10)
+        ht = ht.annotate(a=[[[ht.idx]]])
+        assert ht.aggregate(hl.agg.array_agg(
+            lambda x1: hl.agg.array_agg(
+                lambda x2: hl.agg.array_agg(
+                    lambda x3: hl.agg.sum(x3), x2), x1), ht.a)) == [[[45]]]
+
+
+    def test_agg_array_init_op(self):
+        ht = hl.utils.range_table(1).annotate_globals(n_alleles = ['A', 'T']).annotate(gts = [hl.call(0, 1), hl.call(1, 1)])
+        r = ht.aggregate(hl.agg.array_agg(lambda a: hl.agg.call_stats(a, ht.n_alleles), ht.gts))
+        assert r == [hl.utils.Struct(AC=[1, 1], AF=[0.5, 0.5], AN=2, homozygote_count=[0, 0]),
+                     hl.utils.Struct(AC=[0, 2], AF=[0.0, 1.0], AN=2, homozygote_count=[0, 1])]
+
+    def test_agg_collect_all_types_runs(self):
+        ht = hl.utils.range_table(2)
+        ht = ht.annotate(x = hl.case().when(ht.idx % 1 == 0, True).or_missing())
+        ht.aggregate((
+            hl.agg.collect(ht.x),
+            hl.agg.collect(hl.int32(ht.x)),
+            hl.agg.collect(hl.int64(ht.x)),
+            hl.agg.collect(hl.float32(ht.x)),
+            hl.agg.collect(hl.float64(ht.x)),
+            hl.agg.collect(hl.str(ht.x)),
+            hl.agg.collect(hl.call(0, 0, phased=ht.x)),
+            hl.agg.collect(hl.struct(foo = ht.x)),
+            hl.agg.collect(hl.tuple([ht.x])),
+            hl.agg.collect([ht.x]),
+            hl.agg.collect({ht.x}),
+            hl.agg.collect({ht.x: 1}),
+            hl.agg.collect(hl.interval(0, 1, includes_start=ht.x)),
+        ))
+
 
     def test_agg_explode(self):
         t = hl.utils.range_table(10)
@@ -554,6 +657,12 @@ class Tests(unittest.TestCase):
 
         for aggregation, expected in tests:
             self.assertEqual(aggregation.collect(), expected)
+
+    def test_scan_array_agg(self):
+        ht = hl.utils.range_table(5)
+        ht = ht.annotate(a=hl.range(0, 5).map(lambda x: ht.idx))
+        ht = ht.annotate(a2=hl.scan.array_agg(lambda _: hl.agg.count(), ht.a))
+        assert ht.all((ht.idx == 0) | (ht.a == ht.a2))
 
     def test_aggregators_max_min(self):
         table = hl.utils.range_table(10)
@@ -919,6 +1028,18 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(df.aggregate(agg.filter(False, agg.any(df.all_true))), False)
         self.assertEqual(df.aggregate(agg.filter(False, agg.all(df.all_true))), True)
+
+    def test_agg_prev_nonnull(self):
+        t = hl.utils.range_table(17, n_partitions=8)
+        t = t.annotate(
+            prev = hl.scan._prev_nonnull(
+                hl.or_missing((t.idx % 3) != 0, t.row)))
+        self.assertTrue(
+            t.all(hl._values_similar(t.prev.idx,
+                                     hl.case()
+                                     .when(t.idx < 2, hl.null(hl.tint32))
+                                     .when(((t.idx - 1) % 3) == 0, t.idx - 2)
+                                     .default(t.idx - 1))))
 
     def test_str_ops(self):
         s = hl.literal("123")
@@ -1829,9 +1950,16 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(hl.sorted([0, 1, 4, 3, 2], lambda x: x % 2, reverse=True)), [1, 3, 0, 4, 2])
 
         self.assertEqual(hl.eval(hl.sorted([0, 1, 4, hl.null(tint), 3, 2], lambda x: x)), [0, 1, 2, 3, 4, None])
-        # FIXME: this next line triggers a bug: None should be sorted last!
-        # self.assertEqual(hl.sorted([0, 1, 4, hl.null(tint), 3, 2], lambda x: x, reverse=True).collect()[0], [4, 3, 2, 1, 0, None])
+        self.assertEqual(hl.sorted([0, 1, 4, hl.null(tint), 3, 2], lambda x: x, reverse=True).collect()[0], [4, 3, 2, 1, 0, None])
         self.assertEqual(hl.eval(hl.sorted([0, 1, 4, hl.null(tint), 3, 2], lambda x: x, reverse=True)), [4, 3, 2, 1, 0, None])
+
+    def test_sort_by(self):
+        self.assertEqual(hl.eval(hl._sort_by(["c", "aaa", "bb", hl.null(hl.tstr)], lambda l, r: hl.len(l) < hl.len(r))), ["c", "bb", "aaa", None])
+        self.assertEqual(hl.eval(hl._sort_by([hl.Struct(x=i, y="foo", z=5.5) for i in [5, 3, 8, 2, 5]], lambda l, r: l.x < r.x)),
+                         [hl.Struct(x=i, y="foo", z=5.5) for i in [2, 3, 5, 5, 8]])
+        with self.assertRaises(hl.utils.java.FatalError):
+            self.assertEqual(hl.eval(hl._sort_by([hl.Struct(x=i, y="foo", z=5.5) for i in [5, 3, 8, 2, 5, hl.null(hl.tint32)]], lambda l, r: l.x < r.x)),
+                             [hl.Struct(x=i, y="foo", z=5.5) for i in [2, 3, 5, 5, 8, None]])
 
     def test_bool_r_ops(self):
         self.assertTrue(hl.eval(hl.literal(True) & True))
@@ -1901,6 +2029,10 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(hl.coalesce(hl.null('int'), hl.null('int'), 2)), 2)
         self.assertEqual(hl.eval(hl.coalesce(hl.null('int'), hl.null('int'), 2.5)), 2.5)
         self.assertEqual(hl.eval(hl.coalesce(2.5)), 2.5)
+        self.assertEqual(hl.eval(hl.coalesce(2.5, hl.null('int'))), 2.5)
+        self.assertEqual(hl.eval(hl.coalesce(hl.null('int'), 2.5, hl.null('int'))), 2.5)
+        self.assertEqual(hl.eval(hl.coalesce(hl.null('int'), 2.5, 100)), 2.5)
+        self.assertEqual(hl.eval(hl.coalesce(hl.null('int'), 2.5, hl.int(1) / 0)), 2.5)
         with self.assertRaises(TypeError):
             hl.coalesce(2.5, 'hello')
 
@@ -2372,3 +2504,78 @@ class Tests(unittest.TestCase):
         assert hl.eval(hl.reversed(s)) == 'cba'
         assert hl.eval(hl.reversed(es)) == ''
         assert hl.eval(hl.reversed(ns)) is None
+
+    def test_bit_ops_types(self):
+        assert hl.bit_and(1, 1).dtype == hl.tint32
+        assert hl.bit_and(hl.int64(1), 1).dtype == hl.tint64
+
+        assert hl.bit_or(1, 1).dtype == hl.tint32
+        assert hl.bit_or(hl.int64(1), 1).dtype == hl.tint64
+
+        assert hl.bit_xor(1, 1).dtype == hl.tint32
+        assert hl.bit_xor(hl.int64(1), 1).dtype == hl.tint64
+
+        assert hl.bit_lshift(1, 1).dtype == hl.tint32
+        assert hl.bit_lshift(hl.int64(1), 1).dtype == hl.tint64
+
+        assert hl.bit_rshift(1, 1).dtype == hl.tint32
+        assert hl.bit_rshift(hl.int64(1), 1).dtype == hl.tint64
+
+        assert hl.bit_not(1).dtype == hl.tint32
+        assert hl.bit_not(hl.int64(1)).dtype == hl.tint64
+
+    def test_bit_shift_edge_cases(self):
+        assert hl.eval(hl.bit_lshift(hl.int(1), 32)) == 0
+        assert hl.eval(hl.bit_rshift(hl.int(1), 32)) == 1
+        assert hl.eval(hl.bit_rshift(hl.int(1), 32, logical=True)) == 0
+        assert hl.eval(hl.bit_rshift(hl.int(-1), 32)) == -1
+        assert hl.eval(hl.bit_rshift(hl.int(-1), 32, logical=True)) == 0
+
+        assert hl.eval(hl.bit_lshift(hl.int64(1), 64)) == 0
+        assert hl.eval(hl.bit_rshift(hl.int64(1), 64)) == 1
+        assert hl.eval(hl.bit_rshift(hl.int64(1), 64, logical=True)) == 0
+        assert hl.eval(hl.bit_rshift(hl.int64(-1), 64)) == -1
+        assert hl.eval(hl.bit_rshift(hl.int64(-11), 64, logical=True)) == 0
+
+    def test_bit_shift_errors(self):
+        with pytest.raises(hl.utils.FatalError):
+                hl.eval(hl.bit_lshift(1, -1))
+
+        with pytest.raises(hl.utils.FatalError):
+            hl.eval(hl.bit_rshift(1, -1))
+
+        with pytest.raises(hl.utils.FatalError):
+            hl.eval(hl.bit_rshift(1, -1, logical=True))
+
+        with pytest.raises(hl.utils.FatalError):
+            hl.eval(hl.bit_lshift(hl.int64(1), -1))
+
+        with pytest.raises(hl.utils.FatalError):
+            hl.eval(hl.bit_rshift(hl.int64(1), -1))
+
+        with pytest.raises(hl.utils.FatalError):
+            hl.eval(hl.bit_rshift(hl.int64(1), -1, logical=True))
+
+    def test_prev_non_null(self):
+        ht = hl.utils.range_table(1)
+
+        assert ht.aggregate((hl.agg._prev_nonnull(ht.idx))) == 0
+
+    def test_summarize_runs(self):
+        mt = hl.utils.range_matrix_table(3,3).annotate_entries(
+            x1 = 'a',
+            x2 = 1,
+            x3 = 1.5,
+            x4 = True,
+            x5 = ['1'],
+            x6 = {'1'},
+            x7={'1': 5},
+            x8=hl.struct(a=5, b='7'),
+            x9=(1,2,3),
+            x10=hl.locus('1', 123123),
+            x11=hl.call(0, 1, phased=True)
+        )
+
+        mt.summarize()
+        mt.entries().summarize()
+        mt.x1.summarize()

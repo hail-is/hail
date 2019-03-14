@@ -111,11 +111,13 @@ class StatAggregator() extends TypedAggregator[Annotation] {
 
   var _state = new StatCounter()
 
-  def result =
-    if (_state.count == 0)
-      null
-    else
-      Annotation(_state.mean, _state.stdev, _state.min, _state.max, _state.count, _state.sum)
+  def result = Annotation(
+    if (_state.count == 0d) null else _state.mean,
+    if (_state.count == 0d) null else _state.stdev,
+    if (_state.count == 0d) null else _state.min,
+    if (_state.count == 0d) null else _state.max,
+    _state.count,
+    _state.sum)
 
   def seqOp(x: Any) {
     if (x != null)

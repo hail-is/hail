@@ -1,5 +1,7 @@
 import os
 from timeit import default_timer as timer
+import unittest
+from decorator import decorator
 
 import hail as hl
 
@@ -9,7 +11,11 @@ _initialized = False
 def startTestHailContext():
     global _initialized
     if not _initialized:
-        hl.init(master='local[2]', min_block_size=0, quiet=True)
+        url = os.environ.get('HAIL_TEST_SERVICE_BACKEND_URL')
+        if url:
+            hl.init(master='local[2]', min_block_size=0, quiet=True, _backend=hl.backend.ServiceBackend(url))
+        else:
+            hl.init(master='local[2]', min_block_size=0, quiet=True)
         _initialized = True
 
 
@@ -130,3 +136,13 @@ def create_all_values_matrix_table():
 
 def create_all_values_datasets():
     return (create_all_values_table(), create_all_values_matrix_table())
+
+def skip_unless_spark_backend():
+    @decorator
+    def wrapper(func, *args, **kwargs):
+        if isinstance(hl.utils.java.Env.backend(), hl.backend.SparkBackend):
+            return func(*args, **kwargs)
+        else:
+            raise unittest.SkipTest('requires Spark')
+
+    return wrapper

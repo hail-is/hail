@@ -10,6 +10,7 @@ import is.hail.experimental.ExperimentalFunctions
 import is.hail.expr.types.physical.{PString, PType}
 import is.hail.expr.types.virtual._
 
+import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.reflect._
 
@@ -26,6 +27,17 @@ object IRFunctionRegistry {
 
   def addIR(name: String, argTypes: Seq[Type], retType: Type, f: Seq[IR] => IR): Unit =
     irRegistry.addBinding(name, (argTypes, retType, f))
+
+  def pyRegisterIR(mname: String,
+    argNames: java.util.ArrayList[String],
+    argTypes: java.util.ArrayList[String], retType: String,
+    body: IR): Unit = {
+    addIR(mname,
+      argTypes.asScala.toArray.map(IRParser.parseType), IRParser.parseType(retType), { args =>
+        Subst(body,
+          Env[IR](argNames.asScala.zip(args): _*))
+      })
+  }
 
   def removeIRFunction(name: String, args: Seq[Type]): Unit = {
     val functions = codeRegistry(name)
@@ -58,7 +70,10 @@ object IRFunctionRegistry {
         }
     }
     val validIR: Option[Seq[IR] => IR] = lookupInRegistry[Conversion](irRegistry, name, args, findIR).map {
-      case (_, _, conversion) => args => ApplyIR(name, args, conversion)
+      case (_, _, conversion) => args =>
+        val x = ApplyIR(name, args)
+        x.conversion = conversion
+        x
     }
 
     val validMethods = lookupFunction(name, args).map { f => { irArgs: Seq[IR] =>

@@ -18,10 +18,10 @@ object LocalBackend {
     println("LocalBackend.execute got", Pretty(ir))
 
     ir = ir.unwrap
-    ir = Optimize(ir, noisy = true, canGenerateLiterals = true)
-    ir = LiftLiterals(ir).asInstanceOf[IR]
+    ir = Optimize(ir, noisy = true, canGenerateLiterals = true, context = Some("LocalBackend.execute - first pass"))
+    ir = LiftNonCompilable(ir).asInstanceOf[IR]
     ir = LowerMatrixIR(ir)
-    ir = Optimize(ir, noisy = true, canGenerateLiterals = false)
+    ir = Optimize(ir, noisy = true, canGenerateLiterals = false, context = Some("LocalBackend.execute - after MatrixIR lowering"))
 
     println("LocalBackend.execute to lower", Pretty(ir))
 
@@ -29,7 +29,7 @@ object LocalBackend {
 
     println("LocalBackend.execute lowered", Pretty(ir))
 
-    ir = Optimize(ir, noisy = true, canGenerateLiterals = false)
+    ir = Optimize(ir, noisy = true, canGenerateLiterals = false, context = Some("LocalBackend.execute - after TableIR lowering"))
 
     println("LocalBackend.execute", Pretty(ir))
 

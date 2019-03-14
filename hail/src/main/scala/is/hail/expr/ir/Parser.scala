@@ -6,13 +6,14 @@ import is.hail.expr.{JSONAnnotationImpex, ParserUtils}
 import is.hail.expr.types.{MatrixType, TableType}
 import is.hail.expr.types.virtual._
 import is.hail.expr.types.physical.PType
+import is.hail.io.CodecSpec
 import is.hail.io.bgen.MatrixBGENReaderSerializer
-import is.hail.rvd.RVDType
+import is.hail.rvd.{AbstractRVDSpec, RVDType}
 import is.hail.table.{Ascending, Descending, SortField}
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
-import javax.management.relation.Relation
+import org.json4s.{Formats, MappingException}
 import org.json4s.jackson.{JsonMethods, Serialization}
 
 import scala.util.parsing.combinator.JavaTokenParsers
@@ -130,7 +131,7 @@ case class IRParserEnvironment(
     copy(refMap = refMap ++ newRefMap, irMap = irMap ++ newIRMap)
 
   def withRefMap(newRefMap: Map[String, Type]): IRParserEnvironment = {
-    assert(refMap.isEmpty)
+    assert(refMap.isEmpty || newRefMap.isEmpty)
     copy(refMap = newRefMap)
   }
 
@@ -139,6 +140,14 @@ case class IRParserEnvironment(
 
 object IRParser {
   def error(t: Token, msg: String): Nothing = ParserUtils.error(t.pos, msg)
+
+  def deserialize[T](str: String)(implicit formats: Formats, mf: Manifest[T]): T = {
+    try {
+      Serialization.read[T](str)
+    } catch {
+      case e: MappingException => throw e.cause
+    }
+  }
 
   def consumeToken(it: TokenIterator): Token = {
     if (!it.hasNext)
@@ -193,13 +202,6 @@ object IRParser {
     }
   }
 
-  def int32_literals(it: TokenIterator): Array[Int] = {
-    punctuation(it, "(")
-    val ints = repUntil(it, int32_literal, PunctuationToken(")"))
-    punctuation(it, ")")
-    ints
-  }
-
   def int64_literal(it: TokenIterator): Long = {
     consumeToken(it) match {
       case x: IntegerToken => x.value
@@ -246,12 +248,17 @@ object IRParser {
     }
   }
 
-  def string_literals(it: TokenIterator): Array[String] = {
+  def literals[T](literalIdentifier: TokenIterator => T)(it: TokenIterator)(implicit tct: ClassTag[T]): Array[T] = {
     punctuation(it, "(")
-    val strings = repUntil(it, string_literal, PunctuationToken(")"))
+    val literals = repUntil(it, literalIdentifier, PunctuationToken(")"))
     punctuation(it, ")")
-    strings
+    literals
   }
+
+  def string_literals: TokenIterator => Array[String] = literals(string_literal)
+  def int32_literals: TokenIterator => Array[Int] = literals(int32_literal)
+  def int64_literals: TokenIterator => Array[Long] = literals(int64_literal)
+  def boolean_literals: TokenIterator => Array[Boolean] = literals(boolean_literal)
 
   def opt[T](it: TokenIterator, f: (TokenIterator) => T)(implicit tct: ClassTag[T]): Option[T] = {
     it.head match {
@@ -583,10 +590,21 @@ object IRParser {
         val step = ir_value_expr(env)(it)
         ArrayRange(start, stop, step)
       case "ArraySort" =>
-        val onKey = boolean_literal(it)
+        val l = identifier(it)
+        val r = identifier(it)
         val a = ir_value_expr(env)(it)
-        val ascending = ir_value_expr(env)(it)
-        ArraySort(a, ascending, onKey)
+        val elt = coerce[TArray](a.typ).elementType
+        val body = ir_value_expr(env + (l -> elt) + (r -> elt))(it)
+        ArraySort(a, l, r, body)
+      case "MakeNDArray" =>
+        val data = ir_value_expr(env)(it)
+        val shape = ir_value_expr(env)(it)
+        val row_major = ir_value_expr(env)(it)
+        MakeNDArray(data, shape, row_major)
+      case "NDArrayRef" =>
+        val nd = ir_value_expr(env)(it)
+        val idxs = ir_value_expr(env)(it)
+        NDArrayRef(nd, idxs)
       case "ToSet" => ToSet(ir_value_expr(env)(it))
       case "ToDict" => ToDict(ir_value_expr(env)(it))
       case "ToArray" => ToArray(ir_value_expr(env)(it))
@@ -660,6 +678,11 @@ object IRParser {
         val key = ir_value_expr(env)(it)
         val aggIR = ir_value_expr(env)(it)
         AggGroupBy(key, aggIR)
+      case "AggArrayPerElement" =>
+        val name = identifier(it)
+        val a = ir_value_expr(env)(it)
+        val aggBody = ir_value_expr(env + (name -> coerce[TArray](a.typ).elementType))(it)
+        AggArrayPerElement(a, name, aggBody)
       case "ApplyAggOp" =>
         val aggOp = agg_op(it)
         val ctorArgs = ir_value_exprs(env)(it)
@@ -742,16 +765,16 @@ object IRParser {
         val max = ir_value_expr(env)(it)
         Uniroot(name, function, min, max)
       case "TableCount" =>
-        val child = table_ir(env)(it)
+        val child = table_ir(env.withRefMap(Map.empty))(it)
         TableCount(child)
       case "TableGetGlobals" =>
-        val child = table_ir(env)(it)
+        val child = table_ir(env.withRefMap(Map.empty))(it)
         TableGetGlobals(child)
       case "TableCollect" =>
-        val child = table_ir(env)(it)
+        val child = table_ir(env.withRefMap(Map.empty))(it)
         TableCollect(child)
       case "TableAggregate" =>
-        val child = table_ir(env)(it)
+        val child = table_ir(env.withRefMap(Map.empty))(it)
         val query = ir_value_expr(env.update(child.typ.refMap))(it)
         TableAggregate(child, query)
       case "TableToValueApply" =>
@@ -762,39 +785,68 @@ object IRParser {
         val config = string_literal(it)
         val child = matrix_ir(env)(it)
         MatrixToValueApply(child, RelationalFunctions.lookupMatrixToValue(config))
+      case "BlockMatrixToValueApply" =>
+        val config = string_literal(it)
+        val child = blockmatrix_ir(env)(it)
+        BlockMatrixToValueApply(child, RelationalFunctions.lookupBlockMatrixToValue(config))
       case "TableExport" =>
-        val child = table_ir(env)(it)
         val path = string_literal(it)
         val typesFile = opt(it, string_literal).orNull
         val header = boolean_literal(it)
         val exportType = int32_literal(it)
-        TableExport(child, path, typesFile, header, exportType)
+        val delimiter = string_literal(it)
+        val child = table_ir(env.withRefMap(Map.empty))(it)
+        TableExport(child, path, typesFile, header, exportType, delimiter)
       case "TableWrite" =>
         val path = string_literal(it)
         val overwrite = boolean_literal(it)
         val shuffleLocally = boolean_literal(it)
         val codecSpecJsonStr = opt(it, string_literal)
-        val child = table_ir(env)(it)
+        val child = table_ir(env.withRefMap(Map.empty))(it)
         TableWrite(child, path, overwrite, shuffleLocally, codecSpecJsonStr.orNull)
       case "MatrixAggregate" =>
-        val child = matrix_ir(env)(it)
+        val child = matrix_ir(env.withRefMap(Map.empty))(it)
         val query = ir_value_expr(env.update(child.typ.refMap))(it)
         MatrixAggregate(child, query)
       case "MatrixWrite" =>
         val writerStr = string_literal(it)
-        implicit val formats = MatrixWriter.formats
-        val writer = Serialization.read[MatrixWriter](writerStr)
-        val child = matrix_ir(env)(it)
+        implicit val formats: Formats = MatrixWriter.formats
+        val writer = deserialize[MatrixWriter](writerStr)
+        val child = matrix_ir(env.withRefMap(Map.empty))(it)
         MatrixWrite(child, writer)
       case "MatrixMultiWrite" =>
         val writerStr = string_literal(it)
         implicit val formats = MatrixNativeMultiWriter.formats
-        val writer = Serialization.read[MatrixNativeMultiWriter](writerStr)
+        val writer = try{
+          Serialization.read[MatrixNativeMultiWriter](writerStr)
+        } catch {
+          case e: MappingException => throw e.cause
+        }
         val children = matrix_ir_children(env)(it)
         MatrixMultiWrite(children, writer)
+      case "BlockMatrixWrite" =>
+        val writerStr = string_literal(it)
+        implicit val formats: Formats = BlockMatrixWriter.formats
+        val writer = deserialize[BlockMatrixWriter](writerStr)
+        val child = blockmatrix_ir(env)(it)
+        BlockMatrixWrite(child, writer)
+      case "CollectDistributedArray" =>
+        val cname = identifier(it)
+        val gname = identifier(it)
+        val ctxs = ir_value_expr(env)(it)
+        val globals = ir_value_expr(env)(it)
+        val body = ir_value_expr(env + (cname, coerce[TArray](ctxs.typ).elementType) + (gname, globals.typ))(it)
+        CollectDistributedArray(ctxs, globals, cname, gname, body)
       case "JavaIR" =>
         val name = identifier(it)
         env.irMap(name).asInstanceOf[IR]
+      case "ReadPartition" =>
+        implicit val formats: Formats = AbstractRVDSpec.formats
+        val spec = JsonMethods.parse(string_literal(it)).extract[CodecSpec]
+        val encType = coerce[TStruct](type_expr(it))
+        val rowType = coerce[TStruct](type_expr(it))
+        val path = ir_value_expr(env)(it)
+        ReadPartition(path, spec, encType, rowType)
     }
   }
 
@@ -831,10 +883,12 @@ object IRParser {
         val pred = ir_value_expr(env.withRefMap(child.typ.refMap))(it)
         TableFilter(child, pred)
       case "TableRead" =>
-        val path = string_literal(it)
+        val requestedType = opt(it, table_type_expr)
         val dropRows = boolean_literal(it)
-        val typ = opt(it, table_type_expr)
-        TableIR.read(HailContext.get, path, dropRows, typ)
+        val readerStr = string_literal(it)
+        implicit val formats: Formats = TableReader.formats
+        val reader = deserialize[TableReader](readerStr)
+    TableRead(requestedType.getOrElse(reader.fullType), dropRows, reader)
       case "MatrixColsTable" =>
         val child = matrix_ir(env)(it)
         MatrixColsTable(child)
@@ -881,6 +935,10 @@ object IRParser {
         val left = table_ir(env)(it)
         val right = table_ir(env)(it)
         TableIntervalJoin(left, right, root)
+      case "TableZipUnchecked" =>
+        val left = table_ir(env)(it)
+        val right = table_ir(env)(it)
+        TableZipUnchecked(left, right)
       case "TableMultiWayZipJoin" =>
         val dataName = string_literal(it)
         val globalsName = string_literal(it)
@@ -900,8 +958,8 @@ object IRParser {
         TableMapGlobals(child, newRow)
       case "TableRange" =>
         val n = int32_literal(it)
-        val nPartitions = int32_literal(it)
-        TableRange(n, nPartitions)
+        val nPartitions = opt(it, int32_literal)
+        TableRange(n, nPartitions.getOrElse(HailContext.get.sc.defaultParallelism))
       case "TableUnion" =>
         val children = table_ir_children(env)(it)
         TableUnion(children)
@@ -930,6 +988,9 @@ object IRParser {
         val config = string_literal(it)
         val child = table_ir(env)(it)
         TableToTableApply(child, RelationalFunctions.lookupTableToTable(config))
+      case "BlockMatrixToTable" =>
+        val child = blockmatrix_ir(env)(it)
+        BlockMatrixToTable(child)
       case "TableRename" =>
         val rowK = string_literals(it)
         val rowV = string_literals(it)
@@ -1010,25 +1071,18 @@ object IRParser {
         val dropCols = boolean_literal(it)
         val dropRows = boolean_literal(it)
         val readerStr = string_literal(it)
-        implicit val formats = MatrixReader.formats + new MatrixBGENReaderSerializer(env)
-        val reader = Serialization.read[MatrixReader](readerStr)
-        MatrixRead(requestedType.getOrElse(reader.fullType), dropCols, dropRows, reader)
-      case "TableToMatrixTable" =>
-        val rowKey = string_literals(it)
-        val colKey = string_literals(it)
-        val rowFields = string_literals(it)
-        val colFields = string_literals(it)
-        val nPartitions = opt(it, int32_literal)
-        val child = table_ir(env)(it)
-        TableToMatrixTable(child, rowKey, colKey, rowFields, colFields, nPartitions)
+        implicit val formats: Formats = MatrixReader.formats + new MatrixBGENReaderSerializer(env)
+        val reader = try {
+          Serialization.read[MatrixReader](readerStr)
+        } catch {
+          case e: MappingException => throw e.cause
+        }
+        MatrixRead(requestedType.getOrElse(reader.fullMatrixType), dropCols, dropRows, reader)
       case "MatrixAnnotateRowsTable" =>
         val root = string_literal(it)
-        val hasKey = boolean_literal(it)
         val child = matrix_ir(env)(it)
         val table = table_ir(env)(it)
-        val key = ir_value_children(env.withRefMap(child.typ.refMap))(it)
-        val keyIRs = if (hasKey) Some(key.toFastIndexedSeq) else None
-        MatrixAnnotateRowsTable(child, table, root, keyIRs)
+        MatrixAnnotateRowsTable(child, table, root)
       case "MatrixAnnotateColsTable" =>
         val root = string_literal(it)
         val child = matrix_ir(env)(it)
@@ -1060,6 +1114,10 @@ object IRParser {
       case "MatrixDistinctByRow" =>
         val child = matrix_ir(env)(it)
         MatrixDistinctByRow(child)
+      case "MatrixRowsHead" =>
+        val n = int64_literal(it)
+        val child = matrix_ir(env)(it)
+        MatrixRowsHead(child, n)
       case "CastTableToMatrix" =>
         val entriesField = identifier(it)
         val colsField = identifier(it)
@@ -1070,9 +1128,78 @@ object IRParser {
         val config = string_literal(it)
         val child = matrix_ir(env)(it)
         MatrixToMatrixApply(child, RelationalFunctions.lookupMatrixToMatrix(config))
+      case "MatrixRename" =>
+        val globalK = string_literals(it)
+        val globalV = string_literals(it)
+        val colK = string_literals(it)
+        val colV = string_literals(it)
+        val rowK = string_literals(it)
+        val rowV = string_literals(it)
+        val entryK = string_literals(it)
+        val entryV = string_literals(it)
+        val child = matrix_ir(env)(it)
+        MatrixRename(child, globalK.zip(globalV).toMap, colK.zip(colV).toMap, rowK.zip(rowV).toMap, entryK.zip(entryV).toMap)
       case "JavaMatrix" =>
         val name = identifier(it)
         env.irMap(name).asInstanceOf[MatrixIR]
+    }
+  }
+
+  def blockmatrix_ir(env: IRParserEnvironment)(it: TokenIterator): BlockMatrixIR = {
+    punctuation(it, "(")
+    val ir = blockmatrix_ir1(env)(it)
+    punctuation(it, ")")
+    ir
+  }
+
+  def blockmatrix_ir1(env: IRParserEnvironment)(it: TokenIterator): BlockMatrixIR = {
+    identifier(it) match {
+      case "BlockMatrixRead" =>
+        val readerStr = string_literal(it)
+        implicit val formats: Formats = BlockMatrixReader.formats
+        val reader = deserialize[BlockMatrixReader](readerStr)
+        BlockMatrixRead(reader)
+      case "BlockMatrixMap" =>
+        val child = blockmatrix_ir(env)(it)
+        val f = ir_value_expr(env + ("element" -> child.typ.elementType))(it)
+        BlockMatrixMap(child, f)
+      case "BlockMatrixMap2" =>
+        val left = blockmatrix_ir(env)(it)
+        val right = blockmatrix_ir(env)(it)
+        val f = ir_value_expr(env.update(Map("l" -> left.typ.elementType, "r" -> right.typ.elementType)))(it)
+        BlockMatrixMap2(left, right, f)
+      case "BlockMatrixDot" =>
+        val left = blockmatrix_ir(env)(it)
+        val right = blockmatrix_ir(env)(it)
+        BlockMatrixDot(left, right)
+      case "BlockMatrixBroadcast" =>
+        val inIndexExpr = int32_literals(it)
+        val shape = int64_literals(it)
+        val blockSize = int32_literal(it)
+        val child = blockmatrix_ir(env)(it)
+        BlockMatrixBroadcast(child, inIndexExpr, shape, blockSize)
+      case "BlockMatrixAgg" =>
+        val outIndexExpr = int32_literals(it)
+        val child = blockmatrix_ir(env)(it)
+        BlockMatrixAgg(child, outIndexExpr)
+      case "BlockMatrixFilter" =>
+        val indices = literals(literals(int64_literal))(it)
+        val child = blockmatrix_ir(env)(it)
+        BlockMatrixFilter(child, indices)
+      case "ValueToBlockMatrix" =>
+        val shape = int64_literals(it)
+        val blockSize = int32_literal(it)
+        val child = ir_value_expr(env)(it)
+        ValueToBlockMatrix(child, shape, blockSize)
+      case "BlockMatrixRandom" =>
+        val seed = int32_literal(it)
+        val gaussian = boolean_literal(it)
+        val shape = int64_literals(it)
+        val blockSize = int32_literal(it)
+        BlockMatrixRandom(seed, gaussian, shape, blockSize)
+      case "JavaBlockMatrix" =>
+        val name = identifier(it)
+        env.irMap(name).asInstanceOf[BlockMatrixIR]
     }
   }
 
@@ -1082,19 +1209,25 @@ object IRParser {
   }
 
   def parse_value_ir(s: String): IR = parse_value_ir(s, IRParserEnvironment())
-  def parse_value_ir(s: String, refMap: java.util.HashMap[String, String], irMap: java.util.HashMap[String, BaseIR]): IR =
+  def parse_value_ir(s: String, refMap: java.util.Map[String, String], irMap: java.util.Map[String, BaseIR]): IR =
     parse_value_ir(s, IRParserEnvironment(refMap.asScala.toMap.mapValues(parseType), irMap.asScala.toMap))
   def parse_value_ir(s: String, env: IRParserEnvironment): IR = parse(s, ir_value_expr(env))
 
   def parse_table_ir(s: String): TableIR = parse_table_ir(s, IRParserEnvironment())
-  def parse_table_ir(s: String, refMap: java.util.HashMap[String, String], irMap: java.util.HashMap[String, BaseIR]): TableIR =
+  def parse_table_ir(s: String, refMap: java.util.Map[String, String], irMap: java.util.Map[String, BaseIR]): TableIR =
     parse_table_ir(s, IRParserEnvironment(refMap.asScala.toMap.mapValues(parseType), irMap.asScala.toMap))
   def parse_table_ir(s: String, env: IRParserEnvironment): TableIR = parse(s, table_ir(env))
 
   def parse_matrix_ir(s: String): MatrixIR = parse_matrix_ir(s, IRParserEnvironment())
-  def parse_matrix_ir(s: String, refMap: java.util.HashMap[String, String], irMap: java.util.HashMap[String, BaseIR]): MatrixIR =
+  def parse_matrix_ir(s: String, refMap: java.util.Map[String, String], irMap: java.util.Map[String, BaseIR]): MatrixIR =
     parse_matrix_ir(s, IRParserEnvironment(refMap.asScala.toMap.mapValues(parseType), irMap.asScala.toMap))
   def parse_matrix_ir(s: String, env: IRParserEnvironment): MatrixIR = parse(s, matrix_ir(env))
+
+  def parse_blockmatrix_ir(s: String): BlockMatrixIR = parse_blockmatrix_ir(s, IRParserEnvironment())
+  def parse_blockmatrix_ir(s: String, refMap: java.util.Map[String, String], irMap: java.util.Map[String, BaseIR])
+  : BlockMatrixIR =
+    parse_blockmatrix_ir(s, IRParserEnvironment(refMap.asScala.toMap.mapValues(parseType), irMap.asScala.toMap))
+  def parse_blockmatrix_ir(s: String, env: IRParserEnvironment): BlockMatrixIR = parse(s, blockmatrix_ir(env))
 
   def parseType(code: String): Type = parse(code, type_expr)
 
