@@ -155,22 +155,21 @@ object LowerMatrixIR {
           .insertFields(colsField -> 'global(colsField)))
 
     case MatrixMapRows(child, newRow) =>
-      def lowerApplyAggOp(x: IRProxy): IRProxy = lift {
-        case x@(_: ApplyAggOp | _: AggFilter | _: AggExplode | _: AggGroupBy) =>
-          val env = Env("sa" -> 'global (colsField)('i),
-            "g" -> 'row (entriesField)('i))
-          irRange(0, 'global (colsField).len)
-            .filter('i ~> !'row(entriesField)('i).isNA)
+      val loweredNewRow: IRProxy =
+        if (ContainsAgg(newRow)) {
+          irRange(0, 'row (entriesField).len)
+            .filter('i ~> !'row (entriesField)('i).isNA)
             .arrayAgg('i ~>
-              subst(x, env, env))
-        case _ =>
-          MapIRProxy(lowerApplyAggOp)(x)
-      }(x)
+              (let(sa = 'global (colsField)('i),
+                va = 'row.dropFields(entriesField),
+                global = 'global.dropFields(colsField))
+                in newRow))
+        } else
+          newRow
 
       lower(child)
-        .mapRows(
-          subst(lowerApplyAggOp(newRow), Env("va" -> 'row, "global" -> 'global))
-            .insertFields(entriesField -> 'row (entriesField)))
+        .mapRows(loweredNewRow
+          .insertFields(entriesField -> 'row (entriesField)))
 
     case MatrixFilterEntries(child, pred) =>
       lower(child).mapRows('row.insertFields(entriesField ->
