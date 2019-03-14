@@ -2101,4 +2101,6 @@ def export_elasticsearch(t, host, port, index, index_type, block_size, config=No
     .. warning::
         :func:`.export_elasticsearch` is EXPERIMENTAL.
     """
-    Env.hail().io.ElasticsearchConnector.export(t.expand_types()._jt, host, port, index, index_type, block_size, config, verbose)
+
+    jdf = t.expand_types().to_spark()._jdf
+    Env.hail().io.ElasticsearchConnector.export(jdf, host, port, index, index_type, block_size, config, verbose)
