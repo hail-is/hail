@@ -322,5 +322,5 @@ class ValueTests(unittest.TestCase):
                     ir.Ref("global"),
                     [("foo", row_v)],
                     None))
-            new_globals = hl.eval(hl.Table(map_globals_ir).globals)
-            self.assertEquals(new_globals, hl.Struct(foo=v))
+            new_globals = hl.eval(hl.Table(map_globals_ir).index_globals())
+            self.assertEqual(new_globals, hl.Struct(foo=v))
