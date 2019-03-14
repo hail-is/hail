@@ -6,7 +6,7 @@ conda activate hail-ci
 
 pip install -U ../batch
 
-export UUID=${UUID:-$(./generate-uid.sh)}
+export UUID=${UUID:-$(../generate-uid.sh)}
 export REPO_NAME=ci-test-$UUID
 export WATCHED_TARGETS='[["hail-ci-test/'${REPO_NAME}':master", true]]'
 

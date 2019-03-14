@@ -1,7 +1,7 @@
 #!/bin/bash
 set -ex
 
-export UUID=$(./generate-uid.sh)
+export UUID=$(../generate-uid.sh)
 export SERVICE_NAME=test-ci-$UUID
 
 kubectl expose pod $POD_NAME --name $SERVICE_NAME \

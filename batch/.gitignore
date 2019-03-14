@@ -4,6 +4,7 @@
 /test-batch-pod.yaml
 /batch-image
 /batch-test-image
+cloud_sql_proxy
 flycheck_*.py
 *_flymake.py
 *.pyc
