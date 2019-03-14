@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.ExecStrategy
 import is.hail.utils._
 import is.hail.TestUtils._
 import is.hail.expr.types._
@@ -8,6 +9,8 @@ import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
 class StringSliceSuite extends TestNGSuite {
+  implicit val execStrats = ExecStrategy.javaOnly
+
   @Test def zeroToLengthIsIdentity() {
     assertEvalsTo(StringSlice(Str("abc"), I32(0), I32(3)), "abc")
   }

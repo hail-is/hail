@@ -227,6 +227,17 @@ abstract class PContainer extends PType {
     }
   }
 
+  def cxxArrayBuilder: String = {
+    elementType match {
+      case _: PStruct | _: PTuple =>
+        s"ArrayAddrBuilder<${ elementType.required },${ elementType.byteSize },${ elementType.alignment }, ${ alignment }>"
+      case _ =>
+        s"ArrayLoadBuilder<${ cxx.typeToCXXType(elementType) },${ elementType.required },${ elementType.byteSize }, ${ elementType.alignment }, ${ alignment }>"
+    }
+  }
+
+  def cxxArraySorter(ltClass: String): String = s"ArraySorter<$cxxArrayBuilder, $ltClass>"
+
   def cxxLoadLength(a: cxx.Code): cxx.Code = {
     s"$cxxImpl::load_length($a)"
   }

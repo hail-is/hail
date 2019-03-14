@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.ExecStrategy
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.types.virtual.{TDict, TInt32}
@@ -10,6 +11,8 @@ import org.scalatest.testng.TestNGSuite
 class DictFunctionsSuite extends TestNGSuite {
   def tuplesToMap(a: Seq[(Integer, Integer)]): Map[Integer, Integer] =
     Option(a).map(_.filter(_ != null).toMap).orNull
+
+  implicit val execStrats = ExecStrategy.javaOnly
 
   @DataProvider(name = "basic")
   def basicData(): Array[Array[Any]] = Array(

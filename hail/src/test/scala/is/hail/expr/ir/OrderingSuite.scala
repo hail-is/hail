@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.ExecStrategy
 import is.hail.annotations._
 import is.hail.check.{Gen, Prop}
 import is.hail.asm4s._
@@ -12,6 +13,8 @@ import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.{DataProvider, Test}
 
 class OrderingSuite extends TestNGSuite {
+
+  implicit val execStrats = ExecStrategy.values
 
   def recursiveSize(t: Type): Int = {
     val inner = t match {
@@ -242,6 +245,8 @@ class OrderingSuite extends TestNGSuite {
   }
 
   @Test def testDictGetOnRandomDict() {
+    implicit val execStrats = ExecStrategy.javaOnly
+
     val compareGen = Gen.zip(Type.genArb, Type.genArb).flatMap {
       case (k, v) =>
         Gen.zip(Gen.const(TDict(k, v)), TDict(k, v).genNonmissingValue, k.genNonmissingValue)
