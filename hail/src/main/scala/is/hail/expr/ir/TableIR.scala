@@ -790,7 +790,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
 
     rowIterationNeedsGlobals |= Mentions(postScanIR, "global")
 
-    val itF = if (scanAggs.nonEmpty) {
+    if (scanAggs.nonEmpty) {
       Region.scoped { region =>
         val globals =
           if (scanInitNeedsGlobals) {
@@ -803,34 +803,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         scanInitOps(0)(region, scanAggs, globals, false)
       }
 
-      val scanAggsPerPartition =
-        tv.rvd.collectPerPartition { (i, ctx, it) =>
-          val globals =
-            if (scanSeqNeedsGlobals) {
-              val rvb = new RegionValueBuilder(ctx.freshRegion)
-              rvb.start(gType.physicalType)
-              rvb.addAnnotation(gType, globalsBc.value)
-              rvb.end()
-            } else
-              0
-
-          val scanSeqOpF = scanSeqOps(i)
-          it.foreach { rv =>
-            scanSeqOpF(rv.region, scanAggs, globals, false, rv.offset, false)
-            ctx.region.clear()
-          }
-          scanAggs
-        }.scanLeft(scanAggs) { (a1, a2) =>
-          (a1, a2).zipped.map { (agg1, agg2) =>
-            val newAgg = agg1.copy()
-            newAgg.combOp(agg2)
-            newAgg
-          }
-        }
-
-      { (i: Int, ctx: RVDContext, it: Iterator[RegionValue]) =>
-        val partitionAggs = scanAggsPerPartition(i)
-
+      val itF = { (i: Int, ctx: RVDContext, partitionAggs: Array[RegionValueAggregator], it: Iterator[RegionValue]) =>
         val rvb = new RegionValueBuilder()
         val globals =
           if (rowIterationNeedsGlobals || scanSeqNeedsGlobals) {
@@ -861,8 +834,37 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
           rv2
         }
       }
+
+      val scanAggsPerPartition =
+        tv.rvd.collectPerPartition { (i, ctx, it) =>
+          val globals =
+            if (scanSeqNeedsGlobals) {
+              val rvb = new RegionValueBuilder(ctx.freshRegion)
+              rvb.start(gType.physicalType)
+              rvb.addAnnotation(gType, globalsBc.value)
+              rvb.end()
+            } else
+              0
+
+          val scanSeqOpF = scanSeqOps(i)
+          it.foreach { rv =>
+            scanSeqOpF(rv.region, scanAggs, globals, false, rv.offset, false)
+            ctx.region.clear()
+          }
+          scanAggs
+        }.scanLeft(scanAggs) { (a1, a2) =>
+          (a1, a2).zipped.map { (agg1, agg2) =>
+            val newAgg = agg1.copy()
+            newAgg.combOp(agg2)
+            newAgg
+          }
+        }
+
+      tv.copy(
+        typ = typ,
+        rvd = tv.rvd.mapPartitionsWithIndexAndValue(RVDType(rTyp.asInstanceOf[PStruct], typ.key), scanAggsPerPartition, itF))
     } else {
-      { (i: Int, ctx: RVDContext, it: Iterator[RegionValue]) =>
+      val itF = { (i: Int, ctx: RVDContext, it: Iterator[RegionValue]) =>
         val globals =
           if (rowIterationNeedsGlobals) {
             val rvb = new RegionValueBuilder(ctx.freshRegion)
@@ -879,11 +881,11 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
           rv2
         }
       }
-    }
 
-    tv.copy(
-      typ = typ,
-      rvd = tv.rvd.mapPartitionsWithIndex(RVDType(rTyp.asInstanceOf[PStruct], typ.key), itF))
+      tv.copy(
+        typ = typ,
+        rvd = tv.rvd.mapPartitionsWithIndex(RVDType(rTyp.asInstanceOf[PStruct], typ.key), itF))
+    }
   }
 }
 
