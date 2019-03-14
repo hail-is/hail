@@ -155,18 +155,18 @@ object LowerMatrixIR {
           .insertFields(colsField -> 'global(colsField)))
 
     case MatrixMapRows(child, newRow) =>
-      var loweredNewRow: IRProxy = (let (global = 'global.dropFields(colsField),
-        va = 'row.dropFields(entriesField))
-        in newRow)
+      var loweredNewRow: IRProxy =
+        subst(newRow, Env("va" -> 'row, "global" -> 'global))
 
       if (ContainsAgg(newRow)) {
-          loweredNewRow = irRange(0, 'row (entriesField).len)
-            .filter('i ~> !'row (entriesField)('i).isNA)
-            .arrayAgg('i ~>
-              (aggLet(sa = 'global (colsField)('i),
-                g = 'row(entriesField)('i))
-                in loweredNewRow))
-        }
+        loweredNewRow = irRange(0, 'row (entriesField).len)
+          .filter('i ~> !'row (entriesField)('i).isNA)
+          .arrayAgg('i ~>
+            (aggLet(sa = 'global (colsField)('i),
+              g = 'row (entriesField)('i),
+              va = 'row)
+              in loweredNewRow))
+      }
 
       lower(child)
         .mapRows(loweredNewRow

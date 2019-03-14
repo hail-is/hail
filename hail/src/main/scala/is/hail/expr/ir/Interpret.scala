@@ -27,6 +27,7 @@ object Interpret {
       tir
 
     val lowered = LowerMatrixIR(LiftNonCompilable(tiropt).asInstanceOf[TableIR])
+
     val lowopt = if (optimize)
       Optimize(lowered, noisy = true, canGenerateLiterals = false)
     else
