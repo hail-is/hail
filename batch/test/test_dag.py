@@ -12,7 +12,8 @@ from .serverthread import ServerThread
 
 @pytest.fixture
 def client():
-    return BatchClient(url=os.environ.get('BATCH_URL'))
+    return BatchClient(url=os.environ.get('BATCH_URL'),
+                       headers={'Hail-User': 'ci'})
 
 
 def test_simple(client):
@@ -344,8 +345,7 @@ def test_service_account_no_files_is_error(client):
     batch = client.create_batch()
     try:
         batch.create_job('alpine:3.8',
-                         command=['/bin/sh', '-c', 'echo head > /out'],
-                         copy_service_account_name='batch-volume-tester')
+                         command=['/bin/sh', '-c', 'echo head > /out'])
     except requests.exceptions.HTTPError as err:
         assert err.response.status_code == 400
         assert re.search('.*invalid request: if either input_files or '
@@ -361,12 +361,10 @@ def test_input_dependency(client):
     batch = client.create_batch()
     head = batch.create_job('alpine:3.8',
                             command=['/bin/sh', '-c', 'echo head1 > /io/data1 ; echo head2 > /io/data2'],
-                            output_files=[('/io/data*', 'gs://hail-ci-0-1-batch-volume-test-bucket')],
-                            copy_service_account_name='batch-volume-tester')
+                            output_files=[('/io/data*', 'gs://hail-ci-0-1-batch-volume-test-bucket')])
     tail = batch.create_job('alpine:3.8',
                             command=['/bin/sh', '-c', 'cat /io/data1 ; cat /io/data2'],
                             input_files=[('gs://hail-ci-0-1-batch-volume-test-bucket/data\\*', '/io/')],
-                            copy_service_account_name='batch-volume-tester',
                             parent_ids=[head.id])
     tail.wait()
     assert tail.log()['main'] == 'head1\nhead2\n'

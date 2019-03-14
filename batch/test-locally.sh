@@ -16,6 +16,6 @@ trap "exit 24" INT TERM
 python3 -c 'import batch.server; batch.server.serve(5000)' &
 server_pid=$!
 
-../until-with-fuel 30 curl -fL 127.0.0.1:5000/jobs
+../until-with-fuel 30 curl -fL 127.0.0.1:5000/alive
 
 POD_IP='127.0.0.1' BATCH_URL='http://127.0.0.1:5000' python3 -m pytest ${PYTEST_ARGS} test

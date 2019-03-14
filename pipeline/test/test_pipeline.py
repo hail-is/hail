@@ -64,7 +64,7 @@ class LocalTests(unittest.TestCase):
             p.write_output(t.ofile, output_file.name)
             p.run()
 
-            assert self.read(output_file.name) ==  msg
+            assert self.read(output_file.name) == msg
 
     def test_single_task_w_input(self):
         with tempfile.NamedTemporaryFile('w') as input_file, \
@@ -245,7 +245,8 @@ class LocalTests(unittest.TestCase):
 
 class BatchTests(unittest.TestCase):
     def pipeline(self):
-        return Pipeline(backend=BatchBackend(os.environ.get('BATCH_URL')),
+        return Pipeline(backend=BatchBackend(os.environ.get('BATCH_URL'),
+                                             user='pipeline-test-0-1--hail-is'),
                         default_image='google/cloud-sdk:alpine')
 
     def test_single_task_no_io(self):
@@ -340,4 +341,3 @@ class BatchTests(unittest.TestCase):
                                                       ofile=merger.ofile))
 
         p.run(delete_scratch_on_exit=False)
-

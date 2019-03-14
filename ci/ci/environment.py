@@ -59,4 +59,6 @@ log.info(f'INSTANCE_ID = {INSTANCE_ID}')
 log.info(f'CONTEXT = {CONTEXT}')
 
 
-batch_client = BatchClient(url=BATCH_SERVER_URL, api=API(timeout=5))
+batch_client = BatchClient(url=BATCH_SERVER_URL,
+                           timeout=5,
+                           headers={'Hail-User': 'ci'})

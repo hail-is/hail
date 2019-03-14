@@ -102,9 +102,8 @@ def jsonify(data):
 
 class JobTask:  # pylint: disable=R0903
     @staticmethod
-    def copy_task(job_id, task_name, files, copy_service_account_name):
+    def copy_task(job_id, task_name, files, user):
         if files is not None:
-            assert copy_service_account_name is not None
             authenticate = 'gcloud -q auth activate-service-account --key-file=/gcp-sa-key/key.json'
             copies = ' & '.join([f'gsutil cp {src} {dst}' for (src, dst) in files])
             wait = 'wait'
@@ -123,7 +122,7 @@ class JobTask:  # pylint: disable=R0903
                 volumes=[
                     kube.client.V1Volume(
                         secret=kube.client.V1SecretVolumeSource(
-                            secret_name=f'gcp-sa-key-{copy_service_account_name}'),
+                            secret_name=f'gcp-sa-key-{user}'),
                         name='gcp-sa-key')])
             return JobTask(job_id, task_name, spec)
         return None
@@ -180,18 +179,25 @@ class Job:
             current_pod_spec = self._current_task.pod_template.spec
             if current_pod_spec.volumes is None:
                 current_pod_spec.volumes = []
-            current_pod_spec.volumes.append(
+            current_pod_spec.volumes.extend([
                 kube.client.V1Volume(
                     persistent_volume_claim=kube.client.V1PersistentVolumeClaimVolumeSource(
                         claim_name=self._pvc.metadata.name),
-                    name=self._pvc.metadata.name))
+                    name=self._pvc.metadata.name),
+                kube.client.V1Volume(
+                    secret=kube.client.V1SecretVolumeSource(
+                        secret_name=f'gcp-sa-key-{self.user}'),
+                    name='gcp-sa-key')])
             for container in current_pod_spec.containers:
                 if container.volume_mounts is None:
                     container.volume_mounts = []
-                container.volume_mounts.append(
+                container.volume_mounts.extend([
                     kube.client.V1VolumeMount(
                         mount_path='/io',
-                        name=self._pvc.metadata.name))
+                        name=self._pvc.metadata.name),
+                    kube.client.V1VolumeMount(
+                        mount_path='/gcp-sa-key',
+                        name='gcp-sa-key')])
 
         pod = v1.create_namespaced_pod(
             POD_NAMESPACE,
@@ -256,8 +262,7 @@ class Job:
         return None
 
     def __init__(self, pod_spec, batch_id, attributes, callback, parent_ids,
-                 scratch_folder, input_files, output_files, copy_service_account_name,
-                 always_run):
+                 scratch_folder, input_files, output_files, user, always_run):
         self.id = next_id()
         self.batch_id = batch_id
         self.attributes = attributes
@@ -267,15 +272,16 @@ class Job:
         self.incomplete_parent_ids = set(self.parent_ids)
         self.scratch_folder = scratch_folder
         self.always_run = always_run
+        self.user = user
 
         self._pvc = None
         self._pod_name = None
         self.exit_code = None
         self._state = 'Created'
 
-        self._tasks = [JobTask.copy_task(self.id, 'input', input_files, copy_service_account_name),
+        self._tasks = [JobTask.copy_task(self.id, 'input', input_files, self.user),
                        JobTask(self.id, 'main', pod_spec),
-                       JobTask.copy_task(self.id, 'output', output_files, copy_service_account_name)]
+                       JobTask.copy_task(self.id, 'output', output_files, self.user)]
 
         self._tasks = [t for t in self._tasks if t is not None]
         self._task_idx = -1
@@ -441,14 +447,50 @@ class Job:
         return result
 
 
+authorized_users = [
+    'ci',
+    'pipeline-test-0-1--hail-is',
+    'google-oauth2|konradk@broadinstitute.org',
+    'google-oauth2|labbott@broadinstitute.org',
+    'google-oauth2|dking@broadinstitute.org',
+    'google-oauth2|akotlar@broadinstitute.org',
+    'google-oauth2|jigold@broadinstitute.org',
+    'google-oauth2|cseed@broadinstitute.org'
+]
+
+
+def authorized_users_only(fun):
+    def wrapped(request, *args, **kwargs):
+        user = request.headers.get('Hail-User', '')
+        if user not in authorized_users:
+            return '403 UNAUTHORIZED', 403
+        if 'user' in fun.__code__.co_varnames:
+            return fun(request, *args, user=user, **kwargs)
+        return fun(request, *args, **kwargs)
+    wrapped.__name__ = fun.__name__
+    return wrapped
+
+
+internal_request_nonce = uuid.uuid4().hex
+
+
+def internal_request(fun):
+    def wrapped(request, *args, **kwargs):
+        if request.headers.get('Hail-Internal-Request-Nonce', '') != internal_request_nonce:
+            return '403 UNAUTHORIZED', 403
+        return fun(request, *args, **kwargs)
+    wrapped.__name__ = fun.__name__
+    return wrapped
+
+
 @routes.post('/jobs/create')
-async def create_job(request):  # pylint: disable=R0912
+@authorized_users_only
+async def create_job(request, user):  # pylint: disable=R0912
     parameters = await request.json()
 
     schema = {
         # will be validated when creating pod
         'spec': schemas.pod_spec,
-        'copy_service_account_name': {'type': 'string'},
         'batch_id': {'type': 'integer'},
         'parent_ids': {'type': 'list', 'schema': {'type': 'integer'}},
         'scratch_folder': {'type': 'string'},
@@ -494,7 +536,6 @@ async def create_job(request):  # pylint: disable=R0912
     scratch_folder = parameters.get('scratch_folder')
     input_files = parameters.get('input_files')
     output_files = parameters.get('output_files')
-    copy_service_account_name = parameters.get('copy_service_account_name')
     always_run = parameters.get('always_run', False)
 
     if len(pod_spec.containers) != 1:
@@ -503,41 +544,33 @@ async def create_job(request):  # pylint: disable=R0912
     if pod_spec.containers[0].name != 'main':
         abort(400, f'container name must be "main" was {pod_spec.containers[0].name}')
 
-    if not both_or_neither(input_files is None and output_files is None,
-                           copy_service_account_name is None):
-        abort(400,
-              f'invalid request: if either input_files or ouput_files is set, '
-              f'then the service account must be specified; otherwise the '
-              f'service account must not be specified. input_files: {input_files}, '
-              f'output_files: {output_files}, copy_service_account_name: '
-              f'{copy_service_account_name}')
-
     job = Job(
-        pod_spec,
-        batch_id,
-        parameters.get('attributes'),
-        parameters.get('callback'),
-        parent_ids,
-        scratch_folder,
-        input_files,
-        output_files,
-        copy_service_account_name,
-        always_run)
-    return jsonify(job.to_dict())
+        pod_spec=pod_spec,
+        batch_id=batch_id,
+        attributes=parameters.get('attributes'),
+        callback=parameters.get('callback'),
+        parent_ids=parent_ids,
+        scratch_folder=scratch_folder,
+        input_files=input_files,
+        output_files=output_files,
+        user=user,
+        always_run=always_run)
+    return jsonify(job.to_json())
 
 
-def both_or_neither(x, y):  # pylint: disable=C0103
-    assert isinstance(x, bool)
-    assert isinstance(y, bool)
-    return x == y
+@routes.get('/alive')
+def get_alive():
+    return 'yes', 200
 
 
 @routes.get('/jobs')
+@authorized_users_only
 async def get_job_list(request):  # pylint: disable=W0613
     return jsonify([job.to_dict() for _, job in job_id_job.items()])
 
 
 @routes.get('/jobs/{job_id}')
+@authorized_users_only
 async def get_job(request):
     job_id = int(request.match_info['job_id'])
     job = job_id_job.get(job_id)
@@ -547,6 +580,7 @@ async def get_job(request):
 
 
 @routes.get('/jobs/{job_id}/log')
+@authorized_users_only
 async def get_job_log(request):  # pylint: disable=R1710
     job_id = int(request.match_info['job_id'])
     if job_id > max_id():
@@ -569,6 +603,7 @@ async def get_job_log(request):  # pylint: disable=R1710
 
 
 @routes.delete('/jobs/{job_id}/delete')
+@authorized_users_only
 async def delete_job(request):
     job_id = int(request.match_info['job_id'])
     job = job_id_job.get(job_id)
@@ -579,6 +614,7 @@ async def delete_job(request):
 
 
 @routes.post('/jobs/{job_id}/cancel')
+@authorized_users_only
 async def cancel_job(request):
     job_id = int(request.match_info['job_id'])
     job = job_id_job.get(job_id)
@@ -651,6 +687,7 @@ class Batch:
 
 
 @routes.post('/batches/create')
+@authorized_users_only
 async def create_batch(request):
     parameters = await request.json()
 
@@ -672,6 +709,7 @@ async def create_batch(request):
 
 
 @routes.get('/batches/{batch_id}')
+@authorized_users_only
 async def get_batch(request):
     batch_id = int(request.match_info['batch_id'])
     batch = batch_id_batch.get(batch_id)
@@ -681,6 +719,7 @@ async def get_batch(request):
 
 
 @routes.delete('/batches/{batch_id}/delete')
+@authorized_users_only
 async def delete_batch(request):
     batch_id = int(request.match_info['batch_id'])
     batch = batch_id_batch.get(batch_id)
@@ -691,6 +730,7 @@ async def delete_batch(request):
 
 
 @routes.post('/batches/{batch_id}/close')
+@authorized_users_only
 async def close_batch(request):
     batch_id = int(request.match_info['batch_id'])
     batch = batch_id_batch.get(batch_id)
@@ -714,6 +754,7 @@ def update_job_with_pod(job, pod):
 
 
 @routes.post('/pod_changed')
+@authorized_users_only
 async def pod_changed(request):
     parameters = await request.json()
 
@@ -739,6 +780,7 @@ async def pod_changed(request):
 
 
 @routes.post('/refresh_k8s_state')
+@authorized_users_only
 async def refresh_k8s_state(request):  # pylint: disable=W0613
     log.info('started k8s state refresh')
 
@@ -767,6 +809,7 @@ async def refresh_k8s_state(request):  # pylint: disable=W0613
 
 @routes.get('/recent')
 @aiohttp_jinja2.template('recent.html')
+@authorized_users_only
 async def recent(request):  # pylint: disable=W0613
     recent_events = get_recent_events()
     return {'recent': list(reversed(recent_events))}
@@ -814,14 +857,19 @@ def kube_event_loop(port):
     for event in stream:
         pod = event['object']
         name = pod.metadata.name
-        requests.post(f'http://127.0.0.1:{port}/pod_changed', json={'pod_name': name}, timeout=120)
+        requests.post(f'http://127.0.0.1:{port}/pod_changed',
+                      json={'pod_name': name},
+                      timeout=120,
+                      headers={'Hail-Internal-Request-Nonce': internal_request_nonce})
 
 
 def polling_event_loop(port):
     time.sleep(1)
     while True:
         try:
-            response = requests.post(f'http://127.0.0.1:{port}/refresh_k8s_state', timeout=120)
+            response = requests.post(f'http://127.0.0.1:{port}/refresh_k8s_state',
+                                     timeout=120,
+                                     headers={'Hail-Internal-Request-Nonce': internal_request_nonce})
             response.raise_for_status()
         except requests.HTTPError as exc:
             log.error(f'Could not poll due to exception: {exc}, text: {exc.response.text}')

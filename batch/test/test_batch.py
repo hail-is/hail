@@ -11,7 +11,9 @@ from .serverthread import ServerThread
 
 class Test(unittest.TestCase):
     def setUp(self):
-        self.batch = batch.client.BatchClient(url=os.environ.get('BATCH_URL'))
+        self.batch = batch.client.BatchClient(
+            url=os.environ.get('BATCH_URL'),
+            headers={'Hail-User': 'ci'})
 
     def test_job(self):
         j = self.batch.create_job('alpine', ['echo', 'test'])
@@ -195,3 +197,23 @@ class Test(unittest.TestCase):
         self.assertEqual(j.log(), {'main': 'test\n'})
 
         self.assertTrue(j.is_complete())
+
+    def test_authorized_users_only():
+        endpoints = [
+            (requests.post, '/jobs/create'),
+            (requests.get, '/jobs'),
+            (requests.get, '/jobs/0'),
+            (requests.get, '/jobs/0/log'),
+            (requests.delete, '/jobs/0/delete'),
+            (requests.post, '/jobs/0/cancel'),
+            (requests.post, '/batches/create'),
+            (requests.get, '/batches/0'),
+            (requests.delete, '/batches/0/delete'),
+            (requests.post, '/batches/0/close'),
+            (requests.post, '/pod_changed'),
+            (requests.post, '/refresh_k8s_state'),
+            (requests.get, '/recent')]
+        for f, url in endpoints:
+            r = f(os.environ.get('BATCH_URL')+url)
+            assert r.status_code == 403, r
+            assert r.text == '403 UNAUTHORIZED', r
