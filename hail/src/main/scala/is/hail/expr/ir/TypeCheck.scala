@@ -194,7 +194,10 @@ object TypeCheck {
       case Die(msg, typ) =>
         assert(msg.typ isOfType TString())
       case x@ApplyIR(fn, args) =>
-        apply(x.explicitNode, env, aggEnv)
+        if (inAgg.lookup(x))
+          apply(x.explicitNode, aggEnv.get, None)
+        else
+          apply(x.explicitNode, env, None)
       case x: AbstractApplyNode[_] =>
         x.args.foreach(check(_))
         assert(x.implementation.unify(x.args.map(_.typ)))
