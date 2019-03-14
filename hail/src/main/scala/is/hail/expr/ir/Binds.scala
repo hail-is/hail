@@ -62,7 +62,7 @@ object AggBindings {
   }
 }
 
-object TransitiveBindings {
+object ChildEnv {
   private val empty = (Env.empty[Type], None)
 
   def apply(ir: BaseIR, i: Int, env: Env[Type], aggEnv: Option[Env[Type]]): (Env[Type], Option[Env[Type]]) = ir match {

@@ -10,8 +10,7 @@ object TypeCheck {
 
   def apply(ir: BaseIR, env: Env[Type], aggEnv: Option[Env[Type]]): Unit = {
     try {
-      val irCp = ir.deepCopy()
-      _apply(irCp, env, aggEnv)
+      _apply(ir, env, aggEnv)
     } catch {
       case e: Throwable => fatal(s"Error while typechecking IR:\n${ Pretty(ir) }", e)
     }
@@ -230,7 +229,7 @@ object TypeCheck {
       .iterator
       .zipWithIndex
       .foreach { case (child, i) =>
-        val (e, ae) = TransitiveBindings(ir, i, env, aggEnv)
+        val (e, ae) = ChildEnv(ir, i, env, aggEnv)
         check(child, e, ae)
 
       }
