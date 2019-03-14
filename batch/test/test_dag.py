@@ -306,8 +306,6 @@ def test_no_parents_allowed_without_batches(client):
     assert False
 
 
-<<<<<<< HEAD
-<<<<<<< HEAD
 def test_output_files_no_service_account_is_error(client):
     batch = client.create_batch()
     try:
@@ -405,9 +403,8 @@ def test_always_run_error(client):
 
     status = batch.wait()
     assert status['jobs']['Complete'] == 2
-    head_status = tail.status()
-    assert head_status['state'] == 'Complete'
-    assert head_status['exit_code'] == 0
-    tail_status = tail.status()
-    assert tail_status['state'] == 'Complete'
-    assert tail_status['exit_code'] == 0
+
+    for job, ec in [(head, 1), (tail, 0)]:
+        status = job.status()
+        assert status['state'] == 'Complete'
+        assert status['exit_code'] == ec
