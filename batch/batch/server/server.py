@@ -89,7 +89,7 @@ class JobTask:  # pylint: disable=R0903
             wait = 'wait'
             sh_expression = f'{authenticate} && ({copies} ; {wait})'
             container = kube.client.V1Container(
-                image='google/cloud-sdk',
+                image='google/cloud-sdk:237.0.0-alpine',
                 name=task_name,
                 command=['/bin/sh', '-c', sh_expression],
                 volume_mounts=[
@@ -482,7 +482,7 @@ def create_job():  # pylint: disable=R0912
         abort(400,
               f'invalid request: if either input_files or ouput_files is set, '
               f'then the service account must be specified; otherwise the '
-              f'service account must *not* be specified. input_files: {input_files}, '
+              f'service account must not be specified. input_files: {input_files}, '
               f'output_files: {output_files}, copy_service_account_name: '
               f'{copy_service_account_name}')
 
