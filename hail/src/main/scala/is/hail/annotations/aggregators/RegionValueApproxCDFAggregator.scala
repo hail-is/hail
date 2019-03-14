@@ -49,7 +49,7 @@ object ApproxCDFHelper {
 }
 
 abstract class ApproxCDFHelper[@specialized(Int, Long, Float, Double) T] extends Serializable {
-  private val rand = new MersenneTwister()
+  private val rand = new java.util.Random()
 
   val hailType: Type
 
