@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.SparkSuite
+import is.hail.{ExecStrategy, SparkSuite}
 import is.hail.expr.types.virtual._
 import is.hail.TestUtils._
 import is.hail.utils._
@@ -10,6 +10,8 @@ import org.testng.annotations.{BeforeClass, Test}
 class ArrayDeforestationSuite extends SparkSuite {
 
   @BeforeClass def ensureHC() { initializeHailContext() }
+
+  implicit val execStrats = ExecStrategy.values
 
   def primitiveArrayNoRegion(len: IR): IR =
     ArrayMap(

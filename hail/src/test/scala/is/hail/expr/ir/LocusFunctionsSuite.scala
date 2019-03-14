@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.ExecStrategy
 import is.hail.TestUtils.assertEvalsTo
 import is.hail.expr.types.virtual.{TArray, TString}
 import is.hail.utils.FastSeq
@@ -9,6 +10,8 @@ import org.testng.annotations.Test
 import org.scalatest.testng.TestNGSuite
 
 class LocusFunctionsSuite extends TestNGSuite {
+
+  implicit val execStrats = ExecStrategy.javaOnly
 
   val grch38: ReferenceGenome = ReferenceGenome.GRCh38
 

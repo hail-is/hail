@@ -1,11 +1,14 @@
 package is.hail.expr.ir
 
+import is.hail.ExecStrategy
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
 import org.testng.annotations.{DataProvider, Test}
 import org.scalatest.testng.TestNGSuite
 
 class GenotypeFunctionsSuite extends TestNGSuite {
+
+  implicit val execStrats = ExecStrategy.javaOnly
 
   @DataProvider(name="gps")
   def gpData(): Array[Array[Any]] = Array(

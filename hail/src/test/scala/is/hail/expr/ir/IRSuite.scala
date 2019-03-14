@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
-import is.hail.SparkSuite
+import is.hail.ExecStrategy.ExecStrategy
+import is.hail.{ExecStrategy, SparkSuite}
 import is.hail.TestUtils._
 import is.hail.annotations.BroadcastRow
 import is.hail.asm4s.Code
@@ -78,6 +79,8 @@ object IRSuite {
 class IRSuite extends SparkSuite {
   @BeforeClass def ensureHCDefined() { initializeHailContext() }
 
+  implicit val execStrats = ExecStrategy.values
+
   @Test def testI32() {
     assertEvalsTo(I32(5), 5)
   }
@@ -95,6 +98,8 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testStr() {
+    implicit val execStrats = ExecStrategy.javaOnly
+
     assertEvalsTo(Str("Hail"), "Hail")
   }
 
@@ -618,6 +623,8 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testGetTupleElement() {
+    implicit val execStrats = ExecStrategy.javaOnly
+
     val t = MakeTuple(FastIndexedSeq(I32(5), Str("abc"), NA(TInt32())))
     val na = NA(TTuple(TInt32(), TString()))
 
@@ -642,6 +649,8 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testArraySort() {
+    implicit val execStrats = ExecStrategy.javaOnly
+
     assertEvalsTo(ArraySort(NA(TArray(TInt32()))), null)
 
     val a = MakeArray(FastIndexedSeq(I32(-7), I32(2), NA(TInt32()), I32(2)), TArray(TInt32()))
@@ -652,6 +661,8 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testToSet() {
+    implicit val execStrats = ExecStrategy.javaOnly
+
     assertEvalsTo(ToSet(NA(TArray(TInt32()))), null)
 
     val a = MakeArray(FastIndexedSeq(I32(-7), I32(2), NA(TInt32()), I32(2)), TArray(TInt32()))
@@ -667,6 +678,8 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testToDict() {
+    implicit val execStrats = ExecStrategy.javaOnly
+
     assertEvalsTo(ToDict(NA(TArray(TTuple(FastIndexedSeq(TInt32(), TString()))))), null)
 
     val a = MakeArray(FastIndexedSeq(
@@ -700,6 +713,8 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testSetContains() {
+    implicit val execStrats = ExecStrategy.javaOnly
+
     val t = TSet(TInt32())
     assertEvalsTo(invoke("contains", NA(t), I32(2)), null)
 
@@ -718,6 +733,8 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testDictContains() {
+    implicit val execStrats = ExecStrategy.javaOnly
+
     val t = TDict(TInt32(), TString())
     assertEvalsTo(invoke("contains", NA(t), I32(2)), null)
 
@@ -737,6 +754,8 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testLowerBoundOnOrderedCollectionArray() {
+    implicit val execStrats = ExecStrategy.javaOnly
+
     val na = NA(TArray(TInt32()))
     assertEvalsTo(LowerBoundOnOrderedCollection(na, I32(0), onKey = false), null)
 
@@ -760,6 +779,8 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testLowerBoundOnOrderedCollectionSet() {
+    implicit val execStrats = ExecStrategy.javaOnly
+
     val na = NA(TSet(TInt32()))
     assertEvalsTo(LowerBoundOnOrderedCollection(na, I32(0), onKey = false), null)
 
@@ -779,6 +800,8 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testLowerBoundOnOrderedCollectionDict() {
+    implicit val execStrats = ExecStrategy.javaOnly
+
     val na = NA(TDict(TInt32(), TString()))
     assertEvalsTo(LowerBoundOnOrderedCollection(na, I32(0), onKey = true), null)
 
@@ -866,6 +889,8 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testArrayScan() {
+    implicit val execStrats = ExecStrategy.javaOnly
+
     def scan(array: IR, zero: IR, f: (IR, IR) => IR): IR =
       ArrayScan(array, zero, "_accum", "_elt", f(Ref("_accum", zero.typ), Ref("_elt", zero.typ)))
 
@@ -877,6 +902,8 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testLeftJoinRightDistinct() {
+    implicit val execStrats = ExecStrategy.javaOnly
+
     def join(left: IR, right: IR, keys: IndexedSeq[String]): IR = {
       val compF = { (l: IR, r: IR) =>
         ApplyComparisonOp(Compare(coerce[TStruct](l.typ).select(keys)._1), SelectFields(l, keys), SelectFields(r, keys))
@@ -950,6 +977,8 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testArrayAgg() {
+    implicit val execStrats = ExecStrategy.javaOnly
+
     val sumSig = AggSignature(Sum(), Seq(), None, Seq(TInt64()))
     assertEvalsTo(
       ArrayAgg(
@@ -960,6 +989,8 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testInsertFields() {
+    implicit val execStrats = ExecStrategy.javaOnly
+
     val s = TStruct("a" -> TInt64(), "b" -> TString())
     val emptyStruct = MakeStruct(Seq("a" -> NA(TInt64()), "b" -> NA(TString())))
 
@@ -1058,6 +1089,8 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testGetField() {
+    implicit val execStrats = ExecStrategy.javaOnly
+
     val s = MakeStruct(Seq("a" -> NA(TInt64()), "b" -> Str("abc")))
     val na = NA(TStruct("a" -> TInt64(), "b" -> TString()))
 
@@ -1067,15 +1100,19 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testTableCount() {
+    implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized, ExecStrategy.CxxCompile)
     assertEvalsTo(TableCount(TableRange(0, 4)), 0L)
     assertEvalsTo(TableCount(TableRange(7, 4)), 7L)
   }
 
   @Test def testTableGetGlobals() {
+    implicit val execStrats = ExecStrategy.interpretOnly
     assertEvalsTo(TableGetGlobals(TableMapGlobals(TableRange(0, 1), Literal(TStruct("a" -> TInt32()), Row(1)))), Row(1))
   }
 
   @Test def testTableAggregate() {
+    implicit val execStrats = ExecStrategy.interpretOnly
+
     val table = Table.range(hc, 3, Some(2))
     val countSig = AggSignature(Count(), Seq(), None, Seq())
     val count = ApplyAggOp(FastIndexedSeq.empty, None, FastIndexedSeq.empty, countSig)
@@ -1083,6 +1120,8 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testMatrixAggregate() {
+    implicit val execStrats = ExecStrategy.interpretOnly
+
     val matrix = MatrixTable.range(hc, 5, 5, None)
     val countSig = AggSignature(Count(), Seq(), None, Seq())
     val count = ApplyAggOp(FastIndexedSeq.empty, None, FastIndexedSeq.empty, countSig)
@@ -1090,6 +1129,8 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testGroupByKey() {
+    implicit val execStrats = ExecStrategy.javaOnly
+
     def tuple(k: String, v: Int): IR = MakeTuple(Seq(Str(k), I32(v)))
 
     def groupby(tuples: IR*): IR = GroupByKey(MakeArray(tuples, TArray(TTuple(TString(), TInt32()))))
@@ -1112,6 +1153,8 @@ class IRSuite extends SparkSuite {
 
   @Test(dataProvider = "compareDifferentTypes")
   def testComparisonOpDifferentTypes(a: Any, t1: Type, t2: Type) {
+    implicit val execStrats = ExecStrategy.javaOnly
+
     assertEvalsTo(ApplyComparisonOp(EQ(t1, t2), In(0, t1), In(1, t2)), IndexedSeq(a -> t1, a -> t2), true)
     assertEvalsTo(ApplyComparisonOp(LT(t1, t2), In(0, t1), In(1, t2)), IndexedSeq(a -> t1, a -> t2), false)
     assertEvalsTo(ApplyComparisonOp(GT(t1, t2), In(0, t1), In(1, t2)), IndexedSeq(a -> t1, a -> t2), false)
@@ -1636,6 +1679,8 @@ class IRSuite extends SparkSuite {
   }
 
   @Test def testTableGetGlobalsSimplifyRules() {
+    implicit val execStrats = ExecStrategy.interpretOnly
+
     val t1 = TableType(TStruct("a" -> TInt32()), IndexedSeq("a"), TStruct("g1" -> TInt32(), "g2" -> TFloat64()))
     val t2 = TableType(TStruct("a" -> TInt32()), IndexedSeq("a"), TStruct("g3" -> TInt32(), "g4" -> TFloat64()))
     val tab1 = TableLiteral(TableValue(t1, BroadcastRow(Row(1, 1.1), t1.globalType, sc), RVD.empty(sc, t1.canonicalRVDType)))
@@ -1649,6 +1694,7 @@ class IRSuite extends SparkSuite {
 
 
   @Test def testAggLet() {
+    implicit val execStrats = ExecStrategy.interpretOnly
     val ir = TableRange(2, 2)
       .aggregate(
         aggLet(a = 'row('idx).toL + I64(1)) {
