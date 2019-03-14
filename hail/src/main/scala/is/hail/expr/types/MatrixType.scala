@@ -9,7 +9,7 @@ import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.sql.Row
 import org.json4s.CustomSerializer
-import org.json4s.JsonAST.JString
+import org.json4s.JsonAST.{JArray, JObject, JString}
 
 
 class MatrixTypeSerializer extends CustomSerializer[MatrixType](format => (
@@ -190,5 +190,16 @@ case class MatrixType(
   def referenceGenome: ReferenceGenome = {
     val firstKeyField = rowKeyStruct.types(0)
     firstKeyField.asInstanceOf[TLocus].rg.asInstanceOf[ReferenceGenome]
+  }
+
+  def pyJson: JObject = {
+    JObject(
+      "row" -> JString(rowType.toString),
+      "row_key" -> JArray(rowKey.toList.map(JString(_))),
+      "col" -> JString(colType.toString),
+      "col_key" -> JArray(colKey.toList.map(JString(_))),
+      "entry" -> JString(entryType.toString),
+      "global" -> JString(globalType.toString)
+    )
   }
 }
