@@ -1,5 +1,18 @@
 package is.hail.expr.ir
 
+object UsesAggEnv {
+  def apply(ir0: BaseIR, i: Int): Boolean = ir0 match {
+    case _: AggLet => i == 1
+    case _: AggGroupBy => i == 0
+    case _: AggFilter => i == 0
+    case _: AggExplode => i == 0
+    case ApplyAggOp(ctor, initOp, _, _) => i >= ctor.length + initOp.map(_.length).getOrElse(0)
+    case _: AggArrayPerElement => i == 0
+    case _ => false
+  }
+}
+
+
 object InAgg {
 
   def apply(ir0: BaseIR): Memo[Boolean] = {
@@ -9,40 +22,19 @@ object InAgg {
       memo.bind(ir, inAgg)
 
       ir match {
-        case AggLet(_, value, body) =>
-          assert(!inAgg)
-          compute(value, inAgg = true)
-          compute(body, inAgg = false)
-        case AggGroupBy(key, aggIR) =>
-          assert(!inAgg)
-          compute(key, inAgg = true)
-          compute(aggIR, inAgg = false)
-        case AggFilter(cond, aggIR) =>
-          assert(!inAgg)
-          compute(cond, inAgg = true)
-          compute(aggIR, inAgg = false)
-        case AggExplode(a, _, aggIR) =>
-          assert(!inAgg)
-          compute(a, inAgg = true)
-          compute(aggIR, inAgg = false)
-        case ApplyAggOp(constructorArgs, initOpArgs, seqOpArgs, _) =>
-          assert(!inAgg)
-          constructorArgs.foreach(compute(_, inAgg = false))
-          initOpArgs.foreach(_.foreach(compute(_, inAgg = false)))
-          seqOpArgs.foreach(compute(_, inAgg = true))
-        case AggArrayPerElement(a, _, aggBody) =>
-          assert(!inAgg)
-          compute(a, inAgg = true)
-          compute(aggBody, inAgg = false)
         case TableAggregate(child, query) =>
           compute(child, false)
           compute(query, false)
         case MatrixAggregate(child, query) =>
           compute(child, false)
           compute(query, false)
-        case _ => ir.children.foreach {
-          case vir: IR => compute(vir, inAgg)
-          case child => compute(child, false)
+        case _ => ir.children.iterator.zipWithIndex.foreach {
+          case (child: IR, i) =>
+            val usesAgg = UsesAggEnv(ir, i)
+            if (usesAgg)
+              assert(!inAgg)
+            compute(child, inAgg || usesAgg)
+          case (child, i) => compute(child, false)
         }
       }
     }

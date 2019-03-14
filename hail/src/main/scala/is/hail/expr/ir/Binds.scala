@@ -72,15 +72,17 @@ object TransitiveBindings {
     case _ =>
       ir.children(i) match {
         case vir: IR =>
-          (env.bindIterable(Bindings(ir, i)), aggEnv match {
-            case Some(ae) => Some(ae.bindIterable(AggBindings(ir, i)))
-            case None =>
-              val ab = AggBindings(ir, i)
-              if (ab.nonEmpty)
-                Some(Env.empty.bindIterable(ab))
-              else
-                None
-          })
+          val b = Bindings(ir, i)
+          val ab = AggBindings(ir, i)
+          if (UsesAggEnv(ir, i)) {
+            assert(b.isEmpty)
+            (aggEnv.get.bindIterable(ab), None)
+          } else {
+            (env.bindIterable(b), aggEnv match {
+              case Some(ae) => Some(ae.bindIterable(ab))
+              case None => if (ab.nonEmpty) Some(Env.empty.bindIterable(ab)) else None
+            })
+          }
         case _ => empty
       }
   }

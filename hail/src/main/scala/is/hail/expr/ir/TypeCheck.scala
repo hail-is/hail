@@ -11,16 +11,15 @@ object TypeCheck {
   def apply(ir: BaseIR, env: Env[Type], aggEnv: Option[Env[Type]]): Unit = {
     try {
       val irCp = ir.deepCopy()
-      val inAgg = InAgg(irCp)
-      _apply(irCp, env, aggEnv, inAgg)
+      _apply(irCp, env, aggEnv)
     } catch {
       case e: Throwable => fatal(s"Error while typechecking IR:\n${ Pretty(ir) }", e)
     }
   }
 
-  private def _apply(ir: BaseIR, env: Env[Type], aggEnv: Option[Env[Type]], inAgg: Memo[Boolean]) {
+  private def _apply(ir: BaseIR, env: Env[Type], aggEnv: Option[Env[Type]]) {
     def check(ir: BaseIR, env: Env[Type] = env, aggEnv: Option[Env[Type]] = aggEnv) {
-      _apply(ir, env, aggEnv, inAgg)
+      _apply(ir, env, aggEnv)
     }
 
     ir match {
@@ -48,7 +47,7 @@ object TypeCheck {
       case x@AggLet(_, _, body) =>
         assert(x.typ == body.typ)
       case x@Ref(name, _) =>
-        val expected = if (inAgg.lookup(x)) aggEnv.get.lookup(x) else env.lookup(x)
+        val expected = env.lookup(name)
         assert(x.typ == expected, s"type mismatch:\n  name: $name\n  actual: ${ x.typ.parsableString() }\n  expect: ${ expected.parsableString() }")
       case x@ApplyBinaryPrimOp(op, l, r) =>
         assert(x.typ == BinaryOp.getReturnType(op, l.typ, r.typ))
@@ -194,10 +193,7 @@ object TypeCheck {
       case Die(msg, typ) =>
         assert(msg.typ isOfType TString())
       case x@ApplyIR(fn, args) =>
-        if (inAgg.lookup(x))
-          apply(x.explicitNode, aggEnv.get, None)
-        else
-          apply(x.explicitNode, env, None)
+        check(x.explicitNode, env, aggEnv)
       case x: AbstractApplyNode[_] =>
         x.args.foreach(check(_))
         assert(x.implementation.unify(x.args.map(_.typ)))
