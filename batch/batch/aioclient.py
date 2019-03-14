@@ -1,3 +1,4 @@
+import os
 import math
 import time
 import random
@@ -108,25 +109,45 @@ class Batch:
 
 
 class BatchClient:
-    def __init__(self, session, url=None):
+    HAIL_NOTEBOOK_JWT_TOKEN_LOCATION = '/user-jwt/jwt'
+
+    def __init__(self, session, url=None, token_file=None, token=None, headers=None):
         if not url:
             url = 'http://batch.default'
         self.url = url
         self._session = session
+        if token is None:
+            token_file = (token_file or
+                          os.environ.get('HAIL_TOKEN_FILE') or
+                          os.path.expanduser('~/.hail/token'))
+            if not os.path.exists(token_file):
+                if not os.path.exists(BatchClient.HAIL_NOTEBOOK_JWT_TOKEN_LOCATION):
+                    raise ValueError(
+                        f'cannot create a client without a token. no file was '
+                        f'found at {token_file} nor {BatchClient.HAIL_NOTEBOOK_JWT_TOKEN_LOCATION}')
+                token_file = BatchClient.HAIL_NOTEBOOK_JWT_TOKEN_LOCATION
+            with open(token_file) as f:
+                token = f.read()
+        self.cookies = {'user': token}
+        self.headers = headers
 
     async def _get(self, path, params=None):
-        response = await self._session.get(self.url + path, params=params)
+        response = await self._session.get(
+            self.url + path, params=params, cookies=self.cookies, headers=self.headers)
         return await response.json()
 
     async def _post(self, path, json=None):
-        response = await self._session.post(self.url + path, json=json)
+        response = await self._session.post(
+            self.url + path, json=json, cookies=self.cookies, headers=self.headers)
         return await response.json()
 
     async def _patch(self, path):
-        await self._session.patch(self.url + path)
+        await self._session.patch(
+            self.url + path, cookies=self.cookies, headers=self.headers)
 
     async def _delete(self, path):
-        await self._session.delete(self.url + path)
+        await self._session.delete(
+            self.url + path, cookies=self.cookies, headers=self.headers)
 
     async def _create_job(self,  # pylint: disable=R0912
                           image,
