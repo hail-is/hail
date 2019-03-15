@@ -248,10 +248,11 @@ final class StreamBlockInputBuffer(in: InputStream) extends InputBlockBuffer {
 }
 
 final class MemoryBuffer extends Serializable {
-  var capacity: Int = 8
-  var mem: Array[Byte] = new Array[Byte](capacity)
+  var mem: Array[Byte] = new Array[Byte](8)
   var pos: Int = 0
   var end: Int = 0
+
+  def capacity: Int = mem.length
 
   def clear() {
     pos = 0
@@ -263,8 +264,7 @@ final class MemoryBuffer extends Serializable {
   }
 
   def grow(n: Int) {
-    capacity = math.max(capacity * 2, end + n)
-    mem = util.Arrays.copyOf(mem, capacity)
+    mem = util.Arrays.copyOf(mem, math.max(capacity * 2, end + n))
   }
 
   def copyFrom(src: MemoryBuffer) {
