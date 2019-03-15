@@ -320,100 +320,445 @@ def histogram2d(x, y, bins=40, range=None,
     return p
 
 
-@typecheck(x=oneof(sequenceof(numeric), expr_float64), y=oneof(sequenceof(numeric), expr_float64),
-           label=oneof(nullable(str), expr_str, sequenceof(str)), title=nullable(str),
-           xlabel=nullable(str), ylabel=nullable(str), size=int, legend=bool,
-           source_fields=nullable(dictof(str, sequenceof(anytype))), collect_all=nullable(bool), n_divisions=int)
-def scatter(x, y, label=None, title=None, xlabel=None, ylabel=None, size=4, legend=True,
-            collect_all=False, n_divisions=500, source_fields=None):
-    """Create a scatterplot.
+def _collect_scatter_plot_data(
+        x: hl.expr.NumericExpression,
+        y: hl.expr.NumericExpression,
+        fields: Dict[str, hl.expr.Expression] = None,
+        n_divisions: int = None,
+        missing_label: str =  'NA'
+) -> pd.DataFrame:
 
-    Parameters
-    ----------
-    x : List[float] or :class:`.Float64Expression`
-        List of x-values to be plotted.
-    y : List[float] or :class:`.Float64Expression`
-        List of y-values to be plotted.
-    label : List[str] or :class:`.StringExpression`
-        List of labels for x and y values, used to assign each point a label (e.g. population)
-    title : str
-        Title of the scatterplot.
-    xlabel : str
-        X-axis label.
-    ylabel : str
-        Y-axis label.
-    size : int
-        Size of markers in screen space units.
-    legend : bool
-        Whether or not to show the legend in the resulting figure.
-    collect_all : bool
-        Whether to collect all values or downsample before plotting.
-        This parameter will be ignored if x and y are Python objects.
-    n_divisions : int
-        Factor by which to downsample (default value = 500). A lower input results in fewer output datapoints.
-    source_fields : Dict[str, List[Any]]
-        Extra fields for the ColumnDataSource of the plot.
+    expressions = dict()
+    if fields is not None:
+        expressions.update({k: hl.or_else(v, missing_label) if isinstance(v, hl.expr.StringExpression) else v for k, v in fields.items()})
 
-    Returns
-    -------
-    :class:`bokeh.plotting.figure.Figure`
-    """
-    if isinstance(x, Expression) and isinstance(y, Expression):
+    if n_divisions is None:
+        collect_expr = hl.struct(_x=x, _y=y, **expressions)
+        plot_data = [point for point in collect_expr.collect() if point._x is not None and point._y is not None]
+        source_pd = pd.DataFrame(plot_data)
+    else:
+        # FIXME: remove the type conversion logic if/when downsample supports continuous values for labels
+        continous_expr = {k: 'int32' for k,v in expressions.items() if isinstance(v, hl.expr.Int32Expression)}
+        continous_expr.update({k: 'int64' for k,v in expressions.items() if isinstance(v, hl.expr.Int64Expression)})
+        continous_expr.update({k: 'float32' for k, v in expressions.items() if isinstance(v, hl.expr.Float32Expression)})
+        continous_expr.update({k: 'float64' for k, v in expressions.items() if isinstance(v, hl.expr.Float64Expression)})
+        if continous_expr:
+            expressions = {k: hl.str(v) if not isinstance(v, hl.expr.StringExpression) else v for k,v in expressions.items()}
         agg_f = x._aggregation_method()
-        if isinstance(label, Expression):
-            if collect_all:
-                res = hail.tuple([x, y, label]).collect()
-                label = [point[2] for point in res]
-            else:
-                res = agg_f(aggregators.downsample(x, y, label=label, n_divisions=n_divisions))
-                label = [point[2][0] for point in res]
+        res = agg_f(hl.agg.downsample(x, y, label=list(expressions.values()) if expressions else None, n_divisions=n_divisions))
+        source_pd = pd.DataFrame([dict(_x=point[0], _y=point[1], **dict(zip(expressions, point[2]))) for point in res])
+        source_pd = source_pd.astype(continous_expr, copy=False)
 
-            x = [point[0] for point in res]
-            y = [point[1] for point in res]
-        else:
-            if collect_all:
-                res = hail.tuple([x, y]).collect()
-            else:
-                res = agg_f(aggregators.downsample(x, y, n_divisions=n_divisions))
+    return source_pd
 
-            x = [point[0] for point in res]
-            y = [point[1] for point in res]
-    elif isinstance(x, Expression) or isinstance(y, Expression):
-        raise TypeError('Invalid input: x and y must both be either Expressions or Python Lists.')
+
+def _get_categorical_palette(factors: List[str]) -> Dict[str, str]:
+    n = max(3, len(factors))
+    if n < len(palette):
+        _palette = palette
+    elif n < 21:
+        from bokeh.palettes import Category20
+        _palette = Category20[n]
     else:
-        if isinstance(label, Expression):
-            label = label.collect()
+        from bokeh.palettes import viridis
+        _palette = viridis(n)
 
-    p = figure(title=title, x_axis_label=xlabel, y_axis_label=ylabel, background_fill_color='#EEEEEE')
-    if label is not None:
-        label = ['None' if x is None else x for x in label]
-        fields = dict(x=x, y=y, label=label)
-        if source_fields is not None:
-            for key, values in source_fields.items():
-                fields[key] = values
+    return CategoricalColorMapper(factors=factors, palette=_palette)
 
-        source = ColumnDataSource(fields)
 
-        if legend:
-            leg = 'label'
+def _get_scatter_plot_elements(
+        sp: Plot, source_pd: pd.DataFrame, label_cols: List[str], colors: Dict[str, ColorMapper] = None, size: int = 4
+) -> Tuple[bokeh.plotting.Figure, Dict[str, List[LegendItem]], Legend, ColorBar, Dict[str, ColorMapper], List[Renderer]] :
+
+    if not source_pd.shape[0]:
+        print("WARN: No data to plot.")
+        return sp, None, None, None, None, None
+
+    sp.tools.append(HoverTool(tooltips=[(x, f'@{x}') for x in source_pd.columns]))
+
+    cds = ColumnDataSource(source_pd)
+
+    if not label_cols:
+        sp.circle('_x', '_y', source=cds, size=size)
+        return sp, None, None, None, None, None
+
+    continuous_cols = [col for col in label_cols if
+                       (str(source_pd.dtypes[col]).startswith('float') or
+                        str(source_pd.dtypes[col]).startswith('int'))]
+    factor_cols = [col for col in label_cols if col not in continuous_cols]
+
+    #  Assign color mappers to columns
+    if colors is None:
+        colors = {}
+    color_mappers = {}
+
+    for col in continuous_cols:
+        low = np.nanmin(source_pd[col])
+        if np.isnan(low):
+            low = 0
+            high = 0
         else:
-            leg = None
+            high = np.nanmax(source_pd[col])
+        color_mappers[col] = colors[col] if col in colors else LinearColorMapper(palette='Magma256', low=low, high=high)
 
-        factors = list(set(label))
-        if len(factors) > len(palette):
-            color_gen = cycle(palette)
-            colors = []
-            for i in range(0, len(factors)):
-                colors.append(next(color_gen))
+    for col in factor_cols:
+        if col in colors:
+            color_mappers[col] = colors[col]
         else:
-            colors = palette[0:len(factors)]
+            factors = list(set(source_pd[col]))
+            color_mappers[col] = _get_categorical_palette(factors)
 
-        color_mapper = CategoricalColorMapper(factors=factors, palette=colors)
-        p.circle('x', 'y', alpha=0.5, source=source, size=size,
-                 color={'field': 'label', 'transform': color_mapper}, legend=leg)
+    # Create initial glyphs
+    initial_col = label_cols[0]
+    initial_mapper = color_mappers[initial_col]
+    legend_items = {}
+
+    if not factor_cols:
+        all_renderers = [
+            sp.circle('_x', '_y', color=transform(initial_col, initial_mapper), source=cds, size=size)
+        ]
+
     else:
-        p.circle(x, y, alpha=0.5, size=size)
-    return p
+        all_renderers = []
+        legend_items = {col: DefaultDict(list) for col in factor_cols}
+        for key in source_pd.groupby(factor_cols).groups.keys():
+            key = key if len(factor_cols) > 1 else [key]
+            cds_view = CDSView(source=cds, filters=[GroupFilter(column_name=factor_cols[i], group=key[i]) for i in range(0, len(factor_cols))])
+            renderer = sp.circle('_x', '_y', color=transform(initial_col, initial_mapper), source=cds, view=cds_view, size=size)
+            all_renderers.append(renderer)
+            for i in range(0, len(factor_cols)):
+                legend_items[factor_cols[i]][key[i]].append(renderer)
+
+        legend_items = {factor: [LegendItem(label=key, renderers=renderers) for key, renderers in key_renderers.items()] for factor, key_renderers in legend_items.items()}
+
+    # Add legend / color bar
+    legend = Legend(visible=False, click_policy='hide', orientation='vertical') if initial_col not in factor_cols else Legend(items=legend_items[initial_col], click_policy='hide', orientation='vertical')
+    color_bar = ColorBar(visible=False) if initial_col not in continuous_cols else ColorBar(color_mapper=color_mappers[initial_col])
+    sp.add_layout(legend, 'left')
+    sp.add_layout(color_bar, 'left')
+
+    return sp, legend_items, legend, color_bar, color_mappers, all_renderers
+
+
+@typecheck(x=expr_numeric, y=expr_numeric,
+           label=nullable(dictof(str, expr)), title=nullable(str),
+           xlabel=nullable(str), ylabel=nullable(str),
+           source_fields=nullable(dictof(str, expr)), colors=nullable(dictof(str, bokeh.models.mappers.ColorMapper)),
+           width=int, height=int, n_divisions=int, missing_lable=str)
+def scatter(
+        x: hl.expr.NumericExpression,
+        y: hl.expr.NumericExpression,
+        label: Dict[str, hl.expr.Expression] = None,
+        title: str = None,
+        xlabel: str = None,
+        ylabel: str = None,
+        size: int =4,
+        source_fields: Dict[str, hl.expr.Expression] = None,
+        colors: Dict[str, ColorMapper] = None,
+        width: int = 800,
+        height: int = 800,
+        n_divisions: int = None,
+        missing_label: str = 'NA'
+) -> Column:
+    """Create an interactive scatter plot.
+
+       ``x`` and ``y`` must both be a :class:`NumericExpression` from the same :class:`Table`.
+
+       This function returns a :class:`bokeh.plotting.figure.Column` containing:
+       - a :class:`bokeh.models.widgets.Select` selection widget if multiple entries are specified in the ``label``
+       - a :class:`bokeh.plotting.figure.Figure` containing the interactive scatter plot
+
+       Points will be colored by one of the labels defined in the ``label`` using the color scheme defined in
+       the corresponding entry of ``colors`` if provided (otherwise a default scheme is used). To specify your color
+       mapper, check `the bokeh documentation <https://bokeh.pydata.org/en/latest/docs/reference/colors.html>`__
+       for CategoricalMapper for categorical labels, and for LinearColorMapper and LogColorMapper
+       for continuous labels.
+       For categorical labels, clicking on one of the items in the legend will hide/show all points with the corresponding label.
+       Note that using many different labelling schemes in the same plots, particularly if those labels contain many
+       different classes could slow down the plot interactions.
+
+       Hovering on points will display their coordinates, labels and any additional fields specified in ``source_fields``.
+
+        Parameters
+        ----------
+        x : :class:`.NumericExpression`
+            List of x-values to be plotted.
+        y : :class:`.NumericExpression`
+            List of y-values to be plotted.
+        label : Dict[str, :class:`.Expression`]
+            Dict of label name -> label value for x and y values.
+            Used to color each point.
+            When multiple labels are given, a dropdown will be displayed with the different options.
+            Can be used with categorical or continuous expressions.
+        title : str
+            Title of the scatterplot.
+        xlabel : str
+            X-axis label.
+        ylabel : str
+            Y-axis label.
+        size : int
+            Size of markers in screen space units.
+        source_fields : Dict[str, :class:`.Expression`]
+            Extra fields to be displayed when hovering over a point on the plot.
+        colors : Dict[str, :class:`bokeh.models.mappers.ColorMapper`]
+            Dict of label name -> color mapper.
+            Used to set colors for the labels defined using ``label``.
+            If not used at all, or label names not appearing in this dict will be colored using a default color scheme.
+        width: int
+            Plot width
+        height: int
+            Plot height
+        n_divisions : int
+            Factor by which to downsample. A good starting place is 500; a lower input results in fewer output datapoints.
+        missing_label: str
+            Label to use when a point is missing data for a categorical label
+
+
+        Returns
+        -------
+        :class:`bokeh.plotting.figure.Column`
+        """
+    source_fields = {} if source_fields is None else source_fields
+    label = {} if label is None else label
+
+    label_cols = list(label.keys())
+
+    source_pd = _collect_scatter_plot_data(x, y, fields={**source_fields, **label}, n_divisions=n_divisions, missing_label=missing_label)
+    sp = figure(title=title, x_axis_label=xlabel, y_axis_label=ylabel, height=height, width=width)
+    sp, legend_items, legend, color_bar, color_mappers, scatter_renderers = _get_scatter_plot_elements(sp, source_pd, label_cols, colors, size)
+    plot_elements = [sp]
+
+    if len(label_cols) > 1:
+        # JS call back selector
+        callback = CustomJS(args=dict(
+            legend_items=legend_items,
+            legend=legend,
+            color_bar=color_bar,
+            color_mappers=color_mappers,
+            scatter_renderers=scatter_renderers
+        ), code="""
+
+        for (var i = 0; i < scatter_renderers.length; i++){
+            scatter_renderers[i].glyph.fill_color = {field: cb_obj.value, transform: color_mappers[cb_obj.value]}
+            scatter_renderers[i].glyph.line_color = {field: cb_obj.value, transform: color_mappers[cb_obj.value]}
+            scatter_renderers[i].visible = true
+        }
+
+        if (cb_obj.value in legend_items){
+            legend.items=legend_items[cb_obj.value]
+            legend.visible=true
+            color_bar.visible=false
+        }else{
+            legend.visible=false
+            color_bar.visible=true
+        }
+
+        """)
+
+        select = Select(title="Color by", value=label_cols[0], options=label_cols)
+        select.js_on_change('value', callback)
+        plot_elements.insert(0, select)
+
+    return Column(children=plot_elements)
+
+
+@typecheck(x=expr_numeric, y=expr_numeric,
+           label=nullable(dictof(str, expr)), title=nullable(str),
+           xlabel=nullable(str), ylabel=nullable(str),
+           source_fields=nullable(dictof(str, expr)), colors=nullable(dictof(str, bokeh.models.mappers.ColorMapper)),
+           width=int, height=int, n_divisions=int, missing_lable=str)
+def joint_plot(
+        x: hl.expr.NumericExpression,
+        y: hl.expr.NumericExpression,
+        label: Dict[str, hl.expr.Expression] = None,
+        title: str = None,
+        xlabel: str = None,
+        ylabel: str = None,
+        size: int =4,
+        source_fields: Dict[str, hl.expr.StringExpression] = None,
+        colors: Dict[str, ColorMapper] = None,
+        width: int = 800,
+        height: int = 800,
+        n_divisions: int = None,
+        missing_label: str = 'NA'
+) -> Column:
+    """Create an interactive scatter plot with marginal densities on the side.
+
+       ``x`` and ``y`` must both be a :class:`NumericExpression` from the same :class:`Table`.
+
+       This function returns a :class:`bokeh.plotting.figure.Column` containing two :class:`bokeh.plotting.figure.Row`:
+       - The first row contains the X-axis marginal density and a selection widget if multiple entries are specified in the ``label``
+       - The second row contains the scatter plot and the y-axis marginal density
+
+       Points will be colored by one of the labels defined in the ``label`` using the color scheme defined in
+       the corresponding entry of ``colors`` if provided (otherwise a default scheme is used). To specify your color
+       mapper, check `the bokeh documentation <https://bokeh.pydata.org/en/latest/docs/reference/colors.html>`__
+       for CategoricalMapper for categorical labels, and for LinearColorMapper and LogColorMapper
+       for continuous labels.
+       For categorical labels, clicking on one of the items in the legend will hide/show all points with the corresponding label in the scatter plot.
+       Note that using many different labelling schemes in the same plots, particularly if those labels contain many
+       different classes could slow down the plot interactions.
+
+       Hovering on points in the scatter plot displays their coordinates, labels and any additional fields specified in ``source_fields``.
+
+        Parameters
+        ----------
+        x : :class:`.NumericExpression`
+            List of x-values to be plotted.
+        y : :class:`.NumericExpression`
+            List of y-values to be plotted.
+        label : Dict[str, :class:`.Expression`]
+            Dict of label name -> label value for x and y values.
+            Used to color each point.
+            When multiple labels are given, a dropdown will be displayed with the different options.
+            Can be used with categorical or continuous expressions.
+        title : str
+            Title of the scatterplot.
+        xlabel : str
+            X-axis label.
+        ylabel : str
+            Y-axis label.
+        size : int
+            Size of markers in screen space units.
+        source_fields : Dict[str, :class:`.Expression`]
+            Extra fields to be displayed when hovering over a point on the plot.
+        colors : Dict[str, :class:`bokeh.models.mappers.ColorMapper`]
+            Dict of label name -> color mapper.
+            Used to set colors for the labels defined using ``label``.
+            If not used at all, or label names not appearing in this dict will be colored using a default color scheme.
+        width: int
+            Plot width
+        height: int
+            Plot height
+        n_divisions : int
+            Factor by which to downsample. A good starting place is 500; a lower input results in fewer output datapoints.
+        missing_label: str
+            Label to use when a point is missing data for a categorical label
+
+
+        Returns
+        -------
+        :class:`bokeh.plotting.figure.Column`
+        """
+    # Collect data
+    source_fields = {} if source_fields is None else source_fields
+    label = {} if label is None else label
+    label_cols = list(label.keys())
+    source_pd = _collect_scatter_plot_data(x, y, fields={**source_fields, **label}, n_divisions=n_divisions, missing_label=missing_label)
+    sp = figure(title=title, x_axis_label=xlabel, y_axis_label=ylabel, height=height, width=width)
+    sp, legend_items, legend, color_bar, color_mappers, scatter_renderers = _get_scatter_plot_elements(sp, source_pd, label_cols, colors, size)
+
+    continuous_cols = [col for col in label_cols if
+                       (str(source_pd.dtypes[col]).startswith('float') or
+                        str(source_pd.dtypes[col]).startswith('int'))]
+    factor_cols = [col for col in label_cols if col not in continuous_cols]
+
+    # Density plots
+    def get_density_plot_items(
+            source_pd,
+            p,
+            axis,
+            colors: Dict[str, ColorMapper],
+            continuous_cols: List[str],
+            factor_cols: List[str]
+    ):
+        """
+        axis should be either '_x' or '_y'
+        """
+
+        density_renderers = []
+        max_densities = {}
+        if not factor_cols or continuous_cols:
+            dens, edges = np.histogram(source_pd[axis], density=True)
+            edges = edges[:-1]
+            xy = (edges, dens) if axis == '_x' else (dens, edges)
+            cds = ColumnDataSource({'x': xy[0], 'y': xy[1]})
+            line = p.line('x', 'y', source=cds)
+            density_renderers.extend([(col, "", line) for col in continuous_cols])
+            max_densities = {col: np.max(dens) for col in continuous_cols}
+
+        for factor_col in factor_cols:
+            factor_colors = colors.get(factor_col, _get_categorical_palette(list(set(source_pd[factor_col]))))
+            factor_colors = dict(zip(factor_colors.factors, factor_colors.palette))
+            density_data = source_pd[[factor_col, axis]].groupby(factor_col).apply(lambda df: np.histogram(df[axis], density=True))
+            for factor, (dens, edges) in density_data.iteritems():
+                edges = edges[:-1]
+                xy = (edges, dens) if axis == '_x' else (dens, edges)
+                cds = ColumnDataSource({'x': xy[0], 'y': xy[1]})
+                density_renderers.append((factor_col, factor, p.line('x', 'y', color=factor_colors[factor], source=cds)))
+                max_densities[factor_col] = np.max(list(dens) + [max_densities.get(factor_col, 0)])
+
+        p.legend.visible = False
+        p.grid.visible = False
+        p.outline_line_color = None
+        return p, density_renderers, max_densities
+
+    xp = figure(title=title, height=int(height / 3), width=width, x_range=sp.x_range)
+    xp, x_renderers, x_max_densities = get_density_plot_items(source_pd, xp, axis='_x', colors=color_mappers, continuous_cols=continuous_cols, factor_cols=factor_cols)
+    xp.xaxis.visible = False
+    yp = figure(height=height, width=int(width / 3), y_range=sp.y_range)
+    yp, y_renderers, y_max_densities = get_density_plot_items(source_pd, yp, axis='_y', colors=color_mappers, continuous_cols=continuous_cols, factor_cols=factor_cols)
+    yp.yaxis.visible = False
+    density_renderers = x_renderers + y_renderers
+    first_row = [xp]
+
+    if len(label_cols) > 1:
+
+        for factor_col, factor, renderer in density_renderers:
+            renderer.visible = factor_col == label_cols[0]
+
+        if label_cols[0] in factor_cols:
+            xp.y_range.start = 0
+            xp.y_range.end = x_max_densities[label_cols[0]]
+            yp.x_range.start = 0
+            yp.x_range.end = y_max_densities[label_cols[0]]
+
+        # JS call back selector
+        callback = CustomJS(
+            args=dict(
+                legend_items=legend_items,
+                legend=legend,
+                color_bar=color_bar,
+                color_mappers=color_mappers,
+                scatter_renderers=scatter_renderers,
+                density_renderers=x_renderers + y_renderers,
+                x_range = xp.y_range,
+                x_max_densities=x_max_densities,
+                y_range=yp.x_range,
+                y_max_densities=y_max_densities
+            ), code="""
+
+                for (var i = 0; i < scatter_renderers.length; i++){
+                    scatter_renderers[i].glyph.fill_color = {field: cb_obj.value, transform: color_mappers[cb_obj.value]}
+                    scatter_renderers[i].glyph.line_color = {field: cb_obj.value, transform: color_mappers[cb_obj.value]}
+                    scatter_renderers[i].visible = true
+                }
+                
+                for (var i = 0; i < density_renderers.length; i++){
+                    density_renderers[i][2].visible = density_renderers[i][0] == cb_obj.value
+                }
+
+                if (cb_obj.value in legend_items){
+                    legend.items=legend_items[cb_obj.value]
+                    legend.visible=true
+                    color_bar.visible=false
+                }else{
+                    legend.visible=false
+                    color_bar.visible=true
+                }
+                
+                x_range.start = 0
+                y_range.start = 0
+                x_range.end = x_max_densities[cb_obj.value]
+                y_range.end = y_max_densities[cb_obj.value]
+
+                """)
+
+        select = Select(title="Color by", value=label_cols[0], options=label_cols)
+        select.js_on_change('value', callback)
+        first_row.append(select)
+
+    return gridplot(first_row, [sp, yp])
 
 
 @typecheck(pvals=oneof(sequenceof(numeric), expr_float64), collect_all=bool, n_divisions=int)
