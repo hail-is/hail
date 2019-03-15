@@ -11,14 +11,24 @@ import is.hail.utils._
 import scala.collection.mutable
 
 object Emit {
-  def apply(fb: FunctionBuilder, nSpecialArgs: Int, x: ir.IR): (EmitTriplet, Array[(String, NativeModule)]) = {
-    val emitter = new Emitter(fb, nSpecialArgs, SparkFunctionContext(fb))
-    if (nSpecialArgs == 0) {
-      val res = emitter.emit(x, ir.Env.empty[EmitTriplet])
-      if (res.region.used) { throw new CXXUnsupportedOperation("can't use region if none is provided.") }
-      res -> emitter.modules.result()
-    } else
-      emitter.emit(x, ir.Env.empty[EmitTriplet]) -> emitter.modules.result()
+
+  type Literals = Array[((PType, Any), Variable)]
+
+  def noContext(fb: FunctionBuilder, x: ir.IR): EmitTriplet = {
+    val emitter = new Emitter(fb, nSpecialArgs = 0, SparkFunctionContext(fb))
+    val res = emitter.emit(x, ir.Env.empty[EmitTriplet])
+    if (res.region.used) { throw new CXXUnsupportedOperation("can't use region if none is provided.") }
+    if (emitter.modules.size != 0) { throw new CXXUnsupportedOperation("can't generate modules for this function.") }
+    if (emitter.literals.nonEmpty) { throw new CXXUnsupportedOperation("can't use literals in 0-argument function.") }
+    res
+  }
+
+  def apply(fb: FunctionBuilder, x: ir.IR): (EmitTriplet, Array[(String, (Array[Byte], NativeModule))], Literals) = {
+    val emitter = new Emitter(fb, 1, SparkFunctionContext(fb))
+    val res = emitter.emit(x, ir.Env.empty[EmitTriplet])
+    val mods = emitter.modules.result()
+    val literals = emitter.literals.toArray
+    (res, mods, literals)
   }
 }
 
@@ -173,8 +183,9 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
   outer =>
   type E = ir.Env[EmitTriplet]
 
-  val modules: ArrayBuilder[(String, NativeModule)] = new ArrayBuilder()
+  val modules: ArrayBuilder[(String, (Array[Byte], NativeModule))] = new ArrayBuilder()
   val sparkEnv: Code = ctx.sparkEnv
+  val literals: mutable.Map[(PType, Any), Variable] = mutable.Map()
 
   def emit(resultRegion: EmitRegion, x: ir.IR, env: E): EmitTriplet = {
     def triplet(setup: Code, m: Code, v: Code): EmitTriplet =
@@ -200,6 +211,17 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         present("false")
       case ir.Void() =>
         present("")
+
+      case _: ir.Str | _: ir.Literal =>
+        val v: Any = x match {
+          case ir.Str(s) => s
+          case ir.Literal(_, l) => l
+        }
+
+        if (v == null)
+          emit(ir.NA(x.typ))
+        else
+          present(literals.getOrElseUpdate(x.pType -> v, fb.variable("literal", typeToCXXType(x.pType))).name)
 
       case ir.Cast(v, _) =>
         val t = emit(v)
@@ -617,8 +639,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
 
         val ltClass = fb.translationUnitBuilder().buildClass(fb.translationUnitBuilder().genSym("SorterLessThan"))
         val lt = ltClass.buildMethod("operator()", Array(cxxType -> "l", cxxType -> "r"), "bool", const=true)
-        val (trip, mods) = Emit(lt, 0, ir.Subst(comp, ir.Env(l -> ir.In(0, eltType), r -> ir.In(1, eltType))))
-        assert(mods.isEmpty)
+        val trip = Emit.noContext(lt, ir.Subst(comp, ir.Env(l -> ir.In(0, eltType), r -> ir.In(1, eltType))))
         lt += s"""
              |${ trip.setup }
              |if (${ trip.m }) { throw new FatalError("ArraySort: comparison function cannot evaluate to missing."); }
@@ -664,8 +685,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
 
         val ltClass = fb.translationUnitBuilder().buildClass(fb.translationUnitBuilder().genSym("SorterLessThan"))
         val lt = ltClass.buildMethod("operator()", Array(cxxType -> "l", cxxType -> "r"), "bool", const=true)
-        val (trip, mods) = Emit(lt, 0, ltIR)
-        assert(mods.isEmpty)
+        val trip = Emit.noContext(lt, ltIR)
         lt += s"""
                  |${ trip.setup }
                  |if (${ trip.m }) { abort(); }
@@ -676,8 +696,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
 
         val eqClass = fb.translationUnitBuilder().buildClass(fb.translationUnitBuilder().genSym("SorterEq"))
         val eq = eqClass.buildMethod("operator()", Array(cxxType -> "l", cxxType -> "r"), "bool", const=true)
-        val (eqTrip, eqmods) = Emit(eq, 0, eqIR)
-        assert(eqmods.isEmpty)
+        val eqTrip = Emit.noContext(eq, eqIR)
         eq += s"""
                  |${ eqTrip.setup }
                  |if (${ eqTrip.m }) { abort(); }
@@ -722,12 +741,12 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
 
         val tub = new TranslationUnitBuilder
         tub.include("<string>")
-        val wrappedBody = if (body.pType.isPrimitive) ir.MakeTuple(FastSeq(body)) else body
-
-        val (bodyF, mods) = Compile.makeNonmissingFunction(tub, body, "context" -> ctxType, "global" -> g.pType)
+        val (bodyF, mods, (lType, lits)) = Compile.makeNonmissingFunction(tub, body, "context" -> ctxType, "global" -> g.pType)
         assert(mods.isEmpty)
-        val ctxDec = PackDecoder(ctxType, ctxType, spec.child, tub)
-        val globDec = PackDecoder(g.pType, g.pType, spec.child, tub).name
+
+        val ctxDec = spec.buildNativeDecoderClass(ctxType, ctxType, tub).name
+        val globDec = spec.buildNativeDecoderClass(g.pType, g.pType, tub).name
+        val litDec = spec.buildNativeDecoderClass(lType, lType, tub).name
         val resEnc = PackEncoder(body.pType, spec.child, tub).name
 
         val fname = tub.genSym("wrapper")
@@ -750,8 +769,12 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              |$globDec glob_in { std::make_shared<InputStream>(up, jglob_in) };
              |char * glob_ptr = glob_in.decode_row(region.get());
              |
+             |jobject jlit_in = reinterpret_cast<ObjectArray *>(${ wrapperf.getArg(2) })->at(3);
+             |$litDec lit_in { std::make_shared<InputStream>(up, jlit_in) };
+             |char * lit_ptr = lit_in.decode_row(region.get());
+             |
              |try {
-             |  auto res = ${ bodyF.name }(SparkFunctionContext(region), ctx_ptr, glob_ptr);
+             |  auto res = ${ bodyF.name }(SparkFunctionContext(region, lit_ptr), ctx_ptr, glob_ptr);
              |  res_out.encode_row(res);
              |  res_out.flush();
              |  return 0;
@@ -770,7 +793,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         assert(st.ok, st.toString())
 
         val modString = ir.genUID()
-        modules += modString -> mod
+        modules += modString -> (lits(spec), mod)
 
         fb.translationUnitBuilder().include("hail/SparkUtils.h")
         val ctxs = fb.variable("ctxs", "char *")

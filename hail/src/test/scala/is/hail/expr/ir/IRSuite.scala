@@ -1096,6 +1096,25 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(GetField(na, "a"), null)
   }
 
+  @Test def testLiteral() {
+    implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized, ExecStrategy.CxxCompile)
+    val poopEmoji = new String(Array[Char](0xD83D, 0xDCA9))
+    val types = Array(
+      TTuple(TInt32(), TString(), TArray(TInt32())),
+      TArray(TString()),
+      TDict(TInt32(), TString())
+    )
+    val values = Array(
+      Row(400, "foo"+poopEmoji, FastIndexedSeq(4, 6, 8)),
+      FastIndexedSeq(poopEmoji, "", "foo"),
+      Map[Int, String](1 -> "", 5 -> "foo", -4 -> poopEmoji)
+    )
+
+    assertEvalsTo(Literal(types(0), values(0)), values(0))
+    assertEvalsTo(MakeTuple(types.zip(values).map { case (t, v) => Literal(t, v) }), Row.fromSeq(values.toFastSeq))
+    assertEvalsTo(Str("hello"+poopEmoji), "hello"+poopEmoji)
+  }
+
   @Test def testTableCount() {
     implicit val execStrats = Set(ExecStrategy.Interpret, ExecStrategy.InterpretUnoptimized, ExecStrategy.CxxCompile)
     assertEvalsTo(TableCount(TableRange(0, 4)), 0L)

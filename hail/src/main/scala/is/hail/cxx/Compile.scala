@@ -1,7 +1,11 @@
 package is.hail.cxx
 
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
+
+import is.hail.annotations.{Region, RegionValueBuilder}
 import is.hail.expr.ir
 import is.hail.expr.types.physical._
+import is.hail.io.CodecSpec
 import is.hail.nativecode.{NativeModule, NativeStatus, ObjectArray}
 import is.hail.utils.fatal
 
@@ -9,7 +13,11 @@ import scala.reflect.classTag
 
 object Compile {
 
-  def makeNonmissingFunction(tub: TranslationUnitBuilder, body: ir.IR, args: (String, PType)*): (Function, Array[(String, NativeModule)]) = {
+  type Literals = (PTuple, CodecSpec => Array[Byte])
+
+  val defaultSpec: CodecSpec = CodecSpec.defaultUncompressed
+
+  def makeNonmissingFunction(tub: TranslationUnitBuilder, body: ir.IR, args: (String, PType)*): (Function, Array[(String, (Array[Byte], NativeModule))], Literals) = {
     tub.include("hail/hail.h")
     tub.include("hail/Utils.h")
     tub.include("hail/Region.h")
@@ -27,31 +35,71 @@ object Compile {
     val emitEnv = args.zipWithIndex
       .foldLeft(ir.Env[ir.IR]()){ case (env, ((arg, argType), i)) =>
         env.bind(arg -> ir.In(i, argType.virtualType)) }
-    val (v, mods) = Emit(fb, 1, ir.Subst(body, emitEnv))
+    val (v, mods, emitLiterals) = Emit(fb, ir.Subst(body, emitEnv))
+
+    val (literals, litvars) = emitLiterals.unzip
+    val litType = PTuple(literals.map { case (t, _) => t })
+    val f = { spec: CodecSpec =>
+
+      val baos = new ByteArrayOutputStream()
+      val enc = spec.buildEncoder(litType)(baos)
+      Region.scoped { region =>
+        val rvb = new RegionValueBuilder(region)
+        rvb.start(litType)
+        rvb.startTuple()
+        literals.foreach { case (t, a) => rvb.addAnnotation(t.virtualType, a) }
+        rvb.endTuple()
+        enc.writeRegionValue(region, rvb.end())
+      }
+      enc.flush()
+      enc.close()
+      baos.toByteArray
+    }
+
+    val ctxLit = s"${ fb.getArg(0).name }.literals_"
+    val litSetup = Array.tabulate(literals.length) { i =>
+      litvars(i).defineWith( litType.cxxLoadField(ctxLit, i) )
+    }.mkString("\n")
 
     fb +=
       s"""
+         |$litSetup
          |${ v.setup }
          |if (${ v.m })
          |  abort();
          |return ${ v.v };
          |""".stripMargin
-    (fb.end(), mods)
+
+
+
+    (fb.end(), mods, (litType, f))
   }
 
-  def makeEntryPoint(tub: TranslationUnitBuilder, fname: String, argTypes: PType*): Unit = {
+  def makeEntryPoint(tub: TranslationUnitBuilder, literals: Literals, fname: String, argTypes: PType*): Array[Byte] = {
     val nArgs = argTypes.size
-    val rawArgs = ("long region" +: Array.tabulate(nArgs)(i => s"long v$i")).mkString(", ")
-    val castArgs = ("((ObjectArray *)sparkUtils)->at(0))" +: Array.tabulate(nArgs)(i => s"(${ typeToNonConstCXXType(argTypes(i)) }) v$i")).mkString(", ")
+    val rawArgs = ("long jregion" +: Array.tabulate(nArgs)(i => s"long v$i")).mkString(", ")
+    val sparkFunctionContext = "SparkFunctionContext(region, sparkUtils, lit_ptr)"
+    val castArgs = (sparkFunctionContext +: Array.tabulate(nArgs)(i => s"(${ typeToNonConstCXXType(argTypes(i)) }) v$i")).mkString(", ")
+
+    val (lType, encoded) = literals
+    val litEnc = defaultSpec.buildNativeDecoderClass(lType, lType, tub).name
+
+    tub.include("hail/Upcalls.h")
 
     tub += new Definition {
       def name: String = "entrypoint"
 
       def define: String =
         s"""
-           |long entrypoint(NativeStatus *st, long sparkUtils, $rawArgs) {
+           |long entrypoint(NativeStatus *st, long obj, $rawArgs) {
            |  try {
-           |    return (long)$fname(SparkFunctionContext(((ScalaRegion *)region)->region_, $castArgs);
+           |    UpcallEnv up;
+           |    RegionPtr region = ((ScalaRegion *)jregion)->region_;
+           |    jobject sparkUtils = ((ObjectArray *) obj)->at(0);
+           |    jobject jlit_in = ((ObjectArray *) obj)->at(1);
+           |    $litEnc lit_in { std::make_shared<InputStream>(up, jlit_in) };
+           |    const char * lit_ptr = lit_in.decode_row(region.get());
+           |    return (long)$fname($castArgs);
            |  } catch (const FatalError& e) {
            |    NATIVE_ERROR(st, 1005, e.what());
            |    return -1;
@@ -59,13 +107,13 @@ object Compile {
            |}
          """.stripMargin
     }
-
+    encoded(defaultSpec)
   }
 
-  def compile(body: ir.IR, optimize: Boolean, args: Array[(String, PType)]): (NativeModule, SparkUtils) = {
+  def compile(body: ir.IR, optimize: Boolean, args: Array[(String, PType)]): (NativeModule, SparkUtils, Array[Byte]) = {
     val tub = new TranslationUnitBuilder
-    val (f, mods) = makeNonmissingFunction(tub, body, args: _*)
-    makeEntryPoint(tub, f.name, args.map(_._2): _*)
+    val (f, mods, literals) = makeNonmissingFunction(tub, body, args: _*)
+    val encLiterals = makeEntryPoint(tub, literals, f.name, args.map(_._2): _*)
 
     val tu = tub.end()
     val mod = tu.build(if (optimize) "-ggdb -O1" else "-ggdb -O0")
@@ -74,11 +122,11 @@ object Compile {
     mod.findOrBuild(st)
     assert(st.ok, st.toString())
 
-    (mod, new SparkUtils(mods))
+    (mod, new SparkUtils(mods), encLiterals)
   }
 
   def apply(body: ir.IR, optimize: Boolean): Long => Long = {
-    val (mod, sparkUtils) = compile(body, optimize, Array())
+    val (mod, sparkUtils, literals) = compile(body, optimize, Array())
 
     val st = new NativeStatus()
     val nativef = mod.findLongFuncL2(st, "entrypoint")
@@ -87,7 +135,7 @@ object Compile {
 
     { (region: Long) =>
       val st2 = new NativeStatus()
-      val res = nativef(st2, new ObjectArray(sparkUtils).get(), region)
+      val res = nativef(st2, new ObjectArray(sparkUtils, new ByteArrayInputStream(literals)).get(), region)
       if (st2.fail)
         fatal(st2.toString())
       res
@@ -103,7 +151,7 @@ object Compile {
 
     assert(ir.TypeToIRIntermediateClassTag(returnType.virtualType) == classTag[Long])
     assert(returnType.isInstanceOf[PBaseStruct])
-    val (mod, sparkUtils) = compile(body, optimize, Array(arg0 -> arg0Type))
+    val (mod, sparkUtils, literals) = compile(body, optimize, Array(arg0 -> arg0Type))
 
     val st = new NativeStatus()
     val nativef = mod.findLongFuncL3(st, "entrypoint")
@@ -112,7 +160,7 @@ object Compile {
 
     { (region: Long, v2: Long) =>
       val st2 = new NativeStatus()
-      val res = nativef(st2, new ObjectArray(sparkUtils).get(), region, v2)
+      val res = nativef(st2, new ObjectArray(sparkUtils, new ByteArrayInputStream(literals)).get(), region, v2)
       if (st2.fail)
         fatal(st2.toString())
       res
