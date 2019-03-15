@@ -7,7 +7,7 @@ import org.json4s.jackson.JsonMethods
 
 import scala.reflect.{ClassTag, classTag}
 
-final case class TStream(elementType: Type, override val required: Boolean = false) extends TContainer {
+final case class TStream(elementType: Type, override val required: Boolean = false) extends Type {
   lazy val physicalType: PStream = PStream(elementType.physicalType, required)
 
   override def pyString(sb: StringBuilder): Unit = {

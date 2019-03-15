@@ -4,12 +4,8 @@ import is.hail.annotations.CodeOrdering
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.virtual.TStream
 
-final case class PStream(elementType: PType, override val required: Boolean = false) extends PContainer {
+final case class PStream(elementType: PType, override val required: Boolean = false) extends PType {
   lazy val virtualType: TStream = TStream(elementType.virtualType, required)
-
-  val elementByteSize: Long = elementType.byteSize
-
-  val contentsAlignment: Long = elementType.alignment
 
   override def pyString(sb: StringBuilder): Unit = {
     sb.append("stream<")
