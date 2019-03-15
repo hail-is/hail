@@ -1,6 +1,7 @@
 from math import log, isnan, log10
 
 import numpy as np
+import pandas as pd
 import bokeh
 import bokeh.io
 from bokeh.models import *
@@ -12,6 +13,8 @@ from hail.expr.expressions import *
 from hail.expr.expressions import Expression
 from hail.typecheck import *
 from hail import Table
+from hail.utils.struct import Struct
+from typing import *
 import hail
 
 palette = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
@@ -36,7 +39,7 @@ def show(obj):
     """
     bokeh.io.show(obj)
 
-@typecheck(data=oneof(hail.utils.struct.Struct, expr_float64), range=nullable(sized_tupleof(numeric, numeric)),
+@typecheck(data=oneof(Struct, expr_float64), range=nullable(sized_tupleof(numeric, numeric)),
            bins=int, legend=nullable(str), title=nullable(str), log=bool)
 def histogram(data, range=None, bins=50, legend=None, title=None, log=False):
     """Create a histogram.
@@ -102,7 +105,7 @@ def histogram(data, range=None, bins=50, legend=None, title=None, log=False):
     return p
 
 
-@typecheck(data=oneof(hail.utils.struct.Struct, expr_float64), range=nullable(sized_tupleof(numeric, numeric)),
+@typecheck(data=oneof(Struct, expr_float64), range=nullable(sized_tupleof(numeric, numeric)),
            bins=int, legend=nullable(str), title=nullable(str), normalize=bool, log=bool)
 def cumulative_histogram(data, range=None, bins=50, legend=None, title=None, normalize=True, log=False):
     """Create a cumulative histogram.
@@ -321,31 +324,31 @@ def histogram2d(x, y, bins=40, range=None,
 
 
 def _collect_scatter_plot_data(
-        x: hl.expr.NumericExpression,
-        y: hl.expr.NumericExpression,
-        fields: Dict[str, hl.expr.Expression] = None,
+        x: NumericExpression,
+        y: NumericExpression,
+        fields: Dict[str, Expression] = None,
         n_divisions: int = None,
         missing_label: str =  'NA'
 ) -> pd.DataFrame:
 
     expressions = dict()
     if fields is not None:
-        expressions.update({k: hl.or_else(v, missing_label) if isinstance(v, hl.expr.StringExpression) else v for k, v in fields.items()})
+        expressions.update({k: or_else(v, missing_label) if isinstance(v, StringExpression) else v for k, v in fields.items()})
 
     if n_divisions is None:
-        collect_expr = hl.struct(_x=x, _y=y, **expressions)
+        collect_expr = struct(_x=x, _y=y, **expressions)
         plot_data = [point for point in collect_expr.collect() if point._x is not None and point._y is not None]
         source_pd = pd.DataFrame(plot_data)
     else:
         # FIXME: remove the type conversion logic if/when downsample supports continuous values for labels
-        continous_expr = {k: 'int32' for k,v in expressions.items() if isinstance(v, hl.expr.Int32Expression)}
-        continous_expr.update({k: 'int64' for k,v in expressions.items() if isinstance(v, hl.expr.Int64Expression)})
-        continous_expr.update({k: 'float32' for k, v in expressions.items() if isinstance(v, hl.expr.Float32Expression)})
-        continous_expr.update({k: 'float64' for k, v in expressions.items() if isinstance(v, hl.expr.Float64Expression)})
+        continous_expr = {k: 'int32' for k,v in expressions.items() if isinstance(v, Int32Expression)}
+        continous_expr.update({k: 'int64' for k,v in expressions.items() if isinstance(v, Int64Expression)})
+        continous_expr.update({k: 'float32' for k, v in expressions.items() if isinstance(v, Float32Expression)})
+        continous_expr.update({k: 'float64' for k, v in expressions.items() if isinstance(v, Float64Expression)})
         if continous_expr:
-            expressions = {k: hl.str(v) if not isinstance(v, hl.expr.StringExpression) else v for k,v in expressions.items()}
+            expressions = {k: str(v) if not isinstance(v, StringExpression) else v for k,v in expressions.items()}
         agg_f = x._aggregation_method()
-        res = agg_f(hl.agg.downsample(x, y, label=list(expressions.values()) if expressions else None, n_divisions=n_divisions))
+        res = agg_f(agg.downsample(x, y, label=list(expressions.values()) if expressions else None, n_divisions=n_divisions))
         source_pd = pd.DataFrame([dict(_x=point[0], _y=point[1], **dict(zip(expressions, point[2]))) for point in res])
         source_pd = source_pd.astype(continous_expr, copy=False)
 
@@ -441,32 +444,33 @@ def _get_scatter_plot_elements(
 
 
 @typecheck(x=expr_numeric, y=expr_numeric,
-           label=nullable(oneof(expr, dictof(str, expr))), title=nullable(str),
-           xlabel=nullable(str), ylabel=nullable(str),
-           source_fields=nullable(dictof(str, expr)),
+           label=nullable(oneof(expr_any, dictof(str, expr_any))), title=nullable(str),
+           xlabel=nullable(str), ylabel=nullable(str), size=int,
+           source_fields=nullable(dictof(str, expr_any)),
            colors=nullable(oneof(bokeh.models.mappers.ColorMapper, dictof(str, bokeh.models.mappers.ColorMapper))),
-           width=int, height=int, n_divisions=int, missing_lable=str)
+           width=int, height=int, n_divisions=int, missing_label=str)
 def scatter(
-        x: hl.expr.NumericExpression,
-        y: hl.expr.NumericExpression,
-        label: Union[hl.expr.Expression, Dict[str, hl.expr.Expression]] = None,
+        x: NumericExpression,
+        y: NumericExpression,
+        label: Union[Expression, Dict[str, Expression]] = None,
         title: str = None,
         xlabel: str = None,
         ylabel: str = None,
         size: int =4,
-        source_fields: Dict[str, hl.expr.Expression] = None,
+        source_fields: Dict[str, Expression] = None,
         colors: Union[ColorMapper, Dict[str, ColorMapper]] = None,
         width: int = 800,
         height: int = 800,
         n_divisions: int = None,
         missing_label: str = 'NA'
-) -> Column:
+) -> Union[bokeh.plotting.Figure, Column]:
     """Create an interactive scatter plot.
 
        ``x`` and ``y`` must both be a :class:`NumericExpression` from the same :class:`Table`.
 
-       This function returns a :class:`bokeh.plotting.figure.Column` containing:
-       - a :class:`bokeh.models.widgets.Select` selection widget if multiple entries are specified in the ``label``
+       If no label or a single label is provided, then returns :class:`bokeh.plotting.figure.Figure`
+       Otherwise returns a :class:`bokeh.plotting.figure.Column` containing:
+       - a :class:`bokeh.models.widgets.Select` dropdown selection widget for labels
        - a :class:`bokeh.plotting.figure.Figure` containing the interactive scatter plot
 
        Points will be colored by one of the labels defined in the ``label`` using the color scheme defined in
@@ -519,10 +523,10 @@ def scatter(
 
         Returns
         -------
-        :class:`bokeh.plotting.figure.Column`
+        :class:`bokeh.plotting.figure.Figure` if no label or a single label was given, otherwise :class:`bokeh.plotting.figure.Column`
         """
     source_fields = {} if source_fields is None else source_fields
-    label = {} if label is None else {'_label': label} if isinstance(label, hl.expr.Expression) else label
+    label = {} if label is None else {'_label': label} if isinstance(label, Expression) else label
     colors = {'_label': colors} if isinstance(colors, ColorMapper) else colors
 
     label_cols = list(label.keys())
@@ -530,7 +534,6 @@ def scatter(
     source_pd = _collect_scatter_plot_data(x, y, fields={**source_fields, **label}, n_divisions=n_divisions, missing_label=missing_label)
     sp = figure(title=title, x_axis_label=xlabel, y_axis_label=ylabel, height=height, width=width)
     sp, legend_items, legend, color_bar, color_mappers, scatter_renderers = _get_scatter_plot_elements(sp, source_pd, label_cols, colors, size)
-    plot_elements = [sp]
 
     if len(label_cols) > 1:
         # JS call back selector
@@ -561,26 +564,26 @@ def scatter(
 
         select = Select(title="Color by", value=label_cols[0], options=label_cols)
         select.js_on_change('value', callback)
-        plot_elements.insert(0, select)
+        return Column(children=[select, sp])
 
-    return Column(children=plot_elements)
+    return sp
 
 
 @typecheck(x=expr_numeric, y=expr_numeric,
-           label=nullable(oneof(expr, dictof(str, expr))), title=nullable(str),
+           label=nullable(oneof(expr_any, dictof(str, expr_any))), title=nullable(str),
            xlabel=nullable(str), ylabel=nullable(str),
-           source_fields=nullable(dictof(str, expr)),
+           source_fields=nullable(dictof(str, expr_any)),
            colors=nullable(oneof(bokeh.models.mappers.ColorMapper, dictof(str, bokeh.models.mappers.ColorMapper))),
            width=int, height=int, n_divisions=int, missing_lable=str)
 def joint_plot(
-        x: hl.expr.NumericExpression,
-        y: hl.expr.NumericExpression,
-        label: Union[hl.expr.Expression, Dict[str, hl.expr.Expression]] = None,
+        x: NumericExpression,
+        y: NumericExpression,
+        label: Union[Expression, Dict[str, Expression]] = None,
         title: str = None,
         xlabel: str = None,
         ylabel: str = None,
         size: int =4,
-        source_fields: Dict[str, hl.expr.StringExpression] = None,
+        source_fields: Dict[str, StringExpression] = None,
         colors: Union[ColorMapper, Dict[str, ColorMapper]] = None,
         width: int = 800,
         height: int = 800,
@@ -649,7 +652,7 @@ def joint_plot(
         """
     # Collect data
     source_fields = {} if source_fields is None else source_fields
-    label = {} if label is None else {'_label': label} if isinstance(label, hl.expr.Expression) else label
+    label = {} if label is None else {'_label': label} if isinstance(label, Expression) else label
     colors = {'_label': colors} if isinstance(colors, ColorMapper) else colors
 
     label_cols = list(label.keys())
