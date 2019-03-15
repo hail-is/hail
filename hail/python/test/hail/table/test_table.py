@@ -1013,6 +1013,13 @@ class Tests(unittest.TestCase):
         assert_filter_equals(None, (r',', ''), ['(Foo(Bar))', '(Baz)(Qux)('])
         assert_filter_equals(None, (r'\((\w+)\)', '$1'), ['(Foo,Bar)', 'Baz,Qux('])
 
+    def test_import_multiple_missing(self):
+        ht = hl.import_table(resource('global_list.txt'),
+                             missing=['gene1', 'gene2'],
+                             no_header=True)
+
+        assert ht.f0.collect() == [None, None, 'gene5', 'gene4', 'gene3']
+
 def test_large_number_of_fields(tmpdir):
     ht = hl.utils.range_table(100)
     ht = ht.annotate(**{

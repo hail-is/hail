@@ -105,6 +105,8 @@ def check_positive_and_in_range(caller, name, value):
 def wrap_to_list(s):
     if isinstance(s, list):
         return s
+    elif isinstance(s, tuple):
+        return list(s)
     else:
         return [s]
 
