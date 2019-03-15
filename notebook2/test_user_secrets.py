@@ -23,7 +23,7 @@ class TestSecrets(unittest.TestCase):
 
         try:
             gcloud_service.projects().serviceAccounts().get(name=gsa_name)
-            gcloud_service.projects().serviceAccounts().delete(name=data['gsa_name'])
+            gcloud_service.projects().serviceAccounts().delete(name=gsa_name)
         except Exception:
             self.fail(f"Couldn't read created google service account for {username}")
 
