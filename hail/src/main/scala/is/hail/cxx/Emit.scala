@@ -805,26 +805,26 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
 
         val elemSize = containerPType.elementType.byteSize.toString
         val shapeRegion = fb.variable("shapeRegion", "const char *", shapet.v)
-        val nDims = fb.variable("nDims", "int", containerPType.cxxLoadLength(shapeRegion.toString))
         triplet("",
           "false",
           s"""
              |({
              | ${ shapeRegion.define }
-             | ${ nDims.define }
-             | make_ndarray($elemSize, load_vector<int>(${shapeRegion.toString}, ${nDims.toString}), ${datat.v});
+             | make_ndarray($elemSize, load_vector<long, true, 8, 8>(${shapeRegion.toString}), ${datat.v});
              |})
              |""".stripMargin)
 
       case ir.NDArrayRef(nd, idxs) =>
         fb.translationUnitBuilder().include("hail/NDArray.h")
         val idxContainerPType = idxs.pType.asInstanceOf[PContainer]
-        val cxxElemType = typeToCXXType(nd.pType.asInstanceOf[PNDArray].elementType)
+        val elemType = nd.pType.asInstanceOf[PNDArray].elementType
+        val cxxElemType = typeToCXXType(elemType)
+        val elemSize = elemType.byteSize.toString
+        val elemAlignment = elemType.alignment
 
         val ndt = emit(nd)
         val idxst = emit(idxs)
         val idxsRegion = fb.variable("idxsRegion", "const char *", idxst.v)
-        val nDims = fb.variable("nDims", "int", idxContainerPType.cxxLoadLength(idxsRegion.toString))
         triplet(
           s"""
              | ${ ndt.setup }
@@ -833,8 +833,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
           s"""
              |({
              | ${ idxsRegion.define }
-             | ${ nDims.define }
-             | load_ndarray_element<$cxxElemType>(${ndt.v}, load_vector<int>(${idxsRegion.toString}, ${nDims.toString}));
+             | load_ndarray_element<$cxxElemType, true, $elemSize, $elemAlignment>(${ndt.v}, load_vector<long, true, 8, 8>(${idxsRegion.toString}));
              |})
              |""".stripMargin)
       case _ =>

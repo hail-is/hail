@@ -5,6 +5,7 @@
 #include <string>
 #include <cstdarg>
 #include <vector>
+#include <iostream>
 
 #define LIKELY(condition)   __builtin_expect(static_cast<bool>(condition), 1)
 #define UNLIKELY(condition) __builtin_expect(static_cast<bool>(condition), 0)
@@ -133,13 +134,13 @@ public:
   }
 };
 
-template<typename T>
-std::vector<T> load_vector(const char *data, int length) {
-  std::vector<int> vec(length);
-  const T *ts = reinterpret_cast<const T *>(data);
+template<typename ElemT, bool elem_required, size_t elem_size, size_t elem_align>
+std::vector<ElemT> load_vector(const char *data) {
+  std::vector<ElemT> vec;
+  int length = load_length(data);
 
-  for (int i = 0; i < length; i++) {
-    vec.push_back(ts[i]);
+  for (int i = 0; i < length; ++i) {
+    vec.push_back(ArrayLoadImpl<ElemT, elem_required, elem_size, elem_align>::load_element(data, i));
   }
 
   return vec;
