@@ -901,15 +901,22 @@ class IRSuite extends SparkSuite {
   @Test def testNDArrayRef() {
     implicit val execStrats = Set(ExecStrategy.CxxCompile)
 
-    def nd = MakeNDArray(
+    def vector = MakeNDArray(
       MakeArray(FastSeq(F64(1.0), F64(-1.0)), TArray(TFloat64())),
       MakeArray(FastSeq(I64(2)), TArray(TInt64())),
       True())
 
-    def one = NDArrayRef(nd, MakeArray(FastSeq(I64(0)), TArray(TInt64())))
-    def negOne = NDArrayRef(nd, MakeArray(FastSeq(I64(1)), TArray(TInt64())))
+    def one = NDArrayRef(vector, MakeArray(FastSeq(I64(0)), TArray(TInt64())))
+    def negOne = NDArrayRef(vector, MakeArray(FastSeq(I64(1)), TArray(TInt64())))
     assertEvalsTo(one, 1.0)
     assertEvalsTo(negOne, -1.0)
+
+    def cube = MakeNDArray(
+      MakeArray((0 until 27).map { F64(_) }.toFastSeq, TArray(TFloat64())),
+      MakeArray(FastSeq(I64(3), I64(3), I64(3)), TArray(TInt64())),
+      True())
+    def center = NDArrayRef(cube, MakeArray(FastSeq(I64(1), I64(1), I64(1)), TArray(TInt64())))
+    assertEvalsTo(center, 13.0)
   }
 
   @Test def testLeftJoinRightDistinct() {
