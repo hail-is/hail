@@ -10,7 +10,7 @@ from hail.expr import construct_expr
 from hail.ir import BlockMatrixWrite, BlockMatrixMap2, ApplyBinaryOp, Ref, F64, \
     BlockMatrixBroadcast, ValueToBlockMatrix, MakeArray, BlockMatrixRead, JavaBlockMatrix, BlockMatrixMap, \
     ApplyUnaryOp, IR, BlockMatrixDot, tensor_shape_to_matrix_shape, BlockMatrixAgg, BlockMatrixRandom, \
-    BlockMatrixToValueApply, BlockMatrixToTable, BlockMatrixFilter
+    BlockMatrixToValueApply, BlockMatrixToTable, BlockMatrixFilter, TableFromBlockMatrixNativeReader, TableRead
 from hail.ir.blockmatrix_reader import BlockMatrixNativeReader, BlockMatrixBinaryReader
 from hail.ir.blockmatrix_writer import BlockMatrixBinaryWriter, BlockMatrixNativeWriter, BlockMatrixRectanglesWriter
 from hail.utils import new_temp_file, new_local_temp_file, local_path_uri, storage_level
@@ -489,9 +489,13 @@ class BlockMatrix(object):
     @typecheck_method(n_rows=int,
                       n_cols=int,
                       data=sequenceof(float),
-                      block_size=int)
-    def _create(cls, n_rows, n_cols, data, block_size):
+                      block_size=nullable(int))
+    def _create(cls, n_rows, n_cols, data, block_size=None):
         """Private method for creating small test matrices."""
+
+        if block_size is None:
+            block_size = BlockMatrix.default_block_size()
+
         return BlockMatrix(ValueToBlockMatrix(hl.literal(data)._ir, [n_rows, n_cols], block_size))
 
     @staticmethod
@@ -1504,6 +1508,66 @@ class BlockMatrix(object):
         if keyed:
             t = t.key_by('i', 'j')
         return t
+
+    @typecheck_method(n_partitions=nullable(int))
+    def to_table_row_major(self, n_partitions=None):
+        """Returns a table where each row represents a row in the block matrix.
+
+        The resulting table has the following fields:
+            - **row_idx** (:py:data.`tint64`, key field) -- Row index
+            - **entries** (:py:data:`.tarray<tfloat64>`) -- Entries for the row
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> block_matrix = BlockMatrix.from_numpy(np.array([[1, 2], [3, 4], [5, 6]]), 2)
+        >>> t = block_matrix.to_table_row_major()
+        >>> t.show()
+        +---------+---------------------+
+        | row_idx | entries             |
+        +---------+---------------------+
+        |   int64 | array<float64>      |
+        +---------+---------------------+
+        |       0 | [1.00e+00,2.00e+00] |
+        |       1 | [3.00e+00,4.00e+00] |
+        |       2 | [5.00e+00,6.00e+00] |
+        +---------+---------------------+
+
+        Parameters
+        ----------
+        n_partitions : int or None
+            Number of partitions of the table.
+
+        Returns
+        -------
+        :class:`.Table`
+            Table where each row corresponds to a row in the block matrix.
+        """
+        path = new_local_temp_file()
+
+        self.write(path, overwrite=True, force_row_major=True)
+        reader = TableFromBlockMatrixNativeReader(path, n_partitions)
+        return Table(TableRead(reader))
+
+    @typecheck_method(n_partitions=nullable(int))
+    def to_matrix_table_row_major(self, n_partitions=None):
+        """Returns a matrix table with row key of `row_idx` and col key `col_idx`, whose
+        entries are structs of a single field `entry`.
+
+        Parameters
+        ----------
+        n_partitions : int or None
+            Number of partitions of the matrix table.
+
+        Returns
+        -------
+        :class:`.MatrixTable`
+            Matrix table where each entry corresponds to an entry in the block matrix.
+        """
+        t = self.to_table_row_major(n_partitions)
+        t = t.transmute(entries=t.entries.map(lambda i: hl.struct(entry=i)))
+        t = t.annotate_globals(cols=hl.array([hl.struct(col_idx=hl.int64(i)) for i in range(self.n_cols)]))
+        return t._unlocalize_entries('entries', 'cols', ['col_idx'])
 
     @staticmethod
     @typecheck(path_in=str,

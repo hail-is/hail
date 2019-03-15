@@ -206,6 +206,31 @@ class Tests(unittest.TestCase):
 
         assert re_mt.choose_cols(mapping).drop('col_idx')._same(mt.drop('col_idx'))
 
+    def test_to_matrix_table_row_major(self):
+        t = hl.utils.range_table(10)
+        t = t.annotate(foo=t.idx, bar=2 * t.idx, baz=3 * t.idx)
+        mt = t.to_matrix_table_row_major(['bar', 'baz'], 'entry', 'col')
+        round_trip = mt.localize_entries('entries', 'cols')
+        round_trip = round_trip.transmute(**{col.col: round_trip.entries[i].entry for i, col in enumerate(hl.eval(round_trip.cols))})
+        round_trip = round_trip.drop(round_trip.cols)
+
+        self.assertTrue(t._same(round_trip))
+
+        t = hl.utils.range_table(10)
+        t = t.annotate(foo=t.idx, bar=hl.struct(val=2 * t.idx), baz=hl.struct(val=3 * t.idx))
+        mt = t.to_matrix_table_row_major(['bar', 'baz'])
+        round_trip = mt.localize_entries('entries', 'cols')
+        round_trip = round_trip.transmute(**{col.col: round_trip.entries[i] for i, col in enumerate(hl.eval(round_trip.cols))})
+        round_trip = round_trip.drop(round_trip.cols)
+
+        self.assertTrue(t._same(round_trip))
+
+        t = t.annotate(**{'a': 1, 'b': 2, 'c': 'v', 'd': hl.struct(e=2)})
+        self.assertRaises(ValueError, lambda: t.to_matrix_table_row_major(['a', 'b']))
+        self.assertRaises(ValueError, lambda: t.to_matrix_table_row_major(['a', 'd']))
+        self.assertRaises(ValueError, lambda: t.to_matrix_table_row_major(['d'], entry_field_name='c'))
+        self.assertRaises(ValueError, lambda: t.to_matrix_table_row_major([]))
+
     def test_group_by_field_lifetimes(self):
         ht = hl.utils.range_table(3)
         ht2 = (ht.group_by(idx='100')
