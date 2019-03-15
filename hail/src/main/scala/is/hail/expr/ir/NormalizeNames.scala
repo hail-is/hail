@@ -21,7 +21,7 @@ class NormalizeNames {
         Ref(env.lookup(name), typ)
       case AggLet(name, value, body) =>
         val newName = gen()
-        AggLet(newName, normalize(value), normalize(body, env, Some(aggEnv.get.bind(name, newName))))
+        AggLet(newName, normalize(value, aggEnv.get, None), normalize(body, env, Some(aggEnv.get.bind(name, newName))))
       case ArraySort(a, left, right, compare) =>
         val newLeft = gen()
         val newRight = gen()
