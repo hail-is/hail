@@ -134,9 +134,9 @@ abstract class ApproxCDFHelper[@specialized(Int, Long, Float, Double) T] extends
 }
 
 object ApproxCDFCombiner {
-  def apply[@specialized(Int, Long, Float, Double) T: ClassTag : Ordering](
+  def apply[@specialized(Int, Long, Float, Double) T: ClassTag : Ordering : ApproxCDFHelper](
     numLevels: Int, capacity: Int, dummy: T
-  )(implicit helper: ApproxCDFHelper[T]): ApproxCDFCombiner[T] = new ApproxCDFCombiner[T](
+  ): ApproxCDFCombiner[T] = new ApproxCDFCombiner[T](
     Array.fill[Int](numLevels + 1)(capacity),
     Array.ofDim[T](capacity),
     1)

@@ -194,16 +194,23 @@ def approx_cdf(expr, k=100):
 
     Notes
     -----
-    This method returns a struct collecting two array: `values` and `ranks`. The
-    `values` array contains an ordered sample of values seen. The `ranks` array
-    is one longer, and contains the approximate ranks for the corresponding
-    values.
+    This method returns a struct containing two arrays: `values` and `ranks`.
+    The `values` array contains an ordered sample of values seen. The `ranks`
+    array is one longer, and contains the approximate ranks for the
+    corresponding values.
 
-    These represent a summary of the sorted list of values seen by the
-    aggregator. For example, values=[0,2,5,6,9] and ranks=[0,3,4,5,8,10]
-    represents the approximation [0,0,0,2,5,6,6,6,9,9], with the value
-    `values(i)` occupying indices `ranks(i)` (inclusive) to `ranks(i+1)`
-    (exclusive).
+    These represent a summary of the CDF of the distribution of values. In
+    particular, for any value `x = values(i)` in the summary, we estimate that
+    there are `ranks(i)` values strictly less than `x`, and that there are
+    `ranks(i+1)` values less that or equal to `x`. For any value `x` (not
+    necessarily in the summary), we estimate CDF(x) to be `ranks(i)`, where `i`
+    is such that `values(i-1) < x ≤ values(i)`.
+
+    An alternative intuition is that the summary encodes a compressed
+    approximation to the sorted list of values. For example, values=[0,2,5,6,9]
+    and ranks=[0,3,4,5,8,10] represents the approximation [0,0,0,2,5,6,6,6,9,9],
+    with the value `values(i)` occupying indices `ranks(i)` (inclusive) to
+    `ranks(i+1)` (exclusive).
 
     Warning
     -------
