@@ -49,7 +49,7 @@ def make_bucket(sa_name, username):
     return bucket
 
 
-def create(username, google_project = 'hail-vdc'):
+def make_all(username, google_project = 'hail-vdc'):
     out = {}
 
     sa_name = make_service_id(username)
@@ -73,4 +73,4 @@ if __name__ == "__main__":
     if len(sys.argv) == 1:
         sys.exit(f"\nUsage: {sys.argv[0]} <user_name>\n")
     
-    print(json.dumps((create(sys.argv[1]))))
+    print(json.dumps((make_all(sys.argv[1]))))

@@ -1,15 +1,15 @@
 import unittest
-from user_secrets import create
+from user_secrets import make_all
 from google.cloud import storage
 
 from globals import k8s, gcloud_service
 
 
 class TestSecrets(unittest.TestCase):
-    def test_create(self):
+    def test_make_all(self):
         username = 'akotlar-test'
 
-        data = create(username)
+        data = make_all(username)
 
         ksa_name = data['ksa_name']
         gsa_name = data['gsa_name']
@@ -32,6 +32,8 @@ class TestSecrets(unittest.TestCase):
             bucket.delete()
         except Exception:
             self.fail("Couldn't read created bucket")
+
+        print("Created and deleted", data)
 
 
 if __name__ == "__main__":
