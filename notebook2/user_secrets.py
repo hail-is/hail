@@ -68,8 +68,9 @@ def create(username, google_project = 'hail-vdc'):
 
 if __name__ == "__main__":
     import sys
+    import json
 
     if len(sys.argv) == 1:
         sys.exit(f"\nUsage: {sys.argv[0]} <user_name>\n")
     
-    print(create(sys.argv[1]))
+    print(json.dumps((create(sys.argv[1]))))
