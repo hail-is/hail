@@ -441,20 +441,21 @@ def _get_scatter_plot_elements(
 
 
 @typecheck(x=expr_numeric, y=expr_numeric,
-           label=nullable(dictof(str, expr)), title=nullable(str),
+           label=nullable(oneof(expr, dictof(str, expr))), title=nullable(str),
            xlabel=nullable(str), ylabel=nullable(str),
-           source_fields=nullable(dictof(str, expr)), colors=nullable(dictof(str, bokeh.models.mappers.ColorMapper)),
+           source_fields=nullable(dictof(str, expr)),
+           colors=nullable(oneof(bokeh.models.mappers.ColorMapper, dictof(str, bokeh.models.mappers.ColorMapper))),
            width=int, height=int, n_divisions=int, missing_lable=str)
 def scatter(
         x: hl.expr.NumericExpression,
         y: hl.expr.NumericExpression,
-        label: Dict[str, hl.expr.Expression] = None,
+        label: Union[hl.expr.Expression, Dict[str, hl.expr.Expression]] = None,
         title: str = None,
         xlabel: str = None,
         ylabel: str = None,
         size: int =4,
         source_fields: Dict[str, hl.expr.Expression] = None,
-        colors: Dict[str, ColorMapper] = None,
+        colors: Union[ColorMapper, Dict[str, ColorMapper]] = None,
         width: int = 800,
         height: int = 800,
         n_divisions: int = None,
@@ -485,9 +486,10 @@ def scatter(
             List of x-values to be plotted.
         y : :class:`.NumericExpression`
             List of y-values to be plotted.
-        label : Dict[str, :class:`.Expression`]
-            Dict of label name -> label value for x and y values.
-            Used to color each point.
+        label : :class:`.Expression` or Dict[str, :class:`.Expression`]]
+            Either a single expression (if a single label is desired), or a
+            dictionary of label name -> label value for x and y values.
+            Used to color each point w.r.t its label.
             When multiple labels are given, a dropdown will be displayed with the different options.
             Can be used with categorical or continuous expressions.
         title : str
@@ -500,8 +502,9 @@ def scatter(
             Size of markers in screen space units.
         source_fields : Dict[str, :class:`.Expression`]
             Extra fields to be displayed when hovering over a point on the plot.
-        colors : Dict[str, :class:`bokeh.models.mappers.ColorMapper`]
-            Dict of label name -> color mapper.
+        colors : :class:`bokeh.models.mappers.ColorMapper` or Dict[str, :class:`bokeh.models.mappers.ColorMapper`]
+            If a single label is used, then this can be a color mapper, if multiple labels are used, then this should
+            be a Dict of label name -> color mapper.
             Used to set colors for the labels defined using ``label``.
             If not used at all, or label names not appearing in this dict will be colored using a default color scheme.
         width: int
@@ -519,7 +522,8 @@ def scatter(
         :class:`bokeh.plotting.figure.Column`
         """
     source_fields = {} if source_fields is None else source_fields
-    label = {} if label is None else label
+    label = {} if label is None else {'_label': label} if isinstance(label, hl.expr.Expression) else label
+    colors = {'_label': colors} if isinstance(colors, ColorMapper) else colors
 
     label_cols = list(label.keys())
 
@@ -563,20 +567,21 @@ def scatter(
 
 
 @typecheck(x=expr_numeric, y=expr_numeric,
-           label=nullable(dictof(str, expr)), title=nullable(str),
+           label=nullable(oneof(expr, dictof(str, expr))), title=nullable(str),
            xlabel=nullable(str), ylabel=nullable(str),
-           source_fields=nullable(dictof(str, expr)), colors=nullable(dictof(str, bokeh.models.mappers.ColorMapper)),
+           source_fields=nullable(dictof(str, expr)),
+           colors=nullable(oneof(bokeh.models.mappers.ColorMapper, dictof(str, bokeh.models.mappers.ColorMapper))),
            width=int, height=int, n_divisions=int, missing_lable=str)
 def joint_plot(
         x: hl.expr.NumericExpression,
         y: hl.expr.NumericExpression,
-        label: Dict[str, hl.expr.Expression] = None,
+        label: Union[hl.expr.Expression, Dict[str, hl.expr.Expression]] = None,
         title: str = None,
         xlabel: str = None,
         ylabel: str = None,
         size: int =4,
         source_fields: Dict[str, hl.expr.StringExpression] = None,
-        colors: Dict[str, ColorMapper] = None,
+        colors: Union[ColorMapper, Dict[str, ColorMapper]] = None,
         width: int = 800,
         height: int = 800,
         n_divisions: int = None,
@@ -607,9 +612,10 @@ def joint_plot(
             List of x-values to be plotted.
         y : :class:`.NumericExpression`
             List of y-values to be plotted.
-        label : Dict[str, :class:`.Expression`]
-            Dict of label name -> label value for x and y values.
-            Used to color each point.
+        label : :class:`.Expression` or Dict[str, :class:`.Expression`]]
+            Either a single expression (if a single label is desired), or a
+            dictionary of label name -> label value for x and y values.
+            Used to color each point w.r.t its label.
             When multiple labels are given, a dropdown will be displayed with the different options.
             Can be used with categorical or continuous expressions.
         title : str
@@ -622,8 +628,9 @@ def joint_plot(
             Size of markers in screen space units.
         source_fields : Dict[str, :class:`.Expression`]
             Extra fields to be displayed when hovering over a point on the plot.
-        colors : Dict[str, :class:`bokeh.models.mappers.ColorMapper`]
-            Dict of label name -> color mapper.
+        colors : :class:`bokeh.models.mappers.ColorMapper` or Dict[str, :class:`bokeh.models.mappers.ColorMapper`]
+            If a single label is used, then this can be a color mapper, if multiple labels are used, then this should
+            be a Dict of label name -> color mapper.
             Used to set colors for the labels defined using ``label``.
             If not used at all, or label names not appearing in this dict will be colored using a default color scheme.
         width: int
@@ -642,7 +649,9 @@ def joint_plot(
         """
     # Collect data
     source_fields = {} if source_fields is None else source_fields
-    label = {} if label is None else label
+    label = {} if label is None else {'_label': label} if isinstance(label, hl.expr.Expression) else label
+    colors = {'_label': colors} if isinstance(colors, ColorMapper) else colors
+
     label_cols = list(label.keys())
     source_pd = _collect_scatter_plot_data(x, y, fields={**source_fields, **label}, n_divisions=n_divisions, missing_label=missing_label)
     sp = figure(title=title, x_axis_label=xlabel, y_axis_label=ylabel, height=height, width=width)
@@ -685,7 +694,7 @@ def joint_plot(
                 edges = edges[:-1]
                 xy = (edges, dens) if axis == '_x' else (dens, edges)
                 cds = ColumnDataSource({'x': xy[0], 'y': xy[1]})
-                density_renderers.append((factor_col, factor, p.line('x', 'y', color=factor_colors[factor], source=cds)))
+                density_renderers.append((factor_col, factor, p.line('x', 'y', color=factor_colors.get(factor, 'gray'), source=cds)))
                 max_densities[factor_col] = np.max(list(dens) + [max_densities.get(factor_col, 0)])
 
         p.legend.visible = False
