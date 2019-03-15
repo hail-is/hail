@@ -133,43 +133,16 @@ public:
   }
 };
 
-struct NDArray {
-  int flags;
-  int offset;
-  std::vector<int> shape;
-  std::vector<int> stride;
-  char *data;
-};
-
-NDArray make_ndarray(int offset, std::vector<int> shape, char *data) {
-  NDArray nd;
-  nd.flags = 0;
-  nd.offset = offset;
-  nd.shape = shape;
-  nd.data = data;
-
-  return nd;
-}
-
-//TODO Make generic
-std::vector<int> to_int_vec(const char *data, int length) {
+template<typename T>
+std::vector<T> load_vector(const char *data, int length) {
   std::vector<int> vec(length);
-  const int *ints = reinterpret_cast<const int *>(data);
+  const T *ts = reinterpret_cast<const T *>(data);
 
   for (int i = 0; i < length; i++) {
-    vec.push_back(ints[i]);
+    vec.push_back(ts[i]);
   }
 
   return vec;
-}
-
-char *load_ndarray_element(NDArray nd, std::vector<int> indices) {
-  int offset = 0;
-  for (int i = 0; i < nd.shape.size() - 1; i++) {
-    offset += nd.shape[nd.shape.size() - i - 1] * indices[i] * nd.offset;
-  }
-  offset += indices.back() * nd.offset;
-  return nd.data + offset;
 }
 
 struct FatalError: public std::exception {

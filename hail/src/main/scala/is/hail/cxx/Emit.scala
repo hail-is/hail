@@ -803,8 +803,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         val shapet = emit(shape)
         val datat = emit(data)
 
-        val offset = containerPType.elementType.byteSize.toString
-
+        val elemSize = containerPType.elementType.byteSize.toString
         val shapeRegion = fb.variable("shapeRegion", "const char *", shapet.v)
         val nDims = fb.variable("nDims", "int", containerPType.cxxLoadLength(shapeRegion.toString))
         triplet("",
@@ -813,15 +812,17 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              |({
              | ${ shapeRegion.define }
              | ${ nDims.define }
-             | make_ndarray($offset, to_int_vec(${shapeRegion.toString}, ${nDims.toString}), ${datat.v});
+             | make_ndarray($elemSize, load_vector<int>(${shapeRegion.toString}, ${nDims.toString}), ${datat.v});
              |})
              |""".stripMargin)
 
       case ir.NDArrayRef(nd, idxs) =>
+        fb.translationUnitBuilder().include("hail/NDArray.h")
         val idxContainerPType = idxs.pType.asInstanceOf[PContainer]
+        val cxxElemType = typeToCXXType(nd.pType.asInstanceOf[PNDArray].elementType)
+
         val ndt = emit(nd)
         val idxst = emit(idxs)
-
         val idxsRegion = fb.variable("idxsRegion", "const char *", idxst.v)
         val nDims = fb.variable("nDims", "int", idxContainerPType.cxxLoadLength(idxsRegion.toString))
         triplet(
@@ -833,7 +834,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              |({
              | ${ idxsRegion.define }
              | ${ nDims.define }
-             | load_double(load_ndarray_element(${ndt.v}, to_int_vec(${idxsRegion.toString}, ${nDims.toString})));
+             | load_ndarray_element<$cxxElemType>(${ndt.v}, load_vector<int>(${idxsRegion.toString}, ${nDims.toString}));
              |})
              |""".stripMargin)
       case _ =>
