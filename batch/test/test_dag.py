@@ -370,3 +370,41 @@ def test_input_dependency(client):
                             parent_ids=[head.id])
     tail.wait()
     assert tail.log()['main'] == 'head1\nhead2\n'
+
+
+def test_always_run_delete(client):
+    batch = client.create_batch()
+    head = batch.create_job('alpine:3.8', command=['echo', 'head'])
+    left = batch.create_job(
+        'alpine:3.8',
+        command=['/bin/sh', '-c', 'while true; do sleep 86000; done'],
+        parent_ids=[head.id])
+    right = batch.create_job('alpine:3.8', command=['echo', 'right'], parent_ids=[head.id])
+    tail = batch.create_job('alpine:3.8',
+                            command=['echo', 'tail'],
+                            parent_ids=[left.id, right.id],
+                            always_run=True)
+    left.delete()
+    status = batch.wait()
+    assert status['jobs']['Complete'] == 3
+    for node in [head, right, tail]:
+        status = node.status()
+        assert status['state'] == 'Complete'
+        assert status['exit_code'] == 0
+
+
+def test_always_run_error(client):
+    batch = client.create_batch()
+    head = batch.create_job('alpine:3.8', command=['/bin/sh', '-c', 'exit 1'])
+    tail = batch.create_job('alpine:3.8',
+                            command=['echo', 'tail'],
+                            parent_ids=[head.id],
+                            always_run=True)
+
+    status = batch.wait()
+    assert status['jobs']['Complete'] == 2
+
+    for job, ec in [(head, 1), (tail, 0)]:
+        status = job.status()
+        assert status['state'] == 'Complete'
+        assert status['exit_code'] == ec
