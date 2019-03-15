@@ -237,7 +237,8 @@ class Job:
         return None
 
     def __init__(self, pod_spec, batch_id, attributes, callback, parent_ids,
-                 scratch_folder, input_files, output_files, copy_service_account_name):
+                 scratch_folder, input_files, output_files, copy_service_account_name,
+                 always_run):
         self.id = next_id()
         self.batch_id = batch_id
         self.attributes = attributes
@@ -246,6 +247,7 @@ class Job:
         self.parent_ids = parent_ids
         self.incomplete_parent_ids = set(self.parent_ids)
         self.scratch_folder = scratch_folder
+        self.always_run = always_run
 
         self._pvc = None
         self._pod_name = None
@@ -301,22 +303,29 @@ class Job:
                 log.info(f'missing child: {child_id}')
 
     def parent_new_state(self, new_state, parent_id, maybe_exit_code):
-        if new_state == 'Complete' and maybe_exit_code == 0:
-            log.info(f'parent {parent_id} successfully complete for {self.id}')
+        def update():
             self.incomplete_parent_ids.discard(parent_id)
             if not self.incomplete_parent_ids:
                 assert self._state in ('Cancelled', 'Created'), f'bad state: {self._state}'
                 if self._state != 'Cancelled':
-                    log.info(f'all parents successfully complete for {self.id},'
+                    log.info(f'all parents complete for {self.id},'
                              f' creating pod')
                     self._create_pod()
                 else:
-                    log.info(f'all parents successfully complete for {self.id},'
+                    log.info(f'all parents complete for {self.id},'
                              f' but it is already cancelled')
+
+        if new_state == 'Complete' and maybe_exit_code == 0:
+            log.info(f'parent {parent_id} successfully complete for {self.id}')
+            update()
         elif new_state == 'Cancelled' or (new_state == 'Complete' and maybe_exit_code != 0):
             log.info(f'parents deleted, cancelled, or failed: {new_state} {maybe_exit_code} {parent_id}')
-            self.incomplete_parent_ids.discard(parent_id)
-            self.cancel()
+            if not self.always_run:
+                self.cancel()
+            else:
+                log.info(f'job {self.id} is set to always run despite '
+                         f' parents deleted, cancelled, or failed.')
+                update()
 
     def cancel(self):
         if self.is_complete():
@@ -434,6 +443,7 @@ def create_job():  # pylint: disable=R0912
         'output_files': {
             'type': 'list',
             'schema': {'type': 'list', 'items': 2 * ({'type': 'string'},)}},
+        'always_run': {'type': 'boolean'},
         'attributes': {
             'type': 'dict',
             'keyschema': {'type': 'string'},
@@ -470,6 +480,7 @@ def create_job():  # pylint: disable=R0912
     input_files = parameters.get('input_files')
     output_files = parameters.get('output_files')
     copy_service_account_name = parameters.get('copy_service_account_name')
+    always_run = parameters.get('always_run', False)
 
     if len(pod_spec.containers) != 1:
         abort(400, f'only one container allowed in pod_spec {pod_spec}')
@@ -495,7 +506,8 @@ def create_job():  # pylint: disable=R0912
         scratch_folder,
         input_files,
         output_files,
-        copy_service_account_name)
+        copy_service_account_name,
+        always_run)
     return jsonify(job.to_json())
 
 
