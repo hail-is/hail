@@ -170,7 +170,7 @@ object LowerMatrixIR {
 
         val b0 = f(ir)
         
-        var b: IRProxy =
+        val b: IRProxy =
           if (ContainsAgg(b0)) {
             irRange(0, 'row (entriesField).len)
               .filter('i ~> !'row (entriesField)('i).isNA)
