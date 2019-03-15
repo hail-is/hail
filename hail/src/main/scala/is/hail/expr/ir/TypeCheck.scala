@@ -10,14 +10,20 @@ object TypeCheck {
 
   def apply(ir: BaseIR, env: Env[Type], aggEnv: Option[Env[Type]]): Unit = {
     try {
-      _apply(ir, env, aggEnv)
+      ir match {
+        case ir: IR => _apply(ir, env, aggEnv)
+        case _ =>
+          assert(env.m.isEmpty)
+          assert(aggEnv.isEmpty)
+      }
+
     } catch {
       case e: Throwable => fatal(s"Error while typechecking IR:\n${ Pretty(ir) }", e)
     }
   }
 
-  private def _apply(ir: BaseIR, env: Env[Type], aggEnv: Option[Env[Type]]) {
-    def check(ir: BaseIR, env: Env[Type] = env, aggEnv: Option[Env[Type]] = aggEnv) {
+  private def _apply(ir: IR, env: Env[Type], aggEnv: Option[Env[Type]]): Unit = {
+    def check(ir: IR, env: Env[Type] = env, aggEnv: Option[Env[Type]] = aggEnv) {
       _apply(ir, env, aggEnv)
     }
 
@@ -220,18 +226,18 @@ object TypeCheck {
       case x@ReadPartition(path, _, _, rowType) =>
         check(path.typ == TString())
         assert(x.typ == TArray(rowType))
-      case _: TableIR =>
-      case _: MatrixIR =>
-      case _: BlockMatrixIR =>
     }
 
     ir.children
       .iterator
       .zipWithIndex
-      .foreach { case (child, i) =>
-        val (e, ae) = ChildEnv(ir, i, env, aggEnv)
-        check(child, e, ae)
-
+      .foreach {
+        case (child: IR, i) =>
+          val (e, ae) = ChildEnv(ir, i, env, aggEnv)
+          check(child, e, ae)
+        case (tir: TableIR, _) =>
+        case (mir: MatrixIR, _) =>
+        case (bmir: BlockMatrixIR, _) =>
       }
   }
 }

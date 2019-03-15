@@ -69,6 +69,7 @@ object ChildEnv {
     case _: ArrayAgg => if (i == 1) (env, Some(env.bindIterable(AggBindings(ir, i)))) else (env, aggEnv)
     case MatrixAggregate(_, _) => if (i == 1) (Env.empty.bindIterable(Bindings(ir, i)), Some(Env.empty.bindIterable(AggBindings(ir, i)))) else empty
     case TableAggregate(_, _) => if (i == 1) (Env.empty.bindIterable(Bindings(ir, i)), Some(Env.empty.bindIterable(AggBindings(ir, i)))) else empty
+    case ArrayAgg(_, _, _) => if (i == 1) (env, Some(aggEnv.get.bindIterable(env.m).bindIterable(AggBindings(ir, i)))) else (env, aggEnv)
     case _ =>
       ir.children(i) match {
         case vir: IR =>
@@ -76,6 +77,8 @@ object ChildEnv {
           val ab = AggBindings(ir, i)
           if (UsesAggEnv(ir, i)) {
             assert(b.isEmpty)
+            if (aggEnv.isEmpty)
+              throw new RuntimeException(s"$i: $ir")
             (aggEnv.get.bindIterable(ab), None)
           } else {
             (env.bindIterable(b), aggEnv match {
@@ -83,7 +86,6 @@ object ChildEnv {
               case None => if (ab.nonEmpty) Some(Env.empty.bindIterable(ab)) else None
             })
           }
-        case _ => empty
       }
   }
 }
