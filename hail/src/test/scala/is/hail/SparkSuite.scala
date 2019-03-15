@@ -5,6 +5,7 @@ import org.apache.hadoop
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.SQLContext
 import org.scalatest.testng.TestNGSuite
+import org.testng.annotations.BeforeClass
 
 object SparkSuite {
   lazy val hc: HailContext = {
@@ -29,7 +30,7 @@ class SparkSuite extends TestNGSuite {
 
   def sc: SparkContext = hc.sc
 
-  def initializeHailContext() {
+  @BeforeClass def ensureHailContextInitialized() {
     hc
   }
 

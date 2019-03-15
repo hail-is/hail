@@ -139,17 +139,6 @@ def create_reference_from_fasta():
             'message': e.args[0]
         }), 400
 
-@app.route('/references/delete', methods=['DELETE'])
-def delete_reference():
-    try:
-        data = flask.request.json
-        Env.hail().variant.ReferenceGenome.removeReference(data['name'])
-        return '', 204
-    except FatalError as e:
-        return flask.jsonify({
-            'message': e.args[0]
-        }), 400
-
 @app.route('/references/get', methods=['GET'])
 def get_reference():
     try:

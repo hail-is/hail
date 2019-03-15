@@ -4,14 +4,11 @@ import is.hail.{ExecStrategy, SparkSuite}
 import is.hail.expr.ir.TestUtils._
 import is.hail.expr.types._
 import is.hail.expr.types.virtual.{TArray, TFloat64, TInt32, TString, TStruct}
-import is.hail.rvd.{RVD, RVDContext, RVDPartitioner}
-import is.hail.sparkextras.ContextRDD
+import is.hail.rvd.RVDPartitioner
 import is.hail.table.Table
 import is.hail.utils._
-import is.hail.TestUtils._
-import is.hail.io.CodecSpec
 import org.apache.spark.sql.Row
-import org.testng.annotations.{BeforeClass, DataProvider, Test}
+import org.testng.annotations.{DataProvider, Test}
 import is.hail.TestUtils._
 
 class TableIRSuite extends SparkSuite {
@@ -29,10 +26,6 @@ class TableIRSuite extends SparkSuite {
   def rangeKT: TableIR = Table.range(hc, 20, Some(4)).unkey().tir
 
   implicit val execStrats = ExecStrategy.interpretOnly
-
-  @BeforeClass def ensureHCDefined() {
-    initializeHailContext()
-  }
 
   @Test def testRangeCount() {
     val node1 = TableCount(TableRange(10, 2))

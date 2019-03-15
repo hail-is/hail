@@ -4,21 +4,17 @@ import java.io.{File, InputStream}
 import java.util.Properties
 
 import is.hail.annotations._
-import is.hail.expr.Parser
-import is.hail.expr.ir.{IRParser, MatrixIR, MatrixRead, TextTableReader}
-import is.hail.expr.types._
+import is.hail.expr.ir.{IRParser, MatrixIR, TextTableReader}
 import is.hail.expr.types.physical.PStruct
 import is.hail.expr.types.virtual._
-import is.hail.io.bgen.{IndexBgen, LoadBgen, MatrixBGENReader}
-import is.hail.io.gen.LoadGen
-import is.hail.io.plink.{FamFileConfig, LoadPlink}
+import is.hail.io.bgen.IndexBgen
 import is.hail.io.vcf._
 import is.hail.io.{CodecSpec, Decoder, LoadMatrix}
 import is.hail.rvd.RVDContext
 import is.hail.sparkextras.ContextRDD
 import is.hail.table.Table
 import is.hail.utils.{log, _}
-import is.hail.variant.{MatrixTable, ReferenceGenome}
+import is.hail.variant.MatrixTable
 import org.apache.commons.io.FileUtils
 import org.apache.hadoop
 import org.apache.log4j.{ConsoleAppender, LogManager, PatternLayout, PropertyConfigurator}
@@ -48,6 +44,8 @@ object HailContext {
   private var theContext: HailContext = _
 
   def get: HailContext = contextLock.synchronized {
+    assert(TaskContext.get() == null, "HailContext not available on worker")
+    assert(theContext != null, "HailContext not initialized")
     theContext
   }
 

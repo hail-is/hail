@@ -16,6 +16,8 @@ import is.hail.utils._
 import is.hail.variant._
 import org.apache.hadoop
 import org.apache.hadoop.conf.Configuration
+import org.apache.spark.broadcast.Broadcast
+import org.apache.spark.{Partition, SparkContext, TaskContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.{Partition, SparkContext, TaskContext}
@@ -805,7 +807,7 @@ object LoadVCF {
   )(f: (C, VCFLine, RegionValueBuilder) => Unit
   )(lines: ContextRDD[RVDContext, WithContext[String]],
     t: Type,
-    rg: Option[ReferenceGenome],
+    rgBc: Option[Broadcast[ReferenceGenome]],
     contigRecoding: Map[String, String],
     arrayElementsRequired: Boolean,
     skipInvalidLoci: Boolean
@@ -828,7 +830,7 @@ object LoadVCF {
               val vcfLine = new VCFLine(line, arrayElementsRequired)
               rvb.start(t.physicalType)
               rvb.startStruct()
-              present = vcfLine.parseAddVariant(rvb, rg, contigRecoding, skipInvalidLoci)
+              present = vcfLine.parseAddVariant(rvb, rgBc.map(_.value), contigRecoding, skipInvalidLoci)
               if (present) {
                 f(context, vcfLine, rvb)
 
@@ -1065,7 +1067,7 @@ case class MatrixVCFReader(
 
   LoadVCF.warnDuplicates(sampleIDs)
 
-  val locusType = TLocus.schemaFromRG(referenceGenome)
+  private val locusType = TLocus.schemaFromRG(referenceGenome)
   private val kType = TStruct("locus" -> locusType, "alleles" -> TArray(TString()))
 
   val fullMatrixType: MatrixType = MatrixType.fromParts(
@@ -1094,7 +1096,7 @@ case class MatrixVCFReader(
     )((c, l, rvb) => ()
     )(lines,
       fullMatrixType.rowKeyStruct,
-      referenceGenome,
+      referenceGenome.map(_.broadcast),
       contigRecoding,
       arrayElementsRequired,
       skipInvalidLoci))
@@ -1119,7 +1121,7 @@ case class MatrixVCFReader(
           localInfoFlagFieldNames,
           new BufferedLineIterator(headerLinesBc.value.iterator.buffered))
       } { (c, l, rvb) => LoadVCF.parseLine(reader, c, l, rvb, dropSamples) }(
-        lines, requestedType.rowType, referenceGenome, contigRecoding, arrayElementsRequired, skipInvalidLoci
+        lines, requestedType.rowType, referenceGenome.map(_.broadcast), contigRecoding, arrayElementsRequired, skipInvalidLoci
       ))
 
     val globalValue = makeGlobalValue(requestedType, sampleIDs.map(Row(_)))
@@ -1295,7 +1297,7 @@ class VCFsReader(
     } { (c, l, rvb) =>
       val reader = new HtsjdkRecordReader(localCallFields, localEntryFloatType)
       LoadVCF.parseLine(reader, c, l, rvb)
-    }(lines, typ.rvRowType, referenceGenome, contigRecoding, arrayElementsRequired, skipInvalidLoci)
+    }(lines, typ.rvRowType, referenceGenome.map(_.broadcast), contigRecoding, arrayElementsRequired, skipInvalidLoci)
 
     val rvd = RVD(typ.canonicalRVDType,
       partitioner,

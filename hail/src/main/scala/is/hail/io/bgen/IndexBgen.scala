@@ -60,7 +60,7 @@ object IndexBgen {
       NoEntries,
       dropCols = true,
       RowFields(false, false, true, true),
-      referenceGenome,
+      referenceGenome.map(_.broadcast),
       annotationType
     )
 
