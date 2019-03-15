@@ -5,11 +5,12 @@ import java.util.Properties
 
 import is.hail.annotations._
 import is.hail.expr.JSONAnnotationImpex
+import is.hail.expr.ir.functions.TableToTableFunction
 import is.hail.expr.ir.{TableLiteral, TableValue}
 import is.hail.expr.types._
 import is.hail.expr.types.physical.PType
 import is.hail.expr.types.virtual._
-import is.hail.rvd.{RVD, RVDContext}
+import is.hail.rvd.{RVD, RVDContext, RVDType}
 import is.hail.sparkextras.ContextRDD
 import is.hail.table.Table
 import is.hail.utils._
@@ -357,9 +358,9 @@ object Nirvana {
     w(sb.result())
   }
 
-  def annotate(ht: Table, config: String, blockSize: Int): Table = {
-    assert(ht.key.contains(FastIndexedSeq("locus", "alleles")))
-    assert(ht.typ.rowType.size == 2)
+  def annotate(tv: TableValue, config: String, blockSize: Int): TableValue = {
+    assert(tv.typ.key == FastIndexedSeq("locus", "alleles"))
+    assert(tv.typ.rowType.size == 2)
 
     val properties = try {
       val p = new Properties()
@@ -401,14 +402,14 @@ object Nirvana {
     val startQuery = nirvanaSignature.query("position")
     val refQuery = nirvanaSignature.query("refAllele")
     val altsQuery = nirvanaSignature.query("altAlleles")
-    val localRowType = ht.typ.rowType.physicalType
+    val localRowType = tv.typ.rowType.physicalType
     val localBlockSize = blockSize
 
-    val rowKeyOrd = ht.typ.keyType.ordering
+    val rowKeyOrd = tv.typ.keyType.ordering
 
     info("Running Nirvana")
 
-    val prev = ht.value.rvd
+    val prev = tv.rvd
 
     val annotations = prev
       .mapPartitions { it =>
@@ -449,7 +450,7 @@ object Nirvana {
           }
       }
 
-    val nirvanaRVDType = prev.typ.copy(rowType = (ht.typ.rowType ++ TStruct("nirvana" -> nirvanaSignature)).physicalType)
+    val nirvanaRVDType = prev.typ.copy(rowType = (tv.typ.rowType ++ TStruct("nirvana" -> nirvanaSignature)).physicalType)
 
     val nirvanaRowType = nirvanaRVDType.rowType
 
@@ -474,14 +475,25 @@ object Nirvana {
         }
       }).persist(StorageLevel.MEMORY_AND_DISK)
 
-    new Table(ht.hc, TableLiteral(
       TableValue(
         TableType(nirvanaRowType.virtualType, FastIndexedSeq("locus", "alleles"), TStruct()),
-        BroadcastRow(Row(), TStruct(), ht.hc.sc),
+        BroadcastRow(Row(), TStruct(), tv.globals.sc),
         nirvanaRVD
-      )))
+      )
+  }
+}
+
+case class Nirvana(config: String, blockSize: Int = 500000) extends TableToTableFunction {
+  def typeInfo(childType: TableType, childRVDType: RVDType): (TableType, RVDType) = {
+    assert(childType.key == FastIndexedSeq("locus", "alleles"))
+    assert(childType.rowType.size == 2)
+    val t = TableType(childType.rowType ++ TStruct("nirvana" -> Nirvana.nirvanaSignature), childType.key, childType.globalType)
+    (t, t.canonicalRVDType)
   }
 
-  def apply(ht: Table, config: String, blockSize: Int = 500000): Table =
-    annotate(ht, config, blockSize)
+  def preservesPartitionCounts: Boolean = false
+
+  def execute(tv: TableValue): TableValue = {
+    Nirvana.annotate(tv, config, blockSize)
+  }
 }
