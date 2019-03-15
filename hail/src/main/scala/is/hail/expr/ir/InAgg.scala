@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 object UsesAggEnv {
   def apply(ir0: BaseIR, i: Int): Boolean = ir0 match {
-    case _: AggLet => i == 1
+    case _: AggLet => i == 0
     case _: AggGroupBy => i == 0
     case _: AggFilter => i == 0
     case _: AggExplode => i == 0
