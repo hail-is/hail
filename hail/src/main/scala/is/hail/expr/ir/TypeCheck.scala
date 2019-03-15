@@ -233,7 +233,7 @@ object TypeCheck {
       .zipWithIndex
       .foreach {
         case (child: IR, i) =>
-          val (e, ae) = ChildEnv(ir, i, env, aggEnv)
+          val (e, ae) = ChildEnvWithBindings(ir, i, env, aggEnv)
           check(child, e, ae)
         case (tir: TableIR, _) =>
         case (mir: MatrixIR, _) =>

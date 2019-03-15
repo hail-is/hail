@@ -62,30 +62,37 @@ object AggBindings {
   }
 }
 
-object ChildEnv {
+object ChildEnvWithoutBindings {
   private val empty = (Env.empty[Type], None)
 
-  def apply(ir: BaseIR, i: Int, env: Env[Type], aggEnv: Option[Env[Type]]): (Env[Type], Option[Env[Type]]) = ir match {
-    case _: ArrayAgg => if (i == 1) (env, Some(env.bindIterable(AggBindings(ir, i)))) else (env, aggEnv)
-    case MatrixAggregate(_, _) => if (i == 1) (Env.empty.bindIterable(Bindings(ir, i)), Some(Env.empty.bindIterable(AggBindings(ir, i)))) else empty
-    case TableAggregate(_, _) => if (i == 1) (Env.empty.bindIterable(Bindings(ir, i)), Some(Env.empty.bindIterable(AggBindings(ir, i)))) else empty
-    case ArrayAgg(_, _, _) => if (i == 1) (env, Some(aggEnv.get.bindIterable(env.m).bindIterable(AggBindings(ir, i)))) else (env, aggEnv)
-    case _ =>
-      ir.children(i) match {
-        case vir: IR =>
-          val b = Bindings(ir, i)
-          val ab = AggBindings(ir, i)
-          if (UsesAggEnv(ir, i)) {
-            assert(b.isEmpty)
-            if (aggEnv.isEmpty)
-              throw new RuntimeException(s"$i: $ir")
-            (aggEnv.get.bindIterable(ab), None)
-          } else {
-            (env.bindIterable(b), aggEnv match {
-              case Some(ae) => Some(ae.bindIterable(ab))
-              case None => if (ab.nonEmpty) Some(Env.empty.bindIterable(ab)) else None
-            })
-          }
-      }
+  def apply(ir: BaseIR, i: Int, env: Env[Type], aggEnv: Option[Env[Type]]): (Env[Type], Option[Env[Type]]) = {
+    ir match {
+      case ArrayAgg(_, _, _) => if (i == 1) (env, Some(env)) else (env, aggEnv)
+      case MatrixAggregate(_, _) => empty
+      case TableAggregate(_, _) => empty
+      case ArrayAgg(_, _, _) => if (i == 1) (env, Some(aggEnv.get.bindIterable(env.m))) else (env, aggEnv)
+      case _ => (env, aggEnv)
+    }
+  }
+}
+
+object ChildEnvWithBindings {
+  def apply(ir: BaseIR, i: Int, env: Env[Type], aggEnv: Option[Env[Type]]): (Env[Type], Option[Env[Type]]) = {
+    val (baseEnv, baseAggEnv) = ChildEnvWithoutBindings(ir, i, env, aggEnv)
+    assert(ir.children(i).isInstanceOf[IR])
+    val b = Bindings(ir, i)
+    val ab = AggBindings(ir, i)
+    if (UsesAggEnv(ir, i)) {
+      assert(b.isEmpty)
+      if (baseAggEnv.isEmpty)
+        throw new RuntimeException(s"$i: $ir")
+      (baseAggEnv.get.bindIterable(ab), None)
+    } else {
+      (baseEnv.bindIterable(b), baseAggEnv match {
+        case Some(ae) => Some(ae.bindIterable(ab))
+        case None => if (ab.nonEmpty) Some(Env.empty.bindIterable(ab)) else None
+      })
+
+    }
   }
 }
