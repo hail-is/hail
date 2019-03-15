@@ -1420,9 +1420,9 @@ object EmitPackEncoder { self =>
 
   def emit(t: PType, requestedType: PType, mb: MethodBuilder, region: Code[Region], off: Code[Long], out: Code[OutputBuffer]): Code[Unit] = {
     t.fundamentalType match {
-      case t: PStruct => emitStruct(t, requestedType.asInstanceOf[PStruct], mb, region, off, out)
-      case t: PTuple => emitTuple(t, requestedType.asInstanceOf[PTuple], mb, region, off, out)
-      case t: PArray => emitArray(t, requestedType.asInstanceOf[PArray], mb, region, region.loadAddress(off), out)
+      case t: PStruct => emitStruct(t, requestedType.fundamentalType.asInstanceOf[PStruct], mb, region, off, out)
+      case t: PTuple => emitTuple(t, requestedType.fundamentalType.asInstanceOf[PTuple], mb, region, off, out)
+      case t: PArray => emitArray(t, requestedType.fundamentalType.asInstanceOf[PArray], mb, region, region.loadAddress(off), out)
       case _: PBoolean => out.writeBoolean(region.loadBoolean(off))
       case _: PInt32 => out.writeInt(region.loadInt(off))
       case _: PInt64 => out.writeLong(region.loadLong(off))
