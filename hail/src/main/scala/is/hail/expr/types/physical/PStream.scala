@@ -4,7 +4,7 @@ import is.hail.annotations.CodeOrdering
 import is.hail.expr.ir.EmitMethodBuilder
 import is.hail.expr.types.virtual.TStream
 
-final case class PStream(elementType: PType, override val required: Boolean = false) extends PType {
+final case class PStream(elementType: PType, override val required: Boolean = false) extends PIterable {
   lazy val virtualType: TStream = TStream(elementType.virtualType, required)
 
   override def pyString(sb: StringBuilder): Unit = {

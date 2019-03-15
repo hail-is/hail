@@ -8,7 +8,7 @@ import org.json4s.jackson.JsonMethods
 
 import scala.reflect.{ClassTag, classTag}
 
-final case class TArray(elementType: Type, override val required: Boolean = false) extends TIterable {
+final case class TArray(elementType: Type, override val required: Boolean = false) extends TContainer {
   lazy val physicalType: PArray = PArray(elementType.physicalType, required)
 
   override def pyString(sb: StringBuilder): Unit = {

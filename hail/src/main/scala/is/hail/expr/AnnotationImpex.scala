@@ -261,8 +261,7 @@ object TableAnnotationImpex {
       t match {
         case _: TFloat64 => a.asInstanceOf[Double].formatted("%.4e")
         case _: TString => a.asInstanceOf[String]
-        case d: TDict => JsonMethods.compact(d.toJSON(a))
-        case it: TIterable => JsonMethods.compact(it.toJSON(a))
+        case a: TContainer => JsonMethods.compact(a.toJSON(a))
         case t: TBaseStruct => JsonMethods.compact(t.toJSON(a))
         case TInterval(TLocus(_, _), _) =>
           val i = a.asInstanceOf[Interval]
