@@ -31,9 +31,9 @@ from datetime import datetime, timedelta
            cov_coef_dict=nullable(dict),
            cov_regex=nullable(str),
            path_to_save=nullable(str))
-def simulate(mt, genotype, h2=None, pi=1, is_annot_inf=False, annot_coef_dict=None,
-             annot_regex=None,h2_normalize=True, is_popstrat=False, cov_coef_dict=None,
-             cov_regex=None, path_to_save=None):
+def simulate_phenotypes(mt, genotype, h2=None, pi=1, is_annot_inf=False, annot_coef_dict=None,
+                        annot_regex=None,h2_normalize=True, is_popstrat=False, cov_coef_dict=None,
+                        cov_regex=None, path_to_save=None):
     ''' Simulates phenotypes. 
         Options: 
             models for betas: Infinitesimal, spike/slab, annotation-informed
@@ -66,13 +66,13 @@ def simulate(mt, genotype, h2=None, pi=1, is_annot_inf=False, annot_coef_dict=No
                      annot_regex=annot_regex,
                      h2_normalize=h2_normalize)   
     mt2 = mt2.rename({'__beta':'__beta_temp'})
-    mt3 =  sim_phenotypes(mt=mt2, 
-                          genotype=mt2.__gt_temp, 
-                          h2=h2, 
-                          beta=mt2.__beta_temp,
-                          is_popstrat=is_popstrat,
-                          cov_coef_dict=cov_coef_dict,
-                          cov_regex=cov_regex)
+    mt3 =  calculate_phenotypes(mt=mt2, 
+                                genotype=mt2.__gt_temp, 
+                                h2=h2, 
+                                beta=mt2.__beta_temp,
+                                is_popstrat=is_popstrat,
+                                cov_coef_dict=cov_coef_dict,
+                                cov_regex=cov_regex)
     mt4 = clean_fields(mt3, '_temp')
     stoptime = datetime.now()
     runtime = stoptime-starttime
@@ -85,7 +85,7 @@ def simulate(mt, genotype, h2=None, pi=1, is_annot_inf=False, annot_coef_dict=No
     print('\rFinished simulation! (runtime={} min)'.format(round((runtime.total_seconds())/60, 4)).ljust(100))
     if path_to_save is not None:
         print(f'\rWriting simulation to: {path_to_save}')
-        mt5.write(path_to_save)
+        mt5 = mt5.checkpoint(path_to_save)
     return mt5
 
 @typecheck(h2=oneof(nullable(float),
@@ -248,7 +248,7 @@ def agg_fields(mt,coef_dict=None,regex=None,axis='rows'):
                               col_exprs=expr if axis == 'cols' else {})
     return mt
 
-@typecheck(mt=oneof(MatrixTable),
+@typecheck(mt=MatrixTable,
            regex=nullable(str),
            coef_ref_dict=nullable(dict),
            axis=str)
@@ -325,8 +325,8 @@ def add_regex_pattern(mt, field_list, regex_pattern, prefix=True, axis='rows'):
            is_popstrat=bool,
            cov_coef_dict=nullable(dict),
            cov_regex=nullable(str))
-def sim_phenotypes(mt, genotype, h2, beta, is_popstrat=False, cov_coef_dict=None, cov_regex=None):
-    '''Simulate phenotypes given betas and genotypes. Adding population stratification is optional'''
+def calculate_phenotypes(mt, genotype, h2, beta, is_popstrat=False, cov_coef_dict=None, cov_regex=None):
+    '''Calculates phenotypes given betas and genotypes. Adding population stratification is optional'''
     check_mt_sources(mt,genotype,beta)
     check_popstrat_args(is_popstrat=is_popstrat,cov_coef_dict=cov_coef_dict,cov_regex=cov_regex)
     mt1 = mt._annotate_all(row_exprs={'__beta':beta},
@@ -352,7 +352,6 @@ def sim_phenotypes(mt, genotype, h2, beta, is_popstrat=False, cov_coef_dict=None
     else:
         return mt4
         
-
 @typecheck(genotypes=oneof(expr_int32,
                           expr_int64, 
                           expr_float32, 
@@ -385,9 +384,7 @@ def add_popstrat(mt, y, cov_coef_dict=None, cov_regex=None):
 def clean_fields(mt, str_expr):
     '''Removes fields with names that have str_expr in them'''
     all_fields = list(mt.col)+list(mt.row)+list(mt.entry)+list(mt.globals)
-    for field_to_drop in [x for x in all_fields if str_expr in x]:
-        mt = mt.drop(field_to_drop)
-    return mt
+    return mt.drop(*(x for x in all_fields if str_expr in x))
 
 @typecheck(mt=MatrixTable, 
            h2=oneof(nullable(float),
