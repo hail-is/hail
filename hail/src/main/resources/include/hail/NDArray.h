@@ -11,12 +11,12 @@ struct NDArray {
   const char *data;
 };
 
-NDArray make_ndarray(size_t elem_size, std::vector<long> shape, char *data) {
+NDArray make_ndarray(size_t elem_size, std::vector<long> shape, const char *data) {
   NDArray nd;
   nd.flags = 0;
   nd.elem_size = elem_size;
   nd.shape = shape;
-  nd.data = ArrayAddrImpl<true, 8, 8>::load_element(data, 0);
+  nd.data = data;
 
   std::vector<long> strides(shape.size());
   strides[shape.size() - 1] = 1;

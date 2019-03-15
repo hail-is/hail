@@ -804,23 +804,32 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
         val datat = emit(data)
 
         val elemSize = containerPType.elementType.byteSize.toString
+        val elemAlignment = containerPType.elementType.alignment.toString
         val shapeRegion = fb.variable("shapeRegion", "const char *", shapet.v)
-        triplet("",
+        val elems = fb.variable("elems", "const char *",
+          s"ArrayAddrImpl<true, $elemSize, $elemAlignment>::load_element(${datat.v}, 0)")
+        triplet(
+          s"""
+             | ${ flagst.setup }
+             | ${ shapet.setup }
+             | ${ datat.setup }
+           """.stripMargin,
           "false",
           s"""
              |({
+             | if (${ flagst.m } || ${ shapet.m } || ${ datat.m }) {
+             |   throw new FatalError("NDArray does not support missingness");
+             | }
+             |
              | ${ shapeRegion.define }
-             | make_ndarray($elemSize, load_vector<long, true, 8, 8>(${shapeRegion.toString}), ${datat.v});
+             | ${ elems.define }
+             | make_ndarray($elemSize, load_vector<long, true, 8, 8>(${shapeRegion.toString}), ${elems.toString});
              |})
              |""".stripMargin)
 
       case ir.NDArrayRef(nd, idxs) =>
         fb.translationUnitBuilder().include("hail/NDArray.h")
-        val idxContainerPType = idxs.pType.asInstanceOf[PContainer]
-        val elemType = nd.pType.asInstanceOf[PNDArray].elementType
-        val cxxElemType = typeToCXXType(elemType)
-        val elemSize = elemType.byteSize.toString
-        val elemAlignment = elemType.alignment
+        val elemType = typeToCXXType(nd.pType.asInstanceOf[PNDArray].elementType)
 
         val ndt = emit(nd)
         val idxst = emit(idxs)
@@ -833,7 +842,7 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
           s"""
              |({
              | ${ idxsRegion.define }
-             | load_ndarray_element<$cxxElemType, true, $elemSize, $elemAlignment>(${ndt.v}, load_vector<long, true, 8, 8>(${idxsRegion.toString}));
+             | load_ndarray_element<$elemType>(${ndt.v}, load_vector<long, true, 8, 8>(${idxsRegion.toString}));
              |})
              |""".stripMargin)
       case _ =>
