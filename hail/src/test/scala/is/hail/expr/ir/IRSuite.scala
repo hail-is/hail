@@ -19,9 +19,8 @@ import is.hail.rvd.RVD
 import is.hail.table.{Ascending, Descending, SortField, Table}
 import is.hail.utils._
 import is.hail.variant.MatrixTable
-import org.apache.commons.math3.stat.descriptive.AggregateSummaryStatistics
 import org.apache.spark.sql.Row
-import org.testng.annotations.{BeforeClass, DataProvider, Test}
+import org.testng.annotations.{DataProvider, Test}
 
 import scala.language.{dynamics, implicitConversions}
 
@@ -77,8 +76,6 @@ object IRSuite {
 }
 
 class IRSuite extends SparkSuite {
-  @BeforeClass def ensureHCDefined() { initializeHailContext() }
-
   implicit val execStrats = ExecStrategy.values
 
   @Test def testI32() {

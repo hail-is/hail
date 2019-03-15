@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.ExecStrategy
+import is.hail.SparkSuite
 import is.hail.annotations._
 import is.hail.check.{Gen, Prop}
 import is.hail.asm4s._
@@ -9,10 +10,9 @@ import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
 import is.hail.utils._
 import org.apache.spark.sql.Row
-import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.{DataProvider, Test}
 
-class OrderingSuite extends TestNGSuite {
+class OrderingSuite extends SparkSuite {
 
   implicit val execStrats = ExecStrategy.values
 
