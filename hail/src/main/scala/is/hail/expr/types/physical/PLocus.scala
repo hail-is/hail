@@ -43,6 +43,8 @@ case class PLocus(rgBc: BroadcastRGBase, override val required: Boolean = false)
   override def unsafeOrdering(): UnsafeOrdering = {
     val repr = representation.fundamentalType
 
+    val localRGBc = rgBc
+
     new UnsafeOrdering {
       def compare(r1: Region, o1: Long, r2: Region, o2: Long): Int = {
         val cOff1 = repr.loadField(r1, o1, 0)
@@ -51,7 +53,7 @@ case class PLocus(rgBc: BroadcastRGBase, override val required: Boolean = false)
         val contig1 = PString.loadString(r1, cOff1)
         val contig2 = PString.loadString(r2, cOff2)
 
-        val c = rgBc.value.compare(contig1, contig2)
+        val c = localRGBc.value.compare(contig1, contig2)
         if (c != 0)
           return c
 
@@ -79,7 +81,7 @@ case class PLocus(rgBc: BroadcastRGBase, override val required: Boolean = false)
         val p1 = rx.loadInt(representation.fieldOffset(x, 1))
         val p2 = ry.loadInt(representation.fieldOffset(y, 1))
 
-        val codeRG = mb.getReferenceGenome(rgBc.value.asInstanceOf[ReferenceGenome])
+        val codeRG = mb.getReferenceGenome(rg.asInstanceOf[ReferenceGenome])
 
         Code(
           cmp := codeRG.invoke[String, String, Int]("compare", s1, s2),
