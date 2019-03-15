@@ -1326,9 +1326,9 @@ object RVD {
     val rowsRVType = MatrixType.getRowType(fullRowType)
     val entriesRVType = MatrixType.getSplitEntriesType(fullRowType)
 
-    val makeRowsEnc = codecSpec.buildEncoder(rowsRVType)
+    val makeRowsEnc = codecSpec.buildEncoder(fullRowType, rowsRVType)
 
-    val makeEntriesEnc = codecSpec.buildEncoder(entriesRVType)
+    val makeEntriesEnc = codecSpec.buildEncoder(fullRowType, entriesRVType)
 
     val partDigits = digitsNeeded(nPartitions)
     val fileDigits = digitsNeeded(rvds.length)
