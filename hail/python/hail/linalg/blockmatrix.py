@@ -1566,7 +1566,7 @@ class BlockMatrix(object):
         """
         t = self.to_table_row_major(n_partitions)
         t = t.transmute(entries=t.entries.map(lambda i: hl.struct(entry=i)))
-        t = t.annotate_globals(cols=hl.array([hl.struct(col_idx=i) for i in range(self.n_cols)]))
+        t = t.annotate_globals(cols=hl.array([hl.struct(col_idx=hl.int64(i)) for i in range(self.n_cols)]))
         return t._unlocalize_entries('entries', 'cols', ['col_idx'])
 
     @staticmethod

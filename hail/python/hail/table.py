@@ -2695,13 +2695,13 @@ class Table(ExprContainer):
             **{col_data_uid: hl.array(ht[col_data_uid]['data'].map(lambda elt: hl.struct(**elt[0], **elt[1])))})
         return ht._unlocalize_entries(entries_uid, col_data_uid, col_key)
 
-    @typecheck_method(columns=sequenceof(str), entry_field_name=str, col_field_name=str)
-    def to_matrix_table_row_major(self, columns, entry_field_name='entry', col_field_name='col'):
+    @typecheck_method(columns=sequenceof(str), entry_field_name=nullable(str), col_field_name=str)
+    def to_matrix_table_row_major(self, columns, entry_field_name=None, col_field_name='col'):
         """Construct a matrix table from a table in row major representation. Each element in `columns`
-        is a field that will become a column field in the matrix table. Fields omitted from `columns` become row
-        fields. The entries of the matrix table are structs of a single element `entry_field_name`,
-        where the value is the value from the fields in `columns`. The matrix table is column indexed by
-        `col_field_name`.
+        is a field that will become an entry field in the matrix table. Fields omitted from `columns` become row
+        fields. If `columns` are structs, then the matrix table will have the entry fields of those structs. Otherwise,
+        the matrix table will have one entry field named `entry_field_name` whose values come from the values
+        of the `columns` fields. The matrix table is column indexed by `col_field_name`.
 
         Notes
         -----
@@ -2711,7 +2711,7 @@ class Table(ExprContainer):
         ----------
         columns : Sequence[str]
             Fields to be used as columns.
-        entry_field_name : :obj:`str`
+        entry_field_name : :obj:`str` or None
             Field name for the entries of the matrix table.
         col_field_name : :obj:`str`
             Field name for the columns of the matrix table.
@@ -2723,13 +2723,21 @@ class Table(ExprContainer):
         if len(columns) == 0:
             raise ValueError('Columns must be non-empty.')
 
-        if len(set([self._fields[col].dtype for col in columns])) != 1:
+        fields = [self[field] for field in columns]
+        col_types = set([field.dtype for field in fields])
+        if len(col_types) != 1:
             raise ValueError('All columns must have the same type.')
 
-        def wrap_in_struct(field):
-            return field if field.dtype == hl.tstruct else hl.struct(**{entry_field_name: field})
+        if all([isinstance(col_typ, hl.tstruct) for col_typ in col_types]):
+            if entry_field_name is not None:
+                raise ValueError('Cannot both provide struct columns and an entry field name.')
+            entries = hl.array(fields)
+        else:
+            if entry_field_name is None:
+                raise ValueError('Must provide an entry field name.')
+            entries = hl.array([hl.struct(**{entry_field_name: field}) for field in fields])
 
-        t = self.transmute(entries=[wrap_in_struct(self._fields[col]) for col in columns])
+        t = self.transmute(entries=entries)
         t = t.annotate_globals(cols=hl.array([hl.struct(**{col_field_name: col}) for col in columns]))
         return t._unlocalize_entries('entries', 'cols', [col_field_name])
 

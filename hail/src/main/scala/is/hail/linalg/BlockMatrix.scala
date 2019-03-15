@@ -26,6 +26,8 @@ import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.json4s._
 
+import scala.collection.immutable.NumericRange
+
 object BlockMatrix {
   type M = BlockMatrix
   val defaultBlockSize: Int = 4096 // 32 * 1024 bytes
@@ -1655,7 +1657,7 @@ class WriteBlocksRDD(path: String,
 
 class BlockMatrixReadRowBlockedRDD(
   path: String,
-  nPartitions: Int,
+  partitionRanges: IndexedSeq[NumericRange.Exclusive[Long]],
   metadata: BlockMatrixMetadata,
   hc: HailContext) extends RDD[RVDContext => Iterator[RegionValue]](hc.sc, Nil) {
 
@@ -1666,22 +1668,16 @@ class BlockMatrixReadRowBlockedRDD(
 
   override def compute(split: Partition, context: TaskContext): Iterator[RVDContext => Iterator[RegionValue]] = {
     val pi = split.index
-    val rowsForPartition =
-      if (pi == nPartitions - 1)
-        (nRows - (nRows / nPartitions) * pi).toInt
-      else
-        (nRows / nPartitions).toInt
+    val rowsForPartition = partitionRanges(pi)
 
-    val startRowForPartition = (pi * nRows / nPartitions).toInt
     Iterator.single { ctx =>
       val region = ctx.region
       val rvb = new RegionValueBuilder(region)
       val rv = RegionValue(region)
 
-      Iterator.tabulate(rowsForPartition) { rowInPartition =>
-        val row = startRowForPartition + rowInPartition
-        val rowInPartFile = row % blockSize
+      rowsForPartition.iterator.map { row =>
         val pfs = partFilesForRow(row, partFiles)
+        val rowInPartFile = (row % blockSize).toInt
 
         rvb.start(PStruct(("row_idx", PInt64()), ("entries", PArray(PFloat64()))))
         rvb.startStruct()
@@ -1690,15 +1686,16 @@ class BlockMatrixReadRowBlockedRDD(
         pfs.foreach { pFile => readPartFileRow(rvb, rowInPartFile, pFile) }
         rvb.endArray()
         rvb.endStruct()
+
         rv.setOffset(rvb.end())
         rv
       }
     }
   }
 
-  private def partFilesForRow(row: Int, partFiles: Array[String]): Array[String] = {
-    val startBlockCol = gp.nBlockCols * row / blockSize
-    Array.tabulate(gp.nBlockCols) { blockCol => partFiles(startBlockCol + blockCol)}
+  private def partFilesForRow(row: Long, partFiles: Array[String]): Array[String] = {
+    val blockRow = (row / blockSize).toInt
+    Array.tabulate(gp.nBlockCols) { blockCol => partFiles(gp.coordinatesBlock(blockRow, blockCol)) }
   }
 
   private def readPartFileRow(rvb: RegionValueBuilder, rowIdx: Int, pFile: String) {
@@ -1723,6 +1720,6 @@ class BlockMatrixReadRowBlockedRDD(
   }
 
   override def getPartitions: Array[Partition] = {
-    Array.tabulate(nPartitions) { pi => new Partition { val index: Int = pi } }
+    Array.tabulate(partitionRanges.length) { pi => new Partition { val index: Int = pi } }
   }
 }

@@ -161,29 +161,36 @@ class Tests(unittest.TestCase):
                 self._assert_eq(at5, at)
 
     def test_to_table(self):
-        n_partitions = 2
-
-        bm = BlockMatrix._create(5, 2, [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0])
-        bm_t = bm.to_table_row_major(n_partitions)
-
         schema = hl.tstruct(row_idx=hl.tint64, entries=hl.tarray(hl.tfloat64))
-        rows = [{'row_idx': 0, 'entries': [1.0, 2.0]},
-                {'row_idx': 1, 'entries': [3.0, 4.0]},
-                {'row_idx': 2, 'entries': [5.0, 6.0]},
-                {'row_idx': 3, 'entries': [7.0, 8.0]},
-                {'row_idx': 4, 'entries': [9.0, 10.0]}]
+        rows = [{'row_idx': 0, 'entries': [0.0, 1.0]},
+                {'row_idx': 1, 'entries': [2.0, 3.0]},
+                {'row_idx': 2, 'entries': [4.0, 5.0]},
+                {'row_idx': 3, 'entries': [6.0, 7.0]},
+                {'row_idx': 4, 'entries': [8.0, 9.0]}]
 
-        t = hl.Table.parallelize(rows, schema, 'row_idx', n_partitions)
-        self.assertTrue(bm_t._same(t))
+        for n_partitions in [1, 2, 3]:
+            for block_size in [1, 2, 5]:
+                expected = hl.Table.parallelize(rows, schema, 'row_idx', n_partitions)
+                bm = BlockMatrix._create(5, 2, [float(i) for i in range(10)], block_size)
+                actual = bm.to_table_row_major(n_partitions)
+                self.assertTrue(expected._same(actual))
 
     def test_to_matrix_table(self):
         n_partitions = 2
-        rows, cols = 5, 2
-        bm = BlockMatrix._create(rows, cols, [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0])
-        mt = bm.to_matrix_table_row_major(n_partitions)
+        rows, cols = 2, 5
+        bm = BlockMatrix._create(rows, cols, [float(i) for i in range(10)])
+        actual = bm.to_matrix_table_row_major(n_partitions)
 
-        for entry in mt.entries().collect():
-            self.assertEqual(entry['entry'], bm[entry['row_idx'], entry['col_idx']])
+        expected = hl.utils.range_matrix_table(rows, cols)
+        expected = expected.annotate_entries(entry=hl.float64(expected.row_idx * cols + expected.col_idx))
+        expected = expected.key_cols_by(col_idx=hl.int64(expected.col_idx))
+        expected = expected.key_rows_by(row_idx=hl.int64(expected.row_idx))
+        self.assertTrue(expected._same(actual))
+
+        bm = BlockMatrix.random(2000, 2048, block_size=512, seed=0)
+        mt = bm.to_matrix_table_row_major(n_partitions)
+        mt_round_trip = BlockMatrix.from_entry_expr(mt.entry.entry).to_matrix_table_row_major()
+        self.assertTrue(mt._same(mt_round_trip))
 
     def test_elementwise_ops(self):
         nx = np.matrix([[2.0]])

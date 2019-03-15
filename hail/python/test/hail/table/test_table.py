@@ -208,16 +208,27 @@ class Tests(unittest.TestCase):
 
     def test_to_matrix_table_row_major(self):
         t = hl.utils.range_table(10)
-        t = t.annotate(**{'foo': 1, 'bar': 2, 'baz': 3})
+        t = t.annotate(foo=t.idx, bar=2 * t.idx, baz=3 * t.idx)
         mt = t.to_matrix_table_row_major(['bar', 'baz'], 'entry', 'col')
-        t2 = mt.localize_entries('entries', 'cols')
-        t2 = t2.transmute(**{col.col: t2.entries[i].entry for i, col in enumerate(hl.eval(t2.cols))})
-        t2 = t2.drop(t2.cols)
+        round_trip = mt.localize_entries('entries', 'cols')
+        round_trip = round_trip.transmute(**{col.col: round_trip.entries[i].entry for i, col in enumerate(hl.eval(round_trip.cols))})
+        round_trip = round_trip.drop(round_trip.cols)
 
-        self.assertTrue(t._same(t2))
+        self.assertTrue(t._same(round_trip))
 
-        t = t.annotate(**{'foo': 1, 'bar': 'baz'})
-        self.assertRaises(ValueError, lambda: t.to_matrix_table_row_major(['foo', 'bar']))
+        t = hl.utils.range_table(10)
+        t = t.annotate(foo=t.idx, bar=hl.struct(val=2 * t.idx), baz=hl.struct(val=3 * t.idx))
+        mt = t.to_matrix_table_row_major(['bar', 'baz'])
+        round_trip = mt.localize_entries('entries', 'cols')
+        round_trip = round_trip.transmute(**{col.col: round_trip.entries[i] for i, col in enumerate(hl.eval(round_trip.cols))})
+        round_trip = round_trip.drop(round_trip.cols)
+
+        self.assertTrue(t._same(round_trip))
+
+        t = t.annotate(**{'a': 1, 'b': 2, 'c': 'v', 'd': hl.struct(e=2)})
+        self.assertRaises(ValueError, lambda: t.to_matrix_table_row_major(['a', 'b']))
+        self.assertRaises(ValueError, lambda: t.to_matrix_table_row_major(['a', 'd']))
+        self.assertRaises(ValueError, lambda: t.to_matrix_table_row_major(['d'], entry_field_name='c'))
         self.assertRaises(ValueError, lambda: t.to_matrix_table_row_major([]))
 
     def test_group_by_field_lifetimes(self):
