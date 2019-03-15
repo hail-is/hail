@@ -138,7 +138,8 @@ def start_pod(jupyter_token, image, name, user_id):
                     'jupyter',
                     'notebook',
                     f'--NotebookApp.token={jupyter_token}',
-                    f'--NotebookApp.base_url=/instance/{pod_id}/'
+                    f'--NotebookApp.base_url=/instance/{pod_id}/',
+                    "--ip", "0.0.0.0", "--no-browser"
                 ],
                 name='default',
                 image=image,
@@ -285,7 +286,7 @@ def notebook_page():
         return render_template('notebook.html',
                                form_action_url=external_url_for('notebook'),
                                images=list(WORKER_IMAGES),
-                               default='hail')
+                               default='hail-jupyter')
 
     session['notebook'] = notebooks[0]
 
