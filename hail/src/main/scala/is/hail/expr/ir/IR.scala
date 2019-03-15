@@ -26,7 +26,7 @@ sealed trait IR extends BaseIR {
     _typ
   }
 
-  override def children: IndexedSeq[BaseIR] =
+  lazy val children: IndexedSeq[BaseIR] =
     Children(this)
 
   override def copy(newChildren: IndexedSeq[BaseIR]): IR =
@@ -273,7 +273,7 @@ final case class ApplyIR(function: String, args: Seq[IR]) extends IR {
 
   lazy val explicitNode: IR = {
     val refs = args.map(a => Ref(genUID(), a.typ)).toArray
-    var body = conversion(refs)
+    var body = conversion(refs).deepCopy()
 
     // foldRight because arg1 should be at the top so it is evaluated first
     refs.zip(args).foldRight(body) { case ((ref, arg), bodyIR) => Let(ref.name, arg, bodyIR) }
@@ -321,11 +321,9 @@ final case class TableCollect(child: TableIR) extends IR
 
 final case class MatrixWrite(child: MatrixIR, writer: MatrixWriter) extends IR
 
-final case class MatrixMultiWrite(
-  override val children: IndexedSeq[MatrixIR],
-  writer: MatrixNativeMultiWriter) extends IR {
-  private val t = children.head.typ
-  require(children.forall(_.typ == t))
+final case class MatrixMultiWrite(_children: IndexedSeq[MatrixIR], writer: MatrixNativeMultiWriter) extends IR {
+  private val t = _children.head.typ
+  require(_children.forall(_.typ == t))
 }
 
 final case class TableToValueApply(child: TableIR, function: TableToValueFunction) extends IR
