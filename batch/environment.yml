@@ -11,3 +11,13 @@ dependencies:
   - pylint
   - pytest
   - requests
+  - aiohttp
+  - aiodns
+  - cchardet
+  - aiohttp_jinja2
+  - jinja2
+  - uvloop>=0.12
+  - aiomysql
+  - pymysql
+  - asyncinit
+
