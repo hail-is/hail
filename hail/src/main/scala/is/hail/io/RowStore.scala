@@ -1312,6 +1312,7 @@ object EmitPackEncoder { self =>
       else {
         var c: Code[Unit] = Code._empty[Unit]
         var j = 0
+        var n = 0
         while (j < requestedType.size) {
           var b = const(0)
           var k = 0
@@ -1324,8 +1325,12 @@ object EmitPackEncoder { self =>
             }
             j += 1
           }
-          c = Code(c, out.writeByte(b.toB))
+          if (k > 0) {
+            c = Code(c, out.writeByte(b.toB))
+            n += 1
+          }
         }
+        assert(n == requestedType.nMissingBytes)
         c
       }
 
