@@ -11,7 +11,7 @@ class RegionValuePrevNonnullAnnotationAggregator2(
   makeDecoder: (MemoryBuffer) => Decoder
 ) extends RegionValueAggregator {
   def this(t: PType) = this(t, {
-    val f = EmitPackEncoder(t)
+    val f = EmitPackEncoder(t, t)
     (mb: MemoryBuffer) => new CompiledPackEncoder(new MemoryOutputBuffer(mb), f)
   }, {
     val f = EmitPackDecoder(t, t)
