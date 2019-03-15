@@ -931,7 +931,7 @@ object LoadVCF {
   }
 }
 
-case class PartitionedVCFPartition(index: Int, chrom: String, start: Int, end: Int, reg: Array[TbiPair]) extends Partition
+case class PartitionedVCFPartition(index: Int, chrom: String, start: Int, end: Int) extends Partition
 
 class PartitionedVCFRDD(
   @(transient@param) sc: SparkContext,
@@ -944,7 +944,12 @@ class PartitionedVCFRDD(
   def compute(split: Partition, context: TaskContext): Iterator[String] = {
     val p = split.asInstanceOf[PartitionedVCFPartition]
 
-    val lines = new TabixLineIterator(confBc, file, p.reg)
+    val reg = {
+      val r = new TabixReader(file, confBc.value.value)
+      val tid = r.chr2tid(p.chrom)
+      r.queryPairs(tid, p.start - 1, p.end)
+    }
+    val lines = new TabixLineIterator(confBc, file, reg)
 
     // clean up
     val context = TaskContext.get
@@ -1227,6 +1232,12 @@ class VCFsReader(
       rangeBounds)
   }
 
+  val partitions = partitioner.rangeBounds.zipWithIndex.map { case (b, i) =>
+    val start = b.start.asInstanceOf[Row].getAs[Locus](0)
+    val end = b.end.asInstanceOf[Row].getAs[Locus](0)
+    PartitionedVCFPartition(i, start.contig, start.position, end.position): Partition
+  }
+
   private val fileInfo = {
     val localHConfBc = hConfBc
     val localFile1 = file1
@@ -1236,7 +1247,6 @@ class VCFsReader(
     val localFilterAndReplace = filterAndReplace
     val localGenotypeSignature = header1.genotypeSignature
     val localVASignature = header1.vaSignature
-    val partitionerBc = partitioner.broadcast(sc)
 
     sc.parallelize(files, files.length).map { file =>
       val hConf = localHConfBc.value.value
@@ -1256,29 +1266,15 @@ class VCFsReader(
              |   $localFile1: $localVASignature
              |   $file: ${header.vaSignature}""".stripMargin)
 
-      val r = new TabixReader(file, hConf)
-      val partitions = partitionerBc.value.rangeBounds.zipWithIndex.map { case (b, i) =>
-        val start = b.start.asInstanceOf[Row].getAs[Locus](0)
-        val end = b.end.asInstanceOf[Row].getAs[Locus](0)
 
-        val contig = start.contig
-        val startPos = start.position
-        val endPos = end.position
-
-        val tid = r.chr2tid(contig)
-        val reg = r.queryPairs(tid, startPos - 1, endPos)
-
-        PartitionedVCFPartition(i, start.contig, start.position, end.position, reg): Partition
-      }
-
-      (header.sampleIds, partitions)
+      header.sampleIds
     }
       .collect()
   }
 
-  def readFile(file: String, i: Int): MatrixIR = {
-    val (sampleIDs, partitions) = fileInfo(i)
 
+  def readFile(file: String, i: Int): MatrixIR = {
+    val sampleIDs = fileInfo(i)
     val localEntryFloatType = entryFloatType
     val localCallFields = callFields
     val localHeaderLines1Bc = headerLines1Bc
