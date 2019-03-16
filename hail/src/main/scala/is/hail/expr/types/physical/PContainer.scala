@@ -13,8 +13,7 @@ object PContainer {
     region.loadInt(aoff)
 }
 
-abstract class PContainer extends PType {
-  def elementType: PType
+abstract class PContainer extends PIterable {
 
   def elementByteSize: Long
 

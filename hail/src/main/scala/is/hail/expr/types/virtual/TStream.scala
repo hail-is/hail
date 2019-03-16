@@ -2,45 +2,42 @@ package is.hail.expr.types.virtual
 
 import is.hail.annotations.{Annotation, ExtendedOrdering}
 import is.hail.check.Gen
-import is.hail.expr.types.physical.PArray
-import is.hail.utils._
+import is.hail.expr.types.physical.PStream
 import org.json4s.jackson.JsonMethods
 
 import scala.reflect.{ClassTag, classTag}
 
-final case class TArray(elementType: Type, override val required: Boolean = false) extends TContainer {
-  lazy val physicalType: PArray = PArray(elementType.physicalType, required)
+final case class TStream(elementType: Type, override val required: Boolean = false) extends TIterable {
+  lazy val physicalType: PStream = PStream(elementType.physicalType, required)
 
   override def pyString(sb: StringBuilder): Unit = {
-    sb.append("array<")
+    sb.append("stream<")
     elementType.pyString(sb)
     sb.append('>')
   }
-  override val fundamentalType: TArray = {
+  override val fundamentalType: TStream = {
     if (elementType == elementType.fundamentalType)
       this
     else
       this.copy(elementType = elementType.fundamentalType)
   }
 
-  def _toPretty = s"Array[$elementType]"
+  def _toPretty = s"Stream[$elementType]"
 
-  override def canCompare(other: Type): Boolean = other match {
-    case TArray(otherType, _) => elementType.canCompare(otherType)
-    case _ => false
-  }
+  override def canCompare(other: Type): Boolean =
+    throw new UnsupportedOperationException("Stream comparison is currently undefined.")
 
   override def unify(concrete: Type): Boolean = {
     concrete match {
-      case TArray(celementType, _) => elementType.unify(celementType)
+      case TStream(celementType, _) => elementType.unify(celementType)
       case _ => false
     }
   }
 
-  override def subst() = TArray(elementType.subst().setRequired(false))
+  override def subst() = TStream(elementType.subst().setRequired(false))
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {
-    sb.append("Array[")
+    sb.append("Stream[")
     elementType.pretty(sb, indent, compact)
     sb.append("]")
   }
@@ -51,10 +48,11 @@ final case class TArray(elementType: Type, override val required: Boolean = fals
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))
 
   override def genNonmissingValue: Gen[Annotation] =
-    Gen.buildableOf[Array](elementType.genValue).map(x => x: IndexedSeq[Annotation])
+    throw new UnsupportedOperationException("Streams don't have associated annotations.")
 
   val ordering: ExtendedOrdering =
-    ExtendedOrdering.iterableOrdering(elementType.ordering)
+    throw new UnsupportedOperationException("Stream comparison is currently undefined.")
 
-  override def scalaClassTag: ClassTag[IndexedSeq[AnyRef]] = classTag[IndexedSeq[AnyRef]]
+  override def scalaClassTag: ClassTag[Iterator[AnyRef]] = classTag[Iterator[AnyRef]]
 }
+
