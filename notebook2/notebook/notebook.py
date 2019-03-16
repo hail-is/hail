@@ -462,10 +462,9 @@ def auth0_callback():
 
     email = userinfo['email']
 
-    # if AUTHORIZED_USERS.get(email) is None:
-    #     return redirect(external_url_for(f"error?err=Unauthorized"))
+    if AUTHORIZED_USERS.get(email) is None:
+        return redirect(external_url_for(f"error?err=Unauthorized"))
 
-    print("userinfo", userinfo)
     session['user'] = {
         'id': userinfo['sub'],
         'name': userinfo['name'],
