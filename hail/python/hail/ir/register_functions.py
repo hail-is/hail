@@ -184,6 +184,8 @@ def register_functions():
     register_function("**", (dtype("int32"),dtype("int32"),), dtype("float64"))
     register_function("**", (dtype("int64"),dtype("int64"),), dtype("float64"))
     register_function("**", (dtype("float64"),dtype("float64"),), dtype("float64"))
+    register_function("length", (dtype("str"),), dtype("int32"))
+    register_function("slice", (dtype("str"),dtype("int32"),dtype("int32"),), dtype("str"))
     register_function("split", (dtype("str"),dtype("str"),dtype("int32"),), dtype("array<str>"))
     register_function("split", (dtype("str"),dtype("str"),), dtype("array<str>"))
     register_seeded_function("rand_gamma", (dtype("float64"),dtype("float64"),), dtype("float64"))
