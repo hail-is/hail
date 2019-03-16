@@ -345,6 +345,11 @@ object IRParser {
         punctuation(it, ")")
         ReferenceGenome.getReference(id).locusType.setRequired(req)
       case "Call" => TCall(req)
+      case "Stream" =>
+        punctuation(it, "[")
+        val elementType = type_expr(it)
+        punctuation(it, "]")
+        TStream(elementType, req)
       case "Array" =>
         punctuation(it, "[")
         val elementType = type_expr(it)
