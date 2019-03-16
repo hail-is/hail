@@ -1411,57 +1411,6 @@ class GetTupleElement(IR):
         self._type = self.o.typ.types[self.idx]
 
 
-class StringSlice(IR):
-    @typecheck_method(s=IR, start=IR, end=IR)
-    def __init__(self, s, start, end):
-        super().__init__(s, start, end)
-        self.s = s
-        self.start = start
-        self.end = end
-
-    @typecheck_method(s=IR, start=IR, end=IR)
-    def copy(self, s, start, end):
-        new_instance = self.__class__
-        return new_instance(s, start, end)
-
-    def render(self, r):
-        return '(StringSlice {} {} {})'.format(r(self.s), r(self.start), r(self.end))
-
-    def __eq__(self, other):
-        return isinstance(other, StringSlice) and \
-               other.s == self.s and \
-               other.start == self.start and \
-               other.end == self.end
-
-    def _compute_type(self, env, agg_env):
-        self.s._compute_type(env, agg_env)
-        self.start._compute_type(env, agg_env)
-        self.end._compute_type(env, agg_env)
-        self._type = tstr
-
-
-class StringLength(IR):
-    @typecheck_method(s=IR)
-    def __init__(self, s):
-        super().__init__(s)
-        self.s = s
-
-    @typecheck_method(s=IR)
-    def copy(self, s):
-        new_instance = self.__class__
-        return new_instance(s)
-
-    def render(self, r):
-        return '(StringLength {})'.format(r(self.s))
-
-    def __eq__(self, other):
-        return isinstance(other, StringLength) and \
-               other.s == self.s
-
-    def _compute_type(self, env, agg_env):
-        self._type = tint32
-
-
 class In(IR):
     @typecheck_method(i=int, typ=hail_type)
     def __init__(self, i, typ):
