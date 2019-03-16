@@ -7,9 +7,10 @@ from globals import k8s, gcloud_service
 
 class TestSecrets(unittest.TestCase):
     def test_make_all(self):
+        userid = 'google|akotlar'
         username = 'akotlar-test'
 
-        data = make_all(username)
+        data = make_all(userid, username)
 
         ksa_name = data['ksa_name']
         gsa_name = data['gsa_name']
