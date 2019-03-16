@@ -2,14 +2,14 @@
 
 set -ex
 
-# gcloud auth activate-service-account \
-#   --key-file=/secrets/gcr-pull.json
+gcloud auth activate-service-account \
+  --key-file=/secrets/gcr-pull.json
 
-# gcloud auth configure-docker
+gcloud auth configure-docker
 
 while true
 do
-    for image in $(curl -sSL http://notebook/worker-image) $(curl -sSL http://notebook2/worker-image) google/cloud-sdk
+    for image in $(curl -sSL http://notebook/worker-image) google/cloud-sdk
     do
     	docker pull $image
     done

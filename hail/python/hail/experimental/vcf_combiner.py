@@ -8,7 +8,7 @@ from hail.ir import Apply, TableKeyBy, TableMapRows, TopLevelReference
 from hail.typecheck import typecheck
 
 _transform_rows_function_map = {}
-_cached_merge_function = None
+_merge_function_map = {}
 
 def localize(mt):
     if isinstance(mt, MatrixTable):
@@ -119,9 +119,8 @@ def combine(ts):
         # global index of alternate (non-ref) alleles
         return entry.annotate(LA=entry.LA.map(lambda lak: old_to_new[lak]))
 
-    global _cached_merge_function
-    if _cached_merge_function is None:
-        _cached_merge_function = hl.experimental.define_function(
+    if (ts.row.dtype, ts.globals.dtype) not in _merge_function_map:
+        f = hl.experimental.define_function(
             lambda row, gbl:
             hl.rbind(
                 merge_alleles(row.data.map(lambda d: d.alleles)),
@@ -156,7 +155,9 @@ def combine(ts):
                         hl.dict(hl.range(0, hl.len(alleles.globl)).map(
                             lambda j: hl.tuple([alleles.globl[j], j])))))),
             ts.row.dtype, ts.globals.dtype)
-    ts = Table(TableMapRows(ts._tir, Apply(_cached_merge_function._name,
+        _merge_function_map[(ts.row.dtype, ts.globals.dtype)] = f
+    merge_function = _merge_function_map[(ts.row.dtype, ts.globals.dtype)]
+    ts = Table(TableMapRows(ts._tir, Apply(merge_function._name,
                                            TopLevelReference('row'),
                                            TopLevelReference('global'))))
     return ts.transmute_globals(__cols=hl.flatten(ts.g.map(lambda g: g.__cols)))

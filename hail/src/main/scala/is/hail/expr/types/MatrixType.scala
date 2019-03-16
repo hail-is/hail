@@ -157,18 +157,18 @@ case class MatrixType(
     MatrixType.fromParts(globalType, colKey, colType, rowKey, rowType, entryType)
   }
 
-  def globalEnv: Env[Type] = Env.empty[Type]
+  @transient lazy val globalEnv: Env[Type] = Env.empty[Type]
     .bind("global" -> globalType)
 
-  def rowEnv: Env[Type] = Env.empty[Type]
+  @transient lazy val rowEnv: Env[Type] = Env.empty[Type]
     .bind("global" -> globalType)
     .bind("va" -> rvRowType)
 
-  def colEnv: Env[Type] = Env.empty[Type]
+  @transient lazy val colEnv: Env[Type] = Env.empty[Type]
     .bind("global" -> globalType)
     .bind("sa" -> colType)
 
-  def entryEnv: Env[Type] = Env.empty[Type]
+  @transient lazy val entryEnv: Env[Type] = Env.empty[Type]
     .bind("global" -> globalType)
     .bind("sa" -> colType)
     .bind("va" -> rvRowType)
@@ -189,8 +189,6 @@ case class MatrixType(
 
   def referenceGenome: ReferenceGenome = {
     val firstKeyField = rowKeyStruct.types(0)
-    firstKeyField match {
-      case TLocus(rg: ReferenceGenome, _) => rg
-    }
+    firstKeyField.asInstanceOf[TLocus].rg.asInstanceOf[ReferenceGenome]
   }
 }

@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.ExecStrategy
 import is.hail.expr.types._
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
@@ -11,6 +12,8 @@ import org.scalatest.testng.TestNGSuite
 class SetFunctionsSuite extends TestNGSuite {
   val naa = NA(TArray(TInt32()))
   val nas = NA(TSet(TInt32()))
+
+  implicit val execStrats = ExecStrategy.javaOnly
 
   @Test def toSet() {
     assertEvalsTo(IRSet(3, 7), Set(3, 7))

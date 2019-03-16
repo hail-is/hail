@@ -18,28 +18,6 @@ import org.apache.spark.sql.Row
 
 class ImportMatrixSuite extends SparkSuite {
 
-  val genValidImportType = Gen.oneOf[Type](TInt32(), TInt64(), TFloat32(), TFloat64(), TString())
-
-  val genImportableMatrix = VSMSubgen(
-    sSigGen = Gen.const(TString()),
-    saSigGen = Gen.const(TStruct.empty()),
-    vSigGen = Gen.oneOf[Type](TInt32(), TInt64(), TString()),
-    rowPartitionKeyGen = (t: Type) => Gen.const(Array("v")),
-    vaSigGen = Type.preGenStruct(required=false, genValidImportType),
-    globalSigGen = Gen.const(TStruct.empty()),
-    tSigGen = Gen.zip(genValidImportType, Gen.coin(0.2))
-      .map { case (typ, req) => typ.setRequired(req) }.map { t => TStruct("x" -> t) },
-    sGen = (t: Type) => Gen.identifier.map(s => s: Annotation),
-    saGen = (t: Type) => t.genNonmissingValue,
-    vaGen = (t: Type) => t.genNonmissingValue,
-    globalGen = (t: Type) => t.genNonmissingValue,
-    vGen = (t: Type) => t.genNonmissingValue,
-    tGen = (t: Type, v: Annotation) => t.genNonmissingValue)
-
-  def getVAFieldsAndTypes(vsm: MatrixTable): (Array[String], Array[Type]) = {
-    (vsm.rowType.fieldNames, vsm.rowType.types)
-  }
-
   @Test def testHeadersNotIdentical() {
     val files = hc.hadoopConf.globAll(List("src/test/resources/sampleheader*.txt"))
     val e = intercept[SparkException] {

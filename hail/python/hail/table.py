@@ -2695,6 +2695,52 @@ class Table(ExprContainer):
             **{col_data_uid: hl.array(ht[col_data_uid]['data'].map(lambda elt: hl.struct(**elt[0], **elt[1])))})
         return ht._unlocalize_entries(entries_uid, col_data_uid, col_key)
 
+    @typecheck_method(columns=sequenceof(str), entry_field_name=nullable(str), col_field_name=str)
+    def to_matrix_table_row_major(self, columns, entry_field_name=None, col_field_name='col'):
+        """Construct a matrix table from a table in row major representation. Each element in `columns`
+        is a field that will become an entry field in the matrix table. Fields omitted from `columns` become row
+        fields. If `columns` are structs, then the matrix table will have the entry fields of those structs. Otherwise,
+        the matrix table will have one entry field named `entry_field_name` whose values come from the values
+        of the `columns` fields. The matrix table is column indexed by `col_field_name`.
+
+        Notes
+        -----
+        All fields in `columns` must have the same type.
+
+        Parameters
+        ----------
+        columns : Sequence[str]
+            Fields to be used as columns.
+        entry_field_name : :obj:`str` or None
+            Field name for the entries of the matrix table.
+        col_field_name : :obj:`str`
+            Field name for the columns of the matrix table.
+
+        Returns
+        -------
+        :class:`.MatrixTable`
+        """
+        if len(columns) == 0:
+            raise ValueError('Columns must be non-empty.')
+
+        fields = [self[field] for field in columns]
+        col_types = set([field.dtype for field in fields])
+        if len(col_types) != 1:
+            raise ValueError('All columns must have the same type.')
+
+        if all([isinstance(col_typ, hl.tstruct) for col_typ in col_types]):
+            if entry_field_name is not None:
+                raise ValueError('Cannot both provide struct columns and an entry field name.')
+            entries = hl.array(fields)
+        else:
+            if entry_field_name is None:
+                raise ValueError('Must provide an entry field name.')
+            entries = hl.array([hl.struct(**{entry_field_name: field}) for field in fields])
+
+        t = self.transmute(entries=entries)
+        t = t.annotate_globals(cols=hl.array([hl.struct(**{col_field_name: col}) for col in columns]))
+        return t._unlocalize_entries('entries', 'cols', [col_field_name])
+
     @property
     def globals(self) -> 'StructExpression':
         """Returns a struct expression including all global fields.
@@ -3038,8 +3084,8 @@ class Table(ExprContainer):
     def _filter_partitions(self, parts, keep=True) -> 'Table':
         return Table(TableToTableApply(self._tir, {'name': 'TableFilterPartitions', 'parts': parts, 'keep': keep}))
 
-    @typecheck_method(cols_field_name=str,
-                      entries_field_name=str,
+    @typecheck_method(entries_field_name=str,
+                      cols_field_name=str,
                       col_key=sequenceof(str))
     def _unlocalize_entries(self, entries_field_name, cols_field_name, col_key) -> 'hl.MatrixTable':
         return hl.MatrixTable(CastTableToMatrix(

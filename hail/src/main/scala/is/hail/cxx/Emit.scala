@@ -1,16 +1,24 @@
 package is.hail.cxx
 
 import is.hail.expr.ir
+import is.hail.expr.types._
 import is.hail.expr.types.physical._
 import is.hail.expr.types.virtual._
+import is.hail.io.CodecSpec
+import is.hail.nativecode.{NativeModule, NativeStatus}
 import is.hail.utils._
 
 import scala.collection.mutable
 
 object Emit {
-  def apply(fb: FunctionBuilder, nSpecialArgs: Int, x: ir.IR): EmitTriplet = {
+  def apply(fb: FunctionBuilder, nSpecialArgs: Int, x: ir.IR): (EmitTriplet, Array[(String, NativeModule)]) = {
     val emitter = new Emitter(fb, nSpecialArgs, SparkFunctionContext(fb))
-    emitter.emit(x, ir.Env.empty[EmitTriplet])
+    if (nSpecialArgs == 0) {
+      val res = emitter.emit(x, ir.Env.empty[EmitTriplet])
+      if (res.region.used) { throw new CXXUnsupportedOperation("can't use region if none is provided.") }
+      res -> emitter.modules.result()
+    } else
+      emitter.emit(x, ir.Env.empty[EmitTriplet]) -> emitter.modules.result()
   }
 }
 
@@ -165,7 +173,8 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
   outer =>
   type E = ir.Env[EmitTriplet]
 
-  val sparkEnv = ctx.sparkEnv
+  val modules: ArrayBuilder[(String, NativeModule)] = new ArrayBuilder()
+  val sparkEnv: Code = ctx.sparkEnv
 
   def emit(resultRegion: EmitRegion, x: ir.IR, env: E): EmitTriplet = {
     def triplet(setup: Code, m: Code, v: Code): EmitTriplet =
@@ -598,6 +607,100 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
                  |""".stripMargin)
         }
 
+      case ir.ArraySort(a, l, r, comp) =>
+        fb.translationUnitBuilder().include("hail/ArraySorter.h")
+        fb.translationUnitBuilder().include("hail/ArrayBuilder.h")
+        val aType = coerce[PContainer](a.pType)
+        val eltType = coerce[TContainer](a.typ).elementType
+        val cxxType = typeToCXXType(eltType.physicalType)
+        val array = emitArray(resultRegion, a, env, sameRegion = !eltType.physicalType.isPrimitive)
+
+        val ltClass = fb.translationUnitBuilder().buildClass(fb.translationUnitBuilder().genSym("SorterLessThan"))
+        val lt = ltClass.buildMethod("operator()", Array(cxxType -> "l", cxxType -> "r"), "bool", const=true)
+        val (trip, mods) = Emit(lt, 0, ir.Subst(comp, ir.Env(l -> ir.In(0, eltType), r -> ir.In(1, eltType))))
+        assert(mods.isEmpty)
+        lt += s"""
+             |${ trip.setup }
+             |if (${ trip.m }) { throw new FatalError("ArraySort: comparison function cannot evaluate to missing."); }
+             |return (${ trip.v });
+           """.stripMargin
+        lt.end()
+        ltClass.end()
+
+        val sorter = fb.variable("sorter", aType.cxxArraySorter(ltClass.name), s"{ }")
+        resultRegion.use()
+
+        EmitTriplet(aType, array.setup, array.m,
+          s"""{
+             |${ sorter.define }
+             |${ array.setupLen }
+             |${ array.emit { (m, v) => s"if ($m) { $sorter.add_missing(); } else { $sorter.add_element($v); }" } }
+             |$sorter.sort();
+             |$sorter.to_region($resultRegion);
+             |}
+           """.stripMargin,
+          resultRegion)
+      case x@(ir.ToSet(_) | ir.ToDict(_)) =>
+        fb.translationUnitBuilder().include("hail/ArraySorter.h")
+        fb.translationUnitBuilder().include("hail/ArrayBuilder.h")
+        val a = x.children(0).asInstanceOf[ir.IR]
+        val eltType = coerce[TContainer](a.typ).elementType
+        val array = emitArray(resultRegion, a, env, sameRegion = !eltType.physicalType.isPrimitive)
+        val cxxType = typeToCXXType(eltType.physicalType)
+        val l = ir.In(0, eltType)
+        val r = ir.In(1, eltType)
+
+        val (ltIR, eqIR, removeMissing) = x match {
+          case ir.ToSet(_) =>
+            val lt = ir.ApplyComparisonOp(ir.Compare(eltType), l, r) < 0
+            val eq = ir.ApplyComparisonOp(ir.EQWithNA(eltType), l, r)
+            (lt, eq, "false")
+          case ir.ToDict(_) =>
+            val keyType = coerce[TBaseStruct](eltType).types(0)
+            val lt = ir.ApplyComparisonOp(ir.Compare(keyType), ir.GetFieldByIdx(l, 0), ir.GetFieldByIdx(r, 0)) < 0
+            val eq = ir.ApplyComparisonOp(ir.EQWithNA(keyType), ir.GetFieldByIdx(l, 0), ir.GetFieldByIdx(r, 0))
+            (lt, eq, "true")
+        }
+
+        val ltClass = fb.translationUnitBuilder().buildClass(fb.translationUnitBuilder().genSym("SorterLessThan"))
+        val lt = ltClass.buildMethod("operator()", Array(cxxType -> "l", cxxType -> "r"), "bool", const=true)
+        val (trip, mods) = Emit(lt, 0, ltIR)
+        assert(mods.isEmpty)
+        lt += s"""
+                 |${ trip.setup }
+                 |if (${ trip.m }) { abort(); }
+                 |return (${ trip.v });
+           """.stripMargin
+        lt.end()
+        ltClass.end()
+
+        val eqClass = fb.translationUnitBuilder().buildClass(fb.translationUnitBuilder().genSym("SorterEq"))
+        val eq = eqClass.buildMethod("operator()", Array(cxxType -> "l", cxxType -> "r"), "bool", const=true)
+        val (eqTrip, eqmods) = Emit(eq, 0, eqIR)
+        assert(eqmods.isEmpty)
+        eq += s"""
+                 |${ eqTrip.setup }
+                 |if (${ eqTrip.m }) { abort(); }
+                 |return (${ eqTrip.v });
+           """.stripMargin
+        eq.end()
+        eqClass.end()
+
+        val sorter = fb.variable("sorter", coerce[PContainer](x.pType).cxxArraySorter(ltClass.name), s"{ }")
+        resultRegion.use()
+
+        EmitTriplet(x.pType, array.setup, array.m,
+          s"""{
+             |${ sorter.define }
+             |${ array.setupLen }
+             |${ array.emit { (m, v) => s"if ($m) { $sorter.add_missing(); } else { $sorter.add_element($v); }" } }
+             |$sorter.sort();
+             |$sorter.distinct<${ eqClass.name }>($removeMissing);
+             |$sorter.to_region($resultRegion);
+             |}
+           """.stripMargin,
+          resultRegion)
+
       case x@ir.ApplyIR(_, _) =>
         // FIXME small only
         emit(x.explicitNode)
@@ -605,6 +708,94 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
       case ir.In(i, _) =>
         EmitTriplet(x.pType, "",
           "false", fb.getArg(nSpecialArgs + i).toString, null)
+
+      case x@ir.CollectDistributedArray(c, g, cname, gname, body) =>
+        if (ir.Exists(body, _.isInstanceOf[ir.CollectDistributedArray])) {
+          fatal("cannot nest distributed arrays")
+        }
+
+        val spec = CodecSpec.defaultUncompressed
+        val ctxType = coerce[PArray](c.pType).elementType
+
+        val contexts = emit(c)
+        val globals = emit(g).memoize(fb)
+
+        val tub = new TranslationUnitBuilder
+        tub.include("<string>")
+        val wrappedBody = if (body.pType.isPrimitive) ir.MakeTuple(FastSeq(body)) else body
+
+        val (bodyF, mods) = Compile.makeNonmissingFunction(tub, body, "context" -> ctxType, "global" -> g.pType)
+        assert(mods.isEmpty)
+        val ctxDec = PackDecoder(ctxType, ctxType, spec.child, tub)
+        val globDec = PackDecoder(g.pType, g.pType, spec.child, tub).name
+        val resEnc = PackEncoder(body.pType, spec.child, tub).name
+
+        val fname = tub.genSym("wrapper")
+        val wrapperf = tub.buildFunction(fname,
+          Array("NativeStatus *" -> "st", "long" -> "region", "long" -> "objects"), "long")
+
+        wrapperf +=
+          s"""
+             |UpcallEnv up;
+             |
+             |RegionPtr region = ((ScalaRegion *)${ wrapperf.getArg(1) })->region_;
+             |jobject jres_out = reinterpret_cast<ObjectArray *>(${ wrapperf.getArg(2) })->at(0);
+             |$resEnc res_out { std::make_shared<OutputStream>(up, jres_out) };
+             |
+             |jobject jctx_in = reinterpret_cast<ObjectArray *>(${ wrapperf.getArg(2) })->at(1);
+             |$ctxDec ctx_in { std::make_shared<InputStream>(up, jctx_in) };
+             |char * ctx_ptr = ctx_in.decode_row(region.get());
+             |
+             |jobject jglob_in = reinterpret_cast<ObjectArray *>(${ wrapperf.getArg(2) })->at(2);
+             |$globDec glob_in { std::make_shared<InputStream>(up, jglob_in) };
+             |char * glob_ptr = glob_in.decode_row(region.get());
+             |
+             |try {
+             |  auto res = ${ bodyF.name }(SparkFunctionContext(region), ctx_ptr, glob_ptr);
+             |  res_out.encode_row(res);
+             |  res_out.flush();
+             |  return 0;
+             |} catch (const FatalError& e) {
+             |  NATIVE_ERROR(${ wrapperf.getArg(0) }, 1005, e.what());
+             |  return -1;
+             |}
+             |
+           """.stripMargin
+        wrapperf.end()
+
+        val tu = tub.end()
+        val mod = tu.build("-ggdb -O3")
+        val st = new NativeStatus()
+        mod.findOrBuild(st)
+        assert(st.ok, st.toString())
+
+        val modString = ir.genUID()
+        modules += modString -> mod
+
+        fb.translationUnitBuilder().include("hail/SparkUtils.h")
+        val ctxs = fb.variable("ctxs", "char *")
+        val ctxEnc = PackEncoder(ctxType, spec.child, fb.translationUnitBuilder())
+        val ctxsEnc = s"SparkEnv::ArrayEncoder<${ ctxEnc.name }, ${ coerce[PArray](c.pType).cxxImpl }>"
+        val globEnc = PackEncoder(g.pType, spec.child, fb.translationUnitBuilder()).name
+        val resDec = PackDecoder(body.pType, body.pType, spec.child, fb.translationUnitBuilder())
+
+        fb.translationUnitBuilder().include("hail/ArrayBuilder.h")
+        val arrayBuilder = StagedContainerBuilder.builderType(coerce[PArray](x.pType))
+        val resultsDecoder = s"SparkEnv::ArrayDecoder<${ resDec.name }, $arrayBuilder>"
+
+        EmitTriplet(
+          x.pType,
+          s"${ contexts.setup }\n${ globals.setup }",
+          contexts.m,
+          s"""{
+             |if (${ globals.m }) {
+             |  throw new FatalError("globals can't be missing!");
+             |}
+             |${ ctxs.defineWith(contexts.v) }
+             |$sparkEnv.compute_distributed_array<$ctxsEnc, $globEnc, $resultsDecoder>($resultRegion, "$modString", "$fname", $ctxs, ${ globals.v });
+             |}
+           """.stripMargin,
+          resultRegion)
 
       case _ =>
         throw new CXXUnsupportedOperation(ir.Pretty(x))

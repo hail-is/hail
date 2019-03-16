@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.ExecStrategy
 import is.hail.TestUtils._
 import is.hail.expr.types._
 import is.hail.expr.types.virtual.TString
@@ -7,6 +8,8 @@ import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
 class StringLengthSuite extends TestNGSuite {
+  implicit val execStrats = ExecStrategy.javaOnly
+
   @Test def sameAsJavaStringLength() {
     assertEvalsTo(StringLength(Str("abc")), 3)
     assertEvalsTo(StringLength(Str("")), 0)

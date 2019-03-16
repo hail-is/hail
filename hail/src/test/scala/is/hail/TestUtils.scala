@@ -1,6 +1,7 @@
 package is.hail
 
 import breeze.linalg.{DenseMatrix, Matrix, Vector}
+import is.hail.ExecStrategy.ExecStrategy
 import is.hail.annotations.{Annotation, Region, RegionValueBuilder, SafeRow}
 import is.hail.backend.spark.SparkBackend
 import is.hail.cxx.CXXUnsupportedOperation
@@ -14,6 +15,14 @@ import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.SparkException
 import org.apache.spark.sql.Row
+
+object ExecStrategy extends Enumeration {
+  type ExecStrategy = Value
+  val Interpret, InterpretUnoptimized, JvmCompile, CxxCompile = Value
+
+  val javaOnly:Set[ExecStrategy] = Set(Interpret, InterpretUnoptimized, JvmCompile)
+  val interpretOnly: Set[ExecStrategy] = Set(Interpret, InterpretUnoptimized)
+}
 
 object TestUtils {
 
@@ -370,19 +379,28 @@ object TestUtils {
     }
   }
 
-  def assertEvalsTo(x: IR, expected: Any) {
+  def assertEvalsTo(x: IR, expected: Any)
+    (implicit execStrats: Set[ExecStrategy]) {
     assertEvalsTo(x, Env.empty, FastIndexedSeq(), None, expected)
   }
 
-  def assertEvalsTo(x: IR, args: IndexedSeq[(Any, Type)], expected: Any) {
+  def assertEvalsTo(x: IR, args: IndexedSeq[(Any, Type)], expected: Any)
+    (implicit execStrats: Set[ExecStrategy]) {
     assertEvalsTo(x, Env.empty, args, None, expected)
   }
 
-  def assertEvalsTo(x: IR, agg: (IndexedSeq[Row], TStruct), expected: Any) {
+  def assertEvalsTo(x: IR, agg: (IndexedSeq[Row], TStruct), expected: Any)
+    (implicit execStrats: Set[ExecStrategy]) {
     assertEvalsTo(x, Env.empty, FastIndexedSeq(), Some(agg), expected)
   }
 
-  def assertEvalsTo(x: IR, env: Env[(Any, Type)], args: IndexedSeq[(Any, Type)], agg: Option[(IndexedSeq[Row], TStruct)], expected: Any) {
+  def assertEvalsTo(x: IR,
+    env: Env[(Any, Type)],
+    args: IndexedSeq[(Any, Type)],
+    agg: Option[(IndexedSeq[Row], TStruct)],
+    expected: Any)
+    (implicit execStrats: Set[ExecStrategy]) {
+
     TypeCheck(x,
       env.mapValues(_._2),
       agg.map(_._2.toEnv))
@@ -390,26 +408,22 @@ object TestUtils {
     val t = x.typ
     assert(t.typeCheck(expected), t)
 
-    val i = Interpret[Any](x, env, args, agg)
-    assert(t.typeCheck(i))
-    assert(t.valuesSimilar(i, expected), s"($i, $expected)")
-
-    val i2 = Interpret[Any](x, env, args, agg, optimize = false)
-    assert(t.typeCheck(i2))
-    assert(t.valuesSimilar(i2, expected), s"($i2, $expected)")
-
-    if (Forall(x, node => node.isInstanceOf[IR] && Compilable(node.asInstanceOf[IR]))) {
-      val c = eval(x, env, args, agg)
-      assert(t.typeCheck(c))
-      assert(t.valuesSimilar(c, expected), s"($c, $expected)")
-    }
-
-    try {
-      val c = nativeExecute(x, env, args, agg)
-      assert(t.typeCheck(c))
-      assert(t.valuesSimilar(c, expected), s"($c, $expected)")
-    } catch {
-      case _: CXXUnsupportedOperation =>
+    ExecStrategy.values.foreach { strat =>
+      try {
+        val res = strat match {
+          case ExecStrategy.Interpret => Interpret[Any](x, env, args, agg)
+          case ExecStrategy.InterpretUnoptimized => Interpret[Any](x, env, args, agg, optimize = false)
+          case ExecStrategy.JvmCompile =>
+            assert(Forall(x, node => node.isInstanceOf[IR] && Compilable(node.asInstanceOf[IR])))
+            eval(x, env, args, agg)
+          case ExecStrategy.CxxCompile => nativeExecute(x, env, args, agg)
+        }
+        assert(t.typeCheck(res))
+        assert(t.valuesSimilar(res, expected), s"($res, $expected)")
+      } catch {
+        case e: Exception =>
+          if (execStrats.contains(strat)) throw e
+      }
     }
   }
 
@@ -459,12 +473,9 @@ object TestUtils {
     arrayElementsRequired: Boolean = true,
     skipInvalidLoci: Boolean = false,
     partitionsJSON: String = null): MatrixTable = {
-    val addedReference = rg.exists { referenceGenome =>
-      if (!ReferenceGenome.hasReference(referenceGenome.name)) {
-        ReferenceGenome.addReference(referenceGenome)
-        true
-      } else false
-    } // Needed for tests
+    rg.foreach { referenceGenome =>
+      ReferenceGenome.addReference(referenceGenome)
+    }
     val entryFloatType = TFloat64()._toPretty
 
     val reader = MatrixVCFReader(
@@ -482,8 +493,6 @@ object TestUtils {
       TextInputFilterAndReplace(),
       partitionsJSON
     )
-    if (addedReference)
-      ReferenceGenome.removeReference(rg.get.name)
     new MatrixTable(hc, MatrixRead(reader.fullMatrixType, dropSamples, false, reader))
   }
 

@@ -423,6 +423,18 @@ class ContextRDD[C <: AutoCloseable, T: ClassTag](
       preservesPartitioning),
     mkc)
 
+  def cmapPartitionsWithIndexAndValue[U: ClassTag, V](
+    values: Array[V],
+    f: (Int, C, V, Iterator[T]) => Iterator[U],
+    preservesPartitioning: Boolean = false
+  ): ContextRDD[C, U] = new ContextRDD(
+    new MapPartitionsWithValueRDD[(C) => Iterator[T], (C) => Iterator[U], V](
+      rdd,
+      values,
+      (i, v, part) => inCtx(ctx => f(i, ctx, v, part.flatMap(_(ctx)))),
+      preservesPartitioning),
+    mkc)
+
   def cmapPartitionsAndContextWithIndex[U: ClassTag](
     f: (Int, C, Iterator[C => Iterator[T]]) => Iterator[U],
     preservesPartitioning: Boolean = false

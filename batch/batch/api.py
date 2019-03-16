@@ -15,10 +15,12 @@ class API():
         self.timeout = timeout
 
     def create_job(self, url, spec, attributes, batch_id, callback, parent_ids,
-                   scratch_folder, input_files, output_files):
+                   scratch_folder, input_files, output_files, copy_service_account_name,
+                   always_run):
         doc = {
             'spec': spec,
-            'parent_ids': parent_ids
+            'parent_ids': parent_ids,
+            'always_run': always_run
         }
         if attributes:
             doc['attributes'] = attributes
@@ -32,6 +34,8 @@ class API():
             doc['input_files'] = input_files
         if output_files:
             doc['output_files'] = output_files
+        if copy_service_account_name:
+            doc['copy_service_account_name'] = copy_service_account_name
 
         response = requests.post(url + '/jobs/create', json=doc, timeout=self.timeout)
         raise_on_failure(response)
@@ -98,10 +102,11 @@ DEFAULT_API = API()
 
 
 def create_job(url, spec, attributes, batch_id, callback, parent_ids, scratch_folder,
-               input_files, output_files):
+               input_files, output_files, copy_service_account_name, always_run):
     return DEFAULT_API.create_job(url, spec, attributes, batch_id, callback,
                                   parent_ids, scratch_folder, input_files,
-                                  output_files)
+                                  output_files, copy_service_account_name,
+                                  always_run)
 
 
 def list_jobs(url):

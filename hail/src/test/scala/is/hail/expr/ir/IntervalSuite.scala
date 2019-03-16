@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.ExecStrategy
 import is.hail.TestUtils._
 import is.hail.expr.types.virtual.{TBoolean, TInt32, TInterval, TTuple}
 import is.hail.utils._
@@ -8,6 +9,8 @@ import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
 class IntervalSuite extends TestNGSuite {
+
+  implicit val execStrats = ExecStrategy.javaOnly
 
   val tpoint1 = TTuple(TInt32())
   val tinterval1 = TInterval(tpoint1)

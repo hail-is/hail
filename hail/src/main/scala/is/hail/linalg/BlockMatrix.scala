@@ -7,12 +7,12 @@ import breeze.numerics.{abs => breezeAbs, log => breezeLog, pow => breezePow, sq
 import breeze.stats.distributions.{RandBasis, ThreadLocalRandomGenerator}
 import is.hail._
 import is.hail.annotations._
-import is.hail.expr.ir.{TableIR, TableLiteral, TableValue}
-import is.hail.table.Table
+import is.hail.expr.ir.TableValue
 import is.hail.expr.types._
-import is.hail.expr.types.virtual.{TFloat64, TFloat64Optional, TInt64Optional, TStruct}
+import is.hail.expr.types.physical.{PArray, PFloat64, PInt64, PStruct}
+import is.hail.expr.types.virtual._
 import is.hail.io._
-import is.hail.rvd.{RVD, RVDContext}
+import is.hail.rvd.{RVD, RVDContext, RVDPartitioner}
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.utils.richUtils.{RichArray, RichDenseMatrixDouble}
@@ -20,12 +20,13 @@ import org.apache.commons.lang3.StringUtils
 import org.apache.commons.math3.random.MersenneTwister
 import org.apache.spark.executor.InputMetrics
 import org.apache.spark._
-import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.mllib.linalg.distributed._
-
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 import org.json4s._
+
+import scala.collection.immutable.NumericRange
 
 object BlockMatrix {
   type M = BlockMatrix
@@ -1651,5 +1652,74 @@ class WriteBlocksRDD(path: String,
     }
     outPerBlockCol.foreach(_.close())
     blockPartFiles.iterator
+  }
+}
+
+class BlockMatrixReadRowBlockedRDD(
+  path: String,
+  partitionRanges: IndexedSeq[NumericRange.Exclusive[Long]],
+  metadata: BlockMatrixMetadata,
+  hc: HailContext) extends RDD[RVDContext => Iterator[RegionValue]](hc.sc, Nil) {
+
+  val BlockMatrixMetadata(blockSize, nRows, nCols, maybeFiltered, partFiles) = metadata
+  val localHadoopConfBc = hc.hadoopConfBc
+
+  val gp = GridPartitioner(blockSize, nRows, nCols)
+
+  override def compute(split: Partition, context: TaskContext): Iterator[RVDContext => Iterator[RegionValue]] = {
+    val pi = split.index
+    val rowsForPartition = partitionRanges(pi)
+
+    Iterator.single { ctx =>
+      val region = ctx.region
+      val rvb = new RegionValueBuilder(region)
+      val rv = RegionValue(region)
+
+      rowsForPartition.iterator.map { row =>
+        val pfs = partFilesForRow(row, partFiles)
+        val rowInPartFile = (row % blockSize).toInt
+
+        rvb.start(PStruct(("row_idx", PInt64()), ("entries", PArray(PFloat64()))))
+        rvb.startStruct()
+        rvb.addLong(row)
+        rvb.startArray(nCols.toInt)
+        pfs.foreach { pFile => readPartFileRow(rvb, rowInPartFile, pFile) }
+        rvb.endArray()
+        rvb.endStruct()
+
+        rv.setOffset(rvb.end())
+        rv
+      }
+    }
+  }
+
+  private def partFilesForRow(row: Long, partFiles: Array[String]): Array[String] = {
+    val blockRow = (row / blockSize).toInt
+    Array.tabulate(gp.nBlockCols) { blockCol => partFiles(gp.coordinatesBlock(blockRow, blockCol)) }
+  }
+
+  private def readPartFileRow(rvb: RegionValueBuilder, rowIdx: Int, pFile: String) {
+    val filename = path + "/parts/" + pFile
+    val is = localHadoopConfBc.value.value.unsafeReader(filename)
+    val in = BlockMatrix.bufferSpec.buildInputBuffer(is)
+
+    val rows = in.readInt()
+    val cols = in.readInt()
+    val isTranspose = in.readBoolean()
+    assert(isTranspose, "BlockMatrix must be saved in row-major format")
+
+    val entriesToSkip = rowIdx * cols
+    in.skipBytes(8 * entriesToSkip)
+
+    var i = 0
+    while (i < cols) {
+      rvb.addDouble(in.readDouble())
+      i += 1
+    }
+    is.close()
+  }
+
+  override def getPartitions: Array[Partition] = {
+    Array.tabulate(partitionRanges.length) { pi => new Partition { val index: Int = pi } }
   }
 }

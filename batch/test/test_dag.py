@@ -304,3 +304,107 @@ def test_no_parents_allowed_without_batches(client):
         assert re.search('.*invalid parent batch: .*', err.response.text)
         return
     assert False
+
+
+def test_output_files_no_service_account_is_error(client):
+    batch = client.create_batch()
+    try:
+        batch.create_job('alpine:3.8',
+                         command=['/bin/sh', '-c', 'echo head > /out'],
+                         output_files=[('/out', 'gs://hail-ci-0-1-batch-volume-test-bucket')])
+    except requests.exceptions.HTTPError as err:
+        assert err.response.status_code == 400
+        assert re.search('.*invalid request: if either input_files or '
+                         'ouput_files is set, then the service account must '
+                         'be specified; otherwise the service account must '
+                         'not be specified.*',
+                         err.response.text)
+        return
+    assert False
+
+
+def test_input_files_no_service_account_is_error(client):
+    batch = client.create_batch()
+    try:
+        batch.create_job('alpine:3.8',
+                         command=['/bin/sh', '-c', 'echo head > /out'],
+                         input_files=[('gs://hail-ci-0-1-batch-volume-test-bucket', '/in')])
+    except requests.exceptions.HTTPError as err:
+        assert err.response.status_code == 400
+        assert re.search('.*invalid request: if either input_files or '
+                         'ouput_files is set, then the service account must '
+                         'be specified; otherwise the service account must '
+                         'not be specified.*',
+                         err.response.text)
+        return
+    assert False
+
+
+def test_service_account_no_files_is_error(client):
+    batch = client.create_batch()
+    try:
+        batch.create_job('alpine:3.8',
+                         command=['/bin/sh', '-c', 'echo head > /out'],
+                         copy_service_account_name='batch-volume-tester')
+    except requests.exceptions.HTTPError as err:
+        assert err.response.status_code == 400
+        assert re.search('.*invalid request: if either input_files or '
+                         'ouput_files is set, then the service account must '
+                         'be specified; otherwise the service account must '
+                         'not be specified.*',
+                         err.response.text)
+        return
+    assert False
+
+
+def test_input_dependency(client):
+    batch = client.create_batch()
+    head = batch.create_job('alpine:3.8',
+                            command=['/bin/sh', '-c', 'echo head1 > /io/data1 ; echo head2 > /io/data2'],
+                            output_files=[('/io/data*', 'gs://hail-ci-0-1-batch-volume-test-bucket')],
+                            copy_service_account_name='batch-volume-tester')
+    tail = batch.create_job('alpine:3.8',
+                            command=['/bin/sh', '-c', 'cat /io/data1 ; cat /io/data2'],
+                            input_files=[('gs://hail-ci-0-1-batch-volume-test-bucket/data\\*', '/io/')],
+                            copy_service_account_name='batch-volume-tester',
+                            parent_ids=[head.id])
+    tail.wait()
+    assert tail.log()['main'] == 'head1\nhead2\n'
+
+
+def test_always_run_delete(client):
+    batch = client.create_batch()
+    head = batch.create_job('alpine:3.8', command=['echo', 'head'])
+    left = batch.create_job(
+        'alpine:3.8',
+        command=['/bin/sh', '-c', 'while true; do sleep 86000; done'],
+        parent_ids=[head.id])
+    right = batch.create_job('alpine:3.8', command=['echo', 'right'], parent_ids=[head.id])
+    tail = batch.create_job('alpine:3.8',
+                            command=['echo', 'tail'],
+                            parent_ids=[left.id, right.id],
+                            always_run=True)
+    left.delete()
+    status = batch.wait()
+    assert status['jobs']['Complete'] == 3
+    for node in [head, right, tail]:
+        status = node.status()
+        assert status['state'] == 'Complete'
+        assert status['exit_code'] == 0
+
+
+def test_always_run_error(client):
+    batch = client.create_batch()
+    head = batch.create_job('alpine:3.8', command=['/bin/sh', '-c', 'exit 1'])
+    tail = batch.create_job('alpine:3.8',
+                            command=['echo', 'tail'],
+                            parent_ids=[head.id],
+                            always_run=True)
+
+    status = batch.wait()
+    assert status['jobs']['Complete'] == 2
+
+    for job, ec in [(head, 1), (tail, 0)]:
+        status = job.status()
+        assert status['state'] == 'Complete'
+        assert status['exit_code'] == ec

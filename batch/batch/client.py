@@ -43,10 +43,10 @@ class Job:
             self.status()  # update
             if self.is_complete():
                 return self._status
-            j = random.randrange(math.floor(1.5 ** i))
+            j = random.randrange(math.floor(1.1 ** i))
             time.sleep(0.100 * j)
-            # max 5.12s
-            if i < 9:
+            # max 4.45s
+            if i < 64:
                 i = i + 1
 
     def cancel(self):
@@ -71,13 +71,14 @@ class Batch:
     def create_job(self, image, command=None, args=None, env=None, ports=None,
                    resources=None, tolerations=None, volumes=None, security_context=None,
                    service_account_name=None, attributes=None, callback=None, parent_ids=None,
-                   scratch_folder=None, input_files=None, output_files=None):
+                   scratch_folder=None, input_files=None, output_files=None,
+                   copy_service_account_name=None, always_run=False):
         if parent_ids is None:
             parent_ids = []
         return self.client._create_job(
             image, command, args, env, ports, resources, tolerations, volumes, security_context,
             service_account_name, attributes, self.id, callback, parent_ids, scratch_folder,
-            input_files, output_files)
+            input_files, output_files, copy_service_account_name, always_run)
 
     def close(self):
         self.client._close_batch(self.id)
@@ -91,10 +92,10 @@ class Batch:
             status = self.status()
             if status['jobs']['Created'] == 0:
                 return status
-            j = random.randrange(2 ** i)
+            j = random.randrange(math.floor(1.1 ** i))
             time.sleep(0.100 * j)
-            # max 5.12s
-            if i < 9:
+            # max 4.45s
+            if i < 64:
                 i = i + 1
 
 
@@ -122,7 +123,9 @@ class BatchClient:
                     parent_ids,
                     scratch_folder,
                     input_files,
-                    output_files):
+                    output_files,
+                    copy_service_account_name,
+                    always_run):
         if env:
             env = [{'name': k, 'value': v} for (k, v) in env.items()]
         else:
@@ -172,7 +175,8 @@ class BatchClient:
             spec['serviceAccountName'] = service_account_name
 
         j = self.api.create_job(self.url, spec, attributes, batch_id, callback,
-                                parent_ids, scratch_folder, input_files, output_files)
+                                parent_ids, scratch_folder, input_files, output_files,
+                                copy_service_account_name, always_run)
         return Job(self,
                    j['id'],
                    attributes=j.get('attributes'),
@@ -233,13 +237,15 @@ class BatchClient:
                    parent_ids=None,
                    scratch_folder=None,
                    input_files=None,
-                   output_files=None):
+                   output_files=None,
+                   copy_service_account_name=None,
+                   always_run=False):
         if parent_ids is None:
             parent_ids = []
         return self._create_job(
             image, command, args, env, ports, resources, tolerations, volumes, security_context,
             service_account_name, attributes, None, callback, parent_ids, scratch_folder,
-            input_files, output_files)
+            input_files, output_files, copy_service_account_name, always_run)
 
     def create_batch(self, attributes=None, callback=None, ttl=None):
         batch = self.api.create_batch(self.url, attributes, callback, ttl)

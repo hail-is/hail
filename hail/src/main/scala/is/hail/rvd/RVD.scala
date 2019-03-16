@@ -396,6 +396,18 @@ class RVD(
       crdd.cmapPartitionsWithIndex(f))
   }
 
+  def mapPartitionsWithIndexAndValue[V](
+    newTyp: RVDType,
+    values: Array[V],
+    f: (Int, RVDContext, V, Iterator[RegionValue]) => Iterator[RegionValue]
+  ): RVD = {
+    require(newTyp.kType isPrefixOf typ.kType)
+    RVD(
+      newTyp,
+      partitioner.coarsen(newTyp.key.length),
+      crdd.cmapPartitionsWithIndexAndValue(values, f))
+  }
+
   def zipWithIndex(name: String, partitionCounts: Option[IndexedSeq[Long]] = None): RVD = {
     assert(!typ.key.contains(name))
 
@@ -1326,9 +1338,9 @@ object RVD {
     val rowsRVType = MatrixType.getRowType(fullRowType)
     val entriesRVType = MatrixType.getSplitEntriesType(fullRowType)
 
-    val makeRowsEnc = codecSpec.buildEncoder(rowsRVType)
+    val makeRowsEnc = codecSpec.buildEncoder(fullRowType, rowsRVType)
 
-    val makeEntriesEnc = codecSpec.buildEncoder(entriesRVType)
+    val makeEntriesEnc = codecSpec.buildEncoder(fullRowType, entriesRVType)
 
     val partDigits = digitsNeeded(nPartitions)
     val fileDigits = digitsNeeded(rvds.length)
