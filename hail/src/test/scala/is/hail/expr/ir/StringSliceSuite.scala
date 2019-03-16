@@ -1,45 +1,44 @@
 package is.hail.expr.ir
 
-import is.hail.ExecStrategy
+import is.hail.{ExecStrategy, SparkSuite}
 import is.hail.utils._
 import is.hail.TestUtils._
 import is.hail.expr.types._
 import is.hail.expr.types.virtual.TString
-import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
-class StringSliceSuite extends TestNGSuite {
+class StringSliceSuite extends SparkSuite {
   implicit val execStrats = ExecStrategy.javaOnly
 
   @Test def zeroToLengthIsIdentity() {
-    assertEvalsTo(StringSlice(Str("abc"), I32(0), I32(3)), "abc")
+    assertEvalsTo(invoke("[*:*]", Str("abc"), I32(0), I32(3)), "abc")
   }
 
   @Test def simpleSlicesMatchIntuition() {
-    assertEvalsTo(StringSlice(Str("abc"), I32(3), I32(3)), "")
-    assertEvalsTo(StringSlice(Str("abc"), I32(1), I32(3)), "bc")
-    assertEvalsTo(StringSlice(Str("abc"), I32(2), I32(3)), "c")
-    assertEvalsTo(StringSlice(Str("abc"), I32(0), I32(2)), "ab")
+    assertEvalsTo(invoke("[*:*]", Str("abc"), I32(3), I32(3)), "")
+    assertEvalsTo(invoke("[*:*]", Str("abc"), I32(1), I32(3)), "bc")
+    assertEvalsTo(invoke("[*:*]", Str("abc"), I32(2), I32(3)), "c")
+    assertEvalsTo(invoke("[*:*]", Str("abc"), I32(0), I32(2)), "ab")
   }
 
   @Test def sizeZeroSliceIsEmptyString() {
-    assertEvalsTo(StringSlice(Str("abc"), I32(2), I32(2)), "")
-    assertEvalsTo(StringSlice(Str("abc"), I32(1), I32(1)), "")
-    assertEvalsTo(StringSlice(Str("abc"), I32(0), I32(0)), "")
+    assertEvalsTo(invoke("[*:*]", Str("abc"), I32(2), I32(2)), "")
+    assertEvalsTo(invoke("[*:*]", Str("abc"), I32(1), I32(1)), "")
+    assertEvalsTo(invoke("[*:*]", Str("abc"), I32(0), I32(0)), "")
   }
 
   @Test def sliceMatchesJavaStringSubstring() {
     assertEvalsTo(
-      StringSlice(Str("abc"), I32(0), I32(2)),
+      invoke("[*:*]", Str("abc"), I32(0), I32(2)),
       "abc".substring(0, 2))
     assertEvalsTo(
-      StringSlice(Str("foobarbaz"), I32(3), I32(5)),
+      invoke("[*:*]", Str("foobarbaz"), I32(3), I32(5)),
       "foobarbaz".substring(3, 5))
   }
 
   @Test def isStrict() {
-    assertEvalsTo(StringSlice(NA(TString()), I32(0), I32(2)), null)
-    assertEvalsTo(StringSlice(NA(TString()), I32(-5), I32(-10)), null)
+    assertEvalsTo(invoke("[*:*]", NA(TString()), I32(0), I32(2)), null)
+    assertEvalsTo(invoke("[*:*]", NA(TString()), I32(-5), I32(-10)), null)
   }
 
   @Test def sliceCopyIsID() {

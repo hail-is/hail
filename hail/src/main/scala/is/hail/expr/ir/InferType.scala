@@ -29,8 +29,6 @@ object InferType {
       case _: InitOp => TVoid
       case _: SeqOp => TVoid
       case _: Begin => TVoid
-      case _: StringLength => TInt32()
-      case _: StringSlice => TString()
       case Die(_, t) => t
       case If(cond, cnsq, altr) =>
         assert(cond.typ.isOfType(TBoolean()))

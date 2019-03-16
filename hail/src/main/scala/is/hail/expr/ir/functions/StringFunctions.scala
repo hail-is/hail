@@ -3,9 +3,7 @@ package is.hail.expr.ir.functions
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s
 import is.hail.asm4s._
-import is.hail.expr.ir
-import is.hail.expr.ir.{ApplyBinaryPrimOp, EmitMethodBuilder, EmitTriplet, I32, StringLength}
-import is.hail.expr.types._
+import is.hail.expr.ir._
 import is.hail.expr.types.physical.{PArray, PBinary, PString}
 import is.hail.expr.types.virtual._
 import is.hail.utils._
@@ -47,33 +45,43 @@ object StringFunctions extends RegistryFunctions {
 
   def escapeString(s: String): String = StringEscapeUtils.escapeString(s)
 
+  def softBounds(i: IR, len: IR): IR =
+    If(i < -len, 0, If(i < 0, i + len, If(i >= len, len, i)))
+
   def registerAll(): Unit = {
     val thisClass = getClass
 
-    registerIR("[]", TString(), TInt32(), TString()) { (s, idx) =>
-      // rather than do a bunch of bounds checking here, check the length of the StringSlice result - way easier
-      val sName = ir.genUID()
-      val sResult = ir.Ref(sName, TString())
-      ir.Let(
-        sName,
-        ir.StringSlice(
-          s,
-          idx,
-          ir.If(
-            ir.ApplyComparisonOp(ir.EQ(TInt32()), idx, I32(-1)),
-            ir.StringLength(s),
-            ApplyBinaryPrimOp(ir.Add(), idx, ir.I32(1)))),
-        ir.If(
-          ir.ApplyComparisonOp(ir.EQ(TInt32()), ir.StringLength(sResult), ir.I32(0)),
-          ir.Die("string index out of bounds", TString()), // FIXME: Die needs to take a string IR for a better error message
-          sResult
-        )
-      )
+    registerCode("length", TString(), TInt32()) { (mb: EmitMethodBuilder, s: Code[Long]) =>
+      asm4s.coerce[String](wrapArg(mb, TString())(s)).invoke[Int]("length")
+    }
+    registerCode("slice", TString(), TInt32(), TInt32(), TString()) { (mb: EmitMethodBuilder, s: Code[Long], start: Code[Int], end: Code[Int]) =>
+      unwrapReturn(mb, TString())(asm4s.coerce[String](wrapArg(mb, TString())(s)).invoke[Int, Int, String]("substring", start, end))
+    }
+
+    registerIR("[*:*]", TString(), TInt32(), TInt32(), TString()) { (str, start, end) =>
+      val len = Ref(genUID(), TInt32())
+      val s = Ref(genUID(), TInt32())
+      val e = Ref(genUID(), TInt32())
+      Let(len.name, invoke("length", str),
+        Let(s.name, softBounds(start, len),
+          Let(e.name, softBounds(end, len),
+            invoke("slice", str, s, If(e < s, s, e)))))
+
+    }
+
+    registerIR("[]", TString(), TInt32(), TString()) { (s, i) =>
+      val len = Ref(genUID(), TInt32())
+      val idx = Ref(genUID(), TInt32())
+      Let(len.name, invoke("length", s),
+        Let(idx.name,
+          If((i < -len) || (i >= len),
+            Die("string index out of bounds", TInt32()),
+            If(i < 0, i + len, i)),
+        invoke("slice", s, idx, idx + 1)))
     }
     registerIR("[:]", TString(), TString())(x => x)
-    registerIR("[*:]", TString(), TInt32(), TString()) { (s, start) => ir.StringSlice(s, start, StringLength(s)) }
-    registerIR("[:*]", TString(), TInt32(), TString()) { (s, end) => ir.StringSlice(s, ir.I32(0), end) }
-    registerIR("[*:*]", TString(), TInt32(), TInt32(), TString()) { (s, start, end) => ir.StringSlice(s, start, end) }
+    registerIR("[*:]", TString(), TInt32(), TString()) { (s, start) => invoke("[*:*]", s, start, invoke("length", s)) }
+    registerIR("[:*]", TString(), TInt32(), TString()) { (s, end) => invoke("[*:*]", s, I32(0), end) }
 
     registerCode("str", tv("T"), TString()) { (mb, a) =>
       val typ = tv("T").subst()
@@ -129,7 +137,7 @@ object StringFunctions extends RegistryFunctions {
         nout.isNull)
       val value =
         nout.ifNull(
-          ir.defaultValue(TArray(TString())),
+          defaultValue(TArray(TString())),
           Code(
             len := out.invoke[Int]("size"),
             srvb.start(len),
@@ -172,7 +180,7 @@ object StringFunctions extends RegistryFunctions {
         EmitTriplet(
           Code(e1.setup, e2.setup),
           e1.m || e2.m || m,
-          m.mux(ir.defaultValue(TInt32()), v))
+          m.mux(defaultValue(TInt32()), v))
     }
 
     registerWrappedScalaFunction("escapeString", TString(), TString())(thisClass, "escapeString")

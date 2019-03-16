@@ -733,14 +733,6 @@ object IRParser {
         val idx = int32_literal(it)
         val tuple = ir_value_expr(env)(it)
         GetTupleElement(tuple, idx)
-      case "StringSlice" =>
-        val s = ir_value_expr(env)(it)
-        val start = ir_value_expr(env)(it)
-        val end = ir_value_expr(env)(it)
-        StringSlice(s, start, end)
-      case "StringLength" =>
-        val s = ir_value_expr(env)(it)
-        StringLength(s)
       case "In" =>
         val typ = type_expr(it)
         val idx = int32_literal(it)
