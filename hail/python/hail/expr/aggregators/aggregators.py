@@ -108,7 +108,7 @@ class AggFunc(object):
         aggregations = hl.utils.LinkedList(Aggregation)
         if not self._as_scan:
             aggregations = aggregations.push(Aggregation(array_agg_expr, aggregated))
-        return construct_expr(AggExplode(array_agg_expr._ir, var, aggregated._ir),
+        return construct_expr(AggExplode(array_agg_expr._ir, var, aggregated._ir, self._as_scan),
                               aggregated.dtype,
                               aggregated._indices,
                               aggregations)
@@ -128,7 +128,7 @@ class AggFunc(object):
         aggregations = hl.utils.LinkedList(Aggregation)
         if not self._as_scan:
             aggregations = aggregations.push(Aggregation(condition, aggregation))
-        return construct_expr(AggFilter(condition._ir, aggregation._ir),
+        return construct_expr(AggFilter(condition._ir, aggregation._ir, self._as_scan),
                               aggregation.dtype,
                               aggregation._indices,
                               aggregations)
@@ -147,7 +147,7 @@ class AggFunc(object):
         if not self._as_scan:
             aggregations = aggregations.push(Aggregation(aggregation))
 
-        return construct_expr(AggGroupBy(group._ir, aggregation._ir),
+        return construct_expr(AggGroupBy(group._ir, aggregation._ir, self._as_scan),
                               tdict(group.dtype, aggregation.dtype),
                               aggregation._indices,
                               aggregations)
@@ -172,7 +172,7 @@ class AggFunc(object):
         aggregations = hl.utils.LinkedList(Aggregation)
         if not self._as_scan:
             aggregations = aggregations.push(Aggregation(array, aggregated))
-        return construct_expr(AggArrayPerElement(array._ir, var, aggregated._ir),
+        return construct_expr(AggArrayPerElement(array._ir, var, aggregated._ir, self._as_scan),
                               tarray(aggregated.dtype),
                               aggregated._indices,
                               aggregations)

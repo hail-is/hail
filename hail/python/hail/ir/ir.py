@@ -1003,19 +1003,20 @@ class ArrayFor(IR):
 
 
 class AggFilter(IR):
-    @typecheck_method(cond=IR, agg_ir=IR)
-    def __init__(self, cond, agg_ir):
+    @typecheck_method(cond=IR, agg_ir=IR, is_scan=bool)
+    def __init__(self, cond, agg_ir, is_scan):
         super().__init__(cond, agg_ir)
         self.cond = cond
         self.agg_ir = agg_ir
+        self.is_scan = is_scan
 
     @typecheck_method(cond=IR, agg_ir=IR)
     def copy(self, cond, agg_ir):
         new_instance = self.__class__
-        return new_instance(cond, agg_ir)
+        return new_instance(cond, agg_ir, self.is_scan)
 
     def render(self, r):
-        return '(AggFilter {} {})'.format(r(self.cond), r(self.agg_ir))
+        return '(AggFilter {} {} {})'.format(self.is_scan, r(self.cond), r(self.agg_ir))
 
     def __eq__(self, other):
         return isinstance(other, AggFilter) and \
@@ -1029,20 +1030,21 @@ class AggFilter(IR):
 
 
 class AggExplode(IR):
-    @typecheck_method(array=IR, name=str, agg_body=IR)
-    def __init__(self, array, name, agg_body):
+    @typecheck_method(array=IR, name=str, agg_body=IR, is_scan=bool)
+    def __init__(self, array, name, agg_body, is_scan):
         super().__init__(array, agg_body)
         self.name = name
         self.array = array
         self.agg_body = agg_body
+        self.is_scan = is_scan
 
     @typecheck_method(array=IR, agg_body=IR)
     def copy(self, array, agg_body):
         new_instance = self.__class__
-        return new_instance(array, self.name, agg_body)
+        return new_instance(array, self.name, agg_body, self.is_scan)
 
     def render(self, r):
-        return '(AggExplode {} {} {})'.format(escape_id(self.name), r(self.array), r(self.agg_body))
+        return '(AggExplode {} {} {} {})'.format(escape_id(self.name), self.is_scan, r(self.array), r(self.agg_body))
 
     @property
     def bound_variables(self):
@@ -1061,19 +1063,20 @@ class AggExplode(IR):
 
 
 class AggGroupBy(IR):
-    @typecheck_method(key=IR, agg_ir=IR)
-    def __init__(self, key, agg_ir):
+    @typecheck_method(key=IR, agg_ir=IR, is_scan=bool)
+    def __init__(self, key, agg_ir, is_scan):
         super().__init__(key, agg_ir)
         self.key = key
         self.agg_ir = agg_ir
+        self.is_scan = is_scan
 
     @typecheck_method(key=IR, agg_ir=IR)
     def copy(self, key, agg_ir):
         new_instance = self.__class__
-        return new_instance(key, agg_ir)
+        return new_instance(key, agg_ir, self.is_scan)
 
     def render(self, r):
-        return '(AggGroupBy {} {})'.format(r(self.key), r(self.agg_ir))
+        return '(AggGroupBy {} {} {})'.format(self.is_scan, r(self.key), r(self.agg_ir))
 
     def __eq__(self, other):
         return isinstance(other, AggGroupBy) and \
@@ -1086,20 +1089,21 @@ class AggGroupBy(IR):
         self._type = tdict(self.key.typ, self.agg_ir.typ)
 
 class AggArrayPerElement(IR):
-    @typecheck_method(array=IR, name=str, agg_ir=IR)
-    def __init__(self, array, name, agg_ir):
+    @typecheck_method(array=IR, name=str, agg_ir=IR, is_scan=bool)
+    def __init__(self, array, name, agg_ir, is_scan):
         super().__init__(array, agg_ir)
         self.array = array
         self.name = name
         self.agg_ir = agg_ir
+        self.is_scan = is_scan
 
     @typecheck_method(array=IR, agg_ir=IR)
     def copy(self, array, agg_ir):
         new_instance = self.__class__
-        return new_instance(array, self.name, agg_ir)
+        return new_instance(array, self.name, agg_ir, self.is_scan)
 
     def render(self, r):
-        return '(AggArrayPerElement {} {} {})'.format(escape_id(self.name), r(self.array), r(self.agg_ir))
+        return '(AggArrayPerElement {} {} {} {})'.format(escape_id(self.name), self.is_scan, r(self.array), r(self.agg_ir))
 
     def __eq__(self, other):
         return isinstance(other, AggArrayPerElement) and \
@@ -2111,14 +2115,17 @@ def subst(ir, env, agg_env):
                         _subst(ir.body, delete(env, ir.value_name)))
     elif isinstance(ir, AggFilter):
         return AggFilter(_subst(ir.cond, agg_env),
-                         _subst(ir.agg_ir, agg_env))
+                         _subst(ir.agg_ir, agg_env),
+                         ir.is_scan)
     elif isinstance(ir, AggExplode):
         return AggExplode(_subst(ir.array, agg_env),
                           ir.name,
-                          _subst(ir.agg_body, delete(agg_env, ir.name), delete(agg_env, ir.name)))
+                          _subst(ir.agg_body, delete(agg_env, ir.name), delete(agg_env, ir.name)),
+                          ir.is_scan)
     elif isinstance(ir, AggGroupBy):
         return AggGroupBy(_subst(ir.key, agg_env),
-                          _subst(ir.agg_ir, agg_env))
+                          _subst(ir.agg_ir, agg_env),
+                          ir.is_scan)
     elif isinstance(ir, ApplyAggOp):
         subst_constr_args = [x.map_ir(lambda x: _subst(x)) for x in ir.constructor_args]
         subst_init_op_args = [x.map_ir(lambda x: _subst(x)) for x in ir.init_op_args] if ir.init_op_args else ir.init_op_args

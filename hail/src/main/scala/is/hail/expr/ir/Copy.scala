@@ -25,9 +25,9 @@ object Copy {
       case Let(name, _, _) =>
         val IndexedSeq(value: IR, body: IR) = newChildren
         Let(name, value, body)
-      case AggLet(name, _, _) =>
+      case AggLet(name, _, _, isScan) =>
         val IndexedSeq(value: IR, body: IR) = newChildren
-        AggLet(name, value, body)
+        AggLet(name, value, body, isScan)
       case Ref(name, t) => Ref(name, t)
       case ApplyBinaryPrimOp(op, _, _) =>
         val IndexedSeq(l: IR, r: IR) = newChildren
@@ -98,18 +98,18 @@ object Copy {
       case ArrayAgg(_, name, _) =>
         val IndexedSeq(a: IR, query: IR) = newChildren
         ArrayAgg(a, name, query)
-      case AggFilter(_, _) =>
+      case AggFilter(_, _, isScan) =>
         val IndexedSeq(cond: IR, aggIR: IR) = newChildren
-        AggFilter(cond, aggIR)
-      case AggExplode(_, name, _) =>
+        AggFilter(cond, aggIR, isScan)
+      case AggExplode(_, name, _, isScan) =>
         val IndexedSeq(array: IR, aggBody: IR) = newChildren
-        AggExplode(array, name, aggBody)
-      case AggGroupBy(_, _) =>
+        AggExplode(array, name, aggBody, isScan)
+      case AggGroupBy(_, _, isScan) =>
         val IndexedSeq(key: IR, aggIR: IR) = newChildren
-        AggGroupBy(key, aggIR)
-      case AggArrayPerElement(a, name, aggBody) =>
+        AggGroupBy(key, aggIR, isScan)
+      case AggArrayPerElement(a, name, aggBody, isScan) =>
         val IndexedSeq(newA: IR, newAggBody: IR) = newChildren
-        AggArrayPerElement(newA, name, newAggBody)
+        AggArrayPerElement(newA, name, newAggBody, isScan)
       case MakeStruct(fields) =>
         assert(fields.length == newChildren.length)
         MakeStruct(fields.zip(newChildren).map { case ((n, _), a) => (n, a.asInstanceOf[IR]) })

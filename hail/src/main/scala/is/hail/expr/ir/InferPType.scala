@@ -41,7 +41,7 @@ object InferPType {
           cnsq.pType
       case Let(name, value, body) =>
         body.pType
-      case AggLet(name, value, body) =>
+      case AggLet(name, value, body, _) =>
         body.pType
       case ApplyBinaryPrimOp(op, l, r) =>
         PType.canonical(BinaryOp.getReturnType(op, l.typ, r.typ)).setRequired(l.pType.required && r.pType.required)
@@ -93,13 +93,13 @@ object InferPType {
         coerce[PNDArray](nd.pType).elementType.setRequired(nd.pType.required && 
           idxs.pType.required &&
           coerce[PArray](idxs.pType).elementType.required)
-      case AggFilter(_, aggIR) =>
+      case AggFilter(_, aggIR, _) =>
         aggIR.pType
-      case AggExplode(array, name, aggBody) =>
+      case AggExplode(array, name, aggBody, _) =>
         aggBody.pType
-      case AggGroupBy(key, aggIR) =>
+      case AggGroupBy(key, aggIR, _) =>
         PDict(PType.canonical(key.pType), aggIR.pType)
-      case AggArrayPerElement(a, name, aggBody) => PArray(aggBody.pType)
+      case AggArrayPerElement(a, name, aggBody, _) => PArray(aggBody.pType)
       case ApplyAggOp(_, _, _, aggSig) =>
         PType.canonical(AggOp.getType(aggSig))
       case ApplyScanOp(_, _, _, aggSig) =>

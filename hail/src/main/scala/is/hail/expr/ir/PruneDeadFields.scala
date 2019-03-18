@@ -690,7 +690,7 @@ object PruneDeadFields {
           bodyEnv.delete(name),
           memoizeValueIR(value, valueType, memo)
         )
-      case AggLet(name, value, body) =>
+      case AggLet(name, value, body, _) =>
         val bodyEnv = memoizeValueIR(body, requestedType, memo)
         val valueType = bodyEnv.lookupOption(name).map(_._2).getOrElse(minimal(value.typ))
         unifyEnvs(
@@ -785,7 +785,7 @@ object PruneDeadFields {
           bodyEnv.delete(valueName),
           memoizeValueIR(a, aType.copy(elementType = valueType), memo)
         )
-      case AggExplode(a, name, body) =>
+      case AggExplode(a, name, body, _) =>
         val aType = a.typ.asInstanceOf[TArray]
         val bodyDep = memoizeValueIR(body,
           requestedType,
@@ -795,7 +795,7 @@ object PruneDeadFields {
           bodyDep.delete(name),
           memoizeValueIR(a, aType.copy(elementType = valueType), memo)
         )
-      case AggArrayPerElement(a, name, aggBody) =>
+      case AggArrayPerElement(a, name, aggBody, _) =>
         val aType = a.typ.asInstanceOf[TArray]
         val bodyDep = memoizeValueIR(aggBody,
           requestedType.asInstanceOf[TArray].elementType,
@@ -1080,12 +1080,13 @@ object PruneDeadFields {
           value2,
           rebuild(body, in.bind(name, value2.typ), memo)
         )
-      case AggLet(name, value, body) =>
+      case AggLet(name, value, body, isScan) =>
         val value2 = rebuild(value, in, memo)
         AggLet(
           name,
           value2,
-          rebuild(body, in.bind(name, value2.typ), memo)
+          rebuild(body, in.bind(name, value2.typ), memo),
+          isScan
         )
       case Ref(name, t) =>
         Ref(name, in.lookupOption(name).getOrElse(t))

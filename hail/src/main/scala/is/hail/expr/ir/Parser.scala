@@ -562,6 +562,12 @@ object IRParser {
         val value = ir_value_expr(env)(it)
         val body = ir_value_expr(env + (name -> value.typ))(it)
         Let(name, value, body)
+      case "AggLet" =>
+        val name = identifier(it)
+        val isScan = boolean_literal(it)
+        val value = ir_value_expr(env)(it)
+        val body = ir_value_expr(env + (name -> value.typ))(it)
+        AggLet(name, value, body, isScan)
       case "Ref" =>
         val id = identifier(it)
         Ref(id, env.refMap(id))
@@ -671,23 +677,27 @@ object IRParser {
         val query = ir_value_expr(env + (name, coerce[TArray](a.typ).elementType))(it)
         ArrayAgg(a, name, query)
       case "AggFilter" =>
+        val isScan = boolean_literal(it)
         val cond = ir_value_expr(env)(it)
         val aggIR = ir_value_expr(env)(it)
-        AggFilter(cond, aggIR)
+        AggFilter(cond, aggIR, isScan)
       case "AggExplode" =>
         val name = identifier(it)
+        val isScan = boolean_literal(it)
         val a = ir_value_expr(env)(it)
         val aggBody = ir_value_expr(env + (name -> coerce[TArray](a.typ).elementType))(it)
-        AggExplode(a, name, aggBody)
+        AggExplode(a, name, aggBody, isScan)
       case "AggGroupBy" =>
+        val isScan = boolean_literal(it)
         val key = ir_value_expr(env)(it)
         val aggIR = ir_value_expr(env)(it)
-        AggGroupBy(key, aggIR)
+        AggGroupBy(key, aggIR, isScan)
       case "AggArrayPerElement" =>
         val name = identifier(it)
+        val isScan = boolean_literal(it)
         val a = ir_value_expr(env)(it)
         val aggBody = ir_value_expr(env + (name -> coerce[TArray](a.typ).elementType))(it)
-        AggArrayPerElement(a, name, aggBody)
+        AggArrayPerElement(a, name, aggBody, isScan)
       case "ApplyAggOp" =>
         val aggOp = agg_op(it)
         val ctorArgs = ir_value_exprs(env)(it)
