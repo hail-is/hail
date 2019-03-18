@@ -448,7 +448,7 @@ def _get_scatter_plot_elements(
            xlabel=nullable(str), ylabel=nullable(str), size=int,
            source_fields=nullable(dictof(str, expr_any)),
            colors=nullable(oneof(bokeh.models.mappers.ColorMapper, dictof(str, bokeh.models.mappers.ColorMapper))),
-           width=int, height=int, n_divisions=int, missing_label=str)
+           width=int, height=int, n_divisions=nullable(int), missing_label=str)
 def scatter(
         x: NumericExpression,
         y: NumericExpression,
@@ -571,10 +571,10 @@ def scatter(
 
 @typecheck(x=expr_numeric, y=expr_numeric,
            label=nullable(oneof(expr_any, dictof(str, expr_any))), title=nullable(str),
-           xlabel=nullable(str), ylabel=nullable(str),
+           xlabel=nullable(str), ylabel=nullable(str), size=int,
            source_fields=nullable(dictof(str, expr_any)),
            colors=nullable(oneof(bokeh.models.mappers.ColorMapper, dictof(str, bokeh.models.mappers.ColorMapper))),
-           width=int, height=int, n_divisions=int, missing_lable=str)
+           width=int, height=int, n_divisions=nullable(int), missing_lable=str)
 def joint_plot(
         x: NumericExpression,
         y: NumericExpression,
