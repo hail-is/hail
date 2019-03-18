@@ -273,7 +273,7 @@ def test_pull_request_trigger(tmpdir):
         time.sleep(7)
         pr = poll_until_finished_pr(BRANCH_NAME)
         assertDictHasKVs(
-            pr.to_json(),
+            pr.to_dict(),
             {
                 "target": {
                     "ref": {
@@ -406,7 +406,7 @@ def test_push_while_building(tmpdir):
             SLOW_BRANCH_NAME,
             lambda x: x.is_building())
         assertDictHasKVs(
-            pr[SLOW_BRANCH_NAME].to_json(),
+            pr[SLOW_BRANCH_NAME].to_dict(),
             {
                 "target": {
                     "ref": {
@@ -473,7 +473,7 @@ def test_push_while_building(tmpdir):
         pr[SLOW_BRANCH_NAME] = poll_until_finished_pr(
             SLOW_BRANCH_NAME)
         assertDictHasKVs(
-            pr[SLOW_BRANCH_NAME].to_json(),
+            pr[SLOW_BRANCH_NAME].to_dict(),
             {
                 "target": {
                     "ref": {
