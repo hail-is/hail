@@ -227,7 +227,7 @@ async def reference_add_liftover(request):
             'message': e.args[0]
         }, status=400)
 
-def blocking_reference_remove_litover(data):
+def blocking_reference_remove_liftover(data):
     Env.hail().variant.ReferenceGenome.referenceRemoveLiftover(data['name'], data['dest_reference_genome'])
 
 @routes.delete('/references/liftover/remove')
