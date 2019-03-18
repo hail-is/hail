@@ -797,33 +797,36 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
            """.stripMargin,
           resultRegion)
 
-      case ir.MakeNDArray(data, shape, leftOrdered) =>
-        val containerPType = data.pType.asInstanceOf[PContainer]
-        val flagst = emit(leftOrdered) //TODO Ignored for now
-        val shapet = emit(shape)
+      case ir.MakeNDArray(data, shape, rowMajor) =>
+        val elementPType = data.pType.asInstanceOf[PContainer].elementType
         val datat = emit(data)
+        val shapet = emit(shape)
+        val rowMajort = emit(rowMajor)
 
-        val elemSize = containerPType.elementType.byteSize.toString
-        val elemAlignment = containerPType.elementType.alignment.toString
-        val shapeRegion = fb.variable("shapeRegion", "const char *", shapet.v)
-        val elems = fb.variable("elems", "const char *",
+        val elemSize = elementPType.byteSize
+        val elemAlignment = elementPType.alignment
+        val flags = fb.variable("flags", "int", s"${rowMajort.v} ? 1 : 0")
+        val shapeVec = fb.variable("shapeVec", "std::vector<long>",
+          s"load_vector<long, true, 8, 8>(${shapet.v})")
+        val entries = fb.variable("entries", "const char *",
           s"ArrayAddrImpl<true, $elemSize, $elemAlignment>::load_element(${datat.v}, 0)")
         triplet(
           s"""
-             | ${ flagst.setup }
+             | ${ rowMajort.setup }
              | ${ shapet.setup }
              | ${ datat.setup }
            """.stripMargin,
           "false",
           s"""
              |({
-             | if (${ flagst.m } || ${ shapet.m } || ${ datat.m }) {
+             | if (${ rowMajort.m } || ${ shapet.m } || ${ datat.m }) {
              |   throw new FatalError("NDArray does not support missingness");
              | }
              |
-             | ${ shapeRegion.define }
-             | ${ elems.define }
-             | make_ndarray($elemSize, load_vector<long, true, 8, 8>(${shapeRegion.toString}), ${elems.toString});
+             | ${ flags.define }
+             | ${ shapeVec.define }
+             | ${ entries.define }
+             | make_ndarray($flags, $elemSize, $shapeVec, $entries);
              |})
              |""".stripMargin)
 
@@ -833,7 +836,6 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
 
         val ndt = emit(nd)
         val idxst = emit(idxs)
-        val idxsRegion = fb.variable("idxsRegion", "const char *", idxst.v)
         triplet(
           s"""
              | ${ ndt.setup }
@@ -841,8 +843,11 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
           "false",
           s"""
              |({
-             | ${ idxsRegion.define }
-             | load_ndarray_element<$elemType>(${ndt.v}, load_vector<long, true, 8, 8>(${idxsRegion.toString}));
+             | if (${ ndt.m } || ${ idxst.m }) {
+             |   throw new FatalError("NDArray does not support missingness");
+             | }
+             |
+             | load_element<$elemType>(load_ndarray_addr(${ndt.v}, load_vector<long, true, 8, 8>(${idxst.v})));
              |})
              |""".stripMargin)
       case _ =>

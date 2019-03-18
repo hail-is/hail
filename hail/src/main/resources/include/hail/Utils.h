@@ -10,6 +10,9 @@
 #define LIKELY(condition)   __builtin_expect(static_cast<bool>(condition), 1)
 #define UNLIKELY(condition) __builtin_expect(static_cast<bool>(condition), 0)
 
+template<typename ElemT>
+ElemT load_element(char const* off) { return *reinterpret_cast<ElemT const*>(off); }
+
 inline char load_byte(char const* off) { return *off; }
 inline bool load_bool(char const* off) { return *off; }
 inline int load_int(char const* off) { return *reinterpret_cast<int const*>(off); }
@@ -136,11 +139,11 @@ public:
 
 template<typename ElemT, bool elem_required, size_t elem_size, size_t elem_align>
 std::vector<ElemT> load_vector(const char *data) {
-  std::vector<ElemT> vec;
   int length = load_length(data);
+  std::vector<ElemT> vec(length);
 
   for (int i = 0; i < length; ++i) {
-    vec.push_back(ArrayLoadImpl<ElemT, elem_required, elem_size, elem_align>::load_element(data, i));
+    vec[i] = ArrayLoadImpl<ElemT, elem_required, elem_size, elem_align>::load_element(data, i);
   }
 
   return vec;
