@@ -70,6 +70,19 @@ If you use Hail for published work, please cite the software:
 
 ##### Acknowledgements
 
+The Hail team has several sources of funding at the Broad Institute:
+
+- The Stanley Center for Psychiatric Research, which together with Neale Lab has provided an incredibly supportive and stimulating home.
+- PI Benjamin Neale and PI Daniel MacArthur. Their scientific leadership has been essential for solving the right problems.
+- Jeremy Wertheimer, whose strategic advice and generous philanthropy have been essential for growing the impact of Hail.
+
+We are grateful for generous support from:
+
+- The National Institute of Diabetes and Digestive and Kidney Diseases
+- The National Institute of Mental Health
+- The National Human Genome Research Institute
+- The Chan Zuckerburg Initiative
+
 We would like to thank <a href="https://zulipchat.com/">Zulip</a> for supporting
 open-source by providing free hosting, and YourKit, LLC for generously providing
 free licenses for <a href="https://www.yourkit.com/java/profiler/">YourKit Java
