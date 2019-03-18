@@ -2943,7 +2943,7 @@ def zip_with_index(a, index_first=True):
     a : :class:`.ArrayExpression`
     index_first: :obj:`bool`
         If ``True``, the index is the first value of the element tuples. If
-        ``False``, the index is tthe second value.
+        ``False``, the index is the second value.
 
     Returns
     -------
