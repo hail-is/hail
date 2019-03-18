@@ -54,6 +54,7 @@ object StringFunctions extends RegistryFunctions {
     registerCode("length", TString(), TInt32()) { (mb: EmitMethodBuilder, s: Code[Long]) =>
       asm4s.coerce[String](wrapArg(mb, TString())(s)).invoke[Int]("length")
     }
+
     registerCode("slice", TString(), TInt32(), TInt32(), TString()) { (mb: EmitMethodBuilder, s: Code[Long], start: Code[Int], end: Code[Int]) =>
       unwrapReturn(mb, TString())(asm4s.coerce[String](wrapArg(mb, TString())(s)).invoke[Int, Int, String]("substring", start, end))
     }
@@ -66,7 +67,6 @@ object StringFunctions extends RegistryFunctions {
         Let(s.name, softBounds(start, len),
           Let(e.name, softBounds(end, len),
             invoke("slice", str, s, If(e < s, s, e)))))
-
     }
 
     registerIR("[]", TString(), TInt32(), TString()) { (s, i) =>
@@ -75,7 +75,13 @@ object StringFunctions extends RegistryFunctions {
       Let(len.name, invoke("length", s),
         Let(idx.name,
           If((i < -len) || (i >= len),
-            Die("string index out of bounds", TInt32()),
+            Die(invoke("concat",
+              Str("string index out of bounds: "),
+              invoke("concat",
+                invoke("str", i),
+                invoke("concat",
+                  Str(" / "),
+                  invoke("str", len)))), TInt32()),
             If(i < 0, i + len, i)),
         invoke("slice", s, idx, idx + 1)))
     }
