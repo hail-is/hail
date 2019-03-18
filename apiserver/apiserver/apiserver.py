@@ -11,15 +11,10 @@ import uvloop
 import asyncio
 from aiohttp import web
 
-print('moo')
+uvloop.install()
 
 master = os.environ.get('HAIL_APISERVER_SPARK_MASTER')
 hl.init(master=master, min_block_size=0)
-print('init finished')
-
-uvloop.install()
-
-print('cow')
 
 app = web.Application()
 routes = web.RouteTableDef()
@@ -27,7 +22,7 @@ routes = web.RouteTableDef()
 def status_response(status):
     return web.Response(status=status)
 
-executor = concurrent.futures.ThreadPoolExecutor()
+executor = concurrent.futures.ThreadPoolExecutor(max_workers=16)
 
 async def run(f, *args):
     loop = asyncio.get_event_loop()
