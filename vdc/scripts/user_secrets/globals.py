@@ -3,7 +3,6 @@ import os
 import kubernetes as kube
 
 from google.oauth2 import service_account
-from google.cloud import storage
 import googleapiclient.discovery
 
 if 'BATCH_USE_KUBE_CONFIG' in os.environ:
