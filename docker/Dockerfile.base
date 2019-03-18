@@ -14,7 +14,7 @@ RUN python3 -m pip install -U \
   pip decorator pylint pytest flake8 \
   requests \
   jinja2 \
-  aiohttp aiodns aiohttp_jinja2 uvloop>=0.12 \
+  pyasyncinit aiohttp aiodns aiohttp_jinja2 uvloop>=0.12 \
   werkzeug flask flask-cors Flask_Sockets \
   kubernetes google-cloud-storage \
   PyGithub cerberus humanize libsass authlib
