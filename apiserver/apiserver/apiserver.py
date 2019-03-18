@@ -118,7 +118,7 @@ async def matrix_type(request):
             'message': e.args[0]
         }, status=400)
 
-def blocking_blcokmatrix_type(code):
+def blocking_blockmatrix_type(code):
     jir = Env.hail().expr.ir.IRParser.parse_blockmatrix_ir(code, {}, {})
     bmtyp = hl.tblockmatrix._from_java(jir.typ())
     return {
