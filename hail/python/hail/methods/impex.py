@@ -1339,7 +1339,7 @@ def import_table(paths,
     """
     paths = wrap_to_list(paths)
     comment = wrap_to_list(comment)
-    missing = wrap_to_list(missing)
+    missing = set(wrap_to_list(missing))
 
     tr = TextTableReader(paths, min_partitions, types, comment,
                          delimiter, missing, no_header, impute, quote,
