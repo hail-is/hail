@@ -336,7 +336,7 @@ def _collect_scatter_plot_data(
         expressions.update({k: or_else(v, missing_label) if isinstance(v, StringExpression) else v for k, v in fields.items()})
 
     if n_divisions is None:
-        collect_expr = struct(_x=x, _y=y, **expressions)
+        collect_expr = hail.struct(_x=x, _y=y, **expressions)
         plot_data = [point for point in collect_expr.collect() if point._x is not None and point._y is not None]
         source_pd = pd.DataFrame(plot_data)
     else:
