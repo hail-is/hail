@@ -5,9 +5,9 @@
 - project: cloudtools
 - project: etc
 - project: gateway
-- project: apiserver
 - project: hail
-  dependencies: ["apiserver"]
+- project: apiserver
+  dependencies: ["hail"]
 - project: image-fetcher
 - project: letsencrypt
 - project: notebook
