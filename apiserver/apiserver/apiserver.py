@@ -9,6 +9,7 @@ import json
 import concurrent
 import uvloop
 import asyncio
+import aiodns
 from aiohttp import web
 
 uvloop.install()

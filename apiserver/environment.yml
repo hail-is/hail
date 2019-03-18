@@ -16,4 +16,5 @@ dependencies:
     - ipykernel==4.9.0
     - decorator==4.3.0
     - aiohttp
+    - aiodns
     - uvloop>=0.12
