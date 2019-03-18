@@ -22,7 +22,7 @@ case class TextTableReaderOptions(
   typeMapStr: Map[String, String],
   comment: Array[String],
   separator: String,
-  missing: java.util.Set[String],
+  missing: Set[String],
   noHeader: Boolean,
   impute: Boolean,
   nPartitionsOpt: Option[Int],
@@ -150,7 +150,7 @@ object TextTableReader {
   }
 
   def imputeTypes(values: RDD[WithContext[String]], header: Array[String],
-    delimiter: String, missing: java.util.Set[String], quote: java.lang.Character): Array[Option[Type]] = {
+    delimiter: String, missing: Set[String], quote: java.lang.Character): Array[Option[Type]] = {
     val nFields = header.length
 
     val matchTypes: Array[Type] = Array(TBoolean(), TInt32(), TInt64(), TFloat64())
@@ -330,11 +330,9 @@ object TextTableReader {
     forceBGZ: Boolean = false,
     forceGZ: Boolean = false,
     filterAndReplace: TextInputFilterAndReplace = TextInputFilterAndReplace()): Table = {
-    val missingSet = new java.util.HashSet[String]()
-    missingSet.add(missing)
     val options = TextTableReaderOptions(
       files, types.mapValues(t => t._toPretty).map(identity), comment, separator,
-      missingSet, noHeader, impute, Some(nPartitions),
+      Set(missing), noHeader, impute, Some(nPartitions),
       if (quote != null) quote.toString else null, skipBlankLines, forceBGZ, filterAndReplace, forceGZ)
     val tr = TextTableReader(options)
     new Table(hc, TableRead(tr.fullType, dropRows = false, tr))

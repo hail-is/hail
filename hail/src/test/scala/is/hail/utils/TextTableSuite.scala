@@ -36,9 +36,7 @@ class TextTableSuite extends SparkSuite {
       "-200 -200.0 . 155.2 GRCH123.2:2:A:T true 1:2"
     ), 3).map { x => WithContext(x, Context(x, "none", None)) }
 
-    val m = new java.util.HashSet[String]()
-    m.add(".")
-    val imputed = TextTableReader.imputeTypes(rdd, Array("1", "2", "3", "4", "5", "6", "7"), "\\s+", m, null)
+    val imputed = TextTableReader.imputeTypes(rdd, Array("1", "2", "3", "4", "5", "6", "7"), "\\s+", Set("."), null)
 
     assert(imputed.sameElements(Array(
       Some(TInt32()),
