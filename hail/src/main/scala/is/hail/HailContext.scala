@@ -482,9 +482,7 @@ class HailContext private(val sc: SparkContext,
         val p = split.asInstanceOf[FilePartition]
         val filename = path + "/parts/" + p.file
         val in = localHadoopConfBc.value.value.unsafeReader(filename)
-        context.addTaskCompletionListener { _ =>
-          in.close()
-        }
+        context.addTaskCompletionListener(_ => in.close())
         read(p.index, in, context.taskMetrics().inputMetrics)
       }
 

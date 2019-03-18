@@ -216,6 +216,7 @@ class ReadBlocksAsRowsRDD(path: String,
 
                 val is = sHadoopBc.value.value.unsafeReader(filename)
                 val in = BlockMatrix.bufferSpec.buildInputBuffer(is)
+                TaskContext.get.addTaskCompletionListener(_ => in.close())
 
                 val nColsInBlock = gp.blockColNCols(blockCol)
 

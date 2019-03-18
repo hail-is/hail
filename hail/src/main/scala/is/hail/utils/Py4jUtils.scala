@@ -102,9 +102,8 @@ trait Py4jUtils {
     (n / factor.toDouble).formatted("%.1f")
   }
 
-  def readFile(path: String, hc: HailContext, buffSize: Int): HadoopPyReader = hc.hadoopConf.readFile(path) { in =>
+  def readFile(path: String, hc: HailContext, buffSize: Int): HadoopPyReader =
     new HadoopPyReader(hc.hadoopConf.unsafeReader(path), buffSize)
-  }
 
   def writeFile(path: String, hc: HailContext, exclusive: Boolean): HadoopPyWriter = {
     if (exclusive && hc.hadoopConf.exists(path))

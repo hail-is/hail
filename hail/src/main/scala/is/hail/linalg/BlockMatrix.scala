@@ -1702,6 +1702,7 @@ class BlockMatrixReadRowBlockedRDD(
     val filename = path + "/parts/" + pFile
     val is = localHadoopConfBc.value.value.unsafeReader(filename)
     val in = BlockMatrix.bufferSpec.buildInputBuffer(is)
+    TaskContext.get.addTaskCompletionListener(_ => in.close())
 
     val rows = in.readInt()
     val cols = in.readInt()
