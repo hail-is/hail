@@ -24,7 +24,7 @@ def create_google_service_account(sa_name, google_project):
 
 
 def delete_google_service_account(gsa_email, google_project):
-    return gcloud_service.projects().serviceAccounts().delete(name=f'projects/{google_project}/serviceAccounts/{gsa_email}').execute()
+    return gcloud_service.projects().serviceAccounts().delete(name=f'projects/-/serviceAccounts/{gsa_email}').execute()
 
 
 def create_kube_service_acccount(namespace):
