@@ -7,13 +7,13 @@ class JWTClient:
     def __init__(self, secret_key):
         self.secret_key = secret_key
 
-    def jwt_decode(self, token):
+    def decode(self, token):
         if token is None:
             return None
         return jwt.decode(
             token, self.secret_key, algorithms=[JWTClient.__ALGORITHM])
 
-    def jwt_encode(self, payload):
+    def encode(self, payload):
         return jwt.encode(
             payload, self.secret_key, algorithm=JWTClient.__ALGORITHM)
 
