@@ -1,3 +1,4 @@
+- project: docker
 - project: auth-gateway
 - project: batch
 - project: ci
@@ -15,6 +16,7 @@
 - project: pipeline
   dependencies: ["batch"]
 - project: scorecard
+  dependencies: ["docker"]
 - project: site
 - project: upload
 - project: vdc

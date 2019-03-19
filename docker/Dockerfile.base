@@ -1,0 +1,26 @@
+FROM ubuntu:18.04
+
+RUN apt-get update && \
+  apt-get -y install \
+    htop \
+    unzip bzip2 \
+    wget curl \
+    emacs25-nox \
+    default-jdk-headless \
+    python3 python3-pip && \
+  rm -rf /var/lib/apt/lists/*
+
+# source: https://cloud.google.com/storage/docs/gsutil_install#linux
+RUN /bin/sh -c 'curl https://sdk.cloud.google.com | bash' && \
+    mv /root/google-cloud-sdk / && \
+    /google-cloud-sdk/bin/gcloud components install beta kubectl
+ENV PATH $PATH:/google-cloud-sdk/bin
+
+RUN python3 -m pip install -U \
+  pip decorator pylint pytest flake8 \
+  requests \
+  jinja2 \
+  pyasyncinit aiohttp aiodns aiohttp_jinja2 uvloop>=0.12 \
+  werkzeug flask flask-cors Flask_Sockets \
+  kubernetes google-cloud-storage \
+  PyGithub cerberus humanize libsass authlib
