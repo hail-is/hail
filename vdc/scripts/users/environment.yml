@@ -1,4 +1,4 @@
-name: user-secrets
+name: users
 dependencies:
   - python=3.7
   - pip
