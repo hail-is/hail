@@ -943,6 +943,23 @@ class IRSuite extends SparkSuite {
     assertEvalsTo(centerColMajor, 13.0)
   }
 
+  @Test def testNDArrayMap() {
+    implicit val execStrats = Set(ExecStrategy.CxxCompile)
+
+    def data = 0 until 10
+    def shape = MakeArray(FastSeq(2L, 5L).map(I64), TArray(TInt64()))
+    def numbers = MakeNDArray(MakeArray(data.map(i => F64(i.toDouble)), TArray(TFloat64())), shape, True())
+
+    def negate = NDArrayMap(numbers, "e", ApplyUnaryPrimOp(Negate(), Ref("e", TFloat64())))
+    assertEvalsTo(NDArrayRef(numbers, MakeArray(FastSeq(1L, 0L), TArray(TInt64()))), 5.0)
+    assertEvalsTo(NDArrayRef(negate, MakeArray(FastSeq(1L, 0L), TArray(TInt64()))), -5.0)
+
+    def trues = MakeNDArray(MakeArray(data.map(_ => True()), TArray(TBoolean())), shape, True())
+    def falses = NDArrayMap(trues, "e", ApplyUnaryPrimOp(Bang(), Ref("e", TBoolean())))
+    assertEvalsTo(NDArrayRef(trues, MakeArray(FastSeq(1L, 0L), TArray(TInt64()))), true)
+    assertEvalsTo(NDArrayRef(falses, MakeArray(FastSeq(1L, 0L), TArray(TInt64()))), false)
+  }
+
   @Test def testLeftJoinRightDistinct() {
     implicit val execStrats = ExecStrategy.javaOnly
 
@@ -1287,6 +1304,7 @@ class IRSuite extends SparkSuite {
         MakeArray(FastSeq(I64(1), I64(2)), TArray(TInt64())),
         True()),
       NDArrayRef(nd, MakeArray(FastSeq(I64(1), I64(2)), TArray(TInt64()))),
+      NDArrayMap(nd, "v", ApplyUnaryPrimOp(Negate(), v)),
       ArrayRef(a, i),
       ArrayLen(a),
       ArrayRange(I32(0), I32(5), I32(1)),

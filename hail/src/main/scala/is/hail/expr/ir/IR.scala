@@ -201,6 +201,11 @@ final case class MakeNDArray(data: IR, shape: IR, rowMajor: IR) extends IR
 
 final case class NDArrayRef(nd: IR, idxs: IR) extends IR
 
+final case class NDArrayMap(nd: IR, valueName: String, body: IR) extends IR {
+  override def typ: TNDArray = coerce[TNDArray](super.typ)
+  def elementTyp: Type = typ.elementType
+}
+
 final case class AggFilter(cond: IR, aggIR: IR, isScan: Boolean) extends IR
 
 final case class AggExplode(array: IR, name: String, aggBody: IR, isScan: Boolean) extends IR

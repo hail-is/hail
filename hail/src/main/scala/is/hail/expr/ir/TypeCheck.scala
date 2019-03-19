@@ -103,6 +103,12 @@ object TypeCheck {
       case x@NDArrayRef(nd, idxs) =>
         assert(nd.typ.isInstanceOf[TNDArray])
         assert(coerce[TStreamable](idxs.typ).elementType.isOfType(TInt64()))
+        assert(idxs.typ.isOfType(TArray(TInt64())))
+      case x@NDArrayMap(nd, name, body) =>
+        check(nd)
+        val tnd = coerce[TNDArray](nd.typ)
+        check(body, env = env.bind(name, -tnd.elementType))
+        assert(x.elementTyp == body.typ, s"${x.elementTyp} : ${body.typ}")
       case x@ArraySort(a, l, r, compare) =>
         assert(a.typ.isInstanceOf[TStreamable])
         assert(compare.typ.isOfType(TBoolean()))

@@ -96,6 +96,9 @@ object InferPType {
         query.pType
       case ArrayLeftJoinDistinct(left, right, l, r, compare, join) =>
         propagateStreamable(coerce[PStreamable](left.pType), join.pType)
+        PArray(join.pType)
+      case NDArrayMap(_, _, body) =>
+        PNDArray(body.pType)
       case NDArrayRef(nd, idxs) =>
         coerce[PNDArray](nd.pType).elementType.setRequired(nd.pType.required && 
           idxs.pType.required &&

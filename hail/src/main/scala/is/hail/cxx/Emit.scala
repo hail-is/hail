@@ -857,6 +857,44 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
              |})
              |""".stripMargin)
 
+      case ir.NDArrayMap(child, elemName, body) =>
+        val elemPType = child.pType.asInstanceOf[PNDArray].elementType
+        val cxxElemType = typeToCXXType(elemPType)
+        val cxxNewElemType = typeToCXXType(body.pType)
+
+        val ndt = emit(child)
+        val nd = fb.variable("nd", "NDArray", ndt.v)
+
+        val elemRef = fb.variable("elemRef", cxxElemType)
+        val bodyt = outer.emit(body,
+          env.bind(elemName, EmitTriplet(elemPType, "", "false", elemRef.toString, resultRegion)))
+
+        val nElements = fb.variable("n_elements", "int", s"num_elements($nd)")
+        triplet(
+          s"""
+             | ${ ndt.setup }
+             | ${ bodyt.setup }
+           """.stripMargin,
+          "false",
+          s"""
+             |({
+             | if (${ ndt.m } || ${ bodyt.m }) {
+             |   throw new FatalError("NDArray does not support missingness");
+             | }
+             |
+             | ${ nd.define }
+             | ${ nElements.define }
+             | ${ elemRef.define }
+             | auto arr = new $cxxNewElemType[$nElements];
+             | for (auto i = 0; i < $nElements; ++i) {
+             |   $elemRef = load_element<$cxxElemType>($nd.data + i * $nd.elem_size);
+             |   arr[i] = ${bodyt.v};
+             | }
+             |
+             | make_ndarray($nd.flags, ${elemPType.byteSize}, $nd.shape, reinterpret_cast<const char *>(arr));
+             |})
+           """.stripMargin)
+
       case ir.NDArrayRef(nd, idxs) =>
         fb.translationUnitBuilder().include("hail/NDArray.h")
         val elemType = typeToCXXType(nd.pType.asInstanceOf[PNDArray].elementType)
