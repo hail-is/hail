@@ -1,3 +1,4 @@
+import collections
 import json
 import os
 
@@ -12,11 +13,17 @@ from .ci_logging import log
 from .constants import BUILD_JOB_TYPE, VERSION, GCS_BUCKET, SHA_LENGTH, \
     GCS_BUCKET_PREFIX
 from .environment import PR_BUILD_SCRIPT, SELF_HOSTNAME, batch_client, CONTEXT
-from .git_state import FQSHA, FQRef
+from .git_state import FQSHA, FQRef, Repo
 from .github import latest_sha_for_ref
 from .http_helper import post_repo, BadStatus
 from .sentinel import Sentinel
 from .shell_helper import shell
+
+
+RESOURCES = collections.defaultdict(
+    {'requests': {'cpu': '0.100', 'memory': '0.100G'}})
+RESOURCES[Repo('hail-is', 'hail')] = {
+    'requests': {'cpu': '3.7', 'memory': '4G'}}
 
 
 def try_new_build(source, target):
@@ -42,10 +49,7 @@ def try_new_build(source, target):
                     'TARGET_BRANCH': target.ref.name,
                     'TARGET_SHA': target.sha
                 },
-                resources={'requests': {
-                    'cpu': '3.7',
-                    'memory': '4G'
-                }},
+                resources=RESOURCES[target.repo],
                 tolerations=[{
                     'key': 'preemptible',
                     'value': 'true'
