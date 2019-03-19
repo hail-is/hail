@@ -1,5 +1,5 @@
 import unittest
-from user_secrets import make_all
+from users import make_all
 from google.cloud import storage
 
 from globals import k8s, gcloud_service
