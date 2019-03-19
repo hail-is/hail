@@ -446,7 +446,7 @@ def _get_scatter_plot_elements(
 @typecheck(x=expr_numeric, y=expr_numeric,
            label=nullable(oneof(expr_any, dictof(str, expr_any))), title=nullable(str),
            xlabel=nullable(str), ylabel=nullable(str), size=int, legend=bool,
-           source_fields=nullable(dictof(str, expr_any)),
+           hover_fields=nullable(dictof(str, expr_any)),
            colors=nullable(oneof(bokeh.models.mappers.ColorMapper, dictof(str, bokeh.models.mappers.ColorMapper))),
            width=int, height=int, n_divisions=nullable(int), missing_label=str)
 def scatter(
@@ -458,11 +458,11 @@ def scatter(
         ylabel: str = None,
         size: int =4,
         legend: bool = True,
-        source_fields: Dict[str, Expression] = None,
+        hover_fields: Dict[str, Expression] = None,
         colors: Union[ColorMapper, Dict[str, ColorMapper]] = None,
         width: int = 800,
         height: int = 800,
-        n_divisions: int = None,
+        n_divisions: int = 500,
         missing_label: str = 'NA'
 ) -> Union[bokeh.plotting.Figure, Column]:
     """Create an interactive scatter plot.
@@ -507,7 +507,7 @@ def scatter(
             Size of markers in screen space units.
         legend: bool
             Whether or not to show the legend in the resulting figure.
-        source_fields : Dict[str, :class:`.Expression`]
+        hover_fields : Dict[str, :class:`.Expression`]
             Extra fields to be displayed when hovering over a point on the plot.
         colors : :class:`bokeh.models.mappers.ColorMapper` or Dict[str, :class:`bokeh.models.mappers.ColorMapper`]
             If a single label is used, then this can be a color mapper, if multiple labels are used, then this should
@@ -519,7 +519,8 @@ def scatter(
         height: int
             Plot height
         n_divisions : int
-            Factor by which to downsample. A good starting place is 500; a lower input results in fewer output datapoints.
+            Factor by which to downsample (default value = 500). A lower input results in fewer output datapoints.
+            If set to ``None``, then all datapoints are plotted.
         missing_label: str
             Label to use when a point is missing data for a categorical label
 
@@ -528,13 +529,13 @@ def scatter(
         -------
         :class:`bokeh.plotting.figure.Figure` if no label or a single label was given, otherwise :class:`bokeh.plotting.figure.Column`
         """
-    source_fields = {} if source_fields is None else source_fields
+    hover_fields = {} if hover_fields is None else hover_fields
     label = {} if label is None else {'_label': label} if isinstance(label, Expression) else label
     colors = {'_label': colors} if isinstance(colors, ColorMapper) else colors
 
     label_cols = list(label.keys())
 
-    source_pd = _collect_scatter_plot_data(x, y, fields={**source_fields, **label}, n_divisions=n_divisions, missing_label=missing_label)
+    source_pd = _collect_scatter_plot_data(x, y, fields={**hover_fields, **label}, n_divisions=n_divisions, missing_label=missing_label)
     sp = figure(title=title, x_axis_label=xlabel, y_axis_label=ylabel, height=height, width=width)
     sp, sp_legend_items, sp_legend, sp_color_bar, sp_color_mappers, sp_scatter_renderers = _get_scatter_plot_elements(sp, source_pd, label_cols, colors, size)
 
@@ -586,7 +587,7 @@ def scatter(
 @typecheck(x=expr_numeric, y=expr_numeric,
            label=nullable(oneof(expr_any, dictof(str, expr_any))), title=nullable(str),
            xlabel=nullable(str), ylabel=nullable(str), size=int, legend=bool,
-           source_fields=nullable(dictof(str, expr_any)),
+           hover_fields=nullable(dictof(str, expr_any)),
            colors=nullable(oneof(bokeh.models.mappers.ColorMapper, dictof(str, bokeh.models.mappers.ColorMapper))),
            width=int, height=int, n_divisions=nullable(int), missing_lable=str)
 def joint_plot(
@@ -598,11 +599,11 @@ def joint_plot(
         ylabel: str = None,
         size: int =4,
         legend: bool = True,
-        source_fields: Dict[str, StringExpression] = None,
+        hover_fields: Dict[str, StringExpression] = None,
         colors: Union[ColorMapper, Dict[str, ColorMapper]] = None,
         width: int = 800,
         height: int = 800,
-        n_divisions: int = None,
+        n_divisions: int = 500,
         missing_label: str = 'NA'
 ) -> Column:
     """Create an interactive scatter plot with marginal densities on the side.
@@ -646,7 +647,7 @@ def joint_plot(
             Size of markers in screen space units.
         legend: bool
             Whether or not to show the legend in the resulting figure.
-        source_fields : Dict[str, :class:`.Expression`]
+        hover_fields : Dict[str, :class:`.Expression`]
             Extra fields to be displayed when hovering over a point on the plot.
         colors : :class:`bokeh.models.mappers.ColorMapper` or Dict[str, :class:`bokeh.models.mappers.ColorMapper`]
             If a single label is used, then this can be a color mapper, if multiple labels are used, then this should
@@ -658,7 +659,8 @@ def joint_plot(
         height: int
             Plot height
         n_divisions : int
-            Factor by which to downsample. A good starting place is 500; a lower input results in fewer output datapoints.
+            Factor by which to downsample (default value = 500). A lower input results in fewer output datapoints.
+            If set to ``None``, then all datapoints are plotted.
         missing_label: str
             Label to use when a point is missing data for a categorical label
 
@@ -668,12 +670,12 @@ def joint_plot(
         :class:`bokeh.plotting.figure.Column`
         """
     # Collect data
-    source_fields = {} if source_fields is None else source_fields
+    hover_fields = {} if hover_fields is None else hover_fields
     label = {} if label is None else {'_label': label} if isinstance(label, Expression) else label
     colors = {'_label': colors} if isinstance(colors, ColorMapper) else colors
 
     label_cols = list(label.keys())
-    source_pd = _collect_scatter_plot_data(x, y, fields={**source_fields, **label}, n_divisions=n_divisions, missing_label=missing_label)
+    source_pd = _collect_scatter_plot_data(x, y, fields={**hover_fields, **label}, n_divisions=n_divisions, missing_label=missing_label)
     sp = figure(title=title, x_axis_label=xlabel, y_axis_label=ylabel, height=height, width=width)
     sp, sp_legend_items, sp_legend, sp_color_bar, sp_color_mappers, sp_scatter_renderers = _get_scatter_plot_elements(sp, source_pd, label_cols, colors, size)
 
@@ -802,19 +804,18 @@ def joint_plot(
     return gridplot(first_row, [sp, yp])
 
 
-@typecheck(pvals=oneof(sequenceof(numeric), expr_float64), collect_all=bool, n_divisions=int)
-def qq(pvals, collect_all=False, n_divisions=500):
+@typecheck(pvals=oneof(sequenceof(numeric), expr_float64), n_divisions=nullable(int))
+def qq(pvals, n_divisions=500):
     """Create a Quantile-Quantile plot. (https://en.wikipedia.org/wiki/Q-Q_plot)
 
     Parameters
     ----------
     pvals : List[float] or :class:`.Float64Expression`
         P-values to be plotted.
-    collect_all : bool
-        Whether to collect all values or downsample before plotting.
-        This parameter will be ignored if pvals is a Python object.
     n_divisions : int
         Factor by which to downsample (default value = 500). A lower input results in fewer output datapoints.
+        If set to ``None``, then all datapoints are plotted.
+        This parameter will be ignored if pvals is a Python object.
 
     Returns
     -------
@@ -823,7 +824,7 @@ def qq(pvals, collect_all=False, n_divisions=500):
     if isinstance(pvals, Expression):
         source = pvals._indices.source
         if source is not None:
-            if collect_all:
+            if n_divisions is None:
                 pvals = pvals.collect()
                 spvals = sorted(filter(lambda x: x and not(isnan(x)), pvals))
                 exp = [-log(float(i) / len(spvals), 10) for i in np.arange(1, len(spvals) + 1, 1)]
@@ -858,8 +859,8 @@ def qq(pvals, collect_all=False, n_divisions=500):
 
 
 @typecheck(pvals=expr_float64, locus=nullable(expr_locus()), title=nullable(str),
-           size=int, hover_fields=nullable(dictof(str, expr_any)), collect_all=bool, n_divisions=int, significance_line=nullable(numeric))
-def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, collect_all=False, n_divisions=500, significance_line=5e-8):
+           size=int, hover_fields=nullable(dictof(str, expr_any)), n_divisions=nullable(int), significance_line=nullable(numeric))
+def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, n_divisions=500, significance_line=5e-8):
     """Create a Manhattan plot. (https://en.wikipedia.org/wiki/Manhattan_plot)
 
     Parameters
@@ -874,10 +875,10 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, collect_
         Size of markers in screen space units.
     hover_fields : Dict[str, :class:`.Expression`]
         Dictionary of field names and values to be shown in the HoverTool of the plot.
-    collect_all : bool
-        Whether to collect all values or downsample before plotting.
     n_divisions : int
         Factor by which to downsample (default value = 500). A lower input results in fewer output datapoints.
+        If set to ``None``, then all datapoints are plotted.
+        This parameter will be ignored if pvals is a Python object.
     significance_line : float, optional
         p-value at which to add a horizontal, dotted red line indicating
         genome-wide significance.  If ``None``, no line is added.
@@ -910,7 +911,7 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, collect_
 
     pvals = -hail.log10(pvals)
 
-    if collect_all:
+    if n_divisions is None:
         res = hail.tuple([locus.global_position(), pvals, hail.struct(**hover_fields)]).collect()
         hf_struct = [point[2] for point in res]
         for key in hover_fields:
@@ -960,7 +961,7 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, collect_
             num_deleted += 1
 
     p = scatter(x, y, label=label, title=title, xlabel='Chromosome', ylabel='P-value (-log10 scale)',
-                size=size, legend=False, source_fields=hover_fields)
+                size=size, legend=False, hover_fields=hover_fields)
 
     p.xaxis.ticker = mid_points
     p.xaxis.major_label_overrides = dict(zip(mid_points, labels))
