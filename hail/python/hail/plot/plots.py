@@ -929,29 +929,10 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, n_divisi
     source_pd['p_value'] = [10 ** (-p) for p in source_pd['_pval']]
     source_pd['_contig'] = [locus.split(":")[0] for locus in source_pd['locus']]
 
-    total_pos = 0
-    start_points = []
-    for i in range(0, len(ref.contigs)):
-        start_points.append(total_pos)
-        total_pos += ref.lengths.get(ref.contigs[i])
-    start_points.append(total_pos)  # end point of all contigs
-
     observed_contigs = set(source_pd['_contig'])
+    observed_contigs = [contig for contig in ref.contigs.copy() if contig in observed_contigs]
+    contig_ticks = hail.eval([hail.locus(contig, int(ref.lengths[contig]/2)).global_position() for contig in observed_contigs])
     color_mapper = CategoricalColorMapper(factors=ref.contigs, palette= palette[:2] * int((len(ref.contigs)+1)/2))
-
-    labels = ref.contigs.copy()
-    num_deleted = 0
-    mid_points = []
-    for i in range(0, len(ref.contigs)):
-        if ref.contigs[i] in observed_contigs:
-            length = ref.lengths.get(ref.contigs[i])
-            mid = start_points[i] + length / 2
-            if mid % 1 == 0:
-                mid += 0.5
-            mid_points.append(mid)
-        else:
-            del labels[i - num_deleted]
-            num_deleted += 1
 
     p = figure(title=title, x_axis_label='Chromosome', y_axis_label='P-value (-log10 scale)', width=1000)
     p, _, legend, _, _, _ = _get_scatter_plot_elements(
@@ -960,8 +941,8 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, n_divisi
         size=size
     )
     legend.visible = False
-    p.xaxis.ticker = mid_points
-    p.xaxis.major_label_overrides = dict(zip(mid_points, labels))
+    p.xaxis.ticker = contig_ticks
+    p.xaxis.major_label_overrides = dict(zip(contig_ticks, observed_contigs))
     p.select_one(HoverTool).tooltips = [t for t in p.select_one(HoverTool).tooltips if not t[0].startswith('_')]
 
     if significance_line is not None:
