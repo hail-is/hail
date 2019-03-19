@@ -2,6 +2,7 @@ import shortuuid
 
 import google
 from google.cloud import storage
+from googleapiclient.errors import HttpError
 from globals import k8s, kube_client, gcloud_service
 from table import Table
 
@@ -23,7 +24,7 @@ def create_google_service_account(sa_name, google_project):
 
 
 def delete_google_service_account(gsa_email, google_project):
-    return gcloud_service.projects().serviceAccounts().delete(name='projects/-/serviceAccounts/' + gsa_email).execute()
+    return gcloud_service.projects().serviceAccounts().delete(name=f'projects/{google_project}/serviceAccounts/{gsa_email}').execute()
 
 
 def create_kube_service_acccount(namespace):
@@ -81,11 +82,28 @@ def create_all(google_project, kube_namespace):
 
 
 def delete_all(user_obj, google_project='hail-vdc', kube_namespace='default'):
+    modified = 0
     try:
         delete_bucket(user_obj['bucket_name'])
-        delete_google_service_account(user_obj['gsa_email'], google_project)
-        delete_kube_service_acccount(user_obj['ksa_name'], kube_namespace)
+        modified += 1
     except google.api_core.exceptions.NotFound:
+        pass
+
+    try:
+        delete_google_service_account(user_obj['gsa_email'], google_project)
+        modified += 1
+    except HttpError as e:
+        if e.resp.status != 404:
+           raise e
+
+    try:
+        delete_kube_service_acccount(user_obj['ksa_name'], kube_namespace)
+        modified += 1
+    except kube_client.rest.ApiException as e:
+        if e.status != 404:
+            raise e
+
+    if modified == 0:
         return 404
 
 
