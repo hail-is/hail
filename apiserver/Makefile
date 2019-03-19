@@ -61,4 +61,4 @@ deploy: push
 	  -e "s,@apiserver_image@,$(APISERVER_IMAGE),g" \
 	  -e "s,@hail_jupyter_image@,$(HAIL_JUPYTER_IMAGE),g" \
 	  < deployment.yaml.in > deployment.yaml
-	kubectl apply -f deployment.yaml
+	kubectl -n default apply -f deployment.yaml

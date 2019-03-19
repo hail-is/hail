@@ -441,7 +441,7 @@ class TableToTableApply(TableIR):
         if name == 'TableFilterPartitions' or name == 'TableFilterIntervals':
             self._type = self.child.typ
         else:
-            assert name == 'VEP', name
+            assert name in ('VEP', 'Nirvana'), name
             self._type = Env.backend().table_type(self)
 
 

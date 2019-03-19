@@ -13,5 +13,12 @@ setup(
         'cerberus',
         'kubernetes',
         'flask',
+        'requests',
+        'aiohttp',
+        'aiodns',
+        'cchardet',
+        'aiohttp_jinja2',
+        'jinja2',
+        'uvloop>=0.12'
     ],
 )
