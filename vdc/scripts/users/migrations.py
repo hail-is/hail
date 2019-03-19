@@ -17,17 +17,11 @@ class MigrateTable(Table):
 
         cursor = self.cnx.cursor()
 
+        cursor.execute("CREATE DATABASE IF NOT EXISTS users;")
+        cursor.execute("USE users;")
         cursor.execute(
             """
-                CREATE DATABASE IF NOT EXISTS users;
-            """
-        )
-
-        cursor.execute("Use users")
-
-        cursor.execute(
-            """
-                CREATE TABLE IF NOT EXISTS users (
+                CREATE TABLE IF NOT EXISTS user_data (
                     id INT NOT NULL AUTO_INCREMENT,
                     user_id VARCHAR(255) NOT NULL,
                     gsa_name VARCHAR(255) NOT NULL,
@@ -47,4 +41,3 @@ if __name__ == "__main__":
     migrations = MigrateTable()
 
     print("Success")
-    

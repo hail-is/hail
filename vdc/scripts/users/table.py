@@ -37,14 +37,14 @@ class Table:
         secrets = Table.getSecrets()
 
         if not secrets:
-            raise "Couldn't read user-secrets"
+            raise "Couldn't read secret"
 
         self.cnx = mysql.connector.connect(**secrets)
 
     def get(self, user_id):
         cursor = self.cnx.cursor(dictionary=True)
 
-        cursor.execute("SELECT * FROM users WHERE user_id=%s", (user_id,))
+        cursor.execute("SELECT * FROM user_data WHERE user_id=%s", (user_id,))
         res = cursor.fetchone()
 
         cursor.close()
@@ -55,7 +55,7 @@ class Table:
         cursor = self.cnx.cursor()
         cursor.execute(
             """
-            INSERT INTO users
+            INSERT INTO user_data
                 (user_id, gsa_name, ksa_name, bucket_name)
                 VALUES (%s, %s, %s, %s)
             """, (user_id, gsa_name, ksa_name, bucket_name))
