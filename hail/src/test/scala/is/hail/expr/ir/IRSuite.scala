@@ -1229,6 +1229,7 @@ class IRSuite extends SparkSuite {
       ToSet(a),
       ToDict(da),
       ToArray(a),
+      ToStream(a),
       LowerBoundOnOrderedCollection(a, i, onKey = true),
       GroupByKey(da),
       ArrayMap(a, "v", v),

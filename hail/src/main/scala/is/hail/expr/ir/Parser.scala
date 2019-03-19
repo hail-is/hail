@@ -613,6 +613,7 @@ object IRParser {
       case "ToSet" => ToSet(ir_value_expr(env)(it))
       case "ToDict" => ToDict(ir_value_expr(env)(it))
       case "ToArray" => ToArray(ir_value_expr(env)(it))
+      case "ToStream" => ToStream(ir_value_expr(env)(it))
       case "LowerBoundOnOrderedCollection" =>
         val onKey = boolean_literal(it)
         val col = ir_value_expr(env)(it)

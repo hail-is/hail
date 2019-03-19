@@ -68,6 +68,9 @@ object Copy {
       case ToArray(_) =>
         val IndexedSeq(a: IR) = newChildren
         ToArray(a)
+      case ToStream(_) =>
+        val IndexedSeq(a: IR) = newChildren
+        ToStream(a)
       case LowerBoundOnOrderedCollection(_, _, asKey) =>
         val IndexedSeq(orderedCollection: IR, elem: IR) = newChildren
         LowerBoundOnOrderedCollection(orderedCollection, elem, asKey)

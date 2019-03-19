@@ -161,6 +161,7 @@ final case class ArraySort(a: IR, left: String, right: String, compare: IR) exte
 final case class ToSet(a: IR) extends IR
 final case class ToDict(a: IR) extends IR
 final case class ToArray(a: IR) extends IR
+final case class ToStream(a: IR) extends IR
 
 final case class LowerBoundOnOrderedCollection(orderedCollection: IR, elem: IR, onKey: Boolean) extends IR
 
