@@ -43,7 +43,7 @@ char const *load_ndarray_addr(NDArray nd, std::vector<long> indices) {
   int offset = 0;
   for (int i = 0; i < indices.size(); ++i) {
     if (indices[i] < 0 || indices[i] > nd.shape[i]) {
-      throw new FatalError("Invalid index");
+      throw new FatalError(("Invalid index: " + std::to_string(indices[i])).c_str());
     }
     offset += nd.strides[i] * indices[i];
   }
