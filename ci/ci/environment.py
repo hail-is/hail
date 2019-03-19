@@ -61,4 +61,4 @@ log.info(f'CONTEXT = {CONTEXT}')
 
 batch_client = BatchClient(url=BATCH_SERVER_URL,
                            timeout=5,
-                           headers={'Hail-User': 'ci'})
+                           cookies={'user': {'id': 0, 'email': 'ci@hail.is'}})

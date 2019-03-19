@@ -246,7 +246,7 @@ class LocalTests(unittest.TestCase):
 class BatchTests(unittest.TestCase):
     def pipeline(self):
         return Pipeline(backend=BatchBackend(os.environ.get('BATCH_URL'),
-                                             user='pipeline-test-0-1--hail-is'),
+                                             headers=???),
                         default_image='google/cloud-sdk:alpine')
 
     def test_single_task_no_io(self):

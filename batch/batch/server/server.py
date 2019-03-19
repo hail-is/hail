@@ -102,7 +102,7 @@ def jsonify(data):
 
 class JobTask:  # pylint: disable=R0903
     @staticmethod
-    def copy_task(job_id, task_name, files, user):
+    def copy_task(job_id, task_name, files, userdata):
         if files is not None:
             authenticate = 'gcloud -q auth activate-service-account --key-file=/gcp-sa-key/key.json'
             copies = ' & '.join([f'gsutil cp {src} {dst}' for (src, dst) in files])
@@ -122,7 +122,7 @@ class JobTask:  # pylint: disable=R0903
                 volumes=[
                     kube.client.V1Volume(
                         secret=kube.client.V1SecretVolumeSource(
-                            secret_name=f'gcp-sa-key-{user}'),
+                            secret_name=userdata['secret_name']),
                         name='gcp-sa-key')])
             return JobTask(job_id, task_name, spec)
         return None
@@ -186,7 +186,7 @@ class Job:
                     name=self._pvc.metadata.name),
                 kube.client.V1Volume(
                     secret=kube.client.V1SecretVolumeSource(
-                        secret_name=f'gcp-sa-key-{self.user}'),
+                        secret_name=self.userdata['secret_name']),
                     name='gcp-sa-key')])
             for container in current_pod_spec.containers:
                 if container.volume_mounts is None:
@@ -262,7 +262,7 @@ class Job:
         return None
 
     def __init__(self, pod_spec, batch_id, attributes, callback, parent_ids,
-                 scratch_folder, input_files, output_files, user, always_run):
+                 scratch_folder, input_files, output_files, userdata, always_run):
         self.id = next_id()
         self.batch_id = batch_id
         self.attributes = attributes
@@ -272,16 +272,16 @@ class Job:
         self.incomplete_parent_ids = set(self.parent_ids)
         self.scratch_folder = scratch_folder
         self.always_run = always_run
-        self.user = user
+        self.userdata = userdata
 
         self._pvc = None
         self._pod_name = None
         self.exit_code = None
         self._state = 'Created'
 
-        self._tasks = [JobTask.copy_task(self.id, 'input', input_files, self.user),
+        self._tasks = [JobTask.copy_task(self.id, 'input', input_files, userdata),
                        JobTask(self.id, 'main', pod_spec),
-                       JobTask.copy_task(self.id, 'output', output_files, self.user)]
+                       JobTask.copy_task(self.id, 'output', output_files, userdata)]
 
         self._tasks = [t for t in self._tasks if t is not None]
         self._task_idx = -1
@@ -447,25 +447,22 @@ class Job:
         return result
 
 
-authorized_users = [
-    'ci',
-    'pipeline-test-0-1--hail-is',
-    'google-oauth2|konradk@broadinstitute.org',
-    'google-oauth2|labbott@broadinstitute.org',
-    'google-oauth2|dking@broadinstitute.org',
-    'google-oauth2|akotlar@broadinstitute.org',
-    'google-oauth2|jigold@broadinstitute.org',
-    'google-oauth2|cseed@broadinstitute.org'
-]
+authorized_users = {
+    0: 'ci@hail.is',
+    1: 'akotlar@broadinstitute.org',
+    2: 'pipeline@hail.is',
+}
 
 
 def authorized_users_only(fun):
     def wrapped(request, *args, **kwargs):
-        user = jwtclient.decode(request.cookies.get('user'))
-        if user not in authorized_users:
+        userdata = jwtclient.decode(request.cookies.get('user'))
+        userid = userdata['id']
+        if userid not in authorized_users:
             return '403 UNAUTHORIZED', 403
-        if 'user' in fun.__code__.co_varnames:
-            return fun(request, *args, user=user, **kwargs)
+        assert authorized_users[userid] == userdata['email'], f'{userdata}; {authorized_users}'
+        if 'userdata' in fun.__code__.co_varnames:
+            return fun(request, *args, userdata=userdata, **kwargs)
         return fun(request, *args, **kwargs)
     wrapped.__name__ = fun.__name__
     return wrapped
@@ -485,7 +482,7 @@ def internal_request(fun):
 
 @routes.post('/jobs/create')
 @authorized_users_only
-async def create_job(request, user):  # pylint: disable=R0912
+async def create_job(request, userdata):  # pylint: disable=R0912
     parameters = await request.json()
 
     schema = {
@@ -553,7 +550,7 @@ async def create_job(request, user):  # pylint: disable=R0912
         scratch_folder=scratch_folder,
         input_files=input_files,
         output_files=output_files,
-        user=user,
+        userdata=userdata,
         always_run=always_run)
     return jsonify(job.to_json())
 

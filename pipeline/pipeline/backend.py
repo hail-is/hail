@@ -152,8 +152,8 @@ class BatchBackend(Backend):
         URL to batch server.
     """
 
-    def __init__(self, url, user):
-        self._batch_client = batch.client.BatchClient(url, headers={'Hail-User': user})
+    def __init__(self, url, headers):
+        self._batch_client = batch.client.BatchClient(url, headers=headers)
 
     def _run(self, pipeline, dry_run, verbose, delete_scratch_on_exit):  # pylint: disable-msg=R0915
         if dry_run:
