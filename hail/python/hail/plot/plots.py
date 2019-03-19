@@ -354,7 +354,12 @@ def _collect_scatter_plot_data(
 
         agg_f = x[1]._aggregation_method()
         res = agg_f(hail.agg.downsample(x[1], y[1], label=list(expressions.values()) if expressions else None, n_divisions=n_divisions))
-        source_pd = pd.DataFrame([dict(**{x[0]: point[0], y[0]: point[1]}, **dict(zip(expressions, point[2]))) for point in res])
+        source_pd = pd.DataFrame([
+            dict(
+                **{x[0]: point[0], y[0]: point[1]},
+                **(dict(zip(expressions, point[2])) if point[2] is not None else {})
+            ) for point in res
+        ])
         source_pd = source_pd.astype(numeric_expr, copy=False)
 
     return source_pd
@@ -476,70 +481,69 @@ def scatter(
 ) -> Union[bokeh.plotting.Figure, Column]:
     """Create an interactive scatter plot.
 
-       ``x`` and ``y`` must both be either:
-       - a :class:`NumericExpression` from the same :class:`Table`.
-       - a tuple (str, :class:`NumericExpression`) from the same :class:`Table`. If passed as a tuple the first element is used as the hover label.
+    ``x`` and ``y`` must both be either:
+    - a :class:`NumericExpression` from the same :class:`Table`.
+    - a tuple (str, :class:`NumericExpression`) from the same :class:`Table`. If passed as a tuple the first element is used as the hover label.
 
-       If no label or a single label is provided, then returns :class:`bokeh.plotting.figure.Figure`
-       Otherwise returns a :class:`bokeh.plotting.figure.Column` containing:
-       - a :class:`bokeh.models.widgets.Select` dropdown selection widget for labels
-       - a :class:`bokeh.plotting.figure.Figure` containing the interactive scatter plot
+    If no label or a single label is provided, then returns :class:`bokeh.plotting.figure.Figure`
+    Otherwise returns a :class:`bokeh.plotting.figure.Column` containing:
+    - a :class:`bokeh.models.widgets.Select` dropdown selection widget for labels
+    - a :class:`bokeh.plotting.figure.Figure` containing the interactive scatter plot
 
-       Points will be colored by one of the labels defined in the ``label`` using the color scheme defined in
-       the corresponding entry of ``colors`` if provided (otherwise a default scheme is used). To specify your color
-       mapper, check `the bokeh documentation <https://bokeh.pydata.org/en/latest/docs/reference/colors.html>`__
-       for CategoricalMapper for categorical labels, and for LinearColorMapper and LogColorMapper
-       for continuous labels.
-       For categorical labels, clicking on one of the items in the legend will hide/show all points with the corresponding label.
-       Note that using many different labelling schemes in the same plots, particularly if those labels contain many
-       different classes could slow down the plot interactions.
+    Points will be colored by one of the labels defined in the ``label`` using the color scheme defined in
+    the corresponding entry of ``colors`` if provided (otherwise a default scheme is used). To specify your color
+    mapper, check `the bokeh documentation <https://bokeh.pydata.org/en/latest/docs/reference/colors.html>`__
+    for CategoricalMapper for categorical labels, and for LinearColorMapper and LogColorMapper
+    for continuous labels.
+    For categorical labels, clicking on one of the items in the legend will hide/show all points with the corresponding label.
+    Note that using many different labelling schemes in the same plots, particularly if those labels contain many
+    different classes could slow down the plot interactions.
 
-       Hovering on points will display their coordinates, labels and any additional fields specified in ``source_fields``.
+    Hovering on points will display their coordinates, labels and any additional fields specified in ``source_fields``.
 
-        Parameters
-        ----------
-        x : :class:`.NumericExpression` or (str, :class:`.NumericExpression`)
-            List of x-values to be plotted.
-        y : :class:`.NumericExpression` or (str, :class:`.NumericExpression`)
-            List of y-values to be plotted.
-        label : :class:`.Expression` or Dict[str, :class:`.Expression`]]
-            Either a single expression (if a single label is desired), or a
-            dictionary of label name -> label value for x and y values.
-            Used to color each point w.r.t its label.
-            When multiple labels are given, a dropdown will be displayed with the different options.
-            Can be used with categorical or continuous expressions.
-        title : str
-            Title of the scatterplot.
-        xlabel : str
-            X-axis label.
-        ylabel : str
-            Y-axis label.
-        size : int
-            Size of markers in screen space units.
-        legend: bool
-            Whether or not to show the legend in the resulting figure.
-        hover_fields : Dict[str, :class:`.Expression`]
-            Extra fields to be displayed when hovering over a point on the plot.
-        colors : :class:`bokeh.models.mappers.ColorMapper` or Dict[str, :class:`bokeh.models.mappers.ColorMapper`]
-            If a single label is used, then this can be a color mapper, if multiple labels are used, then this should
-            be a Dict of label name -> color mapper.
-            Used to set colors for the labels defined using ``label``.
-            If not used at all, or label names not appearing in this dict will be colored using a default color scheme.
-        width: int
-            Plot width
-        height: int
-            Plot height
-        n_divisions : int
-            Factor by which to downsample (default value = 500). A lower input results in fewer output datapoints.
-            If set to ``None``, then all datapoints are plotted.
-        missing_label: str
-            Label to use when a point is missing data for a categorical label
+    Parameters
+    ----------
+    x : :class:`.NumericExpression` or (str, :class:`.NumericExpression`)
+        List of x-values to be plotted.
+    y : :class:`.NumericExpression` or (str, :class:`.NumericExpression`)
+        List of y-values to be plotted.
+    label : :class:`.Expression` or Dict[str, :class:`.Expression`]]
+        Either a single expression (if a single label is desired), or a
+        dictionary of label name -> label value for x and y values.
+        Used to color each point w.r.t its label.
+        When multiple labels are given, a dropdown will be displayed with the different options.
+        Can be used with categorical or continuous expressions.
+    title : str
+        Title of the scatterplot.
+    xlabel : str
+        X-axis label.
+    ylabel : str
+        Y-axis label.
+    size : int
+        Size of markers in screen space units.
+    legend: bool
+        Whether or not to show the legend in the resulting figure.
+    hover_fields : Dict[str, :class:`.Expression`]
+        Extra fields to be displayed when hovering over a point on the plot.
+    colors : :class:`bokeh.models.mappers.ColorMapper` or Dict[str, :class:`bokeh.models.mappers.ColorMapper`]
+        If a single label is used, then this can be a color mapper, if multiple labels are used, then this should
+        be a Dict of label name -> color mapper.
+        Used to set colors for the labels defined using ``label``.
+        If not used at all, or label names not appearing in this dict will be colored using a default color scheme.
+    width: int
+        Plot width
+    height: int
+        Plot height
+    n_divisions : int
+        Factor by which to downsample (default value = 500). A lower input results in fewer output datapoints.
+        If set to ``None``, then all datapoints are plotted.
+    missing_label: str
+        Label to use when a point is missing data for a categorical label
 
-
-        Returns
-        -------
-        :class:`bokeh.plotting.figure.Figure` if no label or a single label was given, otherwise :class:`bokeh.plotting.figure.Column`
-        """
+    Returns
+    -------
+    :class:`bokeh.plotting.figure.Figure` if no label or a single label was given, otherwise :class:`bokeh.plotting.figure.Column`
+    """
     hover_fields = {} if hover_fields is None else hover_fields
     label = {} if label is None else {'label': label} if isinstance(label, Expression) else label
     colors = {'label': colors} if isinstance(colors, ColorMapper) else colors
