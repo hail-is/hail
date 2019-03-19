@@ -478,7 +478,11 @@ class PruneSuite extends SparkSuite {
   }
 
   @Test def testAggLetMemo() {
-    checkMemo(AggLet("foo", ref, Ref("foo", ref.typ), false), justA, Array(justA, null))
+    checkMemo(AggLet("foo", ref,
+      ApplyAggOp(FastIndexedSeq(), None, FastIndexedSeq(
+        SelectFields(Ref("foo", ref.typ), Seq("a"))),
+      AggSignature(Collect(), FastIndexedSeq(), None, FastIndexedSeq(ref.typ))), false),
+      TArray(justA), Array(justA, null))
     checkMemo(AggLet("foo", ref, True(), false), TBoolean(), Array(empty, null))
   }
 
@@ -571,14 +575,42 @@ class PruneSuite extends SparkSuite {
     checkMemo(GetTupleElement(MakeTuple(Seq(ref)), 0), justB, Array(TTuple(justB)))
   }
 
+  @Test def testAggFilterMemo(): Unit = {
+    val t = TStruct("a" -> TInt32(), "b" -> TInt64(), "c" -> TString())
+    val select = SelectFields(Ref("x", t), Seq("c"))
+    checkMemo(AggFilter(
+      ApplyComparisonOp(LT(TInt32(), TInt32()), GetField(Ref("x", t), "a"), I32(0)),
+      ApplyAggOp(FastIndexedSeq(), None, FastIndexedSeq(select),
+        AggSignature(Collect(), FastIndexedSeq(), None, FastIndexedSeq(select.typ))),
+      false),
+      TArray(TStruct("c" -> TString())),
+      Array(null, TArray(TStruct("c" -> TString()))))
+  }
+
   @Test def testAggExplodeMemo(): Unit = {
     val t = TArray(TStruct("a" -> TInt32(), "b" -> TInt64()))
-    checkMemo(AggExplode(Ref("x", t), "foo", Ref("foo", t.elementType), false), TStruct("b" -> TInt64()), Array(TArray(TStruct("b" -> TInt64())), TStruct("b" -> TInt64())))
+    val select = SelectFields(Ref("foo", t.elementType), Seq("a"))
+    checkMemo(AggExplode(Ref("x", t),
+      "foo",
+      ApplyAggOp(FastIndexedSeq(), None, FastIndexedSeq(select),
+        AggSignature(Collect(), FastIndexedSeq(), None, FastIndexedSeq(select.typ))),
+      false),
+      TArray(TStruct("a" -> TInt32())),
+      Array(TArray(TStruct("a" -> TInt32())),
+        TArray(TStruct("a" -> TInt32()))))
   }
 
   @Test def testAggArrayPerElementMemo(): Unit = {
     val t = TArray(TStruct("a" -> TInt32(), "b" -> TInt64()))
-    checkMemo(AggArrayPerElement(Ref("x", t), "foo", Ref("foo", t.elementType), false), TArray(TStruct("b" -> TInt64())), Array(TArray(TStruct("b" -> TInt64())), TStruct("b" -> TInt64())))
+    val select = SelectFields(Ref("foo", t.elementType), Seq("a"))
+    checkMemo(AggArrayPerElement(Ref("x", t),
+      "foo",
+      ApplyAggOp(FastIndexedSeq(), None, FastIndexedSeq(select),
+        AggSignature(Collect(), FastIndexedSeq(), None, FastIndexedSeq(select.typ))),
+      false),
+      TArray(TArray(TStruct("a" -> TInt32()))),
+      Array(TArray(TStruct("a" -> TInt32())),
+        TArray(TStruct("a" -> TInt32()))))
   }
 
   @Test def testTableCountMemo() {
@@ -841,10 +873,13 @@ class PruneSuite extends SparkSuite {
   }
 
   @Test def testAggLetRebuild() {
-    checkRebuild(AggLet("x", NA(ts), Ref("x", ts), false), subsetTS("b"),
+    checkRebuild(AggLet("foo", NA(ref.typ),
+      ApplyAggOp(FastIndexedSeq(), None, FastIndexedSeq(
+        SelectFields(Ref("foo", ref.typ), Seq("a"))),
+        AggSignature(Collect(), FastIndexedSeq(), None, FastIndexedSeq(ref.typ))), false), subsetTS("b"),
       (_: BaseIR, r: BaseIR) => {
         val ir = r.asInstanceOf[AggLet]
-        ir.value.typ == subsetTS("b")
+        ir.value.typ == subsetTS("a")
       })
   }
 
