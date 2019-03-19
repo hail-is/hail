@@ -40,7 +40,7 @@ def handle_invalid_usage(error):
 
 @app.route('/status')
 def status():
-    return jsonify(prs.to_json())
+    return jsonify(prs.to_dict())
 
 
 @app.route('/push', methods=['POST'])
