@@ -215,7 +215,6 @@ object TypeCheck {
         assert(msg.typ isOfType TString())
       case x@ApplyIR(fn, args) =>
       case x: AbstractApplyNode[_] =>
-        x.args.foreach(check(_))
         assert(x.implementation.unify(x.args.map(_.typ)))
       case Uniroot(name, fn, min, max) =>
         assert(fn.typ.isInstanceOf[TFloat64])
