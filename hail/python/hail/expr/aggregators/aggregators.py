@@ -202,9 +202,9 @@ def approx_cdf(expr, k=100):
     These represent a summary of the CDF of the distribution of values. In
     particular, for any value `x = values(i)` in the summary, we estimate that
     there are `ranks(i)` values strictly less than `x`, and that there are
-    `ranks(i+1)` values less that or equal to `x`. For any value `x` (not
-    necessarily in the summary), we estimate CDF(x) to be `ranks(i)`, where `i`
-    is such that `values(i-1) < x ≤ values(i)`.
+    `ranks(i+1)` values less than or equal to `x`. For any value `y` (not
+    necessarily in the summary), we estimate CDF(y) to be `ranks(i)`, where `i`
+    is such that `values(i-1) < y ≤ values(i)`.
 
     An alternative intuition is that the summary encodes a compressed
     approximation to the sorted list of values. For example, values=[0,2,5,6,9]

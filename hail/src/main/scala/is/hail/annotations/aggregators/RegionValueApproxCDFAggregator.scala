@@ -49,8 +49,6 @@ object ApproxCDFHelper {
 }
 
 abstract class ApproxCDFHelper[@specialized(Int, Long, Float, Double) T] extends Serializable {
-  private val rand = new java.util.Random()
-
   val hailType: Type
 
   def dummyValue: T
@@ -68,6 +66,8 @@ abstract class ApproxCDFHelper[@specialized(Int, Long, Float, Double) T] extends
     right: Array[T], rStart: Int, rEnd: Int,
     out: Array[T], outStart: Int
   ): Unit = {
+    assert((left ne out) || (outStart <= lStart - (rEnd - rStart)) || (outStart >= lEnd))
+    assert((right ne out) || (outStart <= rStart - (lEnd - lStart)) || (outStart >= rEnd))
     var i: Int = lStart
     var j: Int = rStart
     var o: Int = outStart
@@ -102,11 +102,13 @@ abstract class ApproxCDFHelper[@specialized(Int, Long, Float, Double) T] extends
 
   def compactBuffer(
     buf: Array[T], inStart: Int, inEnd: Int,
-    out: Array[T], outStart: Int
+    out: Array[T], outStart: Int,
+    skipFirst: Boolean
   ): Unit = {
+    assert((buf ne out) || (outStart <= inStart) || (outStart >= inEnd))
     var i = inStart
     var o = outStart
-    if (rand.nextBoolean()) {
+    if (skipFirst) {
       i += 1
     }
     while (i < inEnd) {
@@ -118,11 +120,13 @@ abstract class ApproxCDFHelper[@specialized(Int, Long, Float, Double) T] extends
 
   def compactBufferBackwards(
     buf: Array[T], inStart: Int, inEnd: Int,
-    out: Array[T], outEnd: Int
+    out: Array[T], outEnd: Int,
+    skipFirst: Boolean
   ): Unit = {
+    assert((buf ne out) || (outEnd <= inStart) || (outEnd >= inEnd))
     var i = inEnd - 1
     var o = outEnd - 1
-    if (rand.nextBoolean()) {
+    if (skipFirst) {
       i -= 1
     }
     while (i >= inStart) {
@@ -135,11 +139,19 @@ abstract class ApproxCDFHelper[@specialized(Int, Long, Float, Double) T] extends
 
 object ApproxCDFCombiner {
   def apply[@specialized(Int, Long, Float, Double) T: ClassTag : Ordering : ApproxCDFHelper](
-    numLevels: Int, capacity: Int, dummy: T
+    numLevels: Int, capacity: Int, dummy: T, rand: java.util.Random
   ): ApproxCDFCombiner[T] = new ApproxCDFCombiner[T](
     Array.fill[Int](numLevels + 1)(capacity),
     Array.ofDim[T](capacity),
-    1)
+    1,
+    dummy,
+    dummy,
+    rand)
+
+  def apply[@specialized(Int, Long, Float, Double) T: ClassTag : Ordering : ApproxCDFHelper](
+    numLevels: Int, capacity: Int, dummy: T
+  ): ApproxCDFCombiner[T] =
+    apply(numLevels, capacity, dummy, new java.util.Random())
 }
 
 /* Keep a collection of values, grouped into levels.
@@ -155,14 +167,17 @@ object ApproxCDFCombiner {
  *   never empty, so this is also the greatest nonempty level.
  */
 class ApproxCDFCombiner[@specialized(Int, Long, Float, Double) T: ClassTag : Ordering](
-  val levels: Array[Int], val items: Array[T], var numLevels: Int, var minValue: T, var maxValue: T
+  val levels: Array[Int],
+  val items: Array[T],
+  var numLevels: Int,
+  var minValue: T,
+  var maxValue: T,
+  val rand: java.util.Random
 )(implicit helper: ApproxCDFHelper[T]
 ) extends Serializable {
-  def this(levels: Array[Int], items: Array[T], numLevels: Int)(implicit helper: ApproxCDFHelper[T]) =
-    this(levels, items, numLevels, helper.dummyValue, helper.dummyValue)
 
   def copy(): ApproxCDFCombiner[T] =
-    new ApproxCDFCombiner[T](levels.clone(), items.clone(), numLevels, minValue, maxValue)
+    new ApproxCDFCombiner[T](levels.clone(), items.clone(), numLevels, minValue, maxValue, rand)
 
   def maxNumLevels = levels.length - 1
   def capacity = items.length
@@ -190,7 +205,6 @@ class ApproxCDFCombiner[@specialized(Int, Long, Float, Double) T: ClassTag : Ord
     val newBot = bot - 1
     items(newBot) = t
     levels(0) = newBot
-
   }
 
   def grow(newNumLevels: Int, newCapacity: Int): ApproxCDFCombiner[T] = {
@@ -209,7 +223,7 @@ class ApproxCDFCombiner[@specialized(Int, Long, Float, Double) T: ClassTag : Ord
     }
     System.arraycopy(items, levels(0), newItems, newLevels(0), size)
 
-    new ApproxCDFCombiner[T](newLevels, newItems, numLevels, minValue, maxValue)
+    new ApproxCDFCombiner[T](newLevels, newItems, numLevels, minValue, maxValue, rand)
   }
 
   def clear() {
@@ -227,7 +241,7 @@ class ApproxCDFCombiner[@specialized(Int, Long, Float, Double) T: ClassTag : Ord
    * Shift lower levels up to keep items contiguous.
    */
   def compactLevel(level: Int, shiftLowerLevels: Boolean = true) {
-    assert(level < maxNumLevels - 1)
+    assert(level <= numLevels - 1)
     if (level == numLevels - 1) numLevels += 1
 
     val bot = levels(0)
@@ -243,25 +257,24 @@ class ApproxCDFCombiner[@specialized(Int, Long, Float, Double) T: ClassTag : Ord
     val b = a + halfSize
 
     val sizeBelow = a - bot
-    val sizeAbove = d - c
+    val levelAboveSize = d - c
 
     if (level == 0) helper.sort(items, a, c)
-    if (sizeAbove == 0) {
-      helper.compactBufferBackwards(items, a, c, items, c)
+    if (levelAboveSize == 0) {
+      helper.compactBufferBackwards(items, a, c, items, c, rand.nextBoolean())
     } else {
-      helper.compactBuffer(items, a, c, items, a)
+      helper.compactBuffer(items, a, c, items, a, rand.nextBoolean())
       helper.merge(items, a, b, items, c, d, items, b)
     }
     levels(level + 1) = b
 
     if (shiftLowerLevels) {
-      // shift up values below
       if (sizeBelow > 1) {
         // copy [bot, a) to [bot+halfSize, b)
-        System.arraycopy(items, levels(0), items, bot + halfSize, sizeBelow)
+        System.arraycopy(items, bot, items, bot + halfSize, sizeBelow)
       } else {
         // only needs to be done if sizeBelow == 1, but doesn't hurt otherwise
-        items(b - 1) = items(a0)
+        items(b - 1) = items(bot)
       }
 
       // shift up level boundaries below
@@ -273,7 +286,7 @@ class ApproxCDFCombiner[@specialized(Int, Long, Float, Double) T: ClassTag : Ord
     }
   }
 
-  def merge(other: ApproxCDFCombiner[T], ubOnNumLevels: Int ): ApproxCDFCombiner[T] = {
+  def merge(other: ApproxCDFCombiner[T], ubOnNumLevels: Int): ApproxCDFCombiner[T] = {
     minValue = helper.min(minValue, other.minValue)
     maxValue = helper.max(maxValue, other.maxValue)
 
@@ -312,7 +325,8 @@ class ApproxCDFCombiner[@specialized(Int, Long, Float, Double) T: ClassTag : Ord
       mergedItems,
       math.max(numLevels, other.numLevels),
       helper.min(minValue, other.minValue),
-      helper.max(maxValue, other.maxValue))
+      helper.max(maxValue, other.maxValue),
+      rand)
   }
 
   def generalCompact(capacities: Array[Int], minCapacity: Int, levelCapacity: (Int, Int) => Int) {
