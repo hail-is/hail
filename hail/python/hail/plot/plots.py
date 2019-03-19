@@ -333,7 +333,7 @@ def _collect_scatter_plot_data(
 
     expressions = dict()
     if fields is not None:
-        expressions.update({k: or_else(v, missing_label) if isinstance(v, StringExpression) else v for k, v in fields.items()})
+        expressions.update({k: hail.or_else(v, missing_label) if isinstance(v, StringExpression) else v for k, v in fields.items()})
 
     if n_divisions is None:
         collect_expr = hail.struct(_x=x, _y=y, **expressions)
@@ -370,7 +370,7 @@ def _get_categorical_palette(factors: List[str]) -> Dict[str, str]:
 
 
 def _get_scatter_plot_elements(
-        sp: Plot, source_pd: pd.DataFrame, label_cols: List[str], colors: Dict[str, ColorMapper] = None, size: int = 4
+        sp: Plot, source_pd: pd.DataFrame, label_cols: List[str], colors: Dict[str, ColorMapper] = None, size: int = 4,
 ) -> Tuple[bokeh.plotting.Figure, Dict[str, List[LegendItem]], Legend, ColorBar, Dict[str, ColorMapper], List[Renderer]] :
 
     if not source_pd.shape[0]:
@@ -445,7 +445,7 @@ def _get_scatter_plot_elements(
 
 @typecheck(x=expr_numeric, y=expr_numeric,
            label=nullable(oneof(expr_any, dictof(str, expr_any))), title=nullable(str),
-           xlabel=nullable(str), ylabel=nullable(str), size=int,
+           xlabel=nullable(str), ylabel=nullable(str), size=int, legend=bool,
            source_fields=nullable(dictof(str, expr_any)),
            colors=nullable(oneof(bokeh.models.mappers.ColorMapper, dictof(str, bokeh.models.mappers.ColorMapper))),
            width=int, height=int, n_divisions=nullable(int), missing_label=str)
@@ -457,6 +457,7 @@ def scatter(
         xlabel: str = None,
         ylabel: str = None,
         size: int =4,
+        legend: bool = True,
         source_fields: Dict[str, Expression] = None,
         colors: Union[ColorMapper, Dict[str, ColorMapper]] = None,
         width: int = 800,
@@ -504,6 +505,8 @@ def scatter(
             Y-axis label.
         size : int
             Size of markers in screen space units.
+        legend: bool
+            Whether or not to show the legend in the resulting figure.
         source_fields : Dict[str, :class:`.Expression`]
             Extra fields to be displayed when hovering over a point on the plot.
         colors : :class:`bokeh.models.mappers.ColorMapper` or Dict[str, :class:`bokeh.models.mappers.ColorMapper`]
@@ -533,24 +536,34 @@ def scatter(
 
     source_pd = _collect_scatter_plot_data(x, y, fields={**source_fields, **label}, n_divisions=n_divisions, missing_label=missing_label)
     sp = figure(title=title, x_axis_label=xlabel, y_axis_label=ylabel, height=height, width=width)
-    sp, legend_items, legend, color_bar, color_mappers, scatter_renderers = _get_scatter_plot_elements(sp, source_pd, label_cols, colors, size)
+    sp, sp_legend_items, sp_legend, sp_color_bar, sp_color_mappers, sp_scatter_renderers = _get_scatter_plot_elements(sp, source_pd, label_cols, colors, size)
 
+    if not legend:
+        sp_legend.visible = False
+        sp_color_bar.visible = False
+
+    # If multiple labels, create JS call back selector
     if len(label_cols) > 1:
-        # JS call back selector
-        callback = CustomJS(args=dict(
-            legend_items=legend_items,
-            legend=legend,
-            color_bar=color_bar,
-            color_mappers=color_mappers,
-            scatter_renderers=scatter_renderers
-        ), code="""
-
+        callback_args=dict(
+            color_mappers=sp_color_mappers,
+            scatter_renderers=sp_scatter_renderers
+        )
+        callback_code = """
         for (var i = 0; i < scatter_renderers.length; i++){
             scatter_renderers[i].glyph.fill_color = {field: cb_obj.value, transform: color_mappers[cb_obj.value]}
             scatter_renderers[i].glyph.line_color = {field: cb_obj.value, transform: color_mappers[cb_obj.value]}
             scatter_renderers[i].visible = true
         }
+        
+        """
 
+        if legend:
+            callback_args.update(dict(
+                legend_items=sp_legend_items,
+                legend=sp_legend,
+                color_bar=sp_color_bar
+            ))
+            callback_code += """ 
         if (cb_obj.value in legend_items){
             legend.items=legend_items[cb_obj.value]
             legend.visible=true
@@ -560,8 +573,9 @@ def scatter(
             color_bar.visible=true
         }
 
-        """)
+        """
 
+        callback = CustomJS(args=callback_args, code=callback_code)
         select = Select(title="Color by", value=label_cols[0], options=label_cols)
         select.js_on_change('value', callback)
         return Column(children=[select, sp])
@@ -571,7 +585,7 @@ def scatter(
 
 @typecheck(x=expr_numeric, y=expr_numeric,
            label=nullable(oneof(expr_any, dictof(str, expr_any))), title=nullable(str),
-           xlabel=nullable(str), ylabel=nullable(str), size=int,
+           xlabel=nullable(str), ylabel=nullable(str), size=int, legend=bool,
            source_fields=nullable(dictof(str, expr_any)),
            colors=nullable(oneof(bokeh.models.mappers.ColorMapper, dictof(str, bokeh.models.mappers.ColorMapper))),
            width=int, height=int, n_divisions=nullable(int), missing_lable=str)
@@ -583,6 +597,7 @@ def joint_plot(
         xlabel: str = None,
         ylabel: str = None,
         size: int =4,
+        legend: bool = True,
         source_fields: Dict[str, StringExpression] = None,
         colors: Union[ColorMapper, Dict[str, ColorMapper]] = None,
         width: int = 800,
@@ -629,6 +644,8 @@ def joint_plot(
             Y-axis label.
         size : int
             Size of markers in screen space units.
+        legend: bool
+            Whether or not to show the legend in the resulting figure.
         source_fields : Dict[str, :class:`.Expression`]
             Extra fields to be displayed when hovering over a point on the plot.
         colors : :class:`bokeh.models.mappers.ColorMapper` or Dict[str, :class:`bokeh.models.mappers.ColorMapper`]
@@ -658,7 +675,7 @@ def joint_plot(
     label_cols = list(label.keys())
     source_pd = _collect_scatter_plot_data(x, y, fields={**source_fields, **label}, n_divisions=n_divisions, missing_label=missing_label)
     sp = figure(title=title, x_axis_label=xlabel, y_axis_label=ylabel, height=height, width=width)
-    sp, legend_items, legend, color_bar, color_mappers, scatter_renderers = _get_scatter_plot_elements(sp, source_pd, label_cols, colors, size)
+    sp, sp_legend_items, sp_legend, sp_color_bar, sp_color_mappers, sp_scatter_renderers = _get_scatter_plot_elements(sp, source_pd, label_cols, colors, size)
 
     continuous_cols = [col for col in label_cols if
                        (str(source_pd.dtypes[col]).startswith('float') or
@@ -706,14 +723,19 @@ def joint_plot(
         return p, density_renderers, max_densities
 
     xp = figure(title=title, height=int(height / 3), width=width, x_range=sp.x_range)
-    xp, x_renderers, x_max_densities = get_density_plot_items(source_pd, xp, axis='_x', colors=color_mappers, continuous_cols=continuous_cols, factor_cols=factor_cols)
+    xp, x_renderers, x_max_densities = get_density_plot_items(source_pd, xp, axis='_x', colors=sp_color_mappers, continuous_cols=continuous_cols, factor_cols=factor_cols)
     xp.xaxis.visible = False
     yp = figure(height=height, width=int(width / 3), y_range=sp.y_range)
-    yp, y_renderers, y_max_densities = get_density_plot_items(source_pd, yp, axis='_y', colors=color_mappers, continuous_cols=continuous_cols, factor_cols=factor_cols)
+    yp, y_renderers, y_max_densities = get_density_plot_items(source_pd, yp, axis='_y', colors=sp_color_mappers, continuous_cols=continuous_cols, factor_cols=factor_cols)
     yp.yaxis.visible = False
     density_renderers = x_renderers + y_renderers
     first_row = [xp]
 
+    if not legend:
+        sp_legend.visible = False
+        sp_color_bar.visible = False
+
+    # If multiple labels, create JS call back selector
     if len(label_cols) > 1:
 
         for factor_col, factor, renderer in density_renderers:
@@ -725,21 +747,17 @@ def joint_plot(
             yp.x_range.start = 0
             yp.x_range.end = y_max_densities[label_cols[0]]
 
-        # JS call back selector
-        callback = CustomJS(
-            args=dict(
-                legend_items=legend_items,
-                legend=legend,
-                color_bar=color_bar,
-                color_mappers=color_mappers,
-                scatter_renderers=scatter_renderers,
-                density_renderers=x_renderers + y_renderers,
-                x_range = xp.y_range,
-                x_max_densities=x_max_densities,
-                y_range=yp.x_range,
-                y_max_densities=y_max_densities
-            ), code="""
+        callback_args = dict(
+            scatter_renderers=sp_scatter_renderers,
+            color_mappers=sp_color_mappers,
+            density_renderers=x_renderers + y_renderers,
+            x_range = xp.y_range,
+            x_max_densities=x_max_densities,
+            y_range=yp.x_range,
+            y_max_densities=y_max_densities
+        )
 
+        callback_code="""
                 for (var i = 0; i < scatter_renderers.length; i++){
                     scatter_renderers[i].glyph.fill_color = {field: cb_obj.value, transform: color_mappers[cb_obj.value]}
                     scatter_renderers[i].glyph.line_color = {field: cb_obj.value, transform: color_mappers[cb_obj.value]}
@@ -749,7 +767,21 @@ def joint_plot(
                 for (var i = 0; i < density_renderers.length; i++){
                     density_renderers[i][2].visible = density_renderers[i][0] == cb_obj.value
                 }
+                
+                x_range.start = 0
+                y_range.start = 0
+                x_range.end = x_max_densities[cb_obj.value]
+                y_range.end = y_max_densities[cb_obj.value]
 
+                """
+
+        if legend:
+            callback_args.update(dict(
+                legend_items=sp_legend_items,
+                legend=sp_legend,
+                color_bar=sp_color_bar
+            ))
+            callback_code += """
                 if (cb_obj.value in legend_items){
                     legend.items=legend_items[cb_obj.value]
                     legend.visible=true
@@ -758,14 +790,11 @@ def joint_plot(
                     legend.visible=false
                     color_bar.visible=true
                 }
-                
-                x_range.start = 0
-                y_range.start = 0
-                x_range.end = x_max_densities[cb_obj.value]
-                y_range.end = y_max_densities[cb_obj.value]
 
-                """)
+                """
 
+
+        callback = CustomJS(args=callback_args, code=callback_code)
         select = Select(title="Color by", value=label_cols[0], options=label_cols)
         select.js_on_change('value', callback)
         first_row.append(select)
