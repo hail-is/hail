@@ -1,7 +1,6 @@
-from hailjwt import jwt_decode, jwt_encode, get_domain
+from .hailjwt import JWTClient, get_domain
 
 __all__ = [
-    jwt_decode,
-    jwt_encode,
+    JWTClient,
     get_domain
 ]
