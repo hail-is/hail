@@ -342,7 +342,7 @@ class PRS(object):
         else:
             log.info(f'deploy job {job.id} succeeded for {target.short_str()}')
             self.latest_deployed[target.ref] = target.sha
-        job.cancel()
+        job.delete()
 
     def refresh_from_deploy_jobs(self, jobs):
         lost_jobs = {target_ref for target_ref in self.deploy_jobs.keys()}
@@ -366,7 +366,7 @@ class PRS(object):
         elif state == 'Cancelled':
             log.info(f'refreshing from cancelled deploy job {job.id} {job.attributes}')
             del self.deploy_jobs[target.ref]
-            job.cancel()
+            job.delete()
         else:
             assert state == 'Created', f'{state} {job.id} {job.attributes}'
             existing_job = self.deploy_jobs[target.ref]
@@ -374,7 +374,7 @@ class PRS(object):
                 self.deploy_jobs[target.ref] = job
             elif existing_job.id != job.id:
                 log.info(f'found deploy job {job.id} other than mine {existing_job.id}, canceling')
-                job.cancel()
+                job.delete()
 
     def ci_build_finished(self, source, target, job):
         assert isinstance(job, Job), job
