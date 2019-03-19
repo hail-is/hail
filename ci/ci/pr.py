@@ -49,7 +49,7 @@ def try_new_build(source, target):
                     'TARGET_BRANCH': target.ref.name,
                     'TARGET_SHA': target.sha
                 },
-                resources=RESOURCES[target.repo],
+                resources=RESOURCES[target.ref.repo],
                 tolerations=[{
                     'key': 'preemptible',
                     'value': 'true'
