@@ -72,8 +72,6 @@ def create_all(google_project, kube_namespace):
     sa_name = create_service_id()
 
     gs_response = create_google_service_account(sa_name, google_project)
-
-    out['gsa_projectId'] = gs_response['projectId']
     out['gsa_email'] = gs_response['email']
 
     create_bucket(sa_name, out['gsa_email'])
@@ -115,7 +113,7 @@ def delete_all_idempotent(user_id, google_project='hail-vdc', kube_namespace='de
         return 404
 
     delete_all(existing, google_project, kube_namespace)
-    Table().delete(user_id)
+    table.delete(user_id)
 
 
 if __name__ == "__main__":

@@ -25,7 +25,6 @@ class MigrateTable(Table):
                 CREATE TABLE IF NOT EXISTS user_data (
                     id INT NOT NULL AUTO_INCREMENT,
                     user_id VARCHAR(255) NOT NULL,
-                    gsa_projectId VARCHAR(255) NOT NULL,
                     gsa_email VARCHAR(255) NOT NULL,
                     ksa_name VARCHAR(255) NOT NULL,
                     bucket_name VARCHAR(255) NOT NULL,
