@@ -17,7 +17,7 @@ with open('projects.yaml', 'r') as f:
 orig_hash = sys.argv[1]
 target_project = sys.argv[2]
 
-if target_project not in dependency_map.keys():
+if target_project not in dependency_map:
     sys.stderr.write('unknown project: {}\n'.format(target_project))
     exit(1)
 
@@ -29,7 +29,7 @@ if proc.returncode != 0:
 
 
 def get_project(line):
-    for project in dependency_map.keys():
+    for project in dependency_map:
         if line.startswith(project + '/'):
             return project
     return None
