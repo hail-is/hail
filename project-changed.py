@@ -10,12 +10,14 @@ outputs 'yes' if <project> changed in HEAD compared to <orig-hash> else 'no'.
     exit(1)
 
 with open('projects.yaml', 'r') as f:
-    projects = {x['project']: x for x in yaml.safe_load(f)}
+    dependency_map = {
+        x['project']: set(x.get('dependencies', []))
+        for x in yaml.safe_load(f)}
 
 orig_hash = sys.argv[1]
 target_project = sys.argv[2]
 
-if target_project not in projects.keys():
+if target_project not in dependency_map.keys():
     sys.stderr.write('unknown project: {}\n'.format(target_project))
     exit(1)
 
@@ -27,15 +29,21 @@ if proc.returncode != 0:
 
 
 def get_project(line):
-    for project in projects.keys():
+    for project in dependency_map.keys():
         if line.startswith(project + '/'):
             return project
     return None
 
 
-target_and_dependencies = projects[target_project].get('dependencies', [])
-target_and_dependencies.append(target_project)
-target_and_dependencies = set(target_and_dependencies)
+dependencies = set([])
+frontier = set(dependency_map[target_project])
+while frontier:
+    new_frontier = set([])
+    dependencies |= frontier
+    for dependency in frontier:
+        new_frontier |= (dependency_map[dependency] - dependencies)
+    frontier = new_frontier
+target_and_dependencies = dependencies | {target_project}
 
 IRRELEVANT_FILES = set([
     'project-changed.py', 'projects.yaml', 'env-setup.sh', 'README.md',
