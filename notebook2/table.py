@@ -43,7 +43,7 @@ class Table:
         secrets = Table.getSecrets()
 
         if not secrets:
-            raise "Couldn't read user-secrets"
+            raise "Couldn't read get-users secret"
 
         self.cnx = mysql.connector.connect(**secrets)
 
@@ -53,7 +53,7 @@ class Table:
         cursor.execute(
             """
             SELECT id, gsa_name, ksa_name, bucket_name
-            FROM users
+            FROM users.user_data
             WHERE user_id=%s
             """, (user_id,))
 
