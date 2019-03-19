@@ -1,6 +1,8 @@
 import datetime
 import collections
+import hailjwt as hj
 
+jwtclient = hj.JWTClient('secret')
 pod_name_job = {}
 job_id_job = {}
 batch_id_batch = {}

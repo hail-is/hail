@@ -16,7 +16,7 @@ import jinja2
 from aiohttp import web
 
 from .globals import max_id, _log_path, _read_file, pod_name_job, job_id_job, batch_id_batch
-from .globals import next_id, get_recent_events, add_event
+from .globals import next_id, get_recent_events, add_event, jwtclient
 
 from .. import schemas
 
