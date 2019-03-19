@@ -6,6 +6,8 @@ import bokeh
 import bokeh.io
 from bokeh.models import *
 from bokeh.plotting import figure
+from bokeh.transform import transform
+from bokeh.layouts import row, column, gridplot
 from itertools import cycle
 
 from hail.expr import aggregators
@@ -341,16 +343,19 @@ def _collect_scatter_plot_data(
         source_pd = pd.DataFrame(plot_data)
     else:
         # FIXME: remove the type conversion logic if/when downsample supports continuous values for labels
-        continuous_expr = {k: 'int32' for k,v in expressions.items() if isinstance(v, Int32Expression)}
-        continuous_expr.update({k: 'int64' for k,v in expressions.items() if isinstance(v, Int64Expression)})
-        continuous_expr.update({k: 'float32' for k, v in expressions.items() if isinstance(v, Float32Expression)})
-        continuous_expr.update({k: 'float64' for k, v in expressions.items() if isinstance(v, Float64Expression)})
-        if continuous_expr:
-            expressions = {k: hail.str(v) if not isinstance(v, StringExpression) else v for k,v in expressions.items()}
+        # Save all numeric types to cast in DataFrame
+        numeric_expr = {k: 'int32' for k,v in expressions.items() if isinstance(v, Int32Expression)}
+        numeric_expr.update({k: 'int64' for k,v in expressions.items() if isinstance(v, Int64Expression)})
+        numeric_expr.update({k: 'float32' for k, v in expressions.items() if isinstance(v, Float32Expression)})
+        numeric_expr.update({k: 'float64' for k, v in expressions.items() if isinstance(v, Float64Expression)})
+
+        # Cast non-string types to string
+        expressions = {k: hail.str(v) if not isinstance(v, StringExpression) else v for k,v in expressions.items()}
+
         agg_f = x[1]._aggregation_method()
         res = agg_f(hail.agg.downsample(x[1], y[1], label=list(expressions.values()) if expressions else None, n_divisions=n_divisions))
         source_pd = pd.DataFrame([dict(**{x[0]: point[0], y[0]: point[1]}, **dict(zip(expressions, point[2]))) for point in res])
-        source_pd = source_pd.astype(continuous_expr, copy=False)
+        source_pd = source_pd.astype(numeric_expr, copy=False)
 
     return source_pd
 
@@ -904,22 +909,10 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, n_divisi
     -------
     :class:`bokeh.plotting.figure.Figure`
     """
-    def get_contig_index(x, starts):
-        left = 0
-        right = len(starts) - 1
-        while left <= right:
-            mid = (left + right) // 2
-            if x < starts[mid]:
-                if x >= starts[mid - 1]:
-                    return mid - 1
-                right = mid
-            elif x >= starts[mid+1]:
-                left = mid + 1
-            else:
-                return mid
-
     if locus is None:
         locus = pvals._indices.source.locus
+
+    ref = locus.dtype.reference_genome
 
     if hover_fields is None:
         hover_fields = {}
@@ -928,26 +921,9 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, n_divisi
 
     pvals = -hail.log10(pvals)
 
-    if n_divisions is None:
-        res = hail.tuple([locus.global_position(), pvals, hail.struct(**hover_fields)]).collect()
-        hf_struct = [point[2] for point in res]
-        for key in hover_fields:
-            hover_fields[key] = [item[key] for item in hf_struct]
-    else:
-        agg_f = pvals._aggregation_method()
-        res = agg_f(aggregators.downsample(locus.global_position(), pvals,
-                                           label=hail.array([hail.str(x) for x in hover_fields.values()]),
-                                           n_divisions=n_divisions))
-        fields = [point[2] for point in res]
-        for idx, key in enumerate(list(hover_fields.keys())):
-            hover_fields[key] = [field[idx] for field in fields]
-
-    x = [point[0] for point in res]
-    y = [point[1] for point in res]
-    y_linear = [10 ** (-p) for p in y]
-    hover_fields['p_value'] = y_linear
-
-    ref = locus.dtype.reference_genome
+    source_pd = _collect_scatter_plot_data(('_global_locus', locus.global_position()), ('_pval', pvals), fields=hover_fields, n_divisions=n_divisions)
+    source_pd['p_value'] = [10 ** (-p) for p in source_pd['_pval']]
+    source_pd['_contig'] = [locus.split(":")[0] for locus in source_pd['locus']]
 
     total_pos = 0
     start_points = []
@@ -956,12 +932,8 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, n_divisi
         total_pos += ref.lengths.get(ref.contigs[i])
     start_points.append(total_pos)  # end point of all contigs
 
-    observed_contigs = set()
-    label = []
-    for element in x:
-        contig_index = get_contig_index(element, start_points)
-        label.append(str(contig_index % 2))
-        observed_contigs.add(ref.contigs[contig_index])
+    observed_contigs = set(source_pd['_contig'])
+    color_mapper = CategoricalColorMapper(factors=ref.contigs, palette= palette[:2] * int((len(ref.contigs)+1)/2))
 
     labels = ref.contigs.copy()
     num_deleted = 0
@@ -977,17 +949,16 @@ def manhattan(pvals, locus=None, title=None, size=4, hover_fields=None, n_divisi
             del labels[i - num_deleted]
             num_deleted += 1
 
-    p = scatter(x, y, label=label, title=title, xlabel='Chromosome', ylabel='P-value (-log10 scale)',
-                size=size, legend=False, hover_fields=hover_fields)
-
+    p = figure(title=title, x_axis_label='Chromosome', y_axis_label='P-value (-log10 scale)', width=1000)
+    p, _, legend, _, _, _ = _get_scatter_plot_elements(
+        p, source_pd, x_col='_global_locus', y_col='_pval',
+        label_cols=['_contig'], colors={'_contig': color_mapper},
+        size=size
+    )
+    legend.visible = False
     p.xaxis.ticker = mid_points
     p.xaxis.major_label_overrides = dict(zip(mid_points, labels))
-    p.width = 1000
-
-    tooltips = [(key, "@{}".format(key)) for key in hover_fields]
-    p.add_tools(HoverTool(
-        tooltips=tooltips
-    ))
+    p.select_one(HoverTool).tooltips = [t for t in p.select_one(HoverTool).tooltips if not t[0].startswith('_')]
 
     if significance_line is not None:
         p.renderers.append(Span(location=-log10(significance_line),
