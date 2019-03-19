@@ -15,6 +15,7 @@ class MigrateTable(Table):
             password=secrets['password']
         )
 
+    def up(self):
         cursor = self.cnx.cursor()
 
         cursor.execute("CREATE DATABASE IF NOT EXISTS users;")
@@ -39,5 +40,6 @@ class MigrateTable(Table):
 
 if __name__ == "__main__":
     migrations = MigrateTable()
+    migrations.up()
 
     print("Success")
