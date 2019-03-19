@@ -52,7 +52,7 @@ class Table:
 
         cursor.execute(
             """
-            SELECT id, gsa_name, ksa_name, bucket_name
+            SELECT id, gsa_email, ksa_name, bucket_name
             FROM users.user_data
             WHERE user_id=%s
             """, (user_id,))
@@ -63,7 +63,7 @@ class Table:
         if res is None:
             return {
                 'id': None,
-                'gsa_name': None,
+                'gsa_email': None,
                 'ksa_name': None,
                 'bucket_name': None,
             }
