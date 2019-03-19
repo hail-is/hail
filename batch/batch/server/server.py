@@ -461,7 +461,7 @@ authorized_users = [
 
 def authorized_users_only(fun):
     def wrapped(request, *args, **kwargs):
-        user = request.headers.get('Hail-User', '')
+        user = jwtclient.decode(request.cookies.get('user'))
         if user not in authorized_users:
             return '403 UNAUTHORIZED', 403
         if 'user' in fun.__code__.co_varnames:
