@@ -4,7 +4,7 @@
 #include <vector>
 
 struct NDArray {
-  int flags;
+  int flags; // least sig. bit denotes if row major
   size_t elem_size;
   std::vector<long> shape;
   std::vector<long> strides;
@@ -43,7 +43,7 @@ char const *load_ndarray_addr(NDArray nd, std::vector<long> indices) {
   int offset = 0;
   for (int i = 0; i < indices.size(); ++i) {
     if (indices[i] < 0 || indices[i] > nd.shape[i]) {
-      throw new FatalError("Invalid index: " + indices[i]);
+      throw new FatalError("Invalid index");
     }
     offset += nd.strides[i] * indices[i];
   }

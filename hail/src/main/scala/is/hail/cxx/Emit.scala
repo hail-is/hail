@@ -798,27 +798,25 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
           resultRegion)
 
       case ir.MakeNDArray(data, shape, rowMajor) =>
-        val elementPType = data.pType.asInstanceOf[PContainer].elementType
+        val dataContainer = data.pType.asInstanceOf[PContainer]
+        val elemPType = dataContainer.elementType
+        val shapeContainer = shape.pType.asInstanceOf[PContainer]
         val datat = emit(data)
         val shapet = emit(shape)
         val rowMajort = emit(rowMajor)
 
-        val elemSize = elementPType.byteSize
-        val elemAlignment = elementPType.alignment
+        val elemSize = elemPType.byteSize
         val flags = fb.variable("flags", "int", s"${rowMajort.v} ? 1 : 0")
         val shapeVec = fb.variable("shapeVec", "std::vector<long>",
-          s"load_vector<long, true, 8, 8>(${shapet.v})")
+          s"load_non_missing_vector<${shapeContainer.cxxImpl}>(${shapet.v})")
         val entries = fb.variable("entries", "const char *",
-          s"ArrayAddrImpl<true, $elemSize, $elemAlignment>::load_element(${datat.v}, 0)")
-        triplet(
+          s"${dataContainer.cxxImpl}::elements_address(${ datat.v })")
+        present(
           s"""
+             |({
              | ${ rowMajort.setup }
              | ${ shapet.setup }
              | ${ datat.setup }
-           """.stripMargin,
-          "false",
-          s"""
-             |({
              | if (${ rowMajort.m } || ${ shapet.m } || ${ datat.m }) {
              |   throw new FatalError("NDArray does not support missingness");
              | }
@@ -833,21 +831,24 @@ class Emitter(fb: FunctionBuilder, nSpecialArgs: Int, ctx: SparkFunctionContext)
       case ir.NDArrayRef(nd, idxs) =>
         fb.translationUnitBuilder().include("hail/NDArray.h")
         val elemType = typeToCXXType(nd.pType.asInstanceOf[PNDArray].elementType)
+        val idxsContainer = idxs.pType.asInstanceOf[PContainer]
 
         val ndt = emit(nd)
         val idxst = emit(idxs)
-        triplet(
-          s"""
-             | ${ ndt.setup }
-           """.stripMargin,
-          "false",
+
+        val idxsVec = fb.variable("idxsVec", "std::vector<long>",
+          s"load_non_missing_vector<${idxsContainer.cxxImpl}>(${idxst.v})")
+        present(
           s"""
              |({
+             | ${ ndt.setup }
+             | ${ idxst.setup }
              | if (${ ndt.m } || ${ idxst.m }) {
              |   throw new FatalError("NDArray does not support missingness");
              | }
              |
-             | load_element<$elemType>(load_ndarray_addr(${ndt.v}, load_vector<long, true, 8, 8>(${idxst.v})));
+             | ${ idxsVec.define }
+             | load_element<$elemType>(load_ndarray_addr(${ndt.v}, $idxsVec));
              |})
              |""".stripMargin)
       case _ =>
