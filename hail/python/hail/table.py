@@ -1135,7 +1135,7 @@ class Table(ExprContainer):
                       stage_locally=bool,
                       _codec_spec=nullable(str))
     def checkpoint(self, output: str, overwrite: bool = False, stage_locally: bool = False,
-                   _codec_spec: Optional[str] = None) -> 'Table':
+                   _codec_spec: Optional[str] = None, _read_if_exists: bool = False) -> 'Table':
         """Checkpoint the table to disk by writing and reading.
 
         Parameters
@@ -1166,7 +1166,8 @@ class Table(ExprContainer):
         >>> table1 = table1.checkpoint('output/table_checkpoint.ht')
 
         """
-        self.write(output=output, overwrite=overwrite, stage_locally=stage_locally, _codec_spec=_codec_spec)
+        if not _read_if_exists or not hl.hadoop_exists(f'{output}/_SUCCESS'):
+            self.write(output=output, overwrite=overwrite, stage_locally=stage_locally, _codec_spec=_codec_spec)
         return hl.read_table(output)
 
     @typecheck_method(output=str,
