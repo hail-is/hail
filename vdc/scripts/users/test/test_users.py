@@ -14,7 +14,7 @@ class TestCreatea(unittest.TestCase):
         data = create_all(google_project, kube_namespace)
 
         ksa_name = data['ksa_name']
-        gsa_name = f"projects/-/serviceAccounts/{data['gsa_email']}"
+        gsa_name = f"projects/{google_project}/serviceAccounts/{data['gsa_email']}"
         bucket_name = data['bucket_name']
 
         try:
