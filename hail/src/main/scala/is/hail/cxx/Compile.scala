@@ -13,11 +13,12 @@ import scala.reflect.classTag
 
 object Compile {
 
-  type EncodedLiterals = (PTuple, CodecSpec => Array[Byte])
+  type Literals = Array[Byte]
+  type EncodedLiterals = (PTuple, CodecSpec => Literals)
 
   val defaultSpec: CodecSpec = CodecSpec.defaultUncompressed
 
-  def makeNonmissingFunction(tub: TranslationUnitBuilder, body: ir.IR, args: (String, PType)*): (Function, Array[(String, (Array[Byte], NativeModule))], EncodedLiterals) = {
+  def makeNonmissingFunction(tub: TranslationUnitBuilder, body: ir.IR, args: (String, PType)*): (Function, Array[(String, (Literals, NativeModule))], EncodedLiterals) = {
     tub.include("hail/hail.h")
     tub.include("hail/Utils.h")
     tub.include("hail/Region.h")
@@ -73,11 +74,12 @@ object Compile {
     (fb.end(), mods, (litType, f))
   }
 
-  def makeEntryPoint(tub: TranslationUnitBuilder, literals: EncodedLiterals, fname: String, argTypes: PType*): Array[Byte] = {
+  def makeEntryPoint(tub: TranslationUnitBuilder, literals: EncodedLiterals, fname: String, argTypes: PType*): Literals = {
     val nArgs = argTypes.size
-    val rawArgs = ("long jregion" +: Array.tabulate(nArgs)(i => s"long v$i")).mkString(", ")
-    val sparkFunctionContext = "SparkFunctionContext(region, sparkUtils, lit_ptr)"
-    val castArgs = (sparkFunctionContext +: Array.tabulate(nArgs)(i => s"(${ typeToNonConstCXXType(argTypes(i)) }) v$i")).mkString(", ")
+    val rawArgs = if (nArgs == 0) "" else
+      Array.tabulate(nArgs)(i => s"long v$i").mkString(", ", ", ", "")
+    val castArgs = if (nArgs == 0) "" else
+      Array.tabulate(nArgs)(i => s"(${ typeToNonConstCXXType(argTypes(i)) }) v$i").mkString(", ", ", ", "")
 
     val (lType, encoded) = literals
     val litEnc = defaultSpec.buildNativeDecoderClass(lType, lType, tub).name
@@ -89,7 +91,7 @@ object Compile {
 
       def define: String =
         s"""
-           |long entrypoint(NativeStatus *st, long obj, $rawArgs) {
+           |long entrypoint(NativeStatus *st, long obj, long jregion $rawArgs) {
            |  try {
            |    UpcallEnv up;
            |    RegionPtr region = ((ScalaRegion *)jregion)->region_;
@@ -97,7 +99,7 @@ object Compile {
            |    jobject jlit_in = ((ObjectArray *) obj)->at(1);
            |    $litEnc lit_in { std::make_shared<InputStream>(up, jlit_in) };
            |    const char * lit_ptr = lit_in.decode_row(region.get());
-           |    return (long)$fname($castArgs);
+           |    return (long)$fname(SparkFunctionContext(region, sparkUtils, lit_ptr) $castArgs);
            |  } catch (const FatalError& e) {
            |    NATIVE_ERROR(st, 1005, e.what());
            |    return -1;
@@ -108,7 +110,7 @@ object Compile {
     encoded(defaultSpec)
   }
 
-  def compile(body: ir.IR, optimize: Boolean, args: Array[(String, PType)]): (NativeModule, SparkUtils, Array[Byte]) = {
+  def compile(body: ir.IR, optimize: Boolean, args: Array[(String, PType)]): (NativeModule, SparkUtils, Literals) = {
     val tub = new TranslationUnitBuilder
     val (f, mods, literals) = makeNonmissingFunction(tub, body, args: _*)
     val encLiterals = makeEntryPoint(tub, literals, f.name, args.map(_._2): _*)
