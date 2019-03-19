@@ -23,6 +23,9 @@ import requests
 import time
 import uuid
 import hashlib
+import jwt
+import base64
+import mysql.connector
 
 fmt = logging.Formatter(
    # NB: no space after levelname because WARNING is so long
@@ -84,6 +87,8 @@ app.config.update(
 
 AUTH0_CLIENT_ID = 'Ck5wxfo1BfBTVbusBeeBOXHp3a7Z6fvZ'
 AUTH0_BASE_URL = 'https://hail.auth0.com'
+
+SQL_HOST_DEF = os.environ.get('SQL_HOST')
 
 auth0 = oauth.register(
     'auth0',
@@ -264,6 +269,87 @@ def get_live_user_notebooks(user_id):
     return list(filter(lambda n: n['deletion_timestamp'] is None, notebooks_for_ui(pods)))
 
 
+class Table:
+    @staticmethod
+    def getSecret(b64str):
+        return base64.b64decode(b64str).decode('utf-8')
+
+    @staticmethod
+    def getSecrets():
+        secrets = {}
+
+        try:
+            res = k8s.read_namespaced_secret('user-secrets', 'default')
+            data = res.data
+
+            if SQL_HOST_DEF is not None:
+                host = SQL_HOST_DEF
+            else:
+                host = Table.getSecret(data['host'])
+
+            secrets['user'] = Table.getSecret(data['user'])
+            secrets['password'] = Table.getSecret(data['password'])
+            secrets['db'] = Table.getSecret(data['db'])
+            secrets['host'] = host
+        except kube.client.rest.ApiException as e:
+            print(e)
+
+        return secrets
+
+    def __init__(self):
+        secrets = Table.getSecrets()
+
+        if not secrets:
+            raise "Couldn't read user-secrets"
+
+        self.cnx = mysql.connector.connect(**secrets)
+        cursor = self.cnx.cursor()
+
+        cursor.execute(
+            """
+                CREATE TABLE IF NOT EXISTS users (
+                    id INT NOT NULL AUTO_INCREMENT,
+                    user_id VARCHAR(255) NOT NULL,
+                    gsa_name VARCHAR(255) NOT NULL,
+                    ksa_name VARCHAR(255) NOT NULL,
+                    bucket_name VARCHAR(255) NOT NULL,
+                    PRIMARY KEY (id),
+                    UNIQUE INDEX auth0_id (user_id)
+                ) ENGINE=INNODB;
+            """
+        )
+        self.cnx.commit()
+        cursor.close()
+
+    def get(self, user_id):
+        cursor = self.cnx.cursor(dictionary=True)
+
+        cursor.execute("SELECT * FROM users WHERE user_id=%s", (user_id,))
+        res = cursor.fetchone()
+
+        cursor.close()
+
+        return res
+
+    def insert(self, user_id, gsa_name, ksa_name, bucket_name):
+        cursor = self.cnx.cursor()
+        cursor.execute(
+            """
+            INSERT INTO users
+                (user_id, gsa_name, ksa_name, bucket_name)
+                VALUES (%s, %s, %s, %s)
+            """, (user_id, gsa_name, ksa_name, bucket_name))
+        self.cnx.commit()
+
+        cnt = cursor.rowcount
+
+        cursor.close()
+
+        return cnt == 1
+
+
+user_table = Table()
+
 @app.route('/healthcheck')
 def healthcheck():
     return '', 200
@@ -277,7 +363,7 @@ def root():
 @app.route('/notebook', methods=['GET'])
 @requires_auth()
 def notebook_page():
-    notebooks = get_live_user_notebooks(user_id = user_id_transform(session['user']['id']))
+    notebooks = get_live_user_notebooks(user_id = user_id_transform(session['user']['auth0_id']))
 
     # https://github.com/hail-is/hail/issues/5487
     assert len(notebooks) <= 1
@@ -315,7 +401,7 @@ def notebook_post():
 
     jupyter_token = uuid.uuid4().hex
     name = request.form.get('name', 'a_notebook')
-    safe_user_id = user_id_transform(session['user']['id'])
+    safe_user_id = user_id_transform(session['user']['auth0_id'])
 
     pod = start_pod(jupyter_token, WORKER_IMAGES[image], name, safe_user_id)
     session['notebook'] = notebooks_for_ui([pod])[0]
@@ -466,7 +552,7 @@ def auth0_callback():
         return redirect(external_url_for(f"error?err=Unauthorized"))
 
     session['user'] = {
-        'id': userinfo['sub'],
+        'auth0_id': userinfo['sub'],
         'name': userinfo['name'],
         'email': email,
         'picture': userinfo['picture'],
@@ -476,6 +562,17 @@ def auth0_callback():
         referrer = session['referrer']
         del session['referrer']
         return redirect(referrer)
+
+    secrets = user_table.get(userinfo['sub'])
+    print("SECRETS", userinfo['sub'], secrets)
+
+    res = flask.make_response()
+    res.set_cookie('user', {
+        'auth0_id': session['user']['auth0_id'],
+        'name': session['user']['name'],
+        'email': session['user']['email'],
+        **secrets
+    })
 
     return redirect('/')
 
