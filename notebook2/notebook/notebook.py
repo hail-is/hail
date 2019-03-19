@@ -73,11 +73,12 @@ INSTANCE_ID = uuid.uuid4().hex
 POD_PORT = 8888
 
 SECRET_KEY = read_string('/notebook-secrets/secret-key')
+SECURE_COOKIE_FLAG = os.environ.get("NOTEBOOK_DEBUG") != "1"
 app.config.update(
     SECRET_KEY = SECRET_KEY,
-    SESSION_COOKIE_SAMESITE = 'lax',
+    SESSION_COOKIE_SAMESITE = 'Lax',
     SESSION_COOKIE_HTTPONLY = True,
-    SESSION_COOKIE_SECURE = os.environ.get("NOTEBOOK_DEBUG") != "1"
+    SESSION_COOKIE_SECURE = SECURE_COOKIE_FLAG
 )
 
 AUTH0_CLIENT_ID = 'Ck5wxfo1BfBTVbusBeeBOXHp3a7Z6fvZ'
@@ -521,7 +522,7 @@ def auth0_callback():
         redir = redirect('/')
 
     response = flask.make_response(redir)
-    response.set_cookie('user', jwt_encode(g.user), domain=get_domain(request.host))
+    response.set_cookie('user', jwt_encode(g.user), domain=get_domain(request.host), secure=SECURE_COOKIE_FLAG, httponly=True, samesite='Lax')
 
     return response
 

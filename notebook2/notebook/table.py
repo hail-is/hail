@@ -32,7 +32,7 @@ class Table:
 
             secrets['user'] = Table.getSecret(data['user'])
             secrets['password'] = Table.getSecret(data['password'])
-            secrets['db'] = Table.getSecret(data['db'])
+            secrets['database'] = Table.getSecret(data['db'])
             secrets['host'] = host
         except kube.client.rest.ApiException as e:
             print(e)
@@ -53,7 +53,7 @@ class Table:
         cursor.execute(
             """
             SELECT id, gsa_email, ksa_name, bucket_name
-            FROM users.user_data
+            FROM user_data
             WHERE user_id=%s
             """, (user_id,))
 
