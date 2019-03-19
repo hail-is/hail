@@ -21,7 +21,7 @@ class Repo(object):
         return hash((self.owner, self.name))
 
     def __str__(self):
-        return json.dumps(self.to_json())
+        return json.dumps(self.to_dict())
 
     @staticmethod
     def from_short_str(s):
@@ -39,7 +39,7 @@ class Repo(object):
         assert 'name' in d, d
         return Repo(d['owner'], d['name'])
 
-    def to_json(self):
+    def to_dict(self):
         return {'owner': self.owner, 'name': self.name}
 
     @staticmethod
@@ -68,7 +68,7 @@ class FQRef(object):
         return hash((self.repo, self.name))
 
     def __str__(self):
-        return json.dumps(self.to_json())
+        return json.dumps(self.to_dict())
 
     @staticmethod
     def from_short_str(s):
@@ -86,8 +86,8 @@ class FQRef(object):
         assert 'name' in d, d
         return FQRef(Repo.from_json(d['repo']), d['name'])
 
-    def to_json(self):
-        return {'repo': self.repo.to_json(), 'name': self.name}
+    def to_dict(self):
+        return {'repo': self.repo.to_dict(), 'name': self.name}
 
 
 class FQSHA(object):
@@ -129,7 +129,7 @@ class FQSHA(object):
         return FQSHA(FQRef(Repo.from_gh_json(d['repo']), d['ref']), d['sha'])
 
     def __str__(self):
-        return json.dumps(self.to_json())
+        return json.dumps(self.to_dict())
 
     @staticmethod
     def from_json(d):
@@ -138,5 +138,5 @@ class FQSHA(object):
         assert 'sha' in d, d
         return FQSHA(FQRef.from_json(d['ref']), d['sha'])
 
-    def to_json(self):
-        return {'ref': self.ref.to_json(), 'sha': self.sha}
+    def to_dict(self):
+        return {'ref': self.ref.to_dict(), 'sha': self.sha}

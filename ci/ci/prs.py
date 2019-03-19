@@ -60,18 +60,18 @@ class PRS(object):
         return self.source_target_pr.get(source, {}).pop(target, None)
 
     def __str__(self):
-        return json.dumps(self.to_json())
+        return json.dumps(self.to_dict())
 
-    def to_json(self):
+    def to_dict(self):
         return {
-            '_watched_targets': [(ref.to_json(), deployable) for ref, deployable in self._watched_targets.items()],
-            'latest_deployed': [(ref.to_json(), latest_sha) for ref, latest_sha in self.latest_deployed.items()],
+            '_watched_targets': [(ref.to_dict(), deployable) for ref, deployable in self._watched_targets.items()],
+            'latest_deployed': [(ref.to_dict(), latest_sha) for ref, latest_sha in self.latest_deployed.items()],
             'deploy_jobs': [
-                (target.to_json(), job.id)
+                (target.to_dict(), job.id)
                 for target, job in self.deploy_jobs.items()
             ],
             'prs': [
-                y.to_json() for x in self.target_source_pr.values()
+                y.to_dict() for x in self.target_source_pr.values()
                 for y in x.values()
             ]
         }
@@ -195,7 +195,7 @@ class PRS(object):
         try:
             img = get_image_for_target(target_ref)
             attributes = {
-                'target': json.dumps(FQSHA(target_ref, latest_sha).to_json()),
+                'target': json.dumps(FQSHA(target_ref, latest_sha).to_dict()),
                 'image': img,
                 'type': DEPLOY_JOB_TYPE
             }
