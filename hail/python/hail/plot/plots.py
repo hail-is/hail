@@ -324,8 +324,8 @@ def histogram2d(x, y, bins=40, range=None,
 
 
 def _collect_scatter_plot_data(
-        x: NumericExpression,
-        y: NumericExpression,
+        x: Tuple[str, NumericExpression],
+        y: Tuple[str, NumericExpression],
         fields: Dict[str, Expression] = None,
         n_divisions: int = None,
         missing_label: str =  'NA'
@@ -336,21 +336,21 @@ def _collect_scatter_plot_data(
         expressions.update({k: hail.or_else(v, missing_label) if isinstance(v, StringExpression) else v for k, v in fields.items()})
 
     if n_divisions is None:
-        collect_expr = hail.struct(_x=x, _y=y, **expressions)
-        plot_data = [point for point in collect_expr.collect() if point._x is not None and point._y is not None]
+        collect_expr = hail.struct(**dict((k,v) for k,v in (x,y)), **expressions)
+        plot_data = [point for point in collect_expr.collect() if point[x[0]] is not None and point[y[0]] is not None]
         source_pd = pd.DataFrame(plot_data)
     else:
         # FIXME: remove the type conversion logic if/when downsample supports continuous values for labels
-        continous_expr = {k: 'int32' for k,v in expressions.items() if isinstance(v, Int32Expression)}
-        continous_expr.update({k: 'int64' for k,v in expressions.items() if isinstance(v, Int64Expression)})
-        continous_expr.update({k: 'float32' for k, v in expressions.items() if isinstance(v, Float32Expression)})
-        continous_expr.update({k: 'float64' for k, v in expressions.items() if isinstance(v, Float64Expression)})
-        if continous_expr:
-            expressions = {k: str(v) if not isinstance(v, StringExpression) else v for k,v in expressions.items()}
-        agg_f = x._aggregation_method()
-        res = agg_f(agg.downsample(x, y, label=list(expressions.values()) if expressions else None, n_divisions=n_divisions))
-        source_pd = pd.DataFrame([dict(_x=point[0], _y=point[1], **dict(zip(expressions, point[2]))) for point in res])
-        source_pd = source_pd.astype(continous_expr, copy=False)
+        continuous_expr = {k: 'int32' for k,v in expressions.items() if isinstance(v, Int32Expression)}
+        continuous_expr.update({k: 'int64' for k,v in expressions.items() if isinstance(v, Int64Expression)})
+        continuous_expr.update({k: 'float32' for k, v in expressions.items() if isinstance(v, Float32Expression)})
+        continuous_expr.update({k: 'float64' for k, v in expressions.items() if isinstance(v, Float64Expression)})
+        if continuous_expr:
+            expressions = {k: hail.str(v) if not isinstance(v, StringExpression) else v for k,v in expressions.items()}
+        agg_f = x[1]._aggregation_method()
+        res = agg_f(hail.agg.downsample(x[1], y[1], label=list(expressions.values()) if expressions else None, n_divisions=n_divisions))
+        source_pd = pd.DataFrame([dict(**{x[0]: point[0], y[0]: point[1]}, **dict(zip(expressions, point[2]))) for point in res])
+        source_pd = source_pd.astype(continuous_expr, copy=False)
 
     return source_pd
 
@@ -370,19 +370,22 @@ def _get_categorical_palette(factors: List[str]) -> Dict[str, str]:
 
 
 def _get_scatter_plot_elements(
-        sp: Plot, source_pd: pd.DataFrame, label_cols: List[str], colors: Dict[str, ColorMapper] = None, size: int = 4,
+        sp: Plot, source_pd: pd.DataFrame, x_col: str, y_col: str, label_cols: List[str],
+        colors: Dict[str, ColorMapper] = None, size: int = 4,
 ) -> Tuple[bokeh.plotting.Figure, Dict[str, List[LegendItem]], Legend, ColorBar, Dict[str, ColorMapper], List[Renderer]] :
 
     if not source_pd.shape[0]:
         print("WARN: No data to plot.")
         return sp, None, None, None, None, None
 
-    sp.tools.append(HoverTool(tooltips=[(x, f'@{x}') for x in source_pd.columns]))
+    sp.tools.append(HoverTool(tooltips=[(x_col, f'@{x_col}'), (y_col, f'@{y_col}')] +
+                                       [(c, f'@{c}') for c in source_pd.columns if c not in [x_col, y_col]]
+                              ))
 
     cds = ColumnDataSource(source_pd)
 
     if not label_cols:
-        sp.circle('_x', '_y', source=cds, size=size)
+        sp.circle(x_col, y_col, source=cds, size=size)
         return sp, None, None, None, None, None
 
     continuous_cols = [col for col in label_cols if
@@ -418,7 +421,7 @@ def _get_scatter_plot_elements(
 
     if not factor_cols:
         all_renderers = [
-            sp.circle('_x', '_y', color=transform(initial_col, initial_mapper), source=cds, size=size)
+            sp.circle(x_col, y_col, color=transform(initial_col, initial_mapper), source=cds, size=size)
         ]
 
     else:
@@ -427,7 +430,7 @@ def _get_scatter_plot_elements(
         for key in source_pd.groupby(factor_cols).groups.keys():
             key = key if len(factor_cols) > 1 else [key]
             cds_view = CDSView(source=cds, filters=[GroupFilter(column_name=factor_cols[i], group=key[i]) for i in range(0, len(factor_cols))])
-            renderer = sp.circle('_x', '_y', color=transform(initial_col, initial_mapper), source=cds, view=cds_view, size=size)
+            renderer = sp.circle(x_col, y_col, color=transform(initial_col, initial_mapper), source=cds, view=cds_view, size=size)
             all_renderers.append(renderer)
             for i in range(0, len(factor_cols)):
                 legend_items[factor_cols[i]][key[i]].append(renderer)
@@ -443,15 +446,16 @@ def _get_scatter_plot_elements(
     return sp, legend_items, legend, color_bar, color_mappers, all_renderers
 
 
-@typecheck(x=expr_numeric, y=expr_numeric,
+@typecheck(x=oneof(expr_numeric, sized_tupleof(str, expr_numeric)),
+           y=oneof(expr_numeric, sized_tupleof(str, expr_numeric)),
            label=nullable(oneof(expr_any, dictof(str, expr_any))), title=nullable(str),
            xlabel=nullable(str), ylabel=nullable(str), size=int, legend=bool,
            hover_fields=nullable(dictof(str, expr_any)),
            colors=nullable(oneof(bokeh.models.mappers.ColorMapper, dictof(str, bokeh.models.mappers.ColorMapper))),
            width=int, height=int, n_divisions=nullable(int), missing_label=str)
 def scatter(
-        x: NumericExpression,
-        y: NumericExpression,
+        x: Union[NumericExpression, Tuple[str, NumericExpression]],
+        y: Union[NumericExpression, Tuple[str, NumericExpression]],
         label: Union[Expression, Dict[str, Expression]] = None,
         title: str = None,
         xlabel: str = None,
@@ -467,7 +471,9 @@ def scatter(
 ) -> Union[bokeh.plotting.Figure, Column]:
     """Create an interactive scatter plot.
 
-       ``x`` and ``y`` must both be a :class:`NumericExpression` from the same :class:`Table`.
+       ``x`` and ``y`` must both be either:
+       - a :class:`NumericExpression` from the same :class:`Table`.
+       - a tuple (str, :class:`NumericExpression`) from the same :class:`Table`. If passed as a tuple the first element is used as the hover label.
 
        If no label or a single label is provided, then returns :class:`bokeh.plotting.figure.Figure`
        Otherwise returns a :class:`bokeh.plotting.figure.Column` containing:
@@ -487,9 +493,9 @@ def scatter(
 
         Parameters
         ----------
-        x : :class:`.NumericExpression`
+        x : :class:`.NumericExpression` or (str, :class:`.NumericExpression`)
             List of x-values to be plotted.
-        y : :class:`.NumericExpression`
+        y : :class:`.NumericExpression` or (str, :class:`.NumericExpression`)
             List of y-values to be plotted.
         label : :class:`.Expression` or Dict[str, :class:`.Expression`]]
             Either a single expression (if a single label is desired), or a
@@ -530,14 +536,18 @@ def scatter(
         :class:`bokeh.plotting.figure.Figure` if no label or a single label was given, otherwise :class:`bokeh.plotting.figure.Column`
         """
     hover_fields = {} if hover_fields is None else hover_fields
-    label = {} if label is None else {'_label': label} if isinstance(label, Expression) else label
-    colors = {'_label': colors} if isinstance(colors, ColorMapper) else colors
-
+    label = {} if label is None else {'label': label} if isinstance(label, Expression) else label
+    colors = {'label': colors} if isinstance(colors, ColorMapper) else colors
     label_cols = list(label.keys())
+    if isinstance(x, NumericExpression):
+        x = ('x', x)
+
+    if isinstance(y, NumericExpression):
+        y = ('y', y)
 
     source_pd = _collect_scatter_plot_data(x, y, fields={**hover_fields, **label}, n_divisions=n_divisions, missing_label=missing_label)
     sp = figure(title=title, x_axis_label=xlabel, y_axis_label=ylabel, height=height, width=width)
-    sp, sp_legend_items, sp_legend, sp_color_bar, sp_color_mappers, sp_scatter_renderers = _get_scatter_plot_elements(sp, source_pd, label_cols, colors, size)
+    sp, sp_legend_items, sp_legend, sp_color_bar, sp_color_mappers, sp_scatter_renderers = _get_scatter_plot_elements(sp, source_pd, x[0], y[0], label_cols, colors, size)
 
     if not legend:
         sp_legend.visible = False
@@ -584,15 +594,16 @@ def scatter(
     return sp
 
 
-@typecheck(x=expr_numeric, y=expr_numeric,
+@typecheck(x=oneof(expr_numeric, sized_tupleof(str, expr_numeric)),
+           y=oneof(expr_numeric, sized_tupleof(str, expr_numeric)),
            label=nullable(oneof(expr_any, dictof(str, expr_any))), title=nullable(str),
            xlabel=nullable(str), ylabel=nullable(str), size=int, legend=bool,
            hover_fields=nullable(dictof(str, expr_any)),
            colors=nullable(oneof(bokeh.models.mappers.ColorMapper, dictof(str, bokeh.models.mappers.ColorMapper))),
-           width=int, height=int, n_divisions=nullable(int), missing_lable=str)
+           width=int, height=int, n_divisions=nullable(int), missing_label=str)
 def joint_plot(
-        x: NumericExpression,
-        y: NumericExpression,
+        x: Union[NumericExpression, Tuple[str, NumericExpression]],
+        y: Union[NumericExpression, Tuple[str, NumericExpression]],
         label: Union[Expression, Dict[str, Expression]] = None,
         title: str = None,
         xlabel: str = None,
@@ -608,7 +619,9 @@ def joint_plot(
 ) -> Column:
     """Create an interactive scatter plot with marginal densities on the side.
 
-       ``x`` and ``y`` must both be a :class:`NumericExpression` from the same :class:`Table`.
+       ``x`` and ``y`` must both be either:
+       - a :class:`NumericExpression` from the same :class:`Table`.
+       - a tuple (str, :class:`NumericExpression`) from the same :class:`Table`. If passed as a tuple the first element is used as the hover label.
 
        This function returns a :class:`bokeh.plotting.figure.Column` containing two :class:`bokeh.plotting.figure.Row`:
        - The first row contains the X-axis marginal density and a selection widget if multiple entries are specified in the ``label``
@@ -627,9 +640,10 @@ def joint_plot(
 
         Parameters
         ----------
-        x : :class:`.NumericExpression`
+        ----------
+        x : :class:`.NumericExpression` or (str, :class:`.NumericExpression`)
             List of x-values to be plotted.
-        y : :class:`.NumericExpression`
+        y : :class:`.NumericExpression` or (str, :class:`.NumericExpression`)
             List of y-values to be plotted.
         label : :class:`.Expression` or Dict[str, :class:`.Expression`]]
             Either a single expression (if a single label is desired), or a
@@ -671,13 +685,18 @@ def joint_plot(
         """
     # Collect data
     hover_fields = {} if hover_fields is None else hover_fields
-    label = {} if label is None else {'_label': label} if isinstance(label, Expression) else label
-    colors = {'_label': colors} if isinstance(colors, ColorMapper) else colors
+    label = {} if label is None else {'label': label} if isinstance(label, Expression) else label
+    colors = {'label': colors} if isinstance(colors, ColorMapper) else colors
+    if isinstance(x, NumericExpression):
+        x = ('x', x)
+
+    if isinstance(y, NumericExpression):
+        y = ('y', y)
 
     label_cols = list(label.keys())
     source_pd = _collect_scatter_plot_data(x, y, fields={**hover_fields, **label}, n_divisions=n_divisions, missing_label=missing_label)
     sp = figure(title=title, x_axis_label=xlabel, y_axis_label=ylabel, height=height, width=width)
-    sp, sp_legend_items, sp_legend, sp_color_bar, sp_color_mappers, sp_scatter_renderers = _get_scatter_plot_elements(sp, source_pd, label_cols, colors, size)
+    sp, sp_legend_items, sp_legend, sp_color_bar, sp_color_mappers, sp_scatter_renderers = _get_scatter_plot_elements(sp, source_pd, x[0], y[0], label_cols, colors, size)
 
     continuous_cols = [col for col in label_cols if
                        (str(source_pd.dtypes[col]).startswith('float') or
@@ -687,22 +706,20 @@ def joint_plot(
     # Density plots
     def get_density_plot_items(
             source_pd,
+            data_col,
             p,
-            axis,
+            x_axis,
             colors: Dict[str, ColorMapper],
             continuous_cols: List[str],
             factor_cols: List[str]
     ):
-        """
-        axis should be either '_x' or '_y'
-        """
 
         density_renderers = []
         max_densities = {}
         if not factor_cols or continuous_cols:
-            dens, edges = np.histogram(source_pd[axis], density=True)
+            dens, edges = np.histogram(source_pd[data_col], density=True)
             edges = edges[:-1]
-            xy = (edges, dens) if axis == '_x' else (dens, edges)
+            xy = (edges, dens) if x_axis else (dens, edges)
             cds = ColumnDataSource({'x': xy[0], 'y': xy[1]})
             line = p.line('x', 'y', source=cds)
             density_renderers.extend([(col, "", line) for col in continuous_cols])
@@ -711,10 +728,10 @@ def joint_plot(
         for factor_col in factor_cols:
             factor_colors = colors.get(factor_col, _get_categorical_palette(list(set(source_pd[factor_col]))))
             factor_colors = dict(zip(factor_colors.factors, factor_colors.palette))
-            density_data = source_pd[[factor_col, axis]].groupby(factor_col).apply(lambda df: np.histogram(df[axis], density=True))
+            density_data = source_pd[[factor_col, data_col]].groupby(factor_col).apply(lambda df: np.histogram(df[axis], density=True))
             for factor, (dens, edges) in density_data.iteritems():
                 edges = edges[:-1]
-                xy = (edges, dens) if axis == '_x' else (dens, edges)
+                xy = (edges, dens) if x_axis else (dens, edges)
                 cds = ColumnDataSource({'x': xy[0], 'y': xy[1]})
                 density_renderers.append((factor_col, factor, p.line('x', 'y', color=factor_colors.get(factor, 'gray'), source=cds)))
                 max_densities[factor_col] = np.max(list(dens) + [max_densities.get(factor_col, 0)])
@@ -725,10 +742,10 @@ def joint_plot(
         return p, density_renderers, max_densities
 
     xp = figure(title=title, height=int(height / 3), width=width, x_range=sp.x_range)
-    xp, x_renderers, x_max_densities = get_density_plot_items(source_pd, xp, axis='_x', colors=sp_color_mappers, continuous_cols=continuous_cols, factor_cols=factor_cols)
+    xp, x_renderers, x_max_densities = get_density_plot_items(source_pd, x[0], xp, x_axis=True, colors=sp_color_mappers, continuous_cols=continuous_cols, factor_cols=factor_cols)
     xp.xaxis.visible = False
     yp = figure(height=height, width=int(width / 3), y_range=sp.y_range)
-    yp, y_renderers, y_max_densities = get_density_plot_items(source_pd, yp, axis='_y', colors=sp_color_mappers, continuous_cols=continuous_cols, factor_cols=factor_cols)
+    yp, y_renderers, y_max_densities = get_density_plot_items(source_pd, y[0], yp, x_axis=False, colors=sp_color_mappers, continuous_cols=continuous_cols, factor_cols=factor_cols)
     yp.yaxis.visible = False
     density_renderers = x_renderers + y_renderers
     first_row = [xp]
