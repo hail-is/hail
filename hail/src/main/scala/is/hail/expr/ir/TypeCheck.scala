@@ -11,21 +11,21 @@ object TypeCheck {
   def apply(ir: BaseIR, env: BindingEnv[Type]): Unit = {
     try {
       ir match {
-        case ir: IR => _apply(ir, env)
-        case tir: TableIR => _apply(tir)
-        case mir: MatrixIR => _apply(mir)
-        case bmir: BlockMatrixIR => _apply(bmir)
+        case ir: IR => check(ir, env)
+        case tir: TableIR => check(tir)
+        case mir: MatrixIR => check(mir)
+        case bmir: BlockMatrixIR => check(bmir)
       }
     } catch {
       case e: Throwable => fatal(s"Error while typechecking IR:\n${ Pretty(ir) }", e)
     }
   }
 
-  private def _apply(tir: TableIR): Unit = checkChildren(tir)
+  private def check(tir: TableIR): Unit = checkChildren(tir)
 
-  private def _apply(mir: MatrixIR): Unit = checkChildren(mir)
+  private def check(mir: MatrixIR): Unit = checkChildren(mir)
 
-  private def _apply(bmir: BlockMatrixIR): Unit = ()
+  private def check(bmir: BlockMatrixIR): Unit = () // FIXME
 
   private def checkChildren(ir: BaseIR, baseEnv: Option[BindingEnv[Type]] = None): Unit = {
     ir.children
@@ -34,19 +34,15 @@ object TypeCheck {
       .foreach {
         case (child: IR, i) =>
           val e = ChildEnvWithBindings(ir, i, baseEnv.getOrElse(BindingEnv.empty))
-          _apply(child, e)
-        case (tir: TableIR, _) => _apply(tir)
-        case (mir: MatrixIR, _) => _apply(mir)
-        case (bmir: BlockMatrixIR, _) => _apply(bmir)
+          check(child, e)
+        case (tir: TableIR, _) => check(tir)
+        case (mir: MatrixIR, _) => check(mir)
+        case (bmir: BlockMatrixIR, _) => check(bmir)
       }
 
   }
 
-  private def _apply(ir: IR, env: BindingEnv[Type]): Unit = {
-    def check(ir: IR, env: BindingEnv[Type] = env) {
-      _apply(ir, env)
-    }
-
+  private def check(ir: IR, env: BindingEnv[Type]): Unit = {
     ir match {
       case I32(x) =>
       case I64(x) =>
@@ -243,7 +239,7 @@ object TypeCheck {
       case CollectDistributedArray(ctxs, globals, cname, gname, body) =>
         assert(ctxs.typ.isInstanceOf[TArray])
       case x@ReadPartition(path, _, _, rowType) =>
-        check(path.typ == TString())
+        assert(path.typ == TString())
         assert(x.typ == TArray(rowType))
     }
 
