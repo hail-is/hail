@@ -75,13 +75,11 @@ object StringFunctions extends RegistryFunctions {
       Let(len.name, invoke("length", s),
         Let(idx.name,
           If((i < -len) || (i >= len),
-            Die(invoke("concat",
+            Die(invoke("+",
               Str("string index out of bounds: "),
-              invoke("concat",
+              invoke("+",
                 invoke("str", i),
-                invoke("concat",
-                  Str(" / "),
-                  invoke("str", len)))), TInt32()),
+                invoke("+", Str(" / "), invoke("str", len)))), TInt32()),
             If(i < 0, i + len, i)),
         invoke("slice", s, idx, idx + 1)))
     }
