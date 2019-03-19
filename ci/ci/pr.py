@@ -21,7 +21,7 @@ from .shell_helper import shell
 
 
 RESOURCES = collections.defaultdict(
-    {'requests': {'cpu': '0.100', 'memory': '0.100G'}})
+    lambda: {'requests': {'cpu': '0.100', 'memory': '0.100G'}})
 RESOURCES[Repo('hail-is', 'hail')] = {
     'requests': {'cpu': '3.7', 'memory': '4G'}}
 
